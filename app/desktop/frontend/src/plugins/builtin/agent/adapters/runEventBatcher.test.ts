@@ -6,9 +6,11 @@ import { createRunEventBatcher } from "./runEventBatcher";
 const runStarted = (): RunEvent["event"] =>
   ({ type: "segment.started", run: { id: "run_1", sessionId: "ses_1" } }) as RunEvent["event"];
 
+// A completed outcome carries its result: the wire union requires it, because a
+// terminal run that cannot say how it ended is the state the store forbids.
 const runFinished = (): RunEvent["event"] => ({
   type: "segment.finished",
-  outcome: { type: "completed" },
+  outcome: { type: "completed", result: { durationMs: 1 } },
 });
 
 function frameScheduler() {

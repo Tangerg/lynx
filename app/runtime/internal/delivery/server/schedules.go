@@ -25,7 +25,7 @@ func (s *Server) ListSchedules(ctx context.Context, query protocol.PageQuery) (*
 	for _, sc := range page.Rows {
 		out = append(out, scheduleToWire(sc))
 	}
-	return &protocol.Page[protocol.Schedule]{Data: out, NextCursor: page.NextCursor}, nil
+	return protocol.NewPageWithCursor(out, page.NextCursor), nil
 }
 
 // CreateSchedule adds an enabled schedule (schedules.create), computing its

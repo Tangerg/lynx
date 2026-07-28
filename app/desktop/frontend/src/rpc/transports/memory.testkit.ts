@@ -11,7 +11,7 @@
 // this module.
 
 import type { MemoryTransport } from "./memory";
-import type { RunOutcome, StreamEvent } from "../shapes";
+import type { RunOutcome, StreamEvent } from "../wire.generated";
 import { RUN_EVENT_METHOD } from "../stream";
 import { JSONRPC_VERSION, isRequest, type RpcId, type RpcMessage, type RpcRequest } from "../types";
 

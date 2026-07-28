@@ -27,7 +27,13 @@ import (
 // Without it, "generated" degrades into "generated once".
 func TestGeneratedContractHasNoDrift(t *testing.T) {
 	root := moduleRoot(t)
-	regenerated := regenerateContract(t, root)
+	regenerated, regeneratedTS := regenerateContract(t, root)
+
+	// The TypeScript types live in the frontend's own tree, so they are compared
+	// separately — but by the same rule: the generator reran and nothing moved.
+	if !bytes.Equal(readArtifact(t, regeneratedTS, tsWireTypes), readArtifact(t, filepath.Join(root, tsWireDir), tsWireTypes)) {
+		t.Errorf("%s/%s is stale — run `go generate ./...` and commit the result", tsWireDir, tsWireTypes)
+	}
 
 	fresh := artifactNames(t, regenerated)
 	committed := artifactNames(t, filepath.Join(root, "contract"))
@@ -51,16 +57,25 @@ func TestGeneratedContractHasNoDrift(t *testing.T) {
 	}
 }
 
-func regenerateContract(t *testing.T, root string) string {
+// Where the generated TypeScript lands, mirroring the go:generate directive on
+// dispatch's contract_methods.go. The frontend consumes the wire types from its own
+// tree — a client that imported them across the module boundary would not build.
+const (
+	tsWireDir   = "../desktop/frontend/src/rpc"
+	tsWireTypes = "wire.generated.ts"
+)
+
+func regenerateContract(t *testing.T, root string) (artifacts, typescript string) {
 	t.Helper()
 
-	out := t.TempDir()
-	cmd := exec.Command("go", "run", "github.com/Tangerg/lynx/app/runtime/cmd/contractgen", "-out", out)
+	artifacts, typescript = t.TempDir(), t.TempDir()
+	cmd := exec.Command("go", "run", "github.com/Tangerg/lynx/app/runtime/cmd/contractgen",
+		"-out", artifacts, "-ts", typescript)
 	cmd.Dir = root
 	if combined, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("run contractgen: %v\n%s", err, combined)
 	}
-	return out
+	return artifacts, typescript
 }
 
 func artifactNames(t *testing.T, dir string) []string {

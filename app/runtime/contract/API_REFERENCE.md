@@ -241,6 +241,15 @@ least one variant; the registry refuses a union where one does not.
 | `text` | `text` | — |
 | `image` | `mime`, `data` | — |
 
+### `DiffRow`
+
+| tag | required | optional |
+| --- | --- | --- |
+| `hunk` | `text` | — |
+| `context` | `code`, `leftLine`, `rightLine` | — |
+| `added` | `code`, `rightLine` | — |
+| `deleted` | `code`, `leftLine` | — |
+
 ## Capability gating
 
 A rule with a condition gates one OPTION of a method; the method itself stays

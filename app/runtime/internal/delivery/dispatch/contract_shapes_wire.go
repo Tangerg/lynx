@@ -22,6 +22,7 @@ func buildShapes() *Shapes {
 	registerInterruptUnions(s)
 	registerEventUnions(s)
 	registerArtifactUnions(s)
+	registerDiffUnions(s)
 	registerObjectConstraints(s)
 	registerStateKeys(s)
 	registerCarriedShapes(s)
@@ -212,6 +213,27 @@ func registerArtifactUnions(s *Shapes) {
 		Variants: []VariantSpec{
 			{Tag: string(protocol.ContentBlockText), Required: []string{"text"}},
 			{Tag: string(protocol.ContentBlockImage), Required: []string{"mime", "data"}},
+		},
+	})
+}
+
+func registerDiffUnions(s *Shapes) {
+	// A diff row's godoc has always described a union — a hunk carries text, a context
+	// row carries both line numbers, an added row only the right one — and the frontend
+	// modeled it as one. Nothing said so on the wire, so the generated shape permitted
+	// a row carrying a hunk's text AND both line numbers at once.
+	s.union(UnionSpec{
+		GoType:        typeOf[protocol.DiffRow](),
+		Discriminator: "type",
+		Variants: []VariantSpec{
+			{Tag: string(protocol.DiffRowHunk), Required: []string{"text"}},
+			// The line numbers are `omitempty` because one flat struct serves four
+			// tags, so an added row must be able to drop leftLine. They are REQUIRED
+			// here anyway: a context row carries both, and a unified diff numbers
+			// lines from 1, so the zero omitempty drops never occurs.
+			{Tag: string(protocol.DiffRowContext), Required: []string{"code", "leftLine", "rightLine"}},
+			{Tag: string(protocol.DiffRowAdded), Required: []string{"code", "rightLine"}},
+			{Tag: string(protocol.DiffRowDeleted), Required: []string{"code", "leftLine"}},
 		},
 	})
 }

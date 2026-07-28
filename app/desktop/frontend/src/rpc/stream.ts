@@ -19,7 +19,7 @@
 import { z } from "zod";
 import { createPushPullChannel, type PushPullChannel } from "./channel";
 import type { RpcClient } from "./client";
-import type { RunEvent, StreamEvent, WorkspaceEvent } from "./shapes";
+import type { RunEvent, StreamEvent, WorkspaceEvent } from "./wire.generated";
 import { STREAM_DOWN_METHOD, WORKSPACE_SUBSCRIBE_METHOD, type StreamDownParams } from "./transport";
 
 export const RUN_EVENT_METHOD = "notifications.run.event";

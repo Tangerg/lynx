@@ -25,6 +25,13 @@ import (
 // decoder ignores unknown fields, so a closed schema would reject frames the
 // runtime accepts — a schema stricter than the code is as much a lie as one
 // looser, and the strict version breaks every forward-compatible client.
+//
+// Nor does it widen a required field to accept null. A nil Go slice or map DOES
+// marshal to null, so a mechanical reading would publish `T[] | null` on most list
+// fields — but `required` already states the contract: the field is there, with a
+// value of that type. Publishing the null would push a runtime defect onto every
+// client as defensive code, forever. The validator rejects it instead, which is
+// where a broken frame should surface.
 
 // refPrefix is where a definition lives inside the bundle. Other artifacts point
 // at the same bundle rather than carrying a second copy of the shapes.
@@ -163,13 +170,7 @@ func (s *schemaSet) define(t reflect.Type, body *schema) *schema {
 func (s *schemaSet) object(t reflect.Type) *schema {
 	out := &schema{Type: "object", Properties: make(map[string]any)}
 	for _, field := range protocol.WireFields(t) {
-		node := s.walk(field.Type)
-		if !field.Optional && canBeNil(field.Type) {
-			// Without omitempty a nil slice, map or pointer marshals as null. The
-			// schema has to accept what the encoder emits.
-			node = nullable(node)
-		}
-		out.Properties[field.Name] = node
+		out.Properties[field.Name] = s.walk(field.Type)
 		if !field.Optional {
 			out.Required = append(out.Required, field.Name)
 		}
@@ -353,30 +354,6 @@ func normalize(node *schema) {
 	normalize(node.Items)
 	normalize(node.If)
 	normalize(node.Then)
-}
-
-// nullable widens a schema to accept the null a nil Go value marshals to.
-func nullable(node *schema) *schema {
-	switch {
-	case node.Ref == "" && node.Type == nil:
-		// Already any JSON value, null included.
-		return node
-	case node.Ref != "":
-		return &schema{AnyOf: []*schema{node, {Type: "null"}}}
-	default:
-		name, _ := node.Type.(string)
-		node.Type = []string{name, "null"}
-		return node
-	}
-}
-
-func canBeNil(t reflect.Type) bool {
-	switch t.Kind() {
-	case reflect.Pointer, reflect.Slice, reflect.Map, reflect.Interface:
-		return true
-	default:
-		return false
-	}
 }
 
 // defName is the published name of a Go type. A generic instantiation's

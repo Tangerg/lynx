@@ -552,7 +552,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 |---|---|---|---|
 | B1 | Registry 骨架 + 方法注册：`MethodMeta{Name,Kind,Idempotency,Errors,CapabilityRules,Stability}`；`Unary[P,R]` / `Stream[P,A,E]` 泛型工厂生成 decode/invoke/encode closure；**dispatcher 直接消费 Registry，删掉第二份 method table**（`dispatch/method_names.go`）；登记全部 83 方法 + 2 notification；`CapabilityRule.When` 支持条件门控（`sessionExport` 无条件；`checkpoints` 仅当 `restoreType ∈ {files,both}`） | `DONE` | 见下 |
 | B2 | Union 与约束 metadata：`UnionSpec` / `ObjectConstraintSpec` / `FieldCondition` / `PresenceRule` / `StateKeySpec`；登记契约 §11.2 点名的 13 类高风险 union（先按当前 shape）。`SystemInvariantSpec` 按 **D3** 注册在 application | `DONE` | 见下 |
-| B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `IN PROGRESS` | 见下（**11/14** + drift gate + gate 4） |
+| B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `IN PROGRESS` | 见下（**12/14** + drift gate + gate 4） |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `IN PROGRESS` | 见下 |
 
 #### ⚠️ B4 进度（2026-07-29）：18 项中 6 项已落，4 项待 B3 余量，4 项待 C
@@ -571,7 +571,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | 8 / 11 | invariant integration fixture / list query fixture | ⏸ 待编（invariant key 已在 `application/contract` 声明齐，fixture 侧未建） |
 | 15 / 16 / 17 / 18 | Artifact v7 round-trip / 三项 compatibility diff | ⏸ 依赖 C（按计划先留骨架） |
 
-#### ⚠️ B3 进度与交接（2026-07-29）：11/14 产物 + drift gate + gate 4 已落，余 3 类
+#### ⚠️ B3 进度与交接（2026-07-29）：12/14 产物 + drift gate + gate 4 已落，余 2 类
 
 **已落地**（`cmd/contractgen` → `app/runtime/contract/manifest.json`，38KB，`go:generate` 挂在
 `internal/delivery/dispatch/contract_methods.go`）：
@@ -624,7 +624,44 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 **嵌套在数组里的引用**留在了 openrpc.json 里指向自己（3 处 dangling）。改成深拷贝重写 —— 拷贝而非就地改，是为了
 两份文档相互独立：渲染一份永远不可能在另一份里留下本地引用。gate 4 的解析器正是为抓这类错写的。
 
-**余 3 类**：TypeScript wire types · authoritative/terminal validators · method constants + typed client stubs。
+**第 12 类 TypeScript wire types 已落地**（`app/desktop/frontend/src/rpc/wire.generated.ts`，1290 行）—— 手写的
+`src/rpc/shapes.ts`（1304 行）**已删**，`memory: project_lyra_no_protocol_ts_codegen 的"拒 codegen"结论由本批推翻**：
+当年的理由是「Go flat-struct 不映 TS union」，而 B2 的 union spec 正好补上了 reflection 缺的那一半，现在生成的是**真正的
+discriminated union**（比手写的更严）。
+
+**TS 由 schema 树派生，不做第二次 Go 类型 walk** —— 两次独立 walk 就是同一形状的两个作者，而 gate 6 要的正是"schema 与
+TS 等价"。派生使等价**结构上成立**：不存在"schema 里禁、TS 里放"的路径。
+
+**Go 泛型还原成 TS 泛型**：reflect 只看得见实例化（`Page[Session]`），发 19 份 `PageOfX` interface 会打断前端所有泛型
+helper，所以从一个实例化里把类型参数替换出来生成 `Page<T>`，**其余每个实例化必须复现同一份 body，否则生成失败**。
+
+**一条规则被这次落地推翻（重要）**：walker 原先按 Go 类型机械地把"required 且可为 nil"的字段发成 `T[] | null`
+（nil slice marshal 成 null 是事实）。生成后前端报出 34 处 null 检查 —— 这说明**规则错了**：`required` 本身就是契约
+（"字段在，且是这个类型的值"）；把 null 发出去等于把一个 runtime 缺陷**永久转嫁**成每个客户端的防御代码。改为：
+required 字段不加 null，**违反由 validator 抓**（那才是坏帧该现形的地方）。同时把 `Page` 的构造收成
+`NewPage` / `NewPageWithCursor` 两个都归一化 nil→`[]` 的构造器（7 处字面量构造中真有可能发 `null`，且与其他 list 方法
+发 `[]` 不一致 —— 客户端得按方法分别处理"空"）。
+
+**生成 TS 当场咬出 3 个真错**：
+1. **`DiffRow` 是 union，却从未登记。** godoc 一直写着 `hunk → Text` / `context → LeftLine,RightLine,Code`，前端也一直
+   按 union 建模，但 wire 上没有任何声明 —— published shape 允许一行同时带 hunk 的 text 和两个行号。已登记（union 数
+   12 → 13），`leftLine`/`rightLine` 在各自 variant 里标 required（`omitempty` 是因为一个 flat struct 服务四个 tag，而
+   unified diff 行号从 1 起，那个 0 值省略永不发生）。
+2. **`WatchSpec.Path` 的 tag 与 canonical 文档相反。** AUX_API §3 写 `path?` 且明文「当前未用」（后端不递归监视，理由在
+   §3），Go 却是 `json:"path"`（必发）。改成 `omitempty` 对齐文档 —— 这是 A1 那轮漏掉的一处 doc↔code 漂移。
+3. **前端 `ResumeRunResponse` / `TodoItem` / `ScheduleInput` / `SubscribeWorkspaceRequest` / `WorkspaceQuery` 五个类型名
+   与后端不一致**，且 10 个 re-export（`ItemBase` / `ApprovalPayload` / `ServerFeatures` / `JsonSchema` …）**零消费者**
+   —— 前者改名对齐，后者删。`isDurableEvent` / `DURABLE_EVENT_TYPES` 同样零消费者，删；`STREAM_EVENT_TYPES` 换成生成的
+   `WIRE_ENUMS.StreamEventType`（union type 在运行时不存在，所以 enum 的值集也生成一份数据面）。
+
+**前端 branded id 的归属定案**：wire 类型用裸 `string`，brand 留在 `ids.ts` 并**在解析点**贴（`asRunId(...)`）——
+这本来就是 `ids.ts` 自己写的设计（"At the wire boundary plain strings arrive from JSON.parse"），手写 shapes.ts 把 brand
+放进 wire 接口反而与它矛盾。`RunId = string & {…}` 可赋给 `string`，所以只有 wire→app 方向需要贴，共 3 处 adapter。
+
+**工具配置**：`knip.json` 的 ignore 从 `src/rpc/shapes.ts` 换成 `wire.generated.ts`；`.prettierignore` 加同一文件
+（生成物的格式属于生成器）。
+
+**余 2 类**：authoritative/terminal validators · method constants + typed client stubs。
 
 **接手须知（避免重新推导）**：
 - `MethodMeta` 现带 `Params` / `Result` / `Event` 三个 `reflect.Type`（工厂填，`Result` 对 ack-only 方法为 nil、

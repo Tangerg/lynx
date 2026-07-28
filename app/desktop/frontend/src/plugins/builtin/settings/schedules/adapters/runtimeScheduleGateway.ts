@@ -1,10 +1,10 @@
 import { getContainer } from "@/main/container";
-import type { ScheduleInput } from "@/rpc";
+import type { CreateScheduleRequest } from "@/rpc";
 import { configureScheduleGateway } from "../application/ports/scheduleGateway";
 import type { ScheduleGateway } from "../application/ports/scheduleGateway";
 import type { ScheduleConfigInput } from "../application/scheduleConfig";
 
-function scheduleInput(input: ScheduleConfigInput): ScheduleInput {
+function scheduleInput(input: ScheduleConfigInput): CreateScheduleRequest {
   return {
     title: input.title,
     prompt: input.prompt,

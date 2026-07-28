@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Page } from "./shapes";
+import type { Page } from "./wire.generated";
 import { collectPages, eachPage } from "./pagination";
 
 function pager<T>(pages: T[][]): (cursor?: string) => Promise<Page<T>> {

@@ -40,12 +40,17 @@ func TestRegisteredShapesDescribeRealTypes(t *testing.T) {
 // must therefore have a spec. The four the contract also names — SegmentOutcome,
 // ItemListScope, CapabilityRequirement, CancelRunResponse — arrive with the vNext
 // cutover; registering a shape for a type nobody can send would check nothing.
+//
+// DiffRow is not one of the thirteen §11.2 names: its godoc always described a
+// union and the frontend always modeled it as one, but nothing on the wire said
+// so, so the published shape allowed a row with a hunk's text and both line
+// numbers. Generating the TypeScript is what surfaced it.
 func TestEveryClosedWireUnionIsRegistered(t *testing.T) {
 	t.Parallel()
 
 	want := []string{
 		"ArtifactContentBlock", "ArtifactItem", "ArtifactOutcome",
-		"ContentBlock", "Interrupt", "InterruptResponseValue", "Item", "ItemDelta",
+		"ContentBlock", "DiffRow", "Interrupt", "InterruptResponseValue", "Item", "ItemDelta",
 		"QuestionField", "RunOutcome", "StreamEvent", "WorkspaceEvent",
 	}
 	got := make([]string, 0, len(shapes.Unions()))

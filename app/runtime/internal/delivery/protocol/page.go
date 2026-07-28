@@ -16,15 +16,23 @@ type Page[T any] struct {
 	NextCursor string `json:"nextCursor,omitempty"`
 }
 
-// NewPage wraps a fully-materialized (bounded) slice as a single page with
-// no continuation cursor — the common case for local, non-paginated lists.
-// data is normalized to a non-nil empty slice so the wire carries `[]`, not
-// `null`. Methods that genuinely paginate set NextCursor themselves.
-func NewPage[T any](data []T) *Page[T] {
+// NewPage wraps a fully-materialized (bounded) slice as a single page with no
+// continuation cursor — the common case for local, non-paginated lists.
+func NewPage[T any](data []T) *Page[T] { return NewPageWithCursor(data, "") }
+
+// NewPageWithCursor wraps one page of a keyset read: its rows plus the cursor that
+// continues it.
+//
+// Both constructors normalize nil to an empty slice, and building a Page any other
+// way is a bug: a nil slice marshals to `null`, so a caller that assembled its rows
+// with `var out []T` and matched nothing would put `"data": null` on the wire while
+// every other list method sent `[]`. A client would then have to handle two shapes
+// for "no rows" depending on which method it called.
+func NewPageWithCursor[T any](data []T, nextCursor string) *Page[T] {
 	if data == nil {
 		data = []T{}
 	}
-	return &Page[T]{Data: data}
+	return &Page[T]{Data: data, NextCursor: nextCursor}
 }
 
 // WorkspaceListQuery is WorkspaceQuery + pagination — the input for the

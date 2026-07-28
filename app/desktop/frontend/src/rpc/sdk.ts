@@ -20,7 +20,7 @@
 
 import { createRpcClient, type RpcClient } from "./client";
 import { createMethods, type Methods } from "./methods";
-import type { RequestMeta } from "./shapes";
+import type { RequestMeta } from "./wire.generated";
 import type { Transport } from "./transport";
 
 /** Options for [createLyraClient]. */

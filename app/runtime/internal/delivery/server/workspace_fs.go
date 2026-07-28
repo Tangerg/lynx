@@ -38,7 +38,7 @@ func (s *Server) ListWorkspaceFiles(ctx context.Context, in protocol.ListFilesRe
 			ModifiedAt: entry.ModifiedAt.Format(time.RFC3339Nano),
 		})
 	}
-	return &protocol.Page[protocol.FileEntry]{Data: data, NextCursor: page.NextCursor}, nil
+	return protocol.NewPageWithCursor(data, page.NextCursor), nil
 }
 
 func fileEntryTypeWire(kind workspaceapp.FileEntryKind) (protocol.FileEntryType, bool) {

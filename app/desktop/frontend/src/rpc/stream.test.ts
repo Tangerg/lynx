@@ -10,7 +10,7 @@
 
 import type { NotificationHandler, RpcClient } from "./client";
 import { describe, expect, it } from "vitest";
-import type { RunEvent } from "./shapes";
+import type { RunEvent } from "./wire.generated";
 import { RUN_EVENT_METHOD, streamRunEvents } from "./stream";
 import { STREAM_DOWN_METHOD } from "./transport";
 import { JSONRPC_VERSION } from "./types";

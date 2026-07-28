@@ -29,7 +29,6 @@ export type {
   // Lifecycle / capabilities
   ClientCapabilities,
   ServerCapabilities,
-  ServerFeatures,
   ServerInfo,
   InterruptType,
   RequestMeta,
@@ -56,17 +55,14 @@ export type {
   StartRunRequest,
   StartRunResponse,
   ResumeRunRequest,
-  ResumeRunResponse,
   // Items
   Item,
-  ItemBase,
   ItemStatus,
   ItemType,
   ContentBlock,
   PlanStep,
   Question,
   QuestionField,
-  QuestionFieldBase,
   QuestionOption,
   ToolInvocation,
   ListItemsRequest,
@@ -78,13 +74,8 @@ export type {
   ItemDelta,
   // HITL
   Interrupt,
-  ApprovalPayload,
-  ToolResultPayload,
   OpenInterrupt,
   InterruptResponse,
-  ApprovalResponse,
-  AnswerResponse,
-  ToolResultResponse,
   // Diff / search / files
   DiffRow,
   Diff,
@@ -102,9 +93,8 @@ export type {
   FileContent,
   // Approval control / compaction / todos (B9/B10/B11)
   ApprovalMode,
-  ApprovalScope,
   ApprovalRule,
-  TodoItem,
+  TodoSnapshot,
   // Usage / error / context / tools
   Usage,
   ModelUsage,
@@ -113,7 +103,6 @@ export type {
   UsageSummaryRequest,
   ProblemData,
   FieldError,
-  JsonSchema,
   ToolSpec,
   GenerationParams,
   InvokeToolRequest,
@@ -135,7 +124,7 @@ export type {
   Recipe,
   RecipeScope,
   Schedule,
-  ScheduleInput,
+  CreateScheduleRequest,
   AgentDoc,
   McpServer,
   McpStatus,
@@ -150,9 +139,9 @@ export type {
   HooksListResult,
   MemoryScope,
   MemoryEntry,
-  WorkspaceQuery,
+  WorkspaceListQuery,
   WatchSpec,
-  SubscribeWorkspaceRequest,
+  WorkspaceSubscribeRequest,
   WorkspaceEvent,
   WorkspaceEventType,
   // Feedback
@@ -160,8 +149,7 @@ export type {
   // Pagination
   Page,
   PageQuery,
-} from "./shapes";
-export { isDurableEvent } from "./shapes";
+} from "./wire.generated";
 export {
   streamRunEvents,
   streamWorkspaceEvents,

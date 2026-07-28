@@ -7,7 +7,7 @@
 // Notifications go through subscribe() — no id, no waiter.
 
 import { RpcError, RpcTransportError } from "./errors";
-import type { RequestMeta } from "./shapes";
+import type { RequestMeta } from "./wire.generated";
 import type { Transport } from "./transport";
 import type {
   RpcId,

@@ -1911,6 +1911,40 @@
           ]
         }
       ]
+    },
+    {
+      "type": "DiffRow",
+      "discriminator": "type",
+      "variants": [
+        {
+          "tag": "hunk",
+          "required": [
+            "text"
+          ]
+        },
+        {
+          "tag": "context",
+          "required": [
+            "code",
+            "leftLine",
+            "rightLine"
+          ]
+        },
+        {
+          "tag": "added",
+          "required": [
+            "code",
+            "rightLine"
+          ]
+        },
+        {
+          "tag": "deleted",
+          "required": [
+            "code",
+            "leftLine"
+          ]
+        }
+      ]
     }
   ],
   "objectConstraints": [

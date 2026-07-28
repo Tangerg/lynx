@@ -1,4 +1,4 @@
-import type { Page } from "./shapes";
+import type { Page } from "./wire.generated";
 
 /**
  * Read a paged method to the end.

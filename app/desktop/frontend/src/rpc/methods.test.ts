@@ -3,7 +3,7 @@ import { createRpcClient, type RpcCallOptions, type RpcClient } from "./client";
 import { RpcError, RpcTransportError } from "./errors";
 import { asRunId, asSessionId } from "./ids";
 import { createMethods } from "./methods";
-import type { RunEvent, StreamEvent } from "./shapes";
+import type { RunEvent, StreamEvent } from "./wire.generated";
 import { RUN_EVENT_METHOD } from "./stream";
 import { createMemoryTransport } from "./transports/memory";
 import { waitForRequest } from "./transports/memory.testkit";

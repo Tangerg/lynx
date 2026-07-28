@@ -46,7 +46,7 @@ func (s *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*
 		runs = append(runs, presentRun(run))
 	}
 	return &protocol.ListItemsResponse{
-		Page: protocol.Page[protocol.Item]{Data: items, NextCursor: page.NextCursor},
+		Page: *protocol.NewPageWithCursor(items, page.NextCursor),
 		Runs: runs,
 	}, nil
 }

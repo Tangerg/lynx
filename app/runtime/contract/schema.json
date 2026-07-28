@@ -108,10 +108,7 @@
       "type": "object",
       "properties": {
         "items": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/AgentMemoryItem"
           }
@@ -562,14 +559,7 @@
           "type": "string"
         },
         "result": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ArtifactRunResult"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/ArtifactRunResult"
         },
         "type": {
           "$ref": "#/$defs/ArtifactOutcomeType"
@@ -724,10 +714,7 @@
       "type": "object",
       "properties": {
         "fields": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/ArtifactQuestionField"
           }
@@ -899,10 +886,7 @@
       "type": "object",
       "properties": {
         "arguments": {
-          "type": [
-            "object",
-            "null"
-          ],
+          "type": "object",
           "additionalProperties": {}
         },
         "name": {
@@ -994,10 +978,7 @@
       "type": "object",
       "properties": {
         "events": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/StreamEventType"
           }
@@ -1107,10 +1088,7 @@
       "type": "object",
       "properties": {
         "hits": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/CodebaseHit"
           }
@@ -1414,8 +1392,63 @@
           "$ref": "#/$defs/DiffRowType"
         }
       },
-      "required": [
-        "type"
+      "oneOf": [
+        {
+          "properties": {
+            "code": false,
+            "leftLine": false,
+            "rightLine": false,
+            "type": {
+              "const": "hunk"
+            }
+          },
+          "required": [
+            "text",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "text": false,
+            "type": {
+              "const": "context"
+            }
+          },
+          "required": [
+            "code",
+            "leftLine",
+            "rightLine",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "leftLine": false,
+            "text": false,
+            "type": {
+              "const": "added"
+            }
+          },
+          "required": [
+            "code",
+            "rightLine",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "rightLine": false,
+            "text": false,
+            "type": {
+              "const": "deleted"
+            }
+          },
+          "required": [
+            "code",
+            "leftLine",
+            "type"
+          ]
+        }
       ]
     },
     "DiffRowType": {
@@ -1639,10 +1672,7 @@
           "type": "integer"
         },
         "rows": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/DiffRow"
           }
@@ -1716,10 +1746,7 @@
       "type": "object",
       "properties": {
         "lines": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/FileLine"
           }
@@ -2009,10 +2036,7 @@
       "type": "object",
       "properties": {
         "matches": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/GrepMatch"
           }
@@ -2086,10 +2110,7 @@
       "type": "object",
       "properties": {
         "hooks": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/HookInfo"
           }
@@ -2121,14 +2142,7 @@
       "type": "object",
       "properties": {
         "session": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Session"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/Session"
         }
       },
       "required": [
@@ -2354,10 +2368,7 @@
       "type": "object",
       "properties": {
         "arguments": {
-          "type": [
-            "object",
-            "null"
-          ],
+          "type": "object",
           "additionalProperties": {}
         },
         "cwd": {
@@ -2727,10 +2738,7 @@
       "type": "object",
       "properties": {
         "rules": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/ApprovalRule"
           }
@@ -2795,10 +2803,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/Item"
           }
@@ -2807,10 +2812,7 @@
           "type": "string"
         },
         "runs": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/RunRef"
           }
@@ -3228,10 +3230,7 @@
           "format": "date-time"
         },
         "interrupts": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/Interrupt"
           }
@@ -3264,10 +3263,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/AgentDoc"
           }
@@ -3284,10 +3280,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/FileEntry"
           }
@@ -3304,10 +3297,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/ManagedSkill"
           }
@@ -3324,10 +3314,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/McpServer"
           }
@@ -3344,10 +3331,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/McpServerConfig"
           }
@@ -3364,10 +3348,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/McpTool"
           }
@@ -3384,10 +3365,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/MemoryEntry"
           }
@@ -3404,10 +3382,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/Model"
           }
@@ -3424,10 +3399,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/OpenInterrupt"
           }
@@ -3444,10 +3416,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/Project"
           }
@@ -3464,10 +3433,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/Provider"
           }
@@ -3484,10 +3450,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/Recipe"
           }
@@ -3504,10 +3467,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/RunRef"
           }
@@ -3524,10 +3484,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/Schedule"
           }
@@ -3544,10 +3501,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/Session"
           }
@@ -3564,10 +3518,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/Skill"
           }
@@ -3584,10 +3535,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/SkillDraft"
           }
@@ -3604,10 +3552,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/ToolSpec"
           }
@@ -3624,10 +3569,7 @@
       "type": "object",
       "properties": {
         "data": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/WorkspaceFileChange"
           }
@@ -3813,10 +3755,7 @@
       "type": "object",
       "properties": {
         "fields": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/QuestionField"
           }
@@ -4027,10 +3966,7 @@
       "type": "object",
       "properties": {
         "responses": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/InterruptResponse"
           }
@@ -4065,23 +4001,13 @@
       "type": "object",
       "properties": {
         "droppedRuns": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/DroppedRun"
           }
         },
         "session": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Session"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/Session"
         }
       },
       "required": [
@@ -4485,19 +4411,13 @@
       "type": "object",
       "properties": {
         "events": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/StreamEventType"
           }
         },
         "features": {
-          "type": [
-            "object",
-            "null"
-          ],
+          "type": "object",
           "additionalProperties": {
             "$ref": "#/$defs/FeatureCapability"
           }
@@ -4506,10 +4426,7 @@
           "$ref": "#/$defs/RuntimeLimits"
         },
         "streamingMethods": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "type": "string"
           }
@@ -4600,26 +4517,17 @@
       "type": "object",
       "properties": {
         "items": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/ArtifactItem"
           }
         },
         "messages": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {}
         },
         "runs": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/ArtifactRun"
           }
@@ -4628,10 +4536,7 @@
           "$ref": "#/$defs/ArtifactSession"
         },
         "toolResults": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/ArtifactToolResult"
           }
@@ -4825,10 +4730,7 @@
       "type": "object",
       "properties": {
         "input": {
-          "type": [
-            "array",
-            "null"
-          ],
+          "type": "array",
           "items": {
             "$ref": "#/$defs/ContentBlock"
           }
@@ -5159,10 +5061,7 @@
       "type": "object",
       "properties": {
         "arguments": {
-          "type": [
-            "object",
-            "null"
-          ],
+          "type": "object",
           "additionalProperties": {}
         },
         "name": {
@@ -5408,7 +5307,6 @@
         }
       },
       "required": [
-        "path",
         "watchId"
       ]
     },

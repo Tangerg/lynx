@@ -48,14 +48,14 @@ import type {
   Provider,
   ProviderTestResult,
   ResumeRunRequest,
-  ResumeRunResponse,
+  StartRunResponse,
   RollbackSessionRequest,
   RollbackSessionResponse,
   RunEvent,
   Recipe,
   RunRef,
   Schedule,
-  ScheduleInput,
+  CreateScheduleRequest,
   Session,
   SessionArtifact,
   Skill,
@@ -68,8 +68,7 @@ import type {
   Goal,
   GoalBudget,
   StartRunRequest,
-  StartRunResponse,
-  SubscribeWorkspaceRequest,
+  WorkspaceSubscribeRequest,
   ToolSpec,
   UpdateSessionRequest,
   Usage,
@@ -78,7 +77,7 @@ import type {
   UtilityRole,
   WorkspaceEvent,
   WorkspaceFileChange,
-} from "./shapes";
+} from "./wire.generated";
 import { streamRunEvents, streamWorkspaceEvents } from "./stream";
 import { WORKSPACE_SUBSCRIBE_METHOD } from "./transport";
 
@@ -196,7 +195,7 @@ export interface Methods {
     resume: (
       params: ResumeRunRequest,
       signal?: AbortSignal,
-    ) => Promise<StreamingResult<ResumeRunResponse, RunEvent>>;
+    ) => Promise<StreamingResult<StartRunResponse, RunEvent>>;
     subscribe: (
       runId: RunId,
       signal?: AbortSignal,
@@ -259,7 +258,7 @@ export interface Methods {
     // "changed → refetch" events, connection-scoped, no replay. One stream
     // per app; resubscribe (= implicit resync) when it ends.
     subscribe: (
-      params?: SubscribeWorkspaceRequest,
+      params?: WorkspaceSubscribeRequest,
       signal?: AbortSignal,
     ) => Promise<StreamingResult<Record<string, never>, WorkspaceEvent>>;
   };
@@ -412,9 +411,13 @@ export interface Methods {
   // fired by the runtime's scheduler worker while serving.
   schedules: {
     list: (query?: PageQuery) => Promise<Page<Schedule>>;
-    create: (params: ScheduleInput) => Promise<Schedule>;
+    create: (params: CreateScheduleRequest) => Promise<Schedule>;
     update: (
-      params: Partial<ScheduleInput> & { id: string; expectedRevision: number; enabled?: boolean },
+      params: Partial<CreateScheduleRequest> & {
+        id: string;
+        expectedRevision: number;
+        enabled?: boolean;
+      },
     ) => Promise<Schedule>;
     delete: (id: string) => Promise<void>;
     runNow: (id: string) => Promise<{ sessionId: SessionId; runId: RunId }>;
@@ -466,7 +469,7 @@ export function createMethods(client: RpcClient): Methods {
         // A resume opens a NEW segment of the SAME run — bind the tree to it.
         const stream = streamRunEvents(client, signal);
         const result = await callOrDispose(stream, () =>
-          mutate<ResumeRunResponse, ResumeRunRequest>("runs.resume", params, signal),
+          mutate<StartRunResponse, ResumeRunRequest>("runs.resume", params, signal),
         );
         stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };
@@ -615,7 +618,7 @@ export function createMethods(client: RpcClient): Methods {
     },
     schedules: {
       list: (query) => client.call<Page<Schedule>>("schedules.list", query ?? {}),
-      create: (params) => mutate<Schedule, ScheduleInput>("schedules.create", params),
+      create: (params) => mutate<Schedule, CreateScheduleRequest>("schedules.create", params),
       update: (params) => mutate<Schedule, typeof params>("schedules.update", params),
       delete: (id) => mutate<void, { id: string }>("schedules.delete", { id }),
       runNow: (id) =>

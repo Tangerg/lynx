@@ -40,7 +40,7 @@ func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*proto
 	for _, view := range page.Rows {
 		data = append(data, sessionViewToWire(view))
 	}
-	return &protocol.Page[protocol.Session]{Data: data, NextCursor: page.NextCursor}, nil
+	return protocol.NewPageWithCursor(data, page.NextCursor), nil
 }
 
 func (s *Server) GetSession(ctx context.Context, id string) (*protocol.Session, error) {

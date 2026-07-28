@@ -1,5 +1,5 @@
 import type { LyraClient, RunEvent, RunId, RunRef, StreamingResult } from "@/rpc";
-import { asSessionId, collectPages } from "@/rpc";
+import { asRunId, asSessionId, collectPages } from "@/rpc";
 import type { FoldEvent } from "./agentStore";
 
 interface AgentSessionRecoveryOptions {
@@ -72,7 +72,7 @@ async function attachRootRun(options: AgentSessionRecoveryOptions, run: RunRef):
   options.setAbortController(ctrl);
   let stream: Awaited<ReturnType<typeof options.client.runs.subscribe>>;
   try {
-    stream = await options.client.runs.subscribe(run.id, ctrl.signal);
+    stream = await options.client.runs.subscribe(asRunId(run.id), ctrl.signal);
   } catch (err) {
     if (options.isCancelled() || ctrl.signal.aborted) return;
     console.warn("[agent] run reattach failed:", options.sessionId, err);

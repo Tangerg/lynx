@@ -23,7 +23,7 @@ func (s *Server) ListRuns(ctx context.Context, in protocol.ListRunsRequest) (*pr
 	for _, run := range page.Rows {
 		out = append(out, presentAdmittedRun(run))
 	}
-	return &protocol.Page[protocol.RunRef]{Data: out, NextCursor: page.NextCursor}, nil
+	return protocol.NewPageWithCursor(out, page.NextCursor), nil
 }
 
 // ListOpenInterrupts returns durable resumable interrupts as a Page
@@ -42,7 +42,7 @@ func (s *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInt
 			CreatedAt:  pending.CreatedAt,
 		})
 	}
-	return &protocol.Page[protocol.OpenInterrupt]{Data: out, NextCursor: page.NextCursor}, nil
+	return protocol.NewPageWithCursor(out, page.NextCursor), nil
 }
 
 // SubscribeRun opens a fresh event stream onto an actively-streaming root

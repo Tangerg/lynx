@@ -32,16 +32,17 @@ var (
 )
 
 func main() {
-	out := flag.String("out", ".", "directory the artifacts are written to")
+	out := flag.String("out", ".", "directory the Go-side artifacts are written to")
+	ts := flag.String("ts", "", "directory the TypeScript wire types are written to; skipped when empty")
 	flag.Parse()
 
-	if err := run(*out); err != nil {
+	if err := run(*out, *ts); err != nil {
 		fmt.Fprintln(os.Stderr, "contractgen:", err)
 		os.Exit(1)
 	}
 }
 
-func run(dir string) error {
+func run(dir, tsDir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create %s: %w", dir, err)
 	}
@@ -65,6 +66,13 @@ func run(dir string) error {
 	}
 	path := filepath.Join(dir, "API_REFERENCE.md")
 	if err := os.WriteFile(path, []byte(reference(built)), 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	if tsDir == "" {
+		return nil
+	}
+	path = filepath.Join(tsDir, tsFileName)
+	if err := os.WriteFile(path, []byte(newTypeScript(walked)), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { STREAM_EVENT_TYPES } from "./shapes";
+import { WIRE_ENUMS } from "./wire.generated";
 
 import type {
   AgentDoc,
@@ -36,7 +36,7 @@ import type {
   Recipe,
   RequestMeta,
   ResumeRunRequest,
-  ResumeRunResponse,
+  StartRunResponse,
   RollbackSessionRequest,
   RollbackSessionResponse,
   RunEvent,
@@ -50,12 +50,11 @@ import type {
   ManagedSkill,
   SkillDraft,
   StartRunRequest,
-  StartRunResponse,
   UsageSummary,
   UtilityRole,
   WorkspaceEvent,
   WorkspaceFileChange,
-} from "./shapes";
+} from "./wire.generated";
 
 import agentDoc from "./samples/agentDoc.json";
 import approvalModeResp from "./samples/approvalMode.resp.json";
@@ -211,7 +210,7 @@ const samples: unknown[] = [
   wire<StartRunRequest>(runsStartReq),
   wire<StartRunResponse>(runsStartResp),
   wire<ResumeRunRequest>(runsResumeReq),
-  wire<ResumeRunResponse>(runsResumeResp),
+  wire<StartRunResponse>(runsResumeResp),
 
   // §4.1 Session — Session/Project + method envelopes.
   wire<Session>(session),
@@ -285,7 +284,7 @@ const samples: unknown[] = [
 
 describe("wire golden samples", () => {
   it("advertises only supported stream events", () => {
-    const supported = new Set<string>(STREAM_EVENT_TYPES);
+    const supported = new Set<string>(WIRE_ENUMS.StreamEventType);
     for (const event of requestMeta.clientCapabilities.events) {
       expect(supported.has(event)).toBe(true);
     }

@@ -1,5 +1,5 @@
 import { getContainer } from "@/main/container";
-import { asSessionId } from "@/rpc";
+import { asItemId, asRunId, asSessionId, type StartRunResponse } from "@/rpc";
 import type { RpcRunsGateway } from "../application/rpcAgentDriver";
 
 /**
@@ -14,10 +14,27 @@ import type { RpcRunsGateway } from "../application/rpcAgentDriver";
  */
 export function runtimeRunsGateway(): RpcRunsGateway {
   return {
-    start: ({ sessionId, ...params }, signal) =>
-      getContainer()
+    start: async ({ sessionId, ...params }, signal) => {
+      const { result, events } = await getContainer()
         .client()
-        .runs.start({ ...params, sessionId: asSessionId(sessionId) }, signal),
-    resume: (params, signal) => getContainer().client().runs.resume(params, signal),
+        .runs.start({ ...params, sessionId: asSessionId(sessionId) }, signal);
+      return { result: brandRunIds(result), events };
+    },
+    resume: async (params, signal) => {
+      const { result, events } = await getContainer().client().runs.resume(params, signal);
+      return { result: { runId: asRunId(result.runId) }, events };
+    },
+  };
+}
+
+/**
+ * The wire carries ids as plain strings — `ids.ts` brands them at the parse site,
+ * and for a run's ids this adapter IS that site. The app's ports speak branded ids
+ * so a RunId can never be passed where an ItemId belongs.
+ */
+function brandRunIds(result: StartRunResponse) {
+  return {
+    runId: asRunId(result.runId),
+    ...(result.userItemId ? { userItemId: asItemId(result.userItemId) } : {}),
   };
 }

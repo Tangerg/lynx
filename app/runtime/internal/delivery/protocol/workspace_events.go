@@ -12,7 +12,7 @@ type WorkspaceSubscribeRequest struct {
 type WatchSpec struct {
 	WatchID string `json:"watchId"`
 	Cwd     string `json:"cwd,omitempty"`
-	Path    string `json:"path"`
+	Path    string `json:"path,omitempty"`
 }
 
 // WorkspaceSubscribeResponse is the (empty) streaming ack — the first frame of

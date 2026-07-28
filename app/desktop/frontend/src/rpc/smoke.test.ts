@@ -26,7 +26,7 @@ import {
 import { createRpcClient, type RpcClient } from "./client";
 import { asItemId, asRunId, asSessionId } from "./ids";
 import { createMethods, type Methods } from "./methods";
-import type { Item, RunEvent } from "./shapes";
+import type { Item, RunEvent } from "./wire.generated";
 
 function agentMessageItem(id: string, runId: string, text: string, status: Item["status"]): Item {
   return {
