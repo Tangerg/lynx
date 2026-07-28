@@ -52,8 +52,8 @@ type deploymentGoldenInput struct {
 
 type deploymentGoldenStuckPolicy struct{}
 
-func (deploymentGoldenStuckPolicy) Recover(context.Context, core.ProcessView, core.BlackboardWriter) core.StuckResult {
-	return core.StuckResult{Decision: core.StuckStop}
+func (deploymentGoldenStuckPolicy) Recover(context.Context, core.ProcessView, core.BlackboardWriter) (core.StuckResult, error) {
+	return core.StuckResult{Decision: core.StuckStop}, nil
 }
 
 func (c *mutableDeploymentCondition) Name() string  { return c.name }

@@ -191,5 +191,5 @@ func (p *Process) recoverStuck(ctx context.Context, policy core.StuckPolicy) (re
 			err = panicerr.New(fmt.Sprintf("runtime.Process.handleStuck: stuck policy %T panicked", policy), recovered)
 		}
 	}()
-	return policy.Recover(ctx, p, p.blackboard), nil
+	return policy.Recover(ctx, p, p.blackboard)
 }

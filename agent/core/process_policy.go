@@ -7,9 +7,10 @@ import (
 
 // StuckPolicy is invoked when the planner returns no plan. The default is to
 // transition to StatusStuck; a policy may update the blackboard and request a
-// new planning pass.
+// new planning pass. Mutation or recovery failures are returned explicitly and
+// fail the process.
 type StuckPolicy interface {
-	Recover(ctx context.Context, process ProcessView, blackboard BlackboardWriter) StuckResult
+	Recover(ctx context.Context, process ProcessView, blackboard BlackboardWriter) (StuckResult, error)
 }
 
 // StuckDecision is the verdict returned by a StuckPolicy.

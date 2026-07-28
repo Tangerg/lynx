@@ -42,9 +42,9 @@ func (b conditionFailingBlackboard) StoreCondition(string, bool) error {
 	return b.cause
 }
 
-type stuckPolicyFunc func(context.Context, core.ProcessView, core.BlackboardWriter) core.StuckResult
+type stuckPolicyFunc func(context.Context, core.ProcessView, core.BlackboardWriter) (core.StuckResult, error)
 
-func (f stuckPolicyFunc) Recover(ctx context.Context, process core.ProcessView, blackboard core.BlackboardWriter) core.StuckResult {
+func (f stuckPolicyFunc) Recover(ctx context.Context, process core.ProcessView, blackboard core.BlackboardWriter) (core.StuckResult, error) {
 	return f(ctx, process, blackboard)
 }
 
@@ -414,8 +414,8 @@ func TestRunPublishesSingleStuckEvent(t *testing.T) {
 
 func TestRunPropagatesStuckPolicyReason(t *testing.T) {
 	capture := new(stuckEventCapture)
-	process := runUnplannableAgent(t, stuckPolicyFunc(func(context.Context, core.ProcessView, core.BlackboardWriter) core.StuckResult {
-		return core.StuckResult{Decision: core.StuckStop, Reason: "operator input is required"}
+	process := runUnplannableAgent(t, stuckPolicyFunc(func(context.Context, core.ProcessView, core.BlackboardWriter) (core.StuckResult, error) {
+		return core.StuckResult{Decision: core.StuckStop, Reason: "operator input is required"}, nil
 	}), capture)
 
 	if process.Status() != core.StatusStuck {
@@ -428,9 +428,9 @@ func TestRunPropagatesStuckPolicyReason(t *testing.T) {
 
 func TestRunStopsNoProgressStuckReplan(t *testing.T) {
 	recoveries := 0
-	process := runUnplannableAgent(t, stuckPolicyFunc(func(context.Context, core.ProcessView, core.BlackboardWriter) core.StuckResult {
+	process := runUnplannableAgent(t, stuckPolicyFunc(func(context.Context, core.ProcessView, core.BlackboardWriter) (core.StuckResult, error) {
 		recoveries++
-		return core.StuckResult{Decision: core.StuckReplan}
+		return core.StuckResult{Decision: core.StuckReplan}, nil
 	}), nil)
 
 	if process.Status() != core.StatusStuck {
@@ -442,8 +442,8 @@ func TestRunStopsNoProgressStuckReplan(t *testing.T) {
 }
 
 func TestRunRejectsInvalidStuckDecision(t *testing.T) {
-	process := runUnplannableAgent(t, stuckPolicyFunc(func(context.Context, core.ProcessView, core.BlackboardWriter) core.StuckResult {
-		return core.StuckResult{Decision: core.StuckDecision(9)}
+	process := runUnplannableAgent(t, stuckPolicyFunc(func(context.Context, core.ProcessView, core.BlackboardWriter) (core.StuckResult, error) {
+		return core.StuckResult{Decision: core.StuckDecision(9)}, nil
 	}), nil)
 
 	if process.Status() != core.StatusFailed {
@@ -456,7 +456,7 @@ func TestRunRejectsInvalidStuckDecision(t *testing.T) {
 
 func TestRunContainsStuckPolicyPanic(t *testing.T) {
 	cause := errors.New("stuck policy sentinel")
-	process := runUnplannableAgent(t, stuckPolicyFunc(func(context.Context, core.ProcessView, core.BlackboardWriter) core.StuckResult {
+	process := runUnplannableAgent(t, stuckPolicyFunc(func(context.Context, core.ProcessView, core.BlackboardWriter) (core.StuckResult, error) {
 		panic(cause)
 	}), nil)
 
@@ -465,6 +465,20 @@ func TestRunContainsStuckPolicyPanic(t *testing.T) {
 	}
 	if !errors.Is(process.Failure(), cause) {
 		t.Fatalf("failure = %v, want wrapped panic cause", process.Failure())
+	}
+}
+
+func TestRunPropagatesStuckPolicyFailure(t *testing.T) {
+	cause := errors.New("stuck recovery sentinel")
+	process := runUnplannableAgent(t, stuckPolicyFunc(func(context.Context, core.ProcessView, core.BlackboardWriter) (core.StuckResult, error) {
+		return core.StuckResult{}, cause
+	}), nil)
+
+	if process.Status() != core.StatusFailed {
+		t.Fatalf("status = %s, want failed", process.Status())
+	}
+	if !errors.Is(process.Failure(), cause) {
+		t.Fatalf("failure = %v, want wrapped recovery cause", process.Failure())
 	}
 }
 

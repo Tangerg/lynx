@@ -270,7 +270,7 @@ core: type ScoreFunc func(WorldState) float64
 core: type SnapshotCodec struct { }
 core: type StopPolicy interface { Extension Check(process ProcessView) (stop bool, reason string) }
 core: type StuckDecision uint8
-core: type StuckPolicy interface { Recover(ctx context.Context, process ProcessView, blackboard BlackboardWriter) StuckResult }
+core: type StuckPolicy interface { Recover(ctx context.Context, process ProcessView, blackboard BlackboardWriter) (StuckResult, error) }
 core: type StuckResult struct { Decision StuckDecision Reason string }
 core: type TaggedValue struct { Type string `json:"t"` Value json.RawMessage `json:"v"` }
 core: type TerminationScope int
