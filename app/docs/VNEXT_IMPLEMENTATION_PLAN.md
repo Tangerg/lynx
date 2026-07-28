@@ -552,8 +552,46 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 |---|---|---|---|
 | B1 | Registry 骨架 + 方法注册：`MethodMeta{Name,Kind,Idempotency,Errors,CapabilityRules,Stability}`；`Unary[P,R]` / `Stream[P,A,E]` 泛型工厂生成 decode/invoke/encode closure；**dispatcher 直接消费 Registry，删掉第二份 method table**（`dispatch/method_names.go`）；登记全部 83 方法 + 2 notification；`CapabilityRule.When` 支持条件门控（`sessionExport` 无条件；`checkpoints` 仅当 `restoreType ∈ {files,both}`） | `DONE` | 见下 |
 | B2 | Union 与约束 metadata：`UnionSpec` / `ObjectConstraintSpec` / `FieldCondition` / `PresenceRule` / `StateKeySpec`；登记契约 §11.2 点名的 13 类高风险 union（先按当前 shape）。`SystemInvariantSpec` 按 **D3** 注册在 application | `DONE` | 见下 |
-| B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `TODO` | — |
+| B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `IN PROGRESS` | `c83d041f3`（8/14 + drift gate） |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `TODO` | — |
+
+#### ⚠️ B3 进度与交接（2026-07-29）：8/14 产物 + drift gate 已落，余 6 类需 schema walker
+
+**已落地**（`cmd/contractgen` → `app/runtime/contract/manifest.json`，38KB，`go:generate` 挂在
+`internal/delivery/dispatch/contract_methods.go`）：
+
+| # | 产物 | 来源 |
+|---|---|---|
+| 1 | protocol manifest | `Registry.Metas()` |
+| 2 | error registry | `protocol.Err*` sentinel ↔ `Code*` + run-channel / inline-status 两类无码符号 |
+| 3 | capability gate policy | `MethodMeta.CapabilityRules`（含 `When` 条件） |
+| 4 | run event policy | **调 `StreamEvent.IsDurable()`**，不抄 §5.2 表 —— 与 hub replay buffer / SSE id gate 同一函数 |
+| 5 | state snapshot recovery policy | `StateKeySpec.RecoveryMethod` |
+| 6 | state scope/writer/lifecycle policy | `StateKeySpec.Scope/Writer` |
+| 7 | runtime topic capability list | `WorkspaceEvent` union + per-topic feature |
+| 8 | system invariant manifest | `application/contract.SystemInvariants()` |
+
+外加：union / objectConstraint 两节（B2 的 spec 投影）、`streamingMethods`（Registry 派生）。
+
+**生成器落点定案**：`app/runtime/cmd/contractgen/`。它同时读 `delivery`（method/shape spec）与 `application/contract`
+（invariant spec）—— 这个组合没有任何 runtime 组件可以有。D3 的洞察是「分层规则约束运行时 import 图，生成器不在那张图里」。
+
+**drift gate 已落**（§11.4 gate 1）：`internal/arch/contract_drift_test.go` 重跑生成器并比 worktree；配一条
+`TestGeneratedContractIsSubstantive` 防止空 manifest 让 gate 空转通过。
+
+**余下 6 类都依赖一个反射 schema walker**（这是它们与上面 8 类的本质区别：上面是投影，下面要把 Go 类型走成 JSON Schema）：
+OpenRPC · JSON Schema bundle · TypeScript wire types · authoritative/terminal validators ·
+method constants + typed client stubs · human-readable API reference。
+
+**接手须知（避免重新推导）**：
+- Registry 已有 `Contract()` / `WireShapes()` 两个导出口；`MethodMeta` 目前**不带** `reflect.Type` —— B1 刻意没加
+  （按 `feedback_yagni_speculative_headroom`：无消费者时不留字段）。schema walker 落地时在 `Unary`/`UnaryAck`/`Stream`
+  三个工厂里加 `reflect.TypeFor[Params]()` 等三行即可，这正是它们存在的时机。
+- union 的 `Required`/`Optional` 支持 dotted path（`payload.tool`），walker 生成 `if/then` 时要按同样规则解析嵌套 frame；
+  `contract_shape.go` 的 `hasJSONField` / `jsonFields` 已实现 embedded 内联的遍历，直接复用。
+- **canonical samples 必须保持人工编写**（§11.3）—— 生成器只做 sample 索引与缺口检查，禁止生成 fixture 再用同源
+  schema 自证。现有 `delivery/protocol/wire_golden_test.go` 的样本是起点。
+- `server.capabilitiesFor` 的 `StreamingMethods` 仍手写 4 项，等这批生成物给出共读常量后收口（见 B1 记录末段）。
 
 #### ⚠️ B2 实施记录（2026-07-29）：spec **现在**就用反射自校验，不等生成器
 
