@@ -674,7 +674,11 @@ required 字段不加 null，**违反由 validator 抓**（那才是坏帧该现
   （有合法的可空必填串），也不要保留手写 Go + 另写一份声明（两个源）。
 - **canonical samples 必须保持人工编写**（§11.3）—— 生成器只做 sample 索引与缺口检查，禁止生成 fixture 再用同源
   schema 自证。现有 `delivery/protocol/wire_golden_test.go` 的样本是起点。
-- `server.capabilitiesFor` 的 `StreamingMethods` 仍手写 4 项，等 method constants 那一类产物给出共读常量后收口。
+- ✅ `server.capabilitiesFor` 的 `StreamingMethods` 已收口 —— 直接读 `dispatch.Contract().StreamMethods()`。
+  **结论修正**：Go 侧不需要"生成一份共读常量"。`server` 与 `dispatch` 同属 delivery 环、无 import cycle、arch 无禁令，
+  所以 Registry **本身**就是 Go 的共读源；再生成一份 `const MethodRunsStart = "runs.start"` 而 dispatch 自己不消费，
+  才是新的第二个源。第 5 类产物（method constants + typed client stubs）因此**只对 TypeScript 有意义**（TS 读不到
+  Registry）。gate 2 的"discovery 与 dispatcher 相等"由此**构造上成立**。
 
 #### ⚠️ B2 实施记录（2026-07-29）：spec **现在**就用反射自校验，不等生成器
 

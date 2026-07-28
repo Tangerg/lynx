@@ -14,6 +14,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
@@ -378,9 +379,10 @@ func capabilitiesFor(features featureAvailability) protocol.ServerCapabilities {
 			protocol.StreamItemCompleted,
 			protocol.StreamStateSnapshot,
 		},
-		// streamable-HTTP methods, machine-readable so the client knows which
-		// calls return an event stream rather than hardcoding the names (§7/§9).
-		StreamingMethods: []string{"runs.start", "runs.resume", "runs.subscribe", "workspace.subscribe"},
+		// The streaming methods, read from the registry that routes them. A
+		// hand-kept list here would be a second author of "which calls stream" —
+		// and the one clients trust, since this is what discovery advertises (§9).
+		StreamingMethods: dispatch.Contract().StreamMethods(),
 		// Open features map (§9): advertise a new capability by adding a key.
 		// Known keys absent here default to off on the client.
 		Features: map[string]protocol.FeatureCapability{
