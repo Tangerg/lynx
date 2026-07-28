@@ -29,6 +29,16 @@ type BlackboardRestorer interface {
 	Restore(BlackboardState) error
 }
 
+// Both surfaces are found by type assertion, so a signature that drifts here
+// does not fail the build — the capture simply stops being available. These
+// assertions are what turns that into a compile error.
+var (
+	_ BlackboardSnapshotter = (*inMemoryBlackboard)(nil)
+	_ BlackboardRestorer    = (*inMemoryBlackboard)(nil)
+	_ BlackboardSnapshotter = (*declaredBlackboard)(nil)
+	_ BlackboardRestorer    = (*declaredBlackboard)(nil)
+)
+
 func snapshotBlackboard(blackboard core.Blackboard) (state BlackboardState, err error) {
 	snapshotter, ok := blackboard.(BlackboardSnapshotter)
 	if !ok {

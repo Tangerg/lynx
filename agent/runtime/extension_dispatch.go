@@ -35,6 +35,12 @@ type SubtreeEventListener interface {
 	ObserveSubtree()
 }
 
+// The marker is read by type assertion when a child inherits its parent's
+// listeners, so a drifted method name would quietly stop propagating instead of
+// failing the build. The assertion lives here because event cannot name this
+// interface without depending upward on the runtime.
+var _ SubtreeEventListener = (*event.NamedSubtreeListener)(nil)
+
 // extensionRegistry is the dedup-aware container the engine uses
 // to hold registered extensions. Insertion order is preserved
 // (drives onion / wrap chain ordering). Registration returns ordinary errors

@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -24,6 +25,10 @@ func (t *agentTool) Definition() chat.ToolDefinition { return t.definition.Clone
 
 // ConcurrencyKey declares AgentTool calls independent: each invocation owns an
 // isolated child process. ToolLoop still commits their results in model order.
+// The tool loop reads this declaration by type assertion; without the
+// assertion a drifted signature would silently serialize every child run.
+var _ toolloop.ConcurrentTool = (*agentTool)(nil)
+
 func (t *agentTool) ConcurrencyKey(string) (string, bool) { return "", true }
 
 func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) {

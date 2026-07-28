@@ -36,6 +36,12 @@ type directRuntimeTool struct {
 	tools.Tool
 }
 
+// Found by type assertion through the wrapping chain, so pin it.
+var (
+	_ DirectTool         = directRuntimeTool{}
+	_ tools.WrappingTool = directRuntimeTool{}
+)
+
 func (directRuntimeTool) ReturnsDirect() bool { return true }
 
 // Unwrap exposes the decorated tool so its optional capabilities remain

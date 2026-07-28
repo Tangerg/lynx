@@ -158,6 +158,14 @@ type deliveryCloner interface {
 	cloneEvent() Event
 }
 
+// Delivery clones an event only for the types that opt in by type assertion, so
+// a renamed or re-signatured cloneEvent would hand every listener the same
+// mutable value instead of failing the build.
+var (
+	_ deliveryCloner = ProcessWaiting{}
+	_ deliveryCloner = InteractionBoundary{}
+)
+
 func cloneForDelivery(value Event) Event {
 	if cloner, ok := value.(deliveryCloner); ok {
 		return cloner.cloneEvent()
