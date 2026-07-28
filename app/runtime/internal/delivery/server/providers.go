@@ -57,11 +57,11 @@ func (s *Server) TestProvider(ctx context.Context, providerID string) (*protocol
 		return &protocol.ProviderTestResult{OK: true}, nil
 	case modelapp.ProviderTestNotConfigured:
 		return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{
-			Type: "provider_not_configured", Detail: "set the API key first",
+			Type: protocol.ProblemProviderNotConfigured,
 		}}, nil
 	case modelapp.ProviderTestFailed:
 		return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{
-			Type: "provider_test_failed", Detail: "the provider could not be reached or rejected the test request",
+			Type: protocol.ProblemProviderTestFailed,
 		}}, nil
 	default:
 		return nil, fmt.Errorf("server: unknown provider test outcome %q", outcome)

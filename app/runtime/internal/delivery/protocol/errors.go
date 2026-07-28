@@ -71,6 +71,13 @@ const (
 	// Tool channel (toolCall.error) — how a tool call failed.
 	ProblemDeniedByUser = "denied_by_user" // denied by the approval verdict
 	ProblemToolFailed   = "tool_failed"    // tool execution returned an error
+	// Inline status (McpServer.error, ProviderTestResult.error) — a connection or
+	// probe verdict that rides its own query result instead of failing the call,
+	// so the pane renders it beside the thing it describes.
+	ProblemMCPAuthorizationRequired = "mcp_authorization_required" // an HTTP MCP server needs an interactive sign-in
+	ProblemMCPDialFailed            = "mcp_dial_failed"            // the MCP connection, or a test of it, did not succeed
+	ProblemProviderNotConfigured    = "provider_not_configured"    // the provider has no credential yet
+	ProblemProviderTestFailed       = "provider_test_failed"       // the provider was unreachable or rejected the probe
 )
 
 // Error code <-> symbolic name table (API.md §8.2). Numeric codes are

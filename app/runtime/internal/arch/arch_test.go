@@ -808,15 +808,21 @@ func TestDeliveryDoesNotOwnArchiveRecoveryOrValidation(t *testing.T) {
 // presentation carries the detail the domain reported, including the absence of
 // one.
 //
-// Both encoders once defaulted that sentence per kind, which is why the rule is
-// mechanical rather than a naming ban: the prose hid one call away, in helpers
-// that only looked like mappers. So in these two files a literal may only be a
+// The run encoders once defaulted that sentence per kind, which is why the rule
+// is mechanical rather than a naming ban: the prose hid one call away, in helpers
+// that only looked like mappers. So in these files a literal may only be a
 // programmer's diagnostic — anything that can reach a client has to come from a
-// typed value.
+// typed value, including the problem's own symbol.
+//
+// The MCP and provider projections are here for the same reason: they turned a
+// domain connection state into an English sentence, which is the same leak on a
+// surface where the client already renders by symbol.
 func TestDeliveryDoesNotAuthorDomainText(t *testing.T) {
 	root := moduleRoot(t)
 	server := filepath.Join(root, "internal", "delivery", "server")
-	for _, name := range []string{"presenter_run.go", "artifact_encode.go"} {
+	for _, name := range []string{
+		"presenter_run.go", "artifact_encode.go", "mcp_projection.go", "providers.go",
+	} {
 		forbidAuthoredText(t, filepath.Join(server, name),
 			"a run's explanation is authored where the case is known and worded by the client")
 	}

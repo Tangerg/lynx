@@ -32,8 +32,9 @@ func TestListMCPServers(t *testing.T) {
 		t.Fatalf("fs = %+v, want connected toolCount=2 no error", fs)
 	}
 	down := page.Data[1]
-	if down.Status != "failed" || down.ToolCount != nil || down.Error == nil || down.Error.Detail != "MCP connection failed." {
-		t.Fatalf("down = %+v, want failed + safe error no toolCount", down)
+	if down.Status != "failed" || down.ToolCount != nil || down.Error == nil ||
+		down.Error.Type != protocol.ProblemMCPDialFailed || down.Error.Detail != "" {
+		t.Fatalf("down = %+v, want failed + the dial-failed symbol and no prose", down)
 	}
 }
 
@@ -42,32 +43,34 @@ func TestMCPStateWire(t *testing.T) {
 		name  string
 		state mcpserver.ConnectionState
 		want  protocol.McpStatus
-		ok    bool
 	}{
-		{"connecting", mcpserver.ConnectionConnecting, protocol.McpConnecting, true},
-		{"connected", mcpserver.ConnectionConnected, protocol.McpConnected, true},
-		{"failed", mcpserver.ConnectionFailed, protocol.McpFailed, true},
-		{"needs auth", mcpserver.ConnectionNeedsAuth, protocol.McpNeedsAuth, true},
-		{"unknown", mcpserver.ConnectionState("typo"), "", false},
+		{"connecting", mcpserver.ConnectionConnecting, protocol.McpConnecting},
+		{"connected", mcpserver.ConnectionConnected, protocol.McpConnected},
+		{"failed", mcpserver.ConnectionFailed, protocol.McpFailed},
+		{"needs auth", mcpserver.ConnectionNeedsAuth, protocol.McpNeedsAuth},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := mcpStateWire(tt.state)
-			if got != tt.want || ok != tt.ok {
-				t.Fatalf("mcpStateWire(%q) = (%q, %t), want (%q, %t)", tt.state, got, ok, tt.want, tt.ok)
+			if got := mcpStateWire(tt.state); got != tt.want {
+				t.Fatalf("mcpStateWire(%q) = %q, want %q", tt.state, got, tt.want)
 			}
 		})
 	}
 }
 
+// A connection state this projection does not map is a defect in the projection,
+// not a state a server can be in. Answering with a failed server and an invented
+// problem type shipped that defect as a verdict a user could read and act on.
 func TestMCPServerWireRejectsUnknownDomainState(t *testing.T) {
 	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{}))
-	got := s.mcpServerWire(integrations.MCPServerStatus{
+	defer func() {
+		if recover() == nil {
+			t.Fatal("mcpServerWire(unknown state) answered with a projection instead of panicking")
+		}
+	}()
+	s.mcpServerWire(integrations.MCPServerStatus{
 		Name: "broken", Known: true, State: mcpserver.ConnectionState("typo"),
 	})
-	if got.Status != protocol.McpFailed || got.Error == nil || got.Error.Type != "mcp_invalid_connection_state" {
-		t.Fatalf("mcpServerWire(unknown state) = %+v, want explicit failed projection", got)
-	}
 }
 
 func TestReconnectMCPServer(t *testing.T) {
