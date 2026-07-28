@@ -62,7 +62,7 @@
 | A | 协议文档事实对齐 | `TODO` | 零代码变化 |
 | A′ | 现役泄露治本（**前置**） | `DONE` | 5 slice 全 `DONE`（A′5 为实施中发现追加）；三个现役泄露消除，5 个守卫落地 |
 | B | Contract Registry（全量） | `TODO` | 4 slice，可与 B′ 并行 |
-| B′ | 权威读面 + store cutover | `IN PROGRESS` | B′1 `DONE`；B′2+B′3 **合并为一个 slice** 后 `DONE`（理由见下）；剩 B′4 / B′5 |
+| B′ | 权威读面 + store cutover | `DONE` | B′1 + B′2/B′3（合并）落 main；B′4 逐项核实为已完成 / 余项 `DEFERRED → C`（无 producer），B′5 `DEFERRED → C7` |
 | C | vNext 原子切换 | `TODO` | 16 stacked commit，一条 cutover 分支 |
 | D | 切换后数值调优 | `TODO` | 依赖 C |
 
@@ -534,8 +534,8 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 |---|---|---|---|
 | B′1 | bump internal store schema epoch；遇旧 epoch **确定性拒绝启动并提示重建**，不后台静默删用户文件；不 `ALTER TABLE`、不读旧行、不伪造零值、不留 compatibility view / dual-read / dual-write | `DONE` | `ca24bb3b4` |
 | B′2+B′3 | **合并**：`runs` 成为完整 Run 行（补列 + 一个 owner）、`history_runs` 删表、全部消费方改读同一行 | `DONE` | 见下 |
-| B′4 | application query ports：Run query（读 durable projection）、Item query（按 Session / Run subtree，durable `sequence` 唯一排序键，为 `run_id/sequence` 与 lineage traversal 建索引）、`interrupts.list` 的 waiting-Run aggregate keyset query（**不拆散 set**、按 `root_run_id`、每个 Interrupt 持久化来源 `run_id`）。**过滤 + 排序 + cursor 编解码三件事全在 port**，delivery 一件不留。`waiting` 停止折叠（一对一 enum 映射，不引入优先级规则） | `TODO` | — |
-| B′5 | todos session-scoped projection：补 `revision`、单调分配、root-only write policy、按 history boundary 的 lifecycle substrate、只读 query/presenter。**`todos.get` wire method 留到 C7** | `TODO` | — |
+| B′4 | application query ports（下表逐项核实） | `DONE` / 余项 `DEFERRED → C` | A′3 / A′4 / B′2 |
+| B′5 | todos session-scoped projection | `DEFERRED → C7` | — |
 
 **Batch B′ DoD**：fresh schema 无 `history_runs`；旧 schema fixture 被明确拒绝；代码库无旧 Run payload decoder、无零值回填、无兼容读路径；全绿；**未对外声称支持 vNext**。
 
@@ -567,6 +567,29 @@ B′1 原文含「bump epoch」。**bump 与「拒绝旧 epoch」是两件事**�
 8. `UnknownMessageMark = -1` 命名了原先散在 5 处的字面量（含 schema 默认值注释）。
 
 **未加 arch 守卫**：本 slice 的规则由 API 形态而非命名强制 —— 没有 `PutRun` 可调，加回来是显眼的 review 事件；不为一条 SQL 字符串写守卫。
+
+#### ⚠️ B′4 逐项核实（2026-07-29）：已完成 + 余项 **DEFERRED → C（附因）**
+
+| B′4 原文项 | 判定 |
+|---|---|
+| Run query 读 durable projection | ✅ **DONE**（A′3 `runs.list` 改读 admission 记录；B′2 `ListRuns` 读同一行）+ 守卫 `TestDeliveryReadsRunsFromDurableProjection` |
+| Item query 按 Session、durable `sequence` 唯一排序键 | ✅ **DONE**（A′4 真 keyset over `history_items.seq`） |
+| 过滤 + 排序 + cursor 编解码三件事全在 port，delivery 一件不留 | ✅ **DONE** + 守卫 `TestDeliveryDoesNotImplementQuerySemantics` |
+| `interrupts.list` keyset、**一个 set 不跨页** | ✅ **DONE**：A′4 落 `(created_at, run_id)` keyset；「不拆散 set」已是结构事实 —— 一行持有整个 set，分页单位就是行 |
+| Item query **按 Run subtree** + `run_id/sequence` 与 lineage 索引 | ⏸ **DEFERRED → C**：`items.list` 今天没有 `runId` 入参，subtree 也需要子 Run（D2 本轮不做）。**没有消费方的索引与读面 = 死码。** 唯一今天会用到 `run_id` 的查询是 `DeleteRun`，n = 单 session 的 item 数，未测量前不优化（Pike 规则 2/3） |
+| `interrupts` 改按 `root_run_id` root-owned aggregate、每个 Interrupt 持久化来源 `run_id` | ⏸ **DEFERRED → C**：**没有 producer** —— 来源 `run_id` 与 root 的区别只在子 Run 存在时才产生（D2）。今天一 Run 一行、来源恒等于自己 |
+| `waiting` 停止折叠 | ⏸ **DEFERRED → C**：今天 `SessionState` 就是 running / waiting / idle 三值，与「执行中 / 停在 HITL / 空闲」**一对一**，没有信息被折掉。vNext 的 state 扩容是 wire enum 变更 |
+
+#### ⚠️ B′5 判定（2026-07-29）：**DEFERRED → C7**，逐条附因
+
+todos 今天只以**流内 ephemeral `state.snapshot`** 形态上 wire：没有 `todos.get`（计划本就把它留到 C7），没有任何 durable 读面。于是 B′5 的四项全部没有今天的消费方：
+
+- **补 `revision` + 单调分配** —— 唯一用途是 vNext `state.changed` 的单调合并（C15 reducer）。现在加 = 一列没有读者的列，与 §3.3 那 6 列同一个判断。
+- **root-only write policy** —— 今天一个 session 同时只有一个 Run（子 Run 未做），每个 writer 本来就是 root，**这条规则今天没有可违反的路径**。
+- **按 history boundary 的 lifecycle substrate** —— 今天 rollback 直接清空 todo 投影。在 todos 仍是 per-run 临时工作清单（无 durable 读面）的前提下，清空是自洽的；改成按边界恢复必须和 `todos.get` 一起设计，否则是给一个看不见的东西做版本管理。
+- **只读 query/presenter** —— 即 `todos.get`，计划已排 C7。
+
+**结论：Batch B′ 的 DoD 已达成**（fresh schema 无 `history_runs`、旧 epoch 明确拒绝、无旧 payload decoder / 零值回填 / 兼容读路径、全绿、未对外声称 vNext）。B′4/B′5 的余项不是「跳过」，是**它们的 writer 与 consumer 都在 C**，在 C 里和各自的 wire 面一起落地才有验证手段。
 
 ---
 
@@ -626,7 +649,7 @@ A ──→ A′ (4 slice, 修现役泄露, 落 main) ──┬─→ B  (Regist
 ```
 
 - **A′ 前置**（D4）：B′ 要重建的正是被泄露污染的三处读面。先修再建。
-- **B 与 B′ 无相互依赖，可并行。** B′ 每个 slice 可独立落 main，风险最低，且先清掉「第二真相源」会让 C 简单不少 —— **建议作为起点**。
+- **B 与 B′ 无相互依赖，可并行。** B′ 每个 slice 可独立落 main，风险最低，且先清掉「第二真相源」会让 C 简单不少 —— **已作为起点执行完毕**。
 - **C 必须等 B 与 B′ 都完成。**
 
 ---
