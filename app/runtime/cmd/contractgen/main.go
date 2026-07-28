@@ -47,9 +47,9 @@ func run(dir string) error {
 	}
 	// Built once: every artifact must describe the same registry snapshot, and a
 	// second build would let them disagree if anything about it were not pure.
-	built := build()
 	registry, shapes := dispatch.Contract(), dispatch.WireShapes()
 	walked := walkWireTypes(registry, shapes)
+	built := build(walked)
 
 	for _, artifact := range []struct {
 		name    string

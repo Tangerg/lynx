@@ -1,6 +1,7 @@
 package dispatch
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -81,6 +82,25 @@ type StateKeySpec struct {
 	Writer         StateSnapshotWriter
 	Feature        string
 	Stability      protocol.Stability
+
+	// PayloadType is the Go type of the value published under this key.
+	//
+	// The state envelope is a `map[string]any` — deliberately, so a new key needs no
+	// wire change — which means the shape of a key's value is invisible to
+	// reflection. Declaring it is the only way the published contract can say what
+	// `state.snapshot` actually carries; without it a client reads "some JSON".
+	PayloadType reflect.Type
+}
+
+// EnvelopeSpec declares a wire type that travels on the JSON-RPC envelope rather
+// than inside a method's params or result.
+//
+// Nothing else can find these: the artifact walk starts from the registered
+// methods, and `params._meta` belongs to no method. Declaring it is what keeps the
+// published contract from omitting a member every client has to construct.
+type EnvelopeSpec struct {
+	Member string
+	GoType reflect.Type
 }
 
 // Shapes is the registered shape contract. It is separate from the method
@@ -91,11 +111,13 @@ type Shapes struct {
 	unions      []UnionSpec
 	constraints []ObjectConstraintSpec
 	stateKeys   []StateKeySpec
+	envelope    []EnvelopeSpec
 }
 
 func (s *Shapes) Unions() []UnionSpec                 { return s.unions }
 func (s *Shapes) Constraints() []ObjectConstraintSpec { return s.constraints }
 func (s *Shapes) StateKeys() []StateKeySpec           { return s.stateKeys }
+func (s *Shapes) Envelope() []EnvelopeSpec            { return s.envelope }
 
 func (s *Shapes) union(spec UnionSpec) {
 	if err := spec.validate(); err != nil {
@@ -116,6 +138,13 @@ func (s *Shapes) stateKey(spec StateKeySpec) {
 		panic("dispatch: invalid state key spec: " + err.Error())
 	}
 	s.stateKeys = append(s.stateKeys, spec)
+}
+
+func (s *Shapes) envelopeMember(spec EnvelopeSpec) {
+	if err := spec.validate(); err != nil {
+		panic("dispatch: invalid envelope spec: " + err.Error())
+	}
+	s.envelope = append(s.envelope, spec)
 }
 
 // validate checks a union spec against the struct it describes.
@@ -191,6 +220,16 @@ func (o ObjectConstraintSpec) validate() error {
 	return nil
 }
 
+func (e EnvelopeSpec) validate() error {
+	switch {
+	case e.Member == "":
+		return errors.New("envelope spec needs the member it travels under")
+	case e.GoType == nil:
+		return fmt.Errorf("envelope member %q has no type", e.Member)
+	}
+	return nil
+}
+
 func (k StateKeySpec) validate() error {
 	switch {
 	case k.Key == "":
@@ -205,6 +244,8 @@ func (k StateKeySpec) validate() error {
 		return fmt.Errorf("state key %q: feature gate is required", k.Key)
 	case k.Stability == "":
 		return fmt.Errorf("state key %q: stability is required", k.Key)
+	case k.PayloadType == nil:
+		return fmt.Errorf("state key %q: payload type is required — an untyped key publishes \"some JSON\"", k.Key)
 	}
 	if _, ok := contract.Lookup(k.RecoveryMethod); !ok {
 		return fmt.Errorf("state key %q: recovery method %q is not a registered method", k.Key, k.RecoveryMethod)

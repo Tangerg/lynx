@@ -107,6 +107,7 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 		} `json:"errors"`
 		CapabilityPolicy []struct{} `json:"capabilityPolicy"`
 		RunEventPolicy   []struct{} `json:"runEventPolicy"`
+		Envelope         []struct{} `json:"envelope"`
 		StatePolicy      []struct{} `json:"statePolicy"`
 		Unions           []struct{} `json:"unions"`
 		Constraints      []struct{} `json:"objectConstraints"`
@@ -121,6 +122,7 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 		"streamingMethods":  len(manifest.StreamingMethods),
 		"errors.codes":      len(manifest.Errors.Codes),
 		"capabilityPolicy":  len(manifest.CapabilityPolicy),
+		"envelope":          len(manifest.Envelope),
 		"runEventPolicy":    len(manifest.RunEventPolicy),
 		"statePolicy":       len(manifest.StatePolicy),
 		"unions":            len(manifest.Unions),
@@ -263,6 +265,7 @@ func TestGeneratedSchemasResolve(t *testing.T) {
 	}{
 		{"schema.json", "#/$defs/"},
 		{"openrpc.json", "schema.json#/$defs/"},
+		{"manifest.json", "schema.json#/$defs/"},
 	} {
 		var decoded any
 		if err := json.Unmarshal(readArtifact(t, dir, document.name), &decoded); err != nil {

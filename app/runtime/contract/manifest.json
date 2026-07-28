@@ -1306,6 +1306,14 @@
       "type": "resync"
     }
   ],
+  "envelope": [
+    {
+      "member": "_meta",
+      "schema": {
+        "$ref": "schema.json#/$defs/RequestMeta"
+      }
+    }
+  ],
   "statePolicy": [
     {
       "key": "todos",
@@ -1313,7 +1321,13 @@
       "scope": "session",
       "writer": "rootRun",
       "feature": "todos",
-      "stability": "stable"
+      "stability": "stable",
+      "payload": {
+        "type": "array",
+        "items": {
+          "$ref": "schema.json#/$defs/TodoSnapshot"
+        }
+      }
     }
   ],
   "unions": [

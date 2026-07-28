@@ -44,6 +44,15 @@ func walkWireTypes(registry *dispatch.Registry, shapes *dispatch.Shapes) *schema
 	for _, constraint := range shapes.Constraints() {
 		set.walk(constraint.GoType)
 	}
+	// These two, by contrast, are reachable from NOTHING else. `params._meta` belongs
+	// to no method, and a state key's value rides an untyped map — so without the
+	// declarations the published contract would simply omit both.
+	for _, member := range shapes.Envelope() {
+		set.walk(member.GoType)
+	}
+	for _, key := range shapes.StateKeys() {
+		set.walk(key.PayloadType)
+	}
 	return set
 }
 

@@ -24,6 +24,7 @@ func buildShapes() *Shapes {
 	registerArtifactUnions(s)
 	registerObjectConstraints(s)
 	registerStateKeys(s)
+	registerEnvelope(s)
 	return s
 }
 
@@ -277,5 +278,14 @@ func registerStateKeys(s *Shapes) {
 		Writer:         StateWriterRootRun,
 		Feature:        "todos",
 		Stability:      stable,
+		PayloadType:    typeOf[[]protocol.TodoSnapshot](),
 	})
+}
+
+func registerEnvelope(s *Shapes) {
+	// `params._meta` is the one wire member no method carries: dispatch strips it
+	// before decoding typed params, so the artifact walk — which starts from the
+	// registered methods — cannot reach it. Every client has to construct it, so a
+	// contract that omits its shape is incomplete (API.md §2.4).
+	s.envelopeMember(EnvelopeSpec{Member: "_meta", GoType: typeOf[protocol.RequestMeta]()})
 }

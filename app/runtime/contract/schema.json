@@ -990,6 +990,56 @@
         "runId"
       ]
     },
+    "ClientCapabilities": {
+      "type": "object",
+      "properties": {
+        "events": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/StreamEventType"
+          }
+        },
+        "excludedEvents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StreamEventType"
+          }
+        },
+        "features": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/FeaturePreference"
+          }
+        },
+        "interruptTypes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InterruptType"
+          }
+        }
+      },
+      "required": [
+        "events"
+      ]
+    },
+    "ClientInfo": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ]
+    },
     "CodebaseHit": {
       "type": "object",
       "properties": {
@@ -1483,6 +1533,17 @@
       "required": [
         "enabled",
         "stability"
+      ]
+    },
+    "FeaturePreference": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled"
       ]
     },
     "FeedbackRating": {
@@ -3919,6 +3980,20 @@
         "name"
       ]
     },
+    "RequestMeta": {
+      "type": "object",
+      "properties": {
+        "clientCapabilities": {
+          "$ref": "#/$defs/ClientCapabilities"
+        },
+        "clientInfo": {
+          "$ref": "#/$defs/ClientInfo"
+        },
+        "protocolVersion": {
+          "type": "string"
+        }
+      }
+    },
     "RestoreType": {
       "type": "string",
       "enum": [
@@ -5007,6 +5082,39 @@
       },
       "required": [
         "provider"
+      ]
+    },
+    "TodoSnapshot": {
+      "type": "object",
+      "properties": {
+        "blockedReason": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "nextAction": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/TodoStatus"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "text"
+      ]
+    },
+    "TodoStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "in_progress",
+        "completed"
       ]
     },
     "ToolInvocation": {

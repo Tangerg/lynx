@@ -21,6 +21,7 @@ type manifest struct {
 	CapabilityPolicy []capabilityEntry      `json:"capabilityPolicy"`
 	RunEventPolicy   []eventEntry           `json:"runEventPolicy"`
 	RuntimeTopics    []topicEntry           `json:"runtimeTopics"`
+	Envelope         []envelopeEntry        `json:"envelope"`
 	StatePolicy      []stateEntry           `json:"statePolicy"`
 	Unions           []unionEntry           `json:"unions"`
 	Constraints      []constraintEntry      `json:"objectConstraints"`
@@ -76,12 +77,21 @@ type topicEntry struct {
 }
 
 type stateEntry struct {
-	Key            string `json:"key"`
-	RecoveryMethod string `json:"recoveryMethod"`
-	Scope          string `json:"scope"`
-	Writer         string `json:"writer"`
-	Feature        string `json:"feature"`
-	Stability      string `json:"stability"`
+	Key            string  `json:"key"`
+	RecoveryMethod string  `json:"recoveryMethod"`
+	Scope          string  `json:"scope"`
+	Writer         string  `json:"writer"`
+	Feature        string  `json:"feature"`
+	Stability      string  `json:"stability"`
+	Payload        *schema `json:"payload"`
+}
+
+// envelopeEntry says which JSON-RPC envelope member carries which shape. The
+// member name is part of the answer: a bare type list would publish the shape
+// without saying where on the wire it goes.
+type envelopeEntry struct {
+	Member string  `json:"member"`
+	Schema *schema `json:"schema"`
 }
 
 type unionEntry struct {
@@ -113,7 +123,7 @@ type invariantEntry struct {
 	Boundaries []string `json:"boundaries"`
 }
 
-func build() manifest {
+func build(walked *schemaSet) manifest {
 	registry := dispatch.Contract()
 	shapes := dispatch.WireShapes()
 	return manifest{
@@ -125,7 +135,8 @@ func build() manifest {
 		CapabilityPolicy: capabilities(registry),
 		RunEventPolicy:   runEvents(shapes),
 		RuntimeTopics:    topics(shapes),
-		StatePolicy:      stateKeys(shapes),
+		Envelope:         envelope(shapes, walked),
+		StatePolicy:      stateKeys(shapes, walked),
 		Unions:           unions(shapes),
 		Constraints:      constraints(shapes),
 		SystemInvariants: invariants(),
@@ -265,7 +276,7 @@ func topicFeature(topic string) string {
 	return ""
 }
 
-func stateKeys(shapes *dispatch.Shapes) []stateEntry {
+func stateKeys(shapes *dispatch.Shapes, walked *schemaSet) []stateEntry {
 	keys := shapes.StateKeys()
 	out := make([]stateEntry, 0, len(keys))
 	for _, key := range keys {
@@ -273,7 +284,17 @@ func stateKeys(shapes *dispatch.Shapes) []stateEntry {
 			Key: key.Key, RecoveryMethod: key.RecoveryMethod,
 			Scope: string(key.Scope), Writer: string(key.Writer),
 			Feature: key.Feature, Stability: string(key.Stability),
+			Payload: external(walked.walk(key.PayloadType)),
 		})
+	}
+	return out
+}
+
+func envelope(shapes *dispatch.Shapes, walked *schemaSet) []envelopeEntry {
+	members := shapes.Envelope()
+	out := make([]envelopeEntry, 0, len(members))
+	for _, member := range members {
+		out = append(out, envelopeEntry{Member: member.Member, Schema: external(walked.walk(member.GoType))})
 	}
 	return out
 }
