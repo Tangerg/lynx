@@ -84,7 +84,7 @@ func (l *subagentLifecycle) fireSubagentHook(ctx context.Context, e event.Event)
 	}
 	switch ev := e.(type) {
 	case event.ProcessCreated:
-		in := l.subagentInput(e.ProcessID())
+		in := l.subagentInput(e.ProcessID(), "")
 		in.ParentProcessID = ev.ParentID
 		_ = l.hooks.Run(ctx, hooks.Input{
 			Event:     hooks.SubagentStart,
@@ -114,23 +114,25 @@ func (l *subagentLifecycle) projection(processID string) (agentexec.SubagentProj
 	return l.project(processID)
 }
 
-func (l *subagentLifecycle) subagentInput(processID string) hooks.SubagentInput {
-	in := hooks.SubagentInput{ProcessID: processID}
+// subagentInput reads the delegated process into a hook payload. status decides
+// whether a reply belongs in it: only a subagent that reached its goal has one,
+// so every other terminal status describes a process that stopped before
+// producing an answer. The start hook passes the zero status.
+func (l *subagentLifecycle) subagentInput(processID string, status hooks.SubagentStatus) hooks.SubagentInput {
+	in := hooks.SubagentInput{ProcessID: processID, Status: status}
 	if projection, ok := l.projection(processID); ok {
 		in.ParentProcessID = projection.ParentProcessID
 		in.Description = projection.Description
 		in.Prompt = summarizeHookText(projection.Prompt)
-		in.Result = summarizeHookText(projection.Reply)
+		if status == hooks.SubagentCompleted {
+			in.Result = summarizeHookText(projection.Reply)
+		}
 	}
 	return in
 }
 
 func (l *subagentLifecycle) runSubagentStopHook(ctx context.Context, e event.Event, status hooks.SubagentStatus, errText string) {
-	in := l.subagentInput(e.ProcessID())
-	if status != hooks.SubagentCompleted {
-		in.Result = ""
-	}
-	in.Status = status
+	in := l.subagentInput(e.ProcessID(), status)
 	in.Error = errText
 	_ = l.hooks.Run(ctx, hooks.Input{
 		Event:     hooks.SubagentStop,

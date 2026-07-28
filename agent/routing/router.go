@@ -134,17 +134,18 @@ func New(agentRuntime Runtime, ranker Ranker, config Config) (*Router, error) {
 func (r *Router) Candidates() []Candidate {
 	var candidates []Candidate
 	for _, deployment := range r.runtime.ActiveDeployments() {
-		agent := deployment.Descriptor()
-		if agent.Name() == "" {
+		// Runtime is a consumer-defined port, so the deployment list is only as
+		// well-formed as its implementation. A deployment that reached the engine
+		// carries a validated agent, which is why nothing here re-checks the
+		// description it projects.
+		if deployment == nil {
 			continue
 		}
+		agent := deployment.Descriptor()
 		if r.config.AgentFilter != nil && !r.config.AgentFilter(agent) {
 			continue
 		}
 		for _, goal := range agent.Goals() {
-			if goal.Name() == "" {
-				continue
-			}
 			if r.config.GoalFilter != nil && !r.config.GoalFilter(agent, goal) {
 				continue
 			}

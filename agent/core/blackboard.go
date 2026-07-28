@@ -205,13 +205,18 @@ func FormatBlackboard(blackboard BlackboardReader, verbose bool) string {
 		return "<nil blackboard>"
 	}
 
+	// Objects reconstructs every value it returns, so ask once: the count and
+	// the listing describe the same snapshot, and a second call would rebuild
+	// the whole list to discard it.
+	objects := blackboard.Objects()
+
 	var out strings.Builder
-	fmt.Fprintf(&out, "Blackboard{id=%s objects=%d}", blackboard.ID(), len(blackboard.Objects()))
+	fmt.Fprintf(&out, "Blackboard{id=%s objects=%d}", blackboard.ID(), len(objects))
 	if !verbose {
 		return out.String()
 	}
 
-	for i, object := range blackboard.Objects() {
+	for i, object := range objects {
 		fmt.Fprintf(&out, "\n  [%d] %T = %+v", i, object, object)
 	}
 	return out.String()
