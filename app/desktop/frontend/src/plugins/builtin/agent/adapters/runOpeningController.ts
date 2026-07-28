@@ -68,10 +68,9 @@ export function createRunOpeningController({
           failure = err;
           console.error("[agent] run failed to start:", sessionId, err);
           if (err instanceof RpcError)
-            setStartError({
-              message: errorDetail(err.data) ?? err.message,
-              code: errorType(err.data),
-            });
+            // message stays the runtime's own note about this occurrence; the
+            // banner turns `code` into words when there wasn't one.
+            setStartError({ message: errorDetail(err.data), code: errorType(err.data) });
           onStartError?.();
         })
         .finally(() => {

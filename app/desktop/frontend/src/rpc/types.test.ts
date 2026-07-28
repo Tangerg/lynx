@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  errorDetail,
+  errorType,
   isErrorResponse,
   isNotification,
   isRequest,
@@ -89,5 +91,26 @@ describe("parseRpcMessage envelope gate", () => {
     expect(parseRpcMessage(`"a string"`)).toBeNull();
     expect(parseRpcMessage(`42`)).toBeNull();
     expect(parseRpcMessage(`null`)).toBeNull();
+  });
+});
+
+// errorDetail reports whether the runtime said anything about this occurrence.
+// It once fell back to the symbolic type, so it could never answer "nothing" —
+// which handed every caller a bare symbol to show and pre-empted the layers that
+// own the words.
+describe("errorDetail reports only what the runtime said", () => {
+  it("returns the per-occurrence detail", () => {
+    expect(errorDetail({ type: "tool_failed", detail: "exit status 2" })).toBe("exit status 2");
+  });
+
+  it("returns undefined when there is no detail, symbol or not", () => {
+    expect(errorDetail({ type: "session_busy" })).toBeUndefined();
+    expect(errorDetail({ type: "session_busy", detail: "" })).toBeUndefined();
+    expect(errorDetail({})).toBeUndefined();
+    expect(errorDetail(undefined)).toBeUndefined();
+  });
+
+  it("leaves the symbol to errorType, which is what branch logic reads", () => {
+    expect(errorType({ type: "session_busy" })).toBe("session_busy");
   });
 });

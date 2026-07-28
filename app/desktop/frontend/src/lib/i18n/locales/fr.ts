@@ -920,7 +920,13 @@ export const fr: Record<string, string> = {
   "rpcError.is_a_directory": "Ce chemin est un répertoire — choisis un fichier à lire.",
   "rpcError.file_too_large":
     "Le fichier est trop gros pour être lu en entier — demande une plage de lignes.",
-  "rpcError.mcp_auth_failed": "L'authentification a été refusée — vérifie le jeton et réessaie.",
+  "rpcError.mcp_authorization_required":
+    "Ce serveur demande une connexion avant de pouvoir servir.",
+  "rpcError.mcp_dial_failed":
+    "Impossible de joindre ce serveur — vérifie la commande ou l'URL et réessaie.",
+  "rpcError.provider_not_configured": "Renseigne d'abord la clé d'API.",
+  "rpcError.provider_test_failed":
+    "Le fournisseur était injoignable, ou il a refusé la requête de test.",
   "session.error.create": "Impossible de créer la session.",
   "session.error.delete": "Impossible de supprimer la session.",
   "session.error.rename": "Impossible de renommer la session.",

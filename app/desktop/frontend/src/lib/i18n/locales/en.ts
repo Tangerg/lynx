@@ -949,7 +949,11 @@ export const en: Record<string, string> = {
     "No language server for this file type — code intelligence isn't available here.",
   "rpcError.is_a_directory": "That path is a directory — pick a file to read.",
   "rpcError.file_too_large": "File is too large to read whole — request a line range instead.",
-  "rpcError.mcp_auth_failed": "Authentication was rejected — check the token and try again.",
+  "rpcError.mcp_authorization_required": "This server needs you to sign in before it can be used.",
+  "rpcError.mcp_dial_failed": "Couldn't reach this server — check the command or URL and retry.",
+  "rpcError.provider_not_configured": "Set the API key first.",
+  "rpcError.provider_test_failed":
+    "The provider couldn't be reached, or it rejected the test request.",
   "session.error.create": "Couldn't create the session.",
   "session.error.delete": "Couldn't delete the session.",
   "session.error.rename": "Couldn't rename the session.",

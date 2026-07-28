@@ -921,8 +921,13 @@ export const de: Record<string, string> = {
   "rpcError.is_a_directory": "Dieser Pfad ist ein Verzeichnis — wähle eine Datei zum Lesen.",
   "rpcError.file_too_large":
     "Die Datei ist zu groß, um sie ganz zu lesen — fordere einen Zeilenbereich an.",
-  "rpcError.mcp_auth_failed":
-    "Die Authentifizierung wurde abgelehnt — prüfe das Token und versuche es erneut.",
+  "rpcError.mcp_authorization_required":
+    "Dieser Server verlangt eine Anmeldung, bevor er nutzbar ist.",
+  "rpcError.mcp_dial_failed":
+    "Dieser Server ist nicht erreichbar — prüfe Befehl oder URL und versuche es erneut.",
+  "rpcError.provider_not_configured": "Hinterlege zuerst den API-Key.",
+  "rpcError.provider_test_failed":
+    "Der Anbieter war nicht erreichbar oder hat die Testanfrage abgelehnt.",
   "session.error.create": "Sitzung konnte nicht erstellt werden.",
   "session.error.delete": "Sitzung konnte nicht gelöscht werden.",
   "session.error.rename": "Sitzung konnte nicht umbenannt werden.",

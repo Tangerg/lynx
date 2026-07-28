@@ -11,6 +11,7 @@
 // stays a one-to-one map against the protocol.
 
 import { errorDetail, errorType, RPC_METHOD_NOT_FOUND, RpcError, RpcTransportError } from "@/rpc";
+import type { ProblemData } from "@/rpc";
 import { t } from "./i18n";
 
 const MAPPED_TYPES: readonly string[] = [
@@ -33,11 +34,16 @@ const MAPPED_TYPES: readonly string[] = [
   // put its internals on the wire), so the words are ours to supply.
   "internal_error",
   "run_lost",
-  // 613 — B7 code intel / B8 file read / B12 MCP auth (all expected, UI-inline).
+  // 613 — B7 code intel / B8 file read (all expected, UI-inline).
   "no_language_server",
   "is_a_directory",
   "file_too_large",
-  "mcp_auth_failed",
+  // Inline status verdicts: they ride an McpServer / ProviderTestResult rather
+  // than failing the call, and the runtime sends the symbol alone.
+  "mcp_authorization_required",
+  "mcp_dial_failed",
+  "provider_not_configured",
+  "provider_test_failed",
 ];
 
 /** Friendly copy for a mapped protocol error type; undefined for an unmapped
@@ -51,6 +57,20 @@ export function describeErrorType(type: string | undefined): string | undefined 
 export function describeRpcError(err: unknown): string | undefined {
   if (!(err instanceof RpcError)) return undefined;
   return describeErrorType(errorType(err.data));
+}
+
+/** Best human-readable text for a ProblemData that rides a result rather than
+ *  failing the call (McpServer.error, ProviderTestResult.error, a run or tool
+ *  error): the per-occurrence detail, then this locale's copy for the symbol,
+ *  then the bare symbol.
+ *
+ *  Detail comes first here because it describes THIS occurrence — a tool's own
+ *  message beats a sentence about its category. rpcErrorText orders it the other
+ *  way for the opposite reason: an RPC failure's detail is usually the technical
+ *  cause rather than the thing to put in front of someone. */
+export function describeProblem(problem: ProblemData | undefined): string | undefined {
+  if (!problem) return undefined;
+  return problem.detail || describeErrorType(problem.type) || problem.type || undefined;
 }
 
 /** Best human-readable text for any RPC error: mapped copy, then the

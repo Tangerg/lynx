@@ -892,7 +892,11 @@ export const ko: Record<string, string> = {
     "이 파일 형식에는 언어 서버가 없습니다 — 여기서는 코드 인텔리전스를 쓸 수 없습니다.",
   "rpcError.is_a_directory": "해당 경로는 디렉터리입니다 — 읽을 파일을 선택하세요.",
   "rpcError.file_too_large": "파일이 너무 커서 전체를 읽을 수 없습니다 — 줄 범위를 지정하세요.",
-  "rpcError.mcp_auth_failed": "인증이 거부되었습니다 — 토큰을 확인하고 다시 시도하세요.",
+  "rpcError.mcp_authorization_required": "이 서버는 사용하기 전에 로그인이 필요합니다.",
+  "rpcError.mcp_dial_failed":
+    "이 서버에 연결할 수 없습니다 — 명령이나 URL을 확인하고 다시 시도하세요.",
+  "rpcError.provider_not_configured": "먼저 API 키를 입력하세요.",
+  "rpcError.provider_test_failed": "제공자에 연결할 수 없거나 테스트 요청이 거부됐습니다.",
   "session.error.create": "세션을 만들 수 없습니다.",
   "session.error.delete": "세션을 삭제할 수 없습니다.",
   "session.error.rename": "세션 이름을 바꿀 수 없습니다.",

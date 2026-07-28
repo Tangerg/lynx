@@ -908,7 +908,12 @@ export const ja: Record<string, string> = {
     "このファイル形式に対応する言語サーバーがありません — ここではコードインテリジェンスを使えません。",
   "rpcError.is_a_directory": "そのパスはディレクトリです — 読み込むファイルを選んでください。",
   "rpcError.file_too_large": "ファイルが大きすぎて全体を読めません — 行範囲を指定してください。",
-  "rpcError.mcp_auth_failed": "認証が拒否されました — トークンを確認して再試行してください。",
+  "rpcError.mcp_authorization_required": "このサーバーは使う前にサインインが必要です。",
+  "rpcError.mcp_dial_failed":
+    "このサーバーに接続できません — コマンドか URL を確認して再試行してください。",
+  "rpcError.provider_not_configured": "先に API キーを設定してください。",
+  "rpcError.provider_test_failed":
+    "プロバイダーに接続できないか、テストリクエストが拒否されました。",
   "session.error.create": "セッションを作成できませんでした。",
   "session.error.delete": "セッションを削除できませんでした。",
   "session.error.rename": "セッション名を変更できませんでした。",

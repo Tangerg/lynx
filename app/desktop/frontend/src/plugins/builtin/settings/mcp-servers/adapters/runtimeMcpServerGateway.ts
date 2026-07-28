@@ -1,6 +1,7 @@
 import { getContainer } from "@/main/container";
-import { errorDetail, type ConfigureMCPServerRequest } from "@/rpc";
+import type { ConfigureMCPServerRequest } from "@/rpc";
 import { t } from "@/lib/i18n";
+import { describeProblem } from "@/lib/rpcErrors";
 import { configureMCPServerGateway } from "../application/ports/mcpServerGateway";
 import type { MCPServerGateway } from "../application/ports/mcpServerGateway";
 import type { MCPServerConfigInput } from "../application/mcpServerInput";
@@ -51,7 +52,7 @@ const gateway: MCPServerGateway = {
     const result = await getContainer().client().mcp.test(configureRequest(input));
     return {
       ok: result.ok,
-      error: result.ok ? undefined : (errorDetail(result.error) ?? t("mcp.error.test")),
+      error: result.ok ? undefined : (describeProblem(result.error) ?? t("mcp.error.test")),
     };
   },
 };

@@ -1,3 +1,4 @@
+import { describeProblem } from "@/lib/rpcErrors";
 import type { AgentSessionSummary } from "@/plugins/builtin/agent/public/session";
 import type {
   MCPServer as McpServerStatusSummary,
@@ -48,7 +49,7 @@ export function toMcpServerStatusSummary(s: RpcMCPServer): McpServerStatusSummar
     desc: s.description ?? "",
     tools: s.toolCount ?? 0,
     status: s.status,
-    errorDetail: s.error ? (s.error.detail ?? s.error.type) : undefined,
+    errorDetail: describeProblem(s.error),
     icon: MCP_ICON[s.name] ?? "tool",
   };
 }
@@ -69,7 +70,7 @@ export function toMcpConfigInfo(c: RpcMCPServerConfig, live?: RpcMCPServer): MCP
     autoApproveTools: c.autoApproveTools,
     status: live?.status,
     toolCount: live?.toolCount,
-    errorDetail: live?.error ? (live.error.detail ?? live.error.type) : undefined,
+    errorDetail: describeProblem(live?.error),
   };
 }
 

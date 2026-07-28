@@ -917,7 +917,13 @@ export const es: Record<string, string> = {
   "rpcError.is_a_directory": "Esa ruta es un directorio — elige un archivo para leer.",
   "rpcError.file_too_large":
     "El archivo es demasiado grande para leerlo entero — pide un rango de líneas.",
-  "rpcError.mcp_auth_failed": "Se rechazó la autenticación — revisa el token e inténtalo de nuevo.",
+  "rpcError.mcp_authorization_required":
+    "Este servidor requiere que inicies sesión antes de usarlo.",
+  "rpcError.mcp_dial_failed":
+    "No se pudo conectar con este servidor — revisa el comando o la URL y reinténtalo.",
+  "rpcError.provider_not_configured": "Configura primero la clave de API.",
+  "rpcError.provider_test_failed":
+    "No se pudo contactar al proveedor, o rechazó la petición de prueba.",
   "session.error.create": "No se pudo crear la sesión.",
   "session.error.delete": "No se pudo borrar la sesión.",
   "session.error.rename": "No se pudo renombrar la sesión.",

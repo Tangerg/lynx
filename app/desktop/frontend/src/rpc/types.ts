@@ -106,15 +106,18 @@ export function errorType(data: unknown): string | undefined {
   return undefined;
 }
 
-// Human-readable explanation from a ProblemData (§8.3): the per-occurrence
-// `detail`, falling back to the symbolic `type`. For surfacing an error to a
-// user inline (e.g. a failed providers.test) — branch logic still uses errorType.
+// The per-occurrence `detail` a ProblemData carried (§8.3), and nothing else.
+// It used to fall back to the symbolic `type`, which meant every caller wanting
+// words got "session_busy" whenever the runtime had no note to add — and, worse,
+// filled the field that signals "the runtime said nothing", so the layers that
+// own copy never got their turn. Callers that need words use lib/rpcErrors
+// (describeProblem / rpcErrorText); branch logic uses errorType.
 export function errorDetail(data: unknown): string | undefined {
   if (data && typeof data === "object") {
     const d = (data as { detail?: unknown }).detail;
     if (typeof d === "string" && d) return d;
   }
-  return errorType(data);
+  return undefined;
 }
 
 // Discriminators — used by transport layer to route inbound messages.
