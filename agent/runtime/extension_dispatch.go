@@ -83,7 +83,7 @@ func (r *extensionRegistry) register(scope string, extension core.Extension) err
 }
 
 func supportsEngineScope(extension core.Extension) bool {
-	return supportsProcessScope(extension) || supportsEngineOnlyScope(extension)
+	return supportsProcessScope(extension) || len(engineOnlyCapabilities(extension)) > 0
 }
 
 func supportsProcessScope(extension core.Extension) bool {
@@ -104,30 +104,28 @@ func supportsProcessScope(extension core.Extension) bool {
 	}
 }
 
-func supportsEngineOnlyScope(extension core.Extension) bool {
-	switch extension.(type) {
-	case core.AgentValidator, core.IDGenerator, core.Blackboard:
-		return true
-	default:
-		return false
+// engineOnlyCapabilities names the capabilities extension declares that only
+// make sense engine-wide. It is the one statement of that set: the scope check
+// and the error that lists them both read it, so a capability added here cannot
+// be silently accepted at process scope by a predicate that forgot it.
+func engineOnlyCapabilities(extension core.Extension) []string {
+	var declared []string
+	if _, ok := extension.(core.AgentValidator); ok {
+		declared = append(declared, "AgentValidator")
 	}
+	if _, ok := extension.(core.IDGenerator); ok {
+		declared = append(declared, "IDGenerator")
+	}
+	if _, ok := extension.(core.Blackboard); ok {
+		declared = append(declared, "Blackboard")
+	}
+	return declared
 }
 
 func validateProcessExtensionScope(extension core.Extension) error {
-	var engineOnly []string
-	if _, ok := extension.(core.AgentValidator); ok {
-		engineOnly = append(engineOnly, "AgentValidator")
-	}
-	if _, ok := extension.(core.IDGenerator); ok {
-		engineOnly = append(engineOnly, "IDGenerator")
-	}
-	if _, ok := extension.(core.Blackboard); ok {
-		engineOnly = append(engineOnly, "Blackboard")
-	}
-	if len(engineOnly) > 0 {
+	if engineOnly := engineOnlyCapabilities(extension); len(engineOnly) > 0 {
 		return fmt.Errorf("engine-only capabilities: %s", strings.Join(engineOnly, ", "))
 	}
-
 	if supportsProcessScope(extension) {
 		return nil
 	}
