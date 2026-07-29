@@ -1031,9 +1031,9 @@ todos 今天只以**流内 ephemeral `state.snapshot`** 形态上 wire：没有 
 | C12 | 九值闭合 `RuntimeTopic` + `runtime.subscribe` 取代 `workspace.subscribe`；删 `mcp.serverChanged` payload 真相、`schedules.fired` | `DONE` | `a9bd0f1fa` |
 | C13 | cursor/replay 定稿（`processEpoch`、`headEventId` opaque、retention 走 discover）+ `runs.subscribe/steer` 认领 segment | `DONE` | `361668817` |
 | C14 | `sessions.rollback/export/import` capability 规则（已在）+ Artifact v7（`states`/child edges/root-only profile/`DroppedRun`→RunSummary） | `DONE` | `86c79a21f` |
-| C14b | **session-scoped state 的另外两半生命周期**：`fork` 复制 fork boundary 的值、`history/both` rollback **恢复到目标 boundary**（今天是清空）。需要 per-run-boundary 的 todo 快照（新列/新表 + run terminal 写 + fork/rollback 读，epoch 39→40）—— 见下「C14b 为什么单独一片」 | `TODO` | — |
-| C15 | 前端：exhaustive reducer、**删 business numeric code 镜像**、`runtime.subscribe` 单流、删 goal 4 秒轮询、高层 run handle + tail-first cold recovery。✅ 单流已结构满足，本 slice 是改名 + topic 扩容 + reducer 扩展 | `TODO` | — |
-| C16 | 切版本：`protocolVersion = minSupported = "2026-07-27"`、`SessionArtifactVersion = 7`；旧协议 `invalid_protocol_version`、旧 Artifact 确定性拒绝 | `TODO` | — |
+| C14b | **session-scoped state 的另外两半生命周期**：`fork` 复制 fork boundary 的值、`history/both` rollback **恢复到目标 boundary**（原先是清空）。per-run-boundary 快照（`todo_boundaries` + FK cascade，terminal CAS 内一处 stamp，epoch 39→40）—— 见下「C14b 为什么单独一片」 | `DONE` | `463910d21` |
+| C15 | 前端 fold + **它依赖的后端生产者**：九 topic 生产者（原先只有四个）+ hub 不再丢帧（合并成 resync）；前端 exhaustive reducer、删 business numeric code 镜像、订满九 topic、删 goal 4 秒轮询、state 冷读（`todos.get`）、run stream 断线按 `Last-Event-Id` 重接 | `DONE` | `cad9f7069` / `57d2cf9ed` / `c58906cbf` |
+| C16 | 切版本：`protocolVersion = minSupported = "2026-07-27"`、`SessionArtifactVersion = 7`；旧协议 `invalid_protocol_version`、旧 Artifact 确定性拒绝；canonical 文档改写 + gate 15/16/17/18 —— **一个 commit，见下「C16 为什么是一个不可拆的 commit」** | `TODO` | — |
 
 #### ⚠️ Batch C 接手须知（2026-07-29，B 收口时量过的，别重新踩）
 
@@ -1233,3 +1233,28 @@ A ──→ A′ (4 slice, 修现役泄露, 落 main) ──┬─→ B  (Regist
 - todos 投影是**单行最新值**，没有任何历史 —— 没有「run X 那一刻的值」可读。今天 rollback 只能**清空**（"恢复到空"，仅当边界处本来没有清单时才恰好对），fork **完全不带**。
 - 治本形态：**per-run-boundary 快照**（run terminal 时把「本 session 此刻的 todos」记进该 run 的投影，一列 JSON 即可）→ rollback 读「存活的最后一个 run 的快照」、fork 读「fork 边界那个 run 的快照」。代价：store schema 加列（epoch 39→40）+ run terminal 写集 + 两处读 + 测试。
 - 归为独立 slice 是因为它与 C14 的**根因不同**（C14 是「archive 没有落点」，C14b 是「runtime 没有历史」），且它有自己的 schema 爆炸半径。**必须在 C16 之前落**，否则 vNext 版本号声明的 §3.2 有一条不成立。
+
+---
+
+## C14b / C15 已完成（2026-07-29，同一会话续做）
+
+| slice | 咬出的真缺陷 |
+|---|---|
+| **C14b** | 上一节预告的那半：**数据不存在**。`todo_boundaries`（`run_id` PK + FK cascade 到 `runs`）在**终态 CAS 那一条语句里**盖章 —— 那是 Run 唯一能到 terminal 的地方，所以"没有无边界的终态 Run"是构造保证，不靠每个调用方记得；`Restore` 刻意不盖（导入的 Run 在别的 runtime 结束，拿导入方的 live 清单当它的边界是编造）。**缺行 ≠ 空清单**：导入的 Run 从没被捕获过，两个读者一律"别动 live 值"，与未知 messageMark 不动日志同一条规矩。**顺带一个真 bug**：旧 rollback **DELETE 掉 todos 行**，revision 归 1，客户端手上是 7 就把回退后的清单当旧的丢掉 —— 与 C14 在 import 上修的是同一个根因（改 Replace） |
+| **C15** | discovery 广告九个 topic，**只有四个有生产者**。第二个窗口对"run 开始了 / 有人在等回答 / goal 在烧预算 / 清单被改了"一无所知，而且**无法察觉**自己在漏（topic 在，流是静的）—— 与"discovery 发布 runtime 不执行的 limit"同一个病灶。goal banner 用四秒轮询遮住了自己那一份。**hub 还在丢帧**：它递增 sequence 然后丢掉帧，客户端只能靠"看见空号"知道漏了 —— 安静的流上永远看不见；现在未投递的失效合并成一条点名 topic 的 `resync`，**号只发给真进队列的帧**。前端：九 topic 全订 + exhaustive reducer（default 分支只在每个成员都处理时才编译得过，闭合联合写在 workspace 层而非从 wire 导入，**新增 signal 在 subscribe 边界报类型错**——这条当场抓出一个还在发 `mcp.serverChanged` 的测试）；session-scoped state 补上冷读（`todos.get` 此前**零调用方**，而它正是 capability 广告的 recovery method）；**run stream 断线不再冻结 transcript** —— 按最后折叠的事件重接，cursor 只由折叠推进（重接 ack 的 head 在请求位置**之前面**，采用它会静默跳过刚请求的重放），replay 窗口过期则冷读 items.list + tail 重接 |
+
+### C16 为什么是一个不可拆的 commit
+
+三条 gate 把它锁成一体，拆开必有一步是红的：
+
+- **gate 12**（`TestProtocolVersionAgreesEverywhere`）会点名 canonical 文档里任何本 build 不服务的版本号 —— 所以"翻常量"和"改文档"必须同一个 commit；
+- **gate 16/17**（compatibility diff 判 breaking 且要求同步 bump）在 bump 之前必然红；
+- **gate 15**（Artifact v7 round-trip）要的就是 `SessionArtifactVersion = 7`。
+
+**canonical 文档怎么处理（已按契约 §0 定案，不要再讨论"删掉换指针"）**：契约 §0 明写"完成切换后：本文定义的目标 shape **必须进入 canonical 协议与生成物**""本文不是第二份字段目录，**字段级真相最终只存在于 Registry 生成的 schema**"。合起来只有一种读法 ——
+
+- `desktop/docs/protocol/{API,AUX_API,TRANSPORT}.md` **仍是 canonical**，按 vNext 改写；**不删**（另有硬理由：Go/TS 注释里有 **305 处** `API.md §x` / `AUX_API §x` 引用，删文件等于制造 305 个悬空引用，而重编号到契约的 § 号是逐条易错的静默误导）；
+- 改写时**删掉被生成物重述的字段/方法/错误目录**，改为引 `contract/{openrpc,schema,manifest}.json` 与 `contract/API_REFERENCE.md` —— 一个事实一个作者；文档留自己独家的：语义、不变量、wire 例子；
+- `TRANSPORT.md` 是 transport binding 的**唯一**作者（契约本身没有 transport 章）：端点 / POST 契约 / HTTP status / streamable 帧 / SSE / event id 与续流 / 门禁 token / sidecar / CORS / 背压 —— 它不是任何东西的第二份拼写，按 vNext 改准即可。
+
+C16 的完整清单：① 两个常量 ② `go generate` 重出产物 ③ 旧协议 / 旧 Artifact 的确定性拒绝各带测试 ④ fixture 扫（Go `testProtocolVersion`、前端 `main/config.ts` + samples + 测试里的硬编码日期）⑤ 三份 canonical 文档改写 ⑥ gate 15/16/17/18（16/17 需要一个 compatibility differ，读 `internal/arch/testdata/baseline/{manifest,schema}.json` 与当前产物比）。
