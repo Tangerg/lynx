@@ -64,7 +64,7 @@
 | B | Contract Registry（全量） | `DONE` | 4 slice 全 `DONE`；14 类产物 + **18/18** drift gate（15/16/17/18 随 C16 落）|
 | B′ | 权威读面 + store cutover | `DONE` | B′1 + B′2/B′3（合并）落 main；B′4 逐项核实为已完成 / 余项 `DEFERRED → C`（无 producer），B′5 `DEFERRED → C7` |
 | C | vNext 原子切换 | `DONE` | 17 slice（C14b 为实施中发现追加），27 commit，**已 ff 合 main 2026-07-29**（尾 `5f23fe9e8`）|
-| D | 切换后数值调优 | `TODO` | 依赖已解开（C 已合 main）。**有界性先于快慢**：不封顶的 buffer 不让 turn 变慢，它让进程 OOM |
+| D | 切换后数值调优 | `DONE`（D4 真机半除外） | D1/D2/D3 `DONE`、D4 `PARTIAL`，3 commit 已合 main 2026-07-29（尾 `a053e655e`）。**有界性先于快慢** —— 而有界性 C12/C13 早已做完，所以 D 的起点是**测量**：D2 裁决「数值不动」有测量背书，D3 是去掉重复劳动而非提速。剩真机负载 |
 
 **状态取值**：`TODO` / `IN PROGRESS` / `DONE` / `DEFERRED` / `N/A（附理由）`
 
