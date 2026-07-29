@@ -62,10 +62,11 @@ func (s *Server) SteerRun(ctx context.Context, in protocol.SteerRunRequest) erro
 
 func wireSteerError(err error) error {
 	if input, ok := errors.AsType[*runs.InputBlockError](err); ok {
-		return &protocol.ConstraintError{Fields: []protocol.FieldError{{
+		constraint := &protocol.ConstraintError{Shape: "RunInput", Fields: []protocol.FieldError{{
 			Field:  fmt.Sprintf("input[%d].%s", input.Index, input.Field),
 			Detail: input.Detail,
 		}}}
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, constraint)
 	}
 	if errors.Is(err, runs.ErrInputRequired) || errors.Is(err, runs.ErrUnsupportedMedia) {
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)

@@ -1115,13 +1115,13 @@ export type RuntimeEvent =
   | { type: "state.changed"; key: StateSnapshotType; runIds?: string[]; sequence: number; sessionIds?: string[] }
   | { type: "goals.changed"; sequence: number; sessionIds?: string[] }
   | { type: "interrupts.changed"; runIds?: string[]; sequence: number; sessionIds?: string[] }
-  | { type: "resync"; sequence: number; topics?: RuntimeTopic[]; watchIds?: string[] };
+  | { type: "resync"; sequence: number; topics: RuntimeTopic[]; watchIds?: string[] };
 
 export type RuntimeEventType = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "state.changed" | "goals.changed" | "interrupts.changed" | "resync";
 
 export interface RuntimeLimits {
   maxConcurrentRuns?: number;
-  runReplay?: RunReplayLimits;
+  runReplay: RunReplayLimits;
   runtimeSubscription: SubscriptionLimits;
 }
 

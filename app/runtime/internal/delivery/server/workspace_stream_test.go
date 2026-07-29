@@ -46,7 +46,9 @@ func TestWorkspaceHubSequencesEventsPerSubscription(t *testing.T) {
 	defer unregisterFirst()
 	defer unregisterSecond()
 
-	hub.publishTo(firstSub, protocol.RuntimeEvent{Type: protocol.RuntimeResync})
+	hub.publishTo(firstSub, protocol.RuntimeEvent{
+		Type: protocol.RuntimeResync, Topics: []protocol.RuntimeTopic{protocol.TopicSkillsChanged},
+	})
 	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged})
 
 	assertWorkspaceEvent := func(ch <-chan protocol.RuntimeEvent, wantType protocol.RuntimeEventType, wantSequence uint64) {
@@ -78,7 +80,9 @@ func TestWorkspaceHubCoalescesRatherThanDroppingSignals(t *testing.T) {
 	sub, unregister, _ := hub.register(events, allTopics())
 	defer unregister()
 
-	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeFilesChanged, WatchID: "w1"})
+	hub.publish(protocol.RuntimeEvent{
+		Type: protocol.RuntimeFilesChanged, WatchID: "w1", Paths: []string{"a.go"},
+	})
 	// Both of these find the queue full and fold into one pending resync.
 	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged})
 	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged})
@@ -119,7 +123,9 @@ func TestWorkspaceHubResyncKeepsTheScopeItWasStalledWith(t *testing.T) {
 		Topics:   []protocol.RuntimeTopic{protocol.TopicFilesChanged},
 		WatchIDs: []string{"active-session"},
 	})
-	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeFilesChanged, WatchID: "other"})
+	hub.publish(protocol.RuntimeEvent{
+		Type: protocol.RuntimeFilesChanged, WatchID: "other", Paths: []string{"other.go"},
+	})
 
 	<-events
 	hub.drained(sub)
@@ -148,21 +154,46 @@ func TestWorkspaceHubIsolatesMutableEventDataPerSubscription(t *testing.T) {
 	// the producer must not be able to edit what a subscriber holds, and two
 	// subscribers must not share one.
 	event := protocol.RuntimeEvent{
-		Type:       protocol.RuntimeFilesChanged,
-		Paths:      []string{"a.go"},
+		Type:       protocol.RuntimeRunsChanged,
+		RunIDs:     []string{"run_1"},
 		SessionIDs: []string{"ses_1"},
 	}
 	hub.publish(event)
 
-	event.Paths[0] = "producer-mutated.go"
+	event.RunIDs[0] = "run_mutated"
 	event.SessionIDs[0] = "ses_mutated"
 	firstEvent := <-first
 	secondEvent := <-second
-	firstEvent.Paths[0] = "consumer-mutated.go"
+	firstEvent.RunIDs[0] = "run_consumer"
 	firstEvent.SessionIDs[0] = "ses_consumer"
 
-	if secondEvent.Paths[0] != "a.go" || secondEvent.SessionIDs[0] != "ses_1" {
+	if secondEvent.RunIDs[0] != "run_1" || secondEvent.SessionIDs[0] != "ses_1" {
 		t.Fatalf("second subscription observed shared mutable data: %+v", secondEvent)
+	}
+}
+
+func TestWorkspaceHubRecoversMalformedSignalWithSubscriptionResync(t *testing.T) {
+	hub := newWorkspaceHub()
+	events := make(chan protocol.RuntimeEvent, 1)
+	topics := map[protocol.RuntimeTopic]bool{
+		protocol.TopicFilesChanged:  true,
+		protocol.TopicSkillsChanged: true,
+	}
+	_, unregister, _ := hub.register(events, topics)
+	defer unregister()
+
+	// A files signal without paths cannot tell the client what changed. Publishing
+	// nothing would leave its projection stale, so the hub widens to exactly the
+	// resources this subscriber holds.
+	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeFilesChanged})
+
+	got := <-events
+	if got.Type != protocol.RuntimeResync || got.Sequence != 1 {
+		t.Fatalf("recovery frame = %+v, want resync sequence 1", got)
+	}
+	want := []protocol.RuntimeTopic{protocol.TopicFilesChanged, protocol.TopicSkillsChanged}
+	if !slices.Equal(got.Topics, want) {
+		t.Fatalf("recovery topics = %v, want %v", got.Topics, want)
 	}
 }
 
@@ -181,7 +212,9 @@ func TestWorkspaceHubCloseLinearizesSubscriptionAdmission(t *testing.T) {
 		t.Fatal("subscription admitted after close returned")
 	}
 
-	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeResync})
+	hub.publish(protocol.RuntimeEvent{
+		Type: protocol.RuntimeResync, Topics: []protocol.RuntimeTopic{protocol.TopicSkillsChanged},
+	})
 	if got := <-before; got.Type != protocol.RuntimeResync {
 		t.Fatalf("pre-close subscription event = %+v", got)
 	}

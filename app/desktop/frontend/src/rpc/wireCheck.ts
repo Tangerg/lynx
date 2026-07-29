@@ -232,6 +232,7 @@ export function oneOf(branches: readonly WireCheck[]): WireCheck {
   return (value, path, out) => {
     let matched = 0;
     let nearest: WireViolation[] | undefined;
+    let nearestMissesDiscriminator = true;
     for (const branch of branches) {
       const missed: WireViolation[] = [];
       branch(value, path, missed);
@@ -239,7 +240,19 @@ export function oneOf(branches: readonly WireCheck[]): WireCheck {
         matched++;
         continue;
       }
-      if (nearest === undefined || missed.length < nearest.length) nearest = missed;
+      // Every first-party union is discriminated by `type`. Once that tag matches,
+      // report the defects in that variant even when an earlier wrong-tag branch
+      // happens to have fewer violations. Otherwise `{type:"resync"}` misleadingly
+      // reports `expected "skills.changed"` instead of `topics is required`.
+      const missesDiscriminator = missed.some((violation) => violation.path === `${path}.type`);
+      if (
+        nearest === undefined ||
+        (nearestMissesDiscriminator && !missesDiscriminator) ||
+        (nearestMissesDiscriminator === missesDiscriminator && missed.length < nearest.length)
+      ) {
+        nearest = missed;
+        nearestMissesDiscriminator = missesDiscriminator;
+      }
     }
     if (matched === 1) return;
     if (matched > 1) {

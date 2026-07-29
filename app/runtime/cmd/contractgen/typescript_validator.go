@@ -20,10 +20,10 @@ import (
 // It is the client's half of §11.3's "authoritative/terminal runtime validators",
 // and its scope follows from which side owns which frames. The runtime RECEIVES
 // requests, and Go's typed decode already fixes their structure, so the generated
-// Go validator only adds what typing cannot say (value constraints, enum
-// membership). A client RECEIVES results and events with no typing left at runtime
-// at all, so this one carries the whole tree: type keywords, required, enum,
-// minLength / minimum, union exclusivity, presence rules.
+// Go validator enforces the registered value, enum, union and presence rules. A
+// client RECEIVES results and events with no typing left at runtime at all, so this
+// one additionally carries the whole structural tree: type keywords, nested
+// shapes, required members and union exclusivity.
 //
 // Nothing here decides what a keyword means; `wireCheck.ts` does, once. This file
 // only states which keyword applies where — the same division as the generated Go

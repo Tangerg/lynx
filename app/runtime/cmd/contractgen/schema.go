@@ -190,8 +190,8 @@ func (s *schemaSet) object(t reflect.Type) *schema {
 		}
 	}
 	// A constraint on a NESTED field cannot narrow the shared definition it lives in
-	// — the rule belongs to this request, not to every carrier of that type — so it
-	// rides an allOf branch on the request instead.
+	// — the rule belongs to this enclosing shape, not to every carrier of that type
+	// — so it rides an allOf branch on the owner instead.
 	for _, constraint := range s.values[t] {
 		if !strings.Contains(constraint.Field, ".") {
 			continue

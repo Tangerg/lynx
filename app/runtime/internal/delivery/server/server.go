@@ -212,10 +212,9 @@ type Server struct {
 
 	features featureAvailability
 
-	// replay is the advertised replay window, captured from the run coordinator at
-	// construction. nil when no run coordinator was composed: then there is no
-	// window, and discovery says nothing rather than a number.
-	replay *protocol.RunReplayLimits
+	// replay is the advertised replay window, captured and validated from the
+	// required run coordinator at construction.
+	replay protocol.RunReplayLimits
 
 	// wsHub fans non-run change signals (files/skills/mcp/schedule/session) out to
 	// runtime.subscribe streams (AUX_API §3). Ephemeral, lossy, connection-
@@ -322,6 +321,10 @@ func New(cfg Config) (*Server, error) {
 		schedules:   cfg.Schedules.Available() && cfg.ScheduleFiring.Available(),
 		codebase:    cfg.Codebase.Available(),
 	}
+	replay := replayLimitsFrom(cfg.Coordinator)
+	if err := replay.ValidateWire(); err != nil {
+		return nil, fmt.Errorf("server: coordinator returned invalid replay retention: %w", err)
+	}
 	srv := &Server{
 		sessions:           cfg.Sessions,
 		integrations:       cfg.Integrations,
@@ -347,7 +350,7 @@ func New(cfg Config) (*Server, error) {
 		workspaceHooks:     cfg.WorkspaceHooks,
 		workspaceWatch:     cfg.WorkspaceWatch,
 		features:           features,
-		replay:             replayLimitsFrom(cfg.Coordinator),
+		replay:             replay,
 	}
 	// The run pump publishes live file-change nudges through the composition-root
 	// bridge; the Server maps each to a wire workspace event on its hub. This is
@@ -382,9 +385,8 @@ func (s *Server) Capabilities() protocol.ServerCapabilities {
 }
 
 // replayLimitsFrom captures the replay window the run coordinator enforces, at
-// construction, the way every other composition fact is captured: discovery
-// describes the runtime that was assembled, so a composition with no run
-// coordinator has no window to state and says nothing.
+// construction, the way every other composition fact is captured. New requires a
+// coordinator, so an absent replay promise is not a valid server composition.
 //
 // The scope is named here because "which buffer a cursor can reach into" is wire
 // vocabulary, and it holds by construction rather than by convention: a Journal
@@ -392,12 +394,9 @@ func (s *Server) Capabilities() protocol.ServerCapabilities {
 // process — so a cursor from another segment is refused as invalid and one from
 // another process as unavailable. Making those two refusals happen is what checks
 // this claim.
-func replayLimitsFrom(coordinator runUseCases) *protocol.RunReplayLimits {
-	if coordinator == nil {
-		return nil
-	}
+func replayLimitsFrom(coordinator runUseCases) protocol.RunReplayLimits {
 	retention := coordinator.ReplayRetention()
-	return &protocol.RunReplayLimits{
+	return protocol.RunReplayLimits{
 		Scope:     protocol.ReplayScopeProcessRootSegment,
 		MaxEvents: retention.MaxEvents,
 		MaxBytes:  retention.MaxBytes,
@@ -408,7 +407,7 @@ func replayLimitsFrom(coordinator runUseCases) *protocol.RunReplayLimits {
 // capability is never inferred from an RPC error; discovery and gating share
 // the same facts so an advertised feature is callable and a disabled feature
 // is absent before the client issues a request.
-func capabilitiesFor(features featureAvailability, replay *protocol.RunReplayLimits) protocol.ServerCapabilities {
+func capabilitiesFor(features featureAvailability, replay protocol.RunReplayLimits) protocol.ServerCapabilities {
 	return protocol.ServerCapabilities{
 		RunEvents: []protocol.StreamEventType{
 			protocol.StreamSegmentStarted,

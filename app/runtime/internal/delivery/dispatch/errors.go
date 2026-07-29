@@ -144,7 +144,7 @@ func problemError(code int, typ, detail string) *transport.Error {
 }
 
 func problemErrorWithSpec(spec rpcErrorSpec, typ, detail string, fields ...protocol.FieldError) *transport.Error {
-	return marshalProblem(spec, typ, protocol.ProblemData{
+	return marshalProblem(spec, protocol.ProblemData{
 		Type: typ, Detail: detail,
 		RetryAfterSeconds: spec.retryAfterSeconds,
 		Errors:            fields,
@@ -165,12 +165,20 @@ func problemFrame(spec rpcErrorSpec, typ string, err error) *transport.Error {
 	if detailed, ok := errors.AsType[protocol.ProblemDetailed](err); ok {
 		detailed.Enrich(&data)
 	}
-	return marshalProblem(spec, typ, data)
+	return marshalProblem(spec, data)
 }
 
-func marshalProblem(spec rpcErrorSpec, typ string, problem protocol.ProblemData) *transport.Error {
+func marshalProblem(spec rpcErrorSpec, problem protocol.ProblemData) *transport.Error {
+	if err := problem.ValidateWire(); err != nil {
+		fallback := protocol.ProblemData{
+			Type:   protocol.ProblemInternalError,
+			Detail: "the runtime could not encode a valid error response",
+		}
+		data, _ := json.Marshal(fallback)
+		return transport.NewError(protocol.CodeInternalError, protocol.ProblemInternalError, data)
+	}
 	data, _ := json.Marshal(problem)
-	return transport.NewError(spec.code, typ, data)
+	return transport.NewError(spec.code, problem.Type, data)
 }
 
 // invalidParams wraps a params-validation failure as invalid_params.

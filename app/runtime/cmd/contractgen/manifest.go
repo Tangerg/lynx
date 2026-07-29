@@ -29,6 +29,7 @@ type manifest struct {
 	StatePolicy      []stateEntry           `json:"statePolicy"`
 	Unions           []unionEntry           `json:"unions"`
 	Constraints      []constraintEntry      `json:"objectConstraints"`
+	ValueConstraints []valueConstraintEntry `json:"valueConstraints"`
 	SystemInvariants []invariantEntry       `json:"systemInvariants"`
 	CanonicalSamples []sampleEntry          `json:"canonicalSamples"`
 }
@@ -136,6 +137,16 @@ type constraintRow struct {
 	Forbidden []string       `json:"forbidden,omitempty"`
 }
 
+type valueConstraintEntry struct {
+	Type  string               `json:"type"`
+	Rules []valueConstraintRow `json:"rules"`
+}
+
+type valueConstraintRow struct {
+	Field      string `json:"field"`
+	Constraint string `json:"constraint"`
+}
+
 type invariantEntry struct {
 	Key        string   `json:"key"`
 	Why        string   `json:"why"`
@@ -159,6 +170,7 @@ func build(walked *schemaSet) manifest {
 		StatePolicy:      stateKeys(shapes, walked),
 		Unions:           unions(shapes),
 		Constraints:      constraints(shapes),
+		ValueConstraints: valueConstraints(shapes),
 		SystemInvariants: invariants(),
 		CanonicalSamples: canonicalSamples(),
 	}
@@ -334,6 +346,21 @@ func constraints(shapes *dispatch.Shapes) []constraintEntry {
 			})
 		}
 		out = append(out, constraintEntry{Type: spec.GoType.Name(), Rules: rules})
+	}
+	return out
+}
+
+func valueConstraints(shapes *dispatch.Shapes) []valueConstraintEntry {
+	specs := shapes.ValueConstraints()
+	out := make([]valueConstraintEntry, 0, len(specs))
+	for _, spec := range specs {
+		rules := make([]valueConstraintRow, 0, len(spec.Constraints))
+		for _, constraint := range spec.Constraints {
+			rules = append(rules, valueConstraintRow{
+				Field: constraint.Field, Constraint: constraint.Kind.String(),
+			})
+		}
+		out = append(out, valueConstraintEntry{Type: spec.GoType.Name(), Rules: rules})
 	}
 	return out
 }

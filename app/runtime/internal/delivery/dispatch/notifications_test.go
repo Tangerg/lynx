@@ -3,11 +3,23 @@ package dispatch
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 )
+
+func TestEncodeRuntimeEventRejectsAnInvalidOutputShape(t *testing.T) {
+	t.Parallel()
+
+	_, err := EncodeRuntimeEvent(protocol.RuntimeEvent{
+		Type: protocol.RuntimeResync, Sequence: 1,
+	})
+	if err == nil || !strings.Contains(err.Error(), "RuntimeEvent.topics") {
+		t.Fatalf("EncodeRuntimeEvent error = %v, want shape-qualified topics violation", err)
+	}
+}
 
 func TestHandleNotificationSuppressesMetadataErrors(t *testing.T) {
 	d := &Dispatcher{}

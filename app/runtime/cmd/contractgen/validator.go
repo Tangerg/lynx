@@ -11,25 +11,25 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-// The authoritative runtime validator: the Go half of contract §11.3's
+// The authoritative Go wire validator: the Go half of contract §11.3's
 // "authoritative/terminal runtime validators".
 //
-// It replaces thirty hand-written Validate() methods. Those were not wrong — they
-// were the ONLY statement of their rules, so the schema had no minLength anywhere
-// and a TypeScript validator would have had nothing to read. Generating all three
-// from one declaration is what makes §11.4 gate 6's three-way equivalence hold by
-// construction rather than by a reminder to keep them in step.
+// It replaces hand-written request checks and also guards typed output boundaries.
+// Generating Go, schema and TypeScript checks from the same registry is what makes
+// §11.4 gate 6's three-way equivalence structural rather than aspirational.
 //
-// Two rule sources, and neither guesses at the other's job:
+// Four rule sources, and none restates another's job:
 //
 //   - the declared value constraints (a string that may not be empty, a number
 //     that may not be zero) — reflection cannot see these;
 //   - closed-enum membership, DERIVED from the enum's own declared value set. Go's
 //     decoder puts any string into a named string type, so without this check a
-//     bogus tag reaches a use case instead of failing as invalid_params.
+//     bogus tag reaches a use case or client;
+//   - registered union variants;
+//   - registered conditional presence rules.
 
 // validatorFile is written into the protocol package, beside the shapes it checks.
-const validatorFile = "request_constraints.generated.go"
+const validatorFile = "wire_constraints.generated.go"
 
 func newValidators(registry *dispatch.Registry, shapes *dispatch.Shapes) string {
 	var out strings.Builder
@@ -40,21 +40,57 @@ func newValidators(registry *dispatch.Registry, shapes *dispatch.Shapes) string 
 	for _, spec := range shapes.ValueConstraints() {
 		declared[spec.GoType] = append(declared[spec.GoType], spec.Constraints...)
 	}
+	unions := make(map[reflect.Type]dispatch.UnionSpec)
+	for _, spec := range shapes.Unions() {
+		unions[spec.GoType] = spec
+	}
+	objects := make(map[reflect.Type][]dispatch.PresenceRule)
+	for _, spec := range shapes.Constraints() {
+		objects[spec.GoType] = append(objects[spec.GoType], spec.Rules...)
+	}
 
-	// One validator per request shape, in method-registration order so the file's
-	// diff is stable and reads in the same order as the contract.
+	// Request roots come first in method-registration order. Registered unions,
+	// conditional objects and value-constrained roots follow in declaration order.
+	// This makes every Registry-authored shape rule reachable by the Go generator,
+	// including DTOs that only travel from server to client.
+	var targets []reflect.Type
 	written := make(map[reflect.Type]bool)
 	for _, meta := range registry.Metas() {
-		params := meta.Params
-		if params == nil || written[params] || params.Name() == "" {
+		if meta.Params == nil || written[meta.Params] || meta.Params.Name() == "" {
 			continue
 		}
-		written[params] = true
-		checks := validatorChecks(params, declared[params])
+		written[meta.Params] = true
+		targets = append(targets, meta.Params)
+	}
+	for _, spec := range shapes.Unions() {
+		if written[spec.GoType] || spec.GoType.Name() == "" {
+			continue
+		}
+		written[spec.GoType] = true
+		targets = append(targets, spec.GoType)
+	}
+	for _, spec := range shapes.Constraints() {
+		if written[spec.GoType] || spec.GoType.Name() == "" {
+			continue
+		}
+		written[spec.GoType] = true
+		targets = append(targets, spec.GoType)
+	}
+	for _, spec := range shapes.ValueConstraints() {
+		if written[spec.GoType] || spec.GoType.Name() == "" {
+			continue
+		}
+		written[spec.GoType] = true
+		targets = append(targets, spec.GoType)
+	}
+
+	for _, target := range targets {
+		checks := validatorChecks(target, declared[target], unions[target], objects[target])
 		if len(checks) == 0 {
 			continue
 		}
-		fmt.Fprintf(&out, "\nfunc (r %s) Validate() error {\n\treturn violate(\n", params.Name())
+		fmt.Fprintf(&out, "\nfunc (value %s) ValidateWire() error {\n", target.Name())
+		fmt.Fprintf(&out, "\treturn collectWireViolations(%q,\n", target.Name())
 		for _, check := range checks {
 			fmt.Fprintf(&out, "\t\t%s,\n", check)
 		}
@@ -63,41 +99,114 @@ func newValidators(registry *dispatch.Registry, shapes *dispatch.Shapes) string 
 	return out.String()
 }
 
-// validatorChecks builds the check expressions for one request shape: its declared
-// value constraints first, then a membership check for every closed-enum field it
-// carries.
-func validatorChecks(params reflect.Type, constraints []dispatch.FieldConstraint) []string {
+// validatorChecks builds every frame-local check registered for one wire shape.
+func validatorChecks(
+	shape reflect.Type,
+	constraints []dispatch.FieldConstraint,
+	union dispatch.UnionSpec,
+	rules []dispatch.PresenceRule,
+) []string {
 	var checks []string
 	for _, constraint := range constraints {
-		selector, leaf, ok := protocol.GoPath(params, constraint.Field)
+		selector, leaf, ok := protocol.GoPath(shape, constraint.Field)
 		if !ok {
-			panic(fmt.Sprintf("contractgen: %s has no field %q", params.Name(), constraint.Field))
+			panic(fmt.Sprintf("contractgen: %s has no field %q", shape.Name(), constraint.Field))
 		}
 		field := strconv.Quote(constraint.Field)
 		switch constraint.Kind {
 		case dispatch.ConstraintPositive:
-			checks = append(checks, fmt.Sprintf("positive(%s, r.%s)", field, selector))
+			checks = append(checks, fmt.Sprintf("positiveNumber(%s, value.%s)", field, selector))
 		case dispatch.ConstraintNonEmptyItems:
 			helper := "requiredItems"
 			if leaf.Optional {
 				helper = "nonEmptyItems"
 			}
-			checks = append(checks, fmt.Sprintf("%s(%s, r.%s)", helper, field, selector))
+			checks = append(checks, fmt.Sprintf("%s(%s, value.%s)", helper, field, selector))
 		case dispatch.ConstraintUniqueItems:
-			checks = append(checks, fmt.Sprintf("uniqueItems(%s, r.%s)", field, selector))
+			checks = append(checks, fmt.Sprintf("uniqueItems(%s, value.%s)", field, selector))
 		default:
-			checks = append(checks, fmt.Sprintf("required(%s, %s)", field, stringExpr(selector, leaf.Type)))
+			checks = append(checks, fmt.Sprintf("requiredText(%s, %s)", field, stringExpr(selector, leaf.Type)))
 		}
 	}
-	for _, field := range protocol.WireFields(params) {
+	for _, field := range protocol.WireFields(shape) {
 		values, ok := protocol.WireEnum(field.Type)
 		if !ok {
 			continue
 		}
-		checks = append(checks, fmt.Sprintf("oneOf(%s, string(r.%s), %s, %t)",
+		checks = append(checks, fmt.Sprintf("closedEnum(%s, string(value.%s), %s, %t)",
 			strconv.Quote(field.Name), field.GoName, valueList(values), field.Optional))
 	}
+	checks = append(checks, unionChecks(union)...)
+	checks = append(checks, objectChecks(rules)...)
 	return checks
+}
+
+func unionChecks(union dispatch.UnionSpec) []string {
+	if union.GoType == nil {
+		return nil
+	}
+	paths := unionPaths(union)
+	var checks []string
+	for _, variant := range union.Variants {
+		applies := fmt.Sprintf("wireFieldEquals(value, %q, %q)", union.Discriminator, variant.Tag)
+		allowed := append(slices.Clone(variant.Required), variant.Optional...)
+		for _, field := range variant.Required {
+			checks = append(checks, fmt.Sprintf("requiredWhen(%s, %q, value)", applies, field))
+		}
+		for _, field := range paths {
+			if slices.Contains(allowed, field) {
+				continue
+			}
+			checks = append(checks, fmt.Sprintf("forbiddenWhen(%s, %q, value)", applies, field))
+		}
+	}
+	return checks
+}
+
+func unionPaths(union dispatch.UnionSpec) []string {
+	var paths []string
+	for _, variant := range union.Variants {
+		for _, field := range append(slices.Clone(variant.Required), variant.Optional...) {
+			if field != union.Discriminator && !slices.Contains(paths, field) {
+				paths = append(paths, field)
+			}
+		}
+	}
+	return paths
+}
+
+func objectChecks(rules []dispatch.PresenceRule) []string {
+	var checks []string
+	for _, rule := range rules {
+		applies := conditionExpression(rule.When)
+		for _, field := range rule.Required {
+			checks = append(checks, fmt.Sprintf("requiredWhen(%s, %q, value)", applies, field))
+		}
+		for _, field := range rule.Forbidden {
+			checks = append(checks, fmt.Sprintf("forbiddenWhen(%s, %q, value)", applies, field))
+		}
+	}
+	return checks
+}
+
+func conditionExpression(conditions []dispatch.FieldCondition) string {
+	if len(conditions) == 0 {
+		return "true"
+	}
+	parts := make([]string, 0, len(conditions))
+	for _, condition := range conditions {
+		switch condition.Operator.String() {
+		case "equals":
+			parts = append(parts, fmt.Sprintf(
+				"wireFieldEquals(value, %q, %q)", condition.Field, condition.Value,
+			))
+		case "present":
+			parts = append(parts, fmt.Sprintf("wireFieldPresent(value, %q)", condition.Field))
+		default:
+			panic(fmt.Sprintf("contractgen: unsupported presence operator %q", condition.Operator))
+		}
+	}
+	return strings.Join(parts, " && ")
 }
 
 // stringExpr reads a field as a string. A named string type — a closed enum, an id —
@@ -106,9 +215,9 @@ func validatorChecks(params reflect.Type, constraints []dispatch.FieldConstraint
 // file fail the check it is generated to pass.
 func stringExpr(selector string, leaf reflect.Type) string {
 	if leaf.Kind() == reflect.String && leaf.Name() != "string" {
-		return fmt.Sprintf("string(r.%s)", selector)
+		return fmt.Sprintf("string(value.%s)", selector)
 	}
-	return "r." + selector
+	return "value." + selector
 }
 
 func valueList(values []string) string {

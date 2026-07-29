@@ -62,7 +62,17 @@ func reference(m manifest) string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString("## Capability gating\n\n")
+	b.WriteString("## Value constraints\n\n")
+	b.WriteString("These rules are generated into the Go boundary validator, JSON Schema and\n")
+	b.WriteString("TypeScript validator from this single registry projection.\n\n")
+	b.WriteString("| shape | field | constraint |\n| --- | --- | --- |\n")
+	for _, entry := range m.ValueConstraints {
+		for _, rule := range entry.Rules {
+			fmt.Fprintf(&b, "| `%s` | `%s` | `%s` |\n", entry.Type, rule.Field, rule.Constraint)
+		}
+	}
+
+	b.WriteString("\n## Capability gating\n\n")
 	b.WriteString("A rule with a condition gates one OPTION of a method; the method itself stays\n")
 	b.WriteString("available. Refusal is `capability_not_negotiated` — never a silent downgrade.\n\n")
 	b.WriteString("| method | when | requires |\n| --- | --- | --- |\n")

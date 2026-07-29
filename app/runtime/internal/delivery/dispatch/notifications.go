@@ -2,6 +2,7 @@ package dispatch
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
@@ -23,6 +24,9 @@ func EncodeRunEvent(ev protocol.RunEvent) (transport.Message, error) {
 // SSE id, no replay: every frame is "this moved, read it again", and a client that
 // missed one refetches rather than replays.
 func EncodeRuntimeEvent(ev protocol.RuntimeEvent) (transport.Message, error) {
+	if err := ev.ValidateWire(); err != nil {
+		return nil, fmt.Errorf("encode runtime event: %w", err)
+	}
 	return transport.NewNotification(NotificationRuntimeEvent, struct {
 		Event protocol.RuntimeEvent `json:"event"`
 	}{Event: ev})

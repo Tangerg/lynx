@@ -201,14 +201,14 @@ cd app/desktop/frontend && npm run check
 | A1 | `runs.cancel` response、错误与 root 行为收口 | `DONE` | 2026-07-30 完成 | typed response、exact committed snapshot、全量 gates |
 | A2 | `runs.steer` 改为 `ContentBlock[]` | `DONE` | 2026-07-30 完成 | typed command/port、multimodal live+fallback、全量 gates |
 | A3 | 删除 `custom.durable`，收紧事件可靠性语义 | `DONE` | 2026-07-30 完成 | type-owned policy、closed opt-out、全量 gates |
-| A4 | 收紧 machine-contract value constraints | `TODO` | A3 后实施 | — |
+| A4 | 收紧 machine-contract value constraints | `DONE` | 2026-07-30 完成 | single Registry metadata、output boundaries、全量 gates |
 | A5 | capability gate 与 disabled-subagent seam 收口 | `TODO` | A4 后实施 | — |
 | A6 | Registry fail-closed 与 SSOT 清理 | `TODO` | A5 后实施 | — |
 | A7 | canonical docs 与最终 conformance sweep | `TODO` | 最后收口 | — |
 | B1 | 完整 child Run producer / tree cancel / barrier | `DEFERRED` | A5 完成后单独排期 | 启用条件见 §11 |
 
-当前核心协议收口的唯一下一项是 **A4**。同一时间只允许一个 A-track slice
-处于 `IN PROGRESS`，避免多个 breaking shape 同时造成无法定位的生成差异。
+A4 已完成；下一项为 A5，尚未开工。同一时间只允许一个 A-track slice 处于
+`IN PROGRESS`，避免多个 breaking shape 同时造成无法定位的生成差异。
 
 ---
 
@@ -767,6 +767,57 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
     后续不得因当前值相等重新合并；
   - runtime event output 的非空集合、正数与 conditional constraints 进入 A4。
 
+### 2026-07-30 — A4
+
+- 状态：`DONE`
+- Commit：本记录所在的 `feat(runtime): enforce wire constraints across boundaries`
+  原子提交
+- 目标：把 request-only validation 提升为双向 wire contract，并让输出的正数、非空、
+  唯一、联合与条件 presence 约束由同一 Registry 事实生成和执行。
+- 关键裁决：
+  - `request_constraints*` 被硬切换为 `wire_constraints*`；
+    `WireValidator.ValidateWire()` 同时服务请求 decode 和输出边界，不保留旧接口、
+    `Validate()` alias 或兼容文件；
+  - `FieldConstraintSpec`、`UnionSpec`、`ObjectConstraintSpec` 共同生成 Go
+    `ValidateWire`、JSON Schema 与 TypeScript validator；新增架构门禁证明每个注册
+    shape 都有 Go validator，manifest/API Reference 直接发布 `valueConstraints`；
+  - `ConstraintError` 保留客户端可寻址的相对 `FieldError.field`，同时在诊断文本中
+    加入 `Shape.field`；manual Run input 错误显式包裹 `ErrInvalidParams`，输出 shape
+    错误不再伪装成客户端参数错误；
+  - `RuntimeEvent.sequence >= 1`；`files.changed.paths` 与 `resync.topics` 必填非空；
+    所有 narrowing array 出现时非空且无重复；联合 variant 继续禁止无关字段；
+  - `PendingInterruptSet.interrupts` 必填非空；
+    `capability_not_negotiated.requiredCapabilities` 必填、非空、按 `{type,name}` 唯一；
+  - `RuntimeLimits.runReplay` 改为必填值，server 构造时直接读取并验证必需 coordinator
+    的 retention；删除“coordinator 可缺失所以 discovery 可省略”的虚假分支；
+  - malformed runtime invalidation 不会被 encoder 静默丢弃：hub 将其扩大为该订阅
+    全部 topic 的合法 `resync`；畸形 structured problem fail closed 为
+    `internal_error`；PendingInterruptSet presenter 则显式失败；
+  - capability gate 必须构造 typed `CapabilityGap`，不能只包
+    `ErrCapabilityNotNeg` 却遗漏 requiredCapabilities；本 slice 的输出校验把这条旧
+    谎言转成红灯并治本修复；
+  - TypeScript `oneOf` 在 tag 已匹配时优先报告该 variant 的字段错误，避免
+    `{type:"resync"}` 错报成 `expected "skills.changed"`；
+  - 删除 runtime.subscribe 对 non-empty / unique topics 的手写重复判断，单一规则
+    由生成 request validator 拥有；不保留旧协议 decoder 或兼容 shim。
+- 生成物：
+  - `manifest.json`（新增 `valueConstraints`）、`schema.json`、
+    `API_REFERENCE.md`；
+  - `wire.generated.ts`、`wire.validate.generated.ts`；
+  - `wire_constraints.generated.go`。
+- 验证：
+  - targeted protocol / dispatch / server / arch / AJV / TS validator tests
+    → `PASS`
+  - `MODULE=app/runtime scripts/check.sh build vet test lint vuln` → `PASS`
+  - `cd app/runtime && go test -race ./...` → `PASS`
+  - `cd app/desktop/frontend && npm run check` → `178 files / 1076 tests PASS`
+  - contract generation 第二次聚合 hash
+    `e1d97877fe8e111b053281fb1a464d6eb7e3904299bd9a875b0d9ecc32f6fd4f`
+    不变 → `PASS`
+- 残余风险：
+  - capability 的 state-dependent seam 与 disabled subagent 路径进入 A5；
+  - Registry fail-closed 与剩余 SSOT 审计进入 A6。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -798,14 +849,10 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 下一实施 slice：
 
 ```text
-A4 — 收紧 machine-contract value constraints
+A5 — Capability gate 与 disabled-subagent seam
 ```
 
-开工时先把 A4 改为 `IN PROGRESS`，然后从最小非法 fixture 开始：
-
-1. `RuntimeEvent.sequence == 0` 必须由 Go/schema/TS 同时拒绝；
-2. `resync.topics` 缺失或为空、`files.changed.paths` 为空必须拒绝；
-3. `RuntimeLimits.runReplay` 缺失、`PendingInterruptSet.interrupts` 为空必须拒绝。
-
-在最小非法 fixture 成为红灯之前，不先改实现；在 A4 的生成物、前端、canonical
-docs 和全量门禁一起变绿之前，不开始 A5。
+开工时先把 A5 改为 `IN PROGRESS`，再逐条建立 state-dependent capability 与
+disabled-subagent 的拒绝 fixture。不得仅切换 feature boolean，也不得在 delivery
+里根据输入外形猜 child identity；必须先从 durable Run identity 得出事实，再由同一
+capability policy 生成可行动的 `CapabilityGap`。

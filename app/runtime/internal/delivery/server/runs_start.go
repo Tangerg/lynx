@@ -91,9 +91,10 @@ func decodeRunInput(blocks []protocol.ContentBlock) ([]transcript.ContentBlock, 
 }
 
 func invalidWireContentBlock(index int, field, detail string) error {
-	return &protocol.ConstraintError{Fields: []protocol.FieldError{{
+	constraint := &protocol.ConstraintError{Shape: "RunInput", Fields: []protocol.FieldError{{
 		Field: fmt.Sprintf("input[%d].%s", index, field), Detail: detail,
 	}}}
+	return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, constraint)
 }
 
 func wireRunStartErr(err error) error {

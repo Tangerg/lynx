@@ -94,12 +94,16 @@ func (s *Server) ListInterrupts(ctx context.Context, in protocol.ListInterruptsR
 	}
 	out := make([]protocol.PendingInterruptSet, 0, len(page.Rows))
 	for _, pending := range page.Rows {
-		out = append(out, protocol.PendingInterruptSet{
+		presented := protocol.PendingInterruptSet{
 			RootRunID:  pending.RootRunID,
 			SessionID:  pending.SessionID,
 			Interrupts: presentInterrupts(pending.Interrupts),
 			CreatedAt:  pending.CreatedAt,
-		})
+		}
+		if err := presented.ValidateWire(); err != nil {
+			return nil, fmt.Errorf("present pending interrupt set %q: %w", pending.RootRunID, err)
+		}
+		out = append(out, presented)
 	}
 	return protocol.NewPageWithCursor(out, page.NextCursor), nil
 }

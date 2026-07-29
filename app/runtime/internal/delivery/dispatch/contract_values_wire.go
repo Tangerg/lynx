@@ -2,12 +2,11 @@ package dispatch
 
 import "github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 
-// The value constraints of every request shape.
+// The value constraints of wire shapes.
 //
-// They were thirty hand-written Validate() methods, which meant the schema had no
-// minLength anywhere and a generated TypeScript validator would have had nothing to
-// read — the Go check was the only statement, so "the three agree" was unverifiable
-// by construction. Declared here, one statement generates all three.
+// They were hand-written request checks or output assumptions, which meant the
+// schema and runtime could disagree with no mechanical signal. Declared here, one
+// statement generates the Go validator, JSON Schema and TypeScript validator.
 //
 // The kinds are the ones a JSON type does not already imply: a string that may not
 // be empty, a number that may not be zero, an array that may not be sent empty, an
@@ -21,6 +20,7 @@ func registerValueConstraints(s *Shapes) {
 	registerIntegrationValues(s)
 	registerMemoryValues(s)
 	registerScheduleValues(s)
+	registerRuntimeValues(s)
 }
 
 // nonEmpty builds the common spec: these fields are ids or text that must be there.
@@ -138,4 +138,62 @@ func registerScheduleValues(s *Shapes) {
 	nonEmpty[protocol.RunScheduleNowRequest](s, "id")
 	nonEmpty[protocol.StartGoalRequest](s, "sessionId", "objective")
 	nonEmpty[protocol.GoalRequest](s, "sessionId")
+}
+
+func registerRuntimeValues(s *Shapes) {
+	// A subscription names a set. Absence and an empty set both describe no stream,
+	// while duplicates claim a set distinction that does not exist.
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.RuntimeSubscribeRequest](),
+		Constraints: []FieldConstraint{
+			{Field: "topics", Kind: ConstraintNonEmptyItems},
+			{Field: "topics", Kind: ConstraintUniqueItems},
+		},
+	})
+
+	// Sequence zero is the sentinel before the hub assigns a frame. Every array is
+	// a narrowing set: when present it names at least one unique resource. Variant
+	// registration separately decides which sets are required or forbidden.
+	eventConstraints := []FieldConstraint{{Field: "sequence", Kind: ConstraintPositive}}
+	for _, field := range []string{
+		"paths", "names", "serverIds", "scheduleIds", "sessionIds", "runIds",
+		"topics", "watchIds",
+	} {
+		eventConstraints = append(eventConstraints,
+			FieldConstraint{Field: field, Kind: ConstraintNonEmptyItems},
+			FieldConstraint{Field: field, Kind: ConstraintUniqueItems},
+		)
+	}
+	s.valueConstraint(FieldConstraintSpec{
+		GoType:      typeOf[protocol.RuntimeEvent](),
+		Constraints: eventConstraints,
+	})
+
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.PendingInterruptSet](),
+		Constraints: []FieldConstraint{
+			{Field: "interrupts", Kind: ConstraintNonEmptyItems},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.ProblemData](),
+		Constraints: []FieldConstraint{
+			{Field: "requiredCapabilities", Kind: ConstraintNonEmptyItems},
+			{Field: "requiredCapabilities", Kind: ConstraintUniqueItems},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.RunReplayLimits](),
+		Constraints: []FieldConstraint{
+			{Field: "maxEvents", Kind: ConstraintPositive},
+			{Field: "maxBytes", Kind: ConstraintPositive},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.SubscriptionLimits](),
+		Constraints: []FieldConstraint{
+			{Field: "maxTopics", Kind: ConstraintPositive},
+			{Field: "maxWatches", Kind: ConstraintPositive},
+		},
+	})
 }

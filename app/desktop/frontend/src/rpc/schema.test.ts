@@ -102,5 +102,55 @@ describe("the published JSON Schema bundle", () => {
     ).toBe(true);
     expect(clientCapabilities?.({ excludedEphemeralEvents: ["custom"] })).toBe(false);
     expect(clientCapabilities?.({ excludedEphemeralEvents: ["item.completed"] })).toBe(false);
+
+    const runtimeEvent = ajv.getSchema("schema.json#/$defs/RuntimeEvent");
+    expect(runtimeEvent?.({ type: "files.changed", sequence: 1, paths: ["README.md"] })).toBe(true);
+    expect(runtimeEvent?.({ type: "skills.changed", sequence: 0 })).toBe(false);
+    expect(runtimeEvent?.({ type: "files.changed", sequence: 1, paths: [] })).toBe(false);
+    expect(runtimeEvent?.({ type: "resync", sequence: 1 })).toBe(false);
+    expect(runtimeEvent?.({ type: "resync", sequence: 1, topics: [] })).toBe(false);
+    expect(runtimeEvent?.({ type: "sessions.changed", sequence: 1, sessionIds: [] })).toBe(false);
+
+    const runtimeLimits = ajv.getSchema("schema.json#/$defs/RuntimeLimits");
+    expect(
+      runtimeLimits?.({
+        runReplay: {
+          scope: "processRootSegment",
+          maxEvents: 2048,
+          maxBytes: 16_777_216,
+        },
+        runtimeSubscription: { maxTopics: 32, maxWatches: 32 },
+      }),
+    ).toBe(true);
+    expect(
+      runtimeLimits?.({
+        runtimeSubscription: { maxTopics: 32, maxWatches: 32 },
+      }),
+    ).toBe(false);
+
+    const pendingInterruptSet = ajv.getSchema("schema.json#/$defs/PendingInterruptSet");
+    expect(
+      pendingInterruptSet?.({
+        rootRunId: "run_01",
+        sessionId: "ses_01",
+        interrupts: [],
+        createdAt: "2026-07-30T00:00:00Z",
+      }),
+    ).toBe(false);
+
+    const problem = ajv.getSchema("schema.json#/$defs/ProblemData");
+    expect(
+      problem?.({
+        type: "capability_not_negotiated",
+        requiredCapabilities: [],
+      }),
+    ).toBe(false);
+    const repeatedRequirement = { type: "feature", name: "subagents" };
+    expect(
+      problem?.({
+        type: "capability_not_negotiated",
+        requiredCapabilities: [repeatedRequirement, repeatedRequirement],
+      }),
+    ).toBe(false);
   });
 });

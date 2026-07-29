@@ -42,9 +42,6 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	// enforcer's own: a client told one bound while the runtime evicts by another
 	// would choose replay exactly when replay cannot serve it.
 	replay := caps.Limits.RunReplay
-	if replay == nil {
-		t.Fatal("limits.runReplay is absent while the runtime keeps a window")
-	}
 	if replay.Scope != protocol.ReplayScopeProcessRootSegment {
 		t.Fatalf("replay scope = %q, want %q", replay.Scope, protocol.ReplayScopeProcessRootSegment)
 	}

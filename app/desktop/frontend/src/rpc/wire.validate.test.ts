@@ -190,7 +190,7 @@ describe("the generated wire checks", () => {
     ]);
     expect(validateWire("CancelRunResponse", { type: "child", run: canceledChild })).toEqual([
       { path: "CancelRunResponse", detail: "matches no permitted variant" },
-      { path: "CancelRunResponse.type", detail: 'expected "root"' },
+      { path: "CancelRunResponse.rootRun", detail: "is required" },
     ]);
   });
 
@@ -291,5 +291,81 @@ describe("the generated wire checks", () => {
         detail: 'expected one of "segment.progress", "item.delta"',
       },
     ]);
+  });
+
+  it("enforces output value constraints from the same machine contract", () => {
+    expect(validateWire("RuntimeEvent", { type: "skills.changed", sequence: 0 })).toEqual([
+      { path: "RuntimeEvent.sequence", detail: "expected at least 1" },
+    ]);
+    expect(
+      validateWire("RuntimeEvent", {
+        type: "files.changed",
+        sequence: 1,
+        paths: [],
+      }),
+    ).toContainEqual({
+      path: "RuntimeEvent.paths",
+      detail: "expected at least 1 item(s)",
+    });
+    expect(validateWire("RuntimeEvent", { type: "resync", sequence: 1 })).toContainEqual({
+      path: "RuntimeEvent.topics",
+      detail: "is required",
+    });
+    expect(
+      validateWire("RuntimeEvent", {
+        type: "resync",
+        sequence: 1,
+        topics: [],
+      }),
+    ).toContainEqual({
+      path: "RuntimeEvent.topics",
+      detail: "expected at least 1 item(s)",
+    });
+    expect(
+      validateWire("RuntimeEvent", {
+        type: "sessions.changed",
+        sequence: 1,
+        sessionIds: [],
+      }),
+    ).toContainEqual({
+      path: "RuntimeEvent.sessionIds",
+      detail: "expected at least 1 item(s)",
+    });
+
+    expect(
+      validateWire("RuntimeLimits", {
+        runtimeSubscription: { maxTopics: 32, maxWatches: 32 },
+      }),
+    ).toEqual([{ path: "RuntimeLimits.runReplay", detail: "is required" }]);
+    expect(
+      validateWire("PendingInterruptSet", {
+        rootRunId: "run_01",
+        sessionId: "ses_01",
+        interrupts: [],
+        createdAt: "2026-07-30T00:00:00Z",
+      }),
+    ).toContainEqual({
+      path: "PendingInterruptSet.interrupts",
+      detail: "expected at least 1 item(s)",
+    });
+    expect(
+      validateWire("ProblemData", {
+        type: "capability_not_negotiated",
+        requiredCapabilities: [],
+      }),
+    ).toContainEqual({
+      path: "ProblemData.requiredCapabilities",
+      detail: "expected at least 1 item(s)",
+    });
+    const repeatedRequirement = { type: "feature", name: "subagents" };
+    expect(
+      validateWire("ProblemData", {
+        type: "capability_not_negotiated",
+        requiredCapabilities: [repeatedRequirement, repeatedRequirement],
+      }),
+    ).toContainEqual({
+      path: "ProblemData.requiredCapabilities",
+      detail: "expected no repeated items",
+    });
   });
 });

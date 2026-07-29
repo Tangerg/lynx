@@ -266,7 +266,7 @@ Forbidden on every variant: `durable`.
 | `state.changed` | `sequence`, `key` | `sessionIds`, `runIds` |
 | `goals.changed` | `sequence` | `sessionIds` |
 | `interrupts.changed` | `sequence` | `runIds`, `sessionIds` |
-| `resync` | `sequence` | `topics`, `watchIds` |
+| `resync` | `sequence`, `topics` | `watchIds` |
 
 ### `ArtifactOutcome`
 
@@ -305,6 +305,87 @@ Forbidden on every variant: `durable`.
 | `context` | `code`, `leftLine`, `rightLine` | — |
 | `added` | `code`, `rightLine` | — |
 | `deleted` | `code`, `leftLine` | — |
+
+## Value constraints
+
+These rules are generated into the Go boundary validator, JSON Schema and
+TypeScript validator from this single registry projection.
+
+| shape | field | constraint |
+| --- | --- | --- |
+| `GetSessionRequest` | `sessionId` | `nonEmpty` |
+| `DeleteSessionRequest` | `sessionId` | `nonEmpty` |
+| `ForkSessionRequest` | `sessionId` | `nonEmpty` |
+| `RollbackSessionRequest` | `sessionId` | `nonEmpty` |
+| `ExportSessionRequest` | `sessionId` | `nonEmpty` |
+| `UpdateSessionRequest` | `sessionId` | `nonEmpty` |
+| `UpdateSessionRequest` | `expectedRevision` | `positive` |
+| `ImportSessionRequest` | `artifact.session.id` | `nonEmpty` |
+| `StartRunRequest` | `input` | `nonEmptyItems` |
+| `ResumeRunRequest` | `runId` | `nonEmpty` |
+| `ResumeRunRequest` | `input` | `nonEmptyItems` |
+| `SubscribeRunRequest` | `runId` | `nonEmpty` |
+| `SubscribeRunRequest` | `segmentId` | `nonEmpty` |
+| `GetRunRequest` | `runId` | `nonEmpty` |
+| `CancelRunRequest` | `runId` | `nonEmpty` |
+| `SteerRunRequest` | `runId` | `nonEmpty` |
+| `SteerRunRequest` | `expectedSegmentId` | `nonEmpty` |
+| `SteerRunRequest` | `input` | `nonEmptyItems` |
+| `ListItemsRequest` | `scope.type` | `nonEmpty` |
+| `GetTodosRequest` | `sessionId` | `nonEmpty` |
+| `SessionUsageRequest` | `sessionId` | `nonEmpty` |
+| `ListRunsRequest` | `statuses` | `nonEmptyItems` |
+| `ListRunsRequest` | `statuses` | `uniqueItems` |
+| `GetFileHeadRequest` | `path` | `nonEmpty` |
+| `ReadFileRequest` | `path` | `nonEmpty` |
+| `GrepRequest` | `query` | `nonEmpty` |
+| `CodebaseSearchRequest` | `query` | `nonEmpty` |
+| `SkillNameRequest` | `name` | `nonEmpty` |
+| `SetHookTrustRequest` | `projectRoot` | `nonEmpty` |
+| `MCPServerRequest` | `server` | `nonEmpty` |
+| `ConfigureMCPServerRequest` | `name` | `nonEmpty` |
+| `RemoveMCPServerRequest` | `name` | `nonEmpty` |
+| `SetMCPEnabledRequest` | `name` | `nonEmpty` |
+| `ConfigureProviderRequest` | `provider` | `nonEmpty` |
+| `TestProviderRequest` | `provider` | `nonEmpty` |
+| `InvokeToolRequest` | `name` | `nonEmpty` |
+| `AgentMemoryItemRequest` | `id` | `nonEmpty` |
+| `AgentMemoryReviewRequest` | `id` | `nonEmpty` |
+| `AgentMemoryUpdateRequest` | `id` | `nonEmpty` |
+| `AgentMemoryAddRequest` | `content` | `nonEmpty` |
+| `UpdateScheduleRequest` | `id` | `nonEmpty` |
+| `UpdateScheduleRequest` | `expectedRevision` | `positive` |
+| `DeleteScheduleRequest` | `id` | `nonEmpty` |
+| `RunScheduleNowRequest` | `id` | `nonEmpty` |
+| `StartGoalRequest` | `sessionId` | `nonEmpty` |
+| `StartGoalRequest` | `objective` | `nonEmpty` |
+| `GoalRequest` | `sessionId` | `nonEmpty` |
+| `RuntimeSubscribeRequest` | `topics` | `nonEmptyItems` |
+| `RuntimeSubscribeRequest` | `topics` | `uniqueItems` |
+| `RuntimeEvent` | `sequence` | `positive` |
+| `RuntimeEvent` | `paths` | `nonEmptyItems` |
+| `RuntimeEvent` | `paths` | `uniqueItems` |
+| `RuntimeEvent` | `names` | `nonEmptyItems` |
+| `RuntimeEvent` | `names` | `uniqueItems` |
+| `RuntimeEvent` | `serverIds` | `nonEmptyItems` |
+| `RuntimeEvent` | `serverIds` | `uniqueItems` |
+| `RuntimeEvent` | `scheduleIds` | `nonEmptyItems` |
+| `RuntimeEvent` | `scheduleIds` | `uniqueItems` |
+| `RuntimeEvent` | `sessionIds` | `nonEmptyItems` |
+| `RuntimeEvent` | `sessionIds` | `uniqueItems` |
+| `RuntimeEvent` | `runIds` | `nonEmptyItems` |
+| `RuntimeEvent` | `runIds` | `uniqueItems` |
+| `RuntimeEvent` | `topics` | `nonEmptyItems` |
+| `RuntimeEvent` | `topics` | `uniqueItems` |
+| `RuntimeEvent` | `watchIds` | `nonEmptyItems` |
+| `RuntimeEvent` | `watchIds` | `uniqueItems` |
+| `PendingInterruptSet` | `interrupts` | `nonEmptyItems` |
+| `ProblemData` | `requiredCapabilities` | `nonEmptyItems` |
+| `ProblemData` | `requiredCapabilities` | `uniqueItems` |
+| `RunReplayLimits` | `maxEvents` | `positive` |
+| `RunReplayLimits` | `maxBytes` | `positive` |
+| `SubscriptionLimits` | `maxTopics` | `positive` |
+| `SubscriptionLimits` | `maxWatches` | `positive` |
 
 ## Capability gating
 

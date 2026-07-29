@@ -39,8 +39,13 @@ func (d *Dispatcher) enforceCapabilities(ctx context.Context, meta MethodMeta, p
 			return errorToRPC(err)
 		}
 		if len(missing) != 0 {
-			return errorToRPC(fmt.Errorf("%w: %s requires %s",
-				protocol.ErrCapabilityNotNeg, meta.Name, strings.Join(missing, ", ")))
+			requirements := make([]protocol.CapabilityRequirement, 0, len(missing))
+			for _, feature := range missing {
+				requirements = append(requirements, protocol.CapabilityRequirement{
+					Type: protocol.RequirementFeature, Name: feature,
+				})
+			}
+			return errorToRPC(protocol.NewCapabilityGap(requirements...))
 		}
 	}
 	return nil
@@ -55,7 +60,7 @@ func (d *Dispatcher) missingFeatures(ctx context.Context, required []string) ([]
 		return nil, fmt.Errorf("dispatch: read capabilities: %w", err)
 	}
 	if discovered == nil {
-		return nil, fmt.Errorf("%w: the runtime reported no capabilities", protocol.ErrCapabilityNotNeg)
+		return nil, fmt.Errorf("dispatch: the runtime reported no capabilities")
 	}
 	var missing []string
 	for _, feature := range required {

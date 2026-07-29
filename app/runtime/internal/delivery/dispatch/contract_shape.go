@@ -124,10 +124,10 @@ const (
 	// ConstraintPositive rejects zero. A revision or count of zero is not a value
 	// the caller could have meant.
 	ConstraintPositive
-	// ConstraintNonEmptyItems rejects an empty array. It applies to an OPTIONAL
-	// filter whose absence already means "no filter": having sent the field, the
-	// caller has to have named something, or the request states a narrowing that
-	// narrows to nothing.
+	// ConstraintNonEmptyItems rejects an empty array. An optional narrowing set
+	// already uses absence for "no narrower scope", while a required set names the
+	// minimum recovery or transaction unit. An empty third spelling has no useful
+	// meaning in either direction.
 	ConstraintNonEmptyItems
 	// ConstraintUniqueItems rejects a repeated element. A filter is a set, and a
 	// value listed twice means the caller believes it is asking something a set
@@ -154,7 +154,7 @@ type FieldConstraint struct {
 	Kind  ConstraintKind
 }
 
-// FieldConstraintSpec declares the value constraints of one request shape.
+// FieldConstraintSpec declares the value constraints of one wire shape.
 //
 // These are the checks reflection cannot see: that a string must be non-empty,
 // that a number must exceed zero. Closed-enum membership is NOT declared here —

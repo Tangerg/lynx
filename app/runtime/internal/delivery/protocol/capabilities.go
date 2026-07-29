@@ -151,12 +151,10 @@ type RuntimeLimits struct {
 	// because the alternative is a client discovering the ceiling by losing events:
 	// knowing the bound is what lets it choose replay or a cold read.
 	//
-	// It is a pointer because a composition that kept no window would have no bound
-	// to state, and stating one the runtime does not enforce is discovery lying —
-	// the one thing discovery may never do. This build does keep a window, so it is
-	// present, and it is read from the enforcing coordinator rather than restated
-	// here.
-	RunReplay *RunReplayLimits `json:"runReplay,omitempty"`
+	// A runtime cannot be composed without the enforcing coordinator, so this is a
+	// required value rather than an optional promise. It is read from that
+	// coordinator rather than restated here.
+	RunReplay RunReplayLimits `json:"runReplay"`
 	// RuntimeSubscription bounds one subscription's fan-out.
 	RuntimeSubscription SubscriptionLimits `json:"runtimeSubscription"`
 }

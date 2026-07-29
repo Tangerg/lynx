@@ -137,8 +137,16 @@ func (h *workspaceHub) publishTo(sub *workspaceSubscription, ev protocol.Runtime
 }
 
 func (*workspaceHub) sendLocked(sub *workspaceSubscription, ev protocol.RuntimeEvent) {
-	if ev.Type != protocol.RuntimeResync && !sub.topics[protocol.RuntimeTopic(ev.Type)] {
-		return
+	if ev.Type != protocol.RuntimeResync {
+		topic := protocol.RuntimeTopic(ev.Type)
+		if !slices.Contains(protocol.RuntimeTopics, topic) {
+			// An invalid producer signal has no trustworthy narrowing scope. Preserve
+			// client correctness by invalidating everything this subscription holds;
+			// the encoder must never silently discard an internal shape violation.
+			ev = sub.resyncEvent()
+		} else if !sub.topics[topic] {
+			return
+		}
 	}
 	// A pending resync goes first, and while it is pending this signal joins it: the
 	// notice that frames were missed must not arrive after the frames that followed
@@ -152,13 +160,62 @@ func (*workspaceHub) sendLocked(sub *workspaceSubscription, ev protocol.RuntimeE
 // the subscriber has it.
 func (sub *workspaceSubscription) offerLocked(ev protocol.RuntimeEvent) bool {
 	ev = cloneRuntimeEvent(ev)
+	clearEmptyRuntimeScopes(&ev)
 	ev.Sequence = sub.sequence + 1
+	if err := ev.ValidateWire(); err != nil {
+		ev = sub.resyncEvent()
+		ev.Sequence = sub.sequence + 1
+		if recoveryErr := ev.ValidateWire(); recoveryErr != nil {
+			panic("server: invalid runtime resync invariant: " + recoveryErr.Error())
+		}
+	}
 	select {
 	case sub.events <- ev:
 		sub.sequence++
 		return true
 	default:
 		return false
+	}
+}
+
+func (sub *workspaceSubscription) resyncEvent() protocol.RuntimeEvent {
+	topics := make([]protocol.RuntimeTopic, 0, len(sub.topics))
+	for _, topic := range protocol.RuntimeTopics {
+		if sub.topics[topic] {
+			topics = append(topics, topic)
+		}
+	}
+	return protocol.RuntimeEvent{Type: protocol.RuntimeResync, Topics: topics}
+}
+
+// clearEmptyRuntimeScopes canonicalizes an output value before validation.
+// encoding/json omits every empty `omitempty` slice, so nil is the one in-memory
+// spelling of absence. Required scopes (files paths and resync topics) remain
+// absent and fail their variant rule; optional empty scopes simply disappear.
+func clearEmptyRuntimeScopes(ev *protocol.RuntimeEvent) {
+	if len(ev.Paths) == 0 {
+		ev.Paths = nil
+	}
+	if len(ev.Names) == 0 {
+		ev.Names = nil
+	}
+	if len(ev.ServerIDs) == 0 {
+		ev.ServerIDs = nil
+	}
+	if len(ev.ScheduleIDs) == 0 {
+		ev.ScheduleIDs = nil
+	}
+	if len(ev.SessionIDs) == 0 {
+		ev.SessionIDs = nil
+	}
+	if len(ev.RunIDs) == 0 {
+		ev.RunIDs = nil
+	}
+	if len(ev.Topics) == 0 {
+		ev.Topics = nil
+	}
+	if len(ev.WatchIDs) == 0 {
+		ev.WatchIDs = nil
 	}
 }
 
@@ -319,24 +376,17 @@ func eventSeq(ch <-chan protocol.RuntimeEvent, drained, stop func()) iter.Seq[pr
 	}
 }
 
-// subscribedTopics reads the requested set. It is required and non-empty because a
-// subscription that named nothing would be a stream with no meaning; duplicates are
-// refused rather than collapsed, since a caller that listed one twice did not mean
-// what it sent; and a topic this build does not advertise is refused by NAME, so the
-// client learns which one instead of losing the whole subscription to an unknown.
+// subscribedTopics materializes the already shape-validated request as a lookup
+// set. The generated RuntimeSubscribeRequest validator owns non-empty/unique
+// semantics; this method retains the composition-dependent checks: the enforced
+// fan-out cap and whether this runtime actually advertises each topic.
 func (s *Server) subscribedTopics(requested []protocol.RuntimeTopic) (map[protocol.RuntimeTopic]bool, error) {
-	if len(requested) == 0 {
-		return nil, fmt.Errorf("%w: topics is required and must name at least one topic", protocol.ErrInvalidParams)
-	}
 	if len(requested) > protocol.MaxSubscriptionTopics {
 		return nil, fmt.Errorf("%w: at most %d topics per subscription", protocol.ErrInvalidParams, protocol.MaxSubscriptionTopics)
 	}
 	advertised := s.Capabilities().RuntimeTopics
 	topics := make(map[protocol.RuntimeTopic]bool, len(requested))
 	for _, topic := range requested {
-		if topics[topic] {
-			return nil, fmt.Errorf("%w: topic %q is listed twice", protocol.ErrInvalidParams, topic)
-		}
 		if !slices.Contains(advertised, topic) {
 			return nil, protocol.NewCapabilityGap(protocol.CapabilityRequirement{
 				Type: protocol.RequirementRuntimeTopic, Name: string(topic),

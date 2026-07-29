@@ -38,7 +38,10 @@ const discovery: DiscoverResponse = {
       relocate: stable(false),
       clientTools: stable(false),
     },
-    limits: { runtimeSubscription: { maxTopics: 32, maxWatches: 32 } },
+    limits: {
+      runReplay: { scope: "processRootSegment", maxEvents: 2048, maxBytes: 16_777_216 },
+      runtimeSubscription: { maxTopics: 32, maxWatches: 32 },
+    },
   },
 };
 

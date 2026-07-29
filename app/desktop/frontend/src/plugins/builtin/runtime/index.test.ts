@@ -19,7 +19,10 @@ const discovery: DiscoverResponse = {
     runtimeTopics: [],
     stateSnapshots: [],
     streamingMethods: [],
-    limits: { runtimeSubscription: { maxTopics: 8, maxWatches: 8 } },
+    limits: {
+      runReplay: { scope: "processRootSegment", maxEvents: 2048, maxBytes: 16_777_216 },
+      runtimeSubscription: { maxTopics: 8, maxWatches: 8 },
+    },
   },
 };
 

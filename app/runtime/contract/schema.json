@@ -3949,6 +3949,7 @@
         },
         "interrupts": {
           "type": "array",
+          "minItems": 1,
           "items": {
             "$ref": "#/$defs/Interrupt"
           }
@@ -4025,6 +4026,8 @@
         },
         "requiredCapabilities": {
           "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/CapabilityRequirement"
           }
@@ -4865,10 +4868,12 @@
       "type": "object",
       "properties": {
         "maxBytes": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 1
         },
         "maxEvents": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 1
         },
         "scope": {
           "$ref": "#/$defs/RunReplayScope"
@@ -5071,46 +5076,60 @@
         },
         "names": {
           "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
           "items": {
             "type": "string"
           }
         },
         "paths": {
           "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
           "items": {
             "type": "string"
           }
         },
         "runIds": {
           "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
           "items": {
             "type": "string"
           }
         },
         "scheduleIds": {
           "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
           "items": {
             "type": "string"
           }
         },
         "sequence": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 1
         },
         "serverIds": {
           "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
           "items": {
             "type": "string"
           }
         },
         "sessionIds": {
           "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
           "items": {
             "type": "string"
           }
         },
         "topics": {
           "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/RuntimeTopic"
           }
@@ -5123,6 +5142,8 @@
         },
         "watchIds": {
           "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
           "items": {
             "type": "string"
           }
@@ -5331,6 +5352,7 @@
           },
           "required": [
             "sequence",
+            "topics",
             "type"
           ]
         }
@@ -5365,6 +5387,7 @@
         }
       },
       "required": [
+        "runReplay",
         "runtimeSubscription"
       ]
     },
@@ -5373,6 +5396,8 @@
       "properties": {
         "topics": {
           "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/RuntimeTopic"
           }
@@ -6431,10 +6456,12 @@
       "type": "object",
       "properties": {
         "maxTopics": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 1
         },
         "maxWatches": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 1
         }
       },
       "required": [

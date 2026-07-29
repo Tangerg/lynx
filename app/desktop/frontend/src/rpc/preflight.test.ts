@@ -23,7 +23,10 @@ function advertising(features: Record<string, boolean>): ServerCapabilities {
         { enabled, stability: "stable" as const, clientOptIn: false, requiredByRunProtocol: false },
       ]),
     ),
-    limits: { runtimeSubscription: { maxTopics: 32, maxWatches: 32 } },
+    limits: {
+      runReplay: { scope: "processRootSegment", maxEvents: 2048, maxBytes: 16_777_216 },
+      runtimeSubscription: { maxTopics: 32, maxWatches: 32 },
+    },
   };
 }
 

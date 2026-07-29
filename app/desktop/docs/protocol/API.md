@@ -429,7 +429,8 @@ JSON 树兜底渲染。富 result 形状复用 §4.5 的可复用结构。
 - **没有 `channel`**：一个 problem 属于哪条通道，由**它落在哪儿**决定（RPC error / `outcome.error` /
   `toolCall.error`），字段只是把同一事实抄第二遍。
 - **结构化成员由 problem 类型自己带**：`session_has_active_run` 带 `activeRun`、`capability_not_negotiated` 带
-  `requiredCapabilities`。客户端因此不必从 `detail` 里 substring-match 出一个 runId 来。
+  非空且按 `{type,name}` 唯一的 `requiredCapabilities`。客户端因此不必从 `detail` 里 substring-match 出一个
+  runId，也不会一次只发现一个能力缺口。
 
 ### 4.7 工具规格
 
@@ -448,7 +449,7 @@ process、session、审批或模型循环的只读诊断能力。
   持久化历史、join 落空、待答问题渲染不出来"的坑。interrupt 上的 question 与（completed 后的）question Item 上
   各存一份不算虚假 DRY：前者是待办快照、后者是历史，生命周期不同。
 - **分页单位是"一个 waiting Run 的完整 interrupt 集"**（`PendingInterruptSet`）：半个集合无法应答，按条分页会
-  发明出不可用的页（§7.3）。
+  发明出不可用的页（§7.3）；`interrupts` 必填且非空，空集合不是一个可恢复的 Waiting 状态。
 
 ### 4.9 Provider / Model
 
@@ -734,11 +735,15 @@ provider 凭证的写入面（`configure` / `test`）、模型目录与角色（
 
 失效信号的契约（§9 / AUX_API §3）：
 
-- **每条带 `sequence`**，且 **`sequence` 只发给真正进入队列的帧** —— 号不会为了一个被合并掉的信号而跳。
+- **每条带从 1 开始的正整数 `sequence`**，且 **`sequence` 只发给真正进入队列的帧** —— 号不会为了一个被合并掉的
+  信号而跳。
 - **不丢帧**：来不及投递的失效**合并**成一条点名 topic 的 `resync`（"这些 topic 你重读一遍"），而不是丢掉后让
-  客户端靠"看见空号"去发现 —— 安静的流上永远看不见。
+  客户端靠"看见空号"去发现 —— 安静的流上永远看不见。`resync.topics` 必填且非空。
 - **一个 topic 一个资源**：客户端收到信号后调该资源的读方法重取（`state.changed` 带 `key`，指向那个 key 的
   `recoveryMethod`）。信号本身不带业务数据，它只说"再读一次"。
+- **narrowing array 出现即有意义**：`files.changed.paths` 必填且非空；其余
+  `names/serverIds/scheduleIds/sessionIds/runIds/watchIds` 出现时均非空，所有集合均无重复。空数组不用来表达
+  “全部”，省略才表示该 variant 没有进一步收窄。
 
 ### 7.9 schedules.\*
 
@@ -837,7 +842,7 @@ error `type` 是 §2.6 命名空间的一个实例：first-party 用裸 `snake_c
 | 字段               | 含义                                                                                    |
 | ------------------ | --------------------------------------------------------------------------------------- |
 | `features`         | 开放 map：能力 key → `{enabled, stability, clientOptIn, requiredByRunProtocol}`          |
-| `limits`           | 强制执行的数值：`runReplay{scope,maxEvents,maxBytes}` / `runtimeSubscription{maxTopics,maxWatches}` |
+| `limits`           | 强制执行的正数值：必填 `runReplay{scope,maxEvents,maxBytes}` / `runtimeSubscription{maxTopics,maxWatches}` |
 | `runEvents`        | 本 build 会发的 `StreamEventType` 集合                                                  |
 | `runtimeTopics`    | 可订阅的失效 topic 集合（每个都有生产者）                                               |
 | `stateSnapshots`   | 每个 state key 的 `{key, scope, writer, recoveryMethod}`（§5.3）                         |

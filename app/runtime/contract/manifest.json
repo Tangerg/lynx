@@ -2259,10 +2259,10 @@
         {
           "tag": "resync",
           "required": [
-            "sequence"
+            "sequence",
+            "topics"
           ],
           "optional": [
-            "topics",
             "watchIds"
           ]
         }
@@ -2835,6 +2835,525 @@
           "forbidden": [
             "detail"
           ]
+        }
+      ]
+    }
+  ],
+  "valueConstraints": [
+    {
+      "type": "GetSessionRequest",
+      "rules": [
+        {
+          "field": "sessionId",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "DeleteSessionRequest",
+      "rules": [
+        {
+          "field": "sessionId",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "ForkSessionRequest",
+      "rules": [
+        {
+          "field": "sessionId",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "RollbackSessionRequest",
+      "rules": [
+        {
+          "field": "sessionId",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "ExportSessionRequest",
+      "rules": [
+        {
+          "field": "sessionId",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "UpdateSessionRequest",
+      "rules": [
+        {
+          "field": "sessionId",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "expectedRevision",
+          "constraint": "positive"
+        }
+      ]
+    },
+    {
+      "type": "ImportSessionRequest",
+      "rules": [
+        {
+          "field": "artifact.session.id",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "StartRunRequest",
+      "rules": [
+        {
+          "field": "input",
+          "constraint": "nonEmptyItems"
+        }
+      ]
+    },
+    {
+      "type": "ResumeRunRequest",
+      "rules": [
+        {
+          "field": "runId",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "input",
+          "constraint": "nonEmptyItems"
+        }
+      ]
+    },
+    {
+      "type": "SubscribeRunRequest",
+      "rules": [
+        {
+          "field": "runId",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "segmentId",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "GetRunRequest",
+      "rules": [
+        {
+          "field": "runId",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "CancelRunRequest",
+      "rules": [
+        {
+          "field": "runId",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "SteerRunRequest",
+      "rules": [
+        {
+          "field": "runId",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "expectedSegmentId",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "input",
+          "constraint": "nonEmptyItems"
+        }
+      ]
+    },
+    {
+      "type": "ListItemsRequest",
+      "rules": [
+        {
+          "field": "scope.type",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "GetTodosRequest",
+      "rules": [
+        {
+          "field": "sessionId",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "SessionUsageRequest",
+      "rules": [
+        {
+          "field": "sessionId",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "ListRunsRequest",
+      "rules": [
+        {
+          "field": "statuses",
+          "constraint": "nonEmptyItems"
+        },
+        {
+          "field": "statuses",
+          "constraint": "uniqueItems"
+        }
+      ]
+    },
+    {
+      "type": "GetFileHeadRequest",
+      "rules": [
+        {
+          "field": "path",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "ReadFileRequest",
+      "rules": [
+        {
+          "field": "path",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "GrepRequest",
+      "rules": [
+        {
+          "field": "query",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "CodebaseSearchRequest",
+      "rules": [
+        {
+          "field": "query",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "SkillNameRequest",
+      "rules": [
+        {
+          "field": "name",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "SetHookTrustRequest",
+      "rules": [
+        {
+          "field": "projectRoot",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "MCPServerRequest",
+      "rules": [
+        {
+          "field": "server",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "ConfigureMCPServerRequest",
+      "rules": [
+        {
+          "field": "name",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "RemoveMCPServerRequest",
+      "rules": [
+        {
+          "field": "name",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "SetMCPEnabledRequest",
+      "rules": [
+        {
+          "field": "name",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "ConfigureProviderRequest",
+      "rules": [
+        {
+          "field": "provider",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "TestProviderRequest",
+      "rules": [
+        {
+          "field": "provider",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "InvokeToolRequest",
+      "rules": [
+        {
+          "field": "name",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "AgentMemoryItemRequest",
+      "rules": [
+        {
+          "field": "id",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "AgentMemoryReviewRequest",
+      "rules": [
+        {
+          "field": "id",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "AgentMemoryUpdateRequest",
+      "rules": [
+        {
+          "field": "id",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "AgentMemoryAddRequest",
+      "rules": [
+        {
+          "field": "content",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "UpdateScheduleRequest",
+      "rules": [
+        {
+          "field": "id",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "expectedRevision",
+          "constraint": "positive"
+        }
+      ]
+    },
+    {
+      "type": "DeleteScheduleRequest",
+      "rules": [
+        {
+          "field": "id",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "RunScheduleNowRequest",
+      "rules": [
+        {
+          "field": "id",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "StartGoalRequest",
+      "rules": [
+        {
+          "field": "sessionId",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "objective",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "GoalRequest",
+      "rules": [
+        {
+          "field": "sessionId",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "RuntimeSubscribeRequest",
+      "rules": [
+        {
+          "field": "topics",
+          "constraint": "nonEmptyItems"
+        },
+        {
+          "field": "topics",
+          "constraint": "uniqueItems"
+        }
+      ]
+    },
+    {
+      "type": "RuntimeEvent",
+      "rules": [
+        {
+          "field": "sequence",
+          "constraint": "positive"
+        },
+        {
+          "field": "paths",
+          "constraint": "nonEmptyItems"
+        },
+        {
+          "field": "paths",
+          "constraint": "uniqueItems"
+        },
+        {
+          "field": "names",
+          "constraint": "nonEmptyItems"
+        },
+        {
+          "field": "names",
+          "constraint": "uniqueItems"
+        },
+        {
+          "field": "serverIds",
+          "constraint": "nonEmptyItems"
+        },
+        {
+          "field": "serverIds",
+          "constraint": "uniqueItems"
+        },
+        {
+          "field": "scheduleIds",
+          "constraint": "nonEmptyItems"
+        },
+        {
+          "field": "scheduleIds",
+          "constraint": "uniqueItems"
+        },
+        {
+          "field": "sessionIds",
+          "constraint": "nonEmptyItems"
+        },
+        {
+          "field": "sessionIds",
+          "constraint": "uniqueItems"
+        },
+        {
+          "field": "runIds",
+          "constraint": "nonEmptyItems"
+        },
+        {
+          "field": "runIds",
+          "constraint": "uniqueItems"
+        },
+        {
+          "field": "topics",
+          "constraint": "nonEmptyItems"
+        },
+        {
+          "field": "topics",
+          "constraint": "uniqueItems"
+        },
+        {
+          "field": "watchIds",
+          "constraint": "nonEmptyItems"
+        },
+        {
+          "field": "watchIds",
+          "constraint": "uniqueItems"
+        }
+      ]
+    },
+    {
+      "type": "PendingInterruptSet",
+      "rules": [
+        {
+          "field": "interrupts",
+          "constraint": "nonEmptyItems"
+        }
+      ]
+    },
+    {
+      "type": "ProblemData",
+      "rules": [
+        {
+          "field": "requiredCapabilities",
+          "constraint": "nonEmptyItems"
+        },
+        {
+          "field": "requiredCapabilities",
+          "constraint": "uniqueItems"
+        }
+      ]
+    },
+    {
+      "type": "RunReplayLimits",
+      "rules": [
+        {
+          "field": "maxEvents",
+          "constraint": "positive"
+        },
+        {
+          "field": "maxBytes",
+          "constraint": "positive"
+        }
+      ]
+    },
+    {
+      "type": "SubscriptionLimits",
+      "rules": [
+        {
+          "field": "maxTopics",
+          "constraint": "positive"
+        },
+        {
+          "field": "maxWatches",
+          "constraint": "positive"
         }
       ]
     }

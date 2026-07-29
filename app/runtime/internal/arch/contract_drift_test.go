@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -74,7 +75,7 @@ const (
 	tsWireDir       = "../desktop/frontend/src/rpc"
 	tsWireValidator = "wire.validate.generated.ts"
 	validatorDir    = "internal/delivery/protocol"
-	validatorFile   = "request_constraints.generated.go"
+	validatorFile   = "wire_constraints.generated.go"
 )
 
 func regenerateContract(t *testing.T, root string) (artifacts, typescript, validators string) {
@@ -138,6 +139,7 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 		StatePolicy      []struct{} `json:"statePolicy"`
 		Unions           []struct{} `json:"unions"`
 		Constraints      []struct{} `json:"objectConstraints"`
+		ValueConstraints []struct{} `json:"valueConstraints"`
 		SystemInvariants []struct{} `json:"systemInvariants"`
 	}
 	if err := json.Unmarshal(raw, &manifest); err != nil {
@@ -154,6 +156,7 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 		"statePolicy":       len(manifest.StatePolicy),
 		"unions":            len(manifest.Unions),
 		"objectConstraints": len(manifest.Constraints),
+		"valueConstraints":  len(manifest.ValueConstraints),
 		"systemInvariants":  len(manifest.SystemInvariants),
 	}
 	for section, count := range sections {
@@ -163,17 +166,17 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 	}
 }
 
-// TestRequestConstraintsStayPure is contract §11.4 gate 7: a DTO validator's
+// TestWireConstraintsStayPure is contract §11.4 gate 7: a DTO validator's
 // dependency graph contains no store, dispatcher or executor.
 //
-// The whole reason a constraint may live on the request type is that checking it
-// costs nothing and can never fail for an environmental reason. Give a Validate()
-// a repository and two things break at once: "invalid_params" starts meaning
-// "the database was slow", and the generated TS validator — which has no
-// repository — stops being equivalent to the Go one.
-func TestRequestConstraintsStayPure(t *testing.T) {
+// A shape constraint is safe on either wire direction precisely because checking
+// it costs nothing and cannot fail for an environmental reason. Give ValidateWire
+// a repository and request "invalid_params" starts meaning "the database was slow"
+// while output validity starts depending on I/O; the generated client could not be
+// equivalent to either.
+func TestWireConstraintsStayPure(t *testing.T) {
 	root := moduleRoot(t)
-	for _, name := range []string{"request_constraints.go", validatorFile} {
+	for _, name := range []string{"wire_constraints.go", validatorFile} {
 		assertConstraintsArePure(t, filepath.Join(root, validatorDir, name))
 	}
 }
@@ -188,10 +191,10 @@ func assertConstraintsArePure(t *testing.T, path string) {
 	for _, spec := range file.Imports {
 		imported := strings.Trim(spec.Path.Value, `"`)
 		if strings.Contains(imported, "/internal/") {
-			t.Errorf("request constraints import %q; a shape constraint may only read the value it validates", imported)
+			t.Errorf("wire constraints import %q; a shape constraint may only read the value it validates", imported)
 		}
 	}
-	// Validate must also be reachable without a context: a check that needs one is
+	// ValidateWire must also be reachable without a context: a check that needs one is
 	// a check that does I/O.
 	full, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 	if err != nil {
@@ -199,11 +202,37 @@ func assertConstraintsArePure(t *testing.T, path string) {
 	}
 	for _, decl := range full.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Name.Name != "Validate" || fn.Recv == nil {
+		if !ok || fn.Name.Name != "ValidateWire" || fn.Recv == nil {
 			continue
 		}
 		if fn.Type.Params != nil && len(fn.Type.Params.List) != 0 {
-			t.Errorf("%s.Validate takes parameters; a shape constraint reads only its own value", exprString(fn.Recv.List[0].Type))
+			t.Errorf("%s.ValidateWire takes parameters; a shape constraint reads only its own value", exprString(fn.Recv.List[0].Type))
+		}
+	}
+}
+
+// TestRegistryShapeRulesReachTheGoValidator closes the server-side half of the
+// three-way contract: every union, conditional object and value-constrained shape
+// registered for schema/TypeScript also owns a generated ValidateWire method.
+func TestRegistryShapeRulesReachTheGoValidator(t *testing.T) {
+	root := moduleRoot(t)
+	source := string(readArtifact(t, filepath.Join(root, validatorDir), validatorFile))
+	shapes := dispatch.WireShapes()
+
+	var registered []reflect.Type
+	for _, spec := range shapes.Unions() {
+		registered = append(registered, spec.GoType)
+	}
+	for _, spec := range shapes.Constraints() {
+		registered = append(registered, spec.GoType)
+	}
+	for _, spec := range shapes.ValueConstraints() {
+		registered = append(registered, spec.GoType)
+	}
+	for _, shape := range registered {
+		signature := "func (value " + shape.Name() + ") ValidateWire() error"
+		if !strings.Contains(source, signature) {
+			t.Errorf("%s is registered as a wire-constrained shape but has no generated ValidateWire method", shape.Name())
 		}
 	}
 }
@@ -580,7 +609,7 @@ func exportedStructs(t *testing.T, dir string) []string {
 // One declaration feeds three independent emitters — the Go validator writes a
 // `required(...)` call, the schema writes `minLength`, the TypeScript checks write
 // `minLength(1)` — and a nested path takes a fourth code path in two of them (an
-// allOf branch, because the rule belongs to the request and not to every carrier of
+// allOf branch, because the rule belongs to the owner and not to every carrier of
 // the shared type). Construction does not make them agree; only reading the
 // artifacts back does.
 func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
@@ -604,10 +633,10 @@ func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 			continue
 		}
 		for _, constraint := range spec.Constraints {
-			keyword, helper := "minLength", "required"
+			keyword, helper := "minLength", "requiredText"
 			switch constraint.Kind {
 			case dispatch.ConstraintPositive:
-				keyword, helper = "minimum", "positive"
+				keyword, helper = "minimum", "positiveNumber"
 			case dispatch.ConstraintNonEmptyItems:
 				keyword = "minItems"
 				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)
@@ -622,7 +651,7 @@ func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 			case dispatch.ConstraintUniqueItems:
 				keyword, helper = "uniqueItems", "uniqueItems"
 			}
-			// The schema states the rule somewhere inside the request's definition —
+			// The schema states the rule somewhere inside the shape's definition —
 			// on the property for a direct field, in an allOf branch for a nested one.
 			if !constraintInSchema(t, definition, constraint.Field, keyword) {
 				t.Errorf("%s.%s is declared %s and schema.json states no %s for it",

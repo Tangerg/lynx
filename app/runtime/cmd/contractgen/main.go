@@ -33,7 +33,7 @@ var (
 
 func main() {
 	out := flag.String("out", ".", "directory the Go-side artifacts are written to")
-	validators := flag.String("validators", "", "directory the generated Go validator is written to; skipped when empty")
+	validators := flag.String("validators", "", "directory the generated Go wire validator is written to; skipped when empty")
 	ts := flag.String("ts", "", "directory the TypeScript wire types are written to; skipped when empty")
 	flag.Parse()
 
@@ -69,7 +69,7 @@ func run(dir, validatorDir, tsDir string) error {
 	if err := os.WriteFile(path, []byte(reference(built)), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
-	// The Go validator lands beside the shapes it checks, in the protocol package.
+	// The Go wire validator lands beside the shapes it checks, in the protocol package.
 	if validatorDir != "" {
 		path = filepath.Join(validatorDir, validatorFile)
 		if err := os.WriteFile(path, []byte(newValidators(registry, shapes)), 0o644); err != nil {

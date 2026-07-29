@@ -94,15 +94,15 @@ func TestListRunsRefusesAStatusThatIsNotOne(t *testing.T) {
 // the one thing it cannot mean, and a repeat asks a set for something a set has no
 // way to answer.
 func TestListRunsRefusesAnEmptyOrRepeatedStatusFilter(t *testing.T) {
-	if err := (protocol.ListRunsRequest{Statuses: []protocol.RunStatus{}}).Validate(); err == nil {
+	if err := (protocol.ListRunsRequest{Statuses: []protocol.RunStatus{}}).ValidateWire(); err == nil {
 		t.Error("an empty status filter validated")
 	}
 	if err := (protocol.ListRunsRequest{Statuses: []protocol.RunStatus{
 		protocol.RunStatusRunning, protocol.RunStatusRunning,
-	}}).Validate(); err == nil {
+	}}).ValidateWire(); err == nil {
 		t.Error("a repeated status validated")
 	}
-	if err := (protocol.ListRunsRequest{}).Validate(); err != nil {
+	if err := (protocol.ListRunsRequest{}).ValidateWire(); err != nil {
 		t.Errorf("an absent status filter = %v, want the whole history", err)
 	}
 }

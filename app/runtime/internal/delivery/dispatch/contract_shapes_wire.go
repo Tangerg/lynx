@@ -269,7 +269,7 @@ func registerEventUnions(s *Shapes) {
 			// Resync names what went stale rather than saying "everything": a client that
 			// subscribed to nine topics should not reload nine resources because one
 			// watch overflowed.
-			{Tag: string(protocol.RuntimeResync), Required: []string{"sequence"}, Optional: []string{"topics", "watchIds"}},
+			{Tag: string(protocol.RuntimeResync), Required: []string{"sequence", "topics"}, Optional: []string{"watchIds"}},
 		},
 	})
 }
