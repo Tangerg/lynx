@@ -1,6 +1,6 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { AgentRunStartOptions } from "@/plugins/sdk";
-import type { Item } from "@/rpc";
+import type { Item, StateSnapshot } from "@/rpc";
 import type { AgentInput } from "../../domain/input";
 import type { ApprovalDecision, RememberScope } from "../../domain/hitl";
 import type { WireDecision } from "../hitl/wireDecision";
@@ -76,6 +76,11 @@ export interface AgentViewStatePort {
   appendLocalUserMessage(sessionId: string, messageId: string, input: AgentInput): void;
   resetView(sessionId: string): void;
   applyCompletedItems(sessionId: string, items: Item[]): void;
+  /** Land a session-scoped state value read cold. It goes through the same fold as
+   *  the one the run stream pushes, which is what keeps a single reader: the fold
+   *  drops whichever of the two carries the older revision, so the two paths cannot
+   *  disagree and neither has to know about the other. */
+  applyStateSnapshot(sessionId: string, snapshot: StateSnapshot): void;
   clearError(sessionId: string): void;
   resolveInterrupt(sessionId: string, itemId: string, settled: ResolvePatch): void;
   subscribeSessions(onChange: (sessions: Record<string, AgentViewSession>) => void): () => void;

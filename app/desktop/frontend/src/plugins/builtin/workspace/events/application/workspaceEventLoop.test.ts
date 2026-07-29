@@ -14,8 +14,8 @@ describe("workspace event loop", () => {
     const loop = createWorkspaceEventLoop({
       async subscribe({ signal }) {
         return (async function* () {
-          yield { type: "skills.changed", sequence: 41 };
-          yield { type: "mcp.serverChanged", sequence: 43 };
+          yield { type: "skills.changed", sequence: 41 } as const;
+          yield { type: "mcp.changed", sequence: 43 } as const;
           await new Promise<void>((resolve) => {
             signal.addEventListener("abort", () => resolve(), { once: true });
           });

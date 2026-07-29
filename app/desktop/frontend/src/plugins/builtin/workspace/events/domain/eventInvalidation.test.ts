@@ -26,16 +26,20 @@ describe("workspaceInvalidations", () => {
     expect(workspaceInvalidations({ type: "resync", sequence: 6 })).toEqual(["all"]);
   });
 
-  // The four topics this client does not subscribe to: it folds them from the run
-  // stream, so a signal would ask for a refetch of nothing. Unmapped here is the same
-  // answer as not asking for them.
-  it("has nothing to invalidate for a topic it does not subscribe to", () => {
-    for (const type of ["runs.changed", "interrupts.changed", "goals.changed", "state.changed"]) {
-      expect(workspaceInvalidations({ type, sequence: 1 })).toEqual([]);
-    }
-  });
-
-  it("ignores forward-compatible event types", () => {
-    expect(workspaceInvalidations({ type: "future.event", sequence: 1 })).toEqual([]);
+  // The four topics that used to be unmapped. They are read-backed now — the run
+  // stream only reaches the window driving that run, so a session moved by the
+  // autonomous loop or another window arrives through these or not at all.
+  it("maps every signal a session can move through", () => {
+    expect(workspaceInvalidations({ type: "runs.changed", sequence: 1 })).toEqual([
+      "sessions",
+      "sessionUsage",
+    ]);
+    expect(workspaceInvalidations({ type: "interrupts.changed", sequence: 2 })).toEqual([
+      "sessions",
+    ]);
+    expect(workspaceInvalidations({ type: "goals.changed", sequence: 3 })).toEqual(["goal"]);
+    expect(workspaceInvalidations({ type: "state.changed", sequence: 4 })).toEqual([
+      "sessionState",
+    ]);
   });
 });

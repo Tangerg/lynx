@@ -190,6 +190,15 @@ describe("useAgentSession durable recovery", () => {
       client: () =>
         ({
           items: { list: vi.fn().mockResolvedValue(page([])) },
+          todos: {
+            get: vi.fn().mockResolvedValue({
+              type: "todos",
+              sessionId: RID,
+              revision: 0,
+              todos: [],
+              updatedAt: "2026-07-29T00:00:00Z",
+            }),
+          },
           interrupts: {
             list: vi.fn().mockResolvedValue(page([])),
             ...(interruptOverrides as object),

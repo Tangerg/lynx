@@ -1,5 +1,5 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
-import type { Item } from "@/rpc";
+import type { Item, StateSnapshot } from "@/rpc";
 import type { ApprovalMode } from "../../domain/hitl";
 
 export type RestoreType = "history" | "files" | "both";
@@ -35,6 +35,12 @@ export interface AgentRuntimeGateway {
   }): Promise<{ revision: number }>;
   forkSession(input: { sessionId: string; fromRunId?: string }): Promise<{ id: string }>;
   loadSessionHistory(sessionId: string): Promise<AgentSessionHistory>;
+  /** Read the session-scoped state the runtime holds, through the recovery method
+   *  the state key declares. It is how a client that was not following the run that
+   *  wrote the value ever sees it — a fresh window, a reload mid-run, or a rollback
+   *  that republished the list. Undefined means this runtime does not carry that
+   *  state at all. */
+  loadSessionState(sessionId: string): Promise<StateSnapshot | undefined>;
   /** Does this session hold any transcript item at all? One row is enough to
    *  answer, so this asks for one rather than reading a history. */
   sessionHoldsNothing(sessionId: string): Promise<boolean>;

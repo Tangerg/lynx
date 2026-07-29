@@ -46,6 +46,17 @@ const gateway: AgentRuntimeGateway = {
     );
     return { items, runs: [...runs.values()] };
   },
+  async loadSessionState(sessionId) {
+    try {
+      return await getContainer().client().todos.get(asSessionId(sessionId));
+    } catch (err) {
+      // A runtime without the state key answers the refusal (or the preflight does,
+      // before the call leaves). That is an absent capability, not a failure to
+      // report: there is no value to recover.
+      if (isErrorType(err, "capability_not_negotiated")) return undefined;
+      throw err;
+    }
+  },
   async sessionHoldsNothing(sessionId) {
     // A bounded read on purpose: existence is the question, so one row answers it
     // and the cursor is irrelevant.

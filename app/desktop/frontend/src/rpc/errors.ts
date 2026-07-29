@@ -1,8 +1,7 @@
 // Typed exception thrown when a JSON-RPC Response carries an `error` — or when the
 // SDK's capability preflight refuses a call the negotiation already ruled out, which
 // is the same refusal with the round-trip removed. Wraps the raw payload so callers
-// can switch on `code` (RPC_* constants from ./types) without parsing the message
-// string.
+// branch on the problem TYPE rather than parsing the message string.
 
 import { errorType, type RpcErrorPayload } from "./types";
 
@@ -15,19 +14,27 @@ export function isErrorType(error: unknown, type: string): boolean {
 }
 
 export class RpcError extends Error {
-  readonly code: number;
+  /** The wire's coarse numeric class, absent when the refusal never crossed the wire
+   *  (the capability preflight below). Only the five standard JSON-RPC codes are
+   *  named by this client — a business failure is identified by `data.type`, which is
+   *  the stable name, and this number is a classification the protocol is free to
+   *  renumber. */
+  readonly code?: number;
   readonly data: unknown;
 
-  constructor(payload: RpcErrorPayload) {
+  constructor(payload: LocalRefusal | RpcErrorPayload) {
     super(payload.message);
     this.name = "RpcError";
-    this.code = payload.code;
+    this.code = "code" in payload ? payload.code : undefined;
     this.data = payload.data;
   }
+}
 
-  toPayload(): RpcErrorPayload {
-    return { code: this.code, message: this.message, data: this.data };
-  }
+/** A refusal this client produced itself. It has no numeric code because no server
+ *  answered it: the preflight already holds the negotiation that would say no. */
+interface LocalRefusal {
+  message: string;
+  data?: unknown;
 }
 
 // Lower-level transport failure — used when an HTTP request fails before

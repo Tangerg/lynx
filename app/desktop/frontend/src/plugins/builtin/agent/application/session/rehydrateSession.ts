@@ -9,6 +9,7 @@
 
 import { agentRuntime } from "../ports/runtimeGateway";
 import { agentViewState } from "../ports/viewState";
+import { recoverSessionState } from "./recoverSessionState";
 
 export async function rehydrateSessionView(sessionId: string): Promise<void> {
   const store = agentViewState();
@@ -25,4 +26,7 @@ export async function rehydrateSessionView(sessionId: string): Promise<void> {
   const live = store.getSession(sessionId);
   if (!live || live.viewEpoch !== epoch || live.view.messages.length > 0) return;
   if (items.length > 0) store.applyCompletedItems(sessionId, items);
+  // The history rewrite moved the session-scoped state with it — a rollback
+  // republishes the boundary's task list — and no run stream is open to say so.
+  await recoverSessionState(sessionId);
 }

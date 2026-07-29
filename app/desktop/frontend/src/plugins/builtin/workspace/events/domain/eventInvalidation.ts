@@ -2,17 +2,36 @@ export type WorkspaceInvalidationTarget =
   | "all"
   | "diff"
   | "filesChanged"
+  | "goal"
   | "mcpConfigs"
   | "mcpServers"
   | "mcpTools"
   | "schedules"
+  | "sessionState"
+  | "sessionUsage"
   | "sessions"
   | "skills"
   | "managedSkills"
   | "skillDrafts";
 
+// The change signals this app can fold, as a closed set. It is spelled here rather
+// than imported from the wire so this layer stays protocol-free — and the assignment
+// at the subscribe adapter is then the drift gate: a signal the runtime adds shows up
+// as a type error at the boundary instead of silently reaching a default branch.
+export type WorkspaceEventType =
+  | "files.changed"
+  | "skills.changed"
+  | "mcp.changed"
+  | "schedules.changed"
+  | "sessions.changed"
+  | "runs.changed"
+  | "state.changed"
+  | "goals.changed"
+  | "interrupts.changed"
+  | "resync";
+
 export interface WorkspaceEventLike {
-  type: string;
+  type: WorkspaceEventType;
   sequence: number;
 }
 
@@ -21,10 +40,9 @@ export interface WorkspaceEventLike {
 // whole mapping — there is nothing to merge, and nothing that can be stale in a way
 // the next read would not fix.
 //
-// A topic maps here only if this client HAS a read for it. runs / interrupts / goals /
-// state are folded from the run stream today, so a signal about them would ask for a
-// refetch of nothing; the subscription does not request those topics rather than
-// requesting them and dropping them (§7.2 — no wildcard, ask for what you fold).
+// The switch is exhaustive by construction (the default branch only type-checks while
+// every member is handled): a topic with no read is a signal this client asked for and
+// then dropped, which is indistinguishable from a bug.
 export function workspaceInvalidations(ev: WorkspaceEventLike): WorkspaceInvalidationTarget[] {
   switch (ev.type) {
     case "files.changed":
@@ -39,12 +57,27 @@ export function workspaceInvalidations(ev: WorkspaceEventLike): WorkspaceInvalid
       return ["schedules", "sessions"];
     case "sessions.changed":
       return ["sessions"];
+    case "runs.changed":
+      // A run's position is what a session row reports as its status, and a run that
+      // ended changed what the session has spent.
+      return ["sessions", "sessionUsage"];
+    case "interrupts.changed":
+      // A session waiting on a person reads differently in the list than one working.
+      return ["sessions"];
+    case "goals.changed":
+      // This is why the goal banner no longer polls: an autonomous loop moves a goal
+      // between turns, and the signal says so as it happens.
+      return ["goal"];
+    case "state.changed":
+      return ["sessionState"];
     case "resync":
       // The signal names the topics that went stale, but a client that fell behind on
       // one may have fallen behind on more: this stream is lossy by design, so the
       // honest response to "you missed something" is to read everything again.
       return ["all"];
-    default:
-      return [];
+    default: {
+      const unhandled: never = ev.type;
+      return unhandled;
+    }
   }
 }

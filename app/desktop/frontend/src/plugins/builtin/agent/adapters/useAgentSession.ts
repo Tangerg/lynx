@@ -8,6 +8,7 @@ import { agentInputToContentBlocks } from "@/plugins/builtin/agent/adapters/wire
 import { getContainer } from "@/main/container";
 import { useAgentStore } from "./agentStore";
 import { createAgentRunPump } from "./agentRunPump";
+import { recoverSessionState } from "../application/session/recoverSessionState";
 import { startAgentSessionRecovery } from "./agentSessionRecovery";
 import { useAgentSessionStore } from "./agentSessionStore";
 import { createOptimisticUserMessage } from "./optimisticUserMessage";
@@ -58,6 +59,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
           abort = ctrl;
         },
         pump: runPump.pump,
+        recoverState: () => recoverSessionState(sessionId),
       });
     }
 

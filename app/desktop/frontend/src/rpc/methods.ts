@@ -12,7 +12,6 @@ import type { RpcCallOptions, RpcClient } from "./client";
 import { isErrorType, RpcError } from "./errors";
 import { unnegotiated } from "./preflight";
 import type { RunId, SegmentId, SessionId } from "./ids";
-import { RPC_CAPABILITY_NOT_NEGOTIATED } from "./types";
 import type {
   AgentDoc,
   ApprovalMode,
@@ -501,7 +500,6 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     const missing = unnegotiated(method, params, options.capabilities?.());
     if (missing.length === 0) return;
     throw new RpcError({
-      code: RPC_CAPABILITY_NOT_NEGOTIATED,
       message: `${method} requires ${missing.join(", ")}`,
       // The type is the whole payload: a client's copy for this problem is its
       // own (§8.4), so manufacturing a detail here would put runtime words in it.

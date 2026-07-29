@@ -39,13 +39,9 @@ export interface GoalQuery {
   sessionId: string;
 }
 
-// Goal mode's runs are launched server-side, back-to-back, and are invisible to
-// the client (no run-settlement or stream signal to refetch on). The goal
-// contract is poll-only, so while a goal is actively driving we poll its state
-// to keep the banner's budget/status live; a paused/blocked/absent goal doesn't
-// advance on its own, so polling stops (mutations invalidate on start/stop/resume).
-const GOAL_POLL_MS = 4_000;
-
-export const useGoalStateQuery = createParameterizedDataQuery<GoalQuery, GoalState>(GOAL_KEY, {
-  refetchInterval: (data) => (data?.goal?.status === "active" ? GOAL_POLL_MS : false),
-});
+// A driving goal moves between turns, with no run stream this client is following:
+// its status and spend used to be discovered by polling every four seconds, which
+// meant a banner that was wrong for up to four seconds and a read that kept happening
+// long after the goal stopped. The runtime publishes goals.changed on every committed
+// goal write now, and the one runtime stream turns it into an invalidation here.
+export const useGoalStateQuery = createParameterizedDataQuery<GoalQuery, GoalState>(GOAL_KEY);

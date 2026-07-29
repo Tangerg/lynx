@@ -9,7 +9,6 @@ import {
   JSONRPC_VERSION,
   parseRpcMessage,
   RPC_METHOD_NOT_FOUND,
-  RPC_SESSION_NOT_FOUND,
 } from "./types";
 
 describe("rpc/types discriminators", () => {
@@ -52,7 +51,9 @@ describe("rpc/types discriminators", () => {
       isErrorResponse({
         jsonrpc: JSONRPC_VERSION,
         id: "1",
-        error: { code: RPC_SESSION_NOT_FOUND, message: "no" },
+        // A business code, written as the number it is: this client names only the
+        // five standard ones, and the envelope gate cares about the shape.
+        error: { code: -32002, message: "no" },
       }),
     ).toBe(true);
   });

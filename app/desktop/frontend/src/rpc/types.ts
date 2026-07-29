@@ -58,43 +58,19 @@ export interface RpcErrorPayload {
 }
 
 // ---------------------------------------------------------------------------
-// Error codes (docs/protocol/API.md §8.2).
+// Error codes (§9.2).
 // ---------------------------------------------------------------------------
 //
-// IMPORTANT: codes are v2-fresh and NOT guaranteed to match any prior
-// baseline. client + server judge errors by `error.data.type` (the
-// symbolic name in `ProblemData.type`), NOT by the numeric code — the
-// number is only a coarse classification. `errorType(err)` below reads
-// the name; prefer it over comparing codes.
-
-// JSON-RPC 2.0 standard codes.
+// The five JSON-RPC standard codes, and deliberately nothing else. A business
+// failure is identified by `error.data.type` — the symbolic name — never by its
+// number: the numeric space is the runtime's to assign, it has retired codes and
+// left holes, and a mirror of it here is a second copy of a table that only one
+// side edits. Use errorType(err.data) to branch; use lib/rpcErrors for words.
 export const RPC_PARSE_ERROR = -32700;
 export const RPC_INVALID_REQUEST = -32600;
 export const RPC_METHOD_NOT_FOUND = -32601;
 export const RPC_INVALID_PARAMS = -32602;
 export const RPC_INTERNAL_ERROR = -32603;
-
-// Lyra business codes (§8.2).
-export const RPC_PROVIDER_ERROR = -32001;
-export const RPC_SESSION_NOT_FOUND = -32002;
-export const RPC_RUN_NOT_FOUND = -32003;
-export const RPC_ITEM_NOT_FOUND = -32004;
-export const RPC_CWD_UNAVAILABLE = -32005;
-export const RPC_CAPABILITY_NOT_NEGOTIATED = -32006;
-// NOTE: there is no -32007 / run_not_running — a run is two-state
-// (running|finished), so "not running" collapses into run_already_finished (§8.2).
-export const RPC_RUN_ALREADY_FINISHED = -32008;
-export const RPC_CHECKPOINT_UNAVAILABLE = -32009;
-// -32010 (attachment_too_large) retired with the attachment upload domain
-// (MULTIMODAL_IMAGE_INPUT, 2026-06-14) — left as a hole, never reused.
-export const RPC_UNSUPPORTED_MIME = -32011; // image block mime: not an image type / unparseable
-// -32012 (tool_denied) retired with the runtime's tool-denied error code (the
-// backend no longer emits it; denial surfaces through the approval flow) — left
-// as a hole, never reused.
-export const RPC_PATH_OUTSIDE_ROOT = -32013;
-export const RPC_INTERRUPT_NOT_OPEN = -32014;
-export const RPC_IDEMPOTENCY_CONFLICT = -32020;
-export const RPC_INVALID_PROTOCOL_VERSION = -32016;
 
 // Read the stable symbolic error name from an RPCError.data.type (§8.2).
 // This is the canonical way to branch on errors — never compare codes.

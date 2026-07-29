@@ -140,6 +140,10 @@ export function installAgentStatePorts(): () => void {
         sessionId,
         items.map((item) => ({ event: { type: "item.completed" as const, item } })),
       ),
+    applyStateSnapshot: (sessionId, state) =>
+      useAgentStore
+        .getState()
+        .applyEvents(sessionId, [{ event: { type: "state.snapshot" as const, state } }]),
     clearError: (sessionId) => useAgentStore.getState().clearError(sessionId),
     resolveInterrupt: (sessionId, itemId, settled) =>
       useAgentStore.getState().resolveInterrupt(sessionId, itemId, settled),

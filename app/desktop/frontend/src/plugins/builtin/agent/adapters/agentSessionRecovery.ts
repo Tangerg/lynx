@@ -18,6 +18,9 @@ interface AgentSessionRecoveryOptions {
   applyEvents: (events: FoldEvent[]) => void;
   setAbortController: (controller: AbortController) => void;
   pump: (stream: StreamingResult<{ runId: RunId }, RunEvent>, signal: AbortSignal) => Promise<void>;
+  /** Re-read the session-scoped state through its recovery method. The run stream
+   *  carries snapshots only to a follower, so a window that just opened holds none. */
+  recoverState: () => Promise<void>;
 }
 
 export function startAgentSessionRecovery(options: AgentSessionRecoveryOptions): void {
@@ -46,6 +49,15 @@ function stale(options: AgentSessionRecoveryOptions): boolean {
 async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
   const sid = asSessionId(options.sessionId);
   await replayHistory(options);
+  if (stale(options)) return;
+
+  // Independent of everything else this reconstruction does: a state key this
+  // runtime cannot serve, or a read that fails, must not cost the session its
+  // transcript, its waiting sets, or its reattach.
+  await options.recoverState().catch((err: unknown) => {
+    if (!options.isCancelled())
+      console.warn("[agent] session state recovery failed:", options.sessionId, err);
+  });
   if (stale(options)) return;
 
   const open = await collectPages((cursor) =>

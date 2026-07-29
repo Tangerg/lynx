@@ -6,16 +6,21 @@ import {
   runtimeSupportsStreamingMethod,
 } from "@/plugins/builtin/runtime/public/capabilities";
 
-// The topics this client can act on: each one maps to a read it invalidates. It does
-// NOT ask for runs / interrupts / goals / state — those are folded from the run stream
-// today, so a signal about them would ask for a refetch of nothing. There is no
-// wildcard by design (§7.2): a subscription says what it can fold.
+// Every topic, because this client now has a read for every one of them — the run
+// stream reaches only the window driving that run, so a session moved by the
+// autonomous loop, another window, or the scheduler arrives here or not at all.
+// There is no wildcard by design (§7.2): a subscription says what it can fold, and
+// this list is checked against the reducer's closed set at the call below.
 const SUBSCRIBED_TOPICS: readonly RuntimeTopic[] = [
   "files.changed",
   "skills.changed",
   "mcp.changed",
   "schedules.changed",
   "sessions.changed",
+  "runs.changed",
+  "interrupts.changed",
+  "goals.changed",
+  "state.changed",
 ];
 
 export function canSubscribeWorkspaceEvents(): boolean {

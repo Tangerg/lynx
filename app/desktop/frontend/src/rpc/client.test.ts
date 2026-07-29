@@ -4,7 +4,12 @@ import { RpcError, RpcTransportError } from "./errors";
 import { createMemoryTransport } from "./transports/memory";
 import { waitForRequest } from "./transports/memory.testkit";
 import type { RpcMessage } from "./types";
-import { JSONRPC_VERSION, RPC_METHOD_NOT_FOUND, RPC_SESSION_NOT_FOUND } from "./types";
+import { JSONRPC_VERSION, RPC_METHOD_NOT_FOUND } from "./types";
+
+// A business error's number is the runtime's to assign and this client no longer
+// mirrors the table; the correlation this test is about does not depend on which
+// number arrives.
+const SOME_BUSINESS_CODE = -32002;
 
 describe("RpcClient", () => {
   it("call() sends a Request and resolves with result", async () => {
@@ -32,11 +37,11 @@ describe("RpcClient", () => {
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       id: req.id,
-      error: { code: RPC_SESSION_NOT_FOUND, message: "not found" },
+      error: { code: SOME_BUSINESS_CODE, message: "not found" },
     } as RpcMessage);
 
     await expect(promise).rejects.toBeInstanceOf(RpcError);
-    await expect(promise).rejects.toMatchObject({ code: RPC_SESSION_NOT_FOUND });
+    await expect(promise).rejects.toMatchObject({ code: SOME_BUSINESS_CODE });
     await client.close();
   });
 
