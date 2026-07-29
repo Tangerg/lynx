@@ -162,10 +162,10 @@ func (sub *workspaceSubscription) offerLocked(ev protocol.RuntimeEvent) bool {
 	ev = cloneRuntimeEvent(ev)
 	clearEmptyRuntimeScopes(&ev)
 	ev.Sequence = sub.sequence + 1
-	if err := ev.ValidateWire(); err != nil {
+	if err := protocol.ValidateWireTree(ev); err != nil {
 		ev = sub.resyncEvent()
 		ev.Sequence = sub.sequence + 1
-		if recoveryErr := ev.ValidateWire(); recoveryErr != nil {
+		if recoveryErr := protocol.ValidateWireTree(ev); recoveryErr != nil {
 			panic("server: invalid runtime resync invariant: " + recoveryErr.Error())
 		}
 	}

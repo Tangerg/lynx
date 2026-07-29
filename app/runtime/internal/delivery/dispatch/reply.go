@@ -16,6 +16,13 @@ import (
 // can forget to run [errorToRPC] or pick the wrong error code.
 
 func responseResult(id transport.ID, result any) HandleResult {
+	if err := protocol.ValidateWireTree(result); err != nil {
+		return responseError(id, problemError(
+			protocol.CodeInternalError,
+			protocol.ProblemInternalError,
+			"the runtime produced an invalid response",
+		))
+	}
 	resp, err := transport.NewResponseResult(id, result)
 	if err != nil {
 		// Response encoding is an infrastructure fault. Its serializer detail can
@@ -53,10 +60,8 @@ func decode[In any](msg *transport.Request) (In, *transport.Error) {
 	if err := decodeParams(msg.Params, &in); err != nil {
 		return in, invalidParams(err.Error())
 	}
-	if constrained, ok := any(&in).(protocol.WireValidator); ok {
-		if err := constrained.ValidateWire(); err != nil {
-			return in, invalidRequestShape(err)
-		}
+	if err := protocol.ValidateWireTree(&in); err != nil {
+		return in, invalidRequestShape(err)
 	}
 	return in, nil
 }

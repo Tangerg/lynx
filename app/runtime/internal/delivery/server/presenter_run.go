@@ -218,7 +218,7 @@ func presentProblem(problem *transcript.Problem) *protocol.ProblemData {
 func presentInterrupts(interrupts []transcript.Interrupt) []protocol.Interrupt {
 	out := make([]protocol.Interrupt, 0, len(interrupts))
 	for _, interrupt := range interrupts {
-		entry := protocol.Interrupt{ItemID: interrupt.ItemID}
+		entry := protocol.Interrupt{ItemID: interrupt.ItemID, RunID: interrupt.RunID}
 		entry.Type = presentInterruptType(interrupt.Kind)
 		switch interrupt.Kind {
 		case execution.ApprovalInterrupt:

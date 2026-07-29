@@ -19,7 +19,22 @@ import (
 type fakeRuntime struct{ protocol.Runtime }
 
 func (fakeRuntime) Discover(context.Context) (*protocol.DiscoverResponse, error) {
-	return &protocol.DiscoverResponse{Protocol: protocol.SupportedProtocolRange()}, nil
+	return &protocol.DiscoverResponse{
+		Protocol: protocol.SupportedProtocolRange(),
+		Capabilities: protocol.ServerCapabilities{
+			RunEvents:        []protocol.StreamEventType{},
+			RuntimeTopics:    []protocol.RuntimeTopic{},
+			StateSnapshots:   []protocol.StateSnapshotCapability{},
+			StreamingMethods: []string{},
+			Features:         map[string]protocol.FeatureCapability{},
+			Limits: protocol.RuntimeLimits{
+				RunReplay: protocol.RunReplayLimits{
+					Scope: protocol.ReplayScopeProcessRootSegment, MaxEvents: 1, MaxBytes: 1,
+				},
+				RuntimeSubscription: protocol.SubscriptionLimits{MaxTopics: 1, MaxWatches: 1},
+			},
+		},
+	}, nil
 }
 
 // TestInProcessRoundtrip confirms a Request sent to the InProcess

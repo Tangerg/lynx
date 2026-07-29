@@ -1017,9 +1017,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["session"]),
   Interrupt: allOf([
     object({
-      itemId: text(),
+      itemId: allOf([text(), minLength(1)]),
       payload: ref(() => CHECKS.InterruptPayload),
-      runId: text(),
+      runId: allOf([text(), minLength(1)]),
       type: ref(() => CHECKS.InterruptType),
     }, []),
     oneOf([
@@ -1501,8 +1501,8 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     object({
       createdAt: text(),
       interrupts: allOf([array(ref(() => CHECKS.Interrupt)), minItems(1)]),
-      rootRunId: text(),
-      sessionId: text(),
+      rootRunId: allOf([text(), minLength(1)]),
+      sessionId: allOf([text(), minLength(1)]),
     }, ["createdAt", "interrupts", "rootRunId", "sessionId"]),
     fields({}, ["createdAt", "interrupts", "rootRunId", "sessionId"]),
   ]),

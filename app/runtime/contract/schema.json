@@ -2441,13 +2441,15 @@
       "type": "object",
       "properties": {
         "itemId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "payload": {
           "$ref": "#/$defs/InterruptPayload"
         },
         "runId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "type": {
           "$ref": "#/$defs/InterruptType"
@@ -3955,10 +3957,12 @@
           }
         },
         "rootRunId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "sessionId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [

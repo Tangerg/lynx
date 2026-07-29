@@ -379,7 +379,11 @@ TypeScript validator from this single registry projection.
 | `RuntimeEvent` | `topics` | `uniqueItems` |
 | `RuntimeEvent` | `watchIds` | `nonEmptyItems` |
 | `RuntimeEvent` | `watchIds` | `uniqueItems` |
+| `PendingInterruptSet` | `rootRunId` | `nonEmpty` |
+| `PendingInterruptSet` | `sessionId` | `nonEmpty` |
 | `PendingInterruptSet` | `interrupts` | `nonEmptyItems` |
+| `Interrupt` | `itemId` | `nonEmpty` |
+| `Interrupt` | `runId` | `nonEmpty` |
 | `ProblemData` | `requiredCapabilities` | `nonEmptyItems` |
 | `ProblemData` | `requiredCapabilities` | `uniqueItems` |
 | `RunReplayLimits` | `maxEvents` | `positive` |

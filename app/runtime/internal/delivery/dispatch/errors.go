@@ -240,7 +240,7 @@ func problemFrame(spec rpcErrorSpec, typ string, err error) *transport.Error {
 }
 
 func marshalProblem(spec rpcErrorSpec, problem protocol.ProblemData) *transport.Error {
-	if err := problem.ValidateWire(); err != nil {
+	if err := protocol.ValidateWireTree(problem); err != nil {
 		fallback := protocol.ProblemData{
 			Type:   protocol.ProblemInternalError,
 			Detail: "the runtime could not encode a valid error response",

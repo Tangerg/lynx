@@ -3465,8 +3465,29 @@
       "type": "PendingInterruptSet",
       "rules": [
         {
+          "field": "rootRunId",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "sessionId",
+          "constraint": "nonEmpty"
+        },
+        {
           "field": "interrupts",
           "constraint": "nonEmptyItems"
+        }
+      ]
+    },
+    {
+      "type": "Interrupt",
+      "rules": [
+        {
+          "field": "itemId",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "runId",
+          "constraint": "nonEmpty"
         }
       ]
     },

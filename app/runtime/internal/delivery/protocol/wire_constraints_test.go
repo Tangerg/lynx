@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRuntimeEventWireConstraints(t *testing.T) {
@@ -88,6 +89,30 @@ func TestOutputCollectionWireConstraints(t *testing.T) {
 	duplicate := CapabilityRequirement{Type: RequirementFeature, Name: "subagents"}
 	capability.RequiredCapabilities = []CapabilityRequirement{duplicate, duplicate}
 	assertConstraintField(t, capability.ValidateWire(), "ProblemData", "requiredCapabilities")
+}
+
+func TestValidateWireTreeComposesNestedConstraints(t *testing.T) {
+	t.Parallel()
+
+	pending := PendingInterruptSet{
+		RootRunID: "run_root",
+		SessionID: "ses_1",
+		CreatedAt: time.Date(2026, 7, 30, 1, 0, 0, 0, time.UTC),
+		Interrupts: []Interrupt{{
+			ItemID: "item_question",
+			Type:   InterruptQuestion,
+			Payload: &InterruptPayload{
+				Question: &Question{Prompt: "Continue?"},
+			},
+		}},
+	}
+	assertConstraintField(t, pending.Interrupts[0].ValidateWire(), "Interrupt", "runId")
+	assertConstraintField(
+		t,
+		ValidateWireTree(pending),
+		"PendingInterruptSet",
+		"interrupts[0].runId",
+	)
 }
 
 func TestPublishedLimitWireConstraints(t *testing.T) {

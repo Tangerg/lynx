@@ -322,7 +322,7 @@ func New(cfg Config) (*Server, error) {
 		codebase:    cfg.Codebase.Available(),
 	}
 	replay := replayLimitsFrom(cfg.Coordinator)
-	if err := replay.ValidateWire(); err != nil {
+	if err := protocol.ValidateWireTree(replay); err != nil {
 		return nil, fmt.Errorf("server: coordinator returned invalid replay retention: %w", err)
 	}
 	srv := &Server{

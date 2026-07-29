@@ -172,9 +172,15 @@ func registerRuntimeValues(s *Shapes) {
 	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.PendingInterruptSet](),
 		Constraints: []FieldConstraint{
+			{Field: "rootRunId", Kind: ConstraintNonEmpty},
+			{Field: "sessionId", Kind: ConstraintNonEmpty},
 			{Field: "interrupts", Kind: ConstraintNonEmptyItems},
 		},
 	})
+	// A set is owned by its root, while every Interrupt names the Run that raised
+	// it. Empty ids satisfy JSON's string type but identify neither resource, so
+	// both the live segment outcome and cold interrupt read must reject them.
+	nonEmpty[protocol.Interrupt](s, "itemId", "runId")
 	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.ProblemData](),
 		Constraints: []FieldConstraint{

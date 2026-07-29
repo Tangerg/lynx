@@ -1,6 +1,8 @@
 package protocol
 
 import (
+	"errors"
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -14,16 +16,154 @@ import (
 // conditional presence rules therefore have one author shared by Go, JSON Schema
 // and TypeScript. A hand-written ValidateWire would be a second author.
 //
-// Delivery calls ValidateWire immediately after decoding a request and before it
-// reaches any use case, mapping a failure to invalid_params (API.md §8.2). Output
-// boundaries call the same method before publishing a value. Shape constraints
-// therefore live here rather than in handlers or presenters.
+// [ValidateWireTree] composes these node-local validators at delivery boundaries.
+// Keeping the generated method local to one DTO avoids generated parent shapes
+// restating child rules, while the tree walk makes it impossible for a response
+// or event to skip a constrained nested DTO.
 //
 // ValidateWire stays a pure function of the value — no storage, dispatcher or
 // executor (contract §11.2 / §14.6 gate 7). "Does this session exist" is not a
 // shape constraint and remains a use-case decision.
 type WireValidator interface {
 	ValidateWire() error
+}
+
+// ValidateWireTree validates every constrained DTO reachable through the JSON
+// representation of value. It is the delivery-boundary operation: requests,
+// responses, errors and events call it once at their root, and it composes the
+// generated node-local [WireValidator] implementations with precise JSON paths.
+//
+// Interface-valued payloads are intentionally opaque. They carry extension or
+// provider data whose schema is owned outside the first-party wire contract, so
+// recursively interpreting a concrete value hidden behind `any` would turn an
+// implementation detail into protocol.
+func ValidateWireTree(value any) error {
+	root := reflect.ValueOf(value)
+	if !root.IsValid() {
+		return nil
+	}
+	rootType := root.Type()
+	for rootType.Kind() == reflect.Pointer {
+		rootType = rootType.Elem()
+	}
+	shape := rootType.Name()
+	if shape == "" {
+		shape = "wire value"
+	}
+
+	fields := validateWireValue(root, "", make(map[wirePointer]bool))
+	if len(fields) == 0 {
+		return nil
+	}
+	return &ConstraintError{Shape: shape, Fields: uniqueFieldErrors(fields)}
+}
+
+type wirePointer struct {
+	typ reflect.Type
+	ptr uintptr
+}
+
+func validateWireValue(value reflect.Value, path string, visiting map[wirePointer]bool) []FieldError {
+	if !value.IsValid() {
+		return nil
+	}
+	for value.Kind() == reflect.Pointer {
+		if value.IsNil() {
+			return nil
+		}
+		pointer := wirePointer{typ: value.Type(), ptr: value.Pointer()}
+		if visiting[pointer] {
+			return nil
+		}
+		visiting[pointer] = true
+		defer delete(visiting, pointer)
+		value = value.Elem()
+	}
+	// An interface marks an intentionally opaque wire boundary. Do not unwrap it:
+	// Result, payload and Arguments may contain arbitrary third-party JSON.
+	if value.Kind() == reflect.Interface {
+		return nil
+	}
+
+	var fields []FieldError
+	if value.CanInterface() {
+		if validator, ok := value.Interface().(WireValidator); ok {
+			fields = append(fields, prefixedWireErrors(path, validator.ValidateWire())...)
+		}
+	}
+
+	switch value.Kind() {
+	case reflect.Struct:
+		owner := value.Type()
+		for index := range owner.NumField() {
+			fieldType := owner.Field(index)
+			name, options := wireNameOf(fieldType)
+			if options.embedded {
+				fields = append(fields, validateWireValue(value.Field(index), path, visiting)...)
+				continue
+			}
+			if name == "" {
+				continue
+			}
+			fields = append(fields, validateWireValue(
+				value.Field(index),
+				joinWirePath(path, name),
+				visiting,
+			)...)
+		}
+	case reflect.Slice, reflect.Array:
+		for index := range value.Len() {
+			fields = append(fields, validateWireValue(
+				value.Index(index),
+				fmt.Sprintf("%s[%d]", path, index),
+				visiting,
+			)...)
+		}
+	}
+	return fields
+}
+
+func prefixedWireErrors(path string, err error) []FieldError {
+	if err == nil {
+		return nil
+	}
+	if constraint, ok := errors.AsType[*ConstraintError](err); ok {
+		fields := make([]FieldError, 0, len(constraint.Fields))
+		for _, field := range constraint.Fields {
+			field.Field = joinWirePath(path, field.Field)
+			fields = append(fields, field)
+		}
+		return fields
+	}
+	field := path
+	if field == "" {
+		field = "$"
+	}
+	return []FieldError{{Field: field, Detail: err.Error()}}
+}
+
+func joinWirePath(prefix, field string) string {
+	switch {
+	case prefix == "":
+		return field
+	case field == "":
+		return prefix
+	default:
+		return prefix + "." + field
+	}
+}
+
+func uniqueFieldErrors(fields []FieldError) []FieldError {
+	seen := make(map[FieldError]bool, len(fields))
+	out := make([]FieldError, 0, len(fields))
+	for _, field := range fields {
+		if seen[field] {
+			continue
+		}
+		seen[field] = true
+		out = append(out, field)
+	}
+	return out
 }
 
 // ConstraintError reports which fields of a wire shape violated their contract.

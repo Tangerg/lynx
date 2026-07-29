@@ -330,7 +330,7 @@ func TestListInterruptsProjectsToWire(t *testing.T) {
 			RootRunID: "run_waiting",
 			SessionID: "ses_1",
 			Interrupts: []transcript.Interrupt{{
-				ItemID: "item_1", Kind: execution.ApprovalInterrupt,
+				ItemID: "item_1", RunID: "run_child", Kind: execution.ApprovalInterrupt,
 				Approval: &transcript.Approval{
 					Tool: transcript.ToolInvocation{Name: "shell", Arguments: arguments},
 					Risk: tool.RiskHigh, Reason: "Runs commands in the workspace.", Rememberable: true,
@@ -356,7 +356,8 @@ func TestListInterruptsProjectsToWire(t *testing.T) {
 		t.Fatalf("wire open interrupt = %+v", open)
 	}
 	interrupt := open.Interrupts[0]
-	if interrupt.Type != protocol.InterruptApproval || interrupt.ItemID != "item_1" || interrupt.Payload == nil || interrupt.Payload.Tool == nil || !interrupt.Payload.Rememberable {
+	if interrupt.Type != protocol.InterruptApproval || interrupt.ItemID != "item_1" || interrupt.RunID != "run_child" ||
+		interrupt.Payload == nil || interrupt.Payload.Tool == nil || !interrupt.Payload.Rememberable {
 		t.Fatalf("wire interrupt = %+v, want typed approval payload", interrupt)
 	}
 	if interrupt.Payload.Tool.Name != "shell" || interrupt.Payload.Tool.Arguments["command"] != "go test ./..." {

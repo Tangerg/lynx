@@ -3,14 +3,14 @@ import { createLyraClient } from "./sdk";
 import { createMemoryTransport } from "./transports/memory";
 import { waitForRequest } from "./transports/memory.testkit";
 import { JSONRPC_VERSION, type RpcMessage } from "./types";
-import type { ServerCapabilities } from "./wire.generated";
+import { PROTOCOL_VERSION, type ServerCapabilities } from "./wire.generated";
 
 describe("createLyraClient", () => {
   it("attaches request metadata to typed calls", async () => {
     const transport = createMemoryTransport();
     const client = createLyraClient(transport, {
       requestMeta: () => ({
-        protocolVersion: "2026-07-19",
+        protocolVersion: PROTOCOL_VERSION,
         clientInfo: { name: "test", version: "0" },
         clientCapabilities: { events: [], features: {}, interruptTypes: ["approval"] },
       }),
@@ -21,7 +21,7 @@ describe("createLyraClient", () => {
 
     expect(req.params).toMatchObject({
       _meta: {
-        protocolVersion: "2026-07-19",
+        protocolVersion: PROTOCOL_VERSION,
         clientCapabilities: { interruptTypes: ["approval"] },
       },
     });
@@ -57,7 +57,7 @@ describe("createLyraClient", () => {
       requestMeta: () => {
         reads += 1;
         return {
-          protocolVersion: "2026-07-19",
+          protocolVersion: PROTOCOL_VERSION,
           clientInfo: { name: "test", version: "0" },
           clientCapabilities: {
             features: { subagents: { enabled: reads === 1 } },

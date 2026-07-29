@@ -7,6 +7,7 @@ import (
 	netHTTP "net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
@@ -22,19 +23,39 @@ type fakeRuntime struct {
 }
 
 func (f *fakeRuntime) Discover(context.Context) (*protocol.DiscoverResponse, error) {
-	return &protocol.DiscoverResponse{Protocol: protocol.SupportedProtocolRange()}, nil
+	return &protocol.DiscoverResponse{
+		Protocol:     protocol.SupportedProtocolRange(),
+		Capabilities: validTestCapabilities(),
+	}, nil
 }
 
 func (f *fakeRuntime) CancelRun(_ context.Context, in protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
 	f.canceledRuns = append(f.canceledRuns, in.RunID)
 	outcome := protocol.RunOutcome{Type: protocol.OutcomeCanceled}
+	finishedAt := time.Date(2026, 7, 30, 1, 0, 0, 0, time.UTC)
 	return &protocol.CancelRunResponse{
 		Type: protocol.CancelRunRoot,
 		Run: protocol.RunRef{RunSummary: protocol.RunSummary{
 			ID: in.RunID, SessionID: "ses_test", Status: protocol.RunStatusFinished,
-			Outcome: &outcome,
+			Outcome: &outcome, FinishedAt: finishedAt,
 		}},
 	}, nil
+}
+
+func validTestCapabilities() protocol.ServerCapabilities {
+	return protocol.ServerCapabilities{
+		RunEvents:        []protocol.StreamEventType{},
+		RuntimeTopics:    []protocol.RuntimeTopic{},
+		StateSnapshots:   []protocol.StateSnapshotCapability{},
+		StreamingMethods: []string{},
+		Features:         map[string]protocol.FeatureCapability{},
+		Limits: protocol.RuntimeLimits{
+			RunReplay: protocol.RunReplayLimits{
+				Scope: protocol.ReplayScopeProcessRootSegment, MaxEvents: 1, MaxBytes: 1,
+			},
+			RuntimeSubscription: protocol.SubscriptionLimits{MaxTopics: 1, MaxWatches: 1},
+		},
+	}
 }
 
 func newTestServer(t *testing.T) (*httptest.Server, *fakeRuntime) {

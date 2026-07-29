@@ -349,6 +349,24 @@ describe("the generated wire checks", () => {
       detail: "expected at least 1 item(s)",
     });
     expect(
+      validateWire("PendingInterruptSet", {
+        rootRunId: "run_01",
+        sessionId: "ses_01",
+        interrupts: [
+          {
+            type: "question",
+            itemId: "item_01",
+            runId: "",
+            payload: { question: { prompt: "Continue?", fields: [] } },
+          },
+        ],
+        createdAt: "2026-07-30T00:00:00Z",
+      }),
+    ).toContainEqual({
+      path: "PendingInterruptSet.interrupts[0].runId",
+      detail: "expected at least 1 character(s)",
+    });
+    expect(
       validateWire("ProblemData", {
         type: "capability_not_negotiated",
         requiredCapabilities: [],

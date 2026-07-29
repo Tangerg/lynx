@@ -1,9 +1,10 @@
 # Lyra Runtime API 最终一致性收口计划
 
 > 作者：Codex
-> 状态：`EXECUTING`（按 A-track 顺序实施）
+> 状态：`A-TRACK DONE`（B1 独立延期）
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
+> 收口基线：A7 原子提交（见 §17）
 > 目标协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 目标 Artifact：`SessionArtifactVersion = 7`
 
@@ -46,13 +47,14 @@
 - 协议与 Artifact 已执行单版本硬切换，没有保留旧协议 decoder 或 alias；
 - runtime 与 frontend 的现有质量门均为绿色。
 
-但当前只能判定为：
+截至 A7 收口，可以判定为：
 
-> **主体架构完成，最终协议一致性仍在收口。**
+> **A-track 最终协议一致性已经闭环；完整 child Run 执行能力仍按 B1 独立延期。**
 
-原因不是工程失控，而是少数跨层语义没有被旧实施计划单独追踪。当前代码、生成物和
-现行 API 文档在这些位置彼此一致，但共同偏离了冻结契约，因此内部 drift gate
-无法发现它们。
+A1–A7 已把旧实施计划未单独追踪的跨层语义逐项修正，并用 Registry、生成物、
+运行时边界、真实 SQLite 生命周期、前端 consumer 和 canonical docs 的交叉证据
+完成复核。`features.subagents=false` 仍是有意的诚实能力声明：它不是 A-track
+遗留兼容，也不应被写成已交付的完整 child Run 能力。
 
 本计划不使用粗略完成百分比。一个完整的 Run-tree cancel 与一个 `minItems`
 约束不能按相同权重计算；只记录逐项状态和可复核证据。
@@ -204,11 +206,11 @@ cd app/desktop/frontend && npm run check
 | A4 | 收紧 machine-contract value constraints | `DONE` | 2026-07-30 完成 | single Registry metadata、output boundaries、全量 gates |
 | A5 | capability gate 与 disabled-subagent seam 收口 | `DONE` | 2026-07-30 完成 | shared policy、durable identity gates、全量 gates |
 | A6 | Registry fail-closed 与 SSOT 清理 | `DONE` | 2026-07-30 完成 | defensive views、closed metadata、effective errors、全量 gates |
-| A7 | canonical docs 与最终 conformance sweep | `TODO` | 最后收口 | — |
-| B1 | 完整 child Run producer / tree cancel / barrier | `DEFERRED` | A5 完成后单独排期 | 启用条件见 §11 |
+| A7 | canonical docs 与最终 conformance sweep | `DONE` | 2026-07-30 完成 | §12.4 conformance matrix、全量 gates |
+| B1 | 完整 child Run producer / tree cancel / barrier | `DEFERRED` | 独立排期 | 启用条件见 §11 |
 
-A6 已完成；下一项为 A7，尚未开工。同一时间只允许一个 A-track slice 处于
-`IN PROGRESS`，避免多个 breaking shape 同时造成无法定位的生成差异。
+A1–A7 已全部完成，当前没有 A-track slice 处于 `IN PROGRESS`。B1 仍是独立项目，
+不得通过打开 feature flag 或附加兼容路径并入本轮收口。
 
 ---
 
@@ -557,6 +559,30 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 6. 没有任何历史兼容路径；
 7. `features.subagents=false` 时所有相关意图显式拒绝；
 8. 若 B1 未完成，台账必须继续将其标为 `DEFERRED`，不得写成完整功能已交付。
+
+### 12.4 最终 conformance matrix
+
+| 事实面 | 核对内容 | 结论 / 证据 |
+|---|---|---|
+| 冻结契约 | `codex_runtime_protocol_vnext_final.md` 的方法、shape、能力、错误与版本 | `PASS` |
+| Registry / Go wire | method、union、presence、value、feature、error metadata 与 DTO | `PASS`；Interrupt/set id 非空约束进入 Registry |
+| application / delivery | start → steer → wait/resume → cancel；presenter 与 durable projection | `PASS`；真实 composition root + fresh SQLite + cold restart |
+| wire boundaries | request、response、Problem、RunEvent、RuntimeEvent 的嵌套 DTO | `PASS`；统一 `ValidateWireTree` 递归组合生成规则 |
+| artifacts | manifest、schema、OpenRPC、API Reference、Go validator | `PASS`；二次生成无 diff |
+| TypeScript / client | wire type、validator、method map、SDK metadata 与 preflight | `PASS`；SDK 测试使用生成的 `PROTOCOL_VERSION` |
+| canonical docs | API / AUX_API / TRANSPORT 与目标协议版本、行为 | `PASS`；均为 `2026-07-27` |
+| compatibility | 上一发布 baseline → 当前产物 | `PASS`；70 breaking / 95 compatible，版本 bump gate 通过 |
+| 历史债务扫描 | alias、旧 decoder、fallback、dual read/write、旧字段 | `PASS`；仅历史 baseline、拒绝旧 shape 的 negative fixture 和迁移说明保留 |
+| disabled capability | `features.subagents=false` 下的静态与 durable-identity intent | `PASS`；全部显式 `capability_not_negotiated` |
+| 全量质量门 | runtime build/vet/test/lint/vuln、race、frontend check | `PASS` |
+
+残留字符串扫描的允许项是封闭的：
+
+- `run_already_finished`、旧协议版本只存在于上一发布 baseline 和明确的版本拒绝测试；
+- `SteerRunRequest.message`、`StreamEvent.durable` 只存在于“必须拒绝旧 shape”的
+  schema / TS negative fixture；
+- canonical docs 中 `custom.durable` 只用于声明该字段被禁止；
+- 生产代码、当前生成物和正向 sample 中不存在这些旧表达。
 
 ---
 
@@ -909,6 +935,50 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
   - canonical docs、生成制品与完整实现面的最终交叉审计进入 A7；
   - child Run producer 仍按计划留在独立 B1，不在 A-track 伪装启用。
 
+### 2026-07-30 — A7
+
+- 状态：`DONE`
+- Commit：本记录所在的 `feat(runtime): enforce end-to-end wire conformance`
+  原子提交
+- 目标：完成冻结契约、Registry、producer/consumer、生成制品、canonical docs 与
+  冷启动生命周期的最终交叉审计，消除最后的跨层协议漏检。
+- 关键裁决：
+  - residual scan 逐项排除 `UnaryAck cancel`、旧 finished error、steer message、
+    sender-controlled durable、可选 replay/resync 和宽泛 opt-out；历史 baseline、
+    negative fixture 与“明确禁止”文档不属于兼容路径，保留其证明职责；
+  - fresh SQLite 生命周期测试使用真实 persistence bundle、composition root、
+    delivery server 和可控 model，连续完成 start → structured steer → waiting
+    question → resume → live cancel → process close/reopen → startup recovery →
+    `runs.get/items.list` cold read；
+  - 该测试发现 `transcript.Interrupt.RunID` 已持久化但 presenter 未投影。唯一映射点
+    补齐 `runId`，并在 query presenter test 固定 child source Run 语义；
+  - 根因不是单个字段，而是 generated `ValidateWire()` 有意只校验本 DTO，边界却曾
+    把它当成整棵 wire value。新增 `ValidateWireTree` 递归组合 Registry 生成的节点
+    规则，并统一用于 request、response、Problem、RunEvent、RuntimeEvent 与 server
+    output seam；`any` extension payload 保持 opaque，不误把实现类型变成协议；
+  - `Interrupt.itemId/runId` 与 `PendingInterruptSet.rootRunId/sessionId` 的非空约束
+    进入 Registry，Go validator、schema `minLength`、API Reference、manifest 与 TS
+    validator 同源生成，不在 presenter 手写第二份规则；
+  - SDK metadata 测试删除旧版本字面量，直接消费 generated `PROTOCOL_VERSION`；
+    版本拒绝测试仍有意使用上一版本。
+- 生成物：
+  - `manifest.json`、`schema.json`、`API_REFERENCE.md`；
+  - `wire.validate.generated.ts`、`wire_constraints.generated.go`。
+- 验证：
+  - `go test ./...` → `PASS`
+  - `MODULE=app/runtime scripts/check.sh build vet test lint vuln` → `PASS`
+  - `go test -race ./internal/application/runs/... ./internal/delivery/... ./internal/bootstrap`
+    → `PASS`
+  - `cd app/desktop/frontend && npm run check` → `178 files / 1078 tests PASS`
+  - compatibility differ → `70 breaking / 95 compatible`，version bump gate `PASS`
+  - contract generation 连续两次聚合 hash
+    `ecf9ff3ce7ea6be4e68e719bdc53938a90e991444a4bce07cf6602ed7b64bdda`
+    不变 → `PASS`
+- 残余风险：
+  - A-track 无已知 conformance 偏差；
+  - 完整 child Run producer、tree cancel transaction 与 barrier 仍只属于 B1；
+    `features.subagents` 在 B1 全部门槛满足前继续保持 false。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -937,12 +1007,13 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 
 ## 18. 下一步
 
-下一实施 slice：
+A-track 已收口，没有自动开始的下一 slice。后续若决定交付完整 subagent 执行能力，
+按独立项目进入：
 
 ```text
-A7 — canonical docs 与最终 conformance sweep
+B1 — 完整 child Run producer / tree cancel / barrier
 ```
 
-开工时先把 A7 改为 `IN PROGRESS`，逐项核对 canonical API / AUX / TRANSPORT、
-manifest / schema / OpenRPC / TS artifacts 与 runtime producer/consumer。只修真实
-漂移，不为了“看起来兼容”保留旧名、旧字段或双写路径。
+B1 必须从 §11 的启用门槛开始，保持 `features.subagents=false` 直到 producer、
+tree transaction、interrupt barrier、cold recovery、前端 tree reducer 和完整 gates
+同时成立。仍采用 breaking-first 策略，不增加过渡 alias、兼容 decoder 或双写路径。

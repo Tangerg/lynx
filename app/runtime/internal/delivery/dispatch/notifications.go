@@ -15,6 +15,9 @@ import (
 // notification. runId + eventId let the client filter by stream and
 // de-duplicate on reconnect (Last-Event-Id).
 func EncodeRunEvent(ev protocol.RunEvent) (transport.Message, error) {
+	if err := protocol.ValidateWireTree(ev); err != nil {
+		return nil, fmt.Errorf("encode run event: %w", err)
+	}
 	return transport.NewNotification(NotificationRunEvent, ev)
 }
 
@@ -24,7 +27,7 @@ func EncodeRunEvent(ev protocol.RunEvent) (transport.Message, error) {
 // SSE id, no replay: every frame is "this moved, read it again", and a client that
 // missed one refetches rather than replays.
 func EncodeRuntimeEvent(ev protocol.RuntimeEvent) (transport.Message, error) {
-	if err := ev.ValidateWire(); err != nil {
+	if err := protocol.ValidateWireTree(ev); err != nil {
 		return nil, fmt.Errorf("encode runtime event: %w", err)
 	}
 	return transport.NewNotification(NotificationRuntimeEvent, struct {

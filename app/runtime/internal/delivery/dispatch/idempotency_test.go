@@ -7,6 +7,7 @@ import (
 	"iter"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -45,11 +46,12 @@ func (r *countingCancelRuntime) CancelRun(_ context.Context, in protocol.CancelR
 
 func canceledRootResponse(runID string) *protocol.CancelRunResponse {
 	outcome := protocol.RunOutcome{Type: protocol.OutcomeCanceled}
+	finishedAt := time.Date(2026, 7, 30, 1, 0, 0, 0, time.UTC)
 	return &protocol.CancelRunResponse{
 		Type: protocol.CancelRunRoot,
 		Run: protocol.RunRef{RunSummary: protocol.RunSummary{
 			ID: runID, SessionID: "ses_1", Status: protocol.RunStatusFinished,
-			Outcome: &outcome,
+			Outcome: &outcome, FinishedAt: finishedAt,
 		}},
 	}
 }

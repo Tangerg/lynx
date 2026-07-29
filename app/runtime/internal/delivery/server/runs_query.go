@@ -105,7 +105,7 @@ func (s *Server) ListInterrupts(ctx context.Context, in protocol.ListInterruptsR
 			Interrupts: presentInterrupts(pending.Interrupts),
 			CreatedAt:  pending.CreatedAt,
 		}
-		if err := presented.ValidateWire(); err != nil {
+		if err := protocol.ValidateWireTree(presented); err != nil {
 			return nil, fmt.Errorf("present pending interrupt set %q: %w", pending.RootRunID, err)
 		}
 		out = append(out, presented)

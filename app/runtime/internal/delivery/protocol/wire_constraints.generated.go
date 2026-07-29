@@ -535,6 +535,8 @@ func (value QuestionField) ValidateWire() error {
 
 func (value Interrupt) ValidateWire() error {
 	return collectWireViolations("Interrupt",
+		requiredText("itemId", value.ItemID),
+		requiredText("runId", value.RunID),
 		closedEnum("type", string(value.Type), []string{"approval", "question", "toolResult"}, false),
 		requiredWhen(wireFieldEquals(value, "type", "approval"), "itemId", value),
 		requiredWhen(wireFieldEquals(value, "type", "approval"), "runId", value),
@@ -993,6 +995,8 @@ func (value ProblemData) ValidateWire() error {
 
 func (value PendingInterruptSet) ValidateWire() error {
 	return collectWireViolations("PendingInterruptSet",
+		requiredText("rootRunId", value.RootRunID),
+		requiredText("sessionId", value.SessionID),
 		requiredItems("interrupts", value.Interrupts),
 		requiredWhen(true, "rootRunId", value),
 		requiredWhen(true, "sessionId", value),
