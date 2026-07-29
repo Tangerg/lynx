@@ -67,7 +67,7 @@ func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) 
 		return t.continueNestedChild(ctx, parent, relation, toolCallID, arguments)
 	}
 
-	process, err := runChildDeployment(ctx, t.engine, t.deployment, in)
+	process, err := runChildDeployment(ctx, t.engine, t.deployment, in, toolCallID)
 	if err != nil {
 		if process != nil {
 			err = errors.Join(err, t.abortNestedChild(ctx, process))

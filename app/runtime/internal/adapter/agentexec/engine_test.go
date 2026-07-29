@@ -85,6 +85,9 @@ func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 	if !strings.HasPrefix(starts[0].callID, "model:") {
 		t.Errorf("managed call id = %q, want model-owned stable identity", starts[0].callID)
 	}
+	if starts[0].sourceCallID != "call_1" {
+		t.Errorf("source call id = %q, want provider identity call_1", starts[0].sourceCallID)
+	}
 }
 
 // TestEngine_RunChat_NoObserver verifies the nil-observer path: the

@@ -60,7 +60,7 @@ core: const ( StatusNotStarted ProcessStatus = iota StatusRunning StatusComplete
 core: const ( StuckStop StuckDecision = iota StuckReplan )
 core: const ( TerminationScopeAgent TerminationScope = iota TerminationScopeAction )
 core: const ( Unknown Truth = 0 True Truth = 1 False Truth = 2 )
-core: const ProcessSnapshotSchemaVersion uint16 = 13
+core: const ProcessSnapshotSchemaVersion uint16 = 14
 core: const UUIDGeneratorName = "uuid"
 core: func (*UUIDGenerator) Next() string
 core: func (a *Agent) Actions() []Action
@@ -255,10 +255,10 @@ core: type ProcessContextConfig struct { Process ProcessView Control ProcessCont
 core: type ProcessControl interface { TerminateAgent(reason string) TerminateAction(reason string) TerminateToolCall() Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error) }
 core: type ProcessFailure struct { Message string `json:"message"` }
 core: type ProcessOptions struct { Blackboard Blackboard ChildOptions ChildOptionsFunc Budget Budget Dependencies *Dependencies Extensions []Extension ChatMiddleware *ChatMiddleware MaxToolRounds int }
-core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` Failure *ProcessFailure `json:"failure,omitempty"` OwnUsage Usage `json:"own_usage"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` Hidden []TaggedValue `json:"hidden,omitempty"` }
+core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` SpawnCallID string `json:"spawn_call_id,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` Failure *ProcessFailure `json:"failure,omitempty"` OwnUsage Usage `json:"own_usage"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` Hidden []TaggedValue `json:"hidden,omitempty"` }
 core: type ProcessSnapshotTree struct { RootID string Snapshots []ProcessSnapshot }
 core: type ProcessStatus int8
-core: type ProcessView interface { ID() string ParentID() string Deployment() DeploymentRef StartedAt() time.Time Status() ProcessStatus Goal() GoalDescriptor Blackboard() BlackboardReader Failure() error Suspension() *interaction.Suspension WorldState() WorldState Usage() Usage }
+core: type ProcessView interface { ID() string ParentID() string SpawnCallID() string Deployment() DeploymentRef StartedAt() time.Time Status() ProcessStatus Goal() GoalDescriptor Blackboard() BlackboardReader Failure() error Suspension() *interaction.Suspension WorldState() WorldState Usage() Usage }
 core: type PromptCondition struct { }
 core: type PromptConditionConfig struct { Name string Prompt PromptFunc Parse ParseTruthFunc Cost float64 }
 core: type PromptConfig struct { System string Options *chat.Options Tools []tools.Tool DisableActionTools bool MaxToolRounds int }
@@ -334,7 +334,7 @@ event: type NamedSubtreeListener struct { *NamedListener }
 event: type PlanCreated struct { Header Plan planning.PlanDescriptor }
 event: type PlanningStarted struct { Header State core.WorldState }
 event: type ProcessCompleted struct { Header Goal core.GoalDescriptor }
-event: type ProcessCreated struct { Header ParentID string }
+event: type ProcessCreated struct { Header ParentID string SpawnCallID string }
 event: type ProcessFailed struct { Header Err error }
 event: type ProcessKilled struct { Header Reason string }
 event: type ProcessStuck struct { Header State core.WorldState Reason string }
@@ -502,6 +502,7 @@ runtime: func (p *Process) Failure() error
 runtime: func (p *Process) Goal() core.GoalDescriptor
 runtime: func (p *Process) ID() string
 runtime: func (p *Process) ParentID() string
+runtime: func (p *Process) SpawnCallID() string
 runtime: func (p *Process) StartedAt() time.Time
 runtime: func (p *Process) Status() core.ProcessStatus
 runtime: func (p *Process) Suspension() *interaction.Suspension

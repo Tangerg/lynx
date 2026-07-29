@@ -298,6 +298,7 @@ func (e *Engine) buildProcessSnapshot(snapshot core.ProcessSnapshot, options cor
 	process.deploymentRetained = true
 	process.wireRuntimeDeps(processOptions.extensions)
 	process.parentID = snapshot.ParentID
+	process.spawnCallID = snapshot.SpawnCallID
 	process.startedAt = snapshot.StartedAt
 
 	process.state.transition(snapshot.Status)

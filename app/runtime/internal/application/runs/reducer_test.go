@@ -122,6 +122,33 @@ func mustReducerSelection(provider, model string) modelref.Selection {
 	return selection
 }
 
+func TestReducerResolvesSpawningItemByExecutorCallIdentity(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	first := mustReduce(t, reducer, ToolCallStart{
+		CallID: "canonical-1", SourceCallID: "provider-1", ToolName: "task", Arguments: `{}`,
+	})
+	want := startedItemID(t, first)
+	got, err := reducer.spawningItemID("provider-1")
+	if err != nil {
+		t.Fatalf("spawningItemID: %v", err)
+	}
+	if got != want {
+		t.Fatalf("spawningItemID = %q, want %q", got, want)
+	}
+
+	mustReduce(t, reducer, ToolCallStart{
+		CallID: "canonical-2", SourceCallID: "provider-1", ToolName: "task", Arguments: `{}`,
+	})
+	if _, err := reducer.spawningItemID("provider-1"); err == nil ||
+		!strings.Contains(err.Error(), "multiple open tool items") {
+		t.Fatalf("ambiguous spawningItemID error = %v", err)
+	}
+	if _, err := reducer.spawningItemID("provider-missing"); err == nil ||
+		!strings.Contains(err.Error(), "no open tool item") {
+		t.Fatalf("missing spawningItemID error = %v", err)
+	}
+}
+
 func TestReducerOwnsOpeningUserInput(t *testing.T) {
 	config := testReducerConfig()
 	config.UserInput = []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "original"}}

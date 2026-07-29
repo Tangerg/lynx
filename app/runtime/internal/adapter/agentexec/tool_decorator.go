@@ -86,7 +86,7 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 	if bound {
 		o.observation.prepare(call, arguments)
 	} else {
-		o.observation.target.OnToolCallStart(call.process, call.id, name, arguments)
+		o.observation.target.OnToolCallStart(call.process, call.id, call.sourceCallID, name, arguments)
 	}
 	switch {
 	case v.Interrupt != nil:

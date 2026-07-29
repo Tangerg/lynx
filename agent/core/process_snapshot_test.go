@@ -76,6 +76,35 @@ func TestProcessSnapshotRejectsApplicationCaptureMetadata(t *testing.T) {
 	}
 }
 
+func TestProcessSnapshotValidatesSpawnCallLineage(t *testing.T) {
+	root := validSnapshot("root")
+	root.SpawnCallID = "call-root"
+	if err := root.Validate(); !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("root spawn call error = %v, want ErrInvalidSnapshot", err)
+	}
+
+	child := validSnapshot("child")
+	child.ParentID = "root"
+	child.SpawnCallID = " call-child "
+	if err := child.Validate(); !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("whitespace spawn call error = %v, want ErrInvalidSnapshot", err)
+	}
+
+	child.SpawnCallID = "call-child"
+	body, err := json.Marshal(child)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored core.ProcessSnapshot
+	if err := json.Unmarshal(body, &restored); err != nil {
+		t.Fatal(err)
+	}
+	if restored.ParentID != child.ParentID || restored.SpawnCallID != child.SpawnCallID {
+		t.Fatalf("restored lineage = parent %q spawn %q, want parent %q spawn %q",
+			restored.ParentID, restored.SpawnCallID, child.ParentID, child.SpawnCallID)
+	}
+}
+
 func TestProcessSnapshotFailureHasExplicitWireShape(t *testing.T) {
 	snapshot := validSnapshot("failed")
 	snapshot.Status = core.StatusFailed

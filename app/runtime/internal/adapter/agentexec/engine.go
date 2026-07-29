@@ -47,6 +47,7 @@ type Engine struct {
 // task it was given and, once it finishes, the answer it produced.
 type SubagentProjection struct {
 	ParentProcessID string
+	SpawnCallID     string
 	Description     string
 	Prompt          string
 	Reply           string
@@ -70,7 +71,10 @@ func (e *Engine) SubagentProjection(processID string) (SubagentProjection, bool)
 	}
 	blackboard := process.Blackboard()
 
-	projection := SubagentProjection{ParentProcessID: process.ParentID()}
+	projection := SubagentProjection{
+		ParentProcessID: process.ParentID(),
+		SpawnCallID:     process.SpawnCallID(),
+	}
 	if input, ok := core.Get[taskInput](blackboard, core.DefaultBindingName); ok {
 		projection.Description = input.Description
 		projection.Prompt = input.Prompt

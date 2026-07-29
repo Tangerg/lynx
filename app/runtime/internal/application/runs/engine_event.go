@@ -35,11 +35,15 @@ type ReasoningDelta struct {
 
 type ToolCallStart struct {
 	engineEventBase
-	CallID      string
-	ToolName    string
-	Arguments   string
-	Activity    string
-	SafetyClass tool.SafetyClass
+	CallID string
+	// SourceCallID is the executor's parent-call identity. It never reaches the
+	// protocol; it exists solely to map a child Process causal edge to this
+	// canonical Item without parsing CallID or relying on event timing.
+	SourceCallID string
+	ToolName     string
+	Arguments    string
+	Activity     string
+	SafetyClass  tool.SafetyClass
 }
 
 type ToolCallEnd struct {

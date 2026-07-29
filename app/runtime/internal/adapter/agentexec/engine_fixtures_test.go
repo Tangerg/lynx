@@ -116,9 +116,10 @@ func (e *Engine) runTurnSync(ctx context.Context, req TurnRequest) (TurnOutput, 
 }
 
 type startCall struct {
-	callID    string
-	toolName  string
-	arguments string
+	callID       string
+	sourceCallID string
+	toolName     string
+	arguments    string
 }
 
 type endCall struct {
@@ -145,10 +146,12 @@ func (r *recordingObserver) ApproveToolCall(_ context.Context, _, _, _ string, _
 	return ToolApprovalVerdict{} // auto-run; tests don't exercise the approval gate
 }
 
-func (r *recordingObserver) OnToolCallStart(_ ProcessRef, callID, toolName, arguments string) {
+func (r *recordingObserver) OnToolCallStart(_ ProcessRef, callID, sourceCallID, toolName, arguments string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.startList = append(r.startList, startCall{callID, toolName, arguments})
+	r.startList = append(r.startList, startCall{
+		callID: callID, sourceCallID: sourceCallID, toolName: toolName, arguments: arguments,
+	})
 }
 
 func (r *recordingObserver) OnToolCallEnd(_ ProcessRef, callID, toolName, arguments, output string, _ *offload.Ref, mutatedPaths []string, err error) {

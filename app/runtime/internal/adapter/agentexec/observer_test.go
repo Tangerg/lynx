@@ -29,19 +29,33 @@ type noopObserver struct{}
 // would panic rather than silently coupling the observer to engine state.
 type observedProcess struct {
 	core.ProcessView
-	id       string
-	parentID string
+	id          string
+	parentID    string
+	spawnCallID string
 }
 
-func (p observedProcess) ID() string       { return p.id }
-func (p observedProcess) ParentID() string { return p.parentID }
+func (p observedProcess) ID() string          { return p.id }
+func (p observedProcess) ParentID() string    { return p.parentID }
+func (p observedProcess) SpawnCallID() string { return p.spawnCallID }
 
 func testProcess(id string) core.ProcessView { return observedProcess{id: id} }
+
+func TestProcessRefPreservesChildCausalIdentity(t *testing.T) {
+	got := processRef(observedProcess{
+		id: "process-child", parentID: "process-parent", spawnCallID: "call-delegate",
+	})
+	want := (ProcessRef{
+		ID: "process-child", ParentID: "process-parent", SpawnCallID: "call-delegate",
+	})
+	if got != want {
+		t.Fatalf("processRef = %+v, want %+v", got, want)
+	}
+}
 
 func (noopObserver) ApproveToolCall(context.Context, string, string, string, ToolApprovalTarget) ToolApprovalVerdict {
 	return ToolApprovalVerdict{}
 }
-func (noopObserver) OnToolCallStart(ProcessRef, string, string, string) {}
+func (noopObserver) OnToolCallStart(ProcessRef, string, string, string, string) {}
 func (noopObserver) OnToolCallEnd(ProcessRef, string, string, string, string, *offload.Ref, []string, error) {
 }
 func (noopObserver) OnMessageDelta(ProcessRef, string)                         {}
@@ -54,12 +68,12 @@ type blockingStartObserver struct {
 	releaseFirst chan struct{}
 }
 
-func (o *blockingStartObserver) OnToolCallStart(process ProcessRef, callID, toolName, arguments string) {
+func (o *blockingStartObserver) OnToolCallStart(process ProcessRef, callID, sourceCallID, toolName, arguments string) {
 	if toolName == "first" {
 		close(o.firstEntered)
 		<-o.releaseFirst
 	}
-	o.recordingObserver.OnToolCallStart(process, callID, toolName, arguments)
+	o.recordingObserver.OnToolCallStart(process, callID, sourceCallID, toolName, arguments)
 }
 
 // keyedTool implements the loop's optional ConcurrencyKey contract as a keyed,

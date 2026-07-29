@@ -82,6 +82,10 @@ type ProcessCreated struct {
 	Header
 	// ParentID is the immediate owning process. It is empty for a root process.
 	ParentID string
+	// SpawnCallID is the parent tool call that created this process. It is empty
+	// for roots and for children created directly rather than through an
+	// AgentTool.
+	SpawnCallID string
 }
 
 func (ProcessCreated) Kind() Kind { return KindProcessCreated }

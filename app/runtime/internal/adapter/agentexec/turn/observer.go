@@ -336,16 +336,17 @@ func denialReason(reason string) string {
 	return reason
 }
 
-func (t *turnObserver) OnToolCallStart(process agentexec.ProcessRef, callID, toolName, arguments string) {
+func (t *turnObserver) OnToolCallStart(process agentexec.ProcessRef, callID, sourceCallID, toolName, arguments string) {
 	if process.Child() {
 		return
 	}
 	t.dispatcher.emit(t.st, runs.ToolCallStart{
-		CallID:      callID,
-		ToolName:    toolName,
-		Arguments:   arguments,
-		Activity:    toolActivity(toolName),
-		SafetyClass: tool.SafetyClassFor(toolName),
+		CallID:       callID,
+		SourceCallID: sourceCallID,
+		ToolName:     toolName,
+		Arguments:    arguments,
+		Activity:     toolActivity(toolName),
+		SafetyClass:  tool.SafetyClassFor(toolName),
 	})
 }
 

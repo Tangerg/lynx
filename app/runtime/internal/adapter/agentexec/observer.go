@@ -29,8 +29,9 @@ var ErrToolDenied = errors.New("engine.ErrToolDenied: tool call denied by user")
 // ownership: consumers can project a child only when their protocol exposes a
 // child-run model.
 type ProcessRef struct {
-	ID       string
-	ParentID string
+	ID          string
+	ParentID    string
+	SpawnCallID string
 }
 
 // Child reports whether this observation belongs to a delegated process.
@@ -40,7 +41,11 @@ func processRef(process core.ProcessView) ProcessRef {
 	if process == nil {
 		return ProcessRef{}
 	}
-	return ProcessRef{ID: process.ID(), ParentID: process.ParentID()}
+	return ProcessRef{
+		ID:          process.ID(),
+		ParentID:    process.ParentID(),
+		SpawnCallID: process.SpawnCallID(),
+	}
 }
 
 func processRefFromContext(ctx context.Context) ProcessRef {
@@ -74,7 +79,11 @@ type toolObserver interface {
 	// implementation can pair the gate with the lifecycle.
 	ApproveToolCall(ctx context.Context, callID, toolName, arguments string, target ToolApprovalTarget) ToolApprovalVerdict
 
-	OnToolCallStart(process ProcessRef, callID, toolName, arguments string)
+	// sourceCallID is the model provider's call identity. callID is Runtime's
+	// collision-proof transcript identity; keeping both lets a child Process's
+	// SpawnCallID resolve to the exact parent Item without parsing either ID or
+	// guessing from event order.
+	OnToolCallStart(process ProcessRef, callID, sourceCallID, toolName, arguments string)
 	OnToolCallEnd(process ProcessRef, callID, toolName, arguments, output string, ref *offload.Ref, mutatedPaths []string, err error)
 
 	// OnMessageDelta is invoked for every non-empty text chunk the
@@ -182,12 +191,13 @@ type toolObservation struct {
 }
 
 type observedModelCall struct {
-	id        string
-	process   ProcessRef
-	name      string
-	arguments string
-	prepared  bool
-	started   chan struct{}
+	id           string
+	sourceCallID string
+	process      ProcessRef
+	name         string
+	arguments    string
+	prepared     bool
+	started      chan struct{}
 }
 
 type processToolCallKey struct {
@@ -233,7 +243,7 @@ func (o *toolObservation) begin(process core.ProcessView, round int, call chat.T
 
 func (o *toolObservation) beginRef(ref ProcessRef, round int, call chat.ToolCall) {
 	observed := &observedModelCall{
-		id: modelToolCallID(ref.ID, round, call.ID), process: ref,
+		id: modelToolCallID(ref.ID, round, call.ID), sourceCallID: call.ID, process: ref,
 		name: call.Name, arguments: call.Arguments, started: make(chan struct{}),
 	}
 	o.mu.Lock()
@@ -290,7 +300,7 @@ func (o *toolObservation) readyStartsLocked() []*observedModelCall {
 func (o *toolObservation) publishStarts(calls []*observedModelCall) {
 	for len(calls) > 0 {
 		for _, call := range calls {
-			o.target.OnToolCallStart(call.process, call.id, call.name, call.arguments)
+			o.target.OnToolCallStart(call.process, call.id, call.sourceCallID, call.name, call.arguments)
 			close(call.started)
 		}
 		o.mu.Lock()

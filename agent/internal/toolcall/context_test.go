@@ -40,6 +40,7 @@ type processView struct {
 
 func (p processView) ID() string                        { return p.id }
 func (processView) ParentID() string                    { return "" }
+func (processView) SpawnCallID() string                 { return "" }
 func (processView) Deployment() core.DeploymentRef      { return core.DeploymentRef{} }
 func (processView) StartedAt() time.Time                { return time.Time{} }
 func (processView) Status() core.ProcessStatus          { return core.StatusRunning }

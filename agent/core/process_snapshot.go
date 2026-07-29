@@ -16,7 +16,7 @@ import (
 // ProcessSnapshotSchemaVersion is the only portable process wire schema this
 // development version accepts. Missing and unknown versions fail explicitly;
 // the framework never guesses an obsolete snapshot shape.
-const ProcessSnapshotSchemaVersion uint16 = 13
+const ProcessSnapshotSchemaVersion uint16 = 14
 
 var (
 	ErrSnapshotSchema  = errors.New("process snapshot: unsupported schema")
@@ -62,6 +62,10 @@ type ProcessSnapshot struct {
 
 	ID       string `json:"id"`
 	ParentID string `json:"parent_id,omitempty"`
+	// SpawnCallID is the immutable parent tool-call identity that caused this
+	// child to exist. Direct RunChild calls have no tool-call cause and leave it
+	// empty; roots must always leave it empty.
+	SpawnCallID string `json:"spawn_call_id,omitempty"`
 
 	Deployment DeploymentRef `json:"deployment"`
 	StartedAt  time.Time     `json:"started_at"`
@@ -83,6 +87,7 @@ type processSnapshotWire struct {
 	SchemaVersion uint16                  `json:"schema_version"`
 	ID            string                  `json:"id"`
 	ParentID      string                  `json:"parent_id,omitempty"`
+	SpawnCallID   string                  `json:"spawn_call_id,omitempty"`
 	Deployment    DeploymentRef           `json:"deployment"`
 	StartedAt     time.Time               `json:"started_at"`
 	Status        string                  `json:"status"`
@@ -99,7 +104,7 @@ type processSnapshotWire struct {
 func (s ProcessSnapshot) wire() processSnapshotWire {
 	return processSnapshotWire{
 		SchemaVersion: s.SchemaVersion,
-		ID:            s.ID, ParentID: s.ParentID,
+		ID:            s.ID, ParentID: s.ParentID, SpawnCallID: s.SpawnCallID,
 		Deployment: s.Deployment, StartedAt: s.StartedAt,
 		Status: s.Status.String(), Suspension: s.Suspension, GoalName: s.GoalName,
 		Failure: s.Failure, OwnUsage: s.OwnUsage,
@@ -114,7 +119,7 @@ func (w processSnapshotWire) snapshot() (ProcessSnapshot, error) {
 	}
 	return ProcessSnapshot{
 		SchemaVersion: w.SchemaVersion,
-		ID:            w.ID, ParentID: w.ParentID,
+		ID:            w.ID, ParentID: w.ParentID, SpawnCallID: w.SpawnCallID,
 		Deployment: w.Deployment, StartedAt: w.StartedAt,
 		Status: status, Suspension: w.Suspension, GoalName: w.GoalName,
 		Failure: w.Failure, OwnUsage: w.OwnUsage,
@@ -132,6 +137,12 @@ func (s ProcessSnapshot) Validate() error {
 	}
 	if s.ParentID != strings.TrimSpace(s.ParentID) || s.ParentID == s.ID {
 		return fmt.Errorf("%w: invalid parent_id", ErrInvalidSnapshot)
+	}
+	if s.SpawnCallID != strings.TrimSpace(s.SpawnCallID) {
+		return fmt.Errorf("%w: spawn_call_id has surrounding whitespace", ErrInvalidSnapshot)
+	}
+	if s.ParentID == "" && s.SpawnCallID != "" {
+		return fmt.Errorf("%w: root process cannot carry spawn_call_id", ErrInvalidSnapshot)
 	}
 	if err := s.Deployment.Validate(); err != nil {
 		return fmt.Errorf("%w: deployment: %w", ErrInvalidSnapshot, err)

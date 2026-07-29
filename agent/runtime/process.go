@@ -22,6 +22,7 @@ import (
 type Process struct {
 	id                 string
 	parentID           string
+	spawnCallID        string
 	depth              int // delegation depth: 0 at top level, parent+1 for a child
 	deployment         *Deployment
 	deploymentRetained bool
@@ -108,6 +109,7 @@ func (p *Process) wireRuntimeDeps(extensions []extensionEntry) {
 
 func (p *Process) ID() string                        { return p.id }
 func (p *Process) ParentID() string                  { return p.parentID }
+func (p *Process) SpawnCallID() string               { return p.spawnCallID }
 func (p *Process) StartedAt() time.Time              { return p.startedAt }
 func (p *Process) Blackboard() core.BlackboardReader { return p.blackboard }
 

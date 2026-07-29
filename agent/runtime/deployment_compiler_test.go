@@ -807,6 +807,7 @@ func TestAgentToolRemainsBoundToConstructionDeployment(t *testing.T) {
 		boundTool.engine,
 		boundTool.deployment,
 		deploymentRunInput{Value: 20},
+		"",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -860,7 +861,7 @@ func TestAgentToolBindsOneActiveDeployment(t *testing.T) {
 	defer parent.state.endRun()
 	ctx := core.WithProcessView(t.Context(), parent)
 
-	child, err := runChildDeployment(ctx, boundTool.engine, boundTool.deployment, deploymentRunInput{Value: 20})
+	child, err := runChildDeployment(ctx, boundTool.engine, boundTool.deployment, deploymentRunInput{Value: 20}, "")
 	if err != nil {
 		t.Fatal(err)
 	}

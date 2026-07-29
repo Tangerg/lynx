@@ -124,6 +124,9 @@ func TestChildEventsReachParentProcessListener(t *testing.T) {
 		if ev.ParentID != proc.ID() {
 			t.Fatalf("child ProcessCreated ParentID = %q, want %q", ev.ParentID, proc.ID())
 		}
+		if ev.SpawnCallID == "" {
+			t.Fatal("AgentTool child ProcessCreated omitted SpawnCallID")
+		}
 		childID = ev.ProcessID()
 		break
 	}

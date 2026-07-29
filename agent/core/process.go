@@ -14,6 +14,10 @@ import (
 type ProcessView interface {
 	ID() string
 	ParentID() string
+	// SpawnCallID is the parent process's tool-call identity that created this
+	// process. It is empty for roots and for children created directly through
+	// RunChild rather than through an AgentTool.
+	SpawnCallID() string
 	Deployment() DeploymentRef
 	StartedAt() time.Time
 	Status() ProcessStatus

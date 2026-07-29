@@ -61,13 +61,15 @@ func runChildDeployment(
 	engine *Engine,
 	deployment *Deployment,
 	input any,
+	spawnCallID string,
 ) (*Process, error) {
 	return childRun{
-		ctx:        ctx,
-		engine:     engine,
-		deployment: deployment,
-		input:      input,
-		mode:       childStartsClean,
+		ctx:         ctx,
+		engine:      engine,
+		deployment:  deployment,
+		input:       input,
+		mode:        childStartsClean,
+		spawnCallID: spawnCallID,
 	}.run()
 }
 
@@ -84,6 +86,9 @@ type childRun struct {
 	deployment *Deployment
 	input      any
 	mode       childBlackboardMode
+	// spawnCallID is present only when an AgentTool owns this child. Direct
+	// RunChild calls deliberately leave it empty.
+	spawnCallID string
 }
 
 func (r childRun) run() (*Process, error) {
@@ -119,6 +124,7 @@ func (r childRun) admit() (*Process, error) {
 	if err != nil {
 		return nil, fmt.Errorf("run child %q: create: %w", agentName, err)
 	}
+	child.spawnCallID = r.spawnCallID
 	child.publishCreated(r.ctx)
 	return child, nil
 }

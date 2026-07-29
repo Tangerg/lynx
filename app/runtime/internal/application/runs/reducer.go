@@ -102,14 +102,15 @@ type openText struct {
 }
 
 type openTool struct {
-	callID      string
-	order       int
-	id          string
-	createdAt   time.Time
-	name        string
-	arguments   tool.Arguments
-	safetyClass tool.SafetyClass
-	end         *ToolCallEnd
+	callID       string
+	sourceCallID string
+	order        int
+	id           string
+	createdAt    time.Time
+	name         string
+	arguments    tool.Arguments
+	safetyClass  tool.SafetyClass
+	end          *ToolCallEnd
 }
 
 func newReducer(cfg reducerConfig) *reducer {

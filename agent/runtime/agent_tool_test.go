@@ -81,13 +81,18 @@ func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
 		t.Fatalf("snapshot count = %d, want complete parent-child tree", len(tree.Snapshots))
 	}
 	var childID string
+	var childSpawnCallID string
 	for _, snapshot := range tree.Snapshots {
 		if snapshot.ParentID == proc.ID() {
 			childID = snapshot.ID
+			childSpawnCallID = snapshot.SpawnCallID
 		}
 	}
 	if childID == "" {
 		t.Fatal("snapshot tree has no child")
+	}
+	if childSpawnCallID == "" {
+		t.Fatal("AgentTool child snapshot omitted SpawnCallID")
 	}
 	if _, err := engine.SnapshotTree(t.Context(), childID); err == nil || !strings.Contains(err.Error(), "not a process-tree root") {
 		t.Fatalf("SnapshotTree(child) error = %v", err)
@@ -101,6 +106,13 @@ func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
 	restored, err := engine.RestoreTree(t.Context(), tree, core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
+	}
+	restoredChild, ok := engine.Process(childID)
+	if !ok {
+		t.Fatalf("restored child %q is not registered", childID)
+	}
+	if restoredChild.SpawnCallID() != childSpawnCallID {
+		t.Fatalf("restored child SpawnCallID = %q, want %q", restoredChild.SpawnCallID(), childSpawnCallID)
 	}
 	if after := restored.Usage(); after != before {
 		t.Fatalf("restored subtree usage = %#v, want %#v", after, before)
