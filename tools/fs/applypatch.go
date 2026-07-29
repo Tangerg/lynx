@@ -12,7 +12,7 @@ import (
 
 // ApplyPatchRequest is the LLM-facing argument shape for the apply_patch tool.
 type ApplyPatchRequest struct {
-	Patch string `json:"patch" jsonschema:"required" jsonschema_description:"A standard unified diff. Supports create, modify, and delete hunks. Renames are rejected."`
+	Patch string `json:"patch" jsonschema:"required" jsonschema_description:"A standard unified diff. Supports create (--- /dev/null), modify, delete (+++ /dev/null), and move (the two headers naming different paths; a pure rename carries no hunks)."`
 }
 
 // ApplyPatchResponse is the LLM-facing return shape.
@@ -23,10 +23,11 @@ type ApplyPatchResponse struct {
 
 // PatchFileResponse reports one patched file.
 type PatchFileResponse struct {
-	FilePath string `json:"file_path"`
-	Hunks    int    `json:"hunks"`
-	Created  bool   `json:"created,omitempty"`
-	Deleted  bool   `json:"deleted,omitempty"`
+	FilePath  string `json:"file_path"`
+	Hunks     int    `json:"hunks"`
+	Created   bool   `json:"created,omitempty"`
+	Deleted   bool   `json:"deleted,omitempty"`
+	MovedFrom string `json:"moved_from,omitempty"`
 }
 
 var applyPatchToolSchema, _ = pkgjson.StringDefSchemaOf(ApplyPatchRequest{})
@@ -53,8 +54,10 @@ func NewApplyPatchTool(executor Executor) *ApplyPatchTool {
 func (t *ApplyPatchTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{
 		Name: "apply_patch",
-		Description: "Apply a standard unified diff to one or more files. You must `read` existing files before patching them. " +
-			"Use this for coordinated multi-file changes. The patch must match exactly; unsupported renames are rejected instead of guessed.",
+		Description: "Apply a standard unified diff to one or more files, including creating, deleting and moving them. " +
+			"You must `read` existing files before patching them. Use this for coordinated multi-file changes — a rename plus the " +
+			"edits that follow from it is one call. The patch must match exactly; a destination that already exists is refused " +
+			"rather than overwritten.",
 		InputSchema: json.RawMessage(applyPatchToolSchema),
 	}
 }
@@ -79,10 +82,11 @@ func (t *ApplyPatchTool) Call(ctx context.Context, arguments string) (string, er
 	files := make([]PatchFileResponse, len(res.Files))
 	for i, file := range res.Files {
 		files[i] = PatchFileResponse{
-			FilePath: file.Path,
-			Hunks:    file.Hunks,
-			Created:  file.Created,
-			Deleted:  file.Deleted,
+			FilePath:  file.Path,
+			Hunks:     file.Hunks,
+			Created:   file.Created,
+			Deleted:   file.Deleted,
+			MovedFrom: file.MovedFrom,
 		}
 	}
 	body, err := json.Marshal(ApplyPatchResponse{Files: files, Hunks: res.Hunks})

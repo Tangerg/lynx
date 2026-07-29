@@ -9,8 +9,13 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // emptyGoalState is enough to make goaltool.New return a non-nil update_goal
@@ -21,6 +26,37 @@ func (emptyGoalState) Active(context.Context, string) (bool, error) { return fal
 func (emptyGoalState) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
 	return goals.ReportNoActiveGoal, nil
 }
+
+// Every conditional tool's port, wired with the smallest thing that makes the
+// tool exist. They are not exercised: the guard below asks whether a classified
+// name can be reached at all, and a nil port answers "no" for a reason that has
+// nothing to do with drift.
+type allWiredSchedules struct{}
+
+func (allWiredSchedules) List(context.Context) ([]schedule.Schedule, error) { return nil, nil }
+func (allWiredSchedules) Create(context.Context, scheduleapp.CreateCommand) (schedule.Schedule, error) {
+	return schedule.Schedule{}, nil
+}
+func (allWiredSchedules) UpdateLatest(context.Context, string, schedule.Patch) (schedule.Schedule, error) {
+	return schedule.Schedule{}, nil
+}
+func (allWiredSchedules) Delete(context.Context, string) error { return nil }
+
+type allWiredCodebaseIndex struct{}
+
+func (allWiredCodebaseIndex) Search(context.Context, string, string, int) ([]codebaseindex.Hit, error) {
+	return nil, nil
+}
+func (allWiredCodebaseIndex) Available(context.Context) (bool, error) { return true, nil }
+
+type allWiredSkillAuthoring struct{}
+
+func (allWiredSkillAuthoring) Enabled() bool { return true }
+func (allWiredSkillAuthoring) SaveDraft(context.Context, skills.Draft) (skills.DraftHandle, error) {
+	return skills.DraftHandle{}, nil
+}
+func (allWiredSkillAuthoring) Promote(context.Context, skills.DraftHandle) error      { return nil }
+func (allWiredSkillAuthoring) DiscardDraft(context.Context, skills.DraftHandle) error { return nil }
 
 func toolNameSet(ts []tools.Tool) map[string]bool {
 	names := make(map[string]bool, len(ts))
@@ -79,5 +115,61 @@ func TestCatalogCoversPerTurnCodingTools(t *testing.T) {
 		if !catalog[name] {
 			t.Errorf("per-turn coding tool %q is absent from the tools.list catalog (drift)", name)
 		}
+	}
+}
+
+// TestSafetyTableNamesOnlyToolsThatExist is the completeness guard for the
+// name→safety-class table.
+//
+// That table is the single source of truth for two consumers — the tools.list
+// wire metadata and the approval gate — and it is keyed by NAME, so a name no
+// tool answers to is a safety policy for something nobody can call. It reads as a
+// capability the runtime has: someone auditing what the agent may do sees a
+// classified write tool that does not exist. Nothing checked, and the names come
+// from two modules (the app's own tools plus the SDK's fs / shell families), so
+// finding out meant grepping both.
+//
+// The catalog is built with every optional subsystem wired, because a name is
+// only unreachable if NO configuration reaches it.
+func TestSafetyTableNamesOnlyToolsThatExist(t *testing.T) {
+	policy, err := approval.New(approval.ModeBalanced, nil)
+	if err != nil {
+		t.Fatalf("approval policy: %v", err)
+	}
+	built, err := Build(t.Context(), BuildConfig{
+		Workdir:         t.TempDir(),
+		SkillsGlobalDir: t.TempDir(), // backs skill
+		Approval:        policy,
+		Goals:           emptyGoalState{},
+		Schedules:       allWiredSchedules{},      // backs schedule
+		CodebaseIndex:   allWiredCodebaseIndex{},  // backs codebase_search
+		SkillAuthoring:  allWiredSkillAuthoring{}, // backs propose_skill
+		Online: OnlineConfig{
+			HTTPAllowedHosts:    []string{"example.com"},   // backs download
+			SourcegraphEndpoint: "https://sourcegraph.com", // backs sourcegraph_search
+		},
+		Interrupt: func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
+			return interrupts.Resolution{}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	closeBuiltToolset(t, built)
+
+	existing := toolNameSet(built.Resolver.toolsFor(t.Context()))
+	// `task` is appended by the engine after the catalog is built, so the catalog
+	// never contains it — the same exemption the parity guard above makes.
+	existing["task"] = true
+
+	var unreachable []string
+	for _, name := range tool.ClassifiedToolNames() {
+		if !existing[name] {
+			unreachable = append(unreachable, name)
+		}
+	}
+	if len(unreachable) > 0 {
+		t.Errorf("the safety table classifies %v, which no built tool answers to — "+
+			"either the tool is gone (drop the name) or it was never built (wire it)", unreachable)
 	}
 }

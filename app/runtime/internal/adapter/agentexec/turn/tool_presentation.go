@@ -46,6 +46,7 @@ var toolPresentations = map[string]toolPresentation{
 	"read":         {activity: "Reading file"},
 	"write":        {activity: "Writing file", result: presentWriteResult},
 	"edit":         {activity: "Editing file", result: presentEditResult},
+	"apply_patch":  {activity: "Applying a patch", result: presentApplyPatchResult},
 	"grep":         {activity: "Searching", result: presentSearchResult},
 	"glob":         {activity: "Finding files", result: presentSearchResult},
 	"web_search":   {activity: "Searching the web", result: presentWebSearchResult},
@@ -184,6 +185,53 @@ func presentEditResult(arguments map[string]any, result any) any {
 		change["diff"] = diff
 	}
 	return map[string]any{"changes": []map[string]any{change}}
+}
+
+// applyPatchResult is the part of the tool's own result this presenter reads: one
+// entry per file, already saying what happened to it.
+type applyPatchResult struct {
+	Files []struct {
+		FilePath  string `json:"file_path"`
+		Created   bool   `json:"created"`
+		Deleted   bool   `json:"deleted"`
+		MovedFrom string `json:"moved_from"`
+	} `json:"files"`
+}
+
+// presentApplyPatchResult projects a patch onto the same `changes` shape write and
+// edit produce, so a card shows WHICH files a coordinated change touched. Without
+// it a multi-file patch — the one call whose whole point is touching several
+// files — rendered as raw JSON under a generic activity label.
+//
+// No diff rows: the patch's own hunks are the model's input, not this call's
+// output, and re-deriving rows from them would put a second differ in the
+// presentation layer.
+func presentApplyPatchResult(_ map[string]any, result any) any {
+	if hasPresentationField(result, "changes") {
+		return result
+	}
+	decoded, ok := decodePresentation[applyPatchResult](result, "files")
+	if !ok || len(decoded.Files) == 0 {
+		return result
+	}
+	changes := make([]map[string]any, 0, len(decoded.Files))
+	for _, file := range decoded.Files {
+		status := "modified"
+		switch {
+		case file.MovedFrom != "":
+			status = "moved"
+		case file.Created:
+			status = "added"
+		case file.Deleted:
+			status = "deleted"
+		}
+		change := map[string]any{"path": file.FilePath, "status": status}
+		if file.MovedFrom != "" {
+			change["from"] = file.MovedFrom
+		}
+		changes = append(changes, change)
+	}
+	return map[string]any{"changes": changes}
 }
 
 func presentWriteResult(arguments map[string]any, result any) any {

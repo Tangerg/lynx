@@ -11,29 +11,36 @@ import (
 	"strings"
 )
 
-var errRenamePatch = errors.New("fs: patch renames are not supported")
-
 type unifiedPatch struct {
 	files []filePatch
 }
 
+// paths is every file this patch touches, INCLUDING a move's origin. Callers use
+// it to lock and to gate — the app wraps this tool in a guard stack that reads
+// these paths to serialize writes, refuse protected directories, and require a
+// prior read — so a move that reported only its destination would leave the file
+// it removes outside all three.
 func (p unifiedPatch) paths() []string {
 	paths := make([]string, 0, len(p.files))
 	for _, file := range p.files {
-		paths = append(paths, file.path())
+		paths = append(paths, file.touches()...)
 	}
 	slices.Sort(paths)
 	return slices.Compact(paths)
 }
 
+// duplicatePath reports a path two file patches both touch. Endpoints count, not
+// just destinations: patching a file and moving another one onto it are two edits
+// to one path, and applying both would make the result depend on their order.
 func (p unifiedPatch) duplicatePath() string {
 	seen := make(map[string]struct{}, len(p.files))
 	for _, file := range p.files {
-		path := file.path()
-		if _, ok := seen[path]; ok {
-			return path
+		for _, path := range file.touches() {
+			if _, ok := seen[path]; ok {
+				return path
+			}
+			seen[path] = struct{}{}
 		}
-		seen[path] = struct{}{}
 	}
 	return ""
 }
@@ -54,12 +61,32 @@ func (p filePatch) path() string {
 func (p filePatch) created() bool { return p.oldPath == "/dev/null" }
 func (p filePatch) deleted() bool { return p.newPath == "/dev/null" }
 
-func (p filePatch) validate() error {
-	if len(p.hunks) == 0 {
-		return errors.New("fs.ApplyPatch: file patch has no hunks")
+// moved reports the fourth shape: both headers name a real file and they differ,
+// so the content is read at oldPath, patched, and lands at newPath while oldPath
+// goes away. It is the one shape whose two endpoints are different files.
+func (p filePatch) moved() bool {
+	return p.oldPath != "" && p.newPath != "" &&
+		p.oldPath != "/dev/null" && p.newPath != "/dev/null" &&
+		p.oldPath != p.newPath
+}
+
+// touches is every path this file patch reads, writes or removes.
+func (p filePatch) touches() []string {
+	if p.moved() {
+		return []string{p.oldPath, p.newPath}
 	}
+	return []string{p.path()}
+}
+
+func (p filePatch) validate() error {
 	if p.oldPath == "" || p.newPath == "" {
 		return errors.New("fs.ApplyPatch: file patch is missing ---/+++ headers")
+	}
+	// A pure rename is the one patch with nothing to apply: git emits it with two
+	// headers and no hunks, and there is no content change to describe. Every other
+	// shape without a hunk says nothing at all.
+	if len(p.hunks) == 0 && !p.moved() {
+		return errors.New("fs.ApplyPatch: file patch has no hunks")
 	}
 	if p.oldPath != "/dev/null" {
 		if err := validatePatchPath(p.oldPath); err != nil {
@@ -70,9 +97,6 @@ func (p filePatch) validate() error {
 		if err := validatePatchPath(p.newPath); err != nil {
 			return err
 		}
-	}
-	if p.oldPath != "/dev/null" && p.newPath != "/dev/null" && p.oldPath != p.newPath {
-		return fmt.Errorf("fs.ApplyPatch: %w: %s -> %s", errRenamePatch, p.oldPath, p.newPath)
 	}
 	return nil
 }
@@ -144,19 +168,24 @@ func (l *LocalExecutor) ApplyPatch(_ context.Context, in ApplyPatchInput) (Apply
 		return ApplyPatchOutput{}, fmt.Errorf("fs.ApplyPatch: duplicate file patch for %s", path)
 	}
 
-	resolved := make([]string, len(parsed.files))
+	resolved := make([]patchTarget, len(parsed.files))
+	var locks []string
 	for i, file := range parsed.files {
 		if err := file.validate(); err != nil {
 			return ApplyPatchOutput{}, err
 		}
-		path, err := l.resolve(file.path())
+		target, err := l.resolveTarget(file)
 		if err != nil {
 			return ApplyPatchOutput{}, err
 		}
-		resolved[i] = path
+		resolved[i] = target
+		locks = append(locks, target.locks()...)
 	}
 
-	for _, path := range sortedUnique(resolved) {
+	// Both endpoints of a move are locked: it removes one file and creates
+	// another, and holding only the destination would let a concurrent write to the
+	// origin land in a file this call is about to delete.
+	for _, path := range sortedUnique(locks) {
 		unlock := l.lockPath(path)
 		defer unlock()
 	}
@@ -188,27 +217,80 @@ func validatePatchPath(path string) error {
 	return nil
 }
 
+// patchTarget is one file patch's resolved endpoints: where its content is read
+// and where it lands. They are the same file for every shape but a move, and one
+// of them is empty when the patch creates or deletes.
+type patchTarget struct {
+	from string
+	to   string
+}
+
+func (t patchTarget) locks() []string {
+	if t.from != "" && t.to != "" && t.from != t.to {
+		return []string{t.from, t.to}
+	}
+	if t.to != "" {
+		return []string{t.to}
+	}
+	return []string{t.from}
+}
+
+func (l *LocalExecutor) resolveTarget(file filePatch) (patchTarget, error) {
+	var target patchTarget
+	if file.oldPath != "/dev/null" {
+		from, err := l.resolve(file.oldPath)
+		if err != nil {
+			return patchTarget{}, err
+		}
+		target.from = from
+	}
+	if file.newPath != "/dev/null" {
+		to, err := l.resolve(file.newPath)
+		if err != nil {
+			return patchTarget{}, err
+		}
+		target.to = to
+	}
+	return target, nil
+}
+
+// preparedPatch is one file patch's committed outcome, computed before anything
+// is written so a patch that cannot apply changes nothing.
 type preparedPatch struct {
-	path   string
+	// path is where the content lands, empty for a delete.
+	path string
+	// source is the file to remove once the content has landed: a delete's own
+	// path, or the origin of a move. Empty when nothing is removed.
+	source string
 	data   []byte
 	mode   os.FileMode
-	remove bool
 	result PatchFileOutput
 }
 
+// commit writes before it removes, so a failure between the two leaves the
+// content somewhere rather than nowhere.
 func (p preparedPatch) commit() error {
-	if p.remove {
-		return os.Remove(p.path)
+	if p.path != "" {
+		if err := atomicWriteFile(p.path, p.data, p.mode); err != nil {
+			return err
+		}
 	}
-	return atomicWriteFile(p.path, p.data, p.mode)
+	if p.source != "" && p.source != p.path {
+		return os.Remove(p.source)
+	}
+	return nil
 }
 
-func (l *LocalExecutor) preparePatch(file filePatch, path string) (preparedPatch, error) {
-	if file.created() {
-		if _, err := os.Stat(path); err == nil {
-			return preparedPatch{}, fmt.Errorf("fs.ApplyPatch: create %s: file already exists", file.path())
+func (l *LocalExecutor) preparePatch(file filePatch, target patchTarget) (preparedPatch, error) {
+	// A patch may not land on a file it did not open. Create says so by having no
+	// origin; a move has one, but its destination is a new file all the same — and
+	// without this check a mistaken destination would silently overwrite whatever
+	// was there, which is the one outcome a rename must never produce.
+	if file.created() || file.moved() {
+		if _, err := os.Stat(target.to); err == nil {
+			return preparedPatch{}, fmt.Errorf("fs.ApplyPatch: %s: file already exists", file.newPath)
 		} else if !errors.Is(err, os.ErrNotExist) {
-			return preparedPatch{}, fmt.Errorf("fs.ApplyPatch: create %s: %w", file.path(), err)
+			return preparedPatch{}, fmt.Errorf("fs.ApplyPatch: %s: %w", file.newPath, err)
 		}
 	}
 
@@ -216,12 +298,12 @@ func (l *LocalExecutor) preparePatch(file filePatch, path string) (preparedPatch
 	var lines []string
 	hadBOM, hadCRLF := false, false
 	if !file.created() {
-		info, err := os.Stat(path)
+		info, err := os.Stat(target.from)
 		if err != nil {
 			return preparedPatch{}, err
 		}
 		mode = info.Mode().Perm()
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(target.from)
 		if err != nil {
 			return preparedPatch{}, err
 		}
@@ -242,23 +324,29 @@ func (l *LocalExecutor) preparePatch(file filePatch, path string) (preparedPatch
 			return preparedPatch{}, fmt.Errorf("fs.ApplyPatch: delete %s: patched content is not empty", file.path())
 		}
 		return preparedPatch{
-			path:   path,
-			remove: true,
+			source: target.from,
 			result: PatchFileOutput{Path: file.path(), Hunks: len(file.hunks), Deleted: true},
 		}, nil
 	}
 
-	data := restoreFormat(joinTextLines(patched), hadBOM, hadCRLF)
-	return preparedPatch{
-		path: path,
-		data: data,
+	result := PatchFileOutput{
+		Path:    file.path(),
+		Hunks:   len(file.hunks),
+		Created: file.created(),
+	}
+	prepared := preparedPatch{
+		path: target.to,
+		data: restoreFormat(joinTextLines(patched), hadBOM, hadCRLF),
 		mode: mode,
-		result: PatchFileOutput{
-			Path:    file.path(),
-			Hunks:   len(file.hunks),
-			Created: file.created(),
-		},
-	}, nil
+	}
+	if file.moved() {
+		// The origin is reported, not just the destination: "moved" without saying
+		// from where leaves the model to infer which of its files stopped existing.
+		prepared.source = target.from
+		result.MovedFrom = file.oldPath
+	}
+	prepared.result = result
+	return prepared, nil
 }
 
 func equalLines(a, b []string) bool {

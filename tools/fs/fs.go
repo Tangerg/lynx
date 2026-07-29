@@ -76,7 +76,9 @@ type editOperation struct {
 // ---------------------------------------------------------------- ApplyPatch
 
 // ApplyPatchInput applies a standard unified diff. The local executor supports
-// create, modify, and delete hunks; renames are intentionally rejected.
+// create, modify, delete and move (headers naming two different paths), which is
+// what makes a coordinated refactor one call instead of a write followed by a
+// delete the caller has to keep consistent.
 type ApplyPatchInput struct {
 	Patch string
 }
@@ -87,10 +89,14 @@ type ApplyPatchOutput struct {
 }
 
 type PatchFileOutput struct {
+	// Path is where the file ended up.
 	Path    string
 	Hunks   int
 	Created bool
 	Deleted bool
+	// MovedFrom is the path the file left, set only for a move. Path alone would
+	// say a file exists somewhere new without saying which one stopped existing.
+	MovedFrom string
 }
 
 // ---------------------------------------------------------------- Glob
