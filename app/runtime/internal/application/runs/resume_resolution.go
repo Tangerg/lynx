@@ -12,32 +12,33 @@ import (
 )
 
 // resolveResumeResponses validates exact item coverage and the kind-specific
-// answer schema before reducing the application-owned response union to the
-// leaf Resolution consumed by the agent continuation.
-func resolveResumeResponses(pending interrupts.Pending, responses []ResumeResponse) (interrupts.Resolution, error) {
+// answer schema, then binds every decision to its exact executor suspension.
+// Output follows the pending barrier's canonical order, independent of request
+// ordering, so every downstream layer observes one representation of the set.
+func resolveResumeResponses(pending interrupts.Pending, responses []ResumeResponse) ([]interrupts.SuspensionAnswer, error) {
 	open := make(map[string]transcript.Interrupt, len(pending.Interrupts))
 	for _, interrupt := range pending.Interrupts {
 		if interrupt.ItemID == "" {
-			return interrupts.Resolution{}, fmt.Errorf("%w: open interrupt has no item id", ErrInvalidInterruptResponse)
+			return nil, fmt.Errorf("%w: open interrupt has no item id", ErrInvalidInterruptResponse)
 		}
 		if _, exists := open[interrupt.ItemID]; exists {
-			return interrupts.Resolution{}, fmt.Errorf("%w: duplicate open item %q", ErrInvalidInterruptResponse, interrupt.ItemID)
+			return nil, fmt.Errorf("%w: duplicate open item %q", ErrInvalidInterruptResponse, interrupt.ItemID)
 		}
 		open[interrupt.ItemID] = interrupt
 	}
 	if len(open) == 0 {
-		return interrupts.Resolution{}, ErrInterruptNotOpen
+		return nil, ErrInterruptNotOpen
 	}
 
 	seen := make(map[string]struct{}, len(responses))
-	var resolved interrupts.Resolution
+	resolutions := make(map[string]interrupts.Resolution, len(responses))
 	for _, response := range responses {
 		interrupt, exists := open[response.ItemID]
 		if !exists {
-			return interrupts.Resolution{}, fmt.Errorf("%w: item %q", ErrInterruptNotOpen, response.ItemID)
+			return nil, fmt.Errorf("%w: item %q", ErrInterruptNotOpen, response.ItemID)
 		}
 		if _, duplicate := seen[response.ItemID]; duplicate {
-			return interrupts.Resolution{}, fmt.Errorf("%w: duplicate response for item %q", ErrInvalidInterruptResponse, response.ItemID)
+			return nil, fmt.Errorf("%w: duplicate response for item %q", ErrInvalidInterruptResponse, response.ItemID)
 		}
 		seen[response.ItemID] = struct{}{}
 
@@ -54,22 +55,42 @@ func resolveResumeResponses(pending interrupts.Pending, responses []ResumeRespon
 			err = fmt.Errorf("unknown open interrupt kind %d", interrupt.Kind)
 		}
 		if err != nil {
-			return interrupts.Resolution{}, fmt.Errorf("%w: item %q: %w", ErrInvalidInterruptResponse, response.ItemID, err)
+			return nil, fmt.Errorf("%w: item %q: %w", ErrInvalidInterruptResponse, response.ItemID, err)
 		}
-		// The agent runtime currently parks one Suspension at a time. Keep that
-		// invariant explicit instead of silently discarding a second answer.
-		if len(seen) > 1 {
-			return interrupts.Resolution{}, fmt.Errorf("%w: multiple simultaneous suspensions are unsupported", ErrInvalidInterruptResponse)
-		}
-		resolved = itemResolution
+		resolutions[response.ItemID] = itemResolution
 	}
 	if len(seen) != len(open) {
-		return interrupts.Resolution{}, fmt.Errorf(
+		return nil, fmt.Errorf(
 			"%w: responses cover %d of %d open items",
 			ErrInvalidInterruptResponse, len(seen), len(open),
 		)
 	}
-	return resolved, nil
+	if len(pending.Suspensions) != len(pending.Interrupts) {
+		return nil, fmt.Errorf(
+			"%w: pending barrier has %d suspension bindings for %d items",
+			ErrInvalidInterruptResponse,
+			len(pending.Suspensions),
+			len(pending.Interrupts),
+		)
+	}
+	answers := make([]interrupts.SuspensionAnswer, len(pending.Suspensions))
+	for index, binding := range pending.Suspensions {
+		resolution, ok := resolutions[binding.InterruptItemID]
+		if !ok {
+			return nil, fmt.Errorf(
+				"%w: suspension binding names unanswered item %q",
+				ErrInvalidInterruptResponse,
+				binding.InterruptItemID,
+			)
+		}
+		answers[index] = interrupts.SuspensionAnswer{
+			InterruptItemID: binding.InterruptItemID,
+			ProcessID:       binding.ProcessID,
+			SuspensionID:    binding.SuspensionID,
+			Resolution:      resolution,
+		}
+	}
+	return answers, nil
 }
 
 func resolveApprovalResponse(interrupt transcript.Interrupt, response ResumeResponse) (interrupts.Resolution, error) {

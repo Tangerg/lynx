@@ -144,16 +144,16 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		Epoch: c.epoch, RunID: spec.RunID, SegmentID: spec.SegmentID,
 	}, c.retention)
 	live := &handle{cancel: cancel, owner: taskCtx, hub: hub, done: make(chan struct{})}
-	reducer := newReducer(reducerConfig{
-		RunID: spec.RunID, SegmentID: spec.SegmentID, SessionID: spec.SessionID,
-		Cwd: spec.Cwd, TurnID: spec.TurnID, ModelSelection: spec.ModelSelection,
-		GoalLeaseID: spec.GoalLeaseID,
-		CreatedAt:   spec.CreatedAt, UserInput: spec.Input, Pending: spec.Pending,
-		Metrics: spec.priorMetrics(), Limits: spec.effectiveLimits(),
-		ProtocolProfile: spec.effectiveProfile(),
-		Now:             c.now, CancelReason: live.CancelReason,
-	})
-	opening, err := c.commitOpening(reqCtx, spec, reducer)
+	routes, err := c.openingRoutes(spec, live.CancelReason)
+	if err != nil {
+		cancel()
+		if !resume {
+			err = c.rejectUnadmittedTurn(taskCtx, spec.turnRef(), err)
+		}
+		release()
+		return nil, err
+	}
+	openings, err := c.commitOpening(reqCtx, spec, routes)
 	if err != nil {
 		cancel()
 		if !resume {
@@ -183,38 +183,46 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		defer stopUnsubscribe()
 		opened.Events(yield)
 	}
-	for _, pe := range opening.events {
-		hub.Append(c.event(spec.RunID, spec.SegmentID, pe))
+	for _, opening := range openings {
+		for _, reduced := range opening.batch.events {
+			hub.Append(c.event(opening.route.runID, opening.route.segmentID, reduced))
+		}
 	}
 	segmentStartedAt := c.now().UTC()
+	for _, route := range routes.admissionOrder {
+		route.segmentStartedAt = segmentStartedAt
+	}
 	if spec.Activate != nil {
 		if err := spec.Activate(taskCtx); err != nil {
 			trace.SpanFromContext(taskCtx).RecordError(fmt.Errorf("runs: activate segment: %w", err))
-			reducer.abort()
+			routes.abortUnfinished()
 			cancel()
 		}
 	}
 	go func() {
 		defer release()
-		c.pump(runCtx, taskCtx, spec, inner, live, reducer, segmentStartedAt)
+		c.pump(runCtx, taskCtx, spec, inner, live, routes)
 	}()
 	return seq, nil
 }
 
-func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, reducer *reducer) (reductionBatch, error) {
-	projected, err := reducer.open()
+type routeOpening struct {
+	route *executorRoute
+	batch reductionBatch
+}
+
+func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, routes *executorRoutes) ([]routeOpening, error) {
+	ordered, err := routes.unfinishedInPostorder()
 	if err != nil {
-		return reductionBatch{}, fmt.Errorf("runs: reduce opening: %w", err)
+		return nil, fmt.Errorf("runs: order opening tree: %w", err)
 	}
-	if len(projected.events) == 0 {
-		return reductionBatch{}, errors.New("runs: reducer produced no opening events")
-	}
-	if projected.parkCommit != nil {
-		return reductionBatch{}, errors.New("runs: opening cannot park")
-	}
-	opening := OpeningCommit{Events: make([]EventCommit, 0, len(projected.events))}
+	opening := OpeningCommit{}
 	if spec.Pending != nil {
-		opening.Resume = &execution.ResumeDraft{RunID: spec.RunID, SessionID: spec.SessionID, SegmentID: spec.SegmentID}
+		opening.Resume = &execution.TreeResumeDraft{
+			RootRunID: spec.RunID,
+			SessionID: spec.SessionID,
+			Runs:      make([]execution.RunResumeDraft, 0, len(ordered)),
+		}
 	} else {
 		opening.Admit = &execution.RunDraft{
 			RunID:           spec.RunID,
@@ -229,21 +237,44 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, reduc
 		opening.SessionModel = spec.SessionModel
 		opening.ScheduleFiring = spec.ScheduleFiring
 	}
-	for _, reduced := range projected.events {
-		if reduced.Event.Terminal() || reduced.Nudge != nil {
-			return reductionBatch{}, errors.New("runs: invalid opening event")
+	openings := make([]routeOpening, 0, len(ordered))
+	for _, route := range ordered {
+		projected, err := route.reducer.open()
+		if err != nil {
+			return nil, fmt.Errorf("runs: reduce opening for Run %q: %w", route.runID, err)
 		}
-		if reduced.Commit != nil {
-			opening.Events = append(opening.Events, *reduced.Commit)
+		if len(projected.events) == 0 {
+			return nil, fmt.Errorf("runs: reducer for Run %q produced no opening events", route.runID)
 		}
+		if projected.parkCommit != nil {
+			return nil, fmt.Errorf("runs: opening for Run %q cannot park", route.runID)
+		}
+		if err := validateRouteReductionBatch(route, spec.SessionID, projected); err != nil {
+			return nil, err
+		}
+		for _, reduced := range projected.events {
+			if reduced.Event.Terminal() || reduced.Nudge != nil {
+				return nil, fmt.Errorf("runs: invalid opening event for Run %q", route.runID)
+			}
+			if reduced.Commit != nil {
+				opening.Events = append(opening.Events, *reduced.Commit)
+			}
+		}
+		if opening.Resume != nil {
+			opening.Resume.Runs = append(opening.Resume.Runs, execution.RunResumeDraft{
+				RunID:     route.runID,
+				SegmentID: route.segmentID,
+			})
+		}
+		openings = append(openings, routeOpening{route: route, batch: projected})
 	}
 	// An opening may carry no item commits at all — a resumed segment that only
 	// delivers an approval has nothing to append. Its durable projection is the
 	// admission or resume above, which is what makes the Run exist.
 	if err := c.effects.CommitOpening(ctx, opening); err != nil {
-		return reductionBatch{}, err
+		return nil, err
 	}
-	return projected, nil
+	return openings, nil
 }
 
 // event builds the envelope for one reduced payload. Its stream position is NOT

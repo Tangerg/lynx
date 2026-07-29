@@ -7,6 +7,7 @@ package interrupts
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -46,6 +47,7 @@ type Continuation struct {
 	ProcessID       string
 	ParentProcessID string
 	SpawnCallID     string
+	Lineage         execution.RunLineage
 	ModelSelection  modelref.Selection
 	DrainedTools    []DrainedTool
 	RunCreatedAt    time.Time
@@ -59,6 +61,17 @@ type SuspensionBinding struct {
 	InterruptItemID string
 	ProcessID       string
 	SuspensionID    string
+}
+
+// SuspensionAnswer is one validated decision bound to the exact executor
+// boundary that must consume it. InterruptItemID keeps the application item
+// identity attached until the TurnControl adapter boundary; ProcessID and
+// SuspensionID prevent execution from guessing which parked branch it answers.
+type SuspensionAnswer struct {
+	InterruptItemID string
+	ProcessID       string
+	SuspensionID    string
+	Resolution      Resolution
 }
 
 // DrainedTool records one tool item that was still open when its Run suspended.
@@ -120,6 +133,7 @@ func (p Pending) Validate() error {
 
 	runIDs := make(map[string]struct{}, len(p.Continuations))
 	processIDs := make(map[string]struct{}, len(p.Continuations))
+	continuationsByProcess := make(map[string]Continuation, len(p.Continuations))
 	rootCount := 0
 	for index, continuation := range p.Continuations {
 		if err := continuation.validate(); err != nil {
@@ -133,17 +147,62 @@ func (p Pending) Validate() error {
 			return fmt.Errorf("interrupts: duplicate continuation process %q", continuation.ProcessID)
 		}
 		processIDs[continuation.ProcessID] = struct{}{}
+		continuationsByProcess[continuation.ProcessID] = continuation
 		if continuation.RunID == p.RootRunID {
 			rootCount++
-			if continuation.ParentProcessID != "" || continuation.SpawnCallID != "" {
-				return errors.New("interrupts: root continuation carries child process lineage")
+			if continuation.ParentProcessID != "" ||
+				continuation.SpawnCallID != "" ||
+				!continuation.Lineage.IsRoot() {
+				return errors.New("interrupts: root continuation carries child lineage")
 			}
 		} else if continuation.ParentProcessID == "" || continuation.SpawnCallID == "" {
 			return fmt.Errorf("interrupts: child continuation %q has incomplete process lineage", continuation.RunID)
+		} else if continuation.Lineage.RootRunID != p.RootRunID {
+			return fmt.Errorf(
+				"interrupts: child continuation %q names root run %q, want %q",
+				continuation.RunID,
+				continuation.Lineage.RootRunID,
+				p.RootRunID,
+			)
 		}
 	}
 	if rootCount != 1 {
 		return fmt.Errorf("interrupts: pending set has %d root continuations", rootCount)
+	}
+	for _, continuation := range p.Continuations {
+		if continuation.RunID == p.RootRunID {
+			continue
+		}
+		parent, exists := continuationsByProcess[continuation.ParentProcessID]
+		if !exists {
+			return fmt.Errorf(
+				"interrupts: child continuation %q names unknown parent process %q",
+				continuation.RunID,
+				continuation.ParentProcessID,
+			)
+		}
+		if parent.RunID != continuation.Lineage.ParentRunID {
+			return fmt.Errorf(
+				"interrupts: child continuation %q process parent belongs to run %q, not lineage parent %q",
+				continuation.RunID,
+				parent.RunID,
+				continuation.Lineage.ParentRunID,
+			)
+		}
+	}
+	canonicalRunIDs, err := canonicalContinuationRunIDs(p.RootRunID, p.Continuations)
+	if err != nil {
+		return err
+	}
+	for index, continuation := range p.Continuations {
+		if continuation.RunID != canonicalRunIDs[index] {
+			return fmt.Errorf(
+				"interrupts: continuation[%d] is run %q, canonical postorder requires %q",
+				index,
+				continuation.RunID,
+				canonicalRunIDs[index],
+			)
+		}
 	}
 
 	interruptsByItem := make(map[string]transcript.Interrupt, len(p.Interrupts))
@@ -174,6 +233,14 @@ func (p Pending) Validate() error {
 				"interrupts: suspension binding[%d] names unknown item %q",
 				index,
 				binding.InterruptItemID,
+			)
+		}
+		if p.Interrupts[index].ItemID != binding.InterruptItemID {
+			return fmt.Errorf(
+				"interrupts: suspension binding[%d] names item %q, canonical interrupt order requires %q",
+				index,
+				binding.InterruptItemID,
+				p.Interrupts[index].ItemID,
 			)
 		}
 		continuation, exists := continuationForProcess(p.Continuations, binding.ProcessID)
@@ -226,6 +293,9 @@ func (c Continuation) validate() error {
 	case c.RunCreatedAt.IsZero():
 		return errors.New("run creation time is required")
 	}
+	if err := c.Lineage.Validate(c.RunID); err != nil {
+		return fmt.Errorf("lineage: %w", err)
+	}
 	if err := c.Metrics.Validate(); err != nil {
 		return fmt.Errorf("metrics: %w", err)
 	}
@@ -233,6 +303,55 @@ func (c Continuation) validate() error {
 		return fmt.Errorf("limits: %w", err)
 	}
 	return nil
+}
+
+func canonicalContinuationRunIDs(rootRunID string, continuations []Continuation) ([]string, error) {
+	byRunID := make(map[string]Continuation, len(continuations))
+	children := make(map[string][]string, len(continuations))
+	for _, continuation := range continuations {
+		byRunID[continuation.RunID] = continuation
+		if continuation.Lineage.IsChild() {
+			children[continuation.Lineage.ParentRunID] = append(
+				children[continuation.Lineage.ParentRunID],
+				continuation.RunID,
+			)
+		}
+	}
+	for parentRunID := range children {
+		slices.Sort(children[parentRunID])
+	}
+	visiting := make(map[string]bool, len(continuations))
+	visited := make(map[string]bool, len(continuations))
+	ordered := make([]string, 0, len(continuations))
+	var visit func(string) error
+	visit = func(runID string) error {
+		if visiting[runID] {
+			return fmt.Errorf("interrupts: continuation tree contains a cycle at run %q", runID)
+		}
+		if visited[runID] {
+			return nil
+		}
+		if _, exists := byRunID[runID]; !exists {
+			return fmt.Errorf("interrupts: continuation tree names unknown run %q", runID)
+		}
+		visiting[runID] = true
+		for _, childRunID := range children[runID] {
+			if err := visit(childRunID); err != nil {
+				return err
+			}
+		}
+		visiting[runID] = false
+		visited[runID] = true
+		ordered = append(ordered, runID)
+		return nil
+	}
+	if err := visit(rootRunID); err != nil {
+		return nil, err
+	}
+	if len(ordered) != len(continuations) {
+		return nil, errors.New("interrupts: continuation tree contains a Run disconnected from the root")
+	}
+	return ordered, nil
 }
 
 func validateInterrupt(interrupt transcript.Interrupt) error {

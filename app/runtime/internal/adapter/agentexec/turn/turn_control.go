@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 // Cancel stops a turn. The ctx cancel is the primary signal: it aborts any
@@ -66,7 +65,7 @@ func cancelTurnProcess(ctx context.Context, process agentexec.TurnProcess) error
 // delivers the bool decision to the agent process, and drives the continuation
 // segment onto the same event channel. Returns [ErrTurnNotFound] when the turn
 // isn't parked (unknown / already resumed / terminal).
-func (s *memoryDispatcher) Resume(ctx context.Context, handle TurnHandle, resolution interrupts.Resolution, interruptKinds []execution.InterruptKind) error {
+func (s *memoryDispatcher) Resume(ctx context.Context, handle TurnHandle, answers []agentexec.SuspensionAnswer, interruptKinds []execution.InterruptKind) error {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return err
@@ -78,7 +77,7 @@ func (s *memoryDispatcher) Resume(ctx context.Context, handle TurnHandle, resolu
 		return ErrParkClaimed
 	}
 	state.setInterruptKinds(interruptKinds)
-	return s.resumeAndDrive(ctx, state, resolution)
+	return s.resumeAndDrive(ctx, state, answers)
 }
 
 // resumeAndDrive delivers the decision to the turn's (write-once-stable) parked
@@ -90,9 +89,9 @@ func (s *memoryDispatcher) Resume(ctx context.Context, handle TurnHandle, resolu
 func (s *memoryDispatcher) resumeAndDrive(
 	admissionCtx context.Context,
 	state *turnState,
-	resolution interrupts.Resolution,
+	answers []agentexec.SuspensionAnswer,
 ) error {
-	err := state.process().Resume(admissionCtx, resolution)
+	err := state.process().Resume(admissionCtx, answers)
 	if err != nil {
 		if (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) &&
 			state.resumeAdmissionFailed() {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -507,7 +508,8 @@ func TestCoordinatorResumeCommitsBeforeActivation(t *testing.T) {
 	coordinator := testCoordinator(executor, effects)
 	spec := testSegment()
 	spec.SegmentID = "seg_2"
-	spec.Pending = &interrupts.Pending{}
+	pending := testPendingInterrupt("item_1", "process_root", spec.CreatedAt)
+	spec.Pending = &pending
 	activatedAfterOpening := false
 	spec.Activate = func(context.Context) error {
 		activatedAfterOpening = effects.opening().Resume != nil
@@ -523,8 +525,160 @@ func TestCoordinatorResumeCommitsBeforeActivation(t *testing.T) {
 		t.Fatal("continuation activated before its opening commit")
 	}
 	opening := effects.opening()
-	if opening.Resume == nil || opening.Resume.RunID != "run_1" || opening.Admit != nil {
+	if opening.Resume == nil || opening.Resume.RootRunID != "run_1" || opening.Admit != nil {
 		t.Fatalf("opening = %+v, want resume run_1", opening)
+	}
+}
+
+func TestCoordinatorResumesCompleteRunTreeInOneCanonicalOpening(t *testing.T) {
+	rootSource := ExecutorSource{ProcessID: "process_root"}
+	childASource := ExecutorSource{
+		ProcessID: "process_a", ParentID: "process_root", SpawnCallID: "spawn_a",
+	}
+	grandchildSource := ExecutorSource{
+		ProcessID: "process_grandchild", ParentID: "process_a", SpawnCallID: "spawn_grandchild",
+	}
+	childBSource := ExecutorSource{
+		ProcessID: "process_b", ParentID: "process_root", SpawnCallID: "spawn_b",
+	}
+	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
+		{Source: grandchildSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+		{Source: childASource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+		{Source: childBSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+		{Source: rootSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+	}}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+	childSegmentIDs := []string{"seg_grandchild", "seg_a", "seg_b"}
+	coordinator.newSegmentID = func() string {
+		next := childSegmentIDs[0]
+		childSegmentIDs = childSegmentIDs[1:]
+		return next
+	}
+	spec := testSegment()
+	spec.SegmentID = "seg_root_resumed"
+	pending := resumedTreePending(spec.CreatedAt)
+	spec.Pending = &pending
+
+	stream, err := coordinator.openSegment(t.Context(), spec)
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	opening := effects.opening()
+	if opening.Resume == nil {
+		t.Fatal("opening has no tree resume draft")
+	}
+	wantRuns := []execution.RunResumeDraft{
+		{RunID: "run_grandchild", SegmentID: "seg_grandchild"},
+		{RunID: "run_a", SegmentID: "seg_a"},
+		{RunID: "run_b", SegmentID: "seg_b"},
+		{RunID: "run_1", SegmentID: "seg_root_resumed"},
+	}
+	if !slices.Equal(opening.Resume.Runs, wantRuns) {
+		t.Fatalf("tree resume Runs = %#v, want %#v", opening.Resume.Runs, wantRuns)
+	}
+
+	var started, finished []string
+	for _, event := range events {
+		switch payload := event.Payload.(type) {
+		case SegmentStarted:
+			started = append(started, event.RunID)
+			if payload.Run.ActiveSegmentID != event.SegmentID {
+				t.Fatalf(
+					"Run %q active segment = %q, envelope = %q",
+					event.RunID,
+					payload.Run.ActiveSegmentID,
+					event.SegmentID,
+				)
+			}
+		case SegmentFinished:
+			finished = append(finished, event.RunID)
+		}
+	}
+	wantPostorder := []string{"run_grandchild", "run_a", "run_b", "run_1"}
+	if !slices.Equal(started, wantPostorder) {
+		t.Fatalf("SegmentStarted order = %v, want %v", started, wantPostorder)
+	}
+	if !slices.Equal(finished, wantPostorder) {
+		t.Fatalf("SegmentFinished order = %v, want %v", finished, wantPostorder)
+	}
+}
+
+func resumedTreePending(createdAt time.Time) interrupts.Pending {
+	question := func(itemID, runID string) transcript.Interrupt {
+		return transcript.Interrupt{
+			ItemID: itemID,
+			RunID:  runID,
+			Kind:   execution.QuestionInterrupt,
+			Question: &transcript.Question{
+				Prompt: "Continue?",
+				Fields: []transcript.QuestionField{{
+					Name: "answer", Kind: transcript.QuestionText, Required: true,
+				}},
+			},
+		}
+	}
+	return interrupts.Pending{
+		RootRunID: "run_1",
+		SessionID: "ses_1",
+		TurnID:    "turn_1",
+		Interrupts: []transcript.Interrupt{
+			question("item_grandchild", "run_grandchild"),
+			question("item_b", "run_b"),
+		},
+		Suspensions: []interrupts.SuspensionBinding{
+			{InterruptItemID: "item_grandchild", ProcessID: "process_grandchild", SuspensionID: "suspension_grandchild"},
+			{InterruptItemID: "item_b", ProcessID: "process_b", SuspensionID: "suspension_b"},
+		},
+		Continuations: []interrupts.Continuation{
+			{
+				RunID:           "run_grandchild",
+				ProcessID:       "process_grandchild",
+				ParentProcessID: "process_a",
+				SpawnCallID:     "spawn_grandchild",
+				Lineage: execution.RunLineage{
+					SpawnedByItemID: "item_spawn_grandchild",
+					ParentRunID:     "run_a",
+					RootRunID:       "run_1",
+				},
+				ModelSelection: mustSelection("openai", "model"),
+				RunCreatedAt:   createdAt,
+			},
+			{
+				RunID:           "run_a",
+				ProcessID:       "process_a",
+				ParentProcessID: "process_root",
+				SpawnCallID:     "spawn_a",
+				Lineage: execution.RunLineage{
+					SpawnedByItemID: "item_spawn_a",
+					ParentRunID:     "run_1",
+					RootRunID:       "run_1",
+				},
+				ModelSelection: mustSelection("openai", "model"),
+				RunCreatedAt:   createdAt,
+			},
+			{
+				RunID:           "run_b",
+				ProcessID:       "process_b",
+				ParentProcessID: "process_root",
+				SpawnCallID:     "spawn_b",
+				Lineage: execution.RunLineage{
+					SpawnedByItemID: "item_spawn_b",
+					ParentRunID:     "run_1",
+					RootRunID:       "run_1",
+				},
+				ModelSelection: mustSelection("openai", "model"),
+				RunCreatedAt:   createdAt,
+			},
+			{
+				RunID:          "run_1",
+				ProcessID:      "process_root",
+				ModelSelection: mustSelection("openai", "model"),
+				RunCreatedAt:   createdAt,
+			},
+		},
+		CreatedAt: createdAt.Add(time.Second),
 	}
 }
 

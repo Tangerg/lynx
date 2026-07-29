@@ -280,12 +280,12 @@ func (s *RunStore) Suspend(ctx context.Context, run transcript.Run) error {
 // Resume continues the exact parked Run (Interrupted → Running). Unlike cleanup
 // transitions it is strict: a missing/mismatched/already-running row means the
 // continuation opening does not own the durable Run and must roll back.
-func (s *RunStore) Resume(ctx context.Context, draft execution.ResumeDraft) error {
+func (s *RunStore) Resume(ctx context.Context, sessionID string, draft execution.RunResumeDraft) error {
 	if draft.SegmentID == "" {
 		return fmt.Errorf("sqlite: resume run %q: continuation segment is required", draft.RunID)
 	}
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
-		cur, found, err := s.stateForRun(ctx, draft.SessionID, draft.RunID)
+		cur, found, err := s.stateForRun(ctx, sessionID, draft.RunID)
 		if err != nil {
 			return err
 		}
@@ -303,7 +303,7 @@ func (s *RunStore) Resume(ctx context.Context, draft execution.ResumeDraft) erro
 			`UPDATE runs SET state = ?, active_segment_id = ?, updated_at = ?
 			 WHERE session_id = ? AND run_id = ? AND state = ?`,
 			coarseState(next), draft.SegmentID, time.Now().UTC().UnixNano(),
-			draft.SessionID, draft.RunID, coarseState(cur))
+			sessionID, draft.RunID, coarseState(cur))
 		if err != nil {
 			return fmt.Errorf("sqlite: resume run: %w", err)
 		}

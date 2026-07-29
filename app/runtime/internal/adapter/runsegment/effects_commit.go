@@ -215,11 +215,14 @@ func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit) erro
 	return nil
 }
 
-func (e *Effects) consumeResume(ctx context.Context, resume execution.ResumeDraft) error {
+func (e *Effects) consumeResume(ctx context.Context, resume execution.TreeResumeDraft) error {
+	if err := resume.Validate(); err != nil {
+		return fmt.Errorf("runsegment: invalid tree resume: %w", err)
+	}
 	if e.interrupts == nil {
 		return errors.New("runsegment: interrupt persistence is unavailable")
 	}
-	pending, ok, err := e.interrupts.Consume(ctx, resume.RunID)
+	pending, ok, err := e.interrupts.Consume(ctx, resume.RootRunID)
 	if err != nil {
 		return fmt.Errorf("runsegment: consume resume interrupt: %w", err)
 	}
@@ -229,11 +232,40 @@ func (e *Effects) consumeResume(ctx context.Context, resume execution.ResumeDraf
 	if pending.SessionID != resume.SessionID {
 		return fmt.Errorf("runsegment: resume interrupt session mismatch: got %q want %q", pending.SessionID, resume.SessionID)
 	}
+	if pending.RootRunID != resume.RootRunID {
+		return fmt.Errorf(
+			"runsegment: consumed interrupt root mismatch: got %q want %q",
+			pending.RootRunID,
+			resume.RootRunID,
+		)
+	}
+	if err := pending.Validate(); err != nil {
+		return fmt.Errorf("runsegment: consumed invalid interrupt set: %w", err)
+	}
+	if len(pending.Continuations) != len(resume.Runs) {
+		return fmt.Errorf(
+			"runsegment: tree resume has %d Runs for %d continuations",
+			len(resume.Runs),
+			len(pending.Continuations),
+		)
+	}
+	for index, continuation := range pending.Continuations {
+		if resume.Runs[index].RunID != continuation.RunID {
+			return fmt.Errorf(
+				"runsegment: tree resume Run[%d] is %q, pending postorder requires %q",
+				index,
+				resume.Runs[index].RunID,
+				continuation.RunID,
+			)
+		}
+	}
 	if e.runState == nil {
 		return errors.New("runsegment: run-state persistence is unavailable")
 	}
-	if err := e.runState.Resume(ctx, resume); err != nil {
-		return fmt.Errorf("runsegment: resume run state: %w", err)
+	for _, run := range resume.Runs {
+		if err := e.runState.Resume(ctx, resume.SessionID, run); err != nil {
+			return fmt.Errorf("runsegment: resume Run %q state: %w", run.RunID, err)
+		}
 	}
 	return nil
 }

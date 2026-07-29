@@ -117,7 +117,7 @@ type TurnControl interface {
 	PrepareStart(ctx context.Context, req StartTurn) (execution.TurnRef, error)
 	Activate(ctx context.Context, ref execution.TurnRef) error
 	Prepare(ctx context.Context, ref execution.TurnRef) (execution.TurnRef, error)
-	Resume(ctx context.Context, ref execution.TurnRef, resolution interrupts.Resolution, interruptKinds []execution.InterruptKind) error
+	Resume(ctx context.Context, ref execution.TurnRef, answers []interrupts.SuspensionAnswer, interruptKinds []execution.InterruptKind) error
 	Rehydrate(ctx context.Context, req RehydrateTurn) (execution.TurnRef, error)
 	TurnCanceler
 	Steer(ctx context.Context, ref execution.TurnRef, input []transcript.ContentBlock) error
@@ -167,7 +167,7 @@ type Effects interface {
 // Run whose opening record does not exist.
 type OpeningCommit struct {
 	Admit            *execution.RunDraft
-	Resume           *execution.ResumeDraft
+	Resume           *execution.TreeResumeDraft
 	ScheduledSession *session.Session
 	SessionModel     *SessionModelUpdate
 	ScheduleFiring   string

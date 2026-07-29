@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
@@ -37,7 +36,7 @@ func (*executorFakeDispatcher) PrepareTurn(context.Context, runs.StartTurn) (Tur
 	return TurnHandle{}, nil
 }
 func (*executorFakeDispatcher) ActivateTurn(context.Context, TurnHandle) error { return nil }
-func (*executorFakeDispatcher) Resume(context.Context, TurnHandle, interrupts.Resolution, []execution.InterruptKind) error {
+func (*executorFakeDispatcher) Resume(context.Context, TurnHandle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error {
 	return nil
 }
 func (*executorFakeDispatcher) ProcessID(context.Context, TurnHandle) (string, error) { return "", nil }

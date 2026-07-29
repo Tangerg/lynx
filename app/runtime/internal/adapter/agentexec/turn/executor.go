@@ -23,7 +23,7 @@ type executorDispatcher interface {
 	InjectSteering(context.Context, TurnHandle, []transcript.ContentBlock) error
 	PrepareTurn(context.Context, runs.StartTurn) (TurnHandle, error)
 	ActivateTurn(context.Context, TurnHandle) error
-	Resume(context.Context, TurnHandle, interrupts.Resolution, []execution.InterruptKind) error
+	Resume(context.Context, TurnHandle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error
 	ProcessID(context.Context, TurnHandle) (string, error)
 	Rehydrate(context.Context, runs.RehydrateTurn) (TurnHandle, error)
 	Cancel(context.Context, TurnHandle) error
@@ -99,8 +99,16 @@ func (e *Executor) Prepare(ctx context.Context, ref execution.TurnRef) (executio
 }
 
 // Resume activates an already-attached continuation.
-func (e *Executor) Resume(ctx context.Context, ref execution.TurnRef, resolution interrupts.Resolution, interruptKinds []execution.InterruptKind) error {
-	return mapControlError(e.dispatcher.Resume(ctx, concreteHandle(ref), resolution, interruptKinds))
+func (e *Executor) Resume(ctx context.Context, ref execution.TurnRef, answers []interrupts.SuspensionAnswer, interruptKinds []execution.InterruptKind) error {
+	executorAnswers := make([]agentexec.SuspensionAnswer, len(answers))
+	for index, answer := range answers {
+		executorAnswers[index] = agentexec.SuspensionAnswer{
+			ProcessID:    answer.ProcessID,
+			SuspensionID: answer.SuspensionID,
+			Resolution:   answer.Resolution,
+		}
+	}
+	return mapControlError(e.dispatcher.Resume(ctx, concreteHandle(ref), executorAnswers, interruptKinds))
 }
 
 // Rehydrate rebuilds a parked turn from its durable process snapshot.

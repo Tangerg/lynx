@@ -12,12 +12,28 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/chatclient"
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
+
+func answersForBarrier(
+	barrier runs.TreeInterrupted,
+	resolution interrupts.Resolution,
+) []agentexec.SuspensionAnswer {
+	answers := make([]agentexec.SuspensionAnswer, len(barrier.Suspensions))
+	for index, boundary := range barrier.Suspensions {
+		answers[index] = agentexec.SuspensionAnswer{
+			ProcessID:    boundary.ProcessID,
+			SuspensionID: boundary.SuspensionID,
+			Resolution:   resolution,
+		}
+	}
+	return answers
+}
 
 type testEngine interface {
 	StartTurn(ctx context.Context, request agentexec.TurnRequest) (agentexec.TurnProcess, error)
@@ -114,7 +130,7 @@ func (cp *stubTurnProcess) Cancel(context.Context) error {
 	return nil
 }
 
-func (cp *stubTurnProcess) Resume(_ context.Context, _ interrupts.Resolution) error {
+func (cp *stubTurnProcess) Resume(_ context.Context, _ []agentexec.SuspensionAnswer) error {
 	if cp.resumeErr != nil {
 		return cp.resumeErr
 	}

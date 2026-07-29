@@ -2,6 +2,8 @@ package execution
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -75,13 +77,54 @@ func (l RunLimits) Validate() error {
 // IsZero reports whether no allowance is in force at all.
 func (l RunLimits) IsZero() bool { return l == RunLimits{} }
 
-// ResumeDraft is the durable identity of a parked Run whose next segment is
-// opening. Applying it atomically consumes the Run's open interrupt and moves
-// its admission state from Interrupted back to Running.
-type ResumeDraft struct {
-	RunID     string
-	SessionID string
+// RunResumeDraft is one parked Run whose fresh continuation Segment is opening.
+// It is always applied as part of a root-owned [TreeResumeDraft]; a descendant
+// cannot resume independently of the barrier that suspended the complete tree.
+type RunResumeDraft struct {
+	RunID string
 	// SegmentID is the continuation's fresh segment, which replaces the one the
 	// park cleared — in the same transaction that moves the Run back to Running.
 	SegmentID string
+}
+
+// TreeResumeDraft is the complete durable identity set reopened by one accepted
+// answer barrier. Runs is canonical postorder (descendants before ancestors,
+// siblings by Run ID, root last), matching the Pending continuation set it
+// consumes in the same transaction.
+type TreeResumeDraft struct {
+	RootRunID string
+	SessionID string
+	Runs      []RunResumeDraft
+}
+
+// Validate checks the tree-resume identity frame. Topology and exact postorder
+// correspondence are checked against the consumed Pending set by the aggregate
+// transaction, which owns both values.
+func (draft TreeResumeDraft) Validate() error {
+	switch {
+	case strings.TrimSpace(draft.RootRunID) == "":
+		return errors.New("execution: tree resume root run id is required")
+	case strings.TrimSpace(draft.SessionID) == "":
+		return errors.New("execution: tree resume session id is required")
+	case len(draft.Runs) == 0:
+		return errors.New("execution: tree resume has no Runs")
+	}
+	seen := make(map[string]struct{}, len(draft.Runs))
+	for index, run := range draft.Runs {
+		if strings.TrimSpace(run.RunID) == "" || strings.TrimSpace(run.SegmentID) == "" {
+			return fmt.Errorf("execution: tree resume Run[%d] has incomplete identity", index)
+		}
+		if _, duplicate := seen[run.RunID]; duplicate {
+			return fmt.Errorf("execution: tree resume repeats Run %q", run.RunID)
+		}
+		seen[run.RunID] = struct{}{}
+	}
+	if draft.Runs[len(draft.Runs)-1].RunID != draft.RootRunID {
+		return fmt.Errorf(
+			"execution: tree resume root %q must be the final Run, got %q",
+			draft.RootRunID,
+			draft.Runs[len(draft.Runs)-1].RunID,
+		)
+	}
+	return nil
 }

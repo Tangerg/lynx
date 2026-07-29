@@ -18,7 +18,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/todotool"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
@@ -32,7 +31,7 @@ type turnDriver interface {
 	ActivateTurn(context.Context, turn.TurnHandle) error
 	Events(context.Context, turn.TurnHandle) (iter.Seq[runs.ExecutorEvent], error)
 	InjectSteering(context.Context, turn.TurnHandle, []transcript.ContentBlock) error
-	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []execution.InterruptKind) error
+	Resume(context.Context, turn.TurnHandle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error
 	ProcessID(context.Context, turn.TurnHandle) (string, error)
 	Rehydrate(context.Context, runs.RehydrateTurn) (turn.TurnHandle, error)
 	Cancel(context.Context, turn.TurnHandle) error

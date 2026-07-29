@@ -195,7 +195,7 @@ func TestParkCommitsInterruptAndSuspendAtomically(t *testing.T) {
 		t.Fatalf("interrupt survived a rolled-back park: %+v", open)
 	}
 	// Still running (not interrupted): a rolled-back Suspend left the state intact.
-	if err := runStore.Resume(ctx, execution.ResumeDraft{RunID: "run_1", SessionID: "ses_A", SegmentID: "seg_next"}); err == nil {
+	if err := runStore.Resume(ctx, "ses_A", execution.RunResumeDraft{RunID: "run_1", SegmentID: "seg_next"}); err == nil {
 		t.Fatal("resume after rolled-back park must reject the still-running row")
 	}
 	if err := runStore.Admit(ctx, runDraft("run_x", "ses_A")); !errors.Is(err, execution.ErrSessionBusy) {
@@ -423,7 +423,7 @@ func TestSuspendResumeReusesOneSlot(t *testing.T) {
 		t.Fatalf("admit while suspended = %v, want ErrSessionBusy (row still non-terminal)", err)
 	}
 	// Resume: back to running, no second row admitted.
-	if err := store.Resume(ctx, execution.ResumeDraft{RunID: "run_1", SessionID: "ses_A", SegmentID: "seg_next"}); err != nil {
+	if err := store.Resume(ctx, "ses_A", execution.RunResumeDraft{RunID: "run_1", SegmentID: "seg_next"}); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
 	if err := store.Admit(ctx, runDraft("run_3", "ses_A")); !errors.Is(err, execution.ErrSessionBusy) {
@@ -1077,7 +1077,7 @@ func TestRunProtocolProfileIsImmutable(t *testing.T) {
 		t.Fatalf("park hand-off profile = %v, want %v", pending.ProtocolProfile, admitted)
 	}
 
-	if err := store.Resume(ctx, execution.ResumeDraft{RunID: "run_1", SessionID: "ses_A", SegmentID: "seg_next"}); err != nil {
+	if err := store.Resume(ctx, "ses_A", execution.RunResumeDraft{RunID: "run_1", SegmentID: "seg_next"}); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
 	assertRunProfile(t, store, "run_1", admitted, "after resume")

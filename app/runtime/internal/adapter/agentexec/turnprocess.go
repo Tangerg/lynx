@@ -37,6 +37,14 @@ type PendingSuspension struct {
 	Prompt       []byte
 }
 
+// SuspensionAnswer is one executor-owned suspension decision. Application item
+// identity has already served its validation purpose at this boundary.
+type SuspensionAnswer struct {
+	ProcessID    string
+	SuspensionID string
+	Resolution   interrupts.Resolution
+}
+
 // TurnProcess is the handle [Engine.StartTurn] returns. It exposes one typed
 // completion boundary instead of separate status, output, and done signals.
 //
@@ -57,12 +65,11 @@ type TurnProcess interface {
 	// active segment.
 	Cancel(ctx context.Context) error
 
-	// Resume answers a HITL interrupt the process is parked on
-	// (StatusWaiting) — a gated tool call or an ask_user / exit_plan_mode
-	// question. It delivers the structured [interrupts.Resolution]
-	// to the parked suspension and starts the next segment. Only valid after an
-	// Await completion with [core.StatusWaiting].
-	Resume(ctx context.Context, resolution interrupts.Resolution) error
+	// Resume atomically accepts the complete answer set exposed by the last
+	// waiting boundary and starts its first continuation. Await automatically
+	// drives any intermediate runtime-only waiting segments until every accepted
+	// answer has been consumed or a new external boundary is reached.
+	Resume(ctx context.Context, answers []SuspensionAnswer) error
 
 	// PendingSuspensions returns the complete stable set of direct unanswered
 	// boundaries in the process tree. Parent copies used only to propagate child
@@ -82,17 +89,23 @@ type TurnProcess interface {
 // [runtime.Process]. It is package-private, so retaining the concrete Agent
 // runtime keeps lifecycle commands inside this execution adapter.
 type turnProcess struct {
-	process  *runtime.Process
-	segment  *runtime.Segment
-	owner    *Engine
-	scope    execution.TurnScope
-	runCtx   context.Context
-	usage    *usageLedger
-	provider string
-	budget   accounting.Budget
+	process        *runtime.Process
+	segment        *runtime.Segment
+	owner          *Engine
+	scope          execution.TurnScope
+	runCtx         context.Context
+	usage          *usageLedger
+	provider       string
+	budget         accounting.Budget
+	pendingAnswers map[suspensionKey]interrupts.Resolution
 }
 
 const checkpointCommitTimeout = 10 * time.Second
+
+type suspensionKey struct {
+	processID    string
+	suspensionID string
+}
 
 func (p *turnProcess) ID() string { return p.process.ID() }
 
@@ -100,21 +113,37 @@ func (p *turnProcess) Await() TurnCompletion {
 	if p == nil || p.process == nil || p.segment == nil {
 		return TurnCompletion{Err: errors.New("agentexec: await process: no active segment")}
 	}
-	segmentCompletion, err := p.segment.Await(context.Background())
-	if err != nil {
-		return TurnCompletion{Err: err}
+	for {
+		segmentCompletion, err := p.segment.Await(context.Background())
+		if err != nil {
+			return TurnCompletion{Err: err}
+		}
+		p.segment = nil
+		completion := TurnCompletion{
+			Status: segmentCompletion.Status,
+			Err:    segmentCompletion.Error(),
+		}
+		if output, ok := runtime.CompletionResult[TurnOutput](segmentCompletion); ok {
+			completion.Output = output
+			completion.HasOutput = true
+		}
+		completion.Err = errors.Join(completion.Err, p.persistWaitingCheckpoint(completion.Status))
+		if completion.Err != nil || completion.Status != core.StatusWaiting || len(p.pendingAnswers) == 0 {
+			if completion.Status != core.StatusWaiting && len(p.pendingAnswers) > 0 {
+				completion.Err = errors.Join(
+					completion.Err,
+					fmt.Errorf("agentexec: process terminated with %d accepted suspension answers unconsumed", len(p.pendingAnswers)),
+				)
+				p.pendingAnswers = nil
+			}
+			return completion
+		}
+		if err := p.resumeNext(context.Background()); err != nil {
+			completion.Err = err
+			p.pendingAnswers = nil
+			return completion
+		}
 	}
-	p.segment = nil
-	completion := TurnCompletion{
-		Status: segmentCompletion.Status,
-		Err:    segmentCompletion.Error(),
-	}
-	if output, ok := runtime.CompletionResult[TurnOutput](segmentCompletion); ok {
-		completion.Output = output
-		completion.HasOutput = true
-	}
-	completion.Err = errors.Join(completion.Err, p.persistWaitingCheckpoint(completion.Status))
-	return completion
 }
 
 func (p *turnProcess) Cancel(ctx context.Context) error {
@@ -124,22 +153,94 @@ func (p *turnProcess) Cancel(ctx context.Context) error {
 	return p.owner.runtime.Kill(ctx, p.process.ID())
 }
 
-func (p *turnProcess) Resume(ctx context.Context, resolution interrupts.Resolution) error {
+func (p *turnProcess) Resume(ctx context.Context, answers []SuspensionAnswer) error {
 	if p == nil || p.process == nil || p.owner == nil || p.owner.runtime == nil {
 		return errors.New("agentexec: resume process: incomplete turn process")
 	}
-	parked := p.process.Suspension()
-	if parked == nil {
-		return fmt.Errorf("engine: process %s has no suspension", p.process.ID())
+	if p.segment != nil {
+		return fmt.Errorf("agentexec: resume process %q: segment is already active", p.process.ID())
+	}
+	pending, err := p.PendingSuspensions(ctx)
+	if err != nil {
+		return err
+	}
+	if len(answers) != len(pending) {
+		return fmt.Errorf(
+			"agentexec: resume process %q: %d answers do not cover %d pending suspensions",
+			p.process.ID(),
+			len(answers),
+			len(pending),
+		)
+	}
+	p.pendingAnswers = make(map[suspensionKey]interrupts.Resolution, len(answers))
+	for _, answer := range answers {
+		key := suspensionKey{processID: answer.ProcessID, suspensionID: answer.SuspensionID}
+		if key.processID == "" || key.suspensionID == "" {
+			p.pendingAnswers = nil
+			return fmt.Errorf("agentexec: resume process %q: answer has incomplete suspension identity", p.process.ID())
+		}
+		if _, duplicate := p.pendingAnswers[key]; duplicate {
+			p.pendingAnswers = nil
+			return fmt.Errorf(
+				"agentexec: resume process %q: duplicate answer for process %q suspension %q",
+				p.process.ID(),
+				key.processID,
+				key.suspensionID,
+			)
+		}
+		p.pendingAnswers[key] = answer.Resolution
+	}
+	for _, boundary := range pending {
+		key := suspensionKey{processID: boundary.ProcessID, suspensionID: boundary.SuspensionID}
+		if _, ok := p.pendingAnswers[key]; !ok {
+			p.pendingAnswers = nil
+			return fmt.Errorf(
+				"agentexec: resume process %q: no answer for process %q suspension %q",
+				p.process.ID(),
+				key.processID,
+				key.suspensionID,
+			)
+		}
+	}
+	if err := p.resumeNext(ctx); err != nil {
+		p.pendingAnswers = nil
+		return err
+	}
+	return nil
+}
+
+func (p *turnProcess) resumeNext(ctx context.Context) error {
+	pending, err := p.PendingSuspensions(ctx)
+	if err != nil {
+		return err
+	}
+	if len(pending) == 0 {
+		return fmt.Errorf("agentexec: resume process %q: waiting tree has no pending suspension", p.process.ID())
+	}
+	next := pending[0]
+	key := suspensionKey{processID: next.ProcessID, suspensionID: next.SuspensionID}
+	resolution, ok := p.pendingAnswers[key]
+	if !ok {
+		return fmt.Errorf(
+			"agentexec: resume process %q: newly exposed process %q suspension %q was not in the accepted answer set",
+			p.process.ID(),
+			next.ProcessID,
+			next.SuspensionID,
+		)
 	}
 	response, err := suspension.EncodeResolution(resolution)
 	if err != nil {
-		return err
+		return fmt.Errorf("agentexec: encode suspension response: %w", err)
+	}
+	parked := p.process.Suspension()
+	if parked == nil {
+		return fmt.Errorf("agentexec: resume process %q: root has no promoted suspension", p.process.ID())
 	}
 	segment, err := p.owner.runtime.ResumeAsync(ctx, p.runCtx, p.process.ID(), parked.ID, response)
 	if err != nil {
 		return err
 	}
+	delete(p.pendingAnswers, key)
 	p.segment = segment
 	return nil
 }

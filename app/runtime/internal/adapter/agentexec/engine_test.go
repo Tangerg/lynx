@@ -912,7 +912,19 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	if scope, ok := turnctx.ScopeFrom(restoredProcess.runCtx); !ok || scope != wantScope {
 		t.Fatalf("restored run scope = (%+v, %v), want %+v", scope, ok, wantScope)
 	}
-	if err := restored.Resume(context.Background(), interrupts.Resolution{Approved: true}); err != nil {
+	pendingSuspensions, err := restored.PendingSuspensions(context.Background())
+	if err != nil {
+		t.Fatalf("PendingSuspensions: %v", err)
+	}
+	answers := make([]SuspensionAnswer, len(pendingSuspensions))
+	for index, boundary := range pendingSuspensions {
+		answers[index] = SuspensionAnswer{
+			ProcessID:    boundary.ProcessID,
+			SuspensionID: boundary.SuspensionID,
+			Resolution:   interrupts.Resolution{Approved: true},
+		}
+	}
+	if err := restored.Resume(context.Background(), answers); err != nil {
 		t.Fatalf("Resume: %v", err)
 	}
 	resumed := restored.Await()

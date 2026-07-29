@@ -277,10 +277,14 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 	})
 	events, _ := dispatcher.Events(context.Background(), handle)
 
-	var sawInterrupt bool
+	var (
+		sawInterrupt bool
+		barrier      runs.TreeInterrupted
+	)
 	for ev := range events {
 		if e, ok := ev.Payload.(runs.TreeInterrupted); ok {
 			sawInterrupt = true
+			barrier = e
 			if len(e.Suspensions) != 1 ||
 				e.Suspensions[0].Interrupt.Kind != execution.ApprovalInterrupt {
 				t.Errorf("suspensions = %+v, want one approval", e.Suspensions)
@@ -298,7 +302,12 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reattach Events: %v", err)
 	}
-	if err := dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, []execution.InterruptKind{execution.ApprovalInterrupt}); err != nil {
+	if err := dispatcher.Resume(
+		context.Background(),
+		handle,
+		answersForBarrier(barrier, interrupts.Resolution{Approved: true}),
+		[]execution.InterruptKind{execution.ApprovalInterrupt},
+	); err != nil {
 		t.Fatalf("Resume: %v", err)
 	}
 	var endReason execution.Outcome
@@ -341,7 +350,12 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	for ev := range events {
 		switch e := ev.Payload.(type) {
 		case runs.TreeInterrupted:
-			if err := dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, []execution.InterruptKind{execution.ApprovalInterrupt}); err != nil {
+			if err := dispatcher.Resume(
+				context.Background(),
+				handle,
+				answersForBarrier(e, interrupts.Resolution{Approved: true}),
+				[]execution.InterruptKind{execution.ApprovalInterrupt},
+			); err != nil {
 				t.Errorf("Resume: %v", err)
 			}
 		case runs.TurnEnd:
@@ -446,7 +460,12 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 	for ev := range events {
 		switch e := ev.Payload.(type) {
 		case runs.TreeInterrupted:
-			_ = dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: false}, []execution.InterruptKind{execution.ApprovalInterrupt})
+			_ = dispatcher.Resume(
+				context.Background(),
+				handle,
+				answersForBarrier(e, interrupts.Resolution{Approved: false}),
+				[]execution.InterruptKind{execution.ApprovalInterrupt},
+			)
 		case runs.ToolCallEnd:
 			// Denial flows back as a tool *result* so the model can
 			// recover — Err stays empty, Result carries the reason.

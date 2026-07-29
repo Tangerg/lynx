@@ -75,7 +75,7 @@ type ToolResultStore interface {
 // sqlite RunStore satisfies it.
 type RunWriter interface {
 	Admit(ctx context.Context, draft execution.RunDraft) error
-	Resume(ctx context.Context, draft execution.ResumeDraft) error
+	Resume(ctx context.Context, sessionID string, draft execution.RunResumeDraft) error
 	Suspend(ctx context.Context, run transcript.Run) error
 	Terminalize(ctx context.Context, run transcript.Run) error
 }

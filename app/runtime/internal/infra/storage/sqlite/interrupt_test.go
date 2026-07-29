@@ -145,6 +145,59 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 	}
 }
 
+func TestInterruptStore_RoundTripsContinuationTopology(t *testing.T) {
+	store := newInterruptStore(t)
+	createdAt := time.Unix(10, 0).UTC()
+	lineage := execution.RunLineage{
+		SpawnedByItemID: "item_spawn_child",
+		ParentRunID:     "run_root",
+		RootRunID:       "run_root",
+	}
+	pending := interrupts.Pending{
+		RootRunID: "run_root",
+		SessionID: "session_1",
+		TurnID:    "turn_1",
+		Interrupts: []transcript.Interrupt{{
+			ItemID: "item_child", RunID: "run_child", Kind: execution.QuestionInterrupt,
+			Question: &transcript.Question{Prompt: "Continue?"},
+		}},
+		Suspensions: []interrupts.SuspensionBinding{{
+			InterruptItemID: "item_child",
+			ProcessID:       "process_child",
+			SuspensionID:    "suspension_child",
+		}},
+		Continuations: []interrupts.Continuation{
+			{
+				RunID:           "run_child",
+				ProcessID:       "process_child",
+				ParentProcessID: "process_root",
+				SpawnCallID:     "spawn_child",
+				Lineage:         lineage,
+				RunCreatedAt:    createdAt,
+			},
+			{
+				RunID:        "run_root",
+				ProcessID:    "process_root",
+				RunCreatedAt: createdAt,
+			},
+		},
+		CreatedAt: createdAt.Add(time.Second),
+	}
+	if err := store.Put(t.Context(), pending); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+	got, found, err := store.Get(t.Context(), pending.RootRunID)
+	if err != nil || !found {
+		t.Fatalf("Get: found=%v err=%v", found, err)
+	}
+	child := got.Continuations[0]
+	if child.Lineage != lineage ||
+		child.ParentProcessID != "process_root" ||
+		child.SpawnCallID != "spawn_child" {
+		t.Fatalf("child continuation = %+v, want lineage %+v", child, lineage)
+	}
+}
+
 func TestInterruptStore_ProcessSnapshotHasOneOwner(t *testing.T) {
 	store := newInterruptStore(t)
 	ctx := t.Context()

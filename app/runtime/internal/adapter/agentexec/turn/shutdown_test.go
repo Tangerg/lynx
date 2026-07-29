@@ -8,7 +8,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 // hangBound separates a hang from a slow machine, which is all these waits have
@@ -95,7 +94,7 @@ func (p *blockingCancelProcess) Cancel(context.Context) error {
 	<-p.release
 	return p.err
 }
-func (*blockingCancelProcess) Resume(context.Context, interrupts.Resolution) error { return nil }
+func (*blockingCancelProcess) Resume(context.Context, []agentexec.SuspensionAnswer) error { return nil }
 func (*blockingCancelProcess) PendingSuspensions(context.Context) ([]agentexec.PendingSuspension, error) {
 	return nil, nil
 }

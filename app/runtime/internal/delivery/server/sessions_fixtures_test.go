@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
@@ -98,7 +99,7 @@ type turnRuntime interface {
 	InjectSteering(context.Context, turn.TurnHandle, []transcript.ContentBlock) error
 	PrepareTurn(context.Context, runs.StartTurn) (turn.TurnHandle, error)
 	ActivateTurn(context.Context, turn.TurnHandle) error
-	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []execution.InterruptKind) error
+	Resume(context.Context, turn.TurnHandle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error
 	ProcessID(context.Context, turn.TurnHandle) (string, error)
 	Rehydrate(context.Context, runs.RehydrateTurn) (turn.TurnHandle, error)
 	Cancel(context.Context, turn.TurnHandle) error
@@ -288,8 +289,8 @@ func (s stubRuntime) Prepare(ctx context.Context, ref execution.TurnRef) (execut
 	return turn.NewExecutor(s.turnDispatcher()).Prepare(ctx, ref)
 }
 
-func (s stubRuntime) Resume(ctx context.Context, prepared execution.TurnRef, resolution interrupts.Resolution, interruptKinds []execution.InterruptKind) error {
-	return turn.NewExecutor(s.turnDispatcher()).Resume(ctx, prepared, resolution, interruptKinds)
+func (s stubRuntime) Resume(ctx context.Context, prepared execution.TurnRef, answers []interrupts.SuspensionAnswer, interruptKinds []execution.InterruptKind) error {
+	return turn.NewExecutor(s.turnDispatcher()).Resume(ctx, prepared, answers, interruptKinds)
 }
 
 func (s stubRuntime) Rehydrate(ctx context.Context, req runs.RehydrateTurn) (execution.TurnRef, error) {
@@ -597,10 +598,10 @@ func (s stubRuntime) runWriter() runsegment.RunWriter {
 
 type stubRunState struct{}
 
-func (stubRunState) Admit(context.Context, execution.RunDraft) error     { return nil }
-func (stubRunState) Resume(context.Context, execution.ResumeDraft) error { return nil }
-func (stubRunState) Suspend(context.Context, transcript.Run) error       { return nil }
-func (stubRunState) Terminalize(context.Context, transcript.Run) error   { return nil }
+func (stubRunState) Admit(context.Context, execution.RunDraft) error                { return nil }
+func (stubRunState) Resume(context.Context, string, execution.RunResumeDraft) error { return nil }
+func (stubRunState) Suspend(context.Context, transcript.Run) error                  { return nil }
+func (stubRunState) Terminalize(context.Context, transcript.Run) error              { return nil }
 
 // ForgetSession is the no-op the session-delete / rollback / purge cascades call
 // (via the lifecycle coordinator) to release a removed session's process-local

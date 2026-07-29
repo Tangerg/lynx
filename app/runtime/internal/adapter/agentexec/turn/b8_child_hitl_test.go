@@ -3,6 +3,7 @@ package turn_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"strings"
 	"sync"
@@ -128,7 +129,12 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 			if toolName != scenario.childTool {
 				t.Fatalf("interrupt tool = %q, want child %q (task must not be gated)", toolName, scenario.childTool)
 			}
-			if err := dispatcher.Resume(t.Context(), handle, scenario.resolution, scenario.interruptKinds); err != nil {
+			if err := dispatcher.Resume(
+				t.Context(),
+				handle,
+				answersForBarrier(event, scenario.resolution),
+				scenario.interruptKinds,
+			); err != nil {
 				t.Fatalf("Resume: %v", err)
 			}
 		case runs.ToolCallStart:
@@ -205,12 +211,18 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 				event.Suspensions[0].Interrupt.Kind != execution.QuestionInterrupt {
 				t.Fatalf("interrupt %d = %#v", interruptCount, event.Suspensions)
 			}
-			if err := dispatcher.Resume(t.Context(), handle, interrupts.Resolution{
+			resolution := interrupts.Resolution{
 				Approved: true,
 				Answer: map[string][]string{
 					runs.QuestionFieldID(0): {"answer"},
 				},
-			}, []execution.InterruptKind{execution.QuestionInterrupt}); err != nil {
+			}
+			if err := dispatcher.Resume(
+				t.Context(),
+				handle,
+				answersForBarrier(event, resolution),
+				[]execution.InterruptKind{execution.QuestionInterrupt},
+			); err != nil {
 				t.Fatalf("Resume %d: %v", interruptCount, err)
 			}
 		case runs.TurnEnd:
@@ -228,6 +240,69 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 	}
 	if got := recorder.count(hooks.PostToolUse, "ask_user"); got != 2 {
 		t.Fatalf("PostToolUse(ask_user) = %d, want once for each of two logical calls", got)
+	}
+}
+
+func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *testing.T) {
+	dispatcher := buildB8Dispatcher(
+		t,
+		&parallelQuestionChildModel{defaults: &chat.Options{Model: "b8-parallel-questions"}},
+		mustApprovalPolicy(t, approval.ModeBalanced, nil),
+		staticHookResolver{},
+	)
+	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+		SessionID:      "sess-b8-parallel-questions",
+		Message:        "delegate this work",
+		Cwd:            t.TempDir(),
+		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	events, err := dispatcher.Events(t.Context(), handle)
+	if err != nil {
+		t.Fatalf("Events: %v", err)
+	}
+
+	interruptCount := 0
+	endReason := execution.OutcomeError
+	for event := range events {
+		switch event := event.Payload.(type) {
+		case runs.TreeInterrupted:
+			interruptCount++
+			if len(event.Suspensions) != 2 {
+				t.Fatalf("barrier suspensions = %#v, want two", event.Suspensions)
+			}
+			answers := make([]agentexec.SuspensionAnswer, len(event.Suspensions))
+			for index, boundary := range event.Suspensions {
+				answers[index] = agentexec.SuspensionAnswer{
+					ProcessID:    boundary.ProcessID,
+					SuspensionID: boundary.SuspensionID,
+					Resolution: interrupts.Resolution{
+						Approved: true,
+						Answer: map[string][]string{
+							runs.QuestionFieldID(0): {fmt.Sprintf("answer-%d", index+1)},
+						},
+					},
+				}
+			}
+			if err := dispatcher.Resume(
+				t.Context(),
+				handle,
+				answers,
+				[]execution.InterruptKind{execution.QuestionInterrupt},
+			); err != nil {
+				t.Fatalf("Resume complete answer set: %v", err)
+			}
+		case runs.TurnEnd:
+			endReason = event.Reason
+		}
+	}
+	if interruptCount != 1 {
+		t.Fatalf("TreeInterrupted count = %d, want one atomic application barrier", interruptCount)
+	}
+	if endReason != execution.OutcomeCompleted {
+		t.Fatalf("turn end = %q, want completed", endReason)
 	}
 }
 
@@ -266,17 +341,17 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
-	sawInterrupt := false
+	var barrier runs.TreeInterrupted
 	for event := range events {
 		if interrupted, ok := event.Payload.(runs.TreeInterrupted); ok {
-			sawInterrupt = true
+			barrier = interrupted
 			if len(interrupted.Suspensions) != 1 {
 				t.Fatalf("suspensions = %#v", interrupted.Suspensions)
 			}
 			break
 		}
 	}
-	if !sawInterrupt {
+	if len(barrier.Suspensions) == 0 {
 		t.Fatal("original engine did not park on child approval")
 	}
 	processID, err := first.ProcessID(t.Context(), original)
@@ -312,9 +387,12 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 		t.Fatalf("restored Events: %v", err)
 	}
 	const humanArguments = `{"command":"echo human-after-restart"}`
-	if err := restored.Resume(t.Context(), restoredHandle, interrupts.Resolution{
-		Approved: true, Arguments: humanArguments,
-	}, []execution.InterruptKind{execution.ApprovalInterrupt}); err != nil {
+	if err := restored.Resume(
+		t.Context(),
+		restoredHandle,
+		answersForBarrier(barrier, interrupts.Resolution{Approved: true, Arguments: humanArguments}),
+		[]execution.InterruptKind{execution.ApprovalInterrupt},
+	); err != nil {
 		t.Fatalf("restored Resume: %v", err)
 	}
 
@@ -532,7 +610,12 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 				go func() {
 					defer wg.Done()
 					<-start
-					resumeErr = dispatcher.Resume(t.Context(), handle, interrupts.Resolution{Approved: true}, []execution.InterruptKind{execution.ApprovalInterrupt})
+					resumeErr = dispatcher.Resume(
+						t.Context(),
+						handle,
+						answersForBarrier(event, interrupts.Resolution{Approved: true}),
+						[]execution.InterruptKind{execution.ApprovalInterrupt},
+					)
 				}()
 				go func() {
 					defer wg.Done()
@@ -665,6 +748,10 @@ type twoQuestionChildModel struct {
 	defaults *chat.Options
 }
 
+type parallelQuestionChildModel struct {
+	defaults *chat.Options
+}
+
 func (m *twoQuestionChildModel) DefaultOptions() chat.Options { return *m.defaults }
 
 func (m *twoQuestionChildModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
@@ -683,6 +770,38 @@ func (m *twoQuestionChildModel) Call(_ context.Context, request *chat.Request) (
 }
 
 func (m *twoQuestionChildModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+	response, err := m.Call(ctx, request)
+	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
+}
+
+func (m *parallelQuestionChildModel) DefaultOptions() chat.Options { return *m.defaults }
+
+func (m *parallelQuestionChildModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	switch {
+	case hasToolCallNamed(request.Messages, "task"):
+		return makeText("root complete")
+	case hasToolCallNamed(request.Messages, "ask_user"):
+		return makeText("child complete")
+	case userMentions(request.Messages, "delegate"):
+		message := chat.NewAssistantMessage(
+			chat.NewToolCallPart(chat.ToolCall{
+				ID: "task_1", Name: "task",
+				Arguments: `{"prompt":"perform first child work"}`,
+			}),
+			chat.NewToolCallPart(chat.ToolCall{
+				ID: "task_2", Name: "task",
+				Arguments: `{"prompt":"perform second child work"}`,
+			}),
+		)
+		return chat.NewResponse(chat.Choice{
+			Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls,
+		})
+	default:
+		return makeToolCall("ask_user", `{"questions":[{"question":"Child question?"}]}`)
+	}
+}
+
+func (m *parallelQuestionChildModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
 	response, err := m.Call(ctx, request)
 	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
 }

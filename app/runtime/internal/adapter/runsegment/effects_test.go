@@ -233,12 +233,19 @@ func TestCommitOpeningAdmitsAndProjectsInOneTransaction(t *testing.T) {
 }
 
 func TestCommitOpeningConsumesInterruptAndResumes(t *testing.T) {
-	ints := &fakeInterrupts{pending: interrupts.Pending{RootRunID: "run_1", SessionID: "ses_1"}}
+	now := time.Now().UTC()
+	ints := &fakeInterrupts{pending: singleRunPending(
+		t, "run_1", "ses_1", "process_1", "suspension_1", "item_1", now, now,
+	)}
 	stores := &fakeStores{interrupts: ints, transcript: &fakeTranscript{}}
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
 	effects := testEffects(stores, Config{RunState: runState, Tx: tx.run})
-	resume := execution.ResumeDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_next"}
+	resume := execution.TreeResumeDraft{
+		RootRunID: "run_1",
+		SessionID: "ses_1",
+		Runs:      []execution.RunResumeDraft{{RunID: "run_1", SegmentID: "seg_next"}},
+	}
 
 	err := effects.CommitOpening(context.Background(), runs.OpeningCommit{
 		Resume: &resume,
@@ -567,8 +574,8 @@ func (r *fakeRunState) Admit(_ context.Context, draft execution.RunDraft) error 
 	return nil
 }
 
-func (r *fakeRunState) Resume(_ context.Context, draft execution.ResumeDraft) error {
-	r.resumed = append(r.resumed, draft.SessionID)
+func (r *fakeRunState) Resume(_ context.Context, sessionID string, _ execution.RunResumeDraft) error {
+	r.resumed = append(r.resumed, sessionID)
 	return nil
 }
 

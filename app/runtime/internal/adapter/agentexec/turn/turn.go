@@ -166,20 +166,19 @@ func (s *memoryDispatcher) handleWaiting(st *turnState, process agentexec.TurnPr
 		s.emitInterrupt(st, process, pending)
 		return
 	}
-	if len(pending) != 1 {
-		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
-		recordTurnCleanupError(st, s.finishFailedTurn(
-			st,
-			internalRunProblem(),
-			errors.New("agent process tree has multiple interrupts that the client cannot answer atomically"),
-		))
-		return
+	answers := make([]agentexec.SuspensionAnswer, len(pending))
+	for index, boundary := range pending {
+		answers[index] = agentexec.SuspensionAnswer{
+			ProcessID:    boundary.ProcessID,
+			SuspensionID: boundary.SuspensionID,
+			Resolution:   interrupts.Resolution{Approved: false},
+		}
 	}
-	// Client can't answer this kind — deliver a deny and drive the
-	// continuation (resumeAndDrive streams the terminal on a resume error
+	// Client can't answer every kind — deny the whole accepted set and drive the
+	// continuations (resumeAndDrive streams the terminal on a resume error
 	// and launches drive otherwise; the returned error is already surfaced
 	// on the channel, so it's safe to drop here).
-	_ = s.resumeAndDrive(st.ctx, st, interrupts.Resolution{Approved: false})
+	_ = s.resumeAndDrive(st.ctx, st, answers)
 }
 
 // emitInterrupt marks the turn parked and surfaces the pending HITL

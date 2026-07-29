@@ -139,7 +139,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if gap := pending.ProtocolProfile.Uncovered(cmd.CallerCapabilities); !gap.IsEmpty() {
 		return StartResult{}, &execution.ProfileNotCovered{RunID: cmd.RunID, Gap: gap}
 	}
-	resolution, err := resolveResumeResponses(pending, cmd.Responses)
+	answers, err := resolveResumeResponses(pending, cmd.Responses)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -192,7 +192,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 			// The RUN's frozen kinds, not this request's: the caller has already been
 			// checked to cover them, and taking the declaration here would let each
 			// resume change what the next segment may park on.
-			return c.turns.Resume(activateCtx, turn, resolution, pending.ProtocolProfile.InterruptKinds)
+			return c.turns.Resume(activateCtx, turn, answers, pending.ProtocolProfile.InterruptKinds)
 		},
 	})
 	if err != nil {
@@ -200,7 +200,13 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	}
 	// The continuation is durably accepted, which consumed the whole open set: the
 	// run is running again and nothing in this session is waiting on a person.
-	c.publishWaitingMoved(pending.SessionID, cmd.RunID)
+	for _, continuation := range pending.Continuations {
+		if continuation.RunID == pending.RootRunID {
+			continue
+		}
+		c.publishRunMoved(pending.SessionID, continuation.RunID)
+	}
+	c.publishWaitingMoved(pending.SessionID, pending.RootRunID)
 	result := StartResult{RunID: cmd.RunID, SegmentID: segmentID, SessionID: pending.SessionID, Events: events}
 	if len(cmd.Input) > 0 {
 		// Named only when there is an item to name: the id is derived from the segment

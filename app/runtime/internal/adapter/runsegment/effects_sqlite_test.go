@@ -2,6 +2,7 @@ package runsegment
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -68,7 +70,11 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 		RunState: state,
 		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
-	resume := execution.ResumeDraft{RunID: "run_stale", SessionID: "ses_1", SegmentID: "seg_next"}
+	resume := execution.TreeResumeDraft{
+		RootRunID: "run_stale",
+		SessionID: "ses_1",
+		Runs:      []execution.RunResumeDraft{{RunID: "run_stale", SegmentID: "seg_next"}},
+	}
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{Resume: &resume, Events: []runs.EventCommit{{RunID: "run_stale", SessionID: "ses_1"}}})
 	if err == nil {
 		t.Fatal("CommitOpening must reject an interrupt that does not own the active run")
@@ -107,7 +113,11 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 		RunState: state,
 		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
-	resume := execution.ResumeDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_next"}
+	resume := execution.TreeResumeDraft{
+		RootRunID: "run_1",
+		SessionID: "ses_1",
+		Runs:      []execution.RunResumeDraft{{RunID: "run_1", SegmentID: "seg_next"}},
+	}
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{
 		Resume: &resume,
 		Events: []runs.EventCommit{{
@@ -133,6 +143,179 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	var stateName string
 	if err := db.QueryRowContext(ctx, `SELECT state FROM runs WHERE run_id = ?`, "run_1").Scan(&stateName); err != nil || stateName != "running" {
 		t.Fatalf("run state=%q err=%v, want running", stateName, err)
+	}
+}
+
+func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		suspendRoot bool
+		wantError   bool
+	}{
+		{name: "complete tree", suspendRoot: true},
+		{name: "rollback after descendant resumed", wantError: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			db, err := sqlite.Open(":memory:")
+			if err != nil {
+				t.Fatalf("open: %v", err)
+			}
+			t.Cleanup(func() { _ = db.Close() })
+			ctx := t.Context()
+			state := sqlite.NewRunStore(db)
+			ints := sqlite.NewInterruptStore(db)
+			createdAt := time.Now().UTC()
+			if err := state.Admit(ctx, execution.RunDraft{
+				RunID: "run_root", SessionID: "session_1", SegmentID: "segment_root", CreatedAt: createdAt,
+			}); err != nil {
+				t.Fatalf("admit root: %v", err)
+			}
+			lineage := execution.RunLineage{
+				SpawnedByItemID: "item_spawn_child",
+				ParentRunID:     "run_root",
+				RootRunID:       "run_root",
+			}
+			if err := state.Admit(ctx, execution.RunDraft{
+				RunID: "run_child", SessionID: "session_1", SegmentID: "segment_child",
+				SpawnedByItemID: lineage.SpawnedByItemID,
+				ParentRunID:     lineage.ParentRunID,
+				RootRunID:       lineage.RootRunID,
+				CreatedAt:       createdAt,
+			}); err != nil {
+				t.Fatalf("admit child: %v", err)
+			}
+			childRun := interruptedTreeRun(
+				"run_child",
+				"session_1",
+				lineage,
+				createdAt,
+				[]transcript.Interrupt{treeQuestion("item_child", "run_child")},
+			)
+			if err := state.Suspend(ctx, childRun); err != nil {
+				t.Fatalf("suspend child: %v", err)
+			}
+			if test.suspendRoot {
+				rootRun := interruptedTreeRun(
+					"run_root",
+					"session_1",
+					execution.RunLineage{},
+					createdAt,
+					nil,
+				)
+				if err := state.Suspend(ctx, rootRun); err != nil {
+					t.Fatalf("suspend root: %v", err)
+				}
+			}
+			pending := interrupts.Pending{
+				RootRunID:  "run_root",
+				SessionID:  "session_1",
+				TurnID:     "turn_1",
+				Interrupts: childRun.Interrupts,
+				Suspensions: []interrupts.SuspensionBinding{{
+					InterruptItemID: "item_child",
+					ProcessID:       "process_child",
+					SuspensionID:    "suspension_child",
+				}},
+				Continuations: []interrupts.Continuation{
+					{
+						RunID:           "run_child",
+						ProcessID:       "process_child",
+						ParentProcessID: "process_root",
+						SpawnCallID:     "spawn_child",
+						Lineage:         lineage,
+						RunCreatedAt:    createdAt,
+					},
+					{
+						RunID:        "run_root",
+						ProcessID:    "process_root",
+						RunCreatedAt: createdAt,
+					},
+				},
+				CreatedAt: createdAt.Add(time.Second),
+			}
+			if err := ints.Put(ctx, pending); err != nil {
+				t.Fatalf("put pending: %v", err)
+			}
+			effects := sqliteEffects(sqliteOpeningStores{interrupts: ints}, Config{
+				RunState: state,
+				Tx: func(ctx context.Context, fn func(context.Context) error) error {
+					return sqlite.RunInTx(ctx, db, fn)
+				},
+			})
+			resume := execution.TreeResumeDraft{
+				RootRunID: "run_root",
+				SessionID: "session_1",
+				Runs: []execution.RunResumeDraft{
+					{RunID: "run_child", SegmentID: "segment_child_resumed"},
+					{RunID: "run_root", SegmentID: "segment_root_resumed"},
+				},
+			}
+			err = effects.CommitOpening(ctx, runs.OpeningCommit{Resume: &resume})
+			if test.wantError {
+				if err == nil {
+					t.Fatal("CommitOpening succeeded with a root Run that was not interrupted")
+				}
+				assertStoredRunState(t, db, "run_child", "interrupted")
+				assertStoredRunState(t, db, "run_root", "running")
+				if _, found, getErr := ints.Get(ctx, "run_root"); getErr != nil || !found {
+					t.Fatalf("pending after rollback found=%v err=%v, want open", found, getErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("CommitOpening: %v", err)
+			}
+			assertStoredRunState(t, db, "run_child", "running")
+			assertStoredRunState(t, db, "run_root", "running")
+			if _, found, getErr := ints.Get(ctx, "run_root"); getErr != nil || found {
+				t.Fatalf("pending after commit found=%v err=%v, want consumed", found, getErr)
+			}
+		})
+	}
+}
+
+func treeQuestion(itemID, runID string) transcript.Interrupt {
+	return transcript.Interrupt{
+		ItemID: itemID,
+		RunID:  runID,
+		Kind:   execution.QuestionInterrupt,
+		Question: &transcript.Question{
+			Prompt: "Continue?",
+			Fields: []transcript.QuestionField{{
+				Name: "answer", Kind: transcript.QuestionText, Required: true,
+			}},
+		},
+	}
+}
+
+func interruptedTreeRun(
+	runID string,
+	sessionID string,
+	lineage execution.RunLineage,
+	createdAt time.Time,
+	open []transcript.Interrupt,
+) transcript.Run {
+	return transcript.Run{
+		ID:              runID,
+		SessionID:       sessionID,
+		SpawnedByItemID: lineage.SpawnedByItemID,
+		ParentRunID:     lineage.ParentRunID,
+		RootRunID:       lineage.RootRunID,
+		State:           execution.Interrupted,
+		Interrupts:      open,
+		CreatedAt:       createdAt,
+		MessageMark:     transcript.UnknownMessageMark,
+	}
+}
+
+func assertStoredRunState(t testing.TB, db *sql.DB, runID, want string) {
+	t.Helper()
+	var got string
+	if err := db.QueryRowContext(t.Context(), `SELECT state FROM runs WHERE run_id = ?`, runID).Scan(&got); err != nil {
+		t.Fatalf("read Run %q state: %v", runID, err)
+	}
+	if got != want {
+		t.Fatalf("Run %q state = %q, want %q", runID, got, want)
 	}
 }
 

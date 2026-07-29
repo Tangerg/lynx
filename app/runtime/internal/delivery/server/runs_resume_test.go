@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
@@ -20,7 +20,7 @@ import (
 // the failing continuation Start is what's under test.
 type resumeOKTurns struct{ turnRuntime }
 
-func (resumeOKTurns) Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []execution.InterruptKind) error {
+func (resumeOKTurns) Resume(context.Context, turn.TurnHandle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error {
 	return nil
 }
 func (resumeOKTurns) Cancel(context.Context, turn.TurnHandle) error { return nil }

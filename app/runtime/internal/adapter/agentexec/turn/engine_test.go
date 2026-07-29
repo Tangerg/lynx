@@ -14,7 +14,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/chatclient"
@@ -350,7 +349,12 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
-	if err := dispatcher.Resume(ctx, handle, interrupts.Resolution{Approved: true}, nil); err != nil {
+	if err := dispatcher.Resume(
+		ctx,
+		handle,
+		nil,
+		nil,
+	); err != nil {
 		t.Fatalf("Resume: %v", err)
 	}
 	var sawDelta, sawEnd bool
@@ -392,7 +396,12 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
-	if err := dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, nil); err == nil {
+	if err := dispatcher.Resume(
+		context.Background(),
+		handle,
+		nil,
+		nil,
+	); err == nil {
 		t.Fatal("Resume returned nil error despite the restored process failure")
 	}
 	var sawEnd bool
@@ -425,7 +434,7 @@ func TestRehydrateCanceledResumeAdmissionRemainsParked(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := dispatcher.Resume(t.Context(), handle, interrupts.Resolution{Approved: true}, nil); !errors.Is(err, context.Canceled) {
+	if err := dispatcher.Resume(t.Context(), handle, nil, nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("first Resume = %v, want context cancellation", err)
 	}
 	process := stub.lastProcess.Load()
@@ -433,7 +442,7 @@ func TestRehydrateCanceledResumeAdmissionRemainsParked(t *testing.T) {
 		t.Fatal("restored process was not retained")
 	}
 	process.resumeErr = nil
-	if err := dispatcher.Resume(t.Context(), handle, interrupts.Resolution{Approved: true}, nil); err != nil {
+	if err := dispatcher.Resume(t.Context(), handle, nil, nil); err != nil {
 		t.Fatalf("retry Resume: %v", err)
 	}
 	for range events {

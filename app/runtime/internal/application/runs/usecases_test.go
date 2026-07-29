@@ -136,7 +136,7 @@ func (f *fakeTurnControl) Prepare(context.Context, execution.TurnRef) (execution
 	return f.prepared, f.prepareErr
 }
 
-func (f *fakeTurnControl) Resume(context.Context, execution.TurnRef, interrupts.Resolution, []execution.InterruptKind) error {
+func (f *fakeTurnControl) Resume(context.Context, execution.TurnRef, []interrupts.SuspensionAnswer, []execution.InterruptKind) error {
 	if f.resumeCheck != nil {
 		f.resumeCheck()
 	}
@@ -366,7 +366,7 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	if !turns.resumed || !activatedAfterOpening {
 		t.Fatalf("resumed=%v activatedAfterOpening=%v", turns.resumed, activatedAfterOpening)
 	}
-	if opening := effects.opening(); opening.Resume == nil || opening.Resume.RunID != "run_1" {
+	if opening := effects.opening(); opening.Resume == nil || opening.Resume.RootRunID != "run_1" {
 		t.Fatalf("opening = %+v, want resume run_1", opening)
 	}
 }

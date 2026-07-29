@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -33,6 +34,9 @@ type continuationRow struct {
 	ProcessID       string           `json:"processId"`
 	ParentProcessID string           `json:"parentProcessId,omitempty"`
 	SpawnCallID     string           `json:"spawnCallId,omitempty"`
+	SpawnedByItemID string           `json:"spawnedByItemId,omitempty"`
+	ParentRunID     string           `json:"parentRunId,omitempty"`
+	RootRunID       string           `json:"rootRunId,omitempty"`
 	Provider        string           `json:"provider,omitempty"`
 	Model           string           `json:"model,omitempty"`
 	DrainedTools    []drainedToolRow `json:"drainedTools,omitempty"`
@@ -302,6 +306,9 @@ func continuationRows(values []interrupts.Continuation) []continuationRow {
 			ProcessID:       value.ProcessID,
 			ParentProcessID: value.ParentProcessID,
 			SpawnCallID:     value.SpawnCallID,
+			SpawnedByItemID: value.Lineage.SpawnedByItemID,
+			ParentRunID:     value.Lineage.ParentRunID,
+			RootRunID:       value.Lineage.RootRunID,
 			Provider:        value.ModelSelection.Provider(),
 			Model:           value.ModelSelection.Model(),
 			DrainedTools:    drainedToolRows(value.DrainedTools),
@@ -328,11 +335,16 @@ func continuationsFromRows(rows []continuationRow) ([]interrupts.Continuation, e
 			ProcessID:       row.ProcessID,
 			ParentProcessID: row.ParentProcessID,
 			SpawnCallID:     row.SpawnCallID,
-			ModelSelection:  selection,
-			DrainedTools:    drainedToolsFromRows(row.DrainedTools),
-			RunCreatedAt:    time.Unix(0, row.RunCreatedAt).UTC(),
-			Metrics:         metrics,
-			Limits:          limits,
+			Lineage: execution.RunLineage{
+				SpawnedByItemID: row.SpawnedByItemID,
+				ParentRunID:     row.ParentRunID,
+				RootRunID:       row.RootRunID,
+			},
+			ModelSelection: selection,
+			DrainedTools:   drainedToolsFromRows(row.DrainedTools),
+			RunCreatedAt:   time.Unix(0, row.RunCreatedAt).UTC(),
+			Metrics:        metrics,
+			Limits:         limits,
 		}
 	}
 	return values, nil

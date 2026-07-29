@@ -33,8 +33,7 @@ func (c *Coordinator) pump(
 	spec segmentSpec,
 	inner iter.Seq[ExecutorEvent],
 	live *handle,
-	reducer *reducer,
-	segmentStartedAt time.Time,
+	routes *executorRoutes,
 ) {
 	hub := live.hub
 	publisher := treePublisher{coordinator: c, rootSpec: spec, live: live}
@@ -42,8 +41,6 @@ func (c *Coordinator) pump(
 	rootParked := false
 	abortTurn := false
 	commitCtx := ownerCtx
-	routes := newExecutorRoutes(spec, reducer, segmentStartedAt)
-
 	defer close(live.done)
 	fail := func(err error) {
 		abortTurn = true
@@ -481,6 +478,7 @@ func (p treePublisher) publishTreeBarrier(
 			ProcessID:       route.source.ProcessID,
 			ParentProcessID: route.source.ParentID,
 			SpawnCallID:     route.source.SpawnCallID,
+			Lineage:         route.lineage,
 			ModelSelection:  route.modelSelection,
 			DrainedTools:    slices.Clone(route.reducer.drained),
 			RunCreatedAt:    run.CreatedAt,

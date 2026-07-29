@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -37,22 +38,152 @@ type executorRoutes struct {
 	admissionOrder []*executorRoute
 }
 
-func newExecutorRoutes(spec segmentSpec, rootReducer *reducer, segmentStartedAt time.Time) *executorRoutes {
+func (c *Coordinator) openingRoutes(
+	spec segmentSpec,
+	cancelReason func() string,
+) (*executorRoutes, error) {
+	if spec.Pending != nil {
+		return c.resumedExecutorRoutes(spec, cancelReason)
+	}
+	rootReducer := newReducer(reducerConfig{
+		RunID: spec.RunID, SegmentID: spec.SegmentID, SessionID: spec.SessionID,
+		Cwd: spec.Cwd, TurnID: spec.TurnID, ModelSelection: spec.ModelSelection,
+		GoalLeaseID: spec.GoalLeaseID,
+		CreatedAt:   spec.CreatedAt, UserInput: spec.Input,
+		Metrics: spec.priorMetrics(), Limits: spec.effectiveLimits(),
+		ProtocolProfile: spec.effectiveProfile(),
+		Now:             c.now, CancelReason: cancelReason,
+	})
 	root := &executorRoute{
-		runID:            spec.RunID,
-		segmentID:        spec.SegmentID,
-		rootRunID:        spec.RunID,
-		modelSelection:   spec.ModelSelection,
-		limits:           spec.effectiveLimits(),
-		protocolProfile:  spec.effectiveProfile(),
-		reducer:          rootReducer,
-		segmentStartedAt: segmentStartedAt,
+		runID:           spec.RunID,
+		segmentID:       spec.SegmentID,
+		rootRunID:       spec.RunID,
+		modelSelection:  spec.ModelSelection,
+		limits:          spec.effectiveLimits(),
+		protocolProfile: spec.effectiveProfile(),
+		reducer:         rootReducer,
 	}
 	return &executorRoutes{
 		root:           root,
 		byProcess:      make(map[string]*executorRoute),
 		admissionOrder: []*executorRoute{root},
+	}, nil
+}
+
+func (c *Coordinator) resumedExecutorRoutes(
+	spec segmentSpec,
+	cancelReason func() string,
+) (*executorRoutes, error) {
+	pending := spec.Pending
+	if pending == nil {
+		return nil, errors.New("runs: resumed routes require a pending barrier")
 	}
+	if err := pending.Validate(); err != nil {
+		return nil, fmt.Errorf("runs: build resumed routes: %w", err)
+	}
+	if pending.RootRunID != spec.RunID || pending.SessionID != spec.SessionID {
+		return nil, fmt.Errorf(
+			"runs: resumed route scope %q/%q does not match pending %q/%q",
+			spec.SessionID,
+			spec.RunID,
+			pending.SessionID,
+			pending.RootRunID,
+		)
+	}
+	if spec.SegmentID == "" {
+		return nil, errors.New("runs: resumed root segment id is required")
+	}
+	routes := &executorRoutes{
+		rootBound: true,
+		byProcess: make(map[string]*executorRoute, len(pending.Continuations)),
+	}
+	byRunID := make(map[string]*executorRoute, len(pending.Continuations))
+	segmentIDs := map[string]struct{}{spec.SegmentID: {}}
+	for _, continuation := range pending.Continuations {
+		segmentID := spec.SegmentID
+		if continuation.RunID != pending.RootRunID {
+			if c.newSegmentID == nil {
+				return nil, errors.New("runs: resumed child routes require a segment identity generator")
+			}
+			segmentID = c.newSegmentID()
+			if segmentID == "" {
+				return nil, fmt.Errorf(
+					"runs: resumed child Run %q generated an empty segment id",
+					continuation.RunID,
+				)
+			}
+			if _, duplicate := segmentIDs[segmentID]; duplicate {
+				return nil, fmt.Errorf("runs: resumed tree generated duplicate segment %q", segmentID)
+			}
+			segmentIDs[segmentID] = struct{}{}
+		}
+		source := ExecutorSource{
+			ProcessID:   continuation.ProcessID,
+			ParentID:    continuation.ParentProcessID,
+			SpawnCallID: continuation.SpawnCallID,
+		}
+		if err := source.Validate(); err != nil {
+			return nil, fmt.Errorf("runs: resumed Run %q source: %w", continuation.RunID, err)
+		}
+		route := &executorRoute{
+			source:           source,
+			runID:            continuation.RunID,
+			segmentID:        segmentID,
+			rootRunID:        pending.RootRunID,
+			lineage:          continuation.Lineage,
+			modelSelection:   continuation.ModelSelection,
+			limits:           continuation.Limits,
+			protocolProfile:  pending.ProtocolProfile,
+			segmentStartedAt: time.Time{},
+		}
+		userInput := []transcript.ContentBlock(nil)
+		goalLeaseID := ""
+		if continuation.RunID == pending.RootRunID {
+			userInput = spec.Input
+			goalLeaseID = spec.GoalLeaseID
+		}
+		route.reducer = newReducer(reducerConfig{
+			RunID: route.runID, SegmentID: route.segmentID, SessionID: spec.SessionID,
+			Lineage: route.lineage, Cwd: spec.Cwd, TurnID: spec.TurnID,
+			GoalLeaseID: goalLeaseID, ModelSelection: route.modelSelection,
+			CreatedAt: continuation.RunCreatedAt, UserInput: userInput,
+			Metrics: continuation.Metrics, Limits: continuation.Limits,
+			ProtocolProfile: pending.ProtocolProfile, Pending: pending,
+			Now: c.now, CancelReason: cancelReason,
+		})
+		routes.byProcess[source.ProcessID] = route
+		byRunID[route.runID] = route
+		if route.runID == pending.RootRunID {
+			routes.root = route
+		}
+	}
+	if routes.root == nil {
+		return nil, errors.New("runs: resumed tree has no root route")
+	}
+	children := make(map[string][]*executorRoute, len(byRunID))
+	for _, route := range byRunID {
+		if route == routes.root {
+			continue
+		}
+		children[route.lineage.ParentRunID] = append(children[route.lineage.ParentRunID], route)
+	}
+	for parentRunID := range children {
+		slices.SortFunc(children[parentRunID], func(left, right *executorRoute) int {
+			return strings.Compare(left.runID, right.runID)
+		})
+	}
+	var appendPreorder func(*executorRoute)
+	appendPreorder = func(route *executorRoute) {
+		routes.admissionOrder = append(routes.admissionOrder, route)
+		for _, child := range children[route.runID] {
+			appendPreorder(child)
+		}
+	}
+	appendPreorder(routes.root)
+	if len(routes.admissionOrder) != len(pending.Continuations) {
+		return nil, errors.New("runs: resumed route tree is disconnected")
+	}
+	return routes, nil
 }
 
 // unfinishedInPostorder returns the active tree in contract publication order:
