@@ -5,55 +5,70 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"iter"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-// TestSubscribeRun_StreamsLiveRun verifies the streamable-HTTP subscribe
-// semantics: an actively-streaming run hands back a fresh subscription that
-// replays its backlog then tails live; anything else is run_not_found. (Backlog
-// replay / Last-Event-Id windowing is covered by the Journal's own tests.)
-func TestSubscribeRun_StreamsLiveRun(t *testing.T) {
+// TestSubscribeRun_AttachesToTheAddressedSegment verifies the vNext subscribe
+// semantics: the request names a segment, the ack names the position the tail
+// starts after, and a request that addresses something else is refused by name.
+//
+// A cursorless subscribe is deliberately NOT a replay: the opening events are
+// already published, so this stream carries only what comes next, and the client
+// recovers the rest from items.list.
+func TestSubscribeRun_AttachesToTheAddressedSegment(t *testing.T) {
 	s := newBlockingServer(t)
-	runID := startLiveRun(t, s, t.TempDir())
+	runID, segmentID := startLiveRun(t, s, t.TempDir())
 
-	out, events, err := s.SubscribeRun(context.Background(), runID)
+	out, events, err := s.SubscribeRun(context.Background(), protocol.SubscribeRunRequest{
+		RunID: runID, SegmentID: segmentID,
+	})
 	if err != nil {
 		t.Fatalf("subscribe live: %v", err)
 	}
-	if out == nil || out.RunID != runID || events == nil {
+	if out == nil || out.RunID != runID || out.SegmentID != segmentID || events == nil {
 		t.Fatalf("subscribe live: out=%+v events=%v", out, events)
 	}
-	// The live run's opening segment.started is durable, so a fresh subscription
-	// replays it. Pull the first event on a goroutine so the assertion stays
-	// timeout-bounded (a blocked source next cannot be interrupted inline).
-	next, stop := iter.Pull(events)
-	defer stop()
-	first := make(chan protocol.RunEvent, 1)
-	go func() {
-		if ev, ok := next(); ok {
-			first <- ev
-		}
-	}()
-	select {
-	case ev := <-first:
-		if ev.RunID != runID {
-			t.Fatalf("first event runId = %q, want %s", ev.RunID, runID)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("subscribe must replay the live run's opening event")
+	// The opening events are already on the stream, so the ack must name a head —
+	// and it must be framed like every other event id the client sees.
+	if !strings.HasPrefix(out.HeadEventID, protocol.IDPrefixEvent) {
+		t.Fatalf("headEventId = %q, want an evt_-framed position", out.HeadEventID)
 	}
 
-	if _, _, err := s.SubscribeRun(context.Background(), "ghost"); !errors.Is(err, protocol.ErrRunNotFound) {
+	// A segment the run is not executing: the client is holding a replaced
+	// execution, and attaching it to the live one would corrupt its fold silently.
+	if _, _, err := s.SubscribeRun(context.Background(), protocol.SubscribeRunRequest{
+		RunID: runID, SegmentID: "seg_replaced",
+	}); !errors.Is(err, protocol.ErrStaleSegment) {
+		t.Fatalf("subscribe stale segment: err = %v, want ErrStaleSegment", err)
+	}
+	if _, _, err := s.SubscribeRun(context.Background(), protocol.SubscribeRunRequest{
+		RunID: "ghost", SegmentID: segmentID,
+	}); !errors.Is(err, protocol.ErrRunNotFound) {
 		t.Fatalf("subscribe unknown: err = %v, want ErrRunNotFound", err)
 	}
-	if _, _, err := s.SubscribeRun(context.Background(), ""); !errors.Is(err, protocol.ErrRunNotFound) {
-		t.Fatalf("subscribe empty: err = %v, want ErrRunNotFound", err)
+}
+
+// A steer addresses the same live segment a subscribe does, and refuses the same
+// way. Before this, every one of these was run_not_found — which told the client
+// to go looking for a run that was right there.
+func TestSteerRun_RefusesASegmentTheRunIsNotExecuting(t *testing.T) {
+	s := newBlockingServer(t)
+	runID, _ := startLiveRun(t, s, t.TempDir())
+
+	if err := s.SteerRun(context.Background(), protocol.SteerRunRequest{
+		RunID: runID, ExpectedSegmentID: "seg_replaced", Message: "wait",
+	}); !errors.Is(err, protocol.ErrStaleSegment) {
+		t.Fatalf("steer stale segment: err = %v, want ErrStaleSegment", err)
+	}
+	if err := s.SteerRun(context.Background(), protocol.SteerRunRequest{
+		RunID: "ghost", ExpectedSegmentID: "seg_1", Message: "wait",
+	}); !errors.Is(err, protocol.ErrRunNotFound) {
+		t.Fatalf("steer unknown run: err = %v, want ErrRunNotFound", err)
 	}
 }
 

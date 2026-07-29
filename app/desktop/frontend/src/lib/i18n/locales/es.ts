@@ -896,6 +896,9 @@ export const es: Record<string, string> = {
     "Esta sesión ya tiene una ejecución en curso: dirígela, respóndela o cancélala primero.",
 
   "rpcError.run_not_root": "Esa ejecución pertenece a una mayor: consulta la ejecución raíz.",
+  "rpcError.run_waiting": "Esa ejecución espera una respuesta: respóndele primero.",
+  "rpcError.run_finished": "Esa ejecución ya ha terminado.",
+  "rpcError.stale_segment": "Esa ejecución ha avanzado: vuelve a cargarla para ver su estado.",
 
   "rpcError.session_busy": "La sesión está ocupada — espera a que termine la ejecución actual.",
   "rpcError.checkpoint_unavailable":

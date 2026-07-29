@@ -1,7 +1,6 @@
 package dispatch
 
 import (
-	"context"
 	"iter"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -78,14 +77,4 @@ func replyDone(msg *transport.Request, err error) HandleResult {
 		return responseError(msg.ID, errorToRPC(err))
 	}
 	return responseResult(msg.ID, struct{}{})
-}
-
-// replyStream maps a streaming method's (result, events, error) tail onto
-// a HandleResult carrying the synchronous reply + its event sequence (the
-// transport streams it as the call's own response).
-func replyStream[Out any](ctx context.Context, msg *transport.Request, out Out, events iter.Seq[protocol.RunEvent], err error) HandleResult {
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return streamingResult(msg.ID, out, adaptStream(events, runEventToFrameFor(ctx)))
 }

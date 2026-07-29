@@ -112,6 +112,7 @@ import type {
   StateSnapshot,
   SteerRunRequest,
   SubscribeRunRequest,
+  SubscribeRunResponse,
   TestProviderRequest,
   UpdateMemoryRequest,
   UpdateScheduleRequest,
@@ -410,7 +411,7 @@ export interface WireShapes {
   "sessions.import": { params: ImportSessionRequest; result: ImportSessionResponse };
   "runs.start": { params: StartRunRequest; result: StartRunResponse };
   "runs.resume": { params: ResumeRunRequest; result: StartRunResponse };
-  "runs.subscribe": { params: SubscribeRunRequest; result: StartRunResponse };
+  "runs.subscribe": { params: SubscribeRunRequest; result: SubscribeRunResponse };
   "runs.cancel": { params: CancelRunRequest };
   "runs.steer": { params: SteerRunRequest };
   "runs.get": { params: GetRunRequest; result: RunRef };

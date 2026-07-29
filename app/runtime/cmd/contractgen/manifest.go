@@ -180,29 +180,10 @@ func methods(registry *dispatch.Registry) []methodEntry {
 }
 
 func errors(registry *dispatch.Registry) errorRegistry {
-	codes := map[string]int{
-		protocol.ErrMethodNotFound.Error():         protocol.CodeMethodNotFound,
-		protocol.ErrInvalidParams.Error():          protocol.CodeInvalidParams,
-		protocol.ErrProviderError.Error():          protocol.CodeProviderError,
-		protocol.ErrSessionNotFound.Error():        protocol.CodeSessionNotFound,
-		protocol.ErrRunNotFound.Error():            protocol.CodeRunNotFound,
-		protocol.ErrItemNotFound.Error():           protocol.CodeItemNotFound,
-		protocol.ErrCwdUnavailable.Error():         protocol.CodeCwdUnavailable,
-		protocol.ErrCapabilityNotNeg.Error():       protocol.CodeCapabilityNotNeg,
-		protocol.ErrRunAlreadyDone.Error():         protocol.CodeRunAlreadyDone,
-		protocol.ErrCheckpointUnavailable.Error():  protocol.CodeCheckpointUnavail,
-		protocol.ErrUnsupportedMime.Error():        protocol.CodeUnsupportedMime,
-		protocol.ErrPathOutsideRoot.Error():        protocol.CodePathOutsideRoot,
-		protocol.ErrInterruptNotOpen.Error():       protocol.CodeInterruptNotOpen,
-		protocol.ErrRunNotRoot.Error():             protocol.CodeRunNotRoot,
-		protocol.ErrSessionHasActiveRun.Error():    protocol.CodeSessionHasActiveRun,
-		protocol.ErrInvalidProtocolVersion.Error(): protocol.CodeInvalidProtocolVersion,
-		protocol.ErrVcsUnavailable.Error():         protocol.CodeVcsUnavailable,
-		protocol.ErrSessionBusy.Error():            protocol.CodeSessionBusy,
-		protocol.ErrRevisionConflict.Error():       protocol.CodeRevisionConflict,
-		protocol.ErrIdempotencyConflict.Error():    protocol.CodeIdempotencyConflict,
-		protocol.ErrIdempotencyInProgress.Error():  protocol.CodeIdempotencyInProgress,
-	}
+	// The codes come from the dispatcher's own wire-behavior table: the artifacts
+	// must publish the number the runtime actually sends, and a table here was a
+	// copy of it.
+	codes := dispatch.ProblemCodes()
 	return errorRegistry{
 		Types: errorTypes(registry, codes),
 		// The run/tool channels carry no numeric code — only a symbolic type

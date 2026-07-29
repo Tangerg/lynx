@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"io"
-	"iter"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
@@ -95,7 +94,11 @@ type runUseCases interface {
 	Resume(ctx context.Context, cmd runs.ResumeCommand) (runs.StartResult, error)
 	Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error)
 	Steer(ctx context.Context, cmd runs.SteerCommand) error
-	SubscribeLive(ctx context.Context, runID, fromCursor string, caller execution.RunProtocolProfile) (runs.Record, iter.Seq[runs.Event], error)
+	Subscribe(ctx context.Context, req runs.SubscribeRequest) (runs.Subscription, error)
+	// ReplayRetention is what discovery publishes. Reading it from the enforcer is
+	// the point: a limit the client is told and a limit the runtime evicts by must
+	// be one number, or discovery is describing a runtime that does not exist.
+	ReplayRetention() runs.Retention
 }
 
 type queryUseCases interface {

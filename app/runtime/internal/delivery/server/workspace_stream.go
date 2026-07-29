@@ -18,7 +18,7 @@ import (
 // start because the Server is shutting down (its task group is closed).
 var errServerClosed = errors.New("server: closed")
 
-// workspaceHub fans workspace events out to the live workspace.subscribe
+// workspaceHub fans runtime change signals out to the live runtime.subscribe
 // streams (AUX_API §3). It is the non-run, ephemeral counterpart to the
 // per-run hubs: lossy (a slow subscriber drops the event rather than
 // back-pressuring the publisher — workspace events are "changed → re-fetch",
@@ -281,11 +281,17 @@ func watchCwds(specs []protocol.WatchSpec, topics map[protocol.RuntimeTopic]bool
 	return cwds, watchIDs, nil
 }
 
+// mapWorkspaceSubscribeError refuses a watch this build cannot serve by NAMING the
+// missing capability. It used to name the method instead, which told the client
+// where it was standing rather than what it lacked — and after the method was
+// renamed, it named a method that no longer exists.
 func mapWorkspaceSubscribeError(err error) error {
 	if errors.Is(err, workspaceapp.ErrFileWatchUnavailable) {
-		return capabilityNotNegotiated("workspace.subscribe")
+		return protocol.NewCapabilityGap(protocol.CapabilityRequirement{
+			Type: protocol.RequirementFeature, Name: protocol.FeatureFileWatch,
+		})
 	}
-	return wireWorkspaceError(fmt.Errorf("workspace.subscribe: start git watcher: %w", err))
+	return wireWorkspaceError(fmt.Errorf("start git watcher: %w", err))
 }
 
 // PublishRuntimeEvent fans one workspace event out to subscribers. The

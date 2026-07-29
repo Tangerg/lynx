@@ -54,7 +54,7 @@ func (s *flakyCompletionStore) Complete(ctx context.Context, record idempotency.
 	return s.Store.Complete(ctx, record)
 }
 
-func (r *replayRuntime) SubscribeRun(context.Context, string) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
+func (r *replayRuntime) SubscribeRun(context.Context, protocol.SubscribeRunRequest) (*protocol.SubscribeRunResponse, iter.Seq[protocol.RunEvent], error) {
 	return nil, nil, r.subscribeErr
 }
 

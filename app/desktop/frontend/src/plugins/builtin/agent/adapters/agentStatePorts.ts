@@ -15,6 +15,7 @@ import {
   useAgentPlan,
   useAgentRunContextTokens,
   useAgentRunId,
+  useAgentSegmentId,
   useAgentRunning,
   useAgentRunUsage,
   useAgentSharedState,
@@ -95,6 +96,7 @@ export function installAgentStatePorts(): () => void {
   const disposeViewState = configureAgentViewStatePort({
     useRunning: useAgentRunning,
     useRunId: useAgentRunId,
+    useSegmentId: useAgentSegmentId,
     usePlan: useAgentPlan,
     useToolCalls: useAgentToolCalls,
     useTimeline: useAgentTimeline,

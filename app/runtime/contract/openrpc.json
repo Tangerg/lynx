@@ -598,18 +598,49 @@
           "schema": {
             "type": "string"
           }
+        },
+        {
+          "name": "segmentId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "schema.json#/$defs/StartRunResponse"
+          "$ref": "schema.json#/$defs/SubscribeRunResponse"
         }
       },
       "errors": [
         {
           "code": -32003,
           "message": "run_not_found"
+        },
+        {
+          "code": -32022,
+          "message": "run_not_root"
+        },
+        {
+          "code": -32024,
+          "message": "run_waiting"
+        },
+        {
+          "code": -32025,
+          "message": "run_finished"
+        },
+        {
+          "code": -32026,
+          "message": "stale_segment"
+        },
+        {
+          "code": -32027,
+          "message": "replay_cursor_invalid"
+        },
+        {
+          "code": -32028,
+          "message": "replay_unavailable"
         }
       ],
       "x-lyra-kind": "stream",
@@ -669,6 +700,13 @@
           }
         },
         {
+          "name": "expectedSegmentId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
           "name": "message",
           "required": true,
           "schema": {
@@ -680,6 +718,22 @@
         {
           "code": -32003,
           "message": "run_not_found"
+        },
+        {
+          "code": -32022,
+          "message": "run_not_root"
+        },
+        {
+          "code": -32024,
+          "message": "run_waiting"
+        },
+        {
+          "code": -32025,
+          "message": "run_finished"
+        },
+        {
+          "code": -32026,
+          "message": "stale_segment"
         }
       ],
       "x-lyra-kind": "unary",

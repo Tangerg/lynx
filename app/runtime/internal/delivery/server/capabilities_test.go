@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
@@ -13,7 +14,7 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	caps := capabilitiesFor(featureAvailability{
 		memory: true, git: true, fileWatch: true, todos: true,
 		goals: true, agentMemory: true, schedules: true, codebase: true,
-	})
+	}, replayLimitsFrom(runs.NewCoordinator(runs.Dependencies{})))
 	want := []protocol.StreamEventType{
 		protocol.StreamSegmentStarted,
 		protocol.StreamSegmentProgress,
@@ -37,6 +38,19 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	if caps.Limits.MaxConcurrentRuns != 0 {
 		t.Fatalf("maxConcurrentRuns = %d, want omitted without an enforced process-wide cap", caps.Limits.MaxConcurrentRuns)
 	}
+	// The replay window is advertised because it is enforced, and the numbers are the
+	// enforcer's own: a client told one bound while the runtime evicts by another
+	// would choose replay exactly when replay cannot serve it.
+	replay := caps.Limits.RunReplay
+	if replay == nil {
+		t.Fatal("limits.runReplay is absent while the runtime keeps a window")
+	}
+	if replay.Scope != protocol.ReplayScopeProcessRootSegment {
+		t.Fatalf("replay scope = %q, want %q", replay.Scope, protocol.ReplayScopeProcessRootSegment)
+	}
+	if replay.MaxEvents != runs.DefaultRetention.MaxEvents || replay.MaxBytes != runs.DefaultRetention.MaxBytes {
+		t.Fatalf("replay limits = %+v, want the enforced %+v", replay, runs.DefaultRetention)
+	}
 }
 
 // TestCapabilitiesAdvertiseThePublishedVocabulary pins discovery to
@@ -50,7 +64,7 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 func TestCapabilitiesAdvertiseThePublishedVocabulary(t *testing.T) {
 	t.Parallel()
 
-	caps := capabilitiesFor(featureAvailability{})
+	caps := capabilitiesFor(featureAvailability{}, replayLimitsFrom(runs.NewCoordinator(runs.Dependencies{})))
 	for _, feature := range protocol.FeatureKeys() {
 		if _, advertised := caps.Features[feature]; !advertised {
 			t.Errorf("protocol publishes %q and discovery advertises no such key", feature)

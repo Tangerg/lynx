@@ -277,8 +277,8 @@ func TestCoordinatorCommitsCanonicalOpeningAndTerminal(t *testing.T) {
 		t.Fatal("terminal run and exact run-state transition were not committed")
 	}
 	for index := 1; index < len(events); index++ {
-		if events[index-1].Seq >= events[index].Seq {
-			t.Fatalf("event cursors are not monotonic: %q then %q", events[index-1].Seq, events[index].Seq)
+		if events[index-1].Sequence >= events[index].Sequence {
+			t.Fatalf("stream positions are not monotonic: %d then %d", events[index-1].Sequence, events[index].Sequence)
 		}
 	}
 }
@@ -360,8 +360,8 @@ func TestCoordinatorCommitsProcessCreationFailureInCanonicalOrder(t *testing.T) 
 	if finished.Run.Error == nil || finished.Run.Error.Kind != transcript.InternalProblem {
 		t.Fatalf("run failure = %+v, want canonical internal problem", finished.Run.Error)
 	}
-	if events[0].Seq >= events[1].Seq {
-		t.Fatalf("event order = %q then %q, want monotonic", events[0].Seq, events[1].Seq)
+	if events[0].Sequence >= events[1].Sequence {
+		t.Fatalf("event order = %d then %d, want monotonic", events[0].Sequence, events[1].Sequence)
 	}
 	if !effects.terminalized("ses_1", "run_1") {
 		t.Fatal("process creation failure did not atomically terminalize the run")

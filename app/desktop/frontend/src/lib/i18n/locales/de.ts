@@ -900,6 +900,10 @@ export const de: Record<string, string> = {
 
   "rpcError.run_not_root":
     "Dieser Durchlauf gehört zu einem größeren — frage stattdessen den Root-Durchlauf ab.",
+  "rpcError.run_waiting": "Dieser Lauf wartet auf eine Antwort — beantworte ihn zuerst.",
+  "rpcError.run_finished": "Dieser Lauf ist bereits beendet.",
+  "rpcError.stale_segment":
+    "Dieser Lauf ist weitergelaufen — lade ihn neu, um den aktuellen Stand zu sehen.",
 
   "rpcError.session_busy": "Sitzung ist beschäftigt — warte, bis der laufende Durchlauf endet.",
   "rpcError.checkpoint_unavailable":

@@ -58,11 +58,16 @@ func (*blockingRunRuntime) PrepareStart(_ context.Context, req runs.StartTurn) (
 
 func (*blockingRunRuntime) Activate(context.Context, execution.TurnRef) error { return nil }
 
-func (*blockingRunRuntime) RunSegmentEffects(runsegment.Checkpoints, runsegment.FileChangePublisher) *runsegment.Effects {
+// RunSegmentEffects writes the Run to the real table. Item history is stubbed —
+// these tests are about the live stream — but the Run record cannot be: addressing
+// a live segment resolves through the durable projection, so a run that exists only
+// in the process registry is a run nothing can subscribe to.
+func (r *blockingRunRuntime) RunSegmentEffects(runsegment.Checkpoints, runsegment.FileChangePublisher) *runsegment.Effects {
 	return runsegment.New(runsegment.Config{
 		Transcript: blockingTranscript{},
-		RunState:   stubRunState{},
-		Tx:         func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) },
+		RunState:   r.runs,
+		Sessions:   r.sess,
+		Tx:         r.RunInTx,
 	})
 }
 
@@ -73,7 +78,7 @@ func (blockingTranscript) AppendItem(context.Context, transcript.Item) error { r
 // startLiveRun starts a run that blocks forever (via a blockingRunRuntime the
 // caller wired into the Server), waits until the coordinator has registered it,
 // and schedules teardown. Use for tests that need a live run present.
-func startLiveRun(t *testing.T, s *Server, cwd string) string {
+func startLiveRun(t *testing.T, s *Server, cwd string) (runID, segmentID string) {
 	t.Helper()
 	sess, err := s.sessions.CreateView(context.Background(), "", cwd)
 	if err != nil {
@@ -87,11 +92,13 @@ func startLiveRun(t *testing.T, s *Server, cwd string) string {
 		t.Fatalf("start live run: %v", err)
 	}
 	probeCtx, cancel := context.WithCancel(context.Background())
-	_, _, err = s.coordinator.SubscribeLive(probeCtx, result.RunID, "", execution.RunProtocolProfile{})
+	_, err = s.coordinator.Subscribe(probeCtx, runs.SubscribeRequest{
+		RunID: result.RunID, SegmentID: result.SegmentID,
+	})
 	cancel()
 	if err != nil {
-		t.Fatalf("Start returned before the live run was registered: %v", err)
+		t.Fatalf("Start returned before the live run was addressable: %v", err)
 	}
 	t.Cleanup(s.Close)
-	return result.RunID
+	return result.RunID, result.SegmentID
 }

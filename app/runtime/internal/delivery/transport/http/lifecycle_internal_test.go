@@ -69,7 +69,7 @@ func TestShutdownCancelsLongLivedTransportHandler(t *testing.T) {
 	srv := newLifecycleServer(t, func(cfg *Config) {
 		cfg.Runtime = runtime
 	})
-	body := bytes.NewBufferString(`{"jsonrpc":"2.0","id":"1","method":"workspace.subscribe","params":{}}`)
+	body := bytes.NewBufferString(`{"jsonrpc":"2.0","id":"1","method":"runtime.subscribe","params":{"topics":["skills.changed"]}}`)
 	req := httptest.NewRequest(stdhttp.MethodPost, "/v2/rpc", body)
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("Content-Type", "application/json")

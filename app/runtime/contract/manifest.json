@@ -151,7 +151,13 @@
       "kind": "stream",
       "idempotency": "none",
       "errors": [
-        "run_not_found"
+        "run_not_found",
+        "run_not_root",
+        "run_waiting",
+        "run_finished",
+        "stale_segment",
+        "replay_cursor_invalid",
+        "replay_unavailable"
       ],
       "stability": "stable"
     },
@@ -170,7 +176,11 @@
       "kind": "unary",
       "idempotency": "replayResponse",
       "errors": [
-        "run_not_found"
+        "run_not_found",
+        "run_not_root",
+        "run_waiting",
+        "run_finished",
+        "stale_segment"
       ],
       "stability": "stable"
     },
@@ -914,6 +924,22 @@
         "recoveryAction": "promptUser"
       },
       {
+        "type": "replay_cursor_invalid",
+        "code": -32027,
+        "recoveryAction": "resubscribe",
+        "methods": [
+          "runs.subscribe"
+        ]
+      },
+      {
+        "type": "replay_unavailable",
+        "code": -32028,
+        "recoveryAction": "coldRecover",
+        "methods": [
+          "runs.subscribe"
+        ]
+      },
+      {
         "type": "revision_conflict",
         "code": -32019,
         "recoveryAction": "refetch",
@@ -928,6 +954,15 @@
         "recoveryAction": "refetch",
         "methods": [
           "runs.cancel"
+        ]
+      },
+      {
+        "type": "run_finished",
+        "code": -32025,
+        "recoveryAction": "coldRecover",
+        "methods": [
+          "runs.steer",
+          "runs.subscribe"
         ]
       },
       {
@@ -950,7 +985,18 @@
         "code": -32022,
         "recoveryAction": "refetch",
         "methods": [
-          "interrupts.list"
+          "interrupts.list",
+          "runs.steer",
+          "runs.subscribe"
+        ]
+      },
+      {
+        "type": "run_waiting",
+        "code": -32024,
+        "recoveryAction": "coldRecover",
+        "methods": [
+          "runs.steer",
+          "runs.subscribe"
         ]
       },
       {
@@ -989,6 +1035,15 @@
           "sessions.update",
           "todos.get",
           "usage.session"
+        ]
+      },
+      {
+        "type": "stale_segment",
+        "code": -32026,
+        "recoveryAction": "refetch",
+        "methods": [
+          "runs.steer",
+          "runs.subscribe"
         ]
       },
       {
@@ -2894,6 +2949,14 @@
     {
       "file": "method.runs.resume.resp.json",
       "shape": "StartRunResponse"
+    },
+    {
+      "file": "method.runs.subscribe.req.json",
+      "shape": "SubscribeRunRequest"
+    },
+    {
+      "file": "method.runs.subscribe.resp.json",
+      "shape": "SubscribeRunResponse"
     },
     {
       "file": "session.json",

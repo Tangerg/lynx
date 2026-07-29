@@ -23,9 +23,9 @@ Protocol `2026-07-19` (minimum supported `2026-07-19`) · 85 methods
 | `sessions.import` | unary | replayResponse | `sessionExport` | — |
 | `runs.start` | stream | replayRunStream | — | `session_not_found`, `session_busy`, `session_has_active_run`, `unsupported_mime` |
 | `runs.resume` | stream | replayRunStream | — | `run_not_found`, `interrupt_not_open` |
-| `runs.subscribe` | stream | none | — | `run_not_found` |
+| `runs.subscribe` | stream | none | — | `run_not_found`, `run_not_root`, `run_waiting`, `run_finished`, `stale_segment`, `replay_cursor_invalid`, `replay_unavailable` |
 | `runs.cancel` | unary | replayResponse | — | `run_not_found`, `run_already_finished` |
-| `runs.steer` | unary | replayResponse | — | `run_not_found` |
+| `runs.steer` | unary | replayResponse | — | `run_not_found`, `run_not_root`, `run_waiting`, `run_finished`, `stale_segment` |
 | `runs.get` | unary | none | — | `run_not_found` |
 | `runs.list` | unary | none | `subagents` | — |
 | `interrupts.list` | unary | none | — | `run_not_root` |

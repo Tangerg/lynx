@@ -867,6 +867,9 @@ export const zhTW: Record<string, string> = {
   "rpcError.session_has_active_run": "該工作階段已有一個進行中的執行 —— 請先介入、回應或取消它。",
 
   "rpcError.run_not_root": "該 run 屬於某個更大的 run —— 請改用其根 run。",
+  "rpcError.run_waiting": "該 run 正在等待回應 —— 請先回應它。",
+  "rpcError.run_finished": "該 run 已經結束。",
+  "rpcError.stale_segment": "該 run 已經繼續往下走了 —— 請重新載入查看目前進度。",
 
   "rpcError.session_busy": "工作階段正忙 —— 請等目前的執行結束。",
   "rpcError.checkpoint_unavailable": "該輪沒有檔案檢查點 —— 未變更任何檔案。",

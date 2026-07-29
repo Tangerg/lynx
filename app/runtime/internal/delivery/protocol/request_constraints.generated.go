@@ -56,6 +56,7 @@ func (r ResumeRunRequest) Validate() error {
 func (r SubscribeRunRequest) Validate() error {
 	return violate(
 		required("runId", r.RunID),
+		required("segmentId", r.SegmentID),
 	)
 }
 
@@ -68,6 +69,7 @@ func (r CancelRunRequest) Validate() error {
 func (r SteerRunRequest) Validate() error {
 	return violate(
 		required("runId", r.RunID),
+		required("expectedSegmentId", r.ExpectedSegmentID),
 		required("message", r.Message),
 	)
 }

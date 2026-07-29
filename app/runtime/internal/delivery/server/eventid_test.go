@@ -11,15 +11,15 @@ import (
 )
 
 // TestMapRunEvents_FramesWireEventID verifies delivery applies the evt_ wire
-// framing to the application's opaque cursor (§11.2): the Coordinator mints a
-// prefix-free, fixed-width, monotonic Seq, and mapRunEvents presents it as
-// evt_<cursor> on the wire. The fixed width makes lexical comparison agree with
-// numeric, which the SSE replay path relies on.
+// framing to the stream position the application minted (§11.2), and nothing
+// else: the cursor's contents are the application's business, and this layer
+// neither parses nor orders them.
 func TestMapRunEvents_FramesWireEventID(t *testing.T) {
+	cursors := []string{"AAAA", "BBBB", "CCCC"}
 	in := slices.Values([]runs.Event{
-		{RunID: "run_1", Seq: "00000000001", Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}},
-		{RunID: "run_1", Seq: "00000000002", Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}},
-		{RunID: "run_1", Seq: "00000000010", Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}},
+		{RunID: "run_1", Cursor: cursors[0], Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}},
+		{RunID: "run_1", Cursor: cursors[1], Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}},
+		{RunID: "run_1", Cursor: cursors[2], Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}},
 	})
 
 	var ids []string
@@ -30,24 +30,20 @@ func TestMapRunEvents_FramesWireEventID(t *testing.T) {
 		ids = append(ids, e.EventID)
 	}
 
-	want := []string{"evt_00000000001", "evt_00000000002", "evt_00000000010"}
-	if len(ids) != len(want) {
-		t.Fatalf("got %d events, want %d", len(ids), len(want))
+	if len(ids) != len(cursors) {
+		t.Fatalf("got %d events, want %d", len(ids), len(cursors))
 	}
-	for i := range want {
-		if ids[i] != want[i] {
-			t.Fatalf("eventId[%d] = %q, want %q", i, ids[i], want[i])
-		}
-		if i > 0 && ids[i] <= ids[i-1] { // fixed-width padding → lexical == numeric order
-			t.Fatalf("eventIds not strictly increasing: %q then %q", ids[i-1], ids[i])
+	for i, cursor := range cursors {
+		if want := "evt_" + cursor; ids[i] != want {
+			t.Fatalf("eventId[%d] = %q, want %q", i, ids[i], want)
 		}
 	}
 }
 
 func TestMapRunEvents_ContainsPresenterPanic(t *testing.T) {
 	in := slices.Values([]runs.Event{
-		{RunID: "run_1", Seq: "00000000001"}, // nil payload is invalid
-		{RunID: "run_1", Seq: "00000000002", Payload: runs.SegmentProgressed{}},
+		{RunID: "run_1", Cursor: "AAAA"}, // nil payload is invalid
+		{RunID: "run_1", Cursor: "BBBB", Payload: runs.SegmentProgressed{}},
 	})
 
 	var count int
@@ -61,7 +57,7 @@ func TestMapRunEvents_ContainsPresenterPanic(t *testing.T) {
 
 func TestMapRunEvents_DoesNotRecoverConsumerPanic(t *testing.T) {
 	in := slices.Values([]runs.Event{
-		{RunID: "run_1", Seq: "00000000001", Payload: runs.SegmentProgressed{}},
+		{RunID: "run_1", Cursor: "AAAA", Payload: runs.SegmentProgressed{}},
 	})
 	const want = "consumer panic"
 

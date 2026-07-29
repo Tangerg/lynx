@@ -96,7 +96,7 @@ func mapRunEvents(ctx context.Context, in iter.Seq[runs.Event]) iter.Seq[protoco
 			}
 			wire := protocol.RunEvent{
 				RunID: event.RunID, SegmentID: event.SegmentID,
-				EventID: protocol.IDPrefixEvent + event.Seq, Timestamp: event.Timestamp,
+				EventID: protocol.IDPrefixEvent + event.Cursor, Timestamp: event.Timestamp,
 				Event: presented,
 			}
 			if !yield(wire) {

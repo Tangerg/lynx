@@ -875,6 +875,10 @@ export const ko: Record<string, string> = {
     "이 세션에는 이미 진행 중인 실행이 있습니다 — 먼저 개입하거나 응답하거나 취소하세요.",
 
   "rpcError.run_not_root": "해당 실행은 더 큰 실행에 속합니다 — 루트 실행을 지정하세요.",
+  "rpcError.run_waiting": "해당 실행은 응답을 기다리고 있습니다 — 먼저 응답하세요.",
+  "rpcError.run_finished": "해당 실행은 이미 종료되었습니다.",
+  "rpcError.stale_segment":
+    "해당 실행은 이미 다음 단계로 넘어갔습니다 — 다시 불러와 현재 상태를 확인하세요.",
 
   "rpcError.session_busy": "세션이 실행 중입니다 — 현재 실행이 끝날 때까지 기다리세요.",
   "rpcError.checkpoint_unavailable":

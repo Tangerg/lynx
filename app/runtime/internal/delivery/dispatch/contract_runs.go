@@ -47,12 +47,26 @@ func registerRuns(r *Registry) {
 	}, runEventFramer)
 
 	// runs.subscribe opens no run, so a retry is just another subscription.
+	//
+	// Its refusals are the vocabulary of addressing one live segment: the run is a
+	// child, is waiting, has finished, has moved on, or the caller's replay cursor
+	// cannot be served. Each is declared because each sends the client somewhere
+	// different — rootRunId, interrupts.list, items.list, runs.get, or a cursorless
+	// reattach — and one collapsed run_not_found would send it nowhere.
 	Stream(r, MethodMeta{
-		Name:      "runs.subscribe",
-		Errors:    []string{protocol.ErrRunNotFound.Error()},
+		Name: "runs.subscribe",
+		Errors: []string{
+			protocol.ErrRunNotFound.Error(),
+			protocol.ErrRunNotRoot.Error(),
+			protocol.ErrRunWaiting.Error(),
+			protocol.ErrRunFinished.Error(),
+			protocol.ErrStaleSegment.Error(),
+			protocol.ErrReplayCursorInvalid.Error(),
+			protocol.ErrReplayUnavailable.Error(),
+		},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.SubscribeRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
-		return d.api.SubscribeRun(ctx, in.RunID)
+	}, func(d *Dispatcher, ctx context.Context, in protocol.SubscribeRunRequest) (*protocol.SubscribeRunResponse, iter.Seq[protocol.RunEvent], error) {
+		return d.api.SubscribeRun(ctx, in)
 	}, runEventFramer)
 
 	UnaryAck(r, MethodMeta{
@@ -67,11 +81,22 @@ func registerRuns(r *Registry) {
 		return d.api.CancelRun(ctx, in)
 	})
 
+	// A steer addresses the same thing a subscribe does — one live segment — so it
+	// refuses with the same vocabulary. There is no best-effort injection: a run
+	// that has parked, finished or moved to another segment says so, and the client
+	// asks the user again rather than delivering an instruction to work they never
+	// saw.
 	UnaryAck(r, MethodMeta{
 		Name:        "runs.steer",
 		Idempotency: IdempotencyReplayResponse,
-		Errors:      []string{protocol.ErrRunNotFound.Error()},
-		Stability:   stable,
+		Errors: []string{
+			protocol.ErrRunNotFound.Error(),
+			protocol.ErrRunNotRoot.Error(),
+			protocol.ErrRunWaiting.Error(),
+			protocol.ErrRunFinished.Error(),
+			protocol.ErrStaleSegment.Error(),
+		},
+		Stability: stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.SteerRunRequest) error {
 		return d.api.SteerRun(ctx, in)
 	})

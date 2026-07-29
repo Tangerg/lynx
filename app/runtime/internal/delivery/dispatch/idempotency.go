@@ -191,15 +191,36 @@ func (d *Dispatcher) replay(ctx context.Context, req *transport.Request, payload
 	if err := json.Unmarshal(response.Result, &started); err != nil {
 		return responseError(req.ID, errorToRPC(fmt.Errorf("idempotency: decode stored run response: %w", err)))
 	}
-	out, events, err := d.api.SubscribeRun(ctx, started.RunID)
-	if errors.Is(err, protocol.ErrRunNotFound) {
-		// The original run may have completed between its first response and a
-		// retry. Preserve the cached success and open an already-finished stream;
-		// the client then performs its normal stream-ended recovery instead of
-		// receiving a different synchronous result for the same idempotency key.
+	_, events, err := d.api.SubscribeRun(ctx, protocol.SubscribeRunRequest{
+		RunID: started.RunID, SegmentID: started.SegmentID,
+	})
+	switch {
+	case unattachable(err):
+		// The run may have finished, parked, or been resumed into another segment
+		// between its first response and this retry. Preserve the cached success and
+		// open an already-ended stream; the client then runs its normal stream-ended
+		// recovery.
 		return HandleResult{Response: response, EventStream: emptyStream}
+	case err != nil:
+		return responseError(req.ID, errorToRPC(err))
 	}
-	return replyStream(ctx, req, out, events, err)
+	// The CACHED ack is the answer, never the subscribe ack: the same key must
+	// return the same result, and a subscribe ack is a different shape that could
+	// not carry the userItemId the original response named. The re-attached stream's
+	// own events carry the positions a reconnect would need.
+	return HandleResult{Response: response, EventStream: adaptStream(events, runEventToFrameFor(ctx))}
+}
+
+// unattachable reports the refusals that mean "the segment this ack named is no
+// longer live". They are one answer here even though a fresh caller would act on
+// each differently: this caller is not asking what the run is doing, it is
+// re-delivering a stream it already paid for, and every one of these says there is
+// no stream left to re-deliver.
+func unattachable(err error) bool {
+	return errors.Is(err, protocol.ErrRunNotFound) ||
+		errors.Is(err, protocol.ErrRunWaiting) ||
+		errors.Is(err, protocol.ErrRunFinished) ||
+		errors.Is(err, protocol.ErrStaleSegment)
 }
 
 type memoryIdempotencyStore struct {

@@ -33,6 +33,13 @@ export function useAgentRunId(): string | null {
   return useActiveAgentView((view) => view.run.runId);
 }
 
+/** The segment currently executing, or null. A steer names it so the runtime can
+ *  refuse rather than inject the user's instruction into a continuation they
+ *  never saw. */
+export function useAgentSegmentId(): string | null {
+  return useActiveAgentView((view) => view.run.segmentId);
+}
+
 export function useAgentRunUsage(): RunUsage {
   return useActiveAgentView((view) => view.run.usage);
 }

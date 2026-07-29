@@ -20,17 +20,20 @@ type Runs interface {
 	// (R model, API.md §6.1): same stable runId, a fresh segmentId.
 	ResumeRun(ctx context.Context, in ResumeRunRequest) (*StartRunResponse, iter.Seq[RunEvent], error)
 
-	// SubscribeRun rebinds a run's current live segment to the caller (reconnect /
-	// crash recovery; subscribes the whole run tree).
-	SubscribeRun(ctx context.Context, runID string) (*StartRunResponse, iter.Seq[RunEvent], error)
+	// SubscribeRun rebinds the segment the request names to the caller (reconnect /
+	// crash recovery; subscribes the whole run tree). Errors run_not_root,
+	// run_waiting, run_finished, stale_segment, replay_cursor_invalid and
+	// replay_unavailable each say what the caller should read instead.
+	SubscribeRun(ctx context.Context, in SubscribeRunRequest) (*SubscribeRunResponse, iter.Seq[RunEvent], error)
 
 	// CancelRun hard-stops a running run (outcome:canceled).
 	CancelRun(ctx context.Context, in CancelRunRequest) error
 
-	// SteerRun injects a user message into an actively-running run so the model
-	// reads it on its next tool round (mid-run steering, API.md §6) — distinct
-	// from runs.resume (which answers an interrupt) and runs.start (a new turn).
-	// Errors run_not_found when the run isn't actively running (parked / done).
+	// SteerRun injects a user message into the segment the request names so the
+	// model reads it on its next tool round (mid-run steering, API.md §6) —
+	// distinct from runs.resume (which answers an interrupt) and runs.start (a new
+	// turn). A run that is not executing that segment is refused by name:
+	// run_waiting, run_finished, stale_segment, run_not_root.
 	SteerRun(ctx context.Context, in SteerRunRequest) error
 
 	// GetRun returns one run by id — current or terminal, root or child — from the
@@ -300,10 +303,17 @@ type CancelRunRequest struct {
 }
 
 // SteerRunRequest is the runs.steer body — a user message to inject into the
-// running run identified by RunID.
+// segment the caller believes is executing.
+//
+// ExpectedSegmentID is required. A steer is the user's instruction about the work
+// they are watching; if the run parked and was resumed between typing and
+// sending, delivering it anyway would inject that instruction into a
+// continuation they never saw. There is no best-effort injection: a mismatch is
+// stale_segment, and the client re-reads the run before asking again.
 type SteerRunRequest struct {
-	RunID   string `json:"runId"`
-	Message string `json:"message"`
+	RunID             string `json:"runId"`
+	ExpectedSegmentID string `json:"expectedSegmentId"`
+	Message           string `json:"message"`
 }
 
 // ListRunsRequest is the runs.list body — the whole durable run history, filtered.
@@ -361,10 +371,38 @@ type ResumeRunRequest struct {
 	Input []ContentBlock `json:"input,omitempty"`
 }
 
-// SubscribeRunRequest identifies the durable run whose live segment should be
-// rebound to the caller.
+// SubscribeRunRequest identifies the run AND the segment to rebind to the
+// caller.
+//
+// SegmentID is required. A subscription that named only the run would attach to
+// whichever segment happened to be live, and a client that had been folding an
+// earlier one would silently continue into a different execution — its own
+// reconnect turning into an undetectable state corruption. Naming the segment
+// makes the mismatch a stale_segment refusal, and the client re-reads the run to
+// find out what actually happened.
 type SubscribeRunRequest struct {
-	RunID string `json:"runId"`
+	RunID     string `json:"runId"`
+	SegmentID string `json:"segmentId"`
+}
+
+// SubscribeRunResponse acknowledges an attached stream.
+//
+// It is not a StartRunResponse: subscribing opens no turn, so there is no
+// userItemId, and an ack that declared one would publish a field nothing on this
+// path can write.
+type SubscribeRunResponse struct {
+	RunID     string `json:"runId"`
+	SegmentID string `json:"segmentId"`
+	// HeadEventID is the stream's position at the instant the subscription was
+	// established, absent when the stream has published nothing yet.
+	//
+	// It has exactly two legal uses: comparing it for EQUALITY against an eventId
+	// to drop a duplicate, and storing it unchanged to send back as the next
+	// reconnect's cursor. It is not a watermark — clients must not parse it, order
+	// it, compare it for magnitude, or derive a sequence from it. The value is
+	// opaque precisely so that the runtime can change what it encodes without
+	// breaking a client that only ever handed it back.
+	HeadEventID string `json:"headEventId,omitempty"`
 }
 
 // InterruptResponseType discriminates a client's answer to an interrupt

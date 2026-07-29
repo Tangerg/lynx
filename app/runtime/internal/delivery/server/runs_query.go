@@ -7,6 +7,7 @@ import (
 	"iter"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -117,31 +118,64 @@ func wireInterruptPageError(err error) error {
 	}
 }
 
-// SubscribeRun opens a fresh event stream onto an actively-streaming root
-// run (reconnect / crash recovery; subscribes the whole run tree, API.md
-// §5.4 / §7.3). It attaches a new subscriber to the run's hub, replaying
-// the durable backlog after the caller's Last-Event-Id (carried out-of-band
-// via ctx, TRANSPORT §9.2) then tailing live. A run that isn't actively
-// streaming (finished / parked / unknown) returns run_not_found — its tail
-// is recovered through items.list, not here.
-func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
-	if runID == "" {
-		return nil, nil, protocol.ErrRunNotFound
-	}
-	// The Journal replays after an opaque, prefix-free application cursor; strip
-	// the evt_ wire framing off the client's Last-Event-Id (§11.2). TrimPrefix
-	// leaves an empty / unframed id untouched, so replay-from-start still works.
-	fromCursor := strings.TrimPrefix(transport.LastEventIDFrom(ctx), protocol.IDPrefixEvent)
+// SubscribeRun opens a fresh event stream onto the root segment the request
+// names (reconnect / crash recovery; subscribes the whole run tree, API.md
+// §5.4 / §7.3).
+//
+// With a Last-Event-Id (carried out-of-band via ctx, TRANSPORT §9.2) it replays
+// the retained events after that position and then tails live; without one it
+// attaches at the current head and returns it, so a client can read the durable
+// state afterwards and fold this stream on top without a gap. History is NOT
+// replayed for a cursorless subscribe — that is what items.list answers.
+func (s *Server) SubscribeRun(ctx context.Context, in protocol.SubscribeRunRequest) (*protocol.SubscribeRunResponse, iter.Seq[protocol.RunEvent], error) {
 	caller, err := s.negotiateCapabilities(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	record, events, err := s.coordinator.SubscribeLive(ctx, runID, fromCursor, caller)
-	if uncovered, ok := errors.AsType[*execution.ProfileNotCovered](err); ok {
-		return nil, nil, profileGap(uncovered.Gap)
-	}
+	attached, err := s.coordinator.Subscribe(ctx, runs.SubscribeRequest{
+		RunID:     in.RunID,
+		SegmentID: in.SegmentID,
+		// The application's cursor is prefix-free; the evt_ framing is this layer's
+		// (§11.2). TrimPrefix leaves an absent id untouched, which is the tail-only case.
+		Cursor: strings.TrimPrefix(transport.LastEventIDFrom(ctx), protocol.IDPrefixEvent),
+		Caller: caller,
+	})
 	if err != nil {
-		return nil, nil, protocol.ErrRunNotFound
+		return nil, nil, wireLiveSegmentError(err)
 	}
-	return &protocol.StartRunResponse{RunID: runID, SegmentID: record.SegmentID}, mapRunEvents(ctx, events), nil
+	head := ""
+	if attached.HeadCursor != "" {
+		head = protocol.IDPrefixEvent + attached.HeadCursor
+	}
+	return &protocol.SubscribeRunResponse{
+		RunID: in.RunID, SegmentID: attached.Record.SegmentID, HeadEventID: head,
+	}, mapRunEvents(ctx, attached.Events), nil
+}
+
+// wireLiveSegmentError maps the refusals of addressing a live segment. Each one
+// names something the caller can do instead, which is why they are not collapsed
+// into run_not_found: "the run is waiting", "the run finished", "you are holding
+// the wrong segment" and "your cursor is too old" have four different remedies.
+func wireLiveSegmentError(err error) error {
+	if uncovered, ok := errors.AsType[*execution.ProfileNotCovered](err); ok {
+		return profileGap(uncovered.Gap)
+	}
+	switch {
+	case errors.Is(err, runs.ErrRunNotFound):
+		return protocol.ErrRunNotFound
+	case errors.Is(err, transcript.ErrNotRoot):
+		return fmt.Errorf("%w: %w", protocol.ErrRunNotRoot, err)
+	case errors.Is(err, runs.ErrRunWaiting):
+		return fmt.Errorf("%w: %w", protocol.ErrRunWaiting, err)
+	case errors.Is(err, runs.ErrRunFinished):
+		return fmt.Errorf("%w: %w", protocol.ErrRunFinished, err)
+	case errors.Is(err, runs.ErrStaleSegment):
+		return fmt.Errorf("%w: %w", protocol.ErrStaleSegment, err)
+	case errors.Is(err, runs.ErrReplayCursorInvalid):
+		return fmt.Errorf("%w: %w", protocol.ErrReplayCursorInvalid, err)
+	case errors.Is(err, runs.ErrReplayUnavailable):
+		return fmt.Errorf("%w: %w", protocol.ErrReplayUnavailable, err)
+	default:
+		return err
+	}
 }

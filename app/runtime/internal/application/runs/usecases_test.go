@@ -714,10 +714,12 @@ func TestCancelTreatsAlreadyGoneTurnAsIdempotentSuccess(t *testing.T) {
 
 func TestSteerHidesExecutorHandle(t *testing.T) {
 	turns := &fakeTurnControl{}
-	c := NewCoordinator(Dependencies{Turns: turns})
-	c.registry.Open(Record{ID: "run_1", SessionID: "ses_1", TurnID: "turn_1"}, nil)
+	c, _ := liveCoordinator(t, runRecord(execution.Running, testSegmentID, ""))
+	c.turns = turns
 
-	if err := c.Steer(context.Background(), SteerCommand{RunID: "run_1", Message: "wait"}); err != nil {
+	if err := c.Steer(context.Background(), SteerCommand{
+		RunID: testRunID, ExpectedSegmentID: testSegmentID, Message: "wait",
+	}); err != nil {
 		t.Fatalf("Steer: %v", err)
 	}
 	if len(turns.steered) != 1 || turns.steered[0] != (execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}) {

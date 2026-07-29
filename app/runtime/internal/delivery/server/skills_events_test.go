@@ -16,7 +16,9 @@ func TestSkillChangeBridgePublishesWorkspaceRefresh(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{})
+	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{
+		Topics: []protocol.RuntimeTopic{protocol.TopicSkillsChanged},
+	})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}

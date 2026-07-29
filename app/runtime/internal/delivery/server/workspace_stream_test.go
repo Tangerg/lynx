@@ -60,18 +60,25 @@ func TestWorkspaceHubSequencesEventsPerSubscription(t *testing.T) {
 	assertWorkspaceEvent(second, protocol.RuntimeSkillsChanged, 1)
 }
 
+// The sequence is per subscription and counts what was PUBLISHED to it, not what
+// it received: that gap is the only way a client learns it missed something on a
+// lossy stream.
+//
+// Every event carries a real topic — a subscription filters by topic, so a
+// made-up type would be dropped before the sequence could say anything, and the
+// test would hang waiting for a frame the hub correctly never sent.
 func TestWorkspaceHubSequenceExposesDroppedEvent(t *testing.T) {
 	hub := newWorkspaceHub()
 	events := make(chan protocol.RuntimeEvent, 1)
 	_, unregister, _ := hub.register(events, allTopics())
 	defer unregister()
 
-	hub.publish(protocol.RuntimeEvent{Type: "first"})
-	hub.publish(protocol.RuntimeEvent{Type: "dropped"})
+	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeFilesChanged})
+	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged}) // dropped: buffer full
 	if got := <-events; got.Sequence != 1 {
 		t.Fatalf("first sequence = %d, want 1", got.Sequence)
 	}
-	hub.publish(protocol.RuntimeEvent{Type: "third"})
+	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged})
 	if got := <-events; got.Sequence != 3 {
 		t.Fatalf("sequence after drop = %d, want 3", got.Sequence)
 	}

@@ -31,6 +31,7 @@ func TestWorkspaceSubscribe_GitWatch(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{
+		Topics:  []protocol.RuntimeTopic{protocol.TopicFilesChanged},
 		Watches: []protocol.WatchSpec{{WatchID: "w1"}},
 	})
 	if err != nil {
@@ -61,6 +62,7 @@ func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{
+		Topics:  []protocol.RuntimeTopic{protocol.TopicFilesChanged, protocol.TopicSkillsChanged},
 		Watches: []protocol.WatchSpec{{WatchID: "w1"}},
 	})
 	if err != nil {

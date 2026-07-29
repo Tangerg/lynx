@@ -57,6 +57,7 @@ export interface AgentViewSession {
 export interface AgentViewStatePort {
   useRunning(): boolean;
   useRunId(): string | null;
+  useSegmentId(): string | null;
   usePlan(): PlanItem[];
   useToolCalls(): Record<string, ToolCall>;
   useTimeline(): TimelineEntry[];

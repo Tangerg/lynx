@@ -96,9 +96,10 @@ func TestStreamableRunStart(t *testing.T) {
 
 // SubscribeRun records the reconnect cursor so the test below can assert the
 // transport plumbed the Last-Event-Id header onto the dispatch ctx.
-func (f *fakeRuntime) SubscribeRun(ctx context.Context, runID string) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
+func (f *fakeRuntime) SubscribeRun(ctx context.Context, in protocol.SubscribeRunRequest) (*protocol.SubscribeRunResponse, iter.Seq[protocol.RunEvent], error) {
 	f.gotLastEventID = lyratransport.LastEventIDFrom(ctx)
-	return &protocol.StartRunResponse{RunID: runID}, slices.Values([]protocol.RunEvent{}), nil
+	return &protocol.SubscribeRunResponse{RunID: in.RunID, SegmentID: in.SegmentID},
+		slices.Values([]protocol.RunEvent{}), nil
 }
 
 // TestSubscribeCarriesLastEventID confirms the transport lifts the
@@ -112,7 +113,7 @@ func TestSubscribeCarriesLastEventID(t *testing.T) {
 	r0, _ := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewReader(discoverBody))
 	r0.Body.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":"2","method":"runs.subscribe","params":{"runId":"run_1"}}`)
+	body := []byte(`{"jsonrpc":"2.0","id":"2","method":"runs.subscribe","params":{"runId":"run_1","segmentId":"seg_1"}}`)
 	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")

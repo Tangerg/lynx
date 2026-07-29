@@ -249,7 +249,9 @@ describe("useAgentSession durable recovery", () => {
       list: vi.fn().mockResolvedValue(
         page([
           { id: "run_sub", sessionId: RID, spawnedByItemId: "item_x" }, // subagent — skip
-          { id: "run_live", sessionId: RID },
+          // A running run always names the segment executing it, and recovery
+          // subscribes to THAT segment rather than to whatever is live by then.
+          { id: "run_live", sessionId: RID, activeSegmentId: "seg_live" },
         ]),
       ),
     });
@@ -260,7 +262,10 @@ describe("useAgentSession durable recovery", () => {
       expect(useAgentStore.getState().sessions[RID]!.view.run.running).toBe(true);
     });
     expect(subscribe).toHaveBeenCalledTimes(1);
-    expect(subscribe).toHaveBeenCalledWith("run_live", expect.any(AbortSignal));
+    expect(subscribe).toHaveBeenCalledWith(
+      { runId: "run_live", segmentId: "seg_live" },
+      expect.any(AbortSignal),
+    );
     expect(useAgentStore.getState().sessions[RID]!.view.run.runId).toBe("run_live");
   });
 });

@@ -132,6 +132,11 @@
       }
     },
     "limits": {
+      "runReplay": {
+        "scope": "processRootSegment",
+        "maxEvents": 2048,
+        "maxBytes": 16777216
+      },
       "runtimeSubscription": {
         "maxTopics": 32,
         "maxWatches": 32

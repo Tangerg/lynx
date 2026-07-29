@@ -6006,6 +6006,10 @@
     "SteerRunRequest": {
       "type": "object",
       "properties": {
+        "expectedSegmentId": {
+          "type": "string",
+          "minLength": 1
+        },
         "message": {
           "type": "string",
           "minLength": 1
@@ -6016,6 +6020,7 @@
         }
       },
       "required": [
+        "expectedSegmentId",
         "message",
         "runId"
       ]
@@ -6246,10 +6251,33 @@
         "runId": {
           "type": "string",
           "minLength": 1
+        },
+        "segmentId": {
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
-        "runId"
+        "runId",
+        "segmentId"
+      ]
+    },
+    "SubscribeRunResponse": {
+      "type": "object",
+      "properties": {
+        "headEventId": {
+          "type": "string"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "segmentId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "runId",
+        "segmentId"
       ]
     },
     "SubscriptionLimits": {

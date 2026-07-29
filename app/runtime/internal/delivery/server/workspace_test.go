@@ -309,7 +309,9 @@ func TestWorkspaceSubscribe(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{})
+	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{
+		Topics: []protocol.RuntimeTopic{protocol.TopicSkillsChanged},
+	})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
@@ -339,7 +341,9 @@ func TestWorkspaceSubscribe_EarlyRangeStopReleasesSubscription(t *testing.T) {
 	s := &Server{wsHub: newWorkspaceHub()}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{})
+	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{
+		Topics: []protocol.RuntimeTopic{protocol.TopicSkillsChanged},
+	})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
@@ -364,7 +368,9 @@ func TestWorkspaceSubscribe_EarlyRangeStopReleasesSubscription(t *testing.T) {
 func TestWorkspaceSubscribeLifetimeIsTheRequest(t *testing.T) {
 	s := &Server{wsHub: newWorkspaceHub()}
 	reqCtx, cancelReq := context.WithCancel(context.Background())
-	_, seq, err := s.SubscribeRuntime(reqCtx, protocol.RuntimeSubscribeRequest{})
+	_, seq, err := s.SubscribeRuntime(reqCtx, protocol.RuntimeSubscribeRequest{
+		Topics: []protocol.RuntimeTopic{protocol.TopicSkillsChanged},
+	})
 	if err != nil {
 		t.Fatalf("SubscribeRuntime: %v", err)
 	}
@@ -392,8 +398,11 @@ func TestWorkspaceSubscribeLifetimeIsTheRequest(t *testing.T) {
 		t.Fatal("stream not closed after request ctx cancel")
 	}
 
-	// A new subscription after Close is rejected.
-	if _, _, err := s.SubscribeRuntime(context.Background(), protocol.RuntimeSubscribeRequest{}); !errors.Is(err, errServerClosed) {
+	// A new subscription after Close is rejected. The request is a VALID one, so the
+	// refusal is about the closed server rather than about the request.
+	if _, _, err := s.SubscribeRuntime(context.Background(), protocol.RuntimeSubscribeRequest{
+		Topics: []protocol.RuntimeTopic{protocol.TopicSkillsChanged},
+	}); !errors.Is(err, errServerClosed) {
 		t.Fatalf("subscribe after close err = %v, want errServerClosed", err)
 	}
 }

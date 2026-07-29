@@ -1,162 +1,412 @@
 package runs
 
 import (
-	"fmt"
+	"errors"
 	"iter"
+	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/component/replaycursor"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-func ev(seq int, durable bool) Event {
-	payload := RunEvent(SegmentStarted{})
-	if !durable {
-		payload = SegmentProgressed{}
-	}
-	return Event{Seq: fmt.Sprintf("evt_%011d", seq), Payload: payload}
+const (
+	testEpoch     = "epoch_test"
+	testRunID     = "run_1"
+	testSegmentID = "seg_1"
+)
+
+func testJournal() *Journal {
+	return newJournal(streamScope{Epoch: testEpoch, RunID: testRunID, SegmentID: testSegmentID}, DefaultRetention)
 }
 
-func drain(seq iter.Seq[Event]) []string {
-	var ids []string
+// ev builds a payload-only event. The Journal assigns its position, so a test
+// never states a sequence: stating one is exactly the mistake the Journal now
+// makes impossible.
+func ev(durable bool) Event {
+	if durable {
+		return Event{RunID: testRunID, SegmentID: testSegmentID, Payload: SegmentStarted{}}
+	}
+	return Event{RunID: testRunID, SegmentID: testSegmentID, Payload: SegmentProgressed{}}
+}
+
+// sized builds a durable event whose serialized payload is at least n bytes, so a
+// byte-budget test measures the real charge rather than a fabricated one.
+func sized(n int) Event {
+	return Event{
+		RunID: testRunID, SegmentID: testSegmentID,
+		Payload: ItemCompleted{Item: transcript.Item{
+			ID:      "item_1",
+			Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: strings.Repeat("x", n)}},
+		}},
+	}
+}
+
+func cursorAt(sequence uint64) string {
+	return replaycursor.Encode(replaycursor.Position{
+		Epoch: testEpoch, RunID: testRunID, SegmentID: testSegmentID, Sequence: sequence,
+	})
+}
+
+func drain(seq iter.Seq[Event]) []uint64 {
+	var got []uint64
 	for e := range seq {
-		ids = append(ids, e.Seq)
+		got = append(got, e.Sequence)
 	}
-	return ids
+	return got
 }
 
-// TestJournal_ReplayThenLive: a subscriber gets the durable backlog first, then
-// live events, in order.
-func TestJournal_ReplayThenLive(t *testing.T) {
-	j := NewJournal()
-	j.Append(ev(1, true))
-	j.Append(ev(2, true))
+// A cursorless subscribe is TAIL-ONLY: history belongs to the transcript reads,
+// and replaying it here would hand the client the same events twice.
+func TestJournal_TailSkipsWhatWasAlreadyPublished(t *testing.T) {
+	j := testJournal()
+	j.Append(ev(true))
+	j.Append(ev(true))
 
-	seq, cancel := j.Subscribe("")
-	defer cancel()
-	next, stop := iter.Pull(seq)
-	defer stop()
-
-	if got, _ := next(); got.Seq != ev(1, true).Seq {
-		t.Fatalf("first = %s, want evt 1", got.Seq)
-	}
-	if got, _ := next(); got.Seq != ev(2, true).Seq {
-		t.Fatalf("second = %s, want evt 2", got.Seq)
-	}
-
-	j.Append(ev(3, true)) // live
-	if got, _ := next(); got.Seq != ev(3, true).Seq {
-		t.Fatalf("live = %s, want evt 3", got.Seq)
-	}
-}
-
-// TestJournal_SubscribeFromCursor: replay only the backlog strictly after the
-// supplied cursor.
-func TestJournal_SubscribeFromCursor(t *testing.T) {
-	j := NewJournal()
-	for i := 1; i <= 3; i++ {
-		j.Append(ev(i, true))
-	}
-	seq, cancel := j.Subscribe(ev(2, true).Seq)
-	defer cancel()
-	j.Close() // no live; just drain replay
-
-	got := drain(seq)
-	if len(got) != 1 || got[0] != ev(3, true).Seq {
-		t.Fatalf("replay = %v, want [evt 3]", got)
-	}
-}
-
-// TestJournal_LiveOnlyNotReplayed: live-only (durable=false) events reach live
-// subscribers but are never in a later subscriber's replay.
-func TestJournal_LiveOnlyNotReplayed(t *testing.T) {
-	j := NewJournal()
-
-	live, cancelLive := j.Subscribe("")
-	defer cancelLive()
-	nextLive, stopLive := iter.Pull(live)
-	defer stopLive()
-	j.Append(ev(1, true))
-	j.Append(ev(2, false)) // live-only
-	if got, _ := nextLive(); got.Seq != ev(1, true).Seq {
-		t.Fatal("live missing durable evt 1")
-	}
-	if got, _ := nextLive(); got.Seq != ev(2, false).Seq {
-		t.Fatal("live missing live-only evt 2")
-	}
-
-	// A fresh subscriber replays durable only.
-	late, cancelLate := j.Subscribe("")
-	defer cancelLate()
+	attached := j.Tail()
+	defer attached.Cancel()
+	j.Append(ev(true)) // the only event this subscription may see
 	j.Close()
-	if got := drain(late); len(got) != 1 || got[0] != ev(1, true).Seq {
-		t.Fatalf("late replay = %v, want [evt 1] (no live-only)", got)
+
+	if got := drain(attached.Events); len(got) != 1 || got[0] != 3 {
+		t.Fatalf("tail delivered %v, want only the event appended after attaching", got)
 	}
 }
 
-// TestJournal_FanOutN: every subscriber receives each live event.
+// The head is captured with the attach, under one lock. Without that, an event
+// published in between would be neither in the ack nor in the stream.
+func TestJournal_TailReportsTheHeadItAttachedAfter(t *testing.T) {
+	j := testJournal()
+	if head := j.Tail().HeadCursor; head != "" {
+		t.Fatalf("head of an empty stream = %q, want empty", head)
+	}
+	j.Append(ev(true))
+	j.Append(ev(false)) // ephemeral events still take a position
+
+	attached := j.Tail()
+	defer attached.Cancel()
+	if attached.HeadCursor != cursorAt(2) {
+		t.Fatalf("head cursor does not name the last published position")
+	}
+}
+
+func TestJournal_ReplayServesWhatFollowsTheCursorThenTails(t *testing.T) {
+	j := testJournal()
+	for range 3 {
+		j.Append(ev(true))
+	}
+
+	attached, err := j.Replay(cursorAt(2))
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	defer attached.Cancel()
+	j.Append(ev(true))
+	j.Close()
+
+	if got := drain(attached.Events); len(got) != 2 || got[0] != 3 || got[1] != 4 {
+		t.Fatalf("replay delivered %v, want [3 4] (backlog then live)", got)
+	}
+}
+
+// Ephemeral events take a position but are never retained, so a cursor pointing
+// at one still resumes correctly — everything authoritative after it is served.
+func TestJournal_ReplayFromAnEphemeralPositionIsExact(t *testing.T) {
+	j := testJournal()
+	j.Append(ev(true))  // 1
+	j.Append(ev(false)) // 2, not retained
+	j.Append(ev(true))  // 3
+
+	attached, err := j.Replay(cursorAt(2))
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	defer attached.Cancel()
+	j.Close()
+	if got := drain(attached.Events); len(got) != 1 || got[0] != 3 {
+		t.Fatalf("replay delivered %v, want [3]", got)
+	}
+}
+
+func TestJournal_ReplayRefusesCursorsItCannotServe(t *testing.T) {
+	other := func(p replaycursor.Position) string { return replaycursor.Encode(p) }
+	for name, test := range map[string]struct {
+		cursor string
+		want   error
+	}{
+		"damaged": {cursor: "!!!", want: ErrReplayCursorInvalid},
+		"another run": {cursor: other(replaycursor.Position{
+			Epoch: testEpoch, RunID: "run_other", SegmentID: testSegmentID, Sequence: 1,
+		}), want: ErrReplayCursorInvalid},
+		// The previous segment of the SAME run: the case a resume creates, and the one
+		// a client is most likely to hold.
+		"another segment": {cursor: other(replaycursor.Position{
+			Epoch: testEpoch, RunID: testRunID, SegmentID: "seg_previous", Sequence: 1,
+		}), want: ErrReplayCursorInvalid},
+		"ahead of the head": {cursor: cursorAt(99), want: ErrReplayCursorInvalid},
+		"another process": {cursor: other(replaycursor.Position{
+			Epoch: "epoch_previous", RunID: testRunID, SegmentID: testSegmentID, Sequence: 1,
+		}), want: ErrReplayUnavailable},
+	} {
+		t.Run(name, func(t *testing.T) {
+			j := testJournal()
+			j.Append(ev(true))
+			if _, err := j.Replay(test.cursor); !errors.Is(err, test.want) {
+				t.Fatalf("replay err = %v, want %v", err, test.want)
+			}
+		})
+	}
+}
+
+// A cursor from a process that has restarted is unavailable rather than invalid,
+// even when its run and segment are unknown here: the client did nothing wrong,
+// and its remedy is a cold recovery rather than a corrected request.
+func TestJournal_ForeignEpochOutranksAForeignScope(t *testing.T) {
+	j := testJournal()
+	j.Append(ev(true))
+	stale := replaycursor.Encode(replaycursor.Position{
+		Epoch: "epoch_previous", RunID: "run_other", SegmentID: "seg_other", Sequence: 1,
+	})
+	if _, err := j.Replay(stale); !errors.Is(err, ErrReplayUnavailable) {
+		t.Fatalf("replay err = %v, want ErrReplayUnavailable", err)
+	}
+}
+
+func TestJournal_EvictionBoundsTheWindowByCount(t *testing.T) {
+	j := newJournal(streamScope{Epoch: testEpoch, RunID: testRunID, SegmentID: testSegmentID},
+		Retention{MaxEvents: 2, MaxBytes: DefaultRetention.MaxBytes})
+	for range 4 {
+		j.Append(ev(true))
+	}
+
+	// Events 1 and 2 are gone, so a cursor before them cannot be served — that is
+	// the difference between "nothing new for you" and "you have missed something".
+	if _, err := j.Replay(cursorAt(1)); !errors.Is(err, ErrReplayUnavailable) {
+		t.Fatalf("evicted cursor err = %v, want ErrReplayUnavailable", err)
+	}
+	attached, err := j.Replay(cursorAt(2))
+	if err != nil {
+		t.Fatalf("cursor at the eviction boundary: %v", err)
+	}
+	defer attached.Cancel()
+	j.Close()
+	if got := drain(attached.Events); len(got) != 2 || got[0] != 3 || got[1] != 4 {
+		t.Fatalf("boundary replay = %v, want [3 4]", got)
+	}
+}
+
+// The count budget alone does not bound memory: a handful of events can hold a
+// multi-megabyte tool result each.
+func TestJournal_EvictionBoundsTheWindowByBytes(t *testing.T) {
+	const payload = 4096
+	j := newJournal(streamScope{Epoch: testEpoch, RunID: testRunID, SegmentID: testSegmentID},
+		Retention{MaxEvents: 1024, MaxBytes: payload * 2})
+	for range 4 {
+		j.Append(sized(payload))
+	}
+
+	j.mu.Lock()
+	retained, bytes := len(j.retained), j.retainedBytes
+	j.mu.Unlock()
+	if retained >= 4 {
+		t.Fatalf("retained %d events, want the byte budget to have evicted some", retained)
+	}
+	if bytes > payload*2 {
+		t.Fatalf("retained bytes = %d, want at most %d", bytes, payload*2)
+	}
+	if _, err := j.Replay(cursorAt(1)); !errors.Is(err, ErrReplayUnavailable) {
+		t.Fatalf("evicted cursor err = %v, want ErrReplayUnavailable", err)
+	}
+}
+
+// TestJournalDurableLosslessLiveLossyUnderOverflow locks the drop policy: a
+// subscriber flooded past its buffering without draining still receives every
+// authoritative event in order, while live-only events become a lossy but
+// still-ordered subset. The surviving live count is deliberately NOT asserted —
+// buffer size is an implementation detail; "authoritative never drops, live-only
+// may" is the contract.
+func TestJournalDurableLosslessLiveLossyUnderOverflow(t *testing.T) {
+	j := testJournal()
+	attached := j.Tail()
+	defer attached.Cancel()
+
+	const liveTotal = liveHeadroom * 4
+	for i := 1; i <= liveTotal; i++ {
+		if i == 1 || i == liveTotal/2 {
+			j.Append(ev(true))
+		}
+		j.Append(ev(false))
+	}
+	j.Append(ev(true))
+	j.Close()
+
+	var gotDurable []uint64
+	deliveredLive := 0
+	for e := range attached.Events {
+		if e.Durable() {
+			gotDurable = append(gotDurable, e.Sequence)
+			continue
+		}
+		deliveredLive++
+	}
+	wantDurable := []uint64{1, uint64(liveTotal/2 + 1), uint64(liveTotal + 3)}
+	if len(gotDurable) != len(wantDurable) {
+		t.Fatalf("durable delivered = %v, want %v (durable must be lossless)", gotDurable, wantDurable)
+	}
+	for i := range wantDurable {
+		if gotDurable[i] != wantDurable[i] {
+			t.Fatalf("durable[%d] = %d, want %d (order must hold)", i, gotDurable[i], wantDurable[i])
+		}
+	}
+	if deliveredLive >= liveTotal {
+		t.Fatalf("live-only delivered = %d, want < %d (overflow must drop live-only)", deliveredLive, liveTotal)
+	}
+}
+
+// An authoritative event is never dropped, so a consumer that stops draining is
+// disconnected instead. Serving it a stream with a hole would leave it folding a
+// state it could not tell was wrong.
+func TestJournal_StalledAuthoritativeConsumerIsDisconnected(t *testing.T) {
+	j := newJournal(streamScope{Epoch: testEpoch, RunID: testRunID, SegmentID: testSegmentID},
+		Retention{MaxEvents: 3, MaxBytes: DefaultRetention.MaxBytes})
+	attached := j.Tail()
+	defer attached.Cancel()
+
+	for range 5 {
+		j.Append(ev(true))
+	}
+	got := drain(attached.Events)
+	if len(got) >= 5 {
+		t.Fatalf("stalled subscriber received %v, want the stream to have ended early", got)
+	}
+	// The run keeps going: a slow client must never stall the agent.
+	j.Append(ev(true))
+	j.mu.Lock()
+	head := j.head
+	j.mu.Unlock()
+	if head != 6 {
+		t.Fatalf("stream head = %d, want 6 (the run must keep publishing)", head)
+	}
+}
+
+// TestJournalCancelUnblocksWaitingSubscriber guards the external cancellation
+// contract: a consumer blocked inside the source cannot stop its own range.
+func TestJournalCancelUnblocksWaitingSubscriber(t *testing.T) {
+	j := testJournal()
+	attached := j.Tail()
+
+	done := make(chan struct{})
+	go func() {
+		for range attached.Events { // no events will ever arrive; blocks in the source
+		}
+		close(done)
+	}()
+
+	attached.Cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("cancel did not unblock a subscriber waiting for its next event")
+	}
+}
+
+func TestJournal_LiveOnlyIsNeverReplayed(t *testing.T) {
+	j := testJournal()
+	live := j.Tail()
+	defer live.Cancel()
+	next, stop := iter.Pull(live.Events)
+	defer stop()
+	j.Append(ev(true))
+	j.Append(ev(false))
+	if got, _ := next(); got.Sequence != 1 {
+		t.Fatal("live subscriber missed the authoritative event")
+	}
+	if got, _ := next(); got.Sequence != 2 {
+		t.Fatal("live subscriber missed the ephemeral event")
+	}
+
+	late, err := j.Replay(cursorAt(1))
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	defer late.Cancel()
+	j.Close()
+	if got := drain(late.Events); len(got) != 0 {
+		t.Fatalf("replay = %v, want no ephemeral events", got)
+	}
+}
+
 func TestJournal_FanOutN(t *testing.T) {
-	j := NewJournal()
-	a, ca := j.Subscribe("")
-	defer ca()
-	nextA, stopA := iter.Pull(a)
+	j := testJournal()
+	a := j.Tail()
+	defer a.Cancel()
+	nextA, stopA := iter.Pull(a.Events)
 	defer stopA()
-	b, cb := j.Subscribe("")
-	defer cb()
-	nextB, stopB := iter.Pull(b)
+	b := j.Tail()
+	defer b.Cancel()
+	nextB, stopB := iter.Pull(b.Events)
 	defer stopB()
 
-	j.Append(ev(1, true))
-	if got, _ := nextA(); got.Seq != ev(1, true).Seq {
-		t.Fatal("subscriber a must receive evt 1")
+	j.Append(ev(true))
+	if got, _ := nextA(); got.Sequence != 1 {
+		t.Fatal("subscriber a must receive the event")
 	}
-	if got, _ := nextB(); got.Seq != ev(1, true).Seq {
-		t.Fatal("subscriber b must receive evt 1")
+	if got, _ := nextB(); got.Sequence != 1 {
+		t.Fatal("subscriber b must receive the event")
 	}
 }
 
-// TestJournal_CloseEndsStream: Close ends every subscriber stream, and a
-// post-close Subscribe replays the backlog then ends.
 func TestJournal_CloseEndsStream(t *testing.T) {
-	j := NewJournal()
-	j.Append(ev(1, true))
-	seq, cancel := j.Subscribe("")
-	defer cancel()
-	next, stop := iter.Pull(seq)
-	defer stop()
-	if got, _ := next(); got.Seq != ev(1, true).Seq { // drain replay
-		t.Fatalf("replay = %s, want evt 1", got.Seq)
+	j := testJournal()
+	j.Append(ev(true))
+	attached, err := j.Replay(cursorAt(1))
+	if err != nil {
+		t.Fatalf("replay: %v", err)
 	}
+	defer attached.Cancel()
+	next, stop := iter.Pull(attached.Events)
+	defer stop()
 
+	j.Append(ev(true))
+	if got, _ := next(); got.Sequence != 2 {
+		t.Fatal("live event was not delivered")
+	}
 	j.Close()
 	if _, ok := next(); ok {
 		t.Fatal("stream must end on Journal Close")
 	}
 
-	post, cancelPost := j.Subscribe("")
-	defer cancelPost()
-	if got := drain(post); len(got) != 1 || got[0] != ev(1, true).Seq {
-		t.Fatalf("post-close replay = %v, want [evt 1] then ended", got)
+	// A subscribe that arrives after the segment ended still gets what it missed,
+	// then ends — the window outlives the pump by the width of that race.
+	post, err := j.Replay(cursorAt(1))
+	if err != nil {
+		t.Fatalf("post-close replay: %v", err)
+	}
+	if got := drain(post.Events); len(got) != 1 || got[0] != 2 {
+		t.Fatalf("post-close replay = %v, want [2]", got)
 	}
 }
 
-// TestJournal_CancelDetaches: after cancel, the subscriber receives nothing and
-// a later Append/Close neither panics nor delivers.
 func TestJournal_CancelDetaches(t *testing.T) {
-	j := NewJournal()
-	seq, cancel := j.Subscribe("")
-	cancel()
-	if got := drain(seq); len(got) != 0 {
+	j := testJournal()
+	attached := j.Tail()
+	attached.Cancel()
+	if got := drain(attached.Events); len(got) != 0 {
 		t.Fatalf("cancel must end the stream, got %v", got)
 	}
-	j.Append(ev(1, true)) // must not panic (sub gone)
-	j.Close()             // must not double-anything
+	j.Append(ev(true)) // must not panic (sub gone)
+	j.Close()          // must not double-anything
 }
 
 func TestJournal_EarlyRangeStopDetaches(t *testing.T) {
-	j := NewJournal()
-	seq, _ := j.Subscribe("")
-	j.Append(ev(1, true))
+	j := testJournal()
+	attached := j.Tail()
+	j.Append(ev(true))
 
-	for range seq {
+	for range attached.Events {
 		break
 	}
 
@@ -167,13 +417,13 @@ func TestJournal_EarlyRangeStopDetaches(t *testing.T) {
 		t.Fatalf("subscribers after range stop = %d, want 0", subscribers)
 	}
 
-	j.Append(ev(2, true)) // must not enqueue into an abandoned subscriber
+	j.Append(ev(true)) // must not enqueue into an abandoned subscriber
 	j.Close()
 }
 
 func TestJournalSubscriber_ReusesRoutineQueueAndReleasesBursts(t *testing.T) {
-	subscriber := newJournalSubscriber(nil)
-	subscriber.enqueue(ev(1, false))
+	subscriber := newJournalSubscriber(nil, DefaultRetention)
+	subscriber.enqueue(ev(false), 0)
 	if _, ok := subscriber.next(); !ok {
 		t.Fatal("routine event was not delivered")
 	}
@@ -182,7 +432,7 @@ func TestJournalSubscriber_ReusesRoutineQueueAndReleasesBursts(t *testing.T) {
 		t.Fatal("routine queue capacity was not retained")
 	}
 
-	subscriber.enqueue(ev(2, false))
+	subscriber.enqueue(ev(false), 0)
 	if _, ok := subscriber.next(); !ok {
 		t.Fatal("reused queue event was not delivered")
 	}
@@ -190,10 +440,10 @@ func TestJournalSubscriber_ReusesRoutineQueueAndReleasesBursts(t *testing.T) {
 		t.Fatalf("routine queue capacity = %d, want reused capacity %d", got, routineCapacity)
 	}
 
-	for i := 0; i < liveHeadroom*2; i++ {
-		subscriber.enqueue(ev(i+3, true))
+	for range liveHeadroom * 2 {
+		subscriber.enqueue(ev(true), 1)
 	}
-	for i := 0; i < liveHeadroom*2; i++ {
+	for i := range liveHeadroom * 2 {
 		if _, ok := subscriber.next(); !ok {
 			t.Fatalf("durable burst ended at event %d", i)
 		}
@@ -204,8 +454,8 @@ func TestJournalSubscriber_ReusesRoutineQueueAndReleasesBursts(t *testing.T) {
 }
 
 func TestJournalSubscriber_AbortReleasesQueuedEvents(t *testing.T) {
-	subscriber := newJournalSubscriber(nil)
-	subscriber.enqueue(ev(1, true))
+	subscriber := newJournalSubscriber(nil, DefaultRetention)
+	subscriber.enqueue(ev(true), 1)
 	subscriber.abort()
 
 	if subscriber.queue != nil {
@@ -216,36 +466,37 @@ func TestJournalSubscriber_AbortReleasesQueuedEvents(t *testing.T) {
 	}
 }
 
-func TestJournal_DurableOverflowIsLossless(t *testing.T) {
-	j := NewJournal()
-	seq, cancel := j.Subscribe("")
-	defer cancel()
+// A backlog within the window is lossless however far behind the consumer is.
+func TestJournal_DurableBacklogWithinTheWindowIsLossless(t *testing.T) {
+	j := testJournal()
+	attached := j.Tail()
+	defer attached.Cancel()
 	const total = liveHeadroom*3 + 17
-	for i := 1; i <= total; i++ {
-		j.Append(ev(i, true))
+	for range total {
+		j.Append(ev(true))
 	}
 	j.Close()
 
-	got := drain(seq)
+	got := drain(attached.Events)
 	if len(got) != total {
 		t.Fatalf("durable events = %d, want %d", len(got), total)
 	}
-	for i, cursor := range got {
-		if want := ev(i+1, true).Seq; cursor != want {
-			t.Fatalf("durable event[%d] = %q, want %q", i, cursor, want)
+	for i, sequence := range got {
+		if want := uint64(i + 1); sequence != want {
+			t.Fatalf("event[%d] = %d, want %d", i, sequence, want)
 		}
 	}
 }
 
 func TestJournalConcurrentAppendCloseAndCancel(t *testing.T) {
-	j := NewJournal()
-	seq, cancel := j.Subscribe("")
+	j := testJournal()
+	attached := j.Tail()
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Go(func() {
 		<-start
-		for i := 1; i <= liveHeadroom*2; i++ {
-			j.Append(ev(i, true))
+		for range liveHeadroom * 2 {
+			j.Append(ev(true))
 		}
 	})
 	wg.Go(func() {
@@ -254,10 +505,25 @@ func TestJournalConcurrentAppendCloseAndCancel(t *testing.T) {
 	})
 	wg.Go(func() {
 		<-start
-		cancel()
+		attached.Cancel()
 	})
 	close(start)
 	wg.Wait()
-	for range seq { // drain whatever survived the race; must terminate
+	for range attached.Events { // drain whatever survived the race; must terminate
+	}
+}
+
+// BenchmarkJournalAppendDrain records the steady-state per-event append→deliver
+// cost through one subscriber. Live-only events avoid retention.
+func BenchmarkJournalAppendDrain(b *testing.B) {
+	j := testJournal()
+	attached := j.Tail()
+	defer attached.Cancel()
+	next, stop := iter.Pull(attached.Events)
+	defer stop()
+	e := ev(false)
+	for b.Loop() {
+		j.Append(e)
+		next()
 	}
 }

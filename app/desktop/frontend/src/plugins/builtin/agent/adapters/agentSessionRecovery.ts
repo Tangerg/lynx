@@ -77,10 +77,11 @@ async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
   }
 
   // runs.list is the whole history now, so recovery has to say which part it means:
-  // a run it can still attach to. Without the filter it would page every finished
-  // run of the session to find the live one, and pick a terminal run to reattach.
+  // a run it can still attach to. Only a RUNNING root has a stream — a waiting one
+  // is already reconstructed from the interrupt sets above, and subscribing to it
+  // would be refused as run_waiting.
   const active = await collectPages((cursor) =>
-    options.client.runs.list({ sessionId: sid, cursor, statuses: ["running", "waiting"] }),
+    options.client.runs.list({ sessionId: sid, cursor, statuses: ["running"] }),
   );
   if (stale(options)) return;
   const root = active.find((run) => !run.spawnedByItemId);
@@ -101,11 +102,18 @@ async function replayHistory(options: AgentSessionRecoveryOptions): Promise<void
 }
 
 async function attachRootRun(options: AgentSessionRecoveryOptions, run: RunRef): Promise<void> {
+  // A running root always names its segment; without one there is nothing to
+  // attach to, and asking for "whatever is live" is exactly what the protocol
+  // stopped allowing.
+  if (!run.activeSegmentId) return;
   const ctrl = new AbortController();
   options.setAbortController(ctrl);
   let stream: Awaited<ReturnType<typeof options.client.runs.subscribe>>;
   try {
-    stream = await options.client.runs.subscribe(asRunId(run.id), ctrl.signal);
+    stream = await options.client.runs.subscribe(
+      { runId: asRunId(run.id), segmentId: asSegmentId(run.activeSegmentId) },
+      ctrl.signal,
+    );
   } catch (err) {
     if (options.isCancelled() || ctrl.signal.aborted) return;
     console.warn("[agent] run reattach failed:", options.sessionId, err);

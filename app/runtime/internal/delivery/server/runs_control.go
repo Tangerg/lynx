@@ -23,15 +23,16 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 	}
 }
 
-// SteerRun injects a user message into an actively-running run so the model
-// reads it on its next tool round (runs.steer, API.md §6). Only an
-// actively-pumping run is steerable — a parked run (waiting on an interrupt)
-// is answered via runs.resume, and a finished one can't be steered — so a
-// miss in the live run registry is run_not_found.
+// SteerRun injects a user message into the segment the request names so the model
+// reads it on its next tool round (runs.steer, API.md §6).
+//
+// Only the addressed segment is steerable, and every other position says so by
+// name: a waiting run is answered via runs.resume, a finished one cannot be
+// steered at all, and a run that has moved to a different segment refuses rather
+// than delivering the instruction to work the user never saw. The refusals are
+// the same set a subscribe gets, because both are addressing one live segment.
 func (s *Server) SteerRun(ctx context.Context, in protocol.SteerRunRequest) error {
-	err := s.coordinator.Steer(ctx, runs.SteerCommand{RunID: in.RunID, Message: in.Message})
-	if errors.Is(err, runs.ErrRunNotFound) {
-		return protocol.ErrRunNotFound
-	}
-	return err
+	return wireLiveSegmentError(s.coordinator.Steer(ctx, runs.SteerCommand{
+		RunID: in.RunID, ExpectedSegmentID: in.ExpectedSegmentID, Message: in.Message,
+	}))
 }

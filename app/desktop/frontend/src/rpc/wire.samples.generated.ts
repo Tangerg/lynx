@@ -46,6 +46,8 @@ export const WIRE_SAMPLES: readonly WireSample[] = [
   { file: "method.runs.start.resp.json", shape: "StartRunResponse" },
   { file: "method.runs.resume.req.json", shape: "ResumeRunRequest" },
   { file: "method.runs.resume.resp.json", shape: "StartRunResponse" },
+  { file: "method.runs.subscribe.req.json", shape: "SubscribeRunRequest" },
+  { file: "method.runs.subscribe.resp.json", shape: "SubscribeRunResponse" },
   { file: "session.json", shape: "Session" },
   { file: "project.json", shape: "Project" },
   { file: "method.sessions.create.req.json", shape: "CreateSessionRequest" },

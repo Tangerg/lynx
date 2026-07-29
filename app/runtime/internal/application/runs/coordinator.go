@@ -5,14 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/replaycursor"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // ErrClosed is returned by [Coordinator.Start] once the Coordinator is closing:
@@ -35,11 +36,18 @@ type Coordinator struct {
 	now          func() time.Time
 	newRunID     func() string
 	newSegmentID func() string
-	// seq is the process-wide monotonic run-event cursor source (§11.2): the pump
-	// stamps every event with the next value, fixed-width so the Journal's lexical
-	// replay stays correct. It is an opaque application cursor — the evt_ wire
-	// framing is applied by the delivery layer, which owns the protocol format.
-	seq       atomic.Uint64
+	// runs reads the durable run record. A subscribe or a steer that cannot be
+	// served has to say WHY — waiting, finished, a child, or a segment that has
+	// been replaced — and only the durable projection knows: the live registry
+	// holds running segments, so every one of those looks identical there.
+	runs RunProjection
+	// epoch identifies this Coordinator's event streams. Every cursor it mints
+	// carries it, so a cursor from a previous process names a buffer that no
+	// longer exists instead of resolving against a live one. It is minted once
+	// per Coordinator, which is what makes "a restart changes it" structural
+	// rather than remembered.
+	epoch     string
+	retention Retention
 	tasks     taskgroup.Group
 	registry  registry
 	admission *admission.Gate
@@ -48,13 +56,17 @@ type Coordinator struct {
 // Dependencies is the complete collaborator set for the user-visible run use
 // cases and the segment supervisor they own.
 type Dependencies struct {
-	Segments     SegmentExecutor
-	Turns        TurnControl
-	Sessions     SessionLifecycle
-	Effects      Effects
-	Admissions   *admission.Gate
-	Isolation    IsolationProvider // nil disables isolated sessions (their start is refused)
-	Now          func() time.Time
+	Segments   SegmentExecutor
+	Turns      TurnControl
+	Sessions   SessionLifecycle
+	Effects    Effects
+	Runs       RunProjection
+	Admissions *admission.Gate
+	Isolation  IsolationProvider // nil disables isolated sessions (their start is refused)
+	Now        func() time.Time
+	// Retention bounds every segment's replay window. Zero takes
+	// [DefaultRetention], which is also what discovery advertises.
+	Retention    Retention
 	NewRunID     func() string
 	NewSegmentID func() string
 }
@@ -64,30 +76,29 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 	if deps.Now == nil {
 		deps.Now = time.Now
 	}
+	if deps.Retention == (Retention{}) {
+		deps.Retention = DefaultRetention
+	}
 	return &Coordinator{
 		executor:     deps.Segments,
 		turns:        deps.Turns,
 		sessions:     deps.Sessions,
 		effects:      deps.Effects,
+		runs:         deps.Runs,
 		isolation:    deps.Isolation,
 		now:          deps.Now,
 		newRunID:     deps.NewRunID,
 		newSegmentID: deps.NewSegmentID,
+		epoch:        replaycursor.NewEpoch(),
+		retention:    deps.Retention,
 		admission:    deps.Admissions,
 	}
 }
 
-// mintCursor returns the next monotonic, fixed-width, lexically-ordered run-event
-// cursor. It is prefix-free (the evt_ wire id is applied in delivery, §11.2); the
-// fixed width keeps lexical and numeric order in agreement so the Journal can
-// replay strictly-after a cursor without knowing its format.
-func (c *Coordinator) mintCursor() string {
-	// Pad to the full width of a uint64 (20 digits) so the width can never be
-	// exceeded: a shorter min-width (e.g. %011d) would let a value past 10^11 mint a
-	// wider string that sorts lexically before the narrower ones, breaking the
-	// lexical==numeric agreement the Journal replays on.
-	return fmt.Sprintf("%020d", c.seq.Add(1))
-}
+// ReplayRetention is the window this Coordinator enforces. Discovery publishes
+// it from here rather than from a constant of its own: a number the client is
+// told and a number the runtime evicts by must be the same number.
+func (c *Coordinator) ReplayRetention() Retention { return c.retention }
 
 // openSegment attaches an already-prepared executor stream, atomically commits
 // admission/resume plus opening projections, registers the live owner, then
@@ -119,7 +130,9 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		release()
 		return nil, err
 	}
-	hub := NewJournal()
+	hub := newJournal(streamScope{
+		Epoch: c.epoch, RunID: spec.RunID, SegmentID: spec.SegmentID,
+	}, c.retention)
 	live := &handle{cancel: cancel, owner: taskCtx, hub: hub, done: make(chan struct{})}
 	reducer := newReducer(reducerConfig{
 		RunID: spec.RunID, SegmentID: spec.SegmentID, SessionID: spec.SessionID,
@@ -152,11 +165,13 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		ModelSelection:  spec.ModelSelection,
 		ProtocolProfile: spec.effectiveProfile(),
 	}, live)
-	subscription, unsubscribe := hub.Subscribe("")
-	stopUnsubscribe := context.AfterFunc(reqCtx, unsubscribe)
+	// The opening subscription attaches before any event is appended, so tail-only
+	// and "from the beginning" are the same stream here — there is no beginning yet.
+	opened := hub.Tail()
+	stopUnsubscribe := context.AfterFunc(reqCtx, opened.Cancel)
 	seq := func(yield func(Event) bool) {
 		defer stopUnsubscribe()
-		subscription(yield)
+		opened.Events(yield)
 	}
 	for _, pe := range opening.events {
 		hub.Append(c.event(spec, pe))
@@ -220,11 +235,13 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, reduc
 	return projected, nil
 }
 
+// event builds the envelope for one reduced payload. Its stream position is NOT
+// set here — the Journal assigns it while publishing, so sequence order and
+// publication order are the same order by construction.
 func (c *Coordinator) event(spec segmentSpec, reduced reduction) Event {
 	return Event{
 		RunID:     spec.RunID,
 		SegmentID: spec.SegmentID,
-		Seq:       c.mintCursor(),
 		Timestamp: c.now().UTC(),
 		Payload:   reduced.Event,
 	}
@@ -244,29 +261,86 @@ func (c *Coordinator) rejectUnadmittedTurn(ctx context.Context, ref execution.Tu
 	return cause
 }
 
-// SubscribeLive opens a coherent subscription to a live run. The record and
-// Journal are captured from the same registry entry, so Delivery cannot return
-// a segment id from one entry and subscribe to a replacement or removed entry.
-// The subscription is dropped when ctx ends or the consumer stops ranging.
+// Subscribe attaches to the segment the request names. The record and Journal
+// are captured from the same registry entry, so Delivery cannot return a segment
+// id from one entry and subscribe to a replacement or removed entry. The
+// subscription is dropped when ctx ends or the consumer stops ranging.
 //
-// It reports [ErrRunNotFound] when the run is not actively streaming, and
-// [execution.ErrProfileNotCovered] when caller could not follow what this run publishes —
-// the same rule a resume applies, kept here rather than at each caller so the two
-// entry points into an existing Run cannot disagree about it.
-func (c *Coordinator) SubscribeLive(ctx context.Context, runID, fromCursor string, caller execution.RunProtocolProfile) (Record, iter.Seq[Event], error) {
-	e, ok := c.registry.Get(runID)
-	if !ok || e.handle == nil || e.handle.hub == nil {
-		return Record{}, nil, ErrRunNotFound
+// Refusals name what the caller should do instead: [ErrRunNotFound],
+// [transcript.ErrNotRoot], [ErrRunWaiting], [ErrRunFinished],
+// [ErrStaleSegment], [ErrReplayCursorInvalid], [ErrReplayUnavailable], and
+// [execution.ProfileNotCovered] when the caller could not follow what this run
+// publishes — the same rule a resume applies, kept here rather than at each
+// caller so the two entry points into an existing Run cannot disagree about it.
+func (c *Coordinator) Subscribe(ctx context.Context, req SubscribeRequest) (Subscription, error) {
+	live, err := c.addressLiveSegment(ctx, req.RunID, req.SegmentID)
+	if err != nil {
+		return Subscription{}, err
 	}
-	if gap := e.record.ProtocolProfile.Uncovered(caller); !gap.IsEmpty() {
-		return Record{}, nil, &execution.ProfileNotCovered{RunID: runID, Gap: gap}
+	if gap := live.record.ProtocolProfile.Uncovered(req.Caller); !gap.IsEmpty() {
+		return Subscription{}, &execution.ProfileNotCovered{RunID: req.RunID, Gap: gap}
 	}
-	subscription, unsubscribe := e.handle.hub.Subscribe(fromCursor)
-	stopUnsubscribe := context.AfterFunc(ctx, unsubscribe)
-	return e.record, func(yield func(Event) bool) {
-		defer stopUnsubscribe()
-		subscription(yield)
+	attached, err := live.handle.hub.attach(req.Cursor)
+	if err != nil {
+		return Subscription{}, err
+	}
+	stopUnsubscribe := context.AfterFunc(ctx, attached.Cancel)
+	return Subscription{
+		Record:     live.record,
+		HeadCursor: attached.HeadCursor,
+		Events: func(yield func(Event) bool) {
+			defer stopUnsubscribe()
+			attached.Events(yield)
+		},
 	}, nil
+}
+
+// addressLiveSegment resolves the run and segment a control command addresses,
+// refusing with the reason the caller can act on.
+//
+// The durable record is the authority for the refusal, not the live registry:
+// the registry holds only running segments, so a run that is waiting, finished,
+// or a child all look the same there — one indistinguishable "not found" for
+// three situations whose remedies are answering an interrupt, reading the
+// transcript, and following rootRunId.
+//
+// Both entry points into an executing run (subscribe and steer) resolve here, so
+// they cannot come to different conclusions about the same run.
+func (c *Coordinator) addressLiveSegment(ctx context.Context, runID, segmentID string) (liveSegment, error) {
+	if c.runs == nil {
+		return liveSegment{}, errors.New("runs: run projection is required")
+	}
+	run, ok, err := c.runs.Run(ctx, runID)
+	if err != nil {
+		return liveSegment{}, fmt.Errorf("runs: read run %q: %w", runID, err)
+	}
+	if !ok {
+		return liveSegment{}, ErrRunNotFound
+	}
+	if run.SpawnedByItemID != "" {
+		return liveSegment{}, fmt.Errorf("%w: %q", transcript.ErrNotRoot, runID)
+	}
+	switch status := run.State.Status(); status {
+	case execution.StatusWaiting:
+		return liveSegment{}, fmt.Errorf("%w: %q", ErrRunWaiting, runID)
+	case execution.StatusFinished:
+		return liveSegment{}, fmt.Errorf("%w: %q", ErrRunFinished, runID)
+	case execution.StatusRunning:
+	default:
+		return liveSegment{}, fmt.Errorf("runs: run %q has unknown status %d", runID, status)
+	}
+	if run.ActiveSegmentID != segmentID {
+		return liveSegment{}, fmt.Errorf("%w: run %q is executing %q", ErrStaleSegment, runID, run.ActiveSegmentID)
+	}
+	live, ok := c.registry.Get(runID)
+	if !ok || live.handle == nil || live.handle.hub == nil {
+		// A Running record whose segment this process does not own. Restart recovery
+		// terminalizes orphans before the runtime serves, so this is a broken
+		// invariant rather than a state a client can act on — reporting it as one
+		// would teach the client a lie about the run.
+		return liveSegment{}, fmt.Errorf("runs: run %q is running segment %q with no live stream", runID, segmentID)
+	}
+	return live, nil
 }
 
 // List snapshots the records of the currently-live runs.

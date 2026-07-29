@@ -44,8 +44,15 @@ export interface AgentRuntimeGateway {
     toRunId?: string;
     restoreType?: RestoreType;
   }): Promise<void>;
-  steerRun(runId: string, text: string): Promise<void>;
-  isRunNotFound(error: unknown): boolean;
+  /** Inject a user instruction into the segment the caller believes is executing.
+   *  The segment is part of the address: a run that parked and resumed between
+   *  typing and sending must refuse rather than deliver the instruction into a
+   *  continuation the person never saw. */
+  steerRun(runId: string, segmentId: string, text: string): Promise<void>;
+  /** Whether a refusal means "the run this addressed is no longer executing" —
+   *  finished, waiting on a person, or already on a different segment. One
+   *  question because one answer follows: send the text as a fresh turn. */
+  isRunGone(error: unknown): boolean;
   setApprovalMode(mode: ApprovalMode): Promise<void>;
   forgetApprovalRule(id: string): Promise<void>;
 }

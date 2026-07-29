@@ -79,6 +79,13 @@ var CanonicalSamples = []CanonicalSample{
 	// Go has no ResumeRunResponse — ResumeRun returns *StartRunResponse; {runId}
 	// round-trips identically (TS pins it as ResumeRunResponse).
 	{"method.runs.resume.resp.json", reflect.TypeFor[StartRunResponse]()},
+	// Subscribe has its own pair because it is NOT a run-opening ack: the request
+	// must name a segment, and the response carries a stream position instead of a
+	// user item. The sample's headEventId is deliberately an opaque token — it is
+	// there to be stored and handed back, and a fixture that spelled out a
+	// sequence would invite a client to read one.
+	{"method.runs.subscribe.req.json", reflect.TypeFor[SubscribeRunRequest]()},
+	{"method.runs.subscribe.resp.json", reflect.TypeFor[SubscribeRunResponse]()},
 
 	// §4.1 Session — Session/Project + method envelopes.
 	{"session.json", reflect.TypeFor[Session]()},

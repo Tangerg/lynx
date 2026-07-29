@@ -539,6 +539,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Turns:      runExecutor,
 		Sessions:   sessionCoord,
 		Effects:    runEffects,
+		Runs:       cfg.RunStore,
 		Admissions: admissions,
 		Now:        time.Now,
 		NewRunID: func() string {

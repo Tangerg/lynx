@@ -886,6 +886,10 @@ export const ja: Record<string, string> = {
     "このセッションには実行中のランがあります — 介入・応答・キャンセルのいずれかを先に行ってください。",
 
   "rpcError.run_not_root": "そのランはより大きなランの一部です — ルートランを指定してください。",
+  "rpcError.run_waiting": "そのランは回答を待っています — まず回答してください。",
+  "rpcError.run_finished": "そのランはすでに終了しています。",
+  "rpcError.stale_segment":
+    "そのランは先へ進みました — 再読み込みして現在の状態を確認してください。",
 
   "rpcError.session_busy": "セッションは実行中です — 現在の実行が終わるまで待ってください。",
   "rpcError.checkpoint_unavailable":

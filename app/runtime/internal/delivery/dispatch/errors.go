@@ -45,7 +45,16 @@ var sentinelSpecs = map[error]rpcErrorSpec{
 	protocol.ErrRevisionConflict: {code: protocol.CodeRevisionConflict, recovery: protocol.RecoveryRefetch},
 	// The run moved on while the client was not looking: its STREAM is stale rather
 	// than its ids, so it rebuilds from the durable reads.
-	protocol.ErrInterruptNotOpen: {code: protocol.CodeInterruptNotOpen, recovery: protocol.RecoveryColdRecover},
+	protocol.ErrInterruptNotOpen:  {code: protocol.CodeInterruptNotOpen, recovery: protocol.RecoveryColdRecover},
+	protocol.ErrReplayUnavailable: {code: protocol.CodeReplayUnavailable, recovery: protocol.RecoveryColdRecover},
+	protocol.ErrRunWaiting:        {code: protocol.CodeRunWaiting, recovery: protocol.RecoveryColdRecover},
+	protocol.ErrRunFinished:       {code: protocol.CodeRunFinished, recovery: protocol.RecoveryColdRecover},
+	// The run is executing something else, or the client is holding a cursor that
+	// never addressed this stream. Both are answered by reading the run again — and
+	// for the cursor, by dropping it: reattaching with the same one would fail the
+	// same way, so resubscribe means resubscribe WITHOUT it.
+	protocol.ErrStaleSegment:        {code: protocol.CodeStaleSegment, recovery: protocol.RecoveryRefetch},
+	protocol.ErrReplayCursorInvalid: {code: protocol.CodeReplayCursorInvalid, recovery: protocol.RecoveryResubscribe},
 	// Only a person can choose: which run continues, where to work, whether to
 	// declare a capability, or what to do about a conflicting key.
 	protocol.ErrSessionHasActiveRun:    {code: protocol.CodeSessionHasActiveRun, recovery: protocol.RecoveryPromptUser},
@@ -72,6 +81,21 @@ var sentinelSpecs = map[error]rpcErrorSpec{
 func RecoveryFor(problemType string) (protocol.RecoveryAction, bool) {
 	spec, ok := specFor(problemType)
 	return spec.recovery, ok && spec.recovery != ""
+}
+
+// ProblemCodes is the published business error surface: every problem type this
+// dispatcher can send, with the code it is sent with.
+//
+// The generator reads it instead of keeping its own table. That table existed, and
+// it was a verbatim copy — so a new error had to be remembered in two places, and
+// the artifacts could publish a code the runtime does not send. A type reaches the
+// published registry by having wire behavior here, not by being listed twice.
+func ProblemCodes() map[string]int {
+	out := make(map[string]int, len(sentinelSpecs))
+	for sentinel, spec := range sentinelSpecs {
+		out[sentinel.Error()] = spec.code
+	}
+	return out
 }
 
 // RetryAfterFor returns the declared backoff hint for one problem type. A hint says

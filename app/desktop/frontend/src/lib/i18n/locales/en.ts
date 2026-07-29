@@ -930,6 +930,9 @@ export const en: Record<string, string> = {
   "rpcError.session_has_active_run":
     "This session already has a run in flight — steer it, answer it, or cancel it first.",
   "rpcError.run_not_root": "That run belongs to a larger run — ask for the root run instead.",
+  "rpcError.run_waiting": "That run is waiting for an answer — respond to it instead.",
+  "rpcError.run_finished": "That run has already finished.",
+  "rpcError.stale_segment": "That run has moved on — reload it to see where it stands.",
   "rpcError.session_busy": "Session is busy — wait for the current run to finish.",
   "rpcError.checkpoint_unavailable": "No file checkpoint for that turn — nothing was changed.",
   "rpcError.cwd_unavailable": "That path does not exist on the runtime's disk.",

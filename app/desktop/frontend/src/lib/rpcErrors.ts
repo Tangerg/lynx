@@ -20,6 +20,14 @@ const MAPPED_TYPES: readonly string[] = [
   // words say what the choices are; which one to take is the person's.
   "session_has_active_run",
   "run_not_root",
+  // A run that exists but is not executing, and a run that has moved to another
+  // segment: each says what happened to work the person was watching. The two
+  // replay refusals (replay_cursor_invalid / replay_unavailable) are deliberately
+  // absent — a client answers those by reattaching and rebuilding, and there is
+  // nothing for a person to do or be told.
+  "run_waiting",
+  "run_finished",
+  "stale_segment",
   "checkpoint_unavailable",
   "cwd_unavailable",
   "vcs_unavailable",

@@ -269,31 +269,32 @@ func (c *Coordinator) cancelParkedBinding(ctx context.Context, cmd CancelCommand
 	return nil
 }
 
-// Steer addresses a live run by its application record and lets the turn
-// adapter recover the concrete executor handle.
+// Steer addresses the segment the command names and lets the turn adapter
+// recover the concrete executor handle.
+//
+// It resolves through the same authority a subscribe does
+// ([Coordinator.addressLiveSegment]), so "this run is waiting" or "that segment
+// has been replaced" is one answer with one spelling rather than two entry
+// points each guessing from the live registry.
 func (c *Coordinator) Steer(ctx context.Context, cmd SteerCommand) error {
 	if c.turns == nil {
 		return errors.New("runs: turn control is required")
 	}
-	rec, ok := c.liveRecord(cmd.RunID)
-	if !ok {
-		return ErrRunNotFound
+	live, err := c.addressLiveSegment(ctx, cmd.RunID, cmd.ExpectedSegmentID)
+	if err != nil {
+		return err
 	}
+	rec := live.record
 	if err := c.turns.Steer(ctx, execution.TurnRef{SessionID: rec.SessionID, TurnID: rec.TurnID}, cmd.Message); err != nil {
 		if errors.Is(err, ErrTurnNotLive) {
-			return fmt.Errorf("%w: %w", ErrRunNotFound, err)
+			// The turn ended between resolving the record and delivering: the run is
+			// finishing, which is the same thing the durable record would say a moment
+			// from now.
+			return fmt.Errorf("%w: %w", ErrRunFinished, err)
 		}
 		return err
 	}
 	return nil
-}
-
-func (c *Coordinator) liveRecord(runID string) (Record, bool) {
-	e, ok := c.registry.Get(runID)
-	if !ok {
-		return Record{}, false
-	}
-	return e.record, true
 }
 
 func (c *Coordinator) resolveSession(ctx context.Context, id, newID, defaultCwd, title string) (session.Session, *session.Session, error) {

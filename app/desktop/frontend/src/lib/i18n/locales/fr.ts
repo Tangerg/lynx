@@ -900,6 +900,9 @@ export const fr: Record<string, string> = {
 
   "rpcError.run_not_root":
     "Cette exécution appartient à une exécution plus large — demandez l’exécution racine.",
+  "rpcError.run_waiting": "Cette exécution attend une réponse — répondez-lui d'abord.",
+  "rpcError.run_finished": "Cette exécution est déjà terminée.",
+  "rpcError.stale_segment": "Cette exécution a avancé — rechargez-la pour voir où elle en est.",
 
   "rpcError.session_busy": "La session est occupée — attends la fin de l'exécution en cours.",
   "rpcError.checkpoint_unavailable":

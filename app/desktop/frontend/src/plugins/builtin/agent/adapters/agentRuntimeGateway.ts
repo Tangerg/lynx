@@ -1,5 +1,5 @@
 import { getContainer } from "@/main/container";
-import { asRunId, asSessionId, eachPage, isErrorType } from "@/rpc";
+import { asRunId, asSegmentId, asSessionId, eachPage, isErrorType } from "@/rpc";
 import type { Item } from "@/rpc";
 import { configureAgentRuntimeGateway } from "../application/ports/runtimeGateway";
 import type { AgentRunHistoryRef, AgentRuntimeGateway } from "../application/ports/runtimeGateway";
@@ -66,11 +66,16 @@ const gateway: AgentRuntimeGateway = {
         ...(input.restoreType ? { restoreType: input.restoreType } : {}),
       });
   },
-  async steerRun(runId, text) {
-    await getContainer().client().runs.steer(asRunId(runId), text);
+  async steerRun(runId, segmentId, text) {
+    await getContainer().client().runs.steer(asRunId(runId), asSegmentId(segmentId), text);
   },
-  isRunNotFound(error) {
-    return isErrorType(error, "run_not_found");
+  isRunGone(error) {
+    return (
+      isErrorType(error, "run_not_found") ||
+      isErrorType(error, "run_finished") ||
+      isErrorType(error, "run_waiting") ||
+      isErrorType(error, "stale_segment")
+    );
   },
   async setApprovalMode(mode) {
     await getContainer().client().approval.setMode(mode);

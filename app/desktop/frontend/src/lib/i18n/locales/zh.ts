@@ -868,6 +868,9 @@ export const zh: Record<string, string> = {
   "rpcError.session_has_active_run": "该会话已有一个运行中的任务 —— 请先介入、回应或取消它。",
 
   "rpcError.run_not_root": "该 run 属于某个更大的 run —— 请改用其根 run。",
+  "rpcError.run_waiting": "该 run 正在等待回应 —— 请先回应它。",
+  "rpcError.run_finished": "该 run 已经结束。",
+  "rpcError.stale_segment": "该 run 已经继续往下走了 —— 请重新加载查看当前进度。",
 
   "rpcError.session_busy": "会话正忙 —— 请等当前运行结束。",
   "rpcError.checkpoint_unavailable": "该轮没有文件检查点 —— 未改动任何文件。",

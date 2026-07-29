@@ -204,8 +204,13 @@ type Server struct {
 
 	features featureAvailability
 
-	// wsHub fans non-run workspace events (files/skills/mcp changes) out to
-	// workspace.subscribe streams (AUX_API §3). Ephemeral, lossy, connection-
+	// replay is the advertised replay window, captured from the run coordinator at
+	// construction. nil when no run coordinator was composed: then there is no
+	// window, and discovery says nothing rather than a number.
+	replay *protocol.RunReplayLimits
+
+	// wsHub fans non-run change signals (files/skills/mcp/schedule/session) out to
+	// runtime.subscribe streams (AUX_API §3). Ephemeral, lossy, connection-
 	// scoped — distinct from the durable per-run hubs.
 	wsHub *workspaceHub
 }
@@ -334,6 +339,7 @@ func New(cfg Config) (*Server, error) {
 		workspaceHooks:     cfg.WorkspaceHooks,
 		workspaceWatch:     cfg.WorkspaceWatch,
 		features:           features,
+		replay:             replayLimitsFrom(cfg.Coordinator),
 	}
 	// The run pump publishes live file-change nudges through the composition-root
 	// bridge; the Server maps each to a wire workspace event on its hub. This is
@@ -361,14 +367,37 @@ func New(cfg Config) (*Server, error) {
 // optional keys come from the same immutable composition facts that handlers
 // use for their capability gates.
 func (s *Server) Capabilities() protocol.ServerCapabilities {
-	return capabilitiesFor(s.features)
+	return capabilitiesFor(s.features, s.replay)
+}
+
+// replayLimitsFrom captures the replay window the run coordinator enforces, at
+// construction, the way every other composition fact is captured: discovery
+// describes the runtime that was assembled, so a composition with no run
+// coordinator has no window to state and says nothing.
+//
+// The scope is named here because "which buffer a cursor can reach into" is wire
+// vocabulary, and it holds by construction rather than by convention: a Journal
+// is created per segment, and every cursor it mints carries that segment and this
+// process — so a cursor from another segment is refused as invalid and one from
+// another process as unavailable. Making those two refusals happen is what checks
+// this claim.
+func replayLimitsFrom(coordinator runUseCases) *protocol.RunReplayLimits {
+	if coordinator == nil {
+		return nil
+	}
+	retention := coordinator.ReplayRetention()
+	return &protocol.RunReplayLimits{
+		Scope:     protocol.ReplayScopeProcessRootSegment,
+		MaxEvents: retention.MaxEvents,
+		MaxBytes:  retention.MaxBytes,
+	}
 }
 
 // capabilitiesFor builds the advertised contract from actual composition. A
 // capability is never inferred from an RPC error; discovery and gating share
 // the same facts so an advertised feature is callable and a disabled feature
 // is absent before the client issues a request.
-func capabilitiesFor(features featureAvailability) protocol.ServerCapabilities {
+func capabilitiesFor(features featureAvailability, replay *protocol.RunReplayLimits) protocol.ServerCapabilities {
 	return protocol.ServerCapabilities{
 		RunEvents: []protocol.StreamEventType{
 			protocol.StreamSegmentStarted,
@@ -391,8 +420,8 @@ func capabilitiesFor(features featureAvailability) protocol.ServerCapabilities {
 		// to get back, and how wide one subscription may be.
 		Limits: protocol.RuntimeLimits{
 			// No process-wide run cap is enforced, so maxConcurrentRuns stays absent
-			// rather than advertising a limit the admission layer does not own. runReplay
-			// is absent for the same reason — see its field doc.
+			// rather than advertising a limit the admission layer does not own.
+			RunReplay: replay,
 			RuntimeSubscription: protocol.SubscriptionLimits{
 				MaxTopics: protocol.MaxSubscriptionTopics, MaxWatches: protocol.MaxSubscriptionWatches,
 			},

@@ -170,7 +170,7 @@ func TestInProcessStreamingCallLivesUntilTransportClose(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewTransport: %v", err)
 	}
-	req, err := transport.NewCall("1", "workspace.subscribe", map[string]any{})
+	req, err := transport.NewCall("1", "runtime.subscribe", map[string]any{"topics": []string{"skills.changed"}})
 	if err != nil {
 		t.Fatalf("NewCall: %v", err)
 	}

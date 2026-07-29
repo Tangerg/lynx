@@ -27,6 +27,17 @@ var (
 	// ErrRunNotFound reports that a cancel or steer target is neither live nor
 	// parked.
 	ErrRunNotFound = errors.New("runs: run not found")
+	// ErrRunWaiting and ErrRunFinished report a run that exists but is not
+	// executing. They are separate from ErrRunNotFound because the caller's next
+	// move differs and is knowable: a waiting run needs its interrupts answered, a
+	// finished one has nothing left but its transcript.
+	ErrRunWaiting  = errors.New("runs: run is waiting for a response")
+	ErrRunFinished = errors.New("runs: run has finished")
+	// ErrStaleSegment reports that the run is executing a segment other than the
+	// one the caller addressed. The caller is acting on an execution that has been
+	// replaced — steering it would inject into work the user never saw, and
+	// subscribing to it would fold a stream the client believes is a different one.
+	ErrStaleSegment = errors.New("runs: run is executing a different segment")
 	// ErrInterruptNotOpen reports that a resume target has no open interrupt.
 	ErrInterruptNotOpen = errors.New("runs: interrupt not open")
 	// ErrInvalidInterruptResponse reports a response set that does not exactly
@@ -184,8 +195,39 @@ type CancelCommand struct {
 
 // SteerCommand injects a message into an actively executing run.
 type SteerCommand struct {
-	RunID   string
-	Message string
+	RunID string
+	// ExpectedSegmentID is the segment the caller believes is executing. It is
+	// required: without it "inject into whatever is running now" would deliver the
+	// user's instruction to a continuation they never saw — the run they meant
+	// could have parked and been resumed between typing and sending.
+	ExpectedSegmentID string
+	Message           string
+}
+
+// SubscribeRequest attaches a caller to a run's live segment.
+type SubscribeRequest struct {
+	RunID string
+	// SegmentID is the segment the caller believes is executing, required for the
+	// same reason a steer needs it: a reconnect that says only "this run" would
+	// attach to a stream that is not the one it was folding.
+	SegmentID string
+	// Cursor is the opaque position the caller last folded, empty for a fresh
+	// attach. Empty is tail-only — history comes from the transcript reads.
+	Cursor string
+	// Caller is what THIS request declares it can handle, checked against the
+	// Run's frozen profile. A subscriber that could not follow the stream is
+	// refused rather than served a quietly reduced one.
+	Caller execution.RunProtocolProfile
+}
+
+// Subscription is an attached caller's view of a live segment.
+type Subscription struct {
+	Record Record
+	// HeadCursor is the stream's position when the subscription attached, empty
+	// when nothing had been published yet. The caller stores it verbatim and hands
+	// it back on the next reconnect; it is not orderable and must not be parsed.
+	HeadCursor string
+	Events     iter.Seq[Event]
 }
 
 // StartResult identifies the admitted segment and exposes its application

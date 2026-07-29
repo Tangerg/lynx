@@ -82,6 +82,21 @@ type queriesCoordinatorProvider interface {
 	queriesCoordinator() *queries.Coordinator
 }
 
+// runProjectionProvider is the seam for the durable run read that addressing a
+// live segment resolves through (subscribe / steer). Fakes with no run store may
+// omit it; a handler that then addresses a segment fails loudly rather than
+// guessing what the run is doing.
+type runProjectionProvider interface {
+	runProjection() runs.RunProjection
+}
+
+func (s stubRuntime) runProjection() runs.RunProjection {
+	if s.runs == nil {
+		return nil
+	}
+	return s.runs
+}
+
 func (s stubRuntime) queriesCoordinator() *queries.Coordinator {
 	return queries.New(queries.Dependencies{
 		Transcript: s.hist,
@@ -102,11 +117,16 @@ func newTestServer(rt testRuntime) *Server {
 		lifecycle = s.sessions.(runs.SessionLifecycle)
 	}
 	var ids atomic.Uint64
+	var runProjection runs.RunProjection
+	if p, ok := rt.(runProjectionProvider); ok {
+		runProjection = p.runProjection()
+	}
 	s.coordinator = runs.NewCoordinator(runs.Dependencies{
 		Segments:   rt,
 		Turns:      rt,
 		Sessions:   lifecycle,
 		Effects:    rt.RunSegmentEffects(nil, nil),
+		Runs:       runProjection,
 		Admissions: admissions,
 		Now:        time.Now,
 		NewRunID: func() string {

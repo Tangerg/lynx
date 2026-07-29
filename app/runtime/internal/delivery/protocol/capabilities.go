@@ -134,11 +134,11 @@ type RuntimeLimits struct {
 	// because the alternative is a client discovering the ceiling by losing events:
 	// knowing the bound is what lets it choose replay or a cold read.
 	//
-	// Absent until the bound exists. The journal currently retains a segment's whole
-	// durable history, so there is no ceiling to state — and stating a number the
-	// runtime does not enforce would be discovery lying, which is the one thing
-	// discovery may never do. C13 introduces the retention window and the refusal a
-	// cursor past it gets, and fills this in.
+	// It is a pointer because a composition that kept no window would have no bound
+	// to state, and stating one the runtime does not enforce is discovery lying —
+	// the one thing discovery may never do. This build does keep a window, so it is
+	// present, and it is read from the enforcing coordinator rather than restated
+	// here.
 	RunReplay *RunReplayLimits `json:"runReplay,omitempty"`
 	// RuntimeSubscription bounds one subscription's fan-out.
 	RuntimeSubscription SubscriptionLimits `json:"runtimeSubscription"`

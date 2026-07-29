@@ -55,6 +55,14 @@ type SessionLifecycle interface {
 	ApplyRunLost(ctx context.Context, sessionID, runID string, finishedAt time.Time) error
 }
 
+// RunProjection is the run use cases' read of one durable run record. It is the
+// authority for what a run IS — root or child, running, waiting or finished, and
+// which segment is executing — which the process-local registry of live segments
+// cannot answer: every run it does not hold looks the same there.
+type RunProjection interface {
+	Run(ctx context.Context, runID string) (transcript.Run, bool, error)
+}
+
 // StartTurn is the protocol-neutral command the run use case sends to the
 // executor adapter after resolving the session and its working directory.
 type StartTurn struct {

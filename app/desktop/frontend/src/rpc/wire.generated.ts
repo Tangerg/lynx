@@ -1282,6 +1282,7 @@ export type StateSnapshotType = "todos";
 export type StateSnapshotWriter = "rootRun" | "anyRun";
 
 export interface SteerRunRequest {
+  expectedSegmentId: string;
   message: string;
   runId: string;
 }
@@ -1300,6 +1301,13 @@ export type StreamEventType = "segment.started" | "segment.progress" | "segment.
 
 export interface SubscribeRunRequest {
   runId: string;
+  segmentId: string;
+}
+
+export interface SubscribeRunResponse {
+  headEventId?: string;
+  runId: string;
+  segmentId: string;
 }
 
 export interface SubscriptionLimits {

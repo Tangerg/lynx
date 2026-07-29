@@ -11,7 +11,7 @@
 import type { RpcCallOptions, RpcClient } from "./client";
 import { isErrorType, RpcError } from "./errors";
 import { unnegotiated } from "./preflight";
-import type { RunId, SessionId } from "./ids";
+import type { RunId, SegmentId, SessionId } from "./ids";
 import { RPC_CAPABILITY_NOT_NEGOTIATED } from "./types";
 import type {
   AgentDoc,
@@ -53,6 +53,8 @@ import type {
   ProviderTestResult,
   ResumeRunRequest,
   StartRunResponse,
+  SubscribeRunRequest,
+  SubscribeRunResponse,
   RollbackSessionRequest,
   RollbackSessionResponse,
   RunEvent,
@@ -220,14 +222,21 @@ export interface Methods {
       params: ResumeRunRequest,
       signal?: AbortSignal,
     ) => Promise<StreamingResult<StartRunResponse, RunEvent>>;
+    // Reattach to a run's live segment. Both ids are required: a subscription that
+    // named only the run would attach to whatever segment happens to be executing,
+    // and a client folding an earlier one would continue into a different execution
+    // without being able to tell. A mismatch is stale_segment.
     subscribe: (
-      runId: RunId,
+      params: SubscribeRunRequest,
       signal?: AbortSignal,
-    ) => Promise<StreamingResult<StartRunResponse, RunEvent>>;
+    ) => Promise<StreamingResult<SubscribeRunResponse, RunEvent>>;
     cancel: (runId: RunId, reason?: string) => Promise<void>;
-    // Mid-run steering (§6): inject a user message into the running run so the
-    // model reads it next tool round. run_not_found if no longer actively running.
-    steer: (runId: RunId, message: string) => Promise<void>;
+    // Mid-run steering (§6): inject a user message into the segment the caller
+    // believes is executing, so the model reads it next tool round. The segment is
+    // named for the same reason: a run that parked and resumed between typing and
+    // sending must refuse (stale_segment) rather than deliver the instruction to
+    // work the person never saw.
+    steer: (runId: RunId, expectedSegmentId: SegmentId, message: string) => Promise<void>;
     // One run by id — current or terminal — without knowing its session (§7.3).
     get: (runId: RunId) => Promise<RunRef>;
     // The durable run history, newest first (§7.3). Omitting statuses returns every
@@ -550,18 +559,19 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
         stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };
       },
-      subscribe: async (runId, signal) => {
-        // Reattach to a running run: its response names the CURRENT segment;
-        // bind the tree to that segmentId (same deferred-bind head-drop guard).
+      subscribe: async (params, signal) => {
+        // Reattach to the segment the caller named; the ack echoes it, and the tree
+        // binds to it (same deferred-bind head-drop guard).
         const stream = streamRunEvents(client, signal);
         const result = await callOrDispose(stream, () =>
-          call("runs.subscribe", { runId }, { signal }),
+          call("runs.subscribe", params, { signal }),
         );
         stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };
       },
       cancel: (runId, reason) => mutate("runs.cancel", { runId, reason }),
-      steer: (runId, message) => mutate("runs.steer", { runId, message }),
+      steer: (runId, expectedSegmentId, message) =>
+        mutate("runs.steer", { runId, expectedSegmentId, message }),
       get: (runId) => call("runs.get", { runId }),
       list: (query) => call("runs.list", query ?? {}),
     },

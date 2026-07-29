@@ -257,6 +257,7 @@ export type WireTypeName =
   | "StreamEvent"
   | "StreamEventType"
   | "SubscribeRunRequest"
+  | "SubscribeRunResponse"
   | "SubscriptionLimits"
   | "TestProviderRequest"
   | "TodoSnapshot"
@@ -2158,9 +2159,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   StateSnapshotType: enumOf(["todos"]),
   StateSnapshotWriter: enumOf(["rootRun", "anyRun"]),
   SteerRunRequest: object({
+    expectedSegmentId: allOf([text(), minLength(1)]),
     message: allOf([text(), minLength(1)]),
     runId: allOf([text(), minLength(1)]),
-  }, ["message", "runId"]),
+  }, ["expectedSegmentId", "message", "runId"]),
   StreamEvent: allOf([
     object({
       delta: ref(() => CHECKS.ItemDelta),
@@ -2282,7 +2284,13 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   StreamEventType: enumOf(["segment.started", "segment.progress", "segment.finished", "item.started", "item.delta", "item.completed", "state.snapshot", "custom"]),
   SubscribeRunRequest: object({
     runId: allOf([text(), minLength(1)]),
-  }, ["runId"]),
+    segmentId: allOf([text(), minLength(1)]),
+  }, ["runId", "segmentId"]),
+  SubscribeRunResponse: object({
+    headEventId: text(),
+    runId: text(),
+    segmentId: text(),
+  }, ["runId", "segmentId"]),
   SubscriptionLimits: object({
     maxTopics: integer(),
     maxWatches: integer(),

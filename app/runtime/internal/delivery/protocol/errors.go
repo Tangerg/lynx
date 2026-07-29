@@ -234,6 +234,11 @@ const (
 	// code continues the sequence rather than filling one in.
 	CodeRunNotRoot          = -32022
 	CodeSessionHasActiveRun = -32023
+	CodeRunWaiting          = -32024
+	CodeRunFinished         = -32025
+	CodeStaleSegment        = -32026
+	CodeReplayCursorInvalid = -32027
+	CodeReplayUnavailable   = -32028
 )
 
 // Sentinel errors returned by Runtime implementations. The dispatch
@@ -262,7 +267,27 @@ var (
 	// ErrRunNotRoot: a root-only operation named a child run. It is not
 	// run_not_found — the run exists, and the thing the caller wants exists under its
 	// root — so the remedy is to follow rootRunId, not to look for a different id.
-	ErrRunNotRoot             = errors.New("run_not_root")
+	ErrRunNotRoot = errors.New("run_not_root")
+	// ErrRunWaiting / ErrRunFinished: the run exists but is not executing, so
+	// there is nothing to steer or attach to. They are not run_not_found — the run
+	// is there, and each names where the caller's answer lives instead: the waiting
+	// set for one, the transcript for the other.
+	ErrRunWaiting  = errors.New("run_waiting")
+	ErrRunFinished = errors.New("run_finished")
+	// ErrStaleSegment: the run is executing a segment other than the one addressed.
+	// The client's copy of "what is running" is out of date; it re-reads the run
+	// and decides from the new activeSegmentId, and the runtime never retargets the
+	// request on its behalf.
+	ErrStaleSegment = errors.New("stale_segment")
+	// ErrReplayCursorInvalid: the replay cursor cannot be read, belongs to another
+	// stream, or names a position past the stream's head. Carrying it forward would
+	// keep failing, so the client discards it and attaches without one.
+	ErrReplayCursorInvalid = errors.New("replay_cursor_invalid")
+	// ErrReplayUnavailable: the cursor was legitimate and what it pointed at is
+	// gone — a previous process's stream, or a position the retention window has
+	// evicted. The events are not lost, only their replay: the client rebuilds from
+	// the durable reads and tails from now.
+	ErrReplayUnavailable      = errors.New("replay_unavailable")
 	ErrInvalidProtocolVersion = errors.New("invalid_protocol_version")
 	// ErrVcsUnavailable: git is available but the cwd isn't a repo (AUX_API
 	// §2.3) — distinct from "clean repo" (empty result). NOT for missing git

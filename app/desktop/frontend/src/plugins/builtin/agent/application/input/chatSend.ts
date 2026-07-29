@@ -39,18 +39,21 @@ export function useChatSend(): (input: AgentInput) => void {
   const send = agentViewState().useAction("send");
   const running = agentViewState().useRunning();
   const runId = agentViewState().useRunId();
+  const segmentId = agentViewState().useSegmentId();
   return useCallback(
     (input: AgentInput) => {
       const sessionId = getActiveSessionId();
       const runOptions = resolveAgentRunStartOptions();
-      if (running && sessionId && runId) {
-        if (steerRunningTurn({ sessionId, runId, input, send, runOptions })) {
+      // A steer needs the segment as well as the run: without it there is nothing to
+      // address, and a fresh turn is the honest fallback.
+      if (running && sessionId && runId && segmentId) {
+        if (steerRunningTurn({ sessionId, runId, segmentId, input, send, runOptions })) {
           return;
         }
       }
       sendFreshTurn({ sessionId, send, createSession, input, runOptions });
     },
-    [send, running, runId, createSession],
+    [send, running, runId, segmentId, createSession],
   );
 }
 
@@ -68,6 +71,7 @@ let steerSeq = 0;
 interface SteerRunningTurnInput {
   sessionId: string;
   runId: string;
+  segmentId: string;
   input: AgentInput;
   send: SendToAgent | null;
   runOptions: AgentRunStartOptions;
@@ -76,6 +80,7 @@ interface SteerRunningTurnInput {
 function steerRunningTurn({
   sessionId,
   runId,
+  segmentId,
   input,
   send,
   runOptions,
@@ -84,9 +89,13 @@ function steerRunningTurn({
   if (!text) return false;
   const localId = mintSteerBubble(sessionId, input);
   const runtime = agentRuntime();
-  void runtime.steerRun(runId, text).catch((err: unknown) => {
+  void runtime.steerRun(runId, segmentId, text).catch((err: unknown) => {
     agentViewState().dropMessage(sessionId, localId);
-    if (runtime.isRunNotFound(err)) {
+    // The run this steer addressed is no longer executing: it finished, parked, or
+    // moved to another segment while the person was typing. Sending the text as a
+    // fresh turn is what they meant, and it is the runtime — not a guess here —
+    // that says which of those happened.
+    if (runtime.isRunGone(err)) {
       send?.(input, runOptions);
       return;
     }
