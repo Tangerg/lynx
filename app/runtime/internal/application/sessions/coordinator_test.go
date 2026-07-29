@@ -123,8 +123,8 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 	if applied.Run.State != execution.Canceled || applied.Run.Outcome == nil || *applied.Run.Outcome != execution.OutcomeCanceled {
 		t.Fatalf("terminal run = %+v, want canceled", applied.Run)
 	}
-	if applied.Run.Result == nil || applied.Run.Detail != "user stopped" || !applied.Run.FinishedAt.Equal(finishedAt) {
-		t.Fatalf("terminal result/detail/time = %+v/%q/%v", applied.Run.Result, applied.Run.Detail, applied.Run.FinishedAt)
+	if applied.Run.Detail != "user stopped" || !applied.Run.FinishedAt.Equal(finishedAt) {
+		t.Fatalf("terminal detail/time = %q/%v", applied.Run.Detail, applied.Run.FinishedAt)
 	}
 	if applied.Run.MessageMark != 2 || len(applied.Run.Interrupts) != 0 {
 		t.Fatalf("terminal mark/interrupts = %d/%+v, want 2/none", applied.Run.MessageMark, applied.Run.Interrupts)
@@ -170,10 +170,10 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 	// with an unrestorable snapshot, so it is the one that has to say so. Leaving
 	// the detail empty pushed the sentence out to the presenter, which could only
 	// see the kind and wrote one default for every way a run can be lost.
-	if applied.Run.Result == nil || applied.Run.Result.Error == nil ||
-		applied.Run.Result.Error.Kind != transcript.RunLostProblem ||
-		applied.Run.Result.Error.Detail != "the parked run's process snapshot could not be restored" {
-		t.Fatalf("terminal result = %+v, want run_lost naming its cause", applied.Run.Result)
+	if applied.Run.Error == nil ||
+		applied.Run.Error.Kind != transcript.RunLostProblem ||
+		applied.Run.Error.Detail != "the parked run's process snapshot could not be restored" {
+		t.Fatalf("terminal failure = %+v, want run_lost naming its cause", applied.Run.Error)
 	}
 	if len(applied.Items) != 1 || applied.Items[0].Status != transcript.ItemIncomplete ||
 		applied.Items[0].Error == nil ||

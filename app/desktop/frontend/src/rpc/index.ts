@@ -50,8 +50,10 @@ export type {
   // Runs
   RunRef,
   RunOutcome,
+  SegmentOutcome,
   RunProgress,
-  RunResult,
+  RunMetrics,
+  RunLimits,
   StartRunRequest,
   StartRunResponse,
   ResumeRunRequest,

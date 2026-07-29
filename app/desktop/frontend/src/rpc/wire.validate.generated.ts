@@ -44,7 +44,8 @@ export type WireTypeName =
   | "ArtifactQuestionField"
   | "ArtifactQuestionOption"
   | "ArtifactRun"
-  | "ArtifactRunResult"
+  | "ArtifactRunLimits"
+  | "ArtifactRunMetrics"
   | "ArtifactSession"
   | "ArtifactToolInvocation"
   | "ArtifactToolResult"
@@ -197,11 +198,12 @@ export type WireTypeName =
   | "RollbackSessionRequest"
   | "RollbackSessionResponse"
   | "RunEvent"
+  | "RunLimits"
+  | "RunMetrics"
   | "RunOutcome"
   | "RunOutcomeType"
   | "RunProgress"
   | "RunRef"
-  | "RunResult"
   | "RunScheduleNowRequest"
   | "RunScheduleNowResponse"
   | "RunStatus"
@@ -209,6 +211,8 @@ export type WireTypeName =
   | "SafetyClass"
   | "Schedule"
   | "SearchHit"
+  | "SegmentOutcome"
+  | "SegmentOutcomeType"
   | "ServerCapabilities"
   | "ServerInfo"
   | "Session"
@@ -449,32 +453,39 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   ArtifactOutcome: allOf([
     object({
       detail: text(),
-      result: ref(() => CHECKS.ArtifactRunResult),
+      error: ref(() => CHECKS.ArtifactProblem),
       type: ref(() => CHECKS.ArtifactOutcomeType),
     }, []),
     oneOf([
       fields({
         detail: absent(),
+        error: absent(),
         type: literal("completed"),
-      }, ["result", "type"]),
+      }, ["type"]),
       fields({
+        detail: absent(),
         type: literal("error"),
-      }, ["result", "type"]),
+      }, ["error", "type"]),
       fields({
+        error: absent(),
         type: literal("maxSteps"),
-      }, ["result", "type"]),
+      }, ["type"]),
       fields({
+        error: absent(),
         type: literal("maxBudget"),
-      }, ["result", "type"]),
+      }, ["type"]),
       fields({
+        error: absent(),
         type: literal("canceled"),
-      }, ["result", "type"]),
+      }, ["type"]),
     ]),
     ifThen(
       fields({
         type: literal("error"),
       }, ["type"]),
-      fields({}, ["result"]),
+      fields({
+        detail: absent(),
+      }, ["error"]),
     ),
   ]),
   ArtifactOutcomeType: enumOf(["completed", "error", "maxSteps", "maxBudget", "canceled"]),
@@ -513,20 +524,25 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     createdAt: text(),
     finishedAt: text(),
     id: text(),
+    limits: ref(() => CHECKS.ArtifactRunLimits),
     messageMark: integer(),
+    metrics: ref(() => CHECKS.ArtifactRunMetrics),
     model: text(),
     outcome: ref(() => CHECKS.ArtifactOutcome),
     provider: text(),
     sessionId: text(),
     spawnedByItemId: text(),
     updatedAt: text(),
-  }, ["createdAt", "finishedAt", "id", "messageMark", "outcome", "sessionId", "updatedAt"]),
-  ArtifactRunResult: object({
-    durationMs: integer(),
-    error: ref(() => CHECKS.ArtifactProblem),
+  }, ["createdAt", "finishedAt", "id", "messageMark", "metrics", "outcome", "sessionId", "updatedAt"]),
+  ArtifactRunLimits: object({
+    maxBudgetUsd: numeric(),
+    maxSteps: integer(),
+  }, []),
+  ArtifactRunMetrics: object({
+    activeDurationMs: integer(),
     steps: integer(),
     usage: ref(() => CHECKS.ArtifactUsage),
-  }, ["steps"]),
+  }, ["activeDurationMs", "steps"]),
   ArtifactSession: object({
     createdAt: text(),
     cwd: text(),
@@ -1473,61 +1489,54 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     segmentId: text(),
     timestamp: text(),
   }, ["event", "eventId", "runId", "segmentId", "timestamp"]),
+  RunLimits: object({
+    maxBudgetUsd: numeric(),
+    maxSteps: integer(),
+  }, []),
+  RunMetrics: object({
+    activeDurationMs: integer(),
+    steps: integer(),
+    usage: ref(() => CHECKS.Usage),
+  }, ["activeDurationMs", "steps"]),
   RunOutcome: allOf([
     object({
       detail: text(),
-      interrupts: array(ref(() => CHECKS.Interrupt)),
-      result: ref(() => CHECKS.RunResult),
+      error: ref(() => CHECKS.ProblemData),
       type: ref(() => CHECKS.RunOutcomeType),
     }, []),
     oneOf([
       fields({
         detail: absent(),
-        interrupts: absent(),
+        error: absent(),
         type: literal("completed"),
-      }, ["result", "type"]),
+      }, ["type"]),
       fields({
         detail: absent(),
-        interrupts: absent(),
         type: literal("error"),
-      }, ["result", "type"]),
+      }, ["error", "type"]),
       fields({
-        interrupts: absent(),
+        error: absent(),
         type: literal("maxSteps"),
-      }, ["result", "type"]),
+      }, ["type"]),
       fields({
-        interrupts: absent(),
+        error: absent(),
         type: literal("maxBudget"),
-      }, ["result", "type"]),
+      }, ["type"]),
       fields({
-        interrupts: absent(),
+        error: absent(),
         type: literal("canceled"),
-      }, ["result", "type"]),
-      fields({
-        detail: absent(),
-        result: absent(),
-        type: literal("interrupt"),
-      }, ["interrupts", "type"]),
+      }, ["type"]),
     ]),
     ifThen(
       fields({
-        type: literal("interrupt"),
-      }, ["type"]),
-      fields({
-        result: absent(),
-      }, ["interrupts"]),
-    ),
-    ifThen(
-      fields({
         type: literal("error"),
       }, ["type"]),
       fields({
         detail: absent(),
-        interrupts: absent(),
-      }, ["result"]),
+      }, ["error"]),
     ),
   ]),
-  RunOutcomeType: enumOf(["completed", "error", "maxSteps", "maxBudget", "canceled", "interrupt"]),
+  RunOutcomeType: enumOf(["completed", "error", "maxSteps", "maxBudget", "canceled"]),
   RunProgress: object({
     activity: text(),
     contextTokens: integer(),
@@ -1539,26 +1548,40 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       createdAt: text(),
       finishedAt: text(),
       id: text(),
+      limits: ref(() => CHECKS.RunLimits),
+      metrics: ref(() => CHECKS.RunMetrics),
       model: text(),
       outcome: ref(() => CHECKS.RunOutcome),
       provider: text(),
       sessionId: text(),
       spawnedByItemId: text(),
       status: ref(() => CHECKS.RunStatus),
-    }, ["id", "sessionId"]),
+    }, ["id", "metrics", "sessionId"]),
     ifThen(
       fields({
         status: literal("finished"),
       }, ["status"]),
       fields({}, ["finishedAt", "outcome"]),
     ),
+    ifThen(
+      fields({
+        status: literal("running"),
+      }, ["status"]),
+      fields({
+        finishedAt: absent(),
+        outcome: absent(),
+      }, []),
+    ),
+    ifThen(
+      fields({
+        status: literal("waiting"),
+      }, ["status"]),
+      fields({
+        finishedAt: absent(),
+        outcome: absent(),
+      }, []),
+    ),
   ]),
-  RunResult: object({
-    durationMs: integer(),
-    error: ref(() => CHECKS.ProblemData),
-    steps: integer(),
-    usage: ref(() => CHECKS.Usage),
-  }, []),
   RunScheduleNowRequest: object({
     id: allOf([text(), minLength(1)]),
   }, ["id"]),
@@ -1566,7 +1589,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     runId: text(),
     sessionId: text(),
   }, ["runId", "sessionId"]),
-  RunStatus: enumOf(["running", "finished"]),
+  RunStatus: enumOf(["running", "waiting", "finished"]),
   RuntimeLimits: object({
     maxConcurrentRuns: integer(),
   }, []),
@@ -1590,6 +1613,81 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     path: text(),
     snippet: text(),
   }, ["path"]),
+  SegmentOutcome: allOf([
+    object({
+      detail: text(),
+      error: ref(() => CHECKS.ProblemData),
+      interrupts: array(ref(() => CHECKS.Interrupt)),
+      type: ref(() => CHECKS.SegmentOutcomeType),
+    }, []),
+    oneOf([
+      fields({
+        detail: absent(),
+        error: absent(),
+        type: literal("interrupt"),
+      }, ["interrupts", "type"]),
+      fields({
+        detail: absent(),
+        error: absent(),
+        interrupts: absent(),
+        type: literal("suspended"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+        error: absent(),
+        interrupts: absent(),
+        type: literal("completed"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+        interrupts: absent(),
+        type: literal("error"),
+      }, ["error", "type"]),
+      fields({
+        error: absent(),
+        interrupts: absent(),
+        type: literal("maxSteps"),
+      }, ["type"]),
+      fields({
+        error: absent(),
+        interrupts: absent(),
+        type: literal("maxBudget"),
+      }, ["type"]),
+      fields({
+        error: absent(),
+        interrupts: absent(),
+        type: literal("canceled"),
+      }, ["type"]),
+    ]),
+    ifThen(
+      fields({
+        type: literal("error"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+      }, ["error"]),
+    ),
+    ifThen(
+      fields({
+        type: literal("interrupt"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+        error: absent(),
+      }, ["interrupts"]),
+    ),
+    ifThen(
+      fields({
+        type: literal("suspended"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+        error: absent(),
+        interrupts: absent(),
+      }, []),
+    ),
+  ]),
+  SegmentOutcomeType: enumOf(["interrupt", "suspended", "completed", "error", "maxSteps", "maxBudget", "canceled"]),
   ServerCapabilities: object({
     events: array(ref(() => CHECKS.StreamEventType)),
     features: record(ref(() => CHECKS.FeatureCapability)),
@@ -1691,8 +1789,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       durable: flag(),
       item: ref(() => CHECKS.Item),
       itemId: text(),
+      metrics: ref(() => CHECKS.RunMetrics),
       name: text(),
-      outcome: ref(() => CHECKS.RunOutcome),
+      outcome: ref(() => CHECKS.SegmentOutcome),
       payload: anything(),
       progress: ref(() => CHECKS.RunProgress),
       run: ref(() => CHECKS.RunRef),
@@ -1705,6 +1804,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         durable: absent(),
         item: absent(),
         itemId: absent(),
+        metrics: absent(),
         name: absent(),
         outcome: absent(),
         payload: absent(),
@@ -1717,6 +1817,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         durable: absent(),
         item: absent(),
         itemId: absent(),
+        metrics: absent(),
         name: absent(),
         outcome: absent(),
         payload: absent(),
@@ -1735,11 +1836,12 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         run: absent(),
         state: absent(),
         type: literal("segment.finished"),
-      }, ["outcome", "type"]),
+      }, ["metrics", "outcome", "type"]),
       fields({
         delta: absent(),
         durable: absent(),
         itemId: absent(),
+        metrics: absent(),
         name: absent(),
         outcome: absent(),
         payload: absent(),
@@ -1751,6 +1853,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       fields({
         durable: absent(),
         item: absent(),
+        metrics: absent(),
         name: absent(),
         outcome: absent(),
         payload: absent(),
@@ -1763,6 +1866,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         delta: absent(),
         durable: absent(),
         itemId: absent(),
+        metrics: absent(),
         name: absent(),
         outcome: absent(),
         payload: absent(),
@@ -1776,6 +1880,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         durable: absent(),
         item: absent(),
         itemId: absent(),
+        metrics: absent(),
         name: absent(),
         outcome: absent(),
         payload: absent(),
@@ -1787,6 +1892,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         delta: absent(),
         item: absent(),
         itemId: absent(),
+        metrics: absent(),
         outcome: absent(),
         progress: absent(),
         run: absent(),

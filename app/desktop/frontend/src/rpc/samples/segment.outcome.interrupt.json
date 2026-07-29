@@ -7,7 +7,9 @@
       "payload": {
         "tool": {
           "name": "shell",
-          "arguments": { "command": "rm -rf build" }
+          "arguments": {
+            "command": "rm -rf build"
+          }
         },
         "risk": "high",
         "reason": "destructive command"

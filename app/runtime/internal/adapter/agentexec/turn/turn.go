@@ -3,7 +3,6 @@ package turn
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
@@ -111,7 +110,7 @@ func (s *memoryDispatcher) drive(st *turnState) {
 	// MessageDelta events already streamed through the observer — no
 	// need to re-emit the assembled reply here.
 	recordTurnCleanupError(st, s.completeTurn(st, func() {
-		s.emitTurnEnd(st, completion, time.Since(st.startedAt))
+		s.emitTurnEnd(st, completion, st.segmentElapsed())
 	}))
 }
 
@@ -170,7 +169,7 @@ func (s *memoryDispatcher) emitInterrupt(st *turnState, process agentexec.TurnPr
 		return
 	}
 	recordInterruptMetric(st.ctx, string(pending.Kind))
-	if !s.emit(st, runs.TurnInterrupted{Interrupts: []runs.Interrupt{pending}}) {
+	if !s.emit(st, runs.TurnInterrupted{Interrupts: []runs.Interrupt{pending}, Duration: st.segmentElapsed()}) {
 		return
 	}
 	// Notification hooks (observe-only): the turn is waiting on the user — fire

@@ -21,7 +21,7 @@ func (s *Server) ListRuns(ctx context.Context, in protocol.ListRunsRequest) (*pr
 	}
 	out := make([]protocol.RunRef, 0, len(page.Rows))
 	for _, run := range page.Rows {
-		out = append(out, presentAdmittedRun(run))
+		out = append(out, presentRun(run))
 	}
 	return protocol.NewPageWithCursor(out, page.NextCursor), nil
 }

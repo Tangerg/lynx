@@ -1,4 +1,4 @@
-import type { RunOutcome, RunProgress, RunRef, Usage } from "@/rpc";
+import type { RunMetrics, RunProgress, RunRef, SegmentOutcome, Usage } from "@/rpc";
 import type { AgentViewState, RunUsage } from "@/plugins/sdk/types/agentView";
 import { appendTimelineEntry, patchRun } from "@/plugins/sdk";
 import { settlePendingInterrupts } from "./fold";
@@ -50,6 +50,17 @@ function mapUsage(u: Usage): RunUsage {
   };
 }
 
+// runMetrics is the readout patch a Run's committed accounting produces. Both the
+// step counter and the total read the same field, because a Run's metrics ARE its
+// total — the step preview on segment.progress is the same number arriving early.
+function runMetrics(state: AgentViewState, metrics: RunMetrics): Partial<AgentViewState["run"]> {
+  return {
+    step: metrics.steps || state.run.step,
+    totalSteps: metrics.steps || state.run.totalSteps,
+    ...(metrics.usage ? { usage: mapUsage(metrics.usage) } : {}),
+  };
+}
+
 export function onRunProgress(
   state: AgentViewState,
   progress: RunProgress,
@@ -67,7 +78,8 @@ export function onRunProgress(
 
 export function onRunFinished(
   state: AgentViewState,
-  outcome: RunOutcome,
+  outcome: SegmentOutcome,
+  metrics: RunMetrics,
   runId?: string,
 ): AgentViewState {
   // The wire envelope runId is the only discriminator for subagent endings.
@@ -81,6 +93,11 @@ export function onRunFinished(
     })(state);
   }
   const idle: AgentViewState = { ...state, run: { ...state.run, running: false } };
+  if (outcome.type === "suspended") {
+    // Another run in this tree raised the interrupt; this one only stopped. Its
+    // pending set stays where it is — the run that raised it reports it.
+    return patchRun({ running: false, ...runMetrics(state, metrics) })(idle);
+  }
   if (outcome.type === "interrupt") {
     // The stable Run to resume — a resume continues THIS run (new segment),
     // never a fresh run.
@@ -109,19 +126,12 @@ export function onRunFinished(
             ],
           };
     for (const it of outcome.interrupts) next = materializeInterrupt(next, it, interruptedRunId);
-    return next;
+    return patchRun(runMetrics(state, metrics))(next);
   }
 
-  const { result } = outcome;
-  const usage = result?.usage;
-  // A terminal non-interrupt run invalidates any still-actionable cards it owns.
+  // A terminal run invalidates any still-actionable cards it owns.
   const withRun = settlePendingInterrupts(
-    patchRun({
-      running: false,
-      step: result?.steps ?? state.run.step,
-      totalSteps: result?.steps ?? state.run.totalSteps,
-      ...(usage ? { usage: mapUsage(usage) } : {}),
-    })(idle),
+    patchRun({ running: false, ...runMetrics(state, metrics) })(idle),
   );
 
   if (outcome.type === "error") {
@@ -132,9 +142,9 @@ export function onRunFinished(
       // the user and leave the banner nothing to translate — the symbol travels
       // in `code`, and the banner turns it into this locale's words.
       error: {
-        message: result?.error?.detail,
-        code: result?.error?.type,
-        retryAfterSeconds: result?.error?.retryAfterSeconds,
+        message: outcome.error?.detail,
+        code: outcome.error?.type,
+        retryAfterSeconds: outcome.error?.retryAfterSeconds,
       },
     };
     return appendTimelineEntry({

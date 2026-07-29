@@ -238,6 +238,15 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 		RunID:     "run_1",
 		SessionID: "ses_1",
 		State:     runs.StateSuspend,
+		// A park is a durable commit, so it carries the Run record whose accrual it
+		// freezes — not just the ids of the row to move.
+		Run: &transcript.Run{
+			SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
+			Interrupts:  []transcript.Interrupt{{ItemID: "int_1", Kind: transcript.QuestionInterrupt}},
+			Metrics:     transcript.RunMetrics{Steps: 2},
+			CreatedAt:   time.Unix(1, 0).UTC(),
+			MessageMark: transcript.UnknownMessageMark,
+		},
 		Interrupt: &interrupts.Pending{
 			RunID:          "run_1",
 			SessionID:      "ses_1",
@@ -262,8 +271,8 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 	if len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "int_1" || len(got.DrainedTools) != 1 {
 		t.Fatalf("pending interrupts = %+v drained=%+v", got.Interrupts, got.DrainedTools)
 	}
-	if len(runState.suspended) != 1 || runState.suspended[0] != "ses_1:run_1" {
-		t.Fatalf("suspended = %v, want [ses_1:run_1]", runState.suspended)
+	if len(runState.suspended) != 1 || runState.suspended[0].ID != "run_1" || runState.suspended[0].Metrics.Steps != 2 {
+		t.Fatalf("suspended = %+v, want run_1 with the accrual the park froze", runState.suspended)
 	}
 	if len(stores.transcript.items) != 1 || stores.transcript.items[0].ID != "int_1" {
 		t.Fatalf("park transcript = items:%+v, want one running interrupt item", stores.transcript.items)
@@ -284,6 +293,15 @@ func TestCommitEventRejectsUnresumableInterrupt(t *testing.T) {
 		RunID:     "run_1",
 		SessionID: "ses_1",
 		State:     runs.StateSuspend,
+		// A park is a durable commit, so it carries the Run record whose accrual it
+		// freezes — not just the ids of the row to move.
+		Run: &transcript.Run{
+			SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
+			Interrupts:  []transcript.Interrupt{{ItemID: "int_1", Kind: transcript.QuestionInterrupt}},
+			Metrics:     transcript.RunMetrics{Steps: 2},
+			CreatedAt:   time.Unix(1, 0).UTC(),
+			MessageMark: transcript.UnknownMessageMark,
+		},
 		Interrupt: &interrupts.Pending{RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
 	})
 	if !errors.Is(err, want) {
@@ -501,7 +519,6 @@ func finishedRunRecord(runID, sessionID string, outcome execution.Outcome) *tran
 	state, _ := execution.Running.Terminate(outcome)
 	return &transcript.Run{
 		SessionID: sessionID, ID: runID, State: state, Outcome: &outcome,
-		Result:      &transcript.RunResult{},
 		CreatedAt:   time.Unix(1, 0).UTC(),
 		FinishedAt:  time.Unix(2, 0).UTC(),
 		MessageMark: transcript.UnknownMessageMark,
@@ -512,7 +529,7 @@ func finishedRunRecord(runID, sessionID string, outcome execution.Outcome) *tran
 type fakeRunState struct {
 	admitted     []execution.RunDraft
 	resumed      []string
-	suspended    []string
+	suspended    []transcript.Run
 	terminalized []transcript.Run
 }
 
@@ -526,8 +543,8 @@ func (r *fakeRunState) Resume(_ context.Context, draft execution.ResumeDraft) er
 	return nil
 }
 
-func (r *fakeRunState) Suspend(_ context.Context, sessionID, runID string) error {
-	r.suspended = append(r.suspended, sessionID+":"+runID)
+func (r *fakeRunState) Suspend(_ context.Context, run transcript.Run) error {
+	r.suspended = append(r.suspended, run)
 	return nil
 }
 

@@ -54,7 +54,7 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_actual", SessionID: "ses_1", CreatedAt: time.Now().UTC()}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := state.Suspend(ctx, "ses_1", "run_actual"); err != nil {
+	if err := state.Suspend(ctx, parkedRunRecord("run_actual", "ses_1", time.Now().UTC())); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	if err := ints.Put(ctx, interrupts.Pending{RunID: "run_stale", SessionID: "ses_1"}); err != nil {
@@ -88,7 +88,7 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: "ses_1", CreatedAt: created}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := state.Suspend(ctx, "ses_1", "run_1"); err != nil {
+	if err := state.Suspend(ctx, parkedRunRecord("run_1", "ses_1", created)); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	if err := ints.Put(ctx, interrupts.Pending{RunID: "run_1", SessionID: "ses_1"}); err != nil {
@@ -366,7 +366,7 @@ func TestCommitOpeningRefusesASecondOpenRun(t *testing.T) {
 }
 
 // TestCommitEventPersistsTheTerminalRunsResult is the integration evidence that
-// the event transaction maintains terminal_run_carries_its_result.
+// the event transaction maintains terminal_run_explains_how_it_ended.
 //
 // The store refuses a terminal row without an outcome, but that is one table's
 // rule. What the invariant is about is the durable projection a client later reads:
@@ -394,10 +394,8 @@ func TestCommitEventPersistsTheTerminalRunsResult(t *testing.T) {
 	finished := finishedRunRecord(draft.RunID, draft.SessionID, execution.OutcomeError)
 	finished.MessageMark = 0
 	finished.Detail = "the provider rejected the request"
-	finished.Result = &transcript.RunResult{
-		Steps: 3,
-		Error: &transcript.Problem{Kind: transcript.ProviderRejectedProblem, Detail: "rejected"},
-	}
+	finished.Metrics = transcript.RunMetrics{Steps: 3}
+	finished.Error = &transcript.Problem{Kind: transcript.ProviderRejectedProblem, Detail: "rejected"}
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
 		RunID: draft.RunID, SessionID: draft.SessionID, State: runs.StateTerminalize,
 		Outcome: execution.OutcomeError, Run: finished,
@@ -415,11 +413,24 @@ func TestCommitEventPersistsTheTerminalRunsResult(t *testing.T) {
 		t.Errorf("run state = %v, want Failed", run.State)
 	case run.Outcome == nil || *run.Outcome != execution.OutcomeError:
 		t.Errorf("run outcome = %v, want the outcome it terminated with", run.Outcome)
-	case run.Result == nil || run.Result.Steps != 3:
-		t.Errorf("run result = %+v, want the facts the terminal commit carried", run.Result)
+	case run.Metrics.Steps != 3:
+		t.Errorf("run metrics = %+v, want the accrual the terminal commit carried", run.Metrics)
 	case run.Detail != "the provider rejected the request":
 		t.Errorf("run detail = %q, want the explanation it ended with", run.Detail)
 	case run.FinishedAt.IsZero():
 		t.Error("terminal run has no finish time")
+	}
+}
+
+// parkedRunRecord is the record a park hands to Suspend: the run moving to
+// Interrupted with the interrupt it is parked on.
+func parkedRunRecord(runID, sessionID string, createdAt time.Time) transcript.Run {
+	return transcript.Run{
+		SessionID: sessionID, ID: runID, State: execution.Interrupted,
+		Interrupts: []transcript.Interrupt{{
+			ItemID: "item_" + runID, Kind: transcript.QuestionInterrupt,
+			Question: &transcript.Question{Prompt: "continue?"},
+		}},
+		CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
 	}
 }

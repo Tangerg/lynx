@@ -145,13 +145,13 @@ func (r *Reporter) Summary(ctx context.Context, sinceDays int) (Summary, error) 
 }
 
 func foldRun(run transcript.Run, since time.Time, defaultProvider, defaultModel string, total *accumulator, byProvider, byModel, byDay map[string]*accumulator) {
-	if !run.State.IsTerminal() || run.Result == nil || run.Result.Usage == nil {
+	if !run.State.IsTerminal() || run.Metrics.Usage == nil {
 		return
 	}
 	if !since.IsZero() && !run.FinishedAt.IsZero() && run.FinishedAt.Before(since) {
 		return
 	}
-	usage := run.Result.Usage.ModelUsage
+	usage := run.Metrics.Usage.ModelUsage
 	if total != nil {
 		total.add(usage)
 		total.runs++
@@ -169,8 +169,8 @@ func foldRun(run transcript.Run, since time.Time, defaultProvider, defaultModel 
 	if byModel == nil {
 		return
 	}
-	if len(run.Result.Usage.ByModel) > 0 {
-		for name, split := range run.Result.Usage.ByModel {
+	if len(run.Metrics.Usage.ByModel) > 0 {
+		for name, split := range run.Metrics.Usage.ByModel {
 			bucket := accumulatorFor(byModel, name)
 			bucket.add(split)
 			bucket.runs++

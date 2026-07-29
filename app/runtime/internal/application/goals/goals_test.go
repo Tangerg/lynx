@@ -362,7 +362,7 @@ func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.Start
 				SessionID: cmd.SessionID,
 				ID:        runID,
 				Outcome:   outcome,
-				Result:    &transcript.RunResult{Steps: tn.steps, Usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &cost}}},
+				Metrics:   transcript.RunMetrics{Steps: tn.steps, Usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &cost}}},
 			}
 			if outcome != nil && cmd.GoalLeaseID != "" {
 				if err := f.store.RecordTurn(context.WithoutCancel(ctx), goal.TurnRecord{

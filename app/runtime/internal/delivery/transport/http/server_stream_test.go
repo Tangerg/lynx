@@ -21,7 +21,7 @@ func (f *fakeRuntime) StartRun(_ context.Context, in protocol.StartRunRequest) (
 		{RunID: "run_x", EventID: "evt_00000000001",
 			Event: protocol.StreamEvent{Type: protocol.StreamSegmentStarted, Run: &protocol.RunRef{ID: "run_x", SessionID: in.SessionID}}},
 		{RunID: "run_x", EventID: "evt_00000000002",
-			Event: protocol.StreamEvent{Type: protocol.StreamSegmentFinished, Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted, Result: &protocol.RunResult{}}}},
+			Event: protocol.StreamEvent{Type: protocol.StreamSegmentFinished, Outcome: &protocol.SegmentOutcome{Type: protocol.SegmentOutcomeType(protocol.OutcomeCompleted)}, Metrics: &protocol.RunMetrics{}}},
 	})
 	return &protocol.StartRunResponse{RunID: "run_x"}, events, nil
 }

@@ -11,9 +11,11 @@ func (r *reducer) turnEnd(e TurnEnd) ([]RunEvent, error) {
 	if e.Reason != execution.OutcomeError && e.Problem != nil {
 		return nil, fmt.Errorf("non-error outcome carries a problem")
 	}
-	result := &transcript.RunResult{
-		Usage: r.turnUsage(e), Steps: r.step, Duration: e.Duration,
+	if e.Usage != nil {
+		r.usage = turnUsage(*e.Usage)
 	}
+	r.segmentDuration = e.Duration
+	var failure *transcript.Problem
 	detail := ""
 	switch e.Reason {
 	case execution.OutcomeError:
@@ -21,7 +23,7 @@ func (r *reducer) turnEnd(e TurnEnd) ([]RunEvent, error) {
 			return nil, fmt.Errorf("error outcome is missing a problem")
 		}
 		var err error
-		result.Error, err = runResultProblem(*e.Problem)
+		failure, err = runResultProblem(*e.Problem)
 		if err != nil {
 			return nil, err
 		}
@@ -30,7 +32,7 @@ func (r *reducer) turnEnd(e TurnEnd) ([]RunEvent, error) {
 			detail = r.cfg.CancelReason()
 		}
 	}
-	terminal, err := r.finishedRun(e.Reason, result, detail)
+	terminal, err := r.finishedRun(e.Reason, failure, detail)
 	if err != nil {
 		return nil, err
 	}
@@ -49,37 +51,51 @@ func (r *reducer) runRecord(state execution.RunState) transcript.Run {
 		ID:             r.cfg.RunID,
 		ModelSelection: r.cfg.ModelSelection,
 		State:          state,
+		Metrics:        r.metrics(),
+		Limits:         r.cfg.Limits,
 		CreatedAt:      r.cfg.CreatedAt,
 		UpdatedAt:      r.now(),
 		MessageMark:    transcript.UnknownMessageMark,
 	}
 }
 
-func (r *reducer) finishedRun(outcome execution.Outcome, result *transcript.RunResult, detail string) (SegmentFinished, error) {
+// metrics is the Run's cumulative consumption as of now: what it brought into
+// this segment plus what this segment has reported. Every committed Run record
+// goes through here, which is what makes the sequence non-decreasing — the seed
+// is fixed for the segment and the segment's own figures only grow.
+func (r *reducer) metrics() transcript.RunMetrics {
+	return r.cfg.Metrics.Plus(transcript.RunMetrics{
+		Usage:          r.usage,
+		Steps:          r.step,
+		ActiveDuration: r.segmentDuration,
+	})
+}
+
+func (r *reducer) finishedRun(outcome execution.Outcome, failure *transcript.Problem, detail string) (SegmentFinished, error) {
 	state, ok := execution.Running.Terminate(outcome)
 	if !ok {
 		return SegmentFinished{}, fmt.Errorf("outcome %d does not terminate a running run", outcome)
 	}
 	run := r.runRecord(state)
 	run.Outcome = &outcome
-	run.Result = result
+	run.Error = failure
 	run.Detail = detail
 	run.FinishedAt = r.now()
 	return SegmentFinished{Run: run}, nil
 }
 
-func (r *reducer) turnUsage(e TurnEnd) *transcript.Usage {
+func turnUsage(reported TurnUsage) *transcript.Usage {
 	usage := &transcript.Usage{ModelUsage: modelUsageFrom(
-		e.TokenUsage.PromptTokens,
-		e.TokenUsage.CompletionTokens,
-		e.TokenUsage.ReasoningTokens,
-		e.TokenUsage.CacheReadTokens,
-		e.TokenUsage.CacheWriteTokens,
-		e.CostUSD,
+		reported.Tokens.PromptTokens,
+		reported.Tokens.CompletionTokens,
+		reported.Tokens.ReasoningTokens,
+		reported.Tokens.CacheReadTokens,
+		reported.Tokens.CacheWriteTokens,
+		reported.CostUSD,
 	)}
-	if len(e.UsageByModel) > 0 {
-		usage.ByModel = make(map[string]transcript.ModelUsage, len(e.UsageByModel))
-		for _, model := range e.UsageByModel {
+	if len(reported.ByModel) > 0 {
+		usage.ByModel = make(map[string]transcript.ModelUsage, len(reported.ByModel))
+		for _, model := range reported.ByModel {
 			usage.ByModel[model.Model] = modelUsageFrom(
 				model.PromptTokens,
 				model.CompletionTokens,

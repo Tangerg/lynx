@@ -122,11 +122,11 @@ export interface ArtifactModelUsage {
 }
 
 export type ArtifactOutcome =
-  | { type: "completed"; result: ArtifactRunResult }
-  | { type: "error"; detail?: string; result: ArtifactRunResult }
-  | { type: "maxSteps"; detail?: string; result: ArtifactRunResult }
-  | { type: "maxBudget"; detail?: string; result: ArtifactRunResult }
-  | { type: "canceled"; detail?: string; result: ArtifactRunResult };
+  | { type: "completed" }
+  | { type: "error"; error: ArtifactProblem }
+  | { type: "maxSteps"; detail?: string }
+  | { type: "maxBudget"; detail?: string }
+  | { type: "canceled"; detail?: string };
 
 export type ArtifactOutcomeType = "completed" | "error" | "maxSteps" | "maxBudget" | "canceled";
 
@@ -171,7 +171,9 @@ export interface ArtifactRun {
   createdAt: string;
   finishedAt: string;
   id: string;
+  limits?: ArtifactRunLimits;
   messageMark: number;
+  metrics: ArtifactRunMetrics;
   model?: string;
   outcome: ArtifactOutcome;
   provider?: string;
@@ -180,9 +182,13 @@ export interface ArtifactRun {
   updatedAt: string;
 }
 
-export interface ArtifactRunResult {
-  durationMs?: number;
-  error?: ArtifactProblem;
+export interface ArtifactRunLimits {
+  maxBudgetUsd?: number;
+  maxSteps?: number;
+}
+
+export interface ArtifactRunMetrics {
+  activeDurationMs: number;
   steps: number;
   usage?: ArtifactUsage;
 }
@@ -967,15 +973,25 @@ export interface RunEvent {
   timestamp: string;
 }
 
-export type RunOutcome =
-  | { type: "completed"; result: RunResult }
-  | { type: "error"; result: RunResult }
-  | { type: "maxSteps"; detail?: string; result: RunResult }
-  | { type: "maxBudget"; detail?: string; result: RunResult }
-  | { type: "canceled"; detail?: string; result: RunResult }
-  | { type: "interrupt"; interrupts: Interrupt[] };
+export interface RunLimits {
+  maxBudgetUsd?: number;
+  maxSteps?: number;
+}
 
-export type RunOutcomeType = "completed" | "error" | "maxSteps" | "maxBudget" | "canceled" | "interrupt";
+export interface RunMetrics {
+  activeDurationMs: number;
+  steps: number;
+  usage?: Usage;
+}
+
+export type RunOutcome =
+  | { type: "completed" }
+  | { type: "error"; error: ProblemData }
+  | { type: "maxSteps"; detail?: string }
+  | { type: "maxBudget"; detail?: string }
+  | { type: "canceled"; detail?: string };
+
+export type RunOutcomeType = "completed" | "error" | "maxSteps" | "maxBudget" | "canceled";
 
 export interface RunProgress {
   activity?: string;
@@ -988,19 +1004,14 @@ export interface RunRef {
   createdAt?: string;
   finishedAt?: string;
   id: string;
+  limits?: RunLimits;
+  metrics: RunMetrics;
   model?: string;
   outcome?: RunOutcome;
   provider?: string;
   sessionId: string;
   spawnedByItemId?: string;
   status?: RunStatus;
-}
-
-export interface RunResult {
-  durationMs?: number;
-  error?: ProblemData;
-  steps?: number;
-  usage?: Usage;
 }
 
 export interface RunScheduleNowRequest {
@@ -1012,7 +1023,7 @@ export interface RunScheduleNowResponse {
   sessionId: string;
 }
 
-export type RunStatus = "running" | "finished";
+export type RunStatus = "running" | "waiting" | "finished";
 
 export interface RuntimeLimits {
   maxConcurrentRuns?: number;
@@ -1040,6 +1051,17 @@ export interface SearchHit {
   path: string;
   snippet?: string;
 }
+
+export type SegmentOutcome =
+  | { type: "interrupt"; interrupts: Interrupt[] }
+  | { type: "suspended" }
+  | { type: "completed" }
+  | { type: "error"; error: ProblemData }
+  | { type: "maxSteps"; detail?: string }
+  | { type: "maxBudget"; detail?: string }
+  | { type: "canceled"; detail?: string };
+
+export type SegmentOutcomeType = "interrupt" | "suspended" | "completed" | "error" | "maxSteps" | "maxBudget" | "canceled";
 
 export interface ServerCapabilities {
   events: StreamEventType[];
@@ -1159,7 +1181,7 @@ export interface SteerRunRequest {
 export type StreamEvent =
   | { type: "segment.started"; run: RunRef }
   | { type: "segment.progress"; progress: RunProgress }
-  | { type: "segment.finished"; outcome: RunOutcome }
+  | { type: "segment.finished"; metrics: RunMetrics; outcome: SegmentOutcome }
   | { type: "item.started"; item: Item }
   | { type: "item.delta"; delta: ItemDelta; itemId: string }
   | { type: "item.completed"; item: Item }
@@ -1352,9 +1374,10 @@ export const WIRE_ENUMS = {
   RecipeScope: ["project", "global"],
   RememberScopeKind: ["session", "project", "global"],
   RestoreType: ["history", "files", "both"],
-  RunOutcomeType: ["completed", "error", "maxSteps", "maxBudget", "canceled", "interrupt"],
-  RunStatus: ["running", "finished"],
+  RunOutcomeType: ["completed", "error", "maxSteps", "maxBudget", "canceled"],
+  RunStatus: ["running", "waiting", "finished"],
   SafetyClass: ["safe", "write", "exec", "network"],
+  SegmentOutcomeType: ["interrupt", "suspended", "completed", "error", "maxSteps", "maxBudget", "canceled"],
   SessionStatus: ["running", "waiting", "idle"],
   SkillLifecycle: ["active", "archived"],
   SkillSource: ["project", "global"],

@@ -66,15 +66,17 @@ func artifactRunFromPortable(run sessions.PortableRun) (protocol.ArtifactRun, er
 	if err != nil {
 		return protocol.ArtifactRun{}, fmt.Errorf("run %q outcome: %w", run.ID, err)
 	}
-	result, err := artifactRunResultFromDomain(run.Result)
+	problem, err := artifactProblemFromDomain(run.Error)
 	if err != nil {
-		return protocol.ArtifactRun{}, fmt.Errorf("run %q result: %w", run.ID, err)
+		return protocol.ArtifactRun{}, fmt.Errorf("run %q failure: %w", run.ID, err)
 	}
 	return protocol.ArtifactRun{
 		ID: run.ID, SessionID: run.SessionID, SpawnedByItemID: run.SpawnedByItemID,
 		Provider: run.Provider, Model: run.Model,
+		Limits:  artifactLimitsFromDomain(run.Limits),
+		Metrics: artifactMetricsFromDomain(run.Metrics),
 		Outcome: protocol.ArtifactOutcome{
-			Type: outcome, Result: result, Detail: run.Detail,
+			Type: outcome, Error: problem, Detail: run.Detail,
 		},
 		CreatedAt: run.CreatedAt, FinishedAt: run.FinishedAt,
 		UpdatedAt: run.UpdatedAt, MessageMark: run.MessageMark,
@@ -98,18 +100,19 @@ func artifactOutcomeType(outcome execution.Outcome) (protocol.ArtifactOutcomeTyp
 	}
 }
 
-func artifactRunResultFromDomain(result *transcript.RunResult) (*protocol.ArtifactRunResult, error) {
-	if result == nil {
-		return nil, nil
+func artifactMetricsFromDomain(metrics transcript.RunMetrics) protocol.ArtifactRunMetrics {
+	return protocol.ArtifactRunMetrics{
+		Usage:            artifactUsageFromDomain(metrics.Usage),
+		Steps:            metrics.Steps,
+		ActiveDurationMs: metrics.ActiveDuration.Milliseconds(),
 	}
-	problem, err := artifactProblemFromDomain(result.Error)
-	if err != nil {
-		return nil, err
+}
+
+func artifactLimitsFromDomain(limits execution.RunLimits) *protocol.ArtifactRunLimits {
+	if limits.IsZero() {
+		return nil
 	}
-	return &protocol.ArtifactRunResult{
-		Usage: artifactUsageFromDomain(result.Usage), Steps: result.Steps,
-		Error: problem, DurationMs: int(result.Duration.Milliseconds()),
-	}, nil
+	return &protocol.ArtifactRunLimits{MaxSteps: limits.MaxSteps, MaxBudgetUSD: limits.MaxBudgetUSD}
 }
 
 func artifactUsageFromDomain(usage *transcript.Usage) *protocol.ArtifactUsage {

@@ -16,7 +16,7 @@ func validArtifact() protocol.SessionArtifact {
 		Runs: []protocol.ArtifactRun{{
 			ID: "run_1", SessionID: "ses_1", CreatedAt: finished, FinishedAt: finished,
 			UpdatedAt: finished, MessageMark: 0,
-			Outcome: protocol.ArtifactOutcome{Type: "completed", Result: &protocol.ArtifactRunResult{}},
+			Outcome: protocol.ArtifactOutcome{Type: "completed"},
 		}},
 		Items: []protocol.ArtifactItem{{
 			ID: "item_1", RunID: "run_1", Status: "completed", CreatedAt: finished,
@@ -46,7 +46,7 @@ func TestPortableArtifactDecoderRejectsUnknownDiscriminators(t *testing.T) {
 		}},
 		{"problem type", func(a *protocol.SessionArtifact) {
 			a.Runs[0].Outcome.Type = "error"
-			a.Runs[0].Outcome.Result.Error = &protocol.ArtifactProblem{Type: "legacy"}
+			a.Runs[0].Outcome.Error = &protocol.ArtifactProblem{Type: "legacy"}
 		}},
 	}
 	for _, test := range tests {

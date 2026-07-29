@@ -52,7 +52,9 @@ type PortableRun struct {
 	Provider        string
 	Model           string
 	Outcome         execution.Outcome
-	Result          *transcript.RunResult
+	Error           *transcript.Problem
+	Metrics         transcript.RunMetrics
+	Limits          execution.RunLimits
 	Detail          string
 	CreatedAt       time.Time
 	FinishedAt      time.Time
@@ -81,9 +83,6 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 			return Snapshot{}, fmt.Errorf("%w: run %q has invalid outcome %s", ErrInvalidPortableSnapshot, portable.ID, portable.Outcome)
 		}
 		outcome := portable.Outcome
-		if portable.Result == nil {
-			return Snapshot{}, fmt.Errorf("%w: run %q has no result", ErrInvalidPortableSnapshot, portable.ID)
-		}
 		snapshot.Runs = append(snapshot.Runs, transcript.Run{
 			SessionID:       portable.SessionID,
 			ID:              portable.ID,
@@ -91,7 +90,9 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 			ModelSelection:  selection,
 			State:           state,
 			Outcome:         &outcome,
-			Result:          portable.Result,
+			Error:           portable.Error,
+			Metrics:         portable.Metrics,
+			Limits:          portable.Limits,
 			Detail:          portable.Detail,
 			CreatedAt:       portable.CreatedAt,
 			FinishedAt:      portable.FinishedAt,
@@ -168,8 +169,8 @@ func (s Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 		Runs:        make([]PortableRun, 0, len(normalized.Runs)),
 	}
 	for _, run := range normalized.Runs {
-		if run.Outcome == nil || run.Result == nil {
-			return PortableSnapshot{}, fmt.Errorf("sessions: terminal run %q has no outcome or result", run.ID)
+		if run.Outcome == nil {
+			return PortableSnapshot{}, fmt.Errorf("sessions: terminal run %q has no outcome", run.ID)
 		}
 		portable.Runs = append(portable.Runs, PortableRun{
 			SessionID:       run.SessionID,
@@ -178,7 +179,9 @@ func (s Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 			Provider:        run.ModelSelection.Provider(),
 			Model:           run.ModelSelection.Model(),
 			Outcome:         *run.Outcome,
-			Result:          run.Result,
+			Error:           run.Error,
+			Metrics:         run.Metrics,
+			Limits:          run.Limits,
 			Detail:          run.Detail,
 			CreatedAt:       run.CreatedAt,
 			FinishedAt:      run.FinishedAt,

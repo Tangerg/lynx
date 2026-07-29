@@ -10,9 +10,10 @@
 // — one event, one contract — so a regression names the exact handler.
 
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Item, RunOutcome, StreamEvent } from "@/rpc";
+import type { Item, StreamEvent } from "@/rpc";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { reduce } from "./reducer";
+import { runFinished } from "./reducer.fixtures";
 import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
 // Terse builders (mirror reducer.events.test.ts). Items are partial — only the
@@ -33,7 +34,6 @@ const runStarted = (id: string, sessionId: string): StreamEvent => ({
   type: "segment.started",
   run: { id, sessionId } as never,
 });
-const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "segment.finished", outcome });
 const runProgress = (progress: Record<string, unknown>): StreamEvent =>
   ({ type: "segment.progress", progress }) as StreamEvent;
 const snapshot = (state: Record<string, unknown>): StreamEvent =>
@@ -54,7 +54,7 @@ describe("handler contract — run.*", () => {
     );
     s = reduce(
       s,
-      runFinished({ type: "error", result: { error: { type: "provider_error", detail: "boom" } } }),
+      runFinished({ type: "error", error: { type: "provider_error", detail: "boom" } }),
     );
     s = reduce(s, started(item({ id: "a", type: "agentMessage", content: [] })));
     expect(s.run.usage.inputTokens).toBe(500);
@@ -103,7 +103,7 @@ describe("handler contract — run.*", () => {
         item({ id: "p", type: "plan", steps: [{ id: "s1", title: "X", status: "running" }] }),
       ),
     );
-    const out = reduce(s, runFinished({ type: "completed", result: { steps: 2 } }));
+    const out = reduce(s, runFinished({ type: "completed" }, { steps: 2, activeDurationMs: 0 }));
     expect(out.run.running).toBe(false);
     expect(out.messages).toEqual(s.messages);
     expect(out.plan).toEqual(s.plan);

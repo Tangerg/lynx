@@ -66,7 +66,7 @@ func (s *memoryDispatcher) finishTurnOwned(ctx context.Context, st *turnState, r
 }
 
 func (s *memoryDispatcher) emitFinishedTurn(st *turnState, reason execution.Outcome) {
-	dur := time.Since(st.startedAt)
+	dur := st.segmentElapsed()
 	finishTurnSpan(st.span, reason, accounting.TokenUsage{}, false, "")
 	recordTurnDuration(st.ctx, reason, st.model, dur)
 	s.emit(st, runs.TurnEnd{Reason: reason, Duration: dur})
@@ -77,7 +77,7 @@ func (s *memoryDispatcher) emitFinishedTurn(st *turnState, reason execution.Outc
 // EngineEvent contract carries only the stable application problem.
 func (s *memoryDispatcher) finishFailedTurn(st *turnState, problem transcript.Problem, err error) error {
 	return s.completeTurn(st, func() {
-		dur := time.Since(st.startedAt)
+		dur := st.segmentElapsed()
 		errMsg := "turn failed"
 		if err != nil {
 			errMsg = err.Error()
@@ -139,9 +139,7 @@ func (s *memoryDispatcher) emitTurnEnd(st *turnState, completion agentexec.TurnC
 	recordTurnDuration(st.ctx, plan.reason, st.model, duration)
 	end := runs.TurnEnd{Reason: plan.reason, Problem: plan.problem, Duration: duration}
 	if plan.withUsage {
-		end.TokenUsage = out.Usage
-		end.UsageByModel = out.UsageByModel
-		end.CostUSD = out.CostUSD
+		end.Usage = &runs.TurnUsage{Tokens: out.Usage, ByModel: out.UsageByModel, CostUSD: out.CostUSD}
 	}
 	s.emit(st, end)
 	// Stop hooks (observe-only): fire after the terminal is emitted (the client

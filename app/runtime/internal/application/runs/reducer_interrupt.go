@@ -70,6 +70,7 @@ func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
 		pending = append(pending, interrupt)
 	}
 
+	r.segmentDuration = e.Duration
 	run := r.runRecord(execution.Interrupted)
 	run.Interrupts = pending
 	return append(out, SegmentFinished{Run: run}), nil

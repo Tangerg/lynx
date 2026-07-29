@@ -6,10 +6,11 @@
 // envelope runId (reduce's third arg) on segment.progress / segment.finished.
 
 import { beforeEach, describe, expect, it } from "vitest";
-import type { RunOutcome, StreamEvent } from "@/rpc";
+import type { StreamEvent } from "@/rpc";
 import type { AgentViewState } from "@/plugins/sdk/types/agentView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { reduce } from "./reducer";
+import { runFinished } from "./reducer.fixtures";
 import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
 const runStarted = (id: string): StreamEvent => ({
@@ -22,7 +23,6 @@ const subagentStarted = (id: string, spawnedByItemId: string): StreamEvent => ({
 });
 const progress = (p: Record<string, unknown>): StreamEvent =>
   ({ type: "segment.progress", progress: p }) as StreamEvent;
-const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "segment.finished", outcome });
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/public/foldPlugin");
@@ -58,7 +58,7 @@ describe("reducer — subagent run isolation", () => {
   it("a subagent segment.finished (mismatched envelope runId) leaves the root run running", () => {
     let s: AgentViewState = reduce(INITIAL_VIEW_STATE, runStarted("run_1"));
 
-    s = reduce(s, runFinished({ type: "completed", result: { steps: 1 } }), "sub_1");
+    s = reduce(s, runFinished({ type: "completed" }, { steps: 1, activeDurationMs: 0 }), "sub_1");
 
     // The root run owns running/interrupt state — only its own finished flips it.
     expect(s.run.running).toBe(true);

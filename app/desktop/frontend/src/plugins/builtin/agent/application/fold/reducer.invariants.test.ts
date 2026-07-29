@@ -118,7 +118,11 @@ const FULL_STREAM: StreamEvent[] = [
   started(m2),
   delta("m2", { type: "content", text: "Done." }),
   completed(m2),
-  { type: "segment.finished", outcome: { type: "completed", result: { steps: 1 } } },
+  {
+    type: "segment.finished",
+    outcome: { type: "completed" },
+    metrics: { steps: 1, activeDurationMs: 0 },
+  },
 ];
 
 describe("reducer — render convergence across delivery modes", () => {

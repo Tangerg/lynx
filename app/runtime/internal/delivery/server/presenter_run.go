@@ -14,22 +14,12 @@ func presentRunStatus(state execution.RunState) protocol.RunStatus {
 	switch state {
 	case execution.Running:
 		return protocol.RunStatusRunning
-	case execution.Interrupted, execution.Completed, execution.Failed, execution.Canceled:
+	case execution.Interrupted:
+		return protocol.RunStatusWaiting
+	case execution.Completed, execution.Failed, execution.Canceled:
 		return protocol.RunStatusFinished
 	default:
 		panic("server: unknown run state")
-	}
-}
-
-// presentAdmittedRun maps the durable admission record, which knows a run's
-// identity, position and selection but not its transcript. It carries no
-// outcome: an outcome describes a finished run, and this projection is only
-// asked for running ones.
-func presentAdmittedRun(run execution.AdmittedRun) protocol.RunRef {
-	return protocol.RunRef{
-		ID: run.RunID, SessionID: run.SessionID,
-		Provider: run.ModelSelection.Provider(), Model: run.ModelSelection.Model(),
-		Status: presentRunStatus(run.State), CreatedAt: run.StartedAt,
 	}
 }
 
@@ -38,19 +28,42 @@ func presentRun(run transcript.Run) protocol.RunRef {
 		ID: run.ID, SessionID: run.SessionID, SpawnedByItemID: run.SpawnedByItemID,
 		Provider: run.ModelSelection.Provider(), Model: run.ModelSelection.Model(),
 		Status:    presentRunStatus(run.State),
+		Metrics:   presentMetrics(run.Metrics),
+		Limits:    presentLimits(run.Limits),
 		CreatedAt: run.CreatedAt, FinishedAt: run.FinishedAt,
 	}
-	if run.State != execution.Running {
+	// A waiting run has no outcome: what it is waiting on is the answer, and the
+	// interrupts carry that.
+	if run.State.IsTerminal() {
 		outcome := presentOutcome(run)
 		ref.Outcome = &outcome
 	}
 	return ref
 }
 
-func presentOutcome(run transcript.Run) protocol.RunOutcome {
+// presentSegmentFinished maps the run record a segment ended with onto the pair
+// the event publishes: why the segment stopped, and what the run has consumed.
+func presentSegmentFinished(run transcript.Run) (protocol.SegmentOutcome, protocol.RunMetrics) {
+	metrics := presentMetrics(run.Metrics)
 	if run.State == execution.Interrupted {
-		return protocol.RunOutcome{Type: protocol.OutcomeInterrupt, Interrupts: presentInterrupts(run.Interrupts)}
+		return protocol.SegmentOutcome{
+			Type:       protocol.SegmentInterrupt,
+			Interrupts: presentInterrupts(run.Interrupts),
+		}, metrics
 	}
+	// `suspended` has no producer while features.subagents is off: it describes a
+	// run stopped by ANOTHER run's interrupt barrier, and a session runs one root
+	// run with no children. It is published anyway, because a client folding
+	// segment outcomes exhaustively must already know the tag when subtrees arrive.
+	terminal := presentOutcome(run)
+	return protocol.SegmentOutcome{
+		Type:   protocol.SegmentOutcomeType(terminal.Type),
+		Error:  terminal.Error,
+		Detail: terminal.Detail,
+	}, metrics
+}
+
+func presentOutcome(run transcript.Run) protocol.RunOutcome {
 	if run.Outcome == nil {
 		panic("server: terminal run has no outcome")
 	}
@@ -69,18 +82,22 @@ func presentOutcome(run transcript.Run) protocol.RunOutcome {
 	default:
 		panic("server: unknown run outcome")
 	}
-	return protocol.RunOutcome{Type: kind, Result: presentRunResult(run.Result), Detail: run.Detail}
+	return protocol.RunOutcome{Type: kind, Error: presentProblem(run.Error), Detail: run.Detail}
 }
 
-func presentRunResult(result *transcript.RunResult) *protocol.RunResult {
-	if result == nil {
+func presentMetrics(metrics transcript.RunMetrics) protocol.RunMetrics {
+	return protocol.RunMetrics{
+		Usage:            presentUsage(metrics.Usage),
+		Steps:            metrics.Steps,
+		ActiveDurationMs: metrics.ActiveDuration.Milliseconds(),
+	}
+}
+
+func presentLimits(limits execution.RunLimits) *protocol.RunLimits {
+	if limits.IsZero() {
 		return nil
 	}
-	steps := result.Steps
-	return &protocol.RunResult{
-		Usage: presentUsage(result.Usage), Steps: &steps,
-		Error: presentProblem(result.Error), DurationMs: int(result.Duration.Milliseconds()),
-	}
+	return &protocol.RunLimits{MaxSteps: limits.MaxSteps, MaxBudgetUSD: limits.MaxBudgetUSD}
 }
 
 func presentProgress(progress runs.RunProgress) protocol.RunProgress {

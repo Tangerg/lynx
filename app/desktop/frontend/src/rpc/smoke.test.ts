@@ -139,7 +139,11 @@ describe("smoke: v2 end-to-end happy path", () => {
     setTimeout(() => {
       injectRunEvent(transport, "run_1", "seg_1", "evt_1", {
         type: "segment.started",
-        run: { id: asRunId("run_1"), sessionId: asSessionId("ses_1") },
+        run: {
+          id: asRunId("run_1"),
+          sessionId: asSessionId("ses_1"),
+          metrics: { steps: 0, activeDurationMs: 0 },
+        },
       });
       injectRunEvent(transport, "run_1", "seg_1", "evt_2", {
         type: "item.started",
@@ -210,16 +214,24 @@ describe("smoke: v2 end-to-end happy path", () => {
     setTimeout(() => {
       injectRunEvent(transport, "run_1", "seg_2", "evt_1", {
         type: "segment.started",
-        run: { id: asRunId("run_1"), sessionId: asSessionId("ses_1") },
+        run: {
+          id: asRunId("run_1"),
+          sessionId: asSessionId("ses_1"),
+          metrics: { steps: 0, activeDurationMs: 0 },
+        },
       });
       injectRunEvent(transport, "run_1", "seg_2", "evt_2", {
         type: "item.completed",
         item: agentMessageItem("item_2", "run_1", "Found 5 files.", "completed"),
       });
-      injectRunFinished(transport, "run_1", "seg_2", "evt_3", {
-        type: "completed",
-        result: { usage: { inputTokens: 100, outputTokens: 20 }, steps: 2 },
-      });
+      injectRunFinished(
+        transport,
+        "run_1",
+        "seg_2",
+        "evt_3",
+        { type: "completed" },
+        { usage: { inputTokens: 100, outputTokens: 20 }, steps: 2, activeDurationMs: 0 },
+      );
     }, 0);
 
     const secondRun: RunEvent[] = [];

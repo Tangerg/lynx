@@ -6,12 +6,16 @@
   "event": {
     "type": "segment.finished",
     "outcome": {
-      "type": "completed",
-      "result": {
-        "usage": { "inputTokens": 1200, "outputTokens": 340, "costUsd": 0.021 },
-        "steps": 3,
-        "durationMs": 12400
-      }
+      "type": "completed"
+    },
+    "metrics": {
+      "usage": {
+        "inputTokens": 1200,
+        "outputTokens": 340,
+        "costUsd": 0.021
+      },
+      "steps": 3,
+      "activeDurationMs": 12400
     }
   }
 }

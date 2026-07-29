@@ -50,26 +50,40 @@ type reducerConfig struct {
 	ModelSelection modelref.Selection
 	CreatedAt      time.Time
 	UserInput      []transcript.ContentBlock
-	Pending        *interrupts.Pending
-	Now            func() time.Time
-	CancelReason   func() string
+	// Metrics is what the Run had already consumed before this segment opened —
+	// zero for a first segment, the parked Run's accrual for a continuation. Every
+	// Run record this reducer commits is the sum of this and the current segment,
+	// so a resumed Run reports the Run rather than its latest continuation.
+	Metrics transcript.RunMetrics
+	// Limits is the allowance in force for the whole Run, frozen at admission and
+	// carried unchanged through every continuation.
+	Limits       execution.RunLimits
+	Pending      *interrupts.Pending
+	Now          func() time.Time
+	CancelReason func() string
 }
 
 // reducer is the per-segment state machine that turns executor events into the
 // canonical RunEvent family and EventCommit facts. It owns open item state,
 // item identity, resume correlation, terminal synthesis, and error semantics.
 type reducer struct {
-	cfg        reducerConfig
-	resume     *resumeBinding
-	itemSeq    int
-	step       int
-	toolOrder  int
-	userInput  []transcript.ContentBlock
-	text       *openText
-	reasoning  *openText
-	tools      openTools
-	drained    []interrupts.DrainedTool
-	errProblem *transcript.Problem
+	cfg       reducerConfig
+	resume    *resumeBinding
+	itemSeq   int
+	step      int
+	toolOrder int
+	// usage is the latest authoritative accounting THIS segment reported. The
+	// executor's observer publishes a running total, so remembering the last one
+	// is not a second accumulation — it is what lets a terminal that brings no
+	// fresh report commit what was actually spent instead of zeros.
+	usage           *transcript.Usage
+	segmentDuration time.Duration
+	userInput       []transcript.ContentBlock
+	text            *openText
+	reasoning       *openText
+	tools           openTools
+	drained         []interrupts.DrainedTool
+	errProblem      *transcript.Problem
 }
 
 type openText struct {
@@ -189,11 +203,13 @@ func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 		return reductionBatch{}, fmt.Errorf("%w: drain tools: %w", errReducerInvariant, err)
 	}
 	out = append(out, drained...)
-	result := &transcript.RunResult{}
+	// No TurnEnd arrived, so nothing fresh was reported: the segment's accrual
+	// stands as last reported and is committed as-is.
+	var failure *transcript.Problem
 	outcome := execution.OutcomeCanceled
 	if r.errProblem != nil {
 		outcome = execution.OutcomeError
-		result.Error, err = runResultProblem(*r.errProblem)
+		failure, err = runResultProblem(*r.errProblem)
 		if err != nil {
 			return reductionBatch{}, fmt.Errorf("%w: synthesize terminal: %w", errReducerInvariant, err)
 		}
@@ -202,7 +218,7 @@ func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 	if outcome == execution.OutcomeCanceled && r.cfg.CancelReason != nil {
 		detail = r.cfg.CancelReason()
 	}
-	terminal, err := r.finishedRun(outcome, result, detail)
+	terminal, err := r.finishedRun(outcome, failure, detail)
 	if err != nil {
 		return reductionBatch{}, fmt.Errorf("%w: synthesize terminal: %w", errReducerInvariant, err)
 	}
@@ -310,6 +326,7 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 				ModelSelection: r.cfg.ModelSelection,
 				Interrupts:     e.Run.Interrupts, DrainedTools: r.drained,
 				RunCreatedAt: r.cfg.CreatedAt, CreatedAt: r.now(),
+				Metrics: e.Run.Metrics, Limits: e.Run.Limits,
 			}
 			commit.State = StateSuspend
 			return reduction{Event: event, Commit: &commit}, nil
@@ -349,11 +366,9 @@ func (r *reducer) goalTurn(run transcript.Run) *goal.TurnRecord {
 	if record.CompletedAt.IsZero() {
 		record.CompletedAt = r.now()
 	}
-	if run.Result != nil {
-		record.Steps = run.Result.Steps
-		if run.Result.Usage != nil && run.Result.Usage.CostUSD != nil {
-			record.CostUSD = *run.Result.Usage.CostUSD
-		}
+	record.Steps = run.Metrics.Steps
+	if run.Metrics.Usage != nil && run.Metrics.Usage.CostUSD != nil {
+		record.CostUSD = *run.Metrics.Usage.CostUSD
 	}
 	return record
 }

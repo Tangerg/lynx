@@ -211,23 +211,41 @@ type ArtifactSession struct {
 // the portable terminal fact; the application reconstructs the derived run
 // state when restoring it.
 type ArtifactRun struct {
-	ID              string          `json:"id"`
-	SessionID       string          `json:"sessionId"`
-	SpawnedByItemID string          `json:"spawnedByItemId,omitempty"`
-	Provider        string          `json:"provider,omitempty"`
-	Model           string          `json:"model,omitempty"`
-	Outcome         ArtifactOutcome `json:"outcome"`
-	CreatedAt       time.Time       `json:"createdAt"`
-	FinishedAt      time.Time       `json:"finishedAt"`
-	UpdatedAt       time.Time       `json:"updatedAt"`
-	MessageMark     int             `json:"messageMark"`
+	ID              string `json:"id"`
+	SessionID       string `json:"sessionId"`
+	SpawnedByItemID string `json:"spawnedByItemId,omitempty"`
+	Provider        string `json:"provider,omitempty"`
+	Model           string `json:"model,omitempty"`
+	// Limits and Metrics split the same way the live wire does. The archive has
+	// to move with it: leaving the old combined shape here would keep a second,
+	// older account of what a run cost alive inside the export format.
+	Limits      *ArtifactRunLimits `json:"limits,omitempty"`
+	Metrics     ArtifactRunMetrics `json:"metrics"`
+	Outcome     ArtifactOutcome    `json:"outcome"`
+	CreatedAt   time.Time          `json:"createdAt"`
+	FinishedAt  time.Time          `json:"finishedAt"`
+	UpdatedAt   time.Time          `json:"updatedAt"`
+	MessageMark int                `json:"messageMark"`
+}
+
+// ArtifactRunLimits is the allowance a portable run was admitted under.
+type ArtifactRunLimits struct {
+	MaxSteps     int     `json:"maxSteps,omitempty"`
+	MaxBudgetUSD float64 `json:"maxBudgetUsd,omitempty"`
+}
+
+// ArtifactRunMetrics is what a portable run consumed.
+type ArtifactRunMetrics struct {
+	Usage            *ArtifactUsage `json:"usage,omitempty"`
+	Steps            int            `json:"steps"`
+	ActiveDurationMs int64          `json:"activeDurationMs"`
 }
 
 // ArtifactOutcome is a non-interrupt terminal fact. Its string discriminator
 // is intentionally independent from the live RunOutcome wire union.
 type ArtifactOutcome struct {
 	Type   ArtifactOutcomeType `json:"type"`
-	Result *ArtifactRunResult  `json:"result"`
+	Error  *ArtifactProblem    `json:"error,omitempty"`
 	Detail string              `json:"detail,omitempty"`
 }
 
@@ -242,13 +260,6 @@ const (
 	ArtifactOutcomeMaxBudget ArtifactOutcomeType = "maxBudget"
 	ArtifactOutcomeCanceled  ArtifactOutcomeType = "canceled"
 )
-
-type ArtifactRunResult struct {
-	Usage      *ArtifactUsage   `json:"usage,omitempty"`
-	Steps      int              `json:"steps"`
-	Error      *ArtifactProblem `json:"error,omitempty"`
-	DurationMs int              `json:"durationMs,omitempty"`
-}
 
 type ArtifactUsage struct {
 	InputTokens      int64                         `json:"inputTokens,omitempty"`

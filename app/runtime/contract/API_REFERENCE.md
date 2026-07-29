@@ -130,12 +130,23 @@ least one variant; the registry refuses a union where one does not.
 
 | tag | required | optional |
 | --- | --- | --- |
-| `completed` | `result` | — |
-| `error` | `result` | — |
-| `maxSteps` | `result` | `detail` |
-| `maxBudget` | `result` | `detail` |
-| `canceled` | `result` | `detail` |
+| `completed` | — | — |
+| `error` | `error` | — |
+| `maxSteps` | — | `detail` |
+| `maxBudget` | — | `detail` |
+| `canceled` | — | `detail` |
+
+### `SegmentOutcome`
+
+| tag | required | optional |
+| --- | --- | --- |
 | `interrupt` | `interrupts` | — |
+| `suspended` | — | — |
+| `completed` | — | — |
+| `error` | `error` | — |
+| `maxSteps` | — | `detail` |
+| `maxBudget` | — | `detail` |
+| `canceled` | — | `detail` |
 
 ### `Item`
 
@@ -195,7 +206,7 @@ least one variant; the registry refuses a union where one does not.
 | --- | --- | --- |
 | `segment.started` | `run` | — |
 | `segment.progress` | `progress` | — |
-| `segment.finished` | `outcome` | — |
+| `segment.finished` | `outcome`, `metrics` | — |
 | `item.started` | `item` | — |
 | `item.delta` | `itemId`, `delta` | — |
 | `item.completed` | `item` | — |
@@ -216,11 +227,11 @@ least one variant; the registry refuses a union where one does not.
 
 | tag | required | optional |
 | --- | --- | --- |
-| `completed` | `result` | — |
-| `error` | `result` | `detail` |
-| `maxSteps` | `result` | `detail` |
-| `maxBudget` | `result` | `detail` |
-| `canceled` | `result` | `detail` |
+| `completed` | — | — |
+| `error` | `error` | — |
+| `maxSteps` | — | `detail` |
+| `maxBudget` | — | `detail` |
+| `canceled` | — | `detail` |
 
 ### `ArtifactItem`
 
@@ -313,7 +324,7 @@ enforced by a validator — a frame-local check cannot see the whole system.
 
 - **`session_has_at_most_one_open_run`** — Two concurrently-appending Runs would interleave one session's history, and the second would read a transcript the first had not finished writing.
   - maintained by: `runs.admission`, `runsegment.opening`
-- **`terminal_run_carries_its_result`** — A Run row that claims a terminal state without the facts explaining it cannot answer why the run ended, and no later write will supply them.
+- **`terminal_run_explains_how_it_ended`** — A Run row that claims a terminal state without the outcome — and, when that outcome is a failure, the failure itself — cannot answer why the run ended, and no later write will supply it.
   - maintained by: `runsegment.event`, `runs.recovery`, `sessions.import`
 - **`parked_run_has_exactly_one_open_interrupt_set`** — A Run parked with no pending set can never be resumed and never terminates; the client waits on something that will not move.
   - maintained by: `runsegment.event`, `runs.recovery`

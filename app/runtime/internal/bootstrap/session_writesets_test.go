@@ -122,7 +122,7 @@ func restoredRun(sessionID, runID string, at time.Time) transcript.Run {
 	outcome := execution.OutcomeCompleted
 	return transcript.Run{
 		SessionID: sessionID, ID: runID, State: execution.Completed,
-		Outcome: &outcome, Result: &transcript.RunResult{},
+		Outcome:   &outcome,
 		CreatedAt: at, FinishedAt: at, UpdatedAt: at, MessageMark: 0,
 	}
 }
@@ -152,7 +152,15 @@ func park(
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, CreatedAt: parkCreatedAt}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := runs.Suspend(ctx, sessionID, runID); err != nil {
+	if err := runs.Suspend(ctx, transcript.Run{
+		SessionID: sessionID, ID: runID, State: execution.Interrupted,
+		Interrupts: []transcript.Interrupt{{
+			ItemID: "item_" + runID, Kind: transcript.QuestionInterrupt,
+			Question: &transcript.Question{Prompt: "continue?"},
+		}},
+		CreatedAt:   parkCreatedAt,
+		MessageMark: transcript.UnknownMessageMark,
+	}); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	if err := ints.Put(ctx, interrupts.Pending{RunID: runID, SessionID: sessionID, ProcessID: processID, CreatedAt: time.Unix(0, 0)}); err != nil {
@@ -181,7 +189,7 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 
 	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{ProcessID: processID, Run: transcript.Run{
 		SessionID: "ses_A", ID: "run_1", State: execution.Canceled,
-		Outcome: &outcome, Result: &transcript.RunResult{}, CreatedAt: parkCreatedAt,
+		Outcome: &outcome, CreatedAt: parkCreatedAt,
 		FinishedAt: finishedAt, UpdatedAt: finishedAt, MessageMark: 0,
 	}}); err != nil {
 		t.Fatalf("ApplyTerminal: %v", err)
@@ -223,9 +231,9 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 
 	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{ProcessID: processID, Run: transcript.Run{
 		SessionID: "ses_A", ID: "run_1", State: execution.Failed,
-		Outcome: &outcome, Result: &transcript.RunResult{Error: &transcript.Problem{
+		Outcome: &outcome, Error: &transcript.Problem{
 			Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
-		}},
+		},
 		CreatedAt:  parkCreatedAt,
 		FinishedAt: finishedAt, UpdatedAt: finishedAt, MessageMark: 0,
 	}}); err != nil {
@@ -244,8 +252,8 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 		t.Fatalf("admit after run_lost = %v, want the slot freed", err)
 	}
 	storedRuns, err := runs.ListRuns(ctx, "ses_A")
-	if err != nil || len(storedRuns) != 2 || storedRuns[0].Result == nil || storedRuns[0].Result.Error == nil ||
-		storedRuns[0].Result.Error.Kind != transcript.RunLostProblem {
+	if err != nil || len(storedRuns) != 2 || storedRuns[0].Error == nil ||
+		storedRuns[0].Error.Kind != transcript.RunLostProblem {
 		t.Fatalf("terminal runs = %+v (err %v), want run_lost", storedRuns, err)
 	}
 }

@@ -1375,48 +1375,72 @@
       "discriminator": "type",
       "variants": [
         {
-          "tag": "completed",
-          "required": [
-            "result"
-          ]
+          "tag": "completed"
         },
         {
           "tag": "error",
           "required": [
-            "result"
+            "error"
           ]
         },
         {
           "tag": "maxSteps",
-          "required": [
-            "result"
-          ],
           "optional": [
             "detail"
           ]
         },
         {
           "tag": "maxBudget",
-          "required": [
-            "result"
-          ],
           "optional": [
             "detail"
           ]
         },
         {
           "tag": "canceled",
+          "optional": [
+            "detail"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "SegmentOutcome",
+      "discriminator": "type",
+      "variants": [
+        {
+          "tag": "interrupt",
           "required": [
-            "result"
-          ],
+            "interrupts"
+          ]
+        },
+        {
+          "tag": "suspended"
+        },
+        {
+          "tag": "completed"
+        },
+        {
+          "tag": "error",
+          "required": [
+            "error"
+          ]
+        },
+        {
+          "tag": "maxSteps",
           "optional": [
             "detail"
           ]
         },
         {
-          "tag": "interrupt",
-          "required": [
-            "interrupts"
+          "tag": "maxBudget",
+          "optional": [
+            "detail"
+          ]
+        },
+        {
+          "tag": "canceled",
+          "optional": [
+            "detail"
           ]
         }
       ]
@@ -1684,7 +1708,8 @@
         {
           "tag": "segment.finished",
           "required": [
-            "outcome"
+            "outcome",
+            "metrics"
           ]
         },
         {
@@ -1777,43 +1802,28 @@
       "discriminator": "type",
       "variants": [
         {
-          "tag": "completed",
-          "required": [
-            "result"
-          ]
+          "tag": "completed"
         },
         {
           "tag": "error",
           "required": [
-            "result"
-          ],
-          "optional": [
-            "detail"
+            "error"
           ]
         },
         {
           "tag": "maxSteps",
-          "required": [
-            "result"
-          ],
           "optional": [
             "detail"
           ]
         },
         {
           "tag": "maxBudget",
-          "required": [
-            "result"
-          ],
           "optional": [
             "detail"
           ]
         },
         {
           "tag": "canceled",
-          "required": [
-            "result"
-          ],
           "optional": [
             "detail"
           ]
@@ -1984,12 +1994,73 @@
             "outcome",
             "finishedAt"
           ]
+        },
+        {
+          "when": [
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "running"
+            }
+          ],
+          "forbidden": [
+            "outcome",
+            "finishedAt"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "waiting"
+            }
+          ],
+          "forbidden": [
+            "outcome",
+            "finishedAt"
+          ]
         }
       ]
     },
     {
       "type": "RunOutcome",
       "rules": [
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "error"
+            }
+          ],
+          "required": [
+            "error"
+          ],
+          "forbidden": [
+            "detail"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "SegmentOutcome",
+      "rules": [
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "error"
+            }
+          ],
+          "required": [
+            "error"
+          ],
+          "forbidden": [
+            "detail"
+          ]
+        },
         {
           "when": [
             {
@@ -2002,7 +2073,8 @@
             "interrupts"
           ],
           "forbidden": [
-            "result"
+            "error",
+            "detail"
           ]
         },
         {
@@ -2010,14 +2082,12 @@
             {
               "field": "type",
               "operator": "equals",
-              "value": "error"
+              "value": "suspended"
             }
-          ],
-          "required": [
-            "result"
           ],
           "forbidden": [
             "interrupts",
+            "error",
             "detail"
           ]
         }
@@ -2048,7 +2118,10 @@
             }
           ],
           "required": [
-            "result"
+            "error"
+          ],
+          "forbidden": [
+            "detail"
           ]
         }
       ]
@@ -2064,8 +2137,8 @@
       ]
     },
     {
-      "key": "terminal_run_carries_its_result",
-      "why": "A Run row that claims a terminal state without the facts explaining it cannot answer why the run ended, and no later write will supply them.",
+      "key": "terminal_run_explains_how_it_ended",
+      "why": "A Run row that claims a terminal state without the outcome — and, when that outcome is a failure, the failure itself — cannot answer why the run ended, and no later write will supply it.",
       "boundaries": [
         "runsegment.event",
         "runs.recovery",
@@ -2195,8 +2268,12 @@
       "shape": "RunOutcome"
     },
     {
-      "file": "outcome.interrupt.json",
-      "shape": "RunOutcome"
+      "file": "segment.outcome.interrupt.json",
+      "shape": "SegmentOutcome"
+    },
+    {
+      "file": "segment.outcome.suspended.json",
+      "shape": "SegmentOutcome"
     },
     {
       "file": "runref.full.json",

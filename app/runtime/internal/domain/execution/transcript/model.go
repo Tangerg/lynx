@@ -3,6 +3,7 @@ package transcript
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -22,6 +23,12 @@ var ErrIdentityConflict = errors.New("transcript: identity conflict")
 // mistaken for a real count — including an empty log's zero.
 const UnknownMessageMark = -1
 
+// Run is one execution of a Session's agent, from admission to a terminal
+// state. Its facts are split by the question they answer: [Run.Outcome] /
+// [Run.Detail] / [Run.Error] say WHY it stopped and exist only once it has,
+// while [Run.Metrics] says HOW MUCH it has consumed and exists from the first
+// segment onward. A single carrier for both made "how much did this cost" a
+// question only a finished Run could answer.
 type Run struct {
 	SessionID       string
 	ID              string
@@ -29,20 +36,48 @@ type Run struct {
 	ModelSelection  modelref.Selection
 	State           execution.RunState
 	Outcome         *execution.Outcome
-	Result          *RunResult
 	Detail          string
-	Interrupts      []Interrupt
-	CreatedAt       time.Time
-	FinishedAt      time.Time
-	UpdatedAt       time.Time
-	MessageMark     int
+	// Error explains an OutcomeError terminal, and is absent for every other
+	// state and outcome. It travels with the outcome rather than with the
+	// accounting because it is part of why the Run stopped.
+	Error *Problem
+	// Metrics is the Run's cumulative consumption as of this record — summed
+	// across every segment, so a resumed Run reports the whole Run and not just
+	// its last continuation. Values never decrease from one committed record to
+	// the next.
+	Metrics RunMetrics
+	// Limits is the allowance actually in force for this Run, frozen at
+	// admission. It is durable rather than a per-request echo because a resume
+	// and a cross-process rehydrate have to apply the same caps the first segment
+	// did.
+	Limits      execution.RunLimits
+	Interrupts  []Interrupt
+	CreatedAt   time.Time
+	FinishedAt  time.Time
+	UpdatedAt   time.Time
+	MessageMark int
 }
 
-type RunResult struct {
-	Usage    *Usage
-	Steps    int
-	Error    *Problem
-	Duration time.Duration
+// RunMetrics is what a Run has consumed, accumulated over all of its segments.
+// Usage is absent until the provider reports any; once reported it stays.
+type RunMetrics struct {
+	Usage *Usage
+	Steps int
+	// ActiveDuration is time spent executing. Waiting on a person is not active,
+	// so a Run parked overnight accrues nothing while parked — which is why this
+	// is a sum of segment durations rather than FinishedAt minus CreatedAt.
+	ActiveDuration time.Duration
+}
+
+// Plus returns the metrics of a Run that has accrued more, leaving the receiver
+// untouched. It is addition rather than replacement because each segment reports
+// its own consumption while the Run's record is cumulative.
+func (m RunMetrics) Plus(other RunMetrics) RunMetrics {
+	return RunMetrics{
+		Usage:          m.Usage.Plus(other.Usage),
+		Steps:          m.Steps + other.Steps,
+		ActiveDuration: m.ActiveDuration + other.ActiveDuration,
+	}
 }
 
 type ModelUsage struct {
@@ -57,6 +92,52 @@ type ModelUsage struct {
 type Usage struct {
 	ModelUsage
 	ByModel map[string]ModelUsage
+}
+
+// Plus returns the combined usage of the receiver and other, or nil when neither
+// reported any. A nil operand is "nothing reported", not "reported zero", so
+// adding to nil yields the other side unchanged.
+func (usage *Usage) Plus(other *Usage) *Usage {
+	switch {
+	case usage == nil:
+		return other
+	case other == nil:
+		return usage
+	}
+	sum := &Usage{ModelUsage: usage.ModelUsage.Plus(other.ModelUsage)}
+	if len(usage.ByModel) == 0 && len(other.ByModel) == 0 {
+		return sum
+	}
+	sum.ByModel = make(map[string]ModelUsage, len(usage.ByModel)+len(other.ByModel))
+	maps.Copy(sum.ByModel, usage.ByModel)
+	for model, perModel := range other.ByModel {
+		sum.ByModel[model] = sum.ByModel[model].Plus(perModel)
+	}
+	return sum
+}
+
+// Plus returns the combined token counts and cost. Cost stays absent when
+// neither side priced its tokens; one priced side is enough to produce a total,
+// since the unpriced side contributes nothing to spend either way.
+func (usage ModelUsage) Plus(other ModelUsage) ModelUsage {
+	sum := ModelUsage{
+		InputTokens:      usage.InputTokens + other.InputTokens,
+		OutputTokens:     usage.OutputTokens + other.OutputTokens,
+		CacheReadTokens:  usage.CacheReadTokens + other.CacheReadTokens,
+		CacheWriteTokens: usage.CacheWriteTokens + other.CacheWriteTokens,
+		ReasoningTokens:  usage.ReasoningTokens + other.ReasoningTokens,
+	}
+	if usage.CostUSD != nil || other.CostUSD != nil {
+		sum.CostUSD = new(costOf(usage.CostUSD) + costOf(other.CostUSD))
+	}
+	return sum
+}
+
+func costOf(cost *float64) float64 {
+	if cost == nil {
+		return 0
+	}
+	return *cost
 }
 
 type ItemStatus uint8
@@ -252,6 +333,15 @@ func (run Run) Validate() error {
 	case run.CreatedAt.IsZero():
 		return errors.New("creation time is required")
 	}
+	// Accounting is checked for every state, not only the terminal one: metrics
+	// now accrue from the first segment, so a nonsense value can be committed long
+	// before the Run ends.
+	if err := run.Metrics.Validate(); err != nil {
+		return err
+	}
+	if err := run.Limits.Validate(); err != nil {
+		return err
+	}
 	if run.State.IsTerminal() {
 		return run.validateTerminal()
 	}
@@ -262,8 +352,8 @@ func (run Run) validateOpen() error {
 	switch {
 	case run.Outcome != nil:
 		return fmt.Errorf("%s run carries outcome %s", run.State, run.Outcome)
-	case run.Result != nil:
-		return fmt.Errorf("%s run carries a result", run.State)
+	case run.Error != nil:
+		return fmt.Errorf("%s run carries a failure", run.State)
 	case run.Detail != "":
 		return fmt.Errorf("%s run carries a terminal detail", run.State)
 	case !run.FinishedAt.IsZero():
@@ -287,13 +377,10 @@ func (run Run) validateTerminal() error {
 	if !ok || expected != run.State {
 		return fmt.Errorf("state %s does not match outcome %s", run.State, run.Outcome)
 	}
-	if run.Result == nil {
-		return errors.New("terminal run has no result")
+	if (*run.Outcome == execution.OutcomeError) != (run.Error != nil) {
+		return fmt.Errorf("failure does not match outcome %s", run.Outcome)
 	}
-	if (*run.Outcome == execution.OutcomeError) != (run.Result.Error != nil) {
-		return fmt.Errorf("error result does not match outcome %s", run.Outcome)
-	}
-	if err := run.Result.Validate(); err != nil {
+	if err := run.Error.ValidateFor(RunProblem); err != nil {
 		return err
 	}
 	switch {
@@ -307,18 +394,12 @@ func (run Run) validateTerminal() error {
 	return nil
 }
 
-// Validate reports whether the result accounting is internally consistent.
-func (result *RunResult) Validate() error {
-	if result == nil {
-		return nil
+// Validate reports whether the accumulated consumption is internally consistent.
+func (m RunMetrics) Validate() error {
+	if m.Steps < 0 || m.ActiveDuration < 0 {
+		return errors.New("run metrics must not be negative")
 	}
-	if result.Steps < 0 || result.Duration < 0 {
-		return errors.New("result accounting must not be negative")
-	}
-	if err := result.Usage.Validate(); err != nil {
-		return err
-	}
-	return result.Error.ValidateFor(RunProblem)
+	return m.Usage.Validate()
 }
 
 // Validate reports whether the usage accounting is internally consistent.

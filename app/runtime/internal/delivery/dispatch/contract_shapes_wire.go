@@ -8,11 +8,11 @@ import (
 
 // shapes is the registered union / constraint / state-key contract.
 //
-// Contract §11.2 names thirteen high-risk unions. Four of them —
-// SegmentOutcome, ItemListScope, CapabilityRequirement, CancelRunResponse — do
-// not exist yet: they arrive with the vNext cutover (C1 / C5 / C6). They are
-// registered when their types land, not now with an invented shape; a spec for a
-// type nobody can send is a spec nothing can check.
+// Contract §11.2 names thirteen high-risk unions. Three of them — ItemListScope,
+// CapabilityRequirement, CancelRunResponse — do not exist yet: they arrive later
+// in the vNext cutover (C5 / C6 / C8). They are registered when their types land,
+// not now with an invented shape; a spec for a type nobody can send is a spec
+// nothing can check.
 var shapes = buildShapes()
 
 func buildShapes() *Shapes {
@@ -33,23 +33,44 @@ func buildShapes() *Shapes {
 func typeOf[T any]() reflect.Type { return reflect.TypeFor[T]() }
 
 func registerRunUnions(s *Shapes) {
-	// Every terminal but `interrupt` carries metering; `interrupt` carries the
-	// pending set instead and is the only RESUMABLE one. `detail` is the
-	// human-readable note the non-error terminals may add (API.md §4.2) — the
-	// error terminal's note stays on result.error.detail, never duplicated here.
-	metered := VariantSpec{Required: []string{"result"}}
+	// A terminal says only why the run stopped; what it consumed is published
+	// beside it as metrics. `detail` is the human-readable note the non-error
+	// terminals may add (§4.2) — the error terminal's note stays on
+	// error.detail, never duplicated here.
 	s.union(UnionSpec{
 		GoType:        typeOf[protocol.RunOutcome](),
 		Discriminator: "type",
-		Variants: []VariantSpec{
-			{Tag: string(protocol.OutcomeCompleted), Required: metered.Required},
-			{Tag: string(protocol.OutcomeError), Required: metered.Required},
-			{Tag: string(protocol.OutcomeMaxSteps), Required: metered.Required, Optional: []string{"detail"}},
-			{Tag: string(protocol.OutcomeMaxBudget), Required: metered.Required, Optional: []string{"detail"}},
-			{Tag: string(protocol.OutcomeCanceled), Required: metered.Required, Optional: []string{"detail"}},
-			{Tag: string(protocol.OutcomeInterrupt), Required: []string{"interrupts"}},
-		},
+		Variants:      runOutcomeVariants(),
 	})
+
+	// A segment stops for any reason a run does, plus the two that leave the run
+	// alive. The terminal variants are the SAME list, converted — because
+	// SegmentOutcome contains RunOutcome, and a second list is how a terminal comes
+	// to be legal for one and not the other.
+	s.union(UnionSpec{
+		GoType:        typeOf[protocol.SegmentOutcome](),
+		Discriminator: "type",
+		Variants: append([]VariantSpec{
+			{Tag: string(protocol.SegmentInterrupt), Required: []string{"interrupts"}},
+			// `suspended` adds nothing: the interrupts belong to the run that raised
+			// them, so a run stopped by someone else's barrier carries none.
+			{Tag: string(protocol.SegmentSuspended)},
+		}, runOutcomeVariants()...),
+	})
+}
+
+// runOutcomeVariants is the terminal half of both run-outcome unions. It is a
+// function rather than a shared slice because a VariantSpec holds slices a caller
+// could otherwise append into, and the two registrations must not be able to
+// reach each other's fields.
+func runOutcomeVariants() []VariantSpec {
+	return []VariantSpec{
+		{Tag: string(protocol.OutcomeCompleted)},
+		{Tag: string(protocol.OutcomeError), Required: []string{"error"}},
+		{Tag: string(protocol.OutcomeMaxSteps), Optional: []string{"detail"}},
+		{Tag: string(protocol.OutcomeMaxBudget), Optional: []string{"detail"}},
+		{Tag: string(protocol.OutcomeCanceled), Optional: []string{"detail"}},
+	}
 }
 
 func registerItemUnions(s *Shapes) {
@@ -150,7 +171,7 @@ func registerEventUnions(s *Shapes) {
 		Variants: []VariantSpec{
 			{Tag: string(protocol.StreamSegmentStarted), Required: []string{"run"}},
 			{Tag: string(protocol.StreamSegmentProgress), Required: []string{"progress"}},
-			{Tag: string(protocol.StreamSegmentFinished), Required: []string{"outcome"}},
+			{Tag: string(protocol.StreamSegmentFinished), Required: []string{"outcome", "metrics"}},
 			{Tag: string(protocol.StreamItemStarted), Required: []string{"item"}},
 			{Tag: string(protocol.StreamItemDelta), Required: []string{"itemId", "delta"}},
 			{Tag: string(protocol.StreamItemCompleted), Required: []string{"item"}},
@@ -185,11 +206,11 @@ func registerArtifactUnions(s *Shapes) {
 		GoType:        typeOf[protocol.ArtifactOutcome](),
 		Discriminator: "type",
 		Variants: []VariantSpec{
-			{Tag: string(protocol.ArtifactOutcomeCompleted), Required: []string{"result"}},
-			{Tag: string(protocol.ArtifactOutcomeError), Required: []string{"result"}, Optional: []string{"detail"}},
-			{Tag: string(protocol.ArtifactOutcomeMaxSteps), Required: []string{"result"}, Optional: []string{"detail"}},
-			{Tag: string(protocol.ArtifactOutcomeMaxBudget), Required: []string{"result"}, Optional: []string{"detail"}},
-			{Tag: string(protocol.ArtifactOutcomeCanceled), Required: []string{"result"}, Optional: []string{"detail"}},
+			{Tag: string(protocol.ArtifactOutcomeCompleted)},
+			{Tag: string(protocol.ArtifactOutcomeError), Required: []string{"error"}},
+			{Tag: string(protocol.ArtifactOutcomeMaxSteps), Optional: []string{"detail"}},
+			{Tag: string(protocol.ArtifactOutcomeMaxBudget), Optional: []string{"detail"}},
+			{Tag: string(protocol.ArtifactOutcomeCanceled), Optional: []string{"detail"}},
 		},
 	})
 
@@ -240,30 +261,45 @@ func registerDiffUnions(s *Shapes) {
 }
 
 func registerObjectConstraints(s *Shapes) {
-	// A finished Run explains itself. Without this, `status:"finished"` with no
-	// outcome is representable, and a client cannot tell "it ended" from "it ended
-	// somehow" (API.md §4.2).
+	// A finished Run explains itself, and a run that has not finished does not
+	// pretend to. Without the first rule `status:"finished"` with no outcome is
+	// representable and a client cannot tell "it ended" from "it ended somehow";
+	// without the second, a waiting run could carry a terminal reason and a client
+	// would stop offering to resume it (§4.2).
 	s.constraint(ObjectConstraintSpec{
 		GoType: typeOf[protocol.RunRef](),
 		Rules: []PresenceRule{{
 			When:     []FieldCondition{{Field: "status", Operator: OperatorEquals, Value: string(protocol.RunStatusFinished)}},
 			Required: []string{"outcome", "finishedAt"},
+		}, {
+			When:      []FieldCondition{{Field: "status", Operator: OperatorEquals, Value: string(protocol.RunStatusRunning)}},
+			Forbidden: []string{"outcome", "finishedAt"},
+		}, {
+			When:      []FieldCondition{{Field: "status", Operator: OperatorEquals, Value: string(protocol.RunStatusWaiting)}},
+			Forbidden: []string{"outcome", "finishedAt"},
 		}},
 	})
 
-	// The metering / interrupt split again, as a presence rule rather than a
-	// variant list — the same fact stated for the object validator, which is what
-	// rejects a frame that carries both.
+	// An error terminal's explanation lives on `error`, and only there — `detail`
+	// is the note the OTHER terminals may add, so carrying both would give one
+	// failure two prose fields and let them disagree.
 	s.constraint(ObjectConstraintSpec{
 		GoType: typeOf[protocol.RunOutcome](),
-		Rules: []PresenceRule{{
-			When:      []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.OutcomeInterrupt)}},
+		Rules:  []PresenceRule{errorTerminalRule()},
+	})
+
+	// The same rule for the segment union, plus the two non-terminal stops: an
+	// interrupt has something to resume, and a suspended segment carries no
+	// interrupts because they belong to the run that raised them.
+	s.constraint(ObjectConstraintSpec{
+		GoType: typeOf[protocol.SegmentOutcome](),
+		Rules: []PresenceRule{errorTerminalRule(), {
+			When:      []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.SegmentInterrupt)}},
 			Required:  []string{"interrupts"},
-			Forbidden: []string{"result"},
+			Forbidden: []string{"error", "detail"},
 		}, {
-			When:      []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.OutcomeError)}},
-			Required:  []string{"result"},
-			Forbidden: []string{"interrupts", "detail"},
+			When:      []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.SegmentSuspended)}},
+			Forbidden: []string{"interrupts", "error", "detail"},
 		}},
 	})
 
@@ -276,14 +312,27 @@ func registerObjectConstraints(s *Shapes) {
 		}},
 	})
 
-	// An error outcome's explanation lives on result.error, and only there.
+	// An error outcome's explanation lives on `error`, and only there — the
+	// archive's copy of the live rule, because an exported run has to say why it
+	// failed as unambiguously as a live one.
 	s.constraint(ObjectConstraintSpec{
 		GoType: typeOf[protocol.ArtifactOutcome](),
 		Rules: []PresenceRule{{
-			When:     []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.ArtifactOutcomeError)}},
-			Required: []string{"result"},
+			When:      []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.ArtifactOutcomeError)}},
+			Required:  []string{"error"},
+			Forbidden: []string{"detail"},
 		}},
 	})
+}
+
+// errorTerminalRule is the error terminal's shape, stated once for both unions
+// that contain it.
+func errorTerminalRule() PresenceRule {
+	return PresenceRule{
+		When:      []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.OutcomeError)}},
+		Required:  []string{"error"},
+		Forbidden: []string{"detail"},
+	}
 }
 
 func registerStateKeys(s *Shapes) {

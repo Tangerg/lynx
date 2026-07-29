@@ -128,7 +128,8 @@ describe("methods factory", () => {
       method: RUN_EVENT_METHOD,
       params: runEvent("run_1", "seg_1", "evt_2", {
         type: "segment.finished",
-        outcome: { type: "completed", result: {} },
+        outcome: { type: "completed" },
+        metrics: { steps: 0, activeDurationMs: 0 },
       }),
     });
 
@@ -176,7 +177,8 @@ describe("methods factory", () => {
       method: RUN_EVENT_METHOD,
       params: runEvent("run_1", "seg_1", "evt_2", {
         type: "segment.finished",
-        outcome: { type: "completed", result: {} },
+        outcome: { type: "completed" },
+        metrics: { steps: 0, activeDurationMs: 0 },
       }),
     });
 

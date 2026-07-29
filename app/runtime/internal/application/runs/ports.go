@@ -200,7 +200,10 @@ type segmentSpec struct {
 	CreatedAt        time.Time
 	OpeningUserText  string
 	Input            []transcript.ContentBlock
-	Pending          *interrupts.Pending
+	// Limits is the allowance the Run is admitted under, frozen for the whole Run
+	// — a continuation carries the first segment's caps rather than renegotiating.
+	Limits  execution.RunLimits
+	Pending *interrupts.Pending
 	// admission is the pre-commit reservation Start or Resume transfers to the
 	// live run immediately after its durable opening commit succeeds.
 	admission *admission.RunAdmission
@@ -213,4 +216,23 @@ type segmentSpec struct {
 
 func (s segmentSpec) turnRef() execution.TurnRef {
 	return execution.TurnRef{SessionID: s.SessionID, TurnID: s.TurnID}
+}
+
+// priorMetrics is what the Run had already consumed when this segment opened: a
+// first segment starts from nothing, a continuation from what the park recorded.
+func (s segmentSpec) priorMetrics() transcript.RunMetrics {
+	if s.Pending == nil {
+		return transcript.RunMetrics{}
+	}
+	return s.Pending.Metrics
+}
+
+// effectiveLimits is the allowance in force. A continuation does not take limits
+// from its resume request — the Run was admitted under one policy and keeps it,
+// so answering an interrupt cannot quietly raise a budget.
+func (s segmentSpec) effectiveLimits() execution.RunLimits {
+	if s.Pending == nil {
+		return s.Limits
+	}
+	return s.Pending.Limits
 }

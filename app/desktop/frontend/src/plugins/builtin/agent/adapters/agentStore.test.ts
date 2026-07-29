@@ -7,7 +7,7 @@
 //     a question answer does NOT (questions have no timeline counterpart)
 
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Item, RunOutcome, StreamEvent } from "@/rpc";
+import type { Item, SegmentOutcome, StreamEvent } from "@/rpc";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { useAgentStore } from "./agentStore";
 
@@ -17,7 +17,11 @@ const item = (partial: Record<string, unknown>): Item =>
   ({ runId: "run_1", status: "running", createdAt: "2026-06-03T00:00:00Z", ...partial }) as Item;
 const runStarted = (id: string, sessionId: string): StreamEvent =>
   ({ type: "segment.started", run: { id, sessionId } }) as never;
-const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "segment.finished", outcome });
+const runFinished = (outcome: SegmentOutcome): StreamEvent => ({
+  type: "segment.finished",
+  outcome,
+  metrics: { steps: 0, activeDurationMs: 0 },
+});
 // Wrap a synthetic StreamEvent as a FoldEvent — no envelope runId, so the fold
 // treats it as the root run (matching applyEvents' batch shape).
 const fold = (event: StreamEvent) => ({ event });

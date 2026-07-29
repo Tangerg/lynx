@@ -72,9 +72,10 @@ var systemInvariants = []SystemInvariantSpec{{
 		"and the second would read a transcript the first had not finished writing.",
 	Boundaries: []TransactionBoundary{BoundaryRunAdmission, BoundarySegmentOpening},
 }, {
-	Key: "terminal_run_carries_its_result",
-	Why: "A Run row that claims a terminal state without the facts explaining it " +
-		"cannot answer why the run ended, and no later write will supply them.",
+	Key: "terminal_run_explains_how_it_ended",
+	Why: "A Run row that claims a terminal state without the outcome — and, when " +
+		"that outcome is a failure, the failure itself — cannot answer why the run " +
+		"ended, and no later write will supply it.",
 	Boundaries: []TransactionBoundary{BoundarySegmentEvent, BoundaryRunRecovery, BoundarySessionImport},
 }, {
 	Key: "parked_run_has_exactly_one_open_interrupt_set",

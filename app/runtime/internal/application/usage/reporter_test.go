@@ -17,7 +17,7 @@ func finishedRun(t *testing.T, provider, model string, at time.Time, usage trans
 	t.Helper()
 	return transcript.Run{
 		ID: "run_x", ModelSelection: mustUsageSelection(t, provider, model), State: execution.Completed,
-		FinishedAt: at, Result: &transcript.RunResult{Usage: &usage},
+		FinishedAt: at, Metrics: transcript.RunMetrics{Usage: &usage},
 	}
 }
 
@@ -129,7 +129,7 @@ func TestFoldRunSkipsUnfinishedAndOld(t *testing.T) {
 	total := accumulator{}
 
 	foldRun(transcript.Run{State: execution.Running}, time.Time{}, "", "", &total, nil, nil, nil)
-	noUsage := transcript.Run{State: execution.Completed, Result: &transcript.RunResult{}}
+	noUsage := transcript.Run{State: execution.Completed}
 	foldRun(noUsage, time.Time{}, "", "", &total, nil, nil, nil)
 	old := finishedRun(t, "anthropic", "m", time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
 		transcript.Usage{ModelUsage: transcript.ModelUsage{InputTokens: 99}})

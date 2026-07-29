@@ -11,7 +11,7 @@
 // this module.
 
 import type { MemoryTransport } from "./memory";
-import type { RunOutcome, StreamEvent } from "../wire.generated";
+import type { RunMetrics, SegmentOutcome, StreamEvent } from "../wire.generated";
 import { RUN_EVENT_METHOD } from "../stream";
 import { JSONRPC_VERSION, isRequest, type RpcId, type RpcMessage, type RpcRequest } from "../types";
 
@@ -76,7 +76,8 @@ export function injectRunFinished(
   runId: string,
   segmentId: string,
   eventId: string,
-  outcome: RunOutcome = { type: "completed", result: {} },
+  outcome: SegmentOutcome = { type: "completed" },
+  metrics: RunMetrics = { steps: 0, activeDurationMs: 0 },
 ): void {
-  injectRunEvent(t, runId, segmentId, eventId, { type: "segment.finished", outcome });
+  injectRunEvent(t, runId, segmentId, eventId, { type: "segment.finished", outcome, metrics });
 }

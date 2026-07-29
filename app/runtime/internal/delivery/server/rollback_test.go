@@ -43,7 +43,7 @@ func putRun(t *testing.T, rt *stubRuntime, sessionID, runID string, atUnix int64
 	outcome := execution.OutcomeCompleted
 	if err := rt.runs.Restore(t.Context(), transcript.Run{
 		SessionID: sessionID, ID: runID, State: execution.Completed,
-		Outcome: &outcome, Result: &transcript.RunResult{},
+		Outcome:   &outcome,
 		CreatedAt: time.Unix(atUnix, 0).UTC(), FinishedAt: time.Unix(atUnix, 0).UTC(),
 		UpdatedAt: time.Unix(atUnix, 0).UTC(), MessageMark: mark,
 	}); err != nil {
@@ -233,7 +233,7 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 		RunID: "run_1", SessionID: sess.ID, State: appRuns.StateTerminalize, Outcome: outcome,
 		Run: &transcript.Run{
 			ID: "run_1", SessionID: sess.ID, State: execution.Completed, Outcome: &outcome,
-			Result: &transcript.RunResult{}, CreatedAt: started, FinishedAt: started.Add(time.Minute),
+			CreatedAt: started, FinishedAt: started.Add(time.Minute),
 			UpdatedAt: started.Add(time.Minute), MessageMark: transcript.UnknownMessageMark,
 		},
 	}

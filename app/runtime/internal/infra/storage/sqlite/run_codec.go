@@ -36,6 +36,48 @@ type runModelRowUse struct {
 	CostUSD          *float64 `json:"costUsd,omitempty"`
 }
 
+// runAccountingRow is the parked Run's consumption and allowance, encoded as the
+// one value a continuation needs to pick the Run back up where it left off. It
+// reuses runUsageRow rather than spelling usage a second way, so the two carriers
+// of a Run's accounting agree by construction.
+type runAccountingRow struct {
+	Steps            int          `json:"steps,omitzero"`
+	ActiveDurationNs int64        `json:"activeDurationNs,omitzero"`
+	Usage            *runUsageRow `json:"usage,omitempty"`
+	MaxSteps         int          `json:"maxSteps,omitzero"`
+	MaxBudgetUSD     float64      `json:"maxBudgetUsd,omitzero"`
+}
+
+func encodeRunAccounting(metrics transcript.RunMetrics, limits execution.RunLimits) (string, error) {
+	encoded, err := json.Marshal(runAccountingRow{
+		Steps:            metrics.Steps,
+		ActiveDurationNs: int64(metrics.ActiveDuration),
+		Usage:            runUsageRowOf(metrics.Usage),
+		MaxSteps:         limits.MaxSteps,
+		MaxBudgetUSD:     limits.MaxBudgetUSD,
+	})
+	if err != nil {
+		return "", fmt.Errorf("encode run accounting: %w", err)
+	}
+	return string(encoded), nil
+}
+
+func decodeRunAccounting(encoded string) (transcript.RunMetrics, execution.RunLimits, error) {
+	if encoded == "" {
+		return transcript.RunMetrics{}, execution.RunLimits{}, nil
+	}
+	var row runAccountingRow
+	if err := json.Unmarshal([]byte(encoded), &row); err != nil {
+		return transcript.RunMetrics{}, execution.RunLimits{}, fmt.Errorf("decode run accounting: %w", err)
+	}
+	metrics := transcript.RunMetrics{
+		Usage:          row.Usage.usage(),
+		Steps:          row.Steps,
+		ActiveDuration: time.Duration(row.ActiveDurationNs),
+	}
+	return metrics, execution.RunLimits{MaxSteps: row.MaxSteps, MaxBudgetUSD: row.MaxBudgetUSD}, nil
+}
+
 type runProblemRow struct {
 	Kind              int    `json:"kind"`
 	Detail            string `json:"detail,omitempty"`
@@ -43,41 +85,43 @@ type runProblemRow struct {
 	RetryAfterSeconds int    `json:"retryAfterSeconds,omitzero"`
 }
 
-// terminalRunValues are the encoded accrued facts of a finished Run, ready to
-// bind to a statement. An empty usage / problem string means the Run recorded
-// none.
-type terminalRunValues struct {
+// metricsValues are one Run's accumulated consumption, encoded and ready to bind
+// to a statement. An empty usage string means the Run has recorded none yet.
+type metricsValues struct {
 	steps      int
 	durationNs int64
 	usage      string
-	problem    string
 }
 
-func terminalRunRow(run transcript.Run) (terminalRunValues, error) {
-	if run.Result == nil {
-		return terminalRunValues{}, nil
-	}
-	usage, err := encodeRunUsage(run.Result.Usage)
+func runMetricsRow(metrics transcript.RunMetrics) (metricsValues, error) {
+	usage, err := encodeRunUsage(metrics.Usage)
 	if err != nil {
-		return terminalRunValues{}, err
+		return metricsValues{}, err
 	}
-	problem, err := encodeRunProblem(run.Result.Error)
-	if err != nil {
-		return terminalRunValues{}, err
-	}
-	return terminalRunValues{
-		steps:      run.Result.Steps,
-		durationNs: int64(run.Result.Duration),
+	return metricsValues{
+		steps:      metrics.Steps,
+		durationNs: int64(metrics.ActiveDuration),
 		usage:      usage,
-		problem:    problem,
 	}, nil
 }
 
 func encodeRunUsage(usage *transcript.Usage) (string, error) {
-	if usage == nil {
+	row := runUsageRowOf(usage)
+	if row == nil {
 		return "", nil
 	}
-	row := runUsageRow{
+	encoded, err := json.Marshal(row)
+	if err != nil {
+		return "", fmt.Errorf("encode run usage: %w", err)
+	}
+	return string(encoded), nil
+}
+
+func runUsageRowOf(usage *transcript.Usage) *runUsageRow {
+	if usage == nil {
+		return nil
+	}
+	row := &runUsageRow{
 		InputTokens:      usage.InputTokens,
 		OutputTokens:     usage.OutputTokens,
 		CacheReadTokens:  usage.CacheReadTokens,
@@ -98,11 +142,7 @@ func encodeRunUsage(usage *transcript.Usage) (string, error) {
 			}
 		}
 	}
-	encoded, err := json.Marshal(row)
-	if err != nil {
-		return "", fmt.Errorf("encode run usage: %w", err)
-	}
-	return string(encoded), nil
+	return row
 }
 
 func encodeRunProblem(problem *transcript.Problem) (string, error) {
@@ -134,10 +174,9 @@ func scanRun(row scanRow) (transcript.Run, error) {
 		outcome             string
 		provider            string
 		model               string
-		steps               int
-		durationNs          int64
 		usage               string
 		problem             string
+		durationNs          int64
 		startedAt           int64
 		finishedAt          int64
 		updatedAt           int64
@@ -145,7 +184,8 @@ func scanRun(row scanRow) (transcript.Run, error) {
 	)
 	if err := row.Scan(
 		&run.ID, &run.SessionID, &run.SpawnedByItemID, &coarse, &outcome,
-		&provider, &model, &run.Detail, &steps, &durationNs, &usage, &problem,
+		&provider, &model, &run.Detail, &run.Metrics.Steps, &durationNs, &usage, &problem,
+		&run.Limits.MaxSteps, &run.Limits.MaxBudgetUSD,
 		&run.MessageMark, &startedAt, &finishedAt, &updatedAt, &interruptsSuspended,
 	); err != nil {
 		return transcript.Run{}, fmt.Errorf("sqlite: scan run: %w", err)
@@ -157,6 +197,12 @@ func scanRun(row scanRow) (transcript.Run, error) {
 	run.ModelSelection = selection
 	run.CreatedAt = time.Unix(0, startedAt).UTC()
 	run.UpdatedAt = time.Unix(0, updatedAt).UTC()
+	// Consumption is read for every state, not only the terminal one: a running
+	// Run has already spent tokens and a parked one committed what it spent.
+	run.Metrics.ActiveDuration = time.Duration(durationNs)
+	if run.Metrics.Usage, err = decodeRunUsage(usage); err != nil {
+		return transcript.Run{}, fmt.Errorf("sqlite: decode run %q usage: %w", run.ID, err)
+	}
 
 	switch coarse {
 	case runStateRunning:
@@ -188,11 +234,7 @@ func scanRun(row scanRow) (transcript.Run, error) {
 		run.State = state
 		run.Outcome = &reason
 		run.FinishedAt = time.Unix(0, finishedAt).UTC()
-		run.Result = &transcript.RunResult{Steps: steps, Duration: time.Duration(durationNs)}
-		if run.Result.Usage, err = decodeRunUsage(usage); err != nil {
-			return transcript.Run{}, fmt.Errorf("sqlite: decode run %q usage: %w", run.ID, err)
-		}
-		if run.Result.Error, err = decodeRunProblem(problem); err != nil {
+		if run.Error, err = decodeRunProblem(problem); err != nil {
 			return transcript.Run{}, fmt.Errorf("sqlite: decode run %q problem: %w", run.ID, err)
 		}
 	default:
@@ -211,6 +253,13 @@ func decodeRunUsage(encoded string) (*transcript.Usage, error) {
 	var row runUsageRow
 	if err := json.Unmarshal([]byte(encoded), &row); err != nil {
 		return nil, err
+	}
+	return row.usage(), nil
+}
+
+func (row *runUsageRow) usage() *transcript.Usage {
+	if row == nil {
+		return nil
 	}
 	usage := &transcript.Usage{ModelUsage: transcript.ModelUsage{
 		InputTokens:      row.InputTokens,
@@ -233,7 +282,7 @@ func decodeRunUsage(encoded string) (*transcript.Usage, error) {
 			}
 		}
 	}
-	return usage, nil
+	return usage
 }
 
 func decodeRunProblem(encoded string) (*transcript.Problem, error) {

@@ -76,16 +76,18 @@ type turnState struct {
 	// recovery. model above is its observability projection ("default" when unset).
 	modelSelection modelref.Selection
 
-	// startedAt stamps the turn's wall-clock start so TurnEnd carries a
-	// duration that spans any interrupt/resume cycles.
-	startedAt time.Time
-
 	// interruptKinds is the set of HITL kinds the current client can answer
 	// for this turn. Nil / empty means no HITL kind may surface.
 	interruptKinds map[runs.InterruptKind]struct{}
 
 	// --- mu-guarded: mutated/read across the turn + caller goroutines ---
 	mu sync.Mutex
+
+	// segmentStartedAt stamps when the CURRENT segment began executing, so the
+	// duration reported to the run is active time. It is re-stamped on resume:
+	// a turn spanning an interrupt would otherwise report the hours a person
+	// took to answer as time the model spent working.
+	segmentStartedAt time.Time
 
 	// phase is the complete execution-ownership state machine. A single phase
 	// replaces independent prepared/parked/canceling/terminal/released flags, so
@@ -251,7 +253,7 @@ func newTurnState(ctx context.Context, handle TurnHandle, phase turnPhase) *turn
 		done:             make(chan struct{}),
 		cancel:           cancel,
 		ctx:              lifeCtx,
-		startedAt:        time.Now(),
+		segmentStartedAt: time.Now(),
 		phase:            phase,
 		lifecycleChanged: make(chan struct{}),
 	}
@@ -436,8 +438,19 @@ func (st *turnState) resumeStarted() {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if st.phase == turnResuming {
+		// A continuation is a new segment, and its clock starts here. (A rehydrated
+		// turn arrives with a freshly constructed state, so its stamp is already
+		// this resume.)
+		st.segmentStartedAt = time.Now()
 		st.setPhaseLocked(turnRunning)
 	}
+}
+
+// segmentElapsed is how long the current segment has been executing.
+func (st *turnState) segmentElapsed() time.Duration {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return time.Since(st.segmentStartedAt)
 }
 
 // resumeAdmissionFailed returns ownership to the parked state when the caller

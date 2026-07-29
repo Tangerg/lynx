@@ -18,13 +18,16 @@
         "model": "claude-opus-4-8",
         "provider": "anthropic",
         "outcome": {
-          "type": "completed",
-          "result": { "steps": 0 }
+          "type": "completed"
         },
         "createdAt": "2026-07-07T10:00:00Z",
         "finishedAt": "2026-07-07T10:00:20Z",
         "updatedAt": "2026-07-07T10:00:20Z",
-        "messageMark": 4
+        "messageMark": 4,
+        "metrics": {
+          "steps": 0,
+          "activeDurationMs": 0
+        }
       }
     ],
     "items": [
@@ -36,7 +39,9 @@
         "type": "toolCall",
         "tool": {
           "name": "shell",
-          "arguments": { "command": "ls -la" },
+          "arguments": {
+            "command": "ls -la"
+          },
           "result": "total 0\n"
         },
         "safetyClass": "exec"
@@ -47,7 +52,7 @@
         "id": "BLOB234",
         "itemId": "item_01",
         "toolName": "shell",
-        "preview": "total 0\n…[result offloaded; use read_tool_result with BLOB234]…",
+        "preview": "total 0\n\u2026[result offloaded; use read_tool_result with BLOB234]\u2026",
         "body": "total 0\n",
         "createdAt": "2026-07-07T10:00:05Z"
       }

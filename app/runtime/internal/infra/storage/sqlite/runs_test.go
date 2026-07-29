@@ -84,14 +84,30 @@ func finishedRun(runID, sessionID string, outcome execution.Outcome) transcript.
 	state, _ := execution.Running.Terminate(outcome)
 	run := transcript.Run{
 		SessionID: sessionID, ID: runID, State: state, Outcome: &outcome,
-		Result:    &transcript.RunResult{Steps: 1},
+		Metrics:   transcript.RunMetrics{Steps: 1},
 		CreatedAt: runCreatedAt, FinishedAt: time.Unix(9, 0).UTC(),
 		UpdatedAt: time.Unix(9, 0).UTC(),
 	}
 	if outcome == execution.OutcomeError {
-		run.Result.Error = &transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem}
+		run.Error = &transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem}
 	}
 	return run
+}
+
+// parkedRun is the record a park hands to Suspend: the run moving to Interrupted,
+// carrying the interrupt it is parked on and what it consumed getting there.
+func parkedRun(runID, sessionID string) transcript.Run {
+	return transcript.Run{
+		SessionID: sessionID, ID: runID, State: execution.Interrupted,
+		Interrupts: []transcript.Interrupt{{
+			ItemID: "itm_" + runID, Kind: transcript.QuestionInterrupt,
+			Question: &transcript.Question{Prompt: "continue?"},
+		}},
+		Metrics:     transcript.RunMetrics{Steps: 1},
+		CreatedAt:   runCreatedAt,
+		UpdatedAt:   time.Unix(5, 0).UTC(),
+		MessageMark: transcript.UnknownMessageMark,
+	}
 }
 
 // TestParkCommitsInterruptAndSuspendAtomically proves the §8.3 pairing the
@@ -119,7 +135,7 @@ func TestParkCommitsInterruptAndSuspendAtomically(t *testing.T) {
 		if err := ints.Put(ctx, interrupts.Pending{RunID: "run_1", SessionID: "ses_A", CreatedAt: time.Unix(0, 0)}); err != nil {
 			return err
 		}
-		return runStore.Suspend(ctx, "ses_A", "run_1")
+		return runStore.Suspend(ctx, parkedRun("run_1", "ses_A"))
 	}
 
 	// A park commit that fails after both writes leaves NEITHER: no interrupt, and
@@ -218,7 +234,7 @@ func TestTerminalizeParkedRunRejectsNonCancel(t *testing.T) {
 	if err := store.Admit(ctx, runDraft("run_1", "ses_A")); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := store.Suspend(ctx, "ses_A", "run_1"); err != nil {
+	if err := store.Suspend(ctx, parkedRun("run_1", "ses_A")); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	// A parked run cannot complete/error/cap out without resuming — the illegal
@@ -252,7 +268,7 @@ func TestSuspendResumeReusesOneSlot(t *testing.T) {
 		t.Fatalf("admit: %v", err)
 	}
 	// Park: the row goes interrupted but stays non-terminal — still busy.
-	if err := store.Suspend(ctx, "ses_A", "run_1"); err != nil {
+	if err := store.Suspend(ctx, parkedRun("run_1", "ses_A")); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	if err := store.Admit(ctx, runDraft("run_2", "ses_A")); !errors.Is(err, execution.ErrSessionBusy) {
@@ -305,14 +321,14 @@ func TestReconcileOrphansSweepsInterruptedWithoutRecord(t *testing.T) {
 	if err := store.Admit(ctx, runDraft("run_orphan", "ses_orphan")); err != nil {
 		t.Fatalf("admit orphan: %v", err)
 	}
-	if err := store.Suspend(ctx, "ses_orphan", "run_orphan"); err != nil {
+	if err := store.Suspend(ctx, parkedRun("run_orphan", "ses_orphan")); err != nil {
 		t.Fatalf("suspend orphan: %v", err)
 	}
 	// Genuinely parked: interrupted state WITH an open interrupt record.
 	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
 		t.Fatalf("admit park: %v", err)
 	}
-	if err := store.Suspend(ctx, "ses_park", "run_park"); err != nil {
+	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
 		t.Fatalf("suspend park: %v", err)
 	}
 	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
@@ -345,7 +361,7 @@ func TestReconcileOrphansSweepsCrashedButPreservesParked(t *testing.T) {
 	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
 		t.Fatalf("admit park: %v", err)
 	}
-	if err := store.Suspend(ctx, "ses_park", "run_park"); err != nil {
+	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
 		t.Fatalf("suspend park: %v", err)
 	}
 	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
@@ -371,7 +387,7 @@ func TestReconcileOrphansTerminalizesParkWhoseProcessSnapshotIsMissing(t *testin
 	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := store.Suspend(ctx, "ses_park", "run_park"); err != nil {
+	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
@@ -389,7 +405,7 @@ func TestReconcileOrphansTerminalizesParkWhoseProcessSnapshotIsMissing(t *testin
 		t.Fatalf("pending after recovery = (%+v, %v), want none", pending, err)
 	}
 	runs, err := store.ListRuns(ctx, "ses_park")
-	if err != nil || len(runs) != 1 || runs[0].State != execution.Failed || runs[0].Result == nil || runs[0].Result.Error == nil || runs[0].Result.Error.Kind != transcript.RunLostProblem {
+	if err != nil || len(runs) != 1 || runs[0].State != execution.Failed || runs[0].Error == nil || runs[0].Error.Kind != transcript.RunLostProblem {
 		t.Fatalf("runs after recovery = (%+v, %v), want failed run_lost", runs, err)
 	}
 	if err := store.Admit(ctx, runDraft("run_next", "ses_park")); err != nil {
@@ -398,7 +414,7 @@ func TestReconcileOrphansTerminalizesParkWhoseProcessSnapshotIsMissing(t *testin
 }
 
 // TestReconcileOrphansRepairsWholeDurableLifecycle is the recovery boundary's
-// evidence for terminal_run_carries_its_result: the boot sweep does not merely mark
+// evidence for terminal_run_explains_how_it_ended: the boot sweep does not merely mark
 // an abandoned run terminal, it lands the run_lost result explaining why — the only
 // chance to, since the executor that could have said is gone.
 func TestReconcileOrphansRepairsWholeDurableLifecycle(t *testing.T) {
@@ -440,8 +456,8 @@ func TestReconcileOrphansRepairsWholeDurableLifecycle(t *testing.T) {
 	if len(runs) != 1 || runs[0].State != execution.Failed || runs[0].Outcome == nil || *runs[0].Outcome != execution.OutcomeError {
 		t.Fatalf("recovered run = %+v, want failed/error", runs)
 	}
-	if runs[0].Result == nil || runs[0].Result.Error == nil || runs[0].Result.Error.Kind != transcript.RunLostProblem {
-		t.Fatalf("recovered run result = %+v, want run-lost problem", runs[0].Result)
+	if runs[0].Error == nil || runs[0].Error.Kind != transcript.RunLostProblem {
+		t.Fatalf("recovered run failure = %+v, want run-lost problem", runs[0].Error)
 	}
 	if runs[0].FinishedAt.IsZero() || runs[0].MessageMark != 0 {
 		t.Fatalf("recovered terminal boundary = finished:%v mark:%d", runs[0].FinishedAt, runs[0].MessageMark)
@@ -497,7 +513,7 @@ func TestReconcileOrphansRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := store.Suspend(ctx, "ses_park", "run_park"); err != nil {
+	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	createdAt := runCreatedAt
@@ -528,7 +544,7 @@ func TestReconcileOrphansRejectsUnmappedRunningItem(t *testing.T) {
 	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := store.Suspend(ctx, "ses_park", "run_park"); err != nil {
+	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
@@ -556,7 +572,7 @@ func TestReconcileOrphansRejectsParkModelMismatch(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := store.Suspend(ctx, "ses_park", "run_park"); err != nil {
+	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
@@ -572,7 +588,7 @@ func TestReconcileOrphansRejectsDrainedInterruptOverlap(t *testing.T) {
 	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := store.Suspend(ctx, "ses_park", "run_park"); err != nil {
+	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
@@ -596,7 +612,7 @@ func TestReconcileOrphansTerminalizesExecutorIncompatibleSnapshot(t *testing.T) 
 	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := store.Suspend(ctx, "ses_park", "run_park"); err != nil {
+	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
@@ -614,7 +630,7 @@ func TestReconcileOrphansTerminalizesExecutorIncompatibleSnapshot(t *testing.T) 
 		t.Fatalf("snapshot after incompatible recovery = %v, want not found", err)
 	}
 	runs, err := store.ListRuns(ctx, "ses_park")
-	if err != nil || len(runs) != 1 || runs[0].Result == nil || runs[0].Result.Error == nil || runs[0].Result.Error.Kind != transcript.RunLostProblem {
+	if err != nil || len(runs) != 1 || runs[0].Error == nil || runs[0].Error.Kind != transcript.RunLostProblem {
 		t.Fatalf("runs after incompatible recovery = (%+v, %v), want run_lost", runs, err)
 	}
 }
@@ -625,7 +641,7 @@ func TestReconcileOrphansRejectsSnapshotValidatorFailureWithoutMutation(t *testi
 	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := store.Suspend(ctx, "ses_park", "run_park"); err != nil {
+	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
@@ -671,7 +687,7 @@ func TestListRunningSeesOnlyWorkInProgress(t *testing.T) {
 			t.Fatalf("admit %s: %v", draft.RunID, err)
 		}
 	}
-	if err := store.Suspend(ctx, "ses_B", "run_parked"); err != nil {
+	if err := store.Suspend(ctx, parkedRun("run_parked", "ses_B")); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	if err := store.Terminalize(ctx, finishedRun("run_done", "ses_C", execution.OutcomeCompleted)); err != nil {
@@ -682,14 +698,14 @@ func TestListRunningSeesOnlyWorkInProgress(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list running: %v", err)
 	}
-	if len(running) != 1 || running[0].RunID != "run_live" {
+	if len(running) != 1 || running[0].ID != "run_live" {
 		t.Fatalf("running = %+v, want only run_live", running)
 	}
 	if running[0].State != execution.Running || running[0].SessionID != "ses_A" {
 		t.Fatalf("run_live = %+v, want running in ses_A", running[0])
 	}
-	if !running[0].StartedAt.Equal(time.Unix(0, 20).UTC()) {
-		t.Fatalf("run_live started at %v, want its admission time", running[0].StartedAt)
+	if !running[0].CreatedAt.Equal(time.Unix(0, 20).UTC()) {
+		t.Fatalf("run_live started at %v, want its admission time", running[0].CreatedAt)
 	}
 
 	if scoped, err := store.ListRunning(ctx, "ses_A", 0, "", 0); err != nil || len(scoped) != 1 {
@@ -722,7 +738,7 @@ func TestListRunningOrdersByAdmission(t *testing.T) {
 	}
 	var order []string
 	for _, run := range running {
-		order = append(order, run.RunID)
+		order = append(order, run.ID)
 	}
 	if len(order) != 3 || order[0] != "run_a" || order[1] != "run_b" || order[2] != "run_c" {
 		t.Fatalf("order = %v, want oldest admission first", order)
@@ -750,17 +766,17 @@ func TestListRunningSeeksPastItsAnchor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first page: %v", err)
 	}
-	if len(first) != 2 || first[0].RunID != "run_a" || first[1].RunID != "run_b" {
+	if len(first) != 2 || first[0].ID != "run_a" || first[1].ID != "run_b" {
 		t.Fatalf("first page = %+v, want run_a then run_b", first)
 	}
 
 	// run_b shares run_a's admission time, so a time-only bound would drop it or
 	// repeat it; the run id breaks the tie.
-	rest, err := store.ListRunning(ctx, "", first[1].StartedAt.UnixNano(), first[1].RunID, 2)
+	rest, err := store.ListRunning(ctx, "", first[1].CreatedAt.UnixNano(), first[1].ID, 2)
 	if err != nil {
 		t.Fatalf("second page: %v", err)
 	}
-	if len(rest) != 1 || rest[0].RunID != "run_c" {
+	if len(rest) != 1 || rest[0].ID != "run_c" {
 		t.Fatalf("second page = %+v, want only run_c", rest)
 	}
 }

@@ -5,10 +5,11 @@
 // tests in reducer.aggregates.test.ts.
 
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Item, RunOutcome, StreamEvent } from "@/rpc";
+import type { Item, StreamEvent } from "@/rpc";
 import type { AgentViewState } from "@/plugins/sdk/types/agentView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { reduce } from "./reducer";
+import { runFinished } from "./reducer.fixtures";
 import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
 // Builders. Items are partial — only the fields the fold reads matter; the
@@ -29,7 +30,6 @@ const runStarted = (id: string, sessionId: string): StreamEvent => ({
   type: "segment.started",
   run: { id, sessionId } as never,
 });
-const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "segment.finished", outcome });
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/public/foldPlugin");
@@ -40,7 +40,7 @@ describe("reducer — run lifecycle", () => {
   it("segment.started flips running + records ids; segment.finished flips off", () => {
     let s = reduce(INITIAL_VIEW_STATE, runStarted("run_1", "ses_1"));
     expect(s.run).toMatchObject({ running: true, runId: "run_1", sessionId: "ses_1" });
-    s = reduce(s, runFinished({ type: "completed", result: { steps: 2 } }));
+    s = reduce(s, runFinished({ type: "completed" }, { steps: 2, activeDurationMs: 0 }));
     expect(s.run.running).toBe(false);
     expect(s.run.step).toBe(2);
   });
@@ -49,7 +49,7 @@ describe("reducer — run lifecycle", () => {
     let s = reduce(INITIAL_VIEW_STATE, runStarted("run_1", "ses_1"));
     s = reduce(
       s,
-      runFinished({ type: "error", result: { error: { type: "provider_error", detail: "boom" } } }),
+      runFinished({ type: "error", error: { type: "provider_error", detail: "boom" } }),
     );
     expect(s.error).toEqual({ message: "boom", code: "provider_error" });
     expect(s.run.running).toBe(false);
@@ -62,7 +62,7 @@ describe("reducer — run lifecycle", () => {
   // explanation and leave the banner nothing to translate.
   it("segment.finished{error} without a detail leaves the words to the banner", () => {
     let s = reduce(INITIAL_VIEW_STATE, runStarted("run_1", "ses_1"));
-    s = reduce(s, runFinished({ type: "error", result: { error: { type: "internal_error" } } }));
+    s = reduce(s, runFinished({ type: "error", error: { type: "internal_error" } }));
     expect(s.error).toEqual({ message: undefined, code: "internal_error" });
   });
 });
@@ -590,7 +590,7 @@ describe("reducer — interrupt idempotency + terminal cleanup", () => {
     expect(s.pendingInterrupts).toHaveLength(1);
 
     // The run is canceled while the approval is still open (user never answered).
-    s = reduce(s, runFinished({ type: "canceled", result: {} }));
+    s = reduce(s, runFinished({ type: "canceled" }));
     expect(s.pendingInterrupts).toHaveLength(0);
     expect(approvalBlocks(s)[0]).toMatchObject({ status: "incomplete" });
     expect(s.toolCalls.tool_1?.status).toBe("err");

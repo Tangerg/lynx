@@ -26,8 +26,37 @@ type RunDraft struct {
 	RunID          string
 	SessionID      string
 	ModelSelection modelref.Selection
-	CreatedAt      time.Time
+	// Limits is the allowance this Run is admitted under. It is recorded with the
+	// admission and never changes: a resume answers an interrupt, it does not
+	// renegotiate the budget the Run was accepted with.
+	Limits    RunLimits
+	CreatedAt time.Time
 }
+
+// RunLimits is the accumulated allowance a Run may consume before it is stopped.
+// A zero field is that dimension uncapped, so the zero value is an unbounded Run.
+//
+// It lives beside [RunState] and [Outcome] rather than with the accrued
+// accounting because it is execution POLICY — an input the admission fixes,
+// which the executor enforces and a cross-process rehydrate must reapply — while
+// what was actually spent is a recorded fact.
+type RunLimits struct {
+	MaxSteps     int
+	MaxBudgetUSD float64
+}
+
+// Validate reports whether the allowance is expressible. A negative cap is not
+// "no cap" — it is a cap nothing can satisfy, and admitting one would stop the
+// Run before its first step.
+func (l RunLimits) Validate() error {
+	if l.MaxSteps < 0 || l.MaxBudgetUSD < 0 {
+		return errors.New("execution: run limits must not be negative")
+	}
+	return nil
+}
+
+// IsZero reports whether no allowance is in force at all.
+func (l RunLimits) IsZero() bool { return l == RunLimits{} }
 
 // ResumeDraft is the durable identity of a parked Run whose next segment is
 // opening. Applying it atomically consumes the Run's open interrupt and moves
@@ -35,20 +64,4 @@ type RunDraft struct {
 type ResumeDraft struct {
 	RunID     string
 	SessionID string
-}
-
-// AdmittedRun is what the durable admission record can answer about a Run
-// without loading its transcript: identity, where it sits in its lifecycle, and
-// the selection it runs under.
-//
-// It is the authoritative answer to "which Runs exist and what are they doing" —
-// a live in-process registry only knows the segments THIS process is streaming,
-// so a Run parked on an interrupt, or one whose process died, is absent from it
-// while very much still being a Run.
-type AdmittedRun struct {
-	RunID          string
-	SessionID      string
-	State          RunState
-	ModelSelection modelref.Selection
-	StartedAt      time.Time
 }

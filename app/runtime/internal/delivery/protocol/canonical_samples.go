@@ -55,7 +55,12 @@ var CanonicalSamples = []CanonicalSample{
 	{"outcome.maxSteps.json", reflect.TypeFor[RunOutcome]()},
 	{"outcome.maxBudget.json", reflect.TypeFor[RunOutcome]()},
 	{"outcome.canceled.json", reflect.TypeFor[RunOutcome]()},
-	{"outcome.interrupt.json", reflect.TypeFor[RunOutcome]()},
+	// The two stops a run survives are SegmentOutcome-only, and bound to it: a
+	// RunOutcome can never carry either. `suspended` has no producer until
+	// features.subagents is on, and is published now because a client folding
+	// segment outcomes exhaustively has to know the tag before subtrees arrive.
+	{"segment.outcome.interrupt.json", reflect.TypeFor[SegmentOutcome]()},
+	{"segment.outcome.suspended.json", reflect.TypeFor[SegmentOutcome]()},
 	{"runref.full.json", reflect.TypeFor[RunRef]()},
 	{"interrupt.approval.json", reflect.TypeFor[Interrupt]()},
 	{"interrupt.question.json", reflect.TypeFor[Interrupt]()},

@@ -399,7 +399,10 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	if err := cfg.RunStore.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, CreatedAt: createdAt}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := cfg.RunStore.Suspend(ctx, sessionID, runID); err != nil {
+	if err := cfg.RunStore.Suspend(ctx, transcript.Run{
+		SessionID: sessionID, ID: runID, State: execution.Interrupted,
+		Interrupts: open, CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
+	}); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	if err := cfg.TranscriptStore.AppendItem(ctx, transcript.Item{
@@ -446,8 +449,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 		t.Fatalf("process snapshot after assemble = %v, want not found", err)
 	}
 	runs, err := cfg.RunStore.ListRuns(ctx, sessionID)
-	if err != nil || len(runs) != 1 || runs[0].Result == nil || runs[0].Result.Error == nil ||
-		runs[0].Result.Error.Kind != transcript.RunLostProblem {
+	if err != nil || len(runs) != 1 || runs[0].Error == nil || runs[0].Error.Kind != transcript.RunLostProblem {
 		t.Fatalf("runs after assemble = (%+v, %v), want run_lost", runs, err)
 	}
 }

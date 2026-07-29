@@ -80,6 +80,14 @@ func constantsByType(t *testing.T) map[string][]string {
 		}
 	}
 
+	// Two passes, because a constant may be declared as a conversion of another
+	// one — the way a union containing another union spells the values it inherits
+	// instead of repeating their text. The literals have to be known before a
+	// conversion can be resolved to one, and Go's declaration order does not
+	// promise the source came first.
+	literals := make(map[string]string)
+	type conversion struct{ enum, constant string }
+	var conversions []conversion
 	out := make(map[string][]string)
 	for _, syntax := range parsed {
 		for _, decl := range syntax.Decls {
@@ -89,24 +97,49 @@ func constantsByType(t *testing.T) map[string][]string {
 			}
 			for _, spec := range group.Specs {
 				value, ok := spec.(*ast.ValueSpec)
-				if !ok || value.Type == nil || len(value.Values) != 1 {
+				if !ok || len(value.Values) != 1 || len(value.Names) != 1 {
 					continue
 				}
-				ident, ok := value.Type.(*ast.Ident)
-				if !ok || !stringTypes[ident.Name] {
+				if ident, ok := value.Type.(*ast.Ident); ok && stringTypes[ident.Name] {
+					literal, ok := value.Values[0].(*ast.BasicLit)
+					if !ok || literal.Kind != token.STRING {
+						continue
+					}
+					text, err := strconv.Unquote(literal.Value)
+					if err != nil {
+						t.Fatalf("unquote %s: %v", literal.Value, err)
+					}
+					literals[value.Names[0].Name] = text
+					out[ident.Name] = append(out[ident.Name], text)
 					continue
 				}
-				literal, ok := value.Values[0].(*ast.BasicLit)
-				if !ok || literal.Kind != token.STRING {
+				// `X = EnumType(Y)` — the value is Y's, published under EnumType too.
+				if value.Type != nil {
 					continue
 				}
-				text, err := strconv.Unquote(literal.Value)
-				if err != nil {
-					t.Fatalf("unquote %s: %v", literal.Value, err)
+				call, ok := value.Values[0].(*ast.CallExpr)
+				if !ok || len(call.Args) != 1 {
+					continue
 				}
-				out[ident.Name] = append(out[ident.Name], text)
+				enum, ok := call.Fun.(*ast.Ident)
+				if !ok || !stringTypes[enum.Name] {
+					continue
+				}
+				source, ok := call.Args[0].(*ast.Ident)
+				if !ok {
+					continue
+				}
+				conversions = append(conversions, conversion{enum: enum.Name, constant: source.Name})
 			}
 		}
+	}
+	for _, converted := range conversions {
+		text, ok := literals[converted.constant]
+		if !ok {
+			t.Errorf("%s converts %s, which is not a string constant of this package", converted.enum, converted.constant)
+			continue
+		}
+		out[converted.enum] = append(out[converted.enum], text)
 	}
 	return out
 }

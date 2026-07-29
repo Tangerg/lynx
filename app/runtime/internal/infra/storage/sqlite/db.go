@@ -60,7 +60,7 @@ func Open(path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 34
+const schemaEpoch = 35
 
 func installCurrentSchema(db *sql.DB, path string) error {
 	var epoch int
@@ -118,12 +118,20 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		// that survives restart (the in-process live-run registry is only this
 		// process's view). outcome is the terminal reason, '' until terminal.
 		//
-		// The remaining columns are the Run's accrued facts, and they are written
-		// only by the lifecycle transition that makes them true: a terminal state
-		// and the result explaining it land in one statement, so no row can claim
-		// one without the other. A Run's open interrupts are NOT here — the
-		// interrupts table owns them and a read composes them, because two copies
-		// of one park would be two answers to "what is this run waiting on".
+		// detail / problem explain WHY a Run stopped and are written by the
+		// lifecycle transition that makes them true: a terminal state and the
+		// failure explaining it land in one statement, so no row can claim one
+		// without the other. steps / active_duration_ns / usage are a different
+		// kind of fact — how much the Run has consumed — and are written by every
+		// commit from the first segment on, because a running Run costs money and
+		// a parked one has to report what it already spent. max_steps /
+		// max_budget_usd are the allowance it was admitted under, frozen at
+		// creation: a resume and a cross-restart rehydrate have to apply the same
+		// caps the first segment did, and zero means uncapped.
+		//
+		// A Run's open interrupts are NOT here — the interrupts table owns them
+		// and a read composes them, because two copies of one park would be two
+		// answers to "what is this run waiting on".
 		//
 		// message_mark is the conversation message count captured when the Run
 		// finished (post-compaction) — the per-run watermark sessions.rollback /
@@ -142,6 +150,8 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			active_duration_ns INTEGER NOT NULL DEFAULT 0,
 			usage              TEXT    NOT NULL DEFAULT '',
 			problem            TEXT    NOT NULL DEFAULT '',
+			max_steps          INTEGER NOT NULL DEFAULT 0,
+			max_budget_usd     REAL    NOT NULL DEFAULT 0,
 			message_mark       INTEGER NOT NULL DEFAULT -1,
 			started_at         INTEGER NOT NULL,
 			finished_at        INTEGER NOT NULL DEFAULT 0,
@@ -151,6 +161,14 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			ON runs(session_id) WHERE state != 'terminal'`,
 		`CREATE INDEX IF NOT EXISTS idx_runs_session
 			ON runs(session_id)`,
+		// One row per parked Run: what it is waiting on, plus the Run facts its
+		// continuation has to restamp and cannot re-derive (its original start
+		// time, its model selection, what it had already spent, and the allowance
+		// it was admitted under). Those are written in the same transaction as the
+		// Run row and a parked Run consumes nothing while parked, so the hand-off
+		// cannot come apart from the Run it describes. accounting is one JSON value
+		// because it is read and written whole with the row and never queried
+		// across.
 		`CREATE TABLE IF NOT EXISTS interrupts (
 			run_id         TEXT    PRIMARY KEY,
 			session_id     TEXT    NOT NULL DEFAULT '',
@@ -160,6 +178,7 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			model          TEXT    NOT NULL DEFAULT '',
 			payload        TEXT    NOT NULL DEFAULT '',
 			drained_tools  TEXT    NOT NULL DEFAULT '',
+			accounting     TEXT    NOT NULL DEFAULT '',
 			run_created_at INTEGER NOT NULL DEFAULT 0,
 			created_at     INTEGER NOT NULL
 		)`,

@@ -94,7 +94,8 @@ describe("streamRunEvents — tree membership (bound)", () => {
     emit(
       evt("run_root", "seg_root", "evt_2", {
         type: "segment.finished",
-        outcome: { type: "completed", result: {} },
+        outcome: { type: "completed" },
+        metrics: { steps: 0, activeDurationMs: 0 },
       }),
     );
     await consume;
@@ -136,13 +137,15 @@ describe("streamRunEvents — tree membership (bound)", () => {
     emit(
       evt("run_child", "seg_child", "evt_4", {
         type: "segment.finished",
-        outcome: { type: "completed", result: {} },
+        outcome: { type: "completed" },
+        metrics: { steps: 0, activeDurationMs: 0 },
       }),
     );
     emit(
       evt("run_root", "seg_root", "evt_5", {
         type: "segment.finished",
-        outcome: { type: "completed", result: {} },
+        outcome: { type: "completed" },
+        metrics: { steps: 0, activeDurationMs: 0 },
       }),
     );
     await consume;
@@ -175,7 +178,8 @@ describe("streamRunEvents — tree membership (bound)", () => {
     emit(
       evt("run_root", "seg_root", "evt_2", {
         type: "segment.finished",
-        outcome: { type: "completed", result: {} },
+        outcome: { type: "completed" },
+        metrics: { steps: 0, activeDurationMs: 0 },
       }),
     );
     await consume;
@@ -267,7 +271,8 @@ describe("streamRunEvents — tree membership (bound)", () => {
     emit(
       evt("run_root", "seg_root", "evt_2", {
         type: "segment.finished",
-        outcome: { type: "completed", result: {} },
+        outcome: { type: "completed" },
+        metrics: { steps: 0, activeDurationMs: 0 },
       }),
     );
     await consume;
@@ -323,7 +328,8 @@ describe("streamRunEvents — deferred bind lifecycle", () => {
     emit(
       evt("run_root", "seg_root", "evt_3", {
         type: "segment.finished",
-        outcome: { type: "completed", result: {} },
+        outcome: { type: "completed" },
+        metrics: { steps: 0, activeDurationMs: 0 },
       }),
     );
     await consume;

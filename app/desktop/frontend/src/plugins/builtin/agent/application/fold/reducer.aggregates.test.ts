@@ -8,6 +8,7 @@ import type { Item, StreamEvent } from "@/rpc";
 import type { AgentViewState } from "@/plugins/sdk/types/agentView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { reduce } from "./reducer";
+import { noMetrics } from "./reducer.fixtures";
 import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
 function item(partial: Record<string, unknown>): Item {
@@ -51,7 +52,7 @@ describe("reducer — timeline accumulator", () => {
         }),
       ),
     );
-    s = reduce(s, { type: "segment.finished", outcome: { type: "completed", result: {} } });
+    s = reduce(s, { type: "segment.finished", outcome: { type: "completed" }, metrics: noMetrics });
 
     expect(s.timeline.map((t) => t.kind)).toEqual([
       "run-start",
@@ -79,6 +80,7 @@ describe("reducer — timeline accumulator", () => {
     );
     s = reduce(s, {
       type: "segment.finished",
+      metrics: noMetrics,
       outcome: {
         type: "interrupt",
         interrupts: [

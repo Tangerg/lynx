@@ -126,6 +126,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		Cwd: spec.Cwd, TurnID: spec.TurnID, ModelSelection: spec.ModelSelection,
 		GoalLeaseID: spec.GoalLeaseID,
 		CreatedAt:   spec.CreatedAt, UserInput: spec.Input, Pending: spec.Pending,
+		Metrics: spec.priorMetrics(), Limits: spec.effectiveLimits(),
 		Now: c.now, CancelReason: live.CancelReason,
 	})
 	opening, err := c.commitOpening(reqCtx, spec, reducer)
@@ -191,6 +192,7 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, reduc
 			RunID:          spec.RunID,
 			SessionID:      spec.SessionID,
 			ModelSelection: spec.ModelSelection,
+			Limits:         spec.Limits,
 			CreatedAt:      spec.CreatedAt,
 		}
 		opening.ScheduledSession = spec.ScheduledSession

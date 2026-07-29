@@ -198,10 +198,10 @@ func (s *RunStore) recoverLostRun(ctx context.Context, active nonTerminalRun, no
 		ModelSelection: active.modelSelection,
 		State:          next,
 		Outcome:        &outcome,
-		Result: &transcript.RunResult{Error: &transcript.Problem{
+		Error: &transcript.Problem{
 			Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
 			Detail: "run lost on restart",
-		}},
+		},
 		CreatedAt:   active.createdAt,
 		FinishedAt:  now,
 		UpdatedAt:   now,

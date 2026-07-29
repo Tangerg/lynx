@@ -54,9 +54,13 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 		}
 		drained = string(b)
 	}
+	accounting, err := encodeRunAccounting(p.Metrics, p.Limits)
+	if err != nil {
+		return fmt.Errorf("sqlite: put interrupt: %w", err)
+	}
 	_, err = conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO interrupts(run_id, session_id, turn_id, process_id, provider, model, payload, drained_tools, run_created_at, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO interrupts(run_id, session_id, turn_id, process_id, provider, model, payload, drained_tools, accounting, run_created_at, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(run_id) DO UPDATE SET
 		   session_id      = excluded.session_id,
 		   turn_id         = excluded.turn_id,
@@ -65,9 +69,10 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 		   model           = excluded.model,
 		   payload         = excluded.payload,
 		   drained_tools   = excluded.drained_tools,
+		   accounting      = excluded.accounting,
 		   run_created_at  = excluded.run_created_at,
 		   created_at      = excluded.created_at`,
-		p.RunID, p.SessionID, p.TurnID, p.ProcessID, p.ModelSelection.Provider(), p.ModelSelection.Model(), string(payload), drained, p.RunCreatedAt.UnixNano(), p.CreatedAt.UnixNano(),
+		p.RunID, p.SessionID, p.TurnID, p.ProcessID, p.ModelSelection.Provider(), p.ModelSelection.Model(), string(payload), drained, accounting, p.RunCreatedAt.UnixNano(), p.CreatedAt.UnixNano(),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: put interrupt: %w", err)
@@ -75,7 +80,7 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 	return nil
 }
 
-const interruptColumns = `run_id, session_id, turn_id, process_id, provider, model, payload, drained_tools, run_created_at, created_at`
+const interruptColumns = `run_id, session_id, turn_id, process_id, provider, model, payload, drained_tools, accounting, run_created_at, created_at`
 
 func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
 	return s.list(ctx, sessionID, 0, "", 0)
@@ -180,10 +185,11 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 		model        string
 		payload      string
 		drained      string
+		accounting   string
 		runCreatedNs int64
 		createdNs    int64
 	)
-	if err := row.Scan(&p.RunID, &p.SessionID, &p.TurnID, &p.ProcessID, &provider, &model, &payload, &drained, &runCreatedNs, &createdNs); err != nil {
+	if err := row.Scan(&p.RunID, &p.SessionID, &p.TurnID, &p.ProcessID, &provider, &model, &payload, &drained, &accounting, &runCreatedNs, &createdNs); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return interrupts.Pending{}, err
 		}
@@ -203,6 +209,9 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 			return interrupts.Pending{}, fmt.Errorf("sqlite: decode drained tools: %w", err)
 		}
 		p.DrainedTools = drainedToolsFromRows(rows)
+	}
+	if p.Metrics, p.Limits, err = decodeRunAccounting(accounting); err != nil {
+		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupt %q: %w", p.RunID, err)
 	}
 	p.RunCreatedAt = time.Unix(0, runCreatedNs).UTC()
 	p.CreatedAt = time.Unix(0, createdNs).UTC()

@@ -11,7 +11,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
@@ -52,7 +51,7 @@ type InterruptReader interface {
 // full. The latter arrive whole rather than paged, because threading an item to
 // its Run needs the tree and a session holds few of them.
 type RunReader interface {
-	ListRunning(ctx context.Context, sessionID string, afterStartedAt int64, afterRunID string, limit int) ([]execution.AdmittedRun, error)
+	ListRunning(ctx context.Context, sessionID string, afterStartedAt int64, afterRunID string, limit int) ([]transcript.Run, error)
 	ListRuns(ctx context.Context, sessionID string) ([]transcript.Run, error)
 }
 
@@ -151,22 +150,22 @@ func sequenceAnchor(anchor []string) (int64, error) {
 // durable admission record rather than a live in-process registry: the registry
 // only knows the segments THIS process is streaming, so it answers a different
 // question than the one being asked, and answers it differently after a restart.
-func (c *Coordinator) ListRunningRuns(ctx context.Context, sessionID, cursor string, limit int) (keyset.Page[execution.AdmittedRun], error) {
+func (c *Coordinator) ListRunningRuns(ctx context.Context, sessionID, cursor string, limit int) (keyset.Page[transcript.Run], error) {
 	filters := []string{sessionID}
 	afterStartedAt, afterID, err := timeAndIDAnchor(cursor, runPageMethod, filters)
 	if err != nil {
-		return keyset.Page[execution.AdmittedRun]{}, err
+		return keyset.Page[transcript.Run]{}, err
 	}
 	size, err := keyset.Limit(limit, runPageLimit)
 	if err != nil {
-		return keyset.Page[execution.AdmittedRun]{}, err
+		return keyset.Page[transcript.Run]{}, err
 	}
 	rows, err := c.runs.ListRunning(ctx, sessionID, afterStartedAt, afterID, size+1)
 	if err != nil {
-		return keyset.Page[execution.AdmittedRun]{}, err
+		return keyset.Page[transcript.Run]{}, err
 	}
-	return keyset.PageOf(rows, size, runPageMethod, filters, func(run execution.AdmittedRun) []string {
-		return []string{strconv.FormatInt(run.StartedAt.UnixNano(), 10), run.RunID}
+	return keyset.PageOf(rows, size, runPageMethod, filters, func(run transcript.Run) []string {
+		return []string{strconv.FormatInt(run.CreatedAt.UnixNano(), 10), run.ID}
 	}), nil
 }
 

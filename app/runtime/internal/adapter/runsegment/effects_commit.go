@@ -254,7 +254,10 @@ func (e *Effects) applyState(ctx context.Context, commit runs.EventCommit) error
 	}
 	switch commit.State {
 	case runs.StateSuspend:
-		return e.runState.Suspend(ctx, commit.SessionID, commit.RunID)
+		if commit.Run == nil {
+			return errors.New("runsegment: park commit carries no run record")
+		}
+		return e.runState.Suspend(ctx, *commit.Run)
 	case runs.StateTerminalize:
 		run, err := e.finishedRun(ctx, commit)
 		if err != nil {

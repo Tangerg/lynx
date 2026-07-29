@@ -40,7 +40,7 @@ const (
 //
 //	segment.started     → Run
 //	segment.progress    → Progress
-//	segment.finished    → Outcome
+//	segment.finished    → Outcome, Metrics
 //	item.started    → Item
 //	item.delta      → ItemID, Delta
 //	item.completed  → Item
@@ -49,16 +49,20 @@ const (
 type StreamEvent struct {
 	Type StreamEventType `json:"type"`
 
-	Run      *RunRef        `json:"run,omitempty"`
-	Progress *RunProgress   `json:"progress,omitempty"`
-	Outcome  *RunOutcome    `json:"outcome,omitempty"`
-	Item     *Item          `json:"item,omitempty"`
-	ItemID   string         `json:"itemId,omitempty"`
-	Delta    *ItemDelta     `json:"delta,omitempty"`
-	State    map[string]any `json:"state,omitempty"`
-	Name     string         `json:"name,omitempty"`    // custom
-	Payload  any            `json:"payload,omitempty"` // custom
-	Durable  *bool          `json:"durable,omitempty"` // custom only — its self-declared durability (default false)
+	Run      *RunRef         `json:"run,omitempty"`
+	Progress *RunProgress    `json:"progress,omitempty"`
+	Outcome  *SegmentOutcome `json:"outcome,omitempty"`
+	// Metrics rides every segment.finished, terminal or not: a client reads what
+	// the run consumed from one field instead of looking for it in whichever
+	// branch of the outcome happens to carry it.
+	Metrics *RunMetrics    `json:"metrics,omitempty"`
+	Item    *Item          `json:"item,omitempty"`
+	ItemID  string         `json:"itemId,omitempty"`
+	Delta   *ItemDelta     `json:"delta,omitempty"`
+	State   map[string]any `json:"state,omitempty"`
+	Name    string         `json:"name,omitempty"`    // custom
+	Payload any            `json:"payload,omitempty"` // custom
+	Durable *bool          `json:"durable,omitempty"` // custom only — its self-declared durability (default false)
 }
 
 // IsDurable reports whether a stream event is durable (authoritative /
@@ -80,8 +84,9 @@ func (se StreamEvent) IsDurable() bool {
 }
 
 // RunProgress is the mid-run progress preview carried by a segment.progress
-// event (API.md §5). Ephemeral — its terminal values land on
-// segment.finished.result (usage incl. costUsd / steps).
+// event (API.md §5). Ephemeral — it previews the same run-cumulative figures
+// that land authoritatively on segment.finished.metrics, so it may run briefly
+// ahead of them but never contradicts them.
 type RunProgress struct {
 	Step  *int   `json:"step,omitempty"`
 	Usage *Usage `json:"usage,omitempty"`

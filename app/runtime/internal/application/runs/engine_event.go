@@ -70,6 +70,10 @@ type CompactBoundary struct {
 type TurnInterrupted struct {
 	engineEventBase
 	Interrupts []Interrupt
+	// Duration is how long this segment executed before parking. A parked Run
+	// still reports what it consumed, so the executor stamps it here for the same
+	// reason it stamps it on TurnEnd.
+	Duration time.Duration
 }
 
 func (e TurnInterrupted) validate() error {
@@ -90,11 +94,24 @@ type TurnEnd struct {
 	// Problem is present exactly when Reason is OutcomeError. It is already a
 	// stable, client-safe application problem; executor diagnostics never enter
 	// the event stream.
-	Problem      *transcript.Problem
-	TokenUsage   accounting.TokenUsage
-	UsageByModel []accounting.ModelUsage
-	CostUSD      float64
-	Duration     time.Duration
+	Problem *transcript.Problem
+	// Usage is the segment's final accounting, and is absent when the terminal
+	// produced none — a cancellation or a failure joins without a TurnOutput to
+	// account for. Absent is NOT zero: reading a missing report as "spent
+	// nothing" made a canceled Run's committed metering fall back below what its
+	// own progress events had already published.
+	Usage    *TurnUsage
+	Duration time.Duration
+}
+
+// TurnUsage is one authoritative accounting report for a segment. The three
+// numbers are produced together by the executor's observer, so they travel
+// together: a report that had tokens but no per-model split would be a different
+// report, not this one with a field missing.
+type TurnUsage struct {
+	Tokens  accounting.TokenUsage
+	ByModel []accounting.ModelUsage
+	CostUSD float64
 }
 
 type UsageReported struct {

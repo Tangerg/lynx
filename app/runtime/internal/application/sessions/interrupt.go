@@ -130,9 +130,8 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 
 	run.State = state
 	run.Outcome = &outcome
-	run.Result = &transcript.RunResult{}
 	if outcome == execution.OutcomeError {
-		run.Result.Error = &transcript.Problem{
+		run.Error = &transcript.Problem{
 			Kind:  transcript.RunLostProblem,
 			Scope: transcript.RunProblem,
 			// This run was parked on an interrupt and its process snapshot turned out

@@ -41,18 +41,25 @@ type Runs interface {
 	ListOpenInterrupts(ctx context.Context, in ListOpenInterruptsRequest) (*Page[OpenInterrupt], error)
 }
 
-// RunStatus is the lifecycle status carried on RunRef (API.md §4.2).
+// RunStatus is the lifecycle position of a run (§4.1). The three values answer
+// what a client has to do next: watch it, answer it, or read it.
 type RunStatus string
 
 const (
-	RunStatusRunning  RunStatus = "running"
+	// RunStatusRunning — a segment is executing.
+	RunStatusRunning RunStatus = "running"
+	// RunStatusWaiting — no segment is executing and the run holds open
+	// interrupts. It is resumable, and it has NO outcome: "why did it stop" is
+	// answered by the interrupts, not by a terminal reason.
+	RunStatusWaiting RunStatus = "waiting"
+	// RunStatusFinished — no segment, no open interrupt, and a terminal outcome.
 	RunStatusFinished RunStatus = "finished"
 )
 
-// RunRef identifies a run + its place in the run tree (API.md §4.2). ID is the
-// STABLE logical run id — a resume continues the same run (a new segment), never
-// a new run — so SpawnedByItemID (this run is a subagent of that toolCall item)
-// is the only run-tree edge; there is no continuation chain to carry.
+// RunRef identifies a run + its place in the run tree (§4.2). ID is the STABLE
+// logical run id — a resume continues the same run (a new segment), never a new
+// run — so SpawnedByItemID (this run is a subagent of that toolCall item) is the
+// only run-tree edge; there is no continuation chain to carry.
 type RunRef struct {
 	ID              string `json:"id"`
 	SessionID       string `json:"sessionId"`
@@ -65,14 +72,42 @@ type RunRef struct {
 	// self-describing — usage.summary attributes spend by provider without
 	// re-deriving the model→provider mapping (which isn't 1:1 across compat
 	// providers).
-	Provider   string      `json:"provider,omitempty"`
-	Status     RunStatus   `json:"status,omitempty"`
-	Outcome    *RunOutcome `json:"outcome,omitempty"`
-	CreatedAt  time.Time   `json:"createdAt,omitzero"`
-	FinishedAt time.Time   `json:"finishedAt,omitzero"`
+	Provider string      `json:"provider,omitempty"`
+	Status   RunStatus   `json:"status,omitempty"`
+	Outcome  *RunOutcome `json:"outcome,omitempty"`
+	// Metrics is what the run has consumed so far, cumulative over every segment
+	// and present in every status. It is not optional: a running run costs money,
+	// and a client that can only see spend once a run ends cannot show a budget.
+	Metrics RunMetrics `json:"metrics"`
+	// Limits is the allowance in force for this run, omitted when it runs
+	// uncapped. It is the durable execution policy the run was admitted under,
+	// not an echo of the request — a resume and a cross-restart recovery report
+	// the same caps as the first segment.
+	Limits     *RunLimits `json:"limits,omitempty"`
+	CreatedAt  time.Time  `json:"createdAt,omitzero"`
+	FinishedAt time.Time  `json:"finishedAt,omitzero"`
 }
 
-// RunOutcomeType discriminates the RunOutcome union (API.md §4.2).
+// RunMetrics is how much a run has consumed (§4.2). Total cost reads
+// Usage.CostUSD — there is no separate costUsd, which would be a second source
+// of one number.
+type RunMetrics struct {
+	Usage *Usage `json:"usage,omitempty"`
+	Steps int    `json:"steps"`
+	// ActiveDurationMs is time spent executing, summed over the run's segments.
+	// Waiting on a person is not execution, so a run parked overnight and then
+	// answered reports the seconds it worked rather than the hours it existed.
+	ActiveDurationMs int64 `json:"activeDurationMs"`
+}
+
+// RunLimits is the allowance a run may consume before it is stopped (§4.2). An
+// omitted field is that dimension uncapped.
+type RunLimits struct {
+	MaxSteps     int     `json:"maxSteps,omitempty"`
+	MaxBudgetUSD float64 `json:"maxBudgetUsd,omitempty"`
+}
+
+// RunOutcomeType discriminates the RunOutcome union (§4.2).
 type RunOutcomeType string
 
 const (
@@ -81,37 +116,73 @@ const (
 	OutcomeMaxSteps  RunOutcomeType = "maxSteps"
 	OutcomeMaxBudget RunOutcomeType = "maxBudget"
 	OutcomeCanceled  RunOutcomeType = "canceled"
-	OutcomeInterrupt RunOutcomeType = "interrupt"
 )
 
-// RunOutcome is a tag-discriminated union over how a run ended (API.md §4.2).
+// RunOutcome is a tag-discriminated union over why a run STOPPED FOR GOOD
+// (§4.2). It answers only that: what the run consumed is RunMetrics, published
+// beside it, so neither has to be read through the other.
 //
-//	completed/error/maxSteps/maxBudget/canceled → Result
-//	interrupt                                   → Interrupts (resumable)
+//	completed                → nothing further
+//	error                    → Error
+//	maxSteps/maxBudget/canceled → optional Detail
+//
+// An interrupt is deliberately not a member: parking is a status, not a terminal
+// reason, and a parked run is resumable. The segment that parked reports it as a
+// [SegmentOutcome].
 type RunOutcome struct {
-	Type   RunOutcomeType `json:"type"`
-	Result *RunResult     `json:"result,omitempty"`
+	Type RunOutcomeType `json:"type"`
+	// Error explains the error terminal and appears on no other. Its own Detail
+	// carries the human-readable note (§4.6), which is why Detail below stays
+	// absent here rather than repeating it.
+	Error *ProblemData `json:"error,omitempty"`
 	// Detail is a human-readable note for the non-error terminals
 	// (maxSteps / maxBudget / canceled) — lets the client tell "user
 	// canceled" from "timed out", show "$X / $Y" for maxBudget, etc. The
-	// runs.cancel reason flows here (S6 / API.md §4.2). The error terminal's
-	// note stays on Result.Error.Detail (§4.6), not duplicated here.
-	Detail     string      `json:"detail,omitempty"`
-	Interrupts []Interrupt `json:"interrupts,omitempty"`
+	// runs.cancel reason flows here (§4.2).
+	Detail string `json:"detail,omitempty"`
 }
 
-// RunResult is a run's terminal metering (API.md §4.2). Total cost reads
-// Usage.CostUSD — there is no separate RunResult.costUsd (it would be a
-// second source of total cost; §4.2 / N1).
-type RunResult struct {
-	Usage *Usage       `json:"usage,omitempty"`
-	Steps *int         `json:"steps,omitempty"`
-	Error *ProblemData `json:"error,omitempty"` // present when outcome.type=error
-	// DurationMs is the run's wall-clock duration in milliseconds (spans any
-	// interrupt/resume cycles). Lets the client show a final "took 12.4s" on
-	// any terminal — distinct from the live elapsed timer (which stops at the
-	// terminal event). Omitted when zero / unmeasured.
-	DurationMs int `json:"durationMs,omitempty"`
+// SegmentOutcomeType discriminates the SegmentOutcome union (§4.3): every way a
+// run can stop for good, plus the two ways a segment can stop while its run
+// carries on.
+type SegmentOutcomeType string
+
+const (
+	// SegmentInterrupt — this segment produced the interrupts it carries, and its
+	// run is now waiting for them to be answered.
+	SegmentInterrupt SegmentOutcomeType = "interrupt"
+	// SegmentSuspended — this segment stopped because another run in its tree
+	// interrupted, not because it produced an interrupt itself. It carries no
+	// interrupts: they belong to the run that raised them, and copying them here
+	// would make one pending item appear twice in the stream.
+	SegmentSuspended SegmentOutcomeType = "suspended"
+
+	// The terminals a segment shares with its run. They are CONVERSIONS of the
+	// RunOutcomeType constants, not five more string literals: SegmentOutcome
+	// contains RunOutcome, so a terminal renamed on one side must be renamed on
+	// the other, and a second spelling is exactly how that stops happening.
+	SegmentCompleted = SegmentOutcomeType(OutcomeCompleted)
+	SegmentError     = SegmentOutcomeType(OutcomeError)
+	SegmentMaxSteps  = SegmentOutcomeType(OutcomeMaxSteps)
+	SegmentMaxBudget = SegmentOutcomeType(OutcomeMaxBudget)
+	SegmentCanceled  = SegmentOutcomeType(OutcomeCanceled)
+)
+
+// SegmentOutcome is why a SEGMENT stopped (§4.3): either the run stopped for good
+// — in which case this is a RunOutcome — or the run is only pausing.
+//
+//	interrupt                → Interrupts (non-empty)
+//	suspended                → nothing further
+//	every RunOutcomeType     → as RunOutcome
+type SegmentOutcome struct {
+	Type SegmentOutcomeType `json:"type"`
+	// Error and Detail belong to the terminal tags, and carry exactly what the
+	// same-named RunOutcome fields do.
+	Error  *ProblemData `json:"error,omitempty"`
+	Detail string       `json:"detail,omitempty"`
+	// Interrupts is the pending set THIS segment's run raised, and appears only
+	// on the interrupt tag.
+	Interrupts []Interrupt `json:"interrupts,omitempty"`
 }
 
 // StartRunRequest is the runs.start body (API.md §7.1). The session owns cwd

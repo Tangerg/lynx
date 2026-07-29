@@ -19,8 +19,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -99,7 +99,7 @@ type runUseCases interface {
 type queryUseCases interface {
 	ListItemPage(ctx context.Context, sessionID, cursor string, limit int) (queries.ItemPage, error)
 	ListPendingInterruptPage(ctx context.Context, sessionID, cursor string, limit int) (keyset.Page[interrupts.Pending], error)
-	ListRunningRuns(ctx context.Context, sessionID, cursor string, limit int) (keyset.Page[execution.AdmittedRun], error)
+	ListRunningRuns(ctx context.Context, sessionID, cursor string, limit int) (keyset.Page[transcript.Run], error)
 }
 
 type usageUseCases interface {

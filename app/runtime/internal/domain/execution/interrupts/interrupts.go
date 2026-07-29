@@ -16,6 +16,7 @@ package interrupts
 import (
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
@@ -46,6 +47,15 @@ type Pending struct {
 	// transcript record so the run keeps its timeline position (rollback/fork
 	// ordering + subagent grouping) instead of jumping to the resume time.
 	RunCreatedAt time.Time
+	// Metrics and Limits are the parked Run's accrual and allowance at the moment
+	// it parked. They are here for the same reason RunCreatedAt is: a continuation
+	// reports the RUN's cumulative consumption, not its last segment's, so it has
+	// to start from what the Run had already spent — and it must apply the caps
+	// the first segment was admitted under. The park writes them in the same
+	// transaction as the Run record, and a parked Run consumes nothing while
+	// parked, so the two cannot come apart.
+	Metrics transcript.RunMetrics
+	Limits  execution.RunLimits
 	// CreatedAt is when THIS interrupt was recorded (the park), for ordering
 	// listOpenInterrupts.
 	CreatedAt time.Time

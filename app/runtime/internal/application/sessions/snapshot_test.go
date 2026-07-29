@@ -15,7 +15,7 @@ func portableSnapshot() Snapshot {
 		Session: session.Session{ID: "ses_1"},
 		Runs: []transcript.Run{{
 			SessionID: "ses_1", ID: "run_1", State: execution.Completed,
-			Outcome: &outcome, Result: &transcript.RunResult{},
+			Outcome:   &outcome,
 			CreatedAt: time.Unix(1, 0), FinishedAt: time.Unix(2, 0), MessageMark: 0,
 		}},
 		Items: []transcript.Item{{

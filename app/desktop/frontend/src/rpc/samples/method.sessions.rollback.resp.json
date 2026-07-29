@@ -20,15 +20,24 @@
         "createdAt": "2026-07-07T10:00:00Z",
         "finishedAt": "2026-07-07T10:00:20Z",
         "outcome": {
-          "type": "completed",
-          "result": {
-            "usage": { "inputTokens": 900, "outputTokens": 210, "costUsd": 0.014 },
-            "steps": 2,
-            "durationMs": 20000
-          }
+          "type": "completed"
+        },
+        "metrics": {
+          "usage": {
+            "inputTokens": 900,
+            "outputTokens": 210,
+            "costUsd": 0.014
+          },
+          "steps": 2,
+          "activeDurationMs": 20000
         }
       },
-      "userInput": [{ "type": "text", "text": "Add a rollback test" }]
+      "userInput": [
+        {
+          "type": "text",
+          "text": "Add a rollback test"
+        }
+      ]
     }
   ]
 }

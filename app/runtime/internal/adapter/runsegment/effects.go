@@ -70,13 +70,14 @@ type ToolResultStore interface {
 // RunWriter applies the run's lifecycle transitions inside the event commit
 // (§8.3): an opening admits or resumes it, a park suspends it, and a terminal
 // ends it — each in the SAME transaction as the interrupt / item records it must
-// stay consistent with. Terminalize takes the whole finished Run because the
-// terminal state and the result explaining it are one fact. The sqlite RunStore
-// satisfies it.
+// stay consistent with. Suspend and Terminalize both take the whole Run because
+// a state change and the accounting true at that moment are one fact: a park is
+// a durable commit, so what the Run had spent by then is committed with it. The
+// sqlite RunStore satisfies it.
 type RunWriter interface {
 	Admit(ctx context.Context, draft execution.RunDraft) error
 	Resume(ctx context.Context, draft execution.ResumeDraft) error
-	Suspend(ctx context.Context, sessionID, runID string) error
+	Suspend(ctx context.Context, run transcript.Run) error
 	Terminalize(ctx context.Context, run transcript.Run) error
 }
 

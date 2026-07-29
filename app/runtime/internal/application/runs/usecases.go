@@ -92,6 +92,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		CreatedAt:        createdAt,
 		OpeningUserText:  openingUserText,
 		Input:            cmd.Input,
+		Limits:           execution.RunLimits{MaxSteps: cmd.MaxSteps, MaxBudgetUSD: cmd.MaxCostUSD},
 		admission:        &runAdmission,
 		Activate: func(activateCtx context.Context) error {
 			return c.turns.Activate(activateCtx, turn)

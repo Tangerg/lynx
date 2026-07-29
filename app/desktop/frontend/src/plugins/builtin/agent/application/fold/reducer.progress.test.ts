@@ -2,10 +2,11 @@
 // segment.finished.result is the authoritative landing (API.md §5.2). The reducer
 // must surface progress live AND let the finished totals win.
 import { beforeEach, describe, expect, it } from "vitest";
-import type { RunOutcome, StreamEvent } from "@/rpc";
+import type { StreamEvent } from "@/rpc";
 import type { AgentViewState } from "@/plugins/sdk/types/agentView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { reduce } from "./reducer";
+import { runFinished } from "./reducer.fixtures";
 import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
 const runStarted = (id: string): StreamEvent => ({
@@ -14,7 +15,6 @@ const runStarted = (id: string): StreamEvent => ({
 });
 const progress = (p: Record<string, unknown>): StreamEvent =>
   ({ type: "segment.progress", progress: p }) as StreamEvent;
-const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "segment.finished", outcome });
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/public/foldPlugin");
@@ -47,10 +47,14 @@ describe("reducer — segment.progress (mid-run live readout)", () => {
     s = reduce(s, progress({ step: 1, usage: { inputTokens: 10, outputTokens: 5 } }));
     s = reduce(
       s,
-      runFinished({
-        type: "completed",
-        result: { steps: 3, usage: { inputTokens: 1200, outputTokens: 80, costUsd: 0.5 } },
-      }),
+      runFinished(
+        { type: "completed" },
+        {
+          steps: 3,
+          activeDurationMs: 0,
+          usage: { inputTokens: 1200, outputTokens: 80, costUsd: 0.5 },
+        },
+      ),
     );
     expect(s.run.running).toBe(false);
     expect(s.run.step).toBe(3);

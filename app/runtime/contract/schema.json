@@ -562,8 +562,8 @@
         "detail": {
           "type": "string"
         },
-        "result": {
-          "$ref": "#/$defs/ArtifactRunResult"
+        "error": {
+          "$ref": "#/$defs/ArtifactProblem"
         },
         "type": {
           "$ref": "#/$defs/ArtifactOutcomeType"
@@ -573,56 +573,57 @@
         {
           "properties": {
             "detail": false,
+            "error": false,
             "type": {
               "const": "completed"
             }
           },
           "required": [
-            "result",
             "type"
           ]
         },
         {
           "properties": {
+            "detail": false,
             "type": {
               "const": "error"
             }
           },
           "required": [
-            "result",
+            "error",
             "type"
           ]
         },
         {
           "properties": {
+            "error": false,
             "type": {
               "const": "maxSteps"
             }
           },
           "required": [
-            "result",
             "type"
           ]
         },
         {
           "properties": {
+            "error": false,
             "type": {
               "const": "maxBudget"
             }
           },
           "required": [
-            "result",
             "type"
           ]
         },
         {
           "properties": {
+            "error": false,
             "type": {
               "const": "canceled"
             }
           },
           "required": [
-            "result",
             "type"
           ]
         }
@@ -640,8 +641,11 @@
             ]
           },
           "then": {
+            "properties": {
+              "detail": false
+            },
             "required": [
-              "result"
+              "error"
             ]
           }
         }
@@ -797,8 +801,14 @@
         "id": {
           "type": "string"
         },
+        "limits": {
+          "$ref": "#/$defs/ArtifactRunLimits"
+        },
         "messageMark": {
           "type": "integer"
+        },
+        "metrics": {
+          "$ref": "#/$defs/ArtifactRunMetrics"
         },
         "model": {
           "type": "string"
@@ -825,19 +835,28 @@
         "finishedAt",
         "id",
         "messageMark",
+        "metrics",
         "outcome",
         "sessionId",
         "updatedAt"
       ]
     },
-    "ArtifactRunResult": {
+    "ArtifactRunLimits": {
       "type": "object",
       "properties": {
-        "durationMs": {
-          "type": "integer"
+        "maxBudgetUsd": {
+          "type": "number"
         },
-        "error": {
-          "$ref": "#/$defs/ArtifactProblem"
+        "maxSteps": {
+          "type": "integer"
+        }
+      }
+    },
+    "ArtifactRunMetrics": {
+      "type": "object",
+      "properties": {
+        "activeDurationMs": {
+          "type": "integer"
         },
         "steps": {
           "type": "integer"
@@ -847,6 +866,7 @@
         }
       },
       "required": [
+        "activeDurationMs",
         "steps"
       ]
     },
@@ -4083,20 +4103,43 @@
         "timestamp"
       ]
     },
+    "RunLimits": {
+      "type": "object",
+      "properties": {
+        "maxBudgetUsd": {
+          "type": "number"
+        },
+        "maxSteps": {
+          "type": "integer"
+        }
+      }
+    },
+    "RunMetrics": {
+      "type": "object",
+      "properties": {
+        "activeDurationMs": {
+          "type": "integer"
+        },
+        "steps": {
+          "type": "integer"
+        },
+        "usage": {
+          "$ref": "#/$defs/Usage"
+        }
+      },
+      "required": [
+        "activeDurationMs",
+        "steps"
+      ]
+    },
     "RunOutcome": {
       "type": "object",
       "properties": {
         "detail": {
           "type": "string"
         },
-        "interrupts": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Interrupt"
-          }
-        },
-        "result": {
-          "$ref": "#/$defs/RunResult"
+        "error": {
+          "$ref": "#/$defs/ProblemData"
         },
         "type": {
           "$ref": "#/$defs/RunOutcomeType"
@@ -4106,100 +4149,62 @@
         {
           "properties": {
             "detail": false,
-            "interrupts": false,
+            "error": false,
             "type": {
               "const": "completed"
             }
           },
           "required": [
-            "result",
             "type"
           ]
         },
         {
           "properties": {
             "detail": false,
-            "interrupts": false,
             "type": {
               "const": "error"
             }
           },
           "required": [
-            "result",
+            "error",
             "type"
           ]
         },
         {
           "properties": {
-            "interrupts": false,
+            "error": false,
             "type": {
               "const": "maxSteps"
             }
           },
           "required": [
-            "result",
             "type"
           ]
         },
         {
           "properties": {
-            "interrupts": false,
+            "error": false,
             "type": {
               "const": "maxBudget"
             }
           },
           "required": [
-            "result",
             "type"
           ]
         },
         {
           "properties": {
-            "interrupts": false,
+            "error": false,
             "type": {
               "const": "canceled"
             }
           },
           "required": [
-            "result",
-            "type"
-          ]
-        },
-        {
-          "properties": {
-            "detail": false,
-            "result": false,
-            "type": {
-              "const": "interrupt"
-            }
-          },
-          "required": [
-            "interrupts",
             "type"
           ]
         }
       ],
       "allOf": [
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "interrupt"
-              }
-            },
-            "required": [
-              "type"
-            ]
-          },
-          "then": {
-            "properties": {
-              "result": false
-            },
-            "required": [
-              "interrupts"
-            ]
-          }
-        },
         {
           "if": {
             "properties": {
@@ -4213,11 +4218,10 @@
           },
           "then": {
             "properties": {
-              "detail": false,
-              "interrupts": false
+              "detail": false
             },
             "required": [
-              "result"
+              "error"
             ]
           }
         }
@@ -4230,8 +4234,7 @@
         "error",
         "maxSteps",
         "maxBudget",
-        "canceled",
-        "interrupt"
+        "canceled"
       ]
     },
     "RunProgress": {
@@ -4265,6 +4268,12 @@
         "id": {
           "type": "string"
         },
+        "limits": {
+          "$ref": "#/$defs/RunLimits"
+        },
+        "metrics": {
+          "$ref": "#/$defs/RunMetrics"
+        },
         "model": {
           "type": "string"
         },
@@ -4286,6 +4295,7 @@
       },
       "required": [
         "id",
+        "metrics",
         "sessionId"
       ],
       "allOf": [
@@ -4306,25 +4316,44 @@
               "outcome"
             ]
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "running"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "finishedAt": false,
+              "outcome": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "waiting"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "finishedAt": false,
+              "outcome": false
+            }
+          }
         }
       ]
-    },
-    "RunResult": {
-      "type": "object",
-      "properties": {
-        "durationMs": {
-          "type": "integer"
-        },
-        "error": {
-          "$ref": "#/$defs/ProblemData"
-        },
-        "steps": {
-          "type": "integer"
-        },
-        "usage": {
-          "$ref": "#/$defs/Usage"
-        }
-      }
     },
     "RunScheduleNowRequest": {
       "type": "object",
@@ -4357,6 +4386,7 @@
       "type": "string",
       "enum": [
         "running",
+        "waiting",
         "finished"
       ]
     },
@@ -4446,6 +4476,190 @@
       },
       "required": [
         "path"
+      ]
+    },
+    "SegmentOutcome": {
+      "type": "object",
+      "properties": {
+        "detail": {
+          "type": "string"
+        },
+        "error": {
+          "$ref": "#/$defs/ProblemData"
+        },
+        "interrupts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Interrupt"
+          }
+        },
+        "type": {
+          "$ref": "#/$defs/SegmentOutcomeType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "detail": false,
+            "error": false,
+            "type": {
+              "const": "interrupt"
+            }
+          },
+          "required": [
+            "interrupts",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "detail": false,
+            "error": false,
+            "interrupts": false,
+            "type": {
+              "const": "suspended"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "detail": false,
+            "error": false,
+            "interrupts": false,
+            "type": {
+              "const": "completed"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "detail": false,
+            "interrupts": false,
+            "type": {
+              "const": "error"
+            }
+          },
+          "required": [
+            "error",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "error": false,
+            "interrupts": false,
+            "type": {
+              "const": "maxSteps"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "error": false,
+            "interrupts": false,
+            "type": {
+              "const": "maxBudget"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "error": false,
+            "interrupts": false,
+            "type": {
+              "const": "canceled"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "error"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "detail": false
+            },
+            "required": [
+              "error"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "interrupt"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "detail": false,
+              "error": false
+            },
+            "required": [
+              "interrupts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "suspended"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "detail": false,
+              "error": false,
+              "interrupts": false
+            }
+          }
+        }
+      ]
+    },
+    "SegmentOutcomeType": {
+      "type": "string",
+      "enum": [
+        "interrupt",
+        "suspended",
+        "completed",
+        "error",
+        "maxSteps",
+        "maxBudget",
+        "canceled"
       ]
     },
     "ServerCapabilities": {
@@ -4856,11 +5070,14 @@
         "itemId": {
           "type": "string"
         },
+        "metrics": {
+          "$ref": "#/$defs/RunMetrics"
+        },
         "name": {
           "type": "string"
         },
         "outcome": {
-          "$ref": "#/$defs/RunOutcome"
+          "$ref": "#/$defs/SegmentOutcome"
         },
         "payload": {},
         "progress": {
@@ -4884,6 +5101,7 @@
             "durable": false,
             "item": false,
             "itemId": false,
+            "metrics": false,
             "name": false,
             "outcome": false,
             "payload": false,
@@ -4904,6 +5122,7 @@
             "durable": false,
             "item": false,
             "itemId": false,
+            "metrics": false,
             "name": false,
             "outcome": false,
             "payload": false,
@@ -4934,6 +5153,7 @@
             }
           },
           "required": [
+            "metrics",
             "outcome",
             "type"
           ]
@@ -4943,6 +5163,7 @@
             "delta": false,
             "durable": false,
             "itemId": false,
+            "metrics": false,
             "name": false,
             "outcome": false,
             "payload": false,
@@ -4962,6 +5183,7 @@
           "properties": {
             "durable": false,
             "item": false,
+            "metrics": false,
             "name": false,
             "outcome": false,
             "payload": false,
@@ -4983,6 +5205,7 @@
             "delta": false,
             "durable": false,
             "itemId": false,
+            "metrics": false,
             "name": false,
             "outcome": false,
             "payload": false,
@@ -5004,6 +5227,7 @@
             "durable": false,
             "item": false,
             "itemId": false,
+            "metrics": false,
             "name": false,
             "outcome": false,
             "payload": false,
@@ -5023,6 +5247,7 @@
             "delta": false,
             "item": false,
             "itemId": false,
+            "metrics": false,
             "outcome": false,
             "progress": false,
             "run": false,

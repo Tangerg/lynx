@@ -290,21 +290,13 @@ func outcomeOf(run *transcript.Run) (execution.Outcome, error) {
 }
 
 func turnCost(run *transcript.Run) float64 {
-	if run.Result == nil {
-		return 0
-	}
-	if run.Result.Usage != nil && run.Result.Usage.CostUSD != nil {
-		return *run.Result.Usage.CostUSD
+	if run.Metrics.Usage != nil && run.Metrics.Usage.CostUSD != nil {
+		return *run.Metrics.Usage.CostUSD
 	}
 	return 0
 }
 
-func turnSteps(run *transcript.Run) int {
-	if run.Result == nil {
-		return 0
-	}
-	return run.Result.Steps
-}
+func turnSteps(run *transcript.Run) int { return run.Metrics.Steps }
 
 // pauseOwned persists a loop-originated pause against the newest revision of
 // the lease it owns. A CAS miss is resolved from the authoritative row: a

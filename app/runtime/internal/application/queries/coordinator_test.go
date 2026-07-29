@@ -44,7 +44,7 @@ func (f *fakeTranscript) PageItems(_ context.Context, sessionID string, afterSeq
 // past the last row of the page before it.
 type fakeRuns struct {
 	runs    []transcript.Run
-	running []execution.AdmittedRun
+	running []transcript.Run
 
 	session        string
 	afterStartedAt int64
@@ -52,11 +52,11 @@ type fakeRuns struct {
 	limit          int
 }
 
-func (f *fakeRuns) ListRunning(_ context.Context, sessionID string, afterStartedAt int64, afterRunID string, limit int) ([]execution.AdmittedRun, error) {
+func (f *fakeRuns) ListRunning(_ context.Context, sessionID string, afterStartedAt int64, afterRunID string, limit int) ([]transcript.Run, error) {
 	f.session, f.afterStartedAt, f.afterRunID, f.limit = sessionID, afterStartedAt, afterRunID, limit
-	var out []execution.AdmittedRun
+	var out []transcript.Run
 	for _, run := range f.running {
-		if !seeksPast(run.StartedAt.UnixNano(), run.RunID, afterStartedAt, afterRunID) {
+		if !seeksPast(run.CreatedAt.UnixNano(), run.ID, afterStartedAt, afterRunID) {
 			continue
 		}
 		if limit > 0 && len(out) == limit {
@@ -204,12 +204,12 @@ func TestListItemPageRejectsANegativeLimit(t *testing.T) {
 
 // running builds a page of admitted runs one nanosecond apart, so the order is
 // total and the seek has something unambiguous to land past.
-func running(sessionID string, ids ...string) []execution.AdmittedRun {
-	out := make([]execution.AdmittedRun, 0, len(ids))
+func running(sessionID string, ids ...string) []transcript.Run {
+	out := make([]transcript.Run, 0, len(ids))
 	for i, id := range ids {
-		out = append(out, execution.AdmittedRun{
-			RunID: id, SessionID: sessionID, State: execution.Running,
-			StartedAt: time.Unix(0, int64(i+1)).UTC(),
+		out = append(out, transcript.Run{
+			ID: id, SessionID: sessionID, State: execution.Running,
+			CreatedAt: time.Unix(0, int64(i+1)).UTC(),
 		})
 	}
 	return out
@@ -240,7 +240,7 @@ func TestListRunningRunsPagesInAdmissionOrder(t *testing.T) {
 	if runs.limit != 3 {
 		t.Fatalf("store asked for %d rows, want the page plus one", runs.limit)
 	}
-	if len(first.Rows) != 2 || first.Rows[0].RunID != "run_1" || first.NextCursor == "" {
+	if len(first.Rows) != 2 || first.Rows[0].ID != "run_1" || first.NextCursor == "" {
 		t.Fatalf("first page = %+v, want two runs and a cursor", first.Rows)
 	}
 
@@ -251,7 +251,7 @@ func TestListRunningRunsPagesInAdmissionOrder(t *testing.T) {
 	if runs.afterRunID != "run_2" {
 		t.Fatalf("second page sought past %q, want the first page's last row", runs.afterRunID)
 	}
-	if len(second.Rows) != 1 || second.Rows[0].RunID != "run_3" || second.NextCursor != "" {
+	if len(second.Rows) != 1 || second.Rows[0].ID != "run_3" || second.NextCursor != "" {
 		t.Fatalf("second page = %+v, want the tail and no cursor", second.Rows)
 	}
 }

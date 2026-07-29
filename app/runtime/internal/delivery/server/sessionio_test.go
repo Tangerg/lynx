@@ -345,7 +345,14 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("admit parked run: %v", err)
 	}
-	if err := rt.runs.Suspend(ctx, ses.ID, "run_parked"); err != nil {
+	if err := rt.runs.Suspend(ctx, transcript.Run{
+		SessionID: ses.ID, ID: "run_parked", State: execution.Interrupted,
+		Interrupts: []transcript.Interrupt{{
+			ItemID: "item_question", Kind: transcript.QuestionInterrupt,
+			Question: &transcript.Question{Prompt: "Continue?"},
+		}},
+		CreatedAt: parkedAt, MessageMark: transcript.UnknownMessageMark,
+	}); err != nil {
 		t.Fatalf("suspend parked run: %v", err)
 	}
 	if err := rt.hist.AppendItem(ctx, transcript.Item{
@@ -372,8 +379,8 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 		t.Fatalf("export canceled session: %v", err)
 	}
 	run := exported.Artifact.Runs[0]
-	if run.Outcome.Type != "canceled" || run.Outcome.Result == nil {
-		t.Fatalf("exported run = %+v, want canceled terminal result", run)
+	if run.Outcome.Type != "canceled" || run.Outcome.Error != nil {
+		t.Fatalf("exported run = %+v, want a canceled terminal with no failure", run)
 	}
 	if run.MessageMark != 2 || run.Outcome.Detail != "user stopped" {
 		t.Fatalf("exported mark/detail = %d/%q, want 2/user stopped", run.MessageMark, run.Outcome.Detail)
@@ -473,16 +480,16 @@ func TestSessionImportRejectsUnavailableCwd(t *testing.T) {
 	}
 }
 
-// TestSessionImportRejectsATerminalRunWithoutItsResult is the integration evidence
-// that the import boundary maintains terminal_run_carries_its_result.
+// TestSessionImportRejectsAFailedRunWithoutItsFailure is the integration evidence
+// that the import boundary maintains terminal_run_explains_how_it_ended.
 //
 // The snapshot validator refuses this shape, but a pure-function test on the
 // validator only proves the rule exists — not that the write set is behind it. What
 // the invariant protects against is an artifact restoring a run row that claims to
-// have ended while carrying nothing that explains how, which no later write repairs.
+// have failed while carrying nothing that says how, which no later write repairs.
 // So the rejection is asked of the use case, and the session is checked to be absent
 // afterwards: a partial import is the same defect arriving one step later.
-func TestSessionImportRejectsATerminalRunWithoutItsResult(t *testing.T) {
+func TestSessionImportRejectsAFailedRunWithoutItsFailure(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
 	created := time.Unix(1, 0).UTC()
@@ -495,8 +502,8 @@ func TestSessionImportRejectsATerminalRunWithoutItsResult(t *testing.T) {
 			},
 			Runs: []protocol.ArtifactRun{{
 				ID: "run_1", SessionID: "ses_unexplained",
-				// Terminal by its own account, with nothing to show for it.
-				Outcome:   protocol.ArtifactOutcome{Type: protocol.ArtifactOutcomeCompleted},
+				// Failed by its own account, with nothing that says how.
+				Outcome:   protocol.ArtifactOutcome{Type: protocol.ArtifactOutcomeError},
 				CreatedAt: created, FinishedAt: created, UpdatedAt: created,
 			}},
 		},

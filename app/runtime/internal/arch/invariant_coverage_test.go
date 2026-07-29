@@ -79,11 +79,11 @@ var invariantFixtures = map[string]map[appcontract.TransactionBoundary]fixtureRe
 		appcontract.BoundaryRunAdmission:   {"internal/infra/storage/sqlite", "TestRunAdmitEnforcesOneActivePerSession"},
 		appcontract.BoundarySegmentOpening: {"internal/adapter/runsegment", "TestCommitOpeningRefusesASecondOpenRun"},
 	},
-	"terminal_run_carries_its_result": {
+	"terminal_run_explains_how_it_ended": {
 		appcontract.BoundarySegmentEvent: {"internal/adapter/runsegment", "TestCommitEventPersistsTheTerminalRunsResult"},
 		appcontract.BoundaryRunRecovery:  {"internal/infra/storage/sqlite", "TestReconcileOrphansRepairsWholeDurableLifecycle"},
 		appcontract.BoundarySessionImport: {
-			"internal/delivery/server", "TestSessionImportRejectsATerminalRunWithoutItsResult",
+			"internal/delivery/server", "TestSessionImportRejectsAFailedRunWithoutItsFailure",
 		},
 	},
 	"parked_run_has_exactly_one_open_interrupt_set": {

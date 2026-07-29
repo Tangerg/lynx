@@ -33,7 +33,7 @@ func TestReducerTerminalIncludesGoalTurnRecord(t *testing.T) {
 	reducer := newReducer(config)
 	mustReduce(t, reducer, ToolCallStart{CallID: "call_1", ToolName: "inspect", Arguments: `{}`})
 	mustReduce(t, reducer, ToolCallEnd{CallID: "call_1", Result: testToolResult(t, "ok")})
-	reductions := mustReduce(t, reducer, TurnEnd{Reason: execution.OutcomeCompleted, CostUSD: 0.75})
+	reductions := mustReduce(t, reducer, TurnEnd{Reason: execution.OutcomeCompleted, Usage: &TurnUsage{CostUSD: 0.75}})
 	commit := reductions[len(reductions)-1].Commit
 	if commit == nil || commit.GoalTurn == nil {
 		t.Fatal("terminal commit did not carry goal turn accounting")
@@ -317,10 +317,10 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 
 	terminal := mustReduce(t, reducer, TurnEnd{
 		Reason: execution.OutcomeMaxBudget, Duration: 1500 * time.Millisecond,
-		CostUSD: 4.2,
+		Usage: &TurnUsage{CostUSD: 4.2},
 	})
 	finished := terminal[len(terminal)-1].Event.(SegmentFinished)
-	if finished.Run.Result == nil || finished.Run.Result.Duration != 1500*time.Millisecond || finished.Run.Detail != "" {
+	if finished.Run.Metrics.ActiveDuration != 1500*time.Millisecond || finished.Run.Detail != "" {
 		t.Fatalf("budget terminal = %+v", finished.Run)
 	}
 }
@@ -341,7 +341,7 @@ func TestReducerClassifiesErrorsWithoutLeakingProviderDetails(t *testing.T) {
 			reducer := newReducer(testReducerConfig())
 			terminal := mustReduce(t, reducer, TurnEnd{Reason: execution.OutcomeError, Problem: &test.problem})
 			finished := terminal[len(terminal)-1].Event.(SegmentFinished)
-			problem := finished.Run.Result.Error
+			problem := finished.Run.Error
 			if problem == nil || *problem != (transcript.Problem{
 				Kind: test.problem.Kind, Scope: transcript.RunProblem, Detail: test.problem.Detail,
 				RetryAfterSeconds: test.problem.RetryAfterSeconds,

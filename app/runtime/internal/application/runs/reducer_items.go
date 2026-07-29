@@ -96,8 +96,11 @@ func (r *reducer) toolStart(e ToolCallStart) ([]RunEvent, error) {
 	}
 	out := r.closeStreaming()
 	r.step++
-	step := r.step
 	r.toolOrder++
+	// The step number previews the Run's accounting, so it counts the same thing
+	// the committed metrics do. Reporting the segment's own count would make a
+	// resumed Run appear to start over at step 1.
+	step := r.metrics().Steps
 	out = append(out, SegmentProgressed{Progress: RunProgress{
 		Step: &step, ToolName: e.ToolName, Activity: e.Activity,
 	}})
@@ -195,15 +198,12 @@ func (r *reducer) completeTool(ref *openTool, e ToolCallEnd) ([]RunEvent, error)
 	return append(out, ItemCompleted{Item: item, mutatedPaths: e.MutatedPaths}), nil
 }
 
+// usageProgress records the executor's latest accounting report and previews the
+// Run's resulting total. The report is remembered rather than only forwarded:
+// it is what the Run commits if the segment ends without a fresh one.
 func (r *reducer) usageProgress(e UsageReported) []RunEvent {
-	progress := RunProgress{Usage: &transcript.Usage{ModelUsage: modelUsageFrom(
-		e.TokenUsage.PromptTokens,
-		e.TokenUsage.CompletionTokens,
-		e.TokenUsage.ReasoningTokens,
-		e.TokenUsage.CacheReadTokens,
-		e.TokenUsage.CacheWriteTokens,
-		e.CostUSD,
-	)}}
+	r.usage = turnUsage(TurnUsage{Tokens: e.TokenUsage, CostUSD: e.CostUSD})
+	progress := RunProgress{Usage: r.metrics().Usage}
 	if e.ContextTokens > 0 {
 		contextTokens := e.ContextTokens
 		progress.ContextTokens = &contextTokens

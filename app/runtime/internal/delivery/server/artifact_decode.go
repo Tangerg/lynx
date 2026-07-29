@@ -78,13 +78,17 @@ func portableRunFromArtifact(path string, artifact protocol.ArtifactRun) (sessio
 	if err != nil {
 		return sessions.PortableRun{}, err
 	}
-	result, err := portableRunResultFromArtifact(path+".outcome.result", artifact.Outcome.Result)
+	problem, err := portableProblemFromArtifact(path+".outcome.error", artifact.Outcome.Error, transcript.RunProblem)
 	if err != nil {
 		return sessions.PortableRun{}, err
 	}
 	return sessions.PortableRun{
 		SessionID: artifact.SessionID, ID: artifact.ID, SpawnedByItemID: artifact.SpawnedByItemID,
-		Provider: artifact.Provider, Model: artifact.Model, Outcome: outcome, Result: result, Detail: artifact.Outcome.Detail,
+		Provider: artifact.Provider, Model: artifact.Model, Outcome: outcome,
+		Error:     problem,
+		Metrics:   portableMetricsFromArtifact(artifact.Metrics),
+		Limits:    portableLimitsFromArtifact(artifact.Limits),
+		Detail:    artifact.Outcome.Detail,
 		CreatedAt: artifact.CreatedAt, FinishedAt: artifact.FinishedAt,
 		UpdatedAt: artifact.UpdatedAt, MessageMark: artifact.MessageMark,
 	}, nil
@@ -107,19 +111,19 @@ func portableOutcomeFromArtifact(path string, value protocol.ArtifactOutcomeType
 	}
 }
 
-func portableRunResultFromArtifact(path string, artifact *protocol.ArtifactRunResult) (*transcript.RunResult, error) {
+func portableMetricsFromArtifact(artifact protocol.ArtifactRunMetrics) transcript.RunMetrics {
+	return transcript.RunMetrics{
+		Usage:          portableUsageFromArtifact(artifact.Usage),
+		Steps:          artifact.Steps,
+		ActiveDuration: time.Duration(artifact.ActiveDurationMs) * time.Millisecond,
+	}
+}
+
+func portableLimitsFromArtifact(artifact *protocol.ArtifactRunLimits) execution.RunLimits {
 	if artifact == nil {
-		return nil, nil
+		return execution.RunLimits{}
 	}
-	usage := portableUsageFromArtifact(artifact.Usage)
-	problem, err := portableProblemFromArtifact(path+".error", artifact.Error, transcript.RunProblem)
-	if err != nil {
-		return nil, err
-	}
-	return &transcript.RunResult{
-		Usage: usage, Steps: artifact.Steps, Error: problem,
-		Duration: time.Duration(artifact.DurationMs) * time.Millisecond,
-	}, nil
+	return execution.RunLimits{MaxSteps: artifact.MaxSteps, MaxBudgetUSD: artifact.MaxBudgetUSD}
 }
 
 func portableUsageFromArtifact(artifact *protocol.ArtifactUsage) *transcript.Usage {

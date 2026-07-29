@@ -1,4 +1,4 @@
-import type { LyraClient, RunEvent, RunId, RunRef, StreamingResult } from "@/rpc";
+import type { LyraClient, RunEvent, RunId, RunMetrics, RunRef, StreamingResult } from "@/rpc";
 import { asRunId, asSegmentId, asSessionId, collectPages } from "@/rpc";
 import type { FoldEvent } from "./agentStore";
 
@@ -19,6 +19,12 @@ export function startAgentSessionRecovery(options: AgentSessionRecoveryOptions):
   });
 }
 
+// A pending interrupt set says what a run is waiting on, not what it spent, so
+// these reconstructed frames report no accounting. Zero reads as "nothing
+// reported" in the fold, which keeps whatever the readout already had instead of
+// overwriting it with a number this path never learned.
+const unreported: RunMetrics = { steps: 0, activeDurationMs: 0 };
+
 function stale(options: AgentSessionRecoveryOptions): boolean {
   return options.isCancelled() || options.hasInteracted();
 }
@@ -37,13 +43,19 @@ async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
       {
         event: {
           type: "segment.started",
-          run: { id: oi.runId, sessionId: oi.sessionId, createdAt: oi.createdAt },
+          run: {
+            id: oi.runId,
+            sessionId: oi.sessionId,
+            createdAt: oi.createdAt,
+            metrics: unreported,
+          },
         },
       },
       {
         event: {
           type: "segment.finished",
           outcome: { type: "interrupt", interrupts: oi.interrupts },
+          metrics: unreported,
         },
       },
     ]);

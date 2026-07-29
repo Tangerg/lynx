@@ -512,7 +512,7 @@ type stubRunState struct{}
 
 func (stubRunState) Admit(context.Context, execution.RunDraft) error     { return nil }
 func (stubRunState) Resume(context.Context, execution.ResumeDraft) error { return nil }
-func (stubRunState) Suspend(context.Context, string, string) error       { return nil }
+func (stubRunState) Suspend(context.Context, transcript.Run) error       { return nil }
 func (stubRunState) Terminalize(context.Context, transcript.Run) error   { return nil }
 
 // ForgetSession is the no-op the session-delete / rollback / purge cascades call

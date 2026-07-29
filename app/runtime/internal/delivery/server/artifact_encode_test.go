@@ -23,7 +23,7 @@ func TestArtifactFromPortableRejectsUnknownDomainEnums(t *testing.T) {
 			name: "problem",
 			portable: sessions.PortableSnapshot{Runs: []sessions.PortableRun{{
 				ID: "run_1", Outcome: execution.OutcomeError,
-				Result: &transcript.RunResult{Error: &transcript.Problem{Kind: transcript.ProblemKind(99)}},
+				Error: &transcript.Problem{Kind: transcript.ProblemKind(99)},
 			}}},
 		},
 		{

@@ -357,8 +357,8 @@ func TestCoordinatorCommitsProcessCreationFailureInCanonicalOrder(t *testing.T) 
 	if finished.Run.Outcome == nil || *finished.Run.Outcome != execution.OutcomeError {
 		t.Fatalf("outcome = %v, want error", finished.Run.Outcome)
 	}
-	if finished.Run.Result == nil || finished.Run.Result.Error == nil || finished.Run.Result.Error.Kind != transcript.InternalProblem {
-		t.Fatalf("run result = %+v, want canonical internal problem", finished.Run.Result)
+	if finished.Run.Error == nil || finished.Run.Error.Kind != transcript.InternalProblem {
+		t.Fatalf("run failure = %+v, want canonical internal problem", finished.Run.Error)
 	}
 	if events[0].Seq >= events[1].Seq {
 		t.Fatalf("event order = %q then %q, want monotonic", events[0].Seq, events[1].Seq)
@@ -411,7 +411,7 @@ func TestCoordinatorActivationFailureBecomesErrorTerminal(t *testing.T) {
 	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != execution.OutcomeError {
 		t.Fatalf("last payload = %#v, want error terminal", events[len(events)-1].Payload)
 	}
-	if finished.Run.Result == nil || finished.Run.Result.Error == nil {
+	if finished.Run.Error == nil {
 		t.Fatalf("error terminal has no canonical problem: %+v", finished.Run)
 	}
 }
@@ -465,8 +465,8 @@ func TestCoordinatorProtocolViolationAbortsExecutorAndTerminalizes(t *testing.T)
 			if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != execution.OutcomeError {
 				t.Fatalf("last payload = %#v, want error terminal", events[1].Payload)
 			}
-			if finished.Run.Result == nil || finished.Run.Result.Error == nil || finished.Run.Result.Error.Kind != transcript.InternalProblem {
-				t.Fatalf("run result = %+v, want canonical internal problem", finished.Run.Result)
+			if finished.Run.Error == nil || finished.Run.Error.Kind != transcript.InternalProblem {
+				t.Fatalf("run failure = %+v, want canonical internal problem", finished.Run.Error)
 			}
 			if executor.cancels() != 1 {
 				t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
