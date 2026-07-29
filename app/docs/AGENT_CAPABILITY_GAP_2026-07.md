@@ -34,14 +34,19 @@ lyra 在**会话与状态**（检查点回滚 / fork / 导出导入 / durable re
 
 ### 2.A Tier A —— 低成本、明显该补（编辑/工具原语层）
 
+> ⚠️ **本节已于 2026-07-29 对着代码逐项复核 —— 原表大半已过时。** 下面每行都标了实际状态；
+> **动手前先核代码，不要照本节重做**。`auto-format` / `download` / `sourcegraph` / cron 工具 /
+> 渐进披露（`search_tools`）都已实现（见 `internal/adapter/toolset/`），`apply_patch` 一直存在且
+> 已接完整守卫栈（`workdir_tools.go`），`multiedit` 被它的多 hunk 覆盖。
+
 | 差距 | 谁有 | 说明 / 为何值得 |
 |---|---|---|
-| **`apply_patch` 多文件补丁**（增/删/改/**移动**一次调用 + 免行号模糊匹配） | codex（`apply-patch/` Lark 语法 + `seek_sequence` 模糊）、opencode（`tool/apply_patch.ts` OpenAI 格式，gpt- 模型自动切换） | lyra 只有单文件 `edit`+`write`；跨文件重构要 N 次调用、无文件移动。codex 的 `*** Begin Patch` 免行号格式对模型很鲁棒 |
-| **`multiedit`**（单文件多处编辑一次调用，各自 `replace_all`） | crush（`tools/multiedit.go`）；opencode 由 apply_patch 覆盖 | lyra 单 `edit` 一次一处；一个文件多处改要多轮 |
-| **写入即 auto-format**（按语言 formatter，诊断前跑） | opencode（`format/formatter.ts`，~25 formatter，写/改/patch 前都跑） | lyra 已有改后 LSP 诊断守卫栈，**但不自动格式化**；接进现有 editguard 守卫栈即可，产出即整洁、少一轮"格式化"往返 |
-| **`sourcegraph` / 公共仓库代码搜** | crush（`tools/sourcegraph.go`，GraphQL regex/lang/repo/symbol） | 查"别的项目怎么用这个 API/库"；零凭据、低成本 |
-| **`download`**（URL → 文件，二进制安全，流式） | crush（`tools/download.go`，max 600s） | lyra `web_fetch` 只出 markdown；下载依赖/二进制资产做不到 |
-| **模型自调 cron 工具**（`CronCreate/List/Delete`） | kimi（`tools/cron/`，5 段 cron，thundering-herd jitter，仅 idle 触发） | lyra **已有 scheduler 子系统**，只是用户侧（RPC/UI）；暴露成模型工具即可，让 agent 自排未来任务 |
+| ~~**`apply_patch` 多文件补丁**~~ **✅ 已实现（含移动，2026-07-29）** | codex、opencode | `fs.NewApplyPatchTool`，统一 diff 格式，增/删/改/**移动**，多文件多 hunk 一次调用，走 `editMutationTool` 完整守卫栈（read-before-edit / path lock / path guard / 诊断 / autoformat）。移动是 2026-07-29 补的：格式本来就能表达，此前被一条校验挡着。**仍开放的决定**：是否把统一 diff 换成 codex 的免行号 `*** Begin Patch` —— 那是**替换已发布 SDK 的模型面契约**，须单独一批 + 先咨询 |
+| ~~**`multiedit`**~~ **✅ 无需单独做** | crush | `apply_patch` 单文件多 hunk 已覆盖 —— 再加一个工具就是同一能力的第二种拼写 |
+| ~~**写入即 auto-format**~~ **✅ 已实现** | opencode | `toolset/autoformat.go`，在守卫栈最内层（格式化 → 诊断 → read/staleness → lock → path guard） |
+| ~~**`sourcegraph`**~~ **✅ 已实现** | crush | `sourcegraph_search`，由 `Online.SourcegraphEndpoint` 门控 |
+| ~~**`download`**~~ **✅ 已实现** | crush | `toolset/download.go`，共用 httpreq 的 host allowlist；**无 allowlist 则整个工具不注册**（不做"忘配也能跑"） |
+| ~~**模型自调 cron 工具**~~ **✅ 已实现** | kimi | `schedule` 工具（`toolset/schedule_tools.go`），由 `Schedules` 端口门控 |
 | **hook 事件补全**（PostToolUse / SubagentStart·Stop / PreCompact / PermissionRequest） | kimi（16 事件）、codex（10 事件） | lyra hook 系统已在（PreToolUse/UserPromptSubmit/SessionStart/Stop/Notification/…），缺后置 + 子 agent + 压缩前几个 seam；纯扩表 |
 
 ### 2.B Tier B —— 中成本、真能力增量
@@ -88,7 +93,7 @@ lyra 在**会话与状态**（检查点回滚 / fork / 导出导入 / durable re
 
 ## 5. 建议落地短名单（若要动手）
 
-1. **Tier A 全打包**：`apply_patch`(多文件) / `multiedit` + auto-format + `sourcegraph` + `download` + cron 工具 + hook 补全——都低成本、强对齐、即时提升 agent 干活力度，各自独立 commit。
+1. ~~**Tier A 全打包**~~ **✅ 基本做完（2026-07-29 复核）** —— 只剩 **hook 事件补全**（PostToolUse / SubagentStart·Stop / PreCompact 的 RPC/UI 面 / PermissionRequest）是纯扩表。其余各项见 §2.A 逐行状态。
 2. **持久 PTY / write-stdin**（Tier B 之首）——补上唯一的"交互式执行"硬缺口。
 3. **渐进工具披露 + swarm 工具**——工具经济学 + 并行（lyra 底层 workflow builder 已就绪，主要是模型侧暴露 + 背压）。
 4. **agent 自沙箱**单独立项讨论（先咨询，涉及 OS 层新子系统）。
