@@ -88,7 +88,7 @@ type TurnRequest struct {
 
 	// Observer receives streaming tool-call + text-delta
 	// notifications. May be nil — the turn still runs.
-	Observer toolObserver
+	Observer executionObserver
 
 	// Steer, when non-nil, provides user messages injected into the running
 	// loop during continuation rounds (mid-run steering, API.md §6). Messages
@@ -208,7 +208,7 @@ func (e *Engine) turnProcessOptions(
 	sessionID string,
 	provider string,
 	budget accounting.Budget,
-	observer toolObserver,
+	observer executionObserver,
 	listener core.Extension,
 	client *chatclient.Client,
 	middleware *core.ChatMiddleware,
@@ -278,11 +278,12 @@ func (e *Engine) turnProcessOptions(
 		}
 		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observation: observation})
 	}
-	options.Extensions = append(options.Extensions, &interactionProjection{
+	options.Extensions = append(options.Extensions, &processProjection{
 		engine:      e,
 		provider:    provider,
 		usage:       usage,
 		observation: observation,
+		observer:    observer,
 	})
 	if listener != nil {
 		options.Extensions = append(options.Extensions, listener)
@@ -336,7 +337,7 @@ type RestoreTurnRequest struct {
 
 	// Observer receives the continuation's streaming tool-call + text
 	// deltas, exactly as on a fresh turn. May be nil.
-	Observer toolObserver
+	Observer executionObserver
 
 	// EventListener receives restored-process subtree events for subagent
 	// lifecycle hooks. May be nil.
@@ -362,7 +363,7 @@ type RestoreTurnRequest struct {
 // Errors when no ProcessStore is configured, the snapshot is missing, the
 // agent is not deployed under the snapshot's name, or the re-tick fails.
 func (e *Engine) RestoreTurn(ctx context.Context, processID string, request RestoreTurnRequest) (TurnProcess, error) {
-	if request.Observer != nil && toolObserverIsNil(request.Observer) {
+	if request.Observer != nil && executionObserverIsNil(request.Observer) {
 		return nil, fmt.Errorf("engine: configure restored chat process: observer: %w", core.ErrNilDependency)
 	}
 	// The restored continuation runs against request.ChatClient — the per-run model

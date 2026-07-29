@@ -142,6 +142,8 @@ func eventNames(events []runs.EngineEvent) []string {
 			out[i] = "ToolCallStart"
 		case runs.ToolCallEnd:
 			out[i] = "ToolCallEnd"
+		case runs.UsageReported:
+			out[i] = "UsageReported"
 		case runs.TurnEnd:
 			out[i] = "TurnEnd"
 		default:

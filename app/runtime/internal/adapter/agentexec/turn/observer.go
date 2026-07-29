@@ -14,7 +14,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
@@ -33,8 +32,13 @@ const doomLoopThreshold = 3
 // notifications onto the turn's event channel. Approval policy lives in
 // toolGate so event projection cannot accidentally own a pre-execution rule.
 type turnObserver struct {
-	dispatcher *memoryDispatcher
-	st         *turnState
+	dispatcher       *memoryDispatcher
+	st               *turnState
+	projectChildRuns bool
+}
+
+func (t *turnObserver) projects(process agentexec.ProcessRef) bool {
+	return !process.Child() || (t.projectChildRuns && process.AgentToolChild())
 }
 
 // admitChild sends the child opening request through the same serialized
@@ -359,7 +363,7 @@ func denialReason(reason string) string {
 }
 
 func (t *turnObserver) OnToolCallStart(process agentexec.ProcessRef, callID, sourceCallID, toolName, arguments string) {
-	if process.Child() {
+	if !t.projects(process) {
 		return
 	}
 	t.dispatcher.emitProcessEvent(t.st, process, runs.ToolCallStart{
@@ -373,7 +377,7 @@ func (t *turnObserver) OnToolCallStart(process agentexec.ProcessRef, callID, sou
 }
 
 func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolName, arguments, output string, ref *offload.Ref, mutatedPaths []string, err error) {
-	if process.Child() {
+	if !t.projects(process) {
 		// A suspension is an unfinished call, not a tool result. Its logical
 		// completion will be observed after the resumed child call returns.
 		if hitl.IsInterrupt(err) {
@@ -392,7 +396,9 @@ func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolN
 	// Feed the doom-loop brake (T13): a completed call — success, error, or a
 	// recoverable denial — with the same args and same output as the previous run
 	// is a no-progress repeat. The gate reads this count before the next call.
-	t.st.recordToolOutcome(toolName, arguments, output)
+	if !process.Child() {
+		t.st.recordToolOutcome(toolName, arguments, output)
+	}
 	result := decodeToolResult(toolName, arguments, output)
 	end := runs.ToolCallEnd{
 		CallID:       callID,
@@ -438,7 +444,7 @@ func (t *turnObserver) postToolHook(toolName, output string, err error) {
 }
 
 func (t *turnObserver) OnMessageDelta(process agentexec.ProcessRef, text string) {
-	if process.Child() {
+	if !t.projects(process) {
 		return
 	}
 	t.dispatcher.emitProcessEvent(t.st, process, runs.MessageDelta{
@@ -451,7 +457,7 @@ func (t *turnObserver) OnMessageDelta(process agentexec.ProcessRef, text string)
 // about reasoning can ignore the type in their dispatch switch —
 // no event is dropped on the engine side.
 func (t *turnObserver) OnReasoningDelta(process agentexec.ProcessRef, text string) {
-	if process.Child() {
+	if !t.projects(process) {
 		return
 	}
 	t.dispatcher.emitProcessEvent(t.st, process, runs.ReasoningDelta{
@@ -462,13 +468,15 @@ func (t *turnObserver) OnReasoningDelta(process agentexec.ProcessRef, text strin
 // OnUsage forwards the per-round cumulative usage as a [UsageReported] event —
 // the mid-run token / cost readout (transport maps it to segment.progress).
 // contextTokens is this round's prompt size (the live context occupancy).
-func (t *turnObserver) OnUsage(process agentexec.ProcessRef, usage accounting.TokenUsage, costUSD float64, contextTokens int64) {
-	if process.Child() {
+func (t *turnObserver) OnUsage(process agentexec.ProcessRef, progress agentexec.UsageProgress) {
+	if !t.projects(process) {
 		return
 	}
 	t.dispatcher.emitProcessEvent(t.st, process, runs.UsageReported{
-		TokenUsage:    usage,
-		CostUSD:       costUSD,
-		ContextTokens: contextTokens,
+		TokenUsage:    progress.Usage,
+		ByModel:       progress.UsageByModel,
+		CostUSD:       progress.CostUSD,
+		Steps:         progress.Steps,
+		ContextTokens: progress.ContextTokens,
 	})
 }

@@ -33,7 +33,11 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 		client = c
 	}
 
-	observer := &turnObserver{dispatcher: s, st: st}
+	observer := &turnObserver{
+		dispatcher:       s,
+		st:               st,
+		projectChildRuns: request.ChildRunAdmissionEnabled,
+	}
 	var admitChild agentexec.AdmitChildFunc
 	if request.ChildRunAdmissionEnabled {
 		admitChild = observer.admitChild

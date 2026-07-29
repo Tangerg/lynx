@@ -1,6 +1,9 @@
 package accounting
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestTokenUsageAdd(t *testing.T) {
 	tests := []struct {
@@ -33,5 +36,48 @@ func TestTokenUsageAdd(t *testing.T) {
 				t.Fatalf("Total() = %d, want %d", got.Total(), tt.want.PromptTokens+tt.want.CompletionTokens)
 			}
 		})
+	}
+}
+
+func TestSnapshotTotalAggregatesModelsWithCapacityChecks(t *testing.T) {
+	snapshot := Snapshot{Models: []ModelUsage{
+		{
+			Model: "alpha",
+			TokenUsage: TokenUsage{
+				PromptTokens:     3,
+				CompletionTokens: 2,
+				ReasoningTokens:  1,
+			},
+			CostUSD: 0.25,
+			Calls:   1,
+		},
+		{
+			Model: "beta",
+			TokenUsage: TokenUsage{
+				PromptTokens:     5,
+				CompletionTokens: 1,
+			},
+			CostUSD: 0.5,
+			Calls:   2,
+		},
+	}}
+	total, err := snapshot.Total()
+	if err != nil {
+		t.Fatalf("Total: %v", err)
+	}
+	if total.PromptTokens != 8 ||
+		total.CompletionTokens != 3 ||
+		total.ReasoningTokens != 1 ||
+		total.CostUSD != 0.75 ||
+		total.Calls != 3 {
+		t.Fatalf("total = %+v", total)
+	}
+
+	overflow := Snapshot{Models: []ModelUsage{
+		{Model: "alpha", TokenUsage: TokenUsage{PromptTokens: math.MaxInt64}, Calls: 1},
+		{Model: "beta", TokenUsage: TokenUsage{PromptTokens: 1}, Calls: 1},
+	}}
+	if _, err := overflow.Total(); err == nil {
+		t.Fatal("overflowing snapshot aggregate was accepted")
 	}
 }

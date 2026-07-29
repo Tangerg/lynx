@@ -72,15 +72,17 @@ type reducerConfig struct {
 // canonical RunEvent family and EventCommit facts. It owns open item state,
 // item identity, resume correlation, terminal synthesis, and error semantics.
 type reducer struct {
-	cfg       reducerConfig
-	resume    *resumeBinding
-	itemSeq   int
+	cfg     reducerConfig
+	resume  *resumeBinding
+	itemSeq int
+	// step is the latest cumulative accounted model-call count reported by the
+	// executor. It uses the same unit as RunLimits.MaxSteps; tool events never
+	// infer it.
 	step      int
 	toolOrder int
-	// usage is the latest authoritative accounting THIS segment reported. The
-	// executor's observer publishes a running total, so remembering the last one
-	// is not a second accumulation — it is what lets a terminal that brings no
-	// fresh report commit what was actually spent instead of zeros.
+	// usage is the latest authoritative cumulative Run accounting reported by
+	// the executor. Nil means this segment has not advanced the committed
+	// snapshot in cfg.Metrics.
 	usage           *transcript.Usage
 	segmentDuration time.Duration
 	userInput       []transcript.ContentBlock
@@ -129,7 +131,7 @@ func newReducer(cfg reducerConfig) *reducer {
 		resume = resumeBindingFrom(*cfg.Pending)
 	}
 	return &reducer{
-		cfg: cfg, resume: resume, userInput: cfg.UserInput,
+		cfg: cfg, resume: resume, userInput: cfg.UserInput, step: cfg.Metrics.Steps,
 		tools: make(openTools),
 	}
 }
@@ -182,7 +184,11 @@ func (r *reducer) reduce(ev EngineEvent) (reductionBatch, error) {
 			return reductionBatch{}, fmt.Errorf("%w: tool call end: %w", errExecutorProtocol, err)
 		}
 	case UsageReported:
-		out = r.usageProgress(e)
+		var err error
+		out, err = r.usageProgress(e)
+		if err != nil {
+			return reductionBatch{}, fmt.Errorf("%w: usage report: %w", errExecutorProtocol, err)
+		}
 	case SteerMessage:
 		out = r.steerMessage(e)
 	case TodosUpdated:

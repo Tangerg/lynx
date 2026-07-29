@@ -704,6 +704,7 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 			},
 			Calls: 1,
 		}},
+		Steps: 1,
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
 		{

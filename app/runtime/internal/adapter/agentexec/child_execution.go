@@ -31,7 +31,7 @@ type childExecutionPolicy struct {
 	dependencies    *core.Dependencies
 	client          *chatclient.Client
 	provider        string
-	observer        toolObserver
+	observer        executionObserver
 	toolResultStore toolResultOffloader
 	evictThreshold  int
 	chatMiddleware  *core.ChatMiddleware
@@ -44,7 +44,7 @@ func childOptions(
 	dependencies *core.Dependencies,
 	client *chatclient.Client,
 	provider string,
-	observer toolObserver,
+	observer executionObserver,
 	toolResultStore toolResultOffloader,
 	evictThreshold int,
 	chatMiddleware *core.ChatMiddleware,
@@ -91,11 +91,12 @@ func (p childExecutionPolicy) options(_ context.Context, _ core.ProcessView, _ c
 	if p.observer != nil {
 		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observation: observation})
 	}
-	options.Extensions = append(options.Extensions, &interactionProjection{
+	options.Extensions = append(options.Extensions, &processProjection{
 		engine:      p.engine,
 		provider:    p.provider,
 		usage:       p.usage,
 		observation: observation,
+		observer:    p.observer,
 	})
 	if p.admitChild != nil {
 		options.Extensions = append(options.Extensions, childRunAdmitter{admit: p.admitChild})
@@ -123,7 +124,7 @@ func (admitter childRunAdmitter) AdmitChild(ctx context.Context, process core.Pr
 	}
 	return admitter.admit(ctx, ChildProcess{
 		ProcessRef: ref,
-		StartedAt:  process.StartedAt(),
+		StartedAt:  process.StartedAt().UTC(),
 	})
 }
 

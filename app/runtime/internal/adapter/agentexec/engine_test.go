@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -31,7 +32,7 @@ import (
 //
 // This is the M2-readiness gate: it proves the chain
 // engine.StartTurn → lynx Engine → tool loop → tool decorator
-// → observedTool → toolObserver is wired end-to-end without any
+// → observedTool → executionObserver is wired end-to-end without any
 // real LLM in the loop.
 func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 	stub := newStubModel("shell", `{"command":"echo lyra"}`, "I ran echo and got lyra.")
@@ -208,6 +209,87 @@ func TestEngine_RunChat_TaskDelegation(t *testing.T) {
 	// the sub-agent spawned, ran, and produced an answer.
 	if out.Reply != "main: subtask done" {
 		t.Errorf("reply = %q, want the post-delegation answer", out.Reply)
+	}
+}
+
+func TestEngine_ProjectsDelegatedChildCompletionWithExactSubtreeUsage(t *testing.T) {
+	stub := newDelegatingAccountingStub("stub-delegating", chat.Usage{
+		InputTokens:  11,
+		OutputTokens: 3,
+	})
+	client, err := chatclient.New(stub)
+	if err != nil {
+		t.Fatalf("chat client: %v", err)
+	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
+
+	observer := &recordingObserver{}
+	admitted := make(chan ChildProcess, 1)
+	out, err := eng.runTurnSync(t.Context(), TurnRequest{
+		Message:  "delegate this",
+		Observer: observer,
+		AdmitChild: func(_ context.Context, child ChildProcess) error {
+			admitted <- child
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("runTurnSync: %v", err)
+	}
+
+	child := <-admitted
+	if child.ID == "" || child.ParentID == "" || child.SpawnCallID == "" || child.StartedAt.IsZero() {
+		t.Fatalf("admitted child has incomplete identity: %+v", child)
+	}
+	completions := observer.childCompletions()
+	if len(completions) != 1 {
+		t.Fatalf("child completions = %+v, want exactly one", completions)
+	}
+	completion := completions[0]
+	if completion.Process != child {
+		t.Fatalf("completed child = %+v, admitted %+v", completion.Process, child)
+	}
+	if completion.Status != core.StatusCompleted ||
+		completion.StopReason != agent.InteractionStopNone ||
+		completion.Err != nil ||
+		completion.CompletedAt.Before(completion.Process.StartedAt) {
+		t.Fatalf("child completion = %+v", completion)
+	}
+	if completion.Usage.PromptTokens != 11 ||
+		completion.Usage.CompletionTokens != 3 ||
+		completion.Steps != 1 ||
+		len(completion.UsageByModel) != 1 ||
+		completion.UsageByModel[0].Model != "stub-delegating" ||
+		completion.UsageByModel[0].Calls != 1 {
+		t.Fatalf("child subtree usage = %+v / %+v", completion.Usage, completion.UsageByModel)
+	}
+
+	if out.Usage.PromptTokens != 33 ||
+		out.Usage.CompletionTokens != 9 ||
+		out.Steps != 3 ||
+		len(out.UsageByModel) != 1 ||
+		out.UsageByModel[0].Calls != 3 {
+		t.Fatalf("root subtree usage = %+v / %+v", out.Usage, out.UsageByModel)
+	}
+	var childProgress []usageObservation
+	for _, observation := range observer.usages() {
+		if observation.process == child.ProcessRef {
+			childProgress = append(childProgress, observation)
+		}
+	}
+	if len(childProgress) != 1 ||
+		childProgress[0].usage != completion.Usage ||
+		childProgress[0].steps != completion.Steps ||
+		childProgress[0].contextTokens != 11 {
+		t.Fatalf("child progress = %+v, completion usage %+v", childProgress, completion.Usage)
+	}
+
+	order := observer.eventOrder()
+	childEnd := slices.Index(order, "child-end:"+child.ID)
+	parentToolEnd := slices.Index(order, "tool-end:"+child.ParentID+":task")
+	if childEnd < 0 || parentToolEnd < 0 || childEnd >= parentToolEnd {
+		t.Fatalf("event order = %v, want child terminal before parent task result", order)
 	}
 }
 

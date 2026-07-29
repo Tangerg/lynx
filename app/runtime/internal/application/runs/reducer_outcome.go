@@ -2,8 +2,10 @@ package runs
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
@@ -12,7 +14,9 @@ func (r *reducer) turnEnd(e TurnEnd) ([]RunEvent, error) {
 		return nil, fmt.Errorf("non-error outcome carries a problem")
 	}
 	if e.Usage != nil {
-		r.usage = turnUsage(*e.Usage)
+		if err := r.applyUsage(*e.Usage); err != nil {
+			return nil, err
+		}
 	}
 	r.segmentDuration = e.Duration
 	var failure *transcript.Problem
@@ -76,11 +80,37 @@ func (r *reducer) runRecord(state execution.RunState) transcript.Run {
 // goes through here, which is what makes the sequence non-decreasing — the seed
 // is fixed for the segment and the segment's own figures only grow.
 func (r *reducer) metrics() transcript.RunMetrics {
-	return r.cfg.Metrics.Plus(transcript.RunMetrics{
-		Usage:          r.usage,
-		Steps:          r.step,
-		ActiveDuration: r.segmentDuration,
-	})
+	metrics := r.cfg.Metrics
+	if r.usage != nil {
+		metrics.Usage = r.usage
+	}
+	metrics.Steps = r.step
+	metrics.ActiveDuration += r.segmentDuration
+	return metrics
+}
+
+func (r *reducer) applyUsage(reported TurnUsage) error {
+	if reported.Steps < r.step {
+		return fmt.Errorf(
+			"cumulative model-call count regressed from %d to %d",
+			r.step,
+			reported.Steps,
+		)
+	}
+	next, err := validatedTurnUsage(reported)
+	if err != nil {
+		return err
+	}
+	previous := r.cfg.Metrics.Usage
+	if r.usage != nil {
+		previous = r.usage
+	}
+	if err := validateUsageMonotonic(previous, next); err != nil {
+		return err
+	}
+	r.usage = next
+	r.step = reported.Steps
+	return nil
 }
 
 func (r *reducer) finishedRun(outcome execution.Outcome, failure *transcript.Problem, detail string) (SegmentFinished, error) {
@@ -111,7 +141,7 @@ func turnUsage(reported TurnUsage) *transcript.Usage {
 			usage.ByModel[model.Model] = modelUsageFrom(
 				model.PromptTokens,
 				model.CompletionTokens,
-				0,
+				model.ReasoningTokens,
 				model.CacheReadTokens,
 				model.CacheWriteTokens,
 				model.CostUSD,
@@ -119,6 +149,96 @@ func turnUsage(reported TurnUsage) *transcript.Usage {
 		}
 	}
 	return usage
+}
+
+func validatedTurnUsage(reported TurnUsage) (*transcript.Usage, error) {
+	if reported.Steps < 0 {
+		return nil, fmt.Errorf("model-call count %d is negative", reported.Steps)
+	}
+	total := accounting.ModelUsage{
+		Model:      "total",
+		TokenUsage: reported.Tokens,
+		CostUSD:    reported.CostUSD,
+		Calls:      max(reported.Steps, 1),
+	}
+	if err := total.Validate(); err != nil {
+		return nil, fmt.Errorf("total usage: %w", err)
+	}
+	if reported.Steps == 0 &&
+		(reported.Tokens != (accounting.TokenUsage{}) || reported.CostUSD != 0) {
+		return nil, fmt.Errorf("zero model calls carry non-zero token or cost usage")
+	}
+	if len(reported.ByModel) > 0 {
+		aggregate, err := (accounting.Snapshot{Models: reported.ByModel}).Total()
+		if err != nil {
+			return nil, fmt.Errorf("per-model usage: %w", err)
+		}
+		if aggregate.TokenUsage != reported.Tokens ||
+			aggregate.Calls != reported.Steps ||
+			!sameUsageCost(aggregate.CostUSD, reported.CostUSD) {
+			return nil, fmt.Errorf(
+				"per-model aggregate {tokens:%+v cost:%g calls:%d} does not match total {tokens:%+v cost:%g calls:%d}",
+				aggregate.TokenUsage,
+				aggregate.CostUSD,
+				aggregate.Calls,
+				reported.Tokens,
+				reported.CostUSD,
+				reported.Steps,
+			)
+		}
+	}
+	return turnUsage(reported), nil
+}
+
+func validateUsageMonotonic(previous, next *transcript.Usage) error {
+	if previous == nil {
+		return nil
+	}
+	if next == nil {
+		return fmt.Errorf("cumulative usage disappeared after it was reported")
+	}
+	if err := validateModelUsageMonotonic("total", previous.ModelUsage, next.ModelUsage); err != nil {
+		return err
+	}
+	for model, previousModel := range previous.ByModel {
+		nextModel, ok := next.ByModel[model]
+		if !ok {
+			return fmt.Errorf("cumulative usage dropped model %q", model)
+		}
+		if err := validateModelUsageMonotonic(model, previousModel, nextModel); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateModelUsageMonotonic(label string, previous, next transcript.ModelUsage) error {
+	if next.InputTokens < previous.InputTokens ||
+		next.OutputTokens < previous.OutputTokens ||
+		next.ReasoningTokens < previous.ReasoningTokens ||
+		next.CacheReadTokens < previous.CacheReadTokens ||
+		next.CacheWriteTokens < previous.CacheWriteTokens ||
+		usageCost(next.CostUSD) < usageCost(previous.CostUSD) {
+		return fmt.Errorf(
+			"cumulative usage for %q regressed from %+v to %+v",
+			label,
+			previous,
+			next,
+		)
+	}
+	return nil
+}
+
+func usageCost(cost *float64) float64 {
+	if cost == nil {
+		return 0
+	}
+	return *cost
+}
+
+func sameUsageCost(left, right float64) bool {
+	scale := max(1, math.Abs(left), math.Abs(right))
+	return math.Abs(left-right) <= 1e-12*scale
 }
 
 func modelUsageFrom(prompt, completion, reasoning, cacheRead, cacheWrite int64, cost float64) transcript.ModelUsage {

@@ -25,26 +25,47 @@ var usageLedgerKey = core.MustDependencyKey[*usageLedger]("lyra.usage")
 // retains the model breakdown required by Runtime output and persistence.
 type usageLedger struct {
 	mu            sync.RWMutex
-	models        map[string]accounting.ModelUsage
-	total         accounting.ModelUsage
+	treeModels    map[string]accounting.ModelUsage
+	treeTotal     accounting.ModelUsage
+	byProcess     map[string]*processUsage
 	projectionErr error
+}
+
+// processUsage retains direct model usage plus immutable lineage for one Agent
+// process. Subtree totals are derived at read boundaries so concurrent sibling
+// calls have one accounting authority and no parent/child double counting.
+type processUsage struct {
+	ref           ProcessRef
+	directModels  map[string]accounting.ModelUsage
+	directTotal   accounting.ModelUsage
+	stopReason    agent.InteractionStopReason
+	hasStopReason bool
+}
+
+type subtreeUsage struct {
+	snapshot   accounting.Snapshot
+	total      accounting.ModelUsage
+	stopReason agent.InteractionStopReason
 }
 
 func newUsageLedger(snapshot accounting.Snapshot) (*usageLedger, error) {
 	if err := snapshot.Validate(); err != nil {
 		return nil, err
 	}
-	ledger := &usageLedger{models: make(map[string]accounting.ModelUsage, len(snapshot.Models))}
+	ledger := &usageLedger{
+		treeModels: make(map[string]accounting.ModelUsage, len(snapshot.Models)),
+		byProcess:  make(map[string]*processUsage),
+	}
 	for _, model := range snapshot.Models {
-		nextTotal := ledger.total
+		nextTotal := ledger.treeTotal
 		if err := addModelUsage(&nextTotal, model); err != nil {
 			return nil, fmt.Errorf("agentexec: restore usage aggregate: %w", err)
 		}
 		if err := validateFrameworkUsageCapacity(nextTotal); err != nil {
 			return nil, fmt.Errorf("agentexec: restore usage aggregate: %w", err)
 		}
-		ledger.total = nextTotal
-		ledger.models[model.Model] = model
+		ledger.treeTotal = nextTotal
+		ledger.treeModels[model.Model] = model
 	}
 	return ledger, nil
 }
@@ -65,9 +86,78 @@ func usageLedgerFrom(dependencies *core.Dependencies) (*usageLedger, error) {
 	return ledger, nil
 }
 
-func (l *usageLedger) record(response *chat.Response, cost float64) error {
+func (l *usageLedger) register(process ProcessRef) error {
 	if l == nil {
 		return errors.New("agentexec: usage ledger is nil")
+	}
+	if err := validateProcessRef(process); err != nil {
+		return l.reject(err)
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.projectionErr != nil {
+		return l.projectionErr
+	}
+	_, err := l.registerLocked(process)
+	if err != nil {
+		return l.rejectLocked(err)
+	}
+	return nil
+}
+
+func validateProcessRef(process ProcessRef) error {
+	if process.ID == "" {
+		return errors.New("agentexec: usage process id is required")
+	}
+	if process.ParentID == process.ID {
+		return fmt.Errorf("agentexec: usage process %q cannot parent itself", process.ID)
+	}
+	if process.ParentID == "" && process.SpawnCallID != "" {
+		return fmt.Errorf(
+			"agentexec: root usage process %q cannot have spawn call %q",
+			process.ID,
+			process.SpawnCallID,
+		)
+	}
+	return nil
+}
+
+func (l *usageLedger) registerLocked(process ProcessRef) (*processUsage, error) {
+	if current, ok := l.byProcess[process.ID]; ok {
+		if current.ref != process {
+			return nil, fmt.Errorf(
+				"agentexec: usage process %q changed immutable identity from %+v to %+v",
+				process.ID,
+				current.ref,
+				process,
+			)
+		}
+		return current, nil
+	}
+	if process.ParentID != "" {
+		if _, ok := l.byProcess[process.ParentID]; !ok {
+			return nil, fmt.Errorf(
+				"agentexec: usage process %q references unregistered parent %q",
+				process.ID,
+				process.ParentID,
+			)
+		}
+	}
+	current := &processUsage{
+		ref:          process,
+		directModels: make(map[string]accounting.ModelUsage),
+	}
+	l.byProcess[process.ID] = current
+	return current, nil
+}
+
+func (l *usageLedger) record(process ProcessRef, response *chat.Response, cost float64) error {
+	if l == nil {
+		return errors.New("agentexec: usage ledger is nil")
+	}
+	if err := validateProcessRef(process); err != nil {
+		return l.reject(err)
 	}
 	if response == nil {
 		return l.reject(errors.New("agentexec: record usage from nil model response"))
@@ -88,7 +178,11 @@ func (l *usageLedger) record(response *chat.Response, cost float64) error {
 	if l.projectionErr != nil {
 		return l.projectionErr
 	}
-	current, exists := l.models[model]
+	processState, err := l.registerLocked(process)
+	if err != nil {
+		return l.rejectLocked(err)
+	}
+	current, exists := l.treeModels[model]
 	nextModel := delta
 	if exists {
 		nextModel = current
@@ -96,15 +190,46 @@ func (l *usageLedger) record(response *chat.Response, cost float64) error {
 			return l.rejectLocked(fmt.Errorf("agentexec: record model usage: %w", err))
 		}
 	}
-	nextTotal := l.total
+	nextTotal := l.treeTotal
 	if err := addModelUsage(&nextTotal, delta); err != nil {
 		return l.rejectLocked(fmt.Errorf("agentexec: record total usage: %w", err))
 	}
 	if err := validateFrameworkUsageCapacity(nextTotal); err != nil {
 		return l.rejectLocked(fmt.Errorf("agentexec: record total usage: %w", err))
 	}
-	l.models[model] = nextModel
-	l.total = nextTotal
+
+	processModel, processModelExists := processState.directModels[model]
+	nextProcessModel := delta
+	if processModelExists {
+		nextProcessModel = processModel
+		if err := addModelUsage(&nextProcessModel, delta); err != nil {
+			return l.rejectLocked(fmt.Errorf(
+				"agentexec: record usage for process %q: %w",
+				process.ID,
+				err,
+			))
+		}
+	}
+	nextProcessTotal := processState.directTotal
+	if err := addModelUsage(&nextProcessTotal, delta); err != nil {
+		return l.rejectLocked(fmt.Errorf(
+			"agentexec: record total usage for process %q: %w",
+			process.ID,
+			err,
+		))
+	}
+	if err := validateFrameworkUsageCapacity(nextProcessTotal); err != nil {
+		return l.rejectLocked(fmt.Errorf(
+			"agentexec: record total usage for process %q: %w",
+			process.ID,
+			err,
+		))
+	}
+
+	l.treeModels[model] = nextModel
+	l.treeTotal = nextTotal
+	processState.directModels[model] = nextProcessModel
+	processState.directTotal = nextProcessTotal
 	return nil
 }
 
@@ -180,23 +305,61 @@ func (l *usageLedger) snapshot() (accounting.Snapshot, error) {
 	return snapshot, err
 }
 
-func (l *usageLedger) output(reply string, stopReason agent.InteractionStopReason) (TurnOutput, error) {
-	snapshot, total, err := l.state()
+func (l *usageLedger) output(process ProcessRef, reply string, stopReason agent.InteractionStopReason) (TurnOutput, error) {
+	if !stopReason.Valid() {
+		return TurnOutput{}, fmt.Errorf("agentexec: invalid interaction stop reason %q", stopReason)
+	}
+	if err := l.recordStopReason(process, stopReason); err != nil {
+		return TurnOutput{}, err
+	}
+	subtree, err := l.subtree(process)
 	if err != nil {
 		return TurnOutput{}, err
 	}
 	return TurnOutput{
 		Reply:        reply,
-		Usage:        total.TokenUsage,
-		UsageByModel: slices.Clone(snapshot.Models),
-		CostUSD:      total.CostUSD,
+		Usage:        subtree.total.TokenUsage,
+		UsageByModel: slices.Clone(subtree.snapshot.Models),
+		CostUSD:      subtree.total.CostUSD,
+		Steps:        subtree.total.Calls,
 		StopReason:   stopReason,
 	}, nil
 }
 
-func (l *usageLedger) totals() (accounting.TokenUsage, float64, error) {
-	_, total, err := l.state()
-	return total.TokenUsage, total.CostUSD, err
+func (l *usageLedger) recordStopReason(process ProcessRef, stopReason agent.InteractionStopReason) error {
+	if l == nil {
+		return errors.New("agentexec: usage ledger is nil")
+	}
+	if err := validateProcessRef(process); err != nil {
+		return l.reject(err)
+	}
+	if !stopReason.Valid() {
+		return l.reject(fmt.Errorf(
+			"agentexec: process %q produced invalid interaction stop reason %q",
+			process.ID,
+			stopReason,
+		))
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.projectionErr != nil {
+		return l.projectionErr
+	}
+	current, err := l.registerLocked(process)
+	if err != nil {
+		return l.rejectLocked(err)
+	}
+	if current.hasStopReason && current.stopReason != stopReason {
+		return l.rejectLocked(fmt.Errorf(
+			"agentexec: process %q changed terminal interaction stop reason from %q to %q",
+			process.ID,
+			current.stopReason,
+			stopReason,
+		))
+	}
+	current.stopReason = stopReason
+	current.hasStopReason = true
+	return nil
 }
 
 func (l *usageLedger) state() (accounting.Snapshot, accounting.ModelUsage, error) {
@@ -205,33 +368,141 @@ func (l *usageLedger) state() (accounting.Snapshot, accounting.ModelUsage, error
 	}
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	models := make([]string, 0, len(l.models))
-	for model := range l.models {
-		models = append(models, model)
-	}
-	slices.Sort(models)
-	snapshot := accounting.Snapshot{Models: make([]accounting.ModelUsage, 0, len(models))}
-	for _, model := range models {
-		snapshot.Models = append(snapshot.Models, l.models[model])
-	}
-	return snapshot, l.total, l.projectionErr
+	return usageSnapshot(l.treeModels), l.treeTotal, l.projectionErr
 }
 
-type interactionProjection struct {
+func (l *usageLedger) subtree(process ProcessRef) (subtreeUsage, error) {
+	if l == nil {
+		return subtreeUsage{}, errors.New("agentexec: usage ledger is nil")
+	}
+	if err := validateProcessRef(process); err != nil {
+		return subtreeUsage{}, err
+	}
+
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	if l.projectionErr != nil {
+		return subtreeUsage{}, l.projectionErr
+	}
+	current, ok := l.byProcess[process.ID]
+	if !ok {
+		return subtreeUsage{}, fmt.Errorf(
+			"agentexec: usage process %q is not registered",
+			process.ID,
+		)
+	}
+	if current.ref != process {
+		return subtreeUsage{}, fmt.Errorf(
+			"agentexec: usage process %q identity mismatch: have %+v, requested %+v",
+			process.ID,
+			current.ref,
+			process,
+		)
+	}
+
+	// A restored checkpoint retains one exact root aggregate but intentionally
+	// does not invent historical per-child attribution. Root state therefore
+	// reads the canonical aggregate directly; first-class children are not
+	// restorable until the tree-barrier/recovery phases persist that detail.
+	if !process.Child() {
+		return subtreeUsage{
+			snapshot:   usageSnapshot(l.treeModels),
+			total:      l.treeTotal,
+			stopReason: current.stopReason,
+		}, nil
+	}
+
+	models := make(map[string]accounting.ModelUsage)
+	var total accounting.ModelUsage
+	for processID, candidate := range l.byProcess {
+		descendant, err := l.descendsFromLocked(processID, process.ID)
+		if err != nil {
+			return subtreeUsage{}, err
+		}
+		if !descendant {
+			continue
+		}
+		for model, usage := range candidate.directModels {
+			next := models[model]
+			if next.Model == "" {
+				next.Model = model
+			}
+			if err := addModelUsage(&next, usage); err != nil {
+				return subtreeUsage{}, fmt.Errorf(
+					"agentexec: aggregate subtree %q model %q: %w",
+					process.ID,
+					model,
+					err,
+				)
+			}
+			models[model] = next
+		}
+		if err := addModelUsage(&total, candidate.directTotal); err != nil {
+			return subtreeUsage{}, fmt.Errorf(
+				"agentexec: aggregate subtree %q total: %w",
+				process.ID,
+				err,
+			)
+		}
+	}
+	return subtreeUsage{
+		snapshot:   usageSnapshot(models),
+		total:      total,
+		stopReason: current.stopReason,
+	}, nil
+}
+
+func (l *usageLedger) descendsFromLocked(processID, ancestorID string) (bool, error) {
+	visited := make(map[string]struct{})
+	for processID != "" {
+		if processID == ancestorID {
+			return true, nil
+		}
+		if _, duplicate := visited[processID]; duplicate {
+			return false, fmt.Errorf("agentexec: usage lineage contains a cycle at process %q", processID)
+		}
+		visited[processID] = struct{}{}
+		current, ok := l.byProcess[processID]
+		if !ok {
+			return false, fmt.Errorf(
+				"agentexec: usage lineage references unregistered process %q",
+				processID,
+			)
+		}
+		processID = current.ref.ParentID
+	}
+	return false, nil
+}
+
+func usageSnapshot(models map[string]accounting.ModelUsage) accounting.Snapshot {
+	names := make([]string, 0, len(models))
+	for model := range models {
+		names = append(names, model)
+	}
+	slices.Sort(names)
+	snapshot := accounting.Snapshot{Models: make([]accounting.ModelUsage, 0, len(names))}
+	for _, model := range names {
+		snapshot.Models = append(snapshot.Models, models[model])
+	}
+	return snapshot
+}
+
+type processProjection struct {
 	engine      *Engine
 	provider    string
 	usage       *usageLedger
 	observation *toolObservation
+	observer    executionObserver
 }
 
 var (
-	_ core.InteractionCostProjector = (*interactionProjection)(nil)
-	_ agentruntime.EventListener    = (*interactionProjection)(nil)
+	_ core.InteractionCostProjector = (*processProjection)(nil)
+	_ agentruntime.EventListener    = (*processProjection)(nil)
 )
 
-func (*interactionProjection) Name() string { return "lyra:interaction-projection" }
+func (*processProjection) Name() string { return "lyra:process-projection" }
 
-func (p *interactionProjection) ProjectInteractionCost(
+func (p *processProjection) ProjectInteractionCost(
 	_ context.Context,
 	_ core.ProcessView,
 	response *chat.Response,
@@ -244,16 +515,48 @@ func (p *interactionProjection) ProjectInteractionCost(
 	return p.engine.pricing(resolvedProvider, model, &response.Usage), nil
 }
 
-func (p *interactionProjection) OnEvent(_ context.Context, published event.Event) {
-	if p == nil {
+func (p *processProjection) OnEvent(_ context.Context, published event.Event) {
+	if p == nil || published == nil || p.usage == nil {
 		return
 	}
+	process, err := p.resolveProcess(published.ProcessID())
+	if err != nil {
+		_ = p.usage.reject(err)
+		return
+	}
+	ref := processRef(process)
+	if err := p.usage.register(ref); err != nil {
+		return
+	}
+
 	interactionBoundary, ok := published.(event.InteractionBoundary)
-	if !ok {
+	if ok {
+		p.projectInteraction(ref, interactionBoundary.Boundary)
 		return
 	}
-	process := p.processRef(interactionBoundary.ProcessID())
-	boundary := interactionBoundary.Boundary
+	status, terminalErr, terminal := terminalProcessStatus(published)
+	if !terminal || !ref.AgentToolChild() || p.observer == nil {
+		return
+	}
+
+	subtree, usageErr := p.usage.subtree(ref)
+	p.observer.OnChildProcessEnd(ChildCompletion{
+		Process: ChildProcess{
+			ProcessRef: ref,
+			StartedAt:  process.StartedAt().UTC(),
+		},
+		Status:       status,
+		StopReason:   subtree.stopReason,
+		Usage:        subtree.total.TokenUsage,
+		UsageByModel: slices.Clone(subtree.snapshot.Models),
+		CostUSD:      subtree.total.CostUSD,
+		Steps:        subtree.total.Calls,
+		Err:          errors.Join(terminalErr, usageErr),
+		CompletedAt:  published.Timestamp().UTC(),
+	})
+}
+
+func (p *processProjection) projectInteraction(process ProcessRef, boundary interaction.Event) {
 	if p.observation != nil {
 		switch boundary.Kind {
 		case interaction.EventToolCall:
@@ -269,32 +572,54 @@ func (p *interactionProjection) OnEvent(_ context.Context, published event.Event
 	if boundary.Kind != interaction.EventModelResponse {
 		return
 	}
-	if err := p.usage.record(boundary.Response, boundary.Cost); err != nil {
+	if err := p.usage.record(process, boundary.Response, boundary.Cost); err != nil {
 		return
 	}
-	if p.observation == nil || p.observation.target == nil ||
-		(boundary.Response.Usage.TotalTokens() == 0 && boundary.Response.Model == "") {
+	if p.observer == nil {
 		return
 	}
-	cumulative, cumulativeCost, err := p.usage.totals()
+	cumulative, err := p.usage.subtree(process)
 	if err != nil {
 		return
 	}
-	p.observation.target.OnUsage(
-		process,
-		cumulative,
-		cumulativeCost,
-		boundary.Response.Usage.InputTokens,
-	)
+	p.observer.OnUsage(process, UsageProgress{
+		Usage:         cumulative.total.TokenUsage,
+		UsageByModel:  slices.Clone(cumulative.snapshot.Models),
+		CostUSD:       cumulative.total.CostUSD,
+		Steps:         cumulative.total.Calls,
+		ContextTokens: boundary.Response.Usage.InputTokens,
+	})
 }
 
-func (p *interactionProjection) processRef(processID string) ProcessRef {
-	if p.engine != nil && p.engine.runtime != nil {
-		if process, ok := p.engine.runtime.Process(processID); ok {
-			return processRef(process)
-		}
+func (p *processProjection) resolveProcess(processID string) (core.ProcessView, error) {
+	if p.engine == nil || p.engine.runtime == nil {
+		return nil, errors.New("agentexec: process projection requires Agent Runtime")
 	}
-	return ProcessRef{ID: processID}
+	process, ok := p.engine.runtime.Process(processID)
+	if !ok {
+		return nil, fmt.Errorf(
+			"agentexec: process projection cannot resolve process %q",
+			processID,
+		)
+	}
+	return process, nil
+}
+
+func terminalProcessStatus(published event.Event) (core.ProcessStatus, error, bool) {
+	switch value := published.(type) {
+	case event.ProcessCompleted:
+		return core.StatusCompleted, nil, true
+	case event.ProcessFailed:
+		return core.StatusFailed, value.Err, true
+	case event.ProcessStuck:
+		return core.StatusStuck, nil, true
+	case event.ProcessKilled:
+		return core.StatusKilled, nil, true
+	case event.ProcessTerminated:
+		return core.StatusTerminated, nil, true
+	default:
+		return core.StatusNotStarted, nil, false
+	}
 }
 
 func tokenUsageOf(usage chat.Usage) accounting.TokenUsage {
@@ -327,11 +652,9 @@ func validateCheckpointUsage(tree core.ProcessSnapshotTree, snapshot accounting.
 		return err
 	}
 
-	var application accounting.ModelUsage
-	for _, model := range snapshot.Models {
-		if err := addModelUsage(&application, model); err != nil {
-			return fmt.Errorf("%w: application usage aggregate: %w", core.ErrInvalidSnapshot, err)
-		}
+	application, err := snapshot.Total()
+	if err != nil {
+		return fmt.Errorf("%w: application usage aggregate: %w", core.ErrInvalidSnapshot, err)
 	}
 	tokens, ok := addInt64(application.PromptTokens, application.CompletionTokens)
 	if !ok {

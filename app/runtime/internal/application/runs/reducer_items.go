@@ -96,7 +96,6 @@ func (r *reducer) toolStart(e ToolCallStart) ([]RunEvent, error) {
 		return nil, fmt.Errorf("tool %q arguments: %w", e.ToolName, err)
 	}
 	out := r.closeStreaming()
-	r.step++
 	r.toolOrder++
 	// The step number previews the Run's accounting, so it counts the same thing
 	// the committed metrics do. Reporting the segment's own count would make a
@@ -232,14 +231,23 @@ func (r *reducer) completeTool(ref *openTool, e ToolCallEnd) ([]RunEvent, error)
 // usageProgress records the executor's latest accounting report and previews the
 // Run's resulting total. The report is remembered rather than only forwarded:
 // it is what the Run commits if the segment ends without a fresh one.
-func (r *reducer) usageProgress(e UsageReported) []RunEvent {
-	r.usage = turnUsage(TurnUsage{Tokens: e.TokenUsage, CostUSD: e.CostUSD})
+func (r *reducer) usageProgress(e UsageReported) ([]RunEvent, error) {
+	if err := r.applyUsage(TurnUsage{
+		Tokens:  e.TokenUsage,
+		ByModel: e.ByModel,
+		CostUSD: e.CostUSD,
+		Steps:   e.Steps,
+	}); err != nil {
+		return nil, err
+	}
 	progress := RunProgress{Usage: r.metrics().Usage}
 	if e.ContextTokens > 0 {
 		contextTokens := e.ContextTokens
 		progress.ContextTokens = &contextTokens
 	}
-	return []RunEvent{SegmentProgressed{Progress: progress}}
+	step := r.step
+	progress.Step = &step
+	return []RunEvent{SegmentProgressed{Progress: progress}}, nil
 }
 
 func (r *reducer) compaction(e CompactBoundary) []RunEvent {

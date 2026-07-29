@@ -172,11 +172,12 @@ type TurnEnd struct {
 	// stable, client-safe application problem; executor diagnostics never enter
 	// the event stream.
 	Problem *transcript.Problem
-	// Usage is the segment's final accounting, and is absent when the terminal
-	// produced none — a cancellation or a failure joins without a TurnOutput to
-	// account for. Absent is NOT zero: reading a missing report as "spent
-	// nothing" made a canceled Run's committed metering fall back below what its
-	// own progress events had already published.
+	// Usage is the segment's final accounting, and is absent only when the
+	// executor cannot produce an authoritative report. Child executors retain
+	// their subtree ledger through cancellation and failure, so those terminals
+	// can still carry usage. Absent is NOT zero: reading a missing report as
+	// "spent nothing" made a canceled Run's committed metering fall back below
+	// what its own progress events had already published.
 	Usage    *TurnUsage
 	Duration time.Duration
 }
@@ -189,12 +190,15 @@ type TurnUsage struct {
 	Tokens  accounting.TokenUsage
 	ByModel []accounting.ModelUsage
 	CostUSD float64
+	Steps   int
 }
 
 type UsageReported struct {
 	engineEventBase
 	TokenUsage    accounting.TokenUsage
+	ByModel       []accounting.ModelUsage
 	CostUSD       float64
+	Steps         int
 	ContextTokens int64
 }
 

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/core/chat"
@@ -14,6 +15,7 @@ import (
 
 func TestUsageLedgerAggregatesByModelAndOwnsSnapshots(t *testing.T) {
 	ledger := emptyUsageLedger()
+	process := ProcessRef{ID: "root"}
 	for _, call := range []struct {
 		model string
 		usage chat.Usage
@@ -23,7 +25,7 @@ func TestUsageLedgerAggregatesByModelAndOwnsSnapshots(t *testing.T) {
 		{model: "beta", usage: chat.Usage{InputTokens: 5, OutputTokens: 1}, cost: 0.4},
 		{model: "alpha", usage: chat.Usage{InputTokens: 7, OutputTokens: 4}, cost: 0.3},
 	} {
-		if err := ledger.record(&chat.Response{Model: call.model, Usage: call.usage}, call.cost); err != nil {
+		if err := ledger.record(process, &chat.Response{Model: call.model, Usage: call.usage}, call.cost); err != nil {
 			t.Fatalf("record %q: %v", call.model, err)
 		}
 	}
@@ -71,13 +73,14 @@ func TestUsageLedgerAggregatesByModelAndOwnsSnapshots(t *testing.T) {
 
 func TestUsageLedgerRecordsConcurrently(t *testing.T) {
 	ledger := emptyUsageLedger()
+	process := ProcessRef{ID: "root"}
 	const calls = 100
 	var group sync.WaitGroup
 	group.Add(calls)
 	for range calls {
 		go func() {
 			defer group.Done()
-			if err := ledger.record(&chat.Response{
+			if err := ledger.record(process, &chat.Response{
 				Model: "shared",
 				Usage: chat.Usage{InputTokens: 2, OutputTokens: 1},
 			}, 0.25); err != nil {
@@ -101,6 +104,90 @@ func TestUsageLedgerRecordsConcurrently(t *testing.T) {
 	}
 }
 
+func TestUsageLedgerProjectsExactProcessSubtrees(t *testing.T) {
+	ledger := emptyUsageLedger()
+	root := ProcessRef{ID: "root"}
+	child := ProcessRef{ID: "child", ParentID: root.ID, SpawnCallID: "call-child"}
+	grandchild := ProcessRef{ID: "grandchild", ParentID: child.ID, SpawnCallID: "call-grandchild"}
+	sibling := ProcessRef{ID: "sibling", ParentID: root.ID, SpawnCallID: "call-sibling"}
+
+	for _, process := range []ProcessRef{root, child, grandchild, sibling} {
+		if err := ledger.register(process); err != nil {
+			t.Fatalf("register %+v: %v", process, err)
+		}
+	}
+	for _, call := range []struct {
+		process ProcessRef
+		model   string
+		prompt  int64
+		cost    float64
+	}{
+		{process: root, model: "root-model", prompt: 2, cost: 0.2},
+		{process: child, model: "child-model", prompt: 3, cost: 0.3},
+		{process: grandchild, model: "child-model", prompt: 5, cost: 0.5},
+		{process: sibling, model: "sibling-model", prompt: 7, cost: 0.7},
+	} {
+		if err := ledger.record(call.process, &chat.Response{
+			Model: call.model,
+			Usage: chat.Usage{
+				InputTokens:  call.prompt,
+				OutputTokens: 1,
+			},
+		}, call.cost); err != nil {
+			t.Fatalf("record %s: %v", call.process.ID, err)
+		}
+	}
+
+	childOutput, err := ledger.output(child, "child reply", agent.InteractionStopSteps)
+	if err != nil {
+		t.Fatalf("child output: %v", err)
+	}
+	if childOutput.StopReason != agent.InteractionStopSteps ||
+		childOutput.Usage.PromptTokens != 8 ||
+		childOutput.Usage.CompletionTokens != 2 ||
+		!sameCost(childOutput.CostUSD, 0.8) ||
+		childOutput.Steps != 2 ||
+		len(childOutput.UsageByModel) != 1 ||
+		childOutput.UsageByModel[0].Model != "child-model" ||
+		childOutput.UsageByModel[0].Calls != 2 {
+		t.Fatalf("child subtree output = %+v", childOutput)
+	}
+
+	rootOutput, err := ledger.output(root, "root reply", agent.InteractionStopNone)
+	if err != nil {
+		t.Fatalf("root output: %v", err)
+	}
+	if rootOutput.Usage.PromptTokens != 17 ||
+		rootOutput.Usage.CompletionTokens != 4 ||
+		!sameCost(rootOutput.CostUSD, 1.7) ||
+		rootOutput.Steps != 4 ||
+		len(rootOutput.UsageByModel) != 3 {
+		t.Fatalf("root subtree output = %+v", rootOutput)
+	}
+}
+
+func TestUsageLedgerRejectsChangedProcessLineage(t *testing.T) {
+	ledger := emptyUsageLedger()
+	if err := ledger.register(ProcessRef{ID: "root"}); err != nil {
+		t.Fatalf("register root: %v", err)
+	}
+	original := ProcessRef{ID: "child", ParentID: "root", SpawnCallID: "call-one"}
+	if err := ledger.register(original); err != nil {
+		t.Fatalf("register original: %v", err)
+	}
+	err := ledger.register(ProcessRef{
+		ID:          original.ID,
+		ParentID:    original.ParentID,
+		SpawnCallID: "call-two",
+	})
+	if err == nil {
+		t.Fatal("changed process lineage was accepted")
+	}
+	if _, snapshotErr := ledger.snapshot(); !errors.Is(snapshotErr, err) {
+		t.Fatalf("snapshot error = %v, want latched %v", snapshotErr, err)
+	}
+}
+
 func TestUsageLedgerRejectsCrossModelOverflowAtomically(t *testing.T) {
 	ledger, err := newUsageLedger(accounting.Snapshot{Models: []accounting.ModelUsage{{
 		Model:      "first",
@@ -114,7 +201,7 @@ func TestUsageLedgerRejectsCrossModelOverflowAtomically(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = ledger.record(&chat.Response{
+	err = ledger.record(ProcessRef{ID: "root"}, &chat.Response{
 		Model: "second",
 		Usage: chat.Usage{InputTokens: 1},
 	}, 0)
@@ -143,7 +230,7 @@ func TestUsageLedgerRejectsCostCapacityLossAtomically(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = ledger.record(&chat.Response{Model: "second"}, 1)
+	err = ledger.record(ProcessRef{ID: "root"}, &chat.Response{Model: "second"}, 1)
 	if err == nil {
 		t.Fatal("cost increment beyond representable capacity was accepted")
 	}

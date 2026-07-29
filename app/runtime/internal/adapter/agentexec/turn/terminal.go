@@ -139,13 +139,76 @@ func (s *memoryDispatcher) emitTurnEnd(st *turnState, completion agentexec.TurnC
 	recordTurnDuration(st.ctx, plan.reason, st.model, duration)
 	end := runs.TurnEnd{Reason: plan.reason, Problem: plan.problem, Duration: duration}
 	if plan.withUsage {
-		end.Usage = &runs.TurnUsage{Tokens: out.Usage, ByModel: out.UsageByModel, CostUSD: out.CostUSD}
+		end.Usage = &runs.TurnUsage{
+			Tokens:  out.Usage,
+			ByModel: out.UsageByModel,
+			CostUSD: out.CostUSD,
+			Steps:   out.Steps,
+		}
 	}
 	s.emitRootEvent(st, end)
 	// Stop hooks (observe-only): fire after the terminal is emitted (the client
 	// already saw segment.finished) — for notify / chain / cleanup. Bounded by the
 	// hook timeout; it precedes only the turn's teardown, not the client signal.
 	s.fireStop(st, plan.errMsg)
+}
+
+// OnChildProcessEnd projects a durably admitted Agent child onto its own
+// Segment terminal. The root and child share one executor channel, but the
+// source identity keeps their reducers and accounting boundaries independent.
+func (t *turnObserver) OnChildProcessEnd(completion agentexec.ChildCompletion) {
+	if t == nil || !t.projects(completion.Process.ProcessRef) {
+		return
+	}
+	plan := planChildTurnEnd(completion)
+	duration := completion.CompletedAt.Sub(completion.Process.StartedAt)
+	if duration < 0 {
+		duration = 0
+	}
+	end := runs.TurnEnd{
+		Reason:   plan.reason,
+		Problem:  plan.problem,
+		Duration: duration,
+	}
+	if plan.withUsage || len(completion.UsageByModel) > 0 {
+		end.Usage = &runs.TurnUsage{
+			Tokens:  completion.Usage,
+			ByModel: completion.UsageByModel,
+			CostUSD: completion.CostUSD,
+			Steps:   completion.Steps,
+		}
+	}
+	t.dispatcher.emitProcessEvent(t.st, completion.Process.ProcessRef, end)
+}
+
+func planChildTurnEnd(completion agentexec.ChildCompletion) turnEndPlan {
+	if completion.Process.ID == "" ||
+		completion.Process.ParentID == "" ||
+		completion.Process.SpawnCallID == "" ||
+		completion.Process.StartedAt.IsZero() ||
+		completion.CompletedAt.IsZero() {
+		return failurePlan(errors.Join(
+			completion.Err,
+			errors.New("delegated child completion has incomplete identity or timestamps"),
+		))
+	}
+	if completion.Err != nil {
+		// ProcessFailed carries its execution error here. For every other
+		// terminal status a non-nil value is a projection failure (for example,
+		// an accounting invariant), which must not be disguised as cancellation.
+		return failurePlan(completion.Err)
+	}
+	return planTurnEnd(agentexec.TurnCompletion{
+		Status: completion.Status,
+		Output: agentexec.TurnOutput{
+			Usage:        completion.Usage,
+			UsageByModel: completion.UsageByModel,
+			CostUSD:      completion.CostUSD,
+			Steps:        completion.Steps,
+			StopReason:   completion.StopReason,
+		},
+		HasOutput: completion.Status == core.StatusCompleted,
+	})
 }
 
 // fireStop runs the Stop lifecycle hooks for a terminated turn (observe-only).
@@ -158,10 +221,10 @@ func (s *memoryDispatcher) fireStop(st *turnState, detail string) {
 	})
 }
 
-// turnEndPlan is the decision emitTurnEnd derives before emitting: the
-// TurnEnd reason, whether the turn's usage should ride along (only clean
-// / budget-stopped completions carry usage; cancellations and errors
-// don't), and an optional stable problem for an error terminal.
+// turnEndPlan is the decision emitTurnEnd derives before emitting: the TurnEnd
+// reason, whether a normal completion requires usage, and an optional stable
+// problem for an error terminal. Child projection may additionally attach an
+// authoritative subtree report to a cancellation or failure.
 type turnEndPlan struct {
 	reason    execution.Outcome
 	withUsage bool

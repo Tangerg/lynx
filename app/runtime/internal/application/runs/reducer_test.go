@@ -33,7 +33,10 @@ func TestReducerTerminalIncludesGoalTurnRecord(t *testing.T) {
 	reducer := newReducer(config)
 	mustReduce(t, reducer, ToolCallStart{CallID: "call_1", ToolName: "inspect", Arguments: `{}`})
 	mustReduce(t, reducer, ToolCallEnd{CallID: "call_1", Result: testToolResult(t, "ok")})
-	reductions := mustReduce(t, reducer, TurnEnd{Reason: execution.OutcomeCompleted, Usage: &TurnUsage{CostUSD: 0.75}})
+	reductions := mustReduce(t, reducer, TurnEnd{
+		Reason: execution.OutcomeCompleted,
+		Usage:  &TurnUsage{CostUSD: 0.75, Steps: 1},
+	})
 	commit := reductions[len(reductions)-1].Commit
 	if commit == nil || commit.GoalTurn == nil {
 		t.Fatal("terminal commit did not carry goal turn accounting")
@@ -42,6 +45,95 @@ func TestReducerTerminalIncludesGoalTurnRecord(t *testing.T) {
 	if got := *commit.GoalTurn; got != want {
 		t.Fatalf("GoalTurn = %+v", got)
 	}
+}
+
+func TestReducerStepsCountModelCallsRatherThanParallelTools(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	mustReduce(t, reducer, UsageReported{Steps: 1})
+	mustReduce(t, reducer, ToolCallStart{CallID: "call_1", ToolName: "inspect", Arguments: `{}`})
+	mustReduce(t, reducer, ToolCallStart{CallID: "call_2", ToolName: "inspect", Arguments: `{}`})
+	mustReduce(t, reducer, ToolCallEnd{CallID: "call_2", Result: testToolResult(t, "two")})
+	mustReduce(t, reducer, ToolCallEnd{CallID: "call_1", Result: testToolResult(t, "one")})
+	finished := mustReduce(t, reducer, TurnEnd{
+		Reason: execution.OutcomeCompleted,
+		Usage:  &TurnUsage{Steps: 1},
+	})
+	run := finished[len(finished)-1].Event.(SegmentFinished).Run
+	if run.Metrics.Steps != 1 {
+		t.Fatalf("steps = %d, want one model call for two parallel tools", run.Metrics.Steps)
+	}
+}
+
+func TestReducerTreatsExecutorAccountingAsCumulativeAcrossResume(t *testing.T) {
+	config := testReducerConfig()
+	config.Metrics = transcript.RunMetrics{
+		Usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{
+			InputTokens: 10,
+		}},
+		Steps:          2,
+		ActiveDuration: time.Second,
+	}
+	reducer := newReducer(config)
+	mustReduce(t, reducer, UsageReported{
+		TokenUsage: accounting.TokenUsage{PromptTokens: 15},
+		Steps:      3,
+	})
+	finished := mustReduce(t, reducer, TurnEnd{
+		Reason: execution.OutcomeCompleted,
+		Usage: &TurnUsage{
+			Tokens: accounting.TokenUsage{PromptTokens: 15},
+			Steps:  3,
+		},
+		Duration: 2 * time.Second,
+	})
+	run := finished[len(finished)-1].Event.(SegmentFinished).Run
+	if run.Metrics.Steps != 3 ||
+		run.Metrics.Usage == nil ||
+		run.Metrics.Usage.InputTokens != 15 ||
+		run.Metrics.ActiveDuration != 3*time.Second {
+		t.Fatalf("cumulative metrics = %+v", run.Metrics)
+	}
+}
+
+func TestReducerRejectsInconsistentOrRegressingAccounting(t *testing.T) {
+	t.Run("step regression", func(t *testing.T) {
+		config := testReducerConfig()
+		config.Metrics.Steps = 2
+		_, err := newReducer(config).reduce(UsageReported{Steps: 1})
+		if !errors.Is(err, errExecutorProtocol) {
+			t.Fatalf("error = %v, want executor protocol violation", err)
+		}
+	})
+
+	t.Run("usage regression", func(t *testing.T) {
+		config := testReducerConfig()
+		config.Metrics = transcript.RunMetrics{
+			Usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{InputTokens: 10}},
+			Steps: 1,
+		}
+		_, err := newReducer(config).reduce(UsageReported{
+			TokenUsage: accounting.TokenUsage{PromptTokens: 9},
+			Steps:      2,
+		})
+		if !errors.Is(err, errExecutorProtocol) {
+			t.Fatalf("error = %v, want executor protocol violation", err)
+		}
+	})
+
+	t.Run("per-model mismatch", func(t *testing.T) {
+		_, err := newReducer(testReducerConfig()).reduce(UsageReported{
+			TokenUsage: accounting.TokenUsage{PromptTokens: 5},
+			ByModel: []accounting.ModelUsage{{
+				Model:      "model",
+				TokenUsage: accounting.TokenUsage{PromptTokens: 4},
+				Calls:      1,
+			}},
+			Steps: 1,
+		})
+		if !errors.Is(err, errExecutorProtocol) {
+			t.Fatalf("error = %v, want executor protocol violation", err)
+		}
+	})
 }
 
 type unsupportedEngineEvent struct{ engineEventBase }
@@ -326,7 +418,7 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
 	usage := mustReduce(t, reducer, UsageReported{
 		TokenUsage: accounting.TokenUsage{PromptTokens: 1200, CompletionTokens: 80, ReasoningTokens: 30},
-		CostUSD:    0.0125, ContextTokens: 4096,
+		CostUSD:    0.0125, Steps: 1, ContextTokens: 4096,
 	})
 	progress, ok := usage[0].Event.(SegmentProgressed)
 	if !ok || progress.Progress.Usage == nil || progress.Progress.Usage.InputTokens != 1200 || progress.Progress.Usage.CostUSD == nil {
@@ -360,7 +452,15 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 	// — see reducer.fenceFinalState.
 	terminal := mustReduce(t, reducer, TurnEnd{
 		Reason: execution.OutcomeMaxBudget, Duration: 1500 * time.Millisecond,
-		Usage: &TurnUsage{CostUSD: 4.2},
+		Usage: &TurnUsage{
+			Tokens: accounting.TokenUsage{
+				PromptTokens:     1200,
+				CompletionTokens: 80,
+				ReasoningTokens:  30,
+			},
+			CostUSD: 4.2,
+			Steps:   1,
+		},
 	})
 	finished := terminal[len(terminal)-1].Event.(SegmentFinished)
 	if finished.Run.Metrics.ActiveDuration != 1500*time.Millisecond || finished.Run.Detail != "" {

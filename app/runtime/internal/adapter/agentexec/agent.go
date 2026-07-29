@@ -28,13 +28,14 @@ type turnInput struct {
 }
 
 // TurnOutput is the typed output of one turn. Reply is the assistant's
-// final text. Usage / UsageByModel / CostUSD are read back from the
+// final text. Usage / UsageByModel / CostUSD / Steps are read back from the
 // application-owned usage projection rather than a query back into Agent:
 // the observer projects each managed model-response boundary, and these fields
 // are the rolled-up view.
 type TurnOutput struct {
 	Reply string
 	Usage accounting.TokenUsage
+	Steps int
 
 	// UsageByModel breaks Usage down per served model — the lynx analog
 	// of the SDK's modelUsage. One entry for a plain single-model turn;
@@ -69,7 +70,7 @@ type TurnOutput struct {
 // grep / shell freely within one turn without an app-owned loop.
 //
 // The body uses Stream rather than Call so each text chunk surfaces
-// to [toolObserver.OnMessageDelta] as it arrives — transport
+// to [executionObserver.OnMessageDelta] as it arrives — transport
 // adapters get a real streaming experience instead of one pre-buffered
 // MessageDelta. Tool-call rounds still go through the same tool loop; tool
 // events surface via the tool-decorator path independently of the text-delta

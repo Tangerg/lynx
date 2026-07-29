@@ -159,7 +159,7 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, message s
 		return TurnOutput{}, err
 	}
 
-	var observer toolObserver
+	var observer executionObserver
 	if observation := observationFrom(pc.Dependencies()); observation != nil {
 		observer = observation.target
 	}
@@ -196,7 +196,7 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, message s
 	if err != nil {
 		return TurnOutput{}, err
 	}
-	return turnOutputFromInteraction(ledger, result, partial.String())
+	return turnOutputFromInteraction(ledger, processRef(pc.Process()), result, partial.String())
 }
 
 func (e *Engine) prepareTurn(ctx context.Context, pc *core.ProcessContext, message string, images []*media.Media, options *chat.Options) (preparedTurn, error) {
@@ -238,14 +238,19 @@ func (e *Engine) prepareTurn(ctx context.Context, pc *core.ProcessContext, messa
 	return preparedTurn{registry: registry, request: request}, nil
 }
 
-func turnOutputFromInteraction(ledger *usageLedger, result interaction.Result, partial string) (TurnOutput, error) {
+func turnOutputFromInteraction(
+	ledger *usageLedger,
+	process ProcessRef,
+	result interaction.Result,
+	partial string,
+) (TurnOutput, error) {
 	if !result.StopReason.Valid() {
 		return TurnOutput{}, fmt.Errorf("agentexec: unexpected interaction stop reason %q", result.StopReason)
 	}
 	if result.StopReason != agent.InteractionStopNone {
 		// A bounded stop has no final boundary, so the reply is whatever streamed
 		// before the bound was reached.
-		return ledger.output(partial, result.StopReason)
+		return ledger.output(process, partial, result.StopReason)
 	}
 	if result.Final == nil {
 		return TurnOutput{}, errors.New("agentexec: managed interaction ended without a final event")
@@ -255,12 +260,12 @@ func turnOutputFromInteraction(ledger *usageLedger, result interaction.Result, p
 		if result.Final.Response == nil {
 			return TurnOutput{}, errors.New("agentexec: final model response event has no response")
 		}
-		return ledger.output(result.Final.Response.Text(), agent.InteractionStopNone)
+		return ledger.output(process, result.Final.Response.Text(), agent.InteractionStopNone)
 	case agent.InteractionEventToolResult:
 		if result.Final.ToolResult == nil {
 			return TurnOutput{}, errors.New("agentexec: final tool result event has no result")
 		}
-		return ledger.output(result.Final.ToolResult.Result, agent.InteractionStopNone)
+		return ledger.output(process, result.Final.ToolResult.Result, agent.InteractionStopNone)
 	default:
 		return TurnOutput{}, fmt.Errorf("agentexec: unexpected final interaction event %q", result.Final.Kind)
 	}

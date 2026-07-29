@@ -53,6 +53,50 @@ type Snapshot struct {
 	Models []ModelUsage
 }
 
+// Total returns the checked aggregate of every model in the snapshot. The
+// result intentionally has an empty Model because it represents the whole
+// process subtree rather than another served model.
+func (s Snapshot) Total() (ModelUsage, error) {
+	if err := s.Validate(); err != nil {
+		return ModelUsage{}, err
+	}
+	var total ModelUsage
+	for index, model := range s.Models {
+		var ok bool
+		if total.PromptTokens, ok = checkedAddInt64(total.PromptTokens, model.PromptTokens); !ok {
+			return ModelUsage{}, fmt.Errorf("accounting snapshot: models[%d] prompt-token aggregate overflows", index)
+		}
+		if total.CompletionTokens, ok = checkedAddInt64(total.CompletionTokens, model.CompletionTokens); !ok {
+			return ModelUsage{}, fmt.Errorf("accounting snapshot: models[%d] completion-token aggregate overflows", index)
+		}
+		if total.ReasoningTokens, ok = checkedAddInt64(total.ReasoningTokens, model.ReasoningTokens); !ok {
+			return ModelUsage{}, fmt.Errorf("accounting snapshot: models[%d] reasoning-token aggregate overflows", index)
+		}
+		if total.CacheReadTokens, ok = checkedAddInt64(total.CacheReadTokens, model.CacheReadTokens); !ok {
+			return ModelUsage{}, fmt.Errorf("accounting snapshot: models[%d] cache-read-token aggregate overflows", index)
+		}
+		if total.CacheWriteTokens, ok = checkedAddInt64(total.CacheWriteTokens, model.CacheWriteTokens); !ok {
+			return ModelUsage{}, fmt.Errorf("accounting snapshot: models[%d] cache-write-token aggregate overflows", index)
+		}
+		if model.CostUSD > math.MaxFloat64-total.CostUSD {
+			return ModelUsage{}, fmt.Errorf("accounting snapshot: models[%d] cost aggregate overflows", index)
+		}
+		if model.Calls > math.MaxInt-total.Calls {
+			return ModelUsage{}, fmt.Errorf("accounting snapshot: models[%d] call aggregate overflows", index)
+		}
+		total.CostUSD += model.CostUSD
+		total.Calls += model.Calls
+	}
+	return total, nil
+}
+
+func checkedAddInt64(left, right int64) (int64, bool) {
+	if right < 0 || left > math.MaxInt64-right {
+		return 0, false
+	}
+	return left + right, true
+}
+
 // Validate checks that a persisted usage projection is canonical and safe to
 // aggregate.
 func (s Snapshot) Validate() error {

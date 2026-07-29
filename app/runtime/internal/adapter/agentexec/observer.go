@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"time"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
@@ -34,8 +35,15 @@ type ProcessRef struct {
 	SpawnCallID string
 }
 
-// Child reports whether this observation belongs to a delegated process.
+// Child reports whether this observation belongs to any non-root process.
 func (p ProcessRef) Child() bool { return p.ParentID != "" }
+
+// AgentToolChild reports whether the child has the causal tool-call identity
+// required to become a first-class application Run. Direct SDK RunChild calls
+// have a parent but no SpawnCallID and remain internal execution details.
+func (p ProcessRef) AgentToolChild() bool {
+	return p.ParentID != "" && p.SpawnCallID != ""
+}
 
 func processRef(process core.ProcessView) ProcessRef {
 	if process == nil {
@@ -52,17 +60,42 @@ func processRefFromContext(ctx context.Context) ProcessRef {
 	return processRef(core.ProcessViewFrom(ctx))
 }
 
-// toolObserver receives both tool-call lifecycle notifications and
-// streaming assistant text deltas as a turn unfolds. Each execution attempt
-// fires OnToolCallStart; a completed attempt then fires OnToolCallEnd with the
-// same opaque CallID. A resumed HITL attempt reuses that ID and starts again.
-// Assistant text arrives in zero or more OnMessageDelta calls between (and
-// around) tool calls.
+// ChildCompletion is the immutable terminal projection of one delegated Agent
+// process. Usage is scoped to the child's complete subtree at CompletedAt.
+type ChildCompletion struct {
+	Process      ChildProcess
+	Status       core.ProcessStatus
+	StopReason   agent.InteractionStopReason
+	Usage        accounting.TokenUsage
+	UsageByModel []accounting.ModelUsage
+	CostUSD      float64
+	Steps        int
+	Err          error
+	CompletedAt  time.Time
+}
+
+// UsageProgress is one process's cumulative subtree accounting as of a model
+// response boundary. Steps is the number of accounted model calls—the same
+// unit enforced by maxSteps—not a count inferred from tool events.
+type UsageProgress struct {
+	Usage         accounting.TokenUsage
+	UsageByModel  []accounting.ModelUsage
+	CostUSD       float64
+	Steps         int
+	ContextTokens int64
+}
+
+// executionObserver receives the application-relevant lifecycle of a running
+// process tree. Each tool execution attempt fires OnToolCallStart; a completed
+// attempt then fires OnToolCallEnd with the same opaque CallID. A resumed HITL
+// attempt reuses that ID and starts again. Assistant text arrives in zero or
+// more delta calls between (and around) tool calls. A durably admitted child
+// ends with exactly one OnChildProcessEnd callback.
 //
 // Implementations must be safe for concurrent calls: one tool round may
 // overlap explicitly safe calls, and separate turns may share one observer
 // backend.
-type toolObserver interface {
+type executionObserver interface {
 	// ApproveToolCall is the gate consulted BEFORE every tool call.
 	// It returns a verdict telling the decorator whether the call runs,
 	// is denied (short-circuited to a recoverable result), or must pause
@@ -99,18 +132,23 @@ type toolObserver interface {
 
 	// OnUsage is invoked once per completed LLM round (right after the
 	// round's tokens are recorded into the process budget), carrying the
-	// turn's cumulative token roll-up and cost so far. This is the mid-run
-	// usage signal — a live "tokens / cost spent" readout — distinct from the
-	// final per-turn total that lands on TurnEnd. costUSD is zero when no
-	// pricing hook is configured (the wire layer omits it rather than showing
-	// a fabricated $0).
+	// producing process's cumulative subtree roll-up and cost. Root reports the
+	// complete execution tree; a child reports only itself and its descendants.
+	// This is the mid-run signal, distinct from the authoritative accounting at
+	// that process's TurnEnd. costUSD is zero when no pricing hook is configured
+	// (the wire layer omits it rather than showing a fabricated $0).
 	//
 	// contextTokens is THIS round's prompt-token count (not cumulative) — the
 	// size of the context the model was just sent, i.e. how full the window is
 	// right now. It grows across rounds/turns as history accumulates and drops
 	// after a compaction, so the client can render a live context-occupancy
 	// gauge (distinct from the summed usage, which only ever grows).
-	OnUsage(process ProcessRef, usage accounting.TokenUsage, costUSD float64, contextTokens int64)
+	OnUsage(process ProcessRef, progress UsageProgress)
+
+	// OnChildProcessEnd closes one delegated process after Agent Runtime has
+	// reached an immutable terminal state. It is not called for the root
+	// process or for a resumable waiting boundary.
+	OnChildProcessEnd(completion ChildCompletion)
 }
 
 // ToolApprovalTarget carries the capabilities of the exact tool wrapper being
@@ -166,7 +204,7 @@ func observationFrom(dependencies *core.Dependencies) *toolObservation {
 // currently active round locally, while the emitted ID includes process and
 // round ownership so root and child agents cannot collide.
 type toolObservation struct {
-	target toolObserver
+	target executionObserver
 
 	// evictStore + evictThreshold drive tool-result eviction at the observation
 	// chokepoint: an oversized successful result is offloaded to the store and
@@ -205,8 +243,8 @@ type processToolCallKey struct {
 	callID    string
 }
 
-func newToolObservation(target toolObserver, evictStore toolResultOffloader, evictThreshold int) *toolObservation {
-	if toolObserverIsNil(target) {
+func newToolObservation(target executionObserver, evictStore toolResultOffloader, evictThreshold int) *toolObservation {
+	if executionObserverIsNil(target) {
 		return nil
 	}
 	return &toolObservation{
@@ -218,7 +256,7 @@ func newToolObservation(target toolObserver, evictStore toolResultOffloader, evi
 	}
 }
 
-func toolObserverIsNil(target toolObserver) bool {
+func executionObserverIsNil(target executionObserver) bool {
 	if target == nil {
 		return true
 	}

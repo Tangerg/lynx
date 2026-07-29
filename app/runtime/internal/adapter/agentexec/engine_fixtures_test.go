@@ -116,6 +116,7 @@ func (e *Engine) runTurnSync(ctx context.Context, req TurnRequest) (TurnOutput, 
 }
 
 type startCall struct {
+	process      ProcessRef
 	callID       string
 	sourceCallID string
 	toolName     string
@@ -123,6 +124,7 @@ type startCall struct {
 }
 
 type endCall struct {
+	process      ProcessRef
 	callID       string
 	toolName     string
 	arguments    string
@@ -136,31 +138,45 @@ type endCall struct {
 // for concurrent use -- parallel tool calls would race the inner
 // slices without the mutex.
 type recordingObserver struct {
-	mu        sync.Mutex
-	startList []startCall
-	endList   []endCall
-	deltaList []string
+	mu              sync.Mutex
+	startList       []startCall
+	endList         []endCall
+	deltaList       []string
+	usageList       []usageObservation
+	childCompletion []ChildCompletion
+	order           []string
+}
+
+type usageObservation struct {
+	process       ProcessRef
+	usage         accounting.TokenUsage
+	byModel       []accounting.ModelUsage
+	costUSD       float64
+	steps         int
+	contextTokens int64
 }
 
 func (r *recordingObserver) ApproveToolCall(_ context.Context, _, _, _ string, _ ToolApprovalTarget) ToolApprovalVerdict {
 	return ToolApprovalVerdict{} // auto-run; tests don't exercise the approval gate
 }
 
-func (r *recordingObserver) OnToolCallStart(_ ProcessRef, callID, sourceCallID, toolName, arguments string) {
+func (r *recordingObserver) OnToolCallStart(process ProcessRef, callID, sourceCallID, toolName, arguments string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.startList = append(r.startList, startCall{
-		callID: callID, sourceCallID: sourceCallID, toolName: toolName, arguments: arguments,
+		process: process, callID: callID, sourceCallID: sourceCallID, toolName: toolName, arguments: arguments,
 	})
+	r.order = append(r.order, "tool-start:"+process.ID+":"+toolName)
 }
 
-func (r *recordingObserver) OnToolCallEnd(_ ProcessRef, callID, toolName, arguments, output string, _ *offload.Ref, mutatedPaths []string, err error) {
+func (r *recordingObserver) OnToolCallEnd(process ProcessRef, callID, toolName, arguments, output string, _ *offload.Ref, mutatedPaths []string, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.endList = append(r.endList, endCall{
-		callID: callID, toolName: toolName, arguments: arguments,
+		process: process, callID: callID, toolName: toolName, arguments: arguments,
 		output: output, mutatedPaths: mutatedPaths, err: err,
 	})
+	r.order = append(r.order, "tool-end:"+process.ID+":"+toolName)
 }
 
 func (r *recordingObserver) OnMessageDelta(_ ProcessRef, text string) {
@@ -174,9 +190,26 @@ func (r *recordingObserver) OnMessageDelta(_ ProcessRef, text string) {
 // in chat/impl_test.go cover the propagation path.
 func (r *recordingObserver) OnReasoningDelta(ProcessRef, string) {}
 
-// OnUsage is a no-op here -- the mid-run usage signal is asserted at the
-// transport layer (translator_test.go), not the engine level.
-func (r *recordingObserver) OnUsage(ProcessRef, accounting.TokenUsage, float64, int64) {}
+func (r *recordingObserver) OnUsage(process ProcessRef, progress UsageProgress) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.usageList = append(r.usageList, usageObservation{
+		process:       process,
+		usage:         progress.Usage,
+		byModel:       append([]accounting.ModelUsage(nil), progress.UsageByModel...),
+		costUSD:       progress.CostUSD,
+		steps:         progress.Steps,
+		contextTokens: progress.ContextTokens,
+	})
+}
+
+func (r *recordingObserver) OnChildProcessEnd(completion ChildCompletion) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	completion.UsageByModel = append([]accounting.ModelUsage(nil), completion.UsageByModel...)
+	r.childCompletion = append(r.childCompletion, completion)
+	r.order = append(r.order, "child-end:"+completion.Process.ID)
+}
 
 func (r *recordingObserver) starts() []startCall {
 	r.mu.Lock()
@@ -200,6 +233,24 @@ func (r *recordingObserver) deltas() []string {
 	out := make([]string, len(r.deltaList))
 	copy(out, r.deltaList)
 	return out
+}
+
+func (r *recordingObserver) usages() []usageObservation {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]usageObservation(nil), r.usageList...)
+}
+
+func (r *recordingObserver) childCompletions() []ChildCompletion {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]ChildCompletion(nil), r.childCompletion...)
+}
+
+func (r *recordingObserver) eventOrder() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.order...)
 }
 
 type hitlApprovalObserver struct {

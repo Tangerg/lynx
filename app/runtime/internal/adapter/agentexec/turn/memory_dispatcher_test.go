@@ -25,7 +25,7 @@ import (
 // against a stub LLM that asks for `shell` (echo lyra). The dispatcher
 // must emit the canonical sequence:
 //
-//	ToolCallStart → ToolCallEnd → MessageDelta → TurnEnd
+//	UsageReported → ToolCallStart → ToolCallEnd → MessageDelta → UsageReported → TurnEnd
 //
 // and the sequence must end cleanly.
 func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
@@ -49,7 +49,14 @@ func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 
 	got := drainEvents(events)
 
-	wantOrder := []string{"ToolCallStart", "ToolCallEnd", "MessageDelta", "TurnEnd"}
+	wantOrder := []string{
+		"UsageReported",
+		"ToolCallStart",
+		"ToolCallEnd",
+		"MessageDelta",
+		"UsageReported",
+		"TurnEnd",
+	}
 	if names := eventNames(got); !sliceEqual(names, wantOrder) {
 		t.Fatalf("event order mismatch:\n  got  %v\n  want %v", names, wantOrder)
 	}

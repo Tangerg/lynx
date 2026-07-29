@@ -56,7 +56,11 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 	}
 	state.modelSelection = request.ModelSelection
 	state.ctx, state.span = startTurnSpan(state.ctx, handle.SessionID, handle.TurnID, state.model)
-	observer := &turnObserver{dispatcher: s, st: state}
+	observer := &turnObserver{
+		dispatcher:       s,
+		st:               state,
+		projectChildRuns: request.ChildRunAdmissionEnabled,
+	}
 	var admitChild agentexec.AdmitChildFunc
 	if request.ChildRunAdmissionEnabled {
 		admitChild = observer.admitChild
