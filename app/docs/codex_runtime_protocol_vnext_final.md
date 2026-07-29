@@ -731,6 +731,9 @@ Segment 的正常结束边界。
 ### 4.5 usage、steps、budget 与 subagent
 
 - `usage`、`steps`、`activeDurationMs` 全部是 Run 累计值；
+- `steps` 精确定义为已进入 execution budget/accounting authority 的模型调用数，
+  与 `maxSteps` 使用同一单位；一次模型响应即使产生多个并行工具调用也只增加一步，
+  tool/action lifecycle 不得自行推算或改写 `steps`；
 - `segment.progress` 中出现的计量也是累计预览，不是 delta；
 - `maxSteps`、`maxBudgetUsd` 跨 resume 延续；
 - limit 判断始终使用持久化的有效限额与 committed cumulative metrics，resume

@@ -1,11 +1,11 @@
 # Lyra Runtime API 最终一致性收口计划
 
 > 作者：Codex
-> 状态：`A-TRACK DONE / B1.2c IN PROGRESS`
+> 状态：`A-TRACK DONE / B1.2d IN PROGRESS`
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
-> 当前实施基线：`main@153b74d71`（B1.2b2）
+> 当前实施基线：`main@ee2f565c2`（B1.2c）
 > 目标协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 目标 Artifact：`SessionArtifactVersion = 7`
 
@@ -209,7 +209,7 @@ cd app/desktop/frontend && npm run check
 | A5 | capability gate 与 disabled-subagent seam 收口 | `DONE` | 2026-07-30 完成 | shared policy、durable identity gates、全量 gates |
 | A6 | Registry fail-closed 与 SSOT 清理 | `DONE` | 2026-07-30 完成 | defensive views、closed metadata、effective errors、全量 gates |
 | A7 | canonical docs 与最终 conformance sweep | `DONE` | 2026-07-30 完成 | §12.4 conformance matrix、全量 gates |
-| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.2c per-child segment reducer / journal | B1.1、B1.2a、B1.2b1、B1.2b2 已完成；启用条件见 §11 |
+| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.2d sibling/nested/failure conformance | B1.1–B1.2c 已完成；启用条件见 §11 |
 
 A1–A7 已全部完成，当前没有 A-track slice 处于 `IN PROGRESS`。B1 保持独立项目，
 已按 breaking-first 策略开始实施；不得通过打开 feature flag、复用 root identity
@@ -525,8 +525,8 @@ B1.2 内部原子切片：
 | B1.2a | `DONE` | AgentTool child 的 durable `SpawnCallID`、Process/Snapshot/Event/adapter causal projection、provider call → canonical parent Item 精确映射 |
 | B1.2b1 | `DONE` | application-owned executor source envelope；Process causal identity 端到端保真；delta 只在同 source 内合并；未准入 child fail closed |
 | B1.2b2 | `DONE` | acknowledged child opening；parent running Item + child Run admission 同事务；commit 成功前 child 不执行 |
-| B1.2c | `IN PROGRESS` | per-child reducer、独立 Segment/Item/metrics、root Journal 多 source publication |
-| B1.2d | `TODO` | 并发 sibling/嵌套 child/失败回滚 conformance 与 B1.2 收口 |
+| B1.2c | `DONE` | per-child reducer、独立 Segment/Item/metrics、root Journal 多 source publication |
+| B1.2d | `IN PROGRESS` | 并发 sibling/嵌套 child/失败回滚 conformance 与 B1.2 收口 |
 
 ---
 
@@ -1200,6 +1200,66 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
   - tree barrier、cancel、cold recovery 与 frontend consumer 仍分别属于 B1.3–B1.6；
   - `features.subagents.enabled` 继续保持 false。
 
+### 2026-07-30 — B1.2c
+
+- 状态：`DONE`
+- Commits：
+  - `c9363f44d`（`feat(runtime): give child runs independent segments`）
+  - `ee2f565c2`（`feat(runtime): project independent child execution`）
+- 目标：让每个已确认准入的 child process 拥有独立 Run/Segment reducer、Item
+  lifecycle、累计 subtree metrics 与 terminal，同时让 root Journal 只作为整棵树的
+  replay scope，事件 envelope 始终保留真实 source Run/Segment。
+- 关键裁决：
+  - 每条 executor route 持有不可变 process lineage、Run/Segment identity、继承的
+    model/limits/profile 与独立 reducer；child route 仍只在 opening transaction
+    成功后安装，完成后的 source 继续发事件会 fail closed；
+  - parent spawning Item 与 child Run/Segment opening 仍在同一事务提交；child
+    opening events 在 confirmation 返回前进入 root Journal，保证执行方收到成功时
+    durable history 已可重放；
+  - publisher 从 root-only 改为 source-aware：一个 root Journal 可以承载整棵树，
+    但 commit、RunEvent envelope、Item、Run record 与 invalidation 都必须属于当前
+    route；完整 reduction batch 在首个副作用前做 ownership 校验；
+  - child terminal 只关闭自身 Segment，不关闭 root stream；root 在 active child
+    尚未 terminal 时不得结束。stream failure/drain 按 reverse admission（天然
+    descendant-first）合成未完成 child terminal，再处理 root；任一 child cleanup
+    提交失败时不伪造 root 已完成；
+  - adapter 的 `executionObserver` 只在 `ChildRunAdmissionEnabled` 且 process 具有
+    `SpawnCallID` 时把 AgentTool child 投影为 application Run；direct SDK child
+    继续保持内部实现细节，不能意外泄漏到 Run stream；
+  - `processProjection` 在 Agent terminal event 上产生唯一 `ChildCompletion`；
+    message/reasoning/tool/todo/usage/terminal 全部携带真实 process source，child
+    terminal 先于 parent `task` tool result；
+  - usage ledger 同时维护 root-tree aggregate 与每个 process 的 direct model
+    accounting，child 边界按 lineage 动态求 subtree，root 边界读取整树；
+    child/sibling 不互相污染，root 不再把 child 终态误写成自己的 terminal；
+  - `steps` 与 `maxSteps` 统一为已记账模型调用数。usage/cost/steps 从同一 ledger
+    产生，多个并行工具调用不再虚增 step；resume 接收累计 snapshot 而非再次相加；
+    step/usage 回退、per-model aggregate 不一致、overflow 与 lineage 漂移全部明确
+    拒绝。
+- 生成物：
+  - public wire、Contract Registry、SQLite schema、OpenRPC 与 frontend artifact
+    均未变化；
+  - 内部 executor port 的 `UsageReported/TurnUsage` 增加 authoritative
+    `Steps/ByModel`，用于构造既不猜测也不丢明细的 Run 累计 snapshot；
+  - `codex_runtime_protocol_vnext_final.md` 明确冻结 `steps` 的模型调用口径。
+- 验证：
+  - `cd app/runtime && go test ./...` → `PASS`
+  - `cd app/runtime && go vet ./... && staticcheck ./...` → `PASS`
+  - `cd app/runtime && go test -race ./internal/domain/execution/accounting ./internal/adapter/agentexec ./internal/adapter/agentexec/turn ./internal/application/runs ./internal/adapter/runsegment`
+    → `PASS`
+  - 真实 AgentTool delegation 的 admission → child progress → child terminal →
+    parent tool result 顺序、child 一次调用/root 三次调用 subtree metrics → `PASS`
+  - 独立 child source envelope、lineage/profile/limits、early root terminal cleanup、
+    parallel tools 单 model-step、resume cumulative accounting 与 malformed aggregate
+    fail-closed fixtures → `PASS`
+- 残余风险：
+  - concurrent siblings、nested child、opening/terminal 提交失败与 stream failure 的
+    完整矩阵尚未统一成为 B1.2 conformance gate；进入 B1.2d；
+  - child waiting/interrupt 仍明确拒绝，tree barrier/resume 进入 B1.3；
+  - tree cancel、cold recovery/query/subscribe 与 frontend consumer 分别进入
+    B1.4–B1.6；
+  - `features.subagents.enabled` 继续保持 false。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -1228,16 +1288,17 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 
 ## 18. 下一步
 
-A-track 已收口，B1.1、B1.2a、B1.2b1 与 B1.2b2 已完成。下一原子切片是：
+A-track 已收口，B1.1–B1.2c 已完成。下一原子切片是：
 
 ```text
-B1.2c — per-child reducer, segment journal, and source-aware publication
+B1.2d — sibling/nested/failure conformance and B1.2 closure
 ```
 
-B1.2c 必须让每个已准入 child Run 拥有独立 Segment state machine、Item/metrics
-projection 与 terminal lifecycle，同时让 root subscription journal 按真实 source Run
-发布事件。route 只能消费自身 reducer，publisher 不能继续把 root `segmentSpec`
-套用到 child，任何 source/Run/Segment 不一致都必须 fail closed。
+B1.2d 必须把 concurrent siblings、nested child、opening rollback、child terminal
+commit failure、early root terminal 与 stream failure/drain 组合成统一 conformance
+matrix，并证明确定性顺序、route ownership、无 durable orphan、无跨 sibling 污染。
+该 slice 只收口 first-class child producer，不提前混入 B1.3 barrier 或 B1.4 tree
+cancel 语义。
 
 `features.subagents=false` 必须保持到 producer、tree transaction、interrupt barrier、
 cold recovery、前端 tree reducer 和 §11.3 完整 gates 同时成立。仍采用 breaking-first
