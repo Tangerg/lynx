@@ -1070,13 +1070,14 @@ A ──→ A′ (4 slice, 修现役泄露, 落 main) ──┬─→ B  (Regist
 
 ---
 
-## 8. 待做的记忆修正（本轮结束时）
+## 8. 记忆修正 —— ✅ 已做完（2026-07-29）
 
-| 记忆 | 修正 |
+| 记忆 | 结果 |
 |---|---|
-| `project_lyra_no_protocol_ts_codegen` | 「codegen 拒」被 **D1** 推翻，必须改写；写清推翻理由（`UnionSpec` 显式 metadata 解掉了 flat-struct 不映 union 的问题） |
-| `project_agent_refinement_closed_perf_dropped` | 补一句：性能维度关闭只覆盖 agent 模块 CPU 延迟，**不覆盖 Batch D** 的 replay/queue 内存与连接资源 |
-| **新增** | delivery 反泄露法则 + 三个现役泄露的**形态**（补业务文案 / 二次真相源 / 自己实现查询语义）—— arch 守卫只挡具体符号、挡不住新形态，所以判据要进记忆 |
+| `project_lyra_no_protocol_ts_codegen` | ✅ 已改写成 OVERTURNED，写清推翻理由（`UnionSpec` 显式 metadata 解掉 flat-struct 不映 union），并补了 2026-07-29 的四个生成模块现状 |
+| `project_agent_refinement_closed_perf_dropped` | ✅ 已补边界：关闭只覆盖 agent 模块 CPU/延迟，**不覆盖** Batch D 的**有界性**问题（不封顶的 buffer 不让 turn 变慢，它让进程 OOM —— 论证救不了） |
+| **新增** `feedback_delivery_never_leaks_business` | ✅ 三种形态都写了**判据**（文案要改措辞该改哪层 / 反推=把业务规则抄进 wire / 这段回答"问了什么"还是"怎么算"），并写明 arch 守卫只挡符号与 import 方向、新形态会全绿 |
+| **新增** `project_vnext_contract_registry_shipped` | ✅ 跨 session 接手的入口：进度 + 产物形状原则 + 证据索引机制 + 「先审后做」的理由 |
 
 ---
 
