@@ -4161,6 +4161,12 @@
     "ResumeRunRequest": {
       "type": "object",
       "properties": {
+        "input": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContentBlock"
+          }
+        },
         "responses": {
           "type": "array",
           "items": {

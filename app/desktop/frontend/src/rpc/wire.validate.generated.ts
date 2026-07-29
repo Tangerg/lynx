@@ -1526,6 +1526,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, []),
   RestoreType: enumOf(["history", "files", "both"]),
   ResumeRunRequest: object({
+    input: array(ref(() => CHECKS.ContentBlock)),
     responses: array(ref(() => CHECKS.InterruptResponse)),
     runId: allOf([text(), minLength(1)]),
   }, ["responses", "runId"]),

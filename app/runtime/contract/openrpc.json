@@ -551,6 +551,15 @@
               "$ref": "schema.json#/$defs/InterruptResponse"
             }
           }
+        },
+        {
+          "name": "input",
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "schema.json#/$defs/ContentBlock"
+            }
+          }
         }
       ],
       "result": {

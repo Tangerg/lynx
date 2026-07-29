@@ -273,12 +273,15 @@ type StartRunResponse struct {
 	// runs.start / runs.resume; the current live one for runs.subscribe). The
 	// client keys its stream tree + reconnect-replay dedup on it (§0.3).
 	SegmentID string `json:"segmentId"`
-	// UserItemID is the id of the userMessage Item this run opens with — the
-	// same id that rides the stream (item.started/completed) and lands in
-	// items.list. Returned so a client can reconcile its optimistic user
-	// bubble by exact id instead of matching on content. Empty for runs that
-	// open no user turn (runs.resume). It's a business field, not transport
-	// metadata.
+	// UserItemID is the id of the userMessage Item this call opens with — the same
+	// id that rides the stream (item.started/completed) and lands in items.list.
+	// Returned so a client can reconcile its optimistic user bubble by exact id
+	// instead of matching on content. It's a business field, not transport metadata.
+	//
+	// Present exactly when the call opened a user turn: always for runs.start, for
+	// runs.resume iff it carried input, never for runs.subscribe. The iff is a
+	// cross-shape rule — request field to response field — which no schema keyword
+	// can state, so it is held by a fixture instead.
 	UserItemID string `json:"userItemId,omitempty"`
 }
 
@@ -342,11 +345,20 @@ type ListInterruptsRequest struct {
 	PageQuery
 }
 
-// ResumeRunRequest is the runs.resume body (API.md §6.1). RunID is the stable
-// run to continue — its current segment parked with outcome:interrupt.
+// ResumeRunRequest is the runs.resume body (§6.1). RunID is the stable run to
+// continue — its current segment parked with outcome:interrupt.
 type ResumeRunRequest struct {
 	RunID     string              `json:"runId"`
 	Responses []InterruptResponse `json:"responses"`
+	// Input is an optional user turn to add while answering. It exists because
+	// "approve, and also do this differently" was otherwise two calls — resume, then
+	// steer — with a race in between where the model could finish the tool round
+	// before the instruction arrived. Given here, the user Item commits in the SAME
+	// transaction as the continuation, so either both landed or neither did.
+	//
+	// When it is present the response carries userItemId, and when it is absent the
+	// response must not: there is no item to name.
+	Input []ContentBlock `json:"input,omitempty"`
 }
 
 // SubscribeRunRequest identifies the durable run whose live segment should be

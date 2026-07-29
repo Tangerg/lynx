@@ -978,6 +978,7 @@ export interface RequestMeta {
 export type RestoreType = "history" | "files" | "both";
 
 export interface ResumeRunRequest {
+  input?: ContentBlock[];
   responses: InterruptResponse[];
   runId: string;
 }

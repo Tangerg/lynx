@@ -138,6 +138,10 @@ func (c StartCommand) MaterializeInput() (message string, images []*media.Media,
 type ResumeCommand struct {
 	RunID     string
 	Responses []ResumeResponse
+	// Input is an optional user turn committed with the continuation. It rides the
+	// same opening write-set as the resume itself, so "answered the interrupt" and
+	// "said this as well" cannot come apart.
+	Input []transcript.ContentBlock
 	// CallerCapabilities is what THIS request declares it can handle. A resume does
 	// not renegotiate the Run's frozen profile — it is only checked against it, so a
 	// caller that could not follow the Run's stream is refused rather than served a

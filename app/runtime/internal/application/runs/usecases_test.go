@@ -363,6 +363,74 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	}
 }
 
+// TestResumeWithInputCommitsTheUserTurnWithTheContinuation is the atomic half of
+// "approve, and also do this differently". Before resume could carry input, that was
+// two calls — resume then steer — with a window between them where the model could
+// finish the tool round before the instruction ever arrived.
+//
+// The user Item rides the SAME opening write-set as the continuation, so either both
+// landed or neither did, and the response names the item only when there is one: that
+// iff is a cross-shape rule no schema keyword can state, so it is held here.
+func TestResumeWithInputCommitsTheUserTurnWithTheContinuation(t *testing.T) {
+	createdAt := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
+	newResumeCase := func() (*fakeEffects, *Coordinator) {
+		effects := &fakeEffects{}
+		sessions := &fakeRunSessions{
+			sess: session.Session{ID: "ses_1", Cwd: "/work"},
+			pending: map[string]interrupts.Pending{"run_1": {
+				RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", RunCreatedAt: createdAt,
+				Interrupts: approvalInterrupt("item_1"),
+			}},
+		}
+		turns := &fakeTurnControl{prepared: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
+		return effects, newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, effects)
+	}
+	approve := []ResumeResponse{{
+		ItemID: "item_1", Kind: ApprovalResponseKind,
+		Approval: &ApprovalResponse{Approved: true},
+	}}
+
+	effects, c := newResumeCase()
+	withInput, err := c.Resume(context.Background(), ResumeCommand{
+		RunID: "run_1", Responses: approve,
+		Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "also skip the tests"}},
+	})
+	if err != nil {
+		t.Fatalf("Resume with input: %v", err)
+	}
+	for range withInput.Events {
+	}
+	if withInput.UserItemID == "" {
+		t.Fatal("a resume that carried input named no user item")
+	}
+	opening := effects.opening()
+	if opening.Resume == nil {
+		t.Fatalf("opening = %+v, want the continuation", opening)
+	}
+	committed := false
+	for _, event := range opening.Events {
+		for _, item := range event.Items {
+			if item.ID == withInput.UserItemID && item.Kind == transcript.UserMessage {
+				committed = true
+			}
+		}
+	}
+	if !committed {
+		t.Fatalf("the user item is not in the continuation's write-set: %+v", opening.Events)
+	}
+
+	_, c = newResumeCase()
+	without, err := c.Resume(context.Background(), ResumeCommand{RunID: "run_1", Responses: approve})
+	if err != nil {
+		t.Fatalf("Resume without input: %v", err)
+	}
+	for range without.Events {
+	}
+	if without.UserItemID != "" {
+		t.Fatalf("userItemId = %q on a resume that opened no user turn", without.UserItemID)
+	}
+}
+
 func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 	var operations []string
 	sessions := &fakeRunSessions{

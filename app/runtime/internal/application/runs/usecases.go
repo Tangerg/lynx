@@ -176,6 +176,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		TurnID:         turn.TurnID,
 		ModelSelection: pending.ModelSelection,
 		CreatedAt:      createdAt,
+		Input:          cmd.Input,
 		Pending:        &pendingCopy,
 		admission:      &runAdmission,
 		Activate: func(activateCtx context.Context) error {
@@ -188,7 +189,14 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if err != nil {
 		return StartResult{}, err
 	}
-	return StartResult{RunID: cmd.RunID, SegmentID: segmentID, SessionID: pending.SessionID, Events: events}, nil
+	result := StartResult{RunID: cmd.RunID, SegmentID: segmentID, SessionID: pending.SessionID, Events: events}
+	if len(cmd.Input) > 0 {
+		// Named only when there is an item to name: the id is derived from the segment
+		// the same way a fresh run derives it, so the client reconciles its optimistic
+		// bubble by id rather than by content.
+		result.UserItemID = userMessageItemID(segmentID)
+	}
+	return result, nil
 }
 
 // Cancel handles both live and parked runs under the same run/session admission

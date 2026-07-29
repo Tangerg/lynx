@@ -30,6 +30,9 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	result, err := s.coordinator.Resume(ctx, runs.ResumeCommand{
 		RunID:     in.RunID,
 		Responses: responses,
+		// An added user turn goes through the same decoder a fresh run's input does: one
+		// reading of what a content block means.
+		Input: runInputFromWire(in.Input),
 		// The run keeps the profile it was created with; this only says whether the
 		// caller can still follow it.
 		CallerCapabilities: caller,
@@ -50,7 +53,11 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 			return nil, nil, err
 		}
 	}
-	return &protocol.StartRunResponse{RunID: result.RunID, SegmentID: result.SegmentID}, mapRunEvents(ctx, result.Events), nil
+	// userItemId is present exactly when this resume carried input — the application
+	// fills it only then, so there is nothing to decide here.
+	return &protocol.StartRunResponse{
+		RunID: result.RunID, SegmentID: result.SegmentID, UserItemID: result.UserItemID,
+	}, mapRunEvents(ctx, result.Events), nil
 }
 
 // decodeResumeResponses maps transport DTOs into the application-owned
