@@ -19,7 +19,7 @@ import (
 // needs. It lives at the consumer because the concrete dispatcher owns no
 // reusable abstraction boundary.
 type executorDispatcher interface {
-	Events(context.Context, TurnHandle) (iter.Seq[runs.EngineEvent], error)
+	Events(context.Context, TurnHandle) (iter.Seq[runs.ExecutorEvent], error)
 	InjectSteering(context.Context, TurnHandle, []transcript.ContentBlock) error
 	PrepareTurn(context.Context, runs.StartTurn) (TurnHandle, error)
 	ActivateTurn(context.Context, TurnHandle) error
@@ -47,7 +47,7 @@ func NewExecutor(dispatcher executorDispatcher) *Executor {
 // TurnEvents subscribes to a live turn addressed by its durable application
 // identity; each rich turn event is translated into the engine-neutral event
 // contract.
-func (e *Executor) TurnEvents(ctx context.Context, ref execution.TurnRef) (iter.Seq[runs.EngineEvent], error) {
+func (e *Executor) TurnEvents(ctx context.Context, ref execution.TurnRef) (iter.Seq[runs.ExecutorEvent], error) {
 	seq, err := e.dispatcher.Events(ctx, concreteHandle(ref))
 	if err != nil {
 		return nil, err

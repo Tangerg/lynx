@@ -23,7 +23,7 @@ import (
 // commit additionally linearizes against cancel (a cancel that wins the race
 // skips the commit). Non-authoritative previews publish directly. A parked run
 // leaves its live turn alive for resume; a true terminal cancels it.
-func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inner iter.Seq[EngineEvent], live *handle, reducer *reducer) {
+func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inner iter.Seq[ExecutorEvent], live *handle, reducer *reducer) {
 	hub := live.hub
 	publisher := segmentPublisher{coordinator: c, spec: spec, live: live}
 	finished := false
@@ -121,7 +121,18 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 	}()
 
 	for ev := range inner {
-		reductions, err := reducer.reduce(ev)
+		if err := ev.Validate(); err != nil {
+			fail(err)
+			return
+		}
+		if ev.Source.Child() {
+			// B1.2b installs acknowledged child opening before this branch can
+			// route child payloads. Until then the adapter keeps child
+			// observations private and this guard fails closed on drift.
+			fail(fmt.Errorf("runs: child executor source %q has no admitted child run", ev.Source.ProcessID))
+			return
+		}
+		reductions, err := reducer.reduce(ev.Payload)
 		if err != nil {
 			fail(err)
 			return

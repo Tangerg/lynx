@@ -57,7 +57,7 @@ func TestTurnDelegatesCleanBoundaryMaintenanceAndPublishesCompaction(t *testing.
 
 	var boundary *runs.CompactBoundary
 	for event := range events {
-		if compacted, ok := event.(runs.CompactBoundary); ok {
+		if compacted, ok := event.Payload.(runs.CompactBoundary); ok {
 			boundary = &compacted
 		}
 	}

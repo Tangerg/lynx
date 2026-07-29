@@ -19,26 +19,37 @@ import (
 // These fakes exercise the application-owned reducer and journal. Delivery
 // protocol values deliberately do not appear here.
 type fakeExecutor struct {
-	events        []EngineEvent
-	block         bool
-	mu            sync.Mutex
-	canceled      int
-	startErr      error
-	cancelErr     error
-	cancelStarted chan struct{}
-	releaseCancel chan struct{}
+	events         []EngineEvent
+	executorEvents []ExecutorEvent
+	block          bool
+	mu             sync.Mutex
+	canceled       int
+	startErr       error
+	cancelErr      error
+	cancelStarted  chan struct{}
+	releaseCancel  chan struct{}
 }
 
-func (f *fakeExecutor) TurnEvents(ctx context.Context, _ execution.TurnRef) (iter.Seq[EngineEvent], error) {
+func (f *fakeExecutor) TurnEvents(ctx context.Context, _ execution.TurnRef) (iter.Seq[ExecutorEvent], error) {
 	if f.startErr != nil {
 		return nil, f.startErr
 	}
-	return func(yield func(EngineEvent) bool) {
+	return func(yield func(ExecutorEvent) bool) {
 		if f.block {
 			<-ctx.Done()
 			return
 		}
-		for _, event := range f.events {
+		events := f.executorEvents
+		if events == nil {
+			events = make([]ExecutorEvent, len(f.events))
+			for index, event := range f.events {
+				events[index] = ExecutorEvent{
+					Source:  ExecutorSource{ProcessID: "process_root"},
+					Payload: event,
+				}
+			}
+		}
+		for _, event := range events {
 			if ctx.Err() != nil || !yield(event) {
 				return
 			}
@@ -485,6 +496,38 @@ func TestCoordinatorProtocolViolationAbortsExecutorAndTerminalizes(t *testing.T)
 				t.Fatal("executor protocol violation did not terminalize the run")
 			}
 		})
+	}
+}
+
+func TestCoordinatorRejectsUnadmittedChildSource(t *testing.T) {
+	executor := &fakeExecutor{executorEvents: []ExecutorEvent{{
+		Source: ExecutorSource{
+			ProcessID:   "process_child",
+			ParentID:    "process_root",
+			SpawnCallID: "call_delegate",
+		},
+		Payload: MessageDelta{Text: "must not reach the root reducer"},
+	}}}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	if len(events) != 2 {
+		t.Fatalf("journal events = %d, want opening and synthesized terminal", len(events))
+	}
+	finished, ok := events[1].Payload.(SegmentFinished)
+	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != execution.OutcomeError {
+		t.Fatalf("last payload = %#v, want error terminal", events[1].Payload)
+	}
+	if executor.cancels() != 1 {
+		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	}
+	if !effects.terminalized("ses_1", "run_1") {
+		t.Fatal("unadmitted child source did not terminalize the root run")
 	}
 }
 

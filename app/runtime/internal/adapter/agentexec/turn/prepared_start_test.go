@@ -61,7 +61,7 @@ func TestCancelPreparedTurnNeverEntersEngineAndTerminatesStream(t *testing.T) {
 
 	var terminal runs.TurnEnd
 	for event := range events {
-		if end, ok := event.(runs.TurnEnd); ok {
+		if end, ok := event.Payload.(runs.TurnEnd); ok {
 			terminal = end
 		}
 	}

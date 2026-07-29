@@ -30,7 +30,7 @@ type turnDriver interface {
 	StartTurn(context.Context, runs.StartTurn) (turn.TurnHandle, error)
 	PrepareTurn(context.Context, runs.StartTurn) (turn.TurnHandle, error)
 	ActivateTurn(context.Context, turn.TurnHandle) error
-	Events(context.Context, turn.TurnHandle) (iter.Seq[runs.EngineEvent], error)
+	Events(context.Context, turn.TurnHandle) (iter.Seq[runs.ExecutorEvent], error)
 	InjectSteering(context.Context, turn.TurnHandle, []transcript.ContentBlock) error
 	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []execution.InterruptKind) error
 	ProcessID(context.Context, turn.TurnHandle) (string, error)
@@ -122,10 +122,10 @@ func cleanupToolEnvironment(t *testing.T, built toolset.Built) {
 	})
 }
 
-func drainEvents(events iter.Seq[runs.EngineEvent]) []runs.EngineEvent {
+func drainEvents(events iter.Seq[runs.ExecutorEvent]) []runs.EngineEvent {
 	var out []runs.EngineEvent
 	for ev := range events {
-		out = append(out, ev)
+		out = append(out, ev.Payload)
 	}
 	return out
 }

@@ -42,7 +42,7 @@ type testRuntime interface {
 // consumers do not share this surface: turn.Executor, session cleanup, and
 // run-segment persistence each declare their own smaller ports.
 type turnRuntime interface {
-	Events(context.Context, turn.TurnHandle) (iter.Seq[runs.EngineEvent], error)
+	Events(context.Context, turn.TurnHandle) (iter.Seq[runs.ExecutorEvent], error)
 	InjectSteering(context.Context, turn.TurnHandle, []transcript.ContentBlock) error
 	PrepareTurn(context.Context, runs.StartTurn) (turn.TurnHandle, error)
 	ActivateTurn(context.Context, turn.TurnHandle) error
@@ -216,7 +216,7 @@ func (s stubRuntime) turnDispatcher() turnRuntime {
 	return turnStub{}
 }
 
-func (s stubRuntime) TurnEvents(ctx context.Context, ref execution.TurnRef) (iter.Seq[runs.EngineEvent], error) {
+func (s stubRuntime) TurnEvents(ctx context.Context, ref execution.TurnRef) (iter.Seq[runs.ExecutorEvent], error) {
 	return turn.NewExecutor(s.turnDispatcher()).TurnEvents(ctx, ref)
 }
 

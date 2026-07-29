@@ -47,7 +47,7 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 
 	var sawDelta, sawEnd bool
 	for ev := range events {
-		switch ev.(type) {
+		switch ev.Payload.(type) {
 		case runs.MessageDelta:
 			sawDelta = true
 		case runs.TurnEnd:
@@ -167,7 +167,7 @@ func TestDispatcherFailsClosedWhenWaitingCheckpointCommitFails(t *testing.T) {
 	var interrupted bool
 	var terminal *runs.TurnEnd
 	for event := range events {
-		switch event := event.(type) {
+		switch event := event.Payload.(type) {
 		case runs.TurnInterrupted:
 			interrupted = true
 		case runs.TurnEnd:
@@ -210,7 +210,7 @@ func TestStubEngineBudgetStop(t *testing.T) {
 	events, _ := dispatcher.Events(ctx, handle)
 
 	for ev := range events {
-		if end, ok := ev.(runs.TurnEnd); ok {
+		if end, ok := ev.Payload.(runs.TurnEnd); ok {
 			if end.Reason != execution.OutcomeMaxBudget {
 				t.Fatalf("TurnEnd reason = %v, want budget_exceeded", end.Reason)
 			}
@@ -240,7 +240,7 @@ func TestStubEngineStepStop(t *testing.T) {
 	events, _ := dispatcher.Events(ctx, handle)
 
 	for ev := range events {
-		if end, ok := ev.(runs.TurnEnd); ok {
+		if end, ok := ev.Payload.(runs.TurnEnd); ok {
 			if end.Reason != execution.OutcomeMaxSteps {
 				t.Fatalf("TurnEnd reason = %v, want max steps", end.Reason)
 			}
@@ -276,7 +276,7 @@ func TestStubEngineInvalidStopReasonBecomesEngineError(t *testing.T) {
 
 	var sawEnd bool
 	for event := range events {
-		switch value := event.(type) {
+		switch value := event.Payload.(type) {
 		case runs.TurnEnd:
 			sawEnd = value.Reason == execution.OutcomeError && value.Problem != nil && value.Problem.Kind == transcript.InternalProblem
 		}
@@ -311,7 +311,7 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 		return
 	}
 	for ev := range events {
-		if end, ok := ev.(runs.TurnEnd); ok && end.Reason == execution.OutcomeCanceled {
+		if end, ok := ev.Payload.(runs.TurnEnd); ok && end.Reason == execution.OutcomeCanceled {
 			return
 		}
 	}
@@ -355,7 +355,7 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	}
 	var sawDelta, sawEnd bool
 	for ev := range events {
-		switch e := ev.(type) {
+		switch e := ev.Payload.(type) {
 		case runs.MessageDelta:
 			sawDelta = true
 		case runs.TurnEnd:
@@ -397,7 +397,7 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	}
 	var sawEnd bool
 	for ev := range events {
-		if end, ok := ev.(runs.TurnEnd); ok {
+		if end, ok := ev.Payload.(runs.TurnEnd); ok {
 			sawEnd = end.Reason == execution.OutcomeError && end.Problem != nil
 		}
 	}
@@ -642,7 +642,7 @@ func TestStartTurnCancelRacingProcessCreationFailureTerminatesAsCanceled(t *test
 	}
 	var terminals int
 	for event := range events {
-		if end, ok := event.(runs.TurnEnd); ok {
+		if end, ok := event.Payload.(runs.TurnEnd); ok {
 			terminals++
 			if end.Reason != execution.OutcomeCanceled || end.Problem != nil {
 				t.Errorf("TurnEnd = %+v, want cancellation without a problem", end)
@@ -668,12 +668,12 @@ func waitForTurnRemoval(t *testing.T, dispatcher turnDriver, handle turn.TurnHan
 	t.Fatal("turn was not removed after process creation failure")
 }
 
-func assertCreateFailureEvents(t *testing.T, events iter.Seq[runs.EngineEvent], startErr error) {
+func assertCreateFailureEvents(t *testing.T, events iter.Seq[runs.ExecutorEvent], startErr error) {
 	t.Helper()
 
 	var terminals int
 	for event := range events {
-		switch value := event.(type) {
+		switch value := event.Payload.(type) {
 		case runs.TurnEnd:
 			terminals++
 			if value.Reason != execution.OutcomeError || value.Problem == nil || value.Problem.Kind != transcript.InternalProblem {

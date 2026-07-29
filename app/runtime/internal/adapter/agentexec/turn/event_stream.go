@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
-func (s *memoryDispatcher) Events(ctx context.Context, handle TurnHandle) (iter.Seq[runs.EngineEvent], error) {
+func (s *memoryDispatcher) Events(ctx context.Context, handle TurnHandle) (iter.Seq[runs.ExecutorEvent], error) {
 	state, err := s.findTurn(handle.TurnID)
 	if err == nil {
 		if !state.claimEvents() {
@@ -30,7 +30,7 @@ func (s *memoryDispatcher) Events(ctx context.Context, handle TurnHandle) (iter.
 	return eventSequence(ctx, state), nil
 }
 
-func eventSequence(ctx context.Context, state *turnState) iter.Seq[runs.EngineEvent] {
+func eventSequence(ctx context.Context, state *turnState) iter.Seq[runs.ExecutorEvent] {
 	// Single-active-consumer pull stream. The internal select multiplexes the
 	// turn's event channel against ctx so the iterator stops promptly
 	// when the caller stops listening, even while parked waiting for
@@ -44,20 +44,20 @@ func eventSequence(ctx context.Context, state *turnState) iter.Seq[runs.EngineEv
 	// one-token-per-frame volume and cuts the downstream live-event drop rate.
 	// It does not touch the durable transcript or add latency: the drain is
 	// non-blocking, so a trickling stream still yields each token immediately.
-	return func(yield func(runs.EngineEvent) bool) {
+	return func(yield func(runs.ExecutorEvent) bool) {
 		defer state.releaseEvents()
-		var spill runs.EngineEvent // a different-kind event pulled off mid-coalesce, yielded next
-		recv := func() (runs.EngineEvent, bool) {
+		var spill *runs.ExecutorEvent // a different-kind event pulled off mid-coalesce, yielded next
+		recv := func() (runs.ExecutorEvent, bool) {
 			if spill != nil {
 				ev := spill
 				spill = nil
-				return ev, true
+				return *ev, true
 			}
 			select {
 			case ev, ok := <-state.events:
 				return ev, ok
 			case <-ctx.Done():
-				return nil, false
+				return runs.ExecutorEvent{}, false
 			}
 		}
 		for {
@@ -75,8 +75,8 @@ func eventSequence(ctx context.Context, state *turnState) iter.Seq[runs.EngineEv
 // pulled off mid-drain is parked in *spill for the caller to yield next, so
 // ordering is preserved. The merged event keeps the head event's metadata; deltas are
 // ephemeral (no SSE id, §5.2), so merged delta boundaries are immaterial.
-func coalesceTextDeltas(head runs.EngineEvent, ch <-chan runs.EngineEvent, spill *runs.EngineEvent) runs.EngineEvent {
-	switch h := head.(type) {
+func coalesceTextDeltas(head runs.ExecutorEvent, ch <-chan runs.ExecutorEvent, spill **runs.ExecutorEvent) runs.ExecutorEvent {
+	switch h := head.Payload.(type) {
 	case runs.MessageDelta:
 		var merged strings.Builder
 	messageDeltas:
@@ -86,7 +86,7 @@ func coalesceTextDeltas(head runs.EngineEvent, ch <-chan runs.EngineEvent, spill
 				if !ok {
 					break messageDeltas
 				}
-				if d, same := ev.(runs.MessageDelta); same {
+				if d, same := ev.Payload.(runs.MessageDelta); same && ev.Source == head.Source {
 					if merged.Len() == 0 {
 						merged.Grow(len(h.Text) + len(d.Text))
 						merged.WriteString(h.Text)
@@ -94,7 +94,8 @@ func coalesceTextDeltas(head runs.EngineEvent, ch <-chan runs.EngineEvent, spill
 					merged.WriteString(d.Text)
 					continue
 				}
-				*spill = ev
+				copy := ev
+				*spill = &copy
 			default:
 			}
 			break
@@ -102,7 +103,8 @@ func coalesceTextDeltas(head runs.EngineEvent, ch <-chan runs.EngineEvent, spill
 		if merged.Len() > 0 {
 			h.Text = merged.String()
 		}
-		return h
+		head.Payload = h
+		return head
 	case runs.ReasoningDelta:
 		var merged strings.Builder
 	reasoningDeltas:
@@ -112,7 +114,7 @@ func coalesceTextDeltas(head runs.EngineEvent, ch <-chan runs.EngineEvent, spill
 				if !ok {
 					break reasoningDeltas
 				}
-				if d, same := ev.(runs.ReasoningDelta); same {
+				if d, same := ev.Payload.(runs.ReasoningDelta); same && ev.Source == head.Source {
 					if merged.Len() == 0 {
 						merged.Grow(len(h.Text) + len(d.Text))
 						merged.WriteString(h.Text)
@@ -120,7 +122,8 @@ func coalesceTextDeltas(head runs.EngineEvent, ch <-chan runs.EngineEvent, spill
 					merged.WriteString(d.Text)
 					continue
 				}
-				*spill = ev
+				copy := ev
+				*spill = &copy
 			default:
 			}
 			break
@@ -128,7 +131,8 @@ func coalesceTextDeltas(head runs.EngineEvent, ch <-chan runs.EngineEvent, spill
 		if merged.Len() > 0 {
 			h.Text = merged.String()
 		}
-		return h
+		head.Payload = h
+		return head
 	default:
 		return head
 	}

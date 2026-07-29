@@ -114,7 +114,7 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 
 	var outcome childHITLOutcome
 	for event := range events {
-		switch event := event.(type) {
+		switch event := event.Payload.(type) {
 		case runs.TurnInterrupted:
 			outcome.interruptCount++
 			if len(event.Interrupts) != 1 {
@@ -198,7 +198,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 	interruptCount := 0
 	endReason := execution.OutcomeError
 	for event := range events {
-		switch event := event.(type) {
+		switch event := event.Payload.(type) {
 		case runs.TurnInterrupted:
 			interruptCount++
 			if len(event.Interrupts) != 1 || event.Interrupts[0].Kind != execution.QuestionInterrupt {
@@ -267,7 +267,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	}
 	sawInterrupt := false
 	for event := range events {
-		if interrupted, ok := event.(runs.TurnInterrupted); ok {
+		if interrupted, ok := event.Payload.(runs.TurnInterrupted); ok {
 			sawInterrupt = true
 			if len(interrupted.Interrupts) != 1 {
 				t.Fatalf("interrupts = %#v", interrupted.Interrupts)
@@ -320,7 +320,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	endReason := execution.OutcomeError
 	leakedChildEvents := 0
 	for event := range restoredEvents {
-		switch event := event.(type) {
+		switch event := event.Payload.(type) {
 		case runs.ToolCallStart:
 			if event.ToolName == "shell" {
 				leakedChildEvents++
@@ -397,7 +397,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	terminalCount := 0
 	endReason := execution.OutcomeError
 	for event := range events {
-		switch event := event.(type) {
+		switch event := event.Payload.(type) {
 		case runs.TurnInterrupted:
 			interruptsSeen++
 			if err := dispatcher.Cancel(t.Context(), handle); err != nil {
@@ -450,7 +450,7 @@ func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
 		t.Fatalf("Events: %v", err)
 	}
 	for event := range events {
-		if _, ok := event.(runs.TurnInterrupted); ok {
+		if _, ok := event.Payload.(runs.TurnInterrupted); ok {
 			break
 		}
 	}
@@ -518,7 +518,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 		leakedChildEvents := 0
 		raced := false
 		for event := range events {
-			switch event := event.(type) {
+			switch event := event.Payload.(type) {
 			case runs.TurnInterrupted:
 				raced = true
 				start := make(chan struct{})

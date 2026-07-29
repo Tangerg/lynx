@@ -36,7 +36,7 @@ type TurnCanceler interface {
 // SegmentExecutor is what the run pump needs to observe and cancel the agent
 // turn backing a run segment. The concrete agent-execution adapter implements it.
 type SegmentExecutor interface {
-	TurnEvents(ctx context.Context, ref execution.TurnRef) (iter.Seq[EngineEvent], error)
+	TurnEvents(ctx context.Context, ref execution.TurnRef) (iter.Seq[ExecutorEvent], error)
 	TurnCanceler
 }
 

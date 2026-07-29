@@ -2,6 +2,7 @@ package runs
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -11,6 +12,63 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
+
+// ExecutorSource is the executor-owned identity of the process that produced an
+// event. It deliberately carries no Run or Segment identity: mapping execution
+// processes onto application Runs belongs to the Coordinator.
+type ExecutorSource struct {
+	ProcessID   string
+	ParentID    string
+	SpawnCallID string
+}
+
+// Child reports whether this source belongs to a delegated process.
+func (source ExecutorSource) Child() bool { return source.ParentID != "" }
+
+// Validate rejects malformed or self-referential process identity. An entirely
+// empty source is reserved for a root turn that failed before the executor
+// created its process.
+func (source ExecutorSource) Validate() error {
+	if source.ProcessID != strings.TrimSpace(source.ProcessID) {
+		return errors.New("runs: executor source process id has surrounding whitespace")
+	}
+	if source.ParentID != strings.TrimSpace(source.ParentID) {
+		return errors.New("runs: executor source parent id has surrounding whitespace")
+	}
+	if source.SpawnCallID != strings.TrimSpace(source.SpawnCallID) {
+		return errors.New("runs: executor source spawn call id has surrounding whitespace")
+	}
+	if source.ProcessID == "" {
+		if source.ParentID != "" || source.SpawnCallID != "" {
+			return errors.New("runs: empty executor process id cannot carry parent or spawn-call identity")
+		}
+		return nil
+	}
+	if source.ParentID == source.ProcessID {
+		return errors.New("runs: executor source cannot parent itself")
+	}
+	if source.ParentID == "" && source.SpawnCallID != "" {
+		return errors.New("runs: root executor source cannot carry spawn-call identity")
+	}
+	return nil
+}
+
+// ExecutorEvent is the driven-executor port value. Source identifies the
+// concrete root/child process; Payload is the closed application-owned event
+// family. A root stream may therefore carry child events without relabeling
+// their producer as the root.
+type ExecutorEvent struct {
+	Source  ExecutorSource
+	Payload EngineEvent
+}
+
+// Validate checks the envelope before the Coordinator routes it.
+func (event ExecutorEvent) Validate() error {
+	if event.Payload == nil {
+		return errors.New("runs: executor event payload is required")
+	}
+	return event.Source.Validate()
+}
 
 // EngineEvent is the closed application-owned execution event family. Driven
 // adapters emit these values at the SegmentExecutor port; delivery therefore

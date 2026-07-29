@@ -169,7 +169,7 @@ func (s *memoryDispatcher) emitInterrupt(st *turnState, process agentexec.TurnPr
 		return
 	}
 	recordInterruptMetric(st.ctx, pending.Kind.String())
-	if !s.emit(st, runs.TurnInterrupted{Interrupts: []runs.Interrupt{pending}, Duration: st.segmentElapsed()}) {
+	if !s.emitRootEvent(st, runs.TurnInterrupted{Interrupts: []runs.Interrupt{pending}, Duration: st.segmentElapsed()}) {
 		return
 	}
 	// Notification hooks (observe-only): the turn is waiting on the user — fire
@@ -242,7 +242,7 @@ func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnStat
 	if !result.Compaction.Compacted {
 		return
 	}
-	s.emit(st, runs.CompactBoundary{
+	s.emitRootEvent(st, runs.CompactBoundary{
 		MessagesBefore: result.Compaction.MessagesBefore,
 		MessagesAfter:  result.Compaction.MessagesAfter,
 	})

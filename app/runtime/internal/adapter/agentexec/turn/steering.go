@@ -63,7 +63,7 @@ func (s *memoryDispatcher) steerSource(st *turnState) agentexec.SteerSource {
 		}
 		out := make([]corechat.Message, len(queue))
 		for i, queued := range queue {
-			s.emit(st, runs.SteerMessage{
+			s.emitRootEvent(st, runs.SteerMessage{
 				Content: append([]transcript.ContentBlock(nil), queued.content...),
 			})
 			out[i] = queued.message.Clone()
@@ -87,7 +87,7 @@ func (s *memoryDispatcher) flushSteering(ctx context.Context, st *turnState, ses
 		return
 	}
 	for _, queued := range queue {
-		if !s.emit(st, runs.SteerMessage{
+		if !s.emitRootEvent(st, runs.SteerMessage{
 			Content: append([]transcript.ContentBlock(nil), queued.content...),
 		}) {
 			recordTurnMaintenanceError(st, errors.New("steering transcript publication failed"))

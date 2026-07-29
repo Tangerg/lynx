@@ -136,7 +136,7 @@ func TestDispatcherCloseCancelsLiveTurnsAndRejectsAdmission(t *testing.T) {
 	shutdownDispatcher(t, dispatcher)
 	var endReason execution.Outcome
 	for ev := range events {
-		if end, ok := ev.(runs.TurnEnd); ok {
+		if end, ok := ev.Payload.(runs.TurnEnd); ok {
 			endReason = end.Reason
 		}
 	}
@@ -272,7 +272,7 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 
 	var sawInterrupt bool
 	for ev := range events {
-		if e, ok := ev.(runs.TurnInterrupted); ok {
+		if e, ok := ev.Payload.(runs.TurnInterrupted); ok {
 			sawInterrupt = true
 			if len(e.Interrupts) != 1 || e.Interrupts[0].Kind != execution.ApprovalInterrupt {
 				t.Errorf("interrupts = %+v, want one approval", e.Interrupts)
@@ -295,7 +295,7 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 	}
 	var endReason execution.Outcome
 	for ev := range events {
-		if end, ok := ev.(runs.TurnEnd); ok {
+		if end, ok := ev.Payload.(runs.TurnEnd); ok {
 			endReason = end.Reason
 		}
 	}
@@ -331,7 +331,7 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 
 	var endReason execution.Outcome
 	for ev := range events {
-		switch e := ev.(type) {
+		switch e := ev.Payload.(type) {
 		case runs.TurnInterrupted:
 			if err := dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, []execution.InterruptKind{execution.ApprovalInterrupt}); err != nil {
 				t.Errorf("Resume: %v", err)
@@ -393,7 +393,7 @@ func TestDispatcher_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 		endReason    execution.Outcome
 	)
 	for ev := range events {
-		switch e := ev.(type) {
+		switch e := ev.Payload.(type) {
 		case runs.TurnInterrupted:
 			sawInterrupt = true
 			if err := dispatcher.Cancel(context.Background(), handle); err != nil {
@@ -436,7 +436,7 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 		endReason execution.Outcome
 	)
 	for ev := range events {
-		switch e := ev.(type) {
+		switch e := ev.Payload.(type) {
 		case runs.TurnInterrupted:
 			_ = dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: false}, []execution.InterruptKind{execution.ApprovalInterrupt})
 		case runs.ToolCallEnd:
@@ -472,7 +472,7 @@ func TestDispatcher_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	events, _ := dispatcher.Events(context.Background(), handle)
 
 	for ev := range events {
-		if _, ok := ev.(runs.TurnInterrupted); ok {
+		if _, ok := ev.Payload.(runs.TurnInterrupted); ok {
 			t.Error("TurnInterrupted should NOT fire in yolo mode")
 		}
 	}

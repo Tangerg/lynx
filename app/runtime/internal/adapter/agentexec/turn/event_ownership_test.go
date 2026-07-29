@@ -26,13 +26,13 @@ func TestCancelBetweenParkAndInterruptPublishClosesSafely(t *testing.T) {
 	if err := dispatcher.Cancel(t.Context(), st.handle); err != nil {
 		t.Fatalf("Cancel: %v", err)
 	}
-	if dispatcher.emit(st, runs.TurnInterrupted{}) {
+	if dispatcher.emitRootEvent(st, runs.TurnInterrupted{}) {
 		t.Fatal("late interrupt was delivered after the terminal closed the stream")
 	}
 
 	var endCount int
 	for ev := range st.events {
-		if end, ok := ev.(runs.TurnEnd); ok {
+		if end, ok := ev.Payload.(runs.TurnEnd); ok {
 			endCount++
 			if end.Reason != execution.OutcomeCanceled {
 				t.Fatalf("runs.TurnEnd reason = %s, want canceled", end.Reason)

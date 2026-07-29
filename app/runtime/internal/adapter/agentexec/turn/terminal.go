@@ -69,7 +69,7 @@ func (s *memoryDispatcher) emitFinishedTurn(st *turnState, reason execution.Outc
 	dur := st.segmentElapsed()
 	finishTurnSpan(st.span, reason, accounting.TokenUsage{}, false, "")
 	recordTurnDuration(st.ctx, reason, st.model, dur)
-	s.emit(st, runs.TurnEnd{Reason: reason, Duration: dur})
+	s.emitRootEvent(st, runs.TurnEnd{Reason: reason, Duration: dur})
 }
 
 // finishFailedTurn closes an emergency error path with one self-contained
@@ -84,7 +84,7 @@ func (s *memoryDispatcher) finishFailedTurn(st *turnState, problem transcript.Pr
 		}
 		finishTurnSpan(st.span, execution.OutcomeError, accounting.TokenUsage{}, false, errMsg)
 		recordTurnDuration(st.ctx, execution.OutcomeError, st.model, dur)
-		s.emit(st, runs.TurnEnd{Reason: execution.OutcomeError, Problem: &problem, Duration: dur})
+		s.emitRootEvent(st, runs.TurnEnd{Reason: execution.OutcomeError, Problem: &problem, Duration: dur})
 		s.fireStop(st, errMsg)
 	})
 }
@@ -141,7 +141,7 @@ func (s *memoryDispatcher) emitTurnEnd(st *turnState, completion agentexec.TurnC
 	if plan.withUsage {
 		end.Usage = &runs.TurnUsage{Tokens: out.Usage, ByModel: out.UsageByModel, CostUSD: out.CostUSD}
 	}
-	s.emit(st, end)
+	s.emitRootEvent(st, end)
 	// Stop hooks (observe-only): fire after the terminal is emitted (the client
 	// already saw segment.finished) — for notify / chain / cleanup. Bounded by the
 	// hook timeout; it precedes only the turn's teardown, not the client signal.

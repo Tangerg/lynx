@@ -27,7 +27,7 @@ import (
 // the entry point and read without locking thereafter.
 type turnState struct {
 	handle TurnHandle
-	events chan runs.EngineEvent
+	events chan runs.ExecutorEvent
 	done   chan struct{}
 	cancel context.CancelFunc
 
@@ -250,7 +250,7 @@ func newTurnState(ctx context.Context, handle TurnHandle, phase turnPhase) *turn
 	lifeCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	return &turnState{
 		handle:           handle,
-		events:           make(chan runs.EngineEvent, 32),
+		events:           make(chan runs.ExecutorEvent, 32),
 		done:             make(chan struct{}),
 		cancel:           cancel,
 		ctx:              lifeCtx,

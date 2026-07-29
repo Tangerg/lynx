@@ -340,7 +340,7 @@ func (t *turnObserver) OnToolCallStart(process agentexec.ProcessRef, callID, sou
 	if process.Child() {
 		return
 	}
-	t.dispatcher.emit(t.st, runs.ToolCallStart{
+	t.dispatcher.emitProcessEvent(t.st, process, runs.ToolCallStart{
 		CallID:       callID,
 		SourceCallID: sourceCallID,
 		ToolName:     toolName,
@@ -386,7 +386,7 @@ func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolN
 	case err != nil:
 		end.Err = err.Error()
 	}
-	t.dispatcher.emit(t.st, end)
+	t.dispatcher.emitProcessEvent(t.st, process, end)
 
 	// After a successful todo_write, project the model's (whole-replaced) task
 	// list so a client renders the task panel (state.snapshot{todos}); the tool
@@ -395,7 +395,7 @@ func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolN
 	// arg schema.
 	if err == nil && toolName == "todo_write" && t.dispatcher.todos != nil {
 		if state, lerr := t.dispatcher.todos.State(t.st.ctx, t.st.handle.SessionID); lerr == nil {
-			t.dispatcher.emit(t.st, runs.TodosUpdated{State: state})
+			t.dispatcher.emitProcessEvent(t.st, process, runs.TodosUpdated{State: state})
 		}
 	}
 
@@ -419,7 +419,7 @@ func (t *turnObserver) OnMessageDelta(process agentexec.ProcessRef, text string)
 	if process.Child() {
 		return
 	}
-	t.dispatcher.emit(t.st, runs.MessageDelta{
+	t.dispatcher.emitProcessEvent(t.st, process, runs.MessageDelta{
 		Text: text,
 	})
 }
@@ -432,7 +432,7 @@ func (t *turnObserver) OnReasoningDelta(process agentexec.ProcessRef, text strin
 	if process.Child() {
 		return
 	}
-	t.dispatcher.emit(t.st, runs.ReasoningDelta{
+	t.dispatcher.emitProcessEvent(t.st, process, runs.ReasoningDelta{
 		Text: text,
 	})
 }
@@ -444,7 +444,7 @@ func (t *turnObserver) OnUsage(process agentexec.ProcessRef, usage accounting.To
 	if process.Child() {
 		return
 	}
-	t.dispatcher.emit(t.st, runs.UsageReported{
+	t.dispatcher.emitProcessEvent(t.st, process, runs.UsageReported{
 		TokenUsage:    usage,
 		CostUSD:       costUSD,
 		ContextTokens: contextTokens,

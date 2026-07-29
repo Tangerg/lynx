@@ -45,8 +45,8 @@ func (*blockingRunRuntime) SessionByID(context.Context, string) (session.Session
 	return session.Session{ID: "ses_1", Cwd: "/work"}, nil
 }
 
-func (*blockingRunRuntime) TurnEvents(ctx context.Context, _ execution.TurnRef) (iter.Seq[runs.EngineEvent], error) {
-	return func(func(runs.EngineEvent) bool) { <-ctx.Done() }, nil
+func (*blockingRunRuntime) TurnEvents(ctx context.Context, _ execution.TurnRef) (iter.Seq[runs.ExecutorEvent], error) {
+	return func(func(runs.ExecutorEvent) bool) { <-ctx.Done() }, nil
 }
 
 func (*blockingRunRuntime) CancelTurn(context.Context, execution.TurnRef) error { return nil }
