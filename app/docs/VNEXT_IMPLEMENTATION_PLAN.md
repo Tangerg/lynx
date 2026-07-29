@@ -1161,7 +1161,7 @@ presence 原语正是"一 keyword 一原语"禁的那种融合。
 | D1 | slow-consumer 与 replay memory benchmark | `DONE` | `journal_cost_test.go` |
 | D2 | 在不改 scope/语义前提下调 discover 返回的 replay 数值上限 | `DONE`（裁决：不动，见 D1 证据） | — |
 | D3 | event coalescing / subscriber queue / 生成速度优化 | `DONE` | `chargedEvent` |
-| D4 | 真实桌面负载验证一条 runtime stream + 多条 active Run stream 的连接占用 | `TODO` | — |
+| D4 | 真实桌面负载验证一条 runtime stream + 多条 active Run stream 的连接占用 | `PARTIAL`（无头半已证，真机待 live） | `stream_occupancy_test.go` |
 
 **Batch D 不得重新引入 Batch C 已删除的兼容层。**
 
@@ -1194,6 +1194,14 @@ presence 原语正是"一 keyword 一原语"禁的那种融合。
 | append 1 MiB tool result | **2.11 MB/op**，11 allocs | **1.07 MB/op**，7 allocs |
 
 分配量降到 backlog 大小的常数倍之外 —— 一次重连不再按窗口大小付钱。**语义零变化**：预算、驱逐、断开策略、cursor 拒绝规则全部原样，测试未改一行断言。
+
+### D4 —— 无头那半已证：连接不按条泄漏
+
+每条 streamable 响应会起一个 bridge goroutine（frame source 在事件之间阻塞、不能直接 select，所以由它 range 源、喂一个 write loop 能连同心跳与断线一起等的 channel）。"客户端走了它就走"原先**只写在注释里**（"request context 会把 source 解开，range 就结束"），从未被证明过 —— 而这种泄漏在所有功能测试里都不可见，代价是每条连接一个 goroutine 直到进程结束；桌面客户端每次网络抖动都会重连。
+
+`TestStreamingConnectionsReleaseTheirGoroutines`：开 16 条流、在服务端进入 select loop 后**不优雅地**掉线，断言残留 goroutine **不随连接数增长**（实测 16 条流残留 **0**）。断言写成"形状"而非确切数字 —— 一个精确的 goroutine 数会被 net/http 自己的池化左右，只会教下一个人抬阈值而不是去找泄漏。**反例已验**：在 `serveStream` 里注入一个活过请求的 goroutine → 16 条流残留 16，精确抓到。
+
+**真机那半仍待做**：长时间真实负载下的 RSS 曲线、真 LLM 往返时的心跳与写超时行为、多 session 并发时的实际连接占用 —— 需要 `wails dev` 与真实 run，不在无头范围内。
 
 > ⚠️ **这是本仓库第一次有 benchmark 需求。** 记忆 `project_agent_refinement_closed_perf_dropped` 论证关闭的是 **agent 模块 CPU 延迟维度**，**不覆盖这里** —— replay journal 与 subscriber queue 是**内存与连接**资源，且契约 §6.5 明确把数值上限做成可测量调整项。
 

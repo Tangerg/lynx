@@ -33,6 +33,13 @@ func (f *fakeRuntime) CancelRun(_ context.Context, in protocol.CancelRunRequest)
 func newTestServer(t *testing.T) (*httptest.Server, *fakeRuntime) {
 	t.Helper()
 	api := &fakeRuntime{}
+	return newTestServerFor(t, api), api
+}
+
+// newTestServerFor serves a caller-supplied Runtime through the same config, so a
+// test that needs a different fake still exercises one server setup.
+func newTestServerFor(t *testing.T, api protocol.Runtime) *httptest.Server {
+	t.Helper()
 	srv, err := lyrahttp.NewServer(lyrahttp.Config{
 		Runtime:         api,
 		Addr:            ":0",
@@ -42,7 +49,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *fakeRuntime) {
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
-	return httptest.NewServer(srv.Handler()), api
+	return httptest.NewServer(srv.Handler())
 }
 
 // decodeErrorCode reads a JSON-RPC error envelope and returns its code.
