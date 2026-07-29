@@ -259,7 +259,7 @@ func (c *Coordinator) SubscribeLive(ctx context.Context, runID, fromCursor strin
 		return Record{}, nil, ErrRunNotFound
 	}
 	if gap := e.record.ProtocolProfile.Uncovered(caller); !gap.IsEmpty() {
-		return Record{}, nil, fmt.Errorf("%w: run %q was created with %s", execution.ErrProfileNotCovered, runID, gap)
+		return Record{}, nil, &execution.ProfileNotCovered{RunID: runID, Gap: gap}
 	}
 	subscription, unsubscribe := e.handle.hub.Subscribe(fromCursor)
 	stopUnsubscribe := context.AfterFunc(ctx, unsubscribe)

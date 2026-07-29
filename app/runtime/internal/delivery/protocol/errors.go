@@ -1,19 +1,11 @@
 package protocol
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
-)
-
-// ErrorChannel self-describes which delivery channel an error arrived on
-// (API.md §8.1): a sync JSON-RPC error, a run's error outcome, or a tool
-// failure. Empty = unclassified.
-type ErrorChannel string
-
-const (
-	ErrorChannelRPC  ErrorChannel = "rpc"
-	ErrorChannelRun  ErrorChannel = "run"
-	ErrorChannelTool ErrorChannel = "tool"
+	"slices"
+	"strings"
 )
 
 // ProblemData is the structured error payload (API.md §4.6 / §8) — a
@@ -24,26 +16,19 @@ const (
 // plugins namespace as `plugin:<name>/<symbol>` — one instance of the
 // unified extension-namespace convention (API.md §2.5, error case §8.4).
 type ProblemData struct {
-	Type string `json:"type"`
-	// Channel self-describes which delivery channel the error came on —
-	// "rpc" (sync JSON-RPC error), "run" (segment.finished outcome:error), or
-	// "tool" (toolCall.error) — so the client reads it instead of inferring
-	// from where the error arrived (API.md §8.1). Empty = unclassified.
-	Channel ErrorChannel `json:"channel,omitempty"`
-	Detail  string       `json:"detail,omitempty"` // per-occurrence human-readable note
+	Type   string `json:"type"`
+	Detail string `json:"detail,omitempty"` // per-occurrence human-readable note
 	// DocURL optionally points at this type's docs (Stripe doc_url), lowering
 	// integration cost (API.md §8.3); absent → look the symbolic type up in §8.2.
 	DocURL string `json:"docUrl,omitempty"`
-	// Retryable has no writer: it left the domain with the transient/permanent
-	// classification the contract rejects, and it leaves the wire with the
-	// protocol bump. Do NOT restore it by deriving it here from Type — that is
-	// presentation deciding a business fact, which is what the domain just
-	// stopped doing. Clients branch on Type.
-	Retryable bool `json:"retryable,omitempty"`
 	// RetryAfterSeconds, when given, is the earliest sensible retry (e.g. a
 	// provider rate-limit backoff) the client honors before its own (API.md §8.3).
 	// Only the kinds that waiting can clear carry one.
 	RetryAfterSeconds int `json:"retryAfterSeconds,omitempty"`
+	// RequiredCapabilities is required by capability_not_negotiated and non-empty:
+	// it lists EVERY gap the request has, so a client learns what to declare in one
+	// round instead of discovering them one refusal at a time.
+	RequiredCapabilities []CapabilityRequirement `json:"requiredCapabilities,omitempty"`
 	// ActiveRun is required by session_has_active_run and appears on no other type:
 	// it names the run that made the request impossible, so the client can offer
 	// steer / resume / cancel instead of just reporting a failure.
@@ -53,6 +38,97 @@ type ProblemData struct {
 	// can flag each one (API.md §8.3).
 	Errors []FieldError `json:"errors,omitempty"`
 }
+
+// RecoveryAction is the default next move a client can safely make for one problem
+// type (§9.3). It is a closed set so an SDK branches exhaustively, and it is a
+// DEFAULT rather than a policy: it never overrides a method's idempotency rules and
+// never authorizes replaying the user's intent.
+//
+// It replaces the transient/permanent split the contract rejected. "Retryable" made a
+// client guess what to do; naming the action says it.
+type RecoveryAction string
+
+const (
+	// RecoveryRefetch — read the resource again; the client's copy is stale.
+	RecoveryRefetch RecoveryAction = "refetch"
+	// RecoveryColdRecover — rebuild from the durable reads rather than the stream.
+	RecoveryColdRecover RecoveryAction = "coldRecover"
+	// RecoveryResubscribe — reattach the stream; the subscription, not the state, is
+	// what went wrong.
+	RecoveryResubscribe RecoveryAction = "resubscribe"
+	// RecoveryReauthenticate — the credential is the problem.
+	RecoveryReauthenticate RecoveryAction = "reauthenticate"
+	// RecoveryWaitRetryAfter — wait out retryAfterSeconds. A backoff hint, never a
+	// promise that a mutation is safe to repeat.
+	RecoveryWaitRetryAfter RecoveryAction = "waitRetryAfter"
+	// RecoveryPromptUser — the runtime cannot choose; a person must.
+	RecoveryPromptUser RecoveryAction = "promptUser"
+	// RecoveryStop — nothing the client can do changes the answer.
+	RecoveryStop RecoveryAction = "stop"
+)
+
+// CapabilityRequirementType names which vocabulary a missing capability belongs to
+// (§9.2). Four registries can be short: features, interrupt types, runtime topics and
+// state-snapshot keys.
+type CapabilityRequirementType string
+
+const (
+	RequirementFeature       CapabilityRequirementType = "feature"
+	RequirementInterruptType CapabilityRequirementType = "interruptType"
+	RequirementRuntimeTopic  CapabilityRequirementType = "runtimeTopic"
+	RequirementStateSnapshot CapabilityRequirementType = "stateSnapshot"
+)
+
+// CapabilityRequirement is one thing the caller would have to declare or the runtime
+// would have to offer. Name's vocabulary is the registry Type points at — this shape
+// does not restate those value sets, because each already publishes its own.
+type CapabilityRequirement struct {
+	Type CapabilityRequirementType `json:"type"`
+	Name string                    `json:"name"`
+}
+
+// CapabilityGap is the capability_not_negotiated problem with its required payload:
+// every gap of THIS request, so the caller fixes them in one round.
+type CapabilityGap struct {
+	Requirements []CapabilityRequirement
+}
+
+// NewCapabilityGap builds the refusal. Requirements are deduplicated and ordered by
+// (type, name) so the same gap reads the same in every response — a client diffing
+// two refusals is comparing sets, not transcripts.
+func NewCapabilityGap(requirements ...CapabilityRequirement) *CapabilityGap {
+	slices.SortStableFunc(requirements, func(a, b CapabilityRequirement) int {
+		if a.Type != b.Type {
+			return cmp.Compare(requirementOrder(a.Type), requirementOrder(b.Type))
+		}
+		return cmp.Compare(a.Name, b.Name)
+	})
+	return &CapabilityGap{Requirements: slices.Compact(requirements)}
+}
+
+// requirementOrder is the registry order the canonical encoder sorts by — the order
+// the kinds are declared in, not their spelling.
+func requirementOrder(kind CapabilityRequirementType) int {
+	return slices.Index([]CapabilityRequirementType{
+		RequirementFeature, RequirementInterruptType,
+		RequirementRuntimeTopic, RequirementStateSnapshot,
+	}, kind)
+}
+
+func (e *CapabilityGap) Error() string {
+	names := make([]string, 0, len(e.Requirements))
+	for _, requirement := range e.Requirements {
+		names = append(names, string(requirement.Type)+"."+requirement.Name)
+	}
+	return fmt.Sprintf("%s: requires %s", ErrCapabilityNotNeg, strings.Join(names, ", "))
+}
+
+// Is answers to the sentinel so every reader that branches on the problem type keeps
+// working, and only a reader that needs the gaps asks for the type.
+func (e *CapabilityGap) Is(target error) bool { return target == ErrCapabilityNotNeg }
+
+// Enrich carries the gaps to the frame (§9.2's presence table).
+func (e *CapabilityGap) Enrich(data *ProblemData) { data.RequiredCapabilities = e.Requirements }
 
 // ActiveRunRef is the run a session already holds, carried by
 // session_has_active_run (§8.2). It is a snapshot taken at the admission boundary,

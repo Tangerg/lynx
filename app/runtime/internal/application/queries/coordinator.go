@@ -368,8 +368,7 @@ func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, r
 	})
 	for _, pending := range page.Rows {
 		if gap := pending.ProtocolProfile.Uncovered(caller); !gap.IsEmpty() {
-			return keyset.Page[interrupts.Pending]{}, fmt.Errorf("%w: run %q waits under %s",
-				execution.ErrProfileNotCovered, pending.RootRunID, gap)
+			return keyset.Page[interrupts.Pending]{}, &execution.ProfileNotCovered{RunID: pending.RootRunID, Gap: gap}
 		}
 	}
 	return page, nil

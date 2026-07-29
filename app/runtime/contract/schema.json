@@ -707,9 +707,6 @@
         "retryAfterSeconds": {
           "type": "integer"
         },
-        "retryable": {
-          "type": "boolean"
-        },
         "type": {
           "$ref": "#/$defs/ArtifactProblemType"
         }
@@ -1016,6 +1013,72 @@
       },
       "required": [
         "runId"
+      ]
+    },
+    "CapabilityRequirement": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/CapabilityRequirementType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "feature"
+            }
+          },
+          "required": [
+            "name",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "interruptType"
+            }
+          },
+          "required": [
+            "name",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "runtimeTopic"
+            }
+          },
+          "required": [
+            "name",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "stateSnapshot"
+            }
+          },
+          "required": [
+            "name",
+            "type"
+          ]
+        }
+      ]
+    },
+    "CapabilityRequirementType": {
+      "type": "string",
+      "enum": [
+        "feature",
+        "interruptType",
+        "runtimeTopic",
+        "stateSnapshot"
       ]
     },
     "ClientCapabilities": {
@@ -1546,14 +1609,6 @@
           "type": "string"
         }
       }
-    },
-    "ErrorChannel": {
-      "type": "string",
-      "enum": [
-        "rpc",
-        "run",
-        "tool"
-      ]
     },
     "ExportFormat": {
       "type": "string",
@@ -3818,9 +3873,6 @@
         "activeRun": {
           "$ref": "#/$defs/ActiveRunRef"
         },
-        "channel": {
-          "$ref": "#/$defs/ErrorChannel"
-        },
         "detail": {
           "type": "string"
         },
@@ -3833,11 +3885,14 @@
             "$ref": "#/$defs/FieldError"
           }
         },
+        "requiredCapabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CapabilityRequirement"
+          }
+        },
         "retryAfterSeconds": {
           "type": "integer"
-        },
-        "retryable": {
-          "type": "boolean"
         },
         "type": {
           "type": "string"
@@ -3845,6 +3900,50 @@
       },
       "required": [
         "type"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "session_has_active_run"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "requiredCapabilities": false,
+              "retryAfterSeconds": false
+            },
+            "required": [
+              "activeRun"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "capability_not_negotiated"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "activeRun": false,
+              "retryAfterSeconds": false
+            },
+            "required": [
+              "requiredCapabilities"
+            ]
+          }
+        }
       ]
     },
     "Project": {

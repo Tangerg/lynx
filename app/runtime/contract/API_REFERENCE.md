@@ -172,6 +172,15 @@ least one variant; the registry refuses a union where one does not.
 | `toolOutput` | `text` | — |
 | `plan` | `steps` | — |
 
+### `CapabilityRequirement`
+
+| tag | required | optional |
+| --- | --- | --- |
+| `feature` | `name` | — |
+| `interruptType` | `name` | — |
+| `runtimeTopic` | `name` | — |
+| `stateSnapshot` | `name` | — |
+
 ### `StateSnapshot`
 
 | tag | required | optional |

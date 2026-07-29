@@ -130,7 +130,7 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 		Methods          []struct{}        `json:"methods"`
 		StreamingMethods []string          `json:"streamingMethods"`
 		Errors           struct {
-			Codes map[string]int `json:"codes"`
+			Types []struct{} `json:"types"`
 		} `json:"errors"`
 		CapabilityPolicy []struct{} `json:"capabilityPolicy"`
 		RunEventPolicy   []struct{} `json:"runEventPolicy"`
@@ -147,7 +147,7 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 		"protocol":          len(manifest.Protocol),
 		"methods":           len(manifest.Methods),
 		"streamingMethods":  len(manifest.StreamingMethods),
-		"errors.codes":      len(manifest.Errors.Codes),
+		"errors.types":      len(manifest.Errors.Types),
 		"capabilityPolicy":  len(manifest.CapabilityPolicy),
 		"carriedShapes":     len(manifest.CarriedShapes),
 		"runEventPolicy":    len(manifest.RunEventPolicy),
@@ -426,6 +426,7 @@ func collectRefs(node any) []string {
 // reaches it.
 var notOnTheWire = map[string]string{
 	"ActiveRunConflict": "the Go error that carries session_has_active_run's payload; its wire projection is ProblemData.activeRun",
+	"CapabilityGap":     "the Go error that carries capability_not_negotiated's payload; its wire projection is ProblemData.requiredCapabilities",
 	"CanonicalSample":   "binds a hand-written fixture to a wire type; it is about the wire, not on it",
 	"Feature":           "the published capability vocabulary's registry entry; its wire projection is FeatureCapability",
 	"ConstraintError":   "the Go validator's error carrier; its wire projection is ProblemData.errors",

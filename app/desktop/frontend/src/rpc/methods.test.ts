@@ -45,7 +45,7 @@ describe("methods factory", () => {
         new RpcError({
           code: -32021,
           message: "idempotency_in_progress",
-          data: { type: "idempotency_in_progress", channel: "rpc", retryable: true },
+          data: { type: "idempotency_in_progress" },
         }),
       )
       .mockResolvedValueOnce({ id: "session_1" });

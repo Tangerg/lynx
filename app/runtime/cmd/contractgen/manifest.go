@@ -1,6 +1,9 @@
 package main
 
 import (
+	"cmp"
+	"slices"
+
 	appcontract "github.com/Tangerg/lynx/app/runtime/internal/application/contract"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -39,13 +42,26 @@ type methodEntry struct {
 	Stability   string   `json:"stability"`
 }
 
-// errorRegistry is the single source for business error identity (contract
-// §11.4 gate 13). Codes are the numeric classification; Types is the symbolic
-// vocabulary clients actually branch on.
+// errorRegistry is the single source for business error identity (contract §11.4
+// gate 13). Types is the symbolic vocabulary clients branch on; each entry carries
+// the numeric classification, the default recovery action, whether waiting is
+// meaningful, and which methods may return it.
+//
+// The methods are DERIVED from the registrations rather than declared: every method
+// already lists the errors it returns, and a second list is a second answer.
 type errorRegistry struct {
-	Codes    map[string]int `json:"codes"`
-	RunTypes []string       `json:"runChannelTypes"`
-	Inline   []string       `json:"inlineStatusTypes"`
+	Types    []errorEntry `json:"types"`
+	RunTypes []string     `json:"runChannelTypes"`
+	Inline   []string     `json:"inlineStatusTypes"`
+}
+
+// errorEntry is one published business error.
+type errorEntry struct {
+	Type              string   `json:"type"`
+	Code              int      `json:"code"`
+	Recovery          string   `json:"recoveryAction"`
+	RetryAfterSeconds int      `json:"retryAfterSeconds,omitempty"`
+	Methods           []string `json:"methods,omitempty"`
 }
 
 type capabilityEntry struct {
@@ -134,7 +150,7 @@ func build(walked *schemaSet) manifest {
 		Methods:          methods(registry),
 		Notifications:    []string{dispatch.NotificationRunEvent, dispatch.NotificationWorkspaceEvent},
 		StreamingMethods: registry.StreamMethods(),
-		Errors:           errors(),
+		Errors:           errors(registry),
 		CapabilityPolicy: capabilities(registry),
 		RunEventPolicy:   runEvents(shapes),
 		RuntimeTopics:    topics(shapes),
@@ -163,31 +179,32 @@ func methods(registry *dispatch.Registry) []methodEntry {
 	return out
 }
 
-func errors() errorRegistry {
+func errors(registry *dispatch.Registry) errorRegistry {
+	codes := map[string]int{
+		protocol.ErrMethodNotFound.Error():         protocol.CodeMethodNotFound,
+		protocol.ErrInvalidParams.Error():          protocol.CodeInvalidParams,
+		protocol.ErrProviderError.Error():          protocol.CodeProviderError,
+		protocol.ErrSessionNotFound.Error():        protocol.CodeSessionNotFound,
+		protocol.ErrRunNotFound.Error():            protocol.CodeRunNotFound,
+		protocol.ErrItemNotFound.Error():           protocol.CodeItemNotFound,
+		protocol.ErrCwdUnavailable.Error():         protocol.CodeCwdUnavailable,
+		protocol.ErrCapabilityNotNeg.Error():       protocol.CodeCapabilityNotNeg,
+		protocol.ErrRunAlreadyDone.Error():         protocol.CodeRunAlreadyDone,
+		protocol.ErrCheckpointUnavailable.Error():  protocol.CodeCheckpointUnavail,
+		protocol.ErrUnsupportedMime.Error():        protocol.CodeUnsupportedMime,
+		protocol.ErrPathOutsideRoot.Error():        protocol.CodePathOutsideRoot,
+		protocol.ErrInterruptNotOpen.Error():       protocol.CodeInterruptNotOpen,
+		protocol.ErrRunNotRoot.Error():             protocol.CodeRunNotRoot,
+		protocol.ErrSessionHasActiveRun.Error():    protocol.CodeSessionHasActiveRun,
+		protocol.ErrInvalidProtocolVersion.Error(): protocol.CodeInvalidProtocolVersion,
+		protocol.ErrVcsUnavailable.Error():         protocol.CodeVcsUnavailable,
+		protocol.ErrSessionBusy.Error():            protocol.CodeSessionBusy,
+		protocol.ErrRevisionConflict.Error():       protocol.CodeRevisionConflict,
+		protocol.ErrIdempotencyConflict.Error():    protocol.CodeIdempotencyConflict,
+		protocol.ErrIdempotencyInProgress.Error():  protocol.CodeIdempotencyInProgress,
+	}
 	return errorRegistry{
-		Codes: map[string]int{
-			protocol.ErrMethodNotFound.Error():         protocol.CodeMethodNotFound,
-			protocol.ErrInvalidParams.Error():          protocol.CodeInvalidParams,
-			protocol.ErrProviderError.Error():          protocol.CodeProviderError,
-			protocol.ErrSessionNotFound.Error():        protocol.CodeSessionNotFound,
-			protocol.ErrRunNotFound.Error():            protocol.CodeRunNotFound,
-			protocol.ErrItemNotFound.Error():           protocol.CodeItemNotFound,
-			protocol.ErrCwdUnavailable.Error():         protocol.CodeCwdUnavailable,
-			protocol.ErrCapabilityNotNeg.Error():       protocol.CodeCapabilityNotNeg,
-			protocol.ErrRunAlreadyDone.Error():         protocol.CodeRunAlreadyDone,
-			protocol.ErrCheckpointUnavailable.Error():  protocol.CodeCheckpointUnavail,
-			protocol.ErrUnsupportedMime.Error():        protocol.CodeUnsupportedMime,
-			protocol.ErrPathOutsideRoot.Error():        protocol.CodePathOutsideRoot,
-			protocol.ErrInterruptNotOpen.Error():       protocol.CodeInterruptNotOpen,
-			protocol.ErrRunNotRoot.Error():             protocol.CodeRunNotRoot,
-			protocol.ErrSessionHasActiveRun.Error():    protocol.CodeSessionHasActiveRun,
-			protocol.ErrInvalidProtocolVersion.Error(): protocol.CodeInvalidProtocolVersion,
-			protocol.ErrVcsUnavailable.Error():         protocol.CodeVcsUnavailable,
-			protocol.ErrSessionBusy.Error():            protocol.CodeSessionBusy,
-			protocol.ErrRevisionConflict.Error():       protocol.CodeRevisionConflict,
-			protocol.ErrIdempotencyConflict.Error():    protocol.CodeIdempotencyConflict,
-			protocol.ErrIdempotencyInProgress.Error():  protocol.CodeIdempotencyInProgress,
-		},
+		Types: errorTypes(registry, codes),
 		// The run/tool channels carry no numeric code — only a symbolic type
 		// (API.md §8.4). They are listed so a client's copy table can be checked
 		// for completeness against the runtime rather than against a doc.
@@ -346,6 +363,44 @@ func invariants() []invariantEntry {
 			boundaries = append(boundaries, string(boundary))
 		}
 		out = append(out, invariantEntry{Key: spec.Key, Why: spec.Why, Boundaries: boundaries})
+	}
+	return out
+}
+
+// errorTypes publishes one entry per business error: its code, the recovery action
+// declared beside its wire behavior, and the methods whose registrations say they
+// return it. Sorted by type so the artifact is stable.
+func errorTypes(registry *dispatch.Registry, codes map[string]int) []errorEntry {
+	byType := make(map[string][]string, len(codes))
+	for _, meta := range registry.Metas() {
+		for _, problem := range meta.Errors {
+			byType[problem] = append(byType[problem], meta.Name)
+		}
+	}
+	out := make([]errorEntry, 0, len(codes))
+	for problemType, code := range codes {
+		recovery, declared := dispatch.RecoveryFor(problemType)
+		if !declared {
+			panic("contractgen: problem type " + problemType + " declares no recovery action")
+		}
+		methods := byType[problemType]
+		slices.Sort(methods)
+		out = append(out, errorEntry{
+			Type: problemType, Code: code, Recovery: string(recovery),
+			RetryAfterSeconds: dispatch.RetryAfterFor(problemType),
+			Methods:           methods,
+		})
+	}
+	slices.SortFunc(out, func(a, b errorEntry) int { return cmp.Compare(a.Type, b.Type) })
+	return out
+}
+
+// problemCodes is the type→code map, read back from the published registry so the
+// OpenRPC document and the manifest cannot state different numbers.
+func problemCodes(registry *dispatch.Registry) map[string]int {
+	out := make(map[string]int)
+	for _, entry := range errors(registry).Types {
+		out[entry.Type] = entry.Code
 	}
 	return out
 }

@@ -347,13 +347,10 @@ type ArtifactToolInvocation struct {
 }
 
 type ArtifactProblem struct {
-	Type   ArtifactProblemType `json:"type"`
-	Detail string              `json:"detail,omitempty"`
-	DocURL string              `json:"docUrl,omitempty"`
-	// Retryable has no writer and is not read back on import; it leaves with the
-	// artifact version bump. See ProblemData.Retryable — do not re-derive it.
-	Retryable         bool `json:"retryable,omitempty"`
-	RetryAfterSeconds int  `json:"retryAfterSeconds,omitempty"`
+	Type              ArtifactProblemType `json:"type"`
+	Detail            string              `json:"detail,omitempty"`
+	DocURL            string              `json:"docUrl,omitempty"`
+	RetryAfterSeconds int                 `json:"retryAfterSeconds,omitempty"`
 }
 
 // ArtifactProblemType is the durable transcript error vocabulary. It remains

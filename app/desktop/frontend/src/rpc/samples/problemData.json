@@ -1,6 +1,5 @@
 {
   "type": "invalid_params",
-  "channel": "rpc",
   "detail": "one or more fields failed validation",
   "errors": [
     {

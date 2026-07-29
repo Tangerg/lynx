@@ -108,6 +108,20 @@ func registerItemUnions(s *Shapes) {
 		},
 	})
 
+	// Four short registries, so a gap says which vocabulary its name belongs to. The
+	// variants carry the same field set on purpose: what differs is what `name` MEANS,
+	// and each registry publishes its own values rather than restating them here.
+	s.union(UnionSpec{
+		GoType:        typeOf[protocol.CapabilityRequirement](),
+		Discriminator: "type",
+		Variants: []VariantSpec{
+			{Tag: string(protocol.RequirementFeature), Required: []string{"name"}},
+			{Tag: string(protocol.RequirementInterruptType), Required: []string{"name"}},
+			{Tag: string(protocol.RequirementRuntimeTopic), Required: []string{"name"}},
+			{Tag: string(protocol.RequirementStateSnapshot), Required: []string{"name"}},
+		},
+	})
+
 	// One key today, and it is tagged: the stream event and the cold read carry the
 	// same shape, so a second key must arrive as a new tag rather than as extra
 	// optional fields nobody can tell apart.
@@ -353,6 +367,23 @@ func registerObjectConstraints(s *Shapes) {
 		}, {
 			When:      []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.SegmentSuspended)}},
 			Forbidden: []string{"interrupts", "error", "detail"},
+		}},
+	})
+
+	// §9.2's frame table: a known problem type's structured fields are required by
+	// the type, and forbidden on every other. The alternative is prose — the payload
+	// folded into `detail`, where nothing can check it and every client parses it
+	// differently.
+	s.constraint(ObjectConstraintSpec{
+		GoType: typeOf[protocol.ProblemData](),
+		Rules: []PresenceRule{{
+			When:      []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: protocol.ErrSessionHasActiveRun.Error()}},
+			Required:  []string{"activeRun"},
+			Forbidden: []string{"requiredCapabilities", "retryAfterSeconds"},
+		}, {
+			When:      []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: protocol.ErrCapabilityNotNeg.Error()}},
+			Required:  []string{"requiredCapabilities"},
+			Forbidden: []string{"activeRun", "retryAfterSeconds"},
 		}},
 	})
 

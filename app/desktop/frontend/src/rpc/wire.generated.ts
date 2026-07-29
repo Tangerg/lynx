@@ -145,7 +145,6 @@ export interface ArtifactProblem {
   detail?: string;
   docUrl?: string;
   retryAfterSeconds?: number;
-  retryable?: boolean;
   type: ArtifactProblemType;
 }
 
@@ -238,6 +237,14 @@ export interface CancelRunRequest {
   reason?: string;
   runId: string;
 }
+
+export type CapabilityRequirement =
+  | { type: "feature"; name: string }
+  | { type: "interruptType"; name: string }
+  | { type: "runtimeTopic"; name: string }
+  | { type: "stateSnapshot"; name: string };
+
+export type CapabilityRequirementType = "feature" | "interruptType" | "runtimeTopic" | "stateSnapshot";
 
 export interface ClientCapabilities {
   excludedEphemeralEvents?: StreamEventType[];
@@ -376,8 +383,6 @@ export interface EmbeddingRole {
   model?: string;
   provider?: string;
 }
-
-export type ErrorChannel = "rpc" | "run" | "tool";
 
 export type ExportFormat = "md" | "json";
 
@@ -882,12 +887,11 @@ export type PlanStepStatus = "pending" | "running" | "completed" | "failed";
 
 export interface ProblemData {
   activeRun?: ActiveRunRef;
-  channel?: ErrorChannel;
   detail?: string;
   docUrl?: string;
   errors?: FieldError[];
+  requiredCapabilities?: CapabilityRequirement[];
   retryAfterSeconds?: number;
-  retryable?: boolean;
   type: string;
 }
 
@@ -1402,12 +1406,12 @@ export const WIRE_ENUMS = {
   ApprovalRuleScope: ["session", "project", "global"],
   ArtifactOutcomeType: ["completed", "error", "maxSteps", "maxBudget", "canceled"],
   ArtifactProblemType: ["internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed"],
+  CapabilityRequirementType: ["feature", "interruptType", "runtimeTopic", "stateSnapshot"],
   CodebaseState: ["none", "indexing", "ready", "error"],
   ContentBlockType: ["text", "image"],
   DiffFormat: ["rows", "raw"],
   DiffMode: ["worktree", "base"],
   DiffRowType: ["hunk", "context", "added", "deleted"],
-  ErrorChannel: ["rpc", "run", "tool"],
   ExportFormat: ["md", "json"],
   FeedbackRating: ["positive", "negative"],
   FileEntryType: ["file", "dir", "symlink"],

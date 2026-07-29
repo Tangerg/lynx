@@ -37,6 +37,9 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		// caller can still follow it.
 		CallerCapabilities: caller,
 	})
+	if uncovered, ok := errors.AsType[*execution.ProfileNotCovered](err); ok {
+		return nil, nil, profileGap(uncovered.Gap)
+	}
 	if err != nil {
 		switch {
 		case errors.Is(err, runs.ErrInterruptNotOpen):
@@ -47,8 +50,6 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 			return nil, nil, protocol.ErrSessionBusy
 		case errors.Is(err, runs.ErrRunNotFound):
 			return nil, nil, protocol.ErrRunNotFound
-		case errors.Is(err, execution.ErrProfileNotCovered):
-			return nil, nil, fmt.Errorf("%w: %w", protocol.ErrCapabilityNotNeg, err)
 		default:
 			return nil, nil, err
 		}

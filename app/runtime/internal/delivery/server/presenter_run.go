@@ -188,17 +188,12 @@ func presentProblem(problem *transcript.Problem) *protocol.ProblemData {
 	default:
 		panic("server: unknown transcript problem kind")
 	}
-	var scope protocol.ErrorChannel
-	switch problem.Scope {
-	case transcript.RunProblem:
-		scope = protocol.ErrorChannelRun
-	case transcript.ToolProblem:
-		scope = protocol.ErrorChannelTool
-	default:
-		panic("server: unknown transcript problem scope")
-	}
+	// The problem's scope is not published: where the frame LANDS already says it —
+	// a run's outcome or a tool call's error — and a field restating that is a second
+	// answer a client could find disagreeing with the first. The domain keeps its own
+	// scope, which is what stops a run problem being stored in a tool slot.
 	return &protocol.ProblemData{
-		Type: kind, Channel: scope, Detail: problem.Detail, DocURL: problem.DocURL,
+		Type: kind, Detail: problem.Detail, DocURL: problem.DocURL,
 		RetryAfterSeconds: problem.RetryAfterSeconds,
 	}
 }

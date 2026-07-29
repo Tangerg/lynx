@@ -52,6 +52,8 @@ export type WireTypeName =
   | "ArtifactToolResult"
   | "ArtifactUsage"
   | "CancelRunRequest"
+  | "CapabilityRequirement"
+  | "CapabilityRequirementType"
   | "ClientCapabilities"
   | "ClientInfo"
   | "CodebaseHit"
@@ -78,7 +80,6 @@ export type WireTypeName =
   | "DiscoverResponse"
   | "DroppedRun"
   | "EmbeddingRole"
-  | "ErrorChannel"
   | "ExportFormat"
   | "ExportSessionRequest"
   | "ExportSessionResponse"
@@ -512,7 +513,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     detail: text(),
     docUrl: text(),
     retryAfterSeconds: integer(),
-    retryable: flag(),
     type: ref(() => CHECKS.ArtifactProblemType),
   }, ["type"]),
   ArtifactProblemType: enumOf(["internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed"]),
@@ -593,6 +593,27 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     reason: text(),
     runId: allOf([text(), minLength(1)]),
   }, ["runId"]),
+  CapabilityRequirement: allOf([
+    object({
+      name: text(),
+      type: ref(() => CHECKS.CapabilityRequirementType),
+    }, []),
+    oneOf([
+      fields({
+        type: literal("feature"),
+      }, ["name", "type"]),
+      fields({
+        type: literal("interruptType"),
+      }, ["name", "type"]),
+      fields({
+        type: literal("runtimeTopic"),
+      }, ["name", "type"]),
+      fields({
+        type: literal("stateSnapshot"),
+      }, ["name", "type"]),
+    ]),
+  ]),
+  CapabilityRequirementType: enumOf(["feature", "interruptType", "runtimeTopic", "stateSnapshot"]),
   ClientCapabilities: object({
     excludedEphemeralEvents: array(ref(() => CHECKS.StreamEventType)),
     features: record(ref(() => CHECKS.FeaturePreference)),
@@ -747,7 +768,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     model: text(),
     provider: text(),
   }, []),
-  ErrorChannel: enumOf(["rpc", "run", "tool"]),
   ExportFormat: enumOf(["md", "json"]),
   ExportSessionRequest: object({
     format: ref(() => CHECKS.ExportFormat),
@@ -1428,16 +1448,35 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     title: text(),
   }, ["id", "status", "title"]),
   PlanStepStatus: enumOf(["pending", "running", "completed", "failed"]),
-  ProblemData: object({
-    activeRun: ref(() => CHECKS.ActiveRunRef),
-    channel: ref(() => CHECKS.ErrorChannel),
-    detail: text(),
-    docUrl: text(),
-    errors: array(ref(() => CHECKS.FieldError)),
-    retryAfterSeconds: integer(),
-    retryable: flag(),
-    type: text(),
-  }, ["type"]),
+  ProblemData: allOf([
+    object({
+      activeRun: ref(() => CHECKS.ActiveRunRef),
+      detail: text(),
+      docUrl: text(),
+      errors: array(ref(() => CHECKS.FieldError)),
+      requiredCapabilities: array(ref(() => CHECKS.CapabilityRequirement)),
+      retryAfterSeconds: integer(),
+      type: text(),
+    }, ["type"]),
+    ifThen(
+      fields({
+        type: literal("session_has_active_run"),
+      }, ["type"]),
+      fields({
+        requiredCapabilities: absent(),
+        retryAfterSeconds: absent(),
+      }, ["activeRun"]),
+    ),
+    ifThen(
+      fields({
+        type: literal("capability_not_negotiated"),
+      }, ["type"]),
+      fields({
+        activeRun: absent(),
+        retryAfterSeconds: absent(),
+      }, ["requiredCapabilities"]),
+    ),
+  ]),
   Project: object({
     branch: text(),
     cwd: text(),

@@ -104,11 +104,12 @@ func (s *Server) ListInterrupts(ctx context.Context, in protocol.ListInterruptsR
 }
 
 // wireInterruptPageError maps the read's two refusals. Both name something the
-// caller can act on: declare the capability, or ask under the root.
+// caller can act on: declare the capabilities, or ask under the root.
 func wireInterruptPageError(err error) error {
+	if uncovered, ok := errors.AsType[*execution.ProfileNotCovered](err); ok {
+		return profileGap(uncovered.Gap)
+	}
 	switch {
-	case errors.Is(err, execution.ErrProfileNotCovered):
-		return fmt.Errorf("%w: %w", protocol.ErrCapabilityNotNeg, err)
 	case errors.Is(err, transcript.ErrNotRoot):
 		return fmt.Errorf("%w: %w", protocol.ErrRunNotRoot, err)
 	default:
@@ -136,10 +137,10 @@ func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 		return nil, nil, err
 	}
 	record, events, err := s.coordinator.SubscribeLive(ctx, runID, fromCursor, caller)
-	switch {
-	case errors.Is(err, execution.ErrProfileNotCovered):
-		return nil, nil, fmt.Errorf("%w: %w", protocol.ErrCapabilityNotNeg, err)
-	case err != nil:
+	if uncovered, ok := errors.AsType[*execution.ProfileNotCovered](err); ok {
+		return nil, nil, profileGap(uncovered.Gap)
+	}
+	if err != nil {
 		return nil, nil, protocol.ErrRunNotFound
 	}
 	return &protocol.StartRunResponse{RunID: runID, SegmentID: record.SegmentID}, mapRunEvents(ctx, events), nil

@@ -816,29 +816,199 @@
     "workspace.subscribe"
   ],
   "errors": {
-    "codes": {
-      "capability_not_negotiated": -32006,
-      "checkpoint_unavailable": -32009,
-      "cwd_unavailable": -32005,
-      "idempotency_conflict": -32020,
-      "idempotency_in_progress": -32021,
-      "interrupt_not_open": -32014,
-      "invalid_params": -32602,
-      "invalid_protocol_version": -32016,
-      "item_not_found": -32004,
-      "method_not_found": -32601,
-      "path_outside_root": -32013,
-      "provider_error": -32001,
-      "revision_conflict": -32019,
-      "run_already_finished": -32008,
-      "run_not_found": -32003,
-      "run_not_root": -32022,
-      "session_busy": -32018,
-      "session_has_active_run": -32023,
-      "session_not_found": -32002,
-      "unsupported_mime": -32011,
-      "vcs_unavailable": -32017
-    },
+    "types": [
+      {
+        "type": "capability_not_negotiated",
+        "code": -32006,
+        "recoveryAction": "promptUser"
+      },
+      {
+        "type": "checkpoint_unavailable",
+        "code": -32009,
+        "recoveryAction": "promptUser",
+        "methods": [
+          "sessions.rollback"
+        ]
+      },
+      {
+        "type": "cwd_unavailable",
+        "code": -32005,
+        "recoveryAction": "promptUser",
+        "methods": [
+          "agentDocs.list",
+          "codebase.reindex",
+          "codebase.search",
+          "codebase.status",
+          "hooks.list",
+          "memory.get",
+          "memory.list",
+          "memory.update",
+          "recipes.list",
+          "sessions.create",
+          "sessions.update",
+          "skills.discovered.list",
+          "tools.invoke",
+          "workspace.getDiff",
+          "workspace.getFileHead",
+          "workspace.grep",
+          "workspace.listFileChanges",
+          "workspace.listFiles",
+          "workspace.readFile"
+        ]
+      },
+      {
+        "type": "idempotency_conflict",
+        "code": -32020,
+        "recoveryAction": "promptUser"
+      },
+      {
+        "type": "idempotency_in_progress",
+        "code": -32021,
+        "recoveryAction": "waitRetryAfter",
+        "retryAfterSeconds": 1
+      },
+      {
+        "type": "interrupt_not_open",
+        "code": -32014,
+        "recoveryAction": "coldRecover",
+        "methods": [
+          "runs.resume"
+        ]
+      },
+      {
+        "type": "invalid_params",
+        "code": -32602,
+        "recoveryAction": "stop"
+      },
+      {
+        "type": "invalid_protocol_version",
+        "code": -32016,
+        "recoveryAction": "promptUser"
+      },
+      {
+        "type": "item_not_found",
+        "code": -32004,
+        "recoveryAction": "refetch"
+      },
+      {
+        "type": "method_not_found",
+        "code": -32601,
+        "recoveryAction": "stop"
+      },
+      {
+        "type": "path_outside_root",
+        "code": -32013,
+        "recoveryAction": "promptUser",
+        "methods": [
+          "tools.invoke",
+          "workspace.getDiff",
+          "workspace.getFileHead",
+          "workspace.grep",
+          "workspace.listFiles",
+          "workspace.readFile"
+        ]
+      },
+      {
+        "type": "provider_error",
+        "code": -32001,
+        "recoveryAction": "promptUser"
+      },
+      {
+        "type": "revision_conflict",
+        "code": -32019,
+        "recoveryAction": "refetch",
+        "methods": [
+          "schedules.update",
+          "sessions.update"
+        ]
+      },
+      {
+        "type": "run_already_finished",
+        "code": -32008,
+        "recoveryAction": "refetch",
+        "methods": [
+          "runs.cancel"
+        ]
+      },
+      {
+        "type": "run_not_found",
+        "code": -32003,
+        "recoveryAction": "refetch",
+        "methods": [
+          "items.list",
+          "runs.cancel",
+          "runs.get",
+          "runs.resume",
+          "runs.steer",
+          "runs.subscribe",
+          "sessions.fork",
+          "sessions.rollback"
+        ]
+      },
+      {
+        "type": "run_not_root",
+        "code": -32022,
+        "recoveryAction": "refetch",
+        "methods": [
+          "interrupts.list"
+        ]
+      },
+      {
+        "type": "session_busy",
+        "code": -32018,
+        "recoveryAction": "refetch",
+        "methods": [
+          "runs.start",
+          "sessions.rollback"
+        ]
+      },
+      {
+        "type": "session_has_active_run",
+        "code": -32023,
+        "recoveryAction": "promptUser",
+        "methods": [
+          "runs.start"
+        ]
+      },
+      {
+        "type": "session_not_found",
+        "code": -32002,
+        "recoveryAction": "refetch",
+        "methods": [
+          "goals.get",
+          "goals.resume",
+          "goals.start",
+          "goals.stop",
+          "items.list",
+          "runs.start",
+          "sessions.delete",
+          "sessions.export",
+          "sessions.fork",
+          "sessions.get",
+          "sessions.rollback",
+          "sessions.update",
+          "todos.get",
+          "usage.session"
+        ]
+      },
+      {
+        "type": "unsupported_mime",
+        "code": -32011,
+        "recoveryAction": "promptUser",
+        "methods": [
+          "runs.start"
+        ]
+      },
+      {
+        "type": "vcs_unavailable",
+        "code": -32017,
+        "recoveryAction": "promptUser",
+        "methods": [
+          "workspace.getDiff",
+          "workspace.listFileChanges"
+        ]
+      }
+    ],
     "runChannelTypes": [
       "internal_error",
       "run_lost",
@@ -1652,6 +1822,36 @@
       ]
     },
     {
+      "type": "CapabilityRequirement",
+      "discriminator": "type",
+      "variants": [
+        {
+          "tag": "feature",
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "tag": "interruptType",
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "tag": "runtimeTopic",
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "tag": "stateSnapshot",
+          "required": [
+            "name"
+          ]
+        }
+      ]
+    },
+    {
       "type": "StateSnapshot",
       "discriminator": "type",
       "variants": [
@@ -2355,6 +2555,43 @@
             "interrupts",
             "error",
             "detail"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ProblemData",
+      "rules": [
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "session_has_active_run"
+            }
+          ],
+          "required": [
+            "activeRun"
+          ],
+          "forbidden": [
+            "requiredCapabilities",
+            "retryAfterSeconds"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "capability_not_negotiated"
+            }
+          ],
+          "required": [
+            "requiredCapabilities"
+          ],
+          "forbidden": [
+            "activeRun",
+            "retryAfterSeconds"
           ]
         }
       ]

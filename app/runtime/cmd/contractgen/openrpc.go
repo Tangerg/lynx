@@ -77,7 +77,7 @@ type openrpcError struct {
 }
 
 func newOpenRPC(registry *dispatch.Registry, set *schemaSet) openrpcDocument {
-	codes := errors().Codes
+	codes := problemCodes(registry)
 	document := openrpcDocument{
 		OpenRPC: openrpcVersion,
 		Info: openrpcInfo{

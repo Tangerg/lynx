@@ -2,6 +2,7 @@ package execution
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 )
@@ -11,6 +12,25 @@ import (
 // rather than with either use case, because both the continuation path and the
 // waiting-set read enforce the same rule, and one rule has one sentinel.
 var ErrProfileNotCovered = errors.New("execution: caller does not cover the run's protocol profile")
+
+// ProfileNotCovered is the refusal WITH its gap: which Run, and exactly what the
+// caller would have to declare to follow it.
+//
+// The gap is a profile because that is what it is — a pair of sets — and because the
+// caller has to be told all of it at once: a caller fixing one missing capability at
+// a time never reaches a request that succeeds.
+type ProfileNotCovered struct {
+	RunID string
+	Gap   RunProtocolProfile
+}
+
+func (e *ProfileNotCovered) Error() string {
+	return fmt.Sprintf("%s: run %q publishes %s", ErrProfileNotCovered, e.RunID, e.Gap)
+}
+
+// Is answers to the sentinel, so a reader that only branches on "not covered" keeps
+// working and only a reader that needs the gap asks for the type.
+func (e *ProfileNotCovered) Is(target error) bool { return target == ErrProfileNotCovered }
 
 // RunProtocolProfile is the protocol contract a Run is admitted under: which
 // negotiated capabilities change what the Run publishes, and which durable human

@@ -44,7 +44,9 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (execution.RunProtoc
 		}
 		published, known := protocol.LookupFeature(key)
 		if !known || !advertised[key].Enabled {
-			return execution.RunProtocolProfile{}, fmt.Errorf("%w: features.%s is not available on this runtime", protocol.ErrCapabilityNotNeg, key)
+			return execution.RunProtocolProfile{}, protocol.NewCapabilityGap(protocol.CapabilityRequirement{
+				Type: protocol.RequirementFeature, Name: key,
+			})
 		}
 		// Only a feature that changes what the Run PUBLISHES belongs on the Run: the
 		// profile exists so a later subscriber can be told what it must understand,
@@ -62,15 +64,39 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (execution.RunProtoc
 		}
 		if declared == protocol.InterruptToolResult {
 			// A client tool's wait is raised for and answered by the CLIENT, so the
-			// runtime can only produce it with features.clientTools. Naming the missing
-			// capability is the honest refusal; calling it a bad request would send the
-			// client looking for a typo.
-			return execution.RunProtocolProfile{}, fmt.Errorf("%w: interruptTypes.%s requires features.%s",
-				protocol.ErrCapabilityNotNeg, declared, protocol.FeatureClientTools)
+			// runtime can only produce it with features.clientTools. Both gaps are named:
+			// the type the caller asked for and the feature that would make it possible,
+			// because fixing only one of them changes nothing.
+			return execution.RunProtocolProfile{}, protocol.NewCapabilityGap(
+				protocol.CapabilityRequirement{Type: protocol.RequirementInterruptType, Name: string(declared)},
+				protocol.CapabilityRequirement{Type: protocol.RequirementFeature, Name: protocol.FeatureClientTools},
+			)
 		}
 		return execution.RunProtocolProfile{}, fmt.Errorf("%w: unknown interruptTypes value %q", protocol.ErrInvalidParams, declared)
 	}
 	return profile.Normalized(), nil
+}
+
+// profileGap turns a Run's uncovered profile into the requirements a caller would
+// have to declare. It is the same list in both directions: what the Run publishes,
+// spoken as what the caller is missing.
+//
+// Every gap at once, because a caller told about one at a time cannot get itself into
+// a state where the call succeeds.
+func profileGap(gap execution.RunProtocolProfile) *protocol.CapabilityGap {
+	requirements := make([]protocol.CapabilityRequirement, 0,
+		len(gap.RequiredFeatures)+len(gap.InterruptKinds))
+	for _, feature := range gap.RequiredFeatures {
+		requirements = append(requirements, protocol.CapabilityRequirement{
+			Type: protocol.RequirementFeature, Name: feature,
+		})
+	}
+	for _, kind := range gap.InterruptKinds {
+		requirements = append(requirements, protocol.CapabilityRequirement{
+			Type: protocol.RequirementInterruptType, Name: string(presentInterruptType(kind)),
+		})
+	}
+	return protocol.NewCapabilityGap(requirements...)
 }
 
 // interruptKindFromWire maps a declared interrupt type onto the durable kind the
