@@ -372,8 +372,14 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 		t.Fatalf("put interrupt: %v", err)
 	}
 
-	if err := s.CancelRun(ctx, protocol.CancelRunRequest{RunID: "run_parked", Reason: "user stopped"}); err != nil {
+	cancelResult, err := s.CancelRun(ctx, protocol.CancelRunRequest{RunID: "run_parked", Reason: "user stopped"})
+	if err != nil {
 		t.Fatalf("cancel parked run: %v", err)
+	}
+	if cancelResult.Type != protocol.CancelRunRoot ||
+		cancelResult.Run.ID != "run_parked" ||
+		cancelResult.Run.Status != protocol.RunStatusFinished {
+		t.Fatalf("cancel result = %+v, want finished root run_parked", cancelResult)
 	}
 	exported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
 	if err != nil {

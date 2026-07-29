@@ -167,7 +167,9 @@
       "idempotency": "replayResponse",
       "errors": [
         "run_not_found",
-        "run_already_finished"
+        "run_finished",
+        "session_busy",
+        "capability_not_negotiated"
       ],
       "stability": "stable"
     },
@@ -830,7 +832,10 @@
       {
         "type": "capability_not_negotiated",
         "code": -32006,
-        "recoveryAction": "promptUser"
+        "recoveryAction": "promptUser",
+        "methods": [
+          "runs.cancel"
+        ]
       },
       {
         "type": "checkpoint_unavailable",
@@ -949,18 +954,11 @@
         ]
       },
       {
-        "type": "run_already_finished",
-        "code": -32008,
-        "recoveryAction": "refetch",
-        "methods": [
-          "runs.cancel"
-        ]
-      },
-      {
         "type": "run_finished",
         "code": -32025,
         "recoveryAction": "coldRecover",
         "methods": [
+          "runs.cancel",
           "runs.steer",
           "runs.subscribe"
         ]
@@ -1004,6 +1002,7 @@
         "code": -32018,
         "recoveryAction": "refetch",
         "methods": [
+          "runs.cancel",
           "runs.start",
           "sessions.rollback"
         ]
@@ -1683,6 +1682,25 @@
     }
   ],
   "unions": [
+    {
+      "type": "CancelRunResponse",
+      "discriminator": "type",
+      "variants": [
+        {
+          "tag": "root",
+          "required": [
+            "run"
+          ]
+        },
+        {
+          "tag": "child",
+          "required": [
+            "run",
+            "rootRun"
+          ]
+        }
+      ]
+    },
     {
       "type": "RunOutcome",
       "discriminator": "type",

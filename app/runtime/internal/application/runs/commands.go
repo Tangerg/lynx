@@ -27,6 +27,10 @@ var (
 	// ErrRunNotFound reports that a cancel or steer target is neither live nor
 	// parked.
 	ErrRunNotFound = errors.New("runs: run not found")
+	// ErrChildRunNotAllowed reports that a caller addressed a child Run without
+	// the child-run capability. The application keeps this protocol-neutral:
+	// Delivery decides how that missing authority is represented on its wire.
+	ErrChildRunNotAllowed = errors.New("runs: child run control is not allowed")
 	// ErrRunWaiting and ErrRunFinished report a run that exists but is not
 	// executing. They are separate from ErrRunNotFound because the caller's next
 	// move differs and is knowable: a waiting run needs its interrupts answered, a
@@ -191,6 +195,19 @@ type QuestionResponse struct {
 type CancelCommand struct {
 	RunID  string
 	Reason string
+	// AllowChildRun is the caller's already-negotiated authority to address a
+	// child directly. It is false for the Minimal Profile and while the runtime
+	// has no child-run producer.
+	AllowChildRun bool
+}
+
+// CancelResult is the exact durable terminal snapshot committed by Cancel.
+// RootRun is present only when the addressed Run is a child; it gives Delivery
+// enough information to publish the closed root/child result union without
+// querying or reconstructing domain state after the command boundary.
+type CancelResult struct {
+	Run     transcript.Run
+	RootRun *transcript.Run
 }
 
 // SteerCommand injects a message into an actively executing run.

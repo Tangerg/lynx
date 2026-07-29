@@ -1106,6 +1106,53 @@
         "runId"
       ]
     },
+    "CancelRunResponse": {
+      "type": "object",
+      "properties": {
+        "rootRun": {
+          "$ref": "#/$defs/RunRef"
+        },
+        "run": {
+          "$ref": "#/$defs/RunRef"
+        },
+        "type": {
+          "$ref": "#/$defs/CancelRunResponseType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "rootRun": false,
+            "type": {
+              "const": "root"
+            }
+          },
+          "required": [
+            "run",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "child"
+            }
+          },
+          "required": [
+            "rootRun",
+            "run",
+            "type"
+          ]
+        }
+      ]
+    },
+    "CancelRunResponseType": {
+      "type": "string",
+      "enum": [
+        "root",
+        "child"
+      ]
+    },
     "CapabilityRequirement": {
       "type": "object",
       "properties": {

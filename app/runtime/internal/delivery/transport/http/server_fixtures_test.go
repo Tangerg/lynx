@@ -25,9 +25,16 @@ func (f *fakeRuntime) Discover(context.Context) (*protocol.DiscoverResponse, err
 	return &protocol.DiscoverResponse{Protocol: protocol.SupportedProtocolRange()}, nil
 }
 
-func (f *fakeRuntime) CancelRun(_ context.Context, in protocol.CancelRunRequest) error {
+func (f *fakeRuntime) CancelRun(_ context.Context, in protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
 	f.canceledRuns = append(f.canceledRuns, in.RunID)
-	return nil
+	outcome := protocol.RunOutcome{Type: protocol.OutcomeCanceled}
+	return &protocol.CancelRunResponse{
+		Type: protocol.CancelRunRoot,
+		Run: protocol.RunRef{RunSummary: protocol.RunSummary{
+			ID: in.RunID, SessionID: "ses_test", Status: protocol.RunStatusFinished,
+			Outcome: &outcome,
+		}},
+	}, nil
 }
 
 func newTestServer(t *testing.T) (*httptest.Server, *fakeRuntime) {

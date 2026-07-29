@@ -51,7 +51,7 @@ type SessionLifecycle interface {
 	ActiveRun(ctx context.Context, sessionID string) (transcript.Run, bool, error)
 	ListOpenInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
 	GetOpenInterrupt(ctx context.Context, runID string) (interrupts.Pending, bool, error)
-	ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) error
+	ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) (transcript.Run, error)
 	ApplyRunLost(ctx context.Context, sessionID, runID string, finishedAt time.Time) error
 }
 

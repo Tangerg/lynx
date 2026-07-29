@@ -1,0 +1,74 @@
+package server
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+)
+
+type cancelRunUseCaseStub struct {
+	runUseCases
+	result  runs.CancelResult
+	err     error
+	command runs.CancelCommand
+}
+
+func (s *cancelRunUseCaseStub) Cancel(_ context.Context, command runs.CancelCommand) (runs.CancelResult, error) {
+	s.command = command
+	return s.result, s.err
+}
+
+func TestCancelRunPresentsCommittedRootSnapshot(t *testing.T) {
+	outcome := execution.OutcomeCanceled
+	useCases := &cancelRunUseCaseStub{result: runs.CancelResult{Run: transcript.Run{
+		ID: "run_1", SessionID: "ses_1", State: execution.Canceled,
+		Outcome: &outcome, Detail: "user stopped",
+	}}}
+	server := &Server{coordinator: useCases}
+
+	result, err := server.CancelRun(t.Context(), protocol.CancelRunRequest{
+		RunID: "run_1", Reason: "user stopped",
+	})
+	if err != nil {
+		t.Fatalf("CancelRun: %v", err)
+	}
+	if result.Type != protocol.CancelRunRoot ||
+		result.Run.ID != "run_1" ||
+		result.Run.Status != protocol.RunStatusFinished ||
+		result.Run.Outcome == nil ||
+		result.Run.Outcome.Type != protocol.OutcomeCanceled {
+		t.Fatalf("CancelRun result = %+v, want root run_1 finished/canceled", result)
+	}
+	if useCases.command.AllowChildRun {
+		t.Fatal("Minimal Profile unexpectedly authorized child cancellation")
+	}
+}
+
+func TestCancelRunMapsFinishedToTheSharedLifecycleError(t *testing.T) {
+	server := &Server{coordinator: &cancelRunUseCaseStub{err: runs.ErrRunFinished}}
+
+	result, err := server.CancelRun(t.Context(), protocol.CancelRunRequest{RunID: "run_1"})
+	if result != nil || !errors.Is(err, protocol.ErrRunFinished) {
+		t.Fatalf("CancelRun = (%+v, %v), want nil/ErrRunFinished", result, err)
+	}
+}
+
+func TestCancelRunNamesTheCapabilityNeededForAChild(t *testing.T) {
+	server := &Server{coordinator: &cancelRunUseCaseStub{err: runs.ErrChildRunNotAllowed}}
+
+	result, err := server.CancelRun(t.Context(), protocol.CancelRunRequest{RunID: "run_child"})
+	if result != nil || !errors.Is(err, protocol.ErrCapabilityNotNeg) {
+		t.Fatalf("CancelRun = (%+v, %v), want nil/capability_not_negotiated", result, err)
+	}
+	gap, ok := errors.AsType[*protocol.CapabilityGap](err)
+	if !ok || len(gap.Requirements) != 1 ||
+		gap.Requirements[0].Type != protocol.RequirementFeature ||
+		gap.Requirements[0].Name != protocol.FeatureSubagents {
+		t.Fatalf("capability gap = %+v, want feature/subagents", gap)
+	}
+}

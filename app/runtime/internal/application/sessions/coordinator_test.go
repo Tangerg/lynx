@@ -116,9 +116,12 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 		terminal: &applied,
 	}
 
-	err := newCoordinator(stores, nil).ApplyRunCancel(t.Context(), "ses_1", "run_1", "user stopped", finishedAt)
+	terminal, err := newCoordinator(stores, nil).ApplyRunCancel(t.Context(), "ses_1", "run_1", "user stopped", finishedAt)
 	if err != nil {
 		t.Fatalf("ApplyRunCancel: %v", err)
+	}
+	if terminal.ID != "run_1" || terminal.State != execution.Canceled {
+		t.Fatalf("returned terminal run = %+v, want canceled run_1", terminal)
 	}
 	if applied.Run.State != execution.Canceled || applied.Run.Outcome == nil || *applied.Run.Outcome != execution.OutcomeCanceled {
 		t.Fatalf("terminal run = %+v, want canceled", applied.Run)

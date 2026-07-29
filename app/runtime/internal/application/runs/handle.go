@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/completion"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // runCleanupTimeout bounds the request-detached work that tears a run down /
@@ -26,9 +27,37 @@ type handle struct {
 	hub             *Journal
 	done            chan struct{}
 	completionErr   error
+	terminalRun     *transcript.Run
 	cancelRequested bool
 	cancelReason    string
 	interrupt       interruptBoundary
+}
+
+// recordTerminalRun retains the exact Run snapshot whose terminal transaction
+// just committed. Cancel reads this after joining done, so its result cannot
+// drift from the write-set it acknowledges.
+func (h *handle) recordTerminalRun(run transcript.Run) {
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.terminalRun != nil {
+		panic("runs: live segment committed more than one terminal run")
+	}
+	h.terminalRun = &run
+}
+
+func (h *handle) committedTerminalRun() (transcript.Run, bool) {
+	if h == nil {
+		return transcript.Run{}, false
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.terminalRun == nil {
+		return transcript.Run{}, false
+	}
+	return *h.terminalRun, true
 }
 
 // interruptBoundary records the only two durable facts cancellation needs:

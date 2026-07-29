@@ -59,6 +59,7 @@ export type {
   RunProtocolProfile,
   StartRunRequest,
   StartRunResponse,
+  CancelRunResponse,
   ResumeRunRequest,
   // Items
   Item,

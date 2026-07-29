@@ -16,6 +16,7 @@ import type {
   AgentMemoryUpdateRequest,
   ApprovalModeResult,
   CancelRunRequest,
+  CancelRunResponse,
   CodebaseReindexRequest,
   CodebaseReindexResponse,
   CodebaseSearchRequest,
@@ -412,7 +413,7 @@ export interface WireShapes {
   "runs.start": { params: StartRunRequest; result: StartRunResponse };
   "runs.resume": { params: ResumeRunRequest; result: StartRunResponse };
   "runs.subscribe": { params: SubscribeRunRequest; result: SubscribeRunResponse };
-  "runs.cancel": { params: CancelRunRequest };
+  "runs.cancel": { params: CancelRunRequest; result: CancelRunResponse };
   "runs.steer": { params: SteerRunRequest };
   "runs.get": { params: GetRunRequest; result: RunRef };
   "runs.list": { params: ListRunsRequest; result: PageOfRunRef };

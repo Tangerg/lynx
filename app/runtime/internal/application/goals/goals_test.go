@@ -378,7 +378,7 @@ func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.Start
 	return runs.StartResult{RunID: runID, SessionID: cmd.SessionID, Events: chanSeq(ctx, events)}, nil
 }
 
-func (f *fakeRuns) Cancel(_ context.Context, cmd runs.CancelCommand) error {
+func (f *fakeRuns) Cancel(_ context.Context, cmd runs.CancelCommand) (runs.CancelResult, error) {
 	if f.cancelStarted != nil {
 		select {
 		case f.cancelStarted <- struct{}{}:
@@ -399,12 +399,18 @@ func (f *fakeRuns) Cancel(_ context.Context, cmd runs.CancelCommand) error {
 	}
 	f.mu.Unlock()
 	if cancel == nil {
-		return runs.ErrRunNotFound
+		return runs.CancelResult{}, runs.ErrRunNotFound
 	}
 	<-done
 	record.Outcome = execution.OutcomeCanceled
 	record.CompletedAt = time.Now()
-	return f.store.RecordTurn(context.Background(), record)
+	if err := f.store.RecordTurn(context.Background(), record); err != nil {
+		return runs.CancelResult{}, err
+	}
+	outcome := execution.OutcomeCanceled
+	return runs.CancelResult{Run: transcript.Run{
+		ID: cmd.RunID, State: execution.Canceled, Outcome: &outcome,
+	}}, nil
 }
 
 // fakeSessions is the driver's session-existence check; sessions exist unless
@@ -432,11 +438,12 @@ func (f *terminalRaceRuns) Start(ctx context.Context, cmd runs.StartCommand) (ru
 	}, nil
 }
 
-func (f *terminalRaceRuns) Cancel(context.Context, runs.CancelCommand) error {
-	return f.store.RecordTurn(context.Background(), goal.TurnRecord{
+func (f *terminalRaceRuns) Cancel(context.Context, runs.CancelCommand) (runs.CancelResult, error) {
+	err := f.store.RecordTurn(context.Background(), goal.TurnRecord{
 		SessionID: f.session, LeaseID: f.lease, RunID: "run_terminal_race",
 		Outcome: execution.OutcomeCompleted, CompletedAt: time.Now(),
 	})
+	return runs.CancelResult{}, err
 }
 
 func newDriver(t *testing.T, store *memStore, script ...turn) *goals.Driver {

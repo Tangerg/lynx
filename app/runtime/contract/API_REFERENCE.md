@@ -24,7 +24,7 @@ Protocol `2026-07-27` (minimum supported `2026-07-27`) · 85 methods
 | `runs.start` | stream | replayRunStream | — | `session_not_found`, `session_busy`, `session_has_active_run`, `unsupported_mime` |
 | `runs.resume` | stream | replayRunStream | — | `run_not_found`, `interrupt_not_open` |
 | `runs.subscribe` | stream | none | — | `run_not_found`, `run_not_root`, `run_waiting`, `run_finished`, `stale_segment`, `replay_cursor_invalid`, `replay_unavailable` |
-| `runs.cancel` | unary | replayResponse | — | `run_not_found`, `run_already_finished` |
+| `runs.cancel` | unary | replayResponse | — | `run_not_found`, `run_finished`, `session_busy`, `capability_not_negotiated` |
 | `runs.steer` | unary | replayResponse | — | `run_not_found`, `run_not_root`, `run_waiting`, `run_finished`, `stale_segment` |
 | `runs.get` | unary | none | — | `run_not_found` |
 | `runs.list` | unary | none | `subagents` | — |
@@ -127,6 +127,13 @@ non-durable event and the final state is still correct (API.md §5.2).
 
 Discriminated by `type` with no exceptions (API.md §2.1). A field belongs to at
 least one variant; the registry refuses a union where one does not.
+
+### `CancelRunResponse`
+
+| tag | required | optional |
+| --- | --- | --- |
+| `root` | `run` | — |
+| `child` | `run`, `rootRun` | — |
 
 ### `RunOutcome`
 

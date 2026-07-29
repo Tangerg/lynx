@@ -26,8 +26,9 @@ type Runs interface {
 	// replay_unavailable each say what the caller should read instead.
 	SubscribeRun(ctx context.Context, in SubscribeRunRequest) (*SubscribeRunResponse, iter.Seq[RunEvent], error)
 
-	// CancelRun hard-stops a running run (outcome:canceled).
-	CancelRun(ctx context.Context, in CancelRunRequest) error
+	// CancelRun hard-stops a running or waiting run (outcome:canceled) and
+	// returns the exact durable snapshot committed by that command.
+	CancelRun(ctx context.Context, in CancelRunRequest) (*CancelRunResponse, error)
 
 	// SteerRun injects a user message into the segment the request names so the
 	// model reads it on its next tool round (mid-run steering, API.md §6) —
@@ -300,6 +301,23 @@ type GenerationParams struct {
 type CancelRunRequest struct {
 	RunID  string `json:"runId"`
 	Reason string `json:"reason,omitempty"`
+}
+
+type CancelRunResponseType string
+
+const (
+	CancelRunRoot  CancelRunResponseType = "root"
+	CancelRunChild CancelRunResponseType = "child"
+)
+
+// CancelRunResponse is the closed result union for runs.cancel. Run is always
+// the addressed Finished(canceled) Run. A child result additionally carries
+// the root snapshot from the same command boundary so the caller can determine
+// whether the surviving tree is running, waiting, or finished without guessing.
+type CancelRunResponse struct {
+	Type    CancelRunResponseType `json:"type"`
+	Run     RunRef                `json:"run"`
+	RootRun *RunRef               `json:"rootRun,omitempty"`
 }
 
 // SteerRunRequest is the runs.steer body — a user message to inject into the

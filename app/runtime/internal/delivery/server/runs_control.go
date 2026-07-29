@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -11,15 +12,32 @@ import (
 // CancelRun hard-stops a running run (outcome:canceled, API.md §7.3).
 // A parked run is also abandoned — its live parked turn is torn down
 // and its open interrupt dropped so it stops surfacing as resumable.
-func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) error {
-	err := s.coordinator.Cancel(ctx, runs.CancelCommand{RunID: in.RunID, Reason: in.Reason})
+func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
+	caller, err := s.negotiateCapabilities(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.coordinator.Cancel(ctx, runs.CancelCommand{
+		RunID:         in.RunID,
+		Reason:        in.Reason,
+		AllowChildRun: slices.Contains(caller.RequiredFeatures, protocol.FeatureSubagents),
+	})
 	switch {
 	case errors.Is(err, runs.ErrRunNotFound):
-		return protocol.ErrRunNotFound
+		return nil, protocol.ErrRunNotFound
+	case errors.Is(err, runs.ErrRunFinished):
+		return nil, protocol.ErrRunFinished
 	case errors.Is(err, runs.ErrSessionBusy):
-		return protocol.ErrSessionBusy
+		return nil, protocol.ErrSessionBusy
+	case errors.Is(err, runs.ErrChildRunNotAllowed):
+		return nil, protocol.NewCapabilityGap(protocol.CapabilityRequirement{
+			Type: protocol.RequirementFeature,
+			Name: protocol.FeatureSubagents,
+		})
+	case err != nil:
+		return nil, err
 	default:
-		return err
+		return presentCancelResult(result), nil
 	}
 }
 

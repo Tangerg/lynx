@@ -190,6 +190,12 @@ func (p segmentPublisher) publish(ctx context.Context, batch reductionBatch) (re
 			if err := p.coordinator.effects.CommitEvent(ctx, *reduced.Commit); err != nil {
 				return reductionPublication{}, fmt.Errorf("runs: commit %T: %w", reduced.Event, err)
 			}
+			if reduced.Commit.State == StateTerminalize {
+				if reduced.Commit.Run == nil {
+					return reductionPublication{}, errors.New("runs: terminal commit has no run snapshot")
+				}
+				p.live.recordTerminalRun(*reduced.Commit.Run)
+			}
 			goalCharged = goalCharged || reduced.Commit.GoalTurn != nil
 		}
 		if reduced.Event.Terminal() {

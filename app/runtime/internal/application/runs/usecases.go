@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -204,77 +205,195 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 }
 
 // Cancel handles both live and parked runs under the same run/session admission
-// rules. The durable abandon write-set is authoritative and commits before a
-// parked turn is torn down. Process cleanup errors are returned unless the turn
-// already disappeared, which is the idempotent completion race.
-func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) error {
+// rules and returns the exact terminal Run committed by the winning write-set.
+// The durable abandon write-set is authoritative and commits before a parked
+// turn is torn down. Process cleanup errors are returned unless the turn already
+// disappeared, which is the idempotent completion race.
+func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResult, error) {
 	if err := c.requireControlDependencies(); err != nil {
-		return err
+		return CancelResult{}, err
 	}
+
+	run, found, err := c.runs.Run(ctx, cmd.RunID)
+	switch {
+	case err != nil:
+		return CancelResult{}, err
+	case !found:
+		return CancelResult{}, fmt.Errorf("%w: %q", ErrRunNotFound, cmd.RunID)
+	case run.SpawnedByItemID != "" && !cmd.AllowChildRun:
+		return CancelResult{}, fmt.Errorf("%w: %q", ErrChildRunNotAllowed, cmd.RunID)
+	case run.SpawnedByItemID != "":
+		// No producer can reach this branch while child Runs are disabled. Keeping
+		// it an internal composition fault avoids pretending root-only teardown is
+		// a valid subtree transaction.
+		return CancelResult{}, fmt.Errorf("runs: child run %q was authorized but child cancellation is unavailable", cmd.RunID)
+	case run.State.IsTerminal():
+		return CancelResult{}, fmt.Errorf("%w: %q", ErrRunFinished, cmd.RunID)
+	case run.State != execution.Running && run.State != execution.Interrupted:
+		return CancelResult{}, fmt.Errorf("runs: run %q has unknown state %d", cmd.RunID, run.State)
+	}
+
 	entry, live := c.registry.Get(cmd.RunID)
+	if !live {
+		return c.cancelWithoutLiveSegment(ctx, cmd, run)
+	}
+	if entry.handle == nil {
+		return CancelResult{}, fmt.Errorf("runs: run %q has a live registry entry without a handle", cmd.RunID)
+	}
 	cleanupCtx, cancel := entry.handle.cleanupContext(ctx)
 	defer cancel()
-	if live {
-		ref := execution.TurnRef{
+	interruptCommitted, requestErr := entry.handle.requestCancel(cleanupCtx, cmd.Reason)
+	c.registry.MarkCancel(cmd.RunID, cmd.Reason)
+	if requestErr != nil {
+		return CancelResult{}, errors.Join(requestErr, entry.handle.wait(cleanupCtx))
+	}
+	if interruptCommitted {
+		// The interrupt transaction won before cancellation. Its pump owns the
+		// live admission until it has published and closed the parked segment;
+		// join that boundary, then apply the durable parked cancel transaction.
+		if err := entry.handle.wait(cleanupCtx); err != nil {
+			return CancelResult{}, err
+		}
+		return c.cancelKnownParkedRun(cleanupCtx, cmd, run, execution.TurnRef{
 			SessionID: entry.record.SessionID,
 			TurnID:    entry.record.TurnID,
-		}
-		interruptCommitted, requestErr := entry.handle.requestCancel(cleanupCtx, cmd.Reason)
-		c.registry.MarkCancel(cmd.RunID, cmd.Reason)
-		if requestErr != nil {
-			return errors.Join(requestErr, entry.handle.wait(cleanupCtx))
-		}
-		if interruptCommitted {
-			// The interrupt transaction won before cancellation. Its pump owns the
-			// live admission until it has published and closed the parked segment;
-			// join that boundary, then apply the known durable cancel directly.
-			if err := entry.handle.wait(cleanupCtx); err != nil {
-				return err
-			}
-			return c.cancelParkedBinding(cleanupCtx, cmd, ref)
-		}
-		// The pump owns every non-parked live teardown. requestCancel has stopped
-		// its stream context; joining the handle returns that single owner's
-		// cleanup result without racing a second CancelTurn from this goroutine.
-		return entry.handle.wait(cleanupCtx)
+		})
 	}
-	return c.cancelParkedRun(cleanupCtx, cmd)
+	// The pump owns every non-parked live teardown. requestCancel has stopped its
+	// stream context; joining the handle returns that single owner's complete
+	// cleanup boundary without racing a second CancelTurn from this goroutine.
+	if err := entry.handle.wait(cleanupCtx); err != nil {
+		return CancelResult{}, err
+	}
+	terminal, committed := entry.handle.committedTerminalRun()
+	if !committed {
+		return CancelResult{}, fmt.Errorf("runs: canceled live run %q completed without a terminal snapshot", cmd.RunID)
+	}
+	if terminal.State != execution.Canceled {
+		return CancelResult{}, fmt.Errorf("%w: %q completed as %s", ErrRunFinished, cmd.RunID, terminal.State)
+	}
+	return rootCancelResult(terminal)
 }
 
-// cancelParkedRun applies the durable cancel write-set to a run parked on an open
-// interrupt. Live cancellation never probes this store to infer a race outcome:
-// the handle's interrupt boundary reports that outcome directly.
-func (c *Coordinator) cancelParkedRun(ctx context.Context, cmd CancelCommand) error {
+// cancelWithoutLiveSegment resolves the small window in which a segment has
+// left the process registry after the first durable read. A second durable read
+// classifies a real terminal race; a still-running orphan is an invariant fault,
+// never run_not_found.
+func (c *Coordinator) cancelWithoutLiveSegment(ctx context.Context, cmd CancelCommand, run transcript.Run) (CancelResult, error) {
+	if run.State == execution.Interrupted {
+		cleanupCtx, cancel := (*handle)(nil).cleanupContext(ctx)
+		defer cancel()
+		return c.cancelParkedRun(cleanupCtx, cmd, run)
+	}
+	refreshed, found, err := c.runs.Run(ctx, cmd.RunID)
+	switch {
+	case err != nil:
+		return CancelResult{}, err
+	case !found:
+		return CancelResult{}, fmt.Errorf("runs: run %q disappeared after it was resolved", cmd.RunID)
+	case refreshed.State.IsTerminal():
+		return CancelResult{}, fmt.Errorf("%w: %q completed as %s", ErrRunFinished, cmd.RunID, refreshed.State)
+	case refreshed.State == execution.Interrupted:
+		cleanupCtx, cancel := (*handle)(nil).cleanupContext(ctx)
+		defer cancel()
+		return c.cancelParkedRun(cleanupCtx, cmd, refreshed)
+	case refreshed.State == execution.Running:
+		return CancelResult{}, fmt.Errorf(
+			"runs: run %q is running segment %q with no live owner",
+			cmd.RunID, refreshed.ActiveSegmentID,
+		)
+	default:
+		return CancelResult{}, fmt.Errorf("runs: run %q has unknown state %d", cmd.RunID, refreshed.State)
+	}
+}
+
+// cancelParkedRun claims the Session before resolving its open interrupt. That
+// admission order linearizes cancel against resume: whichever command owns the
+// Session decides the one durable transition, and the loser observes busy or
+// the resulting terminal state instead of misreporting run_not_found.
+func (c *Coordinator) cancelParkedRun(ctx context.Context, cmd CancelCommand, run transcript.Run) (CancelResult, error) {
+	releaseSession, ok := c.admission.AcquireSession(run.SessionID)
+	if !ok {
+		return CancelResult{}, ErrSessionBusy
+	}
+	defer releaseSession()
+
 	pending, found, err := c.sessions.GetOpenInterrupt(ctx, cmd.RunID)
 	if err != nil {
-		return err
+		return CancelResult{}, err
 	}
 	if !found {
-		return ErrRunNotFound
+		refreshed, exists, lookupErr := c.runs.Run(ctx, cmd.RunID)
+		switch {
+		case lookupErr != nil:
+			return CancelResult{}, lookupErr
+		case !exists:
+			return CancelResult{}, fmt.Errorf("runs: parked run %q disappeared while its session was claimed", cmd.RunID)
+		case refreshed.State.IsTerminal():
+			return CancelResult{}, fmt.Errorf("%w: %q completed as %s", ErrRunFinished, cmd.RunID, refreshed.State)
+		default:
+			return CancelResult{}, fmt.Errorf("runs: run %q is %s but has no open interrupt", cmd.RunID, refreshed.State)
+		}
 	}
-	return c.cancelParkedBinding(ctx, cmd, execution.TurnRef{
+	if pending.SessionID != run.SessionID {
+		return CancelResult{}, fmt.Errorf(
+			"runs: run %q belongs to session %q but its interrupt belongs to %q",
+			cmd.RunID, run.SessionID, pending.SessionID,
+		)
+	}
+	return c.cancelClaimedParkedRun(ctx, cmd, execution.TurnRef{
 		SessionID: pending.SessionID,
 		TurnID:    pending.TurnID,
 	})
 }
 
-func (c *Coordinator) cancelParkedBinding(ctx context.Context, cmd CancelCommand, ref execution.TurnRef) error {
-	releaseSession, ok := c.admission.AcquireSession(ref.SessionID)
+// cancelKnownParkedRun is used only after the live handle proves its interrupt
+// transaction committed. The handle's segment binding is therefore the exact
+// turn that transaction parked; resolving it again would introduce a second,
+// weaker source of identity between two halves of one command.
+func (c *Coordinator) cancelKnownParkedRun(
+	ctx context.Context,
+	cmd CancelCommand,
+	run transcript.Run,
+	ref execution.TurnRef,
+) (CancelResult, error) {
+	if ref.SessionID != run.SessionID {
+		return CancelResult{}, fmt.Errorf(
+			"runs: run %q belongs to session %q but its live turn belongs to %q",
+			cmd.RunID, run.SessionID, ref.SessionID,
+		)
+	}
+	releaseSession, ok := c.admission.AcquireSession(run.SessionID)
 	if !ok {
-		return ErrSessionBusy
+		return CancelResult{}, ErrSessionBusy
 	}
 	defer releaseSession()
-	if err := c.sessions.ApplyRunCancel(ctx, ref.SessionID, cmd.RunID, cmd.Reason, c.now().UTC()); err != nil {
-		return err
+	return c.cancelClaimedParkedRun(ctx, cmd, ref)
+}
+
+func (c *Coordinator) cancelClaimedParkedRun(ctx context.Context, cmd CancelCommand, ref execution.TurnRef) (CancelResult, error) {
+	terminal, err := c.sessions.ApplyRunCancel(ctx, ref.SessionID, cmd.RunID, cmd.Reason, c.now().UTC())
+	if err != nil {
+		return CancelResult{}, err
 	}
 	// The abandon write-set publishes its own invalidation: it is the transaction that
 	// ends the run and drops the interrupt, and it is reached from here and from a
 	// resume that finds the park unresumable. Signaling here too would be a second
 	// author for one commit.
 	if err := c.turns.CancelTurn(ctx, ref); err != nil && !errors.Is(err, ErrTurnNotLive) {
-		return fmt.Errorf("runs: clean up canceled parked run %q turn: %w", cmd.RunID, err)
+		return CancelResult{}, fmt.Errorf("runs: clean up canceled parked run %q turn: %w", cmd.RunID, err)
 	}
-	return nil
+	return rootCancelResult(terminal)
+}
+
+func rootCancelResult(run transcript.Run) (CancelResult, error) {
+	if run.SpawnedByItemID != "" {
+		return CancelResult{}, fmt.Errorf("runs: canceled root result %q is a child run", run.ID)
+	}
+	if run.State != execution.Canceled || run.Outcome == nil || *run.Outcome != execution.OutcomeCanceled {
+		return CancelResult{}, fmt.Errorf("runs: cancel committed invalid terminal run %q in state %s", run.ID, run.State)
+	}
+	return CancelResult{Run: run}, nil
 }
 
 // Steer addresses the segment the command names and lets the turn adapter
@@ -462,6 +581,9 @@ func (c *Coordinator) requireControlDependencies() error {
 	}
 	if c.admission == nil {
 		return errors.New("runs: admission gate is required")
+	}
+	if c.runs == nil {
+		return errors.New("runs: run projection is required")
 	}
 	return nil
 }

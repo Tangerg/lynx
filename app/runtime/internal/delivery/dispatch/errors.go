@@ -38,7 +38,6 @@ var sentinelSpecs = map[error]rpcErrorSpec{
 	protocol.ErrRunNotFound:     {code: protocol.CodeRunNotFound, recovery: protocol.RecoveryRefetch},
 	protocol.ErrItemNotFound:    {code: protocol.CodeItemNotFound, recovery: protocol.RecoveryRefetch},
 	protocol.ErrRunNotRoot:      {code: protocol.CodeRunNotRoot, recovery: protocol.RecoveryRefetch},
-	protocol.ErrRunAlreadyDone:  {code: protocol.CodeRunAlreadyDone, recovery: protocol.RecoveryRefetch},
 	// Something else holds the session or the working tree, or the revision moved.
 	// Reading again is how the client learns whether it still does.
 	protocol.ErrSessionBusy:      {code: protocol.CodeSessionBusy, recovery: protocol.RecoveryRefetch},

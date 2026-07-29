@@ -55,6 +55,23 @@ func presentRun(run transcript.Run) protocol.RunRef {
 	}
 }
 
+func presentCancelResult(result runs.CancelResult) *protocol.CancelRunResponse {
+	run := presentRun(result.Run)
+	if result.RootRun == nil {
+		if result.Run.SpawnedByItemID != "" {
+			panic("server: child cancel result has no root run")
+		}
+		return &protocol.CancelRunResponse{Type: protocol.CancelRunRoot, Run: run}
+	}
+	if result.Run.SpawnedByItemID == "" {
+		panic("server: root cancel result unexpectedly carries a root run")
+	}
+	root := presentRun(*result.RootRun)
+	return &protocol.CancelRunResponse{
+		Type: protocol.CancelRunChild, Run: run, RootRun: &root,
+	}
+}
+
 // presentProtocolProfile publishes the contract the run was created under. Both
 // sets are allocated even when empty: an empty profile is the Minimal Profile —
 // a meaning — and `null` would report the run's known contract as unknown.

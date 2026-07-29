@@ -61,7 +61,7 @@ func (d *Driver) Available() bool { return d != nil && d.goals != nil }
 type RunUseCases interface {
 	Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error)
 	// Cancel returns after the Run has reached its complete terminal boundary.
-	Cancel(ctx context.Context, cmd runs.CancelCommand) error
+	Cancel(ctx context.Context, cmd runs.CancelCommand) (runs.CancelResult, error)
 }
 
 // SessionExists reports whether a session id refers to a live session. The

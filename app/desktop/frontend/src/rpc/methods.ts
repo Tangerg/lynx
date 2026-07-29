@@ -16,6 +16,7 @@ import type {
   AgentDoc,
   ApprovalMode,
   ApprovalModeResult,
+  CancelRunResponse,
   ConfigureMCPServerRequest,
   ConfigureProviderRequest,
   CreateSessionRequest,
@@ -234,7 +235,7 @@ export interface Methods {
       // history belongs to items.list, not to a stream that would deliver it twice.
       options?: { lastEventId?: string },
     ) => Promise<StreamingResult<SubscribeRunResponse, RunEvent>>;
-    cancel: (runId: RunId, reason?: string) => Promise<void>;
+    cancel: (runId: RunId, reason?: string) => Promise<CancelRunResponse>;
     // Mid-run steering (§6): inject a user message into the segment the caller
     // believes is executing, so the model reads it next tool round. The segment is
     // named for the same reason: a run that parked and resumed between typing and

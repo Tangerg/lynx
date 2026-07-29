@@ -54,6 +54,8 @@ export type WireTypeName =
   | "ArtifactToolResult"
   | "ArtifactUsage"
   | "CancelRunRequest"
+  | "CancelRunResponse"
+  | "CancelRunResponseType"
   | "CapabilityRequirement"
   | "CapabilityRequirementType"
   | "ClientCapabilities"
@@ -637,6 +639,23 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     reason: text(),
     runId: allOf([text(), minLength(1)]),
   }, ["runId"]),
+  CancelRunResponse: allOf([
+    object({
+      rootRun: ref(() => CHECKS.RunRef),
+      run: ref(() => CHECKS.RunRef),
+      type: ref(() => CHECKS.CancelRunResponseType),
+    }, []),
+    oneOf([
+      fields({
+        rootRun: absent(),
+        type: literal("root"),
+      }, ["run", "type"]),
+      fields({
+        type: literal("child"),
+      }, ["rootRun", "run", "type"]),
+    ]),
+  ]),
+  CancelRunResponseType: enumOf(["root", "child"]),
   CapabilityRequirement: allOf([
     object({
       name: text(),

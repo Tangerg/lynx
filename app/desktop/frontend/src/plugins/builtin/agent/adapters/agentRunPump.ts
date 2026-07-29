@@ -1,5 +1,5 @@
 import { queryClient } from "@/lib/queryClient";
-import type { RunEvent, RunId, SegmentId, StreamingResult } from "@/rpc";
+import type { CancelRunResponse, RunEvent, RunId, SegmentId, StreamingResult } from "@/rpc";
 import { AGENT_SESSION_USAGE_KEY } from "../application/session/sessionUsage";
 import type { FoldEvent } from "./agentStore";
 import { createRunEventBatcher } from "./runEventBatcher";
@@ -37,7 +37,7 @@ interface AgentRunPumpOptions {
 
 interface AgentRunPump {
   pump: (stream: RunStream, signal: AbortSignal) => Promise<void>;
-  cancelCurrentRun: (cancel: (runId: RunId) => Promise<void>) => void;
+  cancelCurrentRun: (cancel: (runId: RunId) => Promise<CancelRunResponse>) => void;
   dispose: () => void;
 }
 
@@ -95,7 +95,12 @@ export function createAgentRunPump({
       }
     },
     cancelCurrentRun(cancel) {
-      if (currentRunId) void cancel(currentRunId).catch(() => undefined);
+      if (!currentRunId) return;
+      void cancel(currentRunId)
+        .then(() =>
+          queryClient.invalidateQueries({ queryKey: [AGENT_SESSION_USAGE_KEY, sessionId] }),
+        )
+        .catch(() => undefined);
     },
     dispose() {
       eventBatcher.dispose();

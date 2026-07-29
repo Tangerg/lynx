@@ -243,7 +243,7 @@ metadata 判断本次 run / subscription 能否产出某些事件或 HITL interr
 | 对象                    | 信号                                 | 效果                                   |
 | ----------------------- | ------------------------------------ | -------------------------------------- |
 | 在飞的 JSON-RPC request | transport context / HTTP abort       | 取消一个慢请求                         |
-| agent run               | `runs.cancel`（request，带 `runId`） | 硬终止在跑的 run（`outcome:canceled`） |
+| agent run               | `runs.cancel`（request，带 `runId`） | 硬终止 Running / Waiting run，并返回已提交的终态快照 |
 
 网络断开**不**取消 run。
 
@@ -307,10 +307,10 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
 
 同一个 Run 有**两个投影**，因为两个读者要的不是一回事：
 
-| 类型         | 谁给                                            | 载什么                                                                |
-| ------------ | ----------------------------------------------- | --------------------------------------------------------------------- |
-| `RunSummary` | `runs.get` / `runs.list` / `items.list.runs` / 归档 | 身份 + 血缘 + 状态 + 终态：列一行、连一棵树够用                       |
-| `RunRef`     | `segment.started.run`                           | Summary + `metrics` + `limits` + `activeSegmentId` + `protocolProfile` |
+| 类型         | 谁给                                                               | 载什么                                                                |
+| ------------ | ------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| `RunSummary` | `items.list.runs` / 归档，且嵌入每个 `RunRef`                      | 身份 + 血缘 + 状态 + 终态：列一行、连一棵树够用                       |
+| `RunRef`     | `runs.get/list` / `segment.started.run` / `runs.cancel` 成功结果   | Summary + `metrics` + `limits` + `activeSegmentId` + `protocolProfile` |
 
 - **`status` 与 `outcome` 正交**：`outcome` 只在 `finished` 时存在，`activeSegmentId` 只在 `running` 时存在，
   `finishedAt` 只在 `finished` 时存在。这三条是 schema 里的 presence 规则，不是约定。
@@ -582,7 +582,12 @@ completed item 一样必发权威终值。
 5. 续段像普通流一样，直到下一个 outcome。
 
 **关联键 = `itemId`**（无单独 requestId）。**拒绝 ≠ 取消**：拒绝是 `runs.resume` 带 `decision:"deny"`，run 继续
-（agent 据理由换方案）；取消是 `runs.cancel`，硬终止整个 run。
+（agent 据理由换方案）；取消是 `runs.cancel`，硬终止整个 run。成功结果是闭合联合：
+root 返回 `{type:"root", run}`；child 返回 `{type:"child", run, rootRun}`。其中被寻址的
+`run` 已是 `finished/canceled`，child 分支的 `rootRun` 与它来自同一 command boundary，
+客户端不需要再猜 root 是 Running、Waiting 还是 Finished。当前
+`features.subagents=false`，因此只会产生 root 成功分支；显式寻址 child 需要该能力，
+不能静默退化成 root cancel。
 
 **resume 从"那个待答的调用"处续跑**，不重跑整段：runtime 记住 pending 调用的位置，把答复接上去，不会为了续跑再问一次
 模型。

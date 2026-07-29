@@ -161,7 +161,6 @@ var knownProblemTypes = []string{
 	protocol.ErrSessionNotFound.Error(),
 	protocol.ErrRunNotFound.Error(),
 	protocol.ErrItemNotFound.Error(),
-	protocol.ErrRunAlreadyDone.Error(),
 	protocol.ErrInterruptNotOpen.Error(),
 	protocol.ErrRunNotRoot.Error(),
 	protocol.ErrRunWaiting.Error(),
@@ -178,6 +177,7 @@ var knownProblemTypes = []string{
 	protocol.ErrCheckpointUnavailable.Error(),
 	protocol.ErrUnsupportedMime.Error(),
 	protocol.ErrProviderError.Error(),
+	protocol.ErrCapabilityNotNeg.Error(),
 }
 
 // validate rejects a registration that could not be honored. A contract whose

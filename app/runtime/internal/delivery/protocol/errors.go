@@ -219,7 +219,6 @@ const (
 	CodeItemNotFound           = -32004
 	CodeCwdUnavailable         = -32005
 	CodeCapabilityNotNeg       = -32006
-	CodeRunAlreadyDone         = -32008
 	CodeCheckpointUnavail      = -32009
 	CodeUnsupportedMime        = -32011
 	CodePathOutsideRoot        = -32013
@@ -230,8 +229,8 @@ const (
 	CodeRevisionConflict       = -32019
 	CodeIdempotencyConflict    = -32020
 	CodeIdempotencyInProgress  = -32021
-	// -32007 / -32010 / -32012 / -32015 are retired holes, never reused, so a new
-	// code continues the sequence rather than filling one in.
+	// -32007 / -32008 / -32010 / -32012 / -32015 are retired holes, never reused,
+	// so a new code continues the sequence rather than filling one in.
 	CodeRunNotRoot          = -32022
 	CodeSessionHasActiveRun = -32023
 	CodeRunWaiting          = -32024
@@ -253,7 +252,6 @@ var (
 	ErrItemNotFound          = errors.New("item_not_found")
 	ErrCwdUnavailable        = errors.New("cwd_unavailable")
 	ErrCapabilityNotNeg      = errors.New("capability_not_negotiated")
-	ErrRunAlreadyDone        = errors.New("run_already_finished")
 	ErrCheckpointUnavailable = errors.New("checkpoint_unavailable")
 	ErrUnsupportedMime       = errors.New("unsupported_mime")
 	ErrPathOutsideRoot       = errors.New("path_outside_root")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"runtime"
 	"testing"
 	"time"
 
@@ -68,7 +69,7 @@ func (f *fakeRunSessions) GetOpenInterrupt(_ context.Context, runID string) (int
 	return pending, ok, nil
 }
 
-func (f *fakeRunSessions) ApplyRunCancel(_ context.Context, _ string, runID, reason string, finishedAt time.Time) error {
+func (f *fakeRunSessions) ApplyRunCancel(_ context.Context, sessionID, runID, reason string, finishedAt time.Time) (transcript.Run, error) {
 	if f.operations != nil {
 		*f.operations = append(*f.operations, "durable.cancel")
 	}
@@ -76,7 +77,11 @@ func (f *fakeRunSessions) ApplyRunCancel(_ context.Context, _ string, runID, rea
 	f.cancelReason = reason
 	f.canceledAt = finishedAt
 	delete(f.pending, runID)
-	return nil
+	outcome := execution.OutcomeCanceled
+	return transcript.Run{
+		ID: runID, SessionID: sessionID, State: execution.Canceled,
+		Outcome: &outcome, Detail: reason, FinishedAt: finishedAt,
+	}, nil
 }
 
 func (f *fakeRunSessions) ApplyRunLost(_ context.Context, _ string, runID string, finishedAt time.Time) error {
@@ -160,10 +165,14 @@ func (f *fakeTurnControl) Steer(_ context.Context, ref execution.TurnRef, messag
 
 func newUseCaseCoordinator(exec SegmentExecutor, turns TurnControl, sessions SessionLifecycle, effects Effects) *Coordinator {
 	deps := Dependencies{
-		Segments:     exec,
-		Turns:        turns,
-		Sessions:     sessions,
-		Effects:      effects,
+		Segments: exec,
+		Turns:    turns,
+		Sessions: sessions,
+		Effects:  effects,
+		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
+			"run_1":   {ID: "run_1", SessionID: "ses_1", State: execution.Running, ActiveSegmentID: "seg_1"},
+			"run_new": {ID: "run_new", SessionID: "ses_1", State: execution.Running, ActiveSegmentID: "seg_new"},
+		}},
 		Now:          func() time.Time { return time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC) },
 		NewRunID:     func() string { return "run_new" },
 		NewSegmentID: func() string { return "seg_new" },
@@ -531,10 +540,20 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 		RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
 	}}, operations: &operations}
 	turns := &fakeTurnControl{operations: &operations}
-	c := NewCoordinator(Dependencies{Turns: turns, Sessions: sessions, Admissions: new(admission.Gate)})
+	c := NewCoordinator(Dependencies{
+		Turns: turns, Sessions: sessions,
+		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
+			"run_1": {ID: "run_1", SessionID: "ses_1", State: execution.Interrupted},
+		}},
+		Admissions: new(admission.Gate),
+	})
 
-	if err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "user stopped"}); err != nil {
+	result, err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "user stopped"})
+	if err != nil {
 		t.Fatalf("Cancel: %v", err)
+	}
+	if result.Run.ID != "run_1" || result.Run.State != execution.Canceled {
+		t.Fatalf("Cancel result = %+v, want canceled run_1", result)
 	}
 	if sessions.canceledRunID != "run_1" || len(turns.canceled) != 1 {
 		t.Fatalf("durable cancel=%q turn cancels=%v", sessions.canceledRunID, turns.canceled)
@@ -550,15 +569,65 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 	}
 }
 
+func TestCancelFinishedRunReportsFinishedInsteadOfNotFound(t *testing.T) {
+	finished := runRecord(execution.Completed, "", "")
+	c := NewCoordinator(Dependencies{
+		Turns:      &fakeTurnControl{},
+		Sessions:   &fakeRunSessions{},
+		Runs:       &fakeRunProjection{runs: map[string]transcript.Run{"run_1": finished}},
+		Admissions: new(admission.Gate),
+	})
+
+	_, err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "too late"})
+	if !errors.Is(err, ErrRunFinished) {
+		t.Fatalf("Cancel error = %v, want ErrRunFinished", err)
+	}
+}
+
+func TestCancelUnknownRunReportsNotFound(t *testing.T) {
+	c := NewCoordinator(Dependencies{
+		Turns:      &fakeTurnControl{},
+		Sessions:   &fakeRunSessions{},
+		Runs:       &fakeRunProjection{},
+		Admissions: new(admission.Gate),
+	})
+
+	_, err := c.Cancel(t.Context(), CancelCommand{RunID: "run_missing"})
+	if !errors.Is(err, ErrRunNotFound) {
+		t.Fatalf("Cancel error = %v, want ErrRunNotFound", err)
+	}
+}
+
+func TestCancelChildRunRequiresExplicitAuthority(t *testing.T) {
+	child := runRecord(execution.Running, "seg_child", "item_parent")
+	c := NewCoordinator(Dependencies{
+		Turns:      &fakeTurnControl{},
+		Sessions:   &fakeRunSessions{},
+		Runs:       &fakeRunProjection{runs: map[string]transcript.Run{"run_1": child}},
+		Admissions: new(admission.Gate),
+	})
+
+	_, err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1"})
+	if !errors.Is(err, ErrChildRunNotAllowed) {
+		t.Fatalf("Cancel error = %v, want ErrChildRunNotAllowed", err)
+	}
+}
+
 func TestCancelParkedRunReportsTurnCleanupFailureAfterDurableCommit(t *testing.T) {
 	cleanupErr := errors.New("turn cleanup failed")
 	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{"run_1": {
 		RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
 	}}}
 	turns := &fakeTurnControl{cancelErr: cleanupErr}
-	c := NewCoordinator(Dependencies{Turns: turns, Sessions: sessions, Admissions: new(admission.Gate)})
+	c := NewCoordinator(Dependencies{
+		Turns: turns, Sessions: sessions,
+		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
+			"run_1": {ID: "run_1", SessionID: "ses_1", State: execution.Interrupted},
+		}},
+		Admissions: new(admission.Gate),
+	})
 
-	err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "stop"})
+	_, err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "stop"})
 	if !errors.Is(err, cleanupErr) {
 		t.Fatalf("Cancel error = %v, want cleanup failure", err)
 	}
@@ -572,7 +641,13 @@ func TestCancelLiveRunReportsTurnCleanupFailureAndStillTerminalizes(t *testing.T
 	executor := &fakeExecutor{block: true, cancelErr: cleanupErr}
 	effects := &fakeEffects{}
 	turns := &fakeTurnControl{}
-	c := NewCoordinator(Dependencies{Segments: executor, Turns: turns, Sessions: &fakeRunSessions{}, Effects: effects, Admissions: new(admission.Gate)})
+	c := NewCoordinator(Dependencies{
+		Segments: executor, Turns: turns, Sessions: &fakeRunSessions{}, Effects: effects,
+		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
+			"run_1": {ID: "run_1", SessionID: "ses_1", State: execution.Running, ActiveSegmentID: "seg_1"},
+		}},
+		Admissions: new(admission.Gate),
+	})
 	stream, err := c.openSegment(t.Context(), testSegment())
 	if err != nil {
 		t.Fatalf("openSegment: %v", err)
@@ -581,7 +656,7 @@ func TestCancelLiveRunReportsTurnCleanupFailureAndStillTerminalizes(t *testing.T
 	defer stop()
 	next() // consume the opening event so the pump is live
 
-	err = c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "stop"})
+	_, err = c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "stop"})
 	if !errors.Is(err, cleanupErr) {
 		t.Fatalf("Cancel error = %v, want cleanup failure", err)
 	}
@@ -608,9 +683,14 @@ func TestCancelLiveRunJoinsTerminalMaintenance(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 
-	cancelResult := make(chan error, 1)
+	type cancelOutcome struct {
+		result CancelResult
+		err    error
+	}
+	cancelDone := make(chan cancelOutcome, 1)
 	go func() {
-		cancelResult <- c.Cancel(t.Context(), CancelCommand{RunID: result.RunID, Reason: "stop"})
+		canceled, cancelErr := c.Cancel(t.Context(), CancelCommand{RunID: result.RunID, Reason: "stop"})
+		cancelDone <- cancelOutcome{result: canceled, err: cancelErr}
 	}()
 	select {
 	case <-finishStarted:
@@ -618,20 +698,82 @@ func TestCancelLiveRunJoinsTerminalMaintenance(t *testing.T) {
 		t.Fatal("canceled run did not reach terminal maintenance")
 	}
 	select {
-	case err := <-cancelResult:
-		t.Fatalf("Cancel returned before terminal maintenance: %v", err)
+	case outcome := <-cancelDone:
+		t.Fatalf("Cancel returned before terminal maintenance: result=%+v err=%v", outcome.result, outcome.err)
 	default:
 	}
 
 	close(releaseFinish)
-	if err := <-cancelResult; err != nil {
-		t.Fatalf("Cancel: %v", err)
+	outcome := <-cancelDone
+	if outcome.err != nil {
+		t.Fatalf("Cancel: %v", outcome.err)
+	}
+	if outcome.result.Run.ID != result.RunID ||
+		outcome.result.Run.State != execution.Canceled ||
+		outcome.result.Run.Outcome == nil ||
+		*outcome.result.Run.Outcome != execution.OutcomeCanceled ||
+		outcome.result.Run.Detail != "stop" {
+		t.Fatalf("Cancel result = %+v, want exact canceled terminal snapshot", outcome.result)
 	}
 	if hasActiveSession(c, "ses_1") {
 		t.Fatal("Cancel returned before releasing session admission")
 	}
 	for range result.Events {
 	}
+}
+
+func TestCancelLosesToACommittedNaturalTerminal(t *testing.T) {
+	terminalStarted := make(chan struct{}, 1)
+	releaseTerminal := make(chan struct{})
+	executor := &fakeExecutor{events: []EngineEvent{TurnEnd{
+		Reason: execution.OutcomeCompleted,
+	}}}
+	effects := &fakeEffects{terminalStarted: terminalStarted, terminalRelease: releaseTerminal}
+	c := NewCoordinator(Dependencies{
+		Segments: executor, Turns: &fakeTurnControl{}, Sessions: &fakeRunSessions{}, Effects: effects,
+		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
+			"run_1": {ID: "run_1", SessionID: "ses_1", State: execution.Running, ActiveSegmentID: "seg_1"},
+		}},
+		Admissions: new(admission.Gate),
+	})
+	stream, err := c.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	streamDone := make(chan struct{})
+	go func() {
+		collectEvents(stream)
+		close(streamDone)
+	}()
+	select {
+	case <-terminalStarted:
+	case <-time.After(time.Second):
+		t.Fatal("natural terminal commit did not start")
+	}
+
+	cancelDone := make(chan error, 1)
+	go func() {
+		_, cancelErr := c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "too late"})
+		cancelDone <- cancelErr
+	}()
+	entry, live := c.registry.Get("run_1")
+	if !live {
+		t.Fatal("terminal commit lost its live cancellation join")
+	}
+	deadline := time.After(time.Second)
+	for entry.handle.CancelReason() != "too late" {
+		select {
+		case <-deadline:
+			t.Fatal("cancel did not join the in-flight terminal commit")
+		default:
+			runtime.Gosched()
+		}
+	}
+	close(releaseTerminal)
+	if err := <-cancelDone; !errors.Is(err, ErrRunFinished) {
+		t.Fatalf("Cancel error = %v, want ErrRunFinished", err)
+	}
+	<-streamDone
 }
 
 func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
@@ -660,6 +802,9 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 	sessions := &fakeRunSessions{operations: &operations}
 	c := NewCoordinator(Dependencies{
 		Segments: executor, Turns: turns, Sessions: sessions, Effects: effects,
+		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
+			"run_1": {ID: "run_1", SessionID: "ses_1", State: execution.Running, ActiveSegmentID: "seg_1"},
+		}},
 		Admissions: new(admission.Gate),
 	})
 	stream, err := c.openSegment(t.Context(), testSegment())
@@ -679,7 +824,8 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 
 	cancelDone := make(chan error, 1)
 	go func() {
-		cancelDone <- c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "stop"})
+		_, cancelErr := c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "stop"})
+		cancelDone <- cancelErr
 	}()
 	select {
 	case <-suspendCanceled:
@@ -705,9 +851,15 @@ func TestCancelTreatsAlreadyGoneTurnAsIdempotentSuccess(t *testing.T) {
 		RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
 	}}}
 	turns := &fakeTurnControl{cancelErr: ErrTurnNotLive}
-	c := NewCoordinator(Dependencies{Turns: turns, Sessions: sessions, Admissions: new(admission.Gate)})
+	c := NewCoordinator(Dependencies{
+		Turns: turns, Sessions: sessions,
+		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
+			"run_1": {ID: "run_1", SessionID: "ses_1", State: execution.Interrupted},
+		}},
+		Admissions: new(admission.Gate),
+	})
 
-	if err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1"}); err != nil {
+	if _, err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1"}); err != nil {
 		t.Fatalf("Cancel error = %v, want idempotent success", err)
 	}
 }

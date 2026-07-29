@@ -77,6 +77,8 @@ type fakeEffects struct {
 	suspendStarted  chan<- struct{}
 	suspendCanceled chan<- struct{}
 	suspendRelease  <-chan struct{}
+	terminalStarted chan<- struct{}
+	terminalRelease <-chan struct{}
 	finishStarted   chan<- struct{}
 	finishRelease   <-chan struct{}
 }
@@ -103,6 +105,14 @@ func (e *fakeEffects) CommitEvent(ctx context.Context, commit EventCommit) error
 		}
 		if e.suspendRelease != nil {
 			<-e.suspendRelease
+		}
+	}
+	if commit.State == StateTerminalize {
+		if e.terminalStarted != nil {
+			e.terminalStarted <- struct{}{}
+		}
+		if e.terminalRelease != nil {
+			<-e.terminalRelease
 		}
 	}
 	e.mu.Lock()
@@ -612,6 +622,9 @@ func TestCoordinatorCancelContextSurvivesRequestContext(t *testing.T) {
 	turns := &fakeTurnControl{}
 	coordinator.turns = turns
 	coordinator.sessions = &fakeRunSessions{}
+	coordinator.runs = &fakeRunProjection{runs: map[string]transcript.Run{
+		"run_1": {ID: "run_1", SessionID: "ses_1", State: execution.Running, ActiveSegmentID: "seg_1"},
+	}}
 	requestContext, cancelRequest := context.WithCancel(context.Background())
 	stream, err := coordinator.openSegment(requestContext, testSegment())
 	if err != nil {
@@ -622,7 +635,7 @@ func TestCoordinatorCancelContextSurvivesRequestContext(t *testing.T) {
 	next() // consume the opening event so the pump is live
 	cancelRequest()
 
-	if err := coordinator.Cancel(requestContext, CancelCommand{RunID: "run_1", Reason: "stop"}); err != nil {
+	if _, err := coordinator.Cancel(requestContext, CancelCommand{RunID: "run_1", Reason: "stop"}); err != nil {
 		t.Fatalf("Cancel with finished request context: %v", err)
 	}
 	if executor.cancels() != 1 {

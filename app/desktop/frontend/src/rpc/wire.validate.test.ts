@@ -134,6 +134,39 @@ describe("the generated wire checks", () => {
     ]);
   });
 
+  it("keeps cancel root and child results closed and distinct", () => {
+    const canceledRoot = { ...finishedRun, outcome: { type: "canceled" } };
+    const canceledChild = {
+      ...canceledRoot,
+      id: "run_child",
+      spawnedByItemId: "item_parent",
+      parentRunId: "run_01",
+      rootRunId: "run_01",
+    };
+    expect(validateWire("CancelRunResponse", { type: "root", run: canceledRoot })).toEqual([]);
+    expect(
+      validateWire("CancelRunResponse", {
+        type: "child",
+        run: canceledChild,
+        rootRun: canceledRoot,
+      }),
+    ).toEqual([]);
+    expect(
+      validateWire("CancelRunResponse", {
+        type: "root",
+        run: canceledRoot,
+        rootRun: canceledRoot,
+      }),
+    ).toEqual([
+      { path: "CancelRunResponse", detail: "matches no permitted variant" },
+      { path: "CancelRunResponse.rootRun", detail: "must not be present here" },
+    ]);
+    expect(validateWire("CancelRunResponse", { type: "child", run: canceledChild })).toEqual([
+      { path: "CancelRunResponse", detail: "matches no permitted variant" },
+      { path: "CancelRunResponse.type", detail: 'expected "root"' },
+    ]);
+  });
+
   // The scope of a read is a union for the same reason a content block is: a frame
   // carrying both subjects would need a precedence rule to resolve, and the flag only
   // means something where there is a subtree to include.

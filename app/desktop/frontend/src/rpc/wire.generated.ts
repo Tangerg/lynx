@@ -248,6 +248,12 @@ export interface CancelRunRequest {
   runId: string;
 }
 
+export type CancelRunResponse =
+  | { type: "root"; run: RunRef }
+  | { type: "child"; rootRun: RunRef; run: RunRef };
+
+export type CancelRunResponseType = "root" | "child";
+
 export type CapabilityRequirement =
   | { type: "feature"; name: string }
   | { type: "interruptType"; name: string }
@@ -1461,6 +1467,7 @@ export const WIRE_ENUMS = {
   ArtifactOutcomeType: ["completed", "error", "maxSteps", "maxBudget", "canceled"],
   ArtifactProblemType: ["internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed"],
   ArtifactStateType: ["todos"],
+  CancelRunResponseType: ["root", "child"],
   CapabilityRequirementType: ["feature", "interruptType", "runtimeTopic", "stateSnapshot"],
   CodebaseState: ["none", "indexing", "ready", "error"],
   ContentBlockType: ["text", "image"],

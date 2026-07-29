@@ -69,15 +69,17 @@ func registerRuns(r *Registry) {
 		return d.api.SubscribeRun(ctx, in)
 	}, runEventFramer)
 
-	UnaryAck(r, MethodMeta{
+	Unary(r, MethodMeta{
 		Name:        "runs.cancel",
 		Idempotency: IdempotencyReplayResponse,
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
-			protocol.ErrRunAlreadyDone.Error(),
+			protocol.ErrRunFinished.Error(),
+			protocol.ErrSessionBusy.Error(),
+			protocol.ErrCapabilityNotNeg.Error(),
 		},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.CancelRunRequest) error {
+	}, func(d *Dispatcher, ctx context.Context, in protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
 		return d.api.CancelRun(ctx, in)
 	})
 

@@ -67,7 +67,7 @@ func (c *Coordinator) GetOpenInterrupt(ctx context.Context, runID string) (inter
 // ApplyRunCancel commits the atomic durable abandon write-set. Executor
 // teardown is owned by application/runs for run commands; session rollback and
 // deletion continue to use the coordinator's narrow cleanup collaborator.
-func (c *Coordinator) ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) error {
+func (c *Coordinator) ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) (transcript.Run, error) {
 	return c.terminalizeParkedRun(ctx, sessionID, runID, finishedAt, execution.OutcomeCanceled, reason)
 }
 
@@ -75,34 +75,35 @@ func (c *Coordinator) ApplyRunCancel(ctx context.Context, sessionID, runID, reas
 // restored. It uses the recovery transition because the interrupted Run never
 // resumed into a normal executor terminal path.
 func (c *Coordinator) ApplyRunLost(ctx context.Context, sessionID, runID string, finishedAt time.Time) error {
-	return c.terminalizeParkedRun(ctx, sessionID, runID, finishedAt, execution.OutcomeError, "")
+	_, err := c.terminalizeParkedRun(ctx, sessionID, runID, finishedAt, execution.OutcomeError, "")
+	return err
 }
 
-func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID string, finishedAt time.Time, outcome execution.Outcome, detail string) error {
+func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID string, finishedAt time.Time, outcome execution.Outcome, detail string) (transcript.Run, error) {
 	if finishedAt.IsZero() {
-		return fmt.Errorf("sessions: terminalize parked run %q: finished time is required", runID)
+		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked run %q: finished time is required", runID)
 	}
 	if c.interrupts == nil || c.snapshots == nil || c.writes == nil {
-		return errors.New("sessions: interrupt lifecycle persistence is unavailable")
+		return transcript.Run{}, errors.New("sessions: interrupt lifecycle persistence is unavailable")
 	}
 	pending, found, err := c.interrupts.Get(ctx, runID)
 	if err != nil {
-		return err
+		return transcript.Run{}, err
 	}
 	if !found || pending.SessionID != sessionID {
-		return fmt.Errorf("sessions: terminalize parked run %q: open interrupt not found for session %q", runID, sessionID)
+		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked run %q: open interrupt not found for session %q", runID, sessionID)
 	}
 	snapshot, err := c.snapshots.ReadSnapshot(ctx, sessionID)
 	if err != nil {
-		return err
+		return transcript.Run{}, err
 	}
 	idx := slices.IndexFunc(snapshot.Runs, func(run transcript.Run) bool { return run.ID == runID })
 	if idx < 0 {
-		return fmt.Errorf("sessions: terminalize parked run %q: %w", runID, transcript.ErrRunNotFound)
+		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked run %q: %w", runID, transcript.ErrRunNotFound)
 	}
 	run := snapshot.Runs[idx]
 	if run.State != execution.Interrupted {
-		return fmt.Errorf("sessions: terminalize parked run %q: state is %s, want interrupted", runID, run.State)
+		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked run %q: state is %s, want interrupted", runID, run.State)
 	}
 	var state execution.RunState
 	var ok bool
@@ -112,10 +113,10 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 	case execution.OutcomeError:
 		state, ok = run.State.RecoverLost()
 	default:
-		return fmt.Errorf("sessions: terminalize parked run %q: unsupported outcome %s", runID, outcome)
+		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked run %q: unsupported outcome %s", runID, outcome)
 	}
 	if !ok {
-		return fmt.Errorf("sessions: terminalize parked run %q: cannot apply outcome %s", runID, outcome)
+		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked run %q: cannot apply outcome %s", runID, outcome)
 	}
 
 	interruptItems := make(map[string]struct{}, len(run.Interrupts))
@@ -128,7 +129,7 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 			continue
 		}
 		if item.RunID != runID || item.Status != transcript.ItemRunning {
-			return fmt.Errorf("sessions: terminalize parked run %q: interrupt item %q is not running in the run", runID, item.ID)
+			return transcript.Run{}, fmt.Errorf("sessions: terminalize parked run %q: interrupt item %q is not running in the run", runID, item.ID)
 		}
 		item.Status = transcript.ItemIncomplete
 		if outcome == execution.OutcomeError && item.Kind == transcript.ToolCall {
@@ -145,7 +146,7 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 		delete(interruptItems, item.ID)
 	}
 	if len(interruptItems) != 0 {
-		return fmt.Errorf("sessions: terminalize parked run %q: transcript is missing an interrupt item", runID)
+		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked run %q: transcript is missing an interrupt item", runID)
 	}
 
 	run.State = state
@@ -166,7 +167,7 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 	run.UpdatedAt = run.FinishedAt
 	run.MessageMark = len(snapshot.Messages)
 	if err := c.writes.ApplyTerminal(ctx, TerminalPlan{Run: run, Items: items, ProcessID: pending.ProcessID}); err != nil {
-		return err
+		return transcript.Run{}, err
 	}
 	// One write-set ended the run and dropped the set it was parked on, so one place
 	// reports both — for a cancel and for a park declared unresumable alike. The run
@@ -177,7 +178,7 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 		change.InSession(change.Interrupts, sessionID, runID),
 		change.InSession(change.Sessions, sessionID),
 	)
-	return nil
+	return run, nil
 }
 
 func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTurnBinding, error) {

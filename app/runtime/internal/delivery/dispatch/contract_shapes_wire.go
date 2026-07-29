@@ -9,11 +9,9 @@ import (
 
 // shapes is the registered union / constraint / state-key contract.
 //
-// Contract §11.2 names thirteen high-risk unions. Three of them — ItemListScope,
-// CapabilityRequirement, CancelRunResponse — do not exist yet: they arrive later
-// in the vNext cutover (C5 / C6 / C8). They are registered when their types land,
-// not now with an invented shape; a spec for a type nobody can send is a spec
-// nothing can check.
+// Every high-risk closed union in the contract is registered here. The Go type,
+// runtime validator, JSON Schema, and generated TypeScript all consume the same
+// declaration so a variant cannot drift in only one layer.
 var shapes = buildShapes()
 
 func buildShapes() *Shapes {
@@ -34,6 +32,15 @@ func buildShapes() *Shapes {
 func typeOf[T any]() reflect.Type { return reflect.TypeFor[T]() }
 
 func registerRunUnions(s *Shapes) {
+	s.union(UnionSpec{
+		GoType:        typeOf[protocol.CancelRunResponse](),
+		Discriminator: "type",
+		Variants: []VariantSpec{
+			{Tag: string(protocol.CancelRunRoot), Required: []string{"run"}},
+			{Tag: string(protocol.CancelRunChild), Required: []string{"run", "rootRun"}},
+		},
+	})
+
 	// A terminal says only why the run stopped; what it consumed is published
 	// beside it as metrics. `detail` is the human-readable note the non-error
 	// terminals may add (§4.2) — the error terminal's note stays on

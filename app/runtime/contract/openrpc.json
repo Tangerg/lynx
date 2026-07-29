@@ -671,14 +671,28 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/CancelRunResponse"
+        }
+      },
       "errors": [
         {
           "code": -32003,
           "message": "run_not_found"
         },
         {
-          "code": -32008,
-          "message": "run_already_finished"
+          "code": -32025,
+          "message": "run_finished"
+        },
+        {
+          "code": -32018,
+          "message": "session_busy"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",

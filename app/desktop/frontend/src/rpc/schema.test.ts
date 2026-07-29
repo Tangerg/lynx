@@ -59,5 +59,19 @@ describe("the published JSON Schema bundle", () => {
     const block = ajv.getSchema("schema.json#/$defs/ContentBlock");
     expect(block?.({ type: "text", text: "hello" })).toBe(true);
     expect(block?.({ type: "text", text: "hello", mime: "image/png" })).toBe(false);
+
+    const cancel = ajv.getSchema("schema.json#/$defs/CancelRunResponse");
+    const canceledRun = {
+      id: "run_01",
+      sessionId: "ses_01",
+      status: "finished",
+      outcome: { type: "canceled" },
+      finishedAt: "2026-07-30T00:00:00Z",
+      metrics: { steps: 0, activeDurationMs: 0 },
+      protocolProfile: { requiredFeatures: [], interruptTypes: [] },
+    };
+    expect(cancel?.({ type: "root", run: canceledRun })).toBe(true);
+    expect(cancel?.({ type: "root", run: canceledRun, rootRun: canceledRun })).toBe(false);
+    expect(cancel?.({ type: "child", run: canceledRun })).toBe(false);
   });
 });

@@ -90,7 +90,7 @@ type codebaseUseCases interface {
 }
 
 type runUseCases interface {
-	Cancel(ctx context.Context, cmd runs.CancelCommand) error
+	Cancel(ctx context.Context, cmd runs.CancelCommand) (runs.CancelResult, error)
 	Resume(ctx context.Context, cmd runs.ResumeCommand) (runs.StartResult, error)
 	Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error)
 	Steer(ctx context.Context, cmd runs.SteerCommand) error

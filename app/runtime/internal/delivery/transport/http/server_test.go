@@ -314,6 +314,18 @@ func TestRunsCancelIsRequest(t *testing.T) {
 	if string(env.ID) != `"2"` {
 		t.Fatalf("id = %s, want \"2\"", string(env.ID))
 	}
+	var result struct {
+		Type string          `json:"type"`
+		Run  protocol.RunRef `json:"run"`
+	}
+	if err := json.Unmarshal(env.Result, &result); err != nil {
+		t.Fatalf("decode cancel result %s: %v", env.Result, err)
+	}
+	if result.Type != "root" || result.Run.ID != "run_123" ||
+		result.Run.Status != protocol.RunStatusFinished ||
+		result.Run.Outcome == nil || result.Run.Outcome.Type != protocol.OutcomeCanceled {
+		t.Fatalf("cancel result = %+v, want root run_123 finished/canceled", result)
+	}
 	if len(api.canceledRuns) != 1 || api.canceledRuns[0] != "run_123" {
 		t.Fatalf("api.canceledRuns = %v, want [run_123]", api.canceledRuns)
 	}
