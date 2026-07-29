@@ -1084,6 +1084,28 @@ identity 不变量**（同 `goal_never_outlives_its_session` 那一类）；D2 �
 不存在的边界写 spec。**做子 Run 时把它登记进 `SystemInvariantSpec`，别塞进 `PresenceRule`** —— 把不等式融进
 presence 原语正是"一 keyword 一原语"禁的那种融合。
 
+#### C3 接手须知（2026-07-29，做完 C2 后核过现状）
+
+**C3 与 C10/C11 真实纠缠** —— 不是能纯按 slice 边界切的。核过的现状与结论：
+
+| C3 要的东西 | 现状（`delivery/protocol/capabilities.go`） | 归谁 |
+|---|---|---|
+| `FeatureCapability` 加 `clientOptIn`/`requiredByRunProtocol` | 现在只有 `enabled`+`stability` | **C3 必须做**：`requiredFeatures` 就是从 `requiredByRunProtocol` 的已协商 key 算出来的，没有它算不出 profile |
+| `ServerCapabilities` 其余新字段（`runEvents`/`runtimeTopics`/`stateSnapshots`/两个 limits 块） | 现在是 `events`/`streamingMethods`/`features`/`limits` | **C11**。C3 只动 `features` 的值类型，别顺手把 `events`→`runEvents` 一起改 |
+| `ClientCapabilities` 删 `events`、`excludedEvents`→`excludedEphemeralEvents` | 现有 `Events`（必填）+ `ExcludedEvents` | **C3 做**（§8.1 明确删 `events`，且它是 profile 协商的输入）。注意前端 `request.meta.json` 样本与 `samples.test.ts` 里"只广告已发布 stream event"那条断言会一起动 |
+| `ProblemData.requiredCapabilities` | 无 | **C10**。C3 先返 `capability_not_negotiated`（错误码已在），payload 字段到 C10 统一改 |
+
+**`RunProtocolProfile` 的落点（已核）**：
+- 它是 **root Run 创建时冻结的 durable 值**：`runs` 表一列 JSON（整读整写、从不跨行查，同 `accounting` 的判断），domain 上 `transcript.Run.ProtocolProfile`，由 `RunDraft` 带进来。
+- `interruptTypes` 今天已有等价物在流转：`StartCommand.InterruptKinds` → `TurnControl.Resume(..., interruptKinds)`。**它现在是 per-request、没落库** —— C3 做的正是"冻结成 Run 的属性"，别新造平行通道。
+- `requiredFeatures` 本轮恒为 `[]`（`subagents` 广告 `enabled:false`，client 协商不上）。**空数组是合法且明确的 Minimal Profile，不是"没设"** —— 字段非 optional，必须序列化成 `[]`。
+- 不可变性检查的正确位置：`runs.resume` 不接受新的 feature/interrupt 声明（§4.2「profile 由 root 拥有且全生命周期不可变」）。今天 `ResumeCommand.InterruptKinds` **恰恰每次 resume 重传** —— 这是 C3 要治的真实偏差，不是新加校验。
+
+**注册期校验**：`requiredByRunProtocol:true` 蕴含 `clientOptIn:true`（§8.2），违反要让 Registry **构建失败**（panic），不是运行时报错 —— §14 验收项明写这一条。
+
+**建议顺序**：C3 之前可先做 **C4/C5**（都只依赖已完成的 C1/C2，互不依赖）。C3 唯一挡住的是 C4 里
+`includeDescendants:true` 要返 `capability_not_negotiated` —— 那条在 C4 用现有 feature gate 直接拒即可（`features.subagents` 广告 false 已足够），profile 不参与该判断。
+
 **每 slice 反泄露 DoD**：新增 wire 概念不得在 presenter 产生业务判断（对照 §4.3 归属表）。
 
 **Batch C DoD**：契约 §14 验收矩阵九节全绿；18 项 CI gate 全通；分支可整体 revert。
