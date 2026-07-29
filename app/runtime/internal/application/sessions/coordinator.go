@@ -18,6 +18,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
@@ -226,6 +227,11 @@ type Coordinator struct {
 	// admissions is shared with Runs and owns the process-local session and
 	// working-tree facts.
 	admissions SessionAdmissions
+	// changed tells clients a committed session mutation moved something they hold.
+	// Every notice is published from a post-commit boundary, never from the commit
+	// itself: a signal for a transaction that then rolled back would send every
+	// listener to re-read state that never changed. nil publishes nothing.
+	changed change.Publish
 }
 
 // Dependencies is the collaborator set [New] wires into a Coordinator. Durable
@@ -248,6 +254,9 @@ type Dependencies struct {
 	Goals        GoalMutationGuard
 	Mutations    WorkspaceMutations
 	Admissions   SessionAdmissions
+	// Changed publishes post-commit invalidations for the session projections a
+	// mutation moved. nil disables them (no runtime change stream wired).
+	Changed change.Publish
 }
 
 // ErrSessionBusy reports that a session already has an active or parked run.
@@ -272,6 +281,7 @@ func New(deps Dependencies) *Coordinator {
 		goals:        deps.Goals,
 		mutations:    deps.Mutations,
 		admissions:   deps.Admissions,
+		changed:      deps.Changed,
 	}
 }
 

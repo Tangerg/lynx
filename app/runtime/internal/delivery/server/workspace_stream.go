@@ -19,11 +19,18 @@ import (
 var errServerClosed = errors.New("server: closed")
 
 // workspaceHub fans runtime change signals out to the live runtime.subscribe
-// streams (AUX_API §3). It is the non-run, ephemeral counterpart to the
-// per-run hubs: lossy (a slow subscriber drops the event rather than
-// back-pressuring the publisher — workspace events are "changed → re-fetch",
-// so a drop self-heals on the next change or a resync), connection-scoped (no
-// durable replay), shared by the whole app.
+// streams (§7.1). It is the non-run, ephemeral counterpart to the per-run hubs:
+// coalescing rather than back-pressuring the publisher (a change signal carries no
+// truth of its own, so several of them collapse into "re-read these topics"),
+// connection-scoped (no durable replay), shared by the whole app.
+//
+// It never drops an invalidation and never skips a sequence number. A slow
+// subscriber's undelivered signals fold into one pending resync naming exactly the
+// topics involved, which goes out as soon as its queue has room — either behind the
+// next signal or when the consumer drains one. The two are not interchangeable: a
+// gap tells a client only that something was lost, while a resync tells it what to
+// read, and inferring loss from a missing number means a client that never notices
+// on a quiet stream.
 type workspaceHub struct {
 	mu     sync.Mutex
 	subs   map[*workspaceSubscription]struct{}
@@ -39,8 +46,17 @@ type workspaceSubscription struct {
 	// topics is what THIS subscription asked for. The hub broadcasts every signal it
 	// receives; a subscription only sees the ones it can fold. resync is not a topic
 	// and always passes: a client that fell behind has to be told.
-	topics   map[protocol.RuntimeTopic]bool
+	topics map[protocol.RuntimeTopic]bool
+	// sequence is assigned when a frame is handed to the queue, never when one is
+	// produced or filtered — so the numbers a subscriber sees are consecutive and a
+	// gap can only mean the transport lost a frame.
 	sequence uint64
+	// stalledTopics / stalledWatchIDs accumulate the scope of signals a full queue
+	// could not take. They become one resync; until it is delivered every further
+	// signal folds into them, because a client must not receive a later invalidation
+	// ahead of the notice that it missed earlier ones.
+	stalledTopics   map[protocol.RuntimeTopic]bool
+	stalledWatchIDs []string
 }
 
 // register adds a caller-owned channel to the broadcast fan-out and returns an
@@ -87,13 +103,25 @@ func (h *workspaceHub) observe(src Source[runs.FileChange]) {
 	})
 }
 
-// publish fans ev to every subscriber, dropping it for any whose buffer is
-// full (lossy by design — see the type doc).
+// publish fans ev to every subscriber, folding it into a pending resync for any
+// whose buffer is full (see the type doc).
 func (h *workspaceHub) publish(ev protocol.RuntimeEvent) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for sub := range h.subs {
 		h.sendLocked(sub, ev)
+	}
+}
+
+// drained gives a stalled subscription its chance to catch up: the consumer just
+// took a frame, so the queue has room the publisher did not have. Without this a
+// pending resync would wait for the next unrelated signal, which on a quiet stream
+// is never — the loss would be silent, which is the one outcome this hub forbids.
+func (h *workspaceHub) drained(sub *workspaceSubscription) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if _, registered := h.subs[sub]; registered {
+		sub.flushStalledLocked()
 	}
 }
 
@@ -112,13 +140,80 @@ func (*workspaceHub) sendLocked(sub *workspaceSubscription, ev protocol.RuntimeE
 	if ev.Type != protocol.RuntimeResync && !sub.topics[protocol.RuntimeTopic(ev.Type)] {
 		return
 	}
-	sub.sequence++
+	// A pending resync goes first, and while it is pending this signal joins it: the
+	// notice that frames were missed must not arrive after the frames that followed
+	// them.
+	if !sub.flushStalledLocked() || !sub.offerLocked(ev) {
+		sub.stallLocked(ev)
+	}
+}
+
+// offerLocked hands ev to the queue, numbering it only if it fits. Reports whether
+// the subscriber has it.
+func (sub *workspaceSubscription) offerLocked(ev protocol.RuntimeEvent) bool {
 	ev = cloneRuntimeEvent(ev)
-	ev.Sequence = sub.sequence
+	ev.Sequence = sub.sequence + 1
 	select {
 	case sub.events <- ev:
-	default: // full subscriber: drop; the sequence gap tells it to re-fetch
+		sub.sequence++
+		return true
+	default:
+		return false
 	}
+}
+
+// stallLocked folds an undeliverable signal's scope into the pending resync. A
+// resync being stalled contributes its own scope, so a coalesced resync never
+// narrows what an earlier one had already widened.
+func (sub *workspaceSubscription) stallLocked(ev protocol.RuntimeEvent) {
+	if sub.stalledTopics == nil {
+		sub.stalledTopics = make(map[protocol.RuntimeTopic]bool, len(protocol.RuntimeTopics))
+	}
+	if ev.Type == protocol.RuntimeResync {
+		for _, topic := range ev.Topics {
+			sub.stalledTopics[topic] = true
+		}
+		sub.stallWatchIDsLocked(ev.WatchIDs)
+		return
+	}
+	sub.stalledTopics[protocol.RuntimeTopic(ev.Type)] = true
+	if ev.WatchID != "" {
+		sub.stallWatchIDsLocked([]string{ev.WatchID})
+	}
+}
+
+func (sub *workspaceSubscription) stallWatchIDsLocked(ids []string) {
+	for _, id := range ids {
+		if id != "" && !slices.Contains(sub.stalledWatchIDs, id) {
+			sub.stalledWatchIDs = append(sub.stalledWatchIDs, id)
+		}
+	}
+}
+
+// flushStalledLocked delivers the pending resync if there is one. Reports whether
+// the subscription is caught up — false means the queue is still full and the
+// caller's own signal has to fold in too.
+func (sub *workspaceSubscription) flushStalledLocked() bool {
+	if len(sub.stalledTopics) == 0 {
+		return true
+	}
+	// Declaration order, not map order: the topics a client is told to re-read are
+	// part of the wire, and a set that reshuffles per delivery is a fixture nobody
+	// can pin down.
+	topics := make([]protocol.RuntimeTopic, 0, len(sub.stalledTopics))
+	for _, topic := range protocol.RuntimeTopics {
+		if sub.stalledTopics[topic] {
+			topics = append(topics, topic)
+		}
+	}
+	if !sub.offerLocked(protocol.RuntimeEvent{
+		Type: protocol.RuntimeResync, Topics: topics, WatchIDs: sub.stalledWatchIDs,
+	}) {
+		return false
+	}
+	sub.stalledTopics = nil
+	sub.stalledWatchIDs = nil
+	return true
 }
 
 // cloneRuntimeEvent gives each subscription sole ownership of every mutable field.
@@ -203,17 +298,20 @@ func (s *Server) SubscribeRuntime(ctx context.Context, in protocol.RuntimeSubscr
 		stopContextRelease()
 		release()
 	})
-	return &protocol.RuntimeSubscribeResponse{}, eventSeq(out, stop), nil
+	return &protocol.RuntimeSubscribeResponse{}, eventSeq(out, func() { s.wsHub.drained(subscription) }, stop), nil
 }
 
 // eventSeq presents a subscription channel as the iter.Seq the wire streaming
-// contract uses. The lossy fan-out hub keeps its channels internally; only this
-// outer boundary is a sequence. stop releases the subscription when the
-// consumer ends the range before its request context does.
-func eventSeq(ch <-chan protocol.RuntimeEvent, stop func()) iter.Seq[protocol.RuntimeEvent] {
+// contract uses. The coalescing fan-out hub keeps its channels internally; only
+// this outer boundary is a sequence. drained tells the hub a frame left the queue,
+// which is when a subscription that fell behind can be handed its resync. stop
+// releases the subscription when the consumer ends the range before its request
+// context does.
+func eventSeq(ch <-chan protocol.RuntimeEvent, drained, stop func()) iter.Seq[protocol.RuntimeEvent] {
 	return func(yield func(protocol.RuntimeEvent) bool) {
 		defer stop()
 		for ev := range ch {
+			drained()
 			if !yield(ev) {
 				return
 			}

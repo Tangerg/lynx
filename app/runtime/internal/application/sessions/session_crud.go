@@ -52,7 +52,12 @@ func (c *Coordinator) Create(ctx context.Context, title, cwd string) (session.Se
 	if c.sessions == nil {
 		return session.Session{}, errors.New("sessions: session store is unavailable")
 	}
-	return c.sessions.Create(ctx, title, cwd)
+	created, err := c.sessions.Create(ctx, title, cwd)
+	if err != nil {
+		return session.Session{}, err
+	}
+	c.publishSessionMoved(created.ID)
+	return created, nil
 }
 
 // PrepareScheduled validates and materializes the session snapshot owned by a
@@ -114,7 +119,12 @@ func (c *Coordinator) Update(ctx context.Context, id string, patch session.Patch
 	if c.sessions == nil {
 		return session.Session{}, errors.New("sessions: session store is unavailable")
 	}
-	return c.sessions.Patch(ctx, id, patch)
+	updated, err := c.sessions.Patch(ctx, id, patch)
+	if err != nil {
+		return session.Session{}, err
+	}
+	c.publishSessionMoved(id)
+	return updated, nil
 }
 
 // resolveSessionCwd canonicalizes cwd and requires it to be an existing

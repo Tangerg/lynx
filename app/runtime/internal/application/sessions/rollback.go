@@ -58,6 +58,9 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 			})
 		},
 		func(ctx context.Context) error {
+			// The truncation is committed: the dropped runs are gone, the boundary's task
+			// list is published, and any subtask session it owned was deleted with it.
+			c.publishAggregateMoved(sessionIDs, dropRunIDs)
 			var cleanupErrs []error
 			for _, r := range slices.Concat(parked, childParked) {
 				if err := c.cancelTurn(ctx, r); err != nil {

@@ -111,6 +111,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		}
 		return StartResult{}, err
 	}
+	c.publishRunMoved(sess.ID, runID)
 	return StartResult{
 		RunID: runID, SegmentID: segmentID, SessionID: sess.ID,
 		UserItemID: userMessageItemID(segmentID), Events: events,
@@ -189,6 +190,9 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if err != nil {
 		return StartResult{}, err
 	}
+	// The continuation is durably accepted, which consumed the whole open set: the
+	// run is running again and nothing in this session is waiting on a person.
+	c.publishWaitingMoved(pending.SessionID, cmd.RunID)
 	result := StartResult{RunID: cmd.RunID, SegmentID: segmentID, SessionID: pending.SessionID, Events: events}
 	if len(cmd.Input) > 0 {
 		// Named only when there is an item to name: the id is derived from the segment
@@ -263,6 +267,10 @@ func (c *Coordinator) cancelParkedBinding(ctx context.Context, cmd CancelCommand
 	if err := c.sessions.ApplyRunCancel(ctx, ref.SessionID, cmd.RunID, cmd.Reason, c.now().UTC()); err != nil {
 		return err
 	}
+	// The abandon write-set publishes its own invalidation: it is the transaction that
+	// ends the run and drops the interrupt, and it is reached from here and from a
+	// resume that finds the park unresumable. Signaling here too would be a second
+	// author for one commit.
 	if err := c.turns.CancelTurn(ctx, ref); err != nil && !errors.Is(err, ErrTurnNotLive) {
 		return fmt.Errorf("runs: clean up canceled parked run %q turn: %w", cmd.RunID, err)
 	}

@@ -116,10 +116,18 @@ func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session,
 	if err != nil {
 		return session.Session{}, err
 	}
-	return c.writes.ApplyFork(ctx, ForkPlan{
+	child, err := c.writes.ApplyFork(ctx, ForkPlan{
 		ParentID: spec.ParentID,
 		Messages: boundary.Messages,
 		Todos:    todos.Items,
 		Title:    spec.Title,
 	})
+	if err != nil {
+		return session.Session{}, err
+	}
+	c.publishSessionMoved(child.ID)
+	if len(todos.Items) > 0 {
+		c.publishStateMoved(child.ID)
+	}
+	return child, nil
 }

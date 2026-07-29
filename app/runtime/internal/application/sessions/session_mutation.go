@@ -49,6 +49,10 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 			return c.writes.ApplyDelete(ctx, DeletePlan{SessionIDs: sessionIDs})
 		},
 		func(ctx context.Context) error {
+			// The durable cascade is gone as of here, so the signal cannot outrun it —
+			// and it goes out before the process-local cleanup, whose failures are the
+			// caller's to report but change nothing a client can read.
+			c.publishAggregateMoved(sessionIDs, nil)
 			var cleanupErrs []error
 			for _, item := range pending {
 				if err := c.cancelTurn(ctx, RunTurnBinding{
@@ -219,6 +223,7 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 			// Restore replaced the whole history: any isolated working copy
 			// from before the restore is stale, so discard it before exposing
 			// the restored aggregate.
+			c.publishAggregateMoved([]string{snapshot.Session.ID}, nil)
 			var postCommitErrs []error
 			if c.sandbox != nil {
 				if discardErr := c.sandbox.Discard(snapshot.Session.ID); discardErr != nil {

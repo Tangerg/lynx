@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -164,7 +165,19 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 	run.FinishedAt = finishedAt.UTC()
 	run.UpdatedAt = run.FinishedAt
 	run.MessageMark = len(snapshot.Messages)
-	return c.writes.ApplyTerminal(ctx, TerminalPlan{Run: run, Items: items, ProcessID: pending.ProcessID})
+	if err := c.writes.ApplyTerminal(ctx, TerminalPlan{Run: run, Items: items, ProcessID: pending.ProcessID}); err != nil {
+		return err
+	}
+	// One write-set ended the run and dropped the set it was parked on, so one place
+	// reports both — for a cancel and for a park declared unresumable alike. The run
+	// command layer deliberately does not publish this again: it would be a second
+	// author for the same commit, and only one of them would ever be updated.
+	c.changed.Notify(
+		change.InSession(change.Runs, sessionID, runID),
+		change.InSession(change.Interrupts, sessionID, runID),
+		change.InSession(change.Sessions, sessionID),
+	)
+	return nil
 }
 
 func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTurnBinding, error) {

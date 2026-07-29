@@ -27,6 +27,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
@@ -92,7 +93,11 @@ type Stack struct {
 	SkillChanges *signal.Signal[struct{}]
 	// ScheduleFires bridges accepted scheduled-run notifications to the delivery
 	// workspace hub. Bootstrap owns the runner; delivery only observes this nudge.
-	ScheduleFires    *signal.Signal[string]
+	ScheduleFires *signal.Signal[string]
+	// Changes bridges every committed session / run / interrupt / goal / state change
+	// to the delivery hub, which names each one's topic. Same seam as the nudges
+	// above; the producers are the use cases that committed the write.
+	Changes          *signal.Signal[change.Notice]
 	ScheduleFiring   *schedules.Firing
 	IdempotencyStore *sqlitestore.IdempotencyStore
 	GitAvailable     bool
@@ -369,9 +374,18 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	if err != nil {
 		return nil, fmt.Errorf("runtime: approval policy: %w", err)
 	}
+	// One bridge carries every committed change a client can fold — sessions, runs,
+	// interrupts, goals, state — from the use case that committed it to the delivery
+	// hub that names its topic. It is one channel rather than five because the
+	// producers publish the same shape (a resource plus the ids that moved), and the
+	// wire vocabulary belongs to delivery either way.
+	changes := &signal.Signal[change.Notice]{}
 	// Goal state crosses into the tool environment before the loop driver can be
-	// constructed. It is an application boundary, not a persistence proxy.
-	goalState := goals.NewState(cfg.GoalStore)
+	// constructed. It is an application boundary, not a persistence proxy. Wrapping
+	// the store here is what makes every goal write — lifecycle command, autonomous
+	// turn, update_goal, boot reconcile — publish its own invalidation.
+	goalStore := goals.WithChangeNotices(cfg.GoalStore, changes.Publish)
+	goalState := goals.NewState(goalStore)
 
 	mcpEnv, err := buildMCPEnvironment(ctx, cfg.MCPRegistry)
 	if err != nil {
@@ -520,6 +534,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Checkpoints:  checkpointstore.NewSessionCheckpoints(checkpoints),
 		Mutations:    cfg.WorkspaceMutationStore,
 		Admissions:   admissions,
+		Changed:      changes.Publish,
 	}
 	// Set only when present so a nil *Isolator never reaches the coordinator as a
 	// non-nil interface (which would defeat its own nil check).
@@ -549,6 +564,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		NewSegmentID: func() string {
 			return runs.NewSegmentID(uuid.NewString())
 		},
+		Changed: changes.Publish,
 	}
 	// Set only when present so a nil *Isolator never reaches the coordinator as a
 	// non-nil interface (which would defeat its own nil check).
@@ -584,7 +600,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// paused rather than silently resuming and burning budget.
 	var goalDriver *goals.Driver
 	if cfg.GoalStore != nil {
-		goalDriver = goals.NewDriverWithMutations(cfg.GoalStore, runCoord, cfg.SessionStore, goalMutations, agentexec.GoalPrompt)
+		goalDriver = goals.NewDriverWithMutations(goalStore, runCoord, cfg.SessionStore, goalMutations, agentexec.GoalPrompt)
 		lifetime.goals = goalDriver
 		if err := goalDriver.Reconcile(ctx); err != nil {
 			return nil, fmt.Errorf("runtime: reconcile goals: %w", err)
@@ -631,6 +647,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 			MCPStatus:        mcpStatus,
 			SkillChanges:     skillChanges,
 			ScheduleFires:    scheduleFires,
+			Changes:          changes,
 			ScheduleFiring:   scheduleFiring,
 			IdempotencyStore: cfg.IdempotencyStore,
 			Queries: queries.New(queries.Dependencies{

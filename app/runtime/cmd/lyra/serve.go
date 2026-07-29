@@ -91,6 +91,7 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 		MCPStatus:          stack.MCPStatus,
 		SkillChanges:       stack.SkillChanges,
 		ScheduleFires:      stack.ScheduleFires,
+		Changes:            stack.Changes,
 		Queries:            stack.Queries,
 		Usage:              stack.Usage,
 		Feedback:           stack.Feedback,

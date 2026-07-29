@@ -179,6 +179,7 @@ func (p segmentPublisher) publish(ctx context.Context, batch reductionBatch) (re
 		return p.publishPark(ctx, batch)
 	}
 	publication := reductionPublication{published: true}
+	goalCharged := false
 	for _, reduced := range batch.events {
 		// Commit before publish: a durable event's atomic commit (for a terminal,
 		// recording the run + terminalizing the run-state) lands before the event
@@ -189,11 +190,18 @@ func (p segmentPublisher) publish(ctx context.Context, batch reductionBatch) (re
 			if err := p.coordinator.effects.CommitEvent(ctx, *reduced.Commit); err != nil {
 				return reductionPublication{}, fmt.Errorf("runs: commit %T: %w", reduced.Event, err)
 			}
+			goalCharged = goalCharged || reduced.Commit.GoalTurn != nil
 		}
 		if reduced.Event.Terminal() {
 			publication.finished = true
 		}
 		p.append(reduced)
+	}
+	if publication.finished {
+		p.coordinator.publishRunMoved(p.spec.SessionID, p.spec.RunID)
+	}
+	if goalCharged {
+		p.coordinator.publishGoalMoved(p.spec.SessionID)
 	}
 	return publication, nil
 }
@@ -216,6 +224,9 @@ func (p segmentPublisher) publishPark(ctx context.Context, batch reductionBatch)
 	if err != nil {
 		return reductionPublication{}, fmt.Errorf("runs: commit interrupt: %w", err)
 	}
+	if committed {
+		p.coordinator.publishWaitingMoved(p.spec.SessionID, p.spec.RunID)
+	}
 	return reductionPublication{published: committed, finished: committed, parked: committed}, nil
 }
 
@@ -223,6 +234,11 @@ func (p segmentPublisher) append(reduced reduction) {
 	p.live.hub.Append(p.coordinator.event(p.spec, reduced))
 	if reduced.Nudge != nil {
 		p.coordinator.effects.Nudge(reduced.Nudge.Cwd, reduced.Nudge.Paths)
+	}
+	// The projection was written by the tool that reported this event, so the value a
+	// notified client reads back is the one the snapshot carries.
+	if _, ok := reduced.Event.(StateSnapshot); ok {
+		p.coordinator.publishStateMoved(p.spec.SessionID)
 	}
 }
 

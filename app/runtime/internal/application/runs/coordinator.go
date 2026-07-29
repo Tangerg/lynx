@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/replaycursor"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -51,6 +52,11 @@ type Coordinator struct {
 	tasks     taskgroup.Group
 	registry  registry
 	admission *admission.Gate
+	// changed tells clients that are NOT following this run that its lifecycle
+	// moved. The run's own stream carries the events themselves; this is the
+	// invalidation for everyone else, published only after the durable commit the
+	// event stands on. nil publishes nothing.
+	changed change.Publish
 }
 
 // Dependencies is the complete collaborator set for the user-visible run use
@@ -69,6 +75,9 @@ type Dependencies struct {
 	Retention    Retention
 	NewRunID     func() string
 	NewSegmentID func() string
+	// Changed publishes run/session/interrupt/state invalidations for clients that
+	// are not following the run. nil disables them (no runtime change stream wired).
+	Changed change.Publish
 }
 
 // NewCoordinator builds the single owner of run use cases and live segments.
@@ -92,6 +101,7 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 		epoch:        replaycursor.NewEpoch(),
 		retention:    deps.Retention,
 		admission:    deps.Admissions,
+		changed:      deps.Changed,
 	}
 }
 

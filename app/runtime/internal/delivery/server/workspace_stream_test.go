@@ -1,6 +1,7 @@
 package server
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -67,20 +68,70 @@ func TestWorkspaceHubSequencesEventsPerSubscription(t *testing.T) {
 // Every event carries a real topic — a subscription filters by topic, so a
 // made-up type would be dropped before the sequence could say anything, and the
 // test would hang waiting for a frame the hub correctly never sent.
-func TestWorkspaceHubSequenceExposesDroppedEvent(t *testing.T) {
+// TestWorkspaceHubCoalescesRatherThanDroppingSignals: a subscriber whose queue is
+// full is told WHAT to re-read, not merely that it missed something. The old
+// behavior published a number and dropped the frame, which meant a client learned
+// about the loss only from a gap — and on a quiet stream, never.
+func TestWorkspaceHubCoalescesRatherThanDroppingSignals(t *testing.T) {
 	hub := newWorkspaceHub()
 	events := make(chan protocol.RuntimeEvent, 1)
-	_, unregister, _ := hub.register(events, allTopics())
+	sub, unregister, _ := hub.register(events, allTopics())
 	defer unregister()
 
-	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeFilesChanged})
-	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged}) // dropped: buffer full
-	if got := <-events; got.Sequence != 1 {
-		t.Fatalf("first sequence = %d, want 1", got.Sequence)
-	}
+	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeFilesChanged, WatchID: "w1"})
+	// Both of these find the queue full and fold into one pending resync.
+	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged})
 	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeSessionsChanged})
-	if got := <-events; got.Sequence != 3 {
-		t.Fatalf("sequence after drop = %d, want 3", got.Sequence)
+
+	first := <-events
+	if first.Type != protocol.RuntimeFilesChanged || first.Sequence != 1 {
+		t.Fatalf("first frame = %s/%d, want files.changed/1", first.Type, first.Sequence)
+	}
+	// Draining is the only thing that will happen next: no further signal is coming,
+	// so the hub has to use the room the consumer just made.
+	hub.drained(sub)
+	second := <-events
+	if second.Type != protocol.RuntimeResync {
+		t.Fatalf("second frame = %s, want the coalesced resync", second.Type)
+	}
+	// Consecutive: the missed signals cost no number, so a gap can only ever mean
+	// the transport lost a frame.
+	if second.Sequence != 2 {
+		t.Fatalf("resync sequence = %d, want 2", second.Sequence)
+	}
+	if !slices.Equal(second.Topics, []protocol.RuntimeTopic{protocol.TopicSkillsChanged, protocol.TopicSessionsChanged}) {
+		t.Fatalf("resync topics = %v, want exactly the two that were held back", second.Topics)
+	}
+}
+
+// TestWorkspaceHubResyncKeepsTheScopeItWasStalledWith: a resync that cannot be
+// delivered must not narrow when it is finally sent — a watch scope it named is a
+// read the client still owes.
+func TestWorkspaceHubResyncKeepsTheScopeItWasStalledWith(t *testing.T) {
+	hub := newWorkspaceHub()
+	events := make(chan protocol.RuntimeEvent, 1)
+	sub, unregister, _ := hub.register(events, allTopics())
+	defer unregister()
+
+	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeMCPChanged})
+	hub.publishTo(sub, protocol.RuntimeEvent{
+		Type:     protocol.RuntimeResync,
+		Topics:   []protocol.RuntimeTopic{protocol.TopicFilesChanged},
+		WatchIDs: []string{"active-session"},
+	})
+	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeFilesChanged, WatchID: "other"})
+
+	<-events
+	hub.drained(sub)
+	resync := <-events
+	if resync.Type != protocol.RuntimeResync {
+		t.Fatalf("frame = %s, want resync", resync.Type)
+	}
+	if !slices.Equal(resync.Topics, []protocol.RuntimeTopic{protocol.TopicFilesChanged}) {
+		t.Fatalf("resync topics = %v, want files.changed", resync.Topics)
+	}
+	if !slices.Equal(resync.WatchIDs, []string{"active-session", "other"}) {
+		t.Fatalf("resync watch ids = %v, want both stalled scopes", resync.WatchIDs)
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
@@ -93,6 +94,13 @@ type Config struct {
 	// ScheduleFiring starts an accepted schedule without coupling Delivery to
 	// worker construction or the Runs coordinator.
 	ScheduleFiring scheduleFiringUseCases
+
+	// Changes carries every committed session / run / interrupt / goal / state
+	// change from the use case that committed it; the Server maps each to the one
+	// invalidation signal for its topic (§7.3). Required in production: without it a
+	// second window learns nothing about work it is not itself driving. Nil in tests
+	// that don't exercise the change stream.
+	Changes Source[change.Notice]
 
 	// ScheduleFires carries accepted scheduled-run notifications from the
 	// composition root. Delivery projects them to workspace events; it does not
@@ -359,6 +367,9 @@ func New(cfg Config) (*Server, error) {
 	}
 	if cfg.ScheduleFires != nil {
 		srv.observeScheduleFires(cfg.ScheduleFires)
+	}
+	if cfg.Changes != nil {
+		srv.observeChanges(cfg.Changes)
 	}
 	return srv, nil
 }
