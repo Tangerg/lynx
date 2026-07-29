@@ -64,7 +64,7 @@
 | B | Contract Registry（全量） | `DONE` | 4 slice 全 `DONE`；14 类产物 + **18/18** drift gate（15/16/17/18 随 C16 落）|
 | B′ | 权威读面 + store cutover | `DONE` | B′1 + B′2/B′3（合并）落 main；B′4 逐项核实为已完成 / 余项 `DEFERRED → C`（无 producer），B′5 `DEFERRED → C7` |
 | C | vNext 原子切换 | `DONE` | 17 slice（C14b 为实施中发现追加），27 commit，**已 ff 合 main 2026-07-29**（尾 `5f23fe9e8`）|
-| D | 切换后数值调优 | `DONE`（D4 真机半除外） | D1/D2/D3 `DONE`、D4 `PARTIAL`，3 commit 已合 main 2026-07-29（尾 `a053e655e`）。**有界性先于快慢** —— 而有界性 C12/C13 早已做完，所以 D 的起点是**测量**：D2 裁决「数值不动」有测量背书，D3 是去掉重复劳动而非提速。剩真机负载 |
+| D | 切换后数值调优 | `DONE`（D4 真机半 `DEFERRED`） | D1/D2/D3 `DONE`、D4 `PARTIAL`，3 commit 已合 main 2026-07-29（尾 `a053e655e`）。**有界性先于快慢** —— 而有界性 C12/C13 早已做完，所以 D 的起点是**测量**：D2 裁决「数值不动」有测量背书，D3 是去掉重复劳动而非提速。剩真机负载 |
 
 **状态取值**：`TODO` / `IN PROGRESS` / `DONE` / `DEFERRED` / `N/A（附理由）`
 
@@ -1161,7 +1161,7 @@ presence 原语正是"一 keyword 一原语"禁的那种融合。
 | D1 | slow-consumer 与 replay memory benchmark | `DONE` | `journal_cost_test.go` |
 | D2 | 在不改 scope/语义前提下调 discover 返回的 replay 数值上限 | `DONE`（裁决：不动，见 D1 证据） | — |
 | D3 | event coalescing / subscriber queue / 生成速度优化 | `DONE` | `chargedEvent` |
-| D4 | 真实桌面负载验证一条 runtime stream + 多条 active Run stream 的连接占用 | `PARTIAL`（无头半已证，真机待 live） | `stream_occupancy_test.go` |
+| D4 | 真实桌面负载验证一条 runtime stream + 多条 active Run stream 的连接占用 | `DONE`（无头半）+ `DEFERRED`（真机半，用户裁决归后续调优） | `stream_occupancy_test.go` |
 
 **Batch D 不得重新引入 Batch C 已删除的兼容层。**
 
@@ -1201,7 +1201,9 @@ presence 原语正是"一 keyword 一原语"禁的那种融合。
 
 `TestStreamingConnectionsReleaseTheirGoroutines`：开 16 条流、在服务端进入 select loop 后**不优雅地**掉线，断言残留 goroutine **不随连接数增长**（实测 16 条流残留 **0**）。断言写成"形状"而非确切数字 —— 一个精确的 goroutine 数会被 net/http 自己的池化左右，只会教下一个人抬阈值而不是去找泄漏。**反例已验**：在 `serveStream` 里注入一个活过请求的 goroutine → 16 条流残留 16，精确抓到。
 
-**真机那半仍待做**：长时间真实负载下的 RSS 曲线、真 LLM 往返时的心跳与写超时行为、多 session 并发时的实际连接占用 —— 需要 `wails dev` 与真实 run，不在无头范围内。
+**真机那半 `DEFERRED`（2026-07-29 用户裁决）**：长时间真实负载下的 RSS 曲线、真 LLM 往返时的心跳与写超时行为、多 session 并发时的实际连接占用 —— 需要 `wails dev` 与真实 run。**归入后续调优专项，不是欠债**：核心实现阶段只做实现，调优等有真实负载数据再做。别把它当 TODO 重新捡起来。
+
+**至此 vNext 计划（A / A′ / B / B′ / C / D）全部收口。**
 
 > ⚠️ **这是本仓库第一次有 benchmark 需求。** 记忆 `project_agent_refinement_closed_perf_dropped` 论证关闭的是 **agent 模块 CPU 延迟维度**，**不覆盖这里** —— replay journal 与 subscriber queue 是**内存与连接**资源，且契约 §6.5 明确把数值上限做成可测量调整项。
 
