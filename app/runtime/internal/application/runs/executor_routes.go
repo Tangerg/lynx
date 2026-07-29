@@ -337,20 +337,6 @@ func (routes *executorRoutes) installChild(source ExecutorSource, route *executo
 	routes.admissionOrder = append(routes.admissionOrder, route)
 }
 
-// unfinishedChildrenInReverseAdmission returns a reverse topological order:
-// a descendant can only be admitted after its parent, so reversing admission
-// always closes descendants before ancestors without reconstructing the tree.
-func (routes *executorRoutes) unfinishedChildrenInReverseAdmission() []*executorRoute {
-	children := make([]*executorRoute, 0, len(routes.admissionOrder)-1)
-	for index := len(routes.admissionOrder) - 1; index >= 1; index-- {
-		route := routes.admissionOrder[index]
-		if !route.segmentFinished {
-			children = append(children, route)
-		}
-	}
-	return children
-}
-
 func (routes *executorRoutes) abortUnfinished() {
 	for _, route := range routes.admissionOrder {
 		if !route.segmentFinished && route.reducer != nil {

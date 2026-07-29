@@ -2,6 +2,7 @@ package agentexec
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -89,15 +90,15 @@ type TurnProcess interface {
 // [runtime.Process]. It is package-private, so retaining the concrete Agent
 // runtime keeps lifecycle commands inside this execution adapter.
 type turnProcess struct {
-	process        *runtime.Process
-	segment        *runtime.Segment
-	owner          *Engine
-	scope          execution.TurnScope
-	runCtx         context.Context
-	usage          *usageLedger
-	provider       string
-	budget         accounting.Budget
-	pendingAnswers map[suspensionKey]interrupts.Resolution
+	process          *runtime.Process
+	segment          *runtime.Segment
+	owner            *Engine
+	scope            execution.TurnScope
+	runCtx           context.Context
+	usage            *usageLedger
+	provider         string
+	budget           accounting.Budget
+	pendingResponses map[suspensionKey]json.RawMessage
 }
 
 const checkpointCommitTimeout = 10 * time.Second
@@ -128,19 +129,22 @@ func (p *turnProcess) Await() TurnCompletion {
 			completion.HasOutput = true
 		}
 		completion.Err = errors.Join(completion.Err, p.persistWaitingCheckpoint(completion.Status))
-		if completion.Err != nil || completion.Status != core.StatusWaiting || len(p.pendingAnswers) == 0 {
-			if completion.Status != core.StatusWaiting && len(p.pendingAnswers) > 0 {
+		if completion.Err != nil || completion.Status != core.StatusWaiting || len(p.pendingResponses) == 0 {
+			if completion.Status != core.StatusWaiting && len(p.pendingResponses) > 0 {
 				completion.Err = errors.Join(
 					completion.Err,
-					fmt.Errorf("agentexec: process terminated with %d accepted suspension answers unconsumed", len(p.pendingAnswers)),
+					fmt.Errorf(
+						"agentexec: process terminated with %d accepted suspension responses unconsumed",
+						len(p.pendingResponses),
+					),
 				)
-				p.pendingAnswers = nil
+				p.pendingResponses = nil
 			}
 			return completion
 		}
 		if err := p.resumeNext(context.Background()); err != nil {
 			completion.Err = err
-			p.pendingAnswers = nil
+			p.pendingResponses = nil
 			return completion
 		}
 	}
@@ -172,15 +176,13 @@ func (p *turnProcess) Resume(ctx context.Context, answers []SuspensionAnswer) er
 			len(pending),
 		)
 	}
-	p.pendingAnswers = make(map[suspensionKey]interrupts.Resolution, len(answers))
+	responses := make(map[suspensionKey]json.RawMessage, len(answers))
 	for _, answer := range answers {
 		key := suspensionKey{processID: answer.ProcessID, suspensionID: answer.SuspensionID}
 		if key.processID == "" || key.suspensionID == "" {
-			p.pendingAnswers = nil
 			return fmt.Errorf("agentexec: resume process %q: answer has incomplete suspension identity", p.process.ID())
 		}
-		if _, duplicate := p.pendingAnswers[key]; duplicate {
-			p.pendingAnswers = nil
+		if _, duplicate := responses[key]; duplicate {
 			return fmt.Errorf(
 				"agentexec: resume process %q: duplicate answer for process %q suspension %q",
 				p.process.ID(),
@@ -188,12 +190,21 @@ func (p *turnProcess) Resume(ctx context.Context, answers []SuspensionAnswer) er
 				key.suspensionID,
 			)
 		}
-		p.pendingAnswers[key] = answer.Resolution
+		response, err := suspension.EncodeResolution(answer.Resolution)
+		if err != nil {
+			return fmt.Errorf(
+				"agentexec: resume process %q: encode answer for process %q suspension %q: %w",
+				p.process.ID(),
+				key.processID,
+				key.suspensionID,
+				err,
+			)
+		}
+		responses[key] = response
 	}
 	for _, boundary := range pending {
 		key := suspensionKey{processID: boundary.ProcessID, suspensionID: boundary.SuspensionID}
-		if _, ok := p.pendingAnswers[key]; !ok {
-			p.pendingAnswers = nil
+		if _, ok := responses[key]; !ok {
 			return fmt.Errorf(
 				"agentexec: resume process %q: no answer for process %q suspension %q",
 				p.process.ID(),
@@ -202,8 +213,9 @@ func (p *turnProcess) Resume(ctx context.Context, answers []SuspensionAnswer) er
 			)
 		}
 	}
+	p.pendingResponses = responses
 	if err := p.resumeNext(ctx); err != nil {
-		p.pendingAnswers = nil
+		p.pendingResponses = nil
 		return err
 	}
 	return nil
@@ -219,7 +231,7 @@ func (p *turnProcess) resumeNext(ctx context.Context) error {
 	}
 	next := pending[0]
 	key := suspensionKey{processID: next.ProcessID, suspensionID: next.SuspensionID}
-	resolution, ok := p.pendingAnswers[key]
+	response, ok := p.pendingResponses[key]
 	if !ok {
 		return fmt.Errorf(
 			"agentexec: resume process %q: newly exposed process %q suspension %q was not in the accepted answer set",
@@ -227,10 +239,6 @@ func (p *turnProcess) resumeNext(ctx context.Context) error {
 			next.ProcessID,
 			next.SuspensionID,
 		)
-	}
-	response, err := suspension.EncodeResolution(resolution)
-	if err != nil {
-		return fmt.Errorf("agentexec: encode suspension response: %w", err)
 	}
 	parked := p.process.Suspension()
 	if parked == nil {
@@ -240,7 +248,7 @@ func (p *turnProcess) resumeNext(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	delete(p.pendingAnswers, key)
+	delete(p.pendingResponses, key)
 	p.segment = segment
 	return nil
 }

@@ -6,10 +6,30 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"sync/atomic"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
+
+type failNthSaveProcessStore struct {
+	agentexec.ProcessStore
+	failAt int32
+	saves  atomic.Int32
+	err    error
+}
+
+func (s *failNthSaveProcessStore) SaveTree(
+	ctx context.Context,
+	tree core.ProcessSnapshotTree,
+	checkpoint execution.ProcessCheckpoint,
+) error {
+	if s.saves.Add(1) == s.failAt {
+		return s.err
+	}
+	return s.ProcessStore.SaveTree(ctx, tree, checkpoint)
+}
 
 type memoryProcessStore struct {
 	mu          sync.Mutex

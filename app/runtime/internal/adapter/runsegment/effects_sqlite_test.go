@@ -118,7 +118,7 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 		SessionID: "ses_1",
 		Runs:      []execution.RunResumeDraft{{RunID: "run_1", SegmentID: "seg_next"}},
 	}
-	err = effects.CommitOpening(ctx, runs.OpeningCommit{
+	opening := runs.OpeningCommit{
 		Resume: &resume,
 		Events: []runs.EventCommit{{
 			RunID:     "run_1",
@@ -129,7 +129,8 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 				Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "go on"}},
 			}},
 		}},
-	})
+	}
+	err = effects.CommitOpening(ctx, opening)
 	if err != nil {
 		t.Fatalf("CommitOpening: %v", err)
 	}
@@ -143,6 +144,17 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	var stateName string
 	if err := db.QueryRowContext(ctx, `SELECT state FROM runs WHERE run_id = ?`, "run_1").Scan(&stateName); err != nil || stateName != "running" {
 		t.Fatalf("run state=%q err=%v, want running", stateName, err)
+	}
+
+	if err := effects.CommitOpening(ctx, opening); err == nil {
+		t.Fatal("duplicate CommitOpening succeeded after the interrupt was consumed")
+	}
+	recorded, listErr = history.List(ctx, "ses_1")
+	if listErr != nil || len(recorded) != 1 {
+		t.Fatalf("history after duplicate items=%d err=%v, want unchanged", len(recorded), listErr)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT state FROM runs WHERE run_id = ?`, "run_1").Scan(&stateName); err != nil || stateName != "running" {
+		t.Fatalf("run state after duplicate=%q err=%v, want running", stateName, err)
 	}
 }
 

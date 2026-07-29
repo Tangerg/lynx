@@ -539,11 +539,12 @@ func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pendin
 		)
 	}
 	turn, err = c.turns.Rehydrate(ctx, RehydrateTurn{
-		SessionID:      pending.SessionID,
-		TurnID:         pending.TurnID,
-		ProcessID:      root.ProcessID,
-		ModelSelection: root.ModelSelection,
-		Cwd:            cwd,
+		SessionID:                pending.SessionID,
+		TurnID:                   pending.TurnID,
+		ProcessID:                root.ProcessID,
+		ModelSelection:           root.ModelSelection,
+		Cwd:                      cwd,
+		ChildRunAdmissionEnabled: len(pending.Continuations) > 1,
 	})
 	if err != nil {
 		return execution.TurnRef{}, errors.Join(ErrRunNotFound, err)

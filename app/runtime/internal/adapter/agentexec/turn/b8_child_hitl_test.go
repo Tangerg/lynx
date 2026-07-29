@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/chatclient"
 	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
@@ -303,6 +305,266 @@ func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *
 	}
 	if endReason != execution.OutcomeCompleted {
 		t.Fatalf("turn end = %q, want completed", endReason)
+	}
+}
+
+func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testing.T) {
+	const buildID = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+	cwd := t.TempDir()
+	databasePath := filepath.Join(t.TempDir(), "runtime.db")
+	firstDatabase, err := sqlite.Open(databasePath)
+	if err != nil {
+		t.Fatalf("open first database: %v", err)
+	}
+	t.Cleanup(func() { _ = firstDatabase.Close() })
+	sess, err := sqlite.NewSessionStore(firstDatabase).Create(
+		t.Context(),
+		"restart sibling answer set",
+		cwd,
+	)
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	model := &parallelQuestionChildModel{
+		defaults: &chat.Options{Model: "b8-restart-parallel-questions"},
+	}
+	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
+	first := buildB8PersistentDispatcher(
+		t,
+		model,
+		policy,
+		staticHookResolver{},
+		sqlite.NewProcessStore(firstDatabase),
+		sqlite.NewMessageStore(firstDatabase),
+		buildID,
+	)
+	original, err := first.StartTurn(t.Context(), runs.StartTurn{
+		SessionID:      sess.ID,
+		Message:        "delegate this work",
+		Cwd:            cwd,
+		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	events, err := first.Events(t.Context(), original)
+	if err != nil {
+		t.Fatalf("Events: %v", err)
+	}
+	var barrier runs.TreeInterrupted
+	for event := range events {
+		if interrupted, ok := event.Payload.(runs.TreeInterrupted); ok {
+			barrier = interrupted
+			break
+		}
+	}
+	if len(barrier.Suspensions) != 2 {
+		t.Fatalf("original barrier = %#v, want two sibling suspensions", barrier.Suspensions)
+	}
+	processID, err := first.ProcessID(t.Context(), original)
+	if err != nil {
+		t.Fatalf("ProcessID: %v", err)
+	}
+
+	restoredDatabase, err := sqlite.Open(databasePath)
+	if err != nil {
+		t.Fatalf("reopen database: %v", err)
+	}
+	t.Cleanup(func() { _ = restoredDatabase.Close() })
+	restored := buildB8PersistentDispatcher(
+		t,
+		model,
+		policy,
+		staticHookResolver{},
+		sqlite.NewProcessStore(restoredDatabase),
+		sqlite.NewMessageStore(restoredDatabase),
+		buildID,
+	)
+	restoredHandle, err := restored.Rehydrate(t.Context(), runs.RehydrateTurn{
+		SessionID: original.SessionID,
+		TurnID:    original.TurnID,
+		ProcessID: processID,
+		Cwd:       cwd,
+	})
+	if err != nil {
+		t.Fatalf("Rehydrate: %v", err)
+	}
+	restoredEvents, err := restored.Events(t.Context(), restoredHandle)
+	if err != nil {
+		t.Fatalf("restored Events: %v", err)
+	}
+	answers := make([]agentexec.SuspensionAnswer, len(barrier.Suspensions))
+	for index, boundary := range barrier.Suspensions {
+		answers[index] = agentexec.SuspensionAnswer{
+			ProcessID:    boundary.ProcessID,
+			SuspensionID: boundary.SuspensionID,
+			Resolution: interrupts.Resolution{
+				Approved: true,
+				Answer: map[string][]string{
+					runs.QuestionFieldID(0): {fmt.Sprintf("restored-answer-%d", index+1)},
+				},
+			},
+		}
+	}
+	if err := restored.Resume(
+		t.Context(),
+		restoredHandle,
+		answers,
+		[]execution.InterruptKind{execution.QuestionInterrupt},
+	); err != nil {
+		t.Fatalf("restored Resume: %v", err)
+	}
+	replayedBarriers := 0
+	endReason := execution.OutcomeError
+	for event := range restoredEvents {
+		switch payload := event.Payload.(type) {
+		case runs.TreeInterrupted:
+			replayedBarriers++
+		case runs.TurnEnd:
+			endReason = payload.Reason
+		}
+	}
+	if replayedBarriers != 0 {
+		t.Fatalf("restored continuation published %d intermediate barriers, want none", replayedBarriers)
+	}
+	if endReason != execution.OutcomeCompleted {
+		t.Fatalf("restored turn end = %q, want completed", endReason)
+	}
+}
+
+func TestCompleteAnswerSetCheckpointFailureTerminalizesWithoutReplayingBarrier(t *testing.T) {
+	const buildID = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+	baseStore := newMemoryProcessStore()
+	checkpointErr := errors.New("checkpoint unavailable")
+	store := &failNthSaveProcessStore{
+		ProcessStore: baseStore,
+		failAt:       2,
+		err:          checkpointErr,
+	}
+	dispatcher := buildB8PersistentDispatcher(
+		t,
+		&parallelQuestionChildModel{
+			defaults: &chat.Options{Model: "b8-parallel-checkpoint-failure"},
+		},
+		mustApprovalPolicy(t, approval.ModeBalanced, nil),
+		staticHookResolver{},
+		store,
+		history.NewInMemoryStore(),
+		buildID,
+	)
+	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+		SessionID:      "sess-b8-parallel-checkpoint-failure",
+		Message:        "delegate this work",
+		Cwd:            t.TempDir(),
+		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	events, err := dispatcher.Events(t.Context(), handle)
+	if err != nil {
+		t.Fatalf("Events: %v", err)
+	}
+
+	barrierCount := 0
+	terminalCount := 0
+	for event := range events {
+		switch payload := event.Payload.(type) {
+		case runs.TreeInterrupted:
+			barrierCount++
+			if len(payload.Suspensions) != 2 {
+				t.Fatalf("barrier suspensions = %#v, want two", payload.Suspensions)
+			}
+			if err := dispatcher.Resume(
+				t.Context(),
+				handle,
+				questionAnswersForBarrier(payload, "checkpoint-failure"),
+				[]execution.InterruptKind{execution.QuestionInterrupt},
+			); err != nil {
+				t.Fatalf("Resume complete answer set: %v", err)
+			}
+		case runs.TurnEnd:
+			terminalCount++
+			if payload.Reason != execution.OutcomeError || payload.Problem == nil {
+				t.Fatalf("TurnEnd = %+v, want canonical error terminal", payload)
+			}
+		}
+	}
+	if barrierCount != 1 {
+		t.Fatalf("TreeInterrupted count = %d, want original barrier only", barrierCount)
+	}
+	if terminalCount != 1 {
+		t.Fatalf("TurnEnd count = %d, want one", terminalCount)
+	}
+	if saves := store.saves.Load(); saves != 2 {
+		t.Fatalf("checkpoint save attempts = %d, want initial barrier plus failed intermediate checkpoint", saves)
+	}
+}
+
+func TestCompleteAnswerSetEncodingFailurePrecedesAnyContinuationSideEffect(t *testing.T) {
+	const buildID = "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+	store := &failNthSaveProcessStore{
+		ProcessStore: newMemoryProcessStore(),
+		failAt:       -1,
+	}
+	dispatcher := buildB8PersistentDispatcher(
+		t,
+		&parallelQuestionChildModel{
+			defaults: &chat.Options{Model: "b8-parallel-encoding-failure"},
+		},
+		mustApprovalPolicy(t, approval.ModeBalanced, nil),
+		staticHookResolver{},
+		store,
+		history.NewInMemoryStore(),
+		buildID,
+	)
+	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+		SessionID:      "sess-b8-parallel-encoding-failure",
+		Message:        "delegate this work",
+		Cwd:            t.TempDir(),
+		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	events, err := dispatcher.Events(t.Context(), handle)
+	if err != nil {
+		t.Fatalf("Events: %v", err)
+	}
+
+	barrierCount := 0
+	terminalCount := 0
+	for event := range events {
+		switch payload := event.Payload.(type) {
+		case runs.TreeInterrupted:
+			barrierCount++
+			answers := questionAnswersForBarrier(payload, "encoding-failure")
+			answers[len(answers)-1].Resolution.RememberScope = approval.Scope("unknown")
+			err := dispatcher.Resume(
+				t.Context(),
+				handle,
+				answers,
+				[]execution.InterruptKind{execution.QuestionInterrupt},
+			)
+			if err == nil || !strings.Contains(err.Error(), "unknown remember scope") {
+				t.Fatalf("Resume encoding error = %v, want invalid remember scope", err)
+			}
+		case runs.TurnEnd:
+			terminalCount++
+			if payload.Reason != execution.OutcomeError || payload.Problem == nil {
+				t.Fatalf("TurnEnd = %+v, want canonical error terminal", payload)
+			}
+		}
+	}
+	if barrierCount != 1 || terminalCount != 1 {
+		t.Fatalf(
+			"barriers/terminals = %d/%d, want original barrier and one terminal",
+			barrierCount,
+			terminalCount,
+		)
+	}
+	if saves := store.saves.Load(); saves != 1 {
+		t.Fatalf("checkpoint save attempts = %d, want initial barrier only", saves)
 	}
 }
 
@@ -650,6 +912,100 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 	}
 }
 
+func TestCompleteSiblingAnswerSetCancelRaceHasOneTerminalAndNoSecondBarrier(t *testing.T) {
+	dispatcher := buildB8Dispatcher(
+		t,
+		&parallelQuestionChildModel{
+			defaults: &chat.Options{Model: "b8-parallel-answer-cancel-race"},
+		},
+		mustApprovalPolicy(t, approval.ModeBalanced, nil),
+		staticHookResolver{},
+	)
+
+	for index := range 20 {
+		handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+			SessionID:      fmt.Sprintf("sess-b8-parallel-race-%d", index),
+			Message:        "delegate this work",
+			Cwd:            t.TempDir(),
+			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		})
+		if err != nil {
+			t.Fatalf("iteration %d StartTurn: %v", index, err)
+		}
+		events, err := dispatcher.Events(t.Context(), handle)
+		if err != nil {
+			t.Fatalf("iteration %d Events: %v", index, err)
+		}
+
+		barrierCount := 0
+		terminalCount := 0
+		for event := range events {
+			switch payload := event.Payload.(type) {
+			case runs.TreeInterrupted:
+				barrierCount++
+				if barrierCount != 1 {
+					continue
+				}
+				answers := questionAnswersForBarrier(payload, fmt.Sprintf("race-%d", index))
+				start := make(chan struct{})
+				var (
+					wg        sync.WaitGroup
+					resumeErr error
+					cancelErr error
+				)
+				wg.Add(2)
+				go func() {
+					defer wg.Done()
+					<-start
+					resumeErr = dispatcher.Resume(
+						t.Context(),
+						handle,
+						answers,
+						[]execution.InterruptKind{execution.QuestionInterrupt},
+					)
+				}()
+				go func() {
+					defer wg.Done()
+					<-start
+					cancelErr = dispatcher.Cancel(t.Context(), handle)
+				}()
+				close(start)
+				wg.Wait()
+				if resumeErr != nil &&
+					!errors.Is(resumeErr, turn.ErrParkClaimed) &&
+					!errors.Is(resumeErr, turn.ErrTurnNotFound) {
+					t.Fatalf("iteration %d Resume race error = %v", index, resumeErr)
+				}
+				if cancelErr != nil && !errors.Is(cancelErr, turn.ErrTurnNotFound) {
+					t.Fatalf("iteration %d Cancel race error = %v", index, cancelErr)
+				}
+				if resumeErr != nil && cancelErr != nil {
+					t.Fatalf(
+						"iteration %d both racers lost: resume=%v cancel=%v",
+						index,
+						resumeErr,
+						cancelErr,
+					)
+				}
+			case runs.TurnEnd:
+				terminalCount++
+				if payload.Reason != execution.OutcomeCompleted &&
+					payload.Reason != execution.OutcomeCanceled {
+					t.Fatalf("iteration %d TurnEnd reason = %q", index, payload.Reason)
+				}
+			}
+		}
+		if barrierCount != 1 || terminalCount != 1 {
+			t.Fatalf(
+				"iteration %d barriers/terminals = %d/%d, want 1/1",
+				index,
+				barrierCount,
+				terminalCount,
+			)
+		}
+	}
+}
+
 func buildB8Dispatcher(
 	t *testing.T,
 	model chat.Model,
@@ -862,6 +1218,26 @@ func userMentions(messages []chat.Message, text string) bool {
 		}
 	}
 	return false
+}
+
+func questionAnswersForBarrier(
+	barrier runs.TreeInterrupted,
+	prefix string,
+) []agentexec.SuspensionAnswer {
+	answers := make([]agentexec.SuspensionAnswer, len(barrier.Suspensions))
+	for index, boundary := range barrier.Suspensions {
+		answers[index] = agentexec.SuspensionAnswer{
+			ProcessID:    boundary.ProcessID,
+			SuspensionID: boundary.SuspensionID,
+			Resolution: interrupts.Resolution{
+				Approved: true,
+				Answer: map[string][]string{
+					runs.QuestionFieldID(0): {fmt.Sprintf("%s-%d", prefix, index+1)},
+				},
+			},
+		}
+	}
+	return answers
 }
 
 type staticHookResolver struct {

@@ -58,14 +58,13 @@ func (c *Coordinator) pump(
 		if !rootFinished {
 			// The stream ended without a segment.finished (canceled mid-flight /
 			// drained iterator, or a failed continuation activation) — synthesize
-			// every unfinished child from deepest/latest-opened to root, so the
-			// durable tree and stream both end child-before-parent. Each reducer
-			// decides error-vs-canceled from its state. This runs before executor
-			// teardown: a slow or broken CancelTurn must never consume the only
-			// budget available for persisted terminal boundaries.
+			// every unfinished child in the same canonical postorder used by
+			// normal publication, then root. Each reducer decides
+			// error-vs-canceled from its state. This runs before executor teardown:
+			// a slow or broken CancelTurn must never consume the only budget
+			// available for persisted terminal boundaries.
 			terminalCtx, cancelTerminal := context.WithTimeout(context.WithoutCancel(ownerCtx), runCleanupTimeout)
 			commitCtx = terminalCtx
-			childrenClosed := true
 			synthesize := func(route *executorRoute) bool {
 				reductions, err := route.reducer.synthesizeTerminal()
 				if err != nil {
@@ -89,7 +88,15 @@ func (c *Coordinator) pump(
 				}
 				return true
 			}
-			for _, route := range routes.unfinishedChildrenInReverseAdmission() {
+			ordered, err := routes.unfinishedInPostorder()
+			childrenClosed := err == nil
+			if err != nil {
+				fail(fmt.Errorf("runs: order unfinished tree for terminal synthesis: %w", err))
+			}
+			for _, route := range ordered {
+				if route == routes.root {
+					continue
+				}
 				childrenClosed = synthesize(route) && childrenClosed
 			}
 			// A root terminal with an active descendant would advertise a closed
@@ -251,11 +258,11 @@ func (c *Coordinator) pump(
 			return
 		}
 		if route == routes.root && engineEventEndsSegment(engineEvent) {
-			if active := routes.unfinishedChildrenInReverseAdmission(); len(active) > 0 {
+			if activeChildren := routes.unfinishedCount() - 1; activeChildren > 0 {
 				fail(fmt.Errorf(
 					"runs: root run %q reached a segment boundary with %d active child runs",
 					route.runID,
-					len(active),
+					activeChildren,
 				))
 				return
 			}

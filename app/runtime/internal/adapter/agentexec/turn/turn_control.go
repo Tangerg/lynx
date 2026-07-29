@@ -97,8 +97,9 @@ func (s *memoryDispatcher) resumeAndDrive(
 			state.resumeAdmissionFailed() {
 			return err
 		}
+		cancelErr := cancelTurnProcess(state.ctx, state.process())
 		finishErr := s.finishExecutionError(state, problemFromError(err), err)
-		return errors.Join(err, finishErr)
+		return errors.Join(err, cancelErr, finishErr)
 	}
 	state.resumeStarted()
 	go s.drive(state)

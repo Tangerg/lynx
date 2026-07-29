@@ -703,6 +703,48 @@ func TestCoordinatorActivationFailureBecomesErrorTerminal(t *testing.T) {
 	}
 }
 
+func TestCoordinatorTreeActivationFailureTerminalizesInCanonicalPostorder(t *testing.T) {
+	executor := &fakeExecutor{block: true}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+	childSegmentIDs := []string{"seg_grandchild", "seg_a", "seg_b"}
+	coordinator.newSegmentID = func() string {
+		next := childSegmentIDs[0]
+		childSegmentIDs = childSegmentIDs[1:]
+		return next
+	}
+	spec := testSegment()
+	spec.SegmentID = "seg_root_resumed"
+	pending := resumedTreePending(spec.CreatedAt)
+	spec.Pending = &pending
+	spec.Activate = func(context.Context) error { return errors.New("resume failed") }
+
+	stream, err := coordinator.openSegment(t.Context(), spec)
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	var started, finished []string
+	for _, event := range events {
+		switch payload := event.Payload.(type) {
+		case SegmentStarted:
+			started = append(started, event.RunID)
+		case SegmentFinished:
+			finished = append(finished, event.RunID)
+			if payload.Run.Outcome == nil || *payload.Run.Outcome != execution.OutcomeError {
+				t.Fatalf("Run %q outcome = %v, want error", event.RunID, payload.Run.Outcome)
+			}
+		}
+	}
+	wantPostorder := []string{"run_grandchild", "run_a", "run_b", "run_1"}
+	if !slices.Equal(started, wantPostorder) {
+		t.Fatalf("SegmentStarted order = %v, want %v", started, wantPostorder)
+	}
+	if !slices.Equal(finished, wantPostorder) {
+		t.Fatalf("SegmentFinished order = %v, want %v", finished, wantPostorder)
+	}
+}
+
 func TestCoordinatorMalformedInterruptAbortsExecutorAndTerminalizes(t *testing.T) {
 	executor := &fakeExecutor{events: []ExecutorPayload{TurnInterrupted{Interrupts: []Interrupt{{Kind: execution.InterruptKind(9)}}}}}
 	effects := &fakeEffects{}

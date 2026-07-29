@@ -114,6 +114,25 @@ type fakeTurnControl struct {
 	cancelErr     error
 }
 
+type blockingOpeningEffects struct {
+	*fakeEffects
+	started chan<- struct{}
+	release <-chan struct{}
+}
+
+func (e *blockingOpeningEffects) CommitOpening(
+	ctx context.Context,
+	opening OpeningCommit,
+) error {
+	e.started <- struct{}{}
+	select {
+	case <-e.release:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return e.fakeEffects.CommitOpening(ctx, opening)
+}
+
 func (f *fakeTurnControl) ValidateStart(req StartTurn) error {
 	f.validated = req
 	return nil
@@ -371,6 +390,75 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	}
 }
 
+func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
+	createdAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
+	sessions := &fakeRunSessions{
+		sess: session.Session{ID: "ses_1", Cwd: "/work"},
+		pending: map[string]interrupts.Pending{
+			"run_1": testPendingInterrupt("item_1", "proc_1", createdAt),
+		},
+	}
+	turns := &fakeTurnControl{
+		prepared: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"},
+	}
+	openingStarted := make(chan struct{}, 1)
+	releaseOpening := make(chan struct{})
+	effects := &blockingOpeningEffects{
+		fakeEffects: &fakeEffects{},
+		started:     openingStarted,
+		release:     releaseOpening,
+	}
+	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, effects)
+	c.runs = &fakeRunProjection{runs: map[string]transcript.Run{
+		"run_1": {ID: "run_1", SessionID: "ses_1", State: execution.Interrupted},
+	}}
+
+	type resumeOutcome struct {
+		result StartResult
+		err    error
+	}
+	resumeDone := make(chan resumeOutcome, 1)
+	go func() {
+		result, err := c.Resume(t.Context(), ResumeCommand{
+			RunID: "run_1",
+			Responses: []ResumeResponse{{
+				ItemID: "item_1",
+				Kind:   ApprovalResponseKind,
+				Approval: &ApprovalResponse{
+					Approved: true,
+				},
+			}},
+		})
+		resumeDone <- resumeOutcome{result: result, err: err}
+	}()
+
+	select {
+	case <-openingStarted:
+	case <-time.After(time.Second):
+		t.Fatal("resume did not reach its durable opening boundary")
+	}
+	if _, err := c.Cancel(
+		t.Context(),
+		CancelCommand{RunID: "run_1", Reason: "racing cancel"},
+	); !errors.Is(err, ErrSessionBusy) {
+		t.Fatalf("Cancel while resume owns admission = %v, want ErrSessionBusy", err)
+	}
+	if sessions.canceledRunID != "" {
+		t.Fatalf("losing cancel committed run %q", sessions.canceledRunID)
+	}
+
+	close(releaseOpening)
+	outcome := <-resumeDone
+	if outcome.err != nil {
+		t.Fatalf("Resume: %v", outcome.err)
+	}
+	for range outcome.result.Events {
+	}
+	if !turns.resumed {
+		t.Fatal("winning resume did not activate its continuation")
+	}
+}
+
 // TestResumeWithInputCommitsTheUserTurnWithTheContinuation is the atomic half of
 // "approve, and also do this differently". Before resume could carry input, that was
 // two calls — resume then steer — with a window between them where the model could
@@ -482,6 +570,61 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 	}
 	if len(operations) != 1 {
 		t.Fatalf("second Resume repeated recovery: %v", operations)
+	}
+}
+
+func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
+	createdAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
+	pending := resumedTreePending(createdAt)
+	sessions := &fakeRunSessions{
+		sess: session.Session{ID: pending.SessionID, Cwd: "/work"},
+		pending: map[string]interrupts.Pending{
+			pending.RootRunID: pending,
+		},
+	}
+	turns := &fakeTurnControl{
+		prepareErr: ErrTurnNotLive,
+		rehydrated: execution.TurnRef{
+			SessionID: pending.SessionID,
+			TurnID:    pending.TurnID,
+		},
+	}
+	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, &fakeEffects{})
+	segmentIDs := []string{"segment_root", "segment_grandchild", "segment_a", "segment_b"}
+	c.newSegmentID = func() string {
+		next := segmentIDs[0]
+		segmentIDs = segmentIDs[1:]
+		return next
+	}
+	result, err := c.Resume(t.Context(), ResumeCommand{
+		RunID: pending.RootRunID,
+		Responses: []ResumeResponse{
+			{
+				ItemID: "item_grandchild",
+				Kind:   QuestionResponseKind,
+				Question: &QuestionResponse{Answers: map[string][]string{
+					"answer": {"continue grandchild"},
+				}},
+			},
+			{
+				ItemID: "item_b",
+				Kind:   QuestionResponseKind,
+				Question: &QuestionResponse{Answers: map[string][]string{
+					"answer": {"continue sibling"},
+				}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	for range result.Events {
+	}
+	if !turns.rehydrateReq.ChildRunAdmissionEnabled {
+		t.Fatalf("rehydrate request = %+v, want child source projection enabled", turns.rehydrateReq)
+	}
+	if turns.rehydrateReq.ProcessID != "process_root" {
+		t.Fatalf("rehydrate process = %q, want process_root", turns.rehydrateReq.ProcessID)
 	}
 }
 
