@@ -57,6 +57,8 @@ import type {
   RollbackSessionResponse,
   RunEvent,
   Recipe,
+  ItemListScope,
+  ItemOrder,
   RunRef,
   RunStatus,
   RunScheduleNowResponse,
@@ -242,8 +244,12 @@ export interface Methods {
     ) => Promise<Page<OpenInterrupt>>;
   };
   items: {
+    // The scope is required and closed (§7.4): a whole session timeline, or one
+    // run's own items. `order` defaults to "asc" — the order the runtime produced,
+    // which is the one a fold can replay.
     list: (params: {
-      sessionId: SessionId;
+      scope: ItemListScope;
+      order?: ItemOrder;
       cursor?: string;
       limit?: number;
     }) => Promise<ListItemsResponse>;

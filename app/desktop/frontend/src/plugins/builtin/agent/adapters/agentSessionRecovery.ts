@@ -89,7 +89,10 @@ async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
 
 async function replayHistory(options: AgentSessionRecoveryOptions): Promise<void> {
   const items = await collectPages((cursor) =>
-    options.client.items.list({ sessionId: asSessionId(options.sessionId), cursor }),
+    options.client.items.list({
+      scope: { type: "session", sessionId: asSessionId(options.sessionId) },
+      cursor,
+    }),
   );
   if (stale(options) || items.length === 0) return;
   options.applyEvents(

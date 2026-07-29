@@ -112,7 +112,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 		t.Errorf("restored messages = %d, want 2", len(msgs))
 	}
 	// Items + runs restored (items.list).
-	items, err := s.ListItems(ctx, protocol.ListItemsRequest{SessionID: ses.ID})
+	items, err := s.ListItems(ctx, protocol.ListItemsRequest{Scope: protocol.ItemListScope{Type: protocol.ItemScopeSession, SessionID: ses.ID}})
 	if err != nil {
 		t.Fatalf("items.list: %v", err)
 	}

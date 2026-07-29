@@ -205,6 +205,28 @@ type SequencedItem struct {
 	Item     Item
 }
 
+// SequenceOrder is the direction a paged read walks the durable sequence. Both
+// directions are the SAME total order read from opposite ends — never a different
+// sort — so a page is exact either way and the two cannot disagree about which item
+// comes first.
+type SequenceOrder uint8
+
+const (
+	// OldestFirst replays the session the way it happened, which is what folding it
+	// back into state requires.
+	OldestFirst SequenceOrder = iota
+	// NewestFirst reaches the tail without walking everything before it, which is
+	// what showing a long session's last screen requires.
+	NewestFirst
+)
+
+func (o SequenceOrder) String() string {
+	if o == NewestFirst {
+		return "newest"
+	}
+	return "oldest"
+}
+
 type ContentKind uint8
 
 const (

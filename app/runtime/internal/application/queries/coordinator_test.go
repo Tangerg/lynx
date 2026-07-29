@@ -12,24 +12,49 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
 type fakeTranscript struct {
 	items []transcript.SequencedItem
 
 	session       string
+	run           string
+	order         transcript.SequenceOrder
 	afterSequence int64
 	limit         int
 }
 
-func (f *fakeTranscript) PageItems(_ context.Context, sessionID string, afterSequence int64, limit int) ([]transcript.SequencedItem, error) {
+func (f *fakeTranscript) PageSessionItems(_ context.Context, sessionID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
 	f.session = sessionID
-	f.afterSequence = afterSequence
-	f.limit = limit
+	return f.page(order, fromSequence, limit, func(transcript.Item) bool { return true })
+}
+
+func (f *fakeTranscript) PageRunItems(_ context.Context, runID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
+	f.run = runID
+	return f.page(order, fromSequence, limit, func(item transcript.Item) bool { return item.RunID == runID })
+}
+
+// page seeks the way the store does: zero is no anchor in either direction, and
+// newest-first is the same sequence read from the other end.
+func (f *fakeTranscript) page(order transcript.SequenceOrder, fromSequence int64, limit int, keep func(transcript.Item) bool) ([]transcript.SequencedItem, error) {
+	f.order, f.afterSequence, f.limit = order, fromSequence, limit
+	rows := slices.Clone(f.items)
+	if order == transcript.NewestFirst {
+		slices.Reverse(rows)
+	}
 	var out []transcript.SequencedItem
-	for _, entry := range f.items {
-		if entry.Sequence <= afterSequence {
+	for _, entry := range rows {
+		if !keep(entry.Item) {
 			continue
+		}
+		if fromSequence > 0 {
+			if order == transcript.NewestFirst && entry.Sequence >= fromSequence {
+				continue
+			}
+			if order == transcript.OldestFirst && entry.Sequence <= fromSequence {
+				continue
+			}
 		}
 		if limit > 0 && len(out) == limit {
 			break
@@ -37,6 +62,14 @@ func (f *fakeTranscript) PageItems(_ context.Context, sessionID string, afterSeq
 		out = append(out, entry)
 	}
 	return out, nil
+}
+
+// fakeSessions answers only whether a session exists. Every session an item test
+// names exists unless it is listed as missing.
+type fakeSessions struct{ missing []string }
+
+func (f *fakeSessions) Exists(_ context.Context, sessionID string) (bool, error) {
+	return !slices.Contains(f.missing, sessionID), nil
 }
 
 // fakeRuns is the Run record the item page threads its items against, and the
@@ -49,6 +82,7 @@ type fakeRuns struct {
 	history []transcript.Run
 
 	session         string
+	requested       []string
 	statuses        []execution.RunStatus
 	beforeCreatedAt int64
 	beforeRunID     string
@@ -83,9 +117,15 @@ func (f *fakeRuns) PageRuns(_ context.Context, sessionID string, statuses []exec
 	return out, nil
 }
 
-func (f *fakeRuns) ListRuns(_ context.Context, sessionID string) ([]transcript.Run, error) {
-	f.session = sessionID
-	return f.runs, nil
+func (f *fakeRuns) RunsByID(_ context.Context, runIDs []string) ([]transcript.Run, error) {
+	f.requested = runIDs
+	var out []transcript.Run
+	for _, run := range f.runs {
+		if slices.Contains(runIDs, run.ID) {
+			out = append(out, run)
+		}
+	}
+	return out, nil
 }
 
 type fakeInterrupts struct {
@@ -131,12 +171,14 @@ func seeksBefore(at int64, id string, beforeAt int64, beforeID string) bool {
 	return at < beforeAt || (at == beforeAt && id < beforeID)
 }
 
+// sequencedItems builds a session's items, every one belonging to run_1, so a page
+// of them has a run to be threaded onto.
 func sequencedItems(count int) []transcript.SequencedItem {
 	out := make([]transcript.SequencedItem, 0, count)
 	for i := 1; i <= count; i++ {
 		out = append(out, transcript.SequencedItem{
 			Sequence: int64(i),
-			Item:     transcript.Item{ID: "it_" + strconv.Itoa(i)},
+			Item:     transcript.Item{ID: "it_" + strconv.Itoa(i), RunID: "run_1"},
 		})
 	}
 	return out
@@ -147,11 +189,14 @@ func TestCoordinatorReadsDelegateToProjections(t *testing.T) {
 	tx := &fakeTranscript{items: sequencedItems(1)}
 	runs := &fakeRuns{runs: []transcript.Run{{ID: "run_1"}}}
 	ints := &fakeInterrupts{pending: []interrupts.Pending{{RunID: "run_1"}}}
-	c := New(Dependencies{Transcript: tx, Interrupts: ints, Runs: runs})
+	c := New(Dependencies{Transcript: tx, Interrupts: ints, Runs: runs, Sessions: &fakeSessions{}})
 
-	page, err := c.ListItemPage(ctx, "ses_1", "", 0)
-	if err != nil || len(page.Items) != 1 || len(page.Runs) != 1 || tx.session != "ses_1" || runs.session != "ses_1" {
-		t.Fatalf("ListItemPage items=%d runs=%d session=%q/%q err=%v", len(page.Items), len(page.Runs), tx.session, runs.session, err)
+	page, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.OldestFirst, "", 0)
+	if err != nil || len(page.Items) != 1 || len(page.Runs) != 1 || tx.session != "ses_1" {
+		t.Fatalf("ListItemPage items=%d runs=%d session=%q err=%v", len(page.Items), len(page.Runs), tx.session, err)
+	}
+	if !slices.Equal(runs.requested, []string{"run_1"}) {
+		t.Fatalf("threaded runs = %v, want only the run the page's items belong to", runs.requested)
 	}
 
 	pending, err := c.ListPendingInterruptPage(ctx, "ses_2", "", 0)
@@ -167,9 +212,9 @@ func TestCoordinatorReadsDelegateToProjections(t *testing.T) {
 func TestListItemPageBoundsTheQueryAndSeeksPastTheAnchor(t *testing.T) {
 	ctx := context.Background()
 	tx := &fakeTranscript{items: sequencedItems(5)}
-	c := New(Dependencies{Transcript: tx, Runs: &fakeRuns{}})
+	c := New(Dependencies{Transcript: tx, Runs: &fakeRuns{}, Sessions: &fakeSessions{}})
 
-	first, err := c.ListItemPage(ctx, "ses_1", "", 2)
+	first, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.OldestFirst, "", 2)
 	if err != nil {
 		t.Fatalf("first page: %v", err)
 	}
@@ -180,7 +225,7 @@ func TestListItemPageBoundsTheQueryAndSeeksPastTheAnchor(t *testing.T) {
 		t.Fatalf("first page = %+v, want two items and a cursor", first)
 	}
 
-	second, err := c.ListItemPage(ctx, "ses_1", first.NextCursor, 2)
+	second, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.OldestFirst, first.NextCursor, 2)
 	if err != nil {
 		t.Fatalf("second page: %v", err)
 	}
@@ -191,7 +236,7 @@ func TestListItemPageBoundsTheQueryAndSeeksPastTheAnchor(t *testing.T) {
 		t.Fatalf("second page = %+v, want it_3 onward", second)
 	}
 
-	last, err := c.ListItemPage(ctx, "ses_1", second.NextCursor, 2)
+	last, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.OldestFirst, second.NextCursor, 2)
 	if err != nil {
 		t.Fatalf("last page: %v", err)
 	}
@@ -207,23 +252,125 @@ func TestListItemPageBoundsTheQueryAndSeeksPastTheAnchor(t *testing.T) {
 func TestListItemPageRefusesAForeignCursor(t *testing.T) {
 	ctx := context.Background()
 	tx := &fakeTranscript{items: sequencedItems(5)}
-	c := New(Dependencies{Transcript: tx, Runs: &fakeRuns{}})
+	c := New(Dependencies{
+		Transcript: tx,
+		Runs:       &fakeRuns{history: []transcript.Run{{ID: "run_1"}}},
+		Sessions:   &fakeSessions{},
+	})
 
-	other, err := c.ListItemPage(ctx, "ses_other", "", 2)
+	other, err := c.ListItemPage(ctx, SessionItems("ses_other"), transcript.OldestFirst, "", 2)
 	if err != nil {
 		t.Fatalf("other session page: %v", err)
 	}
-	if _, err := c.ListItemPage(ctx, "ses_1", other.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+	if _, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.OldestFirst, other.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
 		t.Fatalf("cross-session cursor err = %v, want ErrInvalidCursor", err)
 	}
-	if _, err := c.ListItemPage(ctx, "ses_1", "not-a-cursor", 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+	if _, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.OldestFirst, "not-a-cursor", 2); !errors.Is(err, keyset.ErrInvalidCursor) {
 		t.Fatalf("damaged cursor err = %v, want ErrInvalidCursor", err)
+	}
+
+	// Direction is part of the query, not a display preference applied afterwards: an
+	// anchor from a forward page names a position a backward page never reaches.
+	forward, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.OldestFirst, "", 2)
+	if err != nil {
+		t.Fatalf("forward page: %v", err)
+	}
+	if _, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.NewestFirst, forward.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+		t.Fatalf("reversed-direction cursor err = %v, want ErrInvalidCursor", err)
+	}
+
+	// A run scope is a different collection from the session that contains it, even
+	// when every item in the session belongs to that run.
+	runScoped, err := c.ListItemPage(ctx, RunItems("run_1"), transcript.OldestFirst, "", 2)
+	if err != nil {
+		t.Fatalf("run page: %v", err)
+	}
+	if _, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.OldestFirst, runScoped.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+		t.Fatalf("run cursor on the session page err = %v, want ErrInvalidCursor", err)
+	}
+}
+
+// TestListItemPageWalksBackwardFromTheTail is items.list's other direction: the same
+// durable sequence read from the end. A long session's first screen is its tail, and
+// paging forward to reach it would read everything before it first.
+func TestListItemPageWalksBackwardFromTheTail(t *testing.T) {
+	ctx := context.Background()
+	tx := &fakeTranscript{items: sequencedItems(5)}
+	c := New(Dependencies{Transcript: tx, Runs: &fakeRuns{}, Sessions: &fakeSessions{}})
+
+	first, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.NewestFirst, "", 2)
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	if len(first.Items) != 2 || first.Items[0].ID != "it_5" || first.Items[1].ID != "it_4" {
+		t.Fatalf("first page = %+v, want the last two items newest first", first.Items)
+	}
+
+	second, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.NewestFirst, first.NextCursor, 2)
+	if err != nil {
+		t.Fatalf("second page: %v", err)
+	}
+	if tx.afterSequence != 4 {
+		t.Fatalf("second page sought from %d, want the first page's last position", tx.afterSequence)
+	}
+	if len(second.Items) != 2 || second.Items[0].ID != "it_3" {
+		t.Fatalf("second page = %+v, want it_3 backwards", second.Items)
+	}
+}
+
+// TestListItemPageScopedToARunReadsOnlyThatRun pins the run scope: the items of one
+// run, resolved from the run id alone. A caller holding a runId does not have to
+// discover the session to read what that run did.
+func TestListItemPageScopedToARunReadsOnlyThatRun(t *testing.T) {
+	ctx := context.Background()
+	items := sequencedItems(3)
+	items[2].Item.RunID = "run_2"
+	tx := &fakeTranscript{items: items}
+	runs := &fakeRuns{
+		runs:    []transcript.Run{{ID: "run_1"}, {ID: "run_2"}},
+		history: []transcript.Run{{ID: "run_1"}, {ID: "run_2"}},
+	}
+	c := New(Dependencies{Transcript: tx, Runs: runs, Sessions: &fakeSessions{}})
+
+	page, err := c.ListItemPage(ctx, RunItems("run_2"), transcript.OldestFirst, "", 0)
+	if err != nil {
+		t.Fatalf("run page: %v", err)
+	}
+	if tx.run != "run_2" || tx.session != "" {
+		t.Fatalf("read run=%q session=%q, want only the run scope", tx.run, tx.session)
+	}
+	if len(page.Items) != 1 || page.Items[0].ID != "it_3" {
+		t.Fatalf("page = %+v, want only run_2's item", page.Items)
+	}
+	// The page carries the runs its own items reference — not the session's list.
+	if !slices.Equal(runs.requested, []string{"run_2"}) {
+		t.Fatalf("threaded runs = %v, want only run_2", runs.requested)
+	}
+}
+
+// TestListItemPageRefusesAScopeThatNamesNothing keeps an empty page from standing in
+// for a wrong id. "This session has no items" and "there is no such session" are
+// different facts, and a client that cannot tell them apart will show an empty
+// timeline for a typo.
+func TestListItemPageRefusesAScopeThatNamesNothing(t *testing.T) {
+	ctx := context.Background()
+	c := New(Dependencies{
+		Transcript: &fakeTranscript{items: sequencedItems(3)},
+		Runs:       &fakeRuns{history: []transcript.Run{{ID: "run_1"}}},
+		Sessions:   &fakeSessions{missing: []string{"ses_gone"}},
+	})
+
+	if _, err := c.ListItemPage(ctx, SessionItems("ses_gone"), transcript.OldestFirst, "", 0); !errors.Is(err, session.ErrNotFound) {
+		t.Fatalf("missing session err = %v, want session.ErrNotFound", err)
+	}
+	if _, err := c.ListItemPage(ctx, RunItems("run_gone"), transcript.OldestFirst, "", 0); !errors.Is(err, transcript.ErrRunNotFound) {
+		t.Fatalf("missing run err = %v, want transcript.ErrRunNotFound", err)
 	}
 }
 
 func TestListItemPageRejectsANegativeLimit(t *testing.T) {
-	c := New(Dependencies{Transcript: &fakeTranscript{items: sequencedItems(1)}, Runs: &fakeRuns{}})
-	if _, err := c.ListItemPage(context.Background(), "ses_1", "", -1); err == nil {
+	c := New(Dependencies{Transcript: &fakeTranscript{items: sequencedItems(1)}, Runs: &fakeRuns{}, Sessions: &fakeSessions{}})
+	if _, err := c.ListItemPage(context.Background(), SessionItems("ses_1"), transcript.OldestFirst, "", -1); err == nil {
 		t.Fatal("negative limit returned no error")
 	}
 }
@@ -269,7 +416,7 @@ func parked(sessionID string, ids ...string) []interrupts.Pending {
 func TestListRunPageWalksBackwardThroughHistory(t *testing.T) {
 	ctx := context.Background()
 	runs := &fakeRuns{history: history("ses_1", "run_3", "run_2", "run_1")}
-	c := New(Dependencies{Transcript: &fakeTranscript{}, Runs: runs})
+	c := New(Dependencies{Transcript: &fakeTranscript{}, Runs: runs, Sessions: &fakeSessions{}})
 
 	first, err := c.ListRunPage(ctx, "ses_1", nil, "", 2)
 	if err != nil {
@@ -301,7 +448,7 @@ func TestListRunPageWalksBackwardThroughHistory(t *testing.T) {
 func TestListRunPageReturnsEveryStatusUntilFiltered(t *testing.T) {
 	ctx := context.Background()
 	runs := &fakeRuns{history: history("ses_1", "run_3", "run_2", "run_1")}
-	c := New(Dependencies{Transcript: &fakeTranscript{}, Runs: runs})
+	c := New(Dependencies{Transcript: &fakeTranscript{}, Runs: runs, Sessions: &fakeSessions{}})
 
 	all, err := c.ListRunPage(ctx, "ses_1", nil, "", 0)
 	if err != nil || len(all.Rows) != 3 {
@@ -335,6 +482,7 @@ func TestListRunPageRefusesACursorFromAnotherQuery(t *testing.T) {
 		Transcript: &fakeTranscript{items: sequencedItems(5)},
 		Runs:       &fakeRuns{history: history("ses_1", "run_3", "run_2", "run_1")},
 		Interrupts: &fakeInterrupts{pending: parked("ses_1", "run_1", "run_2", "run_3")},
+		Sessions:   &fakeSessions{},
 	})
 
 	otherSession, err := c.ListRunPage(ctx, "ses_other", nil, "", 2)
@@ -365,7 +513,7 @@ func TestListRunPageRefusesACursorFromAnotherQuery(t *testing.T) {
 		t.Fatalf("cross-query cursor err = %v, want ErrInvalidCursor", err)
 	}
 
-	itemPage, err := c.ListItemPage(ctx, "ses_1", "", 2)
+	itemPage, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.OldestFirst, "", 2)
 	if err != nil {
 		t.Fatalf("item page: %v", err)
 	}
@@ -384,6 +532,7 @@ func TestListPendingInterruptPagePagesOldestFirst(t *testing.T) {
 		Transcript: &fakeTranscript{},
 		Runs:       &fakeRuns{history: history("ses_1", "run_3", "run_2", "run_1")},
 		Interrupts: ints,
+		Sessions:   &fakeSessions{},
 	})
 
 	first, err := c.ListPendingInterruptPage(ctx, "ses_1", "", 2)

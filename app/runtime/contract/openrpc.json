@@ -815,10 +815,16 @@
       "paramStructure": "by-name",
       "params": [
         {
-          "name": "sessionId",
+          "name": "scope",
           "required": true,
           "schema": {
-            "type": "string"
+            "$ref": "schema.json#/$defs/ItemListScope"
+          }
+        },
+        {
+          "name": "order",
+          "schema": {
+            "$ref": "schema.json#/$defs/ItemOrder"
           }
         },
         {
@@ -844,11 +850,31 @@
         {
           "code": -32002,
           "message": "session_not_found"
+        },
+        {
+          "code": -32003,
+          "message": "run_not_found"
         }
       ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "none",
       "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "subagents"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "when": [
+            {
+              "field": "scope.includeDescendants",
+              "operator": "present"
+            }
+          ],
+          "requires": [
+            "subagents"
+          ]
+        }
+      ],
       "x-lyra-requestFrame": {
         "$ref": "schema.json#/$defs/ListItemsRequest"
       }

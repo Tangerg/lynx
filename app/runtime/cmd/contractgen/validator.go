@@ -69,7 +69,7 @@ func newValidators(registry *dispatch.Registry, shapes *dispatch.Shapes) string 
 func validatorChecks(params reflect.Type, constraints []dispatch.FieldConstraint) []string {
 	var checks []string
 	for _, constraint := range constraints {
-		selector, _, ok := protocol.GoPath(params, constraint.Field)
+		selector, leaf, ok := protocol.GoPath(params, constraint.Field)
 		if !ok {
 			panic(fmt.Sprintf("contractgen: %s has no field %q", params.Name(), constraint.Field))
 		}
@@ -82,7 +82,7 @@ func validatorChecks(params reflect.Type, constraints []dispatch.FieldConstraint
 		case dispatch.ConstraintUniqueItems:
 			checks = append(checks, fmt.Sprintf("uniqueItems(%s, r.%s)", field, selector))
 		default:
-			checks = append(checks, fmt.Sprintf("required(%s, r.%s)", field, selector))
+			checks = append(checks, fmt.Sprintf("required(%s, %s)", field, stringExpr(selector, leaf.Type)))
 		}
 	}
 	for _, field := range protocol.WireFields(params) {
@@ -94,6 +94,17 @@ func validatorChecks(params reflect.Type, constraints []dispatch.FieldConstraint
 			strconv.Quote(field.Name), field.GoName, valueList(values), field.Optional))
 	}
 	return checks
+}
+
+// stringExpr reads a field as a string. A named string type — a closed enum, an id —
+// needs the conversion, and a plain string must not have one: an identity conversion
+// is what the linter deletes, so emitting one everywhere would make the generated
+// file fail the check it is generated to pass.
+func stringExpr(selector string, leaf reflect.Type) string {
+	if leaf.Kind() == reflect.String && leaf.Name() != "string" {
+		return fmt.Sprintf("string(r.%s)", selector)
+	}
+	return "r." + selector
 }
 
 func valueList(values []string) string {

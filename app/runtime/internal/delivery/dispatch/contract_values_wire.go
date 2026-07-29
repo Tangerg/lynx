@@ -9,9 +9,10 @@ import "github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 // read — the Go check was the only statement, so "the three agree" was unverifiable
 // by construction. Declared here, one statement generates all three.
 //
-// Only two kinds appear because only two exist: a string that may not be empty and
-// a number that may not be zero. Closed-enum membership is derived from the enum's
-// own declared value set, not restated here.
+// The kinds are the ones a JSON type does not already imply: a string that may not
+// be empty, a number that may not be zero, an array that may not be sent empty, an
+// array that may not repeat. Closed-enum membership is derived from the enum's own
+// declared value set, not restated here.
 
 func registerValueConstraints(s *Shapes) {
 	registerSessionValues(s)
@@ -57,7 +58,9 @@ func registerRunValues(s *Shapes) {
 	nonEmpty[protocol.GetRunRequest](s, "runId")
 	nonEmpty[protocol.CancelRunRequest](s, "runId")
 	nonEmpty[protocol.SteerRunRequest](s, "runId", "message")
-	nonEmpty[protocol.ListItemsRequest](s, "sessionId")
+	// The scope is required and its tag decides everything else about the read, so a
+	// scope with no tag is a request that never said what it wanted.
+	nonEmpty[protocol.ListItemsRequest](s, "scope.type")
 	nonEmpty[protocol.SessionUsageRequest](s, "sessionId")
 
 	// An omitted status filter already means "every status", so an empty array is

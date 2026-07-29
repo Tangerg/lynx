@@ -37,8 +37,8 @@ func TestRegisteredShapesDescribeRealTypes(t *testing.T) {
 }
 
 // TestEveryClosedWireUnionIsRegistered lists the unions that exist TODAY and
-// must therefore have a spec. The four the contract also names — SegmentOutcome,
-// ItemListScope, CapabilityRequirement, CancelRunResponse — arrive with the vNext
+// must therefore have a spec. The two the contract also names —
+// CapabilityRequirement and CancelRunResponse — arrive later in the vNext
 // cutover; registering a shape for a type nobody can send would check nothing.
 //
 // DiffRow is not one of the thirteen §11.2 names: its godoc always described a
@@ -51,7 +51,7 @@ func TestEveryClosedWireUnionIsRegistered(t *testing.T) {
 	want := []string{
 		"ArtifactContentBlock", "ArtifactItem", "ArtifactOutcome",
 		"ContentBlock", "DiffRow", "Interrupt", "InterruptResponseValue", "Item", "ItemDelta",
-		"QuestionField", "RunOutcome", "SegmentOutcome", "StreamEvent", "WorkspaceEvent",
+		"ItemListScope", "QuestionField", "RunOutcome", "SegmentOutcome", "StreamEvent", "WorkspaceEvent",
 	}
 	got := make([]string, 0, len(shapes.Unions()))
 	for _, union := range shapes.Unions() {

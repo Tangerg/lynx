@@ -87,6 +87,7 @@ func (s stubRuntime) queriesCoordinator() *queries.Coordinator {
 		Transcript: s.hist,
 		Interrupts: s.interrupts,
 		Runs:       s.runs,
+		Sessions:   s.sess,
 	})
 }
 

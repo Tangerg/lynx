@@ -87,7 +87,8 @@ func (r ListRunsRequest) Validate() error {
 
 func (r ListItemsRequest) Validate() error {
 	return violate(
-		required("sessionId", r.SessionID),
+		required("scope.type", string(r.Scope.Type)),
+		oneOf("order", string(r.Order), []string{"asc", "desc"}, true),
 	)
 }
 

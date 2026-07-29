@@ -634,6 +634,14 @@ export type ItemDelta =
 
 export type ItemDeltaType = "content" | "reasoning" | "toolArguments" | "toolOutput" | "plan";
 
+export type ItemListScope =
+  | { type: "session"; sessionId: string }
+  | { type: "run"; includeDescendants?: boolean; runId: string };
+
+export type ItemOrder = "asc" | "desc";
+
+export type ItemScopeType = "session" | "run";
+
 export type ItemStatus = "running" | "completed" | "incomplete";
 
 export type ItemType = "userMessage" | "agentMessage" | "reasoning" | "plan" | "question" | "toolCall" | "compaction";
@@ -663,7 +671,8 @@ export interface ListHooksRequest {
 export interface ListItemsRequest {
   cursor?: string;
   limit?: number;
-  sessionId: string;
+  order?: ItemOrder;
+  scope: ItemListScope;
 }
 
 export interface ListItemsResponse {
@@ -1392,6 +1401,8 @@ export const WIRE_ENUMS = {
   InterruptResponseType: ["approval", "answer", "toolResult"],
   InterruptType: ["approval", "question", "toolResult"],
   ItemDeltaType: ["content", "reasoning", "toolArguments", "toolOutput", "plan"],
+  ItemOrder: ["asc", "desc"],
+  ItemScopeType: ["session", "run"],
   ItemStatus: ["running", "completed", "incomplete"],
   ItemType: ["userMessage", "agentMessage", "reasoning", "plan", "question", "toolCall", "compaction"],
   McpAuthStatus: ["none", "bearerToken", "oauth", "notLoggedIn"],

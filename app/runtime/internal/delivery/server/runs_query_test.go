@@ -128,6 +128,122 @@ func TestGetRunResolvesARunWithoutItsSession(t *testing.T) {
 	}
 }
 
+// TestListItemsReadsTheScopeItWasGiven is items.list's delivery half: the scope's
+// tag decides which collection is read, and a subject that does not exist is refused
+// in the words of the thing that is missing. A page of items also carries only the
+// runs its own items belong to — a client merging pages rebuilds what it has read,
+// and a long session does not ship its whole run list on every page.
+func TestListItemsReadsTheScopeItWasGiven(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	putSession(t, rt, "ses_1")
+	putRun(t, rt, "ses_1", "run_1", 10, 1)
+	putRun(t, rt, "ses_1", "run_2", 20, 2)
+	putUserItem(t, rt, "ses_1", "run_1", "it_1", "first")
+	putUserItem(t, rt, "ses_1", "run_2", "it_2", "second")
+
+	whole, err := s.ListItems(t.Context(), protocol.ListItemsRequest{
+		Scope: protocol.ItemListScope{Type: protocol.ItemScopeSession, SessionID: "ses_1"},
+	})
+	if err != nil {
+		t.Fatalf("session scope: %v", err)
+	}
+	if len(whole.Data) != 2 || len(whole.Runs) != 2 {
+		t.Fatalf("session page = %d items / %d runs, want both", len(whole.Data), len(whole.Runs))
+	}
+
+	scoped, err := s.ListItems(t.Context(), protocol.ListItemsRequest{
+		Scope: protocol.ItemListScope{Type: protocol.ItemScopeRun, RunID: "run_2"},
+	})
+	if err != nil {
+		t.Fatalf("run scope: %v", err)
+	}
+	if len(scoped.Data) != 1 || scoped.Data[0].ID != "it_2" {
+		t.Fatalf("run page = %+v, want run_2's item", scoped.Data)
+	}
+	if len(scoped.Runs) != 1 || scoped.Runs[0].ID != "run_2" {
+		t.Fatalf("run page runs = %+v, want only run_2", scoped.Runs)
+	}
+}
+
+// TestListItemsRefusesAScopeItCannotServe covers the four ways a scope is wrong. The
+// two not-found cases are the contract's explicit refusal to answer a bad id with an
+// empty page: the client's next move differs, so the two subjects get two errors.
+func TestListItemsRefusesAScopeItCannotServe(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	putSession(t, rt, "ses_1")
+	putRun(t, rt, "ses_1", "run_1", 10, 1)
+
+	tests := []struct {
+		name  string
+		in    protocol.ListItemsRequest
+		wants error
+	}{{
+		name:  "no scope at all",
+		in:    protocol.ListItemsRequest{},
+		wants: protocol.ErrInvalidParams,
+	}, {
+		name: "a scope kind the union does not define",
+		in: protocol.ListItemsRequest{
+			Scope: protocol.ItemListScope{Type: "everything"},
+		},
+		wants: protocol.ErrInvalidParams,
+	}, {
+		name: "a session scope with no session",
+		in: protocol.ListItemsRequest{
+			Scope: protocol.ItemListScope{Type: protocol.ItemScopeSession},
+		},
+		wants: protocol.ErrInvalidParams,
+	}, {
+		name: "an order that is not a direction",
+		in: protocol.ListItemsRequest{
+			Scope: protocol.ItemListScope{Type: protocol.ItemScopeSession, SessionID: "ses_1"},
+			Order: "sideways",
+		},
+		wants: protocol.ErrInvalidParams,
+	}, {
+		name: "a session that does not exist",
+		in: protocol.ListItemsRequest{
+			Scope: protocol.ItemListScope{Type: protocol.ItemScopeSession, SessionID: "ses_gone"},
+		},
+		wants: protocol.ErrSessionNotFound,
+	}, {
+		name: "a run that does not exist",
+		in: protocol.ListItemsRequest{
+			Scope: protocol.ItemListScope{Type: protocol.ItemScopeRun, RunID: "run_gone"},
+		},
+		wants: protocol.ErrRunNotFound,
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := s.ListItems(t.Context(), tt.in); !errors.Is(err, tt.wants) {
+				t.Fatalf("ListItems = %v, want %v", err, tt.wants)
+			}
+		})
+	}
+}
+
+// TestListItemsReadsBackwardWhenAsked is the tail-first read: the same durable
+// sequence from the other end, which is what a long session's first screen needs.
+func TestListItemsReadsBackwardWhenAsked(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	putSession(t, rt, "ses_1")
+	putRun(t, rt, "ses_1", "run_1", 10, 1)
+	putUserItem(t, rt, "ses_1", "run_1", "it_1", "first")
+	putUserItem(t, rt, "ses_1", "run_1", "it_2", "second")
+
+	page, err := s.ListItems(t.Context(), protocol.ListItemsRequest{
+		Scope: protocol.ItemListScope{Type: protocol.ItemScopeSession, SessionID: "ses_1"},
+		Order: protocol.ItemOrderDesc,
+	})
+	if err != nil {
+		t.Fatalf("descending page: %v", err)
+	}
+	if len(page.Data) != 2 || page.Data[0].ID != "it_2" {
+		t.Fatalf("descending page = %+v, want the newest item first", page.Data)
+	}
+}
+
 func TestSessionStatesPreservesInterruptReadFailure(t *testing.T) {
 	want := errors.New("interrupt store unavailable")
 	reader := &fakeInterruptReader{err: want}

@@ -2772,6 +2772,64 @@
         "plan"
       ]
     },
+    "ItemListScope": {
+      "type": "object",
+      "properties": {
+        "includeDescendants": {
+          "type": "boolean"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/ItemScopeType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "includeDescendants": false,
+            "runId": false,
+            "type": {
+              "const": "session"
+            }
+          },
+          "required": [
+            "sessionId",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "sessionId": false,
+            "type": {
+              "const": "run"
+            }
+          },
+          "required": [
+            "runId",
+            "type"
+          ]
+        }
+      ]
+    },
+    "ItemOrder": {
+      "type": "string",
+      "enum": [
+        "asc",
+        "desc"
+      ]
+    },
+    "ItemScopeType": {
+      "type": "string",
+      "enum": [
+        "session",
+        "run"
+      ]
+    },
     "ItemStatus": {
       "type": "string",
       "enum": [
@@ -2860,13 +2918,28 @@
         "limit": {
           "type": "integer"
         },
-        "sessionId": {
-          "type": "string",
-          "minLength": 1
+        "order": {
+          "$ref": "#/$defs/ItemOrder"
+        },
+        "scope": {
+          "$ref": "#/$defs/ItemListScope"
         }
       },
       "required": [
-        "sessionId"
+        "scope"
+      ],
+      "allOf": [
+        {
+          "properties": {
+            "scope": {
+              "properties": {
+                "type": {
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
       ]
     },
     "ListItemsResponse": {

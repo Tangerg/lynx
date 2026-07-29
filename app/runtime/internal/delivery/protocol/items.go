@@ -14,9 +14,55 @@ type Items interface {
 	ListItems(ctx context.Context, in ListItemsRequest) (*ListItemsResponse, error)
 }
 
+// ItemScopeType discriminates [ItemListScope]: which collection of items is being
+// paged.
+type ItemScopeType string
+
+const (
+	// ItemScopeSession — the whole session timeline, every run in it.
+	ItemScopeSession ItemScopeType = "session"
+	// ItemScopeRun — one run's own items, optionally with its subtree's.
+	ItemScopeRun ItemScopeType = "run"
+)
+
+// ItemListScope is the closed union naming what items.list pages. It is required:
+// a read with no scope is not a read of "everything", it is a request that never
+// said what it wanted.
+//
+// The variant decides which fields are read — session scope reads sessionId, run
+// scope reads runId and includeDescendants. A run id already locates its session,
+// so run scope carries no sessionId: a second way to say where the run lives is a
+// second thing that can be wrong.
+type ItemListScope struct {
+	Type ItemScopeType `json:"type"`
+	// SessionID is the session scope's subject.
+	SessionID string `json:"sessionId,omitempty"`
+	// RunID is the run scope's subject, root or child.
+	RunID string `json:"runId,omitempty"`
+	// IncludeDescendants adds the items of the run's subtree at any depth. Legal
+	// only in run scope — the session timeline already holds every descendant, so
+	// asking there would name a narrowing that does not narrow.
+	IncludeDescendants bool `json:"includeDescendants,omitempty"`
+}
+
+// ItemOrder is the direction items.list walks the durable sequence.
+type ItemOrder string
+
+const (
+	// ItemOrderAsc — earliest first. The default, and what a reducer replaying a
+	// session into state needs: the order the runtime produced.
+	ItemOrderAsc ItemOrder = "asc"
+	// ItemOrderDesc — newest first. What a long session's first screen needs: the
+	// tail, without paging the whole history to reach it.
+	ItemOrderDesc ItemOrder = "desc"
+)
+
 // ListItemsRequest — items.list body.
 type ListItemsRequest struct {
-	SessionID string `json:"sessionId"`
+	Scope ItemListScope `json:"scope"`
+	// Order defaults to asc. It is part of the cursor's identity: an anchor from a
+	// page read forwards cannot continue one read backwards.
+	Order ItemOrder `json:"order,omitempty"`
 	PageQuery
 }
 
@@ -30,6 +76,11 @@ type ListItemsRequest struct {
 // and lifecycle, and a page can carry many runs. Metering and protocol facts
 // grow with the model and the subtree, so they stay on the per-run read that
 // asks for them.
+//
+// Runs holds exactly the runs THIS page's items reference. It is not the session's
+// run list: a client merging summaries across pages by runId rebuilds the tree it
+// has actually seen, and a long session does not pay for every run it is not
+// looking at. Accounting over a whole session is runs.list.
 type ListItemsResponse struct {
 	Page[Item]
 	Runs []RunSummary `json:"runs"`

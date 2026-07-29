@@ -202,7 +202,11 @@
       "kind": "unary",
       "idempotency": "none",
       "errors": [
-        "session_not_found"
+        "session_not_found",
+        "run_not_found"
+      ],
+      "features": [
+        "subagents"
       ],
       "stability": "stable"
     },
@@ -919,6 +923,22 @@
       ]
     },
     {
+      "method": "items.list",
+      "rules": [
+        {
+          "when": [
+            {
+              "field": "scope.includeDescendants",
+              "operator": "present"
+            }
+          ],
+          "requires": [
+            "subagents"
+          ]
+        }
+      ]
+    },
+    {
       "method": "workspace.subscribe",
       "rules": [
         {
@@ -1602,6 +1622,27 @@
           "tag": "plan",
           "required": [
             "steps"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ItemListScope",
+      "discriminator": "type",
+      "variants": [
+        {
+          "tag": "session",
+          "required": [
+            "sessionId"
+          ]
+        },
+        {
+          "tag": "run",
+          "required": [
+            "runId"
+          ],
+          "optional": [
+            "includeDescendants"
           ]
         }
       ]

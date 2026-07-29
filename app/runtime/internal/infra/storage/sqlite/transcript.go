@@ -169,7 +169,7 @@ func (s *TranscriptStore) DeleteSession(ctx context.Context, sessionID string) e
 
 // List returns a session's whole item history in durable append order.
 func (s *TranscriptStore) List(ctx context.Context, sessionID string) ([]transcript.Item, error) {
-	sequenced, err := s.PageItems(ctx, sessionID, 0, 0)
+	sequenced, err := s.PageSessionItems(ctx, sessionID, transcript.OldestFirst, 0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -180,20 +180,42 @@ func (s *TranscriptStore) List(ctx context.Context, sessionID string) ([]transcr
 	return out, nil
 }
 
-// PageItems returns a session's history in durable append order, starting after
-// afterSequence and stopping after limit rows. A zero afterSequence starts at the
-// beginning and a zero limit reads to the end.
+// PageSessionItems returns one page of a session's history along the durable
+// sequence, in the direction order names. fromSequence is the position a previous
+// page ended at; zero is no anchor, which is exact because the sequence is
+// 1-based — so the same zero means "from the beginning" reading forwards and "from
+// the end" reading backwards. A zero limit reads to the end.
 //
-// The bound is applied by the query, not by the caller: seeking past an anchor
-// and stopping at a limit is what keeps a long session's history out of memory
-// when only a page of it was asked for.
-func (s *TranscriptStore) PageItems(ctx context.Context, sessionID string, afterSequence int64, limit int) ([]transcript.SequencedItem, error) {
+// The bound is applied by the query, not by the caller: seeking past an anchor and
+// stopping at a limit is what keeps a long session's history out of memory when
+// only a page of it was asked for.
+func (s *TranscriptStore) PageSessionItems(ctx context.Context, sessionID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
+	return s.pageItems(ctx, `h.session_id = ?`, sessionID, order, fromSequence, limit)
+}
+
+// PageRunItems is the same page over one run's own items. The run id needs no
+// session beside it: it identifies exactly one run, and a run belongs to one
+// session.
+func (s *TranscriptStore) PageRunItems(ctx context.Context, runID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
+	return s.pageItems(ctx, `h.run_id = ?`, runID, order, fromSequence, limit)
+}
+
+func (s *TranscriptStore) pageItems(ctx context.Context, scope, subject string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
 	query := `SELECT h.seq, h.session_id, h.run_id, h.item_id, h.created_at, h.payload, h.offload_id, b.body
 		 FROM history_items AS h
 		 LEFT JOIN tool_result_blobs AS b
 		   ON b.id = h.offload_id AND b.session_id = h.session_id AND b.item_id = h.item_id
-		 WHERE h.session_id = ? AND h.seq > ? ORDER BY h.seq`
-	args := []any{sessionID, afterSequence}
+		 WHERE ` + scope
+	args := []any{subject}
+	bound, direction := `h.seq > ?`, ``
+	if order == transcript.NewestFirst {
+		bound, direction = `h.seq < ?`, ` DESC`
+	}
+	if fromSequence > 0 {
+		query += ` AND ` + bound
+		args = append(args, fromSequence)
+	}
+	query += ` ORDER BY h.seq` + direction
 	if limit > 0 {
 		query += ` LIMIT ?`
 		args = append(args, limit)

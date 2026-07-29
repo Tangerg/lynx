@@ -134,6 +134,32 @@ describe("the generated wire checks", () => {
     ]);
   });
 
+  // The scope of a read is a union for the same reason a content block is: a frame
+  // carrying both subjects would need a precedence rule to resolve, and the flag only
+  // means something where there is a subtree to include.
+  it("keeps a read's two scopes exclusive", () => {
+    expect(validateWire("ItemListScope", { type: "session", sessionId: "ses_01" })).toEqual([]);
+    expect(
+      validateWire("ItemListScope", { type: "run", runId: "run_01", includeDescendants: true }),
+    ).toEqual([]);
+    expect(
+      validateWire("ItemListScope", { type: "session", sessionId: "ses_01", runId: "run_01" }),
+    ).toEqual([
+      { path: "ItemListScope", detail: "matches no permitted variant" },
+      { path: "ItemListScope.runId", detail: "must not be present here" },
+    ]);
+    expect(
+      validateWire("ItemListScope", {
+        type: "session",
+        sessionId: "ses_01",
+        includeDescendants: true,
+      }),
+    ).toEqual([
+      { path: "ItemListScope", detail: "matches no permitted variant" },
+      { path: "ItemListScope.includeDescendants", detail: "must not be present here" },
+    ]);
+  });
+
   it("refuses a discriminator no variant claims", () => {
     const details = validateWire("ContentBlock", { type: "video", data: "AAAA" }).map(
       (v) => v.detail,

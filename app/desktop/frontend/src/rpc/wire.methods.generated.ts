@@ -274,6 +274,9 @@ export const WIRE_CAPABILITY_POLICY: {
   "runs.list": [
     { when: [{ field: "includeDescendants", operator: "present" }], requires: ["subagents"] },
   ],
+  "items.list": [
+    { when: [{ field: "scope.includeDescendants", operator: "present" }], requires: ["subagents"] },
+  ],
   "workspace.subscribe": [
     { when: [{ field: "watches", operator: "present" }], requires: ["fileWatch"] },
   ],

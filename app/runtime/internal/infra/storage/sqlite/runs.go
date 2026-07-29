@@ -408,6 +408,43 @@ func (s *RunStore) Run(ctx context.Context, runID string) (transcript.Run, bool,
 	return run, true, nil
 }
 
+// RunsByID returns the Runs named by runIDs, in newest-admission order, skipping
+// ids no Run has. It exists so a read that has just produced a set of run ids —
+// the runs one page of items refers to — resolves them in one query instead of one
+// per id, and so it never has to load a session's whole run list to find a few.
+func (s *RunStore) RunsByID(ctx context.Context, runIDs []string) ([]transcript.Run, error) {
+	if len(runIDs) == 0 {
+		return nil, nil
+	}
+	args := make([]any, 0, len(runIDs))
+	for _, id := range runIDs {
+		args = append(args, id)
+	}
+	rows, err := conn(ctx, s.db).QueryContext(ctx,
+		`SELECT `+runColumns+`
+		 FROM runs AS r
+		 LEFT JOIN interrupts AS i ON i.run_id = r.run_id AND i.session_id = r.session_id
+		 WHERE r.run_id IN (`+placeholders(len(runIDs))+`)
+		 ORDER BY r.started_at DESC, r.run_id DESC`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite: read runs by id: %w", err)
+	}
+	defer rows.Close()
+
+	var out []transcript.Run
+	for rows.Next() {
+		run, err := scanRun(rows)
+		if err != nil {
+			return nil, fmt.Errorf("sqlite: read runs by id: %w", err)
+		}
+		out = append(out, run)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: read runs by id: %w", err)
+	}
+	return out, nil
+}
+
 // stateColumns is the durable encoding of a status filter. An unrecognized status
 // is refused rather than skipped: dropping it from the IN list would silently
 // widen the page to statuses the caller did not ask for.

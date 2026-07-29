@@ -38,6 +38,18 @@ func rollbackHarness(t *testing.T) (*Server, *stubRuntime) {
 	return newTestServer(rt), rt
 }
 
+// putSession seeds a session row under a chosen id. Reads that refuse a scope
+// naming no session need the session to exist, and Create picks its own id.
+func putSession(t *testing.T, rt *stubRuntime, sessionID string) {
+	t.Helper()
+	if err := rt.sess.Restore(t.Context(), session.Session{
+		ID: sessionID, Title: sessionID, Cwd: t.TempDir(),
+		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC(),
+	}); err != nil {
+		t.Fatalf("putSession %s: %v", sessionID, err)
+	}
+}
+
 func putRun(t *testing.T, rt *stubRuntime, sessionID, runID string, atUnix int64, mark int) {
 	t.Helper()
 	outcome := execution.OutcomeCompleted

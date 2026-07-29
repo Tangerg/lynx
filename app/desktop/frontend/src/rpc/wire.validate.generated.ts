@@ -126,6 +126,9 @@ export type WireTypeName =
   | "Item"
   | "ItemDelta"
   | "ItemDeltaType"
+  | "ItemListScope"
+  | "ItemOrder"
+  | "ItemScopeType"
   | "ItemStatus"
   | "ItemType"
   | "ListApprovalRulesRequest"
@@ -1147,6 +1150,27 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     ]),
   ]),
   ItemDeltaType: enumOf(["content", "reasoning", "toolArguments", "toolOutput", "plan"]),
+  ItemListScope: allOf([
+    object({
+      includeDescendants: flag(),
+      runId: text(),
+      sessionId: text(),
+      type: ref(() => CHECKS.ItemScopeType),
+    }, []),
+    oneOf([
+      fields({
+        includeDescendants: absent(),
+        runId: absent(),
+        type: literal("session"),
+      }, ["sessionId", "type"]),
+      fields({
+        sessionId: absent(),
+        type: literal("run"),
+      }, ["runId", "type"]),
+    ]),
+  ]),
+  ItemOrder: enumOf(["asc", "desc"]),
+  ItemScopeType: enumOf(["session", "run"]),
   ItemStatus: enumOf(["running", "completed", "incomplete"]),
   ItemType: enumOf(["userMessage", "agentMessage", "reasoning", "plan", "question", "toolCall", "compaction"]),
   ListApprovalRulesRequest: object({
@@ -1167,11 +1191,19 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   ListHooksRequest: object({
     cwd: text(),
   }, []),
-  ListItemsRequest: object({
-    cursor: text(),
-    limit: integer(),
-    sessionId: allOf([text(), minLength(1)]),
-  }, ["sessionId"]),
+  ListItemsRequest: allOf([
+    object({
+      cursor: text(),
+      limit: integer(),
+      order: ref(() => CHECKS.ItemOrder),
+      scope: ref(() => CHECKS.ItemListScope),
+    }, ["scope"]),
+    fields({
+      scope: fields({
+        type: minLength(1),
+      }, []),
+    }, []),
+  ]),
   ListItemsResponse: object({
     data: array(ref(() => CHECKS.Item)),
     nextCursor: text(),

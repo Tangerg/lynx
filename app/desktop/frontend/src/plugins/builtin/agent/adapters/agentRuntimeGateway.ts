@@ -37,7 +37,7 @@ const gateway: AgentRuntimeGateway = {
       (cursor) =>
         getContainer()
           .client()
-          .items.list({ sessionId: asSessionId(sessionId), cursor }),
+          .items.list({ scope: { type: "session", sessionId: asSessionId(sessionId) }, cursor }),
       (page) => {
         items.push(...page.data);
         // The run refs ride along with every page; keep one of each.
@@ -51,7 +51,7 @@ const gateway: AgentRuntimeGateway = {
     // and the cursor is irrelevant.
     const first = await getContainer()
       .client()
-      .items.list({ sessionId: asSessionId(sessionId), limit: 1 });
+      .items.list({ scope: { type: "session", sessionId: asSessionId(sessionId) }, limit: 1 });
     return first.data.length === 0;
   },
   loadSessionUsage(sessionId) {

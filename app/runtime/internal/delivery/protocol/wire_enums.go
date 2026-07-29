@@ -43,6 +43,8 @@ var wireEnums = map[reflect.Type][]string{
 	reflect.TypeFor[InterruptResponseType]():     {string(InterruptResponseApproval), string(InterruptResponseAnswer), string(InterruptResponseToolResult)},
 	reflect.TypeFor[InterruptType]():             {string(InterruptApproval), string(InterruptQuestion), string(InterruptToolResult)},
 	reflect.TypeFor[ItemDeltaType]():             {string(DeltaContent), string(DeltaReasoning), string(DeltaToolArguments), string(DeltaToolOutput), string(DeltaPlan)},
+	reflect.TypeFor[ItemOrder]():                 {string(ItemOrderAsc), string(ItemOrderDesc)},
+	reflect.TypeFor[ItemScopeType]():             {string(ItemScopeSession), string(ItemScopeRun)},
 	reflect.TypeFor[ItemStatus]():                {string(ItemStatusRunning), string(ItemStatusCompleted), string(ItemStatusIncomplete)},
 	reflect.TypeFor[ItemType]():                  {string(ItemTypeUserMessage), string(ItemTypeAgentMessage), string(ItemTypeReasoning), string(ItemTypePlan), string(ItemTypeQuestion), string(ItemTypeToolCall), string(ItemTypeCompaction)},
 	reflect.TypeFor[McpAuthStatus]():             {string(McpAuthNone), string(McpAuthBearerToken), string(McpAuthOAuth), string(McpAuthNotLoggedIn)},

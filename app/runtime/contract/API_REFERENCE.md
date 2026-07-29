@@ -29,7 +29,7 @@ Protocol `2026-07-19` (minimum supported `2026-07-19`) · 84 methods
 | `runs.get` | unary | none | — | `run_not_found` |
 | `runs.list` | unary | none | `subagents` | — |
 | `runs.listOpenInterrupts` | unary | none | — | — |
-| `items.list` | unary | none | — | `session_not_found` |
+| `items.list` | unary | none | `subagents` | `session_not_found`, `run_not_found` |
 | `workspace.listFileChanges` | unary | none | — | `cwd_unavailable`, `vcs_unavailable` |
 | `workspace.getDiff` | unary | none | — | `cwd_unavailable`, `vcs_unavailable`, `path_outside_root` |
 | `workspace.getFileHead` | unary | none | — | `cwd_unavailable`, `path_outside_root` |
@@ -171,6 +171,13 @@ least one variant; the registry refuses a union where one does not.
 | `toolOutput` | `text` | — |
 | `plan` | `steps` | — |
 
+### `ItemListScope`
+
+| tag | required | optional |
+| --- | --- | --- |
+| `session` | `sessionId` | — |
+| `run` | `runId` | `includeDescendants` |
+
 ### `ContentBlock`
 
 | tag | required | optional |
@@ -275,6 +282,7 @@ available. Refusal is `capability_not_negotiated` — never a silent downgrade.
 | `sessions.export` | always | `sessionExport` |
 | `sessions.import` | always | `sessionExport` |
 | `runs.list` | `includeDescendants` present | `subagents` |
+| `items.list` | `scope.includeDescendants` present | `subagents` |
 | `workspace.subscribe` | `watches` present | `fileWatch` |
 | `skills.discovered.list` | always | `skills` |
 | `skills.library.list` | always | `skills` |

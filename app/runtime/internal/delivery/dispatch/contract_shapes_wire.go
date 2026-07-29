@@ -107,6 +107,20 @@ func registerItemUnions(s *Shapes) {
 		},
 	})
 
+	// What a page of items is a page OF. The two subjects are exclusive, not two
+	// optional filters: a frame naming both would need a precedence rule to resolve,
+	// and a precedence rule is where the request and the answer start to disagree.
+	// Only run scope may ask for descendants — the session timeline already holds
+	// every descendant, so the flag would narrow nothing there.
+	s.union(UnionSpec{
+		GoType:        typeOf[protocol.ItemListScope](),
+		Discriminator: "type",
+		Variants: []VariantSpec{
+			{Tag: string(protocol.ItemScopeSession), Required: []string{"sessionId"}},
+			{Tag: string(protocol.ItemScopeRun), Required: []string{"runId"}, Optional: []string{"includeDescendants"}},
+		},
+	})
+
 	s.union(UnionSpec{
 		GoType:        typeOf[protocol.ContentBlock](),
 		Discriminator: "type",

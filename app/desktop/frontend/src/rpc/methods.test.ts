@@ -101,6 +101,32 @@ describe("methods factory", () => {
     await client.close();
   });
 
+  it("items.list forwards the scope and the page direction", async () => {
+    const t = createMemoryTransport();
+    const client = createRpcClient(t);
+    const methods = createMethods(client);
+
+    const promise = methods.items.list({
+      scope: { type: "run", runId: asRunId("run_1") },
+      order: "desc",
+      limit: 50,
+    });
+    const req = await waitForRequest(t, "items.list");
+    expect(req.params).toEqual({
+      scope: { type: "run", runId: "run_1" },
+      order: "desc",
+      limit: 50,
+    });
+
+    t.inject({
+      jsonrpc: JSONRPC_VERSION,
+      id: req.id,
+      result: { data: [], runs: [] },
+    } as RpcMessage);
+    await expect(promise).resolves.toEqual({ data: [], runs: [] });
+    await client.close();
+  });
+
   it("runs.get asks by run id alone", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
