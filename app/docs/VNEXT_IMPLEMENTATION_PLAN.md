@@ -1020,15 +1020,15 @@ todos 今天只以**流内 ephemeral `state.snapshot`** 形态上 wire：没有 
 | C1 | `RunStatus` 三态；`RunOutcome`/`SegmentOutcome` 拆分；删 `RunResult`+`durationMs`；`RunMetrics`/`RunLimits`（+ Artifact run 同步拆，契约 §10 要求同时改）| `DONE` | `5e3217241` |
 | C2 | `RunSummary` base + `RunRef` 嵌入（同一定义生成三方，**TS 不做语法继承**）+ `activeSegmentId` durable + 约束随嵌入继承 | `DONE` | `688dfc17f` |
 | C3 | `RunProtocolProfile` durable 不可变 + `features.subagents` gate（广告 `false`）+ Minimal Profile + capability preflight | `DONE` | `6b7d76d2c` + `baa7a304d` |
-| C4 | `runs.get` 新方法 + `runs.list` 全历史/status/`includeDescendants` + cursor 绑定规范化 filters | `TODO` | — |
-| C5 | `ItemListScope` 闭合联合替换扁平请求 + `items.list.order` 双向 + 页级 `RunSummary[]` | `TODO` | — |
-| C6 | `Interrupt.runId` 必填 + payload 三 variant + `OpenInterrupt`→`PendingInterruptSet{rootRunId}` + `interrupts.list` 取代 `runs.listOpenInterrupts`（aggregate 分页，set 不跨页） | `TODO` | — |
-| C7 | `todos.get` + typed `state.snapshot` + `revision` reducer + **Segment final snapshot fence**（§5.6 第 1 点） | `TODO` | — |
-| C8 | `session_has_active_run` typed conflict（带 `activeRun`）+ 无隐式 cancel 的 start 语义 | `TODO` | — |
-| C9 | `runs.resume.input` 原子 user Item + 条件必填 `userItemId`（iff 关系登记为 method contract fixture） | `TODO` | — |
-| C10 | `ProblemData` 删 `channel`/`retryable`、加 `activeRun`/`requiredCapabilities` + `RecoveryAction` 闭合枚举 + Error Registry | `TODO` | — |
-| C11 | `ServerCapabilities` 新 shape（`runEvents`/`runtimeTopics`/`stateSnapshots`/`FeatureCapability` 两新字段/`limits` 两新块） | `TODO` | — |
-| C12 | 九值闭合 `RuntimeTopic` + `runtime.subscribe` 取代 `workspace.subscribe`；删 `mcp.serverChanged` payload 真相、`schedules.fired` | `TODO` | — |
+| C4 | `runs.get` 新方法 + `runs.list` 全历史/status/`includeDescendants` + cursor 绑定规范化 filters | `DONE` | `843c9437c` |
+| C5 | `ItemListScope` 闭合联合替换扁平请求 + `items.list.order` 双向 + 页级 `RunSummary[]` | `DONE` | `73519e301` |
+| C6 | `Interrupt.runId` 必填 + payload 三 variant + `OpenInterrupt`→`PendingInterruptSet{rootRunId}` + `interrupts.list` 取代 `runs.listOpenInterrupts`（aggregate 分页，set 不跨页） | `DONE` | `b5a2c7773` + `07e703eaf` |
+| C7 | `todos.get` + typed `state.snapshot` + `revision` reducer + **Segment final snapshot fence**（§5.6 第 1 点） | `DONE` | `a92d36d8e` |
+| C8 | `session_has_active_run` typed conflict（带 `activeRun`）+ 无隐式 cancel 的 start 语义 | `DONE` | `966bef2b7` |
+| C9 | `runs.resume.input` 原子 user Item + 条件必填 `userItemId`（iff 关系登记为 method contract fixture） | `DONE` | `d829cef7c` |
+| C10 | `ProblemData` 删 `channel`/`retryable`、加 `activeRun`/`requiredCapabilities` + `RecoveryAction` 闭合枚举 + Error Registry | `DONE` | `7fd71658c` |
+| C11 | `ServerCapabilities` 新 shape（`runEvents`/`runtimeTopics`/`stateSnapshots`/`FeatureCapability` 两新字段/`limits` 两新块） | `DONE` | `a9bd0f1fa` |
+| C12 | 九值闭合 `RuntimeTopic` + `runtime.subscribe` 取代 `workspace.subscribe`；删 `mcp.serverChanged` payload 真相、`schedules.fired` | `DONE` | `a9bd0f1fa` |
 | C13 | cursor/replay 定稿（`processEpoch`、`headEventId` opaque、retention 走 discover） | `TODO` | — |
 | C14 | `sessions.rollback/export/import` 精确 capability 规则 + Artifact v7 | `TODO` | — |
 | C15 | 前端：exhaustive reducer、**删 business numeric code 镜像**、`runtime.subscribe` 单流、删 goal 4 秒轮询、高层 run handle + tail-first cold recovery。✅ 单流已结构满足，本 slice 是改名 + topic 扩容 + reducer 扩展 | `TODO` | — |
@@ -1125,6 +1125,23 @@ presence 原语正是"一 keyword 一原语"禁的那种融合。
 
 **建议顺序**：接下来做 **C4/C5**（都只依赖已完成的 C1/C2，互不依赖）。C3 唯一挡住的是 C4 里
 `includeDescendants:true` 要返 `capability_not_negotiated` —— 那条在 C4 用现有 feature gate 直接拒即可（`features.subagents` 广告 false 已足够），profile 不参与该判断。
+
+#### C4–C12 已完成（2026-07-29，同一会话连做）
+
+**每个 slice 自己全绿后 commit + push**（Go 五关 + 前端 `npm run check`）。store epoch 37 → **39**（C6 改 interrupts 主键列名 → 38，C7 加 todos.revision → 39；两次都是丢库重建）。
+
+**每 slice 咬出的真缺陷 / 真裁决**（只记不写在代码里就会重踩的）：
+
+| slice | 真缺陷 / 关键裁决 |
+|---|---|
+| C4 | 三个位置有两种拼写、零个作者 → 新增 **`execution.RunStatus`**（domain），`RunState.Status()` 是唯一投影（store 列 + wire status 都从它派生），且**穷尽 + panic**（猜 "running" 会让 client 挂流、session 永占 admission 槽）。root-only 用 `spawned_by_item_id = ''` **谓词**而不是"反正没 child"。cursor 绑**规范化后**的 statuses。`includeDescendants:true` 用注册表的 **CapabilityRule**（registry doc 明写 handler 复查 = 第二作者）——handler 完全不读该字段 |
+| C5 | 三个真问题：scope 靠猜（拿着 runId 问不了"那个 run 干了什么"）、错 id 返空页（"这 session 是空的" ≠ "没这个 session"）、读尾巴要翻完全部历史。store 拆**两个方法**而非一个可空 subject（"恰好一个非空"是没人检查的契约）。anchor 0 在**两个方向**都是"无锚"（sequence 从 1 起，精确）。page 的 `runs` 只含**本页 item 引用的** run |
+| C6 | `Pending.RunID`（集合归属）与新增 `Interrupt.RunID`（谁提的）同名 → 先拆名（`RootRunID`）。**C3 deferred 的覆盖规则在此落地**：不覆盖就整集拒绝（裁剪后客户端会"答完"却让 run 永远等在它以为已解决的 interrupt 上）。`run_not_root` = **-32022**（-32007/-32010/-32012/-32015 是退役洞，不复用） |
+| C7 | 三个"客户端做不到"：拿不到（recovery method 曾是 `runs.subscribe` = "想知道清单请挂一个 run"）、分不清先后（整体替换，内容说不出新旧）、校验不了（开放 map = 没人检查过任何 key 的值）。**Segment final snapshot fence** 落在 reducer 的 batch（park 与 terminal 是一个边界的两个理由），重复发是**代价也是要点**：收到 finish 的人必然收到了终值 |
+| C8 | `session_busy` 与"工作树 mutation 在飞"同词 → 客户端只知道"有东西挡着"，给不出 steer/resume/cancel 三选一。**绝不隐式 cancel**。冲突可从两处到达（进程内 / durable unique index），走**同一个查找**。顺带删掉 start 读 open-interrupt 列表判 busy 的**重复真相源** |
+| C9 | "批准并补充指示"曾是 resume + steer 两调用，中间有竞态窗口（模型可能已走完这一轮）。user Item 与 continuation **同一 opening write-set**；`userItemId` 的 iff 跨两个 shape，**没有 schema keyword 能表达 → fixture 持有** |
+| C10 | `channel` 复述"落在哪"（第二答案会与第一个不一致）；`retryable` 没有 writer 且是被否决的 transient/permanent 分类。改为 **Error Registry 声明每 type 的 RecoveryAction**（闭合 7 值）。`capability_not_negotiated` 现在**必带非空 requiredCapabilities**（四个拒绝点都喂它，两个 profile 覆盖检查走同一个 translator：run 的未覆盖 profile 与"调用方要声明什么"是同一张表的两面） |
+| C11+C12 | 一个 commit（topic 词汇表是 C11 `runtimeTopics` 的前置）。`workspace.subscribe` 装着 session/MCP/schedule 变更 —— 用一个域的名字装另外几个域只能靠"说谎"。**signal 只是失效通知**：`mcp.serverChanged` 曾带 status/toolCount/error（掉一帧就与 mcp.servers 分叉，且客户端察觉不到）。`topics` 必填无通配（没说能折叠什么就不能发给它）。**两处诚实省略**：`limits.runReplay` 缺席（journal 目前保留整段历史，没有上限可发布；发一个 runtime 不执行的数字 = discovery 说谎 → C13 落窗口+拒绝+该字段）；桌面端只订 5 个 topic（runs/interrupts/goals/state 今天从 run stream 折叠，订了也只会换来"刷新空气" → C15 给它们消费方后再订） |
 
 **每 slice 反泄露 DoD**：新增 wire 概念不得在 presenter 产生业务判断（对照 §4.3 归属表）。
 
