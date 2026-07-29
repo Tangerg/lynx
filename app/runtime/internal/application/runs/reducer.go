@@ -44,6 +44,7 @@ type reducerConfig struct {
 	RunID          string
 	SegmentID      string
 	SessionID      string
+	Lineage        execution.RunLineage
 	Cwd            string
 	TurnID         string
 	GoalLeaseID    string

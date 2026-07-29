@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -58,6 +59,12 @@ func (e *acknowledgedChildExecutor) TurnEvents(ctx context.Context, _ execution.
 			return
 		}
 		close(e.childStarted)
+		if !yield(ExecutorEvent{
+			Source:  e.childSource,
+			Payload: TurnEnd{Reason: execution.OutcomeCompleted},
+		}) {
+			return
+		}
 		yield(ExecutorEvent{
 			Source:  e.rootSource,
 			Payload: TurnEnd{Reason: execution.OutcomeCompleted},
@@ -229,6 +236,12 @@ func (e *fakeEffects) openingSnapshot() []OpeningCommit {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return append([]OpeningCommit(nil), e.openings...)
+}
+
+func (e *fakeEffects) commitSnapshot() []EventCommit {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]EventCommit(nil), e.commits...)
 }
 
 func (e *fakeEffects) terminalized(sessionID, runID string) bool {
@@ -616,6 +629,7 @@ func TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem(t *testing.T) {
 			},
 		},
 		{Source: childSource, Payload: request},
+		{Source: childSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
 		{Source: rootSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
 	}}
 	effects := &fakeEffects{}
@@ -666,6 +680,215 @@ func TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem(t *testing.T) {
 		spawningItem.Tool == nil ||
 		spawningItem.Tool.Name != "task" {
 		t.Fatalf("parent spawning-item commit = %+v", parentCommit)
+	}
+}
+
+func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
+	request, confirmation := NewChildOpeningRequest(time.Date(2026, 7, 13, 1, 2, 4, 0, time.UTC))
+	rootSource := ExecutorSource{ProcessID: "process_root"}
+	childSource := ExecutorSource{
+		ProcessID:   "process_child",
+		ParentID:    rootSource.ProcessID,
+		SpawnCallID: "provider_call_delegate",
+	}
+	finalUsage := TurnUsage{
+		Tokens: accounting.TokenUsage{
+			PromptTokens:     13,
+			CompletionTokens: 5,
+		},
+		ByModel: []accounting.ModelUsage{{
+			Model: "child-model",
+			TokenUsage: accounting.TokenUsage{
+				PromptTokens:     13,
+				CompletionTokens: 5,
+			},
+			Calls: 1,
+		}},
+	}
+	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
+		{
+			Source: rootSource,
+			Payload: ToolCallStart{
+				CallID:       "canonical_call_delegate",
+				SourceCallID: childSource.SpawnCallID,
+				ToolName:     "task",
+				Arguments:    `{"description":"delegate"}`,
+			},
+		},
+		{Source: childSource, Payload: request},
+		{Source: childSource, Payload: MessageDelta{Text: "child reply"}},
+		{Source: childSource, Payload: TurnEnd{
+			Reason: execution.OutcomeCompleted,
+			Usage:  &finalUsage,
+		}},
+		{Source: rootSource, Payload: ToolCallEnd{
+			CallID:     "canonical_call_delegate",
+			OutputText: "child reply",
+		}},
+		{Source: rootSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+	}}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+	coordinator.newRunID = func() string { return "run_child" }
+	coordinator.newSegmentID = func() string { return "seg_child" }
+	spec := testSegment()
+	spec.Limits = execution.RunLimits{MaxSteps: 20, MaxBudgetUSD: 3}
+	spec.ProtocolProfile = execution.RunProtocolProfile{
+		RequiredFeatures: []string{"subagents"},
+	}
+
+	stream, err := coordinator.openSegment(t.Context(), spec)
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	if err := confirmation.Await(t.Context()); err != nil {
+		t.Fatalf("child opening confirmation: %v", err)
+	}
+
+	var (
+		childStarted   *SegmentStarted
+		childCompleted *ItemCompleted
+		childFinished  *SegmentFinished
+	)
+	for index := range events {
+		event := events[index]
+		switch payload := event.Payload.(type) {
+		case SegmentStarted:
+			if event.RunID == "run_child" {
+				childStarted = &payload
+			}
+		case ItemCompleted:
+			if event.RunID == "run_child" {
+				childCompleted = &payload
+			}
+		case SegmentFinished:
+			if event.RunID == "run_child" {
+				childFinished = &payload
+			}
+		}
+		if event.RunID == "run_child" && event.SegmentID != "seg_child" {
+			t.Fatalf("child event[%d] segment = %q, want seg_child", index, event.SegmentID)
+		}
+	}
+	if childStarted == nil {
+		t.Fatal("root Journal did not publish child segment.started")
+	}
+	lineage := execution.RunLineage{
+		SpawnedByItemID: "item_seg_1_1",
+		ParentRunID:     "run_1",
+		RootRunID:       "run_1",
+	}
+	if childStarted.Run.Lineage() != lineage ||
+		childStarted.Run.ActiveSegmentID != "seg_child" ||
+		childStarted.Run.Limits != spec.Limits ||
+		childStarted.Run.ProtocolProfile.String() != spec.ProtocolProfile.String() {
+		t.Fatalf("child opening run = %+v, want independent inherited segment state", childStarted.Run)
+	}
+	if childCompleted == nil ||
+		childCompleted.Item.RunID != "run_child" ||
+		childCompleted.Item.SessionID != spec.SessionID ||
+		childCompleted.Item.Kind != transcript.AgentMessage {
+		t.Fatalf("child completed item = %+v, want child-owned assistant item", childCompleted)
+	}
+	if childFinished == nil ||
+		childFinished.Run.Lineage() != lineage ||
+		childFinished.Run.Outcome == nil ||
+		*childFinished.Run.Outcome != execution.OutcomeCompleted ||
+		childFinished.Run.Metrics.Usage == nil ||
+		childFinished.Run.Metrics.Usage.InputTokens != 13 ||
+		childFinished.Run.Metrics.Usage.OutputTokens != 5 {
+		t.Fatalf("child terminal run = %+v, want child-owned terminal metrics", childFinished)
+	}
+	if !effects.terminalized(spec.SessionID, "run_child") ||
+		!effects.terminalized(spec.SessionID, spec.RunID) {
+		t.Fatal("child and root were not independently terminalized")
+	}
+	commits := effects.commitSnapshot()
+	childTerminalAt, rootTerminalAt := -1, -1
+	for index, commit := range commits {
+		if commit.State != StateTerminalize {
+			continue
+		}
+		switch commit.RunID {
+		case "run_child":
+			childTerminalAt = index
+		case spec.RunID:
+			rootTerminalAt = index
+		}
+	}
+	if childTerminalAt < 0 || rootTerminalAt < 0 || childTerminalAt >= rootTerminalAt {
+		t.Fatalf(
+			"terminal commit order child/root = %d/%d, want child before root",
+			childTerminalAt,
+			rootTerminalAt,
+		)
+	}
+}
+
+func TestCoordinatorClosesActiveChildrenBeforeRejectingRootTerminal(t *testing.T) {
+	request, confirmation := NewChildOpeningRequest(time.Now())
+	rootSource := ExecutorSource{ProcessID: "process_root"}
+	childSource := ExecutorSource{
+		ProcessID:   "process_child",
+		ParentID:    rootSource.ProcessID,
+		SpawnCallID: "provider_call_delegate",
+	}
+	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
+		{
+			Source: rootSource,
+			Payload: ToolCallStart{
+				CallID:       "canonical_call_delegate",
+				SourceCallID: childSource.SpawnCallID,
+				ToolName:     "task",
+				Arguments:    `{}`,
+			},
+		},
+		{Source: childSource, Payload: request},
+		// A correct executor publishes the child's terminal boundary first.
+		// This deliberately violates that ordering to prove the application
+		// closes the durable tree instead of leaving an active child orphan.
+		{Source: rootSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+	}}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+	coordinator.newRunID = func() string { return "run_child" }
+	coordinator.newSegmentID = func() string { return "seg_child" }
+
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	if err := confirmation.Await(t.Context()); err != nil {
+		t.Fatalf("child opening confirmation: %v", err)
+	}
+
+	var terminalRuns []transcript.Run
+	for _, event := range events {
+		if finished, ok := event.Payload.(SegmentFinished); ok {
+			terminalRuns = append(terminalRuns, finished.Run)
+		}
+	}
+	if len(terminalRuns) != 2 ||
+		terminalRuns[0].ID != "run_child" ||
+		terminalRuns[1].ID != "run_1" {
+		t.Fatalf("terminal event order = %+v, want child then root", terminalRuns)
+	}
+	for _, run := range terminalRuns {
+		if run.Outcome == nil ||
+			*run.Outcome != execution.OutcomeError ||
+			run.Error == nil ||
+			run.Error.Kind != transcript.InternalProblem {
+			t.Fatalf("synthesized terminal = %+v, want internal error", run)
+		}
+	}
+	if !effects.terminalized("ses_1", "run_child") ||
+		!effects.terminalized("ses_1", "run_1") {
+		t.Fatal("root protocol violation left a non-terminal run in the durable tree")
+	}
+	if executor.cancels() != 1 {
+		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
 	}
 }
 

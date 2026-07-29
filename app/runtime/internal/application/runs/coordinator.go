@@ -184,7 +184,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		opened.Events(yield)
 	}
 	for _, pe := range opening.events {
-		hub.Append(c.event(spec, pe))
+		hub.Append(c.event(spec.RunID, spec.SegmentID, pe))
 	}
 	if spec.Activate != nil {
 		if err := spec.Activate(taskCtx); err != nil {
@@ -248,10 +248,10 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, reduc
 // event builds the envelope for one reduced payload. Its stream position is NOT
 // set here — the Journal assigns it while publishing, so sequence order and
 // publication order are the same order by construction.
-func (c *Coordinator) event(spec segmentSpec, reduced reduction) Event {
+func (c *Coordinator) event(runID, segmentID string, reduced reduction) Event {
 	return Event{
-		RunID:     spec.RunID,
-		SegmentID: spec.SegmentID,
+		RunID:     runID,
+		SegmentID: segmentID,
 		Timestamp: c.now().UTC(),
 		Payload:   reduced.Event,
 	}
