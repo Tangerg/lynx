@@ -146,12 +146,12 @@ func TestHandleDoesNotMutateCallerRequestWhenStrippingMeta(t *testing.T) {
 	}
 }
 
-// TestBindRequestMetaRefusesADurableExclusion pins §8.1: a client may suppress an
+// TestBindRequestMetaRefusesANonSuppressibleEvent pins §8.1: a client may suppress an
 // ephemeral preview, never an authoritative event. Ignoring the illegal entry
 // would leave the client believing it had opted out of a frame it will keep
 // receiving — and a runtime that honored it would break the §5.2 guarantee that
 // discarding every ephemeral event still converges.
-func TestBindRequestMetaRefusesADurableExclusion(t *testing.T) {
+func TestBindRequestMetaRefusesANonSuppressibleEvent(t *testing.T) {
 	req := &transport.Request{
 		ID:     transport.StringID("1"),
 		Method: "runs.cancel",
@@ -165,7 +165,7 @@ func TestBindRequestMetaRefusesADurableExclusion(t *testing.T) {
 
 	_, rpcErr := bindRequestMeta(context.Background(), req)
 	if rpcErr == nil {
-		t.Fatal("bindRequestMeta accepted an exclusion of a durable event")
+		t.Fatal("bindRequestMeta accepted an event outside the closed opt-out set")
 	}
 	if rpcErr.Code != protocol.CodeInvalidParams {
 		t.Fatalf("error code = %d, want invalid_params (%d)", rpcErr.Code, protocol.CodeInvalidParams)

@@ -269,5 +269,27 @@ describe("the generated wire checks", () => {
       payload: { anything: [1, "two", null] },
     };
     expect(validateWire("StreamEvent", custom)).toEqual([]);
+    expect(validateWire("StreamEvent", { ...custom, durable: true })).toEqual([
+      { path: "StreamEvent", detail: "matches no permitted variant" },
+      { path: "StreamEvent.durable", detail: "must not be present here" },
+    ]);
+  });
+
+  it("keeps the run-event opt-out vocabulary narrower than the event union", () => {
+    expect(
+      validateWire("ClientCapabilities", {
+        excludedEphemeralEvents: ["segment.progress", "item.delta"],
+      }),
+    ).toEqual([]);
+    expect(
+      validateWire("ClientCapabilities", {
+        excludedEphemeralEvents: ["custom"],
+      }),
+    ).toEqual([
+      {
+        path: "ClientCapabilities.excludedEphemeralEvents[0]",
+        detail: 'expected one of "segment.progress", "item.delta"',
+      },
+    ]);
   });
 });

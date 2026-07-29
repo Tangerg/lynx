@@ -92,8 +92,8 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *trans
 				return // stream done — the bridge closed frames after the source drained
 			}
 			// The dispatch already encoded the frame (method + params) and set
-			// its SSE id (durable run events carry one; ephemeral workspace
-			// events don't). The transport just writes it.
+			// its SSE id (replayable run events carry one; non-replayable run
+			// events and workspace events don't). The transport just writes it.
 			setWriteDeadline()
 			if err := writeSSEMessage(ctx, sw, frame.SSEID, frame.Notif); err != nil {
 				return // write failed — client gone; the source continues server-side

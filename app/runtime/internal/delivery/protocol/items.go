@@ -262,7 +262,7 @@ type QuestionOption struct {
 //     and are unmarshaled into Arguments at item.completed / the approval
 //     payload (§4.8).
 //   - Result is best-effort JSON, NEVER double-encoded; absent on
-//     item.started, authoritative on item.completed (durable, §5.2). The
+//     item.started, authoritative and persisted on item.completed (§5.2). The
 //     command-output preview rides ItemDelta.toolOutput, whose terminal value
 //     is result.output (§5.2) — clients must not treat the streamed
 //     accumulation as the source of truth.

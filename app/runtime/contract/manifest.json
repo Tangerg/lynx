@@ -1570,42 +1570,42 @@
   "runEventPolicy": [
     {
       "type": "segment.started",
-      "durable": true,
+      "authoritative": true,
       "replayable": true
     },
     {
       "type": "segment.progress",
-      "durable": false,
+      "authoritative": false,
       "replayable": false
     },
     {
       "type": "segment.finished",
-      "durable": true,
+      "authoritative": true,
       "replayable": true
     },
     {
       "type": "item.started",
-      "durable": true,
+      "authoritative": true,
       "replayable": true
     },
     {
       "type": "item.delta",
-      "durable": false,
+      "authoritative": false,
       "replayable": false
     },
     {
       "type": "item.completed",
-      "durable": true,
+      "authoritative": true,
       "replayable": true
     },
     {
       "type": "state.snapshot",
-      "durable": true,
+      "authoritative": true,
       "replayable": true
     },
     {
       "type": "custom",
-      "durable": false,
+      "authoritative": false,
       "replayable": false
     }
   ],
@@ -2157,10 +2157,12 @@
             "name"
           ],
           "optional": [
-            "payload",
-            "durable"
+            "payload"
           ]
         }
+      ],
+      "forbidden": [
+        "durable"
       ]
     },
     {

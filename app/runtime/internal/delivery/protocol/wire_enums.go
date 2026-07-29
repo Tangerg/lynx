@@ -30,6 +30,7 @@ var wireEnums = map[reflect.Type][]string{
 	reflect.TypeFor[ArtifactProblemType]():       {string(ArtifactProblemInternalError), string(ArtifactProblemRunLost), string(ArtifactProblemAgentStuck), string(ArtifactProblemRateLimited), string(ArtifactProblemInvalidAPIKey), string(ArtifactProblemTimeout), string(ArtifactProblemProviderUnavailable), string(ArtifactProblemProviderRejected), string(ArtifactProblemDeniedByUser), string(ArtifactProblemToolFailed)},
 	reflect.TypeFor[CodebaseState]():             {string(CodebaseStateNone), string(CodebaseStateIndexing), string(CodebaseStateReady), string(CodebaseStateError)},
 	reflect.TypeFor[ContentBlockType]():          {string(ContentBlockText), string(ContentBlockImage)},
+	reflect.TypeFor[SuppressibleRunEventType]():  {string(SuppressibleRunSegmentProgress), string(SuppressibleRunItemDelta)},
 	reflect.TypeFor[DiffFormat]():                {string(DiffFormatRows), string(DiffFormatRaw)},
 	reflect.TypeFor[DiffMode]():                  {string(DiffModeWorktree), string(DiffModeBase)},
 	reflect.TypeFor[DiffRowType]():               {string(DiffRowHunk), string(DiffRowContext), string(DiffRowAdded), string(DiffRowDeleted)},

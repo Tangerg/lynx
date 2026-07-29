@@ -254,8 +254,8 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
   const result = asRecord(tool.result);
   switch (toolCategory(tool.name)) {
     case "command": {
-      // The authoritative output lands on the result at item.completed
-      // (durable) — surface it as the view `result` so history replay
+      // The authoritative, persisted output lands on the result at item.completed
+      // — surface it as the view `result` so history hydration
       // (items.list → completed only, no deltas), reconnect, and
       // non-streaming runtimes all render it (API.md §5.2 / §4.4.2). The
       // item.delta{toolOutput} stream is only a live preview accumulating

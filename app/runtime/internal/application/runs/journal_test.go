@@ -25,14 +25,14 @@ func testJournal() *Journal {
 // ev builds a payload-only event. The Journal assigns its position, so a test
 // never states a sequence: stating one is exactly the mistake the Journal now
 // makes impossible.
-func ev(durable bool) Event {
-	if durable {
+func ev(replayable bool) Event {
+	if replayable {
 		return Event{RunID: testRunID, SegmentID: testSegmentID, Payload: SegmentStarted{}}
 	}
 	return Event{RunID: testRunID, SegmentID: testSegmentID, Payload: SegmentProgressed{}}
 }
 
-// sized builds a durable event whose serialized payload is at least n bytes, so a
+// sized builds a replayable event whose serialized payload is at least n bytes, so a
 // byte-budget test measures the real charge rather than a fabricated one.
 func sized(n int) Event {
 	return Event{
@@ -83,7 +83,7 @@ func TestJournal_TailReportsTheHeadItAttachedAfter(t *testing.T) {
 		t.Fatalf("head of an empty stream = %q, want empty", head)
 	}
 	j.Append(ev(true))
-	j.Append(ev(false)) // ephemeral events still take a position
+	j.Append(ev(false)) // non-replayable events still take a position
 
 	attached := j.Tail()
 	defer attached.Cancel()
@@ -112,7 +112,7 @@ func TestJournal_ReplayServesWhatFollowsTheCursorThenTails(t *testing.T) {
 }
 
 // Ephemeral events take a position but are never retained, so a cursor pointing
-// at one still resumes correctly — everything authoritative after it is served.
+// at one still resumes correctly — everything replayable after it is served.
 func TestJournal_ReplayFromAnEphemeralPositionIsExact(t *testing.T) {
 	j := testJournal()
 	j.Append(ev(true))  // 1
@@ -221,13 +221,13 @@ func TestJournal_EvictionBoundsTheWindowByBytes(t *testing.T) {
 	}
 }
 
-// TestJournalDurableLosslessLiveLossyUnderOverflow locks the drop policy: a
+// TestJournalReplayableLosslessLiveLossyUnderOverflow locks the drop policy: a
 // subscriber flooded past its buffering without draining still receives every
-// authoritative event in order, while live-only events become a lossy but
+// replayable event in order, while live-only events become a lossy but
 // still-ordered subset. The surviving live count is deliberately NOT asserted —
-// buffer size is an implementation detail; "authoritative never drops, live-only
+// buffer size is an implementation detail; "replayable never drops, live-only
 // may" is the contract.
-func TestJournalDurableLosslessLiveLossyUnderOverflow(t *testing.T) {
+func TestJournalReplayableLosslessLiveLossyUnderOverflow(t *testing.T) {
 	j := testJournal()
 	attached := j.Tail()
 	defer attached.Cancel()
@@ -242,22 +242,22 @@ func TestJournalDurableLosslessLiveLossyUnderOverflow(t *testing.T) {
 	j.Append(ev(true))
 	j.Close()
 
-	var gotDurable []uint64
+	var gotReplayable []uint64
 	deliveredLive := 0
 	for e := range attached.Events {
-		if e.Durable() {
-			gotDurable = append(gotDurable, e.Sequence)
+		if e.Replayable() {
+			gotReplayable = append(gotReplayable, e.Sequence)
 			continue
 		}
 		deliveredLive++
 	}
-	wantDurable := []uint64{1, uint64(liveTotal/2 + 1), uint64(liveTotal + 3)}
-	if len(gotDurable) != len(wantDurable) {
-		t.Fatalf("durable delivered = %v, want %v (durable must be lossless)", gotDurable, wantDurable)
+	wantReplayable := []uint64{1, uint64(liveTotal/2 + 1), uint64(liveTotal + 3)}
+	if len(gotReplayable) != len(wantReplayable) {
+		t.Fatalf("replayable delivered = %v, want %v (replayable must be lossless)", gotReplayable, wantReplayable)
 	}
-	for i := range wantDurable {
-		if gotDurable[i] != wantDurable[i] {
-			t.Fatalf("durable[%d] = %d, want %d (order must hold)", i, gotDurable[i], wantDurable[i])
+	for i := range wantReplayable {
+		if gotReplayable[i] != wantReplayable[i] {
+			t.Fatalf("replayable[%d] = %d, want %d (order must hold)", i, gotReplayable[i], wantReplayable[i])
 		}
 	}
 	if deliveredLive >= liveTotal {
@@ -265,7 +265,7 @@ func TestJournalDurableLosslessLiveLossyUnderOverflow(t *testing.T) {
 	}
 }
 
-// An authoritative event is never dropped, so a consumer that stops draining is
+// A replayable event is never dropped, so a consumer that stops draining is
 // disconnected instead. Serving it a stream with a hole would leave it folding a
 // state it could not tell was wrong.
 func TestJournal_StalledAuthoritativeConsumerIsDisconnected(t *testing.T) {
@@ -322,10 +322,10 @@ func TestJournal_LiveOnlyIsNeverReplayed(t *testing.T) {
 	j.Append(ev(true))
 	j.Append(ev(false))
 	if got, _ := next(); got.Sequence != 1 {
-		t.Fatal("live subscriber missed the authoritative event")
+		t.Fatal("live subscriber missed the replayable event")
 	}
 	if got, _ := next(); got.Sequence != 2 {
-		t.Fatal("live subscriber missed the ephemeral event")
+		t.Fatal("live subscriber missed the non-replayable event")
 	}
 
 	late, err := j.Replay(cursorAt(1))
@@ -335,7 +335,7 @@ func TestJournal_LiveOnlyIsNeverReplayed(t *testing.T) {
 	defer late.Cancel()
 	j.Close()
 	if got := drain(late.Events); len(got) != 0 {
-		t.Fatalf("replay = %v, want no ephemeral events", got)
+		t.Fatalf("replay = %v, want no non-replayable events", got)
 	}
 }
 
@@ -445,7 +445,7 @@ func TestJournalSubscriber_ReusesRoutineQueueAndReleasesBursts(t *testing.T) {
 	}
 	for i := range liveHeadroom * 2 {
 		if _, ok := subscriber.next(); !ok {
-			t.Fatalf("durable burst ended at event %d", i)
+			t.Fatalf("replayable burst ended at event %d", i)
 		}
 	}
 	if subscriber.queue != nil {
@@ -467,7 +467,7 @@ func TestJournalSubscriber_AbortReleasesQueuedEvents(t *testing.T) {
 }
 
 // A backlog within the window is lossless however far behind the consumer is.
-func TestJournal_DurableBacklogWithinTheWindowIsLossless(t *testing.T) {
+func TestJournal_ReplayableBacklogWithinTheWindowIsLossless(t *testing.T) {
 	j := testJournal()
 	attached := j.Tail()
 	defer attached.Cancel()
@@ -479,7 +479,7 @@ func TestJournal_DurableBacklogWithinTheWindowIsLossless(t *testing.T) {
 
 	got := drain(attached.Events)
 	if len(got) != total {
-		t.Fatalf("durable events = %d, want %d", len(got), total)
+		t.Fatalf("replayable events = %d, want %d", len(got), total)
 	}
 	for i, sequence := range got {
 		if want := uint64(i + 1); sequence != want {

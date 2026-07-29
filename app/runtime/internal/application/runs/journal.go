@@ -10,14 +10,14 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/component/replaycursor"
 )
 
-// liveHeadroom bounds queued live-only events per subscriber. Authoritative
-// events are never subject to this budget — they are bounded by [Retention]
+// liveHeadroom bounds queued live-only events per subscriber. Replayable events
+// are never subject to this budget — they are bounded by [Retention]
 // instead, and a subscriber that exceeds THAT is disconnected rather than
 // quietly served an incomplete stream.
 const liveHeadroom = 256
 
 // Retention is the replay window one live segment keeps for reconnecting
-// subscribers. Replay is not a second durable event store: history belongs to
+// subscribers. Replay is not a second persistent event store: history belongs to
 // the transcript reads, and this window only covers the gap a reconnect opens.
 //
 // Both budgets are enforced, and both are needed. The count bounds how far back
@@ -41,7 +41,7 @@ var DefaultRetention = Retention{MaxEvents: 2048, MaxBytes: 16 << 20}
 // differs: an invalid cursor is a cursor that never addressed this stream, so
 // carrying it forward would keep failing, while an unavailable one addressed a
 // stream this process can no longer produce, so the remedy is to rebuild from
-// the durable reads.
+// the persisted read models.
 var (
 	// ErrReplayCursorInvalid: the cursor cannot be read, names another stream, or
 	// names a position this stream never reached. All three mean the client is
@@ -91,12 +91,12 @@ type Journal struct {
 	// head is the last sequence assigned. Zero means nothing has been published,
 	// which is why a cursor's sequence starts at 1.
 	head uint64
-	// retained is the replay window: authoritative events, oldest first, each
+	// retained is the replay window: replayable events, oldest first, each
 	// carrying what it was charged.
 	retained      []chargedEvent
 	retainedBytes int
 	// evictedThrough is the highest sequence dropped from the window. A cursor
-	// before it has lost at least one authoritative event, which is the difference
+	// before it has lost at least one replayable event, which is the difference
 	// between "replay this" and "you must recover from the reads".
 	evictedThrough uint64
 	subs           map[int]*journalSubscriber
@@ -106,13 +106,13 @@ type Journal struct {
 
 // NewJournal builds the stream for one segment. scope binds every position it
 // mints; retention bounds both the replay window and any one subscriber's
-// authoritative backlog.
+// replayable backlog.
 func newJournal(scope streamScope, retention Retention) *Journal {
 	return &Journal{scope: scope, retention: retention, subs: map[int]*journalSubscriber{}}
 }
 
 // Append assigns ev its position in this stream, retains it if it is
-// authoritative, and enqueues it for every live subscriber.
+// replayable, and enqueues it for every live subscriber.
 //
 // The position is assigned HERE, under the same lock as the fan-out, so
 // sequence order, publication order and replay order are one order rather than
@@ -124,7 +124,7 @@ func (j *Journal) Append(ev Event) {
 	// marshal, and position assignment and every subscriber's enqueue wait behind
 	// that lock.
 	size := 0
-	if ev.Durable() {
+	if ev.Replayable() {
 		size = retainedSize(ev)
 	}
 
@@ -139,7 +139,7 @@ func (j *Journal) Append(ev Event) {
 		Epoch: j.scope.Epoch, RunID: j.scope.RunID,
 		SegmentID: j.scope.SegmentID, Sequence: j.head,
 	})
-	if ev.Durable() {
+	if ev.Replayable() {
 		j.retained = append(j.retained, chargedEvent{event: ev, bytes: size})
 		j.retainedBytes += size
 		j.evictLocked()
@@ -149,7 +149,7 @@ func (j *Journal) Append(ev Event) {
 	}
 }
 
-// evictLocked drops the oldest authoritative events until the window fits both
+// evictLocked drops the oldest replayable events until the window fits both
 // budgets, recording how far the eviction reached so a cursor behind it can be
 // told the difference between "nothing new" and "you missed something".
 func (j *Journal) evictLocked() {
@@ -193,7 +193,7 @@ func (j *Journal) Close() {
 // back a stream whose beginning the client must reconcile against the transcript
 // reads anyway — and doing both is how an event is folded twice. Capturing the
 // head and attaching happen under one lock, so nothing is published in between:
-// a client can read the durable state afterwards and fold this stream on top
+// a client can read the persisted state afterwards and fold this stream on top
 // without a gap.
 func (j *Journal) Tail() subscription {
 	j.mu.Lock()
@@ -310,7 +310,7 @@ func (j *Journal) attachLocked(backlog []chargedEvent, head string) subscription
 // serialized payload.
 //
 // The window exists to bound memory, and the dominant term in every
-// authoritative event is the content it carries — item text, tool output, base64
+// replayable event is the content it carries — item text, tool output, base64
 // image data — which serializing measures directly. It is measured rather than
 // estimated per event type because an estimate returns zero for whatever field
 // nobody remembered to add, and a budget that silently stops counting is a budget
@@ -341,14 +341,14 @@ type journalSubscriber struct {
 	retention Retention
 	queue     []chargedEvent
 	head      int
-	// queuedLive counts ephemeral events awaiting delivery; queuedDurable and
-	// queuedBytes count the authoritative backlog, which cannot be dropped and
+	// queuedLive counts non-replayable events awaiting delivery;
+	// queuedReplayable and queuedBytes count the replay backlog, which cannot be dropped and
 	// therefore ends the subscription instead when it exceeds the window.
-	queuedLive    int
-	queuedDurable int
-	queuedBytes   int
-	finishing     bool
-	aborted       bool
+	queuedLive       int
+	queuedReplayable int
+	queuedBytes      int
+	finishing        bool
+	aborted          bool
 }
 
 // newJournalSubscriber primes a subscriber with a replay backlog. The backlog
@@ -361,19 +361,20 @@ func newJournalSubscriber(backlog []chargedEvent, retention Retention) *journalS
 		queue:     append(make([]chargedEvent, 0, len(backlog)), backlog...),
 	}
 	subscriber.ready = sync.NewCond(&subscriber.mu)
-	subscriber.queuedDurable = len(backlog)
+	subscriber.queuedReplayable = len(backlog)
 	for _, charged := range backlog {
 		subscriber.queuedBytes += charged.bytes
 	}
 	return subscriber
 }
 
-// enqueue queues one event, or drops it when it is ephemeral and the consumer is
-// behind. size is what the journal charged for it, zero for ephemeral events.
+// enqueue queues one event, or drops it when it is non-replayable and the consumer
+// is behind. size is what the journal charged for it, zero for non-replayable
+// events.
 //
-// An authoritative event is never dropped: a stream missing one is a stream the
+// A replayable event is never dropped: a stream missing one is a stream the
 // client would fold into a wrong state without being able to tell. So a consumer
-// that lets the authoritative backlog reach the retention window is disconnected
+// that lets the replay backlog reach the retention window is disconnected
 // instead, and reads the abnormal end of stream as "reconnect and recover".
 func (s *journalSubscriber) enqueue(ev Event, size int) {
 	s.mu.Lock()
@@ -381,19 +382,19 @@ func (s *journalSubscriber) enqueue(ev Event, size int) {
 		s.mu.Unlock()
 		return
 	}
-	if !ev.Durable() && !ev.Terminal() {
+	if !ev.Replayable() {
 		if s.queuedLive >= liveHeadroom {
 			s.mu.Unlock()
 			return
 		}
 		s.queuedLive++
 	} else {
-		if s.queuedDurable >= s.retention.MaxEvents || s.queuedBytes+size > s.retention.MaxBytes {
+		if s.queuedReplayable >= s.retention.MaxEvents || s.queuedBytes+size > s.retention.MaxBytes {
 			s.mu.Unlock()
 			s.abort()
 			return
 		}
-		s.queuedDurable++
+		s.queuedReplayable++
 		s.queuedBytes += size
 	}
 	if s.head > 0 && len(s.queue) == cap(s.queue) {
@@ -425,7 +426,7 @@ func (s *journalSubscriber) abort() {
 	s.queue = nil
 	s.head = 0
 	s.queuedLive = 0
-	s.queuedDurable = 0
+	s.queuedReplayable = 0
 	s.queuedBytes = 0
 	s.ready.Broadcast()
 	s.mu.Unlock()
@@ -461,7 +462,7 @@ func (s *journalSubscriber) next() (Event, bool) {
 	s.queue[s.head] = chargedEvent{}
 	s.head++
 	if s.head == len(s.queue) {
-		// Reuse the routine live-event buffer, but do not retain a durable burst.
+		// Reuse the routine live-event buffer, but do not retain a replay burst.
 		if cap(s.queue) > liveHeadroom {
 			s.queue = nil
 		} else {
@@ -469,10 +470,10 @@ func (s *journalSubscriber) next() (Event, bool) {
 		}
 		s.head = 0
 	}
-	if !queued.event.Durable() && !queued.event.Terminal() {
+	if !queued.event.Replayable() {
 		s.queuedLive--
 	} else {
-		s.queuedDurable--
+		s.queuedReplayable--
 		s.queuedBytes -= queued.bytes
 	}
 	return queued.event, true

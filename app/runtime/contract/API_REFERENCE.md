@@ -109,10 +109,11 @@ their own event stream (TRANSPORT §6.4).
 
 ## Run event reliability
 
-Durability is a function of the event type, not a per-frame flag. Discard every
-non-durable event and the final state is still correct (API.md §5.2).
+Authoritativeness and replayability are protocol facts of the event type, not
+sender-controlled flags. Discard every non-authoritative event and the final
+state is still correct (API.md §5.2).
 
-| event | durable | replayed on reconnect |
+| event | authoritative | replayed on reconnect |
 | --- | --- | --- |
 | `segment.started` | yes | yes |
 | `segment.progress` | no | no |
@@ -239,6 +240,8 @@ least one variant; the registry refuses a union where one does not.
 
 ### `StreamEvent`
 
+Forbidden on every variant: `durable`.
+
 | tag | required | optional |
 | --- | --- | --- |
 | `segment.started` | `run` | — |
@@ -248,7 +251,7 @@ least one variant; the registry refuses a union where one does not.
 | `item.delta` | `itemId`, `delta` | — |
 | `item.completed` | `item` | — |
 | `state.snapshot` | `state` | — |
-| `custom` | `name` | `payload`, `durable` |
+| `custom` | `name` | `payload` |
 
 ### `RuntimeEvent`
 

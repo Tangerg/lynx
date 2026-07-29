@@ -22,7 +22,7 @@ var errServerClosed = errors.New("server: closed")
 // streams (§7.1). It is the non-run, ephemeral counterpart to the per-run hubs:
 // coalescing rather than back-pressuring the publisher (a change signal carries no
 // truth of its own, so several of them collapse into "re-read these topics"),
-// connection-scoped (no durable replay), shared by the whole app.
+// connection-scoped (no retained replay), shared by the whole app.
 //
 // It never drops an invalidation and never skips a sequence number. A slow
 // subscriber's undelivered signals fold into one pending resync naming exactly the

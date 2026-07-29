@@ -237,7 +237,8 @@ func (s *schemaSet) variants(t reflect.Type, union dispatch.UnionSpec) []*schema
 			Properties: map[string]any{union.Discriminator: &schema{Const: variant.Tag}},
 			Required:   []string{union.Discriminator},
 		}
-		constrain(branch, t, variant.Required, forbidden(t, union.Discriminator, roots, claimed))
+		forbiddenFields := append(forbidden(t, union.Discriminator, roots, claimed), union.Forbidden...)
+		constrain(branch, t, variant.Required, forbiddenFields)
 		normalize(branch)
 		out = append(out, branch)
 	}

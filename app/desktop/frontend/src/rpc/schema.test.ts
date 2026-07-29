@@ -89,5 +89,18 @@ describe("the published JSON Schema bundle", () => {
     expect(steer?.({ runId: "run_01", expectedSegmentId: "seg_01", message: "legacy" })).toBe(
       false,
     );
+
+    const streamEvent = ajv.getSchema("schema.json#/$defs/StreamEvent");
+    expect(streamEvent?.({ type: "custom", name: "vendor.preview" })).toBe(true);
+    expect(streamEvent?.({ type: "custom", name: "vendor.preview", durable: true })).toBe(false);
+
+    const clientCapabilities = ajv.getSchema("schema.json#/$defs/ClientCapabilities");
+    expect(
+      clientCapabilities?.({
+        excludedEphemeralEvents: ["segment.progress", "item.delta"],
+      }),
+    ).toBe(true);
+    expect(clientCapabilities?.({ excludedEphemeralEvents: ["custom"] })).toBe(false);
+    expect(clientCapabilities?.({ excludedEphemeralEvents: ["item.completed"] })).toBe(false);
   });
 });

@@ -25,7 +25,7 @@
 - §2 命名规范（**一个判别字段 `type`**）
 - §3 Lifecycle（无状态 discovery / 取消 / §3.1 端到端走查 / §3.2 Minimal Profile）
 - §4 类型语义（**字段表在 `schema.json`**；本节只写语义与不变量）
-- §5 流式（事件信封 / durable 不变量 / state 边界 / Run 树）
+- §5 流式（事件信封 / 可靠性不变量 / state 边界 / Run 树）
 - §6 Human-in-the-Loop（R 模型）
 - §7 方法语义（**方法表在 `API_REFERENCE.md`**；本节只写各域的语义与约束）
 - §8 错误（三个落点 + 符号名判别 + ProblemData）
@@ -53,18 +53,18 @@ Lyra Runtime 是一个**本地、领域中立的 agent runtime**。客户端可�
 ```text
 Session            会话；绑定一个工作目录 cwd                    id: ses_…
   └─ Run           一次 agent 执行，从用户输入到一个 outcome      id: run_…
-       └─ Item     run 内一个 durable 工作单元                    id: item_…
+       └─ Item     run 内一个持久化工作单元                       id: item_…
 ```
 
 - **Session**：一次对话，绑定 `cwd`。
-- **Run**：一次 agent 执行。它有**三个** durable 状态（`RunStatus`）：`running`（在执行）/ `waiting`（停在人身上）/
+- **Run**：一次 agent 执行。它有**三个**持久化状态（`RunStatus`）：`running`（在执行）/ `waiting`（停在人身上）/
   `finished`（终结，带 `RunOutcome`）。`waiting` 不是 `finished` 的一种打扮 —— 一个等人回答的 Run 既没有结束、也没有
   在烧钱，把它记成任何一个都会让列表说谎。
-- **Item**：run 内一个 durable 工作单元 —— `userMessage` / `agentMessage` / `reasoning` / `plan` / `question` /
+- **Item**：run 内一个持久化工作单元 —— `userMessage` / `agentMessage` / `reasoning` / `plan` / `question` /
   `toolCall` / `compaction`。
 
 **`Item` 是历史与流式的唯一原语**：流式推 Item 生命周期事件（`item.started → item.delta* → item.completed`），
-历史 `items.list` 返回 durable Item。**没有独立的 `Message` 资源类型**；"消息"就是 `userMessage`/`agentMessage`
+历史 `items.list` 返回持久化 Item。**没有独立的 `Message` 资源类型**；"消息"就是 `userMessage`/`agentMessage`
 两种 Item。
 
 ### 0.2 工程目录模型（cwd）
@@ -80,7 +80,7 @@ Session            会话；绑定一个工作目录 cwd                    id: 
 
 agent 需要人介入（审批 / 提问 / client 侧工具结果）时，**当前流式段（segment）结束**，以
 `SegmentOutcome.type="interrupt"` 收尾、资源全释放；**Run 本身（稳定 `runId`）不结束**——它转入 `waiting`，待解项作
-durable interrupt 集持久化。客户端用 `runs.resume{runId}` 在**同一个 Run 上开新的一段**来应答。无"活跃挂起 run"、
+持久化 interrupt 集。客户端用 `runs.resume{runId}` 在**同一个 Run 上开新的一段**来应答。无"活跃挂起 run"、
 无被占用的 goroutine。详见 §6。
 
 > **Run vs Segment（贯穿全协议的身份模型）**：一个 **Run**（`runId`，`run_…`）是一次逻辑运行的**稳定身份**——
@@ -279,7 +279,7 @@ interrupt，声明为空即"不处理 HITL"，server 必须不产出它解不了
 这一说** —— run 的核心生命周期事件是 runtime 必发的，一个连 `segment.finished` 都不折的客户端不是子集实现、是坏
 实现；客户端能抑制的只有 ephemeral 预览（`excludedEphemeralEvents`，§9）。
 
-一个 Run 在创建时把它**实际**依赖的能力冻结成 durable 的 `RunProtocolProfile`（`requiredFeatures` +
+一个 Run 在创建时把它**实际**依赖的能力冻结成持久化的 `RunProtocolProfile`（`requiredFeatures` +
 `interruptTypes`），并在 `segment.started.run` 上报同一份。后来的 `runs.resume` / `runs.subscribe` 若声明不了该
 profile，会被**拒绝**而不是降级投递——降级等于给同一个 Run 开第二条更安静的事件流（§9）。
 
@@ -330,7 +330,7 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
 七个变体：`userMessage` / `agentMessage` / `reasoning` / `plan` / `question` / `toolCall` / `compaction`，判别
 字段 `type`，`status ∈ {running, completed, incomplete}`。
 
-- `question` 是一等 Item：一个提问可能成为 durable interrupt，之后由 `runs.resume` 应答。
+- `question` 是一等 Item：一个提问可能成为持久化 interrupt，之后由 `runs.resume` 应答。
 - `toolCall.error`（+ `status:"incomplete"`）是**工具级失败的统一结构化落点**。工具失败**通常不终止整个 run** ——
   agent 可据此换方案、继续（§8 落点 c）。
 - **`compaction`** 标"此处压缩了 N 条更早消息"（`droppedMessages` = 压缩前后净减条数），fold 成时间线分隔条。摘要
@@ -373,7 +373,7 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
   （及审批 payload，§4.8）处 unmarshal 成对象再发——消除"双重转义"。
 - **`result` 是 best-effort JSON**：首选对象，也允许任意 JSON 值。硬约束：**绝不双重编码**（`{x:1}` 不是
   `"{\"x\":1}"`）。
-- **`result` 在 `item.completed` 上权威落定**（durable，§5.2）：流式期间的 stdout 经
+- **`result` 在 `item.completed` 上权威落定并持久化**（§5.2）：流式期间的 stdout 经
   `item.delta{ type:"toolOutput" }`（ephemeral，可丢）预览；客户端**不可**把流式累积当终态来源。
 - **超大工具结果会被 offload**：item 上只留有界预览，完整正文单独持久化（归档里是
   `SessionArtifact.toolResults`，AUX_API §4.3），模型侧经一次显式读取取回。客户端读到的 `result` 就是预览，
@@ -445,7 +445,7 @@ process、session、审批或模型循环的只读诊断能力。
   那个 Run。
 - **payload 自包含**：`OpenInterrupt` 的语义是"什么在等我处理"——它本就该是个自足的待办快照。让 question 也带
   `payload.question`，三类一致、去掉对 `items.list` 的二次 join，也根除"进程重启后 `running` 态的 question 还没进
-  durable 历史、join 落空、待答问题渲染不出来"的坑。interrupt 上的 question 与（completed 后的）question Item 上
+  持久化历史、join 落空、待答问题渲染不出来"的坑。interrupt 上的 question 与（completed 后的）question Item 上
   各存一份不算虚假 DRY：前者是待办快照、后者是历史，生命周期不同。
 - **分页单位是"一个 waiting Run 的完整 interrupt 集"**（`PendingInterruptSet`）：半个集合无法应答，按条分页会
   发明出不可用的页（§7.3）。
@@ -488,10 +488,10 @@ MCP server / skills / recipes / hooks / schedules / codebase / memory / goals / 
 | `item.completed`    | 该 Item 的**权威终态**                                             |
 | `state.snapshot`    | 一个 session-scoped 共享状态的**整份**当前值（§5.3）              |
 | `segment.finished`  | 这一段结束，带 `outcome: SegmentOutcome` + `metrics: RunMetrics`   |
-| `custom`            | 第三方扩展的一次性信号（`name` + 可选 `payload` / `durable`）      |
+| `custom`            | 第三方扩展的一次性实时信号（`name` + 可选 `payload`）              |
 
 > **`contextTokens` 不是 `usage.inputTokens`**：前者是**此刻**窗口占了多少（压缩后会回落），后者是跨轮**累计**只增。
-> 它**没有 durable 落点** —— 重连或历史回放的客户端在下一个 `segment.progress` 到达前**不知道**当前占用（不是拿到
+> 它**没有 authoritative 落点** —— 重连或历史回放的客户端在下一个 `segment.progress` 到达前**不知道**当前占用（不是拿到
 > 旧值，是没有值）。这与 §5.2 不冲突：那条规则管"预览通道的终值去哪"，而占用是瞬时读数、没有"终值"这回事。
 >
 > **`segment.finished` 不带 `run`**：一段结束时 Run 的完整状态该从 `runs.get` 读，把 RunRef 再抄一份到终态帧上，
@@ -507,35 +507,42 @@ MCP server / skills / recipes / hooks / schedules / codebase / memory / goals / 
 > **`toolArguments` / `toolOutput` 都是预览通道**：二者皆 ephemeral，权威终值在 completed item 上
 > （`toolArguments`→`tool.arguments`，`toolOutput`→`tool.result.output`）。见 §5.2。
 
-### 5.2 Durable / Ephemeral 不变量（协议级保证）
+### 5.2 Authoritative / Replayable 不变量（协议级保证）
 
-> **丢弃每一个 ephemeral 事件，客户端仍必然得到正确终态。**
+> **丢弃每一个 non-authoritative 事件，客户端仍必然得到正确终态。**
 
-**`durable` 不每帧冗余携带**：对所有 first-party 事件，"是否 durable"是 `event.type` 的**纯函数**（下表），
-唯一**不能**从 type 推导的是 `custom`——它由产出方在帧上自带 `durable?`（缺省 `false`）。这张表在
-`manifest.json` 的 `runEventPolicy` 里机器可读，且**由 runtime 的同一个函数生成**（replay buffer 与 SSE id 门禁
-读的也是它），不是抄写。
+Authoritative、replayable 与 persisted 是三个不同概念：
 
-| event.type                  | durable                       | 权威落点（该类 ephemeral 的终值在哪）                       |
-| --------------------------- | ----------------------------- | ----------------------------------------------------------- |
-| `segment.started`           | ✅                            | ——                                                          |
-| `segment.finished`          | ✅                            | ——                                                          |
-| `item.started`              | ✅                            | ——                                                          |
-| `item.completed`            | ✅                            | ——                                                          |
-| `state.snapshot`            | ✅                            | ——                                                          |
-| `segment.progress`          | ⬜                            | `segment.finished.metrics`（`usage`〔含 `costUsd`〕/ `steps`） |
-| `item.delta{content}`       | ⬜                            | `agentMessage.content`（completed）                         |
-| `item.delta{reasoning}`     | ⬜                            | `reasoning.text`（completed）                               |
-| `item.delta{toolArguments}` | ⬜                            | `tool.arguments`（completed，§4.4）                         |
-| `item.delta{toolOutput}`    | ⬜                            | `tool.result.output`（completed，§4.4.2）                    |
-| `item.delta{plan}`          | ⬜                            | `plan.steps`（completed）                                   |
-| `custom`                    | 帧上 `durable?`（默认 false） | 由产出方保证                                                |
+- authoritative：客户端能否把事件当作可折叠事实；
+- replayable：当前 process / root Segment 的有界窗口是否保留它；
+- persisted：事实是否已经进入可跨进程恢复的 Run / Item / state 持久化投影。
 
-**硬规则**：每个 ephemeral 事件**必须**在某个 durable 落点上有命名终值。新增一个无落点的 ephemeral 事件 / delta
-类型 = **协议违规**（它会在历史回放 / 重连 / opt-out / 后端整发时丢内容，§10）。
+前两项由 `event.type` 决定，wire 上没有 sender-controlled reliability flag；`custom`
+固定为 non-authoritative、non-replayable。一个 payload 自称 durable 不能替代 projection，
+因此 `custom.durable` 在所有变体上明确禁止。这张表由 Registry 生成到
+`manifest.json.runEventPolicy`，SSE id 与 replay journal 只读取 replayable：
 
-推论：客户端可排除高频 delta（§9 `excludedEphemeralEvents`）而仍保持正确；不流式的 runtime 可不发任何 delta，
-completed item 一样必发权威终值。
+| event.type                  | authoritative | replayable | 冷恢复 / 权威落点                                         |
+| --------------------------- | ------------- | ---------- | --------------------------------------------------------- |
+| `segment.started`           | ✅            | ✅         | RunRef                                                    |
+| `segment.finished`          | ✅            | ✅         | RunRef / Interrupt query                                  |
+| `item.started`              | ✅            | ✅         | `items.list`                                              |
+| `item.completed`            | ✅            | ✅         | `items.list`                                              |
+| `state.snapshot`            | ✅            | ✅         | Registry 登记的 recovery query                            |
+| `segment.progress`          | ⬜            | ⬜         | `segment.finished.metrics` / RunRef.metrics               |
+| `item.delta{content}`       | ⬜            | ⬜         | `agentMessage.content`（completed）                       |
+| `item.delta{reasoning}`     | ⬜            | ⬜         | `reasoning.text`（completed）                             |
+| `item.delta{toolArguments}` | ⬜            | ⬜         | `tool.arguments`（completed，§4.4）                       |
+| `item.delta{toolOutput}`    | ⬜            | ⬜         | `tool.result.output`（completed，§4.4.2）                  |
+| `item.delta{plan}`          | ⬜            | ⬜         | `plan.steps`（completed）                                 |
+| `custom`                    | ⬜            | ⬜         | 无；只能改善实时体验                                      |
+
+**硬规则**：每个 first-party preview **必须**在 authoritative projection 上有命名终值。
+`custom` 不得承载正确性所依赖的事实；第三方若需要持久化事实，使用已有的领域中立 Item，
+或定义带 read model 的 capability-gated 领域资源。
+
+推论：客户端可排除高频 delta（§9 `excludedEphemeralEvents`）而仍保持正确；不流式的 runtime
+可不发任何 delta，completed item 一样必发权威终值。
 
 ### 5.3 state.snapshot 必发边界
 
@@ -663,7 +670,7 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
 - **`start` 不隐式取消**：会话已有非终态 root run 时返回 `session_has_active_run`，problem 里带
   `activeRun: {runId, status}`。哪个 run 该继续只有人能决定，隐式取消会为了服务一个"本可以是 steer"的请求而丢掉
   工作。
-- **`start` 的 ack 带 `userItemId?`**：runtime 为这次输入创建了 durable 的 user Item 时给出它的 id，客户端因此不必
+- **`start` 的 ack 带 `userItemId?`**：runtime 为这次输入创建了持久化 user Item 时给出它的 id，客户端因此不必
   猜自己刚发的那条消息在历史里是哪一条。
 - **`resume` 可带 `input`**：应答 interrupt 的同时追加一句话。**这是一次原子写**：答复与那条 user Item 一起提交，
   不存在"答复进去了、消息丢了"的中间态。
@@ -672,7 +679,7 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
   客户端答案在别处：等待集 / 历史）；child run 返回 `run_not_root`（跟着 `rootRunId` 走，而不是去找另一个 id）。
 - **续流用 cursor**：带 `Last-Event-Id` 表示"从这之后重放"。cursor 编码了流的进程 epoch 与 scope，所以别的进程或
   别的段的 cursor 会被**拒绝**（`replay_cursor_invalid`）而不是去解释；曾经合法但已被窗口淘汰的位置返回
-  `replay_unavailable`（事件没了、但它们产出的 Item 是 durable 的：客户端冷读历史再 tail 重接，§10.1）。
+  `replay_unavailable`（事件没了、但它们产出的 Item 已持久化：客户端冷读历史再 tail 重接，§10.1）。
   ack 的 `headEventId` **只许原样保存并作为后续 cursor**，不许比较或解释 —— 重接 ack 的 head 在你请求的位置**之前面**，
   采用它会静默跳过刚请求的重放。replay 窗口的 scope 与容量在 `capabilities.limits.runReplay` 里公布并被强制执行。
 - **`steer` 是真正的中途插话**：
@@ -680,7 +687,7 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
   `stale_segment`。它不是"取消再重发"。
 - **`cancel` 的 `reason` 回流进 outcome 的 `detail`**（§4.2）。取消一棵树 = 取消 root；取消一个 child = 取消它的
   子树，父调用收到一条注入的结果说明这次委派被取消了。
-- **`get` / `list` 一律读 durable projection**（不是内存里的活跃表）：`list` 是**全历史**，可按 `statuses` 过滤、
+- **`get` / `list` 一律读持久化 projection**（不是内存里的活跃表）：`list` 是**全历史**，可按 `statuses` 过滤、
   按 `sessionId` 收窄、`includeDescendants` 展开子树（需 `features.subagents`）。**没有"当前在跑"这个专用读**——
   它就是 `statuses:["running"]`。
 - **`interrupts.list` 的一行是"一个 waiting Run 的完整 interrupt 集"**（`PendingInterruptSet`，§4.8），可按
@@ -689,7 +696,7 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
 
 ### 7.4 items.\*
 
-`items.list` 是 durable 历史的唯一读。
+`items.list` 是持久化历史的唯一读。
 
 - **`scope` 是 typed union**：`{type:"session", sessionId}` 或 `{type:"run", runId, includeDescendants?}`。一个
   松对象同时带两个 id，就得由服务端猜客户端想要哪个 —— 那是服务端在替客户端做决定。
@@ -848,9 +855,9 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
   `requiredCapabilities` 里点名。
 - server **必须不**产出 client 未在 `interruptTypes` 声明的 open interrupt（§6.2）。
 - `features.subagents` 关 → 不产出子 Run；`features.clientTools` 关 → 不产出 `toolResult` interrupt。
-- **`excludedEphemeralEvents` 只能抑制 ephemeral 事件**（§5.2 表里 ⬜ 的那些）。名字里就带 ephemeral，是因为旧名字
-  （`excludedEvents`）读起来像"客户端可以把自己 opt-out 出正确性"：durable 帧不可抑制，请求里点名一个 durable
-  事件会被**拒绝**而不是忽略 —— 忽略会让客户端以为自己成功退订了一个它仍会持续收到的帧。
+- **`excludedEphemeralEvents` 是专用两值集合**：
+  `"item.delta" | "segment.progress"`。authoritative 事件和 `custom` 在类型上都不可填入，
+  未知值返回 `invalid_params`，不会被静默忽略。
 - `excludedEphemeralEvents` **不作用于失效流**（§7.8）：那条流的收敛范围由订阅的 topic 决定。
 - **client 必须忽略未知字段**，server 不得在本 request/stream 发出 `runEvents` 之外的事件类型。
 
@@ -862,11 +869,11 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 
 1. 对每个仍在执行的 root run 调 `runs.subscribe{runId, segmentId}` 续流（每个 run 一条流，传输细节见
    TRANSPORT §9.2）；
-2. 带上最后一个**折叠成功**的事件 id（`Last-Event-Id`）让 server 重放 durable 缺口。**cursor 只由折叠推进** ——
+2. 带上最后一个**折叠成功**的事件 id（`Last-Event-Id`）让 server 重放 replayable 缺口。**cursor 只由折叠推进** ——
    不要用 ack 回来的 `headEventId` 覆盖自己的位置（§7.3）；
 3. `replay_unavailable` 时改走冷路径：`items.list` 补历史 + 各 state key 的 `recoveryMethod` 补状态，然后
    tail 重接（不带 cursor = 只订将来）；
-4. 按 `itemId` 与 `eventId` 去重。**ephemeral delta 不重放**（§5.2 保证正确）。
+4. 按 `itemId` 与 `eventId` 去重。**non-replayable preview 不重放**（§5.2 保证正确）。
 
 一个 Run **活得比它的流长**：流在没有本段终态的情况下结束，是**连接掉了**，不是 run 结束了——服务端那边它还在跑。
 按最后折叠的事件重接，把这件事变成毫秒级的空隙，而不是一个冻到下次重载的时间线。
@@ -874,7 +881,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 ### 10.2 进程/客户端重启恢复
 
 1. `sessions.list` / `sessions.get`；
-2. `items.list` 拉 durable 历史（页级 `runs` 顺带把树连上）；
+2. `items.list` 拉持久化历史（页级 `runs` 顺带把树连上）；
 3. `runs.list{statuses:["running"]}` 拿在跑的、`interrupts.list` 拿待解的；
 4. 各 state key 的 `recoveryMethod` 拉当前状态（§5.3）；
 5. `runs.resume` 应答 interrupt（payload 自包含，无需额外 join，§4.8）。
@@ -892,17 +899,18 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 
 ## 11. 三个扩展缝：Item / state / custom（选择指南）
 
-| 缝         | 是什么               | 何时用                                                           | durable             | 命名空间           |
-| ---------- | -------------------- | ---------------------------------------------------------------- | ------------------- | ------------------ |
-| **Item**   | durable 历史工作单元 | 要进历史、用户回看的产物（消息 / 推理 / 工具调用 / 计划 / 提问） | ✅                  | `item.type` 一等枚举 |
-| **state**  | 共享可变视图态       | 一直在变、最后有稳定终值的面板（任务清单一类）                   | 快照 ✅             | 顶层 key（§2.6）   |
-| **custom** | 一次性信号           | **不进历史、不改状态**的瞬时提示                                 | 帧上自带（默认 ⬜） | `name`（§2.6）     |
+| 缝         | 是什么                 | 何时用                                                           | 跨进程持久化 | 命名空间             |
+| ---------- | ---------------------- | ---------------------------------------------------------------- | ------------ | -------------------- |
+| **Item**   | 持久化历史工作单元     | 要进历史、用户回看的产物（消息 / 推理 / 工具调用 / 计划 / 提问） | ✅           | `item.type` 一等枚举 |
+| **state**  | 共享可变视图态         | 一直在变、最后有稳定终值的面板（任务清单一类）                   | 快照 ✅      | 顶层 key（§2.6）     |
+| **custom** | 一次性、非权威实时信号 | **不进历史、不改状态**的瞬时提示                                 | ⬜           | `name`（§2.6）       |
 
 - 选 **Item**：它是工作回看的一部分吗？是 → Item（享受 `items.list` 历史 + run 树）。
 - 选 **state**：它是一直在变、最后有个稳定终态的视图吗？是 → state。**代价要认**：加一个 state key 必须同批给出
   typed 事件分支、`scope`、`writer`、`recoveryMethod` 与 revision 策略，并 bump `protocolVersion`（§12）——
   一个没有冷读的 state key 在客户端错过事件的那一刻就永久错了。
-- 选 **custom**：它既不回看、也不构成状态，只是一次性提示吗？是 → custom（若需可恢复，必须自带 durable 落点）。
+- 选 **custom**：它既不回看、也不构成状态，只是一次性提示吗？是 → custom。若需要恢复，它就不是 custom：
+  改用 Item，或定义带 recovery query 的 capability-gated state/resource。
 
 ---
 
@@ -974,8 +982,9 @@ Artifact v7 round-trip；compatibility differ 判定 breaking 并要求同批 bu
 
 1. **领域中立核心**：核心只懂 Session/Run/Item/通用 `tool`；新工具零协议成本（§4.4）。
 2. **一个判别字段 `type`**：所有联合看 `type`，`kind` 不在 wire 上出现（§2.1）。
-3. **durable/ephemeral 不变量**：丢掉每个 ephemeral 事件仍得正确终态；每个 ephemeral 必有命名 durable 落点
-   （§5.2）。`durable` 由 `event.type` 推导。
+3. **authoritative / replayable / persisted 三分**：丢掉每个 non-authoritative 事件仍得正确终态；
+   replay journal 与 SSE id 只看 replayable；跨进程恢复只读持久化 projection。wire 上没有 reliability flag，
+   `custom` 固定三者皆否（§5.2）。
 4. **状态与终态正交**：`RunStatus` 三态，`outcome` / `activeSegmentId` / `finishedAt` 各只在对应状态下存在；
    `metrics` 与 `outcome` 分家（§4.2）。
 5. **HITL = R 模型**：interrupt 收尾当前**段**、`runs.resume` 在同一 Run 上续段；所有 interrupt payload

@@ -784,7 +784,7 @@ func assertFrozenProfile(t *testing.T, got, want execution.RunProtocolProfile, w
 }
 
 // TestSegmentFencesItsFinalStateBeforeFinishing proves
-// segment_fences_its_final_state: the last durable event before a segment's finish
+// segment_fences_its_final_state: the last replayable event before a segment's finish
 // is the final value of every state key that segment changed.
 //
 // The guarantee is POSITIONAL, and that is the point: a subscriber that attached

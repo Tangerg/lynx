@@ -1225,7 +1225,7 @@
         "excludedEphemeralEvents": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/StreamEventType"
+            "$ref": "#/$defs/SuppressibleRunEventType"
           }
         },
         "features": {
@@ -6180,9 +6180,6 @@
         "delta": {
           "$ref": "#/$defs/ItemDelta"
         },
-        "durable": {
-          "type": "boolean"
-        },
         "item": {
           "$ref": "#/$defs/Item"
         },
@@ -6363,6 +6360,7 @@
         {
           "properties": {
             "delta": false,
+            "durable": false,
             "item": false,
             "itemId": false,
             "metrics": false,
@@ -6442,6 +6440,13 @@
       "required": [
         "maxTopics",
         "maxWatches"
+      ]
+    },
+    "SuppressibleRunEventType": {
+      "type": "string",
+      "enum": [
+        "segment.progress",
+        "item.delta"
       ]
     },
     "TestProviderRequest": {

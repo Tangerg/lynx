@@ -21,7 +21,7 @@ var (
 	errReducerInvariant = errors.New("runs: reducer invariant violation")
 )
 
-// reduction is one canonical output plus the durable fact and live nudge that
+// reduction is one canonical output plus the persisted fact and live nudge that
 // arise from the same EngineEvent decision. The pump commits it before placing
 // Event on the Journal.
 type reduction struct {
@@ -31,7 +31,7 @@ type reduction struct {
 }
 
 // reductionBatch is the complete publication unit for one executor event. A
-// normal batch commits individual durable events in order. A park batch owns
+// normal batch commits individual event projections in order. A park batch owns
 // one explicit write-set that must commit before any of its events become
 // visible; keeping that boundary on the batch avoids encoding it as a boolean
 // or a privileged first element in the event slice.
@@ -119,7 +119,7 @@ func newReducer(cfg reducerConfig) *reducer {
 	}
 	cfg.Now = now
 	// The reducer outlives the Start request and publishes UserInput through the
-	// journal after admission. Own the slice before it becomes durable/live
+	// journal after admission. Own the slice before it becomes persisted/live
 	// state so a caller reusing its command buffer cannot rewrite emitted facts.
 	cfg.UserInput = slices.Clone(cfg.UserInput)
 	var resume *resumeBinding
@@ -267,7 +267,7 @@ func (r *reducer) project(events []RunEvent) (reductionBatch, error) {
 		out = append(out, reduced)
 	}
 
-	// A park is one durable boundary: any drained/closed items, its running
+	// A park is one persistence boundary: any drained/closed items, its running
 	// approval/question items, open interrupt record, interrupted transcript run,
 	// and admission transition must commit together before ANY event in this
 	// batch is published. Build an explicit batch-owned write-set instead of
@@ -288,7 +288,7 @@ func (r *reducer) project(events []RunEvent) (reductionBatch, error) {
 	if parkAt >= 0 {
 		commit := out[parkAt].Commit
 		if commit == nil {
-			return reductionBatch{}, fmt.Errorf("%w: park boundary has no durable commit", errReducerInvariant)
+			return reductionBatch{}, fmt.Errorf("%w: park boundary has no projection commit", errReducerInvariant)
 		}
 		items := make([]transcript.Item, 0, len(out))
 		for i, reduced := range out {
@@ -325,7 +325,7 @@ func (r *reducer) project(events []RunEvent) (reductionBatch, error) {
 // reaches segment.finished having never seen a snapshot, and renders a stale panel
 // until something makes it refetch. The fence makes the guarantee positional:
 // whoever receives the finish has received the final value, because it is the
-// durable event immediately before it.
+// replayable event immediately before it.
 //
 // The repeat is the point, not waste: a latest-value projection carries its own
 // revision, so folding it twice is folding it once.
@@ -389,11 +389,11 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 	default:
 		return reduction{}, fmt.Errorf("%w: unhandled run event %T", errReducerInvariant, event)
 	}
-	var durable *EventCommit
+	var eventCommit *EventCommit
 	if !commit.isEmpty() {
-		durable = &commit
+		eventCommit = &commit
 	}
-	return reduction{Event: event, Commit: durable, Nudge: nudge}, nil
+	return reduction{Event: event, Commit: eventCommit, Nudge: nudge}, nil
 }
 
 func (r *reducer) goalTurn(run transcript.Run) *goal.TurnRecord {
@@ -419,7 +419,7 @@ func (r *reducer) goalTurn(run transcript.Run) *goal.TurnRecord {
 
 // validateReductionBatch checks the pump-facing shape before any commit or
 // publication occurs. The reducer normally constructs this shape itself; the
-// second check keeps future projection changes from creating partial durable
+// second check keeps future projection changes from creating partial persistence
 // boundaries.
 func validateReductionBatch(batch reductionBatch) error {
 	if len(batch.events) == 0 {
@@ -463,7 +463,7 @@ func validateReductionEvents(reductions []reduction) (terminalAt int, err error)
 		}
 		// One batch moves the segment's lifecycle at most once, and an opening only
 		// ever starts one. Both are checked on the events rather than on their
-		// durable commits because an opening produces none — a Run's durable
+		// projection commits because an opening produces none — a Run's persisted
 		// opening is its admission — so a stray one would otherwise pass unseen.
 		if _, opening := reduced.Event.(SegmentStarted); opening {
 			if i != 0 {
@@ -499,13 +499,13 @@ func validateReductionEvents(reductions []reduction) (terminalAt int, err error)
 func validateParkReductionBatch(batch reductionBatch, terminalAt int) error {
 	for i, reduced := range batch.events {
 		if reduced.Commit != nil {
-			return fmt.Errorf("%w: park batch event[%d] repeats a durable commit", errReducerInvariant, i)
+			return fmt.Errorf("%w: park batch event[%d] repeats a projection commit", errReducerInvariant, i)
 		}
 	}
 	commit := batch.parkCommit
 	switch {
 	case commit == nil:
-		return fmt.Errorf("%w: park batch has no durable commit", errReducerInvariant)
+		return fmt.Errorf("%w: park batch has no projection commit", errReducerInvariant)
 	case commit.State != StateSuspend:
 		return fmt.Errorf("%w: park batch commit does not suspend the run", errReducerInvariant)
 	case commit.Interrupt == nil:
@@ -522,7 +522,7 @@ func validateTerminalReduction(reduced reduction) error {
 	commit := reduced.Commit
 	switch {
 	case commit == nil:
-		return fmt.Errorf("%w: terminal event has no durable commit", errReducerInvariant)
+		return fmt.Errorf("%w: terminal event has no projection commit", errReducerInvariant)
 	case commit.State != StateTerminalize:
 		return fmt.Errorf("%w: terminal event commit does not terminalize the run", errReducerInvariant)
 	case commit.Run == nil || !commit.Run.State.IsTerminal():

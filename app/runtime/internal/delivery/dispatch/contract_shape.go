@@ -29,6 +29,12 @@ type UnionSpec struct {
 	// `type` for every first-party union, with no exceptions.
 	Discriminator string
 	Variants      []VariantSpec
+	// Forbidden names wire members that no variant may carry even though the Go
+	// shape no longer has them. This is for protocol-level negative invariants
+	// under an otherwise open object envelope, such as rejecting a removed
+	// sender-controlled reliability assertion. It never enables decoding an old
+	// shape.
+	Forbidden []string
 }
 
 // VariantSpec is one tag of a union and the fields that tag brings. Names are
@@ -257,6 +263,18 @@ func (u UnionSpec) validate() error {
 	}
 	if len(u.Variants) == 0 {
 		return fmt.Errorf("%s: a closed union with no variants describes nothing", name)
+	}
+	for index, field := range u.Forbidden {
+		switch {
+		case field == "":
+			return fmt.Errorf("%s: forbidden field %d has no name", name, index)
+		case strings.Contains(field, "."):
+			return fmt.Errorf("%s: forbidden field %q must be a top-level JSON member", name, field)
+		case slices.Contains(u.Forbidden[:index], field):
+			return fmt.Errorf("%s: forbidden field %q is declared twice", name, field)
+		case slices.Contains(protocol.WireFieldNames(u.GoType), field):
+			return fmt.Errorf("%s: forbidden field %q still exists on the Go wire shape", name, field)
+		}
 	}
 	accounted := []string{u.Discriminator}
 	tags := make(map[string]bool, len(u.Variants))

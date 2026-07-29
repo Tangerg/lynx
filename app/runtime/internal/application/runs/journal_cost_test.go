@@ -91,11 +91,11 @@ func TestRetentionByteBudgetTracksHeap(t *testing.T) {
 	}
 }
 
-// BenchmarkJournalAppendDurable is what one authoritative event costs to publish,
-// by payload size. The existing BenchmarkJournalAppendDrain publishes an EPHEMERAL
-// event, which is never charged and so never serialized — it measures the fan-out
-// and none of the retention.
-func BenchmarkJournalAppendDurable(b *testing.B) {
+// BenchmarkJournalAppendReplayable is what one replayable event costs to publish,
+// by payload size. The existing BenchmarkJournalAppendDrain publishes a
+// non-replayable event, which is never charged and so never serialized — it
+// measures the fan-out and none of the retention.
+func BenchmarkJournalAppendReplayable(b *testing.B) {
 	sizes := []struct {
 		name  string
 		bytes int

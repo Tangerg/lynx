@@ -112,7 +112,7 @@ func registerItemUnions(s *Shapes) {
 		},
 	})
 
-	// Every delta is ephemeral and every one has a named durable landing
+	// Every delta is ephemeral and every one has a named authoritative landing
 	// (API.md §5.2). toolArguments is partial JSON TEXT, not an object — the
 	// parsed value only exists on the completed item.
 	s.union(UnionSpec{
@@ -233,6 +233,7 @@ func registerEventUnions(s *Shapes) {
 	s.union(UnionSpec{
 		GoType:        typeOf[protocol.StreamEvent](),
 		Discriminator: "type",
+		Forbidden:     []string{"durable"},
 		Variants: []VariantSpec{
 			{Tag: string(protocol.StreamSegmentStarted), Required: []string{"run"}},
 			{Tag: string(protocol.StreamSegmentProgress), Required: []string{"progress"}},
@@ -241,9 +242,7 @@ func registerEventUnions(s *Shapes) {
 			{Tag: string(protocol.StreamItemDelta), Required: []string{"itemId", "delta"}},
 			{Tag: string(protocol.StreamItemCompleted), Required: []string{"item"}},
 			{Tag: string(protocol.StreamStateSnapshot), Required: []string{"state"}},
-			// `custom` is the only event whose durability is not a function of its
-			// type, so it is the only one carrying the flag (API.md §5.2).
-			{Tag: string(protocol.StreamCustom), Required: []string{"name"}, Optional: []string{"payload", "durable"}},
+			{Tag: string(protocol.StreamCustom), Required: []string{"name"}, Optional: []string{"payload"}},
 		},
 	})
 
@@ -494,16 +493,11 @@ func errorTerminalRule() PresenceRule {
 func registerStateKeys(s *Shapes) {
 	// `todos` is the only first-party shared-state key today.
 	//
-	// Its recovery method is runs.subscribe: the state.snapshot is durable and
-	// replayed on re-subscribe, so there is deliberately no cold-read RPC that
-	// could drift from the event projection (API.md appendix C.4). vNext adds
-	// todos.get and moves recovery there (C7) — at which point THIS line changes,
-	// which is exactly the drift a spec is supposed to make visible.
+	// The event is authoritative and replayable in the process-local segment
+	// window; the persisted projection is independently recoverable through
+	// todos.get. These are three different guarantees and are kept explicit.
 	s.stateKey(StateKeySpec{
-		Key: string(protocol.StateTodos),
-		// The cold read, not the stream: a client that was not subscribed when the
-		// list changed has to be able to ASK. runs.subscribe stood here while no such
-		// read existed, which made "recover this key" mean "attach to a run".
+		Key:            string(protocol.StateTodos),
 		RecoveryMethod: "todos.get",
 		Scope:          StateScopeSession,
 		Writer:         StateWriterRootRun,

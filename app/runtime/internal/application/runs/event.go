@@ -26,6 +26,8 @@ type Event struct {
 	Payload   RunEvent
 }
 
-// Durable and Terminal supply the Journal's retention and queue policy.
-func (e Event) Durable() bool  { return e.Payload != nil && e.Payload.Durable() }
+// Replayable supplies the Journal's retention and lossless queue policy.
+func (e Event) Replayable() bool { return e.Payload != nil && e.Payload.Replayable() }
+
+// Terminal supplies the run lifecycle's segment-completion boundary.
 func (e Event) Terminal() bool { return e.Payload != nil && e.Payload.Terminal() }

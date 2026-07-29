@@ -39,18 +39,23 @@ func reference(m manifest) string {
 	}
 
 	b.WriteString("\n## Run event reliability\n\n")
-	b.WriteString("Durability is a function of the event type, not a per-frame flag. Discard every\n")
-	b.WriteString("non-durable event and the final state is still correct (API.md §5.2).\n\n")
-	b.WriteString("| event | durable | replayed on reconnect |\n| --- | --- | --- |\n")
+	b.WriteString("Authoritativeness and replayability are protocol facts of the event type, not\n")
+	b.WriteString("sender-controlled flags. Discard every non-authoritative event and the final\n")
+	b.WriteString("state is still correct (API.md §5.2).\n\n")
+	b.WriteString("| event | authoritative | replayed on reconnect |\n| --- | --- | --- |\n")
 	for _, event := range m.RunEventPolicy {
-		fmt.Fprintf(&b, "| `%s` | %s | %s |\n", event.Type, yes(event.Durable), yes(event.Replayable))
+		fmt.Fprintf(&b, "| `%s` | %s | %s |\n", event.Type, yes(event.Authoritative), yes(event.Replayable))
 	}
 
 	b.WriteString("\n## Closed unions\n\n")
 	b.WriteString("Discriminated by `type` with no exceptions (API.md §2.1). A field belongs to at\n")
 	b.WriteString("least one variant; the registry refuses a union where one does not.\n\n")
 	for _, union := range m.Unions {
-		fmt.Fprintf(&b, "### `%s`\n\n| tag | required | optional |\n| --- | --- | --- |\n", union.Type)
+		fmt.Fprintf(&b, "### `%s`\n\n", union.Type)
+		if len(union.Forbidden) > 0 {
+			fmt.Fprintf(&b, "Forbidden on every variant: %s.\n\n", code(union.Forbidden))
+		}
+		b.WriteString("| tag | required | optional |\n| --- | --- | --- |\n")
 		for _, variant := range union.Variants {
 			fmt.Fprintf(&b, "| `%s` | %s | %s |\n", variant.Tag, code(variant.Required), code(variant.Optional))
 		}

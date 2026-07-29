@@ -263,7 +263,7 @@ export type CapabilityRequirement =
 export type CapabilityRequirementType = "feature" | "interruptType" | "runtimeTopic" | "stateSnapshot";
 
 export interface ClientCapabilities {
-  excludedEphemeralEvents?: StreamEventType[];
+  excludedEphemeralEvents?: SuppressibleRunEventType[];
   features?: Record<string, FeaturePreference>;
   interruptTypes?: InterruptType[];
 }
@@ -1312,7 +1312,7 @@ export type StreamEvent =
   | { type: "item.delta"; delta: ItemDelta; itemId: string }
   | { type: "item.completed"; item: Item }
   | { type: "state.snapshot"; state: StateSnapshot }
-  | { type: "custom"; durable?: boolean; name: string; payload?: unknown };
+  | { type: "custom"; name: string; payload?: unknown };
 
 export type StreamEventType = "segment.started" | "segment.progress" | "segment.finished" | "item.started" | "item.delta" | "item.completed" | "state.snapshot" | "custom";
 
@@ -1331,6 +1331,8 @@ export interface SubscriptionLimits {
   maxTopics: number;
   maxWatches: number;
 }
+
+export type SuppressibleRunEventType = "segment.progress" | "item.delta";
 
 export interface TestProviderRequest {
   provider: string;
@@ -1514,5 +1516,6 @@ export const WIRE_ENUMS = {
   StateSnapshotType: ["todos"],
   StateSnapshotWriter: ["rootRun", "anyRun"],
   StreamEventType: ["segment.started", "segment.progress", "segment.finished", "item.started", "item.delta", "item.completed", "state.snapshot", "custom"],
+  SuppressibleRunEventType: ["segment.progress", "item.delta"],
   TodoStatus: ["pending", "in_progress", "completed"],
 } as const;

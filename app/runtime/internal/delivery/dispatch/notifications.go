@@ -47,7 +47,7 @@ func runEventToFrameFor(ctx context.Context) func(protocol.RunEvent) (StreamFram
 			return StreamFrame{}, false
 		}
 		sseID := ""
-		if ev.Event.IsDurable() {
+		if ev.Event.Replayable() {
 			sseID = ev.EventID
 		}
 		return StreamFrame{Notif: notif, SSEID: sseID}, true
@@ -69,7 +69,7 @@ func runtimeEventToFrame(ev protocol.RuntimeEvent) (StreamFrame, bool) {
 // cannot follow the authoritative stream must be refused the run (§8.1 capability
 // negotiation), not handed a shortened stream it would mistake for the whole one.
 type streamFilter struct {
-	optOut map[protocol.StreamEventType]bool
+	optOut map[protocol.SuppressibleRunEventType]bool
 }
 
 func streamFilterFrom(ctx context.Context) streamFilter {
@@ -80,11 +80,11 @@ func streamFilterFrom(ctx context.Context) streamFilter {
 	return streamFilter{optOut: eventSet(caps.ExcludedEphemeralEvents)}
 }
 
-func eventSet(events []protocol.StreamEventType) map[protocol.StreamEventType]bool {
+func eventSet(events []protocol.SuppressibleRunEventType) map[protocol.SuppressibleRunEventType]bool {
 	if events == nil {
 		return nil
 	}
-	set := make(map[protocol.StreamEventType]bool, len(events))
+	set := make(map[protocol.SuppressibleRunEventType]bool, len(events))
 	for _, ev := range events {
 		set[ev] = true
 	}
@@ -92,7 +92,5 @@ func eventSet(events []protocol.StreamEventType) map[protocol.StreamEventType]bo
 }
 
 func (f streamFilter) allow(ev protocol.StreamEvent) bool {
-	// Durability is checked on the EVENT, not the type: a custom event declares its
-	// own, so an opt-out by type may not drop the durable ones.
-	return ev.IsDurable() || f.optOut == nil || !f.optOut[ev.Type]
+	return f.optOut == nil || !f.optOut[protocol.SuppressibleRunEventType(ev.Type)]
 }

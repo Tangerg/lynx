@@ -88,8 +88,8 @@ export function patchBlock(
 }
 
 /** Upsert: patch the matching block if present, else append a fresh one to
- *  the turn. Used by item.completed handlers (item.started may have been
- *  missed on durable replay / history hydration). */
+ *  the turn. Used by item.completed handlers (item.started may fall before
+ *  the replay cursor or be absent from persisted-history hydration). */
 function upsertBlock(
   state: AgentViewState,
   item: { id: string; createdAt: string },
@@ -152,7 +152,7 @@ export function settlePendingInterrupts(state: AgentViewState): AgentViewState {
 
 // Per-item folds — shared by item.started (append) and item.completed
 // (upsert). started/completed differ only in the block status they stamp,
-// so both call through here; the upsert keeps durable replay / history
+// so both call through here; the upsert keeps stream replay / persisted-history
 // hydration idempotent (a re-seen item patches in place, never duplicates).
 
 type ItemOf<T extends Item["type"]> = Extract<Item, { type: T }>;
@@ -273,7 +273,7 @@ export function foldQuestion(
 /** Place a compaction boundary as its OWN system message — a standalone
  *  "context compacted" divider, not folded into an assistant turn (a compaction
  *  sits between turns). Idempotent by the Item id: item.started then
- *  item.completed (and durable replay / history hydration) re-see the same id
+ *  item.completed (and stream replay / persisted-history hydration) re-see the same id
  *  and patch the existing divider in place, never appending a second. Leaves
  *  turnMessageId untouched — only a userMessage is a turn boundary. */
 export function foldCompaction(state: AgentViewState, item: ItemOf<"compaction">): AgentViewState {

@@ -9,7 +9,7 @@ import (
 
 type RunEvent interface {
 	runEvent()
-	Durable() bool
+	Replayable() bool
 	Terminal() bool
 }
 
@@ -26,7 +26,7 @@ type ItemCompleted struct {
 	mutatedPaths []string
 }
 
-// StateSnapshot publishes a durable latest-value projection the run changed. It
+// StateSnapshot publishes a persisted latest-value projection the run changed. It
 // carries the projection's own revision, not just its contents: the list is
 // replaced wholesale, so a fold that only saw contents could not tell an older
 // snapshot from a newer one.
@@ -45,13 +45,13 @@ func (ItemChanged) runEvent()       {}
 func (ItemCompleted) runEvent()     {}
 func (StateSnapshot) runEvent()     {}
 
-func (SegmentStarted) Durable() bool    { return true }
-func (SegmentProgressed) Durable() bool { return false }
-func (SegmentFinished) Durable() bool   { return true }
-func (ItemStarted) Durable() bool       { return true }
-func (ItemChanged) Durable() bool       { return false }
-func (ItemCompleted) Durable() bool     { return true }
-func (StateSnapshot) Durable() bool     { return true }
+func (SegmentStarted) Replayable() bool    { return true }
+func (SegmentProgressed) Replayable() bool { return false }
+func (SegmentFinished) Replayable() bool   { return true }
+func (ItemStarted) Replayable() bool       { return true }
+func (ItemChanged) Replayable() bool       { return false }
+func (ItemCompleted) Replayable() bool     { return true }
+func (StateSnapshot) Replayable() bool     { return true }
 
 func (SegmentStarted) Terminal() bool    { return false }
 func (SegmentProgressed) Terminal() bool { return false }

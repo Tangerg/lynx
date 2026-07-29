@@ -7,7 +7,7 @@ interface RunStreamReattachOptions {
   sessionId: string;
   client: () => Pick<LyraClient, "runs">;
   isCancelled: () => boolean;
-  /** Rebuild the transcript from the durable history. Used when the replay window no
+  /** Rebuild the transcript from persisted history. Used when the replay window no
    *  longer reaches this client's cursor: the missed deltas are gone, but every item
    *  they belonged to is in items.list. */
   recoverHistory: () => Promise<void>;
@@ -23,7 +23,7 @@ interface RunStreamReattachOptions {
  *     segment) — there is nothing to follow, and the fold either holds the end
  *     already or learns it from the change stream;
  *   - the replay window has moved past the cursor — the events are unrecoverable, but
- *     the ITEMS they produced are durable, so the history is re-read and the stream
+ *     the Items they produced are persisted, so the history is re-read and the stream
  *     is reattached tail-only. Attaching tail-first without that read would leave a
  *     transcript missing whatever the gap contained.
  */

@@ -42,7 +42,7 @@ func TestStreamFilterOnlyDropsOptedOutEphemerals(t *testing.T) {
 	}
 
 	opted := protocol.ClientCapabilities{
-		ExcludedEphemeralEvents: []protocol.StreamEventType{protocol.StreamItemDelta},
+		ExcludedEphemeralEvents: []protocol.SuppressibleRunEventType{protocol.SuppressibleRunItemDelta},
 	}
 	ctx = protocol.WithRequestMeta(context.Background(), protocol.RequestMeta{ClientCapabilities: &opted})
 	filter = streamFilterFrom(ctx)
@@ -52,12 +52,23 @@ func TestStreamFilterOnlyDropsOptedOutEphemerals(t *testing.T) {
 	if filter.allow(itemDelta) {
 		t.Fatalf("opted-out ephemeral event should be filtered")
 	}
-	durableCustom := protocol.StreamEvent{Type: protocol.StreamCustom, Durable: new(true)}
-	optedCustom := protocol.ClientCapabilities{
-		ExcludedEphemeralEvents: []protocol.StreamEventType{protocol.StreamCustom},
+	if !filter.allow(protocol.StreamEvent{Type: protocol.StreamCustom}) {
+		t.Fatalf("custom is always ephemeral but is not an opt-out event type")
 	}
-	ctx = protocol.WithRequestMeta(context.Background(), protocol.RequestMeta{ClientCapabilities: &optedCustom})
-	if !streamFilterFrom(ctx).allow(durableCustom) {
-		t.Fatalf("a durable custom event is not suppressible by type")
+}
+
+func TestCustomEventNeverCarriesAnSSEReplayID(t *testing.T) {
+	t.Parallel()
+
+	encode := runEventToFrameFor(context.Background())
+	frame, ok := encode(protocol.RunEvent{
+		RunID: "run_1", SegmentID: "seg_1", EventID: "evt_1",
+		Event: protocol.StreamEvent{Type: protocol.StreamCustom, Name: "vendor.preview"},
+	})
+	if !ok {
+		t.Fatal("custom event was not encoded")
+	}
+	if frame.SSEID != "" {
+		t.Fatalf("custom SSE id = %q, want none", frame.SSEID)
 	}
 }

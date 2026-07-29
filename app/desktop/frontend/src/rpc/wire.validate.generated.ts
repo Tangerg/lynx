@@ -263,6 +263,7 @@ export type WireTypeName =
   | "SubscribeRunRequest"
   | "SubscribeRunResponse"
   | "SubscriptionLimits"
+  | "SuppressibleRunEventType"
   | "TestProviderRequest"
   | "TodoSnapshot"
   | "TodoStatus"
@@ -678,7 +679,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   ]),
   CapabilityRequirementType: enumOf(["feature", "interruptType", "runtimeTopic", "stateSnapshot"]),
   ClientCapabilities: object({
-    excludedEphemeralEvents: array(ref(() => CHECKS.StreamEventType)),
+    excludedEphemeralEvents: array(ref(() => CHECKS.SuppressibleRunEventType)),
     features: record(ref(() => CHECKS.FeaturePreference)),
     interruptTypes: array(ref(() => CHECKS.InterruptType)),
   }, []),
@@ -2222,7 +2223,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   StreamEvent: allOf([
     object({
       delta: ref(() => CHECKS.ItemDelta),
-      durable: flag(),
       item: ref(() => CHECKS.Item),
       itemId: text(),
       metrics: ref(() => CHECKS.RunMetrics),
@@ -2326,6 +2326,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["state", "type"]),
       fields({
         delta: absent(),
+        durable: absent(),
         item: absent(),
         itemId: absent(),
         metrics: absent(),
@@ -2351,6 +2352,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     maxTopics: integer(),
     maxWatches: integer(),
   }, ["maxTopics", "maxWatches"]),
+  SuppressibleRunEventType: enumOf(["segment.progress", "item.delta"]),
   TestProviderRequest: object({
     provider: allOf([text(), minLength(1)]),
   }, ["provider"]),

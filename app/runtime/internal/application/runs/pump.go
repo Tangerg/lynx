@@ -12,18 +12,17 @@ import (
 // pump is the run segment goroutine: Start has already atomically committed and
 // published the reducer's opening events; the pump reduces each executor
 // event and — on a terminal or a drained stream — tears the run down. It commits
-// before it publishes (§7.2): every durable event's
-// ATOMIC commit — its projections plus the run-state transition it implies (park
-// → interrupted, terminal → terminalized; §8.3) — lands in one transaction
-// BEFORE the event reaches subscribers, so a client that acts on an event (reads
-// the transcript after a terminal, resumes the instant it sees an interrupt)
-// never observes state the store does not yet hold, and a terminal frees the
-// session's durable admission slot before it frees the in-memory one. A commit
-// failure aborts the turn rather than publishing an event the durable record
-// can't back. The interrupt commit additionally linearizes against cancel (a
-// cancel that wins the race skips the commit). Non-durable deltas publish
-// directly. A parked run leaves its live turn alive for resume; a true terminal
-// cancels it.
+// each event's persisted projections before it publishes (§7.2): the projections
+// plus the run-state transition they imply (park → interrupted, terminal →
+// terminalized; §8.3) land in one transaction BEFORE the event reaches
+// subscribers. A client that acts on an event (reads the transcript after a
+// terminal, resumes the instant it sees an interrupt) therefore never observes
+// state the store does not yet hold, and a terminal frees the persisted admission
+// slot before the in-memory one. A projection commit failure aborts the turn
+// rather than publishing an event the persisted record cannot back. The interrupt
+// commit additionally linearizes against cancel (a cancel that wins the race
+// skips the commit). Non-authoritative previews publish directly. A parked run
+// leaves its live turn alive for resume; a true terminal cancels it.
 func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inner iter.Seq[EngineEvent], live *handle, reducer *reducer) {
 	hub := live.hub
 	publisher := segmentPublisher{coordinator: c, spec: spec, live: live}
@@ -43,7 +42,7 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 
 	defer func() {
 		// Shutdown cancels ownerCtx before joining this pump. Terminal synthesis is
-		// a durable cleanup boundary, so it must outlive that signal while remaining
+		// a persistence cleanup boundary, so it must outlive that signal while remaining
 		// bounded; otherwise graceful shutdown itself leaves a Running
 		// transcript/admission row for boot recovery to repair.
 		if !finished {
@@ -53,7 +52,7 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			// from its state, and the synthesized terminal's commit terminalizes the
 			// run-state, so no separate teardown state write is needed. This commit
 			// happens before executor teardown: a slow or broken CancelTurn must never
-			// consume the only budget available for the durable terminal boundary.
+			// consume the only budget available for the persisted terminal boundary.
 			terminalCtx, cancelTerminal := context.WithTimeout(context.WithoutCancel(ownerCtx), runCleanupTimeout)
 			commitCtx = terminalCtx
 			reductions, err := reducer.synthesizeTerminal()
@@ -70,11 +69,11 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			}
 			cancelTerminal()
 		}
-		// A committed park transfers teardown to Cancel's durable parked-run
+		// A committed park transfers teardown to Cancel's persisted parked-run
 		// path. Cancel first removes the open interrupt and terminalizes the Run,
 		// then releases the parked executor turn. Tearing it down here merely
 		// because requestCancel canceled ctx would reverse that transaction order
-		// and leave a durable interrupt pointing at a missing process on crash.
+		// and leave a persisted interrupt pointing at a missing process on crash.
 		if !parked && (ctx.Err() != nil || abortTurn) {
 			teardownCtx, cancelTeardown := context.WithTimeout(context.WithoutCancel(ownerCtx), runCleanupTimeout)
 			if err := c.executor.CancelTurn(teardownCtx, spec.turnRef()); err != nil && !errors.Is(err, ErrTurnNotLive) {
@@ -146,7 +145,7 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			// before consuming any further buffered event. A cancel that races a turn
 			// in the act of parking can emit a TurnInterrupted after the terminal
 			// TurnEnd; processing it would try to Suspend an already-terminalized run.
-			// The pump owns durable run-state integrity, so it enforces "nothing after
+			// The pump owns persisted run-state integrity, so it enforces "nothing after
 			// a terminal" here rather than trusting the upstream event ordering.
 			return
 		}
@@ -160,7 +159,7 @@ type reductionPublication struct {
 }
 
 // segmentPublisher owns the one batch boundary between canonical reductions
-// and their durable/live projections. It returns the lifecycle state the pump
+// and their persisted/live projections. It returns the lifecycle state the pump
 // must carry into the next executor event and final cleanup.
 type segmentPublisher struct {
 	coordinator *Coordinator
@@ -169,7 +168,7 @@ type segmentPublisher struct {
 }
 
 // publish validates a complete batch before any side effect, then commits every
-// durable fact before appending its event. published=false without an error
+// persisted fact before appending its event. published=false without an error
 // means cancellation won the interrupt-commit race.
 func (p segmentPublisher) publish(ctx context.Context, batch reductionBatch) (reductionPublication, error) {
 	if err := validateReductionBatch(batch); err != nil {
@@ -181,7 +180,7 @@ func (p segmentPublisher) publish(ctx context.Context, batch reductionBatch) (re
 	publication := reductionPublication{published: true}
 	goalCharged := false
 	for _, reduced := range batch.events {
-		// Commit before publish: a durable event's atomic commit (for a terminal,
+		// Commit before publish: an event's atomic projection commit (for a terminal,
 		// recording the run + terminalizing the run-state) lands before the event
 		// is delivered or retained for replay, so a subscriber never observes an
 		// event the store doesn't yet back. A commit failure aborts the turn (as
@@ -217,7 +216,7 @@ func (p segmentPublisher) publishPark(ctx context.Context, batch reductionBatch)
 	// projection + the open interrupt + Suspend, then publish the complete
 	// batch under one reserved boundary. A cancellation therefore observes
 	// either no park or the complete park and cancels + joins an in-flight
-	// durable commit without waiting on a mutex held across I/O.
+	// projection commit without waiting on a mutex held across I/O.
 	committed, err := p.live.commitInterrupt(ctx, func(interruptCtx context.Context) error {
 		if err := p.coordinator.effects.CommitEvent(interruptCtx, *batch.parkCommit); err != nil {
 			return err

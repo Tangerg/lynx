@@ -6,7 +6,7 @@ import "context"
 // a business param (TRANSPORT §2/§9.2). The transport reads it off the
 // wire (HTTP Last-Event-Id header / IPC metadata) and carries it on the
 // context with WithLastEventID; the runtime's SubscribeRun reads it with
-// LastEventIDFrom to replay a run's durable backlog from that point.
+// LastEventIDFrom to replay a run's retained, replayable backlog from that point.
 // Transports that don't carry it (or a fresh subscribe) leave it empty →
 // full replay.
 type lastEventIDKey struct{}

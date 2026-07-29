@@ -70,6 +70,10 @@ func TestEveryClosedWireUnionIsRegistered(t *testing.T) {
 func TestUnionValidationCatchesTheDriftItExistsFor(t *testing.T) {
 	t.Parallel()
 
+	validContentBlockVariants := []VariantSpec{
+		{Tag: "text", Required: []string{"text"}},
+		{Tag: "image", Required: []string{"mime", "data"}},
+	}
 	tests := []struct {
 		name string
 		spec UnionSpec
@@ -111,6 +115,38 @@ func TestUnionValidationCatchesTheDriftItExistsFor(t *testing.T) {
 			},
 		},
 		want: `variant "text" is declared twice`,
+	}, {
+		name: "an empty forbidden field",
+		spec: UnionSpec{
+			GoType: reflect.TypeFor[protocol.ContentBlock](), Discriminator: "type",
+			Variants:  validContentBlockVariants,
+			Forbidden: []string{""},
+		},
+		want: `forbidden field 0 has no name`,
+	}, {
+		name: "a nested forbidden field",
+		spec: UnionSpec{
+			GoType: reflect.TypeFor[protocol.ContentBlock](), Discriminator: "type",
+			Variants:  validContentBlockVariants,
+			Forbidden: []string{"legacy.value"},
+		},
+		want: `forbidden field "legacy.value" must be a top-level JSON member`,
+	}, {
+		name: "a duplicated forbidden field",
+		spec: UnionSpec{
+			GoType: reflect.TypeFor[protocol.ContentBlock](), Discriminator: "type",
+			Variants:  validContentBlockVariants,
+			Forbidden: []string{"legacy", "legacy"},
+		},
+		want: `forbidden field "legacy" is declared twice`,
+	}, {
+		name: "a forbidden field still on the wire shape",
+		spec: UnionSpec{
+			GoType: reflect.TypeFor[protocol.ContentBlock](), Discriminator: "type",
+			Variants:  validContentBlockVariants,
+			Forbidden: []string{"data"},
+		},
+		want: `forbidden field "data" still exists on the Go wire shape`,
 	}}
 
 	for _, tt := range tests {
@@ -124,6 +160,23 @@ func TestUnionValidationCatchesTheDriftItExistsFor(t *testing.T) {
 				t.Fatalf("error = %v, want it to mention %q", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestUnionValidationAcceptsRemovedForbiddenField(t *testing.T) {
+	t.Parallel()
+
+	spec := UnionSpec{
+		GoType:        reflect.TypeFor[protocol.ContentBlock](),
+		Discriminator: "type",
+		Variants: []VariantSpec{
+			{Tag: "text", Required: []string{"text"}},
+			{Tag: "image", Required: []string{"mime", "data"}},
+		},
+		Forbidden: []string{"legacy"},
+	}
+	if err := spec.validate(); err != nil {
+		t.Fatalf("validate rejected a protocol-level negative invariant: %v", err)
 	}
 }
 

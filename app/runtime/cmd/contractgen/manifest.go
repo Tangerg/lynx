@@ -84,9 +84,9 @@ type conditionRow struct {
 // event type. It is emitted so a client can build its replay/dedup logic from
 // data instead of re-implementing the derivation table.
 type eventEntry struct {
-	Type       string `json:"type"`
-	Durable    bool   `json:"durable"`
-	Replayable bool   `json:"replayable"`
+	Type          string `json:"type"`
+	Authoritative bool   `json:"authoritative"`
+	Replayable    bool   `json:"replayable"`
 }
 
 type topicEntry struct {
@@ -116,6 +116,7 @@ type unionEntry struct {
 	Type          string       `json:"type"`
 	Discriminator string       `json:"discriminator"`
 	Variants      []variantRow `json:"variants"`
+	Forbidden     []string     `json:"forbidden,omitempty"`
 }
 
 type variantRow struct {
@@ -250,8 +251,9 @@ func runEvents(shapes *dispatch.Shapes) []eventEntry {
 		}
 		for _, variant := range union.Variants {
 			event := protocol.StreamEvent{Type: protocol.StreamEventType(variant.Tag)}
-			durable := event.IsDurable()
-			out = append(out, eventEntry{Type: variant.Tag, Durable: durable, Replayable: durable})
+			out = append(out, eventEntry{
+				Type: variant.Tag, Authoritative: event.Authoritative(), Replayable: event.Replayable(),
+			})
 		}
 	}
 	return out
@@ -314,7 +316,8 @@ func unions(shapes *dispatch.Shapes) []unionEntry {
 			})
 		}
 		out = append(out, unionEntry{
-			Type: spec.GoType.Name(), Discriminator: spec.Discriminator, Variants: variants,
+			Type: spec.GoType.Name(), Discriminator: spec.Discriminator,
+			Variants: variants, Forbidden: spec.Forbidden,
 		})
 	}
 	return out

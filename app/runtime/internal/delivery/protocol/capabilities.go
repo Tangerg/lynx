@@ -20,26 +20,43 @@ type ClientCapabilities struct {
 	// wait nobody will answer (§6.2 anti-deadlock). Omitted and empty mean the
 	// same thing: a client that answers nothing.
 	InterruptTypes []InterruptType `json:"interruptTypes,omitempty"`
-	// ExcludedEphemeralEvents lets a client suppress high-frequency previews per
-	// request, e.g. [StreamItemDelta]. Only an always-ephemeral type may appear:
-	// dropping a durable event would break the §5.2 guarantee that a client which
-	// discards every ephemeral event still converges, so an authoritative type here
-	// is refused rather than ignored. It does not reach the workspace stream —
-	// that stream's scoping is its subscription, not an exclusion list.
-	ExcludedEphemeralEvents []StreamEventType `json:"excludedEphemeralEvents,omitempty"`
+	// ExcludedEphemeralEvents lets a client suppress the two high-frequency
+	// previews. Its dedicated closed type makes an authoritative or custom event
+	// unrepresentable instead of accepting the broad StreamEventType and checking
+	// it later. It does not reach the workspace stream.
+	ExcludedEphemeralEvents []SuppressibleRunEventType `json:"excludedEphemeralEvents,omitempty"`
 }
 
-// ErrNotEphemeral reports an exclusion list naming an event the client may not
-// opt out of.
-var ErrNotEphemeral = errors.New("excludedEphemeralEvents may only name an ephemeral event type")
+// SuppressibleRunEventType is the complete client-suppressible run-event set.
+// Custom is always ephemeral but deliberately not suppressible by type: its
+// namespaced name, rather than the shared envelope tag, identifies its meaning.
+type SuppressibleRunEventType string
+
+const (
+	SuppressibleRunSegmentProgress SuppressibleRunEventType = "segment.progress"
+	SuppressibleRunItemDelta       SuppressibleRunEventType = "item.delta"
+)
+
+// ErrNonSuppressibleRunEvent reports a value outside the closed opt-out set.
+var ErrNonSuppressibleRunEvent = errors.New(
+	"client capabilities: excludedEphemeralEvents contains a non-suppressible run event",
+)
 
 // Validate refuses a declaration the runtime cannot honor. It is checked where
 // request metadata is decoded, so an unhonorable exclusion is an invalid request
 // rather than a preference the runtime quietly overrules.
 func (c ClientCapabilities) Validate() error {
 	for _, event := range c.ExcludedEphemeralEvents {
-		if !event.AlwaysEphemeral() {
-			return fmt.Errorf("%w: %q", ErrNotEphemeral, event)
+		switch event {
+		case SuppressibleRunSegmentProgress, SuppressibleRunItemDelta:
+		default:
+			return fmt.Errorf(
+				"%w %q; expected %q or %q",
+				ErrNonSuppressibleRunEvent,
+				event,
+				SuppressibleRunSegmentProgress,
+				SuppressibleRunItemDelta,
+			)
 		}
 	}
 	return nil

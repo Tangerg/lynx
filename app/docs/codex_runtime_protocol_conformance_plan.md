@@ -200,14 +200,14 @@ cd app/desktop/frontend && npm run check
 | A0 | 当前实现与冻结协议重新审计 | `DONE` | 固化本文 | 本文 §3、§4 |
 | A1 | `runs.cancel` response、错误与 root 行为收口 | `DONE` | 2026-07-30 完成 | typed response、exact committed snapshot、全量 gates |
 | A2 | `runs.steer` 改为 `ContentBlock[]` | `DONE` | 2026-07-30 完成 | typed command/port、multimodal live+fallback、全量 gates |
-| A3 | 删除 `custom.durable`，收紧事件可靠性语义 | `TODO` | 下一实施 slice | — |
+| A3 | 删除 `custom.durable`，收紧事件可靠性语义 | `DONE` | 2026-07-30 完成 | type-owned policy、closed opt-out、全量 gates |
 | A4 | 收紧 machine-contract value constraints | `TODO` | A3 后实施 | — |
 | A5 | capability gate 与 disabled-subagent seam 收口 | `TODO` | A4 后实施 | — |
 | A6 | Registry fail-closed 与 SSOT 清理 | `TODO` | A5 后实施 | — |
 | A7 | canonical docs 与最终 conformance sweep | `TODO` | 最后收口 | — |
 | B1 | 完整 child Run producer / tree cancel / barrier | `DEFERRED` | A5 完成后单独排期 | 启用条件见 §11 |
 
-当前核心协议收口的唯一下一项是 **A3**。同一时间只允许一个 A-track slice
+当前核心协议收口的唯一下一项是 **A4**。同一时间只允许一个 A-track slice
 处于 `IN PROGRESS`，避免多个 breaking shape 同时造成无法定位的生成差异。
 
 ---
@@ -309,33 +309,36 @@ interface SteerRunRequest {
 
 ### 7.1 根问题
 
-冻结契约已经删除 `custom.durable`。当前实现仍允许事件发送方通过布尔字段自称
+冻结契约已经删除 `custom.durable`。A3 前的实现仍允许事件发送方通过布尔字段自称
 durable，并在内部将 durable 同时解释成 authoritative、replayable 和 persisted。
 这三个概念不能混为一谈：
 
 - authoritative：客户端能否把该事件当作事实；
 - replayable：当前 process / Segment 的窗口是否会重放它；
-- persisted：事实是否已经进入 durable projection。
+- persisted：事实是否已经进入可跨进程恢复的 projection。
 
 live event 被 replay 不等于 event 本身被持久化。
 
 ### 7.2 实施范围
 
-- 从 Go wire、UnionSpec、schema、OpenRPC、TS、fixtures、Artifact 和文档中删除
+- 从 Go wire、UnionSpec、schema、TS、fixtures 和文档中删除
   `custom.durable`；
-- `custom` 永远 ephemeral、无 SSE id、不进 replay window；
-- 删除或重命名 `StreamEvent.IsDurable()`，journal 与 SSE id 只询问实际需要的
-  `Replayable()` 语义；
-- 不为了术语完整新增无人消费的 `Authoritative()` 抽象；
-- projection 的 durable 性继续由 query/store 事实表达，不挂到 event flag 上；
+- `custom` 固定 non-authoritative、non-replayable，无 SSE id、不进 replay window；
+- 删除 `StreamEvent.IsDurable()` / `AlwaysEphemeral()`；journal 与 SSE id 只询问
+  `Replayable()`，manifest 独立读取 `Authoritative()`；
+- persisted 继续由 application transaction、query 与 store 事实表达，不挂到 event
+  policy 上；
+- 用 `UnionSpec.Forbidden` 表达已从 Go shape 删除、但开放对象仍必须显式拒绝的
+  protocol negative invariant；它不是兼容 decoder；
 - `excludedEphemeralEvents` 静态收紧为
-  `"item.delta" | "segment.progress"` 的专用闭合类型；
+  `"item.delta" | "segment.progress"` 的 `SuppressibleRunEventType` 闭合类型；
 - 不允许用完整 `StreamEventType[]` 再依赖运行时兜底；
 - 同步清理 canonical API / TRANSPORT 中 sender-declared durability 的描述。
 
 ### 7.3 验收
 
-- `custom` 帧携带 `durable` 时 Go 与 TS validator 均拒绝；
+- Go wire shape 无 `durable`，schema 与生成 TS validator 对携带该字段的
+  `custom` 帧均拒绝；
 - `custom` 永不带 SSE id，断线后不被 replay；
 - authoritative completion/state 事件仍按冻结表进入 replay window；
 - 丢弃全部 ephemeral event 后，客户端仍能通过 authoritative events 或 cold query
@@ -357,7 +360,6 @@ live event 被 replay 不等于 event 本身被持久化。
 | `RuntimeLimits.runReplay` | 必填 | 当前 Go/TS/schema 可选 |
 | `PendingInterruptSet.interrupts` | 必填且非空 | 当前允许空集合 |
 | `ProblemData.requiredCapabilities` | capability error 时必填且非空 | schema 未完整表达 |
-| `excludedEphemeralEvents` | 专用两值枚举、可选 | 当前类型过宽 |
 
 ### 8.2 实施原则
 
@@ -616,7 +618,7 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 | C2 | breaking change 直接替换，不留 compatibility debt | `ACCEPTED` |
 | C3 | 现有绿色 gates 证明内部自洽，不等于冻结协议 conformance | `ACCEPTED` |
 | C4 | `runs.cancel` typed response 与 `run_finished` 是首个收口 slice | `ACCEPTED` |
-| C5 | `custom` 永远 ephemeral；replayable 与 persisted 分开命名 | `ACCEPTED` |
+| C5 | event reliability 三分：authoritative / replayable / persisted；`custom` 固定前两者为 false，persisted 不属于 event flag | `ACCEPTED` |
 | C6 | output/event value constraints 与 request constraints 使用同一机制 | `ACCEPTED` |
 | C7 | subagent 拆成协议可启用性 A5 与真实能力 B1，不用 flag 掩盖进度 | `ACCEPTED` |
 | C8 | 生成物、实现、前端与 canonical docs 必须在同一 slice 更新 | `ACCEPTED` |
@@ -624,6 +626,8 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 | C10 | cancel response 不做 post-commit re-query；直接返回获胜事务提交的 snapshot | `ACCEPTED` |
 | C11 | parked cancel 先取得 Session admission，再解析 Interrupt，以同一 gate 串行化 resume | `ACCEPTED` |
 | C12 | steer 的 live drain 与 terminal fallback 共用同一条 canonical queue；fallback 同时发布 transcript Item 并写 conversation history | `ACCEPTED` |
+| C13 | 客户端 opt-out 由 `SuppressibleRunEventType` 闭合集合表达，不用完整 event enum 加运行时兜底 | `ACCEPTED` |
+| C14 | `UnionSpec.Forbidden` 只表达当前协议的负面不变量，不承担历史兼容解码 | `ACCEPTED` |
 
 ---
 
@@ -722,6 +726,47 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
     设计进入 Registry，不能复用 image 字段或塞 opaque JSON；
   - 事件 reliability 术语与 `custom.durable` 的剩余债务进入 A3。
 
+### 2026-07-30 — A3
+
+- 状态：`DONE`
+- Commit：本记录所在的 `refactor(runtime): make run event reliability type-owned`
+  原子提交
+- 目标：删除 sender-controlled `custom.durable`，把 authoritative、replayable
+  与 persisted 三种保证从 shape、命名和执行路径上彻底分开。
+- 关键裁决：
+  - `StreamEvent` 不再携带任何 reliability flag；`custom` 固定
+    non-authoritative、non-replayable，未知 event type 同样 fail closed；
+  - `Authoritative()` 只生成 `manifest.runEventPolicy` 的客户端折叠事实；
+    `Replayable()` 只控制 application Journal retention 与 HTTP SSE id；
+    persisted 只由 projection commit、query 和 store 表达；
+  - application Journal 的 `Durable()`、`queuedDurable` 及测试词汇全部改为
+    `Replayable()` / `queuedReplayable`，不再把进程内窗口称作持久化存储；
+  - `excludedEphemeralEvents` 的 Go/Schema/TS 类型收紧为
+    `SuppressibleRunEventType = "segment.progress" | "item.delta"`；`custom` 的
+    namespaced payload 不能被按共享 envelope tag 整类屏蔽；
+  - `UnionSpec.Forbidden` 成为 Registry 的协议级负面不变量：`durable` 已从 Go
+    shape 删除，schema 与生成 TS validator 仍对所有 StreamEvent variant 显式拒绝，
+    且 Registry 校验空名、嵌套名、重复名和仍存在于 DTO 的字段；
+  - canonical API / TRANSPORT 和 frontend recovery 注释统一使用
+    authoritative、replayable、persisted，不再以 durable 同时指代三种语义；
+  - 不保留旧字段、alias、fallback decoder 或双重 reliability policy。
+- 生成物：
+  - `manifest.json`、`schema.json`、`API_REFERENCE.md`；
+  - `wire.generated.ts`、`wire.validate.generated.ts`。
+- 验证：
+  - targeted protocol / dispatch / Journal / transport / schema / TS validator tests
+    → `PASS`
+  - `MODULE=app/runtime scripts/check.sh build vet test lint vuln` → `PASS`
+  - `cd app/runtime && go test -race ./...` → `PASS`
+  - `cd app/desktop/frontend && npm run check` → `178 files / 1075 tests PASS`
+  - contract generation 第二次聚合 hash
+    `79613f99bc095a62536e42744724cd0eae78ff49e26b40bfe12e0caf9ee6200a`
+    不变 → `PASS`
+- 残余风险：
+  - authoritative 与 replayable 当前核心表恰好同值，但 manifest 分列、实现分函数，
+    后续不得因当前值相等重新合并；
+  - runtime event output 的非空集合、正数与 conditional constraints 进入 A4。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -753,14 +798,14 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 下一实施 slice：
 
 ```text
-A3 — 删除 custom.durable，收紧事件可靠性语义
+A4 — 收紧 machine-contract value constraints
 ```
 
-开工时先把 A3 改为 `IN PROGRESS`，然后从以下三条失败证明开始：
+开工时先把 A4 改为 `IN PROGRESS`，然后从最小非法 fixture 开始：
 
-1. `custom` 帧携带 `durable` 时 Go/TS/schema validator 必须拒绝；
-2. `custom` 永远不分配 SSE id，也不进入 replay window；
-3. 删除或重命名含混的 `IsDurable()`，journal 只依赖 `Replayable()` 语义。
+1. `RuntimeEvent.sequence == 0` 必须由 Go/schema/TS 同时拒绝；
+2. `resync.topics` 缺失或为空、`files.changed.paths` 为空必须拒绝；
+3. `RuntimeLimits.runReplay` 缺失、`PendingInterruptSet.interrupts` 为空必须拒绝。
 
-在这三条成为红灯之前，不先改实现；在 A3 的生成物、前端、canonical docs 和全量
-门禁一起变绿之前，不开始 A4。
+在最小非法 fixture 成为红灯之前，不先改实现；在 A4 的生成物、前端、canonical
+docs 和全量门禁一起变绿之前，不开始 A5。

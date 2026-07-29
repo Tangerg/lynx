@@ -260,8 +260,9 @@ id: evt_0009
 data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","segmentId":"seg_01","eventId":"evt_0009","timestamp":"2026-07-27T10:00:09Z","event":{"type":"segment.finished","outcome":{"type":"completed"},"metrics":{"steps":3,"activeDurationMs":1500,"usage":{"inputTokens":120,"outputTokens":40,"costUsd":0.01}}}}}
 ```
 
-> `RunEvent` 信封**不带 `durable` 字段**：first-party 事件的 durable 性由 `event.type` 推导（API.md §5.2 推导表），
-> 唯 `custom` 事件在 `event` 内自带 `durable?`。SSE 重放（§9）据这张推导表决定哪些事件要带 `id:` / 可重放。
+> `RunEvent` 信封和 `StreamEvent` 都**不带 reliability flag**。authoritative /
+> replayable 由 `event.type` 决定；`custom` 固定 non-authoritative、non-replayable。
+> SSE 重放（§9）只按 API.md §5.2 的 replayable 分类决定 `id:`。
 
 要点：
 
@@ -298,8 +299,8 @@ data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{...}}
 
 规则：
 
-- 只有**可重放的事件帧**带 SSE `id:`，且 = 其 `eventId` —— 今天只有 `notifications.run.event` 里的 durable 事件
-  （durable 性由 `event.type` 推导，API.md §5.2）。JSON-RPC 响应帧（首帧）**不带 `id:`**（一次性 ack，非可重放
+- 只有**可重放的事件帧**带 SSE `id:`，且 = 其 `eventId` —— replayability 由
+  `event.type` 推导（API.md §5.2）。JSON-RPC 响应帧（首帧）**不带 `id:`**（一次性 ack，非可重放
   事件，§9.1）。`notifications.runtime.event` 同样不带（该流按 AUX_API §3.1 明确不补发，靠重订时的全量失效收敛）。
 - `event:` / `retry:` 不使用；客户端忽略未知字段。
 - 心跳用 SSE comment（`: ...` 行）。
@@ -328,7 +329,7 @@ data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{...}}
 所有子孙 Run 的事件）。同一段序列**可能分布在多条 HTTP 响应里** —— 原始 `runs.start`/`runs.resume` 流 + 之后对该段的
 `runs.subscribe` 续流 —— 单调性贯穿整段，故 `Last-Event-Id` 能线性重放。
 
-- `runs.subscribe` 续流**沿用同一段序列**：从 `Last-Event-Id` 之后接着发（重放的 durable 事件保持其原始
+- `runs.subscribe` 续流**沿用同一段序列**：从 `Last-Event-Id` 之后接着发（重放的 replayable 事件保持其原始
   `eventId`，客户端据此去重）；
 - `runs.resume` 在同一 Run 上开**新的一段**（同 `runId`、新 `segmentId`、`eventId` 从头，API.md §2.4）。
 
@@ -336,11 +337,11 @@ data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{...}}
 所以
 
 - 别的进程或别的段的 cursor 被**拒绝**（`replay_cursor_invalid`）而不是被将就解释 —— 后者会把重放落到另一条流上；
-- 曾经合法、但已被保留窗口淘汰的位置返回 `replay_unavailable`。事件没了，但它们产出的 Item 是 durable 的：客户端
+- 曾经合法、但已被保留窗口淘汰的位置返回 `replay_unavailable`。事件没了，但它们产出的 Item 已持久化：客户端
   冷读 `items.list` + 各 state key 的 recovery 方法，再**不带 cursor** 重接（= 只订将来）。
 
-保留窗口的 scope 与容量在 `capabilities.limits.runReplay` 里公布**并被强制执行**（API.md §9）。server 保留 durable
-事件以支撑续流，但**正确性不得依赖 ephemeral delta 的重放**。
+保留窗口的 scope 与容量在 `capabilities.limits.runReplay` 里公布**并被强制执行**（API.md §9）。server 只保留
+replayable 事件以支撑续流；**正确性不得依赖 non-authoritative preview 的重放**。
 
 ### 9.2 续流流程（per-run）
 
@@ -349,9 +350,9 @@ data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{...}}
 1. 客户端对该 run 调 `POST /v2/rpc`（envelope `method: "runs.subscribe"`、
    `params: { runId, segmentId }` —— URL 从不携带 method，§6.1），带
    `Last-Event-Id: <最后一个成功折叠的 eventId>`；
-2. server 在新响应流里**重放该 id 之后的 durable 事件**，再接上 live；
+2. server 在新响应流里**重放该 id 之后的 replayable 事件**，再接上 live；
 3. 客户端按 `eventId` 与 `itemId` 去重；
-4. 若客户端本地状态仍不完整（或拿到 `replay_unavailable`），调用 `items.list` 重建 durable 历史 + 各 state key 的
+4. 若客户端本地状态仍不完整（或拿到 `replay_unavailable`），调用 `items.list` 重建持久化历史 + 各 state key 的
    recovery 方法补状态；`item.completed` / `state.snapshot` 保证终态正确（API.md §5.2）。
 
 > 重连的是**具体某个 run 的某一段**，粒度准，且不需要维护连接身份。
@@ -363,10 +364,9 @@ data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{...}}
 
 ### 9.3 Delta 重放
 
-server **不需要**重放任何 ephemeral 事件（按 API.md §5.2 推导表为 `durable=false` 的：`item.delta` /
-`segment.progress` / `durable:false` 的 `custom`）。
+server **不重放 non-replayable 事件：`item.delta`、`segment.progress`、`custom`**。
 
-server **必须**通过 durable 的 `item.completed` / `state.snapshot` 以及 `items.list` 让最终态可得
+server **必须**通过 authoritative 的 `item.completed` / `state.snapshot` 与对应持久化读让最终态可得
 （API.md §5.2 不变量）。
 
 ## 10. 创建请求重试
@@ -458,9 +458,9 @@ X-Accel-Buffering: no
 
 ## 15. 背压
 
-server 可在高负载下**合并 ephemeral delta**，只要 durable/ephemeral 不变量仍成立（API.md §5.2）。
+server 可在高负载下**合并 non-authoritative preview**，只要 authoritative 收敛不变量仍成立（API.md §5.2）。
 
-server **不得**在不可经历史 API 恢复的前提下丢弃 durable 事件。
+server **不得静默丢弃 replayable 事件**；订阅者积压超过窗口时必须终止该流，让客户端显式重连或冷恢复。
 
 失效流（`runtime.subscribe`）的背压规则不同，且更严：来不及投递的失效**合并成一条点名 topic 的 `resync`**，
 而不是丢帧后指望客户端从空号里发现（AUX_API §3.1）。序号只发给真正进入队列的帧 —— 为一个被合并掉的信号消耗
