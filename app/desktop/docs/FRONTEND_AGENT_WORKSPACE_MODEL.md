@@ -195,13 +195,17 @@ Lyra 是桌面工作台，不能像网页后台。判断标准：
 
 三种目标状态：
 
-| Mode             | Use Case               | Shape                                              |
-| ---------------- | ---------------------- | -------------------------------------------------- |
-| Baseline         | 日常对话与轻量代码任务 | Work Index + Agent Narrative + light Context Dock  |
-| Collapsed Dock   | 用户专注对话           | 右侧只留窄 handle / icon rail，需要时展开          |
-| Review Workspace | 审查 diff / 多文件改动 | 右侧变重，显示 files + diff + comments / checklist |
+| Mode             | Use Case               | Shape                                                     |
+| ---------------- | ---------------------- | --------------------------------------------------------- |
+| Baseline         | 日常对话与轻量代码任务 | Work Index + Agent Narrative + light Context Dock         |
+| Collapsed Dock   | 用户专注对话           | 右侧只留窄 handle / icon rail，需要时展开                 |
+| Review Workspace | 审查 diff / 多文件改动 | 右侧变重：逐文件可折叠 diff + 变更文件导航，dock 按密度加宽 |
 
 默认应偏向 **Baseline + Collapsed Dock**，只有用户或 agent 明确进入 review/diff/file context 时才进入 Review Workspace。
+
+**密度由材料声明，不由用户切开关**：dock view 在 `WorkspaceViewSpec.density` 上声明自己要多宽（`light` / `review`），dock 为每种密度各记一份宽度。所以"进入 Review Workspace"就是打开一个 review 密度的 destination —— 没有第三个模式开关，也不会因为为读代码拖宽过一次，就让之后每个清单都停在 review 宽度。
+
+**checklist / comments 不进 Review Workspace**：todos 与 plan 已是 run-scoped destination，各自独立更清楚；comments（行内评审批注）当前**没有任何生产者**，所以不留空槽 —— 声明一个没人实现的面板，就是让 UI 替不存在的能力打广告。
 
 ## 5. Plugin Contribution Model
 
@@ -293,7 +297,7 @@ plugins/builtin/workspace/application/
 
 | State                 | Owner                                             | Example                                                  |
 | --------------------- | ------------------------------------------------- | -------------------------------------------------------- |
-| App-global chrome     | shell / ui store                                  | theme、sidebar collapsed、settings route                 |
+| App-global chrome     | shell / ui store                                  | theme、sidebar collapsed、settings route、每密度的 dock 宽度 |
 | Work index read model | navigation application                            | groups、session rows、attention badges                   |
 | Agent runtime view    | agent context                                     | messages、runs、interrupts、usage                        |
 | Context dock state    | workspace context, scoped by `sessionId` or `cwd` | active dock tab、opened file、selected diff、tool detail |
@@ -375,11 +379,20 @@ Context Dock state 必须能回答：
 - 右侧做 light Context Dock + Review Workspace 两种密度。
 - 所有 surface 深度走 theme token 和 `DESKTOP_UI_POLISH.md` 的 shadow model。
 
+已落地：
+
+- **Review Workspace 成形**：diff view 不再按 active file 过滤查询 —— 它展示整个改动，逐文件可折叠卡片在同一个滚动区里，右侧一条可筛选的变更文件导航（点行**滚动**到那个文件，不替换内容）。active file 从"过滤器"变成"焦点"：导航高亮它、打开时滚到它。
+- **两种密度**：`WorkspaceViewSpec.density` + 每密度一份 dock 宽度（见 §4）；一个没有任何 view 声明的密度会让 gate 变红。
+- **深度与边缘全部进 token**：逃出守卫的 6 处硬编码 shadow、3 处手挑 border alpha 全部收敛；内部竖分割线有唯一作者（`.agent-pane-split`，`data-split-side` 选边）；`check-design-tokens` 增两条规则挡住回归。
+- 几何数字对齐 `~/Desktop/synara`（chrome bar 46px、列宽下限 208/640、seam ring clip 到自身半径），实现走 Lyra 自己的 token 而非它的组件库。
+
 验收：
 
-- 左侧没有 session-scoped tools。
-- 右侧可以折叠。
-- Review/Diff 模式信息密度高但 chrome 克制。
+- 左侧没有 session-scoped tools。✅
+- 右侧可以折叠。✅
+- Review/Diff 模式信息密度高但 chrome 克制。✅
+
+剩下的是**视觉细调**（左侧低心率降噪、节奏与留白），需要真机与人眼，不在无头范围内。
 
 ## 9. Anti-Patterns
 
