@@ -131,6 +131,8 @@ type fakeEffects struct {
 	openingErr      error
 	openingErrAt    int
 	commitErr       error
+	commitErrAt     int
+	commitAttempts  int
 	rejectCanceled  bool
 	suspendStarted  chan<- struct{}
 	suspendCanceled chan<- struct{}
@@ -194,10 +196,11 @@ func (e *fakeEffects) CommitEvent(ctx context.Context, commit EventCommit) error
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	e.commitAttempts++
 	if e.rejectCanceled && ctx.Err() != nil {
 		return ctx.Err()
 	}
-	if e.commitErr != nil {
+	if e.commitErr != nil && (e.commitErrAt == 0 || e.commitErrAt == e.commitAttempts) {
 		return e.commitErr
 	}
 	e.commits = append(e.commits, commit)
@@ -827,6 +830,314 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 	}
 }
 
+func TestCoordinatorKeepsConcurrentSiblingSegmentsIsolated(t *testing.T) {
+	requestA, confirmationA := NewChildOpeningRequest(time.Now())
+	requestB, confirmationB := NewChildOpeningRequest(time.Now())
+	rootSource := ExecutorSource{ProcessID: "process_root"}
+	childA := ExecutorSource{
+		ProcessID:   "process_child_a",
+		ParentID:    rootSource.ProcessID,
+		SpawnCallID: "provider_call_a",
+	}
+	childB := ExecutorSource{
+		ProcessID:   "process_child_b",
+		ParentID:    rootSource.ProcessID,
+		SpawnCallID: "provider_call_b",
+	}
+	childUsage := func(model string, prompt int64) *TurnUsage {
+		return &TurnUsage{
+			Tokens: accounting.TokenUsage{PromptTokens: prompt, CompletionTokens: 1},
+			ByModel: []accounting.ModelUsage{{
+				Model: model,
+				TokenUsage: accounting.TokenUsage{
+					PromptTokens:     prompt,
+					CompletionTokens: 1,
+				},
+				Calls: 1,
+			}},
+			Steps: 1,
+		}
+	}
+	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
+		{Source: rootSource, Payload: ToolCallStart{
+			CallID: "canonical_a", SourceCallID: childA.SpawnCallID, ToolName: "task", Arguments: `{}`,
+		}},
+		{Source: rootSource, Payload: ToolCallStart{
+			CallID: "canonical_b", SourceCallID: childB.SpawnCallID, ToolName: "task", Arguments: `{}`,
+		}},
+		{Source: childA, Payload: requestA},
+		{Source: childB, Payload: requestB},
+		{Source: childA, Payload: MessageDelta{Text: "alpha"}},
+		{Source: childB, Payload: MessageDelta{Text: "beta"}},
+		{Source: childB, Payload: TurnEnd{
+			Reason: execution.OutcomeCompleted,
+			Usage:  childUsage("model-b", 7),
+		}},
+		{Source: childA, Payload: TurnEnd{
+			Reason: execution.OutcomeCompleted,
+			Usage:  childUsage("model-a", 5),
+		}},
+		{Source: rootSource, Payload: ToolCallEnd{CallID: "canonical_a", OutputText: "alpha"}},
+		{Source: rootSource, Payload: ToolCallEnd{CallID: "canonical_b", OutputText: "beta"}},
+		{Source: rootSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+	}}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+	runIDs := []string{"run_child_a", "run_child_b"}
+	segmentIDs := []string{"seg_child_a", "seg_child_b"}
+	coordinator.newRunID = func() string {
+		id := runIDs[0]
+		runIDs = runIDs[1:]
+		return id
+	}
+	coordinator.newSegmentID = func() string {
+		id := segmentIDs[0]
+		segmentIDs = segmentIDs[1:]
+		return id
+	}
+
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	if err := confirmationA.Await(t.Context()); err != nil {
+		t.Fatalf("child A opening: %v", err)
+	}
+	if err := confirmationB.Await(t.Context()); err != nil {
+		t.Fatalf("child B opening: %v", err)
+	}
+
+	type childProjection struct {
+		text     string
+		segment  string
+		finished *transcript.Run
+	}
+	children := map[string]*childProjection{
+		"run_child_a": {segment: "seg_child_a"},
+		"run_child_b": {segment: "seg_child_b"},
+	}
+	for _, event := range events {
+		child := children[event.RunID]
+		if child == nil {
+			continue
+		}
+		if event.SegmentID != child.segment {
+			t.Fatalf("run %q event segment = %q, want %q", event.RunID, event.SegmentID, child.segment)
+		}
+		switch payload := event.Payload.(type) {
+		case ItemCompleted:
+			if payload.Item.Kind == transcript.AgentMessage {
+				child.text = payload.Item.Content[0].Text
+			}
+		case SegmentFinished:
+			run := payload.Run
+			child.finished = &run
+		}
+	}
+	for runID, want := range map[string]struct {
+		text   string
+		prompt int64
+		model  string
+	}{
+		"run_child_a": {text: "alpha", prompt: 5, model: "model-a"},
+		"run_child_b": {text: "beta", prompt: 7, model: "model-b"},
+	} {
+		child := children[runID]
+		if child.text != want.text ||
+			child.finished == nil ||
+			child.finished.Metrics.Steps != 1 ||
+			child.finished.Metrics.Usage == nil ||
+			child.finished.Metrics.Usage.InputTokens != want.prompt ||
+			len(child.finished.Metrics.Usage.ByModel) != 1 {
+			t.Fatalf("sibling %q projection = %+v", runID, child)
+		}
+		if _, ok := child.finished.Metrics.Usage.ByModel[want.model]; !ok {
+			t.Fatalf("sibling %q usage = %+v, want model %q", runID, child.finished.Metrics.Usage, want.model)
+		}
+	}
+}
+
+func TestCoordinatorProjectsNestedChildrenWithExactLineageAndPostorderTerminal(t *testing.T) {
+	childRequest, childConfirmation := NewChildOpeningRequest(time.Now())
+	grandchildRequest, grandchildConfirmation := NewChildOpeningRequest(time.Now())
+	rootSource := ExecutorSource{ProcessID: "process_root"}
+	childSource := ExecutorSource{
+		ProcessID:   "process_child",
+		ParentID:    rootSource.ProcessID,
+		SpawnCallID: "provider_call_child",
+	}
+	grandchildSource := ExecutorSource{
+		ProcessID:   "process_grandchild",
+		ParentID:    childSource.ProcessID,
+		SpawnCallID: "provider_call_grandchild",
+	}
+	usage := func(prompt int64, calls int) *TurnUsage {
+		return &TurnUsage{
+			Tokens: accounting.TokenUsage{PromptTokens: prompt, CompletionTokens: int64(calls)},
+			ByModel: []accounting.ModelUsage{{
+				Model: "model",
+				TokenUsage: accounting.TokenUsage{
+					PromptTokens:     prompt,
+					CompletionTokens: int64(calls),
+				},
+				Calls: calls,
+			}},
+			Steps: calls,
+		}
+	}
+	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
+		{Source: rootSource, Payload: ToolCallStart{
+			CallID: "canonical_child", SourceCallID: childSource.SpawnCallID, ToolName: "task", Arguments: `{}`,
+		}},
+		{Source: childSource, Payload: childRequest},
+		{Source: childSource, Payload: ToolCallStart{
+			CallID: "canonical_grandchild", SourceCallID: grandchildSource.SpawnCallID, ToolName: "task", Arguments: `{}`,
+		}},
+		{Source: grandchildSource, Payload: grandchildRequest},
+		{Source: grandchildSource, Payload: MessageDelta{Text: "leaf"}},
+		{Source: grandchildSource, Payload: TurnEnd{
+			Reason: execution.OutcomeCompleted,
+			Usage:  usage(3, 1),
+		}},
+		{Source: childSource, Payload: ToolCallEnd{
+			CallID: "canonical_grandchild", OutputText: "leaf",
+		}},
+		{Source: childSource, Payload: MessageDelta{Text: "branch"}},
+		{Source: childSource, Payload: TurnEnd{
+			Reason: execution.OutcomeCompleted,
+			Usage:  usage(9, 3),
+		}},
+		{Source: rootSource, Payload: ToolCallEnd{
+			CallID: "canonical_child", OutputText: "branch",
+		}},
+		{Source: rootSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+	}}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+	runIDs := []string{"run_child", "run_grandchild"}
+	segmentIDs := []string{"seg_child", "seg_grandchild"}
+	coordinator.newRunID = func() string {
+		id := runIDs[0]
+		runIDs = runIDs[1:]
+		return id
+	}
+	coordinator.newSegmentID = func() string {
+		id := segmentIDs[0]
+		segmentIDs = segmentIDs[1:]
+		return id
+	}
+
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	if err := childConfirmation.Await(t.Context()); err != nil {
+		t.Fatalf("child opening: %v", err)
+	}
+	if err := grandchildConfirmation.Await(t.Context()); err != nil {
+		t.Fatalf("grandchild opening: %v", err)
+	}
+
+	openings := effects.openingSnapshot()
+	if len(openings) != 3 || openings[1].Admit == nil || openings[2].Admit == nil {
+		t.Fatalf("openings = %+v, want root, child, grandchild", openings)
+	}
+	child := openings[1].Admit
+	grandchild := openings[2].Admit
+	if child.ParentRunID != "run_1" ||
+		child.RootRunID != "run_1" ||
+		grandchild.ParentRunID != child.RunID ||
+		grandchild.RootRunID != "run_1" ||
+		grandchild.SpawnedByItemID != "item_seg_child_1" {
+		t.Fatalf("nested drafts child=%+v grandchild=%+v", child, grandchild)
+	}
+
+	var terminalOrder []string
+	for _, event := range events {
+		if _, ok := event.Payload.(SegmentFinished); ok {
+			terminalOrder = append(terminalOrder, event.RunID)
+		}
+	}
+	wantTerminalOrder := []string{"run_grandchild", "run_child", "run_1"}
+	if len(terminalOrder) != len(wantTerminalOrder) {
+		t.Fatalf("terminal order = %v, want %v", terminalOrder, wantTerminalOrder)
+	}
+	for index := range wantTerminalOrder {
+		if terminalOrder[index] != wantTerminalOrder[index] {
+			t.Fatalf("terminal order = %v, want %v", terminalOrder, wantTerminalOrder)
+		}
+	}
+}
+
+func TestCoordinatorDrainedStreamClosesNestedChildrenBeforeAncestors(t *testing.T) {
+	childRequest, childConfirmation := NewChildOpeningRequest(time.Now())
+	grandchildRequest, grandchildConfirmation := NewChildOpeningRequest(time.Now())
+	rootSource := ExecutorSource{ProcessID: "process_root"}
+	childSource := ExecutorSource{
+		ProcessID: "process_child", ParentID: rootSource.ProcessID, SpawnCallID: "spawn_child",
+	}
+	grandchildSource := ExecutorSource{
+		ProcessID: "process_grandchild", ParentID: childSource.ProcessID, SpawnCallID: "spawn_grandchild",
+	}
+	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
+		{Source: rootSource, Payload: ToolCallStart{
+			CallID: "child_call", SourceCallID: childSource.SpawnCallID, ToolName: "task", Arguments: `{}`,
+		}},
+		{Source: childSource, Payload: childRequest},
+		{Source: childSource, Payload: ToolCallStart{
+			CallID: "grandchild_call", SourceCallID: grandchildSource.SpawnCallID, ToolName: "task", Arguments: `{}`,
+		}},
+		{Source: grandchildSource, Payload: grandchildRequest},
+		// Deliberately drain with all three reducers active.
+	}}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+	runIDs := []string{"run_child", "run_grandchild"}
+	segmentIDs := []string{"seg_child", "seg_grandchild"}
+	coordinator.newRunID = func() string {
+		id := runIDs[0]
+		runIDs = runIDs[1:]
+		return id
+	}
+	coordinator.newSegmentID = func() string {
+		id := segmentIDs[0]
+		segmentIDs = segmentIDs[1:]
+		return id
+	}
+
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	if err := childConfirmation.Await(t.Context()); err != nil {
+		t.Fatalf("child opening: %v", err)
+	}
+	if err := grandchildConfirmation.Await(t.Context()); err != nil {
+		t.Fatalf("grandchild opening: %v", err)
+	}
+
+	var terminals []transcript.Run
+	for _, event := range events {
+		if finished, ok := event.Payload.(SegmentFinished); ok {
+			terminals = append(terminals, finished.Run)
+		}
+	}
+	wantOrder := []string{"run_grandchild", "run_child", "run_1"}
+	if len(terminals) != len(wantOrder) {
+		t.Fatalf("terminals = %+v, want %v", terminals, wantOrder)
+	}
+	for index, run := range terminals {
+		if run.ID != wantOrder[index] ||
+			run.Outcome == nil ||
+			*run.Outcome != execution.OutcomeCanceled {
+			t.Fatalf("terminal[%d] = %+v, want canceled %q", index, run, wantOrder[index])
+		}
+	}
+}
+
 func TestCoordinatorClosesActiveChildrenBeforeRejectingRootTerminal(t *testing.T) {
 	request, confirmation := NewChildOpeningRequest(time.Now())
 	rootSource := ExecutorSource{ProcessID: "process_root"}
@@ -893,6 +1204,68 @@ func TestCoordinatorClosesActiveChildrenBeforeRejectingRootTerminal(t *testing.T
 	}
 }
 
+func TestCoordinatorRecoversFromChildTerminalCommitFailureBeforeClosingRoot(t *testing.T) {
+	commitErr := errors.New("child terminal commit failed")
+	request, confirmation := NewChildOpeningRequest(time.Now())
+	rootSource := ExecutorSource{ProcessID: "process_root"}
+	childSource := ExecutorSource{
+		ProcessID:   "process_child",
+		ParentID:    rootSource.ProcessID,
+		SpawnCallID: "provider_call_delegate",
+	}
+	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
+		{Source: rootSource, Payload: ToolCallStart{
+			CallID: "canonical_call_delegate", SourceCallID: childSource.SpawnCallID, ToolName: "task", Arguments: `{}`,
+		}},
+		{Source: childSource, Payload: request},
+		{Source: childSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+	}}
+	// Child segment.started is part of the atomic opening transaction, so the
+	// first CommitEvent attempt is the child's requested completed terminal.
+	// Fail only that write so cleanup must replace it with an error terminal
+	// before it may close the root.
+	effects := &fakeEffects{commitErr: commitErr, commitErrAt: 1}
+	coordinator := testCoordinator(executor, effects)
+	coordinator.newRunID = func() string { return "run_child" }
+	coordinator.newSegmentID = func() string { return "seg_child" }
+
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	if err := confirmation.Await(t.Context()); err != nil {
+		t.Fatalf("child opening: %v", err)
+	}
+
+	var terminals []transcript.Run
+	for _, event := range events {
+		if finished, ok := event.Payload.(SegmentFinished); ok {
+			terminals = append(terminals, finished.Run)
+		}
+	}
+	if len(terminals) != 2 ||
+		terminals[0].ID != "run_child" ||
+		terminals[1].ID != "run_1" {
+		t.Fatalf("terminal order = %+v, want child then root", terminals)
+	}
+	for _, run := range terminals {
+		if run.Outcome == nil ||
+			*run.Outcome != execution.OutcomeError ||
+			run.Error == nil ||
+			run.Error.Kind != transcript.InternalProblem {
+			t.Fatalf("recovered terminal = %+v, want internal error", run)
+		}
+	}
+	if !effects.terminalized("ses_1", "run_child") ||
+		!effects.terminalized("ses_1", "run_1") {
+		t.Fatal("terminal commit failure left a durable active run")
+	}
+	if executor.cancels() != 1 {
+		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	}
+}
+
 func TestCoordinatorRejectsChildWhenAtomicOpeningFails(t *testing.T) {
 	commitErr := errors.New("child opening transaction failed")
 	request, confirmation := NewChildOpeningRequest(time.Now())
@@ -939,6 +1312,77 @@ func TestCoordinatorRejectsChildWhenAtomicOpeningFails(t *testing.T) {
 	}
 	if executor.cancels() != 1 {
 		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	}
+}
+
+func TestCoordinatorClosesAdmittedSiblingWhenNextOpeningRollsBack(t *testing.T) {
+	commitErr := errors.New("second child opening failed")
+	requestA, confirmationA := NewChildOpeningRequest(time.Now())
+	requestB, confirmationB := NewChildOpeningRequest(time.Now())
+	rootSource := ExecutorSource{ProcessID: "process_root"}
+	childA := ExecutorSource{
+		ProcessID: "process_child_a", ParentID: rootSource.ProcessID, SpawnCallID: "spawn_a",
+	}
+	childB := ExecutorSource{
+		ProcessID: "process_child_b", ParentID: rootSource.ProcessID, SpawnCallID: "spawn_b",
+	}
+	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
+		{Source: rootSource, Payload: ToolCallStart{
+			CallID: "call_a", SourceCallID: childA.SpawnCallID, ToolName: "task", Arguments: `{}`,
+		}},
+		{Source: rootSource, Payload: ToolCallStart{
+			CallID: "call_b", SourceCallID: childB.SpawnCallID, ToolName: "task", Arguments: `{}`,
+		}},
+		{Source: childA, Payload: requestA},
+		{Source: childB, Payload: requestB},
+	}}
+	effects := &fakeEffects{openingErr: commitErr, openingErrAt: 3}
+	coordinator := testCoordinator(executor, effects)
+	runIDs := []string{"run_child_a", "run_child_b"}
+	segmentIDs := []string{"seg_child_a", "seg_child_b"}
+	coordinator.newRunID = func() string {
+		id := runIDs[0]
+		runIDs = runIDs[1:]
+		return id
+	}
+	coordinator.newSegmentID = func() string {
+		id := segmentIDs[0]
+		segmentIDs = segmentIDs[1:]
+		return id
+	}
+
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	if err := confirmationA.Await(t.Context()); err != nil {
+		t.Fatalf("first child opening: %v", err)
+	}
+	if err := confirmationB.Await(t.Context()); !errors.Is(err, commitErr) {
+		t.Fatalf("second child opening = %v, want %v", err, commitErr)
+	}
+	openings := effects.openingSnapshot()
+	if len(openings) != 2 ||
+		openings[1].Admit == nil ||
+		openings[1].Admit.RunID != "run_child_a" {
+		t.Fatalf("committed openings = %+v, want root and first child only", openings)
+	}
+
+	var terminalOrder []string
+	for _, event := range events {
+		if _, ok := event.Payload.(SegmentFinished); ok {
+			terminalOrder = append(terminalOrder, event.RunID)
+		}
+	}
+	wantOrder := []string{"run_child_a", "run_1"}
+	if len(terminalOrder) != len(wantOrder) ||
+		terminalOrder[0] != wantOrder[0] ||
+		terminalOrder[1] != wantOrder[1] {
+		t.Fatalf("terminal order = %v, want %v", terminalOrder, wantOrder)
+	}
+	if effects.terminalized("ses_1", "run_child_b") {
+		t.Fatal("rolled-back second child acquired a durable terminal")
 	}
 }
 

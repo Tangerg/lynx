@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/tools"
 )
 
 type availabilityIndex struct {
@@ -33,7 +34,7 @@ func (availabilityIndex) Search(context.Context, string, string, int) ([]codebas
 	return nil, nil
 }
 
-func TestSubtaskRoleCanAskAndExitPlanWithoutDelegating(t *testing.T) {
+func TestSubtaskRoleCanAskExitPlanAndDelegateWithoutRootTools(t *testing.T) {
 	policy, err := approval.New(approval.ModeBalanced, nil)
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
@@ -53,24 +54,32 @@ func TestSubtaskRoleCanAskAndExitPlanWithoutDelegating(t *testing.T) {
 			_ = close()
 		}
 	})
+	taskTool, err := tools.New(
+		tools.Config{Name: "task", Description: "Delegate a bounded child task."},
+		func(context.Context, struct{}) (string, error) { return "", nil },
+	)
+	if err != nil {
+		t.Fatalf("build task tool: %v", err)
+	}
+	built.Resolver.UseTaskTool(taskTool)
 
 	group, ok, err := built.Resolver.Resolve(t.Context(), toolport.ToolRoleSubtask)
 	if err != nil || !ok {
 		t.Fatalf("Resolve(subtask) = %v, %v", ok, err)
 	}
-	tools, err := group.Tools(t.Context())
+	resolvedTools, err := group.Tools(t.Context())
 	if err != nil {
 		t.Fatalf("Tools: %v", err)
 	}
-	names := make(map[string]bool, len(tools))
-	for _, tool := range tools {
+	names := make(map[string]bool, len(resolvedTools))
+	for _, tool := range resolvedTools {
 		names[tool.Definition().Name] = true
 	}
 	if !names["ask_user"] || !names["exit_plan_mode"] {
 		t.Fatalf("subtask tools = %v, want ask_user and exit_plan_mode", names)
 	}
-	if names["task"] || names["schedule"] {
-		t.Fatalf("subtask tools = %v, task/schedule must stay root-only", names)
+	if !names["task"] || names["schedule"] {
+		t.Fatalf("subtask tools = %v, want bounded task delegation without root-only schedule", names)
 	}
 }
 

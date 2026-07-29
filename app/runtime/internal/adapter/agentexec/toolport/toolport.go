@@ -10,7 +10,8 @@ const (
 	// tool set plus the task delegation tool.
 	ToolRoleCoding = "coding"
 	// ToolRoleSubtask is the role a delegated sub-agent declares: the same
-	// coding tools without task, so delegation cannot recurse.
+	// coding surface plus bounded recursive task delegation, while root-only
+	// schedule/goal/authoring capabilities stay withheld.
 	ToolRoleSubtask = "subtask"
 
 	// ToolNameReadToolResult is the model-facing name of the tool that reads an

@@ -76,15 +76,28 @@ type TurnOutput struct {
 // events surface via the tool-decorator path independently of the text-delta
 // path.
 func (e *Engine) buildTurnAgent() *core.Agent {
-	return agent.New(agent.AgentConfig{Name: "chat-agent", Description: "single-turn LLM chat with the default coding tool set", Actions: []agent.Action{agent.NewAction("chat", func(ctx context.Context, pc *core.ProcessContext, in turnInput) (TurnOutput, error) {
-		return e.runTurn(ctx, pc, in.Message, in.Media, in.Options)
-	}, core.ActionConfig{ToolGroups: []string{toolport.ToolRoleCoding}})}, Goals: []*agent.Goal{agent.NewOutputGoal[TurnOutput](core.GoalConfig{Description: "single-turn reply produced"})}})
+	chatAction := agent.NewAction(
+		"chat",
+		func(ctx context.Context, processCtx *core.ProcessContext, input turnInput) (TurnOutput, error) {
+			return e.runTurn(ctx, processCtx, input.Message, input.Media, input.Options)
+		},
+		core.ActionConfig{ToolGroups: []string{toolport.ToolRoleCoding}},
+	)
+	replyGoal := agent.NewOutputGoal[TurnOutput](
+		core.GoalConfig{Description: "single-turn reply produced"},
+	)
+	return agent.New(agent.AgentConfig{
+		Name:        "chat-agent",
+		Description: "Single-turn LLM chat with the default coding tool set.",
+		Actions:     []agent.Action{chatAction},
+		Goals:       []*agent.Goal{replyGoal},
+	})
 }
 
 // taskInput is the argument schema the model fills to call the `task`
-// tool: one self-contained subtask description. lyra runs it in a fresh
-// sub-agent (isolated context, the coding tools minus `task`) and hands
-// back the sub-agent's final reply.
+// tool: one self-contained subtask description. Runtime runs it in a fresh
+// sub-agent with isolated context and a recursively delegating coding surface,
+// then hands the sub-agent's final reply back to its parent.
 type taskInput struct {
 	// Description is a short (3-5 word) label for the subtask, shown in the UI
 	// while it runs. Display-only: it rides in the tool-call arguments for the
@@ -93,20 +106,35 @@ type taskInput struct {
 	Prompt      string `json:"prompt" jsonschema_description:"The full, self-contained instructions for the sub-agent — it does not see the main conversation, so include everything it needs."`
 }
 
-// buildSubtaskAgent constructs the agent behind the `task` delegation
-// tool. Same chat body as the main agent, but: (1) named "task" so the
-// derived tool is `task`; (2) declares [toolport.ToolRoleSubtask] — the coding
-// tools WITHOUT `task`, so a subtask can't recurse into another
-// delegation; (3) its goal produces just the reply string, so the tool
-// result handed to the parent model is the answer text, not a TurnOutput
-// blob. Its LLM rounds still record into the process budget, which
-// aggregates up the subtree into the parent turn's usage roll-up.
+// buildSubtaskAgent constructs the agent behind the `task` delegation tool.
+// It shares the main agent's chat body but has three deliberate differences:
+// its name derives the `task` tool name; [toolport.ToolRoleSubtask] exposes
+// coding tools plus bounded recursive delegation while withholding root-only
+// product tools; and its goal returns only the reply string rather than a
+// TurnOutput blob. Agent Runtime's MaxChildDepth and root-owned tree budget
+// bound recursion, while usage still aggregates through the process subtree.
 func (e *Engine) buildSubtaskAgent() *core.Agent {
-	return agent.New(agent.AgentConfig{Name: "task", Description: "Delegate a self-contained subtask to a fresh sub-agent that has the coding " + "tools (it cannot delegate further). Use for focused, separable work — investigate a " + "question, draft a file — so the main conversation stays uncluttered. The sub-agent starts " + "with a clean context and cannot see this conversation, so put everything it needs in the " + "prompt. It returns a single final answer; its intermediate work is not shown to the user.", Actions: []agent.Action{agent.NewAction("subtask", func(ctx context.Context, pc *core.ProcessContext, in taskInput) (string, error) {
-		out, err := e.runTurn(ctx, pc, in.Prompt, nil, nil)
-		if err != nil {
-			return "", err
-		}
-		return out.Reply, nil
-	}, core.ActionConfig{ToolGroups: []string{toolport.ToolRoleSubtask}})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "subtask answer produced"})}})
+	subtaskAction := agent.NewAction(
+		"subtask",
+		func(ctx context.Context, processCtx *core.ProcessContext, input taskInput) (string, error) {
+			output, err := e.runTurn(ctx, processCtx, input.Prompt, nil, nil)
+			if err != nil {
+				return "", err
+			}
+			return output.Reply, nil
+		},
+		core.ActionConfig{ToolGroups: []string{toolport.ToolRoleSubtask}},
+	)
+	answerGoal := agent.NewOutputGoal[string](
+		core.GoalConfig{Description: "subtask answer produced"},
+	)
+	return agent.New(agent.AgentConfig{
+		Name: "task",
+		Description: "Delegate a self-contained subtask to a fresh sub-agent with coding tools and bounded task delegation. " +
+			"Use it for focused, separable work so the current context stays uncluttered. " +
+			"The sub-agent starts with clean context and cannot see its parent conversation, so include everything it needs in the prompt. " +
+			"It returns one final answer.",
+		Actions: []agent.Action{subtaskAction},
+		Goals:   []*agent.Goal{answerGoal},
+	})
 }

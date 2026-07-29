@@ -50,7 +50,7 @@ type Resolver struct {
 	readTracker     *editguardstate.Tracker                     // backs the read-before-edit + stale guards on read/edit/write
 	pathLocker      *pathLocker                                 // serializes same-path fs calls across every concurrent turn resolution
 	shell           []tools.Tool                                // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
-	task            tools.Tool                                  // delegation tool; coding role only, nil until set
+	task            tools.Tool                                  // bounded recursive delegation tool; nil until set
 	staticTools     []staticToolSpec                            // built-once tools with one role/phase policy shared by catalog + turns
 	goalActive      func(context.Context, string) (bool, error) // reports whether the session has an active goal; nil → update_goal never offered
 
@@ -247,9 +247,9 @@ func (r *Resolver) appendStaticTools(ctx context.Context, into []tools.Tool, pla
 	return into, nil
 }
 
-// UseTaskTool installs the `task` delegation tool for the coding role and the
-// direct diagnostic catalog. The agent engine builds this tool after it exists
-// because the tool starts child processes through that engine.
+// UseTaskTool installs the `task` delegation tool for both execution roles and
+// the direct diagnostic catalog. The agent engine builds this tool after it
+// exists because the tool starts child processes through that engine.
 func (r *Resolver) UseTaskTool(tool tools.Tool) {
 	r.catalogMu.Lock()
 	defer r.catalogMu.Unlock()
@@ -365,9 +365,10 @@ func (r *Resolver) workdirTools(workdir string) []tools.Tool {
 	return buildWorkdirTools(workdir, r.codeIntel, r.readTracker, r.downloadAllow, r.pathLocker)
 }
 
-// toolGroup resolves its tool slice lazily at Tools() time so it can read
-// the per-process working directory. ToolRoleSubtask omits the `task` tool so
-// a delegated subtask can't recurse into another delegation.
+// toolGroup resolves its tool slice lazily at Tools() time so it can read the
+// per-process working directory. Both execution roles receive task delegation;
+// Agent Runtime's tree-wide budget and max-child-depth remain the authorities
+// for bounded recursion. Root-only product tools stay on ToolRoleCoding.
 type toolGroup struct {
 	resolver *Resolver
 	role     string
@@ -423,13 +424,12 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	if err != nil {
 		return nil, err
 	}
+	if task := g.resolver.taskTool(); task != nil {
+		tools = append(tools, task)
+	}
 	if g.role == toolport.ToolRoleCoding {
-		// Coding role only: task (no recursive delegation). The remaining root
-		// capabilities (schedule, authoring, active-goal update) use the policy
-		// table below.
-		if task := g.resolver.taskTool(); task != nil {
-			tools = append(tools, task)
-		}
+		// The remaining schedule, authoring, and active-goal capabilities are
+		// product-root operations rather than generic child execution tools.
 		tools, err = g.resolver.appendStaticTools(ctx, tools, toolCodingTail, g.role, false)
 		if err != nil {
 			return nil, err

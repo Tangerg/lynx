@@ -99,6 +99,136 @@ func (m *delegatingAccountingStub) Calls() int {
 	return m.calls
 }
 
+// nestedDelegatingStub drives root → child → grandchild delegation. Every
+// process owns its own conversation, so the prompt identifies the first round
+// and the nested AgentTool result identifies the continuation round.
+type nestedDelegatingStub struct {
+	mu       sync.Mutex
+	calls    int
+	defaults *chat.Options
+}
+
+func newNestedDelegatingStub() *nestedDelegatingStub {
+	return &nestedDelegatingStub{
+		defaults: &chat.Options{Model: "stub-nested-delegating"},
+	}
+}
+
+func (m *nestedDelegatingStub) DefaultOptions() chat.Options { return *m.defaults }
+
+func (m *nestedDelegatingStub) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	m.mu.Lock()
+	m.calls++
+	m.mu.Unlock()
+
+	taskOutput := toolResult(request.Messages, "task")
+	var (
+		response *chat.Response
+		err      error
+	)
+	switch {
+	case strings.Contains(taskOutput, "grandchild: result"):
+		response, err = responseWithText("child: result")
+	case strings.Contains(taskOutput, "child: result"):
+		response, err = responseWithText("root: result")
+	case userMessagesContain(request.Messages, "nested root"):
+		response, err = responseWithToolCall("task", `{"prompt":"child delegate"}`)
+	case userMessagesContain(request.Messages, "child delegate"):
+		response, err = responseWithToolCall("task", `{"prompt":"grandchild leaf"}`)
+	default:
+		response, err = responseWithText("grandchild: result")
+	}
+	if response != nil {
+		response.Model = m.defaults.Model
+		response.Usage = chat.Usage{InputTokens: 7, OutputTokens: 2}
+	}
+	return response, err
+}
+
+func (m *nestedDelegatingStub) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+	response, err := m.Call(ctx, request)
+	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
+}
+
+func (m *nestedDelegatingStub) Calls() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls
+}
+
+// siblingDelegatingStub emits two independent task calls in one model response.
+// AgentTool marks them concurrent; the parent tool loop still commits results
+// in provider order after both child processes reach terminal state.
+type siblingDelegatingStub struct {
+	mu       sync.Mutex
+	calls    int
+	defaults *chat.Options
+}
+
+func newSiblingDelegatingStub() *siblingDelegatingStub {
+	return &siblingDelegatingStub{
+		defaults: &chat.Options{Model: "stub-sibling-delegating"},
+	}
+}
+
+func (m *siblingDelegatingStub) DefaultOptions() chat.Options { return *m.defaults }
+
+func (m *siblingDelegatingStub) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	m.mu.Lock()
+	m.calls++
+	m.mu.Unlock()
+
+	var (
+		response *chat.Response
+		err      error
+	)
+	switch {
+	case hasToolMessage(request.Messages):
+		response, err = responseWithText("root: siblings done")
+	case userMessagesContain(request.Messages, "run siblings"):
+		message := chat.NewAssistantMessage(
+			chat.NewToolCallPart(chat.ToolCall{
+				ID: "call_a", Name: "task", Arguments: `{"prompt":"sibling A"}`,
+			}),
+			chat.NewToolCallPart(chat.ToolCall{
+				ID: "call_b", Name: "task", Arguments: `{"prompt":"sibling B"}`,
+			}),
+		)
+		response, err = chat.NewResponse(chat.Choice{
+			Index:        0,
+			Message:      &message,
+			FinishReason: chat.FinishReasonToolCalls,
+		})
+	default:
+		response, err = responseWithText("child: " + currentUserText(request.Messages))
+	}
+	if response != nil {
+		response.Model = m.defaults.Model
+		response.Usage = chat.Usage{InputTokens: 5, OutputTokens: 1}
+	}
+	return response, err
+}
+
+func (m *siblingDelegatingStub) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+	response, err := m.Call(ctx, request)
+	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
+}
+
+func (m *siblingDelegatingStub) Calls() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls
+}
+
+func currentUserText(messages []chat.Message) string {
+	for index := len(messages) - 1; index >= 0; index-- {
+		if messages[index].Role == chat.RoleUser {
+			return messages[index].Text()
+		}
+	}
+	return ""
+}
+
 // cwdDelegatingStubModel is delegatingStubModel's cwd-aware cousin: the main
 // turn delegates via `task`, and the sub-agent (instead of replying text)
 // asks shell to create a marker file with a RELATIVE path. The marker lands in

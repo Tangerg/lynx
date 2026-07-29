@@ -193,8 +193,7 @@ func TestEngine_RunChat_RecoversFromUnknownTool(t *testing.T) {
 // NewAgentTool + RunChild), the sub-agent runs its own chat
 // turn and returns an answer, and the main agent incorporates it into
 // its final reply. Proves the sub-agent delegation path works without a
-// real LLM. (The sub-agent declares toolport.ToolRoleSubtask — no `task` — so it
-// can't recurse.)
+// real LLM.
 func TestEngine_RunChat_TaskDelegation(t *testing.T) {
 	stub := newDelegatingStubModel()
 	client, _ := chatclient.New(stub)
@@ -291,6 +290,180 @@ func TestEngine_ProjectsDelegatedChildCompletionWithExactSubtreeUsage(t *testing
 	if childEnd < 0 || parentToolEnd < 0 || childEnd >= parentToolEnd {
 		t.Fatalf("event order = %v, want child terminal before parent task result", order)
 	}
+}
+
+func TestEngine_ProjectsNestedDelegationInPostorder(t *testing.T) {
+	stub := newNestedDelegatingStub()
+	client, err := chatclient.New(stub)
+	if err != nil {
+		t.Fatalf("chat client: %v", err)
+	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
+
+	observer := &recordingObserver{}
+	admitted := make(chan ChildProcess, 2)
+	out, err := eng.runTurnSync(t.Context(), TurnRequest{
+		Message:  "nested root",
+		Observer: observer,
+		AdmitChild: func(_ context.Context, child ChildProcess) error {
+			admitted <- child
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("runTurnSync: %v", err)
+	}
+	first := <-admitted
+	second := <-admitted
+	if second.ParentID != first.ID || first.ParentID == "" {
+		t.Fatalf("admission lineage root → child → grandchild = %+v → %+v", first, second)
+	}
+
+	completions := observer.childCompletions()
+	if len(completions) != 2 {
+		t.Fatalf("child completions = %+v, want grandchild and child", completions)
+	}
+	grandchild, child := completions[0], completions[1]
+	if grandchild.Process != second ||
+		grandchild.Steps != 1 ||
+		grandchild.Usage.PromptTokens != 7 ||
+		len(grandchild.UsageByModel) != 1 ||
+		grandchild.UsageByModel[0].Calls != 1 {
+		t.Fatalf("grandchild completion = %+v", grandchild)
+	}
+	if child.Process != first ||
+		child.Steps != 3 ||
+		child.Usage.PromptTokens != 21 ||
+		len(child.UsageByModel) != 1 ||
+		child.UsageByModel[0].Calls != 3 {
+		t.Fatalf("child subtree completion = %+v", child)
+	}
+	if out.Reply != "root: result" ||
+		out.Steps != 5 ||
+		out.Usage.PromptTokens != 35 ||
+		len(out.UsageByModel) != 1 ||
+		out.UsageByModel[0].Calls != 5 ||
+		stub.Calls() != 5 {
+		t.Fatalf("root subtree output = %+v, provider calls = %d", out, stub.Calls())
+	}
+
+	order := observer.eventOrder()
+	grandchildEnd := slices.Index(order, "child-end:"+second.ID)
+	childToolEnd := slices.Index(order, "tool-end:"+first.ID+":task")
+	childEnd := slices.Index(order, "child-end:"+first.ID)
+	rootToolEnd := slices.Index(order, "tool-end:"+first.ParentID+":task")
+	if grandchildEnd < 0 ||
+		childToolEnd < 0 ||
+		childEnd < 0 ||
+		rootToolEnd < 0 ||
+		grandchildEnd >= childToolEnd ||
+		childToolEnd >= childEnd ||
+		childEnd >= rootToolEnd {
+		t.Fatalf("nested event order = %v", order)
+	}
+}
+
+func TestEngine_ProjectsConcurrentSiblingsWithoutAccountingContamination(t *testing.T) {
+	stub := newSiblingDelegatingStub()
+	client, err := chatclient.New(stub)
+	if err != nil {
+		t.Fatalf("chat client: %v", err)
+	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
+
+	observer := &recordingObserver{}
+	admitted := make(chan ChildProcess, 2)
+	out, err := eng.runTurnSync(t.Context(), TurnRequest{
+		Message:  "run siblings",
+		Observer: observer,
+		AdmitChild: func(_ context.Context, child ChildProcess) error {
+			admitted <- child
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("runTurnSync: %v", err)
+	}
+	children := []ChildProcess{<-admitted, <-admitted}
+	if children[0].ParentID == "" ||
+		children[1].ParentID != children[0].ParentID ||
+		children[0].ID == children[1].ID ||
+		children[0].SpawnCallID == children[1].SpawnCallID {
+		t.Fatalf("sibling admissions = %+v", children)
+	}
+
+	completions := observer.childCompletions()
+	if len(completions) != 2 {
+		t.Fatalf("sibling completions = %+v", completions)
+	}
+	for _, completion := range completions {
+		if completion.Process.ParentID != children[0].ParentID ||
+			completion.Steps != 1 ||
+			completion.Usage.PromptTokens != 5 ||
+			completion.Usage.CompletionTokens != 1 ||
+			len(completion.UsageByModel) != 1 ||
+			completion.UsageByModel[0].Calls != 1 {
+			t.Fatalf("sibling completion contains cross-process usage: %+v", completion)
+		}
+	}
+	if out.Reply != "root: siblings done" ||
+		out.Steps != 4 ||
+		out.Usage.PromptTokens != 20 ||
+		out.Usage.CompletionTokens != 4 ||
+		len(out.UsageByModel) != 1 ||
+		out.UsageByModel[0].Calls != 4 ||
+		stub.Calls() != 4 {
+		t.Fatalf("root sibling aggregate = %+v, provider calls = %d", out, stub.Calls())
+	}
+
+	order := observer.eventOrder()
+	canonicalCallBySource := make(map[string]string, len(children))
+	for _, start := range observer.starts() {
+		if start.process.ID == children[0].ParentID && start.toolName == "task" {
+			canonicalCallBySource[start.sourceCallID] = start.callID
+		}
+	}
+	endOrdinalByCall := make(map[string]int, len(children))
+	taskEndCount := 0
+	for _, end := range observer.ends() {
+		if end.process.ID == children[0].ParentID && end.toolName == "task" {
+			endOrdinalByCall[end.callID] = taskEndCount
+			taskEndCount++
+		}
+	}
+	for _, child := range children {
+		childEnd := slices.Index(order, "child-end:"+child.ID)
+		callID := canonicalCallBySource[child.SpawnCallID]
+		endOrdinal, ok := endOrdinalByCall[callID]
+		parentToolEnd := nthIndex(order, "tool-end:"+child.ParentID+":task", endOrdinal)
+		if callID == "" || !ok || childEnd < 0 || parentToolEnd < 0 || childEnd >= parentToolEnd {
+			t.Fatalf(
+				"sibling event order = %v, child %q (%s → %s) did not end before its task call",
+				order,
+				child.ID,
+				child.SpawnCallID,
+				callID,
+			)
+		}
+	}
+}
+
+func nthIndex(values []string, target string, ordinal int) int {
+	if ordinal < 0 {
+		return -1
+	}
+	for index, value := range values {
+		if value != target {
+			continue
+		}
+		if ordinal == 0 {
+			return index
+		}
+		ordinal--
+	}
+	return -1
 }
 
 // TestEngine_RunChat_ToolsRunInCwd proves the per-run working directory
