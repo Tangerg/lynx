@@ -186,11 +186,12 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, reduc
 	}
 	opening := OpeningCommit{Events: make([]EventCommit, 0, len(projected.events))}
 	if spec.Pending != nil {
-		opening.Resume = &execution.ResumeDraft{RunID: spec.RunID, SessionID: spec.SessionID}
+		opening.Resume = &execution.ResumeDraft{RunID: spec.RunID, SessionID: spec.SessionID, SegmentID: spec.SegmentID}
 	} else {
 		opening.Admit = &execution.RunDraft{
 			RunID:          spec.RunID,
 			SessionID:      spec.SessionID,
+			SegmentID:      spec.SegmentID,
 			ModelSelection: spec.ModelSelection,
 			Limits:         spec.Limits,
 			CreatedAt:      spec.CreatedAt,

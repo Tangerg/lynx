@@ -35,6 +35,11 @@ type Run struct {
 	SpawnedByItemID string
 	ModelSelection  modelref.Selection
 	State           execution.RunState
+	// ActiveSegmentID is the segment currently executing. It exists exactly while
+	// the Run is Running: it is established, replaced and cleared in the same
+	// transaction as the state, so a Run's position and the segment driving it can
+	// never disagree.
+	ActiveSegmentID string
 	Outcome         *execution.Outcome
 	Detail          string
 	// Error explains an OutcomeError terminal, and is absent for every other
@@ -332,6 +337,12 @@ func (run Run) Validate() error {
 		return errors.New("sessionId is required")
 	case run.CreatedAt.IsZero():
 		return errors.New("creation time is required")
+	}
+	// A Run is Running exactly while a segment drives it. Both halves matter: a
+	// running Run with no segment cannot be attached to, and a parked or finished
+	// one still naming a segment would have a client attach to a stream that ended.
+	if (run.State == execution.Running) != (run.ActiveSegmentID != "") {
+		return fmt.Errorf("%s run has active segment %q", run.State, run.ActiveSegmentID)
 	}
 	// Accounting is checked for every state, not only the terminal one: metrics
 	// now accrue from the first segment, so a nonsense value can be committed long

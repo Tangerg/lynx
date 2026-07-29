@@ -1980,6 +1980,86 @@
   ],
   "objectConstraints": [
     {
+      "type": "RunSummary",
+      "rules": [
+        {
+          "when": [
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "finished"
+            }
+          ],
+          "required": [
+            "outcome",
+            "finishedAt"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "running"
+            }
+          ],
+          "forbidden": [
+            "outcome",
+            "finishedAt"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "waiting"
+            }
+          ],
+          "forbidden": [
+            "outcome",
+            "finishedAt"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "spawnedByItemId",
+              "operator": "present"
+            }
+          ],
+          "required": [
+            "parentRunId",
+            "rootRunId"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "parentRunId",
+              "operator": "present"
+            }
+          ],
+          "required": [
+            "spawnedByItemId",
+            "rootRunId"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "rootRunId",
+              "operator": "present"
+            }
+          ],
+          "required": [
+            "spawnedByItemId",
+            "parentRunId"
+          ]
+        }
+      ]
+    },
+    {
       "type": "RunRef",
       "rules": [
         {
@@ -2019,6 +2099,78 @@
           "forbidden": [
             "outcome",
             "finishedAt"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "spawnedByItemId",
+              "operator": "present"
+            }
+          ],
+          "required": [
+            "parentRunId",
+            "rootRunId"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "parentRunId",
+              "operator": "present"
+            }
+          ],
+          "required": [
+            "spawnedByItemId",
+            "rootRunId"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "rootRunId",
+              "operator": "present"
+            }
+          ],
+          "required": [
+            "spawnedByItemId",
+            "parentRunId"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "running"
+            }
+          ],
+          "required": [
+            "activeSegmentId"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "waiting"
+            }
+          ],
+          "forbidden": [
+            "activeSegmentId"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "finished"
+            }
+          ],
+          "forbidden": [
+            "activeSegmentId"
           ]
         }
       ]
@@ -2278,6 +2430,14 @@
     {
       "file": "runref.full.json",
       "shape": "RunRef"
+    },
+    {
+      "file": "runsummary.waiting.json",
+      "shape": "RunSummary"
+    },
+    {
+      "file": "runsummary.child.json",
+      "shape": "RunSummary"
     },
     {
       "file": "interrupt.approval.json",

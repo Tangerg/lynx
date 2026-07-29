@@ -56,14 +56,27 @@ const (
 	RunStatusFinished RunStatus = "finished"
 )
 
-// RunRef identifies a run + its place in the run tree (§4.2). ID is the STABLE
-// logical run id — a resume continues the same run (a new segment), never a new
-// run — so SpawnedByItemID (this run is a subagent of that toolCall item) is the
-// only run-tree edge; there is no continuation chain to carry.
-type RunRef struct {
+// RunSummary is a run's identity, its place in the run tree, and where it is in
+// its lifecycle (§4.2). ID is the STABLE logical run id — a resume continues the
+// same run (a new segment), never a new run — so there is no continuation chain
+// to carry.
+//
+// It is the shape a cold read hands back in bulk. Outcome, CreatedAt and
+// FinishedAt stay here because they are lifecycle rather than metering: a
+// `status:"finished"` a client cannot explain would only send it back for another
+// request. What is left out is what grows with the model and the subtree —
+// metrics, limits, protocol profile, active segment — and that is [RunRef].
+type RunSummary struct {
 	ID              string `json:"id"`
 	SessionID       string `json:"sessionId"`
 	SpawnedByItemID string `json:"spawnedByItemId,omitempty"`
+	// ParentRunID and RootRunID are the child edges: direct tree topology, and
+	// O(1) routing from any child to the run that owns the subscription. They are
+	// all-or-none with SpawnedByItemID — a run either carries all three or is a
+	// root — and no run carries them until features.subagents is on, since a
+	// session runs one root run with no children (§8.1).
+	ParentRunID string `json:"parentRunId,omitempty"`
+	RootRunID   string `json:"rootRunId,omitempty"`
 	// Model is the model id this run ran against (Model.id); empty means the
 	// run used the runtime default (surfaced via Session.model).
 	Model string `json:"model,omitempty"`
@@ -72,9 +85,26 @@ type RunRef struct {
 	// self-describing — usage.summary attributes spend by provider without
 	// re-deriving the model→provider mapping (which isn't 1:1 across compat
 	// providers).
-	Provider string      `json:"provider,omitempty"`
-	Status   RunStatus   `json:"status,omitempty"`
-	Outcome  *RunOutcome `json:"outcome,omitempty"`
+	Provider   string      `json:"provider,omitempty"`
+	Status     RunStatus   `json:"status,omitempty"`
+	Outcome    *RunOutcome `json:"outcome,omitempty"`
+	CreatedAt  time.Time   `json:"createdAt,omitzero"`
+	FinishedAt time.Time   `json:"finishedAt,omitzero"`
+}
+
+// RunRef is a run's summary plus the control, metering and protocol facts a
+// caller needs in order to drive or account for it (§4.2): what runs.get /
+// runs.list and the live segment.started carry.
+//
+// The summary is EMBEDDED, not copied. encoding/json inlines an embedded struct,
+// so one Go definition produces one flat wire shape — there is no second
+// declaration of `id` or `status` anywhere that could drift from this one.
+type RunRef struct {
+	RunSummary
+	// ActiveSegmentID is the segment currently executing, and exists exactly while
+	// the run is running: a waiting or finished run has none, so a client cannot
+	// mistake a segment that already ended for one it can attach to.
+	ActiveSegmentID string `json:"activeSegmentId,omitempty"`
 	// Metrics is what the run has consumed so far, cumulative over every segment
 	// and present in every status. It is not optional: a running run costs money,
 	// and a client that can only see spend once a run ends cannot show a budget.
@@ -83,9 +113,7 @@ type RunRef struct {
 	// uncapped. It is the durable execution policy the run was admitted under,
 	// not an echo of the request — a resume and a cross-restart recovery report
 	// the same caps as the first segment.
-	Limits     *RunLimits `json:"limits,omitempty"`
-	CreatedAt  time.Time  `json:"createdAt,omitzero"`
-	FinishedAt time.Time  `json:"finishedAt,omitzero"`
+	Limits *RunLimits `json:"limits,omitempty"`
 }
 
 // RunMetrics is how much a run has consumed (§4.2). Total cost reads

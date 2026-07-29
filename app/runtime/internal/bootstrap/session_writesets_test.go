@@ -149,7 +149,7 @@ func park(
 	if err := processes.SaveTree(ctx, bootstrapSnapshotTree(processID, bootstrapWaitingSnapshot(processID)), bootstrapCheckpoint(sessionID, accounting.Snapshot{})); err != nil {
 		t.Fatalf("save process snapshot: %v", err)
 	}
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, CreatedAt: parkCreatedAt}); err != nil {
+	if err := runs.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, SegmentID: "seg_open", CreatedAt: parkCreatedAt}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	if err := runs.Suspend(ctx, transcript.Run{
@@ -204,7 +204,7 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 		t.Fatalf("child process snapshot after cancel = %v, want not found", err)
 	}
 	// The admission row is terminal, so the session can start a fresh run.
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
+	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after cancel = %v, want the slot freed", err)
 	}
 	storedRuns, err := runs.ListRuns(ctx, "ses_A")
@@ -248,7 +248,7 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	if _, _, err := ss.processes.LoadTree(ctx, child.ID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
 		t.Fatalf("child process snapshot after run_lost = %v, want not found", err)
 	}
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
+	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after run_lost = %v, want the slot freed", err)
 	}
 	storedRuns, err := runs.ListRuns(ctx, "ses_A")
@@ -290,7 +290,7 @@ func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
 		t.Fatalf("process snapshot after rollback = %v, want not found", err)
 	}
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
+	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after rollback = %v, want the slot freed", err)
 	}
 	if got, err := ss.todos.List(ctx, "ses_A"); err != nil || len(got) != 0 {
@@ -368,7 +368,7 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	}
 	// The non-terminal admission row is gone (not just terminal), so a fresh admit
 	// succeeds — proving the delete cascade dropped the runs rows.
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
+	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after delete = %v, want the slot freed", err)
 	}
 }

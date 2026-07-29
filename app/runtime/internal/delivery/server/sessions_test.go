@@ -121,7 +121,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	}
 
 	// Seed one of every session-scoped row.
-	if err := runStore.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: id, CreatedAt: now}); err != nil {
+	if err := runStore.Admit(ctx, execution.RunDraft{SegmentID: "seg_open", RunID: "run_1", SessionID: id, CreatedAt: now}); err != nil {
 		t.Fatalf("seed run: %v", err)
 	}
 	if err := hist.AppendItem(ctx, transcript.Item{SessionID: id, RunID: "run_1", ID: "item_1"}); err != nil {

@@ -46,16 +46,24 @@ func (r *reducer) turnEnd(e TurnEnd) ([]RunEvent, error) {
 }
 
 func (r *reducer) runRecord(state execution.RunState) transcript.Run {
+	// Only a running Run names a segment: the record that parks or ends it clears
+	// the identity in the same commit, so nothing can attach to a stream that
+	// stopped.
+	activeSegment := ""
+	if state == execution.Running {
+		activeSegment = r.cfg.SegmentID
+	}
 	return transcript.Run{
-		SessionID:      r.cfg.SessionID,
-		ID:             r.cfg.RunID,
-		ModelSelection: r.cfg.ModelSelection,
-		State:          state,
-		Metrics:        r.metrics(),
-		Limits:         r.cfg.Limits,
-		CreatedAt:      r.cfg.CreatedAt,
-		UpdatedAt:      r.now(),
-		MessageMark:    transcript.UnknownMessageMark,
+		SessionID:       r.cfg.SessionID,
+		ID:              r.cfg.RunID,
+		ModelSelection:  r.cfg.ModelSelection,
+		State:           state,
+		ActiveSegmentID: activeSegment,
+		Metrics:         r.metrics(),
+		Limits:          r.cfg.Limits,
+		CreatedAt:       r.cfg.CreatedAt,
+		UpdatedAt:       r.now(),
+		MessageMark:     transcript.UnknownMessageMark,
 	}
 }
 

@@ -21,13 +21,18 @@ type ListItemsRequest struct {
 }
 
 // ListItemsResponse — items.list result: a Page[Item] (`data` +
-// `nextCursor`) embedded so every list method reads `resp.data`, plus the
-// RunRefs needed to rebuild the run tree (API.md §7.4 / §10.3 —
+// `nextCursor`) embedded so every list method reads `resp.data`, plus the run
+// summaries needed to rebuild the run tree (§7.4 / §10.3 —
 // `Page<Item> & { runs }`). The embedded Page inlines `data`/`nextCursor`
 // onto the wire.
+//
+// Summaries, not full RunRefs: threading items onto their runs needs identity
+// and lifecycle, and a page can carry many runs. Metering and protocol facts
+// grow with the model and the subtree, so they stay on the per-run read that
+// asks for them.
 type ListItemsResponse struct {
 	Page[Item]
-	Runs []RunRef `json:"runs"`
+	Runs []RunSummary `json:"runs"`
 }
 
 // ItemStatus is the lifecycle status of an Item (API.md §4.3).

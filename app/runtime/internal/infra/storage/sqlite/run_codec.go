@@ -183,7 +183,7 @@ func scanRun(row scanRow) (transcript.Run, error) {
 		interruptsSuspended sql.NullString
 	)
 	if err := row.Scan(
-		&run.ID, &run.SessionID, &run.SpawnedByItemID, &coarse, &outcome,
+		&run.ID, &run.SessionID, &run.SpawnedByItemID, &coarse, &run.ActiveSegmentID, &outcome,
 		&provider, &model, &run.Detail, &run.Metrics.Steps, &durationNs, &usage, &problem,
 		&run.Limits.MaxSteps, &run.Limits.MaxBudgetUSD,
 		&run.MessageMark, &startedAt, &finishedAt, &updatedAt, &interruptsSuspended,

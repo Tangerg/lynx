@@ -51,7 +51,7 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 	history := sqlite.NewTranscriptStore(db)
 	state := sqlite.NewRunStore(db)
 	ctx := context.Background()
-	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_actual", SessionID: "ses_1", CreatedAt: time.Now().UTC()}); err != nil {
+	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_actual", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: time.Now().UTC()}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	if err := state.Suspend(ctx, parkedRunRecord("run_actual", "ses_1", time.Now().UTC())); err != nil {
@@ -64,7 +64,7 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 		RunState: state,
 		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
-	resume := execution.ResumeDraft{RunID: "run_stale", SessionID: "ses_1"}
+	resume := execution.ResumeDraft{RunID: "run_stale", SessionID: "ses_1", SegmentID: "seg_next"}
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{Resume: &resume, Events: []runs.EventCommit{{RunID: "run_stale", SessionID: "ses_1"}}})
 	if err == nil {
 		t.Fatal("CommitOpening must reject an interrupt that does not own the active run")
@@ -85,7 +85,7 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	state := sqlite.NewRunStore(db)
 	ctx := context.Background()
 	created := time.Now().UTC()
-	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: "ses_1", CreatedAt: created}); err != nil {
+	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: created}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	if err := state.Suspend(ctx, parkedRunRecord("run_1", "ses_1", created)); err != nil {
@@ -98,7 +98,7 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 		RunState: state,
 		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
-	resume := execution.ResumeDraft{RunID: "run_1", SessionID: "ses_1"}
+	resume := execution.ResumeDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_next"}
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{
 		Resume: &resume,
 		Events: []runs.EventCommit{{
@@ -148,7 +148,7 @@ func TestCommitOpeningRollsBackScheduledSession(t *testing.T) {
 		Tx:              func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
 	created := time.Now().UTC()
-	draft := execution.RunDraft{RunID: "run_scheduled", SessionID: "ses_scheduled", CreatedAt: created}
+	draft := execution.RunDraft{RunID: "run_scheduled", SessionID: "ses_scheduled", SegmentID: "seg_open", CreatedAt: created}
 	scheduled := session.Session{ID: draft.SessionID, Title: "scheduled", Cwd: "/work", StartedAt: created, UpdatedAt: created, Revision: 1}
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{
 		Admit:            &draft,
@@ -197,7 +197,7 @@ func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
 		t.Fatalf("seed goal saved=%v err=%v", saved, err)
 	}
 	state := sqlite.NewRunStore(db)
-	draft := execution.RunDraft{RunID: "run_goal", SessionID: g.SessionID, CreatedAt: created}
+	draft := execution.RunDraft{RunID: "run_goal", SessionID: g.SessionID, SegmentID: "seg_open", CreatedAt: created}
 	if err := state.Admit(ctx, draft); err != nil {
 		t.Fatalf("admit goal run: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestCommitEventParkProducesBootResumableTriplet(t *testing.T) {
 	ctx := t.Context()
 	createdAt := time.Unix(1, 0).UTC()
 	parkedAt := time.Unix(2, 0).UTC()
-	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: "ses_1", CreatedAt: createdAt}); err != nil {
+	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: createdAt}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	snapshot := waitingProcessSnapshot("proc_1", createdAt, parkedAt)
@@ -294,7 +294,7 @@ func TestCommitEventParkProducesBootResumableTriplet(t *testing.T) {
 	if recovered, err := state.ReconcileOrphans(ctx, func(context.Context, string) (bool, error) { return true, nil }); err != nil || recovered != 0 {
 		t.Fatalf("boot reconcile = (%d, %v), want intact resumable park", recovered, err)
 	}
-	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_next", SessionID: "ses_1", CreatedAt: parkedAt}); !errors.Is(err, execution.ErrSessionBusy) {
+	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_next", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: parkedAt}); !errors.Is(err, execution.ErrSessionBusy) {
 		t.Fatalf("admit after intact park = %v, want ErrSessionBusy", err)
 	}
 }
@@ -328,7 +328,7 @@ func TestCommitOpeningRefusesASecondOpenRun(t *testing.T) {
 	created := time.Now().UTC()
 	history := sqlite.NewTranscriptStore(db)
 	state := sqlite.NewRunStore(db)
-	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: "ses_1", CreatedAt: created}); err != nil {
+	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: created}); err != nil {
 		t.Fatalf("admit the first run: %v", err)
 	}
 
@@ -336,7 +336,7 @@ func TestCommitOpeningRefusesASecondOpenRun(t *testing.T) {
 		RunState: state,
 		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
-	second := execution.RunDraft{RunID: "run_2", SessionID: "ses_1", CreatedAt: created}
+	second := execution.RunDraft{RunID: "run_2", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: created}
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{
 		Admit: &second,
 		Events: []runs.EventCommit{{
@@ -382,7 +382,7 @@ func TestCommitEventPersistsTheTerminalRunsResult(t *testing.T) {
 	ctx := t.Context()
 	history := sqlite.NewTranscriptStore(db)
 	state := sqlite.NewRunStore(db)
-	draft := execution.RunDraft{RunID: "run_1", SessionID: "ses_1", CreatedAt: time.Unix(1, 0).UTC()}
+	draft := execution.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: time.Unix(1, 0).UTC()}
 	if err := state.Admit(ctx, draft); err != nil {
 		t.Fatalf("admit: %v", err)
 	}

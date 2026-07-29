@@ -53,6 +53,28 @@ func WireFields(owner reflect.Type) []WireField {
 	return out
 }
 
+// WireEmbeds lists the wire shapes owner composes by embedding, outermost first.
+// Their fields are inlined into owner's frame, so anything true of those fields
+// is true of owner — which is what lets a rule declared for the embedded shape
+// follow it rather than being restated.
+func WireEmbeds(owner reflect.Type) []reflect.Type {
+	owner = Deref(owner)
+	if owner.Kind() != reflect.Struct {
+		return nil
+	}
+	var out []reflect.Type
+	for index := range owner.NumField() {
+		field := owner.Field(index)
+		if _, options := wireNameOf(field); !options.embedded {
+			continue
+		}
+		embedded := Deref(field.Type)
+		out = append(out, embedded)
+		out = append(out, WireEmbeds(embedded)...)
+	}
+	return out
+}
+
 // WireFieldNames lists just the names, for a caller checking coverage.
 func WireFieldNames(owner reflect.Type) []string {
 	fields := WireFields(owner)

@@ -663,7 +663,7 @@ export interface ListItemsRequest {
 export interface ListItemsResponse {
   data: Item[];
   nextCursor?: string;
-  runs: RunRef[];
+  runs: RunSummary[];
 }
 
 export interface ListModelsRequest {
@@ -1001,6 +1001,7 @@ export interface RunProgress {
 }
 
 export interface RunRef {
+  activeSegmentId?: string;
   createdAt?: string;
   finishedAt?: string;
   id: string;
@@ -1008,7 +1009,9 @@ export interface RunRef {
   metrics: RunMetrics;
   model?: string;
   outcome?: RunOutcome;
+  parentRunId?: string;
   provider?: string;
+  rootRunId?: string;
   sessionId: string;
   spawnedByItemId?: string;
   status?: RunStatus;
@@ -1024,6 +1027,20 @@ export interface RunScheduleNowResponse {
 }
 
 export type RunStatus = "running" | "waiting" | "finished";
+
+export interface RunSummary {
+  createdAt?: string;
+  finishedAt?: string;
+  id: string;
+  model?: string;
+  outcome?: RunOutcome;
+  parentRunId?: string;
+  provider?: string;
+  rootRunId?: string;
+  sessionId: string;
+  spawnedByItemId?: string;
+  status?: RunStatus;
+}
 
 export interface RuntimeLimits {
   maxConcurrentRuns?: number;

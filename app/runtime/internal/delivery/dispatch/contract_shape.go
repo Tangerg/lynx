@@ -160,8 +160,35 @@ type Shapes struct {
 	values      []FieldConstraintSpec
 }
 
-func (s *Shapes) Unions() []UnionSpec                     { return s.unions }
-func (s *Shapes) Constraints() []ObjectConstraintSpec     { return s.constraints }
+func (s *Shapes) Unions() []UnionSpec { return s.unions }
+
+// Constraints returns every registered rule PLUS the rules a shape inherits by
+// embedding another constrained shape.
+//
+// encoding/json inlines an embedded struct's fields, so a rule about those fields
+// is true of the embedding type too — but nothing said so, and a rule registered
+// for RunSummary silently stopped applying to the RunRef that carries it. The
+// inheritance is READ OFF the Go embedding rather than declared, because the
+// embedding is already the declaration: a second statement of "RunRef composes
+// RunSummary" could disagree with the struct.
+func (s *Shapes) Constraints() []ObjectConstraintSpec {
+	byType := make(map[reflect.Type]ObjectConstraintSpec, len(s.constraints))
+	for _, spec := range s.constraints {
+		byType[spec.GoType] = spec
+	}
+	out := make([]ObjectConstraintSpec, 0, len(s.constraints))
+	for _, spec := range s.constraints {
+		for _, embedded := range protocol.WireEmbeds(spec.GoType) {
+			inherited, ok := byType[embedded]
+			if !ok {
+				continue
+			}
+			spec.Rules = append(slices.Clone(inherited.Rules), spec.Rules...)
+		}
+		out = append(out, spec)
+	}
+	return out
+}
 func (s *Shapes) StateKeys() []StateKeySpec               { return s.stateKeys }
 func (s *Shapes) Carried() []CarriedSpec                  { return s.carried }
 func (s *Shapes) ValueConstraints() []FieldConstraintSpec { return s.values }

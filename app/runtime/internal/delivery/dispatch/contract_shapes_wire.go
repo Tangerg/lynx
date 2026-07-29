@@ -264,11 +264,14 @@ func registerObjectConstraints(s *Shapes) {
 	// A finished Run explains itself, and a run that has not finished does not
 	// pretend to. Without the first rule `status:"finished"` with no outcome is
 	// representable and a client cannot tell "it ended" from "it ended somehow";
-	// without the second, a waiting run could carry a terminal reason and a client
+	// without the others, a waiting run could carry a terminal reason and a client
 	// would stop offering to resume it (§4.2).
+	//
+	// These are the SUMMARY's rules, so they hold wherever a summary travels — the
+	// page-level runs of items.list as much as a RunRef, which embeds it.
 	s.constraint(ObjectConstraintSpec{
-		GoType: typeOf[protocol.RunRef](),
-		Rules: []PresenceRule{{
+		GoType: typeOf[protocol.RunSummary](),
+		Rules: append([]PresenceRule{{
 			When:     []FieldCondition{{Field: "status", Operator: OperatorEquals, Value: string(protocol.RunStatusFinished)}},
 			Required: []string{"outcome", "finishedAt"},
 		}, {
@@ -277,6 +280,24 @@ func registerObjectConstraints(s *Shapes) {
 		}, {
 			When:      []FieldCondition{{Field: "status", Operator: OperatorEquals, Value: string(protocol.RunStatusWaiting)}},
 			Forbidden: []string{"outcome", "finishedAt"},
+		}}, childLineageRules()...),
+	})
+
+	// A RunRef adds the control field, and it exists exactly while a segment is
+	// executing: without the first rule a running run can arrive with nothing to
+	// attach to, and without the second a client can attach to a stream that
+	// already ended (§4.1).
+	s.constraint(ObjectConstraintSpec{
+		GoType: typeOf[protocol.RunRef](),
+		Rules: []PresenceRule{{
+			When:     []FieldCondition{{Field: "status", Operator: OperatorEquals, Value: string(protocol.RunStatusRunning)}},
+			Required: []string{"activeSegmentId"},
+		}, {
+			When:      []FieldCondition{{Field: "status", Operator: OperatorEquals, Value: string(protocol.RunStatusWaiting)}},
+			Forbidden: []string{"activeSegmentId"},
+		}, {
+			When:      []FieldCondition{{Field: "status", Operator: OperatorEquals, Value: string(protocol.RunStatusFinished)}},
+			Forbidden: []string{"activeSegmentId"},
 		}},
 	})
 
@@ -323,6 +344,30 @@ func registerObjectConstraints(s *Shapes) {
 			Forbidden: []string{"detail"},
 		}},
 	})
+}
+
+// childLineageRules say the three child edges are all-or-none: a run either
+// carries every one of them or is a root (§4.2). Stated as one rule per edge
+// rather than "root forbids them", because presence is the only thing a
+// PresenceRule can condition on and each edge is the condition for the other two.
+//
+// The contract's other half — that neither RunId equals the run's own id — is
+// NOT here. JSON Schema cannot compare two fields, so it could not be one of the
+// three equivalent statements §11.2 asks for; it is an identity invariant of the
+// child-creation transaction, which does not exist while features.subagents is
+// off. It belongs in SystemInvariantSpec when that transaction lands, and fusing
+// an inequality into a presence rule would be one primitive doing two jobs.
+func childLineageRules() []PresenceRule {
+	edges := []string{"spawnedByItemId", "parentRunId", "rootRunId"}
+	rules := make([]PresenceRule, 0, len(edges))
+	for index, edge := range edges {
+		others := append(append([]string{}, edges[:index]...), edges[index+1:]...)
+		rules = append(rules, PresenceRule{
+			When:     []FieldCondition{{Field: edge, Operator: OperatorPresent}},
+			Required: others,
+		})
+	}
+	return rules
 }
 
 // errorTerminalRule is the error terminal's shape, stated once for both unions

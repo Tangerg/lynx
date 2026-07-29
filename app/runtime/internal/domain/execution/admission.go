@@ -23,8 +23,12 @@ var ErrSessionBusy = errors.New("execution: session has a non-terminal run")
 // handles do not belong on the Run row; a parked interrupt records the actual
 // process snapshot id at the point where it is known.
 type RunDraft struct {
-	RunID          string
-	SessionID      string
+	RunID     string
+	SessionID string
+	// SegmentID is the first segment this Run opens with. Admission records it
+	// with the Run, because a Running Run without the segment driving it is a Run
+	// nothing can attach to.
+	SegmentID      string
 	ModelSelection modelref.Selection
 	// Limits is the allowance this Run is admitted under. It is recorded with the
 	// admission and never changes: a resume answers an interrupt, it does not
@@ -64,4 +68,7 @@ func (l RunLimits) IsZero() bool { return l == RunLimits{} }
 type ResumeDraft struct {
 	RunID     string
 	SessionID string
+	// SegmentID is the continuation's fresh segment, which replaces the one the
+	// park cleared — in the same transaction that moves the Run back to Running.
+	SegmentID string
 }

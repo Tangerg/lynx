@@ -127,6 +127,26 @@ describe("the generated wire checks", () => {
     expect(details).toContain("matches no permitted variant");
   });
 
+  // A rule declared for RunSummary has to reach the RunRef that embeds it: the
+  // fields are inlined onto one frame, so a rule that stopped at the summary would
+  // leave the shape a client actually receives unchecked.
+  it("applies an embedded shape's rules to the shape embedding it", () => {
+    const { parentRunId: _parent, ...rootChild } = {
+      ...finishedRun,
+      spawnedByItemId: "item_03",
+      parentRunId: "run_02",
+      rootRunId: "run_02",
+    };
+    // Named once per edge that demands it: the rule is all-or-none stated per edge,
+    // so both surviving edges independently require the missing one.
+    expect(validateWire("RunRef", rootChild)).toEqual([
+      { path: "RunRef.parentRunId", detail: "is required" },
+      { path: "RunRef.parentRunId", detail: "is required" },
+    ]);
+    // The counter-example: all three edges together is what a child looks like.
+    expect(validateWire("RunRef", { ...rootChild, parentRunId: "run_02" })).toEqual([]);
+  });
+
   it("enforces a cross-field presence rule", () => {
     expect(validateWire("RunRef", finishedRun)).toEqual([]);
     const { outcome: _outcome, ...unexplained } = finishedRun;

@@ -183,7 +183,7 @@ func TestCommitOpeningAdmitsAndProjectsInOneTransaction(t *testing.T) {
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
 	effects := testEffects(stores, Config{RunState: runState, Tx: tx.run})
-	draft := execution.RunDraft{RunID: "run_1", SessionID: "ses_1"}
+	draft := execution.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open"}
 
 	err := effects.CommitOpening(context.Background(), runs.OpeningCommit{
 		Admit: &draft,
@@ -207,7 +207,7 @@ func TestCommitOpeningConsumesInterruptAndResumes(t *testing.T) {
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
 	effects := testEffects(stores, Config{RunState: runState, Tx: tx.run})
-	resume := execution.ResumeDraft{RunID: "run_1", SessionID: "ses_1"}
+	resume := execution.ResumeDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_next"}
 
 	err := effects.CommitOpening(context.Background(), runs.OpeningCommit{
 		Resume: &resume,

@@ -1,7 +1,6 @@
 {
   "id": "run_02",
   "sessionId": "ses_01",
-  "spawnedByItemId": "item_03",
   "model": "claude-opus-4-8",
   "provider": "anthropic",
   "status": "finished",

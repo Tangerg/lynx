@@ -1065,10 +1065,24 @@ main 不动，损失只是当次未提交的工作。
 | `TestProtocolVersionAgreesEverywhere` | **C16** | 只改一处常量，这条会点名每份还写旧版本的 canonical 文档 |
 | gate 15/16/17/18 | C 的产出**就是**它们的输入 | 16/17 的 compatibility diff 需要一个 **baseline 产物快照**才有意义 —— ✅ 基线已在 C 开工前取：`internal/arch/testdata/baseline/{manifest,schema}.json`（切换前 `contract/` 的逐字节副本，`protocol.current = 2026-07-19`）。**只存这两份**：它们分别是方法/能力/错误面与 shape 面的权威投影，`openrpc.json` 是二者的再表述，diff 读它就多了一套说法。基线不可事后重建，所以先取；两条 gate 本身在 C16 落（版本翻转前"breaking 但没 bump"必然红，那是分支中段的真实状态，不是缺陷） |
 
-**C2 的"同一嵌入定义生成三方"**：Go 用嵌入 `RunSummary` 到 `RunRef`；`protocol.WireFields` 已经会把 embedded
-struct 的字段内联（`encoding/json` 语义），所以 schema/TS 会自动拿到扁平化的字段 —— 但那意味着**TS 侧不会自动
-产生 `extends`**。要 TS 真的 `interface RunRef extends RunSummary`，得让 TS emitter 认识"这个 def 的字段是某个
-已发布 def 的超集"。**先决定要不要这条**：契约只要求"禁止手工复制两套同名字段"（嵌入已满足），没要求 TS 语法上继承。
+**C2 的"同一嵌入定义生成三方" —— ✅ 已裁决（2026-07-29，做 C2 时）：TS 不做语法继承。**
+
+Go 嵌入 `RunSummary` 到 `RunRef`，`protocol.WireFields` 按 `encoding/json` 语义把 embedded 字段内联，schema/TS
+拿到扁平 `RunRef`。**不让 TS emitter 产生 `extends`**，三条理由：
+
+1. 契约要求的是**一个定义**（"禁止手工复制两套同名字段"），不是一种语法；嵌入已经满足。
+2. TS 的结构化类型已经给了客户端 `extends` 想给的可替换性 —— 扁平 `RunRef` 本来就能传给要 `RunSummary` 的地方。
+3. 让 emitter 按"字段集是某已发布 def 的超集"推断继承，就是**从形状反推意图**：两个无关 shape 恰好成超集关系时
+   会静默获得一条继承边，那是published contract 里的一句假话 —— 换了衣服的"第二真相源"。而**声明**一条继承关系，
+   又是把 Go 嵌入已经说过的事再说一遍。
+
+**`RunSummary` 的 root/child lineage 约束怎么落 —— ✅ 已裁决**：登记为**三条 `OperatorPresent` 规则**（三个 child
+edge 任一存在则另两个必需 = all-or-none），这是 schema 能表达的部分。契约 §4.2 括号里的"两个 RunId 均不等于 `id`"
+**不是 frame constraint**：JSON Schema 2020-12 无 `$data`，**表达不了字段间不等式**，而 §11.2 要求这些约束生成
+"JSON Schema `if/then` 与等价 `Validate()`" —— 没有 schema 表达就谈不上等价。它的正确归属是 **child 创建事务的
+identity 不变量**（同 `goal_never_outlives_its_session` 那一类）；D2 下本轮没有 child 创建事务，现在登记就是给一个
+不存在的边界写 spec。**做子 Run 时把它登记进 `SystemInvariantSpec`，别塞进 `PresenceRule`** —— 把不等式融进
+presence 原语正是"一 keyword 一原语"禁的那种融合。
 
 **每 slice 反泄露 DoD**：新增 wire 概念不得在 presenter 产生业务判断（对照 §4.3 归属表）。
 

@@ -2869,7 +2869,7 @@
         "runs": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/RunRef"
+            "$ref": "#/$defs/RunSummary"
           }
         }
       },
@@ -4257,6 +4257,9 @@
     "RunRef": {
       "type": "object",
       "properties": {
+        "activeSegmentId": {
+          "type": "string"
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time"
@@ -4280,7 +4283,13 @@
         "outcome": {
           "$ref": "#/$defs/RunOutcome"
         },
+        "parentRunId": {
+          "type": "string"
+        },
         "provider": {
+          "type": "string"
+        },
+        "rootRunId": {
           "type": "string"
         },
         "sessionId": {
@@ -4352,6 +4361,96 @@
               "outcome": false
             }
           }
+        },
+        {
+          "if": {
+            "required": [
+              "spawnedByItemId"
+            ]
+          },
+          "then": {
+            "required": [
+              "parentRunId",
+              "rootRunId"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "parentRunId"
+            ]
+          },
+          "then": {
+            "required": [
+              "rootRunId",
+              "spawnedByItemId"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "rootRunId"
+            ]
+          },
+          "then": {
+            "required": [
+              "parentRunId",
+              "spawnedByItemId"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "running"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "activeSegmentId"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "waiting"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "activeSegmentId": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "finished"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "activeSegmentId": false
+            }
+          }
         }
       ]
     },
@@ -4388,6 +4487,145 @@
         "running",
         "waiting",
         "finished"
+      ]
+    },
+    "RunSummary": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finishedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "id": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/RunOutcome"
+        },
+        "parentRunId": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "rootRunId": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "spawnedByItemId": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/RunStatus"
+        }
+      },
+      "required": [
+        "id",
+        "sessionId"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "finished"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "finishedAt",
+              "outcome"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "running"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "finishedAt": false,
+              "outcome": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "waiting"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "finishedAt": false,
+              "outcome": false
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "spawnedByItemId"
+            ]
+          },
+          "then": {
+            "required": [
+              "parentRunId",
+              "rootRunId"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "parentRunId"
+            ]
+          },
+          "then": {
+            "required": [
+              "rootRunId",
+              "spawnedByItemId"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "rootRunId"
+            ]
+          },
+          "then": {
+            "required": [
+              "parentRunId",
+              "spawnedByItemId"
+            ]
+          }
+        }
       ]
     },
     "RuntimeLimits": {

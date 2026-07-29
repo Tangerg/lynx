@@ -19,7 +19,7 @@ import (
 func (f *fakeRuntime) StartRun(_ context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
 	events := slices.Values([]protocol.RunEvent{
 		{RunID: "run_x", EventID: "evt_00000000001",
-			Event: protocol.StreamEvent{Type: protocol.StreamSegmentStarted, Run: &protocol.RunRef{ID: "run_x", SessionID: in.SessionID}}},
+			Event: protocol.StreamEvent{Type: protocol.StreamSegmentStarted, Run: &protocol.RunRef{RunSummary: protocol.RunSummary{ID: "run_x", SessionID: in.SessionID}, ActiveSegmentID: "seg_x"}}},
 		{RunID: "run_x", EventID: "evt_00000000002",
 			Event: protocol.StreamEvent{Type: protocol.StreamSegmentFinished, Outcome: &protocol.SegmentOutcome{Type: protocol.SegmentOutcomeType(protocol.OutcomeCompleted)}, Metrics: &protocol.RunMetrics{}}},
 	})

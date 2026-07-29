@@ -1,0 +1,15 @@
+{
+  "id": "run_04",
+  "sessionId": "ses_01",
+  "spawnedByItemId": "item_03",
+  "parentRunId": "run_02",
+  "rootRunId": "run_02",
+  "model": "claude-opus-4-8",
+  "provider": "anthropic",
+  "status": "finished",
+  "createdAt": "2026-07-07T10:00:02Z",
+  "finishedAt": "2026-07-07T10:00:09Z",
+  "outcome": {
+    "type": "completed"
+  }
+}

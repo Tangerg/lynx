@@ -74,7 +74,7 @@ func putParkedState(t *testing.T, transcripts *sqlite.TranscriptStore, ints *sql
 }
 
 func runDraft(runID, sessionID string) execution.RunDraft {
-	return execution.RunDraft{RunID: runID, SessionID: sessionID, CreatedAt: runCreatedAt}
+	return execution.RunDraft{RunID: runID, SessionID: sessionID, SegmentID: "seg_open", CreatedAt: runCreatedAt}
 }
 
 // finishedRun is the terminal record a segment hands to Terminalize: the outcome
@@ -153,7 +153,7 @@ func TestParkCommitsInterruptAndSuspendAtomically(t *testing.T) {
 		t.Fatalf("interrupt survived a rolled-back park: %+v", open)
 	}
 	// Still running (not interrupted): a rolled-back Suspend left the state intact.
-	if err := runStore.Resume(ctx, execution.ResumeDraft{RunID: "run_1", SessionID: "ses_A"}); err == nil {
+	if err := runStore.Resume(ctx, execution.ResumeDraft{RunID: "run_1", SessionID: "ses_A", SegmentID: "seg_next"}); err == nil {
 		t.Fatal("resume after rolled-back park must reject the still-running row")
 	}
 	if err := runStore.Admit(ctx, runDraft("run_x", "ses_A")); !errors.Is(err, execution.ErrSessionBusy) {
@@ -275,7 +275,7 @@ func TestSuspendResumeReusesOneSlot(t *testing.T) {
 		t.Fatalf("admit while suspended = %v, want ErrSessionBusy (row still non-terminal)", err)
 	}
 	// Resume: back to running, no second row admitted.
-	if err := store.Resume(ctx, execution.ResumeDraft{RunID: "run_1", SessionID: "ses_A"}); err != nil {
+	if err := store.Resume(ctx, execution.ResumeDraft{RunID: "run_1", SessionID: "ses_A", SegmentID: "seg_next"}); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
 	if err := store.Admit(ctx, runDraft("run_3", "ses_A")); !errors.Is(err, execution.ErrSessionBusy) {
@@ -567,7 +567,7 @@ func TestReconcileOrphansRejectsUnmappedRunningItem(t *testing.T) {
 func TestReconcileOrphansRejectsParkModelMismatch(t *testing.T) {
 	store, ints, transcripts, processes := newRunRecoveryStores(t)
 	ctx := t.Context()
-	if err := store.Admit(ctx, execution.RunDraft{
+	if err := store.Admit(ctx, execution.RunDraft{SegmentID: "seg_open",
 		RunID: "run_park", SessionID: "ses_park", ModelSelection: testModelSelection(t, "openai", "gpt-test"), CreatedAt: time.Unix(0, 0),
 	}); err != nil {
 		t.Fatalf("admit: %v", err)
@@ -679,9 +679,9 @@ func TestListRunningSeesOnlyWorkInProgress(t *testing.T) {
 	store, _ := newRunStores(t)
 
 	for _, draft := range []execution.RunDraft{
-		{RunID: "run_live", SessionID: "ses_A", CreatedAt: time.Unix(0, 20)},
-		{RunID: "run_parked", SessionID: "ses_B", CreatedAt: time.Unix(0, 10)},
-		{RunID: "run_done", SessionID: "ses_C", CreatedAt: time.Unix(0, 30)},
+		{RunID: "run_live", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: time.Unix(0, 20)},
+		{RunID: "run_parked", SessionID: "ses_B", SegmentID: "seg_open", CreatedAt: time.Unix(0, 10)},
+		{RunID: "run_done", SessionID: "ses_C", SegmentID: "seg_open", CreatedAt: time.Unix(0, 30)},
 	} {
 		if err := store.Admit(ctx, draft); err != nil {
 			t.Fatalf("admit %s: %v", draft.RunID, err)
@@ -724,9 +724,9 @@ func TestListRunningOrdersByAdmission(t *testing.T) {
 	store, _ := newRunStores(t)
 
 	for _, draft := range []execution.RunDraft{
-		{RunID: "run_c", SessionID: "ses_C", CreatedAt: time.Unix(0, 30)},
-		{RunID: "run_a", SessionID: "ses_A", CreatedAt: time.Unix(0, 10)},
-		{RunID: "run_b", SessionID: "ses_B", CreatedAt: time.Unix(0, 20)},
+		{RunID: "run_c", SessionID: "ses_C", SegmentID: "seg_open", CreatedAt: time.Unix(0, 30)},
+		{RunID: "run_a", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: time.Unix(0, 10)},
+		{RunID: "run_b", SessionID: "ses_B", SegmentID: "seg_open", CreatedAt: time.Unix(0, 20)},
 	} {
 		if err := store.Admit(ctx, draft); err != nil {
 			t.Fatalf("admit %s: %v", draft.RunID, err)
@@ -753,9 +753,9 @@ func TestListRunningSeeksPastItsAnchor(t *testing.T) {
 	store, _ := newRunStores(t)
 
 	for _, draft := range []execution.RunDraft{
-		{RunID: "run_a", SessionID: "ses_A", CreatedAt: time.Unix(0, 10)},
-		{RunID: "run_b", SessionID: "ses_B", CreatedAt: time.Unix(0, 10)},
-		{RunID: "run_c", SessionID: "ses_C", CreatedAt: time.Unix(0, 20)},
+		{RunID: "run_a", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: time.Unix(0, 10)},
+		{RunID: "run_b", SessionID: "ses_B", SegmentID: "seg_open", CreatedAt: time.Unix(0, 10)},
+		{RunID: "run_c", SessionID: "ses_C", SegmentID: "seg_open", CreatedAt: time.Unix(0, 20)},
 	} {
 		if err := store.Admit(ctx, draft); err != nil {
 			t.Fatalf("admit %s: %v", draft.RunID, err)

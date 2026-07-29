@@ -207,6 +207,7 @@ export type WireTypeName =
   | "RunScheduleNowRequest"
   | "RunScheduleNowResponse"
   | "RunStatus"
+  | "RunSummary"
   | "RuntimeLimits"
   | "SafetyClass"
   | "Schedule"
@@ -1167,7 +1168,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   ListItemsResponse: object({
     data: array(ref(() => CHECKS.Item)),
     nextCursor: text(),
-    runs: array(ref(() => CHECKS.RunRef)),
+    runs: array(ref(() => CHECKS.RunSummary)),
   }, ["data", "runs"]),
   ListModelsRequest: object({
     cursor: text(),
@@ -1545,6 +1546,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, []),
   RunRef: allOf([
     object({
+      activeSegmentId: text(),
       createdAt: text(),
       finishedAt: text(),
       id: text(),
@@ -1552,7 +1554,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       metrics: ref(() => CHECKS.RunMetrics),
       model: text(),
       outcome: ref(() => CHECKS.RunOutcome),
+      parentRunId: text(),
       provider: text(),
+      rootRunId: text(),
       sessionId: text(),
       spawnedByItemId: text(),
       status: ref(() => CHECKS.RunStatus),
@@ -1581,6 +1585,40 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         outcome: absent(),
       }, []),
     ),
+    ifThen(
+      fields({}, ["spawnedByItemId"]),
+      fields({}, ["parentRunId", "rootRunId"]),
+    ),
+    ifThen(
+      fields({}, ["parentRunId"]),
+      fields({}, ["rootRunId", "spawnedByItemId"]),
+    ),
+    ifThen(
+      fields({}, ["rootRunId"]),
+      fields({}, ["parentRunId", "spawnedByItemId"]),
+    ),
+    ifThen(
+      fields({
+        status: literal("running"),
+      }, ["status"]),
+      fields({}, ["activeSegmentId"]),
+    ),
+    ifThen(
+      fields({
+        status: literal("waiting"),
+      }, ["status"]),
+      fields({
+        activeSegmentId: absent(),
+      }, []),
+    ),
+    ifThen(
+      fields({
+        status: literal("finished"),
+      }, ["status"]),
+      fields({
+        activeSegmentId: absent(),
+      }, []),
+    ),
   ]),
   RunScheduleNowRequest: object({
     id: allOf([text(), minLength(1)]),
@@ -1590,6 +1628,57 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     sessionId: text(),
   }, ["runId", "sessionId"]),
   RunStatus: enumOf(["running", "waiting", "finished"]),
+  RunSummary: allOf([
+    object({
+      createdAt: text(),
+      finishedAt: text(),
+      id: text(),
+      model: text(),
+      outcome: ref(() => CHECKS.RunOutcome),
+      parentRunId: text(),
+      provider: text(),
+      rootRunId: text(),
+      sessionId: text(),
+      spawnedByItemId: text(),
+      status: ref(() => CHECKS.RunStatus),
+    }, ["id", "sessionId"]),
+    ifThen(
+      fields({
+        status: literal("finished"),
+      }, ["status"]),
+      fields({}, ["finishedAt", "outcome"]),
+    ),
+    ifThen(
+      fields({
+        status: literal("running"),
+      }, ["status"]),
+      fields({
+        finishedAt: absent(),
+        outcome: absent(),
+      }, []),
+    ),
+    ifThen(
+      fields({
+        status: literal("waiting"),
+      }, ["status"]),
+      fields({
+        finishedAt: absent(),
+        outcome: absent(),
+      }, []),
+    ),
+    ifThen(
+      fields({}, ["spawnedByItemId"]),
+      fields({}, ["parentRunId", "rootRunId"]),
+    ),
+    ifThen(
+      fields({}, ["parentRunId"]),
+      fields({}, ["rootRunId", "spawnedByItemId"]),
+    ),
+    ifThen(
+      fields({}, ["rootRunId"]),
+      fields({}, ["parentRunId", "spawnedByItemId"]),
+    ),
+  ]),
   RuntimeLimits: object({
     maxConcurrentRuns: integer(),
   }, []),

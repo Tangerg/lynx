@@ -41,9 +41,9 @@ func (s *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*
 	for _, item := range page.Items {
 		items = append(items, presentItem(item))
 	}
-	runs := make([]protocol.RunRef, 0, len(page.Runs))
+	runs := make([]protocol.RunSummary, 0, len(page.Runs))
 	for _, run := range page.Runs {
-		runs = append(runs, presentRun(run))
+		runs = append(runs, presentRunSummary(run))
 	}
 	return &protocol.ListItemsResponse{
 		Page: *protocol.NewPageWithCursor(items, page.NextCursor),

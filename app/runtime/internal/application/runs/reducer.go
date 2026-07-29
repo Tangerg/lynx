@@ -138,12 +138,12 @@ func (r *reducer) open() (reductionBatch, error) {
 	if createdAt.IsZero() {
 		createdAt = r.now()
 	}
-	out := []RunEvent{SegmentStarted{Run: transcript.Run{
-		ID: r.cfg.RunID, SessionID: r.cfg.SessionID,
-		ModelSelection: r.cfg.ModelSelection,
-		State:          execution.Running, CreatedAt: createdAt, UpdatedAt: r.now(),
-		MessageMark: transcript.UnknownMessageMark,
-	}}}
+	// The opening Run record goes through runRecord like every other one, so a
+	// resumed segment announces the Run's accrual and allowance rather than a fresh
+	// Run's zeros. Only the creation stamp differs: an opening may have to mint one.
+	opening := r.runRecord(execution.Running)
+	opening.CreatedAt = createdAt
+	out := []RunEvent{SegmentStarted{Run: opening}}
 	out = append(out, r.openUserMessage()...)
 	out = append(out, r.resumeQuestionCompletions()...)
 	return r.project(out)

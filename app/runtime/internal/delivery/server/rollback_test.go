@@ -224,7 +224,7 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 
 	started := time.Now().Add(-time.Minute).UTC().Truncate(time.Second)
-	if err := rt.runs.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: sess.ID, CreatedAt: started}); err != nil {
+	if err := rt.runs.Admit(ctx, execution.RunDraft{SegmentID: "seg_open", RunID: "run_1", SessionID: sess.ID, CreatedAt: started}); err != nil {
 		t.Fatalf("admit run: %v", err)
 	}
 

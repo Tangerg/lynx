@@ -37,6 +37,8 @@ export const WIRE_SAMPLES: readonly WireSample[] = [
   { file: "segment.outcome.interrupt.json", shape: "SegmentOutcome" },
   { file: "segment.outcome.suspended.json", shape: "SegmentOutcome" },
   { file: "runref.full.json", shape: "RunRef" },
+  { file: "runsummary.waiting.json", shape: "RunSummary" },
+  { file: "runsummary.child.json", shape: "RunSummary" },
   { file: "interrupt.approval.json", shape: "Interrupt" },
   { file: "interrupt.question.json", shape: "Interrupt" },
   { file: "interrupt.toolResult.json", shape: "Interrupt" },

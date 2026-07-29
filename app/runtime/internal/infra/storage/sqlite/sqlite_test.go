@@ -345,7 +345,7 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 	ctx := t.Context()
 	now := time.Now().UTC()
 
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_shared", SessionID: "ses_a", CreatedAt: now}); err != nil {
+	if err := runs.Admit(ctx, execution.RunDraft{SegmentID: "seg_open", RunID: "run_shared", SessionID: "ses_a", CreatedAt: now}); err != nil {
 		t.Fatalf("seed run: %v", err)
 	}
 	if err := store.AppendItem(ctx, transcript.Item{
@@ -356,7 +356,7 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 
 	// A run id belongs to one session for its whole lifetime — and the refusal must
 	// say so, not report the innocent session as busy.
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_shared", SessionID: "ses_b", CreatedAt: now}); !errors.Is(err, transcript.ErrIdentityConflict) {
+	if err := runs.Admit(ctx, execution.RunDraft{SegmentID: "seg_open", RunID: "run_shared", SessionID: "ses_b", CreatedAt: now}); !errors.Is(err, transcript.ErrIdentityConflict) {
 		t.Fatalf("re-parent run error = %v, want ErrIdentityConflict", err)
 	}
 	if err := store.AppendItem(ctx, transcript.Item{

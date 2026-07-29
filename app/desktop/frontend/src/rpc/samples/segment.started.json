@@ -19,7 +19,8 @@
         "maxSteps": 20,
         "maxBudgetUsd": 4
       },
-      "createdAt": "2026-07-07T10:00:00Z"
+      "createdAt": "2026-07-07T10:00:00Z",
+      "activeSegmentId": "seg_01"
     }
   }
 }

@@ -396,7 +396,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 		ItemID: "item_park", Kind: transcript.QuestionInterrupt, Question: question,
 	}}
 
-	if err := cfg.RunStore.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, CreatedAt: createdAt}); err != nil {
+	if err := cfg.RunStore.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, SegmentID: "seg_open", CreatedAt: createdAt}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	if err := cfg.RunStore.Suspend(ctx, transcript.Run{

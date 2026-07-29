@@ -23,22 +23,34 @@ func presentRunStatus(state execution.RunState) protocol.RunStatus {
 	}
 }
 
-func presentRun(run transcript.Run) protocol.RunRef {
-	ref := protocol.RunRef{
+// presentRunSummary maps the identity and lifecycle half — what a cold read hands
+// back in bulk.
+func presentRunSummary(run transcript.Run) protocol.RunSummary {
+	summary := protocol.RunSummary{
 		ID: run.ID, SessionID: run.SessionID, SpawnedByItemID: run.SpawnedByItemID,
 		Provider: run.ModelSelection.Provider(), Model: run.ModelSelection.Model(),
 		Status:    presentRunStatus(run.State),
-		Metrics:   presentMetrics(run.Metrics),
-		Limits:    presentLimits(run.Limits),
 		CreatedAt: run.CreatedAt, FinishedAt: run.FinishedAt,
 	}
 	// A waiting run has no outcome: what it is waiting on is the answer, and the
 	// interrupts carry that.
 	if run.State.IsTerminal() {
 		outcome := presentOutcome(run)
-		ref.Outcome = &outcome
+		summary.Outcome = &outcome
 	}
-	return ref
+	// The child edges have no source: a session runs one root run, so there is
+	// nothing to project until features.subagents turns child runs on. Their
+	// absence is what makes every projected run a root.
+	return summary
+}
+
+func presentRun(run transcript.Run) protocol.RunRef {
+	return protocol.RunRef{
+		RunSummary:      presentRunSummary(run),
+		ActiveSegmentID: run.ActiveSegmentID,
+		Metrics:         presentMetrics(run.Metrics),
+		Limits:          presentLimits(run.Limits),
+	}
 }
 
 // presentSegmentFinished maps the run record a segment ended with onto the pair

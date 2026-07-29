@@ -62,6 +62,14 @@ var CanonicalSamples = []CanonicalSample{
 	{"segment.outcome.interrupt.json", reflect.TypeFor[SegmentOutcome]()},
 	{"segment.outcome.suspended.json", reflect.TypeFor[SegmentOutcome]()},
 	{"runref.full.json", reflect.TypeFor[RunRef]()},
+	// A summary travels on its own on the cold read, and a waiting run is the one
+	// state with no outcome to explain it — the pair a full RunRef cannot show.
+	{"runsummary.waiting.json", reflect.TypeFor[RunSummary]()},
+	// The three child edges are all-or-none, and only a child carries them. Like
+	// the suspended segment outcome, nothing produces this frame until
+	// features.subagents is on — it is published so the rule has the shape it
+	// permits on record, beside the root frames that must not carry the edges.
+	{"runsummary.child.json", reflect.TypeFor[RunSummary]()},
 	{"interrupt.approval.json", reflect.TypeFor[Interrupt]()},
 	{"interrupt.question.json", reflect.TypeFor[Interrupt]()},
 	{"interrupt.toolResult.json", reflect.TypeFor[Interrupt]()},

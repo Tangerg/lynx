@@ -340,7 +340,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	}
 	rt.history[ses.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("waiting"))}
 	parkedAt := time.Unix(1, 0).UTC()
-	if err := rt.runs.Admit(ctx, execution.RunDraft{
+	if err := rt.runs.Admit(ctx, execution.RunDraft{SegmentID: "seg_open",
 		RunID: "run_parked", SessionID: ses.ID, CreatedAt: parkedAt,
 	}); err != nil {
 		t.Fatalf("admit parked run: %v", err)

@@ -58,14 +58,17 @@ func (s *RunStore) Admit(ctx context.Context, draft execution.RunDraft) error {
 	if draft.CreatedAt.IsZero() {
 		return fmt.Errorf("sqlite: admit run %q: admission time is required", draft.RunID)
 	}
+	if draft.SegmentID == "" {
+		return fmt.Errorf("sqlite: admit run %q: opening segment is required", draft.RunID)
+	}
 	if err := draft.Limits.Validate(); err != nil {
 		return fmt.Errorf("sqlite: admit run %q: %w", draft.RunID, err)
 	}
 	now := draft.CreatedAt.UTC().UnixNano()
 	_, err := conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO runs(run_id, session_id, state, provider, model, max_steps, max_budget_usd, message_mark, started_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		draft.RunID, draft.SessionID, runStateRunning,
+		`INSERT INTO runs(run_id, session_id, state, active_segment_id, provider, model, max_steps, max_budget_usd, message_mark, started_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		draft.RunID, draft.SessionID, runStateRunning, draft.SegmentID,
 		draft.ModelSelection.Provider(), draft.ModelSelection.Model(),
 		draft.Limits.MaxSteps, draft.Limits.MaxBudgetUSD,
 		transcript.UnknownMessageMark, now, now)
@@ -112,8 +115,10 @@ func (s *RunStore) Suspend(ctx context.Context, run transcript.Run) error {
 		if next != run.State {
 			return fmt.Errorf("sqlite: suspend run: %s reaches %s, not the recorded %s", current, next, run.State)
 		}
+		// The segment identity is cleared in the same statement that parks the Run:
+		// a Run waiting on a person has no segment to attach to.
 		res, err := conn(ctx, s.db).ExecContext(ctx,
-			`UPDATE runs SET state = ?, steps = ?, active_duration_ns = ?, usage = ?, updated_at = ?
+			`UPDATE runs SET state = ?, active_segment_id = '', steps = ?, active_duration_ns = ?, usage = ?, updated_at = ?
 			 WHERE session_id = ? AND run_id = ? AND state = ?`,
 			coarseState(next), metrics.steps, metrics.durationNs, metrics.usage, runUpdatedAt(run),
 			run.SessionID, run.ID, coarseState(current))
@@ -131,6 +136,9 @@ func (s *RunStore) Suspend(ctx context.Context, run transcript.Run) error {
 // transitions it is strict: a missing/mismatched/already-running row means the
 // continuation opening does not own the durable Run and must roll back.
 func (s *RunStore) Resume(ctx context.Context, draft execution.ResumeDraft) error {
+	if draft.SegmentID == "" {
+		return fmt.Errorf("sqlite: resume run %q: continuation segment is required", draft.RunID)
+	}
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
 		cur, found, err := s.stateForRun(ctx, draft.SessionID, draft.RunID)
 		if err != nil {
@@ -143,12 +151,13 @@ func (s *RunStore) Resume(ctx context.Context, draft execution.ResumeDraft) erro
 		if !ok {
 			return fmt.Errorf("sqlite: resume run: illegal transition from %s", cur)
 		}
-		// Only the state moves: a continuation inherits the accrual the park
-		// committed, and the segment that is now opening has consumed nothing yet.
+		// The accrual is untouched: a continuation inherits what the park committed,
+		// and the segment now opening has consumed nothing yet. What does move is the
+		// segment identity, which the park cleared and this one replaces.
 		res, err := conn(ctx, s.db).ExecContext(ctx,
-			`UPDATE runs SET state = ?, updated_at = ?
+			`UPDATE runs SET state = ?, active_segment_id = ?, updated_at = ?
 			 WHERE session_id = ? AND run_id = ? AND state = ?`,
-			coarseState(next), time.Now().UTC().UnixNano(),
+			coarseState(next), draft.SegmentID, time.Now().UTC().UnixNano(),
 			draft.SessionID, draft.RunID, coarseState(cur))
 		if err != nil {
 			return fmt.Errorf("sqlite: resume run: %w", err)
@@ -220,7 +229,7 @@ func (s *RunStore) finish(
 		}
 		res, err := conn(ctx, s.db).ExecContext(ctx,
 			`UPDATE runs SET
-			   state = ?, outcome = ?, detail = ?, steps = ?, active_duration_ns = ?,
+			   state = ?, active_segment_id = '', outcome = ?, detail = ?, steps = ?, active_duration_ns = ?,
 			   usage = ?, problem = ?, message_mark = ?, finished_at = ?, updated_at = ?
 			 WHERE session_id = ? AND run_id = ? AND state = ?`,
 			coarseState(next), run.Outcome.String(), run.Detail, metrics.steps, metrics.durationNs,
@@ -353,7 +362,7 @@ func (s *RunStore) ListRunning(ctx context.Context, sessionID string, afterStart
 
 // runColumns is the whole Run row, joined with the open interrupts a parked Run
 // is waiting on — kept in the interrupts table so one park is one record.
-const runColumns = `r.run_id, r.session_id, r.spawned_by_item_id, r.state, r.outcome,
+const runColumns = `r.run_id, r.session_id, r.spawned_by_item_id, r.state, r.active_segment_id, r.outcome,
 	r.provider, r.model, r.detail, r.steps, r.active_duration_ns, r.usage, r.problem,
 	r.max_steps, r.max_budget_usd,
 	r.message_mark, r.started_at, r.finished_at, r.updated_at, i.payload`
