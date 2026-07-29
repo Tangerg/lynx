@@ -1,11 +1,11 @@
 # Lyra Runtime API 最终一致性收口计划
 
 > 作者：Codex
-> 状态：`A-TRACK DONE / B1.3 IN PROGRESS`
+> 状态：`A-TRACK DONE / B1.3b IN PROGRESS`
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
-> 当前实施基线：`main@0d45e5839`（B1.2d）
+> 当前实施基线：`main@882bffb7f`（B1.3a）
 > 目标协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 目标 Artifact：`SessionArtifactVersion = 7`
 
@@ -209,7 +209,7 @@ cd app/desktop/frontend && npm run check
 | A5 | capability gate 与 disabled-subagent seam 收口 | `DONE` | 2026-07-30 完成 | shared policy、durable identity gates、全量 gates |
 | A6 | Registry fail-closed 与 SSOT 清理 | `DONE` | 2026-07-30 完成 | defensive views、closed metadata、effective errors、全量 gates |
 | A7 | canonical docs 与最终 conformance sweep | `DONE` | 2026-07-30 完成 | §12.4 conformance matrix、全量 gates |
-| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.3 tree interrupt barrier 与 resume | B1.1–B1.2d 已完成；启用条件见 §11 |
+| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.3b 全量响应与整树 resume | B1.1–B1.3a 已完成；启用条件见 §11 |
 
 A1–A7 已全部完成，当前没有 A-track slice 处于 `IN PROGRESS`。B1 保持独立项目，
 已按 breaking-first 策略开始实施；不得通过打开 feature flag、复用 root identity
@@ -508,7 +508,7 @@ consumer 闭环就不能诚实发布 capability。
 |---|---|---|---|
 | B1.1 | durable Run-tree identity 与 root admission | `DONE` | 三条 child edge 单一领域不变量、SQLite epoch 41、root-only active index、root-owned profile、Artifact/tree validation |
 | B1.2 | first-class child Run producer 与 source routing | `DONE` | causal identity、acknowledged opening、独立 Segment/Item/metrics、递归/并发/失败 conformance 全部闭环 |
-| B1.3 | tree interrupt barrier 与 resume | `IN PROGRESS` | direct Interrupt union、non-source suspended、tree quiescence、完整 set consume、survivor 新 Segment |
+| B1.3 | tree interrupt barrier 与 resume | `IN PROGRESS` | B1.3a 已完成完整树级 barrier；尚需全量 response consume、整树新 Segment 与恢复执行 |
 | B1.4 | unified root/child cancellation | `TODO` | tree arbiter、Running/Waiting child subtree transaction、parent `child_run_canceled`、exact root+child response |
 | B1.5 | durable query、subscribe 与 cold recovery | `TODO` | descendant paging、child items/subscribe、restart tree query/recovery、root stream replay scope |
 | B1.6 | frontend Run-tree consumer | `TODO` | reducer 按 source Run fold、树折叠/状态/取消交互、cold refetch 与 replay 恢复 |
@@ -527,6 +527,14 @@ B1.2 内部原子切片：
 | B1.2b2 | `DONE` | acknowledged child opening；parent running Item + child Run admission 同事务；commit 成功前 child 不执行 |
 | B1.2c | `DONE` | per-child reducer、独立 Segment/Item/metrics、root Journal 多 source publication |
 | B1.2d | `DONE` | 并发 sibling/嵌套 child/失败回滚 conformance 与 B1.2 收口 |
+
+B1.3 内部原子切片：
+
+| Slice | 状态 | 边界 |
+|---|---|---|
+| B1.3a | `DONE` | Agent Runtime 发现完整 direct suspension set；application 将任一 source suspension 提升为 root-owned tree barrier；所有 active Runs 后序原子挂起；non-source Run 投影 `suspended`；SQLite epoch 42 持久化 continuations 与 item→suspension 精确绑定 |
+| B1.3b | `IN PROGRESS` | `runs.resume` 必须校验并接受完整 response set；一次性 consume root-owned pending set；所有 survivor 原子打开新 Segment；executor 逐项回答对应 suspension 后恢复整树 |
+| B1.3c | `TODO` | resume / terminal / cancel 竞态、重复响应、失败补偿、跨进程重启、确定性发布顺序与完整 conformance sweep |
 
 ---
 
@@ -1305,6 +1313,71 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
     B1.4–B1.6；
   - `features.subagents.enabled` 继续保持 false。
 
+### 2026-07-30 — B1.3a
+
+- 状态：`DONE`
+- Commit：`882bffb7f`（`feat(runtime): atomically suspend active run trees`）
+- 目标：把任一 executor source 的直接 suspension 提升为一份 root-owned
+  Run-tree barrier，并在发布任何等待事实前原子挂起全部 active Runs。
+- 关键裁决：
+  - Agent Runtime 的 `PendingSuspensions(rootProcessID)` 只返回真实 direct waits，
+    排除 parent 为传播控制流而持有的 suspension 副本；结果保持稳定的 tool /
+    nested placement 顺序，Prompt 与 Schema 通过 ownership-isolated copy 投影；
+  - turn adapter 不再把某个 root `Suspension()` 伪装成整棵树的等待原因，而是发出
+    `TreeInterrupted{ProcessID,SuspensionID,Interrupt}[]` 控制 payload；
+    reducer-only `TurnInterrupted` 不再允许 executor adapter 直接发出；
+  - application route 在 barrier 时收集完整 active tree，并按 descendants before
+    ancestors、siblings by Run ID、root last 的确定性 postorder 归约。direct source
+    Run 持有自己的 Interrupt；ancestor、sibling 等 non-source Run 进入
+    `Interrupted` 但不复制 payload，wire 因而自然投影为 Segment outcome
+    `suspended`；
+  - `interrupts.Pending` 从 root-only 续跑字段改为一份完整 tree hand-off：
+    `Continuations[]` 显式保存每个 Run/process 的身份、lineage、model、drained
+    tools、createdAt、metrics 与 limits；`Suspensions[]` 双向完整绑定 client-visible
+    item 与 executor suspension。校验拒绝重复、断链、跨 Run 绑定、缺 root 和不完整
+    coverage，不在 resume 时猜测；
+  - `Effects.CommitTreeBarrier` 成为唯一挂起写入口；一个事务同时写入 root-owned
+    pending set、所有 transcript projection 和全部 Run suspend transition。旧的
+    `EventCommit.Interrupt`、per-Run `StateSuspend` 提交及运行时 process lookup
+    全部删除，不双写、不保留兼容入口；
+  - SQLite schema epoch `41 → 42`，interrupt row 只存 root key 与完整
+    continuations / suspension bindings；`root_process_id` 仅作派生唯一约束且读取时
+    与 root continuation 交叉校验。Run query 对每个 child 只物化属于该 Run 的
+    direct Interrupt，non-source suspended Run 的空集合是合法领域状态；
+  - barrier 时间从 durable opening 后、executor activation 前开始计量，waiting
+    时间不计入 active duration；root/child 都使用自身 segment start；
+  - 系统不变量从
+    `parked_run_has_exactly_one_open_interrupt_set` 治本更名为
+    `parked_tree_has_exactly_one_open_interrupt_set`，Contract Registry 的
+    API Reference 与 manifest 已同步生成；
+  - conformance fixture 构造 root → child → grandchild 与并发 sibling，故意逆序
+    上报 direct suspensions，证明 durable commit、continuation 与公开事件仍统一
+    postorder；注入 barrier commit 失败时不发布 question 或 Interrupted Run，
+    executor 进入受控终止。
+- 生成物：
+  - SQLite schema epoch `41 → 42`；
+  - `contract/API_REFERENCE.md`、`contract/manifest.json` 更新 tree-level
+    invariant；
+  - public runtime wire、OpenRPC 与 frontend artifact 未改；本切片改变内部
+    executor/application hand-off 与 durable implementation。
+- 验证：
+  - `cd app/runtime && go test ./... -count=1` → `PASS`
+  - `cd app/runtime && go vet ./...` → `PASS`
+  - `cd app/runtime && staticcheck ./...` → `PASS`
+  - `cd app/runtime && go test -race ./internal/application/runs ./internal/adapter/agentexec/turn ./internal/adapter/runsegment ./internal/infra/storage/sqlite -count=1`
+    → `PASS`
+  - Agent Runtime concurrent/nested suspension discovery、SQLite boot recovery、
+    complete tree postorder、commit failure no-publication、cancel/park arbitration
+    fixtures → `PASS`
+- 残余风险：
+  - 当前 `runs.resume` 仍只接受并传递一个 `Resolution`，不能消费多 suspension
+    response set，也只为 root Run 打开一个 continuation Segment；进入 B1.3b；
+  - restart reconciliation 尚未逐一验证并恢复所有 continuation；resume / cancel /
+    terminal 的完整树级竞态矩阵进入 B1.3c；
+  - parked child subtree cancel、durable child query/replay 与 frontend tree fold
+    仍分别属于 B1.4–B1.6；
+  - `features.subagents.enabled` 继续保持 false。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -1333,21 +1406,28 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 
 ## 18. 下一步
 
-A-track 与 B1.1–B1.2 已收口。下一原子切片是：
+A-track、B1.1–B1.2 与 B1.3a 已收口。下一原子切片是：
 
 ```text
-B1.3 — tree interrupt barrier and resume
+B1.3b — complete response set and whole-tree resume
 ```
 
-B1.3 必须把任一 source child 的直接 Interrupt 提升为 root-tree barrier：先让所有
-active Runs 达到 quiescent，再由 source Run 写 direct `interrupt` outcome，其余受
-barrier 影响的 Runs 写无 payload 的 `suspended` outcome，并以一个 root-owned
-PendingInterruptSet 表达完整等待集合。resume 必须原子 consume 完整 set，为全部
-surviving suspended Runs 创建新的独立 Segment 后才恢复执行。
+B1.3b 必须让 `runs.resume` 接受且只接受当前 root-owned PendingInterruptSet 的完整
+response coverage，并借助 item → process/suspension binding 将每个答案送到唯一
+executor boundary。pending set 只能整体 consume；所有 surviving suspended Runs
+必须在同一 opening transaction 中各获得新的独立 Segment，全部 durable opening
+成功之后 executor 才能恢复整棵树。部分响应、未知 item、重复 item、错误 response
+variant 或某个 survivor opening 失败都不得产生半恢复状态。
 
-该 slice 不提前实现 B1.4 的 subtree cancel，也不把 source Interrupt 复制给 ancestor
-或 sibling。barrier、terminal、resume 竞态必须由 root-tree 单一仲裁边界决定，不能
-依赖 goroutine 到达顺序。
+TurnControl 不能继续以单个 `Resolution` 表达多 suspension barrier；应引入明确的
+ordered answer value，由 application 拥有 coverage 与 durable ordering、adapter
+只负责把已接受答案编码给 Agent Runtime。executor 若一次只能推进一个 suspension，
+adapter 必须在同一已接受 response set 内自动驱动后续 waiting boundary，不能把中间
+状态重新暴露成第二份 application barrier。
+
+该 slice 不提前实现 B1.4 的 subtree cancel。resume、terminal 与 cancel 的最终竞态、
+跨 restart reconciliation 和失败恢复矩阵在 B1.3c 统一收口；任何中间实现都不得用
+root-only compatibility field、单响应 fallback 或旧 pending decoder 过渡。
 
 `features.subagents=false` 必须保持到 producer、tree transaction、interrupt barrier、
 cold recovery、前端 tree reducer 和 §11.3 完整 gates 同时成立。仍采用 breaking-first
