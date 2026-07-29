@@ -1,7 +1,7 @@
 # Lyra Runtime API 最终一致性收口计划
 
 > 作者：Codex
-> 状态：`A-TRACK DONE`（B1 独立延期）
+> 状态：`A-TRACK DONE / B1 IN PROGRESS`
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
@@ -49,12 +49,13 @@
 
 截至 A7 收口，可以判定为：
 
-> **A-track 最终协议一致性已经闭环；完整 child Run 执行能力仍按 B1 独立延期。**
+> **A-track 最终协议一致性已经闭环；完整 child Run 执行能力已进入 B1 独立实施轨道。**
 
 A1–A7 已把旧实施计划未单独追踪的跨层语义逐项修正，并用 Registry、生成物、
 运行时边界、真实 SQLite 生命周期、前端 consumer 和 canonical docs 的交叉证据
-完成复核。`features.subagents=false` 仍是有意的诚实能力声明：它不是 A-track
-遗留兼容，也不应被写成已交付的完整 child Run 能力。
+完成复核。B1.1 已补齐 Run tree 的 durable identity，但
+`features.subagents=false` 仍是有意的诚实能力声明：producer、barrier、tree cancel、
+cold recovery 与前端 tree reducer 全部门槛通过前，不得写成完整 child Run 能力已交付。
 
 本计划不使用粗略完成百分比。一个完整的 Run-tree cancel 与一个 `minItems`
 约束不能按相同权重计算；只记录逐项状态和可复核证据。
@@ -207,10 +208,11 @@ cd app/desktop/frontend && npm run check
 | A5 | capability gate 与 disabled-subagent seam 收口 | `DONE` | 2026-07-30 完成 | shared policy、durable identity gates、全量 gates |
 | A6 | Registry fail-closed 与 SSOT 清理 | `DONE` | 2026-07-30 完成 | defensive views、closed metadata、effective errors、全量 gates |
 | A7 | canonical docs 与最终 conformance sweep | `DONE` | 2026-07-30 完成 | §12.4 conformance matrix、全量 gates |
-| B1 | 完整 child Run producer / tree cancel / barrier | `DEFERRED` | 独立排期 | 启用条件见 §11 |
+| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.2 child producer | B1.1 已完成；启用条件见 §11 |
 
-A1–A7 已全部完成，当前没有 A-track slice 处于 `IN PROGRESS`。B1 仍是独立项目，
-不得通过打开 feature flag 或附加兼容路径并入本轮收口。
+A1–A7 已全部完成，当前没有 A-track slice 处于 `IN PROGRESS`。B1 保持独立项目，
+已按 breaking-first 策略开始实施；不得通过打开 feature flag、复用 root identity
+冒充 child，或附加兼容路径缩短门槛。
 
 ---
 
@@ -495,6 +497,26 @@ B1 是独立的功能实现轨道，不是 A-track 核心协议一致性的兼�
 
 不新增 `runs.cancelChild`，不通过“只改 child 状态”冒充取消完成。
 
+### 11.4 实施切片
+
+切片顺序服从事实依赖：没有 durable tree identity 就不能定义 subtree transaction；
+没有 first-class child producer 就无法证明 barrier/cancel；没有 cold recovery 与前端
+consumer 闭环就不能诚实发布 capability。
+
+| Slice | 边界 | 状态 | 完成定义 |
+|---|---|---|---|
+| B1.1 | durable Run-tree identity 与 root admission | `DONE` | 三条 child edge 单一领域不变量、SQLite epoch 41、root-only active index、root-owned profile、Artifact/tree validation |
+| B1.2 | first-class child Run producer 与 source routing | `TODO` | process→Run identity、child opening transaction、独立 Segment/Item/metrics、root stream 多 source envelope |
+| B1.3 | tree interrupt barrier 与 resume | `TODO` | direct Interrupt union、non-source suspended、tree quiescence、完整 set consume、survivor 新 Segment |
+| B1.4 | unified root/child cancellation | `TODO` | tree arbiter、Running/Waiting child subtree transaction、parent `child_run_canceled`、exact root+child response |
+| B1.5 | durable query、subscribe 与 cold recovery | `TODO` | descendant paging、child items/subscribe、restart tree query/recovery、root stream replay scope |
+| B1.6 | frontend Run-tree consumer | `TODO` | reducer 按 source Run fold、树折叠/状态/取消交互、cold refetch 与 replay 恢复 |
+| B1.7 | conformance sweep 与 capability enablement | `TODO` | §11.3 全部门槛、race/多分支集成/生成物/docs 全绿后才将 feature 改为 true |
+
+B1.1 只建立后续行为不可绕开的权威事实，不把 synthetic child persistence 写成执行能力。
+B1.2 起仍须保持 capability 关闭；任何 slice 失败都不得通过把 child event 重新归到 root
+或只修改一行状态来降级“完成”。
+
 ---
 
 ## 12. A7 —— 最终收口
@@ -558,7 +580,8 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 5. canonical docs 描述实际交付行为；
 6. 没有任何历史兼容路径；
 7. `features.subagents=false` 时所有相关意图显式拒绝；
-8. 若 B1 未完成，台账必须继续将其标为 `DEFERRED`，不得写成完整功能已交付。
+8. 若 B1 未完成，台账必须将其标为 `DEFERRED` 或 `IN PROGRESS`，并逐项保留未完成
+   门槛，不得写成完整功能已交付。
 
 ### 12.4 最终 conformance matrix
 
@@ -979,6 +1002,53 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
   - 完整 child Run producer、tree cancel transaction 与 barrier 仍只属于 B1；
     `features.subagents` 在 B1 全部门槛满足前继续保持 false。
 
+### 2026-07-30 — B1.1
+
+- 状态：`DONE`
+- Commit：`78711d04a`（`feat(runtime): make run tree lineage durable`）
+- 目标：把 child Run 的三条 identity edge、tree admission 与 profile ownership
+  落到同一个 durable 事实模型，为 producer、barrier、cancel 和 cold recovery
+  提供不可猜测的树边界。
+- 关键裁决：
+  - 新增领域值 `execution.RunLineage`，root 必须三字段全空，child 必须
+    `spawnedByItemId/parentRunId/rootRunId` 同时存在，并拒绝 self-parent/self-root；
+    `transcript.Run` 与 `execution.RunDraft` 只保存这三条语义不同的边，不增加 alias；
+  - SQLite schema epoch 直接前进到 `41`；`runs` 增加 immutable
+    `parent_run_id/root_run_id` 与 all-or-none `CHECK`，不写 migration、兼容列或双写；
+  - durable admission 从“一个 Session 一个非终态 Run row”修正为“一个 Session
+    一个非终态 root tree”：partial unique index 只约束 root，child/grandchild
+    共享 root admission；
+  - child admission 在写入前验证 parent/root 存在、同 Session、parent 属于目标
+    root 且两者仍非终态；断链、跨 Session、跨 tree 与 child-owned profile 均明确失败；
+  - protocol profile 只由 root row 持久化；child read 通过 root edge 物化继承，
+    缺 root 或 child 自带 profile 时 fail closed，不保留可分叉副本；
+  - root/parent 索引直接服务后续 subtree traversal；默认 `runs.list` 继续只读 root，
+    不从 transcript Item 反推 root 身份；
+  - Artifact export/import、canonical Snapshot 与 presenter 全量保留三条 child edge；
+    archive 只在 root 携带 profile，restore 在写入前稳定拓扑排序为 parent-first，
+    Snapshot 同时验证 spawning Item 属于直接 parent、root 真实为 root、父链无环且
+    最终恰好到达声明的 `rootRunId`；
+  - `features.subagents.enabled` 保持 false；本 slice 没有 child executor producer、
+    tree barrier、subtree cancel 或前端行为，不以持久化 fixture 冒充功能启用。
+- 生成物：
+  - wire shape 未变化，Registry 生成物无需更新；
+  - SQLite schema epoch `40 → 41`，按 dev 阶段单 epoch 策略硬切换。
+- 验证：
+  - `cd app/runtime && go test ./...` → `PASS`
+  - `cd app/runtime && go vet ./...` → `PASS`
+  - `cd app/runtime && go test -race ./internal/domain/execution/... ./internal/infra/storage/sqlite/... ./internal/application/sessions/... ./internal/delivery/server/...`
+    → `PASS`
+  - root + child + grandchild 共享 admission、第二 root 被拒、跨树/断链拒绝、
+    root-owned profile materialization、Artifact lineage export fixtures → `PASS`
+- 残余风险：
+  - `adapter/agentexec` 仍把 child process observation 从 Run event stream 中过滤，
+    尚无 process→Run identity 与 child opening transaction；
+  - Interrupted Run 仍隐含“自身持有 Interrupt”的 root-only 假设，尚不能表达
+    non-source child 的 `suspended`；进入 B1.3 前必须拆开 Segment outcome 与
+    root PendingInterruptSet；
+  - recovery、cancel 与 live registry 仍按单 root segment owner 工作，分别进入
+    B1.4/B1.5，不能提前打开 capability。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -1007,13 +1077,16 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 
 ## 18. 下一步
 
-A-track 已收口，没有自动开始的下一 slice。后续若决定交付完整 subagent 执行能力，
-按独立项目进入：
+A-track 已收口，B1.1 durable identity 已完成。下一原子切片是：
 
 ```text
-B1 — 完整 child Run producer / tree cancel / barrier
+B1.2 — first-class child Run producer 与 source routing
 ```
 
-B1 必须从 §11 的启用门槛开始，保持 `features.subagents=false` 直到 producer、
-tree transaction、interrupt barrier、cold recovery、前端 tree reducer 和完整 gates
-同时成立。仍采用 breaking-first 策略，不增加过渡 alias、兼容 decoder 或双写路径。
+B1.2 先建立 process↔Run 的明确 identity ownership，以及 child opening transaction、
+独立 Segment/Item/metrics 和 root stream 的多 source envelope；不得把 child observation
+继续归到 root timeline，也不得让 adapter 直接写 delivery DTO 或 SQLite。
+
+`features.subagents=false` 必须保持到 producer、tree transaction、interrupt barrier、
+cold recovery、前端 tree reducer 和 §11.3 完整 gates 同时成立。仍采用 breaking-first
+策略，不增加过渡 alias、兼容 decoder 或双写路径。
