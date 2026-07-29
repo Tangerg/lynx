@@ -5,10 +5,12 @@ import (
 	"go/parser"
 	"go/token"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	appcontract "github.com/Tangerg/lynx/app/runtime/internal/application/contract"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 )
 
 // TestEverySystemInvariantHasAnIntegrationFixture is contract §11.4 gate 8: every
@@ -139,4 +141,42 @@ func assertFixtureProves(t *testing.T, root string, fixture fixtureRef, key stri
 		}
 	}
 	t.Errorf("%s is named as the fixture for %q and does not exist", fixture, key)
+}
+
+// TestEveryStateKeyHasAShapeFixture is the achievable half of contract §11.4
+// gate 14: every first-party state key's published payload is the one the runtime
+// actually emits.
+//
+// The rest of the gate is already structural. The recovery method must be a
+// registered method — the registration refuses one that is not, so a key cannot
+// promise a call no client can make — and scope, writer, feature and stability are
+// declared and projected. What the declaration alone cannot establish is that the
+// PRODUCER agrees: the envelope is a map[string]any, so a key whose value drifted
+// from its published shape looks correct from both ends.
+//
+// The revision / lifecycle half and the state.changed fixture wait for C: today's
+// wire carries state.snapshot with no revision, so there is no policy to pin yet.
+func TestEveryStateKeyHasAShapeFixture(t *testing.T) {
+	root := moduleRoot(t)
+
+	for _, spec := range dispatch.WireShapes().StateKeys() {
+		fixture, ok := stateKeyFixtures[spec.Key]
+		if !ok {
+			t.Errorf("state key %q publishes a payload shape and nothing proves the runtime emits it", spec.Key)
+			continue
+		}
+		assertFixtureProves(t, root, fixture, spec.Key)
+	}
+	for key := range stateKeyFixtures {
+		if !slices.ContainsFunc(dispatch.WireShapes().StateKeys(), func(spec dispatch.StateKeySpec) bool {
+			return spec.Key == key
+		}) {
+			t.Errorf("a fixture claims state key %q, which nothing registers", key)
+		}
+	}
+}
+
+// stateKeyFixtures is the evidence index for the state envelope's keys.
+var stateKeyFixtures = map[string]fixtureRef{
+	"todos": {"internal/delivery/server", "TestStateSnapshotCarriesItsDeclaredTodosPayload"},
 }

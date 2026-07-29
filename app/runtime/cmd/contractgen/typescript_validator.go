@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 )
 
 // The TypeScript validator is COMPILED FROM THE SCHEMA TREE, for the same reason
@@ -49,6 +51,8 @@ func newWireChecks(set *schemaSet) string {
 		fmt.Fprintf(&body, "  %s: %s,\n", name, shift(emitter.compile(set.defs[name]), 1))
 	}
 	body.WriteString("};\n")
+	// Rendered before the import list, because these two are what decide it.
+	payloads := emitter.statePayloads()
 
 	var out strings.Builder
 	out.WriteString(checksHeader)
@@ -60,6 +64,7 @@ func newWireChecks(set *schemaSet) string {
 	}
 	out.WriteString("  ;\n\n")
 	out.WriteString(body.String())
+	out.WriteString(payloads)
 	out.WriteString(checksEntryPoint)
 	return out.String()
 }
@@ -89,6 +94,54 @@ export function validateWire(type: WireTypeName, value: unknown): WireViolation[
   return out;
 }
 `
+
+// statePayloads emits which shape each state key's value is.
+//
+// The state envelope is a map[string]any so a new key needs no wire change, and the
+// cost is that nothing about a key's value is checkable from the envelope's own type.
+// The shape is declared per key; published here, a client can check the value it just
+// received instead of trusting it.
+// statePayloads emits a check per state key.
+//
+// It publishes a CHECK rather than a shape name because a payload need not BE a named
+// shape — todos is a list of one, and no definition is called "TodoSnapshot[]".
+// Naming the element and leaving the arrayness to the reader would publish half of it.
+//
+// The state envelope is a map[string]any so a new key needs no wire change, and the
+// cost is that nothing about a key's value is checkable from the envelope's own type.
+// This is what makes a declared payload enforceable on the client rather than merely
+// documented.
+func (e *checkEmitter) statePayloads() string {
+	keys := dispatch.WireShapes().StateKeys()
+	if len(keys) == 0 {
+		return ""
+	}
+	var out strings.Builder
+	out.WriteString("\n// The shape each state.snapshot key carries.\n")
+	out.WriteString("const STATE_PAYLOADS: Readonly<Record<string, WireCheck>> = {\n")
+	for _, key := range keys {
+		fmt.Fprintf(&out, "  %s: %s,\n", propertyKey(key.Key), shift(e.compile(e.set.walk(key.PayloadType)), 1))
+	}
+	out.WriteString("};\n")
+	out.WriteString(`
+/**
+ * validateStatePayload checks one state.snapshot key's value against the shape
+ * declared for it.
+ *
+ * A key this build does not know is not a violation: the envelope is open by design,
+ * so a newer runtime may carry one, and refusing it would be a client deciding what
+ * the protocol may grow.
+ */
+export function validateStatePayload(key: string, value: unknown): WireViolation[] {
+  const check = STATE_PAYLOADS[key];
+  if (!check) return [];
+  const out: WireViolation[] = [];
+  check(value, key, out);
+  return out;
+}
+`)
+	return out.String()
+}
 
 // compile renders one schema node as a check expression, rendered as if it began at
 // column zero — a container re-indents what it embeds.

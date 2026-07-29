@@ -1973,6 +1973,27 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   WorkspaceSubscribeResponse: object({}, []),
 };
 
+// The shape each state.snapshot key carries.
+const STATE_PAYLOADS: Readonly<Record<string, WireCheck>> = {
+  todos: array(ref(() => CHECKS.TodoSnapshot)),
+};
+
+/**
+ * validateStatePayload checks one state.snapshot key's value against the shape
+ * declared for it.
+ *
+ * A key this build does not know is not a violation: the envelope is open by design,
+ * so a newer runtime may carry one, and refusing it would be a client deciding what
+ * the protocol may grow.
+ */
+export function validateStatePayload(key: string, value: unknown): WireViolation[] {
+  const check = STATE_PAYLOADS[key];
+  if (!check) return [];
+  const out: WireViolation[] = [];
+  check(value, key, out);
+  return out;
+}
+
 /**
  * validateWire reports every way a value fails the published shape, and an empty
  * list when it satisfies it.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { validateWire } from "./wire.validate.generated";
+import { validateStatePayload, validateWire } from "./wire.validate.generated";
 import { WIRE_ENUMS } from "./wire.generated";
 import { WIRE_SAMPLES } from "./wire.samples.generated";
 import requestMeta from "./samples/request.meta.json";
@@ -38,6 +38,20 @@ describe("the canonical wire samples", () => {
 
   it.each(WIRE_SAMPLES)("$file satisfies $shape", ({ file, shape }) => {
     expect(validateWire(shape, sample(file))).toEqual([]);
+  });
+
+  // The state envelope is a map, so its own type says nothing about what a key
+  // carries — the shape is declared per key and only checkable through that
+  // declaration. Without this the canonical snapshot's todos could be anything.
+  it("carries the declared shape under every state key", () => {
+    const snapshot = sample("state.snapshot.json") as {
+      event: { state?: Record<string, unknown> };
+    };
+    const state = snapshot.event.state ?? {};
+    expect(Object.keys(state)).not.toEqual([]);
+    for (const [key, value] of Object.entries(state)) {
+      expect(validateStatePayload(key, value)).toEqual([]);
+    }
   });
 
   // The client advertises the event types it can fold; asking for one the runtime
