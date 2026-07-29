@@ -63,6 +63,7 @@ export const ko: Record<string, string> = {
   "message.code.collapseLabel": "접기",
   "message.code.showLines": "{{count}}줄 표시",
   "message.html.tab.preview": "미리보기",
+  "message.html.tabsAria": "HTML 산출물 보기",
   "message.html.tab.source": "소스",
 
   "msgActions.copy": "메시지 복사",

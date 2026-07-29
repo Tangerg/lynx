@@ -63,6 +63,7 @@ export const ja: Record<string, string> = {
   "message.code.collapseLabel": "折りたたむ",
   "message.code.showLines": "{{count}} 行を表示",
   "message.html.tab.preview": "プレビュー",
+  "message.html.tabsAria": "HTML 成果物の表示",
   "message.html.tab.source": "ソース",
 
   "msgActions.copy": "メッセージをコピー",

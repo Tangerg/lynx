@@ -522,6 +522,14 @@
   --shadow-raised-chip:
     0 1px 1.5px rgb(0 0 0 / 0.04), inset 0 0 0 0.5px rgb(255 255 255 / 0.35),
     inset 0 1px 0 rgb(255 255 255 / 0.5);
+  /* The halo on a "this is live right now" dot. Theme-agnostic on purpose: it is
+     the accent bleeding, so it follows whatever accent the user picked. Two
+     callsites had spelled it out identically — the status dot and, beside a
+     streaming reasoning block, a dot hand-built to match it. */
+  --shadow-live-glow: 0 0 6px var(--color-accent);
+  /* A chosen colour swatch. The ring is the TEXT colour, not the accent: the
+     swatch IS an accent, so an accent ring around it would vanish. */
+  --shadow-swatch-selected: 0 0 0 1.5px var(--color-text);
   /* The keyboard ring's only knob — a theme that wants a different one overrides
      this, not each control. Quiet by design (DESIGN.md §9: a single thin stroke,
      no halo). */
@@ -1136,6 +1144,15 @@ html.theme-dark {
    second surface value would read as a third region that isn't there. */
 .agent-pane-split {
   box-shadow: inset 1px 0 0 0 var(--app-surface-divider);
+}
+
+/* The same split when the pane is the LEADING one and the line belongs to its
+   trailing edge (the settings rail). An attribute rather than a second class:
+   which edge carries the line is a property of the pane, not a different kind of
+   line — and the rail used to draw its own at a control-edge token, so the app
+   had two answers for one hairline. */
+.agent-pane-split[data-split-side="end"] {
+  box-shadow: inset -1px 0 0 0 var(--app-surface-divider);
 }
 
 /* ---------- Context dock ---------- */

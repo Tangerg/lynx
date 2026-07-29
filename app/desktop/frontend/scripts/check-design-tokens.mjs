@@ -34,6 +34,24 @@ const MARKUP_RULES = [
     message: "arbitrary font size — use a `text-ui-*` / `text-display-*` step",
   },
   {
+    // A shadow spelled out at the call site. Depth is a material, and a material
+    // has to answer to the theme: six callsites had drawn their own, and one of
+    // them — a selected tab lifted by `inset 0 1px 0 rgba(255,255,255,0.03)` —
+    // was a value chosen for the dark theme, so in light the tab had no lift at
+    // all. Two others were the same accent glow written twice.
+    // `shadow-[var(--shadow-*)]` stays legal: that IS the ladder.
+    pattern: /(?<![\w-])shadow-\[(?!var\(--shadow-)[^\]]*\]/g,
+    message: "hardcoded shadow — define a `--shadow-*` token in globals.css and use it",
+  },
+  {
+    // An edge alpha mixed by hand where the field tokens exist. Same failure as
+    // the tone rule above: the segmented control had drawn its well at 7% and its
+    // selected chip at 5%, two hand-picked values for one idea, and neither
+    // followed the contrast preference (`--color-border` does).
+    pattern: /(?<![\w-])(?:[a-z-]+:)*border-fg\/\[?[\d.]+\]?/g,
+    message: "hand-picked edge alpha — use `border-field` / `border-field-strong`",
+  },
+  {
     pattern: /(?<![\w-])(?:[a-z-]+:)*rounded(?:-[trbl]{1,2})?-\[[\d.]+(?:px|rem)\]/g,
     message: "arbitrary corner radius — use a `rounded-*` step",
   },
@@ -115,4 +133,6 @@ if (violations.length > 0) {
   for (const violation of violations) console.error(`  ${violation}`);
   process.exit(1);
 }
-console.log("check-design-tokens: type + leading + radius + tone + colour ladders clean");
+console.log(
+  "check-design-tokens: type + leading + radius + tone + colour + depth + edge ladders clean",
+);

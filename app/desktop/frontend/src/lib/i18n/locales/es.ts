@@ -64,6 +64,7 @@ export const es: Record<string, string> = {
   "message.code.collapseLabel": "Contraer",
   "message.code.showLines": "Mostrar {{count}} líneas",
   "message.html.tab.preview": "Vista previa",
+  "message.html.tabsAria": "Vista del artefacto HTML",
   "message.html.tab.source": "Fuente",
 
   "msgActions.copy": "Copiar mensaje",

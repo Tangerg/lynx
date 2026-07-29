@@ -4,8 +4,7 @@
 // storage, or reach into the parent frame.
 
 import { useState } from "react";
-import { Icon, ShikiCodeBlock } from "@/ui";
-import { cn } from "@/lib/utils";
+import { Icon, Segmented, ShikiCodeBlock } from "@/ui";
 import { useT } from "@/lib/i18n";
 
 interface Props {
@@ -45,23 +44,19 @@ export function HtmlArtifact({ code }: Props) {
             {t("markdown.htmlArtifact")}
           </span>
         </div>
-        <div className="inline-flex items-center gap-1 rounded-md bg-surface-2 p-0.5">
-          {(["preview", "source"] as const).map((id) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              className={cn(
-                "rounded-sm px-2 py-0.5 text-ui-sm font-sans font-medium transition-colors",
-                tab === id
-                  ? "bg-surface text-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-                  : "bg-transparent text-fg-muted hover:text-fg",
-              )}
-            >
-              {id === "preview" ? t("message.html.tab.preview") : t("message.html.tab.source")}
-            </button>
-          ))}
-        </div>
+        {/* The library control, not a second one built to look like it. This was a
+            hand-rolled well-and-chip pair whose lift came from a literal white
+            inset — a value picked for the dark theme, which meant the light theme
+            got a selected tab with no lift at all. */}
+        <Segmented
+          ariaLabel={t("message.html.tabsAria")}
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "preview", label: t("message.html.tab.preview") },
+            { value: "source", label: t("message.html.tab.source") },
+          ]}
+        />
       </div>
       {tab === "preview" ? (
         <iframe

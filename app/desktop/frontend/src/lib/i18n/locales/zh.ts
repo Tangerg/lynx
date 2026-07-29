@@ -67,6 +67,7 @@ export const zh: Record<string, string> = {
   "message.code.collapseLabel": "收起",
   "message.code.showLines": "显示 {{count}} 行",
   "message.html.tab.preview": "预览",
+  "message.html.tabsAria": "HTML 产物视图",
   "message.html.tab.source": "源码",
 
   "msgActions.copy": "复制消息",

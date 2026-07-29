@@ -64,6 +64,7 @@ export const fr: Record<string, string> = {
   "message.code.collapseLabel": "Réduire",
   "message.code.showLines": "Afficher {{count}} lignes",
   "message.html.tab.preview": "Aperçu",
+  "message.html.tabsAria": "Vue de l'artefact HTML",
   "message.html.tab.source": "Source",
 
   "msgActions.copy": "Copier le message",

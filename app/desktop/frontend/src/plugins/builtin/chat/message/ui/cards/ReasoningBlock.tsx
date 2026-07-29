@@ -1,7 +1,7 @@
 import type { BlockStatus } from "@/plugins/builtin/agent/public/viewState";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MarkdownMessage } from "../markdown/MarkdownMessage";
-import { Collapsible, Icon } from "@/ui";
+import { Collapsible, Icon, StatusDot } from "@/ui";
 import { stopActiveAgentRun } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -145,9 +145,7 @@ export function ReasoningBlock({ text, status }: Props) {
               {preview}
             </span>
           )}
-          {streaming && isOpen && (
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent shadow-[0_0_6px_var(--color-accent)] animate-pulse-dot" />
-          )}
+          {streaming && isOpen && <StatusDot tone="running" />}
           <span className="flex-1" />
           <Icon
             name={isOpen ? "chevron-up" : "chevron-down"}

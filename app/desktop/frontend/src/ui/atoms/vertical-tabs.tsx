@@ -41,7 +41,7 @@ export function VerticalTabs({
       onValueChange={(next) => onValueChange(next ? String(next) : undefined)}
       className="grid h-full w-full grid-cols-[260px_1fr] overflow-hidden bg-canvas"
     >
-      <div className="flex min-h-0 flex-col bg-surface shadow-[inset_-0.5px_0_0_var(--color-field)]">
+      <div data-split-side="end" className="agent-pane-split flex min-h-0 flex-col bg-surface">
         {railHeader}
         <TabsPrimitive.List
           className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto px-4 pb-8"

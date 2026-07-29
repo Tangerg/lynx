@@ -9,7 +9,7 @@ const dotStyles = cva("inline-block h-1.5 w-1.5 shrink-0 rounded-full", {
   variants: {
     tone: {
       idle: "bg-fg-faint",
-      running: "bg-accent shadow-[0_0_6px_var(--color-accent)] animate-pulse-dot",
+      running: "bg-accent shadow-[var(--shadow-live-glow)] animate-pulse-dot",
       waiting: "bg-warning",
       ok: "bg-success",
       err: "bg-negative",

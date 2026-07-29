@@ -65,6 +65,7 @@ export const zhTW: Record<string, string> = {
   "message.code.collapseLabel": "收合",
   "message.code.showLines": "顯示 {{count}} 行",
   "message.html.tab.preview": "預覽",
+  "message.html.tabsAria": "HTML 產物檢視",
   "message.html.tab.source": "原始碼",
 
   "msgActions.copy": "複製訊息",

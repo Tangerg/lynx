@@ -37,7 +37,7 @@ export function Segmented<T extends string | number>({
          the lift; the well's inner shadow is what it lifts out of. */
       className={cn(
         "inline-flex w-fit items-center gap-0.5 rounded-md p-0.5",
-        "border border-fg/[0.07] bg-control shadow-[var(--shadow-well)]",
+        "border border-field bg-control shadow-[var(--shadow-well)]",
         className,
       )}
     >
@@ -51,7 +51,7 @@ export function Segmented<T extends string | number>({
               "text-fg-muted transition-[background-color,border-color,box-shadow,color] duration-[120ms] ease-out",
               mono && "font-mono",
               "hover:text-fg",
-              "data-[active]:border-fg/[0.05] data-[active]:bg-canvas data-[active]:text-fg",
+              "data-[active]:border-field data-[active]:bg-canvas data-[active]:text-fg",
               "data-[active]:shadow-[var(--shadow-raised-chip)]",
               "focus-visible:outline-none",
             )}

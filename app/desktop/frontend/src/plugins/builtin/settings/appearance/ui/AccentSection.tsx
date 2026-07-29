@@ -12,6 +12,13 @@ import { SettingRow } from "../../public";
 const RAINBOW_HINT =
   "conic-gradient(from 0deg, #ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #6366f1, #a855f7, #ec4899, #ef4444)";
 
+// Chosen swatch: the transparent rim fills with the surface so the ring reads as
+// a gap around the colour rather than touching it. Both pickers below wear it —
+// they are the same affordance rendered as a <button> and as a <label>.
+const SWATCH_CHROME =
+  "h-4.5 w-4.5 rounded-full border-2 border-transparent bg-clip-padding transition-[transform,box-shadow] duration-150 active:scale-[var(--press-scale)]";
+const SWATCH_SELECTED = "border-surface shadow-[var(--shadow-swatch-selected)]";
+
 function CustomAccentPicker({
   value,
   isActive,
@@ -28,8 +35,9 @@ function CustomAccentPicker({
       title={label}
       aria-label={label}
       className={cn(
-        "relative inline-grid h-4.5 w-4.5 place-items-center rounded-full border-2 border-transparent bg-clip-padding transition-[transform,box-shadow] duration-150 active:scale-[var(--press-scale)]",
-        isActive && "border-surface shadow-[0_0_0_1.5px_var(--color-text)]",
+        "relative inline-grid place-items-center",
+        SWATCH_CHROME,
+        isActive && SWATCH_SELECTED,
       )}
       style={{ background: isActive ? value : RAINBOW_HINT }}
     >
@@ -70,10 +78,7 @@ export function AccentSection() {
             aria-label={`${t("settings.accent")}: ${a.label}`}
             aria-pressed={accent === a.dark}
             style={{ background: light ? (a.light ?? a.dark) : a.dark }}
-            className={cn(
-              "h-4.5 w-4.5 rounded-full border-2 border-transparent bg-clip-padding p-0 transition-[transform,box-shadow] duration-150 active:scale-[var(--press-scale)]",
-              accent === a.dark && "border-surface shadow-[0_0_0_1.5px_var(--color-text)]",
-            )}
+            className={cn("p-0", SWATCH_CHROME, accent === a.dark && SWATCH_SELECTED)}
           />
         ))}
         <CustomAccentPicker
