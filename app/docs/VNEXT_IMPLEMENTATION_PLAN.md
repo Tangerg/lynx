@@ -61,10 +61,10 @@
 |---|---|---|---|
 | A | 协议文档事实对齐 | `DONE` | wire 零变化；「零代码」判断错了，见 §6 A1 范围修正 |
 | A′ | 现役泄露治本（**前置**） | `DONE` | 5 slice 全 `DONE`（A′5 为实施中发现追加）；三个现役泄露消除，5 个守卫落地 |
-| B | Contract Registry（全量） | `TODO` | 4 slice，可与 B′ 并行 |
+| B | Contract Registry（全量） | `DONE` | 4 slice 全 `DONE`；14 类产物 + **18/18** drift gate（15/16/17/18 随 C16 落）|
 | B′ | 权威读面 + store cutover | `DONE` | B′1 + B′2/B′3（合并）落 main；B′4 逐项核实为已完成 / 余项 `DEFERRED → C`（无 producer），B′5 `DEFERRED → C7` |
-| C | vNext 原子切换 | `TODO` | 16 stacked commit，一条 cutover 分支 |
-| D | 切换后数值调优 | `TODO` | 依赖 C |
+| C | vNext 原子切换 | `DONE` | 17 slice（C14b 为实施中发现追加），27 commit，**已 ff 合 main 2026-07-29**（尾 `5f23fe9e8`）|
+| D | 切换后数值调优 | `TODO` | 依赖已解开（C 已合 main）。**有界性先于快慢**：不封顶的 buffer 不让 turn 变慢，它让进程 OOM |
 
 **状态取值**：`TODO` / `IN PROGRESS` / `DONE` / `DEFERRED` / `N/A（附理由）`
 
@@ -553,7 +553,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | B1 | Registry 骨架 + 方法注册：`MethodMeta{Name,Kind,Idempotency,Errors,CapabilityRules,Stability}`；`Unary[P,R]` / `Stream[P,A,E]` 泛型工厂生成 decode/invoke/encode closure；**dispatcher 直接消费 Registry，删掉第二份 method table**（`dispatch/method_names.go`）；登记全部 83 方法 + 2 notification；`CapabilityRule.When` 支持条件门控（`sessionExport` 无条件；`checkpoints` 仅当 `restoreType ∈ {files,both}`） | `DONE` | 见下 |
 | B2 | Union 与约束 metadata：`UnionSpec` / `ObjectConstraintSpec` / `FieldCondition` / `PresenceRule` / `StateKeySpec`；登记契约 §11.2 点名的 13 类高风险 union（先按当前 shape）。`SystemInvariantSpec` 按 **D3** 注册在 application | `DONE` | 见下 |
 | B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `DONE` | 见下（**14/14**） |
-| B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `IN PROGRESS` | 见下 |
+| B4 | CI drift gate 18 项 | `DONE` | **18/18**，见下 |
 
 #### ✅ B4 完成（2026-07-29）：18/18（gate 15/16/17/18 随 C16 落）
 
