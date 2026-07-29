@@ -1017,8 +1017,8 @@ todos 今天只以**流内 ephemeral `state.snapshot`** 形态上 wire：没有 
 
 | slice | scope | 状态 | commit |
 |---|---|---|---|
-| C1 | `RunStatus` 三态；`RunOutcome`/`SegmentOutcome` 拆分；删 `RunResult`+`durationMs`；`RunMetrics`/`RunLimits` | `TODO` | — |
-| C2 | `RunSummary` base + `RunRef extends`（**同一嵌入定义生成 Go/TS/schema**） | `TODO` | — |
+| C1 | `RunStatus` 三态；`RunOutcome`/`SegmentOutcome` 拆分；删 `RunResult`+`durationMs`；`RunMetrics`/`RunLimits`（+ Artifact run 同步拆，契约 §10 要求同时改）| `DONE` | `5e3217241` |
+| C2 | `RunSummary` base + `RunRef` 嵌入（同一定义生成三方，**TS 不做语法继承**）+ `activeSegmentId` durable + 约束随嵌入继承 | `DONE` | `688dfc17f` |
 | C3 | `RunProtocolProfile` durable 不可变 + `features.subagents` gate（广告 `false`）+ Minimal Profile + capability preflight | `TODO` | — |
 | C4 | `runs.get` 新方法 + `runs.list` 全历史/status/`includeDescendants` + cursor 绑定规范化 filters | `TODO` | — |
 | C5 | `ItemListScope` 闭合联合替换扁平请求 + `items.list.order` 双向 + 页级 `RunSummary[]` | `TODO` | — |
