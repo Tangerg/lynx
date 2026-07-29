@@ -1063,7 +1063,7 @@ main 不动，损失只是当次未提交的工作。
 | gate 8 证据索引 | C1 改 `terminal_run_carries_its_result` 的形状 | fixture 的 godoc 写着 invariant key，改测试时别把那行删掉；索引在 `internal/arch/invariant_coverage_test.go` |
 | `TestEveryStateKeyHasAShapeFixture` | **C7** 加 `todos.get` + typed `state.snapshot` | `StateKeySpec.RecoveryMethod` 从 `runs.subscribe` 改成 `todos.get`（`contract_shapes_wire.go` 的注释已预告这一行会变），payload fixture 同步 |
 | `TestProtocolVersionAgreesEverywhere` | **C16** | 只改一处常量，这条会点名每份还写旧版本的 canonical 文档 |
-| gate 15/16/17/18 | C 的产出**就是**它们的输入 | 16/17 的 compatibility diff 需要一个 **baseline 产物快照**才有意义 —— C 开始前把今天的 `contract/` 存一份基线，否则"本轮整体 breaking"没有比较对象 |
+| gate 15/16/17/18 | C 的产出**就是**它们的输入 | 16/17 的 compatibility diff 需要一个 **baseline 产物快照**才有意义 —— ✅ 基线已在 C 开工前取：`internal/arch/testdata/baseline/{manifest,schema}.json`（切换前 `contract/` 的逐字节副本，`protocol.current = 2026-07-19`）。**只存这两份**：它们分别是方法/能力/错误面与 shape 面的权威投影，`openrpc.json` 是二者的再表述，diff 读它就多了一套说法。基线不可事后重建，所以先取；两条 gate 本身在 C16 落（版本翻转前"breaking 但没 bump"必然红，那是分支中段的真实状态，不是缺陷） |
 
 **C2 的"同一嵌入定义生成三方"**：Go 用嵌入 `RunSummary` 到 `RunRef`；`protocol.WireFields` 已经会把 embedded
 struct 的字段内联（`encoding/json` 语义），所以 schema/TS 会自动拿到扁平化的字段 —— 但那意味着**TS 侧不会自动

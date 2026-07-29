@@ -1,0 +1,5583 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Lyra Runtime Protocol wire types",
+  "protocolVersion": "2026-07-19",
+  "$defs": {
+    "AgentDoc": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentDocScope"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "scope"
+      ]
+    },
+    "AgentDocScope": {
+      "type": "string",
+      "enum": [
+        "cwd",
+        "projectRoot",
+        "home"
+      ]
+    },
+    "AgentMemoryAddRequest": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentMemoryScope"
+        }
+      },
+      "required": [
+        "content"
+      ]
+    },
+    "AgentMemoryItem": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "day": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/AgentMemoryOrigin"
+        },
+        "pinned": {
+          "type": "boolean"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentMemoryScope"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/AgentMemoryStatus"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "content",
+        "createdAt",
+        "id",
+        "origin",
+        "pinned",
+        "scope",
+        "status",
+        "updatedAt"
+      ]
+    },
+    "AgentMemoryItemRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "AgentMemoryList": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentMemoryItem"
+          }
+        }
+      },
+      "required": [
+        "items"
+      ]
+    },
+    "AgentMemoryListRequest": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentMemoryScope"
+        }
+      }
+    },
+    "AgentMemoryOrigin": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "user"
+      ]
+    },
+    "AgentMemoryReviewDecision": {
+      "type": "string",
+      "enum": [
+        "approve",
+        "reject"
+      ]
+    },
+    "AgentMemoryReviewRequest": {
+      "type": "object",
+      "properties": {
+        "decision": {
+          "$ref": "#/$defs/AgentMemoryReviewDecision"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "decision",
+        "id"
+      ]
+    },
+    "AgentMemoryScope": {
+      "type": "string",
+      "enum": [
+        "project",
+        "user"
+      ]
+    },
+    "AgentMemoryStatus": {
+      "type": "string",
+      "enum": [
+        "active",
+        "pending"
+      ]
+    },
+    "AgentMemoryUpdateRequest": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pinned": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "ApprovalDecision": {
+      "type": "string",
+      "enum": [
+        "approve",
+        "deny"
+      ]
+    },
+    "ApprovalMode": {
+      "type": "string",
+      "enum": [
+        "safe",
+        "balanced",
+        "yolo",
+        "plan"
+      ]
+    },
+    "ApprovalModeResult": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "$ref": "#/$defs/ApprovalMode"
+        }
+      },
+      "required": [
+        "mode"
+      ]
+    },
+    "ApprovalRisk": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "ApprovalRule": {
+      "type": "object",
+      "properties": {
+        "decision": {
+          "$ref": "#/$defs/ApprovalRuleDecision"
+        },
+        "dir": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/ApprovalRuleScope"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "id",
+        "scope",
+        "tool"
+      ]
+    },
+    "ApprovalRuleDecision": {
+      "type": "string",
+      "enum": [
+        "allow",
+        "deny"
+      ]
+    },
+    "ApprovalRuleScope": {
+      "type": "string",
+      "enum": [
+        "session",
+        "project",
+        "global"
+      ]
+    },
+    "ArtifactContentBlock": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "string"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/ContentBlockType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "data": false,
+            "mime": false,
+            "type": {
+              "const": "text"
+            }
+          },
+          "required": [
+            "text",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "text": false,
+            "type": {
+              "const": "image"
+            }
+          },
+          "required": [
+            "data",
+            "mime",
+            "type"
+          ]
+        }
+      ]
+    },
+    "ArtifactItem": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactContentBlock"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "droppedMessages": {
+          "type": "integer"
+        },
+        "error": {
+          "$ref": "#/$defs/ArtifactProblem"
+        },
+        "id": {
+          "type": "string"
+        },
+        "question": {
+          "$ref": "#/$defs/ArtifactQuestion"
+        },
+        "redacted": {
+          "type": "boolean"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "safetyClass": {
+          "$ref": "#/$defs/SafetyClass"
+        },
+        "status": {
+          "$ref": "#/$defs/ItemStatus"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactPlanStep"
+          }
+        },
+        "summary": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "tool": {
+          "$ref": "#/$defs/ArtifactToolInvocation"
+        },
+        "type": {
+          "$ref": "#/$defs/ItemType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "droppedMessages": false,
+            "error": false,
+            "question": false,
+            "redacted": false,
+            "safetyClass": false,
+            "steps": false,
+            "summary": false,
+            "text": false,
+            "tool": false,
+            "type": {
+              "const": "userMessage"
+            }
+          },
+          "required": [
+            "createdAt",
+            "id",
+            "runId",
+            "status",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "droppedMessages": false,
+            "error": false,
+            "question": false,
+            "redacted": false,
+            "safetyClass": false,
+            "steps": false,
+            "summary": false,
+            "text": false,
+            "tool": false,
+            "type": {
+              "const": "agentMessage"
+            }
+          },
+          "required": [
+            "createdAt",
+            "id",
+            "runId",
+            "status",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "content": false,
+            "droppedMessages": false,
+            "error": false,
+            "question": false,
+            "safetyClass": false,
+            "steps": false,
+            "summary": false,
+            "tool": false,
+            "type": {
+              "const": "reasoning"
+            }
+          },
+          "required": [
+            "createdAt",
+            "id",
+            "runId",
+            "status",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "content": false,
+            "droppedMessages": false,
+            "error": false,
+            "question": false,
+            "redacted": false,
+            "safetyClass": false,
+            "summary": false,
+            "text": false,
+            "tool": false,
+            "type": {
+              "const": "plan"
+            }
+          },
+          "required": [
+            "createdAt",
+            "id",
+            "runId",
+            "status",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "content": false,
+            "droppedMessages": false,
+            "error": false,
+            "redacted": false,
+            "safetyClass": false,
+            "steps": false,
+            "summary": false,
+            "text": false,
+            "tool": false,
+            "type": {
+              "const": "question"
+            }
+          },
+          "required": [
+            "createdAt",
+            "id",
+            "runId",
+            "status",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "content": false,
+            "droppedMessages": false,
+            "question": false,
+            "redacted": false,
+            "steps": false,
+            "summary": false,
+            "text": false,
+            "type": {
+              "const": "toolCall"
+            }
+          },
+          "required": [
+            "createdAt",
+            "id",
+            "runId",
+            "status",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "content": false,
+            "error": false,
+            "question": false,
+            "redacted": false,
+            "safetyClass": false,
+            "steps": false,
+            "text": false,
+            "tool": false,
+            "type": {
+              "const": "compaction"
+            }
+          },
+          "required": [
+            "createdAt",
+            "id",
+            "runId",
+            "status",
+            "type"
+          ]
+        }
+      ]
+    },
+    "ArtifactModelUsage": {
+      "type": "object",
+      "properties": {
+        "cacheReadTokens": {
+          "type": "integer"
+        },
+        "cacheWriteTokens": {
+          "type": "integer"
+        },
+        "costUsd": {
+          "type": "number"
+        },
+        "inputTokens": {
+          "type": "integer"
+        },
+        "outputTokens": {
+          "type": "integer"
+        },
+        "reasoningTokens": {
+          "type": "integer"
+        }
+      }
+    },
+    "ArtifactOutcome": {
+      "type": "object",
+      "properties": {
+        "detail": {
+          "type": "string"
+        },
+        "result": {
+          "$ref": "#/$defs/ArtifactRunResult"
+        },
+        "type": {
+          "$ref": "#/$defs/ArtifactOutcomeType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "detail": false,
+            "type": {
+              "const": "completed"
+            }
+          },
+          "required": [
+            "result",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "error"
+            }
+          },
+          "required": [
+            "result",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "maxSteps"
+            }
+          },
+          "required": [
+            "result",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "maxBudget"
+            }
+          },
+          "required": [
+            "result",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "canceled"
+            }
+          },
+          "required": [
+            "result",
+            "type"
+          ]
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "error"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "result"
+            ]
+          }
+        }
+      ]
+    },
+    "ArtifactOutcomeType": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "error",
+        "maxSteps",
+        "maxBudget",
+        "canceled"
+      ]
+    },
+    "ArtifactPlanStep": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/PlanStepStatus"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "title"
+      ]
+    },
+    "ArtifactProblem": {
+      "type": "object",
+      "properties": {
+        "detail": {
+          "type": "string"
+        },
+        "docUrl": {
+          "type": "string"
+        },
+        "retryAfterSeconds": {
+          "type": "integer"
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "type": {
+          "$ref": "#/$defs/ArtifactProblemType"
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "ArtifactProblemType": {
+      "type": "string",
+      "enum": [
+        "internalError",
+        "runLost",
+        "agentStuck",
+        "rateLimited",
+        "invalidApiKey",
+        "timeout",
+        "providerUnavailable",
+        "providerRejected",
+        "deniedByUser",
+        "toolFailed"
+      ]
+    },
+    "ArtifactQuestion": {
+      "type": "object",
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactQuestionField"
+          }
+        },
+        "prompt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "fields",
+        "prompt"
+      ]
+    },
+    "ArtifactQuestionField": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "multiple": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactQuestionOption"
+          }
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "type": {
+          "$ref": "#/$defs/QuestionFieldType"
+        }
+      },
+      "required": [
+        "label",
+        "name",
+        "type"
+      ]
+    },
+    "ArtifactQuestionOption": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "preview": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ]
+    },
+    "ArtifactRun": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finishedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "id": {
+          "type": "string"
+        },
+        "messageMark": {
+          "type": "integer"
+        },
+        "model": {
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/ArtifactOutcome"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "spawnedByItemId": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "createdAt",
+        "finishedAt",
+        "id",
+        "messageMark",
+        "outcome",
+        "sessionId",
+        "updatedAt"
+      ]
+    },
+    "ArtifactRunResult": {
+      "type": "object",
+      "properties": {
+        "durationMs": {
+          "type": "integer"
+        },
+        "error": {
+          "$ref": "#/$defs/ArtifactProblem"
+        },
+        "steps": {
+          "type": "integer"
+        },
+        "usage": {
+          "$ref": "#/$defs/ArtifactUsage"
+        }
+      },
+      "required": [
+        "steps"
+      ]
+    },
+    "ArtifactSession": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "favorite": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "createdAt",
+        "cwd",
+        "id",
+        "model",
+        "title",
+        "updatedAt"
+      ]
+    },
+    "ArtifactToolInvocation": {
+      "type": "object",
+      "properties": {
+        "arguments": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "name": {
+          "type": "string"
+        },
+        "result": {}
+      },
+      "required": [
+        "arguments",
+        "name"
+      ]
+    },
+    "ArtifactToolResult": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "id": {
+          "type": "string"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "preview": {
+          "type": "string"
+        },
+        "toolName": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "body",
+        "createdAt",
+        "id",
+        "itemId",
+        "preview",
+        "toolName"
+      ]
+    },
+    "ArtifactUsage": {
+      "type": "object",
+      "properties": {
+        "byModel": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ArtifactModelUsage"
+          }
+        },
+        "cacheReadTokens": {
+          "type": "integer"
+        },
+        "cacheWriteTokens": {
+          "type": "integer"
+        },
+        "costUsd": {
+          "type": "number"
+        },
+        "inputTokens": {
+          "type": "integer"
+        },
+        "outputTokens": {
+          "type": "integer"
+        },
+        "reasoningTokens": {
+          "type": "integer"
+        }
+      }
+    },
+    "CancelRunRequest": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "runId"
+      ]
+    },
+    "ClientCapabilities": {
+      "type": "object",
+      "properties": {
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StreamEventType"
+          }
+        },
+        "excludedEvents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StreamEventType"
+          }
+        },
+        "features": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/FeaturePreference"
+          }
+        },
+        "interruptTypes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InterruptType"
+          }
+        }
+      },
+      "required": [
+        "events"
+      ]
+    },
+    "ClientInfo": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ]
+    },
+    "CodebaseHit": {
+      "type": "object",
+      "properties": {
+        "endLine": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "score": {
+          "type": "number"
+        },
+        "snippet": {
+          "type": "string"
+        },
+        "startLine": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "endLine",
+        "path",
+        "score",
+        "snippet",
+        "startLine"
+      ]
+    },
+    "CodebaseReindexRequest": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        }
+      }
+    },
+    "CodebaseReindexResponse": {
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operationId"
+      ]
+    },
+    "CodebaseSearchRequest": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "query"
+      ]
+    },
+    "CodebaseSearchResult": {
+      "type": "object",
+      "properties": {
+        "hits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CodebaseHit"
+          }
+        }
+      },
+      "required": [
+        "hits"
+      ]
+    },
+    "CodebaseState": {
+      "type": "string",
+      "enum": [
+        "none",
+        "indexing",
+        "ready",
+        "error"
+      ]
+    },
+    "CodebaseStatus": {
+      "type": "object",
+      "properties": {
+        "chunkCount": {
+          "type": "integer"
+        },
+        "fileCount": {
+          "type": "integer"
+        },
+        "indexedAt": {
+          "type": "string"
+        },
+        "modelId": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/CodebaseState"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "chunkCount",
+        "fileCount",
+        "state"
+      ]
+    },
+    "CodebaseStatusRequest": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        }
+      }
+    },
+    "ConfigureMCPServerRequest": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "authorization": {
+          "type": "string"
+        },
+        "autoApproveTools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "command": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "dir": {
+          "type": "string"
+        },
+        "disabledTools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timeoutSeconds": {
+          "type": "integer"
+        },
+        "type": {
+          "$ref": "#/$defs/McpTransport"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "name",
+        "type"
+      ]
+    },
+    "ConfigureProviderRequest": {
+      "type": "object",
+      "properties": {
+        "apiKey": {
+          "type": "string"
+        },
+        "baseUrl": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "provider"
+      ]
+    },
+    "ContentBlock": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "string"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/ContentBlockType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "data": false,
+            "mime": false,
+            "type": {
+              "const": "text"
+            }
+          },
+          "required": [
+            "text",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "text": false,
+            "type": {
+              "const": "image"
+            }
+          },
+          "required": [
+            "data",
+            "mime",
+            "type"
+          ]
+        }
+      ]
+    },
+    "ContentBlockType": {
+      "type": "string",
+      "enum": [
+        "text",
+        "image"
+      ]
+    },
+    "CreateScheduleRequest": {
+      "type": "object",
+      "properties": {
+        "cron": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cron",
+        "prompt"
+      ]
+    },
+    "CreateSessionRequest": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      }
+    },
+    "DeleteScheduleRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "DeleteSessionRequest": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "sessionId"
+      ]
+    },
+    "Diff": {
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FileDiff"
+          }
+        },
+        "patch": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "DiffFormat": {
+      "type": "string",
+      "enum": [
+        "rows",
+        "raw"
+      ]
+    },
+    "DiffMode": {
+      "type": "string",
+      "enum": [
+        "worktree",
+        "base"
+      ]
+    },
+    "DiffRow": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "leftLine": {
+          "type": "integer"
+        },
+        "rightLine": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/DiffRowType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "code": false,
+            "leftLine": false,
+            "rightLine": false,
+            "type": {
+              "const": "hunk"
+            }
+          },
+          "required": [
+            "text",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "text": false,
+            "type": {
+              "const": "context"
+            }
+          },
+          "required": [
+            "code",
+            "leftLine",
+            "rightLine",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "leftLine": false,
+            "text": false,
+            "type": {
+              "const": "added"
+            }
+          },
+          "required": [
+            "code",
+            "rightLine",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "rightLine": false,
+            "text": false,
+            "type": {
+              "const": "deleted"
+            }
+          },
+          "required": [
+            "code",
+            "leftLine",
+            "type"
+          ]
+        }
+      ]
+    },
+    "DiffRowType": {
+      "type": "string",
+      "enum": [
+        "hunk",
+        "context",
+        "added",
+        "deleted"
+      ]
+    },
+    "DiscoverResponse": {
+      "type": "object",
+      "properties": {
+        "capabilities": {
+          "$ref": "#/$defs/ServerCapabilities"
+        },
+        "protocol": {
+          "$ref": "#/$defs/ProtocolRange"
+        },
+        "serverInfo": {
+          "$ref": "#/$defs/ServerInfo"
+        }
+      },
+      "required": [
+        "capabilities",
+        "protocol",
+        "serverInfo"
+      ]
+    },
+    "DroppedRun": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "$ref": "#/$defs/RunRef"
+        },
+        "userInput": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContentBlock"
+          }
+        }
+      },
+      "required": [
+        "run"
+      ]
+    },
+    "EmbeddingRole": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        }
+      }
+    },
+    "ErrorChannel": {
+      "type": "string",
+      "enum": [
+        "rpc",
+        "run",
+        "tool"
+      ]
+    },
+    "ExportFormat": {
+      "type": "string",
+      "enum": [
+        "md",
+        "json"
+      ]
+    },
+    "ExportSessionRequest": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "$ref": "#/$defs/ExportFormat"
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "sessionId"
+      ]
+    },
+    "ExportSessionResponse": {
+      "type": "object",
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/SessionArtifact"
+        },
+        "format": {
+          "$ref": "#/$defs/ExportFormat"
+        },
+        "markdown": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "format"
+      ]
+    },
+    "FeatureCapability": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "stability": {
+          "$ref": "#/$defs/Stability"
+        }
+      },
+      "required": [
+        "enabled",
+        "stability"
+      ]
+    },
+    "FeaturePreference": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled"
+      ]
+    },
+    "FeedbackRating": {
+      "type": "string",
+      "enum": [
+        "positive",
+        "negative"
+      ]
+    },
+    "FeedbackRequest": {
+      "type": "object",
+      "properties": {
+        "itemId": {
+          "type": "string"
+        },
+        "rating": {
+          "$ref": "#/$defs/FeedbackRating"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "FieldError": {
+      "type": "object",
+      "properties": {
+        "detail": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "detail",
+        "field"
+      ]
+    },
+    "FileContent": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "encoding": {
+          "type": "string"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "totalLines": {
+          "type": "integer"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "content",
+        "encoding",
+        "path",
+        "totalLines"
+      ]
+    },
+    "FileDiff": {
+      "type": "object",
+      "properties": {
+        "added": {
+          "type": "integer"
+        },
+        "binary": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        },
+        "previousPath": {
+          "type": "string"
+        },
+        "removed": {
+          "type": "integer"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DiffRow"
+          }
+        },
+        "status": {
+          "$ref": "#/$defs/FileStatus"
+        }
+      },
+      "required": [
+        "path",
+        "rows",
+        "status"
+      ]
+    },
+    "FileEdit": {
+      "type": "object",
+      "properties": {
+        "diff": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DiffRow"
+          }
+        },
+        "path": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/FileStatus"
+        }
+      },
+      "required": [
+        "path",
+        "status"
+      ]
+    },
+    "FileEntry": {
+      "type": "object",
+      "properties": {
+        "modifiedAt": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sizeBytes": {
+          "type": "integer"
+        },
+        "type": {
+          "$ref": "#/$defs/FileEntryType"
+        }
+      },
+      "required": [
+        "modifiedAt",
+        "name",
+        "path",
+        "type"
+      ]
+    },
+    "FileEntryType": {
+      "type": "string",
+      "enum": [
+        "file",
+        "dir",
+        "symlink"
+      ]
+    },
+    "FileHead": {
+      "type": "object",
+      "properties": {
+        "lines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FileLine"
+          }
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "lines",
+        "path"
+      ]
+    },
+    "FileLine": {
+      "type": "object",
+      "properties": {
+        "lineNumber": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "lineNumber",
+        "text"
+      ]
+    },
+    "FileStatus": {
+      "type": "string",
+      "enum": [
+        "added",
+        "modified",
+        "deleted",
+        "renamed",
+        "untracked"
+      ]
+    },
+    "ForgetApprovalRuleRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "ForkSessionRequest": {
+      "type": "object",
+      "properties": {
+        "fromRunId": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId"
+      ]
+    },
+    "GenerationParams": {
+      "type": "object",
+      "properties": {
+        "maxTokens": {
+          "type": "integer"
+        },
+        "stop": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "temperature": {
+          "type": "number"
+        },
+        "topP": {
+          "type": "number"
+        }
+      }
+    },
+    "GetDiffRequest": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "format": {
+          "$ref": "#/$defs/DiffFormat"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "mode": {
+          "$ref": "#/$defs/DiffMode"
+        },
+        "path": {
+          "type": "string"
+        }
+      }
+    },
+    "GetFileHeadRequest": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "lines": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "GetMemoryRequest": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/MemoryScope"
+        }
+      },
+      "required": [
+        "scope"
+      ]
+    },
+    "GetSessionRequest": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "sessionId"
+      ]
+    },
+    "Goal": {
+      "type": "object",
+      "properties": {
+        "budget": {
+          "$ref": "#/$defs/GoalBudget"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "model": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/GoalStatus"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "used": {
+          "$ref": "#/$defs/GoalUsage"
+        }
+      },
+      "required": [
+        "budget",
+        "createdAt",
+        "objective",
+        "sessionId",
+        "status",
+        "updatedAt",
+        "used"
+      ]
+    },
+    "GoalBudget": {
+      "type": "object",
+      "properties": {
+        "maxCostUsd": {
+          "type": "number"
+        },
+        "maxSteps": {
+          "type": "integer"
+        },
+        "maxTurns": {
+          "type": "integer"
+        }
+      }
+    },
+    "GoalRequest": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "sessionId"
+      ]
+    },
+    "GoalStatus": {
+      "type": "string",
+      "enum": [
+        "active",
+        "paused",
+        "blocked"
+      ]
+    },
+    "GoalUsage": {
+      "type": "object",
+      "properties": {
+        "costUsd": {
+          "type": "number"
+        },
+        "steps": {
+          "type": "integer"
+        },
+        "turns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "costUsd",
+        "steps",
+        "turns"
+      ]
+    },
+    "GrepMatch": {
+      "type": "object",
+      "properties": {
+        "lineNumber": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "lineNumber",
+        "path",
+        "text"
+      ]
+    },
+    "GrepRequest": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "query"
+      ]
+    },
+    "GrepResult": {
+      "type": "object",
+      "properties": {
+        "matches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GrepMatch"
+          }
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "matches",
+        "total"
+      ]
+    },
+    "HookEvent": {
+      "type": "string",
+      "enum": [
+        "PreToolUse",
+        "PostToolUse",
+        "UserPromptSubmit",
+        "SessionStart",
+        "SubagentStart",
+        "SubagentStop",
+        "PreCompact",
+        "Stop",
+        "Notification"
+      ]
+    },
+    "HookInfo": {
+      "type": "object",
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "command": {
+          "type": "string"
+        },
+        "event": {
+          "$ref": "#/$defs/HookEvent"
+        },
+        "inject": {
+          "type": "string"
+        },
+        "matcher": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/HookScope"
+        },
+        "source": {
+          "type": "string"
+        },
+        "timeoutMs": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "active",
+        "event",
+        "scope",
+        "source"
+      ]
+    },
+    "HookScope": {
+      "type": "string",
+      "enum": [
+        "global",
+        "project"
+      ]
+    },
+    "HooksListResult": {
+      "type": "object",
+      "properties": {
+        "hooks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HookInfo"
+          }
+        },
+        "projectRoot": {
+          "type": "string"
+        },
+        "projectTrusted": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "hooks",
+        "projectTrusted"
+      ]
+    },
+    "ImportSessionRequest": {
+      "type": "object",
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/SessionArtifact"
+        }
+      },
+      "required": [
+        "artifact"
+      ],
+      "allOf": [
+        {
+          "properties": {
+            "artifact": {
+              "properties": {
+                "session": {
+                  "properties": {
+                    "id": {
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ImportSessionResponse": {
+      "type": "object",
+      "properties": {
+        "session": {
+          "$ref": "#/$defs/Session"
+        }
+      },
+      "required": [
+        "session"
+      ]
+    },
+    "Interrupt": {
+      "type": "object",
+      "properties": {
+        "itemId": {
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/InterruptPayload"
+        },
+        "type": {
+          "$ref": "#/$defs/InterruptType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "payload": {
+              "properties": {
+                "question": false
+              },
+              "required": [
+                "tool"
+              ]
+            },
+            "type": {
+              "const": "approval"
+            }
+          },
+          "required": [
+            "itemId",
+            "payload",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "payload": {
+              "properties": {
+                "reason": false,
+                "rememberable": false,
+                "risk": false,
+                "tool": false
+              },
+              "required": [
+                "question"
+              ]
+            },
+            "type": {
+              "const": "question"
+            }
+          },
+          "required": [
+            "itemId",
+            "payload",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "payload": {
+              "properties": {
+                "question": false,
+                "reason": false,
+                "rememberable": false,
+                "risk": false
+              },
+              "required": [
+                "tool"
+              ]
+            },
+            "type": {
+              "const": "toolResult"
+            }
+          },
+          "required": [
+            "itemId",
+            "payload",
+            "type"
+          ]
+        }
+      ]
+    },
+    "InterruptPayload": {
+      "type": "object",
+      "properties": {
+        "question": {
+          "$ref": "#/$defs/Question"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "rememberable": {
+          "type": "boolean"
+        },
+        "risk": {
+          "$ref": "#/$defs/ApprovalRisk"
+        },
+        "tool": {
+          "$ref": "#/$defs/ToolInvocation"
+        }
+      }
+    },
+    "InterruptResponse": {
+      "type": "object",
+      "properties": {
+        "itemId": {
+          "type": "string"
+        },
+        "response": {
+          "$ref": "#/$defs/InterruptResponseValue"
+        }
+      },
+      "required": [
+        "itemId",
+        "response"
+      ]
+    },
+    "InterruptResponseType": {
+      "type": "string",
+      "enum": [
+        "approval",
+        "answer",
+        "toolResult"
+      ]
+    },
+    "InterruptResponseValue": {
+      "type": "object",
+      "properties": {
+        "answers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "decision": {
+          "$ref": "#/$defs/ApprovalDecision"
+        },
+        "editedArgs": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "error": {
+          "$ref": "#/$defs/ProblemData"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "remember": {
+          "$ref": "#/$defs/RememberScope"
+        },
+        "result": {},
+        "type": {
+          "$ref": "#/$defs/InterruptResponseType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "answers": false,
+            "error": false,
+            "result": false,
+            "type": {
+              "const": "approval"
+            }
+          },
+          "required": [
+            "decision",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "decision": false,
+            "editedArgs": false,
+            "error": false,
+            "reason": false,
+            "remember": false,
+            "result": false,
+            "type": {
+              "const": "answer"
+            }
+          },
+          "required": [
+            "answers",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "answers": false,
+            "decision": false,
+            "editedArgs": false,
+            "reason": false,
+            "remember": false,
+            "type": {
+              "const": "toolResult"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "InterruptType": {
+      "type": "string",
+      "enum": [
+        "approval",
+        "question",
+        "toolResult"
+      ]
+    },
+    "InvokeToolRequest": {
+      "type": "object",
+      "properties": {
+        "arguments": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "arguments",
+        "name"
+      ]
+    },
+    "Item": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContentBlock"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "droppedMessages": {
+          "type": "integer"
+        },
+        "error": {
+          "$ref": "#/$defs/ProblemData"
+        },
+        "id": {
+          "type": "string"
+        },
+        "question": {
+          "$ref": "#/$defs/Question"
+        },
+        "redacted": {
+          "type": "boolean"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "safetyClass": {
+          "$ref": "#/$defs/SafetyClass"
+        },
+        "status": {
+          "$ref": "#/$defs/ItemStatus"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlanStep"
+          }
+        },
+        "summary": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "tool": {
+          "$ref": "#/$defs/ToolInvocation"
+        },
+        "type": {
+          "$ref": "#/$defs/ItemType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "droppedMessages": false,
+            "error": false,
+            "question": false,
+            "redacted": false,
+            "safetyClass": false,
+            "steps": false,
+            "summary": false,
+            "text": false,
+            "tool": false,
+            "type": {
+              "const": "userMessage"
+            }
+          },
+          "required": [
+            "createdAt",
+            "id",
+            "runId",
+            "status",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "droppedMessages": false,
+            "error": false,
+            "question": false,
+            "redacted": false,
+            "safetyClass": false,
+            "steps": false,
+            "summary": false,
+            "text": false,
+            "tool": false,
+            "type": {
+              "const": "agentMessage"
+            }
+          },
+          "required": [
+            "createdAt",
+            "id",
+            "runId",
+            "status",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "content": false,
+            "droppedMessages": false,
+            "error": false,
+            "question": false,
+            "safetyClass": false,
+            "steps": false,
+            "summary": false,
+            "tool": false,
+            "type": {
+              "const": "reasoning"
+            }
+          },
+          "required": [
+            "createdAt",
+            "id",
+            "runId",
+            "status",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "content": false,
+            "droppedMessages": false,
+            "error": false,
+            "question": false,
+            "redacted": false,
+            "safetyClass": false,
+            "summary": false,
+            "text": false,
+            "tool": false,
+            "type": {
+              "const": "plan"
+            }
+          },
+          "required": [
+            "createdAt",
+            "id",
+            "runId",
+            "status",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "content": false,
+            "droppedMessages": false,
+            "error": false,
+            "redacted": false,
+            "safetyClass": false,
+            "steps": false,
+            "summary": false,
+            "text": false,
+            "tool": false,
+            "type": {
+              "const": "question"
+            }
+          },
+          "required": [
+            "createdAt",
+            "id",
+            "runId",
+            "status",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "content": false,
+            "droppedMessages": false,
+            "question": false,
+            "redacted": false,
+            "steps": false,
+            "summary": false,
+            "text": false,
+            "type": {
+              "const": "toolCall"
+            }
+          },
+          "required": [
+            "createdAt",
+            "id",
+            "runId",
+            "status",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "content": false,
+            "error": false,
+            "question": false,
+            "redacted": false,
+            "safetyClass": false,
+            "steps": false,
+            "text": false,
+            "tool": false,
+            "type": {
+              "const": "compaction"
+            }
+          },
+          "required": [
+            "createdAt",
+            "id",
+            "runId",
+            "status",
+            "type"
+          ]
+        }
+      ]
+    },
+    "ItemDelta": {
+      "type": "object",
+      "properties": {
+        "argumentsTextDelta": {
+          "type": "string"
+        },
+        "index": {
+          "type": "integer"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlanStep"
+          }
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/ItemDeltaType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "argumentsTextDelta": false,
+            "steps": false,
+            "type": {
+              "const": "content"
+            }
+          },
+          "required": [
+            "text",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "argumentsTextDelta": false,
+            "index": false,
+            "steps": false,
+            "type": {
+              "const": "reasoning"
+            }
+          },
+          "required": [
+            "text",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "index": false,
+            "steps": false,
+            "text": false,
+            "type": {
+              "const": "toolArguments"
+            }
+          },
+          "required": [
+            "argumentsTextDelta",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "argumentsTextDelta": false,
+            "index": false,
+            "steps": false,
+            "type": {
+              "const": "toolOutput"
+            }
+          },
+          "required": [
+            "text",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "argumentsTextDelta": false,
+            "index": false,
+            "text": false,
+            "type": {
+              "const": "plan"
+            }
+          },
+          "required": [
+            "steps",
+            "type"
+          ]
+        }
+      ]
+    },
+    "ItemDeltaType": {
+      "type": "string",
+      "enum": [
+        "content",
+        "reasoning",
+        "toolArguments",
+        "toolOutput",
+        "plan"
+      ]
+    },
+    "ItemStatus": {
+      "type": "string",
+      "enum": [
+        "running",
+        "completed",
+        "incomplete"
+      ]
+    },
+    "ItemType": {
+      "type": "string",
+      "enum": [
+        "userMessage",
+        "agentMessage",
+        "reasoning",
+        "plan",
+        "question",
+        "toolCall",
+        "compaction"
+      ]
+    },
+    "ListApprovalRulesRequest": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId"
+      ]
+    },
+    "ListApprovalRulesResult": {
+      "type": "object",
+      "properties": {
+        "rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ApprovalRule"
+          }
+        }
+      },
+      "required": [
+        "rules"
+      ]
+    },
+    "ListFilesRequest": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "glob": {
+          "type": "string"
+        },
+        "includeIgnored": {
+          "type": "boolean"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "recursive": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ListHooksRequest": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        }
+      }
+    },
+    "ListItemsRequest": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "sessionId"
+      ]
+    },
+    "ListItemsResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Item"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RunRef"
+          }
+        }
+      },
+      "required": [
+        "data",
+        "runs"
+      ]
+    },
+    "ListModelsRequest": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "provider": {
+          "type": "string"
+        }
+      }
+    },
+    "ListOpenInterruptsRequest": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      }
+    },
+    "ListRunsRequest": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      }
+    },
+    "MCPListToolsRequest": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "server": {
+          "type": "string"
+        }
+      }
+    },
+    "MCPServerRequest": {
+      "type": "object",
+      "properties": {
+        "server": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "server"
+      ]
+    },
+    "ManagedSkill": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/SkillLifecycle"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "lifecycle",
+        "name"
+      ]
+    },
+    "McpAuthStatus": {
+      "type": "string",
+      "enum": [
+        "none",
+        "bearerToken",
+        "oauth",
+        "notLoggedIn"
+      ]
+    },
+    "McpServer": {
+      "type": "object",
+      "properties": {
+        "authStatus": {
+          "$ref": "#/$defs/McpAuthStatus"
+        },
+        "description": {
+          "type": "string"
+        },
+        "error": {
+          "$ref": "#/$defs/ProblemData"
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/McpStatus"
+        },
+        "toolCount": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "status"
+      ]
+    },
+    "McpServerConfig": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "authorizationMasked": {
+          "type": "string"
+        },
+        "autoApproveTools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "command": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "dir": {
+          "type": "string"
+        },
+        "disabledTools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "timeoutSeconds": {
+          "type": "integer"
+        },
+        "type": {
+          "$ref": "#/$defs/McpTransport"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "name",
+        "type"
+      ]
+    },
+    "McpStatus": {
+      "type": "string",
+      "enum": [
+        "connecting",
+        "connected",
+        "disconnected",
+        "failed",
+        "needsAuth"
+      ]
+    },
+    "McpTestResult": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/ProblemData"
+        },
+        "ok": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ok"
+      ]
+    },
+    "McpTool": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "inputSchema": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "name": {
+          "type": "string"
+        },
+        "server": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "server"
+      ]
+    },
+    "McpTransport": {
+      "type": "string",
+      "enum": [
+        "stdio",
+        "streamableHttp"
+      ]
+    },
+    "MemoryEntry": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/MemoryScope"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "content",
+        "path",
+        "scope"
+      ]
+    },
+    "MemoryScope": {
+      "type": "string",
+      "enum": [
+        "cwd",
+        "projectRoot",
+        "home"
+      ]
+    },
+    "Modality": {
+      "type": "string",
+      "enum": [
+        "text",
+        "image",
+        "audio",
+        "video",
+        "pdf"
+      ]
+    },
+    "Model": {
+      "type": "object",
+      "properties": {
+        "capabilities": {
+          "$ref": "#/$defs/ModelCapabilities"
+        },
+        "contextWindow": {
+          "type": "integer"
+        },
+        "deprecated": {
+          "type": "boolean"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "knowledgeCutoff": {
+          "type": "string"
+        },
+        "maxInputTokens": {
+          "type": "integer"
+        },
+        "maxOutputTokens": {
+          "type": "integer"
+        },
+        "pricing": {
+          "$ref": "#/$defs/ModelPricing"
+        },
+        "provider": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "provider"
+      ]
+    },
+    "ModelCapabilities": {
+      "type": "object",
+      "properties": {
+        "inputModalities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Modality"
+          }
+        },
+        "multimodal": {
+          "type": "boolean"
+        },
+        "outputModalities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Modality"
+          }
+        },
+        "reasoning": {
+          "type": "boolean"
+        },
+        "reasoningDefaultLevel": {
+          "type": "string"
+        },
+        "reasoningLevels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "structuredOutput": {
+          "type": "boolean"
+        },
+        "toolUse": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ModelPricing": {
+      "type": "object",
+      "properties": {
+        "cacheReadUsdPerMillionTokens": {
+          "type": "number"
+        },
+        "cacheWriteUsdPerMillionTokens": {
+          "type": "number"
+        },
+        "inputUsdPerMillionTokens": {
+          "type": "number"
+        },
+        "outputUsdPerMillionTokens": {
+          "type": "number"
+        }
+      }
+    },
+    "ModelUsage": {
+      "type": "object",
+      "properties": {
+        "cacheReadTokens": {
+          "type": "integer"
+        },
+        "cacheWriteTokens": {
+          "type": "integer"
+        },
+        "costUsd": {
+          "type": "number"
+        },
+        "inputTokens": {
+          "type": "integer"
+        },
+        "outputTokens": {
+          "type": "integer"
+        },
+        "reasoningTokens": {
+          "type": "integer"
+        }
+      }
+    },
+    "OpenInterrupt": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "interrupts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Interrupt"
+          }
+        },
+        "runId": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "createdAt",
+        "interrupts",
+        "runId",
+        "sessionId"
+      ],
+      "allOf": [
+        {
+          "required": [
+            "createdAt",
+            "interrupts",
+            "runId",
+            "sessionId"
+          ]
+        }
+      ]
+    },
+    "PageOfAgentDoc": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentDoc"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfFileEntry": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FileEntry"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfManagedSkill": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ManagedSkill"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfMcpServer": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/McpServer"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfMcpServerConfig": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/McpServerConfig"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfMcpTool": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/McpTool"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfMemoryEntry": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MemoryEntry"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfModel": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Model"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfOpenInterrupt": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OpenInterrupt"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfProject": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Project"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfProvider": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Provider"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfRecipe": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Recipe"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfRunRef": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RunRef"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfSchedule": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Schedule"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfSession": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Session"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfSkill": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Skill"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfSkillDraft": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SkillDraft"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfToolSpec": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ToolSpec"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageOfWorkspaceFileChange": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkspaceFileChange"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "PageQuery": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        }
+      }
+    },
+    "PlanStep": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/PlanStepStatus"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "title"
+      ]
+    },
+    "PlanStepStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "running",
+        "completed",
+        "failed"
+      ]
+    },
+    "ProblemData": {
+      "type": "object",
+      "properties": {
+        "channel": {
+          "$ref": "#/$defs/ErrorChannel"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "docUrl": {
+          "type": "string"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FieldError"
+          }
+        },
+        "retryAfterSeconds": {
+          "type": "integer"
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "Project": {
+      "type": "object",
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "cwdMissing": {
+          "type": "boolean"
+        },
+        "lastActiveAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "name": {
+          "type": "string"
+        },
+        "projectRoot": {
+          "type": "string"
+        },
+        "sessionCount": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cwd",
+        "name",
+        "sessionCount"
+      ]
+    },
+    "ProtocolRange": {
+      "type": "object",
+      "properties": {
+        "current": {
+          "type": "string"
+        },
+        "minSupported": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "current",
+        "minSupported"
+      ]
+    },
+    "Provider": {
+      "type": "object",
+      "properties": {
+        "apiKeyMasked": {
+          "type": "string"
+        },
+        "baseUrl": {
+          "type": "string"
+        },
+        "defaultEmbeddingModel": {
+          "type": "string"
+        },
+        "embeddingCapable": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "keySource": {
+          "$ref": "#/$defs/ProviderKeySource"
+        },
+        "requiresBaseUrl": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "apiKeyMasked",
+        "id"
+      ]
+    },
+    "ProviderKeySource": {
+      "type": "string",
+      "enum": [
+        "stored",
+        "env"
+      ]
+    },
+    "ProviderTestResult": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/ProblemData"
+        },
+        "ok": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ok"
+      ]
+    },
+    "Question": {
+      "type": "object",
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestionField"
+          }
+        },
+        "prompt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "fields",
+        "prompt"
+      ]
+    },
+    "QuestionField": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "multiple": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestionOption"
+          }
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "type": {
+          "$ref": "#/$defs/QuestionFieldType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "multiple": false,
+            "options": false,
+            "type": {
+              "const": "text"
+            }
+          },
+          "required": [
+            "label",
+            "name",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "choice"
+            }
+          },
+          "required": [
+            "label",
+            "name",
+            "options",
+            "type"
+          ]
+        }
+      ]
+    },
+    "QuestionFieldType": {
+      "type": "string",
+      "enum": [
+        "text",
+        "choice"
+      ]
+    },
+    "QuestionOption": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "preview": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ]
+    },
+    "ReadFileRequest": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "maxBytes": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "startLine": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "Recipe": {
+      "type": "object",
+      "properties": {
+        "argumentHint": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/RecipeScope"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "body",
+        "name",
+        "scope",
+        "source"
+      ]
+    },
+    "RecipeScope": {
+      "type": "string",
+      "enum": [
+        "project",
+        "global"
+      ]
+    },
+    "RememberScope": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/RememberScopeKind"
+        }
+      },
+      "required": [
+        "scope"
+      ]
+    },
+    "RememberScopeKind": {
+      "type": "string",
+      "enum": [
+        "session",
+        "project",
+        "global"
+      ]
+    },
+    "RemoveMCPServerRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "RequestMeta": {
+      "type": "object",
+      "properties": {
+        "clientCapabilities": {
+          "$ref": "#/$defs/ClientCapabilities"
+        },
+        "clientInfo": {
+          "$ref": "#/$defs/ClientInfo"
+        },
+        "protocolVersion": {
+          "type": "string"
+        }
+      }
+    },
+    "RestoreType": {
+      "type": "string",
+      "enum": [
+        "history",
+        "files",
+        "both"
+      ]
+    },
+    "ResumeRunRequest": {
+      "type": "object",
+      "properties": {
+        "responses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InterruptResponse"
+          }
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "responses",
+        "runId"
+      ]
+    },
+    "RollbackSessionRequest": {
+      "type": "object",
+      "properties": {
+        "restoreType": {
+          "$ref": "#/$defs/RestoreType"
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "toRunId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId"
+      ]
+    },
+    "RollbackSessionResponse": {
+      "type": "object",
+      "properties": {
+        "droppedRuns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DroppedRun"
+          }
+        },
+        "session": {
+          "$ref": "#/$defs/Session"
+        }
+      },
+      "required": [
+        "droppedRuns",
+        "session"
+      ]
+    },
+    "RunEvent": {
+      "type": "object",
+      "properties": {
+        "event": {
+          "$ref": "#/$defs/StreamEvent"
+        },
+        "eventId": {
+          "type": "string"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "segmentId": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "event",
+        "eventId",
+        "runId",
+        "segmentId",
+        "timestamp"
+      ]
+    },
+    "RunOutcome": {
+      "type": "object",
+      "properties": {
+        "detail": {
+          "type": "string"
+        },
+        "interrupts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Interrupt"
+          }
+        },
+        "result": {
+          "$ref": "#/$defs/RunResult"
+        },
+        "type": {
+          "$ref": "#/$defs/RunOutcomeType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "detail": false,
+            "interrupts": false,
+            "type": {
+              "const": "completed"
+            }
+          },
+          "required": [
+            "result",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "detail": false,
+            "interrupts": false,
+            "type": {
+              "const": "error"
+            }
+          },
+          "required": [
+            "result",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "interrupts": false,
+            "type": {
+              "const": "maxSteps"
+            }
+          },
+          "required": [
+            "result",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "interrupts": false,
+            "type": {
+              "const": "maxBudget"
+            }
+          },
+          "required": [
+            "result",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "interrupts": false,
+            "type": {
+              "const": "canceled"
+            }
+          },
+          "required": [
+            "result",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "detail": false,
+            "result": false,
+            "type": {
+              "const": "interrupt"
+            }
+          },
+          "required": [
+            "interrupts",
+            "type"
+          ]
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "interrupt"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "result": false
+            },
+            "required": [
+              "interrupts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "error"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "detail": false,
+              "interrupts": false
+            },
+            "required": [
+              "result"
+            ]
+          }
+        }
+      ]
+    },
+    "RunOutcomeType": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "error",
+        "maxSteps",
+        "maxBudget",
+        "canceled",
+        "interrupt"
+      ]
+    },
+    "RunProgress": {
+      "type": "object",
+      "properties": {
+        "activity": {
+          "type": "string"
+        },
+        "contextTokens": {
+          "type": "integer"
+        },
+        "step": {
+          "type": "integer"
+        },
+        "usage": {
+          "$ref": "#/$defs/Usage"
+        }
+      }
+    },
+    "RunRef": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finishedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "id": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/RunOutcome"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "spawnedByItemId": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/RunStatus"
+        }
+      },
+      "required": [
+        "id",
+        "sessionId"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "finished"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "finishedAt",
+              "outcome"
+            ]
+          }
+        }
+      ]
+    },
+    "RunResult": {
+      "type": "object",
+      "properties": {
+        "durationMs": {
+          "type": "integer"
+        },
+        "error": {
+          "$ref": "#/$defs/ProblemData"
+        },
+        "steps": {
+          "type": "integer"
+        },
+        "usage": {
+          "$ref": "#/$defs/Usage"
+        }
+      }
+    },
+    "RunScheduleNowRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "RunScheduleNowResponse": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "runId",
+        "sessionId"
+      ]
+    },
+    "RunStatus": {
+      "type": "string",
+      "enum": [
+        "running",
+        "finished"
+      ]
+    },
+    "RuntimeLimits": {
+      "type": "object",
+      "properties": {
+        "maxConcurrentRuns": {
+          "type": "integer"
+        }
+      }
+    },
+    "SafetyClass": {
+      "type": "string",
+      "enum": [
+        "safe",
+        "write",
+        "exec",
+        "network"
+      ]
+    },
+    "Schedule": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cron": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "lastRunAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "model": {
+          "type": "string"
+        },
+        "nextRunAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "createdAt",
+        "cron",
+        "enabled",
+        "id",
+        "prompt",
+        "revision",
+        "title"
+      ]
+    },
+    "SearchHit": {
+      "type": "object",
+      "properties": {
+        "lineNumber": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "snippet": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "ServerCapabilities": {
+      "type": "object",
+      "properties": {
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StreamEventType"
+          }
+        },
+        "features": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/FeatureCapability"
+          }
+        },
+        "limits": {
+          "$ref": "#/$defs/RuntimeLimits"
+        },
+        "streamingMethods": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "events",
+        "features",
+        "limits",
+        "streamingMethods"
+      ]
+    },
+    "ServerInfo": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "home": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cwd",
+        "home",
+        "name",
+        "version"
+      ]
+    },
+    "Session": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "cwdMissing": {
+          "type": "boolean"
+        },
+        "favorite": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "projectRoot": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "$ref": "#/$defs/SessionStatus"
+        },
+        "title": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "createdAt",
+        "cwd",
+        "id",
+        "model",
+        "revision",
+        "status",
+        "title",
+        "updatedAt"
+      ]
+    },
+    "SessionArtifact": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactItem"
+          }
+        },
+        "messages": {
+          "type": "array",
+          "items": {}
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactRun"
+          }
+        },
+        "session": {
+          "$ref": "#/$defs/ArtifactSession"
+        },
+        "toolResults": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactToolResult"
+          }
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "messages",
+        "runs",
+        "session",
+        "toolResults",
+        "version"
+      ]
+    },
+    "SessionStatus": {
+      "type": "string",
+      "enum": [
+        "running",
+        "waiting",
+        "idle"
+      ]
+    },
+    "SessionUsageRequest": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "sessionId"
+      ]
+    },
+    "SetApprovalModeRequest": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "$ref": "#/$defs/ApprovalMode"
+        }
+      },
+      "required": [
+        "mode"
+      ]
+    },
+    "SetHookTrustRequest": {
+      "type": "object",
+      "properties": {
+        "projectRoot": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trusted": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "projectRoot",
+        "trusted"
+      ]
+    },
+    "SetMCPEnabledRequest": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "enabled",
+        "name"
+      ]
+    },
+    "Skill": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SkillSource"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "SkillDraft": {
+      "type": "object",
+      "properties": {
+        "createdBy": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "sourceSession": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "revision"
+      ]
+    },
+    "SkillDraftRef": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "revision"
+      ]
+    },
+    "SkillLifecycle": {
+      "type": "string",
+      "enum": [
+        "active",
+        "archived"
+      ]
+    },
+    "SkillNameRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "SkillSource": {
+      "type": "string",
+      "enum": [
+        "project",
+        "global"
+      ]
+    },
+    "Stability": {
+      "type": "string",
+      "enum": [
+        "stable",
+        "experimental"
+      ]
+    },
+    "StartGoalRequest": {
+      "type": "object",
+      "properties": {
+        "budget": {
+          "$ref": "#/$defs/GoalBudget"
+        },
+        "model": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "objective",
+        "sessionId"
+      ]
+    },
+    "StartRunRequest": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContentBlock"
+          }
+        },
+        "maxBudgetUsd": {
+          "type": "number"
+        },
+        "maxSteps": {
+          "type": "integer"
+        },
+        "model": {
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/GenerationParams"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "input",
+        "sessionId"
+      ]
+    },
+    "StartRunResponse": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string"
+        },
+        "segmentId": {
+          "type": "string"
+        },
+        "userItemId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "runId",
+        "segmentId"
+      ]
+    },
+    "SteerRunRequest": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "message",
+        "runId"
+      ]
+    },
+    "StreamEvent": {
+      "type": "object",
+      "properties": {
+        "delta": {
+          "$ref": "#/$defs/ItemDelta"
+        },
+        "durable": {
+          "type": "boolean"
+        },
+        "item": {
+          "$ref": "#/$defs/Item"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/RunOutcome"
+        },
+        "payload": {},
+        "progress": {
+          "$ref": "#/$defs/RunProgress"
+        },
+        "run": {
+          "$ref": "#/$defs/RunRef"
+        },
+        "state": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "type": {
+          "$ref": "#/$defs/StreamEventType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "delta": false,
+            "durable": false,
+            "item": false,
+            "itemId": false,
+            "name": false,
+            "outcome": false,
+            "payload": false,
+            "progress": false,
+            "state": false,
+            "type": {
+              "const": "segment.started"
+            }
+          },
+          "required": [
+            "run",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "delta": false,
+            "durable": false,
+            "item": false,
+            "itemId": false,
+            "name": false,
+            "outcome": false,
+            "payload": false,
+            "run": false,
+            "state": false,
+            "type": {
+              "const": "segment.progress"
+            }
+          },
+          "required": [
+            "progress",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "delta": false,
+            "durable": false,
+            "item": false,
+            "itemId": false,
+            "name": false,
+            "payload": false,
+            "progress": false,
+            "run": false,
+            "state": false,
+            "type": {
+              "const": "segment.finished"
+            }
+          },
+          "required": [
+            "outcome",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "delta": false,
+            "durable": false,
+            "itemId": false,
+            "name": false,
+            "outcome": false,
+            "payload": false,
+            "progress": false,
+            "run": false,
+            "state": false,
+            "type": {
+              "const": "item.started"
+            }
+          },
+          "required": [
+            "item",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "durable": false,
+            "item": false,
+            "name": false,
+            "outcome": false,
+            "payload": false,
+            "progress": false,
+            "run": false,
+            "state": false,
+            "type": {
+              "const": "item.delta"
+            }
+          },
+          "required": [
+            "delta",
+            "itemId",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "delta": false,
+            "durable": false,
+            "itemId": false,
+            "name": false,
+            "outcome": false,
+            "payload": false,
+            "progress": false,
+            "run": false,
+            "state": false,
+            "type": {
+              "const": "item.completed"
+            }
+          },
+          "required": [
+            "item",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "delta": false,
+            "durable": false,
+            "item": false,
+            "itemId": false,
+            "name": false,
+            "outcome": false,
+            "payload": false,
+            "progress": false,
+            "run": false,
+            "type": {
+              "const": "state.snapshot"
+            }
+          },
+          "required": [
+            "state",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "delta": false,
+            "item": false,
+            "itemId": false,
+            "outcome": false,
+            "progress": false,
+            "run": false,
+            "state": false,
+            "type": {
+              "const": "custom"
+            }
+          },
+          "required": [
+            "name",
+            "type"
+          ]
+        }
+      ]
+    },
+    "StreamEventType": {
+      "type": "string",
+      "enum": [
+        "segment.started",
+        "segment.progress",
+        "segment.finished",
+        "item.started",
+        "item.delta",
+        "item.completed",
+        "state.snapshot",
+        "custom"
+      ]
+    },
+    "SubscribeRunRequest": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "runId"
+      ]
+    },
+    "TestProviderRequest": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "provider"
+      ]
+    },
+    "TodoSnapshot": {
+      "type": "object",
+      "properties": {
+        "blockedReason": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "nextAction": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/TodoStatus"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "text"
+      ]
+    },
+    "TodoStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "in_progress",
+        "completed"
+      ]
+    },
+    "ToolInvocation": {
+      "type": "object",
+      "properties": {
+        "arguments": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "name": {
+          "type": "string"
+        },
+        "result": {}
+      },
+      "required": [
+        "arguments",
+        "name"
+      ]
+    },
+    "ToolSpec": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "safetyClass": {
+          "$ref": "#/$defs/SafetyClass"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "UpdateMemoryRequest": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/MemoryScope"
+        }
+      },
+      "required": [
+        "content",
+        "scope"
+      ]
+    },
+    "UpdateScheduleRequest": {
+      "type": "object",
+      "properties": {
+        "cron": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "expectedRevision",
+        "id"
+      ]
+    },
+    "UpdateSessionRequest": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "favorite": {
+          "type": "boolean"
+        },
+        "model": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "expectedRevision",
+        "sessionId"
+      ]
+    },
+    "Usage": {
+      "type": "object",
+      "properties": {
+        "byModel": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ModelUsage"
+          }
+        },
+        "cacheReadTokens": {
+          "type": "integer"
+        },
+        "cacheWriteTokens": {
+          "type": "integer"
+        },
+        "costUsd": {
+          "type": "number"
+        },
+        "inputTokens": {
+          "type": "integer"
+        },
+        "outputTokens": {
+          "type": "integer"
+        },
+        "reasoningTokens": {
+          "type": "integer"
+        }
+      }
+    },
+    "UsageBucket": {
+      "type": "object",
+      "properties": {
+        "cacheReadTokens": {
+          "type": "integer"
+        },
+        "cacheWriteTokens": {
+          "type": "integer"
+        },
+        "costUsd": {
+          "type": "number"
+        },
+        "inputTokens": {
+          "type": "integer"
+        },
+        "key": {
+          "type": "string"
+        },
+        "outputTokens": {
+          "type": "integer"
+        },
+        "reasoningTokens": {
+          "type": "integer"
+        },
+        "runs": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "key"
+      ]
+    },
+    "UsageSummary": {
+      "type": "object",
+      "properties": {
+        "byDay": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UsageBucket"
+          }
+        },
+        "byModel": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UsageBucket"
+          }
+        },
+        "byProvider": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UsageBucket"
+          }
+        },
+        "runs": {
+          "type": "integer"
+        },
+        "sessions": {
+          "type": "integer"
+        },
+        "total": {
+          "$ref": "#/$defs/ModelUsage"
+        }
+      },
+      "required": [
+        "total"
+      ]
+    },
+    "UsageSummaryRequest": {
+      "type": "object",
+      "properties": {
+        "sinceDays": {
+          "type": "integer"
+        }
+      }
+    },
+    "UtilityRole": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        }
+      }
+    },
+    "WatchSpec": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "watchId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "watchId"
+      ]
+    },
+    "WebSearchResult": {
+      "type": "object",
+      "properties": {
+        "faviconUrl": {
+          "type": "string"
+        },
+        "snippet": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ]
+    },
+    "WorkspaceEvent": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "error": {
+          "$ref": "#/$defs/ProblemData"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scheduleId": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "server": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/McpStatus"
+        },
+        "toolCount": {
+          "type": "integer"
+        },
+        "type": {
+          "$ref": "#/$defs/WorkspaceEventType"
+        },
+        "watchId": {
+          "type": "string"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "error": false,
+            "scheduleId": false,
+            "server": false,
+            "status": false,
+            "toolCount": false,
+            "type": {
+              "const": "files.changed"
+            }
+          },
+          "required": [
+            "paths",
+            "sequence",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "cwd": false,
+            "error": false,
+            "paths": false,
+            "scheduleId": false,
+            "server": false,
+            "status": false,
+            "toolCount": false,
+            "type": {
+              "const": "skills.changed"
+            },
+            "watchId": false
+          },
+          "required": [
+            "sequence",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "cwd": false,
+            "paths": false,
+            "scheduleId": false,
+            "type": {
+              "const": "mcp.serverChanged"
+            },
+            "watchId": false
+          },
+          "required": [
+            "sequence",
+            "server",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "cwd": false,
+            "error": false,
+            "paths": false,
+            "server": false,
+            "status": false,
+            "toolCount": false,
+            "type": {
+              "const": "schedules.fired"
+            },
+            "watchId": false
+          },
+          "required": [
+            "scheduleId",
+            "sequence",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "cwd": false,
+            "error": false,
+            "paths": false,
+            "scheduleId": false,
+            "server": false,
+            "status": false,
+            "toolCount": false,
+            "type": {
+              "const": "resync"
+            },
+            "watchId": false
+          },
+          "required": [
+            "sequence",
+            "type"
+          ]
+        }
+      ]
+    },
+    "WorkspaceEventType": {
+      "type": "string",
+      "enum": [
+        "files.changed",
+        "skills.changed",
+        "mcp.serverChanged",
+        "schedules.fired",
+        "resync"
+      ]
+    },
+    "WorkspaceFileChange": {
+      "type": "object",
+      "properties": {
+        "added": {
+          "type": "integer"
+        },
+        "binary": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        },
+        "previousPath": {
+          "type": "string"
+        },
+        "removed": {
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/FileStatus"
+        }
+      },
+      "required": [
+        "path",
+        "status"
+      ]
+    },
+    "WorkspaceListQuery": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        }
+      }
+    },
+    "WorkspaceSubscribeRequest": {
+      "type": "object",
+      "properties": {
+        "watches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WatchSpec"
+          }
+        }
+      }
+    },
+    "WorkspaceSubscribeResponse": {
+      "type": "object"
+    }
+  }
+}
