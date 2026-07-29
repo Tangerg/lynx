@@ -125,7 +125,9 @@ func cleanupToolEnvironment(t *testing.T, built toolset.Built) {
 func drainEvents(events iter.Seq[runs.ExecutorEvent]) []runs.EngineEvent {
 	var out []runs.EngineEvent
 	for ev := range events {
-		out = append(out, ev.Payload)
+		if event, ok := ev.Payload.(runs.EngineEvent); ok {
+			out = append(out, event)
+		}
 	}
 	return out
 }

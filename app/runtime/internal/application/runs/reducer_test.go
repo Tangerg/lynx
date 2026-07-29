@@ -125,27 +125,34 @@ func mustReducerSelection(provider, model string) modelref.Selection {
 func TestReducerResolvesSpawningItemByExecutorCallIdentity(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
 	first := mustReduce(t, reducer, ToolCallStart{
-		CallID: "canonical-1", SourceCallID: "provider-1", ToolName: "task", Arguments: `{}`,
+		CallID: "canonical-1", SourceCallID: "provider-1", ToolName: "task",
+		Arguments: `{"description":"delegate"}`, SafetyClass: tool.SafetyClassExec,
 	})
 	want := startedItemID(t, first)
-	got, err := reducer.spawningItemID("provider-1")
+	got, err := reducer.spawningItem("provider-1")
 	if err != nil {
-		t.Fatalf("spawningItemID: %v", err)
+		t.Fatalf("spawningItem: %v", err)
 	}
-	if got != want {
-		t.Fatalf("spawningItemID = %q, want %q", got, want)
+	if got.ID != want ||
+		got.RunID != "run_1" ||
+		got.Status != transcript.ItemRunning ||
+		got.Kind != transcript.ToolCall ||
+		got.Tool == nil ||
+		got.Tool.Name != "task" ||
+		got.SafetyClass != tool.SafetyClassExec {
+		t.Fatalf("spawningItem = %+v, want the canonical running tool item %q", got, want)
 	}
 
 	mustReduce(t, reducer, ToolCallStart{
 		CallID: "canonical-2", SourceCallID: "provider-1", ToolName: "task", Arguments: `{}`,
 	})
-	if _, err := reducer.spawningItemID("provider-1"); err == nil ||
+	if _, err := reducer.spawningItem("provider-1"); err == nil ||
 		!strings.Contains(err.Error(), "multiple open tool items") {
-		t.Fatalf("ambiguous spawningItemID error = %v", err)
+		t.Fatalf("ambiguous spawningItem error = %v", err)
 	}
-	if _, err := reducer.spawningItemID("provider-missing"); err == nil ||
+	if _, err := reducer.spawningItem("provider-missing"); err == nil ||
 		!strings.Contains(err.Error(), "no open tool item") {
-		t.Fatalf("missing spawningItemID error = %v", err)
+		t.Fatalf("missing spawningItem error = %v", err)
 	}
 }
 

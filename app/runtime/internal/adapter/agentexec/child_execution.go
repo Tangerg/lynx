@@ -4,10 +4,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
+	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/chatclient"
 )
+
+// ChildProcess is the immutable executor identity available at the child
+// admission boundary. It is deliberately narrower than core.ProcessView: the
+// application needs lineage and creation time, not live execution state.
+type ChildProcess struct {
+	ProcessRef
+	StartedAt time.Time
+}
+
+// AdmitChildFunc durably admits child before Agent Runtime publishes or
+// executes it. Returning an error rejects the unpublished child.
+type AdmitChildFunc func(ctx context.Context, child ChildProcess) error
 
 // childExecutionPolicy propagates application-owned provider, dependencies,
 // accounting projection, and UI hooks. Agent supplies the tree-wide budget
@@ -22,6 +36,7 @@ type childExecutionPolicy struct {
 	evictThreshold  int
 	chatMiddleware  *core.ChatMiddleware
 	usage           *usageLedger
+	admitChild      AdmitChildFunc
 }
 
 func childOptions(
@@ -34,6 +49,7 @@ func childOptions(
 	evictThreshold int,
 	chatMiddleware *core.ChatMiddleware,
 	usage *usageLedger,
+	admitChild AdmitChildFunc,
 ) core.ChildOptionsFunc {
 	return (childExecutionPolicy{
 		engine:          engine,
@@ -45,6 +61,7 @@ func childOptions(
 		evictThreshold:  evictThreshold,
 		chatMiddleware:  chatMiddleware,
 		usage:           usage,
+		admitChild:      admitChild,
 	}).options
 }
 
@@ -80,8 +97,34 @@ func (p childExecutionPolicy) options(_ context.Context, _ core.ProcessView, _ c
 		usage:       p.usage,
 		observation: observation,
 	})
+	if p.admitChild != nil {
+		options.Extensions = append(options.Extensions, childRunAdmitter{admit: p.admitChild})
+	}
 	if p.client != nil {
 		options.Extensions = append(options.Extensions, perRunChatClient{client: p.client})
 	}
 	return options, nil
 }
+
+// childRunAdmitter translates Agent Runtime's process view into the adapter's
+// stable value contract. Direct Engine.RunChild calls have no SpawnCallID and
+// remain SDK-internal children; only AgentTool delegation has the complete
+// causal edge required for a first-class application Run.
+type childRunAdmitter struct {
+	admit AdmitChildFunc
+}
+
+func (childRunAdmitter) Name() string { return "lyra:child-run-admission" }
+
+func (admitter childRunAdmitter) AdmitChild(ctx context.Context, process core.ProcessView) error {
+	ref := processRef(process)
+	if ref.SpawnCallID == "" {
+		return nil
+	}
+	return admitter.admit(ctx, ChildProcess{
+		ProcessRef: ref,
+		StartedAt:  process.StartedAt(),
+	})
+}
+
+var _ agentruntime.ChildAdmitter = childRunAdmitter{}

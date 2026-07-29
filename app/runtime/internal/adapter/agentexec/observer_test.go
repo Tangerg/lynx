@@ -32,11 +32,13 @@ type observedProcess struct {
 	id          string
 	parentID    string
 	spawnCallID string
+	startedAt   time.Time
 }
 
-func (p observedProcess) ID() string          { return p.id }
-func (p observedProcess) ParentID() string    { return p.parentID }
-func (p observedProcess) SpawnCallID() string { return p.spawnCallID }
+func (p observedProcess) ID() string           { return p.id }
+func (p observedProcess) ParentID() string     { return p.parentID }
+func (p observedProcess) SpawnCallID() string  { return p.spawnCallID }
+func (p observedProcess) StartedAt() time.Time { return p.startedAt }
 
 func testProcess(id string) core.ProcessView { return observedProcess{id: id} }
 

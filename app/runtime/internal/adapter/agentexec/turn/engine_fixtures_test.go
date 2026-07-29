@@ -150,6 +150,7 @@ type stubEngine struct {
 	lastMessage          string
 	lastCtx              context.Context
 	lastOptions          *corechat.Options
+	lastAdmitChild       agentexec.AdmitChildFunc
 	restoreGateTool      string
 	restoreGateArguments string
 	restoreGateVerdict   agentexec.ToolApprovalVerdict
@@ -168,6 +169,7 @@ func (s *stubEngine) StartTurn(ctx context.Context, request agentexec.TurnReques
 	s.lastCwd = request.Cwd
 	s.lastMessage = request.Message
 	s.lastCtx = ctx
+	s.lastAdmitChild = request.AdmitChild
 	if request.Options == nil {
 		s.lastOptions = nil
 	} else {
@@ -194,6 +196,12 @@ func (s *stubEngine) StartTurn(ctx context.Context, request agentexec.TurnReques
 	process.discardErr = s.discardErr
 	s.lastProcess.Store(process)
 	return process, nil
+}
+
+func (s *stubEngine) childAdmissionEnabled() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastAdmitChild != nil
 }
 
 // message returns the prompt the engine received (for asserting prompt-hook

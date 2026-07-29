@@ -80,6 +80,11 @@ type StartTurn struct {
 	MaxSteps       int
 	Options        *corechat.Options
 	InterruptKinds []execution.InterruptKind
+	// ChildRunAdmissionEnabled installs the executor-to-application admission
+	// handshake for AgentTool children. It is deliberately explicit and defaults
+	// off; protocol capability policy will be its sole production source when
+	// the complete child stream is enabled.
+	ChildRunAdmissionEnabled bool
 	// GoalLeaseID stamps a Goal-mode autonomous run with its goal incarnation
 	// so update_goal only signals that goal; empty for ordinary runs.
 	GoalLeaseID string
@@ -88,11 +93,12 @@ type StartTurn struct {
 // RehydrateTurn describes rebuilding a parked executor turn from its durable
 // process snapshot after process-local state was lost.
 type RehydrateTurn struct {
-	SessionID      string
-	TurnID         string
-	ProcessID      string
-	ModelSelection modelref.Selection
-	Cwd            string
+	SessionID                string
+	TurnID                   string
+	ProcessID                string
+	ModelSelection           modelref.Selection
+	Cwd                      string
+	ChildRunAdmissionEnabled bool
 }
 
 // IsolationProvider resolves the sandbox working-copy directory an isolated

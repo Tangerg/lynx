@@ -30,6 +30,7 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 	parked := false
 	abortTurn := false
 	commitCtx := ownerCtx
+	routes := newExecutorRoutes(spec, reducer)
 
 	defer close(live.done)
 	fail := func(err error) {
@@ -121,18 +122,56 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 	}()
 
 	for ev := range inner {
+		if request, opening := ev.Payload.(ChildOpeningRequest); opening {
+			if err := ev.Validate(); err != nil {
+				if request.claim() {
+					_ = request.complete(err)
+				}
+				fail(err)
+				return
+			}
+			if err := request.validate(); err != nil {
+				fail(err)
+				return
+			}
+			// Cancellation may win while the request is still buffered. In that
+			// case the executor has already rejected its unpublished child and
+			// there is no durable transaction to perform.
+			if !request.claim() {
+				continue
+			}
+			openingErr := c.openChildRun(commitCtx, spec, routes, ev.Source, request)
+			if confirmationErr := request.complete(openingErr); confirmationErr != nil {
+				openingErr = errors.Join(openingErr, confirmationErr)
+			}
+			if openingErr != nil {
+				fail(openingErr)
+				return
+			}
+			continue
+		}
 		if err := ev.Validate(); err != nil {
 			fail(err)
 			return
 		}
-		if ev.Source.Child() {
-			// B1.2b installs acknowledged child opening before this branch can
-			// route child payloads. Until then the adapter keeps child
-			// observations private and this guard fails closed on drift.
-			fail(fmt.Errorf("runs: child executor source %q has no admitted child run", ev.Source.ProcessID))
+		route, err := routes.resolve(ev.Source)
+		if err != nil {
+			fail(err)
 			return
 		}
-		reductions, err := reducer.reduce(ev.Payload)
+		if route.reducer == nil {
+			// B1.2b2 admits the child identity and durable Run. B1.2c gives that
+			// route its own reducer; until then no child payload may be folded
+			// into the root transcript.
+			fail(fmt.Errorf("runs: admitted child run %q has no segment reducer", route.runID))
+			return
+		}
+		engineEvent, ok := ev.Payload.(EngineEvent)
+		if !ok {
+			fail(fmt.Errorf("runs: unsupported executor payload %T", ev.Payload))
+			return
+		}
+		reductions, err := route.reducer.reduce(engineEvent)
 		if err != nil {
 			fail(err)
 			return

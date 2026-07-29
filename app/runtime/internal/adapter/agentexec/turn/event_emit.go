@@ -23,7 +23,7 @@ func (s *memoryDispatcher) emitRootEvent(st *turnState, payload runs.EngineEvent
 }
 
 // emitProcessEvent preserves the concrete executor process that produced payload.
-func (s *memoryDispatcher) emitProcessEvent(st *turnState, process agentexec.ProcessRef, payload runs.EngineEvent) bool {
+func (s *memoryDispatcher) emitProcessEvent(st *turnState, process agentexec.ProcessRef, payload runs.ExecutorPayload) bool {
 	event := runs.ExecutorEvent{
 		Source: runs.ExecutorSource{
 			ProcessID: process.ID, ParentID: process.ParentID, SpawnCallID: process.SpawnCallID,

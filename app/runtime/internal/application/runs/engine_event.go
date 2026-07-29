@@ -54,12 +54,12 @@ func (source ExecutorSource) Validate() error {
 }
 
 // ExecutorEvent is the driven-executor port value. Source identifies the
-// concrete root/child process; Payload is the closed application-owned event
-// family. A root stream may therefore carry child events without relabeling
+// concrete root/child process; Payload is the closed application-owned signal
+// family. A root stream may therefore carry child signals without relabeling
 // their producer as the root.
 type ExecutorEvent struct {
 	Source  ExecutorSource
-	Payload EngineEvent
+	Payload ExecutorPayload
 }
 
 // Validate checks the envelope before the Coordinator routes it.
@@ -70,14 +70,29 @@ func (event ExecutorEvent) Validate() error {
 	return event.Source.Validate()
 }
 
-// EngineEvent is the closed application-owned execution event family. Driven
+// ExecutorPayload is the closed family carried by the ordered executor stream.
+// Most values are reducible [EngineEvent] facts. A control handshake such as
+// [ChildOpeningRequest] shares the stream only when its ordering relative to
+// those facts is itself part of correctness.
+type ExecutorPayload interface {
+	executorPayload()
+}
+
+type executorPayloadBase struct{}
+
+func (executorPayloadBase) executorPayload() {}
+
+// EngineEvent is the closed application-owned execution fact family. Driven
 // adapters emit these values at the SegmentExecutor port; delivery therefore
 // projects an application contract and never reaches into an executor adapter.
+// Control handshakes deliberately implement only [ExecutorPayload], so they
+// cannot accidentally enter the reducer.
 type EngineEvent interface {
+	ExecutorPayload
 	engineEvent()
 }
 
-type engineEventBase struct{}
+type engineEventBase struct{ executorPayloadBase }
 
 func (engineEventBase) engineEvent() {}
 

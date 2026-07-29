@@ -104,6 +104,12 @@ type TurnRequest struct {
 	// Names must be unique across the process extension slice — process
 	// construction reports a collision synchronously from StartTurn.
 	EventListener core.Extension
+
+	// AdmitChild, when non-nil, is the synchronous durable-admission boundary
+	// for AgentTool children. The child does not publish or execute until it
+	// returns nil. Direct Agent Runtime children have no SpawnCallID and bypass
+	// this application Run boundary.
+	AdmitChild AdmitChildFunc
 }
 
 // snapshot returns the protocol-value state owned by the process launched from
@@ -158,7 +164,17 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 	if err != nil {
 		return nil, fmt.Errorf("engine: build steering chat middleware: %w", err)
 	}
-	processOptions, err := e.turnProcessOptions(request.SessionID, provider, budget, request.Observer, request.EventListener, request.ChatClient, middleware, usage)
+	processOptions, err := e.turnProcessOptions(
+		request.SessionID,
+		provider,
+		budget,
+		request.Observer,
+		request.EventListener,
+		request.ChatClient,
+		middleware,
+		usage,
+		request.AdmitChild,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("engine: configure chat process: %w", err)
 	}
@@ -197,6 +213,7 @@ func (e *Engine) turnProcessOptions(
 	client *chatclient.Client,
 	middleware *core.ChatMiddleware,
 	usage *usageLedger,
+	admitChild AdmitChildFunc,
 ) (core.ProcessOptions, error) {
 	dependencies := e.dependencies
 	if dependencies == nil {
@@ -251,6 +268,7 @@ func (e *Engine) turnProcessOptions(
 		e.toolResultThreshold,
 		childMiddleware,
 		usage,
+		admitChild,
 	)
 	var observation *toolObservation
 	if observer != nil {
@@ -323,6 +341,10 @@ type RestoreTurnRequest struct {
 	// EventListener receives restored-process subtree events for subagent
 	// lifecycle hooks. May be nil.
 	EventListener core.Extension
+
+	// AdmitChild reattaches the synchronous child Run admission boundary when a
+	// parked process tree is restored.
+	AdmitChild AdmitChildFunc
 
 	// ChatClient, when non-nil, overrides the model the restored continuation
 	// runs against — the per-run model the parked turn used, re-resolved from
@@ -397,6 +419,7 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 		request.ChatClient,
 		nil,
 		usage,
+		request.AdmitChild,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("engine: configure restored chat process: %w", err)

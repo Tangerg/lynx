@@ -34,6 +34,10 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 	}
 
 	observer := &turnObserver{dispatcher: s, st: st}
+	var admitChild agentexec.AdmitChildFunc
+	if request.ChildRunAdmissionEnabled {
+		admitChild = observer.admitChild
+	}
 	subagents := newSubagentLifecycle(st.handle.SessionID, st.cwd, st.hooks, s.engine.SubagentProjection)
 	var eventListener core.Extension
 	if subagents != nil {
@@ -54,6 +58,7 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 		ChatClient:     client,
 		Observer:       observer,
 		EventListener:  eventListener,
+		AdmitChild:     admitChild,
 		// Mid-run steering: drained before each continuation round (with the
 		// next-turn flushSteering as the after-last-round fallback).
 		Steer: s.steerSource(st),

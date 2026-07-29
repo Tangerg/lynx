@@ -57,6 +57,10 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 	state.modelSelection = request.ModelSelection
 	state.ctx, state.span = startTurnSpan(state.ctx, handle.SessionID, handle.TurnID, state.model)
 	observer := &turnObserver{dispatcher: s, st: state}
+	var admitChild agentexec.AdmitChildFunc
+	if request.ChildRunAdmissionEnabled {
+		admitChild = observer.admitChild
+	}
 	subagents := newSubagentLifecycle(state.handle.SessionID, state.cwd, state.hooks, s.engine.SubagentProjection)
 	var eventListener core.Extension
 	if subagents != nil {
@@ -73,6 +77,7 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 		Provider:      request.ModelSelection.Provider(),
 		Observer:      observer,
 		EventListener: eventListener,
+		AdmitChild:    admitChild,
 		ChatClient:    client,
 	})
 	if err != nil {

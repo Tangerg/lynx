@@ -37,6 +37,28 @@ type turnObserver struct {
 	st         *turnState
 }
 
+// admitChild sends the child opening request through the same serialized
+// executor stream as the parent ToolCallStart that causally precedes it. The
+// Agent Runtime blocks child publication and execution until the Coordinator
+// confirms the durable transaction.
+func (t *turnObserver) admitChild(ctx context.Context, child agentexec.ChildProcess) error {
+	request, confirmation := runs.NewChildOpeningRequest(child.StartedAt)
+	if !t.dispatcher.emitProcessEvent(t.st, child.ProcessRef, request) {
+		switch {
+		case ctx != nil && ctx.Err() != nil:
+			return fmt.Errorf("turn: request child process %q opening: %w", child.ID, ctx.Err())
+		case t.st.ctx.Err() != nil:
+			return fmt.Errorf("turn: request child process %q opening: %w", child.ID, t.st.ctx.Err())
+		default:
+			return fmt.Errorf("turn: request child process %q opening: executor event stream is closed", child.ID)
+		}
+	}
+	if err := confirmation.Await(ctx); err != nil {
+		return fmt.Errorf("turn: admit child process %q: %w", child.ID, err)
+	}
+	return nil
+}
+
 // toolGate owns the pre-execution protocol for one tool call: hook input,
 // standing policy, remembered decisions, HITL suspension, and the doom-loop
 // brake. It deliberately does not project tool events or post-tool hooks.

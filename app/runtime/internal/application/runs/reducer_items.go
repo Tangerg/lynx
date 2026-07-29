@@ -111,12 +111,7 @@ func (r *reducer) toolStart(e ToolCallStart) ([]RunEvent, error) {
 		name: e.ToolName, arguments: arguments, safetyClass: e.SafetyClass,
 	}
 	r.tools.add(ref)
-	out = append(out, ItemStarted{Item: transcript.Item{
-		ID: ref.id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
-		Kind: transcript.ToolCall, CreatedAt: ref.createdAt,
-		Tool:        newToolInvocation(e.ToolName, arguments, nil),
-		SafetyClass: e.SafetyClass,
-	}})
+	out = append(out, ItemStarted{Item: r.runningToolItem(ref)})
 	if e.Arguments != "" {
 		out = append(out, ItemChanged{
 			ItemID: ref.id,
@@ -126,28 +121,39 @@ func (r *reducer) toolStart(e ToolCallStart) ([]RunEvent, error) {
 	return out, nil
 }
 
-// spawningItemID resolves the executor's immutable parent-call identity to the
+func (r *reducer) runningToolItem(ref *openTool) transcript.Item {
+	return transcript.Item{
+		ID: ref.id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
+		Kind: transcript.ToolCall, CreatedAt: ref.createdAt,
+		Tool:        newToolInvocation(ref.name, ref.arguments, nil),
+		SafetyClass: ref.safetyClass,
+	}
+}
+
+// spawningItem resolves the executor's immutable parent-call identity to the
 // canonical running Item that represents it. Only currently open calls are
 // eligible: an AgentTool creates its child before that parent call can finish.
-// Ambiguity is rejected rather than resolved by ordering.
-func (r *reducer) spawningItemID(sourceCallID string) (string, error) {
+// It returns the complete canonical Item because child admission must persist
+// that Item in the same transaction as the child's lineage edge. Ambiguity is
+// rejected rather than resolved by ordering.
+func (r *reducer) spawningItem(sourceCallID string) (transcript.Item, error) {
 	if strings.TrimSpace(sourceCallID) == "" {
-		return "", errors.New("spawning source call id is required")
+		return transcript.Item{}, errors.New("spawning source call id is required")
 	}
-	var itemID string
-	for _, tool := range r.tools {
-		if tool.sourceCallID != sourceCallID {
+	var match *openTool
+	for _, candidate := range r.tools {
+		if candidate.sourceCallID != sourceCallID {
 			continue
 		}
-		if itemID != "" {
-			return "", fmt.Errorf("source call %q identifies multiple open tool items", sourceCallID)
+		if match != nil {
+			return transcript.Item{}, fmt.Errorf("source call %q identifies multiple open tool items", sourceCallID)
 		}
-		itemID = tool.id
+		match = candidate
 	}
-	if itemID == "" {
-		return "", fmt.Errorf("source call %q has no open tool item", sourceCallID)
+	if match == nil {
+		return transcript.Item{}, fmt.Errorf("source call %q has no open tool item", sourceCallID)
 	}
-	return itemID, nil
+	return r.runningToolItem(match), nil
 }
 
 func (r *reducer) toolEnd(e ToolCallEnd) ([]RunEvent, error) {

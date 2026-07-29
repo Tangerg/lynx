@@ -1,0 +1,140 @@
+package runsegment_test
+
+import (
+	"context"
+	"errors"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+)
+
+func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "runtime.db"))
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	runStore := sqlite.NewRunStore(db)
+	transcriptStore := sqlite.NewTranscriptStore(db)
+	root := execution.RunDraft{
+		RunID: "run_root", SessionID: "session_1", SegmentID: "segment_root",
+		CreatedAt: time.Unix(1, 0),
+	}
+	if err := runStore.Admit(t.Context(), root); err != nil {
+		t.Fatalf("admit root: %v", err)
+	}
+	effects := runsegment.New(runsegment.Config{
+		RunState:   runStore,
+		Transcript: transcriptStore,
+		Tx: func(ctx context.Context, apply func(context.Context) error) error {
+			return sqlite.RunInTx(ctx, db, apply)
+		},
+	})
+	arguments, err := tool.ParseArguments(`{"description":"delegate"}`)
+	if err != nil {
+		t.Fatalf("parse arguments: %v", err)
+	}
+	spawningItem := transcript.Item{
+		SessionID: "session_1",
+		RunID:     "run_root",
+		ID:        "item_delegate",
+		Status:    transcript.ItemRunning,
+		Kind:      transcript.ToolCall,
+		CreatedAt: time.Unix(2, 0),
+		Tool: &transcript.ToolInvocation{
+			Name:      "task",
+			Arguments: arguments,
+		},
+	}
+	child := execution.RunDraft{
+		RunID: "run_child", SessionID: "session_1", SegmentID: "segment_child",
+		SpawnedByItemID: spawningItem.ID, ParentRunID: root.RunID, RootRunID: root.RunID,
+		CreatedAt: time.Unix(3, 0),
+	}
+	if err := effects.CommitOpening(t.Context(), runs.OpeningCommit{
+		Admit: &child,
+		Events: []runs.EventCommit{{
+			RunID: root.RunID, SessionID: root.SessionID,
+			Items: []transcript.Item{spawningItem},
+		}},
+	}); err != nil {
+		t.Fatalf("CommitOpening: %v", err)
+	}
+
+	persistedChild, found, err := runStore.Run(t.Context(), child.RunID)
+	if err != nil || !found {
+		t.Fatalf("read child: found=%v error=%v", found, err)
+	}
+	if persistedChild.SpawnedByItemID != spawningItem.ID ||
+		persistedChild.ParentRunID != root.RunID ||
+		persistedChild.RootRunID != root.RunID {
+		t.Fatalf("persisted child = %+v, want complete lineage", persistedChild)
+	}
+	items, err := transcriptStore.List(t.Context(), root.SessionID)
+	if err != nil {
+		t.Fatalf("list transcript: %v", err)
+	}
+	if len(items) != 1 || items[0].ID != spawningItem.ID || items[0].Status != transcript.ItemRunning {
+		t.Fatalf("persisted parent items = %+v, want running spawning item", items)
+	}
+
+	rollbackErr := errors.New("reject parent item projection")
+	failingEffects := runsegment.New(runsegment.Config{
+		RunState: runStore,
+		Transcript: appendThenFail{
+			store: transcriptStore,
+			err:   rollbackErr,
+		},
+		Tx: func(ctx context.Context, apply func(context.Context) error) error {
+			return sqlite.RunInTx(ctx, db, apply)
+		},
+	})
+	rolledBackItem := spawningItem
+	rolledBackItem.ID = "item_rollback"
+	rolledBackItem.CreatedAt = time.Unix(4, 0)
+	rolledBackChild := child
+	rolledBackChild.RunID = "run_rollback"
+	rolledBackChild.SegmentID = "segment_rollback"
+	rolledBackChild.SpawnedByItemID = rolledBackItem.ID
+	rolledBackChild.CreatedAt = time.Unix(5, 0)
+	err = failingEffects.CommitOpening(t.Context(), runs.OpeningCommit{
+		Admit: &rolledBackChild,
+		Events: []runs.EventCommit{{
+			RunID: root.RunID, SessionID: root.SessionID,
+			Items: []transcript.Item{rolledBackItem},
+		}},
+	})
+	if !errors.Is(err, rollbackErr) {
+		t.Fatalf("rolled-back CommitOpening error = %v, want %v", err, rollbackErr)
+	}
+	if _, found, err := runStore.Run(t.Context(), rolledBackChild.RunID); err != nil || found {
+		t.Fatalf("rolled-back child: found=%v error=%v, want absent", found, err)
+	}
+	items, err = transcriptStore.List(t.Context(), root.SessionID)
+	if err != nil {
+		t.Fatalf("list transcript after rollback: %v", err)
+	}
+	if len(items) != 1 || items[0].ID != spawningItem.ID {
+		t.Fatalf("items after rollback = %+v, want only committed spawning item", items)
+	}
+}
+
+type appendThenFail struct {
+	store *sqlite.TranscriptStore
+	err   error
+}
+
+func (store appendThenFail) AppendItem(ctx context.Context, item transcript.Item) error {
+	if err := store.store.AppendItem(ctx, item); err != nil {
+		return err
+	}
+	return store.err
+}

@@ -30,6 +30,45 @@ type fakeExecutor struct {
 	releaseCancel  chan struct{}
 }
 
+type acknowledgedChildExecutor struct {
+	rootSource   ExecutorSource
+	childSource  ExecutorSource
+	request      ChildOpeningRequest
+	confirmation ChildOpeningConfirmation
+	childStarted chan struct{}
+}
+
+func (e *acknowledgedChildExecutor) TurnEvents(ctx context.Context, _ execution.TurnRef) (iter.Seq[ExecutorEvent], error) {
+	return func(yield func(ExecutorEvent) bool) {
+		if !yield(ExecutorEvent{
+			Source: e.rootSource,
+			Payload: ToolCallStart{
+				CallID:       "canonical_call_delegate",
+				SourceCallID: e.childSource.SpawnCallID,
+				ToolName:     "task",
+				Arguments:    `{}`,
+			},
+		}) {
+			return
+		}
+		if !yield(ExecutorEvent{Source: e.childSource, Payload: e.request}) {
+			return
+		}
+		if err := e.confirmation.Await(ctx); err != nil {
+			return
+		}
+		close(e.childStarted)
+		yield(ExecutorEvent{
+			Source:  e.rootSource,
+			Payload: TurnEnd{Reason: execution.OutcomeCompleted},
+		})
+	}, nil
+}
+
+func (*acknowledgedChildExecutor) CancelTurn(context.Context, execution.TurnRef) error {
+	return nil
+}
+
 func (f *fakeExecutor) TurnEvents(ctx context.Context, _ execution.TurnRef) (iter.Seq[ExecutorEvent], error) {
 	if f.startErr != nil {
 		return nil, f.startErr
@@ -83,6 +122,7 @@ type fakeEffects struct {
 	finishes        []Finish
 	nudges          int
 	openingErr      error
+	openingErrAt    int
 	commitErr       error
 	rejectCanceled  bool
 	suspendStarted  chan<- struct{}
@@ -94,10 +134,29 @@ type fakeEffects struct {
 	finishRelease   <-chan struct{}
 }
 
+type blockingChildOpeningEffects struct {
+	*fakeEffects
+	started chan<- struct{}
+	release <-chan struct{}
+}
+
+func (effects *blockingChildOpeningEffects) CommitOpening(ctx context.Context, opening OpeningCommit) error {
+	if opening.Admit != nil && opening.Admit.Lineage().IsChild() {
+		effects.started <- struct{}{}
+		select {
+		case <-effects.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return effects.fakeEffects.CommitOpening(ctx, opening)
+}
+
 func (e *fakeEffects) CommitOpening(_ context.Context, opening OpeningCommit) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.openingErr != nil {
+	attempt := len(e.openings) + 1
+	if e.openingErr != nil && (e.openingErrAt == 0 || e.openingErrAt == attempt) {
 		return e.openingErr
 	}
 	e.openings = append(e.openings, opening)
@@ -164,6 +223,12 @@ func (e *fakeEffects) opening() OpeningCommit {
 		return OpeningCommit{}
 	}
 	return e.openings[len(e.openings)-1]
+}
+
+func (e *fakeEffects) openingSnapshot() []OpeningCommit {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]OpeningCommit(nil), e.openings...)
 }
 
 func (e *fakeEffects) terminalized(sessionID, runID string) bool {
@@ -528,6 +593,191 @@ func TestCoordinatorRejectsUnadmittedChildSource(t *testing.T) {
 	}
 	if !effects.terminalized("ses_1", "run_1") {
 		t.Fatal("unadmitted child source did not terminalize the root run")
+	}
+}
+
+func TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem(t *testing.T) {
+	startedAt := time.Date(2026, 7, 13, 1, 2, 4, 0, time.FixedZone("test", 8*60*60))
+	request, confirmation := NewChildOpeningRequest(startedAt)
+	rootSource := ExecutorSource{ProcessID: "process_root"}
+	childSource := ExecutorSource{
+		ProcessID:   "process_child",
+		ParentID:    rootSource.ProcessID,
+		SpawnCallID: "provider_call_delegate",
+	}
+	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
+		{
+			Source: rootSource,
+			Payload: ToolCallStart{
+				CallID:       "canonical_call_delegate",
+				SourceCallID: childSource.SpawnCallID,
+				ToolName:     "task",
+				Arguments:    `{"description":"delegate"}`,
+			},
+		},
+		{Source: childSource, Payload: request},
+		{Source: rootSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+	}}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+	coordinator.newRunID = func() string { return "run_child" }
+	coordinator.newSegmentID = func() string { return "seg_child" }
+
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	collectEvents(stream)
+	if err := confirmation.Await(t.Context()); err != nil {
+		t.Fatalf("child opening confirmation: %v", err)
+	}
+
+	openings := effects.openingSnapshot()
+	if len(openings) != 2 {
+		t.Fatalf("opening commits = %d, want root and child", len(openings))
+	}
+	child := openings[1]
+	if child.Admit == nil {
+		t.Fatal("child opening has no admission draft")
+	}
+	draft := *child.Admit
+	if draft.RunID != "run_child" ||
+		draft.SessionID != "ses_1" ||
+		draft.SpawnedByItemID != "item_seg_1_1" ||
+		draft.ParentRunID != "run_1" ||
+		draft.RootRunID != "run_1" ||
+		draft.SegmentID != "seg_child" ||
+		draft.ModelSelection != testSegment().ModelSelection ||
+		!draft.ProtocolProfile.IsEmpty() ||
+		!draft.CreatedAt.Equal(startedAt) {
+		t.Fatalf("child admission draft = %+v", draft)
+	}
+	if len(child.Events) != 1 || len(child.Events[0].Items) != 1 {
+		t.Fatalf("child opening events = %+v, want parent spawning item", child.Events)
+	}
+	parentCommit := child.Events[0]
+	spawningItem := parentCommit.Items[0]
+	if parentCommit.RunID != "run_1" ||
+		parentCommit.SessionID != "ses_1" ||
+		spawningItem.ID != draft.SpawnedByItemID ||
+		spawningItem.RunID != "run_1" ||
+		spawningItem.SessionID != "ses_1" ||
+		spawningItem.Status != transcript.ItemRunning ||
+		spawningItem.Tool == nil ||
+		spawningItem.Tool.Name != "task" {
+		t.Fatalf("parent spawning-item commit = %+v", parentCommit)
+	}
+}
+
+func TestCoordinatorRejectsChildWhenAtomicOpeningFails(t *testing.T) {
+	commitErr := errors.New("child opening transaction failed")
+	request, confirmation := NewChildOpeningRequest(time.Now())
+	rootSource := ExecutorSource{ProcessID: "process_root"}
+	childSource := ExecutorSource{
+		ProcessID:   "process_child",
+		ParentID:    rootSource.ProcessID,
+		SpawnCallID: "provider_call_delegate",
+	}
+	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
+		{
+			Source: rootSource,
+			Payload: ToolCallStart{
+				CallID:       "canonical_call_delegate",
+				SourceCallID: childSource.SpawnCallID,
+				ToolName:     "task",
+				Arguments:    `{}`,
+			},
+		},
+		{Source: childSource, Payload: request},
+	}}
+	effects := &fakeEffects{openingErr: commitErr, openingErrAt: 2}
+	coordinator := testCoordinator(executor, effects)
+	coordinator.newRunID = func() string { return "run_child" }
+	coordinator.newSegmentID = func() string { return "seg_child" }
+
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	if err := confirmation.Await(t.Context()); !errors.Is(err, commitErr) {
+		t.Fatalf("child opening confirmation = %v, want commit failure", err)
+	}
+	if openings := effects.openingSnapshot(); len(openings) != 1 {
+		t.Fatalf("committed openings = %d, want only root", len(openings))
+	}
+	finished, ok := events[len(events)-1].Payload.(SegmentFinished)
+	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != execution.OutcomeError {
+		t.Fatalf("last payload = %#v, want root error terminal", events[len(events)-1].Payload)
+	}
+	if !effects.terminalized("ses_1", "run_1") {
+		t.Fatal("failed child opening did not terminalize the root")
+	}
+	if executor.cancels() != 1 {
+		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	}
+}
+
+func TestCoordinatorAcknowledgesChildOnlyAfterOpeningCommit(t *testing.T) {
+	request, confirmation := NewChildOpeningRequest(time.Now())
+	rootSource := ExecutorSource{ProcessID: "process_root"}
+	childSource := ExecutorSource{
+		ProcessID:   "process_child",
+		ParentID:    rootSource.ProcessID,
+		SpawnCallID: "provider_call_delegate",
+	}
+	executor := &acknowledgedChildExecutor{
+		rootSource:   rootSource,
+		childSource:  childSource,
+		request:      request,
+		confirmation: confirmation,
+		childStarted: make(chan struct{}),
+	}
+	commitStarted := make(chan struct{}, 1)
+	releaseCommit := make(chan struct{})
+	baseEffects := &fakeEffects{}
+	effects := &blockingChildOpeningEffects{
+		fakeEffects: baseEffects,
+		started:     commitStarted,
+		release:     releaseCommit,
+	}
+	coordinator := testCoordinator(executor, effects)
+	coordinator.newRunID = func() string { return "run_child" }
+	coordinator.newSegmentID = func() string { return "seg_child" }
+
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	drained := make(chan struct{})
+	go func() {
+		collectEvents(stream)
+		close(drained)
+	}()
+
+	select {
+	case <-commitStarted:
+	case <-time.After(time.Second):
+		t.Fatal("child opening commit did not start")
+	}
+	select {
+	case <-executor.childStarted:
+		t.Fatal("executor resumed child before its opening commit completed")
+	default:
+	}
+	close(releaseCommit)
+	select {
+	case <-executor.childStarted:
+	case <-time.After(time.Second):
+		t.Fatal("executor did not resume child after opening commit")
+	}
+	select {
+	case <-drained:
+	case <-time.After(time.Second):
+		t.Fatal("root stream did not finish after child admission")
+	}
+	if openings := baseEffects.openingSnapshot(); len(openings) != 2 {
+		t.Fatalf("opening commits = %d, want root and child", len(openings))
 	}
 }
 
