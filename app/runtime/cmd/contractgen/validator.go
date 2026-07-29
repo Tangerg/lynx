@@ -114,18 +114,25 @@ func validatorChecks(
 		}
 		field := strconv.Quote(constraint.Field)
 		switch constraint.Kind {
+		case dispatch.ConstraintNonEmpty:
+			checks = append(checks, fmt.Sprintf("requiredText(%s, %s)", field, stringExpr(selector, leaf.Type)))
 		case dispatch.ConstraintPositive:
 			checks = append(checks, fmt.Sprintf("positiveNumber(%s, value.%s)", field, selector))
 		case dispatch.ConstraintNonEmptyItems:
-			helper := "requiredItems"
+			validatorName := "requiredItems"
 			if leaf.Optional {
-				helper = "nonEmptyItems"
+				validatorName = "nonEmptyItems"
 			}
-			checks = append(checks, fmt.Sprintf("%s(%s, value.%s)", helper, field, selector))
+			checks = append(checks, fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector))
 		case dispatch.ConstraintUniqueItems:
 			checks = append(checks, fmt.Sprintf("uniqueItems(%s, value.%s)", field, selector))
 		default:
-			checks = append(checks, fmt.Sprintf("requiredText(%s, %s)", field, stringExpr(selector, leaf.Type)))
+			panic(fmt.Sprintf(
+				"contractgen: %s.%s uses unsupported constraint %s",
+				shape.Name(),
+				constraint.Field,
+				constraint.Kind,
+			))
 		}
 	}
 	for _, field := range protocol.WireFields(shape) {

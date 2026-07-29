@@ -2,6 +2,7 @@ package dispatch
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -15,10 +16,98 @@ import (
 func TestEveryDeclarableProblemTypeHasARecoveryAction(t *testing.T) {
 	t.Parallel()
 
-	for _, problemType := range knownProblemTypes {
+	for _, problemType := range MethodProblemTypes() {
 		if _, declared := RecoveryFor(problemType); !declared {
 			t.Errorf("%s is declarable and has no recovery action", problemType)
 		}
+	}
+}
+
+func TestMethodDeclarabilityComesFromTheRPCErrorRegistry(t *testing.T) {
+	t.Parallel()
+
+	if !IsMethodProblemType(protocol.ErrRunNotFound.Error()) {
+		t.Fatal("run_not_found should be method-declarable")
+	}
+	for _, boundaryProblem := range []string{
+		protocol.ErrInvalidParams.Error(),
+		protocol.ErrMethodNotFound.Error(),
+		protocol.ErrIdempotencyConflict.Error(),
+	} {
+		if IsMethodProblemType(boundaryProblem) {
+			t.Fatalf("%s is a boundary failure, not a method-declarable problem", boundaryProblem)
+		}
+	}
+}
+
+func TestRPCErrorRegistryRejectsContradictoryMetadata(t *testing.T) {
+	t.Parallel()
+
+	valid := rpcErrorSpec{
+		sentinel: errors.New("first"),
+		code:     -1,
+		recovery: protocol.RecoveryStop,
+	}
+	tests := []struct {
+		name  string
+		specs []rpcErrorSpec
+	}{{
+		name: "duplicate problem type",
+		specs: []rpcErrorSpec{
+			valid,
+			{sentinel: errors.New("first"), code: -2, recovery: protocol.RecoveryStop},
+		},
+	}, {
+		name: "duplicate numeric code",
+		specs: []rpcErrorSpec{
+			valid,
+			{sentinel: errors.New("second"), code: -1, recovery: protocol.RecoveryStop},
+		},
+	}, {
+		name: "unknown recovery action",
+		specs: []rpcErrorSpec{{
+			sentinel: errors.New("first"), code: -1,
+			recovery: protocol.RecoveryAction("guess"),
+		}},
+	}, {
+		name: "wait without backoff",
+		specs: []rpcErrorSpec{{
+			sentinel: errors.New("first"), code: -1,
+			recovery: protocol.RecoveryWaitRetryAfter,
+		}},
+	}, {
+		name: "backoff on a non-wait action",
+		specs: []rpcErrorSpec{{
+			sentinel: errors.New("first"), code: -1,
+			recovery: protocol.RecoveryStop, retryAfterSeconds: 1,
+		}},
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				if recovered := recover(); recovered == nil {
+					t.Fatal("mustRPCErrorSpecs accepted contradictory metadata")
+				}
+			}()
+			mustRPCErrorSpecs(tt.specs)
+		})
+	}
+}
+
+func TestRPCErrorResolutionUsesRegistryOrder(t *testing.T) {
+	t.Parallel()
+
+	rpcErr := errorToRPC(errors.Join(
+		protocol.ErrSessionNotFound,
+		protocol.ErrRunNotFound,
+	))
+	if rpcErr.Code != protocol.CodeSessionNotFound {
+		t.Fatalf(
+			"joined problem resolved to code %d, want first registry match %d",
+			rpcErr.Code,
+			protocol.CodeSessionNotFound,
+		)
 	}
 }
 

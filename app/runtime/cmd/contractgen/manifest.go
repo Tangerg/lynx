@@ -184,7 +184,7 @@ func methods(registry *dispatch.Registry) []methodEntry {
 			Name:        meta.Name,
 			Kind:        meta.Kind.String(),
 			Idempotency: meta.Idempotency.String(),
-			Errors:      meta.Errors,
+			Errors:      meta.ProblemTypes(),
 			Features:    meta.Features(),
 			Stability:   string(meta.Stability),
 		})
@@ -384,7 +384,7 @@ func invariants() []invariantEntry {
 func errorTypes(registry *dispatch.Registry, codes map[string]int) []errorEntry {
 	byType := make(map[string][]string, len(codes))
 	for _, meta := range registry.Metas() {
-		for _, problem := range meta.Errors {
+		for _, problem := range meta.ProblemTypes() {
 			byType[problem] = append(byType[problem], meta.Name)
 		}
 	}

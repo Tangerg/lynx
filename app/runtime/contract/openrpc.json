@@ -182,6 +182,10 @@
         {
           "code": -32005,
           "message": "cwd_unavailable"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -325,6 +329,10 @@
         {
           "code": -32009,
           "message": "checkpoint_unavailable"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -391,6 +399,10 @@
         {
           "code": -32002,
           "message": "session_not_found"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -428,6 +440,12 @@
           "$ref": "schema.json#/$defs/ImportSessionResponse"
         }
       },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "replayResponse",
       "x-lyra-stability": "stable",
@@ -851,6 +869,12 @@
           "$ref": "schema.json#/$defs/PageOfRunRef"
         }
       },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "none",
       "x-lyra-stability": "stable",
@@ -948,6 +972,10 @@
         {
           "code": -32002,
           "message": "session_not_found"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -1011,6 +1039,10 @@
         {
           "code": -32003,
           "message": "run_not_found"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -1433,6 +1465,12 @@
           "$ref": "schema.json#/$defs/RuntimeSubscribeResponse"
         }
       },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "stream",
       "x-lyra-idempotency": "none",
       "x-lyra-stability": "stable",
@@ -1492,6 +1530,10 @@
         {
           "code": -32005,
           "message": "cwd_unavailable"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -1534,6 +1576,12 @@
           "$ref": "schema.json#/$defs/PageOfManagedSkill"
         }
       },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "none",
       "x-lyra-stability": "stable",
@@ -1563,6 +1611,12 @@
           }
         }
       ],
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "replayResponse",
       "x-lyra-stability": "stable",
@@ -1590,6 +1644,12 @@
           "schema": {
             "type": "string"
           }
+        }
+      ],
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -1632,6 +1692,12 @@
           "$ref": "schema.json#/$defs/PageOfSkillDraft"
         }
       },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "none",
       "x-lyra-stability": "stable",
@@ -1668,6 +1734,12 @@
           }
         }
       ],
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "none",
       "x-lyra-stability": "stable",
@@ -1702,6 +1774,12 @@
           "schema": {
             "type": "string"
           }
+        }
+      ],
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -1828,6 +1906,12 @@
           "$ref": "schema.json#/$defs/PageOfMcpServer"
         }
       },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "none",
       "x-lyra-stability": "stable",
@@ -1874,6 +1958,12 @@
           "$ref": "schema.json#/$defs/PageOfMcpTool"
         }
       },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "none",
       "x-lyra-stability": "stable",
@@ -1903,6 +1993,12 @@
           }
         }
       ],
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "replayResponse",
       "x-lyra-stability": "stable",
@@ -1930,6 +2026,12 @@
           "schema": {
             "type": "string"
           }
+        }
+      ],
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -1972,6 +2074,12 @@
           "$ref": "schema.json#/$defs/PageOfMcpServerConfig"
         }
       },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "none",
       "x-lyra-stability": "stable",
@@ -2102,6 +2210,12 @@
           "$ref": "schema.json#/$defs/McpServerConfig"
         }
       },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "replayResponse",
       "x-lyra-stability": "stable",
@@ -2129,6 +2243,12 @@
           "schema": {
             "type": "string"
           }
+        }
+      ],
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -2165,6 +2285,12 @@
           "schema": {
             "type": "boolean"
           }
+        }
+      ],
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -2297,6 +2423,12 @@
           "$ref": "schema.json#/$defs/McpTestResult"
         }
       },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "none",
       "x-lyra-stability": "stable",
@@ -2479,6 +2611,12 @@
           "$ref": "schema.json#/$defs/PageOfSchedule"
         }
       },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "none",
       "x-lyra-stability": "stable",
@@ -2545,6 +2683,12 @@
           "$ref": "schema.json#/$defs/Schedule"
         }
       },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "replayResponse",
       "x-lyra-stability": "stable",
@@ -2634,6 +2778,10 @@
         {
           "code": -32019,
           "message": "revision_conflict"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -2663,6 +2811,12 @@
           "schema": {
             "type": "string"
           }
+        }
+      ],
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -2700,6 +2854,12 @@
           "$ref": "schema.json#/$defs/RunScheduleNowResponse"
         }
       },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "replayResponse",
       "x-lyra-stability": "stable",
@@ -2764,6 +2924,10 @@
         {
           "code": -32002,
           "message": "session_not_found"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -2805,6 +2969,10 @@
         {
           "code": -32002,
           "message": "session_not_found"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -2846,6 +3014,10 @@
         {
           "code": -32002,
           "message": "session_not_found"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -2887,6 +3059,10 @@
         {
           "code": -32002,
           "message": "session_not_found"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -2940,6 +3116,10 @@
         {
           "code": -32005,
           "message": "cwd_unavailable"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -2980,6 +3160,10 @@
         {
           "code": -32005,
           "message": "cwd_unavailable"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -3020,6 +3204,10 @@
         {
           "code": -32005,
           "message": "cwd_unavailable"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -3426,6 +3614,10 @@
         {
           "code": -32005,
           "message": "cwd_unavailable"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -3473,6 +3665,10 @@
         {
           "code": -32005,
           "message": "cwd_unavailable"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -3521,6 +3717,10 @@
         {
           "code": -32005,
           "message": "cwd_unavailable"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -3563,6 +3763,12 @@
           "$ref": "schema.json#/$defs/AgentMemoryList"
         }
       },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "none",
       "x-lyra-stability": "stable",
@@ -3597,6 +3803,12 @@
           "schema": {
             "$ref": "schema.json#/$defs/AgentMemoryReviewDecision"
           }
+        }
+      ],
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -3646,6 +3858,12 @@
           "$ref": "schema.json#/$defs/AgentMemoryItem"
         }
       },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "none",
       "x-lyra-stability": "stable",
@@ -3673,6 +3891,12 @@
           "schema": {
             "type": "string"
           }
+        }
+      ],
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -3722,6 +3946,12 @@
           "$ref": "schema.json#/$defs/AgentMemoryItem"
         }
       },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "none",
       "x-lyra-stability": "stable",

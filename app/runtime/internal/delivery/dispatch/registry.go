@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 	"reflect"
+	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
@@ -50,25 +51,53 @@ func (r *Registry) add(meta MethodMeta, handle func(*Dispatcher, context.Context
 	if _, exists := r.byName[meta.Name]; exists {
 		panic(fmt.Sprintf("dispatch: method %q is registered twice", meta.Name))
 	}
-	r.byName[meta.Name] = &Method{Meta: meta, handle: handle}
+	r.byName[meta.Name] = &Method{Meta: cloneMethodMeta(meta), handle: handle}
 	r.names = append(r.names, meta.Name)
 }
 
 // Lookup returns the registered method, or false for an unknown name.
 func (r *Registry) Lookup(name string) (*Method, bool) {
+	method, ok := r.lookup(name)
+	if !ok {
+		return nil, false
+	}
+	snapshot := *method
+	snapshot.Meta = cloneMethodMeta(method.Meta)
+	return &snapshot, true
+}
+
+// lookup is the dispatcher's allocation-free read of immutable registry state.
+// Public tooling uses Lookup's defensive snapshot; routing never exposes this
+// pointer outside the package.
+func (r *Registry) lookup(name string) (*Method, bool) {
 	method, ok := r.byName[name]
 	return method, ok
 }
 
 // Names lists every registered method in registration order, so generated
 // artifacts and diffs are stable.
-func (r *Registry) Names() []string { return r.names }
+func (r *Registry) Names() []string { return slices.Clone(r.names) }
 
 // Metas lists every method's metadata in registration order.
 func (r *Registry) Metas() []MethodMeta {
 	out := make([]MethodMeta, 0, len(r.names))
 	for _, name := range r.names {
-		out = append(out, r.byName[name].Meta)
+		out = append(out, cloneMethodMeta(r.byName[name].Meta))
+	}
+	return out
+}
+
+func cloneMethodMeta(meta MethodMeta) MethodMeta {
+	meta.Errors = slices.Clone(meta.Errors)
+	meta.CapabilityRules = cloneCapabilityRules(meta.CapabilityRules)
+	return meta
+}
+
+func cloneCapabilityRules(rules []CapabilityRule) []CapabilityRule {
+	out := slices.Clone(rules)
+	for index := range out {
+		out[index].When = slices.Clone(out[index].When)
+		out[index].Requires = slices.Clone(out[index].Requires)
 	}
 	return out
 }
@@ -179,7 +208,7 @@ func runtimeEventFramer(context.Context) func(protocol.RuntimeEvent) (StreamFram
 
 // dispatchRequest routes the request to its registered method.
 func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request) HandleResult {
-	method, ok := contract.Lookup(msg.Method)
+	method, ok := contract.lookup(msg.Method)
 	if !ok {
 		return responseError(msg.ID, methodNotFound(msg.Method))
 	}

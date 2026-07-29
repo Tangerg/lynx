@@ -969,6 +969,12 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 `runtime/contract/`（manifest / JSON Schema / OpenRPC / 人读索引 / 错误注册表 / 能力门禁 / 事件与 state 策略 /
 canonical 样本）以及前端消费的 TS 类型、校验器与 client stub。
 
+Registry 自身也属于合同边界：method / retry / condition / constraint / stability / recovery 等闭合 metadata
+出现未知值、重复声明或互相矛盾时，进程初始化与生成器必须确定性失败，不能把未知值格式化成某个合法默认值继续发布。
+对外枚举视图返回快照，调用方不能通过修改 slice 反向改写事实源。method 的有效错误集 =
+registration 显式业务错误 + capability rule 派生的 `capability_not_negotiated`；manifest、OpenRPC、错误注册表与人读
+索引只消费这一份派生结果，不各自维护“哪些方法会返回能力错误”的名单。
+
 **本文与这些制品的分工是硬的**：制品是字段级真相，本文是语义与不变量。本文里不出现字段表、方法表、错误码表 ——
 一个事实一个作者。
 

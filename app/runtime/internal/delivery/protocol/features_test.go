@@ -35,6 +35,30 @@ func TestFeaturesAreComplete(t *testing.T) {
 	}
 }
 
+func TestFeaturesReturnsASnapshot(t *testing.T) {
+	t.Parallel()
+
+	first := Features()
+	original := first[0]
+	first[0].Key = "corrupted"
+	if got := Features()[0]; got != original {
+		t.Fatalf("Features exposed registry storage: got %+v, want %+v", got, original)
+	}
+}
+
+func TestFeatureRegistryRejectsUnknownStability(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if recovered := recover(); recovered == nil {
+			t.Fatal("mustFeatures accepted an unknown stability")
+		}
+	}()
+	mustFeatures([]Feature{{
+		Key: "test", Stability: Stability("accidental"),
+	}})
+}
+
 // featureConstants reads the values of every `Feature*` string constant in the
 // package's non-test files.
 func featureConstants(t *testing.T) []string {

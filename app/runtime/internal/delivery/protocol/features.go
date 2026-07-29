@@ -1,6 +1,9 @@
 package protocol
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // The capability keys of `capabilities.features` (API.md §9).
 //
@@ -53,7 +56,7 @@ type Feature struct {
 	RequiredByRunProtocol bool
 }
 
-// Features is every key discovery may advertise, in the order the canonical docs
+// features is every key discovery may advertise, in the order the canonical docs
 // group them.
 //
 // The features map is open by design — §9 says a client treats an absent key as
@@ -62,7 +65,7 @@ type Feature struct {
 // capability rule may name. [TestFeaturesAreComplete] proves it lists every
 // declared constant, so a key cannot exist as a constant a rule references while
 // being invisible to discovery.
-var Features = mustFeatures([]Feature{
+var features = mustFeatures([]Feature{
 	{Key: FeatureReasoning, Stability: StabilityStable},
 	{Key: FeatureMultimodal, Stability: StabilityStable},
 	{Key: FeatureCompaction, Stability: StabilityStable},
@@ -91,10 +94,13 @@ var Features = mustFeatures([]Feature{
 	{Key: FeatureClientTools, Stability: StabilityStable, ClientOptIn: true},
 })
 
+// Features returns a snapshot of the published capability vocabulary.
+func Features() []Feature { return slices.Clone(features) }
+
 // LookupFeature returns the published facts about a key, or false for a key this
 // vocabulary does not define.
 func LookupFeature(key string) (Feature, bool) {
-	for _, feature := range Features {
+	for _, feature := range features {
 		if feature.Key == key {
 			return feature, true
 		}
@@ -105,8 +111,8 @@ func LookupFeature(key string) (Feature, bool) {
 // FeatureKeys lists the vocabulary's keys in registry order, for a consumer that
 // publishes the names alone.
 func FeatureKeys() []string {
-	keys := make([]string, 0, len(Features))
-	for _, feature := range Features {
+	keys := make([]string, 0, len(features))
+	for _, feature := range features {
 		keys = append(keys, feature.Key)
 	}
 	return keys
@@ -128,8 +134,14 @@ func mustFeatures(features []Feature) []Feature {
 			panic("protocol: a feature needs a key")
 		case seen[feature.Key]:
 			panic(fmt.Sprintf("protocol: feature %q is declared twice", feature.Key))
-		case feature.Stability == "":
-			panic(fmt.Sprintf("protocol: feature %q needs a stability", feature.Key))
+		case !feature.Stability.Valid():
+			panic(fmt.Sprintf(
+				"protocol: feature %q has invalid stability %q; expected %q or %q",
+				feature.Key,
+				feature.Stability,
+				StabilityStable,
+				StabilityExperimental,
+			))
 		case feature.RequiredByRunProtocol && !feature.ClientOptIn:
 			panic(fmt.Sprintf("protocol: feature %q reshapes the run protocol without opt-in — it belongs in stable core, not in features", feature.Key))
 		}

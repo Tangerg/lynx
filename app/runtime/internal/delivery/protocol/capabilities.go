@@ -126,6 +126,18 @@ const (
 	StabilityExperimental Stability = "experimental"
 )
 
+// Valid reports whether stability belongs to the closed first-party vocabulary.
+// The wire is still a string, so every registry boundary must reject values Go can
+// represent but the protocol does not define.
+func (s Stability) Valid() bool {
+	switch s {
+	case StabilityStable, StabilityExperimental:
+		return true
+	default:
+		return false
+	}
+}
+
 // FeatureCapability is one advertised capability: whether this build offers it,
 // and the two negotiation facts that belong to the feature itself rather than to
 // the build ([Feature]).

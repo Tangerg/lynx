@@ -36,6 +36,31 @@ func TestRegisteredShapesDescribeRealTypes(t *testing.T) {
 	}
 }
 
+func TestShapeViewsAreSnapshots(t *testing.T) {
+	t.Parallel()
+
+	unions := shapes.Unions()
+	originalTag := unions[0].Variants[0].Tag
+	unions[0].Variants[0].Tag = "corrupted"
+	if got := shapes.Unions()[0].Variants[0].Tag; got != originalTag {
+		t.Fatalf("Unions exposed registry storage: got %q, want %q", got, originalTag)
+	}
+
+	values := shapes.ValueConstraints()
+	originalField := values[0].Constraints[0].Field
+	values[0].Constraints[0].Field = "corrupted"
+	if got := shapes.ValueConstraints()[0].Constraints[0].Field; got != originalField {
+		t.Fatalf("ValueConstraints exposed registry storage: got %q, want %q", got, originalField)
+	}
+
+	stateKeys := shapes.StateKeys()
+	originalKey := stateKeys[0].Key
+	stateKeys[0].Key = "corrupted"
+	if got := shapes.StateKeys()[0].Key; got != originalKey {
+		t.Fatalf("StateKeys exposed registry storage: got %q, want %q", got, originalKey)
+	}
+}
+
 // TestEveryClosedWireUnionIsRegistered lists every closed union in the frozen
 // contract. A new wire union does not exist until both its Go carrier and its
 // machine-readable UnionSpec land.

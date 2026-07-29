@@ -26,7 +26,7 @@ const (
 // idempotencyOf reads the method's declared retry semantics. An unregistered
 // method keeps no record — dispatch will reject it as method_not_found anyway.
 func idempotencyOf(method string) IdempotencyPolicy {
-	registered, ok := contract.Lookup(method)
+	registered, ok := contract.lookup(method)
 	if !ok {
 		return IdempotencyNone
 	}

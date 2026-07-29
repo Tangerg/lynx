@@ -312,8 +312,17 @@ func (s *schemaSet) presence(t reflect.Type, rule dispatch.PresenceRule) *schema
 		}
 		// An equals condition pins the value; a presence condition only asks that
 		// the field be there, which `required` already says.
-		if when.Operator == dispatch.OperatorEquals {
+		switch when.Operator {
+		case dispatch.OperatorEquals:
 			parent.Properties[leaf] = &schema{Const: when.Value}
+		case dispatch.OperatorPresent:
+		default:
+			panic(fmt.Sprintf(
+				"contractgen: %s.%s uses unsupported condition operator %s",
+				t.Name(),
+				when.Field,
+				when.Operator,
+			))
 		}
 		parent.Required = append(parent.Required, leaf)
 	}
@@ -392,11 +401,11 @@ func normalize(node *schema) {
 // reflect name carries the full import path of its arguments, which is neither
 // readable nor a legal JSON pointer segment, so it becomes `PageOfSession`.
 func defName(t reflect.Type) string {
-	base, arguments, generic := strings.Cut(t.Name(), "[")
+	genericName, arguments, generic := strings.Cut(t.Name(), "[")
 	if !generic {
-		return base
+		return genericName
 	}
-	out := base
+	out := genericName
 	for argument := range strings.SplitSeq(strings.TrimSuffix(arguments, "]"), ",") {
 		argument = strings.TrimPrefix(strings.TrimSpace(argument), "*")
 		if index := strings.LastIndex(argument, "."); index >= 0 {
@@ -420,6 +429,11 @@ func applyValueConstraints(node *schema, kinds []dispatch.ConstraintKind) {
 			node.MinItems = new(1)
 		case dispatch.ConstraintUniqueItems:
 			node.UniqueItems = true
+		default:
+			panic(fmt.Sprintf(
+				"contractgen: unsupported value constraint %s",
+				kind,
+			))
 		}
 	}
 }

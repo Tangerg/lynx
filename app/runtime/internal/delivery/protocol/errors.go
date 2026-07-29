@@ -67,6 +67,22 @@ const (
 	RecoveryStop RecoveryAction = "stop"
 )
 
+// Valid reports whether the action belongs to the closed recovery vocabulary.
+func (a RecoveryAction) Valid() bool {
+	switch a {
+	case RecoveryRefetch,
+		RecoveryColdRecover,
+		RecoveryResubscribe,
+		RecoveryReauthenticate,
+		RecoveryWaitRetryAfter,
+		RecoveryPromptUser,
+		RecoveryStop:
+		return true
+	default:
+		return false
+	}
+}
+
 // CapabilityRequirementType names which vocabulary a missing capability belongs to
 // (§9.2). Four registries can be short: features, interrupt types, runtime topics and
 // state-snapshot keys.
@@ -128,7 +144,9 @@ func (e *CapabilityGap) Error() string {
 func (e *CapabilityGap) Is(target error) bool { return target == ErrCapabilityNotNeg }
 
 // Enrich carries the gaps to the frame (§9.2's presence table).
-func (e *CapabilityGap) Enrich(data *ProblemData) { data.RequiredCapabilities = e.Requirements }
+func (e *CapabilityGap) Enrich(problem *ProblemData) {
+	problem.RequiredCapabilities = e.Requirements
+}
 
 // ActiveRunRef is the run a session already holds, carried by
 // session_has_active_run (§8.2). It is a snapshot taken at the admission boundary,
@@ -159,7 +177,7 @@ func (e *ActiveRunConflict) Is(target error) bool { return target == ErrSessionH
 // Enrich fills the structured fields this problem type requires (§8.2's frame
 // table). It exists so the field travels with the error that knows it, instead of
 // delivery re-deriving it where the error is turned into a frame.
-func (e *ActiveRunConflict) Enrich(data *ProblemData) { data.ActiveRun = &e.ActiveRun }
+func (e *ActiveRunConflict) Enrich(problem *ProblemData) { problem.ActiveRun = &e.ActiveRun }
 
 // ProblemDetailed is implemented by an error whose problem type requires structured
 // fields beyond the prose detail. The dispatcher applies it when building the frame.

@@ -1,0 +1,176 @@
+package dispatch
+
+import (
+	"reflect"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+)
+
+type registrySnapshotParams struct {
+	Enabled bool `json:"enabled,omitempty"`
+}
+
+func TestRegistryViewsAreSnapshots(t *testing.T) {
+	t.Parallel()
+
+	registry := newRegistry()
+	registry.add(MethodMeta{
+		Name:        "tests.snapshot",
+		Kind:        KindUnary,
+		Idempotency: IdempotencyNone,
+		Errors:      []string{protocol.ErrRunNotFound.Error()},
+		CapabilityRules: []CapabilityRule{{
+			When: []FieldCondition{{
+				Field: "enabled", Operator: OperatorPresent,
+			}},
+			Requires: []string{protocol.FeatureSubagents},
+		}},
+		Stability: protocol.StabilityStable,
+		Params:    reflect.TypeFor[registrySnapshotParams](),
+	}, nil)
+
+	names := registry.Names()
+	names[0] = "tests.corrupted"
+	if got := registry.Names(); !slices.Equal(got, []string{"tests.snapshot"}) {
+		t.Fatalf("Names exposed registry storage: %v", got)
+	}
+
+	metas := registry.Metas()
+	metas[0].Errors[0] = protocol.ErrSessionNotFound.Error()
+	metas[0].CapabilityRules[0].When[0].Field = "corrupted"
+	metas[0].CapabilityRules[0].Requires[0] = protocol.FeatureMemory
+	got := registry.Metas()[0]
+	if !slices.Equal(got.Errors, []string{protocol.ErrRunNotFound.Error()}) {
+		t.Fatalf("Metas exposed error storage: %v", got.Errors)
+	}
+	if got.CapabilityRules[0].When[0].Field != "enabled" {
+		t.Fatalf("Metas exposed condition storage: %+v", got.CapabilityRules)
+	}
+	if !slices.Equal(got.CapabilityRules[0].Requires, []string{protocol.FeatureSubagents}) {
+		t.Fatalf("Metas exposed requirement storage: %+v", got.CapabilityRules)
+	}
+
+	lookedUp, _ := registry.Lookup("tests.snapshot")
+	lookedUp.Meta.Errors[0] = protocol.ErrSessionNotFound.Error()
+	lookedUpAgain, _ := registry.Lookup("tests.snapshot")
+	if !slices.Equal(lookedUpAgain.Meta.Errors, []string{protocol.ErrRunNotFound.Error()}) {
+		t.Fatalf("Lookup exposed registry storage: %v", lookedUpAgain.Meta.Errors)
+	}
+}
+
+func TestMetadataEnumsRejectUnknownValuesWithoutMasqueradingAsDefaults(t *testing.T) {
+	t.Parallel()
+
+	registered, ok := contract.Lookup("runs.list")
+	if !ok {
+		t.Fatal("runs.list is not registered")
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*MethodMeta)
+		want   []string
+	}{{
+		name: "method name",
+		mutate: func(meta *MethodMeta) {
+			meta.Name = "runs"
+		},
+		want: []string{`"runs"`, "dot-separated non-empty segments"},
+	}, {
+		name: "method kind",
+		mutate: func(meta *MethodMeta) {
+			meta.Kind = MethodKind(255)
+		},
+		want: []string{"runs.list", "MethodKind(255)"},
+	}, {
+		name: "idempotency policy",
+		mutate: func(meta *MethodMeta) {
+			meta.Idempotency = IdempotencyPolicy(255)
+		},
+		want: []string{"runs.list", "IdempotencyPolicy(255)"},
+	}, {
+		name: "stability",
+		mutate: func(meta *MethodMeta) {
+			meta.Stability = protocol.Stability("accidental")
+		},
+		want: []string{"runs.list", `"accidental"`, "stability"},
+	}, {
+		name: "condition operator",
+		mutate: func(meta *MethodMeta) {
+			meta.CapabilityRules = cloneCapabilityRules(meta.CapabilityRules)
+			meta.CapabilityRules[0].When[0].Operator = ConditionOperator(255)
+		},
+		want: []string{"runs.list", "includeDescendants", "ConditionOperator(255)"},
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			meta := cloneMethodMeta(registered.Meta)
+			tt.mutate(&meta)
+			err := meta.validate()
+			if err == nil {
+				t.Fatal("validate accepted an unknown metadata enum")
+			}
+			for _, fragment := range tt.want {
+				if !strings.Contains(err.Error(), fragment) {
+					t.Fatalf("error = %q, want fragment %q", err, fragment)
+				}
+			}
+		})
+	}
+
+	if got := MethodKind(255).String(); got == KindUnary.String() || got == KindStream.String() {
+		t.Fatalf("unknown method kind masquerades as %q", got)
+	}
+	if got := IdempotencyPolicy(255).String(); got == IdempotencyNone.String() {
+		t.Fatalf("unknown idempotency policy masquerades as %q", got)
+	}
+	if got := ConditionOperator(255).String(); got == OperatorPresent.String() {
+		t.Fatalf("unknown condition operator masquerades as %q", got)
+	}
+}
+
+func TestShapeMetadataRejectsUnknownValues(t *testing.T) {
+	t.Parallel()
+
+	valueSpec := FieldConstraintSpec{
+		GoType: reflect.TypeFor[protocol.GetRunRequest](),
+		Constraints: []FieldConstraint{{
+			Field: "runId", Kind: ConstraintKind(255),
+		}},
+	}
+	err := valueSpec.validate()
+	if err == nil || !strings.Contains(err.Error(), "ConstraintKind(255)") ||
+		!strings.Contains(err.Error(), "GetRunRequest.runId") {
+		t.Fatalf("value constraint error = %v, want shape, field and illegal kind", err)
+	}
+	if got := ConstraintKind(255).String(); got == ConstraintNonEmpty.String() {
+		t.Fatalf("unknown constraint kind masquerades as %q", got)
+	}
+
+	objectSpec := ObjectConstraintSpec{
+		GoType: reflect.TypeFor[protocol.ProblemData](),
+		Rules: []PresenceRule{{
+			When: []FieldCondition{{
+				Field: "type", Operator: ConditionOperator(255),
+			}},
+			Required: []string{"detail"},
+		}},
+	}
+	err = objectSpec.validate()
+	if err == nil || !strings.Contains(err.Error(), "ProblemData") ||
+		!strings.Contains(err.Error(), "type") ||
+		!strings.Contains(err.Error(), "ConditionOperator(255)") {
+		t.Fatalf("object constraint error = %v, want shape, field and illegal operator", err)
+	}
+
+	stateKey := shapes.StateKeys()[0]
+	stateKey.Scope = StateSnapshotScope("workspace")
+	err = stateKey.validate()
+	if err == nil || !strings.Contains(err.Error(), "workspace") || !strings.Contains(err.Error(), "scope") {
+		t.Fatalf("state key error = %v, want illegal scope", err)
+	}
+}

@@ -50,8 +50,8 @@ func newTypeScript(set *schemaSet, notifications []string) string {
 
 	names := slices.Sorted(maps.Keys(set.defs))
 	generics := genericBases(set)
-	for base, instantiations := range generics {
-		emitter.generic(base, instantiations)
+	for genericName, instantiations := range generics {
+		emitter.generic(genericName, instantiations)
 	}
 	for _, name := range names {
 		if _, aliased := generics[genericBaseOf(set.origin[name])]; aliased && isInstantiation(set.origin[name]) {
@@ -156,7 +156,7 @@ func (e *tsEmitter) protocolVersion() {
 // every generic helper the frontend has, so the shape is recovered by substituting
 // the type argument out of one instantiation, and every OTHER instantiation must
 // reproduce it exactly or generation fails.
-func (e *tsEmitter) generic(base string, instantiations []string) {
+func (e *tsEmitter) generic(genericName string, instantiations []string) {
 	var body, source string
 	for _, name := range instantiations {
 		argument := e.typeName(typeArgumentOf(e.set.origin[name]))
@@ -171,9 +171,9 @@ func (e *tsEmitter) generic(base string, instantiations []string) {
 		}
 	}
 	if !strings.Contains(body, "T") {
-		panic(fmt.Sprintf("contractgen: %s uses its type parameter nowhere", base))
+		panic(fmt.Sprintf("contractgen: %s uses its type parameter nowhere", genericName))
 	}
-	e.line("export interface %s<T> {", base)
+	e.line("export interface %s<T> {", genericName)
 	e.out.WriteString(body)
 	e.line("}")
 	e.line("")
@@ -221,25 +221,25 @@ func (e *tsEmitter) objectBody(node *schema, substitute string) string {
 	return out.String()
 }
 
-// branch renders one variant of a closed union: the base fields this tag permits,
+// branch renders one variant of a closed union: the shared fields this tag permits,
 // with the discriminator pinned and the other tags' fields gone.
-func (e *tsEmitter) branch(base, branch *schema) string {
+func (e *tsEmitter) branch(unionSchema, variantSchema *schema) string {
 	var fields []string
-	for _, name := range discriminatorFirst(base, branch) {
-		baseChild, ok := base.Properties[name].(*schema)
+	for _, name := range discriminatorFirst(unionSchema, variantSchema) {
+		unionField, ok := unionSchema.Properties[name].(*schema)
 		if !ok {
 			continue
 		}
-		override, mentioned := branch.Properties[name]
+		override, mentioned := variantSchema.Properties[name]
 		if excluded, ok := override.(bool); mentioned && ok && !excluded {
 			// The boolean schema `false`: this tag may not carry the field at all.
 			continue
 		}
-		rendered := e.typeOf(baseChild)
+		rendered := e.typeOf(unionField)
 		if narrowing, ok := override.(*schema); mentioned && ok {
-			rendered = e.narrow(baseChild, narrowing)
+			rendered = e.narrow(unionField, narrowing)
 		}
-		fields = append(fields, fmt.Sprintf("%s%s: %s", propertyKey(name), optionalMark(branch, name), rendered))
+		fields = append(fields, fmt.Sprintf("%s%s: %s", propertyKey(name), optionalMark(variantSchema, name), rendered))
 	}
 	return "{ " + strings.Join(fields, "; ") + " }"
 }
@@ -368,18 +368,18 @@ func (e *tsEmitter) trimTrailingNewline() {
 	e.out.WriteString(text)
 }
 
-// genericBases groups the instantiations of each generic Go type by base name.
+// genericBases groups the instantiations of each generic Go type by generic name.
 func genericBases(set *schemaSet) map[string][]string {
 	out := make(map[string][]string)
 	for name, t := range set.origin {
 		if !isInstantiation(t) {
 			continue
 		}
-		base := genericBaseOf(t)
-		out[base] = append(out[base], name)
+		genericName := genericBaseOf(t)
+		out[genericName] = append(out[genericName], name)
 	}
-	for base := range out {
-		slices.Sort(out[base])
+	for genericName := range out {
+		slices.Sort(out[genericName])
 	}
 	return out
 }
@@ -392,8 +392,8 @@ func genericBaseOf(t reflect.Type) string {
 	if t == nil {
 		return ""
 	}
-	base, _, _ := strings.Cut(t.Name(), "[")
-	return base
+	genericName, _, _ := strings.Cut(t.Name(), "[")
+	return genericName
 }
 
 // typeArgumentOf returns the single type argument of a generic instantiation, found
@@ -465,10 +465,10 @@ func unionOf(parts []string) string { return strings.Join(parts, " | ") }
 // scanning a union wants to see which case each line is before its payload, and
 // the tag is recognizable without being named: it is the field the branch pins to
 // a literal.
-func discriminatorFirst(base, branch *schema) []string {
-	names := slices.Sorted(maps.Keys(base.Properties))
+func discriminatorFirst(unionSchema, variantSchema *schema) []string {
+	names := slices.Sorted(maps.Keys(unionSchema.Properties))
 	slices.SortStableFunc(names, func(a, b string) int {
-		return boolCompare(isPinned(branch, b), isPinned(branch, a))
+		return boolCompare(isPinned(variantSchema, b), isPinned(variantSchema, a))
 	})
 	return names
 }

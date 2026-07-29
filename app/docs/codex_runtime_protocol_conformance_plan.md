@@ -203,11 +203,11 @@ cd app/desktop/frontend && npm run check
 | A3 | 删除 `custom.durable`，收紧事件可靠性语义 | `DONE` | 2026-07-30 完成 | type-owned policy、closed opt-out、全量 gates |
 | A4 | 收紧 machine-contract value constraints | `DONE` | 2026-07-30 完成 | single Registry metadata、output boundaries、全量 gates |
 | A5 | capability gate 与 disabled-subagent seam 收口 | `DONE` | 2026-07-30 完成 | shared policy、durable identity gates、全量 gates |
-| A6 | Registry fail-closed 与 SSOT 清理 | `TODO` | A5 后实施 | — |
+| A6 | Registry fail-closed 与 SSOT 清理 | `DONE` | 2026-07-30 完成 | defensive views、closed metadata、effective errors、全量 gates |
 | A7 | canonical docs 与最终 conformance sweep | `TODO` | 最后收口 | — |
 | B1 | 完整 child Run producer / tree cancel / barrier | `DEFERRED` | A5 完成后单独排期 | 启用条件见 §11 |
 
-A5 已完成；下一项为 A6，尚未开工。同一时间只允许一个 A-track slice 处于
+A6 已完成；下一项为 A7，尚未开工。同一时间只允许一个 A-track slice 处于
 `IN PROGRESS`，避免多个 breaking shape 同时造成无法定位的生成差异。
 
 ---
@@ -862,6 +862,53 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
   - effective method errors 与 error registry 的 SSOT 派生、metadata enum fail-closed、
     Registry clone/命名坏味道进入 A6。
 
+### 2026-07-30 — A6
+
+- 状态：`DONE`
+- Commit：本记录所在的 `refactor(runtime): make contract registries fail closed`
+  原子提交
+- 目标：让 Contract / Shape / Feature / Error registries 对非法 metadata
+  fail closed，并让所有生成制品消费同一份 effective method contract。
+- 关键裁决：
+  - `MethodKind`、`IdempotencyPolicy`、`ConditionOperator`、`ConstraintKind`、
+    `Stability` 与 `RecoveryAction` 都有闭合边界；未知值的 `String()` 输出带类型和值的
+    诊断，不再伪装成 `unary` / `none` / `present` / `nonEmpty`；
+  - method name、kind、retry、stability、problem type、capability condition field /
+    operator / value / feature 在注册时统一验证，错误点名 method、JSON field、非法值与
+    合法集合；
+  - union、presence rule、value constraint、state key、carried shape 注册拒绝重复
+    spec、重复 tag/field/condition、required+optional/forbidden 冲突、未知
+    constraint/scope/writer/stability/feature；生成器的 switch 同样在不可达默认分支
+    panic，不把未知 metadata 当默认值；
+  - `Registry.Names/Metas/Lookup`、所有 Shape views 与 `protocol.Features()` 返回深度
+    足够的 defensive snapshot；dispatcher 使用 package-private immutable lookup，
+    不为每个请求付出公开快照分配；
+  - RPC Error Registry 从无序 map 改为经过自校验的有序 specs：problem type、numeric
+    code、recovery action 与 retryAfter 组合唯一且一致，多 sentinel error chain 的
+    wire 解析顺序确定；
+  - `methodDeclarable` 成为 Error Registry 内的明确属性，删除
+    `knownProblemTypes` 第二份名单；`MethodMeta.ProblemTypes()` 统一派生
+    `Errors + static CapabilityRules => capability_not_negotiated`，manifest、OpenRPC、
+    API Reference 与 error registry 的 method 集全部消费它；
+  - 命名审计将 `base` / `helper` 等模糊局部名替换为
+    `commonItemFields` / `genericName` / `unionSchema` / `validatorName`；
+    store receivers 经 lint 与仓库扫描保持同一类型统一命名。
+- 生成物：
+  - `manifest.json`、`openrpc.json`、`API_REFERENCE.md` 补齐所有静态
+    capability refusal；
+  - canonical `API.md` 补充 Registry 自校验与 effective-error SSOT 规则。
+- 验证：
+  - Registry / Shape / Error / contractgen red-to-green tests → `PASS`
+  - `MODULE=app/runtime scripts/check.sh build vet test lint vuln` → `PASS`
+  - `cd app/runtime && go test -race ./...` → `PASS`
+  - `cd app/desktop/frontend && npm run check` → `178 files / 1078 tests PASS`
+  - contract generation 第二次聚合 hash
+    `608a7618f423891768ac1fc3fac77210deab79fa47abe62716952485373fff81`
+    不变 → `PASS`
+- 残余风险：
+  - canonical docs、生成制品与完整实现面的最终交叉审计进入 A7；
+  - child Run producer 仍按计划留在独立 B1，不在 A-track 伪装启用。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -893,9 +940,9 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 下一实施 slice：
 
 ```text
-A6 — Registry fail-closed 与 SSOT 清理
+A7 — canonical docs 与最终 conformance sweep
 ```
 
-开工时先把 A6 改为 `IN PROGRESS`，再用红灯证明 Registry 的 clone、闭合 enum、
-effective problem types 与错误诊断边界。不得通过兼容 alias 掩盖非法 metadata，也
-不得让 manifest / OpenRPC / API Reference 各自推导不同的 method error 集。
+开工时先把 A7 改为 `IN PROGRESS`，逐项核对 canonical API / AUX / TRANSPORT、
+manifest / schema / OpenRPC / TS artifacts 与 runtime producer/consumer。只修真实
+漂移，不为了“看起来兼容”保留旧名、旧字段或双写路径。

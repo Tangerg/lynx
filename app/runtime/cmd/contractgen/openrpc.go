@@ -117,7 +117,7 @@ func openrpcMethodFor(meta dispatch.MethodMeta, set *schemaSet, codes map[string
 	if meta.Event != nil {
 		method.StreamEvent = external(set.walk(meta.Event))
 	}
-	for _, problem := range meta.Errors {
+	for _, problem := range meta.ProblemTypes() {
 		code, ok := codes[problem]
 		if !ok {
 			panic("contractgen: " + meta.Name + " declares problem type " + problem + ", which the error registry has no code for")

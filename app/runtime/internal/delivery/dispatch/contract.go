@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
@@ -21,10 +22,14 @@ const (
 )
 
 func (k MethodKind) String() string {
-	if k == KindStream {
+	switch k {
+	case KindUnary:
+		return "unary"
+	case KindStream:
 		return "stream"
+	default:
+		return fmt.Sprintf("MethodKind(%d)", k)
 	}
-	return "unary"
 }
 
 // IdempotencyPolicy says what an `Idempotency-Key` retry of this method must do
@@ -49,8 +54,12 @@ const (
 	IdempotencyReplayRunStream
 )
 
-// Replays reports whether this policy keeps a replay record at all.
-func (p IdempotencyPolicy) Replays() bool { return p != IdempotencyNone }
+// Replays reports whether this policy keeps a replay record at all. Unknown
+// values never acquire replay semantics by accident; registry validation rejects
+// them before dispatch starts.
+func (p IdempotencyPolicy) Replays() bool {
+	return p == IdempotencyReplayResponse || p == IdempotencyReplayRunStream
+}
 
 // ConditionOperator is how a [FieldCondition] tests one request field.
 type ConditionOperator uint8
@@ -155,30 +164,17 @@ func (m MethodMeta) Features() []string {
 	return out
 }
 
-// knownProblemTypes is the closed first-party ProblemData.type vocabulary a
-// method may declare. It exists so a typo in a registration fails at startup
-// rather than shipping an error name no client has copy for.
-var knownProblemTypes = []string{
-	protocol.ErrSessionNotFound.Error(),
-	protocol.ErrRunNotFound.Error(),
-	protocol.ErrItemNotFound.Error(),
-	protocol.ErrInterruptNotOpen.Error(),
-	protocol.ErrRunNotRoot.Error(),
-	protocol.ErrRunWaiting.Error(),
-	protocol.ErrRunFinished.Error(),
-	protocol.ErrStaleSegment.Error(),
-	protocol.ErrReplayCursorInvalid.Error(),
-	protocol.ErrReplayUnavailable.Error(),
-	protocol.ErrSessionHasActiveRun.Error(),
-	protocol.ErrSessionBusy.Error(),
-	protocol.ErrRevisionConflict.Error(),
-	protocol.ErrCwdUnavailable.Error(),
-	protocol.ErrPathOutsideRoot.Error(),
-	protocol.ErrVcsUnavailable.Error(),
-	protocol.ErrCheckpointUnavailable.Error(),
-	protocol.ErrUnsupportedMime.Error(),
-	protocol.ErrProviderError.Error(),
-	protocol.ErrCapabilityNotNeg.Error(),
+// ProblemTypes returns the effective method-level failures in declaration order.
+// Static capability refusals are derived from CapabilityRules; state-dependent
+// refusals remain explicit in Errors because no request-shape rule can state when
+// they apply.
+func (m MethodMeta) ProblemTypes() []string {
+	problems := slices.Clone(m.Errors)
+	if len(m.CapabilityRules) > 0 &&
+		!slices.Contains(problems, protocol.ErrCapabilityNotNeg.Error()) {
+		problems = append(problems, protocol.ErrCapabilityNotNeg.Error())
+	}
+	return problems
 }
 
 // validate rejects a registration that could not be honored. A contract whose
@@ -188,12 +184,48 @@ func (m MethodMeta) validate() error {
 	if m.Name == "" {
 		return errors.New("method name is required")
 	}
-	if m.Stability == "" {
-		return fmt.Errorf("%s: stability is required", m.Name)
+	segments := strings.Split(m.Name, ".")
+	if len(segments) < 2 || slices.Contains(segments, "") {
+		return fmt.Errorf(
+			"method name %q is invalid; expected dot-separated non-empty segments",
+			m.Name,
+		)
 	}
-	for _, problem := range m.Errors {
-		if !slices.Contains(knownProblemTypes, problem) {
+	switch m.Kind {
+	case KindUnary, KindStream:
+	default:
+		return fmt.Errorf(
+			"%s: invalid method kind %s; expected %s or %s",
+			m.Name, m.Kind, KindUnary, KindStream,
+		)
+	}
+	switch m.Idempotency {
+	case IdempotencyNone, IdempotencyReplayResponse, IdempotencyReplayRunStream:
+	default:
+		return fmt.Errorf(
+			"%s: invalid idempotency policy %s; expected %s, %s or %s",
+			m.Name,
+			m.Idempotency,
+			IdempotencyNone,
+			IdempotencyReplayResponse,
+			IdempotencyReplayRunStream,
+		)
+	}
+	if !m.Stability.Valid() {
+		return fmt.Errorf(
+			"%s: invalid stability %q; expected %q or %q",
+			m.Name,
+			m.Stability,
+			protocol.StabilityStable,
+			protocol.StabilityExperimental,
+		)
+	}
+	for index, problem := range m.Errors {
+		if !IsMethodProblemType(problem) {
 			return fmt.Errorf("%s: %q is not a declarable problem type", m.Name, problem)
+		}
+		if slices.Contains(m.Errors[:index], problem) {
+			return fmt.Errorf("%s: problem type %q is declared twice", m.Name, problem)
 		}
 	}
 	if m.Kind == KindStream && m.Idempotency == IdempotencyReplayResponse {
@@ -211,36 +243,104 @@ func (m MethodMeta) validate() error {
 	if m.ResultNullable && (m.Result == nil || m.Result.Kind() != reflect.Pointer) {
 		return fmt.Errorf("%s: a nullable result needs a pointer to be nil", m.Name)
 	}
-	for _, rule := range m.CapabilityRules {
+	for ruleIndex, rule := range m.CapabilityRules {
 		if len(rule.Requires) == 0 {
-			return fmt.Errorf("%s: a capability rule must require at least one feature", m.Name)
+			return fmt.Errorf(
+				"%s: capability rule %d must require at least one feature",
+				m.Name, ruleIndex,
+			)
 		}
-		for _, condition := range rule.When {
-			if condition.Field == "" {
-				return fmt.Errorf("%s: a capability condition must name a field", m.Name)
+		for conditionIndex, condition := range rule.When {
+			if slices.Contains(rule.When[:conditionIndex], condition) {
+				return fmt.Errorf(
+					"%s: capability rule %d repeats condition for field %q with operator %s",
+					m.Name, ruleIndex, condition.Field, condition.Operator,
+				)
 			}
-			if condition.Operator == OperatorEquals && condition.Value == "" {
-				return fmt.Errorf("%s: an equals condition on %q needs a value", m.Name, condition.Field)
+			if err := validateFieldCondition(m.Name, m.Params, condition); err != nil {
+				return err
 			}
 		}
+		for featureIndex, feature := range rule.Requires {
+			if _, published := protocol.LookupFeature(feature); !published {
+				return fmt.Errorf(
+					"%s: capability rule %d requires unknown feature %q",
+					m.Name, ruleIndex, feature,
+				)
+			}
+			if slices.Contains(rule.Requires[:featureIndex], feature) {
+				return fmt.Errorf(
+					"%s: capability rule %d requires feature %q twice",
+					m.Name, ruleIndex, feature,
+				)
+			}
+		}
+	}
+	if len(m.CapabilityRules) > 0 &&
+		slices.Contains(m.Errors, protocol.ErrCapabilityNotNeg.Error()) {
+		return fmt.Errorf(
+			"%s: capability_not_negotiated is derived from capability rules and must not be declared twice",
+			m.Name,
+		)
 	}
 	return nil
 }
 
 func (p IdempotencyPolicy) String() string {
 	switch p {
+	case IdempotencyNone:
+		return "none"
 	case IdempotencyReplayResponse:
 		return "replayResponse"
 	case IdempotencyReplayRunStream:
 		return "replayRunStream"
 	default:
-		return "none"
+		return fmt.Sprintf("IdempotencyPolicy(%d)", p)
 	}
 }
 
 func (o ConditionOperator) String() string {
-	if o == OperatorEquals {
+	switch o {
+	case OperatorPresent:
+		return "present"
+	case OperatorEquals:
 		return "equals"
+	default:
+		return fmt.Sprintf("ConditionOperator(%d)", o)
 	}
-	return "present"
+}
+
+func validateFieldCondition(owner string, shape reflect.Type, condition FieldCondition) error {
+	if condition.Field == "" {
+		return fmt.Errorf("%s: condition must name a field", owner)
+	}
+	if err := protocol.HasWirePath(shape, condition.Field); err != nil {
+		return fmt.Errorf("%s condition field %q: %w", owner, condition.Field, err)
+	}
+	switch condition.Operator {
+	case OperatorPresent:
+		if condition.Value != "" {
+			return fmt.Errorf(
+				"%s condition field %q: operator %s does not accept value %q",
+				owner, condition.Field, condition.Operator, condition.Value,
+			)
+		}
+	case OperatorEquals:
+		if condition.Value == "" {
+			return fmt.Errorf(
+				"%s condition field %q: operator %s requires a non-empty value",
+				owner, condition.Field, condition.Operator,
+			)
+		}
+	default:
+		return fmt.Errorf(
+			"%s condition field %q: invalid operator %s; expected %s or %s",
+			owner,
+			condition.Field,
+			condition.Operator,
+			OperatorPresent,
+			OperatorEquals,
+		)
+	}
+	return nil
 }

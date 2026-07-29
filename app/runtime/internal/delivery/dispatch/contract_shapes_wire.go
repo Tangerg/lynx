@@ -82,10 +82,10 @@ func runOutcomeVariants() []VariantSpec {
 }
 
 func registerItemUnions(s *Shapes) {
-	// The base fields (id / runId / status / createdAt) are on every variant, so
+	// The common fields (id / runId / status / createdAt) are on every variant, so
 	// each variant repeats them: a variant declares the WHOLE frame it permits,
 	// which is what lets the field-coverage check be exhaustive.
-	base := []string{"id", "runId", "status", "createdAt"}
+	commonItemFields := []string{"id", "runId", "status", "createdAt"}
 	// The archive's session-scoped state values, keyed the same way the live stream
 	// keys them. One variant today, declared as a union because the KEY is the
 	// discriminator: a reader must branch on it rather than guess from which field
@@ -102,13 +102,13 @@ func registerItemUnions(s *Shapes) {
 		GoType:        typeOf[protocol.Item](),
 		Discriminator: "type",
 		Variants: []VariantSpec{
-			{Tag: string(protocol.ItemTypeUserMessage), Required: base, Optional: []string{"content"}},
-			{Tag: string(protocol.ItemTypeAgentMessage), Required: base, Optional: []string{"content"}},
-			{Tag: string(protocol.ItemTypeReasoning), Required: base, Optional: []string{"text", "redacted"}},
-			{Tag: string(protocol.ItemTypePlan), Required: base, Optional: []string{"steps"}},
-			{Tag: string(protocol.ItemTypeQuestion), Required: base, Optional: []string{"question"}},
-			{Tag: string(protocol.ItemTypeToolCall), Required: base, Optional: []string{"tool", "safetyClass", "error"}},
-			{Tag: string(protocol.ItemTypeCompaction), Required: base, Optional: []string{"summary", "droppedMessages"}},
+			{Tag: string(protocol.ItemTypeUserMessage), Required: commonItemFields, Optional: []string{"content"}},
+			{Tag: string(protocol.ItemTypeAgentMessage), Required: commonItemFields, Optional: []string{"content"}},
+			{Tag: string(protocol.ItemTypeReasoning), Required: commonItemFields, Optional: []string{"text", "redacted"}},
+			{Tag: string(protocol.ItemTypePlan), Required: commonItemFields, Optional: []string{"steps"}},
+			{Tag: string(protocol.ItemTypeQuestion), Required: commonItemFields, Optional: []string{"question"}},
+			{Tag: string(protocol.ItemTypeToolCall), Required: commonItemFields, Optional: []string{"tool", "safetyClass", "error"}},
+			{Tag: string(protocol.ItemTypeCompaction), Required: commonItemFields, Optional: []string{"summary", "droppedMessages"}},
 		},
 	})
 
@@ -290,18 +290,18 @@ func registerArtifactUnions(s *Shapes) {
 		},
 	})
 
-	base := []string{"id", "runId", "status", "createdAt"}
+	commonItemFields := []string{"id", "runId", "status", "createdAt"}
 	s.union(UnionSpec{
 		GoType:        typeOf[protocol.ArtifactItem](),
 		Discriminator: "type",
 		Variants: []VariantSpec{
-			{Tag: string(protocol.ItemTypeUserMessage), Required: base, Optional: []string{"content"}},
-			{Tag: string(protocol.ItemTypeAgentMessage), Required: base, Optional: []string{"content"}},
-			{Tag: string(protocol.ItemTypeReasoning), Required: base, Optional: []string{"text", "redacted"}},
-			{Tag: string(protocol.ItemTypePlan), Required: base, Optional: []string{"steps"}},
-			{Tag: string(protocol.ItemTypeQuestion), Required: base, Optional: []string{"question"}},
-			{Tag: string(protocol.ItemTypeToolCall), Required: base, Optional: []string{"tool", "safetyClass", "error"}},
-			{Tag: string(protocol.ItemTypeCompaction), Required: base, Optional: []string{"summary", "droppedMessages"}},
+			{Tag: string(protocol.ItemTypeUserMessage), Required: commonItemFields, Optional: []string{"content"}},
+			{Tag: string(protocol.ItemTypeAgentMessage), Required: commonItemFields, Optional: []string{"content"}},
+			{Tag: string(protocol.ItemTypeReasoning), Required: commonItemFields, Optional: []string{"text", "redacted"}},
+			{Tag: string(protocol.ItemTypePlan), Required: commonItemFields, Optional: []string{"steps"}},
+			{Tag: string(protocol.ItemTypeQuestion), Required: commonItemFields, Optional: []string{"question"}},
+			{Tag: string(protocol.ItemTypeToolCall), Required: commonItemFields, Optional: []string{"tool", "safetyClass", "error"}},
+			{Tag: string(protocol.ItemTypeCompaction), Required: commonItemFields, Optional: []string{"summary", "droppedMessages"}},
 		},
 	})
 

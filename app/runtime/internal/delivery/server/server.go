@@ -509,8 +509,9 @@ func advertisedFeatures(enabled map[string]bool) map[string]protocol.FeatureCapa
 			panic("server: composition advertises unpublished feature " + key)
 		}
 	}
-	out := make(map[string]protocol.FeatureCapability, len(protocol.Features))
-	for _, feature := range protocol.Features {
+	features := protocol.Features()
+	out := make(map[string]protocol.FeatureCapability, len(features))
+	for _, feature := range features {
 		out[feature.Key] = protocol.FeatureCapability{
 			Enabled:               enabled[feature.Key],
 			Stability:             feature.Stability,
