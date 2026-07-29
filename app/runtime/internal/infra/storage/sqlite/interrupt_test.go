@@ -28,7 +28,7 @@ func TestInterruptStore_PutGetListDelete(t *testing.T) {
 	store := newInterruptStore(t)
 
 	p := interrupts.Pending{
-		RunID:          "run_1",
+		RootRunID:      "run_1",
 		SessionID:      "ses_a",
 		TurnID:         "turn_1",
 		ModelSelection: testModelSelection(t, "anthropic", "claude-opus-4-8"),
@@ -96,7 +96,7 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 	}
 
 	if err := store.Put(ctx, interrupts.Pending{
-		RunID:     "run_1",
+		RootRunID: "run_1",
 		SessionID: "ses_a",
 		ProcessID: "proc_1",
 		Interrupts: []transcript.Interrupt{{
@@ -130,7 +130,7 @@ func TestInterruptStore_ProcessSnapshotHasOneOwner(t *testing.T) {
 	ctx := t.Context()
 	for _, runID := range []string{"run_1", "run_2"} {
 		err := store.Put(ctx, interrupts.Pending{
-			RunID: runID, SessionID: "ses_" + runID, TurnID: "turn_" + runID,
+			RootRunID: runID, SessionID: "ses_" + runID, TurnID: "turn_" + runID,
 			ProcessID: "proc_shared", CreatedAt: time.Unix(1, 0),
 		})
 		if runID == "run_1" && err != nil {

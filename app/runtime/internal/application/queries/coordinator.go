@@ -318,7 +318,7 @@ func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, c
 		return keyset.Page[interrupts.Pending]{}, err
 	}
 	return keyset.PageOf(rows, size, interruptPageMethod, filters, func(pending interrupts.Pending) []string {
-		return []string{strconv.FormatInt(pending.CreatedAt.UnixNano(), 10), pending.RunID}
+		return []string{strconv.FormatInt(pending.CreatedAt.UnixNano(), 10), pending.RootRunID}
 	}), nil
 }
 

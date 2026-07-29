@@ -337,7 +337,7 @@ func (s *SessionStores) deleteInterrupts(ctx context.Context, sessionID string) 
 		}
 	}
 	for _, interrupt := range pending {
-		if err := s.interrupts.Delete(ctx, interrupt.RunID); err != nil {
+		if err := s.interrupts.Delete(ctx, interrupt.RootRunID); err != nil {
 			return err
 		}
 	}

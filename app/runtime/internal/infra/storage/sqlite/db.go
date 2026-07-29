@@ -60,7 +60,7 @@ func Open(path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 37
+const schemaEpoch = 38
 
 func installCurrentSchema(db *sql.DB, path string) error {
 	var epoch int
@@ -177,7 +177,10 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		// protocol_profile are each one JSON value because they are read and written
 		// whole with the row and never queried across.
 		`CREATE TABLE IF NOT EXISTS interrupts (
-			run_id         TEXT    PRIMARY KEY,
+			-- The Run that OWNS this set: resume consumes the whole set at once, so it
+			-- is keyed by its owner. Which Run RAISED each interrupt is in the payload,
+			-- per interrupt, and is a different question once a tree is deeper than one.
+			root_run_id    TEXT    PRIMARY KEY,
 			session_id     TEXT    NOT NULL DEFAULT '',
 			turn_id        TEXT    NOT NULL DEFAULT '',
 			process_id     TEXT    NOT NULL DEFAULT '',

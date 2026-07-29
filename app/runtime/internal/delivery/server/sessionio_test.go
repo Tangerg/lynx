@@ -295,7 +295,7 @@ func TestSessionImportRejectsOpenInterrupt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := rt.interrupts.Put(ctx, interrupts.Pending{RunID: "run_parked", SessionID: ses.ID}); err != nil {
+	if err := rt.interrupts.Put(ctx, interrupts.Pending{RootRunID: "run_parked", SessionID: ses.ID}); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
@@ -321,7 +321,7 @@ func TestSessionExportRejectsOpenInterrupt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := rt.interrupts.Put(ctx, interrupts.Pending{RunID: "run_parked", SessionID: ses.ID}); err != nil {
+	if err := rt.interrupts.Put(ctx, interrupts.Pending{RootRunID: "run_parked", SessionID: ses.ID}); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
@@ -363,7 +363,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 		t.Fatalf("put interrupt item: %v", err)
 	}
 	if err := rt.interrupts.Put(ctx, interrupts.Pending{
-		RunID: "run_parked", SessionID: ses.ID, TurnID: "turn_parked",
+		RootRunID: "run_parked", SessionID: ses.ID, TurnID: "turn_parked",
 		Interrupts: []transcript.Interrupt{{ItemID: "item_question", Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Prompt: "Continue?"}}},
 		RunCreatedAt: parkedAt, CreatedAt: parkedAt,
@@ -399,7 +399,7 @@ func TestRestoreSessionApplicationBoundaryRejectsOpenInterrupts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := rt.interrupts.Put(ctx, interrupts.Pending{RunID: "run_old", SessionID: ses.ID}); err != nil {
+	if err := rt.interrupts.Put(ctx, interrupts.Pending{RootRunID: "run_old", SessionID: ses.ID}); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 

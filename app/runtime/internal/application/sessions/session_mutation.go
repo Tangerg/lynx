@@ -52,7 +52,7 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 			var cleanupErrs []error
 			for _, item := range pending {
 				if err := c.cancelTurn(ctx, RunTurnBinding{
-					RunID:     item.RunID,
+					RunID:     item.RootRunID,
 					SessionID: item.SessionID,
 					TurnID:    item.TurnID,
 				}); err != nil {

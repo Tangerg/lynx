@@ -430,7 +430,7 @@ func (s stubLifecycleStores) deleteInterrupts(ctx context.Context, sessionID str
 		return err
 	}
 	for _, p := range pending {
-		if err := s.rt.interrupts.Delete(ctx, p.RunID); err != nil {
+		if err := s.rt.interrupts.Delete(ctx, p.RootRunID); err != nil {
 			return err
 		}
 	}

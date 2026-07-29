@@ -35,7 +35,7 @@ func (r *fakeInterruptReader) ListPage(ctx context.Context, sessionID string, _ 
 
 func (r *fakeInterruptReader) Get(_ context.Context, runID string) (interrupts.Pending, bool, error) {
 	for _, pending := range r.pending {
-		if pending.RunID == runID {
+		if pending.RootRunID == runID {
 			return pending, true, r.err
 		}
 	}
@@ -274,7 +274,7 @@ func TestListOpenInterruptsProjectsToWire(t *testing.T) {
 	}
 	reader := &fakeInterruptReader{pending: []interrupts.Pending{
 		{
-			RunID:     "run_waiting",
+			RootRunID: "run_waiting",
 			SessionID: "ses_1",
 			Interrupts: []transcript.Interrupt{{
 				ItemID: "item_1", Kind: execution.ApprovalInterrupt,

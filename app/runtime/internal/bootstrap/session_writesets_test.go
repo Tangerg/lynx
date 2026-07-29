@@ -163,7 +163,7 @@ func park(
 	}); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
-	if err := ints.Put(ctx, interrupts.Pending{RunID: runID, SessionID: sessionID, ProcessID: processID, CreatedAt: time.Unix(0, 0)}); err != nil {
+	if err := ints.Put(ctx, interrupts.Pending{RootRunID: runID, SessionID: sessionID, ProcessID: processID, CreatedAt: time.Unix(0, 0)}); err != nil {
 		t.Fatalf("put interrupt: %v", err)
 	}
 	return processID

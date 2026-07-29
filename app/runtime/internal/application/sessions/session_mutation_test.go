@@ -209,7 +209,7 @@ func TestDeleteSessionRemovesOwnedSubtaskTreeButPreservesUserForks(t *testing.T)
 		},
 		"ses_sub": {{ID: "ses_nested", Kind: session.KindSubtask}},
 	}
-	stores.pending["ses_sub"] = []interrupts.Pending{{RunID: "run_sub", SessionID: "ses_sub", TurnID: "turn_sub"}}
+	stores.pending["ses_sub"] = []interrupts.Pending{{RootRunID: "run_sub", SessionID: "ses_sub", TurnID: "turn_sub"}}
 	claims := new(testClaimer)
 
 	if err := newCoordinatorWithAdmissions(stores, mutationTurns{operations: &stores.operations}, claims).DeleteSession(t.Context(), "ses_1"); err != nil {
@@ -336,7 +336,7 @@ func newMutationStores(fail string) *mutationStores {
 	s := &mutationStores{
 		fail: fail,
 		pending: map[string][]interrupts.Pending{
-			"ses_1": {{RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"}},
+			"ses_1": {{RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"}},
 		},
 	}
 	s.ints = &mutationInterrupts{stores: s}
@@ -415,7 +415,7 @@ func (i *mutationInterrupts) List(_ context.Context, sessionID string) ([]interr
 func (i *mutationInterrupts) Get(_ context.Context, runID string) (interrupts.Pending, bool, error) {
 	for _, pending := range i.stores.pending {
 		for _, item := range pending {
-			if item.RunID == runID {
+			if item.RootRunID == runID {
 				return item, true, nil
 			}
 		}

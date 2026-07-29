@@ -162,7 +162,7 @@ func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTu
 			continue
 		}
 		out = append(out, RunTurnBinding{
-			RunID:     pending.RunID,
+			RunID:     pending.RootRunID,
 			SessionID: pending.SessionID,
 			TurnID:    pending.TurnID,
 			ProcessID: pending.ProcessID,

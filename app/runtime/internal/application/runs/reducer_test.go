@@ -374,7 +374,7 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	question := &transcript.Question{Prompt: "Continue?"}
 	config := testReducerConfig()
 	config.Pending = &interrupts.Pending{
-		RunID: "run_1", SessionID: "ses_1",
+		RootRunID: "run_1", SessionID: "ses_1",
 		Interrupts: []transcript.Interrupt{
 			{ItemID: "item_approval", Kind: execution.ApprovalInterrupt, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "go test"})}}},
 			{ItemID: "item_question", Kind: execution.QuestionInterrupt, Question: question},
@@ -526,7 +526,7 @@ func TestReducerRejectsInvalidToolLifecycle(t *testing.T) {
 func TestReducerUsesCanonicalArgumentsForResumeIdentity(t *testing.T) {
 	config := testReducerConfig()
 	config.Pending = &interrupts.Pending{
-		RunID: "run_1", SessionID: "ses_1",
+		RootRunID: "run_1", SessionID: "ses_1",
 		DrainedTools: []interrupts.DrainedTool{{
 			ItemID: "item_original", CallID: "old_call", Name: "lookup",
 			Arguments: `{"b":2,"a":{"enabled":true}}`,
@@ -545,7 +545,7 @@ func TestReducerUsesCanonicalArgumentsForResumeIdentity(t *testing.T) {
 func TestReducerRejectsMalformedDurableResumeArguments(t *testing.T) {
 	config := testReducerConfig()
 	config.Pending = &interrupts.Pending{
-		RunID: "run_1", SessionID: "ses_1",
+		RootRunID: "run_1", SessionID: "ses_1",
 		DrainedTools: []interrupts.DrainedTool{{
 			ItemID: "item_broken", Name: "lookup", Arguments: "[]",
 		}},
@@ -738,7 +738,7 @@ func TestReducerReportsTheRunsFrozenProfileOnEverySegment(t *testing.T) {
 	}
 	config := testReducerConfig()
 	config.ProtocolProfile = frozen
-	config.Pending = &interrupts.Pending{RunID: "run_1", SessionID: "ses_1", ProtocolProfile: frozen}
+	config.Pending = &interrupts.Pending{RootRunID: "run_1", SessionID: "ses_1", ProtocolProfile: frozen}
 
 	reducer := newReducer(config)
 	opening := mustOpen(t, reducer)

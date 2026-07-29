@@ -125,7 +125,7 @@ func TestRollbackSession_CancelsDroppedParkedRun(t *testing.T) {
 	putRun(t, rt, sess.ID, "run_2", 200, 4)
 	putUserItem(t, rt, sess.ID, "run_2", "item_u2", "second prompt")
 	if err := rt.interrupts.Put(ctx, interrupts.Pending{
-		RunID:     "run_2",
+		RootRunID: "run_2",
 		SessionID: sess.ID,
 		TurnID:    "turn_parked",
 	}); err != nil {
@@ -165,7 +165,7 @@ func TestRollbackSession_DropAll(t *testing.T) {
 	rt.history[sess.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("u1")), chat.NewAssistantMessage(chat.NewTextPart("a1"))}
 	rt.history[child.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("sub"))}
 	putRun(t, rt, sess.ID, "run_1", 100, 2)
-	if err := rt.interrupts.Put(ctx, interrupts.Pending{RunID: "run_child", SessionID: child.ID}); err != nil {
+	if err := rt.interrupts.Put(ctx, interrupts.Pending{RootRunID: "run_child", SessionID: child.ID}); err != nil {
 		t.Fatalf("seed child interrupt: %v", err)
 	}
 

@@ -85,7 +85,7 @@ func (s *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInt
 	out := make([]protocol.OpenInterrupt, 0, len(page.Rows))
 	for _, pending := range page.Rows {
 		out = append(out, protocol.OpenInterrupt{
-			RunID:      pending.RunID,
+			RunID:      pending.RootRunID,
 			SessionID:  pending.SessionID,
 			Interrupts: presentInterrupts(pending.Interrupts),
 			CreatedAt:  pending.CreatedAt,

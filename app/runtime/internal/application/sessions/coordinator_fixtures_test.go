@@ -58,7 +58,7 @@ func (s coordinatorStores) ApplyDelete(ctx context.Context, plan DeletePlan) err
 	for _, sessionID := range plan.SessionIDs {
 		pending, _ := s.interrupts.List(ctx, sessionID)
 		for _, p := range pending {
-			_ = s.interrupts.Delete(ctx, p.RunID)
+			_ = s.interrupts.Delete(ctx, p.RootRunID)
 		}
 	}
 	return nil
@@ -80,7 +80,7 @@ func (s *coordinatorInterrupts) Put(_ context.Context, p interrupts.Pending) err
 	if s.pending == nil {
 		s.pending = map[string]interrupts.Pending{}
 	}
-	s.pending[p.RunID] = p
+	s.pending[p.RootRunID] = p
 	return nil
 }
 

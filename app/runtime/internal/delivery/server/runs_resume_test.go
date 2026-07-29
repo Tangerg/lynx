@@ -38,7 +38,7 @@ func TestResumeRun_KeepsInterruptOpenWhenStartFails(t *testing.T) {
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 
 	if err := rt.interrupts.Put(ctx, interrupts.Pending{
-		RunID:          "run_1",
+		RootRunID:      "run_1",
 		SessionID:      sess.ID,
 		TurnID:         "turn_parked",
 		ProcessID:      "turn_parked",
@@ -99,7 +99,7 @@ func TestResumeRunRejectsMissingAndUnknownItemCoverage(t *testing.T) {
 	ctx := t.Context()
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 	pending := interrupts.Pending{
-		RunID: "run_coverage", SessionID: sess.ID, TurnID: "turn_parked", ProcessID: "turn_parked",
+		RootRunID: "run_coverage", SessionID: sess.ID, TurnID: "turn_parked", ProcessID: "turn_parked",
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_open",
 			Kind:   execution.ApprovalInterrupt,
@@ -112,12 +112,12 @@ func TestResumeRunRejectsMissingAndUnknownItemCoverage(t *testing.T) {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
-	if _, _, err := s.ResumeRun(ctx, protocol.ResumeRunRequest{RunID: pending.RunID}); !errors.Is(err, protocol.ErrInvalidParams) ||
+	if _, _, err := s.ResumeRun(ctx, protocol.ResumeRunRequest{RunID: pending.RootRunID}); !errors.Is(err, protocol.ErrInvalidParams) ||
 		!errors.Is(err, runs.ErrInvalidInterruptResponse) {
 		t.Fatalf("empty responses error = %v, want invalid_params wrapping ErrInvalidInterruptResponse", err)
 	}
 	if _, _, err := s.ResumeRun(ctx, protocol.ResumeRunRequest{
-		RunID: pending.RunID,
+		RunID: pending.RootRunID,
 		Responses: []protocol.InterruptResponse{{
 			ItemID: "item_unknown",
 			Response: protocol.InterruptResponseValue{
@@ -128,7 +128,7 @@ func TestResumeRunRejectsMissingAndUnknownItemCoverage(t *testing.T) {
 		t.Fatalf("unknown item error = %v, want interrupt_not_open", err)
 	}
 	if _, _, err := s.ResumeRun(ctx, protocol.ResumeRunRequest{
-		RunID: pending.RunID,
+		RunID: pending.RootRunID,
 		Responses: []protocol.InterruptResponse{{
 			ItemID: "item_open",
 			Response: protocol.InterruptResponseValue{
@@ -139,7 +139,7 @@ func TestResumeRunRejectsMissingAndUnknownItemCoverage(t *testing.T) {
 	}); !errors.Is(err, protocol.ErrInvalidParams) || !errors.Is(err, runs.ErrInvalidInterruptResponse) {
 		t.Fatalf("remembering one-off approval error = %v, want invalid params", err)
 	}
-	if _, found, err := rt.interrupts.Get(ctx, pending.RunID); err != nil || !found {
+	if _, found, err := rt.interrupts.Get(ctx, pending.RootRunID); err != nil || !found {
 		t.Fatalf("invalid responses consumed interrupt (found=%v err=%v)", found, err)
 	}
 }

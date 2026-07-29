@@ -43,7 +43,7 @@ func TestClaimRunSlotRejectsOpenInterrupt(t *testing.T) {
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
-				"run_1": {RunID: "run_1", SessionID: "ses_1"},
+				"run_1": {RootRunID: "run_1", SessionID: "ses_1"},
 			},
 		},
 	}
@@ -78,7 +78,7 @@ func TestClaimMutationSlotAllowsOpenInterrupt(t *testing.T) {
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
-				"run_1": {RunID: "run_1", SessionID: "ses_1"},
+				"run_1": {RootRunID: "run_1", SessionID: "ses_1"},
 			},
 		},
 	}
@@ -99,7 +99,7 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 	var applied TerminalPlan
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{
-			"run_1": {RunID: "run_1", SessionID: "ses_1", ProcessID: "proc_1"},
+			"run_1": {RootRunID: "run_1", SessionID: "ses_1", ProcessID: "proc_1"},
 		}},
 		snapshot: Snapshot{
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("hi"))},
@@ -142,7 +142,7 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 	var applied TerminalPlan
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{
-			"run_1": {RunID: "run_1", SessionID: "ses_1", ProcessID: "proc_1"},
+			"run_1": {RootRunID: "run_1", SessionID: "ses_1", ProcessID: "proc_1"},
 		}},
 		snapshot: Snapshot{
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello"))},

@@ -47,11 +47,11 @@ func (s *RunStore) ReconcileOrphans(ctx context.Context, validateSnapshot Proces
 		for _, interrupt := range pending {
 			if interrupt.ProcessID != "" {
 				if owner, duplicate := processOwners[interrupt.ProcessID]; duplicate {
-					return fmt.Errorf("sqlite: process snapshot %q is owned by interrupts %q and %q", interrupt.ProcessID, owner, interrupt.RunID)
+					return fmt.Errorf("sqlite: process snapshot %q is owned by interrupts %q and %q", interrupt.ProcessID, owner, interrupt.RootRunID)
 				}
-				processOwners[interrupt.ProcessID] = interrupt.RunID
+				processOwners[interrupt.ProcessID] = interrupt.RootRunID
 			}
-			pendingByRun[interrupt.RunID] = interrupt
+			pendingByRun[interrupt.RootRunID] = interrupt
 		}
 
 		preserved := make(map[string]struct{}, len(active))
@@ -81,7 +81,7 @@ func (s *RunStore) ReconcileOrphans(ctx context.Context, validateSnapshot Proces
 			reconciled++
 		}
 		for _, interrupt := range pending {
-			if _, ok := preserved[interrupt.RunID]; ok {
+			if _, ok := preserved[interrupt.RootRunID]; ok {
 				continue
 			}
 			if interrupt.ProcessID != "" {
@@ -89,7 +89,7 @@ func (s *RunStore) ReconcileOrphans(ctx context.Context, validateSnapshot Proces
 					return fmt.Errorf("sqlite: reconcile orphan process snapshot: %w", err)
 				}
 			}
-			if err := interruptStore.Delete(ctx, interrupt.RunID); err != nil {
+			if err := interruptStore.Delete(ctx, interrupt.RootRunID); err != nil {
 				return fmt.Errorf("sqlite: reconcile orphan interrupt: %w", err)
 			}
 		}

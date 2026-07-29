@@ -124,7 +124,7 @@ func TestResumeRunRefusesACallerThatCannotFollowTheRun(t *testing.T) {
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 
 	if err := rt.interrupts.Put(ctx, interrupts.Pending{
-		RunID:          "run_1",
+		RootRunID:      "run_1",
 		SessionID:      sess.ID,
 		TurnID:         "turn_parked",
 		ProcessID:      "turn_parked",

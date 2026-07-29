@@ -30,7 +30,12 @@ import (
 // suspensions. DrainedTools is the backend-private half of the
 // park: resume bookkeeping the client never sees.
 type Pending struct {
-	RunID     string
+	// RootRunID is the Run that OWNS this set — the root of the tree that parked.
+	// It is not "the Run that raised an interrupt": each [transcript.Interrupt]
+	// carries its own source Run, and the two are different questions the moment a
+	// tree is deeper than one Run. Resume is all-or-nothing over the whole set, so
+	// the owner is what the set is keyed by.
+	RootRunID string
 	SessionID string
 	TurnID    string
 	ProcessID string

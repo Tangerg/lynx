@@ -413,7 +413,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 		t.Fatalf("put transcript item: %v", err)
 	}
 	if err := cfg.InterruptStore.Put(ctx, interrupts.Pending{
-		RunID: runID, SessionID: sessionID, TurnID: "turn_park", ProcessID: processID,
+		RootRunID: runID, SessionID: sessionID, TurnID: "turn_park", ProcessID: processID,
 		Interrupts: open, RunCreatedAt: createdAt, CreatedAt: parkedAt,
 	}); err != nil {
 		t.Fatalf("put interrupt: %v", err)

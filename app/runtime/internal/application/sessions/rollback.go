@@ -83,7 +83,7 @@ func (c *Coordinator) parkedSessionTurns(ctx context.Context, sessionIDs []strin
 			return nil, err
 		}
 		for _, item := range pending {
-			out = append(out, RunTurnBinding{RunID: item.RunID, SessionID: item.SessionID, TurnID: item.TurnID, ProcessID: item.ProcessID})
+			out = append(out, RunTurnBinding{RunID: item.RootRunID, SessionID: item.SessionID, TurnID: item.TurnID, ProcessID: item.ProcessID})
 		}
 	}
 	return out, nil

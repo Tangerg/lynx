@@ -324,7 +324,7 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", Cwd: "/work"},
 		pending: map[string]interrupts.Pending{"run_1": {
-			RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", RunCreatedAt: createdAt,
+			RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", RunCreatedAt: createdAt,
 			Interrupts: approvalInterrupt("item_1"),
 		}},
 	}
@@ -358,7 +358,7 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", Cwd: "/work"},
 		pending: map[string]interrupts.Pending{"run_1": {
-			RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", ProcessID: "proc_1",
+			RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", ProcessID: "proc_1",
 			Interrupts: approvalInterrupt("item_1"),
 		}},
 		operations: &operations,
@@ -406,7 +406,7 @@ func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", Cwd: "/work", Isolated: true},
 		pending: map[string]interrupts.Pending{"run_1": {
-			RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", ProcessID: "proc_1",
+			RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", ProcessID: "proc_1",
 			Interrupts: approvalInterrupt("item_1"),
 		}},
 		operations: &operations,
@@ -450,7 +450,7 @@ func approvalInterrupt(itemID string) []transcript.Interrupt {
 func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 	var operations []string
 	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{"run_1": {
-		RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
+		RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
 	}}, operations: &operations}
 	turns := &fakeTurnControl{operations: &operations}
 	c := NewCoordinator(Dependencies{Turns: turns, Sessions: sessions, Admissions: new(admission.Gate)})
@@ -475,7 +475,7 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 func TestCancelParkedRunReportsTurnCleanupFailureAfterDurableCommit(t *testing.T) {
 	cleanupErr := errors.New("turn cleanup failed")
 	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{"run_1": {
-		RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
+		RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
 	}}}
 	turns := &fakeTurnControl{cancelErr: cleanupErr}
 	c := NewCoordinator(Dependencies{Turns: turns, Sessions: sessions, Admissions: new(admission.Gate)})
@@ -624,7 +624,7 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 
 func TestCancelTreatsAlreadyGoneTurnAsIdempotentSuccess(t *testing.T) {
 	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{"run_1": {
-		RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
+		RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
 	}}}
 	turns := &fakeTurnControl{cancelErr: ErrTurnNotLive}
 	c := NewCoordinator(Dependencies{Turns: turns, Sessions: sessions, Admissions: new(admission.Gate)})

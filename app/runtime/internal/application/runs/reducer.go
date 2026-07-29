@@ -326,7 +326,7 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 		commit.Run = &e.Run
 		if e.Run.State == execution.Interrupted {
 			commit.Interrupt = &interrupts.Pending{
-				RunID: r.cfg.RunID, SessionID: r.cfg.SessionID, TurnID: r.cfg.TurnID,
+				RootRunID: r.cfg.RunID, SessionID: r.cfg.SessionID, TurnID: r.cfg.TurnID,
 				ModelSelection: r.cfg.ModelSelection,
 				Interrupts:     e.Run.Interrupts, DrainedTools: r.drained,
 				RunCreatedAt: r.cfg.CreatedAt, CreatedAt: r.now(),

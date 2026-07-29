@@ -57,7 +57,7 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 	if err := state.Suspend(ctx, parkedRunRecord("run_actual", "ses_1", time.Now().UTC())); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
-	if err := ints.Put(ctx, interrupts.Pending{RunID: "run_stale", SessionID: "ses_1"}); err != nil {
+	if err := ints.Put(ctx, interrupts.Pending{RootRunID: "run_stale", SessionID: "ses_1"}); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
@@ -91,7 +91,7 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	if err := state.Suspend(ctx, parkedRunRecord("run_1", "ses_1", created)); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
-	if err := ints.Put(ctx, interrupts.Pending{RunID: "run_1", SessionID: "ses_1"}); err != nil {
+	if err := ints.Put(ctx, interrupts.Pending{RootRunID: "run_1", SessionID: "ses_1"}); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
@@ -275,7 +275,7 @@ func TestCommitEventParkProducesBootResumableTriplet(t *testing.T) {
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
 		RunID: "run_1", SessionID: "ses_1", State: runs.StateSuspend,
 		Interrupt: &interrupts.Pending{
-			RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
+			RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
 			Interrupts: open, RunCreatedAt: createdAt, CreatedAt: parkedAt,
 		},
 		Items: []transcript.Item{{

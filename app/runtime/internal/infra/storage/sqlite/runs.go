@@ -343,7 +343,7 @@ func (s *RunStore) stateForRun(ctx context.Context, sessionID, runID string) (ex
 func (s *RunStore) PageRuns(ctx context.Context, sessionID string, statuses []execution.RunStatus, beforeStartedAt int64, beforeRunID string, limit int) ([]transcript.Run, error) {
 	query := `SELECT ` + runColumns + `
 		 FROM runs AS r
-		 LEFT JOIN interrupts AS i ON i.run_id = r.run_id AND i.session_id = r.session_id
+		 LEFT JOIN interrupts AS i ON i.root_run_id = r.run_id AND i.session_id = r.session_id
 		 WHERE r.spawned_by_item_id = ''`
 	var args []any
 	if sessionID != "" {
@@ -396,7 +396,7 @@ func (s *RunStore) Run(ctx context.Context, runID string) (transcript.Run, bool,
 	row := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT `+runColumns+`
 		 FROM runs AS r
-		 LEFT JOIN interrupts AS i ON i.run_id = r.run_id AND i.session_id = r.session_id
+		 LEFT JOIN interrupts AS i ON i.root_run_id = r.run_id AND i.session_id = r.session_id
 		 WHERE r.run_id = ?`, runID)
 	run, err := scanRun(row)
 	switch {
@@ -423,7 +423,7 @@ func (s *RunStore) RunsByID(ctx context.Context, runIDs []string) ([]transcript.
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT `+runColumns+`
 		 FROM runs AS r
-		 LEFT JOIN interrupts AS i ON i.run_id = r.run_id AND i.session_id = r.session_id
+		 LEFT JOIN interrupts AS i ON i.root_run_id = r.run_id AND i.session_id = r.session_id
 		 WHERE r.run_id IN (`+placeholders(len(runIDs))+`)
 		 ORDER BY r.started_at DESC, r.run_id DESC`, args...)
 	if err != nil {
@@ -477,7 +477,7 @@ func (s *RunStore) ListRuns(ctx context.Context, sessionID string) ([]transcript
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT `+runColumns+`
 		 FROM runs AS r
-		 LEFT JOIN interrupts AS i ON i.run_id = r.run_id AND i.session_id = r.session_id
+		 LEFT JOIN interrupts AS i ON i.root_run_id = r.run_id AND i.session_id = r.session_id
 		 WHERE r.session_id = ? ORDER BY r.started_at, r.run_id`, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list runs: %w", err)

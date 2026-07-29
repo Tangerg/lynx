@@ -47,8 +47,8 @@ func (s *RunStore) validateParkedRun(ctx context.Context, active nonTerminalRun,
 }
 
 func (active nonTerminalRun) validateParkedInterrupt(pending interrupts.Pending) error {
-	if pending.RunID != active.runID || pending.SessionID != active.sessionID {
-		return fmt.Errorf("sqlite: validate parked run %q: interrupt identity is %q/%q, want %q/%q", active.runID, pending.SessionID, pending.RunID, active.sessionID, active.runID)
+	if pending.RootRunID != active.runID || pending.SessionID != active.sessionID {
+		return fmt.Errorf("sqlite: validate parked run %q: interrupt identity is %q/%q, want %q/%q", active.runID, pending.SessionID, pending.RootRunID, active.sessionID, active.runID)
 	}
 	// These columns decode via time.Unix(0, ns), so the schema default 0 becomes the
 	// 1970 epoch — whose time.IsZero() is false (Go's zero time is year 1). Test the

@@ -141,7 +141,7 @@ func (f *fakeInterrupts) ListPage(_ context.Context, sessionID string, afterCrea
 	f.session, f.afterCreatedAt, f.afterRunID, f.limit = sessionID, afterCreatedAt, afterRunID, limit
 	var out []interrupts.Pending
 	for _, pending := range f.pending {
-		if !seeksPast(pending.CreatedAt.UnixNano(), pending.RunID, afterCreatedAt, afterRunID) {
+		if !seeksPast(pending.CreatedAt.UnixNano(), pending.RootRunID, afterCreatedAt, afterRunID) {
 			continue
 		}
 		if limit > 0 && len(out) == limit {
@@ -188,7 +188,7 @@ func TestCoordinatorReadsDelegateToProjections(t *testing.T) {
 	ctx := context.Background()
 	tx := &fakeTranscript{items: sequencedItems(1)}
 	runs := &fakeRuns{runs: []transcript.Run{{ID: "run_1"}}}
-	ints := &fakeInterrupts{pending: []interrupts.Pending{{RunID: "run_1"}}}
+	ints := &fakeInterrupts{pending: []interrupts.Pending{{RootRunID: "run_1"}}}
 	c := New(Dependencies{Transcript: tx, Interrupts: ints, Runs: runs, Sessions: &fakeSessions{}})
 
 	page, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.OldestFirst, "", 0)
@@ -399,7 +399,7 @@ func parked(sessionID string, ids ...string) []interrupts.Pending {
 	out := make([]interrupts.Pending, 0, len(ids))
 	for i, id := range ids {
 		out = append(out, interrupts.Pending{
-			RunID: id, SessionID: sessionID, CreatedAt: time.Unix(0, int64(i+1)).UTC(),
+			RootRunID: id, SessionID: sessionID, CreatedAt: time.Unix(0, int64(i+1)).UTC(),
 		})
 	}
 	return out
@@ -542,7 +542,7 @@ func TestListPendingInterruptPagePagesOldestFirst(t *testing.T) {
 	if ints.limit != 3 {
 		t.Fatalf("store asked for %d rows, want the page plus one", ints.limit)
 	}
-	if len(first.Rows) != 2 || first.Rows[0].RunID != "run_1" || first.NextCursor == "" {
+	if len(first.Rows) != 2 || first.Rows[0].RootRunID != "run_1" || first.NextCursor == "" {
 		t.Fatalf("first page = %+v, want two pending sets and a cursor", first.Rows)
 	}
 
@@ -553,7 +553,7 @@ func TestListPendingInterruptPagePagesOldestFirst(t *testing.T) {
 	if ints.afterRunID != "run_2" {
 		t.Fatalf("second page sought past %q, want the first page's last row", ints.afterRunID)
 	}
-	if len(second.Rows) != 1 || second.Rows[0].RunID != "run_3" || second.NextCursor != "" {
+	if len(second.Rows) != 1 || second.Rows[0].RootRunID != "run_3" || second.NextCursor != "" {
 		t.Fatalf("second page = %+v, want the tail and no cursor", second.Rows)
 	}
 	if _, err := c.ListPendingInterruptPage(ctx, "ses_1", first.NextCursor+"x", 2); !errors.Is(err, keyset.ErrInvalidCursor) {

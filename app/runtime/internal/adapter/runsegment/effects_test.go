@@ -202,7 +202,7 @@ func TestCommitOpeningAdmitsAndProjectsInOneTransaction(t *testing.T) {
 }
 
 func TestCommitOpeningConsumesInterruptAndResumes(t *testing.T) {
-	ints := &fakeInterrupts{pending: interrupts.Pending{RunID: "run_1", SessionID: "ses_1"}}
+	ints := &fakeInterrupts{pending: interrupts.Pending{RootRunID: "run_1", SessionID: "ses_1"}}
 	stores := &fakeStores{interrupts: ints, transcript: &fakeTranscript{}}
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
@@ -220,7 +220,7 @@ func TestCommitOpeningConsumesInterruptAndResumes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CommitOpening: %v", err)
 	}
-	if tx.calls != 1 || ints.pending.RunID != "" || len(runState.resumed) != 1 || len(stores.transcript.items) != 1 {
+	if tx.calls != 1 || ints.pending.RootRunID != "" || len(runState.resumed) != 1 || len(stores.transcript.items) != 1 {
 		t.Fatalf("resume tx=%d pending=%+v resumed=%v items=%d", tx.calls, ints.pending, runState.resumed, len(stores.transcript.items))
 	}
 }
@@ -248,7 +248,7 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 			MessageMark: transcript.UnknownMessageMark,
 		},
 		Interrupt: &interrupts.Pending{
-			RunID:          "run_1",
+			RootRunID:      "run_1",
 			SessionID:      "ses_1",
 			TurnID:         "turn_1",
 			ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
@@ -265,7 +265,7 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 	}
 
 	got := stores.interrupts.pending
-	if got.RunID != "run_1" || got.ProcessID != "proc_1" || got.ModelSelection.Provider() != "anthropic" || got.ModelSelection.Model() != "claude" {
+	if got.RootRunID != "run_1" || got.ProcessID != "proc_1" || got.ModelSelection.Provider() != "anthropic" || got.ModelSelection.Model() != "claude" {
 		t.Fatalf("pending = %+v", got)
 	}
 	if len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "int_1" || len(got.DrainedTools) != 1 {
@@ -302,12 +302,12 @@ func TestCommitEventRejectsUnresumableInterrupt(t *testing.T) {
 			CreatedAt:   time.Unix(1, 0).UTC(),
 			MessageMark: transcript.UnknownMessageMark,
 		},
-		Interrupt: &interrupts.Pending{RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
+		Interrupt: &interrupts.Pending{RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
 	})
 	if !errors.Is(err, want) {
 		t.Fatalf("CommitEvent err = %v, want %v", err, want)
 	}
-	if stores.interrupts.pending.RunID != "" {
+	if stores.interrupts.pending.RootRunID != "" {
 		t.Fatalf("unresumable interrupt was persisted: %+v", stores.interrupts.pending)
 	}
 	if len(runState.suspended) != 0 {
@@ -604,7 +604,7 @@ func (s *fakeInterrupts) Put(_ context.Context, p interrupts.Pending) error {
 }
 
 func (s *fakeInterrupts) Consume(_ context.Context, runID string) (interrupts.Pending, bool, error) {
-	if s.pending.RunID != runID {
+	if s.pending.RootRunID != runID {
 		return interrupts.Pending{}, false, nil
 	}
 	pending := s.pending
