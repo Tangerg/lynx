@@ -1,24 +1,31 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { ServerCapabilities } from "@/rpc";
+import type { FeatureCapability, ServerCapabilities } from "@/rpc";
 import { useRuntimeStore, useServerFeature } from "./runtimeCapabilityStore";
+
+// Every advertised capability carries the feature's own negotiation facts. These
+// fixtures are about whether a build offers a feature, so they say "advertised,
+// nothing to opt into" once rather than at every key.
+function stable(enabled: boolean): FeatureCapability {
+  return { enabled, stability: "stable", clientOptIn: false, requiredByRunProtocol: false };
+}
 
 function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabilities {
   return {
     events: ["segment.started", "segment.finished", "item.started", "item.delta", "item.completed"],
     features: {
-      multimodal: { enabled: false, stability: "stable" },
-      reasoning: { enabled: true, stability: "stable" },
-      checkpoints: { enabled: false, stability: "stable" },
-      git: { enabled: true, stability: "stable" },
-      fileWatch: { enabled: false, stability: "stable" },
-      lsp: { enabled: false, stability: "stable" },
-      subagents: { enabled: false, stability: "stable" },
-      skills: { enabled: false, stability: "stable" },
-      mcp: { enabled: true, stability: "stable" },
-      sessionExport: { enabled: false, stability: "stable" },
-      memory: { enabled: false, stability: "stable" },
-      relocate: { enabled: true, stability: "stable" },
-      clientTools: { enabled: false, stability: "stable" },
+      multimodal: stable(false),
+      reasoning: stable(true),
+      checkpoints: stable(false),
+      git: stable(true),
+      fileWatch: stable(false),
+      lsp: stable(false),
+      subagents: stable(false),
+      skills: stable(false),
+      mcp: stable(true),
+      sessionExport: stable(false),
+      memory: stable(false),
+      relocate: stable(true),
+      clientTools: stable(false),
     },
     streamingMethods: ["runs.start", "runs.resume", "runs.subscribe"],
     limits: {},

@@ -29,6 +29,11 @@ var (
 	ErrRunNotFound = errors.New("runs: run not found")
 	// ErrInterruptNotOpen reports that a resume target has no open interrupt.
 	ErrInterruptNotOpen = errors.New("runs: interrupt not open")
+	// ErrProfileNotCovered reports that a caller cannot follow the Run it asked to
+	// continue or observe: the Run's frozen protocol profile names capabilities this
+	// request did not declare. Delivery reports it as capability_not_negotiated —
+	// the run keeps its contract, and the caller is told what it would need.
+	ErrProfileNotCovered = errors.New("runs: caller does not cover the run's protocol profile")
 	// ErrInvalidInterruptResponse reports a response set that does not exactly
 	// cover the open interrupt schema.
 	ErrInvalidInterruptResponse = errors.New("runs: invalid interrupt response")
@@ -66,7 +71,11 @@ type StartCommand struct {
 	MaxCostUSD      float64
 	MaxSteps        int
 	Options         *corechat.Options
-	InterruptKinds  []execution.InterruptKind
+	// ProtocolProfile is the protocol contract negotiated for this Run, already
+	// resolved against what this build advertises. It is an input rather than
+	// something the use case derives: what a client declared is a wire fact, and
+	// the use case's job is to freeze it onto the Run.
+	ProtocolProfile execution.RunProtocolProfile
 	Input           []transcript.ContentBlock
 	// GoalLeaseID stamps a Goal-mode autonomous run with the goal incarnation
 	// that launched it, so the run's update_goal signal only affects that goal
@@ -132,9 +141,13 @@ func (c StartCommand) MaterializeInput() (message string, images []*media.Media,
 
 // ResumeCommand is the protocol-neutral runs.resume use case input.
 type ResumeCommand struct {
-	RunID          string
-	Responses      []ResumeResponse
-	InterruptKinds []execution.InterruptKind
+	RunID     string
+	Responses []ResumeResponse
+	// CallerCapabilities is what THIS request declares it can handle. A resume does
+	// not renegotiate the Run's frozen profile — it is only checked against it, so a
+	// caller that could not follow the Run's stream is refused rather than served a
+	// quietly reduced one.
+	CallerCapabilities execution.RunProtocolProfile
 }
 
 type ResumeResponseKind string

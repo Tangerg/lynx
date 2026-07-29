@@ -64,7 +64,7 @@ func TestCapabilityRulesNameAPublishedFeature(t *testing.T) {
 
 	for _, meta := range contract.Metas() {
 		for _, feature := range meta.Features() {
-			if !slices.Contains(protocol.Features, feature) {
+			if _, published := protocol.LookupFeature(feature); !published {
 				t.Errorf("%s requires %q, which protocol does not publish", meta.Name, feature)
 			}
 		}

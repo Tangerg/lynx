@@ -64,13 +64,21 @@ func (s *RunStore) Admit(ctx context.Context, draft execution.RunDraft) error {
 	if err := draft.Limits.Validate(); err != nil {
 		return fmt.Errorf("sqlite: admit run %q: %w", draft.RunID, err)
 	}
+	profile, err := encodeRunProtocolProfile(draft.ProtocolProfile)
+	if err != nil {
+		return fmt.Errorf("sqlite: admit run %q: %w", draft.RunID, err)
+	}
 	now := draft.CreatedAt.UTC().UnixNano()
-	_, err := conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO runs(run_id, session_id, state, active_segment_id, provider, model, max_steps, max_budget_usd, message_mark, started_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	// This is the profile's only writer, here and in Restore. Suspend / Resume /
+	// finish deliberately do not name the column: the Run's contract cannot change
+	// after admission, and the way to guarantee that is to have nothing able to
+	// change it.
+	_, err = conn(ctx, s.db).ExecContext(ctx,
+		`INSERT INTO runs(run_id, session_id, state, active_segment_id, provider, model, max_steps, max_budget_usd, protocol_profile, message_mark, started_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		draft.RunID, draft.SessionID, runStateRunning, draft.SegmentID,
 		draft.ModelSelection.Provider(), draft.ModelSelection.Model(),
-		draft.Limits.MaxSteps, draft.Limits.MaxBudgetUSD,
+		draft.Limits.MaxSteps, draft.Limits.MaxBudgetUSD, profile,
 		transcript.UnknownMessageMark, now, now)
 	// Two constraints can reject this INSERT and they mean opposite things: the
 	// primary key says the id is spoken for, the partial index says the session is.
@@ -265,16 +273,20 @@ func (s *RunStore) Restore(ctx context.Context, run transcript.Run) error {
 	if err != nil {
 		return fmt.Errorf("sqlite: restore run %q: %w", run.ID, err)
 	}
+	profile, err := encodeRunProtocolProfile(run.ProtocolProfile)
+	if err != nil {
+		return fmt.Errorf("sqlite: restore run %q: %w", run.ID, err)
+	}
 	_, err = conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO runs(
 		   run_id, session_id, spawned_by_item_id, state, outcome, provider, model,
 		   detail, steps, active_duration_ns, usage, problem, max_steps, max_budget_usd,
-		   message_mark, started_at, finished_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		   protocol_profile, message_mark, started_at, finished_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID, run.SessionID, run.SpawnedByItemID, coarseState(run.State), run.Outcome.String(),
 		run.ModelSelection.Provider(), run.ModelSelection.Model(),
 		run.Detail, metrics.steps, metrics.durationNs, metrics.usage, problem,
-		run.Limits.MaxSteps, run.Limits.MaxBudgetUSD, run.MessageMark,
+		run.Limits.MaxSteps, run.Limits.MaxBudgetUSD, profile, run.MessageMark,
 		run.CreatedAt.UTC().UnixNano(), run.FinishedAt.UTC().UnixNano(), runUpdatedAt(run))
 	if isPrimaryKeyViolation(err) {
 		// A Run id belongs to one Session for its whole lifetime. An import that
@@ -364,7 +376,7 @@ func (s *RunStore) ListRunning(ctx context.Context, sessionID string, afterStart
 // is waiting on — kept in the interrupts table so one park is one record.
 const runColumns = `r.run_id, r.session_id, r.spawned_by_item_id, r.state, r.active_segment_id, r.outcome,
 	r.provider, r.model, r.detail, r.steps, r.active_duration_ns, r.usage, r.problem,
-	r.max_steps, r.max_budget_usd,
+	r.max_steps, r.max_budget_usd, r.protocol_profile,
 	r.message_mark, r.started_at, r.finished_at, r.updated_at, i.payload`
 
 // ListRuns returns a session's Runs in admission order, each as the complete
@@ -395,11 +407,6 @@ func (s *RunStore) ListRuns(ctx context.Context, sessionID string) ([]transcript
 	return out, nil
 }
 
-// writeState persists a machine-validated non-terminal transition as a CAS
-// guarded on the observed source state; a 0-row result means the row changed
-// under the transaction (a lost race) and is surfaced rather than silently
-// dropped. Terminal transitions do not come through here — they carry the facts
-// that explain them and go through finish.
 // coarseState projects the fine [execution.RunState] onto the three admission
 // states the runs table stores — the partial unique index keys on non-terminal,
 // so every terminal RunState collapses to the one 'terminal' value (the fine

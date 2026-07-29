@@ -45,9 +45,8 @@ func cloneRequestMeta(meta RequestMeta) RequestMeta {
 	}
 	if meta.ClientCapabilities != nil {
 		caps := *meta.ClientCapabilities
-		caps.Events = slices.Clone(caps.Events)
 		caps.InterruptTypes = slices.Clone(caps.InterruptTypes)
-		caps.ExcludedEvents = slices.Clone(caps.ExcludedEvents)
+		caps.ExcludedEphemeralEvents = slices.Clone(caps.ExcludedEphemeralEvents)
 		caps.Features = maps.Clone(caps.Features)
 		meta.ClientCapabilities = &caps
 	}

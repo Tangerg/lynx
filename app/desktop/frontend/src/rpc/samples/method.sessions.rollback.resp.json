@@ -30,6 +30,10 @@
           },
           "steps": 2,
           "activeDurationMs": 20000
+        },
+        "protocolProfile": {
+          "requiredFeatures": [],
+          "interruptTypes": []
         }
       },
       "userInput": [

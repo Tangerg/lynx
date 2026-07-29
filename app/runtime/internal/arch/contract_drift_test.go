@@ -426,6 +426,7 @@ func collectRefs(node any) []string {
 // reaches it.
 var notOnTheWire = map[string]string{
 	"CanonicalSample": "binds a hand-written fixture to a wire type; it is about the wire, not on it",
+	"Feature":         "the published capability vocabulary's registry entry; its wire projection is FeatureCapability",
 	"ConstraintError": "the Go validator's error carrier; its wire projection is ProblemData.errors",
 	"WireField":       "reflection over the wire types, not a wire type",
 	"WorkspaceQuery":  "an embedded mixin — encoding/json inlines its fields, so the wire has no such object",

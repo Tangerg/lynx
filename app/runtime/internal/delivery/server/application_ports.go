@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
@@ -93,7 +94,7 @@ type runUseCases interface {
 	Resume(ctx context.Context, cmd runs.ResumeCommand) (runs.StartResult, error)
 	Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error)
 	Steer(ctx context.Context, cmd runs.SteerCommand) error
-	SubscribeLive(ctx context.Context, runID, fromCursor string) (runs.Record, iter.Seq[runs.Event], bool)
+	SubscribeLive(ctx context.Context, runID, fromCursor string, caller execution.RunProtocolProfile) (runs.Record, iter.Seq[runs.Event], error)
 }
 
 type queryUseCases interface {

@@ -55,6 +55,7 @@ type PortableRun struct {
 	Error           *transcript.Problem
 	Metrics         transcript.RunMetrics
 	Limits          execution.RunLimits
+	ProtocolProfile execution.RunProtocolProfile
 	Detail          string
 	CreatedAt       time.Time
 	FinishedAt      time.Time
@@ -93,6 +94,7 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 			Error:           portable.Error,
 			Metrics:         portable.Metrics,
 			Limits:          portable.Limits,
+			ProtocolProfile: portable.ProtocolProfile,
 			Detail:          portable.Detail,
 			CreatedAt:       portable.CreatedAt,
 			FinishedAt:      portable.FinishedAt,
@@ -182,6 +184,7 @@ func (s Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 			Error:           run.Error,
 			Metrics:         run.Metrics,
 			Limits:          run.Limits,
+			ProtocolProfile: run.ProtocolProfile,
 			Detail:          run.Detail,
 			CreatedAt:       run.CreatedAt,
 			FinishedAt:      run.FinishedAt,

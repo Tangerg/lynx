@@ -27,6 +27,10 @@
         "metrics": {
           "steps": 0,
           "activeDurationMs": 0
+        },
+        "protocolProfile": {
+          "requiredFeatures": [],
+          "interruptTypes": []
         }
       }
     ],

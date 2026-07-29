@@ -37,6 +37,7 @@ const finishedRun = {
   createdAt: "2026-07-07T10:00:00Z",
   finishedAt: "2026-07-07T10:00:20Z",
   metrics: { steps: 2, activeDurationMs: 20_000 },
+  protocolProfile: { requiredFeatures: [], interruptTypes: [] },
   outcome: { type: "completed" },
 };
 

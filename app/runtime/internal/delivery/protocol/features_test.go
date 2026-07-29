@@ -21,19 +21,17 @@ import (
 // name; a listed name with no constant is one the runtime will never advertise.
 func TestFeaturesAreComplete(t *testing.T) {
 	declared := featureConstants(t)
+	published := FeatureKeys()
 
 	for _, feature := range declared {
-		if !slices.Contains(Features, feature) {
+		if !slices.Contains(published, feature) {
 			t.Errorf("a Feature constant declares %q and Features does not list it", feature)
 		}
 	}
-	for _, feature := range Features {
+	for _, feature := range published {
 		if !slices.Contains(declared, feature) {
 			t.Errorf("Features lists %q and no Feature constant declares it", feature)
 		}
-	}
-	if len(Features) != len(slices.Compact(slices.Sorted(slices.Values(Features)))) {
-		t.Error("Features repeats a key")
 	}
 }
 

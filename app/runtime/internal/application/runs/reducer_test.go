@@ -721,3 +721,51 @@ func completedToolNames(reductions []reduction) []string {
 	}
 	return names
 }
+
+// TestReducerReportsTheRunsFrozenProfileOnEverySegment pins what a resumed
+// segment publishes about the Run's contract: the profile the Run was admitted
+// with, taken from the park's hand-off, not the empty one a fresh segment would
+// have and not anything the resuming request declared.
+//
+// The opening event is checked as well as the park, because segment.started is
+// where a reconnecting client learns what the Run may publish — a continuation
+// announcing a Minimal Profile would tell it to expect fewer frames than the Run
+// can produce.
+func TestReducerReportsTheRunsFrozenProfileOnEverySegment(t *testing.T) {
+	frozen := execution.RunProtocolProfile{
+		RequiredFeatures: []string{"subagents"},
+		InterruptKinds:   []execution.InterruptKind{execution.ApprovalInterrupt},
+	}
+	config := testReducerConfig()
+	config.ProtocolProfile = frozen
+	config.Pending = &interrupts.Pending{RunID: "run_1", SessionID: "ses_1", ProtocolProfile: frozen}
+
+	reducer := newReducer(config)
+	opening := mustOpen(t, reducer)
+	started, ok := opening[0].Event.(SegmentStarted)
+	if !ok {
+		t.Fatalf("opening event = %#v, want SegmentStarted", opening[0].Event)
+	}
+	assertFrozenProfile(t, started.Run.ProtocolProfile, frozen, "segment.started")
+
+	batch := mustReduceBatch(t, reducer, TurnInterrupted{Interrupts: []Interrupt{
+		{Kind: execution.ApprovalInterrupt, Approval: &ApprovalPrompt{
+			ToolName: "shell", Arguments: `{}`, SafetyClass: "exec",
+		}},
+	}})
+	if batch.parkCommit == nil || batch.parkCommit.Interrupt == nil {
+		t.Fatalf("park produced no interrupt commit: %#v", batch)
+	}
+	assertFrozenProfile(t, batch.parkCommit.Interrupt.ProtocolProfile, frozen, "park hand-off")
+	if batch.parkCommit.Run == nil {
+		t.Fatal("park commit carries no run record")
+	}
+	assertFrozenProfile(t, batch.parkCommit.Run.ProtocolProfile, frozen, "parked run record")
+}
+
+func assertFrozenProfile(t *testing.T, got, want execution.RunProtocolProfile, where string) {
+	t.Helper()
+	if !slices.Equal(got.RequiredFeatures, want.RequiredFeatures) || !slices.Equal(got.InterruptKinds, want.InterruptKinds) {
+		t.Fatalf("%s profile = %v, want %v", where, got, want)
+	}
+}

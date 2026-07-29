@@ -60,7 +60,7 @@ func Open(path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 36
+const schemaEpoch = 37
 
 func installCurrentSchema(db *sql.DB, path string) error {
 	var epoch int
@@ -133,6 +133,11 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		// and a read composes them, because two copies of one park would be two
 		// answers to "what is this run waiting on".
 		//
+		// protocol_profile is the negotiated contract the Run publishes under. The
+		// admission INSERT is its ONLY writer: no later statement names the column,
+		// which is how "frozen for the Run's whole life" is kept by construction
+		// rather than by a check that could be forgotten.
+		//
 		// message_mark is the conversation message count captured when the Run
 		// finished (post-compaction) — the per-run watermark sessions.rollback /
 		// fork{fromRunId} truncate to. -1 is transcript.UnknownMessageMark: a Run
@@ -153,6 +158,7 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			problem            TEXT    NOT NULL DEFAULT '',
 			max_steps          INTEGER NOT NULL DEFAULT 0,
 			max_budget_usd     REAL    NOT NULL DEFAULT 0,
+			protocol_profile   TEXT    NOT NULL DEFAULT '',
 			message_mark       INTEGER NOT NULL DEFAULT -1,
 			started_at         INTEGER NOT NULL,
 			finished_at        INTEGER NOT NULL DEFAULT 0,
@@ -167,9 +173,9 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		// time, its model selection, what it had already spent, and the allowance
 		// it was admitted under). Those are written in the same transaction as the
 		// Run row and a parked Run consumes nothing while parked, so the hand-off
-		// cannot come apart from the Run it describes. accounting is one JSON value
-		// because it is read and written whole with the row and never queried
-		// across.
+		// cannot come apart from the Run it describes. accounting and
+		// protocol_profile are each one JSON value because they are read and written
+		// whole with the row and never queried across.
 		`CREATE TABLE IF NOT EXISTS interrupts (
 			run_id         TEXT    PRIMARY KEY,
 			session_id     TEXT    NOT NULL DEFAULT '',
@@ -180,6 +186,7 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			payload        TEXT    NOT NULL DEFAULT '',
 			drained_tools  TEXT    NOT NULL DEFAULT '',
 			accounting     TEXT    NOT NULL DEFAULT '',
+			protocol_profile TEXT  NOT NULL DEFAULT '',
 			run_created_at INTEGER NOT NULL DEFAULT 0,
 			created_at     INTEGER NOT NULL
 		)`,

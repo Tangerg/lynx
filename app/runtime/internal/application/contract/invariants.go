@@ -78,6 +78,12 @@ var systemInvariants = []SystemInvariantSpec{{
 		"ended, and no later write will supply it.",
 	Boundaries: []TransactionBoundary{BoundarySegmentEvent, BoundaryRunRecovery, BoundarySessionImport},
 }, {
+	Key: "run_protocol_profile_is_immutable",
+	Why: "A Run publishes under the contract it was created with. If a later " +
+		"segment could restate it, a subscriber that reconnected on the strength of " +
+		"the first answer would be folding a stream whose rules had changed under it.",
+	Boundaries: []TransactionBoundary{BoundaryRunAdmission},
+}, {
 	Key: "parked_run_has_exactly_one_open_interrupt_set",
 	Why: "A Run parked with no pending set can never be resumed and never " +
 		"terminates; the client waits on something that will not move.",

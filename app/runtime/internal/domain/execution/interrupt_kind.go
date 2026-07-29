@@ -28,6 +28,22 @@ func (k InterruptKind) Valid() bool {
 	return k == ApprovalInterrupt || k == QuestionInterrupt
 }
 
+// ParseInterruptKind maps a kind's [InterruptKind.String] form back to the value,
+// reporting false for anything else. It sits next to String because they are one
+// mapping read in two directions: a durable record must come back as the same kind
+// it was written as, and a second hand-written table downstream would be free to
+// disagree with this one.
+func ParseInterruptKind(s string) (InterruptKind, bool) {
+	switch s {
+	case "approval":
+		return ApprovalInterrupt, true
+	case "question":
+		return QuestionInterrupt, true
+	default:
+		return 0, false
+	}
+}
+
 func (k InterruptKind) String() string {
 	switch k {
 	case ApprovalInterrupt:

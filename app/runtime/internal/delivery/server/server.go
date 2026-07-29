@@ -383,43 +383,64 @@ func capabilitiesFor(features featureAvailability) protocol.ServerCapabilities {
 		// hand-kept list here would be a second author of "which calls stream" —
 		// and the one clients trust, since this is what discovery advertises (§9).
 		StreamingMethods: dispatch.Contract().StreamMethods(),
-		// Open features map (§9): advertise a new capability by adding a key.
-		// Known keys absent here default to off on the client. The keys come from
-		// protocol's published vocabulary rather than being spelled here, so this map
-		// and the capability rules that gate a method cannot drift by a typo.
-		Features: map[string]protocol.FeatureCapability{
-			protocol.FeatureReasoning: capability(true),
-			protocol.FeatureMCP:       capability(true),
-			protocol.FeatureMemory:    capability(features.memory),
-			protocol.FeatureSkills:    capability(true),
-			protocol.FeatureGit:       capability(features.git),
-			protocol.FeatureFileWatch: capability(features.fileWatch),
-			protocol.FeatureLSP:       capability(true),
+		// Open features map (§9): a client treats an absent key as off. This is the
+		// one composition fact per key — whether THIS build offers it — joined with
+		// the feature's own published facts (stability, opt-in, whether it reshapes
+		// the run protocol), which come from protocol's registry. Advertising them
+		// here by hand would let discovery promise a negotiation the runtime does
+		// not perform.
+		Features: advertisedFeatures(map[string]bool{
+			protocol.FeatureReasoning: true,
+			protocol.FeatureMCP:       true,
+			protocol.FeatureMemory:    features.memory,
+			protocol.FeatureSkills:    true,
+			protocol.FeatureGit:       features.git,
+			protocol.FeatureFileWatch: features.fileWatch,
+			protocol.FeatureLSP:       true,
 
-			protocol.FeatureSessionExport: capability(true),
+			protocol.FeatureSessionExport: true,
 			// File checkpoints (restoreType on rollback) ride the shadow-git
 			// store, which needs the git binary — same gate as the git feature.
-			protocol.FeatureCheckpoints: capability(features.git),
-			protocol.FeatureMultimodal:  capability(true),
-			protocol.FeatureRelocate:    capability(true),
-			protocol.FeatureTodos:       capability(features.todos),
-			protocol.FeatureCompaction:  capability(true),
-			protocol.FeatureGoals:       capability(features.goals),
-			protocol.FeatureAgentMemory: capability(features.agentMemory),
-			protocol.FeatureSchedules:   capability(features.schedules),
-			protocol.FeatureCodebase:    capability(features.codebase),
+			protocol.FeatureCheckpoints: features.git,
+			protocol.FeatureMultimodal:  true,
+			protocol.FeatureRelocate:    true,
+			protocol.FeatureTodos:       features.todos,
+			protocol.FeatureCompaction:  true,
+			protocol.FeatureGoals:       features.goals,
+			protocol.FeatureAgentMemory: features.agentMemory,
+			protocol.FeatureSchedules:   features.schedules,
+			protocol.FeatureCodebase:    features.codebase,
 			// Off until the corresponding engine support lands:
-			protocol.FeatureSubagents:   capability(false),
-			protocol.FeatureClientTools: capability(false),
-		},
+			protocol.FeatureSubagents:   false,
+			protocol.FeatureClientTools: false,
+		}),
 		// No process-wide run cap is enforced. Leave maxConcurrentRuns omitted
 		// rather than advertising a hard limit the admission layer does not own.
 		Limits: protocol.RuntimeLimits{},
 	}
 }
 
-func capability(enabled bool) protocol.FeatureCapability {
-	return protocol.FeatureCapability{Enabled: enabled, Stability: protocol.StabilityStable}
+// advertisedFeatures joins each published feature with this composition's answer
+// to "do we offer it". Every key in the vocabulary is advertised — a client reads
+// `enabled:false` and hides the surface, which is more useful than an absent key it
+// has to guess about — and a build fact for a key no vocabulary defines is a
+// programming error, since a client could never ask about it.
+func advertisedFeatures(enabled map[string]bool) map[string]protocol.FeatureCapability {
+	for key := range enabled {
+		if _, published := protocol.LookupFeature(key); !published {
+			panic("server: composition advertises unpublished feature " + key)
+		}
+	}
+	out := make(map[string]protocol.FeatureCapability, len(protocol.Features))
+	for _, feature := range protocol.Features {
+		out[feature.Key] = protocol.FeatureCapability{
+			Enabled:               enabled[feature.Key],
+			Stability:             feature.Stability,
+			ClientOptIn:           feature.ClientOptIn,
+			RequiredByRunProtocol: feature.RequiredByRunProtocol,
+		}
+	}
+	return out
 }
 
 // ─── helpers ────────────────────────────────────────────────────────

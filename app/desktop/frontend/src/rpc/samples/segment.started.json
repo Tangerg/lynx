@@ -20,7 +20,11 @@
         "maxBudgetUsd": 4
       },
       "createdAt": "2026-07-07T10:00:00Z",
-      "activeSegmentId": "seg_01"
+      "activeSegmentId": "seg_01",
+      "protocolProfile": {
+        "requiredFeatures": [],
+        "interruptTypes": ["approval"]
+      }
     }
   }
 }

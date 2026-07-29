@@ -2,9 +2,12 @@ package server
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"iter"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 )
@@ -60,8 +63,15 @@ func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 	// the evt_ wire framing off the client's Last-Event-Id (§11.2). TrimPrefix
 	// leaves an empty / unframed id untouched, so replay-from-start still works.
 	fromCursor := strings.TrimPrefix(transport.LastEventIDFrom(ctx), protocol.IDPrefixEvent)
-	record, events, ok := s.coordinator.SubscribeLive(ctx, runID, fromCursor)
-	if !ok {
+	caller, err := s.negotiateCapabilities(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	record, events, err := s.coordinator.SubscribeLive(ctx, runID, fromCursor, caller)
+	switch {
+	case errors.Is(err, runs.ErrProfileNotCovered):
+		return nil, nil, fmt.Errorf("%w: %w", protocol.ErrCapabilityNotNeg, err)
+	case err != nil:
 		return nil, nil, protocol.ErrRunNotFound
 	}
 	return &protocol.StartRunResponse{RunID: runID, SegmentID: record.SegmentID}, mapRunEvents(ctx, events), nil

@@ -38,6 +38,11 @@ func bindRequestMeta(ctx context.Context, req *transport.Request) (context.Conte
 	if err := json.Unmarshal(raw, &meta); err != nil {
 		return ctx, invalidParams(requestMetaField + ": " + err.Error())
 	}
+	if meta.ClientCapabilities != nil {
+		if err := meta.ClientCapabilities.Validate(); err != nil {
+			return ctx, invalidParams(requestMetaField + ".clientCapabilities: " + err.Error())
+		}
+	}
 	if meta.ProtocolVersion != "" && !protocol.SupportsProtocolVersion(meta.ProtocolVersion) {
 		return ctx, problemError(
 			protocol.CodeInvalidProtocolVersion,

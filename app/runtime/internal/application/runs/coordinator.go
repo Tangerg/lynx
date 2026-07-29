@@ -127,7 +127,8 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		GoalLeaseID: spec.GoalLeaseID,
 		CreatedAt:   spec.CreatedAt, UserInput: spec.Input, Pending: spec.Pending,
 		Metrics: spec.priorMetrics(), Limits: spec.effectiveLimits(),
-		Now: c.now, CancelReason: live.CancelReason,
+		ProtocolProfile: spec.effectiveProfile(),
+		Now:             c.now, CancelReason: live.CancelReason,
 	})
 	opening, err := c.commitOpening(reqCtx, spec, reducer)
 	if err != nil {
@@ -142,13 +143,14 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		panic("runs: committed opening without a pending admission")
 	}
 	c.registry.Open(Record{
-		ID:             spec.RunID,
-		SegmentID:      spec.SegmentID,
-		SessionID:      spec.SessionID,
-		Cwd:            spec.Cwd,
-		CreatedAt:      spec.CreatedAt,
-		TurnID:         spec.TurnID,
-		ModelSelection: spec.ModelSelection,
+		ID:              spec.RunID,
+		SegmentID:       spec.SegmentID,
+		SessionID:       spec.SessionID,
+		Cwd:             spec.Cwd,
+		CreatedAt:       spec.CreatedAt,
+		TurnID:          spec.TurnID,
+		ModelSelection:  spec.ModelSelection,
+		ProtocolProfile: spec.effectiveProfile(),
 	}, live)
 	subscription, unsubscribe := hub.Subscribe("")
 	stopUnsubscribe := context.AfterFunc(reqCtx, unsubscribe)
@@ -189,12 +191,13 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, reduc
 		opening.Resume = &execution.ResumeDraft{RunID: spec.RunID, SessionID: spec.SessionID, SegmentID: spec.SegmentID}
 	} else {
 		opening.Admit = &execution.RunDraft{
-			RunID:          spec.RunID,
-			SessionID:      spec.SessionID,
-			SegmentID:      spec.SegmentID,
-			ModelSelection: spec.ModelSelection,
-			Limits:         spec.Limits,
-			CreatedAt:      spec.CreatedAt,
+			RunID:           spec.RunID,
+			SessionID:       spec.SessionID,
+			SegmentID:       spec.SegmentID,
+			ModelSelection:  spec.ModelSelection,
+			Limits:          spec.Limits,
+			ProtocolProfile: spec.ProtocolProfile,
+			CreatedAt:       spec.CreatedAt,
 		}
 		opening.ScheduledSession = spec.ScheduledSession
 		opening.SessionModel = spec.SessionModel
@@ -245,18 +248,25 @@ func (c *Coordinator) rejectUnadmittedTurn(ctx context.Context, ref execution.Tu
 // Journal are captured from the same registry entry, so Delivery cannot return
 // a segment id from one entry and subscribe to a replacement or removed entry.
 // The subscription is dropped when ctx ends or the consumer stops ranging.
-// ok=false when the run is not actively streaming.
-func (c *Coordinator) SubscribeLive(ctx context.Context, runID, fromCursor string) (Record, iter.Seq[Event], bool) {
+//
+// It reports [ErrRunNotFound] when the run is not actively streaming, and
+// [ErrProfileNotCovered] when caller could not follow what this run publishes —
+// the same rule a resume applies, kept here rather than at each caller so the two
+// entry points into an existing Run cannot disagree about it.
+func (c *Coordinator) SubscribeLive(ctx context.Context, runID, fromCursor string, caller execution.RunProtocolProfile) (Record, iter.Seq[Event], error) {
 	e, ok := c.registry.Get(runID)
 	if !ok || e.handle == nil || e.handle.hub == nil {
-		return Record{}, nil, false
+		return Record{}, nil, ErrRunNotFound
+	}
+	if gap := e.record.ProtocolProfile.Uncovered(caller); !gap.IsEmpty() {
+		return Record{}, nil, fmt.Errorf("%w: run %q was created with %s", ErrProfileNotCovered, runID, gap)
 	}
 	subscription, unsubscribe := e.handle.hub.Subscribe(fromCursor)
 	stopUnsubscribe := context.AfterFunc(ctx, unsubscribe)
 	return e.record, func(yield func(Event) bool) {
 		defer stopUnsubscribe()
 		subscription(yield)
-	}, true
+	}, nil
 }
 
 // List snapshots the records of the currently-live runs.

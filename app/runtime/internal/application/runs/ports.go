@@ -202,8 +202,12 @@ type segmentSpec struct {
 	Input            []transcript.ContentBlock
 	// Limits is the allowance the Run is admitted under, frozen for the whole Run
 	// — a continuation carries the first segment's caps rather than renegotiating.
-	Limits  execution.RunLimits
-	Pending *interrupts.Pending
+	Limits execution.RunLimits
+	// ProtocolProfile is the protocol contract negotiated for a FRESH Run. A
+	// continuation leaves it zero and reads the Run's own from Pending: the profile
+	// is the Run's, and a resume request has no say in it.
+	ProtocolProfile execution.RunProtocolProfile
+	Pending         *interrupts.Pending
 	// admission is the pre-commit reservation Start or Resume transfers to the
 	// live run immediately after its durable opening commit succeeds.
 	admission *admission.RunAdmission
@@ -235,4 +239,14 @@ func (s segmentSpec) effectiveLimits() execution.RunLimits {
 		return s.Limits
 	}
 	return s.Pending.Limits
+}
+
+// effectiveProfile is the protocol contract in force, by the same rule: the
+// profile belongs to the Run, so a continuation reports the one the park recorded
+// and never the declaration of the request that resumed it.
+func (s segmentSpec) effectiveProfile() execution.RunProtocolProfile {
+	if s.Pending == nil {
+		return s.ProtocolProfile
+	}
+	return s.Pending.ProtocolProfile
 }

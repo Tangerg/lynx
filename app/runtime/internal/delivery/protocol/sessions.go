@@ -219,13 +219,17 @@ type ArtifactRun struct {
 	// Limits and Metrics split the same way the live wire does. The archive has
 	// to move with it: leaving the old combined shape here would keep a second,
 	// older account of what a run cost alive inside the export format.
-	Limits      *ArtifactRunLimits `json:"limits,omitempty"`
-	Metrics     ArtifactRunMetrics `json:"metrics"`
-	Outcome     ArtifactOutcome    `json:"outcome"`
-	CreatedAt   time.Time          `json:"createdAt"`
-	FinishedAt  time.Time          `json:"finishedAt"`
-	UpdatedAt   time.Time          `json:"updatedAt"`
-	MessageMark int                `json:"messageMark"`
+	Limits  *ArtifactRunLimits `json:"limits,omitempty"`
+	Metrics ArtifactRunMetrics `json:"metrics"`
+	// ProtocolProfile is the contract the run published under. An import that
+	// dropped it would restore a run claiming the Minimal Profile, which is a
+	// different run: §14.8 requires the round-trip to preserve it.
+	ProtocolProfile RunProtocolProfile `json:"protocolProfile"`
+	Outcome         ArtifactOutcome    `json:"outcome"`
+	CreatedAt       time.Time          `json:"createdAt"`
+	FinishedAt      time.Time          `json:"finishedAt"`
+	UpdatedAt       time.Time          `json:"updatedAt"`
+	MessageMark     int                `json:"messageMark"`
 }
 
 // ArtifactRunLimits is the allowance a portable run was admitted under.

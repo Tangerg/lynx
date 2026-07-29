@@ -114,6 +114,34 @@ type RunRef struct {
 	// not an echo of the request — a resume and a cross-restart recovery report
 	// the same caps as the first segment.
 	Limits *RunLimits `json:"limits,omitempty"`
+	// ProtocolProfile is the protocol contract this run was created under, and it
+	// is present in every status: a client that reconnects to a run has to know
+	// what the run may publish before it starts folding the stream.
+	ProtocolProfile RunProtocolProfile `json:"protocolProfile"`
+}
+
+// RunProtocolProfile is the client-observable protocol contract frozen when a run
+// was created (§4.2) — not a preference recomputed per request.
+//
+// Both fields are sets: duplicates are illegal, order carries no meaning, and the
+// canonical encoder emits requiredFeatures in lexical order and interruptTypes in
+// registry order. Neither is optional, because an empty set is a MEANING: the §8.3
+// Minimal Profile — a run that creates no child, publishes no `suspended`, and
+// never parks on a human. `null` would say "unknown" about a run whose contract is
+// perfectly known.
+//
+// Its scope is one root run tree, never a session: the next runs.start negotiates
+// again, so a minimal client cannot permanently narrow what a session can do.
+type RunProtocolProfile struct {
+	// RequiredFeatures are the negotiated features that changed what this run
+	// publishes (`requiredByRunProtocol` in discovery). A later resume or subscribe
+	// whose caller does not declare them is refused, not downgraded — the
+	// alternative is a second, quieter event stream for the same run.
+	RequiredFeatures []string `json:"requiredFeatures"`
+	// InterruptTypes are the durable interrupt types this run may produce. The run
+	// keeps them for its whole life, so answering an interrupt cannot quietly
+	// change what the next segment is allowed to park on.
+	InterruptTypes []InterruptType `json:"interruptTypes"`
 }
 
 // RunMetrics is how much a run has consumed (§4.2). Total cost reads

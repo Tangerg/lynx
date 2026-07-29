@@ -33,9 +33,9 @@ func EncodeWorkspaceEvent(ev protocol.WorkspaceEvent) (transport.Message, error)
 func (d *Dispatcher) handleNotification(context.Context, *transport.Request) {}
 
 // runEventToFrameFor returns the per-request encoder for RunEvent stream
-// notifications. Client capabilities gate which event types this stream may
-// receive; opt-out only suppresses ephemeral events so final state remains
-// recoverable.
+// notifications. Every authoritative event goes out; a client's opt-out only
+// suppresses ephemeral previews, so final state stays recoverable from the stream
+// alone (§5.2).
 func runEventToFrameFor(ctx context.Context) func(protocol.RunEvent) (StreamFrame, bool) {
 	filter := streamFilterFrom(ctx)
 	return func(ev protocol.RunEvent) (StreamFrame, bool) {
@@ -64,9 +64,12 @@ func workspaceEventToFrame(ev protocol.WorkspaceEvent) (StreamFrame, bool) {
 	return StreamFrame{Notif: notif}, true
 }
 
+// streamFilter is the client's ephemeral opt-out, and nothing else. There is
+// deliberately no "types the client declared" set to intersect with: a client that
+// cannot follow the authoritative stream must be refused the run (§8.1 capability
+// negotiation), not handed a shortened stream it would mistake for the whole one.
 type streamFilter struct {
-	declared map[protocol.StreamEventType]bool
-	optOut   map[protocol.StreamEventType]bool
+	optOut map[protocol.StreamEventType]bool
 }
 
 func streamFilterFrom(ctx context.Context) streamFilter {
@@ -74,10 +77,7 @@ func streamFilterFrom(ctx context.Context) streamFilter {
 	if !ok {
 		return streamFilter{}
 	}
-	return streamFilter{
-		declared: eventSet(caps.Events),
-		optOut:   eventSet(caps.ExcludedEvents),
-	}
+	return streamFilter{optOut: eventSet(caps.ExcludedEphemeralEvents)}
 }
 
 func eventSet(events []protocol.StreamEventType) map[protocol.StreamEventType]bool {
@@ -92,11 +92,7 @@ func eventSet(events []protocol.StreamEventType) map[protocol.StreamEventType]bo
 }
 
 func (f streamFilter) allow(ev protocol.StreamEvent) bool {
-	if f.declared != nil && !f.declared[ev.Type] {
-		return false
-	}
-	if !ev.IsDurable() && f.optOut != nil && f.optOut[ev.Type] {
-		return false
-	}
-	return true
+	// Durability is checked on the EVENT, not the type: a custom event declares its
+	// own, so an opt-out by type may not drop the durable ones.
+	return ev.IsDurable() || f.optOut == nil || !f.optOut[ev.Type]
 }

@@ -50,7 +50,23 @@ func presentRun(run transcript.Run) protocol.RunRef {
 		ActiveSegmentID: run.ActiveSegmentID,
 		Metrics:         presentMetrics(run.Metrics),
 		Limits:          presentLimits(run.Limits),
+		ProtocolProfile: presentProtocolProfile(run.ProtocolProfile),
 	}
+}
+
+// presentProtocolProfile publishes the contract the run was created under. Both
+// sets are allocated even when empty: an empty profile is the Minimal Profile —
+// a meaning — and `null` would report the run's known contract as unknown.
+func presentProtocolProfile(profile execution.RunProtocolProfile) protocol.RunProtocolProfile {
+	out := protocol.RunProtocolProfile{
+		RequiredFeatures: make([]string, 0, len(profile.RequiredFeatures)),
+		InterruptTypes:   make([]protocol.InterruptType, 0, len(profile.InterruptKinds)),
+	}
+	out.RequiredFeatures = append(out.RequiredFeatures, profile.RequiredFeatures...)
+	for _, kind := range profile.InterruptKinds {
+		out.InterruptTypes = append(out.InterruptTypes, presentInterruptType(kind))
+	}
+	return out
 }
 
 // presentSegmentFinished maps the run record a segment ended with onto the pair
@@ -190,12 +206,12 @@ func presentInterrupts(interrupts []transcript.Interrupt) []protocol.Interrupt {
 	out := make([]protocol.Interrupt, 0, len(interrupts))
 	for _, interrupt := range interrupts {
 		entry := protocol.Interrupt{ItemID: interrupt.ItemID}
+		entry.Type = presentInterruptType(interrupt.Kind)
 		switch interrupt.Kind {
 		case execution.ApprovalInterrupt:
 			if interrupt.Approval == nil {
 				panic("server: approval interrupt has no approval payload")
 			}
-			entry.Type = protocol.InterruptApproval
 			entry.Payload = &protocol.InterruptPayload{
 				Tool:         new(presentTool(interrupt.Approval.Tool)),
 				Risk:         presentApprovalRisk(interrupt.Approval.Risk),
@@ -206,10 +222,7 @@ func presentInterrupts(interrupts []transcript.Interrupt) []protocol.Interrupt {
 			if interrupt.Question == nil {
 				panic("server: question interrupt has no question payload")
 			}
-			entry.Type = protocol.InterruptQuestion
 			entry.Payload = &protocol.InterruptPayload{Question: new(presentQuestion(*interrupt.Question))}
-		default:
-			panic("server: unknown interrupt kind")
 		}
 		out = append(out, entry)
 	}

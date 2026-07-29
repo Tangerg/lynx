@@ -22,10 +22,16 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	if err != nil {
 		return nil, nil, err
 	}
+	caller, err := s.negotiateCapabilities(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 	result, err := s.coordinator.Resume(ctx, runs.ResumeCommand{
-		RunID:          in.RunID,
-		Responses:      responses,
-		InterruptKinds: interruptKindsFromContext(ctx),
+		RunID:     in.RunID,
+		Responses: responses,
+		// The run keeps the profile it was created with; this only says whether the
+		// caller can still follow it.
+		CallerCapabilities: caller,
 	})
 	if err != nil {
 		switch {
@@ -37,6 +43,8 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 			return nil, nil, protocol.ErrSessionBusy
 		case errors.Is(err, runs.ErrRunNotFound):
 			return nil, nil, protocol.ErrRunNotFound
+		case errors.Is(err, runs.ErrProfileNotCovered):
+			return nil, nil, fmt.Errorf("%w: %w", protocol.ErrCapabilityNotNeg, err)
 		default:
 			return nil, nil, err
 		}

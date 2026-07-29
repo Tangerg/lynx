@@ -51,13 +51,13 @@ func TestCapabilitiesAdvertiseThePublishedVocabulary(t *testing.T) {
 	t.Parallel()
 
 	caps := capabilitiesFor(featureAvailability{})
-	for _, feature := range protocol.Features {
+	for _, feature := range protocol.FeatureKeys() {
 		if _, advertised := caps.Features[feature]; !advertised {
 			t.Errorf("protocol publishes %q and discovery advertises no such key", feature)
 		}
 	}
 	for feature := range caps.Features {
-		if !slices.Contains(protocol.Features, feature) {
+		if _, published := protocol.LookupFeature(feature); !published {
 			t.Errorf("discovery advertises %q, which protocol does not publish", feature)
 		}
 	}

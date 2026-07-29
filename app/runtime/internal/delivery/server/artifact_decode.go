@@ -82,16 +82,36 @@ func portableRunFromArtifact(path string, artifact protocol.ArtifactRun) (sessio
 	if err != nil {
 		return sessions.PortableRun{}, err
 	}
+	profile, err := portableProfileFromArtifact(path+".protocolProfile", artifact.ProtocolProfile)
+	if err != nil {
+		return sessions.PortableRun{}, err
+	}
 	return sessions.PortableRun{
 		SessionID: artifact.SessionID, ID: artifact.ID, SpawnedByItemID: artifact.SpawnedByItemID,
 		Provider: artifact.Provider, Model: artifact.Model, Outcome: outcome,
-		Error:     problem,
-		Metrics:   portableMetricsFromArtifact(artifact.Metrics),
-		Limits:    portableLimitsFromArtifact(artifact.Limits),
-		Detail:    artifact.Outcome.Detail,
-		CreatedAt: artifact.CreatedAt, FinishedAt: artifact.FinishedAt,
+		Error:           problem,
+		Metrics:         portableMetricsFromArtifact(artifact.Metrics),
+		Limits:          portableLimitsFromArtifact(artifact.Limits),
+		ProtocolProfile: profile,
+		Detail:          artifact.Outcome.Detail,
+		CreatedAt:       artifact.CreatedAt, FinishedAt: artifact.FinishedAt,
 		UpdatedAt: artifact.UpdatedAt, MessageMark: artifact.MessageMark,
 	}, nil
+}
+
+// portableProfileFromArtifact restores the run's frozen contract. An interrupt
+// type this runtime cannot raise is refused rather than dropped: importing the run
+// without it would silently rewrite the contract the archive recorded.
+func portableProfileFromArtifact(path string, profile protocol.RunProtocolProfile) (execution.RunProtocolProfile, error) {
+	out := execution.RunProtocolProfile{RequiredFeatures: profile.RequiredFeatures}
+	for _, declared := range profile.InterruptTypes {
+		kind, backed := interruptKindFromWire(declared)
+		if !backed {
+			return execution.RunProtocolProfile{}, invalidArtifact(path+".interruptTypes", "unknown value %q", declared)
+		}
+		out.InterruptKinds = append(out.InterruptKinds, kind)
+	}
+	return out.Normalized(), nil
 }
 
 func portableOutcomeFromArtifact(path string, value protocol.ArtifactOutcomeType) (execution.Outcome, error) {

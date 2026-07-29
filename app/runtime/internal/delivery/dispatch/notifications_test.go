@@ -21,30 +21,43 @@ func TestHandleNotificationSuppressesMetadataErrors(t *testing.T) {
 	}
 }
 
-func TestStreamFilterEventDeclarations(t *testing.T) {
-	runStarted := protocol.StreamEvent{Type: protocol.StreamSegmentStarted}
+// TestStreamFilterOnlyDropsOptedOutEphemerals pins the one thing a client may
+// suppress. An authoritative event is never filtered — not by an exclusion list
+// naming it, and not by a client declaring nothing at all — because a client that
+// cannot follow the run's stream is refused at negotiation, and one that IS serving
+// the run has to receive every frame it must fold (§5.2 / §8.1).
+func TestStreamFilterOnlyDropsOptedOutEphemerals(t *testing.T) {
+	segmentStarted := protocol.StreamEvent{Type: protocol.StreamSegmentStarted}
 	itemDelta := protocol.StreamEvent{Type: protocol.StreamItemDelta}
 
-	if !streamFilterFrom(context.Background()).allow(runStarted) {
+	if !streamFilterFrom(context.Background()).allow(segmentStarted) {
 		t.Fatalf("missing capabilities should not filter events")
 	}
 
-	emptyDeclared := protocol.ClientCapabilities{Events: []protocol.StreamEventType{}}
-	ctx := protocol.WithRequestMeta(context.Background(), protocol.RequestMeta{ClientCapabilities: &emptyDeclared})
-	if streamFilterFrom(ctx).allow(runStarted) {
-		t.Fatalf("explicit empty events should filter all events")
+	silent := protocol.ClientCapabilities{}
+	ctx := protocol.WithRequestMeta(context.Background(), protocol.RequestMeta{ClientCapabilities: &silent})
+	filter := streamFilterFrom(ctx)
+	if !filter.allow(segmentStarted) || !filter.allow(itemDelta) {
+		t.Fatalf("declaring no exclusions should suppress nothing")
 	}
 
-	declared := protocol.ClientCapabilities{
-		Events:         []protocol.StreamEventType{protocol.StreamSegmentStarted, protocol.StreamItemDelta},
-		ExcludedEvents: []protocol.StreamEventType{protocol.StreamItemDelta},
+	opted := protocol.ClientCapabilities{
+		ExcludedEphemeralEvents: []protocol.StreamEventType{protocol.StreamItemDelta},
 	}
-	ctx = protocol.WithRequestMeta(context.Background(), protocol.RequestMeta{ClientCapabilities: &declared})
-	filter := streamFilterFrom(ctx)
-	if !filter.allow(runStarted) {
-		t.Fatalf("declared durable event should pass")
+	ctx = protocol.WithRequestMeta(context.Background(), protocol.RequestMeta{ClientCapabilities: &opted})
+	filter = streamFilterFrom(ctx)
+	if !filter.allow(segmentStarted) {
+		t.Fatalf("authoritative event should pass")
 	}
 	if filter.allow(itemDelta) {
 		t.Fatalf("opted-out ephemeral event should be filtered")
+	}
+	durableCustom := protocol.StreamEvent{Type: protocol.StreamCustom, Durable: new(true)}
+	optedCustom := protocol.ClientCapabilities{
+		ExcludedEphemeralEvents: []protocol.StreamEventType{protocol.StreamCustom},
+	}
+	ctx = protocol.WithRequestMeta(context.Background(), protocol.RequestMeta{ClientCapabilities: &optedCustom})
+	if !streamFilterFrom(ctx).allow(durableCustom) {
+		t.Fatalf("a durable custom event is not suppressible by type")
 	}
 }

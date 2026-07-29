@@ -17,21 +17,96 @@
       "state.snapshot"
     ],
     "features": {
-      "reasoning": { "enabled": true, "stability": "stable" },
-      "mcp": { "enabled": true, "stability": "stable" },
-      "multimodal": { "enabled": true, "stability": "stable" },
-      "git": { "enabled": true, "stability": "stable" },
-      "fileWatch": { "enabled": true, "stability": "stable" },
-      "checkpoints": { "enabled": true, "stability": "stable" },
-      "lsp": { "enabled": true, "stability": "stable" },
-      "subagents": { "enabled": false, "stability": "stable" },
-      "skills": { "enabled": true, "stability": "stable" },
-      "sessionExport": { "enabled": true, "stability": "stable" },
-      "memory": { "enabled": true, "stability": "stable" },
-      "relocate": { "enabled": true, "stability": "stable" },
-      "todos": { "enabled": true, "stability": "stable" },
-      "compaction": { "enabled": true, "stability": "stable" },
-      "clientTools": { "enabled": false, "stability": "stable" }
+      "reasoning": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "mcp": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "multimodal": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "git": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "fileWatch": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "checkpoints": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "lsp": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "subagents": {
+        "enabled": false,
+        "stability": "stable",
+        "clientOptIn": true,
+        "requiredByRunProtocol": true
+      },
+      "skills": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "sessionExport": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "memory": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "relocate": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "todos": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "compaction": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "clientTools": {
+        "enabled": false,
+        "stability": "stable",
+        "clientOptIn": true,
+        "requiredByRunProtocol": false
+      }
     },
     "streamingMethods": ["runs.start", "runs.resume", "runs.subscribe", "workspace.subscribe"],
     "limits": {}

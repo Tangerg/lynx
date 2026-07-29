@@ -73,14 +73,19 @@ type StreamEvent struct {
 // the hub's replay buffer and the SSE `id:` gate both read it, so neither
 // derives durability independently.
 func (se StreamEvent) IsDurable() bool {
-	switch se.Type {
-	case StreamItemDelta, StreamSegmentProgress:
-		return false
-	case StreamCustom:
+	if se.Type == StreamCustom {
 		return se.Durable != nil && *se.Durable
-	default:
-		return true
 	}
+	return !se.Type.AlwaysEphemeral()
+}
+
+// AlwaysEphemeral reports whether every event of this type is ephemeral — the
+// half of the §5.2 split the type alone decides. `custom` is deliberately not
+// among them: it declares its durability per event, so a client may not opt out
+// of the type wholesale, and only the types answering unconditionally may appear
+// in [ClientCapabilities.ExcludedEphemeralEvents].
+func (t StreamEventType) AlwaysEphemeral() bool {
+	return t == StreamItemDelta || t == StreamSegmentProgress
 }
 
 // RunProgress is the mid-run progress preview carried by a segment.progress

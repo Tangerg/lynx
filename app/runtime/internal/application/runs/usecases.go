@@ -33,7 +33,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		MaxCostUSD:     cmd.MaxCostUSD,
 		MaxSteps:       cmd.MaxSteps,
 		Options:        cmd.Options,
-		InterruptKinds: cmd.InterruptKinds,
+		InterruptKinds: cmd.ProtocolProfile.InterruptKinds,
 		GoalLeaseID:    cmd.GoalLeaseID,
 	}
 	if err := draft.Validate(); err != nil {
@@ -93,6 +93,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		OpeningUserText:  openingUserText,
 		Input:            cmd.Input,
 		Limits:           execution.RunLimits{MaxSteps: cmd.MaxSteps, MaxBudgetUSD: cmd.MaxCostUSD},
+		ProtocolProfile:  cmd.ProtocolProfile,
 		admission:        &runAdmission,
 		Activate: func(activateCtx context.Context) error {
 			return c.turns.Activate(activateCtx, turn)
@@ -123,6 +124,9 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	}
 	if !found {
 		return StartResult{}, ErrInterruptNotOpen
+	}
+	if gap := pending.ProtocolProfile.Uncovered(cmd.CallerCapabilities); !gap.IsEmpty() {
+		return StartResult{}, fmt.Errorf("%w: run %q was created with %s", ErrProfileNotCovered, cmd.RunID, gap)
 	}
 	resolution, err := resolveResumeResponses(pending, cmd.Responses)
 	if err != nil {
@@ -169,7 +173,10 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		Pending:        &pendingCopy,
 		admission:      &runAdmission,
 		Activate: func(activateCtx context.Context) error {
-			return c.turns.Resume(activateCtx, turn, resolution, cmd.InterruptKinds)
+			// The RUN's frozen kinds, not this request's: the caller has already been
+			// checked to cover them, and taking the declaration here would let each
+			// resume change what the next segment may park on.
+			return c.turns.Resume(activateCtx, turn, resolution, pending.ProtocolProfile.InterruptKinds)
 		},
 	})
 	if err != nil {

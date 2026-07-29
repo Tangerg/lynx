@@ -203,6 +203,7 @@ export type WireTypeName =
   | "RunOutcome"
   | "RunOutcomeType"
   | "RunProgress"
+  | "RunProtocolProfile"
   | "RunRef"
   | "RunScheduleNowRequest"
   | "RunScheduleNowResponse"
@@ -530,11 +531,12 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     metrics: ref(() => CHECKS.ArtifactRunMetrics),
     model: text(),
     outcome: ref(() => CHECKS.ArtifactOutcome),
+    protocolProfile: ref(() => CHECKS.RunProtocolProfile),
     provider: text(),
     sessionId: text(),
     spawnedByItemId: text(),
     updatedAt: text(),
-  }, ["createdAt", "finishedAt", "id", "messageMark", "metrics", "outcome", "sessionId", "updatedAt"]),
+  }, ["createdAt", "finishedAt", "id", "messageMark", "metrics", "outcome", "protocolProfile", "sessionId", "updatedAt"]),
   ArtifactRunLimits: object({
     maxBudgetUsd: numeric(),
     maxSteps: integer(),
@@ -580,11 +582,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     runId: allOf([text(), minLength(1)]),
   }, ["runId"]),
   ClientCapabilities: object({
-    events: array(ref(() => CHECKS.StreamEventType)),
-    excludedEvents: array(ref(() => CHECKS.StreamEventType)),
+    excludedEphemeralEvents: array(ref(() => CHECKS.StreamEventType)),
     features: record(ref(() => CHECKS.FeaturePreference)),
     interruptTypes: array(ref(() => CHECKS.InterruptType)),
-  }, ["events"]),
+  }, []),
   ClientInfo: object({
     name: text(),
     version: text(),
@@ -746,9 +747,11 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     markdown: text(),
   }, ["format"]),
   FeatureCapability: object({
+    clientOptIn: flag(),
     enabled: flag(),
+    requiredByRunProtocol: flag(),
     stability: ref(() => CHECKS.Stability),
-  }, ["enabled", "stability"]),
+  }, ["clientOptIn", "enabled", "requiredByRunProtocol", "stability"]),
   FeaturePreference: object({
     enabled: flag(),
   }, ["enabled"]),
@@ -1544,6 +1547,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     step: integer(),
     usage: ref(() => CHECKS.Usage),
   }, []),
+  RunProtocolProfile: object({
+    interruptTypes: array(ref(() => CHECKS.InterruptType)),
+    requiredFeatures: array(text()),
+  }, ["interruptTypes", "requiredFeatures"]),
   RunRef: allOf([
     object({
       activeSegmentId: text(),
@@ -1555,12 +1562,13 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       model: text(),
       outcome: ref(() => CHECKS.RunOutcome),
       parentRunId: text(),
+      protocolProfile: ref(() => CHECKS.RunProtocolProfile),
       provider: text(),
       rootRunId: text(),
       sessionId: text(),
       spawnedByItemId: text(),
       status: ref(() => CHECKS.RunStatus),
-    }, ["id", "metrics", "sessionId"]),
+    }, ["id", "metrics", "protocolProfile", "sessionId"]),
     ifThen(
       fields({
         status: literal("finished"),

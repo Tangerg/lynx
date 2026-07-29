@@ -144,8 +144,8 @@ func (e *methodsEmitter) features() {
 	e.line("// Every capability key discovery may advertise (API.md §9). Private: it exists to")
 	e.line("// derive the union, and a published array with no reader would be a second table.")
 	e.line("const FEATURES = [")
-	for _, feature := range protocol.Features {
-		e.line("  %s,", strconv.Quote(feature))
+	for _, key := range protocol.FeatureKeys() {
+		e.line("  %s,", strconv.Quote(key))
 	}
 	e.line("] as const;")
 	e.line("")

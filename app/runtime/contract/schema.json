@@ -816,6 +816,9 @@
         "outcome": {
           "$ref": "#/$defs/ArtifactOutcome"
         },
+        "protocolProfile": {
+          "$ref": "#/$defs/RunProtocolProfile"
+        },
         "provider": {
           "type": "string"
         },
@@ -837,6 +840,7 @@
         "messageMark",
         "metrics",
         "outcome",
+        "protocolProfile",
         "sessionId",
         "updatedAt"
       ]
@@ -1002,13 +1006,7 @@
     "ClientCapabilities": {
       "type": "object",
       "properties": {
-        "events": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/StreamEventType"
-          }
-        },
-        "excludedEvents": {
+        "excludedEphemeralEvents": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/StreamEventType"
@@ -1026,10 +1024,7 @@
             "$ref": "#/$defs/InterruptType"
           }
         }
-      },
-      "required": [
-        "events"
-      ]
+      }
     },
     "ClientInfo": {
       "type": "object",
@@ -1587,7 +1582,13 @@
     "FeatureCapability": {
       "type": "object",
       "properties": {
+        "clientOptIn": {
+          "type": "boolean"
+        },
         "enabled": {
+          "type": "boolean"
+        },
+        "requiredByRunProtocol": {
           "type": "boolean"
         },
         "stability": {
@@ -1595,7 +1596,9 @@
         }
       },
       "required": [
+        "clientOptIn",
         "enabled",
+        "requiredByRunProtocol",
         "stability"
       ]
     },
@@ -4254,6 +4257,27 @@
         }
       }
     },
+    "RunProtocolProfile": {
+      "type": "object",
+      "properties": {
+        "interruptTypes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InterruptType"
+          }
+        },
+        "requiredFeatures": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "interruptTypes",
+        "requiredFeatures"
+      ]
+    },
     "RunRef": {
       "type": "object",
       "properties": {
@@ -4286,6 +4310,9 @@
         "parentRunId": {
           "type": "string"
         },
+        "protocolProfile": {
+          "$ref": "#/$defs/RunProtocolProfile"
+        },
         "provider": {
           "type": "string"
         },
@@ -4305,6 +4332,7 @@
       "required": [
         "id",
         "metrics",
+        "protocolProfile",
         "sessionId"
       ],
       "allOf": [

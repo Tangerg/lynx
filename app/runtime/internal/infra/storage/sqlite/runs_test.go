@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -779,4 +780,86 @@ func TestListRunningSeeksPastItsAnchor(t *testing.T) {
 	if len(rest) != 1 || rest[0].ID != "run_c" {
 		t.Fatalf("second page = %+v, want only run_c", rest)
 	}
+}
+
+// TestRunProtocolProfileIsImmutable proves the invariant
+// `run_protocol_profile_is_immutable` at the runs.admission boundary: the
+// admission INSERT is the profile's only writer, so parking, resuming and
+// terminalizing the run all read back the contract it was admitted under.
+//
+// It is checked at the store rather than above it because that is where the
+// guarantee lives: no statement other than the INSERT names the column, and a
+// later transition that started writing one would break this and nothing else.
+func TestRunProtocolProfileIsImmutable(t *testing.T) {
+	ctx := context.Background()
+	store, interruptStore := newRunStores(t)
+
+	admitted := execution.RunProtocolProfile{
+		RequiredFeatures: []string{"subagents"},
+		InterruptKinds:   []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt},
+	}
+	draft := runDraft("run_1", "ses_A")
+	draft.ProtocolProfile = admitted
+	if err := store.Admit(ctx, draft); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+
+	// A park hands the store a whole Run record, including a profile — the store
+	// must ignore it rather than let the segment restate the contract.
+	parked := parkedRun("run_1", "ses_A")
+	parked.ProtocolProfile = execution.RunProtocolProfile{}
+	if err := interruptStore.Put(ctx, interrupts.Pending{
+		RunID: "run_1", SessionID: "ses_A", TurnID: "turn_1", ProcessID: "proc_1",
+		Interrupts:      parked.Interrupts,
+		ProtocolProfile: admitted,
+		CreatedAt:       time.Unix(5, 0).UTC(),
+	}); err != nil {
+		t.Fatalf("put interrupt: %v", err)
+	}
+	if err := store.Suspend(ctx, parked); err != nil {
+		t.Fatalf("suspend: %v", err)
+	}
+	assertRunProfile(t, store, "run_1", admitted, "after park")
+
+	// The park's own row carries the profile onward, which is where a continuation
+	// reads it: the resume never sees the runs row before it reopens the segment.
+	pending, found, err := interruptStore.Get(ctx, "run_1")
+	if err != nil || !found {
+		t.Fatalf("get interrupt: %v (found=%v)", err, found)
+	}
+	if !slices.Equal(pending.ProtocolProfile.RequiredFeatures, admitted.RequiredFeatures) ||
+		!slices.Equal(pending.ProtocolProfile.InterruptKinds, admitted.InterruptKinds) {
+		t.Fatalf("park hand-off profile = %v, want %v", pending.ProtocolProfile, admitted)
+	}
+
+	if err := store.Resume(ctx, execution.ResumeDraft{RunID: "run_1", SessionID: "ses_A", SegmentID: "seg_next"}); err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	assertRunProfile(t, store, "run_1", admitted, "after resume")
+
+	finished := finishedRun("run_1", "ses_A", execution.OutcomeCompleted)
+	finished.ProtocolProfile = execution.RunProtocolProfile{}
+	if err := store.Terminalize(ctx, finished); err != nil {
+		t.Fatalf("terminalize: %v", err)
+	}
+	assertRunProfile(t, store, "run_1", admitted, "after terminal")
+}
+
+func assertRunProfile(t *testing.T, store *sqlite.RunStore, runID string, want execution.RunProtocolProfile, when string) {
+	t.Helper()
+	runs, err := store.ListRuns(context.Background(), "ses_A")
+	if err != nil {
+		t.Fatalf("list runs %s: %v", when, err)
+	}
+	for _, run := range runs {
+		if run.ID != runID {
+			continue
+		}
+		if !slices.Equal(run.ProtocolProfile.RequiredFeatures, want.RequiredFeatures) ||
+			!slices.Equal(run.ProtocolProfile.InterruptKinds, want.InterruptKinds) {
+			t.Fatalf("profile %s = %v, want %v", when, run.ProtocolProfile, want)
+		}
+		return
+	}
+	t.Fatalf("run %q missing %s", runID, when)
 }

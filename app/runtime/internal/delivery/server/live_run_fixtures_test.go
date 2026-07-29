@@ -87,10 +87,10 @@ func startLiveRun(t *testing.T, s *Server, cwd string) string {
 		t.Fatalf("start live run: %v", err)
 	}
 	probeCtx, cancel := context.WithCancel(context.Background())
-	_, _, live := s.coordinator.SubscribeLive(probeCtx, result.RunID, "")
+	_, _, err = s.coordinator.SubscribeLive(probeCtx, result.RunID, "", execution.RunProtocolProfile{})
 	cancel()
-	if !live {
-		t.Fatal("Start returned before the live run was registered")
+	if err != nil {
+		t.Fatalf("Start returned before the live run was registered: %v", err)
 	}
 	t.Cleanup(s.Close)
 	return result.RunID

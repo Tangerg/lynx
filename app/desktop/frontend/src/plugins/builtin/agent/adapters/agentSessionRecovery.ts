@@ -1,4 +1,12 @@
-import type { LyraClient, RunEvent, RunId, RunMetrics, RunRef, StreamingResult } from "@/rpc";
+import type {
+  LyraClient,
+  RunEvent,
+  RunId,
+  RunMetrics,
+  RunProtocolProfile,
+  RunRef,
+  StreamingResult,
+} from "@/rpc";
 import { asRunId, asSegmentId, asSessionId, collectPages } from "@/rpc";
 import type { FoldEvent } from "./agentStore";
 
@@ -25,6 +33,12 @@ export function startAgentSessionRecovery(options: AgentSessionRecoveryOptions):
 // overwriting it with a number this path never learned.
 const unreported: RunMetrics = { steps: 0, activeDurationMs: 0 };
 
+// The same read says nothing about the contract the run was created under, and
+// these frames are a reconstruction rather than something the runtime sent. Empty
+// sets are what this path can honestly assert; a consumer that needs the real
+// profile has to read the run itself instead of trusting a synthesized frame.
+const unknownProfile: RunProtocolProfile = { requiredFeatures: [], interruptTypes: [] };
+
 function stale(options: AgentSessionRecoveryOptions): boolean {
   return options.isCancelled() || options.hasInteracted();
 }
@@ -48,6 +62,7 @@ async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
             sessionId: oi.sessionId,
             createdAt: oi.createdAt,
             metrics: unreported,
+            protocolProfile: unknownProfile,
           },
         },
       },

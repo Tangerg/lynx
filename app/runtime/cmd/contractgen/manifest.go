@@ -130,7 +130,7 @@ func build(walked *schemaSet) manifest {
 	shapes := dispatch.WireShapes()
 	return manifest{
 		Protocol:         protocol.SupportedProtocolRange(),
-		Features:         protocol.Features,
+		Features:         protocol.FeatureKeys(),
 		Methods:          methods(registry),
 		Notifications:    []string{dispatch.NotificationRunEvent, dispatch.NotificationWorkspaceEvent},
 		StreamingMethods: registry.StreamMethods(),

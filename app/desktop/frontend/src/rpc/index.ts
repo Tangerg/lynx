@@ -29,6 +29,7 @@ export type {
   // Lifecycle / capabilities
   ClientCapabilities,
   ServerCapabilities,
+  FeatureCapability,
   ServerInfo,
   InterruptType,
   RequestMeta,
@@ -54,6 +55,7 @@ export type {
   RunProgress,
   RunMetrics,
   RunLimits,
+  RunProtocolProfile,
   StartRunRequest,
   StartRunResponse,
   ResumeRunRequest,

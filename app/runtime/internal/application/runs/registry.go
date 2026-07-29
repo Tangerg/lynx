@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
@@ -18,7 +19,11 @@ type Record struct {
 	CreatedAt      time.Time
 	TurnID         string
 	ModelSelection modelref.Selection
-	CancelReason   string
+	// ProtocolProfile is the Run's frozen protocol contract, carried on the live
+	// record so a subscriber can be refused before it is attached to a stream it
+	// could not follow.
+	ProtocolProfile execution.RunProtocolProfile
+	CancelReason    string
 }
 
 // liveSegment is the coordinator's process-local state for a currently active

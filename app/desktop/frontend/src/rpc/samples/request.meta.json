@@ -5,20 +5,10 @@
     "version": "0.1.0"
   },
   "clientCapabilities": {
-    "events": [
-      "segment.started",
-      "segment.progress",
-      "segment.finished",
-      "item.started",
-      "item.delta",
-      "item.completed",
-      "state.snapshot",
-      "custom"
-    ],
     "features": {
       "multimodal": { "enabled": true }
     },
     "interruptTypes": ["approval", "question"],
-    "excludedEvents": ["item.delta"]
+    "excludedEphemeralEvents": ["item.delta"]
   }
 }

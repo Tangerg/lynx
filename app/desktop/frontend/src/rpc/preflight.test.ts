@@ -18,7 +18,7 @@ function advertising(features: Record<string, boolean>): ServerCapabilities {
     features: Object.fromEntries(
       Object.entries(features).map(([name, enabled]) => [
         name,
-        { enabled, stability: "stable" as const },
+        { enabled, stability: "stable" as const, clientOptIn: false, requiredByRunProtocol: false },
       ]),
     ),
     limits: {},

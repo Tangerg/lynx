@@ -143,6 +143,7 @@ describe("smoke: v2 end-to-end happy path", () => {
           id: asRunId("run_1"),
           sessionId: asSessionId("ses_1"),
           metrics: { steps: 0, activeDurationMs: 0 },
+          protocolProfile: { requiredFeatures: [], interruptTypes: ["approval"] },
         },
       });
       injectRunEvent(transport, "run_1", "seg_1", "evt_2", {
@@ -218,6 +219,7 @@ describe("smoke: v2 end-to-end happy path", () => {
           id: asRunId("run_1"),
           sessionId: asSessionId("ses_1"),
           metrics: { steps: 0, activeDurationMs: 0 },
+          protocolProfile: { requiredFeatures: [], interruptTypes: ["approval"] },
         },
       });
       injectRunEvent(transport, "run_1", "seg_2", "evt_2", {

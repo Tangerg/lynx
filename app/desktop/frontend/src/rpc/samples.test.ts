@@ -54,11 +54,12 @@ describe("the canonical wire samples", () => {
     }
   });
 
-  // The client advertises the event types it can fold; asking for one the runtime
-  // does not publish would negotiate a stream it cannot receive.
-  it("advertises only published stream events", () => {
+  // A client may suppress ephemeral previews. Naming an event the runtime does not
+  // publish would be asking to opt out of nothing, and the runtime refuses the
+  // request rather than ignoring the entry — so the sample has to be legal.
+  it("excludes only published stream events", () => {
     const published = new Set<string>(WIRE_ENUMS.StreamEventType);
-    for (const event of requestMeta.clientCapabilities.events) {
+    for (const event of requestMeta.clientCapabilities.excludedEphemeralEvents ?? []) {
       expect(published.has(event)).toBe(true);
     }
   });

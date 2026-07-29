@@ -29,15 +29,22 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	if err != nil {
 		return nil, nil, wireRunStartErr(err)
 	}
+	// Negotiated before admission: the Run is created under this contract and keeps
+	// it for life, so a capability we cannot honor has to stop the call rather than
+	// be discovered halfway through its stream.
+	profile, err := s.negotiateCapabilities(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 	result, err := s.coordinator.Start(ctx, runs.StartCommand{
-		SessionID:      in.SessionID,
-		DefaultCwd:     s.serverInfo.Cwd,
-		ModelSelection: selection,
-		MaxCostUSD:     in.MaxBudgetUSD,
-		MaxSteps:       in.MaxSteps,
-		Options:        options,
-		InterruptKinds: interruptKindsFromContext(ctx),
-		Input:          runInputFromWire(in.Input),
+		SessionID:       in.SessionID,
+		DefaultCwd:      s.serverInfo.Cwd,
+		ModelSelection:  selection,
+		MaxCostUSD:      in.MaxBudgetUSD,
+		MaxSteps:        in.MaxSteps,
+		Options:         options,
+		ProtocolProfile: profile,
+		Input:           runInputFromWire(in.Input),
 	})
 	if err != nil {
 		return nil, nil, wireRunStartErr(err)

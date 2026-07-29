@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import type { DiscoverResponse, RpcClient, ServerCapabilities } from "@/rpc";
+import type { DiscoverResponse, FeatureCapability, RpcClient, ServerCapabilities } from "@/rpc";
 import { discoverRuntime, type RuntimeCapabilitySink } from "./discoverRuntime";
+
+// Every advertised capability carries the feature's own negotiation facts. These
+// fixtures are about whether a build offers a feature, so they say "advertised,
+// nothing to opt into" once rather than at every key.
+function stable(enabled: boolean): FeatureCapability {
+  return { enabled, stability: "stable", clientOptIn: false, requiredByRunProtocol: false };
+}
 
 const discovery: DiscoverResponse = {
   protocol: { current: "2026-07-19", minSupported: "2026-07-19" },
@@ -9,19 +16,19 @@ const discovery: DiscoverResponse = {
     events: [],
     streamingMethods: [],
     features: {
-      reasoning: { enabled: false, stability: "stable" },
-      mcp: { enabled: false, stability: "stable" },
-      multimodal: { enabled: false, stability: "stable" },
-      git: { enabled: false, stability: "stable" },
-      fileWatch: { enabled: false, stability: "stable" },
-      checkpoints: { enabled: false, stability: "stable" },
-      lsp: { enabled: false, stability: "stable" },
-      subagents: { enabled: false, stability: "stable" },
-      skills: { enabled: false, stability: "stable" },
-      sessionExport: { enabled: false, stability: "stable" },
-      memory: { enabled: false, stability: "stable" },
-      relocate: { enabled: false, stability: "stable" },
-      clientTools: { enabled: false, stability: "stable" },
+      reasoning: stable(false),
+      mcp: stable(false),
+      multimodal: stable(false),
+      git: stable(false),
+      fileWatch: stable(false),
+      checkpoints: stable(false),
+      lsp: stable(false),
+      subagents: stable(false),
+      skills: stable(false),
+      sessionExport: stable(false),
+      memory: stable(false),
+      relocate: stable(false),
+      clientTools: stable(false),
     },
     limits: {},
   },

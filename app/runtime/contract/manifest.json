@@ -2298,6 +2298,13 @@
       ]
     },
     {
+      "key": "run_protocol_profile_is_immutable",
+      "why": "A Run publishes under the contract it was created with. If a later segment could restate it, a subscriber that reconnected on the strength of the first answer would be folding a stream whose rules had changed under it.",
+      "boundaries": [
+        "runs.admission"
+      ]
+    },
+    {
       "key": "parked_run_has_exactly_one_open_interrupt_set",
       "why": "A Run parked with no pending set can never be resumed and never terminates; the client waits on something that will not move.",
       "boundaries": [

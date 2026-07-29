@@ -176,6 +176,7 @@ export interface ArtifactRun {
   metrics: ArtifactRunMetrics;
   model?: string;
   outcome: ArtifactOutcome;
+  protocolProfile: RunProtocolProfile;
   provider?: string;
   sessionId: string;
   spawnedByItemId?: string;
@@ -234,8 +235,7 @@ export interface CancelRunRequest {
 }
 
 export interface ClientCapabilities {
-  events: StreamEventType[];
-  excludedEvents?: StreamEventType[];
+  excludedEphemeralEvents?: StreamEventType[];
   features?: Record<string, FeaturePreference>;
   interruptTypes?: InterruptType[];
 }
@@ -388,7 +388,9 @@ export interface ExportSessionResponse {
 }
 
 export interface FeatureCapability {
+  clientOptIn: boolean;
   enabled: boolean;
+  requiredByRunProtocol: boolean;
   stability: Stability;
 }
 
@@ -1000,6 +1002,11 @@ export interface RunProgress {
   usage?: Usage;
 }
 
+export interface RunProtocolProfile {
+  interruptTypes: InterruptType[];
+  requiredFeatures: string[];
+}
+
 export interface RunRef {
   activeSegmentId?: string;
   createdAt?: string;
@@ -1010,6 +1017,7 @@ export interface RunRef {
   model?: string;
   outcome?: RunOutcome;
   parentRunId?: string;
+  protocolProfile: RunProtocolProfile;
   provider?: string;
   rootRunId?: string;
   sessionId: string;

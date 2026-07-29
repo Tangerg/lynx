@@ -17,6 +17,10 @@
     "maxSteps": 20,
     "maxBudgetUsd": 4
   },
+  "protocolProfile": {
+    "requiredFeatures": [],
+    "interruptTypes": ["approval", "question"]
+  },
   "createdAt": "2026-07-07T10:00:00Z",
   "finishedAt": "2026-07-07T10:00:12Z",
   "outcome": {

@@ -33,8 +33,13 @@ type RunDraft struct {
 	// Limits is the allowance this Run is admitted under. It is recorded with the
 	// admission and never changes: a resume answers an interrupt, it does not
 	// renegotiate the budget the Run was accepted with.
-	Limits    RunLimits
-	CreatedAt time.Time
+	Limits RunLimits
+	// ProtocolProfile is the protocol contract negotiated for this Run. Like
+	// Limits it is fixed here — and unlike Limits, the admission is its ONLY
+	// writer: no later transition mentions it, which is how "immutable for the
+	// Run's whole life" is kept by construction rather than by a check.
+	ProtocolProfile RunProtocolProfile
+	CreatedAt       time.Time
 }
 
 // RunLimits is the accumulated allowance a Run may consume before it is stopped.

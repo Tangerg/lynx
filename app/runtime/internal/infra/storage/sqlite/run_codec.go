@@ -11,9 +11,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
-// The Run row's two JSON columns. Token accounting and a failure classification
-// are read and written whole with the row, never queried across, so they stay one
-// value each rather than a dozen columns — the same call the goals table makes
+// The Run row's JSON columns. Token accounting, a failure classification and the
+// negotiated protocol profile are read and written whole with the row, never
+// queried across, so they stay one value each rather than a dozen columns — the same call the goals table makes
 // for its budget. They are declared here, with explicit names, because the
 // durable encoding is this adapter's to choose: the domain values carry no tags,
 // and renaming a Go field must not silently invalidate stored rows.
@@ -76,6 +76,53 @@ func decodeRunAccounting(encoded string) (transcript.RunMetrics, execution.RunLi
 		ActiveDuration: time.Duration(row.ActiveDurationNs),
 	}
 	return metrics, execution.RunLimits{MaxSteps: row.MaxSteps, MaxBudgetUSD: row.MaxBudgetUSD}, nil
+}
+
+// runProtocolProfileRow is the Run's frozen protocol contract. Interrupt kinds
+// are stored under their canonical names rather than their ordinals, so inserting
+// a kind into the middle of the enum cannot silently re-label stored rows.
+type runProtocolProfileRow struct {
+	RequiredFeatures []string `json:"requiredFeatures,omitempty"`
+	InterruptTypes   []string `json:"interruptTypes,omitempty"`
+}
+
+// encodeRunProtocolProfile returns the empty string for the Minimal Profile. The
+// column then holds "" for a Run that negotiated nothing, which decodes back to
+// the same empty profile — one representation, not a null and an empty object.
+func encodeRunProtocolProfile(profile execution.RunProtocolProfile) (string, error) {
+	if profile.IsEmpty() {
+		return "", nil
+	}
+	row := runProtocolProfileRow{RequiredFeatures: profile.RequiredFeatures}
+	for _, kind := range profile.InterruptKinds {
+		row.InterruptTypes = append(row.InterruptTypes, kind.String())
+	}
+	encoded, err := json.Marshal(row)
+	if err != nil {
+		return "", fmt.Errorf("encode run protocol profile: %w", err)
+	}
+	return string(encoded), nil
+}
+
+func decodeRunProtocolProfile(encoded string) (execution.RunProtocolProfile, error) {
+	if encoded == "" {
+		return execution.RunProtocolProfile{}, nil
+	}
+	var row runProtocolProfileRow
+	if err := json.Unmarshal([]byte(encoded), &row); err != nil {
+		return execution.RunProtocolProfile{}, fmt.Errorf("decode run protocol profile: %w", err)
+	}
+	profile := execution.RunProtocolProfile{RequiredFeatures: row.RequiredFeatures}
+	for _, name := range row.InterruptTypes {
+		kind, ok := execution.ParseInterruptKind(name)
+		if !ok {
+			// A stored kind this build cannot raise would let the Run park on
+			// something nothing answers. Refusing the row is the honest outcome.
+			return execution.RunProtocolProfile{}, fmt.Errorf("decode run protocol profile: unknown interrupt type %q", name)
+		}
+		profile.InterruptKinds = append(profile.InterruptKinds, kind)
+	}
+	return profile.Normalized(), nil
 }
 
 type runProblemRow struct {
@@ -176,6 +223,7 @@ func scanRun(row scanRow) (transcript.Run, error) {
 		model               string
 		usage               string
 		problem             string
+		profile             string
 		durationNs          int64
 		startedAt           int64
 		finishedAt          int64
@@ -185,11 +233,16 @@ func scanRun(row scanRow) (transcript.Run, error) {
 	if err := row.Scan(
 		&run.ID, &run.SessionID, &run.SpawnedByItemID, &coarse, &run.ActiveSegmentID, &outcome,
 		&provider, &model, &run.Detail, &run.Metrics.Steps, &durationNs, &usage, &problem,
-		&run.Limits.MaxSteps, &run.Limits.MaxBudgetUSD,
+		&run.Limits.MaxSteps, &run.Limits.MaxBudgetUSD, &profile,
 		&run.MessageMark, &startedAt, &finishedAt, &updatedAt, &interruptsSuspended,
 	); err != nil {
 		return transcript.Run{}, fmt.Errorf("sqlite: scan run: %w", err)
 	}
+	profileValue, err := decodeRunProtocolProfile(profile)
+	if err != nil {
+		return transcript.Run{}, fmt.Errorf("sqlite: run %q: %w", run.ID, err)
+	}
+	run.ProtocolProfile = profileValue
 	selection, err := modelref.New(provider, model)
 	if err != nil {
 		return transcript.Run{}, fmt.Errorf("sqlite: decode run %q model selection: %w", run.ID, err)

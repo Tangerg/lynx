@@ -56,6 +56,12 @@ type Pending struct {
 	// parked, so the two cannot come apart.
 	Metrics transcript.RunMetrics
 	Limits  execution.RunLimits
+	// ProtocolProfile is the Run's frozen protocol contract, here for the same
+	// reason and by the same guarantee. A continuation needs it twice: to refuse a
+	// caller that could not follow the stream this Run publishes, and to hand the
+	// executor the interrupt kinds the RUN was admitted with rather than whatever
+	// the resuming request happens to declare.
+	ProtocolProfile execution.RunProtocolProfile
 	// CreatedAt is when THIS interrupt was recorded (the park), for ordering
 	// listOpenInterrupts.
 	CreatedAt time.Time
