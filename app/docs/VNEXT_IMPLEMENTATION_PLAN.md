@@ -1159,8 +1159,8 @@ presence 原语正是"一 keyword 一原语"禁的那种融合。
 | slice | scope | 状态 | commit |
 |---|---|---|---|
 | D1 | slow-consumer 与 replay memory benchmark | `DONE` | `journal_cost_test.go` |
-| D2 | 在不改 scope/语义前提下调 discover 返回的 replay 数值上限 | `TODO` | — |
-| D3 | event coalescing / subscriber queue / 生成速度优化 | `TODO` | — |
+| D2 | 在不改 scope/语义前提下调 discover 返回的 replay 数值上限 | `DONE`（裁决：不动，见 D1 证据） | — |
+| D3 | event coalescing / subscriber queue / 生成速度优化 | `DONE` | `chargedEvent` |
 | D4 | 真实桌面负载验证一条 runtime stream + 多条 active Run stream 的连接占用 | `TODO` | — |
 
 **Batch D 不得重新引入 Batch C 已删除的兼容层。**
@@ -1180,6 +1180,20 @@ presence 原语正是"一 keyword 一原语"禁的那种融合。
 1. **数值上限不用动（D2）**。窗口的 heap 与它自己收的费是 1.01×，所以"16 MiB replay"对客户端是句真话；2048 events 也不是瓶颈 —— 到不了它，字节预算先到。这条现在有测量背书，不再只是注释里的论证。
 2. **有真成本要修，但不在"快慢"上，在"重复劳动"上（D3）**：`retainedSize` 靠 `json.Marshal` 量尺寸（这条**判断是对的**，估算会对没人记得加的字段返回 0），但它被**算了两遍** —— `Append` 一次，`newJournalSubscriber` 对 backlog 每个事件再一次。窗口自己知道收了多少费，却没把 per-event 的数存下来。
 3. **`Append` 的 marshal 在锁内**：一条 1 MiB tool result 让 run 唯一那条流的锁被占住毫秒级，期间所有订阅者的 enqueue 与位置分配都在等。收费不需要看见其他订阅者，可以在取锁之前算完。
+
+### D2 / D3 已完成 —— 改的不是"快慢"，是重复劳动
+
+**D2 裁决：数值不动。** 理由是测量而非偏好：满窗 heap / 收费 = 1.01×，所以"16 MiB replay"对客户端是句真话；两个预算都在干活（1 KB 的文本 item 会先撞 2048 条，几 MB 的 tool result 会先撞 16 MiB），删任一条都会让另一类 run 失去上界。**代价要写明**：每条 live segment 最坏占 16 MiB，N 条并发 run 就是 N×16 MiB —— 桌面场景可接受，但这是个真实上限，不是零成本。
+
+**D3 = 收一次费，带着走。** `retainedSize`（靠 marshal 量尺寸）原来被调用**三次**：`Append` 一次、`evictLocked` 对被淘汰的事件再一次、`newJournalSubscriber` 对 backlog 每个事件再一次。窗口早就知道自己收了多少，只是没把 per-event 的数存下来。`chargedEvent{event, bytes}` 存下来之后，`retainedSize` 只剩一个调用点；`Append` 的 marshal 也移出了 journal 锁（它不需要看见任何订阅者）。
+
+| measurement | before | after |
+|---|---|---|
+| replay attach，63 事件 / 4 MiB backlog | 5.38 ms，**4.67 MB/op**，152 allocs | ~5 µs，**14.5 KB/op**，21 allocs |
+| replay attach，15 事件 / 1 MiB backlog | 1.20 ms，1.11 MB/op，53 allocs | ~4 µs，4.5 KB/op，21 allocs |
+| append 1 MiB tool result | **2.11 MB/op**，11 allocs | **1.07 MB/op**，7 allocs |
+
+分配量降到 backlog 大小的常数倍之外 —— 一次重连不再按窗口大小付钱。**语义零变化**：预算、驱逐、断开策略、cursor 拒绝规则全部原样，测试未改一行断言。
 
 > ⚠️ **这是本仓库第一次有 benchmark 需求。** 记忆 `project_agent_refinement_closed_perf_dropped` 论证关闭的是 **agent 模块 CPU 延迟维度**，**不覆盖这里** —— replay journal 与 subscriber queue 是**内存与连接**资源，且契约 §6.5 明确把数值上限做成可测量调整项。
 

@@ -91,8 +91,9 @@ type Journal struct {
 	// head is the last sequence assigned. Zero means nothing has been published,
 	// which is why a cursor's sequence starts at 1.
 	head uint64
-	// retained is the replay window: authoritative events, oldest first.
-	retained      []Event
+	// retained is the replay window: authoritative events, oldest first, each
+	// carrying what it was charged.
+	retained      []chargedEvent
 	retainedBytes int
 	// evictedThrough is the highest sequence dropped from the window. A cursor
 	// before it has lost at least one authoritative event, which is the difference
@@ -117,6 +118,16 @@ func newJournal(scope streamScope, retention Retention) *Journal {
 // sequence order, publication order and replay order are one order rather than
 // three that agree by convention.
 func (j *Journal) Append(ev Event) {
+	// Charging serializes the payload — milliseconds for a multi-megabyte tool
+	// result — and it needs nothing from this Journal. So it happens before the
+	// lock: inside, it would hold the run's ONLY stream for the length of a
+	// marshal, and position assignment and every subscriber's enqueue wait behind
+	// that lock.
+	size := 0
+	if ev.Durable() {
+		size = retainedSize(ev)
+	}
+
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	if j.closed {
@@ -128,10 +139,8 @@ func (j *Journal) Append(ev Event) {
 		Epoch: j.scope.Epoch, RunID: j.scope.RunID,
 		SegmentID: j.scope.SegmentID, Sequence: j.head,
 	})
-	size := 0
 	if ev.Durable() {
-		size = retainedSize(ev)
-		j.retained = append(j.retained, ev)
+		j.retained = append(j.retained, chargedEvent{event: ev, bytes: size})
 		j.retainedBytes += size
 		j.evictLocked()
 	}
@@ -147,10 +156,10 @@ func (j *Journal) evictLocked() {
 	for len(j.retained) > 0 &&
 		(len(j.retained) > j.retention.MaxEvents || j.retainedBytes > j.retention.MaxBytes) {
 		oldest := j.retained[0]
-		j.retained[0] = Event{}
+		j.retained[0] = chargedEvent{}
 		j.retained = j.retained[1:]
-		j.retainedBytes -= retainedSize(oldest)
-		j.evictedThrough = oldest.Sequence
+		j.retainedBytes -= oldest.bytes
+		j.evictedThrough = oldest.event.Sequence
 	}
 }
 
@@ -239,10 +248,10 @@ func (j *Journal) Replay(token string) (subscription, error) {
 		j.mu.Unlock()
 		return subscription{}, fmt.Errorf("%w: cursor precedes the retained window", ErrReplayUnavailable)
 	}
-	backlog := make([]Event, 0, len(j.retained))
-	for _, ev := range j.retained {
-		if ev.Sequence > from.Sequence {
-			backlog = append(backlog, ev)
+	backlog := make([]chargedEvent, 0, len(j.retained))
+	for _, retained := range j.retained {
+		if retained.event.Sequence > from.Sequence {
+			backlog = append(backlog, retained)
 		}
 	}
 	return j.attachLocked(backlog, j.headCursorLocked()), nil
@@ -263,7 +272,7 @@ func (j *Journal) headCursorLocked() string {
 // attachLocked registers a subscriber primed with backlog and releases the lock.
 // Attaching under the same lock as Append is what makes replay and the first live
 // event one ordered stream.
-func (j *Journal) attachLocked(backlog []Event, head string) subscription {
+func (j *Journal) attachLocked(backlog []chargedEvent, head string) subscription {
 	if j.closed {
 		j.mu.Unlock()
 		subscriber := newJournalSubscriber(backlog, j.retention)
@@ -307,16 +316,30 @@ func (j *Journal) attachLocked(backlog []Event, head string) subscription {
 // nobody remembered to add, and a budget that silently stops counting is a budget
 // that stops bounding. A payload that cannot be serialized measures zero and is
 // still bounded by the event count.
+//
+// Called exactly ONCE per event, at publication. It used to be called again on
+// eviction and again for every backlog event on every replay attach — a
+// reconnect re-serialized the whole window to recompute numbers the window had
+// already charged, which measured at 4.67 MB per attach on a 4 MiB backlog.
+// [chargedEvent] carries the answer instead.
 func retainedSize(ev Event) int {
 	payload, _ := json.Marshal(ev.Payload)
 	return len(payload)
+}
+
+// chargedEvent is an event together with what the byte budget charged for it.
+// The window, its eviction and every replaying subscriber read that one number
+// rather than re-deriving it from the payload.
+type chargedEvent struct {
+	event Event
+	bytes int
 }
 
 type journalSubscriber struct {
 	mu        sync.Mutex
 	ready     *sync.Cond
 	retention Retention
-	queue     []queuedEvent
+	queue     []chargedEvent
 	head      int
 	// queuedLive counts ephemeral events awaiting delivery; queuedDurable and
 	// queuedBytes count the authoritative backlog, which cannot be dropped and
@@ -328,24 +351,20 @@ type journalSubscriber struct {
 	aborted       bool
 }
 
-// queuedEvent carries the size charged for an event so dequeuing releases exactly
-// what enqueuing charged, without measuring the payload twice.
-type queuedEvent struct {
-	event Event
-	bytes int
-}
-
-func newJournalSubscriber(backlog []Event, retention Retention) *journalSubscriber {
-	queue := make([]queuedEvent, 0, len(backlog))
-	subscriber := &journalSubscriber{retention: retention}
-	subscriber.ready = sync.NewCond(&subscriber.mu)
-	for _, ev := range backlog {
-		size := retainedSize(ev)
-		queue = append(queue, queuedEvent{event: ev, bytes: size})
-		subscriber.queuedDurable++
-		subscriber.queuedBytes += size
+// newJournalSubscriber primes a subscriber with a replay backlog. The backlog
+// arrives already charged — dequeuing then releases exactly what the window
+// charged at publication, and an attach costs a slice copy rather than a
+// re-serialization of everything the window holds.
+func newJournalSubscriber(backlog []chargedEvent, retention Retention) *journalSubscriber {
+	subscriber := &journalSubscriber{
+		retention: retention,
+		queue:     append(make([]chargedEvent, 0, len(backlog)), backlog...),
 	}
-	subscriber.queue = queue
+	subscriber.ready = sync.NewCond(&subscriber.mu)
+	subscriber.queuedDurable = len(backlog)
+	for _, charged := range backlog {
+		subscriber.queuedBytes += charged.bytes
+	}
 	return subscriber
 }
 
@@ -383,7 +402,7 @@ func (s *journalSubscriber) enqueue(ev Event, size int) {
 		s.queue = s.queue[:remaining]
 		s.head = 0
 	}
-	s.queue = append(s.queue, queuedEvent{event: ev, bytes: size})
+	s.queue = append(s.queue, chargedEvent{event: ev, bytes: size})
 	s.ready.Signal()
 	s.mu.Unlock()
 }
@@ -439,7 +458,7 @@ func (s *journalSubscriber) next() (Event, bool) {
 		return Event{}, false
 	}
 	queued := s.queue[s.head]
-	s.queue[s.head] = queuedEvent{}
+	s.queue[s.head] = chargedEvent{}
 	s.head++
 	if s.head == len(s.queue) {
 		// Reuse the routine live-event buffer, but do not retain a durable burst.

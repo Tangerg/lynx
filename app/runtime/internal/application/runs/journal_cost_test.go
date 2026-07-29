@@ -141,12 +141,15 @@ func BenchmarkJournalReplayAttach(b *testing.B) {
 			// backlog really is, and a hardcoded origin would fall out of the window
 			// the moment either number moves.
 			j.mu.Lock()
-			oldest := j.retained[0].Sequence
+			oldest := j.retained[0].event.Sequence
 			retained := len(j.retained)
 			j.mu.Unlock()
 			from := cursorAt(oldest)
 
-			b.SetBytes(int64((retained - 1) * payload))
+			// No SetBytes: an attach is not a throughput. It once re-serialized the
+			// whole backlog, and a MB/s column made that look like work being done
+			// rather than work being repeated. B/op is the number that mattered.
+			b.Logf("backlog: %d events, %d bytes", retained-1, (retained-1)*payload)
 			b.ReportAllocs()
 			for b.Loop() {
 				attached, err := j.Replay(from)
