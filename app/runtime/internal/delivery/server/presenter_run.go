@@ -29,6 +29,7 @@ func presentRunStatus(status execution.RunStatus) protocol.RunStatus {
 func presentRunSummary(run transcript.Run) protocol.RunSummary {
 	summary := protocol.RunSummary{
 		ID: run.ID, SessionID: run.SessionID, SpawnedByItemID: run.SpawnedByItemID,
+		ParentRunID: run.ParentRunID, RootRunID: run.RootRunID,
 		Provider: run.ModelSelection.Provider(), Model: run.ModelSelection.Model(),
 		Status:    presentRunStatus(run.State.Status()),
 		CreatedAt: run.CreatedAt, FinishedAt: run.FinishedAt,
@@ -39,9 +40,6 @@ func presentRunSummary(run transcript.Run) protocol.RunSummary {
 		outcome := presentOutcome(run)
 		summary.Outcome = &outcome
 	}
-	// The child edges have no source: a session runs one root run, so there is
-	// nothing to project until features.subagents turns child runs on. Their
-	// absence is what makes every projected run a root.
 	return summary
 }
 
@@ -58,12 +56,12 @@ func presentRun(run transcript.Run) protocol.RunRef {
 func presentCancelResult(result runs.CancelResult) *protocol.CancelRunResponse {
 	run := presentRun(result.Run)
 	if result.RootRun == nil {
-		if result.Run.SpawnedByItemID != "" {
+		if result.Run.Lineage().IsChild() {
 			panic("server: child cancel result has no root run")
 		}
 		return &protocol.CancelRunResponse{Type: protocol.CancelRunRoot, Run: run}
 	}
-	if result.Run.SpawnedByItemID == "" {
+	if result.Run.Lineage().IsRoot() {
 		panic("server: root cancel result unexpectedly carries a root run")
 	}
 	root := presentRun(*result.RootRun)

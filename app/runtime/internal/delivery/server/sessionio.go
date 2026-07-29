@@ -87,11 +87,10 @@ func (s *Server) refuseUnadvertisedStates(states []protocol.ArtifactState) error
 // refuseChildRuns rejects an archive whose runs form a tree this build cannot
 // restore.
 //
-// A child run IS its edges — the tool call that spawned it, its parent and its root
-// — and none of them have anywhere to land while subagents are off: the durable run
-// record has no such columns. Importing anyway would present every descendant as a
-// root, which is a different conversation from the one the archive describes. Same
-// rule as an unadvertised state key, for the same reason.
+// A child run IS its edges — the tool call that spawned it, its parent and its
+// root. Persistence can retain them, but this build still refuses to activate an
+// imported tree while the execution/query capability is disabled: accepting a
+// shape the runtime cannot operate would make feature discovery dishonest.
 //
 // The advertised feature is the authority rather than a constant here, so the day
 // subagents turn on, this turns on with them.

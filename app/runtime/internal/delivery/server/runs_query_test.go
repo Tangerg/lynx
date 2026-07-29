@@ -151,6 +151,13 @@ func TestChildRunReadsRequireNegotiatedSubagents(t *testing.T) {
 	if err != nil || len(sessionPage.Data) != 1 || sessionPage.Data[0].RunID != "run_child" {
 		t.Fatalf("ListItems(session) = (%+v, %v), want complete child history", sessionPage, err)
 	}
+	if len(sessionPage.Runs) != 1 ||
+		sessionPage.Runs[0].ID != "run_child" ||
+		sessionPage.Runs[0].SpawnedByItemID != "item_spawn" ||
+		sessionPage.Runs[0].ParentRunID != "run_root" ||
+		sessionPage.Runs[0].RootRunID != "run_root" {
+		t.Fatalf("ListItems(session) run summaries = %+v, want complete child lineage", sessionPage.Runs)
+	}
 }
 
 func assertSubagentCapabilityGap(t *testing.T, operation string, err error) {
@@ -173,6 +180,7 @@ func putChildRun(t *testing.T, rt *stubRuntime, sessionID, runID string, atUnix 
 	outcome := execution.OutcomeCompleted
 	if err := rt.runs.Restore(t.Context(), transcript.Run{
 		SessionID: sessionID, ID: runID, SpawnedByItemID: "item_spawn",
+		ParentRunID: "run_root", RootRunID: "run_root",
 		State: execution.Completed, Outcome: &outcome,
 		CreatedAt: time.Unix(atUnix, 0).UTC(), FinishedAt: time.Unix(atUnix, 0).UTC(),
 		UpdatedAt: time.Unix(atUnix, 0).UTC(), MessageMark: mark,

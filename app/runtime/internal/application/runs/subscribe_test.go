@@ -25,10 +25,15 @@ func (f *fakeRunProjection) Run(_ context.Context, runID string) (transcript.Run
 }
 
 func runRecord(state execution.RunState, activeSegmentID, spawnedBy string) transcript.Run {
-	return transcript.Run{
+	run := transcript.Run{
 		ID: testRunID, SessionID: "ses_1", State: state,
 		ActiveSegmentID: activeSegmentID, SpawnedByItemID: spawnedBy,
 	}
+	if spawnedBy != "" {
+		run.ParentRunID = "run_parent"
+		run.RootRunID = "run_root"
+	}
+	return run
 }
 
 // liveCoordinator wires a Coordinator whose registry already holds one streaming

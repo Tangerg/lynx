@@ -125,10 +125,25 @@ func (snapshot Snapshot) validateItems(runs map[string]struct{}) (map[string]tra
 }
 
 func validateSnapshotRunTree(runs []transcript.Run, items map[string]transcript.Item) error {
+	byID := make(map[string]transcript.Run, len(runs))
+	for _, run := range runs {
+		byID[run.ID] = run
+	}
 	parents := make(map[string]string, len(runs))
 	for _, run := range runs {
-		if run.SpawnedByItemID == "" {
+		if run.Lineage().IsRoot() {
 			continue
+		}
+		parent, parentFound := byID[run.ParentRunID]
+		if !parentFound {
+			return fmt.Errorf("sessions: snapshot child run %q references unknown parent %q", run.ID, run.ParentRunID)
+		}
+		root, rootFound := byID[run.RootRunID]
+		if !rootFound {
+			return fmt.Errorf("sessions: snapshot child run %q references unknown root %q", run.ID, run.RootRunID)
+		}
+		if !root.Lineage().IsRoot() {
+			return fmt.Errorf("sessions: snapshot child run %q names child %q as its root", run.ID, run.RootRunID)
 		}
 		item, found := items[run.SpawnedByItemID]
 		if !found {
@@ -137,33 +152,53 @@ func validateSnapshotRunTree(runs []transcript.Run, items map[string]transcript.
 		if item.Kind != transcript.ToolCall {
 			return fmt.Errorf("sessions: snapshot run %q spawning item %q is not a tool call", run.ID, run.SpawnedByItemID)
 		}
-		if item.RunID == run.ID {
-			return fmt.Errorf("sessions: snapshot run %q is spawned by its own item", run.ID)
+		if item.RunID != parent.ID {
+			return fmt.Errorf(
+				"sessions: snapshot child run %q spawning item %q belongs to run %q, want parent %q",
+				run.ID,
+				item.ID,
+				item.RunID,
+				parent.ID,
+			)
 		}
-		parents[run.ID] = item.RunID
+		parents[run.ID] = parent.ID
 	}
 
 	states := make(map[string]uint8, len(runs))
-	var visit func(string) error
-	visit = func(runID string) error {
+	treeRoots := make(map[string]string, len(runs))
+	var visit func(string) (string, error)
+	visit = func(runID string) (string, error) {
 		switch states[runID] {
 		case 1:
-			return fmt.Errorf("sessions: snapshot run tree contains a cycle at %q", runID)
+			return "", fmt.Errorf("sessions: snapshot run tree contains a cycle at %q", runID)
 		case 2:
-			return nil
+			return treeRoots[runID], nil
 		}
 		states[runID] = 1
+		rootID := runID
 		if parentID := parents[runID]; parentID != "" {
-			if err := visit(parentID); err != nil {
-				return err
+			var err error
+			rootID, err = visit(parentID)
+			if err != nil {
+				return "", err
 			}
 		}
 		states[runID] = 2
-		return nil
+		treeRoots[runID] = rootID
+		return rootID, nil
 	}
 	for _, run := range runs {
-		if err := visit(run.ID); err != nil {
+		rootID, err := visit(run.ID)
+		if err != nil {
 			return err
+		}
+		if run.Lineage().IsChild() && rootID != run.RootRunID {
+			return fmt.Errorf(
+				"sessions: snapshot child run %q reaches root %q through parents, want %q",
+				run.ID,
+				rootID,
+				run.RootRunID,
+			)
 		}
 	}
 	return nil

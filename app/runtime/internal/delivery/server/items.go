@@ -47,7 +47,7 @@ func (s *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*
 			return nil, err
 		case !found:
 			return nil, protocol.ErrRunNotFound
-		case run.SpawnedByItemID != "":
+		case run.Lineage().IsChild():
 			if err := s.requireFeature(ctx, protocol.FeatureSubagents); err != nil {
 				return nil, err
 			}

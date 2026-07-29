@@ -458,7 +458,10 @@ func TestListPendingInterruptPageFiltersByRootAndRefusesAChild(t *testing.T) {
 		Transcript: &fakeTranscript{},
 		Runs: &fakeRuns{history: []transcript.Run{
 			{ID: "run_1"},
-			{ID: "run_child", SpawnedByItemID: "it_spawn"},
+			{
+				ID: "run_child", SpawnedByItemID: "it_spawn",
+				ParentRunID: "run_1", RootRunID: "run_1",
+			},
 		}},
 		Interrupts: ints,
 		Sessions:   &fakeSessions{},

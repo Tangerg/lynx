@@ -220,9 +220,9 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 		return CancelResult{}, err
 	case !found:
 		return CancelResult{}, fmt.Errorf("%w: %q", ErrRunNotFound, cmd.RunID)
-	case run.SpawnedByItemID != "" && !cmd.AllowChildRun:
+	case run.Lineage().IsChild() && !cmd.AllowChildRun:
 		return CancelResult{}, fmt.Errorf("%w: %q", ErrChildRunNotAllowed, cmd.RunID)
-	case run.SpawnedByItemID != "":
+	case run.Lineage().IsChild():
 		// No producer can reach this branch while child Runs are disabled. Keeping
 		// it an internal composition fault avoids pretending root-only teardown is
 		// a valid subtree transaction.
@@ -387,7 +387,7 @@ func (c *Coordinator) cancelClaimedParkedRun(ctx context.Context, cmd CancelComm
 }
 
 func rootCancelResult(run transcript.Run) (CancelResult, error) {
-	if run.SpawnedByItemID != "" {
+	if run.Lineage().IsChild() {
 		return CancelResult{}, fmt.Errorf("runs: canceled root result %q is a child run", run.ID)
 	}
 	if run.State != execution.Canceled || run.Outcome == nil || *run.Outcome != execution.OutcomeCanceled {

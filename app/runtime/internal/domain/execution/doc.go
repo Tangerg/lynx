@@ -10,7 +10,8 @@
 //
 //   - Session   — a durable conversation with an agent. Owns working-tree
 //     binding, title, default model, and fork/subtask lineage. A Session may
-//     admit at most one non-terminal Run at a time. (Identity: session.IDPrefix.)
+//     admit at most one non-terminal root Run tree at a time. (Identity:
+//     session.IDPrefix.)
 //   - Run       — one logical execution within a Session. Has a STABLE [RunID]
 //     for its entire lifetime: start, every interrupt/resume, and its terminal —
 //     including across process restarts. The Run is what carries lifecycle

@@ -53,11 +53,11 @@ func ResolveForkBoundary(msgs []chat.Message, runs []transcript.Run, fromRunID s
 	terminal := make([]transcript.RunNode, 0, len(ordered))
 	targetTerminal := fromRunID == ""
 	for start := 0; start < len(ordered); {
-		if ordered[start].SpawnedByItemID != "" {
+		if ordered[start].Lineage().IsChild() {
 			return ForkBoundary{}, fmt.Errorf("sessions: run timeline starts a group with subagent %q", ordered[start].ID)
 		}
 		end := start + 1
-		for end < len(ordered) && ordered[end].SpawnedByItemID != "" {
+		for end < len(ordered) && ordered[end].Lineage().IsChild() {
 			end++
 		}
 		stable := true

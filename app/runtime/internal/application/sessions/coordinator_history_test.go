@@ -44,7 +44,11 @@ func TestResolveForkBoundaryExcludesActiveTail(t *testing.T) {
 	runs := []transcript.Run{
 		{ID: "run_1", State: execution.Completed, CreatedAt: time.Unix(1, 0), MessageMark: 2},
 		{ID: "run_2", State: execution.Running, CreatedAt: time.Unix(2, 0), MessageMark: -1},
-		{ID: "run_2_child", SpawnedByItemID: "item_task", State: execution.Completed, CreatedAt: time.Unix(3, 0), MessageMark: 3},
+		{
+			ID: "run_2_child", SpawnedByItemID: "item_task",
+			ParentRunID: "run_2", RootRunID: "run_2",
+			State: execution.Completed, CreatedAt: time.Unix(3, 0), MessageMark: 3,
+		},
 	}
 
 	got, err := ResolveForkBoundary(msgs, runs, "")

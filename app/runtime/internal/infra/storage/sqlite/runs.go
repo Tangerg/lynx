@@ -16,22 +16,20 @@ import (
 )
 
 // Coarse admission states stored in runs.state. The partial unique index
-// idx_runs_session_active keys on state != stateTerminal, so a Session holds at
-// most one non-terminal Run. The fine [execution.Outcome] is stored separately
-// in runs.outcome; the fine [execution.RunState] the domain reasons in projects
-// onto these three for the admission constraint.
+// idx_runs_session_active keys on non-terminal root rows, so a Session holds at
+// most one non-terminal Run tree while any number of its descendant rows may be
+// active. The fine [execution.Outcome] is stored separately in runs.outcome.
 const (
 	runStateRunning     = "running"
 	runStateInterrupted = "interrupted"
 	runStateTerminal    = "terminal"
 )
 
-// RunStore is the SQLite-backed Run table: one row per Run, holding the whole
-// Run. Its state column carries the coarse admission position under a partial
-// unique index that guarantees a Session holds at most one non-terminal Run
-// across restarts — the durable backstop behind the in-process live-run
-// registry, which only tracks THIS process's segments — and the rest of the row
-// carries what the Run accrued.
+// RunStore is the SQLite-backed Run table: one row per root or child Run,
+// holding its durable projection. Its immutable lineage columns identify the
+// tree without reconstructing it from transcript Items. A partial unique index
+// guarantees at most one non-terminal root per Session across restarts; child
+// rows share that root's admission.
 //
 // One table, one owner: the accrued facts are written only by the lifecycle
 // transition that makes them true, so "where is this Run" and "how did it end"
@@ -62,8 +60,22 @@ func (s *RunStore) Admit(ctx context.Context, draft execution.RunDraft) error {
 	if draft.SegmentID == "" {
 		return fmt.Errorf("sqlite: admit run %q: opening segment is required", draft.RunID)
 	}
+	if draft.SessionID == "" {
+		return fmt.Errorf("sqlite: admit run %q: session is required", draft.RunID)
+	}
+	lineage := draft.Lineage()
+	if err := lineage.Validate(draft.RunID); err != nil {
+		return fmt.Errorf("sqlite: admit run %q: %w", draft.RunID, err)
+	}
 	if err := draft.Limits.Validate(); err != nil {
 		return fmt.Errorf("sqlite: admit run %q: %w", draft.RunID, err)
+	}
+	if lineage.IsChild() && !draft.ProtocolProfile.IsEmpty() {
+		return fmt.Errorf(
+			"sqlite: admit child run %q: protocol profile is owned by root %q",
+			draft.RunID,
+			draft.RootRunID,
+		)
 	}
 	profile, err := encodeRunProtocolProfile(draft.ProtocolProfile)
 	if err != nil {
@@ -74,24 +86,148 @@ func (s *RunStore) Admit(ctx context.Context, draft execution.RunDraft) error {
 	// finish deliberately do not name the column: the Run's contract cannot change
 	// after admission, and the way to guarantee that is to have nothing able to
 	// change it.
-	_, err = conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO runs(run_id, session_id, state, active_segment_id, provider, model, max_steps, max_budget_usd, protocol_profile, message_mark, started_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		draft.RunID, draft.SessionID, runStateRunning, draft.SegmentID,
-		draft.ModelSelection.Provider(), draft.ModelSelection.Model(),
-		draft.Limits.MaxSteps, draft.Limits.MaxBudgetUSD, profile,
-		transcript.UnknownMessageMark, now, now)
-	// Two constraints can reject this INSERT and they mean opposite things: the
-	// primary key says the id is spoken for, the partial index says the session is.
-	// Reporting the wrong one would tell a caller to wait for a run to finish when
-	// the real answer is to pick another id.
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		if lineage.IsChild() {
+			if err := s.validateChildPlacement(
+				ctx,
+				"admit",
+				draft.RunID,
+				draft.SessionID,
+				draft.ParentRunID,
+				draft.RootRunID,
+				true,
+			); err != nil {
+				return err
+			}
+		}
+		_, err := conn(ctx, s.db).ExecContext(ctx,
+			`INSERT INTO runs(
+			   run_id, session_id, spawned_by_item_id, parent_run_id, root_run_id,
+			   state, active_segment_id, provider, model, max_steps, max_budget_usd,
+			   protocol_profile, message_mark, started_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			draft.RunID, draft.SessionID,
+			draft.SpawnedByItemID, draft.ParentRunID, draft.RootRunID,
+			runStateRunning, draft.SegmentID,
+			draft.ModelSelection.Provider(), draft.ModelSelection.Model(),
+			draft.Limits.MaxSteps, draft.Limits.MaxBudgetUSD, profile,
+			transcript.UnknownMessageMark, now, now)
+		// Two constraints can reject this INSERT and they mean opposite things: the
+		// primary key says the id is spoken for, the partial index says the Session
+		// already owns another root tree.
+		switch {
+		case isPrimaryKeyViolation(err):
+			return fmt.Errorf("%w: run %q already exists", transcript.ErrIdentityConflict, draft.RunID)
+		case isUniqueViolation(err):
+			return execution.ErrSessionBusy
+		case err != nil:
+			return fmt.Errorf("sqlite: admit run %q: %w", draft.RunID, err)
+		}
+		return nil
+	})
+}
+
+// validateChildPlacement proves immutable Run-to-Run topology before inserting
+// a child. The spawning Item is validated by the application write-set that
+// owns Item creation and child admission/restore together.
+func (s *RunStore) validateChildPlacement(
+	ctx context.Context,
+	operation string,
+	runID string,
+	sessionID string,
+	parentRunID string,
+	rootRunID string,
+	requireOpen bool,
+) error {
+	var (
+		parentSession string
+		parentRoot    string
+		parentState   string
+		rootSession   string
+		rootParent    string
+		rootState     string
+	)
+	err := conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT parent.session_id, parent.root_run_id, parent.state,
+		        root.session_id, root.parent_run_id, root.state
+		   FROM runs AS parent
+		   JOIN runs AS root ON root.run_id = ?
+		  WHERE parent.run_id = ?`,
+		rootRunID,
+		parentRunID,
+	).Scan(
+		&parentSession,
+		&parentRoot,
+		&parentState,
+		&rootSession,
+		&rootParent,
+		&rootState,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf(
+			"sqlite: %s child run %q: parent %q or root %q does not exist",
+			operation,
+			runID,
+			parentRunID,
+			rootRunID,
+		)
+	}
+	if err != nil {
+		return fmt.Errorf("sqlite: %s child run %q: validate tree: %w", operation, runID, err)
+	}
+	parentTreeRoot := parentRoot
+	if parentTreeRoot == "" {
+		parentTreeRoot = parentRunID
+	}
 	switch {
-	case isPrimaryKeyViolation(err):
-		return fmt.Errorf("%w: run %q already exists", transcript.ErrIdentityConflict, draft.RunID)
-	case isUniqueViolation(err):
-		return execution.ErrSessionBusy
-	case err != nil:
-		return fmt.Errorf("sqlite: admit run: %w", err)
+	case parentSession != sessionID:
+		return fmt.Errorf(
+			"sqlite: %s child run %q: parent %q belongs to session %q, want %q",
+			operation,
+			runID,
+			parentRunID,
+			parentSession,
+			sessionID,
+		)
+	case rootSession != sessionID:
+		return fmt.Errorf(
+			"sqlite: %s child run %q: root %q belongs to session %q, want %q",
+			operation,
+			runID,
+			rootRunID,
+			rootSession,
+			sessionID,
+		)
+	case rootParent != "":
+		return fmt.Errorf(
+			"sqlite: %s child run %q: root %q is itself a child",
+			operation,
+			runID,
+			rootRunID,
+		)
+	case parentTreeRoot != rootRunID:
+		return fmt.Errorf(
+			"sqlite: %s child run %q: parent %q belongs to root %q, want %q",
+			operation,
+			runID,
+			parentRunID,
+			parentTreeRoot,
+			rootRunID,
+		)
+	case requireOpen && parentState == runStateTerminal:
+		return fmt.Errorf(
+			"sqlite: %s child run %q: parent %q is terminal",
+			operation,
+			runID,
+			parentRunID,
+		)
+	case requireOpen && rootState == runStateTerminal:
+		return fmt.Errorf(
+			"sqlite: %s child run %q: root %q is terminal",
+			operation,
+			runID,
+			rootRunID,
+		)
 	}
 	return nil
 }
@@ -272,6 +408,19 @@ func (s *RunStore) Restore(ctx context.Context, run transcript.Run) error {
 	if !run.State.IsTerminal() {
 		return fmt.Errorf("sqlite: restore run %q: state is %s, want terminal", run.ID, run.State)
 	}
+	if run.Lineage().IsChild() {
+		if err := s.validateChildPlacement(
+			ctx,
+			"restore",
+			run.ID,
+			run.SessionID,
+			run.ParentRunID,
+			run.RootRunID,
+			false,
+		); err != nil {
+			return err
+		}
+	}
 	metrics, err := runMetricsRow(run.Metrics)
 	if err != nil {
 		return fmt.Errorf("sqlite: restore run %q: %w", run.ID, err)
@@ -280,17 +429,26 @@ func (s *RunStore) Restore(ctx context.Context, run transcript.Run) error {
 	if err != nil {
 		return fmt.Errorf("sqlite: restore run %q: %w", run.ID, err)
 	}
-	profile, err := encodeRunProtocolProfile(run.ProtocolProfile)
+	profileOwner := run.ProtocolProfile
+	if run.Lineage().IsChild() {
+		// A child materializes its root's profile on reads but owns no mutable copy
+		// on disk. The root row is the single durable author.
+		profileOwner = execution.RunProtocolProfile{}
+	}
+	profile, err := encodeRunProtocolProfile(profileOwner)
 	if err != nil {
 		return fmt.Errorf("sqlite: restore run %q: %w", run.ID, err)
 	}
 	_, err = conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO runs(
-		   run_id, session_id, spawned_by_item_id, state, outcome, provider, model,
+		   run_id, session_id, spawned_by_item_id, parent_run_id, root_run_id,
+		   state, outcome, provider, model,
 		   detail, steps, active_duration_ns, usage, problem, max_steps, max_budget_usd,
 		   protocol_profile, message_mark, started_at, finished_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		run.ID, run.SessionID, run.SpawnedByItemID, coarseState(run.State), run.Outcome.String(),
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		run.ID, run.SessionID,
+		run.SpawnedByItemID, run.ParentRunID, run.RootRunID,
+		coarseState(run.State), run.Outcome.String(),
 		run.ModelSelection.Provider(), run.ModelSelection.Model(),
 		run.Detail, metrics.steps, metrics.durationNs, metrics.usage, problem,
 		run.Limits.MaxSteps, run.Limits.MaxBudgetUSD, profile, run.MessageMark,
@@ -332,9 +490,9 @@ func (s *RunStore) stateForRun(ctx context.Context, sessionID, runID string) (ex
 // ended is still the answer to "what did this session cost", and a Run parked on
 // a person is the one a client most needs to find.
 //
-// Only root Runs are returned. A Run spawned by an item belongs to the subtree of
-// the Run that spawned it, and is reached through that Run — so the predicate is
-// "has no spawning item" rather than the absence of children in this build.
+// Only root Runs are returned. A descendant is reached through an explicit
+// include-descendants query, so the predicate uses the immutable root edge
+// rather than guessing from transcript contents.
 //
 // The page is bounded here rather than by the caller. before is the (admission
 // time, run id) position a previous page ended at, applied only when the run id
@@ -349,8 +507,8 @@ func (s *RunStore) stateForRun(ctx context.Context, sessionID, runID string) (ex
 func (s *RunStore) PageRuns(ctx context.Context, sessionID string, statuses []execution.RunStatus, beforeStartedAt int64, beforeRunID string, limit int) ([]transcript.Run, error) {
 	query := `SELECT ` + runColumns + `
 		 FROM runs AS r
-		 LEFT JOIN interrupts AS i ON i.root_run_id = r.run_id AND i.session_id = r.session_id
-		 WHERE r.spawned_by_item_id = ''`
+		 ` + runReadJoins + `
+		 WHERE r.root_run_id = ''`
 	var args []any
 	if sessionID != "" {
 		query += ` AND r.session_id = ?`
@@ -402,7 +560,7 @@ func (s *RunStore) Run(ctx context.Context, runID string) (transcript.Run, bool,
 	row := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT `+runColumns+`
 		 FROM runs AS r
-		 LEFT JOIN interrupts AS i ON i.root_run_id = r.run_id AND i.session_id = r.session_id
+		 `+runReadJoins+`
 		 WHERE r.run_id = ?`, runID)
 	run, err := scanRun(row)
 	switch {
@@ -429,7 +587,7 @@ func (s *RunStore) RunsByID(ctx context.Context, runIDs []string) ([]transcript.
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT `+runColumns+`
 		 FROM runs AS r
-		 LEFT JOIN interrupts AS i ON i.root_run_id = r.run_id AND i.session_id = r.session_id
+		 `+runReadJoins+`
 		 WHERE r.run_id IN (`+placeholders(len(runIDs))+`)
 		 ORDER BY r.started_at DESC, r.run_id DESC`, args...)
 	if err != nil {
@@ -471,10 +629,19 @@ func placeholders(n int) string {
 
 // runColumns is the whole Run row, joined with the open interrupts a parked Run
 // is waiting on — kept in the interrupts table so one park is one record.
-const runColumns = `r.run_id, r.session_id, r.spawned_by_item_id, r.state, r.active_segment_id, r.outcome,
+const runColumns = `r.run_id, r.session_id, r.spawned_by_item_id, r.parent_run_id, r.root_run_id,
+	r.state, r.active_segment_id, r.outcome,
 	r.provider, r.model, r.detail, r.steps, r.active_duration_ns, r.usage, r.problem,
-	r.max_steps, r.max_budget_usd, r.protocol_profile,
+	r.max_steps, r.max_budget_usd, r.protocol_profile, tree_root.protocol_profile,
 	r.message_mark, r.started_at, r.finished_at, r.updated_at, i.payload`
+
+// runReadJoins materializes the root-owned protocol profile for child RunRefs
+// while leaving root interrupt ownership on the root row. A child never reads
+// the aggregate PendingInterruptSet as if every Interrupt were its own.
+const runReadJoins = `LEFT JOIN runs AS tree_root
+		   ON tree_root.run_id = r.root_run_id AND tree_root.session_id = r.session_id
+		 LEFT JOIN interrupts AS i
+		   ON i.root_run_id = r.run_id AND i.session_id = r.session_id`
 
 // ListRuns returns a session's Runs in admission order, each as the complete
 // aggregate: its lifecycle position, the facts it accrued, and — while parked —
@@ -483,7 +650,7 @@ func (s *RunStore) ListRuns(ctx context.Context, sessionID string) ([]transcript
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT `+runColumns+`
 		 FROM runs AS r
-		 LEFT JOIN interrupts AS i ON i.root_run_id = r.run_id AND i.session_id = r.session_id
+		 `+runReadJoins+`
 		 WHERE r.session_id = ? ORDER BY r.started_at, r.run_id`, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list runs: %w", err)

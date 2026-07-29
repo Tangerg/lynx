@@ -386,7 +386,7 @@ func (c *Coordinator) requireRoot(ctx context.Context, runID string) error {
 	if err != nil || !found {
 		return err
 	}
-	if run.SpawnedByItemID != "" {
+	if run.Lineage().IsChild() {
 		return fmt.Errorf("%w: run %q belongs to the tree rooted elsewhere", transcript.ErrNotRoot, runID)
 	}
 	return nil

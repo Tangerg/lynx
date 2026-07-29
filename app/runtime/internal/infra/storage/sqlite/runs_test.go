@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -196,6 +197,112 @@ func TestRunAdmitEnforcesOneActivePerSession(t *testing.T) {
 	}
 	if err := store.Admit(ctx, runDraft("run_4", "ses_A")); err != nil {
 		t.Fatalf("re-admit after terminal: %v", err)
+	}
+}
+
+// TestRunAdmitSharesOneRootAdmissionAcrossTheTree proves the durable B1
+// foundation: one Session admits one non-terminal root tree, not one row. Child
+// and grandchild Runs may execute under that root, retain their immutable
+// topology, and materialize the root-owned protocol profile without storing an
+// independently mutable copy.
+func TestRunAdmitSharesOneRootAdmissionAcrossTheTree(t *testing.T) {
+	ctx := t.Context()
+	store, _ := newRunStores(t)
+	profile := execution.RunProtocolProfile{RequiredFeatures: []string{"subagents"}}
+
+	root := runDraft("run_root", "ses_A")
+	root.ProtocolProfile = profile
+	if err := store.Admit(ctx, root); err != nil {
+		t.Fatalf("admit root: %v", err)
+	}
+	child := runDraft("run_child", "ses_A")
+	child.SpawnedByItemID = "item_root_task"
+	child.ParentRunID = "run_root"
+	child.RootRunID = "run_root"
+	if err := store.Admit(ctx, child); err != nil {
+		t.Fatalf("admit child: %v", err)
+	}
+	grandchild := runDraft("run_grandchild", "ses_A")
+	grandchild.SpawnedByItemID = "item_child_task"
+	grandchild.ParentRunID = "run_child"
+	grandchild.RootRunID = "run_root"
+	if err := store.Admit(ctx, grandchild); err != nil {
+		t.Fatalf("admit grandchild: %v", err)
+	}
+	if err := store.Admit(ctx, runDraft("run_other_root", "ses_A")); !errors.Is(err, execution.ErrSessionBusy) {
+		t.Fatalf("admit second root = %v, want ErrSessionBusy", err)
+	}
+
+	for _, want := range []struct {
+		id       string
+		parentID string
+	}{
+		{id: "run_child", parentID: "run_root"},
+		{id: "run_grandchild", parentID: "run_child"},
+	} {
+		run, found, err := store.Run(ctx, want.id)
+		if err != nil || !found {
+			t.Fatalf("read %s: found=%v err=%v", want.id, found, err)
+		}
+		if run.ParentRunID != want.parentID ||
+			run.RootRunID != "run_root" ||
+			!slices.Equal(run.ProtocolProfile.RequiredFeatures, profile.RequiredFeatures) {
+			t.Fatalf("run %s = %+v, want parent %s, root run_root, inherited profile", want.id, run, want.parentID)
+		}
+	}
+}
+
+func TestRunAdmitRejectsAChildOutsideItsDurableTree(t *testing.T) {
+	ctx := t.Context()
+	store, _ := newRunStores(t)
+	if err := store.Admit(ctx, runDraft("run_root_a", "ses_A")); err != nil {
+		t.Fatalf("admit root A: %v", err)
+	}
+	if err := store.Admit(ctx, runDraft("run_root_b", "ses_B")); err != nil {
+		t.Fatalf("admit root B: %v", err)
+	}
+
+	tests := []struct {
+		name  string
+		draft execution.RunDraft
+		want  string
+	}{
+		{
+			name: "missing parent",
+			draft: execution.RunDraft{
+				RunID: "run_child_missing", SessionID: "ses_A", SegmentID: "seg_open",
+				SpawnedByItemID: "item_spawn", ParentRunID: "run_missing", RootRunID: "run_root_a",
+				CreatedAt: runCreatedAt,
+			},
+			want: "does not exist",
+		},
+		{
+			name: "cross session root",
+			draft: execution.RunDraft{
+				RunID: "run_child_cross", SessionID: "ses_A", SegmentID: "seg_open",
+				SpawnedByItemID: "item_spawn", ParentRunID: "run_root_a", RootRunID: "run_root_b",
+				CreatedAt: runCreatedAt,
+			},
+			want: "belongs to session",
+		},
+		{
+			name: "child-owned profile",
+			draft: execution.RunDraft{
+				RunID: "run_child_profile", SessionID: "ses_A", SegmentID: "seg_open",
+				SpawnedByItemID: "item_spawn", ParentRunID: "run_root_a", RootRunID: "run_root_a",
+				ProtocolProfile: execution.RunProtocolProfile{RequiredFeatures: []string{"subagents"}},
+				CreatedAt:       runCreatedAt,
+			},
+			want: "protocol profile is owned by root",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := store.Admit(ctx, test.draft); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("Admit error = %v, want containing %q", err, test.want)
+			}
+		})
 	}
 }
 
@@ -821,6 +928,8 @@ func TestPageRunsReturnsRootsOnlyAndGetFindsAnyRun(t *testing.T) {
 	child := finishedRun("run_child", "ses_A", execution.OutcomeCompleted)
 	child.CreatedAt = time.Unix(0, 20).UTC()
 	child.SpawnedByItemID = "it_spawn"
+	child.ParentRunID = "run_root"
+	child.RootRunID = "run_root"
 	for _, run := range []transcript.Run{root, child} {
 		if err := store.Restore(ctx, run); err != nil {
 			t.Fatalf("restore %s: %v", run.ID, err)
@@ -839,8 +948,11 @@ func TestPageRunsReturnsRootsOnlyAndGetFindsAnyRun(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("read child run: ok=%v err=%v", ok, err)
 	}
-	if found.SpawnedByItemID != "it_spawn" || found.SessionID != "ses_A" {
-		t.Fatalf("child = %+v, want its spawning item and session", found)
+	if found.SpawnedByItemID != "it_spawn" ||
+		found.ParentRunID != "run_root" ||
+		found.RootRunID != "run_root" ||
+		found.SessionID != "ses_A" {
+		t.Fatalf("child = %+v, want its complete lineage and session", found)
 	}
 	if _, ok, err := store.Run(ctx, "run_absent"); err != nil || ok {
 		t.Fatalf("absent run: ok=%v err=%v, want a clean miss", ok, err)

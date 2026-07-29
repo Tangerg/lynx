@@ -60,7 +60,7 @@ func Open(path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 40
+const schemaEpoch = 41
 
 func installCurrentSchema(db *sql.DB, path string) error {
 	var epoch int
@@ -112,11 +112,11 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_process_snapshots_parent
 			ON process_snapshots(parent_id)`,
-		// One row per Run, and the whole Run (§8.2). state is the coarse admission
-		// position — 'running' | 'interrupted' | 'terminal' — and the partial unique
-		// index below is the durable "one non-terminal Run per Session" guarantee
-		// that survives restart (the in-process live-run registry is only this
-		// process's view). outcome is the terminal reason, '' until terminal.
+		// One row per root or child Run. state is the coarse admission position —
+		// 'running' | 'interrupted' | 'terminal' — and the partial unique index
+		// below is the durable "one non-terminal root Run tree per Session"
+		// guarantee. Descendants share that tree's admission and therefore do not
+		// compete for a second Session slot.
 		//
 		// detail / problem explain WHY a Run stopped and are written by the
 		// lifecycle transition that makes them true: a terminal state and the
@@ -146,6 +146,8 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			run_id             TEXT    PRIMARY KEY,
 			session_id         TEXT    NOT NULL,
 			spawned_by_item_id TEXT    NOT NULL DEFAULT '',
+			parent_run_id      TEXT    NOT NULL DEFAULT '',
+			root_run_id        TEXT    NOT NULL DEFAULT '',
 			state              TEXT    NOT NULL,
 			active_segment_id  TEXT    NOT NULL DEFAULT '',
 			outcome            TEXT    NOT NULL DEFAULT '',
@@ -162,12 +164,21 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			message_mark       INTEGER NOT NULL DEFAULT -1,
 			started_at         INTEGER NOT NULL,
 			finished_at        INTEGER NOT NULL DEFAULT 0,
-			updated_at         INTEGER NOT NULL
+			updated_at         INTEGER NOT NULL,
+			CHECK (
+				(spawned_by_item_id = '' AND parent_run_id = '' AND root_run_id = '') OR
+				(spawned_by_item_id != '' AND parent_run_id != '' AND root_run_id != '' AND
+				 parent_run_id != run_id AND root_run_id != run_id)
+			)
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_runs_session_active
-			ON runs(session_id) WHERE state != 'terminal'`,
+			ON runs(session_id) WHERE state != 'terminal' AND root_run_id = ''`,
 		`CREATE INDEX IF NOT EXISTS idx_runs_session
 			ON runs(session_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_runs_root
+			ON runs(root_run_id) WHERE root_run_id != ''`,
+		`CREATE INDEX IF NOT EXISTS idx_runs_parent
+			ON runs(parent_run_id) WHERE parent_run_id != ''`,
 		// One row per parked Run: what it is waiting on, plus the Run facts its
 		// continuation has to restamp and cannot re-derive (its original start
 		// time, its model selection, what it had already spent, and the allowance

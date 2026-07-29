@@ -7,24 +7,22 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
-// ErrSessionBusy reports that admitting a Run was rejected because the Session
-// already holds a non-terminal Run — the "one active/interrupted Run per
-// Session" invariant (§8.2). It is the domain sentinel the durable admission
-// store returns and the run coordinator + delivery match against, so the
-// invariant has one name across the rings (the sqlite partial-unique-index
-// violation maps onto it; delivery maps it onto the wire session-busy error).
-var ErrSessionBusy = errors.New("execution: session has a non-terminal run")
+// ErrSessionBusy reports that admitting a root Run was rejected because the
+// Session already holds a non-terminal root tree. Descendant Runs share that
+// tree's admission and do not compete for a second Session slot.
+var ErrSessionBusy = errors.New("execution: session has a non-terminal root run")
 
-// RunDraft is the fresh Run an admission records as it enters [Running]: the
-// durable side of "one non-terminal Run per Session" (§8.2). It carries only the
-// identity + per-run selection an admission needs; the streamed segments, usage,
-// and terminal Outcome accrue afterward. Provider/Model are the run's explicit
-// per-run model selection (empty ⇒ the runtime default). Executor recovery
-// handles do not belong on the Run row; a parked interrupt records the actual
-// process snapshot id at the point where it is known.
+// RunDraft is the fresh root or child Run recorded as it enters [Running]. A
+// root claims the Session's one non-terminal tree slot; a child carries all
+// lineage edges and shares that claim. Streamed segments, usage, and terminal
+// Outcome accrue afterward. Executor recovery handles do not belong on the Run
+// row; a parked interrupt records the process snapshot id when it is known.
 type RunDraft struct {
-	RunID     string
-	SessionID string
+	RunID           string
+	SessionID       string
+	SpawnedByItemID string
+	ParentRunID     string
+	RootRunID       string
 	// SegmentID is the first segment this Run opens with. Admission records it
 	// with the Run, because a Running Run without the segment driving it is a Run
 	// nothing can attach to.
@@ -40,6 +38,16 @@ type RunDraft struct {
 	// Run's whole life" is kept by construction rather than by a check.
 	ProtocolProfile RunProtocolProfile
 	CreatedAt       time.Time
+}
+
+// Lineage returns the draft's immutable root/child identity as one value for
+// validation and tree routing.
+func (draft RunDraft) Lineage() RunLineage {
+	return RunLineage{
+		SpawnedByItemID: draft.SpawnedByItemID,
+		ParentRunID:     draft.ParentRunID,
+		RootRunID:       draft.RootRunID,
+	}
 }
 
 // RunLimits is the accumulated allowance a Run may consume before it is stopped.

@@ -327,7 +327,7 @@ func (c *Coordinator) addressLiveSegment(ctx context.Context, runID, segmentID s
 	if !ok {
 		return liveSegment{}, ErrRunNotFound
 	}
-	if run.SpawnedByItemID != "" {
+	if run.Lineage().IsChild() {
 		return liveSegment{}, fmt.Errorf("%w: %q", transcript.ErrNotRoot, runID)
 	}
 	switch status := run.State.Status(); status {

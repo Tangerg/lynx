@@ -92,15 +92,19 @@ func (p PortableRun) rootID() string {
 // is the ABSENCE of the child edges, which no presence rule can condition on — so
 // they belong to the transaction that turns an archive into a session.
 func (p PortableRun) validateLineage() error {
-	child := p.SpawnedByItemID != "" || p.ParentRunID != "" || p.RootRunID != ""
-	if !child {
+	lineage := execution.RunLineage{
+		SpawnedByItemID: p.SpawnedByItemID,
+		ParentRunID:     p.ParentRunID,
+		RootRunID:       p.RootRunID,
+	}
+	if err := lineage.Validate(p.ID); err != nil {
+		return err
+	}
+	if lineage.IsRoot() {
 		if p.ProtocolProfile == nil {
 			return fmt.Errorf("root run %q carries no protocol profile", p.ID)
 		}
 		return nil
-	}
-	if p.ParentRunID == p.ID || p.RootRunID == p.ID {
-		return fmt.Errorf("child run %q names itself as its own parent or root", p.ID)
 	}
 	if p.ProtocolProfile != nil {
 		return fmt.Errorf("child run %q carries a protocol profile of its own", p.ID)
@@ -153,6 +157,8 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 			SessionID:       portable.SessionID,
 			ID:              portable.ID,
 			SpawnedByItemID: portable.SpawnedByItemID,
+			ParentRunID:     portable.ParentRunID,
+			RootRunID:       portable.RootRunID,
 			ModelSelection:  selection,
 			State:           state,
 			Outcome:         &outcome,
@@ -240,36 +246,29 @@ func (s Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 		if run.Outcome == nil {
 			return PortableSnapshot{}, fmt.Errorf("sessions: terminal run %q has no outcome", run.ID)
 		}
-		// A child run cannot be projected yet, and the failure would be silent: this
-		// loop gives every run its own profile, which is precisely what an archive's
-		// lineage rule forbids a child to carry. The result would be a document this
-		// runtime writes and then refuses to read. Nothing produces a child run while
-		// subagents are off, so refusing here costs nothing and puts the error at the
-		// projection that has to learn to derive the edges.
-		if run.SpawnedByItemID != "" {
-			return PortableSnapshot{}, fmt.Errorf(
-				"sessions: run %q is a child and this projection derives no child edges", run.ID)
-		}
-		profile := run.ProtocolProfile
-		portable.Runs = append(portable.Runs, PortableRun{
+		portableRun := PortableRun{
 			SessionID:       run.SessionID,
 			ID:              run.ID,
 			SpawnedByItemID: run.SpawnedByItemID,
+			ParentRunID:     run.ParentRunID,
+			RootRunID:       run.RootRunID,
 			Provider:        run.ModelSelection.Provider(),
 			Model:           run.ModelSelection.Model(),
 			Outcome:         *run.Outcome,
 			Error:           run.Error,
 			Metrics:         run.Metrics,
 			Limits:          run.Limits,
-			// Every exported run is a root today (no child edges exist to project), so
-			// each states its own contract. A child would omit this and read its root's.
-			ProtocolProfile: &profile,
 			Detail:          run.Detail,
 			CreatedAt:       run.CreatedAt,
 			FinishedAt:      run.FinishedAt,
 			UpdatedAt:       run.UpdatedAt,
 			MessageMark:     run.MessageMark,
-		})
+		}
+		if run.Lineage().IsRoot() {
+			profile := run.ProtocolProfile
+			portableRun.ProtocolProfile = &profile
+		}
+		portable.Runs = append(portable.Runs, portableRun)
 	}
 	return portable, nil
 }

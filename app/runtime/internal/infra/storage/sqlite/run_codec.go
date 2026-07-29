@@ -223,7 +223,8 @@ func scanRun(row scanRow) (transcript.Run, error) {
 		model               string
 		usage               string
 		problem             string
-		profile             string
+		ownProfile          string
+		rootProfile         sql.NullString
 		durationNs          int64
 		startedAt           int64
 		finishedAt          int64
@@ -231,12 +232,28 @@ func scanRun(row scanRow) (transcript.Run, error) {
 		interruptsSuspended sql.NullString
 	)
 	if err := row.Scan(
-		&run.ID, &run.SessionID, &run.SpawnedByItemID, &coarse, &run.ActiveSegmentID, &outcome,
+		&run.ID, &run.SessionID,
+		&run.SpawnedByItemID, &run.ParentRunID, &run.RootRunID,
+		&coarse, &run.ActiveSegmentID, &outcome,
 		&provider, &model, &run.Detail, &run.Metrics.Steps, &durationNs, &usage, &problem,
-		&run.Limits.MaxSteps, &run.Limits.MaxBudgetUSD, &profile,
+		&run.Limits.MaxSteps, &run.Limits.MaxBudgetUSD, &ownProfile, &rootProfile,
 		&run.MessageMark, &startedAt, &finishedAt, &updatedAt, &interruptsSuspended,
 	); err != nil {
 		return transcript.Run{}, fmt.Errorf("sqlite: scan run: %w", err)
+	}
+	profile := ownProfile
+	if run.Lineage().IsChild() {
+		if ownProfile != "" {
+			return transcript.Run{}, fmt.Errorf("sqlite: child run %q stores a protocol profile of its own", run.ID)
+		}
+		if !rootProfile.Valid {
+			return transcript.Run{}, fmt.Errorf(
+				"sqlite: child run %q references missing root %q",
+				run.ID,
+				run.RootRunID,
+			)
+		}
+		profile = rootProfile.String
 	}
 	profileValue, err := decodeRunProtocolProfile(profile)
 	if err != nil {

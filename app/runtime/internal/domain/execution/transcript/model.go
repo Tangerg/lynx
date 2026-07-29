@@ -33,6 +33,8 @@ type Run struct {
 	SessionID       string
 	ID              string
 	SpawnedByItemID string
+	ParentRunID     string
+	RootRunID       string
 	ModelSelection  modelref.Selection
 	State           execution.RunState
 	// ActiveSegmentID is the segment currently executing. It exists exactly while
@@ -367,6 +369,9 @@ func (run Run) Validate() error {
 	case run.CreatedAt.IsZero():
 		return errors.New("creation time is required")
 	}
+	if err := run.Lineage().Validate(run.ID); err != nil {
+		return err
+	}
 	// A Run is Running exactly while a segment drives it. Both halves matter: a
 	// running Run with no segment cannot be attached to, and a parked or finished
 	// one still naming a segment would have a client attach to a stream that ended.
@@ -386,6 +391,16 @@ func (run Run) Validate() error {
 		return run.validateTerminal()
 	}
 	return run.validateOpen()
+}
+
+// Lineage returns the Run's immutable root/child identity as one value for
+// validation and tree routing.
+func (run Run) Lineage() execution.RunLineage {
+	return execution.RunLineage{
+		SpawnedByItemID: run.SpawnedByItemID,
+		ParentRunID:     run.ParentRunID,
+		RootRunID:       run.RootRunID,
+	}
 }
 
 func (run Run) validateOpen() error {

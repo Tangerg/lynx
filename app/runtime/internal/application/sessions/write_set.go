@@ -1,6 +1,9 @@
 package sessions
 
 import (
+	"cmp"
+	"slices"
+
 	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
@@ -53,7 +56,38 @@ type RestorePlan struct {
 }
 
 func restorePlan(snapshot Snapshot) RestorePlan {
-	return RestorePlan(snapshot)
+	plan := RestorePlan(snapshot)
+	plan.Runs = runsInParentFirstOrder(snapshot.Runs)
+	return plan
+}
+
+// runsInParentFirstOrder gives persistence a creation-safe tree order while
+// preserving the archive's order among peers. Snapshot validation has already
+// proved that every parent exists and the graph is acyclic.
+func runsInParentFirstOrder(runs []transcript.Run) []transcript.Run {
+	ordered := append([]transcript.Run(nil), runs...)
+	byID := make(map[string]transcript.Run, len(runs))
+	for _, run := range runs {
+		byID[run.ID] = run
+	}
+	depths := make(map[string]int, len(runs))
+	var depth func(transcript.Run) int
+	depth = func(run transcript.Run) int {
+		if known, ok := depths[run.ID]; ok {
+			return known
+		}
+		if run.Lineage().IsRoot() {
+			depths[run.ID] = 0
+			return 0
+		}
+		value := depth(byID[run.ParentRunID]) + 1
+		depths[run.ID] = value
+		return value
+	}
+	slices.SortStableFunc(ordered, func(left, right transcript.Run) int {
+		return cmp.Compare(depth(left), depth(right))
+	})
+	return ordered
 }
 
 // DeletePlan is the post-order session set removed by one delete cascade. It

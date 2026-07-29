@@ -90,16 +90,9 @@ func TestArtifactV7RoundTripsEveryFieldItCarries(t *testing.T) {
 	}
 }
 
-// TestExportRefusesToWriteAnArchiveItCouldNotRead is the invariant behind gate 15:
-// whatever this runtime exports, it can import.
-//
-// The one shape that breaks it is a child run. The projection gives every run its
-// own protocol profile — correct for a root, forbidden for a child — so exporting a
-// tree would produce a document the archive's own lineage rule rejects. Nothing
-// produces a child run while subagents are off, which is exactly why this has to be
-// a refusal and not a comment: the day one appears, the error lands on the
-// projection that owes the edges instead of on a person whose archive will not load.
-func TestExportRefusesToWriteAnArchiveItCouldNotRead(t *testing.T) {
+// TestExportPreservesRunTreeLineage proves an archive states child identity once:
+// all three edges survive, while the protocol profile remains root-owned.
+func TestExportPreservesRunTreeLineage(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
 	ses, err := rt.sess.Create(ctx, "spawned", t.TempDir())
@@ -107,10 +100,18 @@ func TestExportRefusesToWriteAnArchiveItCouldNotRead(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	putRun(t, rt, ses.ID, "run_root", 1, 0)
-	putUserItem(t, rt, ses.ID, "run_root", "item_spawn", "delegate this")
+	if err := rt.hist.AppendItem(ctx, transcript.Item{
+		SessionID: ses.ID, RunID: "run_root", ID: "item_spawn",
+		CreatedAt: time.Unix(1, 0).UTC(), Status: transcript.ItemCompleted,
+		Kind: transcript.ToolCall,
+		Tool: &transcript.ToolInvocation{Name: "task"},
+	}); err != nil {
+		t.Fatalf("seed spawning item: %v", err)
+	}
 	outcome := execution.OutcomeCompleted
 	if err := rt.runs.Restore(ctx, transcript.Run{
 		SessionID: ses.ID, ID: "run_child", SpawnedByItemID: "item_spawn",
+		ParentRunID: "run_root", RootRunID: "run_root",
 		State: execution.Completed, Outcome: &outcome,
 		CreatedAt: time.Unix(2, 0).UTC(), FinishedAt: time.Unix(2, 0).UTC(),
 		UpdatedAt: time.Unix(2, 0).UTC(),
@@ -118,10 +119,22 @@ func TestExportRefusesToWriteAnArchiveItCouldNotRead(t *testing.T) {
 		t.Fatalf("seed child run: %v", err)
 	}
 
-	if _, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID}); err == nil {
-		t.Fatal("export wrote an archive containing a child run; it cannot import one")
-	} else if !strings.Contains(err.Error(), "run_child") {
-		t.Errorf("export error = %v, want it to name the child run", err)
+	exported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if exported.Artifact == nil || len(exported.Artifact.Runs) != 2 {
+		t.Fatalf("artifact runs = %+v, want root and child", exported.Artifact)
+	}
+	child := exported.Artifact.Runs[1]
+	if child.ID != "run_child" ||
+		child.SpawnedByItemID != "item_spawn" ||
+		child.ParentRunID != "run_root" ||
+		child.RootRunID != "run_root" {
+		t.Fatalf("exported child = %+v, want complete lineage", child)
+	}
+	if child.ProtocolProfile != nil {
+		t.Fatalf("exported child profile = %+v, want root-owned absence", child.ProtocolProfile)
 	}
 }
 
@@ -178,9 +191,9 @@ func encodeArtifact(t *testing.T, artifact protocol.SessionArtifact) string {
 // fixture quietly stopped exercising this" and "this cannot be exercised" have to
 // look different, or the coverage check decays into a list of excuses.
 var unreachableArtifactFields = map[string]string{
-	"ArtifactRun.SpawnedByItemID": "a child edge; nothing produces a child run while features.subagents is off, and the export refuses to write one rather than write a tree it cannot read back",
-	"ArtifactRun.ParentRunID":     "the second child edge, same reason",
-	"ArtifactRun.RootRunID":       "the third child edge, same reason",
+	"ArtifactRun.SpawnedByItemID": "the maximal round-trip fixture cannot import child runs while features.subagents is disabled; TestExportPreservesRunTreeLineage covers the export projection",
+	"ArtifactRun.ParentRunID":     "the second child edge, covered by the dedicated lineage export test",
+	"ArtifactRun.RootRunID":       "the third child edge, covered by the dedicated lineage export test",
 	"RunProtocolProfile.RequiredFeatures": "the only advertised feature that is requiredByRunProtocol is subagents, which is off, " +
 		"so every run publishes under the Minimal Profile and the set is present but empty",
 }

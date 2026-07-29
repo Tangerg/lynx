@@ -83,8 +83,8 @@ type RunSummary struct {
 	// ParentRunID and RootRunID are the child edges: direct tree topology, and
 	// O(1) routing from any child to the run that owns the subscription. They are
 	// all-or-none with SpawnedByItemID — a run either carries all three or is a
-	// root — and no run carries them until features.subagents is on, since a
-	// session runs one root run with no children (§8.1).
+	// root. Creating or directly addressing such a child requires
+	// features.subagents; durable history retains the edges unchanged.
 	ParentRunID string `json:"parentRunId,omitempty"`
 	RootRunID   string `json:"rootRunId,omitempty"`
 	// Model is the model id this run ran against (Model.id); empty means the

@@ -16,8 +16,9 @@ package execution
 //	   ▼                      ▼
 //	Completed / Failed / Canceled
 //
-// A Run reaches exactly one terminal state. Admission ("one non-terminal Run per
-// Session") keys on [RunState.IsTerminal].
+// A Run reaches exactly one terminal state. Root admission ("one non-terminal
+// root Run per Session") keys on [RunState.IsTerminal]; descendants share their
+// root tree's admission.
 type RunState uint8
 
 const (

@@ -26,7 +26,7 @@ func (s *Server) GetRun(ctx context.Context, in protocol.GetRunRequest) (*protoc
 	case !found:
 		return nil, protocol.ErrRunNotFound
 	}
-	if run.SpawnedByItemID != "" {
+	if run.Lineage().IsChild() {
 		if err := s.requireFeature(ctx, protocol.FeatureSubagents); err != nil {
 			return nil, err
 		}
