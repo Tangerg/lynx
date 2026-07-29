@@ -1158,12 +1158,28 @@ presence 原语正是"一 keyword 一原语"禁的那种融合。
 
 | slice | scope | 状态 | commit |
 |---|---|---|---|
-| D1 | slow-consumer 与 replay memory benchmark | `TODO` | — |
+| D1 | slow-consumer 与 replay memory benchmark | `DONE` | `journal_cost_test.go` |
 | D2 | 在不改 scope/语义前提下调 discover 返回的 replay 数值上限 | `TODO` | — |
 | D3 | event coalescing / subscriber queue / 生成速度优化 | `TODO` | — |
 | D4 | 真实桌面负载验证一条 runtime stream + 多条 active Run stream 的连接占用 | `TODO` | — |
 
 **Batch D 不得重新引入 Batch C 已删除的兼容层。**
+
+### D1 已完成 —— 测出来的三件事（Apple M4，`-benchtime 200x`，数量级为准）
+
+| measurement | 值 | 读法 |
+|---|---|---|
+| 临时事件 append + drain | ~0.7 µs/op | fan-out 本身不是成本 |
+| 权威事件 append，512 B | ~4.5 µs/op，1.8 KB/op | 小 item 的收费可忽略 |
+| 权威事件 append，1 MiB | ~2.6 ms/op，**2.1 MB/op** | **收费 = marshal 一整份 payload，且在 journal 锁内** |
+| replay attach，64 事件 / 4 MiB backlog | ~5.4 ms/op，**4.67 MB/op，152 allocs** | **backlog 被重新 marshal 一遍**，只为重算窗口已经收过的费 |
+| 满窗 heap / 收费字节 | **1.01×** | 序列化长度确实能预测窗口内存 —— 广告的 16 MiB 是诚实的 |
+
+**结论（决定 D2/D3 怎么做）**：
+
+1. **数值上限不用动（D2）**。窗口的 heap 与它自己收的费是 1.01×，所以"16 MiB replay"对客户端是句真话；2048 events 也不是瓶颈 —— 到不了它，字节预算先到。这条现在有测量背书，不再只是注释里的论证。
+2. **有真成本要修，但不在"快慢"上，在"重复劳动"上（D3）**：`retainedSize` 靠 `json.Marshal` 量尺寸（这条**判断是对的**，估算会对没人记得加的字段返回 0），但它被**算了两遍** —— `Append` 一次，`newJournalSubscriber` 对 backlog 每个事件再一次。窗口自己知道收了多少费，却没把 per-event 的数存下来。
+3. **`Append` 的 marshal 在锁内**：一条 1 MiB tool result 让 run 唯一那条流的锁被占住毫秒级，期间所有订阅者的 enqueue 与位置分配都在等。收费不需要看见其他订阅者，可以在取锁之前算完。
 
 > ⚠️ **这是本仓库第一次有 benchmark 需求。** 记忆 `project_agent_refinement_closed_perf_dropped` 论证关闭的是 **agent 模块 CPU 延迟维度**，**不覆盖这里** —— replay journal 与 subscriber queue 是**内存与连接**资源，且契约 §6.5 明确把数值上限做成可测量调整项。
 
