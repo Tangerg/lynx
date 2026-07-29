@@ -102,6 +102,7 @@ export type WireTypeName =
   | "GetMemoryRequest"
   | "GetRunRequest"
   | "GetSessionRequest"
+  | "GetTodosRequest"
   | "Goal"
   | "GoalBudget"
   | "GoalRequest"
@@ -238,6 +239,8 @@ export type WireTypeName =
   | "StartGoalRequest"
   | "StartRunRequest"
   | "StartRunResponse"
+  | "StateSnapshot"
+  | "StateSnapshotType"
   | "SteerRunRequest"
   | "StreamEvent"
   | "StreamEventType"
@@ -845,6 +848,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     runId: allOf([text(), minLength(1)]),
   }, ["runId"]),
   GetSessionRequest: object({
+    sessionId: allOf([text(), minLength(1)]),
+  }, ["sessionId"]),
+  GetTodosRequest: object({
     sessionId: allOf([text(), minLength(1)]),
   }, ["sessionId"]),
   Goal: object({
@@ -1916,6 +1922,21 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     segmentId: text(),
     userItemId: text(),
   }, ["runId", "segmentId"]),
+  StateSnapshot: allOf([
+    object({
+      revision: allOf([integer(), minimum(0)]),
+      sessionId: text(),
+      todos: array(ref(() => CHECKS.TodoSnapshot)),
+      type: ref(() => CHECKS.StateSnapshotType),
+      updatedAt: text(),
+    }, []),
+    oneOf([
+      fields({
+        type: literal("todos"),
+      }, ["revision", "sessionId", "todos", "type"]),
+    ]),
+  ]),
+  StateSnapshotType: enumOf(["todos"]),
   SteerRunRequest: object({
     message: allOf([text(), minLength(1)]),
     runId: allOf([text(), minLength(1)]),
@@ -1932,7 +1953,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       payload: anything(),
       progress: ref(() => CHECKS.RunProgress),
       run: ref(() => CHECKS.RunRef),
-      state: record(anything()),
+      state: ref(() => CHECKS.StateSnapshot),
       type: ref(() => CHECKS.StreamEventType),
     }, []),
     oneOf([
@@ -2218,7 +2239,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
 
 // The shape each state.snapshot key carries.
 const STATE_PAYLOADS: Readonly<Record<string, WireCheck>> = {
-  todos: array(ref(() => CHECKS.TodoSnapshot)),
+  todos: ref(() => CHECKS.StateSnapshot),
 };
 
 /**

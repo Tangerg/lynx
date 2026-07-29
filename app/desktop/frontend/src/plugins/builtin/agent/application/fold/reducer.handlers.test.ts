@@ -36,8 +36,11 @@ const runStarted = (id: string, sessionId: string): StreamEvent => ({
 });
 const runProgress = (progress: Record<string, unknown>): StreamEvent =>
   ({ type: "segment.progress", progress }) as StreamEvent;
-const snapshot = (state: Record<string, unknown>): StreamEvent =>
-  ({ type: "state.snapshot", state }) as StreamEvent;
+const snapshot = (revision: number): StreamEvent =>
+  ({
+    type: "state.snapshot",
+    state: { type: "todos", sessionId: "ses_1", revision, todos: [] },
+  }) as StreamEvent;
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/public/foldPlugin");
@@ -96,7 +99,7 @@ describe("handler contract — run.*", () => {
   it("segment.finished{completed} settles running without disturbing messages / plan / shared", () => {
     let s = reduce(INITIAL_VIEW_STATE, runStarted("r1", "s1"));
     s = reduce(s, started(item({ id: "a", type: "agentMessage", content: [] })));
-    s = reduce(s, snapshot({ k: 1 }));
+    s = reduce(s, snapshot(1));
     s = reduce(
       s,
       started(
@@ -177,11 +180,11 @@ describe("handler contract — item.delta targeting", () => {
 });
 
 describe("handler contract — state.*", () => {
-  it("state.snapshot replaces shared wholesale, isolating run + stream", () => {
+  it("state.snapshot replaces its key wholesale, isolating run + stream", () => {
     let s = reduce(INITIAL_VIEW_STATE, runStarted("r1", "s1"));
-    s = reduce(s, snapshot({ a: 1 }));
-    const out = reduce(s, snapshot({ b: 2 }));
-    expect(out.shared).toEqual({ b: 2 });
+    s = reduce(s, snapshot(1));
+    const out = reduce(s, snapshot(2));
+    expect(out.shared.todos).toMatchObject({ revision: 2 });
     expect(out.run).toBe(s.run);
     expect(out.messages).toBe(s.messages);
   });

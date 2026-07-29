@@ -1,6 +1,8 @@
 package runs
 
 import (
+	"time"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
@@ -23,7 +25,17 @@ type ItemCompleted struct {
 	Item         transcript.Item
 	mutatedPaths []string
 }
-type StateSnapshot struct{ Todos []TodoSnapshot }
+
+// StateSnapshot publishes a durable latest-value projection the run changed. It
+// carries the projection's own revision, not just its contents: the list is
+// replaced wholesale, so a fold that only saw contents could not tell an older
+// snapshot from a newer one.
+type StateSnapshot struct {
+	SessionID string
+	Todos     []TodoSnapshot
+	Revision  uint64
+	UpdatedAt time.Time
+}
 
 func (SegmentStarted) runEvent()    {}
 func (SegmentProgressed) runEvent() {}

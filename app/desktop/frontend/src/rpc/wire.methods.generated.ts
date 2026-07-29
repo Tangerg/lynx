@@ -43,6 +43,7 @@ import type {
   GetMemoryRequest,
   GetRunRequest,
   GetSessionRequest,
+  GetTodosRequest,
   Goal,
   GoalRequest,
   GrepRequest,
@@ -106,6 +107,7 @@ import type {
   StartGoalRequest,
   StartRunRequest,
   StartRunResponse,
+  StateSnapshot,
   SteerRunRequest,
   SubscribeRunRequest,
   TestProviderRequest,
@@ -168,6 +170,7 @@ const METHOD_NAMES = [
   "runs.get",
   "runs.list",
   "interrupts.list",
+  "todos.get",
   "items.list",
   "workspace.listFileChanges",
   "workspace.getDiff",
@@ -273,6 +276,9 @@ export const WIRE_CAPABILITY_POLICY: {
   ],
   "runs.list": [
     { when: [{ field: "includeDescendants", operator: "present" }], requires: ["subagents"] },
+  ],
+  "todos.get": [
+    { requires: ["todos"] },
   ],
   "items.list": [
     { when: [{ field: "scope.includeDescendants", operator: "present" }], requires: ["subagents"] },
@@ -410,6 +416,7 @@ export interface WireShapes {
   "runs.get": { params: GetRunRequest; result: RunRef };
   "runs.list": { params: ListRunsRequest; result: PageOfRunRef };
   "interrupts.list": { params: ListInterruptsRequest; result: PageOfPendingInterruptSet };
+  "todos.get": { params: GetTodosRequest; result: StateSnapshot };
   "items.list": { params: ListItemsRequest; result: ListItemsResponse };
   "workspace.listFileChanges": { params: WorkspaceListQuery; result: PageOfWorkspaceFileChange };
   "workspace.getDiff": { params: GetDiffRequest; result: Diff };

@@ -1944,6 +1944,18 @@
         "sessionId"
       ]
     },
+    "GetTodosRequest": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "sessionId"
+      ]
+    },
     "Goal": {
       "type": "object",
       "properties": {
@@ -5409,6 +5421,52 @@
         "segmentId"
       ]
     },
+    "StateSnapshot": {
+      "type": "object",
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "todos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TodoSnapshot"
+          }
+        },
+        "type": {
+          "$ref": "#/$defs/StateSnapshotType"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "todos"
+            }
+          },
+          "required": [
+            "revision",
+            "sessionId",
+            "todos",
+            "type"
+          ]
+        }
+      ]
+    },
+    "StateSnapshotType": {
+      "type": "string",
+      "enum": [
+        "todos"
+      ]
+    },
     "SteerRunRequest": {
       "type": "object",
       "properties": {
@@ -5458,8 +5516,7 @@
           "$ref": "#/$defs/RunRef"
         },
         "state": {
-          "type": "object",
-          "additionalProperties": {}
+          "$ref": "#/$defs/StateSnapshot"
         },
         "type": {
           "$ref": "#/$defs/StreamEventType"

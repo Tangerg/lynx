@@ -65,6 +65,7 @@ import type {
   Schedule,
   CreateScheduleRequest,
   ServerCapabilities,
+  StateSnapshot,
   Session,
   SessionArtifact,
   Skill,
@@ -238,6 +239,11 @@ export interface Methods {
         includeDescendants?: boolean;
       },
     ) => Promise<Page<RunRef>>;
+  };
+  todos: {
+    // The cold read the todos state key declares (§5.6). A session with no list yet
+    // answers with the empty state at revision 0 — the same shape the stream pushes.
+    get: (sessionId: SessionId) => Promise<StateSnapshot>;
   };
   interrupts: {
     // Durable HITL discovery — the waiting sets, longest wait first (§7.3 / §10.2).
@@ -556,6 +562,9 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       steer: (runId, message) => mutate("runs.steer", { runId, message }),
       get: (runId) => call("runs.get", { runId }),
       list: (query) => call("runs.list", query ?? {}),
+    },
+    todos: {
+      get: (sessionId) => call("todos.get", { sessionId }),
     },
     interrupts: {
       list: (query) => call("interrupts.list", query ?? {}),

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"strconv"
 
 	"go.opentelemetry.io/otel/trace"
 
@@ -33,17 +34,44 @@ func presentRunEvent(event runs.RunEvent) protocol.StreamEvent {
 		item := presentItem(event.Item)
 		return protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: &item}
 	case runs.StateSnapshot:
-		todos := make([]protocol.TodoSnapshot, len(event.Todos))
-		for i, todo := range event.Todos {
-			todos[i] = protocol.TodoSnapshot{
-				ID: todo.ID, Text: todo.Text, Status: presentTodoStatus(todo.Status),
-				BlockedReason: todo.BlockedReason, NextAction: todo.NextAction,
-			}
-		}
-		return protocol.StreamEvent{Type: protocol.StreamStateSnapshot, State: map[string]any{"todos": todos}}
+		state := presentStateSnapshot(event)
+		return protocol.StreamEvent{Type: protocol.StreamStateSnapshot, State: &state}
 	default:
 		panic("server: unknown canonical run event")
 	}
+}
+
+// presentStateSnapshot publishes what a run changed. The stream and todos.get go
+// through one shape, so "recover this key" cannot mean something different from
+// "follow this key".
+func presentStateSnapshot(event runs.StateSnapshot) protocol.StateSnapshot {
+	todos := make([]protocol.TodoSnapshot, 0, len(event.Todos))
+	for _, item := range event.Todos {
+		todos = append(todos, protocol.TodoSnapshot{
+			ID: item.ID, Text: item.Text, Status: presentTodoStatus(item.Status),
+			BlockedReason: item.BlockedReason, NextAction: item.NextAction,
+		})
+	}
+	return protocol.StateSnapshot{
+		Type: protocol.StateTodos, SessionID: event.SessionID,
+		Revision: event.Revision, Todos: todos, UpdatedAt: event.UpdatedAt,
+	}
+}
+
+// presentTodoState is the same projection read cold. It goes through the run-event
+// shape so the two cannot describe the list differently: one presenter, one answer.
+func presentTodoState(sessionID string, state todo.State) protocol.StateSnapshot {
+	snapshot := runs.StateSnapshot{
+		SessionID: sessionID, Revision: state.Revision, UpdatedAt: state.UpdatedAt,
+		Todos: make([]runs.TodoSnapshot, 0, len(state.Items)),
+	}
+	for index, item := range state.Items {
+		snapshot.Todos = append(snapshot.Todos, runs.TodoSnapshot{
+			ID: strconv.Itoa(index), Text: item.Content, Status: item.Status,
+			BlockedReason: item.BlockedReason, NextAction: item.NextAction,
+		})
+	}
+	return presentStateSnapshot(snapshot)
 }
 
 func presentTodoStatus(status todo.Status) protocol.TodoStatus {

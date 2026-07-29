@@ -65,6 +65,7 @@ var wireEnums = map[reflect.Type][]string{
 	reflect.TypeFor[SessionStatus]():             {string(SessionStatusRunning), string(SessionStatusWaiting), string(SessionStatusIdle)},
 	reflect.TypeFor[SkillLifecycle]():            {string(SkillLifecycleActive), string(SkillLifecycleArchived)},
 	reflect.TypeFor[SkillSource]():               {string(SkillSourceProject), string(SkillSourceGlobal)},
+	reflect.TypeFor[StateSnapshotType]():         {string(StateTodos)},
 	reflect.TypeFor[Stability]():                 {string(StabilityStable), string(StabilityExperimental)},
 	reflect.TypeFor[StreamEventType]():           {string(StreamSegmentStarted), string(StreamSegmentProgress), string(StreamSegmentFinished), string(StreamItemStarted), string(StreamItemDelta), string(StreamItemCompleted), string(StreamStateSnapshot), string(StreamCustom)},
 	reflect.TypeFor[TodoStatus]():                {string(TodoStatusPending), string(TodoStatusInProgress), string(TodoStatusCompleted)},

@@ -121,9 +121,12 @@ type UsageReported struct {
 	ContextTokens int64
 }
 
+// TodosUpdated reports the committed task list after a replacement — read back
+// from the store, so what is published is what was written rather than what the
+// tool was asked to write.
 type TodosUpdated struct {
 	engineEventBase
-	Todos []todo.Item
+	State todo.State
 }
 
 type SteerMessage struct {

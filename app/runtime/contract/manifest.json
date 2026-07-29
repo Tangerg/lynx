@@ -201,6 +201,18 @@
       "stability": "stable"
     },
     {
+      "name": "todos.get",
+      "kind": "unary",
+      "idempotency": "none",
+      "errors": [
+        "session_not_found"
+      ],
+      "features": [
+        "todos"
+      ],
+      "stability": "stable"
+    },
+    {
       "name": "items.list",
       "kind": "unary",
       "idempotency": "none",
@@ -927,6 +939,16 @@
       ]
     },
     {
+      "method": "todos.get",
+      "rules": [
+        {
+          "requires": [
+            "todos"
+          ]
+        }
+      ]
+    },
+    {
       "method": "items.list",
       "rules": [
         {
@@ -1408,16 +1430,13 @@
   "statePolicy": [
     {
       "key": "todos",
-      "recoveryMethod": "runs.subscribe",
+      "recoveryMethod": "todos.get",
       "scope": "session",
       "writer": "rootRun",
       "feature": "todos",
       "stability": "stable",
       "payload": {
-        "type": "array",
-        "items": {
-          "$ref": "schema.json#/$defs/TodoSnapshot"
-        }
+        "$ref": "schema.json#/$defs/StateSnapshot"
       }
     }
   ],
@@ -1626,6 +1645,23 @@
           "tag": "plan",
           "required": [
             "steps"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "StateSnapshot",
+      "discriminator": "type",
+      "variants": [
+        {
+          "tag": "todos",
+          "required": [
+            "sessionId",
+            "revision",
+            "todos"
+          ],
+          "optional": [
+            "updatedAt"
           ]
         }
       ]

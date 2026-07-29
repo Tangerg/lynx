@@ -108,6 +108,21 @@ func registerItemUnions(s *Shapes) {
 		},
 	})
 
+	// One key today, and it is tagged: the stream event and the cold read carry the
+	// same shape, so a second key must arrive as a new tag rather than as extra
+	// optional fields nobody can tell apart.
+	s.union(UnionSpec{
+		GoType:        typeOf[protocol.StateSnapshot](),
+		Discriminator: "type",
+		Variants: []VariantSpec{
+			{
+				Tag:      string(protocol.StateTodos),
+				Required: []string{"sessionId", "revision", "todos"},
+				Optional: []string{"updatedAt"},
+			},
+		},
+	})
+
 	// What a page of items is a page OF. The two subjects are exclusive, not two
 	// optional filters: a frame naming both would need a precedence rule to resolve,
 	// and a precedence rule is where the request and the answer start to disagree.
@@ -406,13 +421,16 @@ func registerStateKeys(s *Shapes) {
 	// todos.get and moves recovery there (C7) — at which point THIS line changes,
 	// which is exactly the drift a spec is supposed to make visible.
 	s.stateKey(StateKeySpec{
-		Key:            "todos",
-		RecoveryMethod: "runs.subscribe",
+		Key: string(protocol.StateTodos),
+		// The cold read, not the stream: a client that was not subscribed when the
+		// list changed has to be able to ASK. runs.subscribe stood here while no such
+		// read existed, which made "recover this key" mean "attach to a run".
+		RecoveryMethod: "todos.get",
 		Scope:          StateScopeSession,
 		Writer:         StateWriterRootRun,
 		Feature:        "todos",
 		Stability:      stable,
-		PayloadType:    typeOf[[]protocol.TodoSnapshot](),
+		PayloadType:    typeOf[protocol.StateSnapshot](),
 	})
 }
 

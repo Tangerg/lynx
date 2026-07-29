@@ -60,7 +60,7 @@ func Open(path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 38
+const schemaEpoch = 39
 
 func installCurrentSchema(db *sql.DB, path string) error {
 	var epoch int
@@ -281,9 +281,13 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_conversation
 			ON messages(conversation_id, seq)`,
+		// revision is assigned by the replacement that produced the list, not by a
+		// clock: the list is replaced wholesale, so a fold cannot tell an older
+		// snapshot from a newer one by content.
 		`CREATE TABLE IF NOT EXISTS todos (
 			session_id TEXT    PRIMARY KEY,
 			items      TEXT    NOT NULL,
+			revision   INTEGER NOT NULL DEFAULT 0,
 			updated_at INTEGER NOT NULL
 		)`,
 		// One autonomous goal per session (Goal mode). The FK is the durable

@@ -51,7 +51,7 @@ func TestEveryClosedWireUnionIsRegistered(t *testing.T) {
 	want := []string{
 		"ArtifactContentBlock", "ArtifactItem", "ArtifactOutcome",
 		"ContentBlock", "DiffRow", "Interrupt", "InterruptResponseValue", "Item", "ItemDelta",
-		"ItemListScope", "QuestionField", "RunOutcome", "SegmentOutcome", "StreamEvent", "WorkspaceEvent",
+		"ItemListScope", "QuestionField", "RunOutcome", "SegmentOutcome", "StateSnapshot", "StreamEvent", "WorkspaceEvent",
 	}
 	got := make([]string, 0, len(shapes.Unions()))
 	for _, union := range shapes.Unions() {
@@ -135,11 +135,11 @@ func TestStateKeyMustHaveARecoveryMethodThatExists(t *testing.T) {
 	t.Parallel()
 
 	spec := StateKeySpec{
-		Key: "todos", RecoveryMethod: "todos.get",
+		Key: "todos", RecoveryMethod: "todos.fetch",
 		Scope: StateScopeSession, Writer: StateWriterRootRun,
 		Feature: "todos", Stability: stable,
 	}
 	if err := spec.validate(); err == nil {
-		t.Fatal("validate accepted todos.get, which is not registered until C7")
+		t.Fatal("validate accepted a recovery method no registration serves")
 	}
 }

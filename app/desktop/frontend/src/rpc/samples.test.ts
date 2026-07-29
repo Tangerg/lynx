@@ -43,15 +43,15 @@ describe("the canonical wire samples", () => {
   // The state envelope is a map, so its own type says nothing about what a key
   // carries — the shape is declared per key and only checkable through that
   // declaration. Without this the canonical snapshot's todos could be anything.
-  it("carries the declared shape under every state key", () => {
+  // The snapshot names its own key, so the declared shape is looked up BY the frame
+  // rather than by a key list a test would have to keep in step.
+  it("carries the declared shape for the state key it names", () => {
     const snapshot = sample("state.snapshot.json") as {
-      event: { state?: Record<string, unknown> };
+      event: { state?: { type?: string } };
     };
-    const state = snapshot.event.state ?? {};
-    expect(Object.keys(state)).not.toEqual([]);
-    for (const [key, value] of Object.entries(state)) {
-      expect(validateStatePayload(key, value)).toEqual([]);
-    }
+    const state = snapshot.event.state;
+    expect(state?.type).toBeTruthy();
+    expect(validateStatePayload(state!.type!, state)).toEqual([]);
   });
 
   // A client may suppress ephemeral previews. Naming an event the runtime does not

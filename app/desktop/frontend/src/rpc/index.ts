@@ -79,6 +79,7 @@ export type {
   // HITL
   Interrupt,
   PendingInterruptSet,
+  StateSnapshot,
   InterruptResponse,
   // Diff / search / files
   DiffRow,

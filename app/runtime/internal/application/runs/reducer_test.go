@@ -302,12 +302,18 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 		t.Fatal("usage progress must stay ephemeral")
 	}
 
-	snapshot := mustReduce(t, reducer, TodosUpdated{Todos: []todo.Item{{
-		Content: "write tests", Status: todo.StatusInProgress, NextAction: "run package",
-	}}})
+	snapshot := mustReduce(t, reducer, TodosUpdated{State: todo.State{
+		Items: []todo.Item{{
+			Content: "write tests", Status: todo.StatusInProgress, NextAction: "run package",
+		}},
+		Revision: 3, UpdatedAt: time.Unix(7, 0).UTC(),
+	}})
 	state, ok := snapshot[0].Event.(StateSnapshot)
 	if !ok || len(state.Todos) != 1 || state.Todos[0].Text != "write tests" || state.Todos[0].Status != todo.StatusInProgress {
 		t.Fatalf("todo snapshot = %#v", snapshot[0].Event)
+	}
+	if state.Revision != 3 || state.SessionID != "ses_1" {
+		t.Fatalf("todo snapshot identity = %+v, want session ses_1 at revision 3", state)
 	}
 
 	compaction := mustReduce(t, reducer, CompactBoundary{MessagesBefore: 20, MessagesAfter: 6})
@@ -315,6 +321,9 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 		t.Fatalf("compaction item = %+v", item)
 	}
 
+	// The segment's last state snapshot is republished immediately before the
+	// segment finishes, so whoever receives the finish has received the final value
+	// — see reducer.fenceFinalState.
 	terminal := mustReduce(t, reducer, TurnEnd{
 		Reason: execution.OutcomeMaxBudget, Duration: 1500 * time.Millisecond,
 		Usage: &TurnUsage{CostUSD: 4.2},
@@ -322,6 +331,10 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 	finished := terminal[len(terminal)-1].Event.(SegmentFinished)
 	if finished.Run.Metrics.ActiveDuration != 1500*time.Millisecond || finished.Run.Detail != "" {
 		t.Fatalf("budget terminal = %+v", finished.Run)
+	}
+	fence, fenced := terminal[len(terminal)-2].Event.(StateSnapshot)
+	if !fenced || fence.Revision != 3 {
+		t.Fatalf("event before the finish = %#v, want the segment's final state snapshot", terminal[len(terminal)-2].Event)
 	}
 }
 

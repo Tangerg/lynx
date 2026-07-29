@@ -5,7 +5,7 @@
 > method the runtime does not serve. Prose, rationale and wire examples live in
 > `app/desktop/docs/protocol/`; this is the mechanical index.
 
-Protocol `2026-07-19` (minimum supported `2026-07-19`) · 84 methods
+Protocol `2026-07-19` (minimum supported `2026-07-19`) · 85 methods
 
 ## Methods
 
@@ -29,6 +29,7 @@ Protocol `2026-07-19` (minimum supported `2026-07-19`) · 84 methods
 | `runs.get` | unary | none | — | `run_not_found` |
 | `runs.list` | unary | none | `subagents` | — |
 | `interrupts.list` | unary | none | — | `run_not_root` |
+| `todos.get` | unary | none | `todos` | `session_not_found` |
 | `items.list` | unary | none | `subagents` | `session_not_found`, `run_not_found` |
 | `workspace.listFileChanges` | unary | none | — | `cwd_unavailable`, `vcs_unavailable` |
 | `workspace.getDiff` | unary | none | — | `cwd_unavailable`, `vcs_unavailable`, `path_outside_root` |
@@ -171,6 +172,12 @@ least one variant; the registry refuses a union where one does not.
 | `toolOutput` | `text` | — |
 | `plan` | `steps` | — |
 
+### `StateSnapshot`
+
+| tag | required | optional |
+| --- | --- | --- |
+| `todos` | `sessionId`, `revision`, `todos` | `updatedAt` |
+
 ### `ItemListScope`
 
 | tag | required | optional |
@@ -282,6 +289,7 @@ available. Refusal is `capability_not_negotiated` — never a silent downgrade.
 | `sessions.export` | always | `sessionExport` |
 | `sessions.import` | always | `sessionExport` |
 | `runs.list` | `includeDescendants` present | `subagents` |
+| `todos.get` | always | `todos` |
 | `items.list` | `scope.includeDescendants` present | `subagents` |
 | `workspace.subscribe` | `watches` present | `fileWatch` |
 | `skills.discovered.list` | always | `skills` |
@@ -325,7 +333,7 @@ available. Refusal is `capability_not_negotiated` — never a silent downgrade.
 
 | key | recovery | scope | writer | feature |
 | --- | --- | --- | --- | --- |
-| `todos` | `runs.subscribe` | session | rootRun | `todos` |
+| `todos` | `todos.get` | session | rootRun | `todos` |
 
 ## System invariants
 

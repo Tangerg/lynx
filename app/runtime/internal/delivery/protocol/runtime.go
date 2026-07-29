@@ -29,6 +29,7 @@ type Runtime interface {
 	Sessions
 	Runs
 	Items
+	Todos
 	Workspace
 	Skills
 	Recipes

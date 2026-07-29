@@ -263,10 +263,11 @@ type LSPServerConfig struct {
 	RootMarkers []string
 }
 
-// TodoStore is the composition-root union shared by prompt assembly,
-// todo_write, and session lifecycle cleanup.
+// TodoStore is the composition-root union shared by prompt assembly, todo_write,
+// the state.snapshot projection, the todos.get read, and session lifecycle cleanup.
 type TodoStore interface {
 	List(ctx context.Context, sessionID string) ([]todo.Item, error)
+	State(ctx context.Context, sessionID string) (todo.State, error)
 	Replace(ctx context.Context, sessionID string, items []todo.Item) error
 	DeleteSession(ctx context.Context, sessionID string) error
 }

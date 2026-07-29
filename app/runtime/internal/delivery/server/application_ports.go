@@ -28,6 +28,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -101,6 +102,7 @@ type queryUseCases interface {
 	ListItemPage(ctx context.Context, scope queries.ItemScope, order transcript.SequenceOrder, cursor string, limit int) (queries.ItemPage, error)
 	ListPendingInterruptPage(ctx context.Context, sessionID, rootRunID string, caller execution.RunProtocolProfile, cursor string, limit int) (keyset.Page[interrupts.Pending], error)
 	Run(ctx context.Context, runID string) (transcript.Run, bool, error)
+	TodoState(ctx context.Context, sessionID string) (todo.State, error)
 	ListRunPage(ctx context.Context, sessionID string, statuses []execution.RunStatus, cursor string, limit int) (keyset.Page[transcript.Run], error)
 }
 

@@ -14,6 +14,14 @@ type Items interface {
 	ListItems(ctx context.Context, in ListItemsRequest) (*ListItemsResponse, error)
 }
 
+// Todos is the todos.* method group — the cold read behind the todos state key.
+type Todos interface {
+	// GetTodos returns the session's task-list projection, unchanged from what the
+	// stream publishes. A session with no list yet is the empty state at revision 0;
+	// only a session that does not exist is session_not_found.
+	GetTodos(ctx context.Context, in GetTodosRequest) (*StateSnapshot, error)
+}
+
 // ItemScopeType discriminates [ItemListScope]: which collection of items is being
 // paged.
 type ItemScopeType string

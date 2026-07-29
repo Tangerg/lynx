@@ -118,6 +118,20 @@ func registerInterrupts(r *Registry) {
 	})
 }
 
+func registerTodos(r *Registry) {
+	// The recovery source the todos state key declares. A session with no list yet
+	// answers with the empty state at revision 0 — "nothing written" is a fact, and
+	// only a session that does not exist is an error.
+	Unary(r, MethodMeta{
+		Name:            "todos.get",
+		Errors:          []string{protocol.ErrSessionNotFound.Error()},
+		CapabilityRules: requires(protocol.FeatureTodos),
+		Stability:       stable,
+	}, func(d *Dispatcher, ctx context.Context, in protocol.GetTodosRequest) (*protocol.StateSnapshot, error) {
+		return d.api.GetTodos(ctx, in)
+	})
+}
+
 func registerItems(r *Registry) {
 	// Either scope can name something that does not exist, and the client's next move
 	// differs — find the session, or find the run — so both refusals are declared.

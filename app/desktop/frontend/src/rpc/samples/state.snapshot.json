@@ -6,7 +6,17 @@
   "event": {
     "type": "state.snapshot",
     "state": {
-      "todos": [{ "id": "1", "text": "read the file", "status": "in_progress" }]
+      "type": "todos",
+      "sessionId": "ses_01",
+      "revision": 4,
+      "todos": [
+        {
+          "id": "1",
+          "text": "read the file",
+          "status": "in_progress"
+        }
+      ],
+      "updatedAt": "2026-07-07T10:00:03Z"
     }
   }
 }

@@ -28,12 +28,14 @@ type clientResolver interface {
 	ResolveClient(ctx context.Context, selection modelref.Selection) (*chatclient.Client, error)
 }
 
-// todoLister reads a session's current todo list — narrow consumer view of the
-// todo store (the turn only reads, never writes). The turn projects the list
-// to state.snapshot{todos} after a todo_write so a client renders the task
-// panel. nil disables the projection.
-type todoLister interface {
-	List(ctx context.Context, sessionID string) ([]todo.Item, error)
+// todoReader reads a session's task-list projection — narrow consumer view of the
+// todo store (the turn only reads, never writes). The turn publishes it as
+// state.snapshot after a todo_write so a client renders the task panel, and it
+// reads the whole state rather than the items alone: what identifies one
+// replacement from the next is the revision, not the contents. nil disables the
+// projection.
+type todoReader interface {
+	State(ctx context.Context, sessionID string) (todo.State, error)
 }
 
 // ApprovalGate is the tool-call evaluator's complete approval view. Mode/rules
@@ -78,7 +80,7 @@ type Dependencies struct {
 
 	// Todos reads the session's todo list for state.snapshot projection after a
 	// todo_write. nil disables the projection.
-	Todos todoLister
+	Todos todoReader
 
 	// MCPToolAutoApproved reports whether an identified MCP tool may skip the
 	// approval prompt. nil disables MCP-specific auto-approval.
@@ -142,7 +144,7 @@ type memoryDispatcher struct {
 	maintenance BoundaryMaintenance // optional — nil = no turn-boundary maintenance
 	approval    ApprovalGate
 	resolver    clientResolver // optional — nil = always use the default model
-	todos       todoLister     // optional — nil = no state.snapshot{todos} projection
+	todos       todoReader     // optional — nil = no state.snapshot{todos} projection
 
 	// mcpToolAutoApproved reports whether an identified MCP tool skips the
 	// approval prompt. The runtime recomputes the policy on every

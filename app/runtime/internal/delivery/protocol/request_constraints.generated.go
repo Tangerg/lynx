@@ -85,6 +85,12 @@ func (r ListRunsRequest) Validate() error {
 	)
 }
 
+func (r GetTodosRequest) Validate() error {
+	return violate(
+		required("sessionId", r.SessionID),
+	)
+}
+
 func (r ListItemsRequest) Validate() error {
 	return violate(
 		required("scope.type", string(r.Scope.Type)),

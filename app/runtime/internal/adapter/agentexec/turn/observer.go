@@ -393,8 +393,8 @@ func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolN
 	// store rather than the tool args, so the projection can't drift from the
 	// arg schema.
 	if err == nil && toolName == "todo_write" && t.dispatcher.todos != nil {
-		if items, lerr := t.dispatcher.todos.List(t.st.ctx, t.st.handle.SessionID); lerr == nil {
-			t.dispatcher.emit(t.st, runs.TodosUpdated{Todos: items})
+		if state, lerr := t.dispatcher.todos.State(t.st.ctx, t.st.handle.SessionID); lerr == nil {
+			t.dispatcher.emit(t.st, runs.TodosUpdated{State: state})
 		}
 	}
 

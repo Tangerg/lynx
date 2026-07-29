@@ -823,6 +823,47 @@
       }
     },
     {
+      "name": "todos.get",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/StateSnapshot"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "todos"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "todos"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/GetTodosRequest"
+      }
+    },
+    {
       "name": "items.list",
       "paramStructure": "by-name",
       "params": [

@@ -59,7 +59,7 @@ type StreamEvent struct {
 	Item    *Item          `json:"item,omitempty"`
 	ItemID  string         `json:"itemId,omitempty"`
 	Delta   *ItemDelta     `json:"delta,omitempty"`
-	State   map[string]any `json:"state,omitempty"`
+	State   *StateSnapshot `json:"state,omitempty"`
 	Name    string         `json:"name,omitempty"`    // custom
 	Payload any            `json:"payload,omitempty"` // custom
 	Durable *bool          `json:"durable,omitempty"` // custom only — its self-declared durability (default false)
@@ -104,10 +104,48 @@ type RunProgress struct {
 	Activity      string `json:"activity,omitempty"` // human-readable current action
 }
 
-// TodoSnapshot is one entry of the model's task list, projected to
-// state.snapshot under the "todos" key (AUX_API §3.x). The list is replaced
-// whole each todo_write, so ID is positional — a stable key within a snapshot,
-// not a durable identity. Status is "pending" | "in_progress" | "completed".
+// StateSnapshotType discriminates [StateSnapshot]. One key exists today; the
+// discriminator is on the wire from the start because a second key must not be
+// able to arrive as an untagged shape a client has to guess at.
+type StateSnapshotType string
+
+const (
+	// StateTodos — the session's task list.
+	StateTodos StateSnapshotType = "todos"
+)
+
+// StateSnapshot is a durable latest-value projection a run publishes and a cold
+// read returns UNCHANGED — one shape, so the stream and the query cannot describe
+// the same state differently (§5.2 / §5.6).
+//
+// It is discriminated by its own `type`, never by the envelope: the RunEvent's runId
+// says which run wrote it, which is provenance and not identity. A session-scoped
+// state bucketed by writer would split one list into one per run.
+//
+// Revision is the projection's own monotonic counter, assigned by the replacement
+// that produced it. Zero means nothing has ever been written — the empty list a
+// session starts with — and it is what tells an older snapshot from a newer one when
+// the contents alone cannot: the list is replaced wholesale, so it can shrink.
+type StateSnapshot struct {
+	Type      StateSnapshotType `json:"type"`
+	SessionID string            `json:"sessionId"`
+	Revision  uint64            `json:"revision"`
+	Todos     []TodoSnapshot    `json:"todos"`
+	// UpdatedAt is absent exactly while Revision is 0: nothing was written, so there
+	// is no time at which it was.
+	UpdatedAt time.Time `json:"updatedAt,omitzero"`
+}
+
+// GetTodosRequest is the todos.get body — the cold read the state.snapshot key
+// declares as its recovery source.
+type GetTodosRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+// TodoSnapshot is one entry of the model's task list, carried by [StateSnapshot].
+// The list is replaced whole each todo_write, so ID is positional — a stable key
+// within a snapshot, not a durable identity. Status is
+// "pending" | "in_progress" | "completed".
 type TodoSnapshot struct {
 	ID            string     `json:"id"`
 	Text          string     `json:"text"`

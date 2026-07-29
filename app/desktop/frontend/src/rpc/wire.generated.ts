@@ -505,6 +505,10 @@ export interface GetSessionRequest {
   sessionId: string;
 }
 
+export interface GetTodosRequest {
+  sessionId: string;
+}
+
 export interface Goal {
   budget: GoalBudget;
   createdAt: string;
@@ -1214,6 +1218,11 @@ export interface StartRunResponse {
   userItemId?: string;
 }
 
+export type StateSnapshot =
+  | { type: "todos"; revision: number; sessionId: string; todos: TodoSnapshot[]; updatedAt?: string };
+
+export type StateSnapshotType = "todos";
+
 export interface SteerRunRequest {
   message: string;
   runId: string;
@@ -1226,7 +1235,7 @@ export type StreamEvent =
   | { type: "item.started"; item: Item }
   | { type: "item.delta"; delta: ItemDelta; itemId: string }
   | { type: "item.completed"; item: Item }
-  | { type: "state.snapshot"; state: Record<string, unknown> }
+  | { type: "state.snapshot"; state: StateSnapshot }
   | { type: "custom"; durable?: boolean; name: string; payload?: unknown };
 
 export type StreamEventType = "segment.started" | "segment.progress" | "segment.finished" | "item.started" | "item.delta" | "item.completed" | "state.snapshot" | "custom";
@@ -1425,6 +1434,7 @@ export const WIRE_ENUMS = {
   SkillLifecycle: ["active", "archived"],
   SkillSource: ["project", "global"],
   Stability: ["stable", "experimental"],
+  StateSnapshotType: ["todos"],
   StreamEventType: ["segment.started", "segment.progress", "segment.finished", "item.started", "item.delta", "item.completed", "state.snapshot", "custom"],
   TodoStatus: ["pending", "in_progress", "completed"],
   WorkspaceEventType: ["files.changed", "skills.changed", "mcp.serverChanged", "schedules.fired", "resync"],

@@ -38,30 +38,48 @@ func NewTodoStore(db *sql.DB) *TodoStore {
 // List returns the session's items, or nil when the session has no list yet
 // (an unknown session is not an error).
 func (s *TodoStore) List(ctx context.Context, sessionID string) ([]todo.Item, error) {
-	var itemsJSON string
+	state, err := s.State(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	return state.Items, nil
+}
+
+// State returns the session's whole task-list projection. A session with no list
+// yet is the zero state — no items, revision 0, no update time — and not an error:
+// "nothing has been written" is a legitimate answer, and the only one that lets a
+// client render an empty panel instead of a failure.
+func (s *TodoStore) State(ctx context.Context, sessionID string) (todo.State, error) {
+	var (
+		itemsJSON string
+		revision  uint64
+		updatedNs int64
+	)
 	err := conn(ctx, s.db).QueryRowContext(ctx,
-		`SELECT items FROM todos WHERE session_id = ?`, sessionID).Scan(&itemsJSON)
+		`SELECT items, revision, updated_at FROM todos WHERE session_id = ?`, sessionID).Scan(&itemsJSON, &revision, &updatedNs)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
+		return todo.State{}, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("sqlite: list todos: %w", err)
+		return todo.State{}, fmt.Errorf("sqlite: read todos: %w", err)
 	}
+	state := todo.State{Revision: revision, UpdatedAt: time.Unix(0, updatedNs).UTC()}
 	if itemsJSON == "" {
-		return nil, nil
+		return state, nil
 	}
 	var rows []todoItemRow
 	if err := json.Unmarshal([]byte(itemsJSON), &rows); err != nil {
-		return nil, fmt.Errorf("sqlite: decode todos: %w", err)
+		return todo.State{}, fmt.Errorf("sqlite: decode todos: %w", err)
 	}
 	items := make([]todo.Item, len(rows))
 	for index, row := range rows {
 		items[index] = todo.Item{Content: row.Content, Status: row.Status, BlockedReason: row.BlockedReason, NextAction: row.NextAction}
 	}
 	if err := todo.ValidateSnapshot(items); err != nil {
-		return nil, fmt.Errorf("sqlite: validate todos: %w", err)
+		return todo.State{}, fmt.Errorf("sqlite: validate todos: %w", err)
 	}
-	return items, nil
+	state.Items = items
+	return state, nil
 }
 
 // Replace overwrites the session's list wholesale (INSERT OR REPLACE). A nil
@@ -82,8 +100,15 @@ func (s *TodoStore) Replace(ctx context.Context, sessionID string, items []todo.
 	if err != nil {
 		return fmt.Errorf("sqlite: encode todos: %w", err)
 	}
+	// The revision is bumped by the write itself — SQL reads the current value and
+	// adds one in the same statement — so two concurrent replacements cannot be
+	// assigned the same number, and no caller has to remember to increment it.
 	_, err = conn(ctx, s.db).ExecContext(ctx,
-		`INSERT OR REPLACE INTO todos(session_id, items, updated_at) VALUES (?, ?, ?)`,
+		`INSERT INTO todos(session_id, items, revision, updated_at) VALUES (?, ?, 1, ?)
+		 ON CONFLICT(session_id) DO UPDATE SET
+		   items = excluded.items,
+		   revision = todos.revision + 1,
+		   updated_at = excluded.updated_at`,
 		sessionID, string(data), time.Now().UTC().UnixNano())
 	if err != nil {
 		return fmt.Errorf("sqlite: replace todos: %w", err)

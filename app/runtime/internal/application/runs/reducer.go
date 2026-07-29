@@ -88,6 +88,11 @@ type reducer struct {
 	tools           openTools
 	drained         []interrupts.DrainedTool
 	errProblem      *transcript.Problem
+	// todos is the last state snapshot this segment published, kept so the segment
+	// can fence its final value before finishing. Nil means this segment never
+	// changed the projection, and a segment that changed nothing has nothing to
+	// fence.
+	todos *StateSnapshot
 }
 
 type openText struct {
@@ -252,6 +257,7 @@ func runResultProblem(problem transcript.Problem) (*transcript.Problem, error) {
 }
 
 func (r *reducer) project(events []RunEvent) (reductionBatch, error) {
+	events = r.fenceFinalState(events)
 	out := make([]reduction, 0, len(events))
 	for _, event := range events {
 		reduced, err := r.projectOne(event)
@@ -309,6 +315,39 @@ func (r *reducer) project(events []RunEvent) (reductionBatch, error) {
 		return reductionBatch{}, err
 	}
 	return batch, nil
+}
+
+// fenceFinalState republishes the segment's last state snapshot immediately before
+// the segment finishes, for every key the segment changed.
+//
+// Without it, a client only holds the state if it received the change event itself.
+// A subscriber that attached later — or replayed from a cursor past that event —
+// reaches segment.finished having never seen a snapshot, and renders a stale panel
+// until something makes it refetch. The fence makes the guarantee positional:
+// whoever receives the finish has received the final value, because it is the
+// durable event immediately before it.
+//
+// The repeat is the point, not waste: a latest-value projection carries its own
+// revision, so folding it twice is folding it once.
+//
+// It belongs to the batch rather than to either finish path: a park and a terminal
+// are two reasons for one boundary, and a rule stated in both places is a rule that
+// drifts in one of them.
+func (r *reducer) fenceFinalState(events []RunEvent) []RunEvent {
+	if r.todos == nil {
+		return events
+	}
+	for i, event := range events {
+		if _, finishing := event.(SegmentFinished); !finishing {
+			continue
+		}
+		fence := *r.todos
+		// One fence per segment: a resumed segment fences again only if it changes
+		// the projection again.
+		r.todos = nil
+		return slices.Insert(events, i, RunEvent(fence))
+	}
+	return events
 }
 
 func (r *reducer) projectOne(event RunEvent) (reduction, error) {

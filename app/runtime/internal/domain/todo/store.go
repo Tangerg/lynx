@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Status is a todo item's lifecycle state.
@@ -105,4 +106,20 @@ func completedCount(items []Item) int {
 		}
 	}
 	return n
+}
+
+// State is a session's whole task list as one durable latest-value projection:
+// the items, the monotonic revision that produced them, and when it landed.
+//
+// Revision exists because the list is REPLACED wholesale. Two clients folding the
+// same session cannot tell an older replacement from a newer one by content — the
+// list can shrink, and a late-arriving older snapshot would look like progress
+// undone. Zero is "never written", which is why it is not a timestamp: clocks tie
+// and an imported session carries backdated ones.
+type State struct {
+	Items    []Item
+	Revision uint64
+	// UpdatedAt is absent (zero) exactly while Revision is 0: nothing has been
+	// written, so there is no time at which it was.
+	UpdatedAt time.Time
 }

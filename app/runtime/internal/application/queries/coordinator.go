@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
 
 // The query a page cursor belongs to, so a cursor minted by another read is
@@ -50,6 +51,12 @@ const (
 type TranscriptReader interface {
 	PageSessionItems(ctx context.Context, sessionID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error)
 	PageRunItems(ctx context.Context, runID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error)
+}
+
+// TodoReader is the coordinator's view of the task-list projection: the whole
+// state, because what identifies one replacement from the next is its revision.
+type TodoReader interface {
+	State(ctx context.Context, sessionID string) (todo.State, error)
 }
 
 // SessionReader answers only whether a session exists. The item read needs that
@@ -84,6 +91,7 @@ type Coordinator struct {
 	interrupts InterruptReader
 	runs       RunReader
 	sessions   SessionReader
+	todos      TodoReader
 }
 
 // Dependencies is the collaborator set [New] wires into a Coordinator.
@@ -92,6 +100,7 @@ type Dependencies struct {
 	Interrupts InterruptReader
 	Runs       RunReader
 	Sessions   SessionReader
+	Todos      TodoReader
 }
 
 // New returns a query Coordinator over deps.
@@ -101,6 +110,7 @@ func New(deps Dependencies) *Coordinator {
 		interrupts: deps.Interrupts,
 		runs:       deps.Runs,
 		sessions:   deps.Sessions,
+		todos:      deps.Todos,
 	}
 }
 
@@ -180,6 +190,22 @@ func (c *Coordinator) ListItemPage(ctx context.Context, scope ItemScope, order t
 		return ItemPage{}, err
 	}
 	return ItemPage{Items: items, NextCursor: page.NextCursor, Runs: runs}, nil
+}
+
+// TodoState returns a session's task-list projection. A session that exists but has
+// never written a list is the zero state — revision 0, no items — because "nothing
+// has been written" is an answer, not a gap. Only a session that does not exist is
+// [session.ErrNotFound]: an empty list for an id nobody owns would read as a real,
+// empty session.
+func (c *Coordinator) TodoState(ctx context.Context, sessionID string) (todo.State, error) {
+	found, err := c.sessions.Exists(ctx, sessionID)
+	if err != nil {
+		return todo.State{}, err
+	}
+	if !found {
+		return todo.State{}, session.ErrNotFound
+	}
+	return c.todos.State(ctx, sessionID)
 }
 
 // requireScope refuses a scope whose subject does not exist. It runs after the

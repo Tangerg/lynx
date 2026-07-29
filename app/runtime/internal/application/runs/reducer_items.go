@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
 
 func itemPair(build func(transcript.ItemStatus) transcript.Item) []RunEvent {
@@ -251,12 +252,24 @@ func (r *reducer) steerMessage(e SteerMessage) []RunEvent {
 }
 
 func (r *reducer) todosSnapshot(e TodosUpdated) []RunEvent {
-	todos := make([]TodoSnapshot, len(e.Todos))
-	for i, item := range e.Todos {
+	snapshot := r.todoState(e.State)
+	// Remembered so the segment can fence its final value: a client folding this
+	// stream must reach segment.finished holding the state the segment ended with,
+	// not the state as of whichever change happened to be published last.
+	r.todos = &snapshot
+	return []RunEvent{snapshot}
+}
+
+func (r *reducer) todoState(state todo.State) StateSnapshot {
+	todos := make([]TodoSnapshot, len(state.Items))
+	for i, item := range state.Items {
 		todos[i] = TodoSnapshot{
 			ID: strconv.Itoa(i), Text: item.Content, Status: item.Status,
 			BlockedReason: item.BlockedReason, NextAction: item.NextAction,
 		}
 	}
-	return []RunEvent{StateSnapshot{Todos: todos}}
+	return StateSnapshot{
+		SessionID: r.cfg.SessionID, Todos: todos,
+		Revision: state.Revision, UpdatedAt: state.UpdatedAt,
+	}
 }

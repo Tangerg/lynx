@@ -20,8 +20,11 @@ export interface WorkspaceTodosViewModel {
 
 export function useWorkspaceTodos(): WorkspaceTodosViewModel {
   const enabled = useWorkspaceCapability("todos");
-  const todos = useSharedState<WorkspaceTodo[]>("todos") ?? [];
-  return workspaceTodosViewModel(enabled, todos);
+  // The shared state holds the whole snapshot — revision included — because that is
+  // what says which of two deliveries is later. This view reads only the list, in its
+  // own language: the runtime's wire type does not belong in a workspace view model.
+  const snapshot = useSharedState<{ todos?: readonly WorkspaceTodo[] }>("todos");
+  return workspaceTodosViewModel(enabled, snapshot?.todos ?? []);
 }
 
 export function workspaceTodosViewModel(

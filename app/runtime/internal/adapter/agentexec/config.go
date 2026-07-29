@@ -20,10 +20,13 @@ type KnowledgeReader interface {
 	Get(ctx context.Context, scope knowledge.Scope, dir string) (string, error)
 }
 
-// TodoReader is the execution adapter's read-only prompt view of session todos.
+// TodoReader is the execution adapter's read-only view of session todos: the
+// items for prompt assembly, and the whole projection — revision included — for
+// the state.snapshot the turn publishes after a replacement.
 // Replacing a list and lifecycle cleanup belong to their direct consumers.
 type TodoReader interface {
 	List(ctx context.Context, sessionID string) ([]todo.Item, error)
+	State(ctx context.Context, sessionID string) (todo.State, error)
 }
 
 // AgentMemoryReader is the prompt assembler's view of agent-maintained memory

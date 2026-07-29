@@ -4,20 +4,20 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
 
 // TestStateSnapshotCarriesItsDeclaredTodosPayload is the shape fixture for the
 // "todos" state key (contract §11.4 gate 14).
 //
-// The state envelope is a map[string]any so a new key needs no wire change, which
-// costs exactly this: nothing about a key's value is checked anywhere. The schema
-// publishes the key's payload from StateKeySpec.PayloadType, the presenter builds the
-// value, and the two are connected by nobody — a client reading the published shape
-// and a runtime emitting a different one would both look correct.
+// The registry publishes the key's payload from StateKeySpec.PayloadType and the
+// presenter builds the value; nothing connects the two, so a client reading the
+// published shape and a runtime emitting a different one would both look correct.
 //
 // So the produced value is put on the wire and read back through the DECLARED type,
 // and re-encoded to compare: a field the declared type cannot represent disappears on
@@ -28,18 +28,20 @@ func TestStateSnapshotCarriesItsDeclaredTodosPayload(t *testing.T) {
 	const key = "todos"
 	declared := declaredStatePayload(t, key)
 
-	event := presentRunEvent(runs.StateSnapshot{Todos: []runs.TodoSnapshot{{
-		ID: "todo_1", Text: "read the contract", Status: todo.StatusInProgress,
-		BlockedReason: "waiting on review", NextAction: "ask",
-	}, {
-		ID: "todo_2", Text: "write the fixture", Status: todo.StatusPending,
-	}}})
+	event := presentRunEvent(runs.StateSnapshot{
+		SessionID: "ses_1", Revision: 2, UpdatedAt: time.Unix(9, 0).UTC(),
+		Todos: []runs.TodoSnapshot{{
+			ID: "todo_1", Text: "read the contract", Status: todo.StatusInProgress,
+			BlockedReason: "waiting on review", NextAction: "ask",
+		}, {
+			ID: "todo_2", Text: "write the fixture", Status: todo.StatusPending,
+		}},
+	})
 
-	produced, ok := event.State[key]
-	if !ok {
-		t.Fatalf("the snapshot carries %v, not %q", reflect.ValueOf(event.State).MapKeys(), key)
+	if event.State == nil || event.State.Type != protocol.StateTodos {
+		t.Fatalf("the snapshot carries %+v, not the %q key", event.State, key)
 	}
-	onTheWire, err := json.Marshal(produced)
+	onTheWire, err := json.Marshal(event.State)
 	if err != nil {
 		t.Fatalf("marshal the produced payload: %v", err)
 	}
