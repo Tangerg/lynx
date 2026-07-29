@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DOCK_DENSITIES, type DockDensity } from "@/lib/shellGeometry";
 import * as workspaceViews from "./workspace/workspace-views";
 import contextDockDestinations from "./workspace/context-dock";
 import diagnostics from "./workspace/diagnostics";
@@ -47,5 +48,19 @@ describe("assembled context dock destinations", () => {
       .filter((viewId) => views.get(viewId)?.splittable !== true);
 
     expect(notSplittable).toEqual([]);
+  });
+
+  // The dock keeps one remembered width per density, so a density nothing
+  // declares is a width the user can never reach — and a width nobody can reach
+  // is a preference the app pretends to have. Reading the registry rather than a
+  // list here is the point: a new density has to be claimed by a view to exist.
+  it("every dock density is claimed by at least one view", async () => {
+    const { views } = await assemble();
+
+    const claimed = new Set(
+      [...views.values()].map((view) => view.density ?? "light"),
+    ) as ReadonlySet<DockDensity>;
+
+    expect([...DOCK_DENSITIES].filter((density) => !claimed.has(density))).toEqual([]);
   });
 });

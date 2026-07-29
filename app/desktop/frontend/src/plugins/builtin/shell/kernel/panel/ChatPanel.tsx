@@ -78,10 +78,13 @@ function DockHeader({
 export function ChatPanel({ onSend }: Props) {
   const activeMainView = useActiveWorkspaceViewId();
   const dockViewId = useDockWorkspaceViewId();
-  const { width: dockWidth } = useDockWidth();
   const drawer = useSidebarDrawer();
   const pinnedDockViews = useContextDockPinned();
   const views = useWorkspaceViews();
+  // The dock is as wide as its material needs. The view in it declares that, so
+  // the width is read from — and a drag written back to — the density's own slot.
+  const dockDensity = views.find((view) => view.id === dockViewId)?.density ?? "light";
+  const { width: dockWidth } = useDockWidth(dockDensity);
   const { isLoading } = useAgentSessions();
   const activeSession = useActiveSession();
   const running = useIsAgentRunning();
@@ -173,7 +176,7 @@ export function ChatPanel({ onSend }: Props) {
               collapse flag that could disagree and leave a toggle inert. */}
           {dockViewId && (
             <>
-              <DockResizer />
+              <DockResizer density={dockDensity} />
               <AgentContextDock className="shrink-0 grow-0" style={DOCK_COLUMN}>
                 <DockHeader
                   tabs={dockTabs}

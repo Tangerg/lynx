@@ -20,11 +20,10 @@ describe("workspaceDiffViewModel", () => {
     expect(workspaceDiffViewModel(undefined)).toEqual({
       files: undefined,
       truncated: false,
-      shouldShowFileHeaders: false,
     });
   });
 
-  it("totals diff stats and marks multi-file headers", () => {
+  it("totals diff stats across files, counting a missing count as zero", () => {
     const data: WorkspaceDiff = {
       files: [
         file({ path: "src/a.ts", added: 3, removed: 1 }),
@@ -41,13 +40,12 @@ describe("workspaceDiffViewModel", () => {
         fileCount: 2,
       },
       truncated: true,
-      shouldShowFileHeaders: true,
     });
   });
 
-  it("does not show per-file headers for a single-file diff", () => {
+  it("reports a complete diff as untruncated", () => {
     expect(workspaceDiffViewModel({ files: [file({ path: "src/only.ts" })] })).toMatchObject({
-      shouldShowFileHeaders: false,
+      truncated: false,
     });
   });
 });

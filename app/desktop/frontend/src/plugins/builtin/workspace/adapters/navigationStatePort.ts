@@ -25,10 +25,13 @@ export function installWorkspaceNavigationPort(): () => void {
       width: useUiStore((state) => state.sidebarWidth),
       setWidth: useUiStore((state) => state.setSidebarWidth),
     }),
-    useDockWidth: () => ({
-      width: useUiStore((state) => state.dockWidth),
-      setWidth: useUiStore((state) => state.setDockWidth),
-    }),
+    useDockWidth: (density) => {
+      const setDockWidth = useUiStore((state) => state.setDockWidth);
+      return {
+        width: useUiStore((state) => state.dockWidths[density]),
+        setWidth: (width) => setDockWidth(density, width),
+      };
+    },
     selectChat: () => useWorkspaceSurfaceStore.getState().selectChat(),
     // Taking the whole card leaves the dock's own selection alone: closing the
     // full view brings back whatever the user had beside the chat.

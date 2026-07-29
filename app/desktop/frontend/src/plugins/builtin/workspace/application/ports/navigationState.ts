@@ -1,4 +1,5 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
+import type { DockDensity } from "@/lib/shellGeometry";
 
 export interface WorkspaceFileViewer {
   path: string;
@@ -23,7 +24,9 @@ export interface WorkspaceNavigationPort {
   useToggleTool(): (id: string) => void;
   useSidebarDrawer(): { collapsed: boolean; toggle: () => void };
   useSidebarWidth(): WorkspaceColumnWidth;
-  useDockWidth(): WorkspaceColumnWidth;
+  /** The dock's width for the material it is currently showing — the density
+   *  decides which remembered width a drag reads and writes. */
+  useDockWidth(density: DockDensity): WorkspaceColumnWidth;
   selectChat(): void;
   openView(id: string): void;
   openViewInDock(id: string): void;

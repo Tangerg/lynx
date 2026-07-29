@@ -522,6 +522,13 @@ export const ja: Record<string, string> = {
 
   // ── Diff ビュー ──
   "diff.workingTree": "ワーキングツリー",
+  "diff.branchCompare": "ブランチ比較",
+  "diff.files.aria": "変更されたファイル",
+  "diff.files.filter": "ファイルを絞り込む…",
+  "diff.files.show": "変更されたファイルを表示",
+  "diff.files.hide": "変更されたファイルを非表示",
+  "diff.files.none": "この diff にファイルはありません。",
+  "diff.files.noMatch": "一致するファイルはありません。",
   "diff.baselineAria": "Diff ベースライン",
   "diff.mode.worktree": "ワークツリー",
   "diff.mode.branch": "ブランチ",
@@ -535,7 +542,7 @@ export const ja: Record<string, string> = {
   "diff.empty.title": "比較するものがありません",
   "diff.empty.sub": "ワーキングツリーに未コミットの変更はありません。",
   "diff.binary": "バイナリファイル",
-  "diff.truncated": "Diff が行数制限に達しました — 単一ファイルに絞って残りを表示してください。",
+  "diff.truncated": "Diff が行数制限に達しました — 残りのファイルは表示されていません。",
 
   // ── コマンドログ ──
   "commandLog.running": "実行中…",

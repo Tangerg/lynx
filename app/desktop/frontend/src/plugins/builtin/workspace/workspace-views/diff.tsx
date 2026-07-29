@@ -1,16 +1,25 @@
-// Built-in plugin: "Diff" workspace view — structured per-file diff from
-// workspace.getDiff (AUX_API §2.3). With a file selected (Files tab) it
-// scopes to that path; otherwise it shows the whole working tree.
+// Built-in plugin: the review panel — the change as a whole, one collapsible
+// card per file, with a changed-file navigator beside it.
+//
+// The panel shows the WHOLE change, not the focused file. It used to scope its
+// query to the active file, which made "click a file" and "see the change" the
+// same gesture: opening a file's diff replaced the file list with it, so the one
+// thing a reviewer needs — where this file sits in the change — was what the
+// click threw away. The active file is now a focus target (what the navigator
+// highlights, what the panel scrolls to on open), and the diff is always the
+// whole comparison. Structured per-file diff from workspace.getDiff (AUX_API §2.3).
 
 import { useEffect, useRef, useState } from "react";
-import { DataView, Segmented } from "@/ui";
+import { DataView, Icon, IconButton, ScrollArea, Segmented } from "@/ui";
 import { useT } from "@/lib/i18n";
 import type { DiffLayout } from "./views/DiffView";
 import { DiffView } from "./views/DiffView";
-import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
+import { ReviewFileTree } from "./views/ReviewFileTree";
+import { ViewHeader } from "./views/ViewHeader";
 import { cn } from "@/lib/utils";
 import { gitOffEmpty, notARepoEmpty } from "./views/vcsGate";
 import { defineWorkspaceView } from "./defineWorkspaceView";
+import { focusWorkspaceFile } from "@/plugins/builtin/workspace/application/navigation";
 import {
   type WorkspaceDiffMode,
   type WorkspaceFileDiff,
@@ -18,57 +27,98 @@ import {
   useWorkspaceDiffView,
 } from "@/plugins/builtin/workspace/application/diffViewModel";
 
-function FileSection({
+/** Attribute the navigator scrolls to. One spelling, read back by query. */
+const FILE_ANCHOR = "data-diff-file";
+
+function FileCard({
   file,
-  showHeader,
   layout,
+  collapsed,
+  onToggle,
 }: {
   file: WorkspaceFileDiff;
-  showHeader: boolean;
   layout: DiffLayout;
+  collapsed: boolean;
+  onToggle: () => void;
 }) {
   const t = useT();
   const header = workspaceDiffFileHeader(file);
   return (
-    <section>
-      {showHeader && (
-        <div className="flex items-center gap-2 bg-surface-2 px-3 py-1.5 font-mono text-ui-sm text-fg-muted">
-          <span className="truncate">{header.displayPath}</span>
-          {header.added !== undefined && (
-            <span className="ml-auto text-success">+{header.added}</span>
-          )}
-          {header.removed !== undefined && <span className="text-negative">−{header.removed}</span>}
-        </div>
-      )}
-      {file.binary ? (
-        <p className="m-0 px-3 py-2 font-mono text-ui-sm text-fg-faint">{t("diff.binary")}</p>
-      ) : (
-        <DiffView rows={file.rows} layout={layout} path={file.path} />
-      )}
+    <section
+      {...{ [FILE_ANCHOR]: file.path }}
+      className="mb-2 overflow-hidden rounded-md border-[0.5px] border-field first:mt-2 last:mb-0"
+    >
+      {/* The card's own header IS the collapse control: a reviewer skipping a
+          file reaches for its name, not for a separate affordance. */}
+      <button
+        type="button"
+        data-chrome-focus=""
+        aria-expanded={!collapsed}
+        onClick={onToggle}
+        className={cn(
+          "flex h-8 w-full min-w-0 items-center gap-2 border-0 bg-surface-2 px-3",
+          "text-left font-mono text-ui-sm text-fg-muted transition-colors hover:text-fg",
+        )}
+      >
+        <span className="min-w-0 flex-1 truncate">{header.displayPath}</span>
+        {header.added !== undefined && (
+          <span className="shrink-0 tabular-nums text-success">+{header.added}</span>
+        )}
+        {header.removed !== undefined && (
+          <span className="shrink-0 tabular-nums text-negative">−{header.removed}</span>
+        )}
+        <Icon
+          name="chevron-down"
+          size={14}
+          className={cn("shrink-0 opacity-50 transition-transform", collapsed && "-rotate-90")}
+        />
+      </button>
+      {!collapsed &&
+        (file.binary ? (
+          <p className="m-0 px-3 py-2 font-mono text-ui-sm text-fg-faint">{t("diff.binary")}</p>
+        ) : (
+          <DiffView rows={file.rows} layout={layout} path={file.path} />
+        ))}
     </section>
   );
 }
 
-function DiffViewTab() {
+function ReviewPanel() {
   const t = useT();
   const [mode, setMode] = useState<WorkspaceDiffMode>("worktree");
   const [layout, setLayout] = useState<DiffLayout>("unified");
+  const [navigatorOpen, setNavigatorOpen] = useState(true);
+  const [collapsedFiles, setCollapsedFiles] = useState<ReadonlySet<string>>(() => new Set());
   const { activeFile, files, gitEnabled, isError, isLoading, notARepo, view } =
     useWorkspaceDiffView(mode);
 
-  // Open the diff at the BOTTOM (latest hunks), not the top. Once per mount,
-  // right after the diff content first renders — a later mode/file switch must
-  // not yank a user who has since scrolled up; reopening the view remounts this
-  // component, which re-anchors.
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollToFile = (path: string) => {
+    const anchor = scrollRef.current?.querySelector(`[${FILE_ANCHOR}="${CSS.escape(path)}"]`);
+    anchor?.scrollIntoView({ block: "start" });
+  };
+  const selectFile = (path: string) => {
+    focusWorkspaceFile(path);
+    scrollToFile(path);
+  };
+  const toggleFile = (path: string) => {
+    setCollapsedFiles((previous) => {
+      const next = new Set(previous);
+      if (!next.delete(path)) next.add(path);
+      return next;
+    });
+  };
+
+  // Open ON the file the user came in for — a transcript file reference, a Files
+  // row — once, right after the diff first renders. Once per mount: a later mode
+  // switch must not yank a reviewer who has since scrolled elsewhere, and
+  // reopening the view remounts this component, which re-anchors.
   const anchoredRef = useRef(false);
   useEffect(() => {
     if (anchoredRef.current || !files || files.length === 0) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
     anchoredRef.current = true;
-  }, [files]);
+    if (activeFile) scrollToFile(activeFile);
+  }, [activeFile, files]);
 
   const sub = view.subtext ? (
     <>
@@ -81,72 +131,97 @@ function DiffViewTab() {
   ) : undefined;
 
   return (
-    <WorkspaceViewLayout
-      icon="file"
-      title={activeFile || t("diff.workingTree")}
-      sub={sub}
-      scrollRef={scrollRef}
-      actions={
-        <div className="flex items-center gap-2">
-          <Segmented
-            ariaLabel={t("diff.layoutAria")}
-            value={layout}
-            onChange={setLayout}
-            options={[
-              { value: "unified", label: t("diff.layout.unified") },
-              { value: "split", label: t("diff.layout.split") },
-            ]}
-          />
-          <Segmented
-            ariaLabel={t("diff.baselineAria")}
-            value={mode}
-            onChange={setMode}
-            options={[
-              { value: "worktree", label: t("diff.mode.worktree") },
-              { value: "base", label: t("diff.mode.branch") },
-            ]}
-          />
-        </div>
-      }
-    >
-      <DataView
-        items={gitEnabled ? files : []}
-        isLoading={isLoading}
-        // A non-repo cwd is an expected state with its own copy, not a failure.
-        isError={isError && !notARepo}
-        skeletonCount={10}
-        empty={
-          !gitEnabled
-            ? gitOffEmpty("diff")
-            : notARepo
-              ? notARepoEmpty("diff")
-              : { icon: "diff" as const, title: t("diff.empty.title"), sub: t("diff.empty.sub") }
-        }
-        error={{
-          icon: "diff",
-          title: mode === "base" ? t("diff.error.noBaseline") : t("diff.error.loadFailed"),
-          sub: mode === "base" ? t("diff.error.noBaselineSub") : t("diff.error.loadFailedSub"),
-        }}
-      >
-        {(fileDiffs) => (
-          <div className={cn(view.truncated && "pb-1")}>
-            {fileDiffs.map((f) => (
-              <FileSection
-                key={f.path}
-                file={f}
-                showHeader={view.shouldShowFileHeaders}
-                layout={layout}
-              />
-            ))}
-            {view.truncated && (
-              <p className="m-0 px-3 py-2 font-mono text-ui-sm text-fg-faint">
-                {t("diff.truncated")}
-              </p>
-            )}
+    <div className="flex min-h-0 flex-1 flex-col bg-canvas">
+      <ViewHeader
+        icon="diff"
+        title={mode === "base" ? "diff.branchCompare" : "diff.workingTree"}
+        titleStrong
+        sub={sub}
+        actions={
+          <div className="flex items-center gap-2">
+            <Segmented
+              ariaLabel={t("diff.layoutAria")}
+              value={layout}
+              onChange={setLayout}
+              options={[
+                { value: "unified", label: t("diff.layout.unified") },
+                { value: "split", label: t("diff.layout.split") },
+              ]}
+            />
+            <Segmented
+              ariaLabel={t("diff.baselineAria")}
+              value={mode}
+              onChange={setMode}
+              options={[
+                { value: "worktree", label: t("diff.mode.worktree") },
+                { value: "base", label: t("diff.mode.branch") },
+              ]}
+            />
+            <IconButton
+              icon="list"
+              size="sm"
+              aria-pressed={navigatorOpen}
+              aria-label={navigatorOpen ? t("diff.files.hide") : t("diff.files.show")}
+              onClick={() => setNavigatorOpen((open) => !open)}
+            />
           </div>
+        }
+      />
+      <div className="flex min-h-0 flex-1">
+        <ScrollArea ref={scrollRef} className="min-w-0 px-2 pb-2">
+          <DataView
+            items={gitEnabled ? files : []}
+            isLoading={isLoading}
+            // A non-repo cwd is an expected state with its own copy, not a failure.
+            isError={isError && !notARepo}
+            skeletonCount={10}
+            empty={
+              !gitEnabled
+                ? gitOffEmpty("diff")
+                : notARepo
+                  ? notARepoEmpty("diff")
+                  : {
+                      icon: "diff" as const,
+                      title: t("diff.empty.title"),
+                      sub: t("diff.empty.sub"),
+                    }
+            }
+            error={{
+              icon: "diff",
+              title: mode === "base" ? t("diff.error.noBaseline") : t("diff.error.loadFailed"),
+              sub: mode === "base" ? t("diff.error.noBaselineSub") : t("diff.error.loadFailedSub"),
+            }}
+          >
+            {(fileDiffs) => (
+              <>
+                {fileDiffs.map((file) => (
+                  <FileCard
+                    key={file.path}
+                    file={file}
+                    layout={layout}
+                    collapsed={collapsedFiles.has(file.path)}
+                    onToggle={() => toggleFile(file.path)}
+                  />
+                ))}
+                {view.truncated && (
+                  <p className="m-0 px-3 py-2 font-mono text-ui-sm text-fg-faint">
+                    {t("diff.truncated")}
+                  </p>
+                )}
+              </>
+            )}
+          </DataView>
+        </ScrollArea>
+        {navigatorOpen && (
+          <ReviewFileTree
+            files={files ?? []}
+            selectedPath={activeFile}
+            onSelectFile={selectFile}
+            onClose={() => setNavigatorOpen(false)}
+          />
         )}
-      </DataView>
-    </WorkspaceViewLayout>
+      </div>
+    </div>
   );
 }
 
@@ -156,5 +231,6 @@ export const diffView = defineWorkspaceView({
   icon: "diff",
   order: 40,
   splittable: true,
-  component: DiffViewTab,
+  density: "review",
+  component: ReviewPanel,
 });

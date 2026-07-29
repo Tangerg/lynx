@@ -31,7 +31,7 @@ export function AgentContextDock({
   children: ReactNode;
 }) {
   return (
-    <aside className={cn("agent-context-dock", className)} style={style}>
+    <aside className={cn("agent-context-dock agent-pane-split", className)} style={style}>
       {children}
     </aside>
   );

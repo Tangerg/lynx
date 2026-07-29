@@ -693,6 +693,13 @@ export const zh: Record<string, string> = {
 
   // ── Diff 视图 ──
   "diff.workingTree": "工作树",
+  "diff.branchCompare": "分支对比",
+  "diff.files.aria": "变更文件",
+  "diff.files.filter": "筛选文件…",
+  "diff.files.show": "显示变更文件",
+  "diff.files.hide": "隐藏变更文件",
+  "diff.files.none": "此 diff 没有文件。",
+  "diff.files.noMatch": "没有匹配的文件。",
   "diff.baselineAria": "Diff 基准",
   "diff.layoutAria": "Diff 布局",
   "diff.layout.unified": "统一",
@@ -713,7 +720,7 @@ export const zh: Record<string, string> = {
   "diff.empty.title": "无内容可比较",
   "diff.empty.sub": "工作树中没有未提交的更改。",
   "diff.binary": "二进制文件",
-  "diff.truncated": "Diff 已达到行数上限 —— 请缩小到单个文件查看其余部分。",
+  "diff.truncated": "Diff 已达到行数上限 —— 其余文件未显示。",
 
   // ── 命令日志 ──
   "commandLog.running": "运行中…",

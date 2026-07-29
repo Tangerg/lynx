@@ -10,14 +10,16 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { clampDockWidth } from "@/lib/shellGeometry";
+import { clampDockWidth, type DockDensity } from "@/lib/shellGeometry";
 import { useT } from "@/lib/i18n";
 import { useDockWidth } from "@/plugins/builtin/workspace/public/sidebarDrawer";
 import { DOCK_WIDTH_PROPERTY } from "./dockWidth";
 
-export function DockResizer() {
+export function DockResizer({ density }: { density: DockDensity }) {
   const t = useT();
-  const { setWidth } = useDockWidth();
+  // The drag settles into the width slot for the material on screen — resizing
+  // for a diff must not move the width every list opens at.
+  const { setWidth } = useDockWidth(density);
   // Track the row element so `move` re-reads getBoundingClientRect on each
   // event — if the window resizes mid-drag, the stale-captured rect would
   // otherwise compute an incorrect width.

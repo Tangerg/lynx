@@ -18,7 +18,6 @@ export interface WorkspaceDiffViewModel {
   files?: WorkspaceFileDiff[];
   subtext?: WorkspaceDiffSubtext;
   truncated: boolean;
-  shouldShowFileHeaders: boolean;
 }
 
 export interface WorkspaceDiffFileHeader {
@@ -27,13 +26,19 @@ export interface WorkspaceDiffFileHeader {
   removed?: number;
 }
 
+/**
+ * The review panel's read model: the whole comparison, plus which file the
+ * review is focused on.
+ *
+ * The query is deliberately NOT scoped by the active file. A reviewer needs the
+ * change as a whole — the active file is where to look first, not what to look
+ * at, and the panel scrolls to it rather than filtering down to it.
+ */
 export function useWorkspaceDiffView(mode: WorkspaceDiffMode) {
   const gitEnabled = useWorkspaceCapability("git");
   const cwd = useActiveSessionCwd();
   const activeFile = useActiveWorkspaceFile();
-  const query = useWorkspaceDiff(
-    gitEnabled ? { cwd, mode, path: activeFile || undefined } : undefined,
-  );
+  const query = useWorkspaceDiff(gitEnabled ? { cwd, mode } : undefined);
   const view = workspaceDiffViewModel(query.data);
   return {
     activeFile,
@@ -49,12 +54,7 @@ export function useWorkspaceDiffView(mode: WorkspaceDiffMode) {
 
 export function workspaceDiffViewModel(data: WorkspaceDiff | undefined): WorkspaceDiffViewModel {
   const files = data?.files;
-  if (!files) {
-    return {
-      truncated: false,
-      shouldShowFileHeaders: false,
-    };
-  }
+  if (!files) return { truncated: false };
 
   let added = 0;
   let removed = 0;
@@ -71,7 +71,6 @@ export function workspaceDiffViewModel(data: WorkspaceDiff | undefined): Workspa
       fileCount: files.length,
     },
     truncated: data.truncated ?? false,
-    shouldShowFileHeaders: files.length > 1,
   };
 }
 

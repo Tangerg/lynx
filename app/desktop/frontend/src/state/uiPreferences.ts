@@ -1,4 +1,5 @@
 import type { UiDensity } from "@/lib/density";
+import type { DockDensity } from "@/lib/shellGeometry";
 
 /** A registered theme id. `system` resolves against the current OS scheme. */
 export type Theme = string;
@@ -24,6 +25,6 @@ export interface UiState {
   streamReveal: "smooth" | "typewriter";
   sidebarCollapsed: boolean;
   sidebarWidth: number;
-  dockWidth: number;
+  dockWidths: Record<DockDensity, number>;
   completionSound: boolean;
 }

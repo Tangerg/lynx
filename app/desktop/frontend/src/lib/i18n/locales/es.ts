@@ -529,6 +529,13 @@ export const es: Record<string, string> = {
 
   // ── Vista Diff ──
   "diff.workingTree": "Árbol de trabajo",
+  "diff.branchCompare": "Comparación de ramas",
+  "diff.files.aria": "Archivos modificados",
+  "diff.files.filter": "Filtrar archivos…",
+  "diff.files.show": "Mostrar archivos modificados",
+  "diff.files.hide": "Ocultar archivos modificados",
+  "diff.files.none": "No hay archivos en este diff.",
+  "diff.files.noMatch": "No hay archivos coincidentes.",
   "diff.baselineAria": "Base del diff",
   "diff.mode.worktree": "Árbol",
   "diff.mode.branch": "Rama",
@@ -541,8 +548,7 @@ export const es: Record<string, string> = {
   "diff.empty.title": "Nada que comparar",
   "diff.empty.sub": "El árbol de trabajo no tiene cambios sin confirmar.",
   "diff.binary": "Archivo binario",
-  "diff.truncated":
-    "Diff truncado al límite de líneas — reduce a un solo archivo para ver el resto.",
+  "diff.truncated": "Diff truncado al límite de líneas — los archivos restantes no se muestran.",
 
   // ── Registro de comandos ──
   "commandLog.running": "ejecutando…",

@@ -530,6 +530,13 @@ export const fr: Record<string, string> = {
 
   // ── Vue Diff ──
   "diff.workingTree": "Arbre de travail",
+  "diff.branchCompare": "Comparaison de branches",
+  "diff.files.aria": "Fichiers modifiés",
+  "diff.files.filter": "Filtrer les fichiers…",
+  "diff.files.show": "Afficher les fichiers modifiés",
+  "diff.files.hide": "Masquer les fichiers modifiés",
+  "diff.files.none": "Aucun fichier dans ce diff.",
+  "diff.files.noMatch": "Aucun fichier correspondant.",
   "diff.baselineAria": "Base du diff",
   "diff.mode.worktree": "Arbre",
   "diff.mode.branch": "Branche",
@@ -542,7 +549,8 @@ export const fr: Record<string, string> = {
   "diff.empty.title": "Rien à comparer",
   "diff.empty.sub": "L'arbre de travail n'a aucune modification non validée.",
   "diff.binary": "Fichier binaire",
-  "diff.truncated": "Diff tronqué à la limite de lignes — réduire à un seul fichier pour le reste.",
+  "diff.truncated":
+    "Diff tronqué à la limite de lignes — les fichiers restants ne sont pas affichés.",
 
   // ── Journal des commandes ──
   "commandLog.running": "en cours…",

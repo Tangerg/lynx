@@ -795,6 +795,13 @@ export const en: Record<string, string> = {
 
   // ── Diff view ──
   "diff.workingTree": "Working tree",
+  "diff.branchCompare": "Branch comparison",
+  "diff.files.aria": "Changed files",
+  "diff.files.filter": "Filter files…",
+  "diff.files.show": "Show changed files",
+  "diff.files.hide": "Hide changed files",
+  "diff.files.none": "No files in this diff.",
+  "diff.files.noMatch": "No matching files.",
   "diff.baselineAria": "Diff baseline",
   "diff.layoutAria": "Diff layout",
   "diff.layout.unified": "Unified",
@@ -816,7 +823,7 @@ export const en: Record<string, string> = {
   "diff.empty.title": "Nothing to compare",
   "diff.empty.sub": "The working tree has no uncommitted changes.",
   "diff.binary": "Binary file",
-  "diff.truncated": "Diff truncated at the row limit — narrow to a single file for the rest.",
+  "diff.truncated": "Diff truncated at the row limit — the remaining files are not shown.",
 
   // ── Command log ──
   "commandLog.running": "running…",

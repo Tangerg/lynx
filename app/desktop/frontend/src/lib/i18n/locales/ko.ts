@@ -518,6 +518,13 @@ export const ko: Record<string, string> = {
 
   // ── Diff 뷰 ──
   "diff.workingTree": "워킹 트리",
+  "diff.branchCompare": "브랜치 비교",
+  "diff.files.aria": "변경된 파일",
+  "diff.files.filter": "파일 필터…",
+  "diff.files.show": "변경된 파일 표시",
+  "diff.files.hide": "변경된 파일 숨기기",
+  "diff.files.none": "이 diff에 파일이 없습니다.",
+  "diff.files.noMatch": "일치하는 파일이 없습니다.",
   "diff.baselineAria": "Diff 기준",
   "diff.mode.worktree": "워크트리",
   "diff.mode.branch": "브랜치",
@@ -529,7 +536,7 @@ export const ko: Record<string, string> = {
   "diff.empty.title": "비교할 내용 없음",
   "diff.empty.sub": "워킹 트리에 커밋되지 않은 변경 사항이 없습니다.",
   "diff.binary": "바이너리 파일",
-  "diff.truncated": "Diff가 행 제한에 도달했습니다 — 단일 파일로 좁혀 나머지를 확인하세요.",
+  "diff.truncated": "Diff가 행 제한에 도달했습니다 — 나머지 파일은 표시되지 않습니다.",
 
   // ── 명령 로그 ──
   "commandLog.running": "실행 중…",

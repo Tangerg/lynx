@@ -529,6 +529,13 @@ export const de: Record<string, string> = {
 
   // ── Diff-Ansicht ──
   "diff.workingTree": "Arbeitsbaum",
+  "diff.branchCompare": "Branch-Vergleich",
+  "diff.files.aria": "Geänderte Dateien",
+  "diff.files.filter": "Dateien filtern…",
+  "diff.files.show": "Geänderte Dateien anzeigen",
+  "diff.files.hide": "Geänderte Dateien ausblenden",
+  "diff.files.none": "Keine Dateien in diesem Diff.",
+  "diff.files.noMatch": "Keine passenden Dateien.",
   "diff.baselineAria": "Diff-Basis",
   "diff.mode.worktree": "Arbeitsbaum",
   "diff.mode.branch": "Branch",
@@ -542,7 +549,7 @@ export const de: Record<string, string> = {
   "diff.empty.sub": "Der Arbeitsbaum hat keine nicht-committeten Änderungen.",
   "diff.binary": "Binärdatei",
   "diff.truncated":
-    "Diff am Zeilenlimit abgeschnitten — auf eine einzelne Datei einschränken für den Rest.",
+    "Diff am Zeilenlimit abgeschnitten — die übrigen Dateien werden nicht angezeigt.",
 
   // ── Befehlsprotokoll ──
   "commandLog.running": "läuft…",

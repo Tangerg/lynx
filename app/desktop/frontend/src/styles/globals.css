@@ -1126,12 +1126,20 @@ html.theme-dark {
   padding-inline-start: 96px;
 }
 
+/* ---------- Panes ---------- */
+
+/* The inline-start edge of a pane that splits a region it is INSIDE (the dock
+   against the conversation, the review navigator against the diff). One class so
+   every internal vertical split is the chrome hairline — the same token the header
+   bottoms use — rather than a border at one call site and a background step at the
+   next. The pane keeps its region's fill: with a hairline doing the dividing, a
+   second surface value would read as a third region that isn't there. */
+.agent-pane-split {
+  box-shadow: inset 1px 0 0 0 var(--app-surface-divider);
+}
+
 /* ---------- Context dock ---------- */
 
-/* An internal pane split inside the content card, so the divider is the chrome
-   hairline — the same token the header bottoms use — not a background step. The
-   dock carries the card's own fill: with a hairline doing the dividing, a second
-   surface value would read as a third region that isn't there. */
 .agent-context-dock {
   position: relative;
   display: flex;
@@ -1140,7 +1148,6 @@ html.theme-dark {
   flex-direction: column;
   overflow: hidden;
   background: var(--color-bg);
-  box-shadow: inset 1px 0 0 0 var(--app-surface-divider);
 }
 
 .agent-dock-tabs {

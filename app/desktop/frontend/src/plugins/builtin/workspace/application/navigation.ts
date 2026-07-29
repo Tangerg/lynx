@@ -1,3 +1,4 @@
+import type { DockDensity } from "@/lib/shellGeometry";
 import {
   workspaceNavigation,
   type WorkspaceColumnWidth,
@@ -46,8 +47,8 @@ export function useSidebarWidth(): WorkspaceColumnWidth {
   return workspaceNavigation().useSidebarWidth();
 }
 
-export function useDockWidth(): WorkspaceColumnWidth {
-  return workspaceNavigation().useDockWidth();
+export function useDockWidth(density: DockDensity): WorkspaceColumnWidth {
+  return workspaceNavigation().useDockWidth(density);
 }
 
 export function selectWorkspaceChat(): void {

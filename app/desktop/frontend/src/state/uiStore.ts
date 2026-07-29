@@ -9,7 +9,11 @@ import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { DEFAULT_UI_DENSITY, UI_DENSITY_MODES, type UiDensity } from "@/lib/density";
-import { DOCK_DEFAULT_WIDTH_PX, SIDEBAR_DEFAULT_WIDTH_PX } from "@/lib/shellGeometry";
+import {
+  DOCK_DEFAULT_WIDTHS,
+  SIDEBAR_DEFAULT_WIDTH_PX,
+  type DockDensity,
+} from "@/lib/shellGeometry";
 // Direct registry import — going through the SDK barrel pulls in
 // host.ts which imports this file, creating a TDZ cycle under Vitest.
 // Same reason the extension-point reads below import from the deep
@@ -38,7 +42,10 @@ const uiPersistSchema = z.object({
   streamReveal: z.enum(["smooth", "typewriter"]),
   sidebarCollapsed: z.boolean(),
   sidebarWidth: z.number(),
-  dockWidth: z.number(),
+  // One width per dock density (see DockDensity). Spelled out rather than
+  // derived: a new density makes the store's own default fail to compile, which
+  // is where whoever adds it will be standing.
+  dockWidths: z.object({ light: z.number(), review: z.number() }),
   completionSound: z.boolean(),
 });
 
@@ -65,7 +72,8 @@ interface UiActions {
   setStreamReveal: (mode: "smooth" | "typewriter") => void;
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
-  setDockWidth: (width: number) => void;
+  /** Settle the dock's width for the density the user was resizing. */
+  setDockWidth: (density: DockDensity, width: number) => void;
   setCompletionSound: (on: boolean) => void;
 }
 
@@ -87,7 +95,7 @@ export const useUiStore = create<UiState & UiActions>()(
       streamReveal: "smooth",
       sidebarCollapsed: false,
       sidebarWidth: SIDEBAR_DEFAULT_WIDTH_PX,
-      dockWidth: DOCK_DEFAULT_WIDTH_PX,
+      dockWidths: DOCK_DEFAULT_WIDTHS,
       completionSound: false,
 
       setTheme: (theme) => set({ theme }),
@@ -105,13 +113,14 @@ export const useUiStore = create<UiState & UiActions>()(
       setStreamReveal: (streamReveal) => set({ streamReveal }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
-      setDockWidth: (dockWidth) => set({ dockWidth }),
+      setDockWidth: (density, width) =>
+        set((s) => ({ dockWidths: { ...s.dockWidths, [density]: width } })),
       setCompletionSound: (completionSound) => set({ completionSound }),
     }),
     {
       name: "lyra.ui",
       storage: createJSONStorage(() => localStorage),
-      version: 6,
+      version: 7,
       merge: (persisted, current) => {
         if (persisted === undefined) return current;
         const parsed = uiPersistSchema.safeParse(persisted);
