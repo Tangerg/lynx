@@ -3,6 +3,7 @@ package sessions
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -94,7 +95,14 @@ func (c *Coordinator) parkedSessionTurns(ctx context.Context, sessionIDs []strin
 			return nil, err
 		}
 		for _, item := range pending {
-			out = append(out, RunTurnBinding{RunID: item.RootRunID, SessionID: item.SessionID, TurnID: item.TurnID, ProcessID: item.ProcessID})
+			root, ok := item.RootContinuation()
+			if !ok {
+				return nil, fmt.Errorf("sessions: parked run %q has no root continuation", item.RootRunID)
+			}
+			out = append(out, RunTurnBinding{
+				RunID: item.RootRunID, SessionID: item.SessionID,
+				TurnID: item.TurnID, ProcessID: root.ProcessID,
+			})
 		}
 	}
 	return out, nil

@@ -48,34 +48,30 @@ type runAccountingRow struct {
 	MaxBudgetUSD     float64      `json:"maxBudgetUsd,omitzero"`
 }
 
-func encodeRunAccounting(metrics transcript.RunMetrics, limits execution.RunLimits) (string, error) {
-	encoded, err := json.Marshal(runAccountingRow{
+func runAccountingRowOf(metrics transcript.RunMetrics, limits execution.RunLimits) runAccountingRow {
+	return runAccountingRow{
 		Steps:            metrics.Steps,
 		ActiveDurationNs: int64(metrics.ActiveDuration),
 		Usage:            runUsageRowOf(metrics.Usage),
 		MaxSteps:         limits.MaxSteps,
 		MaxBudgetUSD:     limits.MaxBudgetUSD,
-	})
-	if err != nil {
-		return "", fmt.Errorf("encode run accounting: %w", err)
 	}
-	return string(encoded), nil
 }
 
-func decodeRunAccounting(encoded string) (transcript.RunMetrics, execution.RunLimits, error) {
-	if encoded == "" {
-		return transcript.RunMetrics{}, execution.RunLimits{}, nil
-	}
-	var row runAccountingRow
-	if err := json.Unmarshal([]byte(encoded), &row); err != nil {
-		return transcript.RunMetrics{}, execution.RunLimits{}, fmt.Errorf("decode run accounting: %w", err)
-	}
+func (row runAccountingRow) values() (transcript.RunMetrics, execution.RunLimits, error) {
 	metrics := transcript.RunMetrics{
 		Usage:          row.Usage.usage(),
 		Steps:          row.Steps,
 		ActiveDuration: time.Duration(row.ActiveDurationNs),
 	}
-	return metrics, execution.RunLimits{MaxSteps: row.MaxSteps, MaxBudgetUSD: row.MaxBudgetUSD}, nil
+	limits := execution.RunLimits{MaxSteps: row.MaxSteps, MaxBudgetUSD: row.MaxBudgetUSD}
+	if err := metrics.Validate(); err != nil {
+		return transcript.RunMetrics{}, execution.RunLimits{}, fmt.Errorf("metrics: %w", err)
+	}
+	if err := limits.Validate(); err != nil {
+		return transcript.RunMetrics{}, execution.RunLimits{}, fmt.Errorf("limits: %w", err)
+	}
+	return metrics, limits, nil
 }
 
 // runProtocolProfileRow is the Run's frozen protocol contract. Interrupt kinds
@@ -279,18 +275,21 @@ func scanRun(row scanRow) (transcript.Run, error) {
 		run.State = execution.Running
 	case runStateInterrupted:
 		run.State = execution.Interrupted
-		// A parked Run's interrupts are what it is parked ON. The absence of the
-		// interrupt record it was parked with is a broken park, not a Run waiting on
-		// nothing — reporting it as an empty wait would invent a state the run never
-		// had. Boot reconciliation is what resolves it.
+		// Every suspended Run must join its root-owned pending set. Only interrupts
+		// raised by this Run are projected onto it; an empty filtered result means
+		// the Run was suspended by another source in the tree.
 		if !interruptsSuspended.Valid {
-			return transcript.Run{}, fmt.Errorf("sqlite: run %q is parked with no open interrupt", run.ID)
+			return transcript.Run{}, fmt.Errorf("sqlite: run %q is suspended with no pending tree interrupt", run.ID)
 		}
-		if run.Interrupts, err = decodeInterrupts(interruptsSuspended.String); err != nil {
+		treeInterrupts, decodeErr := decodeInterrupts(interruptsSuspended.String)
+		if decodeErr != nil {
+			err = decodeErr
 			return transcript.Run{}, fmt.Errorf("sqlite: decode run %q interrupts: %w", run.ID, err)
 		}
-		if len(run.Interrupts) == 0 {
-			return transcript.Run{}, fmt.Errorf("sqlite: run %q is parked on an empty interrupt set", run.ID)
+		for _, interrupt := range treeInterrupts {
+			if interrupt.RunID == run.ID {
+				run.Interrupts = append(run.Interrupts, interrupt)
+			}
 		}
 	case runStateTerminal:
 		reason, ok := execution.ParseOutcome(outcome)

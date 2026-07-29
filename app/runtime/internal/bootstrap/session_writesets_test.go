@@ -62,6 +62,35 @@ func bootstrapCheckpoint(sessionID string, usage accounting.Snapshot) execution.
 	}
 }
 
+func bootstrapPending(
+	runID, sessionID, processID, itemID string,
+	runCreatedAt, barrierCreatedAt time.Time,
+) interrupts.Pending {
+	question := &transcript.Question{Prompt: "Continue?"}
+	return interrupts.Pending{
+		RootRunID: runID,
+		SessionID: sessionID,
+		TurnID:    "turn_" + runID,
+		Interrupts: []transcript.Interrupt{{
+			ItemID:   itemID,
+			RunID:    runID,
+			Kind:     execution.QuestionInterrupt,
+			Question: question,
+		}},
+		Suspensions: []interrupts.SuspensionBinding{{
+			InterruptItemID: itemID,
+			ProcessID:       processID,
+			SuspensionID:    "suspension-" + processID,
+		}},
+		Continuations: []interrupts.Continuation{{
+			RunID:        runID,
+			ProcessID:    processID,
+			RunCreatedAt: runCreatedAt,
+		}},
+		CreatedAt: barrierCreatedAt,
+	}
+}
+
 // sessionStores keeps the real durable collaborators visible to this integration
 // fixture while delegating every tested write-set to the persistence adapter.
 type sessionStores struct {
@@ -155,15 +184,22 @@ func park(
 	if err := runs.Suspend(ctx, transcript.Run{
 		SessionID: sessionID, ID: runID, State: execution.Interrupted,
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_" + runID, Kind: execution.QuestionInterrupt,
-			Question: &transcript.Question{Prompt: "continue?"},
+			ItemID: "item_" + runID, RunID: runID, Kind: execution.QuestionInterrupt,
+			Question: &transcript.Question{Prompt: "Continue?"},
 		}},
 		CreatedAt:   parkCreatedAt,
 		MessageMark: transcript.UnknownMessageMark,
 	}); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
-	if err := ints.Put(ctx, interrupts.Pending{RootRunID: runID, SessionID: sessionID, ProcessID: processID, CreatedAt: time.Unix(0, 0)}); err != nil {
+	if err := ints.Put(ctx, bootstrapPending(
+		runID,
+		sessionID,
+		processID,
+		"item_"+runID,
+		parkCreatedAt,
+		time.Unix(0, 0).UTC(),
+	)); err != nil {
 		t.Fatalf("put interrupt: %v", err)
 	}
 	return processID

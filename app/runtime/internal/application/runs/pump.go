@@ -5,8 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"slices"
+	"time"
 
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 // pump is the run segment goroutine: Start has already atomically committed and
@@ -23,14 +27,22 @@ import (
 // commit additionally linearizes against cancel (a cancel that wins the race
 // skips the commit). Non-authoritative previews publish directly. A parked run
 // leaves its live turn alive for resume; a true terminal cancels it.
-func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inner iter.Seq[ExecutorEvent], live *handle, reducer *reducer) {
+func (c *Coordinator) pump(
+	ctx context.Context,
+	ownerCtx context.Context,
+	spec segmentSpec,
+	inner iter.Seq[ExecutorEvent],
+	live *handle,
+	reducer *reducer,
+	segmentStartedAt time.Time,
+) {
 	hub := live.hub
 	publisher := treePublisher{coordinator: c, rootSpec: spec, live: live}
 	rootFinished := false
 	rootParked := false
 	abortTurn := false
 	commitCtx := ownerCtx
-	routes := newExecutorRoutes(spec, reducer)
+	routes := newExecutorRoutes(spec, reducer, segmentStartedAt)
 
 	defer close(live.done)
 	fail := func(err error) {
@@ -196,6 +208,33 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			fail(err)
 			return
 		}
+		if barrier, ok := ev.Payload.(TreeInterrupted); ok {
+			rootRoute, err := routes.resolve(ev.Source)
+			if err != nil {
+				fail(err)
+				return
+			}
+			if rootRoute != routes.root {
+				fail(errors.New("runs: tree interrupt must be emitted by the root executor source"))
+				return
+			}
+			publication, err := publisher.publishTreeBarrier(
+				commitCtx,
+				routes,
+				barrier,
+				c.now().UTC(),
+			)
+			if err != nil {
+				fail(err)
+				return
+			}
+			if !publication.published {
+				return
+			}
+			rootFinished = publication.finished
+			rootParked = publication.parked
+			return
+		}
 		route, err := routes.resolve(ev.Source)
 		if err != nil {
 			fail(err)
@@ -210,14 +249,9 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			fail(fmt.Errorf("runs: unsupported executor payload %T", ev.Payload))
 			return
 		}
-		if route != routes.root {
-			if _, interrupts := engineEvent.(TurnInterrupted); interrupts {
-				fail(fmt.Errorf(
-					"runs: child run %q cannot interrupt before the tree barrier is available",
-					route.runID,
-				))
-				return
-			}
+		if _, interrupts := engineEvent.(TurnInterrupted); interrupts {
+			fail(errors.New("runs: executor emitted a per-Run interrupt instead of a tree barrier"))
+			return
 		}
 		if route == routes.root && engineEventEndsSegment(engineEvent) {
 			if active := routes.unfinishedChildrenInReverseAdmission(); len(active) > 0 {
@@ -272,7 +306,7 @@ type reductionPublication struct {
 
 func engineEventEndsSegment(event EngineEvent) bool {
 	switch event.(type) {
-	case TurnEnd, TurnInterrupted:
+	case TurnEnd:
 		return true
 	default:
 		return false
@@ -306,13 +340,10 @@ func (p treePublisher) publish(
 		return reductionPublication{}, err
 	}
 	if batch.parkCommit != nil {
-		if !route.lineage.IsRoot() {
-			return reductionPublication{}, fmt.Errorf(
-				"runs: child run %q cannot publish a park boundary before tree coordination is available",
-				route.runID,
-			)
-		}
-		return p.publishPark(ctx, route, batch)
+		return reductionPublication{}, fmt.Errorf(
+			"runs: run %q produced a per-Run park outside the tree barrier",
+			route.runID,
+		)
 	}
 	publication := reductionPublication{published: true}
 	goalCharged := false
@@ -350,32 +381,144 @@ func (p treePublisher) publish(
 	return publication, nil
 }
 
-func (p treePublisher) publishPark(
+type treeBarrierReduction struct {
+	route *executorRoute
+	batch reductionBatch
+}
+
+func (p treePublisher) publishTreeBarrier(
 	ctx context.Context,
-	route *executorRoute,
-	batch reductionBatch,
+	routes *executorRoutes,
+	barrier TreeInterrupted,
+	boundaryAt time.Time,
 ) (reductionPublication, error) {
-	// Park is a batch boundary, not one event: commit every transcript
-	// projection + the open interrupt + Suspend, then publish the complete
-	// batch under one reserved boundary. A cancellation therefore observes
-	// either no park or the complete park and cancels + joins an in-flight
-	// projection commit without waiting on a mutex held across I/O.
+	if err := barrier.validate(); err != nil {
+		return reductionPublication{}, err
+	}
+	byProcess := make(map[string][]ProcessSuspension, len(barrier.Suspensions))
+	for _, suspension := range barrier.Suspensions {
+		route := routes.byProcess[suspension.ProcessID]
+		if route == nil || route.segmentFinished {
+			return reductionPublication{}, fmt.Errorf(
+				"runs: suspension source process %q has no active Run",
+				suspension.ProcessID,
+			)
+		}
+		byProcess[suspension.ProcessID] = append(byProcess[suspension.ProcessID], suspension)
+	}
+	ordered, err := routes.unfinishedInPostorder()
+	if err != nil {
+		return reductionPublication{}, err
+	}
+
+	pending := interrupts.Pending{
+		RootRunID:       routes.root.runID,
+		SessionID:       p.rootSpec.SessionID,
+		TurnID:          p.rootSpec.TurnID,
+		ProtocolProfile: routes.root.protocolProfile,
+		CreatedAt:       boundaryAt,
+	}
+	reductions := make([]treeBarrierReduction, 0, len(ordered))
+	commits := make([]EventCommit, 0, len(ordered))
+	for _, route := range ordered {
+		direct := byProcess[route.source.ProcessID]
+		var events []RunEvent
+		if len(direct) > 0 {
+			values := make([]Interrupt, len(direct))
+			for index, suspension := range direct {
+				values[index] = suspension.Interrupt
+			}
+			events, err = route.reducer.interrupt(TurnInterrupted{
+				Interrupts: values,
+				Duration:   route.activeDuration(boundaryAt),
+			})
+		} else {
+			events, err = route.reducer.suspend(route.activeDuration(boundaryAt))
+		}
+		if err != nil {
+			return reductionPublication{}, fmt.Errorf(
+				"runs: reduce tree barrier for run %q: %w",
+				route.runID,
+				err,
+			)
+		}
+		batch, err := route.reducer.project(events)
+		if err != nil {
+			return reductionPublication{}, fmt.Errorf(
+				"runs: project tree barrier for run %q: %w",
+				route.runID,
+				err,
+			)
+		}
+		if err := validateRouteReductionBatch(route, p.rootSpec.SessionID, batch); err != nil {
+			return reductionPublication{}, err
+		}
+		if batch.parkCommit == nil || batch.parkCommit.Run == nil {
+			return reductionPublication{}, fmt.Errorf(
+				"runs: tree barrier for run %q produced no suspend commit",
+				route.runID,
+			)
+		}
+		run := *batch.parkCommit.Run
+		if len(run.Interrupts) != len(direct) {
+			return reductionPublication{}, fmt.Errorf(
+				"runs: run %q projected %d interrupts from %d suspensions",
+				route.runID,
+				len(run.Interrupts),
+				len(direct),
+			)
+		}
+		pending.Interrupts = append(pending.Interrupts, run.Interrupts...)
+		for index, suspension := range direct {
+			pending.Suspensions = append(pending.Suspensions, interrupts.SuspensionBinding{
+				InterruptItemID: run.Interrupts[index].ItemID,
+				ProcessID:       suspension.ProcessID,
+				SuspensionID:    suspension.SuspensionID,
+			})
+		}
+		pending.Continuations = append(pending.Continuations, interrupts.Continuation{
+			RunID:           route.runID,
+			ProcessID:       route.source.ProcessID,
+			ParentProcessID: route.source.ParentID,
+			SpawnCallID:     route.source.SpawnCallID,
+			ModelSelection:  route.modelSelection,
+			DrainedTools:    slices.Clone(route.reducer.drained),
+			RunCreatedAt:    run.CreatedAt,
+			Metrics:         run.Metrics,
+			Limits:          run.Limits,
+		})
+		reductions = append(reductions, treeBarrierReduction{route: route, batch: batch})
+		commits = append(commits, *batch.parkCommit)
+	}
+	if err := pending.Validate(); err != nil {
+		return reductionPublication{}, fmt.Errorf("runs: build pending interrupt set: %w", err)
+	}
+
 	committed, err := p.live.commitInterrupt(ctx, func(interruptCtx context.Context) error {
-		if err := p.coordinator.effects.CommitEvent(interruptCtx, *batch.parkCommit); err != nil {
+		if err := p.coordinator.effects.CommitTreeBarrier(interruptCtx, TreeBarrierCommit{
+			Pending: pending,
+			Runs:    commits,
+		}); err != nil {
 			return err
 		}
-		for _, reduced := range batch.events {
-			p.append(route, reduced)
+		for _, projected := range reductions {
+			for _, reduced := range projected.batch.events {
+				p.append(projected.route, reduced)
+			}
 		}
 		return nil
 	})
 	if err != nil {
-		return reductionPublication{}, fmt.Errorf("runs: commit interrupt: %w", err)
+		return reductionPublication{}, fmt.Errorf("runs: commit tree interrupt barrier: %w", err)
 	}
-	if committed {
-		p.coordinator.publishWaitingMoved(p.rootSpec.SessionID, route.runID)
+	if !committed {
+		return reductionPublication{}, nil
 	}
-	return reductionPublication{published: committed, finished: committed, parked: committed}, nil
+	for _, projected := range reductions {
+		projected.route.segmentFinished = true
+		p.coordinator.publishWaitingMoved(p.rootSpec.SessionID, projected.route.runID)
+	}
+	return reductionPublication{published: true, finished: true, parked: true}, nil
 }
 
 func (p treePublisher) append(route *executorRoute, reduced reduction) {

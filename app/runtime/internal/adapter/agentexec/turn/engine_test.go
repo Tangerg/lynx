@@ -168,7 +168,7 @@ func TestDispatcherFailsClosedWhenWaitingCheckpointCommitFails(t *testing.T) {
 	var terminal *runs.TurnEnd
 	for event := range events {
 		switch event := event.Payload.(type) {
-		case runs.TurnInterrupted:
+		case runs.TreeInterrupted:
 			interrupted = true
 		case runs.TurnEnd:
 			value := event

@@ -461,7 +461,7 @@ enforced by a validator — a frame-local check cannot see the whole system.
   - maintained by: `runsegment.event`, `runs.recovery`, `sessions.import`
 - **`run_protocol_profile_is_immutable`** — A Run publishes under the contract it was created with. If a later segment could restate it, a subscriber that reconnected on the strength of the first answer would be folding a stream whose rules had changed under it.
   - maintained by: `runs.admission`
-- **`parked_run_has_exactly_one_open_interrupt_set`** — A Run parked with no pending set can never be resumed and never terminates; the client waits on something that will not move.
+- **`parked_tree_has_exactly_one_open_interrupt_set`** — A Run tree parked without one complete pending set cannot be resumed atomically; clients would observe only part of a barrier that can never move.
   - maintained by: `runsegment.event`, `runs.recovery`
 - **`dropped_run_leaves_nothing_behind`** — A dropped Run's items, interrupts, checkpoints and admission slot must go with it, or the session keeps an invisible run holding its only slot.
   - maintained by: `sessions.rollback`, `sessions.delete`

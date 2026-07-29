@@ -10,7 +10,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -127,7 +126,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	if err := hist.AppendItem(ctx, transcript.Item{SessionID: id, RunID: "run_1", ID: "item_1"}); err != nil {
 		t.Fatalf("seed item: %v", err)
 	}
-	if err := ints.Put(ctx, interrupts.Pending{RootRunID: "run_1", SessionID: id}); err != nil {
+	if err := ints.Put(ctx, serverPending("run_1", id, "", "", nil, now)); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 	history := map[string][]chat.Message{id: {chat.NewUserMessage(chat.NewTextPart("hi"))}}
@@ -196,11 +195,14 @@ func TestDeleteSession_CancelsParkedTurn(t *testing.T) {
 	ints := sqlite.NewInterruptStore(db)
 	created, _ := svc.Create(ctx, "parked", "/w")
 	id := created.ID
-	if err := ints.Put(ctx, interrupts.Pending{
-		RootRunID: "run_parked",
-		SessionID: id,
-		TurnID:    "turn_parked",
-	}); err != nil {
+	if err := ints.Put(ctx, serverPending(
+		"run_parked",
+		id,
+		"turn_parked",
+		"process_parked",
+		nil,
+		time.Now().UTC(),
+	)); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 

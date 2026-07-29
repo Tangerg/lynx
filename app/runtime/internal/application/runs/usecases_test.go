@@ -276,7 +276,7 @@ func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
 	}
 	effects := &fakeEffects{finishStarted: finishStarted, finishRelease: releaseFinish}
 	c := newUseCaseCoordinator(
-		&fakeExecutor{events: []EngineEvent{TurnEnd{Reason: execution.OutcomeCompleted}}},
+		&fakeExecutor{events: []ExecutorPayload{TurnEnd{Reason: execution.OutcomeCompleted}}},
 		&fakeTurnControl{startTurn: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}},
 		sessions,
 		effects,
@@ -342,10 +342,9 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", Cwd: "/work"},
-		pending: map[string]interrupts.Pending{"run_1": {
-			RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", RunCreatedAt: createdAt,
-			Interrupts: approvalInterrupt("item_1"),
-		}},
+		pending: map[string]interrupts.Pending{
+			"run_1": testPendingInterrupt("item_1", "proc_1", createdAt),
+		},
 	}
 	turns := &fakeTurnControl{prepared: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
 	activatedAfterOpening := false
@@ -386,10 +385,9 @@ func TestResumeWithInputCommitsTheUserTurnWithTheContinuation(t *testing.T) {
 		effects := &fakeEffects{}
 		sessions := &fakeRunSessions{
 			sess: session.Session{ID: "ses_1", Cwd: "/work"},
-			pending: map[string]interrupts.Pending{"run_1": {
-				RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", RunCreatedAt: createdAt,
-				Interrupts: approvalInterrupt("item_1"),
-			}},
+			pending: map[string]interrupts.Pending{
+				"run_1": testPendingInterrupt("item_1", "proc_1", createdAt),
+			},
 		}
 		turns := &fakeTurnControl{prepared: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
 		return effects, newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, effects)
@@ -444,10 +442,9 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 	var operations []string
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", Cwd: "/work"},
-		pending: map[string]interrupts.Pending{"run_1": {
-			RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", ProcessID: "proc_1",
-			Interrupts: approvalInterrupt("item_1"),
-		}},
+		pending: map[string]interrupts.Pending{
+			"run_1": testPendingInterrupt("item_1", "proc_1", time.Now().UTC()),
+		},
 		operations: &operations,
 	}
 	turns := &fakeTurnControl{
@@ -492,10 +489,9 @@ func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
 	var operations []string
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", Cwd: "/work", Isolated: true},
-		pending: map[string]interrupts.Pending{"run_1": {
-			RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", ProcessID: "proc_1",
-			Interrupts: approvalInterrupt("item_1"),
-		}},
+		pending: map[string]interrupts.Pending{
+			"run_1": testPendingInterrupt("item_1", "proc_1", time.Now().UTC()),
+		},
 		operations: &operations,
 	}
 	// The process that owned the sandbox copy is gone (Prepare reports the turn as
@@ -527,6 +523,7 @@ func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
 func approvalInterrupt(itemID string) []transcript.Interrupt {
 	return []transcript.Interrupt{{
 		ItemID: itemID,
+		RunID:  "run_1",
 		Kind:   execution.ApprovalInterrupt,
 		Approval: &transcript.Approval{
 			Tool: transcript.ToolInvocation{Name: "shell"},
@@ -534,11 +531,35 @@ func approvalInterrupt(itemID string) []transcript.Interrupt {
 	}}
 }
 
+func testPendingInterrupt(itemID, processID string, runCreatedAt time.Time) interrupts.Pending {
+	interruptValues := approvalInterrupt(itemID)
+	return interrupts.Pending{
+		RootRunID:  "run_1",
+		SessionID:  "ses_1",
+		TurnID:     "turn_1",
+		Interrupts: interruptValues,
+		Suspensions: []interrupts.SuspensionBinding{{
+			InterruptItemID: itemID,
+			ProcessID:       processID,
+			SuspensionID:    "suspension_1",
+		}},
+		Continuations: []interrupts.Continuation{{
+			RunID:        "run_1",
+			ProcessID:    processID,
+			RunCreatedAt: runCreatedAt,
+		}},
+		CreatedAt: runCreatedAt.Add(time.Second),
+	}
+}
+
 func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 	var operations []string
-	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{"run_1": {
-		RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
-	}}, operations: &operations}
+	sessions := &fakeRunSessions{
+		pending: map[string]interrupts.Pending{
+			"run_1": testPendingInterrupt("item_1", "proc_1", time.Now().UTC()),
+		},
+		operations: &operations,
+	}
 	turns := &fakeTurnControl{operations: &operations}
 	c := NewCoordinator(Dependencies{
 		Turns: turns, Sessions: sessions,
@@ -615,9 +636,9 @@ func TestCancelChildRunRequiresExplicitAuthority(t *testing.T) {
 
 func TestCancelParkedRunReportsTurnCleanupFailureAfterDurableCommit(t *testing.T) {
 	cleanupErr := errors.New("turn cleanup failed")
-	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{"run_1": {
-		RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
-	}}}
+	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{
+		"run_1": testPendingInterrupt("item_1", "proc_1", time.Now().UTC()),
+	}}
 	turns := &fakeTurnControl{cancelErr: cleanupErr}
 	c := NewCoordinator(Dependencies{
 		Turns: turns, Sessions: sessions,
@@ -725,7 +746,7 @@ func TestCancelLiveRunJoinsTerminalMaintenance(t *testing.T) {
 func TestCancelLosesToACommittedNaturalTerminal(t *testing.T) {
 	terminalStarted := make(chan struct{}, 1)
 	releaseTerminal := make(chan struct{})
-	executor := &fakeExecutor{events: []EngineEvent{TurnEnd{
+	executor := &fakeExecutor{events: []ExecutorPayload{TurnEnd{
 		Reason: execution.OutcomeCompleted,
 	}}}
 	effects := &fakeEffects{terminalStarted: terminalStarted, terminalRelease: releaseTerminal}
@@ -780,16 +801,19 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 	suspendStarted := make(chan struct{}, 1)
 	suspendCanceled := make(chan struct{}, 1)
 	releaseSuspend := make(chan struct{})
-	executor := &fakeExecutor{events: []EngineEvent{
+	executor := &fakeExecutor{events: []ExecutorPayload{
 		ToolCallStart{
 			CallID: "call_1", ToolName: "shell", Arguments: `{"command":"pwd"}`,
 			SafetyClass: "write",
 		},
-		TurnInterrupted{Interrupts: []Interrupt{{
-			Kind: execution.ApprovalInterrupt,
-			Approval: &ApprovalPrompt{
-				CallID: "call_1", ToolName: "shell", Arguments: `{"command":"pwd"}`,
-				SafetyClass: "write",
+		TreeInterrupted{Suspensions: []ProcessSuspension{{
+			ProcessID: "process_root", SuspensionID: "suspension_1",
+			Interrupt: Interrupt{
+				Kind: execution.ApprovalInterrupt,
+				Approval: &ApprovalPrompt{
+					CallID: "call_1", ToolName: "shell", Arguments: `{"command":"pwd"}`,
+					SafetyClass: "write",
+				},
 			},
 		}}},
 	}}
@@ -847,9 +871,9 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 }
 
 func TestCancelTreatsAlreadyGoneTurnAsIdempotentSuccess(t *testing.T) {
-	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{"run_1": {
-		RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
-	}}}
+	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{
+		"run_1": testPendingInterrupt("item_1", "proc_1", time.Now().UTC()),
+	}}
 	turns := &fakeTurnControl{cancelErr: ErrTurnNotLive}
 	c := NewCoordinator(Dependencies{
 		Turns: turns, Sessions: sessions,

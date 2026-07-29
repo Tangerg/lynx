@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -15,16 +17,17 @@ import (
 // opening transaction commits; every installed route owns one independent
 // Segment reducer.
 type executorRoute struct {
-	source          ExecutorSource
-	runID           string
-	segmentID       string
-	rootRunID       string
-	lineage         execution.RunLineage
-	modelSelection  modelref.Selection
-	limits          execution.RunLimits
-	protocolProfile execution.RunProtocolProfile
-	reducer         *reducer
-	segmentFinished bool
+	source           ExecutorSource
+	runID            string
+	segmentID        string
+	rootRunID        string
+	lineage          execution.RunLineage
+	modelSelection   modelref.Selection
+	limits           execution.RunLimits
+	protocolProfile  execution.RunProtocolProfile
+	reducer          *reducer
+	segmentStartedAt time.Time
+	segmentFinished  bool
 }
 
 type executorRoutes struct {
@@ -34,21 +37,93 @@ type executorRoutes struct {
 	admissionOrder []*executorRoute
 }
 
-func newExecutorRoutes(spec segmentSpec, rootReducer *reducer) *executorRoutes {
+func newExecutorRoutes(spec segmentSpec, rootReducer *reducer, segmentStartedAt time.Time) *executorRoutes {
 	root := &executorRoute{
-		runID:           spec.RunID,
-		segmentID:       spec.SegmentID,
-		rootRunID:       spec.RunID,
-		modelSelection:  spec.ModelSelection,
-		limits:          spec.effectiveLimits(),
-		protocolProfile: spec.effectiveProfile(),
-		reducer:         rootReducer,
+		runID:            spec.RunID,
+		segmentID:        spec.SegmentID,
+		rootRunID:        spec.RunID,
+		modelSelection:   spec.ModelSelection,
+		limits:           spec.effectiveLimits(),
+		protocolProfile:  spec.effectiveProfile(),
+		reducer:          rootReducer,
+		segmentStartedAt: segmentStartedAt,
 	}
 	return &executorRoutes{
 		root:           root,
 		byProcess:      make(map[string]*executorRoute),
 		admissionOrder: []*executorRoute{root},
 	}
+}
+
+// unfinishedInPostorder returns the active tree in contract publication order:
+// descendants before ancestors, siblings by Run ID, root last.
+func (routes *executorRoutes) unfinishedInPostorder() ([]*executorRoute, error) {
+	children := make(map[string][]*executorRoute, len(routes.admissionOrder))
+	for _, route := range routes.admissionOrder {
+		if route == routes.root || route.segmentFinished {
+			continue
+		}
+		children[route.lineage.ParentRunID] = append(children[route.lineage.ParentRunID], route)
+	}
+	for parentID := range children {
+		slices.SortFunc(children[parentID], func(left, right *executorRoute) int {
+			if left.runID < right.runID {
+				return -1
+			}
+			if left.runID > right.runID {
+				return 1
+			}
+			return 0
+		})
+	}
+	var ordered []*executorRoute
+	var visit func(*executorRoute) error
+	visiting := make(map[string]bool, len(routes.admissionOrder))
+	visited := make(map[string]bool, len(routes.admissionOrder))
+	visit = func(route *executorRoute) error {
+		if visiting[route.runID] {
+			return fmt.Errorf("runs: executor routes contain a cycle at run %q", route.runID)
+		}
+		if visited[route.runID] {
+			return nil
+		}
+		visiting[route.runID] = true
+		for _, child := range children[route.runID] {
+			if err := visit(child); err != nil {
+				return err
+			}
+		}
+		visiting[route.runID] = false
+		visited[route.runID] = true
+		if !route.segmentFinished {
+			ordered = append(ordered, route)
+		}
+		return nil
+	}
+	if err := visit(routes.root); err != nil {
+		return nil, err
+	}
+	if len(ordered) != routes.unfinishedCount() {
+		return nil, errors.New("runs: executor routes contain an active Run disconnected from the root")
+	}
+	return ordered, nil
+}
+
+func (routes *executorRoutes) unfinishedCount() int {
+	count := 0
+	for _, route := range routes.admissionOrder {
+		if !route.segmentFinished {
+			count++
+		}
+	}
+	return count
+}
+
+func (route *executorRoute) activeDuration(boundary time.Time) time.Duration {
+	if route.segmentStartedAt.IsZero() || boundary.Before(route.segmentStartedAt) {
+		return 0
+	}
+	return boundary.Sub(route.segmentStartedAt)
 }
 
 // resolve binds the first root source and then requires exact source stability.
@@ -190,19 +265,6 @@ func validateRouteReductionBatch(
 		if commit.Run != nil {
 			if err := validateRouteRun(route, sessionID, *commit.Run); err != nil {
 				return err
-			}
-		}
-		if commit.Interrupt != nil {
-			if !route.lineage.IsRoot() ||
-				commit.Interrupt.RootRunID != route.runID ||
-				commit.Interrupt.SessionID != sessionID {
-				return fmt.Errorf(
-					"%w: route %q carries an interrupt owned by root %q in session %q",
-					errReducerInvariant,
-					route.runID,
-					commit.Interrupt.RootRunID,
-					commit.Interrupt.SessionID,
-				)
 			}
 		}
 		if commit.GoalTurn != nil &&
@@ -408,6 +470,7 @@ func (c *Coordinator) openChildRun(
 	if err := c.effects.CommitOpening(ctx, opening); err != nil {
 		return nil, reductionBatch{}, fmt.Errorf("runs: commit child process %q opening: %w", source.ProcessID, err)
 	}
+	child.segmentStartedAt = c.now().UTC()
 	routes.installChild(source, child)
 	c.publishRunMoved(spec.SessionID, child.runID)
 	return child, projected, nil

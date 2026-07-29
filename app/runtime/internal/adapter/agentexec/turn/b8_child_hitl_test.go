@@ -115,12 +115,12 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 	var outcome childHITLOutcome
 	for event := range events {
 		switch event := event.Payload.(type) {
-		case runs.TurnInterrupted:
+		case runs.TreeInterrupted:
 			outcome.interruptCount++
-			if len(event.Interrupts) != 1 {
-				t.Fatalf("interrupts = %#v", event.Interrupts)
+			if len(event.Suspensions) != 1 {
+				t.Fatalf("suspensions = %#v", event.Suspensions)
 			}
-			pending := event.Interrupts[0]
+			pending := event.Suspensions[0].Interrupt
 			if scenario.wantInterrupt == nil || pending.Kind != *scenario.wantInterrupt {
 				t.Fatalf("interrupt kind = %q, want %q", pending.Kind, scenario.wantInterrupt)
 			}
@@ -199,10 +199,11 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 	endReason := execution.OutcomeError
 	for event := range events {
 		switch event := event.Payload.(type) {
-		case runs.TurnInterrupted:
+		case runs.TreeInterrupted:
 			interruptCount++
-			if len(event.Interrupts) != 1 || event.Interrupts[0].Kind != execution.QuestionInterrupt {
-				t.Fatalf("interrupt %d = %#v", interruptCount, event.Interrupts)
+			if len(event.Suspensions) != 1 ||
+				event.Suspensions[0].Interrupt.Kind != execution.QuestionInterrupt {
+				t.Fatalf("interrupt %d = %#v", interruptCount, event.Suspensions)
 			}
 			if err := dispatcher.Resume(t.Context(), handle, interrupts.Resolution{
 				Approved: true,
@@ -267,10 +268,10 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	}
 	sawInterrupt := false
 	for event := range events {
-		if interrupted, ok := event.Payload.(runs.TurnInterrupted); ok {
+		if interrupted, ok := event.Payload.(runs.TreeInterrupted); ok {
 			sawInterrupt = true
-			if len(interrupted.Interrupts) != 1 {
-				t.Fatalf("interrupts = %#v", interrupted.Interrupts)
+			if len(interrupted.Suspensions) != 1 {
+				t.Fatalf("suspensions = %#v", interrupted.Suspensions)
 			}
 			break
 		}
@@ -398,7 +399,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	endReason := execution.OutcomeError
 	for event := range events {
 		switch event := event.Payload.(type) {
-		case runs.TurnInterrupted:
+		case runs.TreeInterrupted:
 			interruptsSeen++
 			if err := dispatcher.Cancel(t.Context(), handle); err != nil {
 				t.Fatalf("Cancel: %v", err)
@@ -450,7 +451,7 @@ func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
 		t.Fatalf("Events: %v", err)
 	}
 	for event := range events {
-		if _, ok := event.Payload.(runs.TurnInterrupted); ok {
+		if _, ok := event.Payload.(runs.TreeInterrupted); ok {
 			break
 		}
 	}
@@ -519,7 +520,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 		raced := false
 		for event := range events {
 			switch event := event.Payload.(type) {
-			case runs.TurnInterrupted:
+			case runs.TreeInterrupted:
 				raced = true
 				start := make(chan struct{})
 				var (

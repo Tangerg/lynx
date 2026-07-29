@@ -148,6 +148,9 @@ type Effects interface {
 	// run-state transition) in one transaction. Every durable commit completes
 	// before publication; any error aborts the segment.
 	CommitEvent(ctx context.Context, commit EventCommit) error
+	// CommitTreeBarrier atomically writes the one root-owned pending set and
+	// suspends every active Run in the tree.
+	CommitTreeBarrier(ctx context.Context, barrier TreeBarrierCommit) error
 	// Nudge publishes a non-durable live workspace change to subscribers.
 	Nudge(cwd string, paths []string)
 	// Finish establishes the terminal checkpoint before returning, then starts
@@ -243,7 +246,8 @@ func (s segmentSpec) priorMetrics() transcript.RunMetrics {
 	if s.Pending == nil {
 		return transcript.RunMetrics{}
 	}
-	return s.Pending.Metrics
+	root, _ := s.Pending.RootContinuation()
+	return root.Metrics
 }
 
 // effectiveLimits is the allowance in force. A continuation does not take limits
@@ -253,7 +257,8 @@ func (s segmentSpec) effectiveLimits() execution.RunLimits {
 	if s.Pending == nil {
 		return s.Limits
 	}
-	return s.Pending.Limits
+	root, _ := s.Pending.RootContinuation()
+	return root.Limits
 }
 
 // effectiveProfile is the protocol contract in force, by the same rule: the

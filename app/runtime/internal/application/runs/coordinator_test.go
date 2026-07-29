@@ -20,7 +20,7 @@ import (
 // These fakes exercise the application-owned reducer and journal. Delivery
 // protocol values deliberately do not appear here.
 type fakeExecutor struct {
-	events         []EngineEvent
+	events         []ExecutorPayload
 	executorEvents []ExecutorEvent
 	block          bool
 	mu             sync.Mutex
@@ -126,6 +126,7 @@ type fakeEffects struct {
 	mu              sync.Mutex
 	commits         []EventCommit
 	openings        []OpeningCommit
+	barriers        []TreeBarrierCommit
 	finishes        []Finish
 	nudges          int
 	openingErr      error
@@ -174,18 +175,6 @@ func (e *fakeEffects) CommitOpening(_ context.Context, opening OpeningCommit) er
 }
 
 func (e *fakeEffects) CommitEvent(ctx context.Context, commit EventCommit) error {
-	if commit.State == StateSuspend {
-		if e.suspendStarted != nil {
-			e.suspendStarted <- struct{}{}
-		}
-		if e.suspendCanceled != nil {
-			<-ctx.Done()
-			e.suspendCanceled <- struct{}{}
-		}
-		if e.suspendRelease != nil {
-			<-e.suspendRelease
-		}
-	}
 	if commit.State == StateTerminalize {
 		if e.terminalStarted != nil {
 			e.terminalStarted <- struct{}{}
@@ -204,6 +193,31 @@ func (e *fakeEffects) CommitEvent(ctx context.Context, commit EventCommit) error
 		return e.commitErr
 	}
 	e.commits = append(e.commits, commit)
+	return nil
+}
+
+func (e *fakeEffects) CommitTreeBarrier(ctx context.Context, barrier TreeBarrierCommit) error {
+	if e.suspendStarted != nil {
+		e.suspendStarted <- struct{}{}
+	}
+	if e.suspendCanceled != nil {
+		<-ctx.Done()
+		e.suspendCanceled <- struct{}{}
+	}
+	if e.suspendRelease != nil {
+		<-e.suspendRelease
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.commitAttempts++
+	if e.rejectCanceled && ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if e.commitErr != nil && (e.commitErrAt == 0 || e.commitErrAt == e.commitAttempts) {
+		return e.commitErr
+	}
+	e.barriers = append(e.barriers, barrier)
+	e.commits = append(e.commits, barrier.Runs...)
 	return nil
 }
 
@@ -245,6 +259,12 @@ func (e *fakeEffects) commitSnapshot() []EventCommit {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return append([]EventCommit(nil), e.commits...)
+}
+
+func (e *fakeEffects) barrierSnapshot() []TreeBarrierCommit {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]TreeBarrierCommit(nil), e.barriers...)
 }
 
 func (e *fakeEffects) terminalized(sessionID, runID string) bool {
@@ -309,6 +329,17 @@ func collectEvents(events iter.Seq[Event]) []Event {
 	return out
 }
 
+func treeBarrierQuestion(prompt string) Interrupt {
+	return Interrupt{
+		Kind: execution.QuestionInterrupt,
+		Question: &QuestionPrompt{
+			ToolName:  "ask_user",
+			Arguments: `{}`,
+			Questions: []QuestionSpec{{Question: prompt, Header: "Decision"}},
+		},
+	}
+}
+
 func TestCoordinatorRejectsUncommittedOpening(t *testing.T) {
 	executor := &fakeExecutor{}
 	effects := &fakeEffects{openingErr: execution.ErrSessionBusy}
@@ -345,7 +376,7 @@ func TestCoordinatorPreservesUnadmittedTurnCleanupFailure(t *testing.T) {
 }
 
 func TestCoordinatorCommitsCanonicalOpeningAndTerminal(t *testing.T) {
-	executor := &fakeExecutor{events: []EngineEvent{
+	executor := &fakeExecutor{events: []ExecutorPayload{
 		MessageDelta{Text: "hello"},
 		TurnEnd{Reason: execution.OutcomeCompleted},
 	}}
@@ -386,7 +417,7 @@ func TestCoordinatorCommitsCanonicalOpeningAndTerminal(t *testing.T) {
 }
 
 func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T) {
-	executor := &fakeExecutor{events: []EngineEvent{TurnEnd{Reason: execution.OutcomeCompleted}}}
+	executor := &fakeExecutor{events: []ExecutorPayload{TurnEnd{Reason: execution.OutcomeCompleted}}}
 	started := make(chan struct{}, 1)
 	release := make(chan struct{})
 	effects := &fakeEffects{finishStarted: started, finishRelease: release}
@@ -435,7 +466,7 @@ func hasActiveSession(c *Coordinator, sessionID string) bool {
 }
 
 func TestCoordinatorCommitsProcessCreationFailureInCanonicalOrder(t *testing.T) {
-	executor := &fakeExecutor{events: []EngineEvent{
+	executor := &fakeExecutor{events: []ExecutorPayload{
 		TurnEnd{Reason: execution.OutcomeError, Problem: &transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem, Detail: "the run failed due to an internal error"}},
 	}}
 	effects := &fakeEffects{}
@@ -519,7 +550,7 @@ func TestCoordinatorActivationFailureBecomesErrorTerminal(t *testing.T) {
 }
 
 func TestCoordinatorMalformedInterruptAbortsExecutorAndTerminalizes(t *testing.T) {
-	executor := &fakeExecutor{events: []EngineEvent{TurnInterrupted{Interrupts: []Interrupt{{Kind: execution.InterruptKind(9)}}}}}
+	executor := &fakeExecutor{events: []ExecutorPayload{TurnInterrupted{Interrupts: []Interrupt{{Kind: execution.InterruptKind(9)}}}}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
 
@@ -551,7 +582,7 @@ func TestCoordinatorProtocolViolationAbortsExecutorAndTerminalizes(t *testing.T)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			executor := &fakeExecutor{events: []EngineEvent{test.event}}
+			executor := &fakeExecutor{events: []ExecutorPayload{test.event}}
 			effects := &fakeEffects{}
 			coordinator := testCoordinator(executor, effects)
 
@@ -1449,9 +1480,195 @@ func TestCoordinatorAcknowledgesChildOnlyAfterOpeningCommit(t *testing.T) {
 	}
 }
 
+func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testing.T) {
+	startedAt := testSegment().CreatedAt
+	requestA, confirmationA := NewChildOpeningRequest(startedAt)
+	requestB, confirmationB := NewChildOpeningRequest(startedAt)
+	requestGrandchild, confirmationGrandchild := NewChildOpeningRequest(startedAt)
+	root := ExecutorSource{ProcessID: "process_root"}
+	childA := ExecutorSource{
+		ProcessID: "process_child_a", ParentID: root.ProcessID, SpawnCallID: "spawn_a",
+	}
+	childB := ExecutorSource{
+		ProcessID: "process_child_b", ParentID: root.ProcessID, SpawnCallID: "spawn_b",
+	}
+	grandchild := ExecutorSource{
+		ProcessID: "process_grandchild", ParentID: childA.ProcessID, SpawnCallID: "spawn_grandchild",
+	}
+	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
+		{Source: root, Payload: ToolCallStart{
+			CallID: "call_a", SourceCallID: childA.SpawnCallID, ToolName: "task", Arguments: `{}`,
+		}},
+		{Source: root, Payload: ToolCallStart{
+			CallID: "call_b", SourceCallID: childB.SpawnCallID, ToolName: "task", Arguments: `{}`,
+		}},
+		{Source: childA, Payload: requestA},
+		{Source: childB, Payload: requestB},
+		{Source: childA, Payload: ToolCallStart{
+			CallID: "call_grandchild", SourceCallID: grandchild.SpawnCallID, ToolName: "task", Arguments: `{}`,
+		}},
+		{Source: grandchild, Payload: requestGrandchild},
+		// Deliberately report sibling B before the deeper descendant. Durable
+		// and public ordering follows Run-tree postorder, not executor arrival.
+		{Source: root, Payload: TreeInterrupted{Suspensions: []ProcessSuspension{
+			{
+				ProcessID: childB.ProcessID, SuspensionID: "suspension_b",
+				Interrupt: treeBarrierQuestion("Continue sibling B?"),
+			},
+			{
+				ProcessID: grandchild.ProcessID, SuspensionID: "suspension_grandchild",
+				Interrupt: treeBarrierQuestion("Continue grandchild?"),
+			},
+		}}},
+	}}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+	runIDs := []string{"run_child_a", "run_child_b", "run_grandchild"}
+	segmentIDs := []string{"seg_child_a", "seg_child_b", "seg_grandchild"}
+	coordinator.newRunID = func() string {
+		id := runIDs[0]
+		runIDs = runIDs[1:]
+		return id
+	}
+	coordinator.newSegmentID = func() string {
+		id := segmentIDs[0]
+		segmentIDs = segmentIDs[1:]
+		return id
+	}
+
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	for name, confirmation := range map[string]ChildOpeningConfirmation{
+		"child A": confirmationA, "child B": confirmationB, "grandchild": confirmationGrandchild,
+	} {
+		if err := confirmation.Await(t.Context()); err != nil {
+			t.Fatalf("%s opening: %v", name, err)
+		}
+	}
+
+	barriers := effects.barrierSnapshot()
+	if len(barriers) != 1 {
+		t.Fatalf("tree barrier commits = %d, want exactly one", len(barriers))
+	}
+	barrier := barriers[0]
+	wantOrder := []string{"run_grandchild", "run_child_a", "run_child_b", "run_1"}
+	if len(barrier.Runs) != len(wantOrder) ||
+		len(barrier.Pending.Continuations) != len(wantOrder) {
+		t.Fatalf(
+			"barrier runs/continuations = %d/%d, want %d/%d",
+			len(barrier.Runs),
+			len(barrier.Pending.Continuations),
+			len(wantOrder),
+			len(wantOrder),
+		)
+	}
+	for index, wantRunID := range wantOrder {
+		commit := barrier.Runs[index]
+		continuation := barrier.Pending.Continuations[index]
+		if commit.RunID != wantRunID || continuation.RunID != wantRunID {
+			t.Fatalf(
+				"barrier order[%d] = commit %q continuation %q, want %q",
+				index,
+				commit.RunID,
+				continuation.RunID,
+				wantRunID,
+			)
+		}
+		if commit.State != StateSuspend || commit.Run == nil ||
+			commit.Run.State != execution.Interrupted {
+			t.Fatalf("barrier Run[%d] = %+v, want interrupted suspend", index, commit)
+		}
+		wantDirect := 0
+		if wantRunID == "run_grandchild" || wantRunID == "run_child_b" {
+			wantDirect = 1
+		}
+		if len(commit.Run.Interrupts) != wantDirect {
+			t.Fatalf(
+				"barrier Run %q direct interrupts = %d, want %d",
+				wantRunID,
+				len(commit.Run.Interrupts),
+				wantDirect,
+			)
+		}
+	}
+	if got := []string{
+		barrier.Pending.Interrupts[0].RunID,
+		barrier.Pending.Interrupts[1].RunID,
+	}; got[0] != "run_grandchild" || got[1] != "run_child_b" {
+		t.Fatalf("pending interrupt order = %v, want grandchild then child B", got)
+	}
+	if len(barrier.Pending.Suspensions) != 2 ||
+		barrier.Pending.Suspensions[0].ProcessID != grandchild.ProcessID ||
+		barrier.Pending.Suspensions[1].ProcessID != childB.ProcessID {
+		t.Fatalf("pending suspension bindings = %+v", barrier.Pending.Suspensions)
+	}
+
+	var finishedOrder []string
+	for _, event := range events {
+		if finished, ok := event.Payload.(SegmentFinished); ok &&
+			finished.Run.State == execution.Interrupted {
+			finishedOrder = append(finishedOrder, finished.Run.ID)
+		}
+	}
+	if len(finishedOrder) != len(wantOrder) {
+		t.Fatalf("published interrupted order = %v, want %v", finishedOrder, wantOrder)
+	}
+	for index := range wantOrder {
+		if finishedOrder[index] != wantOrder[index] {
+			t.Fatalf("published interrupted order = %v, want %v", finishedOrder, wantOrder)
+		}
+	}
+	if executor.cancels() != 0 {
+		t.Fatalf("parked tree canceled executor %d times, want 0", executor.cancels())
+	}
+}
+
+func TestCoordinatorTreeBarrierCommitFailurePublishesNoInterruptedFact(t *testing.T) {
+	root := ExecutorSource{ProcessID: "process_root"}
+	executor := &fakeExecutor{executorEvents: []ExecutorEvent{{
+		Source: root,
+		Payload: TreeInterrupted{Suspensions: []ProcessSuspension{{
+			ProcessID: root.ProcessID, SuspensionID: "suspension_root",
+			Interrupt: treeBarrierQuestion("Continue root?"),
+		}}},
+	}}}
+	effects := &fakeEffects{
+		commitErr:   errors.New("tree barrier store unavailable"),
+		commitErrAt: 1,
+	}
+	coordinator := testCoordinator(executor, effects)
+
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	if barriers := effects.barrierSnapshot(); len(barriers) != 0 {
+		t.Fatalf("failed tree barrier became durable: %+v", barriers)
+	}
+	for _, event := range events {
+		switch payload := event.Payload.(type) {
+		case ItemStarted:
+			if payload.Item.Kind == transcript.QuestionItem {
+				t.Fatalf("uncommitted question was published: %+v", payload.Item)
+			}
+		case SegmentFinished:
+			if payload.Run.State == execution.Interrupted {
+				t.Fatalf("uncommitted interrupted Run was published: %+v", payload.Run)
+			}
+		}
+	}
+	if executor.cancels() != 1 {
+		t.Fatalf("tree barrier failure canceled executor %d times, want 1", executor.cancels())
+	}
+}
+
 func TestCoordinatorCommitsSyntheticTerminalBeforeCancelTurn(t *testing.T) {
 	executor := &fakeExecutor{
-		events:        []EngineEvent{TurnInterrupted{Interrupts: []Interrupt{{Kind: execution.InterruptKind(9)}}}},
+		events:        []ExecutorPayload{TurnInterrupted{Interrupts: []Interrupt{{Kind: execution.InterruptKind(9)}}}},
 		cancelStarted: make(chan struct{}),
 		releaseCancel: make(chan struct{}),
 	}
@@ -1475,7 +1692,7 @@ func TestCoordinatorCommitsSyntheticTerminalBeforeCancelTurn(t *testing.T) {
 }
 
 func TestCoordinatorCommitFailureNeverPublishesUnbackedFact(t *testing.T) {
-	executor := &fakeExecutor{events: []EngineEvent{CompactBoundary{MessagesBefore: 4, MessagesAfter: 2}}}
+	executor := &fakeExecutor{events: []ExecutorPayload{CompactBoundary{MessagesBefore: 4, MessagesAfter: 2}}}
 	effects := &fakeEffects{commitErr: fmt.Errorf("store down")}
 	coordinator := testCoordinator(executor, effects)
 

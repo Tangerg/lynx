@@ -5,10 +5,12 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
@@ -68,15 +70,26 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 	}
 
 	if err := sqlite.RunInTx(ctx, db, func(ctx context.Context) error {
-		if err := ints.Put(ctx, interrupts.Pending{RootRunID: "run_1", SessionID: "s2"}); err != nil {
+		pendingSet := pendingForRun(
+			"run_1",
+			"s2",
+			"proc_1",
+			[]transcript.Interrupt{{
+				ItemID:   "item_1",
+				Kind:     execution.QuestionInterrupt,
+				Question: &transcript.Question{Prompt: "Continue?"},
+			}},
+			time.Unix(2, 0).UTC(),
+		)
+		if err := ints.Put(ctx, pendingSet); err != nil {
 			return err
 		}
-		pending, err := ints.List(ctx, "s2")
+		pendingList, err := ints.List(ctx, "s2")
 		if err != nil {
 			return err
 		}
-		if len(pending) != 1 || pending[0].RootRunID != "run_1" {
-			t.Fatalf("pending interrupts = %+v, want run_1 inside tx", pending)
+		if len(pendingList) != 1 || pendingList[0].RootRunID != "run_1" {
+			t.Fatalf("pending interrupts = %+v, want run_1 inside tx", pendingList)
 		}
 		return ints.Delete(ctx, "run_1")
 	}); err != nil {

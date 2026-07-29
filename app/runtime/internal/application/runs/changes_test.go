@@ -109,7 +109,7 @@ func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 // notice they are behind. The notice is scoped to the session because the key is:
 // naming the run would invite a refetch keyed on something the value is not keyed on.
 func TestCommittedStateChangeReachesOtherWindows(t *testing.T) {
-	exec := &fakeExecutor{events: []EngineEvent{TodosUpdated{State: todo.State{
+	exec := &fakeExecutor{events: []ExecutorPayload{TodosUpdated{State: todo.State{
 		Items:    []todo.Item{{Content: "tell the other window", Status: todo.StatusInProgress}},
 		Revision: 2, UpdatedAt: time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC),
 	}}}}

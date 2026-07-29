@@ -90,15 +90,14 @@ func presentProtocolProfile(profile execution.RunProtocolProfile) protocol.RunPr
 func presentSegmentFinished(run transcript.Run) (protocol.SegmentOutcome, protocol.RunMetrics) {
 	metrics := presentMetrics(run.Metrics)
 	if run.State == execution.Interrupted {
+		if len(run.Interrupts) == 0 {
+			return protocol.SegmentOutcome{Type: protocol.SegmentSuspended}, metrics
+		}
 		return protocol.SegmentOutcome{
 			Type:       protocol.SegmentInterrupt,
 			Interrupts: presentInterrupts(run.Interrupts),
 		}, metrics
 	}
-	// `suspended` has no producer while features.subagents is off: it describes a
-	// run stopped by ANOTHER run's interrupt barrier, and a session runs one root
-	// run with no children. It is published anyway, because a client folding
-	// segment outcomes exhaustively must already know the tag when subtrees arrive.
 	terminal := presentOutcome(run)
 	return protocol.SegmentOutcome{
 		Type:   protocol.SegmentOutcomeType(terminal.Type),

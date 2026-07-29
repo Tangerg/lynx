@@ -84,9 +84,9 @@ var systemInvariants = []SystemInvariantSpec{{
 		"the first answer would be folding a stream whose rules had changed under it.",
 	Boundaries: []TransactionBoundary{BoundaryRunAdmission},
 }, {
-	Key: "parked_run_has_exactly_one_open_interrupt_set",
-	Why: "A Run parked with no pending set can never be resumed and never " +
-		"terminates; the client waits on something that will not move.",
+	Key: "parked_tree_has_exactly_one_open_interrupt_set",
+	Why: "A Run tree parked without one complete pending set cannot be resumed " +
+		"atomically; clients would observe only part of a barrier that can never move.",
 	Boundaries: []TransactionBoundary{BoundarySegmentEvent, BoundaryRunRecovery},
 }, {
 	Key: "dropped_run_leaves_nothing_behind",

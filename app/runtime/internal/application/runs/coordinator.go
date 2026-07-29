@@ -186,6 +186,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 	for _, pe := range opening.events {
 		hub.Append(c.event(spec.RunID, spec.SegmentID, pe))
 	}
+	segmentStartedAt := c.now().UTC()
 	if spec.Activate != nil {
 		if err := spec.Activate(taskCtx); err != nil {
 			trace.SpanFromContext(taskCtx).RecordError(fmt.Errorf("runs: activate segment: %w", err))
@@ -195,7 +196,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 	}
 	go func() {
 		defer release()
-		c.pump(runCtx, taskCtx, spec, inner, live, reducer)
+		c.pump(runCtx, taskCtx, spec, inner, live, reducer, segmentStartedAt)
 	}()
 	return seq, nil
 }

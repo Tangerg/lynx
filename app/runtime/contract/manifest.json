@@ -3557,8 +3557,8 @@
       ]
     },
     {
-      "key": "parked_run_has_exactly_one_open_interrupt_set",
-      "why": "A Run parked with no pending set can never be resumed and never terminates; the client waits on something that will not move.",
+      "key": "parked_tree_has_exactly_one_open_interrupt_set",
+      "why": "A Run tree parked without one complete pending set cannot be resumed atomically; clients would observe only part of a barrier that can never move.",
       "boundaries": [
         "runsegment.event",
         "runs.recovery"

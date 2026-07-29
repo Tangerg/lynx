@@ -99,7 +99,10 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 	var applied TerminalPlan
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{
-			"run_1": {RootRunID: "run_1", SessionID: "ses_1", ProcessID: "proc_1"},
+			"run_1": {
+				RootRunID: "run_1", SessionID: "ses_1",
+				Continuations: []interrupts.Continuation{{RunID: "run_1", ProcessID: "proc_1"}},
+			},
 		}},
 		snapshot: Snapshot{
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("hi"))},
@@ -145,7 +148,10 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 	var applied TerminalPlan
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{
-			"run_1": {RootRunID: "run_1", SessionID: "ses_1", ProcessID: "proc_1"},
+			"run_1": {
+				RootRunID: "run_1", SessionID: "ses_1",
+				Continuations: []interrupts.Continuation{{RunID: "run_1", ProcessID: "proc_1"}},
+			},
 		}},
 		snapshot: Snapshot{
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello"))},

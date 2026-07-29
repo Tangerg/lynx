@@ -635,13 +635,18 @@ const runColumns = `r.run_id, r.session_id, r.spawned_by_item_id, r.parent_run_i
 	r.max_steps, r.max_budget_usd, r.protocol_profile, tree_root.protocol_profile,
 	r.message_mark, r.started_at, r.finished_at, r.updated_at, i.payload`
 
-// runReadJoins materializes the root-owned protocol profile for child RunRefs
-// while leaving root interrupt ownership on the root row. A child never reads
-// the aggregate PendingInterruptSet as if every Interrupt were its own.
+// runReadJoins materializes the root-owned protocol profile and pending set for
+// every Run in the tree. scanRun filters the aggregate payload by source Run ID,
+// so a suspended sibling reads an empty direct-interrupt list rather than
+// claiming another Run's questions.
 const runReadJoins = `LEFT JOIN runs AS tree_root
 		   ON tree_root.run_id = r.root_run_id AND tree_root.session_id = r.session_id
 		 LEFT JOIN interrupts AS i
-		   ON i.root_run_id = r.run_id AND i.session_id = r.session_id`
+		   ON i.root_run_id = CASE
+		        WHEN r.root_run_id = '' THEN r.run_id
+		        ELSE r.root_run_id
+		      END
+		  AND i.session_id = r.session_id`
 
 // ListRuns returns a session's Runs in admission order, each as the complete
 // aggregate: its lifecycle position, the facts it accrued, and — while parked —

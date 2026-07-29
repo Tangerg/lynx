@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -97,7 +96,9 @@ func (p *blockingCancelProcess) Cancel(context.Context) error {
 	return p.err
 }
 func (*blockingCancelProcess) Resume(context.Context, interrupts.Resolution) error { return nil }
-func (*blockingCancelProcess) Suspension() *agent.Suspension                       { return nil }
+func (*blockingCancelProcess) PendingSuspensions(context.Context) ([]agentexec.PendingSuspension, error) {
+	return nil, nil
+}
 func (p *blockingCancelProcess) Discard(context.Context) error {
 	err := p.discardErr
 	if p.discarded != nil {

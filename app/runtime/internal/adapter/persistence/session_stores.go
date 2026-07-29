@@ -365,9 +365,11 @@ func (s *SessionStores) deleteInterrupts(ctx context.Context, sessionID string) 
 	}
 	processIDs := make([]string, 0, len(pending))
 	for _, interrupt := range pending {
-		if interrupt.ProcessID != "" {
-			processIDs = append(processIDs, interrupt.ProcessID)
+		root, ok := interrupt.RootContinuation()
+		if !ok {
+			return fmt.Errorf("persistence: interrupt %q has no root continuation", interrupt.RootRunID)
 		}
+		processIDs = append(processIDs, root.ProcessID)
 	}
 	if len(processIDs) > 0 {
 		if err := s.processes.DeleteTrees(ctx, processIDs); err != nil {

@@ -9,7 +9,6 @@ import (
 	appRuns "github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -125,11 +124,14 @@ func TestRollbackSession_CancelsDroppedParkedRun(t *testing.T) {
 	putRun(t, rt, sess.ID, "run_1", 100, 2)
 	putRun(t, rt, sess.ID, "run_2", 200, 4)
 	putUserItem(t, rt, sess.ID, "run_2", "item_u2", "second prompt")
-	if err := rt.interrupts.Put(ctx, interrupts.Pending{
-		RootRunID: "run_2",
-		SessionID: sess.ID,
-		TurnID:    "turn_parked",
-	}); err != nil {
+	if err := rt.interrupts.Put(ctx, serverPending(
+		"run_2",
+		sess.ID,
+		"turn_parked",
+		"process_run_2",
+		nil,
+		time.Now().UTC(),
+	)); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 	turns := &recordingTurns{}
@@ -166,7 +168,14 @@ func TestRollbackSession_DropAll(t *testing.T) {
 	rt.history[sess.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("u1")), chat.NewAssistantMessage(chat.NewTextPart("a1"))}
 	rt.history[child.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("sub"))}
 	putRun(t, rt, sess.ID, "run_1", 100, 2)
-	if err := rt.interrupts.Put(ctx, interrupts.Pending{RootRunID: "run_child", SessionID: child.ID}); err != nil {
+	if err := rt.interrupts.Put(ctx, serverPending(
+		"run_child",
+		child.ID,
+		"",
+		"",
+		nil,
+		time.Now().UTC(),
+	)); err != nil {
 		t.Fatalf("seed child interrupt: %v", err)
 	}
 

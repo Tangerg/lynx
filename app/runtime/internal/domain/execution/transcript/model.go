@@ -416,10 +416,11 @@ func (run Run) validateOpen() error {
 	case run.MessageMark != UnknownMessageMark:
 		return fmt.Errorf("%s run carries message watermark %d", run.State, run.MessageMark)
 	}
-	// Being parked and holding open interrupts are the same fact seen twice: the
-	// interrupts ARE what the run is parked on.
-	if (run.State == execution.Interrupted) != (len(run.Interrupts) != 0) {
-		return fmt.Errorf("%s run holds %d open interrupts", run.State, len(run.Interrupts))
+	// A Running Run cannot own an open human question. An Interrupted Run may
+	// carry direct interrupts, or none when another Run in its tree raised the
+	// barrier and this Run was suspended with it.
+	if run.State == execution.Running && len(run.Interrupts) != 0 {
+		return fmt.Errorf("running run holds %d open interrupts", len(run.Interrupts))
 	}
 	return nil
 }

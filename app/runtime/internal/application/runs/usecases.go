@@ -133,6 +133,9 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if !found {
 		return StartResult{}, ErrInterruptNotOpen
 	}
+	if err := pending.Validate(); err != nil {
+		return StartResult{}, fmt.Errorf("runs: invalid pending interrupt set: %w", err)
+	}
 	if gap := pending.ProtocolProfile.Uncovered(cmd.CallerCapabilities); !gap.IsEmpty() {
 		return StartResult{}, &execution.ProfileNotCovered{RunID: cmd.RunID, Gap: gap}
 	}
@@ -167,8 +170,12 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		}
 		return StartResult{}, err
 	}
+	rootContinuation, ok := pending.RootContinuation()
+	if !ok {
+		return StartResult{}, errors.New("runs: pending interrupt set has no root continuation")
+	}
 	segmentID := c.newSegmentID()
-	createdAt := pending.RunCreatedAt
+	createdAt := rootContinuation.RunCreatedAt
 	pendingCopy := pending
 	events, err := c.openSegment(ctx, segmentSpec{
 		RunID:          cmd.RunID,
@@ -176,7 +183,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		SessionID:      pending.SessionID,
 		Cwd:            sess.Cwd,
 		TurnID:         turn.TurnID,
-		ModelSelection: pending.ModelSelection,
+		ModelSelection: rootContinuation.ModelSelection,
 		CreatedAt:      createdAt,
 		Input:          cmd.Input,
 		Pending:        &pendingCopy,
@@ -518,14 +525,18 @@ func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pendin
 	if isolated {
 		return execution.TurnRef{}, fmt.Errorf("%w: an isolated run cannot resume after its sandbox process ended", ErrTurnStateLost)
 	}
-	if pending.ProcessID == "" {
-		return execution.TurnRef{}, errors.Join(ErrRunNotFound, errors.New("runs: interrupt has no recorded process id"))
+	root, ok := pending.RootContinuation()
+	if !ok {
+		return execution.TurnRef{}, errors.Join(
+			ErrRunNotFound,
+			errors.New("runs: interrupt has no root continuation"),
+		)
 	}
 	turn, err = c.turns.Rehydrate(ctx, RehydrateTurn{
 		SessionID:      pending.SessionID,
 		TurnID:         pending.TurnID,
-		ProcessID:      pending.ProcessID,
-		ModelSelection: pending.ModelSelection,
+		ProcessID:      root.ProcessID,
+		ModelSelection: root.ModelSelection,
 		Cwd:            cwd,
 	})
 	if err != nil {

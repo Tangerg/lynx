@@ -26,7 +26,7 @@ type resumedQuestion struct {
 	question *transcript.Question
 }
 
-func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
+func resumeBindingFrom(pending interrupts.Pending, runID string) *resumeBinding {
 	calls := map[string]string{}
 	items := map[string]string{}
 	byName := map[string]string{}
@@ -44,7 +44,7 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 
 	var questions []resumedQuestion
 	for _, in := range pending.Interrupts {
-		if in.ItemID == "" {
+		if in.RunID != runID || in.ItemID == "" {
 			continue
 		}
 		switch in.Kind {
@@ -56,13 +56,17 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 			questions = append(questions, resumedQuestion{itemID: in.ItemID, question: in.Question})
 		}
 	}
-	for _, tool := range pending.DrainedTools {
-		if tool.Name != "" && tool.ItemID != "" {
-			arguments, err := parseToolArguments(tool.Arguments)
-			if err != nil {
-				return &resumeBinding{err: fmt.Errorf("resume drained tool %q arguments: %w", tool.Name, err)}
+	var drained []interrupts.DrainedTool
+	if continuation, ok := pending.ContinuationFor(runID); ok {
+		drained = continuation.DrainedTools
+		for _, tool := range drained {
+			if tool.Name != "" && tool.ItemID != "" {
+				arguments, err := parseToolArguments(tool.Arguments)
+				if err != nil {
+					return &resumeBinding{err: fmt.Errorf("resume drained tool %q arguments: %w", tool.Name, err)}
+				}
+				addItem(tool.CallID, tool.Name, argumentIdentity(arguments), tool.ItemID)
 			}
-			addItem(tool.CallID, tool.Name, argumentIdentity(arguments), tool.ItemID)
 		}
 	}
 	if len(calls) == 0 && len(items) == 0 && len(questions) == 0 {
@@ -70,7 +74,7 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 	}
 	return &resumeBinding{
 		callItems: calls, toolItems: items, byName: byName, questions: questions,
-		drained: slices.Clone(pending.DrainedTools), consumed: make(map[string]struct{}),
+		drained: slices.Clone(drained), consumed: make(map[string]struct{}),
 	}
 }
 

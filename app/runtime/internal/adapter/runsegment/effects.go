@@ -14,7 +14,6 @@ import (
 	"context"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -96,12 +95,6 @@ type TitleGenerator interface {
 	Generate(ctx context.Context, firstMessage string) (string, error)
 }
 
-// ProcessLookup resolves the agent process backing a live turn. The concrete
-// turn dispatcher has many operations; runsegment needs only this one.
-type ProcessLookup interface {
-	ProcessID(ctx context.Context, handle turn.TurnHandle) (string, error)
-}
-
 // Checkpoints anchors the working tree at a terminal run boundary. Implemented
 // by the workspace adapter; defined here so the kernel depends on the behavior,
 // not the adapter package.
@@ -129,7 +122,6 @@ type Config struct {
 	ToolResults        ToolResultStore
 	Messages           MessageCounter
 	Titles             TitleGenerator
-	Processes          ProcessLookup
 	RunState           RunWriter
 	Tx                 Transactor
 	Checkpoints        Checkpoints
@@ -148,7 +140,6 @@ type Effects struct {
 	toolResults     ToolResultStore
 	messages        MessageCounter
 	titles          TitleGenerator
-	processes       ProcessLookup
 	runState        RunWriter
 	tx              Transactor
 	checkpoints     Checkpoints
@@ -171,7 +162,6 @@ func New(cfg Config) *Effects {
 		toolResults:     cfg.ToolResults,
 		messages:        cfg.Messages,
 		titles:          cfg.Titles,
-		processes:       cfg.Processes,
 		runState:        cfg.RunState,
 		tx:              cfg.Tx,
 		checkpoints:     cfg.Checkpoints,

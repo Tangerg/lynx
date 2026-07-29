@@ -12,7 +12,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
@@ -296,7 +295,14 @@ func TestSessionImportRejectsOpenInterrupt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := rt.interrupts.Put(ctx, interrupts.Pending{RootRunID: "run_parked", SessionID: ses.ID}); err != nil {
+	if err := rt.interrupts.Put(ctx, serverPending(
+		"run_parked",
+		ses.ID,
+		"",
+		"",
+		nil,
+		time.Now().UTC(),
+	)); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
@@ -322,7 +328,14 @@ func TestSessionExportRejectsOpenInterrupt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := rt.interrupts.Put(ctx, interrupts.Pending{RootRunID: "run_parked", SessionID: ses.ID}); err != nil {
+	if err := rt.interrupts.Put(ctx, serverPending(
+		"run_parked",
+		ses.ID,
+		"",
+		"",
+		nil,
+		time.Now().UTC(),
+	)); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
@@ -349,7 +362,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	if err := rt.runs.Suspend(ctx, transcript.Run{
 		SessionID: ses.ID, ID: "run_parked", State: execution.Interrupted,
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_question", Kind: execution.QuestionInterrupt,
+			ItemID: "item_question", RunID: "run_parked", Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Prompt: "Continue?"},
 		}},
 		CreatedAt: parkedAt, MessageMark: transcript.UnknownMessageMark,
@@ -363,12 +376,18 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("put interrupt item: %v", err)
 	}
-	if err := rt.interrupts.Put(ctx, interrupts.Pending{
-		RootRunID: "run_parked", SessionID: ses.ID, TurnID: "turn_parked",
-		Interrupts: []transcript.Interrupt{{ItemID: "item_question", Kind: execution.QuestionInterrupt,
-			Question: &transcript.Question{Prompt: "Continue?"}}},
-		RunCreatedAt: parkedAt, CreatedAt: parkedAt,
-	}); err != nil {
+	if err := rt.interrupts.Put(ctx, serverPending(
+		"run_parked",
+		ses.ID,
+		"turn_parked",
+		"process_parked",
+		[]transcript.Interrupt{{
+			ItemID:   "item_question",
+			Kind:     execution.QuestionInterrupt,
+			Question: &transcript.Question{Prompt: "Continue?"},
+		}},
+		parkedAt,
+	)); err != nil {
 		t.Fatalf("put interrupt: %v", err)
 	}
 
@@ -406,7 +425,14 @@ func TestRestoreSessionApplicationBoundaryRejectsOpenInterrupts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := rt.interrupts.Put(ctx, interrupts.Pending{RootRunID: "run_old", SessionID: ses.ID}); err != nil {
+	if err := rt.interrupts.Put(ctx, serverPending(
+		"run_old",
+		ses.ID,
+		"",
+		"",
+		nil,
+		time.Now().UTC(),
+	)); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 

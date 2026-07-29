@@ -38,6 +38,58 @@ type testRuntime interface {
 	RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects
 }
 
+func serverPending(
+	runID, sessionID, turnID, processID string,
+	open []transcript.Interrupt,
+	createdAt time.Time,
+) interrupts.Pending {
+	if turnID == "" {
+		turnID = "turn_" + runID
+	}
+	if processID == "" {
+		processID = "process_" + runID
+	}
+	if createdAt.IsZero() {
+		createdAt = time.Unix(1, 0).UTC()
+	}
+	if len(open) == 0 {
+		open = []transcript.Interrupt{{
+			ItemID:   "interrupt_" + runID,
+			RunID:    runID,
+			Kind:     execution.QuestionInterrupt,
+			Question: &transcript.Question{Prompt: "Continue?"},
+		}}
+	} else {
+		open = append([]transcript.Interrupt(nil), open...)
+		for index := range open {
+			if open[index].RunID == "" {
+				open[index].RunID = runID
+			}
+		}
+	}
+	bindings := make([]interrupts.SuspensionBinding, len(open))
+	for index, interrupt := range open {
+		bindings[index] = interrupts.SuspensionBinding{
+			InterruptItemID: interrupt.ItemID,
+			ProcessID:       processID,
+			SuspensionID:    fmt.Sprintf("suspension_%s_%d", processID, index),
+		}
+	}
+	return interrupts.Pending{
+		RootRunID:   runID,
+		SessionID:   sessionID,
+		TurnID:      turnID,
+		Interrupts:  open,
+		Suspensions: bindings,
+		Continuations: []interrupts.Continuation{{
+			RunID:        runID,
+			ProcessID:    processID,
+			RunCreatedAt: createdAt,
+		}},
+		CreatedAt: createdAt,
+	}
+}
+
 // turnRuntime is this integration harness's complete executor view. Production
 // consumers do not share this surface: turn.Executor, session cleanup, and
 // run-segment persistence each declare their own smaller ports.
@@ -266,14 +318,6 @@ type stubLifecycleTurns struct {
 
 func (t stubLifecycleTurns) Cancel(ctx context.Context, ref execution.TurnRef) error {
 	return t.rt.CancelTurn(ctx, execution.TurnRef{SessionID: ref.SessionID, TurnID: ref.TurnID})
-}
-
-type stubRunSegmentProcesses struct {
-	rt stubRuntime
-}
-
-func (p stubRunSegmentProcesses) ProcessID(ctx context.Context, handle turn.TurnHandle) (string, error) {
-	return p.rt.TurnProcessID(ctx, handle)
 }
 
 type stubLifecycleStores struct {
@@ -534,7 +578,6 @@ func (s stubRuntime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publi
 		ToolResults:        s.toolResults,
 		Messages:           stubMessageCounter{rt: s},
 		Titles:             stubTitleGenerator{},
-		Processes:          stubRunSegmentProcesses{rt: s},
 		RunState:           s.runWriter(),
 		Tx:                 s.RunInTx,
 		Checkpoints:        checkpoints,

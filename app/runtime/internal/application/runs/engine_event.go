@@ -2,6 +2,7 @@ package runs
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -144,6 +145,55 @@ type CompactBoundary struct {
 	MessagesAfter  int
 }
 
+// ProcessSuspension is one direct external-input boundary discovered in the
+// executor tree. ProcessID identifies the source process already admitted to an
+// application Run; SuspensionID is private continuation identity; Interrupt is
+// the application prompt projected from that suspension.
+type ProcessSuspension struct {
+	ProcessID    string
+	SuspensionID string
+	Interrupt    Interrupt
+}
+
+// TreeInterrupted is the executor's complete, stable view of one human-input
+// barrier. It is a control payload rather than an EngineEvent because no single
+// Run reducer may commit it: the Coordinator must suspend the entire active tree
+// in one transaction.
+type TreeInterrupted struct {
+	executorPayloadBase
+	Suspensions []ProcessSuspension
+}
+
+func (barrier TreeInterrupted) validate() error {
+	if len(barrier.Suspensions) == 0 {
+		return errors.New("runs: executor emitted an empty tree interrupt")
+	}
+	seen := make(map[string]struct{}, len(barrier.Suspensions))
+	for index, suspension := range barrier.Suspensions {
+		if strings.TrimSpace(suspension.ProcessID) == "" {
+			return fmt.Errorf("runs: tree interrupt suspension[%d] has no process id", index)
+		}
+		if strings.TrimSpace(suspension.SuspensionID) == "" {
+			return fmt.Errorf("runs: tree interrupt suspension[%d] has no suspension id", index)
+		}
+		if err := suspension.Interrupt.Validate(); err != nil {
+			return fmt.Errorf("runs: tree interrupt suspension[%d]: %w", index, err)
+		}
+		key := suspension.ProcessID + "\x00" + suspension.SuspensionID
+		if _, duplicate := seen[key]; duplicate {
+			return fmt.Errorf(
+				"runs: process %q repeated suspension %q",
+				suspension.ProcessID,
+				suspension.SuspensionID,
+			)
+		}
+		seen[key] = struct{}{}
+	}
+	return nil
+}
+
+// TurnInterrupted is the source-Run reducer input derived from a
+// [TreeInterrupted] barrier. Executor adapters never emit it directly.
 type TurnInterrupted struct {
 	engineEventBase
 	Interrupts []Interrupt

@@ -262,7 +262,7 @@ func TestDispatcher_InjectSteering_UnknownTurn(t *testing.T) {
 }
 
 // TestDispatcher_ApprovalGate_AllowOnce verifies the gate parks the turn
-// on a TurnInterrupted{approval} when the configured mode requires consent
+// on a TreeInterrupted{approval} when the configured mode requires consent
 // (R model), and that the next run segment can attach before Resume drives the
 // continuation to completion.
 func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
@@ -279,18 +279,19 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 
 	var sawInterrupt bool
 	for ev := range events {
-		if e, ok := ev.Payload.(runs.TurnInterrupted); ok {
+		if e, ok := ev.Payload.(runs.TreeInterrupted); ok {
 			sawInterrupt = true
-			if len(e.Interrupts) != 1 || e.Interrupts[0].Kind != execution.ApprovalInterrupt {
-				t.Errorf("interrupts = %+v, want one approval", e.Interrupts)
-			} else if p := e.Interrupts[0].Approval; p == nil || p.ToolName != "shell" {
+			if len(e.Suspensions) != 1 ||
+				e.Suspensions[0].Interrupt.Kind != execution.ApprovalInterrupt {
+				t.Errorf("suspensions = %+v, want one approval", e.Suspensions)
+			} else if p := e.Suspensions[0].Interrupt.Approval; p == nil || p.ToolName != "shell" {
 				t.Errorf("approval payload = %+v, want shell ApprovalPrompt", p)
 			}
 			break
 		}
 	}
 	if !sawInterrupt {
-		t.Fatal("TurnInterrupted never fired in balanced mode")
+		t.Fatal("TreeInterrupted never fired in balanced mode")
 	}
 
 	events, err := dispatcher.Events(context.Background(), handle)
@@ -339,7 +340,7 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	var endReason execution.Outcome
 	for ev := range events {
 		switch e := ev.Payload.(type) {
-		case runs.TurnInterrupted:
+		case runs.TreeInterrupted:
 			if err := dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, []execution.InterruptKind{execution.ApprovalInterrupt}); err != nil {
 				t.Errorf("Resume: %v", err)
 			}
@@ -401,7 +402,7 @@ func TestDispatcher_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 	)
 	for ev := range events {
 		switch e := ev.Payload.(type) {
-		case runs.TurnInterrupted:
+		case runs.TreeInterrupted:
 			sawInterrupt = true
 			if err := dispatcher.Cancel(context.Background(), handle); err != nil {
 				t.Errorf("Cancel: %v", err)
@@ -444,7 +445,7 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 	)
 	for ev := range events {
 		switch e := ev.Payload.(type) {
-		case runs.TurnInterrupted:
+		case runs.TreeInterrupted:
 			_ = dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: false}, []execution.InterruptKind{execution.ApprovalInterrupt})
 		case runs.ToolCallEnd:
 			// Denial flows back as a tool *result* so the model can
@@ -465,7 +466,7 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 }
 
 // TestDispatcher_ApprovalGate_YoloSkipsEvent makes sure the gate is
-// invisible under ModeYolo — the turn never parks (no TurnInterrupted),
+// invisible under ModeYolo — the turn never parks (no TreeInterrupted),
 // the tool runs as if no gate were wired.
 func TestDispatcher_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	client, _ := chatclient.New(newStubChatModel())
@@ -479,8 +480,8 @@ func TestDispatcher_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	events, _ := dispatcher.Events(context.Background(), handle)
 
 	for ev := range events {
-		if _, ok := ev.Payload.(runs.TurnInterrupted); ok {
-			t.Error("TurnInterrupted should NOT fire in yolo mode")
+		if _, ok := ev.Payload.(runs.TreeInterrupted); ok {
+			t.Error("TreeInterrupted should NOT fire in yolo mode")
 		}
 	}
 }

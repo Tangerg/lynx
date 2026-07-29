@@ -3,6 +3,7 @@ package turn
 import (
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
@@ -26,7 +27,7 @@ func TestCancelBetweenParkAndInterruptPublishClosesSafely(t *testing.T) {
 	if err := dispatcher.Cancel(t.Context(), st.handle); err != nil {
 		t.Fatalf("Cancel: %v", err)
 	}
-	if dispatcher.emitRootEvent(st, runs.TurnInterrupted{}) {
+	if dispatcher.emitProcessEvent(st, agentexec.ProcessRef{ID: "proc_1"}, runs.TreeInterrupted{}) {
 		t.Fatal("late interrupt was delivered after the terminal closed the stream")
 	}
 

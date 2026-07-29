@@ -166,7 +166,11 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 	run.FinishedAt = finishedAt.UTC()
 	run.UpdatedAt = run.FinishedAt
 	run.MessageMark = len(snapshot.Messages)
-	if err := c.writes.ApplyTerminal(ctx, TerminalPlan{Run: run, Items: items, ProcessID: pending.ProcessID}); err != nil {
+	root, ok := pending.RootContinuation()
+	if !ok {
+		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked run %q: root continuation is missing", runID)
+	}
+	if err := c.writes.ApplyTerminal(ctx, TerminalPlan{Run: run, Items: items, ProcessID: root.ProcessID}); err != nil {
 		return transcript.Run{}, err
 	}
 	// One write-set ended the run and dropped the set it was parked on, so one place
@@ -194,11 +198,15 @@ func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTu
 		if !found {
 			continue
 		}
+		root, ok := pending.RootContinuation()
+		if !ok {
+			return nil, fmt.Errorf("sessions: parked run %q has no root continuation", pending.RootRunID)
+		}
 		out = append(out, RunTurnBinding{
 			RunID:     pending.RootRunID,
 			SessionID: pending.SessionID,
 			TurnID:    pending.TurnID,
-			ProcessID: pending.ProcessID,
+			ProcessID: root.ProcessID,
 		})
 	}
 	return out, nil

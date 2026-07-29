@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -37,20 +38,22 @@ func TestResumeRun_KeepsInterruptOpenWhenStartFails(t *testing.T) {
 	ctx := context.Background()
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 
-	if err := rt.interrupts.Put(ctx, interrupts.Pending{
-		RootRunID:      "run_1",
-		SessionID:      sess.ID,
-		TurnID:         "turn_parked",
-		ProcessID:      "turn_parked",
-		ModelSelection: mustResumeSelection(t, "openai", "gpt"),
-		Interrupts: []transcript.Interrupt{{
+	pending := serverPending(
+		"run_1",
+		sess.ID,
+		"turn_parked",
+		"turn_parked",
+		[]transcript.Interrupt{{
 			ItemID: "item_1",
 			Kind:   execution.ApprovalInterrupt,
 			Approval: &transcript.Approval{
 				Tool: transcript.ToolInvocation{Name: "shell"},
 			},
 		}},
-	}); err != nil {
+		time.Unix(1, 0).UTC(),
+	)
+	pending.Continuations[0].ModelSelection = mustResumeSelection(t, "openai", "gpt")
+	if err := rt.interrupts.Put(ctx, pending); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
@@ -98,16 +101,20 @@ func TestResumeRunRejectsMissingAndUnknownItemCoverage(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
-	pending := interrupts.Pending{
-		RootRunID: "run_coverage", SessionID: sess.ID, TurnID: "turn_parked", ProcessID: "turn_parked",
-		Interrupts: []transcript.Interrupt{{
+	pending := serverPending(
+		"run_coverage",
+		sess.ID,
+		"turn_parked",
+		"turn_parked",
+		[]transcript.Interrupt{{
 			ItemID: "item_open",
 			Kind:   execution.ApprovalInterrupt,
 			Approval: &transcript.Approval{
 				Tool: transcript.ToolInvocation{Name: "shell"},
 			},
 		}},
-	}
+		time.Unix(1, 0).UTC(),
+	)
 	if err := rt.interrupts.Put(ctx, pending); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}

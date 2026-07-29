@@ -60,7 +60,7 @@ func Open(path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 41
+const schemaEpoch = 42
 
 func installCurrentSchema(db *sql.DB, path string) error {
 	var epoch int
@@ -179,35 +179,30 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			ON runs(root_run_id) WHERE root_run_id != ''`,
 		`CREATE INDEX IF NOT EXISTS idx_runs_parent
 			ON runs(parent_run_id) WHERE parent_run_id != ''`,
-		// One row per parked Run: what it is waiting on, plus the Run facts its
-		// continuation has to restamp and cannot re-derive (its original start
-		// time, its model selection, what it had already spent, and the allowance
-		// it was admitted under). Those are written in the same transaction as the
-		// Run row and a parked Run consumes nothing while parked, so the hand-off
-		// cannot come apart from the Run it describes. accounting and
-		// protocol_profile are each one JSON value because they are read and written
-		// whole with the row and never queried across.
+		// One root-owned row per parked Run tree. payload is the client-facing
+		// interrupt set; suspension_bindings maps each item to the private executor
+		// boundary it answers; continuations carries every suspended Run's
+		// application/executor hand-off. All three are closed JSON values written
+		// and consumed with the tree's lifecycle transaction.
 		`CREATE TABLE IF NOT EXISTS interrupts (
-			-- The Run that OWNS this set: resume consumes the whole set at once, so it
-			-- is keyed by its owner. Which Run RAISED each interrupt is in the payload,
-			-- per interrupt, and is a different question once a tree is deeper than one.
-			root_run_id    TEXT    PRIMARY KEY,
-			session_id     TEXT    NOT NULL DEFAULT '',
-			turn_id        TEXT    NOT NULL DEFAULT '',
-			process_id     TEXT    NOT NULL DEFAULT '',
-			provider       TEXT    NOT NULL DEFAULT '',
-			model          TEXT    NOT NULL DEFAULT '',
-			payload        TEXT    NOT NULL DEFAULT '',
-			drained_tools  TEXT    NOT NULL DEFAULT '',
-			accounting     TEXT    NOT NULL DEFAULT '',
-			protocol_profile TEXT  NOT NULL DEFAULT '',
-			run_created_at INTEGER NOT NULL DEFAULT 0,
-			created_at     INTEGER NOT NULL
+			root_run_id        TEXT    PRIMARY KEY,
+			session_id         TEXT    NOT NULL,
+			turn_id            TEXT    NOT NULL,
+			-- Derived from the root Continuation and checked again on decode. It
+			-- exists as a relational key so two pending sets cannot claim the same
+			-- executor snapshot even though the complete hand-off stays one JSON
+			-- value for atomic consume.
+			root_process_id    TEXT    NOT NULL,
+			payload            TEXT    NOT NULL,
+			continuations      TEXT    NOT NULL,
+			suspension_bindings TEXT   NOT NULL,
+			protocol_profile   TEXT    NOT NULL DEFAULT '',
+			created_at         INTEGER NOT NULL
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_interrupts_session
 			ON interrupts(session_id)`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_interrupts_process
-			ON interrupts(process_id) WHERE process_id != ''`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_interrupts_root_process
+			ON interrupts(root_process_id)`,
 		// pending_workspace_mutations is the recoverable operation log for file
 		// rollbacks (§8.5). Git reset is non-atomic across paths; files+history also
 		// spans Git and SQLite. The intent is logged before the tree is touched and

@@ -23,7 +23,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -393,7 +392,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	parkedAt := createdAt.Add(time.Second)
 	question := &transcript.Question{Prompt: "Continue?"}
 	open := []transcript.Interrupt{{
-		ItemID: "item_park", Kind: execution.QuestionInterrupt, Question: question,
+		ItemID: "item_park", RunID: runID, Kind: execution.QuestionInterrupt, Question: question,
 	}}
 
 	if err := cfg.RunStore.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, SegmentID: "seg_open", CreatedAt: createdAt}); err != nil {
@@ -412,10 +411,14 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("put transcript item: %v", err)
 	}
-	if err := cfg.InterruptStore.Put(ctx, interrupts.Pending{
-		RootRunID: runID, SessionID: sessionID, TurnID: "turn_park", ProcessID: processID,
-		Interrupts: open, RunCreatedAt: createdAt, CreatedAt: parkedAt,
-	}); err != nil {
+	if err := cfg.InterruptStore.Put(ctx, bootstrapPending(
+		runID,
+		sessionID,
+		processID,
+		"item_park",
+		createdAt,
+		parkedAt,
+	)); err != nil {
 		t.Fatalf("put interrupt: %v", err)
 	}
 	if err := cfg.ProcessStore.SaveTree(ctx, bootstrapSnapshotTree(processID, core.ProcessSnapshot{

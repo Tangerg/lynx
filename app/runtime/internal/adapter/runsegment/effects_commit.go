@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -75,13 +74,13 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 			}
 		}
 		for _, commit := range opening.Events {
-			if commit.Interrupt != nil || commit.State != runs.StateUnchanged {
+			if commit.State != runs.StateUnchanged {
 				return errors.New("runsegment: opening commit contains a lifecycle transition")
 			}
 			if len(commit.Items) == 0 {
 				return errors.New("runsegment: opening commit has no items to append")
 			}
-			if err := e.applyCommit(ctx, commit, nil); err != nil {
+			if err := e.applyCommit(ctx, commit); err != nil {
 				return err
 			}
 		}
@@ -90,31 +89,87 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 }
 
 // CommitEvent applies one run event's durable parts atomically (§8.3/§8.4): the
-// open-interrupt record, transcript item/run projections, and the run-state
-// transition, all in one transaction. The interrupt's recoverable process id is
-// resolved from the live turn BEFORE the transaction opens (an in-memory lookup,
-// not a DB read) and its absence fails the commit — a park with no recoverable
-// process is not resumable. A terminal run's message watermark is resolved inside
-// the transaction so it is consistent with the state it terminalizes.
+// transcript item/run projections and the run-state transition in one
+// transaction. Tree suspension is deliberately excluded: it must use
+// CommitTreeBarrier so no individual Run can publish a partial barrier.
 func (e *Effects) CommitEvent(ctx context.Context, commit runs.EventCommit) error {
 	if e.tx == nil {
 		return errors.New("runsegment: transactor is unavailable")
 	}
-	var pending *interrupts.Pending
-	if commit.Interrupt != nil {
-		p := *commit.Interrupt
-		procID, err := e.interruptProcessID(ctx, p)
-		if err != nil {
-			return e.compensateFailedCommit(ctx, commit, err)
-		}
-		p.ProcessID = procID
-		pending = &p
+	if commit.State == runs.StateSuspend {
+		return errors.New("runsegment: per-Run suspend commit is not allowed")
 	}
-	err := e.runInTx(ctx, func(ctx context.Context) error { return e.applyCommit(ctx, commit, pending) })
+	err := e.runInTx(ctx, func(ctx context.Context) error { return e.applyCommit(ctx, commit) })
 	if err != nil {
 		return e.compensateFailedCommit(ctx, commit, err)
 	}
 	return nil
+}
+
+// CommitTreeBarrier atomically records one root-owned pending set and suspends
+// every active Run named by it. The caller supplies Runs in protocol publication
+// order; persistence preserves that order while the transaction makes it
+// invisible until complete.
+func (e *Effects) CommitTreeBarrier(ctx context.Context, barrier runs.TreeBarrierCommit) error {
+	if e.tx == nil {
+		return errors.New("runsegment: transactor is unavailable")
+	}
+	if err := barrier.Pending.Validate(); err != nil {
+		return fmt.Errorf("runsegment: invalid tree barrier: %w", err)
+	}
+	if len(barrier.Runs) != len(barrier.Pending.Continuations) {
+		return fmt.Errorf(
+			"runsegment: tree barrier has %d Run commits for %d continuations",
+			len(barrier.Runs),
+			len(barrier.Pending.Continuations),
+		)
+	}
+	continuations := make(map[string]struct{}, len(barrier.Pending.Continuations))
+	for _, continuation := range barrier.Pending.Continuations {
+		continuations[continuation.RunID] = struct{}{}
+	}
+	seen := make(map[string]struct{}, len(barrier.Runs))
+	for index, commit := range barrier.Runs {
+		switch {
+		case commit.State != runs.StateSuspend:
+			return fmt.Errorf("runsegment: tree barrier Run[%d] is not a suspend commit", index)
+		case commit.Run == nil || commit.Run.State != execution.Interrupted:
+			return fmt.Errorf("runsegment: tree barrier Run[%d] has no interrupted Run", index)
+		case commit.RunID != commit.Run.ID:
+			return fmt.Errorf("runsegment: tree barrier Run[%d] identity mismatch", index)
+		case commit.SessionID != barrier.Pending.SessionID ||
+			commit.Run.SessionID != barrier.Pending.SessionID:
+			return fmt.Errorf("runsegment: tree barrier Run[%d] session mismatch", index)
+		case commit.GoalTurn != nil:
+			return fmt.Errorf("runsegment: tree barrier Run[%d] carries a terminal goal charge", index)
+		}
+		if _, exists := continuations[commit.RunID]; !exists {
+			return fmt.Errorf("runsegment: tree barrier Run[%d] has no continuation", index)
+		}
+		if _, duplicate := seen[commit.RunID]; duplicate {
+			return fmt.Errorf("runsegment: tree barrier repeats Run %q", commit.RunID)
+		}
+		seen[commit.RunID] = struct{}{}
+	}
+
+	err := e.runInTx(ctx, func(ctx context.Context) error {
+		if err := e.putInterrupt(ctx, barrier.Pending); err != nil {
+			return err
+		}
+		for _, commit := range barrier.Runs {
+			if err := e.applyCommit(ctx, commit); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err == nil {
+		return nil
+	}
+	for _, commit := range barrier.Runs {
+		err = e.compensateFailedCommit(ctx, commit, err)
+	}
+	return err
 }
 
 const stagedToolResultCleanupTimeout = 5 * time.Second
@@ -140,12 +195,7 @@ func (e *Effects) compensateFailedCommit(ctx context.Context, commit runs.EventC
 	return errors.Join(commitErr, errors.Join(cleanupErrs...))
 }
 
-func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit, pending *interrupts.Pending) error {
-	if pending != nil {
-		if err := e.putInterrupt(ctx, *pending); err != nil {
-			return err
-		}
-	}
+func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit) error {
 	for _, item := range commit.Items {
 		if err := e.appendItem(ctx, item); err != nil {
 			return err
@@ -190,23 +240,6 @@ func (e *Effects) consumeResume(ctx context.Context, resume execution.ResumeDraf
 
 func (e *Effects) runInTx(ctx context.Context, fn func(context.Context) error) error {
 	return e.tx(ctx, fn)
-}
-
-func (e *Effects) interruptProcessID(ctx context.Context, p interrupts.Pending) (string, error) {
-	if e.processes == nil {
-		return "", errors.New("runsegment: process lookup is unavailable")
-	}
-	// Rebuild the executor's turn handle from the persisted coordinates — the
-	// dispatcher keys the live turn by session + turn id, and the domain record
-	// carries both, so runsegment needs no adapter handle in the commit value.
-	procID, err := e.processes.ProcessID(ctx, turn.TurnHandle{SessionID: p.SessionID, TurnID: p.TurnID})
-	if err != nil {
-		return "", fmt.Errorf("runsegment: resolve interrupt process: %w", err)
-	}
-	if procID == "" {
-		return "", errors.New("runsegment: interrupt process id is empty")
-	}
-	return procID, nil
 }
 
 func (e *Effects) putInterrupt(ctx context.Context, p interrupts.Pending) error {

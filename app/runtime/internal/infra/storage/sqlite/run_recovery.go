@@ -45,12 +45,14 @@ func (s *RunStore) ReconcileOrphans(ctx context.Context, validateSnapshot Proces
 		pendingByRun := make(map[string]interrupts.Pending, len(pending))
 		processOwners := make(map[string]string, len(pending))
 		for _, interrupt := range pending {
-			if interrupt.ProcessID != "" {
-				if owner, duplicate := processOwners[interrupt.ProcessID]; duplicate {
-					return fmt.Errorf("sqlite: process snapshot %q is owned by interrupts %q and %q", interrupt.ProcessID, owner, interrupt.RootRunID)
-				}
-				processOwners[interrupt.ProcessID] = interrupt.RootRunID
+			root, ok := interrupt.RootContinuation()
+			if !ok {
+				return fmt.Errorf("sqlite: interrupt %q has no root continuation", interrupt.RootRunID)
 			}
+			if owner, duplicate := processOwners[root.ProcessID]; duplicate {
+				return fmt.Errorf("sqlite: process snapshot %q is owned by interrupts %q and %q", root.ProcessID, owner, interrupt.RootRunID)
+			}
+			processOwners[root.ProcessID] = interrupt.RootRunID
 			pendingByRun[interrupt.RootRunID] = interrupt
 		}
 
@@ -69,7 +71,8 @@ func (s *RunStore) ReconcileOrphans(ctx context.Context, validateSnapshot Proces
 				if err := s.recoverLostRun(ctx, run, now); err != nil {
 					return err
 				}
-				if err := NewProcessStore(s.db).DeleteTrees(ctx, []string{pendingInterrupt.ProcessID}); err != nil {
+				root, _ := pendingInterrupt.RootContinuation()
+				if err := NewProcessStore(s.db).DeleteTrees(ctx, []string{root.ProcessID}); err != nil {
 					return fmt.Errorf("sqlite: delete unusable process snapshot for run %q: %w", run.runID, err)
 				}
 				reconciled++
@@ -84,8 +87,9 @@ func (s *RunStore) ReconcileOrphans(ctx context.Context, validateSnapshot Proces
 			if _, ok := preserved[interrupt.RootRunID]; ok {
 				continue
 			}
-			if interrupt.ProcessID != "" {
-				if err := NewProcessStore(s.db).DeleteTrees(ctx, []string{interrupt.ProcessID}); err != nil {
+			root, ok := interrupt.RootContinuation()
+			if ok {
+				if err := NewProcessStore(s.db).DeleteTrees(ctx, []string{root.ProcessID}); err != nil {
 					return fmt.Errorf("sqlite: reconcile orphan process snapshot: %w", err)
 				}
 			}

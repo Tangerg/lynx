@@ -13,7 +13,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -49,6 +48,38 @@ func mustEffectSelection(t testing.TB, provider, model string) modelref.Selectio
 		t.Fatalf("modelref.New(%q, %q): %v", provider, model, err)
 	}
 	return selection
+}
+
+func singleRunPending(
+	t testing.TB,
+	runID, sessionID, processID, suspensionID, itemID string,
+	runCreatedAt, barrierCreatedAt time.Time,
+) interrupts.Pending {
+	t.Helper()
+	question := &transcript.Question{Prompt: "Continue?"}
+	return interrupts.Pending{
+		RootRunID: runID,
+		SessionID: sessionID,
+		TurnID:    "turn_" + runID,
+		Interrupts: []transcript.Interrupt{{
+			ItemID:   itemID,
+			RunID:    runID,
+			Kind:     execution.QuestionInterrupt,
+			Question: question,
+		}},
+		Suspensions: []interrupts.SuspensionBinding{{
+			InterruptItemID: itemID,
+			ProcessID:       processID,
+			SuspensionID:    suspensionID,
+		}},
+		Continuations: []interrupts.Continuation{{
+			RunID:          runID,
+			ProcessID:      processID,
+			ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
+			RunCreatedAt:   runCreatedAt,
+		}},
+		CreatedAt: barrierCreatedAt,
+	}
 }
 
 // TestCommitEventPersistsTranscriptAndTerminalizes: a terminal commit appends the
@@ -225,51 +256,57 @@ func TestCommitOpeningConsumesInterruptAndResumes(t *testing.T) {
 	}
 }
 
-// TestCommitEventRecordsInterruptAndSuspends: a park commit resolves the
-// interrupt's process id from the live turn, persists the resumable record, and
-// suspends the run-state — atomically.
-func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
+// TestCommitTreeBarrierRecordsPendingSetAndSuspends: one tree barrier persists
+// the complete executor hand-off beside the interrupted Run — atomically.
+func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 	stores := &fakeStores{interrupts: &fakeInterrupts{}, transcript: &fakeTranscript{}}
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
-	effects := testEffects(stores, Config{Processes: fakeProcess{processID: "proc_1"}, RunState: runState, Tx: tx.run})
+	effects := testEffects(stores, Config{RunState: runState, Tx: tx.run})
+	runCreatedAt := time.Unix(1, 0).UTC()
+	barrierCreatedAt := time.Unix(2, 0).UTC()
+	pending := singleRunPending(
+		t,
+		"run_1", "ses_1", "proc_1", "susp_1", "int_1",
+		runCreatedAt, barrierCreatedAt,
+	)
+	pending.Continuations[0].DrainedTools = []interrupts.DrainedTool{{
+		ItemID: "tool_1",
+		Name:   "ask_user",
+	}}
 
-	err := effects.CommitEvent(context.Background(), runs.EventCommit{
-		RunID:     "run_1",
-		SessionID: "ses_1",
-		State:     runs.StateSuspend,
-		// A park is a durable commit, so it carries the Run record whose accrual it
-		// freezes — not just the ids of the row to move.
-		Run: &transcript.Run{
-			SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
-			Interrupts:  []transcript.Interrupt{{ItemID: "int_1", Kind: execution.QuestionInterrupt}},
-			Metrics:     transcript.RunMetrics{Steps: 2},
-			CreatedAt:   time.Unix(1, 0).UTC(),
-			MessageMark: transcript.UnknownMessageMark,
-		},
-		Interrupt: &interrupts.Pending{
-			RootRunID:      "run_1",
-			SessionID:      "ses_1",
-			TurnID:         "turn_1",
-			ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
-			Interrupts:     []transcript.Interrupt{{ItemID: "int_1", Kind: execution.QuestionInterrupt}},
-			DrainedTools:   []interrupts.DrainedTool{{ItemID: "tool_1", Name: "ask_user"}},
-		},
-		Items: []transcript.Item{{
-			SessionID: "ses_1", RunID: "run_1", ID: "int_1",
-			Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
+	err := effects.CommitTreeBarrier(context.Background(), runs.TreeBarrierCommit{
+		Pending: pending,
+		Runs: []runs.EventCommit{{
+			RunID:     "run_1",
+			SessionID: "ses_1",
+			State:     runs.StateSuspend,
+			Run: &transcript.Run{
+				SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
+				Interrupts:  pending.Interrupts,
+				Metrics:     transcript.RunMetrics{Steps: 2},
+				CreatedAt:   runCreatedAt,
+				UpdatedAt:   barrierCreatedAt,
+				MessageMark: transcript.UnknownMessageMark,
+			},
+			Items: []transcript.Item{{
+				SessionID: "ses_1", RunID: "run_1", ID: "int_1",
+				Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
+			}},
 		}},
 	})
 	if err != nil {
-		t.Fatalf("CommitEvent: %v", err)
+		t.Fatalf("CommitTreeBarrier: %v", err)
 	}
 
 	got := stores.interrupts.pending
-	if got.RootRunID != "run_1" || got.ProcessID != "proc_1" || got.ModelSelection.Provider() != "anthropic" || got.ModelSelection.Model() != "claude" {
+	root, ok := got.RootContinuation()
+	if got.RootRunID != "run_1" || !ok || root.ProcessID != "proc_1" ||
+		root.ModelSelection.Provider() != "anthropic" || root.ModelSelection.Model() != "claude" {
 		t.Fatalf("pending = %+v", got)
 	}
-	if len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "int_1" || len(got.DrainedTools) != 1 {
-		t.Fatalf("pending interrupts = %+v drained=%+v", got.Interrupts, got.DrainedTools)
+	if len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "int_1" || len(root.DrainedTools) != 1 {
+		t.Fatalf("pending interrupts = %+v drained=%+v", got.Interrupts, root.DrainedTools)
 	}
 	if len(runState.suspended) != 1 || runState.suspended[0].ID != "run_1" || runState.suspended[0].Metrics.Steps != 2 {
 		t.Fatalf("suspended = %+v, want run_1 with the accrual the park froze", runState.suspended)
@@ -279,39 +316,40 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 	}
 }
 
-// TestCommitEventRejectsUnresumableInterrupt: an unresolvable process id fails the
-// commit before the transaction — nothing is persisted and the run-state is not
-// suspended.
-func TestCommitEventRejectsUnresumableInterrupt(t *testing.T) {
-	want := errors.New("process snapshot unavailable")
+// TestCommitTreeBarrierRejectsIncompleteContinuation: the barrier owns exact
+// executor identities. An incomplete continuation fails before the transaction,
+// so no partial pending set or Run transition is visible.
+func TestCommitTreeBarrierRejectsIncompleteContinuation(t *testing.T) {
 	stores := &fakeStores{interrupts: &fakeInterrupts{}}
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
-	effects := testEffects(stores, Config{Processes: fakeProcess{err: want}, RunState: runState, Tx: tx.run})
+	effects := testEffects(stores, Config{RunState: runState, Tx: tx.run})
+	createdAt := time.Unix(1, 0).UTC()
+	pending := singleRunPending(t, "run_1", "ses_1", "proc_1", "susp_1", "int_1", createdAt, createdAt.Add(time.Second))
+	pending.Continuations[0].ProcessID = ""
 
-	err := effects.CommitEvent(context.Background(), runs.EventCommit{
-		RunID:     "run_1",
-		SessionID: "ses_1",
-		State:     runs.StateSuspend,
-		// A park is a durable commit, so it carries the Run record whose accrual it
-		// freezes — not just the ids of the row to move.
-		Run: &transcript.Run{
-			SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
-			Interrupts:  []transcript.Interrupt{{ItemID: "int_1", Kind: execution.QuestionInterrupt}},
-			Metrics:     transcript.RunMetrics{Steps: 2},
-			CreatedAt:   time.Unix(1, 0).UTC(),
-			MessageMark: transcript.UnknownMessageMark,
-		},
-		Interrupt: &interrupts.Pending{RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
+	err := effects.CommitTreeBarrier(context.Background(), runs.TreeBarrierCommit{
+		Pending: pending,
+		Runs: []runs.EventCommit{{
+			RunID: "run_1", SessionID: "ses_1", State: runs.StateSuspend,
+			Run: &transcript.Run{
+				SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
+				Interrupts: pending.Interrupts, CreatedAt: createdAt,
+				MessageMark: transcript.UnknownMessageMark,
+			},
+		}},
 	})
-	if !errors.Is(err, want) {
-		t.Fatalf("CommitEvent err = %v, want %v", err, want)
+	if err == nil || !strings.Contains(err.Error(), "process id is required") {
+		t.Fatalf("CommitTreeBarrier error = %v, want missing process id", err)
 	}
 	if stores.interrupts.pending.RootRunID != "" {
-		t.Fatalf("unresumable interrupt was persisted: %+v", stores.interrupts.pending)
+		t.Fatalf("invalid pending set was persisted: %+v", stores.interrupts.pending)
 	}
 	if len(runState.suspended) != 0 {
-		t.Fatalf("suspended = %v, want none (commit rejected before the transaction)", runState.suspended)
+		t.Fatalf("suspended = %v, want none", runState.suspended)
+	}
+	if tx.calls != 0 {
+		t.Fatalf("transactions = %d, want validation before transaction", tx.calls)
 	}
 }
 
@@ -501,15 +539,6 @@ func (s *fakeStores) Generate(context.Context, string) (string, error) {
 		*s.operations = append(*s.operations, "title.generate")
 	}
 	return s.title, s.titleErr
-}
-
-type fakeProcess struct {
-	processID string
-	err       error
-}
-
-func (p fakeProcess) ProcessID(context.Context, turn.TurnHandle) (string, error) {
-	return p.processID, p.err
 }
 
 // finishedRunRecord is the terminal Run a reducer hands to a terminal commit: it

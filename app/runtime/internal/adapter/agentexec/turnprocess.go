@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
@@ -27,6 +26,15 @@ type TurnCompletion struct {
 	Output    TurnOutput
 	HasOutput bool
 	Err       error
+}
+
+// PendingSuspension is the executor-neutral projection of one unanswered
+// Agent-runtime suspension. Framework checkpoint state never crosses this
+// adapter boundary.
+type PendingSuspension struct {
+	ProcessID    string
+	SuspensionID string
+	Prompt       []byte
 }
 
 // TurnProcess is the handle [Engine.StartTurn] returns. It exposes one typed
@@ -56,11 +64,10 @@ type TurnProcess interface {
 	// Await completion with [core.StatusWaiting].
 	Resume(ctx context.Context, resolution interrupts.Resolution) error
 
-	// Suspension returns the HITL request the process is parked
-	// on while StatusWaiting (a gated tool call or an ask_user /
-	// exit_plan_mode question), or nil when nothing is parked. Its
-	// Prompt JSON is what the client renders to make the decision.
-	Suspension() *agent.Suspension
+	// PendingSuspensions returns the complete stable set of direct unanswered
+	// boundaries in the process tree. Parent copies used only to propagate child
+	// control flow are excluded.
+	PendingSuspensions(ctx context.Context) ([]PendingSuspension, error)
 
 	// Discard releases a TERMINATED process: it removes the process from the
 	// engine registry and deletes any persisted waiting snapshot. Only a parked
@@ -137,7 +144,24 @@ func (p *turnProcess) Resume(ctx context.Context, resolution interrupts.Resoluti
 	return nil
 }
 
-func (p *turnProcess) Suspension() *agent.Suspension { return p.process.Suspension() }
+func (p *turnProcess) PendingSuspensions(ctx context.Context) ([]PendingSuspension, error) {
+	if p == nil || p.process == nil || p.owner == nil || p.owner.runtime == nil {
+		return nil, errors.New("agentexec: inspect pending suspensions: incomplete turn process")
+	}
+	pending, err := p.owner.runtime.PendingSuspensions(ctx, p.process.ID())
+	if err != nil {
+		return nil, fmt.Errorf("agentexec: inspect pending suspensions: %w", err)
+	}
+	out := make([]PendingSuspension, len(pending))
+	for index, suspension := range pending {
+		out[index] = PendingSuspension{
+			ProcessID:    suspension.ProcessID,
+			SuspensionID: suspension.SuspensionID,
+			Prompt:       append([]byte(nil), suspension.Prompt...),
+		}
+	}
+	return out, nil
+}
 
 func (p *turnProcess) Discard(ctx context.Context) error {
 	if p == nil || p.process == nil || p.owner == nil || p.owner.runtime == nil {

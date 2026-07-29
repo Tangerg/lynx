@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
@@ -123,21 +123,23 @@ func TestResumeRunRefusesACallerThatCannotFollowTheRun(t *testing.T) {
 	ctx := context.Background()
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 
-	if err := rt.interrupts.Put(ctx, interrupts.Pending{
-		RootRunID:      "run_1",
-		SessionID:      sess.ID,
-		TurnID:         "turn_parked",
-		ProcessID:      "turn_parked",
-		ModelSelection: mustResumeSelection(t, "openai", "gpt"),
-		ProtocolProfile: execution.RunProtocolProfile{
-			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt},
-		},
-		Interrupts: []transcript.Interrupt{{
+	pending := serverPending(
+		"run_1",
+		sess.ID,
+		"turn_parked",
+		"turn_parked",
+		[]transcript.Interrupt{{
 			ItemID:   "item_1",
 			Kind:     execution.ApprovalInterrupt,
 			Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}},
 		}},
-	}); err != nil {
+		time.Unix(1, 0).UTC(),
+	)
+	pending.Continuations[0].ModelSelection = mustResumeSelection(t, "openai", "gpt")
+	pending.ProtocolProfile = execution.RunProtocolProfile{
+		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt},
+	}
+	if err := rt.interrupts.Put(ctx, pending); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 

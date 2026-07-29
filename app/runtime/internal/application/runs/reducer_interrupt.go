@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -74,6 +75,34 @@ func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
 	run := r.runRecord(execution.Interrupted)
 	run.Interrupts = pending
 	return append(out, SegmentFinished{Run: run}), nil
+}
+
+// suspend closes this Run's segment because another Run in the same tree raised
+// the human-input barrier. It carries no direct interrupts: that absence is what
+// the protocol projects as outcome "suspended". Open tool items are made
+// incomplete and retained for continuation correlation exactly as on the source
+// Run, because the whole tree resumes rather than replaying those calls as new
+// work.
+func (r *reducer) suspend(duration time.Duration) ([]RunEvent, error) {
+	out := r.closeStreaming()
+	open := r.tools.drain()
+	r.drained = mergeDrainedTools(
+		r.resume.remainingDrainedTools(),
+		drainedToolRefs(open, nil),
+	)
+	for _, ref := range open {
+		if ref.end != nil {
+			completed, err := r.completeTool(ref, *ref.end)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, completed...)
+			continue
+		}
+		out = append(out, incompleteToolItem(r.cfg.RunID, ref))
+	}
+	r.segmentDuration = duration
+	return append(out, SegmentFinished{Run: r.runRecord(execution.Interrupted)}), nil
 }
 
 func (r *reducer) approvalInterrupt(in Interrupt) (transcript.Item, transcript.Interrupt, error) {

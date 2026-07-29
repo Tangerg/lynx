@@ -28,13 +28,23 @@ func TestInterruptStore_PutGetListDelete(t *testing.T) {
 	store := newInterruptStore(t)
 
 	p := interrupts.Pending{
-		RootRunID:      "run_1",
-		SessionID:      "ses_a",
-		TurnID:         "turn_1",
-		ModelSelection: testModelSelection(t, "anthropic", "claude-opus-4-8"),
+		RootRunID: "run_1",
+		SessionID: "ses_a",
+		TurnID:    "turn_1",
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_question", Kind: execution.QuestionInterrupt,
+			ItemID: "item_question", RunID: "run_1", Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Prompt: "Choose"},
+		}},
+		Suspensions: []interrupts.SuspensionBinding{{
+			InterruptItemID: "item_question",
+			ProcessID:       "proc_1",
+			SuspensionID:    "suspension_1",
+		}},
+		Continuations: []interrupts.Continuation{{
+			RunID:          "run_1",
+			ProcessID:      "proc_1",
+			ModelSelection: testModelSelection(t, "anthropic", "claude-opus-4-8"),
+			RunCreatedAt:   time.Unix(1, 0).UTC(),
 		}},
 		CreatedAt: time.Unix(5, 0).UTC(),
 	}
@@ -56,8 +66,9 @@ func TestInterruptStore_PutGetListDelete(t *testing.T) {
 	}
 	// Per-run model selection round-trips (T1.4 — cross-restart rehydrate rebuilds
 	// the SAME model client instead of dropping to the default).
-	if got.ModelSelection.Provider() != "anthropic" || got.ModelSelection.Model() != "claude-opus-4-8" {
-		t.Fatalf("Get provider/model = %q/%q, want anthropic/claude-opus-4-8", got.ModelSelection.Provider(), got.ModelSelection.Model())
+	root, _ := got.RootContinuation()
+	if root.ModelSelection.Provider() != "anthropic" || root.ModelSelection.Model() != "claude-opus-4-8" {
+		t.Fatalf("Get provider/model = %q/%q, want anthropic/claude-opus-4-8", root.ModelSelection.Provider(), root.ModelSelection.Model())
 	}
 
 	if list, _ := store.List(ctx, "ses_b"); len(list) != 1 {
@@ -98,10 +109,18 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 	if err := store.Put(ctx, interrupts.Pending{
 		RootRunID: "run_1",
 		SessionID: "ses_a",
-		ProcessID: "proc_1",
+		TurnID:    "turn_1",
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_approval", Kind: execution.ApprovalInterrupt,
+			ItemID: "item_approval", RunID: "run_1", Kind: execution.ApprovalInterrupt,
 			Approval: &transcript.Approval{Risk: tool.RiskHigh},
+		}},
+		Suspensions: []interrupts.SuspensionBinding{{
+			InterruptItemID: "item_approval",
+			ProcessID:       "proc_1",
+			SuspensionID:    "suspension_1",
+		}},
+		Continuations: []interrupts.Continuation{{
+			RunID: "run_1", ProcessID: "proc_1", RunCreatedAt: time.Unix(1, 0).UTC(),
 		}},
 		CreatedAt: time.Unix(7, 0).UTC(),
 	}); err != nil {
@@ -113,7 +132,8 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("Consume: ok=%v err=%v", ok, err)
 	}
-	if got.ProcessID != "proc_1" || len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "item_approval" ||
+	root, _ := got.RootContinuation()
+	if root.ProcessID != "proc_1" || len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "item_approval" ||
 		got.Interrupts[0].Approval == nil || got.Interrupts[0].Approval.Risk != tool.RiskHigh {
 		t.Fatalf("Consume returned %+v", got)
 	}
@@ -131,7 +151,19 @@ func TestInterruptStore_ProcessSnapshotHasOneOwner(t *testing.T) {
 	for _, runID := range []string{"run_1", "run_2"} {
 		err := store.Put(ctx, interrupts.Pending{
 			RootRunID: runID, SessionID: "ses_" + runID, TurnID: "turn_" + runID,
-			ProcessID: "proc_shared", CreatedAt: time.Unix(1, 0),
+			Interrupts: []transcript.Interrupt{{
+				ItemID: "item_" + runID, RunID: runID,
+				Kind: execution.QuestionInterrupt, Question: &transcript.Question{Prompt: "continue?"},
+			}},
+			Suspensions: []interrupts.SuspensionBinding{{
+				InterruptItemID: "item_" + runID,
+				ProcessID:       "proc_shared",
+				SuspensionID:    "suspension_" + runID,
+			}},
+			Continuations: []interrupts.Continuation{{
+				RunID: runID, ProcessID: "proc_shared", RunCreatedAt: time.Unix(1, 0).UTC(),
+			}},
+			CreatedAt: time.Unix(2, 0).UTC(),
 		})
 		if runID == "run_1" && err != nil {
 			t.Fatalf("first Put: %v", err)

@@ -12,7 +12,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -57,7 +56,12 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 	if err := state.Suspend(ctx, parkedRunRecord("run_actual", "ses_1", time.Now().UTC())); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
-	if err := ints.Put(ctx, interrupts.Pending{RootRunID: "run_stale", SessionID: "ses_1"}); err != nil {
+	stalePending := singleRunPending(
+		t,
+		"run_stale", "ses_1", "proc_stale", "susp_stale", "item_stale",
+		time.Now().UTC(), time.Now().UTC(),
+	)
+	if err := ints.Put(ctx, stalePending); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
@@ -91,7 +95,12 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	if err := state.Suspend(ctx, parkedRunRecord("run_1", "ses_1", created)); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
-	if err := ints.Put(ctx, interrupts.Pending{RootRunID: "run_1", SessionID: "ses_1"}); err != nil {
+	pending := singleRunPending(
+		t,
+		"run_1", "ses_1", "proc_1", "susp_1", "item_question",
+		created, time.Now().UTC(),
+	)
+	if err := ints.Put(ctx, pending); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
@@ -234,11 +243,11 @@ func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
 	}
 }
 
-// TestCommitEventParkProducesBootResumableTriplet is the event boundary's evidence
-// for parked_run_has_exactly_one_open_interrupt_set: one park commit lands the
-// interrupt, the item and the suspended run together, and the proof it is exactly one
-// set is that boot recovery leaves it alone while a fresh admission is refused.
-func TestCommitEventParkProducesBootResumableTriplet(t *testing.T) {
+// TestCommitTreeBarrierProducesBootResumableTriplet is the event boundary's
+// evidence for parked_tree_has_exactly_one_open_interrupt_set: one tree commit
+// lands the pending set, item, and suspended Run together. Boot recovery leaves
+// the coherent triplet alone while a fresh admission is refused.
+func TestCommitTreeBarrierProducesBootResumableTriplet(t *testing.T) {
 	db, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
@@ -250,7 +259,11 @@ func TestCommitEventParkProducesBootResumableTriplet(t *testing.T) {
 	ctx := t.Context()
 	createdAt := time.Unix(1, 0).UTC()
 	parkedAt := time.Unix(2, 0).UTC()
-	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: createdAt}); err != nil {
+	if err := state.Admit(ctx, execution.RunDraft{
+		RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open",
+		ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
+		CreatedAt:      createdAt,
+	}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	snapshot := waitingProcessSnapshot("proc_1", createdAt, parkedAt)
@@ -266,27 +279,35 @@ func TestCommitEventParkProducesBootResumableTriplet(t *testing.T) {
 		t.Fatalf("save process snapshot: %v", err)
 	}
 	question := &transcript.Question{Prompt: "Continue?"}
-	open := []transcript.Interrupt{{ItemID: "item_question", Kind: execution.QuestionInterrupt, Question: question}}
+	open := []transcript.Interrupt{{
+		ItemID:   "item_question",
+		RunID:    "run_1",
+		Kind:     execution.QuestionInterrupt,
+		Question: question,
+	}}
 	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
-		Processes: fakeProcess{processID: "proc_1"},
-		RunState:  state,
-		Tx:        func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
+		RunState: state,
+		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
-	if err := effects.CommitEvent(ctx, runs.EventCommit{
-		RunID: "run_1", SessionID: "ses_1", State: runs.StateSuspend,
-		Interrupt: &interrupts.Pending{
-			RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
-			Interrupts: open, RunCreatedAt: createdAt, CreatedAt: parkedAt,
-		},
-		Items: []transcript.Item{{
-			SessionID: "ses_1", ID: "item_question", RunID: "run_1",
-			Status: transcript.ItemRunning, Kind: transcript.QuestionItem,
-			Question: question, CreatedAt: parkedAt,
+	pending := singleRunPending(
+		t,
+		"run_1", "ses_1", "proc_1", "suspension-proc_1", "item_question",
+		createdAt, parkedAt,
+	)
+	if err := effects.CommitTreeBarrier(ctx, runs.TreeBarrierCommit{
+		Pending: pending,
+		Runs: []runs.EventCommit{{
+			RunID: "run_1", SessionID: "ses_1", State: runs.StateSuspend,
+			Items: []transcript.Item{{
+				SessionID: "ses_1", ID: "item_question", RunID: "run_1",
+				Status: transcript.ItemRunning, Kind: transcript.QuestionItem,
+				Question: question, CreatedAt: parkedAt,
+			}},
+			Run: &transcript.Run{
+				SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
+				Interrupts: open, CreatedAt: createdAt, UpdatedAt: parkedAt, MessageMark: -1,
+			},
 		}},
-		Run: &transcript.Run{
-			SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
-			Interrupts: open, CreatedAt: createdAt, UpdatedAt: parkedAt, MessageMark: -1,
-		},
 	}); err != nil {
 		t.Fatalf("park: %v", err)
 	}

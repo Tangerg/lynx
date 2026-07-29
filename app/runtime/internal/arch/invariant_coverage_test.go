@@ -90,8 +90,8 @@ var invariantFixtures = map[string]map[appcontract.TransactionBoundary]fixtureRe
 	"run_protocol_profile_is_immutable": {
 		appcontract.BoundaryRunAdmission: {"internal/infra/storage/sqlite", "TestRunProtocolProfileIsImmutable"},
 	},
-	"parked_run_has_exactly_one_open_interrupt_set": {
-		appcontract.BoundarySegmentEvent: {"internal/adapter/runsegment", "TestCommitEventParkProducesBootResumableTriplet"},
+	"parked_tree_has_exactly_one_open_interrupt_set": {
+		appcontract.BoundarySegmentEvent: {"internal/adapter/runsegment", "TestCommitTreeBarrierProducesBootResumableTriplet"},
 		appcontract.BoundaryRunRecovery: {
 			"internal/infra/storage/sqlite", "TestReconcileOrphansRejectsPartialParkWithoutMutatingIt",
 		},

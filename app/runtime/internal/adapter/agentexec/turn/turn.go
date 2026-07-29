@@ -3,8 +3,8 @@ package turn
 import (
 	"context"
 	"errors"
+	"fmt"
 
-	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
@@ -139,10 +139,40 @@ func (s *memoryDispatcher) handleWaiting(st *turnState, process agentexec.TurnPr
 		recordTurnCleanupError(st, s.finishTurn(st, execution.OutcomeCanceled))
 		return
 	}
-	suspension := process.Suspension()
-	kind, known := interruptKind(suspension)
-	if !known || st.canSurface(kind) {
-		s.emitInterrupt(st, process)
+	pending, err := process.PendingSuspensions(st.ctx)
+	if err != nil {
+		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
+		recordTurnCleanupError(st, s.finishFailedTurn(st, internalRunProblem(), err))
+		return
+	}
+	if len(pending) == 0 {
+		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
+		recordTurnCleanupError(st, s.finishFailedTurn(
+			st,
+			internalRunProblem(),
+			errors.New("agent process tree is waiting without an unanswered suspension"),
+		))
+		return
+	}
+	canSurfaceAll := true
+	for _, suspension := range pending {
+		interrupt, ok := typedInterrupt(suspension.Prompt)
+		if !ok || !st.canSurface(interrupt.Kind) {
+			canSurfaceAll = false
+			break
+		}
+	}
+	if canSurfaceAll {
+		s.emitInterrupt(st, process, pending)
+		return
+	}
+	if len(pending) != 1 {
+		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
+		recordTurnCleanupError(st, s.finishFailedTurn(
+			st,
+			internalRunProblem(),
+			errors.New("agent process tree has multiple interrupts that the client cannot answer atomically"),
+		))
 		return
 	}
 	// Client can't answer this kind — deliver a deny and drive the
@@ -155,8 +185,11 @@ func (s *memoryDispatcher) handleWaiting(st *turnState, process agentexec.TurnPr
 // emitInterrupt marks the turn parked and surfaces the pending HITL
 // request as a [TurnInterrupted] event. The turn stays registered with
 // its events channel open; [memoryDispatcher.Resume] drives the next segment.
-func (s *memoryDispatcher) emitInterrupt(st *turnState, process agentexec.TurnProcess) {
-	suspension := process.Suspension()
+func (s *memoryDispatcher) emitInterrupt(
+	st *turnState,
+	process agentexec.TurnProcess,
+	pending []agentexec.PendingSuspension,
+) {
 	if !st.parkIfLive() {
 		// Canceled between handleWaiting's top ctx check and here: don't surface
 		// an interrupt nobody will answer — terminate like the canceled path so
@@ -166,19 +199,30 @@ func (s *memoryDispatcher) emitInterrupt(st *turnState, process agentexec.TurnPr
 		recordTurnCleanupError(st, s.finishTurn(st, execution.OutcomeCanceled))
 		return
 	}
-	if suspension == nil {
-		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
-		recordTurnCleanupError(st, s.finishFailedTurn(st, internalRunProblem(), errors.New("agent process is waiting without a suspension")))
-		return
+	barrier := runs.TreeInterrupted{Suspensions: make([]runs.ProcessSuspension, len(pending))}
+	for index, suspension := range pending {
+		interrupt, ok := typedInterrupt(suspension.Prompt)
+		if !ok {
+			recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
+			recordTurnCleanupError(st, s.finishFailedTurn(
+				st,
+				internalRunProblem(),
+				fmt.Errorf(
+					"agent process %q suspension %q has an unsupported interrupt payload",
+					suspension.ProcessID,
+					suspension.SuspensionID,
+				),
+			))
+			return
+		}
+		recordInterruptMetric(st.ctx, interrupt.Kind.String())
+		barrier.Suspensions[index] = runs.ProcessSuspension{
+			ProcessID:    suspension.ProcessID,
+			SuspensionID: suspension.SuspensionID,
+			Interrupt:    interrupt,
+		}
 	}
-	pending, ok := typedInterrupt(suspension)
-	if !ok {
-		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
-		recordTurnCleanupError(st, s.finishFailedTurn(st, internalRunProblem(), errors.New("agent process returned an unsupported interrupt payload")))
-		return
-	}
-	recordInterruptMetric(st.ctx, pending.Kind.String())
-	if !s.emitRootEvent(st, runs.TurnInterrupted{Interrupts: []runs.Interrupt{pending}, Duration: st.segmentElapsed()}) {
+	if !s.emitProcessEvent(st, agentexec.ProcessRef{ID: process.ID()}, barrier) {
 		return
 	}
 	// Notification hooks (observe-only): the turn is waiting on the user — fire
@@ -186,30 +230,16 @@ func (s *memoryDispatcher) emitInterrupt(st *turnState, process agentexec.TurnPr
 	// | "question") rides as the reason.
 	if !st.hooks.Empty() {
 		_ = st.hooks.Run(st.ctx, hooks.Input{
-			Event: hooks.Notification, SessionID: st.handle.SessionID, Cwd: st.cwd, Reason: pending.Kind.String(),
+			Event: hooks.Notification, SessionID: st.handle.SessionID, Cwd: st.cwd, Reason: "interrupt",
 		})
 	}
 }
 
-// interruptKind decodes the application-owned discriminated envelope into its
-// interrupt kind, reporting false for a missing or malformed payload. Those are
-// rejected by emitInterrupt; there is no field-shape fallback.
-func interruptKind(suspension *agent.Suspension) (execution.InterruptKind, bool) {
-	if suspension == nil {
-		return 0, false
-	}
-	pending, ok := typedInterrupt(suspension)
-	if !ok {
-		return 0, false
-	}
-	return pending.Kind, true
-}
-
-func typedInterrupt(parked *agent.Suspension) (runs.Interrupt, bool) {
-	if parked == nil {
+func typedInterrupt(prompt []byte) (runs.Interrupt, bool) {
+	if len(prompt) == 0 {
 		return runs.Interrupt{}, false
 	}
-	pending, err := suspension.DecodePrompt(parked.Prompt)
+	pending, err := suspension.DecodePrompt(prompt)
 	if err != nil {
 		return runs.Interrupt{}, false
 	}

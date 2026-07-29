@@ -125,7 +125,9 @@ func (cp *stubTurnProcess) Resume(_ context.Context, _ interrupts.Resolution) er
 	return nil
 }
 
-func (cp *stubTurnProcess) Suspension() *agent.Suspension { return nil }
+func (cp *stubTurnProcess) PendingSuspensions(context.Context) ([]agentexec.PendingSuspension, error) {
+	return nil, nil
+}
 
 func (cp *stubTurnProcess) Discard(_ context.Context) error {
 	cp.discarded.Store(true)

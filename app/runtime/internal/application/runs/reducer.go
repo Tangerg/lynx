@@ -128,7 +128,7 @@ func newReducer(cfg reducerConfig) *reducer {
 	cfg.UserInput = slices.Clone(cfg.UserInput)
 	var resume *resumeBinding
 	if cfg.Pending != nil {
-		resume = resumeBindingFrom(*cfg.Pending)
+		resume = resumeBindingFrom(*cfg.Pending, cfg.RunID)
 	}
 	return &reducer{
 		cfg: cfg, resume: resume, userInput: cfg.UserInput, step: cfg.Metrics.Steps,
@@ -301,7 +301,7 @@ func (r *reducer) project(events []RunEvent) (reductionBatch, error) {
 		items := make([]transcript.Item, 0, len(out))
 		for i, reduced := range out {
 			if i != parkAt && reduced.Commit != nil {
-				if reduced.Commit.Run != nil || reduced.Commit.Interrupt != nil || reduced.Commit.State != StateUnchanged {
+				if reduced.Commit.Run != nil || reduced.Commit.State != StateUnchanged {
 					return reductionBatch{}, fmt.Errorf("%w: park batch contains another lifecycle transition", errReducerInvariant)
 				}
 				items = append(items, reduced.Commit.Items...)
@@ -372,14 +372,6 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 	case SegmentFinished:
 		commit.Run = &e.Run
 		if e.Run.State == execution.Interrupted {
-			commit.Interrupt = &interrupts.Pending{
-				RootRunID: r.cfg.RunID, SessionID: r.cfg.SessionID, TurnID: r.cfg.TurnID,
-				ModelSelection: r.cfg.ModelSelection,
-				Interrupts:     e.Run.Interrupts, DrainedTools: r.drained,
-				RunCreatedAt: r.cfg.CreatedAt, CreatedAt: r.now(),
-				Metrics: e.Run.Metrics, Limits: e.Run.Limits,
-				ProtocolProfile: e.Run.ProtocolProfile,
-			}
 			commit.State = StateSuspend
 			return reduction{Event: event, Commit: &commit}, nil
 		}
@@ -516,8 +508,6 @@ func validateParkReductionBatch(batch reductionBatch, terminalAt int) error {
 		return fmt.Errorf("%w: park batch has no projection commit", errReducerInvariant)
 	case commit.State != StateSuspend:
 		return fmt.Errorf("%w: park batch commit does not suspend the run", errReducerInvariant)
-	case commit.Interrupt == nil:
-		return fmt.Errorf("%w: park batch commit has no pending interrupt", errReducerInvariant)
 	case commit.Run == nil || commit.Run.State != execution.Interrupted:
 		return fmt.Errorf("%w: park batch commit has no interrupted run", errReducerInvariant)
 	case terminalAt != len(batch.events)-1:

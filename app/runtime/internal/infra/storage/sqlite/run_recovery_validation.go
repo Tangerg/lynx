@@ -37,13 +37,14 @@ func (s *RunStore) validateParkedRun(ctx context.Context, active nonTerminalRun,
 	if err := active.validateRunningInterruptItems(items, interruptItems); err != nil {
 		return false, err
 	}
-	if err := active.validateDrainedTools(pending.DrainedTools, itemsByID, interruptItems); err != nil {
+	root, ok := pending.RootContinuation()
+	if !ok {
+		return false, fmt.Errorf("sqlite: validate parked run %q: root continuation is missing", active.runID)
+	}
+	if err := active.validateDrainedTools(root.DrainedTools, itemsByID, interruptItems); err != nil {
 		return false, err
 	}
-	if pending.ProcessID == "" {
-		return false, nil
-	}
-	return s.hasResumableProcessSnapshot(ctx, pending.ProcessID, validateSnapshot)
+	return s.hasResumableProcessSnapshot(ctx, root.ProcessID, validateSnapshot)
 }
 
 func (active nonTerminalRun) validateParkedInterrupt(pending interrupts.Pending) error {
@@ -53,16 +54,17 @@ func (active nonTerminalRun) validateParkedInterrupt(pending interrupts.Pending)
 	// These columns decode via time.Unix(0, ns), so the schema default 0 becomes the
 	// 1970 epoch — whose time.IsZero() is false (Go's zero time is year 1). Test the
 	// decoded nanos against 0 to actually detect an unset timestamp / incomplete boundary.
-	if pending.RunCreatedAt.UnixNano() == 0 || pending.CreatedAt.UnixNano() == 0 || len(pending.Interrupts) == 0 {
+	root, ok := pending.RootContinuation()
+	if !ok || root.RunCreatedAt.UnixNano() == 0 || pending.CreatedAt.UnixNano() == 0 || len(pending.Interrupts) == 0 {
 		return fmt.Errorf("sqlite: validate parked run %q: incomplete interrupt boundary", active.runID)
 	}
 	if pending.TurnID == "" {
 		return fmt.Errorf("sqlite: validate parked run %q: turn id is required", active.runID)
 	}
-	if active.modelSelection != pending.ModelSelection {
-		return fmt.Errorf("sqlite: validate parked run %q: admission model %q/%q differs from interrupt model %q/%q", active.runID, active.modelSelection.Provider(), active.modelSelection.Model(), pending.ModelSelection.Provider(), pending.ModelSelection.Model())
+	if active.modelSelection != root.ModelSelection {
+		return fmt.Errorf("sqlite: validate parked run %q: admission model %q/%q differs from interrupt model %q/%q", active.runID, active.modelSelection.Provider(), active.modelSelection.Model(), root.ModelSelection.Provider(), root.ModelSelection.Model())
 	}
-	if !active.createdAt.Equal(pending.RunCreatedAt) {
+	if !active.createdAt.Equal(root.RunCreatedAt) {
 		return fmt.Errorf("sqlite: validate parked run %q: run and interrupt creation times differ", active.runID)
 	}
 	return nil

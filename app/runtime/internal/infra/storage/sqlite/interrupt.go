@@ -14,13 +14,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
-// InterruptStore is the SQLite-backed durable open-interrupt registry for
-// cross-restart resume — the single implementation each consumer's narrow
-// interrupt port binds to. One row per parked run keyed by root_run_id (the stable
-// logical run). The canonical typed interrupt union is serialized as an adapter
-// detail; protocol payloads never enter this store. Timestamps use unix nanos.
-// Put is UPSERT so re-recording the same runId overwrites (a run parks at most
-// once at a time).
+// InterruptStore is the SQLite-backed registry of root-owned pending interrupt
+// sets. The typed domain values are encoded through explicit adapter rows;
+// protocol payloads and Go field names never define this storage shape.
 type InterruptStore struct {
 	db *sql.DB
 }
@@ -32,6 +28,24 @@ type drainedToolRow struct {
 	Arguments string `json:"arguments"`
 }
 
+type continuationRow struct {
+	RunID           string           `json:"runId"`
+	ProcessID       string           `json:"processId"`
+	ParentProcessID string           `json:"parentProcessId,omitempty"`
+	SpawnCallID     string           `json:"spawnCallId,omitempty"`
+	Provider        string           `json:"provider,omitempty"`
+	Model           string           `json:"model,omitempty"`
+	DrainedTools    []drainedToolRow `json:"drainedTools,omitempty"`
+	RunCreatedAt    int64            `json:"runCreatedAt"`
+	Accounting      runAccountingRow `json:"accounting"`
+}
+
+type suspensionBindingRow struct {
+	InterruptItemID string `json:"interruptItemId"`
+	ProcessID       string `json:"processId"`
+	SuspensionID    string `json:"suspensionId"`
+}
+
 // NewInterruptStore binds the SQLite interrupt registry to a database opened via
 // [Open].
 func NewInterruptStore(db *sql.DB) *InterruptStore {
@@ -39,45 +53,47 @@ func NewInterruptStore(db *sql.DB) *InterruptStore {
 }
 
 func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
-	if p.RootRunID == "" {
-		return errors.New("sqlite: interrupt runId is required")
+	if err := p.Validate(); err != nil {
+		return fmt.Errorf("sqlite: put interrupt: %w", err)
 	}
-	var drained string
+	root, _ := p.RootContinuation()
 	payload, err := json.Marshal(p.Interrupts)
 	if err != nil {
 		return fmt.Errorf("sqlite: encode interrupts: %w", err)
 	}
-	if len(p.DrainedTools) > 0 {
-		b, err := json.Marshal(drainedToolRows(p.DrainedTools))
-		if err != nil {
-			return fmt.Errorf("sqlite: encode drained tools: %w", err)
-		}
-		drained = string(b)
-	}
-	accounting, err := encodeRunAccounting(p.Metrics, p.Limits)
+	continuations, err := json.Marshal(continuationRows(p.Continuations))
 	if err != nil {
-		return fmt.Errorf("sqlite: put interrupt: %w", err)
+		return fmt.Errorf("sqlite: encode interrupt continuations: %w", err)
+	}
+	suspensions, err := json.Marshal(suspensionBindingRows(p.Suspensions))
+	if err != nil {
+		return fmt.Errorf("sqlite: encode interrupt suspension bindings: %w", err)
 	}
 	profile, err := encodeRunProtocolProfile(p.ProtocolProfile)
 	if err != nil {
 		return fmt.Errorf("sqlite: put interrupt: %w", err)
 	}
 	_, err = conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO interrupts(root_run_id, session_id, turn_id, process_id, provider, model, payload, drained_tools, accounting, protocol_profile, run_created_at, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO interrupts(root_run_id, session_id, turn_id, root_process_id, payload, continuations, suspension_bindings, protocol_profile, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(root_run_id) DO UPDATE SET
 		   session_id      = excluded.session_id,
 		   turn_id         = excluded.turn_id,
-		   process_id      = excluded.process_id,
-		   provider        = excluded.provider,
-		   model           = excluded.model,
+		   root_process_id = excluded.root_process_id,
 		   payload         = excluded.payload,
-		   drained_tools   = excluded.drained_tools,
-		   accounting      = excluded.accounting,
+		   continuations   = excluded.continuations,
+		   suspension_bindings = excluded.suspension_bindings,
 		   protocol_profile = excluded.protocol_profile,
-		   run_created_at  = excluded.run_created_at,
 		   created_at      = excluded.created_at`,
-		p.RootRunID, p.SessionID, p.TurnID, p.ProcessID, p.ModelSelection.Provider(), p.ModelSelection.Model(), string(payload), drained, accounting, profile, p.RunCreatedAt.UnixNano(), p.CreatedAt.UnixNano(),
+		p.RootRunID,
+		p.SessionID,
+		p.TurnID,
+		root.ProcessID,
+		string(payload),
+		string(continuations),
+		string(suspensions),
+		profile,
+		p.CreatedAt.UnixNano(),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: put interrupt: %w", err)
@@ -85,7 +101,7 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 	return nil
 }
 
-const interruptColumns = `root_run_id, session_id, turn_id, process_id, provider, model, payload, drained_tools, accounting, protocol_profile, run_created_at, created_at`
+const interruptColumns = `root_run_id, session_id, turn_id, root_process_id, payload, continuations, suspension_bindings, protocol_profile, created_at`
 
 func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
 	return s.list(ctx, sessionID, "", 0, "", 0)
@@ -189,45 +205,62 @@ func (s *InterruptStore) Delete(ctx context.Context, runID string) error {
 // List.
 func scanPending(row scanRow) (interrupts.Pending, error) {
 	var (
-		p            interrupts.Pending
-		provider     string
-		model        string
-		payload      string
-		drained      string
-		accounting   string
-		profile      string
-		runCreatedNs int64
-		createdNs    int64
+		p             interrupts.Pending
+		payload       string
+		rootProcessID string
+		continuations string
+		suspensions   string
+		profile       string
+		createdNs     int64
 	)
-	if err := row.Scan(&p.RootRunID, &p.SessionID, &p.TurnID, &p.ProcessID, &provider, &model, &payload, &drained, &accounting, &profile, &runCreatedNs, &createdNs); err != nil {
+	if err := row.Scan(
+		&p.RootRunID,
+		&p.SessionID,
+		&p.TurnID,
+		&rootProcessID,
+		&payload,
+		&continuations,
+		&suspensions,
+		&profile,
+		&createdNs,
+	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return interrupts.Pending{}, err
 		}
 		return interrupts.Pending{}, fmt.Errorf("sqlite: scan interrupt: %w", err)
 	}
-	selection, err := modelref.New(provider, model)
-	if err != nil {
-		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupt model selection: %w", err)
-	}
-	p.ModelSelection = selection
+	var err error
 	if p.Interrupts, err = decodeInterrupts(payload); err != nil {
 		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupts: %w", err)
 	}
-	if drained != "" {
-		var rows []drainedToolRow
-		if err := json.Unmarshal([]byte(drained), &rows); err != nil {
-			return interrupts.Pending{}, fmt.Errorf("sqlite: decode drained tools: %w", err)
-		}
-		p.DrainedTools = drainedToolsFromRows(rows)
+	var continuationValues []continuationRow
+	if err := json.Unmarshal([]byte(continuations), &continuationValues); err != nil {
+		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupt continuations: %w", err)
 	}
+	if p.Continuations, err = continuationsFromRows(continuationValues); err != nil {
+		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupt continuations: %w", err)
+	}
+	var bindingValues []suspensionBindingRow
+	if err := json.Unmarshal([]byte(suspensions), &bindingValues); err != nil {
+		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupt suspension bindings: %w", err)
+	}
+	p.Suspensions = suspensionBindingsFromRows(bindingValues)
 	if p.ProtocolProfile, err = decodeRunProtocolProfile(profile); err != nil {
 		return interrupts.Pending{}, err
 	}
-	if p.Metrics, p.Limits, err = decodeRunAccounting(accounting); err != nil {
+	p.CreatedAt = time.Unix(0, createdNs).UTC()
+	if err := p.Validate(); err != nil {
 		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupt %q: %w", p.RootRunID, err)
 	}
-	p.RunCreatedAt = time.Unix(0, runCreatedNs).UTC()
-	p.CreatedAt = time.Unix(0, createdNs).UTC()
+	root, _ := p.RootContinuation()
+	if root.ProcessID != rootProcessID {
+		return interrupts.Pending{}, fmt.Errorf(
+			"sqlite: decode interrupt %q: root process index %q does not match continuation %q",
+			p.RootRunID,
+			rootProcessID,
+			root.ProcessID,
+		)
+	}
 	return p, nil
 }
 
@@ -259,4 +292,72 @@ func drainedToolsFromRows(rows []drainedToolRow) []interrupts.DrainedTool {
 		tools[index] = interrupts.DrainedTool{ItemID: row.ItemID, CallID: row.CallID, Name: row.Name, Arguments: row.Arguments}
 	}
 	return tools
+}
+
+func continuationRows(values []interrupts.Continuation) []continuationRow {
+	rows := make([]continuationRow, len(values))
+	for index, value := range values {
+		rows[index] = continuationRow{
+			RunID:           value.RunID,
+			ProcessID:       value.ProcessID,
+			ParentProcessID: value.ParentProcessID,
+			SpawnCallID:     value.SpawnCallID,
+			Provider:        value.ModelSelection.Provider(),
+			Model:           value.ModelSelection.Model(),
+			DrainedTools:    drainedToolRows(value.DrainedTools),
+			RunCreatedAt:    value.RunCreatedAt.UnixNano(),
+			Accounting:      runAccountingRowOf(value.Metrics, value.Limits),
+		}
+	}
+	return rows
+}
+
+func continuationsFromRows(rows []continuationRow) ([]interrupts.Continuation, error) {
+	values := make([]interrupts.Continuation, len(rows))
+	for index, row := range rows {
+		selection, err := modelref.New(row.Provider, row.Model)
+		if err != nil {
+			return nil, fmt.Errorf("continuation[%d] model selection: %w", index, err)
+		}
+		metrics, limits, err := row.Accounting.values()
+		if err != nil {
+			return nil, fmt.Errorf("continuation[%d] accounting: %w", index, err)
+		}
+		values[index] = interrupts.Continuation{
+			RunID:           row.RunID,
+			ProcessID:       row.ProcessID,
+			ParentProcessID: row.ParentProcessID,
+			SpawnCallID:     row.SpawnCallID,
+			ModelSelection:  selection,
+			DrainedTools:    drainedToolsFromRows(row.DrainedTools),
+			RunCreatedAt:    time.Unix(0, row.RunCreatedAt).UTC(),
+			Metrics:         metrics,
+			Limits:          limits,
+		}
+	}
+	return values, nil
+}
+
+func suspensionBindingRows(values []interrupts.SuspensionBinding) []suspensionBindingRow {
+	rows := make([]suspensionBindingRow, len(values))
+	for index, value := range values {
+		rows[index] = suspensionBindingRow{
+			InterruptItemID: value.InterruptItemID,
+			ProcessID:       value.ProcessID,
+			SuspensionID:    value.SuspensionID,
+		}
+	}
+	return rows
+}
+
+func suspensionBindingsFromRows(rows []suspensionBindingRow) []interrupts.SuspensionBinding {
+	values := make([]interrupts.SuspensionBinding, len(rows))
+	for index, row := range rows {
+		values[index] = interrupts.SuspensionBinding{
+			InterruptItemID: row.InterruptItemID,
+			ProcessID:       row.ProcessID,
+			SuspensionID:    row.SuspensionID,
+		}
+	}
+	return values
 }

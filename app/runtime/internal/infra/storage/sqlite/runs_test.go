@@ -52,7 +52,7 @@ func putParkedState(t *testing.T, transcripts *sqlite.TranscriptStore, ints *sql
 	parkedAt := time.Unix(2, 0).UTC()
 	question := &transcript.Question{Prompt: "Continue?"}
 	open := []transcript.Interrupt{{
-		ItemID: "item_" + runID, Kind: execution.QuestionInterrupt, Question: question,
+		ItemID: "item_" + runID, RunID: runID, Kind: execution.QuestionInterrupt, Question: question,
 	}}
 	if err := transcripts.AppendItem(t.Context(), transcript.Item{
 		SessionID: sessionID, ID: "item_" + runID, RunID: runID,
@@ -61,11 +61,13 @@ func putParkedState(t *testing.T, transcripts *sqlite.TranscriptStore, ints *sql
 	}); err != nil {
 		t.Fatalf("put parked transcript item: %v", err)
 	}
-	if err := ints.Put(t.Context(), interrupts.Pending{
-		RootRunID: runID, SessionID: sessionID, TurnID: "turn_" + runID,
-		ProcessID: "proc_" + runID, Interrupts: open,
-		RunCreatedAt: createdAt, CreatedAt: parkedAt,
-	}); err != nil {
+	if err := ints.Put(t.Context(), pendingForRun(
+		runID,
+		sessionID,
+		"proc_"+runID,
+		open,
+		parkedAt,
+	)); err != nil {
 		t.Fatalf("put parked interrupt: %v", err)
 	}
 	snapshot := validStoredSnapshot("proc_"+runID, core.StatusWaiting)
@@ -102,13 +104,45 @@ func parkedRun(runID, sessionID string) transcript.Run {
 	return transcript.Run{
 		SessionID: sessionID, ID: runID, State: execution.Interrupted,
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "itm_" + runID, Kind: execution.QuestionInterrupt,
+			ItemID: "itm_" + runID, RunID: runID, Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Prompt: "continue?"},
 		}},
 		Metrics:     transcript.RunMetrics{Steps: 1},
 		CreatedAt:   runCreatedAt,
 		UpdatedAt:   time.Unix(5, 0).UTC(),
 		MessageMark: transcript.UnknownMessageMark,
+	}
+}
+
+func pendingForRun(
+	runID string,
+	sessionID string,
+	processID string,
+	values []transcript.Interrupt,
+	createdAt time.Time,
+) interrupts.Pending {
+	copied := slices.Clone(values)
+	bindings := make([]interrupts.SuspensionBinding, len(copied))
+	for index := range copied {
+		copied[index].RunID = runID
+		bindings[index] = interrupts.SuspensionBinding{
+			InterruptItemID: copied[index].ItemID,
+			ProcessID:       processID,
+			SuspensionID:    "suspension_" + copied[index].ItemID,
+		}
+	}
+	return interrupts.Pending{
+		RootRunID:   runID,
+		SessionID:   sessionID,
+		TurnID:      "turn_" + runID,
+		Interrupts:  copied,
+		Suspensions: bindings,
+		Continuations: []interrupts.Continuation{{
+			RunID:        runID,
+			ProcessID:    processID,
+			RunCreatedAt: runCreatedAt,
+		}},
+		CreatedAt: createdAt,
 	}
 }
 
@@ -134,7 +168,13 @@ func TestParkCommitsInterruptAndSuspendAtomically(t *testing.T) {
 	// SAME connection (conn(ctx)); using the outer ctx would open a second
 	// connection under MaxOpenConns(1) and deadlock.
 	park := func(ctx context.Context) error {
-		if err := ints.Put(ctx, interrupts.Pending{RootRunID: "run_1", SessionID: "ses_A", CreatedAt: time.Unix(0, 0)}); err != nil {
+		if err := ints.Put(ctx, pendingForRun(
+			"run_1",
+			"ses_A",
+			"proc_1",
+			parkedRun("run_1", "ses_A").Interrupts,
+			time.Unix(2, 0).UTC(),
+		)); err != nil {
 			return err
 		}
 		return runStore.Suspend(ctx, parkedRun("run_1", "ses_A"))
@@ -597,7 +637,17 @@ func TestReconcileOrphansDoesNotLetStaleInterruptProtectRunningRun(t *testing.T)
 	), storedCheckpoint("ses_1", storedBuildID, storedUsage())); err != nil {
 		t.Fatalf("put stale process snapshot: %v", err)
 	}
-	if err := interruptStore.Put(ctx, interrupts.Pending{RootRunID: "run_stale", SessionID: "ses_1", ProcessID: "proc_stale", CreatedAt: time.Unix(0, 0)}); err != nil {
+	stale := []transcript.Interrupt{{
+		ItemID: "item_stale", RunID: "run_stale",
+		Kind: execution.QuestionInterrupt, Question: &transcript.Question{Prompt: "continue?"},
+	}}
+	if err := interruptStore.Put(ctx, pendingForRun(
+		"run_stale",
+		"ses_1",
+		"proc_stale",
+		stale,
+		time.Unix(2, 0).UTC(),
+	)); err != nil {
 		t.Fatalf("put stale interrupt: %v", err)
 	}
 	if swept, err := store.ReconcileOrphans(ctx, acceptProcessSnapshot); err != nil || swept != 1 {
@@ -612,9 +662,9 @@ func TestReconcileOrphansDoesNotLetStaleInterruptProtectRunningRun(t *testing.T)
 }
 
 // TestReconcileOrphansRejectsPartialParkWithoutMutatingIt is the recovery boundary's
-// evidence for parked_run_has_exactly_one_open_interrupt_set: a park missing half its
-// triplet is neither resumed nor half-repaired, because a park the sweep "fixed" into
-// an inconsistent state is a run the client waits on forever.
+// evidence for parked_tree_has_exactly_one_open_interrupt_set: a barrier missing
+// half its durable set is neither resumed nor half-repaired, because a sweep that
+// "fixed" only part of it would leave the whole tree waiting forever.
 func TestReconcileOrphansRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	store, ints, _, _ := newRunRecoveryStores(t)
 	ctx := t.Context()
@@ -624,14 +674,16 @@ func TestReconcileOrphansRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
-	createdAt := runCreatedAt
 	parkedAt := time.Unix(2, 0).UTC()
 	question := &transcript.Question{Prompt: "Continue?"}
-	open := []transcript.Interrupt{{ItemID: "item_missing", Kind: execution.QuestionInterrupt, Question: question}}
-	if err := ints.Put(ctx, interrupts.Pending{
-		RootRunID: "run_park", SessionID: "ses_park", TurnID: "turn_park", ProcessID: "proc_park",
-		Interrupts: open, RunCreatedAt: createdAt, CreatedAt: parkedAt,
-	}); err != nil {
+	open := []transcript.Interrupt{{ItemID: "item_missing", RunID: "run_park", Kind: execution.QuestionInterrupt, Question: question}}
+	if err := ints.Put(ctx, pendingForRun(
+		"run_park",
+		"ses_park",
+		"proc_park",
+		open,
+		parkedAt,
+	)); err != nil {
 		t.Fatalf("put interrupt: %v", err)
 	}
 
@@ -704,7 +756,9 @@ func TestReconcileOrphansRejectsDrainedInterruptOverlap(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("get pending: found=%v err=%v", found, err)
 	}
-	pending.DrainedTools = []interrupts.DrainedTool{{ItemID: "item_run_park", Name: "ask_user"}}
+	root, _ := pending.RootContinuation()
+	root.DrainedTools = []interrupts.DrainedTool{{ItemID: "item_run_park", Name: "ask_user"}}
+	pending.Continuations[0] = root
 	if err := ints.Put(ctx, pending); err != nil {
 		t.Fatalf("replace pending: %v", err)
 	}
@@ -796,10 +850,13 @@ func TestPageRunsReturnsEveryLifecyclePosition(t *testing.T) {
 		}
 	}
 	parked := parkedRun("run_parked", "ses_B")
-	if err := ints.Put(ctx, interrupts.Pending{
-		RootRunID: parked.ID, SessionID: parked.SessionID, TurnID: "turn_parked",
-		ProcessID: "proc_parked", Interrupts: parked.Interrupts, CreatedAt: time.Unix(0, 10),
-	}); err != nil {
+	if err := ints.Put(ctx, pendingForRun(
+		parked.ID,
+		parked.SessionID,
+		"proc_parked",
+		parked.Interrupts,
+		time.Unix(0, 10).UTC(),
+	)); err != nil {
 		t.Fatalf("put interrupt: %v", err)
 	}
 	if err := store.Suspend(ctx, parked); err != nil {
@@ -993,12 +1050,15 @@ func TestRunProtocolProfileIsImmutable(t *testing.T) {
 	// must ignore it rather than let the segment restate the contract.
 	parked := parkedRun("run_1", "ses_A")
 	parked.ProtocolProfile = execution.RunProtocolProfile{}
-	if err := interruptStore.Put(ctx, interrupts.Pending{
-		RootRunID: "run_1", SessionID: "ses_A", TurnID: "turn_1", ProcessID: "proc_1",
-		Interrupts:      parked.Interrupts,
-		ProtocolProfile: admitted,
-		CreatedAt:       time.Unix(5, 0).UTC(),
-	}); err != nil {
+	pending := pendingForRun(
+		"run_1",
+		"ses_A",
+		"proc_1",
+		parked.Interrupts,
+		time.Unix(5, 0).UTC(),
+	)
+	pending.ProtocolProfile = admitted
+	if err := interruptStore.Put(ctx, pending); err != nil {
 		t.Fatalf("put interrupt: %v", err)
 	}
 	if err := store.Suspend(ctx, parked); err != nil {

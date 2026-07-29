@@ -347,7 +347,7 @@ func TestReducerParksConcurrentToolsWithoutLosingCompletedResults(t *testing.T) 
 		},
 	}}})
 	commit := parked[0].Commit
-	if commit == nil || commit.Interrupt == nil || len(commit.Items) != 2 {
+	if commit == nil || commit.Run == nil || len(commit.Items) != 2 {
 		t.Fatalf("park commit = %+v, want two ordered tool items", commit)
 	}
 	if commit.Items[0].ID != firstID || commit.Items[0].Status != transcript.ItemRunning {
@@ -361,11 +361,11 @@ func TestReducerParksConcurrentToolsWithoutLosingCompletedResults(t *testing.T) 
 		commit.Items[1].Status != transcript.ItemCompleted || !ok || result != "found" {
 		t.Fatalf("completed sibling item = %+v", commit.Items[1])
 	}
-	if got := commit.Interrupt.Interrupts[0].ItemID; got != firstID {
+	if got := commit.Run.Interrupts[0].ItemID; got != firstID {
 		t.Fatalf("approval item ID = %q, want original %q", got, firstID)
 	}
-	if len(commit.Interrupt.DrainedTools) != 0 {
-		t.Fatalf("completed or active approval leaked into drained tools: %+v", commit.Interrupt.DrainedTools)
+	if len(reducer.drained) != 0 {
+		t.Fatalf("completed or active approval leaked into drained tools: %+v", reducer.drained)
 	}
 }
 
@@ -377,20 +377,29 @@ func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing
 	secondID := startedItemID(t, mustReduce(t, first, ToolCallStart{
 		CallID: "call-2", ToolName: "approval", Arguments: `{"path":"b"}`, SafetyClass: "write",
 	}))
-	firstPark := mustReduce(t, first, TurnInterrupted{Interrupts: []Interrupt{{
+	firstCommit := mustReduce(t, first, TurnInterrupted{Interrupts: []Interrupt{{
 		Kind: execution.ApprovalInterrupt,
 		Approval: &ApprovalPrompt{
 			CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write",
 		},
-	}}})[0].Commit.Interrupt
-	if firstPark.Interrupts[0].ItemID != firstID || len(firstPark.DrainedTools) != 1 ||
-		firstPark.DrainedTools[0].ItemID != secondID || firstPark.DrainedTools[0].CallID != "call-2" {
-		t.Fatalf("first park identity state = %+v", firstPark)
+	}}})[0].Commit
+	if firstCommit == nil || firstCommit.Run == nil ||
+		firstCommit.Run.Interrupts[0].ItemID != firstID ||
+		len(first.drained) != 1 ||
+		first.drained[0].ItemID != secondID ||
+		first.drained[0].CallID != "call-2" {
+		t.Fatalf("first park identity state = commit:%+v drained:%+v", firstCommit, first.drained)
 	}
 
 	config := testReducerConfig()
 	config.SegmentID = "seg_2"
-	config.Pending = firstPark
+	config.Pending = &interrupts.Pending{
+		RootRunID:  "run_1",
+		Interrupts: firstCommit.Run.Interrupts,
+		Continuations: []interrupts.Continuation{{
+			RunID: "run_1", DrainedTools: slices.Clone(first.drained),
+		}},
+	}
 	resumed := newReducer(config)
 	mustOpen(t, resumed)
 	if got := startedItemID(t, mustReduce(t, resumed, ToolCallStart{
@@ -400,17 +409,17 @@ func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing
 	}
 	mustReduce(t, resumed, ToolCallEnd{CallID: "call-1", Result: testToolResult(t, "approved")})
 
-	secondPark := mustReduce(t, resumed, TurnInterrupted{Interrupts: []Interrupt{{
+	secondCommit := mustReduce(t, resumed, TurnInterrupted{Interrupts: []Interrupt{{
 		Kind: execution.ApprovalInterrupt,
 		Approval: &ApprovalPrompt{
 			CallID: "call-2", ToolName: "approval", Arguments: `{"path":"b"}`, SafetyClass: "write",
 		},
-	}}})[0].Commit.Interrupt
-	if got := secondPark.Interrupts[0].ItemID; got != secondID {
+	}}})[0].Commit
+	if got := secondCommit.Run.Interrupts[0].ItemID; got != secondID {
 		t.Fatalf("later approval item ID = %q, want original %q", got, secondID)
 	}
-	if len(secondPark.DrainedTools) != 0 {
-		t.Fatalf("surfaced later approval remained drained: %+v", secondPark.DrainedTools)
+	if len(resumed.drained) != 0 {
+		t.Fatalf("surfaced later approval remained drained: %+v", resumed.drained)
 	}
 }
 
@@ -523,8 +532,8 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	config.Pending = &interrupts.Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
 		Interrupts: []transcript.Interrupt{
-			{ItemID: "item_approval", Kind: execution.ApprovalInterrupt, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "go test"})}}},
-			{ItemID: "item_question", Kind: execution.QuestionInterrupt, Question: question},
+			{ItemID: "item_approval", RunID: "run_1", Kind: execution.ApprovalInterrupt, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "go test"})}}},
+			{ItemID: "item_question", RunID: "run_1", Kind: execution.QuestionInterrupt, Question: question},
 		},
 	}
 	reducer := newReducer(config)
@@ -581,8 +590,8 @@ func TestReducerProjectsParkAsOneAtomicWriteSetBeforeFirstInterruptEvent(t *test
 		t.Fatalf("first park event = %#v, want first persisted interrupt item", batch.events[0].Event)
 	}
 	commit := batch.parkCommit
-	if commit == nil || len(commit.Items) != 2 || commit.Run == nil || commit.Interrupt == nil || commit.State != StateSuspend {
-		t.Fatalf("park commit = %+v, want items + run + interrupt + suspend", commit)
+	if commit == nil || len(commit.Items) != 2 || commit.Run == nil || commit.State != StateSuspend {
+		t.Fatalf("park commit = %+v, want items + run + suspend", commit)
 	}
 	for _, item := range commit.Items {
 		if item.SessionID != "ses_1" || item.RunID != "run_1" || item.Status != transcript.ItemRunning {
@@ -674,9 +683,12 @@ func TestReducerUsesCanonicalArgumentsForResumeIdentity(t *testing.T) {
 	config := testReducerConfig()
 	config.Pending = &interrupts.Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
-		DrainedTools: []interrupts.DrainedTool{{
-			ItemID: "item_original", CallID: "old_call", Name: "lookup",
-			Arguments: `{"b":2,"a":{"enabled":true}}`,
+		Continuations: []interrupts.Continuation{{
+			RunID: "run_1",
+			DrainedTools: []interrupts.DrainedTool{{
+				ItemID: "item_original", CallID: "old_call", Name: "lookup",
+				Arguments: `{"b":2,"a":{"enabled":true}}`,
+			}},
 		}},
 	}
 	reducer := newReducer(config)
@@ -693,8 +705,11 @@ func TestReducerRejectsMalformedDurableResumeArguments(t *testing.T) {
 	config := testReducerConfig()
 	config.Pending = &interrupts.Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
-		DrainedTools: []interrupts.DrainedTool{{
-			ItemID: "item_broken", Name: "lookup", Arguments: "[]",
+		Continuations: []interrupts.Continuation{{
+			RunID: "run_1",
+			DrainedTools: []interrupts.DrainedTool{{
+				ItemID: "item_broken", Name: "lookup", Arguments: "[]",
+			}},
 		}},
 	}
 	_, err := newReducer(config).open()
@@ -736,9 +751,8 @@ func TestValidateReductionBatchRejectsMalformedBoundaries(t *testing.T) {
 	parkCommit := func() *EventCommit {
 		run := transcript.Run{State: execution.Interrupted}
 		return &EventCommit{
-			State:     StateSuspend,
-			Run:       &run,
-			Interrupt: new(interrupts.Pending),
+			State: StateSuspend,
+			Run:   &run,
 		}
 	}
 	terminalCommit := func() *EventCommit {
@@ -900,10 +914,6 @@ func TestReducerReportsTheRunsFrozenProfileOnEverySegment(t *testing.T) {
 			ToolName: "shell", Arguments: `{}`, SafetyClass: "exec",
 		}},
 	}})
-	if batch.parkCommit == nil || batch.parkCommit.Interrupt == nil {
-		t.Fatalf("park produced no interrupt commit: %#v", batch)
-	}
-	assertFrozenProfile(t, batch.parkCommit.Interrupt.ProtocolProfile, frozen, "park hand-off")
 	if batch.parkCommit.Run == nil {
 		t.Fatal("park commit carries no run record")
 	}
