@@ -506,7 +506,7 @@ consumer 闭环就不能诚实发布 capability。
 | Slice | 边界 | 状态 | 完成定义 |
 |---|---|---|---|
 | B1.1 | durable Run-tree identity 与 root admission | `DONE` | 三条 child edge 单一领域不变量、SQLite epoch 41、root-only active index、root-owned profile、Artifact/tree validation |
-| B1.2 | first-class child Run producer 与 source routing | `TODO` | process→Run identity、child opening transaction、独立 Segment/Item/metrics、root stream 多 source envelope |
+| B1.2 | first-class child Run producer 与 source routing | `IN PROGRESS` | B1.2a causal identity 已完成；继续 acknowledged opening、独立 Segment/Item/metrics、root stream 多 source envelope |
 | B1.3 | tree interrupt barrier 与 resume | `TODO` | direct Interrupt union、non-source suspended、tree quiescence、完整 set consume、survivor 新 Segment |
 | B1.4 | unified root/child cancellation | `TODO` | tree arbiter、Running/Waiting child subtree transaction、parent `child_run_canceled`、exact root+child response |
 | B1.5 | durable query、subscribe 与 cold recovery | `TODO` | descendant paging、child items/subscribe、restart tree query/recovery、root stream replay scope |
@@ -516,6 +516,15 @@ consumer 闭环就不能诚实发布 capability。
 B1.1 只建立后续行为不可绕开的权威事实，不把 synthetic child persistence 写成执行能力。
 B1.2 起仍须保持 capability 关闭；任何 slice 失败都不得通过把 child event 重新归到 root
 或只修改一行状态来降级“完成”。
+
+B1.2 内部原子切片：
+
+| Slice | 状态 | 边界 |
+|---|---|---|
+| B1.2a | `DONE` | AgentTool child 的 durable `SpawnCallID`、Process/Snapshot/Event/adapter causal projection、provider call → canonical parent Item 精确映射 |
+| B1.2b | `IN PROGRESS` | source envelope、acknowledged child opening、parent running Item + child admission 同事务 |
+| B1.2c | `TODO` | per-child reducer、独立 Segment/Item/metrics、root Journal 多 source publication |
+| B1.2d | `TODO` | 并发 sibling/嵌套 child/失败回滚 conformance 与 B1.2 收口 |
 
 ---
 
@@ -1049,6 +1058,47 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
   - recovery、cancel 与 live registry 仍按单 root segment owner 工作，分别进入
     B1.4/B1.5，不能提前打开 capability。
 
+### 2026-07-30 — B1.2a
+
+- 状态：`DONE`
+- Commit：`4a5771f1d`（`feat(runtime): preserve child process causal identity`）
+- 目标：删除 child 与父 `task` Item 之间依赖事件时序猜测的可能，使并发 sibling
+  也能用一条不可变执行因果边精确建立 `spawnedByItemId`。
+- 关键裁决：
+  - `core.ProcessView`、`runtime.Process`、`event.ProcessCreated` 与
+    `core.ProcessSnapshot` 统一新增 `SpawnCallID`；它表示生成 child 的父级 AgentTool
+    call，root 必须为空，direct `RunChild` 可为空，AgentTool child 必须由 AgentTool
+    在 admission 时一次写入；
+  - Process snapshot epoch `13 → 14`，未知旧 epoch 继续 fail closed；不增加兼容
+    decoder、旧字段 alias 或旁路 metadata map；
+  - capture/restore 原样保留 causal edge，避免 restart 后重新猜测；Agent wire golden
+    与 exported API baseline 同步接受该 breaking contract；
+  - `agentexec.ProcessRef/SubagentProjection` 只投影 executor-owned causal identity，
+    不携带 application Run/Item identity，保持 adapter 不反向依赖应用领域；
+  - observer 同时携带 provider `SourceCallID` 与 Runtime collision-proof `CallID`：
+    前者只用于 causal join，后者继续拥有 transcript lifecycle；二者不互为 alias，
+    不解析字符串；
+  - application reducer 在 open tool 集合内按 `SourceCallID` 精确解析 canonical Item；
+    缺失或重复一律报协议错误，不按最新事件、参数相等或 tool 名猜测。
+- 生成物：
+  - Agent process snapshot epoch `13 → 14`；
+  - Agent wire golden 与完整 exported API baseline 已更新；
+  - Runtime public wire、Registry 与 SDK 生成物未变化。
+- 验证：
+  - `cd agent && go test ./... && go vet ./...` → `PASS`
+  - `cd app/runtime && go test ./... && go vet ./...` → `PASS`
+  - `cd agent && go test -race ./core ./event ./runtime ./internal/toolcall` → `PASS`
+  - `cd app/runtime && go test -race ./internal/adapter/agentexec/... ./internal/application/runs/...`
+    → `PASS`
+  - AgentTool create/event/capture/restore causal edge、root/whitespace rejection、
+    provider call → Item 唯一/缺失/歧义 fixtures → `PASS`
+- 残余风险：
+  - causal identity 已可靠，但 child opening 仍未被 application 确认，child 执行
+    尚未等待 durable admission；进入 B1.2b；
+  - child observation 仍被 adapter 过滤，且尚无 per-source reducer/Segment；
+    进入 B1.2c；
+  - `features.subagents.enabled` 继续保持 false。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -1077,15 +1127,15 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 
 ## 18. 下一步
 
-A-track 已收口，B1.1 durable identity 已完成。下一原子切片是：
+A-track 已收口，B1.1 与 B1.2a 已完成。下一原子切片是：
 
 ```text
-B1.2 — first-class child Run producer 与 source routing
+B1.2b — source envelope 与 acknowledged child opening transaction
 ```
 
-B1.2 先建立 process↔Run 的明确 identity ownership，以及 child opening transaction、
-独立 Segment/Item/metrics 和 root stream 的多 source envelope；不得把 child observation
-继续归到 root timeline，也不得让 adapter 直接写 delivery DTO 或 SQLite。
+B1.2b 必须让 child 真正执行前等待 application 对 opening 的成功确认，并把父级
+running spawning Item 与 child `RunDraft` 放进同一 `Effects.CommitOpening` 事务。
+adapter 只能报告 executor source/cause，不能直接写 delivery DTO、domain Run ID 或 SQLite。
 
 `features.subagents=false` 必须保持到 producer、tree transaction、interrupt barrier、
 cold recovery、前端 tree reducer 和 §11.3 完整 gates 同时成立。仍采用 breaking-first
