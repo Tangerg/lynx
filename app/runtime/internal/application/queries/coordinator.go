@@ -7,10 +7,13 @@ package queries
 
 import (
 	"context"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
@@ -46,12 +49,13 @@ type InterruptReader interface {
 	ListPage(ctx context.Context, sessionID string, afterCreatedAt int64, afterRunID string, limit int) ([]interrupts.Pending, error)
 }
 
-// RunReader is the coordinator's view of the durable Run record: the Runs that
-// are executing, in one session or across all of them, and a session's Runs in
-// full. The latter arrive whole rather than paged, because threading an item to
-// its Run needs the tree and a session holds few of them.
+// RunReader is the coordinator's view of the durable Run record: one Run by id,
+// a browsable page of root Runs, and a session's Runs in full. The last arrive
+// whole rather than paged, because threading an item to its Run needs the tree
+// and a session holds few of them.
 type RunReader interface {
-	ListRunning(ctx context.Context, sessionID string, afterStartedAt int64, afterRunID string, limit int) ([]transcript.Run, error)
+	Run(ctx context.Context, runID string) (transcript.Run, bool, error)
+	PageRuns(ctx context.Context, sessionID string, statuses []execution.RunStatus, beforeCreatedAt int64, beforeRunID string, limit int) ([]transcript.Run, error)
 	ListRuns(ctx context.Context, sessionID string) ([]transcript.Run, error)
 }
 
@@ -145,14 +149,32 @@ func sequenceAnchor(anchor []string) (int64, error) {
 	return sequence, nil
 }
 
-// ListRunningRuns returns one page of the Runs currently executing, scoped to
-// sessionID when it is non-empty and continuing after cursor. It reads the
-// durable admission record rather than a live in-process registry: the registry
-// only knows the segments THIS process is streaming, so it answers a different
-// question than the one being asked, and answers it differently after a restart.
-func (c *Coordinator) ListRunningRuns(ctx context.Context, sessionID, cursor string, limit int) (keyset.Page[transcript.Run], error) {
-	filters := []string{sessionID}
-	afterStartedAt, afterID, err := timeAndIDAnchor(cursor, runPageMethod, filters)
+// Run returns one Run by id, reporting false when no Run has that id. It reads
+// the durable record, so a Run this process never streamed — parked, finished, or
+// admitted before a restart — answers the same as one it is streaming now.
+func (c *Coordinator) Run(ctx context.Context, runID string) (transcript.Run, bool, error) {
+	if runID == "" {
+		return transcript.Run{}, false, nil
+	}
+	return c.runs.Run(ctx, runID)
+}
+
+// ListRunPage returns one page of the root Runs matching a filter, newest
+// admission first, continuing after cursor. An empty sessionID pages across every
+// session and empty statuses match every lifecycle position — the whole history,
+// because a finished Run is still the answer to what a session did and cost.
+//
+// It reads the durable admission record rather than a live in-process registry:
+// the registry only knows the segments THIS process is streaming, so it answers a
+// different question, and answers it differently after a restart.
+//
+// The cursor is bound to the normalized filter, not just to the method: continuing
+// a page under a different session or status set would seek into a collection the
+// anchor was never a position in.
+func (c *Coordinator) ListRunPage(ctx context.Context, sessionID string, statuses []execution.RunStatus, cursor string, limit int) (keyset.Page[transcript.Run], error) {
+	statuses = normalizeStatuses(statuses)
+	filters := []string{sessionID, statusFilter(statuses)}
+	beforeCreatedAt, beforeID, err := timeAndIDAnchor(cursor, runPageMethod, filters)
 	if err != nil {
 		return keyset.Page[transcript.Run]{}, err
 	}
@@ -160,13 +182,37 @@ func (c *Coordinator) ListRunningRuns(ctx context.Context, sessionID, cursor str
 	if err != nil {
 		return keyset.Page[transcript.Run]{}, err
 	}
-	rows, err := c.runs.ListRunning(ctx, sessionID, afterStartedAt, afterID, size+1)
+	rows, err := c.runs.PageRuns(ctx, sessionID, statuses, beforeCreatedAt, beforeID, size+1)
 	if err != nil {
 		return keyset.Page[transcript.Run]{}, err
 	}
 	return keyset.PageOf(rows, size, runPageMethod, filters, func(run transcript.Run) []string {
 		return []string{strconv.FormatInt(run.CreatedAt.UnixNano(), 10), run.ID}
 	}), nil
+}
+
+// normalizeStatuses puts a status set in one canonical order and drops repeats, so
+// two requests asking for the same set mint the same cursor. Sorting is by the
+// domain's own declaration order — the enum IS the order, so there is nothing else
+// to agree with.
+func normalizeStatuses(statuses []execution.RunStatus) []execution.RunStatus {
+	if len(statuses) == 0 {
+		return nil
+	}
+	normalized := slices.Clone(statuses)
+	slices.Sort(normalized)
+	return slices.Compact(normalized)
+}
+
+// statusFilter is the normalized status set as one cursor filter value. The empty
+// set is every status, which is a different collection from any explicit set — and
+// it reads as such, since no status is spelled "".
+func statusFilter(statuses []execution.RunStatus) string {
+	names := make([]string, 0, len(statuses))
+	for _, status := range statuses {
+		names = append(names, status.String())
+	}
+	return strings.Join(names, ",")
 }
 
 // ListPendingInterruptPage returns one page of the durable open HITL interrupts,

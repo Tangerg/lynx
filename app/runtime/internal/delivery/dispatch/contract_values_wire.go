@@ -54,10 +54,22 @@ func registerSessionValues(s *Shapes) {
 func registerRunValues(s *Shapes) {
 	nonEmpty[protocol.ResumeRunRequest](s, "runId")
 	nonEmpty[protocol.SubscribeRunRequest](s, "runId")
+	nonEmpty[protocol.GetRunRequest](s, "runId")
 	nonEmpty[protocol.CancelRunRequest](s, "runId")
 	nonEmpty[protocol.SteerRunRequest](s, "runId", "message")
 	nonEmpty[protocol.ListItemsRequest](s, "sessionId")
 	nonEmpty[protocol.SessionUsageRequest](s, "sessionId")
+
+	// An omitted status filter already means "every status", so an empty array is
+	// the one thing it cannot mean, and a repeat asks a set for something a set
+	// does not have.
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.ListRunsRequest](),
+		Constraints: []FieldConstraint{
+			{Field: "statuses", Kind: ConstraintNonEmptyItems},
+			{Field: "statuses", Kind: ConstraintUniqueItems},
+		},
+	})
 }
 
 func registerWorkspaceValues(s *Shapes) {

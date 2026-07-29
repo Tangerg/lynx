@@ -58,6 +58,7 @@ import type {
   RunEvent,
   Recipe,
   RunRef,
+  RunStatus,
   RunScheduleNowResponse,
   Schedule,
   CreateScheduleRequest,
@@ -224,8 +225,17 @@ export interface Methods {
     // Mid-run steering (§6): inject a user message into the running run so the
     // model reads it next tool round. run_not_found if no longer actively running.
     steer: (runId: RunId, message: string) => Promise<void>;
-    // Running runs only (§7.3); finished/interrupted via listOpenInterrupts or items history.
-    list: (query?: PageQuery & { sessionId?: SessionId }) => Promise<Page<RunRef>>;
+    // One run by id — current or terminal — without knowing its session (§7.3).
+    get: (runId: RunId) => Promise<RunRef>;
+    // The durable run history, newest first (§7.3). Omitting statuses returns every
+    // position; asking for descendants is refused while features.subagents is off.
+    list: (
+      query?: PageQuery & {
+        sessionId?: SessionId;
+        statuses?: RunStatus[];
+        includeDescendants?: boolean;
+      },
+    ) => Promise<Page<RunRef>>;
     // Durable HITL discovery — resumable interrupted runs (§7.3 / §10.2).
     listOpenInterrupts: (
       query?: PageQuery & { sessionId?: SessionId },
@@ -535,6 +545,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       },
       cancel: (runId, reason) => mutate("runs.cancel", { runId, reason }),
       steer: (runId, message) => mutate("runs.steer", { runId, message }),
+      get: (runId) => call("runs.get", { runId }),
       list: (query) => call("runs.list", query ?? {}),
       listOpenInterrupts: (query) => call("runs.listOpenInterrupts", query ?? {}),
     },

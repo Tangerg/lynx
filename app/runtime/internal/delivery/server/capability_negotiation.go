@@ -32,6 +32,7 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (execution.RunProtoc
 	if !ok {
 		return execution.RunProtocolProfile{}, nil
 	}
+
 	advertised := s.Capabilities().Features
 
 	var profile execution.RunProtocolProfile

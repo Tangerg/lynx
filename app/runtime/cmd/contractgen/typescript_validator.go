@@ -179,6 +179,12 @@ func (e *checkEmitter) compile(node *schema) string {
 	if node.Minimum != nil {
 		parts = append(parts, e.call("minimum", strconv.FormatInt(*node.Minimum, 10)))
 	}
+	if node.MinItems != nil {
+		parts = append(parts, e.call("minItems", strconv.Itoa(*node.MinItems)))
+	}
+	if node.UniqueItems {
+		parts = append(parts, e.call("uniqueItems"))
+	}
 	if len(node.OneOf) > 0 {
 		parts = append(parts, e.call("oneOf", e.list(node.OneOf)))
 	}

@@ -100,7 +100,8 @@ type runUseCases interface {
 type queryUseCases interface {
 	ListItemPage(ctx context.Context, sessionID, cursor string, limit int) (queries.ItemPage, error)
 	ListPendingInterruptPage(ctx context.Context, sessionID, cursor string, limit int) (keyset.Page[interrupts.Pending], error)
-	ListRunningRuns(ctx context.Context, sessionID, cursor string, limit int) (keyset.Page[transcript.Run], error)
+	Run(ctx context.Context, runID string) (transcript.Run, bool, error)
+	ListRunPage(ctx context.Context, sessionID string, statuses []execution.RunStatus, cursor string, limit int) (keyset.Page[transcript.Run], error)
 }
 
 type usageUseCases interface {

@@ -497,6 +497,10 @@ export interface GetMemoryRequest {
   scope: MemoryScope;
 }
 
+export interface GetRunRequest {
+  runId: string;
+}
+
 export interface GetSessionRequest {
   sessionId: string;
 }
@@ -682,8 +686,10 @@ export interface ListOpenInterruptsRequest {
 
 export interface ListRunsRequest {
   cursor?: string;
+  includeDescendants?: boolean;
   limit?: number;
   sessionId?: string;
+  statuses?: RunStatus[];
 }
 
 export interface MCPListToolsRequest {

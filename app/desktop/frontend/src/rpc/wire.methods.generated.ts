@@ -41,6 +41,7 @@ import type {
   GetDiffRequest,
   GetFileHeadRequest,
   GetMemoryRequest,
+  GetRunRequest,
   GetSessionRequest,
   Goal,
   GoalRequest,
@@ -91,6 +92,7 @@ import type {
   ResumeRunRequest,
   RollbackSessionRequest,
   RollbackSessionResponse,
+  RunRef,
   RunScheduleNowRequest,
   RunScheduleNowResponse,
   Schedule,
@@ -163,6 +165,7 @@ const METHOD_NAMES = [
   "runs.subscribe",
   "runs.cancel",
   "runs.steer",
+  "runs.get",
   "runs.list",
   "runs.listOpenInterrupts",
   "items.list",
@@ -267,6 +270,9 @@ export const WIRE_CAPABILITY_POLICY: {
   ],
   "sessions.import": [
     { requires: ["sessionExport"] },
+  ],
+  "runs.list": [
+    { when: [{ field: "includeDescendants", operator: "present" }], requires: ["subagents"] },
   ],
   "workspace.subscribe": [
     { when: [{ field: "watches", operator: "present" }], requires: ["fileWatch"] },
@@ -398,6 +404,7 @@ export interface WireShapes {
   "runs.subscribe": { params: SubscribeRunRequest; result: StartRunResponse };
   "runs.cancel": { params: CancelRunRequest };
   "runs.steer": { params: SteerRunRequest };
+  "runs.get": { params: GetRunRequest; result: RunRef };
   "runs.list": { params: ListRunsRequest; result: PageOfRunRef };
   "runs.listOpenInterrupts": { params: ListOpenInterruptsRequest; result: PageOfOpenInterrupt };
   "items.list": { params: ListItemsRequest; result: ListItemsResponse };

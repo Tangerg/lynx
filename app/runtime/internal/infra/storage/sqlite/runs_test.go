@@ -669,15 +669,15 @@ func TestTerminalizeRejectsUnknownOutcome(t *testing.T) {
 	}
 }
 
-// TestListRunningSeesOnlyWorkInProgress pins what "which runs are running" means
-// on the durable record. A parked run is non-terminal — it still holds its
-// session's admission slot — but it is waiting on a person, not executing, and a
-// terminal run is neither. The live in-process registry answers this question
-// differently and answers it wrongly after a restart, which is why the read moved
-// here.
-func TestListRunningSeesOnlyWorkInProgress(t *testing.T) {
+// TestPageRunsReturnsEveryLifecyclePosition pins what the run page means on the
+// durable record: the whole history, with each row's position readable. A parked
+// run is non-terminal — it still holds its session's admission slot — but it is
+// waiting on a person rather than executing, and a filter has to be able to tell
+// those two apart. The live in-process registry answers none of this after a
+// restart, which is why the read lives here.
+func TestPageRunsReturnsEveryLifecyclePosition(t *testing.T) {
 	ctx := context.Background()
-	store, _ := newRunStores(t)
+	store, ints := newRunStores(t)
 
 	for _, draft := range []execution.RunDraft{
 		{RunID: "run_live", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: time.Unix(0, 20)},
@@ -688,39 +688,66 @@ func TestListRunningSeesOnlyWorkInProgress(t *testing.T) {
 			t.Fatalf("admit %s: %v", draft.RunID, err)
 		}
 	}
-	if err := store.Suspend(ctx, parkedRun("run_parked", "ses_B")); err != nil {
+	parked := parkedRun("run_parked", "ses_B")
+	if err := ints.Put(ctx, interrupts.Pending{
+		RunID: parked.ID, SessionID: parked.SessionID, TurnID: "turn_parked",
+		ProcessID: "proc_parked", Interrupts: parked.Interrupts, CreatedAt: time.Unix(0, 10),
+	}); err != nil {
+		t.Fatalf("put interrupt: %v", err)
+	}
+	if err := store.Suspend(ctx, parked); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	if err := store.Terminalize(ctx, finishedRun("run_done", "ses_C", execution.OutcomeCompleted)); err != nil {
 		t.Fatalf("terminalize: %v", err)
 	}
 
-	running, err := store.ListRunning(ctx, "", 0, "", 0)
+	all, err := store.PageRuns(ctx, "", nil, 0, "", 0)
 	if err != nil {
-		t.Fatalf("list running: %v", err)
+		t.Fatalf("page runs: %v", err)
 	}
-	if len(running) != 1 || running[0].ID != "run_live" {
-		t.Fatalf("running = %+v, want only run_live", running)
-	}
-	if running[0].State != execution.Running || running[0].SessionID != "ses_A" {
-		t.Fatalf("run_live = %+v, want running in ses_A", running[0])
-	}
-	if !running[0].CreatedAt.Equal(time.Unix(0, 20).UTC()) {
-		t.Fatalf("run_live started at %v, want its admission time", running[0].CreatedAt)
+	if got := runIDs(all); len(got) != 3 {
+		t.Fatalf("unfiltered page = %v, want all three positions", got)
 	}
 
-	if scoped, err := store.ListRunning(ctx, "ses_A", 0, "", 0); err != nil || len(scoped) != 1 {
-		t.Fatalf("ses_A scoped = %+v (err %v), want run_live", scoped, err)
+	for _, tt := range []struct {
+		name     string
+		statuses []execution.RunStatus
+		want     []string
+	}{
+		{"running only", []execution.RunStatus{execution.StatusRunning}, []string{"run_live"}},
+		{"waiting only", []execution.RunStatus{execution.StatusWaiting}, []string{"run_parked"}},
+		{"finished only", []execution.RunStatus{execution.StatusFinished}, []string{"run_done"}},
+		{"recovery pair", []execution.RunStatus{execution.StatusRunning, execution.StatusWaiting}, []string{"run_live", "run_parked"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rows, err := store.PageRuns(ctx, "", tt.statuses, 0, "", 0)
+			if err != nil {
+				t.Fatalf("page runs: %v", err)
+			}
+			got := runIDs(rows)
+			slices.Sort(got)
+			if !slices.Equal(got, tt.want) {
+				t.Fatalf("page = %v, want %v", got, tt.want)
+			}
+		})
 	}
-	if scoped, err := store.ListRunning(ctx, "ses_B", 0, "", 0); err != nil || len(scoped) != 0 {
-		t.Fatalf("ses_B scoped = %+v (err %v), want nothing while parked", scoped, err)
+
+	// The session filter is independent of the status one: scoping to a session that
+	// holds a parked run still finds it.
+	if scoped, err := store.PageRuns(ctx, "ses_B", nil, 0, "", 0); err != nil || len(scoped) != 1 || scoped[0].ID != "run_parked" {
+		t.Fatalf("ses_B scoped = %+v (err %v), want the parked run", scoped, err)
+	}
+	if _, err := store.PageRuns(ctx, "", []execution.RunStatus{execution.RunStatus(9)}, 0, "", 0); err == nil {
+		t.Fatal("page runs accepted an unknown status instead of refusing to widen the page")
 	}
 }
 
-// TestListRunningOrdersByAdmission keeps the page stable across calls: an
-// unordered scan lets SQLite pick, and a cursor page over an unstable order skips
-// and repeats rows.
-func TestListRunningOrdersByAdmission(t *testing.T) {
+// TestPageRunsOrdersNewestFirst keeps the page stable across calls AND fixes its
+// direction: an unordered scan lets SQLite pick, and a cursor page over an unstable
+// order skips and repeats rows. Newest first is the contract's order because the run
+// a client is looking for is almost always the last one.
+func TestPageRunsOrdersNewestFirst(t *testing.T) {
 	ctx := context.Background()
 	store, _ := newRunStores(t)
 
@@ -733,29 +760,25 @@ func TestListRunningOrdersByAdmission(t *testing.T) {
 			t.Fatalf("admit %s: %v", draft.RunID, err)
 		}
 	}
-	running, err := store.ListRunning(ctx, "", 0, "", 0)
+	rows, err := store.PageRuns(ctx, "", nil, 0, "", 0)
 	if err != nil {
-		t.Fatalf("list running: %v", err)
+		t.Fatalf("page runs: %v", err)
 	}
-	var order []string
-	for _, run := range running {
-		order = append(order, run.ID)
-	}
-	if len(order) != 3 || order[0] != "run_a" || order[1] != "run_b" || order[2] != "run_c" {
-		t.Fatalf("order = %v, want oldest admission first", order)
+	if order := runIDs(rows); !slices.Equal(order, []string{"run_c", "run_b", "run_a"}) {
+		t.Fatalf("order = %v, want newest admission first", order)
 	}
 }
 
-// TestListRunningSeeksPastItsAnchor bounds the page in the query: continuing from
-// a position must skip exactly the rows already returned, including a row that
-// shares its admission nanosecond with the anchor.
-func TestListRunningSeeksPastItsAnchor(t *testing.T) {
+// TestPageRunsSeeksBeforeItsAnchor bounds the page in the query: continuing from a
+// position must skip exactly the rows already returned, including a row that shares
+// its admission nanosecond with the anchor.
+func TestPageRunsSeeksBeforeItsAnchor(t *testing.T) {
 	ctx := context.Background()
 	store, _ := newRunStores(t)
 
 	for _, draft := range []execution.RunDraft{
 		{RunID: "run_a", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: time.Unix(0, 10)},
-		{RunID: "run_b", SessionID: "ses_B", SegmentID: "seg_open", CreatedAt: time.Unix(0, 10)},
+		{RunID: "run_b", SessionID: "ses_B", SegmentID: "seg_open", CreatedAt: time.Unix(0, 20)},
 		{RunID: "run_c", SessionID: "ses_C", SegmentID: "seg_open", CreatedAt: time.Unix(0, 20)},
 	} {
 		if err := store.Admit(ctx, draft); err != nil {
@@ -763,23 +786,73 @@ func TestListRunningSeeksPastItsAnchor(t *testing.T) {
 		}
 	}
 
-	first, err := store.ListRunning(ctx, "", 0, "", 2)
+	first, err := store.PageRuns(ctx, "", nil, 0, "", 2)
 	if err != nil {
 		t.Fatalf("first page: %v", err)
 	}
-	if len(first) != 2 || first[0].ID != "run_a" || first[1].ID != "run_b" {
-		t.Fatalf("first page = %+v, want run_a then run_b", first)
+	if order := runIDs(first); !slices.Equal(order, []string{"run_c", "run_b"}) {
+		t.Fatalf("first page = %v, want run_c then run_b", order)
 	}
 
-	// run_b shares run_a's admission time, so a time-only bound would drop it or
+	// run_b shares run_c's admission time, so a time-only bound would drop it or
 	// repeat it; the run id breaks the tie.
-	rest, err := store.ListRunning(ctx, "", first[1].CreatedAt.UnixNano(), first[1].ID, 2)
+	rest, err := store.PageRuns(ctx, "", nil, first[1].CreatedAt.UnixNano(), first[1].ID, 2)
 	if err != nil {
 		t.Fatalf("second page: %v", err)
 	}
-	if len(rest) != 1 || rest[0].ID != "run_c" {
-		t.Fatalf("second page = %+v, want only run_c", rest)
+	if order := runIDs(rest); !slices.Equal(order, []string{"run_a"}) {
+		t.Fatalf("second page = %v, want only run_a", order)
 	}
+}
+
+// TestPageRunsReturnsRootsOnlyAndGetFindsAnyRun separates the two reads: the page is
+// the root runs a client browses, while runs.get resolves ANY run id — including a
+// child's, which is how a client holding a child id from an event reaches its tree.
+//
+// The page's predicate is "has no spawning item", not "this build makes no
+// children": the moment child runs exist, a default page that had been returning
+// everything would start mixing subtree rows into a root listing.
+func TestPageRunsReturnsRootsOnlyAndGetFindsAnyRun(t *testing.T) {
+	ctx := context.Background()
+	store, _ := newRunStores(t)
+
+	root := finishedRun("run_root", "ses_A", execution.OutcomeCompleted)
+	root.CreatedAt = time.Unix(0, 10).UTC()
+	child := finishedRun("run_child", "ses_A", execution.OutcomeCompleted)
+	child.CreatedAt = time.Unix(0, 20).UTC()
+	child.SpawnedByItemID = "it_spawn"
+	for _, run := range []transcript.Run{root, child} {
+		if err := store.Restore(ctx, run); err != nil {
+			t.Fatalf("restore %s: %v", run.ID, err)
+		}
+	}
+
+	page, err := store.PageRuns(ctx, "", nil, 0, "", 0)
+	if err != nil {
+		t.Fatalf("page runs: %v", err)
+	}
+	if order := runIDs(page); !slices.Equal(order, []string{"run_root"}) {
+		t.Fatalf("page = %v, want the root run only", order)
+	}
+
+	found, ok, err := store.Run(ctx, "run_child")
+	if err != nil || !ok {
+		t.Fatalf("read child run: ok=%v err=%v", ok, err)
+	}
+	if found.SpawnedByItemID != "it_spawn" || found.SessionID != "ses_A" {
+		t.Fatalf("child = %+v, want its spawning item and session", found)
+	}
+	if _, ok, err := store.Run(ctx, "run_absent"); err != nil || ok {
+		t.Fatalf("absent run: ok=%v err=%v, want a clean miss", ok, err)
+	}
+}
+
+func runIDs(runs []transcript.Run) []string {
+	out := make([]string, 0, len(runs))
+	for _, run := range runs {
+		out = append(out, run.ID)
+	}
+	return out
 }
 
 // TestRunProtocolProfileIsImmutable proves the invariant

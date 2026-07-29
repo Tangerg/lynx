@@ -3,6 +3,7 @@ package queries
 import (
 	"context"
 	"errors"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -39,24 +40,39 @@ func (f *fakeTranscript) PageItems(_ context.Context, sessionID string, afterSeq
 }
 
 // fakeRuns is the Run record the item page threads its items against, and the
-// running projection the run page seeks through. Both seek the way the store does:
-// a (0, "") anchor is no anchor — the first page — and anything else is strictly
-// past the last row of the page before it.
+// durable history the run page seeks through. Both seek the way the store does:
+// an empty id is no anchor — the first page — and anything else is strictly past
+// the last row of the page before it, which for the history means EARLIER.
 type fakeRuns struct {
-	runs    []transcript.Run
-	running []transcript.Run
+	runs []transcript.Run
+	// history is newest first, the order the store returns.
+	history []transcript.Run
 
-	session        string
-	afterStartedAt int64
-	afterRunID     string
-	limit          int
+	session         string
+	statuses        []execution.RunStatus
+	beforeCreatedAt int64
+	beforeRunID     string
+	limit           int
 }
 
-func (f *fakeRuns) ListRunning(_ context.Context, sessionID string, afterStartedAt int64, afterRunID string, limit int) ([]transcript.Run, error) {
-	f.session, f.afterStartedAt, f.afterRunID, f.limit = sessionID, afterStartedAt, afterRunID, limit
+func (f *fakeRuns) Run(_ context.Context, runID string) (transcript.Run, bool, error) {
+	for _, run := range f.history {
+		if run.ID == runID {
+			return run, true, nil
+		}
+	}
+	return transcript.Run{}, false, nil
+}
+
+func (f *fakeRuns) PageRuns(_ context.Context, sessionID string, statuses []execution.RunStatus, beforeCreatedAt int64, beforeRunID string, limit int) ([]transcript.Run, error) {
+	f.session, f.statuses = sessionID, statuses
+	f.beforeCreatedAt, f.beforeRunID, f.limit = beforeCreatedAt, beforeRunID, limit
 	var out []transcript.Run
-	for _, run := range f.running {
-		if !seeksPast(run.CreatedAt.UnixNano(), run.ID, afterStartedAt, afterRunID) {
+	for _, run := range f.history {
+		if !seeksBefore(run.CreatedAt.UnixNano(), run.ID, beforeCreatedAt, beforeRunID) {
+			continue
+		}
+		if len(statuses) > 0 && !slices.Contains(statuses, run.State.Status()) {
 			continue
 		}
 		if limit > 0 && len(out) == limit {
@@ -103,6 +119,16 @@ func seeksPast(at int64, id string, afterAt int64, afterID string) bool {
 		return true
 	}
 	return at > afterAt || (at == afterAt && id > afterID)
+}
+
+// seeksBefore is the same rule for a newest-first read, where continuing means
+// going back in time. An empty id is the first page: unlike a timestamp, it cannot
+// be confused with a position.
+func seeksBefore(at int64, id string, beforeAt int64, beforeID string) bool {
+	if beforeID == "" {
+		return true
+	}
+	return at < beforeAt || (at == beforeAt && id < beforeID)
 }
 
 func sequencedItems(count int) []transcript.SequencedItem {
@@ -202,15 +228,22 @@ func TestListItemPageRejectsANegativeLimit(t *testing.T) {
 	}
 }
 
-// running builds a page of admitted runs one nanosecond apart, so the order is
-// total and the seek has something unambiguous to land past.
-func running(sessionID string, ids ...string) []transcript.Run {
+// history builds the run page's rows in the order the store returns them: newest
+// admission first, one nanosecond apart. States cycle through the three lifecycle
+// positions so a status filter has something to exclude.
+func history(sessionID string, ids ...string) []transcript.Run {
+	states := [...]execution.RunState{execution.Running, execution.Interrupted, execution.Completed}
 	out := make([]transcript.Run, 0, len(ids))
 	for i, id := range ids {
-		out = append(out, transcript.Run{
-			ID: id, SessionID: sessionID, State: execution.Running,
-			CreatedAt: time.Unix(0, int64(i+1)).UTC(),
-		})
+		state := states[i%len(states)]
+		run := transcript.Run{
+			ID: id, SessionID: sessionID, State: state,
+			CreatedAt: time.Unix(0, int64(len(ids)-i)).UTC(),
+		}
+		if state.IsTerminal() {
+			run.Outcome = new(execution.OutcomeCompleted)
+		}
+		out = append(out, run)
 	}
 	return out
 }
@@ -225,56 +258,101 @@ func parked(sessionID string, ids ...string) []interrupts.Pending {
 	return out
 }
 
-// TestListRunningRunsPagesInAdmissionOrder covers runs.list's query properties: the order is fixed (admission, tie-broken by id), the next page seeks
-// strictly past the last row rather than re-reading it, and "there is more" is only
-// claimed when the over-fetch found it.
-func TestListRunningRunsPagesInAdmissionOrder(t *testing.T) {
+// TestListRunPageWalksBackwardThroughHistory covers runs.list's query properties:
+// the order is fixed (admission descending, tie-broken by id), the next page seeks
+// strictly EARLIER than the last row rather than re-reading it, and "there is more"
+// is only claimed when the over-fetch found it.
+//
+// Newest first is the direction the contract fixes, and it is the one a client
+// needs: the run it is looking for is almost always the last one, and paging
+// forward from the beginning of a long session would reach it last.
+func TestListRunPageWalksBackwardThroughHistory(t *testing.T) {
 	ctx := context.Background()
-	runs := &fakeRuns{running: running("ses_1", "run_1", "run_2", "run_3")}
+	runs := &fakeRuns{history: history("ses_1", "run_3", "run_2", "run_1")}
 	c := New(Dependencies{Transcript: &fakeTranscript{}, Runs: runs})
 
-	first, err := c.ListRunningRuns(ctx, "ses_1", "", 2)
+	first, err := c.ListRunPage(ctx, "ses_1", nil, "", 2)
 	if err != nil {
 		t.Fatalf("first page: %v", err)
 	}
 	if runs.limit != 3 {
 		t.Fatalf("store asked for %d rows, want the page plus one", runs.limit)
 	}
-	if len(first.Rows) != 2 || first.Rows[0].ID != "run_1" || first.NextCursor == "" {
-		t.Fatalf("first page = %+v, want two runs and a cursor", first.Rows)
+	if len(first.Rows) != 2 || first.Rows[0].ID != "run_3" || first.NextCursor == "" {
+		t.Fatalf("first page = %+v, want the two newest runs and a cursor", first.Rows)
 	}
 
-	second, err := c.ListRunningRuns(ctx, "ses_1", first.NextCursor, 2)
+	second, err := c.ListRunPage(ctx, "ses_1", nil, first.NextCursor, 2)
 	if err != nil {
 		t.Fatalf("second page: %v", err)
 	}
-	if runs.afterRunID != "run_2" {
-		t.Fatalf("second page sought past %q, want the first page's last row", runs.afterRunID)
+	if runs.beforeRunID != "run_2" {
+		t.Fatalf("second page sought before %q, want the first page's last row", runs.beforeRunID)
 	}
-	if len(second.Rows) != 1 || second.Rows[0].ID != "run_3" || second.NextCursor != "" {
+	if len(second.Rows) != 1 || second.Rows[0].ID != "run_1" || second.NextCursor != "" {
 		t.Fatalf("second page = %+v, want the tail and no cursor", second.Rows)
 	}
 }
 
-// TestListRunningRunsRefusesACursorFromAnotherQuery is runs.list's half of the
-// cursor binding: an anchor is only meaningful against the ordering that produced
-// it. Continuing from a foreign one silently pages against positions this query
-// never enumerated — the client is handed rows it already has, or none at all, with
-// nothing to say why.
-func TestListRunningRunsRefusesACursorFromAnotherQuery(t *testing.T) {
+// TestListRunPageReturnsEveryStatusUntilFiltered pins the default: the read is the
+// whole history, not the work in progress. A page that hid finished runs would make
+// "what did this session cost" unanswerable from the run record, which is the one
+// place that knows.
+func TestListRunPageReturnsEveryStatusUntilFiltered(t *testing.T) {
+	ctx := context.Background()
+	runs := &fakeRuns{history: history("ses_1", "run_3", "run_2", "run_1")}
+	c := New(Dependencies{Transcript: &fakeTranscript{}, Runs: runs})
+
+	all, err := c.ListRunPage(ctx, "ses_1", nil, "", 0)
+	if err != nil || len(all.Rows) != 3 {
+		t.Fatalf("unfiltered page = %d rows, %v; want every status", len(all.Rows), err)
+	}
+
+	// A filter is normalized before it selects rows OR mints a cursor: the same set
+	// asked for in a different order is the same query, and it must page as one.
+	filtered, err := c.ListRunPage(ctx, "ses_1", []execution.RunStatus{
+		execution.StatusWaiting, execution.StatusRunning, execution.StatusWaiting,
+	}, "", 0)
+	if err != nil {
+		t.Fatalf("filtered page: %v", err)
+	}
+	if want := []execution.RunStatus{execution.StatusRunning, execution.StatusWaiting}; !slices.Equal(runs.statuses, want) {
+		t.Fatalf("store filtered on %v, want the normalized %v", runs.statuses, want)
+	}
+	if len(filtered.Rows) != 2 {
+		t.Fatalf("filtered page = %d rows, want the running and waiting ones", len(filtered.Rows))
+	}
+}
+
+// TestListRunPageRefusesACursorFromAnotherQuery is runs.list's half of the cursor
+// binding: an anchor is only meaningful against the ordering AND the filter that
+// produced it. Continuing from a foreign one silently pages against positions this
+// query never enumerated — the client is handed rows it already has, or none at
+// all, with nothing to say why.
+func TestListRunPageRefusesACursorFromAnotherQuery(t *testing.T) {
 	ctx := context.Background()
 	c := New(Dependencies{
 		Transcript: &fakeTranscript{items: sequencedItems(5)},
-		Runs:       &fakeRuns{running: running("ses_1", "run_1", "run_2", "run_3")},
+		Runs:       &fakeRuns{history: history("ses_1", "run_3", "run_2", "run_1")},
 		Interrupts: &fakeInterrupts{pending: parked("ses_1", "run_1", "run_2", "run_3")},
 	})
 
-	otherSession, err := c.ListRunningRuns(ctx, "ses_other", "", 2)
+	otherSession, err := c.ListRunPage(ctx, "ses_other", nil, "", 2)
 	if err != nil {
 		t.Fatalf("other session page: %v", err)
 	}
-	if _, err := c.ListRunningRuns(ctx, "ses_1", otherSession.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+	if _, err := c.ListRunPage(ctx, "ses_1", nil, otherSession.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
 		t.Fatalf("cross-session cursor err = %v, want ErrInvalidCursor", err)
+	}
+
+	// Changing the status filter changes which rows exist, so the anchor no longer
+	// names a position in the collection being paged.
+	unfiltered, err := c.ListRunPage(ctx, "ses_1", nil, "", 2)
+	if err != nil {
+		t.Fatalf("unfiltered page: %v", err)
+	}
+	if _, err := c.ListRunPage(ctx, "ses_1", []execution.RunStatus{execution.StatusRunning}, unfiltered.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+		t.Fatalf("cross-filter cursor err = %v, want ErrInvalidCursor", err)
 	}
 
 	// The interrupt page is scoped the same way and ordered by a timestamp too, so
@@ -283,7 +361,7 @@ func TestListRunningRunsRefusesACursorFromAnotherQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("interrupt page: %v", err)
 	}
-	if _, err := c.ListRunningRuns(ctx, "ses_1", interruptPage.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+	if _, err := c.ListRunPage(ctx, "ses_1", nil, interruptPage.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
 		t.Fatalf("cross-query cursor err = %v, want ErrInvalidCursor", err)
 	}
 
@@ -291,7 +369,7 @@ func TestListRunningRunsRefusesACursorFromAnotherQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("item page: %v", err)
 	}
-	if _, err := c.ListRunningRuns(ctx, "ses_1", itemPage.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+	if _, err := c.ListRunPage(ctx, "ses_1", nil, itemPage.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
 		t.Fatalf("item cursor on the run page err = %v, want ErrInvalidCursor", err)
 	}
 }
@@ -304,7 +382,7 @@ func TestListPendingInterruptPagePagesOldestFirst(t *testing.T) {
 	ints := &fakeInterrupts{pending: parked("ses_1", "run_1", "run_2", "run_3")}
 	c := New(Dependencies{
 		Transcript: &fakeTranscript{},
-		Runs:       &fakeRuns{running: running("ses_1", "run_1", "run_2", "run_3")},
+		Runs:       &fakeRuns{history: history("ses_1", "run_3", "run_2", "run_1")},
 		Interrupts: ints,
 	})
 
@@ -335,7 +413,7 @@ func TestListPendingInterruptPagePagesOldestFirst(t *testing.T) {
 
 	// The run page is scoped and ordered the same way, so only the query namespace
 	// separates the two — in both directions.
-	runPage, err := c.ListRunningRuns(ctx, "ses_1", "", 2)
+	runPage, err := c.ListRunPage(ctx, "ses_1", nil, "", 2)
 	if err != nil {
 		t.Fatalf("run page: %v", err)
 	}

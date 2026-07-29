@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	sqlite3 "modernc.org/sqlite"
@@ -319,34 +320,49 @@ func (s *RunStore) stateForRun(ctx context.Context, sessionID, runID string) (ex
 	}
 }
 
-// ListRunning returns Runs in the running state, oldest admission first, scoped
-// to sessionID when it is non-empty. Parked and terminal Runs are excluded: a
-// caller asking what is executing is asking about work in progress, and an
-// interrupted Run is waiting on a person.
+// PageRuns returns one page of the root Runs a caller may browse, newest
+// admission first, scoped to sessionID when it is non-empty and to statuses when
+// it is non-empty. It is the whole history, not the work in progress: a Run that
+// ended is still the answer to "what did this session cost", and a Run parked on
+// a person is the one a client most needs to find.
 //
-// The page is bounded here rather than by the caller. after is the (admission
-// time, run id) position a previous page ended at — zero time starts at the
-// beginning — and the pair is what makes the order total, since two Runs in
-// different sessions can be admitted in the same nanosecond.
+// Only root Runs are returned. A Run spawned by an item belongs to the subtree of
+// the Run that spawned it, and is reached through that Run — so the predicate is
+// "has no spawning item" rather than the absence of children in this build.
+//
+// The page is bounded here rather than by the caller. before is the (admission
+// time, run id) position a previous page ended at, applied only when the run id
+// is present — every anchor carries both halves, so an empty id is the first page
+// and not a Run admitted at the epoch. The pair is what makes the order total,
+// since two Runs in different sessions can be admitted in the same nanosecond.
+//
 // It returns whole Runs rather than a thinner admission projection, because the
 // answer a caller renders includes what each Run has consumed — and a second Run
 // shape assembled from a subset of the same columns would be a second answer to
 // "what is this Run".
-func (s *RunStore) ListRunning(ctx context.Context, sessionID string, afterStartedAt int64, afterRunID string, limit int) ([]transcript.Run, error) {
+func (s *RunStore) PageRuns(ctx context.Context, sessionID string, statuses []execution.RunStatus, beforeStartedAt int64, beforeRunID string, limit int) ([]transcript.Run, error) {
 	query := `SELECT ` + runColumns + `
 		 FROM runs AS r
 		 LEFT JOIN interrupts AS i ON i.run_id = r.run_id AND i.session_id = r.session_id
-		 WHERE r.state = ?`
-	args := []any{runStateRunning}
+		 WHERE r.spawned_by_item_id = ''`
+	var args []any
 	if sessionID != "" {
 		query += ` AND r.session_id = ?`
 		args = append(args, sessionID)
 	}
-	if afterStartedAt > 0 || afterRunID != "" {
-		query += ` AND (r.started_at > ? OR (r.started_at = ? AND r.run_id > ?))`
-		args = append(args, afterStartedAt, afterStartedAt, afterRunID)
+	if len(statuses) > 0 {
+		columns, err := stateColumns(statuses)
+		if err != nil {
+			return nil, fmt.Errorf("sqlite: page runs: %w", err)
+		}
+		query += ` AND r.state IN (` + placeholders(len(columns)) + `)`
+		args = append(args, columns...)
 	}
-	query += ` ORDER BY r.started_at, r.run_id`
+	if beforeRunID != "" {
+		query += ` AND (r.started_at < ? OR (r.started_at = ? AND r.run_id < ?))`
+		args = append(args, beforeStartedAt, beforeStartedAt, beforeRunID)
+	}
+	query += ` ORDER BY r.started_at DESC, r.run_id DESC`
 	if limit > 0 {
 		query += ` LIMIT ?`
 		args = append(args, limit)
@@ -354,7 +370,7 @@ func (s *RunStore) ListRunning(ctx context.Context, sessionID string, afterStart
 
 	rows, err := conn(ctx, s.db).QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("sqlite: list running runs: %w", err)
+		return nil, fmt.Errorf("sqlite: page runs: %w", err)
 	}
 	defer rows.Close()
 
@@ -362,14 +378,52 @@ func (s *RunStore) ListRunning(ctx context.Context, sessionID string, afterStart
 	for rows.Next() {
 		run, err := scanRun(rows)
 		if err != nil {
-			return nil, fmt.Errorf("sqlite: list running runs: %w", err)
+			return nil, fmt.Errorf("sqlite: page runs: %w", err)
 		}
 		out = append(out, run)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("sqlite: list running runs: %w", err)
+		return nil, fmt.Errorf("sqlite: page runs: %w", err)
 	}
 	return out, nil
+}
+
+// Run returns one Run by id alone, whatever state it is in. The session is not a
+// parameter because a run id already identifies exactly one Run: making a caller
+// supply the session too would mean it has to know where the Run lives before it
+// can ask what the Run is.
+func (s *RunStore) Run(ctx context.Context, runID string) (transcript.Run, bool, error) {
+	row := conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT `+runColumns+`
+		 FROM runs AS r
+		 LEFT JOIN interrupts AS i ON i.run_id = r.run_id AND i.session_id = r.session_id
+		 WHERE r.run_id = ?`, runID)
+	run, err := scanRun(row)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return transcript.Run{}, false, nil
+	case err != nil:
+		return transcript.Run{}, false, fmt.Errorf("sqlite: read run %q: %w", runID, err)
+	}
+	return run, true, nil
+}
+
+// stateColumns is the durable encoding of a status filter. An unrecognized status
+// is refused rather than skipped: dropping it from the IN list would silently
+// widen the page to statuses the caller did not ask for.
+func stateColumns(statuses []execution.RunStatus) ([]any, error) {
+	out := make([]any, 0, len(statuses))
+	for _, status := range statuses {
+		if !status.Valid() {
+			return nil, fmt.Errorf("unknown run status %d", status)
+		}
+		out = append(out, stateColumn(status))
+	}
+	return out, nil
+}
+
+func placeholders(n int) string {
+	return strings.TrimSuffix(strings.Repeat("?, ", n), ", ")
 }
 
 // runColumns is the whole Run row, joined with the open interrupts a parked Run
@@ -407,16 +461,25 @@ func (s *RunStore) ListRuns(ctx context.Context, sessionID string) ([]transcript
 	return out, nil
 }
 
-// coarseState projects the fine [execution.RunState] onto the three admission
-// states the runs table stores — the partial unique index keys on non-terminal,
-// so every terminal RunState collapses to the one 'terminal' value (the fine
-// terminal reason lives in runs.outcome).
+// coarseState is the column value a Run in state s is stored under. It routes
+// through the domain's lifecycle position so a row written by Suspend and a query
+// filtering on [execution.StatusWaiting] cannot disagree about which value that
+// is — the partial unique index keys on non-terminal, so every terminal RunState
+// collapses to the one 'terminal' value (the fine reason lives in runs.outcome).
 func coarseState(s execution.RunState) string {
-	switch {
-	case s.IsTerminal():
-		return runStateTerminal
-	case s == execution.Interrupted:
+	return stateColumn(s.Status())
+}
+
+// stateColumn is the durable spelling of a lifecycle position. It stays an
+// explicit table rather than [execution.RunStatus.String]: these three strings are
+// on disk and inside the partial unique index's predicate, so a Go rename must not
+// be able to rewrite them.
+func stateColumn(status execution.RunStatus) string {
+	switch status {
+	case execution.StatusWaiting:
 		return runStateInterrupted
+	case execution.StatusFinished:
+		return runStateTerminal
 	default:
 		return runStateRunning
 	}

@@ -10,15 +10,39 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
-// ListRuns returns the currently running runs as a cursor Page (API.md §7.3).
-// The set and the session scope come from the durable admission record, not from
-// this process's live registry: the registry sees only the segments it is
-// streaming, so it lost every run whose process restarted and never held the
-// ones a person is being asked to approve.
+// GetRun returns one run by id, in whatever state the durable record has it. The
+// caller supplies no session: a runId already identifies one run, and requiring
+// the session would mean knowing where a run lives before being able to ask what
+// it is.
+func (s *Server) GetRun(ctx context.Context, in protocol.GetRunRequest) (*protocol.RunRef, error) {
+	run, found, err := s.queries.Run(ctx, in.RunID)
+	switch {
+	case err != nil:
+		return nil, err
+	case !found:
+		return nil, protocol.ErrRunNotFound
+	}
+	ref := presentRun(run)
+	return &ref, nil
+}
+
+// ListRuns pages the durable run history as a cursor Page. The set and the scope
+// come from the durable admission record, not from this process's live registry:
+// the registry sees only the segments it is streaming, so it lost every run whose
+// process restarted and never held the ones a person is being asked to approve.
+// A request asking for descendants never reaches here: the method's capability
+// rule refuses it while features.subagents is off, which is why this reads
+// IncludeDescendants nowhere — re-checking it would be a second author of the
+// registered rule.
 func (s *Server) ListRuns(ctx context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
-	page, err := s.queries.ListRunningRuns(ctx, in.SessionID, in.Cursor, in.Limit)
+	statuses, err := runStatusesFromWire(in.Statuses)
+	if err != nil {
+		return nil, err
+	}
+	page, err := s.queries.ListRunPage(ctx, in.SessionID, statuses, in.Cursor, in.Limit)
 	if err != nil {
 		return nil, wirePageError(err)
 	}
@@ -27,6 +51,28 @@ func (s *Server) ListRuns(ctx context.Context, in protocol.ListRunsRequest) (*pr
 		out = append(out, presentRun(run))
 	}
 	return protocol.NewPageWithCursor(out, page.NextCursor), nil
+}
+
+// runStatusesFromWire reads a status filter into the lifecycle positions the
+// durable record is keyed by. It is total over what the wire can carry: Go's
+// decoder puts any string into a named string type, so a value outside the enum
+// arrives here and must be refused rather than dropped — a dropped filter value
+// silently widens the page.
+func runStatusesFromWire(statuses []protocol.RunStatus) ([]execution.RunStatus, error) {
+	out := make([]execution.RunStatus, 0, len(statuses))
+	for _, status := range statuses {
+		switch status {
+		case protocol.RunStatusRunning:
+			out = append(out, execution.StatusRunning)
+		case protocol.RunStatusWaiting:
+			out = append(out, execution.StatusWaiting)
+		case protocol.RunStatusFinished:
+			out = append(out, execution.StatusFinished)
+		default:
+			return nil, fmt.Errorf("%w: unknown statuses value %q", protocol.ErrInvalidParams, status)
+		}
+	}
+	return out, nil
 }
 
 // ListOpenInterrupts returns durable resumable interrupts as a Page

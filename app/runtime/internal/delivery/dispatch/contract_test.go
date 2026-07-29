@@ -113,6 +113,10 @@ func (r *capabilityRuntime) ListMemory(context.Context, protocol.WorkspaceListQu
 	return protocol.NewPage([]protocol.MemoryEntry{}), nil
 }
 
+func (r *capabilityRuntime) ListRuns(context.Context, protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
+	return protocol.NewPage([]protocol.RunRef{}), nil
+}
+
 func (r *capabilityRuntime) RollbackSession(context.Context, protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error) {
 	return &protocol.RollbackSessionResponse{DroppedRuns: []protocol.DroppedRun{}}, nil
 }
@@ -208,6 +212,23 @@ func TestCapabilityGateOnlyBitesTheGatedRequest(t *testing.T) {
 		name:   "restoring files is allowed once checkpoints are on",
 		method: "sessions.rollback", params: `{"sessionId":"ses_1","restoreType":"files"}`,
 		features: map[string]bool{"checkpoints": true},
+		want:     "",
+	}, {
+		name:   "listing root runs needs no subagents",
+		method: "runs.list", params: `{}`,
+		features: map[string]bool{"subagents": false},
+		want:     "",
+	}, {
+		// The whole point of the rule: the contract forbids reading an explicit true
+		// as false, because the page would come back looking complete.
+		name:   "asking for descendants needs subagents",
+		method: "runs.list", params: `{"includeDescendants":true}`,
+		features: map[string]bool{"subagents": false},
+		want:     "capability_not_negotiated",
+	}, {
+		name:   "an explicit false is not a request for descendants",
+		method: "runs.list", params: `{"includeDescendants":false}`,
+		features: map[string]bool{"subagents": false},
 		want:     "",
 	}}
 

@@ -33,7 +33,12 @@ type Runs interface {
 	// Errors run_not_found when the run isn't actively running (parked / done).
 	SteerRun(ctx context.Context, in SteerRunRequest) error
 
-	// ListRuns returns only running runs (API.md §7.3), as a Page.
+	// GetRun returns one run by id — current or terminal, root or child — from the
+	// durable record. Errors run_not_found when no run has that id.
+	GetRun(ctx context.Context, in GetRunRequest) (*RunRef, error)
+
+	// ListRuns pages the durable run history, filtered by session and lifecycle
+	// position, newest first.
 	ListRuns(ctx context.Context, in ListRunsRequest) (*Page[RunRef], error)
 
 	// ListOpenInterrupts returns durable resumable interrupts (API.md §6.2),
@@ -297,10 +302,31 @@ type SteerRunRequest struct {
 	Message string `json:"message"`
 }
 
-// ListRunsRequest is the runs.list body.
+// ListRunsRequest is the runs.list body — the whole durable run history, filtered.
+//
+// Every filter is independent and omitting one widens the read rather than
+// narrowing it: no sessionId pages across every session, no statuses matches every
+// lifecycle position. A finished run is not history the read hides — it is the
+// answer to what a session did and what it cost.
 type ListRunsRequest struct {
 	SessionID string `json:"sessionId,omitempty"`
+	// Statuses selects lifecycle positions. Omitted means all of them; present
+	// means a non-empty set with no repeats, because an empty or duplicated filter
+	// is a caller that did not mean what it sent.
+	Statuses []RunStatus `json:"statuses,omitempty"`
+	// IncludeDescendants adds child runs at any depth to the page. It defaults to
+	// false, and an explicit true is a declaration this runtime either honors or
+	// refuses with capability_not_negotiated — reading it as false would hand back
+	// a page that looks complete and silently is not.
+	IncludeDescendants bool `json:"includeDescendants,omitempty"`
 	PageQuery
+}
+
+// GetRunRequest is the runs.get body. The run id alone identifies the run: a
+// caller holding a runId from an event or a page must not have to discover which
+// session owns it before it can ask what the run is doing.
+type GetRunRequest struct {
+	RunID string `json:"runId"`
 }
 
 // ListOpenInterruptsRequest is the runs.listOpenInterrupts body.

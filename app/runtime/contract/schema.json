@@ -1920,6 +1920,18 @@
         "scope"
       ]
     },
+    "GetRunRequest": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "runId"
+      ]
+    },
     "GetSessionRequest": {
       "type": "object",
       "properties": {
@@ -2915,11 +2927,22 @@
         "cursor": {
           "type": "string"
         },
+        "includeDescendants": {
+          "type": "boolean"
+        },
         "limit": {
           "type": "integer"
         },
         "sessionId": {
           "type": "string"
+        },
+        "statuses": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/RunStatus"
+          }
         }
       }
     },

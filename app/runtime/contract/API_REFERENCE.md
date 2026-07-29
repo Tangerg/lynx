@@ -5,7 +5,7 @@
 > method the runtime does not serve. Prose, rationale and wire examples live in
 > `app/desktop/docs/protocol/`; this is the mechanical index.
 
-Protocol `2026-07-19` (minimum supported `2026-07-19`) · 83 methods
+Protocol `2026-07-19` (minimum supported `2026-07-19`) · 84 methods
 
 ## Methods
 
@@ -26,7 +26,8 @@ Protocol `2026-07-19` (minimum supported `2026-07-19`) · 83 methods
 | `runs.subscribe` | stream | none | — | `run_not_found` |
 | `runs.cancel` | unary | replayResponse | — | `run_not_found`, `run_already_finished` |
 | `runs.steer` | unary | replayResponse | — | `run_not_found` |
-| `runs.list` | unary | none | — | — |
+| `runs.get` | unary | none | — | `run_not_found` |
+| `runs.list` | unary | none | `subagents` | — |
 | `runs.listOpenInterrupts` | unary | none | — | — |
 | `items.list` | unary | none | — | `session_not_found` |
 | `workspace.listFileChanges` | unary | none | — | `cwd_unavailable`, `vcs_unavailable` |
@@ -273,6 +274,7 @@ available. Refusal is `capability_not_negotiated` — never a silent downgrade.
 | `sessions.rollback` | `restoreType` == `both` | `checkpoints` |
 | `sessions.export` | always | `sessionExport` |
 | `sessions.import` | always | `sessionExport` |
+| `runs.list` | `includeDescendants` present | `subagents` |
 | `workspace.subscribe` | `watches` present | `fileWatch` |
 | `skills.discovered.list` | always | `skills` |
 | `skills.library.list` | always | `skills` |

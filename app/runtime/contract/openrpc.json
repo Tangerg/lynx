@@ -677,6 +677,37 @@
       }
     },
     {
+      "name": "runs.get",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "runId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/RunRef"
+        }
+      },
+      "errors": [
+        {
+          "code": -32003,
+          "message": "run_not_found"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/GetRunRequest"
+      }
+    },
+    {
       "name": "runs.list",
       "paramStructure": "by-name",
       "params": [
@@ -684,6 +715,21 @@
           "name": "sessionId",
           "schema": {
             "type": "string"
+          }
+        },
+        {
+          "name": "statuses",
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "schema.json#/$defs/RunStatus"
+            }
+          }
+        },
+        {
+          "name": "includeDescendants",
+          "schema": {
+            "type": "boolean"
           }
         },
         {
@@ -708,6 +754,22 @@
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "none",
       "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "subagents"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "when": [
+            {
+              "field": "includeDescendants",
+              "operator": "present"
+            }
+          ],
+          "requires": [
+            "subagents"
+          ]
+        }
+      ],
       "x-lyra-requestFrame": {
         "$ref": "schema.json#/$defs/ListRunsRequest"
       }

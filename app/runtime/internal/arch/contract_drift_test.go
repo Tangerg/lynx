@@ -541,8 +541,13 @@ func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 		}
 		for _, constraint := range spec.Constraints {
 			keyword, helper := "minLength", "required"
-			if constraint.Kind == dispatch.ConstraintPositive {
+			switch constraint.Kind {
+			case dispatch.ConstraintPositive:
 				keyword, helper = "minimum", "positive"
+			case dispatch.ConstraintNonEmptyItems:
+				keyword, helper = "minItems", "nonEmptyItems"
+			case dispatch.ConstraintUniqueItems:
+				keyword, helper = "uniqueItems", "uniqueItems"
 			}
 			// The schema states the rule somewhere inside the request's definition —
 			// on the property for a direct field, in an allOf branch for a nested one.

@@ -7,7 +7,7 @@
 // What each call MEANS lives in wireCheck.ts. This file only says which rule
 // applies where.
 
-import { absent, allOf, anything, array, enumOf, fields, flag, ifThen, integer, literal, minLength, minimum, numeric, object, oneOf, record, ref, text } from "./wireCheck";
+import { absent, allOf, anything, array, enumOf, fields, flag, ifThen, integer, literal, minItems, minLength, minimum, numeric, object, oneOf, record, ref, text, uniqueItems } from "./wireCheck";
 import type { WireCheck, WireViolation } from "./wireCheck";
 
 /** Every shape the protocol publishes. */
@@ -100,6 +100,7 @@ export type WireTypeName =
   | "GetDiffRequest"
   | "GetFileHeadRequest"
   | "GetMemoryRequest"
+  | "GetRunRequest"
   | "GetSessionRequest"
   | "Goal"
   | "GoalBudget"
@@ -837,6 +838,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     cwd: text(),
     scope: ref(() => CHECKS.MemoryScope),
   }, ["scope"]),
+  GetRunRequest: object({
+    runId: allOf([text(), minLength(1)]),
+  }, ["runId"]),
   GetSessionRequest: object({
     sessionId: allOf([text(), minLength(1)]),
   }, ["sessionId"]),
@@ -1185,8 +1189,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, []),
   ListRunsRequest: object({
     cursor: text(),
+    includeDescendants: flag(),
     limit: integer(),
     sessionId: text(),
+    statuses: allOf([array(ref(() => CHECKS.RunStatus)), minItems(1), uniqueItems()]),
   }, []),
   MCPListToolsRequest: object({
     cursor: text(),

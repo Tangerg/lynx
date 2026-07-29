@@ -42,6 +42,92 @@ func (r *fakeInterruptReader) Get(_ context.Context, runID string) (interrupts.P
 	return interrupts.Pending{}, false, r.err
 }
 
+// TestListRunsPublishesTheWholeHistoryNewestFirst is runs.list's delivery half: the
+// page is every root run of the session — including the ones that ended — ordered
+// newest first, and each row carries the position a client renders.
+//
+// Until this read covered history, "what did this session do" was only answerable by
+// replaying items.list, which is the timeline and not the accounting.
+func TestListRunsPublishesTheWholeHistoryNewestFirst(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	putRun(t, rt, "ses_1", "run_old", 10, 1)
+	putRun(t, rt, "ses_1", "run_new", 20, 2)
+	putRun(t, rt, "ses_other", "run_elsewhere", 30, 1)
+
+	page, err := s.ListRuns(t.Context(), protocol.ListRunsRequest{SessionID: "ses_1"})
+	if err != nil {
+		t.Fatalf("ListRuns: %v", err)
+	}
+	if len(page.Data) != 2 || page.Data[0].ID != "run_new" || page.Data[1].ID != "run_old" {
+		t.Fatalf("page = %+v, want run_new then run_old", page.Data)
+	}
+	if page.Data[0].Status != protocol.RunStatusFinished || page.Data[0].Outcome == nil {
+		t.Fatalf("finished run = %+v, want a status and the outcome explaining it", page.Data[0])
+	}
+
+	// A filter that excludes everything is an empty page, not an error: nothing is
+	// wrong with asking whether this session has a run waiting on someone.
+	waiting, err := s.ListRuns(t.Context(), protocol.ListRunsRequest{
+		SessionID: "ses_1", Statuses: []protocol.RunStatus{protocol.RunStatusWaiting},
+	})
+	if err != nil || len(waiting.Data) != 0 {
+		t.Fatalf("waiting page = %+v, %v; want empty", waiting, err)
+	}
+}
+
+// TestListRunsRefusesAStatusThatIsNotOne keeps a filter value the vocabulary does
+// not define from reaching the durable read. Dropping it would widen the page to
+// every status while the client believed it had narrowed it.
+func TestListRunsRefusesAStatusThatIsNotOne(t *testing.T) {
+	s, _ := rollbackHarness(t)
+
+	_, err := s.ListRuns(t.Context(), protocol.ListRunsRequest{
+		Statuses: []protocol.RunStatus{"halfway"},
+	})
+	if !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("ListRuns = %v, want invalid_params", err)
+	}
+}
+
+// TestListRunsRefusesAnEmptyOrRepeatedStatusFilter proves the request SHAPE states
+// the rule, not a handler: omitting statuses means every status, so an empty array is
+// the one thing it cannot mean, and a repeat asks a set for something a set has no
+// way to answer.
+func TestListRunsRefusesAnEmptyOrRepeatedStatusFilter(t *testing.T) {
+	if err := (protocol.ListRunsRequest{Statuses: []protocol.RunStatus{}}).Validate(); err == nil {
+		t.Error("an empty status filter validated")
+	}
+	if err := (protocol.ListRunsRequest{Statuses: []protocol.RunStatus{
+		protocol.RunStatusRunning, protocol.RunStatusRunning,
+	}}).Validate(); err == nil {
+		t.Error("a repeated status validated")
+	}
+	if err := (protocol.ListRunsRequest{}).Validate(); err != nil {
+		t.Errorf("an absent status filter = %v, want the whole history", err)
+	}
+}
+
+// TestGetRunResolvesARunWithoutItsSession is runs.get's reason to exist: a client
+// holding a runId from an event or a link asks what the run is without first
+// discovering where it lives, and an id nobody owns is run_not_found rather than an
+// empty shape the client would have to interpret.
+func TestGetRunResolvesARunWithoutItsSession(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	putRun(t, rt, "ses_1", "run_1", 10, 1)
+
+	ref, err := s.GetRun(t.Context(), protocol.GetRunRequest{RunID: "run_1"})
+	if err != nil {
+		t.Fatalf("GetRun: %v", err)
+	}
+	if ref.ID != "run_1" || ref.SessionID != "ses_1" || ref.Status != protocol.RunStatusFinished {
+		t.Fatalf("run = %+v, want the finished run and the session it belongs to", ref)
+	}
+
+	if _, err := s.GetRun(t.Context(), protocol.GetRunRequest{RunID: "run_absent"}); !errors.Is(err, protocol.ErrRunNotFound) {
+		t.Fatalf("GetRun(absent) = %v, want run_not_found", err)
+	}
+}
+
 func TestSessionStatesPreservesInterruptReadFailure(t *testing.T) {
 	want := errors.New("interrupt store unavailable")
 	reader := &fakeInterruptReader{err: want}

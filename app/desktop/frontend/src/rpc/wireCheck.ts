@@ -125,6 +125,35 @@ export function minimum(least: number): WireCheck {
   };
 }
 
+/** `minItems`, which constrains an array's length and says nothing about its elements. */
+export function minItems(least: number): WireCheck {
+  return (value, path, out) => {
+    if (Array.isArray(value) && value.length < least) {
+      out.push({ path, detail: `expected at least ${least} item(s)` });
+    }
+  };
+}
+
+/**
+ * `uniqueItems`. Elements are compared by their JSON text, which is what the
+ * keyword means: two array entries are the same item when they are the same value,
+ * not when they are the same object.
+ */
+export function uniqueItems(): WireCheck {
+  return (value, path, out) => {
+    if (!Array.isArray(value)) return;
+    const seen = new Set<string>();
+    for (const element of value) {
+      const key = JSON.stringify(element) ?? "undefined";
+      if (seen.has(key)) {
+        out.push({ path, detail: "expected no repeated items" });
+        return;
+      }
+      seen.add(key);
+    }
+  };
+}
+
 export function flag(): WireCheck {
   return (value, path, out) => {
     if (typeof value !== "boolean") out.push({ path, detail: "expected a boolean" });

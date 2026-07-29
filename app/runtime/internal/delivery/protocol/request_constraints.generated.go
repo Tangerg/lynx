@@ -72,6 +72,19 @@ func (r SteerRunRequest) Validate() error {
 	)
 }
 
+func (r GetRunRequest) Validate() error {
+	return violate(
+		required("runId", r.RunID),
+	)
+}
+
+func (r ListRunsRequest) Validate() error {
+	return violate(
+		nonEmptyItems("statuses", r.Statuses),
+		uniqueItems("statuses", r.Statuses),
+	)
+}
+
 func (r ListItemsRequest) Validate() error {
 	return violate(
 		required("sessionId", r.SessionID),

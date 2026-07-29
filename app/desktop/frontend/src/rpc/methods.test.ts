@@ -77,21 +77,41 @@ describe("methods factory", () => {
     await client.close();
   });
 
-  it("runs.list forwards session filtering and pagination", async () => {
+  it("runs.list forwards session filtering, status filtering and pagination", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
     const methods = createMethods(client);
 
     const promise = methods.runs.list({
       sessionId: asSessionId("ses_1"),
+      statuses: ["running", "waiting"],
       cursor: "next",
       limit: 25,
     });
     const req = await waitForRequest(t, "runs.list");
-    expect(req.params).toEqual({ sessionId: "ses_1", cursor: "next", limit: 25 });
+    expect(req.params).toEqual({
+      sessionId: "ses_1",
+      statuses: ["running", "waiting"],
+      cursor: "next",
+      limit: 25,
+    });
 
     t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: { data: [] } } as RpcMessage);
     await expect(promise).resolves.toEqual({ data: [] });
+    await client.close();
+  });
+
+  it("runs.get asks by run id alone", async () => {
+    const t = createMemoryTransport();
+    const client = createRpcClient(t);
+    const methods = createMethods(client);
+
+    const promise = methods.runs.get(asRunId("run_1"));
+    const req = await waitForRequest(t, "runs.get");
+    expect(req.params).toEqual({ runId: "run_1" });
+
+    t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: { id: "run_1" } } as RpcMessage);
+    await expect(promise).resolves.toEqual({ id: "run_1" });
     await client.close();
   });
 

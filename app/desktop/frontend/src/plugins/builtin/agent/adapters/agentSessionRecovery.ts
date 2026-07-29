@@ -76,11 +76,14 @@ async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
     ]);
   }
 
-  const running = await collectPages((cursor) =>
-    options.client.runs.list({ sessionId: sid, cursor }),
+  // runs.list is the whole history now, so recovery has to say which part it means:
+  // a run it can still attach to. Without the filter it would page every finished
+  // run of the session to find the live one, and pick a terminal run to reattach.
+  const active = await collectPages((cursor) =>
+    options.client.runs.list({ sessionId: sid, cursor, statuses: ["running", "waiting"] }),
   );
   if (stale(options)) return;
-  const root = running.find((run) => !run.spawnedByItemId);
+  const root = active.find((run) => !run.spawnedByItemId);
   if (root) await attachRootRun(options, root);
 }
 

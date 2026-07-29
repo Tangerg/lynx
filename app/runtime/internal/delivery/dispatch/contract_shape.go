@@ -118,13 +118,28 @@ const (
 	// ConstraintPositive rejects zero. A revision or count of zero is not a value
 	// the caller could have meant.
 	ConstraintPositive
+	// ConstraintNonEmptyItems rejects an empty array. It applies to an OPTIONAL
+	// filter whose absence already means "no filter": having sent the field, the
+	// caller has to have named something, or the request states a narrowing that
+	// narrows to nothing.
+	ConstraintNonEmptyItems
+	// ConstraintUniqueItems rejects a repeated element. A filter is a set, and a
+	// value listed twice means the caller believes it is asking something a set
+	// cannot express.
+	ConstraintUniqueItems
 )
 
 func (k ConstraintKind) String() string {
-	if k == ConstraintPositive {
+	switch k {
+	case ConstraintPositive:
 		return "positive"
+	case ConstraintNonEmptyItems:
+		return "nonEmptyItems"
+	case ConstraintUniqueItems:
+		return "uniqueItems"
+	default:
+		return "nonEmpty"
 	}
-	return "nonEmpty"
 }
 
 // FieldConstraint is one field's value constraint. Field is a dotted JSON path.
@@ -323,6 +338,12 @@ func (f FieldConstraintSpec) validate() error {
 		case ConstraintPositive:
 			if kind != reflect.Uint64 && kind != reflect.Int && kind != reflect.Int64 {
 				return fmt.Errorf("%s.%s is %s; only a number can be positive", name, selector, kind)
+			}
+		case ConstraintNonEmptyItems, ConstraintUniqueItems:
+			// Deref unwraps slices, so the field's own kind is what answers "is this an
+			// array" — the element type is not the subject of an items constraint.
+			if leaf.Type.Kind() != reflect.Slice {
+				return fmt.Errorf("%s.%s is %s; only an array has items", name, selector, leaf.Type.Kind())
 			}
 		}
 	}

@@ -75,10 +75,31 @@ func registerRuns(r *Registry) {
 		return d.api.SteerRun(ctx, in)
 	})
 
-	Unary(r, MethodMeta{Name: "runs.list", Stability: stable},
-		func(d *Dispatcher, ctx context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
-			return d.api.ListRuns(ctx, in)
-		})
+	// runs.get answers "what is this run" for a runId a client already holds — from
+	// an event, a page, or a link — without it having to know the session first.
+	Unary(r, MethodMeta{
+		Name:      "runs.get",
+		Errors:    []string{protocol.ErrRunNotFound.Error()},
+		Stability: stable,
+	}, func(d *Dispatcher, ctx context.Context, in protocol.GetRunRequest) (*protocol.RunRef, error) {
+		return d.api.GetRun(ctx, in)
+	})
+
+	// Only a request that asks for descendants needs features.subagents; the
+	// default page of root runs is always available. The condition treats
+	// `includeDescendants: false` as "not asking", so an explicit false and an
+	// absent field behave alike — while an explicit true is refused rather than
+	// read as false, which would hand back a page that looks complete and is not.
+	Unary(r, MethodMeta{
+		Name: "runs.list",
+		CapabilityRules: []CapabilityRule{{
+			When:     []FieldCondition{{Field: "includeDescendants", Operator: OperatorPresent}},
+			Requires: []string{protocol.FeatureSubagents},
+		}},
+		Stability: stable,
+	}, func(d *Dispatcher, ctx context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
+		return d.api.ListRuns(ctx, in)
+	})
 
 	Unary(r, MethodMeta{Name: "runs.listOpenInterrupts", Stability: stable},
 		func(d *Dispatcher, ctx context.Context, in protocol.ListOpenInterruptsRequest) (*protocol.Page[protocol.OpenInterrupt], error) {

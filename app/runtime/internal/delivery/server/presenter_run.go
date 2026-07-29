@@ -7,19 +7,20 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-// presentRunStatus is the one place a durable run state becomes a wire status,
-// shared by the transcript and admission projections so the same run cannot read
-// as running through one and finished through the other.
-func presentRunStatus(state execution.RunState) protocol.RunStatus {
-	switch state {
-	case execution.Running:
+// presentRunStatus publishes a lifecycle position. Which state IS which position
+// is the domain's answer ([execution.RunState.Status]) — the durable status filter
+// reads the same one, so a run selected as waiting cannot be published as
+// finished; this only spells it for the wire.
+func presentRunStatus(status execution.RunStatus) protocol.RunStatus {
+	switch status {
+	case execution.StatusRunning:
 		return protocol.RunStatusRunning
-	case execution.Interrupted:
+	case execution.StatusWaiting:
 		return protocol.RunStatusWaiting
-	case execution.Completed, execution.Failed, execution.Canceled:
+	case execution.StatusFinished:
 		return protocol.RunStatusFinished
 	default:
-		panic("server: unknown run state")
+		panic("server: unknown run status")
 	}
 }
 
@@ -29,7 +30,7 @@ func presentRunSummary(run transcript.Run) protocol.RunSummary {
 	summary := protocol.RunSummary{
 		ID: run.ID, SessionID: run.SessionID, SpawnedByItemID: run.SpawnedByItemID,
 		Provider: run.ModelSelection.Provider(), Model: run.ModelSelection.Model(),
-		Status:    presentRunStatus(run.State),
+		Status:    presentRunStatus(run.State.Status()),
 		CreatedAt: run.CreatedAt, FinishedAt: run.FinishedAt,
 	}
 	// A waiting run has no outcome: what it is waiting on is the answer, and the

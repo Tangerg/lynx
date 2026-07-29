@@ -77,6 +77,32 @@ func positive(field string, value uint64) FieldError {
 	return FieldError{}
 }
 
+// nonEmptyItems rejects an array that was SENT with nothing in it. An absent
+// optional array is untouched — a nil slice is the field's absence, which is what
+// distinguishes "no filter" from "a filter that matches nothing", and it is the
+// same distinction the schema's minItems draws by applying only when the property
+// is present.
+func nonEmptyItems[T any](field string, values []T) FieldError {
+	if values != nil && len(values) == 0 {
+		return FieldError{Field: field, Detail: "must not be empty"}
+	}
+	return FieldError{}
+}
+
+// uniqueItems rejects a repeated element, so a filter that is a set is checked as
+// one. Comparing values directly keeps the rule independent of order: the caller
+// may list them however it likes.
+func uniqueItems[T comparable](field string, values []T) FieldError {
+	seen := make(map[T]bool, len(values))
+	for _, value := range values {
+		if seen[value] {
+			return FieldError{Field: field, Detail: "must not repeat a value"}
+		}
+		seen[value] = true
+	}
+	return FieldError{}
+}
+
 // oneOf rejects a value outside a closed set. Go's decoder puts any string into a
 // named string type, so without this an unknown tag would reach a use case instead
 // of failing as invalid_params. optional allows the empty string: an absent optional

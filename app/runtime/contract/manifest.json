@@ -174,9 +174,21 @@
       "stability": "stable"
     },
     {
+      "name": "runs.get",
+      "kind": "unary",
+      "idempotency": "none",
+      "errors": [
+        "run_not_found"
+      ],
+      "stability": "stable"
+    },
+    {
       "name": "runs.list",
       "kind": "unary",
       "idempotency": "none",
+      "features": [
+        "subagents"
+      ],
       "stability": "stable"
     },
     {
@@ -886,6 +898,22 @@
         {
           "requires": [
             "sessionExport"
+          ]
+        }
+      ]
+    },
+    {
+      "method": "runs.list",
+      "rules": [
+        {
+          "when": [
+            {
+              "field": "includeDescendants",
+              "operator": "present"
+            }
+          ],
+          "requires": [
+            "subagents"
           ]
         }
       ]

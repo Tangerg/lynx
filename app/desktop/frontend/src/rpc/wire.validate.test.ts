@@ -80,6 +80,19 @@ describe("the generated wire checks", () => {
     ]);
   });
 
+  // An omitted filter already means "every status", so the two ways of sending one
+  // that means nothing — empty, or repeating a value — are the ones refused.
+  it("rejects a filter array that is empty or repeats a value", () => {
+    expect(validateWire("ListRunsRequest", {})).toEqual([]);
+    expect(validateWire("ListRunsRequest", { statuses: ["running", "waiting"] })).toEqual([]);
+    expect(validateWire("ListRunsRequest", { statuses: [] })).toEqual([
+      { path: "ListRunsRequest.statuses", detail: "expected at least 1 item(s)" },
+    ]);
+    expect(validateWire("ListRunsRequest", { statuses: ["running", "running"] })).toEqual([
+      { path: "ListRunsRequest.statuses", detail: "expected no repeated items" },
+    ]);
+  });
+
   it("rejects a revision below the minimum", () => {
     expect(
       validateWire("UpdateSessionRequest", { sessionId: "ses_01", expectedRevision: 0 }),

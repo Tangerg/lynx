@@ -51,6 +51,8 @@ type schema struct {
 	MinLength       *int           `json:"minLength,omitempty"`
 	Const           string         `json:"const,omitempty"`
 	Minimum         *int64         `json:"minimum,omitempty"`
+	MinItems        *int           `json:"minItems,omitempty"`
+	UniqueItems     bool           `json:"uniqueItems,omitempty"`
 	Items           *schema        `json:"items,omitempty"`
 	Properties      map[string]any `json:"properties,omitempty"`
 	AdditionalProps any            `json:"additionalProperties,omitempty"`
@@ -413,6 +415,10 @@ func applyValueConstraints(node *schema, kinds []dispatch.ConstraintKind) {
 			node.MinLength = new(1)
 		case dispatch.ConstraintPositive:
 			node.Minimum = new(int64(1))
+		case dispatch.ConstraintNonEmptyItems:
+			node.MinItems = new(1)
+		case dispatch.ConstraintUniqueItems:
+			node.UniqueItems = true
 		}
 	}
 }
