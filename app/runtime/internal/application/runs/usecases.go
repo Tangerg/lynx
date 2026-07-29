@@ -100,7 +100,13 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		},
 	})
 	if err != nil {
+		// The durable unique index rejected the INSERT, which means another writer got
+		// there first. Naming that Run is the same answer the pre-admission check gives:
+		// what changed is only who noticed.
 		if errors.Is(err, execution.ErrSessionBusy) {
+			if active, lookupErr := c.activeRunConflict(ctx, sess.ID); lookupErr == nil && active != nil {
+				return StartResult{}, active
+			}
 			return StartResult{}, fmt.Errorf("%w: %w", ErrSessionBusy, err)
 		}
 		return StartResult{}, err
@@ -301,18 +307,36 @@ func (c *Coordinator) resolveSession(ctx context.Context, id, newID, defaultCwd,
 func (c *Coordinator) claimFreshRun(ctx context.Context, sess session.Session) (admission.RunAdmission, error) {
 	runAdmission, ok := c.admission.AcquireRun(sess.ID, sess.Cwd)
 	if !ok {
+		// The in-process gate also guards working-tree mutations, so what it refuses is
+		// not always a Run and cannot always be named.
 		return admission.RunAdmission{}, ErrSessionBusy
 	}
-	open, err := c.sessions.ListOpenInterrupts(ctx, sess.ID)
+	// A Run the Session already holds is reported WITH its identity: the caller has to
+	// choose between steering it, answering it and canceling it, and it cannot choose
+	// without knowing which run and what state. Waiting counts — a Run parked on a
+	// person is still the Session's Run.
+	active, err := c.activeRunConflict(ctx, sess.ID)
 	if err != nil {
 		runAdmission.Release()
 		return admission.RunAdmission{}, err
 	}
-	if len(open) > 0 {
+	if active != nil {
 		runAdmission.Release()
-		return admission.RunAdmission{}, ErrSessionBusy
+		return admission.RunAdmission{}, active
 	}
 	return runAdmission, nil
+}
+
+// activeRunConflict reports the Session's non-terminal Run as a conflict, or nil when
+// it has none. One author, because the same conflict is reachable twice: this process
+// can see the Run before admission, and the durable unique index can reject the
+// INSERT after another process created one.
+func (c *Coordinator) activeRunConflict(ctx context.Context, sessionID string) (error, error) {
+	run, found, err := c.sessions.ActiveRun(ctx, sessionID)
+	if err != nil || !found {
+		return nil, err
+	}
+	return &ActiveRunConflict{RunID: run.ID, Status: run.State.Status()}, nil
 }
 
 // executionCwd resolves where a session's turn tools operate: the sandbox copy

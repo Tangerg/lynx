@@ -21,7 +21,7 @@ Protocol `2026-07-19` (minimum supported `2026-07-19`) · 85 methods
 | `sessions.rollback` | unary | replayResponse | `checkpoints` | `session_not_found`, `run_not_found`, `session_busy`, `checkpoint_unavailable` |
 | `sessions.export` | unary | none | `sessionExport` | `session_not_found` |
 | `sessions.import` | unary | replayResponse | `sessionExport` | — |
-| `runs.start` | stream | replayRunStream | — | `session_not_found`, `session_busy`, `unsupported_mime` |
+| `runs.start` | stream | replayRunStream | — | `session_not_found`, `session_busy`, `session_has_active_run`, `unsupported_mime` |
 | `runs.resume` | stream | replayRunStream | — | `run_not_found`, `interrupt_not_open` |
 | `runs.subscribe` | stream | none | — | `run_not_found` |
 | `runs.cancel` | unary | replayResponse | — | `run_not_found`, `run_already_finished` |

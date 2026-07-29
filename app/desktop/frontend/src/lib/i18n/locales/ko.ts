@@ -871,6 +871,11 @@ export const ko: Record<string, string> = {
   "mcp.import.hint":
     'Claude Desktop 설정 블록을 붙여넣으세요 — "mcpServers" 아래의 서버 하나 이상.',
 
+  "rpcError.session_has_active_run":
+    "이 세션에는 이미 진행 중인 실행이 있습니다 — 먼저 개입하거나 응답하거나 취소하세요.",
+
+  "rpcError.run_not_root": "해당 실행은 더 큰 실행에 속합니다 — 루트 실행을 지정하세요.",
+
   "rpcError.session_busy": "세션이 실행 중입니다 — 현재 실행이 끝날 때까지 기다리세요.",
   "rpcError.checkpoint_unavailable":
     "해당 턴에는 파일 체크포인트가 없습니다 — 변경된 파일이 없습니다.",

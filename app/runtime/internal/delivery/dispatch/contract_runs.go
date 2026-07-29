@@ -26,6 +26,7 @@ func registerRuns(r *Registry) {
 		Errors: []string{
 			protocol.ErrSessionNotFound.Error(),
 			protocol.ErrSessionBusy.Error(),
+			protocol.ErrSessionHasActiveRun.Error(),
 			protocol.ErrUnsupportedMime.Error(),
 		},
 		Stability: stable,

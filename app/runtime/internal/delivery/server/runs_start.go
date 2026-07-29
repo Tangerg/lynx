@@ -67,6 +67,13 @@ func runInputFromWire(blocks []protocol.ContentBlock) []transcript.ContentBlock 
 }
 
 func wireRunStartErr(err error) error {
+	// A session that already has a run is refused WITH that run: the client offers
+	// steer / resume / cancel, and the runtime cancels nothing on its own.
+	if conflict, ok := errors.AsType[*runs.ActiveRunConflict](err); ok {
+		return &protocol.ActiveRunConflict{ActiveRun: protocol.ActiveRunRef{
+			RunID: conflict.RunID, Status: presentRunStatus(conflict.Status),
+		}}
+	}
 	switch {
 	case errors.Is(err, runs.ErrInputRequired):
 		return fmt.Errorf("%w: input must contain a user text or image block", protocol.ErrInvalidParams)

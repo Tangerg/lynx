@@ -513,6 +513,10 @@
           "message": "session_busy"
         },
         {
+          "code": -32023,
+          "message": "session_has_active_run"
+        },
+        {
           "code": -32011,
           "message": "unsupported_mime"
         }

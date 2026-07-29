@@ -12,6 +12,7 @@ import type { WireCheck, WireViolation } from "./wireCheck";
 
 /** Every shape the protocol publishes. */
 export type WireTypeName =
+  | "ActiveRunRef"
   | "AgentDoc"
   | "AgentDocScope"
   | "AgentMemoryAddRequest"
@@ -269,6 +270,10 @@ export type WireTypeName =
   ;
 
 const CHECKS: Record<WireTypeName, WireCheck> = {
+  ActiveRunRef: object({
+    runId: text(),
+    status: ref(() => CHECKS.RunStatus),
+  }, ["runId", "status"]),
   AgentDoc: object({
     path: text(),
     scope: ref(() => CHECKS.AgentDocScope),
@@ -1424,6 +1429,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["id", "status", "title"]),
   PlanStepStatus: enumOf(["pending", "running", "completed", "failed"]),
   ProblemData: object({
+    activeRun: ref(() => CHECKS.ActiveRunRef),
     channel: ref(() => CHECKS.ErrorChannel),
     detail: text(),
     docUrl: text(),

@@ -3,6 +3,21 @@
   "title": "Lyra Runtime Protocol wire types",
   "protocolVersion": "2026-07-19",
   "$defs": {
+    "ActiveRunRef": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/RunStatus"
+        }
+      },
+      "required": [
+        "runId",
+        "status"
+      ]
+    },
     "AgentDoc": {
       "type": "object",
       "properties": {
@@ -3800,6 +3815,9 @@
     "ProblemData": {
       "type": "object",
       "properties": {
+        "activeRun": {
+          "$ref": "#/$defs/ActiveRunRef"
+        },
         "channel": {
           "$ref": "#/$defs/ErrorChannel"
         },

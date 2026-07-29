@@ -16,6 +16,10 @@ import { t } from "./i18n";
 
 const MAPPED_TYPES: readonly string[] = [
   "session_busy",
+  // A session that already holds a run refuses a new one and names it (§8.2). The
+  // words say what the choices are; which one to take is the person's.
+  "session_has_active_run",
+  "run_not_root",
   "checkpoint_unavailable",
   "cwd_unavailable",
   "vcs_unavailable",

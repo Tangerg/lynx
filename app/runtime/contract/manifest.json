@@ -131,6 +131,7 @@
       "errors": [
         "session_not_found",
         "session_busy",
+        "session_has_active_run",
         "unsupported_mime"
       ],
       "stability": "stable"
@@ -833,6 +834,7 @@
       "run_not_found": -32003,
       "run_not_root": -32022,
       "session_busy": -32018,
+      "session_has_active_run": -32023,
       "session_not_found": -32002,
       "unsupported_mime": -32011,
       "vcs_unavailable": -32017

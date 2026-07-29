@@ -48,6 +48,7 @@ type SessionLifecycle interface {
 	Get(ctx context.Context, id string) (session.Session, error)
 	Create(ctx context.Context, title, cwd string) (session.Session, error)
 	PrepareScheduled(ctx context.Context, id, title, cwd string) (session.Session, error)
+	ActiveRun(ctx context.Context, sessionID string) (transcript.Run, bool, error)
 	ListOpenInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
 	GetOpenInterrupt(ctx context.Context, runID string) (interrupts.Pending, bool, error)
 	ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) error

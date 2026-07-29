@@ -895,6 +895,12 @@ export const de: Record<string, string> = {
   "mcp.import.hint":
     'Füge einen Claude-Desktop-Konfigurationsblock ein — einen oder mehrere Server unter "mcpServers".',
 
+  "rpcError.session_has_active_run":
+    "Diese Sitzung hat bereits einen laufenden Durchlauf — steuere, beantworte oder brich ihn zuerst ab.",
+
+  "rpcError.run_not_root":
+    "Dieser Durchlauf gehört zu einem größeren — frage stattdessen den Root-Durchlauf ab.",
+
   "rpcError.session_busy": "Sitzung ist beschäftigt — warte, bis der laufende Durchlauf endet.",
   "rpcError.checkpoint_unavailable":
     "Kein Datei-Checkpoint für diesen Zug — es wurde nichts geändert.",

@@ -35,6 +35,7 @@ var sentinelSpecs = map[error]rpcErrorSpec{
 	protocol.ErrInvalidProtocolVersion: {code: protocol.CodeInvalidProtocolVersion},
 	protocol.ErrVcsUnavailable:         {code: protocol.CodeVcsUnavailable},
 	protocol.ErrSessionBusy:            {code: protocol.CodeSessionBusy},
+	protocol.ErrSessionHasActiveRun:    {code: protocol.CodeSessionHasActiveRun},
 	protocol.ErrRevisionConflict:       {code: protocol.CodeRevisionConflict},
 	protocol.ErrIdempotencyConflict:    {code: protocol.CodeIdempotencyConflict},
 	protocol.ErrIdempotencyInProgress: {
@@ -60,7 +61,7 @@ func errorToRPC(err error) *transport.Error {
 	}
 	for sentinel, spec := range sentinelSpecs {
 		if errors.Is(err, sentinel) {
-			return problemErrorWithSpec(spec, sentinel.Error(), err.Error())
+			return problemFrame(spec, sentinel.Error(), err)
 		}
 	}
 	return problemError(protocol.CodeInternalError, protocol.ProblemInternalError, "the runtime could not complete the request")
@@ -75,11 +76,32 @@ func problemError(code int, typ, detail string) *transport.Error {
 func problemErrorWithSpec(spec rpcErrorSpec, typ, detail string, fields ...protocol.FieldError) *transport.Error {
 	// channel "rpc": every numeric-coded error is a synchronous JSON-RPC
 	// error response (API.md §8.1 channel a).
-	data, _ := json.Marshal(protocol.ProblemData{
+	return marshalProblem(spec, typ, protocol.ProblemData{
 		Type: typ, Channel: protocol.ErrorChannelRPC, Detail: detail,
 		RetryAfterSeconds: spec.retryAfterSeconds,
 		Errors:            fields,
 	})
+}
+
+// problemFrame builds the frame for one error, letting the error fill the structured
+// fields its problem type requires ([protocol.ProblemDetailed]).
+//
+// The alternative is a switch here that re-derives each type's payload from
+// somewhere else — a second author for a fact the error already carried, and the one
+// place it could go missing.
+func problemFrame(spec rpcErrorSpec, typ string, err error) *transport.Error {
+	data := protocol.ProblemData{
+		Type: typ, Channel: protocol.ErrorChannelRPC, Detail: err.Error(),
+		RetryAfterSeconds: spec.retryAfterSeconds,
+	}
+	if detailed, ok := errors.AsType[protocol.ProblemDetailed](err); ok {
+		detailed.Enrich(&data)
+	}
+	return marshalProblem(spec, typ, data)
+}
+
+func marshalProblem(spec rpcErrorSpec, typ string, problem protocol.ProblemData) *transport.Error {
+	data, _ := json.Marshal(problem)
 	return transport.NewError(spec.code, typ, data)
 }
 

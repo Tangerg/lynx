@@ -864,6 +864,10 @@ export const zhTW: Record<string, string> = {
   "commandPalette.sessions": "工作階段",
   "mcp.import.hint": '貼上一段 Claude Desktop 設定區塊 —— 在 "mcpServers" 下的一個或多個伺服器。',
 
+  "rpcError.session_has_active_run": "該工作階段已有一個進行中的執行 —— 請先介入、回應或取消它。",
+
+  "rpcError.run_not_root": "該 run 屬於某個更大的 run —— 請改用其根 run。",
+
   "rpcError.session_busy": "工作階段正忙 —— 請等目前的執行結束。",
   "rpcError.checkpoint_unavailable": "該輪沒有檔案檢查點 —— 未變更任何檔案。",
   "rpcError.cwd_unavailable": "執行環境磁碟上不存在該路徑。",

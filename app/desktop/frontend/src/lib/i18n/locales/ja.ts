@@ -882,6 +882,11 @@ export const ja: Record<string, string> = {
   "mcp.import.hint":
     'Claude Desktop の設定ブロックを貼り付けてください — "mcpServers" 配下の1つ以上のサーバー。',
 
+  "rpcError.session_has_active_run":
+    "このセッションには実行中のランがあります — 介入・応答・キャンセルのいずれかを先に行ってください。",
+
+  "rpcError.run_not_root": "そのランはより大きなランの一部です — ルートランを指定してください。",
+
   "rpcError.session_busy": "セッションは実行中です — 現在の実行が終わるまで待ってください。",
   "rpcError.checkpoint_unavailable":
     "そのターンにはファイルのチェックポイントがありません — 何も変更されていません。",

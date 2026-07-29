@@ -1,6 +1,9 @@
 package protocol
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // ErrorChannel self-describes which delivery channel an error arrived on
 // (API.md §8.1): a sync JSON-RPC error, a run's error outcome, or a tool
@@ -41,10 +44,52 @@ type ProblemData struct {
 	// provider rate-limit backoff) the client honors before its own (API.md §8.3).
 	// Only the kinds that waiting can clear carry one.
 	RetryAfterSeconds int `json:"retryAfterSeconds,omitempty"`
+	// ActiveRun is required by session_has_active_run and appears on no other type:
+	// it names the run that made the request impossible, so the client can offer
+	// steer / resume / cancel instead of just reporting a failure.
+	ActiveRun *ActiveRunRef `json:"activeRun,omitempty"`
 	// Errors carries field-level validation failures (typically
 	// invalid_params / form validation), addressable by field so the UI
 	// can flag each one (API.md §8.3).
 	Errors []FieldError `json:"errors,omitempty"`
+}
+
+// ActiveRunRef is the run a session already holds, carried by
+// session_has_active_run (§8.2). It is a snapshot taken at the admission boundary,
+// not a lasting assertion: the client picks its next move from the status — steer a
+// running run, resume or cancel a waiting one — and refreshes with runs.get before
+// acting on it.
+type ActiveRunRef struct {
+	RunID  string    `json:"runId"`
+	Status RunStatus `json:"status"`
+}
+
+// ActiveRunConflict is the session_has_active_run problem with its required
+// payload. It is an error rather than a return value because it IS the refusal:
+// nothing was created, so there is no result to carry it on.
+type ActiveRunConflict struct {
+	ActiveRun ActiveRunRef
+}
+
+func (e *ActiveRunConflict) Error() string {
+	return fmt.Sprintf("%s: run %s is %s", ErrSessionHasActiveRun, e.ActiveRun.RunID, e.ActiveRun.Status)
+}
+
+// Is makes the typed conflict answer to its sentinel, so every reader that
+// branches on problem type keeps working and only a reader that needs the payload
+// asks for the type.
+func (e *ActiveRunConflict) Is(target error) bool { return target == ErrSessionHasActiveRun }
+
+// Enrich fills the structured fields this problem type requires (§8.2's frame
+// table). It exists so the field travels with the error that knows it, instead of
+// delivery re-deriving it where the error is turned into a frame.
+func (e *ActiveRunConflict) Enrich(data *ProblemData) { data.ActiveRun = &e.ActiveRun }
+
+// ProblemDetailed is implemented by an error whose problem type requires structured
+// fields beyond the prose detail. The dispatcher applies it when building the frame.
+type ProblemDetailed interface {
+	error
+	Enrich(*ProblemData)
 }
 
 // FieldError is one field-level validation failure inside ProblemData
@@ -111,7 +156,8 @@ const (
 	CodeIdempotencyInProgress  = -32021
 	// -32007 / -32010 / -32012 / -32015 are retired holes, never reused, so a new
 	// code continues the sequence rather than filling one in.
-	CodeRunNotRoot = -32022
+	CodeRunNotRoot          = -32022
+	CodeSessionHasActiveRun = -32023
 )
 
 // Sentinel errors returned by Runtime implementations. The dispatch
@@ -131,6 +177,12 @@ var (
 	ErrUnsupportedMime       = errors.New("unsupported_mime")
 	ErrPathOutsideRoot       = errors.New("path_outside_root")
 	ErrInterruptNotOpen      = errors.New("interrupt_not_open")
+	// ErrSessionHasActiveRun: runs.start found the session already holding a
+	// non-terminal root run. The runtime does NOT cancel it — which run continues is
+	// a decision only the person can make, and an implicit cancel would throw work
+	// away to serve a request that could have been a steer. See [ActiveRunConflict],
+	// which carries the run so the client can offer the choice.
+	ErrSessionHasActiveRun = errors.New("session_has_active_run")
 	// ErrRunNotRoot: a root-only operation named a child run. It is not
 	// run_not_found — the run exists, and the thing the caller wants exists under its
 	// root — so the remedy is to follow rootRunId, not to look for a different id.

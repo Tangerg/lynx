@@ -895,6 +895,12 @@ export const fr: Record<string, string> = {
   "mcp.import.hint":
     'Collez un bloc de configuration Claude Desktop — un ou plusieurs serveurs sous "mcpServers".',
 
+  "rpcError.session_has_active_run":
+    "Cette session a déjà une exécution en cours — orientez-la, répondez-y ou annulez-la d’abord.",
+
+  "rpcError.run_not_root":
+    "Cette exécution appartient à une exécution plus large — demandez l’exécution racine.",
+
   "rpcError.session_busy": "La session est occupée — attends la fin de l'exécution en cours.",
   "rpcError.checkpoint_unavailable":
     "Aucun point de restauration de fichiers pour ce tour — rien n'a été modifié.",

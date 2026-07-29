@@ -17,6 +17,11 @@ export interface Page<T> {
   nextCursor?: string;
 }
 
+export interface ActiveRunRef {
+  runId: string;
+  status: RunStatus;
+}
+
 export interface AgentDoc {
   path: string;
   scope: AgentDocScope;
@@ -876,6 +881,7 @@ export interface PlanStep {
 export type PlanStepStatus = "pending" | "running" | "completed" | "failed";
 
 export interface ProblemData {
+  activeRun?: ActiveRunRef;
   channel?: ErrorChannel;
   detail?: string;
   docUrl?: string;

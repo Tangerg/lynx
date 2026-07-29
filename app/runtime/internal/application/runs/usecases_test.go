@@ -16,7 +16,10 @@ import (
 )
 
 type fakeRunSessions struct {
-	sess          session.Session
+	sess session.Session
+	// active is the Session's non-terminal Run, when it has one. The zero value is a
+	// Session free to start.
+	active        *transcript.Run
 	createdTitle  string
 	pending       map[string]interrupts.Pending
 	canceledRunID string
@@ -29,6 +32,13 @@ type fakeRunSessions struct {
 
 func (f *fakeRunSessions) Get(context.Context, string) (session.Session, error) {
 	return f.sess, nil
+}
+
+func (f *fakeRunSessions) ActiveRun(context.Context, string) (transcript.Run, bool, error) {
+	if f.active == nil {
+		return transcript.Run{}, false, nil
+	}
+	return *f.active, true, nil
 }
 
 func (f *fakeRunSessions) Create(_ context.Context, title, cwd string) (session.Session, error) {
@@ -660,5 +670,51 @@ func TestStartRejectsInvalidInputBeforeSessionCreation(t *testing.T) {
 	}
 	if sessions.sess.ID != "" {
 		t.Fatalf("invalid input created session %+v", sessions.sess)
+	}
+}
+
+// TestStartRefusesASessionThatAlreadyHasARunAndNamesIt is the admission conflict the
+// contract makes typed: nothing is created, nothing is canceled, and the refusal
+// carries the run so the caller can choose between steering it, answering it and
+// canceling it.
+//
+// The alternative — an implicit cancel — throws away work to serve a request that may
+// have been meant as a steer, and the runtime cannot tell which the person wanted.
+func TestStartRefusesASessionThatAlreadyHasARunAndNamesIt(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		state  execution.RunState
+		status execution.RunStatus
+	}{
+		{"a running run", execution.Running, execution.StatusRunning},
+		{"a run waiting on a person", execution.Interrupted, execution.StatusWaiting},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			effects := &fakeEffects{}
+			sessions := &fakeRunSessions{
+				sess:   session.Session{ID: "ses_1", Cwd: "/work"},
+				active: &transcript.Run{ID: "run_active", SessionID: "ses_1", State: tt.state},
+			}
+			c := newUseCaseCoordinator(&fakeExecutor{}, &fakeTurnControl{}, sessions, effects)
+
+			_, err := c.Start(context.Background(), StartCommand{
+				SessionID:      "ses_1",
+				ModelSelection: mustUseCaseSelection("provider", "model"),
+				Input:          []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hi"}},
+			})
+			conflict, ok := errors.AsType[*ActiveRunConflict](err)
+			if !ok {
+				t.Fatalf("Start = %v, want an ActiveRunConflict", err)
+			}
+			if conflict.RunID != "run_active" || conflict.Status != tt.status {
+				t.Fatalf("conflict = %+v, want run_active as %s", conflict, tt.status)
+			}
+			if opening := effects.opening(); opening.Admit != nil {
+				t.Fatal("a refused start committed an opening — nothing may be created")
+			}
+			if sessions.canceledRunID != "" {
+				t.Fatalf("a refused start canceled %q — the runtime never chooses for the user", sessions.canceledRunID)
+			}
+		})
 	}
 }

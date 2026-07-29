@@ -865,6 +865,10 @@ export const zh: Record<string, string> = {
   "goal.error": "无法更新目标。",
   "commandPalette.sessions": "会话",
 
+  "rpcError.session_has_active_run": "该会话已有一个运行中的任务 —— 请先介入、回应或取消它。",
+
+  "rpcError.run_not_root": "该 run 属于某个更大的 run —— 请改用其根 run。",
+
   "rpcError.session_busy": "会话正忙 —— 请等当前运行结束。",
   "rpcError.checkpoint_unavailable": "该轮没有文件检查点 —— 未改动任何文件。",
   "rpcError.cwd_unavailable": "运行时磁盘上不存在该路径。",

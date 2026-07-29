@@ -35,6 +35,25 @@ func (c *Coordinator) ListOpenInterrupts(ctx context.Context, sessionID string) 
 	return c.interrupts.List(ctx, sessionID)
 }
 
+// ActiveRun returns the Session's non-terminal Run — the one the admission
+// invariant allows at most one of — reporting false when the Session holds none.
+//
+// It reads the durable record rather than a live registry: a Run parked on a person,
+// or admitted before a restart, is just as much "the Run this Session already has",
+// and the registry knows neither.
+func (c *Coordinator) ActiveRun(ctx context.Context, sessionID string) (transcript.Run, bool, error) {
+	runs, err := c.runs.ListRuns(ctx, sessionID)
+	if err != nil {
+		return transcript.Run{}, false, err
+	}
+	for _, run := range runs {
+		if !run.State.IsTerminal() {
+			return run, true, nil
+		}
+	}
+	return transcript.Run{}, false, nil
+}
+
 // GetOpenInterrupt returns the parked run identified by runID without claiming
 // or consuming it. The run use case owns the subsequent admission ordering.
 func (c *Coordinator) GetOpenInterrupt(ctx context.Context, runID string) (interrupts.Pending, bool, error) {
