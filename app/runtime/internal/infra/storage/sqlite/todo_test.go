@@ -209,3 +209,75 @@ func TestTodoBoundaryDiesWithItsRun(t *testing.T) {
 		t.Fatalf("Boundary after the Run was dropped recorded %v, err %v, want gone", recorded, err)
 	}
 }
+
+// TestTodoStateIsOwnedByItsSession proves session_state_is_owned_by_its_session and
+// state_revision_never_goes_backwards, the two halves of a session-scoped state key.
+//
+// The key is declared session-scoped, which means one value per session and one
+// revision space per session. Two sessions sharing either would be a panel that
+// changes when someone works in another window, or — worse — a client that discards
+// its own newer value as stale because the other session's write had already claimed
+// that revision number.
+//
+// The revision half is checked by writing an EARLIER list last: the value goes
+// backwards and the revision must not, because a client folds by revision and would
+// otherwise treat the restored list as the stale one. That is the shape of the bug
+// rollback and import both had.
+func TestTodoStateIsOwnedByItsSession(t *testing.T) {
+	ctx := context.Background()
+	store := newTodoStore(t)
+
+	first := []todo.Item{{Content: "mine", Status: todo.StatusInProgress}}
+	if err := store.Replace(ctx, "ses_a", first); err != nil {
+		t.Fatalf("replace a: %v", err)
+	}
+	if err := store.Replace(ctx, "ses_b", []todo.Item{{Content: "theirs", Status: todo.StatusPending}}); err != nil {
+		t.Fatalf("replace b: %v", err)
+	}
+
+	a, err := store.State(ctx, "ses_a")
+	if err != nil {
+		t.Fatalf("state a: %v", err)
+	}
+	b, err := store.State(ctx, "ses_b")
+	if err != nil {
+		t.Fatalf("state b: %v", err)
+	}
+	if len(a.Items) != 1 || a.Items[0].Content != "mine" {
+		t.Fatalf("session a's list = %+v, want only its own item", a.Items)
+	}
+	if len(b.Items) != 1 || b.Items[0].Content != "theirs" {
+		t.Fatalf("session b's list = %+v, want only its own item", b.Items)
+	}
+	if a.Revision != b.Revision {
+		t.Fatalf("revisions = %d and %d; each session counts its own writes, so one write each is the same number",
+			a.Revision, b.Revision)
+	}
+
+	// Writing in b again must not move a at all.
+	if err := store.Replace(ctx, "ses_b", []todo.Item{{Content: "theirs, again", Status: todo.StatusCompleted}}); err != nil {
+		t.Fatalf("replace b again: %v", err)
+	}
+	unmoved, err := store.State(ctx, "ses_a")
+	if err != nil {
+		t.Fatalf("re-read a: %v", err)
+	}
+	if unmoved.Revision != a.Revision || len(unmoved.Items) != 1 || unmoved.Items[0].Content != "mine" {
+		t.Fatalf("session a moved to %+v because session b was written", unmoved)
+	}
+
+	// Restoring an earlier value is a new write, not a return to an old revision.
+	if err := store.Replace(ctx, "ses_a", first); err != nil {
+		t.Fatalf("restore a: %v", err)
+	}
+	restored, err := store.State(ctx, "ses_a")
+	if err != nil {
+		t.Fatalf("read restored a: %v", err)
+	}
+	if restored.Revision <= a.Revision {
+		t.Fatalf("restored revision = %d, want greater than the %d it replaced", restored.Revision, a.Revision)
+	}
+	if !restored.UpdatedAt.After(a.UpdatedAt) && !restored.UpdatedAt.Equal(a.UpdatedAt) {
+		t.Fatalf("restored updatedAt = %s, want no earlier than %s", restored.UpdatedAt, a.UpdatedAt)
+	}
+}

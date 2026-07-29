@@ -25,6 +25,7 @@ export { createMethods } from "./methods";
 export type { Methods, StreamingResult } from "./methods";
 export { createLyraClient } from "./sdk";
 export type { LyraClient } from "./sdk";
+export { PROTOCOL_VERSION } from "./wire.generated";
 export type {
   // Lifecycle / capabilities
   ClientCapabilities,

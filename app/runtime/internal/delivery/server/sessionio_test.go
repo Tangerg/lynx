@@ -455,9 +455,14 @@ func TestSessionExportRejectsUnknownFormat(t *testing.T) {
 }
 
 // TestSessionImport_VersionMismatch rejects an unrecognized artifact version.
+//
+// 6 is the case that matters: it is the version this build wrote until the vNext
+// cutover, so it is the one a person actually has on disk. Development builds do not
+// migrate — a v6 document describes runs in a status vocabulary that no longer
+// exists, and reading it would mean inventing the fields it lacks.
 func TestSessionImport_VersionMismatch(t *testing.T) {
 	s, _ := rollbackHarness(t)
-	for _, version := range []int{2, 3, 999} {
+	for _, version := range []int{6, 2, 3, 999} {
 		_, err := s.ImportSession(context.Background(), protocol.ImportSessionRequest{
 			Artifact: protocol.SessionArtifact{Version: version, Session: protocol.ArtifactSession{ID: "ses_x"}},
 		})

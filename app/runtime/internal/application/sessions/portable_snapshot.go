@@ -240,6 +240,16 @@ func (s Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 		if run.Outcome == nil {
 			return PortableSnapshot{}, fmt.Errorf("sessions: terminal run %q has no outcome", run.ID)
 		}
+		// A child run cannot be projected yet, and the failure would be silent: this
+		// loop gives every run its own profile, which is precisely what an archive's
+		// lineage rule forbids a child to carry. The result would be a document this
+		// runtime writes and then refuses to read. Nothing produces a child run while
+		// subagents are off, so refusing here costs nothing and puts the error at the
+		// projection that has to learn to derive the edges.
+		if run.SpawnedByItemID != "" {
+			return PortableSnapshot{}, fmt.Errorf(
+				"sessions: run %q is a child and this projection derives no child edges", run.ID)
+		}
 		profile := run.ProtocolProfile
 		portable.Runs = append(portable.Runs, PortableRun{
 			SessionID:       run.SessionID,

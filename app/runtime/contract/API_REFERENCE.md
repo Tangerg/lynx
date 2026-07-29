@@ -5,7 +5,7 @@
 > method the runtime does not serve. Prose, rationale and wire examples live in
 > `app/desktop/docs/protocol/`; this is the mechanical index.
 
-Protocol `2026-07-19` (minimum supported `2026-07-19`) · 85 methods
+Protocol `2026-07-27` (minimum supported `2026-07-27`) · 85 methods
 
 ## Methods
 

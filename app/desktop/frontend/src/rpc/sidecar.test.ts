@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { RpcTransportError } from "./errors";
 import { createSidecarClient } from "./sidecar";
+import { PROTOCOL_VERSION } from "./wire.generated";
 
 function makeFetch(status: number, body: unknown): typeof fetch {
   const stub = vi.fn(
@@ -12,7 +13,7 @@ function makeFetch(status: number, body: unknown): typeof fetch {
 describe("SidecarClient", () => {
   it("info() returns public bootstrap metadata", async () => {
     const fetchStub = makeFetch(200, {
-      protocol: { current: "2026-07-19", minSupported: "2026-07-19" },
+      protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
       server: { name: "lyra-core", version: "0.8.1" },
       transport: "http",
       endpoints: {
@@ -25,7 +26,7 @@ describe("SidecarClient", () => {
     const client = createSidecarClient({ baseUrl: "http://x", fetch: fetchStub });
     const info = await client.info();
     expect(info.server.name).toBe("lyra-core");
-    expect(info.protocol.current).toBe("2026-07-19");
+    expect(info.protocol.current).toBe(PROTOCOL_VERSION);
   });
 
   it("readiness() accepts 503 with its diagnostic body", async () => {

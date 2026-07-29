@@ -8,6 +8,9 @@
 // carries no result — are NOT here: TypeScript has no way to state them. They are
 // in the generated validator and in schema.json.
 
+// The wire version this runtime serves; a client states it in request metadata.
+export const PROTOCOL_VERSION = "2026-07-27";
+
 // The methods the runtime sends downstream. A client only ever subscribes.
 export const NOTIFICATIONS_RUN_EVENT = "notifications.run.event";
 export const NOTIFICATIONS_RUNTIME_EVENT = "notifications.runtime.event";

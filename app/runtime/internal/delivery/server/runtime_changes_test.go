@@ -31,6 +31,10 @@ func TestEveryChangeResourceIsPublishable(t *testing.T) {
 // with a required field beyond the sequence — without the key a client cannot tell
 // which recovery method to call — and a session-scoped key must not carry run ids,
 // which would narrow a refetch by something the key is not keyed on.
+//
+// It is the wire half of session_state_is_owned_by_its_session and of
+// committed_state_change_reaches_other_windows: the store keeps one value per
+// session, and this is where that scope survives being published.
 func TestStateChangeNamesItsKeyAndKeepsSessionScope(t *testing.T) {
 	ev, ok := runtimeEventFor(change.Notice{
 		Resource: change.TodoState, SessionIDs: []string{"ses_1"}, RunIDs: []string{"run_1"},

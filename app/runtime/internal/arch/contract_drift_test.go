@@ -261,6 +261,68 @@ func TestProtocolVersionAgreesEverywhere(t *testing.T) {
 			t.Errorf("%s states no protocol version; a canonical doc must say which one it describes", name)
 		}
 	}
+
+	// The canonical samples are the third published statement. A client copies them
+	// — that is what a canonical sample is for — so one naming a retired version
+	// hands out a handshake the runtime refuses. The shape gate cannot see it: the
+	// schema constrains the field's type, never which date is current.
+	//
+	// The client's own constant is NOT read here: it is generated from the same
+	// code, so gate 1 already holds it. Test fixtures are not read either — a
+	// refusal test has to be able to name a version this build rejects.
+	samples, err := filepath.Glob(filepath.Join(root, tsWireDir, "samples", "*.json"))
+	if err != nil {
+		t.Fatalf("glob canonical samples: %v", err)
+	}
+	if len(samples) == 0 {
+		t.Fatal("no canonical samples found; the sweep below would pass on nothing")
+	}
+	stated := 0
+	for _, path := range samples {
+		var decoded any
+		if err := json.Unmarshal(readArtifact(t, filepath.Dir(path), filepath.Base(path)), &decoded); err != nil {
+			t.Fatalf("decode %s: %v", filepath.Base(path), err)
+		}
+		for _, version := range collectProtocolVersions(decoded) {
+			stated++
+			if !protocol.SupportsProtocolVersion(version) {
+				t.Errorf("canonical sample %s states protocol version %q, which this build does not serve",
+					filepath.Base(path), version)
+			}
+		}
+	}
+	if stated == 0 {
+		t.Error("no canonical sample states a protocol version; the handshake fixtures stopped covering it")
+	}
+}
+
+// protocolVersionKeys are the wire's only spellings of a protocol version:
+// RequestMeta.protocolVersion and the two members of ProtocolRange.
+var protocolVersionKeys = []string{"protocolVersion", "current", "minSupported"}
+
+// collectProtocolVersions walks decoded JSON for values stated under those keys, so
+// a sample added later is swept without anyone remembering to list it.
+func collectProtocolVersions(node any) []string {
+	switch typed := node.(type) {
+	case map[string]any:
+		var out []string
+		for key, value := range typed {
+			if version, ok := value.(string); ok && slices.Contains(protocolVersionKeys, key) {
+				out = append(out, version)
+				continue
+			}
+			out = append(out, collectProtocolVersions(value)...)
+		}
+		return out
+	case []any:
+		var out []string
+		for _, value := range typed {
+			out = append(out, collectProtocolVersions(value)...)
+		}
+		return out
+	default:
+		return nil
+	}
 }
 
 // TestGeneratedSchemasResolve is contract §11.4 gate 4: the OpenRPC document and

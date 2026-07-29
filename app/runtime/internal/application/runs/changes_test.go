@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
 
 // changeRecorder collects notices from the pump goroutine as well as the request
@@ -94,6 +95,65 @@ func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 	for _, notice := range changes.notices {
 		if notice.Resource == change.Runs && !slices.Equal(notice.RunIDs, []string{"run_new"}) {
 			t.Fatalf("run notice scope = %v, want [run_new]", notice.RunIDs)
+		}
+	}
+}
+
+// TestCommittedStateChangeReachesOtherWindows proves
+// committed_state_change_reaches_other_windows: the run stream carries the snapshot
+// itself, and a second window is told to re-read the key.
+//
+// Only subscribers of THIS run see the snapshot event. Everyone else — a second
+// window, a task-list panel on another screen — learns nothing from it, so without
+// the notice their list stays whatever it was when they last read, with no way to
+// notice they are behind. The notice is scoped to the session because the key is:
+// naming the run would invite a refetch keyed on something the value is not keyed on.
+func TestCommittedStateChangeReachesOtherWindows(t *testing.T) {
+	exec := &fakeExecutor{events: []EngineEvent{TodosUpdated{State: todo.State{
+		Items:    []todo.Item{{Content: "tell the other window", Status: todo.StatusInProgress}},
+		Revision: 2, UpdatedAt: time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC),
+	}}}}
+	changes := &changeRecorder{}
+	c := NewCoordinator(Dependencies{
+		Segments:     exec,
+		Turns:        &fakeTurnControl{startTurn: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}},
+		Sessions:     &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}},
+		Effects:      &fakeEffects{},
+		Now:          func() time.Time { return time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC) },
+		NewRunID:     func() string { return "run_new" },
+		NewSegmentID: func() string { return "seg_new" },
+		Admissions:   new(admission.Gate),
+		Changed:      changes.publish,
+	})
+
+	result, err := c.Start(t.Context(), StartCommand{
+		SessionID: "ses_1",
+		Input:     []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "plan"}},
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	sawSnapshot := false
+	for event := range result.Events {
+		if _, ok := event.Payload.(StateSnapshot); ok {
+			sawSnapshot = true
+		}
+	}
+	if !sawSnapshot {
+		t.Fatal("the run stream carried no state snapshot; the fixture proves nothing about the notice beside it")
+	}
+	if got := changes.count(change.TodoState); got == 0 {
+		t.Fatalf("state notices = %d, want the committed projection announced", got)
+	}
+	for _, notice := range changes.notices {
+		if notice.Resource != change.TodoState {
+			continue
+		}
+		if !slices.Equal(notice.SessionIDs, []string{"ses_1"}) {
+			t.Fatalf("state notice scope = %v, want the session that owns the key", notice.SessionIDs)
+		}
+		if len(notice.RunIDs) != 0 {
+			t.Fatalf("state notice named runs %v; the key is session-scoped", notice.RunIDs)
 		}
 	}
 }

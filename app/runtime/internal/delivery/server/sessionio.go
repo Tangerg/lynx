@@ -84,6 +84,32 @@ func (s *Server) refuseUnadvertisedStates(states []protocol.ArtifactState) error
 	return protocol.NewCapabilityGap(gaps...)
 }
 
+// refuseChildRuns rejects an archive whose runs form a tree this build cannot
+// restore.
+//
+// A child run IS its edges — the tool call that spawned it, its parent and its root
+// — and none of them have anywhere to land while subagents are off: the durable run
+// record has no such columns. Importing anyway would present every descendant as a
+// root, which is a different conversation from the one the archive describes. Same
+// rule as an unadvertised state key, for the same reason.
+//
+// The advertised feature is the authority rather than a constant here, so the day
+// subagents turn on, this turns on with them.
+func (s *Server) refuseChildRuns(runs []protocol.ArtifactRun) error {
+	if s.Capabilities().Features[protocol.FeatureSubagents].Enabled {
+		return nil
+	}
+	for _, run := range runs {
+		if run.SpawnedByItemID == "" && run.ParentRunID == "" && run.RootRunID == "" {
+			continue
+		}
+		return protocol.NewCapabilityGap(protocol.CapabilityRequirement{
+			Type: protocol.RequirementFeature, Name: protocol.FeatureSubagents,
+		})
+	}
+	return nil
+}
+
 func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error) {
 	art := in.Artifact
 	if art.Version != protocol.SessionArtifactVersion {
@@ -98,6 +124,9 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	// the key would import a session the archive does not describe. The gap names
 	// the key so the caller learns WHICH one rather than that "something" is off.
 	if err := s.refuseUnadvertisedStates(art.States); err != nil {
+		return nil, err
+	}
+	if err := s.refuseChildRuns(art.Runs); err != nil {
 		return nil, err
 	}
 

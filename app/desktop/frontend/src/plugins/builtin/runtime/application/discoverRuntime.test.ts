@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import type { DiscoverResponse, FeatureCapability, RpcClient, ServerCapabilities } from "@/rpc";
+import {
+  PROTOCOL_VERSION,
+  type DiscoverResponse,
+  type FeatureCapability,
+  type RpcClient,
+  type ServerCapabilities,
+} from "@/rpc";
 import { discoverRuntime, type RuntimeCapabilitySink } from "./discoverRuntime";
 
 // Every advertised capability carries the feature's own negotiation facts. These
@@ -10,7 +16,7 @@ function stable(enabled: boolean): FeatureCapability {
 }
 
 const discovery: DiscoverResponse = {
-  protocol: { current: "2026-07-19", minSupported: "2026-07-19" },
+  protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
   serverInfo: { name: "lyra-runtime", version: "1.0.0", cwd: "/work", home: "/home" },
   capabilities: {
     runEvents: [],

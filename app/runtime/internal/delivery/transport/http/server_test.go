@@ -6,9 +6,16 @@ import (
 	netHTTP "net/http"
 	"strings"
 	"testing"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-const testProtocolVersion = "2026-07-19"
+// testProtocolVersion is what the test server is configured to announce. It reads
+// the build's constant rather than a literal because the discover assertion below
+// reaches the real SupportedProtocolRange — spelling the date here would make these
+// transport tests fail on the next version bump for a reason that has nothing to do
+// with transport.
+const testProtocolVersion = protocol.ProtocolVersion
 
 // TestSidecarInfo confirms /v2/info returns the minimal typed bootstrap shape.
 func TestSidecarInfo(t *testing.T) {

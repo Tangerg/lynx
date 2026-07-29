@@ -782,3 +782,47 @@ func assertFrozenProfile(t *testing.T, got, want execution.RunProtocolProfile, w
 		t.Fatalf("%s profile = %v, want %v", where, got, want)
 	}
 }
+
+// TestSegmentFencesItsFinalStateBeforeFinishing proves
+// segment_fences_its_final_state: the last durable event before a segment's finish
+// is the final value of every state key that segment changed.
+//
+// The guarantee is POSITIONAL, and that is the point: a subscriber that attached
+// late, or replayed from a cursor past the change itself, would otherwise reach
+// segment.finished having never seen a snapshot and render a stale panel until
+// something made it refetch. Whoever receives the finish has received the final
+// value because the value is the event immediately before it.
+//
+// The second half matters as much: a segment that changed nothing publishes NO
+// fence. An empty snapshot at revision 0 does not read as "unchanged" to a client
+// that folds by revision — it reads as "the list was cleared".
+func TestSegmentFencesItsFinalStateBeforeFinishing(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	mustReduce(t, reducer, TodosUpdated{State: todo.State{
+		Items:    []todo.Item{{Content: "fence this", Status: todo.StatusInProgress}},
+		Revision: 4, UpdatedAt: time.Unix(11, 0).UTC(),
+	}})
+
+	terminal := mustReduce(t, reducer, TurnEnd{Reason: execution.OutcomeCompleted})
+	if len(terminal) < 2 {
+		t.Fatalf("terminal batch = %d events, want the fence and the finish", len(terminal))
+	}
+	if _, finished := terminal[len(terminal)-1].Event.(SegmentFinished); !finished {
+		t.Fatalf("last event = %#v, want the segment finish", terminal[len(terminal)-1].Event)
+	}
+	fence, fenced := terminal[len(terminal)-2].Event.(StateSnapshot)
+	if !fenced {
+		t.Fatalf("event before the finish = %#v, want the segment's final state", terminal[len(terminal)-2].Event)
+	}
+	if fence.Revision != 4 || len(fence.Todos) != 1 || fence.SessionID != "ses_1" {
+		t.Fatalf("fence = %+v, want session ses_1's revision 4 list", fence)
+	}
+
+	untouched := newReducer(testReducerConfig())
+	quiet := mustReduce(t, untouched, TurnEnd{Reason: execution.OutcomeCompleted})
+	for _, reduced := range quiet {
+		if snapshot, ok := reduced.Event.(StateSnapshot); ok {
+			t.Fatalf("a segment that changed no state published %+v", snapshot)
+		}
+	}
+}

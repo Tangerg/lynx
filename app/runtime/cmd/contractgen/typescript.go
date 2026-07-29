@@ -45,6 +45,7 @@ type tsTypes struct {
 func newTypeScript(set *schemaSet, notifications []string) string {
 	emitter := &tsEmitter{tsTypes: tsTypes{set: set}}
 	emitter.header()
+	emitter.protocolVersion()
 	emitter.notifications(notifications)
 
 	names := slices.Sorted(maps.Keys(set.defs))
@@ -132,6 +133,18 @@ func (e *tsEmitter) header() {
 	e.line("// Cross-field rules — a finished run carries an outcome, an interrupt outcome")
 	e.line("// carries no result — are NOT here: TypeScript has no way to state them. They are")
 	e.line("// in the generated validator and in schema.json.")
+	e.line("")
+}
+
+// protocolVersion emits the version the client states in request metadata.
+//
+// The runtime refuses a request naming a version outside the range it serves, so a
+// client that spells the date itself is a second author of the negotiation — and
+// the failure is a rejected handshake, not a type error. Projecting the constant
+// makes "the client sends what this build serves" true by construction.
+func (e *tsEmitter) protocolVersion() {
+	e.line("// The wire version this runtime serves; a client states it in request metadata.")
+	e.line("export const PROTOCOL_VERSION = %s;", strconv.Quote(protocol.ProtocolVersion))
 	e.line("")
 }
 

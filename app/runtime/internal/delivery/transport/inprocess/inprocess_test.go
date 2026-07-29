@@ -49,7 +49,7 @@ func TestInProcessRoundtrip(t *testing.T) {
 		if resp.Error != nil {
 			t.Fatalf("got error envelope: %+v", resp.Error)
 		}
-		if !strings.Contains(string(resp.Result), "2026-07-19") {
+		if !strings.Contains(string(resp.Result), protocol.ProtocolVersion) {
 			t.Fatalf("missing protocolVersion in result: %s", string(resp.Result))
 		}
 	case <-time.After(1 * time.Second):

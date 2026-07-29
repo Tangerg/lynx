@@ -105,6 +105,10 @@ func (s stubRuntime) queriesCoordinator() *queries.Coordinator {
 		Interrupts: s.interrupts,
 		Runs:       s.runs,
 		Sessions:   s.sess,
+		// The composition root passes the same store to both the write path and the
+		// query one, because features.todos IS "the store exists" — so a harness that
+		// wired only the writes could not reach todos.get at all.
+		Todos: s.todos,
 	})
 }
 

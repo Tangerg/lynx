@@ -71,3 +71,54 @@ func declaredStatePayload(t *testing.T, key string) reflect.Type {
 	t.Fatalf("no state key %q is registered", key)
 	return nil
 }
+
+// TestTodosQueryAnswersWithTheStreamsOwnSnapshot proves
+// state_revision_never_goes_backwards at the wire boundary.
+//
+// todos.get is the key's declared recovery source, so it is what a client calls when
+// it missed the events — after a reload, a rollback, or a replay window it could not
+// reach. The answer therefore has to be foldable by the SAME rule the stream is
+// folded by: same shape, same key, and the store's own revision rather than a
+// re-derived or zeroed one. A cold read that answered revision 0 would look older
+// than every event the client already holds, and a monotonic fold would discard it —
+// leaving the panel permanently stale in exactly the situation recovery exists for.
+func TestTodosQueryAnswersWithTheStreamsOwnSnapshot(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	ctx := t.Context()
+	ses, err := rt.sess.Create(ctx, "recovering", t.TempDir())
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := rt.todos.Replace(ctx, ses.ID, []todo.Item{{Content: "first", Status: todo.StatusCompleted}}); err != nil {
+		t.Fatalf("seed todos: %v", err)
+	}
+
+	first, err := s.GetTodos(ctx, protocol.GetTodosRequest{SessionID: ses.ID})
+	if err != nil {
+		t.Fatalf("todos.get: %v", err)
+	}
+	stored, err := rt.todos.State(ctx, ses.ID)
+	if err != nil {
+		t.Fatalf("read state: %v", err)
+	}
+	if first.Type != protocol.StateTodos || first.SessionID != ses.ID {
+		t.Fatalf("cold read = %+v, want the todos key for %s", first, ses.ID)
+	}
+	if first.Revision != stored.Revision || first.Revision == 0 {
+		t.Fatalf("cold read revision = %d, want the store's %d", first.Revision, stored.Revision)
+	}
+	if len(first.Todos) != 1 || first.Todos[0].Text != "first" {
+		t.Fatalf("cold read list = %+v, want the stored list", first.Todos)
+	}
+
+	if err := rt.todos.Replace(ctx, ses.ID, []todo.Item{{Content: "second", Status: todo.StatusInProgress}}); err != nil {
+		t.Fatalf("advance todos: %v", err)
+	}
+	second, err := s.GetTodos(ctx, protocol.GetTodosRequest{SessionID: ses.ID})
+	if err != nil {
+		t.Fatalf("todos.get again: %v", err)
+	}
+	if second.Revision <= first.Revision {
+		t.Fatalf("revision went from %d to %d; a later read must never answer older", first.Revision, second.Revision)
+	}
+}

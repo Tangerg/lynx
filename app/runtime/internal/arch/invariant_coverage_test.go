@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -182,4 +183,54 @@ func TestEveryStateKeyHasAShapeFixture(t *testing.T) {
 // stateKeyFixtures is the evidence index for the state envelope's keys.
 var stateKeyFixtures = map[string]fixtureRef{
 	"todos": {"internal/delivery/server", "TestStateSnapshotCarriesItsDeclaredTodosPayload"},
+}
+
+// TestEveryStateLifecycleClaimHasAFixture is contract §11.4 gate 18: the state
+// fixtures prove that the query and the event reducer do not go backwards, that
+// session and root ownership is not exceeded, and that the segment's final snapshot
+// fence and the runtime invalidation both hold.
+//
+// The four claims are the gate's own text rather than a code declaration, because
+// they are not transaction invariants — two of them are facts about a wire
+// projection. What makes the list more than a checklist is the same two-way link the
+// other coverage gates use: the claim names the fixture, and the fixture's doc
+// comment names the claim. Three of these four had no dedicated fixture before this
+// gate existed, and the cold read had none at any layer — the same blind spot that
+// left todos.get with no caller on the client.
+func TestEveryStateLifecycleClaimHasAFixture(t *testing.T) {
+	root := moduleRoot(t)
+
+	for _, claim := range slices.Sorted(maps.Keys(stateLifecycleFixtures)) {
+		fixtures := stateLifecycleFixtures[claim]
+		if len(fixtures) == 0 {
+			t.Errorf("state lifecycle claim %q names no fixture", claim)
+			continue
+		}
+		for _, fixture := range fixtures {
+			assertFixtureProves(t, root, fixture, claim)
+		}
+	}
+}
+
+// stateLifecycleFixtures is the evidence index for the state lifecycle claims. A
+// claim may need more than one fixture: "ownership" is enforced in the store that
+// keeps the value and in the projection that publishes it, and a fixture at either
+// layer alone would leave the other free to leak.
+var stateLifecycleFixtures = map[string][]fixtureRef{
+	"state_revision_never_goes_backwards": {
+		{"internal/infra/storage/sqlite", "TestTodoStateIsOwnedByItsSession"},
+		{"internal/delivery/server", "TestTodosQueryAnswersWithTheStreamsOwnSnapshot"},
+		{"internal/bootstrap", "TestApplyRollbackRepublishesBoundaryTodos"},
+	},
+	"session_state_is_owned_by_its_session": {
+		{"internal/infra/storage/sqlite", "TestTodoStateIsOwnedByItsSession"},
+		{"internal/delivery/server", "TestStateChangeNamesItsKeyAndKeepsSessionScope"},
+	},
+	"segment_fences_its_final_state": {
+		{"internal/application/runs", "TestSegmentFencesItsFinalStateBeforeFinishing"},
+	},
+	"committed_state_change_reaches_other_windows": {
+		{"internal/delivery/server", "TestStateChangeNamesItsKeyAndKeepsSessionScope"},
+		{"internal/application/runs", "TestCommittedStateChangeReachesOtherWindows"},
+	},
 }

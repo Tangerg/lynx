@@ -178,7 +178,13 @@ type ExportSessionResponse struct {
 // SessionArtifactVersion is the artifact schema version. Import rejects an
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
-const SessionArtifactVersion = 6
+//
+// v7 is the vNext shape: terminal-only runs carrying lineage and outcome,
+// session-scoped state values, and dropped-run records. A v6 document describes
+// runs whose status vocabulary no longer exists, so reading one would mean
+// inventing the fields it lacks — refused instead, by the version check that
+// runs before any write.
+const SessionArtifactVersion = 7
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),

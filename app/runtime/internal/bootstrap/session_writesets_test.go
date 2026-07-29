@@ -305,6 +305,10 @@ func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 // boundary recorded as a NEW state commit. The revision has to move forward —
 // under a lower one, a client that already folded a later list ignores the
 // rollback as stale and keeps showing work the session no longer has.
+//
+// This is state_revision_never_goes_backwards at its hardest point: the VALUE goes
+// backwards here by design, which is exactly when the temptation to move the
+// revision with it appears.
 func TestApplyRollbackRepublishesBoundaryTodos(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()

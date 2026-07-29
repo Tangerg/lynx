@@ -555,7 +555,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `DONE` | 见下（**14/14**） |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `IN PROGRESS` | 见下 |
 
-#### ⚠️ B4 进度（2026-07-29）：18 项中 13 项已落 + gate 14 半落（余半依赖 C），4 项待 C
+#### ✅ B4 完成（2026-07-29）：18/18（gate 15/16/17/18 随 C16 落）
 
 | gate | 内容 | 状态 |
 |---|---|---|
@@ -564,7 +564,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | 3 | capability rules 三方等价 | ✅ **三方全落**：dispatcher↔discovery 构造上等价（enforcement 读 advertisement，`ba6a301db`）；SDK 侧 `rpc/preflight.ts` 读**生成的** `WIRE_CAPABILITY_POLICY`（同一份 metas 投影，所以规则也构造上等价）。剩下唯一能分歧的是**条件语义**（`present` 对空数组算不算命中），所以 `preflight.test.ts` 把 dispatch 那 7 条 gate case 原样问一遍客户端 matcher —— 产物比对永远发现不了这类分歧 |
 | 5 | 所有 closed union 有 discriminator + 完整 variant | ✅ `7e7a9ec12`（注册期反射校验，含"字段无变体认领"） |
 | 7 | DTO validator 无 store/dispatcher/executor 依赖 | ✅ `fff51823d`（禁 internal import + 禁 Validate 带参数） |
-| 12 | protocol manifest / canonical 文档 / 代码 三方版本一致 | ✅ `TestProtocolVersionAgreesEverywhere` —— C16 只改一处常量，这条会点名每份还写着旧版本的文档 |
+| 12 | protocol manifest / canonical 文档 / 代码 三方版本一致 | ✅ `TestProtocolVersionAgreesEverywhere` —— C16 只改一处常量，这条点名了每份还写着旧版本的文档。**C16 扩到四方**：canonical 样本（`rpc/samples/*.json`）也是**已发布的版本声明**（客户端会照抄），而 shape gate 看不见它——schema 管字段类型，管不了"哪个日期是当前的"。扫的是键名（`protocolVersion` / `protocol.current` / `minSupported`），所以后加的样本自动被扫；**不扫测试 fixture**（拒绝测试必须能点名一个本 build 不服务的版本） |
 | 13 | business error type/code 单一源 | ✅ `c83d041f3`（error registry 由 sentinel↔code 生成） |
 | 4 | OpenRPC / JSON Schema 可解析 | ✅ `TestGeneratedSchemasResolve` + `TestOpenRPCDescribesEveryMethod` —— 自带 `$ref` 解析器（无网络、无 vendored validator），并禁"定义了但无人引用"的孤儿 shape |
 | 9 | TS types / validators / client stubs 可编译 | ✅ 三类全生成且前端 `npm run check` 全绿（typecheck + oxlint + prettier + 175 test file + knip + 8 个结构脚本 + bundle 预算）。**knip 是这条的真门禁**：它拒绝"生成了但没人读"的导出，所以每一类产物都必须当场接上消费者——`WIRE_STREAM_METHODS` / `WireEvent` 因此被删（无 reader，要时再生成），`WIRE_CAPABILITY_POLICY` 与 preflight 同批落 |
@@ -574,7 +574,10 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | — | **新增守卫（非 18 项之列，但同类）** | ✅ `TestEveryWireStructIsPublished`：protocol 的每个 exported struct 要么在 bundle 里、要么带理由列入 `notOnTheWire`（"两者都是"也报错）—— shape 漏发是**静默**的，这条让它出声 |
 | 8 | invariant integration fixture | ✅ `TestEverySystemInvariantHasAnIntegrationFixture` —— 13 个 (invariant, boundary) 对逐一有跨 projection fixture，**双向链接**（索引点名 fixture，fixture 的 godoc 写明它守哪条 invariant）。补了 3 条新 fixture，纠正了审计里 1 处误判 |
 | 11 | list query fixture | ✅ 两半都落：结构半 `TestPageCursorsBindToTheirOwnMethod`（每个 `*PageMethod` 常量必须是**已注册方法名**且**互不相同** —— 两个读共用命名空间会互相接受对方的 anchor，seek 落到错的排序上），行为半 `TestEverySeekPagedReadHasQueryFixtures`（5 个读 × 3 条腿的证据索引，双向链接）。补了 9 格 fixture，`interrupts.list` 已改名 |
-| 15 / 16 / 17 / 18 | Artifact v7 round-trip / 三项 compatibility diff | ⏸ 依赖 C（按计划先留骨架） |
+| 15 | Artifact v7 round-trip | ✅ **C16**：`TestArtifactV7RoundTripsEveryFieldItCarries` —— 不是一串挑出来的断言，而是**走 shape 检查 fixture 的完备性**（每个字段都被填过，填不到的进 `unreachableArtifactFields` 带理由；一个字段变得可填就必须离开该表）+ **整份文档 export→import→export 逐字节相等**。版本号自身钉在字面量 `7`（比常量只证明"一行读另一行"多一件事）。**咬出一个真缺陷**：export 给每个 run 都盖自己的 profile，而归档的 lineage 规则禁止 child 带 profile —— 一旦出现 child run，runtime 会写出一份**它自己读不回来**的归档。两端各加一道 fail-closed（export 拒写、import 拒读并点名 `features.subagents`），gate 15 的不变量因此是"这个 runtime 写出来的，它一定读得回来" |
+| 16 | compatibility diff 判本轮整体 breaking | ✅ **C16**：`internal/arch/compatibility_test.go` 的 differ（读 baseline 与当前的 manifest+schema 两份，**不读 openrpc** —— 它是二者的再表述）。分类规则只有一条判据：**"照 baseline 写的客户端会不会做错事"**。断言不是"有 breaking"（一个改名字段就满足了），而是**方法面 / 闭合 topic 集 / 错误注册表 / shape / union 五类各要出现** —— 对某一类瞎的 differ 会一直对那一类瞎。实测 64 breaking / 93 compatible |
+| 17 | 新增闭合 RuntimeTopic 判 breaking + 要求同步 bump | ✅ **C16**：topic 是**闭合**集合（客户端 exhaustive fold），故**加成员与删成员同样 breaking**；规则按一般形式写（**任何** breaking 都要求 bump），否则下一版删个方法就免费了。**带三种反例**：contract 与自己 diff 必须零变化（否则"永远说 breaking"的函数也能过 16/17）、16 个合成 pair 逐条钉分类（新增可选字段/新方法/新错误码 = 兼容；字段变必填/改类型/删字段/闭合枚举加值/新 capability 要求/改码号/抬 minSupported = breaking） |
+| 18 | state fixture（reducer 不倒退 / ownership 不越界 / segment fence / runtime invalidation） | ✅ **C16**：四条 claim 的证据索引 + **双向链接**（claim 点名 fixture，fixture godoc 点名 claim）。四条里**三条此前没有专属 fixture**，cold read 在**任何层**都没有 —— 与"`todos.get` 前端零调用方"是同一个盲区；补了 `TestTodoStateIsOwnedByItsSession`（两 session 各自的 revision 空间 + **把更早的值重新写入必须拿更大的 revision**）、`TestTodosQueryAnswersWithTheStreamsOwnSnapshot`（cold read 必须与事件同形同 revision，否则按 revision 折叠的客户端会把 recovery 的答案当旧值丢掉）、`TestSegmentFencesItsFinalStateBeforeFinishing`（终态前一帧是终值，**没改过就不发** —— 一份 revision 0 的空快照读作"清单被清空了"）。顺手发现 harness 的 queries 协调器**没接 todo 端口**，所以 `todos.get` 在后端也是零 fixture |
 
 #### ✅ B3 完成（2026-07-29）：14/14 产物
 
@@ -1033,7 +1036,7 @@ todos 今天只以**流内 ephemeral `state.snapshot`** 形态上 wire：没有 
 | C14 | `sessions.rollback/export/import` capability 规则（已在）+ Artifact v7（`states`/child edges/root-only profile/`DroppedRun`→RunSummary） | `DONE` | `86c79a21f` |
 | C14b | **session-scoped state 的另外两半生命周期**：`fork` 复制 fork boundary 的值、`history/both` rollback **恢复到目标 boundary**（原先是清空）。per-run-boundary 快照（`todo_boundaries` + FK cascade，terminal CAS 内一处 stamp，epoch 39→40）—— 见下「C14b 为什么单独一片」 | `DONE` | `463910d21` |
 | C15 | 前端 fold + **它依赖的后端生产者**：九 topic 生产者（原先只有四个）+ hub 不再丢帧（合并成 resync）；前端 exhaustive reducer、删 business numeric code 镜像、订满九 topic、删 goal 4 秒轮询、state 冷读（`todos.get`）、run stream 断线按 `Last-Event-Id` 重接 | `DONE` | `cad9f7069` / `57d2cf9ed` / `c58906cbf` |
-| C16 | 切版本：`protocolVersion = minSupported = "2026-07-27"`、`SessionArtifactVersion = 7`；旧协议 `invalid_protocol_version`、旧 Artifact 确定性拒绝；canonical 文档改写 + gate 15/16/17/18 —— **一个 commit，见下「C16 为什么是一个不可拆的 commit」** | `TODO` | — |
+| C16 | 切版本：`protocolVersion = minSupported = "2026-07-27"`、`SessionArtifactVersion = 7`；旧协议 / 旧 Artifact 确定性拒绝；三份 canonical 文档按 vNext 改写（删掉被生成物重述的目录）+ gate 15/16/17/18 | `DONE` | 见下 |
 
 #### ⚠️ Batch C 接手须知（2026-07-29，B 收口时量过的，别重新踩）
 
@@ -1242,6 +1245,17 @@ A ──→ A′ (4 slice, 修现役泄露, 落 main) ──┬─→ B  (Regist
 |---|---|
 | **C14b** | 上一节预告的那半：**数据不存在**。`todo_boundaries`（`run_id` PK + FK cascade 到 `runs`）在**终态 CAS 那一条语句里**盖章 —— 那是 Run 唯一能到 terminal 的地方，所以"没有无边界的终态 Run"是构造保证，不靠每个调用方记得；`Restore` 刻意不盖（导入的 Run 在别的 runtime 结束，拿导入方的 live 清单当它的边界是编造）。**缺行 ≠ 空清单**：导入的 Run 从没被捕获过，两个读者一律"别动 live 值"，与未知 messageMark 不动日志同一条规矩。**顺带一个真 bug**：旧 rollback **DELETE 掉 todos 行**，revision 归 1，客户端手上是 7 就把回退后的清单当旧的丢掉 —— 与 C14 在 import 上修的是同一个根因（改 Replace） |
 | **C15** | discovery 广告九个 topic，**只有四个有生产者**。第二个窗口对"run 开始了 / 有人在等回答 / goal 在烧预算 / 清单被改了"一无所知，而且**无法察觉**自己在漏（topic 在，流是静的）—— 与"discovery 发布 runtime 不执行的 limit"同一个病灶。goal banner 用四秒轮询遮住了自己那一份。**hub 还在丢帧**：它递增 sequence 然后丢掉帧，客户端只能靠"看见空号"知道漏了 —— 安静的流上永远看不见；现在未投递的失效合并成一条点名 topic 的 `resync`，**号只发给真进队列的帧**。前端：九 topic 全订 + exhaustive reducer（default 分支只在每个成员都处理时才编译得过，闭合联合写在 workspace 层而非从 wire 导入，**新增 signal 在 subscribe 边界报类型错**——这条当场抓出一个还在发 `mcp.serverChanged` 的测试）；session-scoped state 补上冷读（`todos.get` 此前**零调用方**，而它正是 capability 广告的 recovery method）；**run stream 断线不再冻结 transcript** —— 按最后折叠的事件重接，cursor 只由折叠推进（重接 ack 的 head 在请求位置**之前面**，采用它会静默跳过刚请求的重放），replay 窗口过期则冷读 items.list + tail 重接 |
+
+### C16 已完成（2026-07-29）—— 咬出的真缺陷
+
+| 面 | 咬出来的 |
+|---|---|
+| **一件事两种拼写** | 前端把 `protocolVersion` **自己拼了一遍**（`main/config.ts` 一个字面量，注释还写着"与后端常量一致"——没有任何东西保证）。翻版本会让它发出一个 runtime 当场拒绝的握手，而**类型系统看不见**。治本：生成器把 `PROTOCOL_VERSION` 投影进 `wire.generated.ts`，前端读它，config 里那份删掉 —— gate 1（generate 后无 diff）+ knip（生成了必须有人读）替代了那条注释。同类：`http` transport 测试的 `testProtocolVersion` 字面量恰好等于常量，翻版本会让一批**与传输无关**的测试变红 |
+| **广告了没有实现的能力** | 三份 canonical 文档在删掉字段/方法/错误码目录之后，暴露出代码里 **305 处 `API.md §x` 引用**里有一批指向**根本不存在的小节**（`API.md §1.1`、`AUX_API §2.2/§2.3/§3.1/§4.2/§4.3/§5.1`——AUX_API 的方法根本没编号）。改写时把这些锚点**建出来**，引用因此第一次真的能落地 |
+| **一个 shape 覆盖三个契约** | `TRANSPORT.md §5` 整节描述一个**不存在的 IPC transport**（"桌面外壳走宿主 IPC"）。桌面壳走的是 loopback HTTP，IPC 从来没实现、也不该实现。删掉会打断 §6.x 的引用编号，所以该节**改写成一条裁决记录**（为什么没有 IPC），编号不动、内容不再撒谎 |
+| **文档自身的病灶** | `smoke.test.ts` 手写了一份 discover 响应，里面 `capabilities.events` / `limits.maxConcurrentRuns` 早已退役 —— TS 的 excess-property 检查在这个位置**不触发**（实测确认），所以它可以一直看起来权威。治本：改用 canonical 样本（同一份被 schema gate 校验的文档），测试从此不是那份 payload 的第二作者。`runtime/index.test.ts` 的 `as unknown as ServerCapabilities` 是同一个洞的另一种打开方式，换成 typed fixture |
+
+**canonical 文档的最终形态**（结论已在下一节记录，此处只记落地事实）：`API.md` 2074 → 1039 行（删掉 §4 字段目录与 §7 逐方法输入/输出/错误表，改为"生成物是字段级真相"+ 每域的语义与不变量）；`AUX_API.md` 补齐被引用的小节编号并按 vNext 改写（`workspace.subscribe`→`runtime.subscribe`、`DroppedRun.run: RunSummary`、新增 §4.3 export/import v7）；`TRANSPORT.md` 逐条改准（SSE 例子里的 `outcome.result` → `outcome`+`metrics`、subscribe 必带 `segmentId`、cursor 的两种拒绝、失效流的 coalesce-into-resync）。
 
 ### C16 为什么是一个不可拆的 commit
 

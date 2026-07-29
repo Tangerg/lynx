@@ -2,7 +2,7 @@
   "openrpc": "1.3.2",
   "info": {
     "title": "Lyra Runtime Protocol",
-    "version": "2026-07-19",
+    "version": "2026-07-27",
     "description": "Generated from the Contract Registry. Shapes live in schema.json; this document is the method surface."
   },
   "methods": [

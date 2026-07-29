@@ -1,7 +1,8 @@
-# Lyra Runtime Transport（定稿 `2026-07-19`）
+# Lyra Runtime Transport（定稿 `2026-07-27`）
 
 > **状态：正式契约（canonical）。** 本文定义同目录 [`API.md`](./API.md)（Lyra Runtime Protocol）如何在具体 transport
-> 上承载。两文件自包含、互为配套，不依赖任何其它文档。`protocolVersion`: **`2026-07-19`**。
+> 上承载，并且是 **binding 层的唯一作者**：端点、POST 契约、HTTP status、SSE 帧、续流、门禁 token、sidecar、CORS、
+> 背压 —— 这些在别处都没有第二份定义。`protocolVersion`: **`2026-07-27`**。
 
 ## 0. 目的
 
@@ -11,15 +12,14 @@ API 定义 JSON-RPC 方法、资源、事件语义；transport 定义 message �
 
 ## 1. Transport 矩阵
 
-| 客户端形态      | runtime 位置      | transport     |
-| --------------- | ----------------- | ------------- |
-| Go TUI          | 同进程            | InProcess     |
-| 桌面 web 外壳   | 宿主进程          | IPC           |
-| 浏览器 UI       | 本地 runtime 进程 | HTTP loopback |
-| 未来远程 facade | facade 之后       | HTTP          |
+| 客户端形态      | runtime 位置      | transport     | 状态       |
+| --------------- | ----------------- | ------------- | ---------- |
+| Go CLI / TUI    | 同进程            | InProcess     | 已实现     |
+| 桌面外壳 / 浏览器 UI | 本地 runtime 进程 | HTTP loopback | 已实现     |
+| 未来远程 facade | facade 之后       | HTTP          | 同上，无需新 transport |
 
-所有 transport 暴露相同协议语义：request/response JSON-RPC；server→client 通知；显式取消；尽量用 event id
-做流重连。
+**只有这两个 transport**。两者暴露相同协议语义：request/response JSON-RPC；server→client 通知；显式取消；用
+event id 做流重连。桌面外壳走的是 loopback HTTP，不是宿主 IPC（理由见 §5）。
 
 ## 2. 元数据划分 —— 业务与请求自描述进 params，纯传输才走带外
 
@@ -41,6 +41,7 @@ API 定义 JSON-RPC 方法、资源、事件语义；transport 定义 message �
 | 响应 server 标签 | `X-Server`                                                                    |
 | 本地门禁 token   | `Authorization: Bearer <token>`                                               |
 | 流重放游标       | `Last-Event-Id`（仅 `runs.subscribe` 续流，§9.2）                             |
+| 幂等键           | `Idempotency-Key`（有副作用的调用，§6.2 / §10）                               |
 
 规则与易错点：
 
@@ -90,18 +91,17 @@ InProcess 没有 HTTP header，元数据走 `context.Context`。
 | Trace 上下文 | context value          |
 | 协议版本     | 编译期或 context value |
 
-## 5. IPC Transport
+## 5. 为什么没有 IPC transport（设计裁决）
 
-IPC 用于桌面外壳（Wails / Tauri / Electron + 宿主 runtime）。
+桌面外壳看起来最该用宿主 IPC（Wails / Tauri / Electron 的 bridge），但它**没有实现，也不打算实现**：
 
-要求：
+- runtime 是一个**独立进程**，桌面壳只是它的一个客户端。走 loopback HTTP，同一份 runtime 二进制既服务桌面壳也服务
+  浏览器 UI 与将来的 facade，**不为某个宿主框架长出一条平行的消息通道**。
+- 一条 IPC 通道要自己解决顺序、背压、流式与取消 —— 这些 HTTP 那条路已经解决过一次（§6 / §9 / §15）。第二个实现
+  只会有第二套 bug。
+- 真正只有 HTTP 才有的东西（sidecar 探针、CORS、门禁 token）也因此只在一处存在（§11 / §12 / §13）。
 
-- request/response 带 JSON-RPC envelope；
-- 通知从宿主推到 webview；
-- 元数据走 IPC message metadata（若有），否则走 JSON-RPC body 之外、宿主自有的小 wrapper；
-- IPC 必须保证每连接的 message 顺序。
-
-IPC 适配器应把宿主框架细节藏在与 HTTP 相同的 `Transport` 形态背后。
+本节是一条**裁决记录**，不是待实现项。`Transport` 抽象（§3）仍是两实现共用的形状，不为 IPC 预留任何东西。
 
 ## 6. HTTP Transport
 
@@ -149,15 +149,9 @@ body：
   "method": "runs.start",
   "params": {
     "_meta": {
-      "protocolVersion": "2026-07-19",
+      "protocolVersion": "2026-07-27",
       "clientInfo": { "name": "lyra-desktop", "version": "0.1.0" },
       "clientCapabilities": {
-        "events": [
-          "segment.started",
-          "segment.finished",
-          "item.started",
-          "item.completed"
-        ],
         "features": {},
         "interruptTypes": ["approval", "question"]
       }
@@ -192,12 +186,14 @@ body：
   { "jsonrpc": "2.0", "id": "1", "result": { "id": "ses_..." } }
   ```
 
-- **流式方法**（`runs.start` / `runs.resume` / `runs.subscribe` / `workspace.subscribe`，以
+- **流式方法**（`runs.start` / `runs.resume` / `runs.subscribe` / `runtime.subscribe`，以
   `streamingMethods` 为准）→ `200 text/event-stream`，响应体是这次操作的事件流（§6.4）。
 
-> 流式方法**开流前**的失败（params 非法 / `session_not_found` 等同步错误）仍返 `application/json` +
-> JSON-RPC `error`，**不开流**；开流后的执行期错误走流内的 `segment.finished{outcome:error}` 帧。这正是
-> API.md §8.1 的三条投递通道在 HTTP 上的落点（rpc 通道走同步 error，run/tool 通道走流内帧）。
+> 流式方法**开流前**的失败（params 非法 / `session_not_found` / `session_has_active_run` / `stale_segment` /
+> `replay_cursor_invalid` / `replay_unavailable` 等同步错误）仍返 `application/json` + JSON-RPC `error`，
+> **不开流**；开流后的执行期错误走流内的 `segment.finished{outcome:{type:"error"}}` 帧。这正是 API.md §8.1 三个
+> 落点在 HTTP 上的位置（RPC 落点走同步 error，run/item 落点走流内帧）。**一个开不了的流不会先返 200 再在流里
+> 道歉** —— 那会让客户端把一次被拒绝的订阅当成一条空流等下去。
 
 ### 6.3 HTTP status
 
@@ -235,9 +231,10 @@ HTTP status 只描述传输层失败。
 
 流式方法的 POST 响应体是一条 SSE 流，**承载这一次操作的完整 JSON-RPC 消息序列**：
 
-1. **首帧 = 本次调用的 JSON-RPC 响应**（带请求的 envelope `id`），如 `runs.start` 的 `{ "id":"1",
-"result":{ "runId":"run_..." } }` —— 客户端据此拿到 `runId`，无需单独的同步响应。此帧是一次性 ack，
-   **不带 SSE `id:`**（它不属于可重放的 run 事件序列，§9.1）；
+1. **首帧 = 本次调用的 JSON-RPC 响应**（带请求的 envelope `id`），如 `runs.start` 的
+   `{ "id":"1", "result":{ "runId":"run_…", "segmentId":"seg_…" } }` —— 客户端据此拿到这次要跟的 run 与 segment，
+   无需单独的同步响应。此帧是一次性 ack，**不带 SSE `id:`**（它不属于可重放的 run 事件序列，§9.1）。
+   `runs.subscribe` 的 ack 另带 `headEventId?`：**只许原样保存、作为后续 cursor**，不许比较或解释（API.md §7.3）；
 2. 随后是 `notifications.run.event` 帧（run / item / state 事件，API.md §5），每帧 SSE `id:` =
    `RunEvent.eventId`；
 3. **root `segment.finished` 后服务端关闭这条流**。
@@ -251,16 +248,16 @@ X-Server: lyra-runtime
 ```
 
 ```text
-data: {"jsonrpc":"2.0","id":"1","result":{"runId":"run_01","userItemId":"item_00"}}
+data: {"jsonrpc":"2.0","id":"1","result":{"runId":"run_01","segmentId":"seg_01","userItemId":"item_00"}}
 
 id: evt_0001
-data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","eventId":"evt_0001","timestamp":"2026-06-07T10:00:00Z","event":{"type":"segment.started","run":{"id":"run_01","sessionId":"ses_01"}}}}
+data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","segmentId":"seg_01","eventId":"evt_0001","timestamp":"2026-07-27T10:00:00Z","event":{"type":"segment.started","run":{"id":"run_01","sessionId":"ses_01","status":"running","activeSegmentId":"seg_01","metrics":{"steps":0,"activeDurationMs":0},"protocolProfile":{"requiredFeatures":[],"interruptTypes":["approval"]}}}}}
 
 id: evt_0002
-data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","eventId":"evt_0002","event":{"type":"item.delta","itemId":"item_01","delta":{"type":"content","text":"Hello"}}}}
+data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","segmentId":"seg_01","eventId":"evt_0002","timestamp":"2026-07-27T10:00:01Z","event":{"type":"item.delta","itemId":"item_01","delta":{"type":"content","text":"Hello"}}}}
 
 id: evt_0009
-data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","eventId":"evt_0009","event":{"type":"segment.finished","outcome":{"type":"completed","result":{}}}}}
+data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","segmentId":"seg_01","eventId":"evt_0009","timestamp":"2026-07-27T10:00:09Z","event":{"type":"segment.finished","outcome":{"type":"completed"},"metrics":{"steps":3,"activeDurationMs":1500,"usage":{"inputTokens":120,"outputTokens":40,"costUsd":0.01}}}}}
 ```
 
 > `RunEvent` 信封**不带 `durable` 字段**：first-party 事件的 durable 性由 `event.type` 推导（API.md §5.2 推导表），
@@ -270,8 +267,9 @@ data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run
 
 - **一次操作 = 一条流 = 一个 HTTP 交换**；`curl -N` 即可看全程，日志里一请求对应一操作。
 - 该流承载**整棵 run 树**：子孙 subagent run 的事件并入此流（每帧带自己的 `runId`，客户端用
-  `RunRef.spawnedByItemId` 还原树，API.md §5.4 / §10.3）。`workspace.subscribe` 的流形状相同、但承载
-  `notifications.workspace.event` 帧且**不可重放**（无 SSE `id:`，AUX_API §3）。
+  `spawnedByItemId` 还原树，API.md §5.4 / §10.3）。`runtime.subscribe` 的流形状相同、但承载
+  `notifications.runtime.event` 帧且**不可重放**（无 SSE `id:`，AUX_API §3.1）。
+- **root `segment.finished` 才结束这条流**：子孙 run 的终态只是树里的一个节点结束了。
 - 网络断开**不取消** run（API.md §3）；run 在服务端继续，客户端按 §9 续流。
 
 ### 6.5 并发与连接预算（HTTP/1.1）
@@ -300,9 +298,9 @@ data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{...}}
 
 规则：
 
-- 只有**可重放的事件帧**带 SSE `id:`，且 = 其 `eventId` —— 今天只有 `notifications.run.event`；JSON-RPC 响应帧
-  （首帧）**不带 `id:`**（一次性 ack，非可重放事件，§9.1）。`notifications.workspace.event` 同样不带（该流按
-  AUX_API §3 明确不补发，靠重订时的全量失效收敛）。
+- 只有**可重放的事件帧**带 SSE `id:`，且 = 其 `eventId` —— 今天只有 `notifications.run.event` 里的 durable 事件
+  （durable 性由 `event.type` 推导，API.md §5.2）。JSON-RPC 响应帧（首帧）**不带 `id:`**（一次性 ack，非可重放
+  事件，§9.1）。`notifications.runtime.event` 同样不带（该流按 AUX_API §3.1 明确不补发，靠重订时的全量失效收敛）。
 - `event:` / `retry:` 不使用；客户端忽略未知字段。
 - 心跳用 SSE comment（`: ...` 行）。
 - 流是 **POST** 而非 `EventSource` GET，故门禁 token 照常走 `Authorization: Bearer` —— "`EventSource` 不能设
@@ -334,20 +332,34 @@ data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{...}}
   `eventId`，客户端据此去重）；
 - `runs.resume` 在同一 Run 上开**新的一段**（同 `runId`、新 `segmentId`、`eventId` 从头，API.md §2.4）。
 
-server 应保留 durable 事件足够久以支撑续流，但**正确性不得依赖 ephemeral delta 的重放**。
+**`Last-Event-Id` 是一个被解释的 cursor，不是一个数**：它编码了流的进程 epoch 与 scope（哪个 run 的哪一段），
+所以
+
+- 别的进程或别的段的 cursor 被**拒绝**（`replay_cursor_invalid`）而不是被将就解释 —— 后者会把重放落到另一条流上；
+- 曾经合法、但已被保留窗口淘汰的位置返回 `replay_unavailable`。事件没了，但它们产出的 Item 是 durable 的：客户端
+  冷读 `items.list` + 各 state key 的 recovery 方法，再**不带 cursor** 重接（= 只订将来）。
+
+保留窗口的 scope 与容量在 `capabilities.limits.runReplay` 里公布**并被强制执行**（API.md §9）。server 保留 durable
+事件以支撑续流，但**正确性不得依赖 ephemeral delta 的重放**。
 
 ### 9.2 续流流程（per-run）
 
 某条 run 流断开时（run 在服务端继续）：
 
-1. 客户端对该 run 调 `POST /v2/rpc`（envelope `method: "runs.subscribe"`、`params: { runId }` —— URL 从不携带
-   method，§6.1），带 `Last-Event-Id: <最后见到的 eventId>`；
+1. 客户端对该 run 调 `POST /v2/rpc`（envelope `method: "runs.subscribe"`、
+   `params: { runId, segmentId }` —— URL 从不携带 method，§6.1），带
+   `Last-Event-Id: <最后一个成功折叠的 eventId>`；
 2. server 在新响应流里**重放该 id 之后的 durable 事件**，再接上 live；
-3. 客户端按 `eventId` 与 `itemId` 去重。
-4. 若客户端本地状态仍不完整，调用 `items.list` 重建 durable 历史；`item.completed` / `state.snapshot`
-   保证终态正确（durable/ephemeral 不变量，API.md §5.2）。
+3. 客户端按 `eventId` 与 `itemId` 去重；
+4. 若客户端本地状态仍不完整（或拿到 `replay_unavailable`），调用 `items.list` 重建 durable 历史 + 各 state key 的
+   recovery 方法补状态；`item.completed` / `state.snapshot` 保证终态正确（API.md §5.2）。
 
-> 重连的是**具体某个 run**（`runs.subscribe` 即续流口），粒度准，且不需要维护连接身份。
+> 重连的是**具体某个 run 的某一段**，粒度准，且不需要维护连接身份。
+>
+> **cursor 只由"折叠成功"推进**：不要拿 ack 回来的 `headEventId` 覆盖自己的位置 —— 一次重放式重接的 head 在你
+> 请求的位置**之前面**，采用它会静默跳过刚请求的那段重放（API.md §10.1）。只有在客户端一个事件都没折叠过、也没有
+> 自己的 cursor 时，才用 ack 的 head 作起点。
+> **段没结束就断流，是连接掉了，不是 run 结束了**：服务端那边它还在跑，续流是把这件事变成毫秒级空隙的唯一手段。
 
 ### 9.3 Delta 重放
 
@@ -407,7 +419,7 @@ live 只返回 200；ready 在依赖异常时返回 503，并携带 `checks`。
 
 ```json
 {
-  "protocol": { "current": "2026-07-19", "minSupported": "2026-07-19" },
+  "protocol": { "current": "2026-07-27", "minSupported": "2026-07-27" },
   "server": { "name": "lyra-runtime", "version": "0.0.0" },
   "transport": "http",
   "endpoints": {
@@ -449,6 +461,10 @@ X-Accel-Buffering: no
 server 可在高负载下**合并 ephemeral delta**，只要 durable/ephemeral 不变量仍成立（API.md §5.2）。
 
 server **不得**在不可经历史 API 恢复的前提下丢弃 durable 事件。
+
+失效流（`runtime.subscribe`）的背压规则不同，且更严：来不及投递的失效**合并成一条点名 topic 的 `resync`**，
+而不是丢帧后指望客户端从空号里发现（AUX_API §3.1）。序号只发给真正进入队列的帧 —— 为一个被合并掉的信号消耗
+号，等于让客户端以为丢了东西。
 
 ## 16. Observability
 

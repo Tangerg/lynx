@@ -26,7 +26,13 @@ import {
 import { createRpcClient, type RpcClient } from "./client";
 import { asItemId, asRunId, asSessionId } from "./ids";
 import { createMethods, type Methods } from "./methods";
-import type { Item, RunEvent } from "./wire.generated";
+import { PROTOCOL_VERSION, type Item, type RunEvent } from "./wire.generated";
+// The discover response is NOT hand-written here. It is the canonical sample —
+// the one the schema gate validates — because a second copy of that payload is a
+// copy that goes stale silently: this test asserts nothing about the capability
+// shape, so a retired field would sit here looking authoritative for as long as
+// nobody read it.
+import discoverResponse from "./samples/method.discover.resp.json";
 
 function agentMessageItem(id: string, runId: string, text: string, status: Item["status"]): Item {
   return {
@@ -52,16 +58,9 @@ describe("smoke: v2 end-to-end happy path", () => {
     transport = createMemoryTransport();
     client = createRpcClient(transport, {
       requestMeta: () => ({
-        protocolVersion: "2026-07-19",
+        protocolVersion: PROTOCOL_VERSION,
         clientInfo: { name: "smoke-test", version: "0.1" },
         clientCapabilities: {
-          events: [
-            "segment.started",
-            "segment.finished",
-            "item.started",
-            "item.delta",
-            "item.completed",
-          ],
           features: {},
           interruptTypes: ["approval", "question"],
         },
@@ -74,33 +73,14 @@ describe("smoke: v2 end-to-end happy path", () => {
     const discoverReq = await waitForRequest(transport, "runtime.discover");
     expect(discoverReq.params).toMatchObject({
       _meta: {
-        protocolVersion: "2026-07-19",
+        protocolVersion: PROTOCOL_VERSION,
         clientCapabilities: { interruptTypes: ["approval", "question"] },
       },
     });
-    respondSuccess(transport, discoverReq.id, {
-      protocol: { current: "2026-07-19", minSupported: "2026-07-19" },
-      serverInfo: { name: "lyra-runtime", version: "0.0.0", cwd: "/work", home: "/home/u" },
-      capabilities: {
-        events: [
-          "segment.started",
-          "segment.finished",
-          "item.started",
-          "item.delta",
-          "item.completed",
-        ],
-        features: {
-          reasoning: { enabled: true, stability: "stable" },
-          mcp: { enabled: true, stability: "stable" },
-          relocate: { enabled: true, stability: "stable" },
-          multimodal: { enabled: true, stability: "stable" },
-        },
-        streamingMethods: ["runs.start", "runs.resume", "runs.subscribe"],
-        limits: { maxConcurrentRuns: 8 },
-      },
-    });
+    respondSuccess(transport, discoverReq.id, discoverResponse);
     const discovery = await discoverPromise;
-    expect(discovery.serverInfo.cwd).toBe("/work");
+    expect(discovery.protocol.current).toBe(PROTOCOL_VERSION);
+    expect(discovery.serverInfo.cwd).toBe(discoverResponse.serverInfo.cwd);
     expect(discovery.capabilities.features.reasoning?.enabled).toBe(true);
 
     // ---- Step 2: sessions.create ------------------------------------------
@@ -108,7 +88,7 @@ describe("smoke: v2 end-to-end happy path", () => {
     const createReq = await waitForRequest(transport, "sessions.create");
     expect(createReq.params).toMatchObject({
       title: "smoke",
-      _meta: { protocolVersion: "2026-07-19" },
+      _meta: { protocolVersion: PROTOCOL_VERSION },
     });
     respondSuccess(transport, createReq.id, {
       id: "ses_1",

@@ -3,6 +3,8 @@ package dispatch
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -13,9 +15,9 @@ func TestBindRequestMetaStripsMetaAndStoresContext(t *testing.T) {
 	req := &transport.Request{
 		ID:     transport.StringID("1"),
 		Method: "runs.cancel",
-		Params: json.RawMessage(`{
+		Params: json.RawMessage(fmt.Sprintf(`{
 			"_meta": {
-				"protocolVersion": "2026-07-19",
+				"protocolVersion": %q,
 				"clientInfo": { "name": "cli", "version": "0.1.0" },
 				"clientCapabilities": {
 					"features": {},
@@ -24,7 +26,7 @@ func TestBindRequestMetaStripsMetaAndStoresContext(t *testing.T) {
 				}
 			},
 			"runId": "run_1"
-		}`),
+		}`, protocol.ProtocolVersion)),
 	}
 
 	ctx, rpcErr := bindRequestMeta(context.Background(), req)
@@ -36,7 +38,7 @@ func TestBindRequestMetaStripsMetaAndStoresContext(t *testing.T) {
 	if !ok {
 		t.Fatalf("request metadata missing from context")
 	}
-	if meta.ProtocolVersion != "2026-07-19" {
+	if meta.ProtocolVersion != protocol.ProtocolVersion {
 		t.Fatalf("protocolVersion = %q", meta.ProtocolVersion)
 	}
 	if meta.ClientInfo == nil || meta.ClientInfo.Name != "cli" {
@@ -82,19 +84,52 @@ func TestBindRequestMetaRejectsNullMeta(t *testing.T) {
 	}
 }
 
+// TestBindRequestMetaRejectsUnsupportedProtocolVersion pins the cutover's refusal
+// half: this build serves ONE version, and everything else is turned away with the
+// same typed answer rather than served a best effort.
+//
+// "2026-07-19" is the version this runtime served until the cutover, and it is the
+// case that matters — a client that still ships it must be told so, not quietly
+// handed vNext frames it will fold as if they were the old shape. A far-past date
+// alone would not prove that: a minSupported left behind would refuse 1900 and
+// accept the predecessor.
 func TestBindRequestMetaRejectsUnsupportedProtocolVersion(t *testing.T) {
-	req := &transport.Request{
-		ID:     transport.StringID("1"),
-		Method: "runs.cancel",
-		Params: json.RawMessage(`{"_meta":{"protocolVersion":"1900-01-01"},"runId":"run_1"}`),
-	}
+	for _, version := range []string{
+		"2026-07-19", // the version served before the vNext cutover
+		"2027-01-01", // a client newer than this build
+		"1900-01-01",
+		"vNext", // not a date at all
+	} {
+		t.Run(version, func(t *testing.T) {
+			req := &transport.Request{
+				ID:     transport.StringID("1"),
+				Method: "runs.cancel",
+				Params: json.RawMessage(fmt.Sprintf(`{"_meta":{"protocolVersion":%q},"runId":"run_1"}`, version)),
+			}
 
-	_, rpcErr := bindRequestMeta(context.Background(), req)
-	if rpcErr == nil {
-		t.Fatalf("expected invalid protocol version error")
-	}
-	if rpcErr.Code != protocol.CodeInvalidProtocolVersion {
-		t.Fatalf("code = %d, want %d", rpcErr.Code, protocol.CodeInvalidProtocolVersion)
+			_, rpcErr := bindRequestMeta(context.Background(), req)
+			if rpcErr == nil {
+				t.Fatalf("bindRequestMeta accepted protocolVersion %q", version)
+			}
+			if rpcErr.Code != protocol.CodeInvalidProtocolVersion {
+				t.Fatalf("code = %d, want %d", rpcErr.Code, protocol.CodeInvalidProtocolVersion)
+			}
+			// The refusal has to name the range: a client that only learns "no" cannot
+			// tell an unsupported version from a malformed request.
+			var problem struct {
+				Type   string `json:"type"`
+				Detail string `json:"detail"`
+			}
+			if err := json.Unmarshal(rpcErr.Data, &problem); err != nil {
+				t.Fatalf("decode problem data: %v", err)
+			}
+			if problem.Type != protocol.ErrInvalidProtocolVersion.Error() {
+				t.Errorf("problem type = %q, want %q", problem.Type, protocol.ErrInvalidProtocolVersion.Error())
+			}
+			if !strings.Contains(problem.Detail, protocol.ProtocolVersion) {
+				t.Errorf("detail %q does not say which version this build serves", problem.Detail)
+			}
+		})
 	}
 }
 
@@ -102,7 +137,7 @@ func TestHandleDoesNotMutateCallerRequestWhenStrippingMeta(t *testing.T) {
 	req := &transport.Request{
 		ID:     transport.StringID("1"),
 		Method: "unknown.method",
-		Params: json.RawMessage(`{"_meta":{"protocolVersion":"2026-07-19"},"value":1}`),
+		Params: json.RawMessage(fmt.Sprintf(`{"_meta":{"protocolVersion":%q},"value":1}`, protocol.ProtocolVersion)),
 	}
 	original := string(req.Params)
 	New(nil).Handle(context.Background(), req)

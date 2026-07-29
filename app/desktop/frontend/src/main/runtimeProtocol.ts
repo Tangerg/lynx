@@ -1,4 +1,5 @@
-import { CLIENT_INFO, PROTOCOL_VERSION } from "@/main/config";
+import { CLIENT_INFO } from "@/main/config";
+import { PROTOCOL_VERSION } from "@/rpc";
 import type { ClientCapabilities, RequestMeta } from "@/rpc";
 
 // There is no list of renderable events: the runtime publishes every

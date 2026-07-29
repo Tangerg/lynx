@@ -52,9 +52,14 @@ type Runtime interface {
 
 // ProtocolVersion is the wire version this build implements (API.md
 // §12: date string).
+//
+// Current and minimum supported are deliberately the same date: this build
+// serves vNext and nothing else. A development runtime has no compatibility
+// obligation, and a range wider than one version would advertise a negotiation
+// the code does not perform.
 const (
-	ProtocolVersion    = "2026-07-19"
-	MinProtocolVersion = "2026-07-19"
+	ProtocolVersion    = "2026-07-27"
+	MinProtocolVersion = "2026-07-27"
 )
 
 type ProtocolRange struct {
