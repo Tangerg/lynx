@@ -88,23 +88,27 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 const interruptColumns = `root_run_id, session_id, turn_id, process_id, provider, model, payload, drained_tools, accounting, protocol_profile, run_created_at, created_at`
 
 func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
-	return s.list(ctx, sessionID, 0, "", 0)
+	return s.list(ctx, sessionID, "", 0, "", 0)
 }
 
 // ListPage returns open interrupts oldest first, bounded by the query. after is
 // the (open time, run id) position a previous page ended at; the pair is what
 // makes the order total, since two runs can park in the same nanosecond.
-func (s *InterruptStore) ListPage(ctx context.Context, sessionID string, afterCreatedAt int64, afterRunID string, limit int) ([]interrupts.Pending, error) {
-	return s.list(ctx, sessionID, afterCreatedAt, afterRunID, limit)
+func (s *InterruptStore) ListPage(ctx context.Context, sessionID, rootRunID string, afterCreatedAt int64, afterRootRunID string, limit int) ([]interrupts.Pending, error) {
+	return s.list(ctx, sessionID, rootRunID, afterCreatedAt, afterRootRunID, limit)
 }
 
-func (s *InterruptStore) list(ctx context.Context, sessionID string, afterCreatedAt int64, afterRunID string, limit int) ([]interrupts.Pending, error) {
+func (s *InterruptStore) list(ctx context.Context, sessionID, rootRunID string, afterCreatedAt int64, afterRunID string, limit int) ([]interrupts.Pending, error) {
 	query := `SELECT ` + interruptColumns + ` FROM interrupts`
 	args := []any{}
 	var conditions []string
 	if sessionID != "" {
 		conditions = append(conditions, `session_id = ?`)
 		args = append(args, sessionID)
+	}
+	if rootRunID != "" {
+		conditions = append(conditions, `root_run_id = ?`)
+		args = append(args, rootRunID)
 	}
 	if afterCreatedAt > 0 || afterRunID != "" {
 		conditions = append(conditions, `(created_at > ? OR (created_at = ? AND root_run_id > ?))`)

@@ -179,6 +179,7 @@ func errors() errorRegistry {
 			protocol.ErrUnsupportedMime.Error():        protocol.CodeUnsupportedMime,
 			protocol.ErrPathOutsideRoot.Error():        protocol.CodePathOutsideRoot,
 			protocol.ErrInterruptNotOpen.Error():       protocol.CodeInterruptNotOpen,
+			protocol.ErrRunNotRoot.Error():             protocol.CodeRunNotRoot,
 			protocol.ErrInvalidProtocolVersion.Error(): protocol.CodeInvalidProtocolVersion,
 			protocol.ErrVcsUnavailable.Error():         protocol.CodeVcsUnavailable,
 			protocol.ErrSessionBusy.Error():            protocol.CodeSessionBusy,

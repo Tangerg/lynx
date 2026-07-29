@@ -41,9 +41,10 @@ type Runs interface {
 	// position, newest first.
 	ListRuns(ctx context.Context, in ListRunsRequest) (*Page[RunRef], error)
 
-	// ListOpenInterrupts returns durable resumable interrupts (API.md §6.2),
-	// as a Page.
-	ListOpenInterrupts(ctx context.Context, in ListOpenInterruptsRequest) (*Page[OpenInterrupt], error)
+	// ListInterrupts pages the durable waiting sets, oldest wait first — the read a
+	// client uses to find what a person still has to answer. One page never splits a
+	// set, because a set is what resume works in.
+	ListInterrupts(ctx context.Context, in ListInterruptsRequest) (*Page[PendingInterruptSet], error)
 }
 
 // RunStatus is the lifecycle position of a run (§4.1). The three values answer
@@ -329,9 +330,15 @@ type GetRunRequest struct {
 	RunID string `json:"runId"`
 }
 
-// ListOpenInterruptsRequest is the runs.listOpenInterrupts body.
-type ListOpenInterruptsRequest struct {
+// ListInterruptsRequest is the interrupts.list body. Both filters are optional and
+// independent: given together they must both match, and given neither the read
+// pages every waiting run tree the runtime holds.
+type ListInterruptsRequest struct {
 	SessionID string `json:"sessionId,omitempty"`
+	// RootRunID narrows to one waiting tree. It must name a root — a child id is
+	// refused with run_not_root rather than answered with an empty page, because the
+	// set the caller is looking for exists, under its root.
+	RootRunID string `json:"rootRunId,omitempty"`
 	PageQuery
 }
 
@@ -452,18 +459,30 @@ type InterruptPayload struct {
 	Question     *Question       `json:"question,omitempty"`
 }
 
-// Interrupt is one pending HITL item (API.md §4.8). ItemID is the correlation
-// key (the toolCall/question item awaiting resolution).
+// Interrupt is one pending HITL item (§4.8). ItemID is the correlation key — the
+// toolCall or question item awaiting resolution — and RunID is the run that raised
+// it, which is not necessarily the run that owns the set: one set can hold
+// interrupts raised anywhere in a run tree, and each is answered in the context of
+// the run that asked.
 type Interrupt struct {
 	ItemID  string            `json:"itemId"`
+	RunID   string            `json:"runId"`
 	Type    InterruptType     `json:"type"` // see InterruptType
 	Payload *InterruptPayload `json:"payload,omitempty"`
 }
 
-// OpenInterrupt is a durable, resumable interrupt (API.md §4.8 / §6.2). RunID is
-// the stable run to resume — its current segment parked with outcome:interrupt.
-type OpenInterrupt struct {
-	RunID      string      `json:"runId"`
+// PendingInterruptSet is everything one waiting run tree needs answered, and the
+// unit both the read and the resume work in (§4.8 / §6.2).
+//
+// It is a SET, not a list of independent items: runs.resume validates and consumes
+// all of it in one transaction, so a page never splits one — half a set is a resume
+// that cannot be attempted.
+//
+// RootRunID is the run to resume: the root that owns the tree. It is deliberately
+// not called runId, because each Interrupt carries the run that RAISED it and the
+// two answer different questions.
+type PendingInterruptSet struct {
+	RootRunID  string      `json:"rootRunId"`
 	SessionID  string      `json:"sessionId"`
 	Interrupts []Interrupt `json:"interrupts"`
 	CreatedAt  time.Time   `json:"createdAt"`

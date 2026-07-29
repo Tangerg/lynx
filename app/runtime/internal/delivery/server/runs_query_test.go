@@ -29,7 +29,7 @@ func (r *fakeInterruptReader) List(_ context.Context, sessionID string) ([]inter
 	return r.pending, r.err
 }
 
-func (r *fakeInterruptReader) ListPage(ctx context.Context, sessionID string, _ int64, _ string, _ int) ([]interrupts.Pending, error) {
+func (r *fakeInterruptReader) ListPage(ctx context.Context, sessionID, _ string, _ int64, _ string, _ int) ([]interrupts.Pending, error) {
 	return r.List(ctx, sessionID)
 }
 
@@ -266,7 +266,7 @@ func TestSessionStatesDoNotQueryInterruptsForActiveRun(t *testing.T) {
 	}
 }
 
-func TestListOpenInterruptsProjectsToWire(t *testing.T) {
+func TestListInterruptsProjectsToWire(t *testing.T) {
 	created := time.Date(2026, 7, 5, 11, 0, 0, 0, time.UTC)
 	arguments, err := tool.ArgumentsFromMap(map[string]any{"command": "go test ./..."})
 	if err != nil {
@@ -288,7 +288,7 @@ func TestListOpenInterruptsProjectsToWire(t *testing.T) {
 	}}
 	s := &Server{queries: queries.New(queries.Dependencies{Interrupts: reader})}
 
-	got, err := s.ListOpenInterrupts(context.Background(), protocol.ListOpenInterruptsRequest{SessionID: "ses_1"})
+	got, err := s.ListInterrupts(context.Background(), protocol.ListInterruptsRequest{SessionID: "ses_1"})
 	if err != nil {
 		t.Fatalf("list open interrupts: %v", err)
 	}
@@ -299,7 +299,7 @@ func TestListOpenInterruptsProjectsToWire(t *testing.T) {
 		t.Fatalf("open interrupts = %+v, want one typed record", got.Data)
 	}
 	open := got.Data[0]
-	if open.RunID != "run_waiting" || open.SessionID != "ses_1" || !open.CreatedAt.Equal(created) || len(open.Interrupts) != 1 {
+	if open.RootRunID != "run_waiting" || open.SessionID != "ses_1" || !open.CreatedAt.Equal(created) || len(open.Interrupts) != 1 {
 		t.Fatalf("wire open interrupt = %+v", open)
 	}
 	interrupt := open.Interrupts[0]

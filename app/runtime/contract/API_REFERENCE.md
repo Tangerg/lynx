@@ -28,7 +28,7 @@ Protocol `2026-07-19` (minimum supported `2026-07-19`) · 84 methods
 | `runs.steer` | unary | replayResponse | — | `run_not_found` |
 | `runs.get` | unary | none | — | `run_not_found` |
 | `runs.list` | unary | none | `subagents` | — |
-| `runs.listOpenInterrupts` | unary | none | — | — |
+| `interrupts.list` | unary | none | — | `run_not_root` |
 | `items.list` | unary | none | `subagents` | `session_not_found`, `run_not_found` |
 | `workspace.listFileChanges` | unary | none | — | `cwd_unavailable`, `vcs_unavailable` |
 | `workspace.getDiff` | unary | none | — | `cwd_unavailable`, `vcs_unavailable`, `path_outside_root` |
@@ -196,9 +196,9 @@ least one variant; the registry refuses a union where one does not.
 
 | tag | required | optional |
 | --- | --- | --- |
-| `approval` | `itemId`, `payload.tool` | `payload.risk`, `payload.reason`, `payload.rememberable` |
-| `question` | `itemId`, `payload.question` | — |
-| `toolResult` | `itemId`, `payload.tool` | — |
+| `approval` | `itemId`, `runId`, `payload.tool` | `payload.risk`, `payload.reason`, `payload.rememberable` |
+| `question` | `itemId`, `runId`, `payload.question` | — |
+| `toolResult` | `itemId`, `runId`, `payload.tool` | — |
 
 ### `InterruptResponseValue`
 

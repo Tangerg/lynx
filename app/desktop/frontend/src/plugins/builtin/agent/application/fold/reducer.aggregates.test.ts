@@ -86,6 +86,7 @@ describe("reducer — timeline accumulator", () => {
         interrupts: [
           {
             itemId: "tc1" as never,
+            runId: "run_1" as never,
             type: "approval",
             payload: {
               tool: { name: "shell", arguments: { command: "psql" } },

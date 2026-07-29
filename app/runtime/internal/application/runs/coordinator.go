@@ -250,7 +250,7 @@ func (c *Coordinator) rejectUnadmittedTurn(ctx context.Context, ref execution.Tu
 // The subscription is dropped when ctx ends or the consumer stops ranging.
 //
 // It reports [ErrRunNotFound] when the run is not actively streaming, and
-// [ErrProfileNotCovered] when caller could not follow what this run publishes —
+// [execution.ErrProfileNotCovered] when caller could not follow what this run publishes —
 // the same rule a resume applies, kept here rather than at each caller so the two
 // entry points into an existing Run cannot disagree about it.
 func (c *Coordinator) SubscribeLive(ctx context.Context, runID, fromCursor string, caller execution.RunProtocolProfile) (Record, iter.Seq[Event], error) {
@@ -259,7 +259,7 @@ func (c *Coordinator) SubscribeLive(ctx context.Context, runID, fromCursor strin
 		return Record{}, nil, ErrRunNotFound
 	}
 	if gap := e.record.ProtocolProfile.Uncovered(caller); !gap.IsEmpty() {
-		return Record{}, nil, fmt.Errorf("%w: run %q was created with %s", ErrProfileNotCovered, runID, gap)
+		return Record{}, nil, fmt.Errorf("%w: run %q was created with %s", execution.ErrProfileNotCovered, runID, gap)
 	}
 	subscription, unsubscribe := e.handle.hub.Subscribe(fromCursor)
 	stopUnsubscribe := context.AfterFunc(ctx, unsubscribe)

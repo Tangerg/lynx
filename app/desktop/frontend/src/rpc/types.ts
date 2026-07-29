@@ -93,7 +93,7 @@ export const RPC_UNSUPPORTED_MIME = -32011; // image block mime: not an image ty
 // as a hole, never reused.
 export const RPC_PATH_OUTSIDE_ROOT = -32013;
 export const RPC_INTERRUPT_NOT_OPEN = -32014;
-export const RPC_IDEMPOTENCY_CONFLICT = -32015;
+export const RPC_IDEMPOTENCY_CONFLICT = -32020;
 export const RPC_INVALID_PROTOCOL_VERSION = -32016;
 
 // Read the stable symbolic error name from an RPCError.data.type (§8.2).

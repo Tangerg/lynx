@@ -192,9 +192,12 @@
       "stability": "stable"
     },
     {
-      "name": "runs.listOpenInterrupts",
+      "name": "interrupts.list",
       "kind": "unary",
       "idempotency": "none",
+      "errors": [
+        "run_not_root"
+      ],
       "stability": "stable"
     },
     {
@@ -816,6 +819,7 @@
       "revision_conflict": -32019,
       "run_already_finished": -32008,
       "run_not_found": -32003,
+      "run_not_root": -32022,
       "session_busy": -32018,
       "session_not_found": -32002,
       "unsupported_mime": -32011,
@@ -1704,6 +1708,7 @@
           "tag": "approval",
           "required": [
             "itemId",
+            "runId",
             "payload.tool"
           ],
           "optional": [
@@ -1716,6 +1721,7 @@
           "tag": "question",
           "required": [
             "itemId",
+            "runId",
             "payload.question"
           ]
         },
@@ -1723,6 +1729,7 @@
           "tag": "toolResult",
           "required": [
             "itemId",
+            "runId",
             "payload.tool"
           ]
         }
@@ -2315,11 +2322,11 @@
       ]
     },
     {
-      "type": "OpenInterrupt",
+      "type": "PendingInterruptSet",
       "rules": [
         {
           "required": [
-            "runId",
+            "rootRunId",
             "sessionId",
             "interrupts",
             "createdAt"

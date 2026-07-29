@@ -162,7 +162,7 @@ var pageFixtures = map[string]map[queryProperty]fixtureRef{
 		pageDirection: {"internal/application/queries", "TestListRunPageWalksBackwardThroughHistory"},
 		cursorBinding: {"internal/application/queries", "TestListRunPageRefusesACursorFromAnotherQuery"},
 	},
-	"runs.listOpenInterrupts": {
+	"interrupts.list": {
 		fixedOrder:    {"internal/application/queries", "TestListPendingInterruptPagePagesOldestFirst"},
 		pageDirection: {"internal/application/queries", "TestListPendingInterruptPagePagesOldestFirst"},
 		cursorBinding: {"internal/application/queries", "TestListPendingInterruptPagePagesOldestFirst"},

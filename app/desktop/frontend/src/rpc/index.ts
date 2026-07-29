@@ -78,7 +78,7 @@ export type {
   ItemDelta,
   // HITL
   Interrupt,
-  OpenInterrupt,
+  PendingInterruptSet,
   InterruptResponse,
   // Diff / search / files
   DiffRow,

@@ -4,7 +4,7 @@ import type { Page } from "./wire.generated";
  * Read a paged method to the end.
  *
  * `Page.data` is ONE page. The runtime clamps `sessions.list` to 100, `items.list`
- * to 200 and `runs.list` / `runs.listOpenInterrupts` / `schedules.list` to 100 —
+ * to 200 and `runs.list` / `interrupts.list` / `schedules.list` to 100 —
  * and a client cannot opt out, because a `limit` above the cap is clamped back
  * down. A non-empty `nextCursor` is the protocol's "there is more" signal (§4.11);
  * the server documents that it never truncates silently, which puts the whole

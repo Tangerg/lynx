@@ -163,6 +163,7 @@ var knownProblemTypes = []string{
 	protocol.ErrItemNotFound.Error(),
 	protocol.ErrRunAlreadyDone.Error(),
 	protocol.ErrInterruptNotOpen.Error(),
+	protocol.ErrRunNotRoot.Error(),
 	protocol.ErrSessionBusy.Error(),
 	protocol.ErrRevisionConflict.Error(),
 	protocol.ErrCwdUnavailable.Error(),

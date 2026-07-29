@@ -100,11 +100,22 @@ func registerRuns(r *Registry) {
 	}, func(d *Dispatcher, ctx context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
 		return d.api.ListRuns(ctx, in)
 	})
+}
 
-	Unary(r, MethodMeta{Name: "runs.listOpenInterrupts", Stability: stable},
-		func(d *Dispatcher, ctx context.Context, in protocol.ListOpenInterruptsRequest) (*protocol.Page[protocol.OpenInterrupt], error) {
-			return d.api.ListOpenInterrupts(ctx, in)
-		})
+func registerInterrupts(r *Registry) {
+	// interrupts.list is its own root because a waiting set belongs to a run TREE,
+	// not to one run: it was runs.listOpenInterrupts, which read as "one run's
+	// interrupts" and made the aggregate look like a per-run detail.
+	//
+	// run_not_root is declared because the filter can name a child, and that is a
+	// different answer from "nothing is waiting".
+	Unary(r, MethodMeta{
+		Name:      "interrupts.list",
+		Errors:    []string{protocol.ErrRunNotRoot.Error()},
+		Stability: stable,
+	}, func(d *Dispatcher, ctx context.Context, in protocol.ListInterruptsRequest) (*protocol.Page[protocol.PendingInterruptSet], error) {
+		return d.api.ListInterrupts(ctx, in)
+	})
 }
 
 func registerItems(r *Registry) {

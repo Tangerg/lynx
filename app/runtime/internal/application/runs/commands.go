@@ -29,11 +29,6 @@ var (
 	ErrRunNotFound = errors.New("runs: run not found")
 	// ErrInterruptNotOpen reports that a resume target has no open interrupt.
 	ErrInterruptNotOpen = errors.New("runs: interrupt not open")
-	// ErrProfileNotCovered reports that a caller cannot follow the Run it asked to
-	// continue or observe: the Run's frozen protocol profile names capabilities this
-	// request did not declare. Delivery reports it as capability_not_negotiated —
-	// the run keeps its contract, and the caller is told what it would need.
-	ErrProfileNotCovered = errors.New("runs: caller does not cover the run's protocol profile")
 	// ErrInvalidInterruptResponse reports a response set that does not exactly
 	// cover the open interrupt schema.
 	ErrInvalidInterruptResponse = errors.New("runs: invalid interrupt response")

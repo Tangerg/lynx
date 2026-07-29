@@ -327,8 +327,17 @@ type Problem struct {
 	RetryAfterSeconds int
 }
 
+// Interrupt is one thing a person has to answer before execution continues.
 type Interrupt struct {
-	ItemID   string
+	ItemID string
+	// RunID is the Run that RAISED this interrupt — not the Run that owns the set
+	// it belongs to. The two are the same only while a tree is a single Run: a set
+	// is owned by the root and consumed as a whole, while each interrupt was raised
+	// somewhere in that tree and is answered in the context of the Run that asked.
+	//
+	// It is recorded rather than derived, because the derivation stops working
+	// exactly when it starts to matter.
+	RunID    string
 	Kind     execution.InterruptKind
 	Approval *Approval
 	Question *Question

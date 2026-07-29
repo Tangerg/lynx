@@ -135,10 +135,10 @@ export type WireTypeName =
   | "ListApprovalRulesResult"
   | "ListFilesRequest"
   | "ListHooksRequest"
+  | "ListInterruptsRequest"
   | "ListItemsRequest"
   | "ListItemsResponse"
   | "ListModelsRequest"
-  | "ListOpenInterruptsRequest"
   | "ListRunsRequest"
   | "MCPListToolsRequest"
   | "MCPServerRequest"
@@ -157,7 +157,6 @@ export type WireTypeName =
   | "ModelCapabilities"
   | "ModelPricing"
   | "ModelUsage"
-  | "OpenInterrupt"
   | "PageOfAgentDoc"
   | "PageOfFileEntry"
   | "PageOfManagedSkill"
@@ -166,7 +165,7 @@ export type WireTypeName =
   | "PageOfMcpTool"
   | "PageOfMemoryEntry"
   | "PageOfModel"
-  | "PageOfOpenInterrupt"
+  | "PageOfPendingInterruptSet"
   | "PageOfProject"
   | "PageOfProvider"
   | "PageOfRecipe"
@@ -178,6 +177,7 @@ export type WireTypeName =
   | "PageOfToolSpec"
   | "PageOfWorkspaceFileChange"
   | "PageQuery"
+  | "PendingInterruptSet"
   | "PlanStep"
   | "PlanStepStatus"
   | "ProblemData"
@@ -924,6 +924,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     object({
       itemId: text(),
       payload: ref(() => CHECKS.InterruptPayload),
+      runId: text(),
       type: ref(() => CHECKS.InterruptType),
     }, []),
     oneOf([
@@ -932,7 +933,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
           question: absent(),
         }, ["tool"]),
         type: literal("approval"),
-      }, ["itemId", "payload", "type"]),
+      }, ["itemId", "payload", "runId", "type"]),
       fields({
         payload: fields({
           reason: absent(),
@@ -941,7 +942,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
           tool: absent(),
         }, ["question"]),
         type: literal("question"),
-      }, ["itemId", "payload", "type"]),
+      }, ["itemId", "payload", "runId", "type"]),
       fields({
         payload: fields({
           question: absent(),
@@ -950,7 +951,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
           risk: absent(),
         }, ["tool"]),
         type: literal("toolResult"),
-      }, ["itemId", "payload", "type"]),
+      }, ["itemId", "payload", "runId", "type"]),
     ]),
   ]),
   InterruptPayload: object({
@@ -1191,6 +1192,12 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   ListHooksRequest: object({
     cwd: text(),
   }, []),
+  ListInterruptsRequest: object({
+    cursor: text(),
+    limit: integer(),
+    rootRunId: text(),
+    sessionId: text(),
+  }, []),
   ListItemsRequest: allOf([
     object({
       cursor: text(),
@@ -1213,11 +1220,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     cursor: text(),
     limit: integer(),
     provider: text(),
-  }, []),
-  ListOpenInterruptsRequest: object({
-    cursor: text(),
-    limit: integer(),
-    sessionId: text(),
   }, []),
   ListRunsRequest: object({
     cursor: text(),
@@ -1320,15 +1322,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     outputTokens: integer(),
     reasoningTokens: integer(),
   }, []),
-  OpenInterrupt: allOf([
-    object({
-      createdAt: text(),
-      interrupts: array(ref(() => CHECKS.Interrupt)),
-      runId: text(),
-      sessionId: text(),
-    }, ["createdAt", "interrupts", "runId", "sessionId"]),
-    fields({}, ["createdAt", "interrupts", "runId", "sessionId"]),
-  ]),
   PageOfAgentDoc: object({
     data: array(ref(() => CHECKS.AgentDoc)),
     nextCursor: text(),
@@ -1361,8 +1354,8 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     data: array(ref(() => CHECKS.Model)),
     nextCursor: text(),
   }, ["data"]),
-  PageOfOpenInterrupt: object({
-    data: array(ref(() => CHECKS.OpenInterrupt)),
+  PageOfPendingInterruptSet: object({
+    data: array(ref(() => CHECKS.PendingInterruptSet)),
     nextCursor: text(),
   }, ["data"]),
   PageOfProject: object({
@@ -1409,6 +1402,15 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     cursor: text(),
     limit: integer(),
   }, []),
+  PendingInterruptSet: allOf([
+    object({
+      createdAt: text(),
+      interrupts: array(ref(() => CHECKS.Interrupt)),
+      rootRunId: text(),
+      sessionId: text(),
+    }, ["createdAt", "interrupts", "rootRunId", "sessionId"]),
+    fields({}, ["createdAt", "interrupts", "rootRunId", "sessionId"]),
+  ]),
   PlanStep: object({
     id: text(),
     status: ref(() => CHECKS.PlanStepStatus),

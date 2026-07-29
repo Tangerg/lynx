@@ -389,6 +389,7 @@ describe("reducer — HITL interrupt", () => {
         interrupts: [
           {
             itemId: "tool_1" as never,
+            runId: "run_1" as never,
             type: "approval",
             payload: {
               tool: { name: "shell", arguments: { command: "rm -rf x" } },
@@ -431,6 +432,7 @@ describe("reducer — HITL interrupt", () => {
         interrupts: [
           {
             itemId: "t1" as never,
+            runId: "run_1" as never,
             type: "approval",
             payload: {
               tool: { name: "fs.write", arguments: { path: "/etc/hosts" } },
@@ -464,6 +466,7 @@ describe("reducer — HITL interrupt", () => {
         interrupts: [
           {
             itemId: "q1" as never,
+            runId: "run_1" as never,
             type: "question",
             payload: {
               question: {
@@ -515,6 +518,7 @@ describe("reducer — HITL interrupt", () => {
         interrupts: [
           {
             itemId: "tool_1" as never,
+            runId: "run_1" as never,
             type: "approval",
             payload: {
               tool: { name: "shell", arguments: { command: "rm x" } },
@@ -548,6 +552,7 @@ describe("reducer — interrupt idempotency + terminal cleanup", () => {
       interrupts: [
         {
           itemId: itemId as never,
+          runId: "run_1" as never,
           type: "approval",
           payload: { tool: { name: "shell", arguments: { command } }, rememberable: true },
         },

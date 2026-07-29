@@ -109,25 +109,32 @@ const (
 	CodeRevisionConflict       = -32019
 	CodeIdempotencyConflict    = -32020
 	CodeIdempotencyInProgress  = -32021
+	// -32007 / -32010 / -32012 / -32015 are retired holes, never reused, so a new
+	// code continues the sequence rather than filling one in.
+	CodeRunNotRoot = -32022
 )
 
 // Sentinel errors returned by Runtime implementations. The dispatch
 // maps each onto its {code, data.type} pair (API.md §8.2). Unrecognized
 // errors map to internal_error.
 var (
-	ErrMethodNotFound         = errors.New("method_not_found")
-	ErrInvalidParams          = errors.New("invalid_params")
-	ErrProviderError          = errors.New("provider_error")
-	ErrSessionNotFound        = errors.New("session_not_found")
-	ErrRunNotFound            = errors.New("run_not_found")
-	ErrItemNotFound           = errors.New("item_not_found")
-	ErrCwdUnavailable         = errors.New("cwd_unavailable")
-	ErrCapabilityNotNeg       = errors.New("capability_not_negotiated")
-	ErrRunAlreadyDone         = errors.New("run_already_finished")
-	ErrCheckpointUnavailable  = errors.New("checkpoint_unavailable")
-	ErrUnsupportedMime        = errors.New("unsupported_mime")
-	ErrPathOutsideRoot        = errors.New("path_outside_root")
-	ErrInterruptNotOpen       = errors.New("interrupt_not_open")
+	ErrMethodNotFound        = errors.New("method_not_found")
+	ErrInvalidParams         = errors.New("invalid_params")
+	ErrProviderError         = errors.New("provider_error")
+	ErrSessionNotFound       = errors.New("session_not_found")
+	ErrRunNotFound           = errors.New("run_not_found")
+	ErrItemNotFound          = errors.New("item_not_found")
+	ErrCwdUnavailable        = errors.New("cwd_unavailable")
+	ErrCapabilityNotNeg      = errors.New("capability_not_negotiated")
+	ErrRunAlreadyDone        = errors.New("run_already_finished")
+	ErrCheckpointUnavailable = errors.New("checkpoint_unavailable")
+	ErrUnsupportedMime       = errors.New("unsupported_mime")
+	ErrPathOutsideRoot       = errors.New("path_outside_root")
+	ErrInterruptNotOpen      = errors.New("interrupt_not_open")
+	// ErrRunNotRoot: a root-only operation named a child run. It is not
+	// run_not_found — the run exists, and the thing the caller wants exists under its
+	// root — so the remedy is to follow rootRunId, not to look for a different id.
+	ErrRunNotRoot             = errors.New("run_not_root")
 	ErrInvalidProtocolVersion = errors.New("invalid_protocol_version")
 	// ErrVcsUnavailable: git is available but the cwd isn't a repo (AUX_API
 	// §2.3) — distinct from "clean repo" (empty result). NOT for missing git

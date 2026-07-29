@@ -158,10 +158,9 @@ describe("useAgentSession run timing guards", () => {
   });
 });
 
-// Durable recovery (API.md §10.2): opening a NON-draft session must rebuild
-// unresolved HITL cards from runs.listOpenInterrupts and reattach to a
-// still-running run via runs.subscribe — the two paths that make a reload
-// survivable.
+// Durable recovery (§10.2): opening a NON-draft session must rebuild unresolved
+// HITL cards from interrupts.list and reattach to a still-running run via
+// runs.subscribe — the two paths that make a reload survivable.
 describe("useAgentSession durable recovery", () => {
   const RID = "ses_recover";
 
@@ -169,10 +168,14 @@ describe("useAgentSession durable recovery", () => {
   const approvalInterrupt = {
     type: "approval" as const,
     itemId: "item_appr",
+    runId: "run_int",
     payload: { tool: { name: "shell", arguments: { command: "rm -rf build" } } },
   };
 
-  function stubClient(overrides: Record<string, unknown> = {}) {
+  function stubClient(
+    overrides: Record<string, unknown> = {},
+    interruptOverrides: Record<string, unknown> = {},
+  ) {
     const subscribe = vi.fn(() =>
       Promise.resolve({
         result: { runId: "run_live", segmentId: "seg_live" },
@@ -187,8 +190,11 @@ describe("useAgentSession durable recovery", () => {
       client: () =>
         ({
           items: { list: vi.fn().mockResolvedValue(page([])) },
+          interrupts: {
+            list: vi.fn().mockResolvedValue(page([])),
+            ...(interruptOverrides as object),
+          },
           runs: {
-            listOpenInterrupts: vi.fn().mockResolvedValue(page([])),
             list: vi.fn().mockResolvedValue(page([])),
             subscribe,
             ...(overrides as object),
@@ -207,19 +213,22 @@ describe("useAgentSession durable recovery", () => {
     resetContainer();
   });
 
-  it("rebuilds pending approval cards from runs.listOpenInterrupts", async () => {
-    stubClient({
-      listOpenInterrupts: vi.fn().mockResolvedValue(
-        page([
-          {
-            runId: "run_int",
-            sessionId: RID,
-            interrupts: [approvalInterrupt],
-            createdAt: "2026-06-11T00:00:00Z",
-          },
-        ]),
-      ),
-    });
+  it("rebuilds pending approval cards from interrupts.list", async () => {
+    stubClient(
+      {},
+      {
+        list: vi.fn().mockResolvedValue(
+          page([
+            {
+              rootRunId: "run_int",
+              sessionId: RID,
+              interrupts: [approvalInterrupt],
+              createdAt: "2026-06-11T00:00:00Z",
+            },
+          ]),
+        ),
+      },
+    );
     const { driver } = parkedDriver();
     renderHook(() => useAgentSession(() => driver, RID));
 

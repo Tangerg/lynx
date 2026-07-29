@@ -45,7 +45,7 @@ import type {
   MemoryEntry,
   MemoryScope,
   Model,
-  OpenInterrupt,
+  PendingInterruptSet,
   Page,
   PageQuery,
   Project,
@@ -238,10 +238,13 @@ export interface Methods {
         includeDescendants?: boolean;
       },
     ) => Promise<Page<RunRef>>;
-    // Durable HITL discovery — resumable interrupted runs (§7.3 / §10.2).
-    listOpenInterrupts: (
-      query?: PageQuery & { sessionId?: SessionId },
-    ) => Promise<Page<OpenInterrupt>>;
+  };
+  interrupts: {
+    // Durable HITL discovery — the waiting sets, longest wait first (§7.3 / §10.2).
+    // A page never splits a set: a set is what runs.resume answers in one call.
+    list: (
+      query?: PageQuery & { sessionId?: SessionId; rootRunId?: RunId },
+    ) => Promise<Page<PendingInterruptSet>>;
   };
   items: {
     // The scope is required and closed (§7.4): a whole session timeline, or one
@@ -553,7 +556,9 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       steer: (runId, message) => mutate("runs.steer", { runId, message }),
       get: (runId) => call("runs.get", { runId }),
       list: (query) => call("runs.list", query ?? {}),
-      listOpenInterrupts: (query) => call("runs.listOpenInterrupts", query ?? {}),
+    },
+    interrupts: {
+      list: (query) => call("interrupts.list", query ?? {}),
     },
     items: {
       list: (params) => call("items.list", params),

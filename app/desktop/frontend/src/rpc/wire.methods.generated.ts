@@ -55,10 +55,10 @@ import type {
   ListApprovalRulesResult,
   ListFilesRequest,
   ListHooksRequest,
+  ListInterruptsRequest,
   ListItemsRequest,
   ListItemsResponse,
   ListModelsRequest,
-  ListOpenInterruptsRequest,
   ListRunsRequest,
   MCPListToolsRequest,
   MCPServerRequest,
@@ -73,7 +73,7 @@ import type {
   PageOfMcpTool,
   PageOfMemoryEntry,
   PageOfModel,
-  PageOfOpenInterrupt,
+  PageOfPendingInterruptSet,
   PageOfProject,
   PageOfProvider,
   PageOfRecipe,
@@ -167,7 +167,7 @@ const METHOD_NAMES = [
   "runs.steer",
   "runs.get",
   "runs.list",
-  "runs.listOpenInterrupts",
+  "interrupts.list",
   "items.list",
   "workspace.listFileChanges",
   "workspace.getDiff",
@@ -409,7 +409,7 @@ export interface WireShapes {
   "runs.steer": { params: SteerRunRequest };
   "runs.get": { params: GetRunRequest; result: RunRef };
   "runs.list": { params: ListRunsRequest; result: PageOfRunRef };
-  "runs.listOpenInterrupts": { params: ListOpenInterruptsRequest; result: PageOfOpenInterrupt };
+  "interrupts.list": { params: ListInterruptsRequest; result: PageOfPendingInterruptSet };
   "items.list": { params: ListItemsRequest; result: ListItemsResponse };
   "workspace.listFileChanges": { params: WorkspaceListQuery; result: PageOfWorkspaceFileChange };
   "workspace.getDiff": { params: GetDiffRequest; result: Diff };

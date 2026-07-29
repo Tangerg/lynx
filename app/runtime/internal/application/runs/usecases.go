@@ -126,7 +126,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		return StartResult{}, ErrInterruptNotOpen
 	}
 	if gap := pending.ProtocolProfile.Uncovered(cmd.CallerCapabilities); !gap.IsEmpty() {
-		return StartResult{}, fmt.Errorf("%w: run %q was created with %s", ErrProfileNotCovered, cmd.RunID, gap)
+		return StartResult{}, fmt.Errorf("%w: run %q was created with %s", execution.ErrProfileNotCovered, cmd.RunID, gap)
 	}
 	resolution, err := resolveResumeResponses(pending, cmd.Responses)
 	if err != nil {

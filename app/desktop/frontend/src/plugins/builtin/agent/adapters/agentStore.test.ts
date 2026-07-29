@@ -58,6 +58,7 @@ function seedInterrupt(kind: "approval" | "question", itemId: string): void {
           kind === "approval"
             ? {
                 itemId: itemId as never,
+                runId: "run_1" as never,
                 type: "approval",
                 payload: {
                   tool: { name: "shell", arguments: { command: "rm x" } },
@@ -66,6 +67,7 @@ function seedInterrupt(kind: "approval" | "question", itemId: string): void {
               }
             : {
                 itemId: itemId as never,
+                runId: "run_1" as never,
                 type: "question",
                 payload: {
                   question: {
@@ -175,6 +177,7 @@ describe("agentStore.resolveInterrupt", () => {
           interrupts: [
             {
               itemId: "t1" as never,
+              runId: "run_1" as never,
               type: "approval",
               payload: {
                 tool: { name: "shell", arguments: { command: "rm a" } },
@@ -183,6 +186,7 @@ describe("agentStore.resolveInterrupt", () => {
             },
             {
               itemId: "t2" as never,
+              runId: "run_1" as never,
               type: "approval",
               payload: {
                 tool: { name: "shell", arguments: { command: "rm b" } },

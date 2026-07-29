@@ -8,6 +8,7 @@ package queries
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -29,7 +30,7 @@ import (
 const (
 	itemPageMethod      = "items.list"
 	runPageMethod       = "runs.list"
-	interruptPageMethod = "runs.listOpenInterrupts"
+	interruptPageMethod = "interrupts.list"
 )
 
 // Page ceilings, per read. A client asking for more gets this many and a cursor.
@@ -58,10 +59,11 @@ type SessionReader interface {
 	Exists(ctx context.Context, sessionID string) (bool, error)
 }
 
-// InterruptReader is the coordinator's view of the open-interrupt registry: a
-// session's open interrupts, or every pending interrupt when sessionID is empty.
+// InterruptReader is the coordinator's view of the open-interrupt registry. Both
+// filters are optional and independent: empty means "every", and given together they
+// both apply.
 type InterruptReader interface {
-	ListPage(ctx context.Context, sessionID string, afterCreatedAt int64, afterRunID string, limit int) ([]interrupts.Pending, error)
+	ListPage(ctx context.Context, sessionID, rootRunID string, afterCreatedAt int64, afterRootRunID string, limit int) ([]interrupts.Pending, error)
 }
 
 // RunReader is the coordinator's view of the durable Run record: one Run by id, a
@@ -300,11 +302,26 @@ func statusFilter(statuses []execution.RunStatus) string {
 	return strings.Join(names, ",")
 }
 
-// ListPendingInterruptPage returns one page of the durable open HITL interrupts,
-// oldest first, continuing after cursor. An empty sessionID pages across every
-// session.
-func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, cursor string, limit int) (keyset.Page[interrupts.Pending], error) {
-	filters := []string{sessionID}
+// ListPendingInterruptPage returns one page of the durable waiting sets, the
+// longest wait first, continuing after cursor. An empty sessionID pages across
+// every session and an empty rootRunID every waiting tree; given together they must
+// both match.
+//
+// The page unit is a whole set, never an interrupt: [runs.Resume] validates and
+// consumes a set in one transaction, so half a set is a resume nobody can attempt.
+// Sets are one row each, which is what makes "never split" a property of the
+// storage rather than a rule this read has to remember.
+//
+// caller is what the requesting client declared it can follow. A set whose Run
+// publishes more than that is REFUSED — [execution.ErrProfileNotCovered] — rather
+// than returned with the parts the caller understands: a client that answered a
+// trimmed set would leave the rest of it open forever, and the run would stay
+// waiting on interrupts the client believes it resolved.
+//
+// rootRunID must name a root. A child id is [transcript.ErrNotRoot], because the
+// set it belongs to exists — under the root — and an empty page would say otherwise.
+func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, rootRunID string, caller execution.RunProtocolProfile, cursor string, limit int) (keyset.Page[interrupts.Pending], error) {
+	filters := []string{sessionID, rootRunID}
 	afterCreatedAt, afterID, err := timeAndIDAnchor(cursor, interruptPageMethod, filters)
 	if err != nil {
 		return keyset.Page[interrupts.Pending]{}, err
@@ -313,13 +330,41 @@ func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, c
 	if err != nil {
 		return keyset.Page[interrupts.Pending]{}, err
 	}
-	rows, err := c.interrupts.ListPage(ctx, sessionID, afterCreatedAt, afterID, size+1)
+	if err := c.requireRoot(ctx, rootRunID); err != nil {
+		return keyset.Page[interrupts.Pending]{}, err
+	}
+	rows, err := c.interrupts.ListPage(ctx, sessionID, rootRunID, afterCreatedAt, afterID, size+1)
 	if err != nil {
 		return keyset.Page[interrupts.Pending]{}, err
 	}
-	return keyset.PageOf(rows, size, interruptPageMethod, filters, func(pending interrupts.Pending) []string {
+	page := keyset.PageOf(rows, size, interruptPageMethod, filters, func(pending interrupts.Pending) []string {
 		return []string{strconv.FormatInt(pending.CreatedAt.UnixNano(), 10), pending.RootRunID}
-	}), nil
+	})
+	for _, pending := range page.Rows {
+		if gap := pending.ProtocolProfile.Uncovered(caller); !gap.IsEmpty() {
+			return keyset.Page[interrupts.Pending]{}, fmt.Errorf("%w: run %q waits under %s",
+				execution.ErrProfileNotCovered, pending.RootRunID, gap)
+		}
+	}
+	return page, nil
+}
+
+// requireRoot refuses a run filter that names a child. An empty filter names no run
+// and is not checked; a filter naming nothing that exists is left to the page, which
+// returns none — "no such run" and "that run has nothing waiting" are the same
+// answer to the caller, while "you named a child" is not.
+func (c *Coordinator) requireRoot(ctx context.Context, runID string) error {
+	if runID == "" {
+		return nil
+	}
+	run, found, err := c.runs.Run(ctx, runID)
+	if err != nil || !found {
+		return err
+	}
+	if run.SpawnedByItemID != "" {
+		return fmt.Errorf("%w: run %q belongs to the tree rooted elsewhere", transcript.ErrNotRoot, runID)
+	}
+	return nil
 }
 
 // timeAndIDAnchor reads a decoded cursor's (timestamp, id) sort position. The id

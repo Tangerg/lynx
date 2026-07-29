@@ -179,6 +179,7 @@ describe("smoke: v2 end-to-end happy path", () => {
         interrupts: [
           {
             itemId: asItemId("item_tool"),
+            runId: "run_1" as never,
             type: "approval",
             payload: { tool: { name: "shell", arguments: { command: "ls" } }, rememberable: true },
           },

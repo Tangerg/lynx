@@ -2226,6 +2226,9 @@
         "payload": {
           "$ref": "#/$defs/InterruptPayload"
         },
+        "runId": {
+          "type": "string"
+        },
         "type": {
           "$ref": "#/$defs/InterruptType"
         }
@@ -2248,6 +2251,7 @@
           "required": [
             "itemId",
             "payload",
+            "runId",
             "type"
           ]
         },
@@ -2271,6 +2275,7 @@
           "required": [
             "itemId",
             "payload",
+            "runId",
             "type"
           ]
         },
@@ -2294,6 +2299,7 @@
           "required": [
             "itemId",
             "payload",
+            "runId",
             "type"
           ]
         }
@@ -2909,6 +2915,23 @@
         }
       }
     },
+    "ListInterruptsRequest": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "rootRunId": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      }
+    },
     "ListItemsRequest": {
       "type": "object",
       "properties": {
@@ -2976,20 +2999,6 @@
           "type": "integer"
         },
         "provider": {
-          "type": "string"
-        }
-      }
-    },
-    "ListOpenInterruptsRequest": {
-      "type": "object",
-      "properties": {
-        "cursor": {
-          "type": "string"
-        },
-        "limit": {
-          "type": "integer"
-        },
-        "sessionId": {
           "type": "string"
         }
       }
@@ -3377,43 +3386,6 @@
         }
       }
     },
-    "OpenInterrupt": {
-      "type": "object",
-      "properties": {
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "interrupts": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Interrupt"
-          }
-        },
-        "runId": {
-          "type": "string"
-        },
-        "sessionId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "createdAt",
-        "interrupts",
-        "runId",
-        "sessionId"
-      ],
-      "allOf": [
-        {
-          "required": [
-            "createdAt",
-            "interrupts",
-            "runId",
-            "sessionId"
-          ]
-        }
-      ]
-    },
     "PageOfAgentDoc": {
       "type": "object",
       "properties": {
@@ -3550,13 +3522,13 @@
         "data"
       ]
     },
-    "PageOfOpenInterrupt": {
+    "PageOfPendingInterruptSet": {
       "type": "object",
       "properties": {
         "data": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/OpenInterrupt"
+            "$ref": "#/$defs/PendingInterruptSet"
           }
         },
         "nextCursor": {
@@ -3747,6 +3719,43 @@
           "type": "integer"
         }
       }
+    },
+    "PendingInterruptSet": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "interrupts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Interrupt"
+          }
+        },
+        "rootRunId": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "createdAt",
+        "interrupts",
+        "rootRunId",
+        "sessionId"
+      ],
+      "allOf": [
+        {
+          "required": [
+            "createdAt",
+            "interrupts",
+            "rootRunId",
+            "sessionId"
+          ]
+        }
+      ]
     },
     "PlanStep": {
       "type": "object",

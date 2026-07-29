@@ -2,6 +2,7 @@ package dispatch
 
 import (
 	"reflect"
+	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
@@ -143,19 +144,21 @@ func registerItemUnions(s *Shapes) {
 
 func registerInterruptUnions(s *Shapes) {
 	// The variant fields live inside `payload`, so the spec addresses them by
-	// dotted path. Each of the three is self-contained — API.md §4.8's whole point
-	// is that rendering a pending interrupt never needs a second request.
+	// dotted path. Each of the three is self-contained — §4.8's whole point is that
+	// rendering a pending interrupt never needs a second request — and every one
+	// carries the identity pair: which item is waiting, and which run asked.
+	identity := []string{"itemId", "runId"}
 	s.union(UnionSpec{
 		GoType:        typeOf[protocol.Interrupt](),
 		Discriminator: "type",
 		Variants: []VariantSpec{
 			{
 				Tag:      string(protocol.InterruptApproval),
-				Required: []string{"itemId", "payload.tool"},
+				Required: append(slices.Clone(identity), "payload.tool"),
 				Optional: []string{"payload.risk", "payload.reason", "payload.rememberable"},
 			},
-			{Tag: string(protocol.InterruptQuestion), Required: []string{"itemId", "payload.question"}},
-			{Tag: string(protocol.InterruptToolResult), Required: []string{"itemId", "payload.tool"}},
+			{Tag: string(protocol.InterruptQuestion), Required: append(slices.Clone(identity), "payload.question")},
+			{Tag: string(protocol.InterruptToolResult), Required: append(slices.Clone(identity), "payload.tool")},
 		},
 	})
 
@@ -341,9 +344,9 @@ func registerObjectConstraints(s *Shapes) {
 	// A pending set with no interrupts is not a thing to resume — it would leave
 	// the client polling a run that will never move (contract §11.2).
 	s.constraint(ObjectConstraintSpec{
-		GoType: typeOf[protocol.OpenInterrupt](),
+		GoType: typeOf[protocol.PendingInterruptSet](),
 		Rules: []PresenceRule{{
-			Required: []string{"runId", "sessionId", "interrupts", "createdAt"},
+			Required: []string{"rootRunId", "sessionId", "interrupts", "createdAt"},
 		}},
 	})
 

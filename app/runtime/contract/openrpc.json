@@ -775,11 +775,17 @@
       }
     },
     {
-      "name": "runs.listOpenInterrupts",
+      "name": "interrupts.list",
       "paramStructure": "by-name",
       "params": [
         {
           "name": "sessionId",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "rootRunId",
           "schema": {
             "type": "string"
           }
@@ -800,14 +806,20 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "schema.json#/$defs/PageOfOpenInterrupt"
+          "$ref": "schema.json#/$defs/PageOfPendingInterruptSet"
         }
       },
+      "errors": [
+        {
+          "code": -32022,
+          "message": "run_not_root"
+        }
+      ],
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ListOpenInterruptsRequest"
+        "$ref": "schema.json#/$defs/ListInterruptsRequest"
       }
     },
     {

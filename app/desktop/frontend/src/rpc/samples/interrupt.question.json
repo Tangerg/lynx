@@ -1,5 +1,6 @@
 {
   "itemId": "item_06",
+  "runId": "run_01",
   "type": "question",
   "payload": {
     "question": {
@@ -9,7 +10,14 @@
           "name": "environment",
           "label": "Environment",
           "type": "choice",
-          "options": [{ "label": "staging" }, { "label": "production" }]
+          "options": [
+            {
+              "label": "staging"
+            },
+            {
+              "label": "production"
+            }
+          ]
         }
       ]
     }

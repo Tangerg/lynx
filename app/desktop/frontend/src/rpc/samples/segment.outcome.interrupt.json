@@ -3,6 +3,7 @@
   "interrupts": [
     {
       "itemId": "item_09",
+      "runId": "run_01",
       "type": "approval",
       "payload": {
         "tool": {

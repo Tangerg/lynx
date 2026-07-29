@@ -7,10 +7,10 @@ import (
 	"iter"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // GetRun returns one run by id, in whatever state the durable record has it. The
@@ -75,23 +75,45 @@ func runStatusesFromWire(statuses []protocol.RunStatus) ([]execution.RunStatus, 
 	return out, nil
 }
 
-// ListOpenInterrupts returns durable resumable interrupts as a Page
-// (API.md §6.2).
-func (s *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInterruptsRequest) (*protocol.Page[protocol.OpenInterrupt], error) {
-	page, err := s.queries.ListPendingInterruptPage(ctx, in.SessionID, in.Cursor, in.Limit)
+// ListInterrupts pages the durable waiting sets — what a person still has to
+// answer — longest wait first.
+//
+// The caller's declared capabilities are part of the read: a set belonging to a run
+// that publishes more than this caller can follow is refused, never trimmed. A
+// trimmed set would be answered, consumed as if complete, and leave the run waiting
+// on interrupts the client believes it resolved.
+func (s *Server) ListInterrupts(ctx context.Context, in protocol.ListInterruptsRequest) (*protocol.Page[protocol.PendingInterruptSet], error) {
+	caller, err := s.negotiateCapabilities(ctx)
 	if err != nil {
-		return nil, wirePageError(err)
+		return nil, err
 	}
-	out := make([]protocol.OpenInterrupt, 0, len(page.Rows))
+	page, err := s.queries.ListPendingInterruptPage(ctx, in.SessionID, in.RootRunID, caller, in.Cursor, in.Limit)
+	if err != nil {
+		return nil, wireInterruptPageError(wirePageError(err))
+	}
+	out := make([]protocol.PendingInterruptSet, 0, len(page.Rows))
 	for _, pending := range page.Rows {
-		out = append(out, protocol.OpenInterrupt{
-			RunID:      pending.RootRunID,
+		out = append(out, protocol.PendingInterruptSet{
+			RootRunID:  pending.RootRunID,
 			SessionID:  pending.SessionID,
 			Interrupts: presentInterrupts(pending.Interrupts),
 			CreatedAt:  pending.CreatedAt,
 		})
 	}
 	return protocol.NewPageWithCursor(out, page.NextCursor), nil
+}
+
+// wireInterruptPageError maps the read's two refusals. Both name something the
+// caller can act on: declare the capability, or ask under the root.
+func wireInterruptPageError(err error) error {
+	switch {
+	case errors.Is(err, execution.ErrProfileNotCovered):
+		return fmt.Errorf("%w: %w", protocol.ErrCapabilityNotNeg, err)
+	case errors.Is(err, transcript.ErrNotRoot):
+		return fmt.Errorf("%w: %w", protocol.ErrRunNotRoot, err)
+	default:
+		return err
+	}
 }
 
 // SubscribeRun opens a fresh event stream onto an actively-streaming root
@@ -115,7 +137,7 @@ func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 	}
 	record, events, err := s.coordinator.SubscribeLive(ctx, runID, fromCursor, caller)
 	switch {
-	case errors.Is(err, runs.ErrProfileNotCovered):
+	case errors.Is(err, execution.ErrProfileNotCovered):
 		return nil, nil, fmt.Errorf("%w: %w", protocol.ErrCapabilityNotNeg, err)
 	case err != nil:
 		return nil, nil, protocol.ErrRunNotFound

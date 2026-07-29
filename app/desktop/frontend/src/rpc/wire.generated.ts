@@ -584,9 +584,9 @@ export interface ImportSessionResponse {
 }
 
 export type Interrupt =
-  | { type: "approval"; itemId: string; payload: { reason?: string; rememberable?: boolean; risk?: ApprovalRisk; tool: ToolInvocation } }
-  | { type: "question"; itemId: string; payload: { question: Question } }
-  | { type: "toolResult"; itemId: string; payload: { tool: ToolInvocation } };
+  | { type: "approval"; itemId: string; payload: { reason?: string; rememberable?: boolean; risk?: ApprovalRisk; tool: ToolInvocation }; runId: string }
+  | { type: "question"; itemId: string; payload: { question: Question }; runId: string }
+  | { type: "toolResult"; itemId: string; payload: { tool: ToolInvocation }; runId: string };
 
 export interface InterruptPayload {
   question?: Question;
@@ -668,6 +668,13 @@ export interface ListHooksRequest {
   cwd?: string;
 }
 
+export interface ListInterruptsRequest {
+  cursor?: string;
+  limit?: number;
+  rootRunId?: string;
+  sessionId?: string;
+}
+
 export interface ListItemsRequest {
   cursor?: string;
   limit?: number;
@@ -685,12 +692,6 @@ export interface ListModelsRequest {
   cursor?: string;
   limit?: number;
   provider?: string;
-}
-
-export interface ListOpenInterruptsRequest {
-  cursor?: string;
-  limit?: number;
-  sessionId?: string;
 }
 
 export interface ListRunsRequest {
@@ -812,13 +813,6 @@ export interface ModelUsage {
   reasoningTokens?: number;
 }
 
-export interface OpenInterrupt {
-  createdAt: string;
-  interrupts: Interrupt[];
-  runId: string;
-  sessionId: string;
-}
-
 export type PageOfAgentDoc = Page<AgentDoc>;
 
 export type PageOfFileEntry = Page<FileEntry>;
@@ -835,7 +829,7 @@ export type PageOfMemoryEntry = Page<MemoryEntry>;
 
 export type PageOfModel = Page<Model>;
 
-export type PageOfOpenInterrupt = Page<OpenInterrupt>;
+export type PageOfPendingInterruptSet = Page<PendingInterruptSet>;
 
 export type PageOfProject = Page<Project>;
 
@@ -860,6 +854,13 @@ export type PageOfWorkspaceFileChange = Page<WorkspaceFileChange>;
 export interface PageQuery {
   cursor?: string;
   limit?: number;
+}
+
+export interface PendingInterruptSet {
+  createdAt: string;
+  interrupts: Interrupt[];
+  rootRunId: string;
+  sessionId: string;
 }
 
 export interface PlanStep {

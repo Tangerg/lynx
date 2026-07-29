@@ -11,7 +11,7 @@ import { asRunId, asSegmentId, asSessionId, collectPages } from "@/rpc";
 import type { FoldEvent } from "./agentStore";
 
 interface AgentSessionRecoveryOptions {
-  client: Pick<LyraClient, "items" | "runs">;
+  client: Pick<LyraClient, "items" | "runs" | "interrupts">;
   sessionId: string;
   isCancelled: () => boolean;
   hasInteracted: () => boolean;
@@ -49,7 +49,7 @@ async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
   if (stale(options)) return;
 
   const open = await collectPages((cursor) =>
-    options.client.runs.listOpenInterrupts({ sessionId: sid, cursor }),
+    options.client.interrupts.list({ sessionId: sid, cursor }),
   );
   if (stale(options)) return;
   for (const oi of open) {
@@ -58,7 +58,7 @@ async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
         event: {
           type: "segment.started",
           run: {
-            id: oi.runId,
+            id: oi.rootRunId,
             sessionId: oi.sessionId,
             createdAt: oi.createdAt,
             metrics: unreported,

@@ -54,7 +54,7 @@ func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
 		case execution.ApprovalInterrupt:
 			if matchedItem, ok := approvalItems[index]; ok {
 				item = matchedItem
-				interrupt = approvalTranscriptInterrupt(item.ID, *in.Approval, *item.Tool)
+				interrupt = approvalTranscriptInterrupt(r.cfg.RunID, item.ID, *in.Approval, *item.Tool)
 			} else {
 				var err error
 				item, interrupt, err = r.approvalInterrupt(in)
@@ -84,7 +84,7 @@ func (r *reducer) approvalInterrupt(in Interrupt) (transcript.Item, transcript.I
 	if err != nil {
 		return transcript.Item{}, transcript.Interrupt{}, err
 	}
-	return item, approvalTranscriptInterrupt(item.ID, *in.Approval, *item.Tool), nil
+	return item, approvalTranscriptInterrupt(r.cfg.RunID, item.ID, *in.Approval, *item.Tool), nil
 }
 
 func (r *reducer) approvalItem(prompt ApprovalPrompt, ref *openTool) (transcript.Item, error) {
@@ -107,9 +107,10 @@ func (r *reducer) approvalItem(prompt ApprovalPrompt, ref *openTool) (transcript
 	}, nil
 }
 
-func approvalTranscriptInterrupt(itemID string, prompt ApprovalPrompt, tool transcript.ToolInvocation) transcript.Interrupt {
+func approvalTranscriptInterrupt(runID, itemID string, prompt ApprovalPrompt, tool transcript.ToolInvocation) transcript.Interrupt {
 	return transcript.Interrupt{
 		ItemID: itemID,
+		RunID:  runID,
 		Kind:   execution.ApprovalInterrupt,
 		Approval: &transcript.Approval{
 			Tool: tool, Risk: prompt.Risk, Reason: prompt.Reason, Rememberable: prompt.Rememberable,
@@ -203,7 +204,7 @@ func (r *reducer) questionInterrupt(in Interrupt) (transcript.Item, transcript.I
 		Kind: transcript.QuestionItem, CreatedAt: r.now(), Question: &question,
 	}
 	return item, transcript.Interrupt{
-		ItemID: id, Kind: execution.QuestionInterrupt, Question: &question,
+		ItemID: id, RunID: r.cfg.RunID, Kind: execution.QuestionInterrupt, Question: &question,
 	}
 }
 

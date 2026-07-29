@@ -1,9 +1,16 @@
 package execution
 
 import (
+	"errors"
 	"slices"
 	"strings"
 )
+
+// ErrProfileNotCovered reports that a caller cannot follow a Run: the Run's frozen
+// profile names capabilities the caller did not declare. It lives with the profile
+// rather than with either use case, because both the continuation path and the
+// waiting-set read enforce the same rule, and one rule has one sentinel.
+var ErrProfileNotCovered = errors.New("execution: caller does not cover the run's protocol profile")
 
 // RunProtocolProfile is the protocol contract a Run is admitted under: which
 // negotiated capabilities change what the Run publishes, and which durable human

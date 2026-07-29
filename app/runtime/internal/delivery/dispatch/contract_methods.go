@@ -23,6 +23,7 @@ func buildContract() *Registry {
 	registerLifecycle(registry)
 	registerSessions(registry)
 	registerRuns(registry)
+	registerInterrupts(registry)
 	registerItems(registry)
 	registerWorkspace(registry)
 	registerSkills(registry)

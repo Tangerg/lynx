@@ -1,10 +1,13 @@
 {
   "itemId": "item_07",
+  "runId": "run_01",
   "type": "toolResult",
   "payload": {
     "tool": {
       "name": "fetch_url",
-      "arguments": { "url": "https://example.com" }
+      "arguments": {
+        "url": "https://example.com"
+      }
     }
   }
 }
