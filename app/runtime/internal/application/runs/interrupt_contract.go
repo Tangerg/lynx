@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -14,27 +15,6 @@ import (
 // QuestionPrompt. It is application-owned transcript vocabulary: adapters use
 // it to correlate a resumed answer with the question item they submitted.
 func QuestionFieldID(index int) string { return "q" + strconv.Itoa(index) }
-
-// InterruptKind discriminates the application-owned durable interrupt
-// envelope. Executor adapters must persist and restore this exact union; they
-// may not infer a kind by inspecting arbitrary prompt fields.
-type InterruptKind string
-
-const (
-	ApprovalInterruptKind InterruptKind = "approval"
-	QuestionInterruptKind InterruptKind = "question"
-)
-
-// Valid reports whether kind is an interrupt the runtime can persist and
-// surface. Delivery maps client protocol values into this closed vocabulary.
-func (k InterruptKind) Valid() bool {
-	switch k {
-	case ApprovalInterruptKind, QuestionInterruptKind:
-		return true
-	default:
-		return false
-	}
-}
 
 // ApprovalPrompt is the complete durable plan for one gated tool call.
 // Arguments are the effective arguments after PreToolUse rewriting, so a
@@ -80,7 +60,7 @@ type QuestionOptionSpec struct {
 // one payload must be present and must match Kind. Agent-process JSON encoding
 // belongs to the adapter boundary.
 type Interrupt struct {
-	Kind     InterruptKind
+	Kind     execution.InterruptKind
 	Approval *ApprovalPrompt
 	Question *QuestionPrompt
 }
@@ -88,11 +68,11 @@ type Interrupt struct {
 // Tool returns the logical tool call that owns this interrupt.
 func (i Interrupt) Tool() (name, arguments string) {
 	switch i.Kind {
-	case ApprovalInterruptKind:
+	case execution.ApprovalInterrupt:
 		if i.Approval != nil {
 			return i.Approval.ToolName, i.Approval.Arguments
 		}
-	case QuestionInterruptKind:
+	case execution.QuestionInterrupt:
 		if i.Question != nil {
 			return i.Question.ToolName, i.Question.Arguments
 		}
@@ -104,12 +84,12 @@ func (i Interrupt) Tool() (name, arguments string) {
 // durable process state or application events.
 func (i Interrupt) Validate() error {
 	switch i.Kind {
-	case ApprovalInterruptKind:
+	case execution.ApprovalInterrupt:
 		if i.Approval == nil || i.Question != nil {
 			return errors.New("runs: malformed approval interrupt")
 		}
 		return i.Approval.validate()
-	case QuestionInterruptKind:
+	case execution.QuestionInterrupt:
 		if i.Question == nil || i.Approval != nil {
 			return errors.New("runs: malformed question interrupt")
 		}

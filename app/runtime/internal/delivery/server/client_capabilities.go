@@ -3,16 +3,16 @@ package server
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
-func interruptKindsFromContext(ctx context.Context) []runs.InterruptKind {
+func interruptKindsFromContext(ctx context.Context) []execution.InterruptKind {
 	caps, ok := protocol.ClientCapabilitiesFrom(ctx)
 	if !ok || len(caps.InterruptTypes) == 0 {
 		return nil
 	}
-	kinds := make([]runs.InterruptKind, 0, len(caps.InterruptTypes))
+	kinds := make([]execution.InterruptKind, 0, len(caps.InterruptTypes))
 	for _, kind := range caps.InterruptTypes {
 		mapped, ok := interruptKindFromWire(kind)
 		if ok {
@@ -22,13 +22,13 @@ func interruptKindsFromContext(ctx context.Context) []runs.InterruptKind {
 	return kinds
 }
 
-func interruptKindFromWire(kind protocol.InterruptType) (runs.InterruptKind, bool) {
+func interruptKindFromWire(kind protocol.InterruptType) (execution.InterruptKind, bool) {
 	switch kind {
 	case protocol.InterruptApproval:
-		return runs.ApprovalInterruptKind, true
+		return execution.ApprovalInterrupt, true
 	case protocol.InterruptQuestion:
-		return runs.QuestionInterruptKind, true
+		return execution.QuestionInterrupt, true
 	default:
-		return "", false
+		return 0, false
 	}
 }

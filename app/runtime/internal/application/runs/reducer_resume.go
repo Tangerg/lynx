@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -47,11 +48,11 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 			continue
 		}
 		switch in.Kind {
-		case transcript.ApprovalInterrupt:
+		case execution.ApprovalInterrupt:
 			if in.Approval != nil && in.Approval.Tool.Name != "" {
 				addItem("", in.Approval.Tool.Name, argumentIdentity(in.Approval.Tool.Arguments), in.ItemID)
 			}
-		case transcript.QuestionInterrupt:
+		case execution.QuestionInterrupt:
 			questions = append(questions, resumedQuestion{itemID: in.ItemID, question: in.Question})
 		}
 	}

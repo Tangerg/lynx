@@ -6,13 +6,14 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 func TestDecodePromptDiscriminatesAndRejectsGuesses(t *testing.T) {
 	question := runs.Interrupt{
-		Kind: runs.QuestionInterruptKind,
+		Kind: execution.QuestionInterrupt,
 		Question: &runs.QuestionPrompt{
 			ToolName:  "ask_user",
 			Arguments: `{"questions":[{"question":"Continue?"}]}`,
@@ -30,12 +31,12 @@ func TestDecodePromptDiscriminatesAndRejectsGuesses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodePrompt: %v", err)
 	}
-	if got.Kind != runs.QuestionInterruptKind || got.Question == nil || got.Question.ToolName != "ask_user" {
+	if got.Kind != execution.QuestionInterrupt || got.Question == nil || got.Question.ToolName != "ask_user" {
 		t.Fatalf("decoded = %#v", got)
 	}
 
 	approval := runs.Interrupt{
-		Kind: runs.ApprovalInterruptKind,
+		Kind: execution.ApprovalInterrupt,
 		Approval: &runs.ApprovalPrompt{
 			ToolName: "webfetch", Arguments: `{"url":"https://example.com"}`,
 			SafetyClass: tool.SafetyClassNetwork, Risk: tool.RiskHigh,

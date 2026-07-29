@@ -266,7 +266,7 @@ func TestCommitEventParkProducesBootResumableTriplet(t *testing.T) {
 		t.Fatalf("save process snapshot: %v", err)
 	}
 	question := &transcript.Question{Prompt: "Continue?"}
-	open := []transcript.Interrupt{{ItemID: "item_question", Kind: transcript.QuestionInterrupt, Question: question}}
+	open := []transcript.Interrupt{{ItemID: "item_question", Kind: execution.QuestionInterrupt, Question: question}}
 	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
 		Processes: fakeProcess{processID: "proc_1"},
 		RunState:  state,
@@ -428,7 +428,7 @@ func parkedRunRecord(runID, sessionID string, createdAt time.Time) transcript.Ru
 	return transcript.Run{
 		SessionID: sessionID, ID: runID, State: execution.Interrupted,
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_" + runID, Kind: transcript.QuestionInterrupt,
+			ItemID: "item_" + runID, Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Prompt: "continue?"},
 		}},
 		CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,

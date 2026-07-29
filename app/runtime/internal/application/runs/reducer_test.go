@@ -215,7 +215,7 @@ func TestReducerParksConcurrentToolsWithoutLosingCompletedResults(t *testing.T) 
 	}
 
 	parked := mustReduce(t, reducer, TurnInterrupted{Interrupts: []Interrupt{{
-		Kind: ApprovalInterruptKind,
+		Kind: execution.ApprovalInterrupt,
 		Approval: &ApprovalPrompt{
 			CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write",
 		},
@@ -252,7 +252,7 @@ func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing
 		CallID: "call-2", ToolName: "approval", Arguments: `{"path":"b"}`, SafetyClass: "write",
 	}))
 	firstPark := mustReduce(t, first, TurnInterrupted{Interrupts: []Interrupt{{
-		Kind: ApprovalInterruptKind,
+		Kind: execution.ApprovalInterrupt,
 		Approval: &ApprovalPrompt{
 			CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write",
 		},
@@ -275,7 +275,7 @@ func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing
 	mustReduce(t, resumed, ToolCallEnd{CallID: "call-1", Result: testToolResult(t, "approved")})
 
 	secondPark := mustReduce(t, resumed, TurnInterrupted{Interrupts: []Interrupt{{
-		Kind: ApprovalInterruptKind,
+		Kind: execution.ApprovalInterrupt,
 		Approval: &ApprovalPrompt{
 			CallID: "call-2", ToolName: "approval", Arguments: `{"path":"b"}`, SafetyClass: "write",
 		},
@@ -376,8 +376,8 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	config.Pending = &interrupts.Pending{
 		RunID: "run_1", SessionID: "ses_1",
 		Interrupts: []transcript.Interrupt{
-			{ItemID: "item_approval", Kind: transcript.ApprovalInterrupt, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "go test"})}}},
-			{ItemID: "item_question", Kind: transcript.QuestionInterrupt, Question: question},
+			{ItemID: "item_approval", Kind: execution.ApprovalInterrupt, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "go test"})}}},
+			{ItemID: "item_question", Kind: execution.QuestionInterrupt, Question: question},
 		},
 	}
 	reducer := newReducer(config)
@@ -414,10 +414,10 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 func TestReducerProjectsParkAsOneAtomicWriteSetBeforeFirstInterruptEvent(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
 	batch := mustReduceBatch(t, reducer, TurnInterrupted{Interrupts: []Interrupt{
-		{Kind: ApprovalInterruptKind, Approval: &ApprovalPrompt{
+		{Kind: execution.ApprovalInterrupt, Approval: &ApprovalPrompt{
 			ToolName: "shell", Arguments: `{}`, SafetyClass: "exec",
 		}},
-		{Kind: QuestionInterruptKind, Question: &QuestionPrompt{
+		{Kind: execution.QuestionInterrupt, Question: &QuestionPrompt{
 			ToolName: "ask_user", Arguments: `{"questions":[{"question":"Continue?"}]}`,
 			Questions: []QuestionSpec{{Question: "Continue?"}},
 		}},
@@ -454,7 +454,7 @@ func TestReducerRejectsExecutorProtocolViolations(t *testing.T) {
 	}{
 		{name: "unknown event", event: unsupportedEngineEvent{}},
 		{name: "invalid terminal outcome", event: TurnEnd{Reason: execution.Outcome(255)}},
-		{name: "malformed interrupt", event: TurnInterrupted{Interrupts: []Interrupt{{Kind: InterruptKind("unknown")}}}},
+		{name: "malformed interrupt", event: TurnInterrupted{Interrupts: []Interrupt{{Kind: execution.InterruptKind(9)}}}},
 	}
 
 	for _, test := range tests {

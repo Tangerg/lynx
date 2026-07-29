@@ -45,7 +45,7 @@ type turnRuntime interface {
 	InjectSteering(context.Context, turn.TurnHandle, string) error
 	PrepareTurn(context.Context, runs.StartTurn) (turn.TurnHandle, error)
 	ActivateTurn(context.Context, turn.TurnHandle) error
-	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []runs.InterruptKind) error
+	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []execution.InterruptKind) error
 	ProcessID(context.Context, turn.TurnHandle) (string, error)
 	Rehydrate(context.Context, runs.RehydrateTurn) (turn.TurnHandle, error)
 	Cancel(context.Context, turn.TurnHandle) error
@@ -209,7 +209,7 @@ func (s stubRuntime) Prepare(ctx context.Context, ref execution.TurnRef) (execut
 	return turn.NewExecutor(s.turnDispatcher()).Prepare(ctx, ref)
 }
 
-func (s stubRuntime) Resume(ctx context.Context, prepared execution.TurnRef, resolution interrupts.Resolution, interruptKinds []runs.InterruptKind) error {
+func (s stubRuntime) Resume(ctx context.Context, prepared execution.TurnRef, resolution interrupts.Resolution, interruptKinds []execution.InterruptKind) error {
 	return turn.NewExecutor(s.turnDispatcher()).Resume(ctx, prepared, resolution, interruptKinds)
 }
 

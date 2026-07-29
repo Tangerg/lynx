@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
@@ -45,9 +46,9 @@ func resolveResumeResponses(pending interrupts.Pending, responses []ResumeRespon
 			err            error
 		)
 		switch interrupt.Kind {
-		case transcript.ApprovalInterrupt:
+		case execution.ApprovalInterrupt:
 			itemResolution, err = resolveApprovalResponse(interrupt, response)
-		case transcript.QuestionInterrupt:
+		case execution.QuestionInterrupt:
 			itemResolution, err = resolveQuestionResponse(interrupt, response)
 		default:
 			err = fmt.Errorf("unknown open interrupt kind %d", interrupt.Kind)

@@ -20,5 +20,5 @@ func TestPresentersRejectUnknownDomainEnums(t *testing.T) {
 	mustPanic(t, func() { presentRun(transcript.Run{State: execution.RunState(99)}) })
 	mustPanic(t, func() { presentOutcome(transcript.Run{State: execution.Completed, Outcome: nil}) })
 	mustPanic(t, func() { presentProblem(&transcript.Problem{Kind: transcript.ProblemKind(99)}) })
-	mustPanic(t, func() { presentInterrupts([]transcript.Interrupt{{Kind: transcript.InterruptKind(99)}}) })
+	mustPanic(t, func() { presentInterrupts([]transcript.Interrupt{{Kind: execution.InterruptKind(99)}}) })
 }

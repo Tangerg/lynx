@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
@@ -78,7 +79,7 @@ type turnState struct {
 
 	// interruptKinds is the set of HITL kinds the current client can answer
 	// for this turn. Nil / empty means no HITL kind may surface.
-	interruptKinds map[runs.InterruptKind]struct{}
+	interruptKinds map[execution.InterruptKind]struct{}
 
 	// --- mu-guarded: mutated/read across the turn + caller goroutines ---
 	mu sync.Mutex
@@ -259,8 +260,8 @@ func newTurnState(ctx context.Context, handle TurnHandle, phase turnPhase) *turn
 	}
 }
 
-func (st *turnState) setInterruptKinds(kinds []runs.InterruptKind) {
-	st.interruptKinds = make(map[runs.InterruptKind]struct{}, len(kinds))
+func (st *turnState) setInterruptKinds(kinds []execution.InterruptKind) {
+	st.interruptKinds = make(map[execution.InterruptKind]struct{}, len(kinds))
 	for _, kind := range kinds {
 		if kind.Valid() {
 			st.interruptKinds[kind] = struct{}{}
@@ -285,7 +286,7 @@ func (st *turnState) releaseEvents() {
 	st.mu.Unlock()
 }
 
-func (st *turnState) canSurface(kind runs.InterruptKind) bool {
+func (st *turnState) canSurface(kind execution.InterruptKind) bool {
 	_, ok := st.interruptKinds[kind]
 	return ok
 }

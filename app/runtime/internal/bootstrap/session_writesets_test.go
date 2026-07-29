@@ -155,7 +155,7 @@ func park(
 	if err := runs.Suspend(ctx, transcript.Run{
 		SessionID: sessionID, ID: runID, State: execution.Interrupted,
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_" + runID, Kind: transcript.QuestionInterrupt,
+			ItemID: "item_" + runID, Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Prompt: "continue?"},
 		}},
 		CreatedAt:   parkCreatedAt,

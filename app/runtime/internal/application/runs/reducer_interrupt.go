@@ -51,7 +51,7 @@ func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
 		var item transcript.Item
 		var interrupt transcript.Interrupt
 		switch in.Kind {
-		case ApprovalInterruptKind:
+		case execution.ApprovalInterrupt:
 			if matchedItem, ok := approvalItems[index]; ok {
 				item = matchedItem
 				interrupt = approvalTranscriptInterrupt(item.ID, *in.Approval, *item.Tool)
@@ -63,7 +63,7 @@ func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
 				}
 				out = append(out, ItemStarted{Item: item})
 			}
-		case QuestionInterruptKind:
+		case execution.QuestionInterrupt:
 			item, interrupt = r.questionInterrupt(in)
 			out = append(out, ItemStarted{Item: item})
 		}
@@ -110,7 +110,7 @@ func (r *reducer) approvalItem(prompt ApprovalPrompt, ref *openTool) (transcript
 func approvalTranscriptInterrupt(itemID string, prompt ApprovalPrompt, tool transcript.ToolInvocation) transcript.Interrupt {
 	return transcript.Interrupt{
 		ItemID: itemID,
-		Kind:   transcript.ApprovalInterrupt,
+		Kind:   execution.ApprovalInterrupt,
 		Approval: &transcript.Approval{
 			Tool: tool, Risk: prompt.Risk, Reason: prompt.Reason, Rememberable: prompt.Rememberable,
 		},
@@ -120,7 +120,7 @@ func approvalTranscriptInterrupt(itemID string, prompt ApprovalPrompt, tool tran
 func matchApprovalTools(open []*openTool, values []Interrupt) (map[*openTool]int, error) {
 	matched := make(map[*openTool]int)
 	for index, value := range values {
-		if value.Kind != ApprovalInterruptKind || value.Approval == nil {
+		if value.Kind != execution.ApprovalInterrupt || value.Approval == nil {
 			continue
 		}
 		prompt := value.Approval
@@ -203,7 +203,7 @@ func (r *reducer) questionInterrupt(in Interrupt) (transcript.Item, transcript.I
 		Kind: transcript.QuestionItem, CreatedAt: r.now(), Question: &question,
 	}
 	return item, transcript.Interrupt{
-		ItemID: id, Kind: transcript.QuestionInterrupt, Question: &question,
+		ItemID: id, Kind: execution.QuestionInterrupt, Question: &question,
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
@@ -90,12 +91,12 @@ func (active nonTerminalRun) validatePendingInterruptItems(interrupts []transcri
 			return nil, fmt.Errorf("sqlite: validate parked run %q: interrupt item %q is not running in the run", active.runID, interrupt.ItemID)
 		}
 		switch interrupt.Kind {
-		case transcript.ApprovalInterrupt:
+		case execution.ApprovalInterrupt:
 			if interrupt.Approval == nil || interrupt.Question != nil || item.Kind != transcript.ToolCall || item.Tool == nil ||
 				!reflect.DeepEqual(*item.Tool, interrupt.Approval.Tool) {
 				return nil, fmt.Errorf("sqlite: validate parked run %q: malformed approval item %q", active.runID, interrupt.ItemID)
 			}
-		case transcript.QuestionInterrupt:
+		case execution.QuestionInterrupt:
 			if interrupt.Question == nil || interrupt.Approval != nil || item.Kind != transcript.QuestionItem || item.Question == nil ||
 				!reflect.DeepEqual(item.Question, interrupt.Question) {
 				return nil, fmt.Errorf("sqlite: validate parked run %q: malformed question item %q", active.runID, interrupt.ItemID)

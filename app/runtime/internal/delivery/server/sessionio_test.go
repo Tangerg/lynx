@@ -348,7 +348,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	if err := rt.runs.Suspend(ctx, transcript.Run{
 		SessionID: ses.ID, ID: "run_parked", State: execution.Interrupted,
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_question", Kind: transcript.QuestionInterrupt,
+			ItemID: "item_question", Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Prompt: "Continue?"},
 		}},
 		CreatedAt: parkedAt, MessageMark: transcript.UnknownMessageMark,
@@ -364,7 +364,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	}
 	if err := rt.interrupts.Put(ctx, interrupts.Pending{
 		RunID: "run_parked", SessionID: ses.ID, TurnID: "turn_parked",
-		Interrupts: []transcript.Interrupt{{ItemID: "item_question", Kind: transcript.QuestionInterrupt,
+		Interrupts: []transcript.Interrupt{{ItemID: "item_question", Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Prompt: "Continue?"}}},
 		RunCreatedAt: parkedAt, CreatedAt: parkedAt,
 	}); err != nil {

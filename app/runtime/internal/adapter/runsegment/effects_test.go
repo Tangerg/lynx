@@ -242,7 +242,7 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 		// freezes — not just the ids of the row to move.
 		Run: &transcript.Run{
 			SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
-			Interrupts:  []transcript.Interrupt{{ItemID: "int_1", Kind: transcript.QuestionInterrupt}},
+			Interrupts:  []transcript.Interrupt{{ItemID: "int_1", Kind: execution.QuestionInterrupt}},
 			Metrics:     transcript.RunMetrics{Steps: 2},
 			CreatedAt:   time.Unix(1, 0).UTC(),
 			MessageMark: transcript.UnknownMessageMark,
@@ -252,7 +252,7 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 			SessionID:      "ses_1",
 			TurnID:         "turn_1",
 			ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
-			Interrupts:     []transcript.Interrupt{{ItemID: "int_1", Kind: transcript.QuestionInterrupt}},
+			Interrupts:     []transcript.Interrupt{{ItemID: "int_1", Kind: execution.QuestionInterrupt}},
 			DrainedTools:   []interrupts.DrainedTool{{ItemID: "tool_1", Name: "ask_user"}},
 		},
 		Items: []transcript.Item{{
@@ -297,7 +297,7 @@ func TestCommitEventRejectsUnresumableInterrupt(t *testing.T) {
 		// freezes — not just the ids of the row to move.
 		Run: &transcript.Run{
 			SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
-			Interrupts:  []transcript.Interrupt{{ItemID: "int_1", Kind: transcript.QuestionInterrupt}},
+			Interrupts:  []transcript.Interrupt{{ItemID: "int_1", Kind: execution.QuestionInterrupt}},
 			Metrics:     transcript.RunMetrics{Steps: 2},
 			CreatedAt:   time.Unix(1, 0).UTC(),
 			MessageMark: transcript.UnknownMessageMark,

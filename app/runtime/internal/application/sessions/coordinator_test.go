@@ -105,7 +105,7 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("hi"))},
 			Runs: []transcript.Run{{
 				ID: "run_1", SessionID: "ses_1", State: execution.Interrupted,
-				Interrupts:  []transcript.Interrupt{{ItemID: "item_1", Kind: transcript.QuestionInterrupt}},
+				Interrupts:  []transcript.Interrupt{{ItemID: "item_1", Kind: execution.QuestionInterrupt}},
 				MessageMark: -1,
 			}},
 			Items: []transcript.Item{{
@@ -148,7 +148,7 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello"))},
 			Runs: []transcript.Run{{
 				ID: "run_1", SessionID: "ses_1", State: execution.Interrupted,
-				Interrupts:  []transcript.Interrupt{{ItemID: "item_1", Kind: transcript.ApprovalInterrupt}},
+				Interrupts:  []transcript.Interrupt{{ItemID: "item_1", Kind: execution.ApprovalInterrupt}},
 				MessageMark: -1,
 			}},
 			Items: []transcript.Item{{

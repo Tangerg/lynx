@@ -205,7 +205,7 @@ type hitlApprovalObserver struct {
 
 func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName, arguments string, _ ToolApprovalTarget) ToolApprovalVerdict {
 	pending := runs.Interrupt{
-		Kind: runs.ApprovalInterruptKind,
+		Kind: execution.ApprovalInterrupt,
 		Approval: &runs.ApprovalPrompt{
 			ToolName: toolName, Arguments: arguments, SafetyClass: tool.SafetyClassExec,
 		},

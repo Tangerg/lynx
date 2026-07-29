@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
@@ -212,11 +213,11 @@ func (t *toolGate) doomLoopEscalation(ctx context.Context, callID, toolName, arg
 }
 
 func (t *toolGate) awaitApproval(ctx context.Context, toolName, arguments string, prompt runs.ApprovalPrompt) (interrupts.Resolution, error) {
-	pending := runs.Interrupt{Kind: runs.ApprovalInterruptKind, Approval: &prompt}
+	pending := runs.Interrupt{Kind: execution.ApprovalInterrupt, Approval: &prompt}
 	if err := pending.Validate(); err != nil {
 		return interrupts.Resolution{}, fmt.Errorf("turn: build approval interrupt: %w", err)
 	}
-	return suspension.Interrupt(ctx, interrupts.InterruptKey(string(runs.ApprovalInterruptKind), toolName, arguments), pending)
+	return suspension.Interrupt(ctx, interrupts.InterruptKey(execution.ApprovalInterrupt.String(), toolName, arguments), pending)
 }
 
 func (t *toolGate) rememberApproval(ctx context.Context, toolName string, arguments tool.Arguments, resolution interrupts.Resolution) error {
@@ -300,9 +301,9 @@ func (t *toolGate) resumedToolVerdict(ctx context.Context, toolName string) (age
 	}
 
 	switch pending.Kind {
-	case runs.QuestionInterruptKind:
+	case execution.QuestionInterrupt:
 		return agentexec.ToolApprovalVerdict{Arguments: effectiveArguments}, true
-	case runs.ApprovalInterruptKind:
+	case execution.ApprovalInterrupt:
 		rememberedArguments, err := tool.ParseArguments(effectiveArguments)
 		if err != nil {
 			return agentexec.ToolApprovalVerdict{

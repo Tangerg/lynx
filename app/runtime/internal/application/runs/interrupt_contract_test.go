@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
@@ -12,7 +13,7 @@ import (
 func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 	approvalPending := interrupts.Pending{Interrupts: []transcript.Interrupt{{
 		ItemID: "item_approval",
-		Kind:   transcript.ApprovalInterrupt,
+		Kind:   execution.ApprovalInterrupt,
 		Approval: &transcript.Approval{
 			Tool: transcript.ToolInvocation{Name: "shell"}, Rememberable: true,
 		},
@@ -43,7 +44,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 
 	questionPending := interrupts.Pending{Interrupts: []transcript.Interrupt{{
 		ItemID: "item_question",
-		Kind:   transcript.QuestionInterrupt,
+		Kind:   execution.QuestionInterrupt,
 		Question: &transcript.Question{Fields: []transcript.QuestionField{{
 			Name: "q0", Required: true, Kind: transcript.QuestionChoice,
 			Options: []transcript.QuestionOption{{Label: "Go"}, {Label: "Stop"}},
@@ -85,7 +86,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 			Question: &QuestionResponse{Answers: map[string][]string{"q0": {"Rust"}}},
 		}}, want: ErrInvalidInterruptResponse},
 		{name: "one-off approval cannot be remembered", pending: interrupts.Pending{Interrupts: []transcript.Interrupt{{
-			ItemID: "item_one_off", Kind: transcript.ApprovalInterrupt,
+			ItemID: "item_one_off", Kind: execution.ApprovalInterrupt,
 			Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}},
 		}}}, responses: []ResumeResponse{{
 			ItemID: "item_one_off", Kind: ApprovalResponseKind,

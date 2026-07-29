@@ -131,8 +131,8 @@ func (s *memoryDispatcher) handleWaiting(st *turnState, process agentexec.TurnPr
 		return
 	}
 	suspension := process.Suspension()
-	kind := interruptKind(suspension)
-	if suspension == nil || kind == "" || st.canSurface(kind) {
+	kind, known := interruptKind(suspension)
+	if !known || st.canSurface(kind) {
 		s.emitInterrupt(st, process)
 		return
 	}
@@ -168,7 +168,7 @@ func (s *memoryDispatcher) emitInterrupt(st *turnState, process agentexec.TurnPr
 		recordTurnCleanupError(st, s.finishFailedTurn(st, internalRunProblem(), errors.New("agent process returned an unsupported interrupt payload")))
 		return
 	}
-	recordInterruptMetric(st.ctx, string(pending.Kind))
+	recordInterruptMetric(st.ctx, pending.Kind.String())
 	if !s.emit(st, runs.TurnInterrupted{Interrupts: []runs.Interrupt{pending}, Duration: st.segmentElapsed()}) {
 		return
 	}
@@ -177,23 +177,23 @@ func (s *memoryDispatcher) emitInterrupt(st *turnState, process agentexec.TurnPr
 	// | "question") rides as the reason.
 	if !st.hooks.Empty() {
 		_ = st.hooks.Run(st.ctx, hooks.Input{
-			Event: hooks.Notification, SessionID: st.handle.SessionID, Cwd: st.cwd, Reason: string(pending.Kind),
+			Event: hooks.Notification, SessionID: st.handle.SessionID, Cwd: st.cwd, Reason: pending.Kind.String(),
 		})
 	}
 }
 
 // interruptKind decodes the application-owned discriminated envelope into its
-// application interrupt kind. Unknown or malformed payloads return "" and
-// are rejected by emitInterrupt; there is no field-shape fallback.
-func interruptKind(suspension *agent.Suspension) runs.InterruptKind {
+// interrupt kind, reporting false for a missing or malformed payload. Those are
+// rejected by emitInterrupt; there is no field-shape fallback.
+func interruptKind(suspension *agent.Suspension) (execution.InterruptKind, bool) {
 	if suspension == nil {
-		return ""
+		return 0, false
 	}
 	pending, ok := typedInterrupt(suspension)
 	if !ok {
-		return ""
+		return 0, false
 	}
-	return pending.Kind
+	return pending.Kind, true
 }
 
 func typedInterrupt(parked *agent.Suspension) (runs.Interrupt, bool) {

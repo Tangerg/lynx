@@ -191,7 +191,7 @@ func presentInterrupts(interrupts []transcript.Interrupt) []protocol.Interrupt {
 	for _, interrupt := range interrupts {
 		entry := protocol.Interrupt{ItemID: interrupt.ItemID}
 		switch interrupt.Kind {
-		case transcript.ApprovalInterrupt:
+		case execution.ApprovalInterrupt:
 			if interrupt.Approval == nil {
 				panic("server: approval interrupt has no approval payload")
 			}
@@ -202,14 +202,14 @@ func presentInterrupts(interrupts []transcript.Interrupt) []protocol.Interrupt {
 				Reason:       interrupt.Approval.Reason,
 				Rememberable: interrupt.Approval.Rememberable,
 			}
-		case transcript.QuestionInterrupt:
+		case execution.QuestionInterrupt:
 			if interrupt.Question == nil {
 				panic("server: question interrupt has no question payload")
 			}
 			entry.Type = protocol.InterruptQuestion
 			entry.Payload = &protocol.InterruptPayload{Question: new(presentQuestion(*interrupt.Question))}
 		default:
-			panic("server: unknown transcript interrupt kind")
+			panic("server: unknown interrupt kind")
 		}
 		out = append(out, entry)
 	}

@@ -34,7 +34,7 @@ func (*executorFakeDispatcher) PrepareTurn(context.Context, runs.StartTurn) (Tur
 	return TurnHandle{}, nil
 }
 func (*executorFakeDispatcher) ActivateTurn(context.Context, TurnHandle) error { return nil }
-func (*executorFakeDispatcher) Resume(context.Context, TurnHandle, interrupts.Resolution, []runs.InterruptKind) error {
+func (*executorFakeDispatcher) Resume(context.Context, TurnHandle, interrupts.Resolution, []execution.InterruptKind) error {
 	return nil
 }
 func (*executorFakeDispatcher) ProcessID(context.Context, TurnHandle) (string, error) { return "", nil }

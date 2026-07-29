@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -74,7 +75,7 @@ func TestListOpenInterruptsProjectsToWire(t *testing.T) {
 			RunID:     "run_waiting",
 			SessionID: "ses_1",
 			Interrupts: []transcript.Interrupt{{
-				ItemID: "item_1", Kind: transcript.ApprovalInterrupt,
+				ItemID: "item_1", Kind: execution.ApprovalInterrupt,
 				Approval: &transcript.Approval{
 					Tool: transcript.ToolInvocation{Name: "shell", Arguments: arguments},
 					Risk: tool.RiskHigh, Reason: "Runs commands in the workspace.", Rememberable: true,

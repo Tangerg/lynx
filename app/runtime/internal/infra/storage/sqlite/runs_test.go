@@ -50,7 +50,7 @@ func putParkedState(t *testing.T, transcripts *sqlite.TranscriptStore, ints *sql
 	parkedAt := time.Unix(2, 0).UTC()
 	question := &transcript.Question{Prompt: "Continue?"}
 	open := []transcript.Interrupt{{
-		ItemID: "item_" + runID, Kind: transcript.QuestionInterrupt, Question: question,
+		ItemID: "item_" + runID, Kind: execution.QuestionInterrupt, Question: question,
 	}}
 	if err := transcripts.AppendItem(t.Context(), transcript.Item{
 		SessionID: sessionID, ID: "item_" + runID, RunID: runID,
@@ -100,7 +100,7 @@ func parkedRun(runID, sessionID string) transcript.Run {
 	return transcript.Run{
 		SessionID: sessionID, ID: runID, State: execution.Interrupted,
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "itm_" + runID, Kind: transcript.QuestionInterrupt,
+			ItemID: "itm_" + runID, Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Prompt: "continue?"},
 		}},
 		Metrics:     transcript.RunMetrics{Steps: 1},
@@ -519,7 +519,7 @@ func TestReconcileOrphansRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	createdAt := runCreatedAt
 	parkedAt := time.Unix(2, 0).UTC()
 	question := &transcript.Question{Prompt: "Continue?"}
-	open := []transcript.Interrupt{{ItemID: "item_missing", Kind: transcript.QuestionInterrupt, Question: question}}
+	open := []transcript.Interrupt{{ItemID: "item_missing", Kind: execution.QuestionInterrupt, Question: question}}
 	if err := ints.Put(ctx, interrupts.Pending{
 		RunID: "run_park", SessionID: "ses_park", TurnID: "turn_park", ProcessID: "proc_park",
 		Interrupts: open, RunCreatedAt: createdAt, CreatedAt: parkedAt,

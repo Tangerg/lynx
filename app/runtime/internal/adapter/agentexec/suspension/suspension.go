@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
@@ -249,25 +250,28 @@ func (wire resolutionWire) resolution() (interrupts.Resolution, error) {
 
 type interruptKindWire string
 
-func interruptKindWireFrom(kind runs.InterruptKind) interruptKindWire {
+func interruptKindWireFrom(kind execution.InterruptKind) interruptKindWire {
 	switch kind {
-	case runs.ApprovalInterruptKind:
+	case execution.ApprovalInterrupt:
 		return "approval"
-	case runs.QuestionInterruptKind:
+	case execution.QuestionInterrupt:
 		return "question"
 	default:
-		return interruptKindWire(kind)
+		// Not encodable. Emitting the kind's own name keeps the failure loud: the
+		// decoder refuses it, so a snapshot can never restore as a kind the
+		// runtime would then treat as an approval.
+		return interruptKindWire(kind.String())
 	}
 }
 
-func (wire interruptKindWire) interruptKind() (runs.InterruptKind, error) {
+func (wire interruptKindWire) interruptKind() (execution.InterruptKind, error) {
 	switch wire {
 	case "approval":
-		return runs.ApprovalInterruptKind, nil
+		return execution.ApprovalInterrupt, nil
 	case "question":
-		return runs.QuestionInterruptKind, nil
+		return execution.QuestionInterrupt, nil
 	default:
-		return "", fmt.Errorf("agent suspension: unknown interrupt kind %q", wire)
+		return 0, fmt.Errorf("agent suspension: unknown interrupt kind %q", wire)
 	}
 }
 

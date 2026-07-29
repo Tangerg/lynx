@@ -15,6 +15,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/tools"
@@ -97,7 +98,7 @@ func (t *tool) propose(ctx context.Context, in proposeArgs) (string, error) {
 		return "", err
 	}
 	prompt := proposePrompt(draft, arguments)
-	pending := runs.Interrupt{Kind: runs.QuestionInterruptKind, Question: &prompt}
+	pending := runs.Interrupt{Kind: execution.QuestionInterrupt, Question: &prompt}
 	if err := pending.Validate(); err != nil {
 		return "", fmt.Errorf("propose_skill: %w", err)
 	}
@@ -106,7 +107,7 @@ func (t *tool) propose(ctx context.Context, in proposeArgs) (string, error) {
 		return "", err
 	}
 	res, err := t.interrupt(ctx,
-		interrupts.InterruptKey(string(runs.QuestionInterruptKind), toolName, arguments),
+		interrupts.InterruptKey(execution.QuestionInterrupt.String(), toolName, arguments),
 		pending,
 	)
 	if err != nil {

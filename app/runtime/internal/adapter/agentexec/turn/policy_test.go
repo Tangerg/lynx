@@ -10,9 +10,9 @@ import (
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval/approvaltest"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -134,7 +134,7 @@ func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		key := interrupts.InterruptKey(string(runs.ApprovalInterruptKind), "shell", arguments)
+		key := interrupts.InterruptKey(execution.ApprovalInterrupt.String(), "shell", arguments)
 		ctx := core.WithProcessView(t.Context(), suspendedProcessView{value: &interaction.Suspension{
 			ID: key, Prompt: prompt, Response: response,
 		}})
@@ -164,7 +164,7 @@ func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		key := interrupts.InterruptKey(string(runs.ApprovalInterruptKind), "shell", arguments)
+		key := interrupts.InterruptKey(execution.ApprovalInterrupt.String(), "shell", arguments)
 		ctx := core.WithProcessView(t.Context(), suspendedProcessView{value: &interaction.Suspension{
 			ID: key, Prompt: prompt, Response: response,
 		}})

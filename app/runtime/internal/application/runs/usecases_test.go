@@ -121,7 +121,7 @@ func (f *fakeTurnControl) Prepare(context.Context, execution.TurnRef) (execution
 	return f.prepared, f.prepareErr
 }
 
-func (f *fakeTurnControl) Resume(context.Context, execution.TurnRef, interrupts.Resolution, []InterruptKind) error {
+func (f *fakeTurnControl) Resume(context.Context, execution.TurnRef, interrupts.Resolution, []execution.InterruptKind) error {
 	if f.resumeCheck != nil {
 		f.resumeCheck()
 	}
@@ -440,7 +440,7 @@ func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
 func approvalInterrupt(itemID string) []transcript.Interrupt {
 	return []transcript.Interrupt{{
 		ItemID: itemID,
-		Kind:   transcript.ApprovalInterrupt,
+		Kind:   execution.ApprovalInterrupt,
 		Approval: &transcript.Approval{
 			Tool: transcript.ToolInvocation{Name: "shell"},
 		},
@@ -566,7 +566,7 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 			SafetyClass: "write",
 		},
 		TurnInterrupted{Interrupts: []Interrupt{{
-			Kind: ApprovalInterruptKind,
+			Kind: execution.ApprovalInterrupt,
 			Approval: &ApprovalPrompt{
 				CallID: "call_1", ToolName: "shell", Arguments: `{"command":"pwd"}`,
 				SafetyClass: "write",

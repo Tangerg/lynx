@@ -22,7 +22,7 @@ type executorDispatcher interface {
 	InjectSteering(context.Context, TurnHandle, string) error
 	PrepareTurn(context.Context, runs.StartTurn) (TurnHandle, error)
 	ActivateTurn(context.Context, TurnHandle) error
-	Resume(context.Context, TurnHandle, interrupts.Resolution, []runs.InterruptKind) error
+	Resume(context.Context, TurnHandle, interrupts.Resolution, []execution.InterruptKind) error
 	ProcessID(context.Context, TurnHandle) (string, error)
 	Rehydrate(context.Context, runs.RehydrateTurn) (TurnHandle, error)
 	Cancel(context.Context, TurnHandle) error
@@ -98,7 +98,7 @@ func (e *Executor) Prepare(ctx context.Context, ref execution.TurnRef) (executio
 }
 
 // Resume activates an already-attached continuation.
-func (e *Executor) Resume(ctx context.Context, ref execution.TurnRef, resolution interrupts.Resolution, interruptKinds []runs.InterruptKind) error {
+func (e *Executor) Resume(ctx context.Context, ref execution.TurnRef, resolution interrupts.Resolution, interruptKinds []execution.InterruptKind) error {
 	return mapControlError(e.dispatcher.Resume(ctx, concreteHandle(ref), resolution, interruptKinds))
 }
 

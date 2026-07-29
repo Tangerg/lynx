@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -32,7 +33,7 @@ func TestInterruptStore_PutGetListDelete(t *testing.T) {
 		TurnID:         "turn_1",
 		ModelSelection: testModelSelection(t, "anthropic", "claude-opus-4-8"),
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_question", Kind: transcript.QuestionInterrupt,
+			ItemID: "item_question", Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Prompt: "Choose"},
 		}},
 		CreatedAt: time.Unix(5, 0).UTC(),
@@ -99,7 +100,7 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 		SessionID: "ses_a",
 		ProcessID: "proc_1",
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_approval", Kind: transcript.ApprovalInterrupt,
+			ItemID: "item_approval", Kind: execution.ApprovalInterrupt,
 			Approval: &transcript.Approval{Risk: tool.RiskHigh},
 		}},
 		CreatedAt: time.Unix(7, 0).UTC(),

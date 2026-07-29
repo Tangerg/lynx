@@ -300,16 +300,9 @@ type Problem struct {
 	RetryAfterSeconds int
 }
 
-type InterruptKind uint8
-
-const (
-	ApprovalInterrupt InterruptKind = iota
-	QuestionInterrupt
-)
-
 type Interrupt struct {
 	ItemID   string
-	Kind     InterruptKind
+	Kind     execution.InterruptKind
 	Approval *Approval
 	Question *Question
 }

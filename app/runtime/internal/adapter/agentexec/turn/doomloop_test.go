@@ -9,8 +9,8 @@ import (
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
 // TestDoomLoopCounterTracksNoProgress checks the state machine that backs the
@@ -79,7 +79,7 @@ func TestDoomLoopBrakesRepeatedNoProgressCall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode doom-loop interrupt: %v", err)
 	}
-	if pending.Kind != runs.ApprovalInterruptKind || pending.Approval == nil {
+	if pending.Kind != execution.ApprovalInterrupt || pending.Approval == nil {
 		t.Fatalf("doom-loop interrupt = %+v, want an approval prompt", pending)
 	}
 	if pending.Approval.Rememberable {

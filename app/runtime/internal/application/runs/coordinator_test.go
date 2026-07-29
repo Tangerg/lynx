@@ -417,7 +417,7 @@ func TestCoordinatorActivationFailureBecomesErrorTerminal(t *testing.T) {
 }
 
 func TestCoordinatorMalformedInterruptAbortsExecutorAndTerminalizes(t *testing.T) {
-	executor := &fakeExecutor{events: []EngineEvent{TurnInterrupted{Interrupts: []Interrupt{{Kind: InterruptKind("unknown")}}}}}
+	executor := &fakeExecutor{events: []EngineEvent{TurnInterrupted{Interrupts: []Interrupt{{Kind: execution.InterruptKind(9)}}}}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
 
@@ -480,7 +480,7 @@ func TestCoordinatorProtocolViolationAbortsExecutorAndTerminalizes(t *testing.T)
 
 func TestCoordinatorCommitsSyntheticTerminalBeforeCancelTurn(t *testing.T) {
 	executor := &fakeExecutor{
-		events:        []EngineEvent{TurnInterrupted{Interrupts: []Interrupt{{Kind: InterruptKind("unknown")}}}},
+		events:        []EngineEvent{TurnInterrupted{Interrupts: []Interrupt{{Kind: execution.InterruptKind(9)}}}},
 		cancelStarted: make(chan struct{}),
 		releaseCancel: make(chan struct{}),
 	}

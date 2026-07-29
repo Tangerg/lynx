@@ -18,6 +18,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -106,14 +107,14 @@ func (t *tool) ask(ctx context.Context, a askUserArgs) (string, error) {
 		Arguments: arguments,
 		Questions: a.toQuestions(),
 	}
-	pending := runs.Interrupt{Kind: runs.QuestionInterruptKind, Question: &in}
+	pending := runs.Interrupt{Kind: execution.QuestionInterrupt, Question: &in}
 	if err := pending.Validate(); err != nil {
 		return "", fmt.Errorf("ask_user: %w", err)
 	}
 	// First pass interrupts (bubbles up, parks); resume returns the human's
 	// structured answers at this same call site.
 	res, err := t.interrupt(ctx,
-		interrupts.InterruptKey(string(runs.QuestionInterruptKind), toolName, arguments),
+		interrupts.InterruptKey(execution.QuestionInterrupt.String(), toolName, arguments),
 		pending,
 	)
 	if err != nil {

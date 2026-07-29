@@ -28,8 +28,8 @@ func TestChildToolsShareRootHITLAndHookContract(t *testing.T) {
 			name:             "approval with human edited arguments",
 			childTool:        "shell",
 			childArguments:   `{"command":"echo original"}`,
-			interruptKinds:   []runs.InterruptKind{runs.ApprovalInterruptKind},
-			wantInterrupt:    runs.ApprovalInterruptKind,
+			interruptKinds:   []execution.InterruptKind{execution.ApprovalInterrupt},
+			wantInterrupt:    new(execution.ApprovalInterrupt),
 			resolution:       interrupts.Resolution{Approved: true, Arguments: `{"command":"echo human"}`},
 			rewriteArguments: `{"command":"echo hook"}`,
 		},
@@ -37,8 +37,8 @@ func TestChildToolsShareRootHITLAndHookContract(t *testing.T) {
 			name:             "approval denial",
 			childTool:        "shell",
 			childArguments:   `{"command":"echo original"}`,
-			interruptKinds:   []runs.InterruptKind{runs.ApprovalInterruptKind},
-			wantInterrupt:    runs.ApprovalInterruptKind,
+			interruptKinds:   []execution.InterruptKind{execution.ApprovalInterrupt},
+			wantInterrupt:    new(execution.ApprovalInterrupt),
 			resolution:       interrupts.Resolution{Approved: false, Reason: "not this time"},
 			rewriteArguments: `{"command":"echo hook"}`,
 		},
@@ -51,8 +51,8 @@ func TestChildToolsShareRootHITLAndHookContract(t *testing.T) {
 			name:           "child question",
 			childTool:      "ask_user",
 			childArguments: `{"questions":[{"question":"Continue?","options":[{"label":"Yes"},{"label":"No"}]}]}`,
-			interruptKinds: []runs.InterruptKind{runs.QuestionInterruptKind},
-			wantInterrupt:  runs.QuestionInterruptKind,
+			interruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+			wantInterrupt:  new(execution.QuestionInterrupt),
 			resolution: interrupts.Resolution{
 				Approved: true,
 				Answer:   map[string][]string{runs.QuestionFieldID(0): {"Yes"}},
@@ -72,8 +72,8 @@ type childHITLScenario struct {
 	name             string
 	childTool        string
 	childArguments   string
-	interruptKinds   []runs.InterruptKind
-	wantInterrupt    runs.InterruptKind
+	interruptKinds   []execution.InterruptKind
+	wantInterrupt    *execution.InterruptKind
 	resolution       interrupts.Resolution
 	rewriteArguments string
 }
@@ -121,7 +121,7 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 				t.Fatalf("interrupts = %#v", event.Interrupts)
 			}
 			pending := event.Interrupts[0]
-			if pending.Kind != scenario.wantInterrupt {
+			if scenario.wantInterrupt == nil || pending.Kind != *scenario.wantInterrupt {
 				t.Fatalf("interrupt kind = %q, want %q", pending.Kind, scenario.wantInterrupt)
 			}
 			toolName, _ := pending.Tool()
@@ -144,10 +144,10 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 
 func assertChildHITLOutcome(t *testing.T, scenario childHITLScenario, outcome childHITLOutcome, recorder *hookCommandRecorder) {
 	t.Helper()
-	if scenario.wantInterrupt == "" && outcome.interruptCount != 0 {
+	if scenario.wantInterrupt == nil && outcome.interruptCount != 0 {
 		t.Fatalf("safe child interrupt count = %d, want 0", outcome.interruptCount)
 	}
-	if scenario.wantInterrupt != "" && outcome.interruptCount != 1 {
+	if scenario.wantInterrupt != nil && outcome.interruptCount != 1 {
 		t.Fatalf("interrupt count = %d, want 1", outcome.interruptCount)
 	}
 	if outcome.endReason != execution.OutcomeCompleted {
@@ -185,7 +185,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 		SessionID:      "sess-b8-two-questions",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
-		InterruptKinds: []runs.InterruptKind{runs.QuestionInterruptKind},
+		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -201,7 +201,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 		switch event := event.(type) {
 		case runs.TurnInterrupted:
 			interruptCount++
-			if len(event.Interrupts) != 1 || event.Interrupts[0].Kind != runs.QuestionInterruptKind {
+			if len(event.Interrupts) != 1 || event.Interrupts[0].Kind != execution.QuestionInterrupt {
 				t.Fatalf("interrupt %d = %#v", interruptCount, event.Interrupts)
 			}
 			if err := dispatcher.Resume(t.Context(), handle, interrupts.Resolution{
@@ -209,7 +209,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 				Answer: map[string][]string{
 					runs.QuestionFieldID(0): {"answer"},
 				},
-			}, []runs.InterruptKind{runs.QuestionInterruptKind}); err != nil {
+			}, []execution.InterruptKind{execution.QuestionInterrupt}); err != nil {
 				t.Fatalf("Resume %d: %v", interruptCount, err)
 			}
 		case runs.TurnEnd:
@@ -256,7 +256,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 		SessionID:      "sess-b8-restart",
 		Message:        "delegate this work",
 		Cwd:            cwd,
-		InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
+		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -313,7 +313,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	const humanArguments = `{"command":"echo human-after-restart"}`
 	if err := restored.Resume(t.Context(), restoredHandle, interrupts.Resolution{
 		Approved: true, Arguments: humanArguments,
-	}, []runs.InterruptKind{runs.ApprovalInterruptKind}); err != nil {
+	}, []execution.InterruptKind{execution.ApprovalInterrupt}); err != nil {
 		t.Fatalf("restored Resume: %v", err)
 	}
 
@@ -383,7 +383,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 		SessionID:      "sess-b8-child-cancel",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
-		InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
+		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -440,7 +440,7 @@ func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
 		SessionID:      "sess-b8-child-missing",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
-		InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
+		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -504,7 +504,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 			SessionID:      "sess-b8-race-" + string(rune('a'+index)),
 			Message:        "delegate this work",
 			Cwd:            t.TempDir(),
-			InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
+			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 		})
 		if err != nil {
 			t.Fatalf("iteration %d StartTurn: %v", index, err)
@@ -531,7 +531,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 				go func() {
 					defer wg.Done()
 					<-start
-					resumeErr = dispatcher.Resume(t.Context(), handle, interrupts.Resolution{Approved: true}, []runs.InterruptKind{runs.ApprovalInterruptKind})
+					resumeErr = dispatcher.Resume(t.Context(), handle, interrupts.Resolution{Approved: true}, []execution.InterruptKind{execution.ApprovalInterrupt})
 				}()
 				go func() {
 					defer wg.Done()

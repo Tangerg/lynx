@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -65,7 +66,7 @@ type StartCommand struct {
 	MaxCostUSD      float64
 	MaxSteps        int
 	Options         *corechat.Options
-	InterruptKinds  []InterruptKind
+	InterruptKinds  []execution.InterruptKind
 	Input           []transcript.ContentBlock
 	// GoalLeaseID stamps a Goal-mode autonomous run with the goal incarnation
 	// that launched it, so the run's update_goal signal only affects that goal
@@ -133,7 +134,7 @@ func (c StartCommand) MaterializeInput() (message string, images []*media.Media,
 type ResumeCommand struct {
 	RunID          string
 	Responses      []ResumeResponse
-	InterruptKinds []InterruptKind
+	InterruptKinds []execution.InterruptKind
 }
 
 type ResumeResponseKind string

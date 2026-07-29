@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -18,7 +19,7 @@ import (
 // the failing continuation Start is what's under test.
 type resumeOKTurns struct{ turnRuntime }
 
-func (resumeOKTurns) Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []runs.InterruptKind) error {
+func (resumeOKTurns) Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []execution.InterruptKind) error {
 	return nil
 }
 func (resumeOKTurns) Cancel(context.Context, turn.TurnHandle) error { return nil }
@@ -44,7 +45,7 @@ func TestResumeRun_KeepsInterruptOpenWhenStartFails(t *testing.T) {
 		ModelSelection: mustResumeSelection(t, "openai", "gpt"),
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_1",
-			Kind:   transcript.ApprovalInterrupt,
+			Kind:   execution.ApprovalInterrupt,
 			Approval: &transcript.Approval{
 				Tool: transcript.ToolInvocation{Name: "shell"},
 			},
@@ -101,7 +102,7 @@ func TestResumeRunRejectsMissingAndUnknownItemCoverage(t *testing.T) {
 		RunID: "run_coverage", SessionID: sess.ID, TurnID: "turn_parked", ProcessID: "turn_parked",
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_open",
-			Kind:   transcript.ApprovalInterrupt,
+			Kind:   execution.ApprovalInterrupt,
 			Approval: &transcript.Approval{
 				Tool: transcript.ToolInvocation{Name: "shell"},
 			},

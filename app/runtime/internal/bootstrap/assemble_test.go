@@ -393,7 +393,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	parkedAt := createdAt.Add(time.Second)
 	question := &transcript.Question{Prompt: "Continue?"}
 	open := []transcript.Interrupt{{
-		ItemID: "item_park", Kind: transcript.QuestionInterrupt, Question: question,
+		ItemID: "item_park", Kind: execution.QuestionInterrupt, Question: question,
 	}}
 
 	if err := cfg.RunStore.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, SegmentID: "seg_open", CreatedAt: createdAt}); err != nil {
