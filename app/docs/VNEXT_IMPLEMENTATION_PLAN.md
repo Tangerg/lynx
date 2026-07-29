@@ -1019,7 +1019,7 @@ todos 今天只以**流内 ephemeral `state.snapshot`** 形态上 wire：没有 
 |---|---|---|---|
 | C1 | `RunStatus` 三态；`RunOutcome`/`SegmentOutcome` 拆分；删 `RunResult`+`durationMs`；`RunMetrics`/`RunLimits`（+ Artifact run 同步拆，契约 §10 要求同时改）| `DONE` | `5e3217241` |
 | C2 | `RunSummary` base + `RunRef` 嵌入（同一定义生成三方，**TS 不做语法继承**）+ `activeSegmentId` durable + 约束随嵌入继承 | `DONE` | `688dfc17f` |
-| C3 | `RunProtocolProfile` durable 不可变 + `features.subagents` gate（广告 `false`）+ Minimal Profile + capability preflight | `TODO` | — |
+| C3 | `RunProtocolProfile` durable 不可变 + `features.subagents` gate（广告 `false`）+ Minimal Profile + capability preflight | `DONE` | `6b7d76d2c` + `baa7a304d` |
 | C4 | `runs.get` 新方法 + `runs.list` 全历史/status/`includeDescendants` + cursor 绑定规范化 filters | `TODO` | — |
 | C5 | `ItemListScope` 闭合联合替换扁平请求 + `items.list.order` 双向 + 页级 `RunSummary[]` | `TODO` | — |
 | C6 | `Interrupt.runId` 必填 + payload 三 variant + `OpenInterrupt`→`PendingInterruptSet{rootRunId}` + `interrupts.list` 取代 `runs.listOpenInterrupts`（aggregate 分页，set 不跨页） | `TODO` | — |
@@ -1103,7 +1103,27 @@ presence 原语正是"一 keyword 一原语"禁的那种融合。
 
 **注册期校验**：`requiredByRunProtocol:true` 蕴含 `clientOptIn:true`（§8.2），违反要让 Registry **构建失败**（panic），不是运行时报错 —— §14 验收项明写这一条。
 
-**建议顺序**：C3 之前可先做 **C4/C5**（都只依赖已完成的 C1/C2，互不依赖）。C3 唯一挡住的是 C4 里
+**C3 已完成（2026-07-29）**，落两个 commit：
+
+- `6b7d76d2c` **前置重构（无 wire 变更）**：interrupt kind 统一成 `execution.InterruptKind`。**这是 C3 逼出来的**：profile 是 admission 冻结的、`RunDraft` 在 `execution`，而 kind 原本有两份（application string + transcript uint8，各跟一个 Interrupt 形状）；不统一就要在"冻结的 profile → executor"路上写一张两个同值集枚举之间的映射表。snapshot codec 的显式 wire 常量保留（durable 编码不跟 Go 改名走）。
+- `baa7a304d` **C3 本体**：negotiate-once + 冻结 + 覆盖检查。
+
+**实现落点（与「接手须知」的差异，按实际代码）**：
+
+| 面 | 落点 |
+|---|---|
+| 协商 | `delivery/server/capability_negotiation.go` 一个函数，两种读法：start 冻结它、resume/subscribe 拿它做覆盖检查 —— 同一个词汇表，不可能各说各话 |
+| 覆盖检查 | **application**（`runs.ErrProfileNotCovered`）—— resume 的 profile 只在 `pending` 里（`Consume` 是 `DELETE…RETURNING`，JOIN 不可能），delivery 不该为一道闸新开 run 读面；`SubscribeLive` 因此改成返回 error（`ok bool` → `ErrRunNotFound`/`ErrProfileNotCovered`），两个"进入已存在 Run"的入口共用一条规则 |
+| 不可变 | `runs.protocol_profile` 列**只有 admission INSERT 与 Restore 写**，Suspend/Resume/finish 都不提及该列 —— 不是加校验，是让"能改它的语句不存在" |
+| gap 类型 | `execution.RunProtocolProfile.Uncovered(caller)` 返回**同形状的 profile**（缺口本身就是一对 features+kinds），不新造词汇 |
+| 不变量 | `run_protocol_profile_is_immutable` 已登记（boundary = `runs.admission`，fixture = sqlite `TestRunProtocolProfileIsImmutable`）；reducer 侧另有单测证明续段报的是 park 冻结值 |
+| `toolResult` interrupt | 映射不到 domain kind ≠ 非法值：它是 `features.clientTools` 缺失，按 capability_not_negotiated 报；真正的未知枚举值才 invalid_params |
+
+**顺带治的两处**（同一协商的另一半，不是顺手扩 scope）：`ClientCapabilities.events` 删除后 stream filter 只剩 ephemeral opt-out（"按声明裁流"给出的是没人看得出被裁过的短流）；`excludedEphemeralEvents` 命名 durable 事件现在报 `invalid_params`（在 `_meta` 解码处），不再静默无视。
+
+**C3 明确 deferred（附因，非跳过）**：`interrupts.list` 的同一条覆盖规则（§8.1「一个 set 不许部分返回」）→ **C6**。那个 slice 本就把方法换成 root-owned aggregate，且它的拒绝要带 C10 的 `requiredCapabilities`；今天桌面端两种 kind 全声明，缺口不可达。
+
+**建议顺序**：接下来做 **C4/C5**（都只依赖已完成的 C1/C2，互不依赖）。C3 唯一挡住的是 C4 里
 `includeDescendants:true` 要返 `capability_not_negotiated` —— 那条在 C4 用现有 feature gate 直接拒即可（`features.subagents` 广告 false 已足够），profile 不参与该判断。
 
 **每 slice 反泄露 DoD**：新增 wire 概念不得在 presenter 产生业务判断（对照 §4.3 归属表）。
