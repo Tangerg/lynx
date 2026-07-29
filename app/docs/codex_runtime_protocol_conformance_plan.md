@@ -208,7 +208,7 @@ cd app/desktop/frontend && npm run check
 | A5 | capability gate 与 disabled-subagent seam 收口 | `DONE` | 2026-07-30 完成 | shared policy、durable identity gates、全量 gates |
 | A6 | Registry fail-closed 与 SSOT 清理 | `DONE` | 2026-07-30 完成 | defensive views、closed metadata、effective errors、全量 gates |
 | A7 | canonical docs 与最终 conformance sweep | `DONE` | 2026-07-30 完成 | §12.4 conformance matrix、全量 gates |
-| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.2 child producer | B1.1 已完成；启用条件见 §11 |
+| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.2b2 acknowledged child opening | B1.1、B1.2a、B1.2b1 已完成；启用条件见 §11 |
 
 A1–A7 已全部完成，当前没有 A-track slice 处于 `IN PROGRESS`。B1 保持独立项目，
 已按 breaking-first 策略开始实施；不得通过打开 feature flag、复用 root identity
@@ -506,7 +506,7 @@ consumer 闭环就不能诚实发布 capability。
 | Slice | 边界 | 状态 | 完成定义 |
 |---|---|---|---|
 | B1.1 | durable Run-tree identity 与 root admission | `DONE` | 三条 child edge 单一领域不变量、SQLite epoch 41、root-only active index、root-owned profile、Artifact/tree validation |
-| B1.2 | first-class child Run producer 与 source routing | `IN PROGRESS` | B1.2a causal identity 已完成；继续 acknowledged opening、独立 Segment/Item/metrics、root stream 多 source envelope |
+| B1.2 | first-class child Run producer 与 source routing | `IN PROGRESS` | causal identity 与 source envelope 已完成；继续 acknowledged opening、独立 Segment/Item/metrics、root Journal 多 source publication |
 | B1.3 | tree interrupt barrier 与 resume | `TODO` | direct Interrupt union、non-source suspended、tree quiescence、完整 set consume、survivor 新 Segment |
 | B1.4 | unified root/child cancellation | `TODO` | tree arbiter、Running/Waiting child subtree transaction、parent `child_run_canceled`、exact root+child response |
 | B1.5 | durable query、subscribe 与 cold recovery | `TODO` | descendant paging、child items/subscribe、restart tree query/recovery、root stream replay scope |
@@ -522,7 +522,8 @@ B1.2 内部原子切片：
 | Slice | 状态 | 边界 |
 |---|---|---|
 | B1.2a | `DONE` | AgentTool child 的 durable `SpawnCallID`、Process/Snapshot/Event/adapter causal projection、provider call → canonical parent Item 精确映射 |
-| B1.2b | `IN PROGRESS` | source envelope、acknowledged child opening、parent running Item + child admission 同事务 |
+| B1.2b1 | `DONE` | application-owned executor source envelope；Process causal identity 端到端保真；delta 只在同 source 内合并；未准入 child fail closed |
+| B1.2b2 | `IN PROGRESS` | acknowledged child opening；parent running Item + child Run admission 同事务；commit 成功前 child 不执行 |
 | B1.2c | `TODO` | per-child reducer、独立 Segment/Item/metrics、root Journal 多 source publication |
 | B1.2d | `TODO` | 并发 sibling/嵌套 child/失败回滚 conformance 与 B1.2 收口 |
 
@@ -688,6 +689,9 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 | C12 | steer 的 live drain 与 terminal fallback 共用同一条 canonical queue；fallback 同时发布 transcript Item 并写 conversation history | `ACCEPTED` |
 | C13 | 客户端 opt-out 由 `SuppressibleRunEventType` 闭合集合表达，不用完整 event enum 加运行时兜底 | `ACCEPTED` |
 | C14 | `UnionSpec.Forbidden` 只表达当前协议的负面不变量，不承担历史兼容解码 | `ACCEPTED` |
+| C15 | executor 只报告 `ProcessID/ParentID/SpawnCallID`；process → Run/Segment/Item 的映射由 application Coordinator 独占 | `ACCEPTED` |
+| C16 | 文本 delta 的合并键是 `(source, event kind)`；来源不同即使事件类型相同也必须保持边界与顺序 | `ACCEPTED` |
+| C17 | child source 在 durable admission 前不得进入 root reducer；完整 acknowledged opening 就绪前一律 fail closed | `ACCEPTED` |
 
 ---
 
@@ -703,6 +707,8 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 | output constraints 仍只存在于注释 | 生成 validator 接受非法 frame | 单一 constraint metadata + 双侧 fixtures |
 | state-dependent capability 被静态 shape gate 冒充 | child id 可能绕过协商 | durable identity resolution 后显式检查 |
 | 为打开 feature 只改布尔值 | 暴露未完成 child 语义 | B1 启用门槛测试 |
+| event stream 丢失 process source 或跨 source 合并 delta | child 内容被错误归入 root/其他 sibling | application-owned source envelope + `(source, kind)` 合并边界 + 回归测试 |
+| child 在 durable opening 前开始执行 | crash 后出现无 Run 的外部副作用或孤儿事件 | acknowledged opening；application commit 成功后才向 executor 放行 |
 | 顺手重构扩大爆炸半径 | 难审查、难回滚 | slice 边界与 targeted diff |
 
 ---
@@ -1099,6 +1105,47 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
     进入 B1.2c；
   - `features.subagents.enabled` 继续保持 false。
 
+### 2026-07-30 — B1.2b1
+
+- 状态：`DONE`
+- Commit：`3c954d331`（`refactor(runtime): make executor event sources explicit`）
+- 目标：让 driven executor port 中的每个事件显式携带真实 producer identity，为
+  acknowledged child opening 与后续 per-child reducer 建立不丢失、不猜测的路由边界。
+- 关键裁决：
+  - application port 从裸 `EngineEvent` 硬切换为
+    `ExecutorEvent{Source, Payload}`；`ExecutorSource` 只包含 executor-owned
+    `ProcessID/ParentID/SpawnCallID`，不泄漏 application Run、Segment 或 Item identity；
+  - `ExecutorSource.Validate` 确定性校验空值、首尾空白、自父引用和 root 携带
+    spawn-call 等非法组合；完全空 source 只保留给 process 创建前失败的 root terminal；
+  - turn adapter 用 `emitRootEvent` 与 `emitProcessEvent` 区分 turn-owned 和
+    process-owned 事件，避免含糊的 `emit/emitFrom` 命名；observer 原样保留具体
+    process source；
+  - event coalescer 只合并 source 与 event kind 同时相同的连续文本 delta；不同
+    process 的同类 delta 必须作为顺序边界 spill，不能把 sibling/root 内容粘连；
+  - Coordinator 在路由前校验完整 envelope。acknowledged opening 尚未安装时，
+    任何 child source 都明确中止并合成 error terminal，绝不降级进 root reducer；
+  - 当前 child observations 仍由 adapter 的既有 Minimal Profile 过滤器挡住；
+    fail-closed 分支是防漂移护栏，不代表 child producer 已启用。
+- 生成物：
+  - public wire、Registry、SQLite schema 与 frontend artifact 均未变化；
+  - 变更仅发生在 application-owned driven port 和 executor adapter 内部契约。
+- 验证：
+  - `cd app/runtime && go test ./...` → `PASS`
+  - `cd app/runtime && go vet ./...` → `PASS`
+  - `cd app/runtime && staticcheck ./...` → `PASS`
+  - `cd app/runtime && go test -race ./internal/adapter/agentexec/turn ./internal/application/runs ./internal/delivery/server`
+    → `PASS`
+  - source validation、adapter identity preservation、跨 process delta 隔离、未准入
+    child fail-closed fixtures → `PASS`
+- 残余风险：
+  - source 已可传输，但 child 仍不能在 durable opening 前等待 application 确认；
+    进入 B1.2b2；
+  - child Run identity 分配、parent running Item + child admission 原子事务、
+    admission failure 对 executor 的回传与 rollback 仍未实现；
+  - per-child reducer、独立 Segment/Item/metrics 和 root Journal 多 source publication
+    进入 B1.2c；
+  - `features.subagents.enabled` 继续保持 false。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -1127,13 +1174,13 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 
 ## 18. 下一步
 
-A-track 已收口，B1.1 与 B1.2a 已完成。下一原子切片是：
+A-track 已收口，B1.1、B1.2a 与 B1.2b1 已完成。下一原子切片是：
 
 ```text
-B1.2b — source envelope 与 acknowledged child opening transaction
+B1.2b2 — acknowledged child opening transaction
 ```
 
-B1.2b 必须让 child 真正执行前等待 application 对 opening 的成功确认，并把父级
+B1.2b2 必须让 child 真正执行前等待 application 对 opening 的成功确认，并把父级
 running spawning Item 与 child `RunDraft` 放进同一 `Effects.CommitOpening` 事务。
 adapter 只能报告 executor source/cause，不能直接写 delivery DTO、domain Run ID 或 SQLite。
 
