@@ -43,7 +43,7 @@ type testRuntime interface {
 // run-segment persistence each declare their own smaller ports.
 type turnRuntime interface {
 	Events(context.Context, turn.TurnHandle) (iter.Seq[runs.EngineEvent], error)
-	InjectSteering(context.Context, turn.TurnHandle, string) error
+	InjectSteering(context.Context, turn.TurnHandle, []transcript.ContentBlock) error
 	PrepareTurn(context.Context, runs.StartTurn) (turn.TurnHandle, error)
 	ActivateTurn(context.Context, turn.TurnHandle) error
 	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []execution.InterruptKind) error
@@ -248,8 +248,8 @@ func (s stubRuntime) Cancel(ctx context.Context, ref execution.TurnRef) error {
 	return turn.NewExecutor(s.turnDispatcher()).CancelTurn(ctx, ref)
 }
 
-func (s stubRuntime) Steer(ctx context.Context, ref execution.TurnRef, message string) error {
-	return turn.NewExecutor(s.turnDispatcher()).Steer(ctx, ref, message)
+func (s stubRuntime) Steer(ctx context.Context, ref execution.TurnRef, input []transcript.ContentBlock) error {
+	return turn.NewExecutor(s.turnDispatcher()).Steer(ctx, ref, input)
 }
 
 func (s stubRuntime) CancelTurn(ctx context.Context, ref execution.TurnRef) error {

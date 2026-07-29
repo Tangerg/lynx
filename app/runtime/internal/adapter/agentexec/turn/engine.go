@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 )
@@ -20,7 +21,7 @@ type engineDep interface {
 
 // SteeringSink persists queued steering after the current turn finishes.
 type SteeringSink interface {
-	InjectUser(ctx context.Context, sessionID, text string) error
+	AppendUserMessage(ctx context.Context, sessionID string, message chat.Message) error
 }
 
 // CompactionResult reports one turn-boundary compaction sweep.

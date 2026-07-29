@@ -87,6 +87,82 @@ func TestDecodeReportsFieldLevelConstraintViolations(t *testing.T) {
 	}
 }
 
+func TestDecodeRequiredAndOptionalArrayConstraints(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		params     string
+		decode     func(*transport.Request) *transport.Error
+		wantField  string
+		wantDetail string
+	}{
+		{
+			name:   "required array omitted",
+			params: `{"runId":"run_1","expectedSegmentId":"seg_1"}`,
+			decode: func(msg *transport.Request) *transport.Error {
+				_, bad := decode[protocol.SteerRunRequest](msg)
+				return bad
+			},
+			wantField:  "input",
+			wantDetail: "is required",
+		},
+		{
+			name:   "required array empty",
+			params: `{"runId":"run_1","expectedSegmentId":"seg_1","input":[]}`,
+			decode: func(msg *transport.Request) *transport.Error {
+				_, bad := decode[protocol.SteerRunRequest](msg)
+				return bad
+			},
+			wantField:  "input",
+			wantDetail: "must not be empty",
+		},
+		{
+			name:   "optional array omitted",
+			params: `{"runId":"run_1","responses":[]}`,
+			decode: func(msg *transport.Request) *transport.Error {
+				_, bad := decode[protocol.ResumeRunRequest](msg)
+				return bad
+			},
+		},
+		{
+			name:   "optional array empty",
+			params: `{"runId":"run_1","responses":[],"input":[]}`,
+			decode: func(msg *transport.Request) *transport.Error {
+				_, bad := decode[protocol.ResumeRunRequest](msg)
+				return bad
+			},
+			wantField:  "input",
+			wantDetail: "must not be empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			bad := tt.decode(&transport.Request{Params: json.RawMessage(tt.params)})
+			if tt.wantField == "" {
+				if bad != nil {
+					t.Fatalf("decode rejected valid params: %+v", bad)
+				}
+				return
+			}
+			if bad == nil {
+				t.Fatal("decode accepted invalid params")
+			}
+			var problem protocol.ProblemData
+			if err := json.Unmarshal(bad.Data, &problem); err != nil {
+				t.Fatalf("decode problem data: %v", err)
+			}
+			if !slices.Equal(problem.Errors, []protocol.FieldError{{
+				Field: tt.wantField, Detail: tt.wantDetail,
+			}}) {
+				t.Fatalf("errors = %+v, want %s: %s", problem.Errors, tt.wantField, tt.wantDetail)
+			}
+		})
+	}
+}
+
 // TestDecodeAcceptsRequestsWithoutConstraints keeps the constraint hook from
 // becoming a gate on every method: a request type that declares nothing must
 // decode unchanged.

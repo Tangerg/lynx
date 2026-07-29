@@ -1628,7 +1628,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, []),
   RestoreType: enumOf(["history", "files", "both"]),
   ResumeRunRequest: object({
-    input: array(ref(() => CHECKS.ContentBlock)),
+    input: allOf([array(ref(() => CHECKS.ContentBlock)), minItems(1)]),
     responses: array(ref(() => CHECKS.InterruptResponse)),
     runId: allOf([text(), minLength(1)]),
   }, ["responses", "runId"]),
@@ -2178,7 +2178,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     sessionId: allOf([text(), minLength(1)]),
   }, ["objective", "sessionId"]),
   StartRunRequest: object({
-    input: array(ref(() => CHECKS.ContentBlock)),
+    input: allOf([array(ref(() => CHECKS.ContentBlock)), minItems(1)]),
     maxBudgetUsd: numeric(),
     maxSteps: integer(),
     model: text(),
@@ -2216,9 +2216,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   StateSnapshotWriter: enumOf(["rootRun", "anyRun"]),
   SteerRunRequest: object({
     expectedSegmentId: allOf([text(), minLength(1)]),
-    message: allOf([text(), minLength(1)]),
+    input: allOf([array(ref(() => CHECKS.ContentBlock)), minItems(1)]),
     runId: allOf([text(), minLength(1)]),
-  }, ["expectedSegmentId", "message", "runId"]),
+  }, ["expectedSegmentId", "input", "runId"]),
   StreamEvent: allOf([
     object({
       delta: ref(() => CHECKS.ItemDelta),

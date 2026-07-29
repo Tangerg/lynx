@@ -1300,7 +1300,7 @@ export type StateSnapshotWriter = "rootRun" | "anyRun";
 
 export interface SteerRunRequest {
   expectedSegmentId: string;
-  message: string;
+  input: ContentBlock[];
   runId: string;
 }
 

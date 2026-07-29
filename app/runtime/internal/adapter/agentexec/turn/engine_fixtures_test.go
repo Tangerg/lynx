@@ -225,7 +225,9 @@ func (s *stubEngine) RestoreTurn(_ context.Context, processID string, request ag
 
 type noopTurnServices struct{}
 
-func (noopTurnServices) InjectUser(context.Context, string, string) error { return nil }
+func (noopTurnServices) AppendUserMessage(context.Context, string, corechat.Message) error {
+	return nil
+}
 
 func (noopTurnServices) Maintain(context.Context, turn.BoundaryMaintenanceInput) turn.BoundaryMaintenanceResult {
 	return turn.BoundaryMaintenanceResult{}

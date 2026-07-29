@@ -48,6 +48,16 @@ func (e *ConstraintError) Error() string {
 	return strings.Join(parts, "; ")
 }
 
+// Is makes a field-level constraint failure a typed invalid_params problem even
+// when it is discovered by a nested wire decoder inside a delivery handler.
+func (e *ConstraintError) Is(target error) bool { return target == ErrInvalidParams }
+
+// Enrich preserves the exact offending fields when a nested decoder returns the
+// error through the normal dispatcher error path.
+func (e *ConstraintError) Enrich(data *ProblemData) {
+	data.Errors = append(data.Errors, e.Fields...)
+}
+
 // violate returns nil when there is nothing to report, so a Validate built from
 // several checks composes without the caller testing each one.
 func violate(fields ...FieldError) error {
@@ -77,11 +87,22 @@ func positive(field string, value uint64) FieldError {
 	return FieldError{}
 }
 
-// nonEmptyItems rejects an array that was SENT with nothing in it. An absent
-// optional array is untouched — a nil slice is the field's absence, which is what
-// distinguishes "no filter" from "a filter that matches nothing", and it is the
-// same distinction the schema's minItems draws by applying only when the property
-// is present.
+// requiredItems rejects an absent or empty required array. Requiredness comes
+// from the DTO's JSON tag; the generator selects this helper for a field without
+// omitempty so the runtime enforces the same required + minItems contract as the
+// schema and generated client.
+func requiredItems[T any](field string, values []T) FieldError {
+	if values == nil {
+		return FieldError{Field: field, Detail: "is required"}
+	}
+	if len(values) == 0 {
+		return FieldError{Field: field, Detail: "must not be empty"}
+	}
+	return FieldError{}
+}
+
+// nonEmptyItems rejects an optional array that was sent with nothing in it. A
+// nil slice is the field's absence, which remains valid for an optional field.
 func nonEmptyItems[T any](field string, values []T) FieldError {
 	if values != nil && len(values) == 0 {
 		return FieldError{Field: field, Detail: "must not be empty"}

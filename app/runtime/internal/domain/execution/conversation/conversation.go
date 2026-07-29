@@ -21,8 +21,8 @@ import (
 var (
 	// errSessionIDRequired guards every operation: a session ID is the history
 	// key, so an empty one is a programming error, not an empty history.
-	errSessionIDRequired = errors.New("conversation: session ID is required")
-	errTextRequired      = errors.New("conversation: text must not be empty")
+	errSessionIDRequired   = errors.New("conversation: session ID is required")
+	errUserMessageRequired = errors.New("conversation: valid user message is required")
 )
 
 // Store is the conversation domain's persistence port. Replace must set the
@@ -133,19 +133,22 @@ func (m *Messages) Clear(ctx context.Context, sessionID string) error {
 	return nil
 }
 
-// InjectUser appends a synthetic user message to sessionID's history — it
+// AppendUserMessage appends a validated user message to sessionID's history. It
 // becomes part of the conversation the chat history middleware loads at the
-// start of the next turn. The runtime uses this to deliver mid-turn steering
-// once the current turn ends. Errors on an empty sessionID or text.
-func (m *Messages) InjectUser(ctx context.Context, sessionID, text string) error {
+// start of the next turn. The runtime uses this to preserve structured steering
+// content that misses the current turn's final continuation round.
+func (m *Messages) AppendUserMessage(ctx context.Context, sessionID string, message chat.Message) error {
 	if sessionID == "" {
 		return errSessionIDRequired
 	}
-	if text == "" {
-		return errTextRequired
+	if message.Role != chat.RoleUser {
+		return errUserMessageRequired
 	}
-	if err := m.store.Write(ctx, sessionID, chat.NewUserMessage(chat.NewTextPart(text))); err != nil {
-		return fmt.Errorf("conversation: inject user message into session %q: %w", sessionID, err)
+	if err := message.Validate(); err != nil {
+		return fmt.Errorf("%w: %w", errUserMessageRequired, err)
+	}
+	if err := m.store.Write(ctx, sessionID, message); err != nil {
+		return fmt.Errorf("conversation: append user message to session %q: %w", sessionID, err)
 	}
 	return nil
 }

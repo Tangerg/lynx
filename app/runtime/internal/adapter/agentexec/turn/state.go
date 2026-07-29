@@ -116,11 +116,11 @@ type turnState struct {
 	// tear the turn down without ever entering the model/tool engine.
 	startRequest runs.StartTurn
 
-	// steering is the queue of mid-turn user messages injected via
-	// InjectSteering. The runtime flushes it to the chat history
-	// store after the turn ends so the messages land in conversation
-	// history for the next turn.
-	steering []string
+	// steering is the queue of validated mid-turn user messages injected via
+	// InjectSteering. Each entry retains both canonical transcript content and
+	// the provider-neutral model message so the live and terminal-fallback paths
+	// consume the same interpretation exactly once.
+	steering []steeringMessage
 
 	// flushed marks the steering queue closed — the turn has committed to
 	// terminating and run its final flushSteering, so no future round will drain
@@ -529,7 +529,7 @@ func (st *turnState) signalLifecycleLocked() {
 // returns [ErrTurnNotFound] when the queue is already closed (the turn is
 // terminating — see [turnState.flushed]) so the caller treats it like steering a
 // turn that has ended.
-func (st *turnState) appendSteering(message string) error {
+func (st *turnState) appendSteering(message steeringMessage) error {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if st.flushed {
@@ -542,7 +542,7 @@ func (st *turnState) appendSteering(message string) error {
 // drainSteering returns the queued steering messages and clears the queue,
 // or nil when none is pending. Used by the mid-run steerSource (the queue stays
 // open for further rounds); the terminal flush uses closeAndDrainSteering.
-func (st *turnState) drainSteering() []string {
+func (st *turnState) drainSteering() []steeringMessage {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if len(st.steering) == 0 {
@@ -557,7 +557,7 @@ func (st *turnState) drainSteering() []string {
 // round will drain it) and returns the pending messages — atomically, so a
 // steer racing turn-end is either captured by this final drain or rejected by
 // the now-closed appendSteering, never queued into a turn nothing will drain.
-func (st *turnState) closeAndDrainSteering() []string {
+func (st *turnState) closeAndDrainSteering() []steeringMessage {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	st.flushed = true

@@ -241,11 +241,12 @@ func (r *reducer) openUserMessage() []RunEvent {
 func (r *reducer) steerMessage(e SteerMessage) []RunEvent {
 	out := r.closeStreaming()
 	id, now := r.nextItemID(), r.now()
+	content := append([]transcript.ContentBlock(nil), e.Content...)
 	events := itemPair(func(status transcript.ItemStatus) transcript.Item {
 		return transcript.Item{
 			ID: id, RunID: r.cfg.RunID, Status: status,
 			Kind: transcript.UserMessage, CreatedAt: now,
-			Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: e.Text}},
+			Content: content,
 		}
 	})
 	return append(out, events...)

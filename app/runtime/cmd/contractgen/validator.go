@@ -78,7 +78,11 @@ func validatorChecks(params reflect.Type, constraints []dispatch.FieldConstraint
 		case dispatch.ConstraintPositive:
 			checks = append(checks, fmt.Sprintf("positive(%s, r.%s)", field, selector))
 		case dispatch.ConstraintNonEmptyItems:
-			checks = append(checks, fmt.Sprintf("nonEmptyItems(%s, r.%s)", field, selector))
+			helper := "requiredItems"
+			if leaf.Optional {
+				helper = "nonEmptyItems"
+			}
+			checks = append(checks, fmt.Sprintf("%s(%s, r.%s)", helper, field, selector))
 		case dispatch.ConstraintUniqueItems:
 			checks = append(checks, fmt.Sprintf("uniqueItems(%s, r.%s)", field, selector))
 		default:

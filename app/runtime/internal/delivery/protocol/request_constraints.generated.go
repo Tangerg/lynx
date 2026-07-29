@@ -47,9 +47,16 @@ func (r ImportSessionRequest) Validate() error {
 	)
 }
 
+func (r StartRunRequest) Validate() error {
+	return violate(
+		requiredItems("input", r.Input),
+	)
+}
+
 func (r ResumeRunRequest) Validate() error {
 	return violate(
 		required("runId", r.RunID),
+		nonEmptyItems("input", r.Input),
 	)
 }
 
@@ -70,7 +77,7 @@ func (r SteerRunRequest) Validate() error {
 	return violate(
 		required("runId", r.RunID),
 		required("expectedSegmentId", r.ExpectedSegmentID),
-		required("message", r.Message),
+		requiredItems("input", r.Input),
 	)
 }
 

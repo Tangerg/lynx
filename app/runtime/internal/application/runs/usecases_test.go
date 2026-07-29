@@ -109,7 +109,7 @@ type fakeTurnControl struct {
 	resumed       bool
 	canceled      []execution.TurnRef
 	steered       []execution.TurnRef
-	steerMessage  string
+	steerInput    []transcript.ContentBlock
 	operations    *[]string
 	cancelErr     error
 }
@@ -157,9 +157,9 @@ func (f *fakeTurnControl) CancelTurn(_ context.Context, ref execution.TurnRef) e
 	return f.cancelErr
 }
 
-func (f *fakeTurnControl) Steer(_ context.Context, ref execution.TurnRef, message string) error {
+func (f *fakeTurnControl) Steer(_ context.Context, ref execution.TurnRef, input []transcript.ContentBlock) error {
 	f.steered = append(f.steered, ref)
-	f.steerMessage = message
+	f.steerInput = append([]transcript.ContentBlock(nil), input...)
 	return nil
 }
 
@@ -870,15 +870,22 @@ func TestSteerHidesExecutorHandle(t *testing.T) {
 	c.turns = turns
 
 	if err := c.Steer(context.Background(), SteerCommand{
-		RunID: testRunID, ExpectedSegmentID: testSegmentID, Message: "wait",
+		RunID:             testRunID,
+		ExpectedSegmentID: testSegmentID,
+		Input: []transcript.ContentBlock{
+			{Kind: transcript.TextContent, Text: "wait"},
+			{Kind: transcript.ImageContent, Mime: "image/png", Data: "aW1hZ2U="},
+		},
 	}); err != nil {
 		t.Fatalf("Steer: %v", err)
 	}
 	if len(turns.steered) != 1 || turns.steered[0] != (execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}) {
 		t.Fatalf("steered refs = %+v", turns.steered)
 	}
-	if turns.steerMessage != "wait" {
-		t.Fatalf("steer message = %q", turns.steerMessage)
+	if len(turns.steerInput) != 2 ||
+		turns.steerInput[0].Text != "wait" ||
+		turns.steerInput[1].Kind != transcript.ImageContent {
+		t.Fatalf("steer input = %+v", turns.steerInput)
 	}
 }
 

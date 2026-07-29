@@ -320,8 +320,8 @@ type CancelRunResponse struct {
 	RootRun *RunRef               `json:"rootRun,omitempty"`
 }
 
-// SteerRunRequest is the runs.steer body — a user message to inject into the
-// segment the caller believes is executing.
+// SteerRunRequest is the runs.steer body — structured user content to inject
+// into the segment the caller believes is executing.
 //
 // ExpectedSegmentID is required. A steer is the user's instruction about the work
 // they are watching; if the run parked and was resumed between typing and
@@ -329,9 +329,9 @@ type CancelRunResponse struct {
 // continuation they never saw. There is no best-effort injection: a mismatch is
 // stale_segment, and the client re-reads the run before asking again.
 type SteerRunRequest struct {
-	RunID             string `json:"runId"`
-	ExpectedSegmentID string `json:"expectedSegmentId"`
-	Message           string `json:"message"`
+	RunID             string         `json:"runId"`
+	ExpectedSegmentID string         `json:"expectedSegmentId"`
+	Input             []ContentBlock `json:"input"`
 }
 
 // ListRunsRequest is the runs.list body — the whole durable run history, filtered.

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createRpcClient, type RpcCallOptions, type RpcClient } from "./client";
 import { RpcError, RpcTransportError } from "./errors";
-import { asRunId, asSessionId } from "./ids";
+import { asRunId, asSegmentId, asSessionId } from "./ids";
 import { createMethods } from "./methods";
 import type { RunEvent, StreamEvent } from "./wire.generated";
 import { RUN_EVENT_METHOD } from "./stream";
@@ -138,6 +138,28 @@ describe("methods factory", () => {
 
     t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: { id: "run_1" } } as RpcMessage);
     await expect(promise).resolves.toEqual({ id: "run_1" });
+    await client.close();
+  });
+
+  it("runs.steer keeps structured content blocks on the wire", async () => {
+    const t = createMemoryTransport();
+    const client = createRpcClient(t);
+    const methods = createMethods(client);
+    const input = [
+      { type: "text" as const, text: "compare this" },
+      { type: "image" as const, mime: "image/png", data: "aW1hZ2U=" },
+    ];
+
+    const promise = methods.runs.steer(asRunId("run_1"), asSegmentId("seg_1"), input);
+    const req = await waitForRequest(t, "runs.steer");
+    expect(req.params).toEqual({
+      runId: "run_1",
+      expectedSegmentId: "seg_1",
+      input,
+    });
+
+    t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: {} } as RpcMessage);
+    await expect(promise).resolves.toBeUndefined();
     await client.close();
   });
 

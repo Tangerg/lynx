@@ -721,10 +721,13 @@
           }
         },
         {
-          "name": "message",
+          "name": "input",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "array",
+            "items": {
+              "$ref": "schema.json#/$defs/ContentBlock"
+            }
           }
         }
       ],

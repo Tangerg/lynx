@@ -114,7 +114,7 @@ type TurnControl interface {
 	Resume(ctx context.Context, ref execution.TurnRef, resolution interrupts.Resolution, interruptKinds []execution.InterruptKind) error
 	Rehydrate(ctx context.Context, req RehydrateTurn) (execution.TurnRef, error)
 	TurnCanceler
-	Steer(ctx context.Context, ref execution.TurnRef, message string) error
+	Steer(ctx context.Context, ref execution.TurnRef, input []transcript.ContentBlock) error
 }
 
 // Nudge is a non-durable live workspace change notification the pump forwards to

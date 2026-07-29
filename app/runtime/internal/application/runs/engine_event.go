@@ -131,5 +131,5 @@ type TodosUpdated struct {
 
 type SteerMessage struct {
 	engineEventBase
-	Text string
+	Content []transcript.ContentBlock
 }

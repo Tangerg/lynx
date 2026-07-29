@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -50,7 +51,24 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) (*
 // than delivering the instruction to work the user never saw. The refusals are
 // the same set a subscribe gets, because both are addressing one live segment.
 func (s *Server) SteerRun(ctx context.Context, in protocol.SteerRunRequest) error {
-	return wireLiveSegmentError(s.coordinator.Steer(ctx, runs.SteerCommand{
-		RunID: in.RunID, ExpectedSegmentID: in.ExpectedSegmentID, Message: in.Message,
+	input, err := decodeRunInput(in.Input)
+	if err != nil {
+		return err
+	}
+	return wireSteerError(s.coordinator.Steer(ctx, runs.SteerCommand{
+		RunID: in.RunID, ExpectedSegmentID: in.ExpectedSegmentID, Input: input,
 	}))
+}
+
+func wireSteerError(err error) error {
+	if input, ok := errors.AsType[*runs.InputBlockError](err); ok {
+		return &protocol.ConstraintError{Fields: []protocol.FieldError{{
+			Field:  fmt.Sprintf("input[%d].%s", input.Index, input.Field),
+			Detail: input.Detail,
+		}}}
+	}
+	if errors.Is(err, runs.ErrInputRequired) || errors.Is(err, runs.ErrUnsupportedMedia) {
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
+	}
+	return wireLiveSegmentError(err)
 }

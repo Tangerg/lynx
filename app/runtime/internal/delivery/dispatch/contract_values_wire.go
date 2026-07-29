@@ -53,14 +53,33 @@ func registerSessionValues(s *Shapes) {
 }
 
 func registerRunValues(s *Shapes) {
-	nonEmpty[protocol.ResumeRunRequest](s, "runId")
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.StartRunRequest](),
+		Constraints: []FieldConstraint{
+			{Field: "input", Kind: ConstraintNonEmptyItems},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.ResumeRunRequest](),
+		Constraints: []FieldConstraint{
+			{Field: "runId", Kind: ConstraintNonEmpty},
+			{Field: "input", Kind: ConstraintNonEmptyItems},
+		},
+	})
 	// Subscribe and steer both address a SEGMENT: naming only the run would let the
 	// runtime pick whichever one is live, which is how a client silently ends up
 	// folding — or steering — an execution it never saw.
 	nonEmpty[protocol.SubscribeRunRequest](s, "runId", "segmentId")
 	nonEmpty[protocol.GetRunRequest](s, "runId")
 	nonEmpty[protocol.CancelRunRequest](s, "runId")
-	nonEmpty[protocol.SteerRunRequest](s, "runId", "expectedSegmentId", "message")
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.SteerRunRequest](),
+		Constraints: []FieldConstraint{
+			{Field: "runId", Kind: ConstraintNonEmpty},
+			{Field: "expectedSegmentId", Kind: ConstraintNonEmpty},
+			{Field: "input", Kind: ConstraintNonEmptyItems},
+		},
+	})
 	// The scope is required and its tag decides everything else about the read, so a
 	// scope with no tag is a request that never said what it wanted.
 	nonEmpty[protocol.ListItemsRequest](s, "scope.type")

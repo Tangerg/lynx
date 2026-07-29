@@ -73,5 +73,21 @@ describe("the published JSON Schema bundle", () => {
     expect(cancel?.({ type: "root", run: canceledRun })).toBe(true);
     expect(cancel?.({ type: "root", run: canceledRun, rootRun: canceledRun })).toBe(false);
     expect(cancel?.({ type: "child", run: canceledRun })).toBe(false);
+
+    const steer = ajv.getSchema("schema.json#/$defs/SteerRunRequest");
+    expect(
+      steer?.({
+        runId: "run_01",
+        expectedSegmentId: "seg_01",
+        input: [
+          { type: "text", text: "compare this" },
+          { type: "image", mime: "image/png", data: "aW1hZ2U=" },
+        ],
+      }),
+    ).toBe(true);
+    expect(steer?.({ runId: "run_01", expectedSegmentId: "seg_01", input: [] })).toBe(false);
+    expect(steer?.({ runId: "run_01", expectedSegmentId: "seg_01", message: "legacy" })).toBe(
+      false,
+    );
   });
 });

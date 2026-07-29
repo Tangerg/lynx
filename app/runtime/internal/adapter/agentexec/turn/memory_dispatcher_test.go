@@ -16,7 +16,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // TestDispatcher_StartTurn_EmitsExpectedEvents drives a full turn
@@ -157,17 +159,18 @@ func TestNewRequiresApprovalGate(t *testing.T) {
 	}
 }
 
-// TestDispatcher_InjectSteering_LandsInNextTurn verifies the "next-turn"
-// semantics: a steering message injected during turn 1 must be
-// visible to the model as a history user message at the start of
-// turn 2. The history-aware stub counts messages per Call, so the
-// second turn must see strictly more messages than turn 1's
-// initial new-message count.
-func TestDispatcher_InjectSteering_LandsInNextTurn(t *testing.T) {
+// TestDispatcher_InjectSteering_PreservesStructuredContent verifies both legal
+// scheduling outcomes share one interpretation: the next live model round may
+// consume the steer, or terminal flush persists it for the next turn. Either
+// way the model sees the ordered text+image user message.
+func TestDispatcher_InjectSteering_PreservesStructuredContent(t *testing.T) {
 	stub := newHistoryAwareStub()
 	client, _ := chatclient.New(stub)
-	eng := buildEngine(t, agentexec.Config{ChatClient: client})
-	dispatcher := mustTurn(turn.New(turnDeps(eng)))
+	store := history.NewInMemoryStore()
+	eng := buildEngine(t, agentexec.Config{ChatClient: client, HistoryStore: store})
+	dispatcher := mustTurn(turn.New(turnDeps(eng, func(deps *turn.Dependencies) {
+		deps.Steering = conversation.NewMessages(store)
+	})))
 
 	// Turn 1.
 	handle, _ := dispatcher.StartTurn(context.Background(), runs.StartTurn{
@@ -179,15 +182,28 @@ func TestDispatcher_InjectSteering_LandsInNextTurn(t *testing.T) {
 	// Inject steering before consuming events so the dispatcher has
 	// time to land it on the turn state. Drain the channel before
 	// starting turn 2 — the steering flushes after the turn returns.
-	if err := dispatcher.InjectSteering(context.Background(), handle, "also keep responses short"); err != nil {
+	if err := dispatcher.InjectSteering(context.Background(), handle, []transcript.ContentBlock{
+		{Kind: transcript.TextContent, Text: "also keep responses short"},
+		{Kind: transcript.ImageContent, Mime: "image/png", Data: "aW1hZ2U="},
+	}); err != nil {
 		t.Fatalf("InjectSteering: %v", err)
 	}
-	for range events {
+	turn1Events := drainEvents(events)
+	var steerEvents []runs.SteerMessage
+	for _, event := range turn1Events {
+		if steer, ok := event.(runs.SteerMessage); ok {
+			steerEvents = append(steerEvents, steer)
+		}
+	}
+	if len(steerEvents) != 1 ||
+		len(steerEvents[0].Content) != 2 ||
+		steerEvents[0].Content[0].Text != "also keep responses short" ||
+		steerEvents[0].Content[1].Kind != transcript.ImageContent {
+		t.Fatalf("steering events = %+v, want one canonical text+image event", steerEvents)
 	}
 
-	turn1Msgs := stub.seenLengths[0]
-
-	// Turn 2 — should see (original user + assistant + steering + new user) = at least turn1Msgs+3.
+	// Start a second turn so a steer that missed the live source is observable
+	// through the terminal history fallback.
 	handle2, _ := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "sess-steer",
 		Message:   "go on",
@@ -199,11 +215,24 @@ func TestDispatcher_InjectSteering_LandsInNextTurn(t *testing.T) {
 	if len(stub.seenLengths) < 2 {
 		t.Fatalf("stub Call count = %d, want >= 2", len(stub.seenLengths))
 	}
-	turn2Msgs := stub.seenLengths[1]
-	if turn2Msgs <= turn1Msgs+1 {
-		// turn 2 should see at least: turn1 user, turn1 assistant, steering, turn2 user = turn1Msgs + 3
-		// allowing a margin for system-prompt messages.
-		t.Errorf("turn 2 message count = %d, turn 1 = %d; steering should add at least one user entry", turn2Msgs, turn1Msgs)
+	var foundStructuredSteer bool
+	for _, requestMessages := range stub.seenMessages {
+		for _, message := range requestMessages {
+			if message.Role != chatmodel.RoleUser || message.Text() != "also keep responses short" {
+				continue
+			}
+			if len(message.Parts) == 2 &&
+				message.Parts[0].Kind == chatmodel.PartText &&
+				message.Parts[1].Kind == chatmodel.PartMedia &&
+				message.Parts[1].Media != nil &&
+				message.Parts[1].Media.MIME == "image/png" {
+				foundStructuredSteer = true
+				break
+			}
+		}
+	}
+	if !foundStructuredSteer {
+		t.Fatalf("model requests = %+v, want ordered text+image steering input", stub.seenMessages)
 	}
 }
 
@@ -212,9 +241,16 @@ func TestDispatcher_InjectSteering_LandsInNextTurn(t *testing.T) {
 // pruned from the in-memory map.
 func TestDispatcher_InjectSteering_UnknownTurn(t *testing.T) {
 	dispatcher, _ := buildDispatcher(t)
-	err := dispatcher.InjectSteering(context.Background(), turn.TurnHandle{TurnID: "no-such"}, "msg")
+	err := dispatcher.InjectSteering(context.Background(), turn.TurnHandle{TurnID: "no-such"}, []transcript.ContentBlock{{
+		Kind: transcript.TextContent, Text: "msg",
+	}})
 	if err == nil {
 		t.Error("steering on unknown handle should error")
+	}
+
+	err = dispatcher.InjectSteering(context.Background(), turn.TurnHandle{TurnID: "no-such"}, nil)
+	if !errors.Is(err, runs.ErrInputRequired) {
+		t.Fatalf("empty steering error = %v, want ErrInputRequired before turn lookup", err)
 	}
 }
 

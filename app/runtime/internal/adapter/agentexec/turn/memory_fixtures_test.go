@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
@@ -30,7 +31,7 @@ type turnDriver interface {
 	PrepareTurn(context.Context, runs.StartTurn) (turn.TurnHandle, error)
 	ActivateTurn(context.Context, turn.TurnHandle) error
 	Events(context.Context, turn.TurnHandle) (iter.Seq[runs.EngineEvent], error)
-	InjectSteering(context.Context, turn.TurnHandle, string) error
+	InjectSteering(context.Context, turn.TurnHandle, []transcript.ContentBlock) error
 	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []execution.InterruptKind) error
 	ProcessID(context.Context, turn.TurnHandle) (string, error)
 	Rehydrate(context.Context, runs.RehydrateTurn) (turn.TurnHandle, error)
@@ -221,9 +222,10 @@ func makeToolCall(name, args string) (*chatmodel.Response, error) {
 }
 
 type historyAwareStub struct {
-	defaults    *chatmodel.Options
-	mu          sync.Mutex
-	seenLengths []int
+	defaults     *chatmodel.Options
+	mu           sync.Mutex
+	seenLengths  []int
+	seenMessages [][]chatmodel.Message
 }
 
 func newHistoryAwareStub() *historyAwareStub {
@@ -236,6 +238,11 @@ func (m *historyAwareStub) DefaultOptions() chatmodel.Options { return *m.defaul
 func (m *historyAwareStub) Call(_ context.Context, req *chatmodel.Request) (*chatmodel.Response, error) {
 	m.mu.Lock()
 	m.seenLengths = append(m.seenLengths, len(req.Messages))
+	messages := make([]chatmodel.Message, len(req.Messages))
+	for i, message := range req.Messages {
+		messages[i] = message.Clone()
+	}
+	m.seenMessages = append(m.seenMessages, messages)
 	m.mu.Unlock()
 	return makeText("ok")
 }

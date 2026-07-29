@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // executorDispatcher is the turn control slice the application run adapter
@@ -19,7 +20,7 @@ import (
 // reusable abstraction boundary.
 type executorDispatcher interface {
 	Events(context.Context, TurnHandle) (iter.Seq[runs.EngineEvent], error)
-	InjectSteering(context.Context, TurnHandle, string) error
+	InjectSteering(context.Context, TurnHandle, []transcript.ContentBlock) error
 	PrepareTurn(context.Context, runs.StartTurn) (TurnHandle, error)
 	ActivateTurn(context.Context, TurnHandle) error
 	Resume(context.Context, TurnHandle, interrupts.Resolution, []execution.InterruptKind) error
@@ -111,9 +112,10 @@ func (e *Executor) Rehydrate(ctx context.Context, request runs.RehydrateTurn) (e
 	return neutralTurn(handle), nil
 }
 
-// Steer injects a message into a live turn addressed by neutral identity.
-func (e *Executor) Steer(ctx context.Context, ref execution.TurnRef, message string) error {
-	return mapControlError(e.dispatcher.InjectSteering(ctx, concreteHandle(ref), message))
+// Steer injects structured user content into a live turn addressed by neutral
+// identity.
+func (e *Executor) Steer(ctx context.Context, ref execution.TurnRef, input []transcript.ContentBlock) error {
+	return mapControlError(e.dispatcher.InjectSteering(ctx, concreteHandle(ref), input))
 }
 
 func concreteHandle(ref execution.TurnRef) TurnHandle {

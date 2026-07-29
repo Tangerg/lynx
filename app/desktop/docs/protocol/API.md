@@ -675,7 +675,8 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
   `replay_unavailable`（事件没了、但它们产出的 Item 是 durable 的：客户端冷读历史再 tail 重接，§10.1）。
   ack 的 `headEventId` **只许原样保存并作为后续 cursor**，不许比较或解释 —— 重接 ack 的 head 在你请求的位置**之前面**，
   采用它会静默跳过刚请求的重放。replay 窗口的 scope 与容量在 `capabilities.limits.runReplay` 里公布并被强制执行。
-- **`steer` 是真正的中途插话**：`{runId, expectedSegmentId, message}`，在下一轮开始前把消息交给模型；段号对不上同样
+- **`steer` 是真正的中途插话**：
+  `{runId, expectedSegmentId, input: ContentBlock[]}`，在下一轮开始前把结构化输入交给模型；段号对不上同样
   `stale_segment`。它不是"取消再重发"。
 - **`cancel` 的 `reason` 回流进 outcome 的 `detail`**（§4.2）。取消一棵树 = 取消 root；取消一个 child = 取消它的
   子树，父调用收到一条注入的结果说明这次委派被取消了。

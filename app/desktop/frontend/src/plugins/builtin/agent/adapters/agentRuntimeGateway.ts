@@ -3,6 +3,7 @@ import { asRunId, asSegmentId, asSessionId, eachPage, isErrorType } from "@/rpc"
 import type { Item } from "@/rpc";
 import { configureAgentRuntimeGateway } from "../application/ports/runtimeGateway";
 import type { AgentRunHistoryRef, AgentRuntimeGateway } from "../application/ports/runtimeGateway";
+import { agentInputToContentBlocks } from "./wireInput";
 
 const gateway: AgentRuntimeGateway = {
   async createSession(input, signal) {
@@ -77,8 +78,10 @@ const gateway: AgentRuntimeGateway = {
         ...(input.restoreType ? { restoreType: input.restoreType } : {}),
       });
   },
-  async steerRun(runId, segmentId, text) {
-    await getContainer().client().runs.steer(asRunId(runId), asSegmentId(segmentId), text);
+  async steerRun(runId, segmentId, input) {
+    await getContainer()
+      .client()
+      .runs.steer(asRunId(runId), asSegmentId(segmentId), agentInputToContentBlocks(input));
   },
   isRunGone(error) {
     return (

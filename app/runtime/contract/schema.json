@@ -4400,6 +4400,7 @@
       "properties": {
         "input": {
           "type": "array",
+          "minItems": 1,
           "items": {
             "$ref": "#/$defs/ContentBlock"
           }
@@ -6018,6 +6019,7 @@
       "properties": {
         "input": {
           "type": "array",
+          "minItems": 1,
           "items": {
             "$ref": "#/$defs/ContentBlock"
           }
@@ -6154,9 +6156,12 @@
           "type": "string",
           "minLength": 1
         },
-        "message": {
-          "type": "string",
-          "minLength": 1
+        "input": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/ContentBlock"
+          }
         },
         "runId": {
           "type": "string",
@@ -6165,7 +6170,7 @@
       },
       "required": [
         "expectedSegmentId",
-        "message",
+        "input",
         "runId"
       ]
     },

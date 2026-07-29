@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 type executorFakeDispatcher struct {
@@ -29,7 +30,9 @@ func (f *executorFakeDispatcher) Cancel(_ context.Context, h TurnHandle) error {
 	return f.cancelErr
 }
 
-func (*executorFakeDispatcher) InjectSteering(context.Context, TurnHandle, string) error { return nil }
+func (*executorFakeDispatcher) InjectSteering(context.Context, TurnHandle, []transcript.ContentBlock) error {
+	return nil
+}
 func (*executorFakeDispatcher) PrepareTurn(context.Context, runs.StartTurn) (TurnHandle, error) {
 	return TurnHandle{}, nil
 }

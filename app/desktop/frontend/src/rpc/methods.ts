@@ -17,6 +17,7 @@ import type {
   ApprovalMode,
   ApprovalModeResult,
   CancelRunResponse,
+  ContentBlock,
   ConfigureMCPServerRequest,
   ConfigureProviderRequest,
   CreateSessionRequest,
@@ -236,12 +237,12 @@ export interface Methods {
       options?: { lastEventId?: string },
     ) => Promise<StreamingResult<SubscribeRunResponse, RunEvent>>;
     cancel: (runId: RunId, reason?: string) => Promise<CancelRunResponse>;
-    // Mid-run steering (§6): inject a user message into the segment the caller
+    // Mid-run steering (§6): inject structured user content into the segment the caller
     // believes is executing, so the model reads it next tool round. The segment is
     // named for the same reason: a run that parked and resumed between typing and
     // sending must refuse (stale_segment) rather than deliver the instruction to
     // work the person never saw.
-    steer: (runId: RunId, expectedSegmentId: SegmentId, message: string) => Promise<void>;
+    steer: (runId: RunId, expectedSegmentId: SegmentId, input: ContentBlock[]) => Promise<void>;
     // One run by id — current or terminal — without knowing its session (§7.3).
     get: (runId: RunId) => Promise<RunRef>;
     // The durable run history, newest first (§7.3). Omitting statuses returns every
@@ -574,8 +575,9 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
         return { result, events: stream.events };
       },
       cancel: (runId, reason) => mutate("runs.cancel", { runId, reason }),
-      steer: (runId, expectedSegmentId, message) =>
-        mutate("runs.steer", { runId, expectedSegmentId, message }),
+      steer: async (runId, expectedSegmentId, input) => {
+        await mutate("runs.steer", { runId, expectedSegmentId, input });
+      },
       get: (runId) => call("runs.get", { runId }),
       list: (query) => call("runs.list", query ?? {}),
     },

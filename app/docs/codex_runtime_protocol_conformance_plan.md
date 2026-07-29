@@ -199,15 +199,15 @@ cd app/desktop/frontend && npm run check
 |---|---|---|---|---|
 | A0 | 当前实现与冻结协议重新审计 | `DONE` | 固化本文 | 本文 §3、§4 |
 | A1 | `runs.cancel` response、错误与 root 行为收口 | `DONE` | 2026-07-30 完成 | typed response、exact committed snapshot、全量 gates |
-| A2 | `runs.steer` 改为 `ContentBlock[]` | `TODO` | 下一实施 slice | — |
-| A3 | 删除 `custom.durable`，收紧事件可靠性语义 | `TODO` | A2 后实施 | — |
+| A2 | `runs.steer` 改为 `ContentBlock[]` | `DONE` | 2026-07-30 完成 | typed command/port、multimodal live+fallback、全量 gates |
+| A3 | 删除 `custom.durable`，收紧事件可靠性语义 | `TODO` | 下一实施 slice | — |
 | A4 | 收紧 machine-contract value constraints | `TODO` | A3 后实施 | — |
 | A5 | capability gate 与 disabled-subagent seam 收口 | `TODO` | A4 后实施 | — |
 | A6 | Registry fail-closed 与 SSOT 清理 | `TODO` | A5 后实施 | — |
 | A7 | canonical docs 与最终 conformance sweep | `TODO` | 最后收口 | — |
 | B1 | 完整 child Run producer / tree cancel / barrier | `DEFERRED` | A5 完成后单独排期 | 启用条件见 §11 |
 
-当前核心协议收口的唯一下一项是 **A2**。同一时间只允许一个 A-track slice
+当前核心协议收口的唯一下一项是 **A3**。同一时间只允许一个 A-track slice
 处于 `IN PROGRESS`，避免多个 breaking shape 同时造成无法定位的生成差异。
 
 ---
@@ -623,6 +623,7 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 | C9 | 不新增仅有单实现或未来假设支撑的接口/包/抽象 | `ACCEPTED` |
 | C10 | cancel response 不做 post-commit re-query；直接返回获胜事务提交的 snapshot | `ACCEPTED` |
 | C11 | parked cancel 先取得 Session admission，再解析 Interrupt，以同一 gate 串行化 resume | `ACCEPTED` |
+| C12 | steer 的 live drain 与 terminal fallback 共用同一条 canonical queue；fallback 同时发布 transcript Item 并写 conversation history | `ACCEPTED` |
 
 ---
 
@@ -677,6 +678,50 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
   - 上一发布版 baseline fixture 有意保留旧 error，用于 breaking compatibility differ，
     不是运行时兼容路径。
 
+### 2026-07-30 — A2
+
+- 状态：`DONE`
+- Commit：本记录所在的 `feat(runtime): carry structured content through runs.steer` 原子提交
+- 目标：将 `runs.steer` 从裸 string 硬切换为端到端保真的
+  `input: ContentBlock[]`。
+- 关键裁决：
+  - wire 只保留 `{runId, expectedSegmentId, input}`，删除 `message`，不提供 alias
+    或 string overload；
+  - application command、consumer-owned `TurnControl` port 与 executor adapter
+    均传递 canonical `[]transcript.ContentBlock`；
+  - `MaterializeUserMessage` 成为 start/steer 共用的唯一 MIME、base64 与
+    provider-neutral user message 转换；steer 直接保留 block 顺序，start 在同一次
+    验证后投影为 opening prompt + image attachments；
+  - turn queue 同时持有 canonical content 与一次验证后的 provider-neutral message；
+    live drain 与 terminal fallback 互斥消费同一队列；
+  - terminal fallback 不再只写模型 history：它同时发布 `SteerMessage`，从而生成
+    durable user Item 并让前端乐观气泡完成对账；
+  - nested block 与媒体错误携带精确字段路径，例如 `input[0].data`，统一成为
+    structured `invalid_params`；
+  - `start.input`、可选但出现的 `resume.input`、`steer.input` 均由 Registry 生成
+    `minItems:1`；Go validator 同时从 DTO 的 `omitempty` 派生 requiredness，
+    必填数组缺失报 `is required`、已发送空数组报 `must not be empty`，不让运行时
+    比 schema / TS 更宽松；
+  - frontend application port 保留 `AgentInput`，只在 runtime gateway adapter
+    转换 wire block；typed SDK 的 `Promise<void>` 也不再泄漏底层 ack `{}`。
+- 生成物：
+  - `schema.json`、`openrpc.json`、Go request validator；
+  - `wire.generated.ts`、`wire.validate.generated.ts`。
+- 验证：
+  - targeted application / agent adapter / conversation / server / dispatch tests
+    → `PASS`
+  - structured text+image live/fallback test 连续 20 次 → `PASS`
+  - `MODULE=app/runtime scripts/check.sh build vet test lint vuln` → `PASS`
+  - `cd app/runtime && go test -race ./...` → `PASS`
+  - `cd app/desktop/frontend && npm run check` → `178 files / 1074 tests PASS`
+  - contract generation 第二次聚合 hash
+    `267f6f24612d2437bc7b09fc996153de6c69c5840df2d38bce9b462b1a54acfc`
+    不变 → `PASS`
+- 残余风险：
+  - 当前 `ContentBlock` 闭合联合只包含 text/image；新增 file 必须作为独立协议
+    设计进入 Registry，不能复用 image 字段或塞 opaque JSON；
+  - 事件 reliability 术语与 `custom.durable` 的剩余债务进入 A3。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -708,14 +753,14 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 下一实施 slice：
 
 ```text
-A2 — runs.steer 使用 ContentBlock[]
+A3 — 删除 custom.durable，收紧事件可靠性语义
 ```
 
-开工时先把 A2 改为 `IN PROGRESS`，然后从以下三条失败证明开始：
+开工时先把 A3 改为 `IN PROGRESS`，然后从以下三条失败证明开始：
 
-1. `SteerRunRequest` 必须生成 `input: ContentBlock[]`，不再生成 `message`；
-2. application / executor consumer 必须接收 typed content，而不是中途压回 string；
-3. frontend `runs.steer` 不再存在 string overload，纯文本调用方显式构造 text block。
+1. `custom` 帧携带 `durable` 时 Go/TS/schema validator 必须拒绝；
+2. `custom` 永远不分配 SSE id，也不进入 replay window；
+3. 删除或重命名含混的 `IsDurable()`，journal 只依赖 `Replayable()` 语义。
 
-在这三条成为红灯之前，不先改 handler；在 A2 的生成物、前端、canonical docs 和全量
-门禁一起变绿之前，不开始 A3。
+在这三条成为红灯之前，不先改实现；在 A3 的生成物、前端、canonical docs 和全量
+门禁一起变绿之前，不开始 A4。

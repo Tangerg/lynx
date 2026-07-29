@@ -28,8 +28,8 @@ func TestMessagesOwnHistoryTransitions(t *testing.T) {
 	if err := messages.Truncate(ctx, "ses_1", 2); err != nil {
 		t.Fatalf("Truncate: %v", err)
 	}
-	if err := messages.InjectUser(ctx, "ses_1", "steer"); err != nil {
-		t.Fatalf("InjectUser: %v", err)
+	if err := messages.AppendUserMessage(ctx, "ses_1", chat.NewUserMessage(chat.NewTextPart("steer"))); err != nil {
+		t.Fatalf("AppendUserMessage: %v", err)
 	}
 
 	got, err := messages.Read(ctx, "ses_1")
@@ -61,8 +61,27 @@ func TestMessagesRejectMalformedCommands(t *testing.T) {
 		{name: "seed without session", run: func() error { return messages.Seed(ctx, "", nil) }, want: errSessionIDRequired},
 		{name: "count without session", run: func() error { _, err := messages.Count(ctx, ""); return err }, want: errSessionIDRequired},
 		{name: "truncate without session", run: func() error { return messages.Truncate(ctx, "", 0) }, want: errSessionIDRequired},
-		{name: "inject without session", run: func() error { return messages.InjectUser(ctx, "", "text") }, want: errSessionIDRequired},
-		{name: "inject empty text", run: func() error { return messages.InjectUser(ctx, "ses_1", "") }, want: errTextRequired},
+		{
+			name: "append without session",
+			run: func() error {
+				return messages.AppendUserMessage(ctx, "", chat.NewUserMessage(chat.NewTextPart("text")))
+			},
+			want: errSessionIDRequired,
+		},
+		{
+			name: "append invalid user message",
+			run: func() error {
+				return messages.AppendUserMessage(ctx, "ses_1", chat.NewUserMessage())
+			},
+			want: errUserMessageRequired,
+		},
+		{
+			name: "append non-user message",
+			run: func() error {
+				return messages.AppendUserMessage(ctx, "ses_1", chat.NewAssistantMessage(chat.NewTextPart("text")))
+			},
+			want: errUserMessageRequired,
+		},
 	}
 
 	for _, test := range tests {

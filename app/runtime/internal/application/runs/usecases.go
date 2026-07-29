@@ -412,7 +412,7 @@ func (c *Coordinator) Steer(ctx context.Context, cmd SteerCommand) error {
 		return err
 	}
 	rec := live.record
-	if err := c.turns.Steer(ctx, execution.TurnRef{SessionID: rec.SessionID, TurnID: rec.TurnID}, cmd.Message); err != nil {
+	if err := c.turns.Steer(ctx, execution.TurnRef{SessionID: rec.SessionID, TurnID: rec.TurnID}, cmd.Input); err != nil {
 		if errors.Is(err, ErrTurnNotLive) {
 			// The turn ended between resolving the record and delivering: the run is
 			// finishing, which is the same thing the durable record would say a moment

@@ -66,6 +66,26 @@ var (
 	ErrInvalidScheduledStart = errors.New("runs: invalid scheduled start")
 )
 
+// InputBlockError identifies one invalid field in canonical user content while
+// preserving the application error category callers branch on. Delivery may
+// translate Index and Field into its wire path without re-validating media.
+type InputBlockError struct {
+	Index  int
+	Field  string
+	Detail string
+	Cause  error
+}
+
+func (e *InputBlockError) Error() string {
+	return fmt.Sprintf("runs: input block %d %s %s", e.Index, e.Field, e.Detail)
+}
+
+func (e *InputBlockError) Unwrap() error { return e.Cause }
+
+func invalidInputBlock(index int, field, detail string, cause error) error {
+	return &InputBlockError{Index: index, Field: field, Detail: detail, Cause: cause}
+}
+
 // StartCommand is the protocol-neutral runs.start use case input.
 type StartCommand struct {
 	// RunID and NewSessionID are set only by a durable scheduled occurrence.
@@ -112,37 +132,72 @@ func (c StartCommand) ValidateScheduledIdentity() error {
 	return nil
 }
 
-// MaterializeInput derives the executor message/media pair and the durable
-// opening-item text from the one canonical input representation. Keeping this
-// conversion in Application prevents adapters from supplying three potentially
-// divergent descriptions of a user turn.
-func (c StartCommand) MaterializeInput() (message string, images []*media.Media, openingText string, err error) {
-	texts := make([]string, 0, len(c.Input))
-	for index, block := range c.Input {
+// MaterializeUserMessage converts canonical content blocks into the
+// provider-neutral chat message consumed by the executor. Start and steer share
+// this one conversion so image validation and block ordering cannot drift.
+func MaterializeUserMessage(input []transcript.ContentBlock) (corechat.Message, error) {
+	parts := make([]corechat.Part, 0, len(input))
+	for index, block := range input {
 		switch block.Kind {
 		case transcript.TextContent:
-			if block.Text != "" {
-				texts = append(texts, block.Text)
+			if block.Text == "" {
+				return corechat.Message{}, invalidInputBlock(index, "text", "must not be empty", ErrInputRequired)
 			}
+			if block.Mime != "" || block.Data != "" {
+				return corechat.Message{}, invalidInputBlock(index, "type", "text content cannot carry mime or data", ErrUnsupportedMedia)
+			}
+			parts = append(parts, corechat.NewTextPart(block.Text))
 		case transcript.ImageContent:
+			if block.Text != "" {
+				return corechat.Message{}, invalidInputBlock(index, "type", "image content cannot carry text", ErrUnsupportedMedia)
+			}
 			parsed, parseErr := mime.Parse(block.Mime)
 			if parseErr != nil || !mime.IsImage(parsed) {
-				return "", nil, "", fmt.Errorf("%w: input block %d has unsupported image mime %q", ErrUnsupportedMedia, index, block.Mime)
+				return corechat.Message{}, invalidInputBlock(
+					index, "mime", fmt.Sprintf("must be a supported image MIME, got %q", block.Mime), ErrUnsupportedMedia,
+				)
 			}
 			if block.Data == "" {
-				return "", nil, "", fmt.Errorf("%w: input block %d has empty image data", ErrUnsupportedMedia, index)
+				return corechat.Message{}, invalidInputBlock(index, "data", "must not be empty", ErrUnsupportedMedia)
 			}
 			data, decodeErr := base64.StdEncoding.DecodeString(block.Data)
 			if decodeErr != nil {
-				return "", nil, "", fmt.Errorf("%w: input block %d image data is not valid base64: %v", ErrUnsupportedMedia, index, decodeErr)
+				return corechat.Message{}, invalidInputBlock(index, "data", "must be valid base64", ErrUnsupportedMedia)
 			}
 			image, mediaErr := media.NewBytes(parsed.TypeAndSubType(), data)
 			if mediaErr != nil {
-				return "", nil, "", fmt.Errorf("%w: input block %d: %v", ErrUnsupportedMedia, index, mediaErr)
+				return corechat.Message{}, invalidInputBlock(index, "data", mediaErr.Error(), ErrUnsupportedMedia)
 			}
-			images = append(images, image)
+			parts = append(parts, corechat.NewMediaPart(image))
 		default:
-			return "", nil, "", fmt.Errorf("%w: input block %d has unknown content kind", ErrUnsupportedMedia, index)
+			return corechat.Message{}, invalidInputBlock(index, "type", "is unknown", ErrUnsupportedMedia)
+		}
+	}
+	if len(parts) == 0 {
+		return corechat.Message{}, ErrInputRequired
+	}
+	message := corechat.NewUserMessage(parts...)
+	if err := message.Validate(); err != nil {
+		return corechat.Message{}, fmt.Errorf("runs: materialized user message: %w", err)
+	}
+	return message, nil
+}
+
+// MaterializeInput projects the validated user message onto the executor's
+// opening prompt plus image-attachment boundary and derives the durable opening
+// text. Steering consumes the ordered message directly.
+func (c StartCommand) MaterializeInput() (message string, images []*media.Media, openingText string, err error) {
+	userMessage, err := MaterializeUserMessage(c.Input)
+	if err != nil {
+		return "", nil, "", err
+	}
+	texts := make([]string, 0, len(userMessage.Parts))
+	for _, part := range userMessage.Parts {
+		switch part.Kind {
+		case corechat.PartText:
+			texts = append(texts, part.Text)
+		case corechat.PartMedia:
+			images = append(images, part.Media)
 		}
 	}
 	message = strings.Join(texts, "\n")
@@ -210,7 +265,7 @@ type CancelResult struct {
 	RootRun *transcript.Run
 }
 
-// SteerCommand injects a message into an actively executing run.
+// SteerCommand injects structured user content into an actively executing run.
 type SteerCommand struct {
 	RunID string
 	// ExpectedSegmentID is the segment the caller believes is executing. It is
@@ -218,7 +273,7 @@ type SteerCommand struct {
 	// user's instruction to a continuation they never saw — the run they meant
 	// could have parked and been resumed between typing and sending.
 	ExpectedSegmentID string
-	Message           string
+	Input             []transcript.ContentBlock
 }
 
 // SubscribeRequest attaches a caller to a run's live segment.

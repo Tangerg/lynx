@@ -17,6 +17,10 @@ import (
 // decision is delivered to the live agent process, and the continuation streams
 // under the same runId with a fresh segmentId.
 func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
+	input, err := decodeRunInput(in.Input)
+	if err != nil {
+		return nil, nil, err
+	}
 	// Validate the decision BEFORE touching the interrupt — a malformed
 	// response shouldn't consume the (still-resumable) record.
 	responses, err := decodeResumeResponses(in.Responses)
@@ -32,7 +36,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		Responses: responses,
 		// An added user turn goes through the same decoder a fresh run's input does: one
 		// reading of what a content block means.
-		Input: runInputFromWire(in.Input),
+		Input: input,
 		// The run keeps the profile it was created with; this only says whether the
 		// caller can still follow it.
 		CallerCapabilities: caller,

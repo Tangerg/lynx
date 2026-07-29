@@ -93,6 +93,33 @@ describe("the generated wire checks", () => {
     ]);
   });
 
+  it("requires structured non-empty steering input", () => {
+    expect(
+      validateWire("SteerRunRequest", {
+        runId: "run_01",
+        expectedSegmentId: "seg_01",
+        input: [
+          { type: "text", text: "compare this" },
+          { type: "image", mime: "image/png", data: "aW1hZ2U=" },
+        ],
+      }),
+    ).toEqual([]);
+    expect(
+      validateWire("SteerRunRequest", {
+        runId: "run_01",
+        expectedSegmentId: "seg_01",
+        input: [],
+      }),
+    ).toEqual([{ path: "SteerRunRequest.input", detail: "expected at least 1 item(s)" }]);
+    expect(
+      validateWire("SteerRunRequest", {
+        runId: "run_01",
+        expectedSegmentId: "seg_01",
+        message: "legacy",
+      }),
+    ).toEqual([{ path: "SteerRunRequest.input", detail: "is required" }]);
+  });
+
   it("rejects a revision below the minimum", () => {
     expect(
       validateWire("UpdateSessionRequest", { sessionId: "ses_01", expectedRevision: 0 }),

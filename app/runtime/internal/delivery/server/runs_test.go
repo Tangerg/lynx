@@ -61,14 +61,49 @@ func TestSteerRun_RefusesASegmentTheRunIsNotExecuting(t *testing.T) {
 	runID, _ := startLiveRun(t, s, t.TempDir())
 
 	if err := s.SteerRun(context.Background(), protocol.SteerRunRequest{
-		RunID: runID, ExpectedSegmentID: "seg_replaced", Message: "wait",
+		RunID: runID, ExpectedSegmentID: "seg_replaced",
+		Input: []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: "wait"}},
 	}); !errors.Is(err, protocol.ErrStaleSegment) {
 		t.Fatalf("steer stale segment: err = %v, want ErrStaleSegment", err)
 	}
 	if err := s.SteerRun(context.Background(), protocol.SteerRunRequest{
-		RunID: "ghost", ExpectedSegmentID: "seg_1", Message: "wait",
+		RunID: "ghost", ExpectedSegmentID: "seg_1",
+		Input: []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: "wait"}},
 	}); !errors.Is(err, protocol.ErrRunNotFound) {
 		t.Fatalf("steer unknown run: err = %v, want ErrRunNotFound", err)
+	}
+
+}
+
+func TestWireLiveSegmentErrorPreservesTheInvalidInputField(t *testing.T) {
+	_, materializeErr := runs.MaterializeUserMessage([]transcript.ContentBlock{{
+		Kind: transcript.ImageContent, Mime: "image/png", Data: "not-base64",
+	}})
+	err := wireSteerError(materializeErr)
+	constraint, ok := errors.AsType[*protocol.ConstraintError](err)
+	if !ok || !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("steer invalid image: err = %v, want typed invalid_params", err)
+	}
+	if len(constraint.Fields) != 1 ||
+		constraint.Fields[0].Field != "input[0].data" ||
+		constraint.Fields[0].Detail != "must be valid base64" {
+		t.Fatalf("steer invalid image fields = %+v", constraint.Fields)
+	}
+}
+
+func TestRunInputFromWireReportsTheInvalidBlockField(t *testing.T) {
+	_, err := decodeRunInput([]protocol.ContentBlock{{
+		Type: protocol.ContentBlockImage,
+		Mime: "image/png",
+	}})
+	constraint, ok := errors.AsType[*protocol.ConstraintError](err)
+	if !ok || !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("error = %v, want typed invalid_params ConstraintError", err)
+	}
+	if len(constraint.Fields) != 1 ||
+		constraint.Fields[0].Field != "input[0].data" ||
+		constraint.Fields[0].Detail != "is required for image content" {
+		t.Fatalf("fields = %+v", constraint.Fields)
 	}
 }
 

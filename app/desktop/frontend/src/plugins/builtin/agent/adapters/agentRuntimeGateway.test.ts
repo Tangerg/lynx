@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient, Methods } from "@/rpc";
-import { asSessionId } from "@/rpc";
+import { asRunId, asSegmentId, asSessionId } from "@/rpc";
 import { agentRuntime } from "../application/ports/runtimeGateway";
 import { installAgentRuntimeGateway } from "./agentRuntimeGateway";
 
@@ -36,5 +36,25 @@ describe("agentRuntimeGateway", () => {
       favorite: true,
     } satisfies Parameters<Methods["sessions"]["update"]>[0]);
     expect(get).not.toHaveBeenCalled();
+  });
+
+  it("translates structured steering input only at the runtime adapter", async () => {
+    const steer = vi.fn().mockResolvedValue({});
+    setContainer({
+      client: () => ({ runs: { steer } }) as unknown as LyraClient,
+    });
+    uninstall = installAgentRuntimeGateway();
+
+    await agentRuntime().steerRun("run_1", "seg_1", {
+      parts: [
+        { kind: "text", text: "compare this" },
+        { kind: "image", mime: "image/png", data: "aW1hZ2U=" },
+      ],
+    });
+
+    expect(steer).toHaveBeenCalledWith(asRunId("run_1"), asSegmentId("seg_1"), [
+      { type: "text", text: "compare this" },
+      { type: "image", mime: "image/png", data: "aW1hZ2U=" },
+    ] satisfies Parameters<Methods["runs"]["steer"]>[2]);
   });
 });

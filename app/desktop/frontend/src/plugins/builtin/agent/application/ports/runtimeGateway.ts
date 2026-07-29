@@ -1,6 +1,7 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { Item, StateSnapshot } from "@/rpc";
 import type { ApprovalMode } from "../../domain/hitl";
+import type { AgentInput } from "../../domain/input";
 
 export type RestoreType = "history" | "files" | "both";
 
@@ -54,10 +55,10 @@ export interface AgentRuntimeGateway {
    *  The segment is part of the address: a run that parked and resumed between
    *  typing and sending must refuse rather than deliver the instruction into a
    *  continuation the person never saw. */
-  steerRun(runId: string, segmentId: string, text: string): Promise<void>;
+  steerRun(runId: string, segmentId: string, input: AgentInput): Promise<void>;
   /** Whether a refusal means "the run this addressed is no longer executing" —
    *  finished, waiting on a person, or already on a different segment. One
-   *  question because one answer follows: send the text as a fresh turn. */
+   *  question because one answer follows: send the input as a fresh turn. */
   isRunGone(error: unknown): boolean;
   /** Whether a refusal means "the replay window no longer reaches that cursor". The
    *  events are gone for good; the items they produced are not, so the answer is a

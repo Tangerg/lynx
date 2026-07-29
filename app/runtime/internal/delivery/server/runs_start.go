@@ -29,6 +29,10 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	if err != nil {
 		return nil, nil, wireRunStartErr(err)
 	}
+	input, err := decodeRunInput(in.Input)
+	if err != nil {
+		return nil, nil, err
+	}
 	// Negotiated before admission: the Run is created under this contract and keeps
 	// it for life, so a capability we cannot honor has to stop the call rather than
 	// be discovered halfway through its stream.
@@ -44,7 +48,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		MaxSteps:        in.MaxSteps,
 		Options:         options,
 		ProtocolProfile: profile,
-		Input:           runInputFromWire(in.Input),
+		Input:           input,
 	})
 	if err != nil {
 		return nil, nil, wireRunStartErr(err)
@@ -54,16 +58,42 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	return &protocol.StartRunResponse{RunID: result.RunID, SegmentID: result.SegmentID, UserItemID: result.UserItemID}, mapRunEvents(ctx, result.Events), nil
 }
 
-func runInputFromWire(blocks []protocol.ContentBlock) []transcript.ContentBlock {
+func decodeRunInput(blocks []protocol.ContentBlock) ([]transcript.ContentBlock, error) {
 	input := make([]transcript.ContentBlock, len(blocks))
 	for i, block := range blocks {
-		kind := transcript.TextContent
-		if block.Type == protocol.ContentBlockImage {
+		var kind transcript.ContentKind
+		switch block.Type {
+		case protocol.ContentBlockText:
+			if block.Text == "" {
+				return nil, invalidWireContentBlock(i, "text", "must not be empty")
+			}
+			if block.Mime != "" || block.Data != "" {
+				return nil, invalidWireContentBlock(i, "type", "text content cannot carry mime or data")
+			}
+			kind = transcript.TextContent
+		case protocol.ContentBlockImage:
+			if block.Mime == "" {
+				return nil, invalidWireContentBlock(i, "mime", "is required for image content")
+			}
+			if block.Data == "" {
+				return nil, invalidWireContentBlock(i, "data", "is required for image content")
+			}
+			if block.Text != "" {
+				return nil, invalidWireContentBlock(i, "type", "image content cannot carry text")
+			}
 			kind = transcript.ImageContent
+		default:
+			return nil, invalidWireContentBlock(i, "type", "must be text or image")
 		}
 		input[i] = transcript.ContentBlock{Kind: kind, Text: block.Text, Mime: block.Mime, Data: block.Data}
 	}
-	return input
+	return input, nil
+}
+
+func invalidWireContentBlock(index int, field, detail string) error {
+	return &protocol.ConstraintError{Fields: []protocol.FieldError{{
+		Field: fmt.Sprintf("input[%d].%s", index, field), Detail: detail,
+	}}}
 }
 
 func wireRunStartErr(err error) error {
