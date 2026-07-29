@@ -141,7 +141,12 @@ type RollbackSessionResponse struct {
 // transformation. Continuation runs (resume/edit) open no user turn, so it's
 // omitted for them.
 type DroppedRun struct {
-	Run       RunRef         `json:"run"`
+	// Run is a SUMMARY, not a RunRef: this run no longer exists. A RunRef asserts
+	// the facts you drive and account for a run by — its active segment, its
+	// cumulative metrics, the contract it publishes under — and asserting those
+	// about a record the same transaction deleted is reporting accounting for
+	// something that is gone.
+	Run       RunSummary     `json:"run"`
 	UserInput []ContentBlock `json:"userInput,omitempty"`
 }
 
@@ -193,6 +198,34 @@ type SessionArtifact struct {
 	Runs        []ArtifactRun        `json:"runs"`
 	Items       []ArtifactItem       `json:"items"`
 	ToolResults []ArtifactToolResult `json:"toolResults"`
+	// States carries the session-scoped projections a person would notice losing —
+	// today the task list. An archive without them round-trips a conversation and
+	// silently drops the work plan attached to it.
+	//
+	// Only the portable semantic VALUE travels: no revision and no updatedAt. Those
+	// are the source runtime's ordering tokens, and carrying them would let an
+	// imported value claim a position in the target's revision space that the
+	// target never issued — which is how a client comes to ignore a newer value as
+	// stale. The importing runtime assigns its own.
+	States []ArtifactState `json:"states,omitempty"`
+}
+
+// ArtifactStateType is the portable state-key vocabulary. It is the same closed
+// first-party set the live stream publishes, because an archive that could carry
+// a key the runtime does not own would be restoring a projection with no writer
+// and no read.
+type ArtifactStateType string
+
+const ArtifactStateTodos ArtifactStateType = "todos"
+
+// ArtifactState is one session-scoped projection's portable value, discriminated
+// by its key. At most one entry per type: this is a map of keys to values, and a
+// second entry for one key would be two answers to "what was the task list".
+// That rule is an aggregate invariant rather than a schema keyword — the same
+// place duplicate item ids are refused.
+type ArtifactState struct {
+	Type  ArtifactStateType `json:"type"`
+	Todos []TodoSnapshot    `json:"todos,omitempty"`
 }
 
 // ArtifactSession is the durable session identity and user-owned metadata. It
@@ -214,22 +247,30 @@ type ArtifactRun struct {
 	ID              string `json:"id"`
 	SessionID       string `json:"sessionId"`
 	SpawnedByItemID string `json:"spawnedByItemId,omitempty"`
-	Provider        string `json:"provider,omitempty"`
-	Model           string `json:"model,omitempty"`
+	// ParentRunID and RootRunID are the child edges, all-or-none with
+	// SpawnedByItemID exactly as RunSummary's are — an archive is a durable input
+	// document, so a half-linked child would import a tree that cannot be walked.
+	ParentRunID string `json:"parentRunId,omitempty"`
+	RootRunID   string `json:"rootRunId,omitempty"`
+	Provider    string `json:"provider,omitempty"`
+	Model       string `json:"model,omitempty"`
 	// Limits and Metrics split the same way the live wire does. The archive has
 	// to move with it: leaving the old combined shape here would keep a second,
 	// older account of what a run cost alive inside the export format.
 	Limits  *ArtifactRunLimits `json:"limits,omitempty"`
 	Metrics ArtifactRunMetrics `json:"metrics"`
-	// ProtocolProfile is the contract the run published under. An import that
-	// dropped it would restore a run claiming the Minimal Profile, which is a
-	// different run: §14.8 requires the round-trip to preserve it.
-	ProtocolProfile RunProtocolProfile `json:"protocolProfile"`
-	Outcome         ArtifactOutcome    `json:"outcome"`
-	CreatedAt       time.Time          `json:"createdAt"`
-	FinishedAt      time.Time          `json:"finishedAt"`
-	UpdatedAt       time.Time          `json:"updatedAt"`
-	MessageMark     int                `json:"messageMark"`
+	// ProtocolProfile is the contract the run published under, required on a root
+	// and absent on a child. An import that dropped it would restore a run claiming
+	// the Minimal Profile, which is a different run: §14.8 requires the round-trip
+	// to preserve it verbatim — never defaulted to empty, never re-derived from the
+	// child or interrupt facts, never rewritten to the importing client's
+	// capabilities. A child has none of its own; it reads its root's.
+	ProtocolProfile *RunProtocolProfile `json:"protocolProfile,omitempty"`
+	Outcome         ArtifactOutcome     `json:"outcome"`
+	CreatedAt       time.Time           `json:"createdAt"`
+	FinishedAt      time.Time           `json:"finishedAt"`
+	UpdatedAt       time.Time           `json:"updatedAt"`
+	MessageMark     int                 `json:"messageMark"`
 }
 
 // ArtifactRunLimits is the allowance a portable run was admitted under.

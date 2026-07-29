@@ -21,19 +21,6 @@
         "finishedAt": "2026-07-07T10:00:20Z",
         "outcome": {
           "type": "completed"
-        },
-        "metrics": {
-          "usage": {
-            "inputTokens": 900,
-            "outputTokens": 210,
-            "costUsd": 0.014
-          },
-          "steps": 2,
-          "activeDurationMs": 20000
-        },
-        "protocolProfile": {
-          "requiredFeatures": [],
-          "interruptTypes": []
         }
       },
       "userInput": [

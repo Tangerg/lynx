@@ -828,10 +828,16 @@
         "outcome": {
           "$ref": "#/$defs/ArtifactOutcome"
         },
+        "parentRunId": {
+          "type": "string"
+        },
         "protocolProfile": {
           "$ref": "#/$defs/RunProtocolProfile"
         },
         "provider": {
+          "type": "string"
+        },
+        "rootRunId": {
           "type": "string"
         },
         "sessionId": {
@@ -852,9 +858,61 @@
         "messageMark",
         "metrics",
         "outcome",
-        "protocolProfile",
         "sessionId",
         "updatedAt"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "spawnedByItemId"
+            ]
+          },
+          "then": {
+            "properties": {
+              "protocolProfile": false
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "spawnedByItemId"
+            ]
+          },
+          "then": {
+            "required": [
+              "parentRunId",
+              "rootRunId"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "parentRunId"
+            ]
+          },
+          "then": {
+            "required": [
+              "rootRunId",
+              "spawnedByItemId"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "rootRunId"
+            ]
+          },
+          "then": {
+            "required": [
+              "parentRunId",
+              "spawnedByItemId"
+            ]
+          }
+        }
       ]
     },
     "ArtifactRunLimits": {
@@ -920,6 +978,39 @@
         "model",
         "title",
         "updatedAt"
+      ]
+    },
+    "ArtifactState": {
+      "type": "object",
+      "properties": {
+        "todos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TodoSnapshot"
+          }
+        },
+        "type": {
+          "$ref": "#/$defs/ArtifactStateType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "todos"
+            }
+          },
+          "required": [
+            "todos",
+            "type"
+          ]
+        }
+      ]
+    },
+    "ArtifactStateType": {
+      "type": "string",
+      "enum": [
+        "todos"
       ]
     },
     "ArtifactToolInvocation": {
@@ -1586,7 +1677,7 @@
       "type": "object",
       "properties": {
         "run": {
-          "$ref": "#/$defs/RunRef"
+          "$ref": "#/$defs/RunSummary"
         },
         "userInput": {
           "type": "array",
@@ -5671,6 +5762,12 @@
         },
         "session": {
           "$ref": "#/$defs/ArtifactSession"
+        },
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactState"
+          }
         },
         "toolResults": {
           "type": "array",

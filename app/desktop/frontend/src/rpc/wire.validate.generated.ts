@@ -48,6 +48,8 @@ export type WireTypeName =
   | "ArtifactRunLimits"
   | "ArtifactRunMetrics"
   | "ArtifactSession"
+  | "ArtifactState"
+  | "ArtifactStateType"
   | "ArtifactToolInvocation"
   | "ArtifactToolResult"
   | "ArtifactUsage"
@@ -542,21 +544,43 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     label: text(),
     preview: text(),
   }, ["label"]),
-  ArtifactRun: object({
-    createdAt: text(),
-    finishedAt: text(),
-    id: text(),
-    limits: ref(() => CHECKS.ArtifactRunLimits),
-    messageMark: integer(),
-    metrics: ref(() => CHECKS.ArtifactRunMetrics),
-    model: text(),
-    outcome: ref(() => CHECKS.ArtifactOutcome),
-    protocolProfile: ref(() => CHECKS.RunProtocolProfile),
-    provider: text(),
-    sessionId: text(),
-    spawnedByItemId: text(),
-    updatedAt: text(),
-  }, ["createdAt", "finishedAt", "id", "messageMark", "metrics", "outcome", "protocolProfile", "sessionId", "updatedAt"]),
+  ArtifactRun: allOf([
+    object({
+      createdAt: text(),
+      finishedAt: text(),
+      id: text(),
+      limits: ref(() => CHECKS.ArtifactRunLimits),
+      messageMark: integer(),
+      metrics: ref(() => CHECKS.ArtifactRunMetrics),
+      model: text(),
+      outcome: ref(() => CHECKS.ArtifactOutcome),
+      parentRunId: text(),
+      protocolProfile: ref(() => CHECKS.RunProtocolProfile),
+      provider: text(),
+      rootRunId: text(),
+      sessionId: text(),
+      spawnedByItemId: text(),
+      updatedAt: text(),
+    }, ["createdAt", "finishedAt", "id", "messageMark", "metrics", "outcome", "sessionId", "updatedAt"]),
+    ifThen(
+      fields({}, ["spawnedByItemId"]),
+      fields({
+        protocolProfile: absent(),
+      }, []),
+    ),
+    ifThen(
+      fields({}, ["spawnedByItemId"]),
+      fields({}, ["parentRunId", "rootRunId"]),
+    ),
+    ifThen(
+      fields({}, ["parentRunId"]),
+      fields({}, ["rootRunId", "spawnedByItemId"]),
+    ),
+    ifThen(
+      fields({}, ["rootRunId"]),
+      fields({}, ["parentRunId", "spawnedByItemId"]),
+    ),
+  ]),
   ArtifactRunLimits: object({
     maxBudgetUsd: numeric(),
     maxSteps: integer(),
@@ -575,6 +599,18 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     title: text(),
     updatedAt: text(),
   }, ["createdAt", "cwd", "id", "model", "title", "updatedAt"]),
+  ArtifactState: allOf([
+    object({
+      todos: array(ref(() => CHECKS.TodoSnapshot)),
+      type: ref(() => CHECKS.ArtifactStateType),
+    }, []),
+    oneOf([
+      fields({
+        type: literal("todos"),
+      }, ["todos", "type"]),
+    ]),
+  ]),
+  ArtifactStateType: enumOf(["todos"]),
   ArtifactToolInvocation: object({
     arguments: record(anything()),
     name: text(),
@@ -769,7 +805,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     serverInfo: ref(() => CHECKS.ServerInfo),
   }, ["capabilities", "protocol", "serverInfo"]),
   DroppedRun: object({
-    run: ref(() => CHECKS.RunRef),
+    run: ref(() => CHECKS.RunSummary),
     userInput: array(ref(() => CHECKS.ContentBlock)),
   }, ["run"]),
   EmbeddingRole: object({
@@ -2074,6 +2110,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     messages: array(anything()),
     runs: array(ref(() => CHECKS.ArtifactRun)),
     session: ref(() => CHECKS.ArtifactSession),
+    states: array(ref(() => CHECKS.ArtifactState)),
     toolResults: array(ref(() => CHECKS.ArtifactToolResult)),
     version: integer(),
   }, ["items", "messages", "runs", "session", "toolResults", "version"]),

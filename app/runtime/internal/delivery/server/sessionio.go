@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
@@ -59,6 +60,30 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 // history, then re-seeds the chat messages, canonical items/runs, and offloaded
 // tool bodies. Re-importing the same artifact is idempotent; importing over an
 // existing session restores it.
+// refuseUnadvertisedStates rejects an archive carrying a state key this build does
+// not own. It reads the same advertised set discovery publishes, so "the runtime
+// offers this key" and "the runtime can import this key" cannot come apart.
+func (s *Server) refuseUnadvertisedStates(states []protocol.ArtifactState) error {
+	if len(states) == 0 {
+		return nil
+	}
+	advertised := advertisedStateSnapshots(s.features.todos)
+	var gaps []protocol.CapabilityRequirement
+	for _, state := range states {
+		key := protocol.StateSnapshotType(state.Type)
+		if slices.ContainsFunc(advertised, func(c protocol.StateSnapshotCapability) bool { return c.Key == key }) {
+			continue
+		}
+		gaps = append(gaps, protocol.CapabilityRequirement{
+			Type: protocol.RequirementStateSnapshot, Name: string(state.Type),
+		})
+	}
+	if len(gaps) == 0 {
+		return nil
+	}
+	return protocol.NewCapabilityGap(gaps...)
+}
+
 func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error) {
 	art := in.Artifact
 	if art.Version != protocol.SessionArtifactVersion {
@@ -66,6 +91,13 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	}
 	portable, err := portableArtifactFromWire(art)
 	if err != nil {
+		return nil, err
+	}
+	// Before any write: an archive whose state keys this composition does not
+	// advertise cannot be restored, and restoring the conversation while dropping
+	// the key would import a session the archive does not describe. The gap names
+	// the key so the caller learns WHICH one rather than that "something" is off.
+	if err := s.refuseUnadvertisedStates(art.States); err != nil {
 		return nil, err
 	}
 

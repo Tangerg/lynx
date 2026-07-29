@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -23,7 +24,7 @@ type SessionStores struct {
 	runs        *sqlitestore.RunStore
 	processes   *sqlitestore.ProcessStore
 	history     *conversation.Messages
-	todos       todoCleaner
+	todos       todoProjection
 	approvals   approvalRuleCleaner
 	toolResults *sqlitestore.ToolResultStore
 	goals       goalCleaner
@@ -38,7 +39,7 @@ type SessionStoresConfig struct {
 	Runs        *sqlitestore.RunStore
 	Processes   *sqlitestore.ProcessStore
 	History     *conversation.Messages
-	Todos       todoCleaner
+	Todos       todoProjection
 	Approvals   approvalRuleCleaner
 	ToolResults *sqlitestore.ToolResultStore
 	Goals       goalCleaner
@@ -48,7 +49,14 @@ type SessionStoresConfig struct {
 // Transactor runs a complete write-set inside one durable transaction.
 type Transactor func(context.Context, func(context.Context) error) error
 
-type todoCleaner interface {
+// todoProjection is the session-scoped task list this write-set has to move with
+// the session: read for an archive, replaced by a restore, dropped with a delete.
+// Replace rather than write-then-set-revision, because the store owns the
+// revision — it is assigned by the write itself, so no caller can hand out two
+// values under one number.
+type todoProjection interface {
+	List(ctx context.Context, sessionID string) ([]todo.Item, error)
+	Replace(ctx context.Context, sessionID string, items []todo.Item) error
 	DeleteSession(ctx context.Context, sessionID string) error
 }
 
@@ -107,8 +115,16 @@ func (s *SessionStores) ReadSnapshot(ctx context.Context, sessionID string) (ses
 				return err
 			}
 		}
+		var todos []todo.Item
+		if s.todos != nil {
+			todos, err = s.todos.List(ctx, sessionID)
+			if err != nil {
+				return err
+			}
+		}
 		snapshot = sessions.Snapshot{
-			Session: ses, Messages: messages, Items: items, Runs: runs, ToolResults: toolResults,
+			Session: ses, Messages: messages, Items: items, Runs: runs,
+			ToolResults: toolResults, Todos: todos,
 		}
 		return nil
 	})
@@ -204,6 +220,15 @@ func (s *SessionStores) ApplyRestore(ctx context.Context, plan sessions.RestoreP
 		}
 		if err := s.clearSessionOwnedState(ctx, id); err != nil {
 			return err
+		}
+		// REPLACED after the clear, not restored by it: Replace bumps the projection's
+		// revision past whatever this session already published, while the clear left
+		// it with no row — and a fresh row starts at one, which a client holding a
+		// higher revision would ignore as stale.
+		if s.todos != nil {
+			if err := s.todos.Replace(ctx, id, plan.Todos); err != nil {
+				return err
+			}
 		}
 		if err := s.history.Seed(ctx, id, plan.Messages); err != nil {
 			return err

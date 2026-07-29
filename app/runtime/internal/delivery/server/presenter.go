@@ -61,17 +61,31 @@ func presentStateSnapshot(event runs.StateSnapshot) protocol.StateSnapshot {
 // presentTodoState is the same projection read cold. It goes through the run-event
 // shape so the two cannot describe the list differently: one presenter, one answer.
 func presentTodoState(sessionID string, state todo.State) protocol.StateSnapshot {
-	snapshot := runs.StateSnapshot{
+	return presentStateSnapshot(runs.StateSnapshot{
 		SessionID: sessionID, Revision: state.Revision, UpdatedAt: state.UpdatedAt,
-		Todos: make([]runs.TodoSnapshot, 0, len(state.Items)),
-	}
-	for index, item := range state.Items {
-		snapshot.Todos = append(snapshot.Todos, runs.TodoSnapshot{
+		Todos: todoSnapshots(state.Items),
+	})
+}
+
+// presentTodoSnapshots is the list a portable archive carries: the same items as
+// the live projection, through the same presenter, with none of the revision or
+// timestamp the archive deliberately leaves behind.
+func presentTodoSnapshots(items []todo.Item) []protocol.TodoSnapshot {
+	return presentStateSnapshot(runs.StateSnapshot{Todos: todoSnapshots(items)}).Todos
+}
+
+// todoSnapshots numbers the items by position, which is what a task list's
+// identity IS: the model replaces the whole list, so an item is the nth entry
+// rather than a thing with a durable id.
+func todoSnapshots(items []todo.Item) []runs.TodoSnapshot {
+	out := make([]runs.TodoSnapshot, 0, len(items))
+	for index, item := range items {
+		out = append(out, runs.TodoSnapshot{
 			ID: strconv.Itoa(index), Text: item.Content, Status: item.Status,
 			BlockedReason: item.BlockedReason, NextAction: item.NextAction,
 		})
 	}
-	return presentStateSnapshot(snapshot)
+	return out
 }
 
 func presentTodoStatus(status todo.Status) protocol.TodoStatus {

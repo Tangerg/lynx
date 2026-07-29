@@ -1759,6 +1759,18 @@
       ]
     },
     {
+      "type": "ArtifactState",
+      "discriminator": "type",
+      "variants": [
+        {
+          "tag": "todos",
+          "required": [
+            "todos"
+          ]
+        }
+      ]
+    },
+    {
       "type": "Item",
       "discriminator": "type",
       "variants": [
@@ -2730,6 +2742,58 @@
             "sessionId",
             "interrupts",
             "createdAt"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ArtifactRun",
+      "rules": [
+        {
+          "when": [
+            {
+              "field": "spawnedByItemId",
+              "operator": "present"
+            }
+          ],
+          "forbidden": [
+            "protocolProfile"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "spawnedByItemId",
+              "operator": "present"
+            }
+          ],
+          "required": [
+            "parentRunId",
+            "rootRunId"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "parentRunId",
+              "operator": "present"
+            }
+          ],
+          "required": [
+            "spawnedByItemId",
+            "rootRunId"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "rootRunId",
+              "operator": "present"
+            }
+          ],
+          "required": [
+            "spawnedByItemId",
+            "parentRunId"
           ]
         }
       ]

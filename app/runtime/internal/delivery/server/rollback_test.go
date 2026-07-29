@@ -34,6 +34,7 @@ func rollbackHarness(t *testing.T) (*Server, *stubRuntime) {
 		toolResults: sqlite.NewToolResultStore(db),
 		interrupts:  sqlite.NewInterruptStore(db),
 		muts:        sqlite.NewWorkspaceMutationStore(db),
+		todos:       sqlite.NewTodoStore(db),
 	}
 	return newTestServer(rt), rt
 }

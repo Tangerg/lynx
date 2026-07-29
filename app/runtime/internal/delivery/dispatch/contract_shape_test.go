@@ -49,7 +49,7 @@ func TestEveryClosedWireUnionIsRegistered(t *testing.T) {
 	t.Parallel()
 
 	want := []string{
-		"ArtifactContentBlock", "ArtifactItem", "ArtifactOutcome",
+		"ArtifactContentBlock", "ArtifactItem", "ArtifactOutcome", "ArtifactState",
 		"CapabilityRequirement", "ContentBlock", "DiffRow", "Interrupt", "InterruptResponseValue", "Item", "ItemDelta",
 		"ItemListScope", "QuestionField", "RunOutcome", "RuntimeEvent", "SegmentOutcome", "StateSnapshot", "StreamEvent",
 	}

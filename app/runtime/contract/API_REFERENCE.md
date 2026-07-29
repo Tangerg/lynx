@@ -150,6 +150,12 @@ least one variant; the registry refuses a union where one does not.
 | `maxBudget` | — | `detail` |
 | `canceled` | — | `detail` |
 
+### `ArtifactState`
+
+| tag | required | optional |
+| --- | --- | --- |
+| `todos` | `todos` | — |
+
 ### `Item`
 
 | tag | required | optional |

@@ -46,7 +46,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 			for i, block := range dropped.UserInput {
 				input[i] = presentContent(block)
 			}
-			out = append(out, protocol.DroppedRun{Run: presentRun(dropped.Run), UserInput: input})
+			out = append(out, protocol.DroppedRun{Run: presentRunSummary(dropped.Run), UserInput: input})
 		}
 	}
 	sess := sessionViewToWire(result.Session)

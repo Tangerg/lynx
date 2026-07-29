@@ -58,5 +58,22 @@
       "body": "total 0\n",
       "createdAt": "2026-07-07T10:00:05Z"
     }
+  ],
+  "states": [
+    {
+      "type": "todos",
+      "todos": [
+        {
+          "id": "0",
+          "text": "Split the run outcome",
+          "status": "completed"
+        },
+        {
+          "id": "1",
+          "text": "Carry the task list through export",
+          "status": "in_progress"
+        }
+      ]
+    }
   ]
 }

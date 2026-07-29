@@ -51,7 +51,23 @@ func artifactFromPortable(portable sessions.PortableSnapshot) (protocol.SessionA
 		Version:  protocol.SessionArtifactVersion,
 		Session:  artifactSessionFromPortable(portable.Session),
 		Messages: messages, Runs: runs, Items: items, ToolResults: toolResults,
+		States: artifactStatesFromPortable(portable),
 	}, nil
+}
+
+// artifactStatesFromPortable carries the session-scoped projections that have a
+// value. An empty list is omitted rather than written as an entry with nothing in
+// it: "no task list" and "an empty task list" are the same fact here, and only the
+// live projection's revision distinguishes them — which an archive deliberately
+// does not carry.
+func artifactStatesFromPortable(portable sessions.PortableSnapshot) []protocol.ArtifactState {
+	if len(portable.Todos) == 0 {
+		return nil
+	}
+	return []protocol.ArtifactState{{
+		Type:  protocol.ArtifactStateTodos,
+		Todos: presentTodoSnapshots(portable.Todos),
+	}}
 }
 
 func artifactSessionFromPortable(value sessions.PortableSession) protocol.ArtifactSession {
@@ -73,15 +89,28 @@ func artifactRunFromPortable(run sessions.PortableRun) (protocol.ArtifactRun, er
 	return protocol.ArtifactRun{
 		ID: run.ID, SessionID: run.SessionID, SpawnedByItemID: run.SpawnedByItemID,
 		Provider: run.Provider, Model: run.Model,
+		ParentRunID:     run.ParentRunID,
+		RootRunID:       run.RootRunID,
 		Limits:          artifactLimitsFromDomain(run.Limits),
 		Metrics:         artifactMetricsFromDomain(run.Metrics),
-		ProtocolProfile: presentProtocolProfile(run.ProtocolProfile),
+		ProtocolProfile: artifactProfileFromPortable(run.ProtocolProfile),
 		Outcome: protocol.ArtifactOutcome{
 			Type: outcome, Error: problem, Detail: run.Detail,
 		},
 		CreatedAt: run.CreatedAt, FinishedAt: run.FinishedAt,
 		UpdatedAt: run.UpdatedAt, MessageMark: run.MessageMark,
 	}, nil
+}
+
+// artifactProfileFromPortable writes the contract a ROOT run published under, and
+// nothing for a child — a child reads its root's, and writing a second copy is how
+// the two come to disagree.
+func artifactProfileFromPortable(profile *execution.RunProtocolProfile) *protocol.RunProtocolProfile {
+	if profile == nil {
+		return nil
+	}
+	presented := presentProtocolProfile(*profile)
+	return &presented
 }
 
 func artifactOutcomeType(outcome execution.Outcome) (protocol.ArtifactOutcomeType, error) {

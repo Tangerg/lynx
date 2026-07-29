@@ -23,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -61,6 +62,7 @@ type stubRuntime struct {
 	hist        *sqlite.TranscriptStore   // durable Item history
 	runs        *sqlite.RunStore          // durable Run records (rollback/fork read runs)
 	toolResults *sqlite.ToolResultStore
+	todos       *sqlite.TodoStore              // session-scoped state: exported, restored, dropped with the session
 	interrupts  *sqlite.InterruptStore         // open-interrupt registry (rollback clears dropped)
 	muts        *sqlite.WorkspaceMutationStore // §8.5 recoverable file-rollback log
 	turns       turnRuntime
@@ -306,7 +308,17 @@ func (s stubLifecycleStores) ReadSnapshot(ctx context.Context, id string) (sessi
 			return sessions.Snapshot{}, err
 		}
 	}
-	return sessions.Snapshot{Session: ses, Messages: messages, Items: items, Runs: runs, ToolResults: toolResults}, nil
+	var todos []todo.Item
+	if s.rt.todos != nil {
+		todos, err = s.rt.todos.List(ctx, id)
+		if err != nil {
+			return sessions.Snapshot{}, err
+		}
+	}
+	return sessions.Snapshot{
+		Session: ses, Messages: messages, Items: items, Runs: runs,
+		ToolResults: toolResults, Todos: todos,
+	}, nil
 }
 
 func (s stubLifecycleStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (session.Session, error) {
@@ -393,6 +405,13 @@ func (s stubLifecycleStores) ApplyRestore(ctx context.Context, plan sessions.Res
 			return errors.New("test runtime: tool-result persistence is unavailable")
 		}
 		if err := s.rt.toolResults.Restore(ctx, blob); err != nil {
+			return err
+		}
+	}
+	// Replaced, never deleted-and-reinserted: the revision has to come out greater
+	// than what this session already published.
+	if s.rt.todos != nil {
+		if err := s.rt.todos.Replace(ctx, id, plan.Todos); err != nil {
 			return err
 		}
 	}

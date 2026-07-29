@@ -79,6 +79,18 @@ func registerItemUnions(s *Shapes) {
 	// each variant repeats them: a variant declares the WHOLE frame it permits,
 	// which is what lets the field-coverage check be exhaustive.
 	base := []string{"id", "runId", "status", "createdAt"}
+	// The archive's session-scoped state values, keyed the same way the live stream
+	// keys them. One variant today, declared as a union because the KEY is the
+	// discriminator: a reader must branch on it rather than guess from which field
+	// happens to be set.
+	s.union(UnionSpec{
+		GoType:        typeOf[protocol.ArtifactState](),
+		Discriminator: "type",
+		Variants: []VariantSpec{
+			{Tag: string(protocol.ArtifactStateTodos), Required: []string{"todos"}},
+		},
+	})
+
 	s.union(UnionSpec{
 		GoType:        typeOf[protocol.Item](),
 		Discriminator: "type",
@@ -406,6 +418,23 @@ func registerObjectConstraints(s *Shapes) {
 		Rules: []PresenceRule{{
 			Required: []string{"rootRunId", "sessionId", "interrupts", "createdAt"},
 		}},
+	})
+
+	// The archive's runs obey the same child-edge rule the live summaries do: all
+	// three edges or none. A child additionally carries NO protocol profile — it
+	// reads its root's, and a child with one of its own would import a run claiming
+	// a contract nothing negotiated.
+	//
+	// The other half — a ROOT must carry one — is not here: "root" is the absence of
+	// those edges, and absence is not something a PresenceRule can condition on. It
+	// is an aggregate invariant of the import, checked where the archive is turned
+	// into a session.
+	s.constraint(ObjectConstraintSpec{
+		GoType: typeOf[protocol.ArtifactRun](),
+		Rules: append([]PresenceRule{{
+			When:      []FieldCondition{{Field: "spawnedByItemId", Operator: OperatorPresent}},
+			Forbidden: []string{"protocolProfile"},
+		}}, childLineageRules()...),
 	})
 
 	// An error outcome's explanation lives on `error`, and only there — the

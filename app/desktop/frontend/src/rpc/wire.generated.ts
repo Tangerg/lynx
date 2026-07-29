@@ -180,8 +180,10 @@ export interface ArtifactRun {
   metrics: ArtifactRunMetrics;
   model?: string;
   outcome: ArtifactOutcome;
-  protocolProfile: RunProtocolProfile;
+  parentRunId?: string;
+  protocolProfile?: RunProtocolProfile;
   provider?: string;
+  rootRunId?: string;
   sessionId: string;
   spawnedByItemId?: string;
   updatedAt: string;
@@ -207,6 +209,11 @@ export interface ArtifactSession {
   title: string;
   updatedAt: string;
 }
+
+export type ArtifactState =
+  | { type: "todos"; todos: TodoSnapshot[] };
+
+export type ArtifactStateType = "todos";
 
 export interface ArtifactToolInvocation {
   arguments: Record<string, unknown>;
@@ -375,7 +382,7 @@ export interface DiscoverResponse {
 }
 
 export interface DroppedRun {
-  run: RunRef;
+  run: RunSummary;
   userInput?: ContentBlock[];
 }
 
@@ -1188,6 +1195,7 @@ export interface SessionArtifact {
   messages: unknown[];
   runs: ArtifactRun[];
   session: ArtifactSession;
+  states?: ArtifactState[];
   toolResults: ArtifactToolResult[];
   version: number;
 }
@@ -1449,6 +1457,7 @@ export const WIRE_ENUMS = {
   ApprovalRuleScope: ["session", "project", "global"],
   ArtifactOutcomeType: ["completed", "error", "maxSteps", "maxBudget", "canceled"],
   ArtifactProblemType: ["internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed"],
+  ArtifactStateType: ["todos"],
   CapabilityRequirementType: ["feature", "interruptType", "runtimeTopic", "stateSnapshot"],
   CodebaseState: ["none", "indexing", "ready", "error"],
   ContentBlockType: ["text", "image"],

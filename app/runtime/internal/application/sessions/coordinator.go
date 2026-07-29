@@ -23,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
 
 // SessionStore is the coordinator's consumer view of session persistence: the
@@ -113,6 +114,12 @@ type Snapshot struct {
 	Items       []transcript.Item
 	Runs        []transcript.Run
 	ToolResults []offload.ToolResultBlob
+	// Todos is the session-scoped task list as a semantic VALUE — items only, no
+	// revision and no update time. Those are this runtime's ordering tokens: a
+	// snapshot that carried them could hand a restored value a position in the
+	// revision space that the restoring runtime never issued, and a client would
+	// then ignore the newer value as stale.
+	Todos []todo.Item
 }
 
 // WorkspaceCheckpoints is the coordinator's view of a session's working-tree

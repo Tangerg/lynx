@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -64,13 +65,65 @@ func portableArtifactFromWire(art protocol.SessionArtifact) (sessions.PortableSn
 			Preview: encoded.Preview, Body: encoded.Body, CreatedAt: encoded.CreatedAt,
 		})
 	}
+	todos, err := portableTodosFromArtifact(art.States)
+	if err != nil {
+		return sessions.PortableSnapshot{}, err
+	}
 	return sessions.PortableSnapshot{
 		Session: sessions.PortableSession{
 			ID: art.Session.ID, Title: art.Session.Title, Cwd: art.Session.Cwd, Model: art.Session.Model,
 			CreatedAt: art.Session.CreatedAt, UpdatedAt: art.Session.UpdatedAt, Favorite: art.Session.Favorite,
 		},
-		Messages: messages, Runs: runs, Items: items, ToolResults: toolResults,
+		Messages: messages, Runs: runs, Items: items, ToolResults: toolResults, Todos: todos,
 	}, nil
+}
+
+// portableTodosFromArtifact reads the archived task list. The states array is a MAP
+// of keys to values, so a repeated key is refused rather than resolved by order:
+// two answers to "what was the task list" is not a list the import may pick from.
+func portableTodosFromArtifact(states []protocol.ArtifactState) ([]todo.Item, error) {
+	var todos []todo.Item
+	seen := make(map[protocol.ArtifactStateType]bool, len(states))
+	for index, state := range states {
+		path := fmt.Sprintf("artifact.states[%d]", index)
+		if seen[state.Type] {
+			return nil, invalidArtifact(path+".type", "repeats state key %q", state.Type)
+		}
+		seen[state.Type] = true
+		switch state.Type {
+		case protocol.ArtifactStateTodos:
+			for itemIndex, entry := range state.Todos {
+				status, known := todoStatusFromWire(entry.Status)
+				if !known {
+					return nil, invalidArtifact(fmt.Sprintf("%s.todos[%d].status", path, itemIndex),
+						"unknown value %q", entry.Status)
+				}
+				todos = append(todos, todo.Item{
+					Content: entry.Text, Status: status,
+					BlockedReason: entry.BlockedReason, NextAction: entry.NextAction,
+				})
+			}
+		default:
+			return nil, invalidArtifact(path+".type", "unknown value %q", state.Type)
+		}
+	}
+	return todos, nil
+}
+
+// todoStatusFromWire maps the archived status back. It is total over the wire enum
+// so an unknown value is refused instead of silently importing as pending — a task
+// list whose statuses changed on import is a different plan.
+func todoStatusFromWire(status protocol.TodoStatus) (todo.Status, bool) {
+	switch status {
+	case protocol.TodoStatusPending:
+		return todo.StatusPending, true
+	case protocol.TodoStatusInProgress:
+		return todo.StatusInProgress, true
+	case protocol.TodoStatusCompleted:
+		return todo.StatusCompleted, true
+	default:
+		return todo.StatusPending, false
+	}
 }
 
 func portableRunFromArtifact(path string, artifact protocol.ArtifactRun) (sessions.PortableRun, error) {
@@ -88,6 +141,7 @@ func portableRunFromArtifact(path string, artifact protocol.ArtifactRun) (sessio
 	}
 	return sessions.PortableRun{
 		SessionID: artifact.SessionID, ID: artifact.ID, SpawnedByItemID: artifact.SpawnedByItemID,
+		ParentRunID: artifact.ParentRunID, RootRunID: artifact.RootRunID,
 		Provider: artifact.Provider, Model: artifact.Model, Outcome: outcome,
 		Error:           problem,
 		Metrics:         portableMetricsFromArtifact(artifact.Metrics),
@@ -99,19 +153,25 @@ func portableRunFromArtifact(path string, artifact protocol.ArtifactRun) (sessio
 	}, nil
 }
 
-// portableProfileFromArtifact restores the run's frozen contract. An interrupt
-// type this runtime cannot raise is refused rather than dropped: importing the run
-// without it would silently rewrite the contract the archive recorded.
-func portableProfileFromArtifact(path string, profile protocol.RunProtocolProfile) (execution.RunProtocolProfile, error) {
+// portableProfileFromArtifact restores the run's frozen contract, or nothing when
+// the archive carried none — which only a child may do, and the aggregate check
+// enforces. An interrupt type this runtime cannot raise is refused rather than
+// dropped: importing the run without it would silently rewrite the contract the
+// archive recorded.
+func portableProfileFromArtifact(path string, profile *protocol.RunProtocolProfile) (*execution.RunProtocolProfile, error) {
+	if profile == nil {
+		return nil, nil
+	}
 	out := execution.RunProtocolProfile{RequiredFeatures: profile.RequiredFeatures}
 	for _, declared := range profile.InterruptTypes {
 		kind, backed := interruptKindFromWire(declared)
 		if !backed {
-			return execution.RunProtocolProfile{}, invalidArtifact(path+".interruptTypes", "unknown value %q", declared)
+			return nil, invalidArtifact(path+".interruptTypes", "unknown value %q", declared)
 		}
 		out.InterruptKinds = append(out.InterruptKinds, kind)
 	}
-	return out.Normalized(), nil
+	normalized := out.Normalized()
+	return &normalized, nil
 }
 
 func portableOutcomeFromArtifact(path string, value protocol.ArtifactOutcomeType) (execution.Outcome, error) {

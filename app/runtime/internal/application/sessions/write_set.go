@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
 
 // RollbackPlan is the atomic durable command for truncating a session back to a
@@ -35,6 +36,12 @@ type RestorePlan struct {
 	Items       []transcript.Item
 	Runs        []transcript.Run
 	ToolResults []offload.ToolResultBlob
+	// Todos is the restored task list's semantic value. It is REPLACED rather than
+	// cleared-and-rewritten: the projection's revision must come out greater than
+	// whatever the target session already published, and a delete would restart the
+	// revision space at one — leaving a client that holds a higher revision ignoring
+	// the imported value as stale.
+	Todos []todo.Item
 }
 
 func restorePlan(snapshot Snapshot) RestorePlan {
