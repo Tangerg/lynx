@@ -50,6 +50,7 @@ Engine scope，但同名并不是跨作用域冲突，而是显式 override。�
 | `core.Blackboard` | Engine | 最近注册的 prototype 获胜，`Clone` 新实例 | Process 状态 |
 | `runtime.EventListener` | Engine / Process | Engine scope 观察全部 Process；Process scope 仅观察本 Process | 局部观测与投影 |
 | `runtime.SubtreeEventListener` | Process | 显式沿委派子树传播 | 子树观测与投影 |
+| `runtime.ChildAdmitter` | Engine / Process | Process scope 优先，只调用一个；同步确认后才发布并执行 child | Host 子进程准入 |
 
 默认 Chat、`ChatMiddleware`、Prompt tool-round limit 和 child-depth limit 是
 `runtime.Config` 的稳定执行配置，不因为“可替换”就进入 Extension registry。动态领域依赖
@@ -120,7 +121,20 @@ history 或 Extension registry。
 只为单一内部实现造接口、使用字符串注册行为、把 SDK client 放进协议 DTO，或创建与现有
 middleware 重叠的扩展链，都不接受。
 
-## 8. 外部状态边界
+## 8. ChildAdmitter
+
+`ChildAdmitter.AdmitChild` 是 Runtime 与 Host 之间唯一的同步子进程准入边界。调用时 child
+已经完成构造并持有不可变的 ProcessID、ParentID、SpawnCallID 与 StartedAt，但尚未发布
+`ProcessCreated`，也尚未执行第一个 tick。返回 nil 后 Runtime 才发布 child 生命周期事件并开始
+执行；返回错误或 panic 时，Runtime 将未发布的 child 从 registry、父进程预算树和 deployment
+引用中完整移除，错误沿原调用链返回。
+
+该能力与 `EventListener` 有意不同：它允许阻塞，以便 Host 在外部事务中原子建立自己的执行
+记录，因此实现必须响应 `ctx`。Process scope 的首个实现覆盖 Engine fallback，Runtime 不 fan-out、
+不重试，也不在持有进程树 mutation lock 时调用外部代码。Host 不应在 `ProcessCreated` listener
+里补做准入：listener 是观察投影边界，不能拒绝已经发布的 child，也无法保证外部状态先于执行落盘。
+
+## 9. 外部状态边界
 
 需要恢复能力的 Host 应先从自己的 backend 加载完整树，再调用
 `Engine.ValidateRestoreTree` / `Engine.RestoreTree`。捕获路径调用 `Engine.SnapshotTree` 后，

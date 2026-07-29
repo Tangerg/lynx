@@ -519,6 +519,7 @@ runtime: func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error
 runtime: type BlackboardRestorer interface { Restore(BlackboardState) error }
 runtime: type BlackboardSnapshotter interface { Snapshot() (BlackboardState, error) }
 runtime: type BlackboardState struct { Bindings core.Bindings Conditions map[string]bool Objects []any Hidden []any }
+runtime: type ChildAdmitter interface { core.Extension AdmitChild(ctx context.Context, child core.ProcessView) error }
 runtime: type Config struct { Chat core.ChatCapability ChatMiddleware *core.ChatMiddleware MaxToolRounds int MaxChildDepth int Extensions []core.Extension }
 runtime: type Deployment struct { }
 runtime: type DeploymentConflictError struct { Active core.DeploymentRef Candidate core.DeploymentRef }

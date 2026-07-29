@@ -35,6 +35,22 @@ type SubtreeEventListener interface {
 	ObserveSubtree()
 }
 
+// ChildAdmitter is the synchronous host admission boundary for a newly built
+// child process. The child already has immutable process, parent, and spawn-call
+// identity, but Runtime has not published ProcessCreated or executed its first
+// tick. Returning nil admits execution; returning an error rejects and removes
+// the unpublished child.
+//
+// Unlike EventListener, this capability may block while the host commits an
+// external opening transaction. Implementations must honor ctx. Process-scoped
+// registrations take precedence over an engine-scoped fallback, so one child
+// is admitted by exactly one authority.
+type ChildAdmitter interface {
+	core.Extension
+
+	AdmitChild(ctx context.Context, child core.ProcessView) error
+}
+
 // The marker is read by type assertion when a child inherits its parent's
 // listeners, so a drifted method name would quietly stop propagating instead of
 // failing the build. The assertion lives here because event cannot name this
@@ -102,7 +118,8 @@ func supportsProcessScope(extension core.Extension) bool {
 		core.StopPolicy,
 		core.ToolGroupResolver,
 		planning.Planner,
-		EventListener:
+		EventListener,
+		ChildAdmitter:
 		return true
 	default:
 		return false

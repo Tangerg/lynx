@@ -3,6 +3,7 @@ package runtime
 import (
 	"errors"
 	"math"
+	"slices"
 	"sync"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -213,6 +214,17 @@ func (b *processBudget) addChild(child *Process) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.children = append(b.children, child)
+}
+
+func (b *processBudget) removeChild(child *Process) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	index := slices.Index(b.children, child)
+	if index < 0 {
+		return false
+	}
+	b.children = slices.Delete(b.children, index, index+1)
+	return true
 }
 
 func (b *processBudget) ownUsage() core.Usage {

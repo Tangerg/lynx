@@ -125,6 +125,13 @@ func (r childRun) admit() (*Process, error) {
 		return nil, fmt.Errorf("run child %q: create: %w", agentName, err)
 	}
 	child.spawnCallID = r.spawnCallID
+	if err := child.requestChildAdmission(r.ctx); err != nil {
+		cleanupErr := r.engine.discardRejectedChild(r.ctx, parent, child, err)
+		return nil, errors.Join(
+			fmt.Errorf("run child %q (process %q): admission: %w", agentName, child.ID(), err),
+			cleanupErr,
+		)
+	}
 	child.publishCreated(r.ctx)
 	return child, nil
 }

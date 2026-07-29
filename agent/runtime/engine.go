@@ -71,8 +71,9 @@ type Config struct {
 	// implement [core.Extension] and may additionally implement any
 	// subset of capability interfaces (EventListener,
 	// ActionMiddleware, ToolMiddleware, AgentValidator, GoalApprover,
-	// ToolGroupResolver, IDGenerator, Blackboard, planning.Planner) —
-	// the runtime detects each via type assertion at dispatch time.
+	// ToolGroupResolver, ChildAdmitter, IDGenerator, Blackboard,
+	// planning.Planner) — the runtime detects each via type assertion at
+	// dispatch time.
 	//
 	// [core.Extension.Name] must be unique within Extensions; an empty or
 	// duplicate Name, or a value with no engine-scoped capability, makes [New]
