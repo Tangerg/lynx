@@ -1029,8 +1029,9 @@ todos 今天只以**流内 ephemeral `state.snapshot`** 形态上 wire：没有 
 | C10 | `ProblemData` 删 `channel`/`retryable`、加 `activeRun`/`requiredCapabilities` + `RecoveryAction` 闭合枚举 + Error Registry | `DONE` | `7fd71658c` |
 | C11 | `ServerCapabilities` 新 shape（`runEvents`/`runtimeTopics`/`stateSnapshots`/`FeatureCapability` 两新字段/`limits` 两新块） | `DONE` | `a9bd0f1fa` |
 | C12 | 九值闭合 `RuntimeTopic` + `runtime.subscribe` 取代 `workspace.subscribe`；删 `mcp.serverChanged` payload 真相、`schedules.fired` | `DONE` | `a9bd0f1fa` |
-| C13 | cursor/replay 定稿（`processEpoch`、`headEventId` opaque、retention 走 discover） | `TODO` | — |
-| C14 | `sessions.rollback/export/import` 精确 capability 规则 + Artifact v7 | `TODO` | — |
+| C13 | cursor/replay 定稿（`processEpoch`、`headEventId` opaque、retention 走 discover）+ `runs.subscribe/steer` 认领 segment | `DONE` | `361668817` |
+| C14 | `sessions.rollback/export/import` capability 规则（已在）+ Artifact v7（`states`/child edges/root-only profile/`DroppedRun`→RunSummary） | `DONE` | `86c79a21f` |
+| C14b | **session-scoped state 的另外两半生命周期**：`fork` 复制 fork boundary 的值、`history/both` rollback **恢复到目标 boundary**（今天是清空）。需要 per-run-boundary 的 todo 快照（新列/新表 + run terminal 写 + fork/rollback 读，epoch 39→40）—— 见下「C14b 为什么单独一片」 | `TODO` | — |
 | C15 | 前端：exhaustive reducer、**删 business numeric code 镜像**、`runtime.subscribe` 单流、删 goal 4 秒轮询、高层 run handle + tail-first cold recovery。✅ 单流已结构满足，本 slice 是改名 + topic 扩容 + reducer 扩展 | `TODO` | — |
 | C16 | 切版本：`protocolVersion = minSupported = "2026-07-27"`、`SessionArtifactVersion = 7`；旧协议 `invalid_protocol_version`、旧 Artifact 确定性拒绝 | `TODO` | — |
 
@@ -1211,3 +1212,24 @@ A ──→ A′ (4 slice, 修现役泄露, 落 main) ──┬─→ B  (Regist
 - [`../desktop/docs/protocol/`](../desktop/docs/protocol/) —— 切换前的当前 wire 真相（API / AUX_API / TRANSPORT）
 - [`../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md`](../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md) —— 环形架构基准
 - `app/runtime/internal/arch/arch_test.go` —— 反泄露守卫的机器强制点
+
+
+---
+
+## C13 / C14 已完成（2026-07-29，同一会话续做）
+
+| slice | 咬出的真缺陷 |
+|---|---|
+| **C13** | 订阅只说「哪个 run」，runtime 就把它接到**恰好在跑的那个 segment** —— 一直在折叠旧 segment 的客户端会静默续进另一次执行，**自己的重连变成察觉不到的状态污染**。`runs.steer` 是同一个洞的另一面（parked→resume 之间发出的指示会灌进用户没见过的 continuation）。cursor 是裸序号，**上一个进程/上一个 segment 的 cursor 会解析成本流里一个真实位置**。「无 cursor」曾=重放整段（与 items.list 双重折叠）。retention 无上限（2048 events / 16 MiB 是**真需要**的：几个事件就能各带一份数 MB tool result，只数条数不bound内存）。**顺带三个**：`runs.start` 幂等重试返回的是 subscribe 的 ack 而非缓存的那个（同 key 两种结果，`userItemId` 静默消失）；generator 自己那张 problem-type→code 表是 dispatcher 的逐字副本；file-watch 的 `capability_not_negotiated` 报的是**方法名**（且 C12 改名后是个不存在的方法）|
+| **C14** | 导出的 session 回来时**没有任务清单** —— 对话回来了、transcript 回来了，人最会注意到丢失的那份工作计划没有落点。且 restore 写集**先删 todos 行再重建 → revision 归 1**，客户端手上是 7 就会把导入值当旧的丢掉（治法：Replace 而非 delete+insert）。child edges 与 root-only `protocolProfile` 无处表达；`DroppedRun.run` 用 RunRef —— 对**同一事务刚删掉的记录**断言 activeSegment / 累计 metrics / profile |
+
+**C13 也修掉了 C12 留下的红**（已对着 C12 自己那个 commit 复核）：两个 `SubscribeRuntime` 不传 topics、一个 hub 测试发的是编造的 event type 被新的 per-subscription filter 正确丢弃 → **挂十分钟而不是失败**；另有两个 transport 测试还在调 `workspace.subscribe`。
+
+### C14b 为什么单独一片（不是漏做）
+
+契约 §3.2 最后一条要求 session-scoped state 服从**完整** Session 生命周期。四半里两半已在：`delete` 删除（早已）、`export/import` 保留（C14）。剩下两半**做不到**，原因是**数据不存在**，不是没写代码：
+
+- `fork` 要「fork boundary 时的语义值」、`history/both` rollback 要「恢复到目标 history boundary」；
+- todos 投影是**单行最新值**，没有任何历史 —— 没有「run X 那一刻的值」可读。今天 rollback 只能**清空**（"恢复到空"，仅当边界处本来没有清单时才恰好对），fork **完全不带**。
+- 治本形态：**per-run-boundary 快照**（run terminal 时把「本 session 此刻的 todos」记进该 run 的投影，一列 JSON 即可）→ rollback 读「存活的最后一个 run 的快照」、fork 读「fork 边界那个 run 的快照」。代价：store schema 加列（epoch 39→40）+ run terminal 写集 + 两处读 + 测试。
+- 归为独立 slice 是因为它与 C14 的**根因不同**（C14 是「archive 没有落点」，C14b 是「runtime 没有历史」），且它有自己的 schema 爆炸半径。**必须在 C16 之前落**，否则 vNext 版本号声明的 §3.2 有一条不成立。
