@@ -50,8 +50,9 @@ type SessionStoresConfig struct {
 type Transactor func(context.Context, func(context.Context) error) error
 
 // todoProjection is the session-scoped task list this write-set has to move with
-// the session: read for an archive, replaced by a restore, dropped with a delete.
-// Replace rather than write-then-set-revision, because the store owns the
+// the session through its whole lifecycle: read for an archive, replaced by a
+// restore, seeded into a fork, republished at a rollback boundary, dropped with a
+// delete. Replace rather than write-then-set-revision, because the store owns the
 // revision — it is assigned by the write itself, so no caller can hand out two
 // values under one number.
 type todoProjection interface {
@@ -147,6 +148,14 @@ func (s *SessionStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (
 		if err := s.history.Seed(ctx, ch.ID, plan.Messages); err != nil {
 			return err
 		}
+		// A branch that copies the conversation copies the plan it was following. Only
+		// a non-empty list is written: a fresh child with no row already reads as a
+		// session with no list, and writing one would publish an empty list as news.
+		if s.todos != nil && len(plan.Todos) > 0 {
+			if err := s.todos.Replace(ctx, ch.ID, plan.Todos); err != nil {
+				return err
+			}
+		}
 		if plan.Title != "" {
 			if err := s.sessions.Rename(ctx, ch.ID, plan.Title); err != nil {
 				return err
@@ -165,8 +174,12 @@ func (s *SessionStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (
 // ApplyRollback persists one resolved rollback plan atomically.
 func (s *SessionStores) ApplyRollback(ctx context.Context, plan sessions.RollbackPlan) error {
 	return s.runInTx(ctx, func(ctx context.Context) error {
-		if s.todos != nil {
-			if err := s.todos.DeleteSession(ctx, plan.SessionID); err != nil {
+		// The boundary's list is REPUBLISHED, not cleared: a rollback is a new state
+		// commit, so its value has to arrive under a higher revision than whatever the
+		// session already published, and deleting the row would restart that space at
+		// one. An unrecorded boundary is left alone — see sessions.TodoBoundary.
+		if s.todos != nil && plan.Todos.Recorded {
+			if err := s.todos.Replace(ctx, plan.SessionID, plan.Todos.Items); err != nil {
 				return err
 			}
 		}

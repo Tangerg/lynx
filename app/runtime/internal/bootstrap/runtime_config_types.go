@@ -264,11 +264,15 @@ type LSPServerConfig struct {
 }
 
 // TodoStore is the composition-root union shared by prompt assembly, todo_write,
-// the state.snapshot projection, the todos.get read, and session lifecycle cleanup.
+// the state.snapshot projection, the todos.get read, and session lifecycle
+// cleanup. Boundary is the run-boundary history rollback and fork restore from;
+// capturing a boundary is not here, because no consumer asks for it — a Run
+// reaching terminal is what records one.
 type TodoStore interface {
 	List(ctx context.Context, sessionID string) ([]todo.Item, error)
 	State(ctx context.Context, sessionID string) (todo.State, error)
 	Replace(ctx context.Context, sessionID string, items []todo.Item) error
+	Boundary(ctx context.Context, runID string) ([]todo.Item, bool, error)
 	DeleteSession(ctx context.Context, sessionID string) error
 }
 

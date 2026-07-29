@@ -31,6 +31,13 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 	if err != nil {
 		return err
 	}
+	// Read the boundary's task list BEFORE the write-set drops the runs after it: the
+	// kept run survives, but reading inside the plan would mean the adapter deciding
+	// which boundary the state comes from.
+	todos, err := c.todoBoundary(ctx, boundary.KeepRunID)
+	if err != nil {
+		return err
+	}
 	// A dropped parked run held the session's durable admission slot; dropping its
 	// record releases the slot, so the session can start a fresh run afterward.
 	sessionIDs := append([]string{sessionID}, dropSessionIDs...)
@@ -47,6 +54,7 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 				DropRunIDs:     dropRunIDs,
 				DropSessionIDs: dropSessionIDs,
 				ProcessIDs:     parkedProcessIDs(parked),
+				Todos:          todos,
 			})
 		},
 		func(ctx context.Context) error {

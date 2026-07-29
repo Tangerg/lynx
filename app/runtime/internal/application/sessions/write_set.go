@@ -18,12 +18,20 @@ type RollbackPlan struct {
 	DropRunIDs     []string
 	DropSessionIDs []string
 	ProcessIDs     []string
+	// Todos is the task list the boundary held. Applying it is a NEW state commit
+	// (Replace, never delete-and-rewrite): the live revision has to move forward or a
+	// client holding a higher one discards the rolled-back list as stale.
+	Todos TodoBoundary
 }
 
 type ForkPlan struct {
 	ParentID string
 	Messages []chat.Message
-	Title    string
+	// Todos is the parent's task list as of the fork boundary, seeded into the child
+	// so the branch starts from the plan the conversation it copies was following.
+	// Empty seeds nothing: a child with no list is a child whose list was empty.
+	Todos []todo.Item
+	Title string
 }
 
 // RestorePlan is the atomic durable command for replacing a session aggregate.

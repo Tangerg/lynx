@@ -60,7 +60,7 @@ func Open(path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 39
+const schemaEpoch = 40
 
 func installCurrentSchema(db *sql.DB, path string) error {
 	var epoch int
@@ -289,6 +289,23 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			items      TEXT    NOT NULL,
 			revision   INTEGER NOT NULL DEFAULT 0,
 			updated_at INTEGER NOT NULL
+		)`,
+		// One row per terminal Run: the session's task list as it stood when that Run
+		// ended. todos above is a latest-value projection with no history, so without
+		// this row "the list at run X" is unknowable — and sessions.rollback and
+		// sessions.fork both restore/copy a run boundary. It is the state half of what
+		// runs.message_mark is for the conversation, written by the same terminal
+		// transition.
+		//
+		// The FK cascade IS the lifecycle: a Run dropped by a rollback or replaced by
+		// an import takes its boundary with it, so no write-set has to remember to.
+		// A MISSING row is not an empty list — it is "this moment was never captured",
+		// which is the honest state of an imported Run (the portable Artifact carries
+		// the live value only). Readers leave the live list alone rather than guessing
+		// at empty, the same way an unknown message watermark leaves the log alone.
+		`CREATE TABLE IF NOT EXISTS todo_boundaries (
+			run_id TEXT PRIMARY KEY REFERENCES runs(run_id) ON DELETE CASCADE,
+			items  TEXT NOT NULL
 		)`,
 		// One autonomous goal per session (Goal mode). The FK is the durable
 		// ownership invariant: a Goal cannot survive or be created after its

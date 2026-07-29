@@ -81,6 +81,12 @@ func OpeningInputs(items []Item) map[string][]ContentBlock {
 //     node before the first root run after it), so the run and its subagents are
 //     kept. -1 when that watermark is unknown (in-flight / pre-watermark), which
 //     the caller clamps.
+//   - KeepRunID: the run that watermark belongs to — the boundary's identity for
+//     the session-scoped state recorded per run, which unlike the message log has
+//     no watermark of its own to seek to. It is deliberately the SAME node
+//     KeepMark comes from: two answers to "where does this boundary sit" is one
+//     answer too many. Empty when nothing is kept (the whole timeline is dropped),
+//     which is a boundary before any run wrote anything.
 //   - Dropped: the runs at/after the boundary, in timeline order — the next root
 //     run plus everything after it (its subagent runs) included.
 //   - BoundaryTime: the first dropped root run's CreatedAt — the cut-off that
@@ -88,6 +94,7 @@ func OpeningInputs(items []Item) map[string][]ContentBlock {
 //     dropped (or the whole timeline is dropped).
 type Boundary struct {
 	KeepMark     int
+	KeepRunID    string
 	Dropped      []RunNode
 	BoundaryTime time.Time
 }
@@ -126,6 +133,7 @@ func (tl Timeline) BoundaryAt(runID string, requireRoot bool) (Boundary, error) 
 			// root on.
 			return Boundary{
 				KeepMark:     t[k-1].Mark,
+				KeepRunID:    t[k-1].ID,
 				Dropped:      slices.Clone(t[k:]),
 				BoundaryTime: t[k].CreatedAt,
 			}, nil
@@ -133,5 +141,5 @@ func (tl Timeline) BoundaryAt(runID string, requireRoot bool) (Boundary, error) 
 	}
 	// No root run after runID — its turn (incl. subagents) is the latest, so
 	// there is nothing to drop / everything up to it is copied.
-	return Boundary{KeepMark: t[len(t)-1].Mark}, nil
+	return Boundary{KeepMark: t[len(t)-1].Mark, KeepRunID: t[len(t)-1].ID}, nil
 }

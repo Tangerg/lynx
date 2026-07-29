@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-func TestResolveForkHistoryPrefix(t *testing.T) {
+func TestResolveForkBoundary(t *testing.T) {
 	msgs := []chat.Message{
 		chat.NewUserMessage(chat.NewTextPart("one")),
 		chat.NewAssistantMessage(chat.NewTextPart("two")),
@@ -21,16 +21,21 @@ func TestResolveForkHistoryPrefix(t *testing.T) {
 		{ID: "run_2", State: execution.Completed, CreatedAt: time.Unix(3, 0), MessageMark: 3},
 	}
 
-	got, err := ResolveForkHistoryPrefix(msgs, runs, "run_1")
+	got, err := ResolveForkBoundary(msgs, runs, "run_1")
 	if err != nil {
-		t.Fatalf("resolve fork prefix: %v", err)
+		t.Fatalf("resolve fork boundary: %v", err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("prefix len = %d, want 2", len(got))
+	if len(got.Messages) != 2 {
+		t.Fatalf("prefix len = %d, want 2", len(got.Messages))
+	}
+	// The prefix and the state the child inherits must name the same run, or a branch
+	// gets a task list its conversation never produced.
+	if got.RunID != "run_1" {
+		t.Fatalf("boundary run = %q, want run_1", got.RunID)
 	}
 }
 
-func TestResolveForkHistoryPrefixExcludesActiveTail(t *testing.T) {
+func TestResolveForkBoundaryExcludesActiveTail(t *testing.T) {
 	msgs := []chat.Message{
 		chat.NewUserMessage(chat.NewTextPart("complete")),
 		chat.NewAssistantMessage(chat.NewTextPart("boundary")),
@@ -42,46 +47,21 @@ func TestResolveForkHistoryPrefixExcludesActiveTail(t *testing.T) {
 		{ID: "run_2_child", SpawnedByItemID: "item_task", State: execution.Completed, CreatedAt: time.Unix(3, 0), MessageMark: 3},
 	}
 
-	got, err := ResolveForkHistoryPrefix(msgs, runs, "")
+	got, err := ResolveForkBoundary(msgs, runs, "")
 	if err != nil {
-		t.Fatalf("resolve fork prefix: %v", err)
+		t.Fatalf("resolve fork boundary: %v", err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("prefix len = %d, want terminal boundary 2", len(got))
+	if len(got.Messages) != 2 {
+		t.Fatalf("prefix len = %d, want terminal boundary 2", len(got.Messages))
+	}
+	if got.RunID != "run_1" {
+		t.Fatalf("boundary run = %q, want the last terminal run run_1", got.RunID)
 	}
 }
 
-func TestResolveForkHistoryPrefixRejectsActiveTarget(t *testing.T) {
+func TestResolveForkBoundaryRejectsActiveTarget(t *testing.T) {
 	runs := []transcript.Run{{ID: "run_active", State: execution.Running, CreatedAt: time.Unix(1, 0), MessageMark: -1}}
-	if _, err := ResolveForkHistoryPrefix([]chat.Message{chat.NewUserMessage(chat.NewTextPart("active"))}, runs, "run_active"); err != transcript.ErrRunNotFound {
+	if _, err := ResolveForkBoundary([]chat.Message{chat.NewUserMessage(chat.NewTextPart("active"))}, runs, "run_active"); err != transcript.ErrRunNotFound {
 		t.Fatalf("resolve active target error = %v, want ErrRunNotFound", err)
-	}
-}
-
-func TestForkResolvesBoundaryFromOneCoherentSnapshot(t *testing.T) {
-	reads := 0
-	var plan ForkPlan
-	stores := coordinatorStores{
-		interrupts:    new(coordinatorInterrupts),
-		snapshotReads: &reads,
-		forked:        &plan,
-		snapshot: Snapshot{
-			Messages: []chat.Message{
-				chat.NewUserMessage(chat.NewTextPart("one")),
-				chat.NewAssistantMessage(chat.NewTextPart("two")),
-				chat.NewUserMessage(chat.NewTextPart("three")),
-			},
-			Runs: []transcript.Run{
-				{ID: "run_1", State: execution.Completed, CreatedAt: time.Unix(1, 0), MessageMark: 2},
-				{ID: "run_2", State: execution.Completed, CreatedAt: time.Unix(2, 0), MessageMark: 3},
-			},
-		},
-	}
-	child, err := newCoordinator(stores, nil).Fork(t.Context(), ForkSpec{ParentID: "ses_1", FromRunID: "run_1"})
-	if err != nil {
-		t.Fatalf("Fork: %v", err)
-	}
-	if child.ID != "ses_fork" || reads != 1 || len(plan.Messages) != 2 {
-		t.Fatalf("child=%+v snapshot reads=%d fork plan=%+v", child, reads, plan)
 	}
 }

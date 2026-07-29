@@ -19,19 +19,31 @@ type ForkSpec struct {
 	Title     string
 }
 
-// ResolveForkHistoryPrefix applies a durable run boundary to parent history.
+// ForkBoundary is where a fork branches: the parent history prefix the child is
+// seeded with, and the run that prefix stops at. They travel together because the
+// child's session-scoped state is copied from that same run's boundary — a fork
+// whose conversation and task list came from different runs would hand the branch
+// a plan that never went with what it remembers.
+type ForkBoundary struct {
+	Messages []chat.Message
+	// RunID is the boundary run, empty when the parent has no terminal run to
+	// branch from (nothing to copy).
+	RunID string
+}
+
+// ResolveForkBoundary applies a durable run boundary to parent history.
 // Non-terminal runs never contribute messages: their current tail can still
 // change and therefore is not a portable fork boundary. An explicit target
 // must itself be terminal; an implicit whole-conversation fork stops at the
 // latest terminal run.
-func ResolveForkHistoryPrefix(msgs []chat.Message, runs []transcript.Run, fromRunID string) ([]chat.Message, error) {
+func ResolveForkBoundary(msgs []chat.Message, runs []transcript.Run, fromRunID string) (ForkBoundary, error) {
 	ordered := slices.Clone(runs)
 	slices.SortStableFunc(ordered, func(a, b transcript.Run) int {
 		return a.CreatedAt.Compare(b.CreatedAt)
 	})
 	for _, run := range ordered {
 		if run.State.IsTerminal() && (run.MessageMark < 0 || run.MessageMark > len(msgs)) {
-			return nil, fmt.Errorf("sessions: terminal run %q has invalid message watermark %d", run.ID, run.MessageMark)
+			return ForkBoundary{}, fmt.Errorf("sessions: terminal run %q has invalid message watermark %d", run.ID, run.MessageMark)
 		}
 	}
 
@@ -42,7 +54,7 @@ func ResolveForkHistoryPrefix(msgs []chat.Message, runs []transcript.Run, fromRu
 	targetTerminal := fromRunID == ""
 	for start := 0; start < len(ordered); {
 		if ordered[start].SpawnedByItemID != "" {
-			return nil, fmt.Errorf("sessions: run timeline starts a group with subagent %q", ordered[start].ID)
+			return ForkBoundary{}, fmt.Errorf("sessions: run timeline starts a group with subagent %q", ordered[start].ID)
 		}
 		end := start + 1
 		for end < len(ordered) && ordered[end].SpawnedByItemID != "" {
@@ -66,25 +78,26 @@ func ResolveForkHistoryPrefix(msgs []chat.Message, runs []transcript.Run, fromRu
 		start = end
 	}
 	if !targetTerminal {
-		return nil, transcript.ErrRunNotFound
+		return ForkBoundary{}, transcript.ErrRunNotFound
 	}
 	if len(terminal) == 0 {
-		return nil, nil
+		return ForkBoundary{}, nil
 	}
 	if fromRunID == "" {
 		fromRunID = terminal[len(terminal)-1].ID
 	}
 	b, err := transcript.Timeline(terminal).BoundaryAt(fromRunID, false)
 	if err != nil {
-		return nil, err
+		return ForkBoundary{}, err
 	}
-	return slices.Clone(msgs[:b.KeepMark]), nil
+	return ForkBoundary{Messages: slices.Clone(msgs[:b.KeepMark]), RunID: b.KeepRunID}, nil
 }
 
-// Fork creates a child session, seeds it with the resolved parent history
-// prefix, and renames it as ONE atomic write-set (§8.1). The protocol adapter
-// owns only wire decoding; the boundary semantics + chat history prefix live
-// here (the application resolves the prefix; the adapter commits the branch).
+// Fork creates a child session, seeds it with the resolved parent history prefix
+// and the task list that boundary held, and renames it as ONE atomic write-set
+// (§8.1). The protocol adapter owns only wire decoding; the boundary semantics
+// live here (the application resolves the boundary; the adapter commits the
+// branch).
 func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session, error) {
 	if c.snapshots == nil || c.writes == nil {
 		return session.Session{}, errors.New("sessions: fork persistence is unavailable")
@@ -93,13 +106,20 @@ func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session,
 	if err != nil {
 		return session.Session{}, err
 	}
-	msgs, err := ResolveForkHistoryPrefix(snapshot.Messages, snapshot.Runs, spec.FromRunID)
+	boundary, err := ResolveForkBoundary(snapshot.Messages, snapshot.Runs, spec.FromRunID)
+	if err != nil {
+		return session.Session{}, err
+	}
+	// A child starts fresh, so an unrecorded boundary and a recorded empty one seed
+	// the same nothing — the distinction a rollback needs has no branch to make here.
+	todos, err := c.todoBoundary(ctx, boundary.RunID)
 	if err != nil {
 		return session.Session{}, err
 	}
 	return c.writes.ApplyFork(ctx, ForkPlan{
 		ParentID: spec.ParentID,
-		Messages: msgs,
+		Messages: boundary.Messages,
+		Todos:    todos.Items,
 		Title:    spec.Title,
 	})
 }

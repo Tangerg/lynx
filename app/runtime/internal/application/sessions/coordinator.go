@@ -58,6 +58,15 @@ type TranscriptStore interface {
 	List(ctx context.Context, sessionID string) ([]transcript.Item, error)
 }
 
+// TodoBoundaries is the lifecycle coordinator's read view of the task list a Run
+// boundary recorded. Rollback and fork both need "the value as of that run", which
+// the live projection cannot answer: it keeps the latest value and no history. A
+// false ok is "never recorded", not "empty" — see [TodoBoundary]. nil disables it
+// (no task-list state to move with a boundary).
+type TodoBoundaries interface {
+	Boundary(ctx context.Context, runID string) ([]todo.Item, bool, error)
+}
+
 // RunStore is the lifecycle coordinator's read view of a session's Runs. Every
 // boundary it computes — a rollback target, a fork point, an abandoned park — is
 // derived from the Run timeline, so it reads the Runs themselves rather than
@@ -73,11 +82,11 @@ type RunStore interface {
 // the plan; the adapter executes it atomically, enriching nothing.
 type WriteSets interface {
 	// ApplyFork branches a child session off the plan's parent, seeds its chat log
-	// with the resolved history prefix, and titles it — atomically — returning the
-	// created child.
+	// with the resolved history prefix and its task list with the boundary value,
+	// and titles it — atomically — returning the created child.
 	ApplyFork(ctx context.Context, plan ForkPlan) (session.Session, error)
 	// ApplyRollback truncates the chat log to the boundary, drops each
-	// past-boundary run, clears the now-invalid todo projection, terminalizes an
+	// past-boundary run, republishes the boundary's todo projection, terminalizes an
 	// abandoned parked run, and removes attributed internal subtask subtrees — atomically.
 	ApplyRollback(ctx context.Context, plan RollbackPlan) error
 	// ApplyRestore recreates a session under its original id and replaces its
@@ -194,6 +203,7 @@ type Coordinator struct {
 	interrupts   InterruptStore
 	transcript   TranscriptStore
 	runs         RunStore
+	boundaries   TodoBoundaries
 	snapshots    SnapshotReader
 	writes       WriteSets
 	forgetter    SessionForgetter
@@ -226,6 +236,7 @@ type Dependencies struct {
 	Interrupts   InterruptStore
 	Transcript   TranscriptStore
 	Runs         RunStore
+	Boundaries   TodoBoundaries
 	Snapshots    SnapshotReader
 	Writes       WriteSets
 	Forgetter    SessionForgetter
@@ -249,6 +260,7 @@ func New(deps Dependencies) *Coordinator {
 		interrupts:   deps.Interrupts,
 		transcript:   deps.Transcript,
 		runs:         deps.Runs,
+		boundaries:   deps.Boundaries,
 		snapshots:    deps.Snapshots,
 		writes:       deps.Writes,
 		forgetter:    deps.Forgetter,

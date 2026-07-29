@@ -293,8 +293,89 @@ func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after rollback = %v, want the slot freed", err)
 	}
-	if got, err := ss.todos.List(ctx, "ses_A"); err != nil || len(got) != 0 {
-		t.Fatalf("todos after rollback = %+v, %v, want cleared", got, err)
+	// The plan carries no recorded boundary, so the task list is left exactly as it
+	// was: this runtime does not know what the list held at that moment, and clearing
+	// it would be a guess dressed as a restore.
+	if got, err := ss.todos.List(ctx, "ses_A"); err != nil || len(got) != 1 {
+		t.Fatalf("todos after rollback = %+v, %v, want the live list untouched", got, err)
+	}
+}
+
+// TestApplyRollbackRepublishesBoundaryTodos: a rollback publishes the list the
+// boundary recorded as a NEW state commit. The revision has to move forward —
+// under a lower one, a client that already folded a later list ignores the
+// rollback as stale and keeps showing work the session no longer has.
+func TestApplyRollbackRepublishesBoundaryTodos(t *testing.T) {
+	ss, runs, ints := newWriteSetFixture(t)
+	ctx := t.Context()
+	processID := park(t, ss.sessions, runs, ints, ss.processes, "ses_A", "run_1")
+	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{
+		{Content: "work the rollback discards", Status: todo.StatusInProgress},
+	}); err != nil {
+		t.Fatalf("seed todos: %v", err)
+	}
+	before, err := ss.todos.State(ctx, "ses_A")
+	if err != nil {
+		t.Fatalf("read todos: %v", err)
+	}
+
+	boundary := []todo.Item{{Content: "the plan at the boundary", Status: todo.StatusPending}}
+	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
+		SessionID:  "ses_A",
+		KeepMark:   -1,
+		DropRunIDs: []string{"run_1"},
+		ProcessIDs: []string{processID},
+		Todos:      sessions.TodoBoundary{Items: boundary, Recorded: true},
+	}); err != nil {
+		t.Fatalf("ApplyRollback: %v", err)
+	}
+
+	after, err := ss.todos.State(ctx, "ses_A")
+	if err != nil {
+		t.Fatalf("read todos: %v", err)
+	}
+	if len(after.Items) != 1 || after.Items[0].Content != "the plan at the boundary" {
+		t.Fatalf("todos after rollback = %+v, want the boundary list", after.Items)
+	}
+	if after.Revision <= before.Revision {
+		t.Fatalf("revision after rollback = %d, want greater than %d", after.Revision, before.Revision)
+	}
+}
+
+// TestApplyRollbackClearsToARecordedEmptyBoundary: a boundary that recorded an
+// empty list clears the live one — and still through a forward revision, because
+// "the list was empty here" is a value, not an absence.
+func TestApplyRollbackClearsToARecordedEmptyBoundary(t *testing.T) {
+	ss, runs, ints := newWriteSetFixture(t)
+	ctx := t.Context()
+	processID := park(t, ss.sessions, runs, ints, ss.processes, "ses_A", "run_1")
+	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "later work", Status: todo.StatusPending}}); err != nil {
+		t.Fatalf("seed todos: %v", err)
+	}
+	before, err := ss.todos.State(ctx, "ses_A")
+	if err != nil {
+		t.Fatalf("read todos: %v", err)
+	}
+
+	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
+		SessionID:  "ses_A",
+		KeepMark:   -1,
+		DropRunIDs: []string{"run_1"},
+		ProcessIDs: []string{processID},
+		Todos:      sessions.TodoBoundary{Recorded: true},
+	}); err != nil {
+		t.Fatalf("ApplyRollback: %v", err)
+	}
+
+	after, err := ss.todos.State(ctx, "ses_A")
+	if err != nil {
+		t.Fatalf("read todos: %v", err)
+	}
+	if len(after.Items) != 0 {
+		t.Fatalf("todos after rollback = %+v, want cleared to the recorded empty boundary", after.Items)
+	}
+	if after.Revision <= before.Revision {
+		t.Fatalf("revision after rollback = %d, want greater than %d", after.Revision, before.Revision)
 	}
 }
 
@@ -312,6 +393,7 @@ func TestApplyForkBranchesAndSeeds(t *testing.T) {
 	child, err := ss.ApplyFork(ctx, sessions.ForkPlan{
 		ParentID: parent.ID,
 		Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello"))},
+		Todos:    []todo.Item{{Content: "inherited plan", Status: todo.StatusInProgress}},
 		Title:    "Child",
 	})
 	if err != nil {
@@ -326,6 +408,15 @@ func TestApplyForkBranchesAndSeeds(t *testing.T) {
 	msgs, err := ss.history.Read(ctx, child.ID)
 	if err != nil || len(msgs) != 1 {
 		t.Fatalf("child history = %d (err %v), want 1 seeded message", len(msgs), err)
+	}
+	// The branch inherits the plan the copied conversation was following, and the
+	// parent's own list is untouched by its child being created.
+	got, err := ss.todos.List(ctx, child.ID)
+	if err != nil || len(got) != 1 || got[0].Content != "inherited plan" {
+		t.Fatalf("child todos = %+v (err %v), want the boundary list", got, err)
+	}
+	if got, err := ss.todos.List(ctx, parent.ID); err != nil || len(got) != 0 {
+		t.Fatalf("parent todos = %+v (err %v), want none written by the fork", got, err)
 	}
 }
 

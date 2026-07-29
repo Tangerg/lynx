@@ -13,6 +13,7 @@ type coordinatorStores struct {
 	snapshot      Snapshot
 	terminal      *TerminalPlan
 	forked        *ForkPlan
+	rolledBack    *RollbackPlan
 	snapshotReads *int
 }
 
@@ -48,6 +49,9 @@ func (s coordinatorStores) ApplyFork(_ context.Context, plan ForkPlan) (session.
 // the coordinator tests observe them (the run-state transition an ApplyTerminal /
 // ApplyRollback also commits is verified at the sqlite/bootstrap level).
 func (s coordinatorStores) ApplyRollback(ctx context.Context, plan RollbackPlan) error {
+	if s.rolledBack != nil {
+		*s.rolledBack = plan
+	}
 	for _, runID := range plan.DropRunIDs {
 		_ = s.interrupts.Delete(ctx, runID)
 	}

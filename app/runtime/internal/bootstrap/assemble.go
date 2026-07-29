@@ -510,6 +510,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Interrupts:   cfg.InterruptStore,
 		Transcript:   cfg.TranscriptStore,
 		Runs:         cfg.RunStore,
+		Boundaries:   cfg.TodoStore,
 		Snapshots:    sessionStorage,
 		Writes:       sessionStorage,
 		Forgetter:    turnDispatcher,
