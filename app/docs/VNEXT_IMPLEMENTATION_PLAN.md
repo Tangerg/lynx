@@ -1034,6 +1034,42 @@ todos 今天只以**流内 ephemeral `state.snapshot`** 形态上 wire：没有 
 | C15 | 前端：exhaustive reducer、**删 business numeric code 镜像**、`runtime.subscribe` 单流、删 goal 4 秒轮询、高层 run handle + tail-first cold recovery。✅ 单流已结构满足，本 slice 是改名 + topic 扩容 + reducer 扩展 | `TODO` | — |
 | C16 | 切版本：`protocolVersion = minSupported = "2026-07-27"`、`SessionArtifactVersion = 7`；旧协议 `invalid_protocol_version`、旧 Artifact 确定性拒绝 | `TODO` | — |
 
+#### ⚠️ Batch C 接手须知（2026-07-29，B 收口时量过的，别重新踩）
+
+**"分支可整体 revert" 指合 main 是一次原子切换，不是必须一坐做完 16 个。** 在 cutover 分支上逐个 stacked commit、
+每个自己全绿（Go 五关 + 前端 `npm run check`），才是计划描述的做法。任何一个 slice 没绿就**不要 commit** ——
+main 不动，损失只是当次未提交的工作。
+
+**C1 的真实爆炸半径（量过）**：Go 侧 24 个文件提到 `RunResult`、51 个提到 interrupt 相关；前端 26 个文件提到
+`RunOutcome`/`RunResult`/`durationMs`（含 fold reducer 的 6 个测试文件、`agentStore`、observability sink/stores、
+`sdk/types/{agentView,events}`）。它**不只是 wire 类型改名**：
+
+- `transcript.Run.Result` 是 **domain** 类型，`RunMetrics`/`RunLimits` 的正交化要穿到 domain；
+- sqlite `runs` 表的 `steps` / `active_duration_ns` / `usage` / `problem` 四列就是今天的 `RunResult` 投影 ——
+  按 B′ 纪律**丢库重建 + schema epoch 守卫**，不写 migration；
+- `status:"waiting"` 是**新的第三态**。今天 `presentRunStatus` 把每个非 `Running` 状态都映射成 `finished`，
+  所以 parked run 现在是"finished + interrupt outcome"。C1 之后 parked run 是 `waiting`、**没有 outcome**，
+  而 `interrupt` 从 `RunOutcome` 移到 `SegmentOutcome` —— 这同时推翻 B2 给 `RunRef` 登记的 presence rule
+  （`status == finished ⇒ outcome + finishedAt`），必须**同一个 commit 改掉**，否则注册期校验或 gate 6 会红。
+
+**B 建的闸会在 C 里咬人，这是设计如此 —— 每条都有明确的同步动作：**
+
+| 闸 | 什么时候咬 | 同一 commit 里要做什么 |
+|---|---|---|
+| `TestPageCursorsBindToTheirOwnMethod` | **C6** 用 `interrupts.list` 取代 `runs.listOpenInterrupts` | 改 `interruptPageMethod` 常量（现在正是 `runs.listOpenInterrupts`）—— 闸要求它必须是**已注册方法名**且唯一 |
+| 三方 canonical sample gate | **每个**改 wire shape 的 slice | 改 `protocol/canonical_samples.go` 的 binding + 手写 sample JSON；ajv 读的是**已发布 schema**，所以样本必须真能过 |
+| `TestEveryWireStructIsPublished` | 新增 exported wire struct（C1 的 `RunMetrics`/`RunLimits`、C2 的 `RunSummary` …） | 要么被某方法可达，要么登记 carried shape / 列入 `notOnTheWire` 并写理由 |
+| `TestEveryClosedWireUnionIsRegistered` | C1 拆 `SegmentOutcome`、C6 拆 payload 三 variant | 登记新 `UnionSpec`；**结构体有字段没被任何 variant 认领 → 拒**（这条真会咬） |
+| gate 8 证据索引 | C1 改 `terminal_run_carries_its_result` 的形状 | fixture 的 godoc 写着 invariant key，改测试时别把那行删掉；索引在 `internal/arch/invariant_coverage_test.go` |
+| `TestEveryStateKeyHasAShapeFixture` | **C7** 加 `todos.get` + typed `state.snapshot` | `StateKeySpec.RecoveryMethod` 从 `runs.subscribe` 改成 `todos.get`（`contract_shapes_wire.go` 的注释已预告这一行会变），payload fixture 同步 |
+| `TestProtocolVersionAgreesEverywhere` | **C16** | 只改一处常量，这条会点名每份还写旧版本的 canonical 文档 |
+| gate 15/16/17/18 | C 的产出**就是**它们的输入 | 16/17 的 compatibility diff 需要一个 **baseline 产物快照**才有意义 —— C 开始前把今天的 `contract/` 存一份基线，否则"本轮整体 breaking"没有比较对象 |
+
+**C2 的"同一嵌入定义生成三方"**：Go 用嵌入 `RunSummary` 到 `RunRef`；`protocol.WireFields` 已经会把 embedded
+struct 的字段内联（`encoding/json` 语义），所以 schema/TS 会自动拿到扁平化的字段 —— 但那意味着**TS 侧不会自动
+产生 `extends`**。要 TS 真的 `interface RunRef extends RunSummary`，得让 TS emitter 认识"这个 def 的字段是某个
+已发布 def 的超集"。**先决定要不要这条**：契约只要求"禁止手工复制两套同名字段"（嵌入已满足），没要求 TS 语法上继承。
+
 **每 slice 反泄露 DoD**：新增 wire 概念不得在 presenter 产生业务判断（对照 §4.3 归属表）。
 
 **Batch C DoD**：契约 §14 验收矩阵九节全绿；18 项 CI gate 全通；分支可整体 revert。
