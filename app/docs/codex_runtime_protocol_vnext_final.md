@@ -734,6 +734,9 @@ Segment 的正常结束边界。
 - `steps` 精确定义为已进入 execution budget/accounting authority 的模型调用数，
   与 `maxSteps` 使用同一单位；一次模型响应即使产生多个并行工具调用也只增加一步，
   tool/action lifecycle 不得自行推算或改写 `steps`；
+- child Run 可以继续委派 descendant，不存在只能执行一层的特殊 leaf role；递归由
+  root tree 共享的 execution budget 与明确的最大 child depth 共同约束，root-only
+  产品操作不得随通用 `task` 能力下放；
 - `segment.progress` 中出现的计量也是累计预览，不是 delta；
 - `maxSteps`、`maxBudgetUsd` 跨 resume 延续；
 - limit 判断始终使用持久化的有效限额与 committed cumulative metrics，resume
