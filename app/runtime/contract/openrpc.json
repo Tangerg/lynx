@@ -1313,9 +1313,19 @@
       }
     },
     {
-      "name": "workspace.subscribe",
+      "name": "runtime.subscribe",
       "paramStructure": "by-name",
       "params": [
+        {
+          "name": "topics",
+          "required": true,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "schema.json#/$defs/RuntimeTopic"
+            }
+          }
+        },
         {
           "name": "watches",
           "schema": {
@@ -1329,7 +1339,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "schema.json#/$defs/WorkspaceSubscribeResponse"
+          "$ref": "schema.json#/$defs/RuntimeSubscribeResponse"
         }
       },
       "x-lyra-kind": "stream",
@@ -1352,10 +1362,10 @@
         }
       ],
       "x-lyra-streamEvent": {
-        "$ref": "schema.json#/$defs/WorkspaceEvent"
+        "$ref": "schema.json#/$defs/RuntimeEvent"
       },
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/WorkspaceSubscribeRequest"
+        "$ref": "schema.json#/$defs/RuntimeSubscribeRequest"
       }
     },
     {

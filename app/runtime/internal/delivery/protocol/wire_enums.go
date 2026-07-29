@@ -70,7 +70,11 @@ var wireEnums = map[reflect.Type][]string{
 	reflect.TypeFor[Stability]():                 {string(StabilityStable), string(StabilityExperimental)},
 	reflect.TypeFor[StreamEventType]():           {string(StreamSegmentStarted), string(StreamSegmentProgress), string(StreamSegmentFinished), string(StreamItemStarted), string(StreamItemDelta), string(StreamItemCompleted), string(StreamStateSnapshot), string(StreamCustom)},
 	reflect.TypeFor[TodoStatus]():                {string(TodoStatusPending), string(TodoStatusInProgress), string(TodoStatusCompleted)},
-	reflect.TypeFor[WorkspaceEventType]():        {string(WorkspaceEventFilesChanged), string(WorkspaceEventSkillsChanged), string(WorkspaceEventMCPServerChanged), string(WorkspaceEventSchedulesFired), string(WorkspaceEventResync)},
+	reflect.TypeFor[RuntimeEventType]():          runtimeEventValues(),
+	reflect.TypeFor[RuntimeTopic]():              runtimeTopicValues(),
+	reflect.TypeFor[RunReplayScope]():            {string(ReplayScopeProcessRootSegment)},
+	reflect.TypeFor[StateSnapshotScope]():        {string(StateScopeSession), string(StateScopeRun)},
+	reflect.TypeFor[StateSnapshotWriter]():       {string(StateWriterRootRun), string(StateWriterAnyRun)},
 }
 
 // WireEnum reports the closed value set of a wire enum type, and false when t is
@@ -79,4 +83,21 @@ var wireEnums = map[reflect.Type][]string{
 func WireEnum(t reflect.Type) ([]string, bool) {
 	values, ok := wireEnums[t]
 	return values, ok
+}
+
+// runtimeEventValues is the event vocabulary: every topic, plus resync. Derived from
+// the topic list rather than written twice — that duplication is exactly what having
+// one set of strings prevents.
+func runtimeEventValues() []string {
+	out := make([]string, 0, len(RuntimeTopics)+1)
+	out = append(out, runtimeTopicValues()...)
+	return append(out, string(RuntimeResync))
+}
+
+func runtimeTopicValues() []string {
+	out := make([]string, 0, len(RuntimeTopics))
+	for _, topic := range RuntimeTopics {
+		out = append(out, string(topic))
+	}
+	return out
 }

@@ -145,17 +145,17 @@ type streamingRuntime struct {
 	canceled chan struct{}
 }
 
-func (r *streamingRuntime) SubscribeWorkspace(
+func (r *streamingRuntime) SubscribeRuntime(
 	ctx context.Context,
-	_ protocol.WorkspaceSubscribeRequest,
-) (*protocol.WorkspaceSubscribeResponse, iter.Seq[protocol.WorkspaceEvent], error) {
-	events := make(chan protocol.WorkspaceEvent)
+	_ protocol.RuntimeSubscribeRequest,
+) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
+	events := make(chan protocol.RuntimeEvent)
 	close(r.started)
 	context.AfterFunc(ctx, func() {
 		close(r.canceled)
 		close(events)
 	})
-	return &protocol.WorkspaceSubscribeResponse{}, func(yield func(protocol.WorkspaceEvent) bool) {
+	return &protocol.RuntimeSubscribeResponse{}, func(yield func(protocol.RuntimeEvent) bool) {
 		for ev := range events {
 			if !yield(ev) {
 				return

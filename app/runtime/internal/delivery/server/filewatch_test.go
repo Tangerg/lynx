@@ -30,7 +30,7 @@ func TestWorkspaceSubscribe_GitWatch(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, seq, err := s.SubscribeWorkspace(ctx, protocol.WorkspaceSubscribeRequest{
+	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{
 		Watches: []protocol.WatchSpec{{WatchID: "w1"}},
 	})
 	if err != nil {
@@ -60,7 +60,7 @@ func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 	s.wsHub = newWorkspaceHub()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, seq, err := s.SubscribeWorkspace(ctx, protocol.WorkspaceSubscribeRequest{
+	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{
 		Watches: []protocol.WatchSpec{{WatchID: "w1"}},
 	})
 	if err != nil {
@@ -68,7 +68,7 @@ func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 	}
 	events := drainSeq(ctx, seq)
 	// Broadcast events still flow on the subscription.
-	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: "skills.changed"})
+	s.PublishRuntimeEvent(protocol.RuntimeEvent{Type: "skills.changed"})
 	select {
 	case ev := <-events:
 		if ev.Type != "skills.changed" {
@@ -109,7 +109,7 @@ func TestRunEffectsNudgePublishesFileChange(t *testing.T) {
 func TestWorkspaceSubscribe_MissingWatchID(t *testing.T) {
 	s := newWorkspaceServer(t.TempDir())
 	s.wsHub = newWorkspaceHub()
-	if _, _, err := s.SubscribeWorkspace(context.Background(), protocol.WorkspaceSubscribeRequest{
+	if _, _, err := s.SubscribeRuntime(context.Background(), protocol.RuntimeSubscribeRequest{
 		Watches: []protocol.WatchSpec{{}},
 	}); err == nil {
 		t.Fatal("watch missing watchId must be invalid_params")

@@ -4722,6 +4722,31 @@
         }
       ]
     },
+    "RunReplayLimits": {
+      "type": "object",
+      "properties": {
+        "maxBytes": {
+          "type": "integer"
+        },
+        "maxEvents": {
+          "type": "integer"
+        },
+        "scope": {
+          "$ref": "#/$defs/RunReplayScope"
+        }
+      },
+      "required": [
+        "maxBytes",
+        "maxEvents",
+        "scope"
+      ]
+    },
+    "RunReplayScope": {
+      "type": "string",
+      "enum": [
+        "processRootSegment"
+      ]
+    },
     "RunScheduleNowRequest": {
       "type": "object",
       "properties": {
@@ -4896,13 +4921,350 @@
         }
       ]
     },
+    "RuntimeEvent": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "key": {
+          "$ref": "#/$defs/StateSnapshotType"
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "runIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scheduleIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "serverIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sessionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "topics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RuntimeTopic"
+          }
+        },
+        "type": {
+          "$ref": "#/$defs/RuntimeEventType"
+        },
+        "watchId": {
+          "type": "string"
+        },
+        "watchIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "key": false,
+            "names": false,
+            "runIds": false,
+            "scheduleIds": false,
+            "serverIds": false,
+            "sessionIds": false,
+            "topics": false,
+            "type": {
+              "const": "files.changed"
+            },
+            "watchIds": false
+          },
+          "required": [
+            "paths",
+            "sequence",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "cwd": false,
+            "key": false,
+            "paths": false,
+            "runIds": false,
+            "scheduleIds": false,
+            "serverIds": false,
+            "sessionIds": false,
+            "topics": false,
+            "type": {
+              "const": "skills.changed"
+            },
+            "watchId": false,
+            "watchIds": false
+          },
+          "required": [
+            "sequence",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "cwd": false,
+            "key": false,
+            "names": false,
+            "paths": false,
+            "runIds": false,
+            "scheduleIds": false,
+            "sessionIds": false,
+            "topics": false,
+            "type": {
+              "const": "mcp.changed"
+            },
+            "watchId": false,
+            "watchIds": false
+          },
+          "required": [
+            "sequence",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "cwd": false,
+            "key": false,
+            "names": false,
+            "paths": false,
+            "runIds": false,
+            "serverIds": false,
+            "sessionIds": false,
+            "topics": false,
+            "type": {
+              "const": "schedules.changed"
+            },
+            "watchId": false,
+            "watchIds": false
+          },
+          "required": [
+            "sequence",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "cwd": false,
+            "key": false,
+            "names": false,
+            "paths": false,
+            "runIds": false,
+            "scheduleIds": false,
+            "serverIds": false,
+            "topics": false,
+            "type": {
+              "const": "sessions.changed"
+            },
+            "watchId": false,
+            "watchIds": false
+          },
+          "required": [
+            "sequence",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "cwd": false,
+            "key": false,
+            "names": false,
+            "paths": false,
+            "scheduleIds": false,
+            "serverIds": false,
+            "topics": false,
+            "type": {
+              "const": "runs.changed"
+            },
+            "watchId": false,
+            "watchIds": false
+          },
+          "required": [
+            "sequence",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "cwd": false,
+            "names": false,
+            "paths": false,
+            "scheduleIds": false,
+            "serverIds": false,
+            "topics": false,
+            "type": {
+              "const": "state.changed"
+            },
+            "watchId": false,
+            "watchIds": false
+          },
+          "required": [
+            "key",
+            "sequence",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "cwd": false,
+            "key": false,
+            "names": false,
+            "paths": false,
+            "runIds": false,
+            "scheduleIds": false,
+            "serverIds": false,
+            "topics": false,
+            "type": {
+              "const": "goals.changed"
+            },
+            "watchId": false,
+            "watchIds": false
+          },
+          "required": [
+            "sequence",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "cwd": false,
+            "key": false,
+            "names": false,
+            "paths": false,
+            "scheduleIds": false,
+            "serverIds": false,
+            "topics": false,
+            "type": {
+              "const": "interrupts.changed"
+            },
+            "watchId": false,
+            "watchIds": false
+          },
+          "required": [
+            "sequence",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "cwd": false,
+            "key": false,
+            "names": false,
+            "paths": false,
+            "runIds": false,
+            "scheduleIds": false,
+            "serverIds": false,
+            "sessionIds": false,
+            "type": {
+              "const": "resync"
+            },
+            "watchId": false
+          },
+          "required": [
+            "sequence",
+            "type"
+          ]
+        }
+      ]
+    },
+    "RuntimeEventType": {
+      "type": "string",
+      "enum": [
+        "files.changed",
+        "skills.changed",
+        "mcp.changed",
+        "schedules.changed",
+        "sessions.changed",
+        "runs.changed",
+        "state.changed",
+        "goals.changed",
+        "interrupts.changed",
+        "resync"
+      ]
+    },
     "RuntimeLimits": {
       "type": "object",
       "properties": {
         "maxConcurrentRuns": {
           "type": "integer"
+        },
+        "runReplay": {
+          "$ref": "#/$defs/RunReplayLimits"
+        },
+        "runtimeSubscription": {
+          "$ref": "#/$defs/SubscriptionLimits"
         }
-      }
+      },
+      "required": [
+        "runtimeSubscription"
+      ]
+    },
+    "RuntimeSubscribeRequest": {
+      "type": "object",
+      "properties": {
+        "topics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RuntimeTopic"
+          }
+        },
+        "watches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WatchSpec"
+          }
+        }
+      },
+      "required": [
+        "topics"
+      ]
+    },
+    "RuntimeSubscribeResponse": {
+      "type": "object"
+    },
+    "RuntimeTopic": {
+      "type": "string",
+      "enum": [
+        "files.changed",
+        "skills.changed",
+        "mcp.changed",
+        "schedules.changed",
+        "sessions.changed",
+        "runs.changed",
+        "state.changed",
+        "goals.changed",
+        "interrupts.changed"
+      ]
     },
     "SafetyClass": {
       "type": "string",
@@ -5171,12 +5533,6 @@
     "ServerCapabilities": {
       "type": "object",
       "properties": {
-        "events": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/StreamEventType"
-          }
-        },
         "features": {
           "type": "object",
           "additionalProperties": {
@@ -5186,6 +5542,24 @@
         "limits": {
           "$ref": "#/$defs/RuntimeLimits"
         },
+        "runEvents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StreamEventType"
+          }
+        },
+        "runtimeTopics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RuntimeTopic"
+          }
+        },
+        "stateSnapshots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StateSnapshotCapability"
+          }
+        },
         "streamingMethods": {
           "type": "array",
           "items": {
@@ -5194,9 +5568,11 @@
         }
       },
       "required": [
-        "events",
         "features",
         "limits",
+        "runEvents",
+        "runtimeTopics",
+        "stateSnapshots",
         "streamingMethods"
       ]
     },
@@ -5584,10 +5960,47 @@
         }
       ]
     },
+    "StateSnapshotCapability": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/StateSnapshotType"
+        },
+        "recoveryMethod": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/StateSnapshotScope"
+        },
+        "writer": {
+          "$ref": "#/$defs/StateSnapshotWriter"
+        }
+      },
+      "required": [
+        "key",
+        "recoveryMethod",
+        "scope",
+        "writer"
+      ]
+    },
+    "StateSnapshotScope": {
+      "type": "string",
+      "enum": [
+        "session",
+        "run"
+      ]
+    },
     "StateSnapshotType": {
       "type": "string",
       "enum": [
         "todos"
+      ]
+    },
+    "StateSnapshotWriter": {
+      "type": "string",
+      "enum": [
+        "rootRun",
+        "anyRun"
       ]
     },
     "SteerRunRequest": {
@@ -5837,6 +6250,21 @@
       },
       "required": [
         "runId"
+      ]
+    },
+    "SubscriptionLimits": {
+      "type": "object",
+      "properties": {
+        "maxTopics": {
+          "type": "integer"
+        },
+        "maxWatches": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "maxTopics",
+        "maxWatches"
       ]
     },
     "TestProviderRequest": {
@@ -6128,9 +6556,6 @@
         "cwd": {
           "type": "string"
         },
-        "path": {
-          "type": "string"
-        },
         "watchId": {
           "type": "string"
         }
@@ -6157,147 +6582,6 @@
       },
       "required": [
         "url"
-      ]
-    },
-    "WorkspaceEvent": {
-      "type": "object",
-      "properties": {
-        "cwd": {
-          "type": "string"
-        },
-        "error": {
-          "$ref": "#/$defs/ProblemData"
-        },
-        "paths": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "scheduleId": {
-          "type": "string"
-        },
-        "sequence": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "server": {
-          "type": "string"
-        },
-        "status": {
-          "$ref": "#/$defs/McpStatus"
-        },
-        "toolCount": {
-          "type": "integer"
-        },
-        "type": {
-          "$ref": "#/$defs/WorkspaceEventType"
-        },
-        "watchId": {
-          "type": "string"
-        }
-      },
-      "oneOf": [
-        {
-          "properties": {
-            "error": false,
-            "scheduleId": false,
-            "server": false,
-            "status": false,
-            "toolCount": false,
-            "type": {
-              "const": "files.changed"
-            }
-          },
-          "required": [
-            "paths",
-            "sequence",
-            "type"
-          ]
-        },
-        {
-          "properties": {
-            "cwd": false,
-            "error": false,
-            "paths": false,
-            "scheduleId": false,
-            "server": false,
-            "status": false,
-            "toolCount": false,
-            "type": {
-              "const": "skills.changed"
-            },
-            "watchId": false
-          },
-          "required": [
-            "sequence",
-            "type"
-          ]
-        },
-        {
-          "properties": {
-            "cwd": false,
-            "paths": false,
-            "scheduleId": false,
-            "type": {
-              "const": "mcp.serverChanged"
-            },
-            "watchId": false
-          },
-          "required": [
-            "sequence",
-            "server",
-            "type"
-          ]
-        },
-        {
-          "properties": {
-            "cwd": false,
-            "error": false,
-            "paths": false,
-            "server": false,
-            "status": false,
-            "toolCount": false,
-            "type": {
-              "const": "schedules.fired"
-            },
-            "watchId": false
-          },
-          "required": [
-            "scheduleId",
-            "sequence",
-            "type"
-          ]
-        },
-        {
-          "properties": {
-            "cwd": false,
-            "error": false,
-            "paths": false,
-            "scheduleId": false,
-            "server": false,
-            "status": false,
-            "toolCount": false,
-            "type": {
-              "const": "resync"
-            },
-            "watchId": false
-          },
-          "required": [
-            "sequence",
-            "type"
-          ]
-        }
-      ]
-    },
-    "WorkspaceEventType": {
-      "type": "string",
-      "enum": [
-        "files.changed",
-        "skills.changed",
-        "mcp.serverChanged",
-        "schedules.fired",
-        "resync"
       ]
     },
     "WorkspaceFileChange": {
@@ -6340,20 +6624,6 @@
           "type": "integer"
         }
       }
-    },
-    "WorkspaceSubscribeRequest": {
-      "type": "object",
-      "properties": {
-        "watches": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/WatchSpec"
-          }
-        }
-      }
-    },
-    "WorkspaceSubscribeResponse": {
-      "type": "object"
     }
   }
 }

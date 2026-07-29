@@ -35,7 +35,7 @@ import { createPushPullChannel } from "../channel";
 import { parseTransportProblem, RpcTransportError } from "../errors";
 import {
   STREAM_DOWN_METHOD,
-  WORKSPACE_SUBSCRIBE_METHOD,
+  RUNTIME_SUBSCRIBE_METHOD,
   type Transport,
   type TransportSendOptions,
 } from "../transport";
@@ -173,7 +173,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
         error: { code: -32000, message: "transport: stream ended before the call's response" },
       } as RpcMessage);
     }
-    if (runIds.size > 0 || method === WORKSPACE_SUBSCRIBE_METHOD) {
+    if (runIds.size > 0 || method === RUNTIME_SUBSCRIBE_METHOD) {
       channel.push({
         jsonrpc: JSONRPC_VERSION,
         method: STREAM_DOWN_METHOD,

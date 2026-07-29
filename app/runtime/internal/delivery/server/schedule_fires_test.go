@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-func TestScheduleFireNotificationProjectsToWorkspaceEvent(t *testing.T) {
+func TestScheduleFireNotificationProjectsToARuntimeSignal(t *testing.T) {
 	notifier := &signal.Signal[string]{}
 	s := &Server{wsHub: newWorkspaceHub()}
 	s.observeScheduleFires(notifier)
@@ -16,7 +16,7 @@ func TestScheduleFireNotificationProjectsToWorkspaceEvent(t *testing.T) {
 
 	notifier.Publish("sch_1")
 	got := <-events
-	if got.Type != protocol.WorkspaceEventSchedulesFired || got.ScheduleID != "sch_1" {
-		t.Fatalf("workspace event = %+v", got)
+	if got.Type != protocol.RuntimeSchedulesChanged || len(got.ScheduleIDs) != 1 || got.ScheduleIDs[0] != "sch_1" {
+		t.Fatalf("runtime event = %+v", got)
 	}
 }

@@ -17,14 +17,14 @@ func EncodeRunEvent(ev protocol.RunEvent) (transport.Message, error) {
 	return transport.NewNotification(NotificationRunEvent, ev)
 }
 
-// EncodeWorkspaceEvent wraps one WorkspaceEvent into a
-// notifications.workspace.event notification (AUX_API §3.2). The single
-// downstream stream carries every workspace event type (files/skills/mcp/
-// resync) in the `event` field; clients branch on event.type. Ephemeral —
-// no SSE id / replay (workspace state is "changed → re-fetch").
-func EncodeWorkspaceEvent(ev protocol.WorkspaceEvent) (transport.Message, error) {
-	return transport.NewNotification(NotificationWorkspaceEvent, struct {
-		Event protocol.WorkspaceEvent `json:"event"`
+// EncodeRuntimeEvent wraps one RuntimeEvent into a notifications.runtime.event
+// notification (§7.3). The single downstream stream carries every topic's change
+// signal in the `event` field; clients branch on event.type. Ephemeral by design — no
+// SSE id, no replay: every frame is "this moved, read it again", and a client that
+// missed one refetches rather than replays.
+func EncodeRuntimeEvent(ev protocol.RuntimeEvent) (transport.Message, error) {
+	return transport.NewNotification(NotificationRuntimeEvent, struct {
+		Event protocol.RuntimeEvent `json:"event"`
 	}{Event: ev})
 }
 
@@ -54,10 +54,10 @@ func runEventToFrameFor(ctx context.Context) func(protocol.RunEvent) (StreamFram
 	}
 }
 
-// workspaceEventToFrame encodes a WorkspaceEvent into an ephemeral StreamFrame
-// (no SSE id — workspace events aren't replayable).
-func workspaceEventToFrame(ev protocol.WorkspaceEvent) (StreamFrame, bool) {
-	notif, err := EncodeWorkspaceEvent(ev)
+// runtimeEventToFrame encodes a RuntimeEvent into an ephemeral StreamFrame (no SSE
+// id — a change signal is not replayable, and does not need to be).
+func runtimeEventToFrame(ev protocol.RuntimeEvent) (StreamFrame, bool) {
+	notif, err := EncodeRuntimeEvent(ev)
 	if err != nil {
 		return StreamFrame{}, false
 	}

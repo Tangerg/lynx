@@ -16,8 +16,14 @@ type Workspace interface {
 	ListWorkspaceFiles(ctx context.Context, in ListFilesRequest) (*Page[FileEntry], error)
 	ReadWorkspaceFile(ctx context.Context, in ReadFileRequest) (*FileContent, error)
 	ListWorkspaceProjects(ctx context.Context, q PageQuery) (*Page[Project], error)
-	// SubscribeWorkspace opens the non-run workspace event stream (AUX_API §3):
-	// files/skills/mcp changes. Returns an ack + the event sequence, ending when
-	// the request ctx ends. Streaming method (in streamingMethods).
-	SubscribeWorkspace(ctx context.Context, in WorkspaceSubscribeRequest) (*WorkspaceSubscribeResponse, iter.Seq[WorkspaceEvent], error)
+}
+
+// Runtime-wide change notification (§7). It is not a workspace concern: sessions,
+// runs, goals and waiting sets change with no file involved, and a stream named after
+// the workspace could only carry them by lying about what it was.
+type RuntimeSubscription interface {
+	// SubscribeRuntime opens the change-signal stream for the topics the caller asks
+	// for. Returns an ack + the event sequence, ending when the request ctx ends.
+	// Streaming method (in streamingMethods).
+	SubscribeRuntime(ctx context.Context, in RuntimeSubscribeRequest) (*RuntimeSubscribeResponse, iter.Seq[RuntimeEvent], error)
 }

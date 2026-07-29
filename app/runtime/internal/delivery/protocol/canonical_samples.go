@@ -91,12 +91,16 @@ var CanonicalSamples = []CanonicalSample{
 	{"method.sessions.export.resp.json", reflect.TypeFor[ExportSessionResponse]()},
 	{"session.artifact.json", reflect.TypeFor[SessionArtifact]()},
 
-	// §4.5 Workspace — WorkspaceEvent union, Diff/DiffRow, file shapes, methods.
-	{"wsevent.files-changed.json", reflect.TypeFor[WorkspaceEvent]()},
-	{"wsevent.skills-changed.json", reflect.TypeFor[WorkspaceEvent]()},
-	{"wsevent.mcp-serverChanged.json", reflect.TypeFor[WorkspaceEvent]()},
-	{"wsevent.schedules-fired.json", reflect.TypeFor[WorkspaceEvent]()},
-	{"wsevent.resync.json", reflect.TypeFor[WorkspaceEvent]()},
+	// §7.3 RuntimeEvent union — one change signal per topic, plus the frame that
+	// says the stream lost its place.
+	{"rtevent.files-changed.json", reflect.TypeFor[RuntimeEvent]()},
+	{"rtevent.skills-changed.json", reflect.TypeFor[RuntimeEvent]()},
+	{"rtevent.mcp-changed.json", reflect.TypeFor[RuntimeEvent]()},
+	{"rtevent.schedules-changed.json", reflect.TypeFor[RuntimeEvent]()},
+	{"rtevent.state-changed.json", reflect.TypeFor[RuntimeEvent]()},
+	{"rtevent.resync.json", reflect.TypeFor[RuntimeEvent]()},
+
+	// §4.5 Workspace — Diff/DiffRow, file shapes, methods.
 	{"ws.diff.json", reflect.TypeFor[Diff]()},
 	{"ws.fileChange.json", reflect.TypeFor[WorkspaceFileChange]()},
 	{"ws.fileHead.json", reflect.TypeFor[FileHead]()},

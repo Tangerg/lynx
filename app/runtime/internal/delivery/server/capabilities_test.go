@@ -23,8 +23,8 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 		protocol.StreamItemCompleted,
 		protocol.StreamStateSnapshot,
 	}
-	if !slices.Equal(caps.Events, want) {
-		t.Fatalf("events = %v, want %v", caps.Events, want)
+	if !slices.Equal(caps.RunEvents, want) {
+		t.Fatalf("events = %v, want %v", caps.RunEvents, want)
 	}
 	if caps.Features["subagents"].Enabled || caps.Features["clientTools"].Enabled {
 		t.Fatalf("unsupported features advertised: %+v", caps.Features)

@@ -26,7 +26,7 @@ export const STREAM_DOWN_METHOD = "transport.streamDown";
  *  STREAM_DOWN synthetic that special-cases it — so the transport, the stream
  *  layer, and the subscriber plugin all share one literal, and checked against the
  *  published method surface so the literal cannot outlive the method. */
-export const WORKSPACE_SUBSCRIBE_METHOD = "workspace.subscribe" satisfies WireMethodName;
+export const RUNTIME_SUBSCRIBE_METHOD = "runtime.subscribe" satisfies WireMethodName;
 
 export interface StreamDownParams {
   runIds: string[];

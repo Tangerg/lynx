@@ -21,12 +21,12 @@ type streamingLifecycleRuntime struct {
 	subscribed chan struct{}
 }
 
-func (r *streamingLifecycleRuntime) SubscribeWorkspace(
+func (r *streamingLifecycleRuntime) SubscribeRuntime(
 	ctx context.Context,
-	_ protocol.WorkspaceSubscribeRequest,
-) (*protocol.WorkspaceSubscribeResponse, iter.Seq[protocol.WorkspaceEvent], error) {
+	_ protocol.RuntimeSubscribeRequest,
+) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
 	close(r.subscribed)
-	return &protocol.WorkspaceSubscribeResponse{}, func(yield func(protocol.WorkspaceEvent) bool) {
+	return &protocol.RuntimeSubscribeResponse{}, func(yield func(protocol.RuntimeEvent) bool) {
 		<-ctx.Done() // an open, event-less stream bounded by the request context
 	}, nil
 }

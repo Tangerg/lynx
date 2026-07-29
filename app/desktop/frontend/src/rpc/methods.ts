@@ -78,20 +78,20 @@ import type {
   Goal,
   GoalBudget,
   StartRunRequest,
-  WorkspaceSubscribeRequest,
-  WorkspaceSubscribeResponse,
+  RuntimeSubscribeRequest,
+  RuntimeSubscribeResponse,
   ToolSpec,
   UpdateSessionRequest,
   Usage,
   UsageSummary,
   UsageSummaryRequest,
   UtilityRole,
-  WorkspaceEvent,
+  RuntimeEvent,
   WorkspaceFileChange,
 } from "./wire.generated";
-import { streamRunEvents, streamWorkspaceEvents } from "./stream";
+import { streamRunEvents, streamRuntimeEvents } from "./stream";
 import type { WireMethodName, WireParams, WireResult } from "./wire.methods.generated";
-import { WORKSPACE_SUBSCRIBE_METHOD } from "./transport";
+import { RUNTIME_SUBSCRIBE_METHOD } from "./transport";
 
 export interface StreamingResult<R, E> {
   result: R;
@@ -299,13 +299,15 @@ export interface Methods {
       maxBytes?: number;
     }) => Promise<FileContent>;
     listProjects: () => Promise<Page<Project>>;
-    // The app-wide workspace notification channel (AUX_API §3): lossy
-    // "changed → refetch" events, connection-scoped, no replay. One stream
-    // per app; resubscribe (= implicit resync) when it ends.
+  };
+  // The app-wide change-signal channel (§7): lossy "this moved → read it again"
+  // events, connection-scoped, no replay. One stream per app; resubscribing IS the
+  // resync. `topics` is required — a subscription says what it can fold.
+  runtimeEvents: {
     subscribe: (
-      params?: WorkspaceSubscribeRequest,
+      params: RuntimeSubscribeRequest,
       signal?: AbortSignal,
-    ) => Promise<StreamingResult<WorkspaceSubscribeResponse, WorkspaceEvent>>;
+    ) => Promise<StreamingResult<RuntimeSubscribeResponse, RuntimeEvent>>;
   };
   // Prompt recipes (§7.5): the parameterized prompt templates discovered for a
   // cwd (project over global). The client expands a chosen recipe's body and
@@ -566,6 +568,15 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     todos: {
       get: (sessionId) => call("todos.get", { sessionId }),
     },
+    runtimeEvents: {
+      subscribe: async (params, signal) => {
+        const stream = streamRuntimeEvents(client, signal);
+        const result = await callOrDispose(stream, () =>
+          call(RUNTIME_SUBSCRIBE_METHOD, params, { signal }),
+        );
+        return { result, events: stream.events };
+      },
+    },
     interrupts: {
       list: (query) => call("interrupts.list", query ?? {}),
     },
@@ -580,13 +591,6 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       listFiles: (params) => call("workspace.listFiles", params),
       readFile: (params) => call("workspace.readFile", params),
       listProjects: () => call("workspace.listProjects", {}),
-      subscribe: async (params, signal) => {
-        const stream = streamWorkspaceEvents(client, signal);
-        const result = await callOrDispose(stream, () =>
-          call(WORKSPACE_SUBSCRIBE_METHOD, params ?? {}, { signal }),
-        );
-        return { result, events: stream.events };
-      },
     },
     recipes: {
       list: (cwd) => call("recipes.list", { cwd }),

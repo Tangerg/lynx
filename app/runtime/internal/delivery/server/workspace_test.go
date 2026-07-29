@@ -309,12 +309,12 @@ func TestWorkspaceSubscribe(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, seq, err := s.SubscribeWorkspace(ctx, protocol.WorkspaceSubscribeRequest{})
+	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
 	events := drainSeq(ctx, seq)
-	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: "skills.changed"})
+	s.PublishRuntimeEvent(protocol.RuntimeEvent{Type: "skills.changed"})
 	select {
 	case ev := <-events:
 		if ev.Type != "skills.changed" {
@@ -339,12 +339,12 @@ func TestWorkspaceSubscribe_EarlyRangeStopReleasesSubscription(t *testing.T) {
 	s := &Server{wsHub: newWorkspaceHub()}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, seq, err := s.SubscribeWorkspace(ctx, protocol.WorkspaceSubscribeRequest{})
+	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
 
-	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventSkillsChanged})
+	s.PublishRuntimeEvent(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged})
 	for range seq {
 		break
 	}
@@ -364,9 +364,9 @@ func TestWorkspaceSubscribe_EarlyRangeStopReleasesSubscription(t *testing.T) {
 func TestWorkspaceSubscribeLifetimeIsTheRequest(t *testing.T) {
 	s := &Server{wsHub: newWorkspaceHub()}
 	reqCtx, cancelReq := context.WithCancel(context.Background())
-	_, seq, err := s.SubscribeWorkspace(reqCtx, protocol.WorkspaceSubscribeRequest{})
+	_, seq, err := s.SubscribeRuntime(reqCtx, protocol.RuntimeSubscribeRequest{})
 	if err != nil {
-		t.Fatalf("SubscribeWorkspace: %v", err)
+		t.Fatalf("SubscribeRuntime: %v", err)
 	}
 	events := drainSeq(reqCtx, seq)
 
@@ -393,7 +393,7 @@ func TestWorkspaceSubscribeLifetimeIsTheRequest(t *testing.T) {
 	}
 
 	// A new subscription after Close is rejected.
-	if _, _, err := s.SubscribeWorkspace(context.Background(), protocol.WorkspaceSubscribeRequest{}); !errors.Is(err, errServerClosed) {
+	if _, _, err := s.SubscribeRuntime(context.Background(), protocol.RuntimeSubscribeRequest{}); !errors.Is(err, errServerClosed) {
 		t.Fatalf("subscribe after close err = %v, want errServerClosed", err)
 	}
 }

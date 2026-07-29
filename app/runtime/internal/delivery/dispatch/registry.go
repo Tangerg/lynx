@@ -170,11 +170,11 @@ func runEventFramer(ctx context.Context) func(protocol.RunEvent) (StreamFrame, b
 	return runEventToFrameFor(ctx)
 }
 
-// workspaceEventFramer frames the non-run workspace stream. Its events carry no
-// replay id and no client opt-out (AUX_API §3): the stream's own re-subscribe is
-// the recovery path, so there is nothing per-request to decide.
-func workspaceEventFramer(context.Context) func(protocol.WorkspaceEvent) (StreamFrame, bool) {
-	return workspaceEventToFrame
+// runtimeEventFramer frames the change-signal stream. Its events carry no replay id
+// and no client opt-out (§7.1): re-subscribing and refetching IS the recovery path,
+// so there is nothing per-request to decide.
+func runtimeEventFramer(context.Context) func(protocol.RuntimeEvent) (StreamFrame, bool) {
+	return runtimeEventToFrame
 }
 
 // dispatchRequest routes the request to its registered method.

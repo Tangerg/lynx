@@ -27,6 +27,7 @@ func buildContract() *Registry {
 	registerTodos(registry)
 	registerItems(registry)
 	registerWorkspace(registry)
+	registerRuntimeSubscription(registry)
 	registerSkills(registry)
 	registerMCP(registry)
 	registerHooks(registry)
@@ -46,8 +47,8 @@ func buildContract() *Registry {
 // not registered methods: nothing inbound routes to them, and a client never
 // calls them.
 const (
-	NotificationRunEvent       = "notifications.run.event"
-	NotificationWorkspaceEvent = "notifications.workspace.event"
+	NotificationRunEvent     = "notifications.run.event"
+	NotificationRuntimeEvent = "notifications.runtime.event"
 )
 
 // stable is the stability every method carries today. Named so a future

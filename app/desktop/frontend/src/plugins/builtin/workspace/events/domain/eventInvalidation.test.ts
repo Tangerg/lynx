@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { workspaceInvalidations } from "./eventInvalidation";
 
 describe("workspaceInvalidations", () => {
-  it("maps known workspace event types to cache targets", () => {
+  it("maps each subscribed topic to the reads it invalidates", () => {
     expect(workspaceInvalidations({ type: "files.changed", sequence: 1 })).toEqual([
       "filesChanged",
       "diff",
@@ -12,13 +12,27 @@ describe("workspaceInvalidations", () => {
       "managedSkills",
       "skillDrafts",
     ]);
-    expect(workspaceInvalidations({ type: "mcp.serverChanged", sequence: 3 })).toEqual([
+    expect(workspaceInvalidations({ type: "mcp.changed", sequence: 3 })).toEqual([
       "mcpServers",
       "mcpConfigs",
       "mcpTools",
     ]);
-    expect(workspaceInvalidations({ type: "schedules.fired", sequence: 4 })).toEqual(["sessions"]);
-    expect(workspaceInvalidations({ type: "resync", sequence: 5 })).toEqual(["all"]);
+    // A fired schedule starts a run in a fresh session, so both lists move.
+    expect(workspaceInvalidations({ type: "schedules.changed", sequence: 4 })).toEqual([
+      "schedules",
+      "sessions",
+    ]);
+    expect(workspaceInvalidations({ type: "sessions.changed", sequence: 5 })).toEqual(["sessions"]);
+    expect(workspaceInvalidations({ type: "resync", sequence: 6 })).toEqual(["all"]);
+  });
+
+  // The four topics this client does not subscribe to: it folds them from the run
+  // stream, so a signal would ask for a refetch of nothing. Unmapped here is the same
+  // answer as not asking for them.
+  it("has nothing to invalidate for a topic it does not subscribe to", () => {
+    for (const type of ["runs.changed", "interrupts.changed", "goals.changed", "state.changed"]) {
+      expect(workspaceInvalidations({ type, sequence: 1 })).toEqual([]);
+    }
   });
 
   it("ignores forward-compatible event types", () => {

@@ -1,5 +1,6 @@
 import { queryClient } from "@/lib/queryClient";
 import { AGENT_SESSIONS_KEY } from "@/plugins/builtin/agent/public/session";
+import { SCHEDULES_KEY } from "@/plugins/builtin/settings/schedules/public/data";
 import {
   MCP_CONFIGS_KEY,
   MCP_SERVERS_KEY,
@@ -24,6 +25,7 @@ const QUERY_KEYS: Record<Exclude<WorkspaceInvalidationTarget, "all">, string> = 
   mcpConfigs: MCP_CONFIGS_KEY,
   mcpServers: MCP_SERVERS_KEY,
   mcpTools: MCP_TOOLS_KEY,
+  schedules: SCHEDULES_KEY,
   sessions: AGENT_SESSIONS_KEY,
   skills: WORKSPACE_SKILLS_KEY,
   managedSkills: WORKSPACE_MANAGED_SKILLS_KEY,

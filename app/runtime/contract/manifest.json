@@ -294,7 +294,7 @@
       "stability": "stable"
     },
     {
-      "name": "workspace.subscribe",
+      "name": "runtime.subscribe",
       "kind": "stream",
       "idempotency": "none",
       "features": [
@@ -807,13 +807,13 @@
   ],
   "notifications": [
     "notifications.run.event",
-    "notifications.workspace.event"
+    "notifications.runtime.event"
   ],
   "streamingMethods": [
     "runs.start",
     "runs.resume",
     "runs.subscribe",
-    "workspace.subscribe"
+    "runtime.subscribe"
   ],
   "errors": {
     "types": [
@@ -1137,7 +1137,7 @@
       ]
     },
     {
-      "method": "workspace.subscribe",
+      "method": "runtime.subscribe",
       "rules": [
         {
           "when": [
@@ -1564,10 +1564,25 @@
       "type": "skills.changed"
     },
     {
-      "type": "mcp.serverChanged"
+      "type": "mcp.changed"
     },
     {
-      "type": "schedules.fired"
+      "type": "schedules.changed"
+    },
+    {
+      "type": "sessions.changed"
+    },
+    {
+      "type": "runs.changed"
+    },
+    {
+      "type": "state.changed"
+    },
+    {
+      "type": "goals.changed"
+    },
+    {
+      "type": "interrupts.changed"
     },
     {
       "type": "resync"
@@ -2064,7 +2079,7 @@
       ]
     },
     {
-      "type": "WorkspaceEvent",
+      "type": "RuntimeEvent",
       "discriminator": "type",
       "variants": [
         {
@@ -2082,31 +2097,86 @@
           "tag": "skills.changed",
           "required": [
             "sequence"
-          ]
-        },
-        {
-          "tag": "mcp.serverChanged",
-          "required": [
-            "sequence",
-            "server"
           ],
           "optional": [
-            "status",
-            "toolCount",
-            "error"
+            "names"
           ]
         },
         {
-          "tag": "schedules.fired",
+          "tag": "mcp.changed",
+          "required": [
+            "sequence"
+          ],
+          "optional": [
+            "serverIds"
+          ]
+        },
+        {
+          "tag": "schedules.changed",
+          "required": [
+            "sequence"
+          ],
+          "optional": [
+            "scheduleIds"
+          ]
+        },
+        {
+          "tag": "sessions.changed",
+          "required": [
+            "sequence"
+          ],
+          "optional": [
+            "sessionIds"
+          ]
+        },
+        {
+          "tag": "runs.changed",
+          "required": [
+            "sequence"
+          ],
+          "optional": [
+            "runIds",
+            "sessionIds"
+          ]
+        },
+        {
+          "tag": "state.changed",
           "required": [
             "sequence",
-            "scheduleId"
+            "key"
+          ],
+          "optional": [
+            "sessionIds",
+            "runIds"
+          ]
+        },
+        {
+          "tag": "goals.changed",
+          "required": [
+            "sequence"
+          ],
+          "optional": [
+            "sessionIds"
+          ]
+        },
+        {
+          "tag": "interrupts.changed",
+          "required": [
+            "sequence"
+          ],
+          "optional": [
+            "runIds",
+            "sessionIds"
           ]
         },
         {
           "tag": "resync",
           "required": [
             "sequence"
+          ],
+          "optional": [
+            "topics",
+            "watchIds"
           ]
         }
       ]
@@ -2862,24 +2932,28 @@
       "shape": "SessionArtifact"
     },
     {
-      "file": "wsevent.files-changed.json",
-      "shape": "WorkspaceEvent"
+      "file": "rtevent.files-changed.json",
+      "shape": "RuntimeEvent"
     },
     {
-      "file": "wsevent.skills-changed.json",
-      "shape": "WorkspaceEvent"
+      "file": "rtevent.skills-changed.json",
+      "shape": "RuntimeEvent"
     },
     {
-      "file": "wsevent.mcp-serverChanged.json",
-      "shape": "WorkspaceEvent"
+      "file": "rtevent.mcp-changed.json",
+      "shape": "RuntimeEvent"
     },
     {
-      "file": "wsevent.schedules-fired.json",
-      "shape": "WorkspaceEvent"
+      "file": "rtevent.schedules-changed.json",
+      "shape": "RuntimeEvent"
     },
     {
-      "file": "wsevent.resync.json",
-      "shape": "WorkspaceEvent"
+      "file": "rtevent.state-changed.json",
+      "shape": "RuntimeEvent"
+    },
+    {
+      "file": "rtevent.resync.json",
+      "shape": "RuntimeEvent"
     },
     {
       "file": "ws.diff.json",

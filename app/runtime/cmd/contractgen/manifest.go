@@ -148,7 +148,7 @@ func build(walked *schemaSet) manifest {
 		Protocol:         protocol.SupportedProtocolRange(),
 		Features:         protocol.FeatureKeys(),
 		Methods:          methods(registry),
-		Notifications:    []string{dispatch.NotificationRunEvent, dispatch.NotificationWorkspaceEvent},
+		Notifications:    []string{dispatch.NotificationRunEvent, dispatch.NotificationRuntimeEvent},
 		StreamingMethods: registry.StreamMethods(),
 		Errors:           errors(registry),
 		CapabilityPolicy: capabilities(registry),
@@ -279,7 +279,7 @@ func runEvents(shapes *dispatch.Shapes) []eventEntry {
 func topics(shapes *dispatch.Shapes) []topicEntry {
 	var out []topicEntry
 	for _, union := range shapes.Unions() {
-		if union.GoType != workspaceEventType {
+		if union.GoType != runtimeEventType {
 			continue
 		}
 		for _, variant := range union.Variants {
@@ -293,7 +293,7 @@ func topics(shapes *dispatch.Shapes) []topicEntry {
 // only exists for a client that registered watches; the rest are unconditional
 // (AUX_API §1).
 func topicFeature(topic string) string {
-	if topic == string(protocol.WorkspaceEventFilesChanged) {
+	if topic == string(protocol.RuntimeFilesChanged) {
 		return protocol.FeatureFileWatch
 	}
 	return ""

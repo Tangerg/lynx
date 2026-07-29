@@ -43,7 +43,7 @@ func TestContractIsTheOnlyMethodTable(t *testing.T) {
 func TestStreamMethodsAreTheStreamingContract(t *testing.T) {
 	t.Parallel()
 
-	want := []string{"runs.start", "runs.resume", "runs.subscribe", "workspace.subscribe"}
+	want := []string{"runs.start", "runs.resume", "runs.subscribe", "runtime.subscribe"}
 	got := contract.StreamMethods()
 	slices.Sort(got)
 	slices.Sort(want)
@@ -105,8 +105,8 @@ func (r *capabilityRuntime) Discover(context.Context) (*protocol.DiscoverRespons
 	return &protocol.DiscoverResponse{Capabilities: protocol.ServerCapabilities{Features: advertised}}, nil
 }
 
-func (r *capabilityRuntime) SubscribeWorkspace(context.Context, protocol.WorkspaceSubscribeRequest) (*protocol.WorkspaceSubscribeResponse, iter.Seq[protocol.WorkspaceEvent], error) {
-	return &protocol.WorkspaceSubscribeResponse{}, func(func(protocol.WorkspaceEvent) bool) {}, nil
+func (r *capabilityRuntime) SubscribeRuntime(context.Context, protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
+	return &protocol.RuntimeSubscribeResponse{}, func(func(protocol.RuntimeEvent) bool) {}, nil
 }
 
 func (r *capabilityRuntime) ListMemory(context.Context, protocol.WorkspaceListQuery) (*protocol.Page[protocol.MemoryEntry], error) {
@@ -180,17 +180,17 @@ func TestCapabilityGateOnlyBitesTheGatedRequest(t *testing.T) {
 		want     string
 	}{{
 		name:   "subscribing without watches needs no fileWatch",
-		method: "workspace.subscribe", params: `{}`,
+		method: "runtime.subscribe", params: `{"topics":["skills.changed"]}`,
 		features: map[string]bool{"fileWatch": false},
 		want:     "",
 	}, {
 		name:   "an empty watch list is not a watch",
-		method: "workspace.subscribe", params: `{"watches":[]}`,
+		method: "runtime.subscribe", params: `{"topics":["skills.changed"],"watches":[]}`,
 		features: map[string]bool{"fileWatch": false},
 		want:     "",
 	}, {
 		name:   "registering a watch needs fileWatch",
-		method: "workspace.subscribe", params: `{"watches":[{"watchId":"w1","path":""}]}`,
+		method: "runtime.subscribe", params: `{"topics":["files.changed"],"watches":[{"watchId":"w1"}]}`,
 		features: map[string]bool{"fileWatch": false},
 		want:     "capability_not_negotiated",
 	}, {

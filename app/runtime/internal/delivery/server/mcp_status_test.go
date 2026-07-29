@@ -85,11 +85,14 @@ func TestReconnectMCPServer(t *testing.T) {
 	if err := s.ReconnectMCPServer(context.Background(), "fs"); err != nil {
 		t.Fatalf("reconnect: %v", err)
 	}
-	if first := <-events; first.Type != "mcp.serverChanged" || first.Server != "fs" || first.Status != "connecting" {
-		t.Fatalf("first event = %+v, want fs connecting", first)
-	}
-	if term := <-events; term.Status != "connected" || term.ToolCount == nil || *term.ToolCount != 1 {
-		t.Fatalf("terminal event = %+v, want fs connected toolCount=1", term)
+	// Both transitions are the same signal now: "this server moved, read it again".
+	// The status and tool count used to ride the frame, which made the stream a second
+	// answer to what mcp.servers already knows.
+	for _, phase := range []string{"connecting", "settled"} {
+		event := <-events
+		if event.Type != protocol.RuntimeMCPChanged || len(event.ServerIDs) != 1 || event.ServerIDs[0] != "fs" {
+			t.Fatalf("%s event = %+v, want the fs change signal", phase, event)
+		}
 	}
 
 	if err := s.ReconnectMCPServer(context.Background(), "ghost"); !errors.Is(err, protocol.ErrInvalidParams) {

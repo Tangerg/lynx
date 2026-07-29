@@ -1,0 +1,6 @@
+{
+  "type": "state.changed",
+  "sequence": 16,
+  "key": "todos",
+  "sessionIds": ["ses_01"]
+}

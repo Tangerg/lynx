@@ -370,7 +370,7 @@ func (s *Server) Capabilities() protocol.ServerCapabilities {
 // is absent before the client issues a request.
 func capabilitiesFor(features featureAvailability) protocol.ServerCapabilities {
 	return protocol.ServerCapabilities{
-		Events: []protocol.StreamEventType{
+		RunEvents: []protocol.StreamEventType{
 			protocol.StreamSegmentStarted,
 			protocol.StreamSegmentProgress,
 			protocol.StreamSegmentFinished,
@@ -378,6 +378,24 @@ func capabilitiesFor(features featureAvailability) protocol.ServerCapabilities {
 			protocol.StreamItemDelta,
 			protocol.StreamItemCompleted,
 			protocol.StreamStateSnapshot,
+		},
+		// The subscribable topics, read from the one closed list the subscribe request
+		// is validated against. A second list here is how discovery comes to offer a
+		// topic the runtime then refuses.
+		RuntimeTopics: protocol.RuntimeTopics,
+		// Only the state keys THIS build both writes and can serve a cold read for: a
+		// client builds a projection for an advertised key, and a key it could not
+		// recover would leave that projection stale with no way back.
+		StateSnapshots: advertisedStateSnapshots(features.todos),
+		// The two bounds a client cannot discover by trying: what a reconnect can expect
+		// to get back, and how wide one subscription may be.
+		Limits: protocol.RuntimeLimits{
+			// No process-wide run cap is enforced, so maxConcurrentRuns stays absent
+			// rather than advertising a limit the admission layer does not own. runReplay
+			// is absent for the same reason — see its field doc.
+			RuntimeSubscription: protocol.SubscriptionLimits{
+				MaxTopics: protocol.MaxSubscriptionTopics, MaxWatches: protocol.MaxSubscriptionWatches,
+			},
 		},
 		// The streaming methods, read from the registry that routes them. A
 		// hand-kept list here would be a second author of "which calls stream" —
@@ -414,10 +432,31 @@ func capabilitiesFor(features featureAvailability) protocol.ServerCapabilities {
 			protocol.FeatureSubagents:   false,
 			protocol.FeatureClientTools: false,
 		}),
-		// No process-wide run cap is enforced. Leave maxConcurrentRuns omitted
-		// rather than advertising a hard limit the admission layer does not own.
-		Limits: protocol.RuntimeLimits{},
 	}
+}
+
+// advertisedStateSnapshots publishes the state keys this composition actually serves.
+// A key is advertised only when its feature is on: the registry says a key exists and
+// names its cold read, but whether THIS build writes it is a composition fact, and a
+// client that built a projection for a key nothing writes would hold an empty value it
+// could never explain.
+//
+// The registry's own scope and writer travel with each entry, unchanged. An SDK reads
+// them to pick its reducer identity — a session-scoped key is one value per session,
+// not one per run — instead of assuming every state belongs to the current run.
+func advertisedStateSnapshots(todos bool) []protocol.StateSnapshotCapability {
+	enabled := map[string]bool{protocol.FeatureTodos: todos}
+	out := make([]protocol.StateSnapshotCapability, 0, len(dispatch.WireShapes().StateKeys()))
+	for _, key := range dispatch.WireShapes().StateKeys() {
+		if !enabled[key.Feature] {
+			continue
+		}
+		out = append(out, protocol.StateSnapshotCapability{
+			Key: protocol.StateSnapshotType(key.Key), RecoveryMethod: key.RecoveryMethod,
+			Scope: protocol.StateSnapshotScope(key.Scope), Writer: protocol.StateSnapshotWriter(key.Writer),
+		})
+	}
+	return out
 }
 
 // advertisedFeatures joins each published feature with this composition's answer

@@ -13,7 +13,9 @@ const discovery: DiscoverResponse = {
   protocol: { current: "2026-07-19", minSupported: "2026-07-19" },
   serverInfo: { name: "lyra-runtime", version: "1.0.0", cwd: "/work", home: "/home" },
   capabilities: {
-    events: [],
+    runEvents: [],
+    runtimeTopics: [],
+    stateSnapshots: [],
     streamingMethods: [],
     features: {
       reasoning: stable(false),
@@ -30,7 +32,7 @@ const discovery: DiscoverResponse = {
       relocate: stable(false),
       clientTools: stable(false),
     },
-    limits: {},
+    limits: { runtimeSubscription: { maxTopics: 32, maxWatches: 32 } },
   },
 };
 

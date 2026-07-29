@@ -96,6 +96,8 @@ import type {
   RunRef,
   RunScheduleNowRequest,
   RunScheduleNowResponse,
+  RuntimeSubscribeRequest,
+  RuntimeSubscribeResponse,
   Schedule,
   Session,
   SessionUsageRequest,
@@ -119,8 +121,6 @@ import type {
   UsageSummaryRequest,
   UtilityRole,
   WorkspaceListQuery,
-  WorkspaceSubscribeRequest,
-  WorkspaceSubscribeResponse,
 } from "./wire.generated";
 
 // Every capability key discovery may advertise (API.md §9). Private: it exists to
@@ -179,7 +179,7 @@ const METHOD_NAMES = [
   "workspace.listFiles",
   "workspace.readFile",
   "workspace.listProjects",
-  "workspace.subscribe",
+  "runtime.subscribe",
   "skills.discovered.list",
   "skills.library.list",
   "skills.library.archive",
@@ -283,7 +283,7 @@ export const WIRE_CAPABILITY_POLICY: {
   "items.list": [
     { when: [{ field: "scope.includeDescendants", operator: "present" }], requires: ["subagents"] },
   ],
-  "workspace.subscribe": [
+  "runtime.subscribe": [
     { when: [{ field: "watches", operator: "present" }], requires: ["fileWatch"] },
   ],
   "skills.discovered.list": [
@@ -425,7 +425,7 @@ export interface WireShapes {
   "workspace.listFiles": { params: ListFilesRequest; result: PageOfFileEntry };
   "workspace.readFile": { params: ReadFileRequest; result: FileContent };
   "workspace.listProjects": { params: PageQuery; result: PageOfProject };
-  "workspace.subscribe": { params: WorkspaceSubscribeRequest; result: WorkspaceSubscribeResponse };
+  "runtime.subscribe": { params: RuntimeSubscribeRequest; result: RuntimeSubscribeResponse };
   "skills.discovered.list": { params: WorkspaceListQuery; result: PageOfSkill };
   "skills.library.list": { params: PageQuery; result: PageOfManagedSkill };
   "skills.library.archive": { params: SkillNameRequest };

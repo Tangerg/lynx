@@ -30,6 +30,7 @@ type Runtime interface {
 	Runs
 	Items
 	Todos
+	RuntimeSubscription
 	Workspace
 	Skills
 	Recipes

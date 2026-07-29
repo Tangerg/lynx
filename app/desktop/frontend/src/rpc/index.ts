@@ -146,9 +146,11 @@ export type {
   MemoryEntry,
   WorkspaceListQuery,
   WatchSpec,
-  WorkspaceSubscribeRequest,
-  WorkspaceEvent,
-  WorkspaceEventType,
+  RuntimeSubscribeRequest,
+  RuntimeSubscribeResponse,
+  RuntimeEvent,
+  RuntimeEventType,
+  RuntimeTopic,
   // Feedback
   FeedbackRequest,
   // Pagination
@@ -158,9 +160,9 @@ export type {
 export type { WireFeature } from "./wire.methods.generated";
 export {
   streamRunEvents,
-  streamWorkspaceEvents,
+  streamRuntimeEvents,
   RUN_EVENT_METHOD,
-  WORKSPACE_EVENT_METHOD,
+  RUNTIME_EVENT_METHOD,
 } from "./stream";
 export { createSidecarClient } from "./sidecar";
 export type {

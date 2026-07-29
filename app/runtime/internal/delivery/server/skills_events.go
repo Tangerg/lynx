@@ -7,6 +7,6 @@ import "github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 // Delivery only translates the payload-free nudge to its protocol event.
 func (s *Server) observeSkillChanges(src Source[struct{}]) {
 	src.Observe(func(struct{}) {
-		s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventSkillsChanged})
+		s.PublishRuntimeEvent(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged})
 	})
 }

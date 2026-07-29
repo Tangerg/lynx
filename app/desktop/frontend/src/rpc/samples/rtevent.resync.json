@@ -1,0 +1,6 @@
+{
+  "type": "resync",
+  "sequence": 17,
+  "topics": ["files.changed"],
+  "watchIds": ["w_01"]
+}

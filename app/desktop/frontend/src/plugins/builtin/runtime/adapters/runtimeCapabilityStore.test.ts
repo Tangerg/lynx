@@ -11,7 +11,15 @@ function stable(enabled: boolean): FeatureCapability {
 
 function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabilities {
   return {
-    events: ["segment.started", "segment.finished", "item.started", "item.delta", "item.completed"],
+    runEvents: [
+      "segment.started",
+      "segment.finished",
+      "item.started",
+      "item.delta",
+      "item.completed",
+    ],
+    runtimeTopics: ["files.changed", "skills.changed", "mcp.changed"],
+    stateSnapshots: [],
     features: {
       multimodal: stable(false),
       reasoning: stable(true),
@@ -28,7 +36,7 @@ function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabiliti
       clientTools: stable(false),
     },
     streamingMethods: ["runs.start", "runs.resume", "runs.subscribe"],
-    limits: {},
+    limits: { runtimeSubscription: { maxTopics: 32, maxWatches: 32 } },
     ...overrides,
   };
 }
@@ -57,8 +65,8 @@ describe("runtime capability store", () => {
   it("events are a flat membership list (§9)", () => {
     useRuntimeStore.getState().replace(makeCaps());
     const caps = useRuntimeStore.getState().capabilities!;
-    expect(caps.events.includes("item.started")).toBe(true);
-    expect(caps.events.includes("UNKNOWN")).toBe(false);
+    expect(caps.runEvents.includes("item.started")).toBe(true);
+    expect(caps.runEvents.includes("UNKNOWN")).toBe(false);
   });
 
   // Sanity: import the selector so knip doesn't flag it as unused

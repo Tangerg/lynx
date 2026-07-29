@@ -228,18 +228,30 @@ func registerEventUnions(s *Shapes) {
 		},
 	})
 
-	// Today's non-run failure stream. vNext replaces it with the nine-topic
-	// RuntimeEvent (C12) and strips the payload facts from mcp.serverChanged;
-	// this is the current shape, registered so the drift gate has a baseline.
+	// Every variant is an invalidation: `sequence` plus the ids that moved. What a
+	// variant may NOT carry is the resource's new value — mcp.changed used to carry a
+	// status, a tool count and an error, which made the stream a second source of
+	// truth for something mcp.servers answers, and the two drifted the moment a frame
+	// was dropped.
 	s.union(UnionSpec{
-		GoType:        typeOf[protocol.WorkspaceEvent](),
+		GoType:        typeOf[protocol.RuntimeEvent](),
 		Discriminator: "type",
 		Variants: []VariantSpec{
-			{Tag: string(protocol.WorkspaceEventFilesChanged), Required: []string{"sequence", "paths"}, Optional: []string{"watchId", "cwd"}},
-			{Tag: string(protocol.WorkspaceEventSkillsChanged), Required: []string{"sequence"}},
-			{Tag: string(protocol.WorkspaceEventMCPServerChanged), Required: []string{"sequence", "server"}, Optional: []string{"status", "toolCount", "error"}},
-			{Tag: string(protocol.WorkspaceEventSchedulesFired), Required: []string{"sequence", "scheduleId"}},
-			{Tag: string(protocol.WorkspaceEventResync), Required: []string{"sequence"}},
+			{Tag: string(protocol.RuntimeFilesChanged), Required: []string{"sequence", "paths"}, Optional: []string{"watchId", "cwd"}},
+			{Tag: string(protocol.RuntimeSkillsChanged), Required: []string{"sequence"}, Optional: []string{"names"}},
+			{Tag: string(protocol.RuntimeMCPChanged), Required: []string{"sequence"}, Optional: []string{"serverIds"}},
+			{Tag: string(protocol.RuntimeSchedulesChanged), Required: []string{"sequence"}, Optional: []string{"scheduleIds"}},
+			{Tag: string(protocol.RuntimeSessionsChanged), Required: []string{"sequence"}, Optional: []string{"sessionIds"}},
+			{Tag: string(protocol.RuntimeRunsChanged), Required: []string{"sequence"}, Optional: []string{"runIds", "sessionIds"}},
+			// The key is required: a client holds one projection per key, and a signal
+			// that does not say which one asks it to refetch all of them.
+			{Tag: string(protocol.RuntimeStateChanged), Required: []string{"sequence", "key"}, Optional: []string{"sessionIds", "runIds"}},
+			{Tag: string(protocol.RuntimeGoalsChanged), Required: []string{"sequence"}, Optional: []string{"sessionIds"}},
+			{Tag: string(protocol.RuntimeInterruptsChanged), Required: []string{"sequence"}, Optional: []string{"runIds", "sessionIds"}},
+			// Resync names what went stale rather than saying "everything": a client that
+			// subscribed to nine topics should not reload nine resources because one
+			// watch overflowed.
+			{Tag: string(protocol.RuntimeResync), Required: []string{"sequence"}, Optional: []string{"topics", "watchIds"}},
 		},
 	})
 }

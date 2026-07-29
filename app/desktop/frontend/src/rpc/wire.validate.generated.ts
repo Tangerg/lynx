@@ -212,11 +212,18 @@ export type WireTypeName =
   | "RunProgress"
   | "RunProtocolProfile"
   | "RunRef"
+  | "RunReplayLimits"
+  | "RunReplayScope"
   | "RunScheduleNowRequest"
   | "RunScheduleNowResponse"
   | "RunStatus"
   | "RunSummary"
+  | "RuntimeEvent"
+  | "RuntimeEventType"
   | "RuntimeLimits"
+  | "RuntimeSubscribeRequest"
+  | "RuntimeSubscribeResponse"
+  | "RuntimeTopic"
   | "SafetyClass"
   | "Schedule"
   | "SearchHit"
@@ -242,11 +249,15 @@ export type WireTypeName =
   | "StartRunRequest"
   | "StartRunResponse"
   | "StateSnapshot"
+  | "StateSnapshotCapability"
+  | "StateSnapshotScope"
   | "StateSnapshotType"
+  | "StateSnapshotWriter"
   | "SteerRunRequest"
   | "StreamEvent"
   | "StreamEventType"
   | "SubscribeRunRequest"
+  | "SubscriptionLimits"
   | "TestProviderRequest"
   | "TodoSnapshot"
   | "TodoStatus"
@@ -262,12 +273,8 @@ export type WireTypeName =
   | "UtilityRole"
   | "WatchSpec"
   | "WebSearchResult"
-  | "WorkspaceEvent"
-  | "WorkspaceEventType"
   | "WorkspaceFileChange"
   | "WorkspaceListQuery"
-  | "WorkspaceSubscribeRequest"
-  | "WorkspaceSubscribeResponse"
   ;
 
 const CHECKS: Record<WireTypeName, WireCheck> = {
@@ -1720,6 +1727,12 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, []),
     ),
   ]),
+  RunReplayLimits: object({
+    maxBytes: integer(),
+    maxEvents: integer(),
+    scope: ref(() => CHECKS.RunReplayScope),
+  }, ["maxBytes", "maxEvents", "scope"]),
+  RunReplayScope: enumOf(["processRootSegment"]),
   RunScheduleNowRequest: object({
     id: allOf([text(), minLength(1)]),
   }, ["id"]),
@@ -1779,9 +1792,160 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       fields({}, ["parentRunId", "spawnedByItemId"]),
     ),
   ]),
+  RuntimeEvent: allOf([
+    object({
+      cwd: text(),
+      key: ref(() => CHECKS.StateSnapshotType),
+      names: array(text()),
+      paths: array(text()),
+      runIds: array(text()),
+      scheduleIds: array(text()),
+      sequence: allOf([integer(), minimum(0)]),
+      serverIds: array(text()),
+      sessionIds: array(text()),
+      topics: array(ref(() => CHECKS.RuntimeTopic)),
+      type: ref(() => CHECKS.RuntimeEventType),
+      watchId: text(),
+      watchIds: array(text()),
+    }, []),
+    oneOf([
+      fields({
+        key: absent(),
+        names: absent(),
+        runIds: absent(),
+        scheduleIds: absent(),
+        serverIds: absent(),
+        sessionIds: absent(),
+        topics: absent(),
+        type: literal("files.changed"),
+        watchIds: absent(),
+      }, ["paths", "sequence", "type"]),
+      fields({
+        cwd: absent(),
+        key: absent(),
+        paths: absent(),
+        runIds: absent(),
+        scheduleIds: absent(),
+        serverIds: absent(),
+        sessionIds: absent(),
+        topics: absent(),
+        type: literal("skills.changed"),
+        watchId: absent(),
+        watchIds: absent(),
+      }, ["sequence", "type"]),
+      fields({
+        cwd: absent(),
+        key: absent(),
+        names: absent(),
+        paths: absent(),
+        runIds: absent(),
+        scheduleIds: absent(),
+        sessionIds: absent(),
+        topics: absent(),
+        type: literal("mcp.changed"),
+        watchId: absent(),
+        watchIds: absent(),
+      }, ["sequence", "type"]),
+      fields({
+        cwd: absent(),
+        key: absent(),
+        names: absent(),
+        paths: absent(),
+        runIds: absent(),
+        serverIds: absent(),
+        sessionIds: absent(),
+        topics: absent(),
+        type: literal("schedules.changed"),
+        watchId: absent(),
+        watchIds: absent(),
+      }, ["sequence", "type"]),
+      fields({
+        cwd: absent(),
+        key: absent(),
+        names: absent(),
+        paths: absent(),
+        runIds: absent(),
+        scheduleIds: absent(),
+        serverIds: absent(),
+        topics: absent(),
+        type: literal("sessions.changed"),
+        watchId: absent(),
+        watchIds: absent(),
+      }, ["sequence", "type"]),
+      fields({
+        cwd: absent(),
+        key: absent(),
+        names: absent(),
+        paths: absent(),
+        scheduleIds: absent(),
+        serverIds: absent(),
+        topics: absent(),
+        type: literal("runs.changed"),
+        watchId: absent(),
+        watchIds: absent(),
+      }, ["sequence", "type"]),
+      fields({
+        cwd: absent(),
+        names: absent(),
+        paths: absent(),
+        scheduleIds: absent(),
+        serverIds: absent(),
+        topics: absent(),
+        type: literal("state.changed"),
+        watchId: absent(),
+        watchIds: absent(),
+      }, ["key", "sequence", "type"]),
+      fields({
+        cwd: absent(),
+        key: absent(),
+        names: absent(),
+        paths: absent(),
+        runIds: absent(),
+        scheduleIds: absent(),
+        serverIds: absent(),
+        topics: absent(),
+        type: literal("goals.changed"),
+        watchId: absent(),
+        watchIds: absent(),
+      }, ["sequence", "type"]),
+      fields({
+        cwd: absent(),
+        key: absent(),
+        names: absent(),
+        paths: absent(),
+        scheduleIds: absent(),
+        serverIds: absent(),
+        topics: absent(),
+        type: literal("interrupts.changed"),
+        watchId: absent(),
+        watchIds: absent(),
+      }, ["sequence", "type"]),
+      fields({
+        cwd: absent(),
+        key: absent(),
+        names: absent(),
+        paths: absent(),
+        runIds: absent(),
+        scheduleIds: absent(),
+        serverIds: absent(),
+        sessionIds: absent(),
+        type: literal("resync"),
+        watchId: absent(),
+      }, ["sequence", "type"]),
+    ]),
+  ]),
+  RuntimeEventType: enumOf(["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "resync"]),
   RuntimeLimits: object({
     maxConcurrentRuns: integer(),
-  }, []),
+    runReplay: ref(() => CHECKS.RunReplayLimits),
+    runtimeSubscription: ref(() => CHECKS.SubscriptionLimits),
+  }, ["runtimeSubscription"]),
+  RuntimeSubscribeRequest: object({
+    topics: array(ref(() => CHECKS.RuntimeTopic)),
+    watches: array(ref(() => CHECKS.WatchSpec)),
+  }, ["topics"]),
+  RuntimeSubscribeResponse: object({}, []),
+  RuntimeTopic: enumOf(["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed"]),
   SafetyClass: enumOf(["safe", "write", "exec", "network"]),
   Schedule: object({
     createdAt: text(),
@@ -1878,11 +2042,13 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   ]),
   SegmentOutcomeType: enumOf(["interrupt", "suspended", "completed", "error", "maxSteps", "maxBudget", "canceled"]),
   ServerCapabilities: object({
-    events: array(ref(() => CHECKS.StreamEventType)),
     features: record(ref(() => CHECKS.FeatureCapability)),
     limits: ref(() => CHECKS.RuntimeLimits),
+    runEvents: array(ref(() => CHECKS.StreamEventType)),
+    runtimeTopics: array(ref(() => CHECKS.RuntimeTopic)),
+    stateSnapshots: array(ref(() => CHECKS.StateSnapshotCapability)),
     streamingMethods: array(text()),
-  }, ["events", "features", "limits", "streamingMethods"]),
+  }, ["features", "limits", "runEvents", "runtimeTopics", "stateSnapshots", "streamingMethods"]),
   ServerInfo: object({
     cwd: text(),
     home: text(),
@@ -1982,7 +2148,15 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["revision", "sessionId", "todos", "type"]),
     ]),
   ]),
+  StateSnapshotCapability: object({
+    key: ref(() => CHECKS.StateSnapshotType),
+    recoveryMethod: text(),
+    scope: ref(() => CHECKS.StateSnapshotScope),
+    writer: ref(() => CHECKS.StateSnapshotWriter),
+  }, ["key", "recoveryMethod", "scope", "writer"]),
+  StateSnapshotScope: enumOf(["session", "run"]),
   StateSnapshotType: enumOf(["todos"]),
+  StateSnapshotWriter: enumOf(["rootRun", "anyRun"]),
   SteerRunRequest: object({
     message: allOf([text(), minLength(1)]),
     runId: allOf([text(), minLength(1)]),
@@ -2109,6 +2283,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   SubscribeRunRequest: object({
     runId: allOf([text(), minLength(1)]),
   }, ["runId"]),
+  SubscriptionLimits: object({
+    maxTopics: integer(),
+    maxWatches: integer(),
+  }, ["maxTopics", "maxWatches"]),
   TestProviderRequest: object({
     provider: allOf([text(), minLength(1)]),
   }, ["provider"]),
@@ -2191,7 +2369,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, []),
   WatchSpec: object({
     cwd: text(),
-    path: text(),
     watchId: text(),
   }, ["watchId"]),
   WebSearchResult: object({
@@ -2200,70 +2377,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     title: text(),
     url: text(),
   }, ["url"]),
-  WorkspaceEvent: allOf([
-    object({
-      cwd: text(),
-      error: ref(() => CHECKS.ProblemData),
-      paths: array(text()),
-      scheduleId: text(),
-      sequence: allOf([integer(), minimum(0)]),
-      server: text(),
-      status: ref(() => CHECKS.McpStatus),
-      toolCount: integer(),
-      type: ref(() => CHECKS.WorkspaceEventType),
-      watchId: text(),
-    }, []),
-    oneOf([
-      fields({
-        error: absent(),
-        scheduleId: absent(),
-        server: absent(),
-        status: absent(),
-        toolCount: absent(),
-        type: literal("files.changed"),
-      }, ["paths", "sequence", "type"]),
-      fields({
-        cwd: absent(),
-        error: absent(),
-        paths: absent(),
-        scheduleId: absent(),
-        server: absent(),
-        status: absent(),
-        toolCount: absent(),
-        type: literal("skills.changed"),
-        watchId: absent(),
-      }, ["sequence", "type"]),
-      fields({
-        cwd: absent(),
-        paths: absent(),
-        scheduleId: absent(),
-        type: literal("mcp.serverChanged"),
-        watchId: absent(),
-      }, ["sequence", "server", "type"]),
-      fields({
-        cwd: absent(),
-        error: absent(),
-        paths: absent(),
-        server: absent(),
-        status: absent(),
-        toolCount: absent(),
-        type: literal("schedules.fired"),
-        watchId: absent(),
-      }, ["scheduleId", "sequence", "type"]),
-      fields({
-        cwd: absent(),
-        error: absent(),
-        paths: absent(),
-        scheduleId: absent(),
-        server: absent(),
-        status: absent(),
-        toolCount: absent(),
-        type: literal("resync"),
-        watchId: absent(),
-      }, ["sequence", "type"]),
-    ]),
-  ]),
-  WorkspaceEventType: enumOf(["files.changed", "skills.changed", "mcp.serverChanged", "schedules.fired", "resync"]),
   WorkspaceFileChange: object({
     added: integer(),
     binary: flag(),
@@ -2277,10 +2390,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     cwd: text(),
     limit: integer(),
   }, []),
-  WorkspaceSubscribeRequest: object({
-    watches: array(ref(() => CHECKS.WatchSpec)),
-  }, []),
-  WorkspaceSubscribeResponse: object({}, []),
 };
 
 // The shape each state.snapshot key carries.

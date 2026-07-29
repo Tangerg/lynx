@@ -27,8 +27,8 @@ import (
 // The two union types the manifest projects extra policy from. Kept as vars so
 // the projection compares identity rather than matching on a name string.
 var (
-	streamEventType    = reflect.TypeFor[protocol.StreamEvent]()
-	workspaceEventType = reflect.TypeFor[protocol.WorkspaceEvent]()
+	streamEventType  = reflect.TypeFor[protocol.StreamEvent]()
+	runtimeEventType = reflect.TypeFor[protocol.RuntimeEvent]()
 )
 
 func main() {

@@ -35,7 +35,11 @@ func newWorkspaceHub() *workspaceHub {
 }
 
 type workspaceSubscription struct {
-	events   chan protocol.WorkspaceEvent
+	events chan protocol.RuntimeEvent
+	// topics is what THIS subscription asked for. The hub broadcasts every signal it
+	// receives; a subscription only sees the ones it can fold. resync is not a topic
+	// and always passes: a client that fell behind has to be told.
+	topics   map[protocol.RuntimeTopic]bool
 	sequence uint64
 }
 
@@ -43,8 +47,8 @@ type workspaceSubscription struct {
 // idempotent unregister. It does NOT close the channel — the owner does, after
 // it has stopped every other writer (the file watcher), so a late broadcast
 // can't send on a closed channel.
-func (h *workspaceHub) register(ch chan protocol.WorkspaceEvent) (*workspaceSubscription, func(), bool) {
-	sub := &workspaceSubscription{events: ch}
+func (h *workspaceHub) register(ch chan protocol.RuntimeEvent, topics map[protocol.RuntimeTopic]bool) (*workspaceSubscription, func(), bool) {
+	sub := &workspaceSubscription{events: ch, topics: topics}
 	h.mu.Lock()
 	if h.closed {
 		h.mu.Unlock()
@@ -70,13 +74,13 @@ func (h *workspaceHub) closeAdmissions() {
 }
 
 // observe wires the run pump's live file-change nudges (delivered through the
-// composition-root bridge) into the hub: each nudge becomes a files.changed
-// workspace event fanned to subscribers. The wire WorkspaceEvent shape stays
-// here in delivery; the bridge itself carries only neutral (cwd, paths).
+// composition-root bridge) into the hub: each nudge becomes a files.changed signal
+// fanned to subscribers. The wire shape stays here in delivery; the bridge itself
+// carries only neutral (cwd, paths).
 func (h *workspaceHub) observe(src Source[runs.FileChange]) {
 	src.Observe(func(change runs.FileChange) {
-		h.publish(protocol.WorkspaceEvent{
-			Type:  protocol.WorkspaceEventFilesChanged,
+		h.publish(protocol.RuntimeEvent{
+			Type:  protocol.RuntimeFilesChanged,
 			Cwd:   change.Cwd,
 			Paths: change.Paths,
 		})
@@ -85,7 +89,7 @@ func (h *workspaceHub) observe(src Source[runs.FileChange]) {
 
 // publish fans ev to every subscriber, dropping it for any whose buffer is
 // full (lossy by design — see the type doc).
-func (h *workspaceHub) publish(ev protocol.WorkspaceEvent) {
+func (h *workspaceHub) publish(ev protocol.RuntimeEvent) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for sub := range h.subs {
@@ -96,7 +100,7 @@ func (h *workspaceHub) publish(ev protocol.WorkspaceEvent) {
 // publishTo sends a subscription-local event through the same serialization
 // point as broadcasts. This keeps each subscriber's sequence strictly ordered
 // even when its git watcher races a global workspace event.
-func (h *workspaceHub) publishTo(sub *workspaceSubscription, ev protocol.WorkspaceEvent) {
+func (h *workspaceHub) publishTo(sub *workspaceSubscription, ev protocol.RuntimeEvent) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if _, registered := h.subs[sub]; registered {
@@ -104,9 +108,12 @@ func (h *workspaceHub) publishTo(sub *workspaceSubscription, ev protocol.Workspa
 	}
 }
 
-func (*workspaceHub) sendLocked(sub *workspaceSubscription, ev protocol.WorkspaceEvent) {
+func (*workspaceHub) sendLocked(sub *workspaceSubscription, ev protocol.RuntimeEvent) {
+	if ev.Type != protocol.RuntimeResync && !sub.topics[protocol.RuntimeTopic(ev.Type)] {
+		return
+	}
 	sub.sequence++
-	ev = cloneWorkspaceEvent(ev)
+	ev = cloneRuntimeEvent(ev)
 	ev.Sequence = sub.sequence
 	select {
 	case sub.events <- ev:
@@ -114,45 +121,55 @@ func (*workspaceHub) sendLocked(sub *workspaceSubscription, ev protocol.Workspac
 	}
 }
 
-// cloneWorkspaceEvent gives each subscription sole ownership of every mutable
-// field. The hub sends asynchronously-consumed values; sharing the producer's
-// slices or pointers would let a caller reuse them while a transport is still
-// encoding the event, and sharing between subscriptions would let one
-// in-process consumer corrupt another's frame.
-func cloneWorkspaceEvent(ev protocol.WorkspaceEvent) protocol.WorkspaceEvent {
+// cloneRuntimeEvent gives each subscription sole ownership of every mutable field.
+// The hub sends asynchronously-consumed values; sharing the producer's slices would
+// let a caller reuse one while a transport is still encoding the event, and sharing
+// between subscriptions would let one in-process consumer corrupt another's frame.
+//
+// Every field is now a slice of ids — a change signal carries no payload — so this is
+// a clone of lists and nothing deeper.
+func cloneRuntimeEvent(ev protocol.RuntimeEvent) protocol.RuntimeEvent {
 	ev.Paths = slices.Clone(ev.Paths)
-	if ev.ToolCount != nil {
-		toolCount := *ev.ToolCount
-		ev.ToolCount = &toolCount
-	}
-	if ev.Error != nil {
-		problem := *ev.Error
-		problem.Errors = slices.Clone(problem.Errors)
-		ev.Error = &problem
-	}
+	ev.Names = slices.Clone(ev.Names)
+	ev.ServerIDs = slices.Clone(ev.ServerIDs)
+	ev.ScheduleIDs = slices.Clone(ev.ScheduleIDs)
+	ev.SessionIDs = slices.Clone(ev.SessionIDs)
+	ev.RunIDs = slices.Clone(ev.RunIDs)
+	ev.Topics = slices.Clone(ev.Topics)
+	ev.WatchIDs = slices.Clone(ev.WatchIDs)
 	return ev
 }
 
-// SubscribeWorkspace opens the workspace event stream (AUX_API §3.1). The
-// stream's lifetime is bounded by the request ctx and by the consumer's range:
-// it ends on client disconnect, server shutdown (the transport force-closes the
-// connection), or an early range stop. Broadcast events (mcp.serverChanged,
-// skills.changed) go to every subscription; when the request carries watches, the
-// subscription also asks the workspace use case to monitor those cwds' Git state and emits a debounced resync
-// on any change (commit / stage / checkout / merge) — the client then re-fetches
-// workspace.getDiff. (Working-tree file edits aren't watched directly — see
-// gitWatcher; the agent's own edits arrive as files.changed from its tools.)
-func (s *Server) SubscribeWorkspace(ctx context.Context, in protocol.WorkspaceSubscribeRequest) (*protocol.WorkspaceSubscribeResponse, iter.Seq[protocol.WorkspaceEvent], error) {
-	cwds, err := watchCwds(in.Watches)
+// SubscribeRuntime opens the change-signal stream (§7.1). The stream's lifetime is
+// bounded by the request ctx and by the consumer's range: it ends on client
+// disconnect, server shutdown (the transport force-closes the connection), or an
+// early range stop.
+//
+// The caller says which topics it can fold. There is no wildcard: a client that has
+// not named a topic cannot be sent it, because a signal it does not understand is a
+// refetch it will not perform. Frames for topics it did not ask for are filtered here
+// rather than at the producer — one hub, many subscriptions, each with its own set.
+//
+// When the request carries watches, the subscription also asks the workspace use case
+// to monitor those cwds' Git state and emits a debounced resync on any change (commit
+// / stage / checkout / merge) — the client then re-reads the diff. (Working-tree file
+// edits aren't watched directly — see gitWatcher; the agent's own edits arrive as
+// files.changed from its tools.)
+func (s *Server) SubscribeRuntime(ctx context.Context, in protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
+	topics, err := s.subscribedTopics(in.Topics)
+	if err != nil {
+		return nil, nil, err
+	}
+	cwds, watchIDs, err := watchCwds(in.Watches, topics)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// SubscribeWorkspace owns the channel: the hub broadcasts to it and (when
+	// SubscribeRuntime owns the channel: the hub broadcasts to it and (when
 	// watches are present) the application-owned watcher emits to it. Closing it
 	// only after that watcher has stopped keeps emit from racing the close.
-	out := make(chan protocol.WorkspaceEvent, 64)
-	subscription, unregister, registered := s.wsHub.register(out)
+	out := make(chan protocol.RuntimeEvent, 64)
+	subscription, unregister, registered := s.wsHub.register(out, topics)
 	if !registered {
 		close(out)
 		return nil, nil, errServerClosed
@@ -161,7 +178,11 @@ func (s *Server) SubscribeWorkspace(ctx context.Context, in protocol.WorkspaceSu
 	var watcher io.Closer
 	if len(cwds) > 0 {
 		watcher, err = s.workspaceWatch.WatchGitState(cwds, func() {
-			s.wsHub.publishTo(subscription, protocol.WorkspaceEvent{Type: protocol.WorkspaceEventResync})
+			s.wsHub.publishTo(subscription, protocol.RuntimeEvent{
+				Type:     protocol.RuntimeResync,
+				Topics:   []protocol.RuntimeTopic{protocol.TopicFilesChanged},
+				WatchIDs: watchIDs,
+			})
 		})
 		if err != nil {
 			unregister()
@@ -182,15 +203,15 @@ func (s *Server) SubscribeWorkspace(ctx context.Context, in protocol.WorkspaceSu
 		stopContextRelease()
 		release()
 	})
-	return &protocol.WorkspaceSubscribeResponse{}, eventSeq(out, stop), nil
+	return &protocol.RuntimeSubscribeResponse{}, eventSeq(out, stop), nil
 }
 
 // eventSeq presents a subscription channel as the iter.Seq the wire streaming
 // contract uses. The lossy fan-out hub keeps its channels internally; only this
 // outer boundary is a sequence. stop releases the subscription when the
 // consumer ends the range before its request context does.
-func eventSeq(ch <-chan protocol.WorkspaceEvent, stop func()) iter.Seq[protocol.WorkspaceEvent] {
-	return func(yield func(protocol.WorkspaceEvent) bool) {
+func eventSeq(ch <-chan protocol.RuntimeEvent, stop func()) iter.Seq[protocol.RuntimeEvent] {
+	return func(yield func(protocol.RuntimeEvent) bool) {
 		defer stop()
 		for ev := range ch {
 			if !yield(ev) {
@@ -200,21 +221,64 @@ func eventSeq(ch <-chan protocol.WorkspaceEvent, stop func()) iter.Seq[protocol.
 	}
 }
 
-// watchCwds validates the wire-only portion of watch specs. Root resolution,
-// repository layout and filesystem notification are application/adapter
-// concerns; Delivery retains only the protocol's required watch identifier.
-func watchCwds(specs []protocol.WatchSpec) ([]string, error) {
-	if len(specs) == 0 {
-		return nil, nil
+// subscribedTopics reads the requested set. It is required and non-empty because a
+// subscription that named nothing would be a stream with no meaning; duplicates are
+// refused rather than collapsed, since a caller that listed one twice did not mean
+// what it sent; and a topic this build does not advertise is refused by NAME, so the
+// client learns which one instead of losing the whole subscription to an unknown.
+func (s *Server) subscribedTopics(requested []protocol.RuntimeTopic) (map[protocol.RuntimeTopic]bool, error) {
+	if len(requested) == 0 {
+		return nil, fmt.Errorf("%w: topics is required and must name at least one topic", protocol.ErrInvalidParams)
 	}
-	cwds := make([]string, 0, len(specs))
+	if len(requested) > protocol.MaxSubscriptionTopics {
+		return nil, fmt.Errorf("%w: at most %d topics per subscription", protocol.ErrInvalidParams, protocol.MaxSubscriptionTopics)
+	}
+	advertised := s.Capabilities().RuntimeTopics
+	topics := make(map[protocol.RuntimeTopic]bool, len(requested))
+	for _, topic := range requested {
+		if topics[topic] {
+			return nil, fmt.Errorf("%w: topic %q is listed twice", protocol.ErrInvalidParams, topic)
+		}
+		if !slices.Contains(advertised, topic) {
+			return nil, protocol.NewCapabilityGap(protocol.CapabilityRequirement{
+				Type: protocol.RequirementRuntimeTopic, Name: string(topic),
+			})
+		}
+		topics[topic] = true
+	}
+	return topics, nil
+}
+
+// watchCwds validates the wire-only portion of watch specs. Root resolution,
+// repository layout and filesystem notification are application/adapter concerns;
+// Delivery retains only the protocol's required watch identifier.
+//
+// Watches are legal only with files.changed: the other topics are global, so a watch
+// would narrow nothing — and a caller that registered one expecting it to is holding
+// a belief the runtime would never honor.
+func watchCwds(specs []protocol.WatchSpec, topics map[protocol.RuntimeTopic]bool) (cwds, watchIDs []string, err error) {
+	if len(specs) == 0 {
+		return nil, nil, nil
+	}
+	if !topics[protocol.TopicFilesChanged] {
+		return nil, nil, fmt.Errorf("%w: watches require the %s topic", protocol.ErrInvalidParams, protocol.TopicFilesChanged)
+	}
+	if len(specs) > protocol.MaxSubscriptionWatches {
+		return nil, nil, fmt.Errorf("%w: at most %d watches per subscription", protocol.ErrInvalidParams, protocol.MaxSubscriptionWatches)
+	}
+	cwds = make([]string, 0, len(specs))
+	watchIDs = make([]string, 0, len(specs))
 	for _, spec := range specs {
 		if spec.WatchID == "" {
-			return nil, fmt.Errorf("%w: watchId is required", protocol.ErrInvalidParams)
+			return nil, nil, fmt.Errorf("%w: watchId is required", protocol.ErrInvalidParams)
+		}
+		if slices.Contains(watchIDs, spec.WatchID) {
+			return nil, nil, fmt.Errorf("%w: watchId %q is registered twice", protocol.ErrInvalidParams, spec.WatchID)
 		}
 		cwds = append(cwds, spec.Cwd)
+		watchIDs = append(watchIDs, spec.WatchID)
 	}
-	return cwds, nil
+	return cwds, watchIDs, nil
 }
 
 func mapWorkspaceSubscribeError(err error) error {
@@ -224,11 +288,11 @@ func mapWorkspaceSubscribeError(err error) error {
 	return wireWorkspaceError(fmt.Errorf("workspace.subscribe: start git watcher: %w", err))
 }
 
-// PublishWorkspaceEvent fans one workspace event out to subscribers. The
+// PublishRuntimeEvent fans one workspace event out to subscribers. The
 // runtime / engine call this when a non-run state change happens (mcp
 // serverChanged, skills.changed, files.changed). Safe to call with no
 // subscribers (no-op).
-func (s *Server) PublishWorkspaceEvent(ev protocol.WorkspaceEvent) {
+func (s *Server) PublishRuntimeEvent(ev protocol.RuntimeEvent) {
 	if s.wsHub != nil {
 		s.wsHub.publish(ev)
 	}

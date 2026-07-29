@@ -38,7 +38,7 @@ Protocol `2026-07-19` (minimum supported `2026-07-19`) · 85 methods
 | `workspace.listFiles` | unary | none | — | `cwd_unavailable`, `path_outside_root` |
 | `workspace.readFile` | unary | none | — | `cwd_unavailable`, `path_outside_root` |
 | `workspace.listProjects` | unary | none | — | — |
-| `workspace.subscribe` | stream | none | `fileWatch` | — |
+| `runtime.subscribe` | stream | none | `fileWatch` | — |
 | `skills.discovered.list` | unary | none | `skills` | `cwd_unavailable` |
 | `skills.library.list` | unary | none | `skills` | — |
 | `skills.library.archive` | unary | replayResponse | `skills` | — |
@@ -105,7 +105,7 @@ their own event stream (TRANSPORT §6.4).
 - `runs.start`
 - `runs.resume`
 - `runs.subscribe`
-- `workspace.subscribe`
+- `runtime.subscribe`
 
 ## Run event reliability
 
@@ -237,15 +237,20 @@ least one variant; the registry refuses a union where one does not.
 | `state.snapshot` | `state` | — |
 | `custom` | `name` | `payload`, `durable` |
 
-### `WorkspaceEvent`
+### `RuntimeEvent`
 
 | tag | required | optional |
 | --- | --- | --- |
 | `files.changed` | `sequence`, `paths` | `watchId`, `cwd` |
-| `skills.changed` | `sequence` | — |
-| `mcp.serverChanged` | `sequence`, `server` | `status`, `toolCount`, `error` |
-| `schedules.fired` | `sequence`, `scheduleId` | — |
-| `resync` | `sequence` | — |
+| `skills.changed` | `sequence` | `names` |
+| `mcp.changed` | `sequence` | `serverIds` |
+| `schedules.changed` | `sequence` | `scheduleIds` |
+| `sessions.changed` | `sequence` | `sessionIds` |
+| `runs.changed` | `sequence` | `runIds`, `sessionIds` |
+| `state.changed` | `sequence`, `key` | `sessionIds`, `runIds` |
+| `goals.changed` | `sequence` | `sessionIds` |
+| `interrupts.changed` | `sequence` | `runIds`, `sessionIds` |
+| `resync` | `sequence` | `topics`, `watchIds` |
 
 ### `ArtifactOutcome`
 
@@ -300,7 +305,7 @@ available. Refusal is `capability_not_negotiated` — never a silent downgrade.
 | `runs.list` | `includeDescendants` present | `subagents` |
 | `todos.get` | always | `todos` |
 | `items.list` | `scope.includeDescendants` present | `subagents` |
-| `workspace.subscribe` | `watches` present | `fileWatch` |
+| `runtime.subscribe` | `watches` present | `fileWatch` |
 | `skills.discovered.list` | always | `skills` |
 | `skills.library.list` | always | `skills` |
 | `skills.library.archive` | always | `skills` |

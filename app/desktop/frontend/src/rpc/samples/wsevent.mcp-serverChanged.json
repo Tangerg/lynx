@@ -1,7 +1,0 @@
-{
-  "type": "mcp.serverChanged",
-  "sequence": 12,
-  "server": "github",
-  "status": "connected",
-  "toolCount": 12
-}

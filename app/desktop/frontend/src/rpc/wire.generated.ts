@@ -10,7 +10,7 @@
 
 // The methods the runtime sends downstream. A client only ever subscribes.
 export const NOTIFICATIONS_RUN_EVENT = "notifications.run.event";
-export const NOTIFICATIONS_WORKSPACE_EVENT = "notifications.workspace.event";
+export const NOTIFICATIONS_RUNTIME_EVENT = "notifications.runtime.event";
 
 export interface Page<T> {
   data: T[];
@@ -1056,6 +1056,14 @@ export interface RunRef {
   status?: RunStatus;
 }
 
+export interface RunReplayLimits {
+  maxBytes: number;
+  maxEvents: number;
+  scope: RunReplayScope;
+}
+
+export type RunReplayScope = "processRootSegment";
+
 export interface RunScheduleNowRequest {
   id: string;
 }
@@ -1081,9 +1089,35 @@ export interface RunSummary {
   status?: RunStatus;
 }
 
+export type RuntimeEvent =
+  | { type: "files.changed"; cwd?: string; paths: string[]; sequence: number; watchId?: string }
+  | { type: "skills.changed"; names?: string[]; sequence: number }
+  | { type: "mcp.changed"; sequence: number; serverIds?: string[] }
+  | { type: "schedules.changed"; scheduleIds?: string[]; sequence: number }
+  | { type: "sessions.changed"; sequence: number; sessionIds?: string[] }
+  | { type: "runs.changed"; runIds?: string[]; sequence: number; sessionIds?: string[] }
+  | { type: "state.changed"; key: StateSnapshotType; runIds?: string[]; sequence: number; sessionIds?: string[] }
+  | { type: "goals.changed"; sequence: number; sessionIds?: string[] }
+  | { type: "interrupts.changed"; runIds?: string[]; sequence: number; sessionIds?: string[] }
+  | { type: "resync"; sequence: number; topics?: RuntimeTopic[]; watchIds?: string[] };
+
+export type RuntimeEventType = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "state.changed" | "goals.changed" | "interrupts.changed" | "resync";
+
 export interface RuntimeLimits {
   maxConcurrentRuns?: number;
+  runReplay?: RunReplayLimits;
+  runtimeSubscription: SubscriptionLimits;
 }
+
+export interface RuntimeSubscribeRequest {
+  topics: RuntimeTopic[];
+  watches?: WatchSpec[];
+}
+
+export interface RuntimeSubscribeResponse {
+}
+
+export type RuntimeTopic = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "state.changed" | "goals.changed" | "interrupts.changed";
 
 export type SafetyClass = "safe" | "write" | "exec" | "network";
 
@@ -1120,9 +1154,11 @@ export type SegmentOutcome =
 export type SegmentOutcomeType = "interrupt" | "suspended" | "completed" | "error" | "maxSteps" | "maxBudget" | "canceled";
 
 export interface ServerCapabilities {
-  events: StreamEventType[];
   features: Record<string, FeatureCapability>;
   limits: RuntimeLimits;
+  runEvents: StreamEventType[];
+  runtimeTopics: RuntimeTopic[];
+  stateSnapshots: StateSnapshotCapability[];
   streamingMethods: string[];
 }
 
@@ -1232,7 +1268,18 @@ export interface StartRunResponse {
 export type StateSnapshot =
   | { type: "todos"; revision: number; sessionId: string; todos: TodoSnapshot[]; updatedAt?: string };
 
+export interface StateSnapshotCapability {
+  key: StateSnapshotType;
+  recoveryMethod: string;
+  scope: StateSnapshotScope;
+  writer: StateSnapshotWriter;
+}
+
+export type StateSnapshotScope = "session" | "run";
+
 export type StateSnapshotType = "todos";
+
+export type StateSnapshotWriter = "rootRun" | "anyRun";
 
 export interface SteerRunRequest {
   message: string;
@@ -1253,6 +1300,11 @@ export type StreamEventType = "segment.started" | "segment.progress" | "segment.
 
 export interface SubscribeRunRequest {
   runId: string;
+}
+
+export interface SubscriptionLimits {
+  maxTopics: number;
+  maxWatches: number;
 }
 
 export interface TestProviderRequest {
@@ -1350,7 +1402,6 @@ export interface UtilityRole {
 
 export interface WatchSpec {
   cwd?: string;
-  path?: string;
   watchId: string;
 }
 
@@ -1360,15 +1411,6 @@ export interface WebSearchResult {
   title?: string;
   url: string;
 }
-
-export type WorkspaceEvent =
-  | { type: "files.changed"; cwd?: string; paths: string[]; sequence: number; watchId?: string }
-  | { type: "skills.changed"; sequence: number }
-  | { type: "mcp.serverChanged"; error?: ProblemData; sequence: number; server: string; status?: McpStatus; toolCount?: number }
-  | { type: "schedules.fired"; scheduleId: string; sequence: number }
-  | { type: "resync"; sequence: number };
-
-export type WorkspaceEventType = "files.changed" | "skills.changed" | "mcp.serverChanged" | "schedules.fired" | "resync";
 
 export interface WorkspaceFileChange {
   added?: number;
@@ -1383,13 +1425,6 @@ export interface WorkspaceListQuery {
   cursor?: string;
   cwd?: string;
   limit?: number;
-}
-
-export interface WorkspaceSubscribeRequest {
-  watches?: WatchSpec[];
-}
-
-export interface WorkspaceSubscribeResponse {
 }
 
 // The closed value sets, as data: a union type does not exist at runtime.
@@ -1438,15 +1473,19 @@ export const WIRE_ENUMS = {
   RememberScopeKind: ["session", "project", "global"],
   RestoreType: ["history", "files", "both"],
   RunOutcomeType: ["completed", "error", "maxSteps", "maxBudget", "canceled"],
+  RunReplayScope: ["processRootSegment"],
   RunStatus: ["running", "waiting", "finished"],
+  RuntimeEventType: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "resync"],
+  RuntimeTopic: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed"],
   SafetyClass: ["safe", "write", "exec", "network"],
   SegmentOutcomeType: ["interrupt", "suspended", "completed", "error", "maxSteps", "maxBudget", "canceled"],
   SessionStatus: ["running", "waiting", "idle"],
   SkillLifecycle: ["active", "archived"],
   SkillSource: ["project", "global"],
   Stability: ["stable", "experimental"],
+  StateSnapshotScope: ["session", "run"],
   StateSnapshotType: ["todos"],
+  StateSnapshotWriter: ["rootRun", "anyRun"],
   StreamEventType: ["segment.started", "segment.progress", "segment.finished", "item.started", "item.delta", "item.completed", "state.snapshot", "custom"],
   TodoStatus: ["pending", "in_progress", "completed"],
-  WorkspaceEventType: ["files.changed", "skills.changed", "mcp.serverChanged", "schedules.fired", "resync"],
 } as const;

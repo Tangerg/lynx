@@ -1,5 +1,8 @@
 {
-  "protocol": { "current": "2026-07-19", "minSupported": "2026-07-19" },
+  "protocol": {
+    "current": "2026-07-19",
+    "minSupported": "2026-07-19"
+  },
   "serverInfo": {
     "name": "lyra",
     "version": "0.1.0",
@@ -7,7 +10,7 @@
     "home": "/Users/dev/.lyra"
   },
   "capabilities": {
-    "events": [
+    "runEvents": [
       "segment.started",
       "segment.progress",
       "segment.finished",
@@ -16,6 +19,26 @@
       "item.completed",
       "state.snapshot"
     ],
+    "runtimeTopics": [
+      "files.changed",
+      "skills.changed",
+      "mcp.changed",
+      "schedules.changed",
+      "sessions.changed",
+      "runs.changed",
+      "state.changed",
+      "goals.changed",
+      "interrupts.changed"
+    ],
+    "stateSnapshots": [
+      {
+        "key": "todos",
+        "recoveryMethod": "todos.get",
+        "scope": "session",
+        "writer": "rootRun"
+      }
+    ],
+    "streamingMethods": ["runs.start", "runs.resume", "runs.subscribe", "runtime.subscribe"],
     "features": {
       "reasoning": {
         "enabled": true,
@@ -108,7 +131,11 @@
         "requiredByRunProtocol": false
       }
     },
-    "streamingMethods": ["runs.start", "runs.resume", "runs.subscribe", "workspace.subscribe"],
-    "limits": {}
+    "limits": {
+      "runtimeSubscription": {
+        "maxTopics": 32,
+        "maxWatches": 32
+      }
+    }
   }
 }

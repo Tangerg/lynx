@@ -875,7 +875,7 @@ func TestDeliverySkillHandlersDoNotPublishChangeEvents(t *testing.T) {
 	root := moduleRoot(t)
 	path := filepath.Join(root, "internal", "delivery", "server", "skills.go")
 	forbidSelectorCalls(t, path, map[string]string{
-		"PublishWorkspaceEvent": "committed skill changes are published by the application bridge",
+		"PublishRuntimeEvent": "committed skill changes are published by the application bridge",
 	})
 }
 

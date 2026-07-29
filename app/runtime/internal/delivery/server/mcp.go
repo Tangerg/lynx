@@ -71,17 +71,18 @@ func wireMCPError(err error) error {
 }
 
 // observeMCPStatus installs the MCP-status bridge consumer: the coordinator
-// publishes a connection transition, and the Server maps it to a workspace event
-// on the hub. connecting=true is the transient pre-frame; connecting=false reads
-// back the settled live status (connected + tool count, or failed + reason).
+// publishes a connection transition, and the Server signals which server moved.
+//
+// The signal carries the id and nothing else. It used to carry the status, the tool
+// count and the failure — a second source of truth for what mcp.servers answers, and
+// one that went wrong the moment a frame was dropped: the panel showed a state the
+// runtime had already left. Now the client reads the server again, which is the only
+// answer that cannot be stale in a way nobody notices.
 func (s *Server) observeMCPStatus(src Source[integrations.MCPServerStatus]) {
 	src.Observe(func(status integrations.MCPServerStatus) {
-		event := protocol.WorkspaceEvent{Type: protocol.WorkspaceEventMCPServerChanged, Server: status.Name}
-		if status.Known {
-			wire := s.mcpServerWire(status)
-			event.Status, event.ToolCount, event.Error = wire.Status, wire.ToolCount, wire.Error
-		}
-		s.PublishWorkspaceEvent(event)
+		s.PublishRuntimeEvent(protocol.RuntimeEvent{
+			Type: protocol.RuntimeMCPChanged, ServerIDs: []string{status.Name},
+		})
 	})
 }
 

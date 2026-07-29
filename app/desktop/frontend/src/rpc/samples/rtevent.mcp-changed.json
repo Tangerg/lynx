@@ -1,0 +1,5 @@
+{
+  "type": "mcp.changed",
+  "sequence": 14,
+  "serverIds": ["filesystem"]
+}

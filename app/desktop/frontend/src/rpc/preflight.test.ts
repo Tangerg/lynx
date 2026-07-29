@@ -13,7 +13,9 @@ import type { ServerCapabilities } from "./wire.generated";
 
 function advertising(features: Record<string, boolean>): ServerCapabilities {
   return {
-    events: [],
+    runEvents: [],
+    runtimeTopics: [],
+    stateSnapshots: [],
     streamingMethods: [],
     features: Object.fromEntries(
       Object.entries(features).map(([name, enabled]) => [
@@ -21,7 +23,7 @@ function advertising(features: Record<string, boolean>): ServerCapabilities {
         { enabled, stability: "stable" as const, clientOptIn: false, requiredByRunProtocol: false },
       ]),
     ),
-    limits: {},
+    limits: { runtimeSubscription: { maxTopics: 32, maxWatches: 32 } },
   };
 }
 
@@ -52,17 +54,17 @@ describe("the capability preflight", () => {
     const noCheckpoints = advertising({ checkpoints: false });
 
     it("subscribing without watches needs no fileWatch", () => {
-      expect(unnegotiated("workspace.subscribe", {}, noWatch)).toEqual([]);
+      expect(unnegotiated("runtime.subscribe", {}, noWatch)).toEqual([]);
     });
 
     it("an empty watch list is not a watch", () => {
-      expect(unnegotiated("workspace.subscribe", { watches: [] }, noWatch)).toEqual([]);
+      expect(unnegotiated("runtime.subscribe", { watches: [] }, noWatch)).toEqual([]);
     });
 
     it("registering a watch needs fileWatch", () => {
-      expect(
-        unnegotiated("workspace.subscribe", { watches: [{ watchId: "w1" }] }, noWatch),
-      ).toEqual(["fileWatch"]);
+      expect(unnegotiated("runtime.subscribe", { watches: [{ watchId: "w1" }] }, noWatch)).toEqual([
+        "fileWatch",
+      ]);
     });
 
     it("a history rollback needs no checkpoints", () => {

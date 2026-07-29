@@ -16,7 +16,7 @@ func TestSkillChangeBridgePublishesWorkspaceRefresh(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, seq, err := s.SubscribeWorkspace(ctx, protocol.WorkspaceSubscribeRequest{})
+	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
@@ -25,7 +25,7 @@ func TestSkillChangeBridgePublishesWorkspaceRefresh(t *testing.T) {
 
 	select {
 	case event := <-events:
-		if event.Type != protocol.WorkspaceEventSkillsChanged {
+		if event.Type != protocol.RuntimeSkillsChanged {
 			t.Fatalf("event = %+v, want skills.changed", event)
 		}
 	case <-time.After(time.Second):
