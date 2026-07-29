@@ -1,13 +1,6 @@
-import type {
-  LyraClient,
-  RunEvent,
-  RunId,
-  RunMetrics,
-  RunProtocolProfile,
-  RunRef,
-  StreamingResult,
-} from "@/rpc";
+import type { LyraClient, RunMetrics, RunProtocolProfile, RunRef } from "@/rpc";
 import { asRunId, asSegmentId, asSessionId, collectPages } from "@/rpc";
+import type { RunStream } from "./agentRunPump";
 import type { FoldEvent } from "./agentStore";
 
 interface AgentSessionRecoveryOptions {
@@ -17,7 +10,7 @@ interface AgentSessionRecoveryOptions {
   hasInteracted: () => boolean;
   applyEvents: (events: FoldEvent[]) => void;
   setAbortController: (controller: AbortController) => void;
-  pump: (stream: StreamingResult<{ runId: RunId }, RunEvent>, signal: AbortSignal) => Promise<void>;
+  pump: (stream: RunStream, signal: AbortSignal) => Promise<void>;
   /** Re-read the session-scoped state through its recovery method. The run stream
    *  carries snapshots only to a follower, so a window that just opened holds none. */
   recoverState: () => Promise<void>;
@@ -141,9 +134,18 @@ async function attachRootRun(options: AgentSessionRecoveryOptions, run: RunRef):
   ]);
   // The subscribe response is the wire's own shape now, so its ids are plain
   // strings and this is their parse site — the same rule runtimeRunsGateway
-  // follows for a run it opens.
+  // follows for a run it opens. The head it captured travels with them: it is the
+  // position this attach was taken at, and the cursor a reattach hands back if the
+  // stream drops before a single event is folded.
   await options.pump(
-    { result: { runId: asRunId(stream.result.runId) }, events: stream.events },
+    {
+      result: {
+        runId: asRunId(stream.result.runId),
+        segmentId: asSegmentId(stream.result.segmentId),
+        ...(stream.result.headEventId ? { headEventId: stream.result.headEventId } : {}),
+      },
+      events: stream.events,
+    },
     ctrl.signal,
   );
 }

@@ -88,6 +88,9 @@ const gateway: AgentRuntimeGateway = {
       isErrorType(error, "stale_segment")
     );
   },
+  isReplayLost(error) {
+    return isErrorType(error, "replay_unavailable") || isErrorType(error, "replay_cursor_invalid");
+  },
   async setApprovalMode(mode) {
     await getContainer().client().approval.setMode(mode);
   },

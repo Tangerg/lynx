@@ -1,5 +1,5 @@
 import { getContainer } from "@/main/container";
-import { asItemId, asRunId, asSessionId, type StartRunResponse } from "@/rpc";
+import { asItemId, asRunId, asSegmentId, asSessionId, type StartRunResponse } from "@/rpc";
 import type { RpcRunsGateway } from "../application/rpcAgentDriver";
 
 /**
@@ -22,7 +22,10 @@ export function runtimeRunsGateway(): RpcRunsGateway {
     },
     resume: async (params, signal) => {
       const { result, events } = await getContainer().client().runs.resume(params, signal);
-      return { result: { runId: asRunId(result.runId) }, events };
+      return {
+        result: { runId: asRunId(result.runId), segmentId: asSegmentId(result.segmentId) },
+        events,
+      };
     },
   };
 }
@@ -35,6 +38,9 @@ export function runtimeRunsGateway(): RpcRunsGateway {
 function brandRunIds(result: StartRunResponse) {
   return {
     runId: asRunId(result.runId),
+    // The segment, not just the run: a stream is a segment's, and reattaching after a
+    // dropped connection has to name the one it was following.
+    segmentId: asSegmentId(result.segmentId),
     ...(result.userItemId ? { userItemId: asItemId(result.userItemId) } : {}),
   };
 }

@@ -1,7 +1,11 @@
-import type { RunEvent, RunId, StreamingResult } from "@/rpc";
+import type { RunEvent, RunId, SegmentId, StreamingResult } from "@/rpc";
 import { errorDetail, errorType, RpcError } from "@/rpc";
 import type { RunError } from "@/plugins/sdk/types/agentView";
 import { endSpan, startRunSpan, withSpan } from "@/lib/observability/tracing";
+
+/** A run this client opened: the ids the pump needs to keep it attached, plus the
+ *  item id the optimistic bubble is relabeled to. */
+export type OpenedRun = { runId: RunId; segmentId: SegmentId; userItemId?: string };
 
 interface RunOpeningControllerOptions {
   sessionId: string;
@@ -9,20 +13,15 @@ interface RunOpeningControllerOptions {
   markInteracted: () => void;
   setAbortController: (controller: AbortController) => void;
   abortCurrent: () => void;
-  pump: (
-    stream: StreamingResult<{ runId: RunId; userItemId?: string }, RunEvent>,
-    signal: AbortSignal,
-  ) => Promise<void>;
+  pump: (stream: StreamingResult<OpenedRun, RunEvent>, signal: AbortSignal) => Promise<void>;
   setStartError: (error: RunError) => void;
 }
 
 export interface RunOpeningController {
   isStarting: () => boolean;
   begin: (
-    run: (
-      signal: AbortSignal,
-    ) => Promise<StreamingResult<{ runId: RunId; userItemId?: string }, RunEvent>>,
-    onResult?: (result: { runId: RunId; userItemId?: string }) => void,
+    run: (signal: AbortSignal) => Promise<StreamingResult<OpenedRun, RunEvent>>,
+    onResult?: (result: OpenedRun) => void,
     onStartError?: () => void,
   ) => void;
 }
@@ -50,7 +49,7 @@ export function createRunOpeningController({
       setAbortController(ctrl);
       const span = startRunSpan({ "lyra.session_id": sessionId });
       let failure: unknown;
-      let opening: Promise<StreamingResult<{ runId: RunId; userItemId?: string }, RunEvent>>;
+      let opening: Promise<StreamingResult<OpenedRun, RunEvent>>;
       try {
         opening = withSpan(span, () => run(ctrl.signal));
       } catch (err) {

@@ -59,6 +59,10 @@ export interface AgentRuntimeGateway {
    *  finished, waiting on a person, or already on a different segment. One
    *  question because one answer follows: send the text as a fresh turn. */
   isRunGone(error: unknown): boolean;
+  /** Whether a refusal means "the replay window no longer reaches that cursor". The
+   *  events are gone for good; the items they produced are not, so the answer is a
+   *  cold history read plus a tail attach — not a retry of the same cursor. */
+  isReplayLost(error: unknown): boolean;
   setApprovalMode(mode: ApprovalMode): Promise<void>;
   forgetApprovalRule(id: string): Promise<void>;
 }

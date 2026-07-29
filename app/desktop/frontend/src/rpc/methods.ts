@@ -228,6 +228,11 @@ export interface Methods {
     subscribe: (
       params: SubscribeRunRequest,
       signal?: AbortSignal,
+      // A reattach resumes from the last event the caller folded: the runtime replays
+      // from just after it, or refuses (replay_unavailable / replay_cursor_invalid)
+      // when that position is no longer addressable. Omitted means tail-only — the
+      // history belongs to items.list, not to a stream that would deliver it twice.
+      options?: { lastEventId?: string },
     ) => Promise<StreamingResult<SubscribeRunResponse, RunEvent>>;
     cancel: (runId: RunId, reason?: string) => Promise<void>;
     // Mid-run steering (§6): inject a user message into the segment the caller
@@ -557,12 +562,12 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
         stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };
       },
-      subscribe: async (params, signal) => {
+      subscribe: async (params, signal, options) => {
         // Reattach to the segment the caller named; the ack echoes it, and the tree
         // binds to it (same deferred-bind head-drop guard).
         const stream = streamRunEvents(client, signal);
         const result = await callOrDispose(stream, () =>
-          call("runs.subscribe", params, { signal }),
+          call("runs.subscribe", params, { signal, lastEventId: options?.lastEventId }),
         );
         stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };

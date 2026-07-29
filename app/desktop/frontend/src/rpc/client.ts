@@ -28,6 +28,10 @@ export interface RpcClientOptions {
 export interface RpcCallOptions {
   signal?: AbortSignal;
   idempotencyKey?: string;
+  /** Resume a stream from the last event this client folded (§5.5). The runtime
+   *  replays from just after it, or refuses when the cursor is not addressable —
+   *  which is the caller's signal to rebuild from a cold read instead. */
+  lastEventId?: string;
 }
 
 export interface RpcClient {
@@ -174,12 +178,17 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
         signal.addEventListener("abort", onAbort, { once: true });
       }
 
-      transport.send(req, signal, { idempotencyKey: callOptions.idempotencyKey }).catch((err) => {
-        if (!pending.has(id)) return; // already aborted/settled
-        pending.delete(id);
-        detach();
-        reject(err);
-      });
+      transport
+        .send(req, signal, {
+          idempotencyKey: callOptions.idempotencyKey,
+          lastEventId: callOptions.lastEventId,
+        })
+        .catch((err) => {
+          if (!pending.has(id)) return; // already aborted/settled
+          pending.delete(id);
+          detach();
+          reject(err);
+        });
     });
   }
 

@@ -215,6 +215,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       Accept: "application/json, text/event-stream",
     });
     if (options.idempotencyKey) headers["Idempotency-Key"] = options.idempotencyKey;
+    if (options.lastEventId) headers["Last-Event-Id"] = options.lastEventId;
     // Write `traceparent` (+ baggage) for THIS span into the request headers.
     propagation.inject(trace.setSpan(context.active(), span), headers);
 

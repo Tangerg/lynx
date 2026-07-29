@@ -10,6 +10,7 @@ import type {
   ItemId,
   RunEvent,
   RunId,
+  SegmentId,
   StreamingResult,
 } from "@/rpc";
 
@@ -95,7 +96,9 @@ export interface AgentDriver {
     input: ContentBlock[],
     options: AgentRunStartOptions,
     signal?: AbortSignal,
-  ) => Promise<StreamingResult<{ runId: RunId; userItemId?: ItemId }, RunEvent>>;
+  ) => Promise<
+    StreamingResult<{ runId: RunId; segmentId: SegmentId; userItemId?: ItemId }, RunEvent>
+  >;
   /**
    * Resume the run `runId` with HITL responses — opens a NEW segment of the
    * SAME run (runId unchanged) and returns its event stream (API.md §6).
@@ -104,7 +107,7 @@ export interface AgentDriver {
     runId: RunId,
     responses: InterruptResponse[],
     signal?: AbortSignal,
-  ) => Promise<StreamingResult<{ runId: RunId }, RunEvent>>;
+  ) => Promise<StreamingResult<{ runId: RunId; segmentId: SegmentId }, RunEvent>>;
 }
 
 /**

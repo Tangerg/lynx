@@ -8,7 +8,9 @@ import { agentInputToContentBlocks } from "@/plugins/builtin/agent/adapters/wire
 import { getContainer } from "@/main/container";
 import { useAgentStore } from "./agentStore";
 import { createAgentRunPump } from "./agentRunPump";
+import { createRunStreamReattach } from "./runStreamReattach";
 import { recoverSessionState } from "../application/session/recoverSessionState";
+import { rehydrateSessionView } from "../application/session/rehydrateSession";
 import { startAgentSessionRecovery } from "./agentSessionRecovery";
 import { useAgentSessionStore } from "./agentSessionStore";
 import { createOptimisticUserMessage } from "./optimisticUserMessage";
@@ -46,6 +48,14 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       isCancelled: () => cancelled,
       readEpoch: () => store().sessions[sessionId]?.viewEpoch ?? 0,
       applyEvents: (events) => store().applyEvents(sessionId, events),
+      // A run keeps executing when its stream drops. Reattaching is what makes that a
+      // gap instead of a transcript that stops moving until the next reload.
+      reattach: createRunStreamReattach({
+        sessionId,
+        client,
+        isCancelled: () => cancelled,
+        recoverHistory: () => rehydrateSessionView(sessionId),
+      }),
     });
 
     if (!useAgentSessionStore.getState().draftSessionIds.has(sessionId)) {
