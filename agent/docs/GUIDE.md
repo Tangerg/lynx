@@ -149,6 +149,7 @@ tool 或业务写入应由对应实现结合真实副作用语义处理；框架
 - `ContinueAsync`：同步返回 admission error，成功后由 `Segment` 承载后台运行结果；
 - `Resume`：校验并记录 Suspension 响应，不暗中启动执行；
 - `ResumeAsync`：在同一个进程树临界区记录响应并取得 continuation 所有权，成功后返回唯一 `Segment`；
+- `PendingSuspensions`：在同一稳定快照上列出整棵树中真正等待外部输入的边界，并标明直接发起它的 Process；
 - `Kill`：终止一棵进程子树；
 - `Process`、`Processes`：读取当前 registry 快照；
 - `Engine.SnapshotTree`：在稳定执行边界捕获完整根进程树；
@@ -296,6 +297,13 @@ Child 各自在 snapshot 中携带自己的 `OwnUsage`，Restore 通过父子关
 可捕获边界，并一次返回 root 与全部已注册 descendants；`Engine.ValidateRestoreTree` 校验树
 结构、nested suspension relation 和当前 Deployment catalog；`Engine.RestoreTree` 在整棵树
 均可重建后才原子注册。以上 API 不读取或写入任何 backend。
+
+并发 tool call 或递归 AgentTool 会让一棵树同时存在多个真正需要回答的 Suspension。
+`Engine.PendingSuspensions` 基于同一种稳定完整树捕获返回这些直接等待源：普通 managed tool
+call 保持模型调用顺序，nested child 占据其父 tool call 的位置，除此之外的 sibling 按
+Process ID 排序。返回值只含 Process 归属、Suspension ID、Prompt 与 ResumeSchema；私有
+checkpoint 不跨出 Runtime。Host 应把整组响应作为一个产品事务接收，再按该顺序驱动
+continuation，不能把父进程为传播控制流而持有的 Suspension 副本误当成第二个用户问题。
 
 Host 自己定义消费侧存储接口，并决定：
 

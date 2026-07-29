@@ -481,6 +481,7 @@ runtime: func (e *Engine) ForgetDeployment(ref core.DeploymentRef) error
 runtime: func (e *Engine) Kill(ctx context.Context, id string) error
 runtime: func (e *Engine) KillChildren(ctx context.Context, parentID string) ([]string, error)
 runtime: func (e *Engine) NewBlackboard(agent *core.Agent) (core.Blackboard, error)
+runtime: func (e *Engine) PendingSuspensions(ctx context.Context, processID string) ([]PendingSuspension, error)
 runtime: func (e *Engine) Process(id string) (*Process, bool)
 runtime: func (e *Engine) Processes() []*Process
 runtime: func (e *Engine) RemoveTree(ctx context.Context, processID string) error
@@ -525,6 +526,7 @@ runtime: type Deployment struct { }
 runtime: type DeploymentConflictError struct { Active core.DeploymentRef Candidate core.DeploymentRef }
 runtime: type Engine struct { }
 runtime: type EventListener interface { core.Extension OnEvent(ctx context.Context, event event.Event) }
+runtime: type PendingSuspension struct { ProcessID string SuspensionID string Prompt json.RawMessage ResumeSchema json.RawMessage }
 runtime: type Process struct { }
 runtime: type RunCompletion struct { Status core.ProcessStatus Failure error Err error }
 runtime: type Segment struct { }

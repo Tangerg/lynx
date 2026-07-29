@@ -141,8 +141,24 @@ func TestRestoreAnsweredNestedSuspensionContinuesWholeBranch(t *testing.T) {
 		t.Fatal(completion.Error())
 	}
 	root := segment.Process()
+	pending, err := source.PendingSuspensions(t.Context(), root.ID())
+	if err != nil {
+		t.Fatalf("PendingSuspensions: %v", err)
+	}
+	if len(pending) != 1 ||
+		pending[0].ProcessID == root.ID() ||
+		pending[0].SuspensionID != "nested-approval" {
+		t.Fatalf("nested pending suspensions = %#v, want one child-owned approval", pending)
+	}
 	if err := source.Resume(t.Context(), root.ID(), "nested-approval", true); err != nil {
 		t.Fatal(err)
+	}
+	pending, err = source.PendingSuspensions(t.Context(), root.ID())
+	if err != nil {
+		t.Fatalf("PendingSuspensions(answered): %v", err)
+	}
+	if len(pending) != 0 {
+		t.Fatalf("answered pending suspensions = %#v, want none", pending)
 	}
 	tree, err := source.SnapshotTree(t.Context(), root.ID())
 	if err != nil {

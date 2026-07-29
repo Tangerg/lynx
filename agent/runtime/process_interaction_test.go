@@ -335,6 +335,86 @@ func TestManagedInteractionSuspendsAndResumesPendingToolExactly(t *testing.T) {
 	}
 }
 
+func TestPendingSuspensionsReportsConcurrentCallsInModelOrder(t *testing.T) {
+	model := &managedConcurrentModel{}
+	registered := make([]tools.Tool, 0, 2)
+	for _, definition := range []struct {
+		name         string
+		suspensionID string
+	}{
+		{name: "first", suspensionID: "approval-1"},
+		{name: "second", suspensionID: "approval-2"},
+	} {
+		registered = append(registered, &managedConcurrentTool{
+			name: definition.name,
+			call: func(ctx context.Context) (string, error) {
+				approved, err := hitl.Interrupt[bool](
+					ctx,
+					definition.suspensionID,
+					map[string]any{"tool": definition.name},
+				)
+				if err != nil {
+					return "", err
+				}
+				if !approved {
+					return "denied", nil
+				}
+				return "approved", nil
+			},
+		})
+	}
+	registry, err := tools.NewRegistry(registered...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := managedInteractionAgent(
+		t,
+		"managed-pending-suspensions",
+		registry,
+		interaction.Limits{MaxConcurrentToolCalls: 2},
+	)
+	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
+	mustDeploy(t, engine, a)
+
+	segment, err := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if completion := awaitSegment(t, segment); completion.Error() != nil {
+		t.Fatal(completion.Error())
+	}
+	process := segment.Process()
+	if process.Status() != core.StatusWaiting {
+		t.Fatalf("process status = %s, want waiting", process.Status())
+	}
+
+	pending, err := engine.PendingSuspensions(t.Context(), process.ID())
+	if err != nil {
+		t.Fatalf("PendingSuspensions: %v", err)
+	}
+	if len(pending) != 2 {
+		t.Fatalf("pending suspensions = %#v, want two", pending)
+	}
+	for index, wantID := range []string{"approval-1", "approval-2"} {
+		if pending[index].ProcessID != process.ID() ||
+			pending[index].SuspensionID != wantID {
+			t.Fatalf("pending[%d] = %#v, want process %q suspension %q",
+				index, pending[index], process.ID(), wantID)
+		}
+	}
+
+	// Results are ownership-isolated just like snapshots: protocol bytes can be
+	// changed by a caller without corrupting the parked process or a later read.
+	pending[0].Prompt[0] = 'x'
+	again, err := engine.PendingSuspensions(t.Context(), process.ID())
+	if err != nil {
+		t.Fatalf("PendingSuspensions again: %v", err)
+	}
+	if again[0].Prompt[0] == 'x' {
+		t.Fatal("PendingSuspensions returned mutable runtime state")
+	}
+}
+
 func TestManagedInteractionStopsBeforeContinuationAtStepLimit(t *testing.T) {
 	model := &managedModel{}
 	tool, _ := tools.New[struct{}, string](tools.Config{Name: "approval"}, func(context.Context, struct{}) (string, error) { return "ok", nil })

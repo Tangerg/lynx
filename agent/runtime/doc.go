@@ -20,6 +20,7 @@
 //	  → Start                                          // background segment
 //	  → Resume(ctx, id, suspensionID, response) + Continue // record reply, re-enter loop
 //	  → ResumeAsync(admissionCtx, runCtx, ...)          // atomically reply + own a Segment
+//	  → PendingSuspensions                              // direct external waits across the tree
 //	  → SnapshotTree / RestoreTree                      // portable complete-tree state, no I/O
 //	  → Kill / RemoveTree
 //
@@ -28,10 +29,12 @@
 // [Engine.Resume] records a response on the exact suspension while
 // the process remains waiting; [Engine.Continue] re-enters the action
 // at that suspension point. [Engine.ResumeAsync] combines those two admission
-// transitions atomically for asynchronous hosts. A synchronous AgentTool child that waits promotes
-// the same suspension to its parent and retains the exact child/tool-loop
-// checkpoint, so Resume/Continue finishes the original tool call without
-// replaying completed siblings. [Engine.RunChildWithState] and [Engine.RunChild]
+// transitions atomically for asynchronous hosts. [Engine.PendingSuspensions]
+// gives a coordinating host the complete, source-attributed set of unanswered
+// boundaries without exposing framework checkpoints. A synchronous AgentTool
+// child that waits promotes the same suspension to its parent and retains the
+// exact child/tool-loop checkpoint, so Resume/Continue finishes the original
+// tool call without replaying completed siblings. [Engine.RunChildWithState] and [Engine.RunChild]
 // bind an exact Deployment with explicit inheritance
 // semantics, join the parent's budget tree, and receive
 // its process-scope [SubtreeEventListener] extensions. Other process extensions,
