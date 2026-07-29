@@ -519,6 +519,10 @@
         {
           "code": -32011,
           "message": "unsupported_mime"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "stream",
@@ -576,6 +580,10 @@
         {
           "code": -32014,
           "message": "interrupt_not_open"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "stream",
@@ -641,6 +649,10 @@
         {
           "code": -32028,
           "message": "replay_unavailable"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "stream",
@@ -782,6 +794,10 @@
         {
           "code": -32003,
           "message": "run_not_found"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",
@@ -897,6 +913,10 @@
         {
           "code": -32022,
           "message": "run_not_root"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
         }
       ],
       "x-lyra-kind": "unary",

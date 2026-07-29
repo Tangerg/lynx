@@ -132,7 +132,8 @@
         "session_not_found",
         "session_busy",
         "session_has_active_run",
-        "unsupported_mime"
+        "unsupported_mime",
+        "capability_not_negotiated"
       ],
       "stability": "stable"
     },
@@ -142,7 +143,8 @@
       "idempotency": "replayRunStream",
       "errors": [
         "run_not_found",
-        "interrupt_not_open"
+        "interrupt_not_open",
+        "capability_not_negotiated"
       ],
       "stability": "stable"
     },
@@ -157,7 +159,8 @@
         "run_finished",
         "stale_segment",
         "replay_cursor_invalid",
-        "replay_unavailable"
+        "replay_unavailable",
+        "capability_not_negotiated"
       ],
       "stability": "stable"
     },
@@ -191,7 +194,8 @@
       "kind": "unary",
       "idempotency": "none",
       "errors": [
-        "run_not_found"
+        "run_not_found",
+        "capability_not_negotiated"
       ],
       "stability": "stable"
     },
@@ -209,7 +213,8 @@
       "kind": "unary",
       "idempotency": "none",
       "errors": [
-        "run_not_root"
+        "run_not_root",
+        "capability_not_negotiated"
       ],
       "stability": "stable"
     },
@@ -834,7 +839,12 @@
         "code": -32006,
         "recoveryAction": "promptUser",
         "methods": [
-          "runs.cancel"
+          "interrupts.list",
+          "runs.cancel",
+          "runs.get",
+          "runs.resume",
+          "runs.start",
+          "runs.subscribe"
         ]
       },
       {

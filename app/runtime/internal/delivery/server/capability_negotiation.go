@@ -77,6 +77,34 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (execution.RunProtoc
 	return profile.Normalized(), nil
 }
 
+// missingFeatureRequirements is the server-side entry point for a gate whose
+// trigger depends on durable state and therefore cannot live in MethodMeta.When.
+// The actual server/client decision is shared with the static dispatcher gate.
+func (s *Server) missingFeatureRequirements(
+	ctx context.Context,
+	required ...string,
+) []protocol.CapabilityRequirement {
+	var client *protocol.ClientCapabilities
+	if declared, ok := protocol.ClientCapabilitiesFrom(ctx); ok {
+		client = declared
+	}
+	return protocol.MissingFeatureRequirements(
+		s.Capabilities().Features, client, required...,
+	)
+}
+
+func (s *Server) requireFeature(ctx context.Context, feature string) error {
+	missing := s.missingFeatureRequirements(ctx, feature)
+	if len(missing) == 0 {
+		return nil
+	}
+	return protocol.NewCapabilityGap(missing...)
+}
+
+func (s *Server) requestCanUseFeature(ctx context.Context, feature string) bool {
+	return len(s.missingFeatureRequirements(ctx, feature)) == 0
+}
+
 // profileGap turns a Run's uncovered profile into the requirements a caller would
 // have to declare. It is the same list in both directions: what the Run publishes,
 // spoken as what the caller is missing.

@@ -40,6 +40,19 @@ func (s *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*
 	if err != nil {
 		return nil, err
 	}
+	if in.Scope.Type == protocol.ItemScopeRun {
+		run, found, err := s.queries.Run(ctx, in.Scope.RunID)
+		switch {
+		case err != nil:
+			return nil, err
+		case !found:
+			return nil, protocol.ErrRunNotFound
+		case run.SpawnedByItemID != "":
+			if err := s.requireFeature(ctx, protocol.FeatureSubagents); err != nil {
+				return nil, err
+			}
+		}
+	}
 	order, err := sequenceOrderFromWire(in.Order)
 	if err != nil {
 		return nil, err

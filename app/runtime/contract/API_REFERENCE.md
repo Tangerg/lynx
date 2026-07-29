@@ -21,14 +21,14 @@ Protocol `2026-07-27` (minimum supported `2026-07-27`) · 85 methods
 | `sessions.rollback` | unary | replayResponse | `checkpoints` | `session_not_found`, `run_not_found`, `session_busy`, `checkpoint_unavailable` |
 | `sessions.export` | unary | none | `sessionExport` | `session_not_found` |
 | `sessions.import` | unary | replayResponse | `sessionExport` | — |
-| `runs.start` | stream | replayRunStream | — | `session_not_found`, `session_busy`, `session_has_active_run`, `unsupported_mime` |
-| `runs.resume` | stream | replayRunStream | — | `run_not_found`, `interrupt_not_open` |
-| `runs.subscribe` | stream | none | — | `run_not_found`, `run_not_root`, `run_waiting`, `run_finished`, `stale_segment`, `replay_cursor_invalid`, `replay_unavailable` |
+| `runs.start` | stream | replayRunStream | — | `session_not_found`, `session_busy`, `session_has_active_run`, `unsupported_mime`, `capability_not_negotiated` |
+| `runs.resume` | stream | replayRunStream | — | `run_not_found`, `interrupt_not_open`, `capability_not_negotiated` |
+| `runs.subscribe` | stream | none | — | `run_not_found`, `run_not_root`, `run_waiting`, `run_finished`, `stale_segment`, `replay_cursor_invalid`, `replay_unavailable`, `capability_not_negotiated` |
 | `runs.cancel` | unary | replayResponse | — | `run_not_found`, `run_finished`, `session_busy`, `capability_not_negotiated` |
 | `runs.steer` | unary | replayResponse | — | `run_not_found`, `run_not_root`, `run_waiting`, `run_finished`, `stale_segment` |
-| `runs.get` | unary | none | — | `run_not_found` |
+| `runs.get` | unary | none | — | `run_not_found`, `capability_not_negotiated` |
 | `runs.list` | unary | none | `subagents` | — |
-| `interrupts.list` | unary | none | — | `run_not_root` |
+| `interrupts.list` | unary | none | — | `run_not_root`, `capability_not_negotiated` |
 | `todos.get` | unary | none | `todos` | `session_not_found` |
 | `items.list` | unary | none | `subagents` | `session_not_found`, `run_not_found` |
 | `workspace.listFileChanges` | unary | none | — | `cwd_unavailable`, `vcs_unavailable` |

@@ -128,6 +128,59 @@ func TestGetRunResolvesARunWithoutItsSession(t *testing.T) {
 	}
 }
 
+func TestChildRunReadsRequireNegotiatedSubagents(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	putSession(t, rt, "ses_1")
+	putRun(t, rt, "ses_1", "run_root", 10, 1)
+	putChildRun(t, rt, "ses_1", "run_child", 11, 2)
+	putUserItem(t, rt, "ses_1", "run_child", "it_child", "delegated")
+
+	_, err := s.GetRun(t.Context(), protocol.GetRunRequest{RunID: "run_child"})
+	assertSubagentCapabilityGap(t, "GetRun(child)", err)
+
+	_, err = s.ListItems(t.Context(), protocol.ListItemsRequest{
+		Scope: protocol.ItemListScope{Type: protocol.ItemScopeRun, RunID: "run_child"},
+	})
+	assertSubagentCapabilityGap(t, "ListItems(child)", err)
+
+	// A session timeline is intentionally complete even for a Minimal client: the
+	// Item shape is stable core, and hiding child history would falsify recovery.
+	sessionPage, err := s.ListItems(t.Context(), protocol.ListItemsRequest{
+		Scope: protocol.ItemListScope{Type: protocol.ItemScopeSession, SessionID: "ses_1"},
+	})
+	if err != nil || len(sessionPage.Data) != 1 || sessionPage.Data[0].RunID != "run_child" {
+		t.Fatalf("ListItems(session) = (%+v, %v), want complete child history", sessionPage, err)
+	}
+}
+
+func assertSubagentCapabilityGap(t *testing.T, operation string, err error) {
+	t.Helper()
+	var gap *protocol.CapabilityGap
+	if !errors.As(err, &gap) {
+		t.Fatalf("%s = %v, want typed capability gap", operation, err)
+	}
+	want := protocol.CapabilityRequirement{
+		Type: protocol.RequirementFeature,
+		Name: protocol.FeatureSubagents,
+	}
+	if len(gap.Requirements) != 1 || gap.Requirements[0] != want {
+		t.Fatalf("%s requirements = %+v, want [%+v]", operation, gap.Requirements, want)
+	}
+}
+
+func putChildRun(t *testing.T, rt *stubRuntime, sessionID, runID string, atUnix int64, mark int) {
+	t.Helper()
+	outcome := execution.OutcomeCompleted
+	if err := rt.runs.Restore(t.Context(), transcript.Run{
+		SessionID: sessionID, ID: runID, SpawnedByItemID: "item_spawn",
+		State: execution.Completed, Outcome: &outcome,
+		CreatedAt: time.Unix(atUnix, 0).UTC(), FinishedAt: time.Unix(atUnix, 0).UTC(),
+		UpdatedAt: time.Unix(atUnix, 0).UTC(), MessageMark: mark,
+	}); err != nil {
+		t.Fatalf("put child run %s: %v", runID, err)
+	}
+}
+
 // TestListItemsReadsTheScopeItWasGiven is items.list's delivery half: the scope's
 // tag decides which collection is read, and a subject that does not exist is refused
 // in the words of the thing that is missing. A page of items also carries only the

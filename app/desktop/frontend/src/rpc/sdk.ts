@@ -48,8 +48,14 @@ export interface LyraClient extends Methods {
 /** Build a Lyra Runtime Protocol client over the given transport. */
 export function createLyraClient(transport: Transport, opts?: LyraClientOptions): LyraClient {
   const rpc = createRpcClient(transport, { requestMeta: opts?.requestMeta });
-  return Object.assign(createMethods(rpc, { capabilities: opts?.capabilities }), {
-    rpc,
-    close: () => rpc.close(),
-  });
+  return Object.assign(
+    createMethods(rpc, {
+      capabilities: opts?.capabilities,
+      requestMeta: opts?.requestMeta,
+    }),
+    {
+      rpc,
+      close: () => rpc.close(),
+    },
+  );
 }

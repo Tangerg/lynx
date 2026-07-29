@@ -687,10 +687,13 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
   `{runId, expectedSegmentId, input: ContentBlock[]}`，在下一轮开始前把结构化输入交给模型；段号对不上同样
   `stale_segment`。它不是"取消再重发"。
 - **`cancel` 的 `reason` 回流进 outcome 的 `detail`**（§4.2）。取消一棵树 = 取消 root；取消一个 child = 取消它的
-  子树，父调用收到一条注入的结果说明这次委派被取消了。
+  子树，父调用收到一条注入的结果说明这次委派被取消了。能力检查在解析 durable run identity **之后**发生：
+  root cancel 永远是可用的 emergency stop，不会因为请求声明了本 build 不支持的可选能力而被提前挡住；只有实际
+  寻址 child 时才要求已协商 `features.subagents`。
 - **`get` / `list` 一律读持久化 projection**（不是内存里的活跃表）：`list` 是**全历史**，可按 `statuses` 过滤、
-  按 `sessionId` 收窄、`includeDescendants` 展开子树（需 `features.subagents`）。**没有"当前在跑"这个专用读**——
-  它就是 `statuses:["running"]`。
+  按 `sessionId` 收窄、`includeDescendants` 展开子树（需 `features.subagents`）。`get` 寻址 root 不需要该能力，
+  寻址 child 才需要；不存在的 id 仍先返回 `run_not_found`，不把资源是否存在泄漏成一条静态能力判断。
+  **没有"当前在跑"这个专用读**——它就是 `statuses:["running"]`。
 - **`interrupts.list` 的一行是"一个 waiting Run 的完整 interrupt 集"**（`PendingInterruptSet`，§4.8），可按
   `sessionId` 或 `rootRunId` 收窄。它取代了旧的 `runs.listOpenInterrupts`：那个名字把"待解集合"说成了 run 的一个
   子列表。
@@ -700,7 +703,9 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
 `items.list` 是持久化历史的唯一读。
 
 - **`scope` 是 typed union**：`{type:"session", sessionId}` 或 `{type:"run", runId, includeDescendants?}`。一个
-  松对象同时带两个 id，就得由服务端猜客户端想要哪个 —— 那是服务端在替客户端做决定。
+  松对象同时带两个 id，就得由服务端猜客户端想要哪个 —— 那是服务端在替客户端做决定。session scope 永远返回
+  完整历史（包括 child item）；run scope 若实际寻址 child，或显式要求 `includeDescendants:true`，才要求已协商
+  `features.subagents`。
 - **`order`** 显式（默认按时间正序）；**页级 `runs: RunSummary[]`** 随每页返回该页 item 所属的 run，客户端因此
   能在拿到第一页时就把树连起来，而不必先把所有页拉完。
 
@@ -858,6 +863,12 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 
 - 缺省 / falsy feature 默认**关闭**；关闭时相关方法返回 `capability_not_negotiated` 并在
   `requiredCapabilities` 里点名。
+- `enabled:true` 只代表 server 支持；若该 feature 的 `clientOptIn:true`，本次请求的
+  `_meta.clientCapabilities.features.<key>.enabled` 也必须显式为 true。dispatcher 的静态门禁、解析 durable
+  identity 后的 state-dependent 门禁，以及 SDK preflight 使用同一判定；任何一处都不能把 discovery 当成替
+  client 自动 opt-in。
+- 门禁只咬真正要求能力的请求：root-only 查询和 root cancel 不要求 `features.subagents`；请求参数显式展开子树或
+  durable identity 确认目标是 child 时才要求。这样既不返回假装完整的降级结果，也不让能力协商妨碍紧急停止。
 - server **必须不**产出 client 未在 `interruptTypes` 声明的 open interrupt（§6.2）。
 - `features.subagents` 关 → 不产出子 Run；`features.clientTools` 关 → 不产出 `toolResult` interrupt。
 - **`excludedEphemeralEvents` 是专用两值集合**：

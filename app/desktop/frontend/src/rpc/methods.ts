@@ -90,6 +90,7 @@ import type {
   UsageSummaryRequest,
   UtilityRole,
   RuntimeEvent,
+  RequestMeta,
   WorkspaceFileChange,
 } from "./wire.generated";
 import { streamRunEvents, streamRuntimeEvents } from "./stream";
@@ -143,7 +144,13 @@ interface PendingMutation {
 class MutationAttempts {
   private readonly pending = new Map<string, PendingMutation>();
 
-  async call<R, P>(client: RpcClient, method: string, params: P, signal?: AbortSignal): Promise<R> {
+  async call<R, P>(
+    client: RpcClient,
+    method: string,
+    params: P,
+    signal?: AbortSignal,
+    requestMeta?: RequestMeta | null,
+  ): Promise<R> {
     const identity = mutationIdentity(method, params);
     const now = Date.now();
     this.prune(now);
@@ -156,6 +163,7 @@ class MutationAttempts {
       const result = await client.call<R, P>(method, params, {
         signal,
         idempotencyKey: attempt.key,
+        requestMeta,
       });
       this.release(identity, attempt.key);
       return result;
@@ -496,6 +504,11 @@ export interface MethodsOptions {
    * the runtime to refuse what it cannot do.
    */
   capabilities?: () => ServerCapabilities | null | undefined;
+  /**
+   * Metadata attached to the next request. The factory reads it once per call,
+   * using the same snapshot for capability preflight and emission.
+   */
+  requestMeta?: () => RequestMeta | undefined;
 }
 
 export function createMethods(client: RpcClient, options: MethodsOptions = {}): Methods {
@@ -503,8 +516,17 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
 
   // Every outbound call passes the preflight, because the alternative is a
   // round-trip whose only possible answer is the refusal we already hold.
-  const refuse = <M extends WireMethodName>(method: M, params: WireParams<M>): void => {
-    const missing = unnegotiated(method, params, options.capabilities?.());
+  const refuse = <M extends WireMethodName>(
+    method: M,
+    params: WireParams<M>,
+    requestMeta?: RequestMeta | null,
+  ): void => {
+    const missing = unnegotiated(
+      method,
+      params,
+      options.capabilities?.(),
+      requestMeta?.clientCapabilities,
+    );
     if (missing.length === 0) return;
     throw new RpcError({
       message: `${method} requires ${missing.join(", ")}`,
@@ -515,16 +537,30 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
   };
 
   const call: WireCall = async (method, params, callOptions) => {
-    refuse(method, params);
-    return client.call(method, params, callOptions);
+    const ownsRequestMeta = options.requestMeta !== undefined;
+    const requestMeta = ownsRequestMeta ? options.requestMeta?.() : callOptions?.requestMeta;
+    refuse(method, params, requestMeta);
+    return client.call(
+      method,
+      params,
+      ownsRequestMeta ? { ...callOptions, requestMeta: requestMeta ?? null } : callOptions,
+    );
   };
   const mutate = async <M extends WireMethodName>(
     method: M,
     params: WireParams<M>,
     signal?: AbortSignal,
   ): Promise<WireResult<M>> => {
-    refuse(method, params);
-    return mutations.call(client, method, params, signal);
+    const ownsRequestMeta = options.requestMeta !== undefined;
+    const requestMeta = ownsRequestMeta ? options.requestMeta?.() : undefined;
+    refuse(method, params, requestMeta);
+    return mutations.call(
+      client,
+      method,
+      params,
+      signal,
+      ownsRequestMeta ? (requestMeta ?? null) : undefined,
+    );
   };
 
   return {

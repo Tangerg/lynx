@@ -100,7 +100,13 @@ type capabilityRuntime struct {
 func (r *capabilityRuntime) Discover(context.Context) (*protocol.DiscoverResponse, error) {
 	advertised := make(map[string]protocol.FeatureCapability, len(r.features))
 	for name, enabled := range r.features {
-		advertised[name] = protocol.FeatureCapability{Enabled: enabled, Stability: protocol.StabilityStable}
+		published, _ := protocol.LookupFeature(name)
+		advertised[name] = protocol.FeatureCapability{
+			Enabled:               enabled,
+			Stability:             published.Stability,
+			ClientOptIn:           published.ClientOptIn,
+			RequiredByRunProtocol: published.RequiredByRunProtocol,
+		}
 	}
 	return &protocol.DiscoverResponse{Capabilities: protocol.ServerCapabilities{Features: advertised}}, nil
 }
@@ -225,6 +231,24 @@ func TestCapabilityGateOnlyBitesTheGatedRequest(t *testing.T) {
 		method: "runs.list", params: `{"includeDescendants":true}`,
 		features: map[string]bool{"subagents": false},
 		want:     "capability_not_negotiated",
+	}, {
+		name:   "server support does not replace client opt-in",
+		method: "runs.list", params: `{"includeDescendants":true}`,
+		features: map[string]bool{"subagents": true},
+		want:     "capability_not_negotiated",
+	}, {
+		name:   "client opt-in and server support authorize descendants",
+		method: "runs.list",
+		params: `{
+			"includeDescendants": true,
+			"_meta": {
+				"clientCapabilities": {
+					"features": {"subagents": {"enabled": true}}
+				}
+			}
+		}`,
+		features: map[string]bool{"subagents": true},
+		want:     "",
 	}, {
 		name:   "an explicit false is not a request for descendants",
 		method: "runs.list", params: `{"includeDescendants":false}`,

@@ -144,6 +144,40 @@ type FeatureCapability struct {
 	RequiredByRunProtocol bool `json:"requiredByRunProtocol"`
 }
 
+// MissingFeatureRequirements evaluates one request against discovery's feature
+// facts. A feature is usable only when this runtime enables it and, for an opt-in
+// feature, this request explicitly enables it too.
+//
+// Both the Registry's shape-dependent gate and state-dependent server gates call
+// this function. Keeping the decision here prevents "server supports it" and
+// "client negotiated it" from becoming two subtly different policies.
+func MissingFeatureRequirements(
+	advertised map[string]FeatureCapability,
+	client *ClientCapabilities,
+	required ...string,
+) []CapabilityRequirement {
+	seen := make(map[string]bool, len(required))
+	var missing []CapabilityRequirement
+	for _, key := range required {
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+
+		server := advertised[key]
+		available := server.Enabled
+		if available && server.ClientOptIn {
+			available = client != nil && client.Features[key].Enabled
+		}
+		if !available {
+			missing = append(missing, CapabilityRequirement{
+				Type: RequirementFeature, Name: key,
+			})
+		}
+	}
+	return missing
+}
+
 // RuntimeLimits — server-side hard caps surfaced to the client.
 type RuntimeLimits struct {
 	MaxConcurrentRuns int `json:"maxConcurrentRuns,omitempty"`

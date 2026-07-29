@@ -28,6 +28,7 @@ func registerRuns(r *Registry) {
 			protocol.ErrSessionBusy.Error(),
 			protocol.ErrSessionHasActiveRun.Error(),
 			protocol.ErrUnsupportedMime.Error(),
+			protocol.ErrCapabilityNotNeg.Error(),
 		},
 		Stability: stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
@@ -40,6 +41,7 @@ func registerRuns(r *Registry) {
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
 			protocol.ErrInterruptNotOpen.Error(),
+			protocol.ErrCapabilityNotNeg.Error(),
 		},
 		Stability: stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.ResumeRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
@@ -63,6 +65,7 @@ func registerRuns(r *Registry) {
 			protocol.ErrStaleSegment.Error(),
 			protocol.ErrReplayCursorInvalid.Error(),
 			protocol.ErrReplayUnavailable.Error(),
+			protocol.ErrCapabilityNotNeg.Error(),
 		},
 		Stability: stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.SubscribeRunRequest) (*protocol.SubscribeRunResponse, iter.Seq[protocol.RunEvent], error) {
@@ -106,8 +109,11 @@ func registerRuns(r *Registry) {
 	// runs.get answers "what is this run" for a runId a client already holds — from
 	// an event, a page, or a link — without it having to know the session first.
 	Unary(r, MethodMeta{
-		Name:      "runs.get",
-		Errors:    []string{protocol.ErrRunNotFound.Error()},
+		Name: "runs.get",
+		Errors: []string{
+			protocol.ErrRunNotFound.Error(),
+			protocol.ErrCapabilityNotNeg.Error(),
+		},
 		Stability: stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.GetRunRequest) (*protocol.RunRef, error) {
 		return d.api.GetRun(ctx, in)
@@ -138,8 +144,11 @@ func registerInterrupts(r *Registry) {
 	// run_not_root is declared because the filter can name a child, and that is a
 	// different answer from "nothing is waiting".
 	Unary(r, MethodMeta{
-		Name:      "interrupts.list",
-		Errors:    []string{protocol.ErrRunNotRoot.Error()},
+		Name: "interrupts.list",
+		Errors: []string{
+			protocol.ErrRunNotRoot.Error(),
+			protocol.ErrCapabilityNotNeg.Error(),
+		},
 		Stability: stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.ListInterruptsRequest) (*protocol.Page[protocol.PendingInterruptSet], error) {
 		return d.api.ListInterrupts(ctx, in)

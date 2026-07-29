@@ -202,12 +202,12 @@ cd app/desktop/frontend && npm run check
 | A2 | `runs.steer` 改为 `ContentBlock[]` | `DONE` | 2026-07-30 完成 | typed command/port、multimodal live+fallback、全量 gates |
 | A3 | 删除 `custom.durable`，收紧事件可靠性语义 | `DONE` | 2026-07-30 完成 | type-owned policy、closed opt-out、全量 gates |
 | A4 | 收紧 machine-contract value constraints | `DONE` | 2026-07-30 完成 | single Registry metadata、output boundaries、全量 gates |
-| A5 | capability gate 与 disabled-subagent seam 收口 | `TODO` | A4 后实施 | — |
+| A5 | capability gate 与 disabled-subagent seam 收口 | `DONE` | 2026-07-30 完成 | shared policy、durable identity gates、全量 gates |
 | A6 | Registry fail-closed 与 SSOT 清理 | `TODO` | A5 后实施 | — |
 | A7 | canonical docs 与最终 conformance sweep | `TODO` | 最后收口 | — |
 | B1 | 完整 child Run producer / tree cancel / barrier | `DEFERRED` | A5 完成后单独排期 | 启用条件见 §11 |
 
-A4 已完成；下一项为 A5，尚未开工。同一时间只允许一个 A-track slice 处于
+A5 已完成；下一项为 A6，尚未开工。同一时间只允许一个 A-track slice 处于
 `IN PROGRESS`，避免多个 breaking shape 同时造成无法定位的生成差异。
 
 ---
@@ -415,6 +415,8 @@ features.subagents.enabled = false
 
 - 显式请求 disabled capability 永不返回看似完整的降级结果；
 - root-only 请求不被不必要地要求 subagent capability；
+- `clientOptIn` 同时约束 dispatcher、state-dependent gate 与 SDK preflight；typed SDK
+  对一次调用只读取一次 request metadata，并以同一快照发包；
 - method metadata、运行时 state-dependent gate 与 discovery 不相互矛盾；
 - future composition 将 feature 打开时，不需要修改公开 shape 或增加新方法。
 
@@ -818,6 +820,48 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
   - capability 的 state-dependent seam 与 disabled subagent 路径进入 A5；
   - Registry fail-closed 与剩余 SSOT 审计进入 A6。
 
+### 2026-07-30 — A5
+
+- 状态：`DONE`
+- Commit：本记录所在的 `feat(runtime): unify capability gates across request boundaries`
+  原子提交
+- 目标：让静态请求门禁、durable identity 门禁与 SDK preflight 使用同一能力判定，
+  并证明 subagent 关闭时不返回伪完整降级结果、root emergency stop 不被误伤。
+- 关键裁决：
+  - `protocol.MissingFeatureRequirements` 成为 server support + per-request
+    `clientOptIn` 的共同判定；dispatcher 与 server state-dependent seam 不再各写一套
+    “enabled”逻辑，所有拒绝均构造带非空 `requiredCapabilities` 的 typed
+    `CapabilityGap`；
+  - `runs.get(child)` 与 `items.list` 的 child run scope 在读取 durable Run 后才要求
+    `features.subagents`；root 读保持 Minimal profile 可用，session item scope 始终返回
+    包含 child item 的完整恢复历史；
+  - `runs.cancel` 不再先协商整份 Run profile：application 先解析 durable target，
+    root cancel 永远可用，child cancel 才使用 `AllowChildRun` 拒绝未协商调用方；
+  - shape-dependent `includeDescendants:true` 仍由 Registry capability rule 在 dispatch
+    前拒绝；不存在的资源由 durable lookup 返回 not-found，不用参数外形猜身份；
+  - typed SDK preflight 同时读取 discovery 的 `clientOptIn` 与本请求声明；一次调用只
+    解析一次动态 request metadata，并把同一快照用于预检与发包。未由 typed factory
+    拥有 metadata 时不覆盖底层 `RpcClient` 的 provider；
+  - `features.subagents.enabled` 继续诚实保持 false；本 slice 只打通未来启用所需 seam，
+    不用 feature flag 冒充 B1 producer 已完成；
+  - state-dependent / Run-profile capability errors 已进入 method metadata 与生成
+    OpenRPC；静态 capability rule 的 effective-error 派生统一留给 A6 的 Registry
+    SSOT 收口。
+- 生成物：
+  - `manifest.json`、`openrpc.json`、`API_REFERENCE.md`；
+  - canonical `API.md` 与 typed SDK capability preflight。
+- 验证：
+  - capability policy / dispatch / server targeted tests → `PASS`
+  - `MODULE=app/runtime scripts/check.sh build vet test lint vuln` → `PASS`
+  - `cd app/runtime && go test -race ./...` → `PASS`
+  - `cd app/desktop/frontend && npm run check` → `178 files / 1078 tests PASS`
+  - contract generation 第二次聚合 hash
+    `8e0da223d597d76936cb915ebec31f369a05109f5a1a1b2dd38c9864ac293c3c`
+    不变 → `PASS`
+- 残余风险：
+  - effective method errors 与 error registry 的 SSOT 派生、metadata enum fail-closed、
+    Registry clone/命名坏味道进入 A6。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -849,10 +893,9 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 下一实施 slice：
 
 ```text
-A5 — Capability gate 与 disabled-subagent seam
+A6 — Registry fail-closed 与 SSOT 清理
 ```
 
-开工时先把 A5 改为 `IN PROGRESS`，再逐条建立 state-dependent capability 与
-disabled-subagent 的拒绝 fixture。不得仅切换 feature boolean，也不得在 delivery
-里根据输入外形猜 child identity；必须先从 durable Run identity 得出事实，再由同一
-capability policy 生成可行动的 `CapabilityGap`。
+开工时先把 A6 改为 `IN PROGRESS`，再用红灯证明 Registry 的 clone、闭合 enum、
+effective problem types 与错误诊断边界。不得通过兼容 alias 掩盖非法 metadata，也
+不得让 manifest / OpenRPC / API Reference 各自推导不同的 method error 集。

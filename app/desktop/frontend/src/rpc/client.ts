@@ -32,6 +32,12 @@ export interface RpcCallOptions {
    *  replays from just after it, or refuses when the cursor is not addressable —
    *  which is the caller's signal to rebuild from a cold read instead. */
   lastEventId?: string;
+  /**
+   * Metadata snapshot selected by a typed call. This keeps capability preflight
+   * and the emitted request on the same client declaration even when the
+   * configured metadata provider is dynamic.
+   */
+  requestMeta?: RequestMeta | null;
 }
 
 export interface RpcClient {
@@ -119,8 +125,10 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
     console.warn("[rpc] dropping unexpected server-initiated Request", msg);
   }
 
-  function paramsWithMeta<P>(params: P | undefined): unknown {
-    const meta = options.requestMeta?.();
+  function paramsWithMeta<P>(
+    params: P | undefined,
+    meta: RequestMeta | null | undefined = options.requestMeta?.(),
+  ): unknown {
     if (!meta) return params as P;
     if (params === undefined) return { _meta: meta };
     if (params !== null && typeof params === "object" && !Array.isArray(params)) {
@@ -141,7 +149,7 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
       id,
       method,
       ...(() => {
-        const withMeta = paramsWithMeta(params);
+        const withMeta = paramsWithMeta(params, callOptions.requestMeta);
         return withMeta !== undefined ? { params: withMeta } : {};
       })(),
     };

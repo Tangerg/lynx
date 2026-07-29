@@ -105,8 +105,9 @@ type MethodMeta struct {
 	//   - internal_error — the universal fallback on every method;
 	//   - invalid_params — carried by any request whose type states constraints
 	//     ([protocol.WireValidator]), so the shape already declares it;
-	//   - capability_not_negotiated — implied by CapabilityRules, and stating it
-	//     twice would let the two disagree.
+	//   - capability_not_negotiated — implied by CapabilityRules. A method whose
+	//     gate depends on durable state rather than request shape declares it here,
+	//     because no static rule can describe that trigger.
 	//
 	// It states WHICH errors are possible, never WHEN one fires — the trigger is
 	// a use-case decision and does not belong in wire metadata (contract §11.1).

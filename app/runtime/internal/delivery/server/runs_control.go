@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -14,14 +13,13 @@ import (
 // A parked run is also abandoned — its live parked turn is torn down
 // and its open interrupt dropped so it stops surfacing as resumable.
 func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
-	caller, err := s.negotiateCapabilities(ctx)
-	if err != nil {
-		return nil, err
-	}
+	// Root cancel is the emergency stop and is always allowed. Whether the target
+	// is a child is durable state resolved by the application, so do not reject
+	// unsupported client preferences before that identity is known.
 	result, err := s.coordinator.Cancel(ctx, runs.CancelCommand{
 		RunID:         in.RunID,
 		Reason:        in.Reason,
-		AllowChildRun: slices.Contains(caller.RequiredFeatures, protocol.FeatureSubagents),
+		AllowChildRun: s.requestCanUseFeature(ctx, protocol.FeatureSubagents),
 	})
 	switch {
 	case errors.Is(err, runs.ErrRunNotFound):

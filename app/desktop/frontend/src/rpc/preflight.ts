@@ -11,7 +11,7 @@
 // one — every call goes out and the runtime stays authoritative: a client guessing
 // "probably unsupported" would take away a feature the server offers.
 
-import type { ServerCapabilities } from "./wire.generated";
+import type { ClientCapabilities, ServerCapabilities } from "./wire.generated";
 import {
   WIRE_CAPABILITY_POLICY,
   type WireCapabilityCondition,
@@ -29,6 +29,7 @@ export function unnegotiated(
   method: WireMethodName,
   params: unknown,
   capabilities: ServerCapabilities | null | undefined,
+  clientCapabilities?: ClientCapabilities,
 ): WireFeature[] {
   const rules = WIRE_CAPABILITY_POLICY[method];
   if (!rules || !capabilities) return [];
@@ -38,8 +39,16 @@ export function unnegotiated(
     if (rule.when && !rule.when.every((condition) => matches(condition, params))) continue;
     for (const feature of rule.requires) {
       // §9: a key the server did not advertise reads as off, which is the same
-      // reading the dispatcher's gate applies to its own advertised map.
-      if (capabilities.features[feature]?.enabled !== true && !missing.includes(feature)) {
+      // reading the dispatcher's gate applies to its own advertised map. A
+      // clientOptIn feature also requires an explicit declaration on THIS
+      // request; server support alone never opts a caller into semantics it did
+      // not ask for.
+      const advertised = capabilities.features[feature];
+      const supported = advertised?.enabled === true;
+      const optedIn =
+        advertised?.clientOptIn !== true ||
+        clientCapabilities?.features?.[feature]?.enabled === true;
+      if ((!supported || !optedIn) && !missing.includes(feature)) {
         missing.push(feature);
       }
     }

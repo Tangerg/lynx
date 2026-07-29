@@ -34,27 +34,25 @@ func (d *Dispatcher) enforceCapabilities(ctx context.Context, meta MethodMeta, p
 				continue
 			}
 		}
-		missing, err := d.missingFeatures(ctx, rule.Requires)
+		missing, err := d.missingFeatureRequirements(ctx, rule.Requires)
 		if err != nil {
 			return errorToRPC(err)
 		}
 		if len(missing) != 0 {
-			requirements := make([]protocol.CapabilityRequirement, 0, len(missing))
-			for _, feature := range missing {
-				requirements = append(requirements, protocol.CapabilityRequirement{
-					Type: protocol.RequirementFeature, Name: feature,
-				})
-			}
-			return errorToRPC(protocol.NewCapabilityGap(requirements...))
+			return errorToRPC(protocol.NewCapabilityGap(missing...))
 		}
 	}
 	return nil
 }
 
-// missingFeatures returns the required features this build does not offer. A
-// discovery failure is reported rather than swallowed: a gate that cannot read
+// missingFeatureRequirements returns every feature this runtime/request pair
+// cannot use. Discovery answers server support; request metadata answers opt-in.
+// A discovery failure is reported rather than swallowed: a gate that cannot read
 // the feature set must not decide the call is allowed.
-func (d *Dispatcher) missingFeatures(ctx context.Context, required []string) ([]string, error) {
+func (d *Dispatcher) missingFeatureRequirements(
+	ctx context.Context,
+	required []string,
+) ([]protocol.CapabilityRequirement, error) {
 	discovered, err := d.api.Discover(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("dispatch: read capabilities: %w", err)
@@ -62,13 +60,13 @@ func (d *Dispatcher) missingFeatures(ctx context.Context, required []string) ([]
 	if discovered == nil {
 		return nil, fmt.Errorf("dispatch: the runtime reported no capabilities")
 	}
-	var missing []string
-	for _, feature := range required {
-		if !discovered.Capabilities.Features[feature].Enabled {
-			missing = append(missing, feature)
-		}
+	var client *protocol.ClientCapabilities
+	if declared, ok := protocol.ClientCapabilitiesFrom(ctx); ok {
+		client = declared
 	}
-	return missing, nil
+	return protocol.MissingFeatureRequirements(
+		discovered.Capabilities.Features, client, required...,
+	), nil
 }
 
 // decodeFrame reads the request as a generic JSON frame so a [FieldCondition]

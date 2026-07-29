@@ -49,6 +49,27 @@ func TestCancelRunPresentsCommittedRootSnapshot(t *testing.T) {
 	}
 }
 
+func TestCancelRunAlwaysAllowsStoppingARoot(t *testing.T) {
+	outcome := execution.OutcomeCanceled
+	useCases := &cancelRunUseCaseStub{result: runs.CancelResult{Run: transcript.Run{
+		ID: "run_1", SessionID: "ses_1", State: execution.Canceled, Outcome: &outcome,
+	}}}
+	server := &Server{coordinator: useCases}
+	ctx := withClientCapabilities(protocol.ClientCapabilities{
+		Features: map[string]protocol.FeaturePreference{
+			protocol.FeatureSubagents: {Enabled: true},
+		},
+	})
+
+	result, err := server.CancelRun(ctx, protocol.CancelRunRequest{RunID: "run_1"})
+	if err != nil || result == nil || result.Type != protocol.CancelRunRoot {
+		t.Fatalf("CancelRun(root) = (%+v, %v), want a successful root cancellation", result, err)
+	}
+	if useCases.command.AllowChildRun {
+		t.Fatal("an unavailable client preference authorized child cancellation")
+	}
+}
+
 func TestCancelRunMapsFinishedToTheSharedLifecycleError(t *testing.T) {
 	server := &Server{coordinator: &cancelRunUseCaseStub{err: runs.ErrRunFinished}}
 

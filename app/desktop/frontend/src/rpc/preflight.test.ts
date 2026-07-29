@@ -11,7 +11,10 @@ import type { ServerCapabilities } from "./wire.generated";
 // watch would refuse a call the runtime allows, and no artifact comparison would
 // notice.
 
-function advertising(features: Record<string, boolean>): ServerCapabilities {
+function advertising(
+  features: Record<string, boolean>,
+  clientOptIn: string[] = [],
+): ServerCapabilities {
   return {
     runEvents: [],
     runtimeTopics: [],
@@ -20,7 +23,12 @@ function advertising(features: Record<string, boolean>): ServerCapabilities {
     features: Object.fromEntries(
       Object.entries(features).map(([name, enabled]) => [
         name,
-        { enabled, stability: "stable" as const, clientOptIn: false, requiredByRunProtocol: false },
+        {
+          enabled,
+          stability: "stable" as const,
+          clientOptIn: clientOptIn.includes(name),
+          requiredByRunProtocol: false,
+        },
       ]),
     ),
     limits: {
@@ -50,6 +58,18 @@ describe("the capability preflight", () => {
 
   it("leaves an ungated method alone", () => {
     expect(unnegotiated("sessions.list", {}, advertising({}))).toEqual([]);
+  });
+
+  it("requires the request to opt into a clientOptIn feature", () => {
+    const subagents = advertising({ subagents: true }, ["subagents"]);
+    const params = { includeDescendants: true };
+
+    expect(unnegotiated("runs.list", params, subagents)).toEqual(["subagents"]);
+    expect(
+      unnegotiated("runs.list", params, subagents, {
+        features: { subagents: { enabled: true } },
+      }),
+    ).toEqual([]);
   });
 
   describe("a conditional rule only bites the gated request", () => {
