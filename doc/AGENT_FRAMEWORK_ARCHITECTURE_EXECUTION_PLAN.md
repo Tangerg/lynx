@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P24 Waiting child checkpoint settlement 进行中，3/4）
+> 状态：持续开发（P24 Waiting child checkpoint settlement 已完成，4/4）
 > 建立日期：2026-07-15
 > 最后更新：2026-07-30
 > 维护者：Lynx 仓库维护者
@@ -1948,7 +1948,7 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
   - App 以纯 transformation 先冻结完整写集；prepared Agent mutation 在 transaction 失败时
     Abort，成功后才 Commit。最后一个外部边界被删除时，同一 transaction 打开 surviving
     Segments，Agent 以 Continue 推进 ready checkpoint，不伪造 Resume 或人类回答。
-- [ ] **P24-04 Consumer、恢复矩阵与完整门禁**
+- [x] **P24-04 Consumer、恢复矩阵与完整门禁**（完成：2026-07-30）
   - 覆盖 active/non-active sibling、nested target、last interrupt 隐式恢复、事务失败 abort、
     restart 不复活、resume/cancel race；同步更新 API/wire、Guide 与两份执行计划。
   - W2.1 已完成：App 以确定性 barrier 固定 parked root/child、resume/child 双向胜者与
@@ -1961,7 +1961,12 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
   - W2.3 已完成：file-backed restart 证明 canceled subtree、exact target/root query、
     replacement checkpoint/Pending 与 publication/quiescence 一致；App boot recovery
     改为校验 root-owned 完整活动 Run tree。Agent API、wire、execution ownership 均未变化。
-  - Agent/App build、vet、test、lint、高风险 race、tidy、architecture 与 diff gate 全绿。
+  - W2.4 已完成：Agent runtime/toolloop 与 App runs/runsegment/SQLite 高风险 race
+    `-count=10`；receiver、错误、接口、文件职责、canonical ordering、旧 decoder/shim/
+    双写/migration 全量审计通过。Agent GoDoc 只保留 caller-coordinated execution
+    replacement，不借用 App transaction/Run/Item/Interrupt/Segment 心智。
+  - Agent/App build、vet、全量 test、lint、tidy、contract/architecture 与 diff gate 全绿；
+    public API/wire/schema/capability 不变。
 
 退出标准：Waiting child cancel 能在不执行用户代码的事务准备期精确结算 parent checkpoint；
 durable state 与 live runtime 不出现分裂；剩余 Pending 非空时全树仍静止，为空时复用同一
@@ -1999,18 +2004,19 @@ checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persis
 | P21 完整树与稳定 checkpoint | 完成 | 6/6 | 完整根树单一生命周期、稳定状态恢复、结构化 child、聊天配置拆分与 deployment retention 原语 |
 | P22 Framework/Application 工具边界 | 完成 | 5/5 | Goal 纯规划、typed child AgentTool、role-only ToolGroup、Host-owned publication/policy |
 | P23 可执行能力与观察投影边界 | 完成 | 5/5 | inert descriptors、Host-owned result projection、base tool protocol、caller-owned model copy |
-| P24 Waiting child checkpoint settlement | 进行中 | 3/4 | ToolLoop、Runtime prepared mutation、App durable transaction 与 W2.1–W2.3 conformance 已完成；待 W2.4 |
-| **总计** | **进行中** | **169/170（99.4%）** | **P24-01 至 P24-03 完成；P24-04 已完成 W2.1–W2.3，按 app B1.4d 继续，不执行封版、tag 或 release** |
+| P24 Waiting child checkpoint settlement | 完成 | 4/4 | ToolLoop、Runtime prepared mutation、App durable transaction 与 W2.1–W2.4 conformance 全部完成 |
+| **总计** | **完成** | **170/170（100%）** | **P24-01 至 P24-04 全部完成；后续只响应 App B1.5 的真实 consumer 需求，不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P24 Waiting child checkpoint settlement，3/4，进行中。
-- 下一任务：P24-04 / W2.4 race、hygiene 与完整门禁；
+- 当前阶段：P24 Waiting child checkpoint settlement，4/4，已完成。
+- 下一任务：Agent 无独立推测性任务；App 进入 B1.5/W3 durable query、subscribe 与 cold
+  recovery，只有出现真实 Framework 缺口时才回到 Agent。
   本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：W2.3 证明 App committed cancellation 经 SQLite restart 可精确查询、
-  canceled subtree 不复活、remaining tree 可由 tree-aware boot reconciliation 保留，
-  invalidation 与 cancel 后事件静默一致；Agent/App ownership 边界保持不变。
+- 最近完成：W2.4 以四组重复 race、全量门禁和 receiver/错误/接口/兼容债审计关闭 P24；
+  Agent 仍只拥有 execution framework 语义，App transaction/idempotency/persistence
+  ownership 与 `features.subagents=false` 均保持不变。
 
 ### 15.3 进度更新规则
 
@@ -2300,6 +2306,7 @@ checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persis
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-30 | 完成 P24-04 / W2.4 full closure：四组高风险 race `-count=10`、Agent/App 全量门禁、receiver/静态错误/canonical order/接口/兼容债审计全绿；Agent GoDoc 删除 App Run/Item/Interrupt/Segment/持久事务措辞；public API/wire/schema/capability 不变 | Codex |
 | 2026-07-30 | 完成 P24-04 / W2.3 restart/query/publication/quiescence：App file-backed restart 精确保留 canceled subtree、target/root query、checkpoint/Pending 与 invalidation；boot recovery 以 root-owned 完整 Run tree 校验 continuation；取消后无 late child event；Agent API/wire/persistence ownership 不变 | Codex |
 | 2026-07-30 | 完成 P24-04 / W2.2 failure conformance：App SQLite transaction 的 stale/checkpoint/Item/Run/Pending/Resume/opening/commit failure 全部整体回滚；已提交 continuation 失败由既有 pump error-terminalize；executor teardown 保留可重试 owner；Agent API 与 persistence ownership 不变 | Codex |
 | 2026-07-30 | 完成 P24-04 / W2.1 ownership arbitration：App admission 固定 parked root/child/resume 双向赢家，root handle 固定 live root/child/terminal 赢家；loser 使用稳定 busy/finished 分类，Agent execution 与 persistence 边界不变 | Codex |
@@ -2362,6 +2369,7 @@ checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persis
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-30 | P24-04 / W2.4 race、hygiene 与完整门禁 | Agent runtime/toolloop、App runs/runsegment/SQLite race `-count=10`；双模块 build/vet/全量 test/lint/tidy、contract/arch/diff 全绿。所有 receiver 同类型同名，生产静态 `fmt.Errorf("constant")` 清零；canonical ordering 汇聚领域 RunTree；Agent 无 App persistence 术语；无旧 decoder/shim/双读写/migration，capability 仍关闭。 | App B1.5 / W3；Agent 只响应真实 consumer 缺口 |
 | 2026-07-30 | P24-04 / W2.3 restart/query/publication/quiescence conformance | real file close/reopen 后，canceled target + nested descendant、exact target/root response、child-addressed full tree、replacement BuildID/usage/process snapshot 与 reduced Pending 均精确 round-trip；App 结算 canceled interrupt Items，并将 boot recovery 从 root-only 改为完整 active tree + all-continuation validation；remaining tree 保留 Interrupted，final Running root 诚实按既有 run_lost 收口。exact invalidation 与 cancel-return Journal quiescence 通过，三组高风险 race 均 `-count=10`；无 Agent API/wire/schema/capability/兼容路径变化。 | P24-04 / W2.4 race、hygiene 与完整门禁 |
 | 2026-07-30 | P24-04 / W2.2 stale/failure/rollback conformance | real SQLite 按真实副作用顺序注入 stale Pending、checkpoint、parent Item、terminal Run、reduced Pending、tree Resume、opening Item 与 transaction completion failure，完整 Pending/Item/Run/process tree/checkpoint/transcript 均不变；post-commit Continue/activation 只 Commit 一次并由 pump error-terminalize；subtree/discard teardown failure 保留 claim/turn retry owner。错误包含 operation + identity + `%w` cause。高风险 race `-count=10`，Agent/App build、vet、全量 test、lint、tidy diff 与 diff check 全绿；无 wire/schema/capability/兼容路径变化。 | P24-04 / W2.3 restart/query/publication/quiescence conformance |
 | 2026-07-30 | P24-04 / W2.1 deterministic ownership arbitration | App Coordinator 以 channel barrier 固定 parked child/root、child/resume 双向赢家和 duplicate loser；nested target fixture 含 descendant + surviving sibling。既有 live root handle 固定 root/child 与 natural-terminal/child 双向线性化；root-first child loser 在原 owner 内统一为 `ErrSessionBusy`。定向普通/race 均 `-count=10`，Agent/App build、vet、test、lint 与 tidy diff 全绿；无 Agent API、wire、schema 或 capability 变化。 | P24-04 / W2.2 stale/failure/rollback conformance |

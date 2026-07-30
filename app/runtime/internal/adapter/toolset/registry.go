@@ -2,6 +2,7 @@ package toolset
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/otel"
@@ -46,7 +47,7 @@ func (registry) List(context.Context) ([]tool.Tool, error) {
 
 func (registry) Invoke(ctx context.Context, root, name, arguments string) (tool.Result, error) {
 	if name == "" {
-		return tool.Result{}, fmt.Errorf("toolset: direct tool name must not be empty")
+		return tool.Result{}, errors.New("toolset: direct tool name must not be empty")
 	}
 	ctx, span := toolTracer.Start(ctx, "execute_direct_tool "+name,
 		trace.WithSpanKind(trace.SpanKindInternal),

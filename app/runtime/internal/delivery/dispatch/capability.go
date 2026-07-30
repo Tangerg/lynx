@@ -3,6 +3,7 @@ package dispatch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -58,7 +59,7 @@ func (d *Dispatcher) missingFeatureRequirements(
 		return nil, fmt.Errorf("dispatch: read capabilities: %w", err)
 	}
 	if discovered == nil {
-		return nil, fmt.Errorf("dispatch: the runtime reported no capabilities")
+		return nil, errors.New("dispatch: the runtime reported no capabilities")
 	}
 	var client *protocol.ClientCapabilities
 	if declared, ok := protocol.ClientCapabilitiesFrom(ctx); ok {

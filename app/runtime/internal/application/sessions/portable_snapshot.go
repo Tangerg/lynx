@@ -221,8 +221,8 @@ func bindPortableToolResults(snapshot *Snapshot) error {
 // PortableSnapshot returns the normalized, terminal-only representation used by
 // an archive encoder. It keeps archive projection out of Delivery while leaving
 // the selected wire format to the protocol adapter.
-func (s Snapshot) PortableSnapshot() (PortableSnapshot, error) {
-	normalized, err := s.NormalizeForRestore()
+func (snapshot Snapshot) PortableSnapshot() (PortableSnapshot, error) {
+	normalized, err := snapshot.NormalizeForRestore()
 	if err != nil {
 		return PortableSnapshot{}, err
 	}

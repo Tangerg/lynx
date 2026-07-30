@@ -177,7 +177,7 @@ func agentMemoryStatusWire(status agentmemory.Status) (protocol.AgentMemoryStatu
 	case agentmemory.StatusPending:
 		return protocol.AgentMemoryStatusPending, nil
 	case agentmemory.StatusRejected:
-		return "", fmt.Errorf("agentMemory: rejected items must not be projected")
+		return "", errors.New("agentMemory: rejected items must not be projected")
 	default:
 		return "", fmt.Errorf("agentMemory: unsupported status %d", status)
 	}

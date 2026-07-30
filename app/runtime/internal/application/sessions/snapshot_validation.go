@@ -13,15 +13,15 @@ import (
 // coherent read snapshot carries the hydrated body in Tool.Result, while a
 // restore projection carries the inline preview; both representations are
 // valid as long as the typed relationship and content agree with the blob.
-func (s Snapshot) ValidateToolResults() error {
-	byItem := make(map[string]offload.ToolResultBlob, len(s.ToolResults))
-	byID := make(map[offload.ID]string, len(s.ToolResults))
-	for index, blob := range s.ToolResults {
+func (snapshot Snapshot) ValidateToolResults() error {
+	byItem := make(map[string]offload.ToolResultBlob, len(snapshot.ToolResults))
+	byID := make(map[offload.ID]string, len(snapshot.ToolResults))
+	for index, blob := range snapshot.ToolResults {
 		if err := blob.Validate(); err != nil {
 			return fmt.Errorf("sessions: tool result %d: %w", index, err)
 		}
-		if blob.SessionID != s.Session.ID {
-			return fmt.Errorf("sessions: tool result %q belongs to session %q, want %q", blob.ID, blob.SessionID, s.Session.ID)
+		if blob.SessionID != snapshot.Session.ID {
+			return fmt.Errorf("sessions: tool result %q belongs to session %q, want %q", blob.ID, blob.SessionID, snapshot.Session.ID)
 		}
 		if _, duplicate := byItem[blob.ItemID]; duplicate {
 			return fmt.Errorf("sessions: multiple tool results are bound to item %q", blob.ItemID)
@@ -33,7 +33,7 @@ func (s Snapshot) ValidateToolResults() error {
 		byID[blob.ID] = blob.ItemID
 	}
 
-	for _, item := range s.Items {
+	for _, item := range snapshot.Items {
 		if item.Tool == nil || item.Tool.Offload == nil {
 			continue
 		}
@@ -70,21 +70,21 @@ func (s Snapshot) ValidateToolResults() error {
 // their bounded previews. This is the only representation written back to
 // history: full bodies remain in ToolResults and are joined structurally on
 // reads. The source snapshot is not mutated.
-func (s Snapshot) NormalizeForRestore() (Snapshot, error) {
-	if err := s.ValidateToolResults(); err != nil {
+func (snapshot Snapshot) NormalizeForRestore() (Snapshot, error) {
+	if err := snapshot.ValidateToolResults(); err != nil {
 		return Snapshot{}, err
 	}
-	if len(s.ToolResults) == 0 {
-		return s, nil
+	if len(snapshot.ToolResults) == 0 {
+		return snapshot, nil
 	}
 
-	byItem := make(map[string]offload.ToolResultBlob, len(s.ToolResults))
-	for _, blob := range s.ToolResults {
+	byItem := make(map[string]offload.ToolResultBlob, len(snapshot.ToolResults))
+	for _, blob := range snapshot.ToolResults {
 		byItem[blob.ItemID] = blob
 	}
 
-	normalized := s
-	normalized.Items = append([]transcript.Item(nil), s.Items...)
+	normalized := snapshot
+	normalized.Items = append([]transcript.Item(nil), snapshot.Items...)
 	for i := range normalized.Items {
 		item := &normalized.Items[i]
 		if item.Tool == nil || item.Tool.Offload == nil {

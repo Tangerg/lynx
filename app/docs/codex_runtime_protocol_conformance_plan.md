@@ -1,11 +1,11 @@
 # Lyra Runtime API 最终一致性收口计划
 
 > 作者：Codex
-> 状态：`A-TRACK DONE / B1.4a–c DONE · B1.4d IN PROGRESS`
+> 状态：`A-TRACK DONE / B1.4 DONE · B1.5 READY`
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
-> 当前已提交基线：`main@3a512fe71`；B1.4d / W2.3 随本原子 slice 完成
+> 当前已提交基线：`main@42658445a`；B1.4d / W2.4 随本原子 slice 完成
 > 目标协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 目标 Artifact：`SessionArtifactVersion = 7`
 
@@ -209,7 +209,7 @@ cd app/desktop/frontend && npm run check
 | A5 | capability gate 与 disabled-subagent seam 收口 | `DONE` | 2026-07-30 完成 | shared policy、durable identity gates、全量 gates |
 | A6 | Registry fail-closed 与 SSOT 清理 | `DONE` | 2026-07-30 完成 | defensive views、closed metadata、effective errors、全量 gates |
 | A7 | canonical docs 与最终 conformance sweep | `DONE` | 2026-07-30 完成 | §12.4 conformance matrix、全量 gates |
-| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.4d race / restart / query conformance | B1.1–B1.3、B1.4a–c 已完成；启用条件见 §11 |
+| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.5 durable query / subscribe / cold recovery | B1.1–B1.4 已完成；启用条件见 §11 |
 
 A1–A7 已全部完成，当前没有 A-track slice 处于 `IN PROGRESS`。B1 保持独立项目，
 已按 breaking-first 策略开始实施；不得通过打开 feature flag、复用 root identity
@@ -509,8 +509,8 @@ consumer 闭环就不能诚实发布 capability。
 | B1.1 | durable Run-tree identity 与 root admission | `DONE` | 三条 child edge 单一领域不变量、SQLite epoch 41、root-only active index、root-owned profile、Artifact/tree validation |
 | B1.2 | first-class child Run producer 与 source routing | `DONE` | causal identity、acknowledged opening、独立 Segment/Item/metrics、递归/并发/失败 conformance 全部闭环 |
 | B1.3 | tree interrupt barrier 与 resume | `DONE` | barrier、整树 resume、restart / race / failure / ordering conformance 全部闭环 |
-| B1.4 | unified root/child cancellation | `IN PROGRESS` | tree arbiter 与 Running subtree 已完成；Waiting transaction、race/restart/query conformance 待完成 |
-| B1.5 | durable query、subscribe 与 cold recovery | `TODO` | descendant paging、child items/subscribe、restart tree query/recovery、root stream replay scope |
+| B1.4 | unified root/child cancellation | `DONE` | root/child arbiter、Running/Waiting subtree、failure/restart/query/race/hygiene conformance 全部闭环 |
+| B1.5 | durable query、subscribe 与 cold recovery | `READY` | descendant paging、child items/subscribe、restart tree query/recovery、root stream replay scope |
 | B1.6 | frontend Run-tree consumer | `TODO` | reducer 按 source Run fold、树折叠/状态/取消交互、cold refetch 与 replay 恢复 |
 | B1.7 | conformance sweep 与 capability enablement | `TODO` | §11.3 全部门槛、race/多分支集成/生成物/docs 全绿后才将 feature 改为 true |
 
@@ -543,7 +543,7 @@ B1.4 内部原子切片：
 | B1.4a | `DONE` | 任意 root/child identity 单次读取完整 durable tree；领域 `RunTree` 验证拓扑并生成 canonical postorder/subtree；application 冻结 Run、Pending、Turn 与 executor bindings 为 immutable cancel plan；root handle 串行化 child/root/interrupt owner |
 | B1.4b | `DONE` | Running child 精确停止其 executor process subtree；Agent Runtime 后序发布 killed terminal；application join target terminal 与父 spawning Item 的唯一 `child_run_canceled`；root/兄弟不被取消；同步返回 exact child + unchanged root snapshot |
 | B1.4c | `DONE` | Waiting child 的 Pending/Continuation/checkpoint ownership、subtree terminal、parent Item 与必要的 surviving-tree resume 单事务变换 |
-| B1.4d | `IN PROGRESS` | W2.1 ownership、W2.2 failure/rollback 与 W2.3 restart/query/publication/quiescence 已完成；下一步 W2.4 全量收口 |
+| B1.4d | `DONE` | W2.1 ownership、W2.2 failure/rollback、W2.3 restart/query/publication/quiescence 与 W2.4 race/hygiene/full closure 全部完成 |
 
 ---
 
@@ -1711,6 +1711,31 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
   - 全量 canonical ordering、receiver/命名/错误/接口/兼容债审计与所有模块 gate 进入 W2.4；
   - capability 继续保持 disabled。
 
+### 2026-07-30 — B1.4d / W2.4
+
+- 状态：`DONE`
+- Commit：随本原子 slice 提交
+- 目标：以重复 race、canonical ordering、hygiene 与全量质量门禁完成 unified
+  root/child cancellation 的最终 conformance。
+- 关键裁决：
+  - 所有写入、恢复与发布顺序继续由领域 `RunTree.Postorder/SubtreePostorder` 唯一决定；
+  - Agent 公开语义只描述 caller-coordinated execution replacement，不借用 App 的
+    Run/Item/Interrupt/Segment 或 durable transaction 心智；
+  - consumer ports 已与真实用例同宽；大而内聚的 cancellation/recovery 文件不因行数
+    机械拆分；
+  - `features.subagents` 在 B1.5/B1.6 完成前继续 disabled。
+- 生成物：public wire、Registry、Schema、OpenRPC、Agent API/wire、Artifact、SQLite
+  schema 与 capability 均未变化。
+- 验证：
+  - Agent runtime/toolloop、Runtime application/runs、adapter/runsegment、SQLite
+    `-race -count=10` → `PASS`
+  - Agent / Runtime build、vet、全量 test、lint、tidy diff → `PASS`
+  - contract/arch drift、receiver/静态错误/兼容债扫描、`git diff --check` → `PASS`
+- 残余风险：
+  - 通用 descendant paging、child subscribe 与完整 Running tree cold recovery 进入
+    B1.5/W3；
+  - capability 继续保持 disabled。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -1739,26 +1764,27 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 
 ## 18. 下一步
 
-A-track、B1.1–B1.3、B1.4a–c 与 B1.4d/W2.1–W2.3 已收口。下一阶段是：
+A-track 与 B1.1–B1.4 已收口。下一阶段是：
 
 ```text
-B1.4d / W2.4 — race / hygiene / full closure
+B1.5 / W3 — durable query / subscribe / cold recovery
 ```
 
-B1.4 的四个内部原子切片继续严格按事实依赖实施：
+B1.4 的四个内部原子切片已经按事实依赖完成：
 
 | Slice | 状态 | 边界 | 完成定义 |
 |---|---|---|---|
 | B1.4a | `DONE` | root-owned tree arbiter 与 cancel plan | root / child target 统一解析为 immutable subtree plan；root cancel、child cancel、interrupt/terminal 共用 root owner；删除“authorized child cancellation unavailable”分支 |
 | B1.4b | `DONE` | Running subtree cancel | executor 精确停止并 join target process subtree；所有 descendant Run canonical postorder terminalize；父 `task` 只提交一次结构化 `child_run_canceled`；surviving sibling 与 root 继续执行 |
 | B1.4c | `DONE` | Waiting subtree cancel | 一个 transaction 删除 target subtree 的 Interrupt / Continuation / snapshot ownership 并关闭对应 Run；root set 非空时 surviving tree 继续 Waiting，集合为空时一次打开全部 surviving suspended Run 的新 Segment 并恢复执行 |
-| B1.4d | `IN PROGRESS` | race / restart / query conformance | W2.1–W2.3 已完成；W2.4 全量收口后完成 |
+| B1.4d | `DONE` | race / restart / query conformance | W2.1–W2.4 的 ownership、failure、restart/query、race/hygiene 全部闭环 |
 
 B1.4d 不再修改 B1.4c 的事实所有权：仍由 B1.4a plan + root admission 冻结 target，
 Agent prepared mutation 只决定 execution replacement，App transformation 决定完整 durable
 write-set，runsegment transaction 是唯一提交者。W2.3 已证明这些边界在进程重启、cold
-query、publication read set 与 subtree quiescence 下成立；下一步只做 W2.4 全量竞态、
-canonical ordering、hygiene 与兼容债收口。
+query、publication read set 与 subtree quiescence 下成立；W2.4 又完成全量竞态、
+canonical ordering、hygiene 与兼容债收口。B1.5 只扩展 durable read/subscribe/recovery，
+不得重新分配 B1.4 的事实所有权。
 
 实现期间继续坚持：
 

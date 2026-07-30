@@ -15,10 +15,10 @@ import (
 const canceledChildToolResult = "error: delegated child canceled"
 
 // PreparedWaitingSubtreeCancellation owns one stable process tree while its
-// host commits the corresponding durable transaction. Prepare performs every
-// fallible runtime check and computes the replacement snapshot without
-// changing live execution state. The host must call Commit after its durable
-// transaction succeeds, or Abort on every failure path.
+// caller coordinates the replacement with external state. Prepare performs
+// every fallible runtime check and computes the replacement snapshot without
+// changing live execution state. The caller must call Commit after accepting
+// the replacement, or Abort on every failure path.
 //
 // Holding a prepared value intentionally blocks Run, Resume, Kill, Snapshot,
 // Restore, and removal mutations for the same tree. Values must not be copied.
@@ -164,8 +164,8 @@ func (e *Engine) PrepareWaitingSubtreeCancellation(
 	return prepared, nil
 }
 
-// SnapshotTree returns the ownership-isolated tree that the host must persist
-// in the same transaction as its Run, Item, Interrupt, and Segment changes.
+// SnapshotTree returns the ownership-isolated replacement for the caller to
+// coordinate with its external state transition.
 func (p *PreparedWaitingSubtreeCancellation) SnapshotTree() core.ProcessSnapshotTree {
 	if p == nil {
 		return core.ProcessSnapshotTree{}
@@ -200,8 +200,8 @@ func (p *PreparedWaitingSubtreeCancellation) CanceledProcessIDs() []string {
 // Commit applies the already-validated in-memory checkpoint replacement,
 // detaches the canceled subtree, releases tree ownership, and then publishes
 // ProcessKilled for processes that became terminal. Calling Commit again is
-// idempotent. Calling it after Abort fails because the durable transaction must
-// never be committed after runtime ownership was relinquished.
+// idempotent. Calling it after Abort fails because a replacement must not be
+// accepted after runtime ownership was relinquished.
 func (p *PreparedWaitingSubtreeCancellation) Commit(ctx context.Context) error {
 	if p == nil {
 		return errors.New("runtime.PreparedWaitingSubtreeCancellation.Commit: nil receiver")

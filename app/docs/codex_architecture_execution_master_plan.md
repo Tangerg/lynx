@@ -3,9 +3,9 @@
 > 作者：Codex
 > 状态：`IN PROGRESS`
 > 建档日期：2026-07-30
-> 最新已提交基线：`main@3a512fe71`，与 `origin/main` 一致；W2.3 随本原子 slice 完成
-> 当前主任务：`W2.4 — race / hygiene / full closure`
-> 执行进度：`W2.1–W2.3 DONE · W2.4 READY`
+> 最新已提交基线：`main@42658445a`，与 `origin/main` 一致；W2.4 随本原子 slice 完成
+> 当前主任务：`W3 — B1.5 durable query / subscribe / cold recovery`
+> 执行进度：`W2 DONE · W3 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 43`
@@ -49,8 +49,8 @@
   [`REFACTORING.md`](../../REFACTORING.md) 为准；
 - 不允许为了迁就现状反向弱化目标契约。
 
-本轮（2026-07-30）先以当前仓库、生成物、测试和质量门禁校准本文，再完成 W2.1
-确定性 ownership arbitration。后续实施必须从 §12 的唯一执行卡继续。
+截至 2026-07-30，W2.1–W2.4 已按 ownership、failure、restart/query 与 full-closure
+四个原子 slice 完成。后续实施必须从 §12 的唯一执行卡继续。
 
 ---
 
@@ -231,14 +231,14 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 | 工作流 | 状态 | 已完成 | 下一步 |
 |---|---|---|---|
 | Protocol A-track | `DONE` | A1–A7；冻结契约、Registry、生成物、Runtime 与 Desktop consumer 一致 | 只随真实新能力同步 |
-| Agent P24 | `IN PROGRESS` | P24-01 host-settled checkpoint；P24-02 prepared subtree mutation；P24-03 App durable transaction | P24-04 完整恢复/竞态门禁 |
+| Agent P24 | `DONE` | host-settled checkpoint、prepared subtree mutation、App durable transaction 与完整恢复/竞态门禁 | 只按后续 consumer 的真实需要演进 |
 | Runtime B1.1 | `DONE` | durable Run-tree identity、root admission | — |
 | Runtime B1.2 | `DONE` | first-class child producer、source routing、独立 Segment/Item/metrics | — |
 | Runtime B1.3 | `DONE` | tree barrier、整树 resume、restart/race/failure conformance | — |
 | Runtime B1.4a–b | `DONE` | immutable cancel plan、Running child subtree cancellation | — |
 | Runtime B1.4c | `DONE` | prepared runtime mutation + App-owned atomic waiting-subtree transaction | — |
-| Runtime B1.4d | `IN PROGRESS` | W2.1 ownership arbitration；W2.2 stale/failure/rollback；W2.3 restart/query/publication/quiescence | W2.4 race/hygiene/full closure |
-| Runtime B1.5 | `TODO` | — | durable child query/subscribe/cold recovery |
+| Runtime B1.4d | `DONE` | W2.1 ownership；W2.2 failure/rollback；W2.3 restart/query/publication；W2.4 race/hygiene/full closure | — |
+| Runtime B1.5 | `READY` | B1.4 已提供 root-owned durable tree truth | durable child query/subscribe/cold recovery |
 | Desktop B1.6 | `TODO` | 协议 fold 与插件架构基线已存在 | Run-tree fold 与交互 |
 | Runtime/Desktop B1.7 | `TODO` | capability seam 已存在且保持 disabled | 全门禁后启用 subagents |
 | Runtime/Desktop 架构持续演进 | `ONGOING` | 依赖环、consumer ports、plugin contexts 与多项 architecture gate 已存在 | 随每个 slice 审查并最终 sweep |
@@ -255,6 +255,9 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 - `1d5f7eb86 feat(agent): prepare waiting subtree cancellation`
 - `a4e153fd4 feat(runtime): commit waiting subtree cancellation atomically`
 - `52f46fbed docs(runtime): record waiting cancellation completion`
+- `e7452288b test(runtime): prove cancellation ownership arbitration`
+- `3a512fe71 test(runtime): prove waiting cancellation rollback`
+- `42658445a test(runtime): prove cancellation restart consistency`
 
 本轮审计开始时：
 
@@ -319,8 +322,8 @@ git diff --check
 ```
 
 计划校准轮没有把当时尚未运行的 `-race`、`govulncheck` 或“真实 SQLite 重启后的
-B1.4d 新矩阵”伪装成已验证；随后 W2.1–W2.3 已分别补齐定向 race、failure matrix 与
-真实重启证据，W2.4 的全量 race/hygiene 仍保持未完成。Desktop bundle gate 虽通过，但
+B1.4d 新矩阵”伪装成已验证；随后 W2.1–W2.4 已分别补齐 ownership race、failure
+matrix、真实重启证据与全量 race/hygiene。Desktop bundle gate 虽通过，但
 Vite/Lightning CSS 仍报告
 `shadow-[var(--shadow-*)]` 与 CSS Custom Highlight 语法告警，已在 §4.6 记账。
 
@@ -345,14 +348,14 @@ cd app/runtime && GOWORK=off go mod tidy -diff
 owner 内把 root-first 的 losing child 错误统一为可判定的 `ErrSessionBusy`；没有新增
 coordinator、锁层、协议方法或兼容分支。
 
-### 4.3 剩余文档工作
+### 4.3 架构文档状态
 
-- `app/runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md` 已改为 root-owned direct
+- `app/runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md` 已使用 root-owned direct
   suspension set，并记录 waiting child cancellation 的 prepared mutation / atomic
-  transaction 边界；
-- 当前未发现已知架构文档与 B1.4c 实现漂移；
-- B1.4d 结束时仍需同步 query/recovery 的最终对抗性证据，这不是保留旧实现或兼容路径的
-  理由。
+  transaction 边界；其取消与恢复心智和 B1.4d 最终实现一致，未发现 root-only /
+  single-interrupt 残留；
+- query/subscribe/Running cold recovery 的未完成边界明确属于 B1.5/W3，不以兼容路径
+  或模糊注释提前承诺。
 
 ### 4.4 当前仓库审计结论
 
@@ -366,8 +369,8 @@ coordinator、锁层、协议方法或兼容分支。
 | Machine contract | 单一 Contract Registry 生成 manifest、Schema、OpenRPC、Go validator、TS types/validator/method map；arch drift gate 通过 | 目标结构已成立，不再新增平行 registry |
 | 协议表面 | manifest 当前有 85 个方法，4 个 stream method；协议只服务 `2026-07-27`；Artifact 只接受 v7 | hard cutover 已成立，没有版本协商假象 |
 | Run 心智模型 | `Session → Run → Segment → Item`、Run 三态、正交 outcome/metrics、typed Interrupt、durable query 均已落地 | API 主模型无需重做 |
-| Agent Framework | execution tree、HITL、checkpoint、prepared waiting-subtree mutation 与 Continue 已成立 | P24 只差 consumer/recovery/race 完整门禁 |
-| App Runtime 写面 | child admission、source routing、tree barrier/resume、Running/Waiting child cancel 已到 B1.4c | 事实 owner 正确；W2 不得重新分配所有权 |
+| Agent Framework | execution tree、HITL、checkpoint、prepared waiting-subtree mutation、Continue 与 consumer/recovery/race 门禁已成立 | P24 完成；后续只按真实 consumer 需求演进 |
+| App Runtime 写面 | child admission、source routing、tree barrier/resume、Running/Waiting child cancel 与 B1.4d conformance 已完成 | 事实 owner 正确；后续不得重新分配所有权 |
 | App Runtime 读面 | `runs.get/list`、`items.list`、`interrupts.list` 已读 durable projection；`RunTree` 可由任意节点取整树 | root 能力成熟；descendant paging/subscribe/cold recovery 尚未闭环 |
 | Desktop transport | root stream 已追踪 descendant membership、去重、reattach 与 cold history recovery | 已具备 W4 基础，不等于完整 child view model |
 | Desktop fold | child start/finish 目前主要折成共享 timeline，root readout 被保护但没有每个 child 的独立状态树 | B1.6 仍是真缺口，不能提前开启 capability |
@@ -375,23 +378,22 @@ coordinator、锁层、协议方法或兼容分支。
 | 依赖治理 | Go architecture tests、Frontend layer/context/public-boundary/cycle gates 全绿 | 不需要全局换目录；每个 slice 内做局部治本 |
 | 历史兼容 | SQLite 单 epoch 43、protocol current=min、旧 artifact/schema 直接拒绝 | 符合 dev 阶段 breaking-first |
 
-### 4.5 B1.4d 证据缺口矩阵
+### 4.5 B1.4d 证据闭环矩阵
 
-以下矩阵区分“已经有局部证明”和“完成 B1.4d 仍缺的对抗性证明”。只有右列全部闭环，
-W2 才能标记 `DONE`。
+以下矩阵记录 B1.4d 的对抗性证明如何闭环，作为 W2 完成后的可复核索引。
 
-| 场景 | 已有证据 | W2 必补 |
+| 场景 | 原有基础 | W2 完成证据 |
 |---|---|---|
-| active / later sibling / nested target | Agent prepared mutation 已覆盖 active/later sibling 与 nested ancestor；App pure transform 覆盖 nested subtree postorder | W2.1 以 nested target + descendant + surviving sibling 贯穿真实入口；adapter 失败拓扑继续由 W2.2 收口 |
+| active / later sibling / nested target | Agent prepared mutation 已覆盖 active/later sibling 与 nested ancestor；App pure transform 覆盖 nested subtree postorder | W2.1 以 nested target + descendant + surviving sibling 贯穿真实入口；W2.2 收口 adapter 失败拓扑 |
 | root cancel vs child cancel | live handle 已证明 Running tree 只能有一个 owner | `W2.1 DONE`：Running 与 Waiting/parked 双向胜者、loser busy、零额外 durable mutation |
 | resume vs child cancel | root resume vs root cancel 已共享 admission | `W2.1 DONE`：Waiting child cancel / resume 双向胜者与单一 durable opening/cancel truth |
 | natural terminal vs child cancel | root cancel vs natural terminal 已覆盖 | `W2.1 DONE`：target terminal before/after child claim 均稳定返回 finished 且释放 claim |
-| duplicate cancel / stale input | root 已有“turn already gone”幂等完成；parent Item CAS stale 可回滚 | duplicate root/child 已由 W2.1 固定；stale Pending CAS、错误分类与零 publication 进入 W2.2 |
-| teardown / checkpoint / transaction failure | root cleanup failure、prepared Abort、SQLite 整体 rollback 已覆盖 | 显式 checkpoint write failure、Waiting teardown/Continue failure、每个失败点的 durable/live 断言 |
-| exact response / invalidation | command 返回 committed target/root；成功 transaction 返回两者 | exact field equality、Runs/Interrupts/Sessions 的精确失效集合、不得 post-commit re-query |
-| subtree quiescence | Agent Commit 后 child 从 registry 移除 | cancel 成功返回后 App/Delivery 不再出现 target/descendant 事件 |
-| process restart | application 有 fake Rehydrate；Agent portable replacement 可 restore/Continue | file-backed SQLite close/reopen：target 不复活、survivor 可继续、query 与 checkpoint 一致 |
-| canonical publication | Domain `RunTree` 与 pure transform 已固定 descendant-before-ancestor | 集成写入/发布顺序、siblings lexical、root last，并在 race 下重复 |
+| duplicate cancel / stale input | root 已有“turn already gone”幂等完成；parent Item CAS stale 可回滚 | W2.1 固定 duplicate root/child；W2.2 证明 stale Pending CAS、稳定错误分类与零 publication |
+| teardown / checkpoint / transaction failure | root cleanup failure、prepared Abort、SQLite 整体 rollback 已覆盖 | W2.2 对 checkpoint、Item、Run、Pending、Resume、opening、commit 与 teardown 逐点注入并证明 rollback/owner 语义 |
+| exact response / invalidation | command 返回 committed target/root；成功 transaction 返回两者 | W2.3 证明 exact field equality、Runs/Interrupts/Sessions 精确失效集合且无 post-commit re-query |
+| subtree quiescence | Agent Commit 后 child 从 registry 移除 | W2.3 证明 cancel 成功返回后 Journal 不再出现 target/descendant 事件 |
+| process restart | application 有 fake Rehydrate；Agent portable replacement 可 restore/Continue | W2.3 用 file-backed SQLite close/reopen 证明 target 不复活、survivor/checkpoint/query 一致 |
+| canonical publication | Domain `RunTree` 与 pure transform 已固定 descendant-before-ancestor | W2.3/W2.4 证明 descendants first、siblings lexical、root last，并在 race 下重复 |
 
 ### 4.6 Hygiene 观察与处理策略
 
@@ -400,12 +402,10 @@ W2 才能标记 `DONE`。
 1. **Store receiver 告警已清除**
    - 当前生产代码中的 `*Store` receiver 使用 `s`，未再发现同一 Store 类型同时使用
      `s` / `base`。
-2. **仍有两处 receiver 一致性候选**
-   - `application/sessions.Snapshot` 在不同文件使用 `snapshot` 与 `s`；
-   - `delivery/protocol.StreamEvent` 的手写方法使用 `se`，生成 validator 使用
-     `value`。
-   - 处理时必须改唯一 owner：前者统一手写 receiver；后者若要求一致，应改 generator，
-     不能手改生成物。
+2. **Receiver 一致性已全量收口**
+   - `application/sessions.Snapshot` 统一使用 `snapshot`；
+   - `delivery/protocol.StreamEvent` 与生成 validator 统一使用 `value`；
+   - Agent / Runtime 的生产与测试 Go 文件按 package + receiver type 全量扫描无混用。
 3. **大文件不是自动拆分条件**
    - 当前热点包括 `runs/usecases.go`、SQLite `runs.go`、Agent
      `waiting_subtree_cancellation.go`、runsegment waiting transaction 与 Frontend
@@ -419,7 +419,7 @@ W2 才能标记 `DONE`。
 5. **Frontend 构建告警需在 UI 阶段清零**
    - `shadow-[var(--shadow-*)]` 需要追到产生该 class 的源码或构建规则；
    - CSS Custom Highlight 告警需确认是 optimizer 误报还是需要明确的兼容配置；
-   - 当前不阻塞 Runtime B1.4d，但 W7 完成定义要求零未知构建告警。
+   - 不阻塞已完成的 Runtime B1.4d，但 W7 完成定义要求零未知构建告警。
 6. **兼容词扫描需按语义裁决**
    - provider 的 OpenAI/Anthropic-compatible、UI fallback、错误 fallback 和文件系统
      fallback 都是现行业务能力，不是旧协议兼容；
@@ -554,7 +554,7 @@ terminalize”语义，不能回滚已经提交的历史。
 
 ### W2 — P24-04 / B1.4d 完整取消一致性
 
-状态：`IN PROGRESS`；当前：`W2.1–W2.3 DONE · W2.4 READY`
+状态：`DONE`；当前：`W2.1–W2.4 DONE`
 
 本工作包不重做 B1.4a–c。既定链路保持：
 
@@ -574,7 +574,7 @@ root-owned admission / live tree arbiter
 | W2.1 | `DONE` | 确定性 ownership arbitration | `application/runs` + Agent live arbiter | parked root/child、resume/child、terminal/child、duplicate 双向胜者 |
 | W2.2 | `DONE` | stale/failure/rollback conformance | `application/runs` + `adapter/runsegment` | stale Pending、checkpoint、transaction、teardown/Continue 每个失败点 |
 | W2.3 | `DONE` | restart/query/publication/quiescence | SQLite + application query + delivery projection | file-backed close/reopen、exact target/root/read model、无 canceled-late-event |
-| W2.4 | `READY` | race、hygiene 与全量收口 | 跨 Agent / Runtime | 重复 race、全量 gates、命名/错误/接口/兼容扫描、文档同步 |
+| W2.4 | `DONE` | race、hygiene 与全量收口 | 跨 Agent / Runtime | 重复 race、全量 gates、命名/错误/接口/兼容扫描、文档同步 |
 
 #### W2.1 — 确定性 ownership arbitration
 
@@ -725,6 +725,26 @@ W2.3 与 W3 的边界：
 - Agent/App 的职责边界审计无泄露；
 - Runtime 架构文档删除 root-only / single-interrupt 旧心智；
 - 全量 Agent/Runtime 门禁通过并独立提交、推送。
+
+完成结果（2026-07-30）：
+
+- Agent runtime/toolloop 与 Runtime application/runs、adapter/runsegment、SQLite 四组高风险
+  package 均在 race detector 下 `-count=10` 通过；
+- 生产写入、恢复与发布顺序全部复用领域 `RunTree.Postorder/SubtreePostorder`，确认
+  descendants before ancestors、siblings lexical、root last；
+- Agent/Runtime 全部 Go 文件按 package + receiver type 扫描无混用；`Snapshot` 统一为
+  `snapshot`，`StreamEvent` 统一为 `value`，生产代码静态 `fmt.Errorf("constant")` 清零；
+- Agent 公开 GoDoc 删除 App 的 Run/Item/Interrupt/Segment/持久事务措辞，只保留
+  caller-coordinated external-state 语义；未改公开签名；
+- 接口宽度、文件职责和依赖方向复核通过：prepared capability 保持 consumer-owned
+  窄口，较大文件仍各自承载单一完整用例，不为行数机械拆层；
+- 当前 ToolLoop checkpoint、process snapshot、内部 suspension envelope/relation 与 SQLite
+  分别只接受 v4、v15、v3、epoch 43；无旧 decoder、alias shim、双字段、双读写或
+  migration path；
+- `features.subagents` 仍由组合根固定为 disabled；protocol、OpenRPC、Artifact、Agent
+  API/wire、Store schema 与生成物均未变化；
+- Agent/Runtime build、vet、全量 test、lint、tidy diff、contract/arch drift 与
+  `git diff --check` 全绿。
 
 ### W3 — B1.5 durable query、subscribe 与 cold recovery
 
@@ -1154,6 +1174,31 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
   Runtime 全量门禁进入 W2.4。
 - 下一步：W2.4。
 
+### 2026-07-30 — W2.4
+
+- 状态：`DONE`
+- Commit：随本原子 slice 提交
+- 目标：以重复 race、架构/hygiene 审计与全量门禁关闭 P24/B1.4，不遗留兼容债或
+  consumer/framework 概念泄漏。
+- 事实作者：领域 `RunTree` 继续唯一拥有 canonical ordering；App 继续拥有事务/幂等/
+  persistence；Agent 只表达 caller-coordinated execution replacement。
+- 关键裁决：receiver 和静态错误坏味道全仓清零；Agent GoDoc 不借用 App 的
+  Run/Item/Interrupt/Segment 或 durable transaction 心智；大而内聚的用例文件不按行数
+  机械拆分。
+- 生成物：protocol、OpenRPC、Agent API/wire、Artifact、SQLite schema 与 capability
+  均未变化；`features.subagents` 继续 disabled。
+- 验证：
+  - Agent runtime/toolloop、Runtime runs/runsegment/SQLite race `-count=10` → `PASS`
+  - Agent / Runtime build、vet、全量 test、lint、tidy diff → `PASS`
+  - contract/arch drift、receiver/错误/兼容扫描、`git diff --check` → `PASS`
+- 架构复核：
+  - 抽象不过度 / 不足 → `PASS`
+  - Agent/App/Delivery/Desktop 无概念泄漏 → `PASS`
+  - 无兼容 reader、shim、双写或 migration → `PASS`
+- 残余风险：通用 descendant paging、child subscribe 与 Running tree cold recovery
+  明确进入 W3/B1.5。
+- 下一步：W3 / B1.5。
+
 ---
 
 ## 12. 下一张执行卡
@@ -1161,27 +1206,24 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 唯一下一任务：
 
 ```text
-W2.4 — P24-04 / B1.4d
-Race / hygiene / full closure
+W3 — B1.5
+Durable query / subscribe / cold recovery
 ```
 
 开工顺序：
 
-1. 对 W2.1–W2.3 的 ownership、failure、restart、publication 与 quiescence 矩阵执行
-   全量定向 race；
-2. 复核所有 tree order 都来自领域 `RunTree` canonical postorder；
-3. 扫描 receiver、文件/接口/方法/变量命名、错误上下文、接口宽度和 package 依赖；
-4. 扫描旧 decoder、alias/shim、双字段、双读/双写、migration 与 capability 泄漏；
-5. 运行 Agent / Runtime build、vet、全量 test、lint、tidy diff、contract/arch 与
-   `git diff --check`；
-6. 更新三份台账；独立 commit/push 后将 P24 改为 4/4、B1.4 改为 `DONE`，不提前实现
-   B1.5 或打开 capability。
+1. 冻结 root/child/descendant 的 point query、paging、item scope 与 cursor 语义；
+2. 固定 root stream multi-source replay 与 child subscribe 的 capability/profile 前置条件；
+3. 实现进程重启后的完整 Running tree cold recovery，并证明 replay fallback 与 query
+   收敛到同一 durable truth；
+4. 同步 Registry、Go/TS validator、SDK、canonical docs 与 Desktop consumer；
+5. 运行 Runtime/Desktop 全量及高风险 race 门禁后独立 commit/push。
 
-W2 收口前的禁止项：
+W3 的禁止项：
 
 - 不新增协议方法；
 - 不让 Agent 接触 App persistence；
-- 不拆出通用 transaction framework；
-- 不用 sleep/概率性测试冒充竞态证明；
-- 不通过 post-commit re-query 修补 command response；
+- 不从 transcript、live registry 或事件到达顺序反推 tree identity；
+- 不返回看似完整的静默降级结果；
+- 不在 query/subscribe/cold recovery 尚未闭环前打开 `features.subagents`；
 - 不提交或推送工作树里未通过门禁的代码。

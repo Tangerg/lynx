@@ -1,6 +1,7 @@
 package runs
 
 import (
+	"errors"
 	"fmt"
 	"math"
 
@@ -11,7 +12,7 @@ import (
 
 func (r *reducer) turnEnd(e TurnEnd) ([]RunEvent, error) {
 	if e.Reason != execution.OutcomeError && e.Problem != nil {
-		return nil, fmt.Errorf("non-error outcome carries a problem")
+		return nil, errors.New("non-error outcome carries a problem")
 	}
 	if e.Usage != nil {
 		if err := r.applyUsage(*e.Usage); err != nil {
@@ -24,7 +25,7 @@ func (r *reducer) turnEnd(e TurnEnd) ([]RunEvent, error) {
 	switch e.Reason {
 	case execution.OutcomeError:
 		if e.Problem == nil {
-			return nil, fmt.Errorf("error outcome is missing a problem")
+			return nil, errors.New("error outcome is missing a problem")
 		}
 		var err error
 		failure, err = runResultProblem(*e.Problem)
@@ -166,7 +167,7 @@ func validatedTurnUsage(reported TurnUsage) (*transcript.Usage, error) {
 	}
 	if reported.Steps == 0 &&
 		(reported.Tokens != (accounting.TokenUsage{}) || reported.CostUSD != 0) {
-		return nil, fmt.Errorf("zero model calls carry non-zero token or cost usage")
+		return nil, errors.New("zero model calls carry non-zero token or cost usage")
 	}
 	if len(reported.ByModel) > 0 {
 		aggregate, err := (accounting.Snapshot{Models: reported.ByModel}).Total()
@@ -195,7 +196,7 @@ func validateUsageMonotonic(previous, next *transcript.Usage) error {
 		return nil
 	}
 	if next == nil {
-		return fmt.Errorf("cumulative usage disappeared after it was reported")
+		return errors.New("cumulative usage disappeared after it was reported")
 	}
 	if err := validateModelUsageMonotonic("total", previous.ModelUsage, next.ModelUsage); err != nil {
 		return err

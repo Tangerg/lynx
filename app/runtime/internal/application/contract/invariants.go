@@ -16,6 +16,7 @@
 package contract
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 )
@@ -113,7 +114,7 @@ func Validate() error {
 	for _, spec := range systemInvariants {
 		switch {
 		case spec.Key == "":
-			return fmt.Errorf("system invariant: key is required")
+			return errors.New("system invariant: key is required")
 		case seen[spec.Key]:
 			return fmt.Errorf("system invariant %q is declared twice", spec.Key)
 		case spec.Why == "":

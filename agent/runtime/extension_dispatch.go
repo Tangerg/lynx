@@ -41,8 +41,8 @@ type SubtreeEventListener interface {
 // tick. Returning nil admits execution; returning an error rejects and removes
 // the unpublished child.
 //
-// Unlike EventListener, this capability may block while the host commits an
-// external opening transaction. Implementations must honor ctx. Process-scoped
+// Unlike EventListener, this capability may block while the caller coordinates
+// external admission work. Implementations must honor ctx. Process-scoped
 // registrations take precedence over an engine-scoped fallback, so one child
 // is admitted by exactly one authority.
 type ChildAdmitter interface {

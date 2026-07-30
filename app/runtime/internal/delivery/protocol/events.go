@@ -66,8 +66,8 @@ type StreamEvent struct {
 // It is deliberately separate from [StreamEvent.Replayable]: the current core
 // event set happens to give every authoritative frame a replay window, but
 // neither concept defines the other.
-func (se StreamEvent) Authoritative() bool {
-	switch se.Type {
+func (value StreamEvent) Authoritative() bool {
+	switch value.Type {
 	case StreamSegmentStarted, StreamSegmentFinished,
 		StreamItemStarted, StreamItemCompleted, StreamStateSnapshot:
 		return true
@@ -79,8 +79,8 @@ func (se StreamEvent) Authoritative() bool {
 // Replayable reports whether the process-local segment journal retains this
 // event and whether its HTTP frame receives an SSE id. Unknown and custom
 // events fail closed: neither enters the replay window.
-func (se StreamEvent) Replayable() bool {
-	switch se.Type {
+func (value StreamEvent) Replayable() bool {
+	switch value.Type {
 	case StreamSegmentStarted, StreamSegmentFinished,
 		StreamItemStarted, StreamItemCompleted, StreamStateSnapshot:
 		return true

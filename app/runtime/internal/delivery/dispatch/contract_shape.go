@@ -527,7 +527,7 @@ func (c CarriedSpec) validate() error {
 func (k StateKeySpec) validate() error {
 	switch {
 	case k.Key == "":
-		return fmt.Errorf("state key spec needs a key")
+		return errors.New("state key spec needs a key")
 	case k.RecoveryMethod == "":
 		return fmt.Errorf("state key %q: a key with no recovery method breaks reconnect", k.Key)
 	case k.Scope != StateScopeSession:
