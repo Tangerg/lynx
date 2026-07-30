@@ -9,8 +9,8 @@ import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { usePluginErrorStore } from "@/plugins/sdk/errors";
 import { createHost } from "@/plugins/sdk/host";
 import { appendBlockToLatestAssistant, appendBlockToMessage } from "@/plugins/sdk/state";
-import { reduce } from "./reducer";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
+import { foldTestEvent as reduce } from "./reducer.fixtures";
+import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 
 const custom = (name: string, payload: unknown): StreamEvent => ({ type: "custom", name, payload });
 
@@ -24,7 +24,7 @@ function seedAssistant() {
     type: "agentMessage",
     content: [],
   } as unknown as Item;
-  return reduce(INITIAL_VIEW_STATE, { type: "item.started", item });
+  return reduce(EMPTY_AGENT_SESSION_VIEW, { type: "item.started", item });
 }
 
 beforeEach(async () => {
@@ -34,8 +34,8 @@ beforeEach(async () => {
 
 describe("reducer — custom StreamEvent fallback", () => {
   it("unrecognized name with no registered handler is a no-op", () => {
-    const next = reduce(INITIAL_VIEW_STATE, custom("unregistered.xyz", { whatever: true }));
-    expect(next).toEqual(INITIAL_VIEW_STATE);
+    const next = reduce(EMPTY_AGENT_SESSION_VIEW, custom("unregistered.xyz", { whatever: true }));
+    expect(next).toEqual(EMPTY_AGENT_SESSION_VIEW);
   });
 
   it("routes to a plugin-registered handler", () => {
@@ -60,8 +60,8 @@ describe("reducer — custom StreamEvent fallback", () => {
       throw new Error("nope");
     });
 
-    const next = reduce(INITIAL_VIEW_STATE, custom("custom.boom", undefined));
-    expect(next).toEqual(INITIAL_VIEW_STATE);
+    const next = reduce(EMPTY_AGENT_SESSION_VIEW, custom("custom.boom", undefined));
+    expect(next).toEqual(EMPTY_AGENT_SESSION_VIEW);
     const log = usePluginErrorStore.getState().log;
     expect(log.at(-1)).toMatchObject({ plugin: "plug", source: "events" });
   });
@@ -71,8 +71,8 @@ describe("reducer — custom StreamEvent fallback", () => {
     host.events.onCustom("custom.metrics", () => {
       /* fire-and-forget side effect */
     });
-    const next = reduce(INITIAL_VIEW_STATE, custom("custom.metrics", { count: 1 }));
-    expect(next).toBe(INITIAL_VIEW_STATE);
+    const next = reduce(EMPTY_AGENT_SESSION_VIEW, custom("custom.metrics", { count: 1 }));
+    expect(next).toBe(EMPTY_AGENT_SESSION_VIEW);
   });
 
   it("handler can use appendBlockToMessage for explicit targeting", () => {

@@ -7,7 +7,7 @@ import { resolveAgentRunStartOptions } from "@/plugins/sdk";
 import type { AgentInput } from "../../domain/input";
 import { LOCAL_STEER_PREFIX } from "@/plugins/builtin/agent/domain/messageIdentity";
 import { agentRuntime } from "../ports/runtimeGateway";
-import { agentViewState } from "../ports/viewState";
+import { agentSessionView } from "../ports/sessionView";
 import { getActiveSessionId } from "../session/activeSession";
 import { type CreateSessionOptions, useCreateSession } from "../session/createSession";
 
@@ -35,10 +35,10 @@ type CreateSession = (opts?: CreateSessionOptions) => Promise<string | null>;
  */
 export function useChatSend(): (input: AgentInput) => void {
   const createSession = useCreateSession();
-  const send = agentViewState().useAction("send");
-  const running = agentViewState().useRunning();
-  const runId = agentViewState().useRunId();
-  const segmentId = agentViewState().useSegmentId();
+  const send = agentSessionView().useAction("send");
+  const running = agentSessionView().useCurrentRootRunning();
+  const runId = agentSessionView().useCurrentRootRunId();
+  const segmentId = agentSessionView().useCurrentRootSegmentId();
   return useCallback(
     (input: AgentInput) => {
       const sessionId = getActiveSessionId();
@@ -57,7 +57,7 @@ export function useChatSend(): (input: AgentInput) => void {
 }
 
 export function useCanSendToAgent(): boolean {
-  return Boolean(agentViewState().useAction("send"));
+  return Boolean(agentSessionView().useAction("send"));
 }
 
 // Optimistic steer bubble: render the user's steered message immediately under a
@@ -88,7 +88,7 @@ function steerRunningTurn({
   const localId = mintSteerBubble(sessionId, input);
   const runtime = agentRuntime();
   void runtime.steerRun(runId, segmentId, input).catch((err: unknown) => {
-    agentViewState().dropMessage(sessionId, localId);
+    agentSessionView().dropMessage(sessionId, localId);
     // The run this steer addressed is no longer executing: it finished, parked, or
     // moved to another segment while the person was typing. Sending the input as a
     // fresh turn is what they meant, and it is the runtime — not a guess here —
@@ -132,6 +132,6 @@ function sendFreshTurn({
 
 function mintSteerBubble(sessionId: string, input: AgentInput): string {
   const id = `${LOCAL_STEER_PREFIX}${++steerSeq}`;
-  agentViewState().appendLocalUserMessage(sessionId, id, input);
+  agentSessionView().appendLocalUserMessage(sessionId, id, input);
   return id;
 }

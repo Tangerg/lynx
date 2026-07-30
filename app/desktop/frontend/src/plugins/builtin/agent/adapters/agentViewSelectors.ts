@@ -1,21 +1,33 @@
+import { useMemo } from "react";
 import type {
-  AgentViewState,
+  AgentProblem,
+  AgentSessionView,
   Message,
   PlanItem,
-  RunError,
   RunUsage,
   TimelineEntry,
   ToolCall,
-} from "@/plugins/sdk/types/agentView";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
+} from "@/plugins/sdk/types/agentSessionView";
+import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
+import {
+  selectCurrentRootMessages,
+  selectCurrentRootPlan,
+  selectCurrentRootRun,
+  selectRunUsage,
+  selectVisibleProblem,
+} from "../application/view/runTree";
 import { useAgentSessionStore } from "./agentSessionStore";
 import { type AgentSendAction, type AgentStopAction, useAgentStore } from "./agentStore";
 
-function useActiveAgentView<T>(select: (view: AgentViewState) => T): T {
+function useActiveAgentView<T>(select: (view: AgentSessionView) => T): T {
   const sessionId = useAgentSessionStore((state) => state.activeSessionId);
-  // Keep this fallback as the shared module constant. Inline [] / {} fallbacks
-  // create a fresh snapshot every render and can loop Zustand subscribers.
-  return useAgentStore((state) => select(state.sessions[sessionId]?.view ?? INITIAL_VIEW_STATE));
+  return useAgentStore((state) =>
+    select(state.sessions[sessionId]?.view ?? EMPTY_AGENT_SESSION_VIEW),
+  );
+}
+
+function useCurrentRoot() {
+  return useActiveAgentView(selectCurrentRootRun);
 }
 
 export function useAgentAction(kind: "stop"): AgentStopAction;
@@ -25,61 +37,57 @@ export function useAgentAction(kind: "stop" | "send"): AgentStopAction | AgentSe
   return useAgentStore((state) => state.sessions[sessionId]?.[kind] ?? null);
 }
 
-export function useAgentRunning(): boolean {
-  return useActiveAgentView((view) => view.run.running);
+export function useCurrentRootRunning(): boolean {
+  return useCurrentRoot()?.status === "running";
 }
 
-export function useAgentRunId(): string | null {
-  return useActiveAgentView((view) => view.run.runId);
+export function useCurrentRootRunId(): string | null {
+  return useCurrentRoot()?.id ?? null;
 }
 
-/** The segment currently executing, or null. A steer names it so the runtime can
- *  refuse rather than inject the user's instruction into a continuation they
- *  never saw. */
-export function useAgentSegmentId(): string | null {
-  return useActiveAgentView((view) => view.run.segmentId);
+export function useCurrentRootSegmentId(): string | null {
+  return useCurrentRoot()?.activeSegmentId ?? null;
 }
 
-export function useAgentRunUsage(): RunUsage {
-  return useActiveAgentView((view) => view.run.usage);
+export function useCurrentRootUsage(): RunUsage {
+  return selectRunUsage(useCurrentRoot());
 }
 
-export function useAgentRunContextTokens(): number | undefined {
-  return useActiveAgentView((view) => view.run.contextTokens);
+export function useCurrentRootContextTokens(): number | undefined {
+  return useCurrentRoot()?.progress?.contextTokens;
 }
 
-export function useAgentPlan(): PlanItem[] {
-  return useActiveAgentView((view) => view.plan);
+export function useCurrentRootPlan(): PlanItem[] {
+  const view = useActiveAgentView((current) => current);
+  return useMemo(() => selectCurrentRootPlan(view), [view]);
 }
 
 export function useAgentToolCalls(): Record<string, ToolCall> {
   return useActiveAgentView((view) => view.toolCalls);
 }
 
-export function useAgentMessages(): Message[] {
-  return useActiveAgentView((view) => view.messages);
+export function useCurrentRootMessages(): Message[] {
+  const view = useActiveAgentView((current) => current);
+  return useMemo(() => selectCurrentRootMessages(view), [view]);
 }
 
-export function useAgentTimeline(): TimelineEntry[] {
+export function useAgentSessionTimeline(): TimelineEntry[] {
   return useActiveAgentView((view) => view.timeline);
 }
 
-export function useAgentError(): RunError | null {
-  return useActiveAgentView((view) => view.error);
+export function useAgentProblem(): AgentProblem | null {
+  return useActiveAgentView(selectVisibleProblem);
 }
 
 export function useAgentSharedState<T = unknown>(path?: string): T | undefined {
   return useActiveAgentView((view) => selectFromShared<T>(view.shared, path));
 }
 
-export function getCurrentSessionView(): AgentViewState {
+export function getCurrentSessionView(): AgentSessionView {
   const sessionId = useAgentSessionStore.getState().activeSessionId;
-  return useAgentStore.getState().sessions[sessionId]?.view ?? INITIAL_VIEW_STATE;
+  return useAgentStore.getState().sessions[sessionId]?.view ?? EMPTY_AGENT_SESSION_VIEW;
 }
 
-// Walk dot-segments into the backend-owned shared document. Returns stable
-// references off the store (never a fresh object), so it is safe as a Zustand
-// selector result.
 function selectFromShared<T>(
   shared: Record<string, unknown>,
   path: string | undefined,

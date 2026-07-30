@@ -1,8 +1,8 @@
 // Message content-block plugin surface.
 //
 // This file owns the discriminated union that plugin authors can extend via
-// declaration merging. Keep it separate from agentView.ts: content blocks are
-// an SDK extension contract, while AgentViewState is one built-in context's
+// declaration merging. Keep it separate from agentSessionView.ts: content blocks are
+// an SDK extension contract, while AgentSessionView is one built-in context's
 // read model.
 
 export type BlockStatus = "running" | "complete" | "incomplete" | "requires-action";

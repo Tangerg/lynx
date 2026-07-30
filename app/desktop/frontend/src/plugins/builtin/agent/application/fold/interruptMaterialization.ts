@@ -1,75 +1,102 @@
 import type { Interrupt } from "@/rpc";
 import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
-import type { AgentViewState } from "@/plugins/sdk/types/agentView";
+import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { appendTimelineEntry } from "@/plugins/sdk";
 import { commandString, editableArgs, mapQuestion, toolLabel } from "./projections";
-import { appendToTurn, markToolRequiresAction, patchBlock } from "./fold";
+import { appendToTurn, markToolRequiresAction, patchRunBlock } from "./fold";
+import type { AgentFoldSource } from "./source";
+import { sourceTimestamp } from "./source";
 
 export function materializeInterrupt(
-  state: AgentViewState,
-  it: Interrupt,
-  runId: string,
-): AgentViewState {
-  const withToolStatus = markToolRequiresAction(state, it.itemId);
-  if (it.type === "approval") {
+  state: AgentSessionView,
+  interrupt: Interrupt,
+  source: AgentFoldSource,
+): AgentSessionView {
+  const withToolStatus = markToolRequiresAction(state, source.runId, interrupt.itemId);
+  if (interrupt.type === "approval") {
     // Approval payloads are self-contained ToolInvocation envelopes. Upsert on
     // reconnect/replay so a re-seen interrupt re-affirms the same card.
-    const tool = it.payload?.tool;
     if (
-      withToolStatus.messages.some((m) =>
-        m.blocks.some((b) => b.kind === "approval" && b.itemId === it.itemId),
+      withToolStatus.messages.some(
+        (message) =>
+          message.runId === source.runId &&
+          message.blocks.some(
+            (block) => block.kind === "approval" && block.itemId === interrupt.itemId,
+          ),
       )
     ) {
-      return patchBlock(
+      return patchRunBlock(
         withToolStatus,
-        (b) => b.kind === "approval" && b.itemId === it.itemId,
+        source.runId,
+        (b) => b.kind === "approval" && b.itemId === interrupt.itemId,
         (b) => ({
           ...b,
           status: "requires-action",
-          runId,
-          rememberable: it.payload?.rememberable ?? false,
+          runId: source.runId,
+          rememberable: interrupt.payload?.rememberable ?? false,
         }),
       );
     }
+    const tool = interrupt.payload?.tool;
     const block: ContentBlock = {
       kind: "approval",
       status: "requires-action",
-      itemId: it.itemId,
-      runId,
+      itemId: interrupt.itemId,
+      runId: source.runId,
       toolName: tool?.name,
       command: tool ? commandString(tool) : "",
-      reason: it.payload?.reason ?? "",
+      reason: interrupt.payload?.reason ?? "",
       args: tool ? editableArgs(tool) : undefined,
-      risk: it.payload?.risk,
-      rememberable: it.payload?.rememberable ?? false,
+      risk: interrupt.payload?.risk,
+      rememberable: interrupt.payload?.rememberable ?? false,
     };
-    const withBlock = appendToTurn(withToolStatus, it.itemId, block);
+    const withBlock = appendToTurn(
+      withToolStatus,
+      source.runId,
+      interrupt.itemId,
+      block,
+      source.timestamp,
+    );
     return appendTimelineEntry({
+      id: `timeline:${source.eventId}:approval-request:${interrupt.itemId}`,
+      ts: sourceTimestamp(source),
       kind: "approval-request",
-      refId: it.itemId,
+      runId: source.runId,
+      refId: interrupt.itemId,
       summary: block.command || toolLabel(tool),
     })(withBlock);
   }
-  if (it.type === "question") {
+  if (interrupt.type === "question") {
     // The question payload can materialize the card even if item.started was
     // missed while the process was down.
-    const hasBlock = withToolStatus.messages.some((m) =>
-      m.blocks.some((b) => b.kind === "question" && b.itemId === it.itemId),
+    const hasBlock = withToolStatus.messages.some(
+      (message) =>
+        message.runId === source.runId &&
+        message.blocks.some(
+          (block) => block.kind === "question" && block.itemId === interrupt.itemId,
+        ),
     );
     if (hasBlock) {
-      return patchBlock(
+      return patchRunBlock(
         withToolStatus,
-        (b) => b.kind === "question" && b.itemId === it.itemId,
-        (b) => ({ ...b, status: "requires-action", runId }),
+        source.runId,
+        (b) => b.kind === "question" && b.itemId === interrupt.itemId,
+        (b) => ({ ...b, status: "requires-action", runId: source.runId }),
       );
     }
-    return appendToTurn(withToolStatus, it.itemId, {
-      kind: "question",
-      status: "requires-action",
-      itemId: it.itemId,
-      runId,
-      questions: mapQuestion(it.payload?.question),
-    });
+    return appendToTurn(
+      withToolStatus,
+      source.runId,
+      interrupt.itemId,
+      {
+        kind: "question",
+        status: "requires-action",
+        itemId: interrupt.itemId,
+        runId: source.runId,
+        questions: mapQuestion(interrupt.payload?.question),
+      },
+      source.timestamp,
+    );
   }
   return withToolStatus;
 }

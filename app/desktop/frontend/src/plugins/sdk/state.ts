@@ -1,7 +1,7 @@
 // State update helpers for `custom` StreamEvent handlers.
 //
 // Handlers return a `StateUpdate` (state → state). Rather than make plugin
-// authors touch the AgentViewState shape directly, they compose updates from
+// authors touch the AgentSessionView shape directly, they compose updates from
 // these helpers:
 //
 //   host.events.onCustom("monitoring.cpu", (value) =>
@@ -10,11 +10,11 @@
 
 import type { StateUpdate } from "./types";
 import type {
-  AgentViewState,
+  AgentSessionView,
   Message,
   PlanItem,
   TimelineEntry,
-} from "@/plugins/sdk/types/agentView";
+} from "@/plugins/sdk/types/agentSessionView";
 import type {
   ContentBlock,
   ContentBlockKind,
@@ -70,13 +70,11 @@ export function patchBlocksWhere<B extends ContentBlock>(
 }
 
 /** Replace the run plan wholesale. */
-export function setPlan(items: PlanItem[]): StateUpdate {
-  return (state) => ({ ...state, plan: items });
-}
-
-/** Patch one or more run-state fields. */
-export function patchRun(patch: Partial<AgentViewState["run"]>): StateUpdate {
-  return (state) => ({ ...state, run: { ...state.run, ...patch } });
+export function setRunPlan(runId: string, items: PlanItem[]): StateUpdate {
+  return (state) => ({
+    ...state,
+    plansByRunId: { ...state.plansByRunId, [runId]: items },
+  });
 }
 
 /** Compose a sequence of updates. Useful when one handler does several things. */
@@ -87,23 +85,21 @@ export function compose(...updates: StateUpdate[]): StateUpdate {
 /** Append a structured entry to the run timeline. Custom-event handlers
  *  use this to surface approval / checkpoint / other domain markers in
  *  the Run Timeline view. */
-export function appendTimelineEntry(
-  entry: Omit<TimelineEntry, "id" | "ts" | "runId"> & { runId?: string | null },
-): StateUpdate {
+export function appendTimelineEntry(entry: TimelineEntry): StateUpdate {
   return appendProtocolTimelineEntry(entry);
 }
 
 function updateMessage(
-  state: AgentViewState,
+  state: AgentSessionView,
   id: string,
   fn: (m: Message) => Message,
-): AgentViewState {
+): AgentSessionView {
   return {
     ...state,
     messages: state.messages.map((m) => (m.id === id ? fn(m) : m)),
   };
 }
 
-function findLastAssistantId(state: AgentViewState): string | null {
+function findLastAssistantId(state: AgentSessionView): string | null {
   return state.messages.findLast((m) => m.role === "assistant")?.id ?? null;
 }

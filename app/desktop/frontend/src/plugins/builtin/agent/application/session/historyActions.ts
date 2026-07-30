@@ -1,10 +1,11 @@
-import type { Message } from "@/plugins/sdk/types/agentView";
+import type { Message } from "@/plugins/sdk/types/agentSessionView";
 import { t } from "@/lib/i18n";
 import type { AgentInput } from "../../domain/input";
 import { notifyInfo } from "@/plugins/sdk";
 import { agentRuntime, type RestoreType } from "../ports/runtimeGateway";
 import { agentSessionState } from "../ports/sessionState";
-import { agentViewState } from "../ports/viewState";
+import { agentSessionView } from "../ports/sessionView";
+import { selectCurrentRootMessages } from "../view/runTree";
 import { forkSessionAt } from "./forkSession";
 import { rehydrateSessionView } from "./rehydrateSession";
 
@@ -16,11 +17,14 @@ export interface ActiveAgentConversation {
 export function activeAgentConversation(): ActiveAgentConversation | null {
   const sessionId = agentSessionState().getActiveSessionId();
   if (!sessionId) return null;
-  return { sessionId, messages: agentViewState().getCurrentView().messages };
+  return {
+    sessionId,
+    messages: selectCurrentRootMessages(agentSessionView().getCurrentView()),
+  };
 }
 
 export function sendToAgentSession(sessionId: string, input: AgentInput): boolean {
-  return agentViewState().sendToSession(sessionId, input);
+  return agentSessionView().sendToSession(sessionId, input);
 }
 
 export async function rollbackSessionToBeforeRun(

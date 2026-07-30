@@ -1,26 +1,26 @@
 import { describe, expect, it } from "vitest";
 import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
 import type {
-  AgentViewState,
+  AgentProblem,
+  AgentRunView,
+  AgentSessionView,
   Message,
   PendingInterruptGroup,
-  RunError,
-} from "@/plugins/sdk/types/agentView";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
+} from "@/plugins/sdk/types/agentSessionView";
+import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import {
   cancelRunningRun,
   dropMessage,
   relabelMessage,
   resolveInterrupt,
-  setRunError,
+  setCommandError,
 } from "./viewMutations";
 
 const time = "2026-06-03T00:00:00Z";
 
-function view(partial: Partial<AgentViewState> = {}): AgentViewState {
+function view(partial: Partial<AgentSessionView> = {}): AgentSessionView {
   return {
-    ...INITIAL_VIEW_STATE,
-    run: { ...INITIAL_VIEW_STATE.run },
+    ...EMPTY_AGENT_SESSION_VIEW,
     messages: [],
     timeline: [],
     pendingInterrupts: [],
@@ -29,7 +29,28 @@ function view(partial: Partial<AgentViewState> = {}): AgentViewState {
 }
 
 function message(id: string, blocks: ContentBlock[] = []): Message {
-  return { id, role: "assistant", createdAt: time, blocks };
+  return { id, role: "assistant", createdAt: time, runId: "run_1", blocks };
+}
+
+function runningRun(id = "run_1"): AgentRunView {
+  return {
+    id,
+    sessionId: "ses_1",
+    parentRunId: null,
+    rootRunId: id,
+    spawnedByItemId: null,
+    status: "running",
+    activeSegmentId: "seg_1",
+    outcome: null,
+    metrics: {
+      steps: 0,
+      activeDurationMs: 0,
+      usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
+    },
+    progress: null,
+    createdAt: time,
+    finishedAt: null,
+  };
 }
 
 function approvalBlock(itemId: string): ContentBlock {
@@ -107,22 +128,26 @@ describe("view mutations - messages", () => {
 });
 
 describe("view mutations - run state", () => {
-  it("sets and clears a run error only when the value changes", () => {
-    const error: RunError = { message: "boom", code: "provider_error" };
-    const original = view({ error });
+  it("sets and clears a command error only when the value changes", () => {
+    const error: AgentProblem = { message: "boom", code: "provider_error" };
+    const original = view({ commandError: error });
 
-    expect(setRunError(original, error)).toBe(original);
-    expect(setRunError(original, null)).toMatchObject({ error: null });
+    expect(setCommandError(original, error)).toBe(original);
+    expect(setCommandError(original, null)).toMatchObject({ commandError: null });
   });
 
   it("cancels a running run and records a canceled run-end", () => {
+    const run = runningRun();
     const original = view({
-      run: { ...INITIAL_VIEW_STATE.run, running: true, runId: "run_1" },
+      runsById: { [run.id]: run },
     });
 
     const next = cancelRunningRun(original);
 
-    expect(next.run.running).toBe(false);
+    expect(next.runsById.run_1).toMatchObject({
+      status: "finished",
+      outcome: { type: "canceled" },
+    });
     expect(next.timeline.at(-1)).toMatchObject({
       kind: "run-end",
       runId: "run_1",
@@ -145,6 +170,7 @@ describe("view mutations - interrupts", () => {
       toolCalls: {
         tool_1: {
           id: "tool_1",
+          runId: "run_1",
           name: "shell",
           fn: "rm x",
           args: "",
@@ -194,6 +220,7 @@ describe("view mutations - interrupts", () => {
       toolCalls: {
         tool_1: {
           id: "tool_1",
+          runId: "run_1",
           name: "shell",
           fn: "rm x",
           args: "",
@@ -201,6 +228,7 @@ describe("view mutations - interrupts", () => {
         },
         tool_2: {
           id: "tool_2",
+          runId: "run_1",
           name: "shell",
           fn: "rm y",
           args: "",

@@ -36,7 +36,7 @@ export function regenerationPromptBefore(
     const images = messageImages(message);
     const text = flattenText(message.blocks).trim();
     if (!text && images.length === 0) return null;
-    return { text, images, runId: message.runId };
+    return { text, images, runId: message.runId ?? undefined };
   }
   return null;
 }

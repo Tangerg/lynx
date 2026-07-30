@@ -8,11 +8,11 @@
 // mounted need nothing — they hydrate fresh on open.
 
 import { agentRuntime } from "../ports/runtimeGateway";
-import { agentViewState } from "../ports/viewState";
+import { agentSessionView } from "../ports/sessionView";
 import { recoverSessionState } from "./recoverSessionState";
 
 export async function rehydrateSessionView(sessionId: string): Promise<void> {
-  const store = agentViewState();
+  const store = agentSessionView();
   if (!store.getSession(sessionId)) return;
   store.resetView(sessionId);
   // Snapshot the epoch resetView just bumped, to detect mid-flight invalidation.

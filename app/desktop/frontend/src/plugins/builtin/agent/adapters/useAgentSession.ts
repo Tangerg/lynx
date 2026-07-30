@@ -3,7 +3,7 @@ import { asItemId, asRunId, type InterruptResponse } from "@/rpc";
 import { useEffect, useRef } from "react";
 import type { AgentInput } from "@/plugins/builtin/agent/domain/input";
 import type { AgentSession } from "../application/ports/defaultSession";
-import type { InterruptResumeInput } from "../application/ports/viewState";
+import type { InterruptResumeInput } from "../application/ports/sessionView";
 import { agentInputToContentBlocks } from "@/plugins/builtin/agent/adapters/wireInput";
 import { getContainer } from "@/main/container";
 import { useAgentStore } from "./agentStore";
@@ -15,6 +15,7 @@ import { startAgentSessionRecovery } from "./agentSessionRecovery";
 import { useAgentSessionStore } from "./agentSessionStore";
 import { createOptimisticUserMessage } from "./optimisticUserMessage";
 import { createRunOpeningController } from "./runOpeningController";
+import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 
 export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string): AgentSession {
   const factoryRef = useRef(makeDriver);
@@ -47,7 +48,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       sessionId,
       isCancelled: () => cancelled,
       readEpoch: () => store().sessions[sessionId]?.viewEpoch ?? 0,
-      applyEvents: (events) => store().applyEvents(sessionId, events),
+      applyEvents: (events) => store().applyRunEvents(sessionId, events),
       // A run keeps executing when its stream drops. Reattaching is what makes that a
       // gap instead of a transcript that stops moving until the next reload.
       reattach: createRunStreamReattach({
@@ -64,7 +65,10 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         sessionId,
         isCancelled: () => cancelled,
         hasInteracted: () => interacted,
-        applyEvents: (events) => store().applyEvents(sessionId, events),
+        includeDescendants: runtimeCapability("subagents"),
+        applyCompletedItems: (items) => store().applyCompletedItems(sessionId, items),
+        applyRunSnapshots: (runs) => store().applyRunSnapshots(sessionId, runs),
+        applyPendingInterruptSets: (sets) => store().applyPendingInterruptSets(sessionId, sets),
         setAbortController: (ctrl) => {
           abort = ctrl;
         },
@@ -84,7 +88,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         abort = ctrl;
       },
       pump: runPump.pump,
-      setStartError: (error) => store().setError(sessionId, error),
+      setStartError: (error) => store().setCommandError(sessionId, error),
     });
 
     const send = (input: AgentInput, options: AgentRunStartOptions = {}): void => {
@@ -98,7 +102,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       // bubble carries the SAME input the run does, so inlined images show
       // immediately and survive the relabel (which only swaps the id).
       const optimistic = createOptimisticUserMessage(wireInput);
-      store().applyEvents(sessionId, [{ event: optimistic.event }]);
+      store().appendLocalMessage(sessionId, optimistic.message);
       runOpening.begin(
         (signal) => driver.start(wireInput, options, signal),
         (result) => {

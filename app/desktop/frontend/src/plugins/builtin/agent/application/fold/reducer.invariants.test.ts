@@ -28,11 +28,11 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Item, StreamEvent } from "@/rpc";
-import type { AgentViewState, Message } from "@/plugins/sdk/types/agentView";
+import type { AgentSessionView, Message } from "@/plugins/sdk/types/agentSessionView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
-import { reduce } from "./reducer";
+import { foldTestEvent as reduce } from "./reducer.fixtures";
 import { appendToTurn } from "./fold";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
+import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/public/foldPlugin");
@@ -55,8 +55,8 @@ const completed = (i: Item): StreamEvent => ({ type: "item.completed", item: i }
 const delta = (itemId: string, d: Record<string, unknown>): StreamEvent =>
   ({ type: "item.delta", itemId, delta: d }) as StreamEvent;
 
-const foldAll = (events: StreamEvent[]): AgentViewState =>
-  events.reduce((state, ev) => reduce(state, ev), INITIAL_VIEW_STATE);
+const foldAll = (events: StreamEvent[]): AgentSessionView =>
+  events.reduce((state, ev) => reduce(state, ev), EMPTY_AGENT_SESSION_VIEW);
 
 // An assistant turn's `createdAt` is wall-clock-stamped when the turn opens (not
 // event data), so compare renders without it.
@@ -167,13 +167,13 @@ describe("fold — one message per id", () => {
     // later block for the SAME item comes back, the fold must land in the turn it
     // already minted for that item — two messages under one React key is the
     // duplicate-key loop CLAUDE.md §5 names.
-    const first = appendToTurn(INITIAL_VIEW_STATE, "m9", {
+    const first = appendToTurn(EMPTY_AGENT_SESSION_VIEW, "run_1", "m9", {
       kind: "text",
       text: "a",
       status: "running",
     });
-    const closed: AgentViewState = { ...first, turnMessageId: null };
-    const second = appendToTurn(closed, "m9", {
+    const closed: AgentSessionView = { ...first, assistantTurnByRunId: {} };
+    const second = appendToTurn(closed, "run_1", "m9", {
       kind: "reasoning",
       reasoningId: "m9",
       text: "b",
@@ -182,7 +182,7 @@ describe("fold — one message per id", () => {
 
     const ids = second.messages.map((m) => m.id);
     expect(ids).toEqual(["turn:m9"]);
-    expect(second.turnMessageId).toBe("turn:m9");
+    expect(second.assistantTurnByRunId.run_1).toBe("turn:m9");
     expect(second.messages[0]!.blocks.map((b) => b.kind)).toEqual(["text", "reasoning"]);
   });
 });

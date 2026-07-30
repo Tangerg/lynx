@@ -12,7 +12,7 @@
 // settles); cleared on settle/error so a torn-down session stays retryable.
 
 import { agentSessionState } from "../ports/sessionState";
-import { agentViewState } from "../ports/viewState";
+import { agentSessionView } from "../ports/sessionView";
 import { getApprovalActions } from "./approvalActions";
 import type { ApprovalDecision } from "../../domain/hitl";
 import { WIRE_DECISION } from "./wireDecision";
@@ -22,7 +22,7 @@ const inFlight = new Set<string>();
 
 export function submitPendingApproval(decision: ApprovalDecision): boolean {
   const sid = agentSessionState().getActiveSessionId();
-  const entry = agentViewState().getSession(sid);
+  const entry = agentSessionView().getSession(sid);
   if (!entry) return false;
 
   // Questions need answers (not approve/deny), so only act on approval interrupts.

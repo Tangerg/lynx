@@ -1,7 +1,7 @@
-import type { StreamEvent } from "@/rpc";
+import type { RunEvent } from "@/rpc";
 import type { Disposable, ToolPreviewComponent } from "./types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
+import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import { useConfigStore } from "./config";
 import { createHost } from "./host";
 import { useNotificationStore } from "./notifications";
@@ -164,27 +164,45 @@ describe("plugin registry", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
 
-    host.events.onStream("segment.started", (s) => ({
+    host.events.onStream("segment.started", (s, event) => ({
       ...s,
-      run: { ...s.run, sessionId: "a" },
+      shared: { ...s.shared, handlerOrder: event.runId },
     }));
     host.events.onStream("segment.started", (s) => ({
       ...s,
-      run: { ...s.run, sessionId: `${s.run.sessionId}b` },
+      shared: {
+        ...s.shared,
+        handlerOrder: `${String(s.shared.handlerOrder)}b`,
+      },
     }));
 
     const handlers = lookupStreamHandlers("segment.started");
     expect(handlers).toHaveLength(2);
 
     // Apply by hand to verify ordering.
-    let state = INITIAL_VIEW_STATE;
-    for (const { handler } of handlers) {
-      state = handler(state, {
+    let state = EMPTY_AGENT_SESSION_VIEW;
+    const event: RunEvent = {
+      event: {
         type: "segment.started",
-        run: { id: "r", sessionId: "a" },
-      } as StreamEvent);
+        run: {
+          id: "r",
+          sessionId: "a",
+          status: "running",
+          activeSegmentId: "seg_1",
+          createdAt: "2026-06-03T00:00:00.000Z",
+          metrics: { steps: 0, activeDurationMs: 0 },
+          protocolProfile: { interruptTypes: [], requiredFeatures: [] },
+        },
+      },
+      eventId: "evt_1",
+      runId: "a",
+      segmentId: "seg_1",
+      timestamp: "2026-06-03T00:00:00.000Z",
+    };
+    for (const { handler } of handlers) {
+      state = handler(state, event);
     }
-    expect(state.run.sessionId).toBe("ab");
+    expect(state.shared.handlerOrder).toBe("ab");
   });
 
   it("onCore disposable removes the handler", () => {

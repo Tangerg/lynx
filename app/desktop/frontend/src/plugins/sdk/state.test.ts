@@ -1,24 +1,19 @@
-import type { AgentViewState, Message } from "@/plugins/sdk/types/agentView";
+import type { AgentSessionView, Message } from "@/plugins/sdk/types/agentSessionView";
 import { describe, expect, it } from "vitest";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
-import {
-  appendBlockToLatestAssistant,
-  appendBlockToMessage,
-  compose,
-  patchRun,
-  setPlan,
-} from "./state";
+import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
+import { appendBlockToLatestAssistant, appendBlockToMessage, compose, setRunPlan } from "./state";
 
 // Helpers to construct messages without typing the whole shape every time.
 const msg = (id: string, role: Message["role"] = "assistant"): Message => ({
   id,
   role,
   createdAt: "2026-01-01T00:00:00.000Z",
+  runId: null,
   blocks: [],
 });
 
-const stateWith = (messages: Message[]): AgentViewState => ({
-  ...INITIAL_VIEW_STATE,
+const stateWith = (messages: Message[]): AgentSessionView => ({
+  ...EMPTY_AGENT_SESSION_VIEW,
   messages,
 });
 
@@ -63,38 +58,31 @@ describe("appendBlockToLatestAssistant", () => {
   });
 });
 
-describe("setPlan", () => {
-  it("replaces the plan array wholesale", () => {
-    const update = setPlan([{ id: 1, pid: "T-1", status: "doing", text: "x" }]);
+describe("setRunPlan", () => {
+  it("replaces only the named Run's plan", () => {
+    const update = setRunPlan("run_1", [{ id: 1, pid: "T-1", status: "doing", text: "x" }]);
     const next = update(stateWith([]));
-    expect(next.plan).toEqual([{ id: 1, pid: "T-1", status: "doing", text: "x" }]);
-  });
-});
-
-describe("patchRun", () => {
-  it("merges into run state", () => {
-    const update = patchRun({ activity: "scanning", step: 42 });
-    const next = update(INITIAL_VIEW_STATE);
-    expect(next.run.activity).toBe("scanning");
-    expect(next.run.step).toBe(42);
-    // Untouched fields keep their values.
-    expect(next.run.usage).toBe(INITIAL_VIEW_STATE.run.usage);
+    expect(next.plansByRunId.run_1).toEqual([{ id: 1, pid: "T-1", status: "doing", text: "x" }]);
   });
 });
 
 describe("compose", () => {
   it("applies updates left-to-right", () => {
     const update = compose(
-      setPlan([{ id: 1, pid: "T-1", status: "todo", text: "a" }]),
-      patchRun({ activity: "building" }),
+      setRunPlan("run_1", [{ id: 1, pid: "T-1", status: "todo", text: "a" }]),
+      appendBlockToLatestAssistant({
+        kind: "text",
+        text: "building",
+        status: "running",
+      }),
     );
-    const next = update(INITIAL_VIEW_STATE);
-    expect(next.plan).toHaveLength(1);
-    expect(next.run.activity).toBe("building");
+    const next = update(stateWith([msg("assistant")]));
+    expect(next.plansByRunId.run_1).toHaveLength(1);
+    expect(next.messages[0]?.blocks).toHaveLength(1);
   });
 
   it("returns the original state when called with zero updates", () => {
     const update = compose();
-    expect(update(INITIAL_VIEW_STATE)).toBe(INITIAL_VIEW_STATE);
+    expect(update(EMPTY_AGENT_SESSION_VIEW)).toBe(EMPTY_AGENT_SESSION_VIEW);
   });
 });

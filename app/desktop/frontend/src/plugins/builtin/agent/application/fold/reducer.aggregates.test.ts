@@ -5,11 +5,11 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Item, StreamEvent } from "@/rpc";
-import type { AgentViewState } from "@/plugins/sdk/types/agentView";
+import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
-import { reduce } from "./reducer";
+import { foldTestEvent as reduce } from "./reducer.fixtures";
 import { noMetrics } from "./reducer.fixtures";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
+import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 
 function item(partial: Record<string, unknown>): Item {
   return {
@@ -29,7 +29,7 @@ beforeEach(async () => {
 
 describe("reducer — timeline accumulator", () => {
   it("records run-start / tool-start+end / run-end entries in order", () => {
-    let s: AgentViewState = INITIAL_VIEW_STATE;
+    let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
     s = reduce(s, { type: "segment.started", run: { id: "r1", sessionId: "s" } as never });
     s = reduce(
       s,
@@ -66,7 +66,7 @@ describe("reducer — timeline accumulator", () => {
   });
 
   it("records an approval-request when a run finishes with an approval interrupt", () => {
-    let s: AgentViewState = INITIAL_VIEW_STATE;
+    let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
     s = reduce(s, { type: "segment.started", run: { id: "r1", sessionId: "s" } as never });
     s = reduce(
       s,
@@ -114,14 +114,14 @@ describe("reducer — shared state", () => {
   });
 
   it("a state snapshot replaces its own key wholesale", () => {
-    const s = reduce(INITIAL_VIEW_STATE, todos(1, "first"));
+    const s = reduce(EMPTY_AGENT_SESSION_VIEW, todos(1, "first"));
     expect(s.shared.todos).toMatchObject({ revision: 1, todos: [{ text: "first" }] });
   });
 
   // The list is replaced whole, so contents cannot say which snapshot is later — an
   // older one arriving late would look exactly like progress being undone.
   it("an older revision does not overwrite a newer one", () => {
-    let s = reduce(INITIAL_VIEW_STATE, todos(4, "current"));
+    let s = reduce(EMPTY_AGENT_SESSION_VIEW, todos(4, "current"));
     s = reduce(s, todos(2, "stale"));
     expect(s.shared.todos).toMatchObject({ revision: 4, todos: [{ text: "current" }] });
   });
@@ -129,7 +129,7 @@ describe("reducer — shared state", () => {
 
 describe("reducer — durable history hydration", () => {
   it("item.completed without a prior item.started upserts the block (items.list replay)", () => {
-    let s: AgentViewState = INITIAL_VIEW_STATE;
+    let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
     s = reduce(
       s,
       completed(

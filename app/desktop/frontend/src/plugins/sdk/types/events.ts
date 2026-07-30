@@ -5,8 +5,8 @@
 // `custom` StreamEvent, third-party extension only). The built-in protocol
 // semantics live in `lyra.builtin.agent-fold`.
 
-import type { StreamEvent } from "@/rpc";
-import type { AgentViewState } from "@/plugins/sdk/types/agentView";
+import type { RunEvent } from "@/rpc";
+import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 
 /**
  * Pure state update — takes the current view state, returns the next.
@@ -14,7 +14,7 @@ import type { AgentViewState } from "@/plugins/sdk/types/agentView";
  * Handlers compose updates from helpers exported by `@/plugins/sdk/state`
  * (e.g. `appendBlockToMessage`) so they don't have to know the state shape.
  */
-export type StateUpdate = (state: AgentViewState) => AgentViewState;
+export type StateUpdate = (state: AgentSessionView) => AgentSessionView;
 
 /**
  * `custom` StreamEvent handler. Receives the event's `payload` and returns
@@ -28,24 +28,15 @@ export type CustomEventHandler<T = unknown> = (value: T) => StateUpdate | void;
 /**
  * Handler for a first-class StreamEvent type (segment.started / segment.finished /
  * item.started / item.delta / item.completed / state.snapshot).
- * Receives the full state + the StreamEvent and returns the next state.
+ * Receives the full session projection + the complete RunEvent envelope and
+ * returns the next projection.
  * Multiple plugins can register for the same type; they run in registration
  * order, each seeing the previous output.
  *
  * Pluginifying these makes "everything is a plugin" literal: even the v2
  * protocol fold is just one (replaceable) plugin's contribution.
  *
- * `runId` is the wire (RunEvent envelope) runId that carried this event —
- * threaded through so run.* handlers can tell a subagent's run from the root's
- * (RunOutcome itself carries no id). `segmentId` is the envelope segmentId —
- * the streamed segment; a change in it is the segment boundary that resets the
- * per-segment streaming readout (a resume opens a new segment of the same run).
- * Both are absent for synthetic events (the optimistic local bubble, items.list
- * history replay).
+ * The envelope is mandatory provenance: source Run, Segment, event identity and
+ * runtime timestamp cannot be reconstructed from a payload or current UI state.
  */
-export type StreamEventHandler = (
-  state: AgentViewState,
-  event: StreamEvent,
-  runId?: string,
-  segmentId?: string,
-) => AgentViewState;
+export type StreamEventHandler = (state: AgentSessionView, event: RunEvent) => AgentSessionView;

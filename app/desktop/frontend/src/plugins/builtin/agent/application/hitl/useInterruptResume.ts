@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
-import type { InterruptResumePayload, ResolvePatch } from "../ports/viewState";
+import type { InterruptResumePayload, ResolvePatch } from "../ports/sessionView";
 import { agentSessionState } from "../ports/sessionState";
-import { agentViewState } from "../ports/viewState";
+import { agentSessionView } from "../ports/sessionView";
 
 // Shared HITL resume scaffold (API.md §6, R-model) behind useApprovalSubmit and
 // useQuestionAnswer — the parts that must behave identically for every interrupt
@@ -39,13 +39,13 @@ export function resumeInterrupt(
   settled: ResolvePatch,
   hooks?: { onSettled?: () => void; onError?: () => void },
 ): boolean {
-  const sessionResume = agentViewState().getSession(sessionId)?.resume;
+  const sessionResume = agentSessionView().getSession(sessionId)?.resume;
   if (!sessionResume) return false;
   sessionResume(
     runId,
     [{ itemId, response }],
     () => {
-      agentViewState().resolveInterrupt(sessionId, itemId, settled);
+      agentSessionView().resolveInterrupt(sessionId, itemId, settled);
       hooks?.onSettled?.();
     },
     () => hooks?.onError?.(),

@@ -3,9 +3,9 @@
 > 作者：Codex
 > 状态：`IN PROGRESS`
 > 建档日期：2026-07-30
-> 最新实现审计基线：`main@b75d2a1d9`；W4.0 文档提交：`26e43fd0e`
+> W4.1 实施基线：`main@bf9814b2e`；W4.0 文档提交：`26e43fd0e`
 > 当前主任务：`W4 — B1.6 Desktop Run-tree consumer`
-> 执行进度：`W2 DONE · W3 DONE · W4.0 DONE · W4.1 READY`
+> 执行进度：`W2 DONE · W3 DONE · W4.0 DONE · W4.1 DONE · W4.2 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 43`
@@ -241,7 +241,7 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 | Runtime B1.4c | `DONE` | prepared runtime mutation + App-owned atomic waiting-subtree transaction | — |
 | Runtime B1.4d | `DONE` | W2.1 ownership；W2.2 failure/rollback；W2.3 restart/query/publication；W2.4 race/hygiene/full closure | — |
 | Runtime B1.5 | `DONE` | W3.0–W3.4 query / stream / replay / cold recovery / full closure | — |
-| Desktop B1.6 | `IN PROGRESS` | W4.0 完成现状/爆炸半径审计并冻结 Session narrative + normalized Run tree 目标 | W4.1 projection core 与 source-owned fold |
+| Desktop B1.6 | `IN PROGRESS` | W4.1 完成 canonical Session/Run-tree projection、完整 provenance 与 source-owned fold | W4.2 durable recovery、invalidation 与 committed cancel merge |
 | Runtime/Desktop B1.7 | `TODO` | capability seam 已存在且保持 disabled | 全门禁后启用 subagents |
 | Runtime/Desktop 架构持续演进 | `ONGOING` | 依赖环、consumer ports、plugin contexts 与多项 architecture gate 已存在 | 随每个 slice 审查并最终 sweep |
 | Synara UI 对齐 | `TODO` | 参考仓库已明确为 `~/Desktop/synara` | B1.6 后做视觉基线与像素级实现 |
@@ -883,7 +883,7 @@ W3.4 完成结果（2026-07-30）：
 
 ### W4 — B1.6 Desktop Run-tree consumer
 
-状态：`IN PROGRESS`；`W4.0 DONE · W4.1 READY`
+状态：`IN PROGRESS`；`W4.0 DONE · W4.1 DONE · W4.2 READY`
 
 专项执行卡：
 
@@ -925,8 +925,8 @@ W4.0 审计裁决：
 | Slice | 状态 | 边界 |
 |---|---|---|
 | W4.0 | `DONE` | 现状、爆炸半径、目标模型与全门禁基线 |
-| W4.1 | `READY` | canonical Session/Run-tree projection、完整 provenance、source-owned fold，删除 single-run shape 与 synthetic wire |
-| W4.2 | `PENDING` | durable snapshot、replay/cold/invalidation、root/child cancel response merge |
+| W4.1 | `DONE` | canonical Session/Run-tree projection、完整 provenance、source-owned fold，删除 single-run shape 与 synthetic wire |
+| W4.2 | `READY` | durable snapshot、replay/cold/invalidation、root/child cancel response merge |
 | W4.3 | `PENDING` | root-first narrative、task child disclosure、tree/timeline/cancel UI |
 | W4.4 | `PENDING` | architecture/hygiene/docs/full gates，B1.6 收口 |
 
@@ -1539,6 +1539,37 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 - 残余风险：W4.1–W4.4 尚未实施；`features.subagents` 继续 disabled。
 - 下一步：W4.1 projection core 与 source-owned fold。
 
+### 2026-07-30 — W4.1
+
+- 状态：`DONE`
+- 目标：以 breaking change 建立 Desktop canonical Session/Run-tree projection 与
+  source-owned fold，删除 single-run 心智模型和 synthetic wire；
+- 实施：
+  - `AgentSessionView` 成为唯一 projection contract；
+  - Run lifecycle 规范化为 `runsById`，plan 与 assistant turn 按 RunID 分桶；
+  - Message、ToolCall、timeline 与 interrupt 保留准确 Run owner；
+  - live fold 只消费完整 `RunEvent`，history/snapshot/local mutation 使用独立入口；
+  - store、ports、selectors、SDK 与跨 context consumers 同步 breaking migration；
+- 证明：
+  - root、siblings、nested child 独立 lifecycle/progress/terminal；
+  - interleaved message/plan/tool/turn/timeline 不串 Run；
+  - duplicate terminal replay 幂等；
+  - live terminal 与 durable RunRef snapshot 收敛；
+  - malformed source owner fail closed；
+- 删除：
+  - single `view.run`、global plan/turn/error；
+  - optional fold source、implicit root fallback；
+  - synthetic StreamEvent、空 RunID、unknown profile 与 zero metrics reconstruction；
+  - 旧 type/port/selector/helper alias，无 dual write 或 compatibility reducer；
+- 验证：
+  - `cd app/desktop/frontend && npm run check` → `PASS`
+  - 178 test files / 1076 tests；
+  - type/lint/format/knip/circular/context/published-boundary/layer/token/chrome/locale/
+    bootstrap/bundle gates → `PASS`；
+- 残余风险：W4.2 的 atomic durable refresh、runtime invalidation 与 committed cancel
+  merge 尚未实施；`features.subagents` 继续 disabled。
+- 下一步：W4.2 durable recovery、invalidation 与 cancel。
+
 ---
 
 ## 12. 下一张执行卡
@@ -1546,26 +1577,29 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 唯一下一任务：
 
 ```text
-W4.1 — B1.6
-Projection core 与 source-owned fold
+W4.2 — B1.6
+Durable recovery、invalidation 与 cancel
 ```
 
 实施顺序：
 
-1. 先补 root/child/sibling/nested/interleaved reducer conformance；
-2. 建立 canonical Session projection + `runsById`，一次性删除 `view.run`；
-3. live fold 改为完整 RunEvent provenance；
-4. message/tool/plan/timeline/assistant turn 全部按 source Run；
-5. 删除 synthetic wire，并同步迁移 store、ports、selectors 与 consumers；
-6. frontend 全门禁后独立 commit/push，再进入 W4.2 recovery/control。
+1. 建立 pure `AgentSessionSnapshot` builder；
+2. cold/replay-lost/invalidation 使用 epoch-guarded atomic replace；
+3. negotiated descendant query 与 root-only branch 显式分开；
+4. root/child cancel 合并 exact committed `CancelRunResponse`；
+5. waiting child cancel 恢复 root 时按 response 重订 active Segment；
+6. 覆盖 stale/failure/restart/concurrency；
+7. frontend 全门禁后独立 commit/push，再进入 W4.3 presentation。
 
-W4.1 的禁止项：
+W4.2 的禁止项：
 
 - 不新增协议方法；
 - 不实现 child subscribe；
 - 不让 Agent 接触 App persistence；
 - 不从 transcript、live registry 或事件到达顺序反推 tree identity；
-- 不保留 `view.run` alias、dual write、compat reducer 或 synthetic StreamEvent；
-- 不在 W4.1 偷做半套 UI；
+- 不先 reset mounted view 再逐条异步补回；
+- 不捕获 capability rejection 后 silent fallback；
+- 不本地伪造 canceled/finished terminal；
+- 不在 W4.2 偷做半套 UI；
 - 不在 B1.6 full closure 前打开 `features.subagents`；
 - 不提交或推送工作树里未通过门禁的代码。

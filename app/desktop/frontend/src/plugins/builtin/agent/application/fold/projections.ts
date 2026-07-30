@@ -1,6 +1,6 @@
-// Pure wire → view projections + formatting. No AgentViewState here — these
+// Pure wire → view projections + formatting. No AgentSessionView here — these
 // map a v2 Item (or its pieces) into the shapes the chat UI renders. The
-// stateful folds that place these into AgentViewState live in `fold.ts`.
+// stateful folds that place these into AgentSessionView live in `fold.ts`.
 
 import type { Item, ItemStatus, PlanStep, Question, ToolInvocation } from "@/rpc";
 import type { ContentBlock as WireContentBlock } from "@/rpc";
@@ -10,7 +10,7 @@ import type {
   ToolCall,
   ToolCallStatus,
   ToolDiffRow,
-} from "@/plugins/sdk/types/agentView";
+} from "@/plugins/sdk/types/agentSessionView";
 import { toolCategory } from "../../domain/toolCategory";
 
 export function blockStatus(status: ItemStatus): BlockStatus {

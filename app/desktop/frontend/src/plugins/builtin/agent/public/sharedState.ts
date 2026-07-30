@@ -2,8 +2,8 @@
 // the current session. `useSharedState()` returns the whole document;
 // `useSharedState("a.b.c")` traverses dot-segments.
 
-import { agentViewState } from "../application/ports/viewState";
+import { agentSessionView } from "../application/ports/sessionView";
 
 export function useSharedState<T = unknown>(path?: string): T | undefined {
-  return agentViewState().useSharedState<T>(path);
+  return agentSessionView().useSharedState<T>(path);
 }

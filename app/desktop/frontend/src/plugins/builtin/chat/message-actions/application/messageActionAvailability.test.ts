@@ -8,11 +8,12 @@ import {
   canUseMessageRunCheckpoint,
 } from "./messageActionAvailability";
 
-const message = (overrides: Partial<Message>): Message => ({
+const message = ({ runId = null, ...overrides }: Partial<Message>): Message => ({
   blocks: [],
   id: "m",
   role: "assistant",
   createdAt: "2026-01-01T00:00:00.000Z",
+  runId,
   ...overrides,
 });
 

@@ -6,7 +6,6 @@
 import { describe, expect, it } from "vitest";
 import { t } from "@/lib/i18n";
 import { buildPlaintext, deriveLatestRun } from "./runDigest";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
 // Spread-helpers so tests stay terse — each entry only needs to set
 // the fields it actually cares about.
@@ -24,17 +23,21 @@ const entry = (
 const view = (
   patch: Partial<Parameters<typeof deriveLatestRun>[0]>,
 ): Parameters<typeof deriveLatestRun>[0] => ({
-  ...INITIAL_VIEW_STATE,
+  timeline: [],
+  toolCalls: {},
+  runId: "r1",
+  running: false,
   ...patch,
 });
 
 describe("deriveLatestRun", () => {
   it("returns null when no run has started", () => {
-    expect(deriveLatestRun(INITIAL_VIEW_STATE)).toBeNull();
+    expect(deriveLatestRun(view({ timeline: [] }))).toBeNull();
   });
 
-  it("picks the last run-start as the start boundary", () => {
+  it("uses the selected root boundary and ignores another Run's entries", () => {
     const v = view({
+      runId: "r2",
       timeline: [
         entry({ kind: "run-start", runId: "r1" }),
         entry({ kind: "run-end", runId: "r1" }),
@@ -68,7 +71,7 @@ describe("deriveLatestRun", () => {
 
     const running = view({
       timeline: [entry({ kind: "run-start", runId: "r1" })],
-      run: { ...INITIAL_VIEW_STATE.run, running: true, runId: "r1" },
+      running: true,
     });
     expect(deriveLatestRun(running)?.status).toBe("running");
   });
@@ -85,6 +88,7 @@ describe("deriveLatestRun", () => {
       toolCalls: {
         "t-write": {
           id: "t-write",
+          runId: "r1",
           name: "write", // fileEdit category (§4.4.2)
           fn: "src/auth.ts", // toolLabel(write) = the changed path
           args: "",
@@ -94,6 +98,7 @@ describe("deriveLatestRun", () => {
         },
         "t-read": {
           id: "t-read",
+          runId: "r1",
           name: "read", // read category (§4.4.2)
           fn: "read",
           args: "src/types.ts",
@@ -101,6 +106,7 @@ describe("deriveLatestRun", () => {
         },
         "t-shell": {
           id: "t-shell",
+          runId: "r1",
           name: "shell", // command category (§4.4.2)
           fn: "pnpm test", // toolLabel(shell) = arguments.command
           args: "",

@@ -1,5 +1,11 @@
-import type { Message, PlanItem, TimelineEntry, ToolCall } from "@/plugins/sdk/types/agentView";
-import { agentViewState } from "../ports/viewState";
+import type {
+  Message,
+  PlanItem,
+  TimelineEntry,
+  ToolCall,
+} from "@/plugins/sdk/types/agentSessionView";
+import { agentSessionView } from "../ports/sessionView";
+import { selectCurrentRootMessages, selectCurrentRootPlan } from "../view/runTree";
 
 interface ActiveConversationSnapshot {
   messages: Message[];
@@ -9,14 +15,14 @@ interface ActiveConversationSnapshot {
 }
 
 export function useActiveConversationMessages(): Message[] {
-  return agentViewState().useMessages();
+  return agentSessionView().useCurrentRootMessages();
 }
 
 export function getActiveConversationSnapshot(): ActiveConversationSnapshot {
-  const view = agentViewState().getCurrentView();
+  const view = agentSessionView().getCurrentView();
   return {
-    messages: view.messages,
-    plan: view.plan,
+    messages: selectCurrentRootMessages(view),
+    plan: selectCurrentRootPlan(view),
     timeline: view.timeline,
     toolCalls: view.toolCalls,
   };

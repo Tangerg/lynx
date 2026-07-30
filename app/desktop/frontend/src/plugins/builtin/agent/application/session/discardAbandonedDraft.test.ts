@@ -5,12 +5,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { configureAgentRuntimeGateway } from "../ports/runtimeGateway";
 import { configureAgentSessionStatePort } from "../ports/sessionState";
-import { configureAgentViewStatePort } from "../ports/viewState";
+import { configureAgentSessionViewPort } from "../ports/sessionView";
 import type { AgentRuntimeGateway } from "../ports/runtimeGateway";
 import type { AgentSessionStatePort } from "../ports/sessionState";
-import type { AgentViewStatePort } from "../ports/viewState";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
-import type { Message } from "@/plugins/sdk/types/agentView";
+import type { AgentSessionViewPort } from "../ports/sessionView";
+import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
+import type { Message } from "@/plugins/sdk/types/agentSessionView";
 import { discardAbandonedDraft } from "./discardAbandonedDraft";
 
 const disposers: Array<() => void> = [];
@@ -28,10 +28,12 @@ function wire({
     configureAgentSessionStatePort({
       isDraftSession: (id: string) => drafts.includes(id),
     } as AgentSessionStatePort),
-    configureAgentViewStatePort({
+    configureAgentSessionViewPort({
       getSession: (id: string) =>
-        messages[id] ? { view: { ...INITIAL_VIEW_STATE, messages: messages[id] } } : undefined,
-    } as unknown as AgentViewStatePort),
+        messages[id]
+          ? { view: { ...EMPTY_AGENT_SESSION_VIEW, messages: messages[id] } }
+          : undefined,
+    } as unknown as AgentSessionViewPort),
     configureAgentRuntimeGateway({ deleteSession } as AgentRuntimeGateway),
   );
   return deleteSession;
@@ -41,7 +43,12 @@ afterEach(() => {
   while (disposers.length) disposers.pop()?.();
 });
 
-const message = (id: string): Message => ({ id, role: "user", blocks: [] });
+const message = (id: string): Message => ({
+  id,
+  role: "user",
+  runId: null,
+  blocks: [],
+});
 
 describe("discardAbandonedDraft", () => {
   it("deletes a draft the user never typed into", () => {

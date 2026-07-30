@@ -17,6 +17,7 @@ const toolBlock = (toolCallId: string): ContentBlock => ({ kind: "tool", toolCal
 
 const tool = (id: string, name: string): ToolCall => ({
   id,
+  runId: "run_1",
   name,
   fn: name,
   args: "",

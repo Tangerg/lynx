@@ -1,20 +1,13 @@
 import type {
-  PendingInterruptGroup,
+  AgentProblem,
+  AgentSessionView,
   PlanItem,
-  RunError,
   TimelineEntry,
   ToolCall,
-} from "@/plugins/sdk/types/agentView";
+} from "@/plugins/sdk/types/agentSessionView";
 import { agentSessionState } from "../ports/sessionState";
-import { agentViewState } from "../ports/viewState";
-
-interface AgentSessionEntry {
-  view: {
-    run: { running: boolean };
-    pendingInterrupts: PendingInterruptGroup[];
-    error: RunError | null;
-  };
-}
+import { agentSessionView, type AgentSessionViewEntry } from "../ports/sessionView";
+import { selectCurrentRootRun, selectVisibleProblem } from "../view/runTree";
 
 interface AgentRunSettlement {
   sessionId: string;
@@ -23,57 +16,61 @@ interface AgentRunSettlement {
 }
 
 export function useIsAgentRunning(): boolean {
-  return agentViewState().useRunning();
+  return agentSessionView().useCurrentRootRunning();
 }
 
 export function useActiveRunId(): string | null {
-  return agentViewState().useRunId();
+  return agentSessionView().useCurrentRootRunId();
 }
 
 export function useActiveRunPlan(): PlanItem[] {
-  return agentViewState().usePlan();
+  return agentSessionView().useCurrentRootPlan();
 }
 
 export function useActiveRunToolCalls(): Record<string, ToolCall> {
-  return agentViewState().useToolCalls();
+  return agentSessionView().useToolCalls();
 }
 
 export function useActiveRunTimeline(): TimelineEntry[] {
-  return agentViewState().useTimeline();
+  return agentSessionView().useSessionTimeline();
 }
 
-export function useActiveRunError(): RunError | null {
-  return agentViewState().useError();
+export function useVisibleAgentProblem(): AgentProblem | null {
+  return agentSessionView().useProblem();
 }
 
 export function useStopActiveAgentRun(): (() => void) | null {
-  return agentViewState().useAction("stop");
+  return agentSessionView().useAction("stop");
 }
 
 export function stopActiveAgentRun(): boolean {
   const sessionId = agentSessionState().getActiveSessionId();
-  const entry = agentViewState().getSession(sessionId);
-  if (!entry?.view.run.running) return false;
+  const entry = agentSessionView().getSession(sessionId);
+  if (!entry || selectCurrentRootRun(entry.view)?.status !== "running") return false;
   entry.stop?.();
   return true;
 }
 
-export function clearActiveRunError(): void {
+export function dismissVisibleAgentProblem(): void {
   const sessionId = agentSessionState().getActiveSessionId();
   if (!sessionId) return;
-  agentViewState().clearError(sessionId);
+  agentSessionView().clearProblem(sessionId);
 }
 
-function anyAgentRunning(sessions: Record<string, AgentSessionEntry>): boolean {
+function currentRootRunning(view: AgentSessionView): boolean {
+  return selectCurrentRootRun(view)?.status === "running";
+}
+
+function anyAgentRunning(sessions: Record<string, AgentSessionViewEntry>): boolean {
   for (const id in sessions) {
-    if (sessions[id]!.view.run.running) return true;
+    if (currentRootRunning(sessions[id]!.view)) return true;
   }
   return false;
 }
 
 export function subscribeAnyAgentRunning(onChange: (running: boolean) => void): () => void {
-  let lastRunning = anyAgentRunning(agentViewState().getSessions());
-  return agentViewState().subscribeSessions((sessions) => {
+  let lastRunning = anyAgentRunning(agentSessionView().getSessions());
+  return agentSessionView().subscribeSessions((sessions) => {
     const running = anyAgentRunning(sessions);
     if (running === lastRunning) return;
     lastRunning = running;
@@ -85,20 +82,20 @@ export function subscribeAgentRunSettlements(
   onSettled: (settlement: AgentRunSettlement) => void,
 ): () => void {
   const lastRunning = new Map<string, boolean>();
-  return agentViewState().subscribeSessions((sessions) => {
+  return agentSessionView().subscribeSessions((sessions) => {
     let count = 0;
     for (const sessionId in sessions) {
       count++;
       const view = sessions[sessionId]!.view;
-      const running = view.run.running;
-      const was = lastRunning.get(sessionId) ?? false;
-      if (was === running) continue;
+      const running = currentRootRunning(view);
+      const wasRunning = lastRunning.get(sessionId) ?? false;
+      if (wasRunning === running) continue;
       lastRunning.set(sessionId, running);
-      if (was && !running) {
+      if (wasRunning && !running) {
         onSettled({
           sessionId,
           needsInput: view.pendingInterrupts.length > 0,
-          errorMessage: view.error?.message ?? null,
+          errorMessage: selectVisibleProblem(view)?.message ?? null,
         });
       }
     }

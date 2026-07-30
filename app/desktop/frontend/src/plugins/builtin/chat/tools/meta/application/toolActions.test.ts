@@ -4,6 +4,7 @@ import { copyToolArgsAction, hasCopyableToolArgs } from "./toolActions";
 
 const tool = (args: string): ToolCall => ({
   id: "tool-1",
+  runId: "run_1",
   name: "shell",
   fn: "shell",
   args,

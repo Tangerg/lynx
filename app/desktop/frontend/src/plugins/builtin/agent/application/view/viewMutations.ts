@@ -1,7 +1,8 @@
 import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
 import type { ApprovalDecision } from "../../domain/hitl";
-import type { AgentViewState, RunError } from "@/plugins/sdk/types/agentView";
+import type { AgentProblem, AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { appendTimelineEntry } from "@/plugins/sdk/types/agentTimeline";
+import { selectCurrentRootRun } from "./runTree";
 
 export interface SettledInterrupt {
   decision?: ApprovalDecision;
@@ -16,10 +17,10 @@ function matchesInterruptBlock(block: ContentBlock, itemId: string): block is In
 }
 
 function settleInterruptedTool(
-  view: AgentViewState,
+  view: AgentSessionView,
   itemId: string,
   status: "denied" | "running",
-): AgentViewState {
+): AgentSessionView {
   const tool = view.toolCalls[itemId];
   if (!tool || tool.status !== "requires-action") return view;
   return {
@@ -28,79 +29,132 @@ function settleInterruptedTool(
   };
 }
 
-export function relabelMessage(view: AgentViewState, fromId: string, toId: string): AgentViewState {
+export function relabelMessage(
+  view: AgentSessionView,
+  fromId: string,
+  toId: string,
+): AgentSessionView {
   if (fromId === toId) return view;
-  const has = (id: string) => view.messages.some((m) => m.id === id);
+  const has = (id: string) => view.messages.some((message) => message.id === id);
   if (!has(fromId) || has(toId)) return view;
   return {
     ...view,
-    messages: view.messages.map((m) => (m.id === fromId ? { ...m, id: toId } : m)),
+    messages: view.messages.map((message) =>
+      message.id === fromId ? { ...message, id: toId } : message,
+    ),
+    assistantTurnByRunId: Object.fromEntries(
+      Object.entries(view.assistantTurnByRunId).map(([runId, messageId]) => [
+        runId,
+        messageId === fromId ? toId : messageId,
+      ]),
+    ),
   };
 }
 
-export function dropMessage(view: AgentViewState, id: string): AgentViewState {
-  if (!view.messages.some((m) => m.id === id)) return view;
-  return { ...view, messages: view.messages.filter((m) => m.id !== id) };
-}
-
-export function setRunError(view: AgentViewState, error: RunError | null): AgentViewState {
-  if (view.error === error) return view;
-  return { ...view, error };
-}
-
-export function cancelRunningRun(view: AgentViewState): AgentViewState {
-  if (!view.run.running) return view;
-  return appendTimelineEntry({ kind: "run-end", status: undefined, summary: "canceled" })({
+export function dropMessage(view: AgentSessionView, id: string): AgentSessionView {
+  if (!view.messages.some((message) => message.id === id)) return view;
+  return {
     ...view,
-    run: { ...view.run, running: false },
+    messages: view.messages.filter((message) => message.id !== id),
+    assistantTurnByRunId: Object.fromEntries(
+      Object.entries(view.assistantTurnByRunId).filter(([, messageId]) => messageId !== id),
+    ),
+  };
+}
+
+export function setCommandError(
+  view: AgentSessionView,
+  error: AgentProblem | null,
+): AgentSessionView {
+  if (view.commandError === error) return view;
+  return { ...view, commandError: error };
+}
+
+export function dismissVisibleProblem(view: AgentSessionView): AgentSessionView {
+  const run = selectCurrentRootRun(view);
+  const dismissedProblemRunId =
+    run?.outcome?.type === "error" ? run.id : view.dismissedProblemRunId;
+  if (view.commandError === null && dismissedProblemRunId === view.dismissedProblemRunId) {
+    return view;
+  }
+  return { ...view, commandError: null, dismissedProblemRunId };
+}
+
+export function cancelRunningRun(view: AgentSessionView): AgentSessionView {
+  const run = selectCurrentRootRun(view);
+  if (!run || run.status !== "running") return view;
+  const timestamp = new Date().toISOString();
+  return appendTimelineEntry({
+    id: `timeline:local:cancel:${run.id}`,
+    ts: Date.parse(timestamp),
+    kind: "run-end",
+    runId: run.id,
+    summary: "canceled",
+  })({
+    ...view,
+    runsById: {
+      ...view.runsById,
+      [run.id]: {
+        ...run,
+        status: "finished",
+        activeSegmentId: null,
+        outcome: { type: "canceled" },
+        progress: null,
+        finishedAt: timestamp,
+      },
+    },
   });
 }
 
 export function resolveInterrupt(
-  view: AgentViewState,
+  view: AgentSessionView,
   itemId: string,
   settled: SettledInterrupt,
-): AgentViewState {
+): AgentSessionView {
   let touchedBlock = false;
   let touchedApproval = false;
-  const settledMessages = view.messages.map((m) => {
-    if (!m.blocks.some((b) => matchesInterruptBlock(b, itemId))) return m;
+  const settledMessages = view.messages.map((message) => {
+    if (!message.blocks.some((block) => matchesInterruptBlock(block, itemId))) {
+      return message;
+    }
     return {
-      ...m,
-      blocks: m.blocks.map((b) => {
-        if (!matchesInterruptBlock(b, itemId)) return b;
+      ...message,
+      blocks: message.blocks.map((block) => {
+        if (!matchesInterruptBlock(block, itemId)) return block;
         touchedBlock = true;
-        if (b.kind === "approval") {
+        if (block.kind === "approval") {
           touchedApproval = true;
-          return { ...b, status: "complete" as const, decision: settled.decision };
+          return { ...block, status: "complete" as const, decision: settled.decision };
         }
-        if (b.kind === "question")
-          return {
-            ...b,
-            status: "complete" as const,
-            answered: settled.answered ?? true,
-            answers: settled.answers ?? b.answers,
-          };
-        return b;
+        return {
+          ...block,
+          status: "complete" as const,
+          answered: settled.answered ?? true,
+          answers: settled.answers ?? block.answers,
+        };
       }),
     };
   });
   const messages = touchedBlock ? settledMessages : view.messages;
 
   let touchedInterrupt = false;
-  const settledPendingInterrupts = view.pendingInterrupts.flatMap((oi) => {
-    const hasItem = oi.interrupts.some((i) => i.itemId === itemId);
-    if (!hasItem) return [oi];
+  let ownerRunId: string | null = null;
+  const settledPendingInterrupts = view.pendingInterrupts.flatMap((group) => {
+    const hasItem = group.interrupts.some((interrupt) => interrupt.itemId === itemId);
+    if (!hasItem) return [group];
     touchedInterrupt = true;
-    touchedApproval ||= oi.interrupts.some((i) => i.itemId === itemId && i.kind === "approval");
-    const interrupts = oi.interrupts.filter((i) => i.itemId !== itemId);
-    return interrupts.length > 0 ? [{ ...oi, interrupts }] : [];
+    ownerRunId = group.runId;
+    touchedApproval ||= group.interrupts.some(
+      (interrupt) => interrupt.itemId === itemId && interrupt.kind === "approval",
+    );
+    const interrupts = group.interrupts.filter((interrupt) => interrupt.itemId !== itemId);
+    return interrupts.length > 0 ? [{ ...group, interrupts }] : [];
   });
   const pendingInterrupts = touchedInterrupt ? settledPendingInterrupts : view.pendingInterrupts;
 
   if (!touchedBlock && !touchedInterrupt) return view;
 
-  let next: AgentViewState = { ...view, messages, pendingInterrupts };
+  let next: AgentSessionView = { ...view, messages, pendingInterrupts };
   if (touchedInterrupt) {
     next = settleInterruptedTool(
       next,
@@ -108,9 +162,12 @@ export function resolveInterrupt(
       touchedApproval && settled.decision === "declined" ? "denied" : "running",
     );
   }
-  if (settled.decision && touchedApproval) {
+  if (settled.decision && touchedApproval && ownerRunId) {
     next = appendTimelineEntry({
+      id: `timeline:local:approval-result:${itemId}:${settled.decision}`,
+      ts: Date.now(),
       kind: "approval-result",
+      runId: ownerRunId,
       refId: itemId,
       status: settled.decision,
     })(next);

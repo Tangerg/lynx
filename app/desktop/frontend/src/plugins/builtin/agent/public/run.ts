@@ -1,10 +1,10 @@
 export {
-  clearActiveRunError,
+  dismissVisibleAgentProblem,
   subscribeAgentRunSettlements,
   subscribeAnyAgentRunning,
   stopActiveAgentRun,
   useActiveRunId,
-  useActiveRunError,
+  useVisibleAgentProblem,
   useActiveRunPlan,
   useActiveRunTimeline,
   useActiveRunToolCalls,

@@ -1,14 +1,16 @@
-import type { LyraClient, RunMetrics, RunProtocolProfile, RunRef } from "@/rpc";
+import type { Item, LyraClient, PendingInterruptSet, RunRef } from "@/rpc";
 import { asRunId, asSegmentId, asSessionId, collectPages } from "@/rpc";
 import type { RunStream } from "./agentRunPump";
-import type { FoldEvent } from "./agentStore";
 
 interface AgentSessionRecoveryOptions {
   client: Pick<LyraClient, "items" | "runs" | "interrupts">;
   sessionId: string;
   isCancelled: () => boolean;
   hasInteracted: () => boolean;
-  applyEvents: (events: FoldEvent[]) => void;
+  includeDescendants: boolean;
+  applyCompletedItems: (items: Item[]) => void;
+  applyRunSnapshots: (runs: RunRef[]) => void;
+  applyPendingInterruptSets: (sets: PendingInterruptSet[]) => void;
   setAbortController: (controller: AbortController) => void;
   pump: (stream: RunStream, signal: AbortSignal) => Promise<void>;
   /** Re-read the session-scoped state through its recovery method. The run stream
@@ -22,18 +24,6 @@ export function startAgentSessionRecovery(options: AgentSessionRecoveryOptions):
       console.error("[agent] session recovery failed:", options.sessionId, err);
   });
 }
-
-// A pending interrupt set says what a run is waiting on, not what it spent, so
-// these reconstructed frames report no accounting. Zero reads as "nothing
-// reported" in the fold, which keeps whatever the readout already had instead of
-// overwriting it with a number this path never learned.
-const unreported: RunMetrics = { steps: 0, activeDurationMs: 0 };
-
-// The same read says nothing about the contract the run was created under, and
-// these frames are a reconstruction rather than something the runtime sent. Empty
-// sets are what this path can honestly assert; a consumer that needs the real
-// profile has to read the run itself instead of trusting a synthesized frame.
-const unknownProfile: RunProtocolProfile = { requiredFeatures: [], interruptTypes: [] };
 
 function stale(options: AgentSessionRecoveryOptions): boolean {
   return options.isCancelled() || options.hasInteracted();
@@ -57,39 +47,24 @@ async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
     options.client.interrupts.list({ sessionId: sid, cursor }),
   );
   if (stale(options)) return;
-  for (const oi of open) {
-    options.applyEvents([
-      {
-        event: {
-          type: "segment.started",
-          run: {
-            id: oi.rootRunId,
-            sessionId: oi.sessionId,
-            createdAt: oi.createdAt,
-            metrics: unreported,
-            protocolProfile: unknownProfile,
-          },
-        },
-      },
-      {
-        event: {
-          type: "segment.finished",
-          outcome: { type: "interrupt", interrupts: oi.interrupts },
-          metrics: unreported,
-        },
-      },
-    ]);
-  }
+  options.applyPendingInterruptSets(open);
 
-  // runs.list is the whole history now, so recovery has to say which part it means:
-  // a run it can still attach to. Only a RUNNING root has a stream — a waiting one
-  // is already reconstructed from the interrupt sets above, and subscribing to it
-  // would be refused as run_waiting.
-  const active = await collectPages((cursor) =>
-    options.client.runs.list({ sessionId: sid, cursor, statuses: ["running"] }),
+  const runs = await collectPages((cursor) =>
+    options.client.runs.list({
+      sessionId: sid,
+      cursor,
+      ...(options.includeDescendants ? { includeDescendants: true } : {}),
+    }),
   );
   if (stale(options)) return;
-  const root = active.find((run) => !run.spawnedByItemId);
+  options.applyRunSnapshots(runs);
+  const runningRoots = runs.filter((run) => run.status === "running" && !run.spawnedByItemId);
+  if (runningRoots.length > 1) {
+    throw new Error(
+      `cannot recover session ${options.sessionId}: ${runningRoots.length} root runs are running`,
+    );
+  }
+  const root = runningRoots[0];
   if (root) await attachRootRun(options, root);
 }
 
@@ -101,9 +76,7 @@ async function replayHistory(options: AgentSessionRecoveryOptions): Promise<void
     }),
   );
   if (stale(options) || items.length === 0) return;
-  options.applyEvents(
-    items.map((item): FoldEvent => ({ event: { type: "item.completed", item } })),
-  );
+  options.applyCompletedItems(items);
 }
 
 async function attachRootRun(options: AgentSessionRecoveryOptions, run: RunRef): Promise<void> {
@@ -126,12 +99,6 @@ async function attachRootRun(options: AgentSessionRecoveryOptions, run: RunRef):
     return;
   }
   if (options.isCancelled() || ctrl.signal.aborted) return;
-  // Stamp the CURRENT segment id (from the subscribe response) so the synthetic
-  // segment.started keys the segment correctly — the replayed real segment.started then
-  // carries the same segmentId and won't re-reset the streaming readout.
-  options.applyEvents([
-    { event: { type: "segment.started", run }, segmentId: asSegmentId(stream.result.segmentId) },
-  ]);
   // The subscribe response is the wire's own shape now, so its ids are plain
   // strings and this is their parse site — the same rule runtimeRunsGateway
   // follows for a run it opens. The head it captured travels with them: it is the

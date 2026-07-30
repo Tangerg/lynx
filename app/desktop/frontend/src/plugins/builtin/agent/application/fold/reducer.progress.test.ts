@@ -3,11 +3,11 @@
 // must surface progress live AND let the finished totals win.
 import { beforeEach, describe, expect, it } from "vitest";
 import type { StreamEvent } from "@/rpc";
-import type { AgentViewState } from "@/plugins/sdk/types/agentView";
+import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
-import { reduce } from "./reducer";
-import { runFinished } from "./reducer.fixtures";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
+import { foldTestEvent as reduce, runFinished } from "./reducer.fixtures";
+import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
+import { selectCurrentRootRun } from "../view/runTree";
 
 const runStarted = (id: string): StreamEvent => ({
   type: "segment.started",
@@ -23,7 +23,7 @@ beforeEach(async () => {
 
 describe("reducer — segment.progress (mid-run live readout)", () => {
   it("surfaces step / activity / tokens / cost while the run streams", () => {
-    let s: AgentViewState = INITIAL_VIEW_STATE;
+    let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
     s = reduce(s, runStarted("run_1"));
     s = reduce(
       s,
@@ -33,16 +33,23 @@ describe("reducer — segment.progress (mid-run live readout)", () => {
         usage: { inputTokens: 1200, outputTokens: 80, costUsd: 0.0123 },
       }),
     );
-    expect(s.run).toMatchObject({
-      running: true,
-      step: 2,
-      activity: "calling tool: ls -la",
-      usage: { inputTokens: 1200, outputTokens: 80, cacheReadTokens: 0, costUsd: 0.0123 },
+    expect(selectCurrentRootRun(s)).toMatchObject({
+      status: "running",
+      progress: {
+        step: 2,
+        activity: "calling tool: ls -la",
+        usage: {
+          inputTokens: 1200,
+          outputTokens: 80,
+          cacheReadTokens: 0,
+          costUsd: 0.0123,
+        },
+      },
     });
   });
 
   it("segment.finished totals are authoritative over the last progress preview", () => {
-    let s: AgentViewState = INITIAL_VIEW_STATE;
+    let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
     s = reduce(s, runStarted("run_1"));
     s = reduce(s, progress({ step: 1, usage: { inputTokens: 10, outputTokens: 5 } }));
     s = reduce(
@@ -56,9 +63,10 @@ describe("reducer — segment.progress (mid-run live readout)", () => {
         },
       ),
     );
-    expect(s.run.running).toBe(false);
-    expect(s.run.step).toBe(3);
-    expect(s.run.usage).toEqual({
+    const run = selectCurrentRootRun(s)!;
+    expect(run.status).toBe("finished");
+    expect(run.metrics.steps).toBe(3);
+    expect(run.metrics.usage).toEqual({
       inputTokens: 1200,
       outputTokens: 80,
       cacheReadTokens: 0,
@@ -67,18 +75,20 @@ describe("reducer — segment.progress (mid-run live readout)", () => {
   });
 
   it("a progress event carrying only `activity` patches just that field", () => {
-    let s: AgentViewState = INITIAL_VIEW_STATE;
+    let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
     s = reduce(s, runStarted("run_1"));
     s = reduce(s, progress({ step: 4 }));
     s = reduce(s, progress({ activity: "thinking" }));
-    expect(s.run.step).toBe(4); // unchanged by the activity-only event
-    expect(s.run.activity).toBe("thinking");
+    expect(selectCurrentRootRun(s)?.progress).toMatchObject({
+      step: 4,
+      activity: "thinking",
+    });
   });
 
   it("surfaces contextTokens (the live context-window footprint driving compaction)", () => {
-    let s: AgentViewState = INITIAL_VIEW_STATE;
+    let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
     s = reduce(s, runStarted("run_1"));
     s = reduce(s, progress({ contextTokens: 45_000 }));
-    expect(s.run.contextTokens).toBe(45_000);
+    expect(selectCurrentRootRun(s)?.progress?.contextTokens).toBe(45_000);
   });
 });

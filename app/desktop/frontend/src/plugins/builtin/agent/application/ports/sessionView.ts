@@ -5,14 +5,14 @@ import type { AgentInput } from "../../domain/input";
 import type { ApprovalDecision, RememberScope } from "../../domain/hitl";
 import type { WireDecision } from "../hitl/wireDecision";
 import type {
-  AgentViewState,
+  AgentProblem,
+  AgentSessionView,
   Message,
   PlanItem,
-  RunError,
   RunUsage,
   TimelineEntry,
   ToolCall,
-} from "@/plugins/sdk/types/agentView";
+} from "@/plugins/sdk/types/agentSessionView";
 
 export type ResolvePatch = {
   decision?: ApprovalDecision;
@@ -46,47 +46,45 @@ export type ResumeFn =
     ) => void)
   | null;
 
-export interface AgentViewSession {
-  view: AgentViewState;
+export interface AgentSessionViewEntry {
+  view: AgentSessionView;
   viewEpoch: number;
   stop: StopFn;
   send: SendFn;
   resume: ResumeFn;
 }
 
-export interface AgentViewStatePort {
-  useRunning(): boolean;
-  useRunId(): string | null;
-  useSegmentId(): string | null;
-  usePlan(): PlanItem[];
+export interface AgentSessionViewPort {
+  useCurrentRootRunning(): boolean;
+  useCurrentRootRunId(): string | null;
+  useCurrentRootSegmentId(): string | null;
+  useCurrentRootPlan(): PlanItem[];
   useToolCalls(): Record<string, ToolCall>;
-  useTimeline(): TimelineEntry[];
-  useMessages(): Message[];
-  useError(): RunError | null;
+  useSessionTimeline(): TimelineEntry[];
+  useCurrentRootMessages(): Message[];
+  useProblem(): AgentProblem | null;
   useSharedState<T = unknown>(path?: string): T | undefined;
-  useUsage(): RunUsage;
-  useContextTokens(): number | undefined;
+  useCurrentRootUsage(): RunUsage;
+  useCurrentRootContextTokens(): number | undefined;
   useAction(kind: "stop"): StopFn;
   useAction(kind: "send"): SendFn;
-  getCurrentView(): AgentViewState;
-  getSessions(): Record<string, AgentViewSession>;
-  getSession(sessionId: string): AgentViewSession | undefined;
+  getCurrentView(): AgentSessionView;
+  getSessions(): Record<string, AgentSessionViewEntry>;
+  getSession(sessionId: string): AgentSessionViewEntry | undefined;
   sendToSession(sessionId: string, input: AgentInput, options?: AgentRunStartOptions): boolean;
   dropMessage(sessionId: string, messageId: string): void;
   appendLocalUserMessage(sessionId: string, messageId: string, input: AgentInput): void;
   resetView(sessionId: string): void;
   applyCompletedItems(sessionId: string, items: Item[]): void;
-  /** Land a session-scoped state value read cold. It goes through the same fold as
-   *  the one the run stream pushes, which is what keeps a single reader: the fold
-   *  drops whichever of the two carries the older revision, so the two paths cannot
-   *  disagree and neither has to know about the other. */
   applyStateSnapshot(sessionId: string, snapshot: StateSnapshot): void;
-  clearError(sessionId: string): void;
+  clearProblem(sessionId: string): void;
   resolveInterrupt(sessionId: string, itemId: string, settled: ResolvePatch): void;
-  subscribeSessions(onChange: (sessions: Record<string, AgentViewSession>) => void): () => void;
+  subscribeSessions(
+    onChange: (sessions: Record<string, AgentSessionViewEntry>) => void,
+  ): () => void;
 }
 
-const port = createSingletonPort<AgentViewStatePort>("Agent view state port is not configured");
+const port = createSingletonPort<AgentSessionViewPort>("Agent session view port is not configured");
 
-export const configureAgentViewStatePort = port.configure;
-export const agentViewState = port.get;
+export const configureAgentSessionViewPort = port.configure;
+export const agentSessionView = port.get;

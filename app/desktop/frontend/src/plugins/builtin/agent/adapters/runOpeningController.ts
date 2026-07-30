@@ -1,6 +1,6 @@
 import type { RunEvent, RunId, SegmentId, StreamingResult } from "@/rpc";
 import { errorDetail, errorType, RpcError } from "@/rpc";
-import type { RunError } from "@/plugins/sdk/types/agentView";
+import type { AgentProblem } from "@/plugins/sdk/types/agentSessionView";
 import { endSpan, startRunSpan, withSpan } from "@/lib/observability/tracing";
 
 /** A run this client opened: the ids the pump needs to keep it attached, plus the
@@ -14,7 +14,7 @@ interface RunOpeningControllerOptions {
   setAbortController: (controller: AbortController) => void;
   abortCurrent: () => void;
   pump: (stream: StreamingResult<OpenedRun, RunEvent>, signal: AbortSignal) => Promise<void>;
-  setStartError: (error: RunError) => void;
+  setStartError: (error: AgentProblem) => void;
 }
 
 export interface RunOpeningController {

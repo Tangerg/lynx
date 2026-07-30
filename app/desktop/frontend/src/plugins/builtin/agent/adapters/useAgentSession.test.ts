@@ -1,6 +1,6 @@
 // useAgentSession owns the agent driver lifecycle for one session. The
 // regression locked here: send() is re-entrancy-safe in the window before
-// segment.started arrives. The steady-state guard (useChatSend reads run.running)
+// segment.started arrives. The steady-state guard reads the current root status
 // only flips true a round-trip later, so without the synchronous `starting`
 // latch a second Enter fires a second runs.start — two backend runs + an
 // orphaned optimistic bubble whose localId is never relabeled.
@@ -15,6 +15,7 @@ import { resetContainer, setContainer } from "@/main/container";
 import { useAgentStore } from "./agentStore";
 import { useAgentSessionStore } from "./agentSessionStore";
 import { useAgentSession } from "./useAgentSession";
+import { selectCurrentRootRun } from "../application/view/runTree";
 
 const SID = "ses_dbl";
 
@@ -81,7 +82,7 @@ describe("useAgentSession run timing guards", () => {
     });
 
     await waitFor(() => {
-      expect(useAgentStore.getState().sessions[SID]!.view.error).toMatchObject({
+      expect(useAgentStore.getState().sessions[SID]!.view.commandError).toMatchObject({
         message: "gone",
         code: "session_not_found",
       });
@@ -250,17 +251,35 @@ describe("useAgentSession durable recovery", () => {
       .flatMap((m) => m.blocks)
       .find((b) => b.kind === "approval" && b.itemId === "item_appr");
     expect(approval).toMatchObject({ status: "requires-action", runId: "run_int" });
-    expect(view.run.running).toBe(false); // interrupt = run already ended
+    expect(selectCurrentRootRun(view)).toBeNull();
   });
 
   it("reattaches to a still-running root run via runs.subscribe", async () => {
     const { subscribe } = stubClient({
       list: vi.fn().mockResolvedValue(
         page([
-          { id: "run_sub", sessionId: RID, spawnedByItemId: "item_x" }, // subagent — skip
+          {
+            id: "run_sub",
+            sessionId: RID,
+            status: "waiting",
+            createdAt: "2026-07-29T00:00:00Z",
+            metrics: { steps: 1, activeDurationMs: 5 },
+            protocolProfile: { interruptTypes: [], requiredFeatures: [] },
+            spawnedByItemId: "item_x",
+            parentRunId: "run_live",
+            rootRunId: "run_live",
+          },
           // A running run always names the segment executing it, and recovery
           // subscribes to THAT segment rather than to whatever is live by then.
-          { id: "run_live", sessionId: RID, activeSegmentId: "seg_live" },
+          {
+            id: "run_live",
+            sessionId: RID,
+            status: "running",
+            activeSegmentId: "seg_live",
+            createdAt: "2026-07-29T00:00:00Z",
+            metrics: { steps: 0, activeDurationMs: 0 },
+            protocolProfile: { interruptTypes: [], requiredFeatures: [] },
+          },
         ]),
       ),
     });
@@ -268,14 +287,16 @@ describe("useAgentSession durable recovery", () => {
     renderHook(() => useAgentSession(() => driver, RID));
 
     await waitFor(() => {
-      expect(useAgentStore.getState().sessions[RID]!.view.run.running).toBe(true);
+      expect(selectCurrentRootRun(useAgentStore.getState().sessions[RID]!.view)?.status).toBe(
+        "running",
+      );
     });
     expect(subscribe).toHaveBeenCalledTimes(1);
     expect(subscribe).toHaveBeenCalledWith(
       { runId: "run_live", segmentId: "seg_live" },
       expect.any(AbortSignal),
     );
-    expect(useAgentStore.getState().sessions[RID]!.view.run.runId).toBe("run_live");
+    expect(selectCurrentRootRun(useAgentStore.getState().sessions[RID]!.view)?.id).toBe("run_live");
   });
 });
 

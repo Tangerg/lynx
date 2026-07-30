@@ -1,83 +1,49 @@
-// Fold a stream of v2 RunEvents (StreamEvent payloads, API.md §5) into
-// AgentViewState.
-//
-// This file is intentionally a *pure dispatcher* — every reducer case lives
-// in a plugin. Even the built-in event types (run.* / item.* / state.*) are
-// owned by `lyra.builtin.agent-fold`. The reducer here only:
-//
-//   1. for first-class StreamEvent types — chains through every plugin
-//      registered via `host.events.onStream(type, handler)`;
-//   2. for `custom` StreamEvents — routes to plugins via
-//      `host.events.onCustom(name, handler)`.
-//
-// Both pathways use the same error-isolation policy: a throwing handler is
-// logged to the error store and its input state is preserved.
-
-import type { StreamEvent } from "@/rpc";
-import type { AgentViewState } from "@/plugins/sdk/types/agentView";
+import type { Item, RunEvent } from "@/rpc";
+import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { measureReduce } from "@/lib/metrics";
 import { lookupCustomHandlers, lookupStreamHandlers, reportPluginError } from "@/plugins/sdk";
+import { onItemCompleted } from "./itemHandlers";
+import { completedItemSource } from "./source";
 
-function applyStreamHandlers(
-  state: AgentViewState,
-  event: StreamEvent,
-  runId?: string,
-  segmentId?: string,
-): AgentViewState {
-  const handlers = lookupStreamHandlers(event.type);
+function applyStreamHandlers(state: AgentSessionView, event: RunEvent): AgentSessionView {
+  const handlers = lookupStreamHandlers(event.event.type);
   if (handlers.length === 0) return state;
   let next = state;
   for (const { pluginName, handler } of handlers) {
     try {
-      next = handler(next, event, runId, segmentId);
-    } catch (err) {
-      console.error(`[plugin] stream handler "${event.type}" (${pluginName}) threw:`, err);
-      reportPluginError(pluginName, "events", err, `event: ${event.type}`);
-      // Skip this handler — keep `next` as it was before the throw so the
-      // rest of the chain still gets a chance to run.
+      next = handler(next, event);
+    } catch (error) {
+      console.error(`[plugin] stream handler "${event.event.type}" (${pluginName}) threw:`, error);
+      reportPluginError(pluginName, "events", error, `event: ${event.event.type}`);
     }
   }
   return next;
 }
 
-// Fan a `custom` StreamEvent out through every plugin registered for its
-// `name`. Each handler returns an optional StateUpdate (`(state) => state`);
-// the reducer threads state through the chain in registration order. A
-// throwing handler is logged + reported, then skipped — same isolation
-// policy as stream handlers.
-function applyCustom(
-  state: AgentViewState,
-  ev: Extract<StreamEvent, { type: "custom" }>,
-): AgentViewState {
-  const handlers = lookupCustomHandlers(ev.name);
+function applyCustom(state: AgentSessionView, event: RunEvent): AgentSessionView {
+  if (event.event.type !== "custom") return state;
+  const handlers = lookupCustomHandlers(event.event.name);
   if (handlers.length === 0) return state;
   let next = state;
   for (const { pluginName, handler } of handlers) {
     try {
-      const update = handler(ev.payload);
+      const update = handler(event.event.payload);
       if (typeof update === "function") next = update(next);
-    } catch (err) {
-      console.error(`[plugin] custom handler "${ev.name}" (${pluginName}) threw:`, err);
-      reportPluginError(pluginName, "events", err, `event: ${ev.name}`);
+    } catch (error) {
+      console.error(`[plugin] custom handler "${event.event.name}" (${pluginName}) threw:`, error);
+      reportPluginError(pluginName, "events", error, `event: ${event.event.name}`);
     }
   }
   return next;
 }
 
-export function reduce(
-  state: AgentViewState,
-  ev: StreamEvent,
-  runId?: string,
-  segmentId?: string,
-): AgentViewState {
-  // `custom` events carry the discriminating name; first-class events use
-  // `type`. Tag the metric with the most specific discriminator. `runId` is the
-  // wire (envelope) runId — lets run.* handlers tell a subagent run from the
-  // root; `segmentId` marks the streamed segment (resume = new segment).
-  const tag = ev.type === "custom" ? ev.name : ev.type;
+export function reduceRunEvent(state: AgentSessionView, event: RunEvent): AgentSessionView {
+  const tag = event.event.type === "custom" ? event.event.name : event.event.type;
   return measureReduce(tag, () =>
-    ev.type === "custom"
-      ? applyCustom(state, ev)
-      : applyStreamHandlers(state, ev, runId, segmentId),
+    event.event.type === "custom" ? applyCustom(state, event) : applyStreamHandlers(state, event),
   );
+}
+
+export function reduceCompletedItem(state: AgentSessionView, item: Item): AgentSessionView {
+  return onItemCompleted(state, item, completedItemSource(item));
 }

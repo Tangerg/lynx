@@ -1,18 +1,25 @@
 import type { AgentRunStartOptions } from "@/plugins/sdk/types";
-import type { StreamEvent } from "@/rpc";
+import type { Item, PendingInterruptSet, RunEvent, RunRef, StateSnapshot } from "@/rpc";
 import type { AgentInput } from "@/plugins/builtin/agent/domain/input";
-import type { ResumeFn } from "@/plugins/builtin/agent/application/ports/viewState";
-import type { AgentViewState, RunError } from "@/plugins/sdk/types/agentView";
+import type { ResumeFn } from "@/plugins/builtin/agent/application/ports/sessionView";
+import type { AgentProblem, AgentSessionView, Message } from "@/plugins/sdk/types/agentSessionView";
 import { create } from "zustand";
 import { disposeOnHmr } from "@/lib/hmr";
-import { reduce } from "@/plugins/builtin/agent/application/fold/reducer";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
+import {
+  reduceCompletedItem,
+  reduceRunEvent,
+} from "@/plugins/builtin/agent/application/fold/reducer";
+import { onStateSnapshot } from "@/plugins/builtin/agent/application/fold/stateHandlers";
+import { foldPendingInterruptSet } from "@/plugins/builtin/agent/application/fold/pendingInterruptSnapshot";
+import { foldRunSnapshot } from "@/plugins/builtin/agent/application/fold/runSnapshot";
+import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import {
   cancelRunningRun,
+  dismissVisibleProblem,
   dropMessage,
   relabelMessage,
   resolveInterrupt,
-  setRunError,
+  setCommandError,
   type SettledInterrupt,
 } from "@/plugins/builtin/agent/application/view/viewMutations";
 import { useAgentSessionStore } from "./agentSessionStore";
@@ -21,7 +28,7 @@ export type AgentStopAction = (() => void) | null;
 export type AgentSendAction = ((input: AgentInput, options?: AgentRunStartOptions) => void) | null;
 
 interface SessionEntry {
-  view: AgentViewState;
+  view: AgentSessionView;
   /** Bumped by resetView (rollback re-hydration). The useAgentSession rAF
    *  batcher stamps its queue with the epoch it saw at enqueue time and
    *  drops the batch if it changed — a flush scheduled before the reset
@@ -30,18 +37,6 @@ interface SessionEntry {
   stop: AgentStopAction;
   send: AgentSendAction;
   resume: ResumeFn;
-}
-
-/** A StreamEvent + the wire (envelope) runId + segmentId of the RunEvent that
- *  carried it. The fold needs the runId to tell a subagent's run.* from the root
- *  run's (RunOutcome itself has no id), and the segmentId to detect the segment
- *  boundary that resets the streaming readout (a resume opens a new segment of
- *  the same run). Absent for synthetic events (the optimistic local user bubble,
- *  items.list history replay). */
-export interface FoldEvent {
-  event: StreamEvent;
-  runId?: string;
-  segmentId?: string;
 }
 
 interface AgentStore {
@@ -53,7 +48,12 @@ interface AgentStore {
    * burst of streaming item.delta events produces one React commit per frame
    * instead of one per delta.
    */
-  applyEvents: (sessionId: string, events: FoldEvent[]) => void;
+  applyRunEvents: (sessionId: string, events: RunEvent[]) => void;
+  applyCompletedItems: (sessionId: string, items: Item[]) => void;
+  applyStateSnapshot: (sessionId: string, snapshot: StateSnapshot) => void;
+  applyPendingInterruptSets: (sessionId: string, snapshots: PendingInterruptSet[]) => void;
+  applyRunSnapshots: (sessionId: string, runs: RunRef[]) => void;
+  appendLocalMessage: (sessionId: string, message: Message) => void;
   /** Discard a session's state and start clean (e.g. on agent re-mount). */
   resetSession: (sessionId: string) => void;
   resetView: (sessionId: string) => void;
@@ -78,11 +78,11 @@ interface AgentStore {
   /** Bind / unbind the imperative HITL resume action for a session. */
   setResume: (sessionId: string, fn: ResumeFn) => void;
   /** Dismiss the error banner for a session without resetting the rest. */
-  clearError: (sessionId: string) => void;
+  clearProblem: (sessionId: string) => void;
   /** Surface a channel-a failure (a rejected runs.start / runs.resume, API.md
    *  §8.1) on the run-error banner — the stream never opened, so no
    *  segment.finished{error} will arrive to carry it. */
-  setError: (sessionId: string, error: RunError | null) => void;
+  setCommandError: (sessionId: string, error: AgentProblem | null) => void;
   /**
    * Locally settle a user-stopped run. `stop()` aborts the event stream, which
    * closes the channel BEFORE the backend's segment.finished{canceled} can reach
@@ -103,7 +103,7 @@ interface AgentStore {
 }
 
 const emptyEntry = (): SessionEntry => ({
-  view: INITIAL_VIEW_STATE,
+  view: EMPTY_AGENT_SESSION_VIEW,
   viewEpoch: 0,
   stop: null,
   send: null,
@@ -129,7 +129,7 @@ function patchSession(
 function patchView(
   sessions: Record<string, SessionEntry>,
   sessionId: string,
-  update: (view: AgentViewState) => AgentViewState,
+  update: (view: AgentSessionView) => AgentSessionView,
 ): Record<string, SessionEntry> {
   const prev = sessions[sessionId];
   if (!prev) return sessions;
@@ -149,15 +149,53 @@ function patchSessionState(
 
 export const useAgentStore = create<AgentStore>((set) => ({
   sessions: {},
-  applyEvents: (sessionId, events) =>
+  applyRunEvents: (sessionId, events) =>
     set((s) => {
       if (events.length === 0) return s;
       const prev = s.sessions[sessionId];
       if (!prev) return s; // session torn down — drop the late batch
       let view = prev.view;
-      for (const { event, runId, segmentId } of events)
-        view = reduce(view, event, runId, segmentId);
+      for (const event of events) view = reduceRunEvent(view, event);
       return { sessions: patchSession(s.sessions, sessionId, { view }) };
+    }),
+  applyCompletedItems: (sessionId, items) =>
+    set((s) => {
+      if (items.length === 0) return s;
+      const prev = s.sessions[sessionId];
+      if (!prev) return s;
+      let view = prev.view;
+      for (const item of items) view = reduceCompletedItem(view, item);
+      return { sessions: patchSession(s.sessions, sessionId, { view }) };
+    }),
+  applyStateSnapshot: (sessionId, snapshot) =>
+    set((s) => {
+      const sessions = patchView(s.sessions, sessionId, (view) => onStateSnapshot(view, snapshot));
+      return sessions === s.sessions ? s : { sessions };
+    }),
+  applyPendingInterruptSets: (sessionId, snapshots) =>
+    set((s) => {
+      if (snapshots.length === 0) return s;
+      const sessions = patchView(s.sessions, sessionId, (view) =>
+        snapshots.reduce(foldPendingInterruptSet, view),
+      );
+      return sessions === s.sessions ? s : { sessions };
+    }),
+  applyRunSnapshots: (sessionId, runs) =>
+    set((s) => {
+      if (runs.length === 0) return s;
+      const sessions = patchView(s.sessions, sessionId, (view) =>
+        runs.reduce(foldRunSnapshot, view),
+      );
+      return sessions === s.sessions ? s : { sessions };
+    }),
+  appendLocalMessage: (sessionId, message) =>
+    set((s) => {
+      const sessions = patchView(s.sessions, sessionId, (view) =>
+        view.messages.some((existing) => existing.id === message.id)
+          ? view
+          : { ...view, messages: [...view.messages, message] },
+      );
+      return sessions === s.sessions ? s : { sessions };
     }),
   resetSession: (sessionId) =>
     set((s) => ({ sessions: { ...s.sessions, [sessionId]: emptyEntry() } })),
@@ -194,14 +232,14 @@ export const useAgentStore = create<AgentStore>((set) => ({
   setStop: (sessionId, fn) => set((s) => patchSessionState(s, sessionId, { stop: fn })),
   setSend: (sessionId, fn) => set((s) => patchSessionState(s, sessionId, { send: fn })),
   setResume: (sessionId, fn) => set((s) => patchSessionState(s, sessionId, { resume: fn })),
-  clearError: (sessionId) =>
+  clearProblem: (sessionId) =>
     set((s) => {
-      const sessions = patchView(s.sessions, sessionId, (view) => setRunError(view, null));
+      const sessions = patchView(s.sessions, sessionId, dismissVisibleProblem);
       return sessions === s.sessions ? s : { sessions };
     }),
-  setError: (sessionId, error) =>
+  setCommandError: (sessionId, error) =>
     set((s) => {
-      const sessions = patchView(s.sessions, sessionId, (view) => setRunError(view, error));
+      const sessions = patchView(s.sessions, sessionId, (view) => setCommandError(view, error));
       return sessions === s.sessions ? s : { sessions };
     }),
   cancelRun: (sessionId) =>

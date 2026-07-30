@@ -1,4 +1,4 @@
-// Regression: useAgentError / useAgentSharedState must react to an
+// Regression: useAgentProblem / useAgentSharedState must react to an
 // activeSessionId switch, not just to agent-store mutations. They read the
 // active session's view, and activeSessionId lives in a SEPARATE store
 // (useAgentSessionStore); if the switch isn't a reactive dependency, a
@@ -9,14 +9,14 @@
 
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { INITIAL_VIEW_STATE, type RunError } from "@/plugins/sdk/types/agentView";
+import { EMPTY_AGENT_SESSION_VIEW, type AgentProblem } from "@/plugins/sdk/types/agentSessionView";
 import { useAgentStore } from "./agentStore";
 import { useAgentSessionStore } from "./agentSessionStore";
-import { useAgentError, useAgentSharedState } from "./agentViewSelectors";
+import { useAgentProblem, useAgentSharedState } from "./agentViewSelectors";
 
-function seed(error: RunError | null, shared: Record<string, unknown>) {
+function seed(commandError: AgentProblem | null, shared: Record<string, unknown>) {
   return {
-    view: { ...INITIAL_VIEW_STATE, error, shared },
+    view: { ...EMPTY_AGENT_SESSION_VIEW, commandError, shared },
     viewEpoch: 0,
     stop: null,
     send: null,
@@ -30,13 +30,13 @@ afterEach(() => {
 });
 
 describe("agent view selectors react to session switch", () => {
-  it("useAgentError follows activeSessionId", () => {
+  it("useAgentProblem follows activeSessionId", () => {
     useAgentStore.setState({
       sessions: { a: seed({ message: "A" }, {}), b: seed({ message: "B" }, {}) },
     });
     useAgentSessionStore.setState({ activeSessionId: "a" });
 
-    const { result } = renderHook(() => useAgentError());
+    const { result } = renderHook(() => useAgentProblem());
     expect(result.current?.message).toBe("A");
 
     act(() => useAgentSessionStore.setState({ activeSessionId: "b" }));

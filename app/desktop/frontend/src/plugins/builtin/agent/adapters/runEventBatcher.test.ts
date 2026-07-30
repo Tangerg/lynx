@@ -1,18 +1,38 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RunEvent } from "@/rpc";
-import type { FoldEvent } from "./agentStore";
 import { createRunEventBatcher } from "./runEventBatcher";
 
-const runStarted = (): RunEvent["event"] =>
-  ({ type: "segment.started", run: { id: "run_1", sessionId: "ses_1" } }) as RunEvent["event"];
+let sequence = 0;
+const envelope = (event: RunEvent["event"]): RunEvent => ({
+  event,
+  eventId: `evt_batch_${++sequence}`,
+  runId: "run_1",
+  segmentId: "seg_1",
+  timestamp: "2026-06-03T00:00:00.000Z",
+});
+
+const runStarted = (): RunEvent =>
+  envelope({
+    type: "segment.started",
+    run: {
+      id: "run_1",
+      sessionId: "ses_1",
+      status: "running",
+      activeSegmentId: "seg_1",
+      createdAt: "2026-06-03T00:00:00.000Z",
+      metrics: { steps: 0, activeDurationMs: 0 },
+      protocolProfile: { interruptTypes: [], requiredFeatures: [] },
+    },
+  });
 
 // A segment.finished frame carries both halves the wire requires: why it stopped
 // and what the run consumed.
-const runFinished = (): RunEvent["event"] => ({
-  type: "segment.finished",
-  outcome: { type: "completed" },
-  metrics: { steps: 0, activeDurationMs: 1 },
-});
+const runFinished = (): RunEvent =>
+  envelope({
+    type: "segment.finished",
+    outcome: { type: "completed" },
+    metrics: { steps: 0, activeDurationMs: 1 },
+  });
 
 function frameScheduler() {
   const scheduled: Array<() => void> = [];
@@ -30,7 +50,7 @@ function frameScheduler() {
 
 describe("createRunEventBatcher", () => {
   it("coalesces queued events into one frame and reports finished runs", () => {
-    const applied: FoldEvent[][] = [];
+    const applied: RunEvent[][] = [];
     const onRunFinished = vi.fn();
     const frames = frameScheduler();
     const batcher = createRunEventBatcher({
@@ -42,7 +62,7 @@ describe("createRunEventBatcher", () => {
     });
 
     batcher.enqueue(runStarted());
-    batcher.enqueue(runFinished(), "run_1");
+    batcher.enqueue(runFinished());
 
     expect(frames.scheduleFrame).toHaveBeenCalledTimes(1);
     expect(applied).toEqual([]);
@@ -60,7 +80,7 @@ describe("createRunEventBatcher", () => {
 
   it("drops a queued batch when the view epoch changes before flush", () => {
     let epoch = 1;
-    const applied: FoldEvent[][] = [];
+    const applied: RunEvent[][] = [];
     const frames = frameScheduler();
     const batcher = createRunEventBatcher({
       readEpoch: () => epoch,
@@ -83,7 +103,7 @@ describe("createRunEventBatcher", () => {
   });
 
   it("cancels pending frames and ignores future events after dispose", () => {
-    const applied: FoldEvent[][] = [];
+    const applied: RunEvent[][] = [];
     const frames = frameScheduler();
     const batcher = createRunEventBatcher({
       readEpoch: () => 0,

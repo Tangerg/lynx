@@ -1,5 +1,5 @@
 import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
-import type { ToolCall } from "@/plugins/sdk/types/agentView";
+import type { ToolCall } from "@/plugins/sdk/types/agentSessionView";
 import { isQuestionTool } from "../domain/toolCategory";
 import { isReadOnlyTool } from "./toolPresentation";
 

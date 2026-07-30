@@ -3,8 +3,9 @@ import { t } from "@/lib/i18n";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { toolGroupModel } from "./toolGroupModel";
 
-const tool = (overrides: Partial<ToolCall> = {}): ToolCall => ({
+const tool = ({ runId = "run_1", ...overrides }: Partial<ToolCall> = {}): ToolCall => ({
   id: "tool-1",
+  runId,
   name: "read",
   fn: "read",
   args: "",

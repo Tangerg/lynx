@@ -7,11 +7,10 @@
 // pre-existing toolCalls entry — not reset it when item.started re-fires.
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Item, StreamEvent } from "@/rpc";
-import type { AgentViewState } from "@/plugins/sdk/types/agentView";
+import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
-import { reduce } from "./reducer";
-import { runFinished } from "./reducer.fixtures";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
+import { foldTestEvent as reduce, runFinished } from "./reducer.fixtures";
+import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 
 function item(partial: Record<string, unknown>): Item {
   return {
@@ -39,7 +38,7 @@ const TOOL = "item_run_X_1";
 
 describe("reducer — HITL resume preserves toolOutput on result", () => {
   it("stdout streamed during the resume run lands on the re-emitted toolCall", () => {
-    let s: AgentViewState = INITIAL_VIEW_STATE;
+    let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
 
     // runs.start: command interrupts for approval before executing.
     s = reduce(s, runStarted("run_X"));
@@ -70,7 +69,7 @@ describe("reducer — HITL resume preserves toolOutput on result", () => {
     expect(s.toolCalls[TOOL]?.status).toBe("requires-action");
 
     // runs.resume: re-emits the same toolCall id, then streams stdout + settles.
-    s = reduce(s, runStarted("run_X_resume"));
+    s = reduce(s, runStarted("run_X"), "run_X", "seg_resume");
     s = reduce(
       s,
       started(

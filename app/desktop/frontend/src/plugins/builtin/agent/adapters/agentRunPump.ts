@@ -1,7 +1,6 @@
 import { queryClient } from "@/lib/queryClient";
 import type { CancelRunResponse, RunEvent, RunId, SegmentId, StreamingResult } from "@/rpc";
 import { AGENT_SESSION_USAGE_KEY } from "../application/session/sessionUsage";
-import type { FoldEvent } from "./agentStore";
 import { createRunEventBatcher } from "./runEventBatcher";
 
 /** What a stream's opening ack tells the pump. headEventId exists only on a
@@ -28,7 +27,7 @@ interface AgentRunPumpOptions {
   sessionId: string;
   isCancelled: () => boolean;
   readEpoch: () => number;
-  applyEvents: (events: FoldEvent[]) => void;
+  applyEvents: (events: RunEvent[]) => void;
   /** Reattach a run whose stream ended before the run did. null means the run is no
    *  longer attachable at all — finished, waiting on a person, or moved to another
    *  segment — and the fold already holds, or will be told, everything it can. */
@@ -119,7 +118,7 @@ export function createAgentRunPump({
         // An aborted request or a torn-down session is a deliberate stop, not a gap
         // to recover: nothing is reattached after it.
         if (isCancelled() || signal.aborted) return { finished: true, position };
-        eventBatcher.enqueue(ev.event, ev.runId, ev.segmentId);
+        eventBatcher.enqueue(ev);
         position = { ...position, lastEventId: ev.eventId };
         // A descendant subagent's terminal rides this same stream; only the root
         // segment's ends it.

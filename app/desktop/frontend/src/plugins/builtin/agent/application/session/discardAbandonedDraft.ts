@@ -1,6 +1,6 @@
 import { agentRuntime } from "../ports/runtimeGateway";
 import { agentSessionState } from "../ports/sessionState";
-import { agentViewState } from "../ports/viewState";
+import { agentSessionView } from "../ports/sessionView";
 import { invalidateAgentSessions } from "./sessionQueries";
 
 /**
@@ -21,7 +21,7 @@ import { invalidateAgentSessions } from "./sessionQueries";
  */
 export function discardAbandonedDraft(sessionId: string): void {
   if (!sessionId || !agentSessionState().isDraftSession(sessionId)) return;
-  if ((agentViewState().getSession(sessionId)?.view.messages.length ?? 0) > 0) return;
+  if ((agentSessionView().getSession(sessionId)?.view.messages.length ?? 0) > 0) return;
 
   void agentRuntime()
     .deleteSession(sessionId)

@@ -7,30 +7,54 @@
 //     a question answer does NOT (questions have no timeline counterpart)
 
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Item, SegmentOutcome, StreamEvent } from "@/rpc";
+import type { Item, RunEvent, SegmentOutcome, StreamEvent } from "@/rpc";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { useAgentStore } from "./agentStore";
+import { selectCurrentRootRun } from "../application/view/runTree";
 
 const SID = "ses_1";
 
 const item = (partial: Record<string, unknown>): Item =>
   ({ runId: "run_1", status: "running", createdAt: "2026-06-03T00:00:00Z", ...partial }) as Item;
-const runStarted = (id: string, sessionId: string): StreamEvent =>
-  ({ type: "segment.started", run: { id, sessionId } }) as never;
+const runStarted = (id: string, sessionId: string): StreamEvent => ({
+  type: "segment.started",
+  run: {
+    id,
+    sessionId,
+    status: "running",
+    activeSegmentId: `seg_${id}`,
+    createdAt: "2026-06-03T00:00:00.000Z",
+    metrics: { steps: 0, activeDurationMs: 0 },
+    protocolProfile: { interruptTypes: [], requiredFeatures: [] },
+  },
+});
 const runFinished = (outcome: SegmentOutcome): StreamEvent => ({
   type: "segment.finished",
   outcome,
   metrics: { steps: 0, activeDurationMs: 0 },
 });
-// Wrap a synthetic StreamEvent as a FoldEvent — no envelope runId, so the fold
-// treats it as the root run (matching applyEvents' batch shape).
-const fold = (event: StreamEvent) => ({ event });
+let eventSequence = 0;
+const fold = (event: StreamEvent): RunEvent => {
+  const runId =
+    event.type === "segment.started"
+      ? event.run.id
+      : event.type === "item.started" || event.type === "item.completed"
+        ? event.item.runId
+        : "run_1";
+  return {
+    event,
+    eventId: `evt_store_${++eventSequence}`,
+    runId,
+    segmentId: `seg_${runId}`,
+    timestamp: "2026-06-03T00:00:01.000Z",
+  };
+};
 
 // Drive the store to a state where `itemId` is an open interrupt of `kind`.
 function seedInterrupt(kind: "approval" | "question", itemId: string): void {
   const store = useAgentStore.getState();
   store.resetSession(SID);
-  store.applyEvents(
+  store.applyRunEvents(
     SID,
     [
       runStarted("run_1", SID),
@@ -94,7 +118,7 @@ describe("agentStore.cancelRun", () => {
   it("settles a user-stopped run locally — running off, tokens kept, canceled on the timeline", () => {
     const store = useAgentStore.getState();
     store.resetSession(SID);
-    store.applyEvents(
+    store.applyRunEvents(
       SID,
       [
         runStarted("run_1", SID),
@@ -104,18 +128,18 @@ describe("agentStore.cancelRun", () => {
         } as StreamEvent,
       ].map(fold),
     );
-    expect(view().run.running).toBe(true);
+    expect(selectCurrentRootRun(view())?.status).toBe("running");
 
     useAgentStore.getState().cancelRun(SID);
 
-    expect(view().run.running).toBe(false);
+    expect(selectCurrentRootRun(view())?.status).toBe("finished");
     expect(view().timeline.at(-1)).toMatchObject({ kind: "run-end", summary: "canceled" });
   });
 
   it("is a no-op once the run has already settled (no state churn)", () => {
     const store = useAgentStore.getState();
     store.resetSession(SID);
-    const before = view(); // run.running is false in a fresh slice
+    const before = view(); // a fresh slice has no current root Run
     useAgentStore.getState().cancelRun(SID);
     expect(view()).toBe(before); // same reference — set() bailed
   });
@@ -154,7 +178,7 @@ describe("agentStore.resolveInterrupt", () => {
   it("resolving one of several interrupts in an envelope keeps the siblings", () => {
     const store = useAgentStore.getState();
     store.resetSession(SID);
-    store.applyEvents(
+    store.applyRunEvents(
       SID,
       [
         runStarted("run_1", SID),
@@ -212,9 +236,11 @@ describe("agentStore never resurrects a dropped session", () => {
   // synchronously, but a late rAF flush / in-flight items.list / the unmount
   // cleanup nulling send-stop all run afterwards. None may re-seed a ghost
   // entry (prune won't fire again for an id no longer in openSessionIds → leak).
-  it("applyEvents on an absent session is a no-op (no ghost entry)", () => {
+  it("applyRunEvents on an absent session is a no-op (no ghost entry)", () => {
     useAgentStore.getState().dropSession("ses_ghost");
-    useAgentStore.getState().applyEvents("ses_ghost", [runStarted("run_x", "ses_ghost")].map(fold));
+    useAgentStore
+      .getState()
+      .applyRunEvents("ses_ghost", [runStarted("run_x", "ses_ghost")].map(fold));
     expect(useAgentStore.getState().sessions["ses_ghost"]).toBeUndefined();
   });
 
@@ -231,33 +257,36 @@ describe("agentStore never resurrects a dropped session", () => {
   });
 });
 
-describe("agentStore.setError", () => {
-  it("surfaces a channel-a failure on the banner; clearError dismisses it", () => {
+describe("agentStore.setCommandError", () => {
+  it("surfaces a channel-a failure; clearProblem dismisses it", () => {
     const store = useAgentStore.getState();
     store.resetSession(SID);
-    store.setError(SID, { message: "session not found", code: "session_not_found" });
-    expect(view().error).toMatchObject({ message: "session not found", code: "session_not_found" });
-    useAgentStore.getState().clearError(SID);
-    expect(view().error).toBeNull();
+    store.setCommandError(SID, {
+      message: "session not found",
+      code: "session_not_found",
+    });
+    expect(view().commandError).toMatchObject({
+      message: "session not found",
+      code: "session_not_found",
+    });
+    useAgentStore.getState().clearProblem(SID);
+    expect(view().commandError).toBeNull();
   });
 });
 
 describe("agentStore.relabelMessage", () => {
-  const userMsg = (id: string): StreamEvent =>
-    ({
-      type: "item.completed",
-      item: item({
-        id,
-        status: "completed",
-        type: "userMessage",
-        content: [{ type: "text", text: "hi" }],
-      }),
-    }) as never;
+  const userMsg = (id: string): Item =>
+    item({
+      id,
+      status: "completed",
+      type: "userMessage",
+      content: [{ type: "text", text: "hi" }],
+    });
 
   it("renames an optimistic placeholder to the server id", () => {
     const store = useAgentStore.getState();
     store.resetSession(SID);
-    store.applyEvents(SID, [userMsg("local-1")].map(fold));
+    store.applyCompletedItems(SID, [userMsg("local-1")]);
     expect(view().messages.map((m) => m.id)).toEqual(["local-1"]);
 
     useAgentStore.getState().relabelMessage(SID, "local-1", "item_real");
@@ -267,7 +296,7 @@ describe("agentStore.relabelMessage", () => {
   it("is a no-op when the target id already exists (streamed item won the race)", () => {
     const store = useAgentStore.getState();
     store.resetSession(SID);
-    store.applyEvents(SID, [userMsg("item_real"), userMsg("local-1")].map(fold));
+    store.applyCompletedItems(SID, [userMsg("item_real"), userMsg("local-1")]);
     expect(view().messages).toHaveLength(2);
 
     useAgentStore.getState().relabelMessage(SID, "local-1", "item_real");
@@ -277,21 +306,18 @@ describe("agentStore.relabelMessage", () => {
 });
 
 describe("agentStore.dropMessage", () => {
-  const userMsg = (id: string): StreamEvent =>
-    ({
-      type: "item.completed",
-      item: item({
-        id,
-        status: "completed",
-        type: "userMessage",
-        content: [{ type: "text", text: "hi" }],
-      }),
-    }) as never;
+  const userMsg = (id: string): Item =>
+    item({
+      id,
+      status: "completed",
+      type: "userMessage",
+      content: [{ type: "text", text: "hi" }],
+    });
 
   it("removes a single message by id (optimistic steer rollback)", () => {
     const store = useAgentStore.getState();
     store.resetSession(SID);
-    store.applyEvents(SID, [userMsg("item_real"), userMsg("local-steer-1")].map(fold));
+    store.applyCompletedItems(SID, [userMsg("item_real"), userMsg("local-steer-1")]);
     expect(view().messages.map((m) => m.id)).toEqual(["item_real", "local-steer-1"]);
 
     useAgentStore.getState().dropMessage(SID, "local-steer-1");
@@ -301,7 +327,7 @@ describe("agentStore.dropMessage", () => {
   it("is a no-op for an unknown id", () => {
     const store = useAgentStore.getState();
     store.resetSession(SID);
-    store.applyEvents(SID, [userMsg("item_real")].map(fold));
+    store.applyCompletedItems(SID, [userMsg("item_real")]);
     const before = view().messages;
     useAgentStore.getState().dropMessage(SID, "nope");
     expect(view().messages).toBe(before); // same reference — no churn
@@ -309,29 +335,26 @@ describe("agentStore.dropMessage", () => {
 });
 
 describe("appendUserMessage reconciles an image-only optimistic bubble", () => {
-  const imageUserMsg = (id: string): StreamEvent =>
-    ({
-      type: "item.completed",
-      item: item({
-        id,
-        status: "completed",
-        type: "userMessage",
-        content: [{ type: "image", mime: "image/png", data: "AAAA" }],
-      }),
-    }) as never;
+  const imageUserMsg = (id: string): Item =>
+    item({
+      id,
+      status: "completed",
+      type: "userMessage",
+      content: [{ type: "image", mime: "image/png", data: "AAAA" }],
+    });
 
   it("upgrades the local-* image bubble in place instead of appending a duplicate", () => {
     const store = useAgentStore.getState();
     store.resetSession(SID);
     // Optimistic image-only bubble: a local id + an image block, NO text block.
-    store.applyEvents(SID, [imageUserMsg("local-1")].map(fold));
+    store.applyCompletedItems(SID, [imageUserMsg("local-1")]);
     expect(view().messages.map((m) => m.id)).toEqual(["local-1"]);
 
     // Streamed server item (new id, same image-only content). Without a
     // userItemId relabel, the fold's content match must reconcile by upgrading
     // the placeholder id — not append a second bubble (regression: an absent
     // text block read as undefined !== "" and duplicated the image message).
-    store.applyEvents(SID, [imageUserMsg("item_real")].map(fold));
+    store.applyCompletedItems(SID, [imageUserMsg("item_real")]);
     expect(view().messages.map((m) => m.id)).toEqual(["item_real"]);
   });
 });

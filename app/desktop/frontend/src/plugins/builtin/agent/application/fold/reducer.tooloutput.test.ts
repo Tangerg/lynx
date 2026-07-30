@@ -5,10 +5,10 @@
 // non-streaming runtimes must all still render output. See API.md §4.4.1 + §5.2.
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Item, StreamEvent } from "@/rpc";
-import type { AgentViewState } from "@/plugins/sdk/types/agentView";
+import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
-import { reduce } from "./reducer";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
+import { foldTestEvent as reduce } from "./reducer.fixtures";
+import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 
 function item(partial: Record<string, unknown>): Item {
   return {
@@ -42,7 +42,7 @@ describe("reducer — commandExecution output durability", () => {
   it("history replay (completed-only, no deltas) renders output from tool.output", () => {
     // items.list hydration replays ONLY completed items — no item.delta ever.
     const s = reduce(
-      INITIAL_VIEW_STATE,
+      EMPTY_AGENT_SESSION_VIEW,
       completed(
         item({
           id: "t1",
@@ -57,7 +57,7 @@ describe("reducer — commandExecution output durability", () => {
   });
 
   it("completed `output` is authoritative — overrides an incomplete delta preview", () => {
-    let s: AgentViewState = INITIAL_VIEW_STATE;
+    let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
     s = reduce(s, started(item({ id: "t1", type: "toolCall", tool: cmd({}) })));
     // Only a partial preview streamed (frames dropped / slow stream).
     s = reduce(s, delta("t1", { type: "toolOutput", text: "/Users" }));
@@ -80,7 +80,7 @@ describe("reducer — commandExecution output durability", () => {
   it("while running the toolOutput delta is the live preview (no settled fields yet)", () => {
     // The started shell carries no output (lifecycle); the delta stream stands
     // in as preview until item.completed reconciles to the authoritative output.
-    let s: AgentViewState = INITIAL_VIEW_STATE;
+    let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
     s = reduce(s, started(item({ id: "t1", type: "toolCall", tool: cmd({}) })));
     s = reduce(s, delta("t1", { type: "toolOutput", text: "/Users/tan" }));
     s = reduce(s, delta("t1", { type: "toolOutput", text: "gerg\n" }));
@@ -90,7 +90,7 @@ describe("reducer — commandExecution output durability", () => {
 
   it("outputTruncated rides through to the view when the runtime caps output", () => {
     const s = reduce(
-      INITIAL_VIEW_STATE,
+      EMPTY_AGENT_SESSION_VIEW,
       completed(
         item({
           id: "t1",

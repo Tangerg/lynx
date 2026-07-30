@@ -5,7 +5,11 @@ import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
 import { hasWorkspaceViewForTool, openWorkspaceViewForTool } from "./toolRouting";
 import { workspaceCommandActivitiesFromAgentTools } from "./toolActivity";
 
-const toolCall = (over: Partial<ToolCall> & Pick<ToolCall, "id" | "name">): ToolCall => ({
+const toolCall = ({
+  runId = "run_1",
+  ...over
+}: Partial<ToolCall> & Pick<ToolCall, "id" | "name">): ToolCall => ({
+  runId,
   fn: "",
   args: "",
   status: "ok",

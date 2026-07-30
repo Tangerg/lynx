@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { t } from "@/lib/i18n";
-import type { ToolCall } from "@/plugins/sdk/types/agentView";
+import type { ToolCall } from "@/plugins/sdk/types/agentSessionView";
 import {
   isReadOnlyTool,
   summarizeToolGroup,
@@ -9,8 +9,9 @@ import {
   toolMetaItems,
 } from "./toolPresentation";
 
-const tool = (overrides: Partial<ToolCall>): ToolCall => ({
+const tool = ({ runId = "run_1", ...overrides }: Partial<ToolCall>): ToolCall => ({
   id: "tool-1",
+  runId,
   name: "shell",
   fn: "shell",
   args: "",

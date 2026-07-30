@@ -1,5 +1,5 @@
 import type { Translate } from "@/lib/i18n";
-import type { ToolCall } from "@/plugins/sdk/types/agentView";
+import type { ToolCall } from "@/plugins/sdk/types/agentSessionView";
 
 export interface ToolIntent {
   label: string;

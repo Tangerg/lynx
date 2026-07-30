@@ -10,13 +10,13 @@
 // keeps whichever value carries the higher revision.
 
 import { agentRuntime } from "../ports/runtimeGateway";
-import { agentViewState } from "../ports/viewState";
+import { agentSessionView } from "../ports/sessionView";
 
 export async function recoverSessionState(sessionId: string): Promise<void> {
   const snapshot = await agentRuntime().loadSessionState(sessionId);
   if (!snapshot) return;
   // Mounted sessions only: an unmounted one has no view to land in, and it reads
   // this again when it opens.
-  if (!agentViewState().getSession(sessionId)) return;
-  agentViewState().applyStateSnapshot(sessionId, snapshot);
+  if (!agentSessionView().getSession(sessionId)) return;
+  agentSessionView().applyStateSnapshot(sessionId, snapshot);
 }

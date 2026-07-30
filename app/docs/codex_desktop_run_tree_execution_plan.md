@@ -3,8 +3,8 @@
 > 作者：Codex
 > 状态：`IN PROGRESS`
 > 建档日期：2026-07-30
-> 当前阶段：`W4.0 DONE · W4.1 READY`
-> 实现审计基线：`main@b75d2a1d9`，审计时与 `origin/main` 一致
+> 当前阶段：`W4.0 DONE · W4.1 DONE · W4.2 READY`
+> W4.1 实施基线：`main@bf9814b2e`，实施前与 `origin/main` 一致
 > W4.0 文档提交：`26e43fd0e`
 > 对应总任务：`B1.6 / W4 — Desktop Run-tree consumer`
 > 约束：允许 breaking change；不保留旧 view shape、alias、双写或兼容 reducer
@@ -504,7 +504,7 @@ cd app/desktop/frontend && npm run check
 
 ### W4.1 — Projection core 与 source-owned fold
 
-状态：`READY`
+状态：`DONE`
 
 范围：
 
@@ -694,20 +694,55 @@ compatibility / stale terminology / TODO-FIXME-HACK scans
   - `features.subagents` 必须继续 disabled；
   - 已知 CSS/bundle warnings 继续保留在 W7 hygiene 账本。
 
+### 2026-07-30 — W4.1
+
+- 实施基线：`main@bf9814b2e`；
+- canonical projection：
+  - `AgentSessionView` 直接替换失真的 `AgentViewState`；
+  - 删除 single `view.run`、global plan、global assistant-turn cursor 与混合 error；
+  - 建立 normalized `runsById`、`plansByRunId`、`assistantTurnByRunId`；
+  - message、tool、plan、timeline 与 interrupt 全部保留 source Run；
+- fold seam：
+  - live fold 只接受完整 `RunEvent` envelope；
+  - event ID、timestamp、RunID 与 SegmentID 不再 optional/fallback；
+  - history Item、RunRef snapshot、PendingInterruptSet snapshot 与 local optimistic
+    message 使用各自显式入口；
+  - 删除空 RunID、unknown profile、zero metrics 等 synthetic wire；
+- 语义证明：
+  - root、siblings、nested child lifecycle/progress/outcome 互不覆盖；
+  - interleaved message、plan、tool、assistant turn 与 timeline owner 不串线；
+  - exact terminal replay 幂等；
+  - live terminal fold 与 durable RunRef snapshot 收敛；
+  - Item/envelope owner 冲突 fail closed，不回退到 root；
+- breaking migration：
+  - store、ports、selectors、public surface、SDK state helper 与 consumers 同步迁移；
+  - 不保留 alias、dual write 或 compatibility reducer；
+  - Run digest 明确按 selected root 过滤，不被 child timeline boundary 抢占；
+- 验证：
+  - `cd app/desktop/frontend && npm run check` → `PASS`
+  - 178 test files / 1076 tests；
+  - type/lint/format/knip/circular/context/published-boundary/layer/token/chrome/locale/
+    bootstrap/bundle gates → `PASS`；
+  - 已知 CSS/bundle warnings 与 W4.0 基线一致，无新增 blocking warning；
+- 残余工作：
+  - W4.2 尚需把 cold/replay/invalidation 收敛成原子 snapshot replace；
+  - cancel 仍需改为 committed `CancelRunResponse` merge，禁止 optimistic terminal；
+  - `features.subagents` 继续 disabled。
+
 ---
 
 ## 11. 下一张执行卡
 
 ```text
-W4.1 — Projection core 与 source-owned fold
+W4.2 — Durable recovery、invalidation 与 cancel
 ```
 
 执行纪律：
 
-1. 先写 root/child/sibling/nested/interleaved conformance；
-2. 一次性建立 canonical tree shape 并删除 `view.run`；
-3. 同一个 slice 迁移 store、ports、selectors 和 consumers；
-4. 不触碰 Runtime wire；
-5. 不保留兼容 alias、双写或 synthetic event；
-6. frontend 门禁全绿后独立 commit/push；
-7. 再进入 W4.2 durable recovery/control。
+1. 先建立 off-store `AgentSessionSnapshot` 与 epoch-guarded atomic replace；
+2. cold、replay unavailable、runtime invalidation 共用同一 authoritative refresh；
+3. negotiated subagents 显式请求 descendants，未协商时保持 root-only；
+4. root/child cancel 只合并 committed response，不伪造 terminal；
+5. waiting child cancel 恢复 root 时按返回的新 Segment 重订；
+6. 覆盖并发、stale、failure 与 restart 场景；
+7. frontend 门禁全绿后独立 commit/push，再进入 W4.3 presentation。

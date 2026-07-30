@@ -1,26 +1,26 @@
-import type { RunEvent } from "@/rpc";
 import { agentInputToContentBlocks } from "./wireInput";
+import { localUserMessage } from "./optimisticUserMessage";
 import { useAgentSessionStore } from "./agentSessionStore";
 import {
   configureAgentSessionStatePort,
   type AgentSessionLifecycleSnapshot,
   type AgentSessionSelectionSnapshot,
 } from "../application/ports/sessionState";
-import { configureAgentViewStatePort } from "../application/ports/viewState";
+import { configureAgentSessionViewPort } from "../application/ports/sessionView";
 import {
   getCurrentSessionView,
   useAgentAction,
-  useAgentError,
-  useAgentMessages,
-  useAgentPlan,
-  useAgentRunContextTokens,
-  useAgentRunId,
-  useAgentSegmentId,
-  useAgentRunning,
-  useAgentRunUsage,
+  useAgentProblem,
+  useAgentSessionTimeline,
   useAgentSharedState,
-  useAgentTimeline,
   useAgentToolCalls,
+  useCurrentRootContextTokens,
+  useCurrentRootMessages,
+  useCurrentRootPlan,
+  useCurrentRootRunId,
+  useCurrentRootRunning,
+  useCurrentRootSegmentId,
+  useCurrentRootUsage,
 } from "./agentViewSelectors";
 import { useAgentStore } from "./agentStore";
 
@@ -93,18 +93,18 @@ export function installAgentStatePorts(): () => void {
     takePendingMessage: (id) => useAgentSessionStore.getState().takePendingMessage(id),
   });
 
-  const disposeViewState = configureAgentViewStatePort({
-    useRunning: useAgentRunning,
-    useRunId: useAgentRunId,
-    useSegmentId: useAgentSegmentId,
-    usePlan: useAgentPlan,
+  const disposeViewState = configureAgentSessionViewPort({
+    useCurrentRootRunning,
+    useCurrentRootRunId,
+    useCurrentRootSegmentId,
+    useCurrentRootPlan,
     useToolCalls: useAgentToolCalls,
-    useTimeline: useAgentTimeline,
-    useMessages: useAgentMessages,
-    useError: useAgentError,
+    useSessionTimeline: useAgentSessionTimeline,
+    useCurrentRootMessages,
+    useProblem: useAgentProblem,
     useSharedState: useAgentSharedState,
-    useUsage: useAgentRunUsage,
-    useContextTokens: useAgentRunContextTokens,
+    useCurrentRootUsage,
+    useCurrentRootContextTokens,
     useAction: useAgentAction,
     getCurrentView: getCurrentSessionView,
     getSessions: () => useAgentStore.getState().sessions,
@@ -117,34 +117,19 @@ export function installAgentStatePorts(): () => void {
     },
     dropMessage: (sessionId, messageId) =>
       useAgentStore.getState().dropMessage(sessionId, messageId),
-    appendLocalUserMessage: (sessionId, messageId, input) => {
-      useAgentStore.getState().applyEvents(sessionId, [
-        {
-          event: {
-            type: "item.completed",
-            item: {
-              id: messageId,
-              runId: "",
-              status: "completed",
-              createdAt: new Date().toISOString(),
-              type: "userMessage",
-              content: agentInputToContentBlocks(input),
-            },
-          } as RunEvent["event"],
-        },
-      ]);
-    },
-    resetView: (sessionId) => useAgentStore.getState().resetView(sessionId),
-    applyCompletedItems: (sessionId, items) =>
-      useAgentStore.getState().applyEvents(
-        sessionId,
-        items.map((item) => ({ event: { type: "item.completed" as const, item } })),
-      ),
-    applyStateSnapshot: (sessionId, state) =>
+    appendLocalUserMessage: (sessionId, messageId, input) =>
       useAgentStore
         .getState()
-        .applyEvents(sessionId, [{ event: { type: "state.snapshot" as const, state } }]),
-    clearError: (sessionId) => useAgentStore.getState().clearError(sessionId),
+        .appendLocalMessage(
+          sessionId,
+          localUserMessage(messageId, agentInputToContentBlocks(input)),
+        ),
+    resetView: (sessionId) => useAgentStore.getState().resetView(sessionId),
+    applyCompletedItems: (sessionId, items) =>
+      useAgentStore.getState().applyCompletedItems(sessionId, items),
+    applyStateSnapshot: (sessionId, state) =>
+      useAgentStore.getState().applyStateSnapshot(sessionId, state),
+    clearProblem: (sessionId) => useAgentStore.getState().clearProblem(sessionId),
     resolveInterrupt: (sessionId, itemId, settled) =>
       useAgentStore.getState().resolveInterrupt(sessionId, itemId, settled),
     subscribeSessions: (onChange) => useAgentStore.subscribe((state) => onChange(state.sessions)),

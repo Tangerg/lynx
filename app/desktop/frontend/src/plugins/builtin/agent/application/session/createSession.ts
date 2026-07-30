@@ -4,7 +4,7 @@ import { useCallback } from "react";
 import { invalidateAgentSessions } from "./sessionQueries";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { agentSessionState } from "../ports/sessionState";
-import { agentViewState } from "../ports/viewState";
+import { agentSessionView } from "../ports/sessionView";
 import { reportSessionError } from "./reportSessionError";
 
 export interface CreateSessionOptions {
@@ -104,7 +104,7 @@ function alreadyOnAFreshSession(opts: CreateSessionOptions): string | null {
   if (opts.cwd !== undefined || opts.firstInput) return null;
   const sessionId = agentSessionState().getActiveSessionId();
   if (!sessionId || !agentSessionState().isDraftSession(sessionId)) return null;
-  const messages = agentViewState().getSession(sessionId)?.view.messages ?? [];
+  const messages = agentSessionView().getSession(sessionId)?.view.messages ?? [];
   return messages.length === 0 ? sessionId : null;
 }
 

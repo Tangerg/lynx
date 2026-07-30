@@ -22,11 +22,12 @@ import {
 } from "@/plugins/builtin/chat/composer/public/draft";
 import { MessageContextMenu } from "./MessageContextMenu";
 
-function buildMessage(overrides: Partial<Message> = {}): Message {
+function buildMessage({ runId = null, ...overrides }: Partial<Message> = {}): Message {
   return {
     id: "m1",
     role: "user",
     createdAt: "2026-01-01T00:00:00.000Z",
+    runId,
     blocks: [{ kind: "text", text: "hello world", status: "complete" }],
     ...overrides,
   };

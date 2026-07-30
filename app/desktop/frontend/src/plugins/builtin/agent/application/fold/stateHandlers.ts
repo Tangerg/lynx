@@ -1,5 +1,5 @@
 import type { StateSnapshot } from "@/rpc";
-import type { AgentViewState } from "@/plugins/sdk/types/agentView";
+import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 
 // A snapshot is a whole latest value, keyed by its own `type` — not by the run that
 // wrote it. The envelope's runId is provenance: a session-scoped list bucketed per
@@ -10,7 +10,10 @@ import type { AgentViewState } from "@/plugins/sdk/types/agentView";
 // exactly like progress being undone. Dropping the older one is what makes the fold
 // order-insensitive — which it has to be, because a live stream and a cold read can
 // both deliver one.
-export function onStateSnapshot(state: AgentViewState, snapshot: StateSnapshot): AgentViewState {
+export function onStateSnapshot(
+  state: AgentSessionView,
+  snapshot: StateSnapshot,
+): AgentSessionView {
   if (supersededBy(state.shared[snapshot.type], snapshot)) return state;
   return { ...state, shared: { ...state.shared, [snapshot.type]: snapshot } };
 }

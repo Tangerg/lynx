@@ -9,8 +9,9 @@ import {
   visibleToolMetaItems,
 } from "./toolCardModel";
 
-const tool = (overrides: Partial<ToolCall> = {}): ToolCall => ({
+const tool = ({ runId = "run_1", ...overrides }: Partial<ToolCall> = {}): ToolCall => ({
   id: "tool-1",
+  runId,
   name: "shell",
   fn: "shell",
   args: "go test ./...",

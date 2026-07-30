@@ -13,7 +13,10 @@ export async function submitMessageFeedback(
   rating: MessageFeedbackRating,
 ): Promise<MessageFeedbackRating> {
   try {
-    return await submitMessageFeedbackIntent({ messageId: msg.id, runId: msg.runId }, rating);
+    return await submitMessageFeedbackIntent(
+      { messageId: msg.id, runId: msg.runId ?? undefined },
+      rating,
+    );
   } catch (error) {
     console.warn("[feedback] create failed:", error);
     throw error;

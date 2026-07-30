@@ -1,8 +1,6 @@
-// Plain view-state shapes the UI consumes. This is a *presentation
-// projection*: the reducer folds the v2 wire model (Session → Run → Item,
-// API.md §0) into message bubbles + content blocks the chat UI renders.
-// Items are the wire primitive; this grouping (one assistant turn = one
-// bubble with many blocks) is purely a UI concern.
+// Plain session projection consumed by the Agent UI and plugin extensions.
+// The Runtime owns Session → Run → Item facts; this model keeps one
+// session-scoped narrative while preserving each source Run independently.
 
 import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
 
@@ -29,6 +27,7 @@ export type ToolDiffRow =
 
 export interface ToolCall {
   id: string;
+  runId: string;
   name: string; // wire tool identity (ToolInvocation.name) — drives icon/preview routing (display label is `fn`)
   fn: string; // tool display name / command
   args: string; // accumulated arg text (toolArguments deltas, pre-parse)
@@ -80,11 +79,11 @@ export interface Message {
    *  would disagree with the messages beside it on a skewed machine). Renderers
    *  already treat it as optional. */
   createdAt?: string;
-  /** Owning root Run (Item.runId) — anchors run-boundary actions
+  /** Owning Run (Item.runId) — anchors run-boundary actions and prevents
+   *  interleaved child Items from joining a different Run's assistant turn.
    *  (edit-and-rerun via sessions.rollback, fork-from-run). Absent on
-   *  optimistic local bubbles until the real Item reconciles, and on
-   *  assistant turn shells (not needed there yet). */
-  runId?: string;
+   *  optimistic local bubbles use null until the real Item reconciles. */
+  runId: string | null;
   blocks: ContentBlock[];
 }
 
@@ -100,34 +99,7 @@ export interface RunUsage {
   costUsd?: number;
 }
 
-export interface RunState {
-  running: boolean;
-  sessionId: string | null;
-  /** The stable logical Run (RunRef.id) — unchanged across a HITL resume, so a
-   *  run's continuations group into one run. Anchors run-boundary actions
-   *  (rollback / fork). */
-  runId: string | null;
-  /** The streamed segment currently folding into this view (RunEvent.segmentId).
-   *  A resume opens a NEW segment of the SAME run; a change here — not a change
-   *  in runId — is what resets the per-segment streaming readout (usage/error).
-   *  Null until the first segment.started carrying a segmentId. */
-  segmentId: string | null;
-  step: number;
-  totalSteps: number;
-  activity: string;
-  usage: RunUsage;
-  /** Live context-window occupancy = the latest round's prompt-token count
-   *  (RunProgress.contextTokens), distinct from the cumulative `usage`. Unlike
-   *  usage it PERSISTS across runs in a session (the context doesn't shrink when
-   *  a new run starts) — only a compaction drops it. Undefined until the first
-   *  round reports it; pair with the served model's contextWindow for a gauge. */
-  contextTokens?: number;
-}
-
-/** Last error reported by the run — RunOutcome.type="error" (or a tool-level
- *  failure surfaced to the banner). UI shows it as a dismissible banner;
- *  cleared the next time a run starts. */
-export interface RunError {
+export interface AgentProblem {
   /** The per-occurrence note the runtime reported (ProblemData.detail). Absent
    *  when it said nothing — the banner supplies the words from `code` in that
    *  case, because a fallback sentence in the fold is one locale's copy in the
@@ -139,6 +111,43 @@ export interface RunError {
   /** Provider-requested backoff in seconds (ProblemData.retryAfterSeconds) —
    *  drives the Retry countdown. Absent when the provider sent none. */
   retryAfterSeconds?: number;
+}
+
+export type AgentRunStatus = "running" | "waiting" | "finished";
+
+export type AgentRunOutcome =
+  | { type: "completed" }
+  | { type: "error"; error: AgentProblem }
+  | { type: "maxSteps"; detail?: string }
+  | { type: "maxBudget"; detail?: string }
+  | { type: "canceled"; detail?: string };
+
+export interface AgentRunMetrics {
+  steps: number;
+  activeDurationMs: number;
+  usage: RunUsage;
+}
+
+export interface AgentRunProgress {
+  step?: number;
+  activity?: string;
+  usage?: RunUsage;
+  contextTokens?: number;
+}
+
+export interface AgentRunView {
+  id: string;
+  sessionId: string;
+  parentRunId: string | null;
+  rootRunId: string;
+  spawnedByItemId: string | null;
+  status: AgentRunStatus;
+  activeSegmentId: string | null;
+  outcome: AgentRunOutcome | null;
+  metrics: AgentRunMetrics;
+  progress: AgentRunProgress | null;
+  createdAt: string;
+  finishedAt: string | null;
 }
 
 /** One entry on the per-session event timeline. Drives the Run Timeline
@@ -180,19 +189,18 @@ export interface PendingInterruptGroup {
   interrupts: PendingInterrupt[];
 }
 
-export interface AgentViewState {
+export interface AgentSessionView {
   messages: Message[];
   toolCalls: Record<string, ToolCall>;
-  plan: PlanItem[];
-  run: RunState;
-  error: RunError | null;
+  plansByRunId: Record<string, PlanItem[]>;
+  runsById: Record<string, AgentRunView>;
+  commandError: AgentProblem | null;
+  dismissedProblemRunId: string | null;
   /** The open assistant-turn message id — contiguous assistant-side Items
    *  (agentMessage / reasoning / toolCall) fold into one bubble until the next
-   *  userMessage. A userMessage is the SOLE turn boundary (reset by
-   *  appendUserMessage); run boundaries do not split a turn, so a resume after
-   *  a HITL interrupt continues the same bubble and live streaming groups
-   *  identically to history replay. */
-  turnMessageId: string | null;
+   *  userMessage from the same Run. Each Run owns its cursor because root and
+   *  child Items can arrive interleaved on one stream. */
+  assistantTurnByRunId: Record<string, string>;
   /** Append-only audit log of run-significant events. See TimelineEntry. */
   timeline: TimelineEntry[];
   /** Pending HITL references for this session. Runtime payloads are
@@ -207,22 +215,14 @@ export interface AgentViewState {
   shared: Record<string, unknown>;
 }
 
-export const INITIAL_VIEW_STATE: AgentViewState = {
+export const EMPTY_AGENT_SESSION_VIEW: AgentSessionView = {
   messages: [],
   toolCalls: {},
-  plan: [],
-  run: {
-    running: false,
-    sessionId: null,
-    runId: null,
-    segmentId: null,
-    step: 0,
-    totalSteps: 0,
-    activity: "",
-    usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
-  },
-  error: null,
-  turnMessageId: null,
+  plansByRunId: {},
+  runsById: {},
+  commandError: null,
+  dismissedProblemRunId: null,
+  assistantTurnByRunId: {},
   timeline: [],
   pendingInterrupts: [],
   shared: {},

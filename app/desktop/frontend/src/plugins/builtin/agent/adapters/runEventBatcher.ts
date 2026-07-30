@@ -1,17 +1,16 @@
 import type { RunEvent } from "@/rpc";
-import type { FoldEvent } from "./agentStore";
 
 type ScheduleFrame = (flush: () => void) => number;
 type CancelFrame = (handle: number) => void;
 
 export interface RunEventBatcher {
-  enqueue(event: RunEvent["event"], runId?: string, segmentId?: string): void;
+  enqueue(event: RunEvent): void;
   dispose(): void;
 }
 
 interface RunEventBatcherOptions {
   readEpoch: () => number;
-  apply: (batch: FoldEvent[]) => void;
+  apply: (batch: RunEvent[]) => void;
   onRunFinished?: () => void;
   scheduleFrame?: ScheduleFrame;
   cancelFrame?: CancelFrame;
@@ -24,7 +23,7 @@ export function createRunEventBatcher({
   scheduleFrame = requestAnimationFrame,
   cancelFrame = cancelAnimationFrame,
 }: RunEventBatcherOptions): RunEventBatcher {
-  let queue: FoldEvent[] = [];
+  let queue: RunEvent[] = [];
   let frame: number | null = null;
   let queueEpoch = readEpoch();
   let disposed = false;
@@ -45,7 +44,7 @@ export function createRunEventBatcher({
   };
 
   return {
-    enqueue(event, runId, segmentId) {
+    enqueue(event) {
       if (disposed) return;
 
       const epoch = readEpoch();
@@ -53,7 +52,7 @@ export function createRunEventBatcher({
         queue = [];
         queueEpoch = epoch;
       }
-      queue.push({ event, runId, segmentId });
+      queue.push(event);
       if (frame === null) frame = scheduleFrame(flush);
     },
     dispose() {

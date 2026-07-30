@@ -1,4 +1,4 @@
-// Run digest — pure derivation from AgentViewState.timeline + toolCalls.
+// Run digest — pure derivation from AgentSessionView.timeline + toolCalls.
 //
 // Picks the most recent RUN_STARTED boundary and walks forward, bucketing
 // the entries into a structured summary: changed/read files, commands,
@@ -8,7 +8,7 @@
 
 import type { Translate } from "@/lib/i18n";
 import type { ApprovalDecision } from "../domain/hitl";
-import type { AgentViewState, TimelineEntry } from "@/plugins/sdk/types/agentView";
+import type { TimelineEntry, ToolCall } from "@/plugins/sdk/types/agentSessionView";
 import { toolCategory } from "../domain/toolCategory";
 
 export interface ApprovalDigest {
@@ -39,6 +39,13 @@ export interface RunDigest {
   errors: string[];
 }
 
+export interface RunDigestSource {
+  timeline: TimelineEntry[];
+  toolCalls: Record<string, ToolCall>;
+  runId: string | null;
+  running: boolean;
+}
+
 // First non-whitespace token of a tool args string — used as the path
 // for file-touching tools whose first arg is the path.
 function firstToken(args: string): string {
@@ -62,12 +69,16 @@ function argPath(args: string): string {
   return firstToken(args);
 }
 
-export function deriveLatestRun(view: AgentViewState): RunDigest | null {
-  // Walk timeline backwards for the last run-start. If none, no digest.
-  const startIdx = view.timeline.findLastIndex((e) => e.kind === "run-start");
+export function deriveLatestRun(source: RunDigestSource): RunDigest | null {
+  if (!source.runId) return null;
+  // A session timeline interleaves root and descendant Runs. The summary owns
+  // one selected root, so child boundaries and tools cannot displace it.
+  const startIdx = source.timeline.findLastIndex(
+    (entry) => entry.kind === "run-start" && entry.runId === source.runId,
+  );
   if (startIdx < 0) return null;
 
-  const slice = view.timeline.slice(startIdx);
+  const slice = source.timeline.slice(startIdx).filter((entry) => entry.runId === source.runId);
   // startIdx came from a successful in-bounds find above, so slice[0] exists.
   const startEntry = slice[0]!;
   const terminal = slice.find(
@@ -82,7 +93,7 @@ export function deriveLatestRun(view: AgentViewState): RunDigest | null {
       ? terminal.kind === "run-error"
         ? "err"
         : "ok"
-      : view.run.running
+      : source.running
         ? "running"
         : "unknown",
     changedFiles: [],
@@ -117,8 +128,8 @@ export function deriveLatestRun(view: AgentViewState): RunDigest | null {
   // Pull the categorised tool details from view.toolCalls — that's
   // where the args, status, added/removed counts already live.
   for (const id of startedTools) {
-    const tool = view.toolCalls[id];
-    if (!tool) continue;
+    const tool = source.toolCalls[id];
+    if (!tool || tool.runId !== source.runId) continue;
     // Bucket by the §4.4.2 display category (derived from tool.name), the same
     // table the fold + icon routing use.
     const category = toolCategory(tool.name);

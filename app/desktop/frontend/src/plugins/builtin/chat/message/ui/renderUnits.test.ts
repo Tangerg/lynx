@@ -9,6 +9,7 @@ import { planRenderUnits } from "@/plugins/builtin/agent/public/messagePresentat
 const tb = (toolCallId: string): ContentBlock => ({ kind: "tool", toolCallId });
 const tool = (id: string, name: string, status: ToolCall["status"] = "ok"): ToolCall => ({
   id,
+  runId: "run_1",
   name,
   fn: name,
   args: "",
