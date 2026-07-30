@@ -204,16 +204,16 @@ func encodeRunProblem(problem *transcript.Problem) (string, error) {
 	return string(encoded), nil
 }
 
-// pendingJoinPolicy says whether an Interrupted Run must have joined its
-// root-owned pending set. Ordinary reads require it because a complete parked
+// pendingReadPolicy says whether an Interrupted Run must have its root-owned
+// Pending set. Ordinary reads require it because a complete parked
 // Run is inseparable from that set. Boot recovery is the one exception: it must
 // still be able to read and terminalize a row whose pending set was lost in the
 // crash it is repairing.
-type pendingJoinPolicy uint8
+type pendingReadPolicy uint8
 
 const (
-	requirePendingJoin pendingJoinPolicy = iota
-	allowMissingPendingJoin
+	requirePendingSet pendingReadPolicy = iota
+	allowMissingPendingSet
 )
 
 // scanRun decodes one complete Run row plus the joined open-interrupt payload.
@@ -223,17 +223,17 @@ const (
 // terminal facts are materialized exactly when the state says they exist — the
 // equivalence [transcript.Run.Validate] enforces on the way in.
 func scanRun(row scanRow) (transcript.Run, error) {
-	return scanRunRow(row, requirePendingJoin)
+	return scanRunRow(row, requirePendingSet)
 }
 
 // scanRunForRecovery uses the same complete durable Run decoder as every normal
 // read, but tolerates the one broken relation reconciliation exists to repair:
 // an Interrupted row whose root-owned pending set is missing.
 func scanRunForRecovery(row scanRow) (transcript.Run, error) {
-	return scanRunRow(row, allowMissingPendingJoin)
+	return scanRunRow(row, allowMissingPendingSet)
 }
 
-func scanRunRow(row scanRow, pendingPolicy pendingJoinPolicy) (transcript.Run, error) {
+func scanRunRow(row scanRow, pendingPolicy pendingReadPolicy) (transcript.Run, error) {
 	var (
 		run                 transcript.Run
 		coarse              string
@@ -258,16 +258,16 @@ func scanRunRow(row scanRow, pendingPolicy pendingJoinPolicy) (transcript.Run, e
 		&run.Limits.MaxSteps, &run.Limits.MaxBudgetUSD, &ownProfile, &rootProfile,
 		&run.MessageMark, &startedAt, &finishedAt, &updatedAt, &interruptsSuspended,
 	); err != nil {
-		return transcript.Run{}, fmt.Errorf("sqlite: scan run: %w", err)
+		return transcript.Run{}, fmt.Errorf("scan run row: %w", err)
 	}
 	profile := ownProfile
 	if run.Lineage().IsChild() {
 		if ownProfile != "" {
-			return transcript.Run{}, fmt.Errorf("sqlite: child run %q stores a protocol profile of its own", run.ID)
+			return transcript.Run{}, fmt.Errorf("child run %q stores a protocol profile of its own", run.ID)
 		}
 		if !rootProfile.Valid {
 			return transcript.Run{}, fmt.Errorf(
-				"sqlite: child run %q references missing root %q",
+				"child run %q references missing root %q",
 				run.ID,
 				run.RootRunID,
 			)
@@ -276,12 +276,12 @@ func scanRunRow(row scanRow, pendingPolicy pendingJoinPolicy) (transcript.Run, e
 	}
 	profileValue, err := decodeRunProtocolProfile(profile)
 	if err != nil {
-		return transcript.Run{}, fmt.Errorf("sqlite: run %q: %w", run.ID, err)
+		return transcript.Run{}, fmt.Errorf("run %q: %w", run.ID, err)
 	}
 	run.ProtocolProfile = profileValue
 	selection, err := modelref.New(provider, model)
 	if err != nil {
-		return transcript.Run{}, fmt.Errorf("sqlite: decode run %q model selection: %w", run.ID, err)
+		return transcript.Run{}, fmt.Errorf("decode run %q model selection: %w", run.ID, err)
 	}
 	run.ModelSelection = selection
 	run.CreatedAt = time.Unix(0, startedAt).UTC()
@@ -290,7 +290,7 @@ func scanRunRow(row scanRow, pendingPolicy pendingJoinPolicy) (transcript.Run, e
 	// Run has already spent tokens and a parked one committed what it spent.
 	run.Metrics.ActiveDuration = time.Duration(durationNs)
 	if run.Metrics.Usage, err = decodeRunUsage(usage); err != nil {
-		return transcript.Run{}, fmt.Errorf("sqlite: decode run %q usage: %w", run.ID, err)
+		return transcript.Run{}, fmt.Errorf("decode run %q usage: %w", run.ID, err)
 	}
 
 	switch coarse {
@@ -302,15 +302,15 @@ func scanRunRow(row scanRow, pendingPolicy pendingJoinPolicy) (transcript.Run, e
 		// raised by this Run are projected onto it; an empty filtered result means
 		// the Run was suspended by another source in the tree.
 		if !interruptsSuspended.Valid {
-			if pendingPolicy == requirePendingJoin {
-				return transcript.Run{}, fmt.Errorf("sqlite: run %q is suspended with no pending tree interrupt", run.ID)
+			if pendingPolicy == requirePendingSet {
+				return transcript.Run{}, fmt.Errorf("run %q is interrupted with no root-owned Pending set", run.ID)
 			}
 			break
 		}
 		treeInterrupts, decodeErr := decodeInterrupts(interruptsSuspended.String)
 		if decodeErr != nil {
 			err = decodeErr
-			return transcript.Run{}, fmt.Errorf("sqlite: decode run %q interrupts: %w", run.ID, err)
+			return transcript.Run{}, fmt.Errorf("decode run %q interrupts: %w", run.ID, err)
 		}
 		for _, interrupt := range treeInterrupts {
 			if interrupt.RunID == run.ID {
@@ -320,23 +320,23 @@ func scanRunRow(row scanRow, pendingPolicy pendingJoinPolicy) (transcript.Run, e
 	case runStateTerminal:
 		reason, ok := execution.ParseOutcome(outcome)
 		if !ok {
-			return transcript.Run{}, fmt.Errorf("sqlite: run %q has unknown outcome %q", run.ID, outcome)
+			return transcript.Run{}, fmt.Errorf("run %q has unknown outcome %q", run.ID, outcome)
 		}
 		state, ok := execution.Running.Terminate(reason)
 		if !ok {
-			return transcript.Run{}, fmt.Errorf("sqlite: run %q outcome %s reaches no terminal state", run.ID, reason)
+			return transcript.Run{}, fmt.Errorf("run %q outcome %s reaches no terminal state", run.ID, reason)
 		}
 		run.State = state
 		run.Outcome = &reason
 		run.FinishedAt = time.Unix(0, finishedAt).UTC()
 		if run.Error, err = decodeRunProblem(problem); err != nil {
-			return transcript.Run{}, fmt.Errorf("sqlite: decode run %q problem: %w", run.ID, err)
+			return transcript.Run{}, fmt.Errorf("decode run %q problem: %w", run.ID, err)
 		}
 	default:
-		return transcript.Run{}, fmt.Errorf("sqlite: run %q has unknown state %q", run.ID, coarse)
+		return transcript.Run{}, fmt.Errorf("run %q has unknown state %q", run.ID, coarse)
 	}
 	if err := run.Validate(); err != nil {
-		return transcript.Run{}, fmt.Errorf("sqlite: run %q: %w", run.ID, err)
+		return transcript.Run{}, fmt.Errorf("run %q: %w", run.ID, err)
 	}
 	return run, nil
 }

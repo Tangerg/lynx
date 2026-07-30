@@ -6,7 +6,6 @@
 package queries
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -242,8 +241,12 @@ func (c *Coordinator) TodoState(ctx context.Context, sessionID string) (todo.Sta
 func (c *Coordinator) requireScope(ctx context.Context, scope ItemScope) error {
 	switch scope.kind {
 	case runItemScope:
-		if _, found, err := c.runs.Run(ctx, scope.subjectID); err != nil || !found {
-			return cmp.Or(err, transcript.ErrRunNotFound)
+		_, found, err := c.runs.Run(ctx, scope.subjectID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return transcript.ErrRunNotFound
 		}
 		return nil
 	case sessionItemScope:

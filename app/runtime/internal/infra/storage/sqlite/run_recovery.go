@@ -128,10 +128,9 @@ type nonTerminalRunTree struct {
 }
 
 // nonTerminalRuns reads complete durable Run aggregates, including accounting,
-// limits, model selection, and the root-owned protocol profile. Recovery used to
-// maintain a smaller parallel row decoder here; that made newly added Run facts
-// disappear when the row was terminalized as lost. The recovery-specific scan
-// now differs from ordinary reads only by allowing a missing pending join.
+// limits, model selection, and the root-owned protocol profile through the same
+// row decoder as ordinary queries. Its recovery-specific policy differs only by
+// allowing the missing Pending set that reconciliation exists to repair.
 func (s *RunStore) nonTerminalRuns(ctx context.Context) ([]transcript.Run, error) {
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT `+runColumns+`
@@ -149,7 +148,7 @@ func (s *RunStore) nonTerminalRuns(ctx context.Context) ([]transcript.Run, error
 	for rows.Next() {
 		run, err := scanRunForRecovery(rows)
 		if err != nil {
-			return nil, fmt.Errorf("sqlite: scan non-terminal run: %w", err)
+			return nil, fmt.Errorf("sqlite: list non-terminal runs: %w", err)
 		}
 		out = append(out, run)
 	}

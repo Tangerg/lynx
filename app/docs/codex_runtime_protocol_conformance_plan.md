@@ -1,11 +1,11 @@
 # Lyra Runtime API 最终一致性收口计划
 
 > 作者：Codex
-> 状态：`A-TRACK DONE / B1.4 DONE · B1.5 IN PROGRESS`
+> 状态：`A-TRACK DONE / B1.4 DONE / B1.5 DONE · B1.6 READY`
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
-> 当前已提交基线：`main@4100af80d`；W3.3 随本原子 slice 完成，W3.4 READY
+> 当前已提交基线：`main@f38085bf3`；W3.4 随本原子 slice 完成，B1.6 READY
 > 目标协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 目标 Artifact：`SessionArtifactVersion = 7`
 
@@ -209,7 +209,7 @@ cd app/desktop/frontend && npm run check
 | A5 | capability gate 与 disabled-subagent seam 收口 | `DONE` | 2026-07-30 完成 | shared policy、durable identity gates、全量 gates |
 | A6 | Registry fail-closed 与 SSOT 清理 | `DONE` | 2026-07-30 完成 | defensive views、closed metadata、effective errors、全量 gates |
 | A7 | canonical docs 与最终 conformance sweep | `DONE` | 2026-07-30 完成 | §12.4 conformance matrix、全量 gates |
-| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.5 / W3.4 full closure | B1.1–B1.4、W3.0–W3.3 已完成；启用条件见 §11 |
+| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.6 Desktop Run-tree consumer | B1.1–B1.5 已完成；启用条件见 §11 |
 
 A1–A7 已全部完成，当前没有 A-track slice 处于 `IN PROGRESS`。B1 保持独立项目，
 已按 breaking-first 策略开始实施；不得通过打开 feature flag、复用 root identity
@@ -1837,6 +1837,40 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 - 残余风险：B1.5 full closure 的命名/错误/接口/兼容债与完整门禁进入 W3.4；
   capability 继续 disabled。
 
+### 2026-07-30 — B1.5 / W3.4
+
+- 状态：`DONE`
+- Commit：随本原子 slice 提交
+- 目标：完成 B1.5 全部实现面的 hygiene、compatibility 与质量门闭环。
+- 关键裁决：
+  - query scope 的 store error / not-found 使用显式分支，不用通用组合 helper 隐藏
+    两种语义；
+  - Run decoder 只提供局部 row/run context，store operation 统一添加一次 `sqlite:`
+    前缀，错误链不重复 adapter 名；
+  - recovery policy 以 root-owned Pending set 命名；child Run feature 不再被注释误称
+    为 child stream；
+  - consumer ports 与现有 query/codec/recovery/validation 文件边界已高内聚，不为
+    行数或假想实现增加抽象。
+- 生成物：仅 Runtime 内部 naming/error/control-flow hygiene；public wire、Registry、
+  schema、OpenRPC、Go/TS types、Artifact、Store epoch、Agent API/wire 与 capability
+  均未变化。
+- 验证：
+  - receiver、stale terminology、compatibility residue、TODO/FIXME/HACK 扫描
+    → `PASS`
+  - 四个 B1.5 高风险 package race `-count=10` → `PASS`
+  - runsegment/bootstrap race → `PASS`
+  - Runtime build、vet、全量 test、lint、vuln、tidy diff、arch/contract drift、
+    diff check → `PASS`
+- 漏洞门：只命中仓库已审 Ollama allowlist 与不可达 module findings，本 slice 无依赖
+  变化。
+- 架构复核：
+  - abstraction / cohesion / coupling / consumer-owned interfaces → `PASS`
+  - Agent 无 App Run/Item/persistence/idempotency 概念泄漏 → `PASS`
+  - 无 compatibility layer、dual read/write、旧 decoder、fallback 或 migration
+    → `PASS`
+- 残余风险：Runtime B1.5 无；Desktop B1.6 与 capability enablement B1.7 尚未完成，
+  `features.subagents` 继续 disabled。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -1865,13 +1899,13 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 
 ## 18. 下一步
 
-A-track 与 B1.1–B1.4 已收口。下一阶段是：
+A-track 与 B1.1–B1.5 已收口。下一阶段是：
 
 ```text
-B1.5 / W3 — durable query / subscribe / cold recovery
+B1.6 / W4 — Desktop Run-tree consumer
 ```
 
-B1.5 内部原子切片：
+B1.5 最终切片记录：
 
 | Slice | 状态 | 边界 | 完成定义 |
 |---|---|---|---|
@@ -1879,7 +1913,20 @@ B1.5 内部原子切片：
 | W3.1 | `DONE` | durable descendant query | runs descendant stable page + bound cursor；items exact/subtree page + bound cursor；direct Run + ancestor summaries |
 | W3.2 | `DONE` | root stream/replay conformance | root Journal 多 source、child refusal、profile coverage、tail-first terminal race |
 | W3.3 | `DONE` | restart/cold recovery conformance | file-backed complete Running-tree loss settlement 保留 committed facts；Waiting-tree preservation；old epoch / terminalized orphan 均经 cold query 收敛 |
-| W3.4 | `READY` | B1.5 full closure | race/full gates、contract drift、architecture/hygiene/compatibility sweep、docs/commit/push |
+| W3.4 | `DONE` | B1.5 full closure | race/full gates、contract drift、architecture/hygiene/compatibility sweep、docs/commit/push |
+
+B1.6 必须消费现有 frozen wire，不回头修改 Runtime ownership：
+
+- root stream 仍是 tree-wide live/replay scope，event envelope 的 `runId/segmentId` 标识
+  source；
+- durable `runs.get/list` 与 `items.list` 是 cold truth，frontend 不从 event arrival
+  或 transcript payload 猜 tree；
+- reducer 按 Run identity 独立折叠 root/child/sibling/nested state，runtime invalidation
+  只触发对应 authoritative query；
+- replay 不可用或 boot 已收口 orphan 时，按 `replay_unavailable` / `run_finished` 的
+  recovery 动作回到 query；
+- components/pages 只消费 plugin-owned selectors/commands，不直连 concrete RPC；
+- B1.6 frontend gates 全绿之前不得进入 B1.7 或打开 `features.subagents`。
 
 B1.4 的四个内部原子切片已经按事实依赖完成：
 

@@ -3,9 +3,9 @@
 > 作者：Codex
 > 状态：`IN PROGRESS`
 > 建档日期：2026-07-30
-> 最新已提交基线：`main@4100af80d`，与 `origin/main` 一致；W3.3 随本原子 slice 完成
-> 当前主任务：`W3.4 — B1.5 full closure`
-> 执行进度：`W2 DONE · W3.0–W3.3 DONE · W3.4 READY`
+> 最新已提交基线：`main@f38085bf3`，与 `origin/main` 一致；W3.4 随本原子 slice 完成
+> 当前主任务：`W4 — B1.6 Desktop Run-tree consumer`
+> 执行进度：`W2 DONE · W3 DONE · W4 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 43`
@@ -238,7 +238,7 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 | Runtime B1.4a–b | `DONE` | immutable cancel plan、Running child subtree cancellation | — |
 | Runtime B1.4c | `DONE` | prepared runtime mutation + App-owned atomic waiting-subtree transaction | — |
 | Runtime B1.4d | `DONE` | W2.1 ownership；W2.2 failure/rollback；W2.3 restart/query/publication；W2.4 race/hygiene/full closure | — |
-| Runtime B1.5 | `IN PROGRESS` | W3.0–W3.3 query / stream / replay / cold recovery 已完成 | W3.4 full closure |
+| Runtime B1.5 | `DONE` | W3.0–W3.4 query / stream / replay / cold recovery / full closure | — |
 | Desktop B1.6 | `TODO` | 协议 fold 与插件架构基线已存在 | Run-tree fold 与交互 |
 | Runtime/Desktop B1.7 | `TODO` | capability seam 已存在且保持 disabled | 全门禁后启用 subagents |
 | Runtime/Desktop 架构持续演进 | `ONGOING` | 依赖环、consumer ports、plugin contexts 与多项 architecture gate 已存在 | 随每个 slice 审查并最终 sweep |
@@ -752,7 +752,7 @@ W2.3 与 W3 的边界：
 
 ### W3 — B1.5 durable query、subscribe 与 cold recovery
 
-状态：`IN PROGRESS`；当前：`W3.0–W3.3 DONE · W3.4 READY`
+状态：`DONE`；当前：`W3.0–W3.4 DONE`
 
 交付：
 
@@ -782,7 +782,7 @@ W2.3 与 W3 的边界：
 | W3.1 | `DONE` | durable descendant query | `runs.list.includeDescendants` 进入 application/store；cursor 绑定该 filter；`items.list` run subtree scope 不丢失；每页 Runs 包含直接引用 Run 与完整 ancestor chain |
 | W3.2 | `DONE` | root stream / replay conformance | 多 source event 共用 root cursor；child subscribe 拒绝；profile 不覆盖时拒绝；tail-only + query 在边界竞态下不漏 authoritative terminal |
 | W3.3 | `DONE` | restart / cold recovery conformance | file-backed restart 后完整 Running tree canonical `run_lost` 且保留最后 committed facts；完整 Waiting tree 保留；旧 epoch / 已恢复终态均收敛到 durable query |
-| W3.4 | `READY` | B1.5 full closure | Runtime 高风险 race、全量门禁、contract drift、命名/错误/接口/兼容债审计与文档同步 |
+| W3.4 | `DONE` | B1.5 full closure | Runtime 高风险 race、全量门禁、contract drift、命名/错误/接口/兼容债审计与文档同步 |
 
 W3.1 的所有权：
 
@@ -845,6 +845,28 @@ W3.3 完成结果（2026-07-30）：
   schema、OpenRPC、Artifact、Store epoch、Agent API/wire 与 capability 均未变化；
 - SQLite、application/runs、delivery/server race `-count=10`、Runtime
   build/vet/全量 test/lint、arch/contract drift、tidy diff 与 diff check 全绿。
+
+W3.4 完成结果（2026-07-30）：
+
+- query scope 的存储错误与 not-found 分支改为显式控制流，删除降低可读性的
+  `cmp.Or`；`statuses` 非法值错误改为直接指出字段和值；
+- 删除 production 注释中与冻结契约冲突的 “child stream enabled” 残留，明确
+  capability 打开的是完整 child Run feature，而非独立 child stream；
+- recovery scan policy 从 SQL `join` 术语改为 root-owned Pending set 语义；普通读取
+  的损坏错误明确为 `interrupted with no root-owned Pending set`；
+- Run row decoder 只描述 row/run 解码上下文，每个 store use case 统一添加一次
+  `sqlite:` operation context，清理重复 `sqlite: ...: sqlite: ...` 错误链；
+- production receiver 按类型扫描保持唯一命名：`RunStore=s`、`TranscriptStore=s`、
+  `Coordinator=c`、`Server=s` 等；没有再次出现同一 receiver 的 `s/base` 混用；
+- consumer ports、文件职责和依赖方向复核通过：query port 只暴露实际读用例，
+  run codec/recovery/validation 各自高内聚；未为行数机械拆层，也未增加 repository
+  base、manager 或第二套模型；
+- root-only/single-Run 假设、child Journal/stream、旧 cursor fallback、compatibility
+  decoder、双读写、migration、TODO/FIXME/HACK 扫描无生产残留；
+- public wire、Registry、schema、OpenRPC、Artifact、Store epoch、Agent API/wire 与
+  capability 均未变化；`features.subagents` 仍 disabled；
+- 四个 B1.5 高风险 package race `-count=10`、runsegment/bootstrap race、Runtime
+  build/vet/全量 test/lint/vuln、tidy、arch/contract drift 与 diff check 全绿。
 
 完成定义：
 
@@ -1412,6 +1434,43 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
   capability 继续 disabled。
 - 下一步：W3.4 B1.5 full closure。
 
+### 2026-07-30 — W3.4
+
+- 状态：`DONE`
+- Commit：随本原子 slice 提交
+- 目标：完成 B1.5 的命名、错误、接口、职责、兼容债与全量质量门收口。
+- 关键裁决：
+  - query not-found 使用显式分支，错误链由 decoder 描述局部事实、store use case
+    统一添加一次 adapter/operation context；
+  - recovery policy 以 Pending set 领域语义命名，不以 SQL join 命名；
+  - child Run capability 不等于 child stream capability，production 注释不得传播错误
+    心智模型；
+  - 现有 consumer ports 和文件边界已与真实变化轴一致，不为形式上的“更小文件”增加
+    indirection。
+- 生成物：production 仅做 Runtime 内部 hygiene；public wire、Registry、schema、
+  OpenRPC、Go/TS types、Artifact、Store epoch、Agent API/wire 与
+  `features.subagents` 均未变化。
+- 验证：
+  - receiver / stale terminology / TODO-FIXME-HACK / compatibility residue scan
+    → `PASS`
+  - application/queries、application/runs、delivery/server、SQLite race
+    `-count=10` → `PASS`
+  - adapter/runsegment、bootstrap race → `PASS`
+  - `MODULE=app/runtime FAST=1 scripts/check.sh build vet test lint` → `PASS`
+  - `MODULE=app/runtime scripts/check.sh vuln` → `PASS`
+  - `GOWORK=off go mod tidy -diff`、arch/contract drift、`git diff --check` → `PASS`
+- 漏洞门说明：只剩仓库已审且当前不可修复的 Ollama allowlist
+  `GO-2025-3557/3558/3559/3582/3689/3695/3824/4251`，以及不可达模块提示
+  `GO-2026-5750/5932`；本 slice 未新增依赖。
+- 架构复核：
+  - 抽象不过度 / 不足 → `PASS`
+  - 高内聚 / 低耦合 / consumer-owned ports → `PASS`
+  - Agent abstraction 无 App persistence、Run/Item/idempotency 泄漏 → `PASS`
+  - 无兼容层、双读写、旧 decoder、fallback 或 migration → `PASS`
+- 残余风险：Runtime B1.5 无；Desktop 尚未折叠/呈现完整 Run tree，进入 W4/B1.6；
+  capability 继续 disabled。
+- 下一步：W4 Desktop Run-tree consumer。
+
 ---
 
 ## 12. 下一张执行卡
@@ -1419,20 +1478,19 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 唯一下一任务：
 
 ```text
-W3.4 — B1.5
-Full closure
+W4 — B1.6
+Desktop Run-tree consumer
 ```
 
 实施顺序：
 
-1. 对 B1.5 触达的 application/delivery/SQLite 文件执行命名、错误信息、receiver、
-   接口宽度、文件职责与依赖方向审计；
-2. 扫描 root-only、single-Run、child stream、旧 cursor、兼容 decoder、双读写与
-   recovery shadow model 残留；
-3. 复跑 Runtime 高风险 package race、全量 build/vet/test/lint、tidy、contract/arch
-   drift 与 diff check；
-4. 核对 canonical protocol、两份执行台账、架构文档与实际实现无漂移；
-5. B1.5 全部证据成立后独立 commit/push，并将 W3 标记 `DONE`，再进入 Desktop B1.6。
+1. 只读审计 Desktop 当前 generated wire、Agent plugin context、Run/Item reducers、
+   runtime invalidation 与 reconnect/cold-refetch 路径；
+2. 冻结 root stream 中 source Run → tree view model 的唯一 fold 与 ownership；
+3. 先补 root/child/sibling/nested/waiting/cancel/reconnect 的 reducer conformance，
+   再实现最小 application/view-model 变化；
+4. 保持 components/pages 不直连 RPC，不在 UI 猜 tree identity 或 lifecycle；
+5. 运行 frontend unit/type/lint/architecture/bundle gates，独立 commit/push后进入 B1.7。
 
 W3 的禁止项：
 

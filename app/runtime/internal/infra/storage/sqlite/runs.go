@@ -720,7 +720,7 @@ func (s *RunStore) ListRuns(ctx context.Context, sessionID string) ([]transcript
 	for rows.Next() {
 		run, err := scanRun(rows)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("sqlite: list runs: %w", err)
 		}
 		out = append(out, run)
 	}

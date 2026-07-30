@@ -78,7 +78,7 @@ func runStatusesFromWire(statuses []protocol.RunStatus) ([]execution.RunStatus, 
 		case protocol.RunStatusFinished:
 			out = append(out, execution.StatusFinished)
 		default:
-			return nil, fmt.Errorf("%w: unknown statuses value %q", protocol.ErrInvalidParams, status)
+			return nil, fmt.Errorf("%w: statuses contains unknown run status %q", protocol.ErrInvalidParams, status)
 		}
 	}
 	return out, nil

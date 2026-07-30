@@ -119,7 +119,7 @@ type StartTurn struct {
 	// ChildRunAdmissionEnabled installs the executor-to-application admission
 	// handshake for AgentTool children. It is deliberately explicit and defaults
 	// off; protocol capability policy will be its sole production source when
-	// the complete child stream is enabled.
+	// the complete child Run feature is enabled.
 	ChildRunAdmissionEnabled bool
 	// GoalLeaseID stamps a Goal-mode autonomous run with its goal incarnation
 	// so update_goal only signals that goal; empty for ordinary runs.
