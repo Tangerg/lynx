@@ -3,8 +3,8 @@
 > 作者：Codex
 > 状态：`IN PROGRESS`
 > 建档日期：2026-07-30
-> 已提交基线：`main@1d5f7eb86`
-> 当前主任务：`P24-03 / B1.4c — App durable waiting-child cancellation`
+> 已提交基线：`main@a4e153fd4`
+> 当前主任务：`P24-04 / B1.4d — cancellation race / restart / query conformance`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 
@@ -226,12 +226,12 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 | 工作流 | 状态 | 已完成 | 下一步 |
 |---|---|---|---|
 | Protocol A-track | `DONE` | A1–A7；冻结契约、Registry、生成物、Runtime 与 Desktop consumer 一致 | 只随真实新能力同步 |
-| Agent P24 | `IN PROGRESS` | P24-01 host-settled checkpoint；P24-02 prepared subtree mutation | P24-03 App durable transaction |
+| Agent P24 | `IN PROGRESS` | P24-01 host-settled checkpoint；P24-02 prepared subtree mutation；P24-03 App durable transaction | P24-04 完整恢复/竞态门禁 |
 | Runtime B1.1 | `DONE` | durable Run-tree identity、root admission | — |
 | Runtime B1.2 | `DONE` | first-class child producer、source routing、独立 Segment/Item/metrics | — |
 | Runtime B1.3 | `DONE` | tree barrier、整树 resume、restart/race/failure conformance | — |
-| Runtime B1.4a–b | `DONE` | immutable cancel plan、Running child subtree cancellation | B1.4c |
-| Runtime B1.4c | `IN PROGRESS` | Agent prerequisites 已提交；App 实现草稿已开始 | 完成事务、编排与行为测试 |
+| Runtime B1.4a–b | `DONE` | immutable cancel plan、Running child subtree cancellation | — |
+| Runtime B1.4c | `DONE` | prepared runtime mutation + App-owned atomic waiting-subtree transaction | — |
 | Runtime B1.4d | `TODO` | — | 完整 cancel/race/restart/query matrix |
 | Runtime B1.5 | `TODO` | — | durable child query/subscribe/cold recovery |
 | Desktop B1.6 | `TODO` | 协议 fold 与插件架构基线已存在 | Run-tree fold 与交互 |
@@ -248,10 +248,11 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 
 - `a2a3bb2de feat(agent): settle paused tool checkpoints`
 - `1d5f7eb86 feat(agent): prepare waiting subtree cancellation`
+- `a4e153fd4 feat(runtime): commit waiting subtree cancellation atomically`
 
-`main == origin/main == 1d5f7eb86`。
+本次文档提交前的实现基线为 `main@a4e153fd4`；文档提交并 push 后以新的 `main` 为准。
 
-当前工作树含未提交的 P24-03 / B1.4c App 草稿，主要触及：
+P24-03 / B1.4c 已提交的 App 实现包括：
 
 - `application/runs` 的 tree continuation、cancel transformation 与 consumer ports；
 - `adapter/agentexec` 的 prepared waiting-subtree bridge；
@@ -259,31 +260,39 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 - SQLite Interrupt / Run / Transcript persistence；
 - Bootstrap 与相关测试 fixture。
 
-2026-07-30 已确认：
+2026-07-30 完成门禁：
 
 ```text
-git diff --check
+MODULE=agent FAST=1 scripts/check.sh build vet test lint
+MODULE=app/runtime FAST=1 scripts/check.sh build vet test lint
   → PASS
 
-cd app/runtime
-go test ./internal/application/runs \
-  ./internal/adapter/agentexec/... \
+go test -race ./runtime -count=1                              # agent
+go test -race ./internal/application/runs \
+  ./internal/adapter/agentexec \
+  ./internal/adapter/agentexec/turn \
   ./internal/adapter/runsegment \
-  ./internal/infra/storage/sqlite \
-  ./internal/bootstrap -run '^$'
+  ./internal/infra/storage/sqlite -count=1                    # app/runtime
+  → PASS
+
+forbidden import / persistence leakage / compatibility scan
+git diff --check
   → PASS
 ```
 
-这只证明**当前草稿可编译**，不证明行为正确。因为尚未完成 Coordinator 路径、事务/竞态/
-恢复测试和全量门禁，P24-03 与 B1.4c 仍为 `IN PROGRESS`，不得提交为 feature 完成，也不得
-打开 capability。
+Coordinator remaining/final boundary、durable failure Abort、restart Rehydrate、committed
+parent-tool reducer、adapter claim/deadlock，以及真实 SQLite transaction success/rollback
+均有行为测试。P24-03 / B1.4c 已完成；capability 仍不得打开，完整并发交错和 query
+conformance 进入 W2 / B1.4d。
 
-### 4.3 已知文档漂移
+### 4.3 剩余文档工作
 
-- `app/runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md` 的部分文字仍保留
-  root-only / single-interrupt 心智，需要在 P24-04 / B1.4d 收口时改成完整 tree barrier；
-- Runtime conformance 台账头部的“当前实施基线”仍停在 B1.4a–b，应在 B1.4c 原子提交时更新；
-- 这些是当前事实记录的漂移，不是保留旧实现或兼容路径的理由。
+- `app/runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md` 已改为 root-owned direct
+  suspension set，并记录 waiting child cancellation 的 prepared mutation / atomic
+  transaction 边界；
+- 当前未发现已知架构文档与 B1.4c 实现漂移；
+- B1.4d 结束时仍需同步 query/recovery 的最终对抗性证据，这不是保留旧实现或兼容路径的
+  理由。
 
 ---
 
@@ -339,7 +348,7 @@ W1–W7；W6 是最终全局复核，不是把已知坏味道推迟到最后。
 
 ### W1 — P24-03 / B1.4c App durable waiting-child cancellation
 
-状态：`IN PROGRESS`
+状态：`DONE`（2026-07-30，implementation commit `a4e153fd4`）
 
 目标：在不执行用户代码、不伪造外部 Resume、不让 Agent 理解 App persistence 的前提下，
 完成 Waiting child subtree 的原子取消。
@@ -397,6 +406,19 @@ terminalize”语义，不能回滚已经提交的历史。
 - targeted unit、SQLite transaction、Agent adapter、Coordinator integration tests 全绿；
 - P24-03 与 B1.4c 台账、架构文档随提交更新；
 - 形成一个独立、可 revert、全绿的 commit 并 push。
+
+完成结果：
+
+- application 以无 I/O transformation 固定 canceled postorder、parent Item、
+  reduced Pending/private tree continuation 与完整 durable write-set；
+- prepared Agent mutation 的 checkpoint write 加入 App transaction，失败 Abort、成功
+  Commit；Agent 不接触 BuildID、store、CAS 或 transaction；
+- remaining boundary 保持整树 Interrupted；最终 boundary 在同一 transaction Resume
+  surviving Runs 与写入 opening Items，再用 Agent Continue 推进 ready checkpoint；
+- parent `DrainedTool` 转为 `CommittedTool`，reducer 不重放 tool start、不重复 transcript
+  Item；
+- Coordinator、adapter、reducer、restart 与真实 SQLite commit/rollback 覆盖通过，完整
+  build/vet/test/lint 和高风险 race 全绿。
 
 ### W2 — P24-04 / B1.4d 完整取消一致性
 
@@ -745,6 +767,32 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
 不得用“代码写完”“能编译”或“测试大部分通过”代替 `DONE`。
 
+### 2026-07-30 — W1
+
+- 状态：`DONE`
+- Commit：`a4e153fd4`
+- 目标：把 parked child subtree cancellation 收口为 prepared execution mutation +
+  App-owned atomic write-set。
+- 事实作者：application 决定 tree transformation；runsegment transaction 提交 durable
+  truth；Agent runtime 只冻结并应用 execution replacement。
+- 关键裁决：Pending 消费、replacement checkpoint、canonical terminal Runs、parent
+  `child_run_canceled`、reduced Pending 或 surviving Segment openings 必须同事务；最终
+  boundary 由 Continue 推进，不能伪造 Resume。
+- 生成物：协议/OpenRPC/Artifact shape 不变；App Interrupt checkpoint payload 增加
+  committed-tool projection；SQLite Item exact CAS 与 tree resume timestamp 进入事务端口。
+- 验证：
+  - `MODULE=agent FAST=1 scripts/check.sh build vet test lint` → `PASS`
+  - `MODULE=app/runtime FAST=1 scripts/check.sh build vet test lint` → `PASS`
+  - Agent Runtime 与 App runs/agentexec/turn/runsegment/SQLite 高风险 race → `PASS`
+  - real SQLite commit/rollback、restart、Abort、remaining/final boundary → `PASS`
+- 架构复核：
+  - 抽象不过度 / 不足 → `PASS`；没有通用 transaction framework，prepared capability
+    只存在于真实 owner boundary
+  - Agent/App/Delivery/Desktop 无泄露 → `PASS`
+  - 无兼容路径与历史债务 → `PASS`
+- 残余风险：完整竞态、重复命令、teardown failure 与 exact query matrix 进入 W2。
+- 下一步：W2 / P24-04 / B1.4d。
+
 ---
 
 ## 12. 下一张执行卡
@@ -752,32 +800,30 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 唯一下一任务：
 
 ```text
-W1 — P24-03 / B1.4c
-App durable waiting-child cancellation
+W2 — P24-04 / B1.4d
+Cancellation race / restart / query conformance
 ```
 
 开工顺序：
 
-1. 保留并审计当前未提交草稿，不从头重写；
-2. 先补两条核心行为测试：
-   - cancel 后仍有 sibling Interrupt，root 保持 Waiting；
-   - cancel 移除最后一个 Interrupt，surviving tree 一次恢复；
-3. 固化无 I/O 的 application waiting-cancellation transformation；
-4. 完成 Coordinator 对 `prepare → transaction → commit/abort` 的唯一编排；
-5. 完成 SQLite transaction 成功与逐故障点 rollback 测试；
-6. 完成 committed parent tool 的 reducer/restart 语义；
-7. 补 Agent adapter、Coordinator 和真实 SQLite 集成；
-8. 做命名、错误、receiver、接口与泄露审计；
-9. 跑 targeted、race、Agent/Runtime 全量门禁；
-10. 更新三份台账与架构文档；
-11. 形成独立 commit 并 push；
-12. 进入 W2，不提前做 B1.5 或打开 capability。
+1. 建立 root cancel vs child cancel、resume vs child cancel、natural terminal vs child
+   cancel 的确定性仲裁矩阵；
+2. 覆盖 duplicate/stale cancel、checkpoint/transaction/teardown/activation failure；
+3. 在 race detector 下重复运行，证明只有一个 tree owner 和一个 durable terminal truth；
+4. 从真实 SQLite 重启，证明 canceled subtree 不复活且 surviving tree 可继续；
+5. 核对 cancel response、RunTree/query、Interrupt 与 publication 的 exact
+   target/root snapshot；
+6. 固定 descendants-before-ancestors、siblings lexical 的 canonical postorder；
+7. 再做命名、错误、receiver、接口、依赖与兼容路径 sweep；
+8. 跑 Agent/App/Delivery 全量门禁，更新专项台账；
+9. 形成独立 commit 并 push；
+10. 进入 W3，不提前做 B1.5 consumer 或打开 capability。
 
-W1 收口前的禁止项：
+W2 收口前的禁止项：
 
 - 不新增协议方法；
 - 不让 Agent 接触 App persistence；
 - 不拆出通用 transaction framework；
-- 不用补丁状态绕过 parent tool / checkpoint 一致性；
-- 不把可编译草稿误标为完成；
+- 不用 sleep/概率性测试冒充竞态证明；
+- 不通过 post-commit re-query 修补 command response；
 - 不提交或推送工作树里未通过门禁的代码。

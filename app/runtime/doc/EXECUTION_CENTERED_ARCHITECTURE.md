@@ -141,11 +141,22 @@ Agent snapshot，而是与 process tree 一起由 App `ProcessStore` 原子提�
 - suspension prompt 与 resolution 的 JSON 只在 `adapter/agentexec/suspension` 编解码；
   `runs.Interrupt` 与 `interrupts.Resolution`（包括 `approval.Scope`）不携带 agent 或 wire
   shape；
-- resume 回到最深 waiting child，完成原 pending tool 后再继续 parent；
+- resume 接受 root-owned direct suspension response set，按绑定的 process/suspension
+  identity 推进完整树；已由 Host 结算的 ready checkpoint 直接 Continue，不伪造响应；
 - `claimPark` 是 Resume/Cancel 的线性化点，保证竞争只产生一个 terminal。
 
-因此一个应用 Run 即使跨 root/child、连续 suspension 和进程重启，每个 park boundary
-仍只有一个 active interrupt，整个 Run 仍只有一个 journal 和一条 terminal 路径。
+因此一个应用 Run 即使跨 root/child、并列 suspension 和进程重启，每个 park boundary
+仍只有一个 root-owned Pending aggregate；其中可以包含多个 source-aware direct
+Interrupt，但只有一个 claim owner、一个 transaction 和一条 terminal 路径。
+
+Interrupted tree 中取消 child 时，application 先在 root/worktree admission 内冻结
+cancel plan，再通过 Agent adapter prepare execution-only subtree replacement。App 的纯
+transformation 随后一次确定 canceled postorder、parent spawning Item、reduced Pending /
+private tree continuation 与 replacement checkpoint；runsegment 在一个 transaction 中
+提交这些 durable facts。失败则 Abort prepared mutation，成功后才 Commit live runtime。
+若仍有外部 Interrupt，整树继续静止；若移除了最后一个外部边界，同一 transaction 打开
+surviving Runs 的新 Segment，Agent 通过 Continue 推进 ready checkpoint，不构造用户
+Resume。Agent 始终不知道 BuildID、ProcessStore、CAS 或 SQLite transaction。
 
 ### 3.3 Snapshot 与 Build identity
 

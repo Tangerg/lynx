@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P24 Waiting child checkpoint settlement 进行中，2/4）
+> 状态：持续开发（P24 Waiting child checkpoint settlement 进行中，3/4）
 > 建立日期：2026-07-15
 > 最后更新：2026-07-30
 > 维护者：Lynx 仓库维护者
@@ -1940,11 +1940,14 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
   - canceled subtree 历史 usage 归入直接父进程 `RetiredChildUsage`，不污染 `OwnUsage`，
     完整树 usage 与共享 budget authority 保持守恒；direct、managed active/later sibling、
     nested managed ancestor 与 restore 均有测试。
-- [ ] **P24-03 App durable waiting-cancel transaction**
+- [x] **P24-03 App durable waiting-subtree cancellation transaction**（完成：2026-07-30）
   - App 在一个 transaction 中提交 process checkpoint、target Run subtree canceled、父 tool
     的 `child_run_canceled`、缩减后的 Pending set，以及必要的 surviving Segment identity。
   - Agent 不定义 Store/Repository/transaction；App adapter 继续拥有 BuildID、usage 对账与
     SQLite commit policy。
+  - App 以纯 transformation 先冻结完整写集；prepared Agent mutation 在 transaction 失败时
+    Abort，成功后才 Commit。最后一个外部边界被删除时，同一 transaction 打开 surviving
+    Segments，Agent 以 Continue 推进 ready checkpoint，不伪造 Resume 或人类回答。
 - [ ] **P24-04 Consumer、恢复矩阵与完整门禁**
   - 覆盖 active/non-active sibling、nested target、last interrupt 隐式恢复、事务失败 abort、
     restart 不复活、resume/cancel race；同步更新 API/wire、Guide 与两份执行计划。
@@ -1986,16 +1989,17 @@ checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persis
 | P21 完整树与稳定 checkpoint | 完成 | 6/6 | 完整根树单一生命周期、稳定状态恢复、结构化 child、聊天配置拆分与 deployment retention 原语 |
 | P22 Framework/Application 工具边界 | 完成 | 5/5 | Goal 纯规划、typed child AgentTool、role-only ToolGroup、Host-owned publication/policy |
 | P23 可执行能力与观察投影边界 | 完成 | 5/5 | inert descriptors、Host-owned result projection、base tool protocol、caller-owned model copy |
-| P24 Waiting child checkpoint settlement | 进行中 | 2/4 | ToolLoop 与 Runtime prepared mutation 已完成；App durable transaction 待接入 |
-| **总计** | **进行中** | **168/170（98.8%）** | **P24-01 至 P24-02 完成；P24-03 至 P24-04 按 app B1.4c 继续，不执行封版、tag 或 release** |
+| P24 Waiting child checkpoint settlement | 进行中 | 3/4 | ToolLoop、Runtime prepared mutation 与 App durable transaction 已完成；待完整竞态/恢复矩阵 |
+| **总计** | **进行中** | **169/170（99.4%）** | **P24-01 至 P24-03 完成；P24-04 按 app B1.4d 继续，不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P24 Waiting child checkpoint settlement，2/4，进行中。
-- 下一任务：P24-03 App durable waiting-cancel transaction；本批不封版、不创建 tag 或 release。
+- 当前阶段：P24 Waiting child checkpoint settlement，3/4，进行中。
+- 下一任务：P24-04 Consumer、恢复矩阵与完整门禁；本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：ToolLoop checkpoint v4 支持 Host 在不执行工具、不推进 publication 的前提下
-  结算 paused call，并由独立 `Runner.Continue` 延续 ready checkpoint。
+- 最近完成：App 通过 prepared runtime mutation 与单一 durable transaction 原子提交
+  checkpoint、canceled subtree、parent Item、Pending/Continuation 与必要的 Segment
+  opening；Agent/App ownership 边界保持不变。
 
 ### 15.3 进度更新规则
 
@@ -2285,6 +2289,7 @@ checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persis
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-30 | 完成 P24-03：App 新增纯 waiting-subtree cancellation transformation、prepared executor bridge 与单一 SQLite transaction；parent drained tool 转为 committed tool，剩余边界保持整树 Waiting，最后边界移除时原子打开 surviving Segments 并以 Continue 推进，不引入兼容路径 | Codex |
 | 2026-07-30 | 启动 P24：ToolLoop checkpoint v4 新增不可变 paused-call settlement、输入/ready 判别与独立 Continue 路径，为 Waiting child cancel 的静止事务变换建立 Framework 原语 | Codex |
 | 2026-07-30 | 完成 P24-02：Runtime 新增完整树 prepared waiting-subtree cancellation；checkpoint envelope v3 与 process snapshot v15 直接切换，active ancestor 以无 Resume event 的 framework continuation 推进，子树 usage 原子归入父进程 `RetiredChildUsage` | Codex |
 | 2026-07-28 | 深化 P23：Deployment、routing、ProcessView、GoalApprover 与 ChildOptions 全部改用 inert descriptor；完整 Agent/Goal 仅保留在受信执行路径，删除公开 executable definition 兼容入口 | Codex |
@@ -2343,6 +2348,7 @@ checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persis
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-30 | P24-03 App durable waiting-subtree cancellation transaction | App commit `a4e153fd4`：application 纯变换冻结 exact canceled subtree、parent Item、Pending/Continuation 与 terminal Runs；runsegment 在一个 transaction 内 CAS Consume Pending、写 replacement checkpoint、CAS Replace parent Item、后序 terminalize subtree，并选择 reduced Pending 或 surviving-tree Resume + opening Items。事务失败 Abort live mutation；成功后 Agent Commit，最终边界通过 Continue 推进。Coordinator remaining/final、durable failure、restart、reducer committed tool、adapter claim/deadlock 与真实 SQLite commit/rollback 测试通过；Agent/App build、vet、全量 test、lint，高风险 race 与 diff/架构泄露扫描全绿。 | P24-04 Consumer、恢复矩阵与完整门禁 |
 | 2026-07-30 | P24-01 ToolLoop host-settled checkpoint | `Checkpoint.CompletePausedCall` 保持 receiver 不可变；active settlement 由 `Runner.Continue` 先发布已结算结果再进入下一 pause，later sibling settlement 不移动当前输入边界。Agent build/vet/test/lint、ToolLoop race、tidy diff、arch 与 diff check 全绿。API baseline 624 行、SHA-256 `a095a682f69529cfbce1426533e2ba7915f6c28c2eaec82788b0ba19da700bfd`；wire 154 行、SHA-256 `d0599a6f5922991fb970aaf871b15436e6e337a8e5627c94b3244db215a20a53` | P24-02 Runtime prepared subtree mutation |
 | 2026-07-30 | P24-02 Runtime prepared subtree mutation | `PrepareWaitingSubtreeCancellation` 冻结完整树并给出 replacement snapshot/Pending/canceled IDs；Abort 零副作用，Commit detach target；direct、managed active/later sibling、nested managed ancestor、portable restore、usage 守恒与 ownership isolation 已覆盖。Process snapshot 直接升级 v15；Agent 与 App Runtime build/vet/test/lint、Core/ToolLoop/Runtime race、tidy 与 diff check 全绿。API baseline 633 行、SHA-256 `8269793441f9bd9d7faf5d0b495d4c32b85d4966a9d05fb5a6cfae1c4c7b381d`；wire 160 行、SHA-256 `24627d86d343d726e26c1efbbc332026b3aefd80786ffbcbc43933a9daa32575`。 | P24-03 App durable waiting-cancel transaction |
 | 2026-07-28 | P23 executable/observation boundary | 修改前 HEAD `5244c3c95` 已确认与远端同步。Tools/Agent/App build、vet、普通 test、lint 全绿；Tools/Agent full race 与 App agentexec/toolset race 全绿；三模块 `go mod tidy -diff`、Agent API/wire/arch 与 `git diff --check` 通过。Agent API baseline 601 行/root 51，SHA-256 `1036c533418cb715a57d60d47de6764033f5ee1302606413f84927c64326e8f4`；wire 145 行、SHA-256 `4a929637bb6a27148de518f980dcde1bb3ee088048d6b6e0898165a4c61bc3c8`，wire 语义未变 | 166/166 关闭；形成独立提交并 push，不创建 tag/release |
