@@ -1,10 +1,10 @@
 // Built-in plugin: focus-gated run-completion notifications.
 //
-// When a run settles (running true→false) while the app window is UNFOCUSED,
-// fire one OS notification so a user who tabbed away learns their turn is done
-// / needs them — the single biggest "agent client" affordance the desktop was
-// missing (T1.1 of the UX polish backlog). Never fires while focused (the
-// stream itself is the signal) — the universal focus-gate pattern.
+// When a current root makes an exact Running/Waiting → Waiting/Finished
+// transition while the app window is UNFOCUSED, fire one OS notification so a
+// user who tabbed away learns whether the turn needs input, completed, failed,
+// was canceled, or reached a limit. Never fires while focused (the stream
+// itself is the signal) — the universal focus-gate pattern.
 //
 // Implemented as a module-level store subscription (app-lifetime side effect,
 // disposeOnHmr-guarded against dev hot-reload stacking duplicates — the same
@@ -15,31 +15,39 @@
 import { playCompletionChime } from "./chime";
 import { disposeOnHmr } from "@/lib/hmr";
 import { ensureOsNotifyPermission, osNotify } from "./osNotify";
-import { subscribeAgentRunSettlements } from "@/plugins/builtin/agent/public/run";
+import {
+  subscribeAgentRunSettlements,
+  type AgentRunSettlement,
+} from "@/plugins/builtin/agent/public/run";
 import { definePlugin } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
 
-function onSettled({
-  sessionId,
-  needsInput,
-  errorMessage,
-}: {
-  sessionId: string;
-  needsInput: boolean;
-  errorMessage: string | null;
-}): void {
+function onSettled({ sessionId, status, errorMessage }: AgentRunSettlement): void {
   // Focus gate: only alert when the window is blurred / hidden. document.hasFocus
   // is false when another OS window has focus or the app is minimized.
   if (document.hasFocus()) return;
 
   let title = "Lyra finished";
   let body = "The agent finished its turn.";
-  if (needsInput) {
-    title = "Lyra needs your input";
-    body = "The agent is waiting for your approval or answer.";
-  } else if (errorMessage) {
-    title = "Lyra hit an error";
-    body = errorMessage;
+  switch (status) {
+    case "needsInput":
+      title = "Lyra needs your input";
+      body = "The agent is waiting for your approval or answer.";
+      break;
+    case "error":
+      title = "Lyra hit an error";
+      body = errorMessage ?? "The agent run failed.";
+      break;
+    case "canceled":
+      title = "Lyra stopped";
+      body = "The agent run was canceled.";
+      break;
+    case "limit":
+      title = "Lyra reached a limit";
+      body = "The agent stopped after reaching its configured limit.";
+      break;
+    case "finished":
+      break;
   }
   // tag per session: a session that finishes several runs while you're away
   // replaces its own notification instead of stacking a pile.

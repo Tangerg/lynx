@@ -477,6 +477,19 @@ export const zh: Record<string, string> = {
   "session.status.running": "运行中",
   "session.status.waiting": "等待输入",
 
+  "agent.runTree.delegated.one": "子智能体",
+  "agent.runTree.delegated.many": "子智能体 {{index}} / {{count}}",
+  "agent.runTree.status.running": "运行中",
+  "agent.runTree.status.waiting": "等待输入",
+  "agent.runTree.status.finished": "已完成",
+  "agent.runTree.status.error": "出错",
+  "agent.runTree.status.canceled": "已取消",
+  "agent.runTree.status.limit": "已达上限",
+  "agent.runTree.steps": "{{count}} 步",
+  "agent.runTree.action.audit": "打开完整运行审计",
+  "agent.runTree.action.cancel": "取消此次运行",
+  "agent.runTree.material.empty": "暂无叙事内容。",
+
   // ── 工作区视图：运行摘要 ──
   "runSummary.title": "运行摘要",
   "runSummary.noRuns": "暂无运行",
@@ -502,7 +515,12 @@ export const zh: Record<string, string> = {
 
   // ── 工作区视图：时间线 ──
   "timeline.title": "运行时间线",
-  "timeline.runLabel": "运行 {{id}}",
+  "timeline.rootRun": "根运行",
+  "timeline.delegatedRun": "委派运行",
+  "timeline.parentRun": "父运行 {{id}}",
+  "timeline.locateParent": "定位父任务",
+  "timeline.unknownRun": "未知运行 {{id}}",
+  "timeline.noEvents": "此次运行暂无时间线事件。",
   "timeline.summary": "{{events}} 个事件 · {{runs}} 次运行",
   "timeline.jumpToChat": "转到聊天",
   "timeline.empty.title": "暂无活动",

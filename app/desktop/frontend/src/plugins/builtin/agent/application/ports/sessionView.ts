@@ -12,6 +12,11 @@ import type {
   TimelineEntry,
   ToolCall,
 } from "@/plugins/sdk/types/agentSessionView";
+import type {
+  AgentRootAttention,
+  AgentRunTreeNode,
+  DelegatedRunNarrativesByItemId,
+} from "../view/runTree";
 
 export type ResolvePatch = {
   decision?: ApprovalDecision;
@@ -64,13 +69,15 @@ export interface AgentViewRefreshToken {
 }
 
 export interface AgentSessionViewPort {
-  useCurrentRootRunning(): boolean;
+  useCurrentRootAttention(): AgentRootAttention;
   useCurrentRootRunId(): string | null;
   useCurrentRootSegmentId(): string | null;
   useCurrentRootPlan(): PlanItem[];
   useToolCalls(): Record<string, ToolCall>;
   useSessionTimeline(): TimelineEntry[];
-  useCurrentRootMessages(): Message[];
+  useRootNarrativeMessages(): Message[];
+  useDelegatedRunNarratives(): DelegatedRunNarrativesByItemId;
+  useRunTree(): AgentRunTreeNode[];
   useProblem(): AgentProblem | null;
   useSharedState<T = unknown>(path?: string): T | undefined;
   useCurrentRootUsage(): RunUsage;

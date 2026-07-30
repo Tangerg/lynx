@@ -349,6 +349,19 @@ export const ko: Record<string, string> = {
   "session.status.running": "실행 중",
   "session.status.waiting": "입력 대기",
 
+  "agent.runTree.delegated.one": "서브에이전트",
+  "agent.runTree.delegated.many": "서브에이전트 {{index}} / {{count}}",
+  "agent.runTree.status.running": "실행 중",
+  "agent.runTree.status.waiting": "입력 필요",
+  "agent.runTree.status.finished": "완료",
+  "agent.runTree.status.error": "오류",
+  "agent.runTree.status.canceled": "취소됨",
+  "agent.runTree.status.limit": "한도 도달",
+  "agent.runTree.steps": "{{count}}단계",
+  "agent.runTree.action.audit": "전체 실행 감사 열기",
+  "agent.runTree.action.cancel": "이 실행 취소",
+  "agent.runTree.material.empty": "아직 내러티브 내용이 없습니다.",
+
   // ── 워크스페이스 뷰: 실행 요약 ──
   "runSummary.title": "실행 요약",
   "runSummary.noRuns": "실행 없음",
@@ -374,7 +387,12 @@ export const ko: Record<string, string> = {
 
   // ── 워크스페이스 뷰: 타임라인 ──
   "timeline.title": "실행 타임라인",
-  "timeline.runLabel": "실행 {{id}}",
+  "timeline.rootRun": "루트 실행",
+  "timeline.delegatedRun": "위임 실행",
+  "timeline.parentRun": "상위 {{id}}",
+  "timeline.locateParent": "상위 작업 찾기",
+  "timeline.unknownRun": "알 수 없는 실행 {{id}}",
+  "timeline.noEvents": "이 실행에는 타임라인 이벤트가 없습니다.",
   "timeline.summary": "이벤트 {{events}}개 · 실행 {{runs}}회",
   "timeline.jumpToChat": "채팅으로 이동",
   "timeline.empty.title": "아직 활동 없음",

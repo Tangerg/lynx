@@ -351,6 +351,19 @@ export const ja: Record<string, string> = {
   "session.status.running": "実行中",
   "session.status.waiting": "入力待ち",
 
+  "agent.runTree.delegated.one": "サブエージェント",
+  "agent.runTree.delegated.many": "サブエージェント {{index}} / {{count}}",
+  "agent.runTree.status.running": "実行中",
+  "agent.runTree.status.waiting": "入力待ち",
+  "agent.runTree.status.finished": "完了",
+  "agent.runTree.status.error": "エラー",
+  "agent.runTree.status.canceled": "キャンセル済み",
+  "agent.runTree.status.limit": "上限到達",
+  "agent.runTree.steps": "{{count}} ステップ",
+  "agent.runTree.action.audit": "完全な実行監査を開く",
+  "agent.runTree.action.cancel": "この実行をキャンセル",
+  "agent.runTree.material.empty": "ナラティブはまだありません。",
+
   // ── ワークスペースビュー：実行サマリー ──
   "runSummary.title": "実行サマリー",
   "runSummary.noRuns": "実行はまだありません",
@@ -376,7 +389,12 @@ export const ja: Record<string, string> = {
 
   // ── ワークスペースビュー：タイムライン ──
   "timeline.title": "実行タイムライン",
-  "timeline.runLabel": "実行 {{id}}",
+  "timeline.rootRun": "ルート実行",
+  "timeline.delegatedRun": "委任実行",
+  "timeline.parentRun": "親 {{id}}",
+  "timeline.locateParent": "親タスクを表示",
+  "timeline.unknownRun": "不明な実行 {{id}}",
+  "timeline.noEvents": "この実行にはタイムラインイベントがありません。",
   "timeline.summary": "{{events}} 件のイベント · {{runs}} 回の実行",
   "timeline.jumpToChat": "チャットへ移動",
   "timeline.empty.title": "まだアクティビティがありません",

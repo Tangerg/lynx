@@ -1,7 +1,9 @@
 // Message block dispatcher — maps each ContentBlock (text, tool, reasoning,
 // approval, question, plan, compaction, search, code, checkpoint) to its React
 // card.
-import type { ContentBlock, PlanItem, ToolCall } from "@/plugins/builtin/agent/public/viewState";
+import type { ContentBlock, Message } from "@/plugins/builtin/agent/public/viewState";
+import type { BlockCtx } from "./blockContext";
+export type { BlockCtx } from "./blockContext";
 import { MarkdownMessage } from "./markdown/MarkdownMessage";
 import {
   ApprovalCard,
@@ -11,32 +13,10 @@ import {
   QuestionCard,
   ReasoningBlock,
 } from "./cards";
-import { ToolCard } from "@/plugins/builtin/chat/tools/public/rendering";
+import { ToolCard, ToolGroup } from "@/plugins/builtin/chat/tools/public/rendering";
 import { PluginContentBlock } from "@/plugins/host/PluginContentBlock";
-
-/**
- * Per-render bag of data threaded into block renderers. Kept narrow —
- * UI-state knobs (expanded set, plan) flow through here.
- */
-export interface BlockCtx {
-  plan: PlanItem[];
-  toolCalls: Record<string, ToolCall>;
-  onSelectTool: (id: string) => void;
-  expandedIds: Set<string>;
-  onToggleExpand: (id: string) => void;
-  /**
-   * Skip stream-smoothing and the fade-in animation for this message.
-   * Used for user-typed messages — the author already saw the text they
-   * typed, so animating it back at them feels patronizing and slow.
-   */
-  instant?: boolean;
-  /**
-   * Reveal streamed assistant text character-by-character (typewriter) instead
-   * of word-by-word with a fade (smooth). Global preference, read once in
-   * ChatStream so it doesn't re-subscribe per message block.
-   */
-  typewriter?: boolean;
-}
+import { messageBlockRenderUnits } from "../application/messageBlockModel";
+import { DelegatedNarrative } from "./DelegatedNarrative";
 
 /**
  * Render one content block.
@@ -72,20 +52,28 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
     case "tool": {
       const tool = ctx.toolCalls[block.toolCallId];
       if (!tool) return null;
+      const delegatedRuns = ctx.delegatedRunsByItemId[block.toolCallId] ?? [];
       return (
-        <ToolCard
-          // Identity key, NOT the block index — same reasoning as the HITL
-          // cards below: ToolCard owns an expand animation + selection, and a
-          // stable per-tool key keeps React from reusing one card's instance
-          // for a different tool should block order ever shift.
-          key={block.toolCallId}
-          tool={tool}
-          expanded={ctx.expandedIds.has(block.toolCallId)}
-          onToggleExpand={() => {
-            ctx.onSelectTool(block.toolCallId);
-            ctx.onToggleExpand(block.toolCallId);
-          }}
-        />
+        <div id={block.toolCallId} key={block.toolCallId}>
+          <ToolCard
+            tool={tool}
+            expanded={ctx.expandedIds.has(block.toolCallId)}
+            onToggleExpand={() => {
+              ctx.onSelectTool(block.toolCallId);
+              ctx.onToggleExpand(block.toolCallId);
+            }}
+          />
+          {delegatedRuns.map((narrative, index) => (
+            <DelegatedNarrative
+              key={narrative.run.id}
+              narrative={narrative}
+              ordinal={index + 1}
+              siblingCount={delegatedRuns.length}
+              ctx={ctx}
+              renderMessageBlocks={renderMessageBlocks}
+            />
+          ))}
+        </div>
       );
     }
 
@@ -148,4 +136,21 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
     default:
       return <PluginContentBlock key={key} block={block} />;
   }
+}
+
+export function renderMessageBlocks(message: Message, ctx: BlockCtx) {
+  return messageBlockRenderUnits(message.blocks, ctx.toolCalls).map((unit) => {
+    if (unit.kind === "toolGroup") {
+      return (
+        <ToolGroup
+          key={`group-${unit.tools[0]!.id}`}
+          tools={unit.tools}
+          onSelectTool={ctx.onSelectTool}
+          expandedIds={ctx.expandedIds}
+          onToggleExpand={ctx.onToggleExpand}
+        />
+      );
+    }
+    return renderBlock(unit.block, unit.index, ctx);
+  });
 }

@@ -4,12 +4,14 @@ import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
 import { toggleContextDock } from "./contextDock";
 import {
   closeActiveWorkspaceView,
+  locateWorkspaceTool,
   openWorkspaceView,
   openWorkspaceViewInDock,
   promoteWorkspaceDockViewToFull,
 } from "./navigation";
 
 function reset() {
+  document.body.replaceChildren();
   useWorkspaceSurfaceStore.setState({ activeMainView: "v2", settingsPane: null });
   useContextDockStore.setState({
     activeSessionScopeId: "",
@@ -74,5 +76,21 @@ describe("workspace navigation port", () => {
     toggleContextDock();
 
     expect(useContextDockStore.getState().dockViewId).toBe("context");
+  });
+
+  it("locates a parent task by selecting chat and atomically revealing its tool", () => {
+    const anchor = document.createElement("div");
+    anchor.id = "task-item";
+    anchor.scrollIntoView = () => {};
+    const button = document.createElement("button");
+    anchor.append(button);
+    document.body.append(anchor);
+
+    locateWorkspaceTool("task-item");
+
+    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
+    expect(useContextDockStore.getState().selectedToolId).toBe("task-item");
+    expect(useContextDockStore.getState().expandedToolIds).toEqual(new Set(["task-item"]));
+    expect(document.activeElement).toBe(button);
   });
 });

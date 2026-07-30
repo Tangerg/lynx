@@ -42,6 +42,7 @@ export interface WorkspaceNavigationPort {
   openFile(path: string, line?: number): void;
   selectedToolId(): string;
   setSelectedTool(id: string): void;
+  locateTool(id: string): void;
   activateSessionScope(sessionId: string): void;
   forgetSessionScopes(openSessionIds: string[]): void;
 }

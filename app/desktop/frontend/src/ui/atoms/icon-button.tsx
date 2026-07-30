@@ -6,8 +6,9 @@ import { Tooltip } from "./tooltip";
 interface IconButtonProps extends Omit<ButtonProps, "children" | "variant" | "size"> {
   icon: IconName;
   /** xs = 24px, for inline affordances inside a row of text; sm = 28px, dense
-   *  chrome rows; md = 32px, the default chrome control. */
-  size?: "xs" | "sm" | "md";
+   *  chrome rows; md = 32px, the default chrome control; lg = 40px, for a
+   *  standalone touch target inside content. */
+  size?: "xs" | "sm" | "md" | "lg";
   iconSize?: number;
   /** Toggled-on: a pinned item, an open panel. Reads as pressed in, not hovered. */
   active?: boolean;
@@ -25,8 +26,8 @@ interface IconButtonProps extends Omit<ButtonProps, "children" | "variant" | "si
   badge?: string | number;
 }
 
-const BOX = { xs: "icon-xs", sm: "icon-sm", md: "icon-md" } as const;
-const ICON_SIZE = { xs: 12, sm: 14, md: 16 } as const;
+const BOX = { xs: "icon-xs", sm: "icon-sm", md: "icon-md", lg: "icon-lg" } as const;
+const ICON_SIZE = { xs: 12, sm: 14, md: 16, lg: 16 } as const;
 
 // Glyph-only chrome button. The app Tooltip carries the help rather than the
 // native `title` attribute: 250ms instead of the OS's ~1s, and it appears on

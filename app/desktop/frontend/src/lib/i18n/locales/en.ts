@@ -491,6 +491,19 @@ export const en: Record<string, string> = {
   "session.status.running": "Running",
   "session.status.waiting": "Needs input",
 
+  "agent.runTree.delegated.one": "Sub-agent",
+  "agent.runTree.delegated.many": "Sub-agent {{index}} of {{count}}",
+  "agent.runTree.status.running": "Running",
+  "agent.runTree.status.waiting": "Needs input",
+  "agent.runTree.status.finished": "Finished",
+  "agent.runTree.status.error": "Error",
+  "agent.runTree.status.canceled": "Canceled",
+  "agent.runTree.status.limit": "Limit reached",
+  "agent.runTree.steps": "{{count}} step(s)",
+  "agent.runTree.action.audit": "Open full run audit",
+  "agent.runTree.action.cancel": "Cancel this run",
+  "agent.runTree.material.empty": "No narrative material yet.",
+
   // ── Workspace view: Run Summary ──
   "runSummary.title": "Run summary",
   "runSummary.noRuns": "No runs yet",
@@ -517,7 +530,12 @@ export const en: Record<string, string> = {
 
   // ── Workspace view: Timeline ──
   "timeline.title": "Run timeline",
-  "timeline.runLabel": "run {{id}}",
+  "timeline.rootRun": "Root run",
+  "timeline.delegatedRun": "Delegated run",
+  "timeline.parentRun": "parent {{id}}",
+  "timeline.locateParent": "Locate parent task",
+  "timeline.unknownRun": "Unknown run {{id}}",
+  "timeline.noEvents": "No timeline events for this run.",
   "timeline.summary": "{{events}} events · {{runs}} run(s)",
   "timeline.jumpToChat": "Jump to chat",
   "timeline.empty.title": "No activity yet",

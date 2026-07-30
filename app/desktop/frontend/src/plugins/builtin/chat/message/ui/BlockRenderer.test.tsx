@@ -1,0 +1,127 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import type { AgentRunView, Message, ToolCall } from "@/plugins/builtin/agent/public/viewState";
+import type { BlockCtx } from "./BlockRenderer";
+import { renderBlock } from "./BlockRenderer";
+
+const agentRunCommands = vi.hoisted(() => ({ cancel: vi.fn() }));
+vi.mock("@/plugins/builtin/agent/public/run", () => ({
+  cancelAgentRun: agentRunCommands.cancel,
+}));
+
+function run(
+  id: string,
+  parentRunId: string,
+  rootRunId: string,
+  spawnedByItemId: string,
+  status: AgentRunView["status"] = "finished",
+): AgentRunView {
+  return {
+    id,
+    sessionId: "session-1",
+    parentRunId,
+    rootRunId,
+    spawnedByItemId,
+    status,
+    activeSegmentId: status === "running" ? `segment-${id}` : null,
+    outcome: status === "finished" ? { type: "completed" } : null,
+    metrics: {
+      steps: 1,
+      activeDurationMs: 1,
+      usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+    },
+    progress: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    finishedAt: status === "finished" ? "2026-01-01T00:00:01.000Z" : null,
+  };
+}
+
+function tool(id: string): ToolCall {
+  return {
+    id,
+    runId: "root-run",
+    name: "task",
+    fn: "Delegate work",
+    args: "{}",
+    status: "ok",
+  };
+}
+
+function message(id: string, runId: string, toolCallId: string): Message {
+  return {
+    id,
+    runId,
+    role: "assistant",
+    blocks: [{ kind: "tool", toolCallId }],
+  };
+}
+
+describe("delegated Run rendering", () => {
+  it("mounts child and nested narratives under their exact parent task Items", () => {
+    const parentTool = tool("task-root");
+    const nestedTool = { ...tool("task-child"), runId: "child-run" };
+    const ctx: BlockCtx = {
+      plan: [],
+      toolCalls: {
+        [parentTool.id]: parentTool,
+        [nestedTool.id]: nestedTool,
+      },
+      delegatedRunsByItemId: {
+        [parentTool.id]: [
+          {
+            run: run("child-run", "root-run", "root-run", parentTool.id),
+            messages: [message("child-message", "child-run", nestedTool.id)],
+            plan: [],
+          },
+        ],
+        [nestedTool.id]: [
+          {
+            run: run("nested-run", "child-run", "root-run", nestedTool.id),
+            messages: [],
+            plan: [],
+          },
+        ],
+      },
+      onSelectTool: vi.fn(),
+      expandedIds: new Set(),
+      onToggleExpand: vi.fn(),
+    };
+
+    render(renderBlock({ kind: "tool", toolCallId: parentTool.id }, 0, ctx));
+    expect(screen.getAllByText("Sub-agent")).toHaveLength(1);
+    expect(screen.queryByText("No narrative material yet.")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /Sub-agent/ }));
+    expect(screen.getAllByText("Sub-agent")).toHaveLength(2);
+
+    const taskAnchors = document.querySelectorAll("#task-root, #task-child");
+    expect(taskAnchors).toHaveLength(2);
+  });
+
+  it("targets the exact descendant Run when its disclosure is canceled", () => {
+    agentRunCommands.cancel.mockClear();
+    const parentTool = tool("task-root");
+    const ctx: BlockCtx = {
+      plan: [],
+      toolCalls: { [parentTool.id]: parentTool },
+      delegatedRunsByItemId: {
+        [parentTool.id]: [
+          {
+            run: run("child-run", "root-run", "root-run", parentTool.id, "running"),
+            messages: [],
+            plan: [],
+          },
+        ],
+      },
+      onSelectTool: vi.fn(),
+      expandedIds: new Set(),
+      onToggleExpand: vi.fn(),
+    };
+
+    render(renderBlock({ kind: "tool", toolCallId: parentTool.id }, 0, ctx));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel this run" }));
+
+    expect(agentRunCommands.cancel).toHaveBeenCalledOnce();
+    expect(agentRunCommands.cancel).toHaveBeenCalledWith("child-run");
+  });
+});

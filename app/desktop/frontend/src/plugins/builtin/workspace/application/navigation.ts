@@ -124,6 +124,10 @@ export function selectInitialWorkspaceTool(id: string): void {
   if (!workspaceNavigation().selectedToolId()) workspaceNavigation().setSelectedTool(id);
 }
 
+export function locateWorkspaceTool(id: string): void {
+  workspaceNavigation().locateTool(id);
+}
+
 export function activateWorkspaceSessionScope(sessionId: string): void {
   workspaceNavigation().activateSessionScope(sessionId);
 }

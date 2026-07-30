@@ -1,7 +1,6 @@
 import type { BlockCtx } from "./BlockRenderer";
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import { memo, useMemo } from "react";
-import { ToolGroup } from "@/plugins/builtin/chat/tools/public/rendering";
 import { useCitationSources } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
 import { MessageContext } from "@/plugins/sdk/messageContext";
@@ -9,16 +8,12 @@ import {
   messageActionsVisibility,
   type MessageActionsVisibility,
 } from "@/plugins/builtin/chat/message-actions/public/messageActions";
-import {
-  messageBlockRenderUnits,
-  messageBlocksRenderInstant,
-  messageCitations,
-} from "../application/messageBlockModel";
+import { messageBlocksRenderInstant, messageCitations } from "../application/messageBlockModel";
 import { cn } from "@/lib/utils";
 import { MESSAGE_CONTENT_CLASS } from "./messageContent";
 import { CitationContext } from "./CitationContext";
 import { MessageContextMenu } from "./MessageContextMenu";
-import { renderBlock } from "./BlockRenderer";
+import { renderBlock, renderMessageBlocks } from "./BlockRenderer";
 
 function MessageBlockInner({
   msg,
@@ -55,21 +50,7 @@ function MessageBlockInner({
 
   const blockCtx: BlockCtx = messageBlocksRenderInstant(msg.role) ? { ...ctx, instant: true } : ctx;
 
-  const content = messageBlockRenderUnits(msg.blocks, blockCtx.toolCalls).map((unit) => {
-    if (unit.kind === "toolGroup") {
-      return (
-        <ToolGroup
-          key={`group-${unit.tools[0]!.id}`}
-          tools={unit.tools}
-          onSelectTool={blockCtx.onSelectTool}
-          expandedIds={blockCtx.expandedIds}
-          onToggleExpand={blockCtx.onToggleExpand}
-        />
-      );
-    }
-    const { block, index } = unit;
-    return renderBlock(block, index, blockCtx);
-  });
+  const content = renderMessageBlocks(msg, blockCtx);
 
   const actionsClass = cn(
     "mt-1 flex transition-opacity duration-[--dur-fast]",

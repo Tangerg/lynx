@@ -36,7 +36,7 @@ type CreateSession = (opts?: CreateSessionOptions) => Promise<string | null>;
 export function useChatSend(): (input: AgentInput) => void {
   const createSession = useCreateSession();
   const send = agentSessionView().useAction("send");
-  const running = agentSessionView().useCurrentRootRunning();
+  const running = agentSessionView().useCurrentRootAttention().status === "running";
   const runId = agentSessionView().useCurrentRootRunId();
   const segmentId = agentSessionView().useCurrentRootSegmentId();
   return useCallback(

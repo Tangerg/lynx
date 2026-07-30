@@ -10,11 +10,18 @@ import type {
 } from "@/plugins/sdk/types/agentSessionView";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import {
-  selectCurrentRootMessages,
   selectCurrentRootPlan,
   selectCurrentRootRun,
+  selectDelegatedRunNarratives,
+  selectRootNarrativeMessages,
+  selectRunTree,
   selectRunUsage,
   selectVisibleProblem,
+} from "../application/view/runTree";
+import type {
+  AgentRootAttention,
+  AgentRunTreeNode,
+  DelegatedRunNarrativesByItemId,
 } from "../application/view/runTree";
 import { useAgentSessionStore } from "./agentSessionStore";
 import { type AgentSendAction, type AgentStopAction, useAgentStore } from "./agentStore";
@@ -37,8 +44,12 @@ export function useAgentAction(kind: "stop" | "send"): AgentStopAction | AgentSe
   return useAgentStore((state) => state.sessions[sessionId]?.[kind] ?? null);
 }
 
-export function useCurrentRootRunning(): boolean {
-  return useCurrentRoot()?.status === "running";
+export function useCurrentRootAttention(): AgentRootAttention {
+  const root = useCurrentRoot();
+  return useMemo(
+    () => (root ? { status: root.status, runId: root.id } : { status: "idle", runId: null }),
+    [root],
+  );
 }
 
 export function useCurrentRootRunId(): string | null {
@@ -66,9 +77,19 @@ export function useAgentToolCalls(): Record<string, ToolCall> {
   return useActiveAgentView((view) => view.toolCalls);
 }
 
-export function useCurrentRootMessages(): Message[] {
+export function useRootNarrativeMessages(): Message[] {
   const view = useActiveAgentView((current) => current);
-  return useMemo(() => selectCurrentRootMessages(view), [view]);
+  return useMemo(() => selectRootNarrativeMessages(view), [view]);
+}
+
+export function useDelegatedRunNarratives(): DelegatedRunNarrativesByItemId {
+  const view = useActiveAgentView((current) => current);
+  return useMemo(() => selectDelegatedRunNarratives(view), [view]);
+}
+
+export function useRunTree(): AgentRunTreeNode[] {
+  const view = useActiveAgentView((current) => current);
+  return useMemo(() => selectRunTree(view), [view]);
 }
 
 export function useAgentSessionTimeline(): TimelineEntry[] {

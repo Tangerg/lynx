@@ -8,7 +8,10 @@
 
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import { useEffect, useMemo } from "react";
-import { useActiveConversationMessages } from "@/plugins/builtin/agent/public/conversation";
+import {
+  useActiveConversationMessages,
+  useDelegatedConversationRuns,
+} from "@/plugins/builtin/agent/public/conversation";
 import { useActiveRunPlan, useActiveRunToolCalls } from "@/plugins/builtin/agent/public/run";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { useT } from "@/lib/i18n";
@@ -35,6 +38,7 @@ interface Props {
 export function ChatStream({ onSend }: Props) {
   const resetKey = useActiveSessionId();
   const messages = useActiveConversationMessages();
+  const delegatedRunsByItemId = useDelegatedConversationRuns();
   const plan = useActiveRunPlan();
   const toolCalls = useActiveRunToolCalls();
 
@@ -73,12 +77,21 @@ export function ChatStream({ onSend }: Props) {
     () => ({
       plan,
       toolCalls,
+      delegatedRunsByItemId,
       onSelectTool: selectTool,
       expandedIds: expandedToolIds,
       onToggleExpand: toggleExpandedTool,
       typewriter,
     }),
-    [plan, toolCalls, selectTool, expandedToolIds, toggleExpandedTool, typewriter],
+    [
+      plan,
+      toolCalls,
+      delegatedRunsByItemId,
+      selectTool,
+      expandedToolIds,
+      toggleExpandedTool,
+      typewriter,
+    ],
   );
 
   const composer = <ComposerSurface onSend={onSend} />;

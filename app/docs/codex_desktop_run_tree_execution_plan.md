@@ -3,9 +3,10 @@
 > 作者：Codex
 > 状态：`IN PROGRESS`
 > 建档日期：2026-07-30
-> 当前阶段：`W4.0 DONE · W4.1 DONE · W4.2 DONE · W4.3 READY`
+> 当前阶段：`W4.0 DONE · W4.1 DONE · W4.2 DONE · W4.3 DONE · W4.4 READY`
 > W4.1 实施提交：`40cffd81e`
-> W4.2 实施基线：`main@40cffd81e`，实施前与 `origin/main` 一致
+> W4.2 实施提交：`cc85d3039`
+> W4.3 实施基线：`main@cc85d3039`，实施前与 `origin/main` 一致
 > W4.0 文档提交：`26e43fd0e`
 > 对应总任务：`B1.6 / W4 — Desktop Run-tree consumer`
 > 约束：允许 breaking change；不保留旧 view shape、alias、双写或兼容 reducer
@@ -81,7 +82,7 @@ plugin-owned read model。
 6. **架构干净**
    - fold 与 read model 归 Agent bounded context；
    - RPC 只在 adapter；
-   -其他 context 只消费 Agent `public/`；
+   - 其他 context 只消费 Agent `public/`；
    - components/pages 不接触 wire、client、replay cursor 或 capability preflight。
 
 ### 1.3 非目标
@@ -101,37 +102,37 @@ plugin-owned read model。
 
 ### 2.1 已成立的基础
 
-| 层 | 当前事实 | 结论 |
-|---|---|---|
-| generated wire | `RunRef` 已有 `parentRunId/rootRunId/spawnedByItemId/status/activeSegmentId/metrics/outcome` | 目标模型不需要新 wire |
-| RPC stream | `RunTree` 已按 root Segment + descendant Run membership 过滤、去重，并只在 root Segment finished 时关闭 | tree-wide transport 已成立 |
-| pump | 每帧 `runId/segmentId` 已传给 batcher；child terminal 不关闭 root stream | source identity 已到应用边界 |
-| replay | 断流会从最后 folded `eventId` 重新 `runs.subscribe` | 短断线基础已成立 |
-| cold history | `items.list{scope:session}` 已能回放 durable Items；page 自带连接树所需 Run summaries | durable transcript 基础已成立 |
-| runtime events | 已订阅 `runs.changed`、`interrupts.changed`、`resync` | change signal 已到 Desktop |
-| plugin boundary | Agent 已有 domain/application/adapters/presentation/public 分层和 context gate | 改造可留在单一 bounded context |
-| frontend gates | `npm run check` 全绿：178 files / 1078 tests | W4.0 有稳定基线 |
+| 层              | 当前事实                                                                                                | 结论                           |
+| --------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| generated wire  | `RunRef` 已有 `parentRunId/rootRunId/spawnedByItemId/status/activeSegmentId/metrics/outcome`            | 目标模型不需要新 wire          |
+| RPC stream      | `RunTree` 已按 root Segment + descendant Run membership 过滤、去重，并只在 root Segment finished 时关闭 | tree-wide transport 已成立     |
+| pump            | 每帧 `runId/segmentId` 已传给 batcher；child terminal 不关闭 root stream                                | source identity 已到应用边界   |
+| replay          | 断流会从最后 folded `eventId` 重新 `runs.subscribe`                                                     | 短断线基础已成立               |
+| cold history    | `items.list{scope:session}` 已能回放 durable Items；page 自带连接树所需 Run summaries                   | durable transcript 基础已成立  |
+| runtime events  | 已订阅 `runs.changed`、`interrupts.changed`、`resync`                                                   | change signal 已到 Desktop     |
+| plugin boundary | Agent 已有 domain/application/adapters/presentation/public 分层和 context gate                          | 改造可留在单一 bounded context |
+| frontend gates  | `npm run check` 全绿：178 files / 1078 tests                                                            | W4.0 有稳定基线                |
 
 ### 2.2 核心缺口
 
-| 缺口 | 当前行为 | 风险 |
-|---|---|---|
-| 单 Run readout | `AgentViewState.run` 只有一个 root-centric `RunState` | 无法表达 child/sibling/nested |
-| child lifecycle | child start/finish 只写 `"subagent"` timeline；child progress 直接丢弃 | UI 看不到真实状态、计量和 outcome |
-| global turn cursor | `turnMessageId` 是 session 全局单值 | interleaved child Item 会进入 root assistant bubble |
-| Item 归属不完整 | user/system message 有 `runId`，assistant turn shell 没有 | child narrative 无法稳定选择 |
-| tool 归属不完整 | `ToolCall` 没有 `runId` | tree UI 只能扫描 timeline 或猜父子 |
-| plan 归属错误 | `plan` 是 session 全局单值 | child plan 可覆盖 root plan |
-| timeline 归属错误 | tool Item handler 未传 `item.runId`，默认回退 `state.run.runId` | child tool 审计会被记到 root |
-| timeline 不可重建 | `Date.now()` + module-global sequence 生成 id/时间 | reload/replay 后时间和 identity 漂移 |
-| optional fold source | `reduce(state,event,runId?,segmentId?)` | synthetic/cold path 可绕过 source identity |
-| synthetic wire | optimistic message 与 recovery 构造假的 StreamEvent，使用空 RunID、空 profile、零 metrics | presentation 在伪造协议事实 |
-| cold Run 丢失 | recovery 只回放 Items，running query 只找第一个 root；不建立 durable Run tree | reload 后 terminal/waiting/child lifecycle 不完整 |
-| Run history 截断 | application port 把 Run summary 缩成 `{id,spawnedByItemId}` | lineage、status、outcome 在 adapter 边界被丢弃 |
-| replay refetch 非原子 | replay lost 时先 reset view，再回放 Items | 可能出现空白中间态，且仍不恢复 Run tree |
-| invalidation 未闭环 | `runs.changed` 只 invalidates sessions/usage | mounted Agent view 不读取新的 Run facts |
-| cancel 只认 root | pump 只保存 `currentRunId`，本地直接把单 `view.run` 置 idle | child cancel 无入口，root cancel 忽略 committed response |
-| 错误混合 | start channel-a error 与 terminal Run error共用 session `error` | owner、dismiss 与恢复语义不清楚 |
+| 缺口                  | 当前行为                                                                                  | 风险                                                     |
+| --------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 单 Run readout        | `AgentViewState.run` 只有一个 root-centric `RunState`                                     | 无法表达 child/sibling/nested                            |
+| child lifecycle       | child start/finish 只写 `"subagent"` timeline；child progress 直接丢弃                    | UI 看不到真实状态、计量和 outcome                        |
+| global turn cursor    | `turnMessageId` 是 session 全局单值                                                       | interleaved child Item 会进入 root assistant bubble      |
+| Item 归属不完整       | user/system message 有 `runId`，assistant turn shell 没有                                 | child narrative 无法稳定选择                             |
+| tool 归属不完整       | `ToolCall` 没有 `runId`                                                                   | tree UI 只能扫描 timeline 或猜父子                       |
+| plan 归属错误         | `plan` 是 session 全局单值                                                                | child plan 可覆盖 root plan                              |
+| timeline 归属错误     | tool Item handler 未传 `item.runId`，默认回退 `state.run.runId`                           | child tool 审计会被记到 root                             |
+| timeline 不可重建     | `Date.now()` + module-global sequence 生成 id/时间                                        | reload/replay 后时间和 identity 漂移                     |
+| optional fold source  | `reduce(state,event,runId?,segmentId?)`                                                   | synthetic/cold path 可绕过 source identity               |
+| synthetic wire        | optimistic message 与 recovery 构造假的 StreamEvent，使用空 RunID、空 profile、零 metrics | presentation 在伪造协议事实                              |
+| cold Run 丢失         | recovery 只回放 Items，running query 只找第一个 root；不建立 durable Run tree             | reload 后 terminal/waiting/child lifecycle 不完整        |
+| Run history 截断      | application port 把 Run summary 缩成 `{id,spawnedByItemId}`                               | lineage、status、outcome 在 adapter 边界被丢弃           |
+| replay refetch 非原子 | replay lost 时先 reset view，再回放 Items                                                 | 可能出现空白中间态，且仍不恢复 Run tree                  |
+| invalidation 未闭环   | `runs.changed` 只 invalidates sessions/usage                                              | mounted Agent view 不读取新的 Run facts                  |
+| cancel 只认 root      | pump 只保存 `currentRunId`，本地直接把单 `view.run` 置 idle                               | child cancel 无入口，root cancel 忽略 committed response |
+| 错误混合              | start channel-a error 与 terminal Run error共用 session `error`                           | owner、dismiss 与恢复语义不清楚                          |
 
 ### 2.3 根因
 
@@ -358,7 +359,7 @@ Session 仍有共享的：
 - session state；
 - pending sets；
 - optimistic command error；
--跨 Run timeline。
+  - 跨 Run timeline。
 
 复制完整 view 会制造 shared state、interrupt 与 message identity 的多作者。正确做法是让
 每种 material 自己携带 RunID，再由 selector组合。
@@ -420,7 +421,7 @@ snapshot refresh 与 tail attach 之间继续使用 epoch/head discipline，保�
 - missed durable Items 由 query 补齐；
 - missed lifecycle 由 RunRef 补齐；
 - tail event 不会被 snapshot 旧值回滚；
--同一 eventId 不重复折叠。
+  - 同一 eventId 不重复折叠。
 
 ### 5.4 Cancel
 
@@ -442,20 +443,20 @@ root target 变体，不保留第二套 cancel 规则。
 
 ### 6.1 必改区域
 
-| 区域 | 变化 |
-|---|---|
-| Agent view types | single `RunState` → normalized Run tree；material 增加 Run ownership |
-| fold/reducer | 完整 envelope input；source-specific lifecycle/item fold |
-| SDK fold seam | 删除 optional provenance；不得再默认 `state.run.runId` |
-| store/selectors | 删除 `view.run`；提供明确 root/run/tree selectors |
-| recovery | snapshot hydration；完整 Run lineage/status/outcome；原子 replace |
-| runtime gateway | consumer port 保留真实 Run summary/ref，不做 `{id,...}` 截断 |
-| run pump/reattach | merge snapshot/replay epoch；target-aware cancel |
-| public Agent surface | current root、Run by id、tree rows、cancel command、refresh command |
-| chat | root narrative selector；task child disclosure；plan 选择 source Run |
-| workspace | Run tree/timeline projection按 lineage，而非相邻 timeline 分组 |
-| shell/navigation | running/waiting/settlement 从 root selector 派生 |
-| docs/tests | 更新 single-run 叙述和假“subagent isolation = complete consumer”表述 |
+| 区域                 | 变化                                                                 |
+| -------------------- | -------------------------------------------------------------------- |
+| Agent view types     | single `RunState` → normalized Run tree；material 增加 Run ownership |
+| fold/reducer         | 完整 envelope input；source-specific lifecycle/item fold             |
+| SDK fold seam        | 删除 optional provenance；不得再默认 `state.run.runId`               |
+| store/selectors      | 删除 `view.run`；提供明确 root/run/tree selectors                    |
+| recovery             | snapshot hydration；完整 Run lineage/status/outcome；原子 replace    |
+| runtime gateway      | consumer port 保留真实 Run summary/ref，不做 `{id,...}` 截断         |
+| run pump/reattach    | merge snapshot/replay epoch；target-aware cancel                     |
+| public Agent surface | current root、Run by id、tree rows、cancel command、refresh command  |
+| chat                 | root narrative selector；task child disclosure；plan 选择 source Run |
+| workspace            | Run tree/timeline projection按 lineage，而非相邻 timeline 分组       |
+| shell/navigation     | running/waiting/settlement 从 root selector 派生                     |
+| docs/tests           | 更新 single-run 叙述和假“subagent isolation = complete consumer”表述 |
 
 ### 6.2 明确不保留
 
@@ -573,7 +574,7 @@ cd app/desktop/frontend && npm run check
 
 ### W4.3 — Tree presentation 与交互
 
-状态：`PENDING`
+状态：`DONE`
 
 范围：
 
@@ -591,7 +592,7 @@ cd app/desktop/frontend && npm run check
 - root narrative 是默认阅读主线；
 - delegated work 默认摘要、按需展开；
 - waiting action 留在 Agent Narrative first；
--完整审计可进入 Context Dock；
+- 完整审计可进入 Context Dock；
 - tree row 的 cancel target 始终是该 RunID；
 - UI 不显示协议无法证明的“完成”“恢复中”或计量值。
 
@@ -603,7 +604,7 @@ cd app/desktop/frontend && npm run check
 
 ### W4.4 — Full closure
 
-状态：`PENDING`
+状态：`READY`
 
 范围：
 
@@ -629,21 +630,21 @@ compatibility / stale terminology / TODO-FIXME-HACK scans
 
 ## 8. 验收矩阵
 
-| 场景 | Live | Replay | Cold | Invalidation | UI |
-|---|---:|---:|---:|---:|---:|
-| root only | 必测 | 必测 | 必测 | 必测 | 必测 |
-| root + child | 必测 | 必测 | 必测 | 必测 | 必测 |
-| siblings | 必测 | 必测 | 必测 | 必测 | 必测 |
-| nested child | 必测 | 必测 | 必测 | 必测 | 必测 |
-| child completes | 必测 | 必测 | 必测 | 必测 | 必测 |
-| child errors | 必测 | 必测 | 必测 | 必测 | 必测 |
-| child canceled | 必测 | 必测 | 必测 | 必测 | 必测 |
-| tree waiting | 必测 | 必测 | 必测 | 必测 | 必测 |
-| resume new segment | 必测 | 必测 | 必测 | 必测 | 必测 |
-| root terminal | 必测 | 必测 | 必测 | 必测 | 必测 |
-| replay unavailable | — | 必测 | 必测 | — | 必测 |
-| process restart/run_lost | — | — | 必测 | 必测 | 必测 |
-| malformed source identity | 必测 | 必测 | 必测 | — | 不误展示 |
+| 场景                      | Live | Replay | Cold | Invalidation |       UI |
+| ------------------------- | ---: | -----: | ---: | -----------: | -------: |
+| root only                 | 必测 |   必测 | 必测 |         必测 |     必测 |
+| root + child              | 必测 |   必测 | 必测 |         必测 |     必测 |
+| siblings                  | 必测 |   必测 | 必测 |         必测 |     必测 |
+| nested child              | 必测 |   必测 | 必测 |         必测 |     必测 |
+| child completes           | 必测 |   必测 | 必测 |         必测 |     必测 |
+| child errors              | 必测 |   必测 | 必测 |         必测 |     必测 |
+| child canceled            | 必测 |   必测 | 必测 |         必测 |     必测 |
+| tree waiting              | 必测 |   必测 | 必测 |         必测 |     必测 |
+| resume new segment        | 必测 |   必测 | 必测 |         必测 |     必测 |
+| root terminal             | 必测 |   必测 | 必测 |         必测 |     必测 |
+| replay unavailable        |    — |   必测 | 必测 |            — |     必测 |
+| process restart/run_lost  |    — |      — | 必测 |         必测 |     必测 |
+| malformed source identity | 必测 |   必测 | 必测 |            — | 不误展示 |
 
 额外不变量：
 
@@ -658,16 +659,16 @@ compatibility / stale terminology / TODO-FIXME-HACK scans
 
 ## 9. 风险与处理
 
-| 风险 | 处理 |
-|---|---|
-| 一次 breaking 改动触及 selector 众多 | W4.1 以 compiler + tests 做完整迁移，不保留 alias |
-| live event 与 cold snapshot 竞态 | epoch + off-store snapshot + atomic replace |
-| child narrative 导致中心区过载 | root-first selector + task disclosure + Context Dock audit |
-| capability disabled 阶段无法发真实 child | fixture negotiation + reducer conformance；production 仍诚实 root-only |
-| RunRef 与 Item page summaries 丰富度不同 | canonical merge 规则：完整 RunRef 可补充 summary，旧 snapshot 不回滚新 lifecycle |
-| timeline id/time 重建 | 优先 runtime eventId/timestamp、Run/Item durable timestamps；不使用 wall clock 伪造 |
-| SDK event seam 暴露 Agent state | W4.1 只允许一个 canonical projection contract；若现有 owner 与架构文档冲突，直接迁移 owner，不双层包装 |
-| UI 阶段顺手复制业务规则 | presentation 只消费 Agent selectors/commands，组件测试禁止 RPC imports |
+| 风险                                     | 处理                                                                                                   |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 一次 breaking 改动触及 selector 众多     | W4.1 以 compiler + tests 做完整迁移，不保留 alias                                                      |
+| live event 与 cold snapshot 竞态         | epoch + off-store snapshot + atomic replace                                                            |
+| child narrative 导致中心区过载           | root-first selector + task disclosure + Context Dock audit                                             |
+| capability disabled 阶段无法发真实 child | fixture negotiation + reducer conformance；production 仍诚实 root-only                                 |
+| RunRef 与 Item page summaries 丰富度不同 | canonical merge 规则：完整 RunRef 可补充 summary，旧 snapshot 不回滚新 lifecycle                       |
+| timeline id/time 重建                    | 优先 runtime eventId/timestamp、Run/Item durable timestamps；不使用 wall clock 伪造                    |
+| SDK event seam 暴露 Agent state          | W4.1 只允许一个 canonical projection contract；若现有 owner 与架构文档冲突，直接迁移 owner，不双层包装 |
+| UI 阶段顺手复制业务规则                  | presentation 只消费 Agent selectors/commands，组件测试禁止 RPC imports                                 |
 
 ---
 
@@ -782,22 +783,70 @@ compatibility / stale terminology / TODO-FIXME-HACK scans
   - W4.4 做最终 architecture/hygiene/docs closure；
   - `features.subagents` 继续 disabled。
 
+### 2026-07-30 — W4.3
+
+- 实施基线：`main@cc85d3039`；
+- root-first narrative：
+  - root narrative selector 展示 Session 内全部 root-owned messages 与 local optimistic
+    messages，不再把历史根运行误裁成“仅当前 root”；
+  - child material 不进入 root transcript，由 `spawnedByItemId` 精确锚定 parent task；
+  - sibling 以 durable `createdAt + RunID` 稳定排序，nested child 递归使用同一锚定规则；
+- delegated disclosure：
+  - running / finished / error / canceled / limit 默认摘要，waiting 默认展开，使审批、提问等
+    HITL action 保持 narrative-first；
+  - disclosure 使用 source Run 的 messages、plan、progress、committed metrics 与 outcome，
+    不从 task 文本或事件顺序猜测状态；
+  - child cancel 始终调用 `cancelAgentRun(childRunId)`，不做 optimistic terminal；
+  - 完整审计由每个 disclosure 进入 Context Dock Timeline；
+- lineage audit：
+  - Timeline 从“相邻事件同 RunID”分组改为 Run tree preorder；同一 Run 的事件即使被 child
+    event 穿插也仍归回同一 source group；
+  - 无 timeline event 的 durable Run 仍展示 lifecycle；未知 Run event 明确保留为 audit
+    group，不静默丢证据；
+  - child row 可定位 parent task：原子切回 Chat、选择并展开 tool，随后滚动且聚焦 header；
+  - root/child row 都展示准确状态、activity、step facts；cancel target 始终是该 row RunID；
+- shell attention：
+  - root attention 使用 `idle / running / waiting / finished` + exact RunID，不再退化为 boolean；
+  - settlement 只接受同一 root 的 Running/Waiting → Waiting/Finished 转换；
+  - 通知明确区分 needs-input、finished、error、canceled 与 limit；
+  - selector snapshot 保持引用稳定，避免 React external-store 重渲染环，并有回归测试；
+- ergonomics 与视觉：
+  - 对照 `~/Desktop/synara` 的 compact subagent row：状态 dot 承载主色，终态文字保持安静；
+  - disclosure header、cancel 与 audit 都提供键盘焦点、ARIA relationship 与至少 40px
+    独立触达面；
+  - expand/collapse 复用无测量的 `grid-template-rows: 0fr ↔ 1fr`，只 transition
+    `grid-template-rows / transform / color`，并尊重 reduced-motion；
+  - dynamic steps 使用 tabular numerals，长 activity 使用 truncate + title 保留完整内容；
+- breaking cleanup：
+  - 删除 `select/useCurrentRootMessages` 与 `useCurrentRootRunning` 的失真语义；
+  - 不新增 alias、compat selector、secondary lineage index 或 component-local domain state；
+  - Agent public presentation surface 保持 wire-free；Chat/Workspace component 不接触 RPC；
+- 验证：
+  - `cd app/desktop/frontend && npm run check` → `PASS`
+  - 187 test files / 1125 tests；
+  - type/lint/format/knip/circular/context/published-boundary/layer/token/chrome/locale/
+    bootstrap/bundle gates → `PASS`；
+  - targeted root/child/sibling/nested/waiting/cancel/reconnect、lineage timeline、parent locate
+    与 settlement tests → `PASS`；
+  - `git diff --check` → `PASS`；
+- 已知非阻塞告警与 W4.0–W4.2 基线一致：无效 shadow utility、Lightning CSS
+  `::highlight(...)` 识别与 large-chunk 提示；
+- 残余工作：
+  - W4.4 执行 full architecture/hygiene/docs/contract closure；
+  - `features.subagents` 继续 disabled。
+
 ---
 
 ## 11. 下一张执行卡
 
 ```text
-W4.3 — Tree presentation 与交互
+W4.4 — Full closure
 ```
 
 执行纪律：
 
-1. presentation 只消费 Agent application selectors/commands，不接触 RPC；
-2. root narrative 保持默认阅读主线，delegated child/nested work 挂在 parent task
-   语义锚点下并按需展开；
-3. Run tree 明确展示 running/waiting/finished/outcome、parent lineage 与 source-owned
-   progress/metrics；
-4. root/child cancel 始终把目标 RunID 交给统一 `cancelAgentRun` command；
-5. 补齐 keyboard/focus/aria/motion preference 与跨 Run 定位；
-6. 覆盖 root/child/sibling/nested/waiting/cancel/reconnect 的 view-model 与组件测试；
-7. frontend 门禁全绿后独立 commit/push，再进入 W4.4 full closure。
+1. 扫描并删除 single-run、compat、synthetic wire、implicit owner 与 stale terminology；
+2. 审查命名、错误、文件职责、selector 稳定性、Store action 与 receiver 语义；
+3. 更新 Frontend architecture、workspace model 与 plugin context 文档；
+4. 执行 frontend 全门禁、contract/generated drift 与 `git diff --check`；
+5. 记录 B1.6 完成证据，独立 commit/push 后才进入 B1.7 capability enablement。

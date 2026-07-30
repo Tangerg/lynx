@@ -3,10 +3,9 @@
 // Prefixes the document title with a "●" while any root run is in progress, so
 // a user who tabbed away can tell at a glance — from the OS window list / dock
 // — that this window still has work cooking (T1.1 of the UX polish backlog).
-// Window-level by design: ANY running root run lights it, not just the active
-// tab's, since the title represents the whole window. Sub-agent runs never set
-// `view.run.running` (handlers route them to the timeline only), so they don't
-// trip the indicator — only the root turn does.
+// Window-level by design: any Session whose current root is Running lights it,
+// not just the active tab's. Descendant lifecycle stays inside that root-owned
+// tree; a child never becomes an unrelated window-level activity fact.
 //
 // Implemented as a module-level store subscription (app-lifetime side effect,
 // HMR-guarded), the same pattern as completionNotify. It writes through the

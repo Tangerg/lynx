@@ -64,9 +64,24 @@ export function installWorkspaceNavigationPort(): () => void {
     },
     selectedToolId: () => useContextDockStore.getState().selectedToolId,
     setSelectedTool: (id) => useContextDockStore.getState().setSelectedToolId(id),
+    locateTool: (id) => {
+      useWorkspaceSurfaceStore.getState().selectChat();
+      useContextDockStore.getState().revealTool(id);
+      if (!focusConversationTool(id) && typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(() => focusConversationTool(id));
+      }
+    },
     activateSessionScope: (sessionId) =>
       useContextDockStore.getState().activateSessionScope(sessionId),
     forgetSessionScopes: (openSessionIds) =>
       useContextDockStore.getState().forgetSessionScopes(openSessionIds),
   });
+}
+
+function focusConversationTool(itemId: string): boolean {
+  const anchor = document.getElementById(itemId);
+  if (!anchor) return false;
+  anchor.scrollIntoView?.({ block: "center" });
+  anchor.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+  return true;
 }

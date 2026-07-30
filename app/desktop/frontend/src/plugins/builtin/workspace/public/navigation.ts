@@ -7,6 +7,7 @@ export {
   forgetWorkspaceSessionScopes,
   getWorkspaceDockViewId,
   getWorkspaceSettingsPaneTarget,
+  locateWorkspaceTool,
   openWorkspaceDiffForFile,
   openWorkspaceFile,
   openWorkspaceSettingsPane,

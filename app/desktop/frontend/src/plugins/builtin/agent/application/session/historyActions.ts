@@ -5,7 +5,7 @@ import { notifyInfo } from "@/plugins/sdk";
 import { agentRuntime, type RestoreType } from "../ports/runtimeGateway";
 import { agentSessionState } from "../ports/sessionState";
 import { agentSessionView } from "../ports/sessionView";
-import { selectCurrentRootMessages, selectRootRuns } from "../view/runTree";
+import { selectRootNarrativeMessages, selectRootRuns } from "../view/runTree";
 import { forkSessionAt } from "./forkSession";
 import { rehydrateSessionView } from "./rehydrateSession";
 import { projectAgentSessionSnapshot } from "./sessionSnapshot";
@@ -20,7 +20,7 @@ export function activeAgentConversation(): ActiveAgentConversation | null {
   if (!sessionId) return null;
   return {
     sessionId,
-    messages: selectCurrentRootMessages(agentSessionView().getCurrentView()),
+    messages: selectRootNarrativeMessages(agentSessionView().getCurrentView()),
   };
 }
 

@@ -15,6 +15,22 @@ const EMPTY_USAGE: RunUsage = {
   cacheReadTokens: 0,
 };
 
+export interface AgentRunTreeNode {
+  run: AgentRunView;
+  children: AgentRunTreeNode[];
+}
+
+export interface DelegatedRunNarrative {
+  run: AgentRunView;
+  messages: Message[];
+  plan: PlanItem[];
+}
+
+export type DelegatedRunNarrativesByItemId = Record<string, DelegatedRunNarrative[]>;
+
+export type AgentRootAttention =
+  { status: "idle"; runId: null } | { status: AgentRunView["status"]; runId: string };
+
 function compareRuns(left: AgentRunView, right: AgentRunView): number {
   const byCreatedAt = left.createdAt.localeCompare(right.createdAt);
   return byCreatedAt || left.id.localeCompare(right.id);
@@ -39,6 +55,11 @@ export function selectCurrentRootRun(view: AgentSessionView): AgentRunView | nul
   return latestOpen ?? latest;
 }
 
+export function selectCurrentRootAttention(view: AgentSessionView): AgentRootAttention {
+  const root = selectCurrentRootRun(view);
+  return root ? { status: root.status, runId: root.id } : { status: "idle", runId: null };
+}
+
 export function selectRun(
   view: AgentSessionView,
   runId: string | null | undefined,
@@ -57,13 +78,53 @@ export function selectCurrentRootPlan(view: AgentSessionView): PlanItem[] {
   return selectRunPlan(view, selectCurrentRootRun(view)?.id);
 }
 
-export function selectCurrentRootMessages(view: AgentSessionView): Message[] {
-  const runId = selectCurrentRootRun(view)?.id;
-  if (!runId) {
-    const local = view.messages.filter((message) => message.runId === null);
-    return local.length > 0 ? local : EMPTY_MESSAGES;
+/**
+ * The main Session narrative: optimistic local messages plus material owned by
+ * every root Run, in projection order. Descendant material is selected
+ * separately under its durable parent Item anchor.
+ */
+export function selectRootNarrativeMessages(view: AgentSessionView): Message[] {
+  const rootRunIds = new Set(selectRootRuns(view).map((run) => run.id));
+  const messages = view.messages.filter(
+    (message) => message.runId === null || rootRunIds.has(message.runId),
+  );
+  return messages.length > 0 ? messages : EMPTY_MESSAGES;
+}
+
+export function selectDelegatedRunNarratives(
+  view: AgentSessionView,
+): DelegatedRunNarrativesByItemId {
+  const byItemId: DelegatedRunNarrativesByItemId = {};
+  for (const run of Object.values(view.runsById).sort(compareRuns)) {
+    if (run.parentRunId === null || run.spawnedByItemId === null) continue;
+    const narrative: DelegatedRunNarrative = {
+      run,
+      messages: view.messages.filter((message) => message.runId === run.id),
+      plan: selectRunPlan(view, run.id),
+    };
+    (byItemId[run.spawnedByItemId] ??= []).push(narrative);
   }
-  return view.messages.filter((message) => message.runId === runId || message.runId === null);
+  return byItemId;
+}
+
+/**
+ * A derived forest over normalized Run facts. Snapshot hydration validates
+ * connected lineage; retaining a missing-parent node as a root keeps malformed
+ * live material auditable instead of silently hiding it.
+ */
+export function selectRunTree(view: AgentSessionView): AgentRunTreeNode[] {
+  const runs = Object.values(view.runsById).sort(compareRuns);
+  const byRunId = new Map<string, AgentRunTreeNode>();
+  for (const run of runs) byRunId.set(run.id, { run, children: [] });
+
+  const roots: AgentRunTreeNode[] = [];
+  for (const run of runs) {
+    const node = byRunId.get(run.id)!;
+    const parent = run.parentRunId ? byRunId.get(run.parentRunId) : undefined;
+    if (parent && parent !== node) parent.children.push(node);
+    else roots.push(node);
+  }
+  return roots;
 }
 
 export function selectRunUsage(run: AgentRunView | null): RunUsage {

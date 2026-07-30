@@ -356,6 +356,19 @@ export const de: Record<string, string> = {
   "session.status.running": "Läuft",
   "session.status.waiting": "Wartet auf Eingabe",
 
+  "agent.runTree.delegated.one": "Subagent",
+  "agent.runTree.delegated.many": "Subagent {{index}} von {{count}}",
+  "agent.runTree.status.running": "Läuft",
+  "agent.runTree.status.waiting": "Eingabe erforderlich",
+  "agent.runTree.status.finished": "Beendet",
+  "agent.runTree.status.error": "Fehler",
+  "agent.runTree.status.canceled": "Abgebrochen",
+  "agent.runTree.status.limit": "Limit erreicht",
+  "agent.runTree.steps": "{{count}} Schritt(e)",
+  "agent.runTree.action.audit": "Vollständiges Laufprotokoll öffnen",
+  "agent.runTree.action.cancel": "Diesen Lauf abbrechen",
+  "agent.runTree.material.empty": "Noch kein Erzählmaterial.",
+
   // ── Workspace-Ansicht: Run Summary ──
   "runSummary.title": "Lauf-Zusammenfassung",
   "runSummary.noRuns": "Keine Läufe",
@@ -382,7 +395,12 @@ export const de: Record<string, string> = {
 
   // ── Workspace-Ansicht: Timeline ──
   "timeline.title": "Lauf-Timeline",
-  "timeline.runLabel": "Lauf {{id}}",
+  "timeline.rootRun": "Stammlauf",
+  "timeline.delegatedRun": "Delegierter Lauf",
+  "timeline.parentRun": "übergeordnet {{id}}",
+  "timeline.locateParent": "Übergeordnete Aufgabe finden",
+  "timeline.unknownRun": "Unbekannter Lauf {{id}}",
+  "timeline.noEvents": "Keine Timeline-Ereignisse für diesen Lauf.",
   "timeline.summary": "{{events}} Ereignisse · {{runs}} Lauf/Läufe",
   "timeline.jumpToChat": "Zum Chat springen",
   "timeline.empty.title": "Noch keine Aktivität",

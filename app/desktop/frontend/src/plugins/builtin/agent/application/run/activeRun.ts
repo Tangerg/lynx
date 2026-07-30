@@ -1,5 +1,6 @@
 import type {
   AgentProblem,
+  AgentRunView,
   AgentSessionView,
   PlanItem,
   TimelineEntry,
@@ -7,16 +8,21 @@ import type {
 } from "@/plugins/sdk/types/agentSessionView";
 import { agentSessionState } from "../ports/sessionState";
 import { agentSessionView, type AgentSessionViewEntry } from "../ports/sessionView";
-import { selectCurrentRootRun, selectVisibleProblem } from "../view/runTree";
+import type { AgentRootAttention, AgentRunTreeNode } from "../view/runTree";
+import {
+  selectCurrentRootAttention,
+  selectCurrentRootRun,
+  selectRunProblem,
+} from "../view/runTree";
 
-interface AgentRunSettlement {
+export interface AgentRunSettlement {
   sessionId: string;
-  needsInput: boolean;
+  status: "needsInput" | "finished" | "error" | "canceled" | "limit";
   errorMessage: string | null;
 }
 
 export function useIsAgentRunning(): boolean {
-  return agentSessionView().useCurrentRootRunning();
+  return agentSessionView().useCurrentRootAttention().status === "running";
 }
 
 export function useActiveRunId(): string | null {
@@ -33,6 +39,10 @@ export function useActiveRunToolCalls(): Record<string, ToolCall> {
 
 export function useActiveRunTimeline(): TimelineEntry[] {
   return agentSessionView().useSessionTimeline();
+}
+
+export function useActiveRunTree(): AgentRunTreeNode[] {
+  return agentSessionView().useRunTree();
 }
 
 export function useVisibleAgentProblem(): AgentProblem | null {
@@ -67,8 +77,12 @@ export function dismissVisibleAgentProblem(): void {
   agentSessionView().clearProblem(sessionId);
 }
 
+function currentRootAttention(view: AgentSessionView): AgentRootAttention {
+  return selectCurrentRootAttention(view);
+}
+
 function currentRootRunning(view: AgentSessionView): boolean {
-  return selectCurrentRootRun(view)?.status === "running";
+  return currentRootAttention(view).status === "running";
 }
 
 function anyAgentRunning(sessions: Record<string, AgentSessionViewEntry>): boolean {
@@ -78,8 +92,25 @@ function anyAgentRunning(sessions: Record<string, AgentSessionViewEntry>): boole
   return false;
 }
 
+function terminalSettlementStatus(
+  outcome: AgentRunView["outcome"],
+): Exclude<AgentRunSettlement["status"], "needsInput"> {
+  switch (outcome?.type) {
+    case "error":
+      return "error";
+    case "canceled":
+      return "canceled";
+    case "maxSteps":
+    case "maxBudget":
+      return "limit";
+    default:
+      return "finished";
+  }
+}
+
 export function subscribeAnyAgentRunning(onChange: (running: boolean) => void): () => void {
   let lastRunning = anyAgentRunning(agentSessionView().getSessions());
+  onChange(lastRunning);
   return agentSessionView().subscribeSessions((sessions) => {
     const running = anyAgentRunning(sessions);
     if (running === lastRunning) return;
@@ -91,28 +122,38 @@ export function subscribeAnyAgentRunning(onChange: (running: boolean) => void): 
 export function subscribeAgentRunSettlements(
   onSettled: (settlement: AgentRunSettlement) => void,
 ): () => void {
-  const lastRunning = new Map<string, boolean>();
+  const previousBySession = new Map<string, AgentRootAttention>();
+  for (const [sessionId, entry] of Object.entries(agentSessionView().getSessions())) {
+    previousBySession.set(sessionId, currentRootAttention(entry.view));
+  }
   return agentSessionView().subscribeSessions((sessions) => {
-    let count = 0;
     for (const sessionId in sessions) {
-      count++;
       const view = sessions[sessionId]!.view;
-      const running = currentRootRunning(view);
-      const wasRunning = lastRunning.get(sessionId) ?? false;
-      if (wasRunning === running) continue;
-      lastRunning.set(sessionId, running);
-      if (wasRunning && !running) {
+      const current = currentRootAttention(view);
+      const previous = previousBySession.get(sessionId) ?? { status: "idle", runId: null };
+      if (current.runId === previous.runId && current.status === previous.status) continue;
+      previousBySession.set(sessionId, current);
+
+      const sameRunSettled =
+        previous.runId !== null &&
+        previous.runId === current.runId &&
+        (previous.status === "running" || previous.status === "waiting") &&
+        (current.status === "waiting" || current.status === "finished");
+      if (sameRunSettled) {
+        const root = selectCurrentRootRun(view);
         onSettled({
           sessionId,
-          needsInput: view.pendingInterrupts.length > 0,
-          errorMessage: selectVisibleProblem(view)?.message ?? null,
+          status:
+            current.status === "waiting"
+              ? "needsInput"
+              : terminalSettlementStatus(root?.outcome ?? null),
+          errorMessage:
+            current.status === "finished" ? (selectRunProblem(root)?.message ?? null) : null,
         });
       }
     }
-    if (lastRunning.size > count) {
-      for (const sessionId of [...lastRunning.keys()]) {
-        if (!(sessionId in sessions)) lastRunning.delete(sessionId);
-      }
+    for (const sessionId of [...previousBySession.keys()]) {
+      if (!(sessionId in sessions)) previousBySession.delete(sessionId);
     }
   });
 }

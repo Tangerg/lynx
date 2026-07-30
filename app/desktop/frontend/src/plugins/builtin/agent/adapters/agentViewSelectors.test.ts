@@ -12,7 +12,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import { EMPTY_AGENT_SESSION_VIEW, type AgentProblem } from "@/plugins/sdk/types/agentSessionView";
 import { useAgentStore } from "./agentStore";
 import { useAgentSessionStore } from "./agentSessionStore";
-import { useAgentProblem, useAgentSharedState } from "./agentViewSelectors";
+import {
+  useAgentProblem,
+  useAgentSharedState,
+  useCurrentRootAttention,
+} from "./agentViewSelectors";
 
 function seed(commandError: AgentProblem | null, shared: Record<string, unknown>) {
   return {
@@ -58,5 +62,42 @@ describe("agent view selectors react to session switch", () => {
 
     act(() => useAgentSessionStore.setState({ activeSessionId: "b" }));
     expect(result.current).toBe("B");
+  });
+
+  it("keeps the root attention snapshot referentially stable between unchanged renders", () => {
+    const running = {
+      id: "run-1",
+      sessionId: "a",
+      parentRunId: null,
+      rootRunId: "run-1",
+      spawnedByItemId: null,
+      status: "running" as const,
+      activeSegmentId: "segment-1",
+      outcome: null,
+      metrics: {
+        steps: 0,
+        activeDurationMs: 0,
+        usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
+      },
+      progress: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      finishedAt: null,
+    };
+    useAgentStore.setState({
+      sessions: {
+        a: {
+          ...seed(null, {}),
+          view: { ...EMPTY_AGENT_SESSION_VIEW, runsById: { [running.id]: running } },
+        },
+      },
+    });
+    useAgentSessionStore.setState({ activeSessionId: "a" });
+
+    const { result, rerender } = renderHook(() => useCurrentRootAttention());
+    const first = result.current;
+    rerender();
+
+    expect(result.current).toBe(first);
+    expect(result.current).toEqual({ status: "running", runId: "run-1" });
   });
 });

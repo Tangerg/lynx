@@ -5,7 +5,8 @@ import type {
   ToolCall,
 } from "@/plugins/sdk/types/agentSessionView";
 import { agentSessionView } from "../ports/sessionView";
-import { selectCurrentRootMessages, selectCurrentRootPlan } from "../view/runTree";
+import type { DelegatedRunNarrativesByItemId } from "../view/runTree";
+import { selectCurrentRootPlan, selectRootNarrativeMessages } from "../view/runTree";
 
 interface ActiveConversationSnapshot {
   messages: Message[];
@@ -15,13 +16,17 @@ interface ActiveConversationSnapshot {
 }
 
 export function useActiveConversationMessages(): Message[] {
-  return agentSessionView().useCurrentRootMessages();
+  return agentSessionView().useRootNarrativeMessages();
+}
+
+export function useDelegatedConversationRuns(): DelegatedRunNarrativesByItemId {
+  return agentSessionView().useDelegatedRunNarratives();
 }
 
 export function getActiveConversationSnapshot(): ActiveConversationSnapshot {
   const view = agentSessionView().getCurrentView();
   return {
-    messages: selectCurrentRootMessages(view),
+    messages: selectRootNarrativeMessages(view),
     plan: selectCurrentRootPlan(view),
     timeline: view.timeline,
     toolCalls: view.toolCalls,

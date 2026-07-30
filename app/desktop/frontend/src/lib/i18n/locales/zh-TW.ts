@@ -353,6 +353,19 @@ export const zhTW: Record<string, string> = {
   "session.status.running": "執行中",
   "session.status.waiting": "等待輸入",
 
+  "agent.runTree.delegated.one": "子代理",
+  "agent.runTree.delegated.many": "子代理 {{index}} / {{count}}",
+  "agent.runTree.status.running": "執行中",
+  "agent.runTree.status.waiting": "等待輸入",
+  "agent.runTree.status.finished": "已完成",
+  "agent.runTree.status.error": "錯誤",
+  "agent.runTree.status.canceled": "已取消",
+  "agent.runTree.status.limit": "已達上限",
+  "agent.runTree.steps": "{{count}} 步",
+  "agent.runTree.action.audit": "開啟完整執行稽核",
+  "agent.runTree.action.cancel": "取消此次執行",
+  "agent.runTree.material.empty": "尚無敘事內容。",
+
   // ── 工作區檢視：執行摘要 ──
   "runSummary.title": "執行摘要",
   "runSummary.noRuns": "尚無執行",
@@ -378,7 +391,12 @@ export const zhTW: Record<string, string> = {
 
   // ── 工作區檢視：時間軸 ──
   "timeline.title": "執行時間軸",
-  "timeline.runLabel": "執行 {{id}}",
+  "timeline.rootRun": "根執行",
+  "timeline.delegatedRun": "委派執行",
+  "timeline.parentRun": "父執行 {{id}}",
+  "timeline.locateParent": "定位父任務",
+  "timeline.unknownRun": "未知執行 {{id}}",
+  "timeline.noEvents": "此次執行沒有時間軸事件。",
   "timeline.summary": "{{events}} 個事件 · {{runs}} 次執行",
   "timeline.jumpToChat": "前往聊天",
   "timeline.empty.title": "尚無活動",

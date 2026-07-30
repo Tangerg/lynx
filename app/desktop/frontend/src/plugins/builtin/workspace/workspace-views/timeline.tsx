@@ -3,22 +3,31 @@
 //
 // UX review §2.2 / §4.1: users need a single surface that answers
 // "what did the agent actually do this run". Tool cards live inline in
-// the message stream; this view aggregates them with run/step/approval/
-// error boundaries so the answer reads chronologically.
+// the message stream; this view aggregates them under durable Run lineage,
+// then keeps each source Run's events chronological.
 //
 // Pure renderer — data comes from the agent public run read model.
 
 import type { IconName } from "@/ui";
 import type { TimelineEntry, TimelineEntryKind } from "@/plugins/builtin/agent/public/viewState";
-import { EmptyState, Icon, IconButton } from "@/ui";
+import { Badge, EmptyState, Icon, IconButton } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { cn } from "@/lib/utils";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-import { useActiveRunTimeline } from "@/plugins/builtin/agent/public/run";
-import { selectWorkspaceChat } from "@/plugins/builtin/workspace/public/navigation";
+import {
+  cancelAgentRun,
+  useActiveRunTimeline,
+  useActiveRunTree,
+} from "@/plugins/builtin/agent/public/run";
+import {
+  locateWorkspaceTool,
+  selectWorkspaceChat,
+} from "@/plugins/builtin/workspace/public/navigation";
 import {
   timelineGroupKey,
+  type TimelineRunGroup,
+  timelineRunStatusView,
   timelineSubtext,
   timelineTimeOfDay,
   timelineViewModel,
@@ -51,6 +60,8 @@ const STATUS_DOT: Record<NonNullable<TimelineEntry["status"]>, string> = {
   approved: "bg-success",
   declined: "bg-warning",
 };
+
+const TREE_INDENT = ["", "ml-3", "ml-6", "ml-9", "ml-12", "ml-16"] as const;
 
 function TimelineRow({ entry }: { entry: TimelineEntry }) {
   const t = useT();
@@ -85,10 +96,81 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
   );
 }
 
+function TimelineRunHeader({ group }: { group: TimelineRunGroup }) {
+  const t = useT();
+  const run = group.run;
+  if (!run) {
+    return group.runId ? (
+      <div className="px-3.5 pb-1 font-mono text-ui-xs text-fg-faint">
+        {t("timeline.unknownRun", { id: group.runId })}
+      </div>
+    ) : null;
+  }
+
+  const status = timelineRunStatusView(run);
+  const parentRunId = run.parentRunId;
+  const spawnedByItemId = run.spawnedByItemId;
+  const child = parentRunId !== null;
+  return (
+    <div className="flex min-h-10 items-center gap-2 rounded-md bg-surface-2 pl-3">
+      <Icon name={child ? "bot" : "branch"} size={13} className="shrink-0 text-fg-muted" />
+      <div className="min-w-0 flex-1 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-ui-sm font-semibold text-fg">
+            {t(child ? "timeline.delegatedRun" : "timeline.rootRun")}
+          </span>
+          <span title={run.id} className="truncate font-mono text-ui-xs text-fg-faint">
+            {run.id}
+          </span>
+          <Badge tone={status.tone} shape="pill">
+            {t(status.labelKey)}
+          </Badge>
+        </div>
+        <div className="mt-0.5 flex min-w-0 gap-2 text-ui-xs text-fg-muted">
+          {status.detail && (
+            <span title={status.detail} className="truncate text-pretty">
+              {status.detail}
+            </span>
+          )}
+          {child && (
+            <span title={parentRunId} className="truncate font-mono text-fg-faint">
+              {t("timeline.parentRun", { id: parentRunId })}
+            </span>
+          )}
+          <span className="ml-auto shrink-0 font-mono tabular-nums">
+            {t("agent.runTree.steps", { count: status.stepCount })}
+          </span>
+        </div>
+      </div>
+      {spawnedByItemId && (
+        <IconButton
+          icon="chat"
+          size="lg"
+          quiet
+          title={t("timeline.locateParent")}
+          onClick={() => locateWorkspaceTool(spawnedByItemId)}
+        />
+      )}
+      {status.cancelable && (
+        <IconButton
+          icon="stop"
+          size="lg"
+          quiet
+          title={t("agent.runTree.action.cancel")}
+          onClick={() => {
+            cancelAgentRun(run.id);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 function TimelineTab() {
   const t = useT();
   const timeline = useActiveRunTimeline();
-  const view = timelineViewModel(timeline);
+  const runTree = useActiveRunTree();
+  const view = timelineViewModel(timeline, runTree);
 
   return (
     <WorkspaceViewLayout
@@ -106,23 +188,30 @@ function TimelineTab() {
         />
       }
     >
-      {view.eventCount === 0 ? (
+      {view.groups.length === 0 ? (
         <EmptyState
           icon="history"
           title={t("timeline.empty.title")}
           sub={t("timeline.empty.sub")}
         />
       ) : (
-        view.groups.map((g, gi) => (
-          <div key={timelineGroupKey(g, gi)} className={cn(gi > 0 && "mt-3 pt-1")}>
-            {g.runId && (
-              <div className="px-3.5 pb-1 font-mono text-ui-xs text-fg-faint">
-                {t("timeline.runLabel", { id: g.runId })}
-              </div>
+        view.groups.map((group, index) => (
+          <div
+            key={timelineGroupKey(group)}
+            className={cn(
+              index > 0 && "mt-3 pt-1",
+              TREE_INDENT[Math.min(group.depth, TREE_INDENT.length - 1)],
+              group.depth > 0 && "border-l border-field pl-2",
             )}
-            {g.items.map((entry) => (
-              <TimelineRow key={entry.id} entry={entry} />
-            ))}
+          >
+            <TimelineRunHeader group={group} />
+            {group.items.length > 0 ? (
+              group.items.map((entry) => <TimelineRow key={entry.id} entry={entry} />)
+            ) : (
+              <p className="px-3.5 py-2 text-pretty text-ui-xs text-fg-faint">
+                {t("timeline.noEvents")}
+              </p>
+            )}
           </div>
         ))
       )}

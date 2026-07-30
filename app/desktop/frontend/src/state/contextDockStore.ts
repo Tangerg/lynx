@@ -30,6 +30,7 @@ interface ContextDockActions {
   setActiveFile: (path: string) => void;
   setFileViewer: (path: string, line?: number) => void;
   setSelectedToolId: (id: string) => void;
+  revealTool: (id: string) => void;
   toggleExpandedTool: (id: string) => void;
   activateSessionScope: (sessionId: string) => void;
   forgetSessionScopes: (openSessionIds: string[]) => void;
@@ -81,6 +82,11 @@ export const useContextDockStore = create<ContextDockState & ContextDockActions>
   setActiveFile: (path) => set({ activeFile: path }),
   setFileViewer: (path, line) => set({ fileViewer: { path, line: line ?? 0 } }),
   setSelectedToolId: (id) => set({ selectedToolId: id }),
+  revealTool: (id) => {
+    const expandedToolIds = new Set(get().expandedToolIds);
+    expandedToolIds.add(id);
+    set({ selectedToolId: id, expandedToolIds });
+  },
   toggleExpandedTool: (id) => {
     const next = new Set(get().expandedToolIds);
     if (next.has(id)) next.delete(id);

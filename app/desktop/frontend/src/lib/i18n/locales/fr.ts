@@ -356,6 +356,19 @@ export const fr: Record<string, string> = {
   "session.status.running": "En cours",
   "session.status.waiting": "Attente d'entrée",
 
+  "agent.runTree.delegated.one": "Sous-agent",
+  "agent.runTree.delegated.many": "Sous-agent {{index}} sur {{count}}",
+  "agent.runTree.status.running": "En cours",
+  "agent.runTree.status.waiting": "Entrée requise",
+  "agent.runTree.status.finished": "Terminé",
+  "agent.runTree.status.error": "Erreur",
+  "agent.runTree.status.canceled": "Annulé",
+  "agent.runTree.status.limit": "Limite atteinte",
+  "agent.runTree.steps": "{{count}} étape(s)",
+  "agent.runTree.action.audit": "Ouvrir l’audit complet",
+  "agent.runTree.action.cancel": "Annuler cette exécution",
+  "agent.runTree.material.empty": "Aucun contenu narratif pour le moment.",
+
   // ── Vue espace de travail : Résumé d'exécution ──
   "runSummary.title": "Résumé d'exécution",
   "runSummary.noRuns": "Aucune exécution",
@@ -382,7 +395,12 @@ export const fr: Record<string, string> = {
 
   // ── Vue espace de travail : Chronologie ──
   "timeline.title": "Chronologie d'exécution",
-  "timeline.runLabel": "exécution {{id}}",
+  "timeline.rootRun": "Exécution racine",
+  "timeline.delegatedRun": "Exécution déléguée",
+  "timeline.parentRun": "parent {{id}}",
+  "timeline.locateParent": "Localiser la tâche parente",
+  "timeline.unknownRun": "Exécution inconnue {{id}}",
+  "timeline.noEvents": "Aucun évènement pour cette exécution.",
   "timeline.summary": "{{events}} évènements · {{runs}} exécution(s)",
   "timeline.jumpToChat": "Aller au chat",
   "timeline.empty.title": "Aucune activité pour l'instant",
