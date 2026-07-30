@@ -21,6 +21,10 @@ type runnerState struct {
 	callStates []CallCheckpoint
 	nextResult int
 	resume     *Resume
+	// continuePaused re-enters a paused tool whose durable dependency was
+	// settled outside the tool loop. Unlike resume, it carries no user input
+	// and emits no Resume event.
+	continuePaused bool
 	// promotions collects tools promoted mid-loop (see PromoteTools). It is
 	// drained into request.Tools before every checkpoint or continuation, so a
 	// promoted tool is advertised on the next model round and rides through a

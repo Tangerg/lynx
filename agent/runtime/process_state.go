@@ -130,12 +130,31 @@ func (s *processState) restoreClaimedSuspension(value *interaction.Suspension) {
 	}
 }
 
+func (s *processState) replaceClaimedSuspension(value *interaction.Suspension) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.checkpointOwned || s.currentStatus != core.StatusWaiting {
+		return false
+	}
+	s.pendingSuspension = value.Clone()
+	return true
+}
+
 func (s *processState) clearRespondedSuspension() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.pendingSuspension != nil && s.pendingSuspension.Responded() {
 		s.pendingSuspension = nil
 	}
+}
+
+// clearContinuableSuspension consumes either an externally answered boundary
+// or a framework-ready checkpoint. Callers establish continuability before
+// entering this method.
+func (s *processState) clearContinuableSuspension() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pendingSuspension = nil
 }
 
 func (s *processState) restoreSuspension(value *interaction.Suspension) error {

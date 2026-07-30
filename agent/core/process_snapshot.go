@@ -16,7 +16,7 @@ import (
 // ProcessSnapshotSchemaVersion is the only portable process wire schema this
 // development version accepts. Missing and unknown versions fail explicitly;
 // the framework never guesses an obsolete snapshot shape.
-const ProcessSnapshotSchemaVersion uint16 = 14
+const ProcessSnapshotSchemaVersion uint16 = 15
 
 var (
 	ErrSnapshotSchema  = errors.New("process snapshot: unsupported schema")
@@ -55,8 +55,10 @@ func (f ProcessFailure) validate() error {
 // live capabilities and execution policy. OwnUsage contains only this
 // process's direct execution-resource counters; descendants carry their own
 // snapshots, and runtime reconstructs aggregate usage through parent-child
-// links. Runtime-only objects, derived world state, functions, and closures
-// are intentionally absent.
+// links. RetiredChildUsage separately preserves resource history for child
+// subtrees deliberately detached from execution ownership. Runtime-only
+// objects, derived world state, functions, and closures are intentionally
+// absent.
 type ProcessSnapshot struct {
 	SchemaVersion uint16 `json:"schema_version"`
 
@@ -76,6 +78,10 @@ type ProcessSnapshot struct {
 	Failure    *ProcessFailure         `json:"failure,omitempty"`
 
 	OwnUsage Usage `json:"own_usage"`
+	// RetiredChildUsage preserves resources consumed by child subtrees that a
+	// committed host operation detached from portable execution ownership.
+	// It is historical aggregate usage, not work performed by this process.
+	RetiredChildUsage Usage `json:"retired_child_usage"`
 
 	Blackboard map[string]TaggedValue `json:"blackboard,omitempty"`
 	Conditions map[string]bool        `json:"conditions,omitempty"`
@@ -84,21 +90,22 @@ type ProcessSnapshot struct {
 }
 
 type processSnapshotWire struct {
-	SchemaVersion uint16                  `json:"schema_version"`
-	ID            string                  `json:"id"`
-	ParentID      string                  `json:"parent_id,omitempty"`
-	SpawnCallID   string                  `json:"spawn_call_id,omitempty"`
-	Deployment    DeploymentRef           `json:"deployment"`
-	StartedAt     time.Time               `json:"started_at"`
-	Status        string                  `json:"status"`
-	Suspension    *interaction.Suspension `json:"suspension,omitempty"`
-	GoalName      string                  `json:"goal_name,omitempty"`
-	Failure       *ProcessFailure         `json:"failure,omitempty"`
-	OwnUsage      Usage                   `json:"own_usage"`
-	Blackboard    map[string]TaggedValue  `json:"blackboard,omitempty"`
-	Conditions    map[string]bool         `json:"conditions,omitempty"`
-	Objects       []TaggedValue           `json:"objects,omitempty"`
-	Hidden        []TaggedValue           `json:"hidden,omitempty"`
+	SchemaVersion     uint16                  `json:"schema_version"`
+	ID                string                  `json:"id"`
+	ParentID          string                  `json:"parent_id,omitempty"`
+	SpawnCallID       string                  `json:"spawn_call_id,omitempty"`
+	Deployment        DeploymentRef           `json:"deployment"`
+	StartedAt         time.Time               `json:"started_at"`
+	Status            string                  `json:"status"`
+	Suspension        *interaction.Suspension `json:"suspension,omitempty"`
+	GoalName          string                  `json:"goal_name,omitempty"`
+	Failure           *ProcessFailure         `json:"failure,omitempty"`
+	OwnUsage          Usage                   `json:"own_usage"`
+	RetiredChildUsage Usage                   `json:"retired_child_usage"`
+	Blackboard        map[string]TaggedValue  `json:"blackboard,omitempty"`
+	Conditions        map[string]bool         `json:"conditions,omitempty"`
+	Objects           []TaggedValue           `json:"objects,omitempty"`
+	Hidden            []TaggedValue           `json:"hidden,omitempty"`
 }
 
 func (s ProcessSnapshot) wire() processSnapshotWire {
@@ -107,7 +114,7 @@ func (s ProcessSnapshot) wire() processSnapshotWire {
 		ID:            s.ID, ParentID: s.ParentID, SpawnCallID: s.SpawnCallID,
 		Deployment: s.Deployment, StartedAt: s.StartedAt,
 		Status: s.Status.String(), Suspension: s.Suspension, GoalName: s.GoalName,
-		Failure: s.Failure, OwnUsage: s.OwnUsage,
+		Failure: s.Failure, OwnUsage: s.OwnUsage, RetiredChildUsage: s.RetiredChildUsage,
 		Blackboard: s.Blackboard, Conditions: s.Conditions, Objects: s.Objects, Hidden: s.Hidden,
 	}
 }
@@ -122,7 +129,7 @@ func (w processSnapshotWire) snapshot() (ProcessSnapshot, error) {
 		ID:            w.ID, ParentID: w.ParentID, SpawnCallID: w.SpawnCallID,
 		Deployment: w.Deployment, StartedAt: w.StartedAt,
 		Status: status, Suspension: w.Suspension, GoalName: w.GoalName,
-		Failure: w.Failure, OwnUsage: w.OwnUsage,
+		Failure: w.Failure, OwnUsage: w.OwnUsage, RetiredChildUsage: w.RetiredChildUsage,
 		Blackboard: w.Blackboard, Conditions: w.Conditions, Objects: w.Objects, Hidden: w.Hidden,
 	}, nil
 }
@@ -183,6 +190,9 @@ func (s ProcessSnapshot) Validate() error {
 	}
 	if err := s.OwnUsage.Validate(); err != nil {
 		return fmt.Errorf("%w: own_usage: %w", ErrInvalidSnapshot, err)
+	}
+	if err := s.RetiredChildUsage.Validate(); err != nil {
+		return fmt.Errorf("%w: retired_child_usage: %w", ErrInvalidSnapshot, err)
 	}
 	for key, value := range s.Blackboard {
 		if strings.TrimSpace(key) == "" {
@@ -347,16 +357,18 @@ func (t ProcessSnapshotTree) Root() (ProcessSnapshot, bool) {
 func (t ProcessSnapshotTree) Usage() (Usage, error) {
 	var total Usage
 	for _, snapshot := range t.Snapshots {
-		if snapshot.OwnUsage.Cost > math.MaxFloat64-total.Cost ||
-			snapshot.OwnUsage.Tokens > math.MaxInt64-total.Tokens ||
-			snapshot.OwnUsage.ModelCalls > math.MaxInt-total.ModelCalls ||
-			snapshot.OwnUsage.Actions > math.MaxInt-total.Actions {
-			return Usage{}, fmt.Errorf("%w: process tree usage exceeds runtime capacity", ErrInvalidSnapshot)
+		for _, usage := range [...]Usage{snapshot.OwnUsage, snapshot.RetiredChildUsage} {
+			if usage.Cost > math.MaxFloat64-total.Cost ||
+				usage.Tokens > math.MaxInt64-total.Tokens ||
+				usage.ModelCalls > math.MaxInt-total.ModelCalls ||
+				usage.Actions > math.MaxInt-total.Actions {
+				return Usage{}, fmt.Errorf("%w: process tree usage exceeds runtime capacity", ErrInvalidSnapshot)
+			}
+			total.Cost += usage.Cost
+			total.Tokens += usage.Tokens
+			total.ModelCalls += usage.ModelCalls
+			total.Actions += usage.Actions
 		}
-		total.Cost += snapshot.OwnUsage.Cost
-		total.Tokens += snapshot.OwnUsage.Tokens
-		total.ModelCalls += snapshot.OwnUsage.ModelCalls
-		total.Actions += snapshot.OwnUsage.Actions
 	}
 	return total, nil
 }

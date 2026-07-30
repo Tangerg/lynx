@@ -12,7 +12,8 @@ var ErrInvalidUsage = errors.New("usage: invalid")
 // Usage is one resource-consumption delta, or an aggregate of such deltas.
 // Cost is an opaque non-negative unit chosen consistently by the host. The
 // remaining fields are framework execution counters. A ProcessSnapshot stores
-// direct usage; ProcessView reports the aggregate for its subtree.
+// direct usage separately from historical detached-child usage; ProcessView
+// reports their aggregate together with live descendants.
 type Usage struct {
 	Cost       float64 `json:"cost"`
 	Tokens     int64   `json:"tokens"`

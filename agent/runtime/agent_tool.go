@@ -25,11 +25,18 @@ func (t *agentTool) Definition() chat.ToolDefinition { return t.definition.Clone
 
 // ConcurrencyKey declares AgentTool calls independent: each invocation owns an
 // isolated child process. ToolLoop still commits their results in model order.
-// The tool loop reads this declaration by type assertion; without the
-// assertion a drifted signature would silently serialize every child run.
-var _ toolloop.ConcurrentTool = (*agentTool)(nil)
+// AgentTool also opts into inputless continuation because Runtime, not an
+// external response, may make a parked child checkpoint ready. The tool loop
+// reads both declarations by capability assertion; compile-time assertions
+// keep signature drift from silently changing either policy.
+var (
+	_ toolloop.ConcurrentTool            = (*agentTool)(nil)
+	_ toolloop.InputlessContinuationTool = (*agentTool)(nil)
+)
 
 func (t *agentTool) ConcurrencyKey(string) (string, bool) { return "", true }
+
+func (t *agentTool) CanContinueWithoutInput() bool { return true }
 
 func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) {
 	agentName := t.deployment.agent.Name()
@@ -53,13 +60,24 @@ func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) 
 	if relationErr != nil {
 		return "", fmt.Errorf("agent tool %q: %w", agentName, relationErr)
 	}
+	if canceled := checkpoint.canceledForCall(toolCallID); canceled != nil {
+		if !canceled.matchesToolCall(toolCallID, t.definition.Name, arguments, t.deployment.Ref()) {
+			return "", fmt.Errorf("%w: process %q canceled nested tool %q, not %q", interaction.ErrSuspensionConflict, parent.ID(), canceled.ToolName, t.definition.Name)
+		}
+		parent.state.clearContinuableSuspension()
+		return "", fmt.Errorf("agent tool %q: %w", agentName, ErrChildProcessCanceled)
+	}
 	relation := checkpoint.relationForCall(toolCallID)
 	if relation != nil {
 		if !relation.matchesToolCall(toolCallID, t.definition.Name, arguments, t.deployment.Ref()) {
 			return "", fmt.Errorf("%w: process %q is resuming nested tool %q, not %q", interaction.ErrSuspensionConflict, parent.ID(), relation.ToolName, t.definition.Name)
 		}
-		if suspension := parent.Suspension(); suspension == nil || !suspension.Responded() {
-			return "", fmt.Errorf("%w: nested parent suspension has no response", interaction.ErrSuspensionStale)
+		continuable, err := suspensionContinuable(parent.Suspension())
+		if err != nil {
+			return "", err
+		}
+		if !continuable {
+			return "", fmt.Errorf("%w: nested parent suspension is not continuable", interaction.ErrSuspensionStale)
 		}
 		if err := parent.claimNestedChild(toolCallID, relation.ChildID); err != nil {
 			return "", err
@@ -112,8 +130,12 @@ func (t *agentTool) continueNestedChild(
 	}
 	if child.Status() == core.StatusWaiting {
 		suspension := child.Suspension()
-		if suspension == nil || !suspension.Responded() {
-			return "", fmt.Errorf("%w: nested child %q has no answered suspension", interaction.ErrSuspensionStale, child.ID())
+		continuable, err := suspensionContinuable(suspension)
+		if err != nil {
+			return "", fmt.Errorf("runtime: inspect nested child %q continuation: %w", child.ID(), err)
+		}
+		if !continuable {
+			return "", fmt.Errorf("%w: nested child %q is not continuable", interaction.ErrSuspensionStale, child.ID())
 		}
 		if err := t.engine.Continue(ctx, child.ID()); err != nil {
 			cleanupErr := t.abortNestedChild(ctx, child)
@@ -133,7 +155,7 @@ func (t *agentTool) continueNestedChild(
 	// The original parent suspension is now consumed. Managed interactions
 	// also clear it when the ToolResult boundary commits; direct AgentTool
 	// calls need this eager clear before their typed action can complete.
-	parent.state.clearRespondedSuspension()
+	parent.state.clearContinuableSuspension()
 	output, resultErr := t.encodeResult(child)
 	return output, resultErr
 }

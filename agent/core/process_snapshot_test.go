@@ -159,6 +159,11 @@ func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 	if err := invalidUsage.Validate(); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("invalid usage error = %v", err)
 	}
+	invalidRetiredUsage := validSnapshot("invalid-retired-usage")
+	invalidRetiredUsage.RetiredChildUsage.ModelCalls = -1
+	if err := invalidRetiredUsage.Validate(); !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("invalid retired child usage error = %v", err)
+	}
 	failedWithoutCause := validSnapshot("failed-without-cause")
 	failedWithoutCause.Status = core.StatusFailed
 	if err := failedWithoutCause.Validate(); !errors.Is(err, core.ErrInvalidSnapshot) {
@@ -269,6 +274,7 @@ func TestProcessSnapshotTreeRejectsAggregateUsageOverflow(t *testing.T) {
 func TestProcessSnapshotTreeReportsRootAndUsage(t *testing.T) {
 	root := validSnapshot("root")
 	root.OwnUsage = core.Usage{Cost: 1.5, Tokens: 10, ModelCalls: 2, Actions: 3}
+	root.RetiredChildUsage = core.Usage{Cost: 0.25, Tokens: 2, ModelCalls: 1, Actions: 1}
 	child := validSnapshot("child")
 	child.ParentID = root.ID
 	child.OwnUsage = core.Usage{Cost: 0.5, Tokens: 4, ModelCalls: 1, Actions: 1}
@@ -285,8 +291,8 @@ func TestProcessSnapshotTreeReportsRootAndUsage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Usage: %v", err)
 	}
-	if usage != (core.Usage{Cost: 2, Tokens: 14, ModelCalls: 3, Actions: 4}) {
-		t.Fatalf("Usage() = %+v, want the sum of both processes", usage)
+	if usage != (core.Usage{Cost: 2.25, Tokens: 16, ModelCalls: 4, Actions: 5}) {
+		t.Fatalf("Usage() = %+v, want direct plus retired-child usage", usage)
 	}
 
 	if _, ok := (core.ProcessSnapshotTree{RootID: "absent", Snapshots: []core.ProcessSnapshot{child}}).Root(); ok {

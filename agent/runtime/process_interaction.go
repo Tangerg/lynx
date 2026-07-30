@@ -109,7 +109,7 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 			if resuming {
 				// The pending tool has completed. Remove its checkpoint so a later
 				// continuation cannot execute the completed call again.
-				p.state.clearRespondedSuspension()
+				p.state.clearContinuableSuspension()
 				resuming = false
 			}
 		case toolloop.EventPause:
@@ -125,7 +125,7 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 			return interaction.Result{}, err
 		}
 		if boundary.Final {
-			p.state.clearRespondedSuspension()
+			p.state.clearContinuableSuspension()
 			return interaction.Result{Final: &frameworkEvent}, nil
 		}
 	}
@@ -184,14 +184,24 @@ func (p *Process) resolveInteractionSequence(ctx context.Context, runner *toollo
 	if checkpoint == nil || checkpoint.Kind != suspensionCheckpointInteraction {
 		return runner.Run(ctx, input.Request, input.Tools), false, nil
 	}
-	if !suspension.Responded() {
-		return nil, false, fmt.Errorf("%w: tool suspension %q has no response", interaction.ErrSuspensionStale, suspension.ID)
-	}
 	if checkpoint.Owner != owner {
 		return nil, false, fmt.Errorf("%w: suspension owner %q does not match interaction %q", interaction.ErrSuspensionStale, checkpoint.Owner, owner)
 	}
 	if checkpoint.Deployment != p.Deployment() {
 		return nil, false, fmt.Errorf("%w: suspension deployment does not match process deployment", interaction.ErrSuspensionStale)
+	}
+	_, awaitingInput, err := checkpoint.Checkpoint.AwaitingInput()
+	if err != nil {
+		return nil, false, fmt.Errorf("runtime: inspect tool-loop continuation: %w", err)
+	}
+	if !awaitingInput {
+		return runner.Continue(ctx, checkpoint.Checkpoint, input.Tools), true, nil
+	}
+	if checkpoint.Ready {
+		return runner.ContinuePaused(ctx, checkpoint.Checkpoint, input.Tools), true, nil
+	}
+	if !suspension.Responded() {
+		return nil, false, fmt.Errorf("%w: tool suspension %q has no response", interaction.ErrSuspensionStale, suspension.ID)
 	}
 	resume := toolloop.Resume{ID: suspension.ID, Input: suspension.Response}
 	return runner.Resume(ctx, checkpoint.Checkpoint, input.Tools, resume), true, nil

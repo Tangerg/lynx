@@ -22,7 +22,7 @@ func TestSuspensionCheckpointNamesADeploymentOnlyWhenItHasOne(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, absent := range []string{"deployment", "owner", "checkpoint"} {
+	for _, absent := range []string{"deployment", "owner", "checkpoint", "ready", "canceled_child"} {
 		if _, named := checkpointKeys(t, nestedChild)[absent]; named {
 			t.Errorf("nested child checkpoint names %q: %s", absent, nestedChild)
 		}
@@ -41,6 +41,34 @@ func TestSuspensionCheckpointNamesADeploymentOnlyWhenItHasOne(t *testing.T) {
 	}
 	if _, named := checkpointKeys(t, withDeployment)["deployment"]; !named {
 		t.Fatalf("interaction checkpoint dropped its deployment: %s", withDeployment)
+	}
+}
+
+func TestSuspensionCheckpointCanceledChildHasNoLiveRelation(t *testing.T) {
+	canceled, err := encodeSuspensionCheckpoint(suspensionCheckpoint{
+		SchemaVersion: suspensionCheckpointSchemaVersion,
+		Kind:          suspensionCheckpointChildCanceled,
+		CanceledChild: testNestedChildRelation("call-1", "child-1"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := checkpointKeys(t, canceled)
+	if _, ok := keys["canceled_child"]; !ok {
+		t.Fatalf("canceled checkpoint omitted historical child identity: %s", canceled)
+	}
+	for _, absent := range []string{"deployment", "owner", "checkpoint", "nested_children", "ready"} {
+		if _, named := keys[absent]; named {
+			t.Errorf("canceled checkpoint names live field %q: %s", absent, canceled)
+		}
+	}
+}
+
+func TestSuspensionCheckpointRejectsPreviousSchema(t *testing.T) {
+	if _, err := parseSuspensionCheckpoint(json.RawMessage(
+		`{"schema_version":2,"kind":"nested_child"}`,
+	)); err == nil {
+		t.Fatal("schema version 2 checkpoint was accepted")
 	}
 }
 

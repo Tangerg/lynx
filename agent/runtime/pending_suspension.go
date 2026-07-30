@@ -120,6 +120,9 @@ func (c *pendingSuspensionCollector) collect(processID string) error {
 		if err := c.collect(checkpoint.NestedChildren[0].ChildID); err != nil {
 			return err
 		}
+	case suspensionCheckpointChildCanceled:
+		// The canceled relation is historical correlation, not live ownership
+		// and not an external input boundary.
 	case suspensionCheckpointInteraction:
 		if err := c.collectInteraction(processID, snapshot, checkpoint); err != nil {
 			return err
@@ -162,7 +165,8 @@ func (c *pendingSuspensionCollector) collectInteraction(
 		// A synchronous Resume may record the response without starting the
 		// continuation. Only the currently exposed call can be in that state;
 		// later paused calls are still unanswered.
-		if index == checkpoint.Checkpoint.NextResult && snapshot.Suspension.Responded() {
+		if index == checkpoint.Checkpoint.NextResult &&
+			(snapshot.Suspension.Responded() || checkpoint.Ready) {
 			continue
 		}
 		c.append(processID, state.Pending.ID, state.Pending.Prompt, state.Pending.ResumeSchema)
@@ -194,4 +198,20 @@ func (c *pendingSuspensionCollector) append(
 		Prompt:       bytes.Clone(prompt),
 		ResumeSchema: bytes.Clone(resumeSchema),
 	})
+}
+
+func clonePendingSuspensions(values []PendingSuspension) []PendingSuspension {
+	if values == nil {
+		return nil
+	}
+	cloned := make([]PendingSuspension, len(values))
+	for index, value := range values {
+		cloned[index] = PendingSuspension{
+			ProcessID:    value.ProcessID,
+			SuspensionID: value.SuspensionID,
+			Prompt:       bytes.Clone(value.Prompt),
+			ResumeSchema: bytes.Clone(value.ResumeSchema),
+		}
+	}
+	return cloned
 }

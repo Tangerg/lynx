@@ -15,9 +15,10 @@ import (
 type suspensionCheckpointKind string
 
 const (
-	suspensionCheckpointSchemaVersion uint16                   = 2
+	suspensionCheckpointSchemaVersion uint16                   = 3
 	suspensionCheckpointInteraction   suspensionCheckpointKind = "managed_interaction"
 	suspensionCheckpointNestedChild   suspensionCheckpointKind = "nested_child"
+	suspensionCheckpointChildCanceled suspensionCheckpointKind = "nested_child_canceled"
 )
 
 // suspensionCheckpoint is the private continuation state carried by framework
@@ -31,6 +32,8 @@ type suspensionCheckpoint struct {
 	Deployment     core.DeploymentRef       `json:"deployment,omitzero"`
 	Checkpoint     *toolloop.Checkpoint     `json:"checkpoint,omitempty"`
 	NestedChildren []*nestedChildRelation   `json:"nested_children,omitempty"`
+	Ready          bool                     `json:"ready,omitempty"`
+	CanceledChild  *nestedChildRelation     `json:"canceled_child,omitempty"`
 }
 
 func (c *suspensionCheckpoint) validate() error {
@@ -42,21 +45,34 @@ func (c *suspensionCheckpoint) validate() error {
 	}
 	switch c.Kind {
 	case suspensionCheckpointInteraction:
-		if c.Owner == "" || c.Checkpoint == nil {
+		if c.Owner == "" || c.Checkpoint == nil || c.CanceledChild != nil {
 			return errors.New("runtime: invalid managed interaction checkpoint envelope")
 		}
 		if err := c.Deployment.Validate(); err != nil {
 			return fmt.Errorf("runtime: interaction checkpoint deployment: %w", err)
 		}
-		if _, err := validateCheckpointNestedChildren(c.Checkpoint, c.NestedChildren); err != nil {
+		active, err := validateCheckpointNestedChildren(c.Checkpoint, c.NestedChildren)
+		if err != nil {
 			return err
 		}
+		if c.Ready && active == nil {
+			return errors.New("runtime: ready managed interaction has no active nested child")
+		}
 	case suspensionCheckpointNestedChild:
-		if c.Owner != "" || c.Checkpoint != nil || c.Deployment != (core.DeploymentRef{}) {
+		if c.Owner != "" || c.Checkpoint != nil || c.Deployment != (core.DeploymentRef{}) ||
+			c.CanceledChild != nil {
 			return errors.New("runtime: direct nested child checkpoint contains interaction state")
 		}
 		if len(c.NestedChildren) != 1 {
 			return errors.New("runtime: direct nested child checkpoint must contain exactly one child relation")
+		}
+	case suspensionCheckpointChildCanceled:
+		if c.Owner != "" || c.Checkpoint != nil || c.Deployment != (core.DeploymentRef{}) ||
+			len(c.NestedChildren) != 0 || c.Ready {
+			return errors.New("runtime: canceled nested child checkpoint contains live continuation state")
+		}
+		if err := c.CanceledChild.validate(); err != nil {
+			return fmt.Errorf("runtime: canceled nested child: %w", err)
 		}
 	default:
 		return fmt.Errorf("runtime: unknown suspension checkpoint kind %q", c.Kind)
@@ -173,6 +189,8 @@ func parseSuspensionCheckpoint(state json.RawMessage) (*suspensionCheckpoint, er
 type nestedChildCheckpoint struct {
 	relations []*nestedChildRelation
 	active    *nestedChildRelation
+	canceled  *nestedChildRelation
+	ready     bool
 }
 
 func (c nestedChildCheckpoint) relationForCall(toolCallID string) *nestedChildRelation {
@@ -180,6 +198,13 @@ func (c nestedChildCheckpoint) relationForCall(toolCallID string) *nestedChildRe
 		if relation.ToolCallID == toolCallID {
 			return relation.clone()
 		}
+	}
+	return nil
+}
+
+func (c nestedChildCheckpoint) canceledForCall(toolCallID string) *nestedChildRelation {
+	if c.canceled != nil && c.canceled.ToolCallID == toolCallID {
+		return c.canceled.clone()
 	}
 	return nil
 }
@@ -195,25 +220,75 @@ func nestedChildrenFromSuspension(suspension *interaction.Suspension) (nestedChi
 	if checkpoint == nil {
 		return nestedChildCheckpoint{}, nil
 	}
+	if checkpoint.Ready && suspension.Responded() {
+		return nestedChildCheckpoint{}, fmt.Errorf("%w: framework-ready suspension carries an external response", interaction.ErrSuspensionStale)
+	}
 
 	result := nestedChildCheckpoint{
 		relations: cloneNestedChildRelations(checkpoint.NestedChildren),
+		canceled:  checkpoint.CanceledChild.clone(),
+		ready:     checkpoint.Ready,
 	}
 	switch checkpoint.Kind {
 	case suspensionCheckpointNestedChild:
 		result.active = result.relations[0]
+	case suspensionCheckpointChildCanceled:
+		return result, nil
 	case suspensionCheckpointInteraction:
 		result.active, err = validateCheckpointNestedChildren(checkpoint.Checkpoint, result.relations)
 		if err != nil {
 			return nestedChildCheckpoint{}, err
 		}
-		pending := checkpoint.Checkpoint.CallStates[checkpoint.Checkpoint.NextResult].Pending
-		if suspension.ID != checkpoint.Checkpoint.ID ||
-			suspension.ID != pending.ID ||
-			!bytes.Equal(suspension.Prompt, pending.Prompt) ||
-			!bytes.Equal(suspension.ResumeSchema, pending.ResumeSchema) {
+		pending, awaitingInput, err := checkpoint.Checkpoint.AwaitingInput()
+		if err != nil {
+			return nestedChildCheckpoint{}, fmt.Errorf("runtime: interaction checkpoint: %w", err)
+		}
+		if suspension.ID != checkpoint.Checkpoint.ID {
 			return nestedChildCheckpoint{}, fmt.Errorf("%w: tool-loop checkpoint does not match parent suspension", interaction.ErrSuspensionStale)
+		}
+		if awaitingInput &&
+			(suspension.ID != pending.ID ||
+				!bytes.Equal(suspension.Prompt, pending.Prompt) ||
+				!bytes.Equal(suspension.ResumeSchema, pending.ResumeSchema)) {
+			return nestedChildCheckpoint{}, fmt.Errorf("%w: tool-loop checkpoint does not match parent suspension", interaction.ErrSuspensionStale)
+		}
+		if !awaitingInput && suspension.Responded() {
+			return nestedChildCheckpoint{}, fmt.Errorf("%w: ready tool-loop checkpoint carries an external response", interaction.ErrSuspensionStale)
 		}
 	}
 	return result, nil
+}
+
+// suspensionContinuable reports whether runtime-owned state can re-enter this
+// suspension without accepting a new external response. A normal answered
+// suspension remains continuable; framework readiness covers a host-settled
+// tool result and a live nested child whose own checkpoint is ready.
+func suspensionContinuable(suspension *interaction.Suspension) (bool, error) {
+	if suspension == nil {
+		return false, nil
+	}
+	if suspension.Responded() {
+		return true, nil
+	}
+	checkpoint, err := decodeSuspensionCheckpoint(suspension.FrameworkState)
+	if err != nil {
+		return false, err
+	}
+	if checkpoint == nil {
+		return false, nil
+	}
+	switch checkpoint.Kind {
+	case suspensionCheckpointChildCanceled:
+		return true, nil
+	case suspensionCheckpointNestedChild:
+		return checkpoint.Ready, nil
+	case suspensionCheckpointInteraction:
+		_, awaitingInput, err := checkpoint.Checkpoint.AwaitingInput()
+		if err != nil {
+			return false, fmt.Errorf("runtime: interaction checkpoint: %w", err)
+		}
+		return !awaitingInput || checkpoint.Ready, nil
+	default:
+		return false, fmt.Errorf("runtime: unknown suspension checkpoint kind %q", checkpoint.Kind)
+	}
 }

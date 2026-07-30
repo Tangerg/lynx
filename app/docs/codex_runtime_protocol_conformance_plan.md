@@ -1628,6 +1628,10 @@ B1.4 的四个内部原子切片继续严格按事实依赖实施：
 | B1.4d | `TODO` | race / restart / query conformance | root cancel vs child cancel、child terminal vs cancel、resume vs child cancel、重复 cancel、teardown failure、SQLite restart 全矩阵；同步返回 exact child + root committed snapshot |
 
 B1.4c 必须复用 B1.4a 冻结的完整 plan 与 root admission，不重新查询后拼装 subtree。
+Agent prerequisite 已完成：`PrepareWaitingSubtreeCancellation` 在完整树 ownership 下返回
+replacement snapshot、surviving Pending 与 exact canceled process IDs；`Abort` 零副作用，
+`Commit` 应用预验证 live mutation。App 下一步只负责编排
+`prepare → application-owned transaction → commit/abort`，不得解析或改写 FrameworkState。
 它先定义一份 application-owned waiting transformation：target subtree terminal、
 父 spawning Item、剩余 Pending/continuations、surviving Run 状态与必要的新 Segment
 identity 都必须在进入 persistence 前确定；executor checkpoint/subtree ownership

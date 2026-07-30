@@ -3,7 +3,7 @@
     "message": "provider unavailable"
   },
   "process_snapshot": {
-    "schema_version": 14,
+    "schema_version": 15,
     "id": "process-1",
     "parent_id": "process-root",
     "spawn_call_id": "call-delegate-1",
@@ -34,6 +34,12 @@
       "tokens": 321,
       "model_calls": 2,
       "actions": 1
+    },
+    "retired_child_usage": {
+      "cost": 0,
+      "tokens": 0,
+      "model_calls": 0,
+      "actions": 0
     },
     "blackboard": {
       "answer": {

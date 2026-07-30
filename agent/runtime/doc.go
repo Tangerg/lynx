@@ -22,6 +22,7 @@
 //	  → ResumeAsync(admissionCtx, runCtx, ...)          // atomically reply + own a Segment
 //	  → PendingSuspensions                              // direct external waits across the tree
 //	  → SnapshotTree / RestoreTree                      // portable complete-tree state, no I/O
+//	  → PrepareWaitingSubtreeCancellation               // host-coordinated durable child cancel
 //	  → Kill / RemoveTree
 //
 // HITL is a first-class state: when an action surfaces a suspension from
@@ -34,7 +35,11 @@
 // boundaries without exposing framework checkpoints. A synchronous AgentTool
 // child that waits promotes the same suspension to its parent and retains the
 // exact child/tool-loop checkpoint, so Resume/Continue finishes the original
-// tool call without replaying completed siblings. [Engine.RunChildWithState] and [Engine.RunChild]
+// tool call without replaying completed siblings.
+// [Engine.PrepareWaitingSubtreeCancellation] freezes that complete tree while
+// a host atomically persists cancellation, then Commit applies the prevalidated
+// runtime mutation and Abort leaves live state unchanged.
+// [Engine.RunChildWithState] and [Engine.RunChild]
 // bind an exact Deployment with explicit inheritance
 // semantics, join the parent's budget tree, and receive
 // its process-scope [SubtreeEventListener] extensions. Other process extensions,

@@ -150,6 +150,8 @@ tool 或业务写入应由对应实现结合真实副作用语义处理；框架
 - `Resume`：校验并记录 Suspension 响应，不暗中启动执行；
 - `ResumeAsync`：在同一个进程树临界区记录响应并取得 continuation 所有权，成功后返回唯一 `Segment`；
 - `PendingSuspensions`：在同一稳定快照上列出整棵树中真正等待外部输入的边界，并标明直接发起它的 Process；
+- `PrepareWaitingSubtreeCancellation`：冻结完整 Waiting tree，预计算子树取消后的 checkpoint、
+  snapshot 与 Pending 集合，由 Host 在 durable transaction 成功后 `Commit`，失败时 `Abort`；
 - `Kill`：终止一棵进程子树；
 - `Process`、`Processes`：读取当前 registry 快照；
 - `Engine.SnapshotTree`：在稳定执行边界捕获完整根进程树；
@@ -280,7 +282,8 @@ DeploymentRef 不匹配或 checkpoint correlation 错误都会 fail closed。普
 channel、client 等会直接返回错误。运行时 handle 和 client 是能力而非 planner state，应通过
 `core.Dependencies` 或闭包注入，不进入 Blackboard。
 
-当前 ProcessSnapshot schema 为 v10，Suspension schema 为 v3。Waiting snapshot 同时允许
+当前 ProcessSnapshot schema 为 v15，Suspension schema 为 v3，ToolLoop checkpoint 为 v4，
+Runtime 私有 suspension checkpoint envelope 为 v3。Waiting snapshot 同时允许
 “尚未回答”和“已回答、尚未 Continue”两种可恢复阶段：前者恢复后调用 `Resume`，后者恢复
 后直接 `Continue`。`OwnUsage` 只记录该 Process 的直接通用资源计数：
 Host 定义单位的 opaque cost、tokens、model-call 与 action count。Action 的名称、耗时和状态
@@ -291,7 +294,9 @@ event 建立，并在自己的事务边界持久化。任意 live error 的 sent
 链不具备通用 wire 表达，因此恢复后的 `Process.Failure()` 是 message-only
 `*core.ProcessFailure`；需要识别时使用 `errors.As`，不要假定跨进程 `errors.Is`。
 Child 各自在 snapshot 中携带自己的 `OwnUsage`，Restore 通过父子关系重建聚合；读取完整
-委派树用量时使用 `Process.Usage()`。
+委派树用量时使用 `Process.Usage()`。被 committed host operation detach 的 child subtree
+不再拥有 portable snapshot，其历史消耗进入直接父进程的 `RetiredChildUsage`；它不会冒充
+父进程直接消耗，但仍参与 tree usage、预算恢复与应用账本对账。
 
 `ProcessSnapshotTree` 只是完整进程树的值协议。`Engine.SnapshotTree` 要求树内进程均处于
 可捕获边界，并一次返回 root 与全部已注册 descendants；`Engine.ValidateRestoreTree` 校验树
@@ -304,6 +309,23 @@ call 保持模型调用顺序，nested child 占据其父 tool call 的位置，
 Process ID 排序。返回值只含 Process 归属、Suspension ID、Prompt 与 ResumeSchema；私有
 checkpoint 不跨出 Runtime。Host 应把整组响应作为一个产品事务接收，再按该顺序驱动
 continuation，不能把父进程为传播控制流而持有的 Suspension 副本误当成第二个用户问题。
+
+取消 Waiting delegated child 时，Host 不得先 `Kill` 再自行编辑 snapshot。
+`Engine.PrepareWaitingSubtreeCancellation(rootID, targetID)` 会在完整树 mutation ownership 下：
+
+- 精确移除 target subtree 的 live relation 与 portable snapshot；
+- 将 canceled tool call 结算为确定性的 error result，并按 tool-call 顺序保留其发布位置；
+- 把 target subtree 的历史总 usage 归入直接父进程 `RetiredChildUsage`，保证归因、完整树
+  usage 与共享预算同时守恒；
+- 将 active ancestor 标记为 framework-ready，而不是写入或伪造外部 Suspension Response；
+- 返回 ownership-isolated 的 replacement tree、surviving Pending 与 exact canceled IDs。
+
+Prepare 不执行用户代码、不发布事件、不写存储，也不改变 live state。它会独占该进程树，
+因此调用方必须在 durable transaction 失败时 `Abort`；transaction 成功后调用 `Commit`，
+再由 Runtime 应用已验证的内存变换、detach canceled subtree 并发布 lifecycle event。
+`Commit` 之后仍有 Pending 时进程树保持 Waiting；Host 需要驱动时先调用 `Continue` 消费
+framework-ready 边界，待 Runtime 暴露下一个真实输入边界后再 `Resume`。若 Pending 为空，
+直接 `Continue`。对 framework-ready boundary 调用 `Resume` 会以 stale 明确拒绝。
 
 Host 自己定义消费侧存储接口，并决定：
 
@@ -415,6 +437,10 @@ child），应使用 `Checkpoint.CompletePausedCall` 生成新 checkpoint。它�
 不执行工具也不推进可观察顺序：若结算的是当前边界，后续用 `Runner.Continue`；若结算的是
 尚未轮到的 sibling，当前 `AwaitingInput` 保持不变，普通 `Runner.Resume` 会先消费当前回答，
 再按模型顺序发布已结算 sibling。checkpoint v4 是唯一接受的 shape，不保留 v3 reader。
+若 paused tool 自己的 durable dependency 已在 ToolLoop 外变为可继续状态，Runtime 使用
+`Runner.ContinuePaused` 重新进入该 tool；该路径不携带外部输入，也不发布 `Resume` event。
+Runner 只允许显式实现 `InputlessContinuationTool` 的 tool 走此路径；普通 HITL tool 会在
+调用前被拒绝，通用 Host 不能借此绕过仍在等待用户输入的 tool。
 
 ## 10. API 与 wire 治理
 

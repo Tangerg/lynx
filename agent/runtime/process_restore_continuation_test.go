@@ -353,10 +353,10 @@ func TestUnrestorableSnapshotIsAlwaysClassifiable(t *testing.T) {
 			s.Suspension.FrameworkState = json.RawMessage(`{"schema_version":9999}`)
 		},
 		"framework state has an unknown field": func(s *core.ProcessSnapshot) {
-			s.Suspension.FrameworkState = json.RawMessage(`{"schema_version":2,"invented":true}`)
+			s.Suspension.FrameworkState = json.RawMessage(`{"schema_version":3,"invented":true}`)
 		},
 		"framework state has a trailing value": func(s *core.ProcessSnapshot) {
-			s.Suspension.FrameworkState = json.RawMessage(`{"schema_version":2,"kind":"interaction"} {}`)
+			s.Suspension.FrameworkState = json.RawMessage(`{"schema_version":3,"kind":"managed_interaction"} {}`)
 		},
 	}
 	for name, corruption := range corrupt {

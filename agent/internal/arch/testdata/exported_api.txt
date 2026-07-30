@@ -60,7 +60,7 @@ core: const ( StatusNotStarted ProcessStatus = iota StatusRunning StatusComplete
 core: const ( StuckStop StuckDecision = iota StuckReplan )
 core: const ( TerminationScopeAgent TerminationScope = iota TerminationScopeAction )
 core: const ( Unknown Truth = 0 True Truth = 1 False Truth = 2 )
-core: const ProcessSnapshotSchemaVersion uint16 = 14
+core: const ProcessSnapshotSchemaVersion uint16 = 15
 core: const UUIDGeneratorName = "uuid"
 core: func (*UUIDGenerator) Next() string
 core: func (a *Agent) Actions() []Action
@@ -255,7 +255,7 @@ core: type ProcessContextConfig struct { Process ProcessView Control ProcessCont
 core: type ProcessControl interface { TerminateAgent(reason string) TerminateAction(reason string) TerminateToolCall() Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error) }
 core: type ProcessFailure struct { Message string `json:"message"` }
 core: type ProcessOptions struct { Blackboard Blackboard ChildOptions ChildOptionsFunc Budget Budget Dependencies *Dependencies Extensions []Extension ChatMiddleware *ChatMiddleware MaxToolRounds int }
-core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` SpawnCallID string `json:"spawn_call_id,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` Failure *ProcessFailure `json:"failure,omitempty"` OwnUsage Usage `json:"own_usage"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` Hidden []TaggedValue `json:"hidden,omitempty"` }
+core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` SpawnCallID string `json:"spawn_call_id,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` Failure *ProcessFailure `json:"failure,omitempty"` OwnUsage Usage `json:"own_usage"` RetiredChildUsage Usage `json:"retired_child_usage"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` Hidden []TaggedValue `json:"hidden,omitempty"` }
 core: type ProcessSnapshotTree struct { RootID string Snapshots []ProcessSnapshot }
 core: type ProcessStatus int8
 core: type ProcessView interface { ID() string ParentID() string SpawnCallID() string Deployment() DeploymentRef StartedAt() time.Time Status() ProcessStatus Goal() GoalDescriptor Blackboard() BlackboardReader Failure() error Suspension() *interaction.Suspension WorldState() WorldState Usage() Usage }
@@ -482,6 +482,7 @@ runtime: func (e *Engine) Kill(ctx context.Context, id string) error
 runtime: func (e *Engine) KillChildren(ctx context.Context, parentID string) ([]string, error)
 runtime: func (e *Engine) NewBlackboard(agent *core.Agent) (core.Blackboard, error)
 runtime: func (e *Engine) PendingSuspensions(ctx context.Context, processID string) ([]PendingSuspension, error)
+runtime: func (e *Engine) PrepareWaitingSubtreeCancellation( ctx context.Context, rootProcessID string, targetProcessID string, ) (*PreparedWaitingSubtreeCancellation, error)
 runtime: func (e *Engine) Process(id string) (*Process, bool)
 runtime: func (e *Engine) Processes() []*Process
 runtime: func (e *Engine) RemoveTree(ctx context.Context, processID string) error
@@ -497,6 +498,11 @@ runtime: func (e *Engine) SnapshotTree(ctx context.Context, processID string) (c
 runtime: func (e *Engine) Start( ctx context.Context, agent *core.Agent, bindings core.Bindings, options core.ProcessOptions, ) (*Segment, error)
 runtime: func (e *Engine) Undeploy(ctx context.Context, name string) error
 runtime: func (e *Engine) ValidateRestoreTree(tree core.ProcessSnapshotTree) error
+runtime: func (p *PreparedWaitingSubtreeCancellation) Abort()
+runtime: func (p *PreparedWaitingSubtreeCancellation) CanceledProcessIDs() []string
+runtime: func (p *PreparedWaitingSubtreeCancellation) Commit(ctx context.Context) error
+runtime: func (p *PreparedWaitingSubtreeCancellation) PendingSuspensions() []PendingSuspension
+runtime: func (p *PreparedWaitingSubtreeCancellation) SnapshotTree() core.ProcessSnapshotTree
 runtime: func (p *Process) Blackboard() core.BlackboardReader
 runtime: func (p *Process) Deployment() core.DeploymentRef
 runtime: func (p *Process) Failure() error
@@ -527,11 +533,12 @@ runtime: type DeploymentConflictError struct { Active core.DeploymentRef Candida
 runtime: type Engine struct { }
 runtime: type EventListener interface { core.Extension OnEvent(ctx context.Context, event event.Event) }
 runtime: type PendingSuspension struct { ProcessID string SuspensionID string Prompt json.RawMessage ResumeSchema json.RawMessage }
+runtime: type PreparedWaitingSubtreeCancellation struct { }
 runtime: type Process struct { }
 runtime: type RunCompletion struct { Status core.ProcessStatus Failure error Err error }
 runtime: type Segment struct { }
 runtime: type SubtreeEventListener interface { EventListener ObserveSubtree() }
-runtime: var ( ErrProcessNotFound = errors.New("runtime: process not found") ErrProcessRunning = errors.New("runtime: process is already running") ErrProcessCheckpointBusy = errors.New("runtime: process checkpoint is busy") ErrProcessActive = errors.New("runtime: process is active") )
+runtime: var ( ErrProcessNotFound = errors.New("runtime: process not found") ErrProcessRunning = errors.New("runtime: process is already running") ErrProcessCheckpointBusy = errors.New("runtime: process checkpoint is busy") ErrProcessActive = errors.New("runtime: process is active") ErrChildProcessCanceled = errors.New("runtime: delegated child process was canceled") )
 runtime: var ErrChildBudget = errors.New("run child: budget must be configured on the root process")
 runtime: var ErrChildDepth = errors.New("run child: max delegation depth exceeded")
 runtime: var ErrChildParentInactive = errors.New("run child: parent process is not running")
@@ -557,6 +564,7 @@ toolloop: func (e Event) Validate() error
 toolloop: func (p Pause) Validate() error
 toolloop: func (p PendingCall) Validate() error
 toolloop: func (r *Runner) Continue(ctx context.Context, checkpoint *Checkpoint, resolver ToolResolver) iter.Seq2[Event, error]
+toolloop: func (r *Runner) ContinuePaused(ctx context.Context, checkpoint *Checkpoint, resolver ToolResolver) iter.Seq2[Event, error]
 toolloop: func (r *Runner) Resume(ctx context.Context, checkpoint *Checkpoint, resolver ToolResolver, resume Resume) iter.Seq2[Event, error]
 toolloop: func (r *Runner) Run(ctx context.Context, request *chat.Request, resolver ToolResolver) iter.Seq2[Event, error]
 toolloop: func (s CallStatus) Valid() bool
@@ -575,6 +583,7 @@ toolloop: type DeferredTool interface { DeferredToolNames() []string }
 toolloop: type DirectTool interface { ReturnsDirect() bool }
 toolloop: type Event struct { Kind EventKind Round int Final bool Request *chat.Request Response *chat.Response ToolCall *chat.ToolCall ToolResult *chat.ToolResult Pause *Pause Resume *Resume }
 toolloop: type EventKind = interaction.EventKind
+toolloop: type InputlessContinuationTool interface { CanContinueWithoutInput() bool }
 toolloop: type Pause struct { ID string Reason string Prompt json.RawMessage ResumeSchema json.RawMessage Checkpoint *Checkpoint }
 toolloop: type PauseError struct { ID string Reason string Prompt json.RawMessage ResumeSchema json.RawMessage }
 toolloop: type PendingCall struct { ID string `json:"id"` Reason string `json:"reason"` Prompt json.RawMessage `json:"prompt"` ResumeSchema json.RawMessage `json:"resume_schema"` }

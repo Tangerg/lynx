@@ -35,8 +35,9 @@ type Config struct {
 	MaxConcurrentCalls int
 }
 
-// Runner drives a synchronous Model through tool calls. Run and Resume are
-// lazy event sequences: no model or tool is called until iteration begins.
+// Runner drives a synchronous Model through tool calls. Run, Resume, Continue,
+// and ContinuePaused are lazy event sequences: no model or tool is called
+// until iteration begins.
 // Each run is independent and Runner is safe for concurrent use when
 // its Model and ToolResolver are safe for concurrent use.
 type Runner struct {
@@ -122,6 +123,30 @@ func (r *Runner) Continue(ctx context.Context, checkpoint *Checkpoint, resolver 
 			yield(Event{}, err)
 			return
 		}
+		r.execute(ctx, state, yield)
+	}
+}
+
+// ContinuePaused re-enters the active paused tool after the host has proved
+// that the tool's durable dependency is internally ready. It emits no Resume
+// event, supplies no resume input, and does not invoke any already-completed
+// tool. This is distinct from Resume: it must not be used to bypass a tool that
+// still requires external input.
+func (r *Runner) ContinuePaused(ctx context.Context, checkpoint *Checkpoint, resolver ToolResolver) iter.Seq2[Event, error] {
+	return func(yield func(Event, error) bool) {
+		if _, awaiting, err := checkpoint.AwaitingInput(); err != nil {
+			yield(Event{}, fmt.Errorf("%w: %w", ErrInvalidInput, err))
+			return
+		} else if !awaiting {
+			yield(Event{}, fmt.Errorf("%w: checkpoint has no active paused tool", ErrInvalidInput))
+			return
+		}
+		state, err := r.checkpointState(ctx, checkpoint, resolver)
+		if err != nil {
+			yield(Event{}, err)
+			return
+		}
+		state.continuePaused = true
 		r.execute(ctx, state, yield)
 	}
 }
@@ -297,19 +322,31 @@ func (r *Runner) callTools(ctx context.Context, state *runnerState, yield func(E
 		return false, false
 	}
 
-	if state.resume != nil {
+	if state.resume != nil || state.continuePaused {
 		position := state.nextResult
 		if position < 0 || position >= len(state.callStates) || state.callStates[position].Status != CallPaused {
-			yield(Event{}, fmt.Errorf("toolloop: resume has no active paused call at result %d", position))
+			yield(Event{}, fmt.Errorf("toolloop: continuation has no active paused call at result %d", position))
 			return false, false
 		}
 		call := state.calls[position]
+		if state.continuePaused {
+			allowed, err := plans[position].hosted.canContinueWithoutInput()
+			if err != nil {
+				yield(Event{}, err)
+				return false, false
+			}
+			if !allowed {
+				yield(Event{}, fmt.Errorf("%w: tool %q does not allow inputless continuation", ErrInvalidInput, call.Name))
+				return false, false
+			}
+		}
 		eventCall := call
 		if !yield(Event{Kind: EventToolCall, Round: state.round, ToolCall: &eventCall}, nil) {
 			return false, false
 		}
 		resume := state.resume
 		state.resume = nil
+		state.continuePaused = false
 		result, pending, err := invokeTool(ctx, call, plans[position].hosted, resume)
 		if err != nil {
 			yield(Event{}, err)

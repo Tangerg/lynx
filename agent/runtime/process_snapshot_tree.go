@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/interaction"
 )
 
 // SnapshotTree captures a stable, ownership-isolated snapshot of one complete
@@ -137,9 +139,39 @@ func validateNestedSnapshotRelations(tree core.ProcessSnapshotTree) error {
 			if err := relation.validateSnapshot(parent, child); err != nil {
 				return fmt.Errorf("%w: process %q nested relation: %w", core.ErrInvalidSnapshot, parent.ID, err)
 			}
+			if checkpoint.active != nil &&
+				checkpoint.active.ToolCallID == relation.ToolCallID &&
+				child.Status == core.StatusWaiting &&
+				!samePromotedSuspensionBoundary(parent.Suspension, child.Suspension) {
+				return fmt.Errorf(
+					"%w: process %q promoted boundary does not match active child %q",
+					core.ErrInvalidSnapshot,
+					parent.ID,
+					child.ID,
+				)
+			}
+			if checkpoint.ready && checkpoint.active != nil &&
+				checkpoint.active.ToolCallID == relation.ToolCallID {
+				continuable, err := suspensionContinuable(child.Suspension)
+				if err != nil {
+					return fmt.Errorf("%w: process %q ready child %q: %w", core.ErrInvalidSnapshot, parent.ID, child.ID, err)
+				}
+				if child.Status != core.StatusWaiting || !continuable {
+					return fmt.Errorf("%w: process %q marks nested child %q ready, but the child is not continuable", core.ErrInvalidSnapshot, parent.ID, child.ID)
+				}
+			}
 		}
 	}
 	return nil
+}
+
+func samePromotedSuspensionBoundary(parent, child *interaction.Suspension) bool {
+	return parent != nil &&
+		child != nil &&
+		parent.ID == child.ID &&
+		bytes.Equal(parent.Prompt, child.Prompt) &&
+		bytes.Equal(parent.ResumeSchema, child.ResumeSchema) &&
+		bytes.Equal(parent.Response, child.Response)
 }
 
 // RemoveTree releases a complete terminal process tree from the in-memory
@@ -330,4 +362,55 @@ func (tree *discoveredProcessTrees) liveProcesses() []*Process {
 		}
 	}
 	return processes
+}
+
+func cloneProcessSnapshotTree(tree core.ProcessSnapshotTree) core.ProcessSnapshotTree {
+	cloned := core.ProcessSnapshotTree{
+		RootID:    tree.RootID,
+		Snapshots: make([]core.ProcessSnapshot, len(tree.Snapshots)),
+	}
+	for index, snapshot := range tree.Snapshots {
+		cloned.Snapshots[index] = cloneProcessSnapshot(snapshot)
+	}
+	return cloned
+}
+
+func cloneProcessSnapshot(snapshot core.ProcessSnapshot) core.ProcessSnapshot {
+	cloned := snapshot
+	if snapshot.Suspension != nil {
+		cloned.Suspension = snapshot.Suspension.Clone()
+	}
+	if snapshot.Failure != nil {
+		failure := *snapshot.Failure
+		cloned.Failure = &failure
+	}
+	cloned.Blackboard = cloneTaggedValueMap(snapshot.Blackboard)
+	cloned.Conditions = maps.Clone(snapshot.Conditions)
+	cloned.Objects = cloneTaggedValues(snapshot.Objects)
+	cloned.Hidden = cloneTaggedValues(snapshot.Hidden)
+	return cloned
+}
+
+func cloneTaggedValueMap(values map[string]core.TaggedValue) map[string]core.TaggedValue {
+	if values == nil {
+		return nil
+	}
+	cloned := make(map[string]core.TaggedValue, len(values))
+	for key, value := range values {
+		value.Value = bytes.Clone(value.Value)
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func cloneTaggedValues(values []core.TaggedValue) []core.TaggedValue {
+	if values == nil {
+		return nil
+	}
+	cloned := make([]core.TaggedValue, len(values))
+	for index, value := range values {
+		value.Value = bytes.Clone(value.Value)
+		cloned[index] = value
+	}
+	return cloned
 }

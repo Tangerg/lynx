@@ -34,6 +34,11 @@ var (
 	// ErrProcessActive reports an attempt to remove a process before it reaches
 	// a terminal state. Call Kill first when active work must be discarded.
 	ErrProcessActive = errors.New("runtime: process is active")
+
+	// ErrChildProcessCanceled reports that a parked AgentTool invocation was
+	// settled by canceling the delegated child rather than by producing its
+	// typed result.
+	ErrChildProcessCanceled = errors.New("runtime: delegated child process was canceled")
 )
 
 // Run deploys/resolves the Agent definition, runs it synchronously, and returns
@@ -205,7 +210,11 @@ func (p *Process) ensureContinuable() error {
 		return nil
 	}
 	suspension := p.Suspension()
-	if suspension == nil || !suspension.Responded() {
+	continuable, err := suspensionContinuable(suspension)
+	if err != nil {
+		return fmt.Errorf("runtime: inspect process %q continuation: %w", p.ID(), err)
+	}
+	if !continuable {
 		return fmt.Errorf("%w: process %q is still waiting for a suspension response", interaction.ErrSuspensionStale, p.ID())
 	}
 	return nil
@@ -327,6 +336,13 @@ func (e *Engine) collectResume(
 	if suspension == nil || process.Status() != core.StatusWaiting || suspension.ID != suspensionID {
 		return fmt.Errorf("%w: process %q has no pending suspension %q", interaction.ErrSuspensionStale, process.ID(), suspensionID)
 	}
+	continuable, err := suspensionContinuable(suspension)
+	if err != nil {
+		return err
+	}
+	if continuable {
+		return fmt.Errorf("%w: process %q suspension %q is already continuable", interaction.ErrSuspensionStale, process.ID(), suspensionID)
+	}
 	canonical, err := suspension.ValidateResponse(response)
 	if err != nil {
 		return err
@@ -435,7 +451,7 @@ func (e *Engine) killProcess(ctx context.Context, id string) (bool, error) {
 	}
 	won, killed := e.killSubtreeOwned(process)
 	releaseMutation()
-	publishKilledProcesses(ctx, killed)
+	publishKilledProcesses(ctx, killed, "kill requested")
 	return won, nil
 }
 
@@ -474,11 +490,11 @@ func (e *Engine) ensureSubtreeMutationAvailable(process *Process) error {
 	return nil
 }
 
-func publishKilledProcesses(ctx context.Context, processes []*Process) {
+func publishKilledProcesses(ctx context.Context, processes []*Process, reason string) {
 	for _, process := range processes {
 		process.publishEvent(ctx, event.ProcessKilled{
 			Header: event.NewHeader(process.ID()),
-			Reason: "kill requested",
+			Reason: reason,
 		})
 	}
 }
@@ -510,7 +526,7 @@ func (e *Engine) KillChildren(ctx context.Context, parentID string) ([]string, e
 	}
 	killed, events := e.killChildrenOwned(parentID)
 	releaseMutation()
-	publishKilledProcesses(ctx, events)
+	publishKilledProcesses(ctx, events, "kill children requested")
 	return killed, nil
 }
 

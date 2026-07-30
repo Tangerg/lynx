@@ -3,6 +3,7 @@ package toolloop_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"sync"
@@ -421,6 +422,94 @@ func TestRunnerContinuesHostCompletedPausedCallInOrder(t *testing.T) {
 	}
 	if len(finished) == 0 || !finished[len(finished)-1].Final {
 		t.Fatalf("finished events = %#v", finished)
+	}
+}
+
+func TestRunnerContinuesInternallyReadyPausedToolWithoutResumeEvent(t *testing.T) {
+	calls := 0
+	tool := newRunnerTool("delegated", func(ctx context.Context, _ string) (string, error) {
+		calls++
+		if _, resumed := toolloop.ResumeFromContext(ctx); resumed {
+			t.Fatal("ContinuePaused attached external resume input")
+		}
+		if calls == 1 {
+			return "", &toolloop.PauseError{
+				ID:           "child-wait",
+				Reason:       "delegated child waiting",
+				Prompt:       json.RawMessage(`"wait?"`),
+				ResumeSchema: json.RawMessage(`{"type":"boolean"}`),
+			}
+		}
+		return "child completed internally", nil
+	})
+	tool.inputless = true
+	registry := newRunnerRegistry(t, tool)
+	model := &scriptedModel{call: func(round int, request *chat.Request) (*chat.Response, error) {
+		if round == 1 {
+			return runnerToolResponse(chat.ToolCall{ID: "call-1", Name: "delegated"}), nil
+		}
+		result := request.Messages[len(request.Messages)-1].Parts[0].ToolResult
+		if result == nil || result.Result != "child completed internally" {
+			t.Fatalf("continuation result = %#v", result)
+		}
+		return runnerTextResponse("done"), nil
+	}}
+	runner := newRunner(t, model, toolloop.Config{})
+
+	initial, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, registry), registry))
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	checkpoint := initial[len(initial)-1].Pause.Checkpoint
+	continued, err := collectRunnerEvents(runner.ContinuePaused(t.Context(), checkpoint, registry))
+	if err != nil {
+		t.Fatalf("ContinuePaused: %v", err)
+	}
+	if want := []toolloop.EventKind{
+		toolloop.EventToolCall,
+		toolloop.EventToolResult,
+		toolloop.EventModelRequest,
+		toolloop.EventModelResponse,
+	}; !reflect.DeepEqual(eventKinds(continued), want) {
+		t.Fatalf("ContinuePaused events = %v, want %v", eventKinds(continued), want)
+	}
+	for _, event := range continued {
+		if event.Kind == toolloop.EventResume {
+			t.Fatal("ContinuePaused emitted a Resume event")
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("tool calls = %d, want initial pause + internal continuation", calls)
+	}
+}
+
+func TestRunnerRejectsInputlessContinuationWithoutToolCapability(t *testing.T) {
+	calls := 0
+	tool := newRunnerTool("approval", func(context.Context, string) (string, error) {
+		calls++
+		return "", &toolloop.PauseError{
+			ID:           "approval-wait",
+			Reason:       "approval required",
+			Prompt:       json.RawMessage(`"approve?"`),
+			ResumeSchema: json.RawMessage(`{"type":"boolean"}`),
+		}
+	})
+	registry := newRunnerRegistry(t, tool)
+	model := &scriptedModel{call: func(int, *chat.Request) (*chat.Response, error) {
+		return runnerToolResponse(chat.ToolCall{ID: "call-1", Name: "approval"}), nil
+	}}
+	runner := newRunner(t, model, toolloop.Config{})
+	initial, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, registry), registry))
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpoint := initial[len(initial)-1].Pause.Checkpoint
+
+	if _, err := collectRunnerEvents(runner.ContinuePaused(t.Context(), checkpoint, registry)); !errors.Is(err, toolloop.ErrInvalidInput) {
+		t.Fatalf("ContinuePaused error = %v, want ErrInvalidInput", err)
+	}
+	if calls != 1 {
+		t.Fatalf("tool calls = %d, want no re-entry without capability", calls)
 	}
 }
 

@@ -20,6 +20,7 @@ type runnerTool struct {
 	definition chat.ToolDefinition
 	call       func(context.Context, string) (string, error)
 	concurrent func(string) (string, bool)
+	inputless  bool
 }
 
 func (t *runnerTool) Definition() chat.ToolDefinition { return t.definition }
@@ -37,6 +38,8 @@ func (t *runnerTool) ConcurrencyKey(arguments string) (key string, concurrent bo
 	}
 	return t.concurrent(arguments)
 }
+
+func (t *runnerTool) CanContinueWithoutInput() bool { return t.inputless }
 
 type scriptedModel struct {
 	calls int

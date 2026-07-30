@@ -43,9 +43,10 @@ type budgetAuthority struct {
 type processBudget struct {
 	mu sync.RWMutex
 
-	authority *budgetAuthority
-	children  []*Process
-	own       core.Usage
+	authority       *budgetAuthority
+	children        []*Process
+	own             core.Usage
+	retiredChildren core.Usage
 }
 
 func newProcessBudget(limit core.Budget) processBudget {
@@ -190,6 +191,12 @@ func (b *processBudget) restore(usage core.Usage) {
 	b.own = usage
 }
 
+func (b *processBudget) restoreRetiredChildren(usage core.Usage) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.retiredChildren = usage
+}
+
 // restoreAuthority installs the aggregate rebuilt from all restored process
 // snapshots after parent-child links have been reconstructed.
 func (b *processBudget) restoreAuthority(usage core.Usage) error {
@@ -227,15 +234,37 @@ func (b *processBudget) removeChild(child *Process) bool {
 	return true
 }
 
+func (b *processBudget) hasChild(child *Process) bool {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return slices.Contains(b.children, child)
+}
+
+// replaceRetiredChildUsage installs a value already checked while the complete
+// process tree was checkpoint-owned. The shared budget authority retains the
+// same aggregate; only historical ownership moves from a detached subtree to
+// its parent.
+func (b *processBudget) replaceRetiredChildUsage(usage core.Usage) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.retiredChildren = usage
+}
+
 func (b *processBudget) ownUsage() core.Usage {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.own
 }
 
+func (b *processBudget) retiredChildUsage() core.Usage {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.retiredChildren
+}
+
 func (b *processBudget) usage() core.Usage {
 	b.mu.RLock()
-	usage := b.own
+	usage := saturatingUsage(b.own, b.retiredChildren)
 	children := append([]*Process(nil), b.children...)
 	b.mu.RUnlock()
 

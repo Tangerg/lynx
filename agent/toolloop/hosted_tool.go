@@ -120,6 +120,23 @@ func (t hostedTool) returnsDirect() (direct bool, err error) {
 	return marker.ReturnsDirect(), nil
 }
 
+func (t hostedTool) canContinueWithoutInput() (allowed bool, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			allowed = false
+			err = panicerr.New(fmt.Sprintf("tool %s inputless-continuation lookup panicked", t.label()), recovered)
+		}
+	}()
+	marker, ok, err := tools.Capability[InputlessContinuationTool](t.tool)
+	if err != nil {
+		return false, fmt.Errorf("tool %s inputless-continuation lookup: %w", t.label(), err)
+	}
+	if !ok {
+		return false, nil
+	}
+	return marker.CanContinueWithoutInput(), nil
+}
+
 // deferredNames asks a deferring tool which tools it can promote.
 func (t hostedTool) deferredNames(deferred DeferredTool) (names []string, err error) {
 	defer func() {

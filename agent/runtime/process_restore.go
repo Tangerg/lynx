@@ -33,7 +33,8 @@ func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error {
 	if checkpoint == nil {
 		return nil
 	}
-	if checkpoint.Kind == suspensionCheckpointNestedChild {
+	if checkpoint.Kind == suspensionCheckpointNestedChild ||
+		checkpoint.Kind == suspensionCheckpointChildCanceled {
 		return nil
 	}
 	if checkpoint.Deployment != snapshot.Deployment {
@@ -321,6 +322,7 @@ func (e *Engine) buildProcessSnapshot(snapshot core.ProcessSnapshot, options cor
 		process.state.restoreFailure(&failure)
 	}
 	process.budget.restore(snapshot.OwnUsage)
+	process.budget.restoreRetiredChildren(snapshot.RetiredChildUsage)
 
 	blackboardState, err := decodeProcessBlackboard(agent, snapshot)
 	if err != nil {

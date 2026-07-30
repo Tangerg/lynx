@@ -10,15 +10,16 @@ import (
 func (p *Process) snapshotClaimed() (core.ProcessSnapshot, error) {
 	state := p.captureSnapshotState()
 	snapshot := core.ProcessSnapshot{
-		SchemaVersion: core.ProcessSnapshotSchemaVersion,
-		ID:            p.ID(),
-		ParentID:      p.ParentID(),
-		SpawnCallID:   p.SpawnCallID(),
-		Deployment:    p.Deployment(),
-		StartedAt:     p.StartedAt(),
-		Status:        state.status,
-		Suspension:    state.suspension,
-		OwnUsage:      state.ownUsage,
+		SchemaVersion:     core.ProcessSnapshotSchemaVersion,
+		ID:                p.ID(),
+		ParentID:          p.ParentID(),
+		SpawnCallID:       p.SpawnCallID(),
+		Deployment:        p.Deployment(),
+		StartedAt:         p.StartedAt(),
+		Status:            state.status,
+		Suspension:        state.suspension,
+		OwnUsage:          state.ownUsage,
+		RetiredChildUsage: state.retiredChildUsage,
 	}
 
 	if goal := state.goal; goal != nil {
@@ -47,11 +48,12 @@ func (p *Process) snapshotClaimed() (core.ProcessSnapshot, error) {
 }
 
 type processCaptureState struct {
-	status     core.ProcessStatus
-	goal       *core.Goal
-	failure    error
-	suspension *interaction.Suspension
-	ownUsage   core.Usage
+	status            core.ProcessStatus
+	goal              *core.Goal
+	failure           error
+	suspension        *interaction.Suspension
+	ownUsage          core.Usage
+	retiredChildUsage core.Usage
 }
 
 func (p *Process) captureSnapshotState() processCaptureState {
@@ -62,10 +64,11 @@ func (p *Process) captureSnapshotState() processCaptureState {
 		suspension = p.state.pendingSuspension.Clone()
 	}
 	return processCaptureState{
-		status:     p.state.currentStatus,
-		goal:       p.state.currentGoal,
-		failure:    p.state.runErr,
-		suspension: suspension,
-		ownUsage:   p.budget.ownUsage(),
+		status:            p.state.currentStatus,
+		goal:              p.state.currentGoal,
+		failure:           p.state.runErr,
+		suspension:        suspension,
+		ownUsage:          p.budget.ownUsage(),
+		retiredChildUsage: p.budget.retiredChildUsage(),
 	}
 }

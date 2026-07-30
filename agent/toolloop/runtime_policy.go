@@ -19,6 +19,15 @@ type DirectTool interface {
 	ReturnsDirect() bool
 }
 
+// InputlessContinuationTool is the optional capability required by
+// [Runner.ContinuePaused]. It declares that a paused invocation may be
+// re-entered after an internal durable dependency changes, without attaching
+// external resume input. Tools that only pause for user input must not
+// implement this capability.
+type InputlessContinuationTool interface {
+	CanContinueWithoutInput() bool
+}
+
 // Direct marks a runtime Tool so a round consisting entirely of direct tools
 // completes with its final ToolResult instead of making another model call.
 // It reports itself as a [tools.WrappingTool], so every optional capability of
