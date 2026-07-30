@@ -1,11 +1,11 @@
-import type { AgentRunStartOptions } from "@/plugins/sdk/types";
 import type { CancelRunResponse, RunEvent } from "@/rpc";
-import type { AgentInput } from "@/plugins/builtin/agent/domain/input";
 import type {
   AgentViewRefreshToken,
-  CancelRunFn,
-  ResumeFn,
-  SynchronizeFn,
+  CancelRunAction,
+  ResumeRunAction,
+  SendAgentInputAction,
+  StopCurrentRootRunAction,
+  SynchronizeSessionAction,
 } from "@/plugins/builtin/agent/application/ports/sessionView";
 import type { AgentProblem, AgentSessionView, Message } from "@/plugins/sdk/types/agentSessionView";
 import { create } from "zustand";
@@ -23,9 +23,6 @@ import {
 } from "@/plugins/builtin/agent/application/view/viewMutations";
 import { useAgentSessionStore } from "./agentSessionStore";
 
-export type AgentStopAction = (() => void) | null;
-export type AgentSendAction = ((input: AgentInput, options?: AgentRunStartOptions) => void) | null;
-
 interface SessionEntry {
   view: AgentSessionView;
   /** Bumped before an authoritative rewrite. The useAgentSession rAF
@@ -40,11 +37,11 @@ interface SessionEntry {
   /** Latest refresh request for this session. A newer read supersedes an older
    *  in-flight read even while the material view itself is unchanged. */
   refreshSequence: number;
-  stop: AgentStopAction;
-  send: AgentSendAction;
-  resume: ResumeFn;
-  synchronize: SynchronizeFn;
-  cancelRun: CancelRunFn;
+  stop: StopCurrentRootRunAction | null;
+  send: SendAgentInputAction | null;
+  resume: ResumeRunAction | null;
+  synchronize: SynchronizeSessionAction | null;
+  cancelRun: CancelRunAction | null;
 }
 
 interface AgentStore {
@@ -86,15 +83,15 @@ interface AgentStore {
   /** Remove a session entry entirely (freeing its view state). */
   dropSession: (sessionId: string) => void;
   /** Bind / unbind the imperative stop action for a session. */
-  setStop: (sessionId: string, fn: AgentStopAction) => void;
+  setStop: (sessionId: string, action: StopCurrentRootRunAction | null) => void;
   /** Bind / unbind the imperative send action for a session. */
-  setSend: (sessionId: string, fn: AgentSendAction) => void;
+  setSend: (sessionId: string, action: SendAgentInputAction | null) => void;
   /** Bind / unbind the imperative HITL resume action for a session. */
-  setResume: (sessionId: string, fn: ResumeFn) => void;
+  setResume: (sessionId: string, action: ResumeRunAction | null) => void;
   /** Bind / unbind authoritative query + tail synchronization. */
-  setSynchronize: (sessionId: string, fn: SynchronizeFn) => void;
+  setSynchronize: (sessionId: string, action: SynchronizeSessionAction | null) => void;
   /** Bind / unbind committed root-or-child Run cancellation. */
-  setCancelRun: (sessionId: string, fn: CancelRunFn) => void;
+  setCancelRun: (sessionId: string, action: CancelRunAction | null) => void;
   /** Dismiss the error banner for a session without resetting the rest. */
   clearProblem: (sessionId: string) => void;
   /** Surface a channel-a failure (a rejected runs.start / runs.resume, API.md
@@ -165,15 +162,15 @@ function patchSessionState(
 export const useAgentStore = create<AgentStore>((set) => ({
   sessions: {},
   applyRunEvents: (sessionId, events) =>
-    set((s) => {
-      if (events.length === 0) return s;
-      const prev = s.sessions[sessionId];
-      if (!prev) return s; // session torn down — drop the late batch
+    set((state) => {
+      if (events.length === 0) return state;
+      const prev = state.sessions[sessionId];
+      if (!prev) return state; // session torn down — drop the late batch
       let view = prev.view;
       for (const event of events) view = reduceRunEvent(view, event);
-      if (view === prev.view) return s;
+      if (view === prev.view) return state;
       return {
-        sessions: patchSession(s.sessions, sessionId, {
+        sessions: patchSession(state.sessions, sessionId, {
           view,
           viewRevision: prev.viewRevision + 1,
         }),
@@ -187,13 +184,13 @@ export const useAgentStore = create<AgentStore>((set) => ({
       return sessions === state.sessions ? state : { sessions };
     }),
   appendLocalMessage: (sessionId, message) =>
-    set((s) => {
-      const sessions = patchView(s.sessions, sessionId, (view) =>
+    set((state) => {
+      const sessions = patchView(state.sessions, sessionId, (view) =>
         view.messages.some((existing) => existing.id === message.id)
           ? view
           : { ...view, messages: [...view.messages, message] },
       );
-      return sessions === s.sessions ? s : { sessions };
+      return sessions === state.sessions ? state : { sessions };
     }),
   ensureSession: (sessionId) =>
     set((state) =>
@@ -238,46 +235,50 @@ export const useAgentStore = create<AgentStore>((set) => ({
     return committed;
   },
   relabelMessage: (sessionId, fromId, toId) =>
-    set((s) => {
-      const sessions = patchView(s.sessions, sessionId, (view) =>
+    set((state) => {
+      const sessions = patchView(state.sessions, sessionId, (view) =>
         relabelMessage(view, fromId, toId),
       );
-      return sessions === s.sessions ? s : { sessions };
+      return sessions === state.sessions ? state : { sessions };
     }),
   dropMessage: (sessionId, id) =>
-    set((s) => {
-      const sessions = patchView(s.sessions, sessionId, (view) => dropMessage(view, id));
-      return sessions === s.sessions ? s : { sessions };
+    set((state) => {
+      const sessions = patchView(state.sessions, sessionId, (view) => dropMessage(view, id));
+      return sessions === state.sessions ? state : { sessions };
     }),
   dropSession: (sessionId) =>
-    set((s) => {
-      if (!(sessionId in s.sessions)) return s;
-      const next = { ...s.sessions };
+    set((state) => {
+      if (!(sessionId in state.sessions)) return state;
+      const next = { ...state.sessions };
       delete next[sessionId];
       return { sessions: next };
     }),
-  setStop: (sessionId, fn) => set((s) => patchSessionState(s, sessionId, { stop: fn })),
-  setSend: (sessionId, fn) => set((s) => patchSessionState(s, sessionId, { send: fn })),
-  setResume: (sessionId, fn) => set((s) => patchSessionState(s, sessionId, { resume: fn })),
-  setSynchronize: (sessionId, fn) =>
-    set((s) => patchSessionState(s, sessionId, { synchronize: fn })),
-  setCancelRun: (sessionId, fn) => set((s) => patchSessionState(s, sessionId, { cancelRun: fn })),
+  setStop: (sessionId, action) =>
+    set((state) => patchSessionState(state, sessionId, { stop: action })),
+  setSend: (sessionId, action) =>
+    set((state) => patchSessionState(state, sessionId, { send: action })),
+  setResume: (sessionId, action) =>
+    set((state) => patchSessionState(state, sessionId, { resume: action })),
+  setSynchronize: (sessionId, action) =>
+    set((state) => patchSessionState(state, sessionId, { synchronize: action })),
+  setCancelRun: (sessionId, action) =>
+    set((state) => patchSessionState(state, sessionId, { cancelRun: action })),
   clearProblem: (sessionId) =>
-    set((s) => {
-      const sessions = patchView(s.sessions, sessionId, dismissVisibleProblem);
-      return sessions === s.sessions ? s : { sessions };
+    set((state) => {
+      const sessions = patchView(state.sessions, sessionId, dismissVisibleProblem);
+      return sessions === state.sessions ? state : { sessions };
     }),
   setCommandError: (sessionId, error) =>
-    set((s) => {
-      const sessions = patchView(s.sessions, sessionId, (view) => setCommandError(view, error));
-      return sessions === s.sessions ? s : { sessions };
+    set((state) => {
+      const sessions = patchView(state.sessions, sessionId, (view) => setCommandError(view, error));
+      return sessions === state.sessions ? state : { sessions };
     }),
   resolveInterrupt: (sessionId, itemId, settled) =>
-    set((s) => {
-      const sessions = patchView(s.sessions, sessionId, (view) =>
+    set((state) => {
+      const sessions = patchView(state.sessions, sessionId, (view) =>
         resolveInterrupt(view, itemId, settled),
       );
-      return sessions === s.sessions ? s : { sessions };
+      return sessions === state.sessions ? state : { sessions };
     }),
 }));
 

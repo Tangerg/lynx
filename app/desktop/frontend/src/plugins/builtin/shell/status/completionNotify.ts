@@ -16,13 +16,13 @@ import { playCompletionChime } from "./chime";
 import { disposeOnHmr } from "@/lib/hmr";
 import { ensureOsNotifyPermission, osNotify } from "./osNotify";
 import {
-  subscribeAgentRunSettlements,
-  type AgentRunSettlement,
+  type RootRunSettlement,
+  subscribeRootRunSettlements,
 } from "@/plugins/builtin/agent/public/run";
 import { definePlugin } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
 
-function onSettled({ sessionId, status, errorMessage }: AgentRunSettlement): void {
+function onSettled({ sessionId, status, errorMessage }: RootRunSettlement): void {
   // Focus gate: only alert when the window is blurred / hidden. document.hasFocus
   // is false when another OS window has focus or the app is minimized.
   if (document.hasFocus()) return;
@@ -70,7 +70,7 @@ export const completionNotify = definePlugin({
     // window. onReady fires after markAppReady, when every setup has run.
     let unsubscribe: (() => void) | undefined;
     host.lifecycle.onReady(() => {
-      unsubscribe = subscribeAgentRunSettlements(onSettled);
+      unsubscribe = subscribeRootRunSettlements(onSettled);
       disposeOnHmr(unsubscribe);
     });
     return () => unsubscribe?.();

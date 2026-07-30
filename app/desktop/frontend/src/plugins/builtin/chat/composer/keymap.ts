@@ -1,5 +1,5 @@
 import { submitPendingApproval } from "@/plugins/builtin/agent/public/hitl";
-import { stopActiveAgentRun } from "@/plugins/builtin/agent/public/run";
+import { stopCurrentRootRun } from "@/plugins/builtin/agent/public/run";
 import { definePlugin } from "@/plugins/sdk";
 import { COMPOSER_KEY_BINDING } from "@/plugins/sdk/kernelPoints";
 import { composerKeyBindings } from "./application/composerContributions";
@@ -25,7 +25,7 @@ export const composerKeymap = definePlugin({
         return true;
       },
       declineApproval: () => submitPendingApproval("declined"),
-      stopRun: () => stopActiveAgentRun(),
+      stopRun: () => stopCurrentRootRun(),
       historyPrevious: ({ event }) =>
         recallPreviousHistoryFromKey({ event, recall: recallPreviousComposerHistory }),
       historyNext: ({ event }) =>

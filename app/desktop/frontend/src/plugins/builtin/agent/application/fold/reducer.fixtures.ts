@@ -34,7 +34,7 @@ function completeStartedRun(state: AgentSessionView, run: RunRef, segmentId: str
 }
 
 /**
- * Build a complete wire envelope for legacy scenario tests.
+ * Build a complete wire envelope for scenario tests.
  *
  * Production folds never infer provenance: they accept RunEvent only. This
  * test helper keeps the scenario bodies readable while stamping every payload

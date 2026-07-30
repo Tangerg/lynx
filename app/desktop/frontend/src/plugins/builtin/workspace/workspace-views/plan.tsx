@@ -1,6 +1,6 @@
 import { EmptyState } from "@/ui";
 import { useT } from "@/lib/i18n";
-import { useActiveRunPlan } from "@/plugins/builtin/agent/public/run";
+import { useCurrentRootPlan } from "@/plugins/builtin/agent/public/run";
 import { planSubtext, planViewModel } from "@/plugins/builtin/workspace/application/planViewModel";
 import { PlanList } from "./views/PlanList";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
@@ -8,7 +8,7 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 
 function PlanTab() {
   const t = useT();
-  const plan = useActiveRunPlan();
+  const plan = useCurrentRootPlan();
   const view = planViewModel(plan);
 
   return (

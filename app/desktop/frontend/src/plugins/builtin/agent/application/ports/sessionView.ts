@@ -24,10 +24,10 @@ export type ResolvePatch = {
   answers?: Record<string, string[]>;
 };
 
-export type StopFn = (() => void) | null;
-export type SynchronizeFn = (() => void) | null;
-export type CancelRunFn = ((runId: string) => void) | null;
-export type SendFn = ((input: AgentInput, options?: AgentRunStartOptions) => void) | null;
+export type StopCurrentRootRunAction = () => boolean;
+export type SynchronizeSessionAction = () => void;
+export type CancelRunAction = (runId: string) => void;
+export type SendAgentInputAction = (input: AgentInput, options?: AgentRunStartOptions) => void;
 export type InterruptResumePayload =
   | {
       type: "approval";
@@ -43,24 +43,22 @@ export interface InterruptResumeInput {
   itemId: string;
   response: InterruptResumePayload;
 }
-export type ResumeFn =
-  | ((
-      runId: string,
-      responses: InterruptResumeInput[],
-      onSettled?: () => void,
-      onStartError?: () => void,
-    ) => void)
-  | null;
+export type ResumeRunAction = (
+  runId: string,
+  responses: InterruptResumeInput[],
+  onSettled?: () => void,
+  onStartError?: () => void,
+) => void;
 
 export interface AgentSessionViewEntry {
   view: AgentSessionView;
   viewEpoch: number;
   viewRevision: number;
-  stop: StopFn;
-  send: SendFn;
-  resume: ResumeFn;
-  synchronize: SynchronizeFn;
-  cancelRun: CancelRunFn;
+  stop: StopCurrentRootRunAction | null;
+  send: SendAgentInputAction | null;
+  resume: ResumeRunAction | null;
+  synchronize: SynchronizeSessionAction | null;
+  cancelRun: CancelRunAction | null;
 }
 
 export interface AgentViewRefreshToken {
@@ -82,8 +80,8 @@ export interface AgentSessionViewPort {
   useSharedState<T = unknown>(path?: string): T | undefined;
   useCurrentRootUsage(): RunUsage;
   useCurrentRootContextTokens(): number | undefined;
-  useAction(kind: "stop"): StopFn;
-  useAction(kind: "send"): SendFn;
+  useAction(kind: "stop"): StopCurrentRootRunAction | null;
+  useAction(kind: "send"): SendAgentInputAction | null;
   getCurrentView(): AgentSessionView;
   getSessions(): Record<string, AgentSessionViewEntry>;
   getSession(sessionId: string): AgentSessionViewEntry | undefined;

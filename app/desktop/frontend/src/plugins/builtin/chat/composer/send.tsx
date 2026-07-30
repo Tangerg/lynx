@@ -1,6 +1,6 @@
 import { IconButton, Tooltip } from "@/ui";
 import { useSendComposerInput } from "./public/sendToAgent";
-import { useIsAgentRunning, useStopActiveAgentRun } from "@/plugins/builtin/agent/public/run";
+import { useIsCurrentRootRunning, useStopCurrentRootRun } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { useComposerImages, useComposerPastes } from "./public/attachments";
@@ -26,8 +26,8 @@ function SendButton() {
   const recordHistory = useRecordComposerHistory();
   const clear = useClearComposerDraft();
   const send = useSendComposerInput();
-  const stop = useStopActiveAgentRun();
-  const running = useIsAgentRunning();
+  const stop = useStopCurrentRootRun();
+  const running = useIsCurrentRootRunning();
 
   const hasInput = Boolean(value.trim()) || images.length > 0 || pastes.length > 0;
   const layout = composerActionLayout({ running, hasInput });

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useMemo } from "react";
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import type { DelegatedRunNarrative } from "@/plugins/builtin/agent/public/conversation";
-import { cancelAgentRun } from "@/plugins/builtin/agent/public/run";
+import { cancelActiveSessionRun } from "@/plugins/builtin/agent/public/run";
 import { PlanBlock } from "./cards";
 import { MessageContext } from "@/plugins/sdk/messageContext";
 import { useCitationSources } from "@/plugins/sdk";
@@ -42,7 +42,7 @@ export function DelegatedNarrative({
       siblingCount={siblingCount}
       hasMaterial={hasMaterial || narrative.plan.length > 0}
       onCancel={() => {
-        cancelAgentRun(narrative.run.id);
+        cancelActiveSessionRun(narrative.run.id);
       }}
       onOpenAudit={openTimelineView}
     >

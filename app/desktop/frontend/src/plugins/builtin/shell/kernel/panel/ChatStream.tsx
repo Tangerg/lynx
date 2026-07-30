@@ -12,7 +12,7 @@ import {
   useActiveConversationMessages,
   useDelegatedConversationRuns,
 } from "@/plugins/builtin/agent/public/conversation";
-import { useActiveRunPlan, useActiveRunToolCalls } from "@/plugins/builtin/agent/public/run";
+import { useActiveSessionToolCalls, useCurrentRootPlan } from "@/plugins/builtin/agent/public/run";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/host/Slot";
@@ -39,8 +39,8 @@ export function ChatStream({ onSend }: Props) {
   const resetKey = useActiveSessionId();
   const messages = useActiveConversationMessages();
   const delegatedRunsByItemId = useDelegatedConversationRuns();
-  const plan = useActiveRunPlan();
-  const toolCalls = useActiveRunToolCalls();
+  const plan = useCurrentRootPlan();
+  const toolCalls = useActiveSessionToolCalls();
 
   const expandedToolIds = useExpandedWorkspaceToolIds();
   const selectTool = useSelectWorkspaceTool();

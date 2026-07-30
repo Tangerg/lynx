@@ -6,7 +6,7 @@ import { renderBlock } from "./BlockRenderer";
 
 const agentRunCommands = vi.hoisted(() => ({ cancel: vi.fn() }));
 vi.mock("@/plugins/builtin/agent/public/run", () => ({
-  cancelAgentRun: agentRunCommands.cancel,
+  cancelActiveSessionRun: agentRunCommands.cancel,
 }));
 
 function run(

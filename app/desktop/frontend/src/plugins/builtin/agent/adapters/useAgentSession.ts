@@ -171,10 +171,12 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         });
     };
 
-    const stop = (): void => {
+    const stop = (): boolean => {
       const view = store().sessions[sessionId]?.view;
       const root = view ? selectCurrentRootRun(view) : null;
-      if (root?.status === "running") cancelRun(root.id);
+      if (root?.status !== "running") return false;
+      cancelRun(root.id);
+      return true;
     };
 
     store().setSend(sessionId, send);
@@ -205,6 +207,8 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
   return {
     send: (input: AgentInput, options?: AgentRunStartOptions) =>
       useAgentStore.getState().sessions[sessionId]?.send?.(input, options),
-    stop: () => useAgentStore.getState().sessions[sessionId]?.stop?.(),
+    stop: () => {
+      useAgentStore.getState().sessions[sessionId]?.stop?.();
+    },
   };
 }

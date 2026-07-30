@@ -23,8 +23,12 @@ import type {
   AgentRunTreeNode,
   DelegatedRunNarrativesByItemId,
 } from "../application/view/runTree";
+import type {
+  SendAgentInputAction,
+  StopCurrentRootRunAction,
+} from "../application/ports/sessionView";
 import { useAgentSessionStore } from "./agentSessionStore";
-import { type AgentSendAction, type AgentStopAction, useAgentStore } from "./agentStore";
+import { useAgentStore } from "./agentStore";
 
 function useActiveAgentView<T>(select: (view: AgentSessionView) => T): T {
   const sessionId = useAgentSessionStore((state) => state.activeSessionId);
@@ -37,9 +41,11 @@ function useCurrentRoot() {
   return useActiveAgentView(selectCurrentRootRun);
 }
 
-export function useAgentAction(kind: "stop"): AgentStopAction;
-export function useAgentAction(kind: "send"): AgentSendAction;
-export function useAgentAction(kind: "stop" | "send"): AgentStopAction | AgentSendAction {
+export function useAgentAction(kind: "stop"): StopCurrentRootRunAction | null;
+export function useAgentAction(kind: "send"): SendAgentInputAction | null;
+export function useAgentAction(
+  kind: "stop" | "send",
+): StopCurrentRootRunAction | SendAgentInputAction | null {
   const sessionId = useAgentSessionStore((state) => state.activeSessionId);
   return useAgentStore((state) => state.sessions[sessionId]?.[kind] ?? null);
 }

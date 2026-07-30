@@ -1,17 +1,21 @@
 export {
-  cancelAgentRun,
-  dismissVisibleAgentProblem,
-  subscribeAgentRunSettlements,
-  subscribeAnyAgentRunning,
-  stopActiveAgentRun,
-  useActiveRunId,
-  useVisibleAgentProblem,
-  useActiveRunPlan,
-  useActiveRunTimeline,
-  useActiveRunTree,
-  useActiveRunToolCalls,
-  useIsAgentRunning,
-  useStopActiveAgentRun,
-} from "../application/run/activeRun";
-export type { AgentRunSettlement } from "../application/run/activeRun";
+  cancelActiveSessionRun,
+  dismissActiveSessionProblem,
+  stopCurrentRootRun,
+  useStopCurrentRootRun,
+} from "../application/run/runCommands";
+export {
+  useActiveSessionProblem,
+  useActiveSessionRunTree,
+  useActiveSessionTimeline,
+  useActiveSessionToolCalls,
+  useCurrentRootPlan,
+  useCurrentRootRunId,
+  useIsCurrentRootRunning,
+} from "../application/run/runReadModel";
+export {
+  subscribeAnySessionRunning,
+  subscribeRootRunSettlements,
+} from "../application/run/rootAttention";
+export type { RootRunSettlement } from "../application/run/rootAttention";
 export type { AgentRunTreeNode } from "../application/view/runTree";

@@ -16,9 +16,9 @@ import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { cn } from "@/lib/utils";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
-  cancelAgentRun,
-  useActiveRunTimeline,
-  useActiveRunTree,
+  cancelActiveSessionRun,
+  useActiveSessionRunTree,
+  useActiveSessionTimeline,
 } from "@/plugins/builtin/agent/public/run";
 import {
   locateWorkspaceTool,
@@ -158,7 +158,7 @@ function TimelineRunHeader({ group }: { group: TimelineRunGroup }) {
           quiet
           title={t("agent.runTree.action.cancel")}
           onClick={() => {
-            cancelAgentRun(run.id);
+            cancelActiveSessionRun(run.id);
           }}
         />
       )}
@@ -168,8 +168,8 @@ function TimelineRunHeader({ group }: { group: TimelineRunGroup }) {
 
 function TimelineTab() {
   const t = useT();
-  const timeline = useActiveRunTimeline();
-  const runTree = useActiveRunTree();
+  const timeline = useActiveSessionTimeline();
+  const runTree = useActiveSessionRunTree();
   const view = timelineViewModel(timeline, runTree);
 
   return (

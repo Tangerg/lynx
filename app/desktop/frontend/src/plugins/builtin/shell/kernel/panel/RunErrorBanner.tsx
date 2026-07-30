@@ -15,8 +15,8 @@ import {
   useChatSend,
 } from "@/plugins/builtin/agent/public/input";
 import {
-  dismissVisibleAgentProblem,
-  useVisibleAgentProblem,
+  dismissActiveSessionProblem,
+  useActiveSessionProblem,
 } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
 import { swift } from "@/lib/motion";
@@ -64,7 +64,7 @@ const UNRETRYABLE: readonly string[] = ["invalid_api_key", "invalid_params", "pr
 // of forcing them to scroll up and figure out the recovery themselves.
 export function RunErrorBanner() {
   const t = useT();
-  const error = useVisibleAgentProblem();
+  const error = useActiveSessionProblem();
   const send = useChatSend();
   const canSend = useCanSendToAgent();
 
@@ -94,7 +94,7 @@ export function RunErrorBanner() {
 
   const onRetry = () => {
     if (retryIn > 0 || !canSend || !retryText) return;
-    dismissVisibleAgentProblem();
+    dismissActiveSessionProblem();
     send(agentTextInput(retryText));
   };
 
@@ -152,7 +152,7 @@ export function RunErrorBanner() {
             size="xs"
             quiet
             title={t("runError.action.dismiss")}
-            onClick={dismissVisibleAgentProblem}
+            onClick={dismissActiveSessionProblem}
           />
         </motion.div>
       )}

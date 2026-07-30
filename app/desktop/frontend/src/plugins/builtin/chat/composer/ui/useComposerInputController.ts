@@ -11,7 +11,7 @@ import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useFileMentions } from "@/plugins/builtin/chat/composer/public/fileMentions";
-import { useIsAgentRunning } from "@/plugins/builtin/agent/public/run";
+import { useIsCurrentRootRunning } from "@/plugins/builtin/agent/public/run";
 import { COMPOSER_KEY_BINDING, lookupExtensionByKey } from "@/plugins/sdk";
 import { submitComposer } from "@/plugins/builtin/chat/composer/public/submit";
 import { setComposerFocusTarget } from "../application/focus";
@@ -76,7 +76,7 @@ export function useComposerInputController({
     [onChange],
   );
   const mentions = useFileMentions({ value, caret, cwd, apply: applyMention });
-  const running = useIsAgentRunning();
+  const running = useIsCurrentRootRunning();
   const placeholder = running ? t("composer.placeholder.steer") : t("composer.placeholder");
   const submit = useCallback(
     () =>

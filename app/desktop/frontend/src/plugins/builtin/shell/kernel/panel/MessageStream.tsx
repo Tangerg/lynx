@@ -9,7 +9,7 @@ import { formatDateTime } from "@/lib/i18n/relativeTime";
 import { useT } from "@/lib/i18n";
 import { Loader } from "@/ui";
 import { Slot } from "@/plugins/host/Slot";
-import { useIsAgentRunning } from "@/plugins/builtin/agent/public/run";
+import { useIsCurrentRootRunning } from "@/plugins/builtin/agent/public/run";
 import { MessageBlock } from "@/plugins/builtin/chat/message/public/rendering";
 
 // Chat scroll surface, backed by use-stick-to-bottom. `resetKey`
@@ -65,7 +65,7 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
   // tail scrolls out of view (D2). Hard-pin to the bottom during generation,
   // and keep the smooth catch-up only when idle (re-open / history load).
   // `running` flips only at run boundaries, so this never churns per token.
-  const running = useIsAgentRunning();
+  const running = useIsCurrentRootRunning();
 
   const firstUserIndex = messages.findIndex((m) => m.role === "user");
 

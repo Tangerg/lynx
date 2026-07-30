@@ -15,7 +15,7 @@ import { IconButton } from "@/ui";
 import { useAgentSessions } from "@/plugins/builtin/agent/public/session";
 import { basename } from "@/lib/path";
 import { useActiveSession } from "@/plugins/builtin/agent/public/session";
-import { useIsAgentRunning } from "@/plugins/builtin/agent/public/run";
+import { useIsCurrentRootRunning } from "@/plugins/builtin/agent/public/run";
 import {
   closeWorkspaceDockView,
   closeWorkspaceView,
@@ -87,7 +87,7 @@ export function ChatPanel({ onSend }: Props) {
   const { width: dockWidth } = useDockWidth(dockDensity);
   const { isLoading } = useAgentSessions();
   const activeSession = useActiveSession();
-  const running = useIsAgentRunning();
+  const running = useIsCurrentRootRunning();
   const t = useT();
 
   // Suppress the panel only while the FIRST sessions fetch is in flight (and

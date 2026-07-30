@@ -2,7 +2,7 @@ import type { BlockStatus } from "@/plugins/builtin/agent/public/viewState";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MarkdownMessage } from "../markdown/MarkdownMessage";
 import { Collapsible, Icon, StatusDot } from "@/ui";
-import { stopActiveAgentRun } from "@/plugins/builtin/agent/public/run";
+import { stopCurrentRootRun } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -162,7 +162,7 @@ export function ReasoningBlock({ text, status }: Props) {
           <button
             type="button"
             onClick={() => {
-              stopActiveAgentRun();
+              stopCurrentRootRun();
             }}
             className="mr-3.5 shrink-0 border-b border-dotted border-fg-faint/60 pb-px text-ui-md leading-none text-fg-muted transition-colors hover:border-fg hover:text-fg"
           >

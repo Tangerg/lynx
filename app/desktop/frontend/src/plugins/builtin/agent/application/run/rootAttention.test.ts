@@ -9,7 +9,7 @@ import {
   type AgentSessionViewEntry,
   type AgentSessionViewPort,
 } from "../ports/sessionView";
-import { subscribeAgentRunSettlements, subscribeAnyAgentRunning } from "./activeRun";
+import { subscribeAnySessionRunning, subscribeRootRunSettlements } from "./rootAttention";
 
 let disposePort: (() => void) | undefined;
 
@@ -88,11 +88,11 @@ const terminalCases: Array<{
   { outcome: { type: "maxBudget" }, status: "limit" },
 ];
 
-describe("shell Run attention", () => {
+describe("root Run attention", () => {
   it("publishes the current any-running state immediately and only on change", () => {
     const publish = wire(view(root("running")));
     const onChange = vi.fn();
-    subscribeAnyAgentRunning(onChange);
+    subscribeAnySessionRunning(onChange);
 
     expect(onChange).toHaveBeenCalledWith(true);
     publish(view(root("running")));
@@ -104,7 +104,7 @@ describe("shell Run attention", () => {
   it("reports waiting and terminal transitions for the same root without treating resume as settle", () => {
     const publish = wire(view(root("running")));
     const onSettled = vi.fn();
-    subscribeAgentRunSettlements(onSettled);
+    subscribeRootRunSettlements(onSettled);
 
     publish(view(root("waiting")));
     expect(onSettled).toHaveBeenLastCalledWith({
@@ -128,7 +128,7 @@ describe("shell Run attention", () => {
   it.each(terminalCases)("maps $outcome.type to the $status settlement", ({ outcome, status }) => {
     const publish = wire(view(root("running")));
     const onSettled = vi.fn();
-    subscribeAgentRunSettlements(onSettled);
+    subscribeRootRunSettlements(onSettled);
 
     publish(view(root("finished", outcome)));
 

@@ -6,13 +6,13 @@ import { Icon, IconButton, StepMark, type StepState } from "@/ui";
 import { swift } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
-import { useActiveRunId, useActiveRunPlan } from "@/plugins/builtin/agent/public/run";
+import { useCurrentRootPlan, useCurrentRootRunId } from "@/plugins/builtin/agent/public/run";
 import { planProgress } from "../application/progress";
 
 export function PlanProgressBanner() {
   const t = useT();
-  const plan = useActiveRunPlan();
-  const runId = useActiveRunId();
+  const plan = useCurrentRootPlan();
+  const runId = useCurrentRootRunId();
   const [dismissedRunId, setDismissedRunId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const progress = planProgress(plan, runId, dismissedRunId);

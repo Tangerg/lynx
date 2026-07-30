@@ -1,80 +1,16 @@
-import type {
-  AgentProblem,
-  AgentRunView,
-  AgentSessionView,
-  PlanItem,
-  TimelineEntry,
-  ToolCall,
-} from "@/plugins/sdk/types/agentSessionView";
-import { agentSessionState } from "../ports/sessionState";
+import type { AgentRunView, AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { agentSessionView, type AgentSessionViewEntry } from "../ports/sessionView";
-import type { AgentRootAttention, AgentRunTreeNode } from "../view/runTree";
+import type { AgentRootAttention } from "../view/runTree";
 import {
   selectCurrentRootAttention,
   selectCurrentRootRun,
   selectRunProblem,
 } from "../view/runTree";
 
-export interface AgentRunSettlement {
+export interface RootRunSettlement {
   sessionId: string;
   status: "needsInput" | "finished" | "error" | "canceled" | "limit";
   errorMessage: string | null;
-}
-
-export function useIsAgentRunning(): boolean {
-  return agentSessionView().useCurrentRootAttention().status === "running";
-}
-
-export function useActiveRunId(): string | null {
-  return agentSessionView().useCurrentRootRunId();
-}
-
-export function useActiveRunPlan(): PlanItem[] {
-  return agentSessionView().useCurrentRootPlan();
-}
-
-export function useActiveRunToolCalls(): Record<string, ToolCall> {
-  return agentSessionView().useToolCalls();
-}
-
-export function useActiveRunTimeline(): TimelineEntry[] {
-  return agentSessionView().useSessionTimeline();
-}
-
-export function useActiveRunTree(): AgentRunTreeNode[] {
-  return agentSessionView().useRunTree();
-}
-
-export function useVisibleAgentProblem(): AgentProblem | null {
-  return agentSessionView().useProblem();
-}
-
-export function useStopActiveAgentRun(): (() => void) | null {
-  return agentSessionView().useAction("stop");
-}
-
-export function stopActiveAgentRun(): boolean {
-  const sessionId = agentSessionState().getActiveSessionId();
-  const entry = agentSessionView().getSession(sessionId);
-  const runId = entry ? selectCurrentRootRun(entry.view)?.id : null;
-  return runId ? cancelAgentRun(runId) : false;
-}
-
-/** Cancel a root or descendant in the active session. The command is accepted
- * only while that exact Run is non-terminal and a mounted driver owns it. */
-export function cancelAgentRun(runId: string): boolean {
-  const sessionId = agentSessionState().getActiveSessionId();
-  const entry = agentSessionView().getSession(sessionId);
-  const run = entry?.view.runsById[runId];
-  if (!entry?.cancelRun || !run || run.status === "finished") return false;
-  entry.cancelRun(runId);
-  return true;
-}
-
-export function dismissVisibleAgentProblem(): void {
-  const sessionId = agentSessionState().getActiveSessionId();
-  if (!sessionId) return;
-  agentSessionView().clearProblem(sessionId);
 }
 
 function currentRootAttention(view: AgentSessionView): AgentRootAttention {
@@ -85,7 +21,7 @@ function currentRootRunning(view: AgentSessionView): boolean {
   return currentRootAttention(view).status === "running";
 }
 
-function anyAgentRunning(sessions: Record<string, AgentSessionViewEntry>): boolean {
+function anySessionRunning(sessions: Record<string, AgentSessionViewEntry>): boolean {
   for (const id in sessions) {
     if (currentRootRunning(sessions[id]!.view)) return true;
   }
@@ -94,7 +30,7 @@ function anyAgentRunning(sessions: Record<string, AgentSessionViewEntry>): boole
 
 function terminalSettlementStatus(
   outcome: AgentRunView["outcome"],
-): Exclude<AgentRunSettlement["status"], "needsInput"> {
+): Exclude<RootRunSettlement["status"], "needsInput"> {
   switch (outcome?.type) {
     case "error":
       return "error";
@@ -108,19 +44,19 @@ function terminalSettlementStatus(
   }
 }
 
-export function subscribeAnyAgentRunning(onChange: (running: boolean) => void): () => void {
-  let lastRunning = anyAgentRunning(agentSessionView().getSessions());
+export function subscribeAnySessionRunning(onChange: (running: boolean) => void): () => void {
+  let lastRunning = anySessionRunning(agentSessionView().getSessions());
   onChange(lastRunning);
   return agentSessionView().subscribeSessions((sessions) => {
-    const running = anyAgentRunning(sessions);
+    const running = anySessionRunning(sessions);
     if (running === lastRunning) return;
     lastRunning = running;
     onChange(running);
   });
 }
 
-export function subscribeAgentRunSettlements(
-  onSettled: (settlement: AgentRunSettlement) => void,
+export function subscribeRootRunSettlements(
+  onSettled: (settlement: RootRunSettlement) => void,
 ): () => void {
   const previousBySession = new Map<string, AgentRootAttention>();
   for (const [sessionId, entry] of Object.entries(agentSessionView().getSessions())) {
