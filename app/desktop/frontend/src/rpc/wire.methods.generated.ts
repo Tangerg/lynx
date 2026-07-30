@@ -92,6 +92,7 @@ import type {
   ReadFileRequest,
   RemoveMCPServerRequest,
   ResumeRunRequest,
+  ResumeRunResponse,
   RollbackSessionRequest,
   RollbackSessionResponse,
   RunRef,
@@ -411,7 +412,7 @@ export interface WireShapes {
   "sessions.export": { params: ExportSessionRequest; result: ExportSessionResponse };
   "sessions.import": { params: ImportSessionRequest; result: ImportSessionResponse };
   "runs.start": { params: StartRunRequest; result: StartRunResponse };
-  "runs.resume": { params: ResumeRunRequest; result: StartRunResponse };
+  "runs.resume": { params: ResumeRunRequest; result: ResumeRunResponse };
   "runs.subscribe": { params: SubscribeRunRequest; result: SubscribeRunResponse };
   "runs.cancel": { params: CancelRunRequest; result: CancelRunResponse };
   "runs.steer": { params: SteerRunRequest };

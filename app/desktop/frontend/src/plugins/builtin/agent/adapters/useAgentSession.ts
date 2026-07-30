@@ -107,8 +107,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       runOpening.begin(
         (signal) => driver.start(wireInput, options, signal),
         (result) => {
-          if (result.userItemId)
-            store().relabelMessage(sessionId, optimistic.localId, result.userItemId);
+          store().relabelMessage(sessionId, optimistic.localId, result.userItemId);
           // The run was accepted, so this session now holds a conversation: it
           // graduates out of draft and into the session list. This used to fire
           // the moment the attempt started, which promoted a session whose only

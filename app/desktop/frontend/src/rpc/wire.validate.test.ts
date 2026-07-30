@@ -54,6 +54,32 @@ describe("the generated wire checks", () => {
     ]);
   });
 
+  it("keeps start and resume acknowledgements semantically distinct", () => {
+    expect(
+      validateWire("StartRunResponse", {
+        runId: "run_01",
+        segmentId: "seg_01",
+        userItemId: "item_01",
+      }),
+    ).toEqual([]);
+    expect(validateWire("StartRunResponse", { runId: "run_01", segmentId: "seg_01" })).toEqual([
+      { path: "StartRunResponse.userItemId", detail: "is required" },
+    ]);
+    expect(validateWire("ResumeRunResponse", { runId: "run_01", segmentId: "seg_02" })).toEqual([]);
+    expect(
+      validateWire("ResumeRunResponse", {
+        runId: "run_01",
+        segmentId: "seg_02",
+        userItemId: "",
+      }),
+    ).toEqual([
+      {
+        path: "ResumeRunResponse.userItemId",
+        detail: "expected at least 1 character(s)",
+      },
+    ]);
+  });
+
   it("rejects a value of the wrong JSON type", () => {
     expect(validateWire("Session", { ...session, revision: "3" })).toEqual([
       { path: "Session.revision", detail: "expected an integer" },

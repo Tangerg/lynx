@@ -220,6 +220,13 @@ func requiredText(field, value string) FieldError {
 	return FieldError{}
 }
 
+func optionalText[Text ~string](field string, value *Text) FieldError {
+	if value != nil && *value == "" {
+		return FieldError{Field: field, Detail: "must not be empty"}
+	}
+	return FieldError{}
+}
+
 type wireNumber interface {
 	~int | ~int8 | ~int16 | ~int32 | ~int64 |
 		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64

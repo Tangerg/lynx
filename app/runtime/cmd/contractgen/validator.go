@@ -115,7 +115,11 @@ func validatorChecks(
 		field := strconv.Quote(constraint.Field)
 		switch constraint.Kind {
 		case dispatch.ConstraintNonEmpty:
-			checks = append(checks, fmt.Sprintf("requiredText(%s, %s)", field, stringExpr(selector, leaf.Type)))
+			validatorName := "requiredText"
+			if leaf.Optional && leaf.Type.Kind() == reflect.Pointer {
+				validatorName = "optionalText"
+			}
+			checks = append(checks, fmt.Sprintf("%s(%s, %s)", validatorName, field, stringExpr(selector, leaf.Type)))
 		case dispatch.ConstraintPositive:
 			checks = append(checks, fmt.Sprintf("positiveNumber(%s, value.%s)", field, selector))
 		case dispatch.ConstraintNonEmptyItems:
@@ -221,10 +225,14 @@ func conditionExpression(conditions []dispatch.FieldCondition) string {
 // is what the linter deletes, so emitting one everywhere would make the generated
 // file fail the check it is generated to pass.
 func stringExpr(selector string, leaf reflect.Type) string {
+	value := "value." + selector
+	if leaf.Kind() == reflect.Pointer {
+		return value
+	}
 	if leaf.Kind() == reflect.String && leaf.Name() != "string" {
 		return fmt.Sprintf("string(value.%s)", selector)
 	}
-	return "value." + selector
+	return value
 }
 
 func valueList(values []string) string {

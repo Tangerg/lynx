@@ -61,6 +61,7 @@ export type {
   StartRunResponse,
   CancelRunResponse,
   ResumeRunRequest,
+  ResumeRunResponse,
   // Items
   Item,
   ItemStatus,

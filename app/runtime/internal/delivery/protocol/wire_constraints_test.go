@@ -91,6 +91,25 @@ func TestOutputCollectionWireConstraints(t *testing.T) {
 	assertConstraintField(t, capability.ValidateWire(), "ProblemData", "requiredCapabilities")
 }
 
+func TestRunOpeningResponseWireConstraints(t *testing.T) {
+	t.Parallel()
+
+	start := StartRunResponse{RunID: "run_1", SegmentID: "seg_1"}
+	assertConstraintField(t, start.ValidateWire(), "StartRunResponse", "userItemId")
+	start.UserItemID = "item_1"
+	if err := start.ValidateWire(); err != nil {
+		t.Fatalf("ValidateWire rejected a complete start response: %v", err)
+	}
+
+	resume := ResumeRunResponse{RunID: "run_1", SegmentID: "seg_2"}
+	if err := resume.ValidateWire(); err != nil {
+		t.Fatalf("ValidateWire rejected a response-only resume: %v", err)
+	}
+	empty := ""
+	resume.UserItemID = &empty
+	assertConstraintField(t, resume.ValidateWire(), "ResumeRunResponse", "userItemId")
+}
+
 func TestValidateWireTreeComposesNestedConstraints(t *testing.T) {
 	t.Parallel()
 

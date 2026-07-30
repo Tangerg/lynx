@@ -72,7 +72,9 @@ func (b *blockingRuntime) StartRun(ctx context.Context, in protocol.StartRunRequ
 		}
 		<-ctx.Done()
 	}
-	return &protocol.StartRunResponse{RunID: "run_block"}, events, nil
+	return &protocol.StartRunResponse{
+		RunID: "run_block", SegmentID: "seg_block", UserItemID: "item_block",
+	}, events, nil
 }
 
 // settledGoroutines polls until the count stops falling, so a residue reading is

@@ -118,8 +118,8 @@ func TestProtocolLifecycleSurvivesColdRestart(t *testing.T) {
 	if resumed.RunID != started.RunID || resumed.SegmentID == "" || resumed.SegmentID == started.SegmentID {
 		t.Fatalf("runs.resume identity = %+v, want same run and a fresh segment", resumed)
 	}
-	if resumed.UserItemID != "" {
-		t.Fatalf("runs.resume userItemId = %q without resume input", resumed.UserItemID)
+	if resumed.UserItemID != nil {
+		t.Fatalf("runs.resume userItemId = %q without resume input", *resumed.UserItemID)
 	}
 	resumeEventsDone := collectRunEvents(resumeEvents)
 	waitForSignal(t, model.resumedCallStarted, "resumed model call")

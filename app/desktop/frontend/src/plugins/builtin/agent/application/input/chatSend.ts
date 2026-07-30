@@ -5,7 +5,7 @@ import { describeRpcError } from "@/lib/rpcErrors";
 import { notifyError } from "@/plugins/sdk";
 import { resolveAgentRunStartOptions } from "@/plugins/sdk";
 import type { AgentInput } from "../../domain/input";
-import { LOCAL_STEER_PREFIX } from "@/plugins/builtin/agent/domain/messageIdentity";
+import { OPTIMISTIC_STEER_MESSAGE_PREFIX } from "../view/optimisticMessageIdentity";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { agentSessionView } from "../ports/sessionView";
 import { getActiveSessionId } from "../session/activeSession";
@@ -131,7 +131,7 @@ function sendFreshTurn({
 }
 
 function mintSteerBubble(sessionId: string, input: AgentInput): string {
-  const id = `${LOCAL_STEER_PREFIX}${++steerSeq}`;
+  const id = `${OPTIMISTIC_STEER_MESSAGE_PREFIX}${++steerSeq}`;
   agentSessionView().appendLocalUserMessage(sessionId, id, input);
   return id;
 }

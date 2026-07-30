@@ -456,28 +456,3 @@ describe("agentStore.dropMessage", () => {
     expect(view().messages).toBe(before); // same reference — no churn
   });
 });
-
-describe("appendUserMessage reconciles an image-only optimistic bubble", () => {
-  const imageUserMsg = (id: string): Item =>
-    item({
-      id,
-      status: "completed",
-      type: "userMessage",
-      content: [{ type: "image", mime: "image/png", data: "AAAA" }],
-    });
-
-  it("upgrades the local-* image bubble in place instead of appending a duplicate", () => {
-    const store = useAgentStore.getState();
-    store.ensureSession(SID);
-    // Optimistic image-only bubble: a local id + an image block, NO text block.
-    applyCompletedItems([imageUserMsg("local-1")]);
-    expect(view().messages.map((m) => m.id)).toEqual(["local-1"]);
-
-    // Streamed server item (new id, same image-only content). Without a
-    // userItemId relabel, the fold's content match must reconcile by upgrading
-    // the placeholder id — not append a second bubble (regression: an absent
-    // text block read as undefined !== "" and duplicated the image message).
-    applyCompletedItems([imageUserMsg("item_real")]);
-    expect(view().messages.map((m) => m.id)).toEqual(["item_real"]);
-  });
-});

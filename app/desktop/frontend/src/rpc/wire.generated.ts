@@ -1003,6 +1003,12 @@ export interface ResumeRunRequest {
   runId: string;
 }
 
+export interface ResumeRunResponse {
+  runId: string;
+  segmentId: string;
+  userItemId?: string;
+}
+
 export interface RollbackSessionRequest {
   restoreType?: RestoreType;
   sessionId: string;
@@ -1279,7 +1285,7 @@ export interface StartRunRequest {
 export interface StartRunResponse {
   runId: string;
   segmentId: string;
-  userItemId?: string;
+  userItemId: string;
 }
 
 export type StateSnapshot =

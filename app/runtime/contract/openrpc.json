@@ -587,7 +587,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "schema.json#/$defs/StartRunResponse"
+          "$ref": "schema.json#/$defs/ResumeRunResponse"
         }
       },
       "errors": [

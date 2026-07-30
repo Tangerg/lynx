@@ -44,7 +44,7 @@ func registerRuns(r *Registry) {
 			protocol.ErrCapabilityNotNeg.Error(),
 		},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.ResumeRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
+	}, func(d *Dispatcher, ctx context.Context, in protocol.ResumeRunRequest) (*protocol.ResumeRunResponse, iter.Seq[protocol.RunEvent], error) {
 		return d.api.ResumeRun(ctx, in)
 	}, runEventFramer)
 

@@ -206,6 +206,7 @@ export type WireTypeName =
   | "RequestMeta"
   | "RestoreType"
   | "ResumeRunRequest"
+  | "ResumeRunResponse"
   | "RollbackSessionRequest"
   | "RollbackSessionResponse"
   | "RunEvent"
@@ -1633,6 +1634,11 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     responses: array(ref(() => CHECKS.InterruptResponse)),
     runId: allOf([text(), minLength(1)]),
   }, ["responses", "runId"]),
+  ResumeRunResponse: object({
+    runId: allOf([text(), minLength(1)]),
+    segmentId: allOf([text(), minLength(1)]),
+    userItemId: allOf([text(), minLength(1)]),
+  }, ["runId", "segmentId"]),
   RollbackSessionRequest: object({
     restoreType: ref(() => CHECKS.RestoreType),
     sessionId: allOf([text(), minLength(1)]),
@@ -2188,10 +2194,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     sessionId: text(),
   }, ["input", "sessionId"]),
   StartRunResponse: object({
-    runId: text(),
-    segmentId: text(),
-    userItemId: text(),
-  }, ["runId", "segmentId"]),
+    runId: allOf([text(), minLength(1)]),
+    segmentId: allOf([text(), minLength(1)]),
+    userItemId: allOf([text(), minLength(1)]),
+  }, ["runId", "segmentId", "userItemId"]),
   StateSnapshot: allOf([
     object({
       revision: allOf([integer(), minimum(0)]),

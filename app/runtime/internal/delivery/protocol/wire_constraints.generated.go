@@ -1017,6 +1017,22 @@ func (value ArtifactRun) ValidateWire() error {
 	)
 }
 
+func (value StartRunResponse) ValidateWire() error {
+	return collectWireViolations("StartRunResponse",
+		requiredText("runId", value.RunID),
+		requiredText("segmentId", value.SegmentID),
+		requiredText("userItemId", value.UserItemID),
+	)
+}
+
+func (value ResumeRunResponse) ValidateWire() error {
+	return collectWireViolations("ResumeRunResponse",
+		requiredText("runId", value.RunID),
+		requiredText("segmentId", value.SegmentID),
+		optionalText("userItemId", value.UserItemID),
+	)
+}
+
 func (value RunReplayLimits) ValidateWire() error {
 	return collectWireViolations("RunReplayLimits",
 		positiveNumber("maxEvents", value.MaxEvents),

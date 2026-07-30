@@ -18,7 +18,7 @@ export function runtimeRunsGateway(): RpcRunsGateway {
       const { result, events } = await getContainer()
         .client()
         .runs.start({ ...params, sessionId: asSessionId(sessionId) }, signal);
-      return { result: brandRunIds(result), events };
+      return { result: brandStartedRun(result), events };
     },
     resume: async (params, signal) => {
       const { result, events } = await getContainer().client().runs.resume(params, signal);
@@ -35,12 +35,12 @@ export function runtimeRunsGateway(): RpcRunsGateway {
  * and for a run's ids this adapter IS that site. The app's ports speak branded ids
  * so a RunId can never be passed where an ItemId belongs.
  */
-function brandRunIds(result: StartRunResponse) {
+function brandStartedRun(result: StartRunResponse) {
   return {
     runId: asRunId(result.runId),
     // The segment, not just the run: a stream is a segment's, and reattaching after a
     // dropped connection has to name the one it was following.
     segmentId: asSegmentId(result.segmentId),
-    ...(result.userItemId ? { userItemId: asItemId(result.userItemId) } : {}),
+    userItemId: asItemId(result.userItemId),
   };
 }

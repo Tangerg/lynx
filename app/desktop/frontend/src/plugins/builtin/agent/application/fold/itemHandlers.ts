@@ -104,11 +104,15 @@ export function onItemDelta(
 
 export function onItemCompleted(
   state: AgentSessionView,
-  rawItem: Item,
+  item: Item,
   source: AgentFoldSource,
 ): AgentSessionView {
-  assertItemSource(rawItem, source);
-  const item: Item = rawItem.status === "running" ? { ...rawItem, status: "incomplete" } : rawItem;
+  assertItemSource(item, source);
+  if (item.status === "running") {
+    throw new Error(
+      `agent.fold.itemCompletedRequiresTerminalStatus:item=${item.id};run=${item.runId};status=${item.status}`,
+    );
+  }
   switch (item.type) {
     case "userMessage":
       return appendUserMessage(state, item);

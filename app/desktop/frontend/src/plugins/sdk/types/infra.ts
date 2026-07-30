@@ -97,7 +97,7 @@ export interface AgentDriver {
     options: AgentRunStartOptions,
     signal?: AbortSignal,
   ) => Promise<
-    StreamingResult<{ runId: RunId; segmentId: SegmentId; userItemId?: ItemId }, RunEvent>
+    StreamingResult<{ runId: RunId; segmentId: SegmentId; userItemId: ItemId }, RunEvent>
   >;
   /**
    * Resume the run `runId` with HITL responses — opens a NEW segment of the

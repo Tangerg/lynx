@@ -324,6 +324,12 @@ TypeScript validator from this single registry projection.
 | `StartRunRequest` | `input` | `nonEmptyItems` |
 | `ResumeRunRequest` | `runId` | `nonEmpty` |
 | `ResumeRunRequest` | `input` | `nonEmptyItems` |
+| `StartRunResponse` | `runId` | `nonEmpty` |
+| `StartRunResponse` | `segmentId` | `nonEmpty` |
+| `StartRunResponse` | `userItemId` | `nonEmpty` |
+| `ResumeRunResponse` | `runId` | `nonEmpty` |
+| `ResumeRunResponse` | `segmentId` | `nonEmpty` |
+| `ResumeRunResponse` | `userItemId` | `nonEmpty` |
 | `SubscribeRunRequest` | `runId` | `nonEmpty` |
 | `SubscribeRunRequest` | `segmentId` | `nonEmpty` |
 | `GetRunRequest` | `runId` | `nonEmpty` |

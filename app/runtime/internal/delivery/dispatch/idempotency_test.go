@@ -105,7 +105,7 @@ func TestReplayPreservesCompletedRunResponse(t *testing.T) {
 		t.Fatalf("build request: %v", err)
 	}
 	response, err := transport.NewResponseResult(transport.StringID("first"), protocol.StartRunResponse{
-		RunID: "run_1", SegmentID: "seg_1",
+		RunID: "run_1", SegmentID: "seg_1", UserItemID: "item_1",
 	})
 	if err != nil {
 		t.Fatalf("build response: %v", err)

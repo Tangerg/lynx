@@ -66,6 +66,8 @@ func registerRunValues(s *Shapes) {
 			{Field: "input", Kind: ConstraintNonEmptyItems},
 		},
 	})
+	nonEmpty[protocol.StartRunResponse](s, "runId", "segmentId", "userItemId")
+	nonEmpty[protocol.ResumeRunResponse](s, "runId", "segmentId", "userItemId")
 	// Subscribe and steer both address a SEGMENT: naming only the run would let the
 	// runtime pick whichever one is live, which is how a client silently ends up
 	// folding — or steering — an execution it never saw.

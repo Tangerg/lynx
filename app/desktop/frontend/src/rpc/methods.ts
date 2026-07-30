@@ -53,6 +53,7 @@ import type {
   Provider,
   ProviderTestResult,
   ResumeRunRequest,
+  ResumeRunResponse,
   StartRunResponse,
   SubscribeRunRequest,
   SubscribeRunResponse,
@@ -230,7 +231,7 @@ export interface Methods {
     resume: (
       params: ResumeRunRequest,
       signal?: AbortSignal,
-    ) => Promise<StreamingResult<StartRunResponse, RunEvent>>;
+    ) => Promise<StreamingResult<ResumeRunResponse, RunEvent>>;
     // Reattach to a run's live segment. Both ids are required: a subscription that
     // named only the run would attach to whatever segment happens to be executing,
     // and a client folding an earlier one would continue into a different execution

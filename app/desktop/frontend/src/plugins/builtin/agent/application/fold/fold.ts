@@ -5,10 +5,7 @@
 import type { Item } from "@/rpc";
 import type { BlockStatus, ContentBlock } from "@/plugins/sdk/types/contentBlock";
 import type { AgentSessionView, Message, ToolCall } from "@/plugins/sdk/types/agentSessionView";
-import {
-  isLocalMessageId,
-  isLocalSteerMessageId,
-} from "@/plugins/builtin/agent/domain/messageIdentity";
+import { isOptimisticSteerMessageId } from "../view/optimisticMessageIdentity";
 import {
   argsText,
   contentText,
@@ -240,17 +237,13 @@ export function appendUserMessage(
   const localText = (m: Message): string =>
     m.blocks.find((b): b is Extract<ContentBlock, { kind: "text" }> => b.kind === "text")?.text ??
     "";
-  // Prefer a STEER placeholder: a steered message has no id reconciler (content
-  // is its only key), whereas a send placeholder is relabeled to its server id
-  // BEFORE its Item streams — so a steer item must not steal a same-text send
-  // placeholder. Only when no steer bubble matches do we fall back to any local
-  // placeholder (the send content-match fallback for a runtime that omits the
-  // userItemId relabel, §7.3).
+  // A steer ack carries no Item id, so its optimistic bubble is the only case
+  // that reconciles by content. A fresh start is relabeled from the mandatory
+  // userItemId in StartRunResponse before its durable Item arrives.
   const matches = (m: Message): boolean => m.role === "user" && localText(m) === text;
-  let placeholder = state.messages.findIndex((m) => isLocalSteerMessageId(m.id) && matches(m));
-  if (placeholder === -1) {
-    placeholder = state.messages.findIndex((m) => isLocalMessageId(m.id) && matches(m));
-  }
+  const placeholder = state.messages.findIndex(
+    (m) => isOptimisticSteerMessageId(m.id) && matches(m),
+  );
   if (placeholder !== -1) {
     const messages = state.messages.map((m, i) =>
       i === placeholder ? { ...m, id: item.id, runId: item.runId } : m,

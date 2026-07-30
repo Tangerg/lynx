@@ -9,6 +9,7 @@ import type { Item, StreamEvent } from "@/rpc";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { foldTestEvent as reduce, runFinished } from "./reducer.fixtures";
+import { reduceDurableItem } from "./reducer";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import { selectCurrentRootRun, selectRunPlan, selectVisibleProblem } from "../view/runTree";
 
@@ -184,14 +185,15 @@ describe("reducer — item fold", () => {
     expect(s.messages[1]!.role).toBe("user");
   });
 
-  it("a streamed userMessage reconciles the optimistic placeholder (no duplicate)", () => {
+  it("a streamed userMessage reconciles an optimistic steer placeholder", () => {
     let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
-    // send() renders the user's bubble optimistically with a local-* id.
+    // runs.steer has no Item id in its ack, so its optimistic bubble uses the
+    // distinct steer prefix and reconciles by content.
     s = reduce(
       s,
       completed(
         item({
-          id: "local-1",
+          id: "local-steer-1",
           type: "userMessage",
           status: "completed",
           content: [{ type: "text", text: "hi" }],
@@ -199,9 +201,7 @@ describe("reducer — item fold", () => {
       ),
     );
     expect(s.messages).toHaveLength(1);
-    // The runtime then streams the real userMessage Item with its own server
-    // id (started + completed). It must upgrade the placeholder in place, not
-    // append a second bubble.
+    // The runtime then streams the real userMessage Item with its durable id.
     s = reduce(
       s,
       started(
@@ -242,24 +242,17 @@ describe("reducer — item fold", () => {
     expect(selectRunPlan(s, "run_1")).toEqual([]);
   });
 
-  it("item.completed{status:running} is a lost item — settles incomplete, not a forever spinner", () => {
-    // History hydration (items.list) of a run lost to a crash/restart replays
-    // its last item as item.completed but with status still running (a known
-    // backend reconciliation gap). The fold must coerce that to incomplete — a "running" block here
-    // would spin forever (no live stream will ever complete it).
-    let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
-    s = reduce(
-      s,
-      completed(
-        item({
-          id: "a1",
-          type: "agentMessage",
-          status: "running", // contradictory on a completed event — coerced
-          content: [{ type: "text", text: "half a thoug" }],
-        }),
-      ),
+  it("rejects item.completed with a non-terminal Item status", () => {
+    const running = item({
+      id: "a1",
+      type: "agentMessage",
+      status: "running",
+      content: [{ type: "text", text: "half a thought" }],
+    });
+
+    expect(() => reduceDurableItem(EMPTY_AGENT_SESSION_VIEW, running)).toThrow(
+      "agent.fold.itemCompletedRequiresTerminalStatus:item=a1;run=run_1;status=running",
     );
-    expect(s.messages[0]!.blocks[0]).toMatchObject({ status: "incomplete", text: "half a thoug" });
   });
 
   it("item.completed{status:incomplete} settles the block as incomplete, not complete", () => {

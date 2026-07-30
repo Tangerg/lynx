@@ -3082,6 +3082,40 @@
       ]
     },
     {
+      "type": "StartRunResponse",
+      "rules": [
+        {
+          "field": "runId",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "segmentId",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "userItemId",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "ResumeRunResponse",
+      "rules": [
+        {
+          "field": "runId",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "segmentId",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "userItemId",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
       "type": "SubscribeRunRequest",
       "rules": [
         {
@@ -3724,7 +3758,7 @@
     },
     {
       "file": "method.runs.resume.resp.json",
-      "shape": "StartRunResponse"
+      "shape": "ResumeRunResponse"
     },
     {
       "file": "method.runs.subscribe.req.json",

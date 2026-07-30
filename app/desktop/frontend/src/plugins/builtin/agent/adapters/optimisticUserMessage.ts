@@ -1,6 +1,6 @@
 import type { ContentBlock } from "@/rpc";
 import type { Message } from "@/plugins/sdk/types/agentSessionView";
-import { LOCAL_MESSAGE_PREFIX } from "@/plugins/builtin/agent/domain/messageIdentity";
+import { OPTIMISTIC_USER_MESSAGE_PREFIX } from "../application/view/optimisticMessageIdentity";
 import { userContentBlocks } from "../application/fold/projections";
 
 let localSeq = 0;
@@ -11,7 +11,7 @@ export interface OptimisticUserMessage {
 }
 
 export function createOptimisticUserMessage(content: ContentBlock[]): OptimisticUserMessage {
-  const localId = `${LOCAL_MESSAGE_PREFIX}${++localSeq}`;
+  const localId = `${OPTIMISTIC_USER_MESSAGE_PREFIX}${++localSeq}`;
   return {
     localId,
     message: {

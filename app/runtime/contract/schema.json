@@ -4429,6 +4429,27 @@
         "runId"
       ]
     },
+    "ResumeRunResponse": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "segmentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "userItemId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "runId",
+        "segmentId"
+      ]
+    },
     "RollbackSessionRequest": {
       "type": "object",
       "properties": {
@@ -6082,18 +6103,22 @@
       "type": "object",
       "properties": {
         "runId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "segmentId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "userItemId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
         "runId",
-        "segmentId"
+        "segmentId",
+        "userItemId"
       ]
     },
     "StateSnapshot": {

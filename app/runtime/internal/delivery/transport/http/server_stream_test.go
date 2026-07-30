@@ -23,7 +23,9 @@ func (f *fakeRuntime) StartRun(_ context.Context, in protocol.StartRunRequest) (
 		{RunID: "run_x", EventID: "evt_00000000002",
 			Event: protocol.StreamEvent{Type: protocol.StreamSegmentFinished, Outcome: &protocol.SegmentOutcome{Type: protocol.SegmentOutcomeType(protocol.OutcomeCompleted)}, Metrics: &protocol.RunMetrics{}}},
 	})
-	return &protocol.StartRunResponse{RunID: "run_x"}, events, nil
+	return &protocol.StartRunResponse{
+		RunID: "run_x", SegmentID: "seg_x", UserItemID: "item_x",
+	}, events, nil
 }
 
 type sseFrame struct{ id, data string }

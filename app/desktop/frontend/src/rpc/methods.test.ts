@@ -178,7 +178,7 @@ describe("methods factory", () => {
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       id: req.id,
-      result: { runId: "run_1", segmentId: "seg_1" },
+      result: { runId: "run_1", segmentId: "seg_1", userItemId: "item_user_1" },
     } as RpcMessage);
     const { result, events } = await startPromise;
     expect(result.runId).toBe("run_1");
@@ -220,7 +220,7 @@ describe("methods factory", () => {
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       id: req.id,
-      result: { runId: "run_1", segmentId: "seg_1" },
+      result: { runId: "run_1", segmentId: "seg_1", userItemId: "item_user_1" },
     } as RpcMessage);
     const { events } = await startPromise;
 

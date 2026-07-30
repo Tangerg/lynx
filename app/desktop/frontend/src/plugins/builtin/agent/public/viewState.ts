@@ -27,11 +27,5 @@ export type {
   ToolDiffRow,
 } from "@/plugins/sdk/types/agentSessionView";
 export { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
-export {
-  LOCAL_MESSAGE_PREFIX,
-  LOCAL_STEER_PREFIX,
-  isLocalMessageId,
-  isLocalSteerMessageId,
-} from "../domain/messageIdentity";
 export { isQuestionTool, toolCategory, type ToolCategory } from "../domain/toolCategory";
 export { appendTimelineEntry } from "@/plugins/sdk/types/agentTimeline";

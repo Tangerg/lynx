@@ -187,12 +187,15 @@ func (d *Dispatcher) replay(ctx context.Context, req *transport.Request, payload
 	if response.Error != nil || idempotencyOf(req.Method) != IdempotencyReplayRunStream {
 		return HandleResult{Response: response}
 	}
-	var started protocol.StartRunResponse
-	if err := json.Unmarshal(response.Result, &started); err != nil {
+	var opening struct {
+		RunID     string `json:"runId"`
+		SegmentID string `json:"segmentId"`
+	}
+	if err := json.Unmarshal(response.Result, &opening); err != nil {
 		return responseError(req.ID, errorToRPC(fmt.Errorf("idempotency: decode stored run response: %w", err)))
 	}
 	_, events, err := d.api.SubscribeRun(ctx, protocol.SubscribeRunRequest{
-		RunID: started.RunID, SegmentID: started.SegmentID,
+		RunID: opening.RunID, SegmentID: opening.SegmentID,
 	})
 	switch {
 	case unattachable(err):

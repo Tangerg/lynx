@@ -256,7 +256,7 @@ runs.start ──▶ segment.started ──▶ (item.started → item.delta* →
                                                                                                     └─ interrupt → Run waiting（见下）
 ```
 
-1. **起 run**：客户端 `runs.start{ sessionId, input }`，**立即**返 `{ runId, segmentId, userItemId? }`，同一条流随即推
+1. **起 run**：客户端 `runs.start{ sessionId, input }`，**立即**返 `{ runId, segmentId, userItemId }`，同一条流随即推
    `RunEvent`（§5）。会话已有非终态 root run 时**不隐式取消它**，而是返回 `session_has_active_run`（§7.3）。
 2. **流式产出**：先 `segment.started{run}`，然后每个 Item 走 `item.started`（壳）→ `item.delta*`（文本 / 工具入参 /
    输出增量，§5.1）→ `item.completed`（权威终态）。
@@ -671,8 +671,9 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
 - **`start` 不隐式取消**：会话已有非终态 root run 时返回 `session_has_active_run`，problem 里带
   `activeRun: {runId, status}`。哪个 run 该继续只有人能决定，隐式取消会为了服务一个"本可以是 steer"的请求而丢掉
   工作。
-- **`start` 的 ack 带 `userItemId?`**：runtime 为这次输入创建了持久化 user Item 时给出它的 id，客户端因此不必
-  猜自己刚发的那条消息在历史里是哪一条。
+- **`start` 的 ack 必带 `userItemId`**：成功 start 已经原子创建持久化 user Item，其 id 是 ack 的必备事实；客户端
+  以 exact ItemID 对账，绝不按消息内容猜测。`resume` 使用独立的 `ResumeRunResponse`，仅当 request 带 `input` 时
+  返回 `userItemId`，不带 input 时禁止出现。
 - **`resume` 可带 `input`**：应答 interrupt 的同时追加一句话。**这是一次原子写**：答复与那条 user Item 一起提交，
   不存在"答复进去了、消息丢了"的中间态。
 - **`subscribe` 必须认领一个 segment**：`{runId, segmentId}`。段号对不上返回 `stale_segment`（客户端重读 run 再从

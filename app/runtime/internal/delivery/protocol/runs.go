@@ -18,7 +18,7 @@ type Runs interface {
 
 	// ResumeRun answers open interrupts by opening a new segment of the SAME run
 	// (R model, API.md §6.1): same stable runId, a fresh segmentId.
-	ResumeRun(ctx context.Context, in ResumeRunRequest) (*StartRunResponse, iter.Seq[RunEvent], error)
+	ResumeRun(ctx context.Context, in ResumeRunRequest) (*ResumeRunResponse, iter.Seq[RunEvent], error)
 
 	// SubscribeRun rebinds the segment the request names to the caller (reconnect /
 	// crash recovery; subscribes the whole run tree). Errors run_not_root,
@@ -269,24 +269,26 @@ type StartRunRequest struct {
 	Params       *GenerationParams `json:"params,omitempty"`
 }
 
-// StartRunResponse is the synchronous result of runs.start / resume /
-// subscribe.
+// StartRunResponse is the synchronous result of runs.start.
 type StartRunResponse struct {
 	RunID string `json:"runId"`
-	// SegmentID is the streamed segment this call opened (a fresh one per
-	// runs.start / runs.resume; the current live one for runs.subscribe). The
-	// client keys its stream tree + reconnect-replay dedup on it (§0.3).
+	// SegmentID is the first streamed segment of this Run. The client keys its
+	// stream tree and reconnect-replay deduplication on it (§0.3).
 	SegmentID string `json:"segmentId"`
-	// UserItemID is the id of the userMessage Item this call opens with — the same
-	// id that rides the stream (item.started/completed) and lands in items.list.
-	// Returned so a client can reconcile its optimistic user bubble by exact id
-	// instead of matching on content. It's a business field, not transport metadata.
-	//
-	// Present exactly when the call opened a user turn: always for runs.start, for
-	// runs.resume iff it carried input, never for runs.subscribe. The iff is a
-	// cross-shape rule — request field to response field — which no schema keyword
-	// can state, so it is held by a fixture instead.
-	UserItemID string `json:"userItemId,omitempty"`
+	// UserItemID identifies the durable opening userMessage Item. A successful
+	// start always creates that Item, so omitting this field would force clients
+	// back to ambiguous content matching.
+	UserItemID string `json:"userItemId"`
+}
+
+// ResumeRunResponse is the synchronous result of runs.resume.
+type ResumeRunResponse struct {
+	RunID     string `json:"runId"`
+	SegmentID string `json:"segmentId"`
+	// UserItemID is present exactly when ResumeRunRequest.Input is present. The
+	// request and response commit atomically, so this identifies that opening
+	// userMessage Item without inventing one for a response-only resume.
+	UserItemID *string `json:"userItemId,omitempty"`
 }
 
 // GenerationParams is optional LLM generation tuning (API.md §7.1).
