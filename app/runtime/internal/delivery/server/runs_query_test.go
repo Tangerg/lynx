@@ -75,6 +75,57 @@ func TestListRunsPublishesTheWholeHistoryNewestFirst(t *testing.T) {
 	}
 }
 
+// The dispatcher owns capability authorization; once it accepts the request, the
+// server must preserve both descendant filters instead of silently answering the
+// root/exact-run defaults.
+func TestDescendantFiltersReachTheDurableQueries(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	putSession(t, rt, "ses_1")
+	putRun(t, rt, "ses_1", "run_root", 10, 1)
+	putChildRun(t, rt, "ses_1", "run_child", 20, 2)
+	putUserItem(t, rt, "ses_1", "run_root", "item_root", "root")
+	putUserItem(t, rt, "ses_1", "run_child", "item_child", "child")
+
+	roots, err := s.ListRuns(t.Context(), protocol.ListRunsRequest{SessionID: "ses_1"})
+	if err != nil || len(roots.Data) != 1 || roots.Data[0].ID != "run_root" {
+		t.Fatalf("root run page = (%+v, %v), want root only", roots, err)
+	}
+	tree, err := s.ListRuns(t.Context(), protocol.ListRunsRequest{
+		SessionID: "ses_1", IncludeDescendants: true,
+	})
+	if err != nil {
+		t.Fatalf("descendant run page: %v", err)
+	}
+	if len(tree.Data) != 2 || tree.Data[0].ID != "run_child" || tree.Data[1].ID != "run_root" {
+		t.Fatalf("descendant run page = %+v, want child then root", tree.Data)
+	}
+
+	exact, err := s.ListItems(t.Context(), protocol.ListItemsRequest{
+		Scope: protocol.ItemListScope{Type: protocol.ItemScopeRun, RunID: "run_root"},
+	})
+	if err != nil || len(exact.Data) != 1 || exact.Data[0].ID != "item_root" {
+		t.Fatalf("exact root items = (%+v, %v), want root item only", exact, err)
+	}
+	subtree, err := s.ListItems(t.Context(), protocol.ListItemsRequest{
+		Scope: protocol.ItemListScope{
+			Type: protocol.ItemScopeRun, RunID: "run_root", IncludeDescendants: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("root subtree items: %v", err)
+	}
+	if len(subtree.Data) != 2 ||
+		subtree.Data[0].ID != "item_root" ||
+		subtree.Data[1].ID != "item_child" {
+		t.Fatalf("root subtree items = %+v, want root and child", subtree.Data)
+	}
+	if len(subtree.Runs) != 2 ||
+		subtree.Runs[0].ID != "run_child" ||
+		subtree.Runs[1].ID != "run_root" {
+		t.Fatalf("root subtree summaries = %+v, want connected child/root tree", subtree.Runs)
+	}
+}
+
 // TestListRunsRefusesAStatusThatIsNotOne keeps a filter value the vocabulary does
 // not define from reaching the durable read. Dropping it would widen the page to
 // every status while the client believed it had narrowed it.
@@ -151,12 +202,13 @@ func TestChildRunReadsRequireNegotiatedSubagents(t *testing.T) {
 	if err != nil || len(sessionPage.Data) != 1 || sessionPage.Data[0].RunID != "run_child" {
 		t.Fatalf("ListItems(session) = (%+v, %v), want complete child history", sessionPage, err)
 	}
-	if len(sessionPage.Runs) != 1 ||
+	if len(sessionPage.Runs) != 2 ||
 		sessionPage.Runs[0].ID != "run_child" ||
 		sessionPage.Runs[0].SpawnedByItemID != "item_spawn" ||
 		sessionPage.Runs[0].ParentRunID != "run_root" ||
-		sessionPage.Runs[0].RootRunID != "run_root" {
-		t.Fatalf("ListItems(session) run summaries = %+v, want complete child lineage", sessionPage.Runs)
+		sessionPage.Runs[0].RootRunID != "run_root" ||
+		sessionPage.Runs[1].ID != "run_root" {
+		t.Fatalf("ListItems(session) run summaries = %+v, want child and its root ancestor", sessionPage.Runs)
 	}
 }
 

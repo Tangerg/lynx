@@ -110,6 +110,9 @@ func itemScopeFromWire(scope protocol.ItemListScope) (queries.ItemScope, error) 
 		if scope.RunID == "" {
 			return queries.ItemScope{}, fmt.Errorf("%w: scope.runId is required for a run scope", protocol.ErrInvalidParams)
 		}
+		if scope.IncludeDescendants {
+			return queries.RunTreeItems(scope.RunID), nil
+		}
 		return queries.RunItems(scope.RunID), nil
 	default:
 		return queries.ItemScope{}, fmt.Errorf("%w: scope.type must be %q or %q", protocol.ErrInvalidParams,

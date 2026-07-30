@@ -8,6 +8,7 @@ package queries
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -51,6 +52,7 @@ const (
 type TranscriptReader interface {
 	PageSessionItems(ctx context.Context, sessionID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error)
 	PageRunItems(ctx context.Context, runID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error)
+	PageRunTreeItems(ctx context.Context, runID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error)
 }
 
 // TodoReader is the coordinator's view of the task-list projection: the whole
@@ -73,15 +75,14 @@ type InterruptReader interface {
 	ListPage(ctx context.Context, sessionID, rootRunID string, afterCreatedAt int64, afterRootRunID string, limit int) ([]interrupts.Pending, error)
 }
 
-// RunReader is the coordinator's view of the durable Run record: one Run by id, a
-// named set of them, and a browsable page of root Runs. The set is how a page of
-// items is threaded onto its Runs — the page's own Runs, not the session's, because
-// a client rebuilds the tree it can see and a long session should not pay for the
-// Runs it is not looking at.
+// RunReader is the coordinator's view of the durable Run record: one Run by id,
+// the ancestor closure of a named set, and a browsable page of Runs. The closure
+// threads a page of items onto a connected tree without loading unrelated Runs
+// from a long session.
 type RunReader interface {
 	Run(ctx context.Context, runID string) (transcript.Run, bool, error)
-	RunsByID(ctx context.Context, runIDs []string) ([]transcript.Run, error)
-	PageRuns(ctx context.Context, sessionID string, statuses []execution.RunStatus, beforeCreatedAt int64, beforeRunID string, limit int) ([]transcript.Run, error)
+	RunsWithAncestors(ctx context.Context, runIDs []string) ([]transcript.Run, error)
+	PageRuns(ctx context.Context, sessionID string, statuses []execution.RunStatus, includeDescendants bool, beforeCreatedAt int64, beforeRunID string, limit int) ([]transcript.Run, error)
 }
 
 // Coordinator serves the session read projections. Stateless beyond its store
@@ -122,22 +123,45 @@ type ItemPage struct {
 	Runs       []transcript.Run
 }
 
-// ItemScope is what an item page is a page OF: a whole session timeline, or one
-// Run's own items. Exactly one is meaningful, which is why it is a closed choice
-// here too and not two optional strings — a scope naming both would have to be
-// resolved by a precedence rule, and a precedence rule is a place for the two to
-// disagree.
+type itemScopeKind uint8
+
+const (
+	sessionItemScope itemScopeKind = iota + 1
+	runItemScope
+)
+
+var errInvalidItemScope = errors.New("queries: item scope is invalid")
+
+// ItemScope is the closed application choice of a whole session timeline, one
+// Run's own items, or that Run's complete subtree. Its fields stay private so
+// callers cannot construct a scope that names both a Session and a Run, or ask a
+// Session for descendants it already contains.
 type ItemScope struct {
-	SessionID string
-	RunID     string
+	kind               itemScopeKind
+	subjectID          string
+	includeDescendants bool
 }
 
 // SessionItems scopes a page to a session's whole timeline.
-func SessionItems(sessionID string) ItemScope { return ItemScope{SessionID: sessionID} }
+func SessionItems(sessionID string) ItemScope {
+	return ItemScope{kind: sessionItemScope, subjectID: sessionID}
+}
 
 // RunItems scopes a page to one Run's own items. The Run's session is resolved from
 // the Run, so no caller has to supply both and risk supplying two different ones.
-func RunItems(runID string) ItemScope { return ItemScope{RunID: runID} }
+func RunItems(runID string) ItemScope {
+	return ItemScope{kind: runItemScope, subjectID: runID}
+}
+
+// RunTreeItems scopes a page to one Run and all of its descendants. The subject
+// may itself be a child; ancestors are not part of the item scope.
+func RunTreeItems(runID string) ItemScope {
+	return ItemScope{
+		kind:               runItemScope,
+		subjectID:          runID,
+		includeDescendants: true,
+	}
+}
 
 // ListItemPage returns one page of durable history within scope, in the direction
 // order names, continuing from cursor. A page is bounded in the query: the previous
@@ -153,7 +177,10 @@ func RunItems(runID string) ItemScope { return ItemScope{RunID: runID} }
 // [keyset.ErrInvalidCursor]. Silently restarting from the top would look like a
 // page of duplicates to a client that had already read them.
 func (c *Coordinator) ListItemPage(ctx context.Context, scope ItemScope, order transcript.SequenceOrder, cursor string, limit int) (ItemPage, error) {
-	filters := []string{scope.SessionID, scope.RunID, order.String()}
+	filters, err := scope.cursorFilters(order)
+	if err != nil {
+		return ItemPage{}, err
+	}
 	anchor, err := keyset.Decode(cursor, itemPageMethod, filters)
 	if err != nil {
 		return ItemPage{}, err
@@ -185,7 +212,7 @@ func (c *Coordinator) ListItemPage(ctx context.Context, scope ItemScope, order t
 	for _, entry := range page.Rows {
 		items = append(items, entry.Item)
 	}
-	runs, err := c.runs.RunsByID(ctx, referencedRuns(items))
+	runs, err := c.runs.RunsWithAncestors(ctx, referencedRuns(items))
 	if err != nil {
 		return ItemPage{}, err
 	}
@@ -213,27 +240,49 @@ func (c *Coordinator) TodoState(ctx context.Context, sessionID string) (todo.Sta
 // its subject exists, and answering "no such session" to a request that was never
 // answerable would send the caller looking in the wrong place.
 func (c *Coordinator) requireScope(ctx context.Context, scope ItemScope) error {
-	if scope.RunID != "" {
-		if _, found, err := c.runs.Run(ctx, scope.RunID); err != nil || !found {
+	switch scope.kind {
+	case runItemScope:
+		if _, found, err := c.runs.Run(ctx, scope.subjectID); err != nil || !found {
 			return cmp.Or(err, transcript.ErrRunNotFound)
 		}
 		return nil
+	case sessionItemScope:
+		found, err := c.sessions.Exists(ctx, scope.subjectID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return session.ErrNotFound
+		}
+		return nil
+	default:
+		return errInvalidItemScope
 	}
-	found, err := c.sessions.Exists(ctx, scope.SessionID)
-	if err != nil {
-		return err
-	}
-	if !found {
-		return session.ErrNotFound
-	}
-	return nil
 }
 
 func (c *Coordinator) readScope(ctx context.Context, scope ItemScope, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
-	if scope.RunID != "" {
-		return c.transcript.PageRunItems(ctx, scope.RunID, order, fromSequence, limit)
+	switch scope.kind {
+	case runItemScope:
+		if scope.includeDescendants {
+			return c.transcript.PageRunTreeItems(ctx, scope.subjectID, order, fromSequence, limit)
+		}
+		return c.transcript.PageRunItems(ctx, scope.subjectID, order, fromSequence, limit)
+	case sessionItemScope:
+		return c.transcript.PageSessionItems(ctx, scope.subjectID, order, fromSequence, limit)
+	default:
+		return nil, errInvalidItemScope
 	}
-	return c.transcript.PageSessionItems(ctx, scope.SessionID, order, fromSequence, limit)
+}
+
+func (scope ItemScope) cursorFilters(order transcript.SequenceOrder) ([]string, error) {
+	switch scope.kind {
+	case sessionItemScope:
+		return []string{scope.subjectID, "", strconv.FormatBool(false), order.String()}, nil
+	case runItemScope:
+		return []string{"", scope.subjectID, strconv.FormatBool(scope.includeDescendants), order.String()}, nil
+	default:
+		return nil, errInvalidItemScope
+	}
 }
 
 // referencedRuns is the distinct Runs this page's items belong to, in first-seen
@@ -272,10 +321,20 @@ func (c *Coordinator) Run(ctx context.Context, runID string) (transcript.Run, bo
 	return c.runs.Run(ctx, runID)
 }
 
-// ListRunPage returns one page of the root Runs matching a filter, newest
-// admission first, continuing after cursor. An empty sessionID pages across every
-// session and empty statuses match every lifecycle position — the whole history,
-// because a finished Run is still the answer to what a session did and cost.
+// RunPageFilter is every collection-defining input to [Coordinator.ListRunPage].
+// Keeping it named makes includeDescendants part of the query rather than an
+// easily misplaced positional boolean, and gives the cursor one explicit filter
+// identity to bind.
+type RunPageFilter struct {
+	SessionID          string
+	Statuses           []execution.RunStatus
+	IncludeDescendants bool
+}
+
+// ListRunPage returns one page of Runs matching filter, newest admission first,
+// continuing after cursor. An empty SessionID pages across every session, empty
+// Statuses match every lifecycle position, and IncludeDescendants false restricts
+// the page to roots. A finished Run remains part of history.
 //
 // It reads the durable admission record rather than a live in-process registry:
 // the registry only knows the segments THIS process is streaming, so it answers a
@@ -284,9 +343,13 @@ func (c *Coordinator) Run(ctx context.Context, runID string) (transcript.Run, bo
 // The cursor is bound to the normalized filter, not just to the method: continuing
 // a page under a different session or status set would seek into a collection the
 // anchor was never a position in.
-func (c *Coordinator) ListRunPage(ctx context.Context, sessionID string, statuses []execution.RunStatus, cursor string, limit int) (keyset.Page[transcript.Run], error) {
-	statuses = normalizeStatuses(statuses)
-	filters := []string{sessionID, statusFilter(statuses)}
+func (c *Coordinator) ListRunPage(ctx context.Context, filter RunPageFilter, cursor string, limit int) (keyset.Page[transcript.Run], error) {
+	filter.Statuses = normalizeStatuses(filter.Statuses)
+	filters := []string{
+		filter.SessionID,
+		statusFilter(filter.Statuses),
+		strconv.FormatBool(filter.IncludeDescendants),
+	}
 	beforeCreatedAt, beforeID, err := timeAndIDAnchor(cursor, runPageMethod, filters)
 	if err != nil {
 		return keyset.Page[transcript.Run]{}, err
@@ -295,7 +358,15 @@ func (c *Coordinator) ListRunPage(ctx context.Context, sessionID string, statuse
 	if err != nil {
 		return keyset.Page[transcript.Run]{}, err
 	}
-	rows, err := c.runs.PageRuns(ctx, sessionID, statuses, beforeCreatedAt, beforeID, size+1)
+	rows, err := c.runs.PageRuns(
+		ctx,
+		filter.SessionID,
+		filter.Statuses,
+		filter.IncludeDescendants,
+		beforeCreatedAt,
+		beforeID,
+		size+1,
+	)
 	if err != nil {
 		return keyset.Page[transcript.Run]{}, err
 	}

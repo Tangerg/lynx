@@ -85,10 +85,10 @@ type ListItemsRequest struct {
 // grow with the model and the subtree, so they stay on the per-run read that
 // asks for them.
 //
-// Runs holds exactly the runs THIS page's items reference. It is not the session's
-// run list: a client merging summaries across pages by runId rebuilds the tree it
-// has actually seen, and a long session does not pay for every run it is not
-// looking at. Accounting over a whole session is runs.list.
+// Runs holds the Runs THIS page's items reference plus their ancestor chains. It
+// is not the session's run list: a client merging summaries across pages by runId
+// rebuilds the connected tree it has actually seen, and a long session does not
+// pay for unrelated Runs. Accounting over a whole session is runs.list.
 type ListItemsResponse struct {
 	Page[Item]
 	Runs []RunSummary `json:"runs"`

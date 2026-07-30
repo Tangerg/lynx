@@ -5,7 +5,7 @@
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
-> 当前已提交基线：`main@a4abac003e`；W3.0 审计完成，W3.1 READY
+> 当前已提交基线：`main@ef04f5bfd`；W3.1 随本原子 slice 完成，W3.2 READY
 > 目标协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 目标 Artifact：`SessionArtifactVersion = 7`
 
@@ -209,7 +209,7 @@ cd app/desktop/frontend && npm run check
 | A5 | capability gate 与 disabled-subagent seam 收口 | `DONE` | 2026-07-30 完成 | shared policy、durable identity gates、全量 gates |
 | A6 | Registry fail-closed 与 SSOT 清理 | `DONE` | 2026-07-30 完成 | defensive views、closed metadata、effective errors、全量 gates |
 | A7 | canonical docs 与最终 conformance sweep | `DONE` | 2026-07-30 完成 | §12.4 conformance matrix、全量 gates |
-| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.5 / W3.1 durable descendant query | B1.1–B1.4、W3.0 已完成；启用条件见 §11 |
+| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.5 / W3.2 root stream / replay conformance | B1.1–B1.4、W3.0–W3.1 已完成；启用条件见 §11 |
 
 A1–A7 已全部完成，当前没有 A-track slice 处于 `IN PROGRESS`。B1 保持独立项目，
 已按 breaking-first 策略开始实施；不得通过打开 feature flag、复用 root identity
@@ -1757,6 +1757,28 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
     → `PASS`
 - 残余风险：W3.1–W3.4 尚未实施；`features.subagents` 继续 disabled。
 
+### 2026-07-30 — B1.5 / W3.1
+
+- 状态：`DONE`
+- Commit：随本原子 slice 提交
+- 目标：完成 runs descendant page、items exact/subtree page、direct Run + ancestor
+  summary 三条 durable query 契约。
+- 关键裁决：
+  - application `ItemScope` 是 Session / exact Run / Run subtree 的闭合值，不再公开两个
+    可冲突 subject；
+  - runs/items 的 `includeDescendants` 都属于 cursor identity；
+  - subtree 与 ancestor closure 只使用 durable `runs.parent_run_id`；
+  - page enrichment 由一次 recursive CTE 完成，不做 N+1 或 Session 全量读取。
+- 生成物：public wire、Registry、schema、OpenRPC、Go/TS 类型、Artifact、Store epoch、
+  Agent API/wire 与 capability 均未变化。
+- 验证：
+  - application queries、delivery server、SQLite targeted tests → `PASS`
+  - 上述三个 package race `-count=10` → `PASS`
+  - Runtime build、vet、全量 test、lint、tidy diff、arch/contract drift、diff check
+    → `PASS`
+- 残余风险：root multi-source stream、child subscribe refusal/profile gate 与 tail-first
+  terminal race 进入 W3.2；`features.subagents` 继续 disabled。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -1796,8 +1818,8 @@ B1.5 内部原子切片：
 | Slice | 状态 | 边界 | 完成定义 |
 |---|---|---|---|
 | W3.0 | `DONE` | 契约/实现差距冻结 | child subscribe 误述已纠正；三项 query 缺口与既有 stream/recovery 基础已定位 |
-| W3.1 | `READY` | durable descendant query | runs descendant stable page + bound cursor；items exact/subtree page + bound cursor；direct Run + ancestor summaries |
-| W3.2 | `TODO` | root stream/replay conformance | root Journal 多 source、child refusal、profile coverage、tail-first terminal race |
+| W3.1 | `DONE` | durable descendant query | runs descendant stable page + bound cursor；items exact/subtree page + bound cursor；direct Run + ancestor summaries |
+| W3.2 | `READY` | root stream/replay conformance | root Journal 多 source、child refusal、profile coverage、tail-first terminal race |
 | W3.3 | `TODO` | restart/cold recovery conformance | file-backed complete Running-tree loss settlement、Waiting-tree preservation、old-epoch replay → cold query convergence |
 | W3.4 | `TODO` | B1.5 full closure | race/full gates、contract drift、architecture/hygiene/compatibility sweep、docs/commit/push |
 

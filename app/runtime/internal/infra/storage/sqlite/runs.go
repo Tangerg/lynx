@@ -492,15 +492,10 @@ func (s *RunStore) stateForRun(ctx context.Context, sessionID, runID string) (ex
 	}
 }
 
-// PageRuns returns one page of the root Runs a caller may browse, newest
-// admission first, scoped to sessionID when it is non-empty and to statuses when
-// it is non-empty. It is the whole history, not the work in progress: a Run that
-// ended is still the answer to "what did this session cost", and a Run parked on
-// a person is the one a client most needs to find.
-//
-// Only root Runs are returned. A descendant is reached through an explicit
-// include-descendants query, so the predicate uses the immutable root edge
-// rather than guessing from transcript contents.
+// PageRuns returns one page of Runs a caller may browse, newest admission first,
+// scoped to sessionID and statuses when provided. Descendants are excluded unless
+// includeDescendants is true. It is the whole history, not the work in progress:
+// a Run that ended is still the answer to "what did this session cost".
 //
 // The page is bounded here rather than by the caller. before is the (admission
 // time, run id) position a previous page ended at, applied only when the run id
@@ -512,14 +507,17 @@ func (s *RunStore) stateForRun(ctx context.Context, sessionID, runID string) (ex
 // answer a caller renders includes what each Run has consumed — and a second Run
 // shape assembled from a subset of the same columns would be a second answer to
 // "what is this Run".
-func (s *RunStore) PageRuns(ctx context.Context, sessionID string, statuses []execution.RunStatus, beforeStartedAt int64, beforeRunID string, limit int) ([]transcript.Run, error) {
+func (s *RunStore) PageRuns(ctx context.Context, sessionID string, statuses []execution.RunStatus, includeDescendants bool, beforeStartedAt int64, beforeRunID string, limit int) ([]transcript.Run, error) {
 	query := `SELECT ` + runColumns + `
 		 FROM runs AS r
-		 ` + runReadJoins + `
-		 WHERE r.root_run_id = ''`
+		 ` + runReadJoins
 	var args []any
+	var conditions []string
+	if !includeDescendants {
+		conditions = append(conditions, `r.root_run_id = ''`)
+	}
 	if sessionID != "" {
-		query += ` AND r.session_id = ?`
+		conditions = append(conditions, `r.session_id = ?`)
 		args = append(args, sessionID)
 	}
 	if len(statuses) > 0 {
@@ -527,12 +525,15 @@ func (s *RunStore) PageRuns(ctx context.Context, sessionID string, statuses []ex
 		if err != nil {
 			return nil, fmt.Errorf("sqlite: page runs: %w", err)
 		}
-		query += ` AND r.state IN (` + placeholders(len(columns)) + `)`
+		conditions = append(conditions, `r.state IN (`+placeholders(len(columns))+`)`)
 		args = append(args, columns...)
 	}
 	if beforeRunID != "" {
-		query += ` AND (r.started_at < ? OR (r.started_at = ? AND r.run_id < ?))`
+		conditions = append(conditions, `(r.started_at < ? OR (r.started_at = ? AND r.run_id < ?))`)
 		args = append(args, beforeStartedAt, beforeStartedAt, beforeRunID)
+	}
+	if len(conditions) > 0 {
+		query += ` WHERE ` + strings.Join(conditions, ` AND `)
 	}
 	query += ` ORDER BY r.started_at DESC, r.run_id DESC`
 	if limit > 0 {
@@ -617,11 +618,10 @@ func (s *RunStore) RunTree(ctx context.Context, runID string) ([]transcript.Run,
 	return runs, nil
 }
 
-// RunsByID returns the Runs named by runIDs, in newest-admission order, skipping
-// ids no Run has. It exists so a read that has just produced a set of run ids —
-// the runs one page of items refers to — resolves them in one query instead of one
-// per id, and so it never has to load a session's whole run list to find a few.
-func (s *RunStore) RunsByID(ctx context.Context, runIDs []string) ([]transcript.Run, error) {
+// RunsWithAncestors returns the Runs named by runIDs and every ancestor needed to
+// connect them to their roots, in newest-admission order. It resolves the closure
+// in one query without loading unrelated Runs from the Session.
+func (s *RunStore) RunsWithAncestors(ctx context.Context, runIDs []string) ([]transcript.Run, error) {
 	if len(runIDs) == 0 {
 		return nil, nil
 	}
@@ -630,13 +630,22 @@ func (s *RunStore) RunsByID(ctx context.Context, runIDs []string) ([]transcript.
 		args = append(args, id)
 	}
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT `+runColumns+`
+		`WITH RECURSIVE lineage(run_id, parent_run_id) AS (
+			SELECT run_id, parent_run_id
+			  FROM runs
+			 WHERE run_id IN (`+placeholders(len(runIDs))+`)
+			UNION
+			SELECT parent.run_id, parent.parent_run_id
+			  FROM runs AS parent
+			  JOIN lineage AS child ON child.parent_run_id = parent.run_id
+		)
+		 SELECT `+runColumns+`
 		 FROM runs AS r
 		 `+runReadJoins+`
-		 WHERE r.run_id IN (`+placeholders(len(runIDs))+`)
+		 WHERE r.run_id IN (SELECT run_id FROM lineage)
 		 ORDER BY r.started_at DESC, r.run_id DESC`, args...)
 	if err != nil {
-		return nil, fmt.Errorf("sqlite: read runs by id: %w", err)
+		return nil, fmt.Errorf("sqlite: read runs with ancestors: %w", err)
 	}
 	defer rows.Close()
 
@@ -644,12 +653,12 @@ func (s *RunStore) RunsByID(ctx context.Context, runIDs []string) ([]transcript.
 	for rows.Next() {
 		run, err := scanRun(rows)
 		if err != nil {
-			return nil, fmt.Errorf("sqlite: read runs by id: %w", err)
+			return nil, fmt.Errorf("sqlite: read runs with ancestors: %w", err)
 		}
 		out = append(out, run)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("sqlite: read runs by id: %w", err)
+		return nil, fmt.Errorf("sqlite: read runs with ancestors: %w", err)
 	}
 	return out, nil
 }

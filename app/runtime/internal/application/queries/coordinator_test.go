@@ -17,9 +17,11 @@ import (
 
 type fakeTranscript struct {
 	items []transcript.SequencedItem
+	trees map[string][]string
 
 	session       string
 	run           string
+	runTree       string
 	order         transcript.SequenceOrder
 	afterSequence int64
 	limit         int
@@ -33,6 +35,14 @@ func (f *fakeTranscript) PageSessionItems(_ context.Context, sessionID string, o
 func (f *fakeTranscript) PageRunItems(_ context.Context, runID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
 	f.run = runID
 	return f.page(order, fromSequence, limit, func(item transcript.Item) bool { return item.RunID == runID })
+}
+
+func (f *fakeTranscript) PageRunTreeItems(_ context.Context, runID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
+	f.runTree = runID
+	runIDs := append([]string{runID}, f.trees[runID]...)
+	return f.page(order, fromSequence, limit, func(item transcript.Item) bool {
+		return slices.Contains(runIDs, item.RunID)
+	})
 }
 
 // page seeks the way the store does: zero is no anchor in either direction, and
@@ -84,6 +94,7 @@ type fakeRuns struct {
 	session         string
 	requested       []string
 	statuses        []execution.RunStatus
+	descendants     bool
 	beforeCreatedAt int64
 	beforeRunID     string
 	limit           int
@@ -98,11 +109,14 @@ func (f *fakeRuns) Run(_ context.Context, runID string) (transcript.Run, bool, e
 	return transcript.Run{}, false, nil
 }
 
-func (f *fakeRuns) PageRuns(_ context.Context, sessionID string, statuses []execution.RunStatus, beforeCreatedAt int64, beforeRunID string, limit int) ([]transcript.Run, error) {
-	f.session, f.statuses = sessionID, statuses
+func (f *fakeRuns) PageRuns(_ context.Context, sessionID string, statuses []execution.RunStatus, includeDescendants bool, beforeCreatedAt int64, beforeRunID string, limit int) ([]transcript.Run, error) {
+	f.session, f.statuses, f.descendants = sessionID, statuses, includeDescendants
 	f.beforeCreatedAt, f.beforeRunID, f.limit = beforeCreatedAt, beforeRunID, limit
 	var out []transcript.Run
 	for _, run := range f.history {
+		if !includeDescendants && run.Lineage().IsChild() {
+			continue
+		}
 		if !seeksBefore(run.CreatedAt.UnixNano(), run.ID, beforeCreatedAt, beforeRunID) {
 			continue
 		}
@@ -117,11 +131,19 @@ func (f *fakeRuns) PageRuns(_ context.Context, sessionID string, statuses []exec
 	return out, nil
 }
 
-func (f *fakeRuns) RunsByID(_ context.Context, runIDs []string) ([]transcript.Run, error) {
+func (f *fakeRuns) RunsWithAncestors(_ context.Context, runIDs []string) ([]transcript.Run, error) {
 	f.requested = runIDs
+	wanted := slices.Clone(runIDs)
+	for index := 0; index < len(wanted); index++ {
+		for _, run := range f.runs {
+			if run.ID == wanted[index] && run.ParentRunID != "" && !slices.Contains(wanted, run.ParentRunID) {
+				wanted = append(wanted, run.ParentRunID)
+			}
+		}
+	}
 	var out []transcript.Run
 	for _, run := range f.runs {
-		if slices.Contains(runIDs, run.ID) {
+		if slices.Contains(wanted, run.ID) {
 			out = append(out, run)
 		}
 	}
@@ -185,6 +207,14 @@ func sequencedItems(count int) []transcript.SequencedItem {
 			Sequence: int64(i),
 			Item:     transcript.Item{ID: "it_" + strconv.Itoa(i), RunID: "run_1"},
 		})
+	}
+	return out
+}
+
+func queryRunIDs(runs []transcript.Run) []string {
+	out := make([]string, 0, len(runs))
+	for _, run := range runs {
+		out = append(out, run.ID)
 	}
 	return out
 }
@@ -353,6 +383,64 @@ func TestListItemPageScopedToARunReadsOnlyThatRun(t *testing.T) {
 	}
 }
 
+func TestListItemPageScopesASubtreeAndIncludesAncestors(t *testing.T) {
+	root := transcript.Run{ID: "run_root"}
+	child := transcript.Run{
+		ID: "run_child", SpawnedByItemID: "item_spawn_child",
+		ParentRunID: root.ID, RootRunID: root.ID,
+	}
+	grandchild := transcript.Run{
+		ID: "run_grandchild", SpawnedByItemID: "item_spawn_grandchild",
+		ParentRunID: child.ID, RootRunID: root.ID,
+	}
+	sibling := transcript.Run{
+		ID: "run_sibling", SpawnedByItemID: "item_spawn_sibling",
+		ParentRunID: root.ID, RootRunID: root.ID,
+	}
+	tx := &fakeTranscript{
+		items: []transcript.SequencedItem{
+			{Sequence: 1, Item: transcript.Item{ID: "item_root", RunID: root.ID}},
+			{Sequence: 2, Item: transcript.Item{ID: "item_child", RunID: child.ID}},
+			{Sequence: 3, Item: transcript.Item{ID: "item_grandchild", RunID: grandchild.ID}},
+			{Sequence: 4, Item: transcript.Item{ID: "item_sibling", RunID: sibling.ID}},
+		},
+		trees: map[string][]string{child.ID: {grandchild.ID}},
+	}
+	runs := &fakeRuns{
+		runs:    []transcript.Run{grandchild, child, root, sibling},
+		history: []transcript.Run{grandchild, sibling, child, root},
+	}
+	c := New(Dependencies{Transcript: tx, Runs: runs, Sessions: &fakeSessions{}})
+
+	page, err := c.ListItemPage(t.Context(), RunTreeItems(child.ID), transcript.OldestFirst, "", 0)
+	if err != nil {
+		t.Fatalf("subtree page: %v", err)
+	}
+	if tx.runTree != child.ID || tx.run != "" {
+		t.Fatalf("read subtree=%q exact=%q, want only child subtree", tx.runTree, tx.run)
+	}
+	if len(page.Items) != 2 {
+		t.Fatalf("subtree items = %+v, want child and grandchild only", page.Items)
+	}
+	if got := []string{page.Items[0].ID, page.Items[1].ID}; !slices.Equal(got, []string{"item_child", "item_grandchild"}) {
+		t.Fatalf("subtree items = %v, want child and grandchild only", got)
+	}
+	if got := queryRunIDs(page.Runs); !slices.Equal(got, []string{grandchild.ID, child.ID, root.ID}) {
+		t.Fatalf("page runs = %v, want direct runs plus ancestor closure", got)
+	}
+	if !slices.Equal(runs.requested, []string{child.ID, grandchild.ID}) {
+		t.Fatalf("directly referenced runs = %v, want page item sources only", runs.requested)
+	}
+
+	first, err := c.ListItemPage(t.Context(), RunTreeItems(child.ID), transcript.OldestFirst, "", 1)
+	if err != nil || first.NextCursor == "" {
+		t.Fatalf("first subtree page = (%+v, %v), want a cursor", first, err)
+	}
+	if _, err := c.ListItemPage(t.Context(), RunItems(child.ID), transcript.OldestFirst, first.NextCursor, 1); !errors.Is(err, keyset.ErrInvalidCursor) {
+		t.Fatalf("subtree cursor on exact-run page = %v, want ErrInvalidCursor", err)
+	}
+}
+
 // TestListItemPageRefusesAScopeThatNamesNothing keeps an empty page from standing in
 // for a wrong id. "This session has no items" and "there is no such session" are
 // different facts, and a client that cannot tell them apart will show an empty
@@ -503,7 +591,7 @@ func TestListRunPageWalksBackwardThroughHistory(t *testing.T) {
 	runs := &fakeRuns{history: history("ses_1", "run_3", "run_2", "run_1")}
 	c := New(Dependencies{Transcript: &fakeTranscript{}, Runs: runs, Sessions: &fakeSessions{}})
 
-	first, err := c.ListRunPage(ctx, "ses_1", nil, "", 2)
+	first, err := c.ListRunPage(ctx, RunPageFilter{SessionID: "ses_1"}, "", 2)
 	if err != nil {
 		t.Fatalf("first page: %v", err)
 	}
@@ -514,7 +602,7 @@ func TestListRunPageWalksBackwardThroughHistory(t *testing.T) {
 		t.Fatalf("first page = %+v, want the two newest runs and a cursor", first.Rows)
 	}
 
-	second, err := c.ListRunPage(ctx, "ses_1", nil, first.NextCursor, 2)
+	second, err := c.ListRunPage(ctx, RunPageFilter{SessionID: "ses_1"}, first.NextCursor, 2)
 	if err != nil {
 		t.Fatalf("second page: %v", err)
 	}
@@ -535,15 +623,18 @@ func TestListRunPageReturnsEveryStatusUntilFiltered(t *testing.T) {
 	runs := &fakeRuns{history: history("ses_1", "run_3", "run_2", "run_1")}
 	c := New(Dependencies{Transcript: &fakeTranscript{}, Runs: runs, Sessions: &fakeSessions{}})
 
-	all, err := c.ListRunPage(ctx, "ses_1", nil, "", 0)
+	all, err := c.ListRunPage(ctx, RunPageFilter{SessionID: "ses_1"}, "", 0)
 	if err != nil || len(all.Rows) != 3 {
 		t.Fatalf("unfiltered page = %d rows, %v; want every status", len(all.Rows), err)
 	}
 
 	// A filter is normalized before it selects rows OR mints a cursor: the same set
 	// asked for in a different order is the same query, and it must page as one.
-	filtered, err := c.ListRunPage(ctx, "ses_1", []execution.RunStatus{
-		execution.StatusWaiting, execution.StatusRunning, execution.StatusWaiting,
+	filtered, err := c.ListRunPage(ctx, RunPageFilter{
+		SessionID: "ses_1",
+		Statuses: []execution.RunStatus{
+			execution.StatusWaiting, execution.StatusRunning, execution.StatusWaiting,
+		},
 	}, "", 0)
 	if err != nil {
 		t.Fatalf("filtered page: %v", err)
@@ -553,6 +644,35 @@ func TestListRunPageReturnsEveryStatusUntilFiltered(t *testing.T) {
 	}
 	if len(filtered.Rows) != 2 {
 		t.Fatalf("filtered page = %d rows, want the running and waiting ones", len(filtered.Rows))
+	}
+}
+
+func TestListRunPageIncludesDescendantsAndBindsTheCursor(t *testing.T) {
+	root := transcript.Run{ID: "run_root", CreatedAt: time.Unix(0, 1).UTC()}
+	child := transcript.Run{
+		ID: "run_child", SpawnedByItemID: "item_spawn_child",
+		ParentRunID: root.ID, RootRunID: root.ID, CreatedAt: time.Unix(0, 2).UTC(),
+	}
+	grandchild := transcript.Run{
+		ID: "run_grandchild", SpawnedByItemID: "item_spawn_grandchild",
+		ParentRunID: child.ID, RootRunID: root.ID, CreatedAt: time.Unix(0, 3).UTC(),
+	}
+	runs := &fakeRuns{history: []transcript.Run{grandchild, child, root}}
+	c := New(Dependencies{Transcript: &fakeTranscript{}, Runs: runs, Sessions: &fakeSessions{}})
+
+	roots, err := c.ListRunPage(t.Context(), RunPageFilter{}, "", 0)
+	if err != nil || !slices.Equal(queryRunIDs(roots.Rows), []string{root.ID}) {
+		t.Fatalf("root page = (%v, %v), want only root", queryRunIDs(roots.Rows), err)
+	}
+	all, err := c.ListRunPage(t.Context(), RunPageFilter{IncludeDescendants: true}, "", 2)
+	if err != nil {
+		t.Fatalf("descendant page: %v", err)
+	}
+	if !runs.descendants || !slices.Equal(queryRunIDs(all.Rows), []string{grandchild.ID, child.ID}) || all.NextCursor == "" {
+		t.Fatalf("descendant page = %+v, include=%t; want newest two and cursor", queryRunIDs(all.Rows), runs.descendants)
+	}
+	if _, err := c.ListRunPage(t.Context(), RunPageFilter{}, all.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+		t.Fatalf("descendant cursor on root page = %v, want ErrInvalidCursor", err)
 	}
 }
 
@@ -570,21 +690,24 @@ func TestListRunPageRefusesACursorFromAnotherQuery(t *testing.T) {
 		Sessions:   &fakeSessions{},
 	})
 
-	otherSession, err := c.ListRunPage(ctx, "ses_other", nil, "", 2)
+	otherSession, err := c.ListRunPage(ctx, RunPageFilter{SessionID: "ses_other"}, "", 2)
 	if err != nil {
 		t.Fatalf("other session page: %v", err)
 	}
-	if _, err := c.ListRunPage(ctx, "ses_1", nil, otherSession.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+	if _, err := c.ListRunPage(ctx, RunPageFilter{SessionID: "ses_1"}, otherSession.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
 		t.Fatalf("cross-session cursor err = %v, want ErrInvalidCursor", err)
 	}
 
 	// Changing the status filter changes which rows exist, so the anchor no longer
 	// names a position in the collection being paged.
-	unfiltered, err := c.ListRunPage(ctx, "ses_1", nil, "", 2)
+	unfiltered, err := c.ListRunPage(ctx, RunPageFilter{SessionID: "ses_1"}, "", 2)
 	if err != nil {
 		t.Fatalf("unfiltered page: %v", err)
 	}
-	if _, err := c.ListRunPage(ctx, "ses_1", []execution.RunStatus{execution.StatusRunning}, unfiltered.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+	if _, err := c.ListRunPage(ctx, RunPageFilter{
+		SessionID: "ses_1",
+		Statuses:  []execution.RunStatus{execution.StatusRunning},
+	}, unfiltered.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
 		t.Fatalf("cross-filter cursor err = %v, want ErrInvalidCursor", err)
 	}
 
@@ -594,7 +717,7 @@ func TestListRunPageRefusesACursorFromAnotherQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("interrupt page: %v", err)
 	}
-	if _, err := c.ListRunPage(ctx, "ses_1", nil, interruptPage.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+	if _, err := c.ListRunPage(ctx, RunPageFilter{SessionID: "ses_1"}, interruptPage.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
 		t.Fatalf("cross-query cursor err = %v, want ErrInvalidCursor", err)
 	}
 
@@ -602,7 +725,7 @@ func TestListRunPageRefusesACursorFromAnotherQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("item page: %v", err)
 	}
-	if _, err := c.ListRunPage(ctx, "ses_1", nil, itemPage.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+	if _, err := c.ListRunPage(ctx, RunPageFilter{SessionID: "ses_1"}, itemPage.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
 		t.Fatalf("item cursor on the run page err = %v, want ErrInvalidCursor", err)
 	}
 }
@@ -647,7 +770,7 @@ func TestListPendingInterruptPagePagesOldestFirst(t *testing.T) {
 
 	// The run page is scoped and ordered the same way, so only the query namespace
 	// separates the two — in both directions.
-	runPage, err := c.ListRunPage(ctx, "ses_1", nil, "", 2)
+	runPage, err := c.ListRunPage(ctx, RunPageFilter{SessionID: "ses_1"}, "", 2)
 	if err != nil {
 		t.Fatalf("run page: %v", err)
 	}

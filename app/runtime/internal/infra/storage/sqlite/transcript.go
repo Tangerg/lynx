@@ -326,6 +326,24 @@ func (s *TranscriptStore) PageRunItems(ctx context.Context, runID string, order 
 	return s.pageItems(ctx, `h.run_id = ?`, runID, order, fromSequence, limit)
 }
 
+// PageRunTreeItems returns one Run's items plus every descendant's, using the
+// durable parent edge as the subtree authority. The transcript never infers
+// lineage from event order or spawning-item contents.
+func (s *TranscriptStore) PageRunTreeItems(ctx context.Context, runID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
+	return s.pageItems(ctx, `h.run_id IN (
+		WITH RECURSIVE subtree(run_id) AS (
+			SELECT run_id
+			  FROM runs
+			 WHERE run_id = ?
+			UNION
+			SELECT child.run_id
+			  FROM runs AS child
+			  JOIN subtree AS parent ON child.parent_run_id = parent.run_id
+		)
+		SELECT run_id FROM subtree
+	)`, runID, order, fromSequence, limit)
+}
+
 func (s *TranscriptStore) pageItems(ctx context.Context, scope, subject string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
 	query := `SELECT h.seq, h.session_id, h.run_id, h.item_id, h.created_at, h.payload, h.offload_id, b.body
 		 FROM history_items AS h

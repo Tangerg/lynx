@@ -1008,7 +1008,7 @@ func TestPageRunsReturnsEveryLifecyclePosition(t *testing.T) {
 		t.Fatalf("terminalize: %v", err)
 	}
 
-	all, err := store.PageRuns(ctx, "", nil, 0, "", 0)
+	all, err := store.PageRuns(ctx, "", nil, false, 0, "", 0)
 	if err != nil {
 		t.Fatalf("page runs: %v", err)
 	}
@@ -1027,7 +1027,7 @@ func TestPageRunsReturnsEveryLifecyclePosition(t *testing.T) {
 		{"recovery pair", []execution.RunStatus{execution.StatusRunning, execution.StatusWaiting}, []string{"run_live", "run_parked"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			rows, err := store.PageRuns(ctx, "", tt.statuses, 0, "", 0)
+			rows, err := store.PageRuns(ctx, "", tt.statuses, false, 0, "", 0)
 			if err != nil {
 				t.Fatalf("page runs: %v", err)
 			}
@@ -1041,10 +1041,10 @@ func TestPageRunsReturnsEveryLifecyclePosition(t *testing.T) {
 
 	// The session filter is independent of the status one: scoping to a session that
 	// holds a parked run still finds it.
-	if scoped, err := store.PageRuns(ctx, "ses_B", nil, 0, "", 0); err != nil || len(scoped) != 1 || scoped[0].ID != "run_parked" {
+	if scoped, err := store.PageRuns(ctx, "ses_B", nil, false, 0, "", 0); err != nil || len(scoped) != 1 || scoped[0].ID != "run_parked" {
 		t.Fatalf("ses_B scoped = %+v (err %v), want the parked run", scoped, err)
 	}
-	if _, err := store.PageRuns(ctx, "", []execution.RunStatus{execution.RunStatus(9)}, 0, "", 0); err == nil {
+	if _, err := store.PageRuns(ctx, "", []execution.RunStatus{execution.RunStatus(9)}, false, 0, "", 0); err == nil {
 		t.Fatal("page runs accepted an unknown status instead of refusing to widen the page")
 	}
 }
@@ -1066,7 +1066,7 @@ func TestPageRunsOrdersNewestFirst(t *testing.T) {
 			t.Fatalf("admit %s: %v", draft.RunID, err)
 		}
 	}
-	rows, err := store.PageRuns(ctx, "", nil, 0, "", 0)
+	rows, err := store.PageRuns(ctx, "", nil, false, 0, "", 0)
 	if err != nil {
 		t.Fatalf("page runs: %v", err)
 	}
@@ -1092,7 +1092,7 @@ func TestPageRunsSeeksBeforeItsAnchor(t *testing.T) {
 		}
 	}
 
-	first, err := store.PageRuns(ctx, "", nil, 0, "", 2)
+	first, err := store.PageRuns(ctx, "", nil, false, 0, "", 2)
 	if err != nil {
 		t.Fatalf("first page: %v", err)
 	}
@@ -1102,7 +1102,7 @@ func TestPageRunsSeeksBeforeItsAnchor(t *testing.T) {
 
 	// run_b shares run_c's admission time, so a time-only bound would drop it or
 	// repeat it; the run id breaks the tie.
-	rest, err := store.PageRuns(ctx, "", nil, first[1].CreatedAt.UnixNano(), first[1].ID, 2)
+	rest, err := store.PageRuns(ctx, "", nil, false, first[1].CreatedAt.UnixNano(), first[1].ID, 2)
 	if err != nil {
 		t.Fatalf("second page: %v", err)
 	}
@@ -1111,14 +1111,13 @@ func TestPageRunsSeeksBeforeItsAnchor(t *testing.T) {
 	}
 }
 
-// TestPageRunsReturnsRootsOnlyAndGetFindsAnyRun separates the two reads: the page is
-// the root runs a client browses, while runs.get resolves ANY run id — including a
-// child's, which is how a client holding a child id from an event reaches its tree.
+// TestPageRunsSelectsRootsOrDescendants separates the default browse page from the
+// explicit tree-aware page, while runs.get resolves ANY run id.
 //
 // The page's predicate is "has no spawning item", not "this build makes no
 // children": the moment child runs exist, a default page that had been returning
 // everything would start mixing subtree rows into a root listing.
-func TestPageRunsReturnsRootsOnlyAndGetFindsAnyRun(t *testing.T) {
+func TestPageRunsSelectsRootsOrDescendants(t *testing.T) {
 	ctx := context.Background()
 	store, _ := newRunStores(t)
 
@@ -1129,18 +1128,30 @@ func TestPageRunsReturnsRootsOnlyAndGetFindsAnyRun(t *testing.T) {
 	child.SpawnedByItemID = "it_spawn"
 	child.ParentRunID = "run_root"
 	child.RootRunID = "run_root"
-	for _, run := range []transcript.Run{root, child} {
+	grandchild := finishedRun("run_grandchild", "ses_A", execution.OutcomeCompleted)
+	grandchild.CreatedAt = time.Unix(0, 30).UTC()
+	grandchild.SpawnedByItemID = "it_spawn_grandchild"
+	grandchild.ParentRunID = child.ID
+	grandchild.RootRunID = root.ID
+	for _, run := range []transcript.Run{root, child, grandchild} {
 		if err := store.Restore(ctx, run); err != nil {
 			t.Fatalf("restore %s: %v", run.ID, err)
 		}
 	}
 
-	page, err := store.PageRuns(ctx, "", nil, 0, "", 0)
+	page, err := store.PageRuns(ctx, "", nil, false, 0, "", 0)
 	if err != nil {
 		t.Fatalf("page runs: %v", err)
 	}
 	if order := runIDs(page); !slices.Equal(order, []string{"run_root"}) {
 		t.Fatalf("page = %v, want the root run only", order)
+	}
+	treePage, err := store.PageRuns(ctx, "", nil, true, 0, "", 0)
+	if err != nil {
+		t.Fatalf("page runs with descendants: %v", err)
+	}
+	if order := runIDs(treePage); !slices.Equal(order, []string{"run_grandchild", "run_child", "run_root"}) {
+		t.Fatalf("page with descendants = %v, want one stable newest-first order", order)
 	}
 
 	found, ok, err := store.Run(ctx, "run_child")
@@ -1155,6 +1166,73 @@ func TestPageRunsReturnsRootsOnlyAndGetFindsAnyRun(t *testing.T) {
 	}
 	if _, ok, err := store.Run(ctx, "run_absent"); err != nil || ok {
 		t.Fatalf("absent run: ok=%v err=%v, want a clean miss", ok, err)
+	}
+
+	lineage, err := store.RunsWithAncestors(ctx, []string{grandchild.ID})
+	if err != nil {
+		t.Fatalf("read grandchild lineage: %v", err)
+	}
+	if got := runIDs(lineage); !slices.Equal(got, []string{grandchild.ID, child.ID, root.ID}) {
+		t.Fatalf("grandchild lineage = %v, want grandchild through root", got)
+	}
+}
+
+func TestPageRunTreeItemsUsesDurableParentEdges(t *testing.T) {
+	store, _, transcripts, _ := newRunRecoveryStores(t)
+	ctx := t.Context()
+	root := finishedRun("run_root", "ses_A", execution.OutcomeCompleted)
+	child := finishedRun("run_child", "ses_A", execution.OutcomeCompleted)
+	child.SpawnedByItemID = "item_spawn_child"
+	child.ParentRunID = root.ID
+	child.RootRunID = root.ID
+	grandchild := finishedRun("run_grandchild", "ses_A", execution.OutcomeCompleted)
+	grandchild.SpawnedByItemID = "item_spawn_grandchild"
+	grandchild.ParentRunID = child.ID
+	grandchild.RootRunID = root.ID
+	sibling := finishedRun("run_sibling", "ses_A", execution.OutcomeCompleted)
+	sibling.SpawnedByItemID = "item_spawn_sibling"
+	sibling.ParentRunID = root.ID
+	sibling.RootRunID = root.ID
+	for _, run := range []transcript.Run{root, child, grandchild, sibling} {
+		if err := store.Restore(ctx, run); err != nil {
+			t.Fatalf("restore %s: %v", run.ID, err)
+		}
+	}
+	for index, runID := range []string{root.ID, child.ID, grandchild.ID, sibling.ID} {
+		if err := transcripts.AppendItem(ctx, transcript.Item{
+			SessionID: root.SessionID,
+			ID:        "item_" + runID,
+			RunID:     runID,
+			Status:    transcript.ItemCompleted,
+			Kind:      transcript.UserMessage,
+			CreatedAt: time.Unix(0, int64(index+1)).UTC(),
+		}); err != nil {
+			t.Fatalf("append %s item: %v", runID, err)
+		}
+	}
+
+	rows, err := transcripts.PageRunTreeItems(ctx, child.ID, transcript.OldestFirst, 0, 0)
+	if err != nil {
+		t.Fatalf("page child subtree items: %v", err)
+	}
+	var got []string
+	for _, row := range rows {
+		got = append(got, row.Item.RunID)
+	}
+	if !slices.Equal(got, []string{child.ID, grandchild.ID}) {
+		t.Fatalf("child subtree items = %v, want child and grandchild only", got)
+	}
+
+	tail, err := transcripts.PageRunTreeItems(ctx, root.ID, transcript.NewestFirst, 0, 2)
+	if err != nil {
+		t.Fatalf("page root subtree tail: %v", err)
+	}
+	got = got[:0]
+	for _, row := range tail {
+		got = append(got, row.Item.RunID)
+	}
+	if !slices.Equal(got, []string{sibling.ID, grandchild.ID}) {
+		t.Fatalf("root subtree tail = %v, want newest two items", got)
 	}
 }
 

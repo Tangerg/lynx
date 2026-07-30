@@ -7,6 +7,7 @@ import (
 	"iter"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
@@ -39,16 +40,18 @@ func (s *Server) GetRun(ctx context.Context, in protocol.GetRunRequest) (*protoc
 // come from the durable admission record, not from this process's live registry:
 // the registry sees only the segments it is streaming, so it lost every run whose
 // process restarted and never held the ones a person is being asked to approve.
-// A request asking for descendants never reaches here: the method's capability
-// rule refuses it while features.subagents is off, which is why this reads
-// IncludeDescendants nowhere — re-checking it would be a second author of the
-// registered rule.
+// The registered capability rule decides whether a caller may ask for descendants;
+// this handler preserves the accepted filter all the way to the durable read.
 func (s *Server) ListRuns(ctx context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
 	statuses, err := runStatusesFromWire(in.Statuses)
 	if err != nil {
 		return nil, err
 	}
-	page, err := s.queries.ListRunPage(ctx, in.SessionID, statuses, in.Cursor, in.Limit)
+	page, err := s.queries.ListRunPage(ctx, queries.RunPageFilter{
+		SessionID:          in.SessionID,
+		Statuses:           statuses,
+		IncludeDescendants: in.IncludeDescendants,
+	}, in.Cursor, in.Limit)
 	if err != nil {
 		return nil, wirePageError(err)
 	}

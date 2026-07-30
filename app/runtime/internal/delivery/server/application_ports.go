@@ -106,7 +106,7 @@ type queryUseCases interface {
 	ListPendingInterruptPage(ctx context.Context, sessionID, rootRunID string, caller execution.RunProtocolProfile, cursor string, limit int) (keyset.Page[interrupts.Pending], error)
 	Run(ctx context.Context, runID string) (transcript.Run, bool, error)
 	TodoState(ctx context.Context, sessionID string) (todo.State, error)
-	ListRunPage(ctx context.Context, sessionID string, statuses []execution.RunStatus, cursor string, limit int) (keyset.Page[transcript.Run], error)
+	ListRunPage(ctx context.Context, filter queries.RunPageFilter, cursor string, limit int) (keyset.Page[transcript.Run], error)
 }
 
 type usageUseCases interface {

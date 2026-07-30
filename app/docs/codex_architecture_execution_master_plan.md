@@ -3,9 +3,9 @@
 > 作者：Codex
 > 状态：`IN PROGRESS`
 > 建档日期：2026-07-30
-> 最新已提交基线：`main@a4abac003e`，与 `origin/main` 一致
-> 当前主任务：`W3.1 — durable descendant query`
-> 执行进度：`W2 DONE · W3.0 DONE · W3.1 READY`
+> 最新已提交基线：`main@ef04f5bfd`，与 `origin/main` 一致；W3.1 随本原子 slice 完成
+> 当前主任务：`W3.2 — root stream / replay conformance`
+> 执行进度：`W2 DONE · W3.0–W3.1 DONE · W3.2 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 43`
@@ -238,7 +238,7 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 | Runtime B1.4a–b | `DONE` | immutable cancel plan、Running child subtree cancellation | — |
 | Runtime B1.4c | `DONE` | prepared runtime mutation + App-owned atomic waiting-subtree transaction | — |
 | Runtime B1.4d | `DONE` | W2.1 ownership；W2.2 failure/rollback；W2.3 restart/query/publication；W2.4 race/hygiene/full closure | — |
-| Runtime B1.5 | `IN PROGRESS` | W3.0 已完成冻结契约与当前实现差距审计 | W3.1 durable descendant query |
+| Runtime B1.5 | `IN PROGRESS` | W3.0 审计与 W3.1 durable descendant query 已完成 | W3.2 root stream / replay conformance |
 | Desktop B1.6 | `TODO` | 协议 fold 与插件架构基线已存在 | Run-tree fold 与交互 |
 | Runtime/Desktop B1.7 | `TODO` | capability seam 已存在且保持 disabled | 全门禁后启用 subagents |
 | Runtime/Desktop 架构持续演进 | `ONGOING` | 依赖环、consumer ports、plugin contexts 与多项 architecture gate 已存在 | 随每个 slice 审查并最终 sweep |
@@ -749,7 +749,7 @@ W2.3 与 W3 的边界：
 
 ### W3 — B1.5 durable query、subscribe 与 cold recovery
 
-状态：`IN PROGRESS`；当前：`W3.0 DONE · W3.1 READY`
+状态：`IN PROGRESS`；当前：`W3.0–W3.1 DONE · W3.2 READY`
 
 交付：
 
@@ -776,8 +776,8 @@ W2.3 与 W3 的边界：
 | Slice | 状态 | 边界 | 完成定义 |
 |---|---|---|---|
 | W3.0 | `DONE` | 冻结契约与实现差距审计 | 纠正 child subscribe 误述；确认 `runs.get`、root stream、tail-only replay、profile gate 与 tree-aware boot recovery 已有事实；定位 descendant query 三项真实缺口 |
-| W3.1 | `READY` | durable descendant query | `runs.list.includeDescendants` 进入 application/store；cursor 绑定该 filter；`items.list` run subtree scope 不丢失；每页 Runs 包含直接引用 Run 与完整 ancestor chain |
-| W3.2 | `TODO` | root stream / replay conformance | 多 source event 共用 root cursor；child subscribe 拒绝；profile 不覆盖时拒绝；tail-only + query 在边界竞态下不漏 authoritative terminal |
+| W3.1 | `DONE` | durable descendant query | `runs.list.includeDescendants` 进入 application/store；cursor 绑定该 filter；`items.list` run subtree scope 不丢失；每页 Runs 包含直接引用 Run 与完整 ancestor chain |
+| W3.2 | `READY` | root stream / replay conformance | 多 source event 共用 root cursor；child subscribe 拒绝；profile 不覆盖时拒绝；tail-only + query 在边界竞态下不漏 authoritative terminal |
 | W3.3 | `TODO` | restart / cold recovery conformance | file-backed restart 后完整 Running tree canonical `run_lost`、完整 Waiting tree 保留；旧 epoch replay 拒绝后 query 收敛到同一 durable truth |
 | W3.4 | `TODO` | B1.5 full closure | Runtime 高风险 race、全量门禁、contract drift、命名/错误/接口/兼容债审计与文档同步 |
 
@@ -789,6 +789,22 @@ W3.1 的所有权：
 - durable `runs` lineage 是唯一 tree identity，不允许扫描 transcript 或 live registry
   猜父子关系；
 - 这些都是 App consumer 侧能力，不要求修改 Agent Framework public API。
+
+W3.1 完成结果（2026-07-30）：
+
+- application `ItemScope` 改为私有字段的闭合值，只能由 Session、exact Run 与 Run
+  subtree 三个构造器产生，非法的双 subject / Session descendants 状态不可构造；
+- `RunPageFilter` 显式聚合 session、normalized statuses 与 descendant filter；
+  runs/items cursor 都绑定 `includeDescendants`，exact 与 subtree cursor 不可跨用；
+- SQLite `PageRuns` 在同一 `(createdAt DESC, runId DESC)` keyset 上选择 roots 或全部
+  descendants；`PageRunTreeItems` 用 durable `parent_run_id` 递归选择任意 child
+  subtree；
+- `RunsWithAncestors` 一次递归查询本页直接 Run 与完整 ancestor closure，允许 ancestor
+  位于请求 subtree 之外，不扫描 Session 全量 Runs；
+- delivery 只保真翻译已由 Registry capability rule 接受的 filter；public wire、
+  Registry、schema、OpenRPC、Artifact、Store epoch、Agent API 与 capability 均未变化；
+- application queries、delivery server、SQLite 定向测试与 race `-count=10` 通过；
+  Runtime build、vet、全量 test、lint、tidy diff、arch/contract drift 与 diff check 全绿。
 
 完成定义：
 
@@ -1258,6 +1274,35 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 - 残余风险：W3.1–W3.4 尚未实施，`features.subagents` 必须继续 disabled。
 - 下一步：W3.1 durable descendant query。
 
+### 2026-07-30 — W3.1
+
+- 状态：`DONE`
+- Commit：随本原子 slice 提交
+- 目标：让冻结协议中已经存在的 descendant query 语义从 delivery 到 application 与
+  SQLite 全程保真，并让每页 Item summaries 成为连通的 Run tree。
+- 事实作者：application query 拥有 scope、cursor identity 与 page enrichment；
+  SQLite projection 实现 durable lineage membership；delivery 只做 wire 翻译。
+- 关键裁决：
+  - application `ItemScope` 使用闭合构造，不再暴露两个可冲突 subject 字段；
+  - `includeDescendants` 是 query identity，必须进入 cursor，不能作为显示选项后处理；
+  - subtree membership 与 ancestor closure 只读 `runs.parent_run_id`，不从 transcript
+    内容、spawning Item payload 或 live registry 猜测；
+  - Store 一次递归读取 ancestor closure，不做逐 Run N+1，也不加载整个 Session。
+- 生成物：public wire、Registry、schema、OpenRPC、Go/TS 类型、Artifact、SQLite epoch、
+  Agent API/wire 与 `features.subagents` 均未变化。
+- 验证：
+  - application queries + delivery server + SQLite targeted tests → `PASS`
+  - 三个高风险 package `go test -race -count=10` → `PASS`
+  - `MODULE=app/runtime FAST=1 scripts/check.sh build vet test lint` → `PASS`
+  - `GOWORK=off go mod tidy -diff`、arch/contract drift、`git diff --check` → `PASS`
+- 架构复核：
+  - 抽象不过度 / 不足 → `PASS`；只增加真实 scope 与两个 projection 语义
+  - Agent/App/Delivery/Desktop 无概念泄漏 → `PASS`；Agent 无变化
+  - 无旧 helper、alias、双读写、fallback 或 migration → `PASS`
+- 残余风险：root multi-source stream、child refusal/profile gate 与 tail-first terminal
+  race 进入 W3.2；capability 继续 disabled。
+- 下一步：W3.2 root stream / replay conformance。
+
 ---
 
 ## 12. 下一张执行卡
@@ -1265,18 +1310,17 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 唯一下一任务：
 
 ```text
-W3.1 — B1.5
-Durable descendant query
+W3.2 — B1.5
+Root stream / replay conformance
 ```
 
 实施顺序：
 
-1. 将 `includeDescendants` 纳入 application `runs.list` scope、cursor identity 和
-   SQLite stable keyset query；
-2. 将 `items.list` 的 run subtree scope 保真传入 application/store，并绑定 cursor；
-3. 让 `items.list.runs` 一次读取本页直接 Run 与 ancestor closure；
-4. 增加 application、delivery、SQLite 的正反向/分页/cursor/capability contract tests；
-5. 运行 Runtime 定向、race 与全量门禁，更新台账后独立 commit/push。
+1. 证明 root Journal 对 root/child/sibling/nested source 共用一个严格递增 cursor；
+2. 证明 child subscribe 始终返回 `run_not_root`，不受 capability 开关影响；
+3. 证明 caller profile 必须覆盖 root 冻结 profile，不返回删减 stream；
+4. 固定 cursorless tail attach + durable query + buffered terminal event 的竞态 fixture；
+5. 运行 Runtime 定向/race 门禁，更新台账后独立 commit/push。
 
 W3 的禁止项：
 
