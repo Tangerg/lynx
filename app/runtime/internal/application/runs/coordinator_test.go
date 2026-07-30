@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/replaycursor"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -1374,6 +1375,29 @@ func TestCoordinatorProjectsNestedChildrenWithExactLineageAndPostorderTerminal(t
 	}
 	if err := grandchildConfirmation.Await(t.Context()); err != nil {
 		t.Fatalf("grandchild opening: %v", err)
+	}
+	for index, event := range events {
+		wantSequence := uint64(index + 1)
+		if event.Sequence != wantSequence {
+			t.Fatalf("event[%d] sequence = %d, want %d", index, event.Sequence, wantSequence)
+		}
+		position, err := replaycursor.Decode(event.Cursor)
+		if err != nil {
+			t.Fatalf("event[%d] cursor: %v", index, err)
+		}
+		if position.Epoch != coordinator.epoch ||
+			position.RunID != testRunID ||
+			position.SegmentID != testSegmentID ||
+			position.Sequence != wantSequence {
+			t.Fatalf(
+				"event[%d] cursor = %+v, want root stream %s/%s at %d",
+				index,
+				position,
+				testRunID,
+				testSegmentID,
+				wantSequence,
+			)
+		}
 	}
 
 	openings := effects.openingSnapshot()

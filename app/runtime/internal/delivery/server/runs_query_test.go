@@ -212,6 +212,19 @@ func TestChildRunReadsRequireNegotiatedSubagents(t *testing.T) {
 	}
 }
 
+func TestChildRunCannotBecomeAnIndependentSubscriptionRoot(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	putRun(t, rt, "ses_1", "run_root", 10, 1)
+	putChildRun(t, rt, "ses_1", "run_child", 11, 2)
+
+	_, _, err := s.SubscribeRun(t.Context(), protocol.SubscribeRunRequest{
+		RunID: "run_child", SegmentID: "seg_child",
+	})
+	if !errors.Is(err, protocol.ErrRunNotRoot) {
+		t.Fatalf("SubscribeRun(child) = %v, want run_not_root", err)
+	}
+}
+
 func assertSubagentCapabilityGap(t *testing.T, operation string, err error) {
 	t.Helper()
 	var gap *protocol.CapabilityGap

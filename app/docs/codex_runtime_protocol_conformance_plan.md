@@ -5,7 +5,7 @@
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
-> 当前已提交基线：`main@ef04f5bfd`；W3.1 随本原子 slice 完成，W3.2 READY
+> 当前已提交基线：`main@6460bede9`；W3.2 随本原子 slice 完成，W3.3 READY
 > 目标协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 目标 Artifact：`SessionArtifactVersion = 7`
 
@@ -209,7 +209,7 @@ cd app/desktop/frontend && npm run check
 | A5 | capability gate 与 disabled-subagent seam 收口 | `DONE` | 2026-07-30 完成 | shared policy、durable identity gates、全量 gates |
 | A6 | Registry fail-closed 与 SSOT 清理 | `DONE` | 2026-07-30 完成 | defensive views、closed metadata、effective errors、全量 gates |
 | A7 | canonical docs 与最终 conformance sweep | `DONE` | 2026-07-30 完成 | §12.4 conformance matrix、全量 gates |
-| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.5 / W3.2 root stream / replay conformance | B1.1–B1.4、W3.0–W3.1 已完成；启用条件见 §11 |
+| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.5 / W3.3 restart / cold recovery conformance | B1.1–B1.4、W3.0–W3.2 已完成；启用条件见 §11 |
 
 A1–A7 已全部完成，当前没有 A-track slice 处于 `IN PROGRESS`。B1 保持独立项目，
 已按 breaking-first 策略开始实施；不得通过打开 feature flag、复用 root identity
@@ -1779,6 +1779,31 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 - 残余风险：root multi-source stream、child subscribe refusal/profile gate 与 tail-first
   terminal race 进入 W3.2；`features.subagents` 继续 disabled。
 
+### 2026-07-30 — B1.5 / W3.2
+
+- 状态：`DONE`
+- Commit：随本原子 slice 提交
+- 目标：证明一个 root Journal 完整承载 tree-wide source event，并关闭 tail-first
+  terminal 的 query/subscribe 竞态。
+- 关键裁决：
+  - source event envelope 保留各自 Run/Segment；sequence/cursor 只由 root Journal
+    分配并绑定 root Run/Segment scope；
+  - child subscribe 返回 `run_not_root`，不创建 child replay scope；
+  - caller profile 不覆盖时整条 stream 拒绝，不做事件删减；
+  - terminal 在 tail attach 前由 durable query 恢复，attach 后由 buffered stream
+    恢复；commit-before-publish 排除“event 可见但 query truth 未提交”。
+- 生成物：只增强 application/delivery conformance tests；production、public wire、
+  Registry、schema、OpenRPC、Go/TS 类型、Artifact、Store epoch、Agent API/wire 与
+  capability 均未变化。
+- 验证：
+  - nested tree shared root cursor + child subscription refusal → `PASS`
+  - profile coverage + tail-first terminal 三种线性化 → `PASS`
+  - application/runs、delivery/server race `-count=10` → `PASS`
+  - Runtime build、vet、全量 test、lint、arch/contract drift、tidy diff、diff check
+    → `PASS`
+- 残余风险：complete Running-tree restart settlement、Waiting-tree preservation 与
+  old-epoch replay → cold query convergence 进入 W3.3；capability 继续 disabled。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -1819,8 +1844,8 @@ B1.5 内部原子切片：
 |---|---|---|---|
 | W3.0 | `DONE` | 契约/实现差距冻结 | child subscribe 误述已纠正；三项 query 缺口与既有 stream/recovery 基础已定位 |
 | W3.1 | `DONE` | durable descendant query | runs descendant stable page + bound cursor；items exact/subtree page + bound cursor；direct Run + ancestor summaries |
-| W3.2 | `READY` | root stream/replay conformance | root Journal 多 source、child refusal、profile coverage、tail-first terminal race |
-| W3.3 | `TODO` | restart/cold recovery conformance | file-backed complete Running-tree loss settlement、Waiting-tree preservation、old-epoch replay → cold query convergence |
+| W3.2 | `DONE` | root stream/replay conformance | root Journal 多 source、child refusal、profile coverage、tail-first terminal race |
+| W3.3 | `READY` | restart/cold recovery conformance | file-backed complete Running-tree loss settlement、Waiting-tree preservation、old-epoch replay → cold query convergence |
 | W3.4 | `TODO` | B1.5 full closure | race/full gates、contract drift、architecture/hygiene/compatibility sweep、docs/commit/push |
 
 B1.4 的四个内部原子切片已经按事实依赖完成：

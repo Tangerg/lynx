@@ -92,6 +92,53 @@ func TestJournal_TailReportsTheHeadItAttachedAfter(t *testing.T) {
 	}
 }
 
+func TestJournalTailFirstSnapshotConvergesAcrossTerminalBoundary(t *testing.T) {
+	tests := []struct {
+		name               string
+		terminalBeforeTail bool
+		terminalBeforeRead bool
+	}{
+		{name: "terminal committed before tail", terminalBeforeTail: true},
+		{name: "terminal committed after tail before read", terminalBeforeRead: true},
+		{name: "terminal committed after read"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			journal := testJournal()
+			durableTerminal := false
+			publishTerminal := func() {
+				durableTerminal = true
+				journal.Append(Event{
+					RunID: testRunID, SegmentID: testSegmentID,
+					Payload: SegmentFinished{},
+				})
+			}
+			if tt.terminalBeforeTail {
+				publishTerminal()
+			}
+			attached := journal.Tail()
+			defer attached.Cancel()
+			if tt.terminalBeforeRead {
+				publishTerminal()
+			}
+
+			foldedTerminal := durableTerminal
+			if !tt.terminalBeforeTail && !tt.terminalBeforeRead {
+				publishTerminal()
+			}
+			journal.Close()
+			for event := range attached.Events {
+				if _, ok := event.Payload.(SegmentFinished); ok {
+					foldedTerminal = true
+				}
+			}
+			if !foldedTerminal {
+				t.Fatal("tail-first snapshot lost the terminal boundary")
+			}
+		})
+	}
+}
+
 func TestJournal_ReplayServesWhatFollowsTheCursorThenTails(t *testing.T) {
 	j := testJournal()
 	for range 3 {
