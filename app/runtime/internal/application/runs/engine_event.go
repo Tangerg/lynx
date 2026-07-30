@@ -128,8 +128,10 @@ type ToolCallEnd struct {
 	Offload      *offload.Ref
 	OutputText   string
 	MutatedPaths []string
-	Err          string
-	Denied       bool
+	// Problem is the one structured failure channel for a completed tool call.
+	// nil means success; the problem's Tool scope distinguishes it from a Run
+	// failure without parallel error strings or boolean classifications.
+	Problem *transcript.Problem
 }
 
 // FileChange is a live workspace refresh nudge emitted after a tool-owned file

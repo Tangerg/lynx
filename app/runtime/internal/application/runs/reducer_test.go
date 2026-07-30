@@ -292,7 +292,12 @@ func TestReducerPreservesRawToolResultsAndExplicitFileNudges(t *testing.T) {
 	}
 
 	mustReduce(t, reducer, ToolCallStart{CallID: "denied_1", ToolName: "shell", Arguments: `{}`})
-	denied := completedItem(t, mustReduce(t, reducer, ToolCallEnd{CallID: "denied_1", Denied: true}))
+	denied := completedItem(t, mustReduce(t, reducer, ToolCallEnd{
+		CallID: "denied_1",
+		Problem: &transcript.Problem{
+			Kind: transcript.DeniedByUserProblem, Scope: transcript.ToolProblem,
+		},
+	}))
 	if denied.Status != transcript.ItemIncomplete || denied.Error == nil || denied.Error.Kind != transcript.DeniedByUserProblem {
 		t.Fatalf("denied item = %+v", denied)
 	}

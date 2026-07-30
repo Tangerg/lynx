@@ -24,6 +24,24 @@ func (f *fakeRunProjection) Run(_ context.Context, runID string) (transcript.Run
 	return run, ok, nil
 }
 
+func (f *fakeRunProjection) RunTree(_ context.Context, runID string) ([]transcript.Run, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	target, found := f.runs[runID]
+	if !found {
+		return nil, nil
+	}
+	rootRunID := target.Lineage().TreeRootID(target.ID)
+	var tree []transcript.Run
+	for _, run := range f.runs {
+		if run.ID == rootRunID || run.RootRunID == rootRunID {
+			tree = append(tree, run)
+		}
+	}
+	return tree, nil
+}
+
 func runRecord(state execution.RunState, activeSegmentID, spawnedBy string) transcript.Run {
 	run := transcript.Run{
 		ID: testRunID, SessionID: "ses_1", State: state,

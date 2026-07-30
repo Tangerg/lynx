@@ -314,6 +314,7 @@ const (
 	ProviderRejectedProblem
 	DeniedByUserProblem
 	ToolFailedProblem
+	ChildRunCanceledProblem
 )
 
 // Problem classifies a failure. There is deliberately no transient/permanent
@@ -502,7 +503,7 @@ func (problem *Problem) Validate() error {
 	case InternalProblem, RunLostProblem, AgentStuckProblem,
 		RateLimitedProblem, InvalidAPIKeyProblem, TimeoutProblem,
 		ProviderUnavailableProblem, ProviderRejectedProblem,
-		DeniedByUserProblem, ToolFailedProblem:
+		DeniedByUserProblem, ToolFailedProblem, ChildRunCanceledProblem:
 	default:
 		return fmt.Errorf("unknown kind %d", problem.Kind)
 	}

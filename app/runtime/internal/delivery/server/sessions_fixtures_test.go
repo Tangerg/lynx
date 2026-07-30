@@ -103,6 +103,7 @@ type turnRuntime interface {
 	ProcessID(context.Context, turn.TurnHandle) (string, error)
 	Rehydrate(context.Context, runs.RehydrateTurn) (turn.TurnHandle, error)
 	Cancel(context.Context, turn.TurnHandle) error
+	CancelSubtree(context.Context, turn.TurnHandle, string) error
 }
 
 // stubRuntime is the delivery session/lifecycle test double: it provides the run
@@ -299,6 +300,14 @@ func (s stubRuntime) Rehydrate(ctx context.Context, req runs.RehydrateTurn) (exe
 
 func (s stubRuntime) Cancel(ctx context.Context, ref execution.TurnRef) error {
 	return turn.NewExecutor(s.turnDispatcher()).CancelTurn(ctx, ref)
+}
+
+func (s stubRuntime) CancelSubtree(
+	ctx context.Context,
+	ref execution.TurnRef,
+	processID string,
+) error {
+	return turn.NewExecutor(s.turnDispatcher()).CancelSubtree(ctx, ref, processID)
 }
 
 func (s stubRuntime) Steer(ctx context.Context, ref execution.TurnRef, input []transcript.ContentBlock) error {

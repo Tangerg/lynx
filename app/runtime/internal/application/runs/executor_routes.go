@@ -40,7 +40,7 @@ type executorRoutes struct {
 
 func (c *Coordinator) openingRoutes(
 	spec segmentSpec,
-	cancelReason func() string,
+	cancelReason func(string) string,
 ) (*executorRoutes, error) {
 	if spec.Pending != nil {
 		return c.resumedExecutorRoutes(spec, cancelReason)
@@ -52,7 +52,7 @@ func (c *Coordinator) openingRoutes(
 		CreatedAt:   spec.CreatedAt, UserInput: spec.Input,
 		Metrics: spec.priorMetrics(), Limits: spec.effectiveLimits(),
 		ProtocolProfile: spec.effectiveProfile(),
-		Now:             c.now, CancelReason: cancelReason,
+		Now:             c.now, CancelReason: cancellationReason(cancelReason, spec.RunID),
 	})
 	root := &executorRoute{
 		runID:           spec.RunID,
@@ -72,7 +72,7 @@ func (c *Coordinator) openingRoutes(
 
 func (c *Coordinator) resumedExecutorRoutes(
 	spec segmentSpec,
-	cancelReason func() string,
+	cancelReason func(string) string,
 ) (*executorRoutes, error) {
 	pending := spec.Pending
 	if pending == nil {
@@ -149,7 +149,7 @@ func (c *Coordinator) resumedExecutorRoutes(
 			CreatedAt: continuation.RunCreatedAt, UserInput: userInput,
 			Metrics: continuation.Metrics, Limits: continuation.Limits,
 			ProtocolProfile: pending.ProtocolProfile, Pending: pending,
-			Now: c.now, CancelReason: cancelReason,
+			Now: c.now, CancelReason: cancellationReason(cancelReason, route.runID),
 		})
 		routes.byProcess[source.ProcessID] = route
 		byRunID[route.runID] = route
@@ -481,10 +481,10 @@ func validateRouteItem(route *executorRoute, sessionID string, item transcript.I
 func (c *Coordinator) openChildRun(
 	ctx context.Context,
 	spec segmentSpec,
+	live *handle,
 	routes *executorRoutes,
 	source ExecutorSource,
 	request ChildOpeningRequest,
-	cancelReason func() string,
 ) (*executorRoute, reductionBatch, error) {
 	if err := request.validate(); err != nil {
 		return nil, reductionBatch{}, err
@@ -547,8 +547,17 @@ func (c *Coordinator) openChildRun(
 		Limits:          child.limits,
 		ProtocolProfile: child.protocolProfile,
 		Now:             c.now,
-		CancelReason:    cancelReason,
+		CancelReason:    cancellationReason(live.CancelReasonFor, child.runID),
 	})
+	if err := live.bindExecutorSource(child.runID, source); err != nil {
+		return nil, reductionBatch{}, err
+	}
+	bindingCommitted := false
+	defer func() {
+		if !bindingCommitted {
+			live.unbindExecutorSource(child.runID, source)
+		}
+	}()
 	projected, err := child.reducer.open()
 	if err != nil {
 		return nil, reductionBatch{}, fmt.Errorf("runs: reduce child process %q opening: %w", source.ProcessID, err)
@@ -587,6 +596,14 @@ func (c *Coordinator) openChildRun(
 	}
 	child.segmentStartedAt = c.now().UTC()
 	routes.installChild(source, child)
+	bindingCommitted = true
 	c.publishRunMoved(spec.SessionID, child.runID)
 	return child, projected, nil
+}
+
+func cancellationReason(resolve func(string) string, runID string) func() string {
+	if resolve == nil {
+		return nil
+	}
+	return func() string { return resolve(runID) }
 }

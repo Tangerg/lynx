@@ -528,7 +528,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     retryAfterSeconds: integer(),
     type: ref(() => CHECKS.ArtifactProblemType),
   }, ["type"]),
-  ArtifactProblemType: enumOf(["internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed"]),
+  ArtifactProblemType: enumOf(["internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed", "childRunCanceled"]),
   ArtifactQuestion: object({
     fields: array(ref(() => CHECKS.ArtifactQuestionField)),
     prompt: text(),

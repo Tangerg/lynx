@@ -112,6 +112,7 @@ type fakeTurnControl struct {
 	steerInput    []transcript.ContentBlock
 	operations    *[]string
 	cancelErr     error
+	cancelSubtree func(execution.TurnRef, string) error
 }
 
 type blockingOpeningEffects struct {
@@ -173,6 +174,17 @@ func (f *fakeTurnControl) CancelTurn(_ context.Context, ref execution.TurnRef) e
 		*f.operations = append(*f.operations, "turn.cancel")
 	}
 	f.canceled = append(f.canceled, ref)
+	return f.cancelErr
+}
+
+func (f *fakeTurnControl) CancelSubtree(_ context.Context, ref execution.TurnRef, processID string) error {
+	if f.operations != nil {
+		*f.operations = append(*f.operations, "turn.cancel_subtree:"+processID)
+	}
+	f.canceled = append(f.canceled, ref)
+	if f.cancelSubtree != nil {
+		return f.cancelSubtree(ref, processID)
+	}
 	return f.cancelErr
 }
 
@@ -774,6 +786,152 @@ func TestCancelChildRunRequiresExplicitAuthority(t *testing.T) {
 	_, err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1"})
 	if !errors.Is(err, ErrChildRunNotAllowed) {
 		t.Fatalf("Cancel error = %v, want ErrChildRunNotAllowed", err)
+	}
+}
+
+func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *testing.T) {
+	childRequest, childConfirmation := NewChildOpeningRequest(time.Now().UTC())
+	rootSource := ExecutorSource{ProcessID: "process_root"}
+	childSource := ExecutorSource{
+		ProcessID:   "process_child",
+		ParentID:    rootSource.ProcessID,
+		SpawnCallID: "provider_child",
+	}
+	executor := &cancellableChildExecutor{
+		rootSource:      rootSource,
+		childSource:     childSource,
+		request:         childRequest,
+		confirmation:    childConfirmation,
+		childOpened:     make(chan struct{}),
+		cancelRequested: make(chan struct{}),
+		finishRoot:      make(chan struct{}),
+	}
+	turns := &fakeTurnControl{}
+	turns.cancelSubtree = func(ref execution.TurnRef, processID string) error {
+		if ref != (execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}) {
+			return errors.New("subtree cancellation addressed the wrong turn")
+		}
+		if processID != childSource.ProcessID {
+			return errors.New("subtree cancellation addressed the wrong process")
+		}
+		close(executor.cancelRequested)
+		return nil
+	}
+	effects := &fakeEffects{}
+	projection := &fakeRunProjection{runs: map[string]transcript.Run{
+		"run_1": {
+			ID:              "run_1",
+			SessionID:       "ses_1",
+			State:           execution.Running,
+			ActiveSegmentID: "seg_1",
+		},
+	}}
+	coordinator := NewCoordinator(Dependencies{
+		Segments:     executor,
+		Turns:        turns,
+		Sessions:     &fakeRunSessions{},
+		Effects:      effects,
+		Runs:         projection,
+		Admissions:   new(admission.Gate),
+		Now:          func() time.Time { return time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC) },
+		NewRunID:     func() string { return "run_child" },
+		NewSegmentID: func() string { return "seg_child" },
+	})
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("open segment: %v", err)
+	}
+	streamDone := make(chan []Event, 1)
+	go func() { streamDone <- collectEvents(stream) }()
+	select {
+	case <-executor.childOpened:
+	case <-time.After(time.Second):
+		t.Fatal("child opening was not committed")
+	}
+
+	openings := effects.openingSnapshot()
+	if len(openings) != 2 || openings[1].Admit == nil {
+		t.Fatalf("openings = %+v, want root and child", openings)
+	}
+	childDraft := *openings[1].Admit
+	projection.runs[childDraft.RunID] = transcript.Run{
+		ID:              childDraft.RunID,
+		SessionID:       childDraft.SessionID,
+		SpawnedByItemID: childDraft.SpawnedByItemID,
+		ParentRunID:     childDraft.ParentRunID,
+		RootRunID:       childDraft.RootRunID,
+		State:           execution.Running,
+		ActiveSegmentID: childDraft.SegmentID,
+	}
+
+	result, err := coordinator.Cancel(t.Context(), CancelCommand{
+		RunID:         childDraft.RunID,
+		Reason:        "stop delegated work",
+		AllowChildRun: true,
+	})
+	if err != nil {
+		t.Fatalf("Cancel child: %v", err)
+	}
+	if result.Run.ID != childDraft.RunID ||
+		result.Run.State != execution.Canceled ||
+		result.Run.Outcome == nil ||
+		*result.Run.Outcome != execution.OutcomeCanceled ||
+		result.Run.Detail != "stop delegated work" {
+		t.Fatalf("child result = %+v, want exact canceled terminal", result.Run)
+	}
+	if result.RootRun == nil ||
+		result.RootRun.ID != "run_1" ||
+		result.RootRun.State != execution.Running {
+		t.Fatalf("root result = %+v, want still-running run_1", result.RootRun)
+	}
+
+	var (
+		childTerminals int
+		parentResults  int
+	)
+	for _, commit := range effects.commitSnapshot() {
+		if commit.State == StateTerminalize && commit.RunID == childDraft.RunID {
+			childTerminals++
+		}
+		for _, item := range commit.Items {
+			if item.ID != childDraft.SpawnedByItemID {
+				continue
+			}
+			if item.Status == transcript.ItemIncomplete &&
+				item.Error != nil &&
+				item.Error.Kind == transcript.ChildRunCanceledProblem &&
+				item.Error.Scope == transcript.ToolProblem &&
+				item.Error.Detail == "stop delegated work" {
+				parentResults++
+			}
+		}
+	}
+	if childTerminals != 1 || parentResults != 1 {
+		t.Fatalf(
+			"child terminal commits=%d parent child_run_canceled results=%d, want 1/1",
+			childTerminals,
+			parentResults,
+		)
+	}
+	if _, live := coordinator.registry.Get("run_1"); !live {
+		t.Fatal("child cancellation stopped the root segment")
+	}
+
+	close(executor.finishRoot)
+	select {
+	case events := <-streamDone:
+		var rootCompleted bool
+		for _, event := range events {
+			finished, ok := event.Payload.(SegmentFinished)
+			if ok && event.RunID == "run_1" && finished.Run.State == execution.Completed {
+				rootCompleted = true
+			}
+		}
+		if !rootCompleted {
+			t.Fatalf("root did not continue to its natural terminal: %+v", events)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("root did not finish after child cancellation")
 	}
 }
 

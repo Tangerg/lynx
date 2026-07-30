@@ -416,6 +416,7 @@ const (
 	ArtifactProblemProviderRejected    ArtifactProblemType = "providerRejected"
 	ArtifactProblemDeniedByUser        ArtifactProblemType = "deniedByUser"
 	ArtifactProblemToolFailed          ArtifactProblemType = "toolFailed"
+	ArtifactProblemChildRunCanceled    ArtifactProblemType = "childRunCanceled"
 )
 
 // ArtifactToolResult carries the single full-body source for an offloaded tool

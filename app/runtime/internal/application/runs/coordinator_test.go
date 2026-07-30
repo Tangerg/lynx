@@ -40,6 +40,79 @@ type acknowledgedChildExecutor struct {
 	childStarted chan struct{}
 }
 
+type cancellableChildExecutor struct {
+	rootSource      ExecutorSource
+	childSource     ExecutorSource
+	request         ChildOpeningRequest
+	confirmation    ChildOpeningConfirmation
+	childOpened     chan struct{}
+	cancelRequested chan struct{}
+	finishRoot      chan struct{}
+}
+
+func (e *cancellableChildExecutor) TurnEvents(
+	ctx context.Context,
+	_ execution.TurnRef,
+) (iter.Seq[ExecutorEvent], error) {
+	return func(yield func(ExecutorEvent) bool) {
+		if !yield(ExecutorEvent{
+			Source: e.rootSource,
+			Payload: ToolCallStart{
+				CallID:       "canonical_child",
+				SourceCallID: e.childSource.SpawnCallID,
+				ToolName:     "task",
+				Arguments:    `{}`,
+			},
+		}) {
+			return
+		}
+		if !yield(ExecutorEvent{Source: e.childSource, Payload: e.request}) {
+			return
+		}
+		if err := e.confirmation.Await(ctx); err != nil {
+			return
+		}
+		close(e.childOpened)
+		select {
+		case <-e.cancelRequested:
+		case <-ctx.Done():
+			return
+		}
+		if !yield(ExecutorEvent{
+			Source:  e.childSource,
+			Payload: TurnEnd{Reason: execution.OutcomeCanceled},
+		}) {
+			return
+		}
+		if !yield(ExecutorEvent{
+			Source: e.rootSource,
+			Payload: ToolCallEnd{
+				CallID: "canonical_child",
+				Problem: &transcript.Problem{
+					Kind:   transcript.ToolFailedProblem,
+					Scope:  transcript.ToolProblem,
+					Detail: "executor process was killed",
+				},
+			},
+		}) {
+			return
+		}
+		select {
+		case <-e.finishRoot:
+		case <-ctx.Done():
+			return
+		}
+		yield(ExecutorEvent{
+			Source:  e.rootSource,
+			Payload: TurnEnd{Reason: execution.OutcomeCompleted},
+		})
+	}, nil
+}
+
+func (*cancellableChildExecutor) CancelTurn(context.Context, execution.TurnRef) error {
+	return nil
+}
+
 func (e *acknowledgedChildExecutor) TurnEvents(ctx context.Context, _ execution.TurnRef) (iter.Seq[ExecutorEvent], error) {
 	return func(yield func(ExecutorEvent) bool) {
 		if !yield(ExecutorEvent{

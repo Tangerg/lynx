@@ -50,6 +50,42 @@ func (s *memoryDispatcher) Cancel(ctx context.Context, handle TurnHandle) error 
 	}
 }
 
+// CancelSubtree terminates one descendant process tree without claiming the
+// turn's root lifecycle. The root process handle is stable for the turn; its
+// implementation proves target ownership before Agent Runtime mutates anything.
+func (s *memoryDispatcher) CancelSubtree(
+	ctx context.Context,
+	handle TurnHandle,
+	processID string,
+) error {
+	state, err := s.findTurn(handle.TurnID)
+	if err != nil {
+		return err
+	}
+	state.lifecycleMu.Lock()
+	defer state.lifecycleMu.Unlock()
+	if state.released() {
+		return ErrTurnNotFound
+	}
+	process := state.process()
+	if process == nil {
+		return fmt.Errorf(
+			"turn: cancel process subtree %q: turn %q has no process",
+			processID,
+			handle.TurnID,
+		)
+	}
+	if err := process.CancelSubtree(ctx, processID); err != nil {
+		return fmt.Errorf(
+			"turn: cancel process subtree %q in turn %q: %w",
+			processID,
+			handle.TurnID,
+			err,
+		)
+	}
+	return nil
+}
+
 func cancelTurnProcess(ctx context.Context, process agentexec.TurnProcess) error {
 	if process == nil {
 		return nil

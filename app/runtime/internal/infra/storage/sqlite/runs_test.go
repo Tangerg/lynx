@@ -290,6 +290,22 @@ func TestRunAdmitSharesOneRootAdmissionAcrossTheTree(t *testing.T) {
 			t.Fatalf("run %s = %+v, want parent %s, root run_root, inherited profile", want.id, run, want.parentID)
 		}
 	}
+
+	tree, err := store.RunTree(ctx, "run_grandchild")
+	if err != nil {
+		t.Fatalf("read tree: %v", err)
+	}
+	treeIDs := make([]string, len(tree))
+	for index, run := range tree {
+		treeIDs[index] = run.ID
+	}
+	slices.Sort(treeIDs)
+	if want := []string{"run_child", "run_grandchild", "run_root"}; !slices.Equal(treeIDs, want) {
+		t.Fatalf("tree Run IDs = %v, want %v", treeIDs, want)
+	}
+	if other, err := store.RunTree(ctx, "run_other_root"); err != nil || len(other) != 0 {
+		t.Fatalf("unadmitted tree = (%+v, %v), want empty", other, err)
+	}
 }
 
 func TestRunAdmitRejectsAChildOutsideItsDurableTree(t *testing.T) {

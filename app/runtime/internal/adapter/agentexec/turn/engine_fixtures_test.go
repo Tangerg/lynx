@@ -98,6 +98,8 @@ type stubTurnProcess struct {
 	resumeErr  error       // when set, Resume fails with it
 	discardErr error       // returned by Discard to verify teardown observability
 	discarded  atomic.Bool // set by Discard to assert terminal process cleanup
+	subtrees   []string
+	subtreeErr error
 }
 
 func newStubTurnProcess(id string, output agentexec.TurnOutput) *stubTurnProcess {
@@ -128,6 +130,11 @@ func (cp *stubTurnProcess) Cancel(context.Context) error {
 		cp.onCancel()
 	}
 	return nil
+}
+
+func (cp *stubTurnProcess) CancelSubtree(_ context.Context, processID string) error {
+	cp.subtrees = append(cp.subtrees, processID)
+	return cp.subtreeErr
 }
 
 func (cp *stubTurnProcess) Resume(_ context.Context, _ []agentexec.SuspensionAnswer) error {

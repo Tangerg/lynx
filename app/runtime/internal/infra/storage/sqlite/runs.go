@@ -572,6 +572,43 @@ func (s *RunStore) Run(ctx context.Context, runID string) (transcript.Run, bool,
 	return run, true, nil
 }
 
+// RunTree resolves runID to its tree root and returns that root plus every
+// descendant in one SQLite read. It deliberately makes no ordering promise:
+// application/domain code validates the complete topology and derives canonical
+// subtree order.
+func (s *RunStore) RunTree(ctx context.Context, runID string) ([]transcript.Run, error) {
+	rows, err := conn(ctx, s.db).QueryContext(ctx,
+		`WITH target AS (
+		    SELECT CASE WHEN root_run_id = '' THEN run_id ELSE root_run_id END AS tree_root_id
+		      FROM runs
+		     WHERE run_id = ?
+		 )
+		 SELECT `+runColumns+`
+		 FROM runs AS r
+		 CROSS JOIN target
+		 `+runReadJoins+`
+		 WHERE r.run_id = target.tree_root_id OR r.root_run_id = target.tree_root_id`,
+		runID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite: read tree containing run %q: %w", runID, err)
+	}
+	defer rows.Close()
+
+	var runs []transcript.Run
+	for rows.Next() {
+		run, err := scanRun(rows)
+		if err != nil {
+			return nil, fmt.Errorf("sqlite: read tree containing run %q: %w", runID, err)
+		}
+		runs = append(runs, run)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: read tree containing run %q: %w", runID, err)
+	}
+	return runs, nil
+}
+
 // RunsByID returns the Runs named by runIDs, in newest-admission order, skipping
 // ids no Run has. It exists so a read that has just produced a set of run ids —
 // the runs one page of items refers to — resolves them in one query instead of one

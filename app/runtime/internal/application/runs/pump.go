@@ -182,10 +182,10 @@ func (c *Coordinator) pump(
 			childRoute, openingBatch, openingErr := c.openChildRun(
 				commitCtx,
 				spec,
+				live,
 				routes,
 				ev.Source,
 				request,
-				live.CancelReason,
 			)
 			if openingErr == nil {
 				publication, publishErr := publisher.publish(commitCtx, childRoute, openingBatch)
@@ -244,6 +244,12 @@ func (c *Coordinator) pump(
 			fail(err)
 			return
 		}
+		if route.source.ProcessID != "" {
+			if err := live.bindExecutorSource(route.runID, route.source); err != nil {
+				fail(err)
+				return
+			}
+		}
 		if route.reducer == nil {
 			fail(fmt.Errorf("runs: admitted child run %q has no segment reducer", route.runID))
 			return
@@ -256,6 +262,11 @@ func (c *Coordinator) pump(
 		if _, interrupts := engineEvent.(TurnInterrupted); interrupts {
 			fail(errors.New("runs: executor emitted a per-Run interrupt instead of a tree barrier"))
 			return
+		}
+		if toolEnd, endingTool := engineEvent.(ToolCallEnd); endingTool {
+			if itemID, open := route.reducer.openToolItemID(toolEnd.CallID); open {
+				engineEvent = live.classifyChildCancellationTool(route.runID, itemID, toolEnd)
+			}
 		}
 		if route == routes.root && engineEventEndsSegment(engineEvent) {
 			if activeChildren := routes.unfinishedCount() - 1; activeChildren > 0 {
@@ -365,9 +376,10 @@ func (p treePublisher) publish(
 				if reduced.Commit.Run == nil {
 					return reductionPublication{}, errors.New("runs: terminal commit has no run snapshot")
 				}
-				if route.lineage.IsRoot() {
-					p.live.recordTerminalRun(*reduced.Commit.Run)
-				}
+				p.live.recordTerminalRun(*reduced.Commit.Run)
+			}
+			for _, item := range reduced.Commit.Items {
+				p.live.recordChildCancellationItem(route.runID, item)
 			}
 			goalCharged = goalCharged || reduced.Commit.GoalTurn != nil
 		}

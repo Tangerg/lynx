@@ -27,6 +27,7 @@ type executorDispatcher interface {
 	ProcessID(context.Context, TurnHandle) (string, error)
 	Rehydrate(context.Context, runs.RehydrateTurn) (TurnHandle, error)
 	Cancel(context.Context, TurnHandle) error
+	CancelSubtree(context.Context, TurnHandle, string) error
 }
 
 // Executor adapts a turn dispatcher to the application's run executor port
@@ -58,6 +59,16 @@ func (e *Executor) TurnEvents(ctx context.Context, ref execution.TurnRef) (iter.
 // CancelTurn stops a live or parked turn by durable identity.
 func (e *Executor) CancelTurn(ctx context.Context, ref execution.TurnRef) error {
 	return mapControlError(e.dispatcher.Cancel(ctx, concreteHandle(ref)))
+}
+
+// CancelSubtree stops one descendant process tree without canceling its owning
+// turn. The dispatcher validates process ownership before calling Agent Runtime.
+func (e *Executor) CancelSubtree(
+	ctx context.Context,
+	ref execution.TurnRef,
+	processID string,
+) error {
+	return mapControlError(e.dispatcher.CancelSubtree(ctx, concreteHandle(ref), processID))
 }
 
 // ValidateStart applies application-owned turn invariants plus the adapter's

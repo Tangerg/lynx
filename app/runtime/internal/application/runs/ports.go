@@ -55,12 +55,15 @@ type SessionLifecycle interface {
 	ApplyRunLost(ctx context.Context, sessionID, runID string, finishedAt time.Time) error
 }
 
-// RunProjection is the run use cases' read of one durable run record. It is the
-// authority for what a run IS — root or child, running, waiting or finished, and
-// which segment is executing — which the process-local registry of live segments
-// cannot answer: every run it does not hold looks the same there.
+// RunProjection is the run use cases' durable Run read. Run answers point
+// identity; RunTree resolves any root or child Run to its complete
+// root/descendant aggregate in one read, so a tree-scoped command does not first
+// race a target lookup against a second tree lookup. The projection returns
+// facts, not cancellation policy: application/domain code owns topology
+// validation and subtree meaning.
 type RunProjection interface {
 	Run(ctx context.Context, runID string) (transcript.Run, bool, error)
+	RunTree(ctx context.Context, runID string) ([]transcript.Run, error)
 }
 
 // StartTurn is the protocol-neutral command the run use case sends to the
@@ -120,6 +123,11 @@ type TurnControl interface {
 	Resume(ctx context.Context, ref execution.TurnRef, answers []interrupts.SuspensionAnswer, interruptKinds []execution.InterruptKind) error
 	Rehydrate(ctx context.Context, req RehydrateTurn) (execution.TurnRef, error)
 	TurnCanceler
+	// CancelSubtree terminates exactly the addressed executor process and its
+	// descendants while the owning turn continues. processID is an opaque
+	// identity previously observed through ExecutorSource; the adapter must
+	// prove that it belongs to ref before crossing the executor side effect.
+	CancelSubtree(ctx context.Context, ref execution.TurnRef, processID string) error
 	Steer(ctx context.Context, ref execution.TurnRef, input []transcript.ContentBlock) error
 }
 

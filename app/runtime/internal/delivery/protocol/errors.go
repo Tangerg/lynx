@@ -213,8 +213,9 @@ const (
 	ProblemProviderUnavailable = "provider_unavailable" // provider 5xx — retryable
 	ProblemProviderRejected    = "provider_rejected"    // provider 400, request rejected as invalid — not retryable
 	// Tool channel (toolCall.error) — how a tool call failed.
-	ProblemDeniedByUser = "denied_by_user" // denied by the approval verdict
-	ProblemToolFailed   = "tool_failed"    // tool execution returned an error
+	ProblemDeniedByUser     = "denied_by_user"     // denied by the approval verdict
+	ProblemToolFailed       = "tool_failed"        // tool execution returned an error
+	ProblemChildRunCanceled = "child_run_canceled" // delegated Run was canceled by Run identity
 	// Inline status (McpServer.error, ProviderTestResult.error) — a connection or
 	// probe verdict that rides its own query result instead of failing the call,
 	// so the pane renders it beside the thing it describes.

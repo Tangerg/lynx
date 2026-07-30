@@ -452,12 +452,12 @@ func (e *Engine) killSubtreeOwned(process *Process) (bool, []*Process) {
 
 	children := e.directChildren(process.ID())
 	var killed []*Process
-	if won {
-		killed = append(killed, process)
-	}
 	for _, child := range children {
 		_, childKilled := e.killSubtreeOwned(child)
 		killed = append(killed, childKilled...)
+	}
+	if won {
+		killed = append(killed, process)
 	}
 	return won, killed
 }

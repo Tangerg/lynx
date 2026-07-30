@@ -448,6 +448,8 @@ func portableProblemKind(path string, value protocol.ArtifactProblemType) (trans
 		return transcript.DeniedByUserProblem, nil
 	case protocol.ArtifactProblemToolFailed:
 		return transcript.ToolFailedProblem, nil
+	case protocol.ArtifactProblemChildRunCanceled:
+		return transcript.ChildRunCanceledProblem, nil
 	default:
 		return 0, invalidArtifact(path, "unknown value %q", value)
 	}

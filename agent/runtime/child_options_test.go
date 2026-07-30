@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
@@ -110,7 +111,25 @@ func TestChildOptionsApplyToTheWholeDelegationTree(t *testing.T) {
 }
 
 func TestKillCancelsRunningChildTree(t *testing.T) {
-	engine := agent.MustNewEngine(runtime.Config{})
+	var (
+		killedMu  sync.Mutex
+		killedIDs []string
+	)
+	killedListener := event.NewNamedListener(
+		"record-killed-order",
+		func(_ context.Context, published event.Event) {
+			killed, ok := published.(event.ProcessKilled)
+			if !ok {
+				return
+			}
+			killedMu.Lock()
+			killedIDs = append(killedIDs, killed.ProcessID())
+			killedMu.Unlock()
+		},
+	)
+	engine := agent.MustNewEngine(runtime.Config{
+		Extensions: []core.Extension{killedListener},
+	})
 	started := make(chan struct{})
 	exited := make(chan struct{})
 
@@ -181,6 +200,16 @@ func TestKillCancelsRunningChildTree(t *testing.T) {
 	}
 	if process.Status() != core.StatusKilled || child.Status() != core.StatusKilled {
 		t.Fatalf("statuses root=%s child=%s, want killed/killed", process.Status(), child.Status())
+	}
+	killedMu.Lock()
+	defer killedMu.Unlock()
+	if len(killedIDs) != 2 || killedIDs[0] != child.ID() || killedIDs[1] != process.ID() {
+		t.Fatalf(
+			"ProcessKilled order = %v, want postorder [%s %s]",
+			killedIDs,
+			child.ID(),
+			process.ID(),
+		)
 	}
 }
 

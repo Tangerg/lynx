@@ -94,6 +94,7 @@ func (p *blockingCancelProcess) Cancel(context.Context) error {
 	<-p.release
 	return p.err
 }
+func (*blockingCancelProcess) CancelSubtree(context.Context, string) error                { return nil }
 func (*blockingCancelProcess) Resume(context.Context, []agentexec.SuspensionAnswer) error { return nil }
 func (*blockingCancelProcess) PendingSuspensions(context.Context) ([]agentexec.PendingSuspension, error) {
 	return nil, nil

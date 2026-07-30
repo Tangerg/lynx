@@ -227,39 +227,53 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 		return CancelResult{}, err
 	}
 
-	run, found, err := c.runs.Run(ctx, cmd.RunID)
-	switch {
-	case err != nil:
+	plan, entry, live, err := c.cancellationPlanFor(ctx, cmd)
+	if err != nil {
 		return CancelResult{}, err
-	case !found:
-		return CancelResult{}, fmt.Errorf("%w: %q", ErrRunNotFound, cmd.RunID)
-	case run.Lineage().IsChild() && !cmd.AllowChildRun:
-		return CancelResult{}, fmt.Errorf("%w: %q", ErrChildRunNotAllowed, cmd.RunID)
-	case run.Lineage().IsChild():
-		// No producer can reach this branch while child Runs are disabled. Keeping
-		// it an internal composition fault avoids pretending root-only teardown is
-		// a valid subtree transaction.
-		return CancelResult{}, fmt.Errorf("runs: child run %q was authorized but child cancellation is unavailable", cmd.RunID)
-	case run.State.IsTerminal():
-		return CancelResult{}, fmt.Errorf("%w: %q", ErrRunFinished, cmd.RunID)
-	case run.State != execution.Running && run.State != execution.Interrupted:
-		return CancelResult{}, fmt.Errorf("runs: run %q has unknown state %d", cmd.RunID, run.State)
 	}
-
-	entry, live := c.registry.Get(cmd.RunID)
+	if plan.target.run.Lineage().IsChild() {
+		switch plan.treeState {
+		case execution.Running:
+			if !live || entry.handle == nil {
+				return CancelResult{}, fmt.Errorf(
+					"runs: running child Run %q has no live root owner",
+					cmd.RunID,
+				)
+			}
+			return c.cancelLiveChild(ctx, cmd, plan, entry.handle)
+		case execution.Interrupted:
+			return CancelResult{}, fmt.Errorf(
+				"runs: interrupted child Run %q cancellation is not implemented",
+				cmd.RunID,
+			)
+		default:
+			return CancelResult{}, fmt.Errorf(
+				"runs: child Run %q belongs to a tree in state %s",
+				cmd.RunID,
+				plan.treeState,
+			)
+		}
+	}
 	if !live {
-		return c.cancelWithoutLiveSegment(ctx, cmd, run)
+		return c.cancelWithoutLiveSegment(ctx, cmd, plan.root.run)
 	}
 	if entry.handle == nil {
-		return CancelResult{}, fmt.Errorf("runs: run %q has a live registry entry without a handle", cmd.RunID)
+		return CancelResult{}, fmt.Errorf(
+			"runs: root Run %q has a live registry entry without a handle",
+			plan.root.run.ID,
+		)
 	}
 	cleanupCtx, cancel := entry.handle.cleanupContext(ctx)
 	defer cancel()
 	interruptCommitted, requestErr := entry.handle.requestCancel(cleanupCtx, cmd.Reason)
-	c.registry.MarkCancel(cmd.RunID, cmd.Reason)
 	if requestErr != nil {
+		if errors.Is(requestErr, ErrSessionBusy) {
+			return CancelResult{}, requestErr
+		}
+		c.registry.MarkCancel(plan.root.run.ID, cmd.Reason)
 		return CancelResult{}, errors.Join(requestErr, entry.handle.wait(cleanupCtx))
 	}
+	c.registry.MarkCancel(plan.root.run.ID, cmd.Reason)
 	if interruptCommitted {
 		// The interrupt transaction won before cancellation. Its pump owns the
 		// live admission until it has published and closed the parked segment;
@@ -267,10 +281,7 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 		if err := entry.handle.wait(cleanupCtx); err != nil {
 			return CancelResult{}, err
 		}
-		return c.cancelKnownParkedRun(cleanupCtx, cmd, run, execution.TurnRef{
-			SessionID: entry.record.SessionID,
-			TurnID:    entry.record.TurnID,
-		})
+		return c.cancelKnownParkedRun(cleanupCtx, cmd, plan.root.run, plan.turn)
 	}
 	// The pump owns every non-parked live teardown. requestCancel has stopped its
 	// stream context; joining the handle returns that single owner's complete
@@ -280,12 +291,65 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 	}
 	terminal, committed := entry.handle.committedTerminalRun()
 	if !committed {
-		return CancelResult{}, fmt.Errorf("runs: canceled live run %q completed without a terminal snapshot", cmd.RunID)
+		return CancelResult{}, fmt.Errorf(
+			"runs: canceled live root Run %q completed without a terminal snapshot",
+			plan.root.run.ID,
+		)
 	}
 	if terminal.State != execution.Canceled {
-		return CancelResult{}, fmt.Errorf("%w: %q completed as %s", ErrRunFinished, cmd.RunID, terminal.State)
+		return CancelResult{}, fmt.Errorf(
+			"%w: %q completed as %s",
+			ErrRunFinished,
+			plan.root.run.ID,
+			terminal.State,
+		)
 	}
 	return rootCancelResult(terminal)
+}
+
+func (c *Coordinator) cancelLiveChild(
+	ctx context.Context,
+	cmd CancelCommand,
+	plan cancellationPlan,
+	live *handle,
+) (CancelResult, error) {
+	attempt, err := live.beginChildCancellation(plan, cmd.Reason)
+	if err != nil {
+		return CancelResult{}, err
+	}
+	cleanupCtx, cancel := live.cleanupContext(ctx)
+	defer cancel()
+	if err := c.turns.CancelSubtree(
+		cleanupCtx,
+		plan.turn,
+		plan.target.source.ProcessID,
+	); err != nil {
+		live.abortChildCancellation(attempt, err)
+		return CancelResult{}, err
+	}
+	target, root, err := live.waitChildCancellation(cleanupCtx, attempt)
+	if err != nil {
+		return CancelResult{}, err
+	}
+	if target.ID != plan.target.run.ID ||
+		target.State != execution.Canceled ||
+		target.Outcome == nil ||
+		*target.Outcome != execution.OutcomeCanceled {
+		return CancelResult{}, fmt.Errorf(
+			"runs: child cancellation for %q committed invalid target snapshot %q in state %s",
+			plan.target.run.ID,
+			target.ID,
+			target.State,
+		)
+	}
+	if root.ID != plan.root.run.ID || !root.Lineage().IsRoot() {
+		return CancelResult{}, fmt.Errorf(
+			"runs: child cancellation for %q returned invalid root snapshot %q",
+			plan.target.run.ID,
+			root.ID,
+		)
+	}
+	return CancelResult{Run: target, RootRun: &root}, nil
 }
 
 // cancelWithoutLiveSegment resolves the small window in which a segment has

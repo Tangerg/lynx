@@ -66,6 +66,11 @@ type TurnProcess interface {
 	// active segment.
 	Cancel(ctx context.Context) error
 
+	// CancelSubtree terminates exactly one descendant process and everything
+	// below it. The target must belong to this turn's process tree and cannot be
+	// the root process itself.
+	CancelSubtree(ctx context.Context, processID string) error
+
 	// Resume atomically accepts the complete answer set exposed by the last
 	// waiting boundary and starts its first continuation. Await automatically
 	// drives any intermediate runtime-only waiting segments until every accepted
@@ -155,6 +160,68 @@ func (p *turnProcess) Cancel(ctx context.Context) error {
 		return errors.New("agentexec: cancel process: incomplete turn process")
 	}
 	return p.owner.runtime.Kill(ctx, p.process.ID())
+}
+
+func (p *turnProcess) CancelSubtree(ctx context.Context, processID string) error {
+	if p == nil || p.owner == nil || p.owner.runtime == nil || p.process == nil {
+		return errors.New("agentexec: cancel process subtree: incomplete turn process")
+	}
+	if processID == "" {
+		return errors.New("agentexec: cancel process subtree: target process id is required")
+	}
+	if processID == p.process.ID() {
+		return fmt.Errorf(
+			"agentexec: cancel process subtree: target %q is the turn root",
+			processID,
+		)
+	}
+	target, found := p.owner.runtime.Process(processID)
+	if !found {
+		return fmt.Errorf(
+			"agentexec: cancel process subtree: target process %q not found",
+			processID,
+		)
+	}
+	if err := p.requireDescendant(target); err != nil {
+		return err
+	}
+	return p.owner.runtime.Kill(ctx, processID)
+}
+
+func (p *turnProcess) requireDescendant(target *runtime.Process) error {
+	rootID := p.process.ID()
+	seen := make(map[string]struct{})
+	for current := target; current != nil; {
+		parentID := current.ParentID()
+		if parentID == rootID {
+			return nil
+		}
+		if parentID == "" {
+			break
+		}
+		if _, duplicate := seen[parentID]; duplicate {
+			return fmt.Errorf(
+				"agentexec: cancel process subtree: process ancestry from %q contains a cycle at %q",
+				target.ID(),
+				parentID,
+			)
+		}
+		seen[parentID] = struct{}{}
+		parent, found := p.owner.runtime.Process(parentID)
+		if !found {
+			return fmt.Errorf(
+				"agentexec: cancel process subtree: process %q has missing ancestor %q",
+				target.ID(),
+				parentID,
+			)
+		}
+		current = parent
+	}
+	return fmt.Errorf(
+		"agentexec: cancel process subtree: process %q does not belong to turn root %q",
+		target.ID(),
+		rootID,
+	)
 }
 
 func (p *turnProcess) Resume(ctx context.Context, answers []SuspensionAnswer) error {

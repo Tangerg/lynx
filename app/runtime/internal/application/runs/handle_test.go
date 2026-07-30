@@ -5,6 +5,9 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // TestHandleCancelLinearizesAfterInterruptCommit: requestCancel must not return
@@ -181,4 +184,55 @@ func TestHandleWaitReturnsCompletedOutcomeAfterCallerCancellation(t *testing.T) 
 	if err := h.wait(ctx); !errors.Is(err, want) {
 		t.Fatalf("wait() = %v, want completed outcome", err)
 	}
+}
+
+func TestHandleCancellationArbiterAllowsOnlyOneTreeOwner(t *testing.T) {
+	child := transcript.Run{
+		ID:              "run_child",
+		SessionID:       "session",
+		SpawnedByItemID: "item_spawn",
+		ParentRunID:     "run_root",
+		RootRunID:       "run_root",
+		State:           execution.Running,
+	}
+	plan := cancellationPlan{
+		target: cancellationRun{
+			run:       child,
+			source:    ExecutorSource{ProcessID: "process_child", ParentID: "process_root"},
+			hasSource: true,
+		},
+		targetSubtree: []cancellationRun{{run: child}},
+		treeState:     execution.Running,
+	}
+
+	t.Run("child wins", func(t *testing.T) {
+		canceled := false
+		h := &handle{cancel: func() { canceled = true }}
+		attempt, err := h.beginChildCancellation(plan, "stop child")
+		if err != nil {
+			t.Fatalf("begin child cancellation: %v", err)
+		}
+		if _, err := h.requestCancel(t.Context(), "stop root"); !errors.Is(err, ErrSessionBusy) {
+			t.Fatalf("root cancellation error = %v, want ErrSessionBusy", err)
+		}
+		if canceled || h.cancelRequested || h.cancelReason != "" {
+			t.Fatalf(
+				"losing root cancellation mutated owner state: canceled=%t requested=%t reason=%q",
+				canceled,
+				h.cancelRequested,
+				h.cancelReason,
+			)
+		}
+		h.abortChildCancellation(attempt, errors.New("test complete"))
+	})
+
+	t.Run("root wins", func(t *testing.T) {
+		h := &handle{}
+		if _, err := h.requestCancel(t.Context(), "stop root"); err != nil {
+			t.Fatalf("request root cancellation: %v", err)
+		}
+		if _, err := h.beginChildCancellation(plan, "stop child"); err == nil {
+			t.Fatal("child cancellation acquired a root-owned tree")
+		}
+	})
 }

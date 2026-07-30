@@ -72,8 +72,8 @@ func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 				t.Errorf("ToolCallStart.Arguments missing command: %q", e.Arguments)
 			}
 		case runs.ToolCallEnd:
-			if e.Err != "" {
-				t.Errorf("ToolCallEnd.Err = %q, want empty", e.Err)
+			if e.Problem != nil {
+				t.Errorf("ToolCallEnd.Problem = %+v, want nil", e.Problem)
 			}
 			result, ok := e.Result.Any().(map[string]any)
 			if !ok {

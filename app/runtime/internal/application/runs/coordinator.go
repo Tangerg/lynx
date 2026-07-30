@@ -144,7 +144,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		Epoch: c.epoch, RunID: spec.RunID, SegmentID: spec.SegmentID,
 	}, c.retention)
 	live := &handle{cancel: cancel, owner: taskCtx, hub: hub, done: make(chan struct{})}
-	routes, err := c.openingRoutes(spec, live.CancelReason)
+	routes, err := c.openingRoutes(spec, live.CancelReasonFor)
 	if err != nil {
 		cancel()
 		if !resume {
@@ -152,6 +152,19 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		}
 		release()
 		return nil, err
+	}
+	for _, route := range routes.admissionOrder {
+		if route.source.ProcessID == "" {
+			continue
+		}
+		if err := live.bindExecutorSource(route.runID, route.source); err != nil {
+			cancel()
+			if !resume {
+				err = c.rejectUnadmittedTurn(taskCtx, spec.turnRef(), err)
+			}
+			release()
+			return nil, err
+		}
 	}
 	openings, err := c.commitOpening(reqCtx, spec, routes)
 	if err != nil {

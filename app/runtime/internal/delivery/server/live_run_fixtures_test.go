@@ -50,6 +50,9 @@ func (*blockingRunRuntime) TurnEvents(ctx context.Context, _ execution.TurnRef) 
 }
 
 func (*blockingRunRuntime) CancelTurn(context.Context, execution.TurnRef) error { return nil }
+func (*blockingRunRuntime) CancelSubtree(context.Context, execution.TurnRef, string) error {
+	return nil
+}
 
 func (*blockingRunRuntime) PrepareStart(_ context.Context, req runs.StartTurn) (execution.TurnRef, error) {
 	handle := turn.TurnHandle{SessionID: req.SessionID, TurnID: "turn_blocking"}

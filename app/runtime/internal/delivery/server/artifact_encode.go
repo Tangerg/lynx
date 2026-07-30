@@ -203,6 +203,8 @@ func artifactProblemType(kind transcript.ProblemKind) (protocol.ArtifactProblemT
 		return protocol.ArtifactProblemDeniedByUser, nil
 	case transcript.ToolFailedProblem:
 		return protocol.ArtifactProblemToolFailed, nil
+	case transcript.ChildRunCanceledProblem:
+		return protocol.ArtifactProblemChildRunCanceled, nil
 	default:
 		return "", fmt.Errorf("unknown value %d", kind)
 	}

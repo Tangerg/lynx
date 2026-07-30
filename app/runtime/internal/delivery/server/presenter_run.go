@@ -199,6 +199,8 @@ func presentProblem(problem *transcript.Problem) *protocol.ProblemData {
 		kind = protocol.ProblemDeniedByUser
 	case transcript.ToolFailedProblem:
 		kind = protocol.ProblemToolFailed
+	case transcript.ChildRunCanceledProblem:
+		kind = protocol.ProblemChildRunCanceled
 	default:
 		panic("server: unknown transcript problem kind")
 	}

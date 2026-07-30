@@ -129,6 +129,14 @@ func (r *reducer) runningToolItem(ref *openTool) transcript.Item {
 	}
 }
 
+func (r *reducer) openToolItemID(callID string) (string, bool) {
+	ref, open := r.tools[callID]
+	if !open || ref == nil {
+		return "", false
+	}
+	return ref.id, true
+}
+
 // spawningItem resolves the executor's immutable parent-call identity to the
 // canonical running Item that represents it. Only currently open calls are
 // eligible: an AgentTool creates its child before that parent call can finish.
@@ -167,6 +175,10 @@ func (r *reducer) toolEnd(e ToolCallEnd) ([]RunEvent, error) {
 	if e.Offload != nil {
 		ref := *e.Offload
 		copy.Offload = &ref
+	}
+	if e.Problem != nil {
+		problem := *e.Problem
+		copy.Problem = &problem
 	}
 	copy.MutatedPaths = slices.Clone(e.MutatedPaths)
 	ref.end = &copy
@@ -217,13 +229,13 @@ func (r *reducer) completeTool(ref *openTool, e ToolCallEnd) ([]RunEvent, error)
 		Tool:        invocation,
 		SafetyClass: ref.safetyClass,
 	}
-	switch {
-	case e.Denied:
+	if e.Problem != nil {
+		if err := e.Problem.ValidateFor(transcript.ToolProblem); err != nil {
+			return nil, fmt.Errorf("tool %q problem: %w", ref.name, err)
+		}
 		item.Status = transcript.ItemIncomplete
-		item.Error = &transcript.Problem{Kind: transcript.DeniedByUserProblem, Scope: transcript.ToolProblem}
-	case e.Err != "":
-		item.Status = transcript.ItemIncomplete
-		item.Error = &transcript.Problem{Kind: transcript.ToolFailedProblem, Scope: transcript.ToolProblem, Detail: e.Err}
+		problem := *e.Problem
+		item.Error = &problem
 	}
 	return append(out, ItemCompleted{Item: item, mutatedPaths: e.MutatedPaths}), nil
 }

@@ -17,6 +17,7 @@ type executorFakeDispatcher struct {
 	events       iter.Seq[runs.ExecutorEvent]
 	cancelHandle TurnHandle
 	cancelErr    error
+	subtreeID    string
 }
 
 func (f *executorFakeDispatcher) Events(_ context.Context, h TurnHandle) (iter.Seq[runs.ExecutorEvent], error) {
@@ -26,6 +27,12 @@ func (f *executorFakeDispatcher) Events(_ context.Context, h TurnHandle) (iter.S
 
 func (f *executorFakeDispatcher) Cancel(_ context.Context, h TurnHandle) error {
 	f.cancelHandle = h
+	return f.cancelErr
+}
+
+func (f *executorFakeDispatcher) CancelSubtree(_ context.Context, h TurnHandle, processID string) error {
+	f.cancelHandle = h
+	f.subtreeID = processID
 	return f.cancelErr
 }
 
@@ -67,6 +74,12 @@ func TestExecutorTranslatesTurnReference(t *testing.T) {
 	if disp.cancelHandle != handle {
 		t.Fatalf("cancel handle=%+v", disp.cancelHandle)
 	}
+	if err := exec.CancelSubtree(ctx, ref, "process_child"); err != nil {
+		t.Fatalf("CancelSubtree: %v", err)
+	}
+	if disp.cancelHandle != handle || disp.subtreeID != "process_child" {
+		t.Fatalf("subtree cancel handle=%+v process=%q", disp.cancelHandle, disp.subtreeID)
+	}
 }
 
 func TestExecutorMapsLostProcessSnapshot(t *testing.T) {
@@ -86,7 +99,9 @@ func TestExecutorMapsMissingTurnOnBothCancelPorts(t *testing.T) {
 		cancel func() error
 	}{
 		{name: "segment", cancel: func() error { return executor.CancelTurn(t.Context(), ref) }},
-		{name: "control", cancel: func() error { return executor.CancelTurn(t.Context(), ref) }},
+		{name: "subtree", cancel: func() error {
+			return executor.CancelSubtree(t.Context(), ref, "process_child")
+		}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

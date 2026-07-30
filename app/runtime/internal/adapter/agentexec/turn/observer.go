@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -410,9 +411,13 @@ func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolN
 	}
 	switch {
 	case errors.Is(err, agentexec.ErrToolDenied):
-		end.Denied = true // a verdict denial, not an execution failure
+		end.Problem = &transcript.Problem{
+			Kind: transcript.DeniedByUserProblem, Scope: transcript.ToolProblem,
+		}
 	case err != nil:
-		end.Err = err.Error()
+		end.Problem = &transcript.Problem{
+			Kind: transcript.ToolFailedProblem, Scope: transcript.ToolProblem, Detail: err.Error(),
+		}
 	}
 	t.dispatcher.emitProcessEvent(t.st, process, end)
 

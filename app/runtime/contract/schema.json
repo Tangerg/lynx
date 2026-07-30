@@ -727,7 +727,8 @@
         "providerUnavailable",
         "providerRejected",
         "deniedByUser",
-        "toolFailed"
+        "toolFailed",
+        "childRunCanceled"
       ]
     },
     "ArtifactQuestion": {

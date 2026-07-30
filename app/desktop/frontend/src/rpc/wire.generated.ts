@@ -151,7 +151,7 @@ export interface ArtifactProblem {
   type: ArtifactProblemType;
 }
 
-export type ArtifactProblemType = "internalError" | "runLost" | "agentStuck" | "rateLimited" | "invalidApiKey" | "timeout" | "providerUnavailable" | "providerRejected" | "deniedByUser" | "toolFailed";
+export type ArtifactProblemType = "internalError" | "runLost" | "agentStuck" | "rateLimited" | "invalidApiKey" | "timeout" | "providerUnavailable" | "providerRejected" | "deniedByUser" | "toolFailed" | "childRunCanceled";
 
 export interface ArtifactQuestion {
   fields: ArtifactQuestionField[];
@@ -1467,7 +1467,7 @@ export const WIRE_ENUMS = {
   ApprovalRuleDecision: ["allow", "deny"],
   ApprovalRuleScope: ["session", "project", "global"],
   ArtifactOutcomeType: ["completed", "error", "maxSteps", "maxBudget", "canceled"],
-  ArtifactProblemType: ["internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed"],
+  ArtifactProblemType: ["internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed", "childRunCanceled"],
   ArtifactStateType: ["todos"],
   CancelRunResponseType: ["root", "child"],
   CapabilityRequirementType: ["feature", "interruptType", "runtimeTopic", "stateSnapshot"],
