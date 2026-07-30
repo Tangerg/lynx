@@ -33,6 +33,32 @@ type TurnCanceler interface {
 	CancelTurn(ctx context.Context, ref execution.TurnRef) error
 }
 
+// WaitingSubtreeDisposition is the application decision applied after a
+// prepared waiting-tree transaction commits. A surviving external boundary
+// keeps the executor parked; removing the final boundary immediately opens the
+// already-committed continuation Segment.
+type WaitingSubtreeDisposition uint8
+
+const (
+	waitingSubtreeDispositionInvalid WaitingSubtreeDisposition = iota
+	WaitingSubtreeRemainsInterrupted
+	WaitingSubtreeContinues
+)
+
+// PreparedWaitingSubtreeCancellation is the application-owned control protocol
+// around an executor's frozen waiting-tree mutation. It exposes only identities
+// and typed prompts the application can correlate. PersistCheckpoint writes the
+// adapter-owned checkpoint projection into the caller's transaction; Commit
+// crosses the live runtime boundary after that transaction succeeds; Abort
+// releases ownership with no live mutation.
+type PreparedWaitingSubtreeCancellation interface {
+	CanceledProcessIDs() []string
+	PendingSuspensions() []ProcessSuspension
+	PersistCheckpoint(ctx context.Context) error
+	Commit(ctx context.Context, disposition WaitingSubtreeDisposition) error
+	Abort()
+}
+
 // SegmentExecutor is what the run pump needs to observe and cancel the agent
 // turn backing a run segment. The concrete agent-execution adapter implements it.
 type SegmentExecutor interface {
@@ -64,6 +90,13 @@ type SessionLifecycle interface {
 type RunProjection interface {
 	Run(ctx context.Context, runID string) (transcript.Run, bool, error)
 	RunTree(ctx context.Context, runID string) ([]transcript.Run, error)
+}
+
+// ItemProjection resolves the exact transcript Item a command plans to replace.
+// Waiting child cancellation uses it to freeze the parent spawning Item before
+// either executor or persistence side effects begin.
+type ItemProjection interface {
+	Item(ctx context.Context, itemID string) (transcript.Item, bool, error)
 }
 
 // StartTurn is the protocol-neutral command the run use case sends to the
@@ -128,6 +161,14 @@ type TurnControl interface {
 	// identity previously observed through ExecutorSource; the adapter must
 	// prove that it belongs to ref before crossing the executor side effect.
 	CancelSubtree(ctx context.Context, ref execution.TurnRef, processID string) error
+	// PrepareWaitingSubtreeCancellation freezes a parked executor tree and
+	// computes the replacement checkpoint without changing live execution.
+	// The returned capability owns that freeze until Commit or Abort.
+	PrepareWaitingSubtreeCancellation(
+		ctx context.Context,
+		ref execution.TurnRef,
+		processID string,
+	) (PreparedWaitingSubtreeCancellation, error)
 	Steer(ctx context.Context, ref execution.TurnRef, input []transcript.ContentBlock) error
 }
 
@@ -159,6 +200,13 @@ type Effects interface {
 	// CommitTreeBarrier atomically writes the one root-owned pending set and
 	// suspends every active Run in the tree.
 	CommitTreeBarrier(ctx context.Context, barrier TreeBarrierCommit) error
+	// CommitWaitingSubtreeCancellation atomically persists one prepared process
+	// checkpoint replacement and every application fact that makes the same
+	// subtree cancellation durable.
+	CommitWaitingSubtreeCancellation(
+		ctx context.Context,
+		commit WaitingSubtreeCancellationCommit,
+	) (WaitingSubtreeCancellationResult, error)
 	// Nudge publishes a non-durable live workspace change to subscribers.
 	Nudge(cwd string, paths []string)
 	// Finish establishes the terminal checkpoint before returning, then starts
@@ -166,6 +214,40 @@ type Effects interface {
 	// not a boundary, so Finish no-ops for it (fin.Parked). Accepted background
 	// title failures remain observable on a terminal-maintenance span.
 	Finish(ctx context.Context, fin Finish) error
+}
+
+// ProcessCheckpointWrite is the App-owned persistence capability attached to a
+// prepared executor mutation. The implementation knows the concrete snapshot,
+// BuildID and usage ledger; the application transaction only decides when that
+// write joins its atomic set.
+type ProcessCheckpointWrite interface {
+	PersistCheckpoint(ctx context.Context) error
+}
+
+type ItemReplacement struct {
+	Expected    transcript.Item
+	Replacement transcript.Item
+}
+
+// WaitingSubtreeCancellationCommit is the complete immutable write-set for one
+// child cancellation performed while the Run tree is Interrupted.
+type WaitingSubtreeCancellationCommit struct {
+	RootRunID        string
+	TargetRunID      string
+	SessionID        string
+	RootRun          transcript.Run
+	ExpectedPending  interrupts.Pending
+	RemainingPending *interrupts.Pending
+	Checkpoint       ProcessCheckpointWrite
+	TerminalRuns     []transcript.Run
+	ParentItem       ItemReplacement
+	Resume           *execution.TreeResumeDraft
+	OpeningEvents    []EventCommit
+}
+
+type WaitingSubtreeCancellationResult struct {
+	TargetRun transcript.Run
+	RootRun   transcript.Run
 }
 
 // OpeningCommit is the single atomic acceptance commit for a segment. Exactly
@@ -230,10 +312,13 @@ type segmentSpec struct {
 	// — a continuation carries the first segment's caps rather than renegotiating.
 	Limits execution.RunLimits
 	// ProtocolProfile is the protocol contract negotiated for a FRESH Run. A
-	// continuation leaves it zero and reads the Run's own from Pending: the profile
-	// is the Run's, and a resume request has no say in it.
+	// continuation leaves it zero and reads the Run's own from Continuation: the
+	// profile is the Run's, and a resume request has no say in it.
 	ProtocolProfile execution.RunProtocolProfile
-	Pending         *interrupts.Pending
+	// Continuation is present only when fresh Segments reopen a parked executor
+	// tree. It is independent from an open human interrupt: a host-settled
+	// checkpoint can continue after its final external boundary was removed.
+	Continuation *treeContinuation
 	// admission is the pre-commit reservation Start or Resume transfers to the
 	// live run immediately after its durable opening commit succeeds.
 	admission *admission.RunAdmission
@@ -242,6 +327,11 @@ type segmentSpec struct {
 	// for a continuation it delivers the already-accepted user decision. Tests
 	// may leave it nil when exercising an already-active synthetic executor.
 	Activate func(context.Context) error
+	// CommitOpening overrides the ordinary segment-opening write-set only when a
+	// larger application transaction already owns that opening (waiting subtree
+	// cancellation). It receives the exact reducer-built opening and must commit
+	// all of it atomically before returning.
+	CommitOpening func(context.Context, OpeningCommit) error
 }
 
 func (s segmentSpec) turnRef() execution.TurnRef {
@@ -251,10 +341,10 @@ func (s segmentSpec) turnRef() execution.TurnRef {
 // priorMetrics is what the Run had already consumed when this segment opened: a
 // first segment starts from nothing, a continuation from what the park recorded.
 func (s segmentSpec) priorMetrics() transcript.RunMetrics {
-	if s.Pending == nil {
+	if s.Continuation == nil {
 		return transcript.RunMetrics{}
 	}
-	root, _ := s.Pending.RootContinuation()
+	root, _ := s.Continuation.root()
 	return root.Metrics
 }
 
@@ -262,10 +352,10 @@ func (s segmentSpec) priorMetrics() transcript.RunMetrics {
 // from its resume request — the Run was admitted under one policy and keeps it,
 // so answering an interrupt cannot quietly raise a budget.
 func (s segmentSpec) effectiveLimits() execution.RunLimits {
-	if s.Pending == nil {
+	if s.Continuation == nil {
 		return s.Limits
 	}
-	root, _ := s.Pending.RootContinuation()
+	root, _ := s.Continuation.root()
 	return root.Limits
 }
 
@@ -273,8 +363,8 @@ func (s segmentSpec) effectiveLimits() execution.RunLimits {
 // profile belongs to the Run, so a continuation reports the one the park recorded
 // and never the declaration of the request that resumed it.
 func (s segmentSpec) effectiveProfile() execution.RunProtocolProfile {
-	if s.Pending == nil {
+	if s.Continuation == nil {
 		return s.ProtocolProfile
 	}
-	return s.Pending.ProtocolProfile
+	return s.Continuation.profile
 }

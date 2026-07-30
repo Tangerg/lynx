@@ -475,6 +475,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		ScheduleFirings:    cfg.ScheduleStore,
 		GoalTurns:          cfg.GoalStore,
 		Transcript:         cfg.TranscriptStore,
+		ItemReplacer:       cfg.TranscriptStore,
 		ToolResults:        cfg.ToolResultStore,
 		Messages:           messages.conversation,
 		Titles:             maintenance.NewTitler(utilityClient),
@@ -555,6 +556,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Sessions:   sessionCoord,
 		Effects:    runEffects,
 		Runs:       cfg.RunStore,
+		Items:      cfg.TranscriptStore,
 		Admissions: admissions,
 		Now:        time.Now,
 		NewRunID: func() string {

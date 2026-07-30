@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -73,6 +74,7 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 	resume := execution.TreeResumeDraft{
 		RootRunID: "run_stale",
 		SessionID: "ses_1",
+		ResumedAt: time.Now().UTC(),
 		Runs:      []execution.RunResumeDraft{{RunID: "run_stale", SegmentID: "seg_next"}},
 	}
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{Resume: &resume, Events: []runs.EventCommit{{RunID: "run_stale", SessionID: "ses_1"}}})
@@ -116,6 +118,7 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	resume := execution.TreeResumeDraft{
 		RootRunID: "run_1",
 		SessionID: "ses_1",
+		ResumedAt: time.Now().UTC(),
 		Runs:      []execution.RunResumeDraft{{RunID: "run_1", SegmentID: "seg_next"}},
 	}
 	opening := runs.OpeningCommit{
@@ -257,6 +260,7 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 			resume := execution.TreeResumeDraft{
 				RootRunID: "run_root",
 				SessionID: "session_1",
+				ResumedAt: time.Now().UTC(),
 				Runs: []execution.RunResumeDraft{
 					{RunID: "run_child", SegmentID: "segment_child_resumed"},
 					{RunID: "run_root", SegmentID: "segment_root_resumed"},
@@ -513,6 +517,317 @@ func TestCommitTreeBarrierProducesBootResumableTriplet(t *testing.T) {
 	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_next", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: parkedAt}); !errors.Is(err, execution.ErrSessionBusy) {
 		t.Fatalf("admit after intact park = %v, want ErrSessionBusy", err)
 	}
+}
+
+type sqliteProcessCheckpointWrite struct {
+	store      *sqlite.ProcessStore
+	tree       core.ProcessSnapshotTree
+	checkpoint execution.ProcessCheckpoint
+}
+
+func (write sqliteProcessCheckpointWrite) PersistCheckpoint(ctx context.Context) error {
+	return write.store.SaveTree(ctx, write.tree, write.checkpoint)
+}
+
+func TestCommitWaitingSubtreeCancellationCommitsCompleteWriteSet(t *testing.T) {
+	fixture := newWaitingCancellationSQLiteFixture(t)
+	result, err := fixture.effects.CommitWaitingSubtreeCancellation(
+		fixture.ctx,
+		fixture.commit,
+	)
+	if err != nil {
+		t.Fatalf("CommitWaitingSubtreeCancellation: %v", err)
+	}
+	if result.TargetRun.ID != fixture.childRun.ID ||
+		result.TargetRun.State != execution.Canceled ||
+		result.RootRun.ID != fixture.rootRun.ID ||
+		result.RootRun.State != execution.Running ||
+		result.RootRun.ActiveSegmentID != "segment_root_resumed" {
+		t.Fatalf("result = %+v, want exact canceled child and resumed root", result)
+	}
+	if _, found, err := fixture.interrupts.Get(fixture.ctx, fixture.rootRun.ID); err != nil || found {
+		t.Fatalf("open Pending after commit found=%t err=%v, want consumed", found, err)
+	}
+	storedItem, found, err := fixture.transcript.Item(fixture.ctx, fixture.parentItem.ID)
+	if err != nil || !found {
+		t.Fatalf("parent Item after commit found=%t err=%v", found, err)
+	}
+	if storedItem.Error == nil ||
+		storedItem.Error.Kind != transcript.ChildRunCanceledProblem ||
+		storedItem.Error.Scope != transcript.ToolProblem {
+		t.Fatalf("parent Item = %+v, want child_run_canceled", storedItem)
+	}
+	assertStoredRunState(t, fixture.db, fixture.childRun.ID, "terminal")
+	assertStoredRunState(t, fixture.db, fixture.rootRun.ID, "running")
+	tree, checkpoint, err := fixture.processes.LoadTree(fixture.ctx, "process_root")
+	if err != nil {
+		t.Fatalf("load replacement process tree: %v", err)
+	}
+	if len(tree.Snapshots) != 1 ||
+		tree.Snapshots[0].Suspension == nil ||
+		string(tree.Snapshots[0].Suspension.Prompt) != `"after-cancel"` ||
+		checkpoint.BuildID != "replacement-build" {
+		t.Fatalf("replacement process tree = %+v checkpoint=%+v", tree, checkpoint)
+	}
+}
+
+func TestCommitWaitingSubtreeCancellationRollsBackCheckpointAndApplicationFacts(t *testing.T) {
+	fixture := newWaitingCancellationSQLiteFixture(t)
+	fixture.commit.ParentItem.Expected.CreatedAt = fixture.parentItem.CreatedAt.Add(time.Second)
+
+	if _, err := fixture.effects.CommitWaitingSubtreeCancellation(
+		fixture.ctx,
+		fixture.commit,
+	); err == nil {
+		t.Fatal("CommitWaitingSubtreeCancellation accepted a stale parent Item")
+	}
+	if _, found, err := fixture.interrupts.Get(fixture.ctx, fixture.rootRun.ID); err != nil || !found {
+		t.Fatalf("open Pending after rollback found=%t err=%v, want retained", found, err)
+	}
+	storedItem, found, err := fixture.transcript.Item(fixture.ctx, fixture.parentItem.ID)
+	if err != nil || !found || storedItem.Error != nil {
+		t.Fatalf("parent Item after rollback found=%t item=%+v err=%v", found, storedItem, err)
+	}
+	assertStoredRunState(t, fixture.db, fixture.childRun.ID, "interrupted")
+	assertStoredRunState(t, fixture.db, fixture.rootRun.ID, "interrupted")
+	tree, checkpoint, err := fixture.processes.LoadTree(fixture.ctx, "process_root")
+	if err != nil {
+		t.Fatalf("load rolled-back process tree: %v", err)
+	}
+	rootSnapshot, found := processSnapshotByID(tree, "process_root")
+	if len(tree.Snapshots) != 2 ||
+		!found ||
+		rootSnapshot.Suspension == nil ||
+		string(rootSnapshot.Suspension.Prompt) != `"before-cancel"` ||
+		checkpoint.BuildID != "original-build" {
+		t.Fatalf("rolled-back process tree = %+v checkpoint=%+v", tree, checkpoint)
+	}
+}
+
+type waitingCancellationSQLiteFixture struct {
+	ctx        context.Context
+	db         *sql.DB
+	effects    *Effects
+	interrupts *sqlite.InterruptStore
+	transcript *sqlite.TranscriptStore
+	processes  *sqlite.ProcessStore
+	rootRun    transcript.Run
+	childRun   transcript.Run
+	parentItem transcript.Item
+	commit     runs.WaitingSubtreeCancellationCommit
+}
+
+func newWaitingCancellationSQLiteFixture(t *testing.T) waitingCancellationSQLiteFixture {
+	t.Helper()
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	createdAt := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
+	finishedAt := createdAt.Add(time.Minute)
+	rootLineage := execution.RunLineage{}
+	childLineage := execution.RunLineage{
+		SpawnedByItemID: "item_spawn_child",
+		ParentRunID:     "run_root",
+		RootRunID:       "run_root",
+	}
+	state := sqlite.NewRunStore(db)
+	if err := state.Admit(ctx, execution.RunDraft{
+		RunID: "run_root", SessionID: "session_1", SegmentID: "segment_root",
+		CreatedAt: createdAt,
+	}); err != nil {
+		t.Fatalf("admit root: %v", err)
+	}
+	transcriptStore := sqlite.NewTranscriptStore(db)
+	parentItem := transcript.Item{
+		SessionID: "session_1",
+		ID:        childLineage.SpawnedByItemID,
+		RunID:     childLineage.ParentRunID,
+		Status:    transcript.ItemIncomplete,
+		Kind:      transcript.ToolCall,
+		CreatedAt: createdAt,
+		Tool:      &transcript.ToolInvocation{Name: "task", Arguments: tool.Arguments{}},
+	}
+	if err := transcriptStore.AppendItem(ctx, parentItem); err != nil {
+		t.Fatalf("seed spawning Item: %v", err)
+	}
+	if err := state.Admit(ctx, execution.RunDraft{
+		RunID:           "run_child",
+		SessionID:       "session_1",
+		SegmentID:       "segment_child",
+		SpawnedByItemID: childLineage.SpawnedByItemID,
+		ParentRunID:     childLineage.ParentRunID,
+		RootRunID:       childLineage.RootRunID,
+		CreatedAt:       createdAt,
+	}); err != nil {
+		t.Fatalf("admit child: %v", err)
+	}
+	question := treeQuestion("item_question", "run_child")
+	childRun := interruptedTreeRun(
+		"run_child",
+		"session_1",
+		childLineage,
+		createdAt,
+		[]transcript.Interrupt{question},
+	)
+	childRun.UpdatedAt = finishedAt
+	rootRun := interruptedTreeRun(
+		"run_root",
+		"session_1",
+		rootLineage,
+		createdAt,
+		nil,
+	)
+	rootRun.UpdatedAt = finishedAt
+	if err := state.Suspend(ctx, childRun); err != nil {
+		t.Fatalf("suspend child: %v", err)
+	}
+	if err := state.Suspend(ctx, rootRun); err != nil {
+		t.Fatalf("suspend root: %v", err)
+	}
+
+	pending := interrupts.Pending{
+		RootRunID:  rootRun.ID,
+		SessionID:  rootRun.SessionID,
+		TurnID:     "turn_1",
+		Interrupts: []transcript.Interrupt{question},
+		Suspensions: []interrupts.SuspensionBinding{{
+			InterruptItemID: question.ItemID,
+			ProcessID:       "process_child",
+			SuspensionID:    "suspension-process_child",
+		}},
+		Continuations: []interrupts.Continuation{
+			{
+				RunID:           childRun.ID,
+				ProcessID:       "process_child",
+				ParentProcessID: "process_root",
+				SpawnCallID:     "spawn_child",
+				Lineage:         childLineage,
+				RunCreatedAt:    createdAt,
+			},
+			{
+				RunID:        rootRun.ID,
+				ProcessID:    "process_root",
+				RunCreatedAt: createdAt,
+				DrainedTools: []interrupts.DrainedTool{{
+					ItemID: parentItem.ID, CallID: "call_child", Name: "task", Arguments: "{}",
+				}},
+			},
+		},
+		CreatedAt: finishedAt,
+	}
+	if err := pending.Validate(); err != nil {
+		t.Fatalf("pending fixture: %v", err)
+	}
+	interruptStore := sqlite.NewInterruptStore(db)
+	if err := interruptStore.Put(ctx, pending); err != nil {
+		t.Fatalf("seed Pending: %v", err)
+	}
+
+	processStore := sqlite.NewProcessStore(db)
+	originalRoot := waitingProcessSnapshot("process_root", createdAt, finishedAt)
+	originalRoot.Suspension.Prompt = json.RawMessage(`"before-cancel"`)
+	originalChild := waitingProcessSnapshot("process_child", createdAt, finishedAt)
+	originalChild.ParentID = originalRoot.ID
+	originalTree := core.ProcessSnapshotTree{
+		RootID: originalRoot.ID,
+		Snapshots: []core.ProcessSnapshot{
+			originalRoot,
+			originalChild,
+		},
+	}
+	if err := processStore.SaveTree(ctx, originalTree, execution.ProcessCheckpoint{
+		BuildID: "original-build",
+	}); err != nil {
+		t.Fatalf("seed process tree: %v", err)
+	}
+	replacementRoot := originalRoot
+	replacementSuspension := *originalRoot.Suspension
+	replacementSuspension.Prompt = json.RawMessage(`"after-cancel"`)
+	replacementRoot.Suspension = &replacementSuspension
+	replacementTree := core.ProcessSnapshotTree{
+		RootID:    replacementRoot.ID,
+		Snapshots: []core.ProcessSnapshot{replacementRoot},
+	}
+
+	outcome := execution.OutcomeCanceled
+	terminalChild := childRun
+	terminalChild.State = execution.Canceled
+	terminalChild.Outcome = &outcome
+	terminalChild.Detail = "stop delegated branch"
+	terminalChild.Interrupts = nil
+	terminalChild.FinishedAt = finishedAt
+	terminalChild.UpdatedAt = finishedAt
+	terminalChild.MessageMark = 0
+	problem := transcript.Problem{
+		Kind:   transcript.ChildRunCanceledProblem,
+		Scope:  transcript.ToolProblem,
+		Detail: terminalChild.Detail,
+	}
+	replacementItem := parentItem
+	replacementItem.Error = &problem
+	resume := execution.TreeResumeDraft{
+		RootRunID: rootRun.ID,
+		SessionID: rootRun.SessionID,
+		ResumedAt: finishedAt,
+		Runs: []execution.RunResumeDraft{{
+			RunID: rootRun.ID, SegmentID: "segment_root_resumed",
+		}},
+	}
+	effects := sqliteEffects(
+		sqliteOpeningStores{interrupts: interruptStore, transcript: transcriptStore},
+		Config{
+			ItemReplacer: transcriptStore,
+			RunState:     state,
+			Tx: func(ctx context.Context, fn func(context.Context) error) error {
+				return sqlite.RunInTx(ctx, db, fn)
+			},
+		},
+	)
+	return waitingCancellationSQLiteFixture{
+		ctx:        ctx,
+		db:         db,
+		effects:    effects,
+		interrupts: interruptStore,
+		transcript: transcriptStore,
+		processes:  processStore,
+		rootRun:    rootRun,
+		childRun:   childRun,
+		parentItem: parentItem,
+		commit: runs.WaitingSubtreeCancellationCommit{
+			RootRunID:       rootRun.ID,
+			TargetRunID:     childRun.ID,
+			SessionID:       rootRun.SessionID,
+			RootRun:         rootRun,
+			ExpectedPending: pending,
+			Checkpoint: sqliteProcessCheckpointWrite{
+				store: processStore,
+				tree:  replacementTree,
+				checkpoint: execution.ProcessCheckpoint{
+					BuildID: "replacement-build",
+				},
+			},
+			TerminalRuns: []transcript.Run{terminalChild},
+			ParentItem: runs.ItemReplacement{
+				Expected: parentItem, Replacement: replacementItem,
+			},
+			Resume: &resume,
+		},
+	}
+}
+
+func processSnapshotByID(
+	tree core.ProcessSnapshotTree,
+	processID string,
+) (core.ProcessSnapshot, bool) {
+	for _, snapshot := range tree.Snapshots {
+		if snapshot.ID == processID {
+			return snapshot, true
+		}
+	}
+	return core.ProcessSnapshot{}, false
 }
 
 type sqliteOpeningStores struct {

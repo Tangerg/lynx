@@ -179,6 +179,14 @@ func TestInterruptStore_RoundTripsContinuationTopology(t *testing.T) {
 				RunID:        "run_root",
 				ProcessID:    "process_root",
 				RunCreatedAt: createdAt,
+				CommittedTools: []interrupts.CommittedTool{{
+					ItemID: "item_spawn_child", CallID: "call_child", Name: "task", Arguments: "{}",
+					Problem: transcript.Problem{
+						Kind:   transcript.ChildRunCanceledProblem,
+						Scope:  transcript.ToolProblem,
+						Detail: "stop delegated branch",
+					},
+				}},
 			},
 		},
 		CreatedAt: createdAt.Add(time.Second),
@@ -195,6 +203,14 @@ func TestInterruptStore_RoundTripsContinuationTopology(t *testing.T) {
 		child.ParentProcessID != "process_root" ||
 		child.SpawnCallID != "spawn_child" {
 		t.Fatalf("child continuation = %+v, want lineage %+v", child, lineage)
+	}
+	root, found := got.RootContinuation()
+	if !found ||
+		len(root.CommittedTools) != 1 ||
+		root.CommittedTools[0].ItemID != "item_spawn_child" ||
+		root.CommittedTools[0].CallID != "call_child" ||
+		root.CommittedTools[0].Problem.Kind != transcript.ChildRunCanceledProblem {
+		t.Fatalf("root committed tools = %+v, want canceled child result hand-off", root.CommittedTools)
 	}
 }
 

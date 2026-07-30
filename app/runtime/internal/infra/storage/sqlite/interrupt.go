@@ -24,24 +24,33 @@ type InterruptStore struct {
 
 type drainedToolRow struct {
 	ItemID    string `json:"itemId"`
-	CallID    string `json:"callId,omitempty"`
+	CallID    string `json:"callId"`
 	Name      string `json:"name"`
 	Arguments string `json:"arguments"`
 }
 
+type committedToolRow struct {
+	ItemID    string             `json:"itemId"`
+	CallID    string             `json:"callId"`
+	Name      string             `json:"name"`
+	Arguments string             `json:"arguments"`
+	Problem   transcript.Problem `json:"problem"`
+}
+
 type continuationRow struct {
-	RunID           string           `json:"runId"`
-	ProcessID       string           `json:"processId"`
-	ParentProcessID string           `json:"parentProcessId,omitempty"`
-	SpawnCallID     string           `json:"spawnCallId,omitempty"`
-	SpawnedByItemID string           `json:"spawnedByItemId,omitempty"`
-	ParentRunID     string           `json:"parentRunId,omitempty"`
-	RootRunID       string           `json:"rootRunId,omitempty"`
-	Provider        string           `json:"provider,omitempty"`
-	Model           string           `json:"model,omitempty"`
-	DrainedTools    []drainedToolRow `json:"drainedTools,omitempty"`
-	RunCreatedAt    int64            `json:"runCreatedAt"`
-	Accounting      runAccountingRow `json:"accounting"`
+	RunID           string             `json:"runId"`
+	ProcessID       string             `json:"processId"`
+	ParentProcessID string             `json:"parentProcessId,omitempty"`
+	SpawnCallID     string             `json:"spawnCallId,omitempty"`
+	SpawnedByItemID string             `json:"spawnedByItemId,omitempty"`
+	ParentRunID     string             `json:"parentRunId,omitempty"`
+	RootRunID       string             `json:"rootRunId,omitempty"`
+	Provider        string             `json:"provider,omitempty"`
+	Model           string             `json:"model,omitempty"`
+	DrainedTools    []drainedToolRow   `json:"drainedTools,omitempty"`
+	CommittedTools  []committedToolRow `json:"committedTools,omitempty"`
+	RunCreatedAt    int64              `json:"runCreatedAt"`
+	Accounting      runAccountingRow   `json:"accounting"`
 }
 
 type suspensionBindingRow struct {
@@ -298,6 +307,34 @@ func drainedToolsFromRows(rows []drainedToolRow) []interrupts.DrainedTool {
 	return tools
 }
 
+func committedToolRows(tools []interrupts.CommittedTool) []committedToolRow {
+	rows := make([]committedToolRow, len(tools))
+	for index, tool := range tools {
+		rows[index] = committedToolRow{
+			ItemID:    tool.ItemID,
+			CallID:    tool.CallID,
+			Name:      tool.Name,
+			Arguments: tool.Arguments,
+			Problem:   tool.Problem,
+		}
+	}
+	return rows
+}
+
+func committedToolsFromRows(rows []committedToolRow) []interrupts.CommittedTool {
+	tools := make([]interrupts.CommittedTool, len(rows))
+	for index, row := range rows {
+		tools[index] = interrupts.CommittedTool{
+			ItemID:    row.ItemID,
+			CallID:    row.CallID,
+			Name:      row.Name,
+			Arguments: row.Arguments,
+			Problem:   row.Problem,
+		}
+	}
+	return tools
+}
+
 func continuationRows(values []interrupts.Continuation) []continuationRow {
 	rows := make([]continuationRow, len(values))
 	for index, value := range values {
@@ -312,6 +349,7 @@ func continuationRows(values []interrupts.Continuation) []continuationRow {
 			Provider:        value.ModelSelection.Provider(),
 			Model:           value.ModelSelection.Model(),
 			DrainedTools:    drainedToolRows(value.DrainedTools),
+			CommittedTools:  committedToolRows(value.CommittedTools),
 			RunCreatedAt:    value.RunCreatedAt.UnixNano(),
 			Accounting:      runAccountingRowOf(value.Metrics, value.Limits),
 		}
@@ -342,6 +380,7 @@ func continuationsFromRows(rows []continuationRow) ([]interrupts.Continuation, e
 			},
 			ModelSelection: selection,
 			DrainedTools:   drainedToolsFromRows(row.DrainedTools),
+			CommittedTools: committedToolsFromRows(row.CommittedTools),
 			RunCreatedAt:   time.Unix(0, row.RunCreatedAt).UTC(),
 			Metrics:        metrics,
 			Limits:         limits,

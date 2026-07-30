@@ -177,6 +177,10 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	segmentID := c.newSegmentID()
 	createdAt := rootContinuation.RunCreatedAt
 	pendingCopy := pending
+	continuation, err := treeContinuationFromPending(pendingCopy)
+	if err != nil {
+		return StartResult{}, fmt.Errorf("runs: prepare tree continuation: %w", err)
+	}
 	events, err := c.openSegment(ctx, segmentSpec{
 		RunID:          cmd.RunID,
 		SegmentID:      segmentID,
@@ -186,7 +190,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		ModelSelection: rootContinuation.ModelSelection,
 		CreatedAt:      createdAt,
 		Input:          cmd.Input,
-		Pending:        &pendingCopy,
+		Continuation:   continuation,
 		admission:      &runAdmission,
 		Activate: func(activateCtx context.Context) error {
 			// The RUN's frozen kinds, not this request's: the caller has already been
@@ -242,10 +246,7 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 			}
 			return c.cancelLiveChild(ctx, cmd, plan, entry.handle)
 		case execution.Interrupted:
-			return CancelResult{}, fmt.Errorf(
-				"runs: interrupted child Run %q cancellation is not implemented",
-				cmd.RunID,
-			)
+			return c.cancelWaitingChild(ctx, cmd, plan)
 		default:
 			return CancelResult{}, fmt.Errorf(
 				"runs: child Run %q belongs to a tree in state %s",
@@ -350,6 +351,263 @@ func (c *Coordinator) cancelLiveChild(
 		)
 	}
 	return CancelResult{Run: target, RootRun: &root}, nil
+}
+
+// cancelWaitingChild removes one complete child subtree from an executor tree
+// parked at a human boundary. It first reserves the Session + working tree,
+// then freezes the Agent runtime mutation. The application projections and the
+// replacement checkpoint commit in one transaction; only after that durable
+// boundary may the prepared live mutation become visible.
+//
+// When another external boundary survives, the tree stays Interrupted. Removing
+// the final boundary instead opens continuation Segments in the same transaction
+// and immediately continues the already-settled runtime tree—there is no
+// synthetic human answer and no transient Running row without an owner.
+func (c *Coordinator) cancelWaitingChild(
+	ctx context.Context,
+	cmd CancelCommand,
+	initial cancellationPlan,
+) (CancelResult, error) {
+	if c.effects == nil {
+		return CancelResult{}, errors.New("runs: effects are required for waiting child cancellation")
+	}
+	if c.newSegmentID == nil {
+		return CancelResult{}, errors.New("runs: segment id generator is required for waiting child cancellation")
+	}
+	sess, err := c.sessions.Get(ctx, initial.pending.SessionID)
+	if err != nil {
+		return CancelResult{}, err
+	}
+	runAdmission, ok := c.admission.AcquireRun(sess.ID, sess.Cwd)
+	if !ok {
+		return CancelResult{}, fmt.Errorf(
+			"%w: session %q or working tree %q has a run or mutation in flight",
+			ErrSessionBusy,
+			sess.ID,
+			sess.Cwd,
+		)
+	}
+	defer runAdmission.Release()
+
+	cleanupCtx, cancelCleanup := (*handle)(nil).cleanupContext(ctx)
+	defer cancelCleanup()
+
+	// The first plan let us find the Session to reserve. Resolve it again under
+	// admission so a Resume or sibling mutation that won immediately before the
+	// reservation cannot leave this command acting on stale Pending/Item facts.
+	plan, entry, live, err := c.cancellationPlanFor(cleanupCtx, cmd)
+	if err != nil {
+		return CancelResult{}, err
+	}
+	if live {
+		if entry.handle == nil {
+			return CancelResult{}, fmt.Errorf(
+				"runs: waiting child Run %q has a live registry entry without an owner",
+				cmd.RunID,
+			)
+		}
+		// A just-committed park releases admission immediately before its pump
+		// removes the live registry entry. Joining that already-terminal boundary
+		// closes the tiny hand-off window without treating it as an invariant
+		// failure or preparing a second Segment beside the first.
+		if err := entry.handle.wait(cleanupCtx); err != nil {
+			return CancelResult{}, err
+		}
+		plan, _, live, err = c.cancellationPlanFor(cleanupCtx, cmd)
+		if err != nil {
+			return CancelResult{}, err
+		}
+		if live {
+			return CancelResult{}, fmt.Errorf(
+				"runs: waiting child Run %q retained a live segment after its parked boundary completed",
+				cmd.RunID,
+			)
+		}
+	}
+	if plan.treeState != execution.Interrupted || !plan.target.run.Lineage().IsChild() {
+		return CancelResult{}, fmt.Errorf(
+			"runs: waiting child cancellation for %q resolved a %s root/child state",
+			cmd.RunID,
+			plan.treeState,
+		)
+	}
+
+	turn, err := c.prepareTurn(cleanupCtx, plan.pending, sess.Cwd, sess.Isolated)
+	if err != nil {
+		if errors.Is(err, ErrTurnStateLost) {
+			lostErr := c.sessions.ApplyRunLost(
+				cleanupCtx,
+				plan.pending.SessionID,
+				plan.root.run.ID,
+				c.now().UTC(),
+			)
+			if lostErr != nil {
+				return CancelResult{}, errors.Join(
+					err,
+					fmt.Errorf("runs: recover lost waiting tree %q: %w", plan.root.run.ID, lostErr),
+				)
+			}
+			return CancelResult{}, fmt.Errorf("%w: %w", ErrRunNotFound, err)
+		}
+		return CancelResult{}, err
+	}
+	if turn != plan.turn {
+		return CancelResult{}, fmt.Errorf(
+			"runs: prepared turn %q/%q differs from waiting cancellation turn %q/%q",
+			turn.SessionID,
+			turn.TurnID,
+			plan.turn.SessionID,
+			plan.turn.TurnID,
+		)
+	}
+
+	prepared, err := c.turns.PrepareWaitingSubtreeCancellation(
+		cleanupCtx,
+		turn,
+		plan.target.source.ProcessID,
+	)
+	if err != nil {
+		return CancelResult{}, err
+	}
+	defer prepared.Abort()
+
+	transformation, err := prepareWaitingCancellationTransformation(
+		plan,
+		cmd.Reason,
+		c.now().UTC(),
+		prepared,
+	)
+	if err != nil {
+		return CancelResult{}, err
+	}
+	if transformation.remaining != nil {
+		result, err := c.effects.CommitWaitingSubtreeCancellation(
+			cleanupCtx,
+			transformation.durableCommit(plan.pending),
+		)
+		if err != nil {
+			return CancelResult{}, err
+		}
+		if err := prepared.Commit(cleanupCtx, WaitingSubtreeRemainsInterrupted); err != nil {
+			return CancelResult{}, err
+		}
+		if err := validateWaitingChildCancellationResult(plan, result); err != nil {
+			return CancelResult{}, err
+		}
+		c.publishWaitingChildCancellation(plan, transformation)
+		return CancelResult{Run: result.TargetRun, RootRun: &result.RootRun}, nil
+	}
+
+	rootContinuation, ok := transformation.continuation.root()
+	if !ok {
+		return CancelResult{}, errors.New("runs: waiting child cancellation continuation has no root Run")
+	}
+	segmentID := c.newSegmentID()
+	if segmentID == "" {
+		return CancelResult{}, errors.New("runs: waiting child cancellation generated an empty root segment id")
+	}
+	var committed WaitingSubtreeCancellationResult
+	events, err := c.openSegment(cleanupCtx, segmentSpec{
+		RunID:          plan.root.run.ID,
+		SegmentID:      segmentID,
+		SessionID:      plan.pending.SessionID,
+		Cwd:            sess.Cwd,
+		TurnID:         turn.TurnID,
+		ModelSelection: rootContinuation.ModelSelection,
+		CreatedAt:      rootContinuation.RunCreatedAt,
+		Continuation:   transformation.continuation,
+		admission:      &runAdmission,
+		CommitOpening: func(commitCtx context.Context, opening OpeningCommit) error {
+			if opening.Admit != nil || opening.Resume == nil {
+				return errors.New("runs: waiting child continuation produced an invalid opening disposition")
+			}
+			durable := transformation.durableCommit(plan.pending)
+			durable.Resume = opening.Resume
+			durable.OpeningEvents = opening.Events
+			result, commitErr := c.effects.CommitWaitingSubtreeCancellation(commitCtx, durable)
+			if commitErr == nil {
+				committed = result
+			}
+			return commitErr
+		},
+		Activate: func(activateCtx context.Context) error {
+			return prepared.Commit(activateCtx, WaitingSubtreeContinues)
+		},
+	})
+	if err != nil {
+		return CancelResult{}, err
+	}
+	if events == nil {
+		return CancelResult{}, errors.New("runs: waiting child continuation opened without an event stream")
+	}
+	if err := validateWaitingChildCancellationResult(plan, committed); err != nil {
+		return CancelResult{}, err
+	}
+	c.publishWaitingChildCancellation(plan, transformation)
+	return CancelResult{Run: committed.TargetRun, RootRun: &committed.RootRun}, nil
+}
+
+func validateWaitingChildCancellationResult(
+	plan cancellationPlan,
+	result WaitingSubtreeCancellationResult,
+) error {
+	target := result.TargetRun
+	if target.ID != plan.target.run.ID ||
+		target.State != execution.Canceled ||
+		target.Outcome == nil ||
+		*target.Outcome != execution.OutcomeCanceled {
+		return fmt.Errorf(
+			"runs: waiting child cancellation for %q committed invalid target snapshot %q in state %s",
+			plan.target.run.ID,
+			target.ID,
+			target.State,
+		)
+	}
+	root := result.RootRun
+	if root.ID != plan.root.run.ID ||
+		!root.Lineage().IsRoot() ||
+		(root.State != execution.Interrupted && root.State != execution.Running) {
+		return fmt.Errorf(
+			"runs: waiting child cancellation for %q committed invalid root snapshot %q in state %s",
+			plan.target.run.ID,
+			root.ID,
+			root.State,
+		)
+	}
+	return nil
+}
+
+func (c *Coordinator) publishWaitingChildCancellation(
+	plan cancellationPlan,
+	transformation waitingCancellationTransformation,
+) {
+	affected := make([]string, 0, len(transformation.canceledRunIDs)+len(plan.survivingTree)+2)
+	seen := make(map[string]struct{}, cap(affected))
+	appendRunID := func(runID string) {
+		if runID == "" {
+			return
+		}
+		if _, duplicate := seen[runID]; duplicate {
+			return
+		}
+		seen[runID] = struct{}{}
+		affected = append(affected, runID)
+	}
+	for _, runID := range transformation.canceledRunIDs {
+		appendRunID(runID)
+	}
+	appendRunID(plan.target.run.ParentRunID)
+	if transformation.remaining == nil {
+		for _, continuation := range transformation.continuation.continuations {
+			appendRunID(continuation.RunID)
+		}
+	}
+	appendRunID(plan.root.run.ID)
+	c.publishWaitingSubtreeCanceled(
+		plan.pending.SessionID,
+		plan.root.run.ID,
+		affected,
+	)
 }
 
 // cancelWithoutLiveSegment resolves the small window in which a segment has

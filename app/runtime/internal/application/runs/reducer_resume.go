@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -17,6 +18,7 @@ type resumeBinding struct {
 	byName    map[string]string
 	questions []resumedQuestion
 	drained   []interrupts.DrainedTool
+	committed map[string]interrupts.CommittedTool
 	consumed  map[string]struct{}
 	err       error
 }
@@ -26,7 +28,7 @@ type resumedQuestion struct {
 	question *transcript.Question
 }
 
-func resumeBindingFrom(pending interrupts.Pending, runID string) *resumeBinding {
+func resumeBindingFrom(continuation treeContinuation, runID string) *resumeBinding {
 	calls := map[string]string{}
 	items := map[string]string{}
 	byName := map[string]string{}
@@ -43,7 +45,7 @@ func resumeBindingFrom(pending interrupts.Pending, runID string) *resumeBinding 
 	}
 
 	var questions []resumedQuestion
-	for _, in := range pending.Interrupts {
+	for _, in := range continuation.interrupts {
 		if in.RunID != runID || in.ItemID == "" {
 			continue
 		}
@@ -57,8 +59,9 @@ func resumeBindingFrom(pending interrupts.Pending, runID string) *resumeBinding 
 		}
 	}
 	var drained []interrupts.DrainedTool
-	if continuation, ok := pending.ContinuationFor(runID); ok {
-		drained = continuation.DrainedTools
+	committed := make(map[string]interrupts.CommittedTool)
+	if member, ok := continuation.forRun(runID); ok {
+		drained = member.DrainedTools
 		for _, tool := range drained {
 			if tool.Name != "" && tool.ItemID != "" {
 				arguments, err := parseToolArguments(tool.Arguments)
@@ -68,13 +71,21 @@ func resumeBindingFrom(pending interrupts.Pending, runID string) *resumeBinding 
 				addItem(tool.CallID, tool.Name, argumentIdentity(arguments), tool.ItemID)
 			}
 		}
+		for _, tool := range member.CommittedTools {
+			arguments, err := parseToolArguments(tool.Arguments)
+			if err != nil {
+				return &resumeBinding{err: fmt.Errorf("resume committed tool %q arguments: %w", tool.Name, err)}
+			}
+			tool.Arguments = argumentIdentity(arguments)
+			committed[tool.CallID] = tool
+		}
 	}
-	if len(calls) == 0 && len(items) == 0 && len(questions) == 0 {
+	if len(calls) == 0 && len(items) == 0 && len(questions) == 0 && len(committed) == 0 {
 		return nil
 	}
 	return &resumeBinding{
 		callItems: calls, toolItems: items, byName: byName, questions: questions,
-		drained: slices.Clone(drained), consumed: make(map[string]struct{}),
+		drained: slices.Clone(drained), committed: committed, consumed: make(map[string]struct{}),
 	}
 }
 
@@ -121,6 +132,74 @@ func (b *resumeBinding) remainingDrainedTools() []interrupts.DrainedTool {
 			out = append(out, tool)
 		}
 	}
+	return out
+}
+
+func (b *resumeBinding) rejectCommittedToolStart(
+	callID string,
+	toolName string,
+	arguments tool.Arguments,
+) error {
+	if b == nil {
+		return nil
+	}
+	committed, exists := b.committed[callID]
+	if !exists {
+		return nil
+	}
+	if committed.Name != toolName || committed.Arguments != argumentIdentity(arguments) {
+		return fmt.Errorf(
+			"committed tool call %q replayed as %q/%s, want %q/%s",
+			callID,
+			toolName,
+			argumentIdentity(arguments),
+			committed.Name,
+			committed.Arguments,
+		)
+	}
+	return fmt.Errorf("committed tool call %q was executed again", callID)
+}
+
+func (b *resumeBinding) consumeCommittedTool(event ToolCallEnd) (bool, error) {
+	if b == nil {
+		return false, nil
+	}
+	committed, exists := b.committed[event.CallID]
+	if !exists {
+		return false, nil
+	}
+	if event.Problem == nil {
+		return true, fmt.Errorf("committed tool call %q published a successful result", event.CallID)
+	}
+	if event.Arguments != "" {
+		arguments, err := parseToolArguments(event.Arguments)
+		if err != nil {
+			return true, fmt.Errorf("committed tool call %q arguments: %w", event.CallID, err)
+		}
+		if argumentIdentity(arguments) != committed.Arguments {
+			return true, fmt.Errorf(
+				"committed tool call %q arguments changed from %s to %s",
+				event.CallID,
+				committed.Arguments,
+				argumentIdentity(arguments),
+			)
+		}
+	}
+	delete(b.committed, event.CallID)
+	return true, nil
+}
+
+func (b *resumeBinding) remainingCommittedTools() []interrupts.CommittedTool {
+	if b == nil || len(b.committed) == 0 {
+		return nil
+	}
+	out := make([]interrupts.CommittedTool, 0, len(b.committed))
+	for _, committed := range b.committed {
+		out = append(out, committed)
+	}
+	slices.SortFunc(out, func(left, right interrupts.CommittedTool) int {
+		return strings.Compare(left.CallID, right.CallID)
+	})
 	return out
 }
 

@@ -398,13 +398,13 @@ func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing
 
 	config := testReducerConfig()
 	config.SegmentID = "seg_2"
-	config.Pending = &interrupts.Pending{
+	config.Continuation = testTreeContinuation(interrupts.Pending{
 		RootRunID:  "run_1",
 		Interrupts: firstCommit.Run.Interrupts,
 		Continuations: []interrupts.Continuation{{
 			RunID: "run_1", DrainedTools: slices.Clone(first.drained),
 		}},
-	}
+	})
 	resumed := newReducer(config)
 	mustOpen(t, resumed)
 	if got := startedItemID(t, mustReduce(t, resumed, ToolCallStart{
@@ -534,13 +534,13 @@ func TestReducerRejectsIncoherentTerminalProblems(t *testing.T) {
 func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	question := &transcript.Question{Prompt: "Continue?"}
 	config := testReducerConfig()
-	config.Pending = &interrupts.Pending{
+	config.Continuation = testTreeContinuation(interrupts.Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
 		Interrupts: []transcript.Interrupt{
 			{ItemID: "item_approval", RunID: "run_1", Kind: execution.ApprovalInterrupt, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "go test"})}}},
 			{ItemID: "item_question", RunID: "run_1", Kind: execution.QuestionInterrupt, Question: question},
 		},
-	}
+	})
 	reducer := newReducer(config)
 	opening := mustOpen(t, reducer)
 	completed, ok := opening[len(opening)-1].Event.(ItemCompleted)
@@ -686,7 +686,7 @@ func TestReducerRejectsInvalidToolLifecycle(t *testing.T) {
 
 func TestReducerUsesCanonicalArgumentsForResumeIdentity(t *testing.T) {
 	config := testReducerConfig()
-	config.Pending = &interrupts.Pending{
+	config.Continuation = testTreeContinuation(interrupts.Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
 		Continuations: []interrupts.Continuation{{
 			RunID: "run_1",
@@ -695,7 +695,7 @@ func TestReducerUsesCanonicalArgumentsForResumeIdentity(t *testing.T) {
 				Arguments: `{"b":2,"a":{"enabled":true}}`,
 			}},
 		}},
-	}
+	})
 	reducer := newReducer(config)
 	started := mustReduce(t, reducer, ToolCallStart{
 		CallID: "new_call", ToolName: "lookup",
@@ -708,7 +708,7 @@ func TestReducerUsesCanonicalArgumentsForResumeIdentity(t *testing.T) {
 
 func TestReducerRejectsMalformedDurableResumeArguments(t *testing.T) {
 	config := testReducerConfig()
-	config.Pending = &interrupts.Pending{
+	config.Continuation = testTreeContinuation(interrupts.Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
 		Continuations: []interrupts.Continuation{{
 			RunID: "run_1",
@@ -716,11 +716,90 @@ func TestReducerRejectsMalformedDurableResumeArguments(t *testing.T) {
 				ItemID: "item_broken", Name: "lookup", Arguments: "[]",
 			}},
 		}},
-	}
+	})
 	_, err := newReducer(config).open()
 	if !errors.Is(err, errReducerInvariant) || !errors.Is(err, tool.ErrInvalidArguments) {
 		t.Fatalf("open error = %v, want reducer invariant + invalid arguments", err)
 	}
+}
+
+func TestReducerConsumesHostCommittedToolResultWithoutDuplicatingTranscriptItem(t *testing.T) {
+	config := testReducerConfig()
+	config.Continuation = testTreeContinuation(interrupts.Pending{
+		RootRunID: "run_1", SessionID: "ses_1",
+		Continuations: []interrupts.Continuation{{
+			RunID: "run_1",
+			CommittedTools: []interrupts.CommittedTool{{
+				ItemID: "item_child", CallID: "call_child", Name: "task", Arguments: "{}",
+				Problem: transcript.Problem{
+					Kind:   transcript.ChildRunCanceledProblem,
+					Scope:  transcript.ToolProblem,
+					Detail: "stop delegated branch",
+				},
+			}},
+		}},
+	})
+	reducer := newReducer(config)
+	if _, err := reducer.open(); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+
+	batch, err := reducer.reduce(ToolCallEnd{
+		CallID:    "call_child",
+		Arguments: "{}",
+		Problem: &transcript.Problem{
+			Kind:   transcript.ToolFailedProblem,
+			Scope:  transcript.ToolProblem,
+			Detail: "delegated child canceled",
+		},
+	})
+	if err != nil {
+		t.Fatalf("consume committed ToolCallEnd: %v", err)
+	}
+	if len(batch.events) != 0 || batch.parkCommit != nil {
+		t.Fatalf("committed tool result projected duplicate events: %+v", batch)
+	}
+	if remaining := reducer.resume.remainingCommittedTools(); len(remaining) != 0 {
+		t.Fatalf("remaining committed tools = %+v, want none", remaining)
+	}
+}
+
+func TestReducerRejectsReexecutionOrSuccessForHostCommittedTool(t *testing.T) {
+	continuation := testTreeContinuation(interrupts.Pending{
+		RootRunID: "run_1", SessionID: "ses_1",
+		Continuations: []interrupts.Continuation{{
+			RunID: "run_1",
+			CommittedTools: []interrupts.CommittedTool{{
+				ItemID: "item_child", CallID: "call_child", Name: "task", Arguments: "{}",
+				Problem: transcript.Problem{
+					Kind:  transcript.ChildRunCanceledProblem,
+					Scope: transcript.ToolProblem,
+				},
+			}},
+		}},
+	})
+	t.Run("reexecution", func(t *testing.T) {
+		config := testReducerConfig()
+		config.Continuation = continuation
+		reducer := newReducer(config)
+		_, err := reducer.reduce(ToolCallStart{
+			CallID: "call_child", ToolName: "task", Arguments: "{}",
+		})
+		if !errors.Is(err, errExecutorProtocol) ||
+			!strings.Contains(err.Error(), "executed again") {
+			t.Fatalf("ToolCallStart error = %v, want committed-call reexecution violation", err)
+		}
+	})
+	t.Run("successful result", func(t *testing.T) {
+		config := testReducerConfig()
+		config.Continuation = continuation
+		reducer := newReducer(config)
+		_, err := reducer.reduce(ToolCallEnd{CallID: "call_child", Arguments: "{}"})
+		if !errors.Is(err, errExecutorProtocol) ||
+			!strings.Contains(err.Error(), "successful result") {
+			t.Fatalf("ToolCallEnd error = %v, want committed-call success violation", err)
+		}
+	})
 }
 
 func TestReducerRejectsInvalidInterruptProjection(t *testing.T) {
@@ -904,7 +983,9 @@ func TestReducerReportsTheRunsFrozenProfileOnEverySegment(t *testing.T) {
 	}
 	config := testReducerConfig()
 	config.ProtocolProfile = frozen
-	config.Pending = &interrupts.Pending{RootRunID: "run_1", SessionID: "ses_1", ProtocolProfile: frozen}
+	config.Continuation = testTreeContinuation(interrupts.Pending{
+		RootRunID: "run_1", SessionID: "ses_1", ProtocolProfile: frozen,
+	})
 
 	reducer := newReducer(config)
 	opening := mustOpen(t, reducer)

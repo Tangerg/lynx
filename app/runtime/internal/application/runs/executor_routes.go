@@ -42,7 +42,7 @@ func (c *Coordinator) openingRoutes(
 	spec segmentSpec,
 	cancelReason func(string) string,
 ) (*executorRoutes, error) {
-	if spec.Pending != nil {
+	if spec.Continuation != nil {
 		return c.resumedExecutorRoutes(spec, cancelReason)
 	}
 	rootReducer := newReducer(reducerConfig{
@@ -74,20 +74,20 @@ func (c *Coordinator) resumedExecutorRoutes(
 	spec segmentSpec,
 	cancelReason func(string) string,
 ) (*executorRoutes, error) {
-	pending := spec.Pending
-	if pending == nil {
-		return nil, errors.New("runs: resumed routes require a pending barrier")
+	continuation := spec.Continuation
+	if continuation == nil {
+		return nil, errors.New("runs: resumed routes require a tree continuation")
 	}
-	if err := pending.Validate(); err != nil {
+	if err := continuation.validate(); err != nil {
 		return nil, fmt.Errorf("runs: build resumed routes: %w", err)
 	}
-	if pending.RootRunID != spec.RunID || pending.SessionID != spec.SessionID {
+	if continuation.rootRunID != spec.RunID || continuation.sessionID != spec.SessionID {
 		return nil, fmt.Errorf(
-			"runs: resumed route scope %q/%q does not match pending %q/%q",
+			"runs: resumed route scope %q/%q does not match continuation %q/%q",
 			spec.SessionID,
 			spec.RunID,
-			pending.SessionID,
-			pending.RootRunID,
+			continuation.sessionID,
+			continuation.rootRunID,
 		)
 	}
 	if spec.SegmentID == "" {
@@ -95,13 +95,13 @@ func (c *Coordinator) resumedExecutorRoutes(
 	}
 	routes := &executorRoutes{
 		rootBound: true,
-		byProcess: make(map[string]*executorRoute, len(pending.Continuations)),
+		byProcess: make(map[string]*executorRoute, len(continuation.continuations)),
 	}
-	byRunID := make(map[string]*executorRoute, len(pending.Continuations))
+	byRunID := make(map[string]*executorRoute, len(continuation.continuations))
 	segmentIDs := map[string]struct{}{spec.SegmentID: {}}
-	for _, continuation := range pending.Continuations {
+	for _, member := range continuation.continuations {
 		segmentID := spec.SegmentID
-		if continuation.RunID != pending.RootRunID {
+		if member.RunID != continuation.rootRunID {
 			if c.newSegmentID == nil {
 				return nil, errors.New("runs: resumed child routes require a segment identity generator")
 			}
@@ -109,7 +109,7 @@ func (c *Coordinator) resumedExecutorRoutes(
 			if segmentID == "" {
 				return nil, fmt.Errorf(
 					"runs: resumed child Run %q generated an empty segment id",
-					continuation.RunID,
+					member.RunID,
 				)
 			}
 			if _, duplicate := segmentIDs[segmentID]; duplicate {
@@ -118,27 +118,27 @@ func (c *Coordinator) resumedExecutorRoutes(
 			segmentIDs[segmentID] = struct{}{}
 		}
 		source := ExecutorSource{
-			ProcessID:   continuation.ProcessID,
-			ParentID:    continuation.ParentProcessID,
-			SpawnCallID: continuation.SpawnCallID,
+			ProcessID:   member.ProcessID,
+			ParentID:    member.ParentProcessID,
+			SpawnCallID: member.SpawnCallID,
 		}
 		if err := source.Validate(); err != nil {
-			return nil, fmt.Errorf("runs: resumed Run %q source: %w", continuation.RunID, err)
+			return nil, fmt.Errorf("runs: resumed Run %q source: %w", member.RunID, err)
 		}
 		route := &executorRoute{
 			source:           source,
-			runID:            continuation.RunID,
+			runID:            member.RunID,
 			segmentID:        segmentID,
-			rootRunID:        pending.RootRunID,
-			lineage:          continuation.Lineage,
-			modelSelection:   continuation.ModelSelection,
-			limits:           continuation.Limits,
-			protocolProfile:  pending.ProtocolProfile,
+			rootRunID:        continuation.rootRunID,
+			lineage:          member.Lineage,
+			modelSelection:   member.ModelSelection,
+			limits:           member.Limits,
+			protocolProfile:  continuation.profile,
 			segmentStartedAt: time.Time{},
 		}
 		userInput := []transcript.ContentBlock(nil)
 		goalLeaseID := ""
-		if continuation.RunID == pending.RootRunID {
+		if member.RunID == continuation.rootRunID {
 			userInput = spec.Input
 			goalLeaseID = spec.GoalLeaseID
 		}
@@ -146,14 +146,14 @@ func (c *Coordinator) resumedExecutorRoutes(
 			RunID: route.runID, SegmentID: route.segmentID, SessionID: spec.SessionID,
 			Lineage: route.lineage, Cwd: spec.Cwd, TurnID: spec.TurnID,
 			GoalLeaseID: goalLeaseID, ModelSelection: route.modelSelection,
-			CreatedAt: continuation.RunCreatedAt, UserInput: userInput,
-			Metrics: continuation.Metrics, Limits: continuation.Limits,
-			ProtocolProfile: pending.ProtocolProfile, Pending: pending,
+			CreatedAt: member.RunCreatedAt, UserInput: userInput,
+			Metrics: member.Metrics, Limits: member.Limits,
+			ProtocolProfile: continuation.profile, Continuation: continuation,
 			Now: c.now, CancelReason: cancellationReason(cancelReason, route.runID),
 		})
 		routes.byProcess[source.ProcessID] = route
 		byRunID[route.runID] = route
-		if route.runID == pending.RootRunID {
+		if route.runID == continuation.rootRunID {
 			routes.root = route
 		}
 	}
@@ -180,7 +180,7 @@ func (c *Coordinator) resumedExecutorRoutes(
 		}
 	}
 	appendPreorder(routes.root)
-	if len(routes.admissionOrder) != len(pending.Continuations) {
+	if len(routes.admissionOrder) != len(continuation.continuations) {
 		return nil, errors.New("runs: resumed route tree is disconnected")
 	}
 	return routes, nil

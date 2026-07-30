@@ -263,7 +263,7 @@ func (e *Effects) consumeResume(ctx context.Context, resume execution.TreeResume
 		return errors.New("runsegment: run-state persistence is unavailable")
 	}
 	for _, run := range resume.Runs {
-		if err := e.runState.Resume(ctx, resume.SessionID, run); err != nil {
+		if err := e.runState.Resume(ctx, resume.SessionID, run, resume.ResumedAt); err != nil {
 			return fmt.Errorf("runsegment: resume Run %q state: %w", run.RunID, err)
 		}
 	}

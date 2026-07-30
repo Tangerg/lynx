@@ -49,9 +49,15 @@ type Continuation struct {
 	Lineage         execution.RunLineage
 	ModelSelection  modelref.Selection
 	DrainedTools    []DrainedTool
-	RunCreatedAt    time.Time
-	Metrics         transcript.RunMetrics
-	Limits          execution.RunLimits
+	// CommittedTools are tool results whose transcript projection was completed
+	// by an application transaction while the executor tree stayed parked. The
+	// executor still publishes those results when it re-enters the checkpoint
+	// because the model needs them in its continuation message; the resumed Run
+	// reducer consumes this identity set without appending the Item a second time.
+	CommittedTools []CommittedTool
+	RunCreatedAt   time.Time
+	Metrics        transcript.RunMetrics
+	Limits         execution.RunLimits
 }
 
 // SuspensionBinding is the private correspondence between one client-visible
@@ -82,6 +88,20 @@ type DrainedTool struct {
 	Name   string
 	// Arguments is the canonical JSON used for resume correlation.
 	Arguments string
+}
+
+// CommittedTool is the durable hand-off for one tool result already written to
+// the transcript while its executor checkpoint was parked. Problem records the
+// application classification that was committed; it is not reconstructed from
+// the executor's lower-level error when the checkpoint later publishes its
+// model-facing result.
+type CommittedTool struct {
+	ItemID string
+	CallID string
+	Name   string
+	// Arguments is the canonical JSON used to reject a mismatched replay.
+	Arguments string
+	Problem   transcript.Problem
 }
 
 // RootContinuation returns the root Run's hand-off. A valid Pending always has
@@ -136,7 +156,7 @@ func (p Pending) Validate() error {
 	treeMembers := make([]execution.RunTreeMember, 0, len(p.Continuations))
 	rootCount := 0
 	for index, continuation := range p.Continuations {
-		if err := continuation.validate(); err != nil {
+		if err := continuation.Validate(); err != nil {
 			return fmt.Errorf("interrupts: continuation[%d]: %w", index, err)
 		}
 		if _, duplicate := runIDs[continuation.RunID]; duplicate {
@@ -281,7 +301,9 @@ func (p Pending) Validate() error {
 	return nil
 }
 
-func (c Continuation) validate() error {
+// Validate checks one Run-to-process continuation and all of its transcript
+// hand-off identities independently of the root-owned Pending aggregate.
+func (c Continuation) Validate() error {
 	switch {
 	case strings.TrimSpace(c.RunID) == "":
 		return errors.New("run id is required")
@@ -307,7 +329,61 @@ func (c Continuation) validate() error {
 	if err := c.Limits.Validate(); err != nil {
 		return fmt.Errorf("limits: %w", err)
 	}
+	openItems := make(map[string]struct{}, len(c.DrainedTools))
+	openCalls := make(map[string]struct{}, len(c.DrainedTools))
+	for index, tool := range c.DrainedTools {
+		if err := validateToolIdentity(tool.ItemID, tool.CallID, tool.Name, tool.Arguments); err != nil {
+			return fmt.Errorf("drained tool[%d]: %w", index, err)
+		}
+		if _, duplicate := openItems[tool.ItemID]; duplicate {
+			return fmt.Errorf("drained tool item %q is duplicated", tool.ItemID)
+		}
+		if _, duplicate := openCalls[tool.CallID]; duplicate {
+			return fmt.Errorf("drained tool call %q is duplicated", tool.CallID)
+		}
+		openItems[tool.ItemID] = struct{}{}
+		openCalls[tool.CallID] = struct{}{}
+	}
+	committedItems := make(map[string]struct{}, len(c.CommittedTools))
+	committedCalls := make(map[string]struct{}, len(c.CommittedTools))
+	for index, tool := range c.CommittedTools {
+		if err := validateToolIdentity(tool.ItemID, tool.CallID, tool.Name, tool.Arguments); err != nil {
+			return fmt.Errorf("committed tool[%d]: %w", index, err)
+		}
+		if err := tool.Problem.ValidateFor(transcript.ToolProblem); err != nil {
+			return fmt.Errorf("committed tool[%d] problem: %w", index, err)
+		}
+		if _, duplicate := committedItems[tool.ItemID]; duplicate {
+			return fmt.Errorf("committed tool item %q is duplicated", tool.ItemID)
+		}
+		if _, duplicate := committedCalls[tool.CallID]; duplicate {
+			return fmt.Errorf("committed tool call %q is duplicated", tool.CallID)
+		}
+		if _, open := openItems[tool.ItemID]; open {
+			return fmt.Errorf("tool item %q is both drained and committed", tool.ItemID)
+		}
+		if _, open := openCalls[tool.CallID]; open {
+			return fmt.Errorf("tool call %q is both drained and committed", tool.CallID)
+		}
+		committedItems[tool.ItemID] = struct{}{}
+		committedCalls[tool.CallID] = struct{}{}
+	}
 	return nil
+}
+
+func validateToolIdentity(itemID, callID, name, arguments string) error {
+	switch {
+	case strings.TrimSpace(itemID) == "":
+		return errors.New("item id is required")
+	case strings.TrimSpace(callID) == "":
+		return errors.New("call id is required")
+	case strings.TrimSpace(name) == "":
+		return errors.New("name is required")
+	case strings.TrimSpace(arguments) == "":
+		return errors.New("arguments are required")
+	default:
+		return nil
+	}
 }
 
 func validateInterrupt(interrupt transcript.Interrupt) error {

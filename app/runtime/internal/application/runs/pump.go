@@ -500,6 +500,7 @@ func (p treePublisher) publishTreeBarrier(
 			Lineage:         route.lineage,
 			ModelSelection:  route.modelSelection,
 			DrainedTools:    slices.Clone(route.reducer.drained),
+			CommittedTools:  route.reducer.resume.remainingCommittedTools(),
 			RunCreatedAt:    run.CreatedAt,
 			Metrics:         run.Metrics,
 			Limits:          run.Limits,

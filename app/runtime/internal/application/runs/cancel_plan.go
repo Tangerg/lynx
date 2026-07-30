@@ -2,6 +2,7 @@ package runs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -31,6 +32,8 @@ type cancellationPlan struct {
 	turn                 execution.TurnRef
 	pending              interrupts.Pending
 	hasPending           bool
+	spawningItem         transcript.Item
+	hasSpawningItem      bool
 	completePostorderIDs []string
 }
 
@@ -181,7 +184,72 @@ func (c *Coordinator) cancellationPlanFor(
 	if err != nil {
 		return cancellationPlan{}, liveSegment{}, false, err
 	}
+	if plan.treeState == execution.Interrupted && plan.target.run.Lineage().IsChild() {
+		if c.items == nil {
+			return cancellationPlan{}, liveSegment{}, false, errors.New(
+				"runs: transcript item projection is required for waiting child cancellation",
+			)
+		}
+		item, found, err := c.items.Item(ctx, plan.target.run.SpawnedByItemID)
+		if err != nil {
+			return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
+				"runs: read spawning Item %q: %w",
+				plan.target.run.SpawnedByItemID,
+				err,
+			)
+		}
+		if !found {
+			return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
+				"runs: waiting child Run %q spawning Item %q is missing",
+				plan.target.run.ID,
+				plan.target.run.SpawnedByItemID,
+			)
+		}
+		if err := validateWaitingCancellationSpawningItem(plan, item); err != nil {
+			return cancellationPlan{}, liveSegment{}, false, err
+		}
+		plan.spawningItem = item
+		plan.hasSpawningItem = true
+	}
 	return plan, live, liveFound, nil
+}
+
+func validateWaitingCancellationSpawningItem(plan cancellationPlan, item transcript.Item) error {
+	switch {
+	case item.ID != plan.target.run.SpawnedByItemID:
+		return fmt.Errorf(
+			"runs: waiting child Run %q resolved spawning Item %q, want %q",
+			plan.target.run.ID,
+			item.ID,
+			plan.target.run.SpawnedByItemID,
+		)
+	case item.SessionID != plan.root.run.SessionID:
+		return fmt.Errorf(
+			"runs: spawning Item %q belongs to Session %q, want %q",
+			item.ID,
+			item.SessionID,
+			plan.root.run.SessionID,
+		)
+	case item.RunID != plan.target.run.ParentRunID:
+		return fmt.Errorf(
+			"runs: spawning Item %q belongs to Run %q, want parent Run %q",
+			item.ID,
+			item.RunID,
+			plan.target.run.ParentRunID,
+		)
+	case item.Kind != transcript.ToolCall || item.Tool == nil:
+		return fmt.Errorf("runs: spawning Item %q is not a tool call", item.ID)
+	case item.Status != transcript.ItemIncomplete:
+		return fmt.Errorf(
+			"runs: spawning Item %q is in status %d, want incomplete",
+			item.ID,
+			item.Status,
+		)
+	case item.Error != nil:
+		return fmt.Errorf("runs: spawning Item %q already carries a problem", item.ID)
+	default:
+		return nil
+	}
 }
 
 func validateCancellationLiveRoot(live liveSegment, root transcript.Run) error {

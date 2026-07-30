@@ -95,6 +95,9 @@ func (r *reducer) toolStart(e ToolCallStart) ([]RunEvent, error) {
 	if err != nil {
 		return nil, fmt.Errorf("tool %q arguments: %w", e.ToolName, err)
 	}
+	if err := r.resume.rejectCommittedToolStart(e.CallID, e.ToolName, arguments); err != nil {
+		return nil, err
+	}
 	out := r.closeStreaming()
 	r.toolOrder++
 	// The step number previews the Run's accounting, so it counts the same thing
@@ -166,6 +169,9 @@ func (r *reducer) spawningItem(sourceCallID string) (transcript.Item, error) {
 func (r *reducer) toolEnd(e ToolCallEnd) ([]RunEvent, error) {
 	ref, ok := r.tools[e.CallID]
 	if !ok {
+		if consumed, err := r.resume.consumeCommittedTool(e); consumed {
+			return nil, err
+		}
 		return nil, fmt.Errorf("tool call %q ended without an open start", e.CallID)
 	}
 	if ref.end != nil {

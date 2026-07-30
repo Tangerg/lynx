@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -87,6 +88,131 @@ func (s *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) 
 		}
 		return nil
 	})
+}
+
+// Item resolves one durable transcript Item by its globally unique identity.
+// The returned value is the same fully hydrated projection as List/Page reads.
+func (s *TranscriptStore) Item(ctx context.Context, itemID string) (transcript.Item, bool, error) {
+	if strings.TrimSpace(itemID) == "" {
+		return transcript.Item{}, false, errors.New("sqlite: history item id is required")
+	}
+	row := conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT session_id, run_id, item_id, created_at, payload, offload_id,
+		        (SELECT body FROM tool_result_blobs WHERE id = history_items.offload_id
+		          AND session_id = history_items.session_id AND item_id = history_items.item_id)
+		   FROM history_items
+		  WHERE item_id = ?`,
+		itemID,
+	)
+	item, err := scanTranscriptItem(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return transcript.Item{}, false, nil
+	}
+	if err != nil {
+		return transcript.Item{}, false, err
+	}
+	return item, true, nil
+}
+
+// ReplaceItem atomically replaces expected with replacement only while the
+// durable Item still equals the immutable value the application planned
+// against. This is the transcript-side compare-and-swap used by tree
+// transformations: a racing continuation can never have its newer completion
+// overwritten by a cancellation built from an older parked projection.
+func (s *TranscriptStore) ReplaceItem(
+	ctx context.Context,
+	expected transcript.Item,
+	replacement transcript.Item,
+) error {
+	if expected.ID == "" || replacement.ID == "" {
+		return errors.New("sqlite: replace history item requires both item ids")
+	}
+	if expected.ID != replacement.ID ||
+		expected.SessionID != replacement.SessionID ||
+		expected.RunID != replacement.RunID {
+		return fmt.Errorf("%w: replacement changes item %q ownership", transcript.ErrIdentityConflict, expected.ID)
+	}
+	if (expected.Tool != nil && expected.Tool.Offload != nil) ||
+		(replacement.Tool != nil && replacement.Tool.Offload != nil) {
+		return errors.New("sqlite: replace history item does not support offloaded tool results")
+	}
+	if err := expected.Validate(); err != nil {
+		return fmt.Errorf("sqlite: replace history item %q expected value: %w", expected.ID, err)
+	}
+	if err := replacement.Validate(); err != nil {
+		return fmt.Errorf("sqlite: replace history item %q replacement: %w", replacement.ID, err)
+	}
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		current, found, err := s.Item(ctx, expected.ID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return fmt.Errorf("sqlite: replace history item %q: not found", expected.ID)
+		}
+		if !reflect.DeepEqual(current, expected) {
+			return fmt.Errorf(
+				"%w: item %q changed after the application prepared its replacement",
+				transcript.ErrIdentityConflict,
+				expected.ID,
+			)
+		}
+		return s.AppendItem(ctx, replacement)
+	})
+}
+
+func scanTranscriptItem(row scanRow) (transcript.Item, error) {
+	var (
+		sessionID    string
+		runID        string
+		itemID       string
+		payload      string
+		rawOffloadID string
+		offloaded    sql.NullString
+		createdAt    int64
+	)
+	if err := row.Scan(
+		&sessionID,
+		&runID,
+		&itemID,
+		&createdAt,
+		&payload,
+		&rawOffloadID,
+		&offloaded,
+	); err != nil {
+		return transcript.Item{}, err
+	}
+	var item transcript.Item
+	if err := json.Unmarshal([]byte(payload), &item); err != nil {
+		return transcript.Item{}, fmt.Errorf("sqlite: decode history item %q: %w", itemID, err)
+	}
+	item.SessionID = sessionID
+	item.RunID = runID
+	item.ID = itemID
+	item.CreatedAt = time.Unix(0, createdAt).UTC()
+	if rawOffloadID == "" {
+		return item, nil
+	}
+	id, err := offload.ParseID(rawOffloadID)
+	if err != nil {
+		return transcript.Item{}, fmt.Errorf("sqlite: decode history item %q offload: %w", itemID, err)
+	}
+	if item.Tool == nil {
+		return transcript.Item{}, fmt.Errorf("sqlite: history item %q has an offload identity but no tool invocation", itemID)
+	}
+	if item.Tool.Result == nil {
+		return transcript.Item{}, fmt.Errorf("sqlite: history item %q has an offload identity but no preview", itemID)
+	}
+	if _, ok := item.Tool.Result.String(); !ok {
+		return transcript.Item{}, fmt.Errorf("sqlite: history item %q has an offload identity but no preview string", itemID)
+	}
+	if !offloaded.Valid {
+		return transcript.Item{}, fmt.Errorf("sqlite: history item %q references missing tool result %q", itemID, id)
+	}
+	item.Tool.Offload = &offload.Ref{ID: id}
+	body := tool.StringResult(offloaded.String)
+	item.Tool.Result = &body
+	return item, nil
 }
 
 // indexForSearch write-through-indexes a conversation item for session_search,

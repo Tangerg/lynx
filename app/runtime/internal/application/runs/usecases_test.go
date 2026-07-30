@@ -95,24 +95,25 @@ func (f *fakeRunSessions) ApplyRunLost(_ context.Context, _ string, runID string
 }
 
 type fakeTurnControl struct {
-	validated     StartTurn
-	started       StartTurn
-	startTurn     execution.TurnRef
-	prepared      execution.TurnRef
-	prepareErr    error
-	rehydrated    execution.TurnRef
-	rehydrateReq  RehydrateTurn
-	rehydrateErr  error
-	resumeCheck   func()
-	activateCheck func()
-	activated     bool
-	resumed       bool
-	canceled      []execution.TurnRef
-	steered       []execution.TurnRef
-	steerInput    []transcript.ContentBlock
-	operations    *[]string
-	cancelErr     error
-	cancelSubtree func(execution.TurnRef, string) error
+	validated      StartTurn
+	started        StartTurn
+	startTurn      execution.TurnRef
+	prepared       execution.TurnRef
+	prepareErr     error
+	rehydrated     execution.TurnRef
+	rehydrateReq   RehydrateTurn
+	rehydrateErr   error
+	resumeCheck    func()
+	activateCheck  func()
+	activated      bool
+	resumed        bool
+	canceled       []execution.TurnRef
+	steered        []execution.TurnRef
+	steerInput     []transcript.ContentBlock
+	operations     *[]string
+	cancelErr      error
+	cancelSubtree  func(execution.TurnRef, string) error
+	prepareWaiting func(execution.TurnRef, string) (PreparedWaitingSubtreeCancellation, error)
 }
 
 type blockingOpeningEffects struct {
@@ -186,6 +187,17 @@ func (f *fakeTurnControl) CancelSubtree(_ context.Context, ref execution.TurnRef
 		return f.cancelSubtree(ref, processID)
 	}
 	return f.cancelErr
+}
+
+func (f *fakeTurnControl) PrepareWaitingSubtreeCancellation(
+	_ context.Context,
+	ref execution.TurnRef,
+	processID string,
+) (PreparedWaitingSubtreeCancellation, error) {
+	if f.prepareWaiting == nil {
+		return nil, errors.New("fake turn control: waiting subtree cancellation is not configured")
+	}
+	return f.prepareWaiting(ref, processID)
 }
 
 func (f *fakeTurnControl) Steer(_ context.Context, ref execution.TurnRef, input []transcript.ContentBlock) error {

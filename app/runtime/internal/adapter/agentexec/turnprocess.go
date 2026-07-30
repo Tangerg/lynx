@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -89,6 +90,29 @@ type TurnProcess interface {
 	// deletion. Calling Discard on a non-terminal process fails before storage
 	// is touched.
 	Discard(ctx context.Context) error
+}
+
+// WaitingSubtreePreparer is the optional mutation capability implemented by
+// the real Agent runtime process. Keeping it separate from TurnProcess lets
+// ordinary execution tests and alternate executors implement only the lifecycle
+// surface they actually support.
+type WaitingSubtreePreparer interface {
+	PrepareWaitingSubtreeCancellation(
+		ctx context.Context,
+		processID string,
+	) (PreparedWaitingSubtreeCancellation, error)
+}
+
+// PreparedWaitingSubtreeCancellation is the Agent-execution adapter's private
+// checkpoint mutation boundary. It deliberately exposes no FrameworkState or
+// storage representation to application/runs.
+type PreparedWaitingSubtreeCancellation interface {
+	CanceledProcessIDs() []string
+	PendingSuspensions() []PendingSuspension
+	PersistCheckpoint(ctx context.Context) error
+	Commit(ctx context.Context) error
+	Continue(ctx context.Context) error
+	Abort()
 }
 
 // turnProcess is the canonical [TurnProcess] backed by a real
@@ -186,6 +210,108 @@ func (p *turnProcess) CancelSubtree(ctx context.Context, processID string) error
 		return err
 	}
 	return p.owner.runtime.Kill(ctx, processID)
+}
+
+func (p *turnProcess) PrepareWaitingSubtreeCancellation(
+	ctx context.Context,
+	processID string,
+) (PreparedWaitingSubtreeCancellation, error) {
+	if p == nil || p.owner == nil || p.owner.runtime == nil || p.process == nil {
+		return nil, errors.New("agentexec: prepare waiting subtree cancellation: incomplete turn process")
+	}
+	if processID == "" {
+		return nil, errors.New("agentexec: prepare waiting subtree cancellation: target process id is required")
+	}
+	if processID == p.process.ID() {
+		return nil, fmt.Errorf(
+			"agentexec: prepare waiting subtree cancellation: target %q is the turn root",
+			processID,
+		)
+	}
+	prepared, err := p.owner.runtime.PrepareWaitingSubtreeCancellation(
+		ctx,
+		p.process.ID(),
+		processID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"agentexec: prepare waiting subtree cancellation for process %q: %w",
+			processID,
+			err,
+		)
+	}
+	return &preparedWaitingSubtreeCancellation{process: p, runtime: prepared}, nil
+}
+
+type preparedWaitingSubtreeCancellation struct {
+	process *turnProcess
+	runtime *runtime.PreparedWaitingSubtreeCancellation
+}
+
+func (prepared *preparedWaitingSubtreeCancellation) CanceledProcessIDs() []string {
+	if prepared == nil || prepared.runtime == nil {
+		return nil
+	}
+	return prepared.runtime.CanceledProcessIDs()
+}
+
+func (prepared *preparedWaitingSubtreeCancellation) PendingSuspensions() []PendingSuspension {
+	if prepared == nil || prepared.runtime == nil {
+		return nil
+	}
+	pending := prepared.runtime.PendingSuspensions()
+	out := make([]PendingSuspension, len(pending))
+	for index, boundary := range pending {
+		out[index] = PendingSuspension{
+			ProcessID:    boundary.ProcessID,
+			SuspensionID: boundary.SuspensionID,
+			Prompt:       append([]byte(nil), boundary.Prompt...),
+		}
+	}
+	return out
+}
+
+func (prepared *preparedWaitingSubtreeCancellation) PersistCheckpoint(ctx context.Context) error {
+	if prepared == nil || prepared.runtime == nil || prepared.process == nil {
+		return errors.New("agentexec: persist prepared waiting subtree cancellation: incomplete mutation")
+	}
+	return prepared.process.persistProcessTree(ctx, prepared.runtime.SnapshotTree())
+}
+
+func (prepared *preparedWaitingSubtreeCancellation) Commit(ctx context.Context) error {
+	if prepared == nil || prepared.runtime == nil {
+		return errors.New("agentexec: commit prepared waiting subtree cancellation: incomplete mutation")
+	}
+	return prepared.runtime.Commit(ctx)
+}
+
+func (prepared *preparedWaitingSubtreeCancellation) Continue(ctx context.Context) error {
+	if prepared == nil || prepared.process == nil {
+		return errors.New("agentexec: continue prepared waiting subtree cancellation: incomplete mutation")
+	}
+	process := prepared.process
+	if process.segment != nil {
+		return fmt.Errorf(
+			"agentexec: continue prepared waiting subtree cancellation: process %q already has an active segment",
+			process.process.ID(),
+		)
+	}
+	segment, err := process.owner.runtime.ContinueAsync(ctx, process.process.ID())
+	if err != nil {
+		return fmt.Errorf(
+			"agentexec: continue prepared waiting subtree cancellation for process %q: %w",
+			process.process.ID(),
+			err,
+		)
+	}
+	process.segment = segment
+	return nil
+}
+
+func (prepared *preparedWaitingSubtreeCancellation) Abort() {
+	if prepared != nil && prepared.runtime != nil {
+		prepared.runtime.Abort()
+	}
 }
 
 func (p *turnProcess) requireDescendant(target *runtime.Process) error {
@@ -289,6 +415,18 @@ func (p *turnProcess) Resume(ctx context.Context, answers []SuspensionAnswer) er
 }
 
 func (p *turnProcess) resumeNext(ctx context.Context) error {
+	// A waiting-tree transformation may have made one framework-owned boundary
+	// internally ready ahead of the external answer set. Advance it first,
+	// without fabricating a Resume event or consuming a human response.
+	segment, continueErr := p.owner.runtime.ContinueAsync(ctx, p.process.ID())
+	if continueErr == nil {
+		p.segment = segment
+		return nil
+	}
+	if !errors.Is(continueErr, interaction.ErrSuspensionStale) {
+		return continueErr
+	}
+
 	pending, err := p.PendingSuspensions(ctx)
 	if err != nil {
 		return err
@@ -311,7 +449,7 @@ func (p *turnProcess) resumeNext(ctx context.Context) error {
 	if parked == nil {
 		return fmt.Errorf("agentexec: resume process %q: root has no promoted suspension", p.process.ID())
 	}
-	segment, err := p.owner.runtime.ResumeAsync(ctx, p.runCtx, p.process.ID(), parked.ID, response)
+	segment, err = p.owner.runtime.ResumeAsync(ctx, p.runCtx, p.process.ID(), parked.ID, response)
 	if err != nil {
 		return err
 	}
@@ -383,6 +521,16 @@ func (p *turnProcess) persistWaitingCheckpoint(status core.ProcessStatus) error 
 	}
 	if err := runtime.ValidateResumableSnapshot(root); err != nil {
 		return fmt.Errorf("agentexec: validate waiting checkpoint: %w", err)
+	}
+	return p.persistProcessTree(ctx, tree)
+}
+
+func (p *turnProcess) persistProcessTree(
+	ctx context.Context,
+	tree core.ProcessSnapshotTree,
+) error {
+	if p == nil || p.process == nil || p.owner == nil || p.owner.processStore == nil {
+		return errors.New("agentexec: persist process tree: incomplete turn process")
 	}
 	if p.usage == nil {
 		return errors.New("agentexec: persist process tree: usage ledger is missing")

@@ -389,6 +389,61 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 	}
 }
 
+func TestTranscriptStoreReplaceItemUsesExactOptimisticSnapshot(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lyra.db")
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store := sqlite.NewTranscriptStore(db)
+	now := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
+	original := transcript.Item{
+		SessionID: "ses_a",
+		RunID:     "run_1",
+		ID:        "item_child",
+		CreatedAt: now,
+		Status:    transcript.ItemIncomplete,
+		Kind:      transcript.ToolCall,
+		Tool:      &transcript.ToolInvocation{Name: "task", Arguments: tool.Arguments{}},
+	}
+	if err := store.AppendItem(t.Context(), original); err != nil {
+		t.Fatalf("seed Item: %v", err)
+	}
+	problem := transcript.Problem{
+		Kind:   transcript.ChildRunCanceledProblem,
+		Scope:  transcript.ToolProblem,
+		Detail: "stop delegated branch",
+	}
+	replacement := original
+	replacement.Error = &problem
+	if err := store.ReplaceItem(t.Context(), original, replacement); err != nil {
+		t.Fatalf("ReplaceItem: %v", err)
+	}
+	stored, found, err := store.Item(t.Context(), original.ID)
+	if err != nil || !found {
+		t.Fatalf("Item after replacement found=%t err=%v", found, err)
+	}
+	if stored.Error == nil || stored.Error.Kind != transcript.ChildRunCanceledProblem {
+		t.Fatalf("replaced Item = %+v, want child_run_canceled", stored)
+	}
+
+	staleReplacement := replacement
+	staleReplacement.Error = &transcript.Problem{
+		Kind:   transcript.ChildRunCanceledProblem,
+		Scope:  transcript.ToolProblem,
+		Detail: "overwrite newer result",
+	}
+	err = store.ReplaceItem(t.Context(), original, staleReplacement)
+	if !errors.Is(err, transcript.ErrIdentityConflict) {
+		t.Fatalf("stale ReplaceItem error = %v, want ErrIdentityConflict", err)
+	}
+	stored, found, err = store.Item(t.Context(), original.ID)
+	if err != nil || !found || stored.Error == nil || stored.Error.Detail != problem.Detail {
+		t.Fatalf("Item after stale replacement = %+v found=%t err=%v", stored, found, err)
+	}
+}
+
 func TestTranscriptStoreKeepsOffloadRelationshipsImmutableAndOneToOne(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "lyra.db")
 	db, err := sqlite.Open(path)

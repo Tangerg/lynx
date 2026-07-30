@@ -155,6 +155,10 @@ const (
 	turnRunning
 	turnParked
 	turnResuming
+	// turnMutating is a parked tree claimed by a prepared application
+	// transaction. No Resume or second cancellation may enter until that owner
+	// commits or aborts the checkpoint replacement.
+	turnMutating
 	turnRestoring
 	// turnCancelDriven means a start/run/resume owner will publish the terminal.
 	turnCancelDriven
@@ -212,6 +216,9 @@ func (st *turnState) requestCancellation() cancellationAction {
 		return cancelProcess
 	case turnStarting, turnRunning, turnResuming:
 		st.setPhaseLocked(turnCancelDriven)
+		return cancelObserve
+	case turnMutating:
+		st.setPhaseLocked(turnCancelIdle)
 		return cancelObserve
 	case turnCancelIdle:
 		if st.agentProcess != nil {
@@ -432,6 +439,51 @@ func (st *turnState) claimPark() bool {
 		return false
 	}
 	st.setPhaseLocked(turnResuming)
+	return true
+}
+
+func (st *turnState) claimWaitingMutation() bool {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.phase != turnParked {
+		return false
+	}
+	st.setPhaseLocked(turnMutating)
+	return true
+}
+
+func (st *turnState) abortWaitingMutation() {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.phase != turnMutating {
+		return
+	}
+	if st.ctx.Err() != nil {
+		st.setPhaseLocked(turnCancelIdle)
+		return
+	}
+	st.setPhaseLocked(turnParked)
+}
+
+// commitWaitingMutation publishes the live disposition after the Agent runtime
+// mutation has committed. false means cancellation claimed the turn while the
+// application transaction was in flight; that owner remains authoritative.
+func (st *turnState) commitWaitingMutation(continues bool) bool {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.phase != turnMutating {
+		return false
+	}
+	if st.ctx.Err() != nil {
+		st.setPhaseLocked(turnCancelIdle)
+		return false
+	}
+	if continues {
+		st.segmentStartedAt = time.Now()
+		st.setPhaseLocked(turnRunning)
+	} else {
+		st.setPhaseLocked(turnParked)
+	}
 	return true
 }
 

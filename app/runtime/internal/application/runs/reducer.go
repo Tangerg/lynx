@@ -63,7 +63,7 @@ type reducerConfig struct {
 	// every Run record this reducer commits reports the contract the Run was
 	// admitted under, including the records a continuation writes.
 	ProtocolProfile execution.RunProtocolProfile
-	Pending         *interrupts.Pending
+	Continuation    *treeContinuation
 	Now             func() time.Time
 	CancelReason    func() string
 }
@@ -127,8 +127,8 @@ func newReducer(cfg reducerConfig) *reducer {
 	// state so a caller reusing its command buffer cannot rewrite emitted facts.
 	cfg.UserInput = slices.Clone(cfg.UserInput)
 	var resume *resumeBinding
-	if cfg.Pending != nil {
-		resume = resumeBindingFrom(*cfg.Pending, cfg.RunID)
+	if cfg.Continuation != nil {
+		resume = resumeBindingFrom(*cfg.Continuation, cfg.RunID)
 	}
 	return &reducer{
 		cfg: cfg, resume: resume, userInput: cfg.UserInput, step: cfg.Metrics.Steps,

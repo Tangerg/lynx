@@ -13,6 +13,7 @@ package runsegment
 import (
 	"context"
 	"slices"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -61,6 +62,10 @@ type TranscriptStore interface {
 	AppendItem(ctx context.Context, it transcript.Item) error
 }
 
+type ItemReplacer interface {
+	ReplaceItem(ctx context.Context, expected transcript.Item, replacement transcript.Item) error
+}
+
 type ToolResultStore interface {
 	Bind(ctx context.Context, sessionID, itemID, preview string, ref offload.Ref) error
 	Discard(ctx context.Context, sessionID string, ref offload.Ref) error
@@ -75,7 +80,7 @@ type ToolResultStore interface {
 // sqlite RunStore satisfies it.
 type RunWriter interface {
 	Admit(ctx context.Context, draft execution.RunDraft) error
-	Resume(ctx context.Context, sessionID string, draft execution.RunResumeDraft) error
+	Resume(ctx context.Context, sessionID string, draft execution.RunResumeDraft, resumedAt time.Time) error
 	Suspend(ctx context.Context, run transcript.Run) error
 	Terminalize(ctx context.Context, run transcript.Run) error
 }
@@ -119,6 +124,7 @@ type Config struct {
 	ScheduleFirings    ScheduleFiringStore
 	GoalTurns          GoalTurnStore
 	Transcript         TranscriptStore
+	ItemReplacer       ItemReplacer
 	ToolResults        ToolResultStore
 	Messages           MessageCounter
 	Titles             TitleGenerator
@@ -137,6 +143,7 @@ type Effects struct {
 	scheduleFirings ScheduleFiringStore
 	goalTurns       GoalTurnStore
 	transcript      TranscriptStore
+	itemReplacer    ItemReplacer
 	toolResults     ToolResultStore
 	messages        MessageCounter
 	titles          TitleGenerator
@@ -159,6 +166,7 @@ func New(cfg Config) *Effects {
 		scheduleFirings: cfg.ScheduleFirings,
 		goalTurns:       cfg.GoalTurns,
 		transcript:      cfg.Transcript,
+		itemReplacer:    cfg.ItemReplacer,
 		toolResults:     cfg.ToolResults,
 		messages:        cfg.Messages,
 		titles:          cfg.Titles,

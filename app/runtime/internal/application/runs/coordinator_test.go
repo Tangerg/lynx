@@ -18,6 +18,26 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
+func mustTreeContinuation(t *testing.T, pending interrupts.Pending) *treeContinuation {
+	t.Helper()
+	continuation, err := treeContinuationFromPending(pending)
+	if err != nil {
+		t.Fatalf("tree continuation: %v", err)
+	}
+	return continuation
+}
+
+func testTreeContinuation(pending interrupts.Pending) *treeContinuation {
+	return &treeContinuation{
+		rootRunID:     pending.RootRunID,
+		sessionID:     pending.SessionID,
+		turnID:        pending.TurnID,
+		interrupts:    slices.Clone(pending.Interrupts),
+		continuations: slices.Clone(pending.Continuations),
+		profile:       pending.ProtocolProfile,
+	}
+}
+
 // These fakes exercise the application-owned reducer and journal. Delivery
 // protocol values deliberately do not appear here.
 type fakeExecutor struct {
@@ -201,6 +221,9 @@ type fakeEffects struct {
 	commits         []EventCommit
 	openings        []OpeningCommit
 	barriers        []TreeBarrierCommit
+	waitingCancels  []WaitingSubtreeCancellationCommit
+	waitingResult   WaitingSubtreeCancellationResult
+	waitingErr      error
 	finishes        []Finish
 	nudges          int
 	openingErr      error
@@ -293,6 +316,19 @@ func (e *fakeEffects) CommitTreeBarrier(ctx context.Context, barrier TreeBarrier
 	e.barriers = append(e.barriers, barrier)
 	e.commits = append(e.commits, barrier.Runs...)
 	return nil
+}
+
+func (e *fakeEffects) CommitWaitingSubtreeCancellation(
+	_ context.Context,
+	commit WaitingSubtreeCancellationCommit,
+) (WaitingSubtreeCancellationResult, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.waitingErr != nil {
+		return WaitingSubtreeCancellationResult{}, e.waitingErr
+	}
+	e.waitingCancels = append(e.waitingCancels, commit)
+	return e.waitingResult, nil
 }
 
 func (e *fakeEffects) Nudge(string, []string) {
@@ -582,7 +618,7 @@ func TestCoordinatorResumeCommitsBeforeActivation(t *testing.T) {
 	spec := testSegment()
 	spec.SegmentID = "seg_2"
 	pending := testPendingInterrupt("item_1", "process_root", spec.CreatedAt)
-	spec.Pending = &pending
+	spec.Continuation = mustTreeContinuation(t, pending)
 	activatedAfterOpening := false
 	spec.Activate = func(context.Context) error {
 		activatedAfterOpening = effects.opening().Resume != nil
@@ -631,7 +667,7 @@ func TestCoordinatorResumesCompleteRunTreeInOneCanonicalOpening(t *testing.T) {
 	spec := testSegment()
 	spec.SegmentID = "seg_root_resumed"
 	pending := resumedTreePending(spec.CreatedAt)
-	spec.Pending = &pending
+	spec.Continuation = mustTreeContinuation(t, pending)
 
 	stream, err := coordinator.openSegment(t.Context(), spec)
 	if err != nil {
@@ -789,7 +825,7 @@ func TestCoordinatorTreeActivationFailureTerminalizesInCanonicalPostorder(t *tes
 	spec := testSegment()
 	spec.SegmentID = "seg_root_resumed"
 	pending := resumedTreePending(spec.CreatedAt)
-	spec.Pending = &pending
+	spec.Continuation = mustTreeContinuation(t, pending)
 	spec.Activate = func(context.Context) error { return errors.New("resume failed") }
 
 	stream, err := coordinator.openSegment(t.Context(), spec)

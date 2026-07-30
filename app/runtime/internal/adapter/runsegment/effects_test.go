@@ -244,6 +244,7 @@ func TestCommitOpeningConsumesInterruptAndResumes(t *testing.T) {
 	resume := execution.TreeResumeDraft{
 		RootRunID: "run_1",
 		SessionID: "ses_1",
+		ResumedAt: now,
 		Runs:      []execution.RunResumeDraft{{RunID: "run_1", SegmentID: "seg_next"}},
 	}
 
@@ -278,8 +279,10 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 		runCreatedAt, barrierCreatedAt,
 	)
 	pending.Continuations[0].DrainedTools = []interrupts.DrainedTool{{
-		ItemID: "tool_1",
-		Name:   "ask_user",
+		ItemID:    "tool_1",
+		CallID:    "call_1",
+		Name:      "ask_user",
+		Arguments: "{}",
 	}}
 
 	err := effects.CommitTreeBarrier(context.Background(), runs.TreeBarrierCommit{
@@ -574,7 +577,7 @@ func (r *fakeRunState) Admit(_ context.Context, draft execution.RunDraft) error 
 	return nil
 }
 
-func (r *fakeRunState) Resume(_ context.Context, sessionID string, _ execution.RunResumeDraft) error {
+func (r *fakeRunState) Resume(_ context.Context, sessionID string, _ execution.RunResumeDraft, _ time.Time) error {
 	r.resumed = append(r.resumed, sessionID)
 	return nil
 }

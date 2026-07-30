@@ -310,6 +310,18 @@ func (s stubRuntime) CancelSubtree(
 	return turn.NewExecutor(s.turnDispatcher()).CancelSubtree(ctx, ref, processID)
 }
 
+func (s stubRuntime) PrepareWaitingSubtreeCancellation(
+	ctx context.Context,
+	ref execution.TurnRef,
+	processID string,
+) (runs.PreparedWaitingSubtreeCancellation, error) {
+	return turn.NewExecutor(s.turnDispatcher()).PrepareWaitingSubtreeCancellation(
+		ctx,
+		ref,
+		processID,
+	)
+}
+
 func (s stubRuntime) Steer(ctx context.Context, ref execution.TurnRef, input []transcript.ContentBlock) error {
 	return turn.NewExecutor(s.turnDispatcher()).Steer(ctx, ref, input)
 }
@@ -607,10 +619,17 @@ func (s stubRuntime) runWriter() runsegment.RunWriter {
 
 type stubRunState struct{}
 
-func (stubRunState) Admit(context.Context, execution.RunDraft) error                { return nil }
-func (stubRunState) Resume(context.Context, string, execution.RunResumeDraft) error { return nil }
-func (stubRunState) Suspend(context.Context, transcript.Run) error                  { return nil }
-func (stubRunState) Terminalize(context.Context, transcript.Run) error              { return nil }
+func (stubRunState) Admit(context.Context, execution.RunDraft) error { return nil }
+func (stubRunState) Resume(
+	context.Context,
+	string,
+	execution.RunResumeDraft,
+	time.Time,
+) error {
+	return nil
+}
+func (stubRunState) Suspend(context.Context, transcript.Run) error     { return nil }
+func (stubRunState) Terminalize(context.Context, transcript.Run) error { return nil }
 
 // ForgetSession is the no-op the session-delete / rollback / purge cascades call
 // (via the lifecycle coordinator) to release a removed session's process-local

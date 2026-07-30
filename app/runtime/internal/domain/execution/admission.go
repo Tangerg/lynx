@@ -94,6 +94,10 @@ type RunResumeDraft struct {
 type TreeResumeDraft struct {
 	RootRunID string
 	SessionID string
+	// ResumedAt is the single tree-opening timestamp used by every Run row.
+	// Recording it on the draft lets the application return the exact committed
+	// root snapshot instead of approximating a store-owned clock.
+	ResumedAt time.Time
 	Runs      []RunResumeDraft
 }
 
@@ -106,6 +110,8 @@ func (draft TreeResumeDraft) Validate() error {
 		return errors.New("execution: tree resume root run id is required")
 	case strings.TrimSpace(draft.SessionID) == "":
 		return errors.New("execution: tree resume session id is required")
+	case draft.ResumedAt.IsZero():
+		return errors.New("execution: tree resume time is required")
 	case len(draft.Runs) == 0:
 		return errors.New("execution: tree resume has no Runs")
 	}

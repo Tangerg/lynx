@@ -42,6 +42,9 @@ type Coordinator struct {
 	// been replaced — and only the durable projection knows: the live registry
 	// holds running segments, so every one of those looks identical there.
 	runs RunProjection
+	// items resolves the exact parent tool projection a waiting child
+	// cancellation replaces.
+	items ItemProjection
 	// epoch identifies this Coordinator's event streams. Every cursor it mints
 	// carries it, so a cursor from a previous process names a buffer that no
 	// longer exists instead of resolving against a live one. It is minted once
@@ -67,6 +70,7 @@ type Dependencies struct {
 	Sessions   SessionLifecycle
 	Effects    Effects
 	Runs       RunProjection
+	Items      ItemProjection
 	Admissions *admission.Gate
 	Isolation  IsolationProvider // nil disables isolated sessions (their start is refused)
 	Now        func() time.Time
@@ -94,6 +98,7 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 		sessions:     deps.Sessions,
 		effects:      deps.Effects,
 		runs:         deps.Runs,
+		items:        deps.Items,
 		isolation:    deps.Isolation,
 		now:          deps.Now,
 		newRunID:     deps.NewRunID,
@@ -122,7 +127,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 	if c.effects == nil {
 		return nil, errors.New("runs: effects are required")
 	}
-	resume := spec.Pending != nil
+	resume := spec.Continuation != nil
 	taskCtx, release, ok := c.tasks.Attach(reqCtx)
 	if !ok {
 		if !resume {
@@ -230,10 +235,11 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 		return nil, fmt.Errorf("runs: order opening tree: %w", err)
 	}
 	opening := OpeningCommit{}
-	if spec.Pending != nil {
+	if spec.Continuation != nil {
 		opening.Resume = &execution.TreeResumeDraft{
 			RootRunID: spec.RunID,
 			SessionID: spec.SessionID,
+			ResumedAt: c.now().UTC(),
 			Runs:      make([]execution.RunResumeDraft, 0, len(ordered)),
 		}
 	} else {
@@ -284,7 +290,11 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 	// An opening may carry no item commits at all — a resumed segment that only
 	// delivers an approval has nothing to append. Its durable projection is the
 	// admission or resume above, which is what makes the Run exist.
-	if err := c.effects.CommitOpening(ctx, opening); err != nil {
+	commitOpening := c.effects.CommitOpening
+	if spec.CommitOpening != nil {
+		commitOpening = spec.CommitOpening
+	}
+	if err := commitOpening(ctx, opening); err != nil {
 		return nil, err
 	}
 	return openings, nil

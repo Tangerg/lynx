@@ -30,6 +30,14 @@ type executorDispatcher interface {
 	CancelSubtree(context.Context, TurnHandle, string) error
 }
 
+type waitingSubtreeDispatcher interface {
+	PrepareWaitingSubtreeCancellation(
+		context.Context,
+		TurnHandle,
+		string,
+	) (runs.PreparedWaitingSubtreeCancellation, error)
+}
+
 // Executor adapts a turn dispatcher to the application's run executor port
 // (application/runs.SegmentExecutor): it drives, observes, and cancels the agent turn
 // backing a run segment. The application holds the run lifecycle and drives
@@ -69,6 +77,26 @@ func (e *Executor) CancelSubtree(
 	processID string,
 ) error {
 	return mapControlError(e.dispatcher.CancelSubtree(ctx, concreteHandle(ref), processID))
+}
+
+func (e *Executor) PrepareWaitingSubtreeCancellation(
+	ctx context.Context,
+	ref execution.TurnRef,
+	processID string,
+) (runs.PreparedWaitingSubtreeCancellation, error) {
+	dispatcher, ok := e.dispatcher.(waitingSubtreeDispatcher)
+	if !ok {
+		return nil, errors.New("turn executor: waiting subtree cancellation is unavailable")
+	}
+	prepared, err := dispatcher.PrepareWaitingSubtreeCancellation(
+		ctx,
+		concreteHandle(ref),
+		processID,
+	)
+	if err != nil {
+		return nil, mapControlError(err)
+	}
+	return prepared, nil
 }
 
 // ValidateStart applies application-owned turn invariants plus the adapter's
