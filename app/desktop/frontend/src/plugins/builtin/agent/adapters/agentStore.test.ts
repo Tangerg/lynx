@@ -7,8 +7,9 @@
 //     a question answer does NOT (questions have no timeline counterpart)
 
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Item, RunEvent, SegmentOutcome, StreamEvent } from "@/rpc";
+import type { Item, RunEvent, RunRef, SegmentOutcome, StreamEvent } from "@/rpc";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
+import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import { useAgentStore } from "./agentStore";
 import { selectCurrentRootRun } from "../application/view/runTree";
 
@@ -53,7 +54,7 @@ const fold = (event: StreamEvent): RunEvent => {
 // Drive the store to a state where `itemId` is an open interrupt of `kind`.
 function seedInterrupt(kind: "approval" | "question", itemId: string): void {
   const store = useAgentStore.getState();
-  store.resetSession(SID);
+  store.ensureSession(SID);
   store.applyRunEvents(
     SID,
     [
@@ -106,18 +107,36 @@ function seedInterrupt(kind: "approval" | "question", itemId: string): void {
   );
 }
 const started = (i: Item): StreamEvent => ({ type: "item.started", item: i });
+const completed = (i: Item): StreamEvent => ({ type: "item.completed", item: i });
+const applyCompletedItems = (items: Item[]): void =>
+  useAgentStore.getState().applyRunEvents(
+    SID,
+    items.map((value) => fold(completed(value))),
+  );
+
+const runRef = (partial: Partial<RunRef> = {}): RunRef => ({
+  id: "run_1",
+  sessionId: SID,
+  status: "running",
+  activeSegmentId: "seg_run_1",
+  createdAt: "2026-06-03T00:00:00.000Z",
+  metrics: { steps: 0, activeDurationMs: 0 },
+  protocolProfile: { interruptTypes: [], requiredFeatures: [] },
+  ...partial,
+});
 
 const view = () => useAgentStore.getState().sessions[SID]!.view;
 
 beforeEach(async () => {
+  useAgentStore.getState().dropSession(SID);
   const { default: spec } = await import("@/plugins/builtin/agent/public/foldPlugin");
   await loadPlugin(spec);
 });
 
-describe("agentStore.cancelRun", () => {
-  it("settles a user-stopped run locally — running off, tokens kept, canceled on the timeline", () => {
+describe("agentStore.applyCancelResponse", () => {
+  it("merges the exact root RunRef committed by the runtime", () => {
     const store = useAgentStore.getState();
-    store.resetSession(SID);
+    store.ensureSession(SID);
     store.applyRunEvents(
       SID,
       [
@@ -130,18 +149,122 @@ describe("agentStore.cancelRun", () => {
     );
     expect(selectCurrentRootRun(view())?.status).toBe("running");
 
-    useAgentStore.getState().cancelRun(SID);
+    useAgentStore.getState().applyCancelResponse(SID, {
+      type: "root",
+      run: runRef({
+        status: "finished",
+        activeSegmentId: undefined,
+        outcome: { type: "canceled" },
+        finishedAt: "2026-06-03T00:00:02.000Z",
+        metrics: {
+          steps: 0,
+          activeDurationMs: 1,
+          usage: { inputTokens: 1000, outputTokens: 200 },
+        },
+      }),
+    });
 
     expect(selectCurrentRootRun(view())?.status).toBe("finished");
     expect(view().timeline.at(-1)).toMatchObject({ kind: "run-end", summary: "canceled" });
   });
 
-  it("is a no-op once the run has already settled (no state churn)", () => {
+  it("merges a child and its post-cancel root without inventing sibling lifecycle", () => {
     const store = useAgentStore.getState();
-    store.resetSession(SID);
-    const before = view(); // a fresh slice has no current root Run
-    useAgentStore.getState().cancelRun(SID);
-    expect(view()).toBe(before); // same reference — set() bailed
+    store.ensureSession(SID);
+    store.applyRunEvents(SID, [runStarted("run_1", SID), runStarted("run_sibling", SID)].map(fold));
+
+    store.applyCancelResponse(SID, {
+      type: "child",
+      run: runRef({
+        id: "run_child",
+        parentRunId: "run_1",
+        rootRunId: "run_1",
+        spawnedByItemId: "item_spawn",
+        status: "finished",
+        activeSegmentId: undefined,
+        outcome: { type: "canceled" },
+        finishedAt: "2026-06-03T00:00:02.000Z",
+      }),
+      rootRun: runRef({
+        activeSegmentId: "seg_resumed",
+      }),
+    });
+
+    expect(view().runsById.run_child).toMatchObject({
+      status: "finished",
+      outcome: { type: "canceled" },
+    });
+    expect(view().runsById.run_1).toMatchObject({
+      status: "running",
+      activeSegmentId: "seg_resumed",
+    });
+    expect(view().runsById.run_sibling).toMatchObject({ status: "running" });
+  });
+});
+
+describe("agentStore authoritative refresh", () => {
+  it("keeps the current view visible until a complete snapshot commits", () => {
+    const store = useAgentStore.getState();
+    store.ensureSession(SID);
+    store.applyRunEvents(SID, [fold(runStarted("run_1", SID))]);
+    const visible = view();
+
+    const token = store.beginViewRefresh(SID, false)!;
+
+    expect(view()).toBe(visible);
+    expect(store.commitViewRefresh(SID, token, EMPTY_AGENT_SESSION_VIEW)).toBe(true);
+    expect(view()).toBe(EMPTY_AGENT_SESSION_VIEW);
+  });
+
+  it("rejects a snapshot when a live event changed the projection after the read began", () => {
+    const store = useAgentStore.getState();
+    store.ensureSession(SID);
+    const token = store.beginViewRefresh(SID, false)!;
+    store.applyRunEvents(SID, [fold(runStarted("run_live", SID))]);
+
+    expect(store.commitViewRefresh(SID, token, EMPTY_AGENT_SESSION_VIEW)).toBe(false);
+    expect(view().runsById.run_live).toMatchObject({ status: "running" });
+  });
+
+  it("lets the newest refresh supersede an older in-flight read", () => {
+    const store = useAgentStore.getState();
+    store.ensureSession(SID);
+    const older = store.beginViewRefresh(SID, false)!;
+    const newer = store.beginViewRefresh(SID, false)!;
+
+    expect(store.commitViewRefresh(SID, older, EMPTY_AGENT_SESSION_VIEW)).toBe(false);
+    expect(
+      store.commitViewRefresh(SID, newer, {
+        ...EMPTY_AGENT_SESSION_VIEW,
+        shared: { marker: "newest" },
+      }),
+    ).toBe(true);
+    expect(view().shared).toEqual({ marker: "newest" });
+  });
+
+  it("invalidates queued stream events for a history rewrite without clearing the view", () => {
+    const store = useAgentStore.getState();
+    store.ensureSession(SID);
+    store.applyRunEvents(SID, [fold(runStarted("run_1", SID))]);
+    const entry = useAgentStore.getState().sessions[SID]!;
+    const visible = entry.view;
+
+    store.beginViewRefresh(SID, true);
+
+    const refreshed = useAgentStore.getState().sessions[SID]!;
+    expect(refreshed.view).toBe(visible);
+    expect(refreshed.viewEpoch).toBe(entry.viewEpoch + 1);
+  });
+
+  it("does not erase a materialized view when the session driver remounts", () => {
+    const store = useAgentStore.getState();
+    store.ensureSession(SID);
+    store.applyRunEvents(SID, [fold(runStarted("run_1", SID))]);
+    const visible = view();
+
+    store.ensureSession(SID);
+
+    expect(view()).toBe(visible);
   });
 });
 
@@ -177,7 +300,7 @@ describe("agentStore.resolveInterrupt", () => {
 
   it("resolving one of several interrupts in an envelope keeps the siblings", () => {
     const store = useAgentStore.getState();
-    store.resetSession(SID);
+    store.ensureSession(SID);
     store.applyRunEvents(
       SID,
       [
@@ -233,7 +356,7 @@ describe("agentStore.resolveInterrupt", () => {
 
 describe("agentStore never resurrects a dropped session", () => {
   // Closing a session mid-stream: the prune subscriber drops the slice
-  // synchronously, but a late rAF flush / in-flight items.list / the unmount
+  // synchronously, but a late rAF flush / in-flight snapshot / the unmount
   // cleanup nulling send-stop all run afterwards. None may re-seed a ghost
   // entry (prune won't fire again for an id no longer in openSessionIds → leak).
   it("applyRunEvents on an absent session is a no-op (no ghost entry)", () => {
@@ -246,7 +369,7 @@ describe("agentStore never resurrects a dropped session", () => {
 
   it("unmount-cleanup setters don't resurrect a dropped slice", () => {
     const store = useAgentStore.getState();
-    store.resetSession(SID);
+    store.ensureSession(SID);
     expect(useAgentStore.getState().sessions[SID]).toBeDefined();
     store.dropSession(SID);
     // Order mirrors prod: prune drops the slice, THEN the effect cleanup runs.
@@ -260,7 +383,7 @@ describe("agentStore never resurrects a dropped session", () => {
 describe("agentStore.setCommandError", () => {
   it("surfaces a channel-a failure; clearProblem dismisses it", () => {
     const store = useAgentStore.getState();
-    store.resetSession(SID);
+    store.ensureSession(SID);
     store.setCommandError(SID, {
       message: "session not found",
       code: "session_not_found",
@@ -285,8 +408,8 @@ describe("agentStore.relabelMessage", () => {
 
   it("renames an optimistic placeholder to the server id", () => {
     const store = useAgentStore.getState();
-    store.resetSession(SID);
-    store.applyCompletedItems(SID, [userMsg("local-1")]);
+    store.ensureSession(SID);
+    applyCompletedItems([userMsg("local-1")]);
     expect(view().messages.map((m) => m.id)).toEqual(["local-1"]);
 
     useAgentStore.getState().relabelMessage(SID, "local-1", "item_real");
@@ -295,8 +418,8 @@ describe("agentStore.relabelMessage", () => {
 
   it("is a no-op when the target id already exists (streamed item won the race)", () => {
     const store = useAgentStore.getState();
-    store.resetSession(SID);
-    store.applyCompletedItems(SID, [userMsg("item_real"), userMsg("local-1")]);
+    store.ensureSession(SID);
+    applyCompletedItems([userMsg("item_real"), userMsg("local-1")]);
     expect(view().messages).toHaveLength(2);
 
     useAgentStore.getState().relabelMessage(SID, "local-1", "item_real");
@@ -316,8 +439,8 @@ describe("agentStore.dropMessage", () => {
 
   it("removes a single message by id (optimistic steer rollback)", () => {
     const store = useAgentStore.getState();
-    store.resetSession(SID);
-    store.applyCompletedItems(SID, [userMsg("item_real"), userMsg("local-steer-1")]);
+    store.ensureSession(SID);
+    applyCompletedItems([userMsg("item_real"), userMsg("local-steer-1")]);
     expect(view().messages.map((m) => m.id)).toEqual(["item_real", "local-steer-1"]);
 
     useAgentStore.getState().dropMessage(SID, "local-steer-1");
@@ -326,8 +449,8 @@ describe("agentStore.dropMessage", () => {
 
   it("is a no-op for an unknown id", () => {
     const store = useAgentStore.getState();
-    store.resetSession(SID);
-    store.applyCompletedItems(SID, [userMsg("item_real")]);
+    store.ensureSession(SID);
+    applyCompletedItems([userMsg("item_real")]);
     const before = view().messages;
     useAgentStore.getState().dropMessage(SID, "nope");
     expect(view().messages).toBe(before); // same reference — no churn
@@ -345,16 +468,16 @@ describe("appendUserMessage reconciles an image-only optimistic bubble", () => {
 
   it("upgrades the local-* image bubble in place instead of appending a duplicate", () => {
     const store = useAgentStore.getState();
-    store.resetSession(SID);
+    store.ensureSession(SID);
     // Optimistic image-only bubble: a local id + an image block, NO text block.
-    store.applyCompletedItems(SID, [imageUserMsg("local-1")]);
+    applyCompletedItems([imageUserMsg("local-1")]);
     expect(view().messages.map((m) => m.id)).toEqual(["local-1"]);
 
     // Streamed server item (new id, same image-only content). Without a
     // userItemId relabel, the fold's content match must reconcile by upgrading
     // the placeholder id — not append a second bubble (regression: an absent
     // text block read as undefined !== "" and duplicated the image message).
-    store.applyCompletedItems(SID, [imageUserMsg("item_real")]);
+    applyCompletedItems([imageUserMsg("item_real")]);
     expect(view().messages.map((m) => m.id)).toEqual(["item_real"]);
   });
 });

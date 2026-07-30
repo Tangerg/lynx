@@ -46,8 +46,18 @@ export function useStopActiveAgentRun(): (() => void) | null {
 export function stopActiveAgentRun(): boolean {
   const sessionId = agentSessionState().getActiveSessionId();
   const entry = agentSessionView().getSession(sessionId);
-  if (!entry || selectCurrentRootRun(entry.view)?.status !== "running") return false;
-  entry.stop?.();
+  const runId = entry ? selectCurrentRootRun(entry.view)?.id : null;
+  return runId ? cancelAgentRun(runId) : false;
+}
+
+/** Cancel a root or descendant in the active session. The command is accepted
+ * only while that exact Run is non-terminal and a mounted driver owns it. */
+export function cancelAgentRun(runId: string): boolean {
+  const sessionId = agentSessionState().getActiveSessionId();
+  const entry = agentSessionView().getSession(sessionId);
+  const run = entry?.view.runsById[runId];
+  if (!entry?.cancelRun || !run || run.status === "finished") return false;
+  entry.cancelRun(runId);
   return true;
 }
 

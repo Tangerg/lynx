@@ -33,13 +33,15 @@ describe("workspaceInvalidations", () => {
     expect(workspaceInvalidations({ type: "runs.changed", sequence: 1 })).toEqual([
       "sessions",
       "sessionUsage",
+      "agentSessionProjection",
     ]);
     expect(workspaceInvalidations({ type: "interrupts.changed", sequence: 2 })).toEqual([
       "sessions",
+      "agentSessionProjection",
     ]);
     expect(workspaceInvalidations({ type: "goals.changed", sequence: 3 })).toEqual(["goal"]);
     expect(workspaceInvalidations({ type: "state.changed", sequence: 4 })).toEqual([
-      "sessionState",
+      "agentSessionProjection",
     ]);
   });
 });

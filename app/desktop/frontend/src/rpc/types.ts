@@ -96,6 +96,21 @@ export function errorDetail(data: unknown): string | undefined {
   return undefined;
 }
 
+/** Read a provider-requested retry delay without trusting RpcError.data. */
+export function errorRetryAfterSeconds(data: unknown): number | undefined {
+  if (data && typeof data === "object") {
+    const retryAfterSeconds = (data as { retryAfterSeconds?: unknown }).retryAfterSeconds;
+    if (
+      typeof retryAfterSeconds === "number" &&
+      Number.isInteger(retryAfterSeconds) &&
+      retryAfterSeconds >= 0
+    ) {
+      return retryAfterSeconds;
+    }
+  }
+  return undefined;
+}
+
 // Discriminators — used by transport layer to route inbound messages.
 export function isRequest(msg: RpcMessage): msg is RpcRequest {
   return "id" in msg && msg.id !== undefined && "method" in msg;

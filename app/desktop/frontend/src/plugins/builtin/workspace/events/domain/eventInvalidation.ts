@@ -1,5 +1,6 @@
 export type WorkspaceInvalidationTarget =
   | "all"
+  | "agentSessionProjection"
   | "diff"
   | "filesChanged"
   | "goal"
@@ -7,7 +8,6 @@ export type WorkspaceInvalidationTarget =
   | "mcpServers"
   | "mcpTools"
   | "schedules"
-  | "sessionState"
   | "sessionUsage"
   | "sessions"
   | "skills"
@@ -33,6 +33,7 @@ export type WorkspaceEventType =
 export interface WorkspaceEventLike {
   type: WorkspaceEventType;
   sequence: number;
+  sessionIds?: string[];
 }
 
 // Every runtime signal is an invalidation: it says a resource moved, and the reads it
@@ -60,16 +61,16 @@ export function workspaceInvalidations(ev: WorkspaceEventLike): WorkspaceInvalid
     case "runs.changed":
       // A run's position is what a session row reports as its status, and a run that
       // ended changed what the session has spent.
-      return ["sessions", "sessionUsage"];
+      return ["sessions", "sessionUsage", "agentSessionProjection"];
     case "interrupts.changed":
       // A session waiting on a person reads differently in the list than one working.
-      return ["sessions"];
+      return ["sessions", "agentSessionProjection"];
     case "goals.changed":
       // This is why the goal banner no longer polls: an autonomous loop moves a goal
       // between turns, and the signal says so as it happens.
       return ["goal"];
     case "state.changed":
-      return ["sessionState"];
+      return ["agentSessionProjection"];
     case "resync":
       // The signal names the topics that went stale, but a client that fell behind on
       // one may have fallen behind on more: this stream is lossy by design, so the

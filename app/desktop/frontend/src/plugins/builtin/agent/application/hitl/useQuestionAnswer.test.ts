@@ -12,13 +12,13 @@ import { useQuestionAnswer } from "./useQuestionAnswer";
 
 const SID = "ses_1";
 
-// resetSession seeds the slice before setResume — the store no longer
-// resurrects an absent session, so the binding must follow a reset (as
+// ensureSession seeds the slice before setResume — the store no longer
+// resurrects an absent session, so the binding must follow a mount (as
 // useAgentSession does at mount).
 function bindResume(impl?: (...args: unknown[]) => void) {
   const resume = impl ? vi.fn(impl) : vi.fn();
   useAgentSessionStore.setState({ activeSessionId: SID });
-  useAgentStore.getState().resetSession(SID);
+  useAgentStore.getState().ensureSession(SID);
   useAgentStore.getState().setResume(SID, resume);
   return resume;
 }

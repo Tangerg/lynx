@@ -1,20 +1,19 @@
 import type { AgentRunStartOptions } from "@/plugins/sdk/types";
-import type { Item, PendingInterruptSet, RunEvent, RunRef, StateSnapshot } from "@/rpc";
+import type { CancelRunResponse, RunEvent } from "@/rpc";
 import type { AgentInput } from "@/plugins/builtin/agent/domain/input";
-import type { ResumeFn } from "@/plugins/builtin/agent/application/ports/sessionView";
+import type {
+  AgentViewRefreshToken,
+  CancelRunFn,
+  ResumeFn,
+  SynchronizeFn,
+} from "@/plugins/builtin/agent/application/ports/sessionView";
 import type { AgentProblem, AgentSessionView, Message } from "@/plugins/sdk/types/agentSessionView";
 import { create } from "zustand";
 import { disposeOnHmr } from "@/lib/hmr";
-import {
-  reduceCompletedItem,
-  reduceRunEvent,
-} from "@/plugins/builtin/agent/application/fold/reducer";
-import { onStateSnapshot } from "@/plugins/builtin/agent/application/fold/stateHandlers";
-import { foldPendingInterruptSet } from "@/plugins/builtin/agent/application/fold/pendingInterruptSnapshot";
-import { foldRunSnapshot } from "@/plugins/builtin/agent/application/fold/runSnapshot";
+import { reduceRunEvent } from "@/plugins/builtin/agent/application/fold/reducer";
+import { foldCancelRunResponse } from "@/plugins/builtin/agent/application/fold/cancelResponse";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import {
-  cancelRunningRun,
   dismissVisibleProblem,
   dropMessage,
   relabelMessage,
@@ -29,14 +28,23 @@ export type AgentSendAction = ((input: AgentInput, options?: AgentRunStartOption
 
 interface SessionEntry {
   view: AgentSessionView;
-  /** Bumped by resetView (rollback re-hydration). The useAgentSession rAF
+  /** Bumped before an authoritative rewrite. The useAgentSession rAF
    *  batcher stamps its queue with the epoch it saw at enqueue time and
-   *  drops the batch if it changed — a flush scheduled before the reset
+   *  drops the batch if it changed — a flush scheduled before the replacement
    *  must not append the old run's tail events into the rebuilt view. */
   viewEpoch: number;
+  /** Changes after every material projection write. Authoritative refreshes
+   *  compare this revision before replacing the view, so a fetch started
+   *  before a user action or live event cannot overwrite it. */
+  viewRevision: number;
+  /** Latest refresh request for this session. A newer read supersedes an older
+   *  in-flight read even while the material view itself is unchanged. */
+  refreshSequence: number;
   stop: AgentStopAction;
   send: AgentSendAction;
   resume: ResumeFn;
+  synchronize: SynchronizeFn;
+  cancelRun: CancelRunFn;
 }
 
 interface AgentStore {
@@ -49,14 +57,20 @@ interface AgentStore {
    * instead of one per delta.
    */
   applyRunEvents: (sessionId: string, events: RunEvent[]) => void;
-  applyCompletedItems: (sessionId: string, items: Item[]) => void;
-  applyStateSnapshot: (sessionId: string, snapshot: StateSnapshot) => void;
-  applyPendingInterruptSets: (sessionId: string, snapshots: PendingInterruptSet[]) => void;
-  applyRunSnapshots: (sessionId: string, runs: RunRef[]) => void;
+  applyCancelResponse: (sessionId: string, response: CancelRunResponse) => void;
   appendLocalMessage: (sessionId: string, message: Message) => void;
-  /** Discard a session's state and start clean (e.g. on agent re-mount). */
-  resetSession: (sessionId: string) => void;
-  resetView: (sessionId: string) => void;
+  /** Create the mounted session slice if absent. Existing projection state is
+   *  retained while a new authoritative read is in flight. */
+  ensureSession: (sessionId: string) => void;
+  beginViewRefresh: (
+    sessionId: string,
+    invalidateQueuedRunEvents: boolean,
+  ) => AgentViewRefreshToken | null;
+  commitViewRefresh: (
+    sessionId: string,
+    token: AgentViewRefreshToken,
+    view: AgentSessionView,
+  ) => boolean;
   /**
    * Rename a message id (optimistic placeholder → server id). Used to
    * reconcile the optimistic user bubble with the run's `userItemId` the
@@ -77,22 +91,16 @@ interface AgentStore {
   setSend: (sessionId: string, fn: AgentSendAction) => void;
   /** Bind / unbind the imperative HITL resume action for a session. */
   setResume: (sessionId: string, fn: ResumeFn) => void;
+  /** Bind / unbind authoritative query + tail synchronization. */
+  setSynchronize: (sessionId: string, fn: SynchronizeFn) => void;
+  /** Bind / unbind committed root-or-child Run cancellation. */
+  setCancelRun: (sessionId: string, fn: CancelRunFn) => void;
   /** Dismiss the error banner for a session without resetting the rest. */
   clearProblem: (sessionId: string) => void;
   /** Surface a channel-a failure (a rejected runs.start / runs.resume, API.md
    *  §8.1) on the run-error banner — the stream never opened, so no
    *  segment.finished{error} will arrive to carry it. */
   setCommandError: (sessionId: string, error: AgentProblem | null) => void;
-  /**
-   * Locally settle a user-stopped run. `stop()` aborts the event stream, which
-   * closes the channel BEFORE the backend's segment.finished{canceled} can reach
-   * the fold — so flip `running` off here (and stamp a canceled timeline entry)
-   * or the view stays stuck "running": the status bar spins, the composer's
-   * Stop button stays latched, and useChatSend's `running` guard blocks the
-   * next send until a remount. Preserves the run's token/step readout (a
-   * synthetic segment.finished would zero it). No-op once the run has settled.
-   */
-  cancelRun: (sessionId: string) => void;
   /**
    * Optimistically settle a HITL block after its `runs.resume` is sent:
    * stamp the approval/question block (by interrupt itemId) + drop the
@@ -105,14 +113,18 @@ interface AgentStore {
 const emptyEntry = (): SessionEntry => ({
   view: EMPTY_AGENT_SESSION_VIEW,
   viewEpoch: 0,
+  viewRevision: 0,
+  refreshSequence: 0,
   stop: null,
   send: null,
   resume: null,
+  synchronize: null,
+  cancelRun: null,
 });
 
 // Patch an EXISTING session entry. Never resurrects a dropped slice:
-// resetSession (run once at mount) is the sole creator, so a write that can't
-// find its session — a late rAF flush, an in-flight items.list resolving, or
+// ensureSession (run once at mount) is the sole creator, so a write that can't
+// find its session — a late rAF flush, an in-flight snapshot resolving, or
 // the unmount cleanup nulling send/stop after the prune subscriber already
 // dropped the session — must no-op rather than re-seed a ghost entry that prune
 // will never collect again (it only fires on the next openSessionIds change).
@@ -135,7 +147,10 @@ function patchView(
   if (!prev) return sessions;
   const view = update(prev.view);
   if (view === prev.view) return sessions;
-  return patchSession(sessions, sessionId, { view });
+  return patchSession(sessions, sessionId, {
+    view,
+    viewRevision: prev.viewRevision + 1,
+  });
 }
 
 function patchSessionState(
@@ -156,37 +171,20 @@ export const useAgentStore = create<AgentStore>((set) => ({
       if (!prev) return s; // session torn down — drop the late batch
       let view = prev.view;
       for (const event of events) view = reduceRunEvent(view, event);
-      return { sessions: patchSession(s.sessions, sessionId, { view }) };
+      if (view === prev.view) return s;
+      return {
+        sessions: patchSession(s.sessions, sessionId, {
+          view,
+          viewRevision: prev.viewRevision + 1,
+        }),
+      };
     }),
-  applyCompletedItems: (sessionId, items) =>
-    set((s) => {
-      if (items.length === 0) return s;
-      const prev = s.sessions[sessionId];
-      if (!prev) return s;
-      let view = prev.view;
-      for (const item of items) view = reduceCompletedItem(view, item);
-      return { sessions: patchSession(s.sessions, sessionId, { view }) };
-    }),
-  applyStateSnapshot: (sessionId, snapshot) =>
-    set((s) => {
-      const sessions = patchView(s.sessions, sessionId, (view) => onStateSnapshot(view, snapshot));
-      return sessions === s.sessions ? s : { sessions };
-    }),
-  applyPendingInterruptSets: (sessionId, snapshots) =>
-    set((s) => {
-      if (snapshots.length === 0) return s;
-      const sessions = patchView(s.sessions, sessionId, (view) =>
-        snapshots.reduce(foldPendingInterruptSet, view),
+  applyCancelResponse: (sessionId, response) =>
+    set((state) => {
+      const sessions = patchView(state.sessions, sessionId, (view) =>
+        foldCancelRunResponse(view, response),
       );
-      return sessions === s.sessions ? s : { sessions };
-    }),
-  applyRunSnapshots: (sessionId, runs) =>
-    set((s) => {
-      if (runs.length === 0) return s;
-      const sessions = patchView(s.sessions, sessionId, (view) =>
-        runs.reduce(foldRunSnapshot, view),
-      );
-      return sessions === s.sessions ? s : { sessions };
+      return sessions === state.sessions ? state : { sessions };
     }),
   appendLocalMessage: (sessionId, message) =>
     set((s) => {
@@ -197,19 +195,48 @@ export const useAgentStore = create<AgentStore>((set) => ({
       );
       return sessions === s.sessions ? s : { sessions };
     }),
-  resetSession: (sessionId) =>
-    set((s) => ({ sessions: { ...s.sessions, [sessionId]: emptyEntry() } })),
-  // Reset ONLY the view, keeping the mounted session's send/stop/resume
-  // bindings — for external re-hydration (after sessions.rollback the server
-  // history shrank; the view rebuilds from items.list while the composer
-  // must keep working without a remount).
-  resetView: (sessionId) =>
-    set((s) =>
-      patchSessionState(s, sessionId, {
-        view: emptyEntry().view,
-        viewEpoch: (s.sessions[sessionId]?.viewEpoch ?? 0) + 1,
-      }),
+  ensureSession: (sessionId) =>
+    set((state) =>
+      state.sessions[sessionId]
+        ? state
+        : { sessions: { ...state.sessions, [sessionId]: emptyEntry() } },
     ),
+  beginViewRefresh: (sessionId, invalidateQueuedRunEvents) => {
+    let token: AgentViewRefreshToken | null = null;
+    set((state) => {
+      const entry = state.sessions[sessionId];
+      if (!entry) return state;
+      const requestSequence = entry.refreshSequence + 1;
+      token = {
+        requestSequence,
+        viewRevision: entry.viewRevision,
+      };
+      return patchSessionState(state, sessionId, {
+        refreshSequence: requestSequence,
+        ...(invalidateQueuedRunEvents ? { viewEpoch: entry.viewEpoch + 1 } : {}),
+      });
+    });
+    return token;
+  },
+  commitViewRefresh: (sessionId, token, view) => {
+    let committed = false;
+    set((state) => {
+      const entry = state.sessions[sessionId];
+      if (
+        !entry ||
+        entry.refreshSequence !== token.requestSequence ||
+        entry.viewRevision !== token.viewRevision
+      ) {
+        return state;
+      }
+      committed = true;
+      return patchSessionState(state, sessionId, {
+        view,
+        viewRevision: entry.viewRevision + 1,
+      });
+    });
+    return committed;
+  },
   relabelMessage: (sessionId, fromId, toId) =>
     set((s) => {
       const sessions = patchView(s.sessions, sessionId, (view) =>
@@ -232,6 +259,9 @@ export const useAgentStore = create<AgentStore>((set) => ({
   setStop: (sessionId, fn) => set((s) => patchSessionState(s, sessionId, { stop: fn })),
   setSend: (sessionId, fn) => set((s) => patchSessionState(s, sessionId, { send: fn })),
   setResume: (sessionId, fn) => set((s) => patchSessionState(s, sessionId, { resume: fn })),
+  setSynchronize: (sessionId, fn) =>
+    set((s) => patchSessionState(s, sessionId, { synchronize: fn })),
+  setCancelRun: (sessionId, fn) => set((s) => patchSessionState(s, sessionId, { cancelRun: fn })),
   clearProblem: (sessionId) =>
     set((s) => {
       const sessions = patchView(s.sessions, sessionId, dismissVisibleProblem);
@@ -240,11 +270,6 @@ export const useAgentStore = create<AgentStore>((set) => ({
   setCommandError: (sessionId, error) =>
     set((s) => {
       const sessions = patchView(s.sessions, sessionId, (view) => setCommandError(view, error));
-      return sessions === s.sessions ? s : { sessions };
-    }),
-  cancelRun: (sessionId) =>
-    set((s) => {
-      const sessions = patchView(s.sessions, sessionId, cancelRunningRun);
       return sessions === s.sessions ? s : { sessions };
     }),
   resolveInterrupt: (sessionId, itemId, settled) =>

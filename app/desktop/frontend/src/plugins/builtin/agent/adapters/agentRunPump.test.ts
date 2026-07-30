@@ -119,4 +119,53 @@ describe("agent run pump reattach", () => {
 
     expect(positions).toHaveLength(0);
   });
+
+  it("does not let an older pump clear a newer segment for the same run", async () => {
+    const pump = createAgentRunPump({
+      sessionId: "ses_1",
+      isCancelled: () => false,
+      readEpoch: () => 0,
+      applyEvents: vi.fn(),
+    });
+    const oldController = new AbortController();
+    const newController = new AbortController();
+    const oldSegment = asSegmentId("seg_old");
+    const newSegment = asSegmentId("seg_new");
+
+    const older = pump.pump(parkedStream(oldSegment, oldController.signal), oldController.signal);
+    await Promise.resolve();
+    const newer = pump.pump(parkedStream(newSegment, newController.signal), newController.signal);
+    await Promise.resolve();
+    expect(pump.isFollowing(RUN, newSegment)).toBe(true);
+
+    oldController.abort();
+    await older;
+    expect(pump.isFollowing(RUN, newSegment)).toBe(true);
+
+    newController.abort();
+    await newer;
+    expect(pump.isFollowing(RUN, newSegment)).toBe(false);
+  });
 });
+
+function parkedStream(segmentId: ReturnType<typeof asSegmentId>, signal: AbortSignal): RunStream {
+  return {
+    result: { runId: RUN, segmentId },
+    events: {
+      [Symbol.asyncIterator]() {
+        return {
+          async next(): Promise<IteratorResult<RunEvent>> {
+            await new Promise<never>((_, reject) => {
+              if (signal.aborted) {
+                reject(new Error("aborted"));
+                return;
+              }
+              signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+            });
+            return { done: true, value: undefined as never };
+          },
+        };
+      },
+    },
+  };
+}

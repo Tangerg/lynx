@@ -1,27 +1,24 @@
-import type { Item, LyraClient, PendingInterruptSet, RunRef } from "@/rpc";
-import { asRunId, asSegmentId, asSessionId, collectPages } from "@/rpc";
+import type { LyraClient } from "@/rpc";
+import { asRunId, asSegmentId } from "@/rpc";
+import type { AgentRunView } from "@/plugins/sdk/types/agentSessionView";
+import { refreshAgentSessionProjection } from "../application/session/refreshSessionProjection";
 import type { RunStream } from "./agentRunPump";
 
 interface AgentSessionRecoveryOptions {
-  client: Pick<LyraClient, "items" | "runs" | "interrupts">;
+  client: Pick<LyraClient, "runs">;
   sessionId: string;
   isCancelled: () => boolean;
   hasInteracted: () => boolean;
-  includeDescendants: boolean;
-  applyCompletedItems: (items: Item[]) => void;
-  applyRunSnapshots: (runs: RunRef[]) => void;
-  applyPendingInterruptSets: (sets: PendingInterruptSet[]) => void;
+  isFollowing: (runId: string, segmentId: string) => boolean;
   setAbortController: (controller: AbortController) => void;
   pump: (stream: RunStream, signal: AbortSignal) => Promise<void>;
-  /** Re-read the session-scoped state through its recovery method. The run stream
-   *  carries snapshots only to a follower, so a window that just opened holds none. */
-  recoverState: () => Promise<void>;
 }
 
 export function startAgentSessionRecovery(options: AgentSessionRecoveryOptions): void {
-  void recover(options).catch((err: unknown) => {
-    if (!options.isCancelled())
-      console.error("[agent] session recovery failed:", options.sessionId, err);
+  void recover(options).catch((error: unknown) => {
+    if (!options.isCancelled()) {
+      console.error("[agent] session recovery failed:", options.sessionId, error);
+    }
   });
 }
 
@@ -30,80 +27,44 @@ function stale(options: AgentSessionRecoveryOptions): boolean {
 }
 
 async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
-  const sid = asSessionId(options.sessionId);
-  await replayHistory(options);
-  if (stale(options)) return;
-
-  // Independent of everything else this reconstruction does: a state key this
-  // runtime cannot serve, or a read that fails, must not cost the session its
-  // transcript, its waiting sets, or its reattach.
-  await options.recoverState().catch((err: unknown) => {
-    if (!options.isCancelled())
-      console.warn("[agent] session state recovery failed:", options.sessionId, err);
+  const view = await refreshAgentSessionProjection(options.sessionId, {
+    canCommit: () => !stale(options),
   });
-  if (stale(options)) return;
+  if (!view || stale(options)) return;
 
-  const open = await collectPages((cursor) =>
-    options.client.interrupts.list({ sessionId: sid, cursor }),
+  const runningRoots = Object.values(view.runsById).filter(
+    (run) => run.parentRunId === null && run.status === "running",
   );
-  if (stale(options)) return;
-  options.applyPendingInterruptSets(open);
-
-  const runs = await collectPages((cursor) =>
-    options.client.runs.list({
-      sessionId: sid,
-      cursor,
-      ...(options.includeDescendants ? { includeDescendants: true } : {}),
-    }),
-  );
-  if (stale(options)) return;
-  options.applyRunSnapshots(runs);
-  const runningRoots = runs.filter((run) => run.status === "running" && !run.spawnedByItemId);
   if (runningRoots.length > 1) {
     throw new Error(
-      `cannot recover session ${options.sessionId}: ${runningRoots.length} root runs are running`,
+      `cannot synchronize agent session ${options.sessionId}: durable snapshot contains ${runningRoots.length} running root runs (${runningRoots.map((run) => run.id).join(", ")}); expected at most one`,
     );
   }
   const root = runningRoots[0];
   if (root) await attachRootRun(options, root);
 }
 
-async function replayHistory(options: AgentSessionRecoveryOptions): Promise<void> {
-  const items = await collectPages((cursor) =>
-    options.client.items.list({
-      scope: { type: "session", sessionId: asSessionId(options.sessionId) },
-      cursor,
-    }),
-  );
-  if (stale(options) || items.length === 0) return;
-  options.applyCompletedItems(items);
-}
+async function attachRootRun(
+  options: AgentSessionRecoveryOptions,
+  run: AgentRunView,
+): Promise<void> {
+  const segmentId = run.activeSegmentId;
+  if (!segmentId || options.isFollowing(run.id, segmentId)) return;
 
-async function attachRootRun(options: AgentSessionRecoveryOptions, run: RunRef): Promise<void> {
-  // A running root always names its segment; without one there is nothing to
-  // attach to, and asking for "whatever is live" is exactly what the protocol
-  // stopped allowing.
-  if (!run.activeSegmentId) return;
-  const ctrl = new AbortController();
-  options.setAbortController(ctrl);
+  const controller = new AbortController();
+  options.setAbortController(controller);
   let stream: Awaited<ReturnType<typeof options.client.runs.subscribe>>;
   try {
     stream = await options.client.runs.subscribe(
-      { runId: asRunId(run.id), segmentId: asSegmentId(run.activeSegmentId) },
-      ctrl.signal,
+      { runId: asRunId(run.id), segmentId: asSegmentId(segmentId) },
+      controller.signal,
     );
-  } catch (err) {
-    if (options.isCancelled() || ctrl.signal.aborted) return;
-    console.warn("[agent] run reattach failed:", options.sessionId, err);
-    void replayHistory(options).catch(() => undefined);
+  } catch (error) {
+    if (options.isCancelled() || controller.signal.aborted) return;
+    console.warn("[agent] run reattach failed:", options.sessionId, error);
     return;
   }
-  if (options.isCancelled() || ctrl.signal.aborted) return;
-  // The subscribe response is the wire's own shape now, so its ids are plain
-  // strings and this is their parse site — the same rule runtimeRunsGateway
-  // follows for a run it opens. The head it captured travels with them: it is the
-  // position this attach was taken at, and the cursor a reattach hands back if the
-  // stream drops before a single event is folded.
+  if (options.isCancelled() || controller.signal.aborted) return;
   await options.pump(
     {
       result: {
@@ -113,6 +74,6 @@ async function attachRootRun(options: AgentSessionRecoveryOptions, run: RunRef):
       },
       events: stream.events,
     },
-    ctrl.signal,
+    controller.signal,
   );
 }

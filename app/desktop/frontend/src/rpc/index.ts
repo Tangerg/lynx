@@ -190,6 +190,7 @@ export {
   RPC_PARSE_ERROR,
   errorType,
   errorDetail,
+  errorRetryAfterSeconds,
 } from "./types";
 export type {
   RpcErrorPayload,

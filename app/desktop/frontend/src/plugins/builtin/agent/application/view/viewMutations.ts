@@ -80,32 +80,6 @@ export function dismissVisibleProblem(view: AgentSessionView): AgentSessionView 
   return { ...view, commandError: null, dismissedProblemRunId };
 }
 
-export function cancelRunningRun(view: AgentSessionView): AgentSessionView {
-  const run = selectCurrentRootRun(view);
-  if (!run || run.status !== "running") return view;
-  const timestamp = new Date().toISOString();
-  return appendTimelineEntry({
-    id: `timeline:local:cancel:${run.id}`,
-    ts: Date.parse(timestamp),
-    kind: "run-end",
-    runId: run.id,
-    summary: "canceled",
-  })({
-    ...view,
-    runsById: {
-      ...view.runsById,
-      [run.id]: {
-        ...run,
-        status: "finished",
-        activeSegmentId: null,
-        outcome: { type: "canceled" },
-        progress: null,
-        finishedAt: timestamp,
-      },
-    },
-  });
-}
-
 export function resolveInterrupt(
   view: AgentSessionView,
   itemId: string,

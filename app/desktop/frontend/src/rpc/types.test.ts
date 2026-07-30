@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   errorDetail,
+  errorRetryAfterSeconds,
   errorType,
   isErrorResponse,
   isNotification,
@@ -113,5 +114,15 @@ describe("errorDetail reports only what the runtime said", () => {
 
   it("leaves the symbol to errorType, which is what branch logic reads", () => {
     expect(errorType({ type: "session_busy" })).toBe("session_busy");
+  });
+});
+
+describe("errorRetryAfterSeconds", () => {
+  it("accepts only a non-negative integer delay", () => {
+    expect(errorRetryAfterSeconds({ retryAfterSeconds: 3 })).toBe(3);
+    expect(errorRetryAfterSeconds({ retryAfterSeconds: -1 })).toBeUndefined();
+    expect(errorRetryAfterSeconds({ retryAfterSeconds: 1.5 })).toBeUndefined();
+    expect(errorRetryAfterSeconds({ retryAfterSeconds: "3" })).toBeUndefined();
+    expect(errorRetryAfterSeconds(undefined)).toBeUndefined();
   });
 });

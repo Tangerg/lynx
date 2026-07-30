@@ -1,5 +1,5 @@
 import { queryClient } from "@/lib/queryClient";
-import type { CancelRunResponse, RunEvent, RunId, SegmentId, StreamingResult } from "@/rpc";
+import type { RunEvent, RunId, SegmentId, StreamingResult } from "@/rpc";
 import { AGENT_SESSION_USAGE_KEY } from "../application/session/sessionUsage";
 import { createRunEventBatcher } from "./runEventBatcher";
 
@@ -15,8 +15,8 @@ export interface RunStreamAck {
 export type RunStream = StreamingResult<RunStreamAck, RunEvent>;
 
 /** Where a reattach picks up. lastEventId is empty when this client has folded
- *  nothing and was given no head — then the reattach is tail-only and the history
- *  comes from items.list, which is the only place it authoritatively lives. */
+ *  nothing and was given no head — then the reattach is tail-only and the
+ *  durable session snapshot supplies the materialized projection. */
 export interface RunStreamPosition {
   runId: RunId;
   segmentId: SegmentId;
@@ -36,7 +36,7 @@ interface AgentRunPumpOptions {
 
 interface AgentRunPump {
   pump: (stream: RunStream, signal: AbortSignal) => Promise<void>;
-  cancelCurrentRun: (cancel: (runId: RunId) => Promise<CancelRunResponse>) => void;
+  isFollowing: (runId: string, segmentId: string) => boolean;
   dispose: () => void;
 }
 
@@ -48,6 +48,8 @@ export function createAgentRunPump({
   reattach,
 }: AgentRunPumpOptions): AgentRunPump {
   let currentRunId: RunId | null = null;
+  let currentSegmentId: SegmentId | null = null;
+  let currentPumpSequence = 0;
 
   const eventBatcher = createRunEventBatcher({
     readEpoch,
@@ -64,8 +66,10 @@ export function createAgentRunPump({
     // what turns that into a gap of milliseconds instead of a transcript frozen until
     // the next reload.
     async pump(stream, signal) {
+      const pumpSequence = ++currentPumpSequence;
       const runId = stream.result.runId;
       currentRunId = runId;
+      currentSegmentId = stream.result.segmentId;
       let position: RunStreamPosition = {
         runId,
         segmentId: stream.result.segmentId,
@@ -87,19 +91,18 @@ export function createAgentRunPump({
             // taking it would silently skip everything the replay is delivering.
             lastEventId: position.lastEventId || (next.result.headEventId ?? ""),
           };
+          currentSegmentId = next.result.segmentId;
           events = next.events;
         }
       } finally {
-        if (currentRunId === runId) currentRunId = null;
+        if (currentPumpSequence === pumpSequence) {
+          currentRunId = null;
+          currentSegmentId = null;
+        }
       }
     },
-    cancelCurrentRun(cancel) {
-      if (!currentRunId) return;
-      void cancel(currentRunId)
-        .then(() =>
-          queryClient.invalidateQueries({ queryKey: [AGENT_SESSION_USAGE_KEY, sessionId] }),
-        )
-        .catch(() => undefined);
+    isFollowing(runId, segmentId) {
+      return currentRunId === runId && currentSegmentId === segmentId;
     },
     dispose() {
       eventBatcher.dispose();

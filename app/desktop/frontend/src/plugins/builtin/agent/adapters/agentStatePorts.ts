@@ -124,11 +124,10 @@ export function installAgentStatePorts(): () => void {
           sessionId,
           localUserMessage(messageId, agentInputToContentBlocks(input)),
         ),
-    resetView: (sessionId) => useAgentStore.getState().resetView(sessionId),
-    applyCompletedItems: (sessionId, items) =>
-      useAgentStore.getState().applyCompletedItems(sessionId, items),
-    applyStateSnapshot: (sessionId, state) =>
-      useAgentStore.getState().applyStateSnapshot(sessionId, state),
+    beginViewRefresh: (sessionId, invalidateQueuedRunEvents) =>
+      useAgentStore.getState().beginViewRefresh(sessionId, invalidateQueuedRunEvents),
+    commitViewRefresh: (sessionId, token, view) =>
+      useAgentStore.getState().commitViewRefresh(sessionId, token, view),
     clearProblem: (sessionId) => useAgentStore.getState().clearProblem(sessionId),
     resolveInterrupt: (sessionId, itemId, settled) =>
       useAgentStore.getState().resolveInterrupt(sessionId, itemId, settled),

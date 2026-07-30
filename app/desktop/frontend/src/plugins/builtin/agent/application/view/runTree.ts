@@ -20,6 +20,12 @@ function compareRuns(left: AgentRunView, right: AgentRunView): number {
   return byCreatedAt || left.id.localeCompare(right.id);
 }
 
+export function selectRootRuns(view: AgentSessionView): AgentRunView[] {
+  return Object.values(view.runsById)
+    .filter((run) => run.parentRunId === null)
+    .sort(compareRuns);
+}
+
 export function selectCurrentRootRun(view: AgentSessionView): AgentRunView | null {
   let latest: AgentRunView | null = null;
   let latestOpen: AgentRunView | null = null;

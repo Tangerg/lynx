@@ -1,4 +1,5 @@
 export {
+  cancelAgentRun,
   dismissVisibleAgentProblem,
   subscribeAgentRunSettlements,
   subscribeAnyAgentRunning,

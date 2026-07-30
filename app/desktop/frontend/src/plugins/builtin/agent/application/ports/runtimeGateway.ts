@@ -1,18 +1,15 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
-import type { Item, StateSnapshot } from "@/rpc";
+import type { Item, PendingInterruptSet, RunRef, StateSnapshot } from "@/rpc";
 import type { ApprovalMode } from "../../domain/hitl";
 import type { AgentInput } from "../../domain/input";
 
 export type RestoreType = "history" | "files" | "both";
 
-export interface AgentRunHistoryRef {
-  id: string;
-  spawnedByItemId?: string;
-}
-
-export interface AgentSessionHistory {
+export interface AgentSessionSnapshot {
   items: Item[];
-  runs: AgentRunHistoryRef[];
+  runs: RunRef[];
+  pendingInterruptSets: PendingInterruptSet[];
+  state?: StateSnapshot;
 }
 
 export interface AgentSessionUsage {
@@ -35,13 +32,12 @@ export interface AgentRuntimeGateway {
     cwd?: string;
   }): Promise<{ revision: number }>;
   forkSession(input: { sessionId: string; fromRunId?: string }): Promise<{ id: string }>;
-  loadSessionHistory(sessionId: string): Promise<AgentSessionHistory>;
-  /** Read the session-scoped state the runtime holds, through the recovery method
-   *  the state key declares. It is how a client that was not following the run that
-   *  wrote the value ever sees it — a fresh window, a reload mid-run, or a rollback
-   *  that republished the list. Undefined means this runtime does not carry that
-   *  state at all. */
-  loadSessionState(sessionId: string): Promise<StateSnapshot | undefined>;
+  /**
+   * Read every durable fact needed to rebuild the Agent projection. The adapter
+   * owns capability-aware query scope; callers always receive one canonical
+   * snapshot shape and commit it atomically.
+   */
+  loadSessionSnapshot(sessionId: string): Promise<AgentSessionSnapshot>;
   /** Does this session hold any transcript item at all? One row is enough to
    *  answer, so this asks for one rather than reading a history. */
   sessionHoldsNothing(sessionId: string): Promise<boolean>;

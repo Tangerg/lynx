@@ -5,9 +5,10 @@ import { notifyInfo } from "@/plugins/sdk";
 import { agentRuntime, type RestoreType } from "../ports/runtimeGateway";
 import { agentSessionState } from "../ports/sessionState";
 import { agentSessionView } from "../ports/sessionView";
-import { selectCurrentRootMessages } from "../view/runTree";
+import { selectCurrentRootMessages, selectRootRuns } from "../view/runTree";
 import { forkSessionAt } from "./forkSession";
 import { rehydrateSessionView } from "./rehydrateSession";
+import { projectAgentSessionSnapshot } from "./sessionSnapshot";
 
 export interface ActiveAgentConversation {
   sessionId: string;
@@ -32,10 +33,8 @@ export async function rollbackSessionToBeforeRun(
   runId: string,
   restoreType: RestoreType = "history",
 ): Promise<boolean> {
-  const { runs } = await agentRuntime().loadSessionHistory(sessionId);
-  // Continuations are no longer separate runs (a resume reuses the run) — the
-  // only non-root run is a subagent, so `spawnedByItemId` alone identifies roots.
-  const roots = runs.filter((run) => !run.spawnedByItemId);
+  const view = projectAgentSessionSnapshot(await agentRuntime().loadSessionSnapshot(sessionId));
+  const roots = selectRootRuns(view);
   const index = roots.findIndex((run) => run.id === runId);
   if (index < 0) return false;
   const keep = index > 0 ? roots[index - 1]!.id : undefined;

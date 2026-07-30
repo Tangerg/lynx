@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient, Methods } from "@/rpc";
 import { asRunId, asSegmentId, asSessionId } from "@/rpc";
+import * as runtimeCapabilities from "@/plugins/builtin/runtime/public/capabilities";
 import { agentRuntime } from "../application/ports/runtimeGateway";
 import { installAgentRuntimeGateway } from "./agentRuntimeGateway";
 
@@ -11,6 +12,7 @@ afterEach(() => {
   uninstall?.();
   uninstall = undefined;
   resetContainer();
+  vi.restoreAllMocks();
 });
 
 describe("agentRuntimeGateway", () => {
@@ -57,4 +59,40 @@ describe("agentRuntimeGateway", () => {
       { type: "image", mime: "image/png", data: "aW1hZ2U=" },
     ] satisfies Parameters<Methods["runs"]["steer"]>[2]);
   });
+
+  it.each([
+    { supported: false, expected: undefined },
+    { supported: true, expected: true },
+  ])(
+    "queries descendants explicitly when subagents supported=$supported",
+    async ({ supported, expected }) => {
+      vi.spyOn(runtimeCapabilities, "runtimeCapability").mockReturnValue(supported);
+      const listRuns = vi.fn().mockResolvedValue({ data: [] });
+      setContainer({
+        client: () =>
+          ({
+            items: { list: vi.fn().mockResolvedValue({ data: [], runs: [] }) },
+            runs: { list: listRuns },
+            interrupts: { list: vi.fn().mockResolvedValue({ data: [] }) },
+            todos: {
+              get: vi.fn().mockResolvedValue({
+                type: "todos",
+                sessionId: "ses_1",
+                revision: 0,
+                todos: [],
+              }),
+            },
+          }) as unknown as LyraClient,
+      });
+      uninstall = installAgentRuntimeGateway();
+
+      await agentRuntime().loadSessionSnapshot("ses_1");
+
+      expect(listRuns).toHaveBeenCalledWith({
+        sessionId: asSessionId("ses_1"),
+        cursor: undefined,
+        ...(expected ? { includeDescendants: expected } : {}),
+      });
+    },
+  );
 });

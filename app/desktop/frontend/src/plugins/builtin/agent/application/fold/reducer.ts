@@ -3,7 +3,7 @@ import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { measureReduce } from "@/lib/metrics";
 import { lookupCustomHandlers, lookupStreamHandlers, reportPluginError } from "@/plugins/sdk";
 import { onItemCompleted } from "./itemHandlers";
-import { completedItemSource } from "./source";
+import { durableItemSource } from "./source";
 
 function applyStreamHandlers(state: AgentSessionView, event: RunEvent): AgentSessionView {
   const handlers = lookupStreamHandlers(event.event.type);
@@ -44,6 +44,6 @@ export function reduceRunEvent(state: AgentSessionView, event: RunEvent): AgentS
   );
 }
 
-export function reduceCompletedItem(state: AgentSessionView, item: Item): AgentSessionView {
-  return onItemCompleted(state, item, completedItemSource(item));
+export function reduceDurableItem(state: AgentSessionView, item: Item): AgentSessionView {
+  return onItemCompleted(state, item, durableItemSource(item));
 }

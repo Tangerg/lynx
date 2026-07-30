@@ -1,6 +1,5 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { AgentRunStartOptions } from "@/plugins/sdk";
-import type { Item, StateSnapshot } from "@/rpc";
 import type { AgentInput } from "../../domain/input";
 import type { ApprovalDecision, RememberScope } from "../../domain/hitl";
 import type { WireDecision } from "../hitl/wireDecision";
@@ -21,6 +20,8 @@ export type ResolvePatch = {
 };
 
 export type StopFn = (() => void) | null;
+export type SynchronizeFn = (() => void) | null;
+export type CancelRunFn = ((runId: string) => void) | null;
 export type SendFn = ((input: AgentInput, options?: AgentRunStartOptions) => void) | null;
 export type InterruptResumePayload =
   | {
@@ -49,9 +50,17 @@ export type ResumeFn =
 export interface AgentSessionViewEntry {
   view: AgentSessionView;
   viewEpoch: number;
+  viewRevision: number;
   stop: StopFn;
   send: SendFn;
   resume: ResumeFn;
+  synchronize: SynchronizeFn;
+  cancelRun: CancelRunFn;
+}
+
+export interface AgentViewRefreshToken {
+  requestSequence: number;
+  viewRevision: number;
 }
 
 export interface AgentSessionViewPort {
@@ -74,9 +83,15 @@ export interface AgentSessionViewPort {
   sendToSession(sessionId: string, input: AgentInput, options?: AgentRunStartOptions): boolean;
   dropMessage(sessionId: string, messageId: string): void;
   appendLocalUserMessage(sessionId: string, messageId: string, input: AgentInput): void;
-  resetView(sessionId: string): void;
-  applyCompletedItems(sessionId: string, items: Item[]): void;
-  applyStateSnapshot(sessionId: string, snapshot: StateSnapshot): void;
+  beginViewRefresh(
+    sessionId: string,
+    invalidateQueuedRunEvents: boolean,
+  ): AgentViewRefreshToken | null;
+  commitViewRefresh(
+    sessionId: string,
+    token: AgentViewRefreshToken,
+    view: AgentSessionView,
+  ): boolean;
   clearProblem(sessionId: string): void;
   resolveInterrupt(sessionId: string, itemId: string, settled: ResolvePatch): void;
   subscribeSessions(

@@ -13,13 +13,13 @@ import { useApprovalSubmit } from "./useApprovalSubmit";
 
 const SID = "ses_1";
 
-// resetSession seeds the slice before setResume — mirrors useAgentSession,
-// which resets at mount then binds the imperative actions. Required now that
+// ensureSession seeds the slice before setResume — mirrors useAgentSession,
+// which mounts then binds the imperative actions. Required now that
 // the store refuses to resurrect a dropped/absent session (see agentStore).
 function bindResume(impl?: (...args: unknown[]) => void) {
   const resume = impl ? vi.fn(impl) : vi.fn();
   useAgentSessionStore.setState({ activeSessionId: SID });
-  useAgentStore.getState().resetSession(SID);
+  useAgentStore.getState().ensureSession(SID);
   useAgentStore.getState().setResume(SID, resume);
   return resume;
 }

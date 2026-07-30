@@ -7,10 +7,10 @@ interface RunStreamReattachOptions {
   sessionId: string;
   client: () => Pick<LyraClient, "runs">;
   isCancelled: () => boolean;
-  /** Rebuild the transcript from persisted history. Used when the replay window no
-   *  longer reaches this client's cursor: the missed deltas are gone, but every item
-   *  they belonged to is in items.list. */
-  recoverHistory: () => Promise<void>;
+  /** Rebuild the complete durable projection when the replay window no longer
+   *  reaches this client's cursor. Missed deltas are gone, but their completed
+   *  items and lifecycle facts remain queryable. */
+  recoverProjection: () => Promise<void>;
 }
 
 /**
@@ -31,7 +31,7 @@ export function createRunStreamReattach({
   sessionId,
   client,
   isCancelled,
-  recoverHistory,
+  recoverProjection,
 }: RunStreamReattachOptions) {
   return async function reattach(
     position: RunStreamPosition,
@@ -54,7 +54,7 @@ export function createRunStreamReattach({
         console.warn("[agent] run reattach failed:", sessionId, err);
         return null;
       }
-      await recoverHistory();
+      await recoverProjection();
       if (isCancelled() || signal.aborted) return null;
       try {
         const tail = await client().runs.subscribe(target, signal);

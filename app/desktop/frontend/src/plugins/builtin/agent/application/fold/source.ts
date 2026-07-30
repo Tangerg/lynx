@@ -16,7 +16,7 @@ export function runEventSource(event: RunEvent): AgentFoldSource {
   };
 }
 
-export function completedItemSource(item: Item): AgentFoldSource {
+export function durableItemSource(item: Item): AgentFoldSource {
   return {
     runId: item.runId,
     segmentId: null,

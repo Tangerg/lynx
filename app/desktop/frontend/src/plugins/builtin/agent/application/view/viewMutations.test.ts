@@ -2,19 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
 import type {
   AgentProblem,
-  AgentRunView,
   AgentSessionView,
   Message,
   PendingInterruptGroup,
 } from "@/plugins/sdk/types/agentSessionView";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
-import {
-  cancelRunningRun,
-  dropMessage,
-  relabelMessage,
-  resolveInterrupt,
-  setCommandError,
-} from "./viewMutations";
+import { dropMessage, relabelMessage, resolveInterrupt, setCommandError } from "./viewMutations";
 
 const time = "2026-06-03T00:00:00Z";
 
@@ -30,27 +23,6 @@ function view(partial: Partial<AgentSessionView> = {}): AgentSessionView {
 
 function message(id: string, blocks: ContentBlock[] = []): Message {
   return { id, role: "assistant", createdAt: time, runId: "run_1", blocks };
-}
-
-function runningRun(id = "run_1"): AgentRunView {
-  return {
-    id,
-    sessionId: "ses_1",
-    parentRunId: null,
-    rootRunId: id,
-    spawnedByItemId: null,
-    status: "running",
-    activeSegmentId: "seg_1",
-    outcome: null,
-    metrics: {
-      steps: 0,
-      activeDurationMs: 0,
-      usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
-    },
-    progress: null,
-    createdAt: time,
-    finishedAt: null,
-  };
 }
 
 function approvalBlock(itemId: string): ContentBlock {
@@ -134,31 +106,6 @@ describe("view mutations - run state", () => {
 
     expect(setCommandError(original, error)).toBe(original);
     expect(setCommandError(original, null)).toMatchObject({ commandError: null });
-  });
-
-  it("cancels a running run and records a canceled run-end", () => {
-    const run = runningRun();
-    const original = view({
-      runsById: { [run.id]: run },
-    });
-
-    const next = cancelRunningRun(original);
-
-    expect(next.runsById.run_1).toMatchObject({
-      status: "finished",
-      outcome: { type: "canceled" },
-    });
-    expect(next.timeline.at(-1)).toMatchObject({
-      kind: "run-end",
-      runId: "run_1",
-      summary: "canceled",
-    });
-  });
-
-  it("does not churn state when canceling an idle run", () => {
-    const original = view();
-
-    expect(cancelRunningRun(original)).toBe(original);
   });
 });
 

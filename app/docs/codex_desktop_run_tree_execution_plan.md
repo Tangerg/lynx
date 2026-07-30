@@ -3,8 +3,9 @@
 > 作者：Codex
 > 状态：`IN PROGRESS`
 > 建档日期：2026-07-30
-> 当前阶段：`W4.0 DONE · W4.1 DONE · W4.2 READY`
-> W4.1 实施基线：`main@bf9814b2e`，实施前与 `origin/main` 一致
+> 当前阶段：`W4.0 DONE · W4.1 DONE · W4.2 DONE · W4.3 READY`
+> W4.1 实施提交：`40cffd81e`
+> W4.2 实施基线：`main@40cffd81e`，实施前与 `origin/main` 一致
 > W4.0 文档提交：`26e43fd0e`
 > 对应总任务：`B1.6 / W4 — Desktop Run-tree consumer`
 > 约束：允许 breaking change；不保留旧 view shape、alias、双写或兼容 reducer
@@ -537,7 +538,7 @@ cd app/desktop/frontend && npm run check
 
 ### W4.2 — Durable recovery、invalidation 与 cancel
 
-状态：`PENDING`
+状态：`DONE`
 
 范围：
 
@@ -727,6 +728,58 @@ compatibility / stale terminology / TODO-FIXME-HACK scans
 - 残余工作：
   - W4.2 尚需把 cold/replay/invalidation 收敛成原子 snapshot replace；
   - cancel 仍需改为 committed `CancelRunResponse` merge，禁止 optimistic terminal；
+- `features.subagents` 继续 disabled。
+
+### 2026-07-30 — W4.2
+
+- 实施基线：`main@40cffd81e`；
+- durable projection：
+  - gateway 一次并发读取完整 `items + runs + pending interrupt sets + optional state`；
+  - negotiated `subagents` 时显式请求 `includeDescendants: true`，未协商时保持
+    root-only query；
+  - pure `AgentSessionSnapshot → AgentSessionView` 在 Store 外构建；
+  - mounted view 在读取期间保持可见，只有完整投影通过
+    `refreshSequence + viewRevision` CAS 后才原子替换；
+  - history rewrite 额外提升 stream epoch，丢弃替换前已经排队的事件；
+- 五路收敛：
+  - cold open、rollback rehydrate、replay unavailable、runtime invalidation 与 cancel
+    reconciliation 共用 authoritative refresh；
+  - `runs.changed / interrupts.changed / state.changed / resync` 只触发查询，不把
+    event 当成事实；
+  - 同一 Session 的新 refresh 使旧请求失效，期间 live/local write 使旧 snapshot
+    无权覆盖；
+  - session driver remount 不再先清空已经 materialized 的 view；
+- committed cancel：
+  - 删除本地 `cancelRunningRun` 与 synthetic canceled terminal；
+  - root/child 取消只折叠 exact `CancelRunResponse`；
+  - child response 同时合并 post-cancel root `RunRef`，随后以完整 snapshot 对账；
+  - waiting child 取消使 root 切换 Segment 时，旧订阅被取消并按新
+    `activeSegmentId` 重订；
+  - cancel failure 保留 Run lifecycle，并把结构化 ProblemData 投影为可读错误；
+- restart 与时间线：
+  - cold snapshot 覆盖 Running root + Running/Waiting child、pending HITL 与
+    boot-settled `run_lost`；
+  - durable `runs.list` 的 newest-first 顺序不再污染时间线：timeline 按 runtime
+    timestamp 稳定插入，并始终保留最新 500 条；
+- breaking cleanup：
+  - 删除增量 history/state/run snapshot Store API 与独立 state recovery 路径；
+  - `resetSession` 改为语义准确的 `ensureSession`；
+  - `reduceCompletedItem` 改为能准确表达 query 输入的 `reduceDurableItem`；
+  - RPC retry delay 统一在 trust boundary 做类型检查；
+  - 无 alias、dual read/write、fallback decoder 或 compatibility reducer；
+- 验证：
+  - `cd app/desktop/frontend && npm run check` → `PASS`
+  - 182 test files / 1098 tests；
+  - type/lint/format/knip/circular/context/published-boundary/layer/token/chrome/locale/
+    bootstrap/bundle gates → `PASS`；
+  - `git diff --check` → `PASS`；
+- 已知非阻塞告警与 W4.0/W4.1 基线一致：
+  - 无效 `shadow-[var(--shadow-*)]` 生成 rule；
+  - Lightning CSS 对 `::highlight(...)` 的识别告警；
+  - bundle large-chunk 提示；
+- 残余工作：
+  - W4.3 实现 root-first Run-tree presentation 与 root/child cancel 交互；
+  - W4.4 做最终 architecture/hygiene/docs closure；
   - `features.subagents` 继续 disabled。
 
 ---
@@ -734,15 +787,17 @@ compatibility / stale terminology / TODO-FIXME-HACK scans
 ## 11. 下一张执行卡
 
 ```text
-W4.2 — Durable recovery、invalidation 与 cancel
+W4.3 — Tree presentation 与交互
 ```
 
 执行纪律：
 
-1. 先建立 off-store `AgentSessionSnapshot` 与 epoch-guarded atomic replace；
-2. cold、replay unavailable、runtime invalidation 共用同一 authoritative refresh；
-3. negotiated subagents 显式请求 descendants，未协商时保持 root-only；
-4. root/child cancel 只合并 committed response，不伪造 terminal；
-5. waiting child cancel 恢复 root 时按返回的新 Segment 重订；
-6. 覆盖并发、stale、failure 与 restart 场景；
-7. frontend 门禁全绿后独立 commit/push，再进入 W4.3 presentation。
+1. presentation 只消费 Agent application selectors/commands，不接触 RPC；
+2. root narrative 保持默认阅读主线，delegated child/nested work 挂在 parent task
+   语义锚点下并按需展开；
+3. Run tree 明确展示 running/waiting/finished/outcome、parent lineage 与 source-owned
+   progress/metrics；
+4. root/child cancel 始终把目标 RunID 交给统一 `cancelAgentRun` command；
+5. 补齐 keyboard/focus/aria/motion preference 与跨 Run 定位；
+6. 覆盖 root/child/sibling/nested/waiting/cancel/reconnect 的 view-model 与组件测试；
+7. frontend 门禁全绿后独立 commit/push，再进入 W4.4 full closure。

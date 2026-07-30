@@ -1,9 +1,9 @@
 import { getContainer } from "@/main/container";
-import { asRunId, asSegmentId, asSessionId, eachPage, isErrorType } from "@/rpc";
-import type { Item } from "@/rpc";
+import { asRunId, asSegmentId, asSessionId, collectPages, isErrorType } from "@/rpc";
 import { configureAgentRuntimeGateway } from "../application/ports/runtimeGateway";
-import type { AgentRunHistoryRef, AgentRuntimeGateway } from "../application/ports/runtimeGateway";
+import type { AgentRuntimeGateway } from "../application/ports/runtimeGateway";
 import { agentInputToContentBlocks } from "./wireInput";
+import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 
 const gateway: AgentRuntimeGateway = {
   async createSession(input, signal) {
@@ -31,32 +31,33 @@ const gateway: AgentRuntimeGateway = {
       });
     return { id: fork.id };
   },
-  async loadSessionHistory(sessionId) {
-    const items: Item[] = [];
-    const runs = new Map<string, AgentRunHistoryRef>();
-    await eachPage(
-      (cursor) =>
-        getContainer()
-          .client()
-          .items.list({ scope: { type: "session", sessionId: asSessionId(sessionId) }, cursor }),
-      (page) => {
-        items.push(...page.data);
-        // The run refs ride along with every page; keep one of each.
-        for (const run of page.runs) runs.set(run.id, run);
-      },
-    );
-    return { items, runs: [...runs.values()] };
-  },
-  async loadSessionState(sessionId) {
-    try {
-      return await getContainer().client().todos.get(asSessionId(sessionId));
-    } catch (err) {
-      // A runtime without the state key answers the refusal (or the preflight does,
-      // before the call leaves). That is an absent capability, not a failure to
-      // report: there is no value to recover.
-      if (isErrorType(err, "capability_not_negotiated")) return undefined;
-      throw err;
-    }
+  async loadSessionSnapshot(sessionId) {
+    const client = getContainer().client();
+    const sid = asSessionId(sessionId);
+    const includeDescendants = runtimeCapability("subagents");
+    const [items, runs, pendingInterruptSets, state] = await Promise.all([
+      collectPages((cursor) =>
+        client.items.list({
+          scope: { type: "session", sessionId: sid },
+          cursor,
+        }),
+      ),
+      collectPages((cursor) =>
+        client.runs.list({
+          sessionId: sid,
+          cursor,
+          ...(includeDescendants ? { includeDescendants: true } : {}),
+        }),
+      ),
+      collectPages((cursor) => client.interrupts.list({ sessionId: sid, cursor })),
+      loadOptionalSessionState(sessionId),
+    ]);
+    return {
+      items,
+      runs,
+      pendingInterruptSets,
+      ...(state ? { state } : {}),
+    };
   },
   async sessionHoldsNothing(sessionId) {
     // A bounded read on purpose: existence is the question, so one row answers it
@@ -101,6 +102,15 @@ const gateway: AgentRuntimeGateway = {
     await getContainer().client().approval.forgetRule(id);
   },
 };
+
+async function loadOptionalSessionState(sessionId: string) {
+  try {
+    return await getContainer().client().todos.get(asSessionId(sessionId));
+  } catch (error) {
+    if (isErrorType(error, "capability_not_negotiated")) return undefined;
+    throw error;
+  }
+}
 
 export function installAgentRuntimeGateway(): () => void {
   return configureAgentRuntimeGateway(gateway);

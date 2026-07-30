@@ -1,7 +1,7 @@
 import type { RunEvent, RunId, SegmentId, StreamingResult } from "@/rpc";
-import { errorDetail, errorType, RpcError } from "@/rpc";
 import type { AgentProblem } from "@/plugins/sdk/types/agentSessionView";
 import { endSpan, startRunSpan, withSpan } from "@/lib/observability/tracing";
+import { agentProblemFromRpcError } from "./rpcProblem";
 
 /** A run this client opened: the ids the pump needs to keep it attached, plus the
  *  item id the optimistic bubble is relabeled to. */
@@ -66,10 +66,8 @@ export function createRunOpeningController({
           if (isCancelled() || ctrl.signal.aborted || beginId !== beginSeq) return;
           failure = err;
           console.error("[agent] run failed to start:", sessionId, err);
-          if (err instanceof RpcError)
-            // message stays the runtime's own note about this occurrence; the
-            // banner turns `code` into words when there wasn't one.
-            setStartError({ message: errorDetail(err.data), code: errorType(err.data) });
+          const problem = agentProblemFromRpcError(err);
+          if (problem) setStartError(problem);
           onStartError?.();
         })
         .finally(() => {

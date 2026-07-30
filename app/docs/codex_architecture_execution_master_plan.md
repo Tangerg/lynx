@@ -3,9 +3,9 @@
 > 作者：Codex
 > 状态：`IN PROGRESS`
 > 建档日期：2026-07-30
-> W4.1 实施基线：`main@bf9814b2e`；W4.0 文档提交：`26e43fd0e`
+> W4.1 实施提交：`40cffd81e`；W4.2 实施基线：`main@40cffd81e`
 > 当前主任务：`W4 — B1.6 Desktop Run-tree consumer`
-> 执行进度：`W2 DONE · W3 DONE · W4.0 DONE · W4.1 DONE · W4.2 READY`
+> 执行进度：`W2 DONE · W3 DONE · W4.0 DONE · W4.1 DONE · W4.2 DONE · W4.3 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 43`
@@ -241,7 +241,7 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 | Runtime B1.4c | `DONE` | prepared runtime mutation + App-owned atomic waiting-subtree transaction | — |
 | Runtime B1.4d | `DONE` | W2.1 ownership；W2.2 failure/rollback；W2.3 restart/query/publication；W2.4 race/hygiene/full closure | — |
 | Runtime B1.5 | `DONE` | W3.0–W3.4 query / stream / replay / cold recovery / full closure | — |
-| Desktop B1.6 | `IN PROGRESS` | W4.1 完成 canonical Session/Run-tree projection、完整 provenance 与 source-owned fold | W4.2 durable recovery、invalidation 与 committed cancel merge |
+| Desktop B1.6 | `IN PROGRESS` | W4.2 完成 atomic durable projection、统一 recovery/invalidation 与 committed root/child cancel | W4.3 root-first Run-tree presentation 与交互 |
 | Runtime/Desktop B1.7 | `TODO` | capability seam 已存在且保持 disabled | 全门禁后启用 subagents |
 | Runtime/Desktop 架构持续演进 | `ONGOING` | 依赖环、consumer ports、plugin contexts 与多项 architecture gate 已存在 | 随每个 slice 审查并最终 sweep |
 | Synara UI 对齐 | `TODO` | 参考仓库已明确为 `~/Desktop/synara` | B1.6 后做视觉基线与像素级实现 |
@@ -883,7 +883,7 @@ W3.4 完成结果（2026-07-30）：
 
 ### W4 — B1.6 Desktop Run-tree consumer
 
-状态：`IN PROGRESS`；`W4.0 DONE · W4.1 DONE · W4.2 READY`
+状态：`IN PROGRESS`；`W4.0 DONE · W4.1 DONE · W4.2 DONE · W4.3 READY`
 
 专项执行卡：
 
@@ -926,8 +926,8 @@ W4.0 审计裁决：
 |---|---|---|
 | W4.0 | `DONE` | 现状、爆炸半径、目标模型与全门禁基线 |
 | W4.1 | `DONE` | canonical Session/Run-tree projection、完整 provenance、source-owned fold，删除 single-run shape 与 synthetic wire |
-| W4.2 | `READY` | durable snapshot、replay/cold/invalidation、root/child cancel response merge |
-| W4.3 | `PENDING` | root-first narrative、task child disclosure、tree/timeline/cancel UI |
+| W4.2 | `DONE` | durable snapshot、replay/cold/invalidation、root/child committed cancel response merge |
+| W4.3 | `READY` | root-first narrative、task child disclosure、tree/timeline/cancel UI |
 | W4.4 | `PENDING` | architecture/hygiene/docs/full gates，B1.6 收口 |
 
 ### W5 — B1.7 最终 conformance 与 capability enablement
@@ -1570,6 +1570,53 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
   merge 尚未实施；`features.subagents` 继续 disabled。
 - 下一步：W4.2 durable recovery、invalidation 与 cancel。
 
+### 2026-07-30 — W4.2
+
+- 状态：`DONE`
+- 实施基线：`main@40cffd81e`
+- 目标：把 cold、replay-lost、runtime invalidation 与 cancel 全部收敛到同一
+  durable Session projection，并禁止取消路径伪造 terminal；
+- 实施：
+  - `AgentRuntimeGateway.loadSessionSnapshot` 并发读取 Items、完整 RunRef page、
+    PendingInterruptSet 与 optional StateSnapshot；
+  - pure snapshot builder 在 Store 外构造完整 `AgentSessionView`；
+  - Store 以 `refreshSequence + viewRevision` 做 latest-request-wins 与
+    live/local-write CAS，history rewrite 另以 `viewEpoch` 隔离旧 stream batch；
+  - driver remount 使用 `ensureSession`，不清空 materialized view；
+  - cold open、rollback、replay unavailable、`runs/interrupts/state.changed` 与
+    `resync` 共用 authoritative refresh；
+  - root/child cancellation 只合并 exact committed `CancelRunResponse`，失败不改变
+    lifecycle；
+  - waiting child cancellation 若发布 root 新 Segment，取消旧 follower 并按新的
+    `activeSegmentId` 订阅；
+  - timeline 按 runtime timestamp 稳定排序并只保留最新 500 条，修复
+    `runs.list` newest-first 对 cold timeline 的倒序与截断污染；
+- 删除：
+  - incrementally replay history/state/run snapshot 的 Store/port API；
+  - 独立 `recoverSessionState` 路径；
+  - optimistic `cancelRunningRun`、pump-local cancel identity 与 synthetic terminal；
+  - `resetSession`、`reduceCompletedItem` 等失真命名；
+  - capability silent fallback、alias、dual read/write 与 compatibility reducer；
+- 证明：
+  - Running root + Running/Waiting child、pending HITL、restart `run_lost` cold
+    projection；
+  - older/newer refresh、refresh/live event、failure/stale CAS；
+  - capability-aware descendant/root-only query；
+  - root cancel、child + surviving sibling、last waiting child → root new Segment；
+  - cancel failure 保留 lifecycle，重叠 follower 不互相清除；
+  - runtime invalidation 按 event `sessionIds` 精确同步 mounted Sessions；
+- 验证：
+  - `cd app/desktop/frontend && npm run check` → `PASS`
+  - 182 test files / 1098 tests；
+  - type/lint/format/knip/circular/context/published-boundary/layer/token/chrome/locale/
+    bootstrap/bundle gates → `PASS`；
+  - `git diff --check` → `PASS`；
+- 已知非阻塞告警与 W4.0/W4.1 基线一致：无效 shadow utility、Lightning CSS
+  `::highlight(...)` 识别与 large-chunk 提示；
+- 残余风险：W4.3 presentation 与 W4.4 full closure 尚未实施；
+  `features.subagents` 继续 disabled。
+- 下一步：W4.3 Tree presentation 与交互。
+
 ---
 
 ## 12. 下一张执行卡
@@ -1577,29 +1624,30 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 唯一下一任务：
 
 ```text
-W4.2 — B1.6
-Durable recovery、invalidation 与 cancel
+W4.3 — B1.6
+Tree presentation 与交互
 ```
 
 实施顺序：
 
-1. 建立 pure `AgentSessionSnapshot` builder；
-2. cold/replay-lost/invalidation 使用 epoch-guarded atomic replace；
-3. negotiated descendant query 与 root-only branch 显式分开；
-4. root/child cancel 合并 exact committed `CancelRunResponse`；
-5. waiting child cancel 恢复 root 时按 response 重订 active Segment；
-6. 覆盖 stale/failure/restart/concurrency；
-7. frontend 全门禁后独立 commit/push，再进入 W4.3 presentation。
+1. 建立 root-first narrative 与 Run-tree presentation view-model；
+2. child/nested narrative 挂载到 parent task semantic anchor；
+3. 展示精确 running/waiting/finished/outcome、progress 与 committed metrics；
+4. root/child cancel 统一调用 Agent public `cancelAgentRun(runId)`；
+5. 补齐 expand/collapse、定位 parent tool、keyboard/focus/aria/motion preference；
+6. 覆盖 root/child/sibling/nested/waiting/cancel/reconnect 的 selector/component tests；
+7. frontend 全门禁后独立 commit/push，再进入 W4.4 full closure。
 
-W4.2 的禁止项：
+W4.3 的禁止项：
 
 - 不新增协议方法；
 - 不实现 child subscribe；
 - 不让 Agent 接触 App persistence；
 - 不从 transcript、live registry 或事件到达顺序反推 tree identity；
-- 不先 reset mounted view 再逐条异步补回；
-- 不捕获 capability rejection 后 silent fallback；
-- 不本地伪造 canceled/finished terminal；
-- 不在 W4.2 偷做半套 UI；
+- 不在 component 读取 RPC client、wire RunRef、replay cursor 或 capability preflight；
+- 不把 child material 默认摊平进 root transcript；
+- 不从 Item 顺序、tool name 或文本猜 lineage；
+- 不为 tree UI 保存第二份 child/root identity；
+- 不在 presentation 伪造 lifecycle、terminal、metrics 或 parent result；
 - 不在 B1.6 full closure 前打开 `features.subagents`；
 - 不提交或推送工作树里未通过门禁的代码。
