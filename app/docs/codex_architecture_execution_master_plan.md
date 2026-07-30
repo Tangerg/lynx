@@ -3,7 +3,7 @@
 > 作者：Codex
 > 状态：`IN PROGRESS`
 > 建档日期：2026-07-30
-> 最新已提交基线：`main@b75d2a1d9`，与 `origin/main` 一致
+> 最新实现审计基线：`main@b75d2a1d9`；W4.0 文档提交：`26e43fd0e`
 > 当前主任务：`W4 — B1.6 Desktop Run-tree consumer`
 > 执行进度：`W2 DONE · W3 DONE · W4.0 DONE · W4.1 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
@@ -1505,7 +1505,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 ### 2026-07-30 — W4.0
 
 - 状态：`DONE`
-- Commit：随本 docs-only 原子 slice 提交
+- Commit：`26e43fd0e`（`docs(desktop): freeze run tree execution plan`）
 - 目标：完成 Desktop Run-tree consumer 的 read-only blast-radius audit，冻结
   projection、recovery、invalidation、cancel 与 presentation 的治本边界。
 - 关键裁决：

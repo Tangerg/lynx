@@ -5,7 +5,7 @@
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
-> 当前已提交基线：`main@b75d2a1d9`；W4.0 已冻结 Desktop target，W4.1 READY
+> 当前实现审计基线：`main@b75d2a1d9`；W4.0 文档提交：`26e43fd0e`；W4.1 READY
 > 目标协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 目标 Artifact：`SessionArtifactVersion = 7`
 

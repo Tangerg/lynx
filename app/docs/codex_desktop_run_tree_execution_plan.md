@@ -4,7 +4,8 @@
 > 状态：`IN PROGRESS`
 > 建档日期：2026-07-30
 > 当前阶段：`W4.0 DONE · W4.1 READY`
-> 当前基线：`main@b75d2a1d9`，与 `origin/main` 一致
+> 实现审计基线：`main@b75d2a1d9`，审计时与 `origin/main` 一致
+> W4.0 文档提交：`26e43fd0e`
 > 对应总任务：`B1.6 / W4 — Desktop Run-tree consumer`
 > 约束：允许 breaking change；不保留旧 view shape、alias、双写或兼容 reducer
 
@@ -673,7 +674,8 @@ compatibility / stale terminology / TODO-FIXME-HACK scans
 
 ### 2026-07-30 — W4.0
 
-- 基线：`main@b75d2a1d9`，worktree clean，`origin/main` 一致；
+- 实现审计基线：`main@b75d2a1d9`，worktree clean，审计时与 `origin/main` 一致；
+- 文档提交：`26e43fd0e`（`docs(desktop): freeze run tree execution plan`）；
 - 目标：完成 Desktop Run-tree consumer 的 read-only blast-radius audit；
 - 关键结论：
   - transport 已正确承载 tree，缺口集中在 Agent projection/recovery/control；
