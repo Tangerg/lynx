@@ -7,7 +7,6 @@ package interrupts
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -134,6 +133,7 @@ func (p Pending) Validate() error {
 	runIDs := make(map[string]struct{}, len(p.Continuations))
 	processIDs := make(map[string]struct{}, len(p.Continuations))
 	continuationsByProcess := make(map[string]Continuation, len(p.Continuations))
+	treeMembers := make([]execution.RunTreeMember, 0, len(p.Continuations))
 	rootCount := 0
 	for index, continuation := range p.Continuations {
 		if err := continuation.validate(); err != nil {
@@ -143,6 +143,10 @@ func (p Pending) Validate() error {
 			return fmt.Errorf("interrupts: duplicate continuation run %q", continuation.RunID)
 		}
 		runIDs[continuation.RunID] = struct{}{}
+		treeMembers = append(treeMembers, execution.RunTreeMember{
+			RunID:   continuation.RunID,
+			Lineage: continuation.Lineage,
+		})
 		if _, duplicate := processIDs[continuation.ProcessID]; duplicate {
 			return fmt.Errorf("interrupts: duplicate continuation process %q", continuation.ProcessID)
 		}
@@ -190,10 +194,11 @@ func (p Pending) Validate() error {
 			)
 		}
 	}
-	canonicalRunIDs, err := canonicalContinuationRunIDs(p.RootRunID, p.Continuations)
+	tree, err := execution.NewRunTree(p.RootRunID, treeMembers)
 	if err != nil {
-		return err
+		return fmt.Errorf("interrupts: continuation tree: %w", err)
 	}
+	canonicalRunIDs := tree.Postorder()
 	for index, continuation := range p.Continuations {
 		if continuation.RunID != canonicalRunIDs[index] {
 			return fmt.Errorf(
@@ -303,55 +308,6 @@ func (c Continuation) validate() error {
 		return fmt.Errorf("limits: %w", err)
 	}
 	return nil
-}
-
-func canonicalContinuationRunIDs(rootRunID string, continuations []Continuation) ([]string, error) {
-	byRunID := make(map[string]Continuation, len(continuations))
-	children := make(map[string][]string, len(continuations))
-	for _, continuation := range continuations {
-		byRunID[continuation.RunID] = continuation
-		if continuation.Lineage.IsChild() {
-			children[continuation.Lineage.ParentRunID] = append(
-				children[continuation.Lineage.ParentRunID],
-				continuation.RunID,
-			)
-		}
-	}
-	for parentRunID := range children {
-		slices.Sort(children[parentRunID])
-	}
-	visiting := make(map[string]bool, len(continuations))
-	visited := make(map[string]bool, len(continuations))
-	ordered := make([]string, 0, len(continuations))
-	var visit func(string) error
-	visit = func(runID string) error {
-		if visiting[runID] {
-			return fmt.Errorf("interrupts: continuation tree contains a cycle at run %q", runID)
-		}
-		if visited[runID] {
-			return nil
-		}
-		if _, exists := byRunID[runID]; !exists {
-			return fmt.Errorf("interrupts: continuation tree names unknown run %q", runID)
-		}
-		visiting[runID] = true
-		for _, childRunID := range children[runID] {
-			if err := visit(childRunID); err != nil {
-				return err
-			}
-		}
-		visiting[runID] = false
-		visited[runID] = true
-		ordered = append(ordered, runID)
-		return nil
-	}
-	if err := visit(rootRunID); err != nil {
-		return nil, err
-	}
-	if len(ordered) != len(continuations) {
-		return nil, errors.New("interrupts: continuation tree contains a Run disconnected from the root")
-	}
-	return ordered, nil
 }
 
 func validateInterrupt(interrupt transcript.Interrupt) error {

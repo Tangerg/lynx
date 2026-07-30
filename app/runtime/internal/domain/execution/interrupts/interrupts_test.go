@@ -42,7 +42,7 @@ func TestPendingValidateRequiresOneCanonicalConnectedTree(t *testing.T) {
 				p.Continuations[2].ParentProcessID = "process_a"
 				p.Continuations[2].Lineage.ParentRunID = "run_a"
 			},
-			want: "disconnected",
+			want: "cycle",
 		},
 		{
 			name: "binding order differs from interrupt order",

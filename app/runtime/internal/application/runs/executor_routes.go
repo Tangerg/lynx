@@ -189,53 +189,51 @@ func (c *Coordinator) resumedExecutorRoutes(
 // unfinishedInPostorder returns the active tree in contract publication order:
 // descendants before ancestors, siblings by Run ID, root last.
 func (routes *executorRoutes) unfinishedInPostorder() ([]*executorRoute, error) {
-	children := make(map[string][]*executorRoute, len(routes.admissionOrder))
-	for _, route := range routes.admissionOrder {
-		if route == routes.root || route.segmentFinished {
-			continue
-		}
-		children[route.lineage.ParentRunID] = append(children[route.lineage.ParentRunID], route)
+	if routes == nil || routes.root == nil {
+		return nil, errors.New("runs: executor routes have no root")
 	}
-	for parentID := range children {
-		slices.SortFunc(children[parentID], func(left, right *executorRoute) int {
-			if left.runID < right.runID {
-				return -1
-			}
-			if left.runID > right.runID {
-				return 1
-			}
-			return 0
+	byRunID := make(map[string]*executorRoute, len(routes.admissionOrder))
+	members := make([]execution.RunTreeMember, 0, len(routes.admissionOrder))
+	for _, route := range routes.admissionOrder {
+		if route == nil {
+			return nil, errors.New("runs: executor routes contain a nil route")
+		}
+		byRunID[route.runID] = route
+		members = append(members, execution.RunTreeMember{
+			RunID:   route.runID,
+			Lineage: route.lineage,
 		})
 	}
-	var ordered []*executorRoute
-	var visit func(*executorRoute) error
-	visiting := make(map[string]bool, len(routes.admissionOrder))
-	visited := make(map[string]bool, len(routes.admissionOrder))
-	visit = func(route *executorRoute) error {
-		if visiting[route.runID] {
-			return fmt.Errorf("runs: executor routes contain a cycle at run %q", route.runID)
+	tree, err := execution.NewRunTree(routes.root.runID, members)
+	if err != nil {
+		return nil, fmt.Errorf("runs: executor routes: %w", err)
+	}
+	ordered := make([]*executorRoute, 0, routes.unfinishedCount())
+	for _, runID := range tree.Postorder() {
+		route := byRunID[runID]
+		if route == nil {
+			return nil, fmt.Errorf("runs: executor tree ordered unknown run %q", runID)
 		}
-		if visited[route.runID] {
-			return nil
-		}
-		visiting[route.runID] = true
-		for _, child := range children[route.runID] {
-			if err := visit(child); err != nil {
-				return err
-			}
-		}
-		visiting[route.runID] = false
-		visited[route.runID] = true
 		if !route.segmentFinished {
+			if route.lineage.IsChild() {
+				parent := byRunID[route.lineage.ParentRunID]
+				if parent == nil {
+					return nil, fmt.Errorf(
+						"runs: active executor route %q has no parent route %q",
+						route.runID,
+						route.lineage.ParentRunID,
+					)
+				}
+				if parent.segmentFinished {
+					return nil, fmt.Errorf(
+						"runs: active executor route %q descends from finished route %q",
+						route.runID,
+						parent.runID,
+					)
+				}
+			}
 			ordered = append(ordered, route)
 		}
-		return nil
-	}
-	if err := visit(routes.root); err != nil {
-		return nil, err
-	}
-	if len(ordered) != routes.unfinishedCount() {
-		return nil, errors.New("runs: executor routes contain an active Run disconnected from the root")
 	}
 	return ordered, nil
 }
