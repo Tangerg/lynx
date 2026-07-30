@@ -1,11 +1,11 @@
 # Lyra Runtime API 最终一致性收口计划
 
 > 作者：Codex
-> 状态：`A-TRACK DONE / B1.3 DONE · B1.4 NEXT`
+> 状态：`A-TRACK DONE / B1.4a–b DONE · B1.4c NEXT`
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
-> 当前实施基线：`main@bd1a69a4c`（B1.3c）
+> 当前实施基线：`main@62c859475`（B1.4a–b）
 > 目标协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 目标 Artifact：`SessionArtifactVersion = 7`
 
@@ -209,7 +209,7 @@ cd app/desktop/frontend && npm run check
 | A5 | capability gate 与 disabled-subagent seam 收口 | `DONE` | 2026-07-30 完成 | shared policy、durable identity gates、全量 gates |
 | A6 | Registry fail-closed 与 SSOT 清理 | `DONE` | 2026-07-30 完成 | defensive views、closed metadata、effective errors、全量 gates |
 | A7 | canonical docs 与最终 conformance sweep | `DONE` | 2026-07-30 完成 | §12.4 conformance matrix、全量 gates |
-| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.4 unified root/child cancellation | B1.1–B1.3 已完成；启用条件见 §11 |
+| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.4c Waiting subtree cancel | B1.1–B1.3、B1.4a–b 已完成；启用条件见 §11 |
 
 A1–A7 已全部完成，当前没有 A-track slice 处于 `IN PROGRESS`。B1 保持独立项目，
 已按 breaking-first 策略开始实施；不得通过打开 feature flag、复用 root identity
@@ -509,7 +509,7 @@ consumer 闭环就不能诚实发布 capability。
 | B1.1 | durable Run-tree identity 与 root admission | `DONE` | 三条 child edge 单一领域不变量、SQLite epoch 41、root-only active index、root-owned profile、Artifact/tree validation |
 | B1.2 | first-class child Run producer 与 source routing | `DONE` | causal identity、acknowledged opening、独立 Segment/Item/metrics、递归/并发/失败 conformance 全部闭环 |
 | B1.3 | tree interrupt barrier 与 resume | `DONE` | barrier、整树 resume、restart / race / failure / ordering conformance 全部闭环 |
-| B1.4 | unified root/child cancellation | `TODO` | tree arbiter、Running/Waiting child subtree transaction、parent `child_run_canceled`、exact root+child response |
+| B1.4 | unified root/child cancellation | `IN PROGRESS` | tree arbiter 与 Running subtree 已完成；Waiting transaction、race/restart/query conformance 待完成 |
 | B1.5 | durable query、subscribe 与 cold recovery | `TODO` | descendant paging、child items/subscribe、restart tree query/recovery、root stream replay scope |
 | B1.6 | frontend Run-tree consumer | `TODO` | reducer 按 source Run fold、树折叠/状态/取消交互、cold refetch 与 replay 恢复 |
 | B1.7 | conformance sweep 与 capability enablement | `TODO` | §11.3 全部门槛、race/多分支集成/生成物/docs 全绿后才将 feature 改为 true |
@@ -535,6 +535,15 @@ B1.3 内部原子切片：
 | B1.3a | `DONE` | Agent Runtime 发现完整 direct suspension set；application 将任一 source suspension 提升为 root-owned tree barrier；所有 active Runs 后序原子挂起；non-source Run 投影 `suspended`；SQLite epoch 42 持久化 continuations 与 item→suspension 精确绑定 |
 | B1.3b | `DONE` | application 将 response set 规范化为 exact item→process/suspension answers；pending 整体 consume；全部 Run 后序原子打开新 Segment；adapter 在一次已接受集合内自动推进 sibling waits；SQLite epoch 43 持久化完整双拓扑 |
 | B1.3c | `DONE` | resume / terminal / cancel 竞态、重复响应、失败补偿、跨进程重启、确定性发布顺序与完整 conformance sweep |
+
+B1.4 内部原子切片：
+
+| Slice | 状态 | 边界 |
+|---|---|---|
+| B1.4a | `DONE` | 任意 root/child identity 单次读取完整 durable tree；领域 `RunTree` 验证拓扑并生成 canonical postorder/subtree；application 冻结 Run、Pending、Turn 与 executor bindings 为 immutable cancel plan；root handle 串行化 child/root/interrupt owner |
+| B1.4b | `DONE` | Running child 精确停止其 executor process subtree；Agent Runtime 后序发布 killed terminal；application join target terminal 与父 spawning Item 的唯一 `child_run_canceled`；root/兄弟不被取消；同步返回 exact child + unchanged root snapshot |
+| B1.4c | `IN PROGRESS` | Waiting child 的 Pending/Continuation/checkpoint ownership、subtree terminal、parent Item 与必要的 surviving-tree resume 单事务变换 |
+| B1.4d | `TODO` | root/child/resume/natural terminal 全竞态、重复调用、teardown failure、SQLite restart 与 query conformance |
 
 ---
 
@@ -1516,6 +1525,65 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
     B1.5–B1.7；
   - `features.subagents.enabled` 继续保持 false。
 
+### 2026-07-30 — B1.4a–b
+
+- 状态：`DONE`
+- Commit：`62c859475`（`feat(runtime): cancel running child subtrees`）
+- 目标：为 root/child `runs.cancel` 建立唯一 tree plan 与仲裁边界，并完整交付
+  Running child subtree cancel，不用 root teardown、状态补丁或第二套 API 冒充。
+- 关键裁决：
+  - `RunProjection.RunTree` 由任意 root/child ID 一次解析完整 aggregate；SQLite 用
+    单条 CTE read 固定 root 与 descendants。application 将 durable Runs、root-owned
+    Pending、TurnRef 和 live/parked executor bindings 一次冻结成
+    `cancellationPlan`，再由领域 `execution.RunTree` 验证单 root、连通、无环、
+    lineage 与 canonical postorder。缺 Run、断 parent、跨 Session、重复 process、
+    Pending/continuation 不一致均在 executor side effect 前 fail closed；
+  - root live handle 保存 immutable Run→executor-process binding；child opening 在
+    durable commit 前先预留 binding，commit 失败只撤回同一 reservation，消除
+    “child row 已可见但进程不可寻址”的窗口；
+  - root cancellation、child cancellation 与 interrupt commit 由同一 handle
+    arbiter 串行化；loser 返回 busy，不写 cancel reason、不停止 root，也不等待一个
+    自己没有赢得的 terminal boundary；
+  - `TurnControl.CancelSubtree` 是 application 的窄 driven port；Agent adapter 必须
+    沿 parent chain 证明 target 是该 Turn root 的严格 descendant，才允许调用
+    Agent Runtime `Kill(targetProcessID)`。跨 Turn、root 自身、缺失 ancestor 均零
+    side effect 拒绝；
+  - Agent Runtime 对 target 与 live descendants 仍在一个 process-tree mutation
+    ownership 内原子标记 killed，但 `ProcessKilled` 改为 descendants-first、
+    siblings lexical 的 canonical postorder。application 等到 target terminal
+    durable commit，并等父 spawning Item durable commit 后才返回成功，因此
+    executor teardown、subtree terminal 与 parent result 构成一个 command join；
+  - `ToolCallEnd` 删除平行的 `Denied bool` / `Err string`，只保留一个
+    application-owned `Problem`。Running child cancel 在 target canceled terminal
+    已 durable 后，把 AgentTool 的普通失败精确重分类为
+    `child_run_canceled`；父 Item 只完成一次，root 与 surviving sibling 保持原
+    Segment 继续执行；
+  - handle 按职责拆为 core lifecycle、cancellation arbiter 与 executor bindings；
+    没有引入通用 manager/repository facade 或跨层领域接口。
+- 生成物：
+  - 新增 Artifact `childRunCanceled` problem variant，并由同一 protocol enum 生成
+    `contract/schema.json`、frontend wire type 与 validator；
+  - public `runs.cancel` method、root/child response union、OpenRPC method shape 与
+    SQLite schema epoch 不变；本 slice 实现既有 vNext contract 的 Running 语义；
+  - `features.subagents.enabled` 继续保持 false。
+- 验证：
+  - `go generate ./...` → `PASS`，schema 与 frontend wire 生成物已同步；
+  - `MODULE=app/runtime FAST=1 scripts/check.sh build vet test lint` → `PASS`；
+  - `go test -race ./internal/application/runs ./internal/adapter/agentexec/turn -count=1`
+    → `PASS`；
+  - `go test ./agent/runtime -count=1 && go vet ./agent/runtime` → `PASS`；
+  - Coordinator 贯穿 fixture 证明 child terminal 恰好一次、parent
+    `child_run_canceled` 恰好一次、root 仍 live 并最终自然 completed；
+  - Agent Runtime fixture 证明 killed publication 为 child-before-root postorder；
+    handle fixture 证明 root/child cancellation 至多一个 tree owner。
+- 残余风险：
+  - Waiting child 仍由 B1.4c 完成一个 durable tree transaction；当前明确 fail
+    closed，不会只改 child 状态；
+  - root cancel vs child cancel、resume vs child cancel、natural terminal、重复
+    cancel、teardown failure、SQLite restart 与 exact query 的完整矩阵进入 B1.4d；
+  - durable child query/replay、frontend tree fold 与 capability enablement 分别属于
+    B1.5–B1.7。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -1544,26 +1612,27 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 
 ## 18. 下一步
 
-A-track 与 B1.1–B1.3 已收口。下一阶段是：
+A-track、B1.1–B1.3 与 B1.4a–b 已收口。下一阶段是：
 
 ```text
-B1.4 — unified root/child cancellation
+B1.4c — Waiting subtree cancel
 ```
 
-B1.4 采用四个内部原子切片，严格按事实依赖实施：
+B1.4 的四个内部原子切片继续严格按事实依赖实施：
 
-| Slice | 边界 | 完成定义 |
-|---|---|---|
-| B1.4a | root-owned tree arbiter 与 cancel plan | root / child target 统一解析为 immutable subtree plan；resume、root cancel、child cancel、terminal 共用同一 root admission；删除当前“authorized child cancellation unavailable”分支 |
-| B1.4b | Running subtree cancel | executor 精确停止并 join target process subtree；所有 descendant Run canonical postorder terminalize；父 `task` 只提交一次结构化 `child_run_canceled`；surviving sibling 与 root 可继续执行 |
-| B1.4c | Waiting subtree cancel | 一个 transaction 删除 target subtree 的 Interrupt / Continuation / snapshot ownership 并关闭对应 Run；root set 非空时 surviving tree 继续 Waiting，集合为空时一次打开全部 surviving suspended Run 的新 Segment 并恢复执行 |
-| B1.4d | race / restart / query conformance | root cancel vs child cancel、child terminal vs cancel、resume vs child cancel、重复 cancel、teardown failure、SQLite restart 全矩阵；同步返回 exact child + root committed snapshot |
+| Slice | 状态 | 边界 | 完成定义 |
+|---|---|---|---|
+| B1.4a | `DONE` | root-owned tree arbiter 与 cancel plan | root / child target 统一解析为 immutable subtree plan；root cancel、child cancel、interrupt/terminal 共用 root owner；删除“authorized child cancellation unavailable”分支 |
+| B1.4b | `DONE` | Running subtree cancel | executor 精确停止并 join target process subtree；所有 descendant Run canonical postorder terminalize；父 `task` 只提交一次结构化 `child_run_canceled`；surviving sibling 与 root 继续执行 |
+| B1.4c | `IN PROGRESS` | Waiting subtree cancel | 一个 transaction 删除 target subtree 的 Interrupt / Continuation / snapshot ownership 并关闭对应 Run；root set 非空时 surviving tree 继续 Waiting，集合为空时一次打开全部 surviving suspended Run 的新 Segment 并恢复执行 |
+| B1.4d | `TODO` | race / restart / query conformance | root cancel vs child cancel、child terminal vs cancel、resume vs child cancel、重复 cancel、teardown failure、SQLite restart 全矩阵；同步返回 exact child + root committed snapshot |
 
-第一原子切片是 B1.4a。它只建立一个 cancellation 事实作者和不可变 plan，不提前写
-半套 persistence transaction。plan 至少必须携带 root、target、target subtree、
-surviving tree、当前 Running / Interrupted 状态、process bindings、Run lineage 与
-canonical postorder；任何缺失、断链、跨 Session 或 snapshot/Pending 不一致都在
-executor side effect 前 fail closed。
+B1.4c 必须复用 B1.4a 冻结的完整 plan 与 root admission，不重新查询后拼装 subtree。
+它先定义一份 application-owned waiting transformation：target subtree terminal、
+父 spawning Item、剩余 Pending/continuations、surviving Run 状态与必要的新 Segment
+identity 都必须在进入 persistence 前确定；executor checkpoint/subtree ownership
+变化必须与 durable transaction 有明确的 prepare/commit/abort 顺序，不能留下
+“数据库已删 Interrupt、restart snapshot 仍会复活 child”或相反的裂缝。
 
 实现期间继续坚持：
 
