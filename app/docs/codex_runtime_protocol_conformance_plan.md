@@ -1,11 +1,11 @@
 # Lyra Runtime API 最终一致性收口计划
 
 > 作者：Codex
-> 状态：`A-TRACK DONE / B1.4a–c DONE · B1.4d NEXT`
+> 状态：`A-TRACK DONE / B1.4a–c DONE · B1.4d IN PROGRESS`
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
-> 当前实施基线：`main@a4e153fd4`（B1.4a–c）
+> 当前实施基线：`main@6eb2f7f55`；B1.4d / W2.1 随本原子 slice 完成
 > 目标协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 目标 Artifact：`SessionArtifactVersion = 7`
 
@@ -543,7 +543,7 @@ B1.4 内部原子切片：
 | B1.4a | `DONE` | 任意 root/child identity 单次读取完整 durable tree；领域 `RunTree` 验证拓扑并生成 canonical postorder/subtree；application 冻结 Run、Pending、Turn 与 executor bindings 为 immutable cancel plan；root handle 串行化 child/root/interrupt owner |
 | B1.4b | `DONE` | Running child 精确停止其 executor process subtree；Agent Runtime 后序发布 killed terminal；application join target terminal 与父 spawning Item 的唯一 `child_run_canceled`；root/兄弟不被取消；同步返回 exact child + unchanged root snapshot |
 | B1.4c | `DONE` | Waiting child 的 Pending/Continuation/checkpoint ownership、subtree terminal、parent Item 与必要的 surviving-tree resume 单事务变换 |
-| B1.4d | `TODO` | root/child/resume/natural terminal 全竞态、重复调用、teardown failure、SQLite restart 与 query conformance |
+| B1.4d | `IN PROGRESS` | W2.1 ownership arbitration 已完成；下一步 stale/failure/rollback，随后 SQLite restart 与 query conformance |
 
 ---
 
@@ -1629,6 +1629,34 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
   - durable child query/replay、frontend tree fold 与 capability enablement 分别属于
     B1.5–B1.7。
 
+### 2026-07-30 — B1.4d / W2.1
+
+- 状态：`DONE`
+- Commit：随本原子 slice 提交
+- 目标：用确定性交错证明 parked/live tree 的 root、child、resume、natural terminal 和
+  duplicate mutation 只有一个 owner。
+- 关键裁决：
+  - parked tree 不新增专用 coordinator，由既有 Session/worktree admission 统一裁决
+    root cancel、Waiting child cancel 与 resume；
+  - Running tree 不增加跨层锁，由既有 root handle 统一裁决 root/child/terminal；
+  - loser mutation 统一返回可判定 `ErrSessionBusy`；已提交自然终态返回
+    `ErrRunFinished`；
+  - nested target fixture 同时包含 descendant 与 surviving sibling，避免把 tree
+    arbitration 错写成单 Run 特例。
+- 生成物：public wire、Contract Registry、OpenRPC、Agent API/wire、Artifact 与 SQLite
+  schema 均未变化。
+- 验证：
+  - application ownership matrix 普通测试 `-count=10` → `PASS`
+  - application ownership matrix race `-count=10` → `PASS`
+  - `MODULE=app/runtime FAST=1 scripts/check.sh build vet test lint` → `PASS`
+  - `MODULE=agent FAST=1 scripts/check.sh build vet test lint` → `PASS`
+  - 两个 module 的 `GOWORK=off go mod tidy -diff` → `PASS`
+- 残余风险：
+  - stale Pending、checkpoint、parent Item、terminal Run、Pending/opening transaction 与
+    teardown/Continue failure 进入 W2.2；
+  - SQLite restart、exact query/publication/quiescence 进入 W2.3；
+  - capability 继续保持 disabled。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -1657,10 +1685,10 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 
 ## 18. 下一步
 
-A-track、B1.1–B1.3 与 B1.4a–c 已收口。下一阶段是：
+A-track、B1.1–B1.3、B1.4a–c 与 B1.4d/W2.1 已收口。下一阶段是：
 
 ```text
-B1.4d — race / restart / query conformance
+B1.4d / W2.2 — stale / failure / rollback conformance
 ```
 
 B1.4 的四个内部原子切片继续严格按事实依赖实施：
@@ -1670,7 +1698,7 @@ B1.4 的四个内部原子切片继续严格按事实依赖实施：
 | B1.4a | `DONE` | root-owned tree arbiter 与 cancel plan | root / child target 统一解析为 immutable subtree plan；root cancel、child cancel、interrupt/terminal 共用 root owner；删除“authorized child cancellation unavailable”分支 |
 | B1.4b | `DONE` | Running subtree cancel | executor 精确停止并 join target process subtree；所有 descendant Run canonical postorder terminalize；父 `task` 只提交一次结构化 `child_run_canceled`；surviving sibling 与 root 继续执行 |
 | B1.4c | `DONE` | Waiting subtree cancel | 一个 transaction 删除 target subtree 的 Interrupt / Continuation / snapshot ownership 并关闭对应 Run；root set 非空时 surviving tree 继续 Waiting，集合为空时一次打开全部 surviving suspended Run 的新 Segment 并恢复执行 |
-| B1.4d | `TODO` | race / restart / query conformance | root cancel vs child cancel、child terminal vs cancel、resume vs child cancel、重复 cancel、teardown failure、SQLite restart 全矩阵；同步返回 exact child + root committed snapshot |
+| B1.4d | `IN PROGRESS` | race / restart / query conformance | W2.1 ownership arbitration 已完成；W2.2 逐点失败、W2.3 restart/query/publication、W2.4 全量收口后完成 |
 
 B1.4d 不再修改 B1.4c 的事实所有权：仍由 B1.4a plan + root admission 冻结 target，
 Agent prepared mutation 只决定 execution replacement，App transformation 决定完整 durable

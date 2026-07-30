@@ -364,7 +364,7 @@ func waitingCancellationCoordinator(
 	t *testing.T,
 	plan cancellationPlan,
 	prepared *fakePreparedWaitingCancellation,
-	effects *fakeEffects,
+	effects Effects,
 	executor SegmentExecutor,
 ) (*Coordinator, *fakeTurnControl) {
 	t.Helper()

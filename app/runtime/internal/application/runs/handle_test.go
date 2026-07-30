@@ -3,11 +3,9 @@ package runs
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // TestHandleCancelLinearizesAfterInterruptCommit: requestCancel must not return
@@ -187,23 +185,7 @@ func TestHandleWaitReturnsCompletedOutcomeAfterCallerCancellation(t *testing.T) 
 }
 
 func TestHandleCancellationArbiterAllowsOnlyOneTreeOwner(t *testing.T) {
-	child := transcript.Run{
-		ID:              "run_child",
-		SessionID:       "session",
-		SpawnedByItemID: "item_spawn",
-		ParentRunID:     "run_root",
-		RootRunID:       "run_root",
-		State:           execution.Running,
-	}
-	plan := cancellationPlan{
-		target: cancellationRun{
-			run:       child,
-			source:    ExecutorSource{ProcessID: "process_child", ParentID: "process_root"},
-			hasSource: true,
-		},
-		targetSubtree: []cancellationRun{{run: child}},
-		treeState:     execution.Running,
-	}
+	plan := runningChildCancellationPlan()
 
 	t.Run("child wins", func(t *testing.T) {
 		canceled := false
@@ -231,8 +213,10 @@ func TestHandleCancellationArbiterAllowsOnlyOneTreeOwner(t *testing.T) {
 		if _, err := h.requestCancel(t.Context(), "stop root"); err != nil {
 			t.Fatalf("request root cancellation: %v", err)
 		}
-		if _, err := h.beginChildCancellation(plan, "stop child"); err == nil {
-			t.Fatal("child cancellation acquired a root-owned tree")
+		if _, err := h.beginChildCancellation(plan, "stop child"); !errors.Is(err, ErrSessionBusy) {
+			t.Fatalf("child cancellation error = %v, want ErrSessionBusy", err)
+		} else if !strings.Contains(err.Error(), plan.root.run.ID) {
+			t.Fatalf("child cancellation error = %q, want root identity", err)
 		}
 	})
 }

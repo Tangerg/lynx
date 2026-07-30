@@ -66,9 +66,17 @@ func (h *handle) beginChildCancellation(
 	defer h.mu.Unlock()
 	switch {
 	case h.cancelRequested:
-		return nil, errors.New("runs: root cancellation already owns the tree")
+		return nil, fmt.Errorf(
+			"%w: root Run %q cancellation owns the tree",
+			ErrSessionBusy,
+			plan.root.run.ID,
+		)
 	case h.childCancel != nil:
-		return nil, ErrSessionBusy
+		return nil, fmt.Errorf(
+			"%w: child Run %q cancellation owns the tree",
+			ErrSessionBusy,
+			h.childCancel.targetRunID,
+		)
 	case h.terminalRuns != nil:
 		if terminal, finished := h.terminalRuns[attempt.targetRunID]; finished {
 			return nil, fmt.Errorf(
