@@ -1,11 +1,11 @@
 # Lyra Runtime API 最终一致性收口计划
 
 > 作者：Codex
-> 状态：`A-TRACK DONE / B1.4 DONE · B1.5 READY`
+> 状态：`A-TRACK DONE / B1.4 DONE · B1.5 IN PROGRESS`
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
-> 当前已提交基线：`main@42658445a`；B1.4d / W2.4 随本原子 slice 完成
+> 当前已提交基线：`main@a4abac003e`；W3.0 审计完成，W3.1 READY
 > 目标协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 目标 Artifact：`SessionArtifactVersion = 7`
 
@@ -209,7 +209,7 @@ cd app/desktop/frontend && npm run check
 | A5 | capability gate 与 disabled-subagent seam 收口 | `DONE` | 2026-07-30 完成 | shared policy、durable identity gates、全量 gates |
 | A6 | Registry fail-closed 与 SSOT 清理 | `DONE` | 2026-07-30 完成 | defensive views、closed metadata、effective errors、全量 gates |
 | A7 | canonical docs 与最终 conformance sweep | `DONE` | 2026-07-30 完成 | §12.4 conformance matrix、全量 gates |
-| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.5 durable query / subscribe / cold recovery | B1.1–B1.4 已完成；启用条件见 §11 |
+| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.5 / W3.1 durable descendant query | B1.1–B1.4、W3.0 已完成；启用条件见 §11 |
 
 A1–A7 已全部完成，当前没有 A-track slice 处于 `IN PROGRESS`。B1 保持独立项目，
 已按 breaking-first 策略开始实施；不得通过打开 feature flag、复用 root identity
@@ -510,7 +510,7 @@ consumer 闭环就不能诚实发布 capability。
 | B1.2 | first-class child Run producer 与 source routing | `DONE` | causal identity、acknowledged opening、独立 Segment/Item/metrics、递归/并发/失败 conformance 全部闭环 |
 | B1.3 | tree interrupt barrier 与 resume | `DONE` | barrier、整树 resume、restart / race / failure / ordering conformance 全部闭环 |
 | B1.4 | unified root/child cancellation | `DONE` | root/child arbiter、Running/Waiting subtree、failure/restart/query/race/hygiene conformance 全部闭环 |
-| B1.5 | durable query、subscribe 与 cold recovery | `READY` | descendant paging、child items/subscribe、restart tree query/recovery、root stream replay scope |
+| B1.5 | durable query、subscribe 与 cold recovery | `IN PROGRESS` | descendant paging、child/subtree items、root stream replay scope、restart tree recovery；child subscribe 必须拒绝 |
 | B1.6 | frontend Run-tree consumer | `TODO` | reducer 按 source Run fold、树折叠/状态/取消交互、cold refetch 与 replay 恢复 |
 | B1.7 | conformance sweep 与 capability enablement | `TODO` | §11.3 全部门槛、race/多分支集成/生成物/docs 全绿后才将 feature 改为 true |
 
@@ -1732,9 +1732,30 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
   - Agent / Runtime build、vet、全量 test、lint、tidy diff → `PASS`
   - contract/arch drift、receiver/静态错误/兼容债扫描、`git diff --check` → `PASS`
 - 残余风险：
-  - 通用 descendant paging、child subscribe 与完整 Running tree cold recovery 进入
-    B1.5/W3；
+  - 通用 descendant paging、root multi-source stream conformance 与完整 Running tree
+    cold recovery 进入 B1.5/W3；
   - capability 继续保持 disabled。
+
+### 2026-07-30 — B1.5 / W3.0
+
+- 状态：`DONE`
+- Commit：随本次文档审计提交
+- 目标：将 B1.5 重新对齐冻结契约和当前实现，冻结可直接执行的 W3.1–W3.4。
+- 关键裁决：
+  - `runs.subscribe` 只接受 active root Segment；child 必须返回 `run_not_root`，因此
+    不新增 child Journal、child replay scope 或 child subscribe capability；
+  - root Journal 已是整棵树多 source event 的唯一 live stream；
+  - W3.1 的真实实现差距是 runs descendant page、items subtree page、page-local
+    direct Run + ancestor enrichment 及其 cursor identity；
+  - boot recovery 继续以 durable Run tree 为单位：完整 Waiting tree 可保留，不可恢复的
+    Running/non-terminal tree 按 canonical postorder 收口为 `run_lost`。
+- 生成物：只更新实施台账；public wire、Registry、schema、OpenRPC、Go/TS 类型、
+  Artifact、SQLite epoch 与 capability 均不变。
+- 验证：
+  - 冻结契约 §5.4、§6.3、§8.1、§14.2、§14.4 → `PASS`
+  - server/application/SQLite query、Journal/Subscribe、ReconcileOrphans 只读审计
+    → `PASS`
+- 残余风险：W3.1–W3.4 尚未实施；`features.subagents` 继续 disabled。
 
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
@@ -1769,6 +1790,16 @@ A-track 与 B1.1–B1.4 已收口。下一阶段是：
 ```text
 B1.5 / W3 — durable query / subscribe / cold recovery
 ```
+
+B1.5 内部原子切片：
+
+| Slice | 状态 | 边界 | 完成定义 |
+|---|---|---|---|
+| W3.0 | `DONE` | 契约/实现差距冻结 | child subscribe 误述已纠正；三项 query 缺口与既有 stream/recovery 基础已定位 |
+| W3.1 | `READY` | durable descendant query | runs descendant stable page + bound cursor；items exact/subtree page + bound cursor；direct Run + ancestor summaries |
+| W3.2 | `TODO` | root stream/replay conformance | root Journal 多 source、child refusal、profile coverage、tail-first terminal race |
+| W3.3 | `TODO` | restart/cold recovery conformance | file-backed complete Running-tree loss settlement、Waiting-tree preservation、old-epoch replay → cold query convergence |
+| W3.4 | `TODO` | B1.5 full closure | race/full gates、contract drift、architecture/hygiene/compatibility sweep、docs/commit/push |
 
 B1.4 的四个内部原子切片已经按事实依赖完成：
 
