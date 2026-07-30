@@ -204,13 +204,36 @@ func encodeRunProblem(problem *transcript.Problem) (string, error) {
 	return string(encoded), nil
 }
 
-// scanRun decodes one Run row plus the joined open-interrupt payload.
+// pendingJoinPolicy says whether an Interrupted Run must have joined its
+// root-owned pending set. Ordinary reads require it because a complete parked
+// Run is inseparable from that set. Boot recovery is the one exception: it must
+// still be able to read and terminalize a row whose pending set was lost in the
+// crash it is repairing.
+type pendingJoinPolicy uint8
+
+const (
+	requirePendingJoin pendingJoinPolicy = iota
+	allowMissingPendingJoin
+)
+
+// scanRun decodes one complete Run row plus the joined open-interrupt payload.
 //
 // The fine [execution.RunState] is rebuilt from the coarse admission state and
 // the terminal reason beside it rather than stored a second time, and the
 // terminal facts are materialized exactly when the state says they exist — the
 // equivalence [transcript.Run.Validate] enforces on the way in.
 func scanRun(row scanRow) (transcript.Run, error) {
+	return scanRunRow(row, requirePendingJoin)
+}
+
+// scanRunForRecovery uses the same complete durable Run decoder as every normal
+// read, but tolerates the one broken relation reconciliation exists to repair:
+// an Interrupted row whose root-owned pending set is missing.
+func scanRunForRecovery(row scanRow) (transcript.Run, error) {
+	return scanRunRow(row, allowMissingPendingJoin)
+}
+
+func scanRunRow(row scanRow, pendingPolicy pendingJoinPolicy) (transcript.Run, error) {
 	var (
 		run                 transcript.Run
 		coarse              string
@@ -279,7 +302,10 @@ func scanRun(row scanRow) (transcript.Run, error) {
 		// raised by this Run are projected onto it; an empty filtered result means
 		// the Run was suspended by another source in the tree.
 		if !interruptsSuspended.Valid {
-			return transcript.Run{}, fmt.Errorf("sqlite: run %q is suspended with no pending tree interrupt", run.ID)
+			if pendingPolicy == requirePendingJoin {
+				return transcript.Run{}, fmt.Errorf("sqlite: run %q is suspended with no pending tree interrupt", run.ID)
+			}
+			break
 		}
 		treeInterrupts, decodeErr := decodeInterrupts(interruptsSuspended.String)
 		if decodeErr != nil {

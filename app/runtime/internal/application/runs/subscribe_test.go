@@ -195,7 +195,9 @@ func TestSubscribeRefusesACursorFromAnotherSegment(t *testing.T) {
 }
 
 // Two Coordinators are two stream authorities, which is what a restart is: a
-// cursor from the earlier one is unavailable, never silently rebound.
+// cursor from the earlier one is unavailable, never silently rebound. The
+// durable projection remains readable afterward, which is the cold truth a
+// client combines with a new tail subscription.
 func TestSubscribeRefusesACursorFromAnotherProcess(t *testing.T) {
 	previous, previousHub := liveCoordinator(t, runRecord(execution.Running, testSegmentID, ""))
 	previousHub.Append(ev(true))
@@ -211,6 +213,58 @@ func TestSubscribeRefusesACursorFromAnotherProcess(t *testing.T) {
 	})
 	if !errors.Is(err, ErrReplayUnavailable) {
 		t.Fatalf("Subscribe err = %v, want ErrReplayUnavailable", err)
+	}
+	cold, found, queryErr := restarted.runs.Run(t.Context(), testRunID)
+	if queryErr != nil || !found ||
+		cold.State != execution.Running ||
+		cold.ActiveSegmentID != testSegmentID {
+		t.Fatalf(
+			"durable recovery after unavailable replay = found:%t Run:%+v err:%v",
+			found,
+			cold,
+			queryErr,
+		)
+	}
+}
+
+// Real boot reconciliation runs before requests are served. If it has already
+// settled an orphan as run_lost, lifecycle truth outranks cursor inspection:
+// subscribe returns run_finished and the cold query exposes the terminal reason.
+func TestSubscribeAfterOrphanRecoveryUsesFinishedStateBeforeOldCursor(t *testing.T) {
+	previous, previousHub := liveCoordinator(t, runRecord(execution.Running, testSegmentID, ""))
+	previousHub.Append(ev(true))
+	before, err := previous.Subscribe(t.Context(), SubscribeRequest{
+		RunID: testRunID, SegmentID: testSegmentID,
+	})
+	if err != nil {
+		t.Fatalf("first Subscribe: %v", err)
+	}
+
+	outcome := execution.OutcomeError
+	recovered := runRecord(execution.Failed, "", "")
+	recovered.Outcome = &outcome
+	recovered.Error = &transcript.Problem{
+		Kind:  transcript.RunLostProblem,
+		Scope: transcript.RunProblem,
+	}
+	projection := &fakeRunProjection{runs: map[string]transcript.Run{testRunID: recovered}}
+	restarted := NewCoordinator(Dependencies{Runs: projection})
+	_, err = restarted.Subscribe(t.Context(), SubscribeRequest{
+		RunID: testRunID, SegmentID: testSegmentID, Cursor: before.HeadCursor,
+	})
+	if !errors.Is(err, ErrRunFinished) {
+		t.Fatalf("Subscribe after orphan recovery = %v, want ErrRunFinished", err)
+	}
+	cold, found, queryErr := projection.Run(t.Context(), testRunID)
+	if queryErr != nil || !found ||
+		cold.Error == nil ||
+		cold.Error.Kind != transcript.RunLostProblem {
+		t.Fatalf(
+			"cold recovery = found:%t Run:%+v err:%v, want terminal run_lost",
+			found,
+			cold,
+			queryErr,
+		)
 	}
 }
 

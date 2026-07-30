@@ -3,9 +3,9 @@
 > 作者：Codex
 > 状态：`IN PROGRESS`
 > 建档日期：2026-07-30
-> 最新已提交基线：`main@6460bede9`，与 `origin/main` 一致；W3.2 随本原子 slice 完成
-> 当前主任务：`W3.3 — restart / cold recovery conformance`
-> 执行进度：`W2 DONE · W3.0–W3.2 DONE · W3.3 READY`
+> 最新已提交基线：`main@4100af80d`，与 `origin/main` 一致；W3.3 随本原子 slice 完成
+> 当前主任务：`W3.4 — B1.5 full closure`
+> 执行进度：`W2 DONE · W3.0–W3.3 DONE · W3.4 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 43`
@@ -238,7 +238,7 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 | Runtime B1.4a–b | `DONE` | immutable cancel plan、Running child subtree cancellation | — |
 | Runtime B1.4c | `DONE` | prepared runtime mutation + App-owned atomic waiting-subtree transaction | — |
 | Runtime B1.4d | `DONE` | W2.1 ownership；W2.2 failure/rollback；W2.3 restart/query/publication；W2.4 race/hygiene/full closure | — |
-| Runtime B1.5 | `IN PROGRESS` | W3.0–W3.2 query / stream / replay 已完成 | W3.3 restart / cold recovery conformance |
+| Runtime B1.5 | `IN PROGRESS` | W3.0–W3.3 query / stream / replay / cold recovery 已完成 | W3.4 full closure |
 | Desktop B1.6 | `TODO` | 协议 fold 与插件架构基线已存在 | Run-tree fold 与交互 |
 | Runtime/Desktop B1.7 | `TODO` | capability seam 已存在且保持 disabled | 全门禁后启用 subagents |
 | Runtime/Desktop 架构持续演进 | `ONGOING` | 依赖环、consumer ports、plugin contexts 与多项 architecture gate 已存在 | 随每个 slice 审查并最终 sweep |
@@ -258,6 +258,9 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 - `e7452288b test(runtime): prove cancellation ownership arbitration`
 - `3a512fe71 test(runtime): prove waiting cancellation rollback`
 - `42658445a test(runtime): prove cancellation restart consistency`
+- `ef04f5bfd docs(runtime): freeze B1.5 execution slices`
+- `6460bede9 feat(runtime): complete descendant queries`
+- `4100af80d test(runtime): prove root stream recovery`
 
 本轮审计开始时：
 
@@ -749,7 +752,7 @@ W2.3 与 W3 的边界：
 
 ### W3 — B1.5 durable query、subscribe 与 cold recovery
 
-状态：`IN PROGRESS`；当前：`W3.0–W3.2 DONE · W3.3 READY`
+状态：`IN PROGRESS`；当前：`W3.0–W3.3 DONE · W3.4 READY`
 
 交付：
 
@@ -778,8 +781,8 @@ W2.3 与 W3 的边界：
 | W3.0 | `DONE` | 冻结契约与实现差距审计 | 纠正 child subscribe 误述；确认 `runs.get`、root stream、tail-only replay、profile gate 与 tree-aware boot recovery 已有事实；定位 descendant query 三项真实缺口 |
 | W3.1 | `DONE` | durable descendant query | `runs.list.includeDescendants` 进入 application/store；cursor 绑定该 filter；`items.list` run subtree scope 不丢失；每页 Runs 包含直接引用 Run 与完整 ancestor chain |
 | W3.2 | `DONE` | root stream / replay conformance | 多 source event 共用 root cursor；child subscribe 拒绝；profile 不覆盖时拒绝；tail-only + query 在边界竞态下不漏 authoritative terminal |
-| W3.3 | `READY` | restart / cold recovery conformance | file-backed restart 后完整 Running tree canonical `run_lost`、完整 Waiting tree 保留；旧 epoch replay 拒绝后 query 收敛到同一 durable truth |
-| W3.4 | `TODO` | B1.5 full closure | Runtime 高风险 race、全量门禁、contract drift、命名/错误/接口/兼容债审计与文档同步 |
+| W3.3 | `DONE` | restart / cold recovery conformance | file-backed restart 后完整 Running tree canonical `run_lost` 且保留最后 committed facts；完整 Waiting tree 保留；旧 epoch / 已恢复终态均收敛到 durable query |
+| W3.4 | `READY` | B1.5 full closure | Runtime 高风险 race、全量门禁、contract drift、命名/错误/接口/兼容债审计与文档同步 |
 
 W3.1 的所有权：
 
@@ -822,6 +825,26 @@ W3.2 完成结果（2026-07-30）：
   Artifact、Store epoch、Agent API 与 capability 均未变化；
 - application/runs 与 delivery/server race `-count=10`、Runtime build/vet/全量
   test/lint、arch/contract drift、tidy diff 与 diff check 全绿。
+
+W3.3 完成结果（2026-07-30）：
+
+- recovery 删除独立的缩水版 `nonTerminalRun` row model，统一复用完整 Run decoder；
+  只在 boot repair 显式允许 Interrupted row 缺失 root-owned Pending，其余 lineage、
+  accounting、limits、model 与 profile 约束不降级；
+- `recoverLostRun` 从完整 durable aggregate 演进终态，不再重建字段子集，因此每个
+  root/child/nested Run 的最后 committed metrics、limits、model selection、
+  root-owned protocol profile、lineage 与 creation time 全部保留；
+- 真实 file-backed close/reopen fixture 证明 Running root → child → grandchild 全树
+  收敛为 `failed(error:run_lost)`，清空 active Segment、结算 terminal boundary 并释放
+  admission；完整 Waiting root/child tree 则保留 Pending、continuations 与 process
+  snapshot；
+- stream epoch 与 lifecycle 使用明确优先级：新进程仍有 active stream 时 old epoch
+  返回 `replay_unavailable` 后读 durable projection；boot 已先把 orphan 收口时返回
+  `run_finished`，cold query 读取 `run_lost`，不为旧 cursor 伪造 replay；
+- production change 仅限 SQLite recovery/read 聚合边界；public wire、Registry、
+  schema、OpenRPC、Artifact、Store epoch、Agent API/wire 与 capability 均未变化；
+- SQLite、application/runs、delivery/server race `-count=10`、Runtime
+  build/vet/全量 test/lint、arch/contract drift、tidy diff 与 diff check 全绿。
 
 完成定义：
 
@@ -1351,6 +1374,44 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
   与 old-epoch replay → cold query convergence 进入 W3.3。
 - 下一步：W3.3 restart / cold recovery conformance。
 
+### 2026-07-30 — W3.3
+
+- 状态：`DONE`
+- Commit：随本原子 slice 提交
+- 目标：证明完整 Run tree 在真实进程重启后的 Running loss settlement、Waiting
+  preservation 与 stream/cold-query recovery 语义一致。
+- 事实作者：SQLite durable Run aggregate 继续唯一拥有 cold truth；boot
+  reconciliation 只演进 lifecycle，不重新解释或重建 immutable/accounting facts；
+  live Journal 只拥有当前 process epoch 的有界 replay。
+- 关键裁决：
+  - recovery 与普通 query 共用完整 Run row decoder，不再维护可能漏字段的 recovery
+    shadow model；
+  - recovery 唯一放宽项是允许读取“Interrupted 但 Pending 已丢失”的损坏关系，以便
+    原子收口为 `run_lost`；模型、profile、lineage 和 accounting 仍 fail closed；
+  - active replacement stream 面对 old epoch 返回 `replay_unavailable`；真实 boot
+    已收口 orphan 时 lifecycle preflight 返回 `run_finished`，随后 query 给出
+    `run_lost`，两者都禁止把 cursor 重绑到新 authority；
+  - complete Waiting tree 只有 Pending、continuations、transcript 与 process snapshot
+    全部自洽且 executor validator 接受时才能跨重启保留。
+- 生成物：production 仅调整 SQLite recovery/read 内部实现；public wire、Registry、
+  schema、OpenRPC、Go/TS types、Artifact、Store epoch、Agent API/wire 与
+  `features.subagents` 均未变化。
+- 验证：
+  - file-backed Running root/child/grandchild loss settlement + committed facts
+    preservation → `PASS`
+  - file-backed complete Waiting tree preservation → `PASS`
+  - old epoch replay / recovered terminal error precedence + cold projection → `PASS`
+  - SQLite、application/runs、delivery/server race `-count=10` → `PASS`
+  - `MODULE=app/runtime FAST=1 scripts/check.sh build vet test lint` → `PASS`
+  - `GOWORK=off go mod tidy -diff`、arch/contract drift、`git diff --check` → `PASS`
+- 架构复核：
+  - 抽象不过度 / 不足 → `PASS`；删除 recovery shadow model，保留一个明确 scan policy
+  - Agent/App/Delivery/Desktop 无概念泄漏 → `PASS`；变更只在 App SQLite adapter
+  - 无兼容 decoder、旧 epoch fallback、双读写或 migration → `PASS`
+- 残余风险：B1.5 全量 hygiene、compatibility 与完整质量门禁进入 W3.4；
+  capability 继续 disabled。
+- 下一步：W3.4 B1.5 full closure。
+
 ---
 
 ## 12. 下一张执行卡
@@ -1358,21 +1419,20 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 唯一下一任务：
 
 ```text
-W3.3 — B1.5
-Restart / cold recovery conformance
+W3.4 — B1.5
+Full closure
 ```
 
 实施顺序：
 
-1. 用真实 file-backed SQLite 构造 Running root + child + nested/sibling，关闭并重开；
-2. boot reconciliation 必须按 canonical postorder 将完整不可恢复 tree 收口
-   `run_lost`，结算每个 Running Item 并释放 root admission；
-3. 完整 Waiting tree 必须保留 Pending、continuations、process snapshot 与 exact
-   descendant query；
-4. 旧 process epoch cursor 必须 `replay_unavailable`，随后 cold query 重建与 committed
-   projection 一致；
-5. 运行 SQLite/application/delivery 定向/race 与 Runtime 全量门禁，更新台账后独立
-   commit/push。
+1. 对 B1.5 触达的 application/delivery/SQLite 文件执行命名、错误信息、receiver、
+   接口宽度、文件职责与依赖方向审计；
+2. 扫描 root-only、single-Run、child stream、旧 cursor、兼容 decoder、双读写与
+   recovery shadow model 残留；
+3. 复跑 Runtime 高风险 package race、全量 build/vet/test/lint、tidy、contract/arch
+   drift 与 diff check；
+4. 核对 canonical protocol、两份执行台账、架构文档与实际实现无漂移；
+5. B1.5 全部证据成立后独立 commit/push，并将 W3 标记 `DONE`，再进入 Desktop B1.6。
 
 W3 的禁止项：
 

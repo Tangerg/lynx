@@ -10,7 +10,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // ProcessSnapshotValidator asks the executor that owns processID whether its
@@ -70,9 +69,9 @@ func (s *RunStore) ReconcileOrphans(ctx context.Context, validateSnapshot Proces
 		for _, rootRunID := range rootRunIDs {
 			tree := trees[rootRunID]
 			pendingInterrupt, hasInterrupt := pendingByRun[rootRunID]
-			if tree.root.state == execution.Interrupted &&
+			if tree.root.State == execution.Interrupted &&
 				hasInterrupt &&
-				pendingInterrupt.SessionID == tree.root.sessionID {
+				pendingInterrupt.SessionID == tree.root.SessionID {
 				resumable, err := s.validateParkedTree(
 					ctx,
 					tree,
@@ -122,76 +121,35 @@ func (s *RunStore) hasResumableProcessSnapshot(ctx context.Context, processID st
 	return resumable, nil
 }
 
-// nonTerminalRun is a Run still holding its session's admission slot, read
-// WITHOUT composing the interrupt it may be parked on: reconciliation exists to
-// repair parks whose interrupt record is missing or unusable, so it cannot
-// require one to read the row.
-type nonTerminalRun struct {
-	runID          string
-	sessionID      string
-	lineage        execution.RunLineage
-	modelSelection modelref.Selection
-	state          execution.RunState
-	createdAt      time.Time
-}
-
 type nonTerminalRunTree struct {
-	root      nonTerminalRun
-	runsByID  map[string]nonTerminalRun
+	root      transcript.Run
+	runsByID  map[string]transcript.Run
 	postorder []string
 }
 
-func (s *RunStore) nonTerminalRuns(ctx context.Context) ([]nonTerminalRun, error) {
+// nonTerminalRuns reads complete durable Run aggregates, including accounting,
+// limits, model selection, and the root-owned protocol profile. Recovery used to
+// maintain a smaller parallel row decoder here; that made newly added Run facts
+// disappear when the row was terminalized as lost. The recovery-specific scan
+// now differs from ordinary reads only by allowing a missing pending join.
+func (s *RunStore) nonTerminalRuns(ctx context.Context) ([]transcript.Run, error) {
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT run_id, session_id, spawned_by_item_id, parent_run_id, root_run_id,
-		        provider, model, state, started_at
-		   FROM runs
-		  WHERE state != ?
-		  ORDER BY started_at, run_id`,
+		`SELECT `+runColumns+`
+		   FROM runs AS r
+		   `+runReadJoins+`
+		  WHERE r.state != ?
+		  ORDER BY r.started_at, r.run_id`,
 		runStateTerminal)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list non-terminal runs: %w", err)
 	}
 	defer rows.Close()
 
-	var out []nonTerminalRun
+	var out []transcript.Run
 	for rows.Next() {
-		var run nonTerminalRun
-		var provider, model, coarse string
-		var startedAt int64
-		if err := rows.Scan(
-			&run.runID,
-			&run.sessionID,
-			&run.lineage.SpawnedByItemID,
-			&run.lineage.ParentRunID,
-			&run.lineage.RootRunID,
-			&provider,
-			&model,
-			&coarse,
-			&startedAt,
-		); err != nil {
-			return nil, fmt.Errorf("sqlite: scan non-terminal run: %w", err)
-		}
-		if err := run.lineage.Validate(run.runID); err != nil {
-			return nil, fmt.Errorf(
-				"sqlite: decode non-terminal run %q lineage: %w",
-				run.runID,
-				err,
-			)
-		}
-		run.createdAt = time.Unix(0, startedAt).UTC()
-		selection, err := modelref.New(provider, model)
+		run, err := scanRunForRecovery(rows)
 		if err != nil {
-			return nil, fmt.Errorf("sqlite: decode non-terminal run %q model selection: %w", run.runID, err)
-		}
-		run.modelSelection = selection
-		switch coarse {
-		case runStateRunning:
-			run.state = execution.Running
-		case runStateInterrupted:
-			run.state = execution.Interrupted
-		default:
-			return nil, fmt.Errorf("sqlite: scan non-terminal run: unknown state %q", coarse)
+			return nil, fmt.Errorf("sqlite: scan non-terminal run: %w", err)
 		}
 		out = append(out, run)
 	}
@@ -201,23 +159,23 @@ func (s *RunStore) nonTerminalRuns(ctx context.Context) ([]nonTerminalRun, error
 	return out, nil
 }
 
-func groupNonTerminalRunTrees(active []nonTerminalRun) (map[string]nonTerminalRunTree, error) {
-	grouped := make(map[string][]nonTerminalRun)
+func groupNonTerminalRunTrees(active []transcript.Run) (map[string]nonTerminalRunTree, error) {
+	grouped := make(map[string][]transcript.Run)
 	for _, run := range active {
-		rootRunID := run.lineage.TreeRootID(run.runID)
+		rootRunID := run.Lineage().TreeRootID(run.ID)
 		grouped[rootRunID] = append(grouped[rootRunID], run)
 	}
 
 	trees := make(map[string]nonTerminalRunTree, len(grouped))
 	for rootRunID, runs := range grouped {
 		members := make([]execution.RunTreeMember, 0, len(runs))
-		runsByID := make(map[string]nonTerminalRun, len(runs))
+		runsByID := make(map[string]transcript.Run, len(runs))
 		for _, run := range runs {
 			members = append(members, execution.RunTreeMember{
-				RunID:   run.runID,
-				Lineage: run.lineage,
+				RunID:   run.ID,
+				Lineage: run.Lineage(),
 			})
-			runsByID[run.runID] = run
+			runsByID[run.ID] = run
 		}
 		topology, err := execution.NewRunTree(rootRunID, members)
 		if err != nil {
@@ -235,12 +193,12 @@ func groupNonTerminalRunTrees(active []nonTerminalRun) (map[string]nonTerminalRu
 			)
 		}
 		for _, run := range runs {
-			if run.sessionID != root.sessionID {
+			if run.SessionID != root.SessionID {
 				return nil, fmt.Errorf(
 					"sqlite: non-terminal Run %q belongs to Session %q, want tree Session %q",
-					run.runID,
-					run.sessionID,
-					root.sessionID,
+					run.ID,
+					run.SessionID,
+					root.SessionID,
 				)
 			}
 		}
@@ -262,7 +220,7 @@ func (s *RunStore) recoverLostTree(
 		if err := s.recoverLostRun(ctx, tree.runsByID[runID], now); err != nil {
 			return fmt.Errorf(
 				"sqlite: recover lost Run tree %q member %q: %w",
-				tree.root.runID,
+				tree.root.ID,
 				runID,
 				err,
 			)
@@ -271,15 +229,15 @@ func (s *RunStore) recoverLostTree(
 	return nil
 }
 
-func (s *RunStore) recoverLostRun(ctx context.Context, active nonTerminalRun, now time.Time) error {
+func (s *RunStore) recoverLostRun(ctx context.Context, active transcript.Run, now time.Time) error {
 	transcripts := NewTranscriptStore(s.db)
-	items, err := transcripts.List(ctx, active.sessionID)
+	items, err := transcripts.List(ctx, active.SessionID)
 	if err != nil {
-		return fmt.Errorf("sqlite: reconcile lost run %q transcript: %w", active.runID, err)
+		return fmt.Errorf("sqlite: reconcile lost run %q transcript: %w", active.ID, err)
 	}
 
 	for _, item := range items {
-		if item.RunID != active.runID || item.Status != transcript.ItemRunning {
+		if item.RunID != active.ID || item.Status != transcript.ItemRunning {
 			continue
 		}
 		item.Status = transcript.ItemIncomplete
@@ -290,36 +248,30 @@ func (s *RunStore) recoverLostRun(ctx context.Context, active nonTerminalRun, no
 			}
 		}
 		if err := transcripts.AppendItem(ctx, item); err != nil {
-			return fmt.Errorf("sqlite: reconcile lost run %q item %q: %w", active.runID, item.ID, err)
+			return fmt.Errorf("sqlite: reconcile lost run %q item %q: %w", active.ID, item.ID, err)
 		}
 	}
 
-	messageMark, err := NewMessageStore(s.db).Count(ctx, active.sessionID)
+	messageMark, err := NewMessageStore(s.db).Count(ctx, active.SessionID)
 	if err != nil {
-		return fmt.Errorf("sqlite: reconcile lost run %q watermark: %w", active.runID, err)
+		return fmt.Errorf("sqlite: reconcile lost run %q watermark: %w", active.ID, err)
 	}
-	next, ok := active.state.RecoverLost()
+	next, ok := active.State.RecoverLost()
 	if !ok {
-		return fmt.Errorf("sqlite: reconcile lost run %q: state %s is not recoverable", active.runID, active.state)
+		return fmt.Errorf("sqlite: reconcile lost run %q: state %s is not recoverable", active.ID, active.State)
 	}
 	outcome := execution.OutcomeError
-	lost := transcript.Run{
-		SessionID:       active.sessionID,
-		ID:              active.runID,
-		SpawnedByItemID: active.lineage.SpawnedByItemID,
-		ParentRunID:     active.lineage.ParentRunID,
-		RootRunID:       active.lineage.RootRunID,
-		ModelSelection:  active.modelSelection,
-		State:           next,
-		Outcome:         &outcome,
-		Error: &transcript.Problem{
-			Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
-			Detail: "run lost on restart",
-		},
-		CreatedAt:   active.createdAt,
-		FinishedAt:  now,
-		UpdatedAt:   now,
-		MessageMark: messageMark,
+	active.State = next
+	active.ActiveSegmentID = ""
+	active.Outcome = &outcome
+	active.Detail = ""
+	active.Error = &transcript.Problem{
+		Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
+		Detail: "run lost on restart",
 	}
-	return s.RecoverLost(ctx, lost)
+	active.Interrupts = nil
+	active.FinishedAt = now
+	active.UpdatedAt = now
+	active.MessageMark = messageMark
+	return s.RecoverLost(ctx, active)
 }

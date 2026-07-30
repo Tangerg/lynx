@@ -28,25 +28,25 @@ func (s *RunStore) validateParkedTree(
 	if err := pending.Validate(); err != nil {
 		return false, fmt.Errorf(
 			"sqlite: validate parked Run tree %q Pending: %w",
-			tree.root.runID,
+			tree.root.ID,
 			err,
 		)
 	}
-	if pending.RootRunID != tree.root.runID ||
-		pending.SessionID != tree.root.sessionID {
+	if pending.RootRunID != tree.root.ID ||
+		pending.SessionID != tree.root.SessionID {
 		return false, fmt.Errorf(
 			"sqlite: validate parked Run tree %q: Pending identity is %q/%q, want %q/%q",
-			tree.root.runID,
+			tree.root.ID,
 			pending.SessionID,
 			pending.RootRunID,
-			tree.root.sessionID,
-			tree.root.runID,
+			tree.root.SessionID,
+			tree.root.ID,
 		)
 	}
 	if len(pending.Continuations) != len(tree.runsByID) {
 		return false, fmt.Errorf(
 			"sqlite: validate parked Run tree %q: Pending has %d continuations, want %d active Runs",
-			tree.root.runID,
+			tree.root.ID,
 			len(pending.Continuations),
 			len(tree.runsByID),
 		)
@@ -56,20 +56,20 @@ func (s *RunStore) validateParkedTree(
 		if !found {
 			return false, fmt.Errorf(
 				"sqlite: validate parked Run tree %q: continuation names non-active Run %q",
-				tree.root.runID,
+				tree.root.ID,
 				continuation.RunID,
 			)
 		}
-		if err := active.validateParkedContinuation(tree.root, continuation); err != nil {
+		if err := validateParkedContinuation(active, tree.root, continuation); err != nil {
 			return false, err
 		}
 	}
 
-	items, err := NewTranscriptStore(s.db).List(ctx, tree.root.sessionID)
+	items, err := NewTranscriptStore(s.db).List(ctx, tree.root.SessionID)
 	if err != nil {
 		return false, fmt.Errorf(
 			"sqlite: validate parked Run tree %q transcript: %w",
-			tree.root.runID,
+			tree.root.ID,
 			err,
 		)
 	}
@@ -91,7 +91,7 @@ func (s *RunStore) validateParkedTree(
 	}
 	for _, continuation := range pending.Continuations {
 		if err := validateContinuationTools(
-			tree.root.runID,
+			tree.root.ID,
 			continuation,
 			itemsByID,
 			claimedItems,
@@ -108,47 +108,48 @@ func (s *RunStore) validateParkedTree(
 	)
 }
 
-func (active nonTerminalRun) validateParkedContinuation(
-	root nonTerminalRun,
+func validateParkedContinuation(
+	active transcript.Run,
+	root transcript.Run,
 	continuation interrupts.Continuation,
 ) error {
 	switch {
-	case active.sessionID != root.sessionID:
+	case active.SessionID != root.SessionID:
 		return fmt.Errorf(
 			"sqlite: validate parked Run tree %q: Run %q belongs to Session %q, want %q",
-			root.runID,
-			active.runID,
-			active.sessionID,
-			root.sessionID,
+			root.ID,
+			active.ID,
+			active.SessionID,
+			root.SessionID,
 		)
-	case active.state != execution.Interrupted:
+	case active.State != execution.Interrupted:
 		return fmt.Errorf(
 			"sqlite: validate parked Run tree %q: Run %q is %s, want interrupted",
-			root.runID,
-			active.runID,
-			active.state,
+			root.ID,
+			active.ID,
+			active.State,
 		)
-	case active.modelSelection != continuation.ModelSelection:
+	case active.ModelSelection != continuation.ModelSelection:
 		return fmt.Errorf(
 			"sqlite: validate parked Run tree %q: Run %q admission model %q/%q differs from continuation model %q/%q",
-			root.runID,
-			active.runID,
-			active.modelSelection.Provider(),
-			active.modelSelection.Model(),
+			root.ID,
+			active.ID,
+			active.ModelSelection.Provider(),
+			active.ModelSelection.Model(),
 			continuation.ModelSelection.Provider(),
 			continuation.ModelSelection.Model(),
 		)
-	case !active.createdAt.Equal(continuation.RunCreatedAt):
+	case !active.CreatedAt.Equal(continuation.RunCreatedAt):
 		return fmt.Errorf(
 			"sqlite: validate parked Run tree %q: Run %q and continuation creation times differ",
-			root.runID,
-			active.runID,
+			root.ID,
+			active.ID,
 		)
-	case active.lineage != continuation.Lineage:
+	case active.Lineage() != continuation.Lineage:
 		return fmt.Errorf(
 			"sqlite: validate parked Run tree %q: Run %q lineage differs from its continuation",
-			root.runID,
-			active.runID,
+			root.ID,
+			active.ID,
 		)
 	default:
 		return nil
@@ -173,7 +174,7 @@ func validatePendingInterruptItems(
 		if _, duplicate := seen[interrupt.ItemID]; duplicate {
 			return nil, fmt.Errorf(
 				"sqlite: validate parked Run tree %q: duplicate interrupt Item %q",
-				tree.root.runID,
+				tree.root.ID,
 				interrupt.ItemID,
 			)
 		}
@@ -181,19 +182,19 @@ func validatePendingInterruptItems(
 		if _, active := tree.runsByID[interrupt.RunID]; !active {
 			return nil, fmt.Errorf(
 				"sqlite: validate parked Run tree %q: interrupt Item %q belongs to non-active Run %q",
-				tree.root.runID,
+				tree.root.ID,
 				interrupt.ItemID,
 				interrupt.RunID,
 			)
 		}
 		item, found := itemsByID[interrupt.ItemID]
 		if !found ||
-			item.SessionID != tree.root.sessionID ||
+			item.SessionID != tree.root.SessionID ||
 			item.RunID != interrupt.RunID ||
 			item.Status != transcript.ItemRunning {
 			return nil, fmt.Errorf(
 				"sqlite: validate parked Run tree %q: interrupt Item %q is not Running in Run %q",
-				tree.root.runID,
+				tree.root.ID,
 				interrupt.ItemID,
 				interrupt.RunID,
 			)
@@ -207,7 +208,7 @@ func validatePendingInterruptItems(
 				!reflect.DeepEqual(*item.Tool, interrupt.Approval.Tool) {
 				return nil, fmt.Errorf(
 					"sqlite: validate parked Run tree %q: malformed approval Item %q",
-					tree.root.runID,
+					tree.root.ID,
 					interrupt.ItemID,
 				)
 			}
@@ -219,14 +220,14 @@ func validatePendingInterruptItems(
 				!reflect.DeepEqual(item.Question, interrupt.Question) {
 				return nil, fmt.Errorf(
 					"sqlite: validate parked Run tree %q: malformed question Item %q",
-					tree.root.runID,
+					tree.root.ID,
 					interrupt.ItemID,
 				)
 			}
 		default:
 			return nil, fmt.Errorf(
 				"sqlite: validate parked Run tree %q: interrupt Item %q has unknown kind %d",
-				tree.root.runID,
+				tree.root.ID,
 				interrupt.ItemID,
 				interrupt.Kind,
 			)
@@ -248,7 +249,7 @@ func validateRunningInterruptItems(
 		if _, belongsToInterrupt := interruptItems[item.ID]; !belongsToInterrupt {
 			return fmt.Errorf(
 				"sqlite: validate parked Run tree %q: Running Item %q in Run %q has no matching interrupt",
-				tree.root.runID,
+				tree.root.ID,
 				item.ID,
 				item.RunID,
 			)

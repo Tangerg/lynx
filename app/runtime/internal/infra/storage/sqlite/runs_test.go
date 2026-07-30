@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -546,8 +547,16 @@ func TestReconcileOrphansSweepsCrashedButPreservesParked(t *testing.T) {
 }
 
 func TestReconcileOrphansPreservesCompleteParkedRunTree(t *testing.T) {
-	store, ints, transcripts, processes := newRunRecoveryStores(t)
 	ctx := t.Context()
+	path := filepath.Join(t.TempDir(), "lyra.db")
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("open initial database: %v", err)
+	}
+	store := sqlite.NewRunStore(db)
+	ints := sqlite.NewInterruptStore(db)
+	transcripts := sqlite.NewTranscriptStore(db)
+	processes := sqlite.NewProcessStore(db)
 	rootID := "run_root"
 	childID := "run_child"
 	sessionID := "ses_tree"
@@ -640,6 +649,17 @@ func TestReconcileOrphansPreservesCompleteParkedRunTree(t *testing.T) {
 	); err != nil {
 		t.Fatalf("save process tree: %v", err)
 	}
+
+	if err := db.Close(); err != nil {
+		t.Fatalf("close parked process database: %v", err)
+	}
+	db, err = sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("reopen database: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store = sqlite.NewRunStore(db)
+	ints = sqlite.NewInterruptStore(db)
 
 	recovered, err := store.ReconcileOrphans(ctx, acceptProcessSnapshot)
 	if err != nil || recovered != 0 {
@@ -755,6 +775,178 @@ func TestReconcileOrphansRepairsWholeDurableLifecycle(t *testing.T) {
 	}
 	if err := runStore.Admit(ctx, runDraft("run_next", "ses_lost")); err != nil {
 		t.Fatalf("re-admit after full recovery: %v", err)
+	}
+}
+
+// TestReconcileOrphansPreservesCommittedRunFactsAcrossRestart guards the cold
+// recovery contract, not merely the state transition. Each member has already
+// committed accounting at a park and resumed before the process disappears;
+// boot must terminalize the complete tree without replacing any immutable
+// admission fact or the last committed metrics snapshot with a zero value.
+func TestReconcileOrphansPreservesCommittedRunFactsAcrossRestart(t *testing.T) {
+	ctx := t.Context()
+	path := filepath.Join(t.TempDir(), "lyra.db")
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("open initial database: %v", err)
+	}
+	store := sqlite.NewRunStore(db)
+	const sessionID = "ses_restart"
+	profile := execution.RunProtocolProfile{
+		RequiredFeatures: []string{"artifacts", "subagents"},
+		InterruptKinds:   []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt},
+	}
+	type expectedRun struct {
+		draft   execution.RunDraft
+		metrics transcript.RunMetrics
+	}
+	costs := []float64{0.125, 0.25, 0.5}
+	expected := []expectedRun{
+		{
+			draft: execution.RunDraft{
+				RunID: "run_root", SessionID: sessionID, SegmentID: "seg_root",
+				ModelSelection:  testModelSelection(t, "openai", "gpt-root"),
+				Limits:          execution.RunLimits{MaxSteps: 20, MaxBudgetUSD: 2.5},
+				ProtocolProfile: profile,
+				CreatedAt:       runCreatedAt,
+			},
+			metrics: transcript.RunMetrics{
+				Steps: 2, ActiveDuration: 2 * time.Second,
+				Usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{
+					InputTokens: 10, OutputTokens: 5, CostUSD: &costs[0],
+				}},
+			},
+		},
+		{
+			draft: execution.RunDraft{
+				RunID: "run_child", SessionID: sessionID, SegmentID: "seg_child",
+				SpawnedByItemID: "item_spawn_child", ParentRunID: "run_root", RootRunID: "run_root",
+				ModelSelection: testModelSelection(t, "anthropic", "claude-child"),
+				Limits:         execution.RunLimits{MaxSteps: 12, MaxBudgetUSD: 1.25},
+				CreatedAt:      runCreatedAt,
+			},
+			metrics: transcript.RunMetrics{
+				Steps: 4, ActiveDuration: 3 * time.Second,
+				Usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{
+					InputTokens: 20, OutputTokens: 8, ReasoningTokens: 3, CostUSD: &costs[1],
+				}},
+			},
+		},
+		{
+			draft: execution.RunDraft{
+				RunID: "run_grandchild", SessionID: sessionID, SegmentID: "seg_grandchild",
+				SpawnedByItemID: "item_spawn_grandchild", ParentRunID: "run_child", RootRunID: "run_root",
+				ModelSelection: testModelSelection(t, "google", "gemini-grandchild"),
+				Limits:         execution.RunLimits{MaxSteps: 8, MaxBudgetUSD: 0.75},
+				CreatedAt:      runCreatedAt,
+			},
+			metrics: transcript.RunMetrics{
+				Steps: 6, ActiveDuration: 4 * time.Second,
+				Usage: &transcript.Usage{
+					ModelUsage: transcript.ModelUsage{
+						InputTokens: 30, OutputTokens: 13, CacheReadTokens: 7, CostUSD: &costs[2],
+					},
+					ByModel: map[string]transcript.ModelUsage{
+						"gemini-grandchild": {InputTokens: 30, OutputTokens: 13, CacheReadTokens: 7, CostUSD: &costs[2]},
+					},
+				},
+			},
+		},
+	}
+	for _, want := range expected {
+		if err := store.Admit(ctx, want.draft); err != nil {
+			t.Fatalf("admit %q: %v", want.draft.RunID, err)
+		}
+		parked := parkedRun(want.draft.RunID, sessionID)
+		parked.SpawnedByItemID = want.draft.SpawnedByItemID
+		parked.ParentRunID = want.draft.ParentRunID
+		parked.RootRunID = want.draft.RootRunID
+		parked.Metrics = want.metrics
+		if err := store.Suspend(ctx, parked); err != nil {
+			t.Fatalf("commit %q metrics at park: %v", want.draft.RunID, err)
+		}
+		if err := store.Resume(
+			ctx,
+			sessionID,
+			execution.RunResumeDraft{
+				RunID:     want.draft.RunID,
+				SegmentID: "seg_resumed_" + want.draft.RunID,
+			},
+			time.Unix(6, 0).UTC(),
+		); err != nil {
+			t.Fatalf("resume %q: %v", want.draft.RunID, err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close crashed process database: %v", err)
+	}
+
+	db, err = sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("reopen database: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store = sqlite.NewRunStore(db)
+	recovered, err := store.ReconcileOrphans(ctx, acceptProcessSnapshot)
+	if err != nil {
+		t.Fatalf("reconcile after restart: %v", err)
+	}
+	if recovered != len(expected) {
+		t.Fatalf("recovered Runs = %d, want %d", recovered, len(expected))
+	}
+
+	tree, err := store.RunTree(ctx, "run_grandchild")
+	if err != nil {
+		t.Fatalf("read recovered tree: %v", err)
+	}
+	recoveredByID := make(map[string]transcript.Run, len(tree))
+	for _, run := range tree {
+		recoveredByID[run.ID] = run
+	}
+	for _, want := range expected {
+		run, found := recoveredByID[want.draft.RunID]
+		if !found {
+			t.Fatalf("recovered Run %q is missing", want.draft.RunID)
+		}
+		if run.State != execution.Failed ||
+			run.Outcome == nil ||
+			*run.Outcome != execution.OutcomeError ||
+			run.Error == nil ||
+			run.Error.Kind != transcript.RunLostProblem {
+			t.Fatalf("recovered Run %q terminal facts = %+v", run.ID, run)
+		}
+		if !reflect.DeepEqual(run.Metrics, want.metrics) {
+			t.Errorf("recovered Run %q metrics = %+v, want %+v", run.ID, run.Metrics, want.metrics)
+		}
+		if run.Limits != want.draft.Limits {
+			t.Errorf("recovered Run %q limits = %+v, want %+v", run.ID, run.Limits, want.draft.Limits)
+		}
+		if run.ModelSelection != want.draft.ModelSelection {
+			t.Errorf(
+				"recovered Run %q model = %q/%q, want %q/%q",
+				run.ID,
+				run.ModelSelection.Provider(),
+				run.ModelSelection.Model(),
+				want.draft.ModelSelection.Provider(),
+				want.draft.ModelSelection.Model(),
+			)
+		}
+		if !slices.Equal(run.ProtocolProfile.RequiredFeatures, profile.Normalized().RequiredFeatures) ||
+			!slices.Equal(run.ProtocolProfile.InterruptKinds, profile.Normalized().InterruptKinds) {
+			t.Errorf("recovered Run %q profile = %+v, want %+v", run.ID, run.ProtocolProfile, profile.Normalized())
+		}
+		if !run.CreatedAt.Equal(want.draft.CreatedAt) {
+			t.Errorf("recovered Run %q creation time = %v, want %v", run.ID, run.CreatedAt, want.draft.CreatedAt)
+		}
+		if run.ActiveSegmentID != "" || run.MessageMark != 0 || run.FinishedAt.IsZero() {
+			t.Errorf(
+				"recovered Run %q boundary = segment:%q mark:%d finished:%v",
+				run.ID,
+				run.ActiveSegmentID,
+				run.MessageMark,
+				run.FinishedAt,
+			)
+		}
 	}
 }
 

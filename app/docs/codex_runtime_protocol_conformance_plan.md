@@ -5,7 +5,7 @@
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
-> 当前已提交基线：`main@6460bede9`；W3.2 随本原子 slice 完成，W3.3 READY
+> 当前已提交基线：`main@4100af80d`；W3.3 随本原子 slice 完成，W3.4 READY
 > 目标协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 目标 Artifact：`SessionArtifactVersion = 7`
 
@@ -209,7 +209,7 @@ cd app/desktop/frontend && npm run check
 | A5 | capability gate 与 disabled-subagent seam 收口 | `DONE` | 2026-07-30 完成 | shared policy、durable identity gates、全量 gates |
 | A6 | Registry fail-closed 与 SSOT 清理 | `DONE` | 2026-07-30 完成 | defensive views、closed metadata、effective errors、全量 gates |
 | A7 | canonical docs 与最终 conformance sweep | `DONE` | 2026-07-30 完成 | §12.4 conformance matrix、全量 gates |
-| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.5 / W3.3 restart / cold recovery conformance | B1.1–B1.4、W3.0–W3.2 已完成；启用条件见 §11 |
+| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.5 / W3.4 full closure | B1.1–B1.4、W3.0–W3.3 已完成；启用条件见 §11 |
 
 A1–A7 已全部完成，当前没有 A-track slice 处于 `IN PROGRESS`。B1 保持独立项目，
 已按 breaking-first 策略开始实施；不得通过打开 feature flag、复用 root identity
@@ -1804,6 +1804,39 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 - 残余风险：complete Running-tree restart settlement、Waiting-tree preservation 与
   old-epoch replay → cold query convergence 进入 W3.3；capability 继续 disabled。
 
+### 2026-07-30 — B1.5 / W3.3
+
+- 状态：`DONE`
+- Commit：随本原子 slice 提交
+- 目标：完成真实 file-backed restart 下的 Running-tree loss settlement、
+  Waiting-tree preservation 与 replay/cold-query 收敛。
+- 关键裁决：
+  - SQLite recovery 与普通 query 共用完整 durable Run decoder，不维护第二套缩水
+    row model；只对 repair 所需的 missing Pending join 显式放宽；
+  - `run_lost` 从已读取的 Run aggregate 演进，不重建字段子集，因此最后 committed
+    metrics、limits、model selection、root-owned protocol profile 与 lineage 不丢失；
+  - 新 process 仍持有 active replacement stream 时，old epoch 是
+    `replay_unavailable`；boot 已先收口 orphan 时，状态检查先返回 `run_finished`，
+    query 再给出 `run_lost`，客户端在两条路径上都回到同一 durable truth；
+  - complete Waiting tree 只有 Pending、continuations、process snapshot、transcript 与
+    active tree 全部自洽时跨重启保留。
+- 生成物：production 只调整 SQLite recovery/read 内部边界；public wire、Registry、
+  schema、OpenRPC、Go/TS types、Artifact、Store epoch、Agent API/wire 与 capability
+  均未变化。
+- 验证：
+  - file-backed Running root/child/grandchild + committed facts preservation → `PASS`
+  - file-backed Waiting root/child + Pending/process snapshot preservation → `PASS`
+  - old epoch / recovered terminal precedence + cold projection → `PASS`
+  - SQLite、application/runs、delivery/server race `-count=10` → `PASS`
+  - Runtime build、vet、全量 test、lint、tidy diff、arch/contract drift、diff check
+    → `PASS`
+- 架构复核：
+  - 一个 durable Run codec、一个 recovery lifecycle owner → `PASS`
+  - Agent/App/Delivery/Desktop 无概念泄漏 → `PASS`
+  - 无旧 cursor fallback、compatibility decoder、双读写或 migration → `PASS`
+- 残余风险：B1.5 full closure 的命名/错误/接口/兼容债与完整门禁进入 W3.4；
+  capability 继续 disabled。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -1845,8 +1878,8 @@ B1.5 内部原子切片：
 | W3.0 | `DONE` | 契约/实现差距冻结 | child subscribe 误述已纠正；三项 query 缺口与既有 stream/recovery 基础已定位 |
 | W3.1 | `DONE` | durable descendant query | runs descendant stable page + bound cursor；items exact/subtree page + bound cursor；direct Run + ancestor summaries |
 | W3.2 | `DONE` | root stream/replay conformance | root Journal 多 source、child refusal、profile coverage、tail-first terminal race |
-| W3.3 | `READY` | restart/cold recovery conformance | file-backed complete Running-tree loss settlement、Waiting-tree preservation、old-epoch replay → cold query convergence |
-| W3.4 | `TODO` | B1.5 full closure | race/full gates、contract drift、architecture/hygiene/compatibility sweep、docs/commit/push |
+| W3.3 | `DONE` | restart/cold recovery conformance | file-backed complete Running-tree loss settlement 保留 committed facts；Waiting-tree preservation；old epoch / terminalized orphan 均经 cold query 收敛 |
+| W3.4 | `READY` | B1.5 full closure | race/full gates、contract drift、architecture/hygiene/compatibility sweep、docs/commit/push |
 
 B1.4 的四个内部原子切片已经按事实依赖完成：
 
