@@ -1,6 +1,7 @@
 # Frontend Plugin Context Architecture
 
-> 本文记录 Lyra desktop 前端下一阶段的架构演进方向：在保持插件式架构的前提下，向整洁架构与 DDD 演进。
+> 本文记录 Lyra desktop 已采用的插件限界上下文架构，以及后续演进必须守住的
+> published language、依赖方向和抽象边界。
 >
 > 结论一句话：**Kernel as plugin platform, Plugin as bounded context, Clean Architecture inside plugin.**
 
@@ -68,7 +69,9 @@ plugin A -> plugin B internal files
 核心语言：
 
 - Session
-- Run
+- root / delegated Run
+- Segment
+- source-owned Item
 - Message / Turn
 - ToolCall
 - Interrupt
@@ -78,10 +81,13 @@ plugin A -> plugin B internal files
 
 职责：
 
-- 折叠 runtime stream events。
-- 维护 agent conversation/read model。
-- 处理 send / steer / stop / resume / recover 等 use case。
-- 暴露 agent input、conversation read model、tool/timeline view model。
+- 以完整 `RunEvent` provenance 折叠 live stream；
+- 从 durable items / runs / pending interrupts / shared state 原子构建 Session
+  projection；
+- 维护 normalized Run tree 与 source-owned conversation/read model；
+- 处理 send / steer / stop / exact cancel / resume / recover 等 use case；
+- 暴露 agent input、conversation、current-root、active-Session audit 与 exact-Run
+  command published language。
 
 方向：
 
@@ -89,11 +95,26 @@ plugin A -> plugin B internal files
 plugins/builtin/agent/
   domain/
   application/
+    fold/
+    run/
+    session/
+    view/
   adapters/
   presentation/
+  public/
 ```
 
-业务侧通过 `plugins/builtin/agent/public/viewState.ts` 消费 agent 视图语言；SDK 的泛内容块扩展契约独立在 `plugins/sdk/types/contentBlock.ts`，不再与 agent 会话视图模型混放。
+业务侧只通过 Agent `public/` 消费：
+
+- `viewState.ts` 发布稳定 view types；
+- `conversation.ts` 发布 root narrative 与 delegated narratives；
+- `run.ts` 用名字显式区分 current root、active Session 与 exact Run command；
+- `input.ts` / `session.ts` 发布用户意图与 Session use case。
+
+SDK 的泛内容块扩展契约独立在 `plugins/sdk/types/contentBlock.ts`，Session projection
+契约独立在 `plugins/sdk/types/agentSessionView.ts`；两者都不携带 Runtime wire
+DTO。`runsById` 是 lifecycle 唯一事实，tree/depth/narrative placement 由 Agent
+application selector 派生，不把 lineage index 复制到其他 context。
 
 ### Composer
 
@@ -207,8 +228,10 @@ composer.submitDraft()
 按语义选择交互机制：
 
 - **Command / Port**：有明确目标和时序的用户意图，例如 `composer.insertQuote`、`agent.sendInput`、`agent.forkFromRun`。
-- **Read model / Selector**：读取稳定展示状态，例如 agent running、current model capability、selected tool。
-- **Event**：广播已经发生的事实，例如 `run.started`、`draft.changed`、`message.selected`。
+- **Read model / Selector**：读取稳定展示状态，例如 current root running、active
+  Session timeline、current model capability、selected tool。scope 必须写进名称，
+  不能用 `activeRun` 指代整份 Session material。
+- **Event**：广播已经发生的事实，例如 `segment.started`、`draft.changed`、`message.selected`。
 - **Extension point**：插件贡献 UI 或行为，例如 composer toolbar item、message action、workspace view。
 
 不要用 event 代替明确命令；不要让 UI 直接改另一个上下文的 store。
@@ -223,35 +246,30 @@ composer.submitDraft()
 plugins/builtin/agent/public/
   input.ts
   conversation.ts
-  workspace.ts
+  run.ts
+  session.ts
+  viewState.ts
 ```
 
-可能的 agent public ports：
+Agent Run public language 的实际形态：
 
 ```ts
-export interface AgentInputPort {
-  send(input: AgentInput): void;
-  steer(input: AgentInput): void;
-  canAccept(input: AgentInput): AgentInputReadiness;
-}
+useCurrentRootRunId();
+useCurrentRootPlan();
+useIsCurrentRootRunning();
+stopCurrentRootRun();
 
-export interface AgentConversationPort {
-  getMessage(id: MessageId): MessageSnapshot | null;
-  getSelection(selection: MessageSelection): ConversationQuote | null;
-}
+useActiveSessionRunTree();
+useActiveSessionTimeline();
+useActiveSessionToolCalls();
+
+cancelActiveSessionRun(runId);
+subscribeRootRunSettlements(listener);
 ```
 
-可能的 composer public ports：
-
-```ts
-export interface ComposerDraftPort {
-  replaceDraft(draft: DraftInput): void;
-  insertQuote(quote: DraftQuote): void;
-  focus(): void;
-}
-```
-
-这些类型应表达业务语言，而不是直接暴露 RPC `ContentBlock[]` 或 Zustand store shape。Runtime wire conversion 属于 agent adapter。
+这些符号表达 consumer 需要的业务 scope，不暴露 Zustand store shape、refresh
+revision、replay cursor 或 RPC `RunRef/RunEvent`。Runtime wire conversion 属于 Agent
+fold / adapter 边界。
 
 ## 6. Store 的定位
 
@@ -270,19 +288,20 @@ Zustand store 不是业务层。它可以承担：
 
 当 store 内出现复杂规则时，优先判断它属于哪个上下文的 domain/application/presentation，然后把规则移到对应层，store 只保存结果或提供 mutation bridge。
 
-## 7. 迁移路线
+## 7. Implementation Record
 
-### Phase 1: Agent context 试点
+以下阶段均已落地；它们现在是 architecture regression gates，不是兼容迁移路线。
 
-目标：让最厚的 agent 业务先形成清晰边界。
+### Phase 1: Agent context — `DONE`
 
-优先动作：
+完成态：
 
-1. 把 agent view model 与 protocol wire 命名切开。
-2. 将 `agent fold` 继续收敛为 agent application/fold。
-3. 将 `messageRenderUnits`、`toolPresentation`、HITL presentation 靠近 agent context。
-4. 将 `agentStore` 定位为 adapter/read model bridge，而不是业务规则中心。
-5. 为 agent public input/conversation ports 建立最小契约。
+1. `AgentSessionView` 与 protocol wire 已分离；
+2. live fold、durable snapshot projection、Run read model / commands / root attention
+   已按变化轴内聚；
+3. `agentStore` 只保存 projection、revision 与已绑定 action，不编排跨 context 用例；
+4. public input/conversation/run/session facade 已成为跨 context 唯一入口；
+5. root/child/sibling/nested material 全部保留 source owner，不存在 single-run alias。
 
 验收标准：
 
@@ -290,11 +309,11 @@ Zustand store 不是业务层。它可以承担：
 - agent fold 规则可独立测试。
 - composer/workspace 通过 agent public surface 协作。
 
-### Phase 2: Composer context
+### Phase 2: Composer context — `DONE`
 
-目标：让输入框成为独立业务上下文，而不是 agent store 的 UI 附属。
+完成态：输入框是独立业务上下文，不是 Agent Store 的 UI 附属。
 
-优先动作：
+已落实：
 
 1. 建模 Draft / Attachment / SendIntent。
 2. 将 draft -> agent input 的转换从 UI 中抽出。
@@ -307,11 +326,11 @@ Zustand store 不是业务层。它可以承担：
 - Agent 不知道 composer UI。
 - 编辑上一条、引用选区、fork 回填都走 orchestration + public ports。
 
-### Phase 3: Workspace context
+### Phase 3: Workspace context — `DONE`
 
-目标：workspace views 不再自己拼 agent/session/runtime 状态。
+完成态：Workspace views 不再自己拼 Agent/Session/Runtime 状态。
 
-优先动作：
+已落实：
 
 1. 收口 tool -> terminal/diff/timeline 的路由规则。
 2. 为 terminal/diff/timeline 建 view model。
@@ -322,11 +341,11 @@ Zustand store 不是业务层。它可以承担：
 - Workspace view UI 不直接理解 agent internal state。
 - Tool routing 是 workspace application/presentation 规则。
 
-### Phase 4: Settings / Configuration context
+### Phase 4: Settings / Configuration context — `DONE`
 
-目标：配置业务从设置页组件中脱离。
+完成态：配置业务已经从设置页组件中脱离。
 
-优先动作：
+已落实：
 
 1. MCP server、schedule、hooks、provider config 建 draft/view model。
 2. 表单组件只渲染 draft，不直接操作 RPC shape。
@@ -337,16 +356,15 @@ Zustand store 不是业务层。它可以承担：
 - 设置页组件不直接拼接 RPC request。
 - 配置规则可独立测试。
 
-### Phase 5: Layer guards
+### Phase 5: Layer guards — `DONE`
 
-当边界稳定后，再加强静态约束：
+`check-layers`、`check-builtin-contexts`、`check-published-boundaries` 与
+`check-circular` 已强制：
 
-- 禁止 context 内 `domain` import React / Zustand / RPC。
-- 禁止 context 内 `application` import components。
-- 禁止其他插件 import 某插件内部目录。
-- 允许 import public surface。
-
-不要先写复杂脚本再迁移；先让结构自然长出来，再把已经稳定的规则固化成检查。
+- context domain/application 不反向依赖 UI 或 composition root；
+- 其他插件只能 import 某 context 的 `public/`；
+- published view language 不携带 wire；
+- 合法 public edge 仍不得形成 context cycle。
 
 ## 8. 何时需要完整分层
 
@@ -375,9 +393,11 @@ Zustand store 不是业务层。它可以承担：
 - 不为了“看起来 DDD”引入空接口或空目录。
 - 先按上下文收口，再考虑移动目录；目录是边界的结果，不是边界本身。
 
-## 10. 下一步推荐切口
+## 10. Current State and Next Triggers
 
-> 状态（2026-07-03）：切口 1–5 已落地——agent 的 HITL/approval/question presentation 已分层（`agent/presentation/*Presentation.ts`）、composer public ports 就位、workspace tool routing 收口、settings 面板全部目录化（`index + ui/ + application`）、agent view model 拆成 facade + SDK 类型。导航模型重建首批已收口：`plugins/builtin/navigation` 已提供 Work Index read model、attention 投影、Work Index contribution surface 与 action wiring；`sidebar/` 退成 renderer；左侧 workspace/run destination 已迁入 Context Dock，Context Dock launcher/destination 打开意图也已收进 workspace application。
+> 状态（2026-07-30）：Agent Run-tree consumer、HITL presentation、Composer public
+> ports、Workspace routing/read models、Settings drafts、Navigation Work Index 与 Context
+> Dock ownership 均已落地。后续只在真实变化轴出现时扩展，不为了目录对称继续拆层。
 
 按收益和风险排序：
 
@@ -385,5 +405,9 @@ Zustand store 不是业务层。它可以承担：
 2. ✅ **Composer Draft / SendIntent**（已落地）：composer 与 agent 的 public port 协作已建立。
 3. ✅ **Workspace tool routing / view model**（已落地）：tool → terminal/diff/timeline 的规则已从 UI/store 收口。
 4. ✅ **Settings configuration drafts**（已落地）：MCP/schedule/hooks/provider/approvals/connection/usage/plugins form 已从 RPC shape 解耦、每个面板 `index + ui/ + application`。
-5. ✅ **Agent view model 深拆**（已落地）：`agent/public/viewState.ts` 已是 ~30 行 facade，SDK 的内容块扩展契约与会话视图模型已分文件（`plugins/sdk/types/contentBlock.ts` + `plugins/sdk/types/agentView.ts`）。
+5. ✅ **Agent view model 与 Run tree**（已落地）：`agent/public/viewState.ts` 是类型
+   facade；SDK 的内容块与 Session projection 契约分别位于
+   `plugins/sdk/types/contentBlock.ts`、`plugins/sdk/types/agentSessionView.ts`；
+   Agent application 拥有 normalized Run tree、source-owned fold、durable recovery 与
+   scope-exact Run public API。
 6. ✅ **导航模型重建（首批已落地）**：`plugins/builtin/navigation` bounded context 已承接 project/session grouping、recent-session read model、attention 投影、action wiring（create/select/rename/fork/delete/favorite）与 Work Index contribution surface；`sidebar/` 只消费 `navigation/public` 发布语言并渲染 Work Index。

@@ -3,9 +3,10 @@
 > 作者：Codex
 > 状态：`IN PROGRESS`
 > 建档日期：2026-07-30
-> W4.1 实施提交：`40cffd81e`；W4.2 实施提交：`cc85d3039`
-> 当前主任务：`W4 — B1.6 Desktop Run-tree consumer`
-> 执行进度：`W2 DONE · W3 DONE · W4.0 DONE · W4.1 DONE · W4.2 DONE · W4.3 DONE · W4.4 READY`
+> W4.1 实施提交：`40cffd81e`；W4.2：`cc85d3039`；W4.3：`ca0949949`
+> W4.4 实施提交：`49b6494bd` + `fcbf8f558` + `34a875d29`
+> 当前主任务：`W5 — B1.7 final conformance + capability enablement`
+> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 43`
@@ -51,8 +52,8 @@
   [`REFACTORING.md`](../../REFACTORING.md) 为准；
 - 不允许为了迁就现状反向弱化目标契约。
 
-截至 2026-07-30，W2.1–W2.4 已按 ownership、failure、restart/query 与 full-closure
-四个原子 slice 完成。后续实施必须从 §12 的唯一执行卡继续。
+截至 2026-07-30，W2、W3、W4 已全部完成，B1.1–B1.6 的 Runtime 与 Desktop
+闭环已经具备可复核证据。后续实施必须从 §12 的 W5.0 唯一执行卡继续。
 
 ---
 
@@ -241,8 +242,8 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 | Runtime B1.4c                | `DONE`        | prepared runtime mutation + App-owned atomic waiting-subtree transaction                              | —                                |
 | Runtime B1.4d                | `DONE`        | W2.1 ownership；W2.2 failure/rollback；W2.3 restart/query/publication；W2.4 race/hygiene/full closure | —                                |
 | Runtime B1.5                 | `DONE`        | W3.0–W3.4 query / stream / replay / cold recovery / full closure                                      | —                                |
-| Desktop B1.6                 | `IN PROGRESS` | W4.3 完成 root-first narrative、nested task disclosure、lineage Timeline、exact cancel/attention      | W4.4 full closure                |
-| Runtime/Desktop B1.7         | `TODO`        | capability seam 已存在且保持 disabled                                                                 | 全门禁后启用 subagents           |
+| Desktop B1.6                 | `DONE`        | normalized Run tree、source-owned fold、durable recovery、root-first UI 与 scope-exact public API     | —                                |
+| Runtime/Desktop B1.7         | `READY`       | producer/barrier/cancel/query/stream/recovery/Desktop consumer 均已闭环；capability 仍诚实 disabled    | W5 原子启用并做最终 conformance  |
 | Runtime/Desktop 架构持续演进 | `ONGOING`     | 依赖环、consumer ports、plugin contexts 与多项 architecture gate 已存在                               | 随每个 slice 审查并最终 sweep    |
 | Synara UI 对齐               | `TODO`        | 参考仓库已明确为 `~/Desktop/synara`                                                                   | B1.6 后做视觉基线与像素级实现    |
 
@@ -265,6 +266,13 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 - `4100af80d test(runtime): prove root stream recovery`
 - `f38085bf3 fix(runtime): preserve run facts on recovery`
 - `b75d2a1d9 refactor(runtime): close B1.5 conformance`
+- `26e43fd0e docs(desktop): freeze run tree execution plan`
+- `40cffd81e feat(desktop): make run tree projection source-owned`
+- `cc85d3039 feat(desktop): converge agent session synchronization`
+- `ca0949949 feat(desktop): present durable run trees`
+- `49b6494bd fix(protocol): distinguish run opening acknowledgements`
+- `fcbf8f558 refactor(desktop): clarify run application surface`
+- `34a875d29 refactor(desktop): make interrupt settlement deterministic`
 
 本轮审计开始时：
 
@@ -883,7 +891,7 @@ W3.4 完成结果（2026-07-30）：
 
 ### W4 — B1.6 Desktop Run-tree consumer
 
-状态：`IN PROGRESS`；`W4.0 DONE · W4.1 DONE · W4.2 DONE · W4.3 READY`
+状态：`DONE`；`W4.0 DONE · W4.1 DONE · W4.2 DONE · W4.3 DONE · W4.4 DONE`
 
 专项执行卡：
 
@@ -927,12 +935,12 @@ W4.0 审计裁决：
 | W4.0  | `DONE`    | 现状、爆炸半径、目标模型与全门禁基线                                                                               |
 | W4.1  | `DONE`    | canonical Session/Run-tree projection、完整 provenance、source-owned fold，删除 single-run shape 与 synthetic wire |
 | W4.2  | `DONE`    | durable snapshot、replay/cold/invalidation、root/child committed cancel response merge                             |
-| W4.3  | `READY`   | root-first narrative、task child disclosure、tree/timeline/cancel UI                                               |
-| W4.4  | `PENDING` | architecture/hygiene/docs/full gates，B1.6 收口                                                                    |
+| W4.3  | `DONE`    | root-first narrative、task child disclosure、tree/timeline/cancel UI                                               |
+| W4.4  | `DONE`    | start/resume exact ack、无启发式对账、scope-exact Run API、architecture/docs/full gates                            |
 
 ### W5 — B1.7 最终 conformance 与 capability enablement
 
-状态：`TODO`
+状态：`READY`
 
 只有以下项目全部通过后，才能将 `features.subagents.enabled` 改为 `true`：
 
@@ -940,9 +948,9 @@ W4.0 审计裁决：
 - root/child/resume/terminal 全竞态；
 - subtree quiescence；
 - parent `child_run_canceled` exactly once；
-- child get/list/items/subscribe；
+- child get/list/items 与 child subscribe 的 `run_not_root` 拒绝；
 - restart query/recovery；
-- frontend tree reducer；
+- negotiated-capability 下的 frontend tree reducer / durable recovery / exact cancel；
 - Contract Registry、schema、OpenRPC、manifest、API Reference、Go/TS validator 与 SDK 一致；
 - runtime/frontend 完整门禁；
 - generation 连续两次无 diff；
@@ -950,6 +958,14 @@ W4.0 审计裁决：
 
 Capability enablement 必须与实现、生成物、客户端、canonical docs 和测试在同一个原子
 slice 中完成，不能先改布尔值。
+
+原子切片：
+
+| Slice | 状态      | 边界                                                                 |
+| ----- | --------- | -------------------------------------------------------------------- |
+| W5.0  | `READY`   | read-only completion audit：逐项绑定现有 producer/conformance 证据   |
+| W5.1  | `PENDING` | 原子启用 server capability，更新 canonical docs 与 capability tests  |
+| W5.2  | `PENDING` | Runtime/Desktop 高风险竞态、全门禁、双 generation 与无兼容残留收口  |
 
 ### W6 — Runtime / Desktop 架构最终复核
 
@@ -1656,6 +1672,48 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 - 残余风险：W4.4 full closure 尚未实施；`features.subagents` 继续 disabled。
 - 下一步：W4.4 architecture/hygiene/docs/contract closure。
 
+### 2026-07-30 — W4.4
+
+- 状态：`DONE`
+- Commits：
+  - `49b6494bd`（start/resume exact acknowledgements 与 exact ItemID reconciliation）；
+  - `fcbf8f558`（scope-exact Run application surface 与 Store action semantics）；
+  - `34a875d29`（命令确认边界显式提供 HITL settlement time，view mutation 保持确定性）；
+- 协议收口：
+  - `StartRunResponse.userItemId` 成为 required non-empty identity；
+  - `ResumeRunResponse` 独立建模，`userItemId` 只在请求携带 input 时出现；
+  - Contract generator 正确生成 optional non-empty text validation，Go/TS/schema/
+    OpenRPC/API Reference 同源；
+  - Runtime idempotency cache 只依赖 start/resume 共同的 stream address；
+- Desktop 收口：
+  - 删除普通 send 的内容启发式对账，只按 start ack exact ItemID relabel；
+  - local optimistic identity 留在 application view，不进入 Agent domain/public language；
+  - 非 terminal `item.completed` fail closed，不再补造 incomplete；
+  - `activeRun.ts` 拆为 read model、commands、root attention；删除全部旧 alias；
+  - public names 明确 current root / active Session / exact Run scope；
+  - Session-owned stop action 返回是否接受，Store action types 由 application port 唯一定义；
+  - `agentStore` callback receiver 全部统一为 `state`；
+  - approval result 的本地时间事实由 resume 成功确认边界提供，projection 不再读取隐式时钟；
+- 文档：
+  - `frontend/ARCHITECTURE.md` 更新为 normalized Run tree、完整 provenance、atomic
+    durable projection 与 consumer-owned protocol port；
+  - Workspace / Plugin Context 文档从迁移愿景改为当前完成态与回归门；
+  - Desktop 专项计划标记 B1.6 `DONE`，下一任务切到 W5/B1.7；
+- 验证：
+  - Runtime `go build ./... && go vet ./... && go test ./...` → `PASS`；
+  - Desktop `npm run check` → `PASS`，188 test files / 1127 tests；
+  - knip/circular/contexts/published-boundaries/layers、contract/generated drift 与
+    `git diff --check` → `PASS`；
+  - 434 个 package-local Go production receiver type 均保持单一 receiver 名称；
+  - production TODO/FIXME/HACK、compat shim/decoder 与 dual read/write marker
+    扫描无命中；
+- 架构复核：
+  - 一个事实一个作者，无 single-run alias、compat shim、dual write、fallback
+    decoder 或 synthetic protocol fact；
+  - Agent Framework API 未引入 App Run/Item、persistence、idempotency、transaction
+    或 cost 概念；
+  - `features.subagents` 继续诚实 disabled，留给 W5 原子启用。
+
 ---
 
 ## 12. 下一张执行卡
@@ -1663,29 +1721,28 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 唯一下一任务：
 
 ```text
-W4.4 — B1.6
-Full closure
+W5.0 — B1.7
+Read-only completion audit
 ```
 
 实施顺序：
 
-1. 全量扫描 single-run / compat / synthetic / implicit owner / stale terminology；
-2. 复核 naming、errors、file responsibility、Store actions 与 selector stability；
-3. 更新 Frontend architecture、workspace model 与 plugin context 文档；
-4. 执行 frontend 全门禁、contract/generated drift 与 `git diff --check`；
-5. 记录 B1.6 完成证据并独立 commit/push；
-6. capability 仍保持 disabled，B1.6 完成后另开 B1.7。
+1. 逐项把 W5 gate 映射到当前 production source 与行为测试，缺证据即视为未完成；
+2. 审计 capability composition、client opt-in、RunProtocolProfile 与 artifact import/export；
+3. 证明 child producer、barrier、waiting/running cancel、query、root stream、restart 与
+   Desktop consumer 在 negotiated capability 下闭环；
+4. 冻结 W5.1 的最小 breaking blast radius，不在 W5.0 修改 capability；
+5. W5.1 在同一原子提交启用 capability、更新 canonical docs/tests/generated artifacts；
+6. W5.2 跑高风险 race、Runtime/Desktop 全门禁与连续两次 generation no-diff。
 
-W4.4 的禁止项：
+W5 的禁止项：
 
-- 不新增协议方法；
 - 不实现 child subscribe；
 - 不让 Agent 接触 App persistence；
-- 不从 transcript、live registry 或事件到达顺序反推 tree identity；
-- 不在 component 读取 RPC client、wire RunRef、replay cursor 或 capability preflight；
-- 不把 child material 默认摊平进 root transcript；
-- 不从 Item 顺序、tool name 或文本猜 lineage；
-- 不为 tree UI 保存第二份 child/root identity；
-- 不在 presentation 伪造 lifecycle、terminal、metrics 或 parent result；
-- 不在 B1.6 full closure 前打开 `features.subagents`；
-- 不提交或推送工作树里未通过门禁的代码。
+- 不把 capability boolean 当作实现完成证明；
+- 不保留 disabled behavior alias、兼容 fallback 或双 capability path；
+- 不为通过 artifact round-trip 而丢 child lineage 或把 tree 摊平；
+- 不从 transcript、live registry、tool name 或事件到达顺序猜 lineage；
+- 不让 Desktop component 读取 capability preflight 或 wire；
+- 不先改 `server.go` 的布尔值再补测试/文档；
+- 不提交或推送未通过门禁的 capability 状态。

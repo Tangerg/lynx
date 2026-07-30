@@ -1,12 +1,15 @@
 # Desktop Run-tree Consumer 治本执行方案
 
 > 作者：Codex
-> 状态：`IN PROGRESS`
+> 状态：`DONE`
 > 建档日期：2026-07-30
-> 当前阶段：`W4.0 DONE · W4.1 DONE · W4.2 DONE · W4.3 DONE · W4.4 READY`
+> 当前阶段：`W4.0 DONE · W4.1 DONE · W4.2 DONE · W4.3 DONE · W4.4 DONE`
 > W4.1 实施提交：`40cffd81e`
 > W4.2 实施提交：`cc85d3039`
-> W4.3 实施基线：`main@cc85d3039`，实施前与 `origin/main` 一致
+> W4.3 实施提交：`ca0949949`
+> W4.4 协议收口提交：`49b6494bd`
+> W4.4 Desktop surface 收口提交：`fcbf8f558`
+> W4.4 deterministic projection 收口提交：`34a875d29`
 > W4.0 文档提交：`26e43fd0e`
 > 对应总任务：`B1.6 / W4 — Desktop Run-tree consumer`
 > 约束：允许 breaking change；不保留旧 view shape、alias、双写或兼容 reducer
@@ -604,16 +607,20 @@ cd app/desktop/frontend && npm run check
 
 ### W4.4 — Full closure
 
-状态：`READY`
+状态：`DONE`
 
-范围：
+完成：
 
-- 单 Run/compat/synthetic wire/implicit owner 全量扫描；
-- 命名、错误、文件职责、store receiver/selector 语义审查；
-- 更新 Frontend architecture、workspace model、plugin context docs；
-- frontend 全门禁；
-- generation/contract diff check；
-- 记录 B1.6 完成证据，进入 B1.7。
+- `StartRunResponse` 与 `ResumeRunResponse` 分离：start 的 `userItemId` 必填，
+  resume 只在请求携带新 input 时返回；
+- 普通 send 只按 exact `userItemId` 对账，删除内容匹配 fallback；
+- `item.completed` 若仍是 running 直接 fail closed，不替 Runtime 猜 terminal；
+- local optimistic identity 从 domain/public surface 移到 application view；
+- 旧 `activeRun.ts` 按读取、命令、root attention 三个变化轴拆分；
+- public API 名称明确区分 current root、active Session 与 exact Run；
+- stop 接受结果由 Session-owned action 唯一判定，Store action types 不重复定义；
+- `agentStore` Zustand callback receiver 统一为 `state`；
+- Frontend architecture、workspace model、plugin context 与执行台账同步为完成态。
 
 完整门禁：
 
@@ -624,7 +631,7 @@ contract/generated drift checks
 compatibility / stale terminology / TODO-FIXME-HACK scans
 ```
 
-只有 W4.4 完成后，B1.6 才能标记 `DONE`。
+B1.6 已完成；`features.subagents` 仍保持 disabled，只有 B1.7 才能原子启用。
 
 ---
 
@@ -796,7 +803,7 @@ compatibility / stale terminology / TODO-FIXME-HACK scans
     HITL action 保持 narrative-first；
   - disclosure 使用 source Run 的 messages、plan、progress、committed metrics 与 outcome，
     不从 task 文本或事件顺序猜测状态；
-  - child cancel 始终调用 `cancelAgentRun(childRunId)`，不做 optimistic terminal；
+  - child cancel 始终调用 exact RunID command，不做 optimistic terminal；
   - 完整审计由每个 disclosure 进入 Context Dock Timeline；
 - lineage audit：
   - Timeline 从“相邻事件同 RunID”分组改为 Run tree preorder；同一 Run 的事件即使被 child
@@ -835,18 +842,63 @@ compatibility / stale terminology / TODO-FIXME-HACK scans
   - W4.4 执行 full architecture/hygiene/docs/contract closure；
   - `features.subagents` 继续 disabled。
 
+### 2026-07-30 — W4.4
+
+- 状态：`DONE`
+- 实施提交：
+  - `49b6494bd`（`fix(protocol): distinguish run opening acknowledgements`）；
+  - `fcbf8f558`（`refactor(desktop): clarify run application surface`）；
+  - `34a875d29`（`refactor(desktop): make interrupt settlement deterministic`）；
+- 协议与对账：
+  - start/resume 使用不同 response shape，不再用 optional 字段掩盖不同命令语义；
+  - start ack 对 RunID、SegmentID、UserItemID 全部 fail closed；
+  - resume ack 的 UserItemID 为“字段缺席或非空”，生成器新增通用 optional text
+    constraint，不手写特殊 validator；
+  - optimistic user message 只按 server ItemID relabel；普通 send 不再内容匹配；
+- Run application surface：
+  - `runReadModel.ts` 只发布 current-root 与 active-Session reads；
+  - `runCommands.ts` 只发布 current-root stop、active-Session exact cancel/problem command；
+  - `rootAttention.ts` 只负责跨 Session root running 与 settlement subscription；
+  - 删除 `activeRun` 文件与全部旧 alias；
+  - Store actions 使用 consumer-owned、语义完整的 action types，receiver 统一为 `state`；
+  - HITL settlement timestamp 在 resume 成功确认边界显式产生，纯 view mutation
+    不再读取 wall clock；
+- 架构与债务审查：
+  - local optimistic ID 不再污染 Agent domain 或 public published language；
+  - fold 不再把非法 running completed Item 修成 incomplete；
+  - Runtime idempotency cache 只解码 start/resume 共同拥有的 stream address，不依赖错误的
+    response reuse；
+  - 无 compat alias、dual read/write、fallback decoder、synthetic protocol fact 或
+    component RPC import；
+- 验证：
+  - Runtime `go build ./... && go vet ./... && go test ./...` → `PASS`；
+  - Desktop `npm run check` → `PASS`；
+  - 188 test files / 1127 tests；
+  - type/lint/format/knip/circular/context/published-boundary/layer/token/chrome/locale/
+    bootstrap/bundle gates → `PASS`；
+  - Contract Registry / generated Go+TS / schema / OpenRPC drift 与 `git diff --check`
+    → `PASS`；
+  - package-local Go production receiver 命名一致性与 production debt marker
+    扫描 → `PASS`；
+- 已知非阻塞告警仍仅为既有 shadow utility、Lightning CSS `::highlight(...)` 与
+  large-chunk 提示；
+- B1.6 无残余实现工作；下一任务是 B1.7 capability enablement，且必须保持原子、
+  fail-closed、无兼容路径。
+
 ---
 
 ## 11. 下一张执行卡
 
 ```text
-W4.4 — Full closure
+B1.7 — Final conformance + capability enablement
 ```
 
 执行纪律：
 
-1. 扫描并删除 single-run、compat、synthetic wire、implicit owner 与 stale terminology；
-2. 审查命名、错误、文件职责、selector 稳定性、Store action 与 receiver 语义；
-3. 更新 Frontend architecture、workspace model 与 plugin context 文档；
-4. 执行 frontend 全门禁、contract/generated drift 与 `git diff --check`；
-5. 记录 B1.6 完成证据，独立 commit/push 后才进入 B1.7 capability enablement。
+1. 以总台账 W5 为唯一任务卡，先审计 production capability composition 与 opt-in；
+2. 对照既有 producer、barrier、cancel、query/stream/replay/restart 与 Desktop tree
+   consumer 证明完整闭环；
+3. 在同一原子 slice 启用 `features.subagents`，同步 canonical docs、contract
+   artifacts、Runtime/Desktop tests；
+4. 不新增 child subscribe，不保留 disabled behavior fallback 或旧 capability 分支；
+5. Runtime/Desktop 全量门禁与连续 generation no-diff 后独立 commit/push。

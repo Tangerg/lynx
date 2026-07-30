@@ -213,12 +213,19 @@ read models 在同一个 Runtime 边界上重新装配，不做半热切换。
 
 **增加新协议方法的步骤**：
 
-1. `rpc/shapes.ts` 加 wire schema（Zod，信任边界校验）。
-2. `rpc/methods.ts` 加 typed method 包装。
-3. UI / state / plugin 通过 `getContainer().client().foo(...)` 调用。
-4. 测试用 `setContainer({ client: () => fakeClient })` 注入。
+1. 在 Runtime Contract Registry 声明 method、shape、error、capability 与 wire
+   constraint，并从同一来源生成 schema、OpenRPC、API Reference 与 Desktop wire。
+2. `rpc/methods.ts` 只补不能由生成 metadata 表达的 typed transport 编排；禁止手写第二份
+   wire union，也禁止编辑 `wire.*.generated.ts`。
+3. 所属 bounded context 在 application 定义最小 consumer-owned port / use case，
+   adapter 才通过 `getContainer().client().foo(...)` 实现它。
+4. 业务 UI 只消费该 context 的 `public/` facade；application 测试替换 port，adapter /
+   protocol boundary 测试才注入 fake client。
 
-> 协议 method 表 / envelope / transport 形状的权威定义在 `docs/API.md` + `docs/TRANSPORT.md`，勿在本文重述。
+> 协议 method 表 / envelope / transport 形状的权威定义在
+> [`../docs/protocol/API.md`](../docs/protocol/API.md)、
+> [`../docs/protocol/AUX_API.md`](../docs/protocol/AUX_API.md) 与
+> [`../docs/protocol/TRANSPORT.md`](../docs/protocol/TRANSPORT.md)，勿在本文重述。
 
 ### 3.2 关于 monorepo（暂不拆）
 
@@ -413,59 +420,98 @@ overlays        → toaster / commandPalette / chatSearch / defaultCommands / st
 
 ### 5.2 协议 fold 层（数据流入口）
 
-#### 形状：单 store + 一个纯派发器
+#### 形状：Session projection + normalized Run tree
 
 ```
 LyraClient（rpc/）—— runs.start / runs.resume 流式返回 RunEvent
-   │   useAgentSession.pump：for await (ev of stream.events)
+   │   useAgentSession → AgentRunPump：for await (event of stream.events)
    ▼
-useAgentStore.applyEvents(sessionId, batch)   ◄── rAF 批处理，~1 commit/帧
-   │   reduce(state, event)
+useAgentStore.applyRunEvents(sessionId, batch)  ◄── rAF 批处理，~1 commit/帧
+   │   reduceRunEvent(view, completeEnvelope)
    ▼
-src/plugins/builtin/agent/application/fold/reducer.ts —— 纯派发器
+agent/application/fold/reducer.ts
    │
-   ├─ type === "custom"   → lookupCustomHandlers(ev.name) 链式 → StateUpdate → next
-   └─ 其它 StreamEvent     → lookupStreamHandlers(type) 链式 fold
-   │   （每个 handler try/catch 隔离；抛错 reportPluginError + 保留入态）
+   ├─ custom              → lookupCustomHandlers(name)
+   └─ protocol event      → lookupStreamHandlers(type)
+       └─ source Run / Segment / eventId / timestamp 全部来自 RunEvent envelope
    ▼
-新的 AgentViewState
+新的 AgentSessionView
    │   Zustand 通知订阅者
    ▼
-React 组件按 selector 重渲染
+Agent public read model → Chat / Workspace / Shell consumers
+
+durable items + runs + pending interrupts + optional shared state
+   │   projectAgentSessionSnapshot（Store 外完整构建）
+   ▼
+refreshSequence + viewRevision CAS → 整份 AgentSessionView 原子替换
 ```
 
-#### 为什么 reducer 是"纯派发器"
+#### 唯一 projection 与来源规则
 
-reducer 自己不处理任何事件语义——全部搬到 `lyra.builtin.agent fold` 插件（`handlers` 派发 / `projections` 纯 wire→view 映射 / `fold` 有状态 upsert）。这样：
+`AgentSessionView` 是一个 Session 的唯一 Agent projection：
 
-1. **统一扩展点**：第三方插件想拦截某个 StreamEvent？`host.events.onStream(type, …)` 即可，跟内置一视同仁。
-2. **可测**：测试只加载需要的 agent fold 子集。
-3. **错误隔离**：一个 handler 抛错，其余继续——dispatcher 包了 try/catch。
+- `runsById` 保存 root / child / sibling / nested Run 的独立 lifecycle；
+- `plansByRunId` 与 `assistantTurnByRunId` 按 source Run 隔离；
+- `Message.runId`、`ToolCall.runId`、`TimelineEntry.runId` 保留 durable ownership；
+- `pendingInterrupts`、`shared` 和 `commandError` 保留 Session 级事实；
+- children、roots、depth 与 narrative placement 由 selector 从 lineage 派生，不保存第二份索引。
 
-`AgentViewState`（`viewState.ts`）把 v2 wire 模型（Session→Run→Item）投影成 UI 形状：`messages: Message[]`（每条含 `blocks: ContentBlock[]`）+ `toolCalls: Record<id, ToolCall>` + `plan` + `run`（含 `sessionId` / `runId` / step / tokens）+ `timeline` + `pendingInterrupts` + `shared`。其中“连续助手 Item 折进一个气泡”叫一个 **turn**（`turnMessageId`），是纯 UI 概念，与协议 Run 干净分离。`fold` 是 wire→view 的反腐层：interrupt 与 diff 的协议 DTO 在这里被物化为稳定的发布语言，view state 不持有 `@/rpc` 类型。
+live fold 只接受完整 `RunEvent`；durable Item、Run snapshot、PendingInterruptSet 与 local
+optimistic message 各有独立入口，不能伪装成 stream event。若 Item owner 与 envelope
+owner 冲突、`item.completed` 仍是 running 等不变量失败，fold fail closed，不猜 root、
+不改写状态。每个注册 handler 独立隔离，错误进入 plugin diagnostics。
+
+`fold` 是 wire → published view language 的反腐层：协议 DTO 只在 fold / adapter
+边界出现，`AgentSessionView` 本身不持有 `@/rpc` 类型。连续 assistant-side Item
+折成一个 UI turn，但 cursor 按 RunID 保存，因此 child 与 root 事件即使交错也不会拼进同一气泡。
+
+#### 对外 Run API 按真实 scope 命名
+
+`agent/public/run.ts` 不发布内部 Store，也不把整个 Session 伪称成 Active Run：
+
+- 当前 root：`useCurrentRootRunId`、`useCurrentRootPlan`、
+  `useIsCurrentRootRunning`、`stopCurrentRootRun`；
+- 活动 Session：`useActiveSessionRunTree`、`useActiveSessionTimeline`、
+  `useActiveSessionToolCalls`、`useActiveSessionProblem`；
+- 精确 Run 命令：`cancelActiveSessionRun(runId)`；
+- window-level attention：`subscribeAnySessionRunning`、
+  `subscribeRootRunSettlements`。
+
+内部同样按职责分成 `runReadModel.ts`、`runCommands.ts` 与 `rootAttention.ts`，不保留旧
+`activeRun` alias。
 
 #### useAgentSession 编排会话生命周期
 
-`src/state/useAgentSession.ts` 为**一个会话**拥有 driver 生命周期：
+`plugins/builtin/agent/adapters/useAgentSession.ts` 为**一个 Session**拥有 driver 生命周期：
 
 ```
 useEffect([sessionId])
   → driver = makeDriver()                         // 来自 priority 最高的 AGENT_SOURCE
-  → store.resetSession(sessionId)
-  → 非 draft：client.items.list → 以 item.completed 回放历史（走同一个 fold）
-  → setSend / setStop / setResume（让任意插件可发起/中止/恢复）
+  → store.ensureSession(sessionId)                // 保留已 materialized projection
+  → 非 draft：读取完整 durable Session snapshot
+  → off-store projection + CAS commit；并按 active root Segment reattach
+  → 绑定 send / stop / resume / synchronize / cancelRun capability
   → 若有 pending（welcome 屏排队的首条消息）→ send 之
 
-send(text):
-  → 乐观渲染本地 local-* userMessage 气泡
-  → driver.start(text, signal) = client.runs.start({ sessionId, input, mode, provider?, model? })
-  → runs.start resolve 时把占位 relabel 成返回的 userItemId（流回来的 Item 按 id 去重）
-  → pump 流事件（rAF 批处理）
+send(input):
+  → 乐观渲染本地 userMessage
+  → driver.start(input, signal) = client.runs.start(...)
+  → StartRunResponse 必须返回 userItemId
+  → 占位按 exact ItemID relabel；durable Item 按 id 去重，不做内容匹配
+  → pump root Segment 的 tree-wide stream（rAF 批处理 + cursor reattach）
 
-resume(parentRunId, responses):  → driver.resume = client.runs.resume(...)   // HITL R-model
-stop():                          → abort + client.runs.cancel(runId)
+resume(runId, responses):
+  → driver.resume = client.runs.resume(...)
+  → ResumeRunResponse 只在请求同时提交新 input 时返回 userItemId
 
-unmount → cancel + 解绑 send/stop/resume（该会话 view state 留在 store，切回来还在）
+stop():
+  → Session-owned command 只取消当前 running root，并返回是否接受
+
+cancelRun(runId):
+  → 精确取消 active Session 内的 root 或 descendant
+  → 只合并 committed CancelRunResponse，再触发 authoritative synchronize
+
+unmount → abort follower + 解绑 actions；projection 留到 Session 不再 open 时统一 prune
 ```
 
 默认 driver 由 `rpc-agent` 插件贡献（`AGENT_SOURCE`，走 JSON-RPC）；插件可替换成 mock / IPC / 本地模型等。
@@ -474,16 +520,18 @@ unmount → cancel + 解绑 send/stop/resume（该会话 view state 留在 store
 
 ### 5.3 状态分层（除 agent 外的 UI 状态）
 
-| Store                    | 内容                                                        | 持久化         |
-| ------------------------ | ----------------------------------------------------------- | -------------- |
-| `agentStore`             | 每会话 AgentViewState + send/stop/resume 引用 + applyEvents | ❌ ephemeral   |
-| `sessionStore`           | activeSessionId / openSessionIds / draft / 选择             | ✅（部分字段） |
-| `uiStore`                | theme / accent / 字体 / motion / messageStyle / sidebarRail | ✅             |
-| Runtime capability store | 握手协商能力（由 runtime context 私有持有）                 | ❌ ephemeral   |
-| `tasksStore`             | host.tasks 的后台任务                                       | ❌             |
-| `composerStore`          | 撰写区文本 / 模式 / 附件 / provider+model                   | ❌ ephemeral   |
-| `usePluginStore`         | 整个插件 registry                                           | ❌             |
-| `useConfigStore`         | 插件可读写的全局 config（如 `runtime.endpoint`）            | ✅             |
+| Store                    | 内容                                                                        | 持久化         |
+| ------------------------ | --------------------------------------------------------------------------- | -------------- |
+| `agentStore`             | 每 Session 的 `AgentSessionView`、refresh revision 与已绑定 actions         | ❌ ephemeral   |
+| `agentSessionStore`      | active/open/draft Session、selection epoch 与 welcome pending input         | ✅（部分字段） |
+| `uiStore`                | theme / accent / 字体 / motion / messageStyle / sidebarRail                 | ✅             |
+| Runtime capability store | 握手协商能力（由 runtime context 私有持有）                                 | ❌ ephemeral   |
+| `tasksStore`             | host.tasks 的后台任务                                                       | ❌             |
+| `composerStore`          | 撰写区文本 / 模式 / 附件 / provider+model                                   | ❌ ephemeral   |
+| `contextDockStore`       | 按 Session 隔离的 file/tool/dock material                                   | ❌ ephemeral   |
+| `workspaceSurfaceStore`  | app-global main/settings surface                                            | ❌ ephemeral   |
+| `usePluginStore`         | 整个插件 registry                                                           | ❌             |
+| `useConfigStore`         | 插件可读写的全局 config（如 `runtime.endpoint`）                            | ✅             |
 
 每个 store 各自用 Zustand `persist` + 自己的 `version`；**schema 变了就 bump version 丢旧数据，不写 migration**（开发期无历史包袱）。
 
@@ -559,8 +607,9 @@ return specs.map(spec => (
 Composer onKeyDown (Enter) → submitComposer → useChatSend(text)
    → 有 active session → agentStore.send；无 → useCreateSession 起草稿 + 排队首条
    → useAgentSession.send → 乐观渲染 local 气泡 + driver.start
-   → client.runs.start → 流出 run.started / item.* / state.* …
-   → pump（rAF 批）→ agentStore.applyEvents → reduce → agent fold handlers → 新 state
+   → StartRunResponse.userItemId 精确 relabel optimistic Item
+   → client.runs.start → 流出 segment.* / item.* / state.* …
+   → pump（rAF 批）→ agentStore.applyRunEvents → reduceRunEvent → 新 projection
    → React 订阅者重渲染（ChatStream 等）
 ```
 
@@ -592,10 +641,10 @@ ChatPanel → ChatStream → MessageBlock → PartRenderer
 ### 7.4 一个 custom 协议事件落地
 
 ```
-后端发 custom StreamEvent { name: "lyra.plan", payload: { items } }
-   → reduce → type==="custom" 分支 → lookupCustomHandlers("lyra.plan")
-   → 插件 handler(payload) 返回 StateUpdate（(state) => ({ ...state, plan: items })）
-   → reducer 套到 state → agentStore 更新 → Plan workspace view 读到新 plan
+后端发 custom StreamEvent { name: "vendor.example", payload: {...} }
+   → reduceRunEvent → type==="custom" → lookupCustomHandlers("vendor.example")
+   → 插件 handler(payload) 返回 StateUpdate
+   → reducer 套到 AgentSessionView；未注册的 custom event 安全忽略
 ```
 
 ---
@@ -608,8 +657,11 @@ ChatPanel → ChatStream → MessageBlock → PartRenderer
 | 插件组件 render 抛错                 | PluginBoundary 接住画 fallback；其余 kernel 正常               |
 | stream / custom handler 抛错         | 该 handler 跳过，state 保持入态；其余 handler 继续             |
 | 插件 tool action / command 抛错      | console.error + `reportPluginError`，UI 不挂                   |
-| `runs.start` 调用 reject             | channel-a 失败：无流、无 run.finished，自行 setError 上 banner |
-| run 流中断 / `run.finished{error}`   | banner 显示，下次 run 启动时清除                               |
+| `runs.start/resume` 调用 reject      | channel-a 失败：无流；保存 Session command problem             |
+| `segment.finished{error}`            | terminal Run outcome 投影为可 dismiss problem                  |
+| stream 断线且 replay 可用            | 从最后 folded eventId reattach                                 |
+| `replay_unavailable` / runtime resync | 读取完整 durable Session snapshot，再做 CAS 原子替换            |
+| fold 来源或 lifecycle 不变量失败     | 当前 handler fail closed；保留入态并写 plugin diagnostics      |
 | sideload 模块 import / manifest 失败 | 跳过，其它继续；console.warn                                   |
 
 Plugins 面板（Settings → Plugins）汇总所有 `reportPluginError` 的红 badge。
@@ -671,7 +723,8 @@ declare module "@/plugins/sdk/types/contentBlock" {
 - **Kernel 不知道任何具体功能**——所有看得见的元素都来自插件。改一处功能 = 改一个插件目录。
 - **registry 是唯一真相**——不直接 import 内置插件去用，永远走 `useXxx` / `lookupXxx`。
 - **store 是单 Zustand instance**——多 selector 订阅，不要把 store 包进 context。
-- **运行时事件单向流入 view state**——render 路径不回写 agent store；想"做事"就调 store 上的 `send` / `stop` / `resume`。
+- **Agent projection 只有一个作者**——live fold 与 durable snapshot 投影共享规则；
+  render 不回写 store，跨 context 只调用 Agent `public/` command/read model。
 - **components 不直连后端**——只经 context public facade / store selector / SDK selector，**禁** import `@/main` / `@/rpc`（`check:layers` 强制）。
 - **Disposable 一律由 Host 收集**——别手动 `dispose()`。
 - **协议是唯一 outbound 边界**——不在 UI/store 里直接 `fetch` / 开 SSE / 调 IPC，都走 `rpc/`。
@@ -690,7 +743,8 @@ declare module "@/plugins/sdk/types/contentBlock" {
 | Host 全部接口                    | `src/plugins/sdk/types/host.ts`                                                             |
 | 协议 fold                        | `src/plugins/builtin/agent/application/fold/reducer.ts` + `builtin/agent/application/fold/` |
 | 一个完整内置插件                 | `src/plugins/builtin/agent/rpc-agent/index.ts`                                              |
-| 会话生命周期                     | `src/state/useAgentSession.ts`                                                              |
+| Agent Session driver / recovery  | `src/plugins/builtin/agent/adapters/useAgentSession.ts`                                     |
+| Run tree read model / commands   | `src/plugins/builtin/agent/application/run/` + `src/plugins/builtin/agent/public/run.ts`     |
 | 主题如何注册                     | `src/plugins/builtin/theme/kit/` + 任意 `theme/themes/*`                                    |
 
 ---
@@ -705,7 +759,12 @@ declare module "@/plugins/sdk/types/contentBlock" {
 
 #### A. agent fold 各 handler 的语义测试（已落地）
 
-**现状**：`builtin/agent/application/fold/` 拆成 `handlers`（派发）/ `projections`（纯映射）/ `fold`（有状态折叠）；`reducer.*.test.ts` 覆盖 dispatcher + 聚合 + custom + 主要事件路径，`reducer.subagent.test.ts` 覆盖 subagent run 隔离，`reducer.handlers.test.ts` 为每个 handler 钉了「单事件 → 隔离 delta + isolation」契约（`plan` 三阶段 started/delta/completed、`item.delta{plan}` 整体替换、未知 itemId 的 content/toolOutput delta no-op、`run.started` usage 归零、state.snapshot/delta 只动 `shared`）。
+**现状**：`builtin/agent/application/fold/` 拆成 `handlers`（派发）/
+`projections`（纯 wire → view）/ `fold`（source-owned upsert）；`reducer.*.test.ts`
+覆盖 dispatcher、聚合、custom、root/child/sibling/nested lifecycle 与主要 Item 路径。
+`reducer.handlers.test.ts` 为每个 handler 钉住“完整 RunEvent → 隔离 projection delta”
+契约，包括 plan 三阶段、未知 ItemID delta no-op、`segment.started` lifecycle 初始化与
+`state.snapshot` 只更新 `shared`。
 **维护触发**：加新的内置事件类型 / Item 类型时，一并补对应 handler 的语义测试（input→state delta）。
 
 #### B. search / webSearch 富结果渲染（已落地）
@@ -742,7 +801,11 @@ declare module "@/plugins/sdk/types/contentBlock" {
 
 ### 12.3 反向不变量（已知错的方向，别再提）
 
-与 `CLAUDE.md §6` 一致，不重述。要点：不换 Zustand / React Query / Wails / OxLint / Vite；不给内部数据流加 Zod（只在信任边界）；不把贡献面退回 per-slot add/remove map（已塌进 `extensions` 底座）；协议保持 JSON-RPC，不 RESTy 化、不在 envelope 装 transport 元数据、不做后端鉴权/订阅（Runtime 无状态纯计算单元）。详见 `CLAUDE.md §6` + `docs/API.md §0`。
+与 `CLAUDE.md §6` 一致，不重述。要点：不换 Zustand / React Query / Wails /
+OxLint / Vite；不给内部数据流加 Zod（只在信任边界）；不把贡献面退回 per-slot
+add/remove map（已塌进 `extensions` 底座）；协议保持 JSON-RPC，不 RESTy 化、不在
+envelope 装 transport 元数据。详见 `CLAUDE.md §6` +
+`docs/protocol/API.md §0`。
 
 ---
 

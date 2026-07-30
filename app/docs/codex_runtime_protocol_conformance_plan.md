@@ -1,11 +1,12 @@
 # Lyra Runtime API 最终一致性收口计划
 
 > 作者：Codex
-> 状态：`A-TRACK DONE / B1.4 DONE / B1.5 DONE · B1.6 IN PROGRESS`
+> 状态：`A-TRACK DONE / B1.4 DONE / B1.5 DONE / B1.6 DONE · B1.7 READY`
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
-> 当前实现审计基线：`main@b75d2a1d9`；W4.0 文档提交：`26e43fd0e`；W4.1 READY
+> Desktop B1.6 提交：`40cffd81e` + `cc85d3039` + `ca0949949` +
+> `49b6494bd` + `fcbf8f558` + `34a875d29`
 > 目标协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 目标 Artifact：`SessionArtifactVersion = 7`
 
@@ -54,9 +55,10 @@
 
 A1–A7 已把旧实施计划未单独追踪的跨层语义逐项修正，并用 Registry、生成物、
 运行时边界、真实 SQLite 生命周期、前端 consumer 和 canonical docs 的交叉证据
-完成复核。B1.1 已补齐 Run tree 的 durable identity，但
-`features.subagents=false` 仍是有意的诚实能力声明：producer、barrier、tree cancel、
-cold recovery 与前端 tree reducer 全部门槛通过前，不得写成完整 child Run 能力已交付。
+完成复核。B1.1–B1.6 已补齐 Run tree durable identity、producer、barrier、tree
+cancel、cold recovery 与 Desktop consumer；`features.subagents=false` 仍是有意的
+诚实能力声明，必须等 B1.7 逐项完成最终 conformance、原子启用、canonical docs 与
+生成物同步后，才能对客户端发布完整 child Run 能力。
 
 本计划不使用粗略完成百分比。一个完整的 Run-tree cancel 与一个 `minItems`
 约束不能按相同权重计算；只记录逐项状态和可复核证据。
@@ -209,7 +211,7 @@ cd app/desktop/frontend && npm run check
 | A5 | capability gate 与 disabled-subagent seam 收口 | `DONE` | 2026-07-30 完成 | shared policy、durable identity gates、全量 gates |
 | A6 | Registry fail-closed 与 SSOT 清理 | `DONE` | 2026-07-30 完成 | defensive views、closed metadata、effective errors、全量 gates |
 | A7 | canonical docs 与最终 conformance sweep | `DONE` | 2026-07-30 完成 | §12.4 conformance matrix、全量 gates |
-| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.6 Desktop Run-tree consumer | B1.1–B1.5 已完成；启用条件见 §11 |
+| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.7 capability enablement | B1.1–B1.6 已完成；启用条件见 §11 |
 
 A1–A7 已全部完成，当前没有 A-track slice 处于 `IN PROGRESS`。B1 保持独立项目，
 已按 breaking-first 策略开始实施；不得通过打开 feature flag、复用 root identity
@@ -510,9 +512,9 @@ consumer 闭环就不能诚实发布 capability。
 | B1.2 | first-class child Run producer 与 source routing | `DONE` | causal identity、acknowledged opening、独立 Segment/Item/metrics、递归/并发/失败 conformance 全部闭环 |
 | B1.3 | tree interrupt barrier 与 resume | `DONE` | barrier、整树 resume、restart / race / failure / ordering conformance 全部闭环 |
 | B1.4 | unified root/child cancellation | `DONE` | root/child arbiter、Running/Waiting subtree、failure/restart/query/race/hygiene conformance 全部闭环 |
-| B1.5 | durable query、subscribe 与 cold recovery | `IN PROGRESS` | descendant paging、child/subtree items、root stream replay scope、restart tree recovery；child subscribe 必须拒绝 |
-| B1.6 | frontend Run-tree consumer | `TODO` | reducer 按 source Run fold、树折叠/状态/取消交互、cold refetch 与 replay 恢复 |
-| B1.7 | conformance sweep 与 capability enablement | `TODO` | §11.3 全部门槛、race/多分支集成/生成物/docs 全绿后才将 feature 改为 true |
+| B1.5 | durable query、subscribe 与 cold recovery | `DONE` | descendant paging、child/subtree items、root stream replay scope、restart tree recovery；child subscribe 明确拒绝 |
+| B1.6 | frontend Run-tree consumer | `DONE` | source-owned fold、durable atomic projection、root-first tree UI、exact cancel 与 scope-exact public API |
+| B1.7 | conformance sweep 与 capability enablement | `READY` | §11.3 全部门槛、race/多分支集成/生成物/docs 全绿后原子启用 feature |
 
 B1.1 只建立后续行为不可绕开的权威事实，不把 synthetic child persistence 写成执行能力。
 B1.2 起仍须保持 capability 关闭；任何 slice 失败都不得通过把 child event 重新归到 root
@@ -1871,6 +1873,39 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 - 残余风险：Runtime B1.5 无；Desktop B1.6 与 capability enablement B1.7 尚未完成，
   `features.subagents` 继续 disabled。
 
+### 2026-07-30 — B1.6 / W4
+
+- 状态：`DONE`
+- Commits：`40cffd81e` + `cc85d3039` + `ca0949949` + `49b6494bd` +
+  `fcbf8f558` + `34a875d29`
+- 目标：让 Desktop 从 frozen wire 构建可恢复、source-owned、root-first 的完整 Run
+  tree consumer，并完成 API/命名/职责收口。
+- 关键裁决：
+  - `AgentSessionView` 是唯一 Session projection，`runsById` 是 lifecycle 唯一事实；
+  - live fold 只接收完整 RunEvent provenance；durable/local facts 使用独立入口；
+  - cold/replay-lost/invalidation/cancel 统一回到完整 snapshot projection + CAS commit；
+  - root narrative 与 delegated narrative 分离，tree identity 只来自 durable lineage；
+  - start/resume ack 分离，普通 send 只按 exact ItemID 对账；
+  - current root、active Session 与 exact Run public scope 全部显式命名。
+  - local approval result 的时间事实由 resume 成功确认边界显式提供，view
+    projection 不依赖隐式 wall clock。
+- 生成物：start/resume response 调整同步 Registry、schema、OpenRPC、API Reference、
+  Go/TS types、validators、samples；Desktop view shape 不保留 alias 或 dual write。
+- 验证：
+  - Runtime build / vet / full tests / contract drift → `PASS`
+  - Desktop `npm run check` → `PASS`（188 files / 1127 tests）
+  - contexts / published boundaries / layers / circular / knip / bundle / diff check
+    → `PASS`
+  - 两次连续 contract generation no-diff、production receiver naming 与 debt marker
+    扫描 → `PASS`
+- 架构复核：
+  - Agent public boundary wire-free，components 不接 RPC；
+  - 无 single-run compatibility surface、heuristic lineage、synthetic terminal 或 fallback
+    decoder；
+  - Agent Framework API 未引入 App persistence、transaction、idempotency 或产品 identity。
+- 残余风险：B1.6 无；B1.7 仍需完成 capability composition 审计、原子启用与最终
+  conformance，`features.subagents` 继续 disabled。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -1899,19 +1934,24 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 
 ## 18. 下一步
 
-A-track 与 B1.1–B1.5 已收口。下一阶段是：
+A-track 与 B1.1–B1.6 已收口。下一阶段是：
 
 ```text
-B1.6 / W4 — Desktop Run-tree consumer
+B1.7 / W5 — Final conformance + capability enablement
 ```
 
-Desktop 专项执行卡：
+总执行卡：
+
+- [`codex_architecture_execution_master_plan.md`](codex_architecture_execution_master_plan.md)
+
+Desktop 专项完成记录：
 
 - [`codex_desktop_run_tree_execution_plan.md`](codex_desktop_run_tree_execution_plan.md)
 
-当前进度：`W4.0 DONE · W4.1 READY`。W4.0 已确认 transport tree、event source、
-replay/reattach 基础成立；必须治本替换的是 single `view.run`、global turn/plan/error、
-implicit timeline owner、synthetic recovery 与不完整 cold projection。
+当前进度：`W4 DONE · W5 READY`。B1.6 已删除 single `view.run`、global
+turn/plan/error、implicit owner、synthetic recovery、启发式 message reconciliation 与
+失真 `activeRun` public surface；`AgentSessionView`、durable atomic projection、
+root-first tree UI 与 exact cancel 已通过完整 Desktop gates。
 
 B1.5 最终切片记录：
 
@@ -1923,18 +1963,20 @@ B1.5 最终切片记录：
 | W3.3 | `DONE` | restart/cold recovery conformance | file-backed complete Running-tree loss settlement 保留 committed facts；Waiting-tree preservation；old epoch / terminalized orphan 均经 cold query 收敛 |
 | W3.4 | `DONE` | B1.5 full closure | race/full gates、contract drift、architecture/hygiene/compatibility sweep、docs/commit/push |
 
-B1.6 必须消费现有 frozen wire，不回头修改 Runtime ownership：
+B1.6 已按 frozen wire 完成，且没有反向修改 Runtime ownership：
 
 - root stream 仍是 tree-wide live/replay scope，event envelope 的 `runId/segmentId` 标识
   source；
 - durable `runs.get/list` 与 `items.list` 是 cold truth，frontend 不从 event arrival
   或 transcript payload 猜 tree；
-- reducer 按 Run identity 独立折叠 root/child/sibling/nested state，runtime invalidation
-  只触发对应 authoritative query；
+- reducer 已按 Run identity 独立折叠 root/child/sibling/nested state，runtime
+  invalidation 只触发对应 authoritative query；
 - replay 不可用或 boot 已收口 orphan 时，按 `replay_unavailable` / `run_finished` 的
   recovery 动作回到 query；
 - components/pages 只消费 plugin-owned selectors/commands，不直连 concrete RPC；
-- B1.6 frontend gates 全绿之前不得进入 B1.7 或打开 `features.subagents`。
+- current-root、active-Session 与 exact-Run public API scope 已在名称中显式表达；
+- B1.6 通过 188 test files / 1127 tests、type/lint/format/knip/circular/context/
+  published-boundary/layer/token/chrome/locale/bootstrap/bundle gates。
 
 B1.4 的四个内部原子切片已经按事实依赖完成：
 
@@ -1964,6 +2006,7 @@ canonical ordering、hygiene 与兼容债收口。B1.5 只扩展 durable read/su
   删除旧表达；
 - 所有 terminal publication 继续使用 B1.3 冻结的 canonical postorder。
 
-`features.subagents=false` 必须保持到 producer、tree transaction、interrupt barrier、
-cold recovery、前端 tree reducer 和 §11.3 完整 gates 同时成立。仍采用 breaking-first
-策略，不增加过渡 alias、兼容 decoder 或双写路径。
+`features.subagents=false` 在 W5.0 只读完成审计期间继续保持。W5.1 只有在 producer、
+tree transaction、interrupt barrier、cold recovery、Desktop tree consumer 和 §11.3
+全部证据逐项成立后，才能在同一原子 slice 启用并更新 canonical docs/tests；仍采用
+breaking-first，不增加过渡 alias、兼容 decoder、disabled fallback 或双写路径。

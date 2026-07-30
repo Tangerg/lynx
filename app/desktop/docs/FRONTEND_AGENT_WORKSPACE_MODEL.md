@@ -1,6 +1,6 @@
 # Frontend Agent Workspace Model
 
-> 本文记录 Lyra desktop 下一阶段的主 UI 心智模型。它回答的是：
+> 本文记录 Lyra desktop 现行的主 UI 心智模型。它回答的是：
 > **左侧 / 中间 / 右侧分别为什么存在，什么东西应该放在哪，后续重构怎么判断方向。**
 >
 > 视觉 token、阴影、字体、圆角等细节看 [`../frontend/DESIGN.md`](../frontend/DESIGN.md)
@@ -46,21 +46,30 @@ Lyra Runtime Protocol 的核心原语已经决定了 UI 的主轴：
 
 ```text
 Session
-  └─ Run
-       └─ Item
+  ├─ root Run
+  │    ├─ Segment
+  │    ├─ Item
+  │    └─ delegated Run
+  │         ├─ Segment
+  │         ├─ Item
+  │         └─ delegated Run ...
+  └─ later root Run ...
 ```
 
 协议语义到 UI 区域的映射：
 
-| Protocol                        | UI Area                                        | Meaning                                                        |
-| ------------------------------- | ---------------------------------------------- | -------------------------------------------------------------- |
-| `Session`                       | Work Index                                     | 可恢复、可继续、可 fork 的 agent 工作上下文                    |
-| `Run`                           | Agent Narrative                                | 一次 agent 执行，从用户输入到 outcome                          |
-| `Item`                          | Agent Narrative                                | 消息、reasoning、plan、tool call、question 等 durable 工作单元 |
-| `Session.cwd`                   | Work Index + Context Dock                      | 项目身份 + 文件系统工具根                                      |
-| `Project`                       | Work Index decoration                          | 按 `Session.cwd` 派生的分组视图，无 opaque id、无 active 标记  |
-| `workspace.*`                   | Context Dock                                   | 当前 cwd 的文件、diff、grep、skills、recipes、memory、hooks 等 |
-| `OpenInterrupt` / waiting state | Agent Narrative first, Work Index badge second | agent 等待用户介入                                             |
+| Protocol / Projection                     | UI Area                                        | Meaning                                                                   |
+| ----------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------- |
+| `Session`                                 | Work Index                                     | 可恢复、可继续、可 fork 的 agent 工作上下文                               |
+| root `Run`                                | Agent Narrative                                | 用户发起的一条主执行；composer、plan 与顶层 status 只跟随当前 root        |
+| delegated `Run`                           | Agent Narrative disclosure + Context Dock      | 由准确 `spawnedByItemId` 挂到父 task；默认摘要，按需展开                   |
+| `RunRef` lineage                          | Context Dock Timeline                          | parent/root/source identity 的 durable 审计树                              |
+| `Segment`                                 | 不单独占据导航区域                             | 同一 Run 的执行/等待/续跑边界；用于生命周期与恢复，不冒充新 Run            |
+| `Item`                                    | Agent Narrative                                | message、reasoning、plan、tool call、question 等 durable source-owned 单元 |
+| `Session.cwd`                             | Work Index + Context Dock                      | 项目身份 + 文件系统工具根                                                 |
+| `Project`                                 | Work Index decoration                          | 按 `Session.cwd` 派生的分组视图，无 opaque id、无 active 标记             |
+| `workspace.*`                             | Context Dock                                   | 当前 cwd 的文件、diff、grep、skills、recipes、memory、hooks 等            |
+| `PendingInterruptSet` / waiting root tree | Agent Narrative first, Work Index badge second | agent 等待用户介入；action 仍留在其 source narrative                       |
 
 几个强结论：
 
@@ -68,6 +77,10 @@ Session
 - `cwd` 是 session 的工作身份，不是连接级 active project。
 - `Project` 只是 distinct `Session.cwd` 的派生分组，不应该变成独立管理主资源。
 - `workspace.*` 能力大多显式收 `cwd?`，它们属于当前 session/cwd 的 Context Dock，不属于左侧顶级导航。
+- Agent Narrative 是 root-first，不是把整棵树按到达顺序摊平；descendant material
+  必须保留 source Run，并挂到其 parent task。
+- Timeline、tool log 与 Run tree 是整个 active Session 的材料；当前 root plan、stop
+  和 running attention 才是 current-root scope。公开 API 名称必须把两者写清楚。
 
 ## 3. Layout Responsibilities
 
@@ -105,12 +118,20 @@ Agent Narrative 是主舞台。它承载用户和 agent 的共同时间线。
 允许内容：
 
 - session header：title、status、model/permission summary、overflow actions。
-- transcript：user / assistant messages。
-- run progress：plan、reasoning、tool progress、usage。
+- root transcript：全部 root-owned user / assistant turns。
+- delegated disclosure：按 `spawnedByItemId` 锚定的 child / sibling / nested narrative。
+- run progress：当前 root plan；每个 delegated Run 自己的 reasoning、plan、progress、usage。
 - HITL：approval、question、client tool result。
 - composer：draft、attachments、permission/model controls、send/stop。
 
 不应把文件树、长期资源目录、settings panes 放在中间主线里。它们可以被引用、预览或触发，但完整工作面应在 Context Dock。
+
+Agent Narrative 不负责重新发明 tree 事实：
+
+- 不从 tool name、文本、Item 顺序或相邻事件猜 lineage；
+- 不把 child Item 拼进 root assistant turn；
+- 不用一个 `running: boolean` 表达 waiting/finished/error/canceled；
+- cancel target 永远是 disclosure 对应的 exact RunID，UI 不先伪造 terminal。
 
 ### 3.3 Context Dock
 
@@ -128,6 +149,7 @@ Context Dock 是当前 session/cwd 的材料区。它不是永久抢戏的第三
 - review mode：changed files + checklist + diff + inline comments。
 - file mode：file tree + opened file + breadcrumb。
 - tool mode：selected tool call detail + outputs。
+- run mode：完整 Run tree、按 source Run 组织的 Timeline、Session tool log。
 - codebase mode：grep / semantic search / symbols。
 - memory / skills / recipes：围绕当前 cwd 展示。
 
@@ -254,11 +276,11 @@ type ContextDockDestinationScope = "workspace" | "session" | "run";
 - run-scoped blocking action 优先在 Agent Narrative 完成，只把 attention 投影到 Work Index，避免用户必须去右侧找“为什么停住了”。
 - 插件贡献 UI 可以多样，但 contribution registry 必须表达心智归属，不能只表达 slot。
 
-## 6. Frontend Architecture Target
+## 6. Current Frontend Architecture
 
 `navigation` 限界上下文已经成为左侧 Work Index 的功能边界：它拥有 project/session grouping、recent-session read model、attention 投影、action wiring 与 Work Index contribution surface；`sidebar` 只负责渲染。
 
-当前目标目录：
+当前目录：
 
 ```text
 plugins/builtin/navigation/
@@ -288,7 +310,11 @@ plugins/builtin/workspace/application/
 
 - Work Index UI 只消费 navigation read model，不直接 join `useSessions()` / `useProjects()` / active view state。
 - Context Dock 只围绕 active session/cwd 组织 workspace destinations。
-- Agent Narrative 只关心 active session 的 transcript/run/HITL/composer。
+- Agent Narrative 只消费 Agent public conversation / Run / HITL language，不读取 Agent
+  Store 或 Runtime wire。
+- Agent context 以一份 `AgentSessionView` 保存 normalized `runsById` 与 source-owned
+  material；root narrative、delegated disclosures 和 Session-wide audit 都是 selector。
+- `agent/public/run.ts` 的 current-root、active-Session 与 exact-Run command 名称不能互换。
 - app-global surface state 与 session/cwd-scoped dock state 不应混在同一个 store shape。
 
 ## 7. State Ownership
@@ -299,7 +325,7 @@ plugins/builtin/workspace/application/
 | --------------------- | ------------------------------------------------- | -------------------------------------------------------- |
 | App-global chrome     | shell / ui store                                  | theme、sidebar collapsed、settings route、每密度的 dock 宽度 |
 | Work index read model | navigation application                            | groups、session rows、attention badges                   |
-| Agent runtime view    | agent context                                     | messages、runs、interrupts、usage                        |
+| Agent runtime view    | agent context                                     | normalized runs、source-owned messages/tools/plans/timeline、interrupts、usage |
 | Context dock state    | workspace context, scoped by `sessionId` or `cwd` | active dock tab、opened file、selected diff、tool detail |
 | Ephemeral UI state    | local component                                   | hover、temporary filter、expanded disclosure             |
 
@@ -311,21 +337,23 @@ Context Dock state 必须能回答：
 切回 A，不丢 A 的右侧工作台。
 ```
 
-不要用“切 session 时清空一堆 patch”作为长期模型。清空可以作为迁移期保护，但目标是按 session/cwd 建模。
+不要用“切 Session 时清空一堆 patch”掩盖错误 ownership；Context Dock material
+必须按 Session（将来有真实共享需求时再显式按 cwd）建模。
 
-## 8. Migration Plan
+## 8. Implementation Record
 
-### Phase 1: Document and Guard the Model
+以下阶段均已完成；本节记录当前完成态与回归门，不再作为兼容迁移计划。
+
+### Phase 1: Document and Guard the Model — `DONE`
 
 - 本文作为主 UI 心智模型。
 - 在 CLAUDE / ARCHITECTURE 中引用本文。
 - 将“左侧不是功能菜单”作为后续 review 的判断标准。
 
-### Phase 2: Build Navigation Read Model
+### Phase 2: Build Navigation Read Model — `DONE`
 
-- 新建 navigation context。
-- 把当前 sidebar 对 `sessions.list`、`workspace.listProjects`、active session、attention state 的拼装收进 application。
-- Work Index UI 变成纯 renderer。
+- navigation context 已拥有 Session/cwd grouping、attention 与 actions。
+- sidebar 只消费 navigation public read model，已不现场 join 多个业务数据源。
 
 验收：
 
@@ -333,7 +361,7 @@ Context Dock state 必须能回答：
 - session row 状态来自统一 read model。
 - 项目分组只表达 `cwd` 派生视图。
 
-### Phase 3: Move Workspace Destinations to Context Dock
+### Phase 3: Move Workspace Destinations to Context Dock — `DONE`
 
 - 移除左侧顶级 `codebase / skills / recipes / tools / memory` 类 workspace destinations。
 - 建立 context-dock destination contribution。
@@ -353,7 +381,7 @@ Context Dock state 必须能回答：
 - 左侧只剩 global actions + cwd groups + sessions + global footer。
 - 当前 session/cwd 的工具都从右侧进入。
 
-### Phase 4: Split Workspace Navigation State
+### Phase 4: Split Workspace Navigation State — `DONE`
 
 - 拆出 app-global surface state。
 - 拆出 session/cwd-scoped context dock state。
@@ -373,7 +401,7 @@ Context Dock state 必须能回答：
 - 每个 session 能恢复自己的 dock 状态。
 - Settings 不和 workspace file/tool state 混在同一个 store shape 里。
 
-### Phase 5: Visual Pass
+### Phase 5: Structural Visual Pass — `DONE`
 
 - 左侧按低心率 Codex-like 方向降噪。
 - 右侧做 light Context Dock + Review Workspace 两种密度。
@@ -392,7 +420,9 @@ Context Dock state 必须能回答：
 - 右侧可以折叠。✅
 - Review/Diff 模式信息密度高但 chrome 克制。✅
 
-剩下的是**视觉细调**（左侧低心率降噪、节奏与留白），需要真机与人眼，不在无头范围内。
+剩余像素级 Synara 对齐属于总计划 W7：以 `~/Desktop/synara` 为参考做真机截图、布局和
+视觉回归，不改变本文已经冻结的 Work Index / Agent Narrative / Context Dock
+information architecture。
 
 ## 9. Anti-Patterns
 
