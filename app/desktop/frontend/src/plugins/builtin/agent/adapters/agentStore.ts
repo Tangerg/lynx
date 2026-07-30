@@ -104,7 +104,12 @@ interface AgentStore {
    * matching open interrupt. The continuation Run streams the real
    * follow-up; this just flips the card out of its requires-action state.
    */
-  resolveInterrupt: (sessionId: string, itemId: string, settled: SettledInterrupt) => void;
+  resolveInterrupt: (
+    sessionId: string,
+    itemId: string,
+    settled: SettledInterrupt,
+    resolvedAt: number,
+  ) => void;
 }
 
 const emptyEntry = (): SessionEntry => ({
@@ -273,10 +278,10 @@ export const useAgentStore = create<AgentStore>((set) => ({
       const sessions = patchView(state.sessions, sessionId, (view) => setCommandError(view, error));
       return sessions === state.sessions ? state : { sessions };
     }),
-  resolveInterrupt: (sessionId, itemId, settled) =>
+  resolveInterrupt: (sessionId, itemId, settled, resolvedAt) =>
     set((state) => {
       const sessions = patchView(state.sessions, sessionId, (view) =>
-        resolveInterrupt(view, itemId, settled),
+        resolveInterrupt(view, itemId, settled, resolvedAt),
       );
       return sessions === state.sessions ? state : { sessions };
     }),

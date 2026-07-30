@@ -273,7 +273,7 @@ describe("agentStore.resolveInterrupt", () => {
     seedInterrupt("approval", "tool_1");
     expect(view().pendingInterrupts).toHaveLength(1);
 
-    useAgentStore.getState().resolveInterrupt(SID, "tool_1", { decision: "approved" });
+    useAgentStore.getState().resolveInterrupt(SID, "tool_1", { decision: "approved" }, 123);
 
     const block = view()
       .messages.flatMap((m) => m.blocks)
@@ -282,13 +282,18 @@ describe("agentStore.resolveInterrupt", () => {
     expect(view().pendingInterrupts).toHaveLength(0);
 
     const tl = view().timeline.find((e) => e.kind === "approval-result");
-    expect(tl).toMatchObject({ kind: "approval-result", refId: "tool_1", status: "approved" });
+    expect(tl).toMatchObject({
+      kind: "approval-result",
+      ts: 123,
+      refId: "tool_1",
+      status: "approved",
+    });
   });
 
   it("settles a question answer WITHOUT an approval-result entry", () => {
     seedInterrupt("question", "q_1");
 
-    useAgentStore.getState().resolveInterrupt(SID, "q_1", { answered: true });
+    useAgentStore.getState().resolveInterrupt(SID, "q_1", { answered: true }, 123);
 
     const block = view()
       .messages.flatMap((m) => m.blocks)
@@ -346,7 +351,7 @@ describe("agentStore.resolveInterrupt", () => {
     );
     expect(view().pendingInterrupts[0]!.interrupts).toHaveLength(2);
 
-    useAgentStore.getState().resolveInterrupt(SID, "t1", { decision: "approved" });
+    useAgentStore.getState().resolveInterrupt(SID, "t1", { decision: "approved" }, 123);
 
     // Envelope survives with only the unresolved sibling — not dropped whole.
     expect(view().pendingInterrupts).toHaveLength(1);

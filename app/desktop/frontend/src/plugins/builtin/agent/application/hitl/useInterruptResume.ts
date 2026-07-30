@@ -45,7 +45,7 @@ export function resumeInterrupt(
     runId,
     [{ itemId, response }],
     () => {
-      agentSessionView().resolveInterrupt(sessionId, itemId, settled);
+      agentSessionView().resolveInterrupt(sessionId, itemId, settled, Date.now());
       hooks?.onSettled?.();
     },
     () => hooks?.onError?.(),

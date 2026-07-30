@@ -72,7 +72,12 @@ describe("useQuestionAnswer", () => {
     const { result } = renderHook(() => useQuestionAnswer("run_1", "q_ok"));
     act(() => result.current.submit({ q1: "x" }));
     // The settle patch also stamps the answers so the collapsed card can echo them.
-    expect(spy).toHaveBeenCalledWith(SID, "q_ok", { answered: true, answers: { q1: ["x"] } });
+    expect(spy).toHaveBeenCalledWith(
+      SID,
+      "q_ok",
+      { answered: true, answers: { q1: ["x"] } },
+      expect.any(Number),
+    );
     expect(onStarted).toHaveBeenCalled();
 
     spy.mockClear();

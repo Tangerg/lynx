@@ -133,8 +133,8 @@ export function installAgentStatePorts(): () => void {
     commitViewRefresh: (sessionId, token, view) =>
       useAgentStore.getState().commitViewRefresh(sessionId, token, view),
     clearProblem: (sessionId) => useAgentStore.getState().clearProblem(sessionId),
-    resolveInterrupt: (sessionId, itemId, settled) =>
-      useAgentStore.getState().resolveInterrupt(sessionId, itemId, settled),
+    resolveInterrupt: (sessionId, itemId, settled, resolvedAt) =>
+      useAgentStore.getState().resolveInterrupt(sessionId, itemId, settled, resolvedAt),
     subscribeSessions: (onChange) => useAgentStore.subscribe((state) => onChange(state.sessions)),
   });
   return () => {

@@ -98,7 +98,12 @@ export interface AgentSessionViewPort {
     view: AgentSessionView,
   ): boolean;
   clearProblem(sessionId: string): void;
-  resolveInterrupt(sessionId: string, itemId: string, settled: ResolvePatch): void;
+  resolveInterrupt(
+    sessionId: string,
+    itemId: string,
+    settled: ResolvePatch,
+    resolvedAt: number,
+  ): void;
   subscribeSessions(
     onChange: (sessions: Record<string, AgentSessionViewEntry>) => void,
   ): () => void;

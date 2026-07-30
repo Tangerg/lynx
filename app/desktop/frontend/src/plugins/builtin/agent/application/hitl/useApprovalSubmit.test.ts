@@ -110,7 +110,7 @@ describe("useApprovalSubmit", () => {
     const spy = vi.spyOn(useAgentStore.getState(), "resolveInterrupt");
     const { result } = renderHook(() => useApprovalSubmit("run_1", "item_ok"));
     act(() => result.current.submit("approved"));
-    expect(spy).toHaveBeenCalledWith(SID, "item_ok", { decision: "approved" });
+    expect(spy).toHaveBeenCalledWith(SID, "item_ok", { decision: "approved" }, expect.any(Number));
     spy.mockRestore();
   });
 

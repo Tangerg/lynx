@@ -84,6 +84,7 @@ export function resolveInterrupt(
   view: AgentSessionView,
   itemId: string,
   settled: SettledInterrupt,
+  resolvedAt: number,
 ): AgentSessionView {
   let touchedBlock = false;
   let touchedApproval = false;
@@ -139,7 +140,7 @@ export function resolveInterrupt(
   if (settled.decision && touchedApproval && ownerRunId) {
     next = appendTimelineEntry({
       id: `timeline:local:approval-result:${itemId}:${settled.decision}`,
-      ts: Date.now(),
+      ts: resolvedAt,
       kind: "approval-result",
       runId: ownerRunId,
       refId: itemId,

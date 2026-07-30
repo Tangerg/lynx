@@ -126,7 +126,7 @@ describe("view mutations - interrupts", () => {
       },
     });
 
-    const next = resolveInterrupt(original, "tool_1", { decision: "approved" });
+    const next = resolveInterrupt(original, "tool_1", { decision: "approved" }, 123);
 
     expect(next.messages[0]!.blocks[0]).toMatchObject({
       kind: "approval",
@@ -137,6 +137,7 @@ describe("view mutations - interrupts", () => {
     expect(next.toolCalls.tool_1?.status).toBe("running");
     expect(next.timeline.at(-1)).toMatchObject({
       kind: "approval-result",
+      ts: 123,
       refId: "tool_1",
       status: "approved",
     });
@@ -149,7 +150,7 @@ describe("view mutations - interrupts", () => {
       pendingInterrupts: [pendingInterrupt([{ itemId: "question_1", kind: "question" }])],
     });
 
-    const next = resolveInterrupt(original, "question_1", { answers });
+    const next = resolveInterrupt(original, "question_1", { answers }, 123);
 
     expect(next.messages[0]!.blocks[0]).toMatchObject({
       kind: "question",
@@ -190,7 +191,7 @@ describe("view mutations - interrupts", () => {
       ],
     });
 
-    const next = resolveInterrupt(original, "tool_1", { decision: "declined" });
+    const next = resolveInterrupt(original, "tool_1", { decision: "declined" }, 123);
 
     expect(next.pendingInterrupts).toHaveLength(1);
     expect(next.pendingInterrupts[0]!.interrupts.map((interrupt) => interrupt.itemId)).toEqual([
@@ -214,6 +215,6 @@ describe("view mutations - interrupts", () => {
       pendingInterrupts: [pendingInterrupt([{ itemId: "tool_1", kind: "approval" }])],
     });
 
-    expect(resolveInterrupt(original, "missing", { decision: "approved" })).toBe(original);
+    expect(resolveInterrupt(original, "missing", { decision: "approved" }, 123)).toBe(original);
   });
 });
