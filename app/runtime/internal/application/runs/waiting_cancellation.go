@@ -13,6 +13,7 @@ import (
 
 type waitingCancellationTransformation struct {
 	terminalRuns   []transcript.Run
+	terminalItems  []ItemReplacement
 	parentItem     ItemReplacement
 	remaining      *interrupts.Pending
 	continuation   *treeContinuation
@@ -105,6 +106,22 @@ func prepareWaitingCancellationTransformation(
 	replacement := parentItem
 	replacement.Status = transcript.ItemIncomplete
 	replacement.Error = &problem
+	terminalItems := make([]ItemReplacement, 0, len(plan.targetInterruptItems))
+	for _, item := range plan.targetInterruptItems {
+		settled := item
+		settled.Status = transcript.ItemIncomplete
+		if settled.Kind == transcript.ToolCall {
+			settled.Error = &transcript.Problem{
+				Kind:   transcript.ToolFailedProblem,
+				Scope:  transcript.ToolProblem,
+				Detail: reason,
+			}
+		}
+		terminalItems = append(terminalItems, ItemReplacement{
+			Expected:    item,
+			Replacement: settled,
+		})
+	}
 
 	continuations := make([]interrupts.Continuation, 0, len(plan.survivingTree))
 	parentToolMoved := false
@@ -261,6 +278,7 @@ func prepareWaitingCancellationTransformation(
 
 	return waitingCancellationTransformation{
 		terminalRuns:   terminalRuns,
+		terminalItems:  terminalItems,
 		parentItem:     ItemReplacement{Expected: parentItem, Replacement: replacement},
 		remaining:      remaining,
 		continuation:   continuation,
@@ -301,6 +319,7 @@ func (transformation waitingCancellationTransformation) durableCommit(
 		RemainingPending: transformation.remaining,
 		Checkpoint:       transformation.checkpoint,
 		TerminalRuns:     slices.Clone(transformation.terminalRuns),
+		TerminalItems:    slices.Clone(transformation.terminalItems),
 		ParentItem:       transformation.parentItem,
 	}
 }

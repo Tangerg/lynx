@@ -928,6 +928,16 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 	if _, live := coordinator.registry.Get("run_1"); !live {
 		t.Fatal("child cancellation stopped the root segment")
 	}
+	entry, live := coordinator.registry.Get("run_1")
+	if !live || entry.handle == nil || entry.handle.hub == nil {
+		t.Fatal("continued root has no event Journal")
+	}
+	afterCancellation := entry.handle.hub.Tail()
+	cursorAfterCancellation := afterCancellation.HeadCursor
+	afterCancellation.Cancel()
+	if cursorAfterCancellation == "" {
+		t.Fatal("child cancellation returned before the Journal established a cursor")
+	}
 
 	close(executor.finishRoot)
 	select {
@@ -941,6 +951,18 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 		}
 		if !rootCompleted {
 			t.Fatalf("root did not continue to its natural terminal: %+v", events)
+		}
+		replayed, err := entry.handle.hub.Replay(cursorAfterCancellation)
+		if err != nil {
+			t.Fatalf("replay after child cancellation: %v", err)
+		}
+		for _, event := range collectEvents(replayed.Events) {
+			if event.RunID == childDraft.RunID {
+				t.Fatalf(
+					"canceled child published event after Cancel returned: %+v",
+					event,
+				)
+			}
 		}
 	case <-time.After(time.Second):
 		t.Fatal("root did not finish after child cancellation")

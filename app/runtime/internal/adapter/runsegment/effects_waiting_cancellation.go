@@ -72,6 +72,20 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 				err,
 			)
 		}
+		for _, item := range commit.TerminalItems {
+			if err := e.itemReplacer.ReplaceItem(
+				ctx,
+				item.Expected,
+				item.Replacement,
+			); err != nil {
+				return fmt.Errorf(
+					"runsegment: settle interrupted Item %q for canceled Run %q: %w",
+					item.Expected.ID,
+					item.Expected.RunID,
+					err,
+				)
+			}
+		}
 
 		terminalByID := make(map[string]transcript.Run, len(commit.TerminalRuns))
 		for _, planned := range commit.TerminalRuns {
@@ -263,6 +277,88 @@ func (e *Effects) validateWaitingSubtreeCancellation(
 			return fmt.Errorf("runsegment: waiting cancellation repeats Run %q", run.ID)
 		}
 		seen[run.ID] = struct{}{}
+	}
+
+	expectedTerminalItems := make(map[string]transcript.Interrupt)
+	for _, interrupt := range commit.ExpectedPending.Interrupts {
+		if _, terminal := seen[interrupt.RunID]; terminal {
+			expectedTerminalItems[interrupt.ItemID] = interrupt
+		}
+	}
+	if len(commit.TerminalItems) != len(expectedTerminalItems) {
+		return fmt.Errorf(
+			"runsegment: waiting cancellation has %d terminal Items, want %d",
+			len(commit.TerminalItems),
+			len(expectedTerminalItems),
+		)
+	}
+	seenTerminalItems := make(map[string]struct{}, len(commit.TerminalItems))
+	for index, item := range commit.TerminalItems {
+		interrupt, expected := expectedTerminalItems[item.Expected.ID]
+		if !expected ||
+			item.Expected.SessionID != commit.SessionID ||
+			item.Expected.RunID != interrupt.RunID ||
+			item.Expected.Status != transcript.ItemRunning {
+			return fmt.Errorf(
+				"runsegment: waiting cancellation terminal Item[%d] %q is outside the canceled interrupts",
+				index,
+				item.Expected.ID,
+			)
+		}
+		if _, duplicate := seenTerminalItems[item.Expected.ID]; duplicate {
+			return fmt.Errorf(
+				"runsegment: waiting cancellation repeats terminal Item %q",
+				item.Expected.ID,
+			)
+		}
+		seenTerminalItems[item.Expected.ID] = struct{}{}
+		switch interrupt.Kind {
+		case execution.QuestionInterrupt:
+			if item.Expected.Kind != transcript.QuestionItem ||
+				item.Expected.Question == nil ||
+				interrupt.Question == nil ||
+				!reflect.DeepEqual(item.Expected.Question, interrupt.Question) {
+				return fmt.Errorf(
+					"runsegment: waiting cancellation terminal question Item %q differs from its interrupt",
+					item.Expected.ID,
+				)
+			}
+		case execution.ApprovalInterrupt:
+			if item.Expected.Kind != transcript.ToolCall ||
+				item.Expected.Tool == nil ||
+				interrupt.Approval == nil ||
+				!reflect.DeepEqual(*item.Expected.Tool, interrupt.Approval.Tool) {
+				return fmt.Errorf(
+					"runsegment: waiting cancellation terminal approval Item %q differs from its interrupt",
+					item.Expected.ID,
+				)
+			}
+		default:
+			return fmt.Errorf(
+				"runsegment: waiting cancellation terminal Item %q has unsupported interrupt kind %s",
+				item.Expected.ID,
+				interrupt.Kind,
+			)
+		}
+		expectedReplacement := item.Expected
+		expectedReplacement.Status = transcript.ItemIncomplete
+		if expectedReplacement.Kind == transcript.ToolCall {
+			expectedReplacement.Error = item.Replacement.Error
+			if expectedReplacement.Error == nil ||
+				expectedReplacement.Error.Kind != transcript.ToolFailedProblem ||
+				expectedReplacement.Error.Scope != transcript.ToolProblem {
+				return fmt.Errorf(
+					"runsegment: waiting cancellation terminal tool Item %q has invalid problem",
+					item.Expected.ID,
+				)
+			}
+		}
+		if !reflect.DeepEqual(expectedReplacement, item.Replacement) {
+			return fmt.Errorf(
+				"runsegment: waiting cancellation terminal Item %q replacement is invalid",
+				item.Expected.ID,
+			)
+		}
 	}
 
 	canceledSet := make(map[string]struct{}, len(canceledRunIDs))

@@ -27,6 +27,12 @@ func (r *changeRecorder) publish(notice change.Notice) {
 	r.notices = append(r.notices, notice)
 }
 
+func (r *changeRecorder) snapshot() []change.Notice {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.notices)
+}
+
 func (r *changeRecorder) resources() []change.Resource {
 	r.mu.Lock()
 	defer r.mu.Unlock()

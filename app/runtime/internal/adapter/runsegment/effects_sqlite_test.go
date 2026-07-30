@@ -558,7 +558,21 @@ func TestCommitWaitingSubtreeCancellationCommitsCompleteWriteSet(t *testing.T) {
 		storedItem.Error.Scope != transcript.ToolProblem {
 		t.Fatalf("parent Item = %+v, want child_run_canceled", storedItem)
 	}
+	for _, terminal := range fixture.commit.TerminalItems {
+		item, found, err := fixture.transcript.Item(fixture.ctx, terminal.Expected.ID)
+		if err != nil || !found || !sameItemSnapshot(item, terminal.Replacement) {
+			t.Fatalf(
+				"terminal interrupt Item %q = found:%t value:%+v err:%v, want %+v",
+				terminal.Expected.ID,
+				found,
+				item,
+				err,
+				terminal.Replacement,
+			)
+		}
+	}
 	assertStoredRunState(t, fixture.db, fixture.childRun.ID, "terminal")
+	assertStoredRunState(t, fixture.db, fixture.grandchildRun.ID, "terminal")
 	assertStoredRunState(t, fixture.db, fixture.rootRun.ID, "running")
 	tree, checkpoint, err := fixture.processes.LoadTree(fixture.ctx, "process_root")
 	if err != nil {
@@ -590,13 +604,14 @@ func TestCommitWaitingSubtreeCancellationRollsBackCheckpointAndApplicationFacts(
 		t.Fatalf("parent Item after rollback found=%t item=%+v err=%v", found, storedItem, err)
 	}
 	assertStoredRunState(t, fixture.db, fixture.childRun.ID, "interrupted")
+	assertStoredRunState(t, fixture.db, fixture.grandchildRun.ID, "interrupted")
 	assertStoredRunState(t, fixture.db, fixture.rootRun.ID, "interrupted")
 	tree, checkpoint, err := fixture.processes.LoadTree(fixture.ctx, "process_root")
 	if err != nil {
 		t.Fatalf("load rolled-back process tree: %v", err)
 	}
 	rootSnapshot, found := processSnapshotByID(tree, "process_root")
-	if len(tree.Snapshots) != 2 ||
+	if len(tree.Snapshots) != 3 ||
 		!found ||
 		rootSnapshot.Suspension == nil ||
 		string(rootSnapshot.Suspension.Prompt) != `"before-cancel"` ||
@@ -606,19 +621,23 @@ func TestCommitWaitingSubtreeCancellationRollsBackCheckpointAndApplicationFacts(
 }
 
 type waitingCancellationSQLiteFixture struct {
-	ctx                context.Context
-	db                 *sql.DB
-	effects            *Effects
-	interrupts         *sqlite.InterruptStore
-	transcript         *sqlite.TranscriptStore
-	processes          *sqlite.ProcessStore
-	runState           *sqlite.RunStore
-	rootRun            transcript.Run
-	childRun           transcript.Run
-	parentItem         transcript.Item
-	originalTree       core.ProcessSnapshotTree
-	originalCheckpoint execution.ProcessCheckpoint
-	commit             runs.WaitingSubtreeCancellationCommit
+	ctx                   context.Context
+	db                    *sql.DB
+	effects               *Effects
+	interrupts            *sqlite.InterruptStore
+	transcript            *sqlite.TranscriptStore
+	processes             *sqlite.ProcessStore
+	runState              *sqlite.RunStore
+	rootRun               transcript.Run
+	childRun              transcript.Run
+	grandchildRun         transcript.Run
+	parentItem            transcript.Item
+	originalItems         []transcript.Item
+	originalTree          core.ProcessSnapshotTree
+	originalCheckpoint    execution.ProcessCheckpoint
+	replacementTree       core.ProcessSnapshotTree
+	replacementCheckpoint execution.ProcessCheckpoint
+	commit                runs.WaitingSubtreeCancellationCommit
 }
 
 func newWaitingCancellationSQLiteFixture(t *testing.T) waitingCancellationSQLiteFixture {
@@ -631,7 +650,16 @@ func newWaitingCancellationSQLiteFixtureWithSurvivingBoundary(
 	survivingBoundary bool,
 ) waitingCancellationSQLiteFixture {
 	t.Helper()
-	db, err := sqlite.Open(":memory:")
+	return newWaitingCancellationSQLiteFixtureAt(t, ":memory:", survivingBoundary)
+}
+
+func newWaitingCancellationSQLiteFixtureAt(
+	t *testing.T,
+	dataSourceName string,
+	survivingBoundary bool,
+) waitingCancellationSQLiteFixture {
+	t.Helper()
+	db, err := sqlite.Open(dataSourceName)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -643,6 +671,11 @@ func newWaitingCancellationSQLiteFixtureWithSurvivingBoundary(
 	childLineage := execution.RunLineage{
 		SpawnedByItemID: "item_spawn_child",
 		ParentRunID:     "run_root",
+		RootRunID:       "run_root",
+	}
+	grandchildLineage := execution.RunLineage{
+		SpawnedByItemID: "item_spawn_grandchild",
+		ParentRunID:     "run_child",
 		RootRunID:       "run_root",
 	}
 	siblingLineage := execution.RunLineage{
@@ -681,6 +714,17 @@ func newWaitingCancellationSQLiteFixtureWithSurvivingBoundary(
 	}); err != nil {
 		t.Fatalf("admit child: %v", err)
 	}
+	if err := state.Admit(ctx, execution.RunDraft{
+		RunID:           "run_grandchild",
+		SessionID:       "session_1",
+		SegmentID:       "segment_grandchild",
+		SpawnedByItemID: grandchildLineage.SpawnedByItemID,
+		ParentRunID:     grandchildLineage.ParentRunID,
+		RootRunID:       grandchildLineage.RootRunID,
+		CreatedAt:       createdAt,
+	}); err != nil {
+		t.Fatalf("admit grandchild: %v", err)
+	}
 	if survivingBoundary {
 		if err := state.Admit(ctx, execution.RunDraft{
 			RunID:           "run_sibling",
@@ -694,7 +738,16 @@ func newWaitingCancellationSQLiteFixtureWithSurvivingBoundary(
 			t.Fatalf("admit sibling: %v", err)
 		}
 	}
-	childQuestion := treeQuestion("item_question", "run_child")
+	grandchildQuestion := treeQuestion("item_grandchild_question", "run_grandchild")
+	grandchildRun := interruptedTreeRun(
+		"run_grandchild",
+		"session_1",
+		grandchildLineage,
+		createdAt,
+		[]transcript.Interrupt{grandchildQuestion},
+	)
+	grandchildRun.UpdatedAt = finishedAt
+	childQuestion := treeQuestion("item_child_question", "run_child")
 	childRun := interruptedTreeRun(
 		"run_child",
 		"session_1",
@@ -723,6 +776,49 @@ func newWaitingCancellationSQLiteFixtureWithSurvivingBoundary(
 		nil,
 	)
 	rootRun.UpdatedAt = finishedAt
+	grandchildQuestionItem := transcript.Item{
+		SessionID: rootRun.SessionID,
+		ID:        grandchildQuestion.ItemID,
+		RunID:     grandchildQuestion.RunID,
+		Status:    transcript.ItemRunning,
+		CreatedAt: createdAt,
+		Kind:      transcript.QuestionItem,
+		Question:  grandchildQuestion.Question,
+	}
+	childQuestionItem := transcript.Item{
+		SessionID: rootRun.SessionID,
+		ID:        childQuestion.ItemID,
+		RunID:     childQuestion.RunID,
+		Status:    transcript.ItemRunning,
+		CreatedAt: createdAt,
+		Kind:      transcript.QuestionItem,
+		Question:  childQuestion.Question,
+	}
+	originalItems := []transcript.Item{
+		parentItem,
+		grandchildQuestionItem,
+		childQuestionItem,
+	}
+	if survivingBoundary {
+		siblingQuestion := siblingRun.Interrupts[0]
+		originalItems = append(originalItems, transcript.Item{
+			SessionID: rootRun.SessionID,
+			ID:        siblingQuestion.ItemID,
+			RunID:     siblingQuestion.RunID,
+			Status:    transcript.ItemRunning,
+			CreatedAt: createdAt,
+			Kind:      transcript.QuestionItem,
+			Question:  siblingQuestion.Question,
+		})
+	}
+	for _, item := range originalItems[1:] {
+		if err := transcriptStore.AppendItem(ctx, item); err != nil {
+			t.Fatalf("seed interrupt Item %q: %v", item.ID, err)
+		}
+	}
+	if err := state.Suspend(ctx, grandchildRun); err != nil {
+		t.Fatalf("suspend grandchild: %v", err)
+	}
 	if err := state.Suspend(ctx, childRun); err != nil {
 		t.Fatalf("suspend child: %v", err)
 	}
@@ -735,20 +831,37 @@ func newWaitingCancellationSQLiteFixtureWithSurvivingBoundary(
 		t.Fatalf("suspend root: %v", err)
 	}
 
-	pendingInterrupts := []transcript.Interrupt{childQuestion}
-	pendingSuspensions := []interrupts.SuspensionBinding{{
-		InterruptItemID: childQuestion.ItemID,
-		ProcessID:       "process_child",
-		SuspensionID:    "suspension-process_child",
-	}}
-	pendingContinuations := []interrupts.Continuation{{
-		RunID:           childRun.ID,
-		ProcessID:       "process_child",
-		ParentProcessID: "process_root",
-		SpawnCallID:     "spawn_child",
-		Lineage:         childLineage,
-		RunCreatedAt:    createdAt,
-	}}
+	pendingInterrupts := []transcript.Interrupt{grandchildQuestion, childQuestion}
+	pendingSuspensions := []interrupts.SuspensionBinding{
+		{
+			InterruptItemID: grandchildQuestion.ItemID,
+			ProcessID:       "process_grandchild",
+			SuspensionID:    "suspension-process_grandchild",
+		},
+		{
+			InterruptItemID: childQuestion.ItemID,
+			ProcessID:       "process_child",
+			SuspensionID:    "suspension-process_child",
+		},
+	}
+	pendingContinuations := []interrupts.Continuation{
+		{
+			RunID:           grandchildRun.ID,
+			ProcessID:       "process_grandchild",
+			ParentProcessID: "process_child",
+			SpawnCallID:     "spawn_grandchild",
+			Lineage:         grandchildLineage,
+			RunCreatedAt:    createdAt,
+		},
+		{
+			RunID:           childRun.ID,
+			ProcessID:       "process_child",
+			ParentProcessID: "process_root",
+			SpawnCallID:     "spawn_child",
+			Lineage:         childLineage,
+			RunCreatedAt:    createdAt,
+		},
+	}
 	if survivingBoundary {
 		siblingQuestion := siblingRun.Interrupts[0]
 		pendingInterrupts = append(pendingInterrupts, siblingQuestion)
@@ -796,7 +909,13 @@ func newWaitingCancellationSQLiteFixtureWithSurvivingBoundary(
 	originalRoot.Suspension.Prompt = json.RawMessage(`"before-cancel"`)
 	originalChild := waitingProcessSnapshot("process_child", createdAt, finishedAt)
 	originalChild.ParentID = originalRoot.ID
-	originalSnapshots := []core.ProcessSnapshot{originalRoot, originalChild}
+	originalGrandchild := waitingProcessSnapshot("process_grandchild", createdAt, finishedAt)
+	originalGrandchild.ParentID = originalChild.ID
+	originalSnapshots := []core.ProcessSnapshot{
+		originalRoot,
+		originalChild,
+		originalGrandchild,
+	}
 	var originalSibling core.ProcessSnapshot
 	if survivingBoundary {
 		originalSibling = waitingProcessSnapshot("process_sibling", createdAt, finishedAt)
@@ -809,6 +928,12 @@ func newWaitingCancellationSQLiteFixtureWithSurvivingBoundary(
 	}
 	originalCheckpoint := execution.ProcessCheckpoint{
 		BuildID: "original-build",
+		Usage: accounting.Snapshot{Models: []accounting.ModelUsage{{
+			Model:      "test-model",
+			TokenUsage: accounting.TokenUsage{PromptTokens: 3, CompletionTokens: 2},
+			CostUSD:    0.25,
+			Calls:      1,
+		}}},
 	}
 	if err := processStore.SaveTree(ctx, originalTree, originalCheckpoint); err != nil {
 		t.Fatalf("seed process tree: %v", err)
@@ -835,6 +960,14 @@ func newWaitingCancellationSQLiteFixtureWithSurvivingBoundary(
 	terminalChild.FinishedAt = finishedAt
 	terminalChild.UpdatedAt = finishedAt
 	terminalChild.MessageMark = 0
+	terminalGrandchild := grandchildRun
+	terminalGrandchild.State = execution.Canceled
+	terminalGrandchild.Outcome = &outcome
+	terminalGrandchild.Detail = terminalChild.Detail
+	terminalGrandchild.Interrupts = nil
+	terminalGrandchild.FinishedAt = finishedAt
+	terminalGrandchild.UpdatedAt = finishedAt
+	terminalGrandchild.MessageMark = 0
 	problem := transcript.Problem{
 		Kind:   transcript.ChildRunCanceledProblem,
 		Scope:  transcript.ToolProblem,
@@ -842,14 +975,23 @@ func newWaitingCancellationSQLiteFixtureWithSurvivingBoundary(
 	}
 	replacementItem := parentItem
 	replacementItem.Error = &problem
+	terminalItems := make([]runs.ItemReplacement, 0, 2)
+	for _, item := range []transcript.Item{grandchildQuestionItem, childQuestionItem} {
+		replacement := item
+		replacement.Status = transcript.ItemIncomplete
+		terminalItems = append(terminalItems, runs.ItemReplacement{
+			Expected:    item,
+			Replacement: replacement,
+		})
+	}
 	var (
 		remainingPending *interrupts.Pending
 		resume           *execution.TreeResumeDraft
 	)
 	if survivingBoundary {
 		reduced := pending
-		reduced.Interrupts = slices.Clone(pending.Interrupts[1:])
-		reduced.Suspensions = slices.Clone(pending.Suspensions[1:])
+		reduced.Interrupts = slices.Clone(pending.Interrupts[2:])
+		reduced.Suspensions = slices.Clone(pending.Suspensions[2:])
 		rootContinuation := pending.Continuations[len(pending.Continuations)-1]
 		rootContinuation.DrainedTools = nil
 		rootContinuation.CommittedTools = []interrupts.CommittedTool{{
@@ -860,7 +1002,7 @@ func newWaitingCancellationSQLiteFixtureWithSurvivingBoundary(
 			Problem:   problem,
 		}}
 		reduced.Continuations = []interrupts.Continuation{
-			pending.Continuations[1],
+			pending.Continuations[2],
 			rootContinuation,
 		}
 		if err := reduced.Validate(); err != nil {
@@ -877,6 +1019,15 @@ func newWaitingCancellationSQLiteFixtureWithSurvivingBoundary(
 			}},
 		}
 	}
+	replacementCheckpoint := execution.ProcessCheckpoint{
+		BuildID: "replacement-build",
+		Usage: accounting.Snapshot{Models: []accounting.ModelUsage{{
+			Model:      "test-model",
+			TokenUsage: accounting.TokenUsage{PromptTokens: 8, CompletionTokens: 5},
+			CostUSD:    0.75,
+			Calls:      2,
+		}}},
+	}
 	effects := sqliteEffects(
 		sqliteOpeningStores{interrupts: interruptStore, transcript: transcriptStore},
 		Config{
@@ -888,18 +1039,22 @@ func newWaitingCancellationSQLiteFixtureWithSurvivingBoundary(
 		},
 	)
 	return waitingCancellationSQLiteFixture{
-		ctx:                ctx,
-		db:                 db,
-		effects:            effects,
-		interrupts:         interruptStore,
-		transcript:         transcriptStore,
-		processes:          processStore,
-		runState:           state,
-		rootRun:            rootRun,
-		childRun:           childRun,
-		parentItem:         parentItem,
-		originalTree:       originalTree,
-		originalCheckpoint: originalCheckpoint,
+		ctx:                   ctx,
+		db:                    db,
+		effects:               effects,
+		interrupts:            interruptStore,
+		transcript:            transcriptStore,
+		processes:             processStore,
+		runState:              state,
+		rootRun:               rootRun,
+		childRun:              childRun,
+		grandchildRun:         grandchildRun,
+		parentItem:            parentItem,
+		originalItems:         originalItems,
+		originalTree:          originalTree,
+		originalCheckpoint:    originalCheckpoint,
+		replacementTree:       replacementTree,
+		replacementCheckpoint: replacementCheckpoint,
 		commit: runs.WaitingSubtreeCancellationCommit{
 			RootRunID:        rootRun.ID,
 			TargetRunID:      childRun.ID,
@@ -908,13 +1063,12 @@ func newWaitingCancellationSQLiteFixtureWithSurvivingBoundary(
 			ExpectedPending:  pending,
 			RemainingPending: remainingPending,
 			Checkpoint: sqliteProcessCheckpointWrite{
-				store: processStore,
-				tree:  replacementTree,
-				checkpoint: execution.ProcessCheckpoint{
-					BuildID: "replacement-build",
-				},
+				store:      processStore,
+				tree:       replacementTree,
+				checkpoint: replacementCheckpoint,
 			},
-			TerminalRuns: []transcript.Run{terminalChild},
+			TerminalRuns:  []transcript.Run{terminalGrandchild, terminalChild},
+			TerminalItems: terminalItems,
 			ParentItem: runs.ItemReplacement{
 				Expected: parentItem, Replacement: replacementItem,
 			},

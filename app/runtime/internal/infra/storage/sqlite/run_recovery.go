@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -18,14 +19,14 @@ import (
 // check itself failed and aborts the reconciliation transaction.
 type ProcessSnapshotValidator func(context.Context, string) (bool, error)
 
-// ReconcileOrphans repairs non-terminal Runs abandoned by a process exit before
-// any new run is admitted. An Interrupted run with a coherent transcript,
-// matching durable interrupt, and resumable process snapshot survives. Every
-// other non-terminal row is lost: its running transcript items become
-// incomplete, its transcript Run becomes a terminal error(run_lost) with a
-// message watermark, and its admission row terminalizes. Orphan interrupt rows
-// are removed. The complete cross-table repair commits in one transaction, so
-// boot never exposes a half-reconciled lifecycle.
+// ReconcileOrphans repairs non-terminal Run trees abandoned by a process exit
+// before any new Run is admitted. A completely interrupted tree with a coherent
+// transcript, matching durable Pending, and resumable process snapshot survives.
+// Every other non-terminal tree is lost in canonical postorder: its running
+// transcript Items become incomplete, each Run becomes a terminal
+// error(run_lost), and orphan Pending/process snapshots are removed. The complete
+// cross-table repair commits in one transaction, so boot never exposes a
+// half-reconciled lifecycle.
 func (s *RunStore) ReconcileOrphans(ctx context.Context, validateSnapshot ProcessSnapshotValidator) (int, error) {
 	if validateSnapshot == nil {
 		return 0, errors.New("sqlite: process snapshot validator is required")
@@ -56,32 +57,40 @@ func (s *RunStore) ReconcileOrphans(ctx context.Context, validateSnapshot Proces
 			pendingByRun[interrupt.RootRunID] = interrupt
 		}
 
-		preserved := make(map[string]struct{}, len(active))
-		for _, run := range active {
-			pendingInterrupt, hasInterrupt := pendingByRun[run.runID]
-			if run.state == execution.Interrupted && hasInterrupt && pendingInterrupt.SessionID == run.sessionID {
-				resumable, err := s.validateParkedRun(ctx, run, pendingInterrupt, validateSnapshot)
+		trees, err := groupNonTerminalRunTrees(active)
+		if err != nil {
+			return err
+		}
+		preserved := make(map[string]struct{}, len(trees))
+		rootRunIDs := make([]string, 0, len(trees))
+		for rootRunID := range trees {
+			rootRunIDs = append(rootRunIDs, rootRunID)
+		}
+		slices.Sort(rootRunIDs)
+		for _, rootRunID := range rootRunIDs {
+			tree := trees[rootRunID]
+			pendingInterrupt, hasInterrupt := pendingByRun[rootRunID]
+			if tree.root.state == execution.Interrupted &&
+				hasInterrupt &&
+				pendingInterrupt.SessionID == tree.root.sessionID {
+				resumable, err := s.validateParkedTree(
+					ctx,
+					tree,
+					pendingInterrupt,
+					validateSnapshot,
+				)
 				if err != nil {
 					return err
 				}
 				if resumable {
-					preserved[run.runID] = struct{}{}
+					preserved[rootRunID] = struct{}{}
 					continue
 				}
-				if err := s.recoverLostRun(ctx, run, now); err != nil {
-					return err
-				}
-				root, _ := pendingInterrupt.RootContinuation()
-				if err := NewProcessStore(s.db).DeleteTrees(ctx, []string{root.ProcessID}); err != nil {
-					return fmt.Errorf("sqlite: delete unusable process snapshot for run %q: %w", run.runID, err)
-				}
-				reconciled++
-				continue
 			}
-			if err := s.recoverLostRun(ctx, run, now); err != nil {
+			if err := s.recoverLostTree(ctx, tree, now); err != nil {
 				return err
 			}
-			reconciled++
+			reconciled += len(tree.postorder)
 		}
 		for _, interrupt := range pending {
 			if _, ok := preserved[interrupt.RootRunID]; ok {
@@ -120,14 +129,25 @@ func (s *RunStore) hasResumableProcessSnapshot(ctx context.Context, processID st
 type nonTerminalRun struct {
 	runID          string
 	sessionID      string
+	lineage        execution.RunLineage
 	modelSelection modelref.Selection
 	state          execution.RunState
 	createdAt      time.Time
 }
 
+type nonTerminalRunTree struct {
+	root      nonTerminalRun
+	runsByID  map[string]nonTerminalRun
+	postorder []string
+}
+
 func (s *RunStore) nonTerminalRuns(ctx context.Context) ([]nonTerminalRun, error) {
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT run_id, session_id, provider, model, state, started_at FROM runs WHERE state != ? ORDER BY started_at`,
+		`SELECT run_id, session_id, spawned_by_item_id, parent_run_id, root_run_id,
+		        provider, model, state, started_at
+		   FROM runs
+		  WHERE state != ?
+		  ORDER BY started_at, run_id`,
 		runStateTerminal)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list non-terminal runs: %w", err)
@@ -139,8 +159,25 @@ func (s *RunStore) nonTerminalRuns(ctx context.Context) ([]nonTerminalRun, error
 		var run nonTerminalRun
 		var provider, model, coarse string
 		var startedAt int64
-		if err := rows.Scan(&run.runID, &run.sessionID, &provider, &model, &coarse, &startedAt); err != nil {
+		if err := rows.Scan(
+			&run.runID,
+			&run.sessionID,
+			&run.lineage.SpawnedByItemID,
+			&run.lineage.ParentRunID,
+			&run.lineage.RootRunID,
+			&provider,
+			&model,
+			&coarse,
+			&startedAt,
+		); err != nil {
 			return nil, fmt.Errorf("sqlite: scan non-terminal run: %w", err)
+		}
+		if err := run.lineage.Validate(run.runID); err != nil {
+			return nil, fmt.Errorf(
+				"sqlite: decode non-terminal run %q lineage: %w",
+				run.runID,
+				err,
+			)
 		}
 		run.createdAt = time.Unix(0, startedAt).UTC()
 		selection, err := modelref.New(provider, model)
@@ -162,6 +199,76 @@ func (s *RunStore) nonTerminalRuns(ctx context.Context) ([]nonTerminalRun, error
 		return nil, fmt.Errorf("sqlite: list non-terminal runs: %w", err)
 	}
 	return out, nil
+}
+
+func groupNonTerminalRunTrees(active []nonTerminalRun) (map[string]nonTerminalRunTree, error) {
+	grouped := make(map[string][]nonTerminalRun)
+	for _, run := range active {
+		rootRunID := run.lineage.TreeRootID(run.runID)
+		grouped[rootRunID] = append(grouped[rootRunID], run)
+	}
+
+	trees := make(map[string]nonTerminalRunTree, len(grouped))
+	for rootRunID, runs := range grouped {
+		members := make([]execution.RunTreeMember, 0, len(runs))
+		runsByID := make(map[string]nonTerminalRun, len(runs))
+		for _, run := range runs {
+			members = append(members, execution.RunTreeMember{
+				RunID:   run.runID,
+				Lineage: run.lineage,
+			})
+			runsByID[run.runID] = run
+		}
+		topology, err := execution.NewRunTree(rootRunID, members)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"sqlite: assemble non-terminal Run tree %q: %w",
+				rootRunID,
+				err,
+			)
+		}
+		root, found := runsByID[rootRunID]
+		if !found {
+			return nil, fmt.Errorf(
+				"sqlite: assemble non-terminal Run tree %q: root is missing",
+				rootRunID,
+			)
+		}
+		for _, run := range runs {
+			if run.sessionID != root.sessionID {
+				return nil, fmt.Errorf(
+					"sqlite: non-terminal Run %q belongs to Session %q, want tree Session %q",
+					run.runID,
+					run.sessionID,
+					root.sessionID,
+				)
+			}
+		}
+		trees[rootRunID] = nonTerminalRunTree{
+			root:      root,
+			runsByID:  runsByID,
+			postorder: topology.Postorder(),
+		}
+	}
+	return trees, nil
+}
+
+func (s *RunStore) recoverLostTree(
+	ctx context.Context,
+	tree nonTerminalRunTree,
+	now time.Time,
+) error {
+	for _, runID := range tree.postorder {
+		if err := s.recoverLostRun(ctx, tree.runsByID[runID], now); err != nil {
+			return fmt.Errorf(
+				"sqlite: recover lost Run tree %q member %q: %w",
+				tree.root.runID,
+				runID,
+				err,
+			)
+		}
+	}
+	return nil
 }
 
 func (s *RunStore) recoverLostRun(ctx context.Context, active nonTerminalRun, now time.Time) error {
@@ -197,11 +304,14 @@ func (s *RunStore) recoverLostRun(ctx context.Context, active nonTerminalRun, no
 	}
 	outcome := execution.OutcomeError
 	lost := transcript.Run{
-		SessionID:      active.sessionID,
-		ID:             active.runID,
-		ModelSelection: active.modelSelection,
-		State:          next,
-		Outcome:        &outcome,
+		SessionID:       active.sessionID,
+		ID:              active.runID,
+		SpawnedByItemID: active.lineage.SpawnedByItemID,
+		ParentRunID:     active.lineage.ParentRunID,
+		RootRunID:       active.lineage.RootRunID,
+		ModelSelection:  active.modelSelection,
+		State:           next,
+		Outcome:         &outcome,
 		Error: &transcript.Problem{
 			Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
 			Detail: "run lost on restart",

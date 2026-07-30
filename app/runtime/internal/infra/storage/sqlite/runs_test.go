@@ -545,6 +545,130 @@ func TestReconcileOrphansSweepsCrashedButPreservesParked(t *testing.T) {
 	}
 }
 
+func TestReconcileOrphansPreservesCompleteParkedRunTree(t *testing.T) {
+	store, ints, transcripts, processes := newRunRecoveryStores(t)
+	ctx := t.Context()
+	rootID := "run_root"
+	childID := "run_child"
+	sessionID := "ses_tree"
+	childLineage := execution.RunLineage{
+		SpawnedByItemID: "item_spawn_child",
+		ParentRunID:     rootID,
+		RootRunID:       rootID,
+	}
+	if err := store.Admit(ctx, runDraft(rootID, sessionID)); err != nil {
+		t.Fatalf("admit root: %v", err)
+	}
+	childDraft := runDraft(childID, sessionID)
+	childDraft.SpawnedByItemID = childLineage.SpawnedByItemID
+	childDraft.ParentRunID = childLineage.ParentRunID
+	childDraft.RootRunID = childLineage.RootRunID
+	if err := store.Admit(ctx, childDraft); err != nil {
+		t.Fatalf("admit child: %v", err)
+	}
+
+	question := &transcript.Question{Prompt: "Continue?"}
+	open := transcript.Interrupt{
+		ItemID:   "item_question",
+		RunID:    childID,
+		Kind:     execution.QuestionInterrupt,
+		Question: question,
+	}
+	child := parkedRun(childID, sessionID)
+	child.SpawnedByItemID = childLineage.SpawnedByItemID
+	child.ParentRunID = childLineage.ParentRunID
+	child.RootRunID = childLineage.RootRunID
+	child.Interrupts = []transcript.Interrupt{open}
+	root := parkedRun(rootID, sessionID)
+	root.Interrupts = nil
+	if err := store.Suspend(ctx, child); err != nil {
+		t.Fatalf("suspend child: %v", err)
+	}
+	if err := store.Suspend(ctx, root); err != nil {
+		t.Fatalf("suspend root: %v", err)
+	}
+	if err := transcripts.AppendItem(ctx, transcript.Item{
+		SessionID: sessionID,
+		ID:        open.ItemID,
+		RunID:     childID,
+		Status:    transcript.ItemRunning,
+		Kind:      transcript.QuestionItem,
+		Question:  question,
+		CreatedAt: time.Unix(2, 0).UTC(),
+	}); err != nil {
+		t.Fatalf("append child question Item: %v", err)
+	}
+	pending := interrupts.Pending{
+		RootRunID:  rootID,
+		SessionID:  sessionID,
+		TurnID:     "turn_tree",
+		Interrupts: []transcript.Interrupt{open},
+		Suspensions: []interrupts.SuspensionBinding{{
+			InterruptItemID: open.ItemID,
+			ProcessID:       "process_child",
+			SuspensionID:    "suspension_child",
+		}},
+		Continuations: []interrupts.Continuation{
+			{
+				RunID:           childID,
+				ProcessID:       "process_child",
+				ParentProcessID: "process_root",
+				SpawnCallID:     "spawn_child",
+				Lineage:         childLineage,
+				RunCreatedAt:    runCreatedAt,
+			},
+			{
+				RunID:        rootID,
+				ProcessID:    "process_root",
+				RunCreatedAt: runCreatedAt,
+			},
+		},
+		CreatedAt: time.Unix(2, 0).UTC(),
+	}
+	if err := ints.Put(ctx, pending); err != nil {
+		t.Fatalf("put tree Pending: %v", err)
+	}
+	rootSnapshot := validStoredSnapshot("process_root", core.StatusWaiting)
+	rootSnapshot.StartedAt = runCreatedAt
+	childSnapshot := validStoredSnapshot("process_child", core.StatusWaiting)
+	childSnapshot.ParentID = rootSnapshot.ID
+	childSnapshot.StartedAt = runCreatedAt
+	if err := processes.SaveTree(
+		ctx,
+		storedSnapshotTree(rootSnapshot.ID, rootSnapshot, childSnapshot),
+		storedCheckpoint("", storedBuildID, storedUsage()),
+	); err != nil {
+		t.Fatalf("save process tree: %v", err)
+	}
+
+	recovered, err := store.ReconcileOrphans(ctx, acceptProcessSnapshot)
+	if err != nil || recovered != 0 {
+		t.Fatalf("reconcile parked tree = (%d, %v), want (0, nil)", recovered, err)
+	}
+	for _, runID := range []string{childID, rootID} {
+		run, found, err := store.Run(ctx, runID)
+		if err != nil || !found || run.State != execution.Interrupted {
+			t.Fatalf(
+				"Run %q after reconciliation = found:%t value:%+v err:%v, want interrupted",
+				runID,
+				found,
+				run,
+				err,
+			)
+		}
+	}
+	if stored, found, err := ints.Get(ctx, rootID); err != nil ||
+		!found ||
+		stored.RootRunID != pending.RootRunID {
+		t.Fatalf(
+			"Pending after reconciliation = found:%t value:%+v err:%v, want preserved",
+			found,
+			stored,
+			err,
+		)
+	}
+}
+
 func TestReconcileOrphansTerminalizesParkWhoseProcessSnapshotIsMissing(t *testing.T) {
 	store, ints, transcripts, processes := newRunRecoveryStores(t)
 	ctx := t.Context()

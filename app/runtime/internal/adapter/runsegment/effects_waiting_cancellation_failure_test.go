@@ -28,15 +28,19 @@ func (checkpoint failingWaitingCheckpoint) PersistCheckpoint(context.Context) er
 
 type failingWaitingItemReplacer struct {
 	ItemReplacer
-	err error
+	failItemID string
+	err        error
 }
 
 func (replacer failingWaitingItemReplacer) ReplaceItem(
-	context.Context,
-	transcript.Item,
-	transcript.Item,
+	ctx context.Context,
+	expected transcript.Item,
+	replacement transcript.Item,
 ) error {
-	return replacer.err
+	if replacer.failItemID == "" || replacer.failItemID == expected.ID {
+		return replacer.err
+	}
+	return replacer.ItemReplacer.ReplaceItem(ctx, expected, replacement)
 }
 
 type failingWaitingRunWriter struct {
@@ -139,6 +143,19 @@ func TestCommitWaitingSubtreeCancellationRollsBackEveryPreCommitFailure(t *testi
 				fixture.replaceEffects(func(config *Config) {
 					config.ItemReplacer = failingWaitingItemReplacer{
 						ItemReplacer: fixture.transcript,
+						err:          injected,
+					}
+				})
+			},
+		},
+		{
+			name:      "terminal interrupt Item",
+			operation: "settle interrupted Item",
+			configure: func(fixture *waitingCancellationSQLiteFixture, injected error) {
+				fixture.replaceEffects(func(config *Config) {
+					config.ItemReplacer = failingWaitingItemReplacer{
+						ItemReplacer: fixture.transcript,
+						failItemID:   fixture.commit.TerminalItems[0].Expected.ID,
 						err:          injected,
 					}
 				})
@@ -294,23 +311,33 @@ func assertWaitingCancellationUnchanged(
 		)
 	}
 
-	item, found, err := fixture.transcript.Item(fixture.ctx, fixture.parentItem.ID)
-	if err != nil || !found || !sameItemSnapshot(item, fixture.parentItem) {
+	items, err := fixture.transcript.List(fixture.ctx, fixture.rootRun.SessionID)
+	if err != nil {
+		t.Fatalf("list transcript after rollback: %v", err)
+	}
+	if len(items) != len(fixture.originalItems) {
 		t.Fatalf(
-			"parent Item after rollback = found:%t value:%+v err:%v, want %+v",
-			found,
-			item,
-			err,
-			fixture.parentItem,
+			"transcript after rollback has %d Items, want %d: %+v",
+			len(items),
+			len(fixture.originalItems),
+			items,
 		)
 	}
-	items, err := fixture.transcript.List(fixture.ctx, fixture.rootRun.SessionID)
-	if err != nil || len(items) != 1 || items[0].ID != fixture.parentItem.ID {
-		t.Fatalf(
-			"transcript after rollback = items:%+v err:%v, want only parent Item",
-			items,
-			err,
-		)
+	itemsByID := make(map[string]transcript.Item, len(items))
+	for _, item := range items {
+		itemsByID[item.ID] = item
+	}
+	for _, expected := range fixture.originalItems {
+		item, found := itemsByID[expected.ID]
+		if !found || !sameItemSnapshot(item, expected) {
+			t.Fatalf(
+				"Item %q after rollback = found:%t value:%+v, want %+v",
+				expected.ID,
+				found,
+				item,
+				expected,
+			)
+		}
 	}
 
 	for _, continuation := range fixture.commit.ExpectedPending.Continuations {

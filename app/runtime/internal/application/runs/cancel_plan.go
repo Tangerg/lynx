@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -34,6 +35,7 @@ type cancellationPlan struct {
 	hasPending           bool
 	spawningItem         transcript.Item
 	hasSpawningItem      bool
+	targetInterruptItems []transcript.Item
 	completePostorderIDs []string
 }
 
@@ -210,8 +212,102 @@ func (c *Coordinator) cancellationPlanFor(
 		}
 		plan.spawningItem = item
 		plan.hasSpawningItem = true
+		targetRunIDs := make(map[string]struct{}, len(plan.targetSubtree))
+		for _, member := range plan.targetSubtree {
+			targetRunIDs[member.run.ID] = struct{}{}
+		}
+		for _, interrupt := range plan.pending.Interrupts {
+			if _, targeted := targetRunIDs[interrupt.RunID]; !targeted {
+				continue
+			}
+			item, found, err := c.items.Item(ctx, interrupt.ItemID)
+			if err != nil {
+				return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
+					"runs: read waiting interrupt Item %q for Run %q: %w",
+					interrupt.ItemID,
+					interrupt.RunID,
+					err,
+				)
+			}
+			if !found {
+				return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
+					"runs: waiting interrupt Item %q for Run %q is missing",
+					interrupt.ItemID,
+					interrupt.RunID,
+				)
+			}
+			if err := validateWaitingCancellationInterruptItem(plan, interrupt, item); err != nil {
+				return cancellationPlan{}, liveSegment{}, false, err
+			}
+			plan.targetInterruptItems = append(plan.targetInterruptItems, item)
+		}
 	}
 	return plan, live, liveFound, nil
+}
+
+func validateWaitingCancellationInterruptItem(
+	plan cancellationPlan,
+	interrupt transcript.Interrupt,
+	item transcript.Item,
+) error {
+	switch {
+	case item.ID != interrupt.ItemID:
+		return fmt.Errorf(
+			"runs: waiting interrupt for Run %q resolved Item %q, want %q",
+			interrupt.RunID,
+			item.ID,
+			interrupt.ItemID,
+		)
+	case item.SessionID != plan.root.run.SessionID:
+		return fmt.Errorf(
+			"runs: waiting interrupt Item %q belongs to Session %q, want %q",
+			item.ID,
+			item.SessionID,
+			plan.root.run.SessionID,
+		)
+	case item.RunID != interrupt.RunID:
+		return fmt.Errorf(
+			"runs: waiting interrupt Item %q belongs to Run %q, want %q",
+			item.ID,
+			item.RunID,
+			interrupt.RunID,
+		)
+	case item.Status != transcript.ItemRunning:
+		return fmt.Errorf(
+			"runs: waiting interrupt Item %q is in status %d, want running",
+			item.ID,
+			item.Status,
+		)
+	}
+	switch interrupt.Kind {
+	case execution.QuestionInterrupt:
+		if item.Kind != transcript.QuestionItem ||
+			item.Question == nil ||
+			interrupt.Question == nil ||
+			!reflect.DeepEqual(item.Question, interrupt.Question) {
+			return fmt.Errorf(
+				"runs: waiting question Item %q differs from its interrupt",
+				item.ID,
+			)
+		}
+	case execution.ApprovalInterrupt:
+		if item.Kind != transcript.ToolCall ||
+			item.Tool == nil ||
+			interrupt.Approval == nil ||
+			!reflect.DeepEqual(*item.Tool, interrupt.Approval.Tool) {
+			return fmt.Errorf(
+				"runs: waiting approval Item %q differs from its interrupt",
+				item.ID,
+			)
+		}
+	default:
+		return fmt.Errorf(
+			"runs: waiting interrupt Item %q has unsupported kind %s",
+			item.ID,
+			interrupt.Kind,
+		)
+	}
+	return nil
 }
 
 func validateWaitingCancellationSpawningItem(plan cancellationPlan, item transcript.Item) error {

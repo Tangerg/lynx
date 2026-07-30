@@ -5,7 +5,7 @@
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
-> 当前已提交基线：`main@e7452288b`；B1.4d / W2.2 随本原子 slice 完成
+> 当前已提交基线：`main@3a512fe71`；B1.4d / W2.3 随本原子 slice 完成
 > 目标协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 目标 Artifact：`SessionArtifactVersion = 7`
 
@@ -543,7 +543,7 @@ B1.4 内部原子切片：
 | B1.4a | `DONE` | 任意 root/child identity 单次读取完整 durable tree；领域 `RunTree` 验证拓扑并生成 canonical postorder/subtree；application 冻结 Run、Pending、Turn 与 executor bindings 为 immutable cancel plan；root handle 串行化 child/root/interrupt owner |
 | B1.4b | `DONE` | Running child 精确停止其 executor process subtree；Agent Runtime 后序发布 killed terminal；application join target terminal 与父 spawning Item 的唯一 `child_run_canceled`；root/兄弟不被取消；同步返回 exact child + unchanged root snapshot |
 | B1.4c | `DONE` | Waiting child 的 Pending/Continuation/checkpoint ownership、subtree terminal、parent Item 与必要的 surviving-tree resume 单事务变换 |
-| B1.4d | `IN PROGRESS` | W2.1 ownership arbitration 与 W2.2 stale/failure/rollback 已完成；下一步 SQLite restart、query、publication 与 quiescence conformance |
+| B1.4d | `IN PROGRESS` | W2.1 ownership、W2.2 failure/rollback 与 W2.3 restart/query/publication/quiescence 已完成；下一步 W2.4 全量收口 |
 
 ---
 
@@ -1685,6 +1685,32 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
   - 全量 race、canonical ordering 与 hygiene sweep 进入 W2.4；
   - capability 继续保持 disabled。
 
+### 2026-07-30 — B1.4d / W2.3
+
+- 状态：`DONE`
+- Commit：随本原子 slice 提交
+- 目标：证明 waiting child cancellation 的 command result、durable query、boot recovery、
+  invalidation 与 event quiescence 共享同一 committed truth。
+- 关键裁决：
+  - canceled subtree 的 Running interrupt Items 是取消 transaction 的必要终态事实，不能
+    留成永久 Running 的历史投影；
+  - `ReconcileOrphans` 的恢复单位是 root-owned 完整活动 Run tree；Pending continuation
+    必须与每个 active member 的 lineage/model/time 精确匹配，并校验所有 member 的
+    interrupt/drained/committed Item；
+  - remaining boundary 在 restart 后保持 Interrupted；final boundary 只证明 committed
+    Running truth，boot 随后按既有 `run_lost` policy 收口，完整 Running cold recovery 留给
+    B1.5/W3。
+- 生成物：public wire、Registry、OpenRPC、Agent API/wire、Artifact、SQLite schema 与
+  `features.subagents` 均未变化。
+- 验证：
+  - real file close/reopen、target/root exact query、child-addressed tree query → `PASS`
+  - checkpoint BuildID/usage/process tree 与 reduced Pending exact round-trip → `PASS`
+  - tree-aware boot reconciliation、exact invalidation 与 Journal quiescence → `PASS`
+  - application/runs、adapter/runsegment、SQLite recovery race `-count=10` → `PASS`
+- 残余风险：
+  - 全量 canonical ordering、receiver/命名/错误/接口/兼容债审计与所有模块 gate 进入 W2.4；
+  - capability 继续保持 disabled。
+
 每完成一个 slice，在 §4 表格填写完成证据，并追加一条记录：
 
 ```md
@@ -1713,10 +1739,10 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 
 ## 18. 下一步
 
-A-track、B1.1–B1.3、B1.4a–c 与 B1.4d/W2.1–W2.2 已收口。下一阶段是：
+A-track、B1.1–B1.3、B1.4a–c 与 B1.4d/W2.1–W2.3 已收口。下一阶段是：
 
 ```text
-B1.4d / W2.3 — restart / query / publication / quiescence conformance
+B1.4d / W2.4 — race / hygiene / full closure
 ```
 
 B1.4 的四个内部原子切片继续严格按事实依赖实施：
@@ -1726,13 +1752,13 @@ B1.4 的四个内部原子切片继续严格按事实依赖实施：
 | B1.4a | `DONE` | root-owned tree arbiter 与 cancel plan | root / child target 统一解析为 immutable subtree plan；root cancel、child cancel、interrupt/terminal 共用 root owner；删除“authorized child cancellation unavailable”分支 |
 | B1.4b | `DONE` | Running subtree cancel | executor 精确停止并 join target process subtree；所有 descendant Run canonical postorder terminalize；父 `task` 只提交一次结构化 `child_run_canceled`；surviving sibling 与 root 继续执行 |
 | B1.4c | `DONE` | Waiting subtree cancel | 一个 transaction 删除 target subtree 的 Interrupt / Continuation / snapshot ownership 并关闭对应 Run；root set 非空时 surviving tree 继续 Waiting，集合为空时一次打开全部 surviving suspended Run 的新 Segment 并恢复执行 |
-| B1.4d | `IN PROGRESS` | race / restart / query conformance | W2.1 ownership arbitration 与 W2.2 逐点失败已完成；W2.3 restart/query/publication、W2.4 全量收口后完成 |
+| B1.4d | `IN PROGRESS` | race / restart / query conformance | W2.1–W2.3 已完成；W2.4 全量收口后完成 |
 
 B1.4d 不再修改 B1.4c 的事实所有权：仍由 B1.4a plan + root admission 冻结 target，
 Agent prepared mutation 只决定 execution replacement，App transformation 决定完整 durable
-write-set，runsegment transaction 是唯一提交者。下一步以对抗性测试验证这些边界在
-进程重启、cold query、publication read set 与 subtree quiescence 下仍成立，
-并核对 cancel response、query 与 publication 都返回同一 committed target/root truth。
+write-set，runsegment transaction 是唯一提交者。W2.3 已证明这些边界在进程重启、cold
+query、publication read set 与 subtree quiescence 下成立；下一步只做 W2.4 全量竞态、
+canonical ordering、hygiene 与兼容债收口。
 
 实现期间继续坚持：
 

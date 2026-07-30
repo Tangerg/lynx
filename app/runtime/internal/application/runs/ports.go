@@ -240,6 +240,7 @@ type WaitingSubtreeCancellationCommit struct {
 	RemainingPending *interrupts.Pending
 	Checkpoint       ProcessCheckpointWrite
 	TerminalRuns     []transcript.Run
+	TerminalItems    []ItemReplacement
 	ParentItem       ItemReplacement
 	Resume           *execution.TreeResumeDraft
 	OpeningEvents    []EventCommit

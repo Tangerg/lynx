@@ -10,64 +10,149 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-// validateParkedRun checks the complete park boundary before boot keeps it
-// resumable. A matching row in interrupts is not sufficient: resume also needs
-// every referenced running item and a usable process snapshot. An impossible
-// partial transcript write means database corruption (the transcript park is one
-// transaction), so startup fails loud; a missing/unusable process snapshot is an
-// external-resource loss and returns resumable=false so reconciliation can
-// terminalize the Run as run_lost.
+// validateParkedTree checks the complete durable barrier before boot keeps a
+// Run tree resumable. Pending is root-owned, so its continuations must cover
+// every non-terminal member exactly once; validating only the root would turn
+// every surviving child into a false orphan after restart.
 //
-// The Run's own lifecycle facts are not re-checked against a second copy of
-// themselves — the Run row is the only place they live, and no write can put
-// terminal facts on a non-terminal row.
-func (s *RunStore) validateParkedRun(ctx context.Context, active nonTerminalRun, pending interrupts.Pending, validateSnapshot ProcessSnapshotValidator) (bool, error) {
-	if err := active.validateParkedInterrupt(pending); err != nil {
-		return false, err
+// An impossible partial application write is corruption and fails startup. A
+// missing or executor-incompatible process snapshot is an external-resource
+// loss and returns resumable=false so reconciliation can recover the whole tree
+// as run_lost.
+func (s *RunStore) validateParkedTree(
+	ctx context.Context,
+	tree nonTerminalRunTree,
+	pending interrupts.Pending,
+	validateSnapshot ProcessSnapshotValidator,
+) (bool, error) {
+	if err := pending.Validate(); err != nil {
+		return false, fmt.Errorf(
+			"sqlite: validate parked Run tree %q Pending: %w",
+			tree.root.runID,
+			err,
+		)
 	}
-	items, err := NewTranscriptStore(s.db).List(ctx, active.sessionID)
+	if pending.RootRunID != tree.root.runID ||
+		pending.SessionID != tree.root.sessionID {
+		return false, fmt.Errorf(
+			"sqlite: validate parked Run tree %q: Pending identity is %q/%q, want %q/%q",
+			tree.root.runID,
+			pending.SessionID,
+			pending.RootRunID,
+			tree.root.sessionID,
+			tree.root.runID,
+		)
+	}
+	if len(pending.Continuations) != len(tree.runsByID) {
+		return false, fmt.Errorf(
+			"sqlite: validate parked Run tree %q: Pending has %d continuations, want %d active Runs",
+			tree.root.runID,
+			len(pending.Continuations),
+			len(tree.runsByID),
+		)
+	}
+	for _, continuation := range pending.Continuations {
+		active, found := tree.runsByID[continuation.RunID]
+		if !found {
+			return false, fmt.Errorf(
+				"sqlite: validate parked Run tree %q: continuation names non-active Run %q",
+				tree.root.runID,
+				continuation.RunID,
+			)
+		}
+		if err := active.validateParkedContinuation(tree.root, continuation); err != nil {
+			return false, err
+		}
+	}
+
+	items, err := NewTranscriptStore(s.db).List(ctx, tree.root.sessionID)
 	if err != nil {
-		return false, fmt.Errorf("sqlite: validate parked run %q transcript: %w", active.runID, err)
+		return false, fmt.Errorf(
+			"sqlite: validate parked Run tree %q transcript: %w",
+			tree.root.runID,
+			err,
+		)
 	}
 	itemsByID := indexTranscriptItems(items)
-	interruptItems, err := active.validatePendingInterruptItems(pending.Interrupts, itemsByID)
+	interruptItems, err := validatePendingInterruptItems(
+		tree,
+		pending.Interrupts,
+		itemsByID,
+	)
 	if err != nil {
 		return false, err
 	}
-	if err := active.validateRunningInterruptItems(items, interruptItems); err != nil {
+	if err := validateRunningInterruptItems(tree, items, interruptItems); err != nil {
 		return false, err
 	}
-	root, ok := pending.RootContinuation()
-	if !ok {
-		return false, fmt.Errorf("sqlite: validate parked run %q: root continuation is missing", active.runID)
+	claimedItems := make(map[string]string, len(interruptItems))
+	for itemID := range interruptItems {
+		claimedItems[itemID] = "interrupt"
 	}
-	if err := active.validateDrainedTools(root.DrainedTools, itemsByID, interruptItems); err != nil {
-		return false, err
+	for _, continuation := range pending.Continuations {
+		if err := validateContinuationTools(
+			tree.root.runID,
+			continuation,
+			itemsByID,
+			claimedItems,
+		); err != nil {
+			return false, err
+		}
 	}
-	return s.hasResumableProcessSnapshot(ctx, root.ProcessID, validateSnapshot)
+
+	rootContinuation, _ := pending.RootContinuation()
+	return s.hasResumableProcessSnapshot(
+		ctx,
+		rootContinuation.ProcessID,
+		validateSnapshot,
+	)
 }
 
-func (active nonTerminalRun) validateParkedInterrupt(pending interrupts.Pending) error {
-	if pending.RootRunID != active.runID || pending.SessionID != active.sessionID {
-		return fmt.Errorf("sqlite: validate parked run %q: interrupt identity is %q/%q, want %q/%q", active.runID, pending.SessionID, pending.RootRunID, active.sessionID, active.runID)
+func (active nonTerminalRun) validateParkedContinuation(
+	root nonTerminalRun,
+	continuation interrupts.Continuation,
+) error {
+	switch {
+	case active.sessionID != root.sessionID:
+		return fmt.Errorf(
+			"sqlite: validate parked Run tree %q: Run %q belongs to Session %q, want %q",
+			root.runID,
+			active.runID,
+			active.sessionID,
+			root.sessionID,
+		)
+	case active.state != execution.Interrupted:
+		return fmt.Errorf(
+			"sqlite: validate parked Run tree %q: Run %q is %s, want interrupted",
+			root.runID,
+			active.runID,
+			active.state,
+		)
+	case active.modelSelection != continuation.ModelSelection:
+		return fmt.Errorf(
+			"sqlite: validate parked Run tree %q: Run %q admission model %q/%q differs from continuation model %q/%q",
+			root.runID,
+			active.runID,
+			active.modelSelection.Provider(),
+			active.modelSelection.Model(),
+			continuation.ModelSelection.Provider(),
+			continuation.ModelSelection.Model(),
+		)
+	case !active.createdAt.Equal(continuation.RunCreatedAt):
+		return fmt.Errorf(
+			"sqlite: validate parked Run tree %q: Run %q and continuation creation times differ",
+			root.runID,
+			active.runID,
+		)
+	case active.lineage != continuation.Lineage:
+		return fmt.Errorf(
+			"sqlite: validate parked Run tree %q: Run %q lineage differs from its continuation",
+			root.runID,
+			active.runID,
+		)
+	default:
+		return nil
 	}
-	// These columns decode via time.Unix(0, ns), so the schema default 0 becomes the
-	// 1970 epoch — whose time.IsZero() is false (Go's zero time is year 1). Test the
-	// decoded nanos against 0 to actually detect an unset timestamp / incomplete boundary.
-	root, ok := pending.RootContinuation()
-	if !ok || root.RunCreatedAt.UnixNano() == 0 || pending.CreatedAt.UnixNano() == 0 || len(pending.Interrupts) == 0 {
-		return fmt.Errorf("sqlite: validate parked run %q: incomplete interrupt boundary", active.runID)
-	}
-	if pending.TurnID == "" {
-		return fmt.Errorf("sqlite: validate parked run %q: turn id is required", active.runID)
-	}
-	if active.modelSelection != root.ModelSelection {
-		return fmt.Errorf("sqlite: validate parked run %q: admission model %q/%q differs from interrupt model %q/%q", active.runID, active.modelSelection.Provider(), active.modelSelection.Model(), root.ModelSelection.Provider(), root.ModelSelection.Model())
-	}
-	if !active.createdAt.Equal(root.RunCreatedAt) {
-		return fmt.Errorf("sqlite: validate parked run %q: run and interrupt creation times differ", active.runID)
-	}
-	return nil
 }
 
 func indexTranscriptItems(items []transcript.Item) map[string]transcript.Item {
@@ -78,61 +163,181 @@ func indexTranscriptItems(items []transcript.Item) map[string]transcript.Item {
 	return indexed
 }
 
-func (active nonTerminalRun) validatePendingInterruptItems(interrupts []transcript.Interrupt, itemsByID map[string]transcript.Item) (map[string]struct{}, error) {
-	seen := make(map[string]struct{}, len(interrupts))
-	for _, interrupt := range interrupts {
-		if interrupt.ItemID == "" {
-			return nil, fmt.Errorf("sqlite: validate parked run %q: interrupt item id is required", active.runID)
-		}
+func validatePendingInterruptItems(
+	tree nonTerminalRunTree,
+	open []transcript.Interrupt,
+	itemsByID map[string]transcript.Item,
+) (map[string]struct{}, error) {
+	seen := make(map[string]struct{}, len(open))
+	for _, interrupt := range open {
 		if _, duplicate := seen[interrupt.ItemID]; duplicate {
-			return nil, fmt.Errorf("sqlite: validate parked run %q: duplicate interrupt item %q", active.runID, interrupt.ItemID)
+			return nil, fmt.Errorf(
+				"sqlite: validate parked Run tree %q: duplicate interrupt Item %q",
+				tree.root.runID,
+				interrupt.ItemID,
+			)
 		}
 		seen[interrupt.ItemID] = struct{}{}
+		if _, active := tree.runsByID[interrupt.RunID]; !active {
+			return nil, fmt.Errorf(
+				"sqlite: validate parked Run tree %q: interrupt Item %q belongs to non-active Run %q",
+				tree.root.runID,
+				interrupt.ItemID,
+				interrupt.RunID,
+			)
+		}
 		item, found := itemsByID[interrupt.ItemID]
-		if !found || item.RunID != active.runID || item.Status != transcript.ItemRunning {
-			return nil, fmt.Errorf("sqlite: validate parked run %q: interrupt item %q is not running in the run", active.runID, interrupt.ItemID)
+		if !found ||
+			item.SessionID != tree.root.sessionID ||
+			item.RunID != interrupt.RunID ||
+			item.Status != transcript.ItemRunning {
+			return nil, fmt.Errorf(
+				"sqlite: validate parked Run tree %q: interrupt Item %q is not Running in Run %q",
+				tree.root.runID,
+				interrupt.ItemID,
+				interrupt.RunID,
+			)
 		}
 		switch interrupt.Kind {
 		case execution.ApprovalInterrupt:
-			if interrupt.Approval == nil || interrupt.Question != nil || item.Kind != transcript.ToolCall || item.Tool == nil ||
+			if interrupt.Approval == nil ||
+				interrupt.Question != nil ||
+				item.Kind != transcript.ToolCall ||
+				item.Tool == nil ||
 				!reflect.DeepEqual(*item.Tool, interrupt.Approval.Tool) {
-				return nil, fmt.Errorf("sqlite: validate parked run %q: malformed approval item %q", active.runID, interrupt.ItemID)
+				return nil, fmt.Errorf(
+					"sqlite: validate parked Run tree %q: malformed approval Item %q",
+					tree.root.runID,
+					interrupt.ItemID,
+				)
 			}
 		case execution.QuestionInterrupt:
-			if interrupt.Question == nil || interrupt.Approval != nil || item.Kind != transcript.QuestionItem || item.Question == nil ||
+			if interrupt.Question == nil ||
+				interrupt.Approval != nil ||
+				item.Kind != transcript.QuestionItem ||
+				item.Question == nil ||
 				!reflect.DeepEqual(item.Question, interrupt.Question) {
-				return nil, fmt.Errorf("sqlite: validate parked run %q: malformed question item %q", active.runID, interrupt.ItemID)
+				return nil, fmt.Errorf(
+					"sqlite: validate parked Run tree %q: malformed question Item %q",
+					tree.root.runID,
+					interrupt.ItemID,
+				)
 			}
 		default:
-			return nil, fmt.Errorf("sqlite: validate parked run %q: unknown interrupt kind %d", active.runID, interrupt.Kind)
+			return nil, fmt.Errorf(
+				"sqlite: validate parked Run tree %q: interrupt Item %q has unknown kind %d",
+				tree.root.runID,
+				interrupt.ItemID,
+				interrupt.Kind,
+			)
 		}
 	}
 	return seen, nil
 }
 
-func (active nonTerminalRun) validateRunningInterruptItems(items []transcript.Item, interruptItems map[string]struct{}) error {
+func validateRunningInterruptItems(
+	tree nonTerminalRunTree,
+	items []transcript.Item,
+	interruptItems map[string]struct{},
+) error {
 	for _, item := range items {
-		if item.RunID != active.runID || item.Status != transcript.ItemRunning {
+		if _, active := tree.runsByID[item.RunID]; !active ||
+			item.Status != transcript.ItemRunning {
 			continue
 		}
 		if _, belongsToInterrupt := interruptItems[item.ID]; !belongsToInterrupt {
-			return fmt.Errorf("sqlite: validate parked run %q: running item %q has no matching interrupt", active.runID, item.ID)
+			return fmt.Errorf(
+				"sqlite: validate parked Run tree %q: Running Item %q in Run %q has no matching interrupt",
+				tree.root.runID,
+				item.ID,
+				item.RunID,
+			)
 		}
 	}
 	return nil
 }
 
-func (active nonTerminalRun) validateDrainedTools(drainedTools []interrupts.DrainedTool, itemsByID map[string]transcript.Item, interruptItems map[string]struct{}) error {
-	drainedSeen := make(map[string]struct{}, len(drainedTools))
-	for _, drained := range drainedTools {
-		item, found := itemsByID[drained.ItemID]
-		_, overlapsInterrupt := interruptItems[drained.ItemID]
-		_, duplicate := drainedSeen[drained.ItemID]
-		if drained.ItemID == "" || drained.Name == "" || duplicate || overlapsInterrupt || !found || item.RunID != active.runID ||
-			item.Kind != transcript.ToolCall || item.Status != transcript.ItemIncomplete || item.Tool == nil || item.Tool.Name != drained.Name {
-			return fmt.Errorf("sqlite: validate parked run %q: malformed drained tool %q", active.runID, drained.ItemID)
+func validateContinuationTools(
+	rootRunID string,
+	continuation interrupts.Continuation,
+	itemsByID map[string]transcript.Item,
+	claimedItems map[string]string,
+) error {
+	for _, drained := range continuation.DrainedTools {
+		if err := claimContinuationItem(
+			rootRunID,
+			continuation.RunID,
+			drained.ItemID,
+			"drained tool",
+			claimedItems,
+		); err != nil {
+			return err
 		}
-		drainedSeen[drained.ItemID] = struct{}{}
+		item, found := itemsByID[drained.ItemID]
+		if !found ||
+			item.RunID != continuation.RunID ||
+			item.Kind != transcript.ToolCall ||
+			item.Status != transcript.ItemIncomplete ||
+			item.Tool == nil ||
+			item.Tool.Name != drained.Name ||
+			item.Tool.Arguments.Canonical() != drained.Arguments ||
+			item.Error != nil {
+			return fmt.Errorf(
+				"sqlite: validate parked Run tree %q: malformed drained tool Item %q in Run %q",
+				rootRunID,
+				drained.ItemID,
+				continuation.RunID,
+			)
+		}
 	}
+	for _, committed := range continuation.CommittedTools {
+		if err := claimContinuationItem(
+			rootRunID,
+			continuation.RunID,
+			committed.ItemID,
+			"committed tool",
+			claimedItems,
+		); err != nil {
+			return err
+		}
+		item, found := itemsByID[committed.ItemID]
+		if !found ||
+			item.RunID != continuation.RunID ||
+			item.Kind != transcript.ToolCall ||
+			item.Status != transcript.ItemIncomplete ||
+			item.Tool == nil ||
+			item.Tool.Name != committed.Name ||
+			item.Tool.Arguments.Canonical() != committed.Arguments ||
+			item.Error == nil ||
+			!reflect.DeepEqual(*item.Error, committed.Problem) {
+			return fmt.Errorf(
+				"sqlite: validate parked Run tree %q: malformed committed tool Item %q in Run %q",
+				rootRunID,
+				committed.ItemID,
+				continuation.RunID,
+			)
+		}
+	}
+	return nil
+}
+
+func claimContinuationItem(
+	rootRunID string,
+	runID string,
+	itemID string,
+	role string,
+	claimedItems map[string]string,
+) error {
+	if previous, duplicate := claimedItems[itemID]; duplicate {
+		return fmt.Errorf(
+			"sqlite: validate parked Run tree %q: Item %q in Run %q is both %s and %s",
+			rootRunID,
+			itemID,
+			runID,
+			previous,
+			role,
+		)
+	}
+	claimedItems[itemID] = role
 	return nil
 }

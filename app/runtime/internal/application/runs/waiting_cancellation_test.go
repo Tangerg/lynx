@@ -3,11 +3,13 @@ package runs
 import (
 	"context"
 	"errors"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -109,6 +111,19 @@ func TestPrepareWaitingCancellationKeepsSurvivingExternalBoundary(t *testing.T) 
 	if got, want := runIDs(transformation.terminalRuns), []string{"run_grandchild", "run_a"}; !slices.Equal(got, want) {
 		t.Fatalf("terminal Runs = %v, want canonical postorder %v", got, want)
 	}
+	if len(transformation.terminalItems) != 1 {
+		t.Fatalf("terminal interrupt Items = %+v, want one", transformation.terminalItems)
+	}
+	terminalItem := transformation.terminalItems[0]
+	if terminalItem.Expected.ID != "item_grandchild" ||
+		terminalItem.Expected.Status != transcript.ItemRunning ||
+		terminalItem.Replacement.Status != transcript.ItemIncomplete ||
+		terminalItem.Replacement.Error != nil {
+		t.Fatalf(
+			"terminal interrupt Item = %+v, want Running question settled Incomplete",
+			terminalItem,
+		)
+	}
 	if transformation.remaining == nil ||
 		len(transformation.remaining.Interrupts) != 1 ||
 		transformation.remaining.Interrupts[0].RunID != "run_b" {
@@ -154,6 +169,62 @@ func TestPrepareWaitingCancellationContinuesAfterFinalBoundaryIsRemoved(t *testi
 		t.Fatalf("continuation Runs = %v, want [run_b run_1]", got)
 	}
 	assertSettledParentTool(t, transformation, "item_spawn_a", "call_run_a")
+}
+
+func TestPublishWaitingChildCancellationInvalidatesExactReadSet(t *testing.T) {
+	tests := []struct {
+		name           string
+		finalBoundary  bool
+		suspensions    []ProcessSuspension
+		affectedRunIDs []string
+	}{
+		{
+			name: "remaining waiting boundary",
+			suspensions: []ProcessSuspension{{
+				ProcessID:    "process_b",
+				SuspensionID: "suspension_b",
+				Interrupt:    waitingQuestionPrompt(),
+			}},
+			affectedRunIDs: []string{"run_grandchild", "run_a", "run_1"},
+		},
+		{
+			name:           "final waiting boundary",
+			finalBoundary:  true,
+			affectedRunIDs: []string{"run_grandchild", "run_a", "run_1", "run_b"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			plan := waitingCancellationPlan(t, "run_a", test.finalBoundary)
+			prepared := &fakePreparedWaitingCancellation{
+				canceled:    []string{"process_a", "process_grandchild"},
+				suspensions: test.suspensions,
+			}
+			transformation, err := prepareWaitingCancellationTransformation(
+				plan,
+				"stop delegated branch",
+				time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
+				prepared,
+			)
+			if err != nil {
+				t.Fatalf("prepare waiting cancellation: %v", err)
+			}
+			changes := &changeRecorder{}
+			coordinator := &Coordinator{changed: changes.publish}
+
+			coordinator.publishWaitingChildCancellation(plan, transformation)
+
+			want := []change.Notice{
+				change.InSession(change.Runs, plan.pending.SessionID, test.affectedRunIDs...),
+				change.InSession(change.Interrupts, plan.pending.SessionID, plan.root.run.ID),
+				change.InSession(change.Sessions, plan.pending.SessionID),
+			}
+			if got := changes.snapshot(); !reflect.DeepEqual(got, want) {
+				t.Fatalf("published notices = %+v, want %+v", got, want)
+			}
+		})
+	}
 }
 
 func TestCancelWaitingChildCommitsReducedPendingBeforeRuntimeMutation(t *testing.T) {
@@ -505,7 +576,7 @@ func waitingCancellationCoordinator(
 		Sessions:   sessions,
 		Effects:    effects,
 		Runs:       &fakeRunProjection{runs: runsByID},
-		Items:      &fakeItemProjection{items: map[string]transcript.Item{plan.spawningItem.ID: plan.spawningItem}},
+		Items:      &fakeItemProjection{items: waitingCancellationItems(plan)},
 		Admissions: new(admission.Gate),
 		Now: func() time.Time {
 			return time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC)
@@ -600,7 +671,43 @@ func waitingCancellationPlan(
 		},
 	}
 	plan.hasSpawningItem = true
+	targetRunIDs := make(map[string]struct{}, len(plan.targetSubtree))
+	for _, member := range plan.targetSubtree {
+		targetRunIDs[member.run.ID] = struct{}{}
+	}
+	for _, interrupt := range pending.Interrupts {
+		if _, targeted := targetRunIDs[interrupt.RunID]; !targeted {
+			continue
+		}
+		item := transcript.Item{
+			ID:        interrupt.ItemID,
+			SessionID: pending.SessionID,
+			RunID:     interrupt.RunID,
+			Status:    transcript.ItemRunning,
+			CreatedAt: createdAt,
+		}
+		switch interrupt.Kind {
+		case execution.QuestionInterrupt:
+			item.Kind = transcript.QuestionItem
+			item.Question = interrupt.Question
+		case execution.ApprovalInterrupt:
+			item.Kind = transcript.ToolCall
+			item.Tool = &interrupt.Approval.Tool
+		default:
+			t.Fatalf("unsupported fixture interrupt kind %s", interrupt.Kind)
+		}
+		plan.targetInterruptItems = append(plan.targetInterruptItems, item)
+	}
 	return plan
+}
+
+func waitingCancellationItems(plan cancellationPlan) map[string]transcript.Item {
+	items := make(map[string]transcript.Item, len(plan.targetInterruptItems)+1)
+	items[plan.spawningItem.ID] = plan.spawningItem
+	for _, item := range plan.targetInterruptItems {
+		items[item.ID] = item
+	}
+	return items
 }
 
 func assertSettledParentTool(
