@@ -83,6 +83,13 @@ func (r *Runner) Run(ctx context.Context, request *chat.Request, resolver ToolRe
 // finishes.
 func (r *Runner) Resume(ctx context.Context, checkpoint *Checkpoint, resolver ToolResolver, resume Resume) iter.Seq2[Event, error] {
 	return func(yield func(Event, error) bool) {
+		if _, awaiting, err := checkpoint.AwaitingInput(); err != nil {
+			yield(Event{}, fmt.Errorf("%w: %w", ErrInvalidInput, err))
+			return
+		} else if !awaiting {
+			yield(Event{}, fmt.Errorf("%w: checkpoint has no pending input", ErrInvalidInput))
+			return
+		}
 		state, err := r.resumeState(ctx, checkpoint, resolver, resume)
 		if err != nil {
 			yield(Event{}, err)
@@ -93,6 +100,28 @@ func (r *Runner) Resume(ctx context.Context, checkpoint *Checkpoint, resolver To
 			return
 		}
 		state.resume = &resume
+		r.execute(ctx, state, yield)
+	}
+}
+
+// Continue advances a checkpoint whose next unpublished result was completed
+// by the host while the loop remained parked. It emits no Resume event and
+// invokes no tool for that already-settled result; ordinary ordered publication
+// and any subsequent queued work proceed through the same runner state machine.
+func (r *Runner) Continue(ctx context.Context, checkpoint *Checkpoint, resolver ToolResolver) iter.Seq2[Event, error] {
+	return func(yield func(Event, error) bool) {
+		if _, awaiting, err := checkpoint.AwaitingInput(); err != nil {
+			yield(Event{}, fmt.Errorf("%w: %w", ErrInvalidInput, err))
+			return
+		} else if awaiting {
+			yield(Event{}, fmt.Errorf("%w: checkpoint is still awaiting input", ErrInvalidInput))
+			return
+		}
+		state, err := r.checkpointState(ctx, checkpoint, resolver)
+		if err != nil {
+			yield(Event{}, err)
+			return
+		}
 		r.execute(ctx, state, yield)
 	}
 }
@@ -114,17 +143,25 @@ func (r *Runner) startState(ctx context.Context, request *chat.Request, resolver
 }
 
 func (r *Runner) resumeState(ctx context.Context, checkpoint *Checkpoint, resolver ToolResolver, resume Resume) (*runnerState, error) {
-	if err := r.validateContext(ctx); err != nil {
+	state, err := r.checkpointState(ctx, checkpoint, resolver)
+	if err != nil {
 		return nil, err
-	}
-	if err := checkpoint.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrInvalidInput, err)
 	}
 	if err := resume.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidInput, err)
 	}
 	if checkpoint.ID != resume.ID {
 		return nil, fmt.Errorf("%w: resume ID %q does not match checkpoint ID %q", ErrInvalidInput, resume.ID, checkpoint.ID)
+	}
+	return state, nil
+}
+
+func (r *Runner) checkpointState(ctx context.Context, checkpoint *Checkpoint, resolver ToolResolver) (*runnerState, error) {
+	if err := r.validateContext(ctx); err != nil {
+		return nil, err
+	}
+	if err := checkpoint.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalidInput, err)
 	}
 	captured, err := snapshot(checkpoint)
 	if err != nil {

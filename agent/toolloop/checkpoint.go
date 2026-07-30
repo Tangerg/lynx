@@ -24,7 +24,7 @@ var (
 // CheckpointSchemaVersion is the portable tool-loop checkpoint schema accepted
 // by this version of the runner. The framework intentionally accepts exactly
 // one schema: callers must not guess how to resume obsolete execution state.
-const CheckpointSchemaVersion uint16 = 3
+const CheckpointSchemaVersion uint16 = 4
 
 // CallStatus identifies the checkpoint state of one model-requested tool call.
 // Running is deliberately absent: Runner reaches a checkpoint only after every
@@ -112,10 +112,13 @@ func (c CallCheckpoint) Validate() error {
 //
 // CallStates follows the response's original tool-call order. NextResult is
 // the first result not yet published to observers or appended to the
-// continuation message; it always points at the currently exposed pause.
-// Calls after it may already be completed or paused internally, but their
-// ordered publication waits for every earlier call. This stable ordering is
-// required for deterministic continuation inputs.
+// continuation message. It normally points at the currently exposed pause. A
+// host may deterministically complete that paused call while the loop remains
+// parked (for example, when canceling a delegated child); in that case it points
+// at the completed result ready for [Runner.Continue]. Calls after it may
+// already be completed or paused internally, but their ordered publication
+// waits for every earlier call. This stable ordering is required for
+// deterministic continuation inputs.
 //
 // A checkpoint records where execution stopped, not the policy it ran under:
 // round and concurrency limits belong to the Runner the caller assembles, so a
@@ -211,14 +214,102 @@ func (c *Checkpoint) Validate() error {
 			return fmt.Errorf("%w: call_states[%d] precedes next result but is not completed", ErrInvalidCheckpoint, index)
 		}
 	}
-	active := c.CallStates[c.NextResult]
-	if active.Status != CallPaused {
-		return fmt.Errorf("%w: next result %d does not point at a paused call", ErrInvalidCheckpoint, c.NextResult)
-	}
-	if active.Pending.ID != c.ID {
-		return fmt.Errorf("%w: checkpoint ID %q does not match active pending call %q", ErrInvalidCheckpoint, c.ID, active.Pending.ID)
+	next := c.CallStates[c.NextResult]
+	switch next.Status {
+	case CallPaused:
+		if next.Pending.ID != c.ID {
+			return fmt.Errorf("%w: checkpoint ID %q does not match active pending call %q", ErrInvalidCheckpoint, c.ID, next.Pending.ID)
+		}
+	case CallCompleted:
+		// A completed next result is a prepared continuation: the host settled
+		// the exposed pause without running user code, and Runner.Continue will
+		// publish it in the original model-call order.
+	default:
+		return fmt.Errorf(
+			"%w: next result %d points at %s, want paused or completed",
+			ErrInvalidCheckpoint,
+			c.NextResult,
+			next.Status,
+		)
 	}
 	return nil
+}
+
+// AwaitingInput reports whether the next unpublished result is still paused on
+// external input. The returned value is independently owned. A false result
+// means the checkpoint is ready for [Runner.Continue], not that the round has
+// finished.
+func (c *Checkpoint) AwaitingInput() (PendingCall, bool, error) {
+	if err := c.Validate(); err != nil {
+		return PendingCall{}, false, err
+	}
+	next := c.CallStates[c.NextResult]
+	if next.Status != CallPaused {
+		return PendingCall{}, false, nil
+	}
+	pending := *next.Pending
+	pending.Prompt = bytes.Clone(next.Pending.Prompt)
+	pending.ResumeSchema = bytes.Clone(next.Pending.ResumeSchema)
+	return pending, true, nil
+}
+
+// CompletePausedCall returns a new checkpoint in which the named paused call
+// has the supplied terminal result. The receiver is never mutated. This is the
+// deterministic control-plane operation for settling work that ended while the
+// loop itself remained parked; it never invokes a tool or advances publication.
+func (c *Checkpoint) CompletePausedCall(callID string, result chat.ToolResult) (*Checkpoint, error) {
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+	if err := result.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: completed result: %w", ErrInvalidCheckpoint, err)
+	}
+	calls, err := responseToolCalls(c.Response)
+	if err != nil {
+		return nil, fmt.Errorf("%w: response: %w", ErrInvalidCheckpoint, err)
+	}
+	callIndex := -1
+	for index, call := range calls {
+		if call.ID == callID {
+			callIndex = index
+			break
+		}
+	}
+	if callIndex < 0 {
+		return nil, fmt.Errorf("%w: tool call %q is absent", ErrInvalidCheckpoint, callID)
+	}
+	call := calls[callIndex]
+	if result.ID != call.ID || result.Name != call.Name {
+		return nil, fmt.Errorf(
+			"%w: result %q/%q does not match tool call %q/%q",
+			ErrInvalidCheckpoint,
+			result.ID,
+			result.Name,
+			call.ID,
+			call.Name,
+		)
+	}
+	if c.CallStates[callIndex].Status != CallPaused {
+		return nil, fmt.Errorf(
+			"%w: tool call %q is %s, want paused",
+			ErrInvalidCheckpoint,
+			callID,
+			c.CallStates[callIndex].Status,
+		)
+	}
+
+	cloned, err := cloneCheckpoint(c)
+	if err != nil {
+		return nil, err
+	}
+	cloned.CallStates[callIndex] = CallCheckpoint{
+		Status: CallCompleted,
+		Result: &result,
+	}
+	if err := cloned.Validate(); err != nil {
+		return nil, err
+	}
+	return cloned, nil
 }
 
 // ToolCalls returns the checkpoint's canonical response calls in model order.
@@ -287,6 +378,18 @@ func cloneCallStates(states []CallCheckpoint) []CallCheckpoint {
 		}
 	}
 	return cloned
+}
+
+func cloneCheckpoint(checkpoint *Checkpoint) (*Checkpoint, error) {
+	encoded, err := json.Marshal(checkpoint)
+	if err != nil {
+		return nil, fmt.Errorf("%w: clone: %w", ErrInvalidCheckpoint, err)
+	}
+	var cloned Checkpoint
+	if err := json.Unmarshal(encoded, &cloned); err != nil {
+		return nil, fmt.Errorf("%w: clone: %w", ErrInvalidCheckpoint, err)
+	}
+	return &cloned, nil
 }
 
 func responseToolCalls(response *chat.Response) ([]chat.ToolCall, error) {

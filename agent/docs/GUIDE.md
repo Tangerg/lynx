@@ -410,6 +410,12 @@ Process 隔离；子进程不会继承父进程的调用身份。直接调用工
 child forest；多个
 child 同时 waiting 时，parent 一次只暴露最早未提交的 suspension，恢复一个后再暴露下一个。
 
+Host 若已经用自己的控制面确定性结束了一个 paused call（例如取消该调用拥有的 delegated
+child），应使用 `Checkpoint.CompletePausedCall` 生成新 checkpoint。它只写入结果事实，
+不执行工具也不推进可观察顺序：若结算的是当前边界，后续用 `Runner.Continue`；若结算的是
+尚未轮到的 sibling，当前 `AwaitingInput` 保持不变，普通 `Runner.Resume` 会先消费当前回答，
+再按模型顺序发布已结算 sibling。checkpoint v4 是唯一接受的 shape，不保留 v3 reader。
+
 ## 10. API 与 wire 治理
 
 Framework 使用两层自动门禁：

@@ -343,6 +343,131 @@ func TestRunnerCheckpointsMultiplePausedCallsAndCommitsInOrder(t *testing.T) {
 	}
 }
 
+func TestRunnerContinuesHostCompletedPausedCallInOrder(t *testing.T) {
+	newApproval := func(name, pauseID string) *runnerTool {
+		return newConcurrentRunnerTool(name, "", func(ctx context.Context, _ string) (string, error) {
+			if _, ok := toolloop.ResumeFromContext(ctx); ok {
+				return name + " approved", nil
+			}
+			return "", &toolloop.PauseError{
+				ID:           pauseID,
+				Reason:       name + " approval",
+				Prompt:       json.RawMessage(`"` + name + `?"`),
+				ResumeSchema: json.RawMessage(`{"type":"boolean"}`),
+			}
+		})
+	}
+	first := newApproval("first", "pause-1")
+	second := newApproval("second", "pause-2")
+	registry := newRunnerRegistry(t, first, second)
+	model := &scriptedModel{call: func(round int, request *chat.Request) (*chat.Response, error) {
+		if round == 1 {
+			return runnerToolResponse(
+				chat.ToolCall{ID: "call-1", Name: "first"},
+				chat.ToolCall{ID: "call-2", Name: "second"},
+			), nil
+		}
+		parts := request.Messages[len(request.Messages)-1].Parts
+		if len(parts) != 2 ||
+			parts[0].ToolResult.Result != "error: delegated child canceled" ||
+			parts[1].ToolResult.Result != "second approved" {
+			t.Fatalf("continuation results = %#v", parts)
+		}
+		return runnerTextResponse("done"), nil
+	}}
+	runner := newRunner(t, model, toolloop.Config{})
+
+	initial, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, registry), registry))
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	checkpoint := initial[len(initial)-1].Pause.Checkpoint
+	completed, err := checkpoint.CompletePausedCall("call-1", chat.ToolResult{
+		ID:      "call-1",
+		Name:    "first",
+		Result:  "error: delegated child canceled",
+		IsError: true,
+	})
+	if err != nil {
+		t.Fatalf("CompletePausedCall: %v", err)
+	}
+	if _, awaiting, err := completed.AwaitingInput(); err != nil || awaiting {
+		t.Fatalf("AwaitingInput = %v, %v; want false, nil", awaiting, err)
+	}
+	if checkpoint.CallStates[0].Status != toolloop.CallPaused {
+		t.Fatal("CompletePausedCall mutated its receiver")
+	}
+
+	continued, err := collectRunnerEvents(runner.Continue(t.Context(), completed, registry))
+	if err != nil {
+		t.Fatalf("Continue: %v", err)
+	}
+	if want := []toolloop.EventKind{toolloop.EventToolResult, toolloop.EventPause}; !reflect.DeepEqual(eventKinds(continued), want) {
+		t.Fatalf("continue events = %v, want %v", eventKinds(continued), want)
+	}
+	next := continued[len(continued)-1].Pause.Checkpoint
+	if next.NextResult != 1 || next.ID != "pause-2" {
+		t.Fatalf("next checkpoint = %#v", next)
+	}
+
+	finished, err := collectRunnerEvents(runner.Resume(
+		t.Context(),
+		next,
+		registry,
+		toolloop.Resume{ID: "pause-2", Input: json.RawMessage(`true`)},
+	))
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	if len(finished) == 0 || !finished[len(finished)-1].Final {
+		t.Fatalf("finished events = %#v", finished)
+	}
+}
+
+func TestCheckpointCompletesNonActivePausedCallWithoutMovingBoundary(t *testing.T) {
+	first := newConcurrentRunnerTool("first", "", func(context.Context, string) (string, error) {
+		return "", &toolloop.PauseError{
+			ID: "pause-1", Reason: "first approval",
+			Prompt: json.RawMessage(`"first?"`), ResumeSchema: json.RawMessage(`{"type":"boolean"}`),
+		}
+	})
+	second := newConcurrentRunnerTool("second", "", func(context.Context, string) (string, error) {
+		return "", &toolloop.PauseError{
+			ID: "pause-2", Reason: "second approval",
+			Prompt: json.RawMessage(`"second?"`), ResumeSchema: json.RawMessage(`{"type":"boolean"}`),
+		}
+	})
+	registry := newRunnerRegistry(t, first, second)
+	model := &scriptedModel{call: func(int, *chat.Request) (*chat.Response, error) {
+		return runnerToolResponse(
+			chat.ToolCall{ID: "call-1", Name: "first"},
+			chat.ToolCall{ID: "call-2", Name: "second"},
+		), nil
+	}}
+	runner := newRunner(t, model, toolloop.Config{})
+	events, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, registry), registry))
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	checkpoint := events[len(events)-1].Pause.Checkpoint
+
+	completed, err := checkpoint.CompletePausedCall("call-2", chat.ToolResult{
+		ID: "call-2", Name: "second", Result: "error: delegated child canceled", IsError: true,
+	})
+	if err != nil {
+		t.Fatalf("CompletePausedCall: %v", err)
+	}
+	pending, awaiting, err := completed.AwaitingInput()
+	if err != nil || !awaiting || pending.ID != "pause-1" {
+		t.Fatalf("AwaitingInput = %#v, %v, %v", pending, awaiting, err)
+	}
+	if completed.NextResult != 0 ||
+		completed.CallStates[0].Status != toolloop.CallPaused ||
+		completed.CallStates[1].Status != toolloop.CallCompleted {
+		t.Fatalf("completed checkpoint = %#v", completed)
+	}
+}
+
 func TestRunnerBuffersLaterCompletedResultBehindEarlierPause(t *testing.T) {
 	first := newConcurrentRunnerTool("first", "", func(ctx context.Context, _ string) (string, error) {
 		if _, ok := toolloop.ResumeFromContext(ctx); !ok {

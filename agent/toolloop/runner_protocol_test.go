@@ -610,12 +610,7 @@ func TestCheckpointValidationAndAtomicJSON(t *testing.T) {
 		func(c *toolloop.Checkpoint) { c.NextResult = 1 },
 		func(c *toolloop.Checkpoint) { c.CallStates = nil },
 		func(c *toolloop.Checkpoint) { c.CallStates[0].Status = "future" },
-		func(c *toolloop.Checkpoint) {
-			c.CallStates[0] = toolloop.CallCheckpoint{
-				Status: toolloop.CallCompleted,
-				Result: &chat.ToolResult{ID: "call-1", Name: "lookup", Result: "done"},
-			}
-		},
+		func(c *toolloop.Checkpoint) { c.CallStates[0].Status = toolloop.CallQueued },
 	} {
 		copy := cloneProtocolCheckpoint(t, valid)
 		mutate(&copy)

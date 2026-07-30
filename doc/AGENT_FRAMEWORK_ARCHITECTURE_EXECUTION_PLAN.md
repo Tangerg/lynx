@@ -1,16 +1,16 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P23 可执行能力与观察投影边界收口完成）
+> 状态：持续开发（P24 Waiting child checkpoint settlement 进行中）
 > 建立日期：2026-07-15
-> 最后更新：2026-07-28
+> 最后更新：2026-07-30
 > 维护者：Lynx 仓库维护者
 > 适用范围：`agent`、直接支撑它的基础模块，以及 `app/runtime`、MCP/A2A 等直接消费者
 > Core 基线：`8ae840171`（Core 架构计划 73/73 关闭）
 
 本文档是 Agent Framework 后续架构调整的唯一执行基准，负责记录目标定位、边界、目标架构、阶段任务、验收标准、进度、风险和设计决策。实施过程中如果代码便利性与本文冲突，以本文为准；如果事实证明本文的方向不成立，必须先更新第 17 节决策记录，再修改代码。
 
-P0–P22 的问题清单、候选方案和阶段日志作为决策历史保留，不再构成当前 API 规范；其中出现的
-旧标识符只说明当时被删除的设计。当前合同以 P23、最新 ADR、GoDoc、`agent/docs/GUIDE.md`
+P0–P23 的问题清单、候选方案和阶段日志作为决策历史保留，不再构成当前 API 规范；其中出现的
+旧标识符只说明当时被删除的设计。当前合同以 P24、最新 ADR、GoDoc、`agent/docs/GUIDE.md`
 和 exported API baseline 为准，禁止从历史阶段恢复已删除的兼容路径。
 
 上位约束是 [`../CLAUDE.md`](../CLAUDE.md)、[`../DESIGN_PHILOSOPHY.md`](../DESIGN_PHILOSOPHY.md) 和 [`../REFACTORING.md`](../REFACTORING.md)。Core 的稳定协议边界以 [`../core/CLAUDE.md`](../core/CLAUDE.md) 为准。本文只规划 Agent Framework，不重新打开已经关闭的 Core 架构重构。
@@ -1924,6 +1924,33 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
 装饰协议不依赖 Agent；Goal 名称不携带 planner 私有控制协议；Framework 不生成产品文案，
 也不用词法黑名单伪装职责证明。
 
+### P24：Waiting child checkpoint settlement
+
+- [x] **P24-01 ToolLoop 支持 host-settled pause**（完成：2026-07-30）
+  - `Checkpoint.CompletePausedCall` 以不可变变换结算任意 paused call，不执行工具、不推进
+    publication；`AwaitingInput` 区分外部输入边界与 ready continuation。
+  - `Runner.Continue` 只推进 ready checkpoint，不伪造 `Resume` event，也不重跑已经由 Host
+    结算的工具；checkpoint wire 直接升级 v4，不读取 v3。
+  - active 与 later sibling 两类结算均由确定性并发测试固定，receiver 不可变与调用顺序保持。
+- [ ] **P24-02 Runtime prepared subtree mutation**
+  - 在完整 process-tree mutation ownership 下生成不可变的新 checkpoint/tree；prepare 阶段
+    不发布事件、不写存储，commit 后只应用预验证的内存变换，abort 恢复零副作用。
+  - canceled subtree 不再被 snapshot relation 引用；active ancestor 获得 framework-owned
+    ready continuation，不能借用或伪造外部 Suspension response。
+- [ ] **P24-03 App durable waiting-cancel transaction**
+  - App 在一个 transaction 中提交 process checkpoint、target Run subtree canceled、父 tool
+    的 `child_run_canceled`、缩减后的 Pending set，以及必要的 surviving Segment identity。
+  - Agent 不定义 Store/Repository/transaction；App adapter 继续拥有 BuildID、usage 对账与
+    SQLite commit policy。
+- [ ] **P24-04 Consumer、恢复矩阵与完整门禁**
+  - 覆盖 active/non-active sibling、nested target、last interrupt 隐式恢复、事务失败 abort、
+    restart 不复活、resume/cancel race；同步更新 API/wire、Guide 与两份执行计划。
+  - Agent/App build、vet、test、lint、高风险 race、tidy、architecture 与 diff gate 全绿。
+
+退出标准：Waiting child cancel 能在不执行用户代码的事务准备期精确结算 parent checkpoint；
+durable state 与 live runtime 不出现分裂；剩余 Pending 非空时全树仍静止，为空时复用同一
+checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persistence 泄漏进 Agent。
+
 ---
 
 ## 15. 当前进度
@@ -1956,15 +1983,16 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
 | P21 完整树与稳定 checkpoint | 完成 | 6/6 | 完整根树单一生命周期、稳定状态恢复、结构化 child、聊天配置拆分与 deployment retention 原语 |
 | P22 Framework/Application 工具边界 | 完成 | 5/5 | Goal 纯规划、typed child AgentTool、role-only ToolGroup、Host-owned publication/policy |
 | P23 可执行能力与观察投影边界 | 完成 | 5/5 | inert descriptors、Host-owned result projection、base tool protocol、caller-owned model copy |
-| **总计** | **完成** | **166/166（100%）** | **P0–P23 当前计划项全部关闭；仓库仍处开发期，不执行封版、tag 或 release** |
+| P24 Waiting child checkpoint settlement | 进行中 | 1/4 | ToolLoop 已具备不可变 host-settled checkpoint 与 ready continuation；Runtime/App 原子边界待接入 |
+| **总计** | **进行中** | **167/170（98.2%）** | **P24-01 完成；P24-02 至 P24-04 按 app B1.4c 继续，不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P23 可执行能力与观察投影边界收口，5/5，已关闭。
-- 下一任务：继续按开发期节奏审计真实新问题；本批不封版、不创建 tag 或 release。
+- 当前阶段：P24 Waiting child checkpoint settlement，1/4，进行中。
+- 下一任务：P24-02 Runtime prepared subtree mutation；本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：event/middleware 改为 inert descriptor，任意应用 Result 移出 event bus；
-  tool wrapper protocol 下沉 tools；Goal magic name、framework 默认模型文案和词法 denylist 删除。
+- 最近完成：ToolLoop checkpoint v4 支持 Host 在不执行工具、不推进 publication 的前提下
+  结算 paused call，并由独立 `Runner.Continue` 延续 ready checkpoint。
 
 ### 15.3 进度更新规则
 
@@ -2226,12 +2254,26 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
   `toolloop.Capability`/`WrappingTool`、单返回值 `Advertise` 和 Utility magic-goal API 直接
   删除；所有仓内消费者一次性迁移，不留 alias、shim 或双路径。
 
+### ADR-AF-024：Host 可结算 checkpoint 事实，但持久化协调仍归 Host
+
+- 状态：已接受，P24 实施中。
+- 决策：ToolLoop 将“paused call 已被外部确定性结算”建模为 checkpoint 自身的一种稳定状态。
+  `CompletePausedCall` 只返回不可变新值；`Runner.Continue` 只推进 ready checkpoint，
+  不执行已结算工具，也不伪造用户 `Resume`。
+- Runtime ownership：Agent Runtime 负责把 child relation、ancestor continuation 与完整
+  process tree 变换成可验证执行状态；不得让 App 解析 `FrameworkState` 或手工改 JSON。
+- Host ownership：Run/Item/Interrupt/Segment、BuildID、usage ledger、ProcessStore 与事务仍
+  全部属于 App。Agent 只提供 prepare/commit/abort 所需的执行状态能力，不定义 Store、
+  Repository、幂等或 SQLite 协议。
+- breaking：checkpoint schema 直接升级 v4；开发期不读 v3、不双写、不增加 migration shim。
+
 ---
 
 ## 18. 变更日志
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-30 | 启动 P24：ToolLoop checkpoint v4 新增不可变 paused-call settlement、输入/ready 判别与独立 Continue 路径，为 Waiting child cancel 的静止事务变换建立 Framework 原语 | Codex |
 | 2026-07-28 | 深化 P23：Deployment、routing、ProcessView、GoalApprover 与 ChildOptions 全部改用 inert descriptor；完整 Agent/Goal 仅保留在受信执行路径，删除公开 executable definition 兼容入口 | Codex |
 | 2026-07-28 | 完成 P23：event/middleware 只暴露 inert descriptors，任意应用 Result 移出 Framework event bus；通用 tool wrapper protocol 下沉 tools 并显式错误化；删除 Utility magic Goal、workflow 默认模型文案和词法 ownership denylist；App consumer、API baseline、文档与完整门禁直接迁移 | Codex |
 | 2026-07-27 | 完成 P22：Goal 回归纯规划抽象；删除 Goal tool fan-out、standalone AgentTool/Host waiting JSON、ToolGroup 单字段 requirement/权限/发行坐标/Info 重复合同和 agent/toolpolicy；Supervisor 改为显式 tools；App/示例/基线/架构守卫与完整门禁直接迁移 | Codex |
@@ -2288,6 +2330,7 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-30 | P24-01 ToolLoop host-settled checkpoint | `Checkpoint.CompletePausedCall` 保持 receiver 不可变；active settlement 由 `Runner.Continue` 先发布已结算结果再进入下一 pause，later sibling settlement 不移动当前输入边界。Agent build/vet/test/lint、ToolLoop race、tidy diff、arch 与 diff check 全绿。API baseline 624 行、SHA-256 `a095a682f69529cfbce1426533e2ba7915f6c28c2eaec82788b0ba19da700bfd`；wire 154 行、SHA-256 `d0599a6f5922991fb970aaf871b15436e6e337a8e5627c94b3244db215a20a53` | P24-02 Runtime prepared subtree mutation |
 | 2026-07-28 | P23 executable/observation boundary | 修改前 HEAD `5244c3c95` 已确认与远端同步。Tools/Agent/App build、vet、普通 test、lint 全绿；Tools/Agent full race 与 App agentexec/toolset race 全绿；三模块 `go mod tidy -diff`、Agent API/wire/arch 与 `git diff --check` 通过。Agent API baseline 601 行/root 51，SHA-256 `1036c533418cb715a57d60d47de6764033f5ee1302606413f84927c64326e8f4`；wire 145 行、SHA-256 `4a929637bb6a27148de518f980dcde1bb3ee088048d6b6e0898165a4c61bc3c8`，wire 语义未变 | 166/166 关闭；形成独立提交并 push，不创建 tag/release |
 | 2026-07-27 | P22 Framework/Application tool boundary | Agent/App 全量 build、vet、普通 test、Agent full race、App agentexec/turn/toolset/bootstrap/arch 高风险 race、golangci-lint、tidy 与旧符号/diff 扫描全绿。Agent API baseline 605 行/root 53，SHA-256 `81297fbf849289df6be03d4120cb352c76b52583ab5c7a3d73d26832e7a63e9c`；wire fixture 156 行且语义不变；deployment digest `9c4e3c095834c2a28d62ade6552484714285dd8b56c5618fde6b582e04e5faaa` 只编码 role 字符串等纯规划/执行声明 | 161/161 关闭；不提交、不 push、不 tag/release |
 | 2026-07-27 | P20 Accounting ownership boundary | Agent/App 全量 build、vet、普通 test、Agent full race、App agentexec/turn/SQLite/bootstrap/runsegment/arch race、golangci-lint、tidy 与 diff check 全绿；恢复累计、usage 漂移、strict codec、跨 child/model overflow 与 cost callback panic 测试通过。Agent API baseline 658 行，SHA-256 `d9f5583c4e406ca60a8f3e51b9758285e9ef99d17e44bdbf08b9ca56a722902f`；wire golden 453 行，SHA-256 `d74ab364cb693123620aaf7e0a8a1d296e8c56d0d12e7e37be8377c1a251293a` | 150/150 关闭；不提交、不 push、不 tag/release |

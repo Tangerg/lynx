@@ -542,7 +542,9 @@ runtime: var ErrDeploymentNotFound = errors.New("deployment not found")
 runtime: var ErrProcessIdentity = errors.New("runtime: invalid process identity")
 toolloop: const ( CallQueued CallStatus = "queued" CallCompleted CallStatus = "completed" CallPaused CallStatus = "paused" )
 toolloop: const ( EventModelRequest = interaction.EventModelRequest EventModelResponse = interaction.EventModelResponse EventToolCall = interaction.EventToolCall EventToolResult = interaction.EventToolResult EventPause = interaction.EventPause EventResume = interaction.EventResume )
-toolloop: const CheckpointSchemaVersion uint16 = 3
+toolloop: const CheckpointSchemaVersion uint16 = 4
+toolloop: func (c *Checkpoint) AwaitingInput() (PendingCall, bool, error)
+toolloop: func (c *Checkpoint) CompletePausedCall(callID string, result chat.ToolResult) (*Checkpoint, error)
 toolloop: func (c *Checkpoint) ToolCalls() ([]chat.ToolCall, error)
 toolloop: func (c *Checkpoint) UnmarshalJSON(data []byte) error
 toolloop: func (c *Checkpoint) Validate() error
@@ -554,6 +556,7 @@ toolloop: func (e *PauseError) Error() string
 toolloop: func (e Event) Validate() error
 toolloop: func (p Pause) Validate() error
 toolloop: func (p PendingCall) Validate() error
+toolloop: func (r *Runner) Continue(ctx context.Context, checkpoint *Checkpoint, resolver ToolResolver) iter.Seq2[Event, error]
 toolloop: func (r *Runner) Resume(ctx context.Context, checkpoint *Checkpoint, resolver ToolResolver, resume Resume) iter.Seq2[Event, error]
 toolloop: func (r *Runner) Run(ctx context.Context, request *chat.Request, resolver ToolResolver) iter.Seq2[Event, error]
 toolloop: func (s CallStatus) Valid() bool
