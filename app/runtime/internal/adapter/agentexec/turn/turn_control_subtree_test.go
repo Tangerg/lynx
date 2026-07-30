@@ -3,6 +3,7 @@ package turn
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +18,8 @@ type subtreeTurnProcess struct {
 	targets      []string
 	prepared     agentexec.PreparedWaitingSubtreeCancellation
 	prepareErr   error
+	discardErr   error
+	discarded    chan<- struct{}
 }
 
 func (*subtreeTurnProcess) ID() string { return "process_root" }
@@ -43,7 +46,12 @@ func (*subtreeTurnProcess) PendingSuspensions(context.Context) ([]agentexec.Pend
 	return nil, nil
 }
 
-func (*subtreeTurnProcess) Discard(context.Context) error { return nil }
+func (process *subtreeTurnProcess) Discard(context.Context) error {
+	if process.discarded != nil {
+		process.discarded <- struct{}{}
+	}
+	return process.discardErr
+}
 
 func (process *subtreeTurnProcess) PrepareWaitingSubtreeCancellation(
 	context.Context,
@@ -79,6 +87,7 @@ func TestCancelSubtreeDoesNotClaimTheTurnLifecycle(t *testing.T) {
 }
 
 type preparedSubtreeMutation struct {
+	commitErr   error
 	continueErr error
 	pending     []agentexec.PendingSuspension
 	committed   int
@@ -96,7 +105,7 @@ func (*preparedSubtreeMutation) PersistCheckpoint(context.Context) error { retur
 
 func (mutation *preparedSubtreeMutation) Commit(context.Context) error {
 	mutation.committed++
-	return nil
+	return mutation.commitErr
 }
 
 func (mutation *preparedSubtreeMutation) Continue(context.Context) error {
@@ -153,7 +162,9 @@ func TestPrepareWaitingCancellationProjectsTypedBoundaryAndReleasesClaimOnAbort(
 }
 
 func TestPreparedWaitingCancellationContinuationFailureDoesNotReenterLifecycleLock(t *testing.T) {
-	process := &subtreeTurnProcess{}
+	discardErr := errors.New("discard failed")
+	discarded := make(chan struct{}, 2)
+	process := &subtreeTurnProcess{discardErr: discardErr, discarded: discarded}
 	handle := TurnHandle{SessionID: "session", TurnID: "turn"}
 	state := newRunningTestState(t.Context(), handle, process)
 	if !state.parkIfLive() || !state.claimWaitingMutation() {
@@ -180,6 +191,9 @@ func TestPreparedWaitingCancellationContinuationFailureDoesNotReenterLifecycleLo
 		if !errors.Is(err, continueErr) {
 			t.Fatalf("Commit error = %v, want continuation failure", err)
 		}
+		if got := err.Error(); !strings.Contains(got, handle.TurnID) {
+			t.Fatalf("Commit error = %q, want turn identity", got)
+		}
 	case <-time.After(time.Second):
 		t.Fatal("Commit deadlocked while terminalizing a failed continuation")
 	}
@@ -193,4 +207,65 @@ func TestPreparedWaitingCancellationContinuationFailureDoesNotReenterLifecycleLo
 	if !state.terminalized() {
 		t.Fatal("failed continuation did not terminalize the turn")
 	}
+	select {
+	case <-discarded:
+	case <-time.After(time.Second):
+		t.Fatal("failed continuation did not attempt process teardown")
+	}
+	if state.released() {
+		t.Fatal("failed process teardown released the turn")
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	if err := dispatcher.AwaitShutdown(shutdownCtx); !errors.Is(err, discardErr) {
+		t.Fatalf("shutdown error = %v, want process teardown failure", err)
+	}
+	process.discardErr = nil
+	if err := dispatcher.AwaitShutdown(shutdownCtx); err != nil {
+		t.Fatalf("retry shutdown after teardown recovery: %v", err)
+	}
+	if !state.released() {
+		t.Fatal("successful teardown retry did not release the turn")
+	}
+}
+
+func TestPreparedWaitingCancellationRuntimeCommitFailureReleasesClaimOnAbort(t *testing.T) {
+	process := &subtreeTurnProcess{}
+	handle := TurnHandle{SessionID: "session", TurnID: "turn"}
+	state := newRunningTestState(t.Context(), handle, process)
+	if !state.parkIfLive() || !state.claimWaitingMutation() {
+		t.Fatal("test turn did not enter waiting mutation phase")
+	}
+	dispatcher := &memoryDispatcher{
+		turns:        map[string]*turnState{handle.TurnID: state},
+		seenSessions: map[string]struct{}{},
+	}
+	commitErr := errors.New("runtime commit failed")
+	mutation := &preparedSubtreeMutation{commitErr: commitErr}
+	prepared := &preparedWaitingSubtreeCancellation{
+		dispatcher: dispatcher,
+		state:      state,
+		prepared:   mutation,
+	}
+
+	err := prepared.Commit(t.Context(), runs.WaitingSubtreeRemainsInterrupted)
+	if !errors.Is(err, commitErr) {
+		t.Fatalf("Commit error = %v, want runtime cause", err)
+	}
+	if !strings.Contains(err.Error(), handle.TurnID) {
+		t.Fatalf("Commit error = %q, want turn identity", err)
+	}
+	prepared.Abort()
+	if mutation.committed != 1 || mutation.aborted != 1 {
+		t.Fatalf(
+			"runtime mutation calls = commit:%d abort:%d, want 1/1",
+			mutation.committed,
+			mutation.aborted,
+		)
+	}
+	if !state.claimWaitingMutation() {
+		t.Fatal("runtime commit failure retained the waiting mutation claim")
+	}
+	state.abortWaitingMutation()
 }

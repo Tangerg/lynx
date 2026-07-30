@@ -1954,6 +1954,10 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
   - W2.1 已完成：App 以确定性 barrier 固定 parked root/child、resume/child 双向胜者与
     duplicate loser；既有 root handle 固定 live root/child、natural terminal/child
     仲裁。Agent execution API 与 ownership 不变。
+  - W2.2 已完成：real SQLite 逐点 failure matrix 证明 stale CAS 与全部 transaction
+    write rollback；post-commit Continue/activation 由 App pump error-terminalize，
+    subtree/discard teardown failure 保留并释放正确 claim/turn owner。Agent persistence
+    边界与 public API 不变。
   - Agent/App build、vet、test、lint、高风险 race、tidy、architecture 与 diff gate 全绿。
 
 退出标准：Waiting child cancel 能在不执行用户代码的事务准备期精确结算 parent checkpoint；
@@ -1992,18 +1996,18 @@ checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persis
 | P21 完整树与稳定 checkpoint | 完成 | 6/6 | 完整根树单一生命周期、稳定状态恢复、结构化 child、聊天配置拆分与 deployment retention 原语 |
 | P22 Framework/Application 工具边界 | 完成 | 5/5 | Goal 纯规划、typed child AgentTool、role-only ToolGroup、Host-owned publication/policy |
 | P23 可执行能力与观察投影边界 | 完成 | 5/5 | inert descriptors、Host-owned result projection、base tool protocol、caller-owned model copy |
-| P24 Waiting child checkpoint settlement | 进行中 | 3/4 | ToolLoop、Runtime prepared mutation、App durable transaction 与 W2.1 ownership matrix 已完成；待 W2.2–W2.4 |
-| **总计** | **进行中** | **169/170（99.4%）** | **P24-01 至 P24-03 完成；P24-04 已完成 W2.1，按 app B1.4d 继续，不执行封版、tag 或 release** |
+| P24 Waiting child checkpoint settlement | 进行中 | 3/4 | ToolLoop、Runtime prepared mutation、App durable transaction 与 W2.1–W2.2 conformance 已完成；待 W2.3–W2.4 |
+| **总计** | **进行中** | **169/170（99.4%）** | **P24-01 至 P24-03 完成；P24-04 已完成 W2.1–W2.2，按 app B1.4d 继续，不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
 - 当前阶段：P24 Waiting child checkpoint settlement，3/4，进行中。
-- 下一任务：P24-04 / W2.2 stale、failure、rollback conformance；本批不封版、不创建
-  tag 或 release。
+- 下一任务：P24-04 / W2.3 restart、query、publication、quiescence conformance；
+  本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：App 通过 prepared runtime mutation 与单一 durable transaction 原子提交
-  checkpoint、canceled subtree、parent Item、Pending/Continuation 与必要的 Segment
-  opening；Agent/App ownership 边界保持不变。
+- 最近完成：W2.2 证明 App durable transaction 的全部 pre-commit failure 整体回滚，
+  已提交 continuation failure 由既有 owner error-terminalize，executor teardown failure
+  保留可重试 owner；Agent/App ownership 边界保持不变。
 
 ### 15.3 进度更新规则
 
@@ -2293,6 +2297,7 @@ checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persis
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-30 | 完成 P24-04 / W2.2 failure conformance：App SQLite transaction 的 stale/checkpoint/Item/Run/Pending/Resume/opening/commit failure 全部整体回滚；已提交 continuation 失败由既有 pump error-terminalize；executor teardown 保留可重试 owner；Agent API 与 persistence ownership 不变 | Codex |
 | 2026-07-30 | 完成 P24-04 / W2.1 ownership arbitration：App admission 固定 parked root/child/resume 双向赢家，root handle 固定 live root/child/terminal 赢家；loser 使用稳定 busy/finished 分类，Agent execution 与 persistence 边界不变 | Codex |
 | 2026-07-30 | 完成 P24-03：App 新增纯 waiting-subtree cancellation transformation、prepared executor bridge 与单一 SQLite transaction；parent drained tool 转为 committed tool，剩余边界保持整树 Waiting，最后边界移除时原子打开 surviving Segments 并以 Continue 推进，不引入兼容路径 | Codex |
 | 2026-07-30 | 启动 P24：ToolLoop checkpoint v4 新增不可变 paused-call settlement、输入/ready 判别与独立 Continue 路径，为 Waiting child cancel 的静止事务变换建立 Framework 原语 | Codex |
@@ -2353,6 +2358,7 @@ checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persis
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-30 | P24-04 / W2.2 stale/failure/rollback conformance | real SQLite 按真实副作用顺序注入 stale Pending、checkpoint、parent Item、terminal Run、reduced Pending、tree Resume、opening Item 与 transaction completion failure，完整 Pending/Item/Run/process tree/checkpoint/transcript 均不变；post-commit Continue/activation 只 Commit 一次并由 pump error-terminalize；subtree/discard teardown failure 保留 claim/turn retry owner。错误包含 operation + identity + `%w` cause。高风险 race `-count=10`，Agent/App build、vet、全量 test、lint、tidy diff 与 diff check 全绿；无 wire/schema/capability/兼容路径变化。 | P24-04 / W2.3 restart/query/publication/quiescence conformance |
 | 2026-07-30 | P24-04 / W2.1 deterministic ownership arbitration | App Coordinator 以 channel barrier 固定 parked child/root、child/resume 双向赢家和 duplicate loser；nested target fixture 含 descendant + surviving sibling。既有 live root handle 固定 root/child 与 natural-terminal/child 双向线性化；root-first child loser 在原 owner 内统一为 `ErrSessionBusy`。定向普通/race 均 `-count=10`，Agent/App build、vet、test、lint 与 tidy diff 全绿；无 Agent API、wire、schema 或 capability 变化。 | P24-04 / W2.2 stale/failure/rollback conformance |
 | 2026-07-30 | P24-03 App durable waiting-subtree cancellation transaction | App commit `a4e153fd4`：application 纯变换冻结 exact canceled subtree、parent Item、Pending/Continuation 与 terminal Runs；runsegment 在一个 transaction 内 CAS Consume Pending、写 replacement checkpoint、CAS Replace parent Item、后序 terminalize subtree，并选择 reduced Pending 或 surviving-tree Resume + opening Items。事务失败 Abort live mutation；成功后 Agent Commit，最终边界通过 Continue 推进。Coordinator remaining/final、durable failure、restart、reducer committed tool、adapter claim/deadlock 与真实 SQLite commit/rollback 测试通过；Agent/App build、vet、全量 test、lint，高风险 race 与 diff/架构泄露扫描全绿。 | P24-04 Consumer、恢复矩阵与完整门禁 |
 | 2026-07-30 | P24-01 ToolLoop host-settled checkpoint | `Checkpoint.CompletePausedCall` 保持 receiver 不可变；active settlement 由 `Runner.Continue` 先发布已结算结果再进入下一 pause，later sibling settlement 不移动当前输入边界。Agent build/vet/test/lint、ToolLoop race、tidy diff、arch 与 diff check 全绿。API baseline 624 行、SHA-256 `a095a682f69529cfbce1426533e2ba7915f6c28c2eaec82788b0ba19da700bfd`；wire 154 行、SHA-256 `d0599a6f5922991fb970aaf871b15436e6e337a8e5627c94b3244db215a20a53` | P24-02 Runtime prepared subtree mutation |

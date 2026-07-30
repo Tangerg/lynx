@@ -32,23 +32,45 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 	err := e.runInTx(ctx, func(ctx context.Context) error {
 		pending, found, err := e.interrupts.Consume(ctx, commit.RootRunID)
 		if err != nil {
-			return fmt.Errorf("runsegment: claim waiting cancellation interrupt: %w", err)
+			return fmt.Errorf(
+				"runsegment: claim waiting cancellation interrupt for root Run %q: %w",
+				commit.RootRunID,
+				err,
+			)
 		}
 		if !found {
-			return errors.New("runsegment: waiting cancellation interrupt is no longer open")
+			return fmt.Errorf(
+				"%w: waiting cancellation interrupt for root Run %q is no longer open",
+				runs.ErrSessionBusy,
+				commit.RootRunID,
+			)
 		}
 		if !samePendingSnapshot(pending, commit.ExpectedPending) {
-			return errors.New("runsegment: waiting cancellation interrupt changed after preparation")
+			return fmt.Errorf(
+				"%w: waiting cancellation interrupt for root Run %q changed after preparation",
+				runs.ErrSessionBusy,
+				commit.RootRunID,
+			)
 		}
 		if err := commit.Checkpoint.PersistCheckpoint(ctx); err != nil {
-			return fmt.Errorf("runsegment: persist waiting cancellation checkpoint: %w", err)
+			return fmt.Errorf(
+				"runsegment: persist checkpoint for waiting child Run %q in root Run %q: %w",
+				commit.TargetRunID,
+				commit.RootRunID,
+				err,
+			)
 		}
 		if err := e.itemReplacer.ReplaceItem(
 			ctx,
 			commit.ParentItem.Expected,
 			commit.ParentItem.Replacement,
 		); err != nil {
-			return fmt.Errorf("runsegment: replace canceled child parent Item: %w", err)
+			return fmt.Errorf(
+				"runsegment: replace spawning Item %q for waiting child Run %q: %w",
+				commit.ParentItem.Expected.ID,
+				commit.TargetRunID,
+				err,
+			)
 		}
 
 		terminalByID := make(map[string]transcript.Run, len(commit.TerminalRuns))
@@ -77,7 +99,11 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 		root = commit.RootRun
 		if commit.RemainingPending != nil {
 			if err := e.interrupts.Put(ctx, *commit.RemainingPending); err != nil {
-				return fmt.Errorf("runsegment: persist reduced interrupt: %w", err)
+				return fmt.Errorf(
+					"runsegment: persist reduced interrupt for root Run %q: %w",
+					commit.RootRunID,
+					err,
+				)
 			}
 			root.Interrupts = directInterrupts(*commit.RemainingPending, commit.RootRunID)
 			return nil
@@ -104,13 +130,22 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 				return errors.New("runsegment: waiting cancellation opening contains a lifecycle transition")
 			}
 			if err := e.applyCommit(ctx, event); err != nil {
-				return err
+				return fmt.Errorf(
+					"runsegment: persist opening projection for surviving Run %q: %w",
+					event.RunID,
+					err,
+				)
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		return runs.WaitingSubtreeCancellationResult{}, err
+		return runs.WaitingSubtreeCancellationResult{}, fmt.Errorf(
+			"runsegment: commit waiting child Run %q cancellation in root Run %q: %w",
+			commit.TargetRunID,
+			commit.RootRunID,
+			err,
+		)
 	}
 	return runs.WaitingSubtreeCancellationResult{TargetRun: target, RootRun: root}, nil
 }

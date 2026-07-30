@@ -36,6 +36,10 @@ type fakePreparedWaitingCancellation struct {
 	suspensions []ProcessSuspension
 	persistErr  error
 	commitErr   error
+	// settleOnCommitError models the real turn adapter's post-commit Continue
+	// failure: the prepared runtime mutation is already applied, so Abort must
+	// be a no-op while the opened segment error-terminalizes.
+	settleOnCommitError bool
 
 	persisted   int
 	disposition WaitingSubtreeDisposition
@@ -64,6 +68,9 @@ func (prepared *fakePreparedWaitingCancellation) Commit(
 	prepared.committed++
 	prepared.disposition = disposition
 	if prepared.commitErr != nil {
+		if prepared.settleOnCommitError {
+			prepared.settled = true
+		}
 		return prepared.commitErr
 	}
 	prepared.settled = true
@@ -323,6 +330,107 @@ func TestCancelWaitingChildOpensContinuationWhenFinalBoundaryIsRemoved(t *testin
 	}
 	if _, live := coordinator.registry.Get(plan.root.run.ID); !live {
 		t.Fatal("continued root has no live segment owner")
+	}
+}
+
+func TestCancelWaitingChildTerminalizesCommittedTreeWhenActivationFails(t *testing.T) {
+	plan := waitingCancellationPlan(t, "run_a", true)
+	continueErr := errors.New("continue failed")
+	prepared := &fakePreparedWaitingCancellation{
+		canceled:            []string{"process_a", "process_grandchild"},
+		commitErr:           continueErr,
+		settleOnCommitError: true,
+	}
+	rootAfterCommit := plan.root.run
+	rootAfterCommit.State = execution.Running
+	rootAfterCommit.ActiveSegmentID = "seg_root_continuation"
+	rootAfterCommit.Interrupts = nil
+	effects := &fakeEffects{
+		waitingResult: WaitingSubtreeCancellationResult{
+			TargetRun: canceledWaitingRun(
+				plan.target.run,
+				"stop final waiting branch",
+				time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
+			),
+			RootRun: rootAfterCommit,
+		},
+	}
+	coordinator, _ := waitingCancellationCoordinator(
+		t,
+		plan,
+		prepared,
+		effects,
+		&fakeExecutor{block: true},
+	)
+	segmentIDs := []string{"seg_root_continuation", "seg_b_continuation"}
+	coordinator.newSegmentID = func() string {
+		if len(segmentIDs) == 0 {
+			t.Fatal("unexpected extra segment identity")
+		}
+		next := segmentIDs[0]
+		segmentIDs = segmentIDs[1:]
+		return next
+	}
+
+	result, err := coordinator.Cancel(t.Context(), CancelCommand{
+		RunID:         plan.target.run.ID,
+		Reason:        "stop final waiting branch",
+		AllowChildRun: true,
+	})
+	if err != nil {
+		t.Fatalf("Cancel final waiting child: %v", err)
+	}
+	if result.RootRun == nil ||
+		result.RootRun.ID != plan.root.run.ID ||
+		result.RootRun.State != execution.Running ||
+		result.RootRun.ActiveSegmentID != "seg_root_continuation" {
+		t.Fatalf("Cancel result root = %+v, want exact committed continuation", result.RootRun)
+	}
+
+	coordinator.BeginShutdown()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := coordinator.AwaitShutdown(shutdownCtx); err != nil {
+		t.Fatalf("await failed continuation cleanup: %v", err)
+	}
+	if prepared.committed != 1 ||
+		prepared.disposition != WaitingSubtreeContinues ||
+		prepared.aborted != 0 {
+		t.Fatalf(
+			"prepared settlement = commits:%d disposition:%d aborts:%d, want 1/%d/0",
+			prepared.committed,
+			prepared.disposition,
+			prepared.aborted,
+			WaitingSubtreeContinues,
+		)
+	}
+	if len(effects.waitingCancels) != 1 {
+		t.Fatalf("durable waiting commits = %d, want 1", len(effects.waitingCancels))
+	}
+	for _, runID := range []string{"run_b", plan.root.run.ID} {
+		if !effects.terminalized(plan.pending.SessionID, runID) {
+			t.Fatalf("committed continuation failure did not terminalize Run %q", runID)
+		}
+	}
+	for _, commit := range effects.commitSnapshot() {
+		if commit.State != StateTerminalize || commit.Run == nil {
+			continue
+		}
+		if commit.Run.ID != "run_b" && commit.Run.ID != plan.root.run.ID {
+			continue
+		}
+		if commit.Run.Outcome == nil ||
+			*commit.Run.Outcome != execution.OutcomeError ||
+			commit.Run.Error == nil ||
+			commit.Run.Error.Kind != transcript.InternalProblem {
+			t.Fatalf("failed continuation terminal = %+v, want internal error outcome", commit.Run)
+		}
+	}
+	if _, live := coordinator.registry.Get(plan.root.run.ID); live {
+		t.Fatal("failed continuation retained a live root owner")
+	}
+	if hasActiveSession(coordinator, plan.pending.SessionID) {
+		t.Fatal("failed continuation leaked admission")
 	}
 }
 

@@ -125,7 +125,12 @@ func (s *memoryDispatcher) PrepareWaitingSubtreeCancellation(
 	prepared, err := preparer.PrepareWaitingSubtreeCancellation(ctx, processID)
 	if err != nil {
 		state.abortWaitingMutation()
-		return nil, err
+		return nil, fmt.Errorf(
+			"turn: prepare waiting process subtree %q in turn %q: %w",
+			processID,
+			handle.TurnID,
+			err,
+		)
 	}
 	suspensions := prepared.PendingSuspensions()
 	projected := make([]runs.ProcessSuspension, len(suspensions))
@@ -217,7 +222,11 @@ func (prepared *preparedWaitingSubtreeCancellation) Commit(
 	prepared.state.lifecycleMu.Lock()
 	if err := prepared.prepared.Commit(ctx); err != nil {
 		prepared.state.lifecycleMu.Unlock()
-		return fmt.Errorf("turn: commit waiting subtree runtime mutation: %w", err)
+		return fmt.Errorf(
+			"turn: commit waiting subtree runtime mutation for turn %q: %w",
+			prepared.state.handle.TurnID,
+			err,
+		)
 	}
 	prepared.settled = true
 	if disposition == runs.WaitingSubtreeRemainsInterrupted {
@@ -226,14 +235,19 @@ func (prepared *preparedWaitingSubtreeCancellation) Commit(
 		return nil
 	}
 	if err := prepared.prepared.Continue(prepared.state.ctx); err != nil {
+		continuationErr := fmt.Errorf(
+			"turn: continue committed waiting subtree mutation for turn %q: %w",
+			prepared.state.handle.TurnID,
+			err,
+		)
 		prepared.state.commitWaitingMutation(true)
 		prepared.state.lifecycleMu.Unlock()
 		finishErr := prepared.dispatcher.finishExecutionError(
 			prepared.state,
-			problemFromError(err),
-			err,
+			problemFromError(continuationErr),
+			continuationErr,
 		)
-		return errors.Join(err, finishErr)
+		return errors.Join(continuationErr, finishErr)
 	}
 	if !prepared.state.commitWaitingMutation(true) {
 		// Shutdown claimed the turn while the durable transaction committed.

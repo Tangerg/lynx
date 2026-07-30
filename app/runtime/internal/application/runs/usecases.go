@@ -326,7 +326,12 @@ func (c *Coordinator) cancelLiveChild(
 		plan.target.source.ProcessID,
 	); err != nil {
 		live.abortChildCancellation(attempt, err)
-		return CancelResult{}, err
+		return CancelResult{}, fmt.Errorf(
+			"runs: cancel child Run %q executor subtree %q: %w",
+			plan.target.run.ID,
+			plan.target.source.ProcessID,
+			err,
+		)
 	}
 	target, root, err := live.waitChildCancellation(cleanupCtx, attempt)
 	if err != nil {
@@ -489,7 +494,12 @@ func (c *Coordinator) cancelWaitingChild(
 			return CancelResult{}, err
 		}
 		if err := prepared.Commit(cleanupCtx, WaitingSubtreeRemainsInterrupted); err != nil {
-			return CancelResult{}, err
+			return CancelResult{}, fmt.Errorf(
+				"runs: apply committed cancellation of waiting child Run %q in root Run %q: %w",
+				plan.target.run.ID,
+				plan.root.run.ID,
+				err,
+			)
 		}
 		if err := validateWaitingChildCancellationResult(plan, result); err != nil {
 			return CancelResult{}, err
@@ -531,7 +541,15 @@ func (c *Coordinator) cancelWaitingChild(
 			return commitErr
 		},
 		Activate: func(activateCtx context.Context) error {
-			return prepared.Commit(activateCtx, WaitingSubtreeContinues)
+			if err := prepared.Commit(activateCtx, WaitingSubtreeContinues); err != nil {
+				return fmt.Errorf(
+					"runs: activate committed cancellation of waiting child Run %q in root Run %q: %w",
+					plan.target.run.ID,
+					plan.root.run.ID,
+					err,
+				)
+			}
+			return nil
 		},
 	})
 	if err != nil {
