@@ -3,9 +3,9 @@
 > 作者：Codex
 > 状态：`IN PROGRESS`
 > 建档日期：2026-07-30
-> 最新已提交基线：`main@f38085bf3`，与 `origin/main` 一致；W3.4 随本原子 slice 完成
+> 最新已提交基线：`main@b75d2a1d9`，与 `origin/main` 一致
 > 当前主任务：`W4 — B1.6 Desktop Run-tree consumer`
-> 执行进度：`W2 DONE · W3 DONE · W4 READY`
+> 执行进度：`W2 DONE · W3 DONE · W4.0 DONE · W4.1 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 43`
@@ -27,15 +27,17 @@
    总执行台账，回答“为什么做、先做什么、做到哪了、何时算完成”。
 3. [`codex_runtime_protocol_conformance_plan.md`](codex_runtime_protocol_conformance_plan.md)
    Runtime 协议一致性与 child Run 专项台账。
-4. [`../../doc/AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md`](../../doc/AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md)
+4. [`codex_desktop_run_tree_execution_plan.md`](codex_desktop_run_tree_execution_plan.md)
+   Desktop B1.6 的目标读模型、爆炸半径与原子执行卡。
+5. [`../../doc/AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md`](../../doc/AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md)
    Agent Framework 专项台账。
-5. [`../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md`](../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md)、
+6. [`../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md`](../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md)、
    [`../desktop/frontend/ARCHITECTURE.md`](../desktop/frontend/ARCHITECTURE.md) 与
    [`../desktop/docs/FRONTEND_PLUGIN_CONTEXTS.md`](../desktop/docs/FRONTEND_PLUGIN_CONTEXTS.md)
    各模块的现行架构基准。
-6. Contract Registry、生成物、源码、测试和 Git
+7. Contract Registry、生成物、源码、测试和 Git
    证明“当前实现实际上是什么”。
-7. `PROTOCOL_DESIGN.md`、`PROTOCOL_VNEXT_REVIEW.md`、
+8. `PROTOCOL_DESIGN.md`、`PROTOCOL_VNEXT_REVIEW.md`、
    `VNEXT_IMPLEMENTATION_PLAN.md` 与各类 comparison 文档
    保留为决策历史和证据，不再承担当前进度总账。
 
@@ -239,7 +241,7 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 | Runtime B1.4c | `DONE` | prepared runtime mutation + App-owned atomic waiting-subtree transaction | — |
 | Runtime B1.4d | `DONE` | W2.1 ownership；W2.2 failure/rollback；W2.3 restart/query/publication；W2.4 race/hygiene/full closure | — |
 | Runtime B1.5 | `DONE` | W3.0–W3.4 query / stream / replay / cold recovery / full closure | — |
-| Desktop B1.6 | `TODO` | 协议 fold 与插件架构基线已存在 | Run-tree fold 与交互 |
+| Desktop B1.6 | `IN PROGRESS` | W4.0 完成现状/爆炸半径审计并冻结 Session narrative + normalized Run tree 目标 | W4.1 projection core 与 source-owned fold |
 | Runtime/Desktop B1.7 | `TODO` | capability seam 已存在且保持 disabled | 全门禁后启用 subagents |
 | Runtime/Desktop 架构持续演进 | `ONGOING` | 依赖环、consumer ports、plugin contexts 与多项 architecture gate 已存在 | 随每个 slice 审查并最终 sweep |
 | Synara UI 对齐 | `TODO` | 参考仓库已明确为 `~/Desktop/synara` | B1.6 后做视觉基线与像素级实现 |
@@ -261,12 +263,14 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 - `ef04f5bfd docs(runtime): freeze B1.5 execution slices`
 - `6460bede9 feat(runtime): complete descendant queries`
 - `4100af80d test(runtime): prove root stream recovery`
+- `f38085bf3 fix(runtime): preserve run facts on recovery`
+- `b75d2a1d9 refactor(runtime): close B1.5 conformance`
 
 本轮审计开始时：
 
 ```text
-HEAD        = 6eb2f7f55622ab765465e11555f881631b4e9fc7
-origin/main = 6eb2f7f55622ab765465e11555f881631b4e9fc7
+HEAD        = b75d2a1d93030f7a0bb908e78c636e8db89ec6a6
+origin/main = b75d2a1d93030f7a0bb908e78c636e8db89ec6a6
 worktree    = clean
 ```
 
@@ -879,11 +883,28 @@ W3.4 完成结果（2026-07-30）：
 
 ### W4 — B1.6 Desktop Run-tree consumer
 
-状态：`TODO`
+状态：`IN PROGRESS`；`W4.0 DONE · W4.1 READY`
+
+专项执行卡：
+
+- [`codex_desktop_run_tree_execution_plan.md`](codex_desktop_run_tree_execution_plan.md)
+
+W4.0 审计裁决：
+
+- transport 已正确承载、过滤、去重和重连完整 Run tree，主要缺口在 Agent
+  projection、cold recovery、runtime invalidation 与 cancel consumer；
+- 当前 `view.run`、global `turnMessageId/plan/error` 无法表达 child/sibling/nested；
+- child start/finish 仅写 timeline、child progress 丢弃，只是防止污染 root，不是
+  first-class Run-tree consumer；
+- target 冻结为 Session narrative + normalized `runsById` + source-owned
+  message/tool/plan/timeline/interrupt；
+- live fold 必须接收完整 RunEvent provenance；cold/local path 使用 snapshot/local
+  mutation，不再伪造空 RunID、unknown profile 或 zero metrics StreamEvent；
+- 不保留 `view.run` alias、dual write 或 compatibility reducer。
 
 交付：
 
-- frontend reducer 按 `source Run` 折叠 root stream；
+- frontend reducer 按完整 RunEvent envelope 的 `source Run` 折叠 root stream；
 - root、child、sibling、nested child 拥有独立状态与 Item timeline；
 - tree 展开/折叠、Waiting 状态、取消交互和 parent tool result 一致；
 - reconnect 使用 replay，replay 不可用使用 cold refetch；
@@ -898,6 +919,16 @@ W3.4 完成结果（2026-07-30）：
 - 乐观状态最终与 committed response/query 对账；
 - frontend layer guards、typecheck、lint、format、tests、knip、circular 和 bundle gate 全绿；
 - 不手写第二份 wire union，不把 transport 状态泄漏进组件。
+
+原子切片：
+
+| Slice | 状态 | 边界 |
+|---|---|---|
+| W4.0 | `DONE` | 现状、爆炸半径、目标模型与全门禁基线 |
+| W4.1 | `READY` | canonical Session/Run-tree projection、完整 provenance、source-owned fold，删除 single-run shape 与 synthetic wire |
+| W4.2 | `PENDING` | durable snapshot、replay/cold/invalidation、root/child cancel response merge |
+| W4.3 | `PENDING` | root-first narrative、task child disclosure、tree/timeline/cancel UI |
+| W4.4 | `PENDING` | architecture/hygiene/docs/full gates，B1.6 收口 |
 
 ### W5 — B1.7 最终 conformance 与 capability enablement
 
@@ -1437,7 +1468,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 ### 2026-07-30 — W3.4
 
 - 状态：`DONE`
-- Commit：随本原子 slice 提交
+- Commit：`b75d2a1d9`（`refactor(runtime): close B1.5 conformance`）
 - 目标：完成 B1.5 的命名、错误、接口、职责、兼容债与全量质量门收口。
 - 关键裁决：
   - query not-found 使用显式分支，错误链由 decoder 描述局部事实、store use case
@@ -1471,6 +1502,43 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
   capability 继续 disabled。
 - 下一步：W4 Desktop Run-tree consumer。
 
+### 2026-07-30 — W4.0
+
+- 状态：`DONE`
+- Commit：随本 docs-only 原子 slice 提交
+- 目标：完成 Desktop Run-tree consumer 的 read-only blast-radius audit，冻结
+  projection、recovery、invalidation、cancel 与 presentation 的治本边界。
+- 关键裁决：
+  - RPC stream 的 tree membership、dedupe、root termination 与 reattach 已成立，W4
+    不修改 Runtime wire；
+  - `AgentViewState.run`、global `turnMessageId/plan/error` 是 single-run 根因，不能通过
+    增加 child side map 后继续双写；
+  - target 是 Session narrative + normalized `runsById` + source-owned
+    message/tool/plan/timeline/interrupt；
+  - live fold 消费完整 RunEvent provenance；history、Run snapshot 与 local optimistic
+    mutation 使用各自入口，不再 synthetic wire；
+  - cold projection off-store 构建并 atomic replace；runtime event 只触发 authoritative
+    refresh；cancel 合并 committed `CancelRunResponse`。
+- 专项文档：
+  - [`codex_desktop_run_tree_execution_plan.md`](codex_desktop_run_tree_execution_plan.md)
+- 生成物：无；本 slice 只更新文档，未修改 wire、Registry、schema、OpenRPC、Go/TS
+  generated types、Artifact、Store epoch、Agent API 或 capability。
+- 验证：
+  - `cd app/desktop/frontend && npm run check` → `PASS`
+  - 178 test files / 1078 tests；
+  - type/lint/format/knip/circular/context/published-boundary/layer/token/chrome/locale/
+    bootstrap/bundle gates → `PASS`
+  - `git diff --check` → `PASS`
+- 已知非阻塞告警：无效 `shadow-[var(--shadow-*)]` 生成 rule、Lightning CSS
+  `::highlight(...)` 识别、bundle large-chunk 提示；继续由 W7/UI hygiene 收口。
+- 架构复核：
+  - 不复制整份 view 给每个 Run，不保存双 lineage index；
+  - components/pages 继续不直连 RPC；
+  - Runtime/Agent ownership 无变化；
+  - 无兼容 alias、dual write 或 fallback 方案。
+- 残余风险：W4.1–W4.4 尚未实施；`features.subagents` 继续 disabled。
+- 下一步：W4.1 projection core 与 source-owned fold。
+
 ---
 
 ## 12. 下一张执行卡
@@ -1478,26 +1546,26 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 唯一下一任务：
 
 ```text
-W4 — B1.6
-Desktop Run-tree consumer
+W4.1 — B1.6
+Projection core 与 source-owned fold
 ```
 
 实施顺序：
 
-1. 只读审计 Desktop 当前 generated wire、Agent plugin context、Run/Item reducers、
-   runtime invalidation 与 reconnect/cold-refetch 路径；
-2. 冻结 root stream 中 source Run → tree view model 的唯一 fold 与 ownership；
-3. 先补 root/child/sibling/nested/waiting/cancel/reconnect 的 reducer conformance，
-   再实现最小 application/view-model 变化；
-4. 保持 components/pages 不直连 RPC，不在 UI 猜 tree identity 或 lifecycle；
-5. 运行 frontend unit/type/lint/architecture/bundle gates，独立 commit/push后进入 B1.7。
+1. 先补 root/child/sibling/nested/interleaved reducer conformance；
+2. 建立 canonical Session projection + `runsById`，一次性删除 `view.run`；
+3. live fold 改为完整 RunEvent provenance；
+4. message/tool/plan/timeline/assistant turn 全部按 source Run；
+5. 删除 synthetic wire，并同步迁移 store、ports、selectors 与 consumers；
+6. frontend 全门禁后独立 commit/push，再进入 W4.2 recovery/control。
 
-W3 的禁止项：
+W4.1 的禁止项：
 
 - 不新增协议方法；
 - 不实现 child subscribe；
 - 不让 Agent 接触 App persistence；
 - 不从 transcript、live registry 或事件到达顺序反推 tree identity；
-- 不返回看似完整的静默降级结果；
-- 不在 query/subscribe/cold recovery 尚未闭环前打开 `features.subagents`；
+- 不保留 `view.run` alias、dual write、compat reducer 或 synthetic StreamEvent；
+- 不在 W4.1 偷做半套 UI；
+- 不在 B1.6 full closure 前打开 `features.subagents`；
 - 不提交或推送工作树里未通过门禁的代码。

@@ -1,11 +1,11 @@
 # Lyra Runtime API 最终一致性收口计划
 
 > 作者：Codex
-> 状态：`A-TRACK DONE / B1.4 DONE / B1.5 DONE · B1.6 READY`
+> 状态：`A-TRACK DONE / B1.4 DONE / B1.5 DONE · B1.6 IN PROGRESS`
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
-> 当前已提交基线：`main@f38085bf3`；W3.4 随本原子 slice 完成，B1.6 READY
+> 当前已提交基线：`main@b75d2a1d9`；W4.0 已冻结 Desktop target，W4.1 READY
 > 目标协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 目标 Artifact：`SessionArtifactVersion = 7`
 
@@ -1840,7 +1840,7 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 ### 2026-07-30 — B1.5 / W3.4
 
 - 状态：`DONE`
-- Commit：随本原子 slice 提交
+- Commit：`b75d2a1d9`（`refactor(runtime): close B1.5 conformance`）
 - 目标：完成 B1.5 全部实现面的 hygiene、compatibility 与质量门闭环。
 - 关键裁决：
   - query scope 的 store error / not-found 使用显式分支，不用通用组合 helper 隐藏
@@ -1904,6 +1904,14 @@ A-track 与 B1.1–B1.5 已收口。下一阶段是：
 ```text
 B1.6 / W4 — Desktop Run-tree consumer
 ```
+
+Desktop 专项执行卡：
+
+- [`codex_desktop_run_tree_execution_plan.md`](codex_desktop_run_tree_execution_plan.md)
+
+当前进度：`W4.0 DONE · W4.1 READY`。W4.0 已确认 transport tree、event source、
+replay/reattach 基础成立；必须治本替换的是 single `view.run`、global turn/plan/error、
+implicit timeline owner、synthetic recovery 与不完整 cold projection。
 
 B1.5 最终切片记录：
 
