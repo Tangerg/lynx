@@ -1,13 +1,23 @@
 import { useState } from "react";
 import { Button, StatusDot, TextField } from "@/ui";
-import { useT } from "@/lib/i18n";
+import { useT, type Translate } from "@/lib/i18n";
 import {
   applyRuntimeEndpoint,
   currentRuntimeEndpoint,
   resetRuntimeEndpoint,
   DEFAULT_RUNTIME_ENDPOINT,
-} from "@/plugins/builtin/runtime/public/connection";
+  type RuntimeEndpointRejection,
+} from "@/plugins/builtin/runtime/public/endpoint";
 import { SettingRow } from "../../public";
+
+function rejectionMessage(reason: RuntimeEndpointRejection, translate: Translate): string {
+  switch (reason) {
+    case "invalid_url":
+      return translate("connection.error.invalidUrl");
+    case "unsupported_scheme":
+      return translate("connection.error.urlScheme");
+  }
+}
 
 export function ConnectionPane() {
   const t = useT();
@@ -21,15 +31,23 @@ export function ConnectionPane() {
 
   const apply = () => {
     const result = applyRuntimeEndpoint(url);
+    if (result.kind === "rejected") {
+      setError(rejectionMessage(result.reason, t));
+      return;
+    }
     setUrl(result.endpoint);
-    setError(result.error);
-    if (result.changed && !result.error) window.location.reload();
+    setError(null);
+    if (result.changed) window.location.reload();
   };
 
   const reset = () => {
     const result = resetRuntimeEndpoint();
+    if (result.kind === "rejected") {
+      setError(rejectionMessage(result.reason, t));
+      return;
+    }
     setUrl(result.endpoint);
-    setError(result.error);
+    setError(null);
     if (result.changed) window.location.reload();
   };
 

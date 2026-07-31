@@ -5,8 +5,8 @@
 > 建档日期：2026-07-30
 > W4.1 实施提交：`40cffd81e`；W4.2：`cc85d3039`；W4.3：`ca0949949`
 > W4.4 实施提交：`49b6494bd` + `fcbf8f558` + `34a875d29`
-> 当前主任务：`W6.0 — Runtime / Desktop architecture final audit`
-> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6.0 READY`
+> 当前主任务：`W6.1 — Desktop Runtime connection / discovery boundary`
+> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6.0 DONE · W6.1 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 44`
@@ -55,8 +55,8 @@
 截至 2026-07-31，W2–W5 已完成。B1.7 已用一次 breaking、无兼容分支的原子切片
 接通 frozen Run profile、生产 child admission、cold rehydrate、Artifact tree fidelity、
 生成式 contract 约束以及 Runtime/Desktop capability opt-in；高风险 race、全量门禁、
-连续两次 generation no-diff 与架构债扫描均已通过。后续实施从 §12 的 W6.0
-架构最终复核执行卡继续。
+连续两次 generation no-diff 与架构债扫描均已通过。后续实施从 §12 的 W6.1
+Desktop Runtime context 边界执行卡继续。
 
 ---
 
@@ -246,8 +246,8 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 | Runtime B1.4d                | `DONE`        | W2.1 ownership；W2.2 failure/rollback；W2.3 restart/query/publication；W2.4 race/hygiene/full closure | —                                |
 | Runtime B1.5                 | `DONE`        | W3.0–W3.4 query / stream / replay / cold recovery / full closure                                      | —                                |
 | Desktop B1.6                 | `DONE`        | normalized Run tree、source-owned fold、durable recovery、root-first UI 与 scope-exact public API     | —                                |
-| Runtime/Desktop B1.7         | `DONE`        | frozen policy、producer/recovery、Artifact/contract、server/Desktop opt-in 与最终 conformance 已闭环   | —                                |
-| Runtime/Desktop 架构持续演进 | `READY`       | 依赖环、consumer ports、plugin contexts 与多项 architecture gate 已存在                               | 执行 W6.0 最终 audit             |
+| Runtime/Desktop B1.7         | `DONE`        | frozen policy、producer/recovery、Artifact/contract、server/Desktop opt-in 与最终 conformance 已闭环  | —                                |
+| Runtime/Desktop 架构持续演进 | `IN PROGRESS` | W6.0 已完成依赖、事实作者、Agent 泄漏、命名、错误、并发生命周期与 Desktop context 审计                | 执行 W6.1 Runtime context 边界   |
 | Synara UI 对齐               | `TODO`        | 参考仓库已明确为 `~/Desktop/synara`                                                                   | W6 完成后做视觉基线与像素级实现  |
 
 不使用跨工作流“总百分比”。一个竞态闭环不能与一个命名修正等权；进度只由原子 slice
@@ -382,19 +382,19 @@ coordinator、锁层、协议方法或兼容分支。
 > vNext 的协议骨架、核心读写面和绝大多数行为已经落地；剩余工作是按依赖顺序完成
 > child Run 的取消一致性、完整读面、Desktop 消费和 capability 放行。
 
-| 审计面            | 当前事实                                                                                                                 | 判断                                                              |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| Machine contract  | 单一 Contract Registry 生成 manifest、Schema、OpenRPC、Go validator、TS types/validator/method map；arch drift gate 通过 | 目标结构已成立，不再新增平行 registry                             |
-| 协议表面          | manifest 当前有 85 个方法，4 个 stream method；协议只服务 `2026-07-27`；Artifact 只接受 v7                               | hard cutover 已成立，没有版本协商假象                             |
-| Run 心智模型      | `Session → Run → Segment → Item`、Run 三态、正交 outcome/metrics、typed Interrupt、durable query 均已落地                | API 主模型无需重做                                                |
-| Agent Framework   | execution tree、HITL、checkpoint、prepared waiting-subtree mutation、Continue 与 consumer/recovery/race 门禁已成立       | P24 完成；后续只按真实 consumer 需求演进                          |
-| App Runtime 写面  | child admission、source routing、tree barrier/resume、Running/Waiting child cancel 与 B1.4d conformance 已完成           | 事实 owner 正确；后续不得重新分配所有权                           |
-| App Runtime 读面  | descendant paging、exact/subtree items、root stream replay、cold tree recovery 与 child subscribe 拒绝均已闭环          | durable tree query 与 stream ownership 已成立                     |
-| Desktop transport | root stream、durable snapshot、reattach、replay fallback、exact child cancel 与 source-owned fold 已闭环                | first-party consumer 已完整 opt in                                |
-| Desktop fold      | root/child/sibling/nested Run 均按 source identity 独立折叠，并形成 root-first tree/narrative UI                          | B1.6 完成，无 single-run 或 synthetic recovery path               |
-| Capability        | server 稳定广告 `features.subagents.enabled=true`，Desktop 显式请求；未协商调用仍 fail closed                             | B1.7 已原子启用且保持 opt-in                                      |
-| 依赖治理          | Go architecture tests、Frontend layer/context/public-boundary/cycle gates 全绿                                           | 不需要全局换目录；每个 slice 内做局部治本                         |
-| 历史兼容          | SQLite 单 epoch 44、protocol current=min、旧 store/artifact/schema 直接拒绝                                               | 符合 dev 阶段 breaking-first                                      |
+| 审计面            | 当前事实                                                                                                                 | 判断                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| Machine contract  | 单一 Contract Registry 生成 manifest、Schema、OpenRPC、Go validator、TS types/validator/method map；arch drift gate 通过 | 目标结构已成立，不再新增平行 registry               |
+| 协议表面          | manifest 当前有 85 个方法，4 个 stream method；协议只服务 `2026-07-27`；Artifact 只接受 v7                               | hard cutover 已成立，没有版本协商假象               |
+| Run 心智模型      | `Session → Run → Segment → Item`、Run 三态、正交 outcome/metrics、typed Interrupt、durable query 均已落地                | API 主模型无需重做                                  |
+| Agent Framework   | execution tree、HITL、checkpoint、prepared waiting-subtree mutation、Continue 与 consumer/recovery/race 门禁已成立       | P24 完成；后续只按真实 consumer 需求演进            |
+| App Runtime 写面  | child admission、source routing、tree barrier/resume、Running/Waiting child cancel 与 B1.4d conformance 已完成           | 事实 owner 正确；后续不得重新分配所有权             |
+| App Runtime 读面  | descendant paging、exact/subtree items、root stream replay、cold tree recovery 与 child subscribe 拒绝均已闭环           | durable tree query 与 stream ownership 已成立       |
+| Desktop transport | root stream、durable snapshot、reattach、replay fallback、exact child cancel 与 source-owned fold 已闭环                 | first-party consumer 已完整 opt in                  |
+| Desktop fold      | root/child/sibling/nested Run 均按 source identity 独立折叠，并形成 root-first tree/narrative UI                         | B1.6 完成，无 single-run 或 synthetic recovery path |
+| Capability        | server 稳定广告 `features.subagents.enabled=true`，Desktop 显式请求；未协商调用仍 fail closed                            | B1.7 已原子启用且保持 opt-in                        |
+| 依赖治理          | Go architecture tests、Frontend layer/context/public-boundary/cycle gates 全绿                                           | 不需要全局换目录；每个 slice 内做局部治本           |
+| 历史兼容          | SQLite 单 epoch 44、protocol current=min、旧 store/artifact/schema 直接拒绝                                              | 符合 dev 阶段 breaking-first                        |
 
 ### 4.5 B1.4d 证据闭环矩阵
 
@@ -933,13 +933,13 @@ W4.0 审计裁决：
 
 原子切片：
 
-| Slice | 状态      | 边界                                                                                                               |
-| ----- | --------- | ------------------------------------------------------------------------------------------------------------------ |
-| W4.0  | `DONE`    | 现状、爆炸半径、目标模型与全门禁基线                                                                               |
-| W4.1  | `DONE`    | canonical Session/Run-tree projection、完整 provenance、source-owned fold，删除 single-run shape 与 synthetic wire |
-| W4.2  | `DONE`    | durable snapshot、replay/cold/invalidation、root/child committed cancel response merge                             |
-| W4.3  | `DONE`    | root-first narrative、task child disclosure、tree/timeline/cancel UI                                               |
-| W4.4  | `DONE`    | start/resume exact ack、无启发式对账、scope-exact Run API、architecture/docs/full gates                            |
+| Slice | 状态   | 边界                                                                                                               |
+| ----- | ------ | ------------------------------------------------------------------------------------------------------------------ |
+| W4.0  | `DONE` | 现状、爆炸半径、目标模型与全门禁基线                                                                               |
+| W4.1  | `DONE` | canonical Session/Run-tree projection、完整 provenance、source-owned fold，删除 single-run shape 与 synthetic wire |
+| W4.2  | `DONE` | durable snapshot、replay/cold/invalidation、root/child committed cancel response merge                             |
+| W4.3  | `DONE` | root-first narrative、task child disclosure、tree/timeline/cancel UI                                               |
+| W4.4  | `DONE` | start/resume exact ack、无启发式对账、scope-exact Run API、architecture/docs/full gates                            |
 
 ### W5 — B1.7 最终 conformance 与 capability enablement
 
@@ -964,15 +964,15 @@ slice 中完成，不能先改布尔值。
 
 原子切片：
 
-| Slice | 状态      | 边界                                                                 |
-| ----- | --------- | -------------------------------------------------------------------- |
-| W5.0  | `DONE`    | read-only completion audit：逐项绑定现有 producer/conformance 证据   |
-| W5.1  | `DONE`    | 根治 profile/恢复/Artifact/contract 缺口并原子启用 server + Desktop |
-| W5.2  | `DONE`    | Runtime/Desktop 高风险竞态、全门禁、双 generation 与无兼容残留收口  |
+| Slice | 状态   | 边界                                                                |
+| ----- | ------ | ------------------------------------------------------------------- |
+| W5.0  | `DONE` | read-only completion audit：逐项绑定现有 producer/conformance 证据  |
+| W5.1  | `DONE` | 根治 profile/恢复/Artifact/contract 缺口并原子启用 server + Desktop |
+| W5.2  | `DONE` | Runtime/Desktop 高风险竞态、全门禁、双 generation 与无兼容残留收口  |
 
 ### W6 — Runtime / Desktop 架构最终复核
 
-状态：`READY`，且规则持续执行
+状态：`IN PROGRESS`；`W6.0 DONE · W6.1 READY · W6.2 TODO · W6.3 TODO`
 
 审计维度：
 
@@ -993,6 +993,62 @@ slice 中完成，不能先改布尔值。
 - plugin kernel 是否保持薄，业务能力是否归所属 bounded context。
 
 发现坏味道时按根因和 owner 分批修复；不得为“统一形式”做无收益搬迁。
+
+W6.0 的证据裁决：
+
+- Runtime package graph 未出现 domain/application 向 delivery、bootstrap 或具体
+  SQLite 实现的反向依赖；delivery 既有 consumer-defined use-case ports，架构测试已
+  锁定 domain purity、application framework-free、delivery 无生命周期裁决以及
+  bootstrap 无业务状态；
+- `application/runs` 的 `SessionLifecycle`、`TurnControl` 与 `Effects` 虽然方法数
+  高于经验值，但分别承载一个完整 Run 用例所需的生命周期、execution control 与原子
+  effect boundary。当前没有第二组消费者以不同子集使用它们，机械拆分只会把一次
+  transaction/use case 切成转发接口，裁决为**保留**；
+- Agent production graph 不依赖 `app/**`，public execution vocabulary 中没有
+  Session/Run/Segment/Item、SQLite、BuildID、idempotency store、transaction 或
+  产品计费账本；process snapshot、prepared waiting-subtree mutation 与 opaque cost
+  projection 都对任意 Framework 消费者成立，裁决为**不迁移、不增加 App seam**；
+- Runtime/Agent production 未发现 `Manager`、`Helper`、`Impl`、generic
+  `impl.go/helper.go/utils.go`、常量专用 `fmt.Errorf`、同类型 receiver 多命名或精确
+  `TODO/FIXME/HACK` 残留；goroutine callsite 均落在已有 process/taskgroup/
+  shutdown/transport owner 范围，后续只在真实生命周期缺口出现时调整；
+- Desktop 现有跨 context `public/`、design-system rings、adapter-only composition
+  root 等 guards 有效，但 Runtime bounded context 存在两个同根问题：
+  application 直接读取 `main/config`、SDK 全局配置与 i18n；capability discovery
+  application 直接持有 `RpcClient`、`DiscoverResponse` 和
+  `"runtime.discover"` transport method；
+- `main/config.RUNTIME_BASE` 同时表示“用户可切换的 Runtime 协议 endpoint”和“固定
+  本地 desktop shell base URL”。二者仅当前值相同，生命周期和变化原因不同，属于
+  偶然相等的两个事实，不应共享一个常量作者；
+- `lib/utils.ts` 只包含 class-name composition，文件名语义偏泛，但约百个 import 的
+  独立改名不改变边界或行为，留给 W6.2 命名原子切片，不与 W6.1 混合。
+
+冻结的原子切片：
+
+| Slice | 状态    | 唯一边界                                                       | 完成定义                                                                                                                                                                                                       |
+| ----- | ------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| W6.0  | `DONE`  | read-only architecture evidence audit                          | 每个“改/不改”裁决均绑定依赖、owner、consumer 或行为证据；不按行数和目录形式制造工作                                                                                                                            |
+| W6.1  | `READY` | Desktop Runtime endpoint 与 discovery anti-corruption boundary | application 只依赖两个 consumer ports；错误返回稳定语义而非本地化文案；typed SDK call 只在 adapter；local shell URL 与 selectable endpoint 分属不同事实作者；新增通用 architecture guard；删除旧入口且无 alias |
+| W6.2  | `TODO`  | Desktop semantic naming / stale commentary                     | 只处理有证据的失真名称、过期注释与文件职责；每组 rename 单独计算 blast radius，不夹带行为变化                                                                                                                  |
+| W6.3  | `TODO`  | W6 full closure                                                | Runtime、Agent、Desktop 全量 gates；高风险 race；dependency/leak/compat scan；文档、commit、push 与下一任务收口                                                                                                |
+
+W6.1 breaking blast radius：
+
+- 删除 `main/config` 中含混的 `RUNTIME_BASE` 与 Runtime endpoint config key；
+- local shell/sideload 改用明确的 local shell base URL；
+- Runtime application 通过 replacement-safe singleton ports 读写 endpoint、执行
+  discovery，不再导入组合根、全局 store、raw RPC client 或 i18n；
+- endpoint 修改结果改为 `applied | rejected` 闭合联合，拒绝原因使用稳定 code，
+  Settings UI 是唯一文案翻译者；
+- discovery adapter 调用 typed `client.runtime.discover()` 并只向 application
+  返回 capabilities，不透传 response envelope；
+- 删除 `endpointMirror.ts`、`runtimeRpc.ts` 等旧路径，不保留 re-export、dual path
+  或 compatibility alias；
+- `main/container` 的 Runtime client URL 通过 Runtime public application surface
+  读取；在 plugin 尚未安装时，default endpoint 仍是明确且可回答的值；
+- architecture guard 从若干 context 特例提升为通用规则：
+  builtin application/domain 不得依赖 `main/**`，application 不得持有 raw
+  `RpcClient` / `DiscoverResponse`。
 
 ### W7 — Synara 视觉基线与像素级 Desktop UI 对齐
 
@@ -1735,22 +1791,22 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
 #### W5.0 完成证据矩阵
 
-| Gate | Production owner | 现有关键行为证据 | 裁决 |
-|---|---|---|---|
-| child 在发布/执行前原子 admission | Agent `runtime.ChildAdmitter` + App `agentexec` adapter + Runs coordinator | `TestChildAdmissionCompletesBeforeCreatedEventAndExecution`、`TestRejectedChildAdmissionRemovesUnpublishedProcess`、`TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem`、SQLite child opening test | `PASS` |
-| child/sibling/nested lineage 与 root stream | Runs coordinator + root Journal | child source projection、nested lineage、canonical postorder、drained-stream barrier tests | `PASS` |
-| 完整 tree HITL barrier | Agent snapshot + Runs transformation + runsegment transaction | complete sibling answer set、tree barrier、boot-resumable triplet、commit failure rollback tests | `PASS` |
-| Running child cancel | root-owned cancellation arbiter + executor subtree teardown + App transaction | exact subtree、surviving root、quiescence、teardown failure、natural terminal race tests | `PASS` |
-| Waiting child cancel：仍有 boundary | prepared Agent mutation + App write-set + runsegment transaction | reduced Pending set、restart、rollback、root/child arbitration tests | `PASS` |
-| Waiting child cancel：最后 boundary | 同上；一次打开 surviving suspended Runs 的新 Segment | final-boundary continuation、activation failure、SQLite restart tests | `PASS` |
-| parent `child_run_canceled` exactly once | executor settlement + App terminal projection | live/waiting cancel、natural terminal/approve/resume race tests | `PASS` |
-| durable child get/list/items | Queries + SQLite keyset projections + delivery state-dependent gate | descendant page、exact/subtree item scope、ancestor summaries、child capability refusal tests | `PASS`；启用后的正向 delivery case 待 W5.1 |
-| child subscribe refusal | Runs subscribe root identity check | `TestChildRunCannotBecomeAnIndependentSubscriptionRoot` | `PASS`；保持 `run_not_root` |
-| restart/cold recovery | SQLite reconciliation + process-tree snapshot + Runs rehydrate | complete parked tree preservation、lost-tree settlement、sibling answer restart tests | `PASS`；未来 child admission policy 恢复有阻断缺口 |
-| Desktop tree fold/recovery/cancel | Agent bounded context application view + one root stream + durable snapshot | source-owned reducer、tree/narrative、reattach、replay、exact child cancel tests | `PASS`；first-party client 尚未 opt in |
-| Artifact tree fidelity | terminal portable projection + aggregate restore | lineage export与 disabled-build refusal | `PARTIAL`；启用后的整树 import/export 尚无最大 round-trip 证据 |
-| capability/contract/generated | Feature/Method/Shape registries | dispatcher/discovery/SDK 条件 gate 等价、drift gates | `PARTIAL`；production composition、profile constraints 仍有阻断缺口 |
-| Agent Framework 边界 | Agent execution primitives | architecture guards + admission lifecycle tests | `PASS` |
+| Gate                                        | Production owner                                                              | 现有关键行为证据                                                                                                                                                                                         | 裁决                                                                |
+| ------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| child 在发布/执行前原子 admission           | Agent `runtime.ChildAdmitter` + App `agentexec` adapter + Runs coordinator    | `TestChildAdmissionCompletesBeforeCreatedEventAndExecution`、`TestRejectedChildAdmissionRemovesUnpublishedProcess`、`TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem`、SQLite child opening test | `PASS`                                                              |
+| child/sibling/nested lineage 与 root stream | Runs coordinator + root Journal                                               | child source projection、nested lineage、canonical postorder、drained-stream barrier tests                                                                                                               | `PASS`                                                              |
+| 完整 tree HITL barrier                      | Agent snapshot + Runs transformation + runsegment transaction                 | complete sibling answer set、tree barrier、boot-resumable triplet、commit failure rollback tests                                                                                                         | `PASS`                                                              |
+| Running child cancel                        | root-owned cancellation arbiter + executor subtree teardown + App transaction | exact subtree、surviving root、quiescence、teardown failure、natural terminal race tests                                                                                                                 | `PASS`                                                              |
+| Waiting child cancel：仍有 boundary         | prepared Agent mutation + App write-set + runsegment transaction              | reduced Pending set、restart、rollback、root/child arbitration tests                                                                                                                                     | `PASS`                                                              |
+| Waiting child cancel：最后 boundary         | 同上；一次打开 surviving suspended Runs 的新 Segment                          | final-boundary continuation、activation failure、SQLite restart tests                                                                                                                                    | `PASS`                                                              |
+| parent `child_run_canceled` exactly once    | executor settlement + App terminal projection                                 | live/waiting cancel、natural terminal/approve/resume race tests                                                                                                                                          | `PASS`                                                              |
+| durable child get/list/items                | Queries + SQLite keyset projections + delivery state-dependent gate           | descendant page、exact/subtree item scope、ancestor summaries、child capability refusal tests                                                                                                            | `PASS`；启用后的正向 delivery case 待 W5.1                          |
+| child subscribe refusal                     | Runs subscribe root identity check                                            | `TestChildRunCannotBecomeAnIndependentSubscriptionRoot`                                                                                                                                                  | `PASS`；保持 `run_not_root`                                         |
+| restart/cold recovery                       | SQLite reconciliation + process-tree snapshot + Runs rehydrate                | complete parked tree preservation、lost-tree settlement、sibling answer restart tests                                                                                                                    | `PASS`；未来 child admission policy 恢复有阻断缺口                  |
+| Desktop tree fold/recovery/cancel           | Agent bounded context application view + one root stream + durable snapshot   | source-owned reducer、tree/narrative、reattach、replay、exact child cancel tests                                                                                                                         | `PASS`；first-party client 尚未 opt in                              |
+| Artifact tree fidelity                      | terminal portable projection + aggregate restore                              | lineage export与 disabled-build refusal                                                                                                                                                                  | `PARTIAL`；启用后的整树 import/export 尚无最大 round-trip 证据      |
+| capability/contract/generated               | Feature/Method/Shape registries                                               | dispatcher/discovery/SDK 条件 gate 等价、drift gates                                                                                                                                                     | `PARTIAL`；production composition、profile constraints 仍有阻断缺口 |
+| Agent Framework 边界                        | Agent execution primitives                                                    | architecture guards + admission lifecycle tests                                                                                                                                                          | `PASS`                                                              |
 
 #### Agent Framework 抽象泄漏复核
 
@@ -1894,22 +1950,22 @@ method/DTO shape、root stream 语义、child subscribe refusal、Agent public A
 唯一下一任务：
 
 ```text
-W6.0 — Runtime / Desktop architecture final audit
+W6.1 — Desktop Runtime connection / discovery anti-corruption boundary
 ```
 
 实施顺序：
 
-1. 以 package dependency、事实作者和完整 use case 为单位绘制 Runtime/Desktop
-   当前依赖图，不从目录名或接口数量推断；
-2. 逐项审计 domain/application 对外环依赖、delivery 业务裁决、consumer port
-   ownership、单实现胶水接口和跨 bounded-context DTO；
-3. 扫描失真命名、receiver 漂移、低信息错误、compat/dead code、无 owner goroutine
-   与重复 protocol/state facts；
-4. 将每个发现记录为“证据 → 根因 → 目标边界 → breaking blast radius → 验收”，先
-   冻结最小原子切片，再修改代码；
-5. 每个切片完成 targeted tests；阶段收口运行 Runtime/Desktop/Agent 全量门禁、
-   architecture guards、race 与生成物 drift；
-6. W6 完成并更新台账后，才进入 W7 Synara 像素级复刻，不混入本轮架构调整。
+1. 新建 Runtime endpoint consumer port，把默认值、读取、变更与拒绝语义留在
+   application，把 Host config/storage 机制留在 adapter；
+2. 用 `applied | rejected` 闭合结果替换“同一个 endpoint 字段有时表示当前值、有时
+   表示非法输入”的含混 shape，UI 负责 reason → locale 文案；
+3. 新建 Runtime discovery consumer port，adapter 只调用 typed SDK method 并剥离
+   transport response envelope；
+4. 将 local desktop shell base URL 与 selectable Runtime endpoint 拆成两个事实作者，
+   更新 container 与 sideload glue；
+5. 删除旧 adapter/入口，补 application、adapter、plugin integration 与通用
+   architecture regression tests；
+6. 跑 Desktop 全量门禁、依赖/兼容残留扫描，更新 W6.1 证据并独立 commit/push。
 
 W6 的禁止项：
 

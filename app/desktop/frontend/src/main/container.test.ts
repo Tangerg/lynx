@@ -1,12 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { RUNTIME_BASE, RUNTIME_ENDPOINT_CONFIG_KEY } from "@/main/config";
-import { setConfig } from "@/plugins/sdk/config";
 import type { LyraClient } from "@/rpc";
 import { getContainer, resetContainer, setContainer } from "./container";
 
 describe("main/container", () => {
   afterEach(() => {
-    setConfig(RUNTIME_ENDPOINT_CONFIG_KEY, RUNTIME_BASE);
     resetContainer();
   });
 
@@ -36,15 +33,5 @@ describe("main/container", () => {
     expect(getContainer().client()).toBe(first);
     resetContainer();
     expect(getContainer().client()).not.toBe(first);
-  });
-
-  it("rebuilds the Runtime client when the configured endpoint changes", () => {
-    const first = getContainer().client();
-    setConfig(RUNTIME_ENDPOINT_CONFIG_KEY, "http://127.0.0.1:27171");
-
-    const second = getContainer().client();
-
-    expect(second).not.toBe(first);
-    expect(getContainer().client()).toBe(second);
   });
 });

@@ -416,60 +416,36 @@ for (const file of files(SRC)) {
     });
   }
 
+  // `main/` is the composition root. A bounded context's application and
+  // domain rings describe policy and use cases that must be executable without
+  // the assembled app; concrete access belongs in that context's adapters.
+  // This is intentionally one rule for every context — the previous
+  // context-by-context list only guarded `main/container`, so Runtime
+  // application code reached `main/config` and the hole looked legitimate.
   if (
     !isTest &&
-    /plugins\/builtin\/agent\/application\/.+\.(ts|tsx)$/.test(rel) &&
-    /from\s+["']@\/main\/container["']/.test(text)
+    /plugins\/builtin\/.+\/(?:application|domain)\/.+\.(ts|tsx)$/.test(rel) &&
+    /from\s+["']@\/main(?:\/[^"']*)?["']/.test(text)
   ) {
     violations.push({
       file: rel,
-      reason: "agent application must depend on runtime gateway ports, not the composition root",
+      reason: "builtin context application / domain must reach the composition root through a port",
     });
   }
 
+  // Protocol vocabulary can legitimately be an input to an anti-corruption
+  // fold. A raw client or response envelope cannot: method dispatch and
+  // envelope removal are adapter responsibilities.
   if (
     !isTest &&
-    /plugins\/builtin\/settings\/providers\/application\/.+\.(ts|tsx)$/.test(rel) &&
-    /from\s+["']@\/main\/container["']/.test(text)
+    /plugins\/builtin\/.+\/application\/.+\.(ts|tsx)$/.test(rel) &&
+    /from\s+["']@\/rpc["']/.test(text) &&
+    /\b(?:RpcClient|DiscoverResponse)\b/.test(code(text))
   ) {
     violations.push({
       file: rel,
       reason:
-        "provider settings application must depend on provider gateway ports, not the composition root",
-    });
-  }
-
-  if (
-    !isTest &&
-    /plugins\/builtin\/settings\/mcp-servers\/application\/.+\.(ts|tsx)$/.test(rel) &&
-    /from\s+["']@\/main\/container["']/.test(text)
-  ) {
-    violations.push({
-      file: rel,
-      reason:
-        "MCP server settings application must depend on MCP gateway ports, not the composition root",
-    });
-  }
-
-  if (
-    !isTest &&
-    /plugins\/builtin\/settings\/(?:schedules|hooks)\/application\/.+\.(ts|tsx)$/.test(rel) &&
-    /from\s+["']@\/main\/container["']/.test(text)
-  ) {
-    violations.push({
-      file: rel,
-      reason: "settings application must depend on context gateway ports, not the composition root",
-    });
-  }
-
-  if (
-    !isTest &&
-    /plugins\/builtin\/workspace\/application\/.+\.(ts|tsx)$/.test(rel) &&
-    /from\s+["']@\/main\/container["']/.test(text)
-  ) {
-    violations.push({
-      file: rel,
-      reason: "workspace application must depend on context gateway ports",
+        "builtin context application must depend on a gateway, not raw RPC clients or envelopes",
     });
   }
 

@@ -3,9 +3,10 @@
 // Singleton instead of Context because non-component code (zustand effects,
 // plugin setup) calls these too; tests inject fakes via `setContainer()`.
 
-import { RUNTIME_BASE, RUNTIME_ENDPOINT_CONFIG_KEY } from "@/main/config";
+import { LOCAL_DESKTOP_SHELL_BASE_URL } from "@/main/config";
 import { runtimeRequestMeta } from "@/main/runtimeProtocol";
 import { negotiatedCapabilities } from "@/plugins/builtin/runtime/public/capabilities";
+import { currentRuntimeEndpoint } from "@/plugins/builtin/runtime/public/endpoint";
 import { getConfig } from "@/plugins/sdk/config";
 import type { LyraClient, ShellClient } from "@/rpc";
 import { createHttpTransport, createLyraClient, createShellClient } from "@/rpc";
@@ -32,7 +33,7 @@ function defaultContainer(): Container {
   let shared: { signature: string; client: LyraClient } | null = null;
   return {
     client: () => {
-      const baseUrl = getConfig<string>(RUNTIME_ENDPOINT_CONFIG_KEY) ?? RUNTIME_BASE;
+      const baseUrl = currentRuntimeEndpoint();
       const localToken = getConfig<string>("api.localToken") ?? undefined;
       const signature = `${baseUrl}\u0000${localToken ?? ""}`;
       if (shared?.signature === signature) return shared.client;
@@ -45,7 +46,7 @@ function defaultContainer(): Container {
     },
     // Shell assets belong to the local desktop process, not to the selectable
     // Runtime Protocol endpoint.
-    shell: createShellClient({ baseUrl: RUNTIME_BASE }),
+    shell: createShellClient({ baseUrl: LOCAL_DESKTOP_SHELL_BASE_URL }),
   };
 }
 

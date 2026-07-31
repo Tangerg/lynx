@@ -1,18 +1,9 @@
-// Composition-time configuration constants. Lives in `main/` because it
-// belongs to "how this app is wired to the outside world" — not to UI,
-// not to plugin runtime, not to a single transport. The composition
-// root (container.ts) reads from here; `lib/http` (the plugin-aware
-// RPC facade) also reads the default base URL from here so the
-// constant has a single owner.
-//
-// Runtime config (`host.config.set("runtime.endpoint", "...")`) can override
-// this at runtime; this file just supplies the first-paint default.
+// Composition-time identity for the local desktop process. The selectable
+// Runtime Protocol endpoint is owned by the Runtime bounded context; it merely
+// happens to use the same URL as this shell in the default development setup.
 
-/** Default base URL for the local Go Lyra Runtime mock backend. */
-export const RUNTIME_BASE = "http://127.0.0.1:17171";
-
-/** Active Runtime endpoint in the app-wide configuration registry. */
-export const RUNTIME_ENDPOINT_CONFIG_KEY = "runtime.endpoint";
+/** Fixed base URL for assets and metadata served by the local desktop shell. */
+export const LOCAL_DESKTOP_SHELL_BASE_URL = "http://127.0.0.1:17171";
 
 /** Identifies this client to the runtime in request metadata. */
-export const CLIENT_INFO = { name: "lyra-desktop", version: "0.0.0" } as const;
+export const DESKTOP_CLIENT_INFO = { name: "lyra-desktop", version: "0.0.0" } as const;

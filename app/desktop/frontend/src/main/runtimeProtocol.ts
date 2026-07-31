@@ -1,4 +1,4 @@
-import { CLIENT_INFO } from "@/main/config";
+import { DESKTOP_CLIENT_INFO } from "@/main/config";
 import { PROTOCOL_VERSION } from "@/rpc";
 import type { ClientCapabilities, RequestMeta } from "@/rpc";
 
@@ -16,7 +16,7 @@ export const CLIENT_CAPABILITIES: ClientCapabilities = {
 export function runtimeRequestMeta(): RequestMeta {
   return {
     protocolVersion: PROTOCOL_VERSION,
-    clientInfo: CLIENT_INFO,
+    clientInfo: DESKTOP_CLIENT_INFO,
     clientCapabilities: CLIENT_CAPABILITIES,
   };
 }

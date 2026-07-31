@@ -117,9 +117,9 @@ src/
 │
 ├── plugins/builtin/runtime/                        Runtime 限界上下文
 │   ├── domain/             capability published language
-│   ├── application/        endpoint config / discovery / capability ports
-│   ├── adapters/           capability Zustand read model
-│   └── public/             connection / capability facade
+│   ├── application/        endpoint policy / discovery / consumer-owned ports
+│   ├── adapters/           Host config、typed SDK discovery、capability read model
+│   └── public/             endpoint / capability facade
 │
 ├── plugins/builtin/workspace/                      Workspace 限界上下文
 │   ├── application/        navigation / tool routing / activity projection
@@ -157,7 +157,7 @@ src/
 │
 ├── main/                 composition root（DI）
 │   ├── container.ts      按 active endpoint/token 缓存 LyraClient；测试 setContainer 注入
-│   └── config.ts         默认 endpoint / PROTOCOL_VERSION 等组合常量
+│   └── config.ts         local desktop shell URL / desktop client identity
 │
 ├── styles/               globals.css（Tailwind base + @theme token + keyframes，唯一主样式）
 │                         + tool/markdown/overlays/layout.css（只承载无法用 utility 表达的 chrome）
@@ -206,10 +206,19 @@ React Query 的 cache 与 provider lookup 是共享技术机制，留在 `lib/da
 
 Application port 使用 `lib/ports/singletonPort.ts` 管理进程内绑定。每个 adapter installer 必须返回 disposer，plugin `setup` 必须把它返回给 SDK lifecycle；unload / reload / HMR 会断开旧 adapter。disposer 按实例比较，旧插件的迟到 cleanup 不会误清除后来安装的新 adapter。`public/` 不暴露 adapter installer，组合入口在同一上下文内直接装配。
 
-Runtime endpoint 是组合配置：`lyra.builtin.runtime` 在 capability discovery 之前同步恢复
-`runtime.endpoint`，`main/container.ts` 按 endpoint + local token 缓存客户端。Connection 面板只编辑
-Runtime 发布的 connection use case；应用变更后重载前端，让 streams、queries、capabilities 与 session
-read models 在同一个 Runtime 边界上重新装配，不做半热切换。
+Runtime endpoint 是 Runtime context 的应用配置：application 拥有默认值、HTTP(S)
+校验与 `applied | rejected` 结果语义，adapter 才把 consumer-owned port 接到 Host
+config/storage。`lyra.builtin.runtime` 在 capability discovery 之前同步恢复 endpoint，
+`main/container.ts` 只通过 Runtime `public/endpoint` 读取 active endpoint，并按
+endpoint 与 local token 缓存客户端。Connection 面板把稳定 rejection code 翻译为当前 locale
+文案；应用变更后重载前端，让 streams、queries、capabilities 与 Session read models
+在同一个 Runtime 边界上重新装配，不做半热切换。
+
+固定的 local desktop shell URL 是另一个组合事实，只服务 shell metadata/assets 与
+sideload bundle；即使它当前与默认 Runtime endpoint 字面相同，也不复用同一常量。
+Capability discovery application 只依赖 `RuntimeDiscovery.discoverCapabilities()`；
+adapter 调用 typed `client.runtime.discover()` 并移除 `DiscoverResponse` envelope。
+插件 unload 后迟到的 discovery result 不得重新发布 capability。
 
 **增加新协议方法的步骤**：
 

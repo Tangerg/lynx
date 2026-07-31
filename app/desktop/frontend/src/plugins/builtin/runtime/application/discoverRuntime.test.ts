@@ -1,12 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  PROTOCOL_VERSION,
-  type DiscoverResponse,
-  type FeatureCapability,
-  type RpcClient,
-  type ServerCapabilities,
-} from "@/rpc";
-import { discoverRuntime, type RuntimeCapabilitySink } from "./discoverRuntime";
+import { type FeatureCapability, type ServerCapabilities } from "@/rpc";
+import { discoverRuntime, type RuntimeDiscovery } from "./discoverRuntime";
 
 // Every advertised capability carries the feature's own negotiation facts. These
 // fixtures are about whether a build offers a feature, so they say "advertised,
@@ -15,86 +9,71 @@ function stable(enabled: boolean): FeatureCapability {
   return { enabled, stability: "stable", clientOptIn: false, requiredByRunProtocol: false };
 }
 
-const discovery: DiscoverResponse = {
-  protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
-  serverInfo: { name: "lyra-runtime", version: "1.0.0", cwd: "/work", home: "/home" },
-  capabilities: {
-    runEvents: [],
-    runtimeTopics: [],
-    stateSnapshots: [],
-    streamingMethods: [],
-    features: {
-      reasoning: stable(false),
-      mcp: stable(false),
-      multimodal: stable(false),
-      git: stable(false),
-      fileWatch: stable(false),
-      checkpoints: stable(false),
-      lsp: stable(false),
-      subagents: stable(false),
-      skills: stable(false),
-      sessionExport: stable(false),
-      memory: stable(false),
-      relocate: stable(false),
-      clientTools: stable(false),
-    },
-    limits: {
-      runReplay: { scope: "processRootSegment", maxEvents: 2048, maxBytes: 16_777_216 },
-      runtimeSubscription: { maxTopics: 32, maxWatches: 32 },
-    },
+const capabilities: ServerCapabilities = {
+  runEvents: [],
+  runtimeTopics: [],
+  stateSnapshots: [],
+  streamingMethods: [],
+  features: {
+    reasoning: stable(false),
+    mcp: stable(false),
+    multimodal: stable(false),
+    git: stable(false),
+    fileWatch: stable(false),
+    checkpoints: stable(false),
+    lsp: stable(false),
+    subagents: stable(false),
+    skills: stable(false),
+    sessionExport: stable(false),
+    memory: stable(false),
+    relocate: stable(false),
+    clientTools: stable(false),
+  },
+  limits: {
+    runReplay: { scope: "processRootSegment", maxEvents: 2048, maxBytes: 16_777_216 },
+    runtimeSubscription: { maxTopics: 32, maxWatches: 32 },
   },
 };
 
-function fakeRpc(call: RpcClient["call"]): RpcClient {
-  return {
-    call,
-    notify: vi.fn(),
-    subscribe: vi.fn(),
-    close: vi.fn(),
-  } as unknown as RpcClient;
-}
-
-function capabilitySink(): RuntimeCapabilitySink & { replace: ReturnType<typeof vi.fn> } {
-  return { replace: vi.fn<(capabilities: ServerCapabilities) => void>() };
+function discovery(
+  discoverCapabilities: RuntimeDiscovery["discoverCapabilities"],
+): RuntimeDiscovery {
+  return { discoverCapabilities };
 }
 
 describe("discoverRuntime", () => {
-  it("deduplicates discovery per client without coupling clients or state stores", async () => {
-    let resolveFirst: (value: DiscoverResponse) => void = () => undefined;
-    const first = new Promise<DiscoverResponse>((resolve) => {
+  it("deduplicates discovery per gateway without coupling independent gateways", async () => {
+    let resolveFirst: (value: ServerCapabilities) => void = () => undefined;
+    const first = new Promise<ServerCapabilities>((resolve) => {
       resolveFirst = resolve;
     });
     const firstCall = vi.fn().mockReturnValue(first);
-    const secondCall = vi.fn().mockResolvedValue(discovery);
-    const firstRpc = fakeRpc(firstCall);
-    const secondRpc = fakeRpc(secondCall);
-    const firstSink = capabilitySink();
-    const secondSink = capabilitySink();
+    const secondCall = vi.fn().mockResolvedValue(capabilities);
+    const firstSource = discovery(firstCall);
+    const secondSource = discovery(secondCall);
 
-    const firstDiscovery = discoverRuntime(firstRpc, firstSink);
-    expect(discoverRuntime(firstRpc, firstSink)).toBe(firstDiscovery);
-    const secondDiscovery = discoverRuntime(secondRpc, secondSink);
+    const firstResult = discoverRuntime(firstSource);
+    expect(discoverRuntime(firstSource)).toBe(firstResult);
+    const secondResult = discoverRuntime(secondSource);
 
     await Promise.resolve();
     expect(firstCall).toHaveBeenCalledOnce();
     expect(secondCall).toHaveBeenCalledOnce();
 
-    resolveFirst(discovery);
-    await Promise.all([firstDiscovery, secondDiscovery]);
-    expect(firstSink.replace).toHaveBeenCalledWith(discovery.capabilities);
-    expect(secondSink.replace).toHaveBeenCalledWith(discovery.capabilities);
+    resolveFirst(capabilities);
+    await expect(firstResult).resolves.toBe(capabilities);
+    await expect(secondResult).resolves.toBe(capabilities);
   });
 
   it("clears a failed discovery so the next call can retry", async () => {
     const call = vi
       .fn()
       .mockRejectedValueOnce(new Error("offline"))
-      .mockResolvedValueOnce(discovery);
-    const rpc = fakeRpc(call as unknown as RpcClient["call"]);
-    const sink = capabilitySink();
+      .mockResolvedValueOnce(capabilities);
+    const source = discovery(call);
 
-    await expect(discoverRuntime(rpc, sink)).rejects.toThrow("offline");
-    await expect(discoverRuntime(rpc, sink)).resolves.toBeUndefined();
+    await expect(discoverRuntime(source)).rejects.toThrow("offline");
+    await expect(discoverRuntime(source)).resolves.toBe(capabilities);
     expect(call).toHaveBeenCalledTimes(2);
   });
 });

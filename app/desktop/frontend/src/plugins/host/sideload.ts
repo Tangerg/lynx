@@ -5,7 +5,7 @@ import type { LoadResult } from "../sdk/definePlugin";
 import type { PluginSpec } from "../sdk/types";
 import type { SideloadEntry } from "@/rpc";
 import { z } from "zod";
-import { RUNTIME_BASE } from "@/main/config";
+import { LOCAL_DESKTOP_SHELL_BASE_URL } from "@/main/config";
 import { getContainer } from "@/main/container";
 import { loadPlugin } from "../sdk/definePlugin";
 import { reportPluginError } from "../sdk/errors";
@@ -35,7 +35,7 @@ export async function loadSideloadedPlugins(): Promise<LoadResult[]> {
   // The manifest fetch goes through the container's shell client (the single
   // outbound seam — injectable in tests, ARCHITECTURE §10). The per-plugin
   // module load below is a dynamic import(), inherently glue, so it builds the
-  // URL from RUNTIME_BASE directly.
+  // URL from the fixed local shell base directly.
   let infos: SideloadEntry[];
   try {
     infos = await getContainer().shell.sideloadManifest();
@@ -47,7 +47,7 @@ export async function loadSideloadedPlugins(): Promise<LoadResult[]> {
   const results: LoadResult[] = [];
 
   for (const info of infos) {
-    const url = `${RUNTIME_BASE}${info.url}`;
+    const url = `${LOCAL_DESKTOP_SHELL_BASE_URL}${info.url}`;
     let spec: PluginSpec;
 
     try {

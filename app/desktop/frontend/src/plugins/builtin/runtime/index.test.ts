@@ -30,12 +30,7 @@ function stubContainer(discover: Methods["runtime"]["discover"]) {
   setContainer({
     client: () =>
       ({
-        rpc: {
-          call: (method: string) =>
-            method === "runtime.discover"
-              ? discover()
-              : Promise.reject(new Error(`unexpected method ${method}`)),
-        },
+        runtime: { discover },
       }) as unknown as LyraClient,
   });
 }
@@ -68,6 +63,27 @@ describe("runtime plugin", () => {
     await loadPlugin(runtimePlugin);
 
     await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(useRuntimeStore.getState().capabilities).toBeNull();
+  });
+
+  it("does not publish a discovery result after the plugin is unloaded", async () => {
+    let resolveDiscovery: (value: DiscoverResponse) => void = () => undefined;
+    const discover = vi.fn(
+      () =>
+        new Promise<DiscoverResponse>((resolve) => {
+          resolveDiscovery = resolve;
+        }),
+    );
+    stubContainer(discover);
+
+    await loadPlugin(runtimePlugin);
+    await vi.waitFor(() => expect(discover).toHaveBeenCalledOnce());
+    unloadPlugin(runtimePlugin.name);
+
+    resolveDiscovery(discovery);
+    await Promise.resolve();
+    await Promise.resolve();
+
     expect(useRuntimeStore.getState().capabilities).toBeNull();
   });
 });

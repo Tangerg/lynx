@@ -168,6 +168,30 @@ Composer 不应直接依赖 agent 内部 store。它可以依赖 agent 暴露的
 - 把配置编辑、验证、保存、测试连接等用例从设置页 UI 中抽出。
 - RPC shape 不泄漏到表单组件；表单组件消费 draft/view model。
 
+### Runtime
+
+核心语言：
+
+- RuntimeEndpoint
+- EndpointChange
+- Capability
+- Discovery
+
+职责：
+
+- 拥有可切换 Runtime endpoint 的默认值、校验和闭合结果语义；
+- 通过 consumer-owned port 读写 endpoint，不感知 Host config/storage；
+- 通过 discovery gateway 只读取 ServerCapabilities，不感知 raw RPC client、method
+  string 或 response envelope；
+- 在 plugin lifecycle 内发布、清空 capability，并拒绝迟到的异步 discovery 回写。
+
+边界：
+
+- `main/container` 通过 Runtime `public/endpoint` 读取 active endpoint；
+- Runtime adapter 可以调用 composition root 与 typed SDK，application/domain 不可以；
+- endpoint rejection reason 是稳定 application vocabulary，locale 文案归 Settings UI；
+- local desktop shell URL 属于 composition，不是 Runtime endpoint 的第二个名字。
+
 ### Plugin Platform
 
 核心语言：

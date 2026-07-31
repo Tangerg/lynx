@@ -1,26 +1,22 @@
-import type { DiscoverResponse, RpcClient, ServerCapabilities } from "@/rpc";
+import type { ServerCapabilities } from "@/rpc";
 
-export interface RuntimeCapabilitySink {
-  replace(capabilities: ServerCapabilities): void;
+/** Consumer-owned gateway; adapters remove the Runtime Protocol envelope. */
+export interface RuntimeDiscovery {
+  discoverCapabilities(): Promise<ServerCapabilities>;
 }
 
-const inFlight = new WeakMap<RpcClient, Promise<void>>();
+const inFlight = new WeakMap<RuntimeDiscovery, Promise<ServerCapabilities>>();
 
-export function discoverRuntime(
-  rpc: RpcClient,
-  capabilities: RuntimeCapabilitySink,
-): Promise<void> {
-  const existing = inFlight.get(rpc);
+export function discoverRuntime(discovery: RuntimeDiscovery): Promise<ServerCapabilities> {
+  const existing = inFlight.get(discovery);
   if (existing) return existing;
 
   const current = Promise.resolve()
-    .then(() => rpc.call<DiscoverResponse>("runtime.discover", {}))
-    .then((result) => {
-      capabilities.replace(result.capabilities);
-    });
-  inFlight.set(rpc, current);
+    .then(() => discovery.discoverCapabilities())
+    .then((capabilities) => capabilities);
+  inFlight.set(discovery, current);
   const clear = () => {
-    if (inFlight.get(rpc) === current) inFlight.delete(rpc);
+    if (inFlight.get(discovery) === current) inFlight.delete(discovery);
   };
   void current.then(clear, clear);
   return current;
