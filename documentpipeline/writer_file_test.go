@@ -65,7 +65,7 @@ func TestFileWriterHonorsCanceledContextBeforeOpening(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if err := writer.Write(ctx, nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Write error = %v, want context.Canceled", err)

@@ -46,26 +46,26 @@ type TokenCountBatcher struct {
 }
 
 func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, error) {
-	if config.Estimator == nil {
-		return nil, errors.New("documentpipeline.TokenCountBatcherConfig: Estimator is required")
+	if isNil(config.Estimator) {
+		return nil, errors.New("document pipeline: token estimator is required")
 	}
 	if config.MaxTokens == 0 {
 		config.MaxTokens = defaultBatcherMaxTokens
 	}
 	if config.MaxTokens < 0 {
-		return nil, errors.New("documentpipeline.TokenCountBatcherConfig: MaxTokens must be > 0")
+		return nil, errors.New("document pipeline: maximum batch tokens must not be negative")
 	}
 	if config.Reserve < 0 || config.Reserve >= 1 {
-		return nil, errors.New("documentpipeline.TokenCountBatcherConfig: Reserve must be in [0, 1)")
+		return nil, errors.New("document pipeline: token reserve must be in [0, 1)")
 	}
 	if config.Formatter == nil {
 		config.Formatter = FormatterFunc(formatText)
+	} else if isNil(config.Formatter) {
+		return nil, errors.New("document pipeline: formatter must not be a typed nil")
 	}
-	if config.Mode == "" {
-		config.Mode = MetadataModeAll
-	}
-	if !validMetadataMode(config.Mode) {
-		return nil, fmt.Errorf("documentpipeline.TokenCountBatcherConfig: invalid Mode %q", config.Mode)
+	mode, err := normalizeMetadataMode(config.Mode)
+	if err != nil {
+		return nil, err
 	}
 
 	effective := max(1, int(float64(config.MaxTokens)*(1-config.Reserve)))
@@ -73,7 +73,7 @@ func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, e
 		estimator: config.Estimator,
 		maxTokens: effective,
 		formatter: config.Formatter,
-		mode:      config.Mode,
+		mode:      mode,
 	}, nil
 }
 
@@ -84,21 +84,27 @@ func (b *TokenCountBatcher) Batch(ctx context.Context, docs []*document.Document
 	}
 
 	scored := make([]sized, 0, len(docs))
-	for _, doc := range docs {
+	for index, doc := range docs {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+		if doc == nil {
+			return nil, fmt.Errorf("document pipeline: size document %d: %w", index, ErrNilDocument)
+		}
 		rendered, err := b.formatter.Format(doc, b.mode)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("document pipeline: format document %d for sizing: %w", index, err)
 		}
 
 		count, err := b.estimator.EstimateText(ctx, rendered)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("document pipeline: estimate document %d tokens: %w", index, err)
+		}
+		if count < 0 {
+			return nil, fmt.Errorf("document pipeline: token estimator returned %d for document %d", count, index)
 		}
 		if count > b.maxTokens {
-			return nil, fmt.Errorf("documentpipeline.TokenCountBatcher.Batch: document %q has %d tokens, exceeds per-batch budget %d",
+			return nil, fmt.Errorf("document pipeline: document %q has %d tokens, exceeding the batch budget of %d",
 				doc.ID, count, b.maxTokens)
 		}
 		scored = append(scored, sized{doc: doc, tokens: count})

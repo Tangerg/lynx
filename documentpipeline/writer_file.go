@@ -1,22 +1,18 @@
 package documentpipeline
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
 
-	"github.com/spf13/cast"
-
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/metadata"
 )
-
-// fileWriterBatchSize is the number of documents buffered between
-// [os.File].WriteString flushes — small enough to bound peak memory.
-const fileWriterBatchSize = 5
 
 // Metadata keys recognized by [FileWriter] when writing document
 // markers. These are conventions, not part of [Document]'s public
@@ -62,23 +58,23 @@ type FileWriter struct {
 
 func NewFileWriter(config FileWriterConfig) (*FileWriter, error) {
 	if config.Path == "" {
-		return nil, errors.New("documentpipeline.FileWriterConfig: Path is required")
+		return nil, errors.New("document pipeline: output path is required")
 	}
 	if config.Formatter == nil {
 		config.Formatter = FormatterFunc(formatText)
+	} else if isNil(config.Formatter) {
+		return nil, errors.New("document pipeline: formatter must not be a typed nil")
 	}
-	if config.Mode == "" {
-		config.Mode = MetadataModeAll
-	}
-	if !validMetadataMode(config.Mode) {
-		return nil, fmt.Errorf("documentpipeline.FileWriterConfig: invalid Mode %q", config.Mode)
+	mode, err := normalizeMetadataMode(config.Mode)
+	if err != nil {
+		return nil, err
 	}
 	return &FileWriter{
 		path:            config.Path,
 		documentMarkers: config.DocumentMarkers,
 		append:          config.Append,
 		formatter:       config.Formatter,
-		mode:            config.Mode,
+		mode:            mode,
 	}, nil
 }
 
@@ -91,16 +87,16 @@ func (f *FileWriter) Write(ctx context.Context, docs []*document.Document) (err 
 	}
 	file, err := os.OpenFile(f.path, f.openFlags(), 0o666)
 	if err != nil {
-		return fmt.Errorf("documentpipeline.FileWriter.Write: open %s: %w", f.path, err)
+		return fmt.Errorf("document pipeline: open output %q: %w", f.path, err)
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("documentpipeline.FileWriter.Write: close: %w", closeErr))
+			err = errors.Join(err, fmt.Errorf("document pipeline: close output %q: %w", f.path, closeErr))
 		}
 	}()
 
-	if writeErr := f.writeBatched(ctx, docs, file); writeErr != nil {
-		return fmt.Errorf("documentpipeline.FileWriter.Write: %w", writeErr)
+	if writeErr := f.write(ctx, docs, file); writeErr != nil {
+		return fmt.Errorf("document pipeline: write output %q: %w", f.path, writeErr)
 	}
 	return nil
 }
@@ -112,31 +108,25 @@ func (f *FileWriter) openFlags() int {
 	return os.O_CREATE | os.O_WRONLY | os.O_TRUNC
 }
 
-func (f *FileWriter) writeBatched(ctx context.Context, docs []*document.Document, file *os.File) error {
-	var buf strings.Builder
-
+func (f *FileWriter) write(ctx context.Context, docs []*document.Document, file *os.File) error {
+	buffered := bufio.NewWriter(file)
 	for i, doc := range docs {
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		if doc == nil {
+			return fmt.Errorf("document %d: %w", i, ErrNilDocument)
 		}
 		rendered, err := f.renderDocument(i, doc)
 		if err != nil {
 			return fmt.Errorf("render document %d: %w", i, err)
 		}
-		buf.WriteString(rendered)
-
-		if (i+1)%fileWriterBatchSize == 0 {
-			if _, err := file.WriteString(buf.String()); err != nil {
-				return fmt.Errorf("documentpipeline.FileWriter.writeBatched: flush batch at index %d: %w", i, err)
-			}
-			buf.Reset()
+		if _, err := io.WriteString(buffered, rendered); err != nil {
+			return fmt.Errorf("write document %d: %w", i, err)
 		}
 	}
-
-	if buf.Len() > 0 {
-		if _, err := file.WriteString(buf.String()); err != nil {
-			return fmt.Errorf("documentpipeline.FileWriter.writeBatched: flush trailing batch: %w", err)
-		}
+	if err := buffered.Flush(); err != nil {
+		return fmt.Errorf("flush buffered output: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -151,7 +141,11 @@ func (f *FileWriter) renderDocument(index int, doc *document.Document) (string, 
 		buf.WriteString("### Index: ")
 		buf.WriteString(strconv.Itoa(index))
 
-		if start, end, ok := documentPageRange(doc); ok {
+		start, end, hasRange, err := documentPageRange(doc)
+		if err != nil {
+			return "", err
+		}
+		if hasRange {
 			buf.WriteString(", Pages:[")
 			buf.WriteString(start)
 			buf.WriteString(",")
@@ -170,16 +164,31 @@ func (f *FileWriter) renderDocument(index int, doc *document.Document) (string, 
 	return buf.String(), nil
 }
 
-func documentPageRange(doc *document.Document) (string, string, bool) {
+func documentPageRange(doc *document.Document) (string, string, bool, error) {
 	if doc == nil || doc.Metadata == nil {
-		return "", "", false
+		return "", "", false, nil
 	}
-	startValue, _, _ := metadata.Decode[any](doc.Metadata, metadataKeyStartPageNumber)
-	endValue, _, _ := metadata.Decode[any](doc.Metadata, metadataKeyEndPageNumber)
-	start := cast.ToString(startValue)
-	end := cast.ToString(endValue)
+	startValue, startFound, err := metadata.Decode[any](doc.Metadata, metadataKeyStartPageNumber)
+	if err != nil {
+		return "", "", false, fmt.Errorf("decode start page number: %w", err)
+	}
+	endValue, endFound, err := metadata.Decode[any](doc.Metadata, metadataKeyEndPageNumber)
+	if err != nil {
+		return "", "", false, fmt.Errorf("decode end page number: %w", err)
+	}
+	if !startFound || !endFound {
+		return "", "", false, nil
+	}
+	start, err := metadataValueText(startValue)
+	if err != nil {
+		return "", "", false, fmt.Errorf("format start page number: %w", err)
+	}
+	end, err := metadataValueText(endValue)
+	if err != nil {
+		return "", "", false, fmt.Errorf("format end page number: %w", err)
+	}
 	if start == "" || end == "" {
-		return "", "", false
+		return "", "", false, nil
 	}
-	return start, end, true
+	return start, end, true, nil
 }

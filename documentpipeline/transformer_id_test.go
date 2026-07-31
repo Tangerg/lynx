@@ -1,7 +1,6 @@
 package documentpipeline_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
@@ -21,7 +20,7 @@ func TestIDAssigner_FillsEmptyOnly(t *testing.T) {
 	withID.ID = "keep-me"
 	withoutID, _ := document.NewDocument("b", nil)
 
-	out, err := assigner.Transform(context.Background(), []*document.Document{withID, withoutID})
+	out, err := assigner.Transform(t.Context(), []*document.Document{withID, withoutID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +43,7 @@ func TestIDAssigner_Overwrite(t *testing.T) {
 
 	doc, _ := document.NewDocument("a", nil)
 	doc.ID = "old"
-	out, _ := assigner.Transform(context.Background(), []*document.Document{doc})
+	out, _ := assigner.Transform(t.Context(), []*document.Document{doc})
 	if out[0].ID == "old" || out[0].ID == "" {
 		t.Fatalf("Overwrite must replace id, got %q", out[0].ID)
 	}

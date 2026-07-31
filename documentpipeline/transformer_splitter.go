@@ -3,6 +3,8 @@ package documentpipeline
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/metadata"
@@ -52,7 +54,10 @@ type Splitter struct {
 
 func NewSplitter(config SplitterConfig) (*Splitter, error) {
 	if config.SplitFunc == nil {
-		return nil, errors.New("documentpipeline.SplitterConfig: SplitFunc is required")
+		return nil, errors.New("document pipeline: split function is required")
+	}
+	if config.IDGenerator != nil && isNil(config.IDGenerator) {
+		return nil, errors.New("document pipeline: ID generator must not be a typed nil")
 	}
 	return &Splitter{
 		splitFunc:   config.SplitFunc,
@@ -65,10 +70,16 @@ func NewSplitter(config SplitterConfig) (*Splitter, error) {
 // chunks of doc[i+1].
 func (s *Splitter) Transform(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
 	out := make([]*document.Document, 0, len(docs))
-	for _, doc := range docs {
+	for index, doc := range docs {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if doc == nil {
+			return nil, fmt.Errorf("document pipeline: split document %d: %w", index, ErrNilDocument)
+		}
 		chunks, err := s.splitOne(ctx, doc)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("document pipeline: split document %d: %w", index, err)
 		}
 		out = append(out, chunks...)
 	}
@@ -83,7 +94,7 @@ func (s *Splitter) splitOne(ctx context.Context, doc *document.Document) ([]*doc
 
 	nonEmpty := make([]string, 0, len(chunks))
 	for _, text := range chunks {
-		if text != "" {
+		if strings.TrimSpace(text) != "" {
 			nonEmpty = append(nonEmpty, text)
 		}
 	}

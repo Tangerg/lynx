@@ -16,7 +16,7 @@ func TestWithMetadata_AppliedToEveryDocument(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	docs, err := r.Read(context.Background())
+	docs, err := r.Read(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestWithMetadata_DoesNotClobberReaderKeys(t *testing.T) {
 		markdown.WithHeadingSplit(1),
 		markdown.WithMetadata(map[string]any{markdown.MetadataHeading: "HIJACK"}),
 	)
-	docs, err := r.Read(context.Background())
+	docs, err := r.Read(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}

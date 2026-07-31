@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"reflect"
 	"strings"
 
 	ledongthuc "github.com/ledongthuc/pdf"
@@ -20,6 +21,10 @@ const (
 	MetadataPagesTotal = "pdf.pages.total"
 	MetadataSourceName = "pdf.source"
 )
+
+// ErrPartialRead reports that at least one PDF page could not be decoded.
+// Read may return successfully decoded documents together with this error.
+var ErrPartialRead = errors.New("pdf reader: one or more pages could not be read")
 
 // Option configures a [Reader].
 type Option func(*Reader)
@@ -68,25 +73,41 @@ type Reader struct {
 // size is the total byte length of the PDF — pass file.Size() (from
 // os.File.Stat) or len(buf) for in-memory data.
 func NewReader(src io.ReaderAt, size int64, opts ...Option) (*Reader, error) {
-	if src == nil {
-		return nil, errors.New("pdf: NewReader: src must not be nil")
+	if isNil(src) {
+		return nil, errors.New("pdf reader: source must not be nil")
 	}
 	if size <= 0 {
-		return nil, errors.New("pdf: NewReader: size must be > 0")
+		return nil, errors.New("pdf reader: size must be positive")
 	}
 	r := &Reader{src: src, size: size}
-	for _, opt := range opts {
+	for index, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("pdf reader: option %d is nil", index)
+		}
 		opt(r)
 	}
 	return r, nil
 }
 
+func isNil(value any) bool {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return true
+	}
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
+}
+
 // Read parses the source and emits documents according to the
 // configured mode. ctx cancellation is honored between pages.
 //
-// Pages that fail to parse are skipped (their errors are joined into
-// the returned error only when NO page yielded text); a document-level
-// parse failure returns an error. Both guard against the upstream
+// Pages that fail to parse are skipped and reported through [ErrPartialRead];
+// successfully decoded documents are returned alongside that error. A
+// document-level parse failure returns no documents. Both guard against the upstream
 // library's panic-on-malformed-input style — see [pageText].
 func (r *Reader) Read(ctx context.Context) (docs []*document.Document, err error) {
 	if ctxErr := ctx.Err(); ctxErr != nil {
@@ -130,13 +151,10 @@ func (r *Reader) openReader() (*ledongthuc.Reader, error) {
 }
 
 func (r *Reader) readWhole(ctx context.Context, pdfReader *ledongthuc.Reader, total int) ([]*document.Document, error) {
-	body, err := readAllText(ctx, pdfReader, total)
-	if err != nil {
-		return nil, err
-	}
+	body, readErr := readAllText(ctx, pdfReader, total)
 	body = strings.TrimSpace(body)
 	if body == "" {
-		return nil, nil
+		return nil, readErr
 	}
 	doc, err := document.NewDocument(body, nil)
 	if err != nil {
@@ -146,7 +164,7 @@ func (r *Reader) readWhole(ctx context.Context, pdfReader *ledongthuc.Reader, to
 	if err != nil {
 		return nil, fmt.Errorf("pdf: encode metadata: %w", err)
 	}
-	return []*document.Document{doc}, nil
+	return []*document.Document{doc}, readErr
 }
 
 func (r *Reader) readPages(ctx context.Context, pdfReader *ledongthuc.Reader, total int) ([]*document.Document, error) {
@@ -182,8 +200,8 @@ func (r *Reader) readPages(ctx context.Context, pdfReader *ledongthuc.Reader, to
 		}
 		docs = append(docs, doc)
 	}
-	if len(docs) == 0 && len(pageErrs) > 0 {
-		return nil, fmt.Errorf("pdf: no readable pages: %w", errors.Join(pageErrs...))
+	if len(pageErrs) > 0 {
+		return docs, partialReadError(pageErrs)
 	}
 	return docs, nil
 }
@@ -203,8 +221,8 @@ func (r *Reader) baseMetadata(total int) map[string]any {
 // readAllText streams every page through [pageText] and concatenates
 // the result. Using the per-page API instead of Reader.GetPlainText so
 // a single bad page is skipped without aborting the whole document;
-// page errors surface only when no page yielded text. ctx cancellation
-// is honored between pages.
+// page errors are joined and returned with any text that was decoded. ctx
+// cancellation is honored between pages.
 func readAllText(ctx context.Context, pdfReader *ledongthuc.Reader, total int) (string, error) {
 	var b strings.Builder
 	fonts := make(map[string]*ledongthuc.Font)
@@ -226,10 +244,14 @@ func readAllText(ctx context.Context, pdfReader *ledongthuc.Reader, total int) (
 		}
 		b.WriteString(text)
 	}
-	if b.Len() == 0 && len(pageErrs) > 0 {
-		return "", fmt.Errorf("pdf: no readable pages: %w", errors.Join(pageErrs...))
+	if len(pageErrs) > 0 {
+		return b.String(), partialReadError(pageErrs)
 	}
 	return b.String(), nil
+}
+
+func partialReadError(pageErrors []error) error {
+	return fmt.Errorf("%w: %w", ErrPartialRead, errors.Join(pageErrors...))
 }
 
 // pageText extracts one page's plain text. The upstream parser panics

@@ -41,14 +41,14 @@ func TestFunctionAdapters(t *testing.T) {
 	transformer := documentpipeline.TransformerFunc(func(_ context.Context, docs []*document.Document) ([]*document.Document, error) {
 		return docs, nil
 	})
-	if got, _ := transformer.Transform(context.Background(), docs); len(got) != 1 {
+	if got, _ := transformer.Transform(t.Context(), docs); len(got) != 1 {
 		t.Fatalf("Transform len = %d", len(got))
 	}
 
 	batcher := documentpipeline.BatcherFunc(func(_ context.Context, docs []*document.Document) ([][]*document.Document, error) {
 		return [][]*document.Document{docs}, nil
 	})
-	if got, _ := batcher.Batch(context.Background(), docs); len(got) != 1 || len(got[0]) != 1 {
+	if got, _ := batcher.Batch(t.Context(), docs); len(got) != 1 || len(got[0]) != 1 {
 		t.Fatal("Batch shape unexpected")
 	}
 }
@@ -111,10 +111,13 @@ func TestSimpleFormatter_ExcludeKeys(t *testing.T) {
 }
 
 func TestTextSplitter_DefaultSeparatorIsNewline(t *testing.T) {
-	s := documentpipeline.NewTextSplitter(documentpipeline.TextSplitterConfig{})
+	s, err := documentpipeline.NewTextSplitter(documentpipeline.TextSplitterConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	doc, _ := document.NewDocument("a\nb\nc", nil)
-	got, err := s.Transform(context.Background(), []*document.Document{doc})
+	got, err := s.Transform(t.Context(), []*document.Document{doc})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,12 +127,15 @@ func TestTextSplitter_DefaultSeparatorIsNewline(t *testing.T) {
 }
 
 func TestTextSplitter_PreservesMetadata(t *testing.T) {
-	s := documentpipeline.NewTextSplitter(documentpipeline.TextSplitterConfig{Separator: "|"})
+	s, err := documentpipeline.NewTextSplitter(documentpipeline.TextSplitterConfig{Separator: "|"})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	doc, _ := document.NewDocument("a|b", nil)
 	_ = doc.Metadata.Set("src", "manual")
 
-	got, _ := s.Transform(context.Background(), []*document.Document{doc})
+	got, _ := s.Transform(t.Context(), []*document.Document{doc})
 	for i, chunk := range got {
 		if src, ok, _ := metadata.Decode[string](chunk.Metadata, "src"); !ok || src != "manual" {
 			t.Fatalf("chunk[%d] missing metadata", i)
@@ -150,7 +156,7 @@ func TestSplitter_PropagatesError(t *testing.T) {
 	})
 
 	doc, _ := document.NewDocument("x", nil)
-	if _, err := s.Transform(context.Background(), []*document.Document{doc}); !errors.Is(err, want) {
+	if _, err := s.Transform(t.Context(), []*document.Document{doc}); !errors.Is(err, want) {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -163,8 +169,32 @@ func TestSplitter_DropsEmptyChunks(t *testing.T) {
 	})
 
 	doc, _ := document.NewDocument("x", nil)
-	got, _ := s.Transform(context.Background(), []*document.Document{doc})
+	got, _ := s.Transform(t.Context(), []*document.Document{doc})
 	if len(got) != 2 {
 		t.Fatalf("got %d chunks, want 2 (empty dropped)", len(got))
+	}
+}
+
+func TestStagesRejectNilDocuments(t *testing.T) {
+	splitter, err := documentpipeline.NewSplitter(documentpipeline.SplitterConfig{
+		SplitFunc: func(context.Context, string) ([]string, error) { return []string{"chunk"}, nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := splitter.Transform(t.Context(), []*document.Document{nil}); !errors.Is(err, documentpipeline.ErrNilDocument) {
+		t.Fatalf("Splitter error = %v, want ErrNilDocument", err)
+	}
+
+	if _, err := (documentpipeline.BoundFormatter{}).Format(nil); !errors.Is(err, documentpipeline.ErrNilDocument) {
+		t.Fatalf("BoundFormatter error = %v, want ErrNilDocument", err)
+	}
+}
+
+func TestFormatterRejectsUnknownMetadataMode(t *testing.T) {
+	doc, _ := document.NewDocument("text", nil)
+	formatter := documentpipeline.NewSimpleFormatter(documentpipeline.SimpleFormatterConfig{})
+	if _, err := formatter.Format(doc, "mystery"); !errors.Is(err, documentpipeline.ErrInvalidMetadataMode) {
+		t.Fatalf("Format() error = %v, want ErrInvalidMetadataMode", err)
 	}
 }

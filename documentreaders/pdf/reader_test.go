@@ -37,3 +37,10 @@ func TestNewReader_AcceptsOptions(t *testing.T) {
 		t.Fatalf("constructor rejected valid options: %v", err)
 	}
 }
+
+func TestNewReaderRejectsNilOption(t *testing.T) {
+	src := bytes.NewReader([]byte("not really a pdf"))
+	if _, err := pdf.NewReader(src, int64(src.Len()), nil); err == nil {
+		t.Fatal("nil option was accepted")
+	}
+}

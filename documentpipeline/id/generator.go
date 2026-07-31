@@ -1,11 +1,18 @@
 package id
 
-import "context"
+import (
+	"context"
+	"errors"
 
-// Generator produces an identifier string. Implementations may derive
-// the id from the input objects (deterministic, content-addressable —
-// see [SHA256Generator]) or ignore them entirely (random — see
-// [UUIDGenerator]).
+	"github.com/Tangerg/lynx/core/document"
+)
+
+// ErrNilDocument reports an ID request without a document.
+var ErrNilDocument = errors.New("document id: document must not be nil")
+
+// Generator produces an identifier for a document. Implementations may derive
+// the ID from document content (see [SHA256Generator]) or generate an
+// unconditional random identity (see [UUIDGenerator]).
 type Generator interface {
-	Generate(ctx context.Context, objects ...any) (string, error)
+	Generate(ctx context.Context, doc *document.Document) (string, error)
 }

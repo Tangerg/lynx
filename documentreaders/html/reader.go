@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"reflect"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/andybalholm/cascadia"
 
 	"github.com/Tangerg/lynx/core/document"
 	coremetadata "github.com/Tangerg/lynx/core/metadata"
@@ -60,6 +62,7 @@ func WithMetadata(md map[string]any) Option {
 type Reader struct {
 	reader          io.Reader
 	selector        string
+	matcher         goquery.Matcher
 	sourceName      string
 	stripWhitespace bool
 	extraMetadata   map[string]any
@@ -67,12 +70,22 @@ type Reader struct {
 
 // NewReader builds an HTML reader over src.
 func NewReader(src io.Reader, opts ...Option) (*Reader, error) {
-	if src == nil {
-		return nil, errors.New("html: NewReader: src must not be nil")
+	if isNil(src) {
+		return nil, errors.New("html reader: source must not be nil")
 	}
 	r := &Reader{reader: src, stripWhitespace: true}
-	for _, opt := range opts {
+	for index, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("html reader: option %d is nil", index)
+		}
 		opt(r)
+	}
+	if r.selector != "" {
+		matcher, err := cascadia.Compile(r.selector)
+		if err != nil {
+			return nil, fmt.Errorf("html reader: invalid selector %q: %w", r.selector, err)
+		}
+		r.matcher = matcher
 	}
 	return r, nil
 }
@@ -118,7 +131,7 @@ func (r *Reader) readSelector(ctx context.Context, doc *goquery.Document, page p
 		docs     []*document.Document
 		buildErr error
 	)
-	doc.Find(r.selector).EachWithBreak(func(_ int, sel *goquery.Selection) bool {
+	doc.FindMatcher(r.matcher).EachWithBreak(func(_ int, sel *goquery.Selection) bool {
 		if ctx.Err() != nil {
 			return false // cancellation is reported after the loop
 		}
@@ -146,6 +159,19 @@ func (r *Reader) readSelector(ctx context.Context, doc *goquery.Document, page p
 		return nil, fmt.Errorf("html: build selector document: %w", buildErr)
 	}
 	return docs, nil
+}
+
+func isNil(value any) bool {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return true
+	}
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
 }
 
 func (r *Reader) buildMetadata(page pageInfo, selector string) map[string]any {

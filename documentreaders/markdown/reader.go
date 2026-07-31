@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"reflect"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -30,14 +31,10 @@ type Option func(*Reader)
 
 // WithHeadingSplit makes the reader emit one document per section,
 // splitting on headings of level <= maxLevel (e.g. 2 = split on H1+H2,
-// 1 = split on H1 only). maxLevel must be in [1, 6]; outside that
-// range falls back to no-split.
+// 1 = split on H1 only). maxLevel must be in [1, 6].
 func WithHeadingSplit(maxLevel int) Option {
 	return func(r *Reader) {
-		if maxLevel < 1 || maxLevel > 6 {
-			r.headingSplitLevel = 0
-			return
-		}
+		r.headingSplitConfigured = true
 		r.headingSplitLevel = maxLevel
 	}
 }
@@ -63,26 +60,46 @@ func WithMetadata(md map[string]any) Option {
 
 // Reader extracts documents from Markdown.
 type Reader struct {
-	reader            io.Reader
-	parser            goldmark.Markdown
-	headingSplitLevel int
-	sourceName        string
-	extraMetadata     map[string]any
+	reader                 io.Reader
+	parser                 goldmark.Markdown
+	headingSplitConfigured bool
+	headingSplitLevel      int
+	sourceName             string
+	extraMetadata          map[string]any
 }
 
 // NewReader builds a markdown reader over src.
 func NewReader(src io.Reader, opts ...Option) (*Reader, error) {
-	if src == nil {
-		return nil, errors.New("markdown: NewReader: src must not be nil")
+	if isNil(src) {
+		return nil, errors.New("markdown reader: source must not be nil")
 	}
 	r := &Reader{
 		reader: src,
 		parser: goldmark.New(),
 	}
-	for _, opt := range opts {
+	for index, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("markdown reader: option %d is nil", index)
+		}
 		opt(r)
 	}
+	if r.headingSplitConfigured && (r.headingSplitLevel < 1 || r.headingSplitLevel > 6) {
+		return nil, fmt.Errorf("markdown reader: heading split level %d is outside [1, 6]", r.headingSplitLevel)
+	}
 	return r, nil
+}
+
+func isNil(value any) bool {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return true
+	}
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
 }
 
 // Read consumes the underlying reader and emits documents according to

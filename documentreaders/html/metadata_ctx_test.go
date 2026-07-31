@@ -15,7 +15,7 @@ func TestWithMetadata_AppliedToEveryDocument(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	docs, err := r.Read(context.Background())
+	docs, err := r.Read(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}

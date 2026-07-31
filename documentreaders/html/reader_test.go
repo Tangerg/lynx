@@ -1,7 +1,6 @@
 package html_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -46,7 +45,7 @@ func TestWholePage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	docs, err := r.Read(context.Background())
+	docs, err := r.Read(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +78,7 @@ func TestSelector(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	docs, err := r.Read(context.Background())
+	docs, err := r.Read(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,6 +94,17 @@ func TestSelector(t *testing.T) {
 	for i, d := range docs {
 		if got := metadataValue[string](t, d.Metadata, html.MetadataSelector); got != "article" {
 			t.Errorf("docs[%d] selector: got %v", i, got)
+		}
+	}
+}
+
+func TestNewReaderRejectsInvalidConfiguration(t *testing.T) {
+	for _, options := range [][]html.Option{
+		{nil},
+		{html.WithSelector("[")},
+	} {
+		if _, err := html.NewReader(strings.NewReader(samplePage), options...); err == nil {
+			t.Fatalf("NewReader(%v) error = nil", options)
 		}
 	}
 }

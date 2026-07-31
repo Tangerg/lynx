@@ -2,8 +2,18 @@ package documentpipeline
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"reflect"
 
 	"github.com/Tangerg/lynx/core/document"
+)
+
+var (
+	// ErrNilDocument reports a nil document at a pipeline stage boundary.
+	ErrNilDocument = errors.New("document pipeline: document must not be nil")
+	// ErrInvalidMetadataMode reports an unknown formatter metadata policy.
+	ErrInvalidMetadataMode = errors.New("document pipeline: invalid metadata mode")
 )
 
 // MetadataMode selects which metadata a Formatter includes.
@@ -16,12 +26,15 @@ const (
 	MetadataModeNone      MetadataMode = "none"
 )
 
-func validMetadataMode(mode MetadataMode) bool {
+func normalizeMetadataMode(mode MetadataMode) (MetadataMode, error) {
+	if mode == "" {
+		return MetadataModeAll, nil
+	}
 	switch mode {
 	case MetadataModeAll, MetadataModeEmbed, MetadataModeInference, MetadataModeNone:
-		return true
+		return mode, nil
 	default:
-		return false
+		return "", fmt.Errorf("%w %q", ErrInvalidMetadataMode, mode)
 	}
 }
 
@@ -69,15 +82,32 @@ type BoundFormatter struct {
 }
 
 func (f BoundFormatter) Format(doc *document.Document) (string, error) {
-	if f.Formatter == nil {
-		return formatText(doc, f.Mode)
+	mode, err := normalizeMetadataMode(f.Mode)
+	if err != nil {
+		return "", err
 	}
-	return f.Formatter.Format(doc, f.Mode)
+	if f.Formatter == nil {
+		return formatText(doc, mode)
+	}
+	return f.Formatter.Format(doc, mode)
 }
 
 func formatText(doc *document.Document, _ MetadataMode) (string, error) {
 	if doc == nil {
-		return "", nil
+		return "", ErrNilDocument
 	}
 	return doc.Text, nil
+}
+
+func isNil(value any) bool {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return true
+	}
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
 }

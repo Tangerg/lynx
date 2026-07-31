@@ -26,7 +26,7 @@ func TestSplitter_StampsChunkLineage(t *testing.T) {
 	parent.ID = "parent-1"
 	_ = parent.Metadata.Set("source", "manual")
 
-	chunks, err := splitter.Transform(context.Background(), []*document.Document{parent})
+	chunks, err := splitter.Transform(t.Context(), []*document.Document{parent})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestSplitter_NoParentIDWhenSourceUnidentified(t *testing.T) {
 	})
 
 	parent, _ := document.NewDocument("body", nil) // ID stays ""
-	chunks, _ := splitter.Transform(context.Background(), []*document.Document{parent})
+	chunks, _ := splitter.Transform(t.Context(), []*document.Document{parent})
 
 	if _, ok := chunks[0].Metadata[documentpipeline.MetadataKeyParentID]; ok {
 		t.Fatal("parent_document_id must be absent when source has no id")
@@ -74,7 +74,7 @@ func TestSplitter_AssignsChunkIDs(t *testing.T) {
 	})
 
 	parent, _ := document.NewDocument("body", nil)
-	chunks, _ := splitter.Transform(context.Background(), []*document.Document{parent})
+	chunks, _ := splitter.Transform(t.Context(), []*document.Document{parent})
 
 	if chunks[0].ID == "" || chunks[1].ID == "" {
 		t.Fatal("chunks must get ids when IDGenerator is set")

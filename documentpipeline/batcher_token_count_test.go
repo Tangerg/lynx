@@ -26,7 +26,7 @@ func TestTokenCountBatcherDefaultsToPlainTextWithoutReserve(t *testing.T) {
 	first, _ := document.NewDocument("12345", nil)
 	second, _ := document.NewDocument("67890", nil)
 
-	batches, err := batcher.Batch(context.Background(), []*document.Document{first, second})
+	batches, err := batcher.Batch(t.Context(), []*document.Document{first, second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestTokenCountBatcherReserveReducesBudget(t *testing.T) {
 	first, _ := document.NewDocument("12345", nil)
 	second, _ := document.NewDocument("67890", nil)
 
-	batches, err := batcher.Batch(context.Background(), []*document.Document{first, second})
+	batches, err := batcher.Batch(t.Context(), []*document.Document{first, second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,6 +87,10 @@ func (e failingEstimator) EstimateText(context.Context, string) (int, error) {
 	return 0, e.err
 }
 
+type negativeEstimator struct{}
+
+func (negativeEstimator) EstimateText(context.Context, string) (int, error) { return -1, nil }
+
 func TestTokenCountBatcherPropagatesEstimatorError(t *testing.T) {
 	want := errors.New("estimate failed")
 	batcher, err := documentpipeline.NewTokenCountBatcher(documentpipeline.TokenCountBatcherConfig{
@@ -96,7 +100,30 @@ func TestTokenCountBatcherPropagatesEstimatorError(t *testing.T) {
 		t.Fatal(err)
 	}
 	doc, _ := document.NewDocument("text", nil)
-	if _, err := batcher.Batch(context.Background(), []*document.Document{doc}); !errors.Is(err, want) {
+	if _, err := batcher.Batch(t.Context(), []*document.Document{doc}); !errors.Is(err, want) {
 		t.Fatalf("Batch error = %v, want %v", err, want)
+	}
+}
+
+func TestTokenCountBatcherRejectsInvalidStageValues(t *testing.T) {
+	batcher, err := documentpipeline.NewTokenCountBatcher(documentpipeline.TokenCountBatcherConfig{
+		Estimator: textLengthEstimator{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := batcher.Batch(t.Context(), []*document.Document{nil}); !errors.Is(err, documentpipeline.ErrNilDocument) {
+		t.Fatalf("Batch(nil document) error = %v, want ErrNilDocument", err)
+	}
+
+	batcher, err = documentpipeline.NewTokenCountBatcher(documentpipeline.TokenCountBatcherConfig{
+		Estimator: negativeEstimator{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, _ := document.NewDocument("text", nil)
+	if _, err := batcher.Batch(t.Context(), []*document.Document{doc}); err == nil {
+		t.Fatal("negative token estimate was accepted")
 	}
 }

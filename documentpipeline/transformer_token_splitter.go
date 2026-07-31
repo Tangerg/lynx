@@ -3,163 +3,175 @@ package documentpipeline
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/documentpipeline/id"
 	"github.com/Tangerg/lynx/tokenizer"
 )
 
-// Default sizing for [TokenSplitter]. The numbers come from common
-// embedding-model token limits and a reasonable upper bound on chunks
-// per document — non-positive values fall back to these.
 const (
-	defaultTokenChunkSize      = 800
-	defaultTokenMinChunkSize   = 350
-	defaultTokenMinEmbedLength = 5
-	defaultTokenMaxChunkCount  = 10_000
+	defaultMaxTokensPerChunk     = 800
+	defaultMinTokensPerChunk     = 350
+	defaultMinCharactersPerChunk = 5
+	defaultMaxChunks             = 10_000
 )
 
-// TokenSplitterConfig configures token-aware chunking. Non-positive sizing
-// fields use the package defaults documented on [TokenSplitter].
+// ErrChunkLimitExceeded reports that splitting would exceed the configured
+// output bound. The splitter fails instead of emitting one oversized tail.
+var ErrChunkLimitExceeded = errors.New("document pipeline: chunk limit exceeded")
+
+// TokenSplitterConfig configures token-aware chunking. Zero sizing values use
+// documented defaults; negative values are rejected.
 type TokenSplitterConfig struct {
 	Tokenizer tokenizer.Tokenizer
 
-	ChunkSize      int
-	MinChunkSize   int
-	MinEmbedLength int
-	MaxChunkCount  int
-	KeepSeparator  bool
-	IDGenerator    id.Generator
+	MaxTokensPerChunk     int
+	MinTokensPerChunk     int
+	MinCharactersPerChunk int
+	MaxChunks             int
+	PreserveNewlines      bool
+	IDGenerator           id.Generator
 }
 
 var _ Transformer = (*TokenSplitter)(nil)
 
-// TokenSplitter is a token-aware [Transformer] that splits documents
-// into chunks bounded by the configured token count, preferring
-// sentence-boundary cuts when possible. See [TokenSplitter.splitByTokens]
-// for the per-chunk algorithm.
+// TokenSplitter splits document text into token-bounded chunks and prefers a
+// sentence boundary once the configured minimum token count has been reached.
 type TokenSplitter struct {
-	tokenizer      tokenizer.Tokenizer
-	chunkSize      int
-	minChunkSize   int
-	minEmbedLength int
-	maxChunkCount  int
-	keepSeparator  bool
-	splitter       *Splitter
+	tokenizer             tokenizer.Tokenizer
+	maxTokensPerChunk     int
+	minTokensPerChunk     int
+	minCharactersPerChunk int
+	maxChunks             int
+	preserveNewlines      bool
+	splitter              *Splitter
 }
 
 func NewTokenSplitter(config TokenSplitterConfig) (*TokenSplitter, error) {
-	if config.Tokenizer == nil {
-		return nil, errors.New("documentpipeline.TokenSplitterConfig: Tokenizer is required")
+	if isNil(config.Tokenizer) {
+		return nil, errors.New("document pipeline: tokenizer is required")
 	}
-	if config.ChunkSize <= 0 {
-		config.ChunkSize = defaultTokenChunkSize
+	if config.MaxTokensPerChunk < 0 || config.MinTokensPerChunk < 0 ||
+		config.MinCharactersPerChunk < 0 || config.MaxChunks < 0 {
+		return nil, errors.New("document pipeline: token splitter limits must not be negative")
 	}
-	if config.MinChunkSize <= 0 {
-		config.MinChunkSize = defaultTokenMinChunkSize
+	if config.MaxTokensPerChunk == 0 {
+		config.MaxTokensPerChunk = defaultMaxTokensPerChunk
 	}
-	if config.MinEmbedLength <= 0 {
-		config.MinEmbedLength = defaultTokenMinEmbedLength
+	if config.MinTokensPerChunk == 0 {
+		config.MinTokensPerChunk = min(defaultMinTokensPerChunk, config.MaxTokensPerChunk)
 	}
-	if config.MaxChunkCount <= 0 {
-		config.MaxChunkCount = defaultTokenMaxChunkCount
+	if config.MinCharactersPerChunk == 0 {
+		config.MinCharactersPerChunk = defaultMinCharactersPerChunk
+	}
+	if config.MaxChunks == 0 {
+		config.MaxChunks = defaultMaxChunks
+	}
+	if config.MinTokensPerChunk > config.MaxTokensPerChunk {
+		return nil, fmt.Errorf(
+			"document pipeline: minimum chunk tokens %d exceed maximum %d",
+			config.MinTokensPerChunk,
+			config.MaxTokensPerChunk,
+		)
 	}
 
-	ts := &TokenSplitter{
-		tokenizer:      config.Tokenizer,
-		chunkSize:      config.ChunkSize,
-		minChunkSize:   config.MinChunkSize,
-		minEmbedLength: config.MinEmbedLength,
-		maxChunkCount:  config.MaxChunkCount,
-		keepSeparator:  config.KeepSeparator,
+	splitter := &TokenSplitter{
+		tokenizer:             config.Tokenizer,
+		maxTokensPerChunk:     config.MaxTokensPerChunk,
+		minTokensPerChunk:     config.MinTokensPerChunk,
+		minCharactersPerChunk: config.MinCharactersPerChunk,
+		maxChunks:             config.MaxChunks,
+		preserveNewlines:      config.PreserveNewlines,
 	}
-	ts.splitter, _ = NewSplitter(SplitterConfig{
-		SplitFunc:   ts.splitByTokens,
+	base, err := NewSplitter(SplitterConfig{
+		SplitFunc:   splitter.splitText,
 		IDGenerator: config.IDGenerator,
 	})
-	return ts, nil
-}
-
-func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]string, error) {
-	if strings.TrimSpace(text) == "" {
-		return []string{}, nil
-	}
-
-	tokens, err := t.tokenizer.Encode(ctx, text)
 	if err != nil {
 		return nil, err
 	}
+	splitter.splitter = base
+	return splitter, nil
+}
 
-	var chunks []string
-	processed := 0
+func (s *TokenSplitter) splitText(ctx context.Context, text string) ([]string, error) {
+	if strings.TrimSpace(text) == "" {
+		return nil, nil
+	}
 
-	for len(tokens) > 0 && processed < t.maxChunkCount {
+	tokens, err := s.tokenizer.Encode(ctx, text)
+	if err != nil {
+		return nil, fmt.Errorf("document pipeline: tokenize text: %w", err)
+	}
+
+	chunks := make([]string, 0, min(len(tokens)/s.maxTokensPerChunk+1, s.maxChunks))
+	for len(tokens) > 0 {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		end := min(t.chunkSize, len(tokens))
-		windowTokens := tokens[:end]
-
-		windowText, err := t.tokenizer.Decode(ctx, windowTokens)
+		windowTokens := tokens[:min(s.maxTokensPerChunk, len(tokens))]
+		windowText, err := s.tokenizer.Decode(ctx, windowTokens)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("document pipeline: decode token window: %w", err)
 		}
-
 		if strings.TrimSpace(windowText) == "" {
-			tokens = tokens[end:]
+			tokens = tokens[len(windowTokens):]
 			continue
 		}
 
-		lastPunct := lastSentenceEnd(windowText)
-		if lastPunct != -1 && lastPunct > t.minChunkSize {
-			windowText = windowText[:lastPunct+1]
+		selected := windowText
+		consumedCount := len(windowTokens)
+		if boundary := lastSentenceBoundary(windowText); boundary > 0 && boundary < len(windowText) {
+			prefix := windowText[:boundary]
+			prefixTokens, err := s.tokenizer.Encode(ctx, prefix)
+			if err != nil {
+				return nil, fmt.Errorf("document pipeline: measure sentence boundary: %w", err)
+			}
+			if len(prefixTokens) >= s.minTokensPerChunk && len(prefixTokens) < len(windowTokens) {
+				originalPrefix, err := s.tokenizer.Decode(ctx, windowTokens[:len(prefixTokens)])
+				if err != nil {
+					return nil, fmt.Errorf("document pipeline: verify sentence boundary: %w", err)
+				}
+				if originalPrefix == prefix {
+					selected = prefix
+					consumedCount = len(prefixTokens)
+				}
+			}
 		}
+		tokens = tokens[consumedCount:]
 
-		final := t.cleanChunk(windowText)
-		if len(final) > t.minEmbedLength {
-			chunks = append(chunks, final)
+		chunk := s.clean(selected)
+		if utf8.RuneCountInString(chunk) < s.minCharactersPerChunk {
+			continue
 		}
-
-		consumedTokens, err := t.tokenizer.Encode(ctx, windowText)
-		if err != nil {
-			return nil, err
+		if len(chunks) == s.maxChunks {
+			return nil, fmt.Errorf("%w: maximum is %d", ErrChunkLimitExceeded, s.maxChunks)
 		}
-		tokens = tokens[min(len(consumedTokens), len(tokens)):]
-
-		processed++
+		chunks = append(chunks, chunk)
 	}
-
-	if len(tokens) > 0 {
-		tail, err := t.tokenizer.Decode(ctx, tokens)
-		if err != nil {
-			return nil, err
-		}
-		final := t.cleanChunk(tail)
-		if len(final) > t.minEmbedLength {
-			chunks = append(chunks, final)
-		}
-	}
-
 	return chunks, nil
 }
 
-func (t *TokenSplitter) cleanChunk(s string) string {
-	if !t.keepSeparator {
-		s = strings.ReplaceAll(s, "\n", " ")
+func (s *TokenSplitter) clean(text string) string {
+	if !s.preserveNewlines {
+		text = strings.ReplaceAll(text, "\n", " ")
 	}
-	return strings.TrimSpace(s)
+	return strings.TrimSpace(text)
 }
 
-func lastSentenceEnd(s string) int {
-	return max(
-		strings.LastIndex(s, "."),
-		strings.LastIndex(s, "?"),
-		strings.LastIndex(s, "!"),
-		strings.LastIndex(s, "\n"),
-	)
+func lastSentenceBoundary(text string) int {
+	boundary := -1
+	for _, punctuation := range []string{".", "?", "!", "\n", "。", "？", "！"} {
+		if index := strings.LastIndex(text, punctuation); index >= 0 {
+			boundary = max(boundary, index+len(punctuation))
+		}
+	}
+	return boundary
 }
 
-func (t *TokenSplitter) Transform(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
-	return t.splitter.Transform(ctx, docs)
+func (s *TokenSplitter) Transform(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
+	return s.splitter.Transform(ctx, docs)
 }

@@ -2,98 +2,114 @@ package id_test
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"testing"
 
+	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/documentpipeline/id"
 )
 
-func TestSHA256Generator_Deterministic(t *testing.T) {
-	gen := id.NewSHA256Generator(nil)
-
-	first, err := gen.Generate(context.Background(), "hello", 42)
+func newDocument(t *testing.T, text string) *document.Document {
+	t.Helper()
+	doc, err := document.NewDocument(text, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := gen.Generate(context.Background(), "hello", 42)
+	return doc
+}
+
+func TestSHA256GeneratorDeterministic(t *testing.T) {
+	generator := id.NewSHA256Generator(nil)
+	doc := newDocument(t, "hello")
+	if err := doc.Metadata.Set("position", 42); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := generator.Generate(t.Context(), doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := generator.Generate(t.Context(), doc)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if first != second {
-		t.Fatalf("same input produced different digests:\n  %s\n  %s", first, second)
+		t.Fatalf("same document produced different digests:\n  %s\n  %s", first, second)
 	}
 }
 
-func TestSHA256Generator_DifferentInputsDiffer(t *testing.T) {
-	gen := id.NewSHA256Generator(nil)
-	a, _ := gen.Generate(context.Background(), "hello")
-	b, _ := gen.Generate(context.Background(), "world")
-	if a == b {
-		t.Fatalf("different inputs produced same digest: %s", a)
-	}
-}
+func TestSHA256GeneratorUsesDocumentContentButNotExistingID(t *testing.T) {
+	generator := id.NewSHA256Generator(nil)
+	first := newDocument(t, "hello")
+	second := newDocument(t, "world")
 
-func TestSHA256Generator_SaltSeparatesStreams(t *testing.T) {
-	plain := id.NewSHA256Generator(nil)
-	salted := id.NewSHA256Generator([]byte("tenant-A"))
-
-	a, _ := plain.Generate(context.Background(), "doc")
-	b, _ := salted.Generate(context.Background(), "doc")
-	if a == b {
-		t.Fatal("salt must change the digest")
-	}
-}
-
-// TestSHA256Generator_SaltMixedIntoDigest pins the salt-is-actually-mixed
-// contract: two different salts must produce digests that differ in
-// their hash bytes, not merely in a prefix appended to the hex output.
-// Catches the historical Sum(salt) bug.
-func TestSHA256Generator_SaltMixedIntoDigest(t *testing.T) {
-	a := id.NewSHA256Generator([]byte("tenant-A"))
-	b := id.NewSHA256Generator([]byte("tenant-B"))
-
-	digestA, _ := a.Generate(context.Background(), "doc")
-	digestB, _ := b.Generate(context.Background(), "doc")
-
-	if digestA == digestB {
-		t.Fatal("different salts must produce different digests")
-	}
-	if len(digestA) != 64 || len(digestB) != 64 {
-		t.Fatalf("digest length = (%d, %d), want 64 each (SHA-256 hex)", len(digestA), len(digestB))
-	}
-}
-
-// TestSHA256Generator_MarshalErrorPropagates ensures un-marshalable
-// inputs (channels / funcs) surface an error rather than being silently
-// skipped — silent skips would collide distinct inputs onto the same id.
-func TestSHA256Generator_MarshalErrorPropagates(t *testing.T) {
-	gen := id.NewSHA256Generator(nil)
-	_, err := gen.Generate(context.Background(), make(chan int))
-	if err == nil {
-		t.Fatal("expected error for un-marshalable input, got nil")
-	}
-}
-
-func TestSHA256Generator_EmptyInput(t *testing.T) {
-	gen := id.NewSHA256Generator(nil)
-	got, err := gen.Generate(context.Background())
+	digestA, err := generator.Generate(t.Context(), first)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "" {
-		t.Fatalf("got %q, want empty string for empty input", got)
+	digestB, err := generator.Generate(t.Context(), second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if digestA == digestB {
+		t.Fatal("different document content produced the same digest")
+	}
+
+	first.ID = "already-assigned"
+	again, err := generator.Generate(t.Context(), first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again != digestA {
+		t.Fatal("an existing ID changed the content digest")
+	}
+}
+
+func TestSHA256GeneratorSaltSeparatesStreams(t *testing.T) {
+	doc := newDocument(t, "doc")
+	plain, err := id.NewSHA256Generator(nil).Generate(t.Context(), doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	salted, err := id.NewSHA256Generator([]byte("tenant-A")).Generate(t.Context(), doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherSalt, err := id.NewSHA256Generator([]byte("tenant-B")).Generate(t.Context(), doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain == salted || salted == otherSalt {
+		t.Fatal("salt must change the digest stream")
+	}
+	if len(plain) != 64 || len(salted) != 64 || len(otherSalt) != 64 {
+		t.Fatal("SHA-256 identifiers must contain 64 hex characters")
+	}
+}
+
+func TestSHA256GeneratorRejectsInvalidDocument(t *testing.T) {
+	doc := newDocument(t, "doc")
+	doc.Metadata["invalid"] = json.RawMessage(`{`)
+	if _, err := id.NewSHA256Generator(nil).Generate(t.Context(), doc); err == nil {
+		t.Fatal("invalid metadata produced an ID")
+	}
+	if _, err := id.NewSHA256Generator(nil).Generate(t.Context(), nil); !errors.Is(err, id.ErrNilDocument) {
+		t.Fatalf("nil document error = %v, want ErrNilDocument", err)
 	}
 }
 
 func TestSHA256GeneratorCopiesSalt(t *testing.T) {
 	salt := []byte("tenant-A")
-	gen := id.NewSHA256Generator(salt)
+	generator := id.NewSHA256Generator(salt)
 	salt[0] = 'X'
+	doc := newDocument(t, "doc")
 
-	got, err := gen.Generate(context.Background(), "doc")
+	got, err := generator.Generate(t.Context(), doc)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := id.NewSHA256Generator([]byte("tenant-A")).Generate(context.Background(), "doc")
+	want, err := id.NewSHA256Generator([]byte("tenant-A")).Generate(t.Context(), doc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,23 +118,29 @@ func TestSHA256GeneratorCopiesSalt(t *testing.T) {
 	}
 }
 
-func TestUUIDGenerator_Unique(t *testing.T) {
-	gen := id.NewUUIDGenerator()
-	first, err := gen.Generate(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, _ := gen.Generate(context.Background())
-	if first == second {
-		t.Fatal("UUID generator returned identical ids")
+func TestGeneratorsHonorCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	doc := newDocument(t, "doc")
+	for _, generator := range []id.Generator{id.NewSHA256Generator(nil), id.NewUUIDGenerator()} {
+		if _, err := generator.Generate(ctx, doc); !errors.Is(err, context.Canceled) {
+			t.Fatalf("Generate() error = %v, want context.Canceled", err)
+		}
 	}
 }
 
-func TestUUIDGenerator_IgnoresInput(t *testing.T) {
-	gen := id.NewUUIDGenerator()
-	first, _ := gen.Generate(context.Background(), "same input")
-	second, _ := gen.Generate(context.Background(), "same input")
+func TestUUIDGeneratorReturnsUniqueIDs(t *testing.T) {
+	generator := id.NewUUIDGenerator()
+	doc := newDocument(t, "same input")
+	first, err := generator.Generate(t.Context(), doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := generator.Generate(t.Context(), doc)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if first == second {
-		t.Fatal("UUID must be random regardless of input")
+		t.Fatal("UUID generator returned identical IDs")
 	}
 }

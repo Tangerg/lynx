@@ -1,7 +1,6 @@
 package markdown_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -40,7 +39,7 @@ func TestWholeDocument(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	docs, err := r.Read(context.Background())
+	docs, err := r.Read(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +60,7 @@ func TestHeadingSplitH2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	docs, err := r.Read(context.Background())
+	docs, err := r.Read(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,5 +93,17 @@ func TestHeadingSplitH2(t *testing.T) {
 	// Section A should contain A.1 subsection content.
 	if !strings.Contains(docs[1].Text, "Nested body") {
 		t.Errorf("section A missing nested H3 body; got: %q", docs[1].Text)
+	}
+}
+
+func TestNewReaderRejectsInvalidConfiguration(t *testing.T) {
+	for _, options := range [][]markdown.Option{
+		{nil},
+		{markdown.WithHeadingSplit(0)},
+		{markdown.WithHeadingSplit(7)},
+	} {
+		if _, err := markdown.NewReader(strings.NewReader(sample), options...); err == nil {
+			t.Fatalf("NewReader(%v) error = nil", options)
+		}
 	}
 }

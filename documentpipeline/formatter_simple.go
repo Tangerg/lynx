@@ -1,11 +1,11 @@
 package documentpipeline
 
 import (
+	"encoding/json"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
-
-	"github.com/spf13/cast"
 
 	"github.com/Tangerg/lynx/core/document"
 )
@@ -39,16 +39,16 @@ var _ Formatter = (*SimpleFormatter)(nil)
 //	    ExcludeFromEmbedding: []string{"row_id", "internal"},
 //	})
 type SimpleFormatter struct {
-	excludeFromInference []string
-	excludeFromEmbedding []string
+	excludeFromInference map[string]struct{}
+	excludeFromEmbedding map[string]struct{}
 }
 
 // NewSimpleFormatter builds a [SimpleFormatter]. The zero config emits every
 // metadata key in every mode.
 func NewSimpleFormatter(config SimpleFormatterConfig) *SimpleFormatter {
 	return &SimpleFormatter{
-		excludeFromInference: slices.Clone(config.ExcludeFromInference),
-		excludeFromEmbedding: slices.Clone(config.ExcludeFromEmbedding),
+		excludeFromInference: keySet(config.ExcludeFromInference),
+		excludeFromEmbedding: keySet(config.ExcludeFromEmbedding),
 	}
 }
 
@@ -59,11 +59,15 @@ func NewSimpleFormatter(config SimpleFormatterConfig) *SimpleFormatter {
 // (filtered empty), the output is just doc.Text — no leading newlines.
 func (s *SimpleFormatter) Format(doc *document.Document, mode MetadataMode) (string, error) {
 	if doc == nil {
-		return "", nil
+		return "", ErrNilDocument
+	}
+	mode, err := normalizeMetadataMode(mode)
+	if err != nil {
+		return "", err
 	}
 	values, err := doc.Metadata.Values()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("document pipeline: decode metadata: %w", err)
 	}
 	filtered := s.filterMetadataByMode(values, mode)
 	if len(filtered) == 0 {
@@ -72,7 +76,11 @@ func (s *SimpleFormatter) Format(doc *document.Document, mode MetadataMode) (str
 
 	entries := make([]string, 0, len(filtered))
 	for _, key := range slices.Sorted(maps.Keys(filtered)) {
-		entries = append(entries, key+": "+cast.ToString(filtered[key]))
+		value, err := metadataValueText(filtered[key])
+		if err != nil {
+			return "", fmt.Errorf("document pipeline: format metadata %q: %w", key, err)
+		}
+		entries = append(entries, key+": "+value)
 	}
 	return strings.Join(entries, "\n") + "\n\n" + doc.Text, nil
 }
@@ -87,20 +95,44 @@ func (s *SimpleFormatter) filterMetadataByMode(metadata map[string]any, mode Met
 
 	cloned := maps.Clone(metadata)
 
-	var shouldExclude func(key string, value any) bool
+	var excluded map[string]struct{}
 	switch mode {
 	case MetadataModeInference:
-		shouldExclude = func(key string, _ any) bool {
-			return slices.Contains(s.excludeFromInference, key)
-		}
+		excluded = s.excludeFromInference
 	case MetadataModeEmbed:
-		shouldExclude = func(key string, _ any) bool {
-			return slices.Contains(s.excludeFromEmbedding, key)
-		}
+		excluded = s.excludeFromEmbedding
 	}
 
-	if shouldExclude != nil {
-		maps.DeleteFunc(cloned, shouldExclude)
+	if len(excluded) > 0 {
+		maps.DeleteFunc(cloned, func(key string, _ any) bool {
+			_, found := excluded[key]
+			return found
+		})
 	}
 	return cloned
+}
+
+func keySet(keys []string) map[string]struct{} {
+	if len(keys) == 0 {
+		return nil
+	}
+	set := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		set[key] = struct{}{}
+	}
+	return set
+}
+
+func metadataValueText(value any) (string, error) {
+	if value == nil {
+		return "", nil
+	}
+	if text, ok := value.(string); ok {
+		return text, nil
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
 }

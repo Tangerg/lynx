@@ -28,24 +28,27 @@ var _ Transformer = (*TextSplitter)(nil)
 //
 // Example:
 //
-//	s := documentpipeline.NewTextSplitter(documentpipeline.TextSplitterConfig{Separator: "\n\n"})
+//	s, _ := documentpipeline.NewTextSplitter(documentpipeline.TextSplitterConfig{Separator: "\n\n"})
 //	chunks, _ := s.Transform(ctx, []*document.Document{doc})
 type TextSplitter struct {
 	splitter *Splitter
 }
 
-func NewTextSplitter(config TextSplitterConfig) *TextSplitter {
+func NewTextSplitter(config TextSplitterConfig) (*TextSplitter, error) {
 	separator := config.Separator
 	if separator == "" {
 		separator = "\n"
 	}
-	splitter, _ := NewSplitter(SplitterConfig{
+	splitter, err := NewSplitter(SplitterConfig{
 		IDGenerator: config.IDGenerator,
 		SplitFunc: func(_ context.Context, text string) ([]string, error) {
 			return strings.Split(text, separator), nil
 		},
 	})
-	return &TextSplitter{splitter: splitter}
+	if err != nil {
+		return nil, err
+	}
+	return &TextSplitter{splitter: splitter}, nil
 }
 
 func (t *TextSplitter) Transform(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {

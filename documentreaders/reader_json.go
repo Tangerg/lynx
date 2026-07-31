@@ -5,15 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
-	"unicode"
 
 	"github.com/Tangerg/lynx/core/document"
-	pkgio "github.com/Tangerg/lynx/pkg/io"
-	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
-
-const defaultJSONReaderBufferSize = 8192
 
 // JSONReader parses a JSON payload — either a single object or a top-
 // level array — into [*document.Document] entries. Top-level arrays produce one
@@ -27,73 +23,57 @@ const defaultJSONReaderBufferSize = 8192
 //	r, err := documentreaders.NewJSONReader(strings.NewReader(`[{"id":1},{"id":2}]`))
 //	docs, err := r.Read(ctx) // 2 documents
 type JSONReader struct {
-	reader     io.Reader
-	bufferSize int
+	reader io.Reader
 }
 
-func NewJSONReader(reader io.Reader, sizes ...int) (*JSONReader, error) {
-	if reader == nil {
-		return nil, errors.New("documentreaders.NewJSONReader: reader must not be nil")
+func NewJSONReader(reader io.Reader) (*JSONReader, error) {
+	if isNil(reader) {
+		return nil, errors.New("document readers: JSON source must not be nil")
 	}
-
-	bufferSize, _ := pkgSlices.First(sizes)
-	if bufferSize <= 0 {
-		bufferSize = defaultJSONReaderBufferSize
-	}
-
-	return &JSONReader{reader: reader, bufferSize: bufferSize}, nil
+	return &JSONReader{reader: reader}, nil
 }
 
-func (j *JSONReader) Read(_ context.Context) ([]*document.Document, error) {
-	data, err := pkgio.ReadAll(j.reader, j.bufferSize)
+func (j *JSONReader) Read(ctx context.Context) ([]*document.Document, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	data, err := io.ReadAll(j.reader)
 	if err != nil {
+		return nil, fmt.Errorf("document readers: read JSON source: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	if j.looksLikeArray(data) {
-		if docs, parseErr := j.parseAsArray(data); parseErr == nil {
-			return docs, nil
-		}
-		// fall through to single-document path on array decode failure;
-		// the caller's payload may be an array of unsupported items, in
-		// which case wrapping the raw bytes is still useful.
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) > 0 && trimmed[0] == '[' {
+		return parseJSONArray(ctx, trimmed)
+	}
+	if err := json.Unmarshal(trimmed, new(any)); err != nil {
+		return nil, fmt.Errorf("document readers: decode JSON source: %w", err)
 	}
 
-	if err = json.Unmarshal(data, new(any)); err != nil {
-		return nil, err
-	}
-
-	doc, err := document.NewDocument(string(data), nil)
+	doc, err := document.NewDocument(string(trimmed), nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("document readers: build JSON document: %w", err)
 	}
 	return []*document.Document{doc}, nil
 }
 
-func (j *JSONReader) looksLikeArray(data []byte) bool {
-	trimmed := bytes.TrimFunc(data, unicode.IsSpace)
-	if len(trimmed) < 2 {
-		return false
-	}
-	return trimmed[0] == '[' && trimmed[len(trimmed)-1] == ']'
-}
-
-func (j *JSONReader) parseAsArray(data []byte) ([]*document.Document, error) {
-	var items []any
+func parseJSONArray(ctx context.Context, data []byte) ([]*document.Document, error) {
+	var items []json.RawMessage
 	if err := json.Unmarshal(data, &items); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("document readers: decode JSON array: %w", err)
 	}
 
 	docs := make([]*document.Document, 0, len(items))
-	for _, item := range items {
-		bytes, err := json.Marshal(item)
-		if err != nil {
+	for index, item := range items {
+		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-
-		doc, err := document.NewDocument(string(bytes), nil)
+		doc, err := document.NewDocument(string(item), nil)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("document readers: build JSON array document %d: %w", index, err)
 		}
 		docs = append(docs, doc)
 	}
