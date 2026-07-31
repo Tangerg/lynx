@@ -3,10 +3,8 @@
 //
 // Modalities exposed:
 //
-//   - chat (Chat Completions) via [NewChat] — tool calling,
-//     streaming, native request extensions, reasoning_content mapping
-//     (used transparently by DeepSeek-R1, Kimi-thinking, QwQ, etc.),
-//     vision input, audio input/output;
+//   - chat (Chat Completions) via [NewChat] — tool calling, streaming,
+//     native request extensions, vision input, audio input/output;
 //   - embedding via [NewEmbeddingModel] — text-embedding-3-small/large
 //     with dimension truncation;
 //   - image via [NewImageModel] — DALL·E 3 and gpt-image-1;
@@ -25,6 +23,11 @@
 // Provider-specific OpenAI request fields not modeled by core/chat reach the
 // wire through the namespaced "openai/request" request extension. Response
 // details are preserved in namespaced JSON-safe extensions.
+//
+// Provider packages with an OpenAI-compatible endpoint reuse the protocol
+// through [NewCompatibleChat] and select one typed [Dialect]. This keeps
+// provider-only fields such as reasoning_content out of OpenAI's native
+// behavior while sharing the standard wire mapping.
 //
 // See https://platform.openai.com/docs for the full API reference.
 package openai

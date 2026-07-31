@@ -1,7 +1,7 @@
 // Package xai wraps xAI's (Grok) OpenAI-compatible API.
 //
-// xAI's wire format follows OpenAI's chat-completions spec exactly;
-// [NewOpenAIChat] returns a pre-configured [openai.Chat].
+// [NewOpenAIChat] returns xAI's provider-local [OpenAIChat], backed by the
+// shared OpenAI Chat Completions protocol.
 //
 // Provider-specific features reachable through the namespaced OpenAI request
 // extension:

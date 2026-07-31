@@ -2,8 +2,7 @@
 //
 // Mistral exposes:
 //
-//   - /chat/completions — OpenAI-compatible, used via
-//     [NewOpenAIChat] (returns an [openai.Chat]);
+//   - /chat/completions — OpenAI-compatible, used via [NewOpenAIChat];
 //   - /embeddings — OpenAI-compatible, used via [NewEmbeddingModel]
 //     (returns an [openai.EmbeddingModel]);
 //   - /moderations — Mistral-native shape that doesn't match OpenAI's

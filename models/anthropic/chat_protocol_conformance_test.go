@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -16,6 +18,62 @@ import (
 	"github.com/Tangerg/lynx/models/anthropic"
 	"github.com/Tangerg/lynx/models/internal/conformance"
 )
+
+type recordingDialect struct {
+	requests atomic.Int32
+	messages atomic.Int32
+	events   atomic.Int32
+}
+
+func (dialect *recordingDialect) PrepareRequest(_ *corechat.Request, _ *anthropicsdk.MessageNewParams) error {
+	dialect.requests.Add(1)
+	return nil
+}
+
+func (dialect *recordingDialect) FinalizeMessage(_ *anthropicsdk.Message, _ *corechat.Response) error {
+	dialect.messages.Add(1)
+	return nil
+}
+
+func (dialect *recordingDialect) FinalizeEvent(_ anthropicsdk.MessageStreamEventUnion, _ *corechat.Response) error {
+	dialect.events.Add(1)
+	return nil
+}
+
+func TestCompatibleChat_DialectFacets(t *testing.T) {
+	server := newProtocolChatServer(t)
+	t.Cleanup(server.Close)
+	dialect := &recordingDialect{}
+	adapter, err := anthropic.NewCompatibleChat(
+		anthropic.ChatConfig{
+			APIKey:         "test-key",
+			DefaultOptions: corechat.Options{Model: "claude-opus-4-6"},
+			RequestOptions: []option.RequestOption{option.WithBaseURL(server.URL)},
+		},
+		anthropic.Dialect{Request: dialect, Response: dialect},
+	)
+	if err != nil {
+		t.Fatalf("NewCompatibleChat: %v", err)
+	}
+	request := newProtocolChatRequest(t)
+	if _, err := adapter.Call(t.Context(), request); err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	for _, err := range adapter.Stream(t.Context(), request) {
+		if err != nil {
+			t.Fatalf("Stream: %v", err)
+		}
+	}
+	if dialect.requests.Load() != 2 {
+		t.Errorf("request facet calls = %d; want 2", dialect.requests.Load())
+	}
+	if dialect.messages.Load() != 1 {
+		t.Errorf("message facet calls = %d; want 1", dialect.messages.Load())
+	}
+	if dialect.events.Load() == 0 {
+		t.Error("stream event facet was not called")
+	}
+}
 
 func TestChat_CoreConformance(t *testing.T) {
 	conformance.ChatSuite{

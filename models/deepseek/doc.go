@@ -1,15 +1,13 @@
 // Package deepseek wraps DeepSeek's OpenAI-compatible API.
 //
-// DeepSeek's wire format follows OpenAI's chat-completions spec
-// exactly; [NewOpenAIChat] therefore returns a pre-configured
-// [openai.Chat] rather than re-implementing the mapping.
+// DeepSeek derives from the OpenAI Chat Completions protocol while retaining
+// its provider-specific reasoning semantics behind [OpenAIChat].
 //
-// Provider-specific features the openai facade already supports
-// transparently:
+// Provider-specific behavior handled transparently:
 //
-//   - reasoning_content on assistant messages from deepseek-reasoner
-//     ([openai.Chat] reads it from the provider response and
-//     emits a [chat.ReasoningPart] in AssistantMessage.Parts automatically).
+//   - reasoning_content is decoded into a [chat.PartReasoning];
+//   - ordinary prior assistant reasoning is omitted on later turns;
+//   - reasoning associated with tool calls is replayed as reasoning_content.
 //
 // Provider-specific features that need explicit BaseURL switching:
 //

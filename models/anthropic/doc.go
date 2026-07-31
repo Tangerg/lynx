@@ -12,6 +12,10 @@
 //     callers wedded to the OpenAI SDK; Claude-specific extras
 //     don't round-trip.
 //
+// Provider packages exposing an Anthropic-compatible endpoint reuse the
+// Messages protocol through [NewCompatibleChat] and select one typed [Dialect].
+// Application code continues to use the provider's own chat type.
+//
 // Token estimation: [NewTextEstimator] wraps /v1/messages/count_tokens
 // for accurate Claude-tokenizer-based counts.
 //

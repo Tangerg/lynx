@@ -14,8 +14,8 @@ import (
 
 const protocolDefaultMaxTokens int64 = 4096
 
-// ChatConfig configures the provider-neutral Core chat adapter. Defaults are
-// copied during construction; the model may instead be selected per Request.
+// ChatConfig configures an Anthropic Messages adapter. Defaults are copied
+// during construction; callers may select the model per request.
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -23,11 +23,11 @@ type ChatConfig struct {
 }
 
 // Validate verifies construction-time configuration.
-func (c ChatConfig) Validate() error {
-	if c.APIKey == "" {
+func (config ChatConfig) Validate() error {
+	if config.APIKey == "" {
 		return errors.New("anthropic: APIKey is required")
 	}
-	if err := c.DefaultOptions.Validate(); err != nil {
+	if err := config.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("anthropic: DefaultOptions: %w", err)
 	}
 	return nil
@@ -38,25 +38,42 @@ var (
 	_ corechat.Streamer = (*Chat)(nil)
 )
 
-// Chat implements the minimal Core Model and optional Streamer capabilities.
+// Chat implements Anthropic's Messages protocol and is also the reusable
+// protocol base for provider packages exposing a compatible endpoint.
 type Chat struct {
 	api      *API
 	defaults corechat.Options
+	dialect  Dialect
 }
 
-// NewChat constructs a Core chat adapter.
-func NewChat(cfg ChatConfig) (*Chat, error) {
-	if err := cfg.Validate(); err != nil {
+// NewChat constructs Anthropic's native Messages adapter.
+func NewChat(config ChatConfig) (*Chat, error) {
+	return newChat(config, Dialect{})
+}
+
+// NewCompatibleChat constructs a Messages adapter with one explicit provider
+// dialect. Provider packages use this seam; application code should prefer the
+// provider's own constructor.
+func NewCompatibleChat(config ChatConfig, dialect Dialect) (*Chat, error) {
+	return newChat(config, dialect)
+}
+
+func newChat(config ChatConfig, dialect Dialect) (*Chat, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	api, err := NewAPI(APIConfig{
-		APIKey:         cfg.APIKey,
-		RequestOptions: cfg.RequestOptions,
+		APIKey:         config.APIKey,
+		RequestOptions: config.RequestOptions,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &Chat{api: api, defaults: cloneProtocolOptions(cfg.DefaultOptions)}, nil
+	return &Chat{
+		api:      api,
+		defaults: cloneProtocolOptions(config.DefaultOptions),
+		dialect:  dialect,
+	}, nil
 }
 
 // Call performs one non-streaming Messages API request.
@@ -69,7 +86,19 @@ func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Respo
 	if err != nil {
 		return nil, err
 	}
-	return mapProtocolMessage(response)
+	mapped, err := mapProtocolMessage(response)
+	if err != nil {
+		return nil, err
+	}
+	if c.dialect.Response != nil {
+		if err := c.dialect.Response.FinalizeMessage(response, mapped); err != nil {
+			return nil, fmt.Errorf("anthropic: response dialect: %w", err)
+		}
+		if err := mapped.Validate(); err != nil {
+			return nil, fmt.Errorf("anthropic: response dialect produced invalid response: %w", err)
+		}
+	}
+	return mapped, nil
 }
 
 // Stream performs one streaming Messages API request and yields provider
@@ -90,10 +119,21 @@ func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*cor
 
 		state := newProtocolStreamState()
 		for stream.Next() {
-			response, include, mapErr := state.mapEvent(stream.Current())
+			event := stream.Current()
+			response, include, mapErr := state.mapEvent(event)
 			if mapErr != nil {
 				yield(nil, mapErr)
 				return
+			}
+			if include && c.dialect.Response != nil {
+				if dialectErr := c.dialect.Response.FinalizeEvent(event, response); dialectErr != nil {
+					yield(nil, fmt.Errorf("anthropic: response dialect: %w", dialectErr))
+					return
+				}
+				if validationErr := response.Validate(); validationErr != nil {
+					yield(nil, fmt.Errorf("anthropic: response dialect produced invalid stream response: %w", validationErr))
+					return
+				}
 			}
 			if include && !yield(response, nil) {
 				return
@@ -112,5 +152,14 @@ func (c *Chat) buildProtocolRequest(req *corechat.Request) (*anthropicsdk.Messag
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("anthropic: request: %w", err)
 	}
-	return mapProtocolRequest(c.defaults, req)
+	params, err := mapProtocolRequest(c.defaults, req)
+	if err != nil {
+		return nil, err
+	}
+	if c.dialect.Request != nil {
+		if err := c.dialect.Request.PrepareRequest(req, params); err != nil {
+			return nil, fmt.Errorf("anthropic: request dialect: %w", err)
+		}
+	}
+	return params, nil
 }

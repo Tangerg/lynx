@@ -260,7 +260,10 @@ func mapProtocolAssistant(message corechat.Message) ([]anthropicsdk.ContentBlock
 			blocks = append(blocks, anthropicsdk.NewTextBlock(part.Text))
 		case corechat.PartReasoning:
 			if len(part.Signature) == 0 {
-				return nil, fmt.Errorf("parts[%d]: reasoning signature is required for replay", i)
+				// Unsigned reasoning is not Anthropic replay state. It may come
+				// from another provider, so omit it instead of coupling history
+				// portability to Anthropic's signature format.
+				continue
 			}
 			blocks = append(blocks, anthropicsdk.NewThinkingBlock(string(part.Signature), part.Text))
 		case corechat.PartToolCall:

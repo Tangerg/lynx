@@ -18,17 +18,20 @@ import (
 	lynxopenai "github.com/Tangerg/lynx/models/openai"
 )
 
-func TestChat_CoreConformance(t *testing.T) {
+func TestCompatibleChat_CoreConformance(t *testing.T) {
 	conformance.ChatSuite{
 		New: func(t *testing.T) (corechat.Model, corechat.Streamer) {
 			t.Helper()
 			server := newCoreChatServer(t)
 			t.Cleanup(server.Close)
-			adapter, err := lynxopenai.NewChat(lynxopenai.ChatConfig{
-				APIKey:         "test-key",
-				DefaultOptions: corechat.Options{Model: "gpt-default-must-be-overridden"},
-				RequestOptions: []option.RequestOption{option.WithBaseURL(server.URL)},
-			})
+			adapter, err := lynxopenai.NewCompatibleChat(
+				lynxopenai.ChatConfig{
+					APIKey:         "test-key",
+					DefaultOptions: corechat.Options{Model: "gpt-default-must-be-overridden"},
+					RequestOptions: []option.RequestOption{option.WithBaseURL(server.URL)},
+				},
+				lynxopenai.ReasoningContentDialect(),
+			)
 			if err != nil {
 				t.Fatalf("NewChat: %v", err)
 			}

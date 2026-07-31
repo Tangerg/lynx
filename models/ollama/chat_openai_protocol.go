@@ -2,6 +2,10 @@ package ollama
 
 import (
 	"cmp"
+	"context"
+	"errors"
+	"fmt"
+	"iter"
 	"strings"
 
 	"github.com/openai/openai-go/v3/option"
@@ -9,6 +13,16 @@ import (
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/models/openai"
 )
+
+var (
+	_ corechat.Model    = (*OpenAIChat)(nil)
+	_ corechat.Streamer = (*OpenAIChat)(nil)
+)
+
+// OpenAIChat implements Ollama's OpenAI-compatible endpoint.
+type OpenAIChat struct {
+	protocol *openai.Chat
+}
 
 // OpenAIChatConfig configures Ollama's OpenAI-compatible Core chat adapter.
 type OpenAIChatConfig struct {
@@ -19,13 +33,31 @@ type OpenAIChatConfig struct {
 }
 
 // NewOpenAIChat constructs an OpenAI-wire Core chat adapter for Ollama.
-func NewOpenAIChat(cfg OpenAIChatConfig) (*openai.Chat, error) {
-	apiKey := cfg.APIKey
+func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
+	apiKey := config.APIKey
 	if apiKey == "" {
 		apiKey = "ollama"
 	}
-	requestOptions := append([]option.RequestOption{option.WithBaseURL(resolveOpenAIBaseURL(cfg.BaseURL))}, cfg.RequestOptions...)
-	return openai.NewChat(openai.ChatConfig{APIKey: apiKey, DefaultOptions: cfg.DefaultOptions, RequestOptions: requestOptions})
+	requestOptions := append([]option.RequestOption{option.WithBaseURL(resolveOpenAIBaseURL(config.BaseURL))}, config.RequestOptions...)
+	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: apiKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.ReasoningContentDialect())
+	if err != nil {
+		return nil, fmt.Errorf("ollama: construct OpenAI-compatible chat: %w", err)
+	}
+	return &OpenAIChat{protocol: protocol}, nil
+}
+
+func (chat *OpenAIChat) Call(ctx context.Context, request *corechat.Request) (*corechat.Response, error) {
+	if chat == nil || chat.protocol == nil {
+		return nil, errors.New("ollama: nil OpenAIChat")
+	}
+	return chat.protocol.Call(ctx, request)
+}
+
+func (chat *OpenAIChat) Stream(ctx context.Context, request *corechat.Request) iter.Seq2[*corechat.Response, error] {
+	if chat == nil || chat.protocol == nil {
+		return func(yield func(*corechat.Response, error) bool) { yield(nil, errors.New("ollama: nil OpenAIChat")) }
+	}
+	return chat.protocol.Stream(ctx, request)
 }
 
 func resolveOpenAIBaseURL(base string) string {

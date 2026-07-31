@@ -1,8 +1,14 @@
 package llm
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // TestProviderTable_Invariants holds the data-driven table to its contract:
@@ -28,6 +34,75 @@ func TestProviderTable_Invariants(t *testing.T) {
 	if ProviderAnthropic.RequiresBaseURL() {
 		t.Error("anthropic must not require a base URL")
 	}
+}
+
+func TestBuildClient_DeepSeekReasoningSurvivesOrdinarySecondTurn(t *testing.T) {
+	var calls atomic.Int32
+	var secondRequest struct {
+		Messages []map[string]any `json:"messages"`
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		call := calls.Add(1)
+		if call == 2 {
+			if err := json.NewDecoder(request.Body).Decode(&secondRequest); err != nil {
+				t.Errorf("decode second request: %v", err)
+				http.Error(writer, "invalid request", http.StatusBadRequest)
+				return
+			}
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		if call == 1 {
+			_, _ = writer.Write([]byte(`{"id":"first","model":"deepseek-v4","choices":[{"index":0,"message":{"role":"assistant","reasoning_content":"private chain","content":"first answer"},"finish_reason":"stop"}]}`))
+			return
+		}
+		_, _ = writer.Write([]byte(`{"id":"second","model":"deepseek-v4","choices":[{"index":0,"message":{"role":"assistant","content":"second answer"},"finish_reason":"stop"}]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := BuildClient(ClientSpec{
+		Provider: ProviderDeepSeek,
+		Model:    "deepseek-v4",
+		APIKey:   "test-key",
+		BaseURL:  server.URL,
+	})
+	if err != nil {
+		t.Fatalf("BuildClient: %v", err)
+	}
+	firstUser := chat.NewUserMessage(chat.NewTextPart("first"))
+	first, err := client.Call(t.Context(), &chat.Request{Messages: []chat.Message{firstUser}})
+	if err != nil {
+		t.Fatalf("first Call: %v", err)
+	}
+	if len(first.Choices) != 1 || first.Choices[0].Message == nil || len(first.Choices[0].Message.Parts) != 2 || first.Choices[0].Message.Parts[0].Kind != chat.PartReasoning {
+		t.Fatalf("first response did not preserve reasoning: %#v", first)
+	}
+
+	second, err := client.Call(t.Context(), &chat.Request{Messages: []chat.Message{
+		firstUser,
+		*first.Choices[0].Message,
+		chat.NewUserMessage(chat.NewTextPart("second")),
+	}})
+	if err != nil {
+		t.Fatalf("second Call: %v", err)
+	}
+	if second.Text() != "second answer" {
+		t.Fatalf("second response text = %q", second.Text())
+	}
+	assistant := findWireAssistant(t, secondRequest.Messages)
+	if _, exists := assistant["reasoning_content"]; exists {
+		t.Fatalf("ordinary prior turn replayed reasoning_content: %#v", assistant)
+	}
+}
+
+func findWireAssistant(t *testing.T, messages []map[string]any) map[string]any {
+	t.Helper()
+	for _, message := range messages {
+		if message["role"] == "assistant" {
+			return message
+		}
+	}
+	t.Fatal("assistant message not found")
+	return nil
 }
 
 // TestQueries covers the table-reader API providers.list / config.Load lean on.

@@ -13,7 +13,6 @@ import (
 
 	openaisdk "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
-	"github.com/openai/openai-go/v3/packages/respjson"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
@@ -21,36 +20,34 @@ import (
 )
 
 const (
-	requestExtensionKey     = "openai/request"
-	nativeFinishReasonKey   = "openai/native_finish_reason"
-	choiceLogprobsKey       = "openai/logprobs"
-	choiceRefusalDeltaKey   = "openai/refusal_delta"
-	messageRefusalKey       = "openai/refusal"
-	messageAnnotationsKey   = "openai/annotations"
-	messageAudioIDKey       = "openai/audio_id"
-	mediaAudioExpiresAtKey  = "openai/expires_at"
-	mediaAudioDataKey       = "openai/data"
-	responseCreatedKey      = "openai/created"
-	responseServiceTierKey  = "openai/service_tier"
-	responseUsageKey        = "openai/usage"
-	reasoningContentJSONKey = "reasoning_content"
+	requestExtensionKey    = "openai/request"
+	nativeFinishReasonKey  = "openai/native_finish_reason"
+	choiceLogprobsKey      = "openai/logprobs"
+	choiceRefusalDeltaKey  = "openai/refusal_delta"
+	messageRefusalKey      = "openai/refusal"
+	messageAnnotationsKey  = "openai/annotations"
+	messageAudioIDKey      = "openai/audio_id"
+	mediaAudioExpiresAtKey = "openai/expires_at"
+	mediaAudioDataKey      = "openai/data"
+	responseCreatedKey     = "openai/created"
+	responseServiceTierKey = "openai/service_tier"
+	responseUsageKey       = "openai/usage"
 )
 
-// ChatConfig configures the provider-neutral Core chat adapter. DefaultOptions
-// are copied during construction; callers may supply the model per Request.
+// ChatConfig configures an OpenAI Chat Completions adapter. DefaultOptions
+// are copied during construction; callers may select the model per request.
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
 	RequestOptions []option.RequestOption
 }
 
-// Validate verifies construction-time configuration without requiring a
-// default model, because Request.Options may select it per call.
-func (c ChatConfig) Validate() error {
-	if c.APIKey == "" {
+// Validate verifies construction-time configuration.
+func (config ChatConfig) Validate() error {
+	if config.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
-	if err := c.DefaultOptions.Validate(); err != nil {
+	if err := config.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("openai: DefaultOptions: %w", err)
 	}
 	return nil
@@ -61,25 +58,42 @@ var (
 	_ corechat.Streamer = (*Chat)(nil)
 )
 
-// Chat implements the minimal Core Model and optional Streamer capabilities.
+// Chat implements OpenAI's Chat Completions protocol and is also the reusable
+// protocol base for provider packages exposing a compatible endpoint.
 type Chat struct {
 	api      *API
 	defaults corechat.Options
+	dialect  Dialect
 }
 
-// NewChat constructs a Core chat adapter.
-func NewChat(cfg ChatConfig) (*Chat, error) {
-	if err := cfg.Validate(); err != nil {
+// NewChat constructs OpenAI's native Chat Completions adapter.
+func NewChat(config ChatConfig) (*Chat, error) {
+	return newChat(config, Dialect{})
+}
+
+// NewCompatibleChat constructs a Chat Completions adapter with one explicit
+// provider dialect. Provider packages use this seam; application code should
+// prefer the provider's own constructor.
+func NewCompatibleChat(config ChatConfig, dialect Dialect) (*Chat, error) {
+	return newChat(config, dialect)
+}
+
+func newChat(config ChatConfig, dialect Dialect) (*Chat, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	api, err := NewAPI(APIConfig{
-		APIKey:         cfg.APIKey,
-		RequestOptions: cfg.RequestOptions,
+		APIKey:         config.APIKey,
+		RequestOptions: config.RequestOptions,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &Chat{api: api, defaults: cloneProtocolOptions(cfg.DefaultOptions)}, nil
+	return &Chat{
+		api:      api,
+		defaults: cloneProtocolOptions(config.DefaultOptions),
+		dialect:  dialect,
+	}, nil
 }
 
 // Call performs one non-streaming Chat Completions request.
@@ -92,7 +106,7 @@ func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Respo
 	if err != nil {
 		return nil, err
 	}
-	return mapCompletion(params, response)
+	return mapCompletion(params, response, c.dialect.Response)
 }
 
 // Stream performs one streaming Chat Completions request. Each yielded Core
@@ -113,7 +127,7 @@ func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*cor
 		}
 		defer stream.Close()
 
-		state := newOpenAIStreamState()
+		state := newOpenAIStreamState(c.dialect.Response)
 		for stream.Next() {
 			response, mapErr := state.mapChunk(stream.Current())
 			if mapErr != nil {
@@ -180,6 +194,11 @@ func (c *Chat) buildRequest(req *corechat.Request) (*openaisdk.ChatCompletionNew
 	params.Tools, err = mapToolDefinitions(req.Tools)
 	if err != nil {
 		return nil, err
+	}
+	if c.dialect.Request != nil {
+		if err := c.dialect.Request.PrepareRequest(req, &params); err != nil {
+			return nil, fmt.Errorf("openai: request dialect: %w", err)
+		}
 	}
 	return &params, nil
 }
@@ -414,7 +433,8 @@ func mapAssistantMessage(message corechat.Message) (openaisdk.ChatCompletionMess
 				},
 			})
 		case corechat.PartReasoning:
-			return openaisdk.ChatCompletionMessageParamUnion{}, fmt.Errorf("parts[%d]: reasoning replay is unsupported", i)
+			// Reasoning is provider-owned replay state. The selected dialect
+			// decides whether and how it is represented on the wire.
 		case corechat.PartMedia:
 			if audioID == "" || part.Media.Source.Kind != media.SourceReference || part.Media.Source.Ref != audioID {
 				return openaisdk.ChatCompletionMessageParamUnion{}, fmt.Errorf("parts[%d]: assistant media replay requires matching %q metadata", i, messageAudioIDKey)
@@ -437,7 +457,7 @@ func mapAssistantMessage(message corechat.Message) (openaisdk.ChatCompletionMess
 	return mapped, nil
 }
 
-func mapCompletion(params *openaisdk.ChatCompletionNewParams, response *openaisdk.ChatCompletion) (*corechat.Response, error) {
+func mapCompletion(params *openaisdk.ChatCompletionNewParams, response *openaisdk.ChatCompletion, dialect ResponseDialect) (*corechat.Response, error) {
 	if response == nil {
 		return nil, errors.New("openai: nil response")
 	}
@@ -451,7 +471,7 @@ func mapCompletion(params *openaisdk.ChatCompletionNewParams, response *openaisd
 		Usage:   mapUsage(response.Usage),
 	}
 	for i := range response.Choices {
-		choice, err := mapCompletionChoice(params, response.Choices[i])
+		choice, err := mapCompletionChoice(params, response.Choices[i], dialect)
 		if err != nil {
 			return nil, fmt.Errorf("openai: choices[%d]: %w", i, err)
 		}
@@ -466,7 +486,7 @@ func mapCompletion(params *openaisdk.ChatCompletionNewParams, response *openaisd
 	return mapped, nil
 }
 
-func mapCompletionChoice(params *openaisdk.ChatCompletionNewParams, choice openaisdk.ChatCompletionChoice) (corechat.Choice, error) {
+func mapCompletionChoice(params *openaisdk.ChatCompletionNewParams, choice openaisdk.ChatCompletionChoice, dialect ResponseDialect) (corechat.Choice, error) {
 	mapped := corechat.Choice{
 		Index:        int(choice.Index),
 		FinishReason: normalizeFinishReason(choice.FinishReason),
@@ -479,7 +499,7 @@ func mapCompletionChoice(params *openaisdk.ChatCompletionNewParams, choice opena
 			return corechat.Choice{}, err
 		}
 	}
-	message, err := mapCompletionMessage(params, choice.Message)
+	message, err := mapCompletionMessage(params, choice.Message, dialect)
 	if err != nil {
 		return corechat.Choice{}, err
 	}
@@ -487,13 +507,8 @@ func mapCompletionChoice(params *openaisdk.ChatCompletionNewParams, choice opena
 	return mapped, nil
 }
 
-func mapCompletionMessage(params *openaisdk.ChatCompletionNewParams, message openaisdk.ChatCompletionMessage) (*corechat.Message, error) {
+func mapCompletionMessage(params *openaisdk.ChatCompletionNewParams, message openaisdk.ChatCompletionMessage, dialect ResponseDialect) (*corechat.Message, error) {
 	parts := make([]corechat.Part, 0, 3+len(message.ToolCalls))
-	if reasoning, ok, err := extraString(message.JSON.ExtraFields, reasoningContentJSONKey); err != nil {
-		return nil, err
-	} else if ok && reasoning != "" {
-		parts = append(parts, corechat.NewReasoningPart(reasoning, nil))
-	}
 	if message.Content != "" {
 		parts = append(parts, corechat.NewTextPart(message.Content))
 	}
@@ -514,10 +529,15 @@ func mapCompletionMessage(params *openaisdk.ChatCompletionNewParams, message ope
 		}
 		parts = append(parts, corechat.NewMediaPart(audio))
 	}
-	if len(parts) == 0 {
+	mapped := &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
+	if dialect != nil {
+		if err := dialect.FinalizeMessage(message, mapped); err != nil {
+			return nil, fmt.Errorf("response dialect: %w", err)
+		}
+	}
+	if len(mapped.Parts) == 0 {
 		return nil, nil
 	}
-	mapped := &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
 	if err := mapped.Metadata.Set(messageRefusalKey, message.Refusal); err != nil {
 		return nil, err
 	}
@@ -652,18 +672,6 @@ func normalizeFinishReason(reason string) corechat.FinishReason {
 	}
 }
 
-func extraString(fields map[string]respjson.Field, key string) (string, bool, error) {
-	field, ok := fields[key]
-	if !ok || field.Raw() == "" || field.Raw() == "null" {
-		return "", false, nil
-	}
-	var value string
-	if err := json.Unmarshal([]byte(field.Raw()), &value); err != nil {
-		return "", true, fmt.Errorf("openai: decode %s: %w", key, err)
-	}
-	return value, true, nil
-}
-
 type openAIStreamTool struct {
 	id               string
 	name             string
@@ -671,11 +679,15 @@ type openAIStreamTool struct {
 }
 
 type openAIStreamState struct {
-	tools map[int]map[int64]openAIStreamTool
+	tools   map[int]map[int64]openAIStreamTool
+	dialect ResponseDialect
 }
 
-func newOpenAIStreamState() *openAIStreamState {
-	return &openAIStreamState{tools: make(map[int]map[int64]openAIStreamTool)}
+func newOpenAIStreamState(dialect ResponseDialect) *openAIStreamState {
+	return &openAIStreamState{
+		tools:   make(map[int]map[int64]openAIStreamTool),
+		dialect: dialect,
+	}
 }
 
 func (s *openAIStreamState) mapChunk(chunk openaisdk.ChatCompletionChunk) (*corechat.Response, error) {
@@ -718,11 +730,6 @@ func (s *openAIStreamState) mapChunkChoice(choice openaisdk.ChatCompletionChunkC
 	}
 
 	parts := make([]corechat.Part, 0, 2+len(choice.Delta.ToolCalls))
-	if reasoning, ok, err := extraString(choice.Delta.JSON.ExtraFields, reasoningContentJSONKey); err != nil {
-		return corechat.Choice{}, false, err
-	} else if ok && reasoning != "" {
-		parts = append(parts, corechat.NewReasoningPart(reasoning, nil))
-	}
 	if choice.Delta.Content != "" {
 		parts = append(parts, corechat.NewTextPart(choice.Delta.Content))
 	}
@@ -735,8 +742,13 @@ func (s *openAIStreamState) mapChunkChoice(choice openaisdk.ChatCompletionChunkC
 			parts = append(parts, corechat.NewToolCallPart(call))
 		}
 	}
-	if len(parts) > 0 {
-		message := &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
+	message := &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
+	if s.dialect != nil {
+		if err := s.dialect.FinalizeDelta(choice.Delta, message); err != nil {
+			return corechat.Choice{}, false, fmt.Errorf("response dialect: %w", err)
+		}
+	}
+	if len(message.Parts) > 0 {
 		if choice.Delta.Refusal != "" {
 			if err := message.Metadata.Set(messageRefusalKey, choice.Delta.Refusal); err != nil {
 				return corechat.Choice{}, false, err

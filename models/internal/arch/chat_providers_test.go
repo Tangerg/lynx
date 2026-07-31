@@ -32,35 +32,35 @@ func TestTargetChatProviderConstructorsCompile(t *testing.T) {
 	t.Parallel()
 
 	var (
-		_ func(alibaba.OpenAIChatConfig) (*openai.Chat, error)             = alibaba.NewOpenAIChat
-		_ func(anthropic.ChatConfig) (*anthropic.Chat, error)              = anthropic.NewChat
-		_ func(anthropic.OpenAIChatConfig) (*openai.Chat, error)           = anthropic.NewOpenAIChat
-		_ func(azureopenai.ChatConfig) (*openai.Chat, error)               = azureopenai.NewChat
-		_ func(context.Context, bedrock.ChatConfig) (*bedrock.Chat, error) = bedrock.NewChat
-		_ func(deepseek.OpenAIChatConfig) (*openai.Chat, error)            = deepseek.NewOpenAIChat
-		_ func(fireworks.OpenAIChatConfig) (*openai.Chat, error)           = fireworks.NewOpenAIChat
-		_ func(google.ChatConfig) (*google.Chat, error)                    = google.NewChat
-		_ func(google.OpenAIChatConfig) (*openai.Chat, error)              = google.NewOpenAIChat
-		_ func(groq.OpenAIChatConfig) (*openai.Chat, error)                = groq.NewOpenAIChat
-		_ func(huggingface.OpenAIChatConfig) (*openai.Chat, error)         = huggingface.NewOpenAIChat
-		_ func(minimax.OpenAIChatConfig) (*openai.Chat, error)             = minimax.NewOpenAIChat
-		_ func(minimax.AnthropicChatConfig) (*anthropic.Chat, error)       = minimax.NewAnthropicChat
-		_ func(mistral.OpenAIChatConfig) (*openai.Chat, error)             = mistral.NewOpenAIChat
-		_ func(moonshot.OpenAIChatConfig) (*openai.Chat, error)            = moonshot.NewOpenAIChat
-		_ func(moonshot.AnthropicChatConfig) (*anthropic.Chat, error)      = moonshot.NewAnthropicChat
-		_ func(ollama.ChatConfig) (*ollama.Chat, error)                    = ollama.NewChat
-		_ func(ollama.OpenAIChatConfig) (*openai.Chat, error)              = ollama.NewOpenAIChat
-		_ func(openai.ChatConfig) (*openai.Chat, error)                    = openai.NewChat
-		_ func(openai.ChatConfig) (*openai.ResponsesChat, error)           = openai.NewResponsesChat
-		_ func(openrouter.OpenAIChatConfig) (*openai.Chat, error)          = openrouter.NewOpenAIChat
-		_ func(openrouter.AnthropicChatConfig) (*anthropic.Chat, error)    = openrouter.NewAnthropicChat
-		_ func(perplexity.OpenAIChatConfig) (*openai.Chat, error)          = perplexity.NewOpenAIChat
-		_ func(together.OpenAIChatConfig) (*openai.Chat, error)            = together.NewOpenAIChat
-		_ func(vertexai.ChatConfig) (*google.Chat, error)                  = vertexai.NewChat
-		_ func(xai.OpenAIChatConfig) (*openai.Chat, error)                 = xai.NewOpenAIChat
-		_ func(xiaomi.OpenAIChatConfig) (*openai.Chat, error)              = xiaomi.NewOpenAIChat
-		_ func(xiaomi.AnthropicChatConfig) (*anthropic.Chat, error)        = xiaomi.NewAnthropicChat
-		_ func(zhipu.OpenAIChatConfig) (*openai.Chat, error)               = zhipu.NewOpenAIChat
-		_ func(zhipu.AnthropicChatConfig) (*anthropic.Chat, error)         = zhipu.NewAnthropicChat
+		_ func(alibaba.OpenAIChatConfig) (*alibaba.OpenAIChat, error)             = alibaba.NewOpenAIChat
+		_ func(anthropic.ChatConfig) (*anthropic.Chat, error)                     = anthropic.NewChat
+		_ func(anthropic.OpenAIChatConfig) (*anthropic.OpenAIChat, error)         = anthropic.NewOpenAIChat
+		_ func(azureopenai.ChatConfig) (*azureopenai.Chat, error)                 = azureopenai.NewChat
+		_ func(context.Context, bedrock.ChatConfig) (*bedrock.Chat, error)        = bedrock.NewChat
+		_ func(deepseek.OpenAIChatConfig) (*deepseek.OpenAIChat, error)           = deepseek.NewOpenAIChat
+		_ func(fireworks.OpenAIChatConfig) (*fireworks.OpenAIChat, error)         = fireworks.NewOpenAIChat
+		_ func(google.ChatConfig) (*google.Chat, error)                           = google.NewChat
+		_ func(google.OpenAIChatConfig) (*google.OpenAIChat, error)               = google.NewOpenAIChat
+		_ func(groq.OpenAIChatConfig) (*groq.OpenAIChat, error)                   = groq.NewOpenAIChat
+		_ func(huggingface.OpenAIChatConfig) (*huggingface.OpenAIChat, error)     = huggingface.NewOpenAIChat
+		_ func(minimax.OpenAIChatConfig) (*minimax.OpenAIChat, error)             = minimax.NewOpenAIChat
+		_ func(minimax.AnthropicChatConfig) (*minimax.AnthropicChat, error)       = minimax.NewAnthropicChat
+		_ func(mistral.OpenAIChatConfig) (*mistral.OpenAIChat, error)             = mistral.NewOpenAIChat
+		_ func(moonshot.OpenAIChatConfig) (*moonshot.OpenAIChat, error)           = moonshot.NewOpenAIChat
+		_ func(moonshot.AnthropicChatConfig) (*moonshot.AnthropicChat, error)     = moonshot.NewAnthropicChat
+		_ func(ollama.ChatConfig) (*ollama.Chat, error)                           = ollama.NewChat
+		_ func(ollama.OpenAIChatConfig) (*ollama.OpenAIChat, error)               = ollama.NewOpenAIChat
+		_ func(openai.ChatConfig) (*openai.Chat, error)                           = openai.NewChat
+		_ func(openai.ChatConfig) (*openai.ResponsesChat, error)                  = openai.NewResponsesChat
+		_ func(openrouter.OpenAIChatConfig) (*openrouter.OpenAIChat, error)       = openrouter.NewOpenAIChat
+		_ func(openrouter.AnthropicChatConfig) (*openrouter.AnthropicChat, error) = openrouter.NewAnthropicChat
+		_ func(perplexity.OpenAIChatConfig) (*perplexity.OpenAIChat, error)       = perplexity.NewOpenAIChat
+		_ func(together.OpenAIChatConfig) (*together.OpenAIChat, error)           = together.NewOpenAIChat
+		_ func(vertexai.ChatConfig) (*google.Chat, error)                         = vertexai.NewChat
+		_ func(xai.OpenAIChatConfig) (*xai.OpenAIChat, error)                     = xai.NewOpenAIChat
+		_ func(xiaomi.OpenAIChatConfig) (*xiaomi.OpenAIChat, error)               = xiaomi.NewOpenAIChat
+		_ func(xiaomi.AnthropicChatConfig) (*xiaomi.AnthropicChat, error)         = xiaomi.NewAnthropicChat
+		_ func(zhipu.OpenAIChatConfig) (*zhipu.OpenAIChat, error)                 = zhipu.NewOpenAIChat
+		_ func(zhipu.AnthropicChatConfig) (*zhipu.AnthropicChat, error)           = zhipu.NewAnthropicChat
 	)
 }
