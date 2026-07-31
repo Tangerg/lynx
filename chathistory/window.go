@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/chathistory/internal/nilcheck"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/metadata"
 )
@@ -27,7 +28,7 @@ type WindowStore struct {
 // NewWindowStore returns a read-side sliding-window decorator. Limit counts
 // the merged system message when one exists and must be greater than zero.
 func NewWindowStore(store Store, limit int) (*WindowStore, error) {
-	if isNil(store) {
+	if nilcheck.IsNil(store) {
 		return nil, ErrNilStore
 	}
 	if limit <= 0 {
@@ -52,12 +53,12 @@ func (s *WindowStore) Read(ctx context.Context, conversationID string) ([]chat.M
 	}
 
 	systems := make([]chat.Message, 0)
-	nonSystem := make([]chat.Message, 0, len(messages))
+	nonSystems := make([]chat.Message, 0, len(messages))
 	for _, message := range messages {
 		if message.Role == chat.RoleSystem {
 			systems = append(systems, message)
 		} else {
-			nonSystem = append(nonSystem, message)
+			nonSystems = append(nonSystems, message)
 		}
 	}
 
@@ -70,9 +71,9 @@ func (s *WindowStore) Read(ctx context.Context, conversationID string) ([]chat.M
 		window = append(window, merged)
 	}
 	remaining := s.limit - len(window)
-	if remaining > 0 && len(nonSystem) > 0 {
-		start := max(0, len(nonSystem)-remaining)
-		window = append(window, nonSystem[start:]...)
+	if remaining > 0 && len(nonSystems) > 0 {
+		start := max(0, len(nonSystems)-remaining)
+		window = append(window, nonSystems[start:]...)
 	}
 	return window, nil
 }

@@ -1,10 +1,13 @@
 package cosmosdb
 
 import (
+	"cmp"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -12,6 +15,7 @@ import (
 
 	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/internal/codec"
+	"github.com/Tangerg/lynx/chathistory/internal/sequence"
 	"github.com/Tangerg/lynx/chathistory/internal/tracing"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -31,12 +35,13 @@ var (
 // Store is a Cosmos DB-backed [chathistory.Store]. Construct via [New].
 type Store struct {
 	container *azcosmos.ContainerClient
+	sequence  sequence.Generator
 }
 
 // New builds a [Store] from cfg.
 func New(cfg Config) (*Store, error) {
 	if cfg.Container == nil {
-		return nil, errors.New("cosmosdb: Container is required")
+		return nil, errors.New("cosmosdb: container is required")
 	}
 	return &Store{container: cfg.Container}, nil
 }
@@ -46,18 +51,14 @@ func New(cfg Config) (*Store, error) {
 type document struct {
 	ID             string `json:"id"`
 	ConversationID string `json:"conversation_id"`
-	Seq            int64  `json:"seq"`
+	Sequence       string `json:"seq"`
 	Message        string `json:"message"`
 	CreatedAt      string `json:"created_at"`
 }
 
-// Write upserts every message under conversationID. The synthesized
-// id (`<conversation_id>_<seq>`) is monotone within the batch
-// (seqBase = call-time UnixNano, +1 per message). A retried Write
-// recomputes seqBase, so re-runs append fresh documents — they are
-// NOT idempotent. Two writers calling in the same nanosecond would
-// collide ids and silently upsert over each other; chat history has a
-// single writer per conversation, so that stays theoretical.
+// Write creates one document per message. Random document IDs prevent
+// concurrent writers from overwriting each other; seq preserves argument order
+// within one call. Retried calls append fresh documents and are not idempotent.
 func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
@@ -69,35 +70,34 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 		return nil
 	}
 
-	ctx, span := tracing.StartWrite(ctx, "cosmosdb", conversationID, len(messages))
+	ctx, span := tracing.StartWrite(ctx, tracing.AzureCosmosDB, conversationID, len(messages))
 	defer func() { tracing.Finish(span, err) }()
 
-	pk := azcosmos.NewPartitionKeyString(conversationID)
+	encoded, err := codec.EncodeMessages(messages)
+	if err != nil {
+		return fmt.Errorf("cosmosdb: write: encode messages: %w", err)
+	}
+	partitionKey := azcosmos.NewPartitionKeyString(conversationID)
 	now := time.Now().UTC()
-	seqBase := now.UnixNano()
+	sequenceBase := s.sequence.Reserve(len(encoded))
 	createdAt := now.Format(time.RFC3339Nano)
 
-	for i, msg := range messages {
-		raw, encErr := codec.EncodeMessage(msg)
-		if encErr != nil {
-			err = fmt.Errorf("cosmosdb.Store.Write: encode message: %w", encErr)
-			return err
-		}
-		seq := seqBase + int64(i)
-		doc := document{
-			ID:             conversationID + "_" + strconv.FormatInt(seq, 10),
+	for index, raw := range encoded {
+		messageSequence := sequenceBase + int64(index)
+		storedDocument := document{
+			ID:             rand.Text(),
 			ConversationID: conversationID,
-			Seq:            seq,
+			Sequence:       formatSequence(messageSequence),
 			Message:        string(raw),
 			CreatedAt:      createdAt,
 		}
-		body, marshalErr := json.Marshal(doc)
+		body, marshalErr := json.Marshal(storedDocument)
 		if marshalErr != nil {
-			err = fmt.Errorf("cosmosdb.Store.Write: marshal doc: %w", marshalErr)
+			err = fmt.Errorf("cosmosdb: write: marshal message %d: %w", index, marshalErr)
 			return err
 		}
-		if _, err = s.container.UpsertItem(ctx, pk, body, nil); err != nil {
-			return fmt.Errorf("cosmosdb.Store.Write: upsert: %w", err)
+		if _, err = s.container.CreateItem(ctx, partitionKey, body, nil); err != nil {
+			return fmt.Errorf("cosmosdb: write: create message %d: %w", index, err)
 		}
 	}
 	return nil
@@ -105,7 +105,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 // Read returns every message stored under conversationID in
 // insertion order.
-func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Message, err error) {
+func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages []chat.Message, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -113,50 +113,74 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 		return nil, err
 	}
 
-	ctx, span := tracing.StartRead(ctx, "cosmosdb", conversationID)
-	defer func() { tracing.RecordReadResult(span, err, len(out)) }()
+	ctx, span := tracing.StartRead(ctx, tracing.AzureCosmosDB, conversationID)
+	defer func() { tracing.RecordReadResult(span, err, len(storedMessages)) }()
 
-	pk := azcosmos.NewPartitionKeyString(conversationID)
-	query := "SELECT c.message FROM c WHERE c.conversation_id = @cid ORDER BY c.seq ASC"
-	opts := &azcosmos.QueryOptions{
+	partitionKey := azcosmos.NewPartitionKeyString(conversationID)
+	query := "SELECT c.id, c.seq, c.message FROM c WHERE c.conversation_id = @cid"
+	queryOptions := &azcosmos.QueryOptions{
 		QueryParameters: []azcosmos.QueryParameter{
 			{Name: "@cid", Value: conversationID},
 		},
 	}
 
-	out = []chat.Message{}
-	pager := s.container.NewQueryItemsPager(query, pk, opts)
+	documents := []document{}
+	pager := s.container.NewQueryItemsPager(query, partitionKey, queryOptions)
 	for pager.More() {
-		resp, err := pager.NextPage(ctx)
+		response, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("cosmosdb.Store.Read: %w", err)
+			return nil, fmt.Errorf("cosmosdb: read: query page: %w", err)
 		}
-		for _, item := range resp.Items {
-			var projected struct {
-				Message string `json:"message"`
-			}
+		for _, item := range response.Items {
+			var projected document
 			if err := json.Unmarshal(item, &projected); err != nil {
-				return nil, fmt.Errorf("cosmosdb.Store.Read: unmarshal item: %w", err)
+				return nil, fmt.Errorf("cosmosdb: read: decode document: %w", err)
 			}
-			msg, err := codec.DecodeMessage([]byte(projected.Message))
-			if err != nil {
-				return nil, fmt.Errorf("cosmosdb.Store.Read: decode message: %w", err)
+			if projected.ID == "" {
+				return nil, errors.New("cosmosdb: read: document is missing ID")
 			}
-			out = append(out, msg)
+			if !validSequence(projected.Sequence) {
+				return nil, fmt.Errorf("cosmosdb: read: document %q has invalid sequence %q", projected.ID, projected.Sequence)
+			}
+			documents = append(documents, projected)
 		}
 	}
-	return out, nil
+	slices.SortFunc(documents, compareDocuments)
+	storedMessages = make([]chat.Message, 0, len(documents))
+	for index, document := range documents {
+		message, err := codec.DecodeMessage([]byte(document.Message))
+		if err != nil {
+			return nil, fmt.Errorf("cosmosdb: read: decode message %d: %w", index, err)
+		}
+		storedMessages = append(storedMessages, message)
+	}
+	return storedMessages, nil
 }
 
-// Conversations returns the id of every conversation that currently
-// has at least one stored message — a point-in-time snapshot. The
-// distinct ids are gathered with a cross-partition projection query.
+func formatSequence(sequence int64) string {
+	return fmt.Sprintf("%019d", sequence)
+}
+
+func validSequence(sequence string) bool {
+	value, err := strconv.ParseInt(sequence, 10, 64)
+	return err == nil && value >= 0 && formatSequence(value) == sequence
+}
+
+func compareDocuments(left, right document) int {
+	if order := cmp.Compare(left.Sequence, right.Sequence); order != 0 {
+		return order
+	}
+	return cmp.Compare(left.ID, right.ID)
+}
+
+// Conversations gathers distinct IDs with a cross-partition query and returns
+// them in lexical order.
 func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	ctx, span := tracing.StartList(ctx, "cosmosdb")
+	ctx, span := tracing.StartList(ctx, tracing.AzureCosmosDB)
 	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
 
 	// Empty partition key + a WHERE-less projection runs cross-partition;
@@ -166,18 +190,22 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 	ids = []string{}
 	pager := s.container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), nil)
 	for pager.More() {
-		resp, pageErr := pager.NextPage(ctx)
+		response, pageErr := pager.NextPage(ctx)
 		if pageErr != nil {
-			return nil, fmt.Errorf("cosmosdb.Store.Conversations: %w", pageErr)
+			return nil, fmt.Errorf("cosmosdb: list conversations: query page: %w", pageErr)
 		}
-		for _, item := range resp.Items {
+		for _, item := range response.Items {
 			var id string
 			if err = json.Unmarshal(item, &id); err != nil {
-				return nil, fmt.Errorf("cosmosdb.Store.Conversations: unmarshal id: %w", err)
+				return nil, fmt.Errorf("cosmosdb: list conversations: decode ID: %w", err)
+			}
+			if err = chathistory.ValidateConversationID(id); err != nil {
+				return nil, fmt.Errorf("cosmosdb: list conversations: invalid stored ID %q: %w", id, err)
 			}
 			ids = append(ids, id)
 		}
 	}
+	slices.Sort(ids)
 	return ids, nil
 }
 
@@ -192,12 +220,12 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		return err
 	}
 
-	ctx, span := tracing.StartClear(ctx, "cosmosdb", conversationID)
+	ctx, span := tracing.StartClear(ctx, tracing.AzureCosmosDB, conversationID)
 	defer func() { tracing.Finish(span, err) }()
 
-	pk := azcosmos.NewPartitionKeyString(conversationID)
+	partitionKey := azcosmos.NewPartitionKeyString(conversationID)
 	query := "SELECT c.id FROM c WHERE c.conversation_id = @cid"
-	opts := &azcosmos.QueryOptions{
+	queryOptions := &azcosmos.QueryOptions{
 		QueryParameters: []azcosmos.QueryParameter{
 			{Name: "@cid", Value: conversationID},
 		},
@@ -208,26 +236,26 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 	// so each round re-runs the query from scratch and deletes one
 	// page, until the query comes back empty.
 	for {
-		pager := s.container.NewQueryItemsPager(query, pk, opts)
+		pager := s.container.NewQueryItemsPager(query, partitionKey, queryOptions)
 		if !pager.More() {
 			return nil
 		}
-		resp, err := pager.NextPage(ctx)
+		response, err := pager.NextPage(ctx)
 		if err != nil {
-			return fmt.Errorf("cosmosdb.Store.Clear: %w", err)
+			return fmt.Errorf("cosmosdb: clear: query document IDs: %w", err)
 		}
-		if len(resp.Items) == 0 {
+		if len(response.Items) == 0 {
 			return nil
 		}
-		for _, item := range resp.Items {
+		for _, item := range response.Items {
 			var projected struct {
 				ID string `json:"id"`
 			}
 			if err := json.Unmarshal(item, &projected); err != nil {
-				return fmt.Errorf("cosmosdb.Store.Clear: unmarshal id: %w", err)
+				return fmt.Errorf("cosmosdb: clear: decode document ID: %w", err)
 			}
-			if _, err := s.container.DeleteItem(ctx, pk, projected.ID, nil); err != nil {
-				return fmt.Errorf("cosmosdb.Store.Clear: delete %q: %w", projected.ID, err)
+			if _, err := s.container.DeleteItem(ctx, partitionKey, projected.ID, nil); err != nil {
+				return fmt.Errorf("cosmosdb: clear: delete document %q: %w", projected.ID, err)
 			}
 		}
 	}

@@ -6,7 +6,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/postgres"
 )
 
@@ -21,12 +20,12 @@ import (
 func stubPool() *pgxpool.Pool { return new(pgxpool.Pool) }
 
 func TestNewRequiresPool(t *testing.T) {
-	_, err := postgres.New(postgres.Config{})
+	_, err := postgres.New(t.Context(), postgres.Config{})
 	if err == nil {
 		t.Fatal("expected error when Pool is nil")
 	}
-	if !strings.Contains(err.Error(), "Pool") {
-		t.Fatalf("err = %v; should mention Pool", err)
+	if !strings.Contains(err.Error(), "pool") {
+		t.Fatalf("err = %v; should mention pool", err)
 	}
 }
 
@@ -54,12 +53,12 @@ func TestNewRejectsBadIdentifier(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := postgres.New(tc.cfg)
+			_, err := postgres.New(t.Context(), tc.cfg)
 			if err == nil {
 				t.Fatal("expected identifier-validation error")
 			}
-			if !strings.Contains(err.Error(), "must match") {
-				t.Fatalf("err = %v; should mention identifier pattern", err)
+			if !strings.Contains(err.Error(), "valid unquoted identifier") {
+				t.Fatalf("err = %v; should explain identifier requirement", err)
 			}
 		})
 	}
@@ -68,7 +67,7 @@ func TestNewRejectsBadIdentifier(t *testing.T) {
 func TestNewAcceptsValidIdentifiers(t *testing.T) {
 	// InitializeSchema=false so we don't issue SQL — only validation
 	// runs. The stub pool would crash any real query.
-	_, err := postgres.New(postgres.Config{
+	_, err := postgres.New(t.Context(), postgres.Config{
 		Pool:       stubPool(),
 		SchemaName: "my_schema",
 		TableName:  "chat_history",
@@ -77,10 +76,4 @@ func TestNewAcceptsValidIdentifiers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected success, got %v", err)
 	}
-}
-
-// TestStoreImplementsHistoryStore is a compile-time interface check —
-// fails at build time, not runtime, if the contract drifts.
-func TestStoreImplementsHistoryStore(t *testing.T) {
-	var _ chathistory.Store = (*postgres.Store)(nil)
 }

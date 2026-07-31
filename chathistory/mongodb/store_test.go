@@ -4,20 +4,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/mongodb"
 )
 
 func TestNewRequiresCollection(t *testing.T) {
-	_, err := mongodb.New(mongodb.Config{})
+	_, err := mongodb.New(t.Context(), mongodb.Config{})
 	if err == nil {
 		t.Fatal("expected error when Collection is nil")
 	}
-	if !strings.Contains(err.Error(), "Collection") {
-		t.Fatalf("err = %v; should mention Collection", err)
+	if !strings.Contains(err.Error(), "collection") {
+		t.Fatalf("err = %v; should mention collection", err)
 	}
-}
-
-func TestStoreImplementsHistoryStore(t *testing.T) {
-	var _ chathistory.Store = (*mongodb.Store)(nil)
 }

@@ -4,13 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
+	"slices"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/internal/codec"
 	"github.com/Tangerg/lynx/chathistory/internal/dbident"
+	"github.com/Tangerg/lynx/chathistory/internal/nilcheck"
+	"github.com/Tangerg/lynx/chathistory/internal/sequence"
 	"github.com/Tangerg/lynx/chathistory/internal/tracing"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -22,10 +24,6 @@ const (
 
 // Config configures [New]. Only [Config.Driver] is required.
 type Config struct {
-	// Context is used for the schema bootstrap. Optional: defaults
-	// to context.Background().
-	Context context.Context
-
 	// Driver is the live Neo4j driver. Required. Callers own its
 	// lifetime.
 	Driver neo4j.DriverWithContext
@@ -53,15 +51,13 @@ type Store struct {
 	driver   neo4j.DriverWithContext
 	database string
 	label    string
+	sequence sequence.Generator
 }
 
-// New builds a [Store] from cfg.
-func New(cfg Config) (*Store, error) {
-	if cfg.Driver == nil {
-		return nil, errors.New("neo4j: Driver is required")
-	}
-	if cfg.Context == nil {
-		cfg.Context = context.Background()
+// New builds a [Store] from cfg. ctx bounds optional index initialization.
+func New(ctx context.Context, cfg Config) (*Store, error) {
+	if nilcheck.IsNil(cfg.Driver) {
+		return nil, errors.New("neo4j: driver is required")
 	}
 	if cfg.Database == "" {
 		cfg.Database = DefaultDatabase
@@ -70,7 +66,7 @@ func New(cfg Config) (*Store, error) {
 		cfg.Label = DefaultLabel
 	}
 	if !dbident.Valid(cfg.Label) {
-		return nil, fmt.Errorf("neo4j: Label=%q must match %s", cfg.Label, dbident.Pattern)
+		return nil, fmt.Errorf("neo4j: label %q must be a valid unquoted identifier", cfg.Label)
 	}
 	s := &Store{
 		driver:   cfg.Driver,
@@ -78,7 +74,7 @@ func New(cfg Config) (*Store, error) {
 		label:    cfg.Label,
 	}
 	if cfg.InitializeSchema {
-		if err := s.initIndex(cfg.Context); err != nil {
+		if err := s.initIndex(ctx); err != nil {
 			return nil, fmt.Errorf("neo4j: initialize schema: %w", err)
 		}
 	}
@@ -100,9 +96,9 @@ func (s *Store) initIndex(ctx context.Context) error {
 	return err
 }
 
-// Write creates a new node per message under conversationID. `seq`
-// is filled with `nowNanos + batchIndex` so all messages in one
-// Write call sort strictly even on nanosecond-clock collisions.
+// Write creates a new node per message under conversationID. A reserved
+// sequence range preserves argument order and remains monotonic if the local
+// clock moves backward.
 func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
@@ -114,20 +110,19 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 		return nil
 	}
 
-	ctx, span := tracing.StartWrite(ctx, "neo4j", conversationID, len(messages))
+	ctx, span := tracing.StartWrite(ctx, tracing.Neo4j, conversationID, len(messages))
 	defer func() { tracing.Finish(span, err) }()
 
-	now := time.Now().UnixNano()
-	rows := make([]map[string]any, 0, len(messages))
-	for i, msg := range messages {
-		raw, encErr := codec.EncodeMessage(msg)
-		if encErr != nil {
-			err = fmt.Errorf("neo4j.Store.Write: encode message: %w", encErr)
-			return err
-		}
+	encoded, err := codec.EncodeMessages(messages)
+	if err != nil {
+		return fmt.Errorf("neo4j: write: encode messages: %w", err)
+	}
+	sequenceBase := s.sequence.Reserve(len(encoded))
+	rows := make([]map[string]any, 0, len(encoded))
+	for index, raw := range encoded {
 		rows = append(rows, map[string]any{
 			"conversation_id": conversationID,
-			"seq":             now + int64(i),
+			"seq":             sequenceBase + int64(index),
 			"message":         string(raw),
 		})
 	}
@@ -147,14 +142,14 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 		neo4j.ExecuteQueryWithDatabase(s.database),
 	)
 	if err != nil {
-		return fmt.Errorf("neo4j.Store.Write: %w", err)
+		return fmt.Errorf("neo4j: write: create message nodes: %w", err)
 	}
 	return nil
 }
 
 // Read returns every message stored under conversationID in
 // insertion order (seq ascending).
-func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Message, err error) {
+func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages []chat.Message, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -162,11 +157,11 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 		return nil, err
 	}
 
-	ctx, span := tracing.StartRead(ctx, "neo4j", conversationID)
-	defer func() { tracing.RecordReadResult(span, err, len(out)) }()
+	ctx, span := tracing.StartRead(ctx, tracing.Neo4j, conversationID)
+	defer func() { tracing.RecordReadResult(span, err, len(storedMessages)) }()
 
 	cypher := fmt.Sprintf(
-		"MATCH (m:%s {conversation_id: $conversation_id}) RETURN m.message AS message ORDER BY m.seq ASC",
+		"MATCH (m:%s {conversation_id: $conversation_id}) RETURN elementId(m) AS id, m.seq AS seq, m.message AS message ORDER BY seq ASC, id ASC",
 		s.label,
 	)
 	var result *neo4j.EagerResult
@@ -176,26 +171,34 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 		neo4j.ExecuteQueryWithDatabase(s.database),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("neo4j.Store.Read: %w", err)
+		return nil, fmt.Errorf("neo4j: read: query messages: %w", err)
 	}
 
-	out = make([]chat.Message, 0, len(result.Records))
-	for _, rec := range result.Records {
-		raw, ok := rec.Get("message")
+	storedMessages = make([]chat.Message, 0, len(result.Records))
+	for index, record := range result.Records {
+		rawSequence, ok := record.Get("seq")
 		if !ok {
-			continue
+			return nil, fmt.Errorf("neo4j: read: record %d is missing sequence", index)
 		}
-		s, ok := raw.(string)
+		sequence, ok := rawSequence.(int64)
+		if !ok || sequence <= 0 {
+			return nil, fmt.Errorf("neo4j: read: record %d sequence is %v (%T), want a positive integer", index, rawSequence, rawSequence)
+		}
+		raw, ok := record.Get("message")
 		if !ok {
-			return nil, fmt.Errorf("neo4j.Store.Read: message column type %T, want string", raw)
+			return nil, fmt.Errorf("neo4j: read: record %d is missing message", index)
 		}
-		msg, err := codec.DecodeMessage([]byte(s))
+		encodedMessage, ok := raw.(string)
+		if !ok {
+			return nil, fmt.Errorf("neo4j: read: record %d message has type %T, want string", index, raw)
+		}
+		message, err := codec.DecodeMessage([]byte(encodedMessage))
 		if err != nil {
-			return nil, fmt.Errorf("neo4j.Store.Read: decode message: %w", err)
+			return nil, fmt.Errorf("neo4j: read: decode message %d: %w", index, err)
 		}
-		out = append(out, msg)
+		storedMessages = append(storedMessages, message)
 	}
-	return out, nil
+	return storedMessages, nil
 }
 
 // Clear deletes every node for conversationID under the configured
@@ -208,7 +211,7 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		return err
 	}
 
-	ctx, span := tracing.StartClear(ctx, "neo4j", conversationID)
+	ctx, span := tracing.StartClear(ctx, tracing.Neo4j, conversationID)
 	defer func() { tracing.Finish(span, err) }()
 
 	cypher := fmt.Sprintf(
@@ -221,20 +224,18 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		neo4j.ExecuteQueryWithDatabase(s.database),
 	)
 	if err != nil {
-		return fmt.Errorf("neo4j.Store.Clear: %w", err)
+		return fmt.Errorf("neo4j: clear: delete message nodes: %w", err)
 	}
 	return nil
 }
 
-// Conversations returns the ids of every stored conversation as a
-// point-in-time snapshot. An empty slice is returned when the store
-// holds no messages.
+// Conversations returns every stored conversation ID in lexical order.
 func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	ctx, span := tracing.StartList(ctx, "neo4j")
+	ctx, span := tracing.StartList(ctx, tracing.Neo4j)
 	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
 
 	cypher := fmt.Sprintf(
@@ -247,20 +248,24 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 		neo4j.ExecuteQueryWithDatabase(s.database),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("neo4j.Store.Conversations: %w", err)
+		return nil, fmt.Errorf("neo4j: list conversations: query IDs: %w", err)
 	}
 
 	ids = make([]string, 0, len(result.Records))
-	for _, rec := range result.Records {
-		raw, ok := rec.Get("id")
+	for index, record := range result.Records {
+		raw, ok := record.Get("id")
 		if !ok {
-			continue
+			return nil, fmt.Errorf("neo4j: list conversations: record %d is missing ID", index)
 		}
 		id, ok := raw.(string)
 		if !ok {
-			return nil, fmt.Errorf("neo4j.Store.Conversations: id column type %T, want string", raw)
+			return nil, fmt.Errorf("neo4j: list conversations: record %d ID has type %T, want string", index, raw)
+		}
+		if err := chathistory.ValidateConversationID(id); err != nil {
+			return nil, fmt.Errorf("neo4j: list conversations: record %d has invalid ID %q: %w", index, id, err)
 		}
 		ids = append(ids, id)
 	}
+	slices.Sort(ids)
 	return ids, nil
 }

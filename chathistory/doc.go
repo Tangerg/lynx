@@ -10,6 +10,11 @@
 // serialized request metadata. The middleware subpackage binds that scope to
 // model calls.
 //
+// Writes preserve message order within one call. Conversation listing is an
+// optional capability and returns unique IDs in lexical order. Concurrent
+// writes and writes through distinct Store instances have no common ordering
+// guarantee unless a backend documents one.
+//
 // Persistent backends live in child packages so database drivers do not enter
 // core/go.mod:
 //

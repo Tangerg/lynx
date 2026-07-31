@@ -1,9 +1,10 @@
 package chathistory_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
-	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/Tangerg/lynx/chathistory"
@@ -84,7 +85,7 @@ func TestInMemoryStoreSnapshotsEveryMessageReference(t *testing.T) {
 	if count, err := store.Count(t.Context(), "c1"); err != nil || count != 3 {
 		t.Fatalf("Count = %d, %v", count, err)
 	}
-	if ids, err := store.Conversations(t.Context()); err != nil || !reflect.DeepEqual(ids, []string{"c1"}) {
+	if ids, err := store.Conversations(t.Context()); err != nil || !slices.Equal(ids, []string{"c1"}) {
 		t.Fatalf("Conversations = %v, %v", ids, err)
 	}
 }
@@ -112,6 +113,23 @@ func TestInMemoryStoreReplaceClearAndUnknownRead(t *testing.T) {
 	}
 	if err := store.Clear(t.Context(), "missing"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestInMemoryStoreListsConversationIDsInLexicalOrder(t *testing.T) {
+	store := chathistory.NewInMemoryStore()
+	message := chat.NewUserMessage(chat.NewTextPart("hello"))
+	for _, conversationID := range []string{"zeta", "alpha", "middle"} {
+		if err := store.Write(t.Context(), conversationID, message); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ids, err := store.Conversations(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"alpha", "middle", "zeta"}; !slices.Equal(ids, want) {
+		t.Fatalf("Conversations = %v, want %v", ids, want)
 	}
 }
 
@@ -184,13 +202,13 @@ func assertOriginalHistory(t *testing.T, messages []chat.Message) {
 	if got := string(messages[0].Metadata["turn"]); got != "1" {
 		t.Fatalf("message metadata = %s", got)
 	}
-	if got := messages[0].Parts[0].Media.Source.Bytes; !reflect.DeepEqual(got, []byte{1, 2, 3}) {
+	if got := messages[0].Parts[0].Media.Source.Bytes; !bytes.Equal(got, []byte{1, 2, 3}) {
 		t.Fatalf("media bytes = %v", got)
 	}
 	if got := string(messages[0].Parts[0].Media.Metadata["source"]); got != `"caller"` {
 		t.Fatalf("media metadata = %s", got)
 	}
-	if got := messages[1].Parts[0].Signature; !reflect.DeepEqual(got, []byte{4, 5}) {
+	if got := messages[1].Parts[0].Signature; !bytes.Equal(got, []byte{4, 5}) {
 		t.Fatalf("signature = %v", got)
 	}
 	if got := messages[1].Parts[1].ToolCall.Name; got != "weather" {

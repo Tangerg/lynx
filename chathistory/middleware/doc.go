@@ -5,5 +5,5 @@
 // non-system messages are replayed before the fresh non-system messages. A
 // successful final assistant response is persisted with the fresh messages;
 // tool-call responses are deferred so a following tool-loop request can store
-// the complete assistant-call/tool-result exchange atomically.
+// the complete assistant-call/tool-result exchange in one Write call.
 package middleware

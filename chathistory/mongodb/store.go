@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/internal/codec"
+	"github.com/Tangerg/lynx/chathistory/internal/sequence"
 	"github.com/Tangerg/lynx/chathistory/internal/tracing"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -19,23 +21,19 @@ import (
 const (
 	fieldID             = "_id"
 	fieldConversationID = "conversation_id"
+	fieldSequence       = "seq"
 	fieldMessage        = "message"
 	fieldCreatedAt      = "created_at"
 )
 
 // Config configures [New]. Only [Config.Collection] is required.
 type Config struct {
-	// Context is used for the schema bootstrap (index creation) when
-	// InitializeSchema is true. Optional: defaults to
-	// context.Background().
-	Context context.Context
-
 	// Collection is the live MongoDB collection. Required. The store
 	// does not take ownership of the underlying client.
 	Collection *mongo.Collection
 
 	// InitializeSchema, when true, ensures an index on
-	// (conversation_id, _id) exists. Idempotent.
+	// (conversation_id, seq, _id) exists. Idempotent.
 	InitializeSchema bool
 }
 
@@ -47,41 +45,40 @@ var (
 // Store is a MongoDB-backed [chathistory.Store]. Construct via [New].
 type Store struct {
 	collection *mongo.Collection
+	sequence   sequence.Generator
 }
 
-// New builds a [Store] from cfg.
-func New(cfg Config) (*Store, error) {
+// New builds a [Store] from cfg. ctx bounds optional index initialization.
+func New(ctx context.Context, cfg Config) (*Store, error) {
 	if cfg.Collection == nil {
-		return nil, errors.New("mongodb: Collection is required")
-	}
-	if cfg.Context == nil {
-		cfg.Context = context.Background()
+		return nil, errors.New("mongodb: collection is required")
 	}
 	s := &Store{collection: cfg.Collection}
 	if cfg.InitializeSchema {
-		if err := s.initIndex(cfg.Context); err != nil {
+		if err := s.initIndex(ctx); err != nil {
 			return nil, fmt.Errorf("mongodb: initialize schema: %w", err)
 		}
 	}
 	return s, nil
 }
 
-// initIndex creates an ascending compound index on (conversation_id,
-// _id) so per-conversation reads sort efficiently. Idempotent.
+// initIndex creates an ascending compound index on (conversation_id, seq, _id)
+// so per-conversation reads sort efficiently and ties are deterministic.
 func (s *Store) initIndex(ctx context.Context) error {
 	_, err := s.collection.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
 			{Key: fieldConversationID, Value: 1},
+			{Key: fieldSequence, Value: 1},
 			{Key: fieldID, Value: 1},
 		},
-		Options: options.Index().SetName("conversation_id_seq_idx"),
+		Options: options.Index().SetName("conversation_id_sequence_idx"),
 	})
 	return err
 }
 
-// Write inserts every message under conversationID via InsertMany.
-// ObjectIDs are assigned at the driver — strictly increasing within
-// a batch, so chronological order is preserved on Read.
+// Write inserts every message under conversationID via InsertMany. A reserved
+// sequence range preserves argument order and remains monotonic if the local
+// clock moves backward.
 func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
@@ -93,32 +90,34 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 		return nil
 	}
 
-	ctx, span := tracing.StartWrite(ctx, "mongodb", conversationID, len(messages))
+	ctx, span := tracing.StartWrite(ctx, tracing.MongoDB, conversationID, len(messages))
 	defer func() { tracing.Finish(span, err) }()
 
+	encoded, err := codec.EncodeMessages(messages)
+	if err != nil {
+		return fmt.Errorf("mongodb: write: encode messages: %w", err)
+	}
 	now := time.Now().UTC()
-	docs := make([]any, 0, len(messages))
-	for _, msg := range messages {
-		raw, encErr := codec.EncodeMessage(msg)
-		if encErr != nil {
-			return fmt.Errorf("mongodb.Store.Write: encode message: %w", encErr)
-		}
+	sequenceBase := s.sequence.Reserve(len(encoded))
+	docs := make([]any, 0, len(encoded))
+	for index, raw := range encoded {
 		docs = append(docs, bson.M{
 			fieldConversationID: conversationID,
+			fieldSequence:       sequenceBase + int64(index),
 			fieldMessage:        string(raw),
 			fieldCreatedAt:      now,
 		})
 	}
 
 	if _, err = s.collection.InsertMany(ctx, docs); err != nil {
-		return fmt.Errorf("mongodb.Store.Write: %w", err)
+		return fmt.Errorf("mongodb: write: insert messages: %w", err)
 	}
 	return nil
 }
 
 // Read returns every message stored under conversationID in
 // insertion order.
-func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Message, err error) {
+func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages []chat.Message, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -126,37 +125,44 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 		return nil, err
 	}
 
-	ctx, span := tracing.StartRead(ctx, "mongodb", conversationID)
-	defer func() { tracing.RecordReadResult(span, err, len(out)) }()
+	ctx, span := tracing.StartRead(ctx, tracing.MongoDB, conversationID)
+	defer func() { tracing.RecordReadResult(span, err, len(storedMessages)) }()
 
 	var cursor *mongo.Cursor
 	cursor, err = s.collection.Find(ctx,
 		bson.M{fieldConversationID: conversationID},
-		options.Find().SetSort(bson.D{{Key: fieldID, Value: 1}}),
+		options.Find().SetSort(bson.D{
+			{Key: fieldSequence, Value: 1},
+			{Key: fieldID, Value: 1},
+		}),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("mongodb.Store.Read: %w", err)
+		return nil, fmt.Errorf("mongodb: read: find messages: %w", err)
 	}
-	defer cursor.Close(ctx)
 
-	out = []chat.Message{}
-	for cursor.Next(ctx) {
-		var doc struct {
-			Message string `bson:"message"`
+	var documents []struct {
+		ID       bson.ObjectID `bson:"_id"`
+		Sequence int64         `bson:"seq"`
+		Message  string        `bson:"message"`
+	}
+	if err = cursor.All(ctx, &documents); err != nil {
+		return nil, fmt.Errorf("mongodb: read: decode documents: %w", err)
+	}
+	storedMessages = make([]chat.Message, 0, len(documents))
+	for index, document := range documents {
+		if document.ID.IsZero() {
+			return nil, fmt.Errorf("mongodb: read: document %d is missing ID", index)
 		}
-		if err := cursor.Decode(&doc); err != nil {
-			return nil, fmt.Errorf("mongodb.Store.Read: decode doc: %w", err)
+		if document.Sequence <= 0 {
+			return nil, fmt.Errorf("mongodb: read: document %s has invalid sequence %d", document.ID.Hex(), document.Sequence)
 		}
-		msg, err := codec.DecodeMessage([]byte(doc.Message))
+		message, err := codec.DecodeMessage([]byte(document.Message))
 		if err != nil {
-			return nil, fmt.Errorf("mongodb.Store.Read: decode message: %w", err)
+			return nil, fmt.Errorf("mongodb: read: decode message %d: %w", index, err)
 		}
-		out = append(out, msg)
+		storedMessages = append(storedMessages, message)
 	}
-	if err := cursor.Err(); err != nil {
-		return nil, fmt.Errorf("mongodb.Store.Read: cursor: %w", err)
-	}
-	return out, nil
+	return storedMessages, nil
 }
 
 // Clear drops every document for conversationID. Unknown ids result
@@ -169,29 +175,34 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		return err
 	}
 
-	ctx, span := tracing.StartClear(ctx, "mongodb", conversationID)
+	ctx, span := tracing.StartClear(ctx, tracing.MongoDB, conversationID)
 	defer func() { tracing.Finish(span, err) }()
 
 	if _, err = s.collection.DeleteMany(ctx, bson.M{fieldConversationID: conversationID}); err != nil {
-		return fmt.Errorf("mongodb.Store.Clear: %w", err)
+		return fmt.Errorf("mongodb: clear: delete messages: %w", err)
 	}
 	return nil
 }
 
-// Conversations returns the distinct conversation ids stored in the
-// collection — a point-in-time snapshot in no guaranteed order. It is a
-// deliberate cross-conversation scan for ops tasks (listing, bulk
-// cleanup, GC), distinct from the per-conversation hot path.
+// Conversations returns distinct conversation IDs in lexical order. It is a
+// deliberate cross-conversation scan for operational tasks.
 func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	ctx, span := tracing.StartList(ctx, "mongodb")
+	ctx, span := tracing.StartList(ctx, tracing.MongoDB)
 	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
 
+	ids = []string{}
 	if err = s.collection.Distinct(ctx, fieldConversationID, bson.D{}).Decode(&ids); err != nil {
-		return nil, fmt.Errorf("mongodb.Store.Conversations: %w", err)
+		return nil, fmt.Errorf("mongodb: list conversations: query distinct IDs: %w", err)
 	}
+	for _, id := range ids {
+		if err := chathistory.ValidateConversationID(id); err != nil {
+			return nil, fmt.Errorf("mongodb: list conversations: invalid stored ID %q: %w", id, err)
+		}
+	}
+	slices.Sort(ids)
 	return ids, nil
 }

@@ -6,7 +6,6 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/Tangerg/lynx/chathistory"
 	neo4jstore "github.com/Tangerg/lynx/chathistory/neo4j"
 )
 
@@ -18,17 +17,17 @@ func stubDriver() neo4j.DriverWithContext {
 }
 
 func TestNewRequiresDriver(t *testing.T) {
-	_, err := neo4jstore.New(neo4jstore.Config{})
+	_, err := neo4jstore.New(t.Context(), neo4jstore.Config{})
 	if err == nil {
 		t.Fatal("expected error when Driver is nil")
 	}
-	if !strings.Contains(err.Error(), "Driver") {
-		t.Fatalf("err = %v; should mention Driver", err)
+	if !strings.Contains(err.Error(), "driver") {
+		t.Fatalf("err = %v; should mention driver", err)
 	}
 }
 
 func TestNewRejectsBadLabel(t *testing.T) {
-	_, err := neo4jstore.New(neo4jstore.Config{
+	_, err := neo4jstore.New(t.Context(), neo4jstore.Config{
 		Driver: stubDriver(),
 		Label:  "Bad-Label",
 	})
@@ -38,12 +37,8 @@ func TestNewRejectsBadLabel(t *testing.T) {
 }
 
 func TestNewAcceptsDefaults(t *testing.T) {
-	_, err := neo4jstore.New(neo4jstore.Config{Driver: stubDriver()})
+	_, err := neo4jstore.New(t.Context(), neo4jstore.Config{Driver: stubDriver()})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-}
-
-func TestStoreImplementsHistoryStore(t *testing.T) {
-	var _ chathistory.Store = (*neo4jstore.Store)(nil)
 }

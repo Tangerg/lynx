@@ -5,16 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"reflect"
 
 	"github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/chathistory/internal/nilcheck"
 	"github.com/Tangerg/lynx/chathistory/internal/snapshot"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
 // ErrNilStream reports a wrapped Streamer that violates the Streamer contract
 // by returning a nil sequence.
-var ErrNilStream = errors.New("chathistory middleware: nil stream sequence")
+var ErrNilStream = errors.New("chathistory: middleware: nil stream sequence")
 
 // Store is the consumer-side history capability required by Middleware.
 // Clear, list, retention, and backend-specific operations stay outside this
@@ -33,23 +33,10 @@ type Middleware struct {
 
 // New constructs history middleware around store.
 func New(store Store) (*Middleware, error) {
-	if isNilStore(store) {
+	if nilcheck.IsNil(store) {
 		return nil, chathistory.ErrNilStore
 	}
 	return &Middleware{store: store}, nil
-}
-
-func isNilStore(store Store) bool {
-	if store == nil {
-		return true
-	}
-	reflected := reflect.ValueOf(store)
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
 }
 
 // Call is a [chat.CallMiddleware]. The first response choice is the canonical
@@ -116,7 +103,7 @@ func (m *Middleware) Stream(next chat.Streamer) chat.Streamer {
 				}
 				if err := accumulator.Add(chunk); err != nil {
 					natural = false
-					yield(nil, fmt.Errorf("chathistory middleware: accumulate stream: %w", err))
+					yield(nil, fmt.Errorf("chathistory: middleware: accumulate stream: %w", err))
 					return false
 				}
 				if !yield(chunk, nil) {
@@ -150,21 +137,21 @@ func (m *Middleware) prepare(
 	}
 	prepared, err := snapshot.Request(request)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("chathistory: middleware: prepare request: %w", err)
 	}
 	stored, err := m.store.Read(ctx, conversationID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("chathistory middleware: read: %w", err)
+		return nil, nil, fmt.Errorf("chathistory: middleware: read history: %w", err)
 	}
 	stored, err = snapshot.Messages(stored)
 	if err != nil {
-		return nil, nil, fmt.Errorf("chathistory middleware: invalid stored history: %w", err)
+		return nil, nil, fmt.Errorf("chathistory: middleware: validate stored history: %w", err)
 	}
 
 	systems, fresh := splitMessages(prepared.Messages)
 	freshSnapshot, err := snapshot.Messages(fresh)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("chathistory: middleware: snapshot fresh messages: %w", err)
 	}
 	prepared.Messages = make([]chat.Message, 0, len(systems)+len(stored)+len(fresh))
 	prepared.Messages = append(prepared.Messages, systems...)
@@ -175,7 +162,7 @@ func (m *Middleware) prepare(
 	}
 	prepared.Messages = append(prepared.Messages, fresh...)
 	if err := prepared.Validate(); err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("chathistory: middleware: assemble request history: %w", err)
 	}
 	return prepared, freshSnapshot, nil
 }
@@ -190,7 +177,7 @@ func (m *Middleware) persist(
 	messages = append(messages, fresh...)
 	messages = append(messages, assistant)
 	if err := m.store.Write(ctx, conversationID, messages...); err != nil {
-		return fmt.Errorf("chathistory middleware: write: %w", err)
+		return fmt.Errorf("chathistory: middleware: write history: %w", err)
 	}
 	return nil
 }

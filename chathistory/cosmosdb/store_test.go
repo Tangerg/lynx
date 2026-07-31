@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/cosmosdb"
 )
 
@@ -13,11 +12,7 @@ func TestNewRequiresContainer(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when Container is nil")
 	}
-	if !strings.Contains(err.Error(), "Container") {
-		t.Fatalf("err = %v; should mention Container", err)
+	if !strings.Contains(err.Error(), "container") {
+		t.Fatalf("err = %v; should mention container", err)
 	}
-}
-
-func TestStoreImplementsHistoryStore(t *testing.T) {
-	var _ chathistory.Store = (*cosmosdb.Store)(nil)
 }

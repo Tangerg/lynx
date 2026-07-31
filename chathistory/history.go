@@ -3,8 +3,8 @@ package chathistory
 import (
 	"context"
 	"errors"
-	"reflect"
 
+	"github.com/Tangerg/lynx/chathistory/internal/nilcheck"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -26,8 +26,8 @@ type Reader interface {
 // Writer appends messages to one conversation. Implementations preserve the
 // order of messages within each call, validate and snapshot them before
 // returning, and prevent later caller mutation from altering stored history.
-// The relative order of concurrent calls for the same conversation is
-// implementation-defined.
+// The relative order of concurrent calls and writes issued through distinct
+// Store instances is implementation-defined.
 type Writer interface {
 	Write(ctx context.Context, conversationID string, messages ...chat.Message) error
 }
@@ -45,9 +45,9 @@ type Store interface {
 	Clearer
 }
 
-// Lister enumerates unique conversation IDs. Implementations return a non-nil
-// empty slice when no conversations exist. Ordering is implementation-defined,
-// and concurrent mutations may affect the result.
+// Lister enumerates unique conversation IDs in lexical order. Implementations
+// return a non-nil empty slice when no conversations exist. Concurrent
+// mutations may affect the result.
 type Lister interface {
 	Conversations(ctx context.Context) ([]string, error)
 }
@@ -67,7 +67,7 @@ type Counter interface {
 // ErrReplacementUnsupported without modifying history when store does not
 // implement Replacer.
 func Replace(ctx context.Context, store Store, conversationID string, messages ...chat.Message) error {
-	if isNil(store) {
+	if nilcheck.IsNil(store) {
 		return ErrNilStore
 	}
 	if replacer, ok := store.(Replacer); ok {
@@ -79,7 +79,7 @@ func Replace(ctx context.Context, store Store, conversationID string, messages .
 // Count uses store's optional Counter capability and otherwise falls back to
 // reading the conversation.
 func Count(ctx context.Context, store Store, conversationID string) (int, error) {
-	if isNil(store) {
+	if nilcheck.IsNil(store) {
 		return 0, ErrNilStore
 	}
 	if counter, ok := store.(Counter); ok {
@@ -90,17 +90,4 @@ func Count(ctx context.Context, store Store, conversationID string) (int, error)
 		return 0, err
 	}
 	return len(messages), nil
-}
-
-func isNil(value any) bool {
-	if value == nil {
-		return true
-	}
-	reflected := reflect.ValueOf(value)
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
 }

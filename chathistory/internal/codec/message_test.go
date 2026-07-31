@@ -25,7 +25,6 @@ func TestCurrentWireRoundTripsEveryRole(t *testing.T) {
 		chat.NewToolMessage(chat.ToolResult{ID: "call-1", Name: "weather", Result: "sunny", IsError: true}),
 	}
 	for _, message := range messages {
-		message := message
 		t.Run(string(message.Role), func(t *testing.T) {
 			raw, err := EncodeMessage(message)
 			if err != nil {
@@ -46,6 +45,25 @@ func TestCurrentWireRoundTripsEveryRole(t *testing.T) {
 				t.Fatalf("wire did not reach a fixed point\n got: %s\nwant: %s", roundTrip, raw)
 			}
 		})
+	}
+}
+
+func TestEncodeMessagesPreservesOrderAndReportsIndex(t *testing.T) {
+	messages := []chat.Message{
+		chat.NewUserMessage(chat.NewTextPart("first")),
+		chat.NewAssistantMessage(chat.NewTextPart("second")),
+	}
+	encoded, err := EncodeMessages(messages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(encoded) != 2 || !bytes.Contains(encoded[0], []byte(`"first"`)) || !bytes.Contains(encoded[1], []byte(`"second"`)) {
+		t.Fatalf("encoded messages = %q", encoded)
+	}
+
+	messages = append(messages, chat.Message{})
+	if _, err := EncodeMessages(messages); err == nil || !bytes.Contains([]byte(err.Error()), []byte("message 2")) {
+		t.Fatalf("invalid batch error = %v", err)
 	}
 }
 

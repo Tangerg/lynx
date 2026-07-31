@@ -1,21 +1,25 @@
 // Package cosmosdb is a chathistory Store backed by Azure Cosmos DB
 // (NoSQL API) via the official Azure SDK.
 //
-// Each message is stored as a document keyed by a synthesized
-// composite id (`<conversation_id>_<seq>`):
+// Each message is stored as a document with a collision-resistant random ID:
 //
 //	{
-//	    "id":              "u-42_1716210000000123456",
+//	    "id":              "4ZK3VZQF...",
 //	    "conversation_id": "u-42",
-//	    "seq":             1716210000000123456,
+//	    "seq":             "1716210000000123456",
 //	    "message":         "<json>",
 //	    "created_at":      "2026-05-20T08:00:00Z"
 //	}
 //
 // `conversation_id` is the partition key, set when provisioning the
-// container. Reads issue a single-partition query ordered by `seq`.
-// `seq` is a Go-side nanosecond timestamp + batch offset, so all
-// messages from one Write call are strictly ordered.
+// container. Reads issue a single-partition query and order the materialized
+// documents by (`seq`, `id`) without requiring a Cosmos composite index. `seq`
+// is a fixed-width decimal string so lexicographic ordering is numeric and
+// Cosmos' floating-point JSON number representation cannot lose nanosecond
+// precision. A store-local sequence generator reserves one contiguous range
+// per Write and remains monotonic across local clock regression. Concurrent
+// calls and writes from distinct Store instances have no defined relative
+// order.
 //
 // Example:
 //

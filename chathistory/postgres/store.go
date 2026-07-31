@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,19 +19,14 @@ import (
 
 // Default identifiers used when [Config] leaves them blank.
 const (
-	DefaultSchemaName  = "public"
-	DefaultTableName   = "chat_history"
-	DefaultIndexSuffix = "_conversation_idx"
+	DefaultSchemaName      = "public"
+	DefaultTableName       = "chat_history"
+	DefaultIndexNameSuffix = "_conversation_idx"
 )
 
 // Config configures [New]. Only [Config.Pool] is required; the rest fall back
 // to documented defaults.
 type Config struct {
-	// Context is used for the initial schema bootstrap when
-	// InitializeSchema is true. Optional: defaults to
-	// context.Background().
-	Context context.Context
-
 	// Pool is the pgx connection pool. Required. The store does not
 	// take ownership — callers close the pool themselves.
 	Pool *pgxpool.Pool
@@ -45,7 +41,7 @@ type Config struct {
 
 	// IndexName overrides the conversation-id index name generated
 	// when InitializeSchema is true. Optional: defaults to
-	// "<TableName><DefaultIndexSuffix>".
+	// "<TableName><DefaultIndexNameSuffix>".
 	IndexName string
 
 	// InitializeSchema, when true, creates the table and index if
@@ -87,30 +83,24 @@ type Store struct {
 	createSQL []string
 }
 
-// New builds a [Store] from cfg. When [Config.InitializeSchema] is true the
-// table and index are created if they don't already exist using
-// [Config.Context].
-func New(cfg Config) (*Store, error) {
+// New builds a [Store] from cfg. ctx bounds optional schema initialization.
+func New(ctx context.Context, cfg Config) (*Store, error) {
 	if cfg.Pool == nil {
-		return nil, errors.New("postgres: Pool is required")
-	}
-	if cfg.Context == nil {
-		cfg.Context = context.Background()
+		return nil, errors.New("postgres: pool is required")
 	}
 	cfg.SchemaName = cmp.Or(cfg.SchemaName, DefaultSchemaName)
 	cfg.TableName = cmp.Or(cfg.TableName, DefaultTableName)
-	cfg.IndexName = cmp.Or(cfg.IndexName, cfg.TableName+DefaultIndexSuffix)
-	for _, ident := range [...]struct {
+	cfg.IndexName = cmp.Or(cfg.IndexName, cfg.TableName+DefaultIndexNameSuffix)
+	for _, identifier := range [...]struct {
 		name  string
 		value string
 	}{
-		{name: "SchemaName", value: cfg.SchemaName},
-		{name: "TableName", value: cfg.TableName},
-		{name: "IndexName", value: cfg.IndexName},
+		{name: "schema name", value: cfg.SchemaName},
+		{name: "table name", value: cfg.TableName},
+		{name: "index name", value: cfg.IndexName},
 	} {
-		if !dbident.Valid(ident.value) {
-			return nil, fmt.Errorf("postgres: %s=%q must match %s",
-				ident.name, ident.value, dbident.Pattern)
+		if !dbident.Valid(identifier.value) {
+			return nil, fmt.Errorf("postgres: %s %q must be a valid unquoted identifier", identifier.name, identifier.value)
 		}
 	}
 
@@ -149,7 +139,7 @@ func New(cfg Config) (*Store, error) {
 	}
 
 	if cfg.InitializeSchema {
-		if err := s.initSchema(cfg.Context); err != nil {
+		if err := s.initSchema(ctx); err != nil {
 			return nil, fmt.Errorf("postgres: initialize schema: %w", err)
 		}
 	}
@@ -159,18 +149,17 @@ func New(cfg Config) (*Store, error) {
 
 // initSchema creates the table + index if they don't exist. Idempotent.
 func (s *Store) initSchema(ctx context.Context) error {
-	for _, stmt := range s.createSQL {
-		if _, err := s.pool.Exec(ctx, stmt); err != nil {
+	for _, statement := range s.createSQL {
+		if _, err := s.pool.Exec(ctx, statement); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// Write appends every message under conversationID. Messages within a
-// batch are inserted in order via [pgx.Batch] so ordering is
-// guaranteed even under concurrent writers on the same conversation.
-// No-op when messages is empty.
+// Write appends every message under conversationID. Messages within one call
+// are queued in order; concurrent calls may interleave. Empty writes are a
+// no-op.
 func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
@@ -182,31 +171,28 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 		return nil
 	}
 
-	ctx, span := tracing.StartWrite(ctx, "postgres", conversationID, len(messages))
+	ctx, span := tracing.StartWrite(ctx, tracing.PostgreSQL, conversationID, len(messages))
 	defer func() { tracing.Finish(span, err) }()
 
+	encoded, err := codec.EncodeMessages(messages)
+	if err != nil {
+		return fmt.Errorf("postgres: write: encode messages: %w", err)
+	}
 	batch := &pgx.Batch{}
-	for _, msg := range messages {
-		raw, err := codec.EncodeMessage(msg)
-		if err != nil {
-			return fmt.Errorf("postgres.Store.Write: encode message: %w", err)
-		}
+	for _, raw := range encoded {
 		batch.Queue(s.writeSQL, conversationID, raw)
 	}
 
-	br := s.pool.SendBatch(ctx, batch)
-	defer br.Close()
-	for range messages {
-		if _, err := br.Exec(); err != nil {
-			return fmt.Errorf("postgres.Store.Write: %w", err)
-		}
+	results := s.pool.SendBatch(ctx, batch)
+	if err = results.Close(); err != nil {
+		return fmt.Errorf("postgres: write: execute batch: %w", err)
 	}
 	return nil
 }
 
 // Read returns every message stored under conversationID in
 // insertion order. An empty slice is returned for unknown ids.
-func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Message, err error) {
+func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages []chat.Message, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -214,31 +200,31 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 		return nil, err
 	}
 
-	ctx, span := tracing.StartRead(ctx, "postgres", conversationID)
-	defer func() { tracing.RecordReadResult(span, err, len(out)) }()
+	ctx, span := tracing.StartRead(ctx, tracing.PostgreSQL, conversationID)
+	defer func() { tracing.RecordReadResult(span, err, len(storedMessages)) }()
 
 	rows, err := s.pool.Query(ctx, s.readSQL, conversationID)
 	if err != nil {
-		return nil, fmt.Errorf("postgres.Store.Read: %w", err)
+		return nil, fmt.Errorf("postgres: read: query: %w", err)
 	}
 	defer rows.Close()
 
-	out = []chat.Message{}
+	storedMessages = []chat.Message{}
 	for rows.Next() {
 		var raw []byte
 		if err := rows.Scan(&raw); err != nil {
-			return nil, fmt.Errorf("postgres.Store.Read: scan: %w", err)
+			return nil, fmt.Errorf("postgres: read: scan message: %w", err)
 		}
-		msg, err := codec.DecodeMessage(raw)
+		message, err := codec.DecodeMessage(raw)
 		if err != nil {
-			return nil, fmt.Errorf("postgres.Store.Read: decode message: %w", err)
+			return nil, fmt.Errorf("postgres: read: decode message: %w", err)
 		}
-		out = append(out, msg)
+		storedMessages = append(storedMessages, message)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("postgres.Store.Read: %w", err)
+		return nil, fmt.Errorf("postgres: read: iterate rows: %w", err)
 	}
-	return out, nil
+	return storedMessages, nil
 }
 
 // Clear drops every message stored under conversationID. Unknown ids
@@ -251,29 +237,27 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		return err
 	}
 
-	ctx, span := tracing.StartClear(ctx, "postgres", conversationID)
+	ctx, span := tracing.StartClear(ctx, tracing.PostgreSQL, conversationID)
 	defer func() { tracing.Finish(span, err) }()
 
 	if _, err = s.pool.Exec(ctx, s.clearSQL, conversationID); err != nil {
-		return fmt.Errorf("postgres.Store.Clear: %w", err)
+		return fmt.Errorf("postgres: clear: delete messages: %w", err)
 	}
 	return nil
 }
 
-// Conversations returns the ids of every stored conversation as a
-// point-in-time snapshot. An empty slice is returned when the store
-// holds no messages.
+// Conversations returns every stored conversation ID in lexical order.
 func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	ctx, span := tracing.StartList(ctx, "postgres")
+	ctx, span := tracing.StartList(ctx, tracing.PostgreSQL)
 	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
 
 	rows, err := s.pool.Query(ctx, s.listSQL)
 	if err != nil {
-		return nil, fmt.Errorf("postgres.Store.Conversations: %w", err)
+		return nil, fmt.Errorf("postgres: list conversations: query: %w", err)
 	}
 	defer rows.Close()
 
@@ -281,12 +265,16 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("postgres.Store.Conversations: scan: %w", err)
+			return nil, fmt.Errorf("postgres: list conversations: scan ID: %w", err)
+		}
+		if err := chathistory.ValidateConversationID(id); err != nil {
+			return nil, fmt.Errorf("postgres: list conversations: invalid stored ID %q: %w", id, err)
 		}
 		ids = append(ids, id)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("postgres.Store.Conversations: %w", err)
+		return nil, fmt.Errorf("postgres: list conversations: iterate rows: %w", err)
 	}
+	slices.Sort(ids)
 	return ids, nil
 }

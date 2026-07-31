@@ -3,7 +3,6 @@
 package codec
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/chat"
@@ -11,14 +10,24 @@ import (
 
 // EncodeMessage validates and writes the current core/chat tagged wire.
 func EncodeMessage(message chat.Message) ([]byte, error) {
-	if err := message.Validate(); err != nil {
-		return nil, fmt.Errorf("chathistory codec: encode: %w", err)
-	}
-	raw, err := json.Marshal(message)
+	raw, err := message.MarshalJSON()
 	if err != nil {
-		return nil, fmt.Errorf("chathistory codec: encode: %w", err)
+		return nil, fmt.Errorf("encode current message wire: %w", err)
 	}
 	return raw, nil
+}
+
+// EncodeMessages validates and encodes a batch while preserving its order.
+func EncodeMessages(messages []chat.Message) ([][]byte, error) {
+	encoded := make([][]byte, len(messages))
+	for index, message := range messages {
+		raw, err := EncodeMessage(message)
+		if err != nil {
+			return nil, fmt.Errorf("message %d: %w", index, err)
+		}
+		encoded[index] = raw
+	}
+	return encoded, nil
 }
 
 // DecodeMessage decodes the current role-tagged core/chat wire. Historical
@@ -26,8 +35,8 @@ func EncodeMessage(message chat.Message) ([]byte, error) {
 // before upgrading.
 func DecodeMessage(raw []byte) (chat.Message, error) {
 	var message chat.Message
-	if err := json.Unmarshal(raw, &message); err != nil {
-		return chat.Message{}, fmt.Errorf("chathistory codec: decode: %w", err)
+	if err := message.UnmarshalJSON(raw); err != nil {
+		return chat.Message{}, fmt.Errorf("decode current message wire: %w", err)
 	}
 	return message, nil
 }

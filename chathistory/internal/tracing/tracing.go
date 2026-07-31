@@ -6,61 +6,108 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
+type System uint8
+
 const (
-	attrDBSystem        = "db.system"
-	attrDBOperationName = "db.operation.name"
-	attrConvID          = "gen_ai.conversation.id"
-	attrMsgCount        = "chat_history.msg_count"
-	attrConvCount       = "chat_history.conv_count"
+	PostgreSQL System = iota + 1
+	Redis
+	MongoDB
+	Cassandra
+	AzureCosmosDB
+	Neo4j
 )
 
-// tracerFor returns the per-provider tracer. Names follow
-// `lynx/chathistory/<system>` so backends that bucket by tracer name
-// can distinguish providers without parsing attributes.
-func tracerFor(system string) trace.Tracer {
-	return otel.Tracer("lynx/chathistory/" + system)
+var (
+	operationNameAttr     = attribute.Key("chat_history.operation.name")
+	messageCountAttr      = attribute.Key("chat_history.message.count")
+	conversationCountAttr = attribute.Key("chat_history.conversation.count")
+)
+
+func (system System) name() string {
+	switch system {
+	case PostgreSQL:
+		return "postgres"
+	case Redis:
+		return "redis"
+	case MongoDB:
+		return "mongodb"
+	case Cassandra:
+		return "cassandra"
+	case AzureCosmosDB:
+		return "cosmosdb"
+	case Neo4j:
+		return "neo4j"
+	default:
+		return "unknown"
+	}
 }
 
-func start(ctx context.Context, system, op, convID string) (context.Context, trace.Span) {
+func (system System) attribute() attribute.KeyValue {
+	switch system {
+	case PostgreSQL:
+		return semconv.DBSystemNamePostgreSQL
+	case Redis:
+		return semconv.DBSystemNameRedis
+	case MongoDB:
+		return semconv.DBSystemNameMongoDB
+	case Cassandra:
+		return semconv.DBSystemNameCassandra
+	case AzureCosmosDB:
+		return semconv.DBSystemNameAzureCosmosDB
+	case Neo4j:
+		return semconv.DBSystemNameNeo4j
+	default:
+		return semconv.DBSystemNameKey.String("unknown")
+	}
+}
+
+func tracerFor(system System) trace.Tracer {
+	return otel.Tracer(
+		"github.com/Tangerg/lynx/chathistory/"+system.name(),
+		trace.WithSchemaURL(semconv.SchemaURL),
+	)
+}
+
+func start(ctx context.Context, system System, operation, conversationID string) (context.Context, trace.Span) {
 	attrs := []attribute.KeyValue{
-		attribute.String(attrDBSystem, system),
-		attribute.String(attrDBOperationName, op),
+		system.attribute(),
+		operationNameAttr.String(operation),
 	}
-	if convID != "" {
-		attrs = append(attrs, attribute.String(attrConvID, convID))
+	if conversationID != "" {
+		attrs = append(attrs, semconv.GenAIConversationID(conversationID))
 	}
-	return tracerFor(system).Start(ctx, "chat.history."+op+" "+system,
+	return tracerFor(system).Start(ctx, "chathistory."+operation,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attrs...),
 	)
 }
 
-// StartRead opens a span for [history.Store.Read].
-func StartRead(ctx context.Context, system, convID string) (context.Context, trace.Span) {
-	return start(ctx, system, "read", convID)
+// StartRead opens a span for a Store.Read operation.
+func StartRead(ctx context.Context, system System, conversationID string) (context.Context, trace.Span) {
+	return start(ctx, system, "read", conversationID)
 }
 
-// StartWrite opens a span for [history.Store.Write]. msgCount records
-// the number of messages being appended.
-func StartWrite(ctx context.Context, system, convID string, msgCount int) (context.Context, trace.Span) {
-	ctx, span := start(ctx, system, "write", convID)
-	if msgCount > 0 {
-		span.SetAttributes(attribute.Int(attrMsgCount, msgCount))
+// StartWrite opens a span for a Store.Write operation.
+func StartWrite(ctx context.Context, system System, conversationID string, messageCount int) (context.Context, trace.Span) {
+	ctx, span := start(ctx, system, "write", conversationID)
+	if messageCount > 0 {
+		span.SetAttributes(messageCountAttr.Int(messageCount))
 	}
 	return ctx, span
 }
 
-// StartClear opens a span for [history.Store.Clear].
-func StartClear(ctx context.Context, system, convID string) (context.Context, trace.Span) {
-	return start(ctx, system, "clear", convID)
+// StartClear opens a span for a Store.Clear operation.
+func StartClear(ctx context.Context, system System, conversationID string) (context.Context, trace.Span) {
+	return start(ctx, system, "clear", conversationID)
 }
 
-// StartList opens a span for [history.Lister.Conversations] — a
-// deliberate cross-conversation scan, so it carries no convID attribute.
-func StartList(ctx context.Context, system string) (context.Context, trace.Span) {
+// StartList opens a span for a Lister.Conversations operation. A list is a
+// cross-conversation scan, so it carries no conversation ID attribute.
+func StartList(ctx context.Context, system System) (context.Context, trace.Span) {
 	return start(ctx, system, "list", "")
 }
 
@@ -78,12 +125,12 @@ func Finish(span trace.Span, err error, extra ...attribute.KeyValue) {
 
 // RecordReadResult stamps the resulting message count onto a Read span
 // before ending it.
-func RecordReadResult(span trace.Span, err error, msgCount int) {
-	Finish(span, err, attribute.Int(attrMsgCount, msgCount))
+func RecordReadResult(span trace.Span, err error, messageCount int) {
+	Finish(span, err, messageCountAttr.Int(messageCount))
 }
 
 // RecordListResult stamps the number of conversations found onto a List
 // span before ending it.
-func RecordListResult(span trace.Span, err error, convCount int) {
-	Finish(span, err, attribute.Int(attrConvCount, convCount))
+func RecordListResult(span trace.Span, err error, conversationCount int) {
+	Finish(span, err, conversationCountAttr.Int(conversationCount))
 }

@@ -12,15 +12,16 @@
 //
 // A composite index on (`conversation_id`, `seq`) is created by
 // InitializeSchema=true so reads stream in insertion order without a
-// full collection scan. `seq` is a Go-side nanosecond timestamp; the
-// batch-offset is added to ensure messages from one Write call are
-// strictly ordered even when nanoseconds happen to collide.
+// full collection scan. A store-local sequence generator reserves one
+// contiguous range per Write and remains monotonic across local clock
+// regression. Concurrent calls and writes from distinct Store instances have
+// no defined relative order.
 //
 // Example:
 //
 //	drv, _ := neo4j.NewDriverWithContext("neo4j://...", auth)
 //	defer drv.Close(ctx)
-//	store, _ := neo4jstore.New(neo4jstore.Config{
+//	store, _ := neo4jstore.New(ctx, neo4jstore.Config{
 //	    Driver:           drv,
 //	    Database:         "neo4j",
 //	    InitializeSchema: true,

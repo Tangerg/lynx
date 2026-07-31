@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"time"
 
 	"github.com/gocql/gocql"
 
 	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/internal/codec"
 	"github.com/Tangerg/lynx/chathistory/internal/dbident"
+	"github.com/Tangerg/lynx/chathistory/internal/sequence"
 	"github.com/Tangerg/lynx/chathistory/internal/tracing"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -21,10 +24,6 @@ const (
 
 // Config configures [New]. Only [Config.Session] is required.
 type Config struct {
-	// Context is used for the schema bootstrap when InitializeSchema
-	// is true. Optional: defaults to context.Background().
-	Context context.Context
-
 	// Session is the live gocql session. Required. Callers own
 	// session lifetime.
 	Session *gocql.Session
@@ -51,7 +50,8 @@ var (
 
 // Store is a Cassandra-backed [chathistory.Store]. Construct via [New].
 type Store struct {
-	session *gocql.Session
+	session  *gocql.Session
+	sequence sequence.Generator
 
 	writeCQL  string
 	readCQL   string
@@ -60,13 +60,10 @@ type Store struct {
 	createCQL string
 }
 
-// New builds a [Store] from cfg.
-func New(cfg Config) (*Store, error) {
+// New builds a [Store] from cfg. ctx bounds optional table initialization.
+func New(ctx context.Context, cfg Config) (*Store, error) {
 	if cfg.Session == nil {
-		return nil, errors.New("cassandra: Session is required")
-	}
-	if cfg.Context == nil {
-		cfg.Context = context.Background()
+		return nil, errors.New("cassandra: session is required")
 	}
 	if cfg.Keyspace == "" {
 		cfg.Keyspace = DefaultKeyspace
@@ -75,10 +72,10 @@ func New(cfg Config) (*Store, error) {
 		cfg.TableName = DefaultTableName
 	}
 	if !dbident.Valid(cfg.Keyspace) {
-		return nil, fmt.Errorf("cassandra: Keyspace=%q must match %s", cfg.Keyspace, dbident.Pattern)
+		return nil, fmt.Errorf("cassandra: keyspace %q must be a valid unquoted identifier", cfg.Keyspace)
 	}
 	if !dbident.Valid(cfg.TableName) {
-		return nil, fmt.Errorf("cassandra: TableName=%q must match %s", cfg.TableName, dbident.Pattern)
+		return nil, fmt.Errorf("cassandra: table name %q must be a valid unquoted identifier", cfg.TableName)
 	}
 
 	qualified := cfg.Keyspace + "." + cfg.TableName
@@ -103,7 +100,7 @@ func New(cfg Config) (*Store, error) {
 	}
 
 	if cfg.InitializeSchema {
-		if err := s.session.Query(s.createCQL).WithContext(cfg.Context).Exec(); err != nil {
+		if err := s.session.Query(s.createCQL).WithContext(ctx).Exec(); err != nil {
 			return nil, fmt.Errorf("cassandra: create table: %w", err)
 		}
 	}
@@ -111,15 +108,9 @@ func New(cfg Config) (*Store, error) {
 	return s, nil
 }
 
-// Write appends every message under conversationID. seq TIMEUUIDs are
-// generated CLIENT-side ([gocql.TimeUUID] is monotone within this
-// process), not by the server's now(): server-side generation hands
-// each statement to whichever coordinator the driver routes it to, and
-// cross-node clock skew can reorder a batch's messages — putting an
-// assistant reply before its user turn in the replayed history. The
-// whole batch ships as one unlogged batch to a single partition: one
-// round trip, atomic within the partition, so a mid-write failure
-// can't persist half the exchange.
+// Write appends every message under conversationID in one single-partition
+// unlogged batch. Client-generated TIMEUUIDs are strictly increasing within
+// one call; concurrent calls have no defined relative order.
 func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
@@ -131,27 +122,32 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 		return nil
 	}
 
-	ctx, span := tracing.StartWrite(ctx, "cassandra", conversationID, len(messages))
+	ctx, span := tracing.StartWrite(ctx, tracing.Cassandra, conversationID, len(messages))
 	defer func() { tracing.Finish(span, err) }()
 
+	encoded, err := codec.EncodeMessages(messages)
+	if err != nil {
+		return fmt.Errorf("cassandra: write: encode messages: %w", err)
+	}
 	batch := s.session.NewBatch(gocql.UnloggedBatch).WithContext(ctx)
-	for _, msg := range messages {
-		raw, encErr := codec.EncodeMessage(msg)
-		if encErr != nil {
-			err = fmt.Errorf("cassandra.Store.Write: encode message: %w", encErr)
-			return err
-		}
-		batch.Query(s.writeCQL, conversationID, gocql.TimeUUID(), string(raw))
+	sequenceBase := s.sequence.Reserve(len(encoded) * 100)
+	for index, raw := range encoded {
+		messageSequence := sequenceUUID(sequenceBase, index)
+		batch.Query(s.writeCQL, conversationID, messageSequence, string(raw))
 	}
 	if err = s.session.ExecuteBatch(batch); err != nil {
-		return fmt.Errorf("cassandra.Store.Write: %w", err)
+		return fmt.Errorf("cassandra: write: execute batch: %w", err)
 	}
 	return nil
 }
 
+func sequenceUUID(base int64, index int) gocql.UUID {
+	return gocql.UUIDFromTime(time.Unix(0, base+int64(index)*100))
+}
+
 // Read returns every message stored under conversationID in
 // insertion order (TIMEUUID ascending).
-func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Message, err error) {
+func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages []chat.Message, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -159,26 +155,23 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 		return nil, err
 	}
 
-	ctx, span := tracing.StartRead(ctx, "cassandra", conversationID)
-	defer func() { tracing.RecordReadResult(span, err, len(out)) }()
+	ctx, span := tracing.StartRead(ctx, tracing.Cassandra, conversationID)
+	defer func() { tracing.RecordReadResult(span, err, len(storedMessages)) }()
 
-	iter := s.session.Query(s.readCQL, conversationID).WithContext(ctx).Iter()
-	defer iter.Close()
+	iterator := s.session.Query(s.readCQL, conversationID).WithContext(ctx).Iter()
+	defer closeIterator(iterator, "read", &err)
 
-	out = []chat.Message{}
-	var raw string
-	for iter.Scan(&raw) {
-		msg, decErr := codec.DecodeMessage([]byte(raw))
-		if decErr != nil {
-			err = fmt.Errorf("cassandra.Store.Read: decode message: %w", decErr)
+	storedMessages = []chat.Message{}
+	var encodedMessage string
+	for iterator.Scan(&encodedMessage) {
+		message, decodeErr := codec.DecodeMessage([]byte(encodedMessage))
+		if decodeErr != nil {
+			err = fmt.Errorf("cassandra: read: decode message %d: %w", len(storedMessages), decodeErr)
 			return nil, err
 		}
-		out = append(out, msg)
+		storedMessages = append(storedMessages, message)
 	}
-	if err = iter.Close(); err != nil {
-		return nil, fmt.Errorf("cassandra.Store.Read: %w", err)
-	}
-	return out, nil
+	return storedMessages, nil
 }
 
 // Clear drops every row for conversationID. Unknown ids are a no-op.
@@ -190,18 +183,16 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		return err
 	}
 
-	ctx, span := tracing.StartClear(ctx, "cassandra", conversationID)
+	ctx, span := tracing.StartClear(ctx, tracing.Cassandra, conversationID)
 	defer func() { tracing.Finish(span, err) }()
 
 	if err = s.session.Query(s.clearCQL, conversationID).WithContext(ctx).Exec(); err != nil {
-		return fmt.Errorf("cassandra.Store.Clear: %w", err)
+		return fmt.Errorf("cassandra: clear: delete partition: %w", err)
 	}
 	return nil
 }
 
-// Conversations returns the ids of every stored conversation as a
-// point-in-time snapshot. An empty slice is returned when the store
-// holds no messages.
+// Conversations returns every stored conversation ID in lexical order.
 //
 // SELECT DISTINCT on the partition key reads only partition metadata,
 // so no ALLOW FILTERING is needed.
@@ -210,19 +201,26 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 		return nil, err
 	}
 
-	ctx, span := tracing.StartList(ctx, "cassandra")
+	ctx, span := tracing.StartList(ctx, tracing.Cassandra)
 	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
 
-	iter := s.session.Query(s.listCQL).WithContext(ctx).Iter()
-	defer iter.Close()
+	iterator := s.session.Query(s.listCQL).WithContext(ctx).Iter()
+	defer closeIterator(iterator, "list conversations", &err)
 
 	ids = []string{}
 	var id string
-	for iter.Scan(&id) {
+	for iterator.Scan(&id) {
+		if err := chathistory.ValidateConversationID(id); err != nil {
+			return nil, fmt.Errorf("cassandra: list conversations: invalid stored ID %q: %w", id, err)
+		}
 		ids = append(ids, id)
 	}
-	if err = iter.Close(); err != nil {
-		return nil, fmt.Errorf("cassandra.Store.Conversations: %w", err)
-	}
+	slices.Sort(ids)
 	return ids, nil
+}
+
+func closeIterator(iterator *gocql.Iter, operation string, operationErr *error) {
+	if err := iterator.Close(); err != nil {
+		*operationErr = errors.Join(*operationErr, fmt.Errorf("cassandra: %s: close iterator: %w", operation, err))
+	}
 }

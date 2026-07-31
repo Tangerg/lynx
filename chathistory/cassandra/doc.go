@@ -11,8 +11,10 @@
 //	) WITH CLUSTERING ORDER BY (seq ASC);
 //
 // `conversation_id` is the partition key and `seq` is a client-generated
-// TIMEUUID clustering key. Reads always hit a single partition and stream in
-// insertion order; each Write uses one unlogged batch for that partition.
+// TIMEUUID clustering key. Each Write reserves a strictly increasing local
+// sequence range and sends one unlogged batch to that partition. Concurrent
+// calls and writes from distinct Store instances have no defined relative
+// order.
 //
 // Example:
 //
@@ -21,7 +23,7 @@
 //	sess, _ := cluster.CreateSession()
 //	defer sess.Close()
 //
-//	store, _ := cassandra.New(cassandra.Config{
+//	store, _ := cassandra.New(ctx, cassandra.Config{
 //	    Session:          sess,
 //	    Keyspace:         "lynx",
 //	    InitializeSchema: true,

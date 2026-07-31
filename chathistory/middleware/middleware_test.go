@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"iter"
-	"reflect"
+	"slices"
 	"sync"
 	"testing"
 
@@ -249,7 +249,7 @@ func TestStreamIsLazyAndPersistsOnlyNaturalCompletion(t *testing.T) {
 		}
 		texts = append(texts, response.Text())
 	}
-	if !started || !closed || !reflect.DeepEqual(texts, []string{"hel", "lo"}) {
+	if !started || !closed || !slices.Equal(texts, []string{"hel", "lo"}) {
 		t.Fatalf("stream state started=%v closed=%v texts=%v", started, closed, texts)
 	}
 	writes := store.writesSnapshot()

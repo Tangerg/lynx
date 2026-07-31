@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -11,11 +12,20 @@ import (
 
 	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/internal/codec"
+	"github.com/Tangerg/lynx/chathistory/internal/nilcheck"
 	"github.com/Tangerg/lynx/chathistory/internal/tracing"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
 const DefaultKeyPrefix = "chat:history:"
+
+var scanPatternEscaper = strings.NewReplacer(
+	`\`, `\\`,
+	`*`, `\*`,
+	`?`, `\?`,
+	`[`, `\[`,
+	`]`, `\]`,
+)
 
 // Config configures [New]. Only [Config.Client] is required.
 type Config struct {
@@ -27,9 +37,9 @@ type Config struct {
 	// keys. Optional: defaults to [DefaultKeyPrefix].
 	KeyPrefix string
 
-	// TTL, when non-zero, applies an expiry to every conversation
-	// key (set on Write; refreshed on each subsequent Write). Zero
-	// means "never expire".
+	// TTL, when non-zero, applies a millisecond-precision expiry to every
+	// conversation key and refreshes it on each Write. Zero means "never
+	// expire".
 	TTL time.Duration
 }
 
@@ -47,8 +57,8 @@ type Store struct {
 
 // New builds a [Store] from cfg.
 func New(cfg Config) (*Store, error) {
-	if cfg.Client == nil {
-		return nil, errors.New("redis: Client is required")
+	if nilcheck.IsNil(cfg.Client) {
+		return nil, errors.New("redis: client is required")
 	}
 	if cfg.TTL < 0 {
 		return nil, errors.New("redis: TTL must not be negative")
@@ -68,9 +78,9 @@ func (s *Store) key(conversationID string) string {
 	return s.keyPrefix + conversationID
 }
 
-// Write RPUSH'es every message under conversationID. When TTL is set
-// the key's expiry is refreshed in the same pipeline. No-op when
-// messages is empty.
+// Write appends every message under conversationID. When TTL is set, append
+// and expiry refresh execute in one Redis transaction. Empty writes are a
+// no-op.
 func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
@@ -82,33 +92,37 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 		return nil
 	}
 
-	ctx, span := tracing.StartWrite(ctx, "redis", conversationID, len(messages))
+	ctx, span := tracing.StartWrite(ctx, tracing.Redis, conversationID, len(messages))
 	defer func() { tracing.Finish(span, err) }()
 
-	payloads := make([]any, 0, len(messages))
-	for _, msg := range messages {
-		raw, encErr := codec.EncodeMessage(msg)
-		if encErr != nil {
-			return fmt.Errorf("redis.Store.Write: encode message: %w", encErr)
-		}
-		payloads = append(payloads, raw)
+	encoded, err := codec.EncodeMessages(messages)
+	if err != nil {
+		return fmt.Errorf("redis: write: encode messages: %w", err)
+	}
+	payloads := make([]any, len(encoded))
+	for index, raw := range encoded {
+		payloads[index] = raw
 	}
 
 	key := s.key(conversationID)
-	pipe := s.client.Pipeline()
-	pipe.RPush(ctx, key, payloads...)
-	if s.ttl > 0 {
-		pipe.Expire(ctx, key, s.ttl)
+	if s.ttl == 0 {
+		if err = s.client.RPush(ctx, key, payloads...).Err(); err != nil {
+			return fmt.Errorf("redis: write: append messages: %w", err)
+		}
+		return nil
 	}
-	if _, err = pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("redis.Store.Write: %w", err)
+	transaction := s.client.TxPipeline()
+	transaction.RPush(ctx, key, payloads...)
+	transaction.PExpire(ctx, key, s.ttl)
+	if _, err = transaction.Exec(ctx); err != nil {
+		return fmt.Errorf("redis: write: append messages and refresh expiry: %w", err)
 	}
 	return nil
 }
 
 // Read returns every message stored under conversationID in
 // insertion order. An empty slice is returned for unknown ids.
-func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Message, err error) {
+func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages []chat.Message, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -116,24 +130,24 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 		return nil, err
 	}
 
-	ctx, span := tracing.StartRead(ctx, "redis", conversationID)
-	defer func() { tracing.RecordReadResult(span, err, len(out)) }()
+	ctx, span := tracing.StartRead(ctx, tracing.Redis, conversationID)
+	defer func() { tracing.RecordReadResult(span, err, len(storedMessages)) }()
 
-	var raws []string
-	raws, err = s.client.LRange(ctx, s.key(conversationID), 0, -1).Result()
+	var encodedMessages []string
+	encodedMessages, err = s.client.LRange(ctx, s.key(conversationID), 0, -1).Result()
 	if err != nil {
-		return nil, fmt.Errorf("redis.Store.Read: %w", err)
+		return nil, fmt.Errorf("redis: read: fetch messages: %w", err)
 	}
 
-	out = make([]chat.Message, 0, len(raws))
-	for _, raw := range raws {
-		msg, err := codec.DecodeMessage([]byte(raw))
+	storedMessages = make([]chat.Message, 0, len(encodedMessages))
+	for index, raw := range encodedMessages {
+		message, err := codec.DecodeMessage([]byte(raw))
 		if err != nil {
-			return nil, fmt.Errorf("redis.Store.Read: decode message: %w", err)
+			return nil, fmt.Errorf("redis: read: decode message %d: %w", index, err)
 		}
-		out = append(out, msg)
+		storedMessages = append(storedMessages, message)
 	}
-	return out, nil
+	return storedMessages, nil
 }
 
 // Clear drops the entire list for conversationID. Unknown ids are
@@ -146,29 +160,27 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		return err
 	}
 
-	ctx, span := tracing.StartClear(ctx, "redis", conversationID)
+	ctx, span := tracing.StartClear(ctx, tracing.Redis, conversationID)
 	defer func() { tracing.Finish(span, err) }()
 
 	if err = s.client.Del(ctx, s.key(conversationID)).Err(); err != nil {
-		return fmt.Errorf("redis.Store.Clear: %w", err)
+		return fmt.Errorf("redis: clear: delete conversation: %w", err)
 	}
 	return nil
 }
 
-// Conversations enumerates the ids of every stored conversation via a
-// non-blocking SCAN over the keyPrefix namespace. The returned slice is
-// a point-in-time snapshot in no guaranteed order; SCAN may surface a
-// given key more than once across cursor iterations, so ids are
-// de-duplicated. Honors ctx cancellation.
+// Conversations enumerates stored conversation IDs via SCAN and returns them
+// in lexical order. SCAN may observe concurrent mutations and repeat keys, so
+// results are de-duplicated.
 func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	ctx, span := tracing.StartList(ctx, "redis")
+	ctx, span := tracing.StartList(ctx, tracing.Redis)
 	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
 
-	match := s.keyPrefix + "*"
+	match := scanPatternEscaper.Replace(s.keyPrefix) + "*"
 	seen := make(map[string]struct{})
 	// Non-nil even when no conversations exist — every backend's
 	// Conversations returns an empty slice, not nil.
@@ -183,17 +195,20 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 		var keys []string
 		keys, cursor, err = s.client.Scan(ctx, cursor, match, 0).Result()
 		if err != nil {
-			return nil, fmt.Errorf("redis.Store.Conversations: %w", err)
+			return nil, fmt.Errorf("redis: list conversations: scan keys: %w", err)
 		}
 
-		for _, k := range keys {
-			id, ok := strings.CutPrefix(k, s.keyPrefix)
+		for _, key := range keys {
+			id, ok := strings.CutPrefix(key, s.keyPrefix)
 			if !ok {
 				// MATCH should preclude this, but guard against the
 				// prefix incidentally matching unintended keys.
 				continue
 			}
-			if _, dup := seen[id]; dup {
+			if chathistory.ValidateConversationID(id) != nil {
+				continue
+			}
+			if _, duplicate := seen[id]; duplicate {
 				continue
 			}
 			seen[id] = struct{}{}
@@ -204,5 +219,6 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 			break
 		}
 	}
+	slices.Sort(ids)
 	return ids, nil
 }
