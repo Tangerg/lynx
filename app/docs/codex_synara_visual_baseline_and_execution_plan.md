@@ -1,14 +1,15 @@
 # Lynx Desktop × Synara 视觉基线与执行计划
 
 > 作者：Codex
-> 状态：`W7.3 DONE · W7.4 READY`
+> 状态：`W7.4 DONE · W7.5 READY`
 > 审计日期：2026-07-31
 > Lynx 基线：`cecc0510955ad39b31e5ec7cc16ee488d75c08c3`
 > Synara 基线：`54dff37d91aabf74e85dd42bb47e1a237a02f106`
 > W7.1 实施提交：`051ea578d`
 > W7.2 实施提交：`8bb0fa7ba`
 > W7.3 实施提交：`9c87d93fc`
-> 下一执行卡：`W7.4 — Context Dock / Workspace Views / Settings`
+> W7.4 实施提交：`d0380d0a2`
+> 下一执行卡：`W7.5 — Responsive / Accessibility / Wails-WebView / Visual Closure`
 > 关联总账：
 > [`codex_architecture_execution_master_plan.md`](codex_architecture_execution_master_plan.md)
 
@@ -28,8 +29,9 @@ presentation 层发明第二套运行状态。
 
 W7.0 只完成只读审计、实拍、决策和计划冻结，**没有修改 production UI**。
 W7.1 已按冻结决策建立可重复视觉证据并统一底层视觉语言；W7.2 已完成页面级 shell
-与 Work Index 对齐；W7.3 已完成 Narrative、Composer、Run tree 与 HITL 对齐。
-Dock、Workspace Views 与 Settings 由 W7.4 独立完成。
+与 Work Index 对齐；W7.3 已完成 Narrative、Composer、Run tree 与 HITL 对齐；
+W7.4 已完成 Dock、Workspace Views、Settings 与通用 overlay 对齐。W7.5 只负责
+最终 responsive、accessibility、Wails/WebView 与 visual regression closure。
 
 ---
 
@@ -605,7 +607,9 @@ Narrative/HITL visual fixtures and interaction tests
 
 ### W7.4 — Context Dock、Workspace Views 与 Settings
 
-状态：`READY`
+状态：`DONE`
+
+实施提交：`d0380d0a2`
 
 目标：
 
@@ -631,9 +635,31 @@ dock/settings visual fixtures
 - dock close / promote / reopen 不丢 active view identity；
 - overlay focus trap、return focus、escape 与 pointer dismissal 正确。
 
+实施结果：
+
+- Dock tab 使用 Base UI Tabs 的受控语义、roving focus 与方向键激活；容器 actions
+  有准确 accessible name/tooltip，不再用普通 button 模拟 tab；
+- Dock separator 支持 pointer、Arrow/Home/End、Shift step、真实 ARIA range 与
+  ResizeObserver；drag hot path 只写 CSS variable，结束时单次提交 preference；
+- render、pointer 与 ARIA 共用一条 dock 几何规则；light/review width 独立持久化，
+  window clamp 不污染 preference，hide/promote/close/reopen 保留 exact view identity；
+- Settings host 统一 page title、description、rail、content measure 与 plugin
+  boundary；pane 只贡献表单内容，`SettingsGroup` 统一单一 edge，删除重复页面框架；
+- Diff empty/loading/error 只保留一个状态叙事；file、diff、timeline、plan 均由
+  production Workspace View plugin 渲染；
+- ConfirmDialog、menu、tooltip、toast、shortcut、provider/model validation 经真实
+  production primitive 与浏览器交互验证；
+- 手搓 Workspace fixture 已删除，改为安装 production `ChatPanel`、registry、
+  `SettingsPage`、`PluginToaster` 与 application ports；fixture 只注入确定性数据；
+- 6 个 canonical workspace state、12 张 light/dark golden、20 个新增/重写的
+  interaction/structure 用例；full visual suite `97/97`；
+- `npm run check` 194 files / 1143 tests、896 locale keys × 8、production/visual
+  build、Desktop Go build/vet/test、Wails v2.12 production build 与
+  `git diff --check` 全部通过。
+
 ### W7.5 — Responsive、Accessibility 与 Visual Closure
 
-状态：`TODO`
+状态：`READY`
 
 目标：
 
@@ -686,7 +712,7 @@ final design/architecture docs
 - 缺少 deterministic state fixture；
 - 通用、不可操作的错误文案。
 
-它们必须在 W7.1–W7.3 中被删除。
+它们已由 W7.1–W7.4 删除，后续不得复活。
 
 ---
 
@@ -764,16 +790,16 @@ npm run check:bundle
 | W7.1 visual foundation       | `DONE`  | production-backed fixture、视觉 token、edge/depth、motion 与 warning 收口 | 仅防回归                     |
 | W7.2 shell / Work Index      | `DONE`  | production shell、Work Index、resize/focus/a11y 与 8 张 golden 已闭环     | 仅防回归                     |
 | W7.3 Narrative / Run / HITL  | `DONE`  | 12 个 canonical state、精确交互、24 张明暗 golden 与全门禁已闭环          | 仅防回归                     |
-| W7.4 Dock / Views / Settings | `READY` | foundation、workspace fixture 与 W7.3 reading language 已稳定             | 对齐 Dock、Views 与 Settings |
-| W7.5 final closure           | `TODO`  | 依赖 W7.2–W7.4                                                            | 等待                         |
+| W7.4 Dock / Views / Settings | `DONE`  | production views、Settings host、overlay 语义、12 张明暗 golden 已闭环     | 仅防回归                     |
+| W7.5 final closure           | `READY` | W7.1–W7.4 页面级视觉与交互闭环均已有 production-backed 证据                | 执行最终矩阵与真机 closure   |
 
 当前唯一主任务：
 
 ```text
-W7.4 — 在稳定 shell 与 Narrative reading language 上对齐 Context Dock、
-       Workspace Views 与 Settings，覆盖 light/review、file/diff/timeline/plan、
-       empty/loading/error 与 overlay keyboard/focus，同时保持 plugin contribution、
-       navigation identity 和 width persistence 的权威作者不变。
+W7.5 — 完成 viewport/DPR/theme、keyboard/screen-reader/reduced-motion、
+       long-content/pointer-coarse、render/commit 测量与 Wails v2.12 真机矩阵；
+       关闭未知 visual diff、build warning、fixture bypass、临时 CSS 与 dual path，
+       以全量证据决定 W7 是否可以最终标记 DONE。
 ```
 
 ---

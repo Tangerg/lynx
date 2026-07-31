@@ -10,8 +10,9 @@
 > W7.1 实施提交：`051ea578d`
 > W7.2 实施提交：`8bb0fa7ba`
 > W7.3 实施提交：`9c87d93fc`
-> 当前主任务：`W7.4 — Context Dock / Workspace Views / Settings`
-> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6 DONE · W7.0 DONE · W7.1 DONE · W7.2 DONE · W7.3 DONE · W7.4 READY`
+> W7.4 实施提交：`d0380d0a2`
+> 当前主任务：`W7.5 — Responsive / Accessibility / Wails-WebView / Visual Closure`
+> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6 DONE · W7.0 DONE · W7.1 DONE · W7.2 DONE · W7.3 DONE · W7.4 DONE · W7.5 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 44`
@@ -1068,7 +1069,7 @@ W6.1 breaking blast radius：
 
 ### W7 — Synara 视觉基线与像素级 Desktop UI 对齐
 
-状态：`IN PROGRESS`；`W7.0 DONE · W7.1 DONE · W7.2 DONE · W7.3 DONE · W7.4 READY · W7.5 TODO`
+状态：`IN PROGRESS`；`W7.0 DONE · W7.1 DONE · W7.2 DONE · W7.3 DONE · W7.4 DONE · W7.5 READY`
 
 参考仓库：`~/Desktop/synara`
 
@@ -1105,8 +1106,8 @@ W6.1 breaking blast radius：
 | W7.1  | `DONE`  | visual foundation：fixture、字体、颜色、间距、圆角、边界、阴影、层级与 motion token | production-backed fixture 覆盖权威状态；token 有唯一作者；CSS/build warning 与 motion hygiene 门禁已闭环；实施提交 `051ea578d`          |
 | W7.2  | `DONE`  | desktop shell 与 Work Index                                                         | production shell、导航密度、四种 query 状态、single-owner toggle、pointer/keyboard resize、窄窗与 Retina 已闭环；实施提交 `8bb0fa7ba`   |
 | W7.3  | `DONE`  | Agent Narrative、composer、Run tree 与 HITL                                         | 12 个 canonical state、production projection、精确交互与明暗 golden 已闭环；实施提交 `9c87d93fc`                                        |
-| W7.4  | `READY` | Context Dock、workspace views 与 settings                                           | 右侧上下文、文件/差异/时间线及设置表面形成统一视觉语言，不复制 Synara 的业务状态管理                                                    |
-| W7.5  | `TODO`  | responsive、accessibility、Wails/WebView 与 visual regression closure               | 截图 diff、键盘/focus/ARIA、reduced motion、DPI/滚动/拖拽、全量门禁及零未知构建告警全部通过                                             |
+| W7.4  | `DONE`  | Context Dock、workspace views 与 settings                                           | production view/plugin path、独立 density width、精确 navigation identity、Settings/overlay 语义与 12 张明暗 golden 已闭环；实施提交 `d0380d0a2` |
+| W7.5  | `READY` | responsive、accessibility、Wails/WebView 与 visual regression closure               | 截图 diff、键盘/focus/ARIA、reduced motion、DPI/滚动/拖拽、全量门禁及零未知构建告警全部通过                                             |
 
 ---
 
@@ -2195,6 +2196,59 @@ method/DTO shape、root stream 语义、child subscribe refusal、Agent public A
     responsive/accessibility/Wails closure 完成。
 - 下一步：W7.4 Context Dock / Workspace Views / Settings。
 
+### 2026-07-31 — W7.4
+
+- 状态：`DONE`
+- 实施提交：`d0380d0a2 feat(desktop): align workspace dock and settings`
+- 目标：让 Context Dock、Workspace Views、Settings 与通用 overlay 形成同一套紧凑、
+  可访问且可扩展的生产视觉语言，同时保持 plugin contribution、navigation identity、
+  width preference 与业务状态各自只有一个权威作者。
+- 关键实现：
+  - Dock tab 改用 Base UI Tabs 的受控语义与 roving focus，不再用普通 button 模拟
+    tab；browse、promote、hide/show 继续由 shell 容器拥有并提供准确 tooltip；
+  - Dock resizer 增加 separator ARIA、Arrow/Home/End、Shift 精细步长及
+    ResizeObserver range 同步；pointer hot path 只写 CSS custom property，结束时
+    单次提交 preference，窗口 clamp 不回写用户意图；
+  - light/review 宽度继续分别持久化；render、pointer 与 ARIA 共用
+    `300px ≤ dock ≤ min(row/2, row - 420px)` 几何规则；
+  - hide、promote、close、reopen 只操作既有 navigation application path，关闭
+    dock 后仍保留 last view identity，不新增第二个 collapse 状态；
+  - Settings host 统一拥有 page title、description、rail、content measure 与
+    plugin boundary；pane 只贡献表单内容，`SettingsGroup` 统一单一 outline/edge，
+    删除 Appearance 与 Shortcuts 的重复页面框架；
+  - Diff 的 loading/empty/error 不再同时渲染无意义 navigator 与第二段 “no files”
+    叙事；file、diff、timeline、plan 继续由正式 Workspace View plugin 提供；
+  - ConfirmDialog 与 Tooltip 补齐稳定语义锚点及 tooltip role；生产 dialog、menu、
+    tooltip、toast、shortcut/provider/model 路径均由浏览器交互测试覆盖。
+- 视觉与行为证据：
+  - 删除手搓 `VisualWorkspaceFixture` 业务页面，改为安装 production
+    `ChatPanel`、Workspace View registry、SettingsPage、PluginToaster 与正式
+    application ports；fixture 只注入确定性 data/provider 输入；
+  - 6 个 canonical workspace state：dock light/review/empty/loading/error 与
+    settings；
+  - 12 张 Workspace golden：6 states × light/dark；
+  - 20 个新增/重写的 interaction/structure 用例覆盖真实 view plugin、tab 键盘、
+    width 独立持久化、single-commit resize、window clamp、identity 往返、Settings
+    filter/menu/form validation，以及 dialog/tooltip/toast dismissal；
+  - full visual suite `97/97`，关键 light/review/settings 明暗截图已人工复核。
+- 验证：
+  - `npm run check` → 194 files / 1143 tests；typecheck、lint、format、knip、
+    circular/context/publication/layer、token/chrome/locales/bootstrap/bundle
+    guards 全通过；
+  - 896 个 key 在 8 个 locale 中完整；
+  - production build 与 visual build 通过；
+  - Desktop `go build ./...`、`go vet ./...`、`go test ./...`、Wails v2.12
+    production build 通过；
+  - `git diff --check` 通过。
+- 边界裁决：
+  - Workspace view content 仍由 plugin contribution 提供；Settings host 未读取
+    feature RPC/wire，pane 未接管 page shell；
+  - Agent/Runtime protocol、normalized Run projection、persistence、idempotency、
+    atomicity、recovery 与 capability negotiation 均未改变；
+  - 本 slice 不宣告最终 viewport/DPR、screen reader、reduced motion、IME 或
+    Wails/WebView 真机 closure 完成。
+- 下一步：W7.5 Responsive / Accessibility / Wails-WebView / Visual Closure。
+
 ---
 
 ## 12. 下一张执行卡
@@ -2202,31 +2256,33 @@ method/DTO shape、root stream 语义、child subscribe refusal、Agent public A
 唯一下一任务：
 
 ```text
-W7.4 — Context Dock / Workspace Views / Settings
+W7.5 — Responsive / Accessibility / Wails-WebView / Visual Closure
 ```
 
 实施顺序：
 
-1. 以 production workspace view registry、navigation application ports、现有
-   dock/settings fixture 为唯一事实源，审计 closed/light/review、file/diff/timeline/
-   plan、settings 与 empty/loading/error 的真实 DOM、computed style 和 ownership；
-2. 对齐 Context Dock header、tabs、resizer、light/review width、close/promote/reopen
-   与 content measure；view content 继续只由 plugin contribution 提供；
-3. 对齐 file、diff、timeline、plan 的 typography、code/diff density、surface、
-   edge、scroll 与 selected/focus 语法；不在 view callsite 复制 token；
-4. 对齐 Settings navigation、section/form row、provider/model、validation、
-   empty/error 与危险操作；Settings single-surface composition 不重新引入 drawer
-   或 seam；
-5. 收口 dialog、menu、tooltip、toast 与 shortcut presentation；验证 focus trap、
-   return focus、Escape、pointer dismissal 与 keyboard navigation；
-6. 验证 light/review width 分别持久化，close/promote/reopen 不丢 active view
-   identity，resize hot path 不写业务 store 或触发无关树 render；
-7. 扩展 production-backed dock/settings fixtures、interaction tests 与
-   light/dark golden；不得新增 production debug route、平行 read model 或
-   fixture-only business branch；
-8. 删除被替换的 Dock/View/Settings CSS、component 与 copy 路径，不留 dual
-   visual mode；跑完整 frontend、visual、Wails 与 diff hygiene 门禁后原子提交并
-   回填本总账。
+1. 以现有 production-backed foundation/shell/agent/workspace fixtures 为唯一事实源，
+   建立 1120×720、1280×800、1440×900、DPR 1/2、light/dark 的最终覆盖矩阵；
+   先报告未知 diff，不以提高阈值、扩大 mask 或更新 golden 掩盖问题；
+2. 沿 Work Index → Agent Narrative/HITL → Context Dock → Settings 做完整
+   keyboard-only traversal，验证 visible focus、roving focus、tab order、focus trap、
+   return focus、Escape、pointer dismissal 与窗口缩放后的 focus continuity；
+3. 审计 landmark、heading、live region、status、tabs、separator、form
+   name/description/error、dialog 与 tooltip 的 accessibility tree；补齐自动化
+   可证明项，并记录必须真机/人工验证的 screen reader 项；
+4. 在 `prefers-reduced-motion`、pointer-coarse、长英文/CJK、长路径/代码/diff 和
+   1120×720 下验证 motion、命中区、折行、overflow、scroll chaining 与 sticky
+   composer；根治生产 primitive，不加 fixture-only 分支；
+5. 对 stream、resize、dock drag、drawer transition 与 overlay 做针对性
+   render/subscription/commit 测量；只修有证据的退化，保持 hot path 不写业务
+   store、不触发无关树；
+6. 在 Wails v2.12 WebView 真机验证 window chrome、DPI/Retina hairline、字体 fallback、
+   IME、drag、resize、scroll、clipboard、focus 与窗口边缘行为，并把可重复部分固化为
+   smoke/interaction 证据；
+7. 关闭全部未知 visual diff 与 build warning；逐项复核有意分歧登记，删除过期
+   golden、fixture bypass、debug hook、临时 CSS、兼容 alias 和 dual path；
+8. 跑完整 frontend、visual、Go、Wails、repository hygiene 与文档一致性门禁，
+   原子提交、推送并回填最终证据；只有所有退出标准满足后才把 W7 标为 `DONE`。
 
 W7 的禁止项：
 
