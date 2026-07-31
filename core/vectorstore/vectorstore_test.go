@@ -38,6 +38,8 @@ func TestSearchRequestValidateMatches(t *testing.T) {
 	request := vectorstore.SearchRequest{Query: "lynx", TopK: 2, MinScore: 0.5}
 	first, _ := document.NewDocument("first", nil)
 	second, _ := document.NewDocument("second", nil)
+	first.ID = "first"
+	second.ID = "second"
 	valid := []vectorstore.Match{{Document: first, Score: 0.9}, {Document: second, Score: 0.5}}
 	if err := request.ValidateMatches(valid); err != nil {
 		t.Fatal(err)
@@ -49,6 +51,7 @@ func TestSearchRequestValidateMatches(t *testing.T) {
 	}{
 		{name: "too many", matches: append(valid, vectorstore.Match{Document: second, Score: 0.5})},
 		{name: "nil document", matches: []vectorstore.Match{{Score: 0.9}}},
+		{name: "missing document ID", matches: []vectorstore.Match{{Document: &document.Document{Text: "text"}, Score: 0.9}}},
 		{name: "out of range", matches: []vectorstore.Match{{Document: first, Score: 1.1}}},
 		{name: "below threshold", matches: []vectorstore.Match{{Document: first, Score: 0.4}}},
 		{name: "not sorted", matches: []vectorstore.Match{{Document: first, Score: 0.5}, {Document: second, Score: 0.9}}},

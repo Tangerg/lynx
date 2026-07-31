@@ -6,9 +6,6 @@ import "errors"
 // Callers can match these with [errors.Is] to distinguish caller-side
 // input errors from transport, SDK, or backend failures.
 var (
-	// ErrNilConfig is returned when the validator receives nil.
-	ErrNilConfig = errors.New("milvus: config must not be nil")
-
 	// ErrMissingClient is returned when the config supplies a nil
 	// Milvus client.
 	ErrMissingClient = errors.New("milvus: Client is required")
@@ -21,4 +18,12 @@ var (
 
 	// ErrMissingDocumentBatcher is returned when DocumentBatcher is nil.
 	ErrMissingDocumentBatcher = errors.New("milvus: DocumentBatcher is required")
+
+	// ErrDocumentIDTooLong is returned when an ID cannot fit the collection's
+	// primary-key VarChar field.
+	ErrDocumentIDTooLong = errors.New("milvus: document ID exceeds the 36-byte limit")
+
+	// ErrDocumentContentTooLong is returned when text cannot fit the
+	// collection's content VarChar field.
+	ErrDocumentContentTooLong = errors.New("milvus: document text exceeds the 65535-byte limit")
 )

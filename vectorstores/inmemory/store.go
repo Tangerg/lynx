@@ -13,7 +13,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 )
 
 // StoreConfig configures a [Store].
@@ -29,13 +29,14 @@ type StoreConfig struct {
 	Similarity Similarity
 }
 
-func (c *StoreConfig) ApplyDefaults() {
+func (c *StoreConfig) applyDefaults() {
 	if c.Similarity == nil {
 		c.Similarity = CosineSimilarity
 	}
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.EmbeddingModel == nil {
 		return ErrMissingEmbeddingModel
 	}
@@ -69,7 +70,7 @@ type Store struct {
 
 // NewStore constructs an in-memory vector store from cfg.
 func NewStore(cfg StoreConfig) (*Store, error) {
-	cfg.ApplyDefaults()
+	cfg.applyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -100,12 +101,9 @@ func (s *Store) Len() int {
 // assign one before calling). Existing IDs are overwritten — this
 // mirrors the upsert semantics most vendor stores expose.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("inmemory.Store.Add: %w", err)
 	}
-
-	ctx, span := tracing.StartAdd(ctx, "inmemory", len(docs))
-	defer func() { tracing.Finish(span, err) }()
 
 	texts := make([]string, 0, len(docs))
 	for i, doc := range docs {
@@ -144,12 +142,10 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (out 
 		return nil, fmt.Errorf("inmemory.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "inmemory", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(out)
 		}
-		tracing.RecordSearchResult(span, err, len(out))
 	}()
 
 	var query []float64
@@ -210,11 +206,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("inmemory.Store.DeleteWhere: %w", err)
 	}
-
-	_, span := tracing.StartDelete(ctx, "inmemory")
-	defer func() { tracing.Finish(span, err) }()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -247,9 +240,6 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
-
-	_, span := tracing.StartDelete(ctx, "inmemory")
-	defer func() { tracing.Finish(span, err) }()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()

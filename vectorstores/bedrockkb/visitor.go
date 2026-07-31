@@ -3,6 +3,7 @@ package bedrockkb
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/document"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/types"
@@ -58,6 +59,9 @@ func convertUnary(expr *filter.UnaryExpr) (types.RetrievalFilter, error) {
 	if !ok {
 		return nil, errors.New("bedrockkb: NOT may only wrap a binary comparison")
 	}
+	if bin.Op.Is(filter.OpIn) {
+		return convertNotIn(bin)
+	}
 	inverted, err := invertBinary(bin)
 	if err != nil {
 		return nil, err
@@ -66,7 +70,7 @@ func convertUnary(expr *filter.UnaryExpr) (types.RetrievalFilter, error) {
 }
 
 // invertBinary returns the boolean inverse of a single comparison —
-// EQ↔NE, LT↔GE, LE↔GT, IN↔NIN.
+// EQ↔NE, LT↔GE, and LE↔GT.
 func invertBinary(expr *filter.BinaryExpr) (*filter.BinaryExpr, error) {
 	clone := *expr
 	switch expr.Op {
@@ -135,31 +139,42 @@ func convertComparison(expr *filter.BinaryExpr) (types.RetrievalFilter, error) {
 }
 
 func convertIn(expr *filter.BinaryExpr) (types.RetrievalFilter, error) {
-	key, err := keyName(expr.Left)
+	attribute, err := listAttribute(expr)
 	if err != nil {
 		return nil, err
 	}
+	return &types.RetrievalFilterMemberIn{Value: attribute}, nil
+}
+
+func convertNotIn(expr *filter.BinaryExpr) (types.RetrievalFilter, error) {
+	attribute, err := listAttribute(expr)
+	if err != nil {
+		return nil, err
+	}
+	return &types.RetrievalFilterMemberNotIn{Value: attribute}, nil
+}
+
+func listAttribute(expr *filter.BinaryExpr) (types.FilterAttribute, error) {
+	key, err := keyName(expr.Left)
+	if err != nil {
+		return types.FilterAttribute{}, err
+	}
 	listLit, ok := expr.Right.(*filter.ListLiteral)
 	if !ok {
-		return nil, errors.New("bedrockkb: 'IN' requires a list on the right")
+		return types.FilterAttribute{}, errors.New("bedrockkb: 'IN' requires a list on the right")
 	}
 	if len(listLit.Values) == 0 {
-		return nil, errors.New("bedrockkb: 'IN' requires a non-empty list")
+		return types.FilterAttribute{}, errors.New("bedrockkb: 'IN' requires a non-empty list")
 	}
 	values := make([]any, 0, len(listLit.Values))
 	for _, lit := range listLit.Values {
 		val, err := literalToValue(lit)
 		if err != nil {
-			return nil, err
+			return types.FilterAttribute{}, err
 		}
 		values = append(values, val)
 	}
-	return &types.RetrievalFilterMemberIn{
-		Value: types.FilterAttribute{
-			Key:   &key,
-			Value: document.NewLazyDocument(values),
-		},
-	}, nil
+	return types.FilterAttribute{Key: &key, Value: document.NewLazyDocument(values)}, nil
 }
 
 // convertLike maps LIKE onto Bedrock's StringContains / StartsWith
@@ -178,15 +193,17 @@ func convertLike(expr *filter.BinaryExpr) (types.RetrievalFilter, error) {
 		return nil, fmt.Errorf("bedrockkb: LIKE requires a string pattern, got %T", value)
 	}
 
-	// Trim wildcards and pick the closest Bedrock filter operator.
-	hasLead := len(pattern) > 0 && pattern[0] == '%'
-	hasTrail := len(pattern) > 0 && pattern[len(pattern)-1] == '%'
-	core := pattern
-	if hasLead {
-		core = core[1:]
+	if strings.ContainsRune(pattern, '_') {
+		return nil, errors.New("bedrockkb: LIKE '_' wildcard is not supported by Bedrock filters")
 	}
-	if hasTrail && len(core) > 0 {
-		core = core[:len(core)-1]
+	leadingWildcard := strings.HasPrefix(pattern, "%")
+	trailingWildcard := strings.HasSuffix(pattern, "%")
+	core := strings.TrimSuffix(strings.TrimPrefix(pattern, "%"), "%")
+	if core == "" || strings.ContainsRune(core, '%') {
+		return nil, fmt.Errorf("bedrockkb: LIKE pattern %q cannot be represented exactly by Bedrock filters", pattern)
+	}
+	if leadingWildcard && !trailingWildcard {
+		return nil, fmt.Errorf("bedrockkb: LIKE suffix pattern %q is not supported by Bedrock filters", pattern)
 	}
 
 	attr := types.FilterAttribute{
@@ -194,12 +211,15 @@ func convertLike(expr *filter.BinaryExpr) (types.RetrievalFilter, error) {
 		Value: document.NewLazyDocument(core),
 	}
 	switch {
-	case !hasLead && hasTrail:
+	case !leadingWildcard && trailingWildcard:
 		// "foo%" → StartsWith
 		return &types.RetrievalFilterMemberStartsWith{Value: attr}, nil
-	default:
-		// "%foo", "%foo%", or "foo" → StringContains
+	case leadingWildcard && trailingWildcard:
+		// "%foo%" → StringContains
 		return &types.RetrievalFilterMemberStringContains{Value: attr}, nil
+	default:
+		// SQL LIKE without wildcards is exact equality.
+		return &types.RetrievalFilterMemberEquals{Value: attr}, nil
 	}
 }
 

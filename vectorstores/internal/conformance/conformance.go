@@ -1,10 +1,10 @@
 package conformance
 
 import (
-	"context"
 	"errors"
 	"testing"
 
+	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/vectorstore"
 )
 
@@ -36,13 +36,29 @@ func Run(t *testing.T, store any, want Capabilities) {
 	assertCapability(t, "IDDeleter", hasIDDeleter, want.IDDeleter)
 	assertCapability(t, "FilterDeleter", hasFilterDeleter, want.FilterDeleter)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	if want.Indexer && hasIndexer {
-		t.Run("AddRejectsEmptyDocumentsBeforeIO", func(t *testing.T) {
-			if err := indexer.Add(ctx, nil); !errors.Is(err, vectorstore.ErrEmptyDocuments) {
-				t.Fatalf("Add(nil) error = %v, want %v", err, vectorstore.ErrEmptyDocuments)
-			}
-		})
+		addCases := []struct {
+			name string
+			docs []*document.Document
+			want error
+		}{
+			{name: "empty documents", want: vectorstore.ErrEmptyDocuments},
+			{name: "nil document", docs: []*document.Document{nil}, want: vectorstore.ErrInvalidDocument},
+			{name: "missing document ID", docs: []*document.Document{{Text: "content"}}, want: vectorstore.ErrMissingDocumentID},
+			{
+				name: "duplicate document ID",
+				docs: []*document.Document{{ID: "duplicate", Text: "one"}, {ID: "duplicate", Text: "two"}},
+				want: vectorstore.ErrDuplicateDocumentID,
+			},
+		}
+		for _, test := range addCases {
+			t.Run("AddRejects"+test.name+"BeforeIO", func(t *testing.T) {
+				if err := indexer.Add(ctx, test.docs); !errors.Is(err, test.want) {
+					t.Fatalf("Add() error = %v, want %v", err, test.want)
+				}
+			})
+		}
 	}
 	if want.Searcher && hasSearcher {
 		t.Run("SearchRejectsInvalidRequestBeforeIO", func(t *testing.T) {

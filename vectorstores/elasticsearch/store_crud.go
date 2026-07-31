@@ -10,42 +10,37 @@ import (
 	stdmath "math"
 
 	"github.com/elastic/go-elasticsearch/v8/esapi"
-	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/pkg/math"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("elasticsearch.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "elasticsearch", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("elasticsearch: failed to batch documents: %w", err)
+		return fmt.Errorf("elasticsearch: batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("elasticsearch: failed to generate embeddings: %w", err)
+			return fmt.Errorf("elasticsearch: embed documents: %w", err)
 		}
 
 		var body bytes.Buffer
 		for i, doc := range docs {
 			id := doc.ID
-			if id == "" {
-				id = uuid.NewString()
-			}
 
 			actionLine, encErr := json.Marshal(map[string]any{
 				"index": map[string]any{
@@ -97,21 +92,19 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // metadata filtering is expressed via a query_string clause.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("elasticsearch: invalid search request: %w", err)
+		return nil, fmt.Errorf("elasticsearch.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "elasticsearch", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("elasticsearch: failed to embed query: %w", err)
+		return nil, fmt.Errorf("elasticsearch: embed query: %w", err)
 	}
 	queryVec := math.ConvertSlice[float64, float32](vector)
 
@@ -182,11 +175,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("elasticsearch.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "elasticsearch")
-	defer func() { tracing.Finish(span, err) }()
 
 	var filterQuery string
 	filterQuery, err = s.buildFilterQuery(expr)
@@ -233,9 +223,6 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 		return nil
 	}
 
-	ctx, span := tracing.StartDelete(ctx, "elasticsearch")
-	defer func() { tracing.Finish(span, err) }()
-
 	var body bytes.Buffer
 	for _, id := range ids {
 		var actionLine []byte
@@ -275,53 +262,28 @@ func (s *Store) buildFilterQuery(filter filter.Predicate) (string, error) {
 	return v.Result(), nil
 }
 
-// normalizeScore reverses Elasticsearch's vector-score transform to
-// produce a [0, 1] similarity score, matching the mapping.
-//
-//	cosine / dot_product:  ES already returns (sim+1)/2 in [0, 1];
-//	                       map back via (2*score - 1).
-//	l2_norm:               ES returns 1/(1+d²); invert via the closed
-//	                       form to recover sim ≈ 1 - sqrt(1/score - 1).
+// normalizeScore validates Elasticsearch's already normalized dense-vector
+// score. cosine and dot_product return (1+similarity)/2; l2_norm returns
+// 1/(1+distance²). All three are in [0,1] with higher values ranked first.
 func (s *Store) normalizeScore(score float64) float64 {
-	var sim float64
-	switch s.similarity {
-	case SimilarityL2:
-		if score <= 0 {
-			return 0
-		}
-		// Recover the underlying distance, then map to [0, 1].
-		inner := 1.0/score - 1.0
-		if inner < 0 {
-			inner = 0
-		}
-		sim = 1.0 - stdmath.Sqrt(inner)
-	case SimilarityDotProduct, SimilarityCosine:
-		fallthrough
-	default:
-		sim = 2.0*score - 1.0
-	}
-	switch {
-	case sim < 0:
-		return 0
-	case sim > 1:
-		return 1
-	default:
-		return sim
-	}
+	return scores.Bounded(score)
 }
 
 func (s *Store) toDocument(hit searchHit) (*document.Document, error) {
+	if hit.ID == "" {
+		return nil, errors.New("elasticsearch: search hit is missing _id")
+	}
 	doc := &document.Document{ID: hit.ID}
 	if hit.Source == nil {
-		return doc, nil
+		return nil, fmt.Errorf("elasticsearch: search hit %s is missing _source", hit.ID)
 	}
 
 	// Pull the document text from the configured content field.
-	if raw, ok := hit.Source[s.contentField]; ok {
-		if s, ok := raw.(string); ok {
-			doc.Text = s
-		}
+	content, ok := hit.Source[s.contentField].(string)
+	if !ok || content == "" {
+		return nil, fmt.Errorf("elasticsearch: search hit %s is missing string field %q", hit.ID, s.contentField)
 	}
+	doc.Text = content
 
 	if s.metadataField != "" {
 		if rawMeta, ok := hit.Source[s.metadataField]; ok {
@@ -329,7 +291,7 @@ func (s *Store) toDocument(hit searchHit) (*document.Document, error) {
 				var err error
 				doc.Metadata, err = metadata.FromValues(m)
 				if err != nil {
-					return nil, fmt.Errorf("elasticsearch: encode metadata: %w", err)
+					return nil, fmt.Errorf("elasticsearch: convert metadata: %w", err)
 				}
 			}
 		}
@@ -347,7 +309,7 @@ func (s *Store) toDocument(hit searchHit) (*document.Document, error) {
 			var err error
 			doc.Metadata, err = metadata.FromValues(meta)
 			if err != nil {
-				return nil, fmt.Errorf("elasticsearch: encode metadata: %w", err)
+				return nil, fmt.Errorf("elasticsearch: convert metadata: %w", err)
 			}
 		}
 	}

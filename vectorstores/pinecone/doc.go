@@ -19,10 +19,9 @@
 // rejects [filter.OpLike] expressions explicitly.
 //
 // Document text. Pinecone itself stores only id + vector + flat
-// metadata — there is no first-class text body. The store stashes
-// the original document text under a reserved metadata key when
-// [StoreConfig.StoreDocumentContent] is true; retrieval reverses
-// the mapping back into [document.Document.Text].
+// metadata — there is no first-class text body. The store always stashes
+// the original document text under a reserved metadata key; retrieval
+// reverses the mapping back into [document.Document.Text].
 //
 // See https://docs.pinecone.io/ for the full API surface.
 package pinecone

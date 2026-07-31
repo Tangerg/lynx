@@ -1,4 +1,4 @@
-package pgvector_test
+package pgfilter_test
 
 import (
 	"reflect"
@@ -6,22 +6,22 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/lynx/vectorstores/internal/pgfilter"
 	"github.com/Tangerg/lynx/vectorstores/internal/storetest"
-	"github.com/Tangerg/lynx/vectorstores/pgvector"
 )
 
-// TestVisitor_Conformance exercises every AST shape the filter DSL
-// supports against the pgvector visitor via the shared
+// TestCompiler_Conformance exercises every AST shape the filter DSL
+// supports against the PostgreSQL compiler via the shared
 // [storetest.VisitorConformance] suite. Output equivalence stays in
 // the per-test functions below; this is "no shape crashes" coverage.
-func TestVisitor_Conformance(t *testing.T) {
+func TestCompiler_Conformance(t *testing.T) {
 	storetest.VisitorConformance(t, func(src string) error {
 		expr, err := filter.Parse(src)
 		if err != nil {
 			return err
 		}
-		v := pgvector.NewVisitor("metadata")
-		return v.Visit(expr)
+		compiler := pgfilter.NewCompiler("metadata")
+		return compiler.Visit(expr)
 	})
 }
 
@@ -32,15 +32,15 @@ func build(t *testing.T, src string) (string, []any, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	v := pgvector.NewVisitor("metadata")
-	if err := v.Visit(expr); err != nil {
+	compiler := pgfilter.NewCompiler("metadata")
+	if err := compiler.Visit(expr); err != nil {
 		return "", nil, err
 	}
-	sql, args := v.Result()
+	sql, args := compiler.Result()
 	return sql, args, nil
 }
 
-func TestVisitor_EqualityString(t *testing.T) {
+func TestCompiler_EqualityString(t *testing.T) {
 	sql, args, err := build(t, `author == 'Alice'`)
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -56,7 +56,7 @@ func TestVisitor_EqualityString(t *testing.T) {
 	}
 }
 
-func TestVisitor_EqualityNumberCastsNumeric(t *testing.T) {
+func TestCompiler_EqualityNumberCastsNumeric(t *testing.T) {
 	sql, args, err := build(t, `year == 2020`)
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -70,7 +70,7 @@ func TestVisitor_EqualityNumberCastsNumeric(t *testing.T) {
 	}
 }
 
-func TestVisitor_EqualityBoolCastsBoolean(t *testing.T) {
+func TestCompiler_EqualityBoolCastsBoolean(t *testing.T) {
 	sql, args, err := build(t, `published == true`)
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -83,7 +83,7 @@ func TestVisitor_EqualityBoolCastsBoolean(t *testing.T) {
 	}
 }
 
-func TestVisitor_Ordering(t *testing.T) {
+func TestCompiler_Ordering(t *testing.T) {
 	sql, args, err := build(t, `year >= 2020`)
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -96,7 +96,7 @@ func TestVisitor_Ordering(t *testing.T) {
 	}
 }
 
-func TestVisitor_LogicalAnd(t *testing.T) {
+func TestCompiler_LogicalAnd(t *testing.T) {
 	sql, args, err := build(t, `author == 'Alice' and year >= 2020`)
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -113,7 +113,7 @@ func TestVisitor_LogicalAnd(t *testing.T) {
 	}
 }
 
-func TestVisitor_LogicalOr(t *testing.T) {
+func TestCompiler_LogicalOr(t *testing.T) {
 	sql, _, err := build(t, `a == 1 or b == 2`)
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -123,7 +123,7 @@ func TestVisitor_LogicalOr(t *testing.T) {
 	}
 }
 
-func TestVisitor_Not(t *testing.T) {
+func TestCompiler_Not(t *testing.T) {
 	sql, _, err := build(t, `not (a == 1)`)
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -133,7 +133,7 @@ func TestVisitor_Not(t *testing.T) {
 	}
 }
 
-func TestVisitor_InStrings(t *testing.T) {
+func TestCompiler_InStrings(t *testing.T) {
 	sql, args, err := build(t, `tag in ('rag', 'llm')`)
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -146,7 +146,7 @@ func TestVisitor_InStrings(t *testing.T) {
 	}
 }
 
-func TestVisitor_InNumbers(t *testing.T) {
+func TestCompiler_InNumbers(t *testing.T) {
 	sql, args, err := build(t, `year in (2020, 2021, 2022)`)
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -160,7 +160,7 @@ func TestVisitor_InNumbers(t *testing.T) {
 	}
 }
 
-func TestVisitor_Like(t *testing.T) {
+func TestCompiler_Like(t *testing.T) {
 	sql, args, err := build(t, `author like '%Alice%'`)
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -173,7 +173,7 @@ func TestVisitor_Like(t *testing.T) {
 	}
 }
 
-func TestVisitor_NestedIndex(t *testing.T) {
+func TestCompiler_NestedIndex(t *testing.T) {
 	sql, _, err := build(t, `profile['a']['b'] == 'x'`)
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -184,7 +184,7 @@ func TestVisitor_NestedIndex(t *testing.T) {
 	}
 }
 
-func TestVisitor_IndexedKeyRetainsBase(t *testing.T) {
+func TestCompiler_IndexedKeyRetainsBase(t *testing.T) {
 	sql, _, err := build(t, `profile['author'] == 'Alice'`)
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -194,29 +194,29 @@ func TestVisitor_IndexedKeyRetainsBase(t *testing.T) {
 	}
 }
 
-func TestVisitor_EmptyMetadataColDefaults(t *testing.T) {
+func TestCompiler_EmptyMetadataColDefaults(t *testing.T) {
 	expr, err := filter.Parse(`a == 1`)
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	v := pgvector.NewVisitor("") // empty → defaults to "metadata"
-	if err := v.Visit(expr); err != nil {
+	compiler := pgfilter.NewCompiler("") // empty → defaults to "metadata"
+	if err := compiler.Visit(expr); err != nil {
 		t.Fatalf("visit: %v", err)
 	}
-	sql, _ := v.Result()
+	sql, _ := compiler.Result()
 	if !strings.Contains(sql, "metadata->>'a'") {
 		t.Fatalf("sql=%q must default to metadata col", sql)
 	}
 }
 
-func TestVisitor_NilExpression(t *testing.T) {
-	v := pgvector.NewVisitor("metadata")
-	if v.Visit(nil) == nil {
+func TestCompiler_NilExpression(t *testing.T) {
+	compiler := pgfilter.NewCompiler("metadata")
+	if compiler.Visit(nil) == nil {
 		t.Fatal("nil expression must produce an error")
 	}
 }
 
-func TestVisitor_IsNull(t *testing.T) {
+func TestCompiler_IsNull(t *testing.T) {
 	sql, args, err := build(t, `author is null`)
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -229,7 +229,7 @@ func TestVisitor_IsNull(t *testing.T) {
 	}
 }
 
-func TestVisitor_IsNotNull(t *testing.T) {
+func TestCompiler_IsNotNull(t *testing.T) {
 	sql, _, err := build(t, `author is not null`)
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -240,7 +240,7 @@ func TestVisitor_IsNotNull(t *testing.T) {
 	}
 }
 
-func TestVisitor_NotIn(t *testing.T) {
+func TestCompiler_NotIn(t *testing.T) {
 	sql, args, err := build(t, `tags not in ('a', 'b')`)
 	if err != nil {
 		t.Fatalf("build: %v", err)

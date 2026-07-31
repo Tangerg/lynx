@@ -22,7 +22,6 @@ const (
 	DefaultEmbeddingField   = "embedding"
 	DefaultContentField     = "content"
 	DefaultMetadataField    = "metadata"
-	DefaultDimensions       = 1536
 	DefaultSimilarity       = SimilarityCosine
 	defaultNumCandidatesMul = 1.5 // num_candidates = ceil(topK * multiplier)
 )
@@ -48,10 +47,6 @@ const (
 // StoreConfig contains configuration options for the Elasticsearch
 // vector store.
 type StoreConfig struct {
-	// Context is used for the initial schema bootstrap. Optional;
-	// defaults to context.Background().
-	Context context.Context
-
 	// Client is the go-elasticsearch typed client. Required.
 	Client *elasticsearch.Client
 
@@ -79,9 +74,8 @@ type StoreConfig struct {
 	// DocumentBatcher batches documents before bulk upsert. Required.
 	DocumentBatcher vectorstores.Batcher
 
-	// Dimensions sets the dense_vector dims registered with the
-	// index. When zero the store asks the embedding model and falls
-	// back to [DefaultDimensions].
+	// Dimensions sets the dense_vector width for a newly created index. When
+	// zero, the store probes EmbeddingModel only if it must create the index.
 	Dimensions int
 
 	// Similarity selects the similarity metric used at index time.
@@ -99,7 +93,8 @@ type StoreConfig struct {
 	NumCandidatesMultiplier float64
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.Client == nil {
 		return errors.New("elasticsearch: Client is required")
 	}
@@ -109,14 +104,19 @@ func (c *StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("elasticsearch: DocumentBatcher is required")
 	}
+	if c.Dimensions < 0 {
+		return errors.New("elasticsearch: Dimensions must be >= 0")
+	}
+	switch c.Similarity {
+	case SimilarityCosine, SimilarityL2, SimilarityDotProduct:
+	default:
+		return fmt.Errorf("elasticsearch: unsupported Similarity %q", c.Similarity)
+	}
 	return nil
 }
 
-// ApplyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) applyDefaults() {
 	c.IndexName = cmp.Or(c.IndexName, DefaultIndexName)
 	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
 	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
@@ -152,15 +152,15 @@ type Store struct {
 	numCandidatesMul float64
 }
 
-func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("elasticsearch: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("elasticsearch: create embedding client: %w", err)
 	}
 
 	store := &Store{
@@ -176,14 +176,25 @@ func NewStore(config StoreConfig) (*Store, error) {
 		numCandidatesMul: config.NumCandidatesMultiplier,
 	}
 
-	if err = store.initialize(config.Context, config.InitializeSchema); err != nil {
-		return nil, fmt.Errorf("elasticsearch: failed to initialize store: %w", err)
+	if err = store.initialize(ctx, config.InitializeSchema); err != nil {
+		return nil, fmt.Errorf("elasticsearch: initialize store: %w", err)
 	}
 	return store, nil
 }
 
 // initialize resolves dimensions and creates the index when requested.
 func (s *Store) initialize(ctx context.Context, initSchema bool) error {
+	exists, err := s.indexExists(ctx)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	if !initSchema {
+		return errors.New("elasticsearch: index not found and InitializeSchema is false")
+	}
+
 	if s.dimensions <= 0 {
 		dimensions, err := s.embeddingClient.Dimensions(ctx)
 		if err != nil {
@@ -195,16 +206,6 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 		return errors.New("elasticsearch: Dimensions must be > 0")
 	}
 
-	exists, err := s.indexExists(ctx)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return nil
-	}
-	if !initSchema {
-		return errors.New("elasticsearch: index not found and InitializeSchema is false")
-	}
 	return s.createIndex(ctx)
 }
 

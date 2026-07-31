@@ -11,6 +11,12 @@
 // support. [SearchRequest] validates both input and successful Match output;
 // Add and delete methods accept their single logical input directly.
 //
+// Indexed documents have a caller-assigned, non-empty ID and non-empty text.
+// Providers preserve both values so every successful Match is immediately
+// usable by retrieval pipelines. Providers never generate IDs, and a
+// vector-index-plus-external-document-store architecture must hydrate results
+// explicitly outside these capabilities rather than return partial Documents.
+//
 // Metadata filtering uses the filter mini-language: build predicates with
 // typed constructors or parse them from text with filter.Parse. See
 // [github.com/Tangerg/lynx/core/vectorstore/filter].

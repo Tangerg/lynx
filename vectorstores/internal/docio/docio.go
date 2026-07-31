@@ -1,58 +1,42 @@
 package docio
 
 import (
-	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
+	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/vectorstore"
 )
 
-// EnsureID returns id unchanged when it's non-empty; otherwise it
-// mints a fresh UUID. Used by every Add path's per-document loop.
-func EnsureID(id string) string {
-	if id != "" {
-		return id
+// ValidateDocuments enforces the provider-independent ingestion contract
+// before a batcher, embedding model, or store client can observe the input.
+func ValidateDocuments(docs []*document.Document) error {
+	if len(docs) == 0 {
+		return vectorstore.ErrEmptyDocuments
 	}
-	return uuid.NewString()
-}
 
-// MetadataOrEmpty returns m unchanged when non-nil; otherwise it
-// returns an empty map so the document always carries the metadata
-// field. Backends that round-trip JSON benefit from the consistent
-// shape.
-func MetadataOrEmpty(m map[string]any) map[string]any {
-	if m == nil {
-		return map[string]any{}
-	}
-	return m
-}
-
-// MarshalMetadata serializes m to JSON. A nil m maps to JSON `null`
-// when nullSentinel is "null" (the pgvector / postgres default),
-// otherwise to the supplied empty-object sentinel — most JSON column
-// types accept "{}" too.
-func MarshalMetadata(m map[string]any, nullSentinel string) ([]byte, error) {
-	if m == nil {
-		if nullSentinel == "" {
-			nullSentinel = "null"
+	seen := make(map[string]int, len(docs))
+	for i, doc := range docs {
+		if doc == nil {
+			return fmt.Errorf("%w: documents[%d] is nil", vectorstore.ErrInvalidDocument, i)
 		}
-		return []byte(nullSentinel), nil
+		if err := doc.Validate(); err != nil {
+			return fmt.Errorf("%w: documents[%d]: %w", vectorstore.ErrInvalidDocument, i, err)
+		}
+		if strings.TrimSpace(doc.ID) == "" {
+			return fmt.Errorf("%w: documents[%d]", vectorstore.ErrMissingDocumentID, i)
+		}
+		if doc.Text == "" {
+			return fmt.Errorf("%w: documents[%d] has no text to embed", vectorstore.ErrInvalidDocument, i)
+		}
+		if first, duplicate := seen[doc.ID]; duplicate {
+			return fmt.Errorf("%w %q at documents[%d] and documents[%d]",
+				vectorstore.ErrDuplicateDocumentID, doc.ID, first, i)
+		}
+		seen[doc.ID] = i
 	}
-	return json.Marshal(m)
-}
-
-// UnmarshalMetadata reverses [MarshalMetadata]. Empty / null inputs
-// produce a nil map.
-func UnmarshalMetadata(b []byte) (map[string]any, error) {
-	if len(b) == 0 || string(b) == "null" {
-		return nil, nil
-	}
-	var out map[string]any
-	if err := json.Unmarshal(b, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return nil
 }
 
 // FormatVectorLiteral renders a float32 slice as the textual

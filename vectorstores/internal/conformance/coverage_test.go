@@ -35,7 +35,6 @@ var releaseBackends = []string{
 	"qdrant",
 	"redis",
 	"s3vectors",
-	"supabase",
 	"tidb",
 	"typesense",
 	"vectara",

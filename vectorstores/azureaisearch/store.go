@@ -12,8 +12,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/metadata"
@@ -22,7 +20,19 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+)
+
+// SimilarityMetric records the metric configured on the existing Azure AI
+// Search vector field.
+type SimilarityMetric string
+
+const (
+	SimilarityCosine    SimilarityMetric = "cosine"
+	SimilarityDot       SimilarityMetric = "dotProduct"
+	SimilarityEuclidean SimilarityMetric = "euclidean"
 )
 
 const (
@@ -45,10 +55,6 @@ const (
 // vector store. The store talks to the REST surface directly — Azure
 // doesn't ship a typed Go SDK for the Search service.
 type StoreConfig struct {
-	// Context is used for the initial HTTP probe. Optional;
-	// defaults to context.Background().
-	Context context.Context
-
 	// Endpoint is the search service URL, e.g.
 	// "https://my-search.search.windows.net". Required.
 	Endpoint string
@@ -85,13 +91,18 @@ type StoreConfig struct {
 	// DocumentBatcher batches documents before upsert. Required.
 	DocumentBatcher vectorstores.Batcher
 
+	// SimilarityMetric must match the metric in the index's vector-search
+	// algorithm configuration. Required because @search.score is metric-specific.
+	SimilarityMetric SimilarityMetric
+
 	// HTTPClient lets callers override transport (timeouts,
 	// proxies, MSAL bearer-token injection). Optional: defaults to
 	// http.DefaultClient.
 	HTTPClient *http.Client
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.Endpoint == "" {
 		return errors.New("azureaisearch: Endpoint is required")
 	}
@@ -107,14 +118,19 @@ func (c *StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("azureaisearch: DocumentBatcher is required")
 	}
+	if c.SimilarityMetric == "" {
+		return errors.New("azureaisearch: SimilarityMetric is required")
+	}
+	switch c.SimilarityMetric {
+	case SimilarityCosine, SimilarityDot, SimilarityEuclidean:
+	default:
+		return fmt.Errorf("azureaisearch: unsupported SimilarityMetric %q", c.SimilarityMetric)
+	}
 	return nil
 }
 
-// ApplyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) applyDefaults() {
 	c.APIVersion = cmp.Or(c.APIVersion, DefaultAPIVersion)
 	c.IDField = cmp.Or(c.IDField, DefaultIDField)
 	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
@@ -130,76 +146,72 @@ var (
 	_ vectorstore.FilterDeleter = (*Store)(nil)
 )
 
-// Store is an Azure AI Search backed the vectorstore capability interfaces using the
-// REST API.
+// Store implements vector-store capabilities through the Azure AI Search REST
+// API.
 type Store struct {
-	endpoint        string
-	apiKey          string
-	indexName       string
-	apiVersion      string
-	idField         string
-	contentField    string
-	embeddingField  string
-	vectorProfile   string
-	embeddingClient *embeddingclient.Client
-	documentBatcher vectorstores.Batcher
-	httpClient      *http.Client
+	endpoint         string
+	apiKey           string
+	indexName        string
+	apiVersion       string
+	idField          string
+	contentField     string
+	embeddingField   string
+	vectorProfile    string
+	embeddingClient  *embeddingclient.Client
+	documentBatcher  vectorstores.Batcher
+	similarityMetric SimilarityMetric
+	httpClient       *http.Client
 }
 
 func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("azureaisearch: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("azureaisearch: create embedding client: %w", err)
 	}
 
 	return &Store{
-		endpoint:        strings.TrimRight(config.Endpoint, "/"),
-		apiKey:          config.APIKey,
-		indexName:       config.IndexName,
-		apiVersion:      config.APIVersion,
-		idField:         config.IDField,
-		contentField:    config.ContentField,
-		embeddingField:  config.EmbeddingField,
-		vectorProfile:   config.VectorProfileName,
-		embeddingClient: embeddingClient,
-		documentBatcher: config.DocumentBatcher,
-		httpClient:      config.HTTPClient,
+		endpoint:         strings.TrimRight(config.Endpoint, "/"),
+		apiKey:           config.APIKey,
+		indexName:        config.IndexName,
+		apiVersion:       config.APIVersion,
+		idField:          config.IDField,
+		contentField:     config.ContentField,
+		embeddingField:   config.EmbeddingField,
+		vectorProfile:    config.VectorProfileName,
+		embeddingClient:  embeddingClient,
+		documentBatcher:  config.DocumentBatcher,
+		similarityMetric: config.SimilarityMetric,
+		httpClient:       config.HTTPClient,
 	}, nil
 }
 
 // Add embeds documents and uploads them via the
 // /indexes/<index>/docs/index endpoint.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("azureaisearch.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "azureaisearch", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("azureaisearch: failed to batch documents: %w", err)
+		return fmt.Errorf("azureaisearch: batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("azureaisearch: failed to generate embeddings: %w", err)
+			return fmt.Errorf("azureaisearch: embed documents: %w", err)
 		}
 
 		actions := make([]map[string]any, 0, len(docs))
 		for i, doc := range docs {
 			id := doc.ID
-			if id == "" {
-				id = uuid.NewString()
-			}
 			metadataValues, err := doc.Metadata.Values()
 			if err != nil {
 				return fmt.Errorf("azureaisearch: decode metadata for %s: %w", id, err)
@@ -232,21 +244,19 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // `$filter` clause.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("azureaisearch: invalid search request: %w", err)
+		return nil, fmt.Errorf("azureaisearch.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "azureaisearch", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("azureaisearch: failed to embed query: %w", err)
+		return nil, fmt.Errorf("azureaisearch: embed query: %w", err)
 	}
 	queryVec := math.ConvertSlice[float64, float32](vector)
 
@@ -305,11 +315,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("azureaisearch.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "azureaisearch")
-	defer func() { tracing.Finish(span, err) }()
 
 	filterStr, err := s.buildFilter(expr)
 	if err != nil {
@@ -395,15 +402,21 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, error) {
 
 func (s *Store) toMatch(row map[string]any) (vectorstore.Match, error) {
 	doc := &document.Document{}
-	if id, ok := row[s.idField].(string); ok {
-		doc.ID = id
+	id, ok := row[s.idField].(string)
+	if !ok || id == "" {
+		return vectorstore.Match{}, fmt.Errorf("azureaisearch: result is missing string field %q", s.idField)
 	}
-	if text, ok := row[s.contentField].(string); ok {
-		doc.Text = text
+	text, ok := row[s.contentField].(string)
+	if !ok || text == "" {
+		return vectorstore.Match{}, fmt.Errorf("azureaisearch: result is missing string field %q", s.contentField)
 	}
-	// @search.score is what AI Search returns for vector results —
-	// it's already clamped roughly to [0, 1] for cosine.
-	score, _ := row["@search.score"].(float64)
+	doc.ID = id
+	doc.Text = text
+	rawScore, ok := row["@search.score"].(float64)
+	if !ok {
+		return vectorstore.Match{}, errors.New("azureaisearch: result is missing numeric @search.score")
+	}
+	score := s.normalizeScore(rawScore)
 
 	// Metadata is everything except the reserved fields and the
 	// embedding vector itself.
@@ -421,10 +434,24 @@ func (s *Store) toMatch(row map[string]any) (vectorstore.Match, error) {
 		var err error
 		doc.Metadata, err = metadata.FromValues(meta)
 		if err != nil {
-			return vectorstore.Match{}, fmt.Errorf("azureaisearch: encode metadata: %w", err)
+			return vectorstore.Match{}, fmt.Errorf("azureaisearch: convert metadata: %w", err)
 		}
 	}
 	return vectorstore.Match{Document: doc, Score: score}, nil
+}
+
+func (s *Store) normalizeScore(raw float64) float64 {
+	switch s.similarityMetric {
+	case SimilarityCosine:
+		// Azure emits 1/(1+cosine_distance). Recover cosine similarity,
+		// then apply Lynx's [-1,1] to [0,1] normalization.
+		return scores.CosineSimilarity(2 - 1/raw)
+	case SimilarityDot, SimilarityEuclidean:
+		// Azure documents both native vector scores as [0,1].
+		return scores.Bounded(raw)
+	default:
+		return scores.Bounded(raw)
+	}
 }
 
 // do issues a JSON request to the Search REST surface and returns the

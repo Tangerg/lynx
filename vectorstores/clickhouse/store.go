@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
@@ -19,8 +18,10 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const Provider = "ClickHouse"
@@ -31,7 +32,6 @@ const (
 	DefaultContentColumn   = "content"
 	DefaultMetadataColumn  = "metadata"
 	DefaultEmbeddingColumn = "embedding"
-	DefaultDimensions      = 1536
 	DefaultDistanceMetric  = DistanceCosine
 )
 
@@ -49,16 +49,12 @@ const (
 	DistanceL2 DistanceMetric = "l2"
 )
 
-// safeIdentifier matches the standard SQL unquoted identifier shape.
-
 // StoreConfig contains configuration options for the ClickHouse
 // vector store. The default schema uses `Map(String, String)` for
 // metadata to keep the visitor's column-subscript syntax simple;
 // callers needing typed metadata columns should manage the schema
 // themselves and set InitializeSchema=false.
 type StoreConfig struct {
-	Context context.Context
-
 	// Conn is the clickhouse-go v2 driver connection. Required.
 	Conn driver.Conn
 
@@ -80,7 +76,8 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.Conn == nil {
 		return errors.New("clickhouse: Conn is required")
 	}
@@ -89,6 +86,14 @@ func (c *StoreConfig) Validate() error {
 	}
 	if c.DocumentBatcher == nil {
 		return errors.New("clickhouse: DocumentBatcher is required")
+	}
+	if c.Dimensions < 0 {
+		return errors.New("clickhouse: Dimensions must be >= 0")
+	}
+	switch c.DistanceMetric {
+	case DistanceCosine, DistanceL2:
+	default:
+		return fmt.Errorf("clickhouse: unsupported DistanceMetric %q", c.DistanceMetric)
 	}
 	checks := map[string]string{
 		"TableName":       c.TableName,
@@ -103,11 +108,8 @@ func (c *StoreConfig) Validate() error {
 	return ident.Check("clickhouse", checks)
 }
 
-// ApplyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) applyDefaults() {
 	c.TableName = cmp.Or(c.TableName, DefaultTableName)
 	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
 	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
@@ -123,7 +125,7 @@ var (
 	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
-// Store is a ClickHouse-backed the vectorstore capability interfaces implementation.
+// Store implements vector-store capabilities with ClickHouse.
 type Store struct {
 	conn            driver.Conn
 	databaseName    string
@@ -139,14 +141,14 @@ type Store struct {
 	distanceMetric  DistanceMetric
 }
 
-func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("clickhouse: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("clickhouse: create embedding client: %w", err)
 	}
 	fullTable := config.TableName
 	if config.DatabaseName != "" {
@@ -166,13 +168,16 @@ func NewStore(config StoreConfig) (*Store, error) {
 		dimensions:      config.Dimensions,
 		distanceMetric:  config.DistanceMetric,
 	}
-	if err = store.initialize(config.Context, config.InitializeSchema); err != nil {
-		return nil, fmt.Errorf("clickhouse: failed to initialize store: %w", err)
+	if err = store.initialize(ctx, config.InitializeSchema); err != nil {
+		return nil, fmt.Errorf("clickhouse: initialize store: %w", err)
 	}
 	return store, nil
 }
 
 func (s *Store) initialize(ctx context.Context, initSchema bool) error {
+	if !initSchema {
+		return nil
+	}
 	if s.dimensions <= 0 {
 		dimensions, err := s.embeddingClient.Dimensions(ctx)
 		if err != nil {
@@ -182,10 +187,6 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	}
 	if s.dimensions <= 0 {
 		return errors.New("clickhouse: Dimensions must be > 0")
-	}
-
-	if !initSchema {
-		return nil
 	}
 
 	stmt := fmt.Sprintf(
@@ -238,17 +239,14 @@ func distanceFunc(metric DistanceMetric) string {
 
 // Add embeds documents and inserts them as a single batch.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("clickhouse.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "clickhouse", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("clickhouse: failed to batch documents: %w", err)
+		return fmt.Errorf("clickhouse: batch documents: %w", err)
 	}
 
 	insertSQL := fmt.Sprintf(
@@ -259,7 +257,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("clickhouse: failed to generate embeddings: %w", err)
+			return fmt.Errorf("clickhouse: embed documents: %w", err)
 		}
 
 		batch, err := s.conn.PrepareBatch(ctx, insertSQL)
@@ -270,9 +268,6 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 		appendErr := func() error {
 			for i, doc := range docs {
 				id := doc.ID
-				if id == "" {
-					id = uuid.NewString()
-				}
 				meta, err := metadataAsStringMap(doc.Metadata)
 				if err != nil {
 					return fmt.Errorf("metadata for %s: %w", id, err)
@@ -294,21 +289,19 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // Search runs an ANN search using the configured distance function.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("clickhouse: invalid search request: %w", err)
+		return nil, fmt.Errorf("clickhouse.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "clickhouse", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("clickhouse: failed to embed query: %w", err)
+		return nil, fmt.Errorf("clickhouse: embed query: %w", err)
 	}
 	queryVec := math.ConvertSlice[float64, float32](vector)
 
@@ -354,9 +347,15 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		if score < req.MinScore {
 			continue
 		}
+		if id == "" {
+			return nil, errors.New("clickhouse: search result is missing document ID")
+		}
+		if content == "" {
+			return nil, errors.New("clickhouse: search result is missing document text")
+		}
 		metadata, err := stringMapToMetadata(metaRaw)
 		if err != nil {
-			return nil, fmt.Errorf("clickhouse: encode metadata: %w", err)
+			return nil, fmt.Errorf("clickhouse: convert metadata: %w", err)
 		}
 		docs = append(docs, vectorstore.Match{
 			Document: &document.Document{ID: id, Text: content, Metadata: metadata},
@@ -378,11 +377,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("clickhouse.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "clickhouse")
-	defer func() { tracing.Finish(span, err) }()
 
 	var (
 		predicate string
@@ -413,9 +409,6 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "clickhouse")
-	defer func() { tracing.Finish(span, err) }()
 
 	placeholders := strings.Repeat("?, ", len(ids)-1) + "?"
 	stmt := fmt.Sprintf("ALTER TABLE %s DELETE WHERE %s IN (%s)", s.fullTable, s.idColumn, placeholders)
@@ -448,19 +441,11 @@ func (s *Store) Close() error { return nil }
 func distanceToScore(metric DistanceMetric, distance float64) float64 {
 	switch metric {
 	case DistanceL2:
-		return 1.0 / (1.0 + distance)
+		return scores.Distance(distance)
 	case DistanceCosine:
 		fallthrough
 	default:
-		score := 1.0 - distance/2.0
-		switch {
-		case score < 0:
-			return 0
-		case score > 1:
-			return 1
-		default:
-			return score
-		}
+		return scores.CosineDistance(distance)
 	}
 }
 

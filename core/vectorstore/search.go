@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
@@ -72,6 +73,9 @@ func (r SearchRequest) ValidateMatches(matches []Match) error {
 	for i, match := range matches {
 		if err := match.Document.Validate(); err != nil {
 			return fmt.Errorf("vectorstore.SearchRequest: matches[%d]: %w", i, err)
+		}
+		if strings.TrimSpace(match.Document.ID) == "" {
+			return fmt.Errorf("vectorstore.SearchRequest: matches[%d]: %w", i, ErrMissingDocumentID)
 		}
 		if math.IsNaN(match.Score) || math.IsInf(match.Score, 0) ||
 			match.Score < MinSimilarityScore || match.Score > MaxSimilarityScore {

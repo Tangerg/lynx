@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/Tangerg/lynx/core/document"
@@ -22,7 +21,9 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const Provider = "Redis"
@@ -33,7 +34,6 @@ const (
 	DefaultContentField    = "content"
 	DefaultEmbeddingField  = "embedding"
 	DefaultMetadataPrefix  = "" // empty: metadata keys land at top level of the HASH
-	DefaultDimensions      = 1536
 	DefaultDistanceMetric  = DistanceCosine
 	DefaultIndexAlgorithm  = AlgorithmHNSW
 	DefaultHNSWM           = 16
@@ -110,10 +110,6 @@ type MetadataField struct {
 // StoreConfig contains configuration options for the Redis vector
 // store.
 type StoreConfig struct {
-	// Context is used for the initial schema bootstrap. Optional;
-	// defaults to [context.Background].
-	Context context.Context
-
 	// Client is the go-redis client (single, cluster, or sentinel).
 	// Required.
 	Client goredis.UniversalClient
@@ -147,9 +143,8 @@ type StoreConfig struct {
 	// DocumentBatcher batches documents before upsert. Required.
 	DocumentBatcher vectorstores.Batcher
 
-	// Dimensions sets the vector width registered with the index.
-	// When zero the store asks the embedding model for its native
-	// dimensionality and falls back to [DefaultDimensions].
+	// Dimensions sets the vector width registered with a new index. When zero
+	// and InitializeSchema is true, the store probes EmbeddingModel.
 	Dimensions int
 
 	// DistanceMetric selects the vector similarity function.
@@ -173,7 +168,8 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.Client == nil {
 		return errors.New("redis: Client is required")
 	}
@@ -183,14 +179,35 @@ func (c *StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("redis: DocumentBatcher is required")
 	}
+	if c.Dimensions < 0 {
+		return errors.New("redis: Dimensions must be >= 0")
+	}
+	switch c.DistanceMetric {
+	case DistanceCosine, DistanceL2, DistanceIP:
+	default:
+		return fmt.Errorf("redis: unsupported DistanceMetric %q", c.DistanceMetric)
+	}
+	switch c.IndexAlgorithm {
+	case AlgorithmHNSW, AlgorithmFlat:
+	default:
+		return fmt.Errorf("redis: unsupported IndexAlgorithm %q", c.IndexAlgorithm)
+	}
+	if c.IndexAlgorithm == AlgorithmHNSW &&
+		(c.HNSWM <= 0 || c.HNSWEFConstruct <= 0 || c.HNSWEFRuntime <= 0) {
+		return errors.New("redis: HNSW parameters must all be > 0")
+	}
+	for _, field := range c.MetadataFields {
+		switch field.Type {
+		case FieldTag, FieldText, FieldNumeric:
+		default:
+			return fmt.Errorf("redis: metadata field %q has unsupported Type %d", field.Name, field.Type)
+		}
+	}
 	return nil
 }
 
-// ApplyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) applyDefaults() {
 	c.IndexName = cmp.Or(c.IndexName, DefaultIndexName)
 	c.KeyPrefix = cmp.Or(c.KeyPrefix, DefaultKeyPrefix)
 	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
@@ -238,15 +255,15 @@ type Store struct {
 	hnswEFRuntime   int
 }
 
-func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("redis: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("redis: create embedding client: %w", err)
 	}
 
 	fieldTypes := make(map[string]MetadataFieldType, len(config.MetadataFields))
@@ -275,8 +292,8 @@ func NewStore(config StoreConfig) (*Store, error) {
 		hnswEFRuntime:   config.HNSWEFRuntime,
 	}
 
-	if err = store.initialize(config.Context, config.InitializeSchema); err != nil {
-		return nil, fmt.Errorf("redis: failed to initialize store: %w", err)
+	if err = store.initialize(ctx, config.InitializeSchema); err != nil {
+		return nil, fmt.Errorf("redis: initialize store: %w", err)
 	}
 	return store, nil
 }
@@ -284,6 +301,9 @@ func NewStore(config StoreConfig) (*Store, error) {
 // initialize resolves the vector dimensionality and creates the
 // RediSearch index when requested.
 func (s *Store) initialize(ctx context.Context, initSchema bool) error {
+	if !initSchema {
+		return nil
+	}
 	if s.dimensions <= 0 {
 		dimensions, err := s.embeddingClient.Dimensions(ctx)
 		if err != nil {
@@ -293,10 +313,6 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	}
 	if s.dimensions <= 0 {
 		return errors.New("redis: Dimensions must be > 0")
-	}
-
-	if !initSchema {
-		return nil
 	}
 
 	// FT._LIST returns existing index names — skip creation when ours
@@ -384,68 +400,43 @@ func searchFieldType(t MetadataFieldType) goredis.SearchFieldType {
 }
 
 // distanceToScore maps the raw distance returned by RediSearch to a
-// "higher = more similar" score in [0, 1]. Mirrors RedisVL's
-// implementation referenced by the framework.
+// "higher = more similar" score in [0, 1].
 func (s *Store) distanceToScore(distance float64) float64 {
 	switch s.distanceMetric {
 	case DistanceL2:
-		return 1.0 / (1.0 + distance)
+		return scores.Distance(distance)
 	case DistanceIP:
-		// pgvector-style IP returns the inner product; clamp via
-		// (ip+1)/2 for unit vectors, then squeeze through stdmath
-		// to keep the range stable for non-normalized inputs.
-		score := (distance + 1.0) / 2.0
-		switch {
-		case score < 0:
-			return 0
-		case score > 1:
-			return 1
-		default:
-			return score
-		}
+		// Redis defines IP distance as 1-dot-product.
+		return scores.OneMinusInnerProductDistance(distance)
 	case DistanceCosine:
 		fallthrough
 	default:
-		score := (2.0 - distance) / 2.0
-		switch {
-		case score < 0:
-			return 0
-		case score > 1:
-			return 1
-		default:
-			return score
-		}
+		return scores.CosineDistance(distance)
 	}
 }
 
 // Add embeds documents and writes them as Redis HASHes keyed by
 // `<KeyPrefix><id>`.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("redis.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "redis", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("redis: failed to batch documents: %w", err)
+		return fmt.Errorf("redis: batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("redis: failed to generate embeddings: %w", err)
+			return fmt.Errorf("redis: embed documents: %w", err)
 		}
 
 		pipe := s.client.Pipeline()
 		for i, doc := range docs {
 			id := doc.ID
-			if id == "" {
-				id = uuid.NewString()
-			}
 			metadataValues, err := doc.Metadata.Values()
 			if err != nil {
 				return fmt.Errorf("redis: decode metadata for %s: %w", id, err)
@@ -471,21 +462,19 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // and returns the matching documents above MinScore.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("redis: invalid search request: %w", err)
+		return nil, fmt.Errorf("redis.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "redis", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("redis: failed to embed query: %w", err)
+		return nil, fmt.Errorf("redis: embed query: %w", err)
 	}
 	queryVec := float32sToBytes(math.ConvertSlice[float64, float32](vector))
 
@@ -550,11 +539,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("redis.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "redis")
-	defer func() { tracing.Finish(span, err) }()
 
 	var query string
 	query, err = s.buildFilterQuery(expr)
@@ -602,9 +588,6 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 		return nil
 	}
 
-	ctx, span := tracing.StartDelete(ctx, "redis")
-	defer func() { tracing.Finish(span, err) }()
-
 	keys := make([]string, len(ids))
 	for i, id := range ids {
 		keys[i] = s.keyPrefix + id
@@ -647,9 +630,16 @@ func (s *Store) scoreFromFields(fields map[string]string) (float64, error) {
 
 func (s *Store) toDocument(hit goredis.Document) (*document.Document, error) {
 	id := strings.TrimPrefix(hit.ID, s.keyPrefix)
+	if id == "" {
+		return nil, errors.New("redis: search result is missing document ID")
+	}
+	text := hit.Fields[s.contentField]
+	if text == "" {
+		return nil, fmt.Errorf("redis: document %q is missing field %q", id, s.contentField)
+	}
 	doc := &document.Document{
 		ID:   id,
-		Text: hit.Fields[s.contentField],
+		Text: text,
 	}
 
 	if len(s.metadataFields) > 0 {
@@ -663,7 +653,7 @@ func (s *Store) toDocument(hit goredis.Document) (*document.Document, error) {
 			var err error
 			doc.Metadata, err = metadata.FromValues(meta)
 			if err != nil {
-				return nil, fmt.Errorf("redis: encode metadata: %w", err)
+				return nil, fmt.Errorf("redis: convert metadata: %w", err)
 			}
 		}
 	}

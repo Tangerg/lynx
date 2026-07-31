@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/Tangerg/lynx/core/document"
@@ -18,8 +17,10 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const Provider = "Neo4j"
@@ -31,7 +32,6 @@ const (
 	DefaultIDProperty        = "id"
 	DefaultTextProperty      = "text"
 	DefaultMetadataPrefix    = "metadata"
-	DefaultDimensions        = 1536
 )
 
 // SimilarityFunction selects the function written into the vector
@@ -48,17 +48,9 @@ const (
 	SimilarityEuclidean SimilarityFunction = "euclidean"
 )
 
-// safeIdentifier matches the standard SQL unquoted identifier shape.
-// We use it to validate caller-supplied label / property / index
-// names that are interpolated into Cypher DDL.
-
 // StoreConfig contains configuration options for the Neo4j vector
 // store.
 type StoreConfig struct {
-	// Context is used for the initial schema bootstrap. Optional;
-	// defaults to context.Background().
-	Context context.Context
-
 	// Driver is the Neo4j context-aware driver instance. Required.
 	Driver neo4j.DriverWithContext
 
@@ -98,9 +90,8 @@ type StoreConfig struct {
 	// DocumentBatcher batches documents before upsert. Required.
 	DocumentBatcher vectorstores.Batcher
 
-	// Dimensions sets the vector width recorded in the index
-	// definition. When zero, falls back to the embedding model's
-	// reported value and then [DefaultDimensions].
+	// Dimensions sets the vector width recorded in a new index definition. When
+	// zero and InitializeSchema is true, the store probes EmbeddingModel.
 	Dimensions int
 
 	// Similarity selects the vector similarity function. Optional:
@@ -112,7 +103,8 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.Driver == nil {
 		return errors.New("neo4j: Driver is required")
 	}
@@ -122,6 +114,14 @@ func (c *StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("neo4j: DocumentBatcher is required")
 	}
+	if c.Dimensions < 0 {
+		return errors.New("neo4j: Dimensions must be >= 0")
+	}
+	switch c.Similarity {
+	case SimilarityCosine, SimilarityEuclidean:
+	default:
+		return fmt.Errorf("neo4j: unsupported Similarity %q", c.Similarity)
+	}
 	return ident.Check("neo4j", map[string]string{
 		"Label":             c.Label,
 		"EmbeddingProperty": c.EmbeddingProperty,
@@ -130,11 +130,8 @@ func (c *StoreConfig) Validate() error {
 	})
 }
 
-// ApplyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) applyDefaults() {
 	c.Label = cmp.Or(c.Label, DefaultLabel)
 	c.IndexName = cmp.Or(c.IndexName, DefaultIndexName)
 	c.EmbeddingProperty = cmp.Or(c.EmbeddingProperty, DefaultEmbeddingProperty)
@@ -151,9 +148,8 @@ var (
 	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
-// Store is a Neo4j-backed the vectorstore capability interfaces implementation. Each
-// document maps onto a node carrying the configured label and a flat
-// set of metadata properties.
+// Store implements vector-store capabilities with Neo4j. Each document maps to
+// a node with the configured label and flattened metadata properties.
 type Store struct {
 	driver            neo4j.DriverWithContext
 	database          string
@@ -169,15 +165,15 @@ type Store struct {
 	similarity        SimilarityFunction
 }
 
-func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("neo4j: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("neo4j: create embedding client: %w", err)
 	}
 
 	store := &Store{
@@ -195,8 +191,8 @@ func NewStore(config StoreConfig) (*Store, error) {
 		similarity:        config.Similarity,
 	}
 
-	if err = store.initialize(config.Context, config.InitializeSchema); err != nil {
-		return nil, fmt.Errorf("neo4j: failed to initialize store: %w", err)
+	if err = store.initialize(ctx, config.InitializeSchema); err != nil {
+		return nil, fmt.Errorf("neo4j: initialize store: %w", err)
 	}
 	return store, nil
 }
@@ -204,6 +200,9 @@ func NewStore(config StoreConfig) (*Store, error) {
 // initialize resolves dimensionality and provisions the vector index
 // when requested.
 func (s *Store) initialize(ctx context.Context, initSchema bool) error {
+	if !initSchema {
+		return nil
+	}
 	if s.dimensions <= 0 {
 		dimensions, err := s.embeddingClient.Dimensions(ctx)
 		if err != nil {
@@ -213,10 +212,6 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	}
 	if s.dimensions <= 0 {
 		return errors.New("neo4j: Dimensions must be > 0")
-	}
-
-	if !initSchema {
-		return nil
 	}
 
 	constraintName := s.indexName + "_unique"
@@ -262,17 +257,14 @@ func (s *Store) write(ctx context.Context, work neo4j.ManagedTransactionWork) er
 
 // Add embeds documents and upserts them as nodes.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("neo4j.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "neo4j", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("neo4j: failed to batch documents: %w", err)
+		return fmt.Errorf("neo4j: batch documents: %w", err)
 	}
 
 	upsertCypher := fmt.Sprintf(
@@ -288,15 +280,12 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("neo4j: failed to generate embeddings: %w", err)
+			return fmt.Errorf("neo4j: embed documents: %w", err)
 		}
 
 		rows := make([]map[string]any, 0, len(docs))
 		for i, doc := range docs {
 			id := doc.ID
-			if id == "" {
-				id = uuid.NewString()
-			}
 			properties, err := s.documentProperties(doc)
 			if err != nil {
 				return fmt.Errorf("neo4j: decode metadata for %s: %w", id, err)
@@ -345,21 +334,19 @@ func (s *Store) documentProperties(doc *document.Document) (map[string]any, erro
 // documents above MinScore.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("neo4j: invalid search request: %w", err)
+		return nil, fmt.Errorf("neo4j.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "neo4j", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("neo4j: failed to embed query: %w", err)
+		return nil, fmt.Errorf("neo4j: embed query: %w", err)
 	}
 	queryVec := math.ConvertSlice[float64, float32](vector)
 
@@ -427,25 +414,29 @@ func (s *Store) recordToMatch(rec *neo4j.Record) (vectorstore.Match, error) {
 		return vectorstore.Match{}, fmt.Errorf("neo4j: unexpected node type %T", nodeRaw)
 	}
 
+	rawScore, found := rec.Get("score")
+	if !found {
+		return vectorstore.Match{}, errors.New("neo4j: result record missing 'score' field")
+	}
 	var score float64
-	if v, found := rec.Get("score"); found {
-		switch sv := v.(type) {
-		case float64:
-			score = sv
-		case float32:
-			score = float64(sv)
-		case int64:
-			score = float64(sv)
-		}
+	switch value := rawScore.(type) {
+	case float64:
+		score = scores.Bounded(value)
+	case float32:
+		score = scores.Bounded(float64(value))
+	default:
+		return vectorstore.Match{}, fmt.Errorf("neo4j: result score has type %T, want number", rawScore)
 	}
 
-	doc := &document.Document{}
-	if id, ok := node.Props[s.idProperty].(string); ok {
-		doc.ID = id
+	id, ok := node.Props[s.idProperty].(string)
+	if !ok || id == "" {
+		return vectorstore.Match{}, fmt.Errorf("neo4j: result node is missing string property %q", s.idProperty)
 	}
-	if text, ok := node.Props[s.textProperty].(string); ok {
-		doc.Text = text
+	text, ok := node.Props[s.textProperty].(string)
+	if !ok || text == "" {
+		return vectorstore.Match{}, fmt.Errorf("neo4j: result node is missing string property %q", s.textProperty)
 	}
+	doc := &document.Document{ID: id, Text: text}
 
 	if len(node.Props) > 0 {
 		prefix := ""
@@ -468,7 +459,7 @@ func (s *Store) recordToMatch(rec *neo4j.Record) (vectorstore.Match, error) {
 			var err error
 			doc.Metadata, err = metadata.FromValues(meta)
 			if err != nil {
-				return vectorstore.Match{}, fmt.Errorf("neo4j: encode metadata: %w", err)
+				return vectorstore.Match{}, fmt.Errorf("neo4j: convert metadata: %w", err)
 			}
 		}
 	}
@@ -481,11 +472,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("neo4j.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "neo4j")
-	defer func() { tracing.Finish(span, err) }()
 
 	predicate, params, err := s.buildPredicate(expr)
 	if err != nil {
@@ -513,9 +501,6 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "neo4j")
-	defer func() { tracing.Finish(span, err) }()
 
 	cypher := fmt.Sprintf(
 		"MATCH (n:`%s`) WHERE n.`%s` IN $ids DETACH DELETE n",

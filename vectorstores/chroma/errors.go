@@ -6,9 +6,6 @@ import "errors"
 // Callers can match these with [errors.Is] to distinguish caller-side
 // input errors from transport, SDK, or backend failures.
 var (
-	// ErrNilConfig is returned when the validator receives nil.
-	ErrNilConfig = errors.New("chroma: config must not be nil")
-
 	// ErrMissingClient is returned when the config supplies a nil
 	// Chroma HTTP client.
 	ErrMissingClient = errors.New("chroma: Client is required")

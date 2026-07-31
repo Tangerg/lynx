@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/pinecone-io/go-pinecone/v4/pinecone"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -16,7 +15,9 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const (
@@ -26,6 +27,16 @@ const (
 const (
 	// payloadDocumentContentKey is the metadata key for saving document content.
 	payloadDocumentContentKey = "lynx:ai:vectorstore:pinecone:payload_document_content"
+)
+
+// DistanceMetric records the similarity metric configured on the existing
+// Pinecone index. The data-plane connection does not expose index metadata.
+type DistanceMetric string
+
+const (
+	DistanceCosine    DistanceMetric = "cosine"
+	DistanceDot       DistanceMetric = "dotproduct"
+	DistanceEuclidean DistanceMetric = "euclidean"
 )
 
 // StoreConfig contains configuration options for Pinecone vector store.
@@ -51,10 +62,9 @@ type StoreConfig struct {
 	// Required: must be provided.
 	DocumentBatcher vectorstores.Batcher
 
-	// StoreDocumentContent determines whether to store the original document
-	// text in the metadata. When true, the content is saved under a special key.
-	// Optional: defaults to false.
-	StoreDocumentContent bool
+	// DistanceMetric must match the metric used when the index was created.
+	// Required because Pinecone returns metric-specific raw scores.
+	DistanceMetric DistanceMetric
 }
 
 func (c StoreConfig) Validate() error {
@@ -70,6 +80,14 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
 	}
+	if c.DistanceMetric == "" {
+		return ErrMissingDistanceMetric
+	}
+	switch c.DistanceMetric {
+	case DistanceCosine, DistanceDot, DistanceEuclidean:
+	default:
+		return fmt.Errorf("pinecone: unsupported DistanceMetric %q", c.DistanceMetric)
+	}
 	return nil
 }
 
@@ -81,36 +99,49 @@ var (
 )
 
 type Store struct {
-	index                *pinecone.IndexConnection
-	embeddingClient      *embeddingclient.Client
-	documentBatcher      vectorstores.Batcher
-	storeDocumentContent bool
+	index           *pinecone.IndexConnection
+	embeddingClient *embeddingclient.Client
+	documentBatcher vectorstores.Batcher
+	distanceMetric  DistanceMetric
 }
 
-func NewStore(cfg StoreConfig) (*Store, error) {
-	if err := cfg.Validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
-	embeddingClient, err := embeddingclient.New(cfg.EmbeddingModel)
+	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("pinecone: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("pinecone: create embedding client: %w", err)
 	}
 
-	idx, err := cfg.Client.Index(pinecone.NewIndexConnParams{
-		Host:      cfg.IndexHost,
-		Namespace: cfg.Namespace,
+	idx, err := config.Client.Index(pinecone.NewIndexConnParams{
+		Host:      config.IndexHost,
+		Namespace: config.Namespace,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("pinecone: failed to connect to index at %s: %w", cfg.IndexHost, err)
+		return nil, fmt.Errorf("pinecone: connect to index at %s: %w", config.IndexHost, err)
 	}
 
 	return &Store{
-		index:                idx,
-		embeddingClient:      embeddingClient,
-		documentBatcher:      cfg.DocumentBatcher,
-		storeDocumentContent: cfg.StoreDocumentContent,
+		index:           idx,
+		embeddingClient: embeddingClient,
+		documentBatcher: config.DocumentBatcher,
+		distanceMetric:  config.DistanceMetric,
 	}, nil
+}
+
+func (s *Store) normalizeScore(raw float64) float64 {
+	switch s.distanceMetric {
+	case DistanceCosine:
+		return scores.CosineSimilarity(raw)
+	case DistanceDot:
+		return scores.InnerProduct(raw)
+	case DistanceEuclidean:
+		return scores.Distance(raw)
+	default:
+		return scores.Bounded(raw)
+	}
 }
 
 func (s *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]*pinecone.Vector, error) {
@@ -120,7 +151,7 @@ func (s *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]
 		values := math.ConvertSlice[float64, float32](vectors[i])
 
 		point := &pinecone.Vector{
-			Id:     uuid.NewString(),
+			Id:     doc.ID,
 			Values: &values,
 		}
 
@@ -132,13 +163,11 @@ func (s *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]
 		for k, val := range metadataValues {
 			metaMap[k] = val
 		}
-		if s.storeDocumentContent {
-			metaMap[payloadDocumentContentKey] = doc.Text
-		}
+		metaMap[payloadDocumentContentKey] = doc.Text
 
 		meta, err := structpb.NewStruct(metaMap)
 		if err != nil {
-			return nil, fmt.Errorf("pinecone: failed to convert metadata for document %s: %w", doc.ID, err)
+			return nil, fmt.Errorf("pinecone: convert metadata for document %s: %w", doc.ID, err)
 		}
 		point.Metadata = meta
 
@@ -149,23 +178,20 @@ func (s *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]
 }
 
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("pinecone.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "pinecone", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("pinecone: failed to batch documents: %w", err)
+		return fmt.Errorf("pinecone: batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("pinecone: failed to generate vectors: %w", err)
+			return fmt.Errorf("pinecone: embed documents: %w", err)
 		}
 
 		points, err := s.buildVectors(docs, vectors)
@@ -175,7 +201,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 
 		_, err = s.index.UpsertVectors(ctx, points)
 		if err != nil {
-			return fmt.Errorf("pinecone: failed to upsert %d vectors: %w", len(points), err)
+			return fmt.Errorf("pinecone: upsert %d vectors: %w", len(points), err)
 		}
 	}
 
@@ -185,35 +211,34 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 func (s *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, minScore float64) ([]vectorstore.Match, error) {
 	docs := make([]vectorstore.Match, 0, len(svs))
 
-	for _, sv := range svs {
-		score := float64(sv.Score)
+	for i, sv := range svs {
+		if sv == nil || sv.Vector == nil {
+			return nil, fmt.Errorf("pinecone: query result %d is missing its vector record", i)
+		}
+		score := s.normalizeScore(float64(sv.Score))
 		if score < minScore {
 			continue
 		}
 
-		doc := &document.Document{}
-
-		if sv.Vector != nil {
-			doc.ID = sv.Vector.Id
-
-			if sv.Vector.Metadata != nil {
-				metadataValues := sv.Vector.Metadata.AsMap()
-
-				if s.storeDocumentContent {
-					if text, ok := metadataValues[payloadDocumentContentKey].(string); ok {
-						doc.Text = text
-					}
-					delete(metadataValues, payloadDocumentContentKey)
-				}
-
-				var err error
-				doc.Metadata, err = metadata.FromValues(metadataValues)
-				if err != nil {
-					return nil, fmt.Errorf("pinecone: encode metadata: %w", err)
-				}
-			}
+		if sv.Vector.Id == "" {
+			return nil, fmt.Errorf("pinecone: query result %d is missing its document ID", i)
 		}
+		if sv.Vector.Metadata == nil {
+			return nil, fmt.Errorf("pinecone: query result %d is missing metadata and document text", i)
+		}
+		metadataValues := sv.Vector.Metadata.AsMap()
+		text, ok := metadataValues[payloadDocumentContentKey].(string)
+		if !ok || text == "" {
+			return nil, fmt.Errorf("pinecone: query result %d is missing document text", i)
+		}
+		delete(metadataValues, payloadDocumentContentKey)
 
+		doc := &document.Document{ID: sv.Vector.Id, Text: text}
+		var err error
+		doc.Metadata, err = metadata.FromValues(metadataValues)
+		if err != nil {
+			return nil, fmt.Errorf("pinecone: decode metadata for query result %d: %w", i, err)
+		}
 		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
 	}
 
@@ -222,21 +247,19 @@ func (s *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, mi
 
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("pinecone: invalid search request: %w", err)
+		return nil, fmt.Errorf("pinecone.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "pinecone", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("pinecone: failed to embed query text: %w", err)
+		return nil, fmt.Errorf("pinecone: embed query: %w", err)
 	}
 
 	queryReq := &pinecone.QueryByVectorValuesRequest{
@@ -248,14 +271,14 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if req.Filter != nil {
 		filter, filterErr := ToFilter(req.Filter)
 		if filterErr != nil {
-			return nil, fmt.Errorf("pinecone: failed to convert filter: %w", filterErr)
+			return nil, fmt.Errorf("pinecone: convert filter: %w", filterErr)
 		}
 		queryReq.MetadataFilter = filter
 	}
 
 	resp, err := s.index.QueryByVectorValues(ctx, queryReq)
 	if err != nil {
-		return nil, fmt.Errorf("pinecone: failed to query index: %w", err)
+		return nil, fmt.Errorf("pinecone: query index: %w", err)
 	}
 
 	if resp == nil || len(resp.Matches) == 0 {
@@ -264,7 +287,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 
 	docs, err = s.buildDocumentsFromScoredVectors(resp.Matches, float64(req.MinScore))
 	if err != nil {
-		return nil, fmt.Errorf("pinecone: failed to build documents from results: %w", err)
+		return nil, fmt.Errorf("pinecone: build documents from results: %w", err)
 	}
 
 	return docs, nil
@@ -275,20 +298,17 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("pinecone.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "pinecone")
-	defer func() { tracing.Finish(span, err) }()
 
 	var filter *structpb.Struct
 	filter, err = ToFilter(expr)
 	if err != nil {
-		return fmt.Errorf("pinecone: failed to convert filter: %w", err)
+		return fmt.Errorf("pinecone: convert filter: %w", err)
 	}
 
 	if err = s.index.DeleteVectorsByFilter(ctx, filter); err != nil {
-		return fmt.Errorf("pinecone: failed to delete vectors: %w", err)
+		return fmt.Errorf("pinecone: delete vectors: %w", err)
 	}
 
 	return nil
@@ -302,11 +322,8 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 		return nil
 	}
 
-	ctx, span := tracing.StartDelete(ctx, "pinecone")
-	defer func() { tracing.Finish(span, err) }()
-
 	if err = s.index.DeleteVectorsById(ctx, ids); err != nil {
-		return fmt.Errorf("pinecone: failed to delete vectors by ids: %w", err)
+		return fmt.Errorf("pinecone: delete vectors by ids: %w", err)
 	}
 
 	return nil

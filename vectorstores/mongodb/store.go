@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -19,7 +18,9 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const Provider = "MongoDB"
@@ -30,7 +31,6 @@ const (
 	DefaultContentField    = "content"
 	DefaultMetadataField   = "metadata"
 	DefaultNumCandidates   = 200
-	DefaultDimensions      = 1536
 	defaultIDField         = "_id"
 	scoreField             = "score"
 )
@@ -54,10 +54,6 @@ const (
 // StoreConfig contains configuration options for the MongoDB Atlas
 // Vector Search store.
 type StoreConfig struct {
-	// Context is used for the initial schema bootstrap. Optional;
-	// defaults to context.Background().
-	Context context.Context
-
 	// Collection is the MongoDB collection that holds the documents.
 	// Required.
 	Collection *mongo.Collection
@@ -93,9 +89,9 @@ type StoreConfig struct {
 	// DocumentBatcher batches documents before upsert. Required.
 	DocumentBatcher vectorstores.Batcher
 
-	// Dimensions is the embedding width written into the search index
-	// definition. When zero, falls back to the embedding model's
-	// reported value and then [DefaultDimensions].
+	// Dimensions is the embedding width written into a new search-index
+	// definition. When zero and InitializeSchema is true, the store probes
+	// EmbeddingModel.
 	Dimensions int
 
 	// Similarity selects the vector similarity function. Optional:
@@ -113,7 +109,8 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.Collection == nil {
 		return errors.New("mongodb: Collection is required")
 	}
@@ -123,14 +120,19 @@ func (c *StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("mongodb: DocumentBatcher is required")
 	}
+	if c.Dimensions < 0 {
+		return errors.New("mongodb: Dimensions must be >= 0")
+	}
+	switch c.Similarity {
+	case SimilarityCosine, SimilarityEuclidean, SimilarityDotProduct:
+	default:
+		return fmt.Errorf("mongodb: unsupported Similarity %q", c.Similarity)
+	}
 	return nil
 }
 
-// ApplyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) applyDefaults() {
 	c.VectorIndexName = cmp.Or(c.VectorIndexName, DefaultVectorIndexName)
 	c.EmbeddingPath = cmp.Or(c.EmbeddingPath, DefaultEmbeddingPath)
 	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
@@ -148,7 +150,7 @@ var (
 	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
-// Store is a MongoDB Atlas Vector Search backed the vectorstore capability interfaces.
+// Store implements vector-store capabilities with MongoDB Atlas Vector Search.
 type Store struct {
 	collection             *mongo.Collection
 	vectorIndexName        string
@@ -163,15 +165,15 @@ type Store struct {
 	numCandidates          int
 }
 
-func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("mongodb: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("mongodb: create embedding client: %w", err)
 	}
 
 	store := &Store{
@@ -188,8 +190,8 @@ func NewStore(config StoreConfig) (*Store, error) {
 		numCandidates:          config.NumCandidates,
 	}
 
-	if err = store.initialize(config.Context, config.InitializeSchema); err != nil {
-		return nil, fmt.Errorf("mongodb: failed to initialize store: %w", err)
+	if err = store.initialize(ctx, config.InitializeSchema); err != nil {
+		return nil, fmt.Errorf("mongodb: initialize store: %w", err)
 	}
 	return store, nil
 }
@@ -197,6 +199,9 @@ func NewStore(config StoreConfig) (*Store, error) {
 // initialize resolves dimensionality and creates the Atlas vector
 // index when requested.
 func (s *Store) initialize(ctx context.Context, initSchema bool) error {
+	if !initSchema {
+		return nil
+	}
 	if s.dimensions <= 0 {
 		dimensions, err := s.embeddingClient.Dimensions(ctx)
 		if err != nil {
@@ -208,19 +213,20 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 		return errors.New("mongodb: Dimensions must be > 0")
 	}
 
-	if !initSchema {
-		return nil
-	}
 	return s.createSearchIndex(ctx)
 }
 
 func (s *Store) createSearchIndex(ctx context.Context) error {
 	cursor, err := s.collection.SearchIndexes().List(ctx, options.SearchIndexes().SetName(s.vectorIndexName))
-	if err == nil {
-		defer cursor.Close(ctx)
-		if cursor.Next(ctx) {
-			return nil // already exists
-		}
+	if err != nil {
+		return fmt.Errorf("mongodb: list search index %q: %w", s.vectorIndexName, err)
+	}
+	defer cursor.Close(ctx)
+	if cursor.Next(ctx) {
+		return nil // already exists
+	}
+	if err := cursor.Err(); err != nil {
+		return fmt.Errorf("mongodb: read search indexes: %w", err)
 	}
 
 	fields := []bson.M{
@@ -255,31 +261,25 @@ func (s *Store) createSearchIndex(ctx context.Context) error {
 
 // Add embeds documents and bulk-upserts them by _id.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("mongodb.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "mongodb", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("mongodb: failed to batch documents: %w", err)
+		return fmt.Errorf("mongodb: batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("mongodb: failed to generate embeddings: %w", err)
+			return fmt.Errorf("mongodb: embed documents: %w", err)
 		}
 
 		writes := make([]mongo.WriteModel, 0, len(docs))
 		for i, doc := range docs {
 			id := doc.ID
-			if id == "" {
-				id = uuid.NewString()
-			}
 			metadataValues, err := doc.Metadata.Values()
 			if err != nil {
 				return fmt.Errorf("mongodb: decode metadata for %s: %w", id, err)
@@ -320,21 +320,19 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // documents above the configured MinScore threshold.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("mongodb: invalid search request: %w", err)
+		return nil, fmt.Errorf("mongodb.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "mongodb", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("mongodb: failed to embed query: %w", err)
+		return nil, fmt.Errorf("mongodb: embed query: %w", err)
 	}
 	queryVec := math.ConvertSlice[float64, float32](vector)
 
@@ -397,11 +395,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("mongodb.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "mongodb")
-	defer func() { tracing.Finish(span, err) }()
 
 	var filter bson.M
 	filter, err = s.buildFilter(expr)
@@ -426,9 +421,6 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 		return nil
 	}
 
-	ctx, span := tracing.StartDelete(ctx, "mongodb")
-	defer func() { tracing.Finish(span, err) }()
-
 	if _, err = s.collection.DeleteMany(ctx, bson.M{defaultIDField: bson.M{"$in": ids}}); err != nil {
 		return fmt.Errorf("mongodb: DeleteMany by ids: %w", err)
 	}
@@ -449,24 +441,25 @@ func (s *Store) buildFilter(expr filter.Predicate) (bson.M, error) {
 }
 
 func (s *Store) toMatch(raw bson.M) (vectorstore.Match, error) {
-	doc := &document.Document{}
-	if id, ok := raw[defaultIDField].(string); ok {
-		doc.ID = id
+	id, ok := raw[defaultIDField].(string)
+	if !ok || id == "" {
+		return vectorstore.Match{}, fmt.Errorf("mongodb: result is missing string field %q", defaultIDField)
 	}
-	if content, ok := raw[s.contentField].(string); ok {
-		doc.Text = content
+	content, ok := raw[s.contentField].(string)
+	if !ok || content == "" {
+		return vectorstore.Match{}, fmt.Errorf("mongodb: result is missing string field %q", s.contentField)
 	}
-	var score float64
-	switch sv := raw[scoreField].(type) {
+	doc := &document.Document{ID: id, Text: content}
+	var rawScore float64
+	switch value := raw[scoreField].(type) {
 	case float64:
-		score = sv
+		rawScore = value
 	case float32:
-		score = float64(sv)
-	case int32:
-		score = float64(sv)
-	case int64:
-		score = float64(sv)
+		rawScore = float64(value)
+	default:
+		return vectorstore.Match{}, fmt.Errorf("mongodb: result score has type %T, want number", raw[scoreField])
 	}
+	score := scores.Bounded(rawScore)
 
 	if s.metadataField != "" {
 		switch meta := raw[s.metadataField].(type) {
@@ -474,13 +467,13 @@ func (s *Store) toMatch(raw bson.M) (vectorstore.Match, error) {
 			var err error
 			doc.Metadata, err = metadata.FromValues(map[string]any(meta))
 			if err != nil {
-				return vectorstore.Match{}, fmt.Errorf("mongodb: encode metadata: %w", err)
+				return vectorstore.Match{}, fmt.Errorf("mongodb: convert metadata: %w", err)
 			}
 		case map[string]any:
 			var err error
 			doc.Metadata, err = metadata.FromValues(meta)
 			if err != nil {
-				return vectorstore.Match{}, fmt.Errorf("mongodb: encode metadata: %w", err)
+				return vectorstore.Match{}, fmt.Errorf("mongodb: convert metadata: %w", err)
 			}
 		}
 	} else {
@@ -496,7 +489,7 @@ func (s *Store) toMatch(raw bson.M) (vectorstore.Match, error) {
 			var err error
 			doc.Metadata, err = metadata.FromValues(meta)
 			if err != nil {
-				return vectorstore.Match{}, fmt.Errorf("mongodb: encode metadata: %w", err)
+				return vectorstore.Match{}, fmt.Errorf("mongodb: convert metadata: %w", err)
 			}
 		}
 	}

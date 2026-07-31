@@ -9,9 +9,9 @@ require (
 	github.com/Tangerg/lynx/embeddingclient v0.0.0-20260715090617-3f7af1a3ab38
 	github.com/Tangerg/lynx/pkg v0.0.0-20260715080233-229e06c8ed2f
 	github.com/amikos-tech/chroma-go v0.4.1
-	github.com/aws/aws-sdk-go-v2 v1.42.0
-	github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime v1.52.6
-	github.com/aws/aws-sdk-go-v2/service/s3vectors v1.7.6
+	github.com/aws/aws-sdk-go-v2 v1.43.2
+	github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime v1.55.2
+	github.com/aws/aws-sdk-go-v2/service/s3vectors v1.10.2
 	github.com/couchbase/gocb/v2 v2.12.3
 	github.com/elastic/go-elasticsearch/v8 v8.19.6
 	github.com/go-openapi/strfmt v0.26.3
@@ -22,15 +22,12 @@ require (
 	github.com/opensearch-project/opensearch-go/v4 v4.6.0
 	github.com/pgvector/pgvector-go v0.4.0
 	github.com/pinecone-io/go-pinecone/v4 v4.1.4
-	github.com/qdrant/go-client v1.18.2
+	github.com/qdrant/go-client v1.18.3
 	github.com/redis/go-redis/v9 v9.21.0
-	github.com/spf13/cast v1.10.0
 	github.com/typesense/typesense-go/v3 v3.2.0
 	github.com/weaviate/weaviate v1.38.0
 	github.com/weaviate/weaviate-go-client/v5 v5.7.3
 	go.mongodb.org/mongo-driver/v2 v2.7.0
-	go.opentelemetry.io/otel v1.44.0
-	go.opentelemetry.io/otel/trace v1.44.0
 )
 
 require (
@@ -44,12 +41,12 @@ require (
 	github.com/amikos-tech/pure-onnx v0.0.1 // indirect
 	github.com/amikos-tech/pure-tokenizers v0.1.5 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.13 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.15 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.32.25 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.29 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.29 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.33 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.33 // indirect
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.54.0 // indirect
-	github.com/aws/smithy-go v1.27.3 // indirect
+	github.com/aws/smithy-go v1.27.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
@@ -161,6 +158,7 @@ require (
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/sony/gobreaker v1.0.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
+	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
@@ -189,10 +187,12 @@ require (
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect
+	go.opentelemetry.io/otel v1.44.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0 // indirect
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.44.0 // indirect
+	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect

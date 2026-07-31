@@ -24,6 +24,7 @@ func (f *fakeVectorSearcher) Search(_ context.Context, req vectorstore.SearchReq
 		return nil, f.err
 	}
 	doc, _ := document.NewDocument("hit", nil)
+	doc.ID = "hit"
 	return []vectorstore.Match{{Document: doc, Score: 0.75}}, nil
 }
 

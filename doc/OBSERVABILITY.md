@@ -171,21 +171,21 @@ func (p *Pipeline) Execute(ctx context.Context, q *Query) (*Query, error) {
 
 ### 4.4 VectorStore
 
-```go
-var qdrantTracer = otel.Tracer("lynx/vectorstore/qdrant")
+VectorStore provider 只实现存储协议，不 import OTel。需要观测时由组合根使用
+`otel.NewVectorStore` 创建 middleware，再按目标的实际能力分别包装 `Indexer`、
+`Searcher`、`IDDeleter` 与 `FilterDeleter`；不会把不支持的能力伪装出来。
 
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) ([]vectorstore.Match, error) {
-    ctx, span := qdrantTracer.Start(ctx, "db.vector.search",
-        trace.WithAttributes(
-            attribute.String("db.system", "qdrant"),
-            attribute.String("db.operation.name", "search"),
-            attribute.Int("db.vector.query.top_k", req.TopK),
-        ),
-    )
-    defer span.End()
-    // ...
-    span.SetAttributes(attribute.Int("rag.doc_count", len(matches)))
+```go
+instrumentation, err := lynxotel.NewVectorStore(lynxotel.VectorStoreConfig{
+	System:     "qdrant",
+	Collection: "knowledge",
+})
+if err != nil {
+	return err
 }
+
+indexer := instrumentation.Index(providerStore)
+searcher := instrumentation.Search(providerStore)
 ```
 
 ### 4.5 Tool Middleware
@@ -427,7 +427,7 @@ otel.SetTracerProvider(tp)
 ### 8.2 已就绪（外圈发射侧）
 
 - [x] `rag/pipeline.go` 五阶段加 span（`rag.pipeline` 父 span + Query/Retrieve/Augment/Generate/Stream 子 span）
-- [x] `vectorstores/{pgvector,qdrant,milvus,pinecone,weaviate,chroma,redis,mongodb,cassandra,neo4j,couchbase,typesense,vespa,vectara,bedrockkb,s3vectors,azureaisearch,azurecosmos,mariadb,oracle,tidb,clickhouse,opensearch,elasticsearch,inmemory}` 共 25 个实现统一加 `db.vector.*` 埋点（cockroachdb/supabase 复用 pgvector 实现）
+- [x] `otel.NewVectorStore` 从外层为 VectorStore 发射统一的 `db.vector.*` 埋点；25 个 provider 保持纯存储职责，CockroachDB 与 pgvector 仅复用 module-internal PostgreSQL 执行内核，不存在伪 provider alias
 - [x] `mcp/tool.go::Tool.Call` + `mcp/server.go::makeServerHandler` 加 `mcp.tool.call` / `mcp.tool.serve` span
 - [x] `agent/runtime/` tick / action / plan 全套埋点：span（含 HTN / Reactive / GOAP planner）+ metrics（`agent.ticks` / `agent.action.executions` / `agent.action.duration` / `agent.plan.duration` / `agent.process.exits`）
 - [x] `chathistory/{postgres,redis,mongodb,cassandra,neo4j,cosmosdb}` 6 个 provider Read/Write/Clear 加 DB-semconv span
@@ -440,7 +440,8 @@ otel.SetTracerProvider(tp)
 - [x] P5-01：建立 `core/embedding` 最小能力，Core 不复制旧 wrapper；Embedding 埋点归外圈 decorator
 - [x] P3-07/P3-08：tool/tool-loop 观测归 `tools`、`agent`、MCP/A2A adapter 或外圈 decorator
 - [x] 删除 Core 对 OTel API/SDK 的依赖并收紧 `internal/arch` 依赖预算
-- [ ] vectorstore + chathistory 的端到端 span 行为单测（chat tracing_test 与 runtime tracing 测试已覆盖各自一例）
+- [x] vectorstore decorator 的能力保持与 span 行为单测
+- [ ] chathistory 的端到端 span 行为单测（chat tracing_test 与 runtime tracing 测试已覆盖各自一例）
 
 ### 8.4 不做的事
 

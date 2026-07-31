@@ -11,14 +11,21 @@ import (
 )
 
 func TestVisitor_Conformance(t *testing.T) {
-	storetest.VisitorConformance(t, func(src string) error {
-		expr, err := filter.Parse(src)
-		if err != nil {
-			return err
-		}
-		v := qdrant.NewVisitor()
-		return v.Visit(expr)
-	})
+	storetest.VisitorConformance(t,
+		func(src string) error {
+			expr, err := filter.Parse(src)
+			if err != nil {
+				return err
+			}
+			v := qdrant.NewVisitor()
+			return v.Visit(expr)
+		},
+		storetest.Options{
+			// Qdrant keyword matching can represent LIKE only when the
+			// pattern contains no SQL wildcards.
+			Skip: []string{"like"},
+		},
+	)
 }
 
 func toFilter(t *testing.T, src string) *qdrantclient.Filter {
@@ -92,6 +99,26 @@ func TestVisitor_RejectsFractionalMatchValues(t *testing.T) {
 			visitor := qdrant.NewVisitor()
 			if err := visitor.Visit(predicate); err == nil {
 				t.Fatal("Qdrant silently accepted a fractional integer match")
+			}
+		})
+	}
+}
+
+func TestVisitor_LikeOnlyAcceptsExactPatterns(t *testing.T) {
+	visitor := qdrant.NewVisitor()
+	if err := visitor.Visit(filter.Like("title", "guide")); err != nil {
+		t.Fatalf("visit exact LIKE pattern: %v", err)
+	}
+	conditions := visitor.Filter().GetMust()
+	if len(conditions) != 1 || conditions[0].GetField().GetKey() != "title" ||
+		conditions[0].GetField().GetMatch().GetKeyword() != "guide" {
+		t.Fatalf("exact LIKE condition = %#v, want keyword title=guide", conditions)
+	}
+
+	for _, pattern := range []string{"guide%", "%guide", "g_ide"} {
+		t.Run(pattern, func(t *testing.T) {
+			if err := qdrant.NewVisitor().Visit(filter.Like("title", pattern)); err == nil {
+				t.Fatalf("Qdrant silently accepted inexact LIKE pattern %q", pattern)
 			}
 		})
 	}

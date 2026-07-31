@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/milvus-io/milvus/client/v2/column"
 	"github.com/milvus-io/milvus/client/v2/entity"
 	"github.com/milvus-io/milvus/client/v2/index"
@@ -19,7 +18,9 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const (
@@ -32,18 +33,12 @@ const (
 	fieldContent = "content"
 	fieldMeta    = "metadata"
 
-	// maxContentLength is the maximum VarChar length in Milvus.
-	maxContentLength = int64(65535)
+	maxIDLength      = 36
+	maxContentLength = 65535
 )
 
 // StoreConfig contains configuration options for Milvus vector store.
 type StoreConfig struct {
-	// Context is the bootstrap context used during NewStore (schema /
-	// index creation when InitializeSchema is true). Per-call operations
-	// (Add / Search / DeleteWhere / DeleteIDs) use their own caller-supplied ctx and
-	// ignore this field. Optional: defaults to context.Background().
-	Context context.Context
-
 	// Client is the Milvus client instance.
 	// Required: must be provided, otherwise initialization will fail.
 	Client *milvusclient.Client
@@ -65,17 +60,13 @@ type StoreConfig struct {
 	// Required: must be provided.
 	DocumentBatcher vectorstores.Batcher
 
-	// StoreDocumentContent determines whether to store the original document
-	// text in the content field. Truncated to 65535 characters if exceeded.
-	// Optional: defaults to false.
-	StoreDocumentContent bool
-
 	// MetricType is the similarity metric used when creating the vector index.
 	// Optional: defaults to entity.COSINE.
 	MetricType entity.MetricType
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.Client == nil {
 		return ErrMissingClient
 	}
@@ -88,17 +79,18 @@ func (c *StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
 	}
+	switch c.MetricType {
+	case entity.COSINE, entity.L2, entity.IP:
+	default:
+		return fmt.Errorf("milvus: unsupported MetricType %q for a float-vector collection", c.MetricType)
+	}
 	return nil
 }
 
-// ApplyDefaults fills zero fields. MetricType defaults to
-// [entity.COSINE]; Context defaults to context.Background().
-func (c *StoreConfig) ApplyDefaults() {
+// applyDefaults fills zero fields. MetricType defaults to [entity.COSINE].
+func (c *StoreConfig) applyDefaults() {
 	if c.MetricType == "" {
 		c.MetricType = entity.COSINE
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
 	}
 }
 
@@ -110,38 +102,36 @@ var (
 )
 
 type Store struct {
-	client               *milvusclient.Client
-	embeddingClient      *embeddingclient.Client
-	documentBatcher      vectorstores.Batcher
-	collectionName       string
-	metricType           entity.MetricType
-	initializeSchema     bool
-	storeDocumentContent bool
+	client           *milvusclient.Client
+	embeddingClient  *embeddingclient.Client
+	documentBatcher  vectorstores.Batcher
+	collectionName   string
+	metricType       entity.MetricType
+	initializeSchema bool
 }
 
-func NewStore(cfg StoreConfig) (*Store, error) {
-	cfg.ApplyDefaults()
-	if err := cfg.Validate(); err != nil {
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	config.applyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
-	embeddingClient, err := embeddingclient.New(cfg.EmbeddingModel)
+	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("milvus: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("milvus: create embedding client: %w", err)
 	}
 
 	store := &Store{
-		client:               cfg.Client,
-		embeddingClient:      embeddingClient,
-		documentBatcher:      cfg.DocumentBatcher,
-		collectionName:       cfg.CollectionName,
-		metricType:           cfg.MetricType,
-		initializeSchema:     cfg.InitializeSchema,
-		storeDocumentContent: cfg.StoreDocumentContent,
+		client:           config.Client,
+		embeddingClient:  embeddingClient,
+		documentBatcher:  config.DocumentBatcher,
+		collectionName:   config.CollectionName,
+		metricType:       config.MetricType,
+		initializeSchema: config.InitializeSchema,
 	}
 
-	if err = store.initialize(cfg.Context); err != nil {
-		return nil, fmt.Errorf("milvus: failed to initialize vector store: %w", err)
+	if err = store.initialize(ctx); err != nil {
+		return nil, fmt.Errorf("milvus: initialize vector store: %w", err)
 	}
 
 	return store, nil
@@ -152,7 +142,7 @@ func (s *Store) createSchema(dim int64) *entity.Schema {
 		WithField(entity.NewField().
 			WithName(fieldID).
 			WithDataType(entity.FieldTypeVarChar).
-			WithMaxLength(36).
+			WithMaxLength(maxIDLength).
 			WithIsPrimaryKey(true)).
 		WithField(entity.NewField().
 			WithName(fieldVector).
@@ -174,7 +164,7 @@ func (s *Store) initialize(ctx context.Context) error {
 
 	exists, err := s.client.HasCollection(ctx, milvusclient.NewHasCollectionOption(s.collectionName))
 	if err != nil {
-		return fmt.Errorf("milvus: failed to check collection existence: %w", err)
+		return fmt.Errorf("milvus: check collection existence: %w", err)
 	}
 
 	if !exists {
@@ -185,25 +175,25 @@ func (s *Store) initialize(ctx context.Context) error {
 
 		schema := s.createSchema(int64(dimensions))
 		if err = s.client.CreateCollection(ctx, milvusclient.NewCreateCollectionOption(s.collectionName, schema)); err != nil {
-			return fmt.Errorf("milvus: failed to create collection %s: %w", s.collectionName, err)
+			return fmt.Errorf("milvus: create collection %s: %w", s.collectionName, err)
 		}
 
 		idx := index.NewAutoIndex(s.metricType)
 		indexTask, createErr := s.client.CreateIndex(ctx, milvusclient.NewCreateIndexOption(s.collectionName, fieldVector, idx))
 		if createErr != nil {
-			return fmt.Errorf("milvus: failed to create index on collection %s: %w", s.collectionName, createErr)
+			return fmt.Errorf("milvus: create index on collection %s: %w", s.collectionName, createErr)
 		}
 		if err = indexTask.Await(ctx); err != nil {
-			return fmt.Errorf("milvus: failed to await index creation on collection %s: %w", s.collectionName, err)
+			return fmt.Errorf("milvus: await index creation on collection %s: %w", s.collectionName, err)
 		}
 	}
 
 	loadTask, err := s.client.LoadCollection(ctx, milvusclient.NewLoadCollectionOption(s.collectionName))
 	if err != nil {
-		return fmt.Errorf("milvus: failed to load collection %s: %w", s.collectionName, err)
+		return fmt.Errorf("milvus: load collection %s: %w", s.collectionName, err)
 	}
 	if err = loadTask.Await(ctx); err != nil {
-		return fmt.Errorf("milvus: failed to await collection load %s: %w", s.collectionName, err)
+		return fmt.Errorf("milvus: await collection load %s: %w", s.collectionName, err)
 	}
 
 	return nil
@@ -217,20 +207,14 @@ func (s *Store) buildInsertColumns(docs []*document.Document, vectors [][]float6
 	metaBytes := make([][]byte, n)
 
 	for i, doc := range docs {
-		ids[i] = uuid.NewString()
+		ids[i] = doc.ID
 		vecs[i] = math.ConvertSlice[float64, float32](vectors[i])
 
-		if s.storeDocumentContent {
-			content := doc.Text
-			if int64(len(content)) > maxContentLength {
-				content = content[:maxContentLength]
-			}
-			contents[i] = content
-		}
+		contents[i] = doc.Text
 
 		meta, err := json.Marshal(doc.Metadata)
 		if err != nil {
-			return nil, fmt.Errorf("milvus: failed to marshal metadata for document %s: %w", doc.ID, err)
+			return nil, fmt.Errorf("milvus: marshal metadata for document %s: %w", doc.ID, err)
 		}
 		metaBytes[i] = meta
 	}
@@ -246,23 +230,23 @@ func (s *Store) buildInsertColumns(docs []*document.Document, vectors [][]float6
 }
 
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("milvus.Store.Add: %w", err)
+	}
+	if err := validateProviderDocuments(docs); err != nil {
+		return fmt.Errorf("milvus.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "milvus", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("milvus: failed to batch documents: %w", err)
+		return fmt.Errorf("milvus: batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("milvus: failed to generate vectors: %w", err)
+			return fmt.Errorf("milvus: embed documents: %w", err)
 		}
 
 		cols, err := s.buildInsertColumns(docs, vectors)
@@ -272,7 +256,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 
 		_, err = s.client.Upsert(ctx, milvusclient.NewColumnBasedInsertOption(s.collectionName, cols...))
 		if err != nil {
-			return fmt.Errorf("milvus: failed to upsert %d documents to collection %s: %w",
+			return fmt.Errorf("milvus: upsert %d documents to collection %s: %w",
 				len(docs), s.collectionName, err)
 		}
 	}
@@ -280,67 +264,102 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	return nil
 }
 
+func validateProviderDocuments(docs []*document.Document) error {
+	for i, doc := range docs {
+		if len(doc.ID) > maxIDLength {
+			return fmt.Errorf("%w: documents[%d] has %d bytes", ErrDocumentIDTooLong, i, len(doc.ID))
+		}
+		if len(doc.Text) > maxContentLength {
+			return fmt.Errorf("%w: documents[%d] has %d bytes", ErrDocumentContentTooLong, i, len(doc.Text))
+		}
+	}
+	return nil
+}
+
 func (s *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore float64) ([]vectorstore.Match, error) {
+	if len(rs.Scores) != rs.Len() {
+		return nil, fmt.Errorf("milvus: search returned %d scores for %d rows", len(rs.Scores), rs.Len())
+	}
+	if rs.Len() == 0 {
+		return nil, nil
+	}
 	docs := make([]vectorstore.Match, 0, rs.Len())
 
 	idCol := rs.GetColumn(fieldID)
 	contentCol := rs.GetColumn(fieldContent)
 	metaCol := rs.GetColumn(fieldMeta)
+	if idCol == nil || contentCol == nil || metaCol == nil {
+		return nil, fmt.Errorf("milvus: search result is missing required output columns %q, %q, or %q",
+			fieldID, fieldContent, fieldMeta)
+	}
 
 	for i := range rs.Len() {
-		score := float64(rs.Scores[i])
+		score := s.normalizeScore(float64(rs.Scores[i]))
 		if score < minScore {
 			continue
 		}
 
-		doc := &document.Document{}
-
-		if idCol != nil {
-			if id, err := idCol.GetAsString(i); err == nil {
-				doc.ID = id
-			}
+		id, err := idCol.GetAsString(i)
+		if err != nil {
+			return nil, fmt.Errorf("milvus: read document ID for result %d: %w", i, err)
+		}
+		if id == "" {
+			return nil, fmt.Errorf("milvus: result %d is missing document ID", i)
+		}
+		text, err := contentCol.GetAsString(i)
+		if err != nil {
+			return nil, fmt.Errorf("milvus: read document text for result %d: %w", i, err)
+		}
+		if text == "" {
+			return nil, fmt.Errorf("milvus: result %d is missing document text", i)
 		}
 
-		if s.storeDocumentContent && contentCol != nil {
-			if text, err := contentCol.GetAsString(i); err == nil {
-				doc.Text = text
-			}
+		raw, err := metaCol.Get(i)
+		if err != nil {
+			return nil, fmt.Errorf("milvus: read metadata for result %d: %w", i, err)
+		}
+		metaBytes, ok := raw.([]byte)
+		if !ok {
+			return nil, fmt.Errorf("milvus: metadata for result %d has type %T, want []byte", i, raw)
+		}
+		var decodedMetadata metadata.Map
+		if err = json.Unmarshal(metaBytes, &decodedMetadata); err != nil {
+			return nil, fmt.Errorf("milvus: decode metadata for result %d: %w", i, err)
 		}
 
-		if metaCol != nil {
-			if raw, err := metaCol.Get(i); err == nil {
-				if metaBytes, ok := raw.([]byte); ok {
-					var decodedMetadata metadata.Map
-					if err = json.Unmarshal(metaBytes, &decodedMetadata); err == nil {
-						doc.Metadata = decodedMetadata
-					}
-				}
-			}
-		}
-
+		doc := &document.Document{ID: id, Text: text, Metadata: decodedMetadata}
 		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
 	}
 
 	return docs, nil
 }
 
+func (s *Store) normalizeScore(raw float64) float64 {
+	switch s.metricType {
+	case entity.L2:
+		return scores.Distance(raw)
+	case entity.IP, entity.COSINE:
+		return scores.CosineSimilarity(raw)
+	default:
+		return scores.Bounded(raw)
+	}
+}
+
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("milvus: invalid search request: %w", err)
+		return nil, fmt.Errorf("milvus.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "milvus", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("milvus: failed to embed query text: %w", err)
+		return nil, fmt.Errorf("milvus: embed query: %w", err)
 	}
 
 	queryVec := entity.FloatVector(math.ConvertSlice[float64, float32](vector))
@@ -352,14 +371,14 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if req.Filter != nil {
 		filterExpr, filterErr := ToFilter(req.Filter)
 		if filterErr != nil {
-			return nil, fmt.Errorf("milvus: failed to convert filter: %w", filterErr)
+			return nil, fmt.Errorf("milvus: convert filter: %w", filterErr)
 		}
 		searchOpt = searchOpt.WithFilter(filterExpr)
 	}
 
 	results, err := s.client.Search(ctx, searchOpt)
 	if err != nil {
-		return nil, fmt.Errorf("milvus: failed to search collection %s: %w", s.collectionName, err)
+		return nil, fmt.Errorf("milvus: search collection %s: %w", s.collectionName, err)
 	}
 
 	if len(results) == 0 {
@@ -368,7 +387,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 
 	docs, err = s.buildDocumentsFromResults(results[0], float64(req.MinScore))
 	if err != nil {
-		return nil, fmt.Errorf("milvus: failed to build documents from results: %w", err)
+		return nil, fmt.Errorf("milvus: build documents from results: %w", err)
 	}
 
 	return docs, nil
@@ -379,21 +398,18 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("milvus.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "milvus")
-	defer func() { tracing.Finish(span, err) }()
 
 	var filterExpr string
 	filterExpr, err = ToFilter(expr)
 	if err != nil {
-		return fmt.Errorf("milvus: failed to convert filter: %w", err)
+		return fmt.Errorf("milvus: convert filter: %w", err)
 	}
 
 	_, err = s.client.Delete(ctx, milvusclient.NewDeleteOption(s.collectionName).WithExpr(filterExpr))
 	if err != nil {
-		return fmt.Errorf("milvus: failed to delete from collection %s: %w", s.collectionName, err)
+		return fmt.Errorf("milvus: delete from collection %s: %w", s.collectionName, err)
 	}
 
 	return nil
@@ -407,17 +423,14 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 		return nil
 	}
 
-	ctx, span := tracing.StartDelete(ctx, "milvus")
-	defer func() { tracing.Finish(span, err) }()
-
 	_, err = s.client.Delete(ctx, milvusclient.NewDeleteOption(s.collectionName).WithStringIDs(fieldID, ids))
 	if err != nil {
-		return fmt.Errorf("milvus: failed to delete by ids from collection %s: %w", s.collectionName, err)
+		return fmt.Errorf("milvus: delete by ids from collection %s: %w", s.collectionName, err)
 	}
 
 	return nil
 }
 
-func (s *Store) Close() error {
-	return s.client.Close(context.Background())
+func (s *Store) Close(ctx context.Context) error {
+	return s.client.Close(ctx)
 }

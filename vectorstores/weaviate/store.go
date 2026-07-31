@@ -22,7 +22,9 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const (
@@ -33,17 +35,24 @@ const (
 	fieldContent  = "content"
 	fieldMetadata = "metadata"
 
-	additionalID        = "id"
-	additionalCertainty = "certainty"
-	additionalDistance  = "distance"
+	additionalID       = "id"
+	additionalDistance = "distance"
+)
+
+// DistanceMetric selects the distance function configured on the Weaviate
+// collection.
+type DistanceMetric string
+
+const (
+	DistanceCosine    DistanceMetric = "cosine"
+	DistanceDot       DistanceMetric = "dot"
+	DistanceL2Squared DistanceMetric = "l2-squared"
+	DistanceHamming   DistanceMetric = "hamming"
+	DistanceManhattan DistanceMetric = "manhattan"
 )
 
 // StoreConfig contains configuration options for Weaviate vector store.
 type StoreConfig struct {
-	// Context is the context for all operations.
-	// Optional: defaults to context.Background() if nil.
-	Context context.Context
-
 	// Client is the Weaviate client instance.
 	// Required: must be provided, otherwise initialization will fail.
 	Client *weaviate.Client
@@ -66,18 +75,14 @@ type StoreConfig struct {
 	// Required: must be provided to handle document batching logic.
 	DocumentBatcher vectorstores.Batcher
 
-	// StoreDocumentContent determines whether to store the original document
-	// content in the content field.
-	// Optional: defaults to false.
-	StoreDocumentContent bool
-
 	// DistanceMetric is the distance metric used for the HNSW vector index.
 	// Valid values: "cosine" (default), "dot", "l2-squared", "hamming", "manhattan".
 	// Optional: defaults to "cosine".
-	DistanceMetric string
+	DistanceMetric DistanceMetric
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.Client == nil {
 		return ErrMissingClient
 	}
@@ -90,16 +95,18 @@ func (c *StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
 	}
+	switch c.DistanceMetric {
+	case DistanceCosine, DistanceDot, DistanceL2Squared, DistanceHamming, DistanceManhattan:
+	default:
+		return fmt.Errorf("weaviate: unsupported DistanceMetric %q", c.DistanceMetric)
+	}
 	return nil
 }
 
-// ApplyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) applyDefaults() {
 	if c.DistanceMetric == "" {
-		c.DistanceMetric = "cosine"
+		c.DistanceMetric = DistanceCosine
 	}
 }
 
@@ -111,38 +118,36 @@ var (
 )
 
 type Store struct {
-	client               *weaviate.Client
-	embeddingClient      *embeddingclient.Client
-	documentBatcher      vectorstores.Batcher
-	className            string
-	distanceMetric       string
-	initializeSchema     bool
-	storeDocumentContent bool
+	client           *weaviate.Client
+	embeddingClient  *embeddingclient.Client
+	documentBatcher  vectorstores.Batcher
+	className        string
+	distanceMetric   DistanceMetric
+	initializeSchema bool
 }
 
-func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("weaviate: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("weaviate: create embedding client: %w", err)
 	}
 
 	store := &Store{
-		client:               config.Client,
-		embeddingClient:      embeddingClient,
-		documentBatcher:      config.DocumentBatcher,
-		className:            config.ClassName,
-		distanceMetric:       config.DistanceMetric,
-		initializeSchema:     config.InitializeSchema,
-		storeDocumentContent: config.StoreDocumentContent,
+		client:           config.Client,
+		embeddingClient:  embeddingClient,
+		documentBatcher:  config.DocumentBatcher,
+		className:        config.ClassName,
+		distanceMetric:   config.DistanceMetric,
+		initializeSchema: config.InitializeSchema,
 	}
 
-	if err = store.initialize(config.Context); err != nil {
-		return nil, fmt.Errorf("weaviate: failed to initialize vector store: %w", err)
+	if err = store.initialize(ctx); err != nil {
+		return nil, fmt.Errorf("weaviate: initialize vector store: %w", err)
 	}
 
 	return store, nil
@@ -157,7 +162,7 @@ func (s *Store) initialize(ctx context.Context) error {
 		WithClassName(s.className).
 		Do(ctx)
 	if err != nil {
-		return fmt.Errorf("weaviate: failed to check class existence: %w", err)
+		return fmt.Errorf("weaviate: check class existence: %w", err)
 	}
 	if exists {
 		return nil
@@ -168,7 +173,7 @@ func (s *Store) initialize(ctx context.Context) error {
 		Vectorizer:      "none",
 		VectorIndexType: "hnsw",
 		VectorIndexConfig: map[string]any{
-			"distance": s.distanceMetric,
+			"distance": string(s.distanceMetric),
 		},
 		Properties: []*models.Property{
 			{
@@ -183,7 +188,7 @@ func (s *Store) initialize(ctx context.Context) error {
 	}
 
 	if err = s.client.Schema().ClassCreator().WithClass(class).Do(ctx); err != nil {
-		return fmt.Errorf("weaviate: failed to create class %s: %w", s.className, err)
+		return fmt.Errorf("weaviate: create class %s: %w", s.className, err)
 	}
 
 	return nil
@@ -193,22 +198,17 @@ func (s *Store) buildObjects(docs []*document.Document, vectors [][]float64) ([]
 	objects := make([]*models.Object, 0, len(docs))
 
 	for i, doc := range docs {
-		content := ""
-		if s.storeDocumentContent {
-			content = doc.Text
-		}
-
 		metaBytes, err := json.Marshal(doc.Metadata)
 		if err != nil {
-			return nil, fmt.Errorf("weaviate: failed to marshal metadata for document %s: %w", doc.ID, err)
+			return nil, fmt.Errorf("weaviate: marshal metadata for document %s: %w", doc.ID, err)
 		}
 
 		obj := &models.Object{
 			Class:  s.className,
-			ID:     strfmt.UUID(uuid.NewString()),
+			ID:     strfmt.UUID(doc.ID),
 			Vector: models.C11yVector(math.ConvertSlice[float64, float32](vectors[i])),
 			Properties: map[string]any{
-				fieldContent:  content,
+				fieldContent:  doc.Text,
 				fieldMetadata: string(metaBytes),
 			},
 		}
@@ -219,23 +219,25 @@ func (s *Store) buildObjects(docs []*document.Document, vectors [][]float64) ([]
 }
 
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("weaviate.Store.Add: %w", err)
+	}
+	for i, doc := range docs {
+		if err := validateObjectID(doc.ID); err != nil {
+			return fmt.Errorf("weaviate.Store.Add: documents[%d]: %w", i, err)
+		}
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "weaviate", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("weaviate: failed to batch documents: %w", err)
+		return fmt.Errorf("weaviate: batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("weaviate: failed to generate vectors: %w", err)
+			return fmt.Errorf("weaviate: embed documents: %w", err)
 		}
 
 		objects, err := s.buildObjects(docs, vectors)
@@ -247,7 +249,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 			WithObjects(objects...).
 			Do(ctx)
 		if err != nil {
-			return fmt.Errorf("weaviate: failed to batch insert %d objects to class %s: %w",
+			return fmt.Errorf("weaviate: batch insert %d objects to class %s: %w",
 				len(objects), s.className, err)
 		}
 
@@ -268,7 +270,7 @@ func (s *Store) buildNearVector(vector []float64, minScore float64) *graphql.Nea
 		WithVector(models.C11yVector(math.ConvertSlice[float64, float32](vector)))
 
 	// WithCertainty is the minimum similarity threshold, only valid for cosine distance.
-	if minScore > 0 && s.distanceMetric == "cosine" {
+	if minScore > 0 && s.distanceMetric == DistanceCosine {
 		builder = builder.WithCertainty(float32(minScore))
 	}
 
@@ -277,21 +279,19 @@ func (s *Store) buildNearVector(vector []float64, minScore float64) *graphql.Nea
 
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("weaviate: invalid search request: %w", err)
+		return nil, fmt.Errorf("weaviate.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "weaviate", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("weaviate: failed to embed query text: %w", err)
+		return nil, fmt.Errorf("weaviate: embed query: %w", err)
 	}
 
 	fields := []graphql.Field{
@@ -301,7 +301,6 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 			Name: "_additional",
 			Fields: []graphql.Field{
 				{Name: additionalID},
-				{Name: additionalCertainty},
 				{Name: additionalDistance},
 			},
 		},
@@ -316,47 +315,53 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if req.Filter != nil {
 		whereFilter, filterErr := ToFilter(req.Filter)
 		if filterErr != nil {
-			return nil, fmt.Errorf("weaviate: failed to convert filter: %w", filterErr)
+			return nil, fmt.Errorf("weaviate: convert filter: %w", filterErr)
 		}
 		getBuilder = getBuilder.WithWhere(whereFilter)
 	}
 
 	result, err := getBuilder.Do(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("weaviate: failed to query class %s: %w", s.className, err)
+		return nil, fmt.Errorf("weaviate: query class %s: %w", s.className, err)
 	}
 
 	if len(result.Errors) > 0 {
 		return nil, fmt.Errorf("weaviate: GraphQL query error: %v", result.Errors[0].Message)
 	}
 
-	docs, err = s.buildDocumentsFromResult(result)
+	docs, err = s.buildDocumentsFromResult(result, req.MinScore)
 	if err != nil {
-		return nil, fmt.Errorf("weaviate: failed to build documents from results: %w", err)
+		return nil, fmt.Errorf("weaviate: build documents from results: %w", err)
 	}
 
 	return docs, nil
 }
 
-func (s *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]vectorstore.Match, error) {
+func (s *Store) buildDocumentsFromResult(
+	result *models.GraphQLResponse,
+	minScore float64,
+) ([]vectorstore.Match, error) {
+	if result == nil {
+		return nil, errors.New("weaviate: GraphQL response is nil")
+	}
 	getData, ok := result.Data["Get"]
 	if !ok {
-		return nil, nil
+		return nil, errors.New("weaviate: GraphQL response is missing Get data")
 	}
 
 	getMap, ok := getData.(map[string]any)
 	if !ok {
-		return nil, nil
+		return nil, fmt.Errorf("weaviate: GraphQL Get data has type %T, want object", getData)
 	}
 
 	classData, ok := getMap[s.className]
 	if !ok {
-		return nil, nil
+		return nil, fmt.Errorf("weaviate: GraphQL Get data is missing class %q", s.className)
 	}
 
 	items, ok := classData.([]any)
 	if !ok {
-		return nil, nil
+		return nil, fmt.Errorf("weaviate: GraphQL class data has type %T, want array", classData)
 	}
 
 	docs := make([]vectorstore.Match, 0, len(items))
@@ -364,29 +369,33 @@ func (s *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]vect
 	for _, item := range items {
 		objMap, ok := item.(map[string]any)
 		if !ok {
-			continue
+			return nil, fmt.Errorf("weaviate: result object has type %T, want object", item)
 		}
 
 		doc := &document.Document{}
-		var score float64
-
-		if additional, ok := objMap["_additional"].(map[string]any); ok {
-			if id, ok := additional[additionalID].(string); ok {
-				doc.ID = id
-			}
-			if certainty, ok := additional[additionalCertainty].(float64); ok {
-				score = certainty
-			} else if distance, ok := additional[additionalDistance].(float64); ok {
-				// Convert distance to a similarity score: smaller distance = higher score.
-				score = 1.0 - distance
-			}
+		additional, ok := objMap["_additional"].(map[string]any)
+		if !ok {
+			return nil, errors.New("weaviate: result object is missing _additional")
+		}
+		id, ok := additional[additionalID].(string)
+		if !ok || id == "" {
+			return nil, errors.New("weaviate: result object is missing _additional.id")
+		}
+		doc.ID = id
+		distance, ok := additional[additionalDistance].(float64)
+		if !ok {
+			return nil, fmt.Errorf("weaviate: result distance has type %T, want number", additional[additionalDistance])
+		}
+		score := s.normalizeDistance(distance)
+		if score < minScore {
+			continue
 		}
 
-		if s.storeDocumentContent {
-			if content, ok := objMap[fieldContent].(string); ok {
-				doc.Text = content
-			}
+		content, ok := objMap[fieldContent].(string)
+		if !ok || content == "" {
+			return nil, fmt.Errorf("weaviate: result object is missing %s", fieldContent)
 		}
+		doc.Text = content
 
 		if metaStr, ok := objMap[fieldMetadata].(string); ok && metaStr != "" && metaStr != "null" {
 			if err := json.Unmarshal([]byte(metaStr), &doc.Metadata); err != nil {
@@ -400,21 +409,31 @@ func (s *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]vect
 	return docs, nil
 }
 
+func (s *Store) normalizeDistance(distance float64) float64 {
+	switch s.distanceMetric {
+	case DistanceCosine:
+		return scores.CosineDistance(distance)
+	case DistanceDot:
+		return scores.NegativeInnerProductDistance(distance)
+	case DistanceL2Squared, DistanceHamming, DistanceManhattan:
+		return scores.Distance(distance)
+	default:
+		return scores.Bounded(distance)
+	}
+}
+
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("weaviate.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "weaviate")
-	defer func() { tracing.Finish(span, err) }()
 
 	var whereFilter *filters.WhereBuilder
 	whereFilter, err = ToFilter(expr)
 	if err != nil {
-		return fmt.Errorf("weaviate: failed to convert filter: %w", err)
+		return fmt.Errorf("weaviate: convert filter: %w", err)
 	}
 
 	_, err = s.client.Batch().ObjectsBatchDeleter().
@@ -422,27 +441,23 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		WithWhere(whereFilter).
 		Do(ctx)
 	if err != nil {
-		return fmt.Errorf("weaviate: failed to delete from class %s: %w", s.className, err)
+		return fmt.Errorf("weaviate: delete from class %s: %w", s.className, err)
 	}
 
 	return nil
 }
 
-// DeleteIDs removes objects by their Weaviate object UUID. The ids are
-// the same identifiers surfaced as document.ID by Search (the object's
-// `_additional.id`), since Add assigns each object a UUID that becomes
-// its primary key. An empty slice is a no-op; unknown ids are silently
-// ignored (Weaviate's per-object Deleter is idempotent). Implements
-// [vectorstore.IDDeleter].
-//
-// One `db.vector.delete weaviate` span per call.
+// DeleteIDs removes objects by their Weaviate UUIDs. An empty slice is a
+// no-op; unknown ids are ignored (idempotent).
 func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "weaviate")
-	defer func() { tracing.Finish(span, err) }()
+	for i, id := range ids {
+		if err := validateObjectID(id); err != nil {
+			return fmt.Errorf("weaviate.Store.DeleteIDs: ids[%d]: %w", i, err)
+		}
+	}
 
 	for _, id := range ids {
 		if delErr := s.client.Data().Deleter().
@@ -454,7 +469,7 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 			if clientErr, ok := errors.AsType[*fault.WeaviateClientError](delErr); ok && clientErr.StatusCode == http.StatusNotFound {
 				continue
 			}
-			err = fmt.Errorf("weaviate: failed to delete object %s from class %s: %w",
+			err = fmt.Errorf("weaviate: delete object %s from class %s: %w",
 				id, s.className, delErr)
 			return err
 		}
@@ -465,5 +480,12 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 
 func (s *Store) Close() error {
 	// Weaviate HTTP client does not require explicit closing.
+	return nil
+}
+
+func validateObjectID(id string) error {
+	if err := uuid.Validate(id); err != nil {
+		return fmt.Errorf("%w %q: must be a UUID", ErrInvalidObjectID, id)
+	}
 	return nil
 }

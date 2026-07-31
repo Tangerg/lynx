@@ -12,13 +12,13 @@ import (
 	"github.com/Tangerg/lynx/vectorstores/clickhouse"
 	"github.com/Tangerg/lynx/vectorstores/couchbase"
 	"github.com/Tangerg/lynx/vectorstores/elasticsearch"
+	"github.com/Tangerg/lynx/vectorstores/internal/pgfilter"
 	"github.com/Tangerg/lynx/vectorstores/mariadb"
 	"github.com/Tangerg/lynx/vectorstores/milvus"
 	"github.com/Tangerg/lynx/vectorstores/mongodb"
 	"github.com/Tangerg/lynx/vectorstores/neo4j"
 	"github.com/Tangerg/lynx/vectorstores/opensearch"
 	"github.com/Tangerg/lynx/vectorstores/oracle"
-	"github.com/Tangerg/lynx/vectorstores/pgvector"
 	"github.com/Tangerg/lynx/vectorstores/pinecone"
 	"github.com/Tangerg/lynx/vectorstores/qdrant"
 	"github.com/Tangerg/lynx/vectorstores/redis"
@@ -116,9 +116,9 @@ func TestVisitorLifecycle(t *testing.T) {
 			}}
 		}},
 		{name: "pgvector", new: func() compiler {
-			visitor := pgvector.NewVisitor("metadata")
-			return compiler{visit: visitor.Visit, snapshot: func() any {
-				query, args := visitor.Result()
+			filterCompiler := pgfilter.NewCompiler("metadata")
+			return compiler{visit: filterCompiler.Visit, snapshot: func() any {
+				query, args := filterCompiler.Result()
 				return sqlResult{query: query, args: args}
 			}}
 		}},

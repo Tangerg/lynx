@@ -145,7 +145,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
-		return fmt.Errorf("failed to extract field key from left operand of 'IS NULL' at %s: %w",
+		return fmt.Errorf("extract field key from left operand of 'IS NULL' at %s: %w",
 			expr.Start().String(), err)
 	}
 
@@ -174,7 +174,7 @@ func (v *Visitor) visitIdent(ident *filter.Ident) error {
 func (v *Visitor) visitLiteral(lit *filter.Literal) error {
 	value, err := v.literalToValue(lit)
 	if err != nil {
-		return fmt.Errorf("failed to convert literal at %s: %w",
+		return fmt.Errorf("convert literal at %s: %w",
 			lit.Start().String(), err)
 	}
 	v.currentFieldValue = value
@@ -191,7 +191,7 @@ func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 	for i, lit := range list.Values {
 		value, err := v.literalToValue(lit)
 		if err != nil {
-			return fmt.Errorf("failed to convert list element at index %d: %w", i, err)
+			return fmt.Errorf("convert list element at index %d: %w", i, err)
 		}
 		values = append(values, value)
 	}
@@ -209,7 +209,7 @@ func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 	fieldKey, err := v.buildIndexedFieldKey(expr)
 	if err != nil {
-		return fmt.Errorf("failed to build field path at %s: %w",
+		return fmt.Errorf("build field path at %s: %w",
 			expr.Start().String(), err)
 	}
 	v.currentFieldKey = fieldKey
@@ -228,13 +228,13 @@ func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	leftCond, err := v.buildNestedCondition(expr.Left)
 	if err != nil {
-		return fmt.Errorf("failed to process left operand of '%s' at %s: %w",
+		return fmt.Errorf("process left operand of '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	rightCond, err := v.buildNestedCondition(expr.Right)
 	if err != nil {
-		return fmt.Errorf("failed to process right operand of '%s' at %s: %w",
+		return fmt.Errorf("process right operand of '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
@@ -261,7 +261,7 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	cond, err := v.buildNestedCondition(expr.Right)
 	if err != nil {
-		return fmt.Errorf("failed to process NOT operand at %s: %w",
+		return fmt.Errorf("process NOT operand at %s: %w",
 			expr.Start().String(), err)
 	}
 

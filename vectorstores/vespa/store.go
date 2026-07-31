@@ -12,8 +12,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/metadata"
@@ -22,8 +20,10 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const (
@@ -39,18 +39,16 @@ const (
 
 	// DefaultIDField names the field used for the Lynx document id.
 	DefaultIDField = "doc_id"
-)
 
-// safeIdentifier matches names safe for Vespa document-id paths and
-// schema identifiers — alphanumerics plus underscore and hyphen.
+	// DefaultQueryTensorName names the rank-profile query tensor.
+	DefaultQueryTensorName = "q"
+)
 
 // StoreConfig contains configuration options for the Vespa vector
 // store. Vespa uses an HTTP REST surface; the store assumes the
 // schema (the .sd file) is provisioned out of band — Vespa schema
 // management is YAML/SDL and lives in the application package.
 type StoreConfig struct {
-	Context context.Context
-
 	// Endpoint is the Vespa container endpoint (Document API + search
 	// API), e.g. "https://my-app.aws-us-east-1c.z.vespa-app.cloud" or
 	// "http://localhost:8080". Required.
@@ -75,6 +73,16 @@ type StoreConfig struct {
 	ContentField   string
 	IDField        string
 
+	// QueryTensorName is the query tensor declared by RankingProfile. Optional:
+	// defaults to [DefaultQueryTensorName].
+	QueryTensorName string
+
+	// RankingProfile is the Vespa rank profile used for nearest-neighbor
+	// scoring. It must rank by closeness(field, <EmbeddingField>), whose
+	// relevance is in [0, 1]. Required: Vespa's built-in default profile uses
+	// nativeRank and does not represent vector similarity.
+	RankingProfile string
+
 	// EmbeddingModel produces vectors for the documents. Required.
 	EmbeddingModel embedding.Model
 
@@ -87,12 +95,16 @@ type StoreConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.Endpoint == "" {
 		return errors.New("vespa: Endpoint is required")
 	}
 	if c.SchemaName == "" {
 		return errors.New("vespa: SchemaName is required")
+	}
+	if c.RankingProfile == "" {
+		return errors.New("vespa: RankingProfile is required")
 	}
 	if c.EmbeddingModel == nil {
 		return errors.New("vespa: EmbeddingModel is required")
@@ -101,11 +113,13 @@ func (c *StoreConfig) Validate() error {
 		return errors.New("vespa: DocumentBatcher is required")
 	}
 	if err := ident.CheckWithDash("vespa", map[string]string{
-		"SchemaName":     c.SchemaName,
-		"Namespace":      c.Namespace,
-		"EmbeddingField": c.EmbeddingField,
-		"ContentField":   c.ContentField,
-		"IDField":        c.IDField,
+		"SchemaName":      c.SchemaName,
+		"Namespace":       c.Namespace,
+		"EmbeddingField":  c.EmbeddingField,
+		"ContentField":    c.ContentField,
+		"IDField":         c.IDField,
+		"QueryTensorName": c.QueryTensorName,
+		"RankingProfile":  c.RankingProfile,
 	}); err != nil {
 		return err
 	}
@@ -115,17 +129,15 @@ func (c *StoreConfig) Validate() error {
 	return nil
 }
 
-// ApplyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) applyDefaults() {
 	if c.Namespace == "" {
 		c.Namespace = c.SchemaName
 	}
 	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
 	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
 	c.IDField = cmp.Or(c.IDField, DefaultIDField)
+	c.QueryTensorName = cmp.Or(c.QueryTensorName, DefaultQueryTensorName)
 	if c.HTTPClient == nil {
 		c.HTTPClient = http.DefaultClient
 	}
@@ -137,8 +149,7 @@ var (
 	_ vectorstore.FilterDeleter = (*Store)(nil)
 )
 
-// Store is a Vespa-backed the vectorstore capability interfaces implementation talking
-// to Vespa over its REST API.
+// Store implements vector-store capabilities through Vespa's REST API.
 type Store struct {
 	endpoint        string
 	schemaName      string
@@ -147,19 +158,21 @@ type Store struct {
 	embeddingField  string
 	contentField    string
 	idField         string
+	queryTensorName string
+	rankingProfile  string
 	embeddingClient *embeddingclient.Client
 	documentBatcher vectorstores.Batcher
 	httpClient      *http.Client
 }
 
 func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("vespa: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("vespa: create embedding client: %w", err)
 	}
 	return &Store{
 		endpoint:        strings.TrimRight(config.Endpoint, "/"),
@@ -169,6 +182,8 @@ func NewStore(config StoreConfig) (*Store, error) {
 		embeddingField:  config.EmbeddingField,
 		contentField:    config.ContentField,
 		idField:         config.IDField,
+		queryTensorName: config.QueryTensorName,
+		rankingProfile:  config.RankingProfile,
 		embeddingClient: embeddingClient,
 		documentBatcher: config.DocumentBatcher,
 		httpClient:      config.HTTPClient,
@@ -178,29 +193,23 @@ func NewStore(config StoreConfig) (*Store, error) {
 // Add embeds documents and PUTs them through the Vespa Document
 // API. Each PUT is `POST /document/v1/<namespace>/<schema>/docid/<id>`.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("vespa.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "vespa", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("vespa: failed to batch documents: %w", err)
+		return fmt.Errorf("vespa: batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("vespa: failed to generate embeddings: %w", err)
+			return fmt.Errorf("vespa: embed documents: %w", err)
 		}
 		for i, doc := range docs {
 			id := doc.ID
-			if id == "" {
-				id = uuid.NewString()
-			}
 			fields := map[string]any{
 				s.idField:        id,
 				s.contentField:   doc.Text,
@@ -223,21 +232,19 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // Search runs a nearestNeighbor YQL query.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("vespa: invalid search request: %w", err)
+		return nil, fmt.Errorf("vespa.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "vespa", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("vespa: failed to embed query: %w", err)
+		return nil, fmt.Errorf("vespa: embed query: %w", err)
 	}
 	queryVec := math.ConvertSlice[float64, float32](vector)
 
@@ -246,17 +253,18 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, err
 	}
 
-	nn := fmt.Sprintf("{targetHits:%d}nearestNeighbor(%s, q)", req.TopK, s.embeddingField)
+	nn := fmt.Sprintf("{targetHits:%d}nearestNeighbor(%s, %s)",
+		req.TopK, s.embeddingField, s.queryTensorName)
 	yql := fmt.Sprintf("select * from %s where %s", s.schemaName, nn)
 	if filterFragment != "" {
 		yql = yql + " and " + filterFragment
 	}
 
 	body := map[string]any{
-		"yql":            yql,
-		"hits":           req.TopK,
-		"input.query(q)": map[string]any{"values": queryVec},
-		"ranking":        "default",
+		"yql":  yql,
+		"hits": req.TopK,
+		fmt.Sprintf("input.query(%s)", s.queryTensorName): map[string]any{"values": queryVec},
+		"ranking": s.rankingProfile,
 	}
 
 	raw, err := s.do(ctx, http.MethodPost, "/search/", body)
@@ -268,7 +276,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		Root struct {
 			Children []struct {
 				ID        string         `json:"id"`
-				Relevance float64        `json:"relevance"`
+				Relevance *float64       `json:"relevance"`
 				Fields    map[string]any `json:"fields"`
 			} `json:"children"`
 		} `json:"root"`
@@ -279,9 +287,12 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 
 	docs = make([]vectorstore.Match, 0, len(parsed.Root.Children))
 	for _, hit := range parsed.Root.Children {
+		if hit.Relevance == nil {
+			return nil, errors.New("vespa: search hit is missing relevance")
+		}
 		// Vespa relevance for nearestNeighbor is the configured
 		// distance metric's similarity directly (cosine: [0, 1]).
-		score := hit.Relevance
+		score := scores.Bounded(*hit.Relevance)
 		if score < req.MinScore {
 			continue
 		}
@@ -305,11 +316,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("vespa.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "vespa")
-	defer func() { tracing.Finish(span, err) }()
 
 	filterFragment, err := s.buildFilter(expr)
 	if err != nil {
@@ -387,9 +395,14 @@ func (s *Store) toDocument(rawID string, fields map[string]any) (*document.Docum
 			doc.ID = rawID
 		}
 	}
-	if text, ok := fields[s.contentField].(string); ok {
-		doc.Text = text
+	if doc.ID == "" {
+		return nil, errors.New("vespa: search hit has no stable document ID")
 	}
+	text, ok := fields[s.contentField].(string)
+	if !ok || text == "" {
+		return nil, fmt.Errorf("vespa: document %q is missing string field %q", doc.ID, s.contentField)
+	}
+	doc.Text = text
 
 	meta := make(map[string]any, len(fields))
 	for k, v := range fields {
@@ -403,7 +416,7 @@ func (s *Store) toDocument(rawID string, fields map[string]any) (*document.Docum
 		var err error
 		doc.Metadata, err = metadata.FromValues(meta)
 		if err != nil {
-			return nil, fmt.Errorf("vespa: encode metadata: %w", err)
+			return nil, fmt.Errorf("vespa: convert metadata: %w", err)
 		}
 	}
 	return doc, nil

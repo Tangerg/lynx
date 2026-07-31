@@ -139,7 +139,7 @@ func (v *Visitor) visitIdent(ident *filter.Ident) error {
 func (v *Visitor) visitLiteral(lit *filter.Literal) error {
 	value, err := v.literalToValue(lit)
 	if err != nil {
-		return fmt.Errorf("chroma: failed to convert literal at %s: %w", lit.Start().String(), err)
+		return fmt.Errorf("chroma: convert literal at %s: %w", lit.Start().String(), err)
 	}
 	v.currentFieldValue = value
 	return nil
@@ -151,7 +151,7 @@ func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 	for i, lit := range list.Values {
 		value, err := v.literalToValue(lit)
 		if err != nil {
-			return fmt.Errorf("chroma: failed to convert list element at index %d: %w", i, err)
+			return fmt.Errorf("chroma: convert list element at index %d: %w", i, err)
 		}
 		values = append(values, value)
 	}
@@ -165,7 +165,7 @@ func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 	fieldKey, err := v.buildIndexedFieldKey(expr)
 	if err != nil {
-		return fmt.Errorf("chroma: failed to build field path at %s: %w", expr.Start().String(), err)
+		return fmt.Errorf("chroma: build field path at %s: %w", expr.Start().String(), err)
 	}
 	v.currentFieldKey = fieldKey
 	return nil
@@ -177,13 +177,13 @@ func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	leftClause, err := v.buildNestedClause(expr.Left)
 	if err != nil {
-		return fmt.Errorf("chroma: failed to process left operand of '%s' at %s: %w",
+		return fmt.Errorf("chroma: process left operand of '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	rightClause, err := v.buildNestedClause(expr.Right)
 	if err != nil {
-		return fmt.Errorf("chroma: failed to process right operand of '%s' at %s: %w",
+		return fmt.Errorf("chroma: process right operand of '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
@@ -204,19 +204,19 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
-		return fmt.Errorf("chroma: failed to extract field key from left operand of '%s' at %s: %w",
+		return fmt.Errorf("chroma: extract field key from left operand of '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	fieldValue, err := v.extractFieldValue(expr.Right)
 	if err != nil {
-		return fmt.Errorf("chroma: failed to extract value from right operand of '%s' at %s: %w",
+		return fmt.Errorf("chroma: extract value from right operand of '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	clause, err := v.buildEqualityClause(fieldKey, fieldValue, expr.Op)
 	if err != nil {
-		return fmt.Errorf("chroma: failed to build equality clause for '%s' at %s: %w",
+		return fmt.Errorf("chroma: build equality clause for '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
@@ -265,13 +265,13 @@ func (v *Visitor) buildEqualityClause(fieldKey string, fieldValue any, op filter
 func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
-		return fmt.Errorf("chroma: failed to extract field key from left operand of '%s' at %s: %w",
+		return fmt.Errorf("chroma: extract field key from left operand of '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	fieldValue, err := v.extractFieldValue(expr.Right)
 	if err != nil {
-		return fmt.Errorf("chroma: failed to extract value from right operand of '%s' at %s: %w",
+		return fmt.Errorf("chroma: extract value from right operand of '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
@@ -325,7 +325,7 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
-		return fmt.Errorf("chroma: failed to extract field key from left operand of 'IN' at %s: %w",
+		return fmt.Errorf("chroma: extract field key from left operand of 'IN' at %s: %w",
 			expr.Start().String(), err)
 	}
 
@@ -340,7 +340,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 
 	values, ok := v.currentFieldValue.([]any)
 	if !ok || len(values) == 0 {
-		return fmt.Errorf("chroma: failed to extract list values for 'IN' operator at %s",
+		return fmt.Errorf("chroma: extract list values for 'IN' operator at %s",
 			expr.Start().String())
 	}
 
@@ -438,7 +438,7 @@ func (v *Visitor) extractFieldKey(expr filter.Expr) (string, error) {
 		return "", err
 	}
 	if extracted == "" {
-		return "", fmt.Errorf("chroma: failed to extract field key from %T expression", expr)
+		return "", fmt.Errorf("chroma: extract field key from %T expression", expr)
 	}
 	return extracted, nil
 }
@@ -458,7 +458,7 @@ func (v *Visitor) extractFieldValue(expr filter.Expr) (any, error) {
 		return nil, err
 	}
 	if extracted == nil {
-		return nil, fmt.Errorf("chroma: failed to extract value from %T expression", expr)
+		return nil, fmt.Errorf("chroma: extract value from %T expression", expr)
 	}
 	return extracted, nil
 }

@@ -1,7 +1,6 @@
-// Package pgvector wraps the pgvector PostgreSQL extension as a
-// the vectorstore capability interfaces. Documents live in a regular Postgres table
-// with a typed `vector(N)` column; metadata is stored in a `jsonb`
-// column and reached through `metadata->>'key'` extractors.
+// Package pgvector implements vector-store capabilities with the pgvector
+// PostgreSQL extension. Documents live in a regular PostgreSQL table with a
+// typed `vector(N)` column; metadata is stored in `jsonb`.
 //
 // Requirements: PostgreSQL 13+ with the `vector` extension installed
 // (the store runs `CREATE EXTENSION IF NOT EXISTS vector` under
@@ -18,9 +17,8 @@
 // pgvector-go's typed [pgvec.Vector]; the connection is a standard
 // pgx pool.
 //
-// Filter visitor builds parameterized SQL — values flow through `$N`
-// placeholders so untrusted input is safe. JSON path access reads
-// numbers via `::numeric` cast and booleans via `::boolean`.
+// Metadata filters compile to parameterized SQL; values flow through `$N`
+// placeholders, while JSON numbers and booleans use explicit PostgreSQL casts.
 //
 // See https://github.com/pgvector/pgvector for the extension docs.
 package pgvector

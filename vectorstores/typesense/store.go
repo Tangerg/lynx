@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/typesense/typesense-go/v3/typesense"
 	"github.com/typesense/typesense-go/v3/typesense/api"
 	"github.com/typesense/typesense-go/v3/typesense/api/pointer"
@@ -21,30 +20,25 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const Provider = "Typesense"
 
 const (
 	DefaultCollectionName = "lynx_vector_store"
-	DefaultDimensions     = 1536
 	idField               = "doc_id"
 	contentField          = "content"
 	metadataField         = "metadata"
 	embeddingField        = "embedding"
 )
 
-// safeIdentifier matches the SQL identifier shape.
-
 // StoreConfig contains configuration options for the Typesense vector
 // store.
 type StoreConfig struct {
-	// Context is used for the initial schema bootstrap. Optional;
-	// defaults to context.Background().
-	Context context.Context
-
 	// Client is the typesense-go client. Required.
 	Client *typesense.Client
 
@@ -58,9 +52,8 @@ type StoreConfig struct {
 	// DocumentBatcher batches documents before upsert. Required.
 	DocumentBatcher vectorstores.Batcher
 
-	// Dimensions sets the vector width for new collections. When
-	// zero, the store asks the embedding model for its native
-	// dimensionality and falls back to [DefaultDimensions].
+	// Dimensions sets the vector width for a new collection. When zero and
+	// InitializeSchema is true, the store probes EmbeddingModel.
 	Dimensions int
 
 	// InitializeSchema, when true, creates the collection with the
@@ -68,7 +61,8 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.Client == nil {
 		return errors.New("typesense: Client is required")
 	}
@@ -78,17 +72,17 @@ func (c *StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("typesense: DocumentBatcher is required")
 	}
+	if c.Dimensions < 0 {
+		return errors.New("typesense: Dimensions must be >= 0")
+	}
 	if !ident.Pattern.MatchString(c.CollectionName) {
 		return fmt.Errorf("typesense: CollectionName=%q must be a safe identifier", c.CollectionName)
 	}
 	return nil
 }
 
-// ApplyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) applyDefaults() {
 	c.CollectionName = cmp.Or(c.CollectionName, DefaultCollectionName)
 }
 
@@ -98,7 +92,7 @@ var (
 	_ vectorstore.FilterDeleter = (*Store)(nil)
 )
 
-// Store is a Typesense backed the vectorstore capability interfaces implementation.
+// Store implements vector-store capabilities with Typesense.
 type Store struct {
 	client          *typesense.Client
 	collectionName  string
@@ -107,15 +101,15 @@ type Store struct {
 	dimensions      int
 }
 
-func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("typesense: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("typesense: create embedding client: %w", err)
 	}
 
 	store := &Store{
@@ -126,8 +120,8 @@ func NewStore(config StoreConfig) (*Store, error) {
 		dimensions:      config.Dimensions,
 	}
 
-	if err = store.initialize(config.Context, config.InitializeSchema); err != nil {
-		return nil, fmt.Errorf("typesense: failed to initialize store: %w", err)
+	if err = store.initialize(ctx, config.InitializeSchema); err != nil {
+		return nil, fmt.Errorf("typesense: initialize store: %w", err)
 	}
 	return store, nil
 }
@@ -135,6 +129,9 @@ func NewStore(config StoreConfig) (*Store, error) {
 // initialize resolves dimensionality and creates the collection when
 // requested.
 func (s *Store) initialize(ctx context.Context, initSchema bool) error {
+	if !initSchema {
+		return nil
+	}
 	if s.dimensions <= 0 {
 		dimensions, err := s.embeddingClient.Dimensions(ctx)
 		if err != nil {
@@ -144,10 +141,6 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	}
 	if s.dimensions <= 0 {
 		return errors.New("typesense: Dimensions must be > 0")
-	}
-
-	if !initSchema {
-		return nil
 	}
 
 	// Probe for an existing collection; if Retrieve succeeds we
@@ -179,31 +172,25 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 
 // Add embeds documents and imports them via the upsert action.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("typesense.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "typesense", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("typesense: failed to batch documents: %w", err)
+		return fmt.Errorf("typesense: batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("typesense: failed to generate embeddings: %w", err)
+			return fmt.Errorf("typesense: embed documents: %w", err)
 		}
 
 		payload := make([]any, 0, len(docs))
 		for i, doc := range docs {
 			id := doc.ID
-			if id == "" {
-				id = uuid.NewString()
-			}
 			metadataValues, err := doc.Metadata.Values()
 			if err != nil {
 				return fmt.Errorf("typesense: decode metadata for %s: %w", id, err)
@@ -229,21 +216,19 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // Search runs a vector search via the documents.Search API.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("typesense: invalid search request: %w", err)
+		return nil, fmt.Errorf("typesense.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "typesense", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("typesense: failed to embed query: %w", err)
+		return nil, fmt.Errorf("typesense: embed query: %w", err)
 	}
 	queryVec := math.ConvertSlice[float64, float32](vector)
 	vectorQuery := formatVectorQuery(queryVec, req.TopK)
@@ -290,11 +275,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("typesense.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "typesense")
-	defer func() { tracing.Finish(span, err) }()
 
 	filterBy, err := s.buildFilter(expr)
 	if err != nil {
@@ -323,39 +305,32 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, error) {
 }
 
 func toMatch(hit api.SearchResultHit) (vectorstore.Match, error) {
-	doc := &document.Document{}
 	if hit.Document == nil {
-		return vectorstore.Match{Document: doc}, nil
+		return vectorstore.Match{}, errors.New("typesense: search hit is missing document")
+	}
+	if hit.VectorDistance == nil {
+		return vectorstore.Match{}, errors.New("typesense: search hit is missing vector distance")
 	}
 	raw := *hit.Document
-	if id, ok := raw[idField].(string); ok {
-		doc.ID = id
+	id, ok := raw[idField].(string)
+	if !ok || id == "" {
+		return vectorstore.Match{}, fmt.Errorf("typesense: search hit is missing string field %q", idField)
 	}
-	if content, ok := raw[contentField].(string); ok {
-		doc.Text = content
+	content, ok := raw[contentField].(string)
+	if !ok || content == "" {
+		return vectorstore.Match{}, fmt.Errorf("typesense: search hit is missing string field %q", contentField)
 	}
+	doc := &document.Document{ID: id, Text: content}
 	if meta, ok := raw[metadataField].(map[string]any); ok && len(meta) > 0 {
 		var err error
 		doc.Metadata, err = metadata.FromValues(meta)
 		if err != nil {
-			return vectorstore.Match{}, fmt.Errorf("typesense: encode metadata: %w", err)
+			return vectorstore.Match{}, fmt.Errorf("typesense: convert metadata: %w", err)
 		}
 	}
 	// Typesense returns distance in the cosine [0, 2] range; map
 	// onto a "higher = more similar" score in [0, 1].
-	var matchScore float64
-	if hit.VectorDistance != nil {
-		distance := float64(*hit.VectorDistance)
-		score := 1.0 - distance/2.0
-		switch {
-		case score < 0:
-			matchScore = 0
-		case score > 1:
-			matchScore = 1
-		default:
-			matchScore = score
-		}
-	}
+	matchScore := scores.CosineDistance(float64(*hit.VectorDistance))
 	return vectorstore.Match{Document: doc, Score: matchScore}, nil
 }
 

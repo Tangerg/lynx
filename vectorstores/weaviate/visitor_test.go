@@ -1,6 +1,7 @@
 package weaviate_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
@@ -84,8 +85,65 @@ func TestVisitor_IsNotNull(t *testing.T) {
 }
 
 func TestVisitor_RejectsIntegerThatNumberFilterCannotRepresent(t *testing.T) {
-	_, err := weaviate.ToFilter(filter.EQ("id", uint64(1<<53+1)))
+	_, err := weaviate.ToFilter(filter.EQ("id", uint64(1)<<63))
 	if err == nil {
-		t.Fatal("Weaviate silently rounded a large integer")
+		t.Fatal("Weaviate accepted an integer larger than its int64 data type")
+	}
+}
+
+func TestVisitor_PreservesIntegerAndNumberTypes(t *testing.T) {
+	integer, err := weaviate.ToFilter(filter.GT("count", 42))
+	if err != nil {
+		t.Fatalf("integer filter: %v", err)
+	}
+	if got := integer.Build().ValueInt; got == nil || *got != 42 {
+		t.Fatalf("ValueInt = %v, want 42", got)
+	}
+
+	number, err := weaviate.ToFilter(filter.GT("score", 4.2))
+	if err != nil {
+		t.Fatalf("number filter: %v", err)
+	}
+	if got := number.Build().ValueNumber; got == nil || *got != 4.2 {
+		t.Fatalf("ValueNumber = %v, want 4.2", got)
+	}
+}
+
+func TestVisitor_RejectsMixedMembershipTypes(t *testing.T) {
+	expr := &filter.BinaryExpr{
+		Left: filter.NewIdent("status"),
+		Op:   filter.OpIn,
+		Right: &filter.ListLiteral{Values: []*filter.Literal{
+			filter.NewLiteral("active"),
+			filter.NewLiteral(1),
+		}},
+	}
+	if _, err := weaviate.ToFilter(expr); err == nil {
+		t.Fatal("Weaviate accepted an IN list with mixed element types")
+	}
+}
+
+func TestVisitor_TranslatesSQLLikeWildcards(t *testing.T) {
+	expr, err := filter.Parse(`title like 'intro_%'`)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	got, err := weaviate.ToFilter(expr)
+	if err != nil {
+		t.Fatalf("ToFilter: %v", err)
+	}
+	if value := got.Build().ValueText; value == nil || *value != "intro?*" {
+		t.Fatalf("ValueText = %v, want intro?*", value)
+	}
+}
+
+func TestVisitor_RejectsUnrepresentableLikeLiteral(t *testing.T) {
+	expr, err := filter.Parse(`title like 'literal*'`)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	_, err = weaviate.ToFilter(expr)
+	if err == nil || !strings.Contains(err.Error(), "cannot represent") {
+		t.Fatalf("error = %v, want unrepresentable-pattern error", err)
 	}
 }

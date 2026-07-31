@@ -3,626 +3,287 @@ package weaviate
 import (
 	"errors"
 	"fmt"
+	"math"
+	"strings"
 
-	"github.com/spf13/cast"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
 )
 
-// Visitor transforms AST filter expressions into Weaviate WhereBuilder conditions.
-// It traverses semantic filter expressions and converts them to the provider query shape
-// into Weaviate's native filter format.
-//
-// The visitor maintains internal state during traversal:
-//   - result: The WhereBuilder being constructed for the current node
-//   - currentFieldPath: Temporary storage for extracted field path segments
-//   - currentFieldValue: Temporary storage for extracted literal values
-//   - err: The last error encountered during conversion
-//
-// Conversion strategy:
-//   - Compound expressions (BinaryExpr, UnaryExpr) set result to a new WhereBuilder
-//   - Leaf expressions (Ident, IndexExpr) set currentFieldPath
-//   - Literal/ListLiteral expressions set currentFieldValue
-//   - Nested expressions use isolated visitors to maintain proper scoping
-//
-// Field path mapping:
-//   - Simple identifier "age"           → path: ["age"]
-//   - Indexed access metadata["key"]    → path: ["metadata", "key"]
-//   - Deeply nested metadata["a"]["b"]  → path: ["metadata", "a", "b"]
-//
-// Usage example:
-//
-//	expr := parseFilterExpression("age > 18 AND status == 'active'")
-//	filter, err := ToFilter(expr)
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-var _ filter.Visitor = (*Visitor)(nil)
-
+// Visitor compiles Lynx filter expressions into Weaviate where filters.
+// A visitor can be reused; each call to Visit replaces the previous result.
 type Visitor struct {
-	err               error                 // Last error encountered during conversion
-	result            *filters.WhereBuilder // The WhereBuilder being constructed
-	currentFieldPath  []string              // Temporary storage for field path segments
-	currentFieldValue any                   // Temporary storage for field values
+	result *filters.WhereBuilder
 }
 
+var _ filter.Visitor = (*Visitor)(nil)
+
+// NewVisitor creates a Weaviate filter compiler.
 func NewVisitor() *Visitor {
 	return &Visitor{}
 }
 
-// Result returns the constructed WhereBuilder.
-// Returns nil if an error occurred during conversion.
-// Should only be called after Visit() completes.
-func (v *Visitor) Result() *filters.WhereBuilder {
-	if v.err != nil {
-		return nil
+// Visit compiles the complete expression tree rooted at expr.
+func (v *Visitor) Visit(expr filter.Predicate) error {
+	v.result = nil
+	result, err := compileFilter(expr)
+	if err != nil {
+		return err
 	}
+	v.result = result
+	return nil
+}
+
+// Result returns the filter produced by the most recent successful Visit.
+func (v *Visitor) Result() *filters.WhereBuilder {
 	return v.result
 }
 
-// Visit translates one semantic filter expression.
-// It walks the whole tree rooted at expr and returns the first error
-// encountered, or nil when the entire expression was accepted.
-func (v *Visitor) Visit(expr filter.Predicate) error {
-	v.err = nil
-	v.result = nil
-	v.currentFieldPath = nil
-	v.currentFieldValue = nil
-	v.err = v.visit(expr)
-	return v.err
+// ToFilter compiles a Lynx filter expression into a Weaviate where filter.
+func ToFilter(expr filter.Predicate) (*filters.WhereBuilder, error) {
+	visitor := NewVisitor()
+	if err := visitor.Visit(expr); err != nil {
+		return nil, err
+	}
+	return visitor.Result(), nil
 }
 
-// visit dispatches conversion to specialized methods based on expression type.
-func (v *Visitor) visit(expr filter.Expr) error {
+func compileFilter(expr filter.Expr) (*filters.WhereBuilder, error) {
 	if expr == nil {
-		return errors.New("weaviate: cannot process nil expression")
-	}
-	if v.err != nil {
-		return v.err
+		return nil, errors.New("weaviate.filter: expression must not be nil")
 	}
 
 	switch node := expr.(type) {
 	case *filter.BinaryExpr:
-		return v.visitBinaryExpr(node)
-	case *filter.UnaryExpr:
-		return v.visitUnaryExpr(node)
-	case *filter.IndexExpr:
-		return v.visitIndexExpr(node)
-	case *filter.Ident:
-		return v.visitIdent(node)
-	case *filter.Literal:
-		return v.visitLiteral(node)
-	case *filter.ListLiteral:
-		return v.visitListLiteral(node)
-	default:
-		return fmt.Errorf("weaviate: unsupported expression type %T", node)
-	}
-}
-
-// visitBinaryExpr routes binary expressions to appropriate handlers based on operator type.
-func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
-	if expr.Op.IsNullOperator() {
-		return v.visitNullTestExpr(expr)
-	}
-	return filtercompile.DispatchBinary(expr,
-		v.visitLogicalExpr,
-		v.visitComparisonExpr,
-		v.visitInExpr,
-		v.visitLikeExpr,
-	)
-}
-
-// visitComparisonExpr splits equality vs ordering since weaviate emits
-// distinct WhereBuilder shapes for the two families.
-func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
-	if expr.Op.IsEqualityOperator() {
-		return v.visitEqualityExpr(expr)
-	}
-	return v.visitOrderingExpr(expr)
-}
-
-// visitUnaryExpr handles unary expressions — only NOT today.
-func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
-	return filtercompile.DispatchUnary(expr, v.visitNotExpr)
-}
-
-// visitIdent extracts and stores the identifier name as a single-element field path.
-//
-// Example: Ident("age") → currentFieldPath = ["age"]
-func (v *Visitor) visitIdent(ident *filter.Ident) error {
-	v.currentFieldPath = []string{ident.Value}
-	return nil
-}
-
-// visitLiteral converts an AST literal into its corresponding Go value and stores it.
-func (v *Visitor) visitLiteral(lit *filter.Literal) error {
-	value, err := v.literalToValue(lit)
-	if err != nil {
-		return fmt.Errorf("weaviate: failed to convert literal at %s: %w", lit.Start().String(), err)
-	}
-	v.currentFieldValue = value
-	return nil
-}
-
-// visitListLiteral converts a list of literals into a Go slice and stores it.
-func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
-	values := make([]any, 0, len(list.Values))
-	for i, lit := range list.Values {
-		value, err := v.literalToValue(lit)
-		if err != nil {
-			return fmt.Errorf("weaviate: failed to convert list element at index %d: %w", i, err)
+		if node == nil {
+			return nil, errors.New("weaviate.filter: binary expression must not be nil")
 		}
-		values = append(values, value)
+		return compileBinary(node)
+	case *filter.UnaryExpr:
+		if node == nil {
+			return nil, errors.New("weaviate.filter: unary expression must not be nil")
+		}
+		return compileUnary(node)
+	default:
+		return nil, fmt.Errorf("weaviate.filter: expected predicate, got %T", expr)
 	}
-	v.currentFieldValue = values
-	return nil
 }
 
-// visitIndexExpr processes indexed field access and builds a slice-based field path.
-// Weaviate's WhereBuilder uses []string paths for nested property access.
-//
-// Example transformations:
-//   - metadata["user"]          → ["metadata", "user"]
-//   - data["tags"][0]           → ["data", "tags", "0"]
-//   - config["db"]["host"]      → ["config", "db", "host"]
-func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
-	path, err := v.buildIndexedFieldPath(expr)
-	if err != nil {
-		return fmt.Errorf("weaviate: failed to build field path at %s: %w",
-			expr.Start().String(), err)
+func compileBinary(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
+	switch {
+	case expr.Op.IsNullOperator():
+		return compileNullTest(expr)
+	case expr.Op.IsLogicalOperator():
+		return compileLogical(expr)
+	case expr.Op.IsComparisonOperator():
+		return compileComparison(expr)
+	case expr.Op.Is(filter.OpIn):
+		return compileMembership(expr)
+	case expr.Op.Is(filter.OpLike):
+		return compileLike(expr)
+	default:
+		return nil, fmt.Errorf("weaviate.filter: unsupported binary operator %q at %s",
+			expr.Op.String(), expr.Start())
 	}
-	v.currentFieldPath = path
-	return nil
 }
 
-// visitLogicalExpr handles logical operators (AND, OR).
-// Each operand is converted using an isolated visitor, then combined:
-//   - AND: WithOperator(filters.And).WithOperands([left, right])
-//   - OR:  WithOperator(filters.Or).WithOperands([left, right])
-func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
-	left, err := v.buildNestedFilter(expr.Left)
+func compileUnary(expr *filter.UnaryExpr) (*filters.WhereBuilder, error) {
+	if !expr.Op.Is(filter.OpNot) {
+		return nil, fmt.Errorf("weaviate.filter: unsupported unary operator %q at %s",
+			expr.Op.String(), expr.Start())
+	}
+	operand, err := compileFilter(expr.Right)
 	if err != nil {
-		return fmt.Errorf("weaviate: failed to process left operand of '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+		return nil, fmt.Errorf("weaviate.filter: NOT operand: %w", err)
+	}
+	return filters.Where().
+		WithOperator(filters.Not).
+		WithOperands([]*filters.WhereBuilder{operand}), nil
+}
+
+func compileLogical(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
+	left, err := compileFilter(expr.Left)
+	if err != nil {
+		return nil, fmt.Errorf("weaviate.filter: left operand of %s: %w", expr.Op, err)
+	}
+	right, err := compileFilter(expr.Right)
+	if err != nil {
+		return nil, fmt.Errorf("weaviate.filter: right operand of %s: %w", expr.Op, err)
 	}
 
-	right, err := v.buildNestedFilter(expr.Right)
-	if err != nil {
-		return fmt.Errorf("weaviate: failed to process right operand of '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
-	}
-
+	var operator filters.WhereOperator
 	switch expr.Op {
 	case filter.OpAnd:
-		v.result = filters.Where().
-			WithOperator(filters.And).
-			WithOperands([]*filters.WhereBuilder{left, right})
+		operator = filters.And
 	case filter.OpOr:
-		v.result = filters.Where().
-			WithOperator(filters.Or).
-			WithOperands([]*filters.WhereBuilder{left, right})
+		operator = filters.Or
 	default:
-		return fmt.Errorf("weaviate: unexpected logical operator '%s' at %s",
-			expr.Op.String(), expr.Start().String())
+		return nil, fmt.Errorf("weaviate.filter: unsupported logical operator %q", expr.Op)
 	}
-
-	return nil
+	return filters.Where().
+		WithOperator(operator).
+		WithOperands([]*filters.WhereBuilder{left, right}), nil
 }
 
-// visitNotExpr handles the NOT operator by wrapping the negated condition.
-//
-// Example:
-//   - NOT (age > 18) → WithOperator(filters.Not).WithOperands([age>18])
-func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
-	operand, err := v.buildNestedFilter(expr.Right)
+func compileComparison(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
+	path, err := filtercompile.CollectKeyPath(expr.Left)
 	if err != nil {
-		return fmt.Errorf("weaviate: failed to process NOT operand at %s: %w",
-			expr.Start().String(), err)
+		return nil, fmt.Errorf("weaviate.filter: left operand of %s: %w", expr.Op, err)
+	}
+	literal, ok := expr.Right.(*filter.Literal)
+	if !ok || literal == nil {
+		return nil, fmt.Errorf("weaviate.filter: right operand of %s must be a literal, got %T at %s",
+			expr.Op, expr.Right, expr.Start())
 	}
 
-	v.result = filters.Where().
-		WithOperator(filters.Not).
-		WithOperands([]*filters.WhereBuilder{operand})
-
-	return nil
+	operator, err := comparisonOperator(expr.Op)
+	if err != nil {
+		return nil, err
+	}
+	if !expr.Op.IsEqualityOperator() && !literal.IsNumber() {
+		return nil, fmt.Errorf("weaviate.filter: %s requires a numeric right operand at %s",
+			expr.Op, expr.Start())
+	}
+	return scalarFilter(path, operator, literal)
 }
 
-// visitEqualityExpr handles equality operators (==, !=).
-// Supports string, number, and boolean values:
-//   - strings  → WithValueText
-//   - numbers  → WithValueNumber
-//   - booleans → WithValueBoolean
-//
-// Examples:
-//   - status == "active"  → path:["status"], Equal, text:"active"
-//   - age != 18           → path:["age"], NotEqual, number:18
-func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
-	fieldPath, err := v.extractFieldPath(expr.Left)
-	if err != nil {
-		return fmt.Errorf("weaviate: failed to extract field path from '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
-	}
-
-	fieldValue, err := v.extractFieldValue(expr.Right)
-	if err != nil {
-		return fmt.Errorf("weaviate: failed to extract value from '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
-	}
-
-	var op filters.WhereOperator
-	switch expr.Op {
+func comparisonOperator(operator filter.Operator) (filters.WhereOperator, error) {
+	switch operator {
 	case filter.OpEqual:
-		op = filters.Equal
+		return filters.Equal, nil
 	case filter.OpNotEqual:
-		op = filters.NotEqual
-	default:
-		return fmt.Errorf("weaviate: unexpected equality operator '%s' at %s",
-			expr.Op.String(), expr.Start().String())
-	}
-
-	builder, err := v.buildValueFilter(fieldPath, op, fieldValue)
-	if err != nil {
-		return fmt.Errorf("weaviate: failed to build filter for '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
-	}
-
-	v.result = builder
-	return nil
-}
-
-// visitOrderingExpr handles ordering/comparison operators (<, <=, >, >=).
-// The right operand is converted to float64 for the number filter:
-//
-//   - <  → filters.LessThan
-//   - <= → filters.LessThanEqual
-//   - >  → filters.GreaterThan
-//   - >= → filters.GreaterThanEqual
-//
-// Examples:
-//   - age > 18     → path:["age"], GreaterThan, number:18
-//   - price <= 9.9 → path:["price"], LessThanEqual, number:9.9
-func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
-	fieldPath, err := v.extractFieldPath(expr.Left)
-	if err != nil {
-		return fmt.Errorf("weaviate: failed to extract field path from '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
-	}
-
-	fieldValue, err := v.extractFieldValue(expr.Right)
-	if err != nil {
-		return fmt.Errorf("weaviate: failed to extract value from '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
-	}
-
-	numericValue, err := cast.ToFloat64E(fieldValue)
-	if err != nil {
-		return fmt.Errorf("weaviate: cannot convert value to number for '%s' at %s: expected number, got %T",
-			expr.Op.String(), expr.Start().String(), fieldValue)
-	}
-
-	var op filters.WhereOperator
-	switch expr.Op {
+		return filters.NotEqual, nil
 	case filter.OpLess:
-		op = filters.LessThan
+		return filters.LessThan, nil
 	case filter.OpLessEqual:
-		op = filters.LessThanEqual
+		return filters.LessThanEqual, nil
 	case filter.OpGreater:
-		op = filters.GreaterThan
+		return filters.GreaterThan, nil
 	case filter.OpGreaterEqual:
-		op = filters.GreaterThanEqual
+		return filters.GreaterThanEqual, nil
 	default:
-		return fmt.Errorf("weaviate: unexpected ordering operator '%s' at %s",
-			expr.Op.String(), expr.Start().String())
+		return "", fmt.Errorf("weaviate.filter: unsupported comparison operator %q", operator)
 	}
-
-	v.result = filters.Where().
-		WithPath(fieldPath).
-		WithOperator(op).
-		WithValueNumber(numericValue)
-
-	return nil
 }
 
-// visitInExpr handles the IN operator for membership testing.
-// The right operand must be a non-empty list literal.
-// Uses ContainsAny operator with the appropriate value type method:
-//   - string list  → WithValueText
-//   - number list  → WithValueNumber
-//   - boolean list → WithValueBoolean
-//
-// Examples:
-//   - status IN ["active", "pending"] → path:["status"], ContainsAny, text:["active","pending"]
-//   - score IN [1, 2, 3]              → path:["score"], ContainsAny, number:[1,2,3]
-func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
-	fieldPath, err := v.extractFieldPath(expr.Left)
-	if err != nil {
-		return fmt.Errorf("weaviate: failed to extract field path from 'IN' at %s: %w",
-			expr.Start().String(), err)
-	}
-
-	listLit, err := filtercompile.RequireListLiteral(expr)
-	if err != nil {
-		return fmt.Errorf("weaviate: %w", err)
-	}
-
-	if err = v.visitListLiteral(listLit); err != nil {
-		return err
-	}
-
-	values, ok := v.currentFieldValue.([]any)
-	if !ok || len(values) == 0 {
-		return fmt.Errorf("weaviate: failed to extract list values for 'IN' at %s",
-			expr.Start().String())
-	}
-
-	switch values[0].(type) {
-	case string:
-		strs := make([]string, len(values))
-		for i, v := range values {
-			strs[i] = cast.ToString(v)
-		}
-		v.result = filters.Where().
-			WithPath(fieldPath).
-			WithOperator(filters.ContainsAny).
-			WithValueText(strs...)
-
-	case float64:
-		nums := make([]float64, len(values))
-		for i, v := range values {
-			nums[i] = cast.ToFloat64(v)
-		}
-		v.result = filters.Where().
-			WithPath(fieldPath).
-			WithOperator(filters.ContainsAny).
-			WithValueNumber(nums...)
-
-	case bool:
-		bools := make([]bool, len(values))
-		for i, v := range values {
-			bools[i] = cast.ToBool(v)
-		}
-		v.result = filters.Where().
-			WithPath(fieldPath).
-			WithOperator(filters.ContainsAny).
-			WithValueBoolean(bools...)
-
-	default:
-		return fmt.Errorf("weaviate: unsupported value type %T in 'IN' list at %s",
-			values[0], expr.Start().String())
-	}
-
-	return nil
-}
-
-// visitLikeExpr handles the LIKE operator for pattern matching.
-// The right operand must be a string literal.
-// Uses Weaviate's Like operator which supports wildcards (* and ?).
-//
-// Example:
-//   - name LIKE "Jo*" → path:["name"], Like, text:"Jo*"
-func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
-	fieldPath, err := v.extractFieldPath(expr.Left)
-	if err != nil {
-		return fmt.Errorf("weaviate: failed to extract field path from 'LIKE' at %s: %w",
-			expr.Start().String(), err)
-	}
-
-	lit, ok := expr.Right.(*filter.Literal)
-	if !ok {
-		return fmt.Errorf("weaviate: 'LIKE' operator requires a string literal on the right side at %s, got %T",
-			expr.Start().String(), expr.Right)
-	}
-	if !lit.IsString() {
-		return fmt.Errorf("weaviate: 'LIKE' operator requires a string pattern at %s, got %s",
-			expr.Start().String(), lit.Kind)
-	}
-
-	if err = v.visitLiteral(lit); err != nil {
-		return err
-	}
-
-	pattern, ok := v.currentFieldValue.(string)
-	if !ok {
-		return fmt.Errorf("weaviate: failed to extract string pattern for 'LIKE' at %s",
-			expr.Start().String())
-	}
-
-	v.result = filters.Where().
-		WithPath(fieldPath).
-		WithOperator(filters.Like).
-		WithValueText(pattern)
-
-	return nil
-}
-
-// visitNullTestExpr handles the IS NULL operator by emitting Weaviate's
-// IsNull filter. Weaviate models nullability as a boolean on the property
-// path: IsNull with ValueBoolean(true) matches documents where the property
-// is null or absent.
-//
-// Example:
-//   - author IS NULL → path:["author"], IsNull, boolean:true
-//
-// The negated form `author IS NOT NULL` arrives as NOT(author IS NULL) — the
-// parser wraps the IS-NULL binary expression in a UnaryExpr(NOT), which is
-// rendered by visitNotExpr as a filters.Not around this IsNull condition. No
-// separate handling is needed here.
-func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
-	fieldPath, err := v.extractFieldPath(expr.Left)
-	if err != nil {
-		return fmt.Errorf("weaviate: failed to extract field path from 'IS NULL' at %s: %w",
-			expr.Start().String(), err)
-	}
-
-	v.result = filters.Where().
-		WithPath(fieldPath).
-		WithOperator(filters.IsNull).
-		WithValueBoolean(true)
-
-	return nil
-}
-
-// buildNestedFilter converts a sub-expression to a WhereBuilder using an isolated visitor.
-// This ensures that nested logical expressions maintain proper scoping.
-func (v *Visitor) buildNestedFilter(expr filter.Expr) (*filters.WhereBuilder, error) {
-	nested := NewVisitor()
-	if err := nested.visit(expr); err != nil {
-		return nil, err
-	}
-	if nested.result != nil {
-		return nested.result, nil
-	}
-	return nil, fmt.Errorf("weaviate: unsupported expression type %T for nested filter", expr)
-}
-
-// extractFieldPath extracts a field path from an expression.
-// The visitor's currentFieldPath state is preserved during extraction.
-//
-// Supported expression types:
-//   - Ident: Simple field name → ["age"]
-//   - IndexExpr: Nested field access → ["metadata", "key"]
-func (v *Visitor) extractFieldPath(expr filter.Expr) ([]string, error) {
-	savedPath := v.currentFieldPath
-	v.currentFieldPath = nil
-
-	err := v.visit(expr)
-
-	extractedPath := v.currentFieldPath
-	v.currentFieldPath = savedPath
-
-	if err != nil {
-		return nil, err
-	}
-	if len(extractedPath) == 0 {
-		return nil, fmt.Errorf("weaviate: failed to extract field path from %T expression", expr)
-	}
-
-	return extractedPath, nil
-}
-
-// extractFieldValue extracts a value (literal or list) from an expression.
-// The visitor's currentFieldValue state is preserved during extraction.
-func (v *Visitor) extractFieldValue(expr filter.Expr) (any, error) {
-	savedValue := v.currentFieldValue
-	v.currentFieldValue = nil
-
-	err := v.visit(expr)
-
-	extractedValue := v.currentFieldValue
-	v.currentFieldValue = savedValue
-
-	if err != nil {
-		return nil, err
-	}
-	if extractedValue == nil {
-		return nil, fmt.Errorf("weaviate: failed to extract value from %T expression", expr)
-	}
-
-	return extractedValue, nil
-}
-
-// buildIndexedFieldPath constructs a slice-based field path from an index expression.
-// This method recursively processes nested index expressions to build the complete path.
-//
-// Transformation examples:
-//   - user["name"]              → ["user", "name"]
-//   - metadata["tags"][0]       → ["metadata", "tags", "0"]
-//   - config["db"]["host"]      → ["config", "db", "host"]
-func (v *Visitor) buildIndexedFieldPath(expr *filter.IndexExpr) ([]string, error) {
-	var parts []string
-
-	current := expr
-	for {
-		segment, err := filtercompile.LiteralAsKey(current.Index)
+func scalarFilter(
+	path []string,
+	operator filters.WhereOperator,
+	literal *filter.Literal,
+) (*filters.WhereBuilder, error) {
+	builder := filters.Where().WithPath(path).WithOperator(operator)
+	switch {
+	case literal.IsString():
+		value, err := literal.AsString()
 		if err != nil {
-			return nil, fmt.Errorf("weaviate: %w", err)
+			return nil, fmt.Errorf("weaviate.filter: string literal: %w", err)
 		}
-		parts = append([]string{segment}, parts...)
-
-		switch left := current.Left.(type) {
-		case *filter.IndexExpr:
-			current = left
-		case *filter.Ident:
-			parts = append([]string{left.Value}, parts...)
-			return parts, nil
+		return builder.WithValueText(value), nil
+	case literal.IsBool():
+		value, err := literal.AsBool()
+		if err != nil {
+			return nil, fmt.Errorf("weaviate.filter: boolean literal: %w", err)
+		}
+		return builder.WithValueBoolean(value), nil
+	case literal.IsNumber():
+		value, err := filtercompile.LiteralToValue(literal)
+		if err != nil {
+			return nil, fmt.Errorf("weaviate.filter: number literal: %w", err)
+		}
+		switch number := value.(type) {
+		case int64:
+			return builder.WithValueInt(number), nil
+		case uint64:
+			if number > math.MaxInt64 {
+				return nil, fmt.Errorf("weaviate.filter: integer %q exceeds Weaviate int64", literal.Value)
+			}
+			return builder.WithValueInt(int64(number)), nil
+		case float64:
+			return builder.WithValueNumber(number), nil
 		default:
-			return nil, fmt.Errorf("weaviate: invalid left operand type %T in index expression, expected identifier or index",
-				left)
+			return nil, fmt.Errorf("weaviate.filter: unsupported numeric value %T", value)
 		}
-	}
-}
-
-// buildValueFilter creates a WhereBuilder for equality/inequality conditions.
-// Selects the appropriate value method based on the Go type of the value:
-//   - string  → WithValueText
-//   - float64 → WithValueNumber
-//   - bool    → WithValueBoolean
-func (v *Visitor) buildValueFilter(path []string, op filters.WhereOperator, value any) (*filters.WhereBuilder, error) {
-	switch v := value.(type) {
-	case string:
-		return filters.Where().WithPath(path).WithOperator(op).WithValueText(v), nil
-	case float64:
-		return filters.Where().WithPath(path).WithOperator(op).WithValueNumber(v), nil
-	case bool:
-		return filters.Where().WithPath(path).WithOperator(op).WithValueBoolean(v), nil
 	default:
-		return nil, fmt.Errorf("weaviate: unsupported value type %T for filter", value)
+		return nil, fmt.Errorf("weaviate.filter: unsupported literal kind %s", literal.Kind)
 	}
 }
 
-// literalToValue converts an AST literal node to its corresponding Go value.
-//
-// Supported conversions:
-//   - String literals  → string (with quote removal)
-//   - Number literals  → float64
-//   - Boolean literals → bool
-func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
-	if lit.IsString() {
-		return lit.AsString()
+func compileMembership(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
+	path, err := filtercompile.CollectKeyPath(expr.Left)
+	if err != nil {
+		return nil, fmt.Errorf("weaviate.filter: left operand of IN: %w", err)
 	}
-	if lit.IsNumber() {
-		return filtercompile.NumberToFloat64(lit)
+	list, err := filtercompile.RequireListLiteral(expr)
+	if err != nil {
+		return nil, fmt.Errorf("weaviate.filter: %w", err)
 	}
-	if lit.IsBool() {
-		return lit.AsBool()
+	values, _, err := filtercompile.ConvertListLiteral(list)
+	if err != nil {
+		return nil, fmt.Errorf("weaviate.filter: IN values: %w", err)
 	}
-	return nil, fmt.Errorf("weaviate: unsupported literal type '%s'", lit.Kind)
+
+	builder := filters.Where().WithPath(path).WithOperator(filters.ContainsAny)
+	switch typed := values.(type) {
+	case []string:
+		return builder.WithValueText(typed...), nil
+	case []bool:
+		return builder.WithValueBoolean(typed...), nil
+	case []int64:
+		return builder.WithValueInt(typed...), nil
+	case []uint64:
+		converted := make([]int64, len(typed))
+		for i, value := range typed {
+			if value > math.MaxInt64 {
+				return nil, fmt.Errorf("weaviate.filter: IN value %d exceeds Weaviate int64", value)
+			}
+			converted[i] = int64(value)
+		}
+		return builder.WithValueInt(converted...), nil
+	case []float64:
+		return builder.WithValueNumber(typed...), nil
+	default:
+		return nil, fmt.Errorf("weaviate.filter: unsupported IN values %T", values)
+	}
 }
 
-// ToFilter converts an AST filter expression into a Weaviate WhereBuilder.
-//
-// This is the main entry point for converting filter expressions written in
-// the Lynx filter DSL into Weaviate's native filter format.
-//
-// Supported operations:
-//   - Logical:          AND, OR, NOT
-//   - Equality:         ==, !=
-//   - Ordering:         <, <=, >, >=
-//   - Membership:       IN  (mapped to ContainsAny)
-//   - Pattern matching: LIKE
-//   - Null test:        IS NULL / IS NOT NULL (mapped to IsNull, the latter via NOT)
-//
-// Field access:
-//   - Simple field:     age               → path: ["age"]
-//   - Nested JSON:      metadata["key"]   → path: ["metadata", "key"]
-//   - Deep nesting:     a["b"]["c"]       → path: ["a", "b", "c"]
-//
-// Value types:
-//   - Strings  → WithValueText
-//   - Numbers  → WithValueNumber
-//   - Booleans → WithValueBoolean
-//
-// Example:
-//
-//	expr, _ := parser.Parse(`age > 18 AND status == "active"`)
-//	whereFilter, err := weaviate.ToFilter(expr)
-//	// Used with: getBuilder.WithWhere(whereFilter)
-func ToFilter(expr filter.Predicate) (*filters.WhereBuilder, error) {
-	conv := NewVisitor()
-	if err := conv.Visit(expr); err != nil {
+func compileLike(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
+	path, err := filtercompile.CollectKeyPath(expr.Left)
+	if err != nil {
+		return nil, fmt.Errorf("weaviate.filter: left operand of LIKE: %w", err)
+	}
+	pattern, err := filtercompile.RequireStringPatternOnRight(expr)
+	if err != nil {
+		return nil, fmt.Errorf("weaviate.filter: %w", err)
+	}
+	translated, err := weaviateLikePattern(pattern)
+	if err != nil {
 		return nil, err
 	}
-	return conv.Result(), nil
+	return filters.Where().
+		WithPath(path).
+		WithOperator(filters.Like).
+		WithValueText(translated), nil
+}
+
+// weaviateLikePattern translates SQL LIKE wildcards into Weaviate's wildcard
+// syntax. Weaviate cannot escape literal '*' or '?', so accepting either
+// would broaden the predicate and violate the source expression.
+func weaviateLikePattern(pattern string) (string, error) {
+	if strings.ContainsAny(pattern, "*?") {
+		return "", errors.New("weaviate.filter: LIKE cannot represent literal '*' or '?' characters")
+	}
+	return strings.NewReplacer("%", "*", "_", "?").Replace(pattern), nil
+}
+
+func compileNullTest(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
+	path, err := filtercompile.CollectKeyPath(expr.Left)
+	if err != nil {
+		return nil, fmt.Errorf("weaviate.filter: left operand of IS NULL: %w", err)
+	}
+	return filters.Where().
+		WithPath(path).
+		WithOperator(filters.IsNull).
+		WithValueBoolean(true), nil
 }

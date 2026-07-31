@@ -12,14 +12,14 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const (
@@ -38,8 +38,6 @@ const (
 // the API and does NOT need an [embedding.Model]. This is unlike
 // every other lynx vector store.
 type StoreConfig struct {
-	Context context.Context
-
 	// Endpoint is the Vectara API endpoint. Optional: defaults to
 	// [DefaultEndpoint].
 	Endpoint string
@@ -63,7 +61,8 @@ type StoreConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.APIKey == "" {
 		return errors.New("vectara: APIKey is required")
 	}
@@ -76,11 +75,8 @@ func (c *StoreConfig) Validate() error {
 	return nil
 }
 
-// ApplyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) applyDefaults() {
 	c.Endpoint = cmp.Or(c.Endpoint, DefaultEndpoint)
 	if c.MetadataPrefix == "" {
 		c.MetadataPrefix = "doc"
@@ -96,10 +92,9 @@ var (
 	_ vectorstore.FilterDeleter = (*Store)(nil)
 )
 
-// Store is a Vectara-backed the vectorstore capability interfaces implementation. Note
-// that Vectara handles embedding internally; the user's text is sent
-// raw and Vectara generates its own vectors per its configured
-// embedder.
+// Store implements vector-store capabilities with Vectara. Vectara handles
+// embedding internally, so the store sends document text without generating
+// vectors locally.
 type Store struct {
 	endpoint        string
 	apiKey          string
@@ -110,7 +105,7 @@ type Store struct {
 }
 
 func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -128,17 +123,14 @@ func NewStore(config StoreConfig) (*Store, error) {
 // service performs its own embedding internally, so no embedding
 // client is required here.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("vectara.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "vectara", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("vectara: failed to batch documents: %w", err)
+		return fmt.Errorf("vectara: batch documents: %w", err)
 	}
 
 	path := fmt.Sprintf("/%s/corpora/%s/documents",
@@ -147,9 +139,6 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	for _, docs := range batchedDocs {
 		for _, doc := range docs {
 			id := doc.ID
-			if id == "" {
-				id = uuid.NewString()
-			}
 			metadataValues, err := doc.Metadata.Values()
 			if err != nil {
 				return fmt.Errorf("vectara: decode metadata for %s: %w", id, err)
@@ -173,15 +162,13 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // Search runs a Vectara semantic search.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("vectara: invalid search request: %w", err)
+		return nil, fmt.Errorf("vectara.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "vectara", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	searchOpts := map[string]any{
@@ -210,7 +197,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	var parsed struct {
 		SearchResults []struct {
 			Text       string         `json:"text"`
-			Score      float64        `json:"score"`
+			Score      *float64       `json:"score"`
 			DocumentID string         `json:"document_id"`
 			Metadata   map[string]any `json:"document_metadata"`
 		} `json:"search_results"`
@@ -220,17 +207,27 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 
 	docs = make([]vectorstore.Match, 0, len(parsed.SearchResults))
-	for _, hit := range parsed.SearchResults {
-		if hit.Score < req.MinScore {
+	for i, hit := range parsed.SearchResults {
+		if hit.Score == nil {
+			return nil, errors.New("vectara: search result is missing score")
+		}
+		score := scores.Bounded(*hit.Score)
+		if score < req.MinScore {
 			continue
+		}
+		if hit.DocumentID == "" {
+			return nil, fmt.Errorf("vectara: search result %d is missing document_id", i)
+		}
+		if hit.Text == "" {
+			return nil, fmt.Errorf("vectara: search result %d is missing text", i)
 		}
 		metadata, err := metadata.FromValues(hit.Metadata)
 		if err != nil {
-			return nil, fmt.Errorf("vectara: encode metadata: %w", err)
+			return nil, fmt.Errorf("vectara: convert metadata: %w", err)
 		}
 		docs = append(docs, vectorstore.Match{
 			Document: &document.Document{ID: hit.DocumentID, Text: hit.Text, Metadata: metadata},
-			Score:    hit.Score,
+			Score:    score,
 		})
 	}
 	return docs, nil
@@ -244,11 +241,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("vectara.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "vectara")
-	defer func() { tracing.Finish(span, err) }()
 
 	filterFragment, err := s.buildFilter(expr)
 	if err != nil {

@@ -1,4 +1,4 @@
-package pgvector
+package pgfilter
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
 )
 
-// Visitor transforms AST filter expressions into a parameterized
+// Compiler transforms AST filter expressions into a parameterized
 // PostgreSQL WHERE-clause fragment plus the matching argument list.
 //
 // Output shape (using the default metadata column "metadata"):
@@ -32,102 +32,102 @@ import (
 //
 // Numeric / boolean values force a type cast on the JSON extraction so
 // the comparison happens in the proper type, not lexicographic on text.
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*Compiler)(nil)
 
-type Visitor struct {
+type Compiler struct {
 	err         error
 	sql         strings.Builder
 	args        []any
 	metadataCol string // SQL identifier — already validated by the caller
 }
 
-func NewVisitor(metadataCol string) *Visitor {
+func NewCompiler(metadataCol string) *Compiler {
 	if metadataCol == "" {
 		metadataCol = "metadata"
 	}
-	return &Visitor{metadataCol: metadataCol}
+	return &Compiler{metadataCol: metadataCol}
 }
 
-func (v *Visitor) Result() (string, []any) {
-	if v.err != nil {
+func (c *Compiler) Result() (string, []any) {
+	if c.err != nil {
 		return "", nil
 	}
-	return v.sql.String(), v.args
+	return c.sql.String(), c.args
 }
 
-func (v *Visitor) Visit(expr filter.Predicate) error {
-	v.err = nil
-	v.sql.Reset()
-	v.args = nil
-	v.err = v.visit(expr)
-	return v.err
+func (c *Compiler) Visit(expr filter.Predicate) error {
+	c.err = nil
+	c.sql.Reset()
+	c.args = nil
+	c.err = c.visit(expr)
+	return c.err
 }
 
-func (v *Visitor) visit(expr filter.Expr) error {
+func (c *Compiler) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("pgvector: cannot process nil expression")
 	}
-	if v.err != nil {
-		return v.err
+	if c.err != nil {
+		return c.err
 	}
 
 	switch node := expr.(type) {
 	case *filter.BinaryExpr:
 		if node.Op.IsNullOperator() {
-			return v.visitNullTestExpr(node)
+			return c.visitNullTestExpr(node)
 		}
 		return filtercompile.DispatchBinary(node,
-			v.visitLogicalExpr,
-			v.visitComparisonExpr,
-			v.visitInExpr,
-			v.visitLikeExpr,
+			c.visitLogicalExpr,
+			c.visitComparisonExpr,
+			c.visitInExpr,
+			c.visitLikeExpr,
 		)
 	case *filter.UnaryExpr:
-		return filtercompile.DispatchUnary(node, v.visitNotExpr)
+		return filtercompile.DispatchUnary(node, c.visitNotExpr)
 	default:
 		return fmt.Errorf("pgvector: unsupported root expression type %T", node)
 	}
 }
 
-func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
-	v.sql.WriteString("(NOT ")
-	if err := v.visit(expr.Right); err != nil {
+func (c *Compiler) visitNotExpr(expr *filter.UnaryExpr) error {
+	c.sql.WriteString("(NOT ")
+	if err := c.visit(expr.Right); err != nil {
 		return err
 	}
-	v.sql.WriteString(")")
+	c.sql.WriteString(")")
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
+func (c *Compiler) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op, err := filtercompile.LogicalOpString(expr.Op)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w", err)
 	}
 
-	v.sql.WriteString("(")
-	if err := v.visit(expr.Left); err != nil {
+	c.sql.WriteString("(")
+	if err := c.visit(expr.Left); err != nil {
 		return err
 	}
-	v.sql.WriteString(" ")
-	v.sql.WriteString(op)
-	v.sql.WriteString(" ")
-	if err := v.visit(expr.Right); err != nil {
+	c.sql.WriteString(" ")
+	c.sql.WriteString(op)
+	c.sql.WriteString(" ")
+	if err := c.visit(expr.Right); err != nil {
 		return err
 	}
-	v.sql.WriteString(")")
+	c.sql.WriteString(")")
 	return nil
 }
 
 // visitComparisonExpr handles ==, !=, <, <=, >, >=. The JSON extraction
 // expression on the left side is type-cast based on the value type:
 // numbers → ::numeric, bools → ::boolean, strings → no cast.
-func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
+func (c *Compiler) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	value, err := filtercompile.ExtractValue(expr.Right)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
 
-	jsonPath, err := buildJSONPath(expr.Left, v.metadataCol, comparisonCastFor(value, expr.Op))
+	jsonPath, err := buildJSONPath(expr.Left, c.metadataCol, comparisonCastFor(value, expr.Op))
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
@@ -137,21 +137,21 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 		return err
 	}
 
-	v.args = append(v.args, value)
-	v.sql.WriteString("(")
-	v.sql.WriteString(jsonPath)
-	v.sql.WriteString(" ")
-	v.sql.WriteString(op)
-	v.sql.WriteString(" $")
-	v.sql.WriteString(strconv.Itoa(len(v.args)))
-	v.sql.WriteString(")")
+	c.args = append(c.args, value)
+	c.sql.WriteString("(")
+	c.sql.WriteString(jsonPath)
+	c.sql.WriteString(" ")
+	c.sql.WriteString(op)
+	c.sql.WriteString(" $")
+	c.sql.WriteString(strconv.Itoa(len(c.args)))
+	c.sql.WriteString(")")
 	return nil
 }
 
 // visitInExpr emits `key = ANY($N)` with a slice argument. Element type
 // follows the literal type — pgx maps Go slices to a Postgres array of
 // the matching type.
-func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
+func (c *Compiler) visitInExpr(expr *filter.BinaryExpr) error {
 	listLit, err := filtercompile.RequireListLiteral(expr)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w", err)
@@ -162,40 +162,40 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
 
-	jsonPath, err := buildJSONPath(expr.Left, v.metadataCol, comparisonCastFor(sample, filter.OpEqual))
+	jsonPath, err := buildJSONPath(expr.Left, c.metadataCol, comparisonCastFor(sample, filter.OpEqual))
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
 
-	v.args = append(v.args, values)
-	v.sql.WriteString("(")
-	v.sql.WriteString(jsonPath)
-	v.sql.WriteString(" = ANY($")
-	v.sql.WriteString(strconv.Itoa(len(v.args)))
-	v.sql.WriteString("))")
+	c.args = append(c.args, values)
+	c.sql.WriteString("(")
+	c.sql.WriteString(jsonPath)
+	c.sql.WriteString(" = ANY($")
+	c.sql.WriteString(strconv.Itoa(len(c.args)))
+	c.sql.WriteString("))")
 	return nil
 }
 
 // visitLikeExpr emits a SQL ILIKE so callers get the case-insensitive
 // pattern-match that most filter DSLs assume. Right side must be a
 // string literal.
-func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
+func (c *Compiler) visitLikeExpr(expr *filter.BinaryExpr) error {
 	pattern, err := filtercompile.RequireStringPatternOnRight(expr)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w", err)
 	}
 
-	jsonPath, err := buildJSONPath(expr.Left, v.metadataCol, castNone)
+	jsonPath, err := buildJSONPath(expr.Left, c.metadataCol, castNone)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
 
-	v.args = append(v.args, pattern)
-	v.sql.WriteString("(")
-	v.sql.WriteString(jsonPath)
-	v.sql.WriteString(" ILIKE $")
-	v.sql.WriteString(strconv.Itoa(len(v.args)))
-	v.sql.WriteString(")")
+	c.args = append(c.args, pattern)
+	c.sql.WriteString("(")
+	c.sql.WriteString(jsonPath)
+	c.sql.WriteString(" ILIKE $")
+	c.sql.WriteString(strconv.Itoa(len(c.args)))
+	c.sql.WriteString(")")
 	return nil
 }
 
@@ -204,14 +204,14 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 // is JSON null, matching the inmemory reference semantics. The negated
 // `IS NOT NULL` arrives as NOT(… IS NULL) and is rendered by
 // visitNotExpr, so no separate handling is needed here.
-func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
-	jsonPath, err := buildJSONPath(expr.Left, v.metadataCol, castNone)
+func (c *Compiler) visitNullTestExpr(expr *filter.BinaryExpr) error {
+	jsonPath, err := buildJSONPath(expr.Left, c.metadataCol, castNone)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
-	v.sql.WriteString("(")
-	v.sql.WriteString(jsonPath)
-	v.sql.WriteString(" IS NULL)")
+	c.sql.WriteString("(")
+	c.sql.WriteString(jsonPath)
+	c.sql.WriteString(" IS NULL)")
 	return nil
 }
 

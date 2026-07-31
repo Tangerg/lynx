@@ -197,9 +197,33 @@ func (v *Visitor) visitTextFieldExpr(expr *filter.BinaryExpr) error {
 	v.sql.WriteString("@")
 	v.sql.WriteString(field)
 	v.sql.WriteString(":(")
-	v.sql.WriteString(escapeTextValue(pattern))
+	v.sql.WriteString(redisWildcardPattern(pattern))
 	v.sql.WriteString(")")
 	return nil
+}
+
+// redisWildcardPattern emits Redis's w'...' wildcard-query form. SQL LIKE
+// wildcards are translated while literal Redis wildcard metacharacters are
+// escaped.
+func redisWildcardPattern(pattern string) string {
+	var out strings.Builder
+	out.Grow(len(pattern) + 3)
+	out.WriteString("w'")
+	for _, char := range pattern {
+		switch char {
+		case '%':
+			out.WriteByte('*')
+		case '_':
+			out.WriteByte('?')
+		case '*', '?', '\\', '\'':
+			out.WriteByte('\\')
+			out.WriteRune(char)
+		default:
+			out.WriteRune(char)
+		}
+	}
+	out.WriteByte('\'')
+	return out.String()
 }
 
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {

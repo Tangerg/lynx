@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/metadata"
@@ -19,9 +17,10 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const Provider = "TiDB"
@@ -32,7 +31,6 @@ const (
 	DefaultContentColumn   = "content"
 	DefaultMetadataColumn  = "metadata"
 	DefaultEmbeddingColumn = "embedding"
-	DefaultDimensions      = 1536
 	DefaultDistanceMetric  = DistanceCosine
 )
 
@@ -46,13 +44,9 @@ const (
 	DistanceNegativeIP DistanceMetric = "NEGATIVE_INNER_PRODUCT"
 )
 
-// safeIdentifier matches the standard SQL unquoted identifier shape.
-
 // StoreConfig contains configuration options for the TiDB Vector
 // store (TiDB 7.4+ with vector support enabled).
 type StoreConfig struct {
-	Context context.Context
-
 	// DB is the database handle. Required. Use a *sql.DB built from
 	// github.com/go-sql-driver/mysql pointed at a TiDB cluster.
 	DB *sql.DB
@@ -72,7 +66,8 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.DB == nil {
 		return errors.New("tidb: DB is required")
 	}
@@ -81,6 +76,14 @@ func (c *StoreConfig) Validate() error {
 	}
 	if c.DocumentBatcher == nil {
 		return errors.New("tidb: DocumentBatcher is required")
+	}
+	if c.Dimensions < 0 {
+		return errors.New("tidb: Dimensions must be >= 0")
+	}
+	switch c.DistanceMetric {
+	case DistanceCosine, DistanceL2, DistanceNegativeIP:
+	default:
+		return fmt.Errorf("tidb: unsupported DistanceMetric %q", c.DistanceMetric)
 	}
 	checks := map[string]string{
 		"TableName":       c.TableName,
@@ -95,11 +98,8 @@ func (c *StoreConfig) Validate() error {
 	return ident.Check("tidb", checks)
 }
 
-// ApplyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) applyDefaults() {
 	c.TableName = cmp.Or(c.TableName, DefaultTableName)
 	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
 	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
@@ -115,8 +115,8 @@ var (
 	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
-// Store is a TiDB-backed the vectorstore capability interfaces implementation using
-// TiDB's native VECTOR column type and VEC_*_DISTANCE functions.
+// Store implements vector-store capabilities with TiDB's native VECTOR column
+// type and VEC_*_DISTANCE functions.
 type Store struct {
 	db              *sql.DB
 	schemaName      string
@@ -132,14 +132,14 @@ type Store struct {
 	distanceMetric  DistanceMetric
 }
 
-func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("tidb: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("tidb: create embedding client: %w", err)
 	}
 	fullTable := config.TableName
 	if config.SchemaName != "" {
@@ -159,13 +159,16 @@ func NewStore(config StoreConfig) (*Store, error) {
 		dimensions:      config.Dimensions,
 		distanceMetric:  config.DistanceMetric,
 	}
-	if err = store.initialize(config.Context, config.InitializeSchema); err != nil {
-		return nil, fmt.Errorf("tidb: failed to initialize store: %w", err)
+	if err = store.initialize(ctx, config.InitializeSchema); err != nil {
+		return nil, fmt.Errorf("tidb: initialize store: %w", err)
 	}
 	return store, nil
 }
 
 func (s *Store) initialize(ctx context.Context, initSchema bool) error {
+	if !initSchema {
+		return nil
+	}
 	if s.dimensions <= 0 {
 		dimensions, err := s.embeddingClient.Dimensions(ctx)
 		if err != nil {
@@ -176,10 +179,6 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	if s.dimensions <= 0 {
 		return errors.New("tidb: Dimensions must be > 0")
 	}
-	if !initSchema {
-		return nil
-	}
-
 	stmt := fmt.Sprintf(
 		`CREATE TABLE IF NOT EXISTS %s (
 			%s VARCHAR(64) NOT NULL PRIMARY KEY,
@@ -223,17 +222,14 @@ func distanceFunc(metric DistanceMetric) string {
 
 // Add embeds documents and upserts them.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("tidb.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "tidb", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("tidb: failed to batch documents: %w", err)
+		return fmt.Errorf("tidb: batch documents: %w", err)
 	}
 
 	upsert := fmt.Sprintf(
@@ -248,7 +244,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("tidb: failed to generate embeddings: %w", err)
+			return fmt.Errorf("tidb: embed documents: %w", err)
 		}
 
 		stmt, err := s.db.PrepareContext(ctx, upsert)
@@ -259,9 +255,6 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 			defer stmt.Close()
 			for i, doc := range docs {
 				id := doc.ID
-				if id == "" {
-					id = uuid.NewString()
-				}
 				metaJSON, err := marshalMetadata(doc.Metadata)
 				if err != nil {
 					return fmt.Errorf("marshal metadata for %s: %w", id, err)
@@ -284,21 +277,19 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // function.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("tidb: invalid search request: %w", err)
+		return nil, fmt.Errorf("tidb.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "tidb", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("tidb: failed to embed query: %w", err)
+		return nil, fmt.Errorf("tidb: embed query: %w", err)
 	}
 	queryVec := math.ConvertSlice[float64, float32](vector)
 	vecText := docio.FormatVectorLiteral(queryVec)
@@ -345,10 +336,13 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		if score < req.MinScore {
 			continue
 		}
-		doc := &document.Document{ID: id}
-		if content.Valid {
-			doc.Text = content.String
+		if id == "" {
+			return nil, errors.New("tidb: search result is missing document ID")
 		}
+		if !content.Valid || content.String == "" {
+			return nil, fmt.Errorf("tidb: document %q is missing text", id)
+		}
+		doc := &document.Document{ID: id, Text: content.String}
 		if metaRaw.Valid {
 			if doc.Metadata, err = unmarshalMetadata([]byte(metaRaw.String)); err != nil {
 				return nil, fmt.Errorf("tidb: unmarshal metadata for %s: %w", id, err)
@@ -368,11 +362,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("tidb.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "tidb")
-	defer func() { tracing.Finish(span, err) }()
 
 	var (
 		predicate string
@@ -400,9 +391,6 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "tidb")
-	defer func() { tracing.Finish(span, err) }()
 
 	placeholders := strings.Repeat("?, ", len(ids)-1) + "?"
 	stmt := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)", s.fullTable, s.idColumn, placeholders)
@@ -436,31 +424,13 @@ func (s *Store) Close() error { return nil }
 func distanceToScore(metric DistanceMetric, distance float64) float64 {
 	switch metric {
 	case DistanceL2:
-		return 1.0 / (1.0 + distance)
+		return scores.Distance(distance)
 	case DistanceNegativeIP:
-		// TiDB returns -inner_product; recover ip and sigmoid to [0, 1].
-		ip := -distance
-		score := (ip + 1) / 2
-		switch {
-		case score < 0:
-			return 0
-		case score > 1:
-			return 1
-		default:
-			return score
-		}
+		return scores.NegativeInnerProductDistance(distance)
 	case DistanceCosine:
 		fallthrough
 	default:
-		score := 1.0 - distance/2.0
-		switch {
-		case score < 0:
-			return 0
-		case score > 1:
-			return 1
-		default:
-			return score
-		}
+		return scores.CosineDistance(distance)
 	}
 }
 

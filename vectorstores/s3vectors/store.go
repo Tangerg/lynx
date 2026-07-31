@@ -10,7 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3vectors"
 	s3vdoc "github.com/aws/aws-sdk-go-v2/service/s3vectors/document"
 	"github.com/aws/aws-sdk-go-v2/service/s3vectors/types"
-	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
@@ -20,7 +19,9 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const Provider = "S3Vectors"
@@ -32,11 +33,6 @@ const (
 // StoreConfig contains configuration options for the AWS S3 Vectors
 // vector store.
 type StoreConfig struct {
-	// Context is unused at construction (the SDK exposes a control
-	// plane for index creation but lynx leaves that to callers /
-	// IaC). Kept for forward compatibility.
-	Context context.Context
-
 	// Client is the s3vectors client. Required.
 	Client *s3vectors.Client
 
@@ -69,7 +65,8 @@ const (
 	DistanceEuclidean DistanceMetric = "euclidean"
 )
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.Client == nil {
 		return errors.New("s3vectors: Client is required")
 	}
@@ -85,14 +82,16 @@ func (c *StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("s3vectors: DocumentBatcher is required")
 	}
+	switch c.DistanceMetric {
+	case DistanceCosine, DistanceEuclidean:
+	default:
+		return fmt.Errorf("s3vectors: unsupported DistanceMetric %q", c.DistanceMetric)
+	}
 	return nil
 }
 
-// ApplyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) applyDefaults() {
 	c.DistanceMetric = cmp.Or(c.DistanceMetric, DistanceCosine)
 }
 
@@ -102,8 +101,7 @@ var (
 	_ vectorstore.FilterDeleter = (*Store)(nil)
 )
 
-// Store is an AWS S3 Vectors backed the vectorstore capability interfaces
-// implementation.
+// Store implements vector-store capabilities with Amazon S3 Vectors.
 type Store struct {
 	client           *s3vectors.Client
 	vectorBucketName string
@@ -114,14 +112,14 @@ type Store struct {
 }
 
 func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("s3vectors: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("s3vectors: create embedding client: %w", err)
 	}
 
 	return &Store{
@@ -138,31 +136,25 @@ func NewStore(config StoreConfig) (*Store, error) {
 // PutVectors batch at 500 vectors, so the document batcher should
 // produce shards smaller than that.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("s3vectors.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "s3vectors", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("s3vectors: failed to batch documents: %w", err)
+		return fmt.Errorf("s3vectors: batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("s3vectors: failed to generate embeddings: %w", err)
+			return fmt.Errorf("s3vectors: embed documents: %w", err)
 		}
 
 		records := make([]types.PutInputVector, 0, len(docs))
 		for i, doc := range docs {
 			id := doc.ID
-			if id == "" {
-				id = uuid.NewString()
-			}
 			metadataValues, err := doc.Metadata.Values()
 			if err != nil {
 				return fmt.Errorf("s3vectors: decode metadata for %s: %w", id, err)
@@ -197,21 +189,19 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // Search runs QueryVectors with the configured filter.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("s3vectors: invalid search request: %w", err)
+		return nil, fmt.Errorf("s3vectors.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "s3vectors", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("s3vectors: failed to embed query: %w", err)
+		return nil, fmt.Errorf("s3vectors: embed query: %w", err)
 	}
 	queryVec := math.ConvertSlice[float64, float32](vector)
 
@@ -260,11 +250,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("s3vectors.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "s3vectors")
-	defer func() { tracing.Finish(span, err) }()
 
 	filterDoc, err := s.buildFilter(expr)
 	if err != nil {
@@ -327,16 +314,16 @@ func (s *Store) buildFilter(filter filter.Predicate) (map[string]any, error) {
 }
 
 func (s *Store) toMatch(hit types.QueryOutputVector, minScore float64) (*vectorstore.Match, error) {
-	doc := &document.Document{}
-	var score float64
-	if hit.Key != nil {
-		doc.ID = *hit.Key
+	if hit.Key == nil || *hit.Key == "" {
+		return nil, errors.New("s3vectors: query result is missing key")
 	}
-	if hit.Distance != nil {
-		score = s.distanceToScore(float64(*hit.Distance))
-		if score < minScore {
-			return nil, nil
-		}
+	if hit.Distance == nil {
+		return nil, errors.New("s3vectors: query result is missing distance")
+	}
+	doc := &document.Document{ID: *hit.Key}
+	score := s.distanceToScore(float64(*hit.Distance))
+	if score < minScore {
+		return nil, nil
 	}
 
 	if hit.Metadata != nil {
@@ -352,9 +339,12 @@ func (s *Store) toMatch(hit types.QueryOutputVector, minScore float64) (*vectors
 			var err error
 			doc.Metadata, err = metadata.FromValues(meta)
 			if err != nil {
-				return nil, fmt.Errorf("s3vectors: encode metadata: %w", err)
+				return nil, fmt.Errorf("s3vectors: convert metadata: %w", err)
 			}
 		}
+	}
+	if doc.Text == "" {
+		return nil, errors.New("s3vectors: query result is missing document text metadata")
 	}
 	return &vectorstore.Match{Document: doc, Score: score}, nil
 }
@@ -362,19 +352,11 @@ func (s *Store) toMatch(hit types.QueryOutputVector, minScore float64) (*vectors
 func (s *Store) distanceToScore(distance float64) float64 {
 	switch s.distanceMetric {
 	case DistanceEuclidean:
-		return 1.0 / (1.0 + distance)
+		return scores.Distance(distance)
 	case DistanceCosine:
 		fallthrough
 	default:
-		score := 1.0 - distance/2.0
-		switch {
-		case score < 0:
-			return 0
-		case score > 1:
-			return 1
-		default:
-			return score
-		}
+		return scores.CosineDistance(distance)
 	}
 }
 

@@ -2,7 +2,9 @@ package ident
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 )
 
 // Pattern matches the standard SQL unquoted identifier shape — a
@@ -28,7 +30,8 @@ func CheckWithDash(pkg string, fields map[string]string) error {
 }
 
 func checkWith(pat *regexp.Regexp, pkg string, fields map[string]string) error {
-	for name, value := range fields {
+	for _, name := range slices.Sorted(maps.Keys(fields)) {
+		value := fields[name]
 		if !pat.MatchString(value) {
 			return fmt.Errorf("%s: %s=%q must match %s", pkg, name, value, pat)
 		}

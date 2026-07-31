@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/google/uuid"
 	"github.com/opensearch-project/opensearch-go/v4/opensearchapi"
 
 	"github.com/Tangerg/lynx/core/document"
@@ -20,7 +19,9 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const Provider = "OpenSearch"
@@ -30,7 +31,6 @@ const (
 	DefaultEmbeddingField = "embedding"
 	DefaultContentField   = "content"
 	DefaultMetadataField  = "metadata"
-	DefaultDimensions     = 1536
 	DefaultSpaceType      = SpaceTypeCosine
 	DefaultEngine         = EngineLucene
 	DefaultMethodName     = "hnsw"
@@ -81,10 +81,6 @@ const (
 // StoreConfig contains configuration options for the OpenSearch vector
 // store.
 type StoreConfig struct {
-	// Context is used for the initial schema bootstrap. Optional;
-	// defaults to context.Background().
-	Context context.Context
-
 	// Client is the opensearchapi typed client. Required.
 	Client *opensearchapi.Client
 
@@ -112,9 +108,8 @@ type StoreConfig struct {
 	// DocumentBatcher batches documents before bulk upsert. Required.
 	DocumentBatcher vectorstores.Batcher
 
-	// Dimensions registered with the knn_vector field. When zero the
-	// store asks the embedding model and falls back to
-	// [DefaultDimensions].
+	// Dimensions sets the knn_vector width for a newly created index. When zero,
+	// the store probes EmbeddingModel only if it must create the index.
 	Dimensions int
 
 	// SpaceType selects the similarity space. Optional: defaults to
@@ -137,7 +132,8 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.Client == nil {
 		return errors.New("opensearch: Client is required")
 	}
@@ -147,14 +143,36 @@ func (c *StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("opensearch: DocumentBatcher is required")
 	}
+	if c.Dimensions < 0 {
+		return errors.New("opensearch: Dimensions must be >= 0")
+	}
+	switch c.SpaceType {
+	case SpaceTypeCosine, SpaceTypeL2, SpaceTypeIP, SpaceTypeL1, SpaceTypeLInf:
+	default:
+		return fmt.Errorf("opensearch: unsupported SpaceType %q", c.SpaceType)
+	}
+	switch c.Engine {
+	case EngineLucene, EngineNMSLib, EngineFaiss:
+	default:
+		return fmt.Errorf("opensearch: unsupported Engine %q", c.Engine)
+	}
+	switch c.MethodName {
+	case "hnsw":
+	case "ivf":
+		if c.Engine != EngineFaiss {
+			return fmt.Errorf("opensearch: method %q requires the Faiss engine", c.MethodName)
+		}
+	default:
+		return fmt.Errorf("opensearch: unsupported MethodName %q", c.MethodName)
+	}
+	if c.Engine == EngineLucene && (c.SpaceType == SpaceTypeL1 || c.SpaceType == SpaceTypeLInf) {
+		return fmt.Errorf("opensearch: Lucene does not support SpaceType %q", c.SpaceType)
+	}
 	return nil
 }
 
-// ApplyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) applyDefaults() {
 	c.IndexName = cmp.Or(c.IndexName, DefaultIndexName)
 	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
 	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
@@ -171,7 +189,7 @@ var (
 	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
-// Store is an OpenSearch-backed the vectorstore capability interfaces implementation.
+// Store implements vector-store capabilities with OpenSearch.
 type Store struct {
 	client          *opensearchapi.Client
 	indexName       string
@@ -186,15 +204,15 @@ type Store struct {
 	methodName      string
 }
 
-func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("opensearch: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("opensearch: create embedding client: %w", err)
 	}
 
 	store := &Store{
@@ -211,14 +229,25 @@ func NewStore(config StoreConfig) (*Store, error) {
 		methodName:      config.MethodName,
 	}
 
-	if err = store.initialize(config.Context, config.InitializeSchema); err != nil {
-		return nil, fmt.Errorf("opensearch: failed to initialize store: %w", err)
+	if err = store.initialize(ctx, config.InitializeSchema); err != nil {
+		return nil, fmt.Errorf("opensearch: initialize store: %w", err)
 	}
 	return store, nil
 }
 
 // initialize resolves dimensions and creates the index when needed.
 func (s *Store) initialize(ctx context.Context, initSchema bool) error {
+	exists, err := s.indexExists(ctx)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	if !initSchema {
+		return errors.New("opensearch: index not found and InitializeSchema is false")
+	}
+
 	if s.dimensions <= 0 {
 		dimensions, err := s.embeddingClient.Dimensions(ctx)
 		if err != nil {
@@ -230,16 +259,6 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 		return errors.New("opensearch: Dimensions must be > 0")
 	}
 
-	exists, err := s.indexExists(ctx)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return nil
-	}
-	if !initSchema {
-		return errors.New("opensearch: index not found and InitializeSchema is false")
-	}
 	return s.createIndex(ctx)
 }
 
@@ -306,31 +325,25 @@ func (s *Store) createIndex(ctx context.Context) error {
 
 // Add embeds documents and bulk-indexes them.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("opensearch.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "opensearch", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("opensearch: failed to batch documents: %w", err)
+		return fmt.Errorf("opensearch: batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("opensearch: failed to generate embeddings: %w", err)
+			return fmt.Errorf("opensearch: embed documents: %w", err)
 		}
 
 		var body bytes.Buffer
 		for i, doc := range docs {
 			id := doc.ID
-			if id == "" {
-				id = uuid.NewString()
-			}
 
 			actionLine, encErr := json.Marshal(map[string]any{
 				"index": map[string]any{"_id": id},
@@ -391,21 +404,19 @@ func (s *Store) bulkErrorReason(resp *opensearchapi.BulkResp) error {
 // and returns the documents above MinScore.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("opensearch: invalid search request: %w", err)
+		return nil, fmt.Errorf("opensearch.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "opensearch", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("opensearch: failed to embed query: %w", err)
+		return nil, fmt.Errorf("opensearch: embed query: %w", err)
 	}
 	queryVec := math.ConvertSlice[float64, float32](vector)
 
@@ -446,7 +457,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 
 	docs = make([]vectorstore.Match, 0, len(resp.Hits.Hits))
 	for _, hit := range resp.Hits.Hits {
-		score := float64(hit.Score)
+		score := s.normalizeScore(float64(hit.Score))
 		if score < req.MinScore {
 			continue
 		}
@@ -459,6 +470,27 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	return docs, nil
 }
 
+func (s *Store) normalizeScore(raw float64) float64 {
+	if s.spaceType != SpaceTypeIP {
+		// OpenSearch already maps cosine and distance spaces to [0,1].
+		return scores.Bounded(raw)
+	}
+
+	// For every supported engine, inner-product scores above 1 encode a
+	// positive product as product+1. Scores at or below 1 encode a
+	// non-positive product as 1/(1-product). Recover the product before
+	// applying Lynx's unbounded inner-product normalization.
+	var product float64
+	if raw > 1 {
+		product = raw - 1
+	} else if raw > 0 {
+		product = 1 - 1/raw
+	} else {
+		return scores.Bounded(raw)
+	}
+	return scores.InnerProduct(product)
+}
+
 // Delete removes documents matching the filter expression via
 // delete_by_query.
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
@@ -466,11 +498,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("opensearch.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "opensearch")
-	defer func() { tracing.Finish(span, err) }()
 
 	var filterQuery string
 	filterQuery, err = s.buildFilterQuery(expr)
@@ -514,9 +543,6 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 		return nil
 	}
 
-	ctx, span := tracing.StartDelete(ctx, "opensearch")
-	defer func() { tracing.Finish(span, err) }()
-
 	var body bytes.Buffer
 	for _, id := range ids {
 		var actionLine []byte
@@ -557,9 +583,12 @@ func (s *Store) buildFilterQuery(filter filter.Predicate) (string, error) {
 }
 
 func (s *Store) toDocument(hit opensearchapi.SearchHit) (*document.Document, error) {
+	if hit.ID == "" {
+		return nil, errors.New("opensearch: search hit is missing _id")
+	}
 	doc := &document.Document{ID: hit.ID}
 	if len(hit.Source) == 0 {
-		return doc, nil
+		return nil, fmt.Errorf("opensearch: search hit %s is missing _source", hit.ID)
 	}
 
 	var source map[string]any
@@ -567,11 +596,11 @@ func (s *Store) toDocument(hit opensearchapi.SearchHit) (*document.Document, err
 		return nil, fmt.Errorf("opensearch: decode _source for %s: %w", hit.ID, err)
 	}
 
-	if raw, ok := source[s.contentField]; ok {
-		if str, ok := raw.(string); ok {
-			doc.Text = str
-		}
+	content, ok := source[s.contentField].(string)
+	if !ok || content == "" {
+		return nil, fmt.Errorf("opensearch: search hit %s is missing string field %q", hit.ID, s.contentField)
 	}
+	doc.Text = content
 
 	if s.metadataField != "" {
 		if rawMeta, ok := source[s.metadataField]; ok {
@@ -579,7 +608,7 @@ func (s *Store) toDocument(hit opensearchapi.SearchHit) (*document.Document, err
 				var err error
 				doc.Metadata, err = metadata.FromValues(m)
 				if err != nil {
-					return nil, fmt.Errorf("opensearch: encode metadata: %w", err)
+					return nil, fmt.Errorf("opensearch: convert metadata: %w", err)
 				}
 			}
 		}
@@ -596,7 +625,7 @@ func (s *Store) toDocument(hit opensearchapi.SearchHit) (*document.Document, err
 			var err error
 			doc.Metadata, err = metadata.FromValues(meta)
 			if err != nil {
-				return nil, fmt.Errorf("opensearch: encode metadata: %w", err)
+				return nil, fmt.Errorf("opensearch: convert metadata: %w", err)
 			}
 		}
 	}

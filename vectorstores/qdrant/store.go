@@ -3,6 +3,8 @@ package qdrant
 import (
 	"context"
 	"fmt"
+	stdmath "math"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/qdrant/go-client/qdrant"
@@ -15,11 +17,25 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const (
 	Provider = "Qdrant"
+)
+
+// DistanceMetric identifies the metric configured on the Qdrant collection.
+// It is required because Qdrant score direction and threshold semantics depend
+// on the collection metric.
+type DistanceMetric string
+
+const (
+	DistanceCosine    DistanceMetric = "cosine"
+	DistanceDot       DistanceMetric = "dot"
+	DistanceEuclid    DistanceMetric = "euclid"
+	DistanceManhattan DistanceMetric = "manhattan"
 )
 
 const (
@@ -29,10 +45,6 @@ const (
 
 // StoreConfig contains configuration options for Qdrant vector store.
 type StoreConfig struct {
-	// Context is the context for all operations.
-	// Optional: defaults to context.Background() if nil.
-	Context context.Context
-
 	// Client is the Qdrant client instance for communicating with Qdrant server.
 	// Required: must be provided, otherwise initialization will fail.
 	Client *qdrant.Client
@@ -40,6 +52,11 @@ type StoreConfig struct {
 	// CollectionName is the name of the collection to use for storing vectors.
 	// Required: must be a non-empty string.
 	CollectionName string
+
+	// DistanceMetric must match the collection's unnamed dense-vector metric.
+	// When InitializeSchema is true and the collection does not exist, this
+	// metric is used to create it.
+	DistanceMetric DistanceMetric
 
 	// InitializeSchema indicates whether to automatically create the collection
 	// if it does not exist. When set to true, the collection will be created
@@ -56,20 +73,17 @@ type StoreConfig struct {
 	// This helps optimize bulk operations and embedding generation.
 	// Required: must be provided to handle document batching logic.
 	DocumentBatcher vectorstores.Batcher
-
-	// StoreDocumentContent determines whether to store the original document
-	// content in the payload. When true, the full text will be saved with a
-	// special key, allowing retrieval of original content without external storage.
-	// Optional: defaults to false to save storage space.
-	StoreDocumentContent bool
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
 	if c.Client == nil {
 		return ErrMissingClient
 	}
 	if c.CollectionName == "" {
 		return ErrMissingCollectionName
+	}
+	if _, err := c.DistanceMetric.qdrant(); err != nil {
+		return err
 	}
 	if c.EmbeddingModel == nil {
 		return ErrMissingEmbeddingModel
@@ -80,14 +94,6 @@ func (c *StoreConfig) Validate() error {
 	return nil
 }
 
-// ApplyDefaults fills zero fields. Context defaults to
-// [context.Background].
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
-}
-
 var (
 	_ vectorstore.Indexer       = (*Store)(nil)
 	_ vectorstore.Searcher      = (*Store)(nil)
@@ -96,36 +102,35 @@ var (
 )
 
 type Store struct {
-	client               *qdrant.Client
-	embeddingClient      *embeddingclient.Client
-	documentBatcher      vectorstores.Batcher
-	collectionName       string
-	initializeSchema     bool
-	storeDocumentContent bool
+	client           *qdrant.Client
+	embeddingClient  *embeddingclient.Client
+	documentBatcher  vectorstores.Batcher
+	collectionName   string
+	distanceMetric   DistanceMetric
+	initializeSchema bool
 }
 
-func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("qdrant: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("qdrant: create embedding client: %w", err)
 	}
 
 	store := &Store{
-		client:               config.Client,
-		embeddingClient:      embeddingClient,
-		documentBatcher:      config.DocumentBatcher,
-		collectionName:       config.CollectionName,
-		initializeSchema:     config.InitializeSchema,
-		storeDocumentContent: config.StoreDocumentContent,
+		client:           config.Client,
+		embeddingClient:  embeddingClient,
+		documentBatcher:  config.DocumentBatcher,
+		collectionName:   config.CollectionName,
+		distanceMetric:   config.DistanceMetric,
+		initializeSchema: config.InitializeSchema,
 	}
 
-	if err = store.initialize(config.Context); err != nil {
-		return nil, fmt.Errorf("qdrant: failed to initialize vector store: %w", err)
+	if err = store.initialize(ctx); err != nil {
+		return nil, fmt.Errorf("qdrant: initialize vector store: %w", err)
 	}
 
 	return store, nil
@@ -138,11 +143,7 @@ func (s *Store) initialize(ctx context.Context) error {
 
 	exists, err := s.client.CollectionExists(ctx, s.collectionName)
 	if err != nil {
-		return fmt.Errorf("qdrant: failed to check collection existence: %w", err)
-	}
-
-	if exists {
-		return nil
+		return fmt.Errorf("qdrant: check collection existence: %w", err)
 	}
 
 	dimensions, err := s.embeddingClient.Dimensions(ctx)
@@ -150,17 +151,56 @@ func (s *Store) initialize(ctx context.Context) error {
 		return fmt.Errorf("qdrant: resolve embedding dimensions: %w", err)
 	}
 
+	distance, err := s.distanceMetric.qdrant()
+	if err != nil {
+		return err
+	}
+	if exists {
+		info, err := s.client.GetCollectionInfo(ctx, s.collectionName)
+		if err != nil {
+			return fmt.Errorf("qdrant: inspect existing collection %s: %w", s.collectionName, err)
+		}
+		if err = validateCollectionSchema(info, dimensions, distance); err != nil {
+			return fmt.Errorf("qdrant: collection %s: %w", s.collectionName, err)
+		}
+		return nil
+	}
+
 	err = s.client.CreateCollection(ctx, &qdrant.CreateCollection{
 		CollectionName: s.collectionName,
 		VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
 			Size:     uint64(dimensions),
-			Distance: qdrant.Distance_Cosine,
+			Distance: distance,
 		}),
 	})
 	if err != nil {
-		return fmt.Errorf("qdrant: failed to create collection %s: %w", s.collectionName, err)
+		return fmt.Errorf("qdrant: create collection %s: %w", s.collectionName, err)
 	}
 
+	return nil
+}
+
+func validateCollectionSchema(info *qdrant.CollectionInfo, dimensions int, distance qdrant.Distance) error {
+	if dimensions <= 0 {
+		return fmt.Errorf("%w: embedding dimensions must be positive, got %d", ErrIncompatibleCollection, dimensions)
+	}
+
+	vectors := info.GetConfig().GetParams().GetVectorsConfig()
+	params := vectors.GetParams()
+	if params == nil {
+		if vectors.GetParamsMap() != nil {
+			return fmt.Errorf("%w: named vectors are not supported", ErrIncompatibleCollection)
+		}
+		return fmt.Errorf("%w: unnamed dense-vector configuration is missing", ErrIncompatibleCollection)
+	}
+	if params.GetSize() != uint64(dimensions) {
+		return fmt.Errorf("%w: vector dimensions are %d, embedding model produces %d",
+			ErrIncompatibleCollection, params.GetSize(), dimensions)
+	}
+	if params.GetDistance() != distance {
+		return fmt.Errorf("%w: distance metric is %s, configured metric requires %s",
+			ErrIncompatibleCollection, params.GetDistance(), distance)
+	}
 	return nil
 }
 
@@ -170,21 +210,21 @@ func (s *Store) buildUpsertPoints(ctx context.Context, docs []*document.Document
 		Wait:           new(true),
 	}
 
-	batchedDocs, err := s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err := batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return nil, fmt.Errorf("qdrant: failed to batch documents: %w", err)
+		return nil, fmt.Errorf("qdrant: batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return nil, fmt.Errorf("qdrant: failed to generate vectors: %w", err)
+			return nil, fmt.Errorf("qdrant: embed documents: %w", err)
 		}
 
 		for i, doc := range docs {
 			point, err := s.buildPointStruct(doc, vectors[i])
 			if err != nil {
-				return nil, fmt.Errorf("qdrant: failed to build point for document %s: %w", doc.ID, err)
+				return nil, fmt.Errorf("qdrant: build point for document %s: %w", doc.ID, err)
 			}
 
 			upsertPoints.Points = append(upsertPoints.Points, point)
@@ -195,10 +235,13 @@ func (s *Store) buildUpsertPoints(ctx context.Context, docs []*document.Document
 }
 
 func (s *Store) buildPointStruct(doc *document.Document, vector []float64) (*qdrant.PointStruct, error) {
-	id := uuid.NewString()
+	id, err := parsePointID(doc.ID)
+	if err != nil {
+		return nil, err
+	}
 
 	point := &qdrant.PointStruct{
-		Id:      qdrant.NewID(id),
+		Id:      id,
 		Vectors: qdrant.NewVectors(math.ConvertSlice[float64, float32](vector)...),
 	}
 
@@ -208,28 +251,28 @@ func (s *Store) buildPointStruct(doc *document.Document, vector []float64) (*qdr
 	}
 	payload, err := qdrant.TryValueMap(metadataValues)
 	if err != nil {
-		return nil, fmt.Errorf("qdrant: failed to convert metadata to payload: %w", err)
+		return nil, fmt.Errorf("qdrant: convert metadata to payload: %w", err)
 	}
 	point.Payload = payload
 
-	if s.storeDocumentContent {
-		contentValue, err := qdrant.NewValue(doc.Text)
-		if err != nil {
-			return nil, fmt.Errorf("qdrant: failed to create content value: %w", err)
-		}
-		point.Payload[payloadDocumentContentKey] = contentValue
+	contentValue, err := qdrant.NewValue(doc.Text)
+	if err != nil {
+		return nil, fmt.Errorf("qdrant: create content value: %w", err)
 	}
+	point.Payload[payloadDocumentContentKey] = contentValue
 
 	return point, nil
 }
 
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("qdrant.Store.Add: %w", err)
 	}
-
-	ctx, span := tracing.StartAdd(ctx, "qdrant", len(docs))
-	defer func() { tracing.Finish(span, err) }()
+	for _, doc := range docs {
+		if _, err := parsePointID(doc.ID); err != nil {
+			return fmt.Errorf("qdrant.Store.Add: %w", err)
+		}
+	}
 
 	var upsertPoints *qdrant.UpsertPoints
 	upsertPoints, err = s.buildUpsertPoints(ctx, docs)
@@ -239,7 +282,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 
 	_, err = s.client.Upsert(ctx, upsertPoints)
 	if err != nil {
-		return fmt.Errorf("qdrant: failed to upsert %d points to collection %s: %w",
+		return fmt.Errorf("qdrant: upsert %d points to collection %s: %w",
 			len(upsertPoints.Points), s.collectionName, err)
 	}
 
@@ -249,22 +292,25 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 func (s *Store) buildQueryPoints(ctx context.Context, req vectorstore.SearchRequest) (*qdrant.QueryPoints, error) {
 	queryPoints := &qdrant.QueryPoints{
 		CollectionName: s.collectionName,
-		ScoreThreshold: new(float32(req.MinScore)),
 		Limit:          new(uint64(req.TopK)),
 		WithPayload:    qdrant.NewWithPayload(true),
+	}
+	if threshold, ok := s.rawScoreThreshold(req.MinScore); ok {
+		threshold32 := float32(max(-stdmath.MaxFloat32, min(stdmath.MaxFloat32, threshold)))
+		queryPoints.ScoreThreshold = &threshold32
 	}
 
 	if req.Filter != nil {
 		filter, err := ToFilter(req.Filter)
 		if err != nil {
-			return nil, fmt.Errorf("qdrant: failed to convert filter: %w", err)
+			return nil, fmt.Errorf("qdrant: convert filter: %w", err)
 		}
 		queryPoints.Filter = filter
 	}
 
 	vector, err := s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("qdrant: failed to embed query text: %w", err)
+		return nil, fmt.Errorf("qdrant: embed query: %w", err)
 	}
 
 	queryPoints.Query = qdrant.NewQuery(math.ConvertSlice[float64, float32](vector)...)
@@ -330,7 +376,7 @@ func (s *Store) convertPayloadToMetadata(payload map[string]*qdrant.Value) map[s
 
 	metadata := make(map[string]any, len(payload))
 	for key, value := range payload {
-		if value == nil {
+		if key == payloadDocumentContentKey || value == nil {
 			continue
 		}
 		metadata[key] = s.convertQdrantValue(value)
@@ -342,29 +388,30 @@ func (s *Store) convertPayloadToMetadata(payload map[string]*qdrant.Value) map[s
 func (s *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]vectorstore.Match, error) {
 	docs := make([]vectorstore.Match, 0, len(scoredPoints))
 
-	for _, point := range scoredPoints {
-		doc := &document.Document{}
-
-		if pointID := point.GetId(); pointID != nil {
-			doc.ID = pointID.GetUuid()
+	for i, point := range scoredPoints {
+		if point == nil {
+			return nil, fmt.Errorf("qdrant: query result %d is nil", i)
 		}
-
+		id, err := formatPointID(point.GetId())
+		if err != nil {
+			return nil, fmt.Errorf("qdrant: query result %d: %w", i, err)
+		}
 		payload := point.GetPayload()
-		if payload != nil {
-			if contentValue, ok := payload[payloadDocumentContentKey]; ok {
-				doc.Text = contentValue.GetStringValue()
-			}
-
-			delete(payload, payloadDocumentContentKey)
-
-			var err error
-			doc.Metadata, err = metadata.FromValues(s.convertPayloadToMetadata(payload))
-			if err != nil {
-				return nil, fmt.Errorf("qdrant: encode metadata: %w", err)
-			}
+		contentValue, ok := payload[payloadDocumentContentKey]
+		if !ok || contentValue == nil || contentValue.GetStringValue() == "" {
+			return nil, fmt.Errorf("qdrant: query result %d is missing document text", i)
 		}
 
-		docs = append(docs, vectorstore.Match{Document: doc, Score: float64(point.GetScore())})
+		doc := &document.Document{ID: id, Text: contentValue.GetStringValue()}
+		doc.Metadata, err = metadata.FromValues(s.convertPayloadToMetadata(payload))
+		if err != nil {
+			return nil, fmt.Errorf("qdrant: decode metadata for query result %d: %w", i, err)
+		}
+
+		docs = append(docs, vectorstore.Match{
+			Document: doc,
+			Score:    s.normalizeScore(float64(point.GetScore())),
+		})
 	}
 
 	return docs, nil
@@ -372,15 +419,13 @@ func (s *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]
 
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("qdrant: invalid search request: %w", err)
+		return nil, fmt.Errorf("qdrant.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "qdrant", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var queryPoints *qdrant.QueryPoints
@@ -392,12 +437,12 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	var scoredPoints []*qdrant.ScoredPoint
 	scoredPoints, err = s.client.Query(ctx, queryPoints)
 	if err != nil {
-		return nil, fmt.Errorf("qdrant: failed to query collection %s: %w", s.collectionName, err)
+		return nil, fmt.Errorf("qdrant: query collection %s: %w", s.collectionName, err)
 	}
 
 	docs, err = s.buildDocumentsFromPoints(scoredPoints)
 	if err != nil {
-		return nil, fmt.Errorf("qdrant: failed to build documents from query results: %w", err)
+		return nil, fmt.Errorf("qdrant: build documents from query results: %w", err)
 	}
 
 	return docs, nil
@@ -408,16 +453,13 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("qdrant.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "qdrant")
-	defer func() { tracing.Finish(span, err) }()
 
 	var filter *qdrant.Filter
 	filter, err = ToFilter(expr)
 	if err != nil {
-		return fmt.Errorf("qdrant: failed to convert filter: %w", err)
+		return fmt.Errorf("qdrant: convert filter: %w", err)
 	}
 
 	_, err = s.client.Delete(ctx, &qdrant.DeletePoints{
@@ -425,29 +467,25 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		Points:         qdrant.NewPointsSelectorFilter(filter),
 	})
 	if err != nil {
-		return fmt.Errorf("qdrant: failed to delete points from collection %s: %w", s.collectionName, err)
+		return fmt.Errorf("qdrant: delete points from collection %s: %w", s.collectionName, err)
 	}
 
 	return nil
 }
 
-// DeleteIDs removes points by their Qdrant point ids. Each id is the
-// UUID surfaced as document.ID by Search (buildPointStruct assigns a
-// fresh UUID via qdrant.NewID, and buildDocumentsFromPoints reads it back
-// out), so the same qdrant.NewID conversion maps an id back to a *PointId.
-// An empty slice is a no-op; unknown ids are silently ignored (idempotent).
-// Implements [vectorstore.IDDeleter].
+// DeleteIDs removes points by their canonical uint64 or UUID identifiers. An
+// empty slice is a no-op; unknown ids are ignored (idempotent).
 func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
 
-	ctx, span := tracing.StartDelete(ctx, "qdrant")
-	defer func() { tracing.Finish(span, err) }()
-
 	pointIDs := make([]*qdrant.PointId, len(ids))
 	for i, id := range ids {
-		pointIDs[i] = qdrant.NewID(id)
+		pointIDs[i], err = parsePointID(id)
+		if err != nil {
+			return fmt.Errorf("qdrant.Store.DeleteIDs: ids[%d]: %w", i, err)
+		}
 	}
 
 	_, err = s.client.Delete(ctx, &qdrant.DeletePoints{
@@ -455,7 +493,7 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 		Points:         qdrant.NewPointsSelector(pointIDs...),
 	})
 	if err != nil {
-		return fmt.Errorf("qdrant: failed to delete points by ids from collection %s: %w", s.collectionName, err)
+		return fmt.Errorf("qdrant: delete points by ids from collection %s: %w", s.collectionName, err)
 	}
 
 	return nil
@@ -463,4 +501,82 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 
 func (s *Store) Close() error {
 	return s.client.Close()
+}
+
+func (m DistanceMetric) qdrant() (qdrant.Distance, error) {
+	switch m {
+	case DistanceCosine:
+		return qdrant.Distance_Cosine, nil
+	case DistanceDot:
+		return qdrant.Distance_Dot, nil
+	case DistanceEuclid:
+		return qdrant.Distance_Euclid, nil
+	case DistanceManhattan:
+		return qdrant.Distance_Manhattan, nil
+	default:
+		return qdrant.Distance_UnknownDistance, fmt.Errorf("%w, got %q", ErrInvalidDistanceMetric, m)
+	}
+}
+
+func (s *Store) normalizeScore(raw float64) float64 {
+	switch s.distanceMetric {
+	case DistanceDot:
+		return scores.InnerProduct(raw)
+	case DistanceEuclid, DistanceManhattan:
+		return scores.Distance(raw)
+	case DistanceCosine:
+		fallthrough
+	default:
+		return scores.CosineSimilarity(raw)
+	}
+}
+
+// rawScoreThreshold converts Lynx's normalized minimum score back into the
+// collection metric. Qdrant interprets thresholds according to metric
+// direction, so Euclidean and Manhattan correctly use a maximum distance.
+func (s *Store) rawScoreThreshold(minScore float64) (float64, bool) {
+	if minScore <= vectorstore.MinSimilarityScore {
+		return 0, false
+	}
+
+	switch s.distanceMetric {
+	case DistanceDot:
+		if minScore >= vectorstore.MaxSimilarityScore {
+			return stdmath.MaxFloat32, true
+		}
+		return stdmath.Log(minScore / (1 - minScore)), true
+	case DistanceEuclid, DistanceManhattan:
+		return 1/minScore - 1, true
+	case DistanceCosine:
+		fallthrough
+	default:
+		return 2*minScore - 1, true
+	}
+}
+
+func parsePointID(id string) (*qdrant.PointId, error) {
+	if number, err := strconv.ParseUint(id, 10, 64); err == nil && strconv.FormatUint(number, 10) == id {
+		return qdrant.NewIDNum(number), nil
+	}
+	if err := uuid.Validate(id); err != nil {
+		return nil, fmt.Errorf("%w %q: must be a canonical uint64 or UUID", ErrInvalidPointID, id)
+	}
+	return qdrant.NewID(id), nil
+}
+
+func formatPointID(id *qdrant.PointId) (string, error) {
+	if id == nil {
+		return "", fmt.Errorf("%w: query result has no point ID", ErrInvalidPointID)
+	}
+	switch value := id.GetPointIdOptions().(type) {
+	case *qdrant.PointId_Num:
+		return strconv.FormatUint(value.Num, 10), nil
+	case *qdrant.PointId_Uuid:
+		if err := uuid.Validate(value.Uuid); err != nil {
+			return "", fmt.Errorf("%w %q: query result UUID is invalid", ErrInvalidPointID, value.Uuid)
+		}
+		return value.Uuid, nil
+	default:
+		return "", fmt.Errorf("%w: query result uses an unsupported point ID", ErrInvalidPointID)
+	}
 }

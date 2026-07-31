@@ -14,19 +14,19 @@ import (
 func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
-		return fmt.Errorf("failed to extract field key from left operand of '%s' at %s: %w",
+		return fmt.Errorf("extract field key from left operand of '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	fieldValue, err := v.extractFieldValue(expr.Right)
 	if err != nil {
-		return fmt.Errorf("failed to extract value from right operand of '%s' at %s: %w",
+		return fmt.Errorf("extract value from right operand of '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	matchCond, err := v.buildMatchCondition(fieldKey, fieldValue)
 	if err != nil {
-		return fmt.Errorf("failed to create match condition for '%s' at %s: %w",
+		return fmt.Errorf("create match condition for '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
@@ -92,7 +92,7 @@ func (v *Visitor) buildMatchCondition(fieldKey string, fieldValue any) (*qdrant.
 func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
-		return fmt.Errorf("failed to extract field key from left operand of '%s' at %s: %w",
+		return fmt.Errorf("extract field key from left operand of '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
@@ -152,7 +152,7 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
-		return fmt.Errorf("failed to extract field key from left operand of 'IN' at %s: %w",
+		return fmt.Errorf("extract field key from left operand of 'IN' at %s: %w",
 			expr.Start().String(), err)
 	}
 
@@ -214,53 +214,36 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitLikeExpr handles the LIKE operator for pattern matching.
-// The right operand must be a string literal containing the search pattern.
-//
-// Uses Qdrant's NewMatchText function, which performs full-text search.
-// The exact matching behavior depends on the full-text index configuration in Qdrant,
-// typically supporting:
-//   - Substring matching
-//   - Tokenization
-//   - Case insensitivity
-//   - Other text search features configured in the collection
-//
-// Note: Ensure that the field has a full-text index configured in Qdrant
-// for LIKE operations to work effectively.
-//
-// Example:
-//   - "description LIKE 'python programming'" produces: Must[MatchText(description, "python programming")]
+// visitLikeExpr compiles the exact subset of SQL LIKE that Qdrant keyword
+// matching can represent. Qdrant full-text matching is tokenizer-dependent and
+// is not equivalent to SQL LIKE, so patterns containing SQL wildcards are
+// rejected instead of being silently widened or narrowed.
 func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
-		return fmt.Errorf("failed to extract field key from left operand of 'LIKE' at %s: %w",
+		return fmt.Errorf("qdrant: extract field key from left operand of LIKE at %s: %w",
 			expr.Start().String(), err)
 	}
 
 	lit, ok := expr.Right.(*filter.Literal)
 	if !ok {
-		return fmt.Errorf("'LIKE' operator requires a string literal on the right side at %s, got %T",
+		return fmt.Errorf("qdrant: LIKE requires a string literal on the right side at %s, got %T",
 			expr.Start().String(), expr.Right)
 	}
 
 	if !lit.IsString() {
-		return fmt.Errorf("'LIKE' operator requires a string pattern at %s, got %s",
+		return fmt.Errorf("qdrant: LIKE requires a string pattern at %s, got %s",
 			expr.Start().String(), lit.Kind)
 	}
-
-	if err = v.visitLiteral(lit); err != nil {
-		return err
+	pattern, err := lit.AsString()
+	if err != nil {
+		return fmt.Errorf("qdrant: read LIKE pattern at %s: %w", expr.Start().String(), err)
+	}
+	if strings.ContainsAny(pattern, "%_") {
+		return fmt.Errorf("qdrant: LIKE pattern %q cannot be represented exactly by Qdrant filters", pattern)
 	}
 
-	pattern, ok := v.currentFieldValue.(string)
-	if !ok {
-		return fmt.Errorf("failed to extract string pattern for 'LIKE' operator at %s",
-			expr.Start().String())
-	}
-
-	// LIKE operation uses MatchText (full-text search)
-	// Behavior depends on full-text index configuration in Qdrant
-	v.filter.Must = append(v.filter.Must, qdrant.NewMatchText(fieldKey, pattern))
+	v.filter.Must = append(v.filter.Must, qdrant.NewMatchKeyword(fieldKey, pattern))
 	return nil
 }
 
@@ -327,7 +310,7 @@ func (v *Visitor) extractFieldKey(expr filter.Expr) (string, error) {
 	}
 
 	if extractedKey == "" {
-		return "", fmt.Errorf("failed to extract field key from %T expression", expr)
+		return "", fmt.Errorf("extract field key from %T expression", expr)
 	}
 
 	return extractedKey, nil
@@ -362,7 +345,7 @@ func (v *Visitor) extractFieldValue(expr filter.Expr) (any, error) {
 	}
 
 	if extractedValue == nil {
-		return nil, fmt.Errorf("failed to extract value from %T expression", expr)
+		return nil, fmt.Errorf("extract value from %T expression", expr)
 	}
 
 	return extractedValue, nil

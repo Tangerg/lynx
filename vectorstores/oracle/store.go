@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/metadata"
@@ -20,9 +18,10 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const Provider = "Oracle"
@@ -33,7 +32,6 @@ const (
 	DefaultContentColumn   = "CONTENT"
 	DefaultMetadataColumn  = "METADATA"
 	DefaultEmbeddingColumn = "EMBEDDING"
-	DefaultDimensions      = 1536
 	DefaultDistanceMetric  = DistanceCosine
 )
 
@@ -55,17 +53,9 @@ const (
 	DistanceDot DistanceMetric = "DOT"
 )
 
-// safeIdentifier matches Oracle's unquoted-identifier shape. We
-// intentionally accept uppercase only since Oracle folds unquoted
-// identifiers to uppercase anyway.
-
 // StoreConfig contains configuration options for the Oracle 23ai
 // vector store.
 type StoreConfig struct {
-	// Context is used for the initial schema bootstrap. Optional;
-	// defaults to context.Background().
-	Context context.Context
-
 	// DB is the database handle. Required. Use a *sql.DB built from
 	// github.com/sijms/go-ora/v2 pointed at an Oracle 23ai
 	// instance.
@@ -93,9 +83,8 @@ type StoreConfig struct {
 	// DocumentBatcher batches documents before insertion. Required.
 	DocumentBatcher vectorstores.Batcher
 
-	// Dimensions sets the VECTOR column width. When zero, falls
-	// back to the embedding model's reported value and then
-	// [DefaultDimensions].
+	// Dimensions sets the VECTOR column width. When zero and
+	// InitializeSchema is true, the store probes EmbeddingModel.
 	Dimensions int
 
 	// DistanceMetric selects the distance function. Optional:
@@ -107,7 +96,8 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.DB == nil {
 		return errors.New("oracle: DB is required")
 	}
@@ -116,6 +106,14 @@ func (c *StoreConfig) Validate() error {
 	}
 	if c.DocumentBatcher == nil {
 		return errors.New("oracle: DocumentBatcher is required")
+	}
+	if c.Dimensions < 0 {
+		return errors.New("oracle: Dimensions must be >= 0")
+	}
+	switch c.DistanceMetric {
+	case DistanceCosine, DistanceEuclidean, DistanceDot:
+	default:
+		return fmt.Errorf("oracle: unsupported DistanceMetric %q", c.DistanceMetric)
 	}
 	checks := map[string]string{
 		"TableName":       c.TableName,
@@ -130,11 +128,8 @@ func (c *StoreConfig) Validate() error {
 	return ident.Check("oracle", checks)
 }
 
-// ApplyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) applyDefaults() {
 	c.TableName = cmp.Or(c.TableName, DefaultTableName)
 	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
 	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
@@ -150,7 +145,7 @@ var (
 	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
-// Store is an Oracle 23ai-backed the vectorstore capability interfaces implementation.
+// Store implements vector-store capabilities with Oracle AI Vector Search.
 type Store struct {
 	db              *sql.DB
 	schemaName      string
@@ -166,15 +161,15 @@ type Store struct {
 	distanceMetric  DistanceMetric
 }
 
-func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("oracle: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("oracle: create embedding client: %w", err)
 	}
 
 	fullTable := config.TableName
@@ -197,14 +192,17 @@ func NewStore(config StoreConfig) (*Store, error) {
 		distanceMetric:  config.DistanceMetric,
 	}
 
-	if err = store.initialize(config.Context, config.InitializeSchema); err != nil {
-		return nil, fmt.Errorf("oracle: failed to initialize store: %w", err)
+	if err = store.initialize(ctx, config.InitializeSchema); err != nil {
+		return nil, fmt.Errorf("oracle: initialize store: %w", err)
 	}
 	return store, nil
 }
 
 // initialize resolves dimensionality and provisions the table.
 func (s *Store) initialize(ctx context.Context, initSchema bool) error {
+	if !initSchema {
+		return nil
+	}
 	if s.dimensions <= 0 {
 		dimensions, err := s.embeddingClient.Dimensions(ctx)
 		if err != nil {
@@ -214,10 +212,6 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	}
 	if s.dimensions <= 0 {
 		return errors.New("oracle: Dimensions must be > 0")
-	}
-
-	if !initSchema {
-		return nil
 	}
 
 	createSQL := fmt.Sprintf(
@@ -246,17 +240,14 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 
 // Add embeds documents and upserts them via MERGE.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("oracle.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "oracle", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("oracle: failed to batch documents: %w", err)
+		return fmt.Errorf("oracle: batch documents: %w", err)
 	}
 
 	mergeSQL := fmt.Sprintf(
@@ -273,7 +264,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("oracle: failed to generate embeddings: %w", err)
+			return fmt.Errorf("oracle: embed documents: %w", err)
 		}
 
 		stmt, err := s.db.PrepareContext(ctx, mergeSQL)
@@ -285,9 +276,6 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 			defer stmt.Close()
 			for i, doc := range docs {
 				id := doc.ID
-				if id == "" {
-					id = uuid.NewString()
-				}
 				metaJSON, err := marshalMetadata(doc.Metadata)
 				if err != nil {
 					return fmt.Errorf("marshal metadata for %s: %w", id, err)
@@ -309,21 +297,19 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // Search runs VECTOR_DISTANCE against the embedding column.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("oracle: invalid search request: %w", err)
+		return nil, fmt.Errorf("oracle.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "oracle", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("oracle: failed to embed query: %w", err)
+		return nil, fmt.Errorf("oracle: embed query: %w", err)
 	}
 	queryVec := math.ConvertSlice[float64, float32](vector)
 	vecText := docio.FormatVectorLiteral(queryVec)
@@ -376,11 +362,14 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		if score < req.MinScore {
 			continue
 		}
-
-		doc := &document.Document{ID: id}
-		if content.Valid {
-			doc.Text = content.String
+		if id == "" {
+			return nil, errors.New("oracle: search result is missing document ID")
 		}
+		if !content.Valid || content.String == "" {
+			return nil, fmt.Errorf("oracle: document %q is missing text", id)
+		}
+
+		doc := &document.Document{ID: id, Text: content.String}
 		if metaRaw.Valid {
 			if doc.Metadata, err = unmarshalMetadata([]byte(metaRaw.String)); err != nil {
 				return nil, fmt.Errorf("oracle: unmarshal metadata for %s: %w", id, err)
@@ -400,11 +389,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("oracle.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "oracle")
-	defer func() { tracing.Finish(span, err) }()
 
 	var (
 		predicate string
@@ -433,9 +419,6 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "oracle")
-	defer func() { tracing.Finish(span, err) }()
 
 	placeholders := make([]string, len(ids))
 	args := make([]any, len(ids))
@@ -504,32 +487,15 @@ func (s *Store) Close() error { return nil }
 func distanceToScore(metric DistanceMetric, distance float64) float64 {
 	switch metric {
 	case DistanceEuclidean:
-		return 1.0 / (1.0 + distance)
+		return scores.Distance(distance)
 	case DistanceDot:
-		// Oracle's DOT returns the inner product; map to [0, 1] for
-		// unit-norm vectors via (1 + ip) / 2 then clamp.
-		score := (1.0 + (-distance)) / 2.0
-		switch {
-		case score < 0:
-			return 0
-		case score > 1:
-			return 1
-		default:
-			return score
-		}
+		// Oracle defines VECTOR_DISTANCE(..., DOT) as the negative inner
+		// product, not as a bounded similarity.
+		return scores.NegativeInnerProductDistance(distance)
 	case DistanceCosine:
 		fallthrough
 	default:
-		// Cosine distance ∈ [0, 2]; collapse to [0, 1].
-		score := 1.0 - distance/2.0
-		switch {
-		case score < 0:
-			return 0
-		case score > 1:
-			return 1
-		default:
-			return score
-		}
+		return scores.CosineDistance(distance)
 	}
 }
 

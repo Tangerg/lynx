@@ -175,26 +175,36 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	if !ok {
 		return fmt.Errorf("azureaisearch: LIKE requires a string pattern, got %T", value)
 	}
-	var b strings.Builder
-	b.Grow(len(pattern))
-	for _, r := range pattern {
-		switch r {
-		case '%':
-			b.WriteByte('*')
-		case '_':
-			b.WriteByte('?')
-		case '\'':
-			b.WriteString("''")
-		default:
-			b.WriteRune(r)
-		}
-	}
 	v.sql.WriteString("search.ismatch('")
-	v.sql.WriteString(b.String())
+	v.sql.WriteString(azureWildcardPattern(pattern))
 	v.sql.WriteString("', '")
 	v.sql.WriteString(field)
 	v.sql.WriteString("')")
 	return nil
+}
+
+// azureWildcardPattern translates SQL LIKE wildcards and escapes literal
+// Lucene query-string metacharacters before embedding the result in an OData
+// string literal.
+func azureWildcardPattern(pattern string) string {
+	var out strings.Builder
+	out.Grow(len(pattern))
+	for _, char := range pattern {
+		switch char {
+		case '%':
+			out.WriteByte('*')
+		case '_':
+			out.WriteByte('?')
+		case '\'':
+			out.WriteString("''")
+		case '+', '-', '!', '(', ')', '{', '}', '[', ']', '^', '"', '~', '*', '?', ':', '\\', '/':
+			out.WriteByte('\\')
+			out.WriteRune(char)
+		default:
+			out.WriteRune(char)
+		}
+	}
+	return out.String()
 }
 
 // fieldName extracts the (flat) field identifier — Azure AI Search

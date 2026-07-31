@@ -171,9 +171,9 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitLikeExpr maps LIKE onto Cosmos SQL's CONTAINS function — SQL
-// wildcards `%` translate to the open-ended CONTAINS semantics. For
-// fuller pattern support callers should preprocess the value.
+// visitLikeExpr maps exactly representable SQL LIKE shapes onto Cosmos string
+// functions. Patterns with internal or single-character wildcards are rejected
+// instead of being approximated.
 func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr.Left)
 	if err != nil {
@@ -187,15 +187,40 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	if !ok {
 		return fmt.Errorf("azurecosmos: LIKE requires a string pattern, got %T", value)
 	}
-	// Strip leading/trailing % for a substring match.
-	pattern = strings.TrimPrefix(pattern, "%")
-	pattern = strings.TrimSuffix(pattern, "%")
-	param := v.bindParam(pattern)
-	v.sql.WriteString("CONTAINS(")
-	v.sql.WriteString(field)
-	v.sql.WriteString(", ")
-	v.sql.WriteString(param)
-	v.sql.WriteString(")")
+	if strings.ContainsRune(pattern, '_') {
+		return errors.New("azurecosmos: LIKE '_' wildcard is not supported by Cosmos string functions")
+	}
+	leadingWildcard := strings.HasPrefix(pattern, "%")
+	trailingWildcard := strings.HasSuffix(pattern, "%")
+	text := strings.TrimSuffix(strings.TrimPrefix(pattern, "%"), "%")
+	if text == "" || strings.ContainsRune(text, '%') {
+		return fmt.Errorf("azurecosmos: LIKE pattern %q cannot be represented exactly", pattern)
+	}
+	param := v.bindParam(text)
+	switch {
+	case leadingWildcard && trailingWildcard:
+		v.sql.WriteString("CONTAINS(")
+		v.sql.WriteString(field)
+		v.sql.WriteString(", ")
+		v.sql.WriteString(param)
+		v.sql.WriteByte(')')
+	case leadingWildcard:
+		v.sql.WriteString("ENDSWITH(")
+		v.sql.WriteString(field)
+		v.sql.WriteString(", ")
+		v.sql.WriteString(param)
+		v.sql.WriteByte(')')
+	case trailingWildcard:
+		v.sql.WriteString("STARTSWITH(")
+		v.sql.WriteString(field)
+		v.sql.WriteString(", ")
+		v.sql.WriteString(param)
+		v.sql.WriteByte(')')
+	default:
+		v.sql.WriteString(field)
+		v.sql.WriteString(" = ")
+		v.sql.WriteString(param)
+	}
 	return nil
 }
 

@@ -6,7 +6,6 @@ import (
 
 	v2 "github.com/amikos-tech/chroma-go/pkg/api/v2"
 	chromaEmbed "github.com/amikos-tech/chroma-go/pkg/embeddings"
-	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
@@ -16,7 +15,9 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const Provider = "Chroma"
@@ -38,10 +39,6 @@ const (
 
 // StoreConfig contains configuration options for the Chroma vector store.
 type StoreConfig struct {
-	// Context is the context for initialization operations.
-	// Optional: defaults to context.Background() if nil.
-	Context context.Context
-
 	// Client is the Chroma HTTP client.
 	// Required: must be provided, otherwise initialization will fail.
 	Client v2.Client
@@ -68,14 +65,10 @@ type StoreConfig struct {
 	// DocumentBatcher is responsible for batching documents before insertion.
 	// Required: must be provided.
 	DocumentBatcher vectorstores.Batcher
-
-	// StoreDocumentContent determines whether to store and retrieve the original
-	// document text in Chroma's native text field.
-	// Optional: defaults to false.
-	StoreDocumentContent bool
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.Client == nil {
 		return ErrMissingClient
 	}
@@ -88,15 +81,17 @@ func (c *StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
 	}
+	switch c.DistanceMetric {
+	case DistanceCosine, DistanceL2, DistanceIP:
+	default:
+		return fmt.Errorf("chroma: unsupported DistanceMetric %q", c.DistanceMetric)
+	}
 	return nil
 }
 
-// ApplyDefaults fills zero fields. Context defaults to
-// [context.Background]; DistanceMetric defaults to [DistanceCosine].
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields. DistanceMetric defaults to
+// [DistanceCosine].
+func (c *StoreConfig) applyDefaults() {
 	if c.DistanceMetric == "" {
 		c.DistanceMetric = DistanceCosine
 	}
@@ -111,37 +106,35 @@ var (
 
 // Store is a Chroma-backed implementation of vectorstore capability interfaces.
 type Store struct {
-	client               v2.Client
-	collection           v2.Collection
-	collectionName       string
-	embeddingClient      *embeddingclient.Client
-	documentBatcher      vectorstores.Batcher
-	distanceMetric       DistanceMetric
-	storeDocumentContent bool
+	client          v2.Client
+	collection      v2.Collection
+	collectionName  string
+	embeddingClient *embeddingclient.Client
+	documentBatcher vectorstores.Batcher
+	distanceMetric  DistanceMetric
 }
 
-func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("chroma: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("chroma: create embedding client: %w", err)
 	}
 
 	store := &Store{
-		client:               config.Client,
-		collectionName:       config.CollectionName,
-		embeddingClient:      embeddingClient,
-		documentBatcher:      config.DocumentBatcher,
-		distanceMetric:       config.DistanceMetric,
-		storeDocumentContent: config.StoreDocumentContent,
+		client:          config.Client,
+		collectionName:  config.CollectionName,
+		embeddingClient: embeddingClient,
+		documentBatcher: config.DocumentBatcher,
+		distanceMetric:  config.DistanceMetric,
 	}
 
-	if err = store.initialize(config.Context, config.InitializeSchema); err != nil {
-		return nil, fmt.Errorf("chroma: failed to initialize vector store: %w", err)
+	if err = store.initialize(ctx, config.InitializeSchema); err != nil {
+		return nil, fmt.Errorf("chroma: initialize vector store: %w", err)
 	}
 
 	return store, nil
@@ -163,7 +156,7 @@ func (s *Store) initialize(ctx context.Context, initializeSchema bool) error {
 		col, err = s.client.GetCollection(ctx, s.collectionName)
 	}
 	if err != nil {
-		return fmt.Errorf("chroma: failed to get/create collection %s: %w", s.collectionName, err)
+		return fmt.Errorf("chroma: get/create collection %s: %w", s.collectionName, err)
 	}
 
 	s.collection = col
@@ -178,16 +171,14 @@ func (s *Store) initialize(ctx context.Context, initializeSchema bool) error {
 func (s *Store) distanceToScore(distance float64) float64 {
 	switch s.distanceMetric {
 	case DistanceCosine:
-		// cosine distance ≈ 1 − cosine_similarity; maps [0, 2] → [1, -1]
-		return 1.0 - distance
+		return scores.CosineDistance(distance)
 	case DistanceL2:
-		// squared L2 is unbounded; map to (0, 1] so MinScore comparisons are intuitive
-		return 1.0 / (1.0 + distance)
+		return scores.Distance(distance)
 	case DistanceIP:
-		// inner product: higher already means more similar
-		return distance
+		// Chroma reports 1 - inner product as a distance.
+		return scores.OneMinusInnerProductDistance(distance)
 	default:
-		return 1.0 - distance
+		return scores.Bounded(distance)
 	}
 }
 
@@ -238,7 +229,7 @@ func (s *Store) buildAddOptions(docs []*document.Document, vectors [][]float64) 
 	texts := make([]string, 0, len(docs))
 
 	for i, doc := range docs {
-		ids = append(ids, v2.DocumentID(uuid.NewString()))
+		ids = append(ids, v2.DocumentID(doc.ID))
 
 		f32 := math.ConvertSlice[float64, float32](vectors[i])
 		embs = append(embs, chromaEmbed.NewEmbeddingFromFloat32(f32))
@@ -249,22 +240,18 @@ func (s *Store) buildAddOptions(docs []*document.Document, vectors [][]float64) 
 		}
 		meta, err := v2.NewDocumentMetadataFromMap(metadataValues)
 		if err != nil {
-			return nil, fmt.Errorf("chroma: failed to convert metadata for document %d: %w", i, err)
+			return nil, fmt.Errorf("chroma: convert metadata for document %d: %w", i, err)
 		}
 		metadatas = append(metadatas, meta)
 
-		if s.storeDocumentContent {
-			texts = append(texts, doc.Text)
-		}
+		texts = append(texts, doc.Text)
 	}
 
 	opts := []v2.CollectionAddOption{
 		v2.WithIDs(ids...),
 		v2.WithEmbeddings(embs...),
 		v2.WithMetadatas(metadatas...),
-	}
-	if s.storeDocumentContent {
-		opts = append(opts, v2.WithTexts(texts...))
+		v2.WithTexts(texts...),
 	}
 
 	return opts, nil
@@ -272,23 +259,20 @@ func (s *Store) buildAddOptions(docs []*document.Document, vectors [][]float64) 
 
 // Add embeds the documents and upserts them into Chroma.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("chroma.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "chroma", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("chroma: failed to batch documents: %w", err)
+		return fmt.Errorf("chroma: batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("chroma: failed to generate embeddings: %w", err)
+			return fmt.Errorf("chroma: embed documents: %w", err)
 		}
 
 		opts, err := s.buildAddOptions(docs, vectors)
@@ -297,7 +281,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 		}
 
 		if err = s.collection.Upsert(ctx, opts...); err != nil {
-			return fmt.Errorf("chroma: failed to upsert documents into collection %s: %w",
+			return fmt.Errorf("chroma: upsert documents into collection %s: %w",
 				s.collectionName, err)
 		}
 	}
@@ -308,23 +292,18 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // buildQueryOptions assembles the Query options for the given retrieval request
 // and the pre-computed query embedding vector.
 func (s *Store) buildQueryOptions(req vectorstore.SearchRequest, queryVector []float32) ([]v2.CollectionQueryOption, error) {
-	includes := []v2.Include{v2.IncludeMetadatas, v2.IncludeDistances}
-	if s.storeDocumentContent {
-		includes = append(includes, v2.IncludeDocuments)
-	}
-
 	queryEmb := chromaEmbed.NewEmbeddingFromFloat32(queryVector)
 
 	opts := []v2.CollectionQueryOption{
 		v2.WithQueryEmbeddings(queryEmb),
 		v2.WithNResults(req.TopK),
-		v2.WithInclude(includes...),
+		v2.WithInclude(v2.IncludeDocuments, v2.IncludeMetadatas, v2.IncludeDistances),
 	}
 
 	if req.Filter != nil {
 		filter, err := ToFilter(req.Filter)
 		if err != nil {
-			return nil, fmt.Errorf("chroma: failed to convert filter: %w", err)
+			return nil, fmt.Errorf("chroma: convert filter: %w", err)
 		}
 		if filter != nil {
 			opts = append(opts, v2.WithWhere(filter))
@@ -341,47 +320,66 @@ func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64
 	if len(idGroups) == 0 {
 		return nil, nil
 	}
+	if len(idGroups) != 1 {
+		return nil, fmt.Errorf("chroma: query returned %d ID groups for one query vector", len(idGroups))
+	}
 
 	ids := idGroups[0]
 
 	var docGroup v2.Documents
 	if dg := result.GetDocumentsGroups(); len(dg) > 0 {
+		if len(dg) != 1 {
+			return nil, fmt.Errorf("chroma: query returned %d document groups for one query vector", len(dg))
+		}
 		docGroup = dg[0]
+	}
+	if len(docGroup) != len(ids) {
+		return nil, fmt.Errorf("chroma: query returned %d documents for %d IDs", len(docGroup), len(ids))
 	}
 
 	var metaGroup v2.DocumentMetadatas
 	if mg := result.GetMetadatasGroups(); len(mg) > 0 {
+		if len(mg) != 1 {
+			return nil, fmt.Errorf("chroma: query returned %d metadata groups for one query vector", len(mg))
+		}
 		metaGroup = mg[0]
+	}
+	if len(metaGroup) != len(ids) {
+		return nil, fmt.Errorf("chroma: query returned %d metadata values for %d IDs", len(metaGroup), len(ids))
 	}
 
 	var distGroup chromaEmbed.Distances
 	if dg := result.GetDistancesGroups(); len(dg) > 0 {
+		if len(dg) != 1 {
+			return nil, fmt.Errorf("chroma: query returned %d distance groups for one query vector", len(dg))
+		}
 		distGroup = dg[0]
+	}
+	if len(distGroup) != len(ids) {
+		return nil, fmt.Errorf("chroma: query returned %d distances for %d IDs", len(distGroup), len(ids))
 	}
 
 	docs := make([]vectorstore.Match, 0, len(ids))
 	for i, id := range ids {
-		var distance float64
-		if i < len(distGroup) {
-			distance = float64(distGroup[i])
+		if id == "" {
+			return nil, fmt.Errorf("chroma: query result %d is missing ID", i)
 		}
-
+		distance := float64(distGroup[i])
 		score := s.distanceToScore(distance)
 		if score < minScore {
 			continue
 		}
 
-		doc := &document.Document{ID: string(id)}
-
-		if s.storeDocumentContent && i < len(docGroup) && docGroup[i] != nil {
-			doc.Text = docGroup[i].ContentString()
+		if docGroup[i] == nil || docGroup[i].ContentString() == "" {
+			return nil, fmt.Errorf("chroma: query result %d is missing document text", i)
 		}
+		doc := &document.Document{ID: string(id), Text: docGroup[i].ContentString()}
 
 		if i < len(metaGroup) && metaGroup[i] != nil {
 			var err error
 			doc.Metadata, err = metadata.FromValues(metadataToMap(metaGroup[i]))
 			if err != nil {
-				return nil, fmt.Errorf("chroma: encode metadata: %w", err)
+				return nil, fmt.Errorf("chroma: convert metadata: %w", err)
 			}
 		}
 
@@ -394,21 +392,19 @@ func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64
 // Search embeds the query, searches Chroma, and returns matching documents.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("chroma: invalid search request: %w", err)
+		return nil, fmt.Errorf("chroma.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "chroma", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("chroma: failed to embed query text: %w", err)
+		return nil, fmt.Errorf("chroma: embed query: %w", err)
 	}
 
 	queryVector := math.ConvertSlice[float64, float32](vector)
@@ -422,7 +418,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	var result v2.QueryResult
 	result, err = s.collection.Query(ctx, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("chroma: failed to query collection %s: %w", s.collectionName, err)
+		return nil, fmt.Errorf("chroma: query collection %s: %w", s.collectionName, err)
 	}
 
 	docs, err = s.buildDocumentsFromResult(result, req.MinScore)
@@ -438,16 +434,13 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("chroma.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "chroma")
-	defer func() { tracing.Finish(span, err) }()
 
 	var filter v2.WhereFilter
 	filter, err = ToFilter(expr)
 	if err != nil {
-		return fmt.Errorf("chroma: failed to convert filter: %w", err)
+		return fmt.Errorf("chroma: convert filter: %w", err)
 	}
 
 	var opts []v2.CollectionDeleteOption
@@ -456,7 +449,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 	}
 
 	if err = s.collection.Delete(ctx, opts...); err != nil {
-		return fmt.Errorf("chroma: failed to delete documents from collection %s: %w",
+		return fmt.Errorf("chroma: delete documents from collection %s: %w",
 			s.collectionName, err)
 	}
 
@@ -471,16 +464,13 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 		return nil
 	}
 
-	ctx, span := tracing.StartDelete(ctx, "chroma")
-	defer func() { tracing.Finish(span, err) }()
-
 	docIDs := make([]v2.DocumentID, len(ids))
 	for i, id := range ids {
 		docIDs[i] = v2.DocumentID(id)
 	}
 
 	if err = s.collection.Delete(ctx, v2.WithIDs(docIDs...)); err != nil {
-		return fmt.Errorf("chroma: failed to delete documents by ids from collection %s: %w",
+		return fmt.Errorf("chroma: delete documents by ids from collection %s: %w",
 			s.collectionName, err)
 	}
 

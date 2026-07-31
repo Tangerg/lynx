@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
@@ -18,8 +17,10 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
+	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const Provider = "AzureCosmosDB"
@@ -44,15 +45,9 @@ const (
 	DistanceEuclidean  DistanceFunction = "euclidean"
 )
 
-// safeIdentifier matches the standard SQL unquoted identifier shape.
-
 // StoreConfig contains configuration options for the Azure Cosmos DB
 // NoSQL vector store.
 type StoreConfig struct {
-	// Context is unused at construction — Cosmos DB schemas are
-	// managed out of band — but kept for forward compatibility.
-	Context context.Context
-
 	// Container is the Cosmos container that holds the documents.
 	// The caller is responsible for provisioning it with the right
 	// vector embedding policy + indexing policy (set up in Azure
@@ -82,7 +77,8 @@ type StoreConfig struct {
 	DistanceFunction DistanceFunction
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.Container == nil {
 		return errors.New("azurecosmos: Container is required")
 	}
@@ -92,6 +88,11 @@ func (c *StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("azurecosmos: DocumentBatcher is required")
 	}
+	switch c.DistanceFunction {
+	case DistanceCosine, DistanceDotProduct, DistanceEuclidean:
+	default:
+		return fmt.Errorf("azurecosmos: unsupported DistanceFunction %q", c.DistanceFunction)
+	}
 	return ident.Check("azurecosmos", map[string]string{
 		"IDField":        c.IDField,
 		"ContentField":   c.ContentField,
@@ -100,11 +101,8 @@ func (c *StoreConfig) Validate() error {
 	})
 }
 
-// ApplyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) applyDefaults() {
 	c.IDField = cmp.Or(c.IDField, DefaultIDField)
 	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
 	c.MetadataField = cmp.Or(c.MetadataField, DefaultMetadataField)
@@ -119,10 +117,9 @@ var (
 	_ vectorstore.FilterDeleter = (*Store)(nil)
 )
 
-// Store is an Azure Cosmos DB NoSQL backed the vectorstore capability interfaces
-// implementation. The container is expected to be provisioned with a
-// vector embedding policy that matches [StoreConfig.DistanceFunction]
-// and the embedding model's dimensionality.
+// Store implements vector-store capabilities with Azure Cosmos DB for NoSQL.
+// The container must have a vector policy matching
+// [StoreConfig.DistanceFunction] and the embedding model's dimensions.
 type Store struct {
 	container        *azcosmos.ContainerClient
 	idField          string
@@ -136,14 +133,14 @@ type Store struct {
 }
 
 func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("azurecosmos: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("azurecosmos: create embedding client: %w", err)
 	}
 
 	return &Store{
@@ -161,30 +158,24 @@ func NewStore(config StoreConfig) (*Store, error) {
 
 // Add embeds documents and upserts them.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("azurecosmos.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "azurecosmos", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("azurecosmos: failed to batch documents: %w", err)
+		return fmt.Errorf("azurecosmos: batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("azurecosmos: failed to generate embeddings: %w", err)
+			return fmt.Errorf("azurecosmos: embed documents: %w", err)
 		}
 
 		for i, doc := range docs {
 			id := doc.ID
-			if id == "" {
-				id = uuid.NewString()
-			}
 			metadataValues, err := doc.Metadata.Values()
 			if err != nil {
 				return fmt.Errorf("azurecosmos: decode metadata for %s: %w", id, err)
@@ -210,21 +201,19 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // Search runs a VectorDistance-ordered query.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("azurecosmos: invalid search request: %w", err)
+		return nil, fmt.Errorf("azurecosmos.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "azurecosmos", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("azurecosmos: failed to embed query: %w", err)
+		return nil, fmt.Errorf("azurecosmos: embed query: %w", err)
 	}
 	queryVec := math.ConvertSlice[float64, float32](vector)
 
@@ -242,7 +231,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		s.embeddingField, s.distanceFunc)
 
 	query := fmt.Sprintf(
-		"SELECT TOP @topK c.%s AS _id, c.%s AS _content, c.%s AS _metadata, %s AS _distance FROM c%s ORDER BY %s",
+		"SELECT TOP @topK c.%s AS _id, c.%s AS _content, c.%s AS _metadata, %s AS _vector_score FROM c%s ORDER BY %s",
 		s.idField, s.contentField, s.metadataField, distanceCall, whereClause, distanceCall,
 	)
 
@@ -284,11 +273,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("azurecosmos.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "azurecosmos")
-	defer func() { tracing.Finish(span, err) }()
 
 	predicate, params, err := s.buildFilter(expr)
 	if err != nil {
@@ -340,26 +326,35 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, []NamedParam, erro
 	return predicate, params, nil
 }
 
-// decodeRow turns a Cosmos JSON row into a Document, applying the
-// MinScore filter using the distance-to-score helper.
+// decodeRow turns a Cosmos JSON row into a Document and applies Lynx's
+// normalized score threshold.
 func (s *Store) decodeRow(raw json.RawMessage, minScore float64) (*vectorstore.Match, error) {
 	var row struct {
-		ID       string         `json:"_id"`
-		Content  string         `json:"_content"`
-		Metadata map[string]any `json:"_metadata"`
-		Distance float64        `json:"_distance"`
+		ID          string         `json:"_id"`
+		Content     string         `json:"_content"`
+		Metadata    map[string]any `json:"_metadata"`
+		VectorScore *float64       `json:"_vector_score"`
 	}
 	if err := json.Unmarshal(raw, &row); err != nil {
 		return nil, fmt.Errorf("azurecosmos: decode row: %w", err)
 	}
 
-	score := s.distanceToScore(row.Distance)
+	if row.VectorScore == nil {
+		return nil, errors.New("azurecosmos: result is missing numeric _vector_score")
+	}
+	score := s.normalizeScore(*row.VectorScore)
 	if score < minScore {
 		return nil, nil
 	}
+	if row.ID == "" {
+		return nil, errors.New("azurecosmos: result is missing _id")
+	}
+	if row.Content == "" {
+		return nil, errors.New("azurecosmos: result is missing _content")
+	}
 	metadata, err := metadata.FromValues(row.Metadata)
 	if err != nil {
-		return nil, fmt.Errorf("azurecosmos: encode metadata: %w", err)
+		return nil, fmt.Errorf("azurecosmos: convert metadata: %w", err)
 	}
 	return &vectorstore.Match{
 		Document: &document.Document{ID: row.ID, Text: row.Content, Metadata: metadata},
@@ -367,34 +362,16 @@ func (s *Store) decodeRow(raw json.RawMessage, minScore float64) (*vectorstore.M
 	}, nil
 }
 
-func (s *Store) distanceToScore(distance float64) float64 {
+func (s *Store) normalizeScore(raw float64) float64 {
 	switch s.distanceFunc {
 	case DistanceEuclidean:
-		return 1.0 / (1.0 + distance)
+		return scores.Distance(raw)
 	case DistanceDotProduct:
-		score := (1.0 + distance) / 2.0
-		switch {
-		case score < 0:
-			return 0
-		case score > 1:
-			return 1
-		default:
-			return score
-		}
+		return scores.InnerProduct(raw)
 	case DistanceCosine:
 		fallthrough
 	default:
-		// Cosine via VectorDistance returns 1 - cosine_similarity,
-		// range [0, 2]; (1 - d/2) collapses to [0, 1].
-		score := 1.0 - distance/2.0
-		switch {
-		case score < 0:
-			return 0
-		case score > 1:
-			return 1
-		default:
-			return score
-		}
+		return scores.CosineSimilarity(raw)
 	}
 }
 

@@ -13,10 +13,11 @@
 ## 架构心智
 
 - **filter 公共面只表达语义**:`Predicate`/`Selector` 与 `Parse` 是稳定门面；同包私有 scanner/token/递归下降 parser 直接构造唯一 AST。后端 compiler 实现公开 `filter.Visitor`，把同一语义树译成自家方言(JSONB 路径 / 扁平字典 / 嵌套查询 …)；外部扩展通过 `filter.Visit` 校验一次并按顺序组合多个 compiler/interpreter。
-- **每后端固定两件**:backend(实现其能力集合)+ compiler(Predicate → 方言);共享工具(文档 IO / OTel / SQL identifier 校验 / conformance 套件)沉到内部包。
+- **每后端固定两件**:backend(实现其能力集合)+ compiler(Predicate → 方言);共享工具(文档 IO / SQL identifier 校验 / conformance 套件)沉到内部包。OTel 等横切能力由外层 decorator 提供,不得侵入 provider。
 - **向量编码与距离度量因 DB 而异**:在适配层归一化成统一区间,上层拿到一致的 score。
 - **schema 初始化是显式开关**:开则建表建索引,关则假设已 provisioned —— 绝不静默 ALTER。
 - **批量 upsert 两级切分**:调用方注入 batcher 控 embedding 批量,后端再按自家 API 上限二次切分。
+- **可写 store 始终持久化正文**:`Searcher` 必须返回完整、可验证且可直接进入 RAG 的 `Document`;不得暴露会产生 ID-only 结果的开关。外部文档仓模式只能通过显式 hydration 组合能力另行设计。
 - **conformance 套件免费拿覆盖**:新后端在测试里注册一次,共享的 filter 形状符合性套件即覆盖它(验证遍历不报错,不验证输出逐字相等)。
 
 ## 模块特有反向不变量

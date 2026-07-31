@@ -54,3 +54,15 @@ func TestVisitor_RejectsIntegerThatRediSearchCannotRepresentExactly(t *testing.T
 		t.Fatal("Redis silently rounded a large integer")
 	}
 }
+
+func TestVisitor_TranslatesLikeToRedisWildcardQuery(t *testing.T) {
+	t.Parallel()
+
+	visitor := redis.NewVisitor(map[string]redis.MetadataFieldType{"title": redis.FieldText})
+	if err := visitor.Visit(filter.Like("title", `intro%_literal*?`)); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := visitor.Result(), `@title:(w'intro*?literal\*\?')`; got != want {
+		t.Fatalf("Result() = %q, want %q", got, want)
+	}
+}

@@ -3,13 +3,11 @@ package cassandra
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/gocql/gocql"
-	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
@@ -19,9 +17,10 @@ import (
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
+	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
-	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
+	"github.com/Tangerg/lynx/vectorstores/internal/scores"
 )
 
 const Provider = "Cassandra"
@@ -33,7 +32,6 @@ const (
 	DefaultContentColumn   = "content"
 	DefaultMetadataColumn  = "metadata"
 	DefaultEmbeddingColumn = "embedding"
-	DefaultDimensions      = 1536
 	DefaultSimilarity      = SimilarityCosine
 )
 
@@ -69,10 +67,6 @@ type MetadataColumn struct {
 // StoreConfig contains configuration options for the Cassandra vector
 // store.
 type StoreConfig struct {
-	// Context is used for the initial schema bootstrap. Optional;
-	// defaults to context.Background().
-	Context context.Context
-
 	// Session is the gocql session. Required.
 	Session *gocql.Session
 
@@ -103,9 +97,8 @@ type StoreConfig struct {
 	// DocumentBatcher batches documents before insertion. Required.
 	DocumentBatcher vectorstores.Batcher
 
-	// Dimensions sets the VECTOR column width. When zero, falls
-	// back to the embedding model's reported value and then
-	// [DefaultDimensions].
+	// Dimensions sets the VECTOR column width. When zero and
+	// InitializeSchema is true, the store probes EmbeddingModel.
 	Dimensions int
 
 	// Similarity selects the vector similarity function. Optional:
@@ -123,7 +116,8 @@ type StoreConfig struct {
 	KeyspaceReplication string
 }
 
-func (c *StoreConfig) Validate() error {
+func (c StoreConfig) Validate() error {
+	c.applyDefaults()
 	if c.Session == nil {
 		return errors.New("cassandra: Session is required")
 	}
@@ -132,6 +126,14 @@ func (c *StoreConfig) Validate() error {
 	}
 	if c.DocumentBatcher == nil {
 		return errors.New("cassandra: DocumentBatcher is required")
+	}
+	if c.Dimensions < 0 {
+		return errors.New("cassandra: Dimensions must be >= 0")
+	}
+	switch c.Similarity {
+	case SimilarityCosine, SimilarityDotProduct, SimilarityEuclidean:
+	default:
+		return fmt.Errorf("cassandra: unsupported Similarity %q", c.Similarity)
 	}
 
 	checks := map[string]string{
@@ -160,11 +162,8 @@ var (
 	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
-// ApplyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+// applyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) applyDefaults() {
 	c.KeyspaceName = cmp.Or(c.KeyspaceName, DefaultKeyspaceName)
 	c.TableName = cmp.Or(c.TableName, DefaultTableName)
 	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
@@ -176,8 +175,8 @@ func (c *StoreConfig) ApplyDefaults() {
 	}
 }
 
-// Store is a Cassandra 5.0+ backed the vectorstore capability interfaces implementation.
-// It relies on the VECTOR column type and SAI indexes.
+// Store implements vector-store capabilities with Cassandra 5.0+ VECTOR
+// columns and SAI indexes.
 type Store struct {
 	session         *gocql.Session
 	keyspaceName    string
@@ -193,15 +192,15 @@ type Store struct {
 	similarity      SimilarityFunction
 }
 
-func NewStore(config StoreConfig) (*Store, error) {
-	config.ApplyDefaults()
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	config.applyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("cassandra: failed to create embedding client: %w", err)
+		return nil, fmt.Errorf("cassandra: create embedding client: %w", err)
 	}
 
 	store := &Store{
@@ -219,8 +218,8 @@ func NewStore(config StoreConfig) (*Store, error) {
 		similarity:      config.Similarity,
 	}
 
-	if err = store.initialize(config.Context, config.InitializeSchema, config.KeyspaceReplication); err != nil {
-		return nil, fmt.Errorf("cassandra: failed to initialize store: %w", err)
+	if err = store.initialize(ctx, config.InitializeSchema, config.KeyspaceReplication); err != nil {
+		return nil, fmt.Errorf("cassandra: initialize store: %w", err)
 	}
 	return store, nil
 }
@@ -228,6 +227,9 @@ func NewStore(config StoreConfig) (*Store, error) {
 // initialize resolves dimensions and provisions the schema when
 // requested.
 func (s *Store) initialize(ctx context.Context, initSchema bool, replication string) error {
+	if !initSchema {
+		return nil
+	}
 	if s.dimensions <= 0 {
 		dimensions, err := s.embeddingClient.Dimensions(ctx)
 		if err != nil {
@@ -237,10 +239,6 @@ func (s *Store) initialize(ctx context.Context, initSchema bool, replication str
 	}
 	if s.dimensions <= 0 {
 		return errors.New("cassandra: Dimensions must be > 0")
-	}
-
-	if !initSchema {
-		return nil
 	}
 
 	stmts := []string{
@@ -299,31 +297,24 @@ func firstLine(s string) string {
 
 // Add embeds documents and inserts them.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if len(docs) == 0 {
-		return vectorstore.ErrEmptyDocuments
+	if err := docio.ValidateDocuments(docs); err != nil {
+		return fmt.Errorf("cassandra.Store.Add: %w", err)
 	}
 
-	ctx, span := tracing.StartAdd(ctx, "cassandra", len(docs))
-	defer func() { tracing.Finish(span, err) }()
-
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
+	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
 	if err != nil {
-		return fmt.Errorf("cassandra: failed to batch documents: %w", err)
+		return fmt.Errorf("cassandra: batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("cassandra: failed to generate embeddings: %w", err)
+			return fmt.Errorf("cassandra: embed documents: %w", err)
 		}
 
 		for i, doc := range docs {
-			id := doc.ID
-			if id == "" {
-				id = uuid.NewString()
-			}
-			if err := s.insertOne(ctx, id, doc, vectors[i]); err != nil {
+			if err := s.insertOne(ctx, doc.ID, doc, vectors[i]); err != nil {
 				return err
 			}
 		}
@@ -364,21 +355,19 @@ func (s *Store) insertOne(ctx context.Context, id string, doc *document.Document
 // Search runs an ANN query using the configured similarity function.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("cassandra: invalid search request: %w", err)
+		return nil, fmt.Errorf("cassandra.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartSearch(ctx, "cassandra", req.TopK, req.MinScore)
 	defer func() {
 		if err == nil {
 			err = req.ValidateMatches(docs)
 		}
-		tracing.RecordSearchResult(span, err, len(docs))
 	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("cassandra: failed to embed query: %w", err)
+		return nil, fmt.Errorf("cassandra: embed query: %w", err)
 	}
 	vecLiteral := docio.FormatVectorLiteral(math.ConvertSlice[float64, float32](vector))
 
@@ -444,9 +433,15 @@ func (s *Store) makeScanDestinations() []any {
 func (s *Store) scanDestToMatch(dest []any, minScore float64) (*vectorstore.Match, error) {
 	id := *dest[0].(*string)
 	text := *dest[1].(*string)
-	score := float64(*dest[2].(*float32))
+	score := scores.Bounded(float64(*dest[2].(*float32)))
 	if score < minScore {
 		return nil, nil
+	}
+	if id == "" {
+		return nil, errors.New("cassandra: search result is missing document ID")
+	}
+	if text == "" {
+		return nil, errors.New("cassandra: search result is missing document text")
 	}
 
 	doc := &document.Document{ID: id, Text: text}
@@ -462,7 +457,7 @@ func (s *Store) scanDestToMatch(dest []any, minScore float64) (*vectorstore.Matc
 			var err error
 			doc.Metadata, err = metadata.FromValues(meta)
 			if err != nil {
-				return nil, fmt.Errorf("cassandra: encode metadata: %w", err)
+				return nil, fmt.Errorf("cassandra: convert metadata: %w", err)
 			}
 		}
 	}
@@ -480,11 +475,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = filter.Validate(expr); err != nil {
-		return fmt.Errorf("invalid delete filter: %w", err)
+		return fmt.Errorf("cassandra.Store.DeleteWhere: %w", err)
 	}
-
-	ctx, span := tracing.StartDelete(ctx, "cassandra")
-	defer func() { tracing.Finish(span, err) }()
 
 	predicate, args, err := s.buildFilter(expr)
 	if err != nil {
@@ -529,9 +521,6 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 		return nil
 	}
 
-	ctx, span := tracing.StartDelete(ctx, "cassandra")
-	defer func() { tracing.Finish(span, err) }()
-
 	placeholders := make([]string, len(ids))
 	args := make([]any, len(ids))
 	for i, id := range ids {
@@ -562,11 +551,3 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, []any, error) {
 }
 
 func (s *Store) Close() error { return nil }
-
-// marshalMetadata / unmarshalMetadata are unused right now but kept
-// for future compatibility with stores that switch metadata storage
-// from columns to a JSON blob.
-var (
-	_ = json.Marshal
-	_ = json.Unmarshal
-)

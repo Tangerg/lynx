@@ -150,7 +150,7 @@ func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 	for i, lit := range list.Values {
 		s, err := v.literalToString(lit)
 		if err != nil {
-			return fmt.Errorf("milvus: failed to convert list element at index %d: %w", i, err)
+			return fmt.Errorf("milvus: convert list element at index %d: %w", i, err)
 		}
 		parts = append(parts, s)
 	}
@@ -167,7 +167,7 @@ func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 	fieldKey, err := v.buildIndexedFieldKey(expr)
 	if err != nil {
-		return fmt.Errorf("milvus: failed to build field path at %s: %w",
+		return fmt.Errorf("milvus: build field path at %s: %w",
 			expr.Start().String(), err)
 	}
 	v.currentFieldKey = fieldKey
@@ -181,13 +181,13 @@ func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	left, err := v.buildNestedExpr(expr.Left)
 	if err != nil {
-		return fmt.Errorf("milvus: failed to process left operand of '%s' at %s: %w",
+		return fmt.Errorf("milvus: process left operand of '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	right, err := v.buildNestedExpr(expr.Right)
 	if err != nil {
-		return fmt.Errorf("milvus: failed to process right operand of '%s' at %s: %w",
+		return fmt.Errorf("milvus: process right operand of '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
@@ -209,7 +209,7 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	operand, err := v.buildNestedExpr(expr.Right)
 	if err != nil {
-		return fmt.Errorf("milvus: failed to process NOT operand at %s: %w",
+		return fmt.Errorf("milvus: process NOT operand at %s: %w",
 			expr.Start().String(), err)
 	}
 
@@ -224,13 +224,13 @@ func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
-		return fmt.Errorf("milvus: failed to extract field key from '%s' at %s: %w",
+		return fmt.Errorf("milvus: extract field key from '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	fieldValue, err := v.extractFieldValue(expr.Right)
 	if err != nil {
-		return fmt.Errorf("milvus: failed to extract value from '%s' at %s: %w",
+		return fmt.Errorf("milvus: extract value from '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
@@ -254,13 +254,13 @@ func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
-		return fmt.Errorf("milvus: failed to extract field key from '%s' at %s: %w",
+		return fmt.Errorf("milvus: extract field key from '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	fieldValue, err := v.extractFieldValue(expr.Right)
 	if err != nil {
-		return fmt.Errorf("milvus: failed to extract value from '%s' at %s: %w",
+		return fmt.Errorf("milvus: extract value from '%s' at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
@@ -287,7 +287,7 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
-		return fmt.Errorf("milvus: failed to extract field key from 'IN' at %s: %w",
+		return fmt.Errorf("milvus: extract field key from 'IN' at %s: %w",
 			expr.Start().String(), err)
 	}
 
@@ -310,7 +310,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
-		return fmt.Errorf("milvus: failed to extract field key from 'LIKE' at %s: %w",
+		return fmt.Errorf("milvus: extract field key from 'LIKE' at %s: %w",
 			expr.Start().String(), err)
 	}
 
@@ -367,7 +367,7 @@ func (v *Visitor) extractFieldKey(expr filter.Expr) (string, error) {
 		return "", err
 	}
 	if extracted == "" {
-		return "", fmt.Errorf("milvus: failed to extract field key from %T expression", expr)
+		return "", fmt.Errorf("milvus: extract field key from %T expression", expr)
 	}
 
 	return extracted, nil
@@ -388,7 +388,7 @@ func (v *Visitor) extractFieldValue(expr filter.Expr) (string, error) {
 		return "", err
 	}
 	if extracted == "" {
-		return "", fmt.Errorf("milvus: failed to extract value from %T expression", expr)
+		return "", fmt.Errorf("milvus: extract value from %T expression", expr)
 	}
 
 	return extracted, nil
@@ -432,7 +432,7 @@ func (v *Visitor) literalToString(lit *filter.Literal) (string, error) {
 	if lit.IsString() {
 		s, err := lit.AsString()
 		if err != nil {
-			return "", fmt.Errorf("milvus: failed to convert string literal at %s: %w",
+			return "", fmt.Errorf("milvus: convert string literal at %s: %w",
 				lit.Start().String(), err)
 		}
 		return fmt.Sprintf(`"%s"`, strings.ReplaceAll(s, `"`, `\"`)), nil
@@ -441,7 +441,7 @@ func (v *Visitor) literalToString(lit *filter.Literal) (string, error) {
 	if lit.IsNumber() {
 		n, err := filtercompile.NumberText(lit)
 		if err != nil {
-			return "", fmt.Errorf("milvus: failed to convert number literal at %s: %w",
+			return "", fmt.Errorf("milvus: convert number literal at %s: %w",
 				lit.Start().String(), err)
 		}
 		return n, nil
@@ -450,7 +450,7 @@ func (v *Visitor) literalToString(lit *filter.Literal) (string, error) {
 	if lit.IsBool() {
 		b, err := lit.AsBool()
 		if err != nil {
-			return "", fmt.Errorf("milvus: failed to convert bool literal at %s: %w",
+			return "", fmt.Errorf("milvus: convert bool literal at %s: %w",
 				lit.Start().String(), err)
 		}
 		if b {
