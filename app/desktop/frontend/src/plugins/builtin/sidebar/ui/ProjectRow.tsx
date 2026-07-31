@@ -25,7 +25,7 @@ export function ProjectRow({
   const t = useT();
   return (
     <AgentRow
-      icon="folder"
+      icon={open ? "folder-open" : "folder"}
       active={active}
       onClick={() => onToggle()}
       title={project.id}

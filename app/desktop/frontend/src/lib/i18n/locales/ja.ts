@@ -1,6 +1,7 @@
 // 日本語。
 
 export const ja: Record<string, string> = {
+  "common.appName": "Lynx",
   "common.cancel": "キャンセル",
   "common.close": "閉じる",
 
@@ -27,6 +28,7 @@ export const ja: Record<string, string> = {
   "workIndex.section.projects": "プロジェクト",
   "sidebar.action.collapse": "サイドバーを隠す",
   "sidebar.action.expand": "サイドバーを展開",
+  "sidebar.action.resize": "ワークインデックスの幅を変更",
   "sidebar.action.newSession": "新規セッション",
   "sidebar.action.settings": "設定",
 
@@ -585,6 +587,8 @@ export const ja: Record<string, string> = {
   "projects.showLess": "折りたたむ",
   "projects.empty.title": "プロジェクトなし",
   "projects.empty.sub": "フォルダでセッションを始めるとワークスペースグループが作成されます。",
+  "projects.error.title": "プロジェクトを読み込めませんでした",
+  "projects.error.sub": "Runtime 接続を確認してから、ワークインデックスを開き直してください。",
   "projects.fallbackName": "その他",
   "convExport.markdown": "会話を Markdown でエクスポート",
   "convExport.json": "会話を JSON でエクスポート",

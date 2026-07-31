@@ -3,6 +3,7 @@
 // any key a sister locale hasn't translated yet.
 
 export const en: Record<string, string> = {
+  "common.appName": "Lynx",
   "common.cancel": "Cancel",
   "common.close": "Close",
 
@@ -29,6 +30,7 @@ export const en: Record<string, string> = {
   "workIndex.section.projects": "Projects",
   "sidebar.action.collapse": "Hide sidebar",
   "sidebar.action.expand": "Expand sidebar",
+  "sidebar.action.resize": "Resize the work index",
   "sidebar.action.newSession": "New session",
   "sidebar.action.settings": "Settings",
 
@@ -871,6 +873,8 @@ export const en: Record<string, string> = {
   "projects.showLess": "Show less",
   "projects.empty.title": "No projects",
   "projects.empty.sub": "Start a session in a folder to create a workspace group.",
+  "projects.error.title": "Couldn’t load projects",
+  "projects.error.sub": "Check the Runtime connection, then reopen the work index.",
   "projects.fallbackName": "Other",
 
   // ── Status bar ──

@@ -1,4 +1,4 @@
-import type { ComponentPropsWithoutRef } from "react";
+import type { ComponentPropsWithoutRef, MouseEvent } from "react";
 import { cn } from "@/lib/classNames";
 import { IconButton } from "@/ui";
 
@@ -61,12 +61,32 @@ export function AgentDrawerToggle({
   expandLabel: string;
   collapseLabel: string;
 }) {
+  const handleToggle = (event: MouseEvent<HTMLButtonElement>) => {
+    const shell = event.currentTarget.closest<HTMLElement>(".agent-shell");
+    const source = event.currentTarget;
+    onToggle();
+    // The visible toggle moves between the drawer and the content header.
+    // Preserve keyboard focus across that ownership handoff instead of dropping
+    // it onto <body> when the old control slides out or unmounts.
+    requestAnimationFrame(() => {
+      const target = [...(shell?.querySelectorAll<HTMLButtonElement>("[data-drawer-toggle]") ?? [])]
+        .filter((button) => button !== source)
+        .find((button) => {
+          const style = getComputedStyle(button);
+          return style.display !== "none" && style.visibility !== "hidden";
+        });
+      target?.focus();
+    });
+  };
+
   return (
     <IconButton
       icon="panel-l"
       size="sm"
+      data-drawer-toggle=""
+      aria-expanded={!collapsed}
       aria-label={collapsed ? expandLabel : collapseLabel}
-      onClick={onToggle}
+      onClick={handleToggle}
     />
   );
 }

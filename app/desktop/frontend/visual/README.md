@@ -15,7 +15,11 @@ Rules:
   use the production fold/projection before seeding a test adapter;
 - keep fixtures inert unless an interaction is the subject of the test.
 
-The `foundation` fixture freezes geometry and primitive roles. The `agent`
+The `foundation` fixture freezes geometry and primitive roles. The `shell`
+fixture installs test-only data providers, then renders the production sidebar
+plugins, application projections, workspace navigation port, and shell
+primitives for populated, empty, loading, error, collapsed, resized, and Retina
+states. The `agent`
 fixture is backed by canonical `AgentSessionSnapshot` values and the production
 `projectAgentSessionSnapshot` fold; its state selector covers empty, idle,
 Running, Waiting/HITL, terminal, error, delegated-tree, and long-content cases.
@@ -28,6 +32,8 @@ checks. Update reviewed baselines with `npm run visual:test:update`.
 Useful routes:
 
 - `/?theme=light&sidebar=expanded`
+- `/?fixture=shell&theme=light&state=populated&sidebar=expanded`
+- `/?fixture=shell&theme=dark&state=error`
 - `/?fixture=agent&theme=dark&state=waiting`
 - `/?fixture=workspace&theme=light&view=dock`
 - `/?fixture=workspace&theme=dark&view=settings`

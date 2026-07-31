@@ -1,6 +1,7 @@
 // Deutsch.
 
 export const de: Record<string, string> = {
+  "common.appName": "Lynx",
   "common.cancel": "Abbrechen",
   "common.close": "Schließen",
 
@@ -28,6 +29,7 @@ export const de: Record<string, string> = {
   "workIndex.section.projects": "Projekte",
   "sidebar.action.collapse": "Seitenleiste ausblenden",
   "sidebar.action.expand": "Seitenleiste ausklappen",
+  "sidebar.action.resize": "Arbeitsindex skalieren",
   "sidebar.action.newSession": "Neue Sitzung",
   "sidebar.action.settings": "Einstellungen",
 
@@ -593,6 +595,9 @@ export const de: Record<string, string> = {
   "projects.empty.title": "Keine Projekte",
   "projects.empty.sub":
     "Starte eine Sitzung in einem Ordner, um eine Workspace-Gruppe zu erstellen.",
+  "projects.error.title": "Projekte konnten nicht geladen werden",
+  "projects.error.sub":
+    "Prüfe die Runtime-Verbindung und öffne anschließend den Arbeitsindex erneut.",
   "projects.fallbackName": "Andere",
   "convExport.markdown": "Konversation als Markdown exportieren",
   "convExport.json": "Konversation als JSON exportieren",

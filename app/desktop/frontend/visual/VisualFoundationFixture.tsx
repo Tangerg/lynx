@@ -148,6 +148,7 @@ export function VisualFoundationFixture({ sidebarOpen }: VisualFoundationFixture
   return (
     <AgentAppShell
       sidebarLabel="Work index"
+      sidebarResizeLabel="Resize the work index"
       sidebarOpen={sidebarOpen}
       sidebarWidth={256}
       onResize={() => undefined}

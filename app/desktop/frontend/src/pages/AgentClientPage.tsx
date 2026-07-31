@@ -18,6 +18,7 @@ export function AgentClientPage() {
   return (
     <AgentAppShell
       sidebarLabel={t("shell.region.workIndex")}
+      sidebarResizeLabel={t("sidebar.action.resize")}
       sidebarOpen={!drawer.collapsed}
       sidebarWidth={width}
       onResize={setWidth}

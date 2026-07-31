@@ -58,12 +58,14 @@ function FullViewBar({ icon, title, sub, actions, titleStrong }: ViewHeaderProps
     // region. A view can be opened beside the chat, so its header sits directly
     // next to that one and any divergence reads as two different kinds of bar.
     <AgentSurfaceHeader className="gap-2" windowCorner>
-      <AgentDrawerToggle
-        collapsed={drawer.collapsed}
-        onToggle={drawer.toggle}
-        expandLabel={t("sidebar.action.expand")}
-        collapseLabel={t("sidebar.action.collapse")}
-      />
+      {drawer.collapsed && (
+        <AgentDrawerToggle
+          collapsed
+          onToggle={drawer.toggle}
+          expandLabel={t("sidebar.action.expand")}
+          collapseLabel={t("sidebar.action.collapse")}
+        />
+      )}
       <Icon name={icon} size={15} strokeWidth={1.8} className="shrink-0 text-fg-muted" />
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span

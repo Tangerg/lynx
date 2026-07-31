@@ -284,9 +284,12 @@ App.tsx
 
 ```tsx
 <AgentAppShell
-  rail={sidebarRail}
-  mode={activeViewId === "settings" ? "single" : "work"}
-  sidebar={<Slot name="app.sidebar" />}
+  sidebarLabel={t("shell.region.workIndex")}
+  sidebarResizeLabel={t("sidebar.action.resize")}
+  sidebarOpen={!drawer.collapsed}
+  sidebarWidth={width}
+  onResize={setWidth}
+  sidebar={activeViewId === "settings" ? undefined : <Slot name="app.sidebar" />}
   main={<Slot name="app.main" />}
   overlay={<Slot name="app.overlay" />}
 />
@@ -300,7 +303,9 @@ App.tsx
 | `app.main`    | `kernel-chat`（ChatPanel）                  |
 | `app.overlay` | `command-palette` / `toaster` / `shortcuts` |
 
-`AgentAppShell` 拥有窗口外壳、Work Index 区域和 single/settings 模式；插件只贡献 slot 内容，不直接组织顶层 grid。
+`AgentAppShell` 拥有窗口外壳、Work Index 区域和 settings 的 single-surface
+组合；实时 resize 只写 shell custom property，release/keyboard step 才通过
+`onResize` 持久化。插件只贡献 slot 内容，不直接组织顶层 layout。
 
 ---
 

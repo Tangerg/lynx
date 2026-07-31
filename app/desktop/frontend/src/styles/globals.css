@@ -847,6 +847,11 @@ html.theme-light .msg-content code {
   /* Drawer width. Live-updated inline on the shell element while dragging the
      seam rail; AgentAppShell restores the persisted value on mount. */
   --sidebar-width: 256px;
+  /* macOS traffic lights occupy the first ~66px. The open drawer owns that
+     window corner, so its leading control starts after one stable gutter.
+     Collapsed content bars keep their existing wider 96px inset because they
+     also need breathing room between the native controls and page identity. */
+  --window-controls-gutter: 78px;
   /* Chrome bar height. Shared by the sidebar header and every content header so
      the two line up across the seam — the single number the macOS traffic-light
      gutter is centred against. */
@@ -926,12 +931,19 @@ html.theme-dark {
   display: flex;
   width: var(--sidebar-width);
   height: 100vh;
+  visibility: visible;
   transition:
     left var(--dur-drawer) var(--ease-drawer),
-    width var(--dur-drawer) var(--ease-drawer);
+    width var(--dur-drawer) var(--ease-drawer),
+    visibility 0s linear 0s;
 }
 .agent-shell[data-sidebar="collapsed"] .agent-drawer {
   left: calc(var(--sidebar-width) * -1);
+  visibility: hidden;
+  transition:
+    left var(--dur-drawer) var(--ease-drawer),
+    width var(--dur-drawer) var(--ease-drawer),
+    visibility 0s linear var(--dur-drawer);
 }
 
 /* Mid-drag the width changes every pointer-move, so the slide transition would
@@ -975,6 +987,7 @@ html.theme-dark {
   background: transparent;
   border: 0;
   padding: 0;
+  outline: none;
 }
 .agent-shell[data-sidebar="collapsed"] .agent-seam-rail {
   display: none;
@@ -1049,7 +1062,7 @@ html.theme-dark {
 
 /* Hovering the rail intensifies the same line the ring already draws — never a
    second element. */
-.agent-shell:has(.agent-seam-rail:hover) .agent-content-card {
+.agent-shell:has(.agent-seam-rail:is(:hover, :focus-visible)) .agent-content-card {
   --seam-line: color-mix(in srgb, var(--color-text) 30%, transparent);
 }
 
@@ -1115,6 +1128,16 @@ html.theme-dark {
   .agent-surface-header {
     padding-inline: 20px;
   }
+}
+
+/* The expanded drawer, rather than the content card, owns the window's
+   top-left corner. Keep its toggle clear of the native macOS controls. This is
+   structural chrome geometry, so a utility class at the callsite must not own
+   or accidentally override it. It follows the responsive rule above so the
+   window gutter remains the final geometry author at every width. */
+.agent-drawer-header {
+  padding-inline-start: var(--window-controls-gutter);
+  padding-inline-end: 12px;
 }
 
 /* Bottom hairline for every chrome bar. Painted as a 1px background gradient,

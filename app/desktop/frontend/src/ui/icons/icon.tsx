@@ -25,6 +25,7 @@ import {
   FilePlus,
   FileText,
   Folder,
+  FolderOpen,
   FolderSearch,
   GitBranch,
   GitFork,
@@ -84,6 +85,7 @@ export type IconName =
   | "plus"
   | "chat"
   | "folder"
+  | "folder-open"
   | "code"
   | "terminal"
   | "file"
@@ -156,6 +158,7 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   plus: Plus,
   chat: MessageSquare,
   folder: Folder,
+  "folder-open": FolderOpen,
   code: Code,
   terminal: Terminal,
   file: File,

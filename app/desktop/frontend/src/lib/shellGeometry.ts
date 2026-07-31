@@ -43,8 +43,12 @@ const MAIN_MIN_WIDTH_PX = 640;
 const CHAT_MIN_WIDTH_PX = 420;
 
 export function clampSidebarWidth(width: number, shellWidth: number): number {
-  const max = Math.max(SIDEBAR_MIN_WIDTH_PX, shellWidth - MAIN_MIN_WIDTH_PX);
-  return Math.round(Math.min(max, Math.max(SIDEBAR_MIN_WIDTH_PX, width)));
+  return Math.round(Math.min(maxSidebarWidth(shellWidth), Math.max(SIDEBAR_MIN_WIDTH_PX, width)));
+}
+
+/** Largest drawer width that still preserves the shell's reading column. */
+export function maxSidebarWidth(shellWidth: number): number {
+  return Math.max(SIDEBAR_MIN_WIDTH_PX, shellWidth - MAIN_MIN_WIDTH_PX);
 }
 
 /** Same shape as the drawer's clamp — the dock is a px-wide resizable column,

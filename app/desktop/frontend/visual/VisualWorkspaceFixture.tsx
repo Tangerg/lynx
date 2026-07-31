@@ -71,6 +71,7 @@ function DockFixture() {
   return (
     <AgentAppShell
       sidebarLabel="Work index"
+      sidebarResizeLabel="Resize the work index"
       sidebarOpen
       sidebarWidth={244}
       onResize={() => undefined}

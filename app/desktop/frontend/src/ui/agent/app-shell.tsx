@@ -9,6 +9,8 @@ interface AgentAppShellProps {
   /** Assistive-tech name for the drawer region. The shell renders the region; the
    *  application says what it is. */
   sidebarLabel: string;
+  /** Assistive-tech name for the drawer resize separator. */
+  sidebarResizeLabel: string;
   /** Drawer open state. Collapsing slides it under the content card. */
   sidebarOpen: boolean;
   /** Persisted drawer width in px; the rail commits new values through `onResize`. */
@@ -29,6 +31,7 @@ interface AgentAppShellProps {
 export function AgentAppShell({
   sidebar,
   sidebarLabel,
+  sidebarResizeLabel,
   sidebarOpen,
   sidebarWidth,
   onResize,
@@ -38,15 +41,24 @@ export function AgentAppShell({
   const shellRef = useRef<HTMLDivElement>(null);
   const hasSidebar = sidebar !== undefined;
 
-  // The rail writes `--sidebar-width` directly during a drag, so this effect is
-  // what re-syncs the element with the store afterwards (and on first paint).
+  // The rail writes `--sidebar-width` directly during a drag. This effect
+  // re-syncs it with the persisted preference afterwards and re-clamps that
+  // preference whenever the window changes size. The preference itself is not
+  // overwritten by a temporary narrow window, so widening restores the user's
+  // chosen width.
   useEffect(() => {
     const shell = shellRef.current;
     if (!shell) return;
-    shell.style.setProperty(
-      "--sidebar-width",
-      `${clampSidebarWidth(sidebarWidth, shell.clientWidth)}px`,
-    );
+    const syncWidth = () => {
+      shell.style.setProperty(
+        "--sidebar-width",
+        `${clampSidebarWidth(sidebarWidth, shell.clientWidth)}px`,
+      );
+    };
+    syncWidth();
+    const observer = new ResizeObserver(syncWidth);
+    observer.observe(shell);
+    return () => observer.disconnect();
   }, [sidebarWidth]);
 
   return (
@@ -57,7 +69,9 @@ export function AgentAppShell({
     >
       {hasSidebar && <AgentSidebar label={sidebarLabel}>{sidebar}</AgentSidebar>}
       <div className="agent-card-backing">
-        {hasSidebar && sidebarOpen && <AgentSeamRail onCommit={onResize} />}
+        {hasSidebar && sidebarOpen && (
+          <AgentSeamRail label={sidebarResizeLabel} width={sidebarWidth} onCommit={onResize} />
+        )}
         {main}
       </div>
       {overlay}

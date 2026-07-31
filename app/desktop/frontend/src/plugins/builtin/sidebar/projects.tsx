@@ -15,8 +15,10 @@ import { definePlugin } from "@/plugins/sdk";
 // keeps a busy project from burying the ones below it (Codex's 展开显示).
 const VISIBLE_CAP = 5;
 
-// Vertical list column — the section list and each project's nested session list.
-const sideListClasses = "flex flex-col gap-0.5";
+// Project groups need enough separation to remain scannable; rows inside one
+// project stay compact so the folder/session hierarchy reads as one unit.
+const projectListClasses = "flex flex-col gap-3";
+const sessionListClasses = "flex flex-col gap-0.5";
 
 // One project node: header + (when open) its capped session list.
 function ProjectGroupNode({
@@ -47,7 +49,7 @@ function ProjectGroupNode({
   const hidden = group.sessions.length - visible.length;
 
   return (
-    <div className={sideListClasses}>
+    <div className={sessionListClasses}>
       <ProjectRow
         project={group.project}
         // The accent bar marks the group only while it's collapsed — when
@@ -59,7 +61,7 @@ function ProjectGroupNode({
         onNewSession={onNewSession}
       />
       {open && group.sessions.length > 0 && (
-        <div className={sideListClasses}>
+        <div className="flex flex-col gap-0.5 pt-0.5">
           {visible.map((s) => (
             <SessionRow
               key={s.id}
@@ -98,21 +100,29 @@ function ProjectsSection() {
 
   return (
     <>
-      <SectionLabel>{t("workIndex.section.projects")}</SectionLabel>
+      <SectionLabel className="flex h-7 items-center py-0">
+        {t("workIndex.section.projects")}
+      </SectionLabel>
       <DataView
         items={workIndex.groups}
         isLoading={workIndex.isLoading}
         isError={workIndex.isError}
         skeletonCount={3}
+        skeletonVariant="compact"
+        loadingLabel={t("common.loading")}
         empty={{
-          icon: "folder",
           title: t("projects.empty.title"),
           sub: t("projects.empty.sub"),
           size: "compact",
         }}
+        error={{
+          title: t("projects.error.title"),
+          sub: t("projects.error.sub"),
+          size: "compact",
+        }}
       >
         {(items) => (
-          <div className={sideListClasses}>
+          <div className={projectListClasses}>
             {items.map((g) => (
               <ProjectGroupNode
                 key={g.project.id}

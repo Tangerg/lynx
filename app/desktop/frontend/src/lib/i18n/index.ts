@@ -79,7 +79,12 @@ function syncHtmlLang(loc: Locale): void {
 syncHtmlLang(initial);
 
 function getLocale(): Locale {
-  return i18next.resolvedLanguage ?? "en";
+  // `language` is the requested locale identity; `resolvedLanguage` may be the
+  // English fallback while that locale's lazy plugin has not loaded yet. Using
+  // the fallback here made cold-start setup believe the user had selected
+  // English, so it never loaded the requested dictionary. Keep selection
+  // identity separate from resource-resolution fallback.
+  return i18next.language ?? i18next.resolvedLanguage ?? "en";
 }
 
 /** The active language tag, read outside React (plugin setup, bootstrap). */
@@ -116,7 +121,7 @@ export type Translate = typeof t;
 /** Reactive locale hook — components using this re-render on change. */
 export function useLocale(): Locale {
   const { i18n } = useTranslation();
-  return i18n.resolvedLanguage ?? "en";
+  return i18n.language ?? i18n.resolvedLanguage ?? "en";
 }
 
 /** Hook returning a translate fn bound to the live locale. The returned

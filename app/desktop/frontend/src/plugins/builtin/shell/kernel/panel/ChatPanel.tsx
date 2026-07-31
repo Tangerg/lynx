@@ -142,12 +142,14 @@ export function ChatPanel({ onSend }: Props) {
                 are owned by `.agent-surface-header` in globals.css — a `pl-*`
                 utility here can't win against that unlayered rule. */}
             <AgentSurfaceHeader windowCorner>
-              <AgentDrawerToggle
-                collapsed={drawer.collapsed}
-                onToggle={drawer.toggle}
-                expandLabel={t("sidebar.action.expand")}
-                collapseLabel={t("sidebar.action.collapse")}
-              />
+              {drawer.collapsed && (
+                <AgentDrawerToggle
+                  collapsed
+                  onToggle={drawer.toggle}
+                  expandLabel={t("sidebar.action.expand")}
+                  collapseLabel={t("sidebar.action.collapse")}
+                />
+              )}
               <span className="font-mono text-ui-md text-fg-faint">
                 {activeSession?.cwd ? basename(activeSession.cwd) : "lynx"}
               </span>

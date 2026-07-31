@@ -22,10 +22,11 @@ interface Props {
 
 // Session row — sidebar list item.
 //
-// One line (Codex reference): icon · title (fills, truncates) · right-aligned
-// relative time, with a small live dot replacing the time while the session is
-// running (accent) or waiting on input (warning) — accent stays reserved for
-// live state, selection is the soft pill.
+// One line: icon · title (fills, truncates) · optional live status dot. Idle
+// timestamps stay in the accessible label instead of permanently taking the
+// row's scarce horizontal space; running/waiting remain visible because they
+// require attention now. Accent stays reserved for live state, selection is the
+// soft pill.
 export function SessionRow({
   session,
   active,
@@ -44,13 +45,7 @@ export function SessionRow({
   // formatRelative reads `i18next.t` and `i18next.language` directly
   // — no extra subscription needed.
   const t = useT();
-  // Sub-row shows status text when the session is active (Running /
-  // Needs input), otherwise the localised time. The previous design
-  // had model name here + a separate time column on the right; with
-  // titles routinely hitting 25+ chars that right column squeezed
-  // the title into ellipsis early. Killing the right column gives
-  // the title the full row width.
-  const subText =
+  const accessibleStatus =
     session.attention === "running"
       ? t("session.status.running")
       : session.attention === "waiting"
@@ -65,25 +60,18 @@ export function SessionRow({
         onClick={() => onSelect(session.id)}
         data-chrome-focus=""
         aria-current={active ? "page" : undefined}
-        aria-label={session.title}
+        aria-label={`${session.title} — ${accessibleStatus}`}
         active={active}
         indent="nested"
         className="font-normal"
         trailing={
-          renaming ? undefined : session.attention === "none" ? (
-            <span
-              className="shrink-0 font-mono text-ui-sm leading-none text-fg-faint tabular-nums"
-              title={session.time}
-            >
-              {subText}
-            </span>
-          ) : (
+          renaming || session.attention === "none" ? undefined : (
             <span
               className={cn(
                 "h-1.5 w-1.5 shrink-0 rounded-full",
                 session.attention === "running" ? "bg-accent animate-pulse-dot" : "bg-warning",
               )}
-              title={subText}
+              title={accessibleStatus}
             />
           )
         }

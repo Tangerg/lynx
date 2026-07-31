@@ -1,6 +1,7 @@
 // 简体中文。
 
 export const zh: Record<string, string> = {
+  "common.appName": "Lynx",
   "common.cancel": "取消",
   "common.close": "关闭",
 
@@ -26,6 +27,7 @@ export const zh: Record<string, string> = {
   "workIndex.section.projects": "项目",
   "sidebar.action.collapse": "隐藏侧栏",
   "sidebar.action.expand": "展开边栏",
+  "sidebar.action.resize": "调整工作索引宽度",
   "sidebar.action.newSession": "新建会话",
   "sidebar.action.settings": "设置",
 
@@ -764,6 +766,8 @@ export const zh: Record<string, string> = {
   "projects.showLess": "收起",
   "projects.empty.title": "无项目",
   "projects.empty.sub": "在文件夹里开始一个会话，即可创建工作区分组。",
+  "projects.error.title": "无法加载项目",
+  "projects.error.sub": "请检查 Runtime 连接，然后重新打开工作索引。",
   "projects.fallbackName": "其他",
   "convExport.markdown": "导出对话为 Markdown",
   "convExport.json": "导出对话为 JSON",

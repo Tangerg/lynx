@@ -121,6 +121,7 @@ export function VisualAgentStateFixture({
   return (
     <AgentAppShell
       sidebarLabel="Agent fixture states"
+      sidebarResizeLabel="Resize the agent fixture sidebar"
       sidebarOpen
       sidebarWidth={256}
       onResize={() => undefined}

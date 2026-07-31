@@ -1,6 +1,7 @@
 // 繁體中文（港澳台）。
 
 export const zhTW: Record<string, string> = {
+  "common.appName": "Lynx",
   "common.cancel": "取消",
   "common.close": "關閉",
 
@@ -26,6 +27,7 @@ export const zhTW: Record<string, string> = {
   "workIndex.section.projects": "專案",
   "sidebar.action.collapse": "隱藏側欄",
   "sidebar.action.expand": "展開側欄",
+  "sidebar.action.resize": "調整工作索引寬度",
   "sidebar.action.newSession": "新會話",
   "sidebar.action.settings": "設定",
 
@@ -592,6 +594,8 @@ export const zhTW: Record<string, string> = {
   "projects.showLess": "收合",
   "projects.empty.title": "無專案",
   "projects.empty.sub": "在資料夾中開始一個會話，即可建立工作區分組。",
+  "projects.error.title": "無法載入專案",
+  "projects.error.sub": "請檢查 Runtime 連線，然後重新開啟工作索引。",
   "projects.fallbackName": "其他",
   "convExport.markdown": "匯出對話為 Markdown",
   "convExport.json": "匯出對話為 JSON",

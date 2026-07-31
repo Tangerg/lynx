@@ -554,6 +554,13 @@ ring. No bottom status bar:
 - **Collapsed** (`⌘B`) slides the drawer fully off-canvas under the card — there is
   no icon rail. The card then reaches the window edge, squares its seam corner, and
   its header widens its leading inset to clear the macOS traffic lights.
+- **One visible collapse control.** Expanded, the toggle lives in the drawer's
+  46px header after the traffic-light gutter; collapsed, ownership moves to the
+  content header. Keyboard focus follows that handoff instead of falling onto the
+  document.
+- The seam rail is a focusable vertical separator: pointer movement writes only
+  `--sidebar-width`, pointer release commits once, and Arrow/Home/End provide the
+  same bounded resize path for keyboard users.
 - The drawer is the card color at partial opacity over the shell background, with a
   backdrop blur — the same material as the card, which is what makes the card read
   as lifted off it rather than merely a different grey. It carries NO border: the

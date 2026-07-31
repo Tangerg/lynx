@@ -1,6 +1,7 @@
 // Français.
 
 export const fr: Record<string, string> = {
+  "common.appName": "Lynx",
   "common.cancel": "Annuler",
   "common.close": "Fermer",
 
@@ -28,6 +29,7 @@ export const fr: Record<string, string> = {
   "workIndex.section.projects": "Projets",
   "sidebar.action.collapse": "Masquer la barre latérale",
   "sidebar.action.expand": "Développer la barre",
+  "sidebar.action.resize": "Redimensionner l’index de travail",
   "sidebar.action.newSession": "Nouvelle session",
   "sidebar.action.settings": "Paramètres",
 
@@ -594,6 +596,8 @@ export const fr: Record<string, string> = {
   "projects.empty.title": "Aucun projet",
   "projects.empty.sub":
     "Démarrez une session dans un dossier pour créer un groupe d’espace de travail.",
+  "projects.error.title": "Impossible de charger les projets",
+  "projects.error.sub": "Vérifiez la connexion au Runtime, puis rouvrez l’index de travail.",
   "projects.fallbackName": "Autre",
   "convExport.markdown": "Exporter la conversation en Markdown",
   "convExport.json": "Exporter la conversation en JSON",

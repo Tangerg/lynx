@@ -1,6 +1,7 @@
 // 한국어.
 
 export const ko: Record<string, string> = {
+  "common.appName": "Lynx",
   "common.cancel": "취소",
   "common.close": "닫기",
 
@@ -27,6 +28,7 @@ export const ko: Record<string, string> = {
   "workIndex.section.projects": "프로젝트",
   "sidebar.action.collapse": "사이드바 숨기기",
   "sidebar.action.expand": "사이드바 펼치기",
+  "sidebar.action.resize": "작업 인덱스 크기 조절",
   "sidebar.action.newSession": "새 세션",
   "sidebar.action.settings": "설정",
 
@@ -579,6 +581,8 @@ export const ko: Record<string, string> = {
   "projects.showLess": "간략히 보기",
   "projects.empty.title": "프로젝트 없음",
   "projects.empty.sub": "폴더에서 세션을 시작하면 작업 영역 그룹이 만들어집니다.",
+  "projects.error.title": "프로젝트를 불러올 수 없음",
+  "projects.error.sub": "Runtime 연결을 확인한 다음 작업 인덱스를 다시 여세요.",
   "projects.fallbackName": "기타",
   "convExport.markdown": "대화를 Markdown으로 내보내기",
   "convExport.json": "대화를 JSON으로 내보내기",

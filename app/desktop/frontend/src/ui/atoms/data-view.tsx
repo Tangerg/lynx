@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import type { IconName } from "@/ui/icons";
 import { useT } from "@/lib/i18n";
 import { EmptyState } from "./empty-state";
-import { SkeletonList } from "./skeleton";
+import { SkeletonList, type SkeletonListVariant } from "./skeleton";
 
 interface EmptyConfig {
   icon?: IconName;
@@ -29,6 +29,10 @@ interface Props<T> {
   isError?: boolean;
   /** Number of skeleton rows to render while loading. Defaults to 4. */
   skeletonCount?: number;
+  /** Skeleton geometry appropriate to the owning surface. */
+  skeletonVariant?: SkeletonListVariant;
+  /** Localized assistive-tech announcement for the loading branch. */
+  loadingLabel?: string;
   /**
    * Empty-state config. Omit to render nothing on empty (rare — most
    * surfaces benefit from an explicit "nothing here yet" message).
@@ -48,12 +52,22 @@ export function DataView<T>({
   isLoading,
   isError,
   skeletonCount = 4,
+  skeletonVariant = "stacked",
+  loadingLabel,
   empty,
   error,
   children,
 }: Props<T>) {
   const t = useT();
-  if (isLoading) return <SkeletonList count={skeletonCount} />;
+  if (isLoading) {
+    return (
+      <SkeletonList
+        count={skeletonCount}
+        variant={skeletonVariant}
+        label={loadingLabel ?? t("common.loading")}
+      />
+    );
+  }
   if (isError) {
     return (
       <EmptyState
