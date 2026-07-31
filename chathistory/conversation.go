@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
-// ErrInvalidConversationID reports an empty or whitespace-padded storage key.
+// ErrInvalidConversationID reports a malformed or unsafe storage key.
 var ErrInvalidConversationID = errors.New("chathistory: invalid conversation ID")
 
 type conversationIDContextKey struct{}
@@ -31,15 +33,23 @@ func ConversationID(ctx context.Context) (string, bool) {
 }
 
 // ValidateConversationID verifies the partition key required by Store
-// operations. IDs are opaque, but leading or trailing whitespace is rejected
-// because it commonly indicates a propagation bug and creates invisible
-// duplicate partitions.
+// operations. IDs are opaque UTF-8 text, but control characters and leading or
+// trailing whitespace are rejected because they commonly indicate propagation
+// bugs and create invisible or unsafe storage partitions.
 func ValidateConversationID(conversationID string) error {
 	if conversationID == "" {
 		return fmt.Errorf("%w: empty", ErrInvalidConversationID)
 	}
+	if !utf8.ValidString(conversationID) {
+		return fmt.Errorf("%w: invalid UTF-8", ErrInvalidConversationID)
+	}
 	if strings.TrimSpace(conversationID) != conversationID {
 		return fmt.Errorf("%w: leading or trailing whitespace", ErrInvalidConversationID)
+	}
+	for _, character := range conversationID {
+		if unicode.IsControl(character) {
+			return fmt.Errorf("%w: contains control character %U", ErrInvalidConversationID, character)
+		}
 	}
 	return nil
 }

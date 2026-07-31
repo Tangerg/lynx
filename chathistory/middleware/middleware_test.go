@@ -19,6 +19,10 @@ func TestNewRejectsNilStore(t *testing.T) {
 	if _, err := historymw.New(nil); !errors.Is(err, chathistory.ErrNilStore) {
 		t.Fatalf("New(nil) error = %v", err)
 	}
+	var typedNil *recordingStore
+	if _, err := historymw.New(typedNil); !errors.Is(err, chathistory.ErrNilStore) {
+		t.Fatalf("New(typed nil) error = %v", err)
+	}
 }
 
 func TestCallReplaysInStableOrderAndPersistsOnlyFreshExchange(t *testing.T) {
@@ -462,17 +466,11 @@ func (s *recordingStore) writesSnapshot() [][]chat.Message {
 }
 
 func cloneMessages(messages []chat.Message) []chat.Message {
-	raw := make([]chat.Message, len(messages))
+	cloned := make([]chat.Message, len(messages))
 	for i := range messages {
-		encoded, err := messages[i].MarshalJSON()
-		if err != nil {
-			panic(err)
-		}
-		if err := raw[i].UnmarshalJSON(encoded); err != nil {
-			panic(err)
-		}
+		cloned[i] = messages[i].Clone()
 	}
-	return raw
+	return cloned
 }
 
 type messageKey struct {

@@ -12,16 +12,9 @@ import (
 var (
 	// ErrInvalidWindow reports a non-positive message limit.
 	ErrInvalidWindow = errors.New("chathistory: invalid message window")
-	// ErrListingUnsupported reports that a wrapped Store cannot enumerate
-	// conversations.
-	ErrListingUnsupported = errors.New("chathistory: conversation listing unsupported")
 )
 
-var (
-	_ Store    = (*WindowStore)(nil)
-	_ Lister   = (*WindowStore)(nil)
-	_ Replacer = (*WindowStore)(nil)
-)
+var _ Store = (*WindowStore)(nil)
 
 // WindowStore projects reads to at most limit messages while preserving a
 // merged system message followed by the most recent non-system messages.
@@ -34,7 +27,7 @@ type WindowStore struct {
 // NewWindowStore returns a read-side sliding-window decorator. Limit counts
 // the merged system message when one exists and must be greater than zero.
 func NewWindowStore(store Store, limit int) (*WindowStore, error) {
-	if store == nil {
+	if isNil(store) {
 		return nil, ErrNilStore
 	}
 	if limit <= 0 {
@@ -89,27 +82,15 @@ func (s *WindowStore) Clear(ctx context.Context, conversationID string) error {
 	return s.store.Clear(ctx, conversationID)
 }
 
-// Replace delegates through the optional atomic capability helper.
-func (s *WindowStore) Replace(ctx context.Context, conversationID string, messages ...chat.Message) error {
-	return Replace(ctx, s.store, conversationID, messages...)
-}
-
-// Conversations delegates when the underlying Store implements Lister.
-func (s *WindowStore) Conversations(ctx context.Context) ([]string, error) {
-	lister, ok := s.store.(Lister)
-	if !ok {
-		return nil, ErrListingUnsupported
-	}
-	return lister.Conversations(ctx)
-}
-
 func mergeSystemMessages(messages []chat.Message) (chat.Message, error) {
 	merged := chat.Message{Role: chat.RoleSystem, Metadata: metadata.Map{}}
 	for i, message := range messages {
 		if i > 0 {
 			merged.Parts = append(merged.Parts, chat.NewTextPart("\n\n"))
 		}
-		merged.Parts = append(merged.Parts, chat.NewTextPart(message.Text()))
+		for _, part := range message.Parts {
+			merged.Parts = append(merged.Parts, part.Clone())
+		}
 		if err := merged.Metadata.Merge(message.Metadata); err != nil {
 			return chat.Message{}, fmt.Errorf("chathistory: merge system message %d metadata: %w", i, err)
 		}

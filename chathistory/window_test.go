@@ -2,7 +2,6 @@ package chathistory_test
 
 import (
 	"errors"
-	"reflect"
 	"testing"
 
 	"github.com/Tangerg/lynx/chathistory"
@@ -13,6 +12,10 @@ import (
 func TestNewWindowStoreValidatesConstruction(t *testing.T) {
 	if _, err := chathistory.NewWindowStore(nil, 1); !errors.Is(err, chathistory.ErrNilStore) {
 		t.Fatalf("nil store error = %v", err)
+	}
+	var typedNil *basicStore
+	if _, err := chathistory.NewWindowStore(typedNil, 1); !errors.Is(err, chathistory.ErrNilStore) {
+		t.Fatalf("typed-nil store error = %v", err)
 	}
 	if _, err := chathistory.NewWindowStore(chathistory.NewInMemoryStore(), 0); !errors.Is(err, chathistory.ErrInvalidWindow) {
 		t.Fatalf("invalid limit error = %v", err)
@@ -54,7 +57,35 @@ func TestWindowStoreMergesSystemAndKeepsRecentMessages(t *testing.T) {
 	}
 }
 
-func TestWindowStoreDelegatesWritesReplaceClearAndListing(t *testing.T) {
+func TestWindowStorePreservesSystemPartStructure(t *testing.T) {
+	base := chathistory.NewInMemoryStore()
+	part := chat.NewTextPart("")
+	part.Metadata = metadata.Map{}
+	if err := part.Metadata.Set("provider", "preserved"); err != nil {
+		t.Fatal(err)
+	}
+	first := chat.Message{Role: chat.RoleSystem, Parts: []chat.Part{chat.NewTextPart("first"), part}}
+	second := chat.NewSystemMessage("second")
+	if err := base.Write(t.Context(), "c", first, second); err != nil {
+		t.Fatal(err)
+	}
+	window, err := chathistory.NewWindowStore(base, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := window.Read(t.Context(), "c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || len(got[0].Parts) != 4 {
+		t.Fatalf("merged messages = %#v", got)
+	}
+	if value := string(got[0].Parts[1].Metadata["provider"]); value != `"preserved"` {
+		t.Fatalf("part metadata = %s", value)
+	}
+}
+
+func TestWindowStoreDelegatesWritesAndClear(t *testing.T) {
 	base := chathistory.NewInMemoryStore()
 	window, err := chathistory.NewWindowStore(base, 2)
 	if err != nil {
@@ -66,29 +97,10 @@ func TestWindowStoreDelegatesWritesReplaceClearAndListing(t *testing.T) {
 	if err := window.Write(t.Context(), "a", chat.NewUserMessage(chat.NewTextPart("one"))); err != nil {
 		t.Fatal(err)
 	}
-	if ids, err := window.Conversations(t.Context()); err != nil || !reflect.DeepEqual(ids, []string{"a", "b"}) {
-		t.Fatalf("Conversations = %v, %v", ids, err)
-	}
-	if err := window.Replace(t.Context(), "a", chat.NewUserMessage(chat.NewTextPart("two"))); err != nil {
-		t.Fatal(err)
-	}
-	if got, _ := base.Read(t.Context(), "a"); len(got) != 1 || got[0].Text() != "two" {
-		t.Fatalf("after Replace = %#v", got)
-	}
 	if err := window.Clear(t.Context(), "a"); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := window.Read(t.Context(), "a"); got == nil || len(got) != 0 {
 		t.Fatalf("after Clear = %#v", got)
-	}
-}
-
-func TestWindowStoreReportsUnsupportedListing(t *testing.T) {
-	window, err := chathistory.NewWindowStore(&basicStore{}, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := window.Conversations(t.Context()); !errors.Is(err, chathistory.ErrListingUnsupported) {
-		t.Fatalf("Conversations error = %v", err)
 	}
 }

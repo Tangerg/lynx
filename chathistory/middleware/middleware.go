@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"reflect"
 
 	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/internal/snapshot"
@@ -32,10 +33,23 @@ type Middleware struct {
 
 // New constructs history middleware around store.
 func New(store Store) (*Middleware, error) {
-	if store == nil {
+	if isNilStore(store) {
 		return nil, chathistory.ErrNilStore
 	}
 	return &Middleware{store: store}, nil
+}
+
+func isNilStore(store Store) bool {
+	if store == nil {
+		return true
+	}
+	reflected := reflect.ValueOf(store)
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
 }
 
 // Call is a [chat.CallMiddleware]. The first response choice is the canonical

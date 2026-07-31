@@ -3,12 +3,18 @@ package chathistory
 import (
 	"context"
 	"errors"
+	"reflect"
 
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-// ErrNilStore reports a helper called without a history store.
-var ErrNilStore = errors.New("chathistory: nil store")
+var (
+	// ErrNilStore reports a helper called without a history store.
+	ErrNilStore = errors.New("chathistory: nil store")
+	// ErrReplacementUnsupported reports a Store without the optional atomic
+	// replacement capability.
+	ErrReplacementUnsupported = errors.New("chathistory: replacement unsupported")
+)
 
 // Reader returns the messages to replay for one conversation. Implementations
 // return a non-nil empty slice for an unknown conversation and transfer
@@ -17,9 +23,11 @@ type Reader interface {
 	Read(ctx context.Context, conversationID string) ([]chat.Message, error)
 }
 
-// Writer appends messages to one conversation. Implementations validate and
-// snapshot messages before returning so later caller mutation cannot alter
-// stored history.
+// Writer appends messages to one conversation. Implementations preserve the
+// order of messages within each call, validate and snapshot them before
+// returning, and prevent later caller mutation from altering stored history.
+// The relative order of concurrent calls for the same conversation is
+// implementation-defined.
 type Writer interface {
 	Write(ctx context.Context, conversationID string, messages ...chat.Message) error
 }
@@ -37,8 +45,9 @@ type Store interface {
 	Clearer
 }
 
-// Lister enumerates conversation IDs as a point-in-time snapshot. Ordering is
-// implementation-defined.
+// Lister enumerates unique conversation IDs. Implementations return a non-nil
+// empty slice when no conversations exist. Ordering is implementation-defined,
+// and concurrent mutations may affect the result.
 type Lister interface {
 	Conversations(ctx context.Context) ([]string, error)
 }
@@ -54,28 +63,23 @@ type Counter interface {
 	Count(ctx context.Context, conversationID string) (int, error)
 }
 
-// Replace uses store's optional atomic Replacer capability. Stores without it
-// fall back to clear-then-write and therefore cannot promise atomicity.
+// Replace uses store's optional atomic Replacer capability. It returns
+// ErrReplacementUnsupported without modifying history when store does not
+// implement Replacer.
 func Replace(ctx context.Context, store Store, conversationID string, messages ...chat.Message) error {
-	if store == nil {
+	if isNil(store) {
 		return ErrNilStore
 	}
 	if replacer, ok := store.(Replacer); ok {
 		return replacer.Replace(ctx, conversationID, messages...)
 	}
-	if err := store.Clear(ctx, conversationID); err != nil {
-		return err
-	}
-	if len(messages) == 0 {
-		return nil
-	}
-	return store.Write(ctx, conversationID, messages...)
+	return ErrReplacementUnsupported
 }
 
 // Count uses store's optional Counter capability and otherwise falls back to
 // reading the conversation.
 func Count(ctx context.Context, store Store, conversationID string) (int, error) {
-	if store == nil {
+	if isNil(store) {
 		return 0, ErrNilStore
 	}
 	if counter, ok := store.(Counter); ok {
@@ -86,4 +90,17 @@ func Count(ctx context.Context, store Store, conversationID string) (int, error)
 		return 0, err
 	}
 	return len(messages), nil
+}
+
+func isNil(value any) bool {
+	if value == nil {
+		return true
+	}
+	reflected := reflect.ValueOf(value)
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
 }
