@@ -1,11 +1,12 @@
 # Lynx Desktop × Synara 视觉基线与执行计划
 
 > 作者：Codex
-> 状态：`W7.0 BASELINE FROZEN`
+> 状态：`W7.1 DONE · W7.2 READY`
 > 审计日期：2026-07-31
 > Lynx 基线：`cecc0510955ad39b31e5ec7cc16ee488d75c08c3`
 > Synara 基线：`54dff37d91aabf74e85dd42bb47e1a237a02f106`
-> 下一执行卡：`W7.1 — visual foundation`
+> W7.1 实施提交：`051ea578d`
+> 下一执行卡：`W7.2 — shell / Work Index`
 > 关联总账：
 > [`codex_architecture_execution_master_plan.md`](codex_architecture_execution_master_plan.md)
 
@@ -24,6 +25,8 @@
 presentation 层发明第二套运行状态。
 
 W7.0 只完成只读审计、实拍、决策和计划冻结，**没有修改 production UI**。
+W7.1 已按冻结决策建立可重复视觉证据并统一底层视觉语言；页面级 shell、Work Index、
+Narrative、Dock 与 Settings 对齐仍由 W7.2–W7.4 独立完成。
 
 ---
 
@@ -425,7 +428,7 @@ W7.1 必须选择单一机制：**真实 border + 单层方向性 depth shadow**
 
 ### W7.1 — Visual foundation
 
-状态：`READY`
+状态：`DONE`
 
 目标：
 
@@ -463,9 +466,35 @@ visual fixture / screenshot harness
 2. `refactor(desktop): unify visual foundation tokens`
 3. `fix(desktop): close css and token hygiene gates`
 
+实施结果（`051ea578d`）：
+
+- 新增独立于 production router / Wails bootstrap 的 test-only Vite + Playwright
+  harness；fixture 只冻结 viewport、locale、theme、clock 与协议快照；
+- Agent fixture 从 canonical `AgentSessionSnapshot` 经 production
+  `projectAgentSessionSnapshot` 投影，再安装到 production state ports；结构覆盖
+  empty、idle、Running、Waiting、terminal、error、delegated 与 long-content；
+- foundation、Agent、dock、settings 共冻结 12 张 light/dark golden；没有 production
+  debug route、fixture-only business branch 或第二套 presentation model；
+- 默认 typography 收敛为 9/10/11/12/13px、code 11px，comfortable row 收敛为
+  28px，composer footer 收敛为 6/8px；
+- content seam 使用 14.4px rounded edge + drawer-owned backing corner；composer 使用
+  real border 画 edge、单一 depth shadow 画层次，旧 shadow ring token 与相反说明已删除；
+- motion callsite 使用 semantic duration token；`transition-all` 与 literal Tailwind
+  duration 由静态门禁禁止，scroll lock 从 computed transition 取得真实窗口；
+- 根治 Tailwind custom text size 合并误判、invalid shadow wildcard、
+  CSS Custom Highlight selector 构建告警和 9MB catch-all vendor chunk；Shiki 与
+  Mermaid/ELK 改由显式 gzip feature budget 守护；
+- `npm run visual:test` 20/20、`npm run check` 191 files / 1135 tests、frontend
+  production/visual build、Desktop `go build` / `go vet` / `go test`、`wails build`
+  与 `git diff --check` 全部通过，product build 无未知 warning。
+
+W7.1 只宣告 foundation 与证据基础完成。它提前落地 seam/composer primitive 是为了
+消除 dual edge/token；不等同于 W7.2 shell/Work Index 或 W7.3 Narrative/HITL 的
+页面级完成。
+
 ### W7.2 — Shell 与 Work Index
 
-状态：`TODO`
+状态：`READY`
 
 目标：
 
@@ -673,26 +702,26 @@ npm run check:bundle
 
 ## 9. 进度台账
 
-| Workstream                   | 状态    | 当前事实                                   | 下一动作               |
-| ---------------------------- | ------- | ------------------------------------------ | ---------------------- |
-| W2 Agent ownership           | `DONE`  | Framework / App 边界已收口                 | 仅防回归               |
-| W3 Runtime conformance       | `DONE`  | Run tree、recovery、stream/query 已收口    | 仅防回归               |
-| W4 Desktop Run tree          | `DONE`  | normalized projection、HITL、cancel 已实现 | 只做 presentation      |
-| W5 capability cutover        | `DONE`  | negotiated production Run trees 已启用     | 仅防回归               |
-| W6 architecture/hygiene      | `DONE`  | consumer ports、命名、全门禁已收口         | 仅防回归               |
-| W7.0 visual baseline         | `DONE`  | 本文、实拍、映射、决策、执行卡已冻结       | 进入 W7.1              |
-| W7.1 visual foundation       | `READY` | 爆炸半径与不变量已明确                     | 建 fixture，统一 token |
-| W7.2 shell / Work Index      | `TODO`  | 依赖 W7.1                                  | 等待                   |
-| W7.3 Narrative / Run / HITL  | `TODO`  | 依赖 W7.1                                  | 等待                   |
-| W7.4 Dock / Views / Settings | `TODO`  | 依赖 W7.1，可与 W7.3 在文件边界明确后安排  | 等待                   |
-| W7.5 final closure           | `TODO`  | 依赖 W7.2–W7.4                             | 等待                   |
+| Workstream                   | 状态    | 当前事实                                                               | 下一动作                    |
+| ---------------------------- | ------- | ---------------------------------------------------------------------- | --------------------------- |
+| W2 Agent ownership           | `DONE`  | Framework / App 边界已收口                                             | 仅防回归                    |
+| W3 Runtime conformance       | `DONE`  | Run tree、recovery、stream/query 已收口                                | 仅防回归                    |
+| W4 Desktop Run tree          | `DONE`  | normalized projection、HITL、cancel 已实现                             | 只做 presentation           |
+| W5 capability cutover        | `DONE`  | negotiated production Run trees 已启用                                 | 仅防回归                    |
+| W6 architecture/hygiene      | `DONE`  | consumer ports、命名、全门禁已收口                                     | 仅防回归                    |
+| W7.0 visual baseline         | `DONE`  | 本文、实拍、映射、决策、执行卡已冻结                                   | 仅防漂移                    |
+| W7.1 visual foundation       | `DONE`  | production-backed fixture、视觉 token、edge/depth、motion 与 warning 收口 | 仅防回归                    |
+| W7.2 shell / Work Index      | `READY` | foundation 与 shell fixture 已具备                                     | 对齐页面与交互状态          |
+| W7.3 Narrative / Run / HITL  | `TODO`  | foundation 与 Agent fixture 已具备                                     | 等待 W7.2                   |
+| W7.4 Dock / Views / Settings | `TODO`  | foundation 与 workspace fixture 已具备                                 | 等待 W7.2/W7.3 文件边界稳定 |
+| W7.5 final closure           | `TODO`  | 依赖 W7.2–W7.4                                                         | 等待                        |
 
 当前唯一主任务：
 
 ```text
-W7.1 — 先建立 deterministic visual fixtures，
-       再以 breaking change 统一 typography / density / edge / shadow / motion，
-       同一 slice 删除冲突规则和历史解释。
+W7.2 — 在已冻结的 visual foundation 上对齐 desktop shell 与 Work Index，
+       覆盖窗口 chrome、expanded/collapsed、resize、窄窗、列表各状态，
+       保持 plugin/application ports 与既有业务切换不变。
 ```
 
 ---
