@@ -13,6 +13,7 @@ async function loadPanes() {
         host.extensions.contribute(SETTINGS_PANE, {
           id: "appearance",
           label: "Appearance",
+          description: "Tune the interface",
           order: 0,
           component: () => <div data-testid="appearance-body">appearance body</div>,
         });
@@ -34,6 +35,8 @@ describe("settingsPage", () => {
     // The pane label appears in both the rail button and the header — use
     // testid to scope to the body.
     expect(screen.getByTestId("appearance-body")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Appearance" })).toBeTruthy();
+    expect(screen.getByText("Tune the interface")).toBeTruthy();
     // The rail still lists every pane.
     expect(screen.getAllByText("Plugins").length).toBeGreaterThan(0);
   });

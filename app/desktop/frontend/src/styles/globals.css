@@ -1082,7 +1082,7 @@ html.theme-dark {
   background: transparent;
   transition: background-color var(--dur-fast) ease-out;
 }
-.agent-pane-resizer:hover::after {
+.agent-pane-resizer:is(:hover, :focus-visible)::after {
   background: var(--seam-line);
 }
 .agent-pane-resizer:active::after {

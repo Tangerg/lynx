@@ -14,6 +14,7 @@ export function shortcutsSettingsPane(component: SettingsPaneSpec["component"]):
   return {
     id: "shortcuts",
     label: "settings.pane.shortcuts",
+    description: "shortcuts.sub",
     group: "general",
     icon: "command",
     order: 10,

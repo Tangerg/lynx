@@ -68,6 +68,35 @@ test("drawer collapse keeps one visible recovery control", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Hide sidebar" })).toBeFocused();
 });
 
+test("destructive session dialog traps, dismisses, and returns focus", async ({ page }) => {
+  await openShell(page, { theme: "light", state: "populated" });
+  await waitForWorkIndexState(page, "populated");
+
+  const session = page.getByRole("button", { name: /Refine Runtime protocol/ });
+  await session.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Delete this session?" });
+  const cancel = dialog.getByRole("button", { name: "Cancel" });
+  const remove = dialog.getByRole("button", { name: "Delete" });
+  await expect(dialog).toBeVisible();
+  await expect(cancel).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(remove).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(cancel).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(session).toBeFocused();
+
+  await session.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await page.locator('[data-slot="confirm-dialog-backdrop"]').click({ position: { x: 4, y: 4 } });
+  await expect(page.getByRole("dialog", { name: "Delete this session?" })).toHaveCount(0);
+  await expect(session).toBeFocused();
+});
+
 test("resize separator commits once after pointer movement and supports the keyboard", async ({
   page,
 }) => {

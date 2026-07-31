@@ -8,7 +8,7 @@ import {
   DEFAULT_RUNTIME_ENDPOINT,
   type RuntimeEndpointRejection,
 } from "@/plugins/builtin/runtime/public/endpoint";
-import { SettingRow } from "../../public";
+import { SettingRow, SettingsGroup } from "../../public";
 
 function rejectionMessage(reason: RuntimeEndpointRejection, translate: Translate): string {
   switch (reason) {
@@ -52,7 +52,7 @@ export function ConnectionPane() {
   };
 
   return (
-    <div>
+    <SettingsGroup>
       <SettingRow
         label={t("settings.connection.title")}
         sub={t("settings.connection.sub")}
@@ -107,6 +107,6 @@ export function ConnectionPane() {
           ) : null}
         </div>
       </SettingRow>
-    </div>
+    </SettingsGroup>
   );
 }

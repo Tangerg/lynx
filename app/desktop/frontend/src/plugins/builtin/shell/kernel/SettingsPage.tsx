@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import type { IconName } from "@/ui";
 import { Icon, SearchField, VerticalTabs } from "@/ui";
@@ -50,9 +51,14 @@ export function SettingsPage() {
         label: t(p.label),
         icon: p.icon as IconName | undefined,
         content: (
-          <PluginBoundary plugin={`settings:${p.id}`}>
-            <p.component />
-          </PluginBoundary>
+          <SettingsPaneFrame
+            title={t(p.label)}
+            description={p.description ? t(p.description) : undefined}
+          >
+            <PluginBoundary plugin={`settings:${p.id}`}>
+              <p.component />
+            </PluginBoundary>
+          </SettingsPaneFrame>
         ),
       }))
       .filter((item) =>
@@ -77,6 +83,35 @@ export function SettingsPage() {
         />
       }
     />
+  );
+}
+
+/**
+ * Page framing belongs to the settings host, not to each plugin pane. A
+ * contribution supplies its identity and body; the host gives every pane the
+ * same title rhythm and keeps the heading visible if the plugin body fails.
+ */
+function SettingsPaneFrame({
+  title,
+  description,
+  children,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section>
+      <header>
+        <h1 className="m-0 text-display-md font-semibold text-fg">{title}</h1>
+        {description && (
+          <p className="m-0 mt-1.5 max-w-[60ch] text-ui-lg leading-6 text-fg-muted">
+            {description}
+          </p>
+        )}
+      </header>
+      <div className="mt-6 pb-12">{children}</div>
+    </section>
   );
 }
 

@@ -20,6 +20,7 @@ describe("shortcutsSettingsPane", () => {
     expect(shortcutsSettingsPane(Component)).toEqual({
       id: "shortcuts",
       label: "settings.pane.shortcuts",
+      description: "shortcuts.sub",
       group: "general",
       icon: "command",
       order: 10,

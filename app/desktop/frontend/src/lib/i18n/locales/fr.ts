@@ -50,6 +50,7 @@ export const fr: Record<string, string> = {
   "dock.action.hide": "Masquer le dock de contexte",
   "dock.action.resize": "Ajuster la largeur du dock de contexte",
   "dock.action.show": "Afficher le dock de contexte",
+  "dock.tabs.label": "Vues contextuelles",
   "workspace.view.promote": "Étendre sur toute la largeur",
   "workspace.view.openBeside": "Ouvrir dans le dock de contexte",
   "workspace.view.unavailable.title": "Vue indisponible",
@@ -532,7 +533,6 @@ export const fr: Record<string, string> = {
   "commandPalette.empty": "Aucune commande trouvée",
 
   // ── Raccourcis clavier ──
-  "shortcuts.title": "Raccourcis clavier",
   "shortcuts.sub":
     "Chaque raccourci enregistré par les plugins intégrés et utilisateur. Appuyez sur une combinaison n'importe où dans l'application pour l'activer ; les conflits de liaison sont toujours résolus en faveur du dernier enregistrement.",
   "shortcuts.filter": "Filtrer par action ou combinaison…",

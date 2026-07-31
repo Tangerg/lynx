@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { CHAT_MIN_WIDTH_PX, DOCK_MIN_WIDTH_PX } from "@/lib/shellGeometry";
 
 // How wide the context dock is.
 //
@@ -20,11 +21,11 @@ export function dockWidthRow(width: number): CSSProperties {
 /**
  * Dock column style, constant: the width lives in the property above.
  *
- * The `min()` is the floor under the reading column, held in CSS so it survives a
- * window resize. The drag clamps against the row it is dragged in, but a stored
- * width outlives that row: drag the dock wide on an external display, unplug it,
- * and a px basis alone would leave the conversation a sliver.
+ * The CSS expression mirrors `maxDockWidth`: retain the dock's operable minimum,
+ * cap it at half the row, and preserve the conversation floor whenever the row
+ * is wide enough. Keeping the same safety rule in CSS means a stored width also
+ * responds correctly when the window changes without a React render.
  */
 export const DOCK_COLUMN: CSSProperties = {
-  flexBasis: `min(var(${DOCK_WIDTH_PROPERTY}), 50%)`,
+  flexBasis: `max(${DOCK_MIN_WIDTH_PX}px, min(var(${DOCK_WIDTH_PROPERTY}), 50%, calc(100% - ${CHAT_MIN_WIDTH_PX}px)))`,
 };

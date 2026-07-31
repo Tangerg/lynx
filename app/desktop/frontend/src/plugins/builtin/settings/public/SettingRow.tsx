@@ -15,7 +15,7 @@ export function SettingRow({
   return (
     <div
       className={cn(
-        "grid grid-cols-[180px_1fr] gap-5 px-5 py-4",
+        "grid grid-cols-[minmax(160px,180px)_minmax(0,1fr)] gap-4 border-t-[0.5px] border-field px-4 py-3 first:border-t-0",
         align === "start" ? "items-start" : "items-center",
       )}
     >

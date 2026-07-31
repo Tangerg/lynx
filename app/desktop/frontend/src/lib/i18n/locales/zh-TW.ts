@@ -52,6 +52,7 @@ export const zhTW: Record<string, string> = {
   "dock.action.hide": "隱藏內容面板",
   "dock.action.resize": "調整內容面板寬度",
   "dock.action.show": "顯示內容面板",
+  "dock.tabs.label": "內容檢視",
   "workspace.view.promote": "展開為整個工作區",
   "workspace.view.openBeside": "在內容面板中開啟",
   "workspace.view.unavailable.title": "檢視不可用",
@@ -524,7 +525,6 @@ export const zhTW: Record<string, string> = {
   "commandPalette.empty": "無符合命令",
 
   // ── 鍵盤快速鍵 ──
-  "shortcuts.title": "鍵盤快速鍵",
   "shortcuts.sub":
     "由內建和使用者外掛註冊的每一個按鍵繫結。在應用中任意位置按下組合鍵即可觸發；繫結衝突始終以最後一次註冊為準。",
   "shortcuts.filter": "按操作或組合鍵篩選…",

@@ -49,6 +49,7 @@ export const ko: Record<string, string> = {
   "dock.action.hide": "컨텍스트 독 숨기기",
   "dock.action.resize": "컨텍스트 독 너비 조정",
   "dock.action.show": "컨텍스트 독 표시",
+  "dock.tabs.label": "컨텍스트 보기",
   "workspace.view.promote": "전체 너비로 확장",
   "workspace.view.openBeside": "컨텍스트 독에서 열기",
   "workspace.view.unavailable.title": "뷰를 사용할 수 없음",
@@ -520,7 +521,6 @@ export const ko: Record<string, string> = {
   "commandPalette.empty": "일치하는 명령 없음",
 
   // ── 키보드 단축키 ──
-  "shortcuts.title": "키보드 단축키",
   "shortcuts.sub":
     "내장 및 사용자 플러그인이 등록한 모든 키 바인딩. 앱 내 어디서든 조합 키를 눌러 실행할 수 있습니다. 바인딩 충돌은 항상 마지막 등록으로 해결됩니다.",
   "shortcuts.filter": "동작 또는 조합 키로 필터…",

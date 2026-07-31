@@ -54,6 +54,7 @@ export const zh: Record<string, string> = {
   "dock.action.hide": "隐藏上下文面板",
   "dock.action.resize": "调整上下文面板宽度",
   "dock.action.show": "显示上下文面板",
+  "dock.tabs.label": "上下文视图",
   "workspace.view.promote": "展开为整个工作区",
   "workspace.view.openBeside": "在上下文面板中打开",
   "workspace.view.unavailable.title": "视图不可用",
@@ -695,7 +696,6 @@ export const zh: Record<string, string> = {
   "commandPalette.empty": "无匹配命令",
 
   // ── 键盘快捷键 ──
-  "shortcuts.title": "键盘快捷键",
   "shortcuts.sub":
     "由内置和用户插件注册的每一个按键绑定。在应用中任意位置按下组合键即可触发；绑定冲突始终以最后一次注册为准。",
   "shortcuts.filter": "按操作或组合键筛选…",

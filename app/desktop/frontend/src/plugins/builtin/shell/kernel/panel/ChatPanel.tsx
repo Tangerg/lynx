@@ -62,15 +62,15 @@ function DockHeader({
   const t = useT();
   return (
     <AgentSurfaceHeader className="gap-1">
-      <AgentDockTabs tabs={tabs} />
-      <IconButton icon="more" size="sm" aria-label={t("dock.action.browse")} onClick={onBrowse} />
+      <AgentDockTabs tabs={tabs} ariaLabel={t("dock.tabs.label")} />
+      <IconButton icon="more" size="sm" title={t("dock.action.browse")} onClick={onBrowse} />
       <IconButton
         icon="maximize"
         size="sm"
-        aria-label={t("workspace.view.promote")}
+        title={t("workspace.view.promote")}
         onClick={onMaximize}
       />
-      <IconButton icon="panel-r" size="sm" aria-label={t("dock.action.hide")} onClick={onHide} />
+      <IconButton icon="panel-r" size="sm" title={t("dock.action.hide")} onClick={onHide} />
     </AgentSurfaceHeader>
   );
 }
@@ -166,7 +166,7 @@ export function ChatPanel({ onSend }: Props) {
                 <IconButton
                   icon="panel-r"
                   size="sm"
-                  aria-label={t("dock.action.show")}
+                  title={t("dock.action.show")}
                   onClick={toggleContextDock}
                 />
               )}

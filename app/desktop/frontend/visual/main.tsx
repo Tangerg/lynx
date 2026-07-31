@@ -7,6 +7,7 @@ import { setLocale } from "@/lib/i18n";
 import { VisualFoundationFixture } from "./VisualFoundationFixture";
 import { VISUAL_AGENT_STATES, type VisualAgentState } from "./agentSessionSnapshots";
 import { VISUAL_WORK_INDEX_STATES, type VisualWorkIndexState } from "./shellFixtureStates";
+import { isVisualWorkspaceState, type VisualWorkspaceState } from "./workspaceFixtureStates";
 import "../src/styles/globals.css";
 
 type FixtureTheme = "light" | "dark";
@@ -41,6 +42,9 @@ const workIndexState: VisualWorkIndexState = VISUAL_WORK_INDEX_STATES.includes(
 )
   ? (requestedState as VisualWorkIndexState)
   : "populated";
+const workspaceState: VisualWorkspaceState = isVisualWorkspaceState(requestedState)
+  ? requestedState
+  : "dock-review";
 const rootElement = document.documentElement;
 
 rootElement.classList.remove("theme-light", "theme-dark");
@@ -56,8 +60,12 @@ async function fixtureNode(): Promise<ReactNode> {
     return <VisualFoundationFixture sidebarOpen={sidebarOpen} />;
   }
   if (fixture === "workspace") {
-    const { VisualWorkspaceFixture } = await import("./VisualWorkspaceFixture");
-    return <VisualWorkspaceFixture view={query.get("view") === "settings" ? "settings" : "dock"} />;
+    const [{ VisualWorkspaceFixture }, { installVisualWorkspaceFixture }] = await Promise.all([
+      import("./VisualWorkspaceFixture"),
+      import("./installVisualWorkspaceFixture"),
+    ]);
+    await installVisualWorkspaceFixture(workspaceState, theme);
+    return <VisualWorkspaceFixture state={workspaceState} />;
   }
   if (fixture === "shell") {
     const [{ VisualShellFixture }, { installVisualShellFixture }] = await Promise.all([

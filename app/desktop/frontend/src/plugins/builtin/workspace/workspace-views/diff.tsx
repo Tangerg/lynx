@@ -91,6 +91,7 @@ function ReviewPanel() {
   const [collapsedFiles, setCollapsedFiles] = useState<ReadonlySet<string>>(() => new Set());
   const { activeFile, files, gitEnabled, isError, isLoading, notARepo, view } =
     useWorkspaceDiffView(mode);
+  const hasFiles = (files?.length ?? 0) > 0;
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollToFile = (path: string) => {
@@ -157,13 +158,15 @@ function ReviewPanel() {
                 { value: "base", label: t("diff.mode.branch") },
               ]}
             />
-            <IconButton
-              icon="list"
-              size="sm"
-              aria-pressed={navigatorOpen}
-              aria-label={navigatorOpen ? t("diff.files.hide") : t("diff.files.show")}
-              onClick={() => setNavigatorOpen((open) => !open)}
-            />
+            {hasFiles && (
+              <IconButton
+                icon="list"
+                size="sm"
+                aria-pressed={navigatorOpen}
+                title={navigatorOpen ? t("diff.files.hide") : t("diff.files.show")}
+                onClick={() => setNavigatorOpen((open) => !open)}
+              />
+            )}
           </div>
         }
       />
@@ -212,7 +215,7 @@ function ReviewPanel() {
             )}
           </DataView>
         </ScrollArea>
-        {navigatorOpen && (
+        {navigatorOpen && hasFiles && (
           <ReviewFileTree
             files={files ?? []}
             selectedPath={activeFile}

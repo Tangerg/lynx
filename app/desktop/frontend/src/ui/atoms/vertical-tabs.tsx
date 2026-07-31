@@ -37,14 +37,17 @@ export function VerticalTabs({
   return (
     <TabsPrimitive.Root
       orientation="vertical"
-      value={value}
+      // `null` is an intentional controlled "no matching tab" state. Passing
+      // `undefined` when a settings filter hides every pane makes Base UI switch
+      // from controlled to uncontrolled, then back again when the filter clears.
+      value={value ?? null}
       onValueChange={(next) => onValueChange(next ? String(next) : undefined)}
-      className="grid h-full w-full grid-cols-[260px_1fr] overflow-hidden bg-canvas"
+      className="grid h-full w-full grid-cols-[256px_1fr] overflow-hidden bg-canvas"
     >
       <div data-split-side="end" className="agent-pane-split flex min-h-0 flex-col bg-surface">
         {railHeader}
         <TabsPrimitive.List
-          className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto px-4 pb-8"
+          className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto px-2 pb-6"
           aria-label={ariaLabel}
           activateOnFocus
         >
@@ -66,7 +69,7 @@ export function VerticalTabs({
         </TabsPrimitive.List>
       </div>
       <div className="min-h-0 min-w-0 overflow-y-auto bg-canvas">
-        <div className="mx-auto max-w-[760px] px-8 py-10">
+        <div className="mx-auto max-w-[720px] px-6 py-8">
           {items.map((item) => (
             <TabsPrimitive.Panel key={item.id} value={item.id} className="outline-none">
               {item.content}

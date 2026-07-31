@@ -50,6 +50,7 @@ export const es: Record<string, string> = {
   "dock.action.hide": "Ocultar el panel de contexto",
   "dock.action.resize": "Ajustar el ancho del panel de contexto",
   "dock.action.show": "Mostrar el panel de contexto",
+  "dock.tabs.label": "Vistas de contexto",
   "workspace.view.promote": "Expandir a ancho completo",
   "workspace.view.openBeside": "Abrir en el panel de contexto",
   "workspace.view.unavailable.title": "Vista no disponible",
@@ -531,7 +532,6 @@ export const es: Record<string, string> = {
   "commandPalette.empty": "Sin comandos coincidentes",
 
   // ── Atajos de teclado ──
-  "shortcuts.title": "Atajos de teclado",
   "shortcuts.sub":
     "Cada combinación de teclas registrada por los plugins integrados y de usuario. Pulsa una combinación en cualquier parte de la app para activarla; los conflictos se resuelven siempre a favor del último registro.",
   "shortcuts.filter": "Filtrar por acción o combinación…",

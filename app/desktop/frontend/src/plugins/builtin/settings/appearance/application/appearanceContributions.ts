@@ -5,8 +5,9 @@ export function appearanceSettingsPane(component: SettingsPaneSpec["component"])
   return {
     id: APPEARANCE_PANE,
     label: "settings.pane.appearance",
+    description: "settings.appearance.hero",
     group: "general",
-    icon: "spark",
+    icon: "sun",
     order: 0,
     component,
   };

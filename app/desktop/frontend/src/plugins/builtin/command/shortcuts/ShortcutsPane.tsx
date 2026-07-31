@@ -27,12 +27,7 @@ export function ShortcutsPane() {
   }, [shortcuts, query, t]);
 
   return (
-    <div className="flex h-full flex-col gap-3 p-4">
-      <div>
-        <div className="text-display-sm font-semibold text-fg">{t("shortcuts.title")}</div>
-        <div className="mt-1 text-ui-md text-fg-muted">{t("shortcuts.sub")}</div>
-      </div>
-
+    <div className="flex flex-col gap-3">
       <SearchField
         size="lg"
         value={query}
@@ -41,7 +36,7 @@ export function ShortcutsPane() {
         aria-label={t("shortcuts.filterAria")}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto rounded-lg bg-surface">
+      <div className="min-h-0 flex-1 overflow-auto rounded-lg border-[0.5px] border-field bg-transparent">
         {filtered.length === 0 ? (
           <div className="px-3 py-6 text-center text-ui-lg text-fg-faint">
             {t("shortcuts.empty")}

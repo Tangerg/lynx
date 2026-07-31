@@ -50,6 +50,7 @@ export const de: Record<string, string> = {
   "dock.action.hide": "Kontext-Dock ausblenden",
   "dock.action.resize": "Breite des Kontext-Docks anpassen",
   "dock.action.show": "Kontext-Dock anzeigen",
+  "dock.tabs.label": "Kontextansichten",
   "workspace.view.promote": "Auf volle Breite erweitern",
   "workspace.view.openBeside": "Im Kontext-Dock öffnen",
   "workspace.view.unavailable.title": "Ansicht nicht verfügbar",
@@ -531,7 +532,6 @@ export const de: Record<string, string> = {
   "commandPalette.empty": "Keine Befehle gefunden",
 
   // ── Tastaturkürzel ──
-  "shortcuts.title": "Tastaturkürzel",
   "shortcuts.sub":
     "Jede von integrierten und Benutzer-Plugins registrierte Tastenkombination. Drücke eine Kombination irgendwo in der App, um sie auszulösen; Bindungskonflikte werden immer zugunsten der letzten Registrierung gelöst.",
   "shortcuts.filter": "Nach Aktion oder Kombi filtern…",

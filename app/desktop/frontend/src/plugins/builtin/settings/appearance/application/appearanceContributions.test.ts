@@ -10,8 +10,9 @@ describe("appearanceSettingsPane", () => {
     expect(appearanceSettingsPane(Component)).toEqual({
       id: "appearance",
       label: "settings.pane.appearance",
+      description: "settings.appearance.hero",
       group: "general",
-      icon: "spark",
+      icon: "sun",
       order: 0,
       component: Component,
     });

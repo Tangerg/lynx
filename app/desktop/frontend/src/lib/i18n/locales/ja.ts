@@ -49,6 +49,7 @@ export const ja: Record<string, string> = {
   "dock.action.hide": "コンテキストドックを隠す",
   "dock.action.resize": "コンテキストドックの幅を調整",
   "dock.action.show": "コンテキストドックを表示",
+  "dock.tabs.label": "コンテキストビュー",
   "workspace.view.promote": "全幅に広げる",
   "workspace.view.openBeside": "コンテキストドックで開く",
   "workspace.view.unavailable.title": "ビューを利用できません",
@@ -524,7 +525,6 @@ export const ja: Record<string, string> = {
   "commandPalette.empty": "一致するコマンドはありません",
 
   // ── キーボードショートカット ──
-  "shortcuts.title": "キーボードショートカット",
   "shortcuts.sub":
     "組み込みおよびユーザープラグインによって登録されたすべてのキーバインド。アプリ内のどこでもコンボを押して発動できます。バインドの競合は常に最後の登録に解決されます。",
   "shortcuts.filter": "アクションまたはコンボで絞り込み…",

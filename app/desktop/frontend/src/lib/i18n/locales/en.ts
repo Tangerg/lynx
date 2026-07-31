@@ -58,6 +58,7 @@ export const en: Record<string, string> = {
   "dock.action.hide": "Hide the context dock",
   "dock.action.resize": "Resize the context dock",
   "dock.action.show": "Show the context dock",
+  "dock.tabs.label": "Context views",
   "workspace.view.promote": "Expand to full width",
   "workspace.view.openBeside": "Open in the context dock",
   "workspace.view.unavailable.title": "View unavailable",
@@ -789,7 +790,6 @@ export const en: Record<string, string> = {
   "commandPalette.sessions": "Sessions",
 
   // ── Keyboard shortcuts ──
-  "shortcuts.title": "Keyboard shortcuts",
   "shortcuts.sub":
     "Every keybinding registered by built-in and user plugins. Press a combo anywhere in the app to fire it; binding conflicts always resolve to the last registration.",
   "shortcuts.filter": "Filter by action or combo…",

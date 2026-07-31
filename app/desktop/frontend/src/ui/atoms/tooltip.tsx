@@ -60,7 +60,7 @@ export function RichTooltip({
       <TooltipPrimitive.Trigger render={trigger} delay={delay} />
       <TooltipPrimitive.Portal>
         <TooltipPrimitive.Positioner side={side} sideOffset={sideOffset}>
-          <TooltipPrimitive.Popup className={cn(FLOATING_TIP, className)}>
+          <TooltipPrimitive.Popup role="tooltip" className={cn(FLOATING_TIP, className)}>
             {children}
           </TooltipPrimitive.Popup>
         </TooltipPrimitive.Positioner>

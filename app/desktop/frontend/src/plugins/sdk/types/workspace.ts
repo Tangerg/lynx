@@ -10,6 +10,9 @@ export interface SettingsPaneSpec {
   id: string;
   /** Sidebar label. */
   label: string;
+  /** Optional pane summary rendered by the settings shell below the title.
+   *  Like `label`, this is a catalog key resolved at render time. */
+  description?: string;
   /** Optional icon name (any `IconName` the host exposes). */
   icon?: string;
   /** Sort hint — lower comes first. Built-ins use 0..99; plugins ≥ 100. */
