@@ -5,8 +5,9 @@
 > 建档日期：2026-07-30
 > W4.1 实施提交：`40cffd81e`；W4.2：`cc85d3039`；W4.3：`ca0949949`
 > W4.4 实施提交：`49b6494bd` + `fcbf8f558` + `34a875d29`
-> 当前主任务：`W6.1 — Desktop Runtime connection / discovery boundary`
-> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6.0 DONE · W6.1 READY`
+> W6.1 实施提交：`eae67ca4e`；W6.2：`47970e41d`
+> 当前主任务：`W7.0 — Synara visual baseline and state map`
+> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6 DONE · W7.0 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 44`
@@ -52,11 +53,12 @@
   [`REFACTORING.md`](../../REFACTORING.md) 为准；
 - 不允许为了迁就现状反向弱化目标契约。
 
-截至 2026-07-31，W2–W5 已完成。B1.7 已用一次 breaking、无兼容分支的原子切片
+截至 2026-07-31，W2–W6 已完成。B1.7 已用一次 breaking、无兼容分支的原子切片
 接通 frozen Run profile、生产 child admission、cold rehydrate、Artifact tree fidelity、
-生成式 contract 约束以及 Runtime/Desktop capability opt-in；高风险 race、全量门禁、
-连续两次 generation no-diff 与架构债扫描均已通过。后续实施从 §12 的 W6.1
-Desktop Runtime context 边界执行卡继续。
+生成式 contract 约束以及 Runtime/Desktop capability opt-in。W6 又完成 Agent 泄漏复核、
+Runtime/Desktop 依赖与事实作者审计、Desktop Runtime anti-corruption boundary、全局语义
+命名清理和全门禁收口；未发现需要重做 Agent/Runtime 主模型的证据。后续实施从 §12 的
+W7.0 Synara 视觉基线执行卡继续。
 
 ---
 
@@ -247,8 +249,8 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 | Runtime B1.5                 | `DONE`        | W3.0–W3.4 query / stream / replay / cold recovery / full closure                                      | —                                |
 | Desktop B1.6                 | `DONE`        | normalized Run tree、source-owned fold、durable recovery、root-first UI 与 scope-exact public API     | —                                |
 | Runtime/Desktop B1.7         | `DONE`        | frozen policy、producer/recovery、Artifact/contract、server/Desktop opt-in 与最终 conformance 已闭环  | —                                |
-| Runtime/Desktop 架构持续演进 | `IN PROGRESS` | W6.0 已完成依赖、事实作者、Agent 泄漏、命名、错误、并发生命周期与 Desktop context 审计                | 执行 W6.1 Runtime context 边界   |
-| Synara UI 对齐               | `TODO`        | 参考仓库已明确为 `~/Desktop/synara`                                                                   | W6 完成后做视觉基线与像素级实现  |
+| Runtime/Desktop 架构持续演进 | `DONE`        | W6.0–W6.3 完成依赖、事实作者、Agent 泄漏、Runtime context、命名、错误、并发生命周期与全门禁收口       | 后续由架构回归门持续守护         |
+| Synara UI 对齐               | `READY`       | 参考仓库已明确为 `~/Desktop/synara`，架构前置工作已清零                                               | 执行 W7.0 视觉基线与状态映射     |
 
 不使用跨工作流“总百分比”。一个竞态闭环不能与一个命名修正等权；进度只由原子 slice
 和完成证据表达。
@@ -276,12 +278,16 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 - `49b6494bd fix(protocol): distinguish run opening acknowledgements`
 - `fcbf8f558 refactor(desktop): clarify run application surface`
 - `34a875d29 refactor(desktop): make interrupt settlement deterministic`
+- `9429373e5 docs(architecture): record subagent capability cutover audit`
+- `2f8b65c0d feat(runtime): enable negotiated run trees`
+- `eae67ca4e refactor(desktop): isolate runtime connection boundary`
+- `47970e41d refactor(desktop): clarify frontend vocabulary`
 
-本轮审计开始时：
+W6.3 收口时的实现基线（收口文档提交前）：
 
 ```text
-HEAD        = b75d2a1d93030f7a0bb908e78c636e8db89ec6a6
-origin/main = b75d2a1d93030f7a0bb908e78c636e8db89ec6a6
+HEAD        = 47970e41d
+origin/main = 47970e41d
 worktree    = clean
 ```
 
@@ -972,7 +978,7 @@ slice 中完成，不能先改布尔值。
 
 ### W6 — Runtime / Desktop 架构最终复核
 
-状态：`IN PROGRESS`；`W6.0 DONE · W6.1 READY · W6.2 TODO · W6.3 TODO`
+状态：`DONE`；`W6.0 DONE · W6.1 DONE · W6.2 DONE · W6.3 DONE`
 
 审计维度：
 
@@ -1020,17 +1026,18 @@ W6.0 的证据裁决：
 - `main/config.RUNTIME_BASE` 同时表示“用户可切换的 Runtime 协议 endpoint”和“固定
   本地 desktop shell base URL”。二者仅当前值相同，生命周期和变化原因不同，属于
   偶然相等的两个事实，不应共享一个常量作者；
-- `lib/utils.ts` 只包含 class-name composition，文件名语义偏泛，但约百个 import 的
-  独立改名不改变边界或行为，留给 W6.2 命名原子切片，不与 W6.1 混合。
+- W6.0 将 `lib/utils.ts` 识别为语义偏泛的独立命名问题；W6.2 已将文件改为
+  `lib/classNames.ts`。函数名 `cn` 则保留，因为它是 `components.json` / shadcn
+  generator 的稳定工具契约，不是内部职责不明的缩写。
 
 冻结的原子切片：
 
 | Slice | 状态    | 唯一边界                                                       | 完成定义                                                                                                                                                                                                       |
 | ----- | ------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| W6.0  | `DONE`  | read-only architecture evidence audit                          | 每个“改/不改”裁决均绑定依赖、owner、consumer 或行为证据；不按行数和目录形式制造工作                                                                                                                            |
-| W6.1  | `READY` | Desktop Runtime endpoint 与 discovery anti-corruption boundary | application 只依赖两个 consumer ports；错误返回稳定语义而非本地化文案；typed SDK call 只在 adapter；local shell URL 与 selectable endpoint 分属不同事实作者；新增通用 architecture guard；删除旧入口且无 alias |
-| W6.2  | `TODO`  | Desktop semantic naming / stale commentary                     | 只处理有证据的失真名称、过期注释与文件职责；每组 rename 单独计算 blast radius，不夹带行为变化                                                                                                                  |
-| W6.3  | `TODO`  | W6 full closure                                                | Runtime、Agent、Desktop 全量 gates；高风险 race；dependency/leak/compat scan；文档、commit、push 与下一任务收口                                                                                                |
+| W6.0  | `DONE` | read-only architecture evidence audit                          | 每个“改/不改”裁决均绑定依赖、owner、consumer 或行为证据；不按行数和目录形式制造工作                                                                                                                            |
+| W6.1  | `DONE` | Desktop Runtime endpoint 与 discovery anti-corruption boundary | application 只依赖两个 consumer ports；错误返回稳定语义而非本地化文案；typed SDK call 只在 adapter；local shell URL 与 selectable endpoint 分属不同事实作者；新增通用 architecture guard；删除旧入口且无 alias |
+| W6.2  | `DONE` | Desktop semantic naming / stale commentary                     | 有证据的失真类型、函数、文件与 public surface 已语义化；rename 无行为变化；generic production filename 与 application/domain suffix guard 已落地                                                               |
+| W6.3  | `DONE` | W6 full closure                                                | Runtime、Agent、Desktop 全量 gates、高风险 race、dependency/leak/compat scan、生成物 no-diff 与文档收口均通过                                                                                                  |
 
 W6.1 breaking blast radius：
 
@@ -1052,7 +1059,7 @@ W6.1 breaking blast radius：
 
 ### W7 — Synara 视觉基线与像素级 Desktop UI 对齐
 
-状态：`TODO`
+状态：`READY`；`W7.0 READY · W7.1 TODO · W7.2 TODO · W7.3 TODO · W7.4 TODO · W7.5 TODO`
 
 参考仓库：`~/Desktop/synara`
 
@@ -1080,6 +1087,17 @@ W6.1 breaking blast radius：
 - keyboard/focus/aria 与 motion preference 正确；
 - `npm run check` 全绿；
 - 视觉基线、差异说明和剩余有意分歧有记录。
+
+原子切片：
+
+| Slice | 状态    | 唯一边界                                                                 | 完成定义                                                                                                      |
+| ----- | ------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| W7.0  | `READY` | read-only reference audit、页面/状态映射、固定 viewport 与截图基线       | Synara/Lynx 的 shell、组件、token、状态和交互逐项映射；明确复刻项、有意分歧与验收截图，不修改 production code |
+| W7.1  | `TODO`  | visual foundation：字体、颜色、间距、圆角、边界、阴影、层级与 motion token | token 具有唯一作者；清除已知 CSS 构建告警；不在业务 callsite 堆视觉常量                                      |
+| W7.2  | `TODO`  | desktop shell 与 Work Index                                              | 窗口 chrome、主布局、导航、列表密度及空/选中/悬停/窄窗状态对齐，并保持插件边界                               |
+| W7.3  | `TODO`  | Agent Narrative、composer、Run tree 与 HITL                              | Running/Waiting/Finished/error/长内容/深层 delegated tree 在固定 viewport 和真实内容下对齐                   |
+| W7.4  | `TODO`  | Context Dock、workspace views 与 settings                                | 右侧上下文、文件/差异/时间线及设置表面形成统一视觉语言，不复制 Synara 的业务状态管理                         |
+| W7.5  | `TODO`  | responsive、accessibility、Wails/WebView 与 visual regression closure    | 截图 diff、键盘/focus/ARIA、reduced motion、DPI/滚动/拖拽、全量门禁及零未知构建告警全部通过                  |
 
 ---
 
@@ -1945,34 +1963,87 @@ method/DTO shape、root stream 语义、child subscribe refusal、Agent public A
 
 ---
 
+### 2026-07-31 — W6.0 / W6.1 / W6.2 / W6.3
+
+- 状态：`DONE`
+- 实施提交：
+  - `eae67ca4e refactor(desktop): isolate runtime connection boundary`
+  - `47970e41d refactor(desktop): clarify frontend vocabulary`
+- W6.0 架构裁决：
+  - Agent Framework production graph 不依赖 App，公开抽象只表达通用 execution、
+    process tree、checkpoint、prepared mutation 与 opaque cost projection；
+  - App 的 Run/Item、持久化、事务、幂等、Artifact、计费和协议 DTO 没有反向泄漏；
+  - Runtime package graph、consumer ports 与完整 Run use case 保持内聚，没有为了目录
+    对称或方法数机械拆接口；
+  - 可证实的根因集中在 Desktop Runtime context 的外环依赖和全局语义命名，而不是
+    Agent/Runtime 主模型。
+- W6.1 anti-corruption boundary：
+  - selectable Runtime endpoint 与固定 local shell URL 分成两个事实作者；
+  - application 只消费 endpoint configuration 与 discovery ports，不再读取
+    `main/config`、全局 SDK store、i18n、`RpcClient` 或 `DiscoverResponse`；
+  - adapter 才执行 typed `client.runtime.discover()` 并剥离 transport envelope；
+  - endpoint 返回 closed `applied | rejected` 结果，稳定 reason 与本地化文案分离；
+  - 删除 `endpointMirror.ts`、`runtimeRpc.ts`、旧 `runtimeConnection` 和
+    `public/connection`，没有 alias、dual path 或 fallback；
+  - 通用 published-boundary gate 锁定 builtin application/domain 不得反向依赖
+    `main/**`，也不得持有 raw RPC/envelope。
+- W6.2 语义命名：
+  - `utils/helpers/shared/data/info` 等泛化文件或内部类型按真实职责改为
+    `classNames`、`declaredContributions`、`pluginActivation`、`queries`、
+    `projections`、`read models` 与明确 UI component；
+  - application/public 的 `*Info` / `*Data` 改为 `Summary`、`ReadModel`、
+    `Configuration`、`Catalog`、`Entry` 等真实语义；
+  - `cn` 作为 shadcn generator 契约保留，避免以“命名统一”为由破坏工具人体工程学；
+  - architecture gate 新增 generic production filename 与 application/domain
+    generic suffix 防回归规则。
+- W6.3 完成证据：
+  - Agent `build/vet/test/lint` 与全包 `go test -race ./...` → `PASS`；
+  - Runtime `build/vet/test/lint`、高风险 application/agentexec/runsegment/SQLite
+    `-race` → `PASS`；
+  - Agent / Runtime `go mod tidy -diff` → `PASS`；
+  - Runtime `govulncheck` allowlist gate → `PASS`；只剩已审阅的 Ollama 上游不可修复
+    finding 与不可达的提示级 module finding；
+  - `go generate ./...` 后 contract、Go validator 与 Desktop RPC 生成物无 diff；
+  - Desktop `npm run check` → `PASS`，189 test files / 1131 tests；typecheck、lint、
+    format、knip、circular、contexts、published-boundaries、layers、tokens、chrome、
+    locales、bootstrap 与 bundle gates 全绿；
+  - production `TODO/FIXME/HACK`、旧 Runtime 入口、generic filename、Agent/App
+    leakage、兼容 alias/dual path 与生成漂移扫描无命中；
+  - 既有 shadow wildcard、Lightning CSS `::highlight(...)` 和 large-chunk 输出不属于
+    API/架构失败，明确进入 W7.1 逐项根治，不以 suppress 伪装完成。
+- 最终裁决：
+  - vNext API、Run tree、capability negotiation、Artifact、Runtime producer/recovery
+    与 Desktop consumer 已完成生产闭环；
+  - 当前仓库不存在要求再次重做协议主模型或增加兼容层的证据；
+  - 后续功能演进继续遵守 Contract Registry 单一作者、breaking-first 与 consumer-owned
+    port，视觉工作不得反向污染领域和协议边界。
+
+---
+
 ## 12. 下一张执行卡
 
 唯一下一任务：
 
 ```text
-W6.1 — Desktop Runtime connection / discovery anti-corruption boundary
+W7.0 — Synara visual baseline and state map
 ```
 
 实施顺序：
 
-1. 新建 Runtime endpoint consumer port，把默认值、读取、变更与拒绝语义留在
-   application，把 Host config/storage 机制留在 adapter；
-2. 用 `applied | rejected` 闭合结果替换“同一个 endpoint 字段有时表示当前值、有时
-   表示非法输入”的含混 shape，UI 负责 reason → locale 文案；
-3. 新建 Runtime discovery consumer port，adapter 只调用 typed SDK method 并剥离
-   transport response envelope；
-4. 将 local desktop shell base URL 与 selectable Runtime endpoint 拆成两个事实作者，
-   更新 container 与 sideload glue；
-5. 删除旧 adapter/入口，补 application、adapter、plugin integration 与通用
-   architecture regression tests；
-6. 跑 Desktop 全量门禁、依赖/兼容残留扫描，更新 W6.1 证据并独立 commit/push。
+1. 只读审计 `~/Desktop/synara` 与 Lynx 当前实现，记录入口、构建方式、字体与资产来源；
+2. 固定可复现的窗口尺寸、DPI、主题、内容 fixture 与关键页面/状态截图；
+3. 建立 shell / Work Index / Agent Narrative / Context Dock / settings 的逐项映射；
+4. 盘点两端 token、布局尺寸、组件状态、motion、focus 与 responsive 行为；
+5. 把差异分类为“必须复刻 / Lynx 领域要求的有意分歧 / 参考实现缺陷不采纳”，每项绑定
+   owner 和后续 slice；
+6. 输出 W7.1–W7.5 的文件爆炸半径、行为不变量、截图验收矩阵和独立提交边界；
+7. W7.0 只提交基线、测试 fixture 或审计文档，不修改 production UI。
 
-W6 的禁止项：
+W7 的禁止项：
 
-- 不为了减少文件或接口数量合并不同事实作者；
-- 不把 App persistence、transaction、idempotency、Run/Item 或 protocol DTO 下沉到
-  Agent Framework；
-- 不用 `Manager`、`Helper`、`Impl`、`Data`、`Info` 掩盖职责；
-- 不保留旧入口、alias、dual path、fallback decoder 或“临时”兼容层；
-- 不在没有证据的情况下做性能优化或泛化抽象；
-- 不把 Synara UI 工作提前混入架构收口。
+- 不复制 Synara 的领域模型、状态管理、协议或依赖方向；
+- 不以临时 CSS override、魔法数字或绝对定位追截图；
+- 不在 feature callsite 重复 token、focus、shadow、border 或 motion；
+- 不牺牲长内容、窄窗口、键盘、ARIA、reduced motion 与 WebView 稳定性；
+- 不把已完成的 API/Runtime 架构重新打开，除非视觉审计发现可复现的真实语义缺口；
+- 不保留旧视觉路径、dual component 或“改完再删”的兼容层。
