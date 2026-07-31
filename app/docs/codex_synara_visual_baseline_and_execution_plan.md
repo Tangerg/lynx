@@ -1,12 +1,13 @@
 # Lynx Desktop × Synara 视觉基线与执行计划
 
 > 作者：Codex
-> 状态：`W7.1 DONE · W7.2 READY`
+> 状态：`W7.2 DONE · W7.3 READY`
 > 审计日期：2026-07-31
 > Lynx 基线：`cecc0510955ad39b31e5ec7cc16ee488d75c08c3`
 > Synara 基线：`54dff37d91aabf74e85dd42bb47e1a237a02f106`
 > W7.1 实施提交：`051ea578d`
-> 下一执行卡：`W7.2 — shell / Work Index`
+> W7.2 实施提交：`8bb0fa7ba`
+> 下一执行卡：`W7.3 — Agent Narrative / Composer / Run tree / HITL`
 > 关联总账：
 > [`codex_architecture_execution_master_plan.md`](codex_architecture_execution_master_plan.md)
 
@@ -25,8 +26,8 @@
 presentation 层发明第二套运行状态。
 
 W7.0 只完成只读审计、实拍、决策和计划冻结，**没有修改 production UI**。
-W7.1 已按冻结决策建立可重复视觉证据并统一底层视觉语言；页面级 shell、Work Index、
-Narrative、Dock 与 Settings 对齐仍由 W7.2–W7.4 独立完成。
+W7.1 已按冻结决策建立可重复视觉证据并统一底层视觉语言；W7.2 已完成页面级 shell
+与 Work Index 对齐。Narrative、Dock 与 Settings 对齐仍由 W7.3–W7.4 独立完成。
 
 ---
 
@@ -494,7 +495,7 @@ W7.1 只宣告 foundation 与证据基础完成。它提前落地 seam/composer 
 
 ### W7.2 — Shell 与 Work Index
 
-状态：`READY`
+状态：`DONE`
 
 目标：
 
@@ -522,9 +523,35 @@ shell visual fixtures and interaction tests
 - Settings 接管窗口时不残留 seam / drawer 占位；
 - 不复制 Studio/Projects 业务切换。
 
+实施结果（`8bb0fa7ba`）：
+
+- expanded drawer 接管左上窗口 chrome；展开与折叠状态始终只有一个可见恢复控件，
+  切换后键盘焦点跟随 ownership handoff，不落回 document；
+- seam rail 提升为具备 min/max/now 的可聚焦 vertical separator；pointermove 只直接
+  写 shell custom property，release 只提交一次，Arrow/Home/End 复用相同边界；
+- 持久化 sidebar preference 与当前窗口派生宽度分离：窄窗只临时 clamp，窗口恢复后
+  layout 与 ARIA 一起恢复用户偏好；拖拽使用起始宽度加 pointer delta，不因命中轨道
+  位置产生跳动；
+- collapsed drawer 在离场 transition 后进入 `visibility:hidden`，离屏 Work Index
+  不再停留于 accessibility tree；Settings single-surface composition 保持无 seam；
+- Work Index 对齐紧凑 section/project/session rhythm、open-folder vocabulary、
+  loading skeleton、empty/error copy 与运行/等待 attention dot；idle 时间移入完整
+  accessible label，不再永久挤压 session title；
+- 新增 production-backed shell fixture：test-only data adapter 驱动 production
+  query、projection、sidebar plugin 与 workspace navigation port，没有 production
+  debug route、fixture business branch 或平行 view model；
+- 冻结 8 张 shell golden，覆盖 1440×900 light/dark、1280×800 loading/error、
+  1120×720 collapsed 和 DPR2 Retina；15 个 shell 用例覆盖四种数据状态、focus
+  handoff、pointer/keyboard resize、单次提交和窗口往返 clamp；
+- 修复 lazy locale cold-start 把 requested locale 误认成 English fallback 的根因；
+  选择 identity 使用 requested language，resource resolution 继续独立 fallback；
+- `npm run visual:test` 35/35、`npm run check` 193 files / 1138 tests、production/visual
+  build、Desktop `go build` / `go vet` / `go test`、`wails build` 与
+  `git diff --check` 全部通过；892 个 key 在 8 个 locale 中完整。
+
 ### W7.3 — Agent Narrative、Composer、Run tree 与 HITL
 
-状态：`TODO`
+状态：`READY`
 
 目标：
 
@@ -711,17 +738,17 @@ npm run check:bundle
 | W6 architecture/hygiene      | `DONE`  | consumer ports、命名、全门禁已收口                                     | 仅防回归                    |
 | W7.0 visual baseline         | `DONE`  | 本文、实拍、映射、决策、执行卡已冻结                                   | 仅防漂移                    |
 | W7.1 visual foundation       | `DONE`  | production-backed fixture、视觉 token、edge/depth、motion 与 warning 收口 | 仅防回归                    |
-| W7.2 shell / Work Index      | `READY` | foundation 与 shell fixture 已具备                                     | 对齐页面与交互状态          |
-| W7.3 Narrative / Run / HITL  | `TODO`  | foundation 与 Agent fixture 已具备                                     | 等待 W7.2                   |
+| W7.2 shell / Work Index      | `DONE`  | production shell、Work Index、resize/focus/a11y 与 8 张 golden 已闭环   | 仅防回归                    |
+| W7.3 Narrative / Run / HITL  | `READY` | foundation、Agent fixture 与稳定 shell 已具备                           | 对齐叙事、交互与全部运行状态 |
 | W7.4 Dock / Views / Settings | `TODO`  | foundation 与 workspace fixture 已具备                                 | 等待 W7.2/W7.3 文件边界稳定 |
 | W7.5 final closure           | `TODO`  | 依赖 W7.2–W7.4                                                         | 等待                        |
 
 当前唯一主任务：
 
 ```text
-W7.2 — 在已冻结的 visual foundation 上对齐 desktop shell 与 Work Index，
-       覆盖窗口 chrome、expanded/collapsed、resize、窄窗、列表各状态，
-       保持 plugin/application ports 与既有业务切换不变。
+W7.3 — 在稳定 shell 上对齐 Agent Narrative、Composer、Run tree 与 HITL，
+       覆盖 Running/Waiting/terminal/error/recovery、长内容与深层 delegated tree，
+       保持 normalized Run projection、exact child action 与权威状态作者不变。
 ```
 
 ---

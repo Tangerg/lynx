@@ -8,8 +8,9 @@
 > W6.1 实施提交：`eae67ca4e`；W6.2：`47970e41d`
 > W7.0 基线提交：随本原子 slice 提交
 > W7.1 实施提交：`051ea578d`
-> 当前主任务：`W7.2 — shell / Work Index`
-> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6 DONE · W7.0 DONE · W7.1 DONE · W7.2 READY`
+> W7.2 实施提交：`8bb0fa7ba`
+> 当前主任务：`W7.3 — Agent Narrative / Composer / Run tree / HITL`
+> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6 DONE · W7.0 DONE · W7.1 DONE · W7.2 DONE · W7.3 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 44`
@@ -63,7 +64,8 @@
 Runtime/Desktop 依赖与事实作者审计、Desktop Runtime anti-corruption boundary、全局语义
 命名清理和全门禁收口；未发现需要重做 Agent/Runtime 主模型的证据。W7.0 又冻结了
 Synara/Lynx 的真实视觉基线、状态映射、目标 token、有意分歧、验收矩阵和 W7.1–W7.5
-原子边界。后续实施从 §12 的 W7.2 shell / Work Index 执行卡继续。
+原子边界；W7.1/W7.2 已依次完成 visual foundation 与 shell/Work Index 页面级对齐。
+后续实施从 §12 的 W7.3 Agent Narrative / Composer / Run tree / HITL 执行卡继续。
 
 ---
 
@@ -255,7 +257,7 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 | Desktop B1.6                 | `DONE`        | normalized Run tree、source-owned fold、durable recovery、root-first UI 与 scope-exact public API     | —                                |
 | Runtime/Desktop B1.7         | `DONE`        | frozen policy、producer/recovery、Artifact/contract、server/Desktop opt-in 与最终 conformance 已闭环  | —                                |
 | Runtime/Desktop 架构持续演进 | `DONE`        | W6.0–W6.3 完成依赖、事实作者、Agent 泄漏、Runtime context、命名、错误、并发生命周期与全门禁收口       | 后续由架构回归门持续守护         |
-| Synara UI 对齐               | `IN PROGRESS` | W7.0 已冻结目标；W7.1 已完成 production-backed fixture、visual foundation 与 warning closure          | 执行 W7.2 shell / Work Index     |
+| Synara UI 对齐               | `IN PROGRESS` | W7.0–W7.2 已完成基线、visual foundation、production shell 与 Work Index 交互/视觉闭环                  | 执行 W7.3 Narrative / Run / HITL |
 
 不使用跨工作流“总百分比”。一个竞态闭环不能与一个命名修正等权；进度只由原子 slice
 和完成证据表达。
@@ -1064,7 +1066,7 @@ W6.1 breaking blast radius：
 
 ### W7 — Synara 视觉基线与像素级 Desktop UI 对齐
 
-状态：`IN PROGRESS`；`W7.0 DONE · W7.1 DONE · W7.2 READY · W7.3 TODO · W7.4 TODO · W7.5 TODO`
+状态：`IN PROGRESS`；`W7.0 DONE · W7.1 DONE · W7.2 DONE · W7.3 READY · W7.4 TODO · W7.5 TODO`
 
 参考仓库：`~/Desktop/synara`
 
@@ -1099,8 +1101,8 @@ W6.1 breaking blast radius：
 | ----- | ------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | W7.0  | `DONE`  | read-only reference audit、页面/状态映射、固定 viewport 与截图基线                  | 已在 `codex_synara_visual_baseline_and_execution_plan.md` 冻结 shell、组件、token、状态、复刻项、有意分歧和截图；production code 无变化 |
 | W7.1  | `DONE`  | visual foundation：fixture、字体、颜色、间距、圆角、边界、阴影、层级与 motion token | production-backed fixture 覆盖权威状态；token 有唯一作者；CSS/build warning 与 motion hygiene 门禁已闭环；实施提交 `051ea578d`          |
-| W7.2  | `READY` | desktop shell 与 Work Index                                                         | 窗口 chrome、主布局、导航、列表密度及空/选中/悬停/窄窗状态对齐，并保持插件边界                                                          |
-| W7.3  | `TODO`  | Agent Narrative、composer、Run tree 与 HITL                                         | Running/Waiting/Finished/error/长内容/深层 delegated tree 在固定 viewport 和真实内容下对齐                                              |
+| W7.2  | `DONE`  | desktop shell 与 Work Index                                                         | production shell、导航密度、四种 query 状态、single-owner toggle、pointer/keyboard resize、窄窗与 Retina 已闭环；实施提交 `8bb0fa7ba`    |
+| W7.3  | `READY` | Agent Narrative、composer、Run tree 与 HITL                                         | Running/Waiting/Finished/error/长内容/深层 delegated tree 在固定 viewport 和真实内容下对齐                                              |
 | W7.4  | `TODO`  | Context Dock、workspace views 与 settings                                           | 右侧上下文、文件/差异/时间线及设置表面形成统一视觉语言，不复制 Synara 的业务状态管理                                                    |
 | W7.5  | `TODO`  | responsive、accessibility、Wails/WebView 与 visual regression closure               | 截图 diff、键盘/focus/ARIA、reduced motion、DPI/滚动/拖拽、全量门禁及零未知构建告警全部通过                                             |
 
@@ -2095,6 +2097,52 @@ method/DTO shape、root stream 语义、child subscribe refusal、Agent public A
     与 persistence/recovery 语义均未改变。
 - 下一步：W7.2 shell / Work Index。
 
+### 2026-07-31 — W7.2
+
+- 状态：`DONE`
+- 实施提交：`8bb0fa7ba refactor(desktop): align shell and work index`
+- 目标：在不复制 Synara 业务状态、不污染 production composition 的前提下，对齐
+  desktop shell 与 Work Index，并把 collapse、resize、窄窗和 accessibility 从
+  截图相似提升为可验证行为。
+- 关键实现：
+  - expanded drawer 接管左上窗口 chrome；展开与折叠始终只有一个可见 toggle，
+    ownership handoff 后 keyboard focus 跟随新控件；
+  - seam rail 使用具名 vertical separator、完整 ARIA range 与
+    pointer/Arrow/Home/End 输入；pointermove 只写 CSS custom property，release
+    单次提交；
+  - sidebar preference 是唯一持久化用户意图，当前窗口宽度只派生 effective clamp；
+    窄窗不覆盖偏好，窗口恢复时 layout 与 ARIA 一致恢复；
+  - pointer drag 改为起始宽度加位移，删除把绝对 client coordinate 冒充宽度的
+    隐式耦合；`maxSidebarWidth` 明确表达 shell 几何，不再以 `Infinity` 套 clamp；
+  - collapsed drawer transition 完成后离开 accessibility tree；Settings
+    single-surface composition 继续不渲染 drawer/seam；
+  - Work Index 对齐 section/group/row density、folder vocabulary、empty/loading/error
+    与 live attention；idle relative time 保留于完整 accessible label，不挤占标题；
+  - test-only shell fixture 安装 production query/projection/sidebar plugins 与
+    workspace navigation port，仅以 data adapter 注入四种 query 状态；没有
+    production route、fixture business branch 或第二套 read model；
+  - 修复 lazy locale cold-start 将 requested locale 误判为 English fallback 的根因，
+    selection identity 与 resource resolution fallback 分离。
+- 视觉证据：
+  - 8 张 shell golden：1440×900 light/dark populated、1280×800 light loading /
+    dark error、1120×720 light/dark collapsed、1440×900 DPR2 light/dark；
+  - 15 个 shell 用例覆盖 populated/empty/loading/error、single visible recovery
+    control、focus handoff、pointer/keyboard resize、single commit 与窗口往返 clamp；
+  - full visual suite `35/35`。
+- 验证：
+  - `npm run check` → 193 files / 1138 tests；typecheck、lint、format、knip、
+    architecture/design/locales/bootstrap/bundle guards 全通过；
+  - 892 个 key 在 8 个 locale 中完整；
+  - production build 与 visual build 无 product warning；
+  - Desktop `go build ./...`、`go vet ./...`、`go test ./...`、`wails build` 通过；
+  - `git diff --check` 通过。
+- 边界裁决：
+  - Work Index 仍只消费 application/public selector 与 plugin contribution；
+  - Agent / Runtime protocol、normalized Run projection、persistence、idempotency、
+    atomicity 与 recovery 语义均未改变；
+  - 本 slice 不宣告 Narrative、Run tree、HITL、Dock 或 Settings 页面级完成。
+- 下一步：W7.3 Agent Narrative / Composer / Run tree / HITL。
+
 ---
 
 ## 12. 下一张执行卡
@@ -2102,24 +2150,32 @@ method/DTO shape、root stream 语义、child subscribe refusal、Agent public A
 唯一下一任务：
 
 ```text
-W7.2 — shell / Work Index
+W7.3 — Agent Narrative / Composer / Run tree / HITL
 ```
 
 实施顺序：
 
-1. 以 production shell、sidebar plugin contribution 与已有 foundation fixture 为
-   唯一事实源，补齐 Work Index 的 deterministic 页面/交互状态；
-2. 对齐 256px expanded sidebar、collapsed rail、46px header、14.4px seam、drawer
-   sheen、窗口 traffic lights 与内容 gutter；
-3. 对齐 Work Index header、primary action、section、row、badge 以及
-   empty/loading/error/selected/hover/focus-visible；
-4. 验证 resize drag、collapse/reopen、min viewport 与 Settings window takeover；
-   pointermove 不得驱动业务 store 高频 render；
-5. 保持 Project/Session 信息架构、Studio/Projects 切换、plugin registry 与
-   application/public selector 边界，不复制 Synara 的业务 state；
-6. 删除被替换的 shell/sidebar CSS、component 和 fixture path，不留 dual visual mode；
-7. 固定 W7.2 baseline/actual/diff，跑完整 frontend、Wails 与 diff hygiene 门禁后
-   原子提交并回填本总账。
+1. 以 canonical `AgentSessionSnapshot`、production
+   `projectAgentSessionSnapshot`、normalized Run projection 与现有 Agent fixture
+   为唯一事实源，先审计 empty/idle/Running/Waiting/terminal/error/delegated/
+   long-content 的真实 DOM、computed style 与更新路径；
+2. 对齐 empty hero、transcript measure、message rhythm、prose/code/tool/plan/error
+   的 typography、spacing、edge 与 depth；不在 feature callsite 复制 token；
+3. 对齐 Composer 的 empty/active/steer/stop、附件、model control、footer 与
+   focus-visible；保持 real border + single depth shadow，不新增第二套 surface；
+4. 对齐 root/child/sibling/nested Run tree 的 summary、disclosure、indent、status
+   dot 与 activity rhythm；Waiting 默认展开，terminal 不保留持续动画或大面积状态色；
+5. 验证 HITL 请求、submit/reject、exact child cancel、parent item locate、
+   recovery/error 与长内容滚动；组件只能发出既有 application intent，不能乐观补造
+   committed domain fact；
+6. 扩展 production-backed visual fixture 与 interaction tests，冻结固定
+   viewport/theme/DPR 下的 Agent Narrative golden；不得复制 projection、wire union
+   或 fixture-only business branch；
+7. 检查 stream 高频路径的 selector 与 render ownership；没有测量证据不做猜测式
+   性能优化，但不得因视觉订阅重新引入全树 render；
+8. 删除被替换的 Narrative/Composer/Run/HITL CSS、component 与 copy 路径，不留
+   dual visual mode；跑完整 frontend、visual、Wails 与 diff hygiene 门禁后原子提交
+   并回填本总账。
 
 W7 的禁止项：
 
