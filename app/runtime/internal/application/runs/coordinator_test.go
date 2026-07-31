@@ -1075,7 +1075,7 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 	spec := testSegment()
 	spec.Limits = execution.RunLimits{MaxSteps: 20, MaxBudgetUSD: 3}
 	spec.ProtocolProfile = execution.RunProtocolProfile{
-		RequiredFeatures: []string{"subagents"},
+		ChildRuns: true,
 	}
 
 	stream, err := coordinator.openSegment(t.Context(), spec)

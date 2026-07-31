@@ -27,15 +27,16 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		return StartResult{}, err
 	}
 	draft := StartTurn{
-		Message:        message,
-		Media:          media,
-		ModelSelection: cmd.ModelSelection,
-		MaxBudget:      cmd.MaxBudget,
-		MaxCostUSD:     cmd.MaxCostUSD,
-		MaxSteps:       cmd.MaxSteps,
-		Options:        cmd.Options,
-		InterruptKinds: cmd.ProtocolProfile.InterruptKinds,
-		GoalLeaseID:    cmd.GoalLeaseID,
+		Message:                  message,
+		Media:                    media,
+		ModelSelection:           cmd.ModelSelection,
+		MaxBudget:                cmd.MaxBudget,
+		MaxCostUSD:               cmd.MaxCostUSD,
+		MaxSteps:                 cmd.MaxSteps,
+		Options:                  cmd.Options,
+		InterruptKinds:           cmd.ProtocolProfile.InterruptKinds,
+		ChildRunAdmissionEnabled: cmd.ProtocolProfile.ChildRuns,
+		GoalLeaseID:              cmd.GoalLeaseID,
 	}
 	if err := draft.Validate(); err != nil {
 		return StartResult{}, err
@@ -884,7 +885,7 @@ func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pendin
 		ProcessID:                root.ProcessID,
 		ModelSelection:           root.ModelSelection,
 		Cwd:                      cwd,
-		ChildRunAdmissionEnabled: len(pending.Continuations) > 1,
+		ChildRunAdmissionEnabled: pending.ProtocolProfile.ChildRuns,
 	})
 	if err != nil {
 		return execution.TurnRef{}, errors.Join(ErrRunNotFound, err)

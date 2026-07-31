@@ -75,10 +75,12 @@ func presentCancelResult(result runs.CancelResult) *protocol.CancelRunResponse {
 // a meaning — and `null` would report the run's known contract as unknown.
 func presentProtocolProfile(profile execution.RunProtocolProfile) protocol.RunProtocolProfile {
 	out := protocol.RunProtocolProfile{
-		RequiredFeatures: make([]string, 0, len(profile.RequiredFeatures)),
+		RequiredFeatures: make([]protocol.RunProtocolFeature, 0, 1),
 		InterruptTypes:   make([]protocol.InterruptType, 0, len(profile.InterruptKinds)),
 	}
-	out.RequiredFeatures = append(out.RequiredFeatures, profile.RequiredFeatures...)
+	if profile.ChildRuns {
+		out.RequiredFeatures = append(out.RequiredFeatures, protocol.RunProtocolFeatureSubagents)
+	}
 	for _, kind := range profile.InterruptKinds {
 		out.InterruptTypes = append(out.InterruptTypes, presentInterruptType(kind))
 	}

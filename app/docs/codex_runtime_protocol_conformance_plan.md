@@ -1,7 +1,7 @@
 # Lyra Runtime API 最终一致性收口计划
 
 > 作者：Codex
-> 状态：`A-TRACK DONE / B1.4 DONE / B1.5 DONE / B1.6 DONE · B1.7 READY`
+> 状态：`A-TRACK DONE / B1 DONE`
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
@@ -57,8 +57,9 @@ A1–A7 已把旧实施计划未单独追踪的跨层语义逐项修正，并用
 运行时边界、真实 SQLite 生命周期、前端 consumer 和 canonical docs 的交叉证据
 完成复核。B1.1–B1.6 已补齐 Run tree durable identity、producer、barrier、tree
 cancel、cold recovery 与 Desktop consumer；`features.subagents=false` 仍是有意的
-诚实能力声明，必须等 B1.7 逐项完成最终 conformance、原子启用、canonical docs 与
-生成物同步后，才能对客户端发布完整 child Run 能力。
+启用前状态。B1.7 已完成 final conformance，并在同一原子切片接通 production
+admission、cold recovery、Artifact、生成式 contract 约束和 Runtime/Desktop opt-in；
+当前可以对已协商客户端发布完整 child Run 能力。
 
 本计划不使用粗略完成百分比。一个完整的 Run-tree cancel 与一个 `minItems`
 约束不能按相同权重计算；只记录逐项状态和可复核证据。
@@ -211,11 +212,11 @@ cd app/desktop/frontend && npm run check
 | A5 | capability gate 与 disabled-subagent seam 收口 | `DONE` | 2026-07-30 完成 | shared policy、durable identity gates、全量 gates |
 | A6 | Registry fail-closed 与 SSOT 清理 | `DONE` | 2026-07-30 完成 | defensive views、closed metadata、effective errors、全量 gates |
 | A7 | canonical docs 与最终 conformance sweep | `DONE` | 2026-07-30 完成 | §12.4 conformance matrix、全量 gates |
-| B1 | 完整 child Run producer / tree cancel / barrier | `IN PROGRESS` | B1.7 capability enablement | B1.1–B1.6 已完成；启用条件见 §11 |
+| B1 | 完整 child Run producer / tree cancel / barrier | `DONE` | 进入 W6 架构最终复核 | B1.1–B1.7 已完成；完成证据见 §18 |
 
-A1–A7 已全部完成，当前没有 A-track slice 处于 `IN PROGRESS`。B1 保持独立项目，
-已按 breaking-first 策略开始实施；不得通过打开 feature flag、复用 root identity
-冒充 child，或附加兼容路径缩短门槛。
+A1–A7 与 B1.1–B1.7 已全部完成，当前没有协议 slice 处于 `IN PROGRESS`。B1 已按
+breaking-first 策略收口；没有通过单独打开 feature flag、复用 root identity 冒充
+child，或附加兼容路径缩短门槛。
 
 ---
 
@@ -393,9 +394,9 @@ live event 被 replay 不等于 event 本身被持久化。
 
 ---
 
-## 9. A5 —— Capability gate 与 disabled-subagent seam
+## 9. A5 —— Capability gate 与 subagent negotiation seam
 
-### 9.1 当前边界
+### 9.1 A5 实施时边界（历史）
 
 当前 composition 诚实广告：
 
@@ -514,7 +515,7 @@ consumer 闭环就不能诚实发布 capability。
 | B1.4 | unified root/child cancellation | `DONE` | root/child arbiter、Running/Waiting subtree、failure/restart/query/race/hygiene conformance 全部闭环 |
 | B1.5 | durable query、subscribe 与 cold recovery | `DONE` | descendant paging、child/subtree items、root stream replay scope、restart tree recovery；child subscribe 明确拒绝 |
 | B1.6 | frontend Run-tree consumer | `DONE` | source-owned fold、durable atomic projection、root-first tree UI、exact cancel 与 scope-exact public API |
-| B1.7 | conformance sweep 与 capability enablement | `READY` | §11.3 全部门槛、race/多分支集成/生成物/docs 全绿后原子启用 feature |
+| B1.7 | conformance sweep 与 capability enablement | `DONE` | §11.3 全部门槛、race/多分支集成/生成物/docs 全绿并原子启用 feature |
 
 B1.1 只建立后续行为不可绕开的权威事实，不把 synthetic child persistence 写成执行能力。
 B1.2 起仍须保持 capability 关闭；任何 slice 失败都不得通过把 child event 重新归到 root
@@ -1934,10 +1935,10 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 
 ## 18. 下一步
 
-A-track 与 B1.1–B1.6 已收口。下一阶段是：
+A-track 与 B1 已全部收口。下一阶段是：
 
 ```text
-B1.7 / W5 — Final conformance + capability enablement
+W6.0 — Runtime / Desktop architecture final audit
 ```
 
 总执行卡：
@@ -1948,7 +1949,7 @@ Desktop 专项完成记录：
 
 - [`codex_desktop_run_tree_execution_plan.md`](codex_desktop_run_tree_execution_plan.md)
 
-当前进度：`W4 DONE · W5.0 DONE · W5.1 READY`。B1.6 已删除 single `view.run`、global
+当前进度：`W4 DONE · W5 DONE · W6.0 READY`。B1.6 已删除 single `view.run`、global
 turn/plan/error、implicit owner、synthetic recovery、启发式 message reconciliation 与
 失真 `activeRun` public surface；`AgentSessionView`、durable atomic projection、
 root-first tree UI 与 exact cancel 已通过完整 Desktop gates。
@@ -2033,3 +2034,29 @@ W5.1 已冻结为一次原子切换：
 不得把这个切片拆成“先翻 server boolean、以后再接 producer”，也不得同时保留
 `RequiredFeatures` 与 `ChildRuns` 两份内层事实。protocolVersion、Artifact v7、
 JSON-RPC shape、root stream 与 child `run_not_root` 语义保持不变。
+
+W5.1 / B1.7 已按上述冻结裁决完成：
+
+- application/domain frozen profile 只表达 `ChildRuns` 与 `InterruptKinds`；wire key
+  的双向映射只存在于 delivery；
+- start 与 cold rehydrate 都从 root policy 安装 child admission，删除 continuation
+  数量推断；
+- SQLite `schemaEpoch=44` 直接采用 `childRuns` semantic encoding，无旧 decoder；
+- server 与 Desktop 同时启用/opt in `subagents`；
+- closed `RunProtocolFeature`、两个 profile set 的 `uniqueItems` 和 enum-item
+  validators 均由 Registry 生成；
+- Artifact v7 最大 round-trip 覆盖 root profile + child lineage，非法 profile/tree
+  在任何写入前 fail closed；
+- positive/negative child query、cancel authority、Minimal Profile、single-continuation
+  rehydrate 与 Desktop request metadata 均有回归测试。
+
+W5.2 验证结果：
+
+- Runtime full test/build/vet、Agent full test、高风险 Runtime/Agent race tests 全绿；
+- Desktop `npm run check` 全绿：189 files / 1128 tests；
+- contract generation 连续两次结果一致；
+- Agent → App dependency、opaque feature 内层泄漏、topology inference、compatibility
+  residue 和 diff whitespace 扫描无命中。
+
+W6.0 的唯一执行卡、审计维度和禁止项统一记录在总执行台账 §12；本文不再新增协议
+实施分支。

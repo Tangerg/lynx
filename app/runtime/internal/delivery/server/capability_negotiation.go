@@ -52,7 +52,15 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (execution.RunProtoc
 		// profile exists so a later subscriber can be told what it must understand,
 		// and a feature invisible in the stream demands nothing of it.
 		if published.RequiredByRunProtocol {
-			profile.RequiredFeatures = append(profile.RequiredFeatures, key)
+			switch key {
+			case protocol.FeatureSubagents:
+				profile.ChildRuns = true
+			default:
+				return execution.RunProtocolProfile{}, fmt.Errorf(
+					"server: required Run protocol feature %q has no application policy mapping",
+					key,
+				)
+			}
 		}
 	}
 
@@ -113,10 +121,10 @@ func (s *Server) requestCanUseFeature(ctx context.Context, feature string) bool 
 // a state where the call succeeds.
 func profileGap(gap execution.RunProtocolProfile) *protocol.CapabilityGap {
 	requirements := make([]protocol.CapabilityRequirement, 0,
-		len(gap.RequiredFeatures)+len(gap.InterruptKinds))
-	for _, feature := range gap.RequiredFeatures {
+		1+len(gap.InterruptKinds))
+	if gap.ChildRuns {
 		requirements = append(requirements, protocol.CapabilityRequirement{
-			Type: protocol.RequirementFeature, Name: feature,
+			Type: protocol.RequirementFeature, Name: protocol.FeatureSubagents,
 		})
 	}
 	for _, kind := range gap.InterruptKinds {

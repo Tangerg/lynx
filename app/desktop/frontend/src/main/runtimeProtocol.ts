@@ -6,7 +6,10 @@ import type { ClientCapabilities, RequestMeta } from "@/rpc";
 // authoritative frame to whoever it accepted, and a client that could not fold
 // them would be refused the run outright rather than served a shortened stream.
 export const CLIENT_CAPABILITIES: ClientCapabilities = {
-  features: { multimodal: { enabled: true } },
+  features: {
+    multimodal: { enabled: true },
+    subagents: { enabled: true },
+  },
   interruptTypes: ["approval", "question"],
 };
 

@@ -5,11 +5,11 @@
 > 建档日期：2026-07-30
 > W4.1 实施提交：`40cffd81e`；W4.2：`cc85d3039`；W4.3：`ca0949949`
 > W4.4 实施提交：`49b6494bd` + `fcbf8f558` + `34a875d29`
-> 当前主任务：`W5.1 — B1.7 atomic capability cutover`
-> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5.0 DONE · W5.1 READY`
+> 当前主任务：`W6.0 — Runtime / Desktop architecture final audit`
+> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6.0 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
-> 当前 Store：`schemaEpoch = 43`
+> 当前 Store：`schemaEpoch = 44`
 
 ## 0. 文档职责
 
@@ -52,10 +52,11 @@
   [`REFACTORING.md`](../../REFACTORING.md) 为准；
 - 不允许为了迁就现状反向弱化目标契约。
 
-截至 2026-07-31，W2、W3、W4 与 W5.0 已完成。B1.1–B1.6 的 Runtime 与 Desktop
-闭环已经具备可复核证据；W5.0 又证明底层 child Run producer、transaction、barrier、
-cancel、query、recovery 与 Desktop consumer 已基本成立，同时定位了 capability
-生产接线和最终 contract 的四项阻断缺口。后续实施必须从 §12 的 W5.1 唯一执行卡继续。
+截至 2026-07-31，W2–W5 已完成。B1.7 已用一次 breaking、无兼容分支的原子切片
+接通 frozen Run profile、生产 child admission、cold rehydrate、Artifact tree fidelity、
+生成式 contract 约束以及 Runtime/Desktop capability opt-in；高风险 race、全量门禁、
+连续两次 generation no-diff 与架构债扫描均已通过。后续实施从 §12 的 W6.0
+架构最终复核执行卡继续。
 
 ---
 
@@ -245,9 +246,9 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 | Runtime B1.4d                | `DONE`        | W2.1 ownership；W2.2 failure/rollback；W2.3 restart/query/publication；W2.4 race/hygiene/full closure | —                                |
 | Runtime B1.5                 | `DONE`        | W3.0–W3.4 query / stream / replay / cold recovery / full closure                                      | —                                |
 | Desktop B1.6                 | `DONE`        | normalized Run tree、source-owned fold、durable recovery、root-first UI 与 scope-exact public API     | —                                |
-| Runtime/Desktop B1.7         | `READY`       | producer/barrier/cancel/query/stream/recovery/Desktop consumer 均已闭环；capability 仍诚实 disabled    | W5 原子启用并做最终 conformance  |
-| Runtime/Desktop 架构持续演进 | `ONGOING`     | 依赖环、consumer ports、plugin contexts 与多项 architecture gate 已存在                               | 随每个 slice 审查并最终 sweep    |
-| Synara UI 对齐               | `TODO`        | 参考仓库已明确为 `~/Desktop/synara`                                                                   | B1.6 后做视觉基线与像素级实现    |
+| Runtime/Desktop B1.7         | `DONE`        | frozen policy、producer/recovery、Artifact/contract、server/Desktop opt-in 与最终 conformance 已闭环   | —                                |
+| Runtime/Desktop 架构持续演进 | `READY`       | 依赖环、consumer ports、plugin contexts 与多项 architecture gate 已存在                               | 执行 W6.0 最终 audit             |
+| Synara UI 对齐               | `TODO`        | 参考仓库已明确为 `~/Desktop/synara`                                                                   | W6 完成后做视觉基线与像素级实现  |
 
 不使用跨工作流“总百分比”。一个竞态闭环不能与一个命名修正等权；进度只由原子 slice
 和完成证据表达。
@@ -388,12 +389,12 @@ coordinator、锁层、协议方法或兼容分支。
 | Run 心智模型      | `Session → Run → Segment → Item`、Run 三态、正交 outcome/metrics、typed Interrupt、durable query 均已落地                | API 主模型无需重做                                                |
 | Agent Framework   | execution tree、HITL、checkpoint、prepared waiting-subtree mutation、Continue 与 consumer/recovery/race 门禁已成立       | P24 完成；后续只按真实 consumer 需求演进                          |
 | App Runtime 写面  | child admission、source routing、tree barrier/resume、Running/Waiting child cancel 与 B1.4d conformance 已完成           | 事实 owner 正确；后续不得重新分配所有权                           |
-| App Runtime 读面  | `runs.get/list`、`items.list`、`interrupts.list` 已读 durable projection；`RunTree` 可由任意节点取整树                   | root 能力成熟；descendant paging/subscribe/cold recovery 尚未闭环 |
-| Desktop transport | root stream 已追踪 descendant membership、去重、reattach 与 cold history recovery                                        | 已具备 W4 基础，不等于完整 child view model                       |
-| Desktop fold      | child start/finish 目前主要折成共享 timeline，root readout 被保护但没有每个 child 的独立状态树                           | B1.6 仍是真缺口，不能提前开启 capability                          |
-| Capability        | `features.subagents` 已发布为 stable opt-in seam，但 server 明确 `enabled=false`                                         | 正确；必须等 W2–W5 全完成再原子启用                               |
+| App Runtime 读面  | descendant paging、exact/subtree items、root stream replay、cold tree recovery 与 child subscribe 拒绝均已闭环          | durable tree query 与 stream ownership 已成立                     |
+| Desktop transport | root stream、durable snapshot、reattach、replay fallback、exact child cancel 与 source-owned fold 已闭环                | first-party consumer 已完整 opt in                                |
+| Desktop fold      | root/child/sibling/nested Run 均按 source identity 独立折叠，并形成 root-first tree/narrative UI                          | B1.6 完成，无 single-run 或 synthetic recovery path               |
+| Capability        | server 稳定广告 `features.subagents.enabled=true`，Desktop 显式请求；未协商调用仍 fail closed                             | B1.7 已原子启用且保持 opt-in                                      |
 | 依赖治理          | Go architecture tests、Frontend layer/context/public-boundary/cycle gates 全绿                                           | 不需要全局换目录；每个 slice 内做局部治本                         |
-| 历史兼容          | SQLite 单 epoch 43、protocol current=min、旧 artifact/schema 直接拒绝                                                    | 符合 dev 阶段 breaking-first                                      |
+| 历史兼容          | SQLite 单 epoch 44、protocol current=min、旧 store/artifact/schema 直接拒绝                                               | 符合 dev 阶段 breaking-first                                      |
 
 ### 4.5 B1.4d 证据闭环矩阵
 
@@ -942,7 +943,7 @@ W4.0 审计裁决：
 
 ### W5 — B1.7 最终 conformance 与 capability enablement
 
-状态：`IN PROGRESS`
+状态：`DONE`
 
 只有以下项目全部通过后，才能将 `features.subagents.enabled` 改为 `true`：
 
@@ -966,12 +967,12 @@ slice 中完成，不能先改布尔值。
 | Slice | 状态      | 边界                                                                 |
 | ----- | --------- | -------------------------------------------------------------------- |
 | W5.0  | `DONE`    | read-only completion audit：逐项绑定现有 producer/conformance 证据   |
-| W5.1  | `READY`   | 根治 profile/恢复/Artifact/contract 缺口并原子启用 server + Desktop |
-| W5.2  | `PENDING` | Runtime/Desktop 高风险竞态、全门禁、双 generation 与无兼容残留收口  |
+| W5.1  | `DONE`    | 根治 profile/恢复/Artifact/contract 缺口并原子启用 server + Desktop |
+| W5.2  | `DONE`    | Runtime/Desktop 高风险竞态、全门禁、双 generation 与无兼容残留收口  |
 
 ### W6 — Runtime / Desktop 架构最终复核
 
-状态：`TODO`，但规则持续执行
+状态：`READY`，且规则持续执行
 
 审计维度：
 
@@ -1846,35 +1847,76 @@ method/DTO shape、root stream 语义、child subscribe refusal、Agent public A
 
 ---
 
+### 2026-07-31 — W5.1 / W5.2
+
+- 状态：`DONE`
+- 事实作者调整：
+  - application/domain 的 frozen profile 只保存 `ChildRuns` 与
+    `InterruptKinds` 语义，不再保存 opaque wire feature key；
+  - delivery 是 `features.subagents` 与 `ChildRuns` 的唯一 translator；
+  - start 与 cold rehydrate 都只从 root frozen profile 安装 child admission，不再从
+    当前 continuation 拓扑反推未来能力；
+  - fresh SQLite encoding 改为 `childRuns`，`schemaEpoch` 直接提升到 44，没有旧格式
+    decoder、dual read/write 或迁移分支。
+- 协议与 Artifact：
+  - server 稳定广告 `features.subagents.enabled=true`，Desktop first-party request
+    同时显式 opt in；
+  - wire 新增 closed `RunProtocolFeature` vocabulary；profile 两个集合均由 Registry
+    生成 `uniqueItems` 与 closed-enum item validator；
+  - generator 已从只校验直接 enum 字段扩展为同时校验 enum slice，避免 Go validator
+    比 Schema/TypeScript 更宽；
+  - Artifact v7 最大 round-trip 覆盖 root profile、child lineage 与完整 tree；Minimal
+    root 携带 child 或未知 required feature 均在写入前拒绝；
+  - `protocolVersion`、Artifact v7、JSON-RPC method/DTO shape、root stream 与 child
+    `run_not_root` 语义保持不变。
+- 行为证据：
+  - start 与 single-continuation cold rehydrate 都证明 child admission 来自 frozen
+    policy；
+  - child get/list/items 同时覆盖未协商拒绝与已协商正向路径；
+  - capability Registry coverage test 保证每个 `requiredByRunProtocol` feature 都有
+    application semantic mapping；
+  - Desktop request metadata test 证明 first-party client 明确请求 subagents。
+- W5.2 门禁：
+  - Runtime `go test ./... -count=1`、`go build ./...`、`go vet ./...`；
+  - Agent `go test ./... -count=1`；
+  - Runtime 高风险包与 Agent runtime/architecture `go test -race`；
+  - Desktop `npm run check`：189 files / 1128 tests；
+  - contract generation 连续两次结果一致；
+  - production dependency/leakage、topology inference、compatibility residue 与
+    `git diff --check` 扫描无命中。
+- 已知非阻塞输出仍仅为既有 shadow wildcard utility、Lightning CSS
+  `::highlight(...)` 与 bundle large-chunk 提示。
+
+---
+
 ## 12. 下一张执行卡
 
 唯一下一任务：
 
 ```text
-W5.1 — B1.7
-Atomic capability cutover
+W6.0 — Runtime / Desktop architecture final audit
 ```
 
 实施顺序：
 
-1. typed inner profile + fresh store epoch，删除 opaque feature key 的内层表达；
-2. start/rehydrate 只从 frozen policy 安装 child admission；
-3. 补齐 Artifact enabled round-trip、unsupported profile refusal 与 profile Registry
-   constraints；
-4. 同时启用 server composition 与 Desktop opt-in；
-5. 运行 targeted Runtime/Agent/Desktop tests，更新 canonical docs 与生成物后原子
-   commit/push；
-6. 进入 W5.2，运行高风险 race、Runtime/Desktop 全门禁、连续两次 generation no-diff
-   与无兼容残留扫描。
+1. 以 package dependency、事实作者和完整 use case 为单位绘制 Runtime/Desktop
+   当前依赖图，不从目录名或接口数量推断；
+2. 逐项审计 domain/application 对外环依赖、delivery 业务裁决、consumer port
+   ownership、单实现胶水接口和跨 bounded-context DTO；
+3. 扫描失真命名、receiver 漂移、低信息错误、compat/dead code、无 owner goroutine
+   与重复 protocol/state facts；
+4. 将每个发现记录为“证据 → 根因 → 目标边界 → breaking blast radius → 验收”，先
+   冻结最小原子切片，再修改代码；
+5. 每个切片完成 targeted tests；阶段收口运行 Runtime/Desktop/Agent 全量门禁、
+   architecture guards、race 与生成物 drift；
+6. W6 完成并更新台账后，才进入 W7 Synara 像素级复刻，不混入本轮架构调整。
 
-W5 的禁止项：
+W6 的禁止项：
 
-- 不实现 child subscribe；
-- 不让 Agent 接触 App persistence；
-- 不把 capability boolean 当作实现完成证明；
-- 不保留 disabled behavior alias、兼容 fallback 或双 capability path；
-- 不为通过 artifact round-trip 而丢 child lineage 或把 tree 摊平；
-- 不从 transcript、live registry、tool name 或事件到达顺序猜 lineage；
-- 不让 Desktop component 读取 capability preflight 或 wire；
-- 不先改 `server.go` 的布尔值再补测试/文档；
-- 不提交或推送未通过门禁的 capability 状态。
+- 不为了减少文件或接口数量合并不同事实作者；
+- 不把 App persistence、transaction、idempotency、Run/Item 或 protocol DTO 下沉到
+  Agent Framework；
+- 不用 `Manager`、`Helper`、`Impl`、`Data`、`Info` 掩盖职责；
+- 不保留旧入口、alias、dual path、fallback decoder 或“临时”兼容层；
+- 不在没有证据的情况下做性能优化或泛化抽象；
+- 不把 Synara UI 工作提前混入架构收口。

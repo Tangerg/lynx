@@ -100,6 +100,16 @@ func constantsByType(t *testing.T) map[string][]string {
 				if !ok || len(value.Values) != 1 || len(value.Names) != 1 {
 					continue
 				}
+				// Keep every package string constant available as a conversion
+				// source, including untyped vocabularies such as FeatureSubagents.
+				// Only constants whose declared type is a wire enum enter out.
+				if literal, ok := value.Values[0].(*ast.BasicLit); ok && literal.Kind == token.STRING {
+					text, err := strconv.Unquote(literal.Value)
+					if err != nil {
+						t.Fatalf("unquote %s: %v", literal.Value, err)
+					}
+					literals[value.Names[0].Name] = text
+				}
 				if ident, ok := value.Type.(*ast.Ident); ok && stringTypes[ident.Name] {
 					literal, ok := value.Values[0].(*ast.BasicLit)
 					if !ok || literal.Kind != token.STRING {
@@ -109,7 +119,6 @@ func constantsByType(t *testing.T) map[string][]string {
 					if err != nil {
 						t.Fatalf("unquote %s: %v", literal.Value, err)
 					}
-					literals[value.Names[0].Name] = text
 					out[ident.Name] = append(out[ident.Name], text)
 					continue
 				}

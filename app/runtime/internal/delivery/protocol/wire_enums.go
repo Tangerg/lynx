@@ -63,6 +63,7 @@ var wireEnums = map[reflect.Type][]string{
 	reflect.TypeFor[RememberScopeKind]():         {string(RememberSession), string(RememberProject), string(RememberGlobal)},
 	reflect.TypeFor[RestoreType]():               {string(RestoreHistory), string(RestoreFiles), string(RestoreBoth)},
 	reflect.TypeFor[RunOutcomeType]():            {string(OutcomeCompleted), string(OutcomeError), string(OutcomeMaxSteps), string(OutcomeMaxBudget), string(OutcomeCanceled)},
+	reflect.TypeFor[RunProtocolFeature]():        runProtocolFeatureValues(),
 	reflect.TypeFor[RunStatus]():                 {string(RunStatusRunning), string(RunStatusWaiting), string(RunStatusFinished)},
 	reflect.TypeFor[SegmentOutcomeType]():        {string(SegmentInterrupt), string(SegmentSuspended), string(SegmentCompleted), string(SegmentError), string(SegmentMaxSteps), string(SegmentMaxBudget), string(SegmentCanceled)},
 	reflect.TypeFor[SafetyClass]():               {string(SafetyClassSafe), string(SafetyClassWrite), string(SafetyClassExec), string(SafetyClassNetwork)},

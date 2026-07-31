@@ -4665,19 +4665,27 @@
         }
       }
     },
+    "RunProtocolFeature": {
+      "type": "string",
+      "enum": [
+        "subagents"
+      ]
+    },
     "RunProtocolProfile": {
       "type": "object",
       "properties": {
         "interruptTypes": {
           "type": "array",
+          "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/InterruptType"
           }
         },
         "requiredFeatures": {
           "type": "array",
+          "uniqueItems": true,
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/RunProtocolFeature"
           }
         }
       },

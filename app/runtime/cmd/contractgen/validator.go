@@ -140,12 +140,17 @@ func validatorChecks(
 		}
 	}
 	for _, field := range protocol.WireFields(shape) {
-		values, ok := protocol.WireEnum(field.Type)
-		if !ok {
+		if values, ok := protocol.WireEnum(field.Type); ok {
+			checks = append(checks, fmt.Sprintf("closedEnum(%s, string(value.%s), %s, %t)",
+				strconv.Quote(field.Name), field.GoName, valueList(values), field.Optional))
 			continue
 		}
-		checks = append(checks, fmt.Sprintf("closedEnum(%s, string(value.%s), %s, %t)",
-			strconv.Quote(field.Name), field.GoName, valueList(values), field.Optional))
+		if field.Type.Kind() == reflect.Slice {
+			if values, ok := protocol.WireEnum(field.Type.Elem()); ok {
+				checks = append(checks, fmt.Sprintf("closedEnumItems(%s, value.%s, %s)",
+					strconv.Quote(field.Name), field.GoName, valueList(values)))
+			}
+		}
 	}
 	checks = append(checks, unionChecks(union)...)
 	checks = append(checks, objectChecks(rules)...)

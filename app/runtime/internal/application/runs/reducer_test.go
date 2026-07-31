@@ -978,8 +978,8 @@ func completedToolNames(reductions []reduction) []string {
 // can produce.
 func TestReducerReportsTheRunsFrozenProfileOnEverySegment(t *testing.T) {
 	frozen := execution.RunProtocolProfile{
-		RequiredFeatures: []string{"subagents"},
-		InterruptKinds:   []execution.InterruptKind{execution.ApprovalInterrupt},
+		ChildRuns:      true,
+		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 	}
 	config := testReducerConfig()
 	config.ProtocolProfile = frozen
@@ -1008,7 +1008,7 @@ func TestReducerReportsTheRunsFrozenProfileOnEverySegment(t *testing.T) {
 
 func assertFrozenProfile(t *testing.T, got, want execution.RunProtocolProfile, where string) {
 	t.Helper()
-	if !slices.Equal(got.RequiredFeatures, want.RequiredFeatures) || !slices.Equal(got.InterruptKinds, want.InterruptKinds) {
+	if got.ChildRuns != want.ChildRuns || !slices.Equal(got.InterruptKinds, want.InterruptKinds) {
 		t.Fatalf("%s profile = %v, want %v", where, got, want)
 	}
 }

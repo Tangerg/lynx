@@ -215,6 +215,7 @@ export type WireTypeName =
   | "RunOutcome"
   | "RunOutcomeType"
   | "RunProgress"
+  | "RunProtocolFeature"
   | "RunProtocolProfile"
   | "RunRef"
   | "RunReplayLimits"
@@ -1709,9 +1710,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     step: integer(),
     usage: ref(() => CHECKS.Usage),
   }, []),
+  RunProtocolFeature: enumOf(["subagents"]),
   RunProtocolProfile: object({
-    interruptTypes: array(ref(() => CHECKS.InterruptType)),
-    requiredFeatures: array(text()),
+    interruptTypes: allOf([array(ref(() => CHECKS.InterruptType)), uniqueItems()]),
+    requiredFeatures: allOf([array(ref(() => CHECKS.RunProtocolFeature)), uniqueItems()]),
   }, ["interruptTypes", "requiredFeatures"]),
   RunRef: allOf([
     object({

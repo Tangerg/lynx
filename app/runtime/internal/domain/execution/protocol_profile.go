@@ -43,35 +43,35 @@ func (e *ProfileNotCovered) Is(target error) bool { return target == ErrProfileN
 // may PUBLISH, and a Run whose contract changed mid-flight would hand its
 // subscriber a stream it had not agreed to follow.
 //
-// RequiredFeatures are protocol capability keys, kept as opaque strings on
-// purpose: the vocabulary is the wire's and the domain does not interpret it. What
-// the domain owns is that the set was frozen and is reported back unchanged, so no
-// layer can quietly widen or narrow it. The empty profile is not "unset" — it is
-// the Minimal Profile: a Run that creates no child, publishes no suspension, and
-// never parks on a person.
+// ChildRuns and InterruptKinds are application semantics, not wire vocabulary.
+// Delivery translates features.subagents into ChildRuns at admission and back
+// when presenting the profile. Keeping the opaque capability key here would make
+// the application interpret a transport term; keeping both would create two
+// authors for the same policy.
+//
+// The empty profile is not "unset" — it is the Minimal Profile: a Run that
+// creates no child, publishes no suspension, and never parks on a person.
 type RunProtocolProfile struct {
-	RequiredFeatures []string
-	InterruptKinds   []InterruptKind
+	ChildRuns      bool
+	InterruptKinds []InterruptKind
 }
 
-// Normalized returns the profile as a canonical set: sorted, without duplicates,
-// and with empty slices rather than nil. Both fields are sets, so two profiles
-// that differ only in order or repetition are the same contract, and comparing or
-// storing them must not depend on how a caller happened to spell it.
+// Normalized returns the interrupt policy as a canonical set: sorted and without
+// duplicates. Two profiles that differ only in interrupt order or repetition are
+// the same contract, and comparing or storing them must not depend on how a caller
+// happened to spell it.
 func (p RunProtocolProfile) Normalized() RunProtocolProfile {
-	features := slices.Clone(p.RequiredFeatures)
-	slices.Sort(features)
 	kinds := slices.Clone(p.InterruptKinds)
 	slices.Sort(kinds)
 	return RunProtocolProfile{
-		RequiredFeatures: slices.Compact(features),
-		InterruptKinds:   slices.Compact(kinds),
+		ChildRuns:      p.ChildRuns,
+		InterruptKinds: slices.Compact(kinds),
 	}
 }
 
 // IsEmpty reports the Minimal Profile — nothing negotiated, nothing to park on.
 func (p RunProtocolProfile) IsEmpty() bool {
-	return len(p.RequiredFeatures) == 0 && len(p.InterruptKinds) == 0
+	return !p.ChildRuns && len(p.InterruptKinds) == 0
 }
 
 // Uncovered returns the parts of p that caller did not declare — the gap that
@@ -80,10 +80,8 @@ func (p RunProtocolProfile) IsEmpty() bool {
 // caller would need before it could follow this Run.
 func (p RunProtocolProfile) Uncovered(caller RunProtocolProfile) RunProtocolProfile {
 	var gap RunProtocolProfile
-	for _, feature := range p.RequiredFeatures {
-		if !slices.Contains(caller.RequiredFeatures, feature) {
-			gap.RequiredFeatures = append(gap.RequiredFeatures, feature)
-		}
+	if p.ChildRuns && !caller.ChildRuns {
+		gap.ChildRuns = true
 	}
 	for _, kind := range p.InterruptKinds {
 		if !slices.Contains(caller.InterruptKinds, kind) {
@@ -95,9 +93,9 @@ func (p RunProtocolProfile) Uncovered(caller RunProtocolProfile) RunProtocolProf
 
 // String names the profile's contents for an error explaining a refusal.
 func (p RunProtocolProfile) String() string {
-	parts := make([]string, 0, len(p.RequiredFeatures)+len(p.InterruptKinds))
-	for _, feature := range p.RequiredFeatures {
-		parts = append(parts, "features."+feature)
+	parts := make([]string, 0, 1+len(p.InterruptKinds))
+	if p.ChildRuns {
+		parts = append(parts, "child runs")
 	}
 	for _, kind := range p.InterruptKinds {
 		parts = append(parts, "interruptTypes."+kind.String())

@@ -99,7 +99,17 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	putRun(t, rt, ses.ID, "run_root", 1, 0)
+	outcome := execution.OutcomeCompleted
+	if err := rt.runs.Restore(ctx, transcript.Run{
+		SessionID: ses.ID, ID: "run_root", State: execution.Completed,
+		Outcome:         &outcome,
+		ProtocolProfile: execution.RunProtocolProfile{ChildRuns: true},
+		CreatedAt:       time.Unix(1, 0).UTC(),
+		FinishedAt:      time.Unix(1, 0).UTC(),
+		UpdatedAt:       time.Unix(1, 0).UTC(),
+	}); err != nil {
+		t.Fatalf("seed root run: %v", err)
+	}
 	if err := rt.hist.AppendItem(ctx, transcript.Item{
 		SessionID: ses.ID, RunID: "run_root", ID: "item_spawn",
 		CreatedAt: time.Unix(1, 0).UTC(), Status: transcript.ItemCompleted,
@@ -108,7 +118,6 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("seed spawning item: %v", err)
 	}
-	outcome := execution.OutcomeCompleted
 	if err := rt.runs.Restore(ctx, transcript.Run{
 		SessionID: ses.ID, ID: "run_child", SpawnedByItemID: "item_spawn",
 		ParentRunID: "run_root", RootRunID: "run_root",
@@ -138,40 +147,68 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 	}
 }
 
-// TestImportRefusesAnArchiveOfARunTree is the reading half of the same invariant.
-//
-// A child's identity is its edges, and the durable run record has nowhere to put
-// them while subagents are off. Flattening the tree would restore every descendant
-// as a root — a different conversation from the one the archive describes — so the
-// import refuses and names the feature that would make it possible, the way an
-// unadvertised state key does.
-func TestImportRefusesAnArchiveOfARunTree(t *testing.T) {
+// TestImportRefusesAChildWhoseRootProfileDisallowsChildren proves import cannot
+// bypass the same admission policy live execution obeys. The tree edges are
+// structurally valid, but the root says the run was created under the Minimal
+// Profile, so restoring the child would rewrite that frozen contract.
+func TestImportRefusesAChildWhoseRootProfileDisallowsChildren(t *testing.T) {
 	s, _ := rollbackHarness(t)
-	profile := protocol.RunProtocolProfile{RequiredFeatures: []string{}, InterruptTypes: []protocol.InterruptType{}}
+	at := time.Unix(1, 0).UTC()
+	profile := protocol.RunProtocolProfile{
+		RequiredFeatures: []protocol.RunProtocolFeature{},
+		InterruptTypes:   []protocol.InterruptType{},
+	}
 	artifact := protocol.SessionArtifact{
 		Version: protocol.SessionArtifactVersion,
-		Session: protocol.ArtifactSession{ID: "ses_tree", Title: "tree", Cwd: t.TempDir()},
+		Session: protocol.ArtifactSession{
+			ID: "ses_tree", Title: "tree", Cwd: t.TempDir(), CreatedAt: at, UpdatedAt: at,
+		},
 		Runs: []protocol.ArtifactRun{
 			{
 				ID: "run_root", SessionID: "ses_tree", ProtocolProfile: &profile,
-				Outcome: protocol.ArtifactOutcome{Type: protocol.ArtifactOutcomeCompleted},
+				Outcome:   protocol.ArtifactOutcome{Type: protocol.ArtifactOutcomeCompleted},
+				CreatedAt: at, FinishedAt: at, UpdatedAt: at,
 			},
 			{
 				ID: "run_child", SessionID: "ses_tree",
 				SpawnedByItemID: "item_spawn", ParentRunID: "run_root", RootRunID: "run_root",
-				Outcome: protocol.ArtifactOutcome{Type: protocol.ArtifactOutcomeCompleted},
+				Outcome:   protocol.ArtifactOutcome{Type: protocol.ArtifactOutcomeCompleted},
+				CreatedAt: at, FinishedAt: at, UpdatedAt: at,
 			},
 		},
+		Items: []protocol.ArtifactItem{{
+			ID: "item_spawn", RunID: "run_root", Status: protocol.ItemStatusCompleted,
+			CreatedAt: at, Type: protocol.ItemTypeToolCall,
+			Tool: &protocol.ArtifactToolInvocation{Name: "task", Arguments: map[string]any{}},
+		}},
 	}
 
 	_, err := s.ImportSession(t.Context(), protocol.ImportSessionRequest{Artifact: artifact})
-	gap, ok := errors.AsType[*protocol.CapabilityGap](err)
-	if !ok {
-		t.Fatalf("import error = %v (%T), want a capability gap", err, err)
+	if !errors.Is(err, protocol.ErrInvalidParams) ||
+		!strings.Contains(err.Error(), "protocol profile disallows child runs") {
+		t.Fatalf("import error = %v, want invalid child/profile aggregate", err)
 	}
-	want := []protocol.CapabilityRequirement{{Type: protocol.RequirementFeature, Name: protocol.FeatureSubagents}}
-	if !slices.Equal(gap.Requirements, want) {
-		t.Errorf("gap = %+v, want it to name features.subagents", gap.Requirements)
+}
+
+func TestImportRefusesAnUnknownRunProtocolFeature(t *testing.T) {
+	s, _ := rollbackHarness(t)
+	profile := protocol.RunProtocolProfile{
+		RequiredFeatures: []protocol.RunProtocolFeature{"telepathy"},
+		InterruptTypes:   []protocol.InterruptType{},
+	}
+	artifact := protocol.SessionArtifact{
+		Version: protocol.SessionArtifactVersion,
+		Session: protocol.ArtifactSession{ID: "ses_unknown_profile", Title: "profile", Cwd: t.TempDir()},
+		Runs: []protocol.ArtifactRun{{
+			ID: "run_root", SessionID: "ses_unknown_profile", ProtocolProfile: &profile,
+			Outcome: protocol.ArtifactOutcome{Type: protocol.ArtifactOutcomeCompleted},
+		}},
+	}
+
+	_, err := s.ImportSession(t.Context(), protocol.ImportSessionRequest{Artifact: artifact})
+	if !errors.Is(err, protocol.ErrInvalidParams) ||
+		!strings.Contains(err.Error(), `unknown value "telepathy"`) {
+		t.Fatalf("import error = %v, want invalid required feature", err)
 	}
 }
 
@@ -190,13 +227,7 @@ func encodeArtifact(t *testing.T, artifact protocol.SessionArtifact) string {
 // It is a closed list, and a field that becomes reachable has to leave it: "the
 // fixture quietly stopped exercising this" and "this cannot be exercised" have to
 // look different, or the coverage check decays into a list of excuses.
-var unreachableArtifactFields = map[string]string{
-	"ArtifactRun.SpawnedByItemID": "the maximal round-trip fixture cannot import child runs while features.subagents is disabled; TestExportPreservesRunTreeLineage covers the export projection",
-	"ArtifactRun.ParentRunID":     "the second child edge, covered by the dedicated lineage export test",
-	"ArtifactRun.RootRunID":       "the third child edge, covered by the dedicated lineage export test",
-	"RunProtocolProfile.RequiredFeatures": "the only advertised feature that is requiredByRunProtocol is subagents, which is off, " +
-		"so every run publishes under the Minimal Profile and the set is present but empty",
-}
+var unreachableArtifactFields = map[string]string{}
 
 // assertArtifactFixtureIsComplete reports any field of the artifact document the
 // fixture left at its zero value, and any entry in the exception list that turned
@@ -320,6 +351,7 @@ func seedMaximalSession(t *testing.T, s *Server, rt *stubRuntime) string {
 	seedCompletedRun(t, rt, sessionID)
 	seedFailedRun(t, rt, sessionID)
 	seedEveryItemKind(t, rt, sessionID)
+	seedChildRun(t, rt, sessionID)
 	seedOffloadedToolResult(t, rt, sessionID)
 
 	if err := rt.todos.Replace(ctx, sessionID, []todo.Item{
@@ -360,12 +392,34 @@ func seedCompletedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 			ActiveDuration: 1500 * time.Millisecond,
 		},
 		ProtocolProfile: execution.RunProtocolProfile{
+			ChildRuns:      true,
 			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 		},
 		CreatedAt: time.Unix(2, 0).UTC(), FinishedAt: time.Unix(3, 0).UTC(),
 		UpdatedAt: time.Unix(3, 0).UTC(), MessageMark: 1,
 	}); err != nil {
 		t.Fatalf("seed completed run: %v", err)
+	}
+}
+
+func seedChildRun(t *testing.T, rt *stubRuntime, sessionID string) {
+	t.Helper()
+	outcome := execution.OutcomeCompleted
+	selection, err := modelref.New("openai", "gpt-child")
+	if err != nil {
+		t.Fatalf("child model selection: %v", err)
+	}
+	if err := rt.runs.Restore(t.Context(), transcript.Run{
+		SessionID: sessionID, ID: "run_child", State: execution.Completed,
+		SpawnedByItemID: "item_tool", ParentRunID: "run_done", RootRunID: "run_done",
+		ModelSelection: selection,
+		Outcome:        &outcome,
+		CreatedAt:      time.Unix(7, 0).UTC(),
+		FinishedAt:     time.Unix(8, 0).UTC(),
+		UpdatedAt:      time.Unix(8, 0).UTC(),
+		MessageMark:    1,
+	}); err != nil {
+		t.Fatalf("seed child run: %v", err)
 	}
 }
 

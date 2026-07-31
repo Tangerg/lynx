@@ -321,6 +321,8 @@ TypeScript validator from this single registry projection.
 | `UpdateSessionRequest` | `sessionId` | `nonEmpty` |
 | `UpdateSessionRequest` | `expectedRevision` | `positive` |
 | `ImportSessionRequest` | `artifact.session.id` | `nonEmpty` |
+| `RunProtocolProfile` | `requiredFeatures` | `uniqueItems` |
+| `RunProtocolProfile` | `interruptTypes` | `uniqueItems` |
 | `StartRunRequest` | `input` | `nonEmptyItems` |
 | `ResumeRunRequest` | `runId` | `nonEmpty` |
 | `ResumeRunRequest` | `input` | `nonEmptyItems` |

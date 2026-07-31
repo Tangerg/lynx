@@ -242,9 +242,10 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	c := newUseCaseCoordinator(exec, turns, sessions, effects)
 
 	result, err := c.Start(context.Background(), StartCommand{
-		SessionID:      "ses_1",
-		ModelSelection: mustUseCaseSelection("provider", "model"),
-		Input:          []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
+		SessionID:       "ses_1",
+		ModelSelection:  mustUseCaseSelection("provider", "model"),
+		ProtocolProfile: execution.RunProtocolProfile{ChildRuns: true},
+		Input:           []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -256,6 +257,9 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	}
 	if turns.started.SessionID != "ses_1" || turns.started.Cwd != "/work" {
 		t.Fatalf("started turn = %+v", turns.started)
+	}
+	if !turns.validated.ChildRunAdmissionEnabled || !turns.started.ChildRunAdmissionEnabled {
+		t.Fatalf("child admission policy did not reach the executor: validated=%+v started=%+v", turns.validated, turns.started)
 	}
 	if !turns.activated || !activatedAfterOpening {
 		t.Fatalf("activated=%v activatedAfterOpening=%v", turns.activated, activatedAfterOpening)
@@ -600,6 +604,7 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	pending := resumedTreePending(createdAt)
+	pending.ProtocolProfile.ChildRuns = true
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: pending.SessionID, Cwd: "/work"},
 		pending: map[string]interrupts.Pending{
@@ -621,7 +626,8 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 		return next
 	}
 	result, err := c.Resume(t.Context(), ResumeCommand{
-		RunID: pending.RootRunID,
+		RunID:              pending.RootRunID,
+		CallerCapabilities: execution.RunProtocolProfile{ChildRuns: true},
 		Responses: []ResumeResponse{
 			{
 				ItemID: "item_grandchild",
@@ -649,6 +655,50 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 	}
 	if turns.rehydrateReq.ProcessID != "process_root" {
 		t.Fatalf("rehydrate process = %q, want process_root", turns.rehydrateReq.ProcessID)
+	}
+}
+
+func TestResumeRehydrateRestoresChildAdmissionBeforeAnyChildExists(t *testing.T) {
+	createdAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
+	pending := testPendingInterrupt("item_1", "process_root", createdAt)
+	pending.ProtocolProfile.ChildRuns = true
+	pending.Continuations[0].ModelSelection = mustUseCaseSelection("openai", "model")
+	sessions := &fakeRunSessions{
+		sess: session.Session{ID: pending.SessionID, Cwd: "/work"},
+		pending: map[string]interrupts.Pending{
+			pending.RootRunID: pending,
+		},
+	}
+	turns := &fakeTurnControl{
+		prepareErr: ErrTurnNotLive,
+		rehydrated: execution.TurnRef{
+			SessionID: pending.SessionID,
+			TurnID:    pending.TurnID,
+		},
+	}
+	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, &fakeEffects{})
+
+	result, err := c.Resume(t.Context(), ResumeCommand{
+		RunID:              pending.RootRunID,
+		CallerCapabilities: execution.RunProtocolProfile{ChildRuns: true},
+		Responses: []ResumeResponse{{
+			ItemID: "item_1",
+			Kind:   ApprovalResponseKind,
+			Approval: &ApprovalResponse{
+				Approved: true,
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	for range result.Events {
+	}
+	if len(pending.Continuations) != 1 {
+		t.Fatalf("test fixture has %d continuations, want one root only", len(pending.Continuations))
+	}
+	if !turns.rehydrateReq.ChildRunAdmissionEnabled {
+		t.Fatalf("rehydrate request = %+v, want frozen child policy restored", turns.rehydrateReq)
 	}
 }
 

@@ -464,9 +464,9 @@ func registerObjectConstraints(s *Shapes) {
 // The contract's other half — that neither RunId equals the run's own id — is
 // NOT here. JSON Schema cannot compare two fields, so it could not be one of the
 // three equivalent statements §11.2 asks for; it is an identity invariant of the
-// child-creation transaction, which does not exist while features.subagents is
-// off. It belongs in SystemInvariantSpec when that transaction lands, and fusing
-// an inequality into a presence rule would be one primitive doing two jobs.
+// child-creation transaction. It is registered as a system invariant and proved
+// by the application/SQLite admission fixtures; fusing an inequality into a
+// presence rule would be one primitive doing two jobs.
 func childLineageRules() []PresenceRule {
 	edges := []string{"spawnedByItemId", "parentRunId", "rootRunId"}
 	rules := make([]PresenceRule, 0, len(edges))

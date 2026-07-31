@@ -54,6 +54,13 @@ func registerSessionValues(s *Shapes) {
 
 func registerRunValues(s *Shapes) {
 	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.RunProtocolProfile](),
+		Constraints: []FieldConstraint{
+			{Field: "requiredFeatures", Kind: ConstraintUniqueItems},
+			{Field: "interruptTypes", Kind: ConstraintUniqueItems},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.StartRunRequest](),
 		Constraints: []FieldConstraint{
 			{Field: "input", Kind: ConstraintNonEmptyItems},

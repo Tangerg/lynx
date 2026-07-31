@@ -249,7 +249,7 @@ func TestRunAdmitEnforcesOneActivePerSession(t *testing.T) {
 func TestRunAdmitSharesOneRootAdmissionAcrossTheTree(t *testing.T) {
 	ctx := t.Context()
 	store, _ := newRunStores(t)
-	profile := execution.RunProtocolProfile{RequiredFeatures: []string{"subagents"}}
+	profile := execution.RunProtocolProfile{ChildRuns: true}
 
 	root := runDraft("run_root", "ses_A")
 	root.ProtocolProfile = profile
@@ -287,7 +287,7 @@ func TestRunAdmitSharesOneRootAdmissionAcrossTheTree(t *testing.T) {
 		}
 		if run.ParentRunID != want.parentID ||
 			run.RootRunID != "run_root" ||
-			!slices.Equal(run.ProtocolProfile.RequiredFeatures, profile.RequiredFeatures) {
+			run.ProtocolProfile.ChildRuns != profile.ChildRuns {
 			t.Fatalf("run %s = %+v, want parent %s, root run_root, inherited profile", want.id, run, want.parentID)
 		}
 	}
@@ -347,7 +347,7 @@ func TestRunAdmitRejectsAChildOutsideItsDurableTree(t *testing.T) {
 			draft: execution.RunDraft{
 				RunID: "run_child_profile", SessionID: "ses_A", SegmentID: "seg_open",
 				SpawnedByItemID: "item_spawn", ParentRunID: "run_root_a", RootRunID: "run_root_a",
-				ProtocolProfile: execution.RunProtocolProfile{RequiredFeatures: []string{"subagents"}},
+				ProtocolProfile: execution.RunProtocolProfile{ChildRuns: true},
 				CreatedAt:       runCreatedAt,
 			},
 			want: "protocol profile is owned by root",
@@ -793,8 +793,8 @@ func TestReconcileOrphansPreservesCommittedRunFactsAcrossRestart(t *testing.T) {
 	store := sqlite.NewRunStore(db)
 	const sessionID = "ses_restart"
 	profile := execution.RunProtocolProfile{
-		RequiredFeatures: []string{"artifacts", "subagents"},
-		InterruptKinds:   []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt},
+		ChildRuns:      true,
+		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt},
 	}
 	type expectedRun struct {
 		draft   execution.RunDraft
@@ -931,7 +931,7 @@ func TestReconcileOrphansPreservesCommittedRunFactsAcrossRestart(t *testing.T) {
 				want.draft.ModelSelection.Model(),
 			)
 		}
-		if !slices.Equal(run.ProtocolProfile.RequiredFeatures, profile.Normalized().RequiredFeatures) ||
+		if run.ProtocolProfile.ChildRuns != profile.ChildRuns ||
 			!slices.Equal(run.ProtocolProfile.InterruptKinds, profile.Normalized().InterruptKinds) {
 			t.Errorf("recovered Run %q profile = %+v, want %+v", run.ID, run.ProtocolProfile, profile.Normalized())
 		}
@@ -1449,8 +1449,8 @@ func TestRunProtocolProfileIsImmutable(t *testing.T) {
 	store, interruptStore := newRunStores(t)
 
 	admitted := execution.RunProtocolProfile{
-		RequiredFeatures: []string{"subagents"},
-		InterruptKinds:   []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt},
+		ChildRuns:      true,
+		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt},
 	}
 	draft := runDraft("run_1", "ses_A")
 	draft.ProtocolProfile = admitted
@@ -1484,7 +1484,7 @@ func TestRunProtocolProfileIsImmutable(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("get interrupt: %v (found=%v)", err, found)
 	}
-	if !slices.Equal(pending.ProtocolProfile.RequiredFeatures, admitted.RequiredFeatures) ||
+	if pending.ProtocolProfile.ChildRuns != admitted.ChildRuns ||
 		!slices.Equal(pending.ProtocolProfile.InterruptKinds, admitted.InterruptKinds) {
 		t.Fatalf("park hand-off profile = %v, want %v", pending.ProtocolProfile, admitted)
 	}
@@ -1512,7 +1512,7 @@ func assertRunProfile(t *testing.T, store *sqlite.RunStore, runID string, want e
 		if run.ID != runID {
 			continue
 		}
-		if !slices.Equal(run.ProtocolProfile.RequiredFeatures, want.RequiredFeatures) ||
+		if run.ProtocolProfile.ChildRuns != want.ChildRuns ||
 			!slices.Equal(run.ProtocolProfile.InterruptKinds, want.InterruptKinds) {
 			t.Fatalf("profile %s = %v, want %v", when, run.ProtocolProfile, want)
 		}

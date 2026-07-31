@@ -210,6 +210,22 @@ func TestChildRunReadsRequireNegotiatedSubagents(t *testing.T) {
 		sessionPage.Runs[1].ID != "run_root" {
 		t.Fatalf("ListItems(session) run summaries = %+v, want child and its root ancestor", sessionPage.Runs)
 	}
+
+	optedIn := withClientCapabilities(protocol.ClientCapabilities{
+		Features: map[string]protocol.FeaturePreference{
+			protocol.FeatureSubagents: {Enabled: true},
+		},
+	})
+	child, err := s.GetRun(optedIn, protocol.GetRunRequest{RunID: "run_child"})
+	if err != nil || child.ID != "run_child" || child.RootRunID != "run_root" {
+		t.Fatalf("GetRun(child, opted in) = (%+v, %v), want child lineage", child, err)
+	}
+	childItems, err := s.ListItems(optedIn, protocol.ListItemsRequest{
+		Scope: protocol.ItemListScope{Type: protocol.ItemScopeRun, RunID: "run_child"},
+	})
+	if err != nil || len(childItems.Data) != 1 || childItems.Data[0].RunID != "run_child" {
+		t.Fatalf("ListItems(child, opted in) = (%+v, %v), want child history", childItems, err)
+	}
 }
 
 func TestChildRunCannotBecomeAnIndependentSubscriptionRoot(t *testing.T) {

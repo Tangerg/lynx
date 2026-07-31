@@ -91,6 +91,7 @@ func (value ListRunsRequest) ValidateWire() error {
 	return collectWireViolations("ListRunsRequest",
 		nonEmptyItems("statuses", value.Statuses),
 		uniqueItems("statuses", value.Statuses),
+		closedEnumItems("statuses", value.Statuses, []string{"running", "waiting", "finished"}),
 	)
 }
 
@@ -136,6 +137,7 @@ func (value RuntimeSubscribeRequest) ValidateWire() error {
 	return collectWireViolations("RuntimeSubscribeRequest",
 		requiredItems("topics", value.Topics),
 		uniqueItems("topics", value.Topics),
+		closedEnumItems("topics", value.Topics, []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed"}),
 	)
 }
 
@@ -688,6 +690,7 @@ func (value RuntimeEvent) ValidateWire() error {
 		uniqueItems("watchIds", value.WatchIDs),
 		closedEnum("type", string(value.Type), []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "resync"}, false),
 		closedEnum("key", string(value.Key), []string{"todos"}, true),
+		closedEnumItems("topics", value.Topics, []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed"}),
 		requiredWhen(wireFieldEquals(value, "type", "files.changed"), "sequence", value),
 		requiredWhen(wireFieldEquals(value, "type", "files.changed"), "paths", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "files.changed"), "names", value),
@@ -1014,6 +1017,15 @@ func (value ArtifactRun) ValidateWire() error {
 		requiredWhen(wireFieldPresent(value, "parentRunId"), "rootRunId", value),
 		requiredWhen(wireFieldPresent(value, "rootRunId"), "spawnedByItemId", value),
 		requiredWhen(wireFieldPresent(value, "rootRunId"), "parentRunId", value),
+	)
+}
+
+func (value RunProtocolProfile) ValidateWire() error {
+	return collectWireViolations("RunProtocolProfile",
+		uniqueItems("requiredFeatures", value.RequiredFeatures),
+		uniqueItems("interruptTypes", value.InterruptTypes),
+		closedEnumItems("requiredFeatures", value.RequiredFeatures, []string{"subagents"}),
+		closedEnumItems("interruptTypes", value.InterruptTypes, []string{"approval", "question", "toolResult"}),
 	)
 }
 

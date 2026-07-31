@@ -255,7 +255,7 @@ export interface Methods {
     // One run by id — current or terminal — without knowing its session (§7.3).
     get: (runId: RunId) => Promise<RunRef>;
     // The durable run history, newest first (§7.3). Omitting statuses returns every
-    // position; asking for descendants is refused while features.subagents is off.
+    // position; asking for descendants requires negotiated features.subagents.
     list: (
       query?: PageQuery & {
         sessionId?: SessionId;

@@ -72,9 +72,9 @@ const StateScopeSession StateSnapshotScope = "session"
 // StateSnapshotWriter is who is allowed to publish a key's value.
 type StateSnapshotWriter string
 
-// StateWriterRootRun is the only writer today: the session's root Run. A child
-// Run cannot publish shared state (there are none — features.subagents is off),
-// which is why the rule has nothing to violate yet.
+// StateWriterRootRun is the only writer today: the session's root Run. Child Runs
+// may execute, but the projection transaction rejects their shared-state writes so
+// a session keeps one authoritative value.
 const StateWriterRootRun StateSnapshotWriter = "rootRun"
 
 // StateKeySpec declares one first-party `state.snapshot` key (contract §11.2).

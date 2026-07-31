@@ -130,6 +130,16 @@ type RunRef struct {
 	ProtocolProfile RunProtocolProfile `json:"protocolProfile"`
 }
 
+// RunProtocolFeature is the closed set of negotiated features that may appear in
+// a RunProtocolProfile for this protocol version. The discovery feature map stays
+// open, but a feature that changes authoritative Run shape requires a protocol
+// version bump and therefore belongs to this versioned enum.
+type RunProtocolFeature string
+
+const (
+	RunProtocolFeatureSubagents = RunProtocolFeature(FeatureSubagents)
+)
+
 // RunProtocolProfile is the client-observable protocol contract frozen when a run
 // was created (§4.2) — not a preference recomputed per request.
 //
@@ -147,7 +157,7 @@ type RunProtocolProfile struct {
 	// publishes (`requiredByRunProtocol` in discovery). A later resume or subscribe
 	// whose caller does not declare them is refused, not downgraded — the
 	// alternative is a second, quieter event stream for the same run.
-	RequiredFeatures []string `json:"requiredFeatures"`
+	RequiredFeatures []RunProtocolFeature `json:"requiredFeatures"`
 	// InterruptTypes are the durable interrupt types this run may produce. The run
 	// keeps them for its whole life, so answering an interrupt cannot quietly
 	// change what the next segment is allowed to park on.

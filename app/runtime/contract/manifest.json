@@ -3060,6 +3060,19 @@
       ]
     },
     {
+      "type": "RunProtocolProfile",
+      "rules": [
+        {
+          "field": "requiredFeatures",
+          "constraint": "uniqueItems"
+        },
+        {
+          "field": "interruptTypes",
+          "constraint": "uniqueItems"
+        }
+      ]
+    },
+    {
       "type": "StartRunRequest",
       "rules": [
         {

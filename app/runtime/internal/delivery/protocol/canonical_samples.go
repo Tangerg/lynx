@@ -56,19 +56,15 @@ var CanonicalSamples = []CanonicalSample{
 	{"outcome.maxBudget.json", reflect.TypeFor[RunOutcome]()},
 	{"outcome.canceled.json", reflect.TypeFor[RunOutcome]()},
 	// The two stops a run survives are SegmentOutcome-only, and bound to it: a
-	// RunOutcome can never carry either. `suspended` has no producer until
-	// features.subagents is on, and is published now because a client folding
-	// segment outcomes exhaustively has to know the tag before subtrees arrive.
+	// RunOutcome can never carry either. `suspended` is produced only for a root
+	// profile that negotiated features.subagents.
 	{"segment.outcome.interrupt.json", reflect.TypeFor[SegmentOutcome]()},
 	{"segment.outcome.suspended.json", reflect.TypeFor[SegmentOutcome]()},
 	{"runref.full.json", reflect.TypeFor[RunRef]()},
 	// A summary travels on its own on the cold read, and a waiting run is the one
 	// state with no outcome to explain it — the pair a full RunRef cannot show.
 	{"runsummary.waiting.json", reflect.TypeFor[RunSummary]()},
-	// The three child edges are all-or-none, and only a child carries them. Like
-	// the suspended segment outcome, nothing produces this frame until
-	// features.subagents is on — it is published so the rule has the shape it
-	// permits on record, beside the root frames that must not carry the edges.
+	// The three child edges are all-or-none, and only a child carries them.
 	{"runsummary.child.json", reflect.TypeFor[RunSummary]()},
 	{"interrupt.approval.json", reflect.TypeFor[Interrupt]()},
 	{"interrupt.question.json", reflect.TypeFor[Interrupt]()},

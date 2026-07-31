@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -17,10 +18,7 @@ func withClientCapabilities(caps protocol.ClientCapabilities) context.Context {
 }
 
 // TestStartRunRefusesCapabilitiesThisBuildDoesNotHave covers the refusals §8.1
-// requires instead of a silent downgrade, including the one the subagent feature
-// is gated by today: a client that asks for child runs must be told this runtime
-// has none, because a client that asked and was ignored would fold the stream
-// expecting frames that will never come.
+// requires instead of a silent downgrade.
 func TestStartRunRefusesCapabilitiesThisBuildDoesNotHave(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	sess, _ := rt.sess.Create(context.Background(), "s", "/w")
@@ -34,10 +32,6 @@ func TestStartRunRefusesCapabilitiesThisBuildDoesNotHave(t *testing.T) {
 		caps  protocol.ClientCapabilities
 		wants error
 	}{{
-		name:  "feature advertised as unavailable",
-		caps:  protocol.ClientCapabilities{Features: map[string]protocol.FeaturePreference{protocol.FeatureSubagents: {Enabled: true}}},
-		wants: protocol.ErrCapabilityNotNeg,
-	}, {
 		name:  "feature this vocabulary does not define",
 		caps:  protocol.ClientCapabilities{Features: map[string]protocol.FeaturePreference{"telepathy": {Enabled: true}}},
 		wants: protocol.ErrCapabilityNotNeg,
@@ -56,6 +50,65 @@ func TestStartRunRefusesCapabilitiesThisBuildDoesNotHave(t *testing.T) {
 			_, _, err := s.StartRun(withClientCapabilities(tt.caps), request)
 			if !errors.Is(err, tt.wants) {
 				t.Fatalf("StartRun = %v, want %v", err, tt.wants)
+			}
+		})
+	}
+}
+
+func TestNegotiationMapsSubagentsToChildRunPolicy(t *testing.T) {
+	s, _ := rollbackHarness(t)
+
+	profile, err := s.negotiateCapabilities(withClientCapabilities(protocol.ClientCapabilities{
+		Features: map[string]protocol.FeaturePreference{
+			protocol.FeatureSubagents: {Enabled: true},
+		},
+	}))
+	if err != nil {
+		t.Fatalf("negotiate: %v", err)
+	}
+	if !profile.ChildRuns {
+		t.Fatalf("profile = %+v, want child runs enabled", profile)
+	}
+	wire := presentProtocolProfile(profile)
+	want := []protocol.RunProtocolFeature{protocol.RunProtocolFeatureSubagents}
+	if !slices.Equal(wire.RequiredFeatures, want) {
+		t.Fatalf("wire requiredFeatures = %v, want %v", wire.RequiredFeatures, want)
+	}
+}
+
+func TestCapabilitiesAdvertiseNegotiableSubagents(t *testing.T) {
+	s, _ := rollbackHarness(t)
+
+	feature, ok := s.Capabilities().Features[protocol.FeatureSubagents]
+	if !ok {
+		t.Fatal("capabilities omit features.subagents")
+	}
+	if !feature.Enabled ||
+		feature.Stability != protocol.StabilityStable ||
+		!feature.ClientOptIn ||
+		!feature.RequiredByRunProtocol {
+		t.Fatalf("features.subagents = %+v, want enabled stable opt-in Run protocol feature", feature)
+	}
+}
+
+func TestEveryRequiredRunFeatureHasAnApplicationPolicyMapping(t *testing.T) {
+	s, _ := rollbackHarness(t)
+
+	for _, feature := range protocol.Features() {
+		if !feature.RequiredByRunProtocol {
+			continue
+		}
+		t.Run(feature.Key, func(t *testing.T) {
+			profile, err := s.negotiateCapabilities(withClientCapabilities(protocol.ClientCapabilities{
+				Features: map[string]protocol.FeaturePreference{
+					feature.Key: {Enabled: true},
+				},
+			}))
+			if err != nil {
+				t.Fatalf("negotiate required Run feature %q: %v", feature.Key, err)
+			}
+			if profile.IsEmpty() {
+				t.Fatalf("required Run feature %q produced the Minimal Profile", feature.Key)
 			}
 		})
 	}
@@ -81,8 +134,8 @@ func TestNegotiationDeclinedFeatureIsNotARefusal(t *testing.T) {
 	}
 	// multimodal is advertised but does not reshape the run's stream, so it is not
 	// part of what a later subscriber has to understand.
-	if len(profile.RequiredFeatures) != 0 {
-		t.Fatalf("requiredFeatures = %v, want none", profile.RequiredFeatures)
+	if profile.ChildRuns {
+		t.Fatal("declined subagents unexpectedly enabled child runs")
 	}
 	want := []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt}
 	if len(profile.InterruptKinds) != len(want) {

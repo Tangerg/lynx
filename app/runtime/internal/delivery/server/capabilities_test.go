@@ -27,8 +27,11 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	if !slices.Equal(caps.RunEvents, want) {
 		t.Fatalf("events = %v, want %v", caps.RunEvents, want)
 	}
-	if caps.Features["subagents"].Enabled || caps.Features["clientTools"].Enabled {
-		t.Fatalf("unsupported features advertised: %+v", caps.Features)
+	if !caps.Features["subagents"].Enabled {
+		t.Fatalf("produced subagent Run trees were not advertised: %+v", caps.Features)
+	}
+	if caps.Features["clientTools"].Enabled {
+		t.Fatalf("unsupported client tools were advertised: %+v", caps.Features)
 	}
 	for _, feature := range []string{"todos", "goals", "agentMemory", "schedules", "codebase"} {
 		if !caps.Features[feature].Enabled {

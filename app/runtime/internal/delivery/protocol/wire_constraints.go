@@ -288,6 +288,21 @@ func closedEnum(field, value string, values []string, optional bool) FieldError 
 	return FieldError{Field: field, Detail: "must be one of " + strings.Join(values, ", ")}
 }
 
+// closedEnumItems applies the same membership rule to every element of an enum
+// array. Schema and TypeScript validate at the item boundary; returning the exact
+// index keeps Go diagnostics equally actionable.
+func closedEnumItems[Enum ~string](field string, items []Enum, values []string) FieldError {
+	for index, item := range items {
+		if !slices.Contains(values, string(item)) {
+			return FieldError{
+				Field:  fmt.Sprintf("%s[%d]", field, index),
+				Detail: "must be one of " + strings.Join(values, ", "),
+			}
+		}
+	}
+	return FieldError{}
+}
+
 func requiredWhen(applies bool, field string, value any) FieldError {
 	if applies && !wireFieldPresent(value, field) {
 		return FieldError{Field: field, Detail: "is required"}

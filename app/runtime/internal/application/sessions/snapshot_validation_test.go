@@ -156,6 +156,7 @@ func TestPortableSnapshotRefusesABrokenRunLineage(t *testing.T) {
 // run must come out holding the ROOT's profile — not an empty one.
 func TestPortableSnapshotChildInheritsItsRootsProfile(t *testing.T) {
 	profile := execution.RunProtocolProfile{
+		ChildRuns:      true,
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 	}
 	at := time.Unix(1, 0).UTC()
@@ -187,7 +188,7 @@ func TestPortableSnapshotChildInheritsItsRootsProfile(t *testing.T) {
 		t.Fatalf("CanonicalSnapshot: %v", err)
 	}
 	for _, run := range snapshot.Runs {
-		if len(run.ProtocolProfile.InterruptKinds) != 1 {
+		if !run.ProtocolProfile.ChildRuns || len(run.ProtocolProfile.InterruptKinds) != 1 {
 			t.Fatalf("run %q profile = %+v, want the root's", run.ID, run.ProtocolProfile)
 		}
 	}

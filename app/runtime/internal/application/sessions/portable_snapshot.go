@@ -53,9 +53,8 @@ type PortableRun struct {
 	SessionID       string
 	ID              string
 	SpawnedByItemID string
-	// ParentRunID and RootRunID are the child edges. Nothing produces them while
-	// subagents are off; they exist so an archive written by a build that has them
-	// round-trips, and so this one refuses a broken tree instead of importing it.
+	// ParentRunID and RootRunID are the child edges. Together with
+	// SpawnedByItemID they preserve the execution tree exactly across export/import.
 	ParentRunID string
 	RootRunID   string
 	Provider    string

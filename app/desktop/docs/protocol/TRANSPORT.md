@@ -314,7 +314,8 @@ data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{...}}
 - 每帧带它所属的 `runId`；
 - 子 run 以 `segment.started` 携带 `spawnedByItemId` 开始；
 - 客户端用 `runId` + `spawnedByItemId` join 还原树（API.md §5.4 / §10.3）；
-- `features.subagents=false` 时不产出任何子 run 事件。
+- 只有 root Run 的 frozen profile 含 `subagents` 时才产出 child Run 事件；当前 build
+  支持该 feature，但每个创建/跟随树的请求仍须显式 opt in。
 
 **不再有连接级路由**：事件天然属于"开它的那条 POST 响应流"，无 `X-Conn-Id`、无 run→连接登记表。
 

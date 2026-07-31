@@ -162,7 +162,15 @@ func portableProfileFromArtifact(path string, profile *protocol.RunProtocolProfi
 	if profile == nil {
 		return nil, nil
 	}
-	out := execution.RunProtocolProfile{RequiredFeatures: profile.RequiredFeatures}
+	var out execution.RunProtocolProfile
+	for _, feature := range profile.RequiredFeatures {
+		switch feature {
+		case protocol.RunProtocolFeatureSubagents:
+			out.ChildRuns = true
+		default:
+			return nil, invalidArtifact(path+".requiredFeatures", "unknown value %q", feature)
+		}
+	}
 	for _, declared := range profile.InterruptTypes {
 		kind, backed := interruptKindFromWire(declared)
 		if !backed {

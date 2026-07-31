@@ -631,7 +631,8 @@ contract/generated drift checks
 compatibility / stale terminology / TODO-FIXME-HACK scans
 ```
 
-B1.6 已完成；`features.subagents` 仍保持 disabled，只有 B1.7 才能原子启用。
+B1.6 已完成；本段记录的是其交付时仍保持 disabled 的历史边界。后续 B1.7 已在
+Runtime/Desktop 同一原子切片启用 `features.subagents`。
 
 ---
 
@@ -882,23 +883,26 @@ B1.6 已完成；`features.subagents` 仍保持 disabled，只有 B1.7 才能原
     扫描 → `PASS`；
 - 已知非阻塞告警仍仅为既有 shadow utility、Lightning CSS `::highlight(...)` 与
   large-chunk 提示；
-- B1.6 无残余实现工作；下一任务是 B1.7 capability enablement，且必须保持原子、
-  fail-closed、无兼容路径。
+- B1.6 无残余实现工作；其后的 B1.7 已完成原子、fail-closed、无兼容路径的
+  capability enablement，当前唯一下一任务见总台账 W6.0。
 
 ---
 
-## 11. 下一张执行卡
+## 11. B1.7 交接记录
 
 ```text
-B1.7 — Final conformance + capability enablement
+B1.7 — Final conformance + capability enablement — DONE
 ```
 
-执行纪律：
+完成结果：
 
-1. 以总台账 W5 为唯一任务卡，先审计 production capability composition 与 opt-in；
-2. 对照既有 producer、barrier、cancel、query/stream/replay/restart 与 Desktop tree
-   consumer 证明完整闭环；
-3. 在同一原子 slice 启用 `features.subagents`，同步 canonical docs、contract
-   artifacts、Runtime/Desktop tests；
-4. 不新增 child subscribe，不保留 disabled behavior fallback 或旧 capability 分支；
-5. Runtime/Desktop 全量门禁与连续 generation no-diff 后独立 commit/push。
+1. Runtime composition 已广告 `features.subagents.enabled=true`；
+2. Desktop `CLIENT_CAPABILITIES` 同时声明 `subagents:true`，并由 request metadata
+   回归测试锁定；
+3. 既有 source-owned fold、durable snapshot、root-first tree UI 和 exact cancel
+   直接消费 negotiated tree，没有新增 component RPC 或第二条 recovery path；
+4. child subscribe 仍明确拒绝，未保留 disabled fallback 或旧 capability 分支；
+5. Desktop `npm run check` 全绿：189 files / 1128 tests。
+
+后续工作只从总台账的 W6.0 开始；本专项计划保留为 Desktop Run-tree 的完成证据，
+不再承担活动任务管理。

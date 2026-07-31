@@ -97,6 +97,20 @@ var features = mustFeatures([]Feature{
 // Features returns a snapshot of the published capability vocabulary.
 func Features() []Feature { return slices.Clone(features) }
 
+// runProtocolFeatureValues returns the versioned subset allowed in
+// RunProtocolProfile.requiredFeatures. It is derived from the same feature facts
+// discovery publishes, so adding a shape-changing feature without extending the
+// closed wire enum makes the enum completeness test fail.
+func runProtocolFeatureValues() []string {
+	out := make([]string, 0, len(features))
+	for _, feature := range features {
+		if feature.RequiredByRunProtocol {
+			out = append(out, feature.Key)
+		}
+	}
+	return out
+}
+
 // LookupFeature returns the published facts about a key, or false for a key this
 // vocabulary does not define.
 func LookupFeature(key string) (Feature, bool) {

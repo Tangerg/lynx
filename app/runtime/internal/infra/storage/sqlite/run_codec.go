@@ -78,8 +78,8 @@ func (row runAccountingRow) values() (transcript.RunMetrics, execution.RunLimits
 // are stored under their canonical names rather than their ordinals, so inserting
 // a kind into the middle of the enum cannot silently re-label stored rows.
 type runProtocolProfileRow struct {
-	RequiredFeatures []string `json:"requiredFeatures,omitempty"`
-	InterruptTypes   []string `json:"interruptTypes,omitempty"`
+	ChildRuns      bool     `json:"childRuns,omitempty"`
+	InterruptTypes []string `json:"interruptTypes,omitempty"`
 }
 
 // encodeRunProtocolProfile returns the empty string for the Minimal Profile. The
@@ -89,7 +89,7 @@ func encodeRunProtocolProfile(profile execution.RunProtocolProfile) (string, err
 	if profile.IsEmpty() {
 		return "", nil
 	}
-	row := runProtocolProfileRow{RequiredFeatures: profile.RequiredFeatures}
+	row := runProtocolProfileRow{ChildRuns: profile.ChildRuns}
 	for _, kind := range profile.InterruptKinds {
 		row.InterruptTypes = append(row.InterruptTypes, kind.String())
 	}
@@ -108,7 +108,7 @@ func decodeRunProtocolProfile(encoded string) (execution.RunProtocolProfile, err
 	if err := json.Unmarshal([]byte(encoded), &row); err != nil {
 		return execution.RunProtocolProfile{}, fmt.Errorf("decode run protocol profile: %w", err)
 	}
-	profile := execution.RunProtocolProfile{RequiredFeatures: row.RequiredFeatures}
+	profile := execution.RunProtocolProfile{ChildRuns: row.ChildRuns}
 	for _, name := range row.InterruptTypes {
 		kind, ok := execution.ParseInterruptKind(name)
 		if !ok {

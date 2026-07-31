@@ -110,6 +110,30 @@ func TestRunOpeningResponseWireConstraints(t *testing.T) {
 	assertConstraintField(t, resume.ValidateWire(), "ResumeRunResponse", "userItemId")
 }
 
+func TestRunProtocolProfileWireConstraints(t *testing.T) {
+	t.Parallel()
+
+	valid := RunProtocolProfile{
+		RequiredFeatures: []RunProtocolFeature{RunProtocolFeatureSubagents},
+		InterruptTypes:   []InterruptType{InterruptApproval, InterruptQuestion},
+	}
+	if err := valid.ValidateWire(); err != nil {
+		t.Fatalf("ValidateWire rejected a valid profile: %v", err)
+	}
+
+	repeatedFeature := valid
+	repeatedFeature.RequiredFeatures = append(repeatedFeature.RequiredFeatures, RunProtocolFeatureSubagents)
+	assertConstraintField(t, repeatedFeature.ValidateWire(), "RunProtocolProfile", "requiredFeatures")
+
+	repeatedInterrupt := valid
+	repeatedInterrupt.InterruptTypes = append(repeatedInterrupt.InterruptTypes, InterruptApproval)
+	assertConstraintField(t, repeatedInterrupt.ValidateWire(), "RunProtocolProfile", "interruptTypes")
+
+	unknown := valid
+	unknown.RequiredFeatures = []RunProtocolFeature{"telepathy"}
+	assertConstraintField(t, unknown.ValidateWire(), "RunProtocolProfile", "requiredFeatures[0]")
+}
+
 func TestValidateWireTreeComposesNestedConstraints(t *testing.T) {
 	t.Parallel()
 

@@ -628,9 +628,6 @@ func normalizeContinuationSnapshot(
 
 func normalizeProtocolProfile(profile execution.RunProtocolProfile) execution.RunProtocolProfile {
 	profile = profile.Normalized()
-	if len(profile.RequiredFeatures) == 0 {
-		profile.RequiredFeatures = nil
-	}
 	if len(profile.InterruptKinds) == 0 {
 		profile.InterruptKinds = nil
 	}

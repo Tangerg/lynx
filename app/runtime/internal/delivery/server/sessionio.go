@@ -84,31 +84,6 @@ func (s *Server) refuseUnadvertisedStates(states []protocol.ArtifactState) error
 	return protocol.NewCapabilityGap(gaps...)
 }
 
-// refuseChildRuns rejects an archive whose runs form a tree this build cannot
-// restore.
-//
-// A child run IS its edges — the tool call that spawned it, its parent and its
-// root. Persistence can retain them, but this build still refuses to activate an
-// imported tree while the execution/query capability is disabled: accepting a
-// shape the runtime cannot operate would make feature discovery dishonest.
-//
-// The advertised feature is the authority rather than a constant here, so the day
-// subagents turn on, this turns on with them.
-func (s *Server) refuseChildRuns(runs []protocol.ArtifactRun) error {
-	if s.Capabilities().Features[protocol.FeatureSubagents].Enabled {
-		return nil
-	}
-	for _, run := range runs {
-		if run.SpawnedByItemID == "" && run.ParentRunID == "" && run.RootRunID == "" {
-			continue
-		}
-		return protocol.NewCapabilityGap(protocol.CapabilityRequirement{
-			Type: protocol.RequirementFeature, Name: protocol.FeatureSubagents,
-		})
-	}
-	return nil
-}
-
 func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error) {
 	art := in.Artifact
 	if art.Version != protocol.SessionArtifactVersion {
@@ -125,10 +100,6 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	if err := s.refuseUnadvertisedStates(art.States); err != nil {
 		return nil, err
 	}
-	if err := s.refuseChildRuns(art.Runs); err != nil {
-		return nil, err
-	}
-
 	id := art.Session.ID
 
 	// Hand the strictly decoded portable archive to the lifecycle coordinator.

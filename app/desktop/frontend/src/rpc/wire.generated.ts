@@ -1055,9 +1055,11 @@ export interface RunProgress {
   usage?: Usage;
 }
 
+export type RunProtocolFeature = "subagents";
+
 export interface RunProtocolProfile {
   interruptTypes: InterruptType[];
-  requiredFeatures: string[];
+  requiredFeatures: RunProtocolFeature[];
 }
 
 export interface RunRef {
@@ -1508,6 +1510,7 @@ export const WIRE_ENUMS = {
   RememberScopeKind: ["session", "project", "global"],
   RestoreType: ["history", "files", "both"],
   RunOutcomeType: ["completed", "error", "maxSteps", "maxBudget", "canceled"],
+  RunProtocolFeature: ["subagents"],
   RunReplayScope: ["processRootSegment"],
   RunStatus: ["running", "waiting", "finished"],
   RuntimeEventType: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "resync"],

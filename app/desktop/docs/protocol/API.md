@@ -573,7 +573,9 @@ Authoritative、replayable 与 persisted 是三个不同概念：
 - 子 run 以 `segment.started` 携带 `spawnedByItemId` 开始，有**自己的** `runId` 与 `segmentId`；
 - 客户端用 `runId` + `spawnedByItemId` join 还原树，用 `segmentId` key 流；
 - 对 root run `runs.subscribe` = 订阅其当前活跃段的整棵树；**只有 root 段的 `segment.finished` 结束这条流**；
-- `features.subagents=false` 时不产出任何子 run 事件（当前 build 即如此）。
+- 当前 build 广告 `features.subagents=true`，但它是 request-level opt-in：只有创建
+  root Run 的请求显式声明该能力，冻结 profile 才允许产出 child Run；Minimal Profile
+  仍保持 root-only。
 
 ---
 
@@ -593,9 +595,9 @@ Authoritative、replayable 与 persisted 是三个不同概念：
 （agent 据理由换方案）；取消是 `runs.cancel`，硬终止整个 run。成功结果是闭合联合：
 root 返回 `{type:"root", run}`；child 返回 `{type:"child", run, rootRun}`。其中被寻址的
 `run` 已是 `finished/canceled`，child 分支的 `rootRun` 与它来自同一 command boundary，
-客户端不需要再猜 root 是 Running、Waiting 还是 Finished。当前
-`features.subagents=false`，因此只会产生 root 成功分支；显式寻址 child 需要该能力，
-不能静默退化成 root cancel。
+客户端不需要再猜 root 是 Running、Waiting 还是 Finished。显式寻址 child 需要本次
+请求协商 `features.subagents`；缺失时返回 `capability_not_negotiated`，不能静默退化成
+root cancel。root cancel 始终允许，作为所有客户端都能使用的 emergency stop。
 
 **resume 从"那个待答的调用"处续跑**，不重跑整段：runtime 记住 pending 调用的位置，把答复接上去，不会为了续跑再问一次
 模型。

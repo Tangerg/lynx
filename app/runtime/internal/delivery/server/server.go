@@ -467,8 +467,7 @@ func capabilitiesFor(features featureAvailability, replay protocol.RunReplayLimi
 			protocol.FeatureAgentMemory: features.agentMemory,
 			protocol.FeatureSchedules:   features.schedules,
 			protocol.FeatureCodebase:    features.codebase,
-			// Off until the corresponding engine support lands:
-			protocol.FeatureSubagents:   false,
+			protocol.FeatureSubagents:   true,
 			protocol.FeatureClientTools: false,
 		}),
 	}
