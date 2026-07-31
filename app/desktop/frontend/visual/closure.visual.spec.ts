@@ -26,6 +26,29 @@ async function openFixture(page: Page, route: FixtureRoute): Promise<void> {
 
   if (route.fixture === "agent" && route.state === "long-content") {
     await page.locator(".shiki-block .shiki").waitFor();
+    const transcript = page.locator(".msg-scroll > .panel-scroll");
+    // Shiki grows after the initial instant scroll. Production's smooth resize
+    // reaches the tail, but Chromium may settle one physical pixel short after
+    // a warmed full-suite run. Prove it followed correctly, then canonicalize
+    // the screenshot boundary to the exact tail so a rounding residue cannot
+    // shift the entire transcript raster by one pixel.
+    await expect
+      .poll(() =>
+        transcript.evaluate(
+          (element) => element.scrollHeight - element.clientHeight - element.scrollTop,
+        ),
+      )
+      .toBeLessThanOrEqual(1);
+    await transcript.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await expect
+      .poll(() =>
+        transcript.evaluate(
+          (element) => element.scrollHeight - element.clientHeight - element.scrollTop,
+        ),
+      )
+      .toBe(0);
   }
   if (route.fixture === "shell" && route.state === "populated") {
     await expect(

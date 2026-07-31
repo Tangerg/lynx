@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef } from "react";
 import { clampSidebarWidth, maxSidebarWidth, SIDEBAR_MIN_WIDTH_PX } from "@/lib/shellGeometry";
+import { ResizeHandle } from "@/ui/atoms/resize-handle";
 
 /**
  * The work-index drawer: an in-flow spacer that reserves the width, plus a
@@ -131,12 +132,9 @@ export function AgentSeamRail({
   }, []);
 
   return (
-    <div
+    <ResizeHandle
       ref={railRef}
-      role="separator"
-      tabIndex={0}
       aria-label={label}
-      aria-orientation="vertical"
       aria-valuemin={SIDEBAR_MIN_WIDTH_PX}
       aria-valuenow={Math.round(width)}
       className="agent-seam-rail"

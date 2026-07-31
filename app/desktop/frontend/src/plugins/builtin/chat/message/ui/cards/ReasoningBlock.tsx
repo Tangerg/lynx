@@ -15,11 +15,9 @@ interface Props {
 // Collapsible "thinking" panel. Auto-opens while the agent streams, then
 // collapses once the reasoning is done. User can toggle anytime to override.
 //
-// Hand-rolled rather than Base UI Collapsible (CLAUDE.md §4 exemption c):
-// the open state is derived — streaming drives it until the user's first
-// toggle takes over — which the controlled/uncontrolled split can't
-// express, and a disclosure header needs no focus/keyboard management
-// beyond the native <button>.
+// AgentActivityDisclosure owns the Base UI disclosure/button semantics. This
+// feature owns only the derived policy: streaming drives `open` until the
+// user's first toggle takes over.
 //
 // Elapsed time is captured client-side: we snapshot the wall clock at first
 // render (≈ first reasoning delta) and freeze it the tick streaming flips

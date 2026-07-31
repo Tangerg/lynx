@@ -17,6 +17,7 @@ import {
   type DockDensity,
 } from "@/lib/shellGeometry";
 import { useT } from "@/lib/i18n";
+import { ResizeHandle } from "@/ui";
 import { useDockWidth } from "@/plugins/builtin/workspace/public/sidebarDrawer";
 import { DOCK_WIDTH_PROPERTY } from "./dockWidth";
 
@@ -132,13 +133,8 @@ export function DockResizer({ density }: { density: DockDensity }) {
   );
 
   return (
-    <div
+    <ResizeHandle
       ref={railRef}
-      // A draggable vertical splitter IS role="separator" per ARIA; an <hr> is
-      // a non-interactive horizontal thematic break — wrong for a resize handle.
-      role="separator"
-      tabIndex={0}
-      aria-orientation="vertical"
       aria-label={t("dock.action.resize")}
       aria-valuemin={DOCK_MIN_WIDTH_PX}
       aria-valuenow={Math.round(persistedWidth)}

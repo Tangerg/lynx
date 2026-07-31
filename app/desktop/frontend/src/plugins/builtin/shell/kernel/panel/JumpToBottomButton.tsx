@@ -1,5 +1,5 @@
 import { scrollStreamToBottom, useStreamAtBottom } from "./streamFollow";
-import { Icon } from "@/ui";
+import { IconButton } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
 
@@ -17,8 +17,11 @@ export function JumpToBottomButton() {
   const visible = !useStreamAtBottom();
   const label = t("chat.jumpToBottom");
   return (
-    <button
+    <IconButton
       type="button"
+      icon="chevron-down"
+      size="md"
+      title={label}
       aria-label={label}
       onClick={scrollStreamToBottom}
       tabIndex={visible ? 0 : -1}
@@ -32,8 +35,6 @@ export function JumpToBottomButton() {
           ? "opacity-100 translate-y-0 pointer-events-auto"
           : "opacity-0 translate-y-1 pointer-events-none",
       )}
-    >
-      <Icon name="chevron-down" size={16} />
-    </button>
+    />
   );
 }

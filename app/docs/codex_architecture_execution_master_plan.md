@@ -12,8 +12,9 @@
 > W7.3 实施提交：`9c87d93fc`
 > W7.4 实施提交：`d0380d0a2`
 > W7.5 实施提交：`ed411fe93`；clipboard 证据：`c5590aad0`
-> 当前主任务：无；W2–W7 已闭环，后续只按真实新需求建立新 slice
-> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6 DONE · W7 DONE`
+> W8 实施提交：随本原子 slice 提交
+> 当前主任务：无；W2–W8 已闭环，后续只按真实新需求建立新 slice
+> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6 DONE · W7 DONE · W8 DONE`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 44`
@@ -67,9 +68,11 @@
 Runtime/Desktop 依赖与事实作者审计、Desktop Runtime anti-corruption boundary、全局语义
 命名清理和全门禁收口；未发现需要重做 Agent/Runtime 主模型的证据。W7.0 又冻结了
 Synara/Lynx 的真实视觉基线、状态映射、目标 token、有意分歧、验收矩阵和 W7.1–W7.5
-原子边界；W7.1–W7.3 已依次完成 visual foundation、shell/Work Index 与
-Agent Narrative/Composer/Run tree/HITL 页面级对齐。后续实施从 §12 的 W7.4
-Context Dock / Workspace Views / Settings 执行卡继续。
+原子边界，并完成 foundation、shell/Work Index、Agent Narrative/Composer/Run tree/
+HITL、Context Dock/Workspace/Settings 与最终 WebView/accessibility closure。W8 又以
+“抽象不泄露、不过少、不过度”为主线完成全仓复核，关闭 Desktop design-system 绕行、
+复合交互错误抽象、Go receiver 命名回归和视觉尾部取整不确定性；Runtime/Frontend
+生成契约、协议生命周期与模块依赖仍保持闭环。
 
 ---
 
@@ -2336,3 +2339,187 @@ frontend + Go + Wails full gates
 - 不牺牲长内容、窄窗口、键盘、ARIA、reduced motion 与 WebView 稳定性；
 - 不把已完成的 API/Runtime 架构重新打开，除非视觉审计发现可复现的真实语义缺口；
 - 不保留旧视觉路径、dual component 或“改完再删”的兼容层。
+
+---
+
+## 13. W8 抽象边界、协议对接与坏味道最终收口
+
+### 13.1 目标与完成定义
+
+- 状态：`DONE`
+- 实施原则：允许 breaking change；不保留原生交互旁路、旧组件、compatibility alias、
+  dual path 或临时 whitelist。
+- 主目标：
+  1. 证明最新 Runtime API/协议已由前后端共同消费，而不是只在文档中成立；
+  2. 清除 Desktop、Runtime 与 Wails shell 中可复现的命名、职责和边界坏味道；
+  3. 保证抽象既不泄露，也不因“统一”而变成撤销样式、转发调用或假想扩展点；
+  4. 把本次审计结论变成机械门禁，避免同类问题回归。
+
+完成必须同时满足：
+
+- Base UI / browser-native interaction → primitives → atoms → agent → feature/plugin
+  单向组合，production code 无绕行；
+- Framework、Runtime domain/application、adapter/infra、delivery/protocol、Desktop
+  context/rpc/presentation 各守职责，没有外层概念反向污染内层；
+- Contract Registry、生成 Desktop wire、Runtime delivery、HTTP lifecycle 与 frontend
+  validator/method consumer 无漂移；
+- build、vet、test、frontend full check、visual/WebKit/WCAG 全通过；
+- 发现“当前实现已经正确”的区域不为制造 diff 而重构。
+
+### 13.2 执行计划与实际进度
+
+| Slice | 工作内容 | 状态 | 结果 |
+| --- | --- | --- | --- |
+| W8.0 | 全仓基线、receiver/interface/error/compatibility、UI 交互与协议漂移审计 | `DONE` | 现有 Runtime 主分层和 wire 契约无待迁移缺口；Desktop 存在 design-system 绕行 |
+| W8.1 | Desktop interaction boundary 治本式收口 | `DONE` | 37 个 production 原生交互调用点全部迁移；新增 AST 边界门禁 |
+| W8.2 | 抽象与命名复核 | `DONE` | 建立 `Pressable`；拆分 specialized input atoms；移除失真的 `Button size="content"` |
+| W8.3 | Runtime/Frontend 协议与 Go 模块复核 | `DONE` | contract drift、冷启动 lifecycle、全包测试通过；无证据支持额外生产重构 |
+| W8.4 | 视觉、文档、全门禁与提交收口 | `DONE` | 120/120 visual；架构文档与本台账同步；单一原子提交 |
+
+### 13.3 关键裁决
+
+#### A. “统一使用 Button”不是正确抽象
+
+审计中首先把原生 `<button>` 迁移到 `Button`，随后发现
+`size="content"` 实际同时撤销 Button 的 height、padding、border、font、line-height、
+whitespace、alignment 与 SVG opacity。它名义上是尺寸，实际是一个“把 Button 还原成
+原始按钮”的逃生口：
+
+- 命名不表达行为；
+- atom 的视觉策略泄露给 feature，feature 被迫知道并抵消；
+- radius、leading、icon opacity 的任一默认值都可能让复合行产生像素漂移；
+- Button 同时承担普通动作与任意复合 surface，职责不闭合。
+
+终态拆成两种正交语义：
+
+- `Button` / `IconButton` / `TextButton` 拥有普通动作的 metrics、tone 与交互视觉；
+- `Pressable` 服务 row、card、swatch、image、preview、disclosure header 等
+  content-owned surface，只提供 Base UI button 语义与 accessibility baseline。
+
+`Pressable` 不是 unstyled escape hatch；普通动作不得为了省事使用它。19 个复合交互
+调用点已按这个语义迁移，`Button` 不再包含反向撤销自身策略的 variant。
+
+#### B. native boundary 按用户意图命名，不按实现技术打包
+
+最终 vocabulary：
+
+- `HiddenFileInput`：固定 `type=file` 与隐藏策略；
+- `ColorPickerInput`：固定 `type=color` 与覆盖式点击区域；
+- `ExternalLink`：固定 `_blank + noopener noreferrer`；
+- `ResizeHandle`：固定 Base UI vertical separator 与 keyboard focus 语义；
+- `TextArea`：经 `TextAreaPrimitive` 进入 atom，不在 feature 重复 native element。
+
+曾出现的 `native-input.tsx` 按“实现来自浏览器”分组两个无关职责，已拆为
+`hidden-file-input.tsx` 与 `color-picker-input.tsx`。文件名、导出名与单一变化原因一致。
+
+#### C. 防腐层必须由机器守护
+
+新增 `check:design-system`，用 TypeScript AST 检查 production source：
+
+- `@base-ui/react` 只允许在 `ui/primitives`；
+- `@/ui/primitives` 只允许 design-system rings 消费；
+- `<a>/<button>/<details>/<input>/<select>/<summary>/<textarea>` 只允许 primitives；
+- interactive ARIA widget role 只允许 primitives 实现。
+
+终态只有 primitives 中 4 个必要的 browser-native tag implementation；feature/plugin、
+agent 和 atoms 不再直接渲染原生交互标签，也没有文件白名单。
+
+#### D. receiver 一致性是类型职责的一部分
+
+全量 AST 审计未再发现同一生产类型混用 `s` / `base` 或其他 receiver 名，说明已知
+`store` 告警已经被修复。为避免局部 rename 再次让一个类型读成两个抽象，新增
+`TestReceiverNamesStayConsistent`：
+
+- 按 package directory + concrete receiver type 聚合全部 production method；
+- 支持 pointer 与 generic receiver；
+- 同一类型出现两个 receiver 名时报告准确文件与方法；
+- 错误信息直接要求选择能表达该类型单一职责的名字。
+
+#### E. 没有证据时不制造后端抽象
+
+Runtime 复核覆盖依赖方向、framework/domain/application/delivery 泄漏、consumer-owned
+ports、较宽 interface、错误 wrapping、compatibility residue 与 receiver consistency。
+现有较宽接口均为有文档的 lifecycle/control composition boundary，未发现 feature
+依赖 concrete store、application import wire/SDK、domain import framework/I/O 或
+delivery 直连 infra 的新证据。
+
+因此 W8 不为“看起来更 Clean”拆包、缩接口或增加 facade。保留已证明内聚的边界，本身
+就是避免过度抽象；生产 Runtime 无无效 churn。
+
+#### F. 视觉基线只固定语义终态
+
+复合 surface 迁移过程中，visual gate 捕获了 Button radius/leading/icon opacity 的
+抽象泄漏并推动 `Pressable` 裁决。全套预热又暴露 Shiki 异步增高后
+`use-stick-to-bottom` 可能停在距尾部 1–2px，而旧最大字号金图偶然固定在 1px 残差。
+
+终态先断言 production follow 已进入 1px 容差，再把截图边界规范化到精确最大
+`scrollTop`；light/dark 两张 agent long-content golden 仅随这个有意的 1px
+terminal alignment 更新。没有扩大 `0.05` 阈值、mask 内容或接受不稳定截图。
+
+### 13.4 前后端协议闭环结论
+
+W8 没有发现需要新增兼容层或再次改 wire 的缺口。当前“已对接”由以下同一条证据链成立：
+
+```text
+Contract Registry
+  → generated Runtime schema / OpenRPC / docs / Desktop wire
+  → Runtime dispatcher + HTTP transport
+  → Desktop rpc validators / typed methods
+  → bounded-context consumer ports
+  → production projection / UI
+```
+
+- `TestGeneratedContractHasNoDrift` 重新生成并比较 contract artifacts，零漂移；
+- `TestProtocolLifecycleSurvivesColdRestart` 通过真实 HTTP lifecycle 验证 discover、
+  create/start/query/stream/restart/rehydrate 语义；
+- Runtime 全包测试覆盖 delivery protocol/dispatch、HTTP/inprocess transport、
+  application、persistence/recovery、idempotency 与 architecture fitness；
+- Frontend 1148 个测试包含 RPC schema、generated wire validation、method metadata、
+  HTTP/memory transport、stream、runtime protocol、agent gateway/fold/projection 与
+  feature application port；
+- `check:published-boundaries` 证明发布给业务的 facade 不泄露 wire，
+  `check:layers` / context DAG 证明 feature 不反向直连 transport。
+
+结论：最新 API 迁移已经完成；W8 的工作是补齐设计系统和持续防回归能力，而不是保留旧
+API 或再造一层“新旧桥接”。
+
+### 13.5 最终验收证据
+
+- Frontend `npm run check`
+  - `196` 个 test files、`1148` 个 tests 全通过；
+  - typecheck、OxLint `--deny-warnings`、Prettier、Knip、circular/context DAG、
+    published/layer/design-system/token/chrome/locales/bootstrap/bundle 全通过；
+  - `896` 个 locale keys 在 `8` 个语言中完整；
+  - production build 与 entry/lazy bundle budgets 通过。
+- Visual `npm run visual:test`
+  - `120/120`；
+  - Chromium golden、DPR2、WebKit、WCAG、keyboard、IME、clipboard、coarse pointer、
+    reduced motion、最大字号与窄窗均通过；
+  - 更新后的 exact-tail light golden 已人工复核。
+- Runtime
+  - `go build ./...`、`go vet ./...`、`go test ./...`、`go test -race ./...`
+    全通过；
+  - receiver consistency、architecture fitness、contract drift、cold-restart protocol
+    lifecycle 专项通过。
+- Desktop shell
+  - `go build ./...`、`go vet ./...`、`go test ./...`、`go test -race ./...`
+    全通过；
+  - Wails v2 边界保持 thin shell，业务仍经 external Runtime HTTP JSON-RPC；
+  - `wails build` 的 darwin/arm64 production compile、package 与 self-sign 全通过，
+    frontend bundle 与 Go embed/窗口契约保持一致。
+- Repository
+  - `gofmt`、Prettier、`git diff --check` 通过；
+  - 不含 compatibility branch、旧交互实现、native bypass 或临时 exception。
+
+### 13.6 W8 收口后的持续规则
+
+后续需求必须遵守：
+
+1. 先判断事实作者和消费边界，再决定是否需要 abstraction；
+2. 一个抽象如果要求调用者撤销它的大部分默认策略，应拆成正交语义，而不是继续加 variant；
+3. 文件和类型按用户/领域意图命名，不按“native/common/base/manager”等实现来源打包；
+4. 新 Base UI/native interaction 必须先进入 primitives，再由具有产品语义的 atom 发布；
+5. 新 Runtime 能力从 Contract Registry 到 consumer port 一次贯通，不允许 hand-written
+   second wire、fallback decoder 或旧字段 alias；
+6. 审计没有发现真实问题时保持实现不动；“没有 diff”可以是避免过度抽象的正确结果；
+7. 任何例外必须先形成可验证的新不变量，不能靠注释或 whitelist 长期存在。

@@ -3,7 +3,7 @@
 // (MULTIMODAL_IMAGE_INPUT, API.md §4.3); the data URL is rebuilt here for <img>.
 
 import { useState } from "react";
-import { LightboxDialog } from "@/ui";
+import { LightboxDialog, Pressable } from "@/ui";
 import { useT } from "@/lib/i18n";
 
 export function ImageBlock({ mime, data }: { mime: string; data: string }) {
@@ -18,7 +18,7 @@ export function ImageBlock({ mime, data }: { mime: string; data: string }) {
       closeOnContentClick
       className="p-2"
       trigger={
-        <button
+        <Pressable
           type="button"
           aria-label={t("message.image.view")}
           className="my-1.5 block cursor-zoom-in overflow-hidden rounded-md border-0 bg-transparent p-0"
@@ -28,7 +28,7 @@ export function ImageBlock({ mime, data }: { mime: string; data: string }) {
             alt=""
             className="max-h-64 max-w-full rounded-md object-contain media-edge"
           />
-        </button>
+        </Pressable>
       }
     >
       <img

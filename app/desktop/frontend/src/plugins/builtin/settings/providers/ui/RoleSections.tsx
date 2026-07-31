@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { DropdownMenu, Icon, ProviderIcon, Surface } from "@/ui";
+import { Button, DropdownMenu, Icon, ProviderIcon, Surface } from "@/ui";
 import {
   type ProviderConfiguration,
   setEmbeddingRole,
@@ -65,8 +65,11 @@ export function UtilityModelSection() {
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
           render={
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="md"
+              press={false}
               aria-label={t("providers.utility.title")}
               className={triggerClass}
             >
@@ -81,7 +84,7 @@ export function UtilityModelSection() {
                 <span className="text-fg-muted">{t("providers.utility.main")}</span>
               )}
               <Icon name="chevron-down" size={10} className="text-fg-muted" />
-            </button>
+            </Button>
           }
         />
         <DropdownMenu.Content
@@ -141,8 +144,11 @@ export function EmbeddingModelSection() {
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
           render={
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="md"
+              press={false}
               aria-label={t("providers.embedding.title")}
               className={triggerClass}
             >
@@ -155,7 +161,7 @@ export function EmbeddingModelSection() {
                 <span className="text-fg-muted">{t("providers.embedding.off")}</span>
               )}
               <Icon name="chevron-down" size={10} className="text-fg-muted" />
-            </button>
+            </Button>
           }
         />
         <DropdownMenu.Content

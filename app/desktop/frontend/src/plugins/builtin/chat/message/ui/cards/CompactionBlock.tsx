@@ -3,7 +3,7 @@
 // the backend supplies a summary it expands inline on click.
 
 import { useState } from "react";
-import { Icon } from "@/ui";
+import { Icon, TextButton } from "@/ui";
 import { useT } from "@/lib/i18n";
 
 export function CompactionBlock({
@@ -27,7 +27,7 @@ export function CompactionBlock({
       <div className="flex items-center gap-3 text-ui-md text-fg-faint">
         <span className="h-px flex-1 bg-fg/[0.08]" />
         {summary ? (
-          <button
+          <TextButton
             type="button"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
@@ -35,7 +35,7 @@ export function CompactionBlock({
           >
             <Icon name={open ? "chevron-up" : "chevron-down"} size={12} />
             <span>{label}</span>
-          </button>
+          </TextButton>
         ) : (
           <span className="inline-flex items-center gap-1">
             <Icon name="minimize" size={12} />

@@ -1,7 +1,7 @@
 import type { ComposerImage, PastedText } from "@/plugins/builtin/chat/composer/public/attachments";
 import type { IconName } from "@/ui";
 import type { ComposerAttachmentSourceSpec } from "@/plugins/sdk";
-import { Chip, Icon, Tooltip } from "@/ui";
+import { Chip, Icon, IconButton, Tooltip } from "@/ui";
 import { useT } from "@/lib/i18n";
 
 type AttachmentSource = ComposerAttachmentSourceSpec;
@@ -82,14 +82,14 @@ function ImageThumb({ image, onRemove }: { image: ComposerImage; onRemove: () =>
         title={image.name}
         className="h-full w-full object-cover"
       />
-      <button
-        type="button"
+      <IconButton
+        icon="x"
+        size="xs"
+        title={t("composer.removeImage")}
         aria-label={t("composer.removeImage")}
         onClick={onRemove}
-        className="absolute right-0.5 top-0.5 grid h-4 w-4 place-items-center rounded-full border-0 bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100"
-      >
-        <Icon name="x" size={9} />
-      </button>
+        className="absolute right-0.5 top-0.5 rounded-full bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100"
+      />
     </div>
   );
 }
@@ -106,14 +106,14 @@ function PasteChip({ paste, onRemove }: { paste: PastedText; onRemove: () => voi
       <span className="group inline-flex h-6 max-w-[220px] items-center gap-1.5 rounded-full bg-fg/[0.05] pl-2.5 pr-1.5 font-mono text-ui-sm text-fg-muted">
         <Icon name="filetext" size={11} className="shrink-0 text-fg-faint" />
         <span className="truncate">{label}</span>
-        <button
-          type="button"
+        <IconButton
+          icon="x"
+          size="xs"
+          title={t("composer.paste.remove")}
           aria-label={t("composer.paste.remove")}
           onClick={onRemove}
-          className="grid h-4 w-4 shrink-0 place-items-center rounded-full border-0 bg-transparent text-fg-faint transition-colors hover:text-fg"
-        >
-          <Icon name="x" size={9} />
-        </button>
+          className="shrink-0 rounded-full text-fg-faint hover:text-fg"
+        />
       </span>
     </Tooltip>
   );

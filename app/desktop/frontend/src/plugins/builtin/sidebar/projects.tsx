@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DataView, SectionLabel } from "@/ui";
+import { DataView, SectionLabel, TextButton } from "@/ui";
 import { ProjectRow } from "./ui/ProjectRow";
 import { SessionRow } from "./ui/SessionRow";
 import { useT } from "@/lib/i18n";
@@ -75,13 +75,14 @@ function ProjectGroupNode({
             />
           ))}
           {(hidden > 0 || showAll) && (
-            <button
+            <TextButton
               type="button"
+              size="sm"
               onClick={() => setShowAll((v) => !v)}
               className="rounded-xs border-0 bg-transparent px-8 py-1 text-left text-ui-sm text-fg transition-colors hover:bg-hover"
             >
               {hidden > 0 ? t("projects.showMore", { count: hidden }) : t("projects.showLess")}
-            </button>
+            </TextButton>
           )}
         </div>
       )}

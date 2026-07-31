@@ -2,6 +2,7 @@ import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { useId } from "react";
 import { cn } from "@/lib/classNames";
 import { Collapsible } from "@/ui/atoms/collapsible";
+import { Pressable } from "@/ui/atoms/pressable";
 import { Icon, type IconName } from "@/ui/icons";
 
 type ActivityTone = "neutral" | "warning" | "negative";
@@ -64,7 +65,7 @@ export function AgentActivityDisclosure({
       className={cn("group/activity my-1 min-w-0", className)}
     >
       <div className="flex min-h-7 min-w-0 items-center">
-        <button
+        <Pressable
           id={triggerId}
           type="button"
           aria-expanded={open}
@@ -97,7 +98,7 @@ export function AgentActivityDisclosure({
               !open && "-rotate-90",
             )}
           />
-        </button>
+        </Pressable>
         {actions != null && (
           <div className="flex shrink-0 items-center gap-0.5 pl-0.5">{actions}</div>
         )}

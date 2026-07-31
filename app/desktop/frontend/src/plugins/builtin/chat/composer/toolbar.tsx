@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { Button, DropdownMenu, Icon, IconButton, ProviderIcon } from "@/ui";
+import { Button, DropdownMenu, HiddenFileInput, Icon, IconButton, ProviderIcon } from "@/ui";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
 import { useSelectedModel } from "./public/selectedModel";
 import {
@@ -96,13 +96,11 @@ function AttachButton() {
 
   return (
     <>
-      <input
+      <HiddenFileInput
         ref={inputRef}
-        type="file"
         accept="image/*"
         multiple
         aria-label={t("composer.attachImage")}
-        className="hidden"
         onChange={(e) => {
           const files = imageFiles(e.target.files);
           e.target.value = "";
@@ -141,20 +139,23 @@ function ApprovalModePill() {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
         render={
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="md"
+            press={false}
             aria-label={t("approvals.mode.aria")}
             className={cn(
-              "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-sans text-ui-lg font-medium transition-colors data-[popup-open]:bg-selected",
+              "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border-0 px-2.5 font-sans text-ui-lg font-medium transition-colors data-[popup-open]:bg-selected",
               full
                 ? "text-warning hover:bg-warning-wash"
                 : "text-fg-soft hover:bg-hover hover:text-fg",
             )}
           >
-            <Icon name={full ? "alert" : "shield"} size={14} className="shrink-0" />
+            <Icon name={full ? "alert" : "shield"} size={14} className="shrink-0 opacity-100" />
             <span className="max-w-[132px] truncate">{t(current.labelKey)}</span>
-            <Icon name="chevron-down" size={14} className="shrink-0 text-fg-faint" />
-          </button>
+            <Icon name="chevron-down" size={14} className="shrink-0 text-fg-faint opacity-100" />
+          </Button>
         }
       />
       <DropdownMenu.Content align="start" sideOffset={6} className="min-w-[248px]">

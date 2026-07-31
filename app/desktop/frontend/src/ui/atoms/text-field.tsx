@@ -1,10 +1,14 @@
-import type { ComponentProps } from "react";
 import type { VariantProps } from "class-variance-authority";
 import { cva } from "class-variance-authority";
 import { cn } from "@/lib/classNames";
 import { Icon } from "@/ui/icons";
 import { Button } from "./button";
-import { InputPrimitive, type InputPrimitiveProps } from "@/ui/primitives";
+import {
+  InputPrimitive,
+  TextAreaPrimitive,
+  type InputPrimitiveProps,
+  type TextAreaPrimitiveProps,
+} from "@/ui/primitives";
 
 // `variant` answers one question: who draws the edge?
 //   boxed — this control does. A real border, because a text field is a fixed
@@ -87,12 +91,12 @@ export function TextField({ variant, size, font, invalid, className, ...props }:
 // cast and buy nothing: a textarea's focus, keyboard and aria behaviour are
 // entirely native. This is the documented Base-UI-first exemption, not an
 // oversight.
-export type TextAreaProps = Omit<ComponentProps<"textarea">, "className"> &
+export type TextAreaProps = Omit<TextAreaPrimitiveProps, "className"> &
   VariantProps<typeof textAreaStyles> & { className?: string };
 
 export function TextArea({ variant, size, font, invalid, className, ...props }: TextAreaProps) {
   return (
-    <textarea
+    <TextAreaPrimitive
       {...props}
       className={cn(textAreaStyles({ variant, size, font, invalid }), className)}
     />

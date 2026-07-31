@@ -6,6 +6,7 @@ import { cn } from "@/lib/classNames";
 import { ACCENT, useExtensionPoint } from "@/plugins/sdk";
 import { useAccentPreference } from "../application/appearancePreferences";
 import { SettingRow } from "../../public";
+import { ColorPickerInput, Pressable } from "@/ui";
 
 // Conic gradient used when no custom color is active — communicates
 // "click me, you can pick anything" without committing to a default hue.
@@ -14,7 +15,7 @@ const RAINBOW_HINT =
 
 // Chosen swatch: the transparent rim fills with the surface so the ring reads as
 // a gap around the colour rather than touching it. Both pickers below wear it —
-// they are the same affordance rendered as a <button> and as a <label>.
+// one is a Pressable swatch and one labels the native color-picker input.
 const SWATCH_CHROME =
   "h-4.5 w-4.5 rounded-full border-2 border-transparent bg-clip-padding transition-[transform,box-shadow] duration-[var(--dur-fast)] active:scale-[var(--press-scale)]";
 const SWATCH_SELECTED = "border-surface shadow-[var(--shadow-swatch-selected)]";
@@ -43,12 +44,10 @@ function CustomAccentPicker({
     >
       {/* Hidden native input — the visible swatch is the label; click
           opens the OS color picker. */}
-      <input
-        type="color"
+      <ColorPickerInput
         aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="absolute inset-0 h-full w-full opacity-0"
       />
     </label>
   );
@@ -70,7 +69,7 @@ export function AccentSection() {
     <SettingRow label={t("settings.accent")} sub={t("settings.accent.sub")}>
       <div className="flex flex-wrap gap-2.5 justify-start items-center">
         {accents.map((a) => (
-          <button
+          <Pressable
             key={a.id}
             type="button"
             onClick={() => setAccent(a.dark)}

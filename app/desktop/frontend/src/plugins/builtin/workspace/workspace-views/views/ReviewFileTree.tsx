@@ -9,7 +9,7 @@
 
 import { useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import { Icon, IconButton, ScrollArea, TextField } from "@/ui";
+import { Icon, IconButton, Pressable, ScrollArea, TextField } from "@/ui";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import type { WorkspaceFileDiff } from "@/plugins/builtin/workspace/application/workspaceQueries";
@@ -109,7 +109,7 @@ function TreeRow({
   onClick: () => void;
 }) {
   return (
-    <button
+    <Pressable
       type="button"
       // The row fills instead of ringing when the keyboard reaches it, which is
       // what the selected row already looks like — arrow-key travel and clicking
@@ -128,7 +128,7 @@ function TreeRow({
     >
       {leading}
       <span className={cn("min-w-0 truncate", labelClassName)}>{label}</span>
-    </button>
+    </Pressable>
   );
 }
 

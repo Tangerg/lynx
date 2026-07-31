@@ -6,7 +6,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Icon, PillButton, TextArea, TextField } from "@/ui";
+import { Button, Icon, PillButton, TextArea, TextField } from "@/ui";
 import { disclosureTransition } from "@/lib/motion";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
@@ -145,8 +145,11 @@ function StartGoal({ sessionId }: { sessionId: string }) {
   if (!open) {
     return (
       <div className="mt-2 mb-1">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
+          press={false}
           onClick={() => setOpen(true)}
           className={cn(
             "flex items-center gap-1.5 rounded-md border-0 bg-transparent px-2 py-1",
@@ -155,7 +158,7 @@ function StartGoal({ sessionId }: { sessionId: string }) {
         >
           <Icon name="spark" size={13} />
           {t("goal.setGoal")}
-        </button>
+        </Button>
       </div>
     );
   }

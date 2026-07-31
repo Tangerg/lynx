@@ -7,7 +7,7 @@ import type {
   FileChangesViewModel,
 } from "@/plugins/builtin/workspace/application/fileChangesViewModel";
 import { memo } from "react";
-import { Icon } from "@/ui";
+import { Icon, Pressable } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
 
@@ -42,7 +42,7 @@ const FileRow = memo(function FileRow({
 }) {
   const t = useT();
   return (
-    <button
+    <Pressable
       type="button"
       data-chrome-focus=""
       aria-pressed={row.active}
@@ -67,6 +67,6 @@ const FileRow = memo(function FileRow({
           <span className="text-negative">−{row.lineStats.removed}</span>
         </span>
       )}
-    </button>
+    </Pressable>
   );
 });

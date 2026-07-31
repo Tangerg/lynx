@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import type { IconName } from "@/ui";
-import { Icon, SearchField, VerticalTabs } from "@/ui";
+import { Button, Icon, SearchField, VerticalTabs } from "@/ui";
 import { AgentSurfaceHeader } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
@@ -133,15 +133,18 @@ function SettingsRailHeader({
           second, which left the window immovable while settings was open. */}
       <AgentSurfaceHeader divider={false} windowCorner aria-hidden />
       <div className="px-4 pb-4">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="md"
+          press={false}
           data-chrome-focus=""
           onClick={selectWorkspaceChat}
           className="mb-3 flex h-8 items-center gap-2 rounded-sm border-0 bg-transparent px-2 text-ui-lg font-medium text-fg-muted transition-[background-color,color] duration-[var(--dur-fast)] hover:bg-hover hover:text-fg focus-visible:bg-hover focus-visible:outline-none"
         >
-          <Icon name="arrow-left" size={15} strokeWidth={1.8} />
+          <Icon name="arrow-left" size={15} strokeWidth={1.8} className="opacity-100" />
           <span>{t("settings.backToApp")}</span>
-        </button>
+        </Button>
         <SearchField
           size="lg"
           value={query}

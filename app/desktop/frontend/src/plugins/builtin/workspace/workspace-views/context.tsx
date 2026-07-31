@@ -1,4 +1,4 @@
-import { Icon, type IconName } from "@/ui";
+import { Icon, Pressable, type IconName } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
 import { useContextDockLauncher } from "@/plugins/builtin/workspace/application/useContextDockLauncher";
@@ -30,7 +30,7 @@ function ContextDockView() {
             {group.destinations.map((destination) => {
               const icon = destinationIcon(destination.icon);
               return (
-                <button
+                <Pressable
                   key={destination.viewId}
                   type="button"
                   data-chrome-focus=""
@@ -48,7 +48,7 @@ function ContextDockView() {
                   <span className="min-w-0 flex-1 truncate font-medium">
                     {t(destination.title)}
                   </span>
-                </button>
+                </Pressable>
               );
             })}
           </section>

@@ -8,6 +8,8 @@ import { getCachedHighlight, setCachedHighlight } from "@/lib/highlight/shikiCac
 import { useShikiTheme } from "@/lib/highlight/useCodeHighlight";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
+import { IconButton } from "./icon-button";
+import { Pressable } from "./pressable";
 
 interface Props {
   lang: string;
@@ -128,22 +130,20 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
             {file}
           </span>
         )}
-        <button
-          type="button"
+        <IconButton
+          icon={copied ? "check" : "copy"}
+          size="xs"
           onClick={onCopy}
           title={copied ? t("message.code.copied") : t("message.code.copy")}
           className={cn(
-            "grid h-6 w-6 place-items-center rounded-md border-0 bg-transparent transition-[opacity,color,background] duration-[var(--dur-fast)]",
             copied
               ? "text-success opacity-100"
               : "text-fg-muted opacity-0 group-hover/code:opacity-100 hover:text-fg hover:bg-hover",
           )}
-        >
-          <Icon name={copied ? "check" : "copy"} size={13} />
-        </button>
+        />
       </div>
       {folded ? (
-        <button
+        <Pressable
           type="button"
           onClick={() => setExpanded(true)}
           title={t("message.code.expand")}
@@ -151,7 +151,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
         >
           <Icon name="code" size={12} />
           <span>{t("message.code.showLines", { count: lineCount })}</span>
-        </button>
+        </Pressable>
       ) : (
         <>
           {showHighlighted ? (
@@ -162,7 +162,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
             <pre className="shiki-body shiki-fallback m-0">{code}</pre>
           )}
           {lineCount > FOLD_LINE_THRESHOLD && !isSettling && (
-            <button
+            <Pressable
               type="button"
               onClick={() => setExpanded(false)}
               title={t("message.code.collapse")}
@@ -170,7 +170,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
             >
               <Icon name="minimize" size={12} />
               <span>{t("message.code.collapseLabel")}</span>
-            </button>
+            </Pressable>
           )}
         </>
       )}

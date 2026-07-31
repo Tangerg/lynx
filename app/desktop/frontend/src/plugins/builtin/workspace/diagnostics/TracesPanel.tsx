@@ -7,7 +7,7 @@ import type { SpanRow } from "@/lib/observability/stores";
 import { useTelemetryStore } from "@/lib/observability/stores";
 import { Fragment, useCallback, useMemo, useState } from "react";
 import { useT } from "@/lib/i18n";
-import { Icon } from "@/ui";
+import { Icon, Pressable } from "@/ui";
 import { Cell, Empty, Row, VirtualList } from "./primitives";
 
 export function TracesPanel() {
@@ -75,7 +75,7 @@ function SpanRowItem({
 }) {
   return (
     <div>
-      <button
+      <Pressable
         type="button"
         onClick={onToggle}
         aria-expanded={open}
@@ -98,7 +98,7 @@ function SpanRowItem({
         <span className="w-28 shrink-0 truncate text-left text-fg-faint">
           {span.traceId.slice(0, 12)}
         </span>
-      </button>
+      </Pressable>
       {open && <SpanDetail span={span} />}
     </div>
   );

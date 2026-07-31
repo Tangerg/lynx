@@ -6,6 +6,7 @@
 import { useT } from "@/lib/i18n";
 import { useCustomThemePreference } from "../application/appearancePreferences";
 import { SettingRow } from "../../public";
+import { ColorPickerInput } from "@/ui";
 
 function ColorRow({
   label,
@@ -26,12 +27,10 @@ function ColorRow({
           style={{ background: value }}
         />
         {/* Hidden native picker — clicking the row opens the OS color wheel. */}
-        <input
-          type="color"
+        <ColorPickerInput
           aria-label={label}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="absolute inset-0 h-full w-full opacity-0"
         />
       </span>
     </label>

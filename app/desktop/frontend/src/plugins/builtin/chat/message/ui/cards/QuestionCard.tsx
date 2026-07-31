@@ -1,6 +1,6 @@
 import type { BlockStatus, QuestionItem } from "@/plugins/builtin/agent/public/viewState";
 import { useState } from "react";
-import { Button, Icon, Surface, TextField } from "@/ui";
+import { Button, Icon, Pressable, Surface, TextField } from "@/ui";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import {
@@ -103,7 +103,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                 {q.options.map((opt) => {
                   const active = cur.selected.includes(opt.label);
                   return (
-                    <button
+                    <Pressable
                       key={opt.label}
                       type="button"
                       aria-pressed={active}
@@ -126,7 +126,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                           {opt.preview}
                         </code>
                       )}
-                    </button>
+                    </Pressable>
                   );
                 })}
               </div>

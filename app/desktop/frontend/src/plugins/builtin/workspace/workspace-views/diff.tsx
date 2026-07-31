@@ -10,7 +10,7 @@
 // whole comparison. Structured per-file diff from workspace.getDiff (AUX_API §2.3).
 
 import { useEffect, useRef, useState } from "react";
-import { DataView, Icon, IconButton, ScrollArea, Segmented } from "@/ui";
+import { DataView, Icon, IconButton, Pressable, ScrollArea, Segmented } from "@/ui";
 import { useT } from "@/lib/i18n";
 import type { DiffLayout } from "./views/DiffView";
 import { DiffView } from "./views/DiffView";
@@ -50,7 +50,7 @@ function FileCard({
     >
       {/* The card's own header IS the collapse control: a reviewer skipping a
           file reaches for its name, not for a separate affordance. */}
-      <button
+      <Pressable
         type="button"
         data-chrome-focus=""
         aria-expanded={!collapsed}
@@ -72,7 +72,7 @@ function FileCard({
           size={14}
           className={cn("shrink-0 opacity-50 transition-transform", collapsed && "-rotate-90")}
         />
-      </button>
+      </Pressable>
       {!collapsed &&
         (file.binary ? (
           <p className="m-0 px-3 py-2 font-mono text-ui-sm text-fg-faint">{t("diff.binary")}</p>

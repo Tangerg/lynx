@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Icon } from "@/ui";
+import { Icon, Pressable } from "@/ui";
 import { cn } from "@/lib/classNames";
 import {
   type WorkspaceFileEntry,
@@ -29,7 +29,7 @@ function TreeNode({ entry, cwd, depth, selectedPath, onSelectFile }: NodeProps) 
 
   return (
     <div>
-      <button
+      <Pressable
         type="button"
         className={cn(
           "flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-ui-lg text-fg hover:bg-hover",
@@ -49,7 +49,7 @@ function TreeNode({ entry, cwd, depth, selectedPath, onSelectFile }: NodeProps) 
         )}
         <Icon name={isDir ? "folder" : "file"} size={13} className="shrink-0" />
         <span className="truncate">{entry.name}</span>
-      </button>
+      </Pressable>
       {isDir && expanded && (
         <div>
           {isLoading && (

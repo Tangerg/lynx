@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDebounce } from "use-debounce";
-import { LightboxDialog } from "@/ui";
+import { LightboxDialog, Pressable } from "@/ui";
 import { measureMermaidRender } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 import { useTokenRevision } from "@/lib/appearance";
@@ -111,7 +111,7 @@ export function MermaidBlock({ code }: Props) {
         title={t("markdown.diagram")}
         className="p-6"
         trigger={
-          <button
+          <Pressable
             type="button"
             aria-label={t("message.mermaid.enlarge")}
             title={t("message.mermaid.enlargeHint")}

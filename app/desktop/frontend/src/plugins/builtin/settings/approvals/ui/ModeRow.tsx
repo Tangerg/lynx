@@ -1,4 +1,4 @@
-import { Icon } from "@/ui";
+import { Icon, Pressable } from "@/ui";
 import { APPROVAL_MODES, saveApprovalMode, type ApprovalMode } from "../application/approvalConfig";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { notifyError } from "@/plugins/sdk";
@@ -28,7 +28,7 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
           {APPROVAL_MODES.map((o) => {
             const selected = o.value === mode;
             return (
-              <button
+              <Pressable
                 key={o.value}
                 type="button"
                 aria-pressed={selected}
@@ -48,7 +48,7 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
                   <div className="mt-0.5 text-ui-md leading-body text-fg-muted">{t(o.descKey)}</div>
                 </div>
                 {selected && <Icon name="check" size={15} className="shrink-0 text-accent" />}
-              </button>
+              </Pressable>
             );
           })}
         </div>

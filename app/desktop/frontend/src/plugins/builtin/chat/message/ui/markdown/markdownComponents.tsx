@@ -1,6 +1,6 @@
 import type { Components } from "react-markdown";
 import { useEffect, useRef } from "react";
-import { RichTooltip, ShikiCodeBlock } from "@/ui";
+import { ExternalLink, RichTooltip, ShikiCodeBlock } from "@/ui";
 import { useCitations } from "../CitationContext";
 import { FileRefLink } from "@/plugins/builtin/chat/file-references/public/FileRefLink";
 import { HtmlArtifact } from "./HtmlArtifact";
@@ -122,9 +122,9 @@ export const markdownComponents: Components = {
     // Forward only real anchor attrs (href/title); the rest carries the hast
     // `node`, which must not reach the DOM.
     return (
-      <a href={href} title={title} target="_blank" rel="noopener noreferrer">
+      <ExternalLink href={href} title={title}>
         {children}
-      </a>
+      </ExternalLink>
     );
   },
   style({ children }) {

@@ -1,4 +1,4 @@
-import { Icon } from "@/ui";
+import { Icon, Pressable } from "@/ui";
 import {
   MENTION_LISTBOX_ID,
   mentionOptionId,
@@ -39,11 +39,12 @@ export function FileMentionPopup({ items, index, onPick, onHover }: Props) {
         const dir = slash >= 0 ? path.slice(0, slash + 1) : "";
         const name = slash >= 0 ? path.slice(slash + 1) : path;
         return (
-          <button
+          <Pressable
             key={path}
             id={mentionOptionId(i)}
             type="button"
             role="option"
+            tabIndex={-1}
             aria-selected={i === index}
             onMouseEnter={() => onHover(i)}
             onMouseDown={(e) => {
@@ -61,7 +62,7 @@ export function FileMentionPopup({ items, index, onPick, onHover }: Props) {
               <span className="text-fg-faint">{dir}</span>
               <span className="font-medium text-fg">{name}</span>
             </span>
-          </button>
+          </Pressable>
         );
       })}
     </div>

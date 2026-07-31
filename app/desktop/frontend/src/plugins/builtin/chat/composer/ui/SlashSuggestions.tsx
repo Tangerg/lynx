@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useT } from "@/lib/i18n";
 import { useSlashCommands } from "@/plugins/sdk";
+import { Pressable } from "@/ui";
 
 interface Props {
   value: string;
@@ -37,7 +38,7 @@ export function SlashSuggestions({ value, onPick }: Props) {
         {t("composer.slash.heading")}
       </div>
       {filtered.map(({ cmd, spec }) => (
-        <button
+        <Pressable
           key={cmd}
           type="button"
           onClick={() => onPick(`${cmd} `)}
@@ -47,7 +48,7 @@ export function SlashSuggestions({ value, onPick }: Props) {
             {cmd}
           </code>
           <span className="truncate text-ui-md text-fg-muted">{t(spec.description)}</span>
-        </button>
+        </Pressable>
       ))}
     </div>
   );

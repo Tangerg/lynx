@@ -1,7 +1,7 @@
 import { MCP_SERVERS_PANE } from "@/plugins/builtin/settings/public/panes";
 import type { IconName } from "@/ui";
 import { useState } from "react";
-import { Icon, IconButton, TextButton } from "@/ui";
+import { Icon, IconButton, Pressable, TextButton } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { cn } from "@/lib/classNames";
@@ -94,7 +94,7 @@ export function McpRow({ server }: { server: MCPServerSummary }) {
         </div>
         {/* The name/desc block is the expand toggle (a nested button inside a
             row-button would be invalid HTML — IconButton sits beside it). */}
-        <button
+        <Pressable
           type="button"
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
@@ -102,7 +102,7 @@ export function McpRow({ server }: { server: MCPServerSummary }) {
         >
           <div className="text-ui-lg font-semibold text-fg truncate">{server.name}</div>
           <div className="mt-0.5 text-ui-md text-fg-faint truncate">{server.desc}</div>
-        </button>
+        </Pressable>
         <div className="rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-ui-sm text-fg-faint">
           {t("mcp.toolCount", { count: server.tools })}
         </div>

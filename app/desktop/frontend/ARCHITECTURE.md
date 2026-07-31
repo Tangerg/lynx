@@ -236,7 +236,38 @@ adapter 调用 typed `client.runtime.discover()` 并移除 `DiscoverResponse` en
 > [`../docs/protocol/AUX_API.md`](../docs/protocol/AUX_API.md) 与
 > [`../docs/protocol/TRANSPORT.md`](../docs/protocol/TRANSPORT.md)，勿在本文重述。
 
-### 3.2 关于 monorepo（暂不拆）
+### 3.2 Design System 反腐边界
+
+交互实现沿一个方向组合：
+
+```text
+Base UI / browser-native semantics
+  → ui/primitives
+  → ui/atoms
+  → ui/agent
+  → feature / plugin UI
+```
+
+每层只回答自己的问题：
+
+- `ui/primitives` 是唯一可直接 import `@base-ui/react`、渲染原生交互标签或声明底层
+  ARIA widget role 的防腐层。它只做第三方/浏览器语义归一，不知道产品 tone、密度和业务。
+- `ui/atoms` 定义产品交互词汇与横切策略：可见动作使用 `Button`，纯图标动作使用
+  `IconButton`，文字动作使用 `TextButton`；整行、卡片、图片、色块等由内容自身拥有
+  外观的复合控件使用 `Pressable`。后者只提供 button 语义与 accessibility baseline，
+  不能被当作普通按钮的无样式逃生口。
+- 浏览器专属行为由语义 atom 收口：`HiddenFileInput`、`ColorPickerInput`、
+  `ExternalLink`、`ResizeHandle` 分别拥有固定 input type、隐藏/覆盖策略、外链安全策略
+  和 separator/focus 语义；feature 不重复这些实现知识。
+- `ui/agent` 只用 atoms 组合 Agent presentation primitive；feature/plugin 只消费
+  atoms 或 agent primitive，并继续拥有自己的业务状态、文案、布局和领域视觉。
+
+`npm run check:design-system` 使用 TypeScript AST 强制上述边界：禁止 primitives 外部
+直接 import Base UI、禁止 design-system 外部 import primitives、禁止 primitives 外部
+渲染原生交互标签或手写交互 role。测试文件可以直接渲染 DOM 以断言行为，但 production
+代码没有白名单和兼容出口。
+
+### 3.3 关于 monorepo（暂不拆）
 
 `rpc/` `main/` `plugins/` 等完全可以拆成独立 workspace packages。**暂不拆**——package 边界的真正回报是当有第二个消费方时。**触发条件**任一命中才启动：
 
@@ -742,6 +773,8 @@ declare module "@/plugins/sdk/types/contentBlock" {
 - **components 不直连后端**——只经 context public facade / store selector / SDK selector，**禁** import `@/main` / `@/rpc`（`check:layers` 强制）。
 - **Disposable 一律由 Host 收集**——别手动 `dispose()`。
 - **协议是唯一 outbound 边界**——不在 UI/store 里直接 `fetch` / 开 SSE / 调 IPC，都走 `rpc/`。
+- **交互语义只向外组合**——Base UI / 原生标签只在 primitives；业务 UI 只用 atoms /
+  agent primitives，复合内容用 `Pressable` 而不是反向撤销 `Button` 样式。
 - **API breaking 改动碰 `apiVersion.ts`**——破坏 Host 接口/spec 形状的改动 bump major。
 
 ---

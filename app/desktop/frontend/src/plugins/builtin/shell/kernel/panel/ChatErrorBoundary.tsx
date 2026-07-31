@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { FallbackProps } from "react-error-boundary";
 import { ErrorBoundary } from "react-error-boundary";
 import { useT } from "@/lib/i18n";
+import { Button } from "@/ui";
 
 // ChatErrorBoundary — wraps the chat surface so a render error in one
 // message, code block, or mermaid diagram doesn't crash the whole tab.
@@ -32,13 +33,15 @@ function ChatErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
         {error instanceof Error ? error.message : String(error)}
       </pre>
       <div className="flex gap-2">
-        <button
+        <Button
           type="button"
+          variant="soft"
+          size="sm"
           onClick={resetErrorBoundary}
           className="rounded-md bg-canvas px-3 py-1 text-ui-lg text-fg font-sans transition-colors hover:bg-surface-2"
         >
           {t("chat.error.retry")}
-        </button>
+        </Button>
       </div>
     </div>
   );

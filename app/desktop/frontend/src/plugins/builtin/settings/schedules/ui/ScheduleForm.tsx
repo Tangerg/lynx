@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PillButton, Surface, TextArea, TextField } from "@/ui";
+import { PillButton, Pressable, Surface, TextArea, TextField } from "@/ui";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import {
   createSchedule,
@@ -77,7 +77,7 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
       />
       <div className="flex flex-wrap items-center gap-1.5">
         {CRON_PRESETS.map((preset) => (
-          <button
+          <Pressable
             key={preset.cron}
             type="button"
             onClick={() => updateDraft("cron", preset.cron)}
@@ -87,7 +87,7 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
             )}
           >
             {t(preset.key)}
-          </button>
+          </Pressable>
         ))}
       </div>
       <TextField
