@@ -1,9 +1,12 @@
 import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { MotionConfig } from "motion/react";
 import { TooltipProvider } from "@/ui";
+import { publishMotionScale } from "@/lib/appearance";
 import { queryClient } from "@/lib/queryClient";
 import { setLocale } from "@/lib/i18n";
+import { uiTypeLadderCssVariables } from "@/lib/typography";
 import { VisualFoundationFixture } from "./VisualFoundationFixture";
 import { VISUAL_AGENT_STATES, type VisualAgentState } from "./agentSessionSnapshots";
 import { VISUAL_WORK_INDEX_STATES, type VisualWorkIndexState } from "./shellFixtureStates";
@@ -46,10 +49,22 @@ const workspaceState: VisualWorkspaceState = isVisualWorkspaceState(requestedSta
   ? requestedState
   : "dock-review";
 const rootElement = document.documentElement;
+const motionScale = query.get("motion") === "full" ? 1 : 0;
+const requestedFontSize = query.get("font-size");
 
 rootElement.classList.remove("theme-light", "theme-dark");
 rootElement.classList.add(`theme-${theme}`);
-rootElement.style.setProperty("--motion-scale", "0");
+rootElement.style.setProperty("--motion-scale", String(motionScale));
+publishMotionScale(motionScale);
+if (motionScale === 0) rootElement.dataset.motion = "off";
+else delete rootElement.dataset.motion;
+if (requestedFontSize !== null && Number.isFinite(Number(requestedFontSize))) {
+  for (const [property, value] of Object.entries(
+    uiTypeLadderCssVariables(Number(requestedFontSize)),
+  )) {
+    rootElement.style.setProperty(property, value);
+  }
+}
 rootElement.dataset.visualTheme = theme;
 
 const container = document.getElementById("root");
@@ -86,7 +101,9 @@ async function fixtureNode(): Promise<ReactNode> {
 const node = await fixtureNode();
 createRoot(container).render(
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>{node}</TooltipProvider>
+    <MotionConfig reducedMotion="user">
+      <TooltipProvider>{node}</TooltipProvider>
+    </MotionConfig>
   </QueryClientProvider>,
 );
 

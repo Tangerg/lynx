@@ -1,0 +1,104 @@
+import { expect, test, type Page } from "@playwright/test";
+
+test.use({ browserName: "webkit" });
+
+interface FixtureRoute {
+  fixture: "agent" | "shell" | "workspace";
+  state: string;
+  theme?: "light" | "dark";
+  fontSize?: number;
+}
+
+async function openFixture(page: Page, route: FixtureRoute): Promise<void> {
+  const query = new URLSearchParams({
+    fixture: route.fixture,
+    state: route.state,
+    theme: route.theme ?? "light",
+  });
+  if (route.fontSize !== undefined) query.set("font-size", String(route.fontSize));
+
+  await page.goto(`/visual/?${query}`);
+  await page.locator("html[data-visual-ready]").waitFor();
+}
+
+async function expectNoPageOverflow(page: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      page.locator("html").evaluate((element) => element.scrollWidth - element.clientWidth),
+    )
+    .toBeLessThanOrEqual(0);
+}
+
+test("WebKit shell preserves minimum geometry and drawer focus handoff", async ({ page }) => {
+  await openFixture(page, { fixture: "shell", state: "populated" });
+
+  await expect(page.getByRole("complementary", { name: "Work index" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "lynx 6" })).toBeVisible();
+  await expectNoPageOverflow(page);
+
+  await page.getByRole("button", { name: "Hide sidebar" }).click();
+  await expect(page.getByRole("button", { name: "Expand sidebar" })).toBeFocused();
+  await page.getByRole("button", { name: "Expand sidebar" }).click();
+  await expect(page.getByRole("button", { name: "Hide sidebar" })).toBeFocused();
+});
+
+test("WebKit agent HITL remains keyboard-operable", async ({ page }) => {
+  await openFixture(page, { fixture: "agent", state: "waiting", theme: "dark" });
+
+  const approve = page.getByRole("button", { name: /Approve/ });
+  await approve.focus();
+  await page.keyboard.press("Enter");
+
+  await expect(page.getByText("Approved", { exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Message composer" })).toBeVisible();
+  await expectNoPageOverflow(page);
+});
+
+test("WebKit renders long CJK and highlighted content at maximum UI text size", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openFixture(page, {
+    fixture: "agent",
+    state: "long-content",
+    fontSize: 18,
+  });
+
+  await expect(page.locator("body")).toHaveCSS("font-size", "18px");
+  await expect(page.locator(".shiki-block .shiki")).toBeVisible();
+  await expect(page.getByText(/中文混排/)).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Message composer" })).toBeVisible();
+  await expectNoPageOverflow(page);
+});
+
+test("WebKit workspace keeps review geometry and separator semantics", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openFixture(page, { fixture: "workspace", state: "dock-review", theme: "dark" });
+
+  await expect(page.locator("[data-diff-file]")).toHaveCount(2);
+  const separator = page.getByRole("separator", { name: "Resize the context dock" });
+  await expect(separator).toHaveAttribute("aria-valuemin", "300");
+  await expect
+    .poll(async () => Number(await separator.getAttribute("aria-valuenow")))
+    .toBeGreaterThan(300);
+  await expectNoPageOverflow(page);
+});
+
+test("WebKit settings menu dismisses and returns focus", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openFixture(page, {
+    fixture: "workspace",
+    state: "settings",
+    fontSize: 18,
+  });
+
+  const search = page.getByRole("searchbox", { name: "Search settings..." });
+  await expect(search).toBeVisible();
+  const theme = page.getByRole("button", { name: "Theme" });
+  await theme.click();
+  await expect(page.getByRole("menuitem", { name: "Light" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menuitem", { name: "Light" })).toHaveCount(0);
+  await expect(theme).toBeFocused();
+  await expectNoPageOverflow(page);
+});

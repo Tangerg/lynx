@@ -26,6 +26,10 @@ export default defineConfig({
       animations: "disabled",
       caret: "hide",
       scale: "css",
+      // Playwright's 0.2 default can treat a whole semantic ink-rung change as
+      // "the same" image. Geometry has explicit DOM/CSS assertions and contrast
+      // has Axe; the raster layer still needs to catch subtle colour drift.
+      threshold: 0.05,
     },
   },
   webServer: {

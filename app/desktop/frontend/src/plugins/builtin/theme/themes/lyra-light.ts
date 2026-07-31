@@ -32,7 +32,9 @@ const c = {
   ink: "#171717",
   inkSoft: "#4d4d4d",
   inkMuted: "#686868",
-  inkFaint: "#8f8f8f",
+  // The quietest readable text rung still clears 4.5:1 on both canvas and
+  // surface. Hierarchy comes from size/weight/placement, not illegible ink.
+  inkFaint: "#747474",
 
   // Hairlines ARE the separation mechanism here, so they are tuned low: the seam
   // ring and the chrome divider both derive from `border`, and anything heavier

@@ -13,7 +13,7 @@
 // `MENTION_LISTBOX_ID` on the popup, `mentionOptionId(i)` per row, and
 // aria-activedescendant on the textarea.
 
-/** The popup's element id — `aria-controls` on the textarea points at it. */
+/** The popup's element id — `aria-controls` points at it only while mounted. */
 export const MENTION_LISTBOX_ID = "composer-mention-listbox";
 
 /** Per-row element id — `aria-activedescendant` names the focused one. */

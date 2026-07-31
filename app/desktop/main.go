@@ -13,13 +13,20 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-func main() {
-	if err := wails.Run(&options.App{
+const (
+	defaultWindowWidth  = 1440
+	defaultWindowHeight = 900
+	minimumWindowWidth  = 1120
+	minimumWindowHeight = 720
+)
+
+func desktopApplicationOptions() *options.App {
+	return &options.App{
 		Title:     "lyra",
-		Width:     1440,
-		Height:    900,
-		MinWidth:  1280,
-		MinHeight: 720,
+		Width:     defaultWindowWidth,
+		Height:    defaultWindowHeight,
+		MinWidth:  minimumWindowWidth,
+		MinHeight: minimumWindowHeight,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
@@ -32,7 +39,11 @@ func main() {
 			TitleBar:   mac.TitleBarHiddenInset(),
 			Appearance: mac.NSAppearanceNameAqua,
 		},
-	}); err != nil {
+	}
+}
+
+func main() {
+	if err := wails.Run(desktopApplicationOptions()); err != nil {
 		log.Fatal(err)
 	}
 }

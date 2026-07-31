@@ -136,10 +136,9 @@ test("composer keeps one production edge, depth layer, and 6/8 footer inset", as
     (element) => getComputedStyle(element).borderTopColor,
   );
   await page.getByRole("textbox", { name: "Message composer" }).focus();
-  const borderAfterFocus = await composer.evaluate(
-    (element) => getComputedStyle(element).borderTopColor,
-  );
-  expect(borderAfterFocus).not.toBe(borderBeforeFocus);
+  await expect
+    .poll(() => composer.evaluate((element) => getComputedStyle(element).borderTopColor))
+    .not.toBe(borderBeforeFocus);
 });
 
 test("recovery action dismisses the problem and resends the last user input", async ({ page }) => {

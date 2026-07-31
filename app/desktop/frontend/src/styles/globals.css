@@ -354,7 +354,7 @@
   --color-text-bright: #000000;
   --color-text-soft: #4d4d4d;
   --color-text-muted: #686868;
-  --color-text-faint: #8f8f8f;
+  --color-text-faint: #747474;
   --color-text-on-accent: #ffffff;
   /* Ink on a solid `--color-warning` fill (the active search hit). Amber is
      light in both schemes, so this stays dark where on-accent flips. */
@@ -718,6 +718,26 @@ textarea:focus-visible {
   }
 }
 
+/* Compact desktop chrome keeps its visual density, but a coarse pointer needs a
+   real target rather than an invisible pseudo-element that can overlap the next
+   control. The minimum applies to interactive boxes only under touch/coarse
+   input; fine-pointer geometry and every screenshot baseline stay unchanged. */
+@media (pointer: coarse) {
+  :where(
+    button,
+    [role="button"],
+    [role="tab"],
+    [role="menuitem"],
+    [role="option"],
+    input:not([type="hidden"]),
+    textarea,
+    select
+  ) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 /* Same treatment when the user explicitly picks "Motion: Off" in
    Settings — needed because Tailwind utilities like `duration-150` emit
    literal millisecond values that the `--motion-scale` token can't
@@ -759,7 +779,7 @@ html.theme-dark {
   --color-text-bright: #ffffff;
   --color-text-soft: #a1a1a1;
   --color-text-muted: #818181;
-  --color-text-faint: #636363;
+  --color-text-faint: #7c7c7c;
   --color-text-on-accent: #ffffff;
   --color-text-on-warning: #000000;
 

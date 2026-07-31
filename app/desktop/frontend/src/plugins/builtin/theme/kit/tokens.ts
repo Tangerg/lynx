@@ -83,14 +83,15 @@ export function buildTokenMap(spec: ThemePluginSpec): Record<string, string> {
     "color-bg": spec.surfaces.bg,
     "color-surface": spec.surfaces.surface,
 
-    // Ink — soft/muted/faint default to `text` at decreasing alpha (Apple
-    // label model) so a theme can ship just `text` + `textBright` and get an
-    // adaptive ramp; palette themes pin explicit hues to keep their identity.
+    // Ink — soft/muted default to `text` at decreasing alpha. Faint deliberately
+    // shares the muted fallback: a third lower-opacity text rung fails AA on
+    // ordinary light/dark canvases. Themes may pin a distinct faint hue, but the
+    // generic fallback must remain readable without knowing the final surface.
     "color-text": spec.ink.text,
     "color-text-bright": spec.ink.textBright,
     "color-text-soft": spec.ink.textSoft ?? inkAlpha(82),
     "color-text-muted": spec.ink.textMuted ?? inkAlpha(56),
-    "color-text-faint": spec.ink.textFaint ?? inkAlpha(38),
+    "color-text-faint": spec.ink.textFaint ?? spec.ink.textMuted ?? inkAlpha(56),
 
     // Borders
     "color-border": spec.borders.border,

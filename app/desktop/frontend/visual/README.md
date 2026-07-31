@@ -19,15 +19,29 @@ The `foundation` fixture freezes geometry and primitive roles. The `shell`
 fixture installs test-only data providers, then renders the production sidebar
 plugins, application projections, workspace navigation port, and shell
 primitives for populated, empty, loading, error, collapsed, resized, and Retina
-states. The `agent`
-fixture is backed by canonical `AgentSessionSnapshot` values and the production
-`projectAgentSessionSnapshot` fold; its state selector covers empty, idle,
-Running, Waiting/HITL, terminal, error, delegated-tree, and long-content cases.
-The `workspace` fixture starts from the canonical Agent snapshot installer,
-registers the real workspace views and Settings pane plugins, and supplies only
-deterministic data providers. It covers per-density dock widths, navigation
-identity, diff loading/empty/error states, and the production Settings surface
-without a parallel presentation model.
+states. The `agent` fixture is backed by canonical `AgentSessionSnapshot`
+values and the production `projectAgentSessionSnapshot` fold; its state selector
+covers empty, idle, Running, Waiting/HITL, terminal, error, delegated-tree, and
+long-content cases. The `workspace` fixture starts from the canonical Agent
+snapshot installer, registers the real workspace views and Settings pane
+plugins, and supplies only deterministic data providers. It covers per-density
+dock widths, navigation identity, diff loading/empty/error states, and the
+production Settings surface without a parallel presentation model.
+
+`closure.visual.spec.ts` adds cross-surface release evidence: WCAG A/AA audits,
+keyboard-only traversal, IME composition, real 44 px coarse-pointer targets,
+OS and application motion preferences, the maximum 18 px UI type setting, and
+DPR 2 hairlines. Its goldens use a `0.05` per-pixel threshold so subtle ink
+regressions remain visible; geometry and contrast also have semantic
+assertions.
+
+`webkit.visual.spec.ts` is a compatibility smoke suite for the rendering engine
+closest to Wails' macOS WKWebView. It validates shell focus handoff, Agent HITL
+keyboard operation, CJK and syntax-highlighted long content, review geometry,
+and Settings menu focus return. It deliberately has no WebKit goldens:
+engine-specific font rasterisation must not create a second pixel baseline.
+Chromium owns deterministic screenshot comparison; WebKit owns CSS, layout,
+focus, and event compatibility.
 
 Run `npm run visual:dev` for inspection and `npm run visual:test` for regression
 checks. Update reviewed baselines with `npm run visual:test:update`.
@@ -42,3 +56,5 @@ Useful routes:
 - `/?fixture=workspace&theme=dark&state=dock-review`
 - `/?fixture=workspace&theme=light&state=dock-loading`
 - `/?fixture=workspace&theme=dark&state=settings`
+- `/?fixture=agent&theme=light&state=long-content&font-size=18`
+- `/?fixture=shell&theme=light&state=populated&motion=full`

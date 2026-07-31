@@ -96,7 +96,7 @@ export function Composer({
              happens to host a picker, and the picker's selected row is announced
              from here because focus never leaves (the caret has to keep blinking
              where the user is typing). */
-          aria-controls={MENTION_LISTBOX_ID}
+          aria-controls={input.mentions.active ? MENTION_LISTBOX_ID : undefined}
           aria-activedescendant={
             input.mentions.active ? mentionOptionId(input.mentions.index) : undefined
           }

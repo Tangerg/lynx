@@ -65,6 +65,12 @@ describe("composer", () => {
     expect(onChange).toHaveBeenCalledWith("hi");
   });
 
+  it("does not reference an unmounted mention listbox", () => {
+    wrap(<Composer {...baseProps} value="" onChange={() => {}} onSend={() => {}} />);
+
+    expect(screen.getByRole("textbox").hasAttribute("aria-controls")).toBe(false);
+  });
+
   it("submits non-empty text on Enter when a binding maps Enter → submit", async () => {
     await withEnterKeymap();
     const onSend = vi.fn();

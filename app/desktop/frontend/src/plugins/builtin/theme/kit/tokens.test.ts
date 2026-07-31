@@ -145,7 +145,7 @@ describe("buildTokenMap", () => {
     expect(tokens["color-text-faint"]).toBe("#666666");
   });
 
-  it("omitted ink soft/muted/faint derive as text at decreasing alpha", () => {
+  it("keeps the omitted faint ink at the readable muted fallback", () => {
     const tokens = buildTokenMap(makeSpec({ ink: { text: "#eeeeee", textBright: "#ffffff" } }));
     expect(tokens["color-text"]).toBe("#eeeeee");
     expect(tokens["color-text-soft"]).toBe(
@@ -155,7 +155,7 @@ describe("buildTokenMap", () => {
       "color-mix(in oklab, var(--color-text) 56%, transparent)",
     );
     expect(tokens["color-text-faint"]).toBe(
-      "color-mix(in oklab, var(--color-text) 38%, transparent)",
+      "color-mix(in oklab, var(--color-text) 56%, transparent)",
     );
   });
 

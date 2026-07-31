@@ -39,6 +39,7 @@ export function AgentAppShell({
   overlay,
 }: AgentAppShellProps) {
   const shellRef = useRef<HTMLDivElement>(null);
+  const previousSidebarOpenRef = useRef(sidebarOpen);
   const hasSidebar = sidebar !== undefined;
 
   // The rail writes `--sidebar-width` directly during a drag. This effect
@@ -60,6 +61,37 @@ export function AgentAppShell({
     observer.observe(shell);
     return () => observer.disconnect();
   }, [sidebarWidth]);
+
+  // The visible toggle changes owners when the drawer opens or closes. Perform
+  // the handoff after React has committed the new owner instead of asking the
+  // button click handler to guess whether one animation frame is late enough.
+  // This also covers keyboard shortcuts and other application-level toggles.
+  useEffect(() => {
+    const previousSidebarOpen = previousSidebarOpenRef.current;
+    previousSidebarOpenRef.current = sidebarOpen;
+    if (!hasSidebar || previousSidebarOpen === sidebarOpen) return;
+
+    // Let the committed visibility transition apply before focusing the owner.
+    // WebKit can keep the opening drawer hidden for more than one painted frame
+    // while it resolves the inherited visibility transition. Wait for actual
+    // visibility instead of coupling semantics to an animation duration or an
+    // arbitrary timer.
+    let frame = 0;
+    const focusOwner = () => {
+      const target = shellRef.current?.querySelector<HTMLButtonElement>(
+        `[data-drawer-toggle][aria-expanded="${sidebarOpen ? "true" : "false"}"]`,
+      );
+      if (!target) return;
+      const style = getComputedStyle(target);
+      if (style.display === "none" || style.visibility === "hidden") {
+        frame = requestAnimationFrame(focusOwner);
+        return;
+      }
+      target.focus();
+    };
+    frame = requestAnimationFrame(focusOwner);
+    return () => cancelAnimationFrame(frame);
+  }, [hasSidebar, sidebarOpen]);
 
   return (
     <div
