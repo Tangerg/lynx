@@ -14,11 +14,9 @@ import { useCallback, useEffect, useRef } from "react";
  * closes — then restore everything.
  *
  * @param animatedElementRef ref to the element whose height animates
- * @param animationDurationMs lock window; must match the CSS transition duration
  */
 export function useScrollLock<T extends HTMLElement = HTMLElement>(
   animatedElementRef: RefObject<T | null>,
-  animationDurationMs: number,
 ) {
   const scrollContainerRef = useRef<HTMLElement | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
@@ -43,7 +41,8 @@ export function useScrollLock<T extends HTMLElement = HTMLElement>(
     }
 
     const scrollContainer = scrollContainerRef.current;
-    if (!scrollContainer) return;
+    const animatedElement = animatedElementRef.current;
+    if (!scrollContainer || !animatedElement) return;
 
     const scrollPosition = scrollContainer.scrollTop;
     const previousScrollbarWidth = scrollContainer.style.scrollbarWidth;
@@ -75,16 +74,35 @@ export function useScrollLock<T extends HTMLElement = HTMLElement>(
     };
     scrollContainer.addEventListener("scroll", resetPosition);
 
-    const timeoutId = setTimeout(() => {
-      scrollContainer.removeEventListener("scroll", resetPosition);
-      restoreStyles();
-      cleanupRef.current = null;
-    }, animationDurationMs);
+    const timeoutId = setTimeout(
+      () => {
+        scrollContainer.removeEventListener("scroll", resetPosition);
+        restoreStyles();
+        cleanupRef.current = null;
+      },
+      transitionWindowMs(getComputedStyle(animatedElement)),
+    );
 
     cleanupRef.current = () => {
       clearTimeout(timeoutId);
       scrollContainer.removeEventListener("scroll", resetPosition);
       restoreStyles();
     };
-  }, [animationDurationMs, animatedElementRef]);
+  }, [animatedElementRef]);
+}
+
+function transitionWindowMs(style: CSSStyleDeclaration): number {
+  const durations = style.transitionDuration.split(",").map(cssTimeMs);
+  const delays = style.transitionDelay.split(",").map(cssTimeMs);
+  return durations.reduce(
+    (longest, duration, index) =>
+      Math.max(longest, duration + (delays[index % delays.length] ?? 0)),
+    0,
+  );
+}
+
+function cssTimeMs(value: string): number {
+  const time = Number.parseFloat(value);
+  if (!Number.isFinite(time)) return 0;
+  return value.trim().endsWith("ms") ? time : time * 1_000;
 }

@@ -32,7 +32,7 @@ export function Checkbox({ checked, onCheckedChange, label, disabled, className 
         onCheckedChange={onCheckedChange}
         disabled={disabled}
         className={cn(
-          "grid h-[18px] w-[18px] shrink-0 place-items-center rounded-2xs border-[0.5px] border-field bg-canvas transition-colors duration-150",
+          "grid h-[18px] w-[18px] shrink-0 place-items-center rounded-2xs border-[0.5px] border-field bg-canvas transition-colors duration-[var(--dur-fast)]",
           "data-[checked]:border-accent data-[checked]:bg-accent",
         )}
       >

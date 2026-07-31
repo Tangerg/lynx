@@ -119,7 +119,7 @@ export function MermaidBlock({ code }: Props) {
             // affordance. `[&_svg]:` reaches the SVG that
             // dangerouslySetInnerHTML drops in (we can't put utilities on it
             // directly).
-            className="my-3.5 w-full cursor-zoom-in overflow-x-auto rounded-lg border-[0.5px] border-field-strong bg-surface p-4 text-center transition-colors duration-150 hover:border-accent-badge [&_svg]:h-auto [&_svg]:max-w-full"
+            className="my-3.5 w-full cursor-zoom-in overflow-x-auto rounded-lg border-[0.5px] border-field-strong bg-surface p-4 text-center transition-colors duration-[var(--dur-fast)] hover:border-accent-badge [&_svg]:h-auto [&_svg]:max-w-full"
             dangerouslySetInnerHTML={{ __html: svg }}
           />
         }

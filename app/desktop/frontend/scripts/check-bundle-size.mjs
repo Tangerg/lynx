@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Bundle size budget — guards against accidental regressions in the
-// first-paint payload (entry JS/CSS referenced directly from
-// index.html). Lazy chunks (Shiki language grammars, OTEL SDK,
-// per-plugin code-split) are intentionally excluded — the user only
-// pays for those when the feature is exercised, so growth there is
-// expected as the feature surface widens.
+// first-paint payload (entry JS/CSS referenced directly from index.html) and the
+// two intentionally heavyweight lazy capabilities. Vite's raw-size warning is
+// a poor proxy here: ELK and Shiki are disk-served, compressed, lazy features.
+// Explicit gzip budgets preserve the real invariant without funneling unrelated
+// dependencies into one vendor chunk or suppressing unbounded growth.
 //
 // Method:
 //   1. Parse dist/index.html, extract every <script src> and
@@ -18,8 +18,8 @@
 // the same commit that introduces the growth. Reviewers SHOULD push
 // back on bumps without a justification line.
 
-import { readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { basename, join } from "node:path";
 import { gzipSync } from "node:zlib";
 
 const DIST = "dist";
@@ -33,6 +33,19 @@ const BUDGETS = {
   js: 960_000, // entry JS (current ~858 KB gzip)
   css: 25_000, // entry CSS (current ~14.5 KB gzip)
 };
+
+const LAZY_FEATURE_BUDGETS = [
+  {
+    label: "syntax highlighting",
+    prefix: "markdown-",
+    budget: 520_000,
+  },
+  {
+    label: "diagram rendering",
+    prefix: "mermaid-",
+    budget: 520_000,
+  },
+];
 
 function loadIndexHtml() {
   try {
@@ -58,6 +71,11 @@ function gzipSizeOf(relativeUrl) {
   // slash to make a filesystem path relative to dist/.
   const path = join(DIST, relativeUrl.replace(/^\//, ""));
   statSync(path); // throw early with a clear message if missing
+  return gzipSync(readFileSync(path)).length;
+}
+
+function gzipSizeOfPath(path) {
+  statSync(path);
   return gzipSync(readFileSync(path)).length;
 }
 
@@ -91,9 +109,31 @@ for (const ext of /** @type {const} */ (["js", "css"])) {
   );
 }
 
+const assetDirectory = join(DIST, "assets");
+const assetNames = readdirSync(assetDirectory);
+console.log("[check-bundle-size] lazy feature payloads (gzip):");
+for (const { label, prefix, budget } of LAZY_FEATURE_BUDGETS) {
+  const chunks = assetNames.filter((name) => name.startsWith(prefix) && name.endsWith(".js"));
+  if (chunks.length === 0) {
+    console.error(`  ${label}: no ${prefix}*.js chunk found`);
+    failed = true;
+    continue;
+  }
+  const used = chunks.reduce(
+    (sum, name) => sum + gzipSizeOfPath(join(assetDirectory, basename(name))),
+    0,
+  );
+  const pct = ((used / budget) * 100).toFixed(1);
+  const status = used > budget ? "FAIL" : "OK";
+  if (used > budget) failed = true;
+  console.log(
+    `  ${label.padEnd(20)} ${formatKb(used).padStart(10)} / ${formatKb(budget).padStart(10)}  (${pct}%) ${status}`,
+  );
+}
+
 if (failed) {
   console.error("");
-  console.error("[check-bundle-size] FAIL — entry payload exceeded its budget.");
+  console.error("[check-bundle-size] FAIL — a guarded payload exceeded its budget.");
   console.error("If this growth is intentional, update BUDGETS in");
   console.error("scripts/check-bundle-size.mjs in the same commit.");
   process.exit(1);

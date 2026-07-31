@@ -65,7 +65,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
     <div className="group relative my-1">
       <div
         className={cn(
-          "overflow-hidden rounded-lg transition-colors duration-150",
+          "overflow-hidden rounded-lg transition-colors duration-[var(--dur-fast)]",
           model.isError ? "bg-negative-wash" : model.needsAction ? "bg-warning-wash" : "bg-surface",
         )}
       >
@@ -75,7 +75,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
           onClick={onToggleExpand}
           className={cn(
             "flex w-full items-center gap-3 px-3 py-2.5 text-left",
-            "transition-colors duration-100",
+            "transition-colors duration-[var(--dur-fast)]",
             model.isError
               ? "hover:bg-negative-wash"
               : model.needsAction
@@ -147,7 +147,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
             name="chevron-down"
             size={14}
             className={cn(
-              "shrink-0 text-fg-faint transition-transform duration-150",
+              "shrink-0 text-fg-faint transition-transform duration-[var(--dur-fast)]",
               !expanded && "-rotate-90",
             )}
           />

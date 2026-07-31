@@ -37,7 +37,7 @@ function ContextDockView() {
                   onClick={() => openContextDockDestination(destination)}
                   className={cn(
                     "flex min-h-9 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left",
-                    "text-ui-lg text-fg transition-[background-color] duration-100 ease-out",
+                    "text-ui-lg text-fg transition-[background-color] duration-[var(--dur-fast)] ease-out",
                     "hover:bg-hover",
                     "focus-visible:bg-hover",
                   )}

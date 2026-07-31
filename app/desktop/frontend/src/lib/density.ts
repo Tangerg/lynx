@@ -23,7 +23,7 @@ const SCALE: Readonly<Record<UiDensity, number>> = {
 
 /** Comfortable-mode base values, in px. Every mode is these times its scale. */
 const BASE_PX = {
-  rowHeight: 30,
+  rowHeight: 28,
   rowGap: 8,
   columnGutter: 12,
   columnGutterWide: 20,
@@ -31,10 +31,8 @@ const BASE_PX = {
   composerEditorBottom: 8,
   composerEditorStart: 12,
   composerEditorEnd: 14,
-  // A 6px inset on a 32px control row had the buttons hugging the card edge; the
-  // reference gives its footer real room, and the row reads as chrome either way.
-  composerFooter: 8,
-  composerFooterEnd: 10,
+  composerFooter: 6,
+  composerFooterEnd: 8,
 } as const;
 
 export function isUiDensity(value: unknown): value is UiDensity {

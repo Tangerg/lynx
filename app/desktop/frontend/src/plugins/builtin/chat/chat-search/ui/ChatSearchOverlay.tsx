@@ -3,7 +3,11 @@ import { IconButton, TextField } from "@/ui";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
-import { clearChatSearchHighlights, paintChatSearchHighlights } from "../adapters/searchHighlights";
+import {
+  clearChatSearchHighlights,
+  installChatSearchHighlightStyles,
+  paintChatSearchHighlights,
+} from "../adapters/searchHighlights";
 import { setChatSearchOpener } from "../application/openChatSearch";
 import { findMessageRanges } from "../adapters/messageRanges";
 
@@ -18,6 +22,8 @@ export function ChatSearchOverlay() {
     setChatSearchOpener(() => setOpen(true));
     return () => setChatSearchOpener(null);
   }, []);
+
+  useEffect(installChatSearchHighlightStyles, []);
 
   const activeSessionId = useActiveSessionId();
   useEffect(() => {

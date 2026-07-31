@@ -16,7 +16,7 @@ const RAINBOW_HINT =
 // a gap around the colour rather than touching it. Both pickers below wear it —
 // they are the same affordance rendered as a <button> and as a <label>.
 const SWATCH_CHROME =
-  "h-4.5 w-4.5 rounded-full border-2 border-transparent bg-clip-padding transition-[transform,box-shadow] duration-150 active:scale-[var(--press-scale)]";
+  "h-4.5 w-4.5 rounded-full border-2 border-transparent bg-clip-padding transition-[transform,box-shadow] duration-[var(--dur-fast)] active:scale-[var(--press-scale)]";
 const SWATCH_SELECTED = "border-surface shadow-[var(--shadow-swatch-selected)]";
 
 function CustomAccentPicker({

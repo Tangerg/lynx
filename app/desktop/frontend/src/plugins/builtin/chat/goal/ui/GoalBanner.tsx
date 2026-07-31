@@ -7,7 +7,7 @@
 import { useCallback, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Icon, PillButton, TextArea, TextField } from "@/ui";
-import { swift } from "@/lib/motion";
+import { disclosureTransition } from "@/lib/motion";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { notifyError } from "@/plugins/sdk";
@@ -91,7 +91,7 @@ function ActiveGoal({ goal, sessionId }: { goal: GoalReadModel; sessionId: strin
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
-      transition={swift}
+      transition={disclosureTransition}
       className="mt-2 mb-1 overflow-hidden rounded-lg bg-surface"
     >
       <div className="flex items-start gap-2.5 px-3 py-2.5">
@@ -197,7 +197,7 @@ function StartGoal({ sessionId }: { sessionId: string }) {
     <motion.div
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={swift}
+      transition={disclosureTransition}
       className="mt-2 mb-1 flex flex-col gap-2 rounded-lg bg-surface p-3"
     >
       <div className="flex items-center gap-1.5 text-ui-md font-medium text-fg-soft">

@@ -39,7 +39,9 @@ const MARKUP_RULES = [
     // them — a selected tab lifted by `inset 0 1px 0 rgba(255,255,255,0.03)` —
     // was a value chosen for the dark theme, so in light the tab had no lift at
     // all. Two others were the same accent glow written twice.
-    // `shadow-[var(--shadow-*)]` stays legal: that IS the ladder.
+    // A shadow utility that reads a named `--shadow-…` token stays legal:
+    // that is the ladder. Avoid spelling a wildcard-like Tailwind class in this
+    // source comment because Tailwind scans source text before JavaScript runs.
     pattern: /(?<![\w-])shadow-\[(?!var\(--shadow-)[^\]]*\]/g,
     message: "hardcoded shadow — define a `--shadow-*` token in globals.css and use it",
   },

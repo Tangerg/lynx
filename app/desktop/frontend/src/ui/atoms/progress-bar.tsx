@@ -16,7 +16,7 @@ export function ProgressBar({ value, className, indicatorClassName }: ProgressBa
     >
       <ProgressPrimitive.Indicator
         className={cn(
-          "h-full rounded-pill bg-accent transition-[width] duration-150",
+          "h-full rounded-pill bg-accent transition-[width] duration-[var(--dur-fast)]",
           indicatorClassName,
         )}
         style={{ width: `${bounded}%` }}

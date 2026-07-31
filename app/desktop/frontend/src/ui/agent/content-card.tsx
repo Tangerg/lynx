@@ -4,11 +4,9 @@ import { cn } from "@/lib/classNames";
 /**
  * The opaque content surface that floats as a card over the drawer.
  *
- * The 1px line that divides it from the drawer and the depth shadow both live in
- * globals.css, and both switch off when the drawer collapses — at that point the
- * card reaches the window edge and there is no drawer left to divide from. The seam
- * side is deliberately square: a corner arc there resolves over so few pixels of
- * height that it reads as a kink in the divider rather than a curve.
+ * The 14.4px seam-side radius, clipped 1px inset ring, backing wedge, and depth
+ * shadow live together in globals.css. They transition off as one object when
+ * the drawer collapses, leaving the native window corner as the only curve.
  *
  * `label` names the region for assistive tech and comes from the caller — see
  * AgentSidebar for why the design system does not get to name it.

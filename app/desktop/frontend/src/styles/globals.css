@@ -12,7 +12,9 @@
  * The remaining standalone files (`markdown.css`, `overlays.css`, `tool.css`)
  * carry rules that legitimately can't live in Tailwind utilities:
  * rehype-emitted DOM, pseudo-element scrollbars, `@property` conic-gradient
- * masks, `::highlight()` ranges.
+ * masks and browser-specific chrome. Chat-search `::highlight()` paint rules
+ * live with the DOM adapter that installs their runtime stylesheet, because the
+ * current build parser does not understand that platform selector.
  */
 
 /* Fonts: the native system stack (SF Pro / PingFang on macOS, the app's
@@ -410,12 +412,12 @@
      Absolute px, NOT rem: geometry must not move when the type base moves —
      a rem ladder drags every padding/width along and makes fixed chrome heights
      (header, rows) impossible to hold. */
-  --fs-ui-2xs: 11px;
-  --fs-ui-xs: 12px;
-  --fs-ui-sm: 13px;
-  --fs-ui-md: 14px;
-  --fs-ui-lg: 15px;
-  --fs-code: 13px;
+  --fs-ui-2xs: 9px;
+  --fs-ui-xs: 10px;
+  --fs-ui-sm: 11px;
+  --fs-ui-md: 12px;
+  --fs-ui-lg: 13px;
+  --fs-code: 11px;
 
   /* 600 is the Geist heading weight — hierarchy via size + weight contrast. */
   --fw-regular: 400;
@@ -448,6 +450,7 @@
   --shape-md: calc(10px * var(--radius-scale)); /* default control radius */
   --shape-lg: calc(14px * var(--radius-scale)); /* cards */
   --shape-xl: calc(18px * var(--radius-scale)); /* menus, popovers, dock card */
+  --app-content-card-radius: calc(14.4px * var(--radius-scale));
   --shape-composer: calc(19.2px * var(--radius-scale));
   --shape-bubble: calc(12.8px * var(--radius-scale)); /* user message bubble */
   /* Conceptual ("fully round") — not scaled. */
@@ -457,7 +460,7 @@
      recomputes these from the user's pick (lib/density.ts). Chrome-bar heights
      are NOT here on purpose: they stay pinned so the drawer and content headers
      keep lining up across the seam. */
-  --density-row-height: 30px;
+  --density-row-height: 28px;
   --density-row-gap: 8px;
   --density-column-gutter: 12px;
   --density-column-gutter-wide: 20px;
@@ -465,8 +468,8 @@
   --density-composer-editor-bottom: 8px;
   --density-composer-editor-start: 12px;
   --density-composer-editor-end: 14px;
-  --density-composer-footer: 8px;
-  --density-composer-footer-end: 10px;
+  --density-composer-footer: 6px;
+  --density-composer-footer-end: 8px;
 
   /* Motion — same curves as motion/react via lib/motion.ts. Duration
      tokens multiply through `--motion-scale` so a user preference
@@ -488,29 +491,22 @@
 
   --dur-fast: calc(150ms * var(--motion-scale));
   --dur-med: calc(200ms * var(--motion-scale));
+  --dur-disclosure: calc(220ms * var(--motion-scale));
   --dur-slow: calc(360ms * var(--motion-scale));
 
   --polish-fast: var(--dur-fast) var(--ease-out);
   --polish-med: var(--dur-med) var(--ease-out);
 
   /* -----------------------------------------------------------------------
-   *  Shadow system — one soft directional layer per role. The edge is now drawn
-   *  by a real 1px border on the surfaces that need one (composer, menus), so
-   *  these carry depth only; stacking an optical ring on top of a border reads as
-   *  a double edge.
+   *  Shadow system — one edge mechanism per role. Composer owns a real border,
+   *  so its shadow carries depth only. Popovers own one optical ring plus depth
+   *  and do not stack a border over it.
    * ----------------------------------------------------------------------- */
   --shadow-border: 0 0 0 0.5px rgb(17 17 17 / 0.08);
   --shadow-control:
     0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 1px rgb(17 17 17 / 0.04),
     0 4px 10px -4px rgb(17 17 17 / 0.07);
-  --shadow-composer:
-    0 0 0 1px var(--seam-line),
-    0 6px 30px -8px color-mix(in srgb, var(--color-text) 9%, transparent);
-  /* Focus only strengthens the ring — the surface must not appear to rise when the
-     caret lands in it, or every click reads as the composer jumping. */
-  --shadow-composer-focus:
-    0 0 0 1px color-mix(in srgb, var(--color-text) 18%, transparent),
-    0 6px 30px -8px color-mix(in srgb, var(--color-text) 11%, transparent);
+  --shadow-composer-depth: 0 6px 30px -8px color-mix(in srgb, var(--color-text) 9%, transparent);
   --shadow-popover:
     0 0 0 1px var(--seam-line),
     0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent);
@@ -786,10 +782,7 @@ html.theme-dark {
   --shadow-control:
     0 0 0 0.5px rgb(255 255 255 / 0.11), 0 1px 1px rgb(0 0 0 / 0.22),
     0 7px 18px -14px rgb(0 0 0 / 0.62);
-  --shadow-composer: 0 0 0 1px var(--seam-line), 0 8px 40px -12px rgb(0 0 0 / 0.4);
-  --shadow-composer-focus:
-    0 0 0 1px color-mix(in srgb, var(--color-text) 22%, transparent),
-    0 8px 40px -12px rgb(0 0 0 / 0.45);
+  --shadow-composer-depth: 0 8px 40px -12px rgb(0 0 0 / 0.4);
   --shadow-popover:
     0 0 0 1px var(--seam-line), 0 12px 32px -12px rgb(0 0 0 / 0.55), 0 2px 6px -2px rgb(0 0 0 / 0.4);
   /* Dark needs a deeper well and a far quieter highlight: on a near-black track a
@@ -999,6 +992,25 @@ html.theme-dark {
   height: 100vh;
 }
 
+.agent-card-backing::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  z-index: 0;
+  width: var(--app-content-card-radius);
+  pointer-events: none;
+  opacity: 0;
+  background: var(--app-drawer-surface);
+  box-shadow: var(--app-drawer-shadow);
+  backdrop-filter: var(--app-drawer-backdrop);
+  -webkit-backdrop-filter: var(--app-drawer-backdrop);
+  transition: opacity var(--dur-drawer) var(--ease-drawer);
+}
+.agent-shell[data-sidebar="expanded"] .agent-card-backing::after {
+  opacity: 1;
+}
+
 /* The card reads as a raised surface floating over the drawer: rounded on the
    seam side, one inset hairline ring, one soft directional shadow. */
 .agent-content-card {
@@ -1011,26 +1023,27 @@ html.theme-dark {
   flex-direction: column;
   overflow: hidden;
   background: var(--color-bg);
+  border-radius: var(--app-content-card-radius) 0 0 var(--app-content-card-radius);
   /* Low spread + negative offset keeps the shadow hugging the seam instead of
      fanning across the drawer. */
   box-shadow: -6.5px 0 12px -10px var(--seam-shadow-color);
-  transition: box-shadow var(--dur-drawer) var(--ease-drawer);
+  transition:
+    box-shadow var(--dur-drawer) var(--ease-drawer),
+    border-radius var(--dur-drawer) var(--ease-drawer);
 }
 
-/* The divider is a straight full-height 1px line on the card's seam edge.
-   NOT a rounded card: rounding the seam side puts a corner arc at the top and
-   bottom of the divider, and because that arc resolves over only a few pixels of
-   height it reads as a kink in an otherwise straight line rather than as a curve.
-   A square edge is what makes the seam read as one clean vertical rule.
-   Painted as an inset shadow on ::before rather than a border so it costs no
-   layout and cannot shift the header's box. */
+/* Draw a full inset ring that follows the inherited radius, then clip it to the
+   radius-width strip on the seam side. This preserves only the vertical edge and
+   its two curves—never top, bottom, or far-side strokes. */
 .agent-content-card::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  box-shadow: inset 1px 0 0 0 var(--seam-line);
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--seam-line);
+  clip-path: inset(0 calc(100% - var(--app-content-card-radius)) 0 0);
   transition: opacity var(--dur-drawer) var(--ease-drawer);
 }
 
@@ -1068,6 +1081,7 @@ html.theme-dark {
    which Chromium snaps instead of interpolating. */
 .agent-shell[data-sidebar="collapsed"] .agent-content-card {
   --seam-shadow-color: transparent;
+  border-radius: 0;
 }
 .agent-shell[data-sidebar="collapsed"] .agent-content-card::before {
   opacity: 0;

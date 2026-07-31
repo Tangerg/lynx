@@ -41,7 +41,7 @@ export function DelegatedRunDisclosure({
           aria-expanded={expanded}
           aria-controls={panelId}
           onClick={() => setPinnedExpanded(!expanded)}
-          className="flex min-h-10 min-w-0 flex-1 items-center gap-2.5 px-3 text-left transition-colors duration-100 hover:bg-hover"
+          className="flex min-h-10 min-w-0 flex-1 items-center gap-2.5 px-3 text-left transition-colors duration-[var(--dur-fast)] hover:bg-hover"
         >
           <span className="grid h-7 w-7 shrink-0 place-items-center rounded-sm bg-surface-2 text-fg-muted">
             <Icon name="bot" size={15} />
@@ -78,7 +78,7 @@ export function DelegatedRunDisclosure({
             name="chevron-down"
             size={14}
             className={cn(
-              "shrink-0 text-fg-faint transition-transform duration-150 motion-reduce:transition-none",
+              "shrink-0 text-fg-faint transition-transform duration-[var(--dur-fast)] motion-reduce:transition-none",
               !expanded && "-rotate-90",
             )}
           />

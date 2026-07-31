@@ -24,16 +24,14 @@ model:
 3. **Ambient shadow**: a wide, low-alpha falloff that gives elevation without a
    muddy border.
 
-**Where the edge comes from (2026-07):** surfaces that need one now draw a real
-`border`, and the shadow tokens carry depth only. A shadow ring stacked on top of
-a border reads as a double edge, and it lands exactly where the eye is drawn — the
-composer's top edge, a menu's corner. Each role picks ONE, and which one follows whether the surface FLOATS:
+**Where the edge comes from (2026-07):** a shadow ring stacked on top of a border
+reads as a double edge. Each role therefore owns exactly one edge mechanism:
 
-- **floating** (composer, and anything that overlaps content) → the edge is the
-  FIRST LAYER of the shadow, at the same `--seam-line` value the drawer seam uses,
-  plus an ambient layer. One mechanism, and the ring follows the corner radius more
-  evenly than a border does;
-- **fixed control** (inputs, chips, menu shells) → a real border;
+- **composer** → one real field border plus a depth-only shadow; focus strengthens
+  the same border without moving the surface;
+- **floating overlay** (menus, popovers, tooltips) → one optical ring in its
+  shadow token plus directional depth, with no second border;
+- **fixed control** (inputs and chips) → a real border;
 - **region boundary** → an inset 1px line (the drawer↔card seam, pane splits,
   chrome-bar bottoms);
 - **state** → background fill only (row hover/selection).
@@ -41,16 +39,18 @@ composer's top edge, a menu's corner. Each role picks ONE, and which one follows
 Current shapes (authoritative values live in `globals.css` / the theme kit):
 
 ```css
-/* Floating surface: edge ring + ambient in ONE token, no border. */
---shadow-composer:
+/* Composer: real border in the component, depth only here. */
+--shadow-composer-depth: 0 6px 30px -8px color-mix(in srgb, var(--color-text) 9%, transparent);
+
+/* Floating overlay: optical edge + depth in one token, no border. */
+--shadow-popover:
   0 0 0 1px var(--seam-line),
-  0 6px 30px -8px color-mix(in srgb, var(--color-text) 9%, transparent);
+  0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent);
 
 /* A recessed well plus the chip that protrudes from it. */
 --shadow-well: inset 0 1px 2px rgb(0 0 0 / 0.06);
 --shadow-raised-chip:
-  0 1px 1.5px rgb(0 0 0 / 0.04),
-  inset 0 0 0 0.5px rgb(255 255 255 / 0.35),
+  0 1px 1.5px rgb(0 0 0 / 0.04), inset 0 0 0 0.5px rgb(255 255 255 / 0.35),
   inset 0 1px 0 rgb(255 255 255 / 0.5);
 ```
 
@@ -79,9 +79,10 @@ Preferred:
   a low-spread directional shadow;
 - internal pane splits + chrome-bar bottoms: the `--app-surface-divider` hairline
   (a step more transparent than the seam, so it recedes behind it);
-- floating surface edge (composer): the shadow's own first layer at `--seam-line`,
-  never a border as well;
-- fixed control edge (inputs, chips, menu shells): a real `border`;
+- composer: one real field border + `--shadow-composer-depth`;
+- floating overlay edge: the shadow's own first layer at `--seam-line`, never a
+  border as well;
+- fixed control edge (inputs and chips): a real `border`;
 - row state: fill delta;
 - focus: the global keyboard-only ring — never a per-control one;
 - danger/warning state: semantic border/fill token.
@@ -121,8 +122,8 @@ Rules for Lyra:
 
 Before merging UI polish work, inspect these points:
 
-- Does the surface boundary come from `shadow ring + contact + ambient`, or from
-  a gray border?
+- Does the role use exactly one edge mechanism: real border, optical ring, or
+  region hairline?
 - Is the shadow token semantic enough for reuse, or is it a one-off arbitrary
   class?
 - Does the component still work in light and dark themes?

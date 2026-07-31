@@ -53,7 +53,7 @@ function MessageBlockInner({
   const content = renderMessageBlocks(msg, blockCtx);
 
   const actionsClass = cn(
-    "mt-1 flex transition-opacity duration-[--dur-fast]",
+    "mt-1 flex transition-opacity duration-[var(--dur-fast)]",
     ACTIONS_VISIBILITY[messageActionsVisibility({ isRunning, isLast })],
   );
 

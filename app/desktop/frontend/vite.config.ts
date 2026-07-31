@@ -40,6 +40,12 @@ export default defineConfig({
   build: {
     // Desktop app loads from disk, so chunk size is less critical than on web.
     // Still, splitting vendor deps means Wails updates only ship changed chunks.
+    // The largest intentional lazy features are ELK-backed diagrams and Shiki;
+    // their compressed payloads have explicit budgets in check-bundle-size.mjs.
+    // Keep Vite's raw warning just above those known monoliths so it catches a
+    // new unclassified mega-chunk without reporting the same reviewed features
+    // on every clean build.
+    chunkSizeWarningLimit: 1600,
     rollupOptions: {
       output: {
         manualChunks(id: string) {
@@ -76,8 +82,9 @@ export default defineConfig({
           if (id.includes("node_modules/beautiful-mermaid")) return "mermaid";
           // OpenTelemetry — only used in diagnostics view
           if (id.includes("node_modules/@opentelemetry")) return "otel";
-          // Other node_modules
-          if (id.includes("node_modules")) return "vendor-libs";
+          // Leave unrelated dependencies to Rollup's graph-aware chunking. A
+          // catch-all vendor bucket merged otherwise independent lazy features
+          // into one 9MB raw chunk and defeated the explicit boundaries above.
           return undefined;
         },
       },

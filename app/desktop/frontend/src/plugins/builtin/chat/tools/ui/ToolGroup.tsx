@@ -34,7 +34,7 @@ export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand }: 
         aria-expanded={model.expanded}
         className={cn(
           "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left",
-          "transition-colors duration-100 hover:bg-hover",
+          "transition-colors duration-[var(--dur-fast)] hover:bg-hover",
         )}
       >
         <Icon name="search" size={14} className="shrink-0 text-fg-muted" />
@@ -46,7 +46,7 @@ export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand }: 
           name="chevron-down"
           size={14}
           className={cn(
-            "shrink-0 text-fg-faint transition-transform duration-150",
+            "shrink-0 text-fg-faint transition-transform duration-[var(--dur-fast)]",
             !model.expanded && "-rotate-90",
           )}
         />

@@ -8,6 +8,10 @@
   },
   "scripts": {
     "dev": "vite",
+    "visual:dev": "vite --config vite.visual.config.ts",
+    "visual:build": "vite build --config vite.visual.config.ts",
+    "visual:test": "playwright test --config playwright.visual.config.ts",
+    "visual:test:update": "playwright test --config playwright.visual.config.ts --update-snapshots",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
@@ -93,6 +97,7 @@
   "devDependencies": {
     "@commitlint/cli": "^21.1.0",
     "@commitlint/config-conventional": "^21.1.0",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",

@@ -52,7 +52,7 @@ export function AgentDockTabs({ tabs }: { tabs: AgentDockTab[] }) {
           onClick={tab.onSelect}
           className={cn(
             "inline-flex h-7 min-w-0 max-w-40 shrink-0 items-center gap-1.5 rounded-md border-0 bg-transparent px-1.5",
-            "text-ui-sm font-normal text-fg-muted transition-colors duration-[120ms] ease-out",
+            "text-ui-sm font-normal text-fg-muted transition-colors duration-[var(--dur-fast)] ease-out",
             "hover:bg-hover hover:text-fg",
             "data-[active]:bg-selected data-[active]:text-fg",
           )}

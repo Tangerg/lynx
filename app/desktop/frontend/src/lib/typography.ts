@@ -10,13 +10,12 @@
 // gutters) must hold still when the type base moves. A rem ladder drags every
 // padding and width along with it, which makes fixed chrome heights impossible.
 //
-// Base 14. Measured against Codex at matched scale, its sidebar labels stand ~22.7
-// device px tall against our 19 at base 13 — ours ran about a sixth small. Reading
-// text goes a further step up (markdown prose takes `ui-lg`, not the base): the
-// thing being read should be larger than the chrome around it, which is also where
-// Codex sits.
+// Base 12. The Synara reference and Lynx baseline agree on a 9/10/11/12/13px
+// chrome ladder, with reading text one step above the 12px base. The user may
+// still move the base through the supported range; 12 is only the clean
+// first-paint and preference fallback, not a second fixed-size path.
 
-export const UI_FONT_SIZE_DEFAULT_PX = 14;
+export const UI_FONT_SIZE_DEFAULT_PX = 12;
 export const UI_FONT_SIZE_MIN_PX = 11;
 export const UI_FONT_SIZE_MAX_PX = 18;
 

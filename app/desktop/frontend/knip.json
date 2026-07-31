@@ -1,5 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "entry": ["visual/main.tsx", "visual/**/*.visual.spec.ts"],
   "ignoreExportsUsedInFile": true,
   "ignore": [
     "sample-plugins/**",

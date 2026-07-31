@@ -27,12 +27,16 @@ function scaled(seconds: number): Transition {
   return t;
 }
 
-export const swift: Transition = scaled(0.22);
+/** Expand/collapse and banner replacement: enough time for structure to read. */
+export const disclosureTransition: Transition = scaled(0.22);
+
+/** Small content entrance: shorter than structural disclosure motion. */
+const contentEnterTransition: Transition = scaled(0.2);
 
 // Soft enter from a few px below — for new chat messages.
 export const enterUp = {
   initial: { opacity: 0, y: 6 },
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -4 },
-  transition: swift,
+  transition: contentEnterTransition,
 };

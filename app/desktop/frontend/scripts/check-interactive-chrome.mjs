@@ -19,9 +19,10 @@
 // fired on mouse clicks too, which the global rule deliberately avoids.
 //
 // They now live in one place each: `--color-hover`, `--color-selected`,
-// `--press-scale` and the global focus rule in globals.css. A state-prefixed ink
-// wash, a surface swap over a transparent rest state, a literal press amount or a
-// hand-drawn focus ring is that decision leaking back out to the callsite.
+// `--press-scale`, the `--dur-*` ladder and the global focus rule in globals.css.
+// A state-prefixed ink wash, a surface swap over a transparent rest state, a
+// literal press amount or duration, `transition-all`, or a hand-drawn focus ring
+// is that decision leaking back out to the callsite.
 //
 // Escape hatch: none by design. A state fill the two tokens cannot express is a
 // signal that the interaction model needs a third state, not that this callsite
@@ -70,6 +71,17 @@ const RULES = [
       "hand-drawn focus ring — the global rule draws it; mark `data-focus-inset` if it would clip",
     appliesTo: (_line, rel) => rel !== "styles/globals.css",
   },
+  {
+    pattern: /\btransition-all\b/g,
+    message:
+      "`transition-all` couples unrelated properties — enumerate only the properties that move",
+    appliesTo: () => true,
+  },
+  {
+    pattern: /\bduration-(?:\d+\b|\[[\d.]+ms\])/g,
+    message: "literal interaction duration — use the semantic `--dur-*` ladder",
+    appliesTo: (_line, rel) => rel !== "styles/globals.css",
+  },
 ];
 
 function* walk(dir) {
@@ -100,4 +112,6 @@ if (violations.length > 0) {
   for (const violation of violations) console.error(`  ${violation}`);
   process.exit(1);
 }
-console.log("check-interactive-chrome: hover + selected + press + focus each hold one value");
+console.log(
+  "check-interactive-chrome: hover + selected + press + focus + motion each hold one value",
+);

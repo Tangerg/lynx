@@ -3,7 +3,7 @@ import type { MouseEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { Icon, IconButton, StepMark, type StepState } from "@/ui";
-import { swift } from "@/lib/motion";
+import { disclosureTransition } from "@/lib/motion";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { useCurrentRootPlan, useCurrentRootRunId } from "@/plugins/builtin/agent/public/run";
@@ -33,7 +33,7 @@ export function PlanProgressBanner() {
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -4 }}
-          transition={swift}
+          transition={disclosureTransition}
           className="mt-2 mb-1 overflow-hidden rounded-lg bg-surface"
         >
           <div className="flex items-center">
@@ -63,7 +63,7 @@ export function PlanProgressBanner() {
                   initial={{ opacity: 0, y: 3 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -3 }}
-                  transition={swift}
+                  transition={disclosureTransition}
                   className="min-w-0 flex-1 truncate text-ui-lg leading-body text-fg"
                 >
                   {expanded
@@ -94,7 +94,7 @@ export function PlanProgressBanner() {
 
           <div
             className={cn(
-              "grid transition-[grid-template-rows] duration-150 ease-out",
+              "grid transition-[grid-template-rows] duration-[var(--dur-disclosure)] ease-out",
               expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
             )}
           >

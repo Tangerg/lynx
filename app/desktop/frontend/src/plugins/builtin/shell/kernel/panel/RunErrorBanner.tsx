@@ -19,7 +19,7 @@ import {
   useActiveSessionProblem,
 } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
-import { swift } from "@/lib/motion";
+import { disclosureTransition } from "@/lib/motion";
 import { describeErrorType } from "@/lib/rpcErrors";
 import {
   openDiagnosticsView,
@@ -108,7 +108,7 @@ export function RunErrorBanner() {
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
-          transition={swift}
+          transition={disclosureTransition}
           className="grid grid-cols-[auto_1fr_auto] items-start gap-2.5 mx-4 mt-2.5 mb-1 rounded-lg px-4 py-3 bg-negative-wash text-fg font-sans"
         >
           <Icon name="bug" size={14} className="text-negative mt-0.5" />

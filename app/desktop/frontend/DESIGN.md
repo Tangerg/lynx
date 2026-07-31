@@ -238,7 +238,7 @@ components:
     rounded: "{rounded.lg}"
     padding: "12px 14px"
     maxWidth: "{layout.chat-measure}"
-    description: Textarea + toolbar surface. Anchored bottom, centered to chat-measure. Focus ring uses primary at 14% alpha + hairline-strong.
+    description: Textarea + toolbar surface. Anchored bottom, centered to chat-measure. One real border defines the edge; a depth-only shadow lifts it; focus quietly strengthens the border.
   composer-chip:
     backgroundColor: "{colors.surface-2}"
     textColor: "{colors.ink-muted}"
@@ -356,6 +356,9 @@ components:
 >   drawer header and every content header, so they line up across the seam.
 > - **Composer floats over the transcript** (`-mt-5`), in normal flow. No reserved
 >   bottom padding, no gradient mask.
+> - **Composer owns one real edge.** Its 1px field border defines the shape,
+>   focus only strengthens that border, and `--shadow-composer-depth` carries
+>   depth without drawing a second optical ring.
 > - **Derived ladders.** Type (`--fs-*`) comes from one base size; radius
 >   (`--shape-*`) from a 10px base × the user's Shape scale. Density (`--density-*`)
 >   is a third, independent axis. Per-callsite pixel values are a build failure.
@@ -371,7 +374,8 @@ components:
 >   header/avatar, no `MessageOutline` gutter (unboxed prose on the canvas).
 > - **Composer is the `rounded-xl` anchor** with `bg-fg` send (accent reserved
 >   for live/steer state); model picker + context chips moved inside.
-> - Shadow ladder精简 to 3 canonical tokens (`composer`/`elevated`/`focus`).
+> - Shadow roles are semantic: composer depth, popover edge + depth, and the
+>   single global keyboard-focus rule. A surface never stacks two edge mechanisms.
 >
 > **Authoritative token values now live in `src/styles/globals.css` `:root` +
 > `plugins/builtin/theme/themes/*`.** The frontmatter palette / typography /

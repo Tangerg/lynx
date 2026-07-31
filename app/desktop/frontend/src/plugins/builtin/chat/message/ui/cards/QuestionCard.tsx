@@ -109,7 +109,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                       aria-pressed={active}
                       onClick={() => setDraft((prev) => toggleQuestionOption(prev, q, opt.label))}
                       className={cn(
-                        "flex flex-col gap-0.5 rounded-md border-[0.5px] border-transparent px-3 py-2 text-left transition-colors duration-150",
+                        "flex flex-col gap-0.5 rounded-md border-[0.5px] border-transparent px-3 py-2 text-left transition-colors duration-[var(--dur-fast)]",
                         active
                           ? "border-accent/60 bg-accent-wash"
                           : "bg-surface-2 hover:bg-surface-3",

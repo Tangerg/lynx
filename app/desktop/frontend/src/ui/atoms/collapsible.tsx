@@ -9,10 +9,6 @@ interface Props {
   children: ReactNode;
 }
 
-// Must match the `duration-150` transition below — useScrollLock holds the
-// scroll position for exactly the animation window, no longer.
-const ANIMATION_MS = 150;
-
 /**
  * Vertical expand/collapse via `grid-template-rows: 0fr ↔ 1fr` — a
  * NO-measurement animation, and deliberately NOT Framer Motion `height: "auto"`.
@@ -35,7 +31,7 @@ export function Collapsible({ open, children }: Props) {
   const [revealed, setRevealed] = useState(open);
   const rowRef = useRef<HTMLDivElement>(null);
   const wasOpen = useRef(open);
-  const lockScroll = useScrollLock(rowRef, ANIMATION_MS);
+  const lockScroll = useScrollLock(rowRef);
 
   useEffect(() => {
     if (open) setRevealed(true);
@@ -50,7 +46,7 @@ export function Collapsible({ open, children }: Props) {
     <div
       ref={rowRef}
       className={cn(
-        "grid transition-[grid-template-rows] duration-150 ease-out",
+        "grid transition-[grid-template-rows] duration-[var(--dur-disclosure)] ease-out",
         open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
       )}
     >

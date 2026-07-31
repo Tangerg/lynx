@@ -25,7 +25,7 @@ export function JumpToBottomButton() {
       className={cn(
         "absolute bottom-6 left-1/2 -translate-x-1/2 z-[3] grid h-8 w-8 place-items-center rounded-full",
         "bg-canvas text-fg-soft border-0",
-        "shadow-[var(--shadow-popover)] transition-[opacity,translate,scale,background] duration-[--dur-fast]",
+        "shadow-[var(--shadow-popover)] transition-[opacity,translate,scale,background] duration-[var(--dur-fast)]",
         "hover:bg-surface-2 hover:text-fg",
         "active:translate-y-0 active:scale-[var(--press-scale)]",
         visible
