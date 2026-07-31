@@ -9,8 +9,9 @@
 > W7.0 基线提交：随本原子 slice 提交
 > W7.1 实施提交：`051ea578d`
 > W7.2 实施提交：`8bb0fa7ba`
-> 当前主任务：`W7.3 — Agent Narrative / Composer / Run tree / HITL`
-> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6 DONE · W7.0 DONE · W7.1 DONE · W7.2 DONE · W7.3 READY`
+> W7.3 实施提交：`9c87d93fc`
+> 当前主任务：`W7.4 — Context Dock / Workspace Views / Settings`
+> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6 DONE · W7.0 DONE · W7.1 DONE · W7.2 DONE · W7.3 DONE · W7.4 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 44`
@@ -64,8 +65,9 @@
 Runtime/Desktop 依赖与事实作者审计、Desktop Runtime anti-corruption boundary、全局语义
 命名清理和全门禁收口；未发现需要重做 Agent/Runtime 主模型的证据。W7.0 又冻结了
 Synara/Lynx 的真实视觉基线、状态映射、目标 token、有意分歧、验收矩阵和 W7.1–W7.5
-原子边界；W7.1/W7.2 已依次完成 visual foundation 与 shell/Work Index 页面级对齐。
-后续实施从 §12 的 W7.3 Agent Narrative / Composer / Run tree / HITL 执行卡继续。
+原子边界；W7.1–W7.3 已依次完成 visual foundation、shell/Work Index 与
+Agent Narrative/Composer/Run tree/HITL 页面级对齐。后续实施从 §12 的 W7.4
+Context Dock / Workspace Views / Settings 执行卡继续。
 
 ---
 
@@ -243,21 +245,21 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 
 ### 4.1 总览
 
-| 工作流                       | 状态          | 已完成                                                                                                | 下一步                           |
-| ---------------------------- | ------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------- |
-| Protocol A-track             | `DONE`        | A1–A7；冻结契约、Registry、生成物、Runtime 与 Desktop consumer 一致                                   | 只随真实新能力同步               |
-| Agent P24                    | `DONE`        | host-settled checkpoint、prepared subtree mutation、App durable transaction 与完整恢复/竞态门禁       | 只按后续 consumer 的真实需要演进 |
-| Runtime B1.1                 | `DONE`        | durable Run-tree identity、root admission                                                             | —                                |
-| Runtime B1.2                 | `DONE`        | first-class child producer、source routing、独立 Segment/Item/metrics                                 | —                                |
-| Runtime B1.3                 | `DONE`        | tree barrier、整树 resume、restart/race/failure conformance                                           | —                                |
-| Runtime B1.4a–b              | `DONE`        | immutable cancel plan、Running child subtree cancellation                                             | —                                |
-| Runtime B1.4c                | `DONE`        | prepared runtime mutation + App-owned atomic waiting-subtree transaction                              | —                                |
-| Runtime B1.4d                | `DONE`        | W2.1 ownership；W2.2 failure/rollback；W2.3 restart/query/publication；W2.4 race/hygiene/full closure | —                                |
-| Runtime B1.5                 | `DONE`        | W3.0–W3.4 query / stream / replay / cold recovery / full closure                                      | —                                |
-| Desktop B1.6                 | `DONE`        | normalized Run tree、source-owned fold、durable recovery、root-first UI 与 scope-exact public API     | —                                |
-| Runtime/Desktop B1.7         | `DONE`        | frozen policy、producer/recovery、Artifact/contract、server/Desktop opt-in 与最终 conformance 已闭环  | —                                |
-| Runtime/Desktop 架构持续演进 | `DONE`        | W6.0–W6.3 完成依赖、事实作者、Agent 泄漏、Runtime context、命名、错误、并发生命周期与全门禁收口       | 后续由架构回归门持续守护         |
-| Synara UI 对齐               | `IN PROGRESS` | W7.0–W7.2 已完成基线、visual foundation、production shell 与 Work Index 交互/视觉闭环                  | 执行 W7.3 Narrative / Run / HITL |
+| 工作流                       | 状态          | 已完成                                                                                                | 下一步                            |
+| ---------------------------- | ------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------- |
+| Protocol A-track             | `DONE`        | A1–A7；冻结契约、Registry、生成物、Runtime 与 Desktop consumer 一致                                   | 只随真实新能力同步                |
+| Agent P24                    | `DONE`        | host-settled checkpoint、prepared subtree mutation、App durable transaction 与完整恢复/竞态门禁       | 只按后续 consumer 的真实需要演进  |
+| Runtime B1.1                 | `DONE`        | durable Run-tree identity、root admission                                                             | —                                 |
+| Runtime B1.2                 | `DONE`        | first-class child producer、source routing、独立 Segment/Item/metrics                                 | —                                 |
+| Runtime B1.3                 | `DONE`        | tree barrier、整树 resume、restart/race/failure conformance                                           | —                                 |
+| Runtime B1.4a–b              | `DONE`        | immutable cancel plan、Running child subtree cancellation                                             | —                                 |
+| Runtime B1.4c                | `DONE`        | prepared runtime mutation + App-owned atomic waiting-subtree transaction                              | —                                 |
+| Runtime B1.4d                | `DONE`        | W2.1 ownership；W2.2 failure/rollback；W2.3 restart/query/publication；W2.4 race/hygiene/full closure | —                                 |
+| Runtime B1.5                 | `DONE`        | W3.0–W3.4 query / stream / replay / cold recovery / full closure                                      | —                                 |
+| Desktop B1.6                 | `DONE`        | normalized Run tree、source-owned fold、durable recovery、root-first UI 与 scope-exact public API     | —                                 |
+| Runtime/Desktop B1.7         | `DONE`        | frozen policy、producer/recovery、Artifact/contract、server/Desktop opt-in 与最终 conformance 已闭环  | —                                 |
+| Runtime/Desktop 架构持续演进 | `DONE`        | W6.0–W6.3 完成依赖、事实作者、Agent 泄漏、Runtime context、命名、错误、并发生命周期与全门禁收口       | 后续由架构回归门持续守护          |
+| Synara UI 对齐               | `IN PROGRESS` | W7.0–W7.3 已完成 foundation、production shell/Work Index 与 Agent Narrative/Run/HITL 闭环             | 执行 W7.4 Dock / Views / Settings |
 
 不使用跨工作流“总百分比”。一个竞态闭环不能与一个命名修正等权；进度只由原子 slice
 和完成证据表达。
@@ -1066,7 +1068,7 @@ W6.1 breaking blast radius：
 
 ### W7 — Synara 视觉基线与像素级 Desktop UI 对齐
 
-状态：`IN PROGRESS`；`W7.0 DONE · W7.1 DONE · W7.2 DONE · W7.3 READY · W7.4 TODO · W7.5 TODO`
+状态：`IN PROGRESS`；`W7.0 DONE · W7.1 DONE · W7.2 DONE · W7.3 DONE · W7.4 READY · W7.5 TODO`
 
 参考仓库：`~/Desktop/synara`
 
@@ -1101,9 +1103,9 @@ W6.1 breaking blast radius：
 | ----- | ------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | W7.0  | `DONE`  | read-only reference audit、页面/状态映射、固定 viewport 与截图基线                  | 已在 `codex_synara_visual_baseline_and_execution_plan.md` 冻结 shell、组件、token、状态、复刻项、有意分歧和截图；production code 无变化 |
 | W7.1  | `DONE`  | visual foundation：fixture、字体、颜色、间距、圆角、边界、阴影、层级与 motion token | production-backed fixture 覆盖权威状态；token 有唯一作者；CSS/build warning 与 motion hygiene 门禁已闭环；实施提交 `051ea578d`          |
-| W7.2  | `DONE`  | desktop shell 与 Work Index                                                         | production shell、导航密度、四种 query 状态、single-owner toggle、pointer/keyboard resize、窄窗与 Retina 已闭环；实施提交 `8bb0fa7ba`    |
-| W7.3  | `READY` | Agent Narrative、composer、Run tree 与 HITL                                         | Running/Waiting/Finished/error/长内容/深层 delegated tree 在固定 viewport 和真实内容下对齐                                              |
-| W7.4  | `TODO`  | Context Dock、workspace views 与 settings                                           | 右侧上下文、文件/差异/时间线及设置表面形成统一视觉语言，不复制 Synara 的业务状态管理                                                    |
+| W7.2  | `DONE`  | desktop shell 与 Work Index                                                         | production shell、导航密度、四种 query 状态、single-owner toggle、pointer/keyboard resize、窄窗与 Retina 已闭环；实施提交 `8bb0fa7ba`   |
+| W7.3  | `DONE`  | Agent Narrative、composer、Run tree 与 HITL                                         | 12 个 canonical state、production projection、精确交互与明暗 golden 已闭环；实施提交 `9c87d93fc`                                        |
+| W7.4  | `READY` | Context Dock、workspace views 与 settings                                           | 右侧上下文、文件/差异/时间线及设置表面形成统一视觉语言，不复制 Synara 的业务状态管理                                                    |
 | W7.5  | `TODO`  | responsive、accessibility、Wails/WebView 与 visual regression closure               | 截图 diff、键盘/focus/ARIA、reduced motion、DPI/滚动/拖拽、全量门禁及零未知构建告警全部通过                                             |
 
 ---
@@ -2143,6 +2145,56 @@ method/DTO shape、root stream 语义、child subscribe refusal、Agent public A
   - 本 slice 不宣告 Narrative、Run tree、HITL、Dock 或 Settings 页面级完成。
 - 下一步：W7.3 Agent Narrative / Composer / Run tree / HITL。
 
+### 2026-07-31 — W7.3
+
+- 状态：`DONE`
+- 实施提交：`9c87d93fc feat(desktop): refine agent narrative and composer`
+- 目标：让 Agent Narrative、Composer、Run tree 与 HITL 形成一套紧凑、可读且
+  精确服从权威 Run/Item identity 的生产视觉语言，不复制 Synara 的领域模型或状态管理。
+- 关键实现：
+  - 删除 fixture-only 手搓 Agent 页面；12 个 canonical
+    `AgentSessionSnapshot` 经 production projection、event reducer、selectors、
+    `ChatPanel`、`ChatStream` 与 `Composer` 驱动真实页面；
+  - 新增 `AgentActivityDisclosure` 作为纯 presentation primitive，统一 tool、
+    tool group、reasoning、plan 与 delegated Run 的 summary、status、action、
+    disclosure 和 detail rail；领域状态与 command 继续留在各 feature；
+  - transcript 收敛为单一 reading column 与紧凑 narrative rhythm；empty hero、
+    error/recovery banner、HITL 密度及 completed/canceled/limit terminal marker
+    使用安静结构，不用大面积状态色或持续终态动画；
+  - terminal marker 只消费公开的窄 `useCurrentRootOutcome` read port；新增回归测试
+    证明 unrelated projection write 不触发 outcome subscriber render；
+  - Composer 保持 real border + single depth shadow、6/8 footer、736px reading
+    measure；attach/model/send/stop/steer 均有准确 accessible name；
+  - visual runtime spy 安装正式 Agent runtime port，steer 校验 exact
+    `Run + Segment + input`；HITL approve/reject/question、exact child cancel、
+    parent Item anchor 与 recovery resend 均走 production application path；
+  - Shiki 与 reasoning elapsed 的 screenshot ready 条件显式化；生产 bootstrap
+    使用推进时钟，截图边界才冻结，未通过容差掩盖竞态。
+- 视觉与行为证据：
+  - 24 张 Agent golden：12 个状态 × light/dark，覆盖 empty、idle、running、
+    steer、waiting、question、terminal、canceled、error、recovery、delegated 与
+    long-content；
+  - 22 个 Agent interaction/structure 用例覆盖精确 identity、Composer 几何与
+    focus、plan disclosure、recovery 及 horizontal overflow；
+  - full visual suite `69/69`，关键明暗截图已人工复核。
+- 验证：
+  - `npm run check` → 194 files / 1141 tests；typecheck、lint、format、knip、
+    circular/context/publication/layer、token/chrome/locales/bootstrap/bundle
+    guards 全通过；
+  - 896 个 key 在 8 个 locale 中完整；
+  - production build 与 visual build 通过；
+  - Desktop `go build ./...`、`go vet ./...`、`go test ./...`、Wails v2.12
+    production build 通过；
+  - `git diff --check` 通过。
+- 边界裁决：
+  - normalized Run projection、Agent/Runtime wire、capability、persistence、
+    idempotency、atomicity 与 recovery 语义均未改变；
+  - Shell 只通过 Chat/Message public rendering facade 消费 terminal marker，
+    未增加 layer whitelist；
+  - 本 slice 不宣告 Context Dock、Workspace Views、Settings 或最终
+    responsive/accessibility/Wails closure 完成。
+- 下一步：W7.4 Context Dock / Workspace Views / Settings。
+
 ---
 
 ## 12. 下一张执行卡
@@ -2150,32 +2202,31 @@ method/DTO shape、root stream 语义、child subscribe refusal、Agent public A
 唯一下一任务：
 
 ```text
-W7.3 — Agent Narrative / Composer / Run tree / HITL
+W7.4 — Context Dock / Workspace Views / Settings
 ```
 
 实施顺序：
 
-1. 以 canonical `AgentSessionSnapshot`、production
-   `projectAgentSessionSnapshot`、normalized Run projection 与现有 Agent fixture
-   为唯一事实源，先审计 empty/idle/Running/Waiting/terminal/error/delegated/
-   long-content 的真实 DOM、computed style 与更新路径；
-2. 对齐 empty hero、transcript measure、message rhythm、prose/code/tool/plan/error
-   的 typography、spacing、edge 与 depth；不在 feature callsite 复制 token；
-3. 对齐 Composer 的 empty/active/steer/stop、附件、model control、footer 与
-   focus-visible；保持 real border + single depth shadow，不新增第二套 surface；
-4. 对齐 root/child/sibling/nested Run tree 的 summary、disclosure、indent、status
-   dot 与 activity rhythm；Waiting 默认展开，terminal 不保留持续动画或大面积状态色；
-5. 验证 HITL 请求、submit/reject、exact child cancel、parent item locate、
-   recovery/error 与长内容滚动；组件只能发出既有 application intent，不能乐观补造
-   committed domain fact；
-6. 扩展 production-backed visual fixture 与 interaction tests，冻结固定
-   viewport/theme/DPR 下的 Agent Narrative golden；不得复制 projection、wire union
-   或 fixture-only business branch；
-7. 检查 stream 高频路径的 selector 与 render ownership；没有测量证据不做猜测式
-   性能优化，但不得因视觉订阅重新引入全树 render；
-8. 删除被替换的 Narrative/Composer/Run/HITL CSS、component 与 copy 路径，不留
-   dual visual mode；跑完整 frontend、visual、Wails 与 diff hygiene 门禁后原子提交
-   并回填本总账。
+1. 以 production workspace view registry、navigation application ports、现有
+   dock/settings fixture 为唯一事实源，审计 closed/light/review、file/diff/timeline/
+   plan、settings 与 empty/loading/error 的真实 DOM、computed style 和 ownership；
+2. 对齐 Context Dock header、tabs、resizer、light/review width、close/promote/reopen
+   与 content measure；view content 继续只由 plugin contribution 提供；
+3. 对齐 file、diff、timeline、plan 的 typography、code/diff density、surface、
+   edge、scroll 与 selected/focus 语法；不在 view callsite 复制 token；
+4. 对齐 Settings navigation、section/form row、provider/model、validation、
+   empty/error 与危险操作；Settings single-surface composition 不重新引入 drawer
+   或 seam；
+5. 收口 dialog、menu、tooltip、toast 与 shortcut presentation；验证 focus trap、
+   return focus、Escape、pointer dismissal 与 keyboard navigation；
+6. 验证 light/review width 分别持久化，close/promote/reopen 不丢 active view
+   identity，resize hot path 不写业务 store 或触发无关树 render；
+7. 扩展 production-backed dock/settings fixtures、interaction tests 与
+   light/dark golden；不得新增 production debug route、平行 read model 或
+   fixture-only business branch；
+8. 删除被替换的 Dock/View/Settings CSS、component 与 copy 路径，不留 dual
+   visual mode；跑完整 frontend、visual、Wails 与 diff hygiene 门禁后原子提交并
+   回填本总账。
 
 W7 的禁止项：
 

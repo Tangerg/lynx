@@ -1,13 +1,14 @@
 # Lynx Desktop × Synara 视觉基线与执行计划
 
 > 作者：Codex
-> 状态：`W7.2 DONE · W7.3 READY`
+> 状态：`W7.3 DONE · W7.4 READY`
 > 审计日期：2026-07-31
 > Lynx 基线：`cecc0510955ad39b31e5ec7cc16ee488d75c08c3`
 > Synara 基线：`54dff37d91aabf74e85dd42bb47e1a237a02f106`
 > W7.1 实施提交：`051ea578d`
 > W7.2 实施提交：`8bb0fa7ba`
-> 下一执行卡：`W7.3 — Agent Narrative / Composer / Run tree / HITL`
+> W7.3 实施提交：`9c87d93fc`
+> 下一执行卡：`W7.4 — Context Dock / Workspace Views / Settings`
 > 关联总账：
 > [`codex_architecture_execution_master_plan.md`](codex_architecture_execution_master_plan.md)
 
@@ -27,7 +28,8 @@ presentation 层发明第二套运行状态。
 
 W7.0 只完成只读审计、实拍、决策和计划冻结，**没有修改 production UI**。
 W7.1 已按冻结决策建立可重复视觉证据并统一底层视觉语言；W7.2 已完成页面级 shell
-与 Work Index 对齐。Narrative、Dock 与 Settings 对齐仍由 W7.3–W7.4 独立完成。
+与 Work Index 对齐；W7.3 已完成 Narrative、Composer、Run tree 与 HITL 对齐。
+Dock、Workspace Views 与 Settings 由 W7.4 独立完成。
 
 ---
 
@@ -551,7 +553,7 @@ shell visual fixtures and interaction tests
 
 ### W7.3 — Agent Narrative、Composer、Run tree 与 HITL
 
-状态：`READY`
+状态：`DONE`
 
 目标：
 
@@ -579,9 +581,31 @@ Narrative/HITL visual fixtures and interaction tests
 - Waiting disclosure 默认展开，终态不制造持续动画或大面积状态色；
 - stream 高频路径不因视觉状态订阅重新引入全树 render。
 
+实施结果（`9c87d93fc`）：
+
+- 12 个 canonical `AgentSessionSnapshot` 通过 production projection、event reducer、
+  selectors 与真实 `ChatPanel` / `ChatStream` / `Composer` 驱动，不再维护手搓
+  fixture 页面或第二套 read model；
+- 新增纯 presentation 的 `AgentActivityDisclosure`，tool、tool group、reasoning、
+  plan 与 delegated Run 共用紧凑 summary、status、action、disclosure 与 detail
+  rail，feature 继续拥有 domain state 与 command；
+- transcript、empty hero、error/recovery、HITL 与 terminal marker 收敛为一个
+  736px reading column 和安静状态语法；Composer 保持 real border + single depth
+  shadow、6/8 footer 与准确 ARIA；
+- root outcome 使用窄公开 selector；unrelated projection write 不触发订阅者
+  render。Waiting 默认展开，terminal 无持续动画和大面积状态 wash；
+- production runtime spy 证明 steer 精确寻址 `Run + Segment + input`；approve、
+  reject、question、exact child cancel、parent Item anchor 与 recovery resend 均走
+  生产 application path；
+- 冻结 24 张 Agent golden（12 states × light/dark）与 22 个交互/结构用例；
+  full visual suite `69/69`；
+- `npm run check` 194 files / 1141 tests、production/visual build、Desktop
+  `go build` / `go vet` / `go test`、Wails v2.12 production build 与
+  `git diff --check` 全部通过；896 个 key 在 8 个 locale 中完整。
+
 ### W7.4 — Context Dock、Workspace Views 与 Settings
 
-状态：`TODO`
+状态：`READY`
 
 目标：
 
@@ -729,26 +753,27 @@ npm run check:bundle
 
 ## 9. 进度台账
 
-| Workstream                   | 状态    | 当前事实                                                               | 下一动作                    |
-| ---------------------------- | ------- | ---------------------------------------------------------------------- | --------------------------- |
-| W2 Agent ownership           | `DONE`  | Framework / App 边界已收口                                             | 仅防回归                    |
-| W3 Runtime conformance       | `DONE`  | Run tree、recovery、stream/query 已收口                                | 仅防回归                    |
-| W4 Desktop Run tree          | `DONE`  | normalized projection、HITL、cancel 已实现                             | 只做 presentation           |
-| W5 capability cutover        | `DONE`  | negotiated production Run trees 已启用                                 | 仅防回归                    |
-| W6 architecture/hygiene      | `DONE`  | consumer ports、命名、全门禁已收口                                     | 仅防回归                    |
-| W7.0 visual baseline         | `DONE`  | 本文、实拍、映射、决策、执行卡已冻结                                   | 仅防漂移                    |
-| W7.1 visual foundation       | `DONE`  | production-backed fixture、视觉 token、edge/depth、motion 与 warning 收口 | 仅防回归                    |
-| W7.2 shell / Work Index      | `DONE`  | production shell、Work Index、resize/focus/a11y 与 8 张 golden 已闭环   | 仅防回归                    |
-| W7.3 Narrative / Run / HITL  | `READY` | foundation、Agent fixture 与稳定 shell 已具备                           | 对齐叙事、交互与全部运行状态 |
-| W7.4 Dock / Views / Settings | `TODO`  | foundation 与 workspace fixture 已具备                                 | 等待 W7.2/W7.3 文件边界稳定 |
-| W7.5 final closure           | `TODO`  | 依赖 W7.2–W7.4                                                         | 等待                        |
+| Workstream                   | 状态    | 当前事实                                                                  | 下一动作                     |
+| ---------------------------- | ------- | ------------------------------------------------------------------------- | ---------------------------- |
+| W2 Agent ownership           | `DONE`  | Framework / App 边界已收口                                                | 仅防回归                     |
+| W3 Runtime conformance       | `DONE`  | Run tree、recovery、stream/query 已收口                                   | 仅防回归                     |
+| W4 Desktop Run tree          | `DONE`  | normalized projection、HITL、cancel 已实现                                | 只做 presentation            |
+| W5 capability cutover        | `DONE`  | negotiated production Run trees 已启用                                    | 仅防回归                     |
+| W6 architecture/hygiene      | `DONE`  | consumer ports、命名、全门禁已收口                                        | 仅防回归                     |
+| W7.0 visual baseline         | `DONE`  | 本文、实拍、映射、决策、执行卡已冻结                                      | 仅防漂移                     |
+| W7.1 visual foundation       | `DONE`  | production-backed fixture、视觉 token、edge/depth、motion 与 warning 收口 | 仅防回归                     |
+| W7.2 shell / Work Index      | `DONE`  | production shell、Work Index、resize/focus/a11y 与 8 张 golden 已闭环     | 仅防回归                     |
+| W7.3 Narrative / Run / HITL  | `DONE`  | 12 个 canonical state、精确交互、24 张明暗 golden 与全门禁已闭环          | 仅防回归                     |
+| W7.4 Dock / Views / Settings | `READY` | foundation、workspace fixture 与 W7.3 reading language 已稳定             | 对齐 Dock、Views 与 Settings |
+| W7.5 final closure           | `TODO`  | 依赖 W7.2–W7.4                                                            | 等待                         |
 
 当前唯一主任务：
 
 ```text
-W7.3 — 在稳定 shell 上对齐 Agent Narrative、Composer、Run tree 与 HITL，
-       覆盖 Running/Waiting/terminal/error/recovery、长内容与深层 delegated tree，
-       保持 normalized Run projection、exact child action 与权威状态作者不变。
+W7.4 — 在稳定 shell 与 Narrative reading language 上对齐 Context Dock、
+       Workspace Views 与 Settings，覆盖 light/review、file/diff/timeline/plan、
+       empty/loading/error 与 overlay keyboard/focus，同时保持 plugin contribution、
+       navigation identity 和 width persistence 的权威作者不变。
 ```
 
 ---
