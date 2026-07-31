@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MCPServerConfigInfo } from "./mcpServerQueries";
+import type { MCPServerSettings } from "./mcpServerQueries";
 import {
   initialMCPServerDraft,
   isMCPServerDraftValid,
@@ -40,7 +40,7 @@ describe("mcpServerDraft", () => {
   });
 
   it("keeps blank http authorization omitted and parses extra headers", () => {
-    const server: MCPServerConfigInfo = {
+    const server: MCPServerSettings = {
       name: "cloud",
       type: "streamableHttp",
       enabled: false,

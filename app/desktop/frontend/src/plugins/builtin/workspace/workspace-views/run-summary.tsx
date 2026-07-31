@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Badge, EmptyState, Icon, IconButton } from "@/ui";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { copyText } from "@/lib/clipboard";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { buildPlaintext } from "@/plugins/builtin/agent/public/runDigest";
 import { useT } from "@/lib/i18n";

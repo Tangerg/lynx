@@ -1,7 +1,7 @@
 import type { ComponentPropsWithoutRef } from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
 // A card: the raised panel a settings section, a form or an inline chat card sits
 // on. It owns the inset as well as the fill, because a card without one is a

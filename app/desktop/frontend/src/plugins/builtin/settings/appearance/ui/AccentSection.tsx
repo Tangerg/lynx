@@ -2,7 +2,7 @@
 // color slot that opens the OS-native color wheel.
 
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { ACCENT, useExtensionPoint } from "@/plugins/sdk";
 import { useAccentPreference } from "../application/appearancePreferences";
 import { SettingRow } from "../../public";

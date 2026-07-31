@@ -145,7 +145,7 @@ src/
 │   ├── i18n/             i18next 接线 + 分词 + 相对时间
 │   ├── markdown/         rehype 插件 + shiki + KaTeX（纯 infra）
 │   ├── observability/    OTel 三信号（setup/sink/stores/tracing/logBridge）—— 见 §5.5
-│   └── utils.ts / motion.ts / metrics.ts / hmr.ts / systemFonts.ts
+│   └── classNames.ts / motion.ts / metrics.ts / hmr.ts / systemFonts.ts
 │
 ├── rpc/                  Runtime Protocol boundary —— 唯一 outbound 副作用层
 │   ├── sdk.ts            createLyraClient(transport) — JSON-RPC client + typed methods
@@ -199,10 +199,10 @@ Lyra 大部分 UI ↔ 数据流已经通过插件系统解耦，真正需要"内
 - `plugins/sdk` / `state` / `lib` **禁** import UI（`components` / `pages` / `builtin`）——锁住"平台/工具层不依赖它被消费的 UI"。
 - `components/` / `pages/` **禁** import `@/main`（composition root）或 `@/rpc`（协议客户端）——只经 context public facade / store selector / SDK selector 触业务。
 - **跨限界上下文只能走 `public/`**：`plugins/builtin/<ctx>/` 一旦有 `application/domain/adapters/presentation/ui/public` 任一目录即视为限界上下文；别的上下文只准 import 它的 `public/` facade，连它根目录下的松散文件也不行（`builtin/index.ts` manifest 作为插件组合根豁免）。`check-builtin-contexts.mjs` 再在这些合法的 public→public 边上查环。
-- **`settings/` 各面板的上下文形态**：统一 `ui/`（React 组件）+ `application/`（用例、读模型与 `ports/`）+ `adapters/`（gateway 实现），plugin 入口 `index.{ts,tsx}` 注册面板。只有被其他上下文消费的稳定读模型才建立 `public/data.ts`；其余面板保持叶子。
+- **`settings/` 各面板的上下文形态**：统一 `ui/`（React 组件）+ `application/`（用例、读模型与 `ports/`）+ `adapters/`（gateway 实现），plugin 入口 `index.{ts,tsx}` 注册面板。只有被其他上下文消费的稳定查询才建立 `public/queries.ts`；其余面板保持叶子。
 - 业务用例依赖 application port；只有 adapter / composition root 调用 `getContainer().client().xxx(...)`。测试优先替换 port，协议 adapter 测试再用 `setContainer({ client })` / `resetContainer()`。
 
-React Query 的 cache 与 provider lookup 是共享技术机制，留在 `lib/data/dataQuery.ts` 与 `queryClient.ts`。Session、Workspace、Approval、Provider、MCP、Hooks、Schedules、Recipes、Usage 的 query key、read model 与 hook 均由所属上下文拥有；跨上下文消费必须经过该上下文的 `public/data.ts`（或既有 public facade）。`lib/data` 不再充当全局业务模型仓库。
+React Query 的 cache 与 provider lookup 是共享技术机制，留在 `lib/data/dataQuery.ts` 与 `queryClient.ts`。Session、Workspace、Approval、Provider、MCP、Hooks、Schedules、Recipes、Usage 的 query key、read model 与 hook 均由所属上下文拥有；跨上下文消费必须经过该上下文的 `public/queries.ts`（或既有 public facade）。`lib/data` 不再充当全局业务模型仓库。
 
 Application port 使用 `lib/ports/singletonPort.ts` 管理进程内绑定。每个 adapter installer 必须返回 disposer，plugin `setup` 必须把它返回给 SDK lifecycle；unload / reload / HMR 会断开旧 adapter。disposer 按实例比较，旧插件的迟到 cleanup 不会误清除后来安装的新 adapter。`public/` 不暴露 adapter installer，组合入口在同一上下文内直接装配。
 
@@ -529,18 +529,18 @@ unmount → abort follower + 解绑 actions；projection 留到 Session 不再 o
 
 ### 5.3 状态分层（除 agent 外的 UI 状态）
 
-| Store                    | 内容                                                                        | 持久化         |
-| ------------------------ | --------------------------------------------------------------------------- | -------------- |
-| `agentStore`             | 每 Session 的 `AgentSessionView`、refresh revision 与已绑定 actions         | ❌ ephemeral   |
-| `agentSessionStore`      | active/open/draft Session、selection epoch 与 welcome pending input         | ✅（部分字段） |
-| `uiStore`                | theme / accent / 字体 / motion / messageStyle / sidebarRail                 | ✅             |
-| Runtime capability store | 握手协商能力（由 runtime context 私有持有）                                 | ❌ ephemeral   |
-| `tasksStore`             | host.tasks 的后台任务                                                       | ❌             |
-| `composerStore`          | 撰写区文本 / 模式 / 附件 / provider+model                                   | ❌ ephemeral   |
-| `contextDockStore`       | 按 Session 隔离的 file/tool/dock material                                   | ❌ ephemeral   |
-| `workspaceSurfaceStore`  | app-global main/settings surface                                            | ❌ ephemeral   |
-| `usePluginStore`         | 整个插件 registry                                                           | ❌             |
-| `useConfigStore`         | 插件可读写的全局 config（如 `runtime.endpoint`）                            | ✅             |
+| Store                    | 内容                                                                | 持久化         |
+| ------------------------ | ------------------------------------------------------------------- | -------------- |
+| `agentStore`             | 每 Session 的 `AgentSessionView`、refresh revision 与已绑定 actions | ❌ ephemeral   |
+| `agentSessionStore`      | active/open/draft Session、selection epoch 与 welcome pending input | ✅（部分字段） |
+| `uiStore`                | theme / accent / 字体 / motion / messageStyle / sidebarRail         | ✅             |
+| Runtime capability store | 握手协商能力（由 runtime context 私有持有）                         | ❌ ephemeral   |
+| `tasksStore`             | host.tasks 的后台任务                                               | ❌             |
+| `composerStore`          | 撰写区文本 / 模式 / 附件 / provider+model                           | ❌ ephemeral   |
+| `contextDockStore`       | 按 Session 隔离的 file/tool/dock material                           | ❌ ephemeral   |
+| `workspaceSurfaceStore`  | app-global main/settings surface                                    | ❌ ephemeral   |
+| `usePluginStore`         | 整个插件 registry                                                   | ❌             |
+| `useConfigStore`         | 插件可读写的全局 config（如 `runtime.endpoint`）                    | ✅             |
 
 每个 store 各自用 Zustand `persist` + 自己的 `version`；**schema 变了就 bump version 丢旧数据，不写 migration**（开发期无历史包袱）。
 
@@ -660,18 +660,18 @@ ChatPanel → ChatStream → MessageBlock → PartRenderer
 
 ## 8. 错误隔离策略
 
-| 失败点                               | 行为                                                           |
-| ------------------------------------ | -------------------------------------------------------------- |
-| 插件 `setup` 抛错                    | dispose 已注册部分；其它插件继续；写错误到 Plugins 面板        |
-| 插件组件 render 抛错                 | PluginBoundary 接住画 fallback；其余 kernel 正常               |
-| stream / custom handler 抛错         | 该 handler 跳过，state 保持入态；其余 handler 继续             |
-| 插件 tool action / command 抛错      | console.error + `reportPluginError`，UI 不挂                   |
-| `runs.start/resume` 调用 reject      | channel-a 失败：无流；保存 Session command problem             |
-| `segment.finished{error}`            | terminal Run outcome 投影为可 dismiss problem                  |
-| stream 断线且 replay 可用            | 从最后 folded eventId reattach                                 |
-| `replay_unavailable` / runtime resync | 读取完整 durable Session snapshot，再做 CAS 原子替换            |
-| fold 来源或 lifecycle 不变量失败     | 当前 handler fail closed；保留入态并写 plugin diagnostics      |
-| sideload 模块 import / manifest 失败 | 跳过，其它继续；console.warn                                   |
+| 失败点                                | 行为                                                      |
+| ------------------------------------- | --------------------------------------------------------- |
+| 插件 `setup` 抛错                     | dispose 已注册部分；其它插件继续；写错误到 Plugins 面板   |
+| 插件组件 render 抛错                  | PluginBoundary 接住画 fallback；其余 kernel 正常          |
+| stream / custom handler 抛错          | 该 handler 跳过，state 保持入态；其余 handler 继续        |
+| 插件 tool action / command 抛错       | console.error + `reportPluginError`，UI 不挂              |
+| `runs.start/resume` 调用 reject       | channel-a 失败：无流；保存 Session command problem        |
+| `segment.finished{error}`             | terminal Run outcome 投影为可 dismiss problem             |
+| stream 断线且 replay 可用             | 从最后 folded eventId reattach                            |
+| `replay_unavailable` / runtime resync | 读取完整 durable Session snapshot，再做 CAS 原子替换      |
+| fold 来源或 lifecycle 不变量失败      | 当前 handler fail closed；保留入态并写 plugin diagnostics |
+| sideload 模块 import / manifest 失败  | 跳过，其它继续；console.warn                              |
 
 Plugins 面板（Settings → Plugins）汇总所有 `reportPluginError` 的红 badge。
 
@@ -753,7 +753,7 @@ declare module "@/plugins/sdk/types/contentBlock" {
 | 协议 fold                        | `src/plugins/builtin/agent/application/fold/reducer.ts` + `builtin/agent/application/fold/` |
 | 一个完整内置插件                 | `src/plugins/builtin/agent/rpc-agent/index.ts`                                              |
 | Agent Session driver / recovery  | `src/plugins/builtin/agent/adapters/useAgentSession.ts`                                     |
-| Run tree read model / commands   | `src/plugins/builtin/agent/application/run/` + `src/plugins/builtin/agent/public/run.ts`     |
+| Run tree read model / commands   | `src/plugins/builtin/agent/application/run/` + `src/plugins/builtin/agent/public/run.ts`    |
 | 主题如何注册                     | `src/plugins/builtin/theme/kit/` + 任意 `theme/themes/*`                                    |
 
 ---
@@ -779,7 +779,8 @@ declare module "@/plugins/sdk/types/contentBlock" {
 #### B. search / webSearch 富结果渲染（已落地）
 
 **现状**：view 层已直接从 tool 自带结果渲染，不再「只投影计数 + 从 workspace 取数」——`webSearch.tsx` 解析 `tool.result` 的 title/url/snippet/favicon；grep preview 优先用 call-scoped `tool.result`（`inlineGrepRows`），workspace.grep query 降为 fallback。
-**维护触发**：wire 出现新的富结果形态（新字段 / 新 tool family）时，扩展 `application/specialisedPreviewData` 的解析 + 补 preview 测试。
+**维护触发**：wire 出现新的富结果形态（新字段 / 新 tool family）时，扩展
+`application/specialisedPreviewProjections` 的解析并补 preview 测试。
 
 #### C. fileChange diff 直渲（已落地）
 

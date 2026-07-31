@@ -3,7 +3,7 @@ import {
   MCP_CONFIGS_KEY,
   MCP_SERVERS_KEY,
   MCP_TOOLS_KEY,
-  type MCPServerConfigInfo,
+  type MCPServerSettings,
   useMCPConfigs,
 } from "./mcpServerQueries";
 import { queryClient } from "@/lib/queryClient";
@@ -17,7 +17,7 @@ export type { MCPServerTestOutcome } from "./ports/mcpServerGateway";
 // useMCPConfigs() query: mutators invalidate the configs + status views so the
 // pane and the Tools workspace view both re-read the new registry state.
 
-export type { MCPServerConfigInfo };
+export type { MCPServerSettings };
 
 export function useMCPServerConfigs() {
   return useMCPConfigs();

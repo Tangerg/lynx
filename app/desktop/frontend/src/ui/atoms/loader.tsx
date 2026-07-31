@@ -10,7 +10,7 @@
 // inline "agent is working" marks that sit next to text.
 
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
 export type LoaderVariant =
   "dots" | "typing" | "pulse-dot" | "wave" | "bars" | "terminal" | "text-shimmer";

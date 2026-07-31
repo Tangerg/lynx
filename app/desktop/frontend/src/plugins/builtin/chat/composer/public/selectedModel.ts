@@ -1,4 +1,4 @@
-import { useModels } from "@/plugins/builtin/settings/providers/public/data";
+import { useModels } from "@/plugins/builtin/settings/providers/public/queries";
 import { useComposerModelPreference } from "./modelPreference";
 
 /** The model the next run will use: composerStore's provider+model pair

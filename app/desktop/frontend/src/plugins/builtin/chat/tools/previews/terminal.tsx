@@ -6,11 +6,11 @@ import type { ToolPreviewProps } from "@/plugins/sdk";
 import { LinkedText } from "@/plugins/builtin/chat/file-references/public/LinkedText";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
 import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews/PreviewPlaceholder";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { shellToolPreviews } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
-import { CODE_PANEL } from "./shared";
+import { CODE_PREVIEW_CLASS } from "./previewChrome";
 
 const MAX_TERM_LINES = 9;
 
@@ -25,7 +25,7 @@ function ShellPreview({ tool, onOpenView }: ToolPreviewProps) {
   const hiddenLines = lines.length - MAX_TERM_LINES;
   return (
     <div>
-      <div className={cn(CODE_PANEL, "whitespace-pre-wrap break-all")}>
+      <div className={cn(CODE_PREVIEW_CLASS, "whitespace-pre-wrap break-all")}>
         {lines.length > 0 ? (
           lines.slice(0, MAX_TERM_LINES).map((text, i) => (
             <div key={i}>

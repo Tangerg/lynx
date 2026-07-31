@@ -6,7 +6,7 @@ import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { canRegenerateMessage } from "./application/messageActionAvailability";
 import { messageRegenerateActionSlot } from "./application/messageActionContributions";
 import { regenerateMessage } from "./public/messageActions";
-import { MessageActionButton } from "./_shared";
+import { MessageActionButton } from "./MessageActionButton";
 
 function RegenerateButton() {
   const t = useT();

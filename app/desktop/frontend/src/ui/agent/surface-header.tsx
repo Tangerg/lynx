@@ -1,5 +1,5 @@
 import type { ComponentPropsWithoutRef } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { IconButton } from "@/ui";
 
 interface AgentSurfaceHeaderProps extends ComponentPropsWithoutRef<"div"> {

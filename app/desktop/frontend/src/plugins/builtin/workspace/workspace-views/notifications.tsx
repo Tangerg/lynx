@@ -1,7 +1,7 @@
 import { EmptyState, IconButton, StatusDot } from "@/ui";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { formatRelative } from "@/lib/i18n/relativeTime";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useNotificationStore } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { defineWorkspaceView } from "./defineWorkspaceView";

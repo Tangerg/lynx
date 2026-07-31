@@ -11,7 +11,7 @@ import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { canCopyMessage } from "./application/messageActionAvailability";
 import { messageCopyActionSlot } from "./application/messageActionContributions";
 import { messageCopyPayloads } from "./presentation/copyPayloads";
-import { MessageActionButton } from "./_shared";
+import { MessageActionButton } from "./MessageActionButton";
 
 function CopyButton() {
   const t = useT();

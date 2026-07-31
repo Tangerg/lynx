@@ -6,7 +6,7 @@ export interface WelcomeSuggestion {
   promptKey: string;
 }
 
-export interface ProviderSetupInfo {
+export interface ProviderCredentialSummary {
   apiKeyMasked: string;
 }
 
@@ -41,6 +41,6 @@ export function welcomeHintCommands(commands: CommandSpec[]): CommandSpec[] {
   );
 }
 
-export function needsProviderSetup(providers: ProviderSetupInfo[] | undefined): boolean {
+export function needsProviderSetup(providers: ProviderCredentialSummary[] | undefined): boolean {
   return providers !== undefined && !providers.some((provider) => provider.apiKeyMasked !== "");
 }

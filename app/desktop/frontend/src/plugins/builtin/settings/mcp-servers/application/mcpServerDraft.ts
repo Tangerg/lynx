@@ -1,4 +1,4 @@
-import type { MCPServerConfigInfo, MCPTransport } from "./mcpServerConfig";
+import type { MCPServerSettings, MCPTransport } from "./mcpServerConfig";
 import type { MCPServerConfigInput } from "./mcpServerInput";
 
 export interface MCPServerDraft {
@@ -45,7 +45,7 @@ function mapToLines(map: Record<string, string> | undefined): string {
     : "";
 }
 
-export function initialMCPServerDraft(server?: MCPServerConfigInfo): MCPServerDraft {
+export function initialMCPServerDraft(server?: MCPServerSettings): MCPServerDraft {
   return {
     name: server?.name ?? "",
     transport: server?.type ?? "stdio",
@@ -72,7 +72,7 @@ export function isMCPServerDraftValid(draft: MCPServerDraft): boolean {
 
 export function mcpServerInputFromDraft(
   draft: MCPServerDraft,
-  server?: MCPServerConfigInfo,
+  server?: MCPServerSettings,
 ): MCPServerConfigInput {
   const secs = parseInt(draft.timeoutSec, 10);
   const base: MCPServerConfigInput = {

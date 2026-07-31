@@ -5,7 +5,7 @@ import { DataView } from "@/ui";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useT } from "@/lib/i18n";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-import { useWorkspaceAgentDocs } from "@/plugins/builtin/workspace/application/workspaceData";
+import { useWorkspaceAgentDocs } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import { workspaceAgentDocsViewModel } from "@/plugins/builtin/workspace/application/workspaceCatalogViewModel";
 
 function AgentDocsTab() {

@@ -4,13 +4,13 @@
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
 import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews/PreviewPlaceholder";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
-import { lspPreviewOperation } from "@/plugins/builtin/chat/tools/application/specialisedPreviewData";
+import { projectLspOperation } from "@/plugins/builtin/chat/tools/application/specialisedPreviewProjections";
 import { resultLines } from "@/plugins/builtin/chat/tools/application/toolResultParsing";
 import { lspToolPreviews } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
-import { MAX_ROWS, Overflow, PREVIEW_WRAP } from "./shared";
+import { INLINE_PREVIEW_ROW_LIMIT, PreviewOverflow, TEXT_PREVIEW_CLASS } from "./previewChrome";
 
 // Result is one line per hit: `path:line:col` (locations) or
 // `kind Name (in Container) — path:line:col` (symbols), or a "No X found."
@@ -19,7 +19,7 @@ import { MAX_ROWS, Overflow, PREVIEW_WRAP } from "./shared";
 function LspLocationsPreview({ tool, onOpenView }: ToolPreviewProps) {
   const rows = resultLines(tool.result);
   return (
-    <div className={PREVIEW_WRAP}>
+    <div className={TEXT_PREVIEW_CLASS}>
       {rows.length === 0 && (
         <PreviewPlaceholder
           status={tool.status}
@@ -27,7 +27,7 @@ function LspLocationsPreview({ tool, onOpenView }: ToolPreviewProps) {
           idle="tools.preview.idle.empty"
         />
       )}
-      {rows.slice(0, MAX_ROWS).map((row, i) => {
+      {rows.slice(0, INLINE_PREVIEW_ROW_LIMIT).map((row, i) => {
         const sep = row.lastIndexOf(" — ");
         if (sep === -1) {
           return (
@@ -49,7 +49,7 @@ function LspLocationsPreview({ tool, onOpenView }: ToolPreviewProps) {
           </div>
         );
       })}
-      <Overflow count={rows.length - MAX_ROWS} />
+      <PreviewOverflow count={rows.length - INLINE_PREVIEW_ROW_LIMIT} />
       <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>
   );
@@ -58,7 +58,7 @@ function LspLocationsPreview({ tool, onOpenView }: ToolPreviewProps) {
 function LspHoverPreview({ tool, onOpenView }: ToolPreviewProps) {
   const text = tool.result?.trim();
   return (
-    <div className={cn(PREVIEW_WRAP, "whitespace-pre-wrap break-words text-fg-soft")}>
+    <div className={cn(TEXT_PREVIEW_CLASS, "whitespace-pre-wrap break-words text-fg-soft")}>
       {text || (
         <PreviewPlaceholder
           status={tool.status}
@@ -81,8 +81,8 @@ const SEVERITY_TONE: Record<string, string> = {
 function LspDiagnosticsPreview({ tool, onOpenView }: ToolPreviewProps) {
   const rows = resultLines(tool.result);
   return (
-    <div className={PREVIEW_WRAP}>
-      {rows.slice(0, MAX_ROWS).map((row, i) => {
+    <div className={TEXT_PREVIEW_CLASS}>
+      {rows.slice(0, INLINE_PREVIEW_ROW_LIMIT).map((row, i) => {
         const space = row.indexOf(" ");
         const severity = space === -1 ? "" : row.slice(0, space);
         const tone = SEVERITY_TONE[severity];
@@ -100,7 +100,7 @@ function LspDiagnosticsPreview({ tool, onOpenView }: ToolPreviewProps) {
           </div>
         );
       })}
-      <Overflow count={rows.length - MAX_ROWS} />
+      <PreviewOverflow count={rows.length - INLINE_PREVIEW_ROW_LIMIT} />
       <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>
   );
@@ -110,7 +110,7 @@ function LspDiagnosticsPreview({ tool, onOpenView }: ToolPreviewProps) {
 // default to locations when the operation isn't visible (args are suppressed
 // once the call has a label — see projections.argsText).
 function LspPreview(props: ToolPreviewProps) {
-  return lspPreviewOperation(props.tool.args) === "hover" ? (
+  return projectLspOperation(props.tool.args) === "hover" ? (
     <LspHoverPreview {...props} />
   ) : (
     <LspLocationsPreview {...props} />

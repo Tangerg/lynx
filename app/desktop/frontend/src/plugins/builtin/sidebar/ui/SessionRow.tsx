@@ -3,7 +3,7 @@ import { AgentRow } from "@/ui/agent";
 import { ConfirmDialog, ContextMenu, TextField } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { formatRelative } from "@/lib/i18n/relativeTime";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import type { WorkSession } from "@/plugins/builtin/navigation/public/workIndex";
 
 interface Props {

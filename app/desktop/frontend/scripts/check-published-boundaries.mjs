@@ -124,6 +124,25 @@ for (const file of files(SRC)) {
   if (!isTest && /\.tsx?$/.test(rel)) {
     collectVocabulary(rel, text);
 
+    if (/(?:^|\/)_?(?:utils?|helpers?|shared|impl|data|info)\.(?:ts|tsx)$/.test(rel)) {
+      violations.push({
+        file: rel,
+        reason:
+          "generic module name hides its responsibility — name the owned policy, model, adapter, or UI element",
+      });
+    }
+
+    if (
+      /plugins\/builtin\/.+\/(?:application|domain)\/.+\.(?:ts|tsx)$/.test(rel) &&
+      /\b(?:interface|type|class)\s+\w+(?:Manager|Helper|Impl|Data|Info)\b/.test(code(text))
+    ) {
+      violations.push({
+        file: rel,
+        reason:
+          "application/domain type uses a role-less suffix — name the domain fact or use-case responsibility",
+      });
+    }
+
     // A type has one identity; a second name for it is a hop that hides where the
     // concept lives. Seven modules published another module's type under a locally
     // preferred noun (`ApprovalMode = ApprovalModeValue`, `HookConfig =

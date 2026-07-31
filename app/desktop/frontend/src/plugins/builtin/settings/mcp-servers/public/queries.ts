@@ -5,9 +5,9 @@ export {
   useMCPConfigs,
   useMCPServers,
   useMCPTools,
-  type MCPServer,
-  type MCPServerConfigInfo,
+  type MCPServerSummary,
+  type MCPServerSettings,
   type MCPTransport,
-  type McpToolInfo,
+  type MCPToolSummary,
   type McpToolsQuery,
 } from "../application/mcpServerQueries";

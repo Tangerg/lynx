@@ -1,7 +1,7 @@
 import type { VariantProps } from "class-variance-authority";
 import type { ReactNode } from "react";
 import { cva } from "class-variance-authority";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { ButtonPrimitive, type ButtonPrimitiveProps } from "@/ui/primitives";
 
 // The project's primary CTA shape — outlined / solid / accent / danger

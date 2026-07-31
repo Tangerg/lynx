@@ -12,8 +12,8 @@ import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
   useManagedSkills,
-  type ManagedSkillInfo,
-} from "@/plugins/builtin/workspace/application/workspaceData";
+  type ManagedSkill,
+} from "@/plugins/builtin/workspace/application/workspaceQueries";
 import {
   archiveSkill,
   restoreSkill,
@@ -63,7 +63,7 @@ function SkillLibraryTab() {
   );
 }
 
-function SkillSection({ label, skills }: { label: string; skills: ManagedSkillInfo[] }) {
+function SkillSection({ label, skills }: { label: string; skills: ManagedSkill[] }) {
   return (
     <div className="flex flex-col">
       <div className="px-4 pb-1">
@@ -76,7 +76,7 @@ function SkillSection({ label, skills }: { label: string; skills: ManagedSkillIn
   );
 }
 
-function SkillRow({ skill }: { skill: ManagedSkillInfo }) {
+function SkillRow({ skill }: { skill: ManagedSkill }) {
   const t = useT();
   const archived = skill.lifecycle === "archived";
   const actionPending = useRef(false);

@@ -11,7 +11,7 @@ export {
   useUtilityRole,
   type CodebaseStatusQuery,
   type CodebaseStatusReadModel,
-  type ProviderInfo,
+  type ProviderConfiguration,
   type ProviderRoleSelection,
   type SelectableModel,
 } from "../application/providerQueries";

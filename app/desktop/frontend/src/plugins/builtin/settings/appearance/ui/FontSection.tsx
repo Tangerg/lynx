@@ -6,7 +6,7 @@ import { Checkbox, DropdownMenu, Icon, Segmented } from "@/ui";
 import { UI_FONT_SIZE_MAX_PX, UI_FONT_SIZE_MIN_PX } from "@/lib/typography";
 import { useT } from "@/lib/i18n";
 import { useSystemFonts } from "../application/systemFonts";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useFontPreferences } from "../application/appearancePreferences";
 import { SettingRow } from "../../public";
 

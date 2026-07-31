@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 import type { IconName } from "@/ui";
 import { AgentDrawerToggle, AgentSurfaceHeader } from "@/ui/agent";
 import { Icon, IconButton } from "@/ui";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { useSidebarDrawer } from "@/plugins/builtin/workspace/public/sidebarDrawer";
 import { useViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";

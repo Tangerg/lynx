@@ -3,7 +3,7 @@ import { ACCENT, MESSAGE_ROLE } from "@/plugins/sdk/kernelPoints";
 import { DEFAULT_ACCENTS, defaultMessageRoles } from "./application/defaultContributions";
 
 export { defaultCommands } from "./commands";
-export { defaultData } from "./data";
+export { defaultDataProviders } from "./dataProviders";
 
 export const defaultTitle = definePlugin({
   name: "lyra.builtin.default-title",

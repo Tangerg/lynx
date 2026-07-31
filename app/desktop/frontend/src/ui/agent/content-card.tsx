@@ -1,5 +1,5 @@
 import type { ComponentPropsWithoutRef } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
 /**
  * The opaque content surface that floats as a card over the drawer.

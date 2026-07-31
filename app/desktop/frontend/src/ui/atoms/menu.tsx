@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { Icon, type IconName } from "@/ui/icons";
 import { ContextMenuPrimitive, MenuPrimitive } from "@/ui/primitives";
 import { FLOATING_PANEL } from "./floating-surface";

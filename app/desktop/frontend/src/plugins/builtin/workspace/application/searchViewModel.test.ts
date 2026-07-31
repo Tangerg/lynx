@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { t } from "@/lib/i18n";
-import type { WorkspaceGrepMatch } from "./workspaceData";
+import type { WorkspaceGrepMatch } from "./workspaceQueries";
 import { workspaceSearchSubtext, workspaceSearchViewModel } from "./searchViewModel";
 
 const match = (over: Partial<WorkspaceGrepMatch>): WorkspaceGrepMatch => ({

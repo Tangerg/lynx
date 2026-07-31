@@ -4,7 +4,7 @@ import {
   WORKSPACE_MANAGED_SKILLS_KEY,
   WORKSPACE_SKILLS_KEY,
   WORKSPACE_SKILL_DRAFTS_KEY,
-} from "./workspaceData";
+} from "./workspaceQueries";
 
 // Promoting publishes a draft into the active library, so it changes the drafts
 // queue AND both skill views (the library gains a skill, the agent's discovery

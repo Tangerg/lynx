@@ -16,7 +16,7 @@ import type { DiffLayout } from "./views/DiffView";
 import { DiffView } from "./views/DiffView";
 import { ReviewFileTree } from "./views/ReviewFileTree";
 import { ViewHeader } from "./views/ViewHeader";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { gitOffEmpty, notARepoEmpty } from "./views/vcsGate";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { focusWorkspaceFile } from "@/plugins/builtin/workspace/application/navigation";

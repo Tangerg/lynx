@@ -6,9 +6,9 @@ import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
-import { useFileToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewData";
+import { useFileToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewQueries";
 import { fileToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
-import { PREVIEW_WRAP } from "./shared";
+import { TEXT_PREVIEW_CLASS } from "./previewChrome";
 
 const MAX_FILE_LINES = 40;
 
@@ -17,7 +17,7 @@ function FilePreview({ tool, onOpenView }: ToolPreviewProps) {
   // preview must read the same tree (the serve dir may be elsewhere).
   const { data: lines } = useFileToolPreview(tool, MAX_FILE_LINES);
   return (
-    <div className={PREVIEW_WRAP}>
+    <div className={TEXT_PREVIEW_CLASS}>
       <div className="font-mono text-ui-sm leading-body">
         {(lines ?? []).map((l) => (
           <div

@@ -4,7 +4,7 @@ import { fuzzyFile } from "./fuzzyFile";
 const FILES = [
   "src/plugins/builtin/chat/composer/ui/Composer.tsx",
   "src/c/o/m/p/o/s/e/r.ts",
-  "src/lib/utils.ts",
+  "src/lib/classNames.ts",
   "README.md",
   "src/ui/icons/icon.tsx",
 ];

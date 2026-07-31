@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { DropdownMenu, Icon, ProviderIcon, Surface } from "@/ui";
 import {
-  type ProviderInfo,
+  type ProviderConfiguration,
   setEmbeddingRole,
   setUtilityRole,
   useEmbeddingModelConfig,
@@ -119,7 +119,7 @@ export function EmbeddingModelSection() {
   const { role, capableProviders, isSet } = useEmbeddingModelConfig();
   const [error, setError] = useState<string | null>(null);
 
-  const pick = async (p: ProviderInfo | null): Promise<void> => {
+  const pick = async (p: ProviderConfiguration | null): Promise<void> => {
     setError(null);
     const res = await setEmbeddingRole(
       p ? { provider: p.id, model: p.defaultEmbeddingModel || "" } : {},

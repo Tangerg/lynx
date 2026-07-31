@@ -1,6 +1,6 @@
 import { useT } from "@/lib/i18n";
 import { Icon, IconButton, Popover, ProgressBar } from "@/ui";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import type { TaskReadoutStatus, TaskReadoutTask } from "../application/ports/taskReadoutPort";
 import { taskProgressPercent, useTaskReadout } from "../application/taskReadout";
 

@@ -1,5 +1,5 @@
 import type { Translate } from "@/lib/i18n";
-import type { WorkspaceGrepMatch } from "./workspaceData";
+import type { WorkspaceGrepMatch } from "./workspaceQueries";
 
 export const WORKSPACE_SEARCH_MATCH_LIMIT = 200;
 

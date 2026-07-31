@@ -1,7 +1,7 @@
 import type { Highlighter } from "shiki";
 import { useEffect, useMemo, useRef } from "react";
 import { stripCodeWrapper, useCodeHighlighter } from "@/lib/highlight/useCodeHighlight";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
 // Whole-file viewer (workspace.readFile) — the target of a clickable file:line
 // reference. The file is highlighted in ONE Shiki pass and split into per-line

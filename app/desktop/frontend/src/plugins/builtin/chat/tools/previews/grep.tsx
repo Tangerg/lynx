@@ -9,9 +9,9 @@ import { LinkedText } from "@/plugins/builtin/chat/file-references/public/Linked
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
-import { useGrepToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewData";
+import { useGrepToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewQueries";
 import { grepToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
-import { PREVIEW_WRAP } from "./shared";
+import { TEXT_PREVIEW_CLASS } from "./previewChrome";
 
 const MAX_GREP_MATCHES = 4;
 
@@ -20,7 +20,7 @@ function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
   const { shown, overflow, truncated } = useGrepToolPreview(tool, MAX_GREP_MATCHES);
   // §7.5 no-silent-caps: surface both our preview cap and server truncation.
   return (
-    <div className={PREVIEW_WRAP}>
+    <div className={TEXT_PREVIEW_CLASS}>
       <div className="font-mono text-ui-sm leading-body">
         {shown.map((r, i) => (
           <div

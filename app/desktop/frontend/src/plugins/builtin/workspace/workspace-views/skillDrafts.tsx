@@ -12,8 +12,8 @@ import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
   useSkillDrafts,
-  type SkillDraftInfo,
-} from "@/plugins/builtin/workspace/application/workspaceData";
+  type SkillDraft,
+} from "@/plugins/builtin/workspace/application/workspaceQueries";
 import {
   promoteSkillDraft,
   rejectSkillDraft,
@@ -55,7 +55,7 @@ function SkillDraftsTab() {
   );
 }
 
-function SkillDraftRow({ draft }: { draft: SkillDraftInfo }) {
+function SkillDraftRow({ draft }: { draft: SkillDraft }) {
   const t = useT();
   const actionPending = useRef(false);
   const [busy, setBusy] = useState(false);

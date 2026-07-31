@@ -8,14 +8,14 @@
 //   - file-head:   params pass-through, FileHead unwrapped to its lines
 
 import type { AgentSessionSummary } from "@/plugins/builtin/agent/public/session";
-import type { MCPServer as McpServerStatusSummary } from "@/plugins/builtin/settings/mcp-servers/public/data";
+import type { MCPServerSummary } from "@/plugins/builtin/settings/mcp-servers/public/queries";
 import type {
   WorkspaceFileChange as WorkspaceFileChangeSummary,
   WorkspaceFileLine,
   WorkspaceGrepResult,
   WorkspaceProjectSummary,
   WorkspaceDiff,
-} from "@/plugins/builtin/workspace/public/data";
+} from "@/plugins/builtin/workspace/public/queries";
 import { afterEach, describe, expect, it } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
@@ -23,7 +23,7 @@ import { lookupDataProvider } from "@/plugins/sdk/selectors";
 import { createLyraClient } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess, waitForRequest } from "@/rpc/transports/memory.testkit";
-import { defaultData } from "./index";
+import { defaultDataProviders } from "./index";
 
 afterEach(resetContainer);
 
@@ -38,7 +38,7 @@ async function runProvider<T>(
   const t = createMemoryTransport();
   const client = createLyraClient(t);
   setContainer({ client: () => client });
-  await loadPlugin(defaultData);
+  await loadPlugin(defaultDataProviders);
 
   const fetcher = lookupDataProvider<T>(key);
   if (!fetcher) throw new Error(`no provider for "${key}"`);
@@ -52,11 +52,11 @@ async function runProvider<T>(
   return { value: await pending, requests };
 }
 
-describe("defaultData — providers over JSON-RPC", () => {
+describe("defaultDataProviders — providers over JSON-RPC", () => {
   it("rejects missing parameters before a parameterized provider reaches RPC", async () => {
     const client = createLyraClient(createMemoryTransport());
     setContainer({ client: () => client });
-    await loadPlugin(defaultData);
+    await loadPlugin(defaultDataProviders);
 
     for (const key of [
       "mcp-tools",
@@ -129,7 +129,7 @@ describe("defaultData — providers over JSON-RPC", () => {
   });
 
   it("mcp-servers: maps the enriched B3 entry (inline toolCount, 5-state, error detail)", async () => {
-    const { value: rows } = await runProvider<McpServerStatusSummary[]>("mcp-servers", [
+    const { value: rows } = await runProvider<MCPServerSummary[]>("mcp-servers", [
       [
         "mcp.servers.list",
         {

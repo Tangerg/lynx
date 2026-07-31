@@ -22,7 +22,7 @@ export function mentionOptionId(index: number): string {
 }
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useWorkspaceListFiles } from "@/plugins/builtin/workspace/public/data";
+import { useWorkspaceListFiles } from "@/plugins/builtin/workspace/public/queries";
 import { fuzzyFile } from "./fuzzyFile";
 
 const MENTION_ROWS = 8; // visible suggestions

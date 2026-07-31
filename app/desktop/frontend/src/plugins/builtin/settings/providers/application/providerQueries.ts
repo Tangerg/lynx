@@ -22,7 +22,7 @@ export interface SelectableModel {
   contextWindow?: number;
 }
 
-export interface ProviderInfo {
+export interface ProviderConfiguration {
   id: string;
   baseUrl: string;
   apiKeyMasked: string;
@@ -42,7 +42,7 @@ export const EMBEDDING_ROLE_KEY = "embedding-role";
 export const CODEBASE_STATUS_KEY = "codebase-status";
 
 export const useModels = createDataQuery<SelectableModel[]>(MODELS_KEY);
-export const useProviders = createDataQuery<ProviderInfo[]>(PROVIDERS_KEY);
+export const useProviders = createDataQuery<ProviderConfiguration[]>(PROVIDERS_KEY);
 export const useUtilityRole = createDataQuery<ProviderRoleSelection>(UTILITY_ROLE_KEY);
 export const useEmbeddingRole = createDataQuery<ProviderRoleSelection>(EMBEDDING_ROLE_KEY);
 export const useCodebaseStatus = createParameterizedDataQuery<

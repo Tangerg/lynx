@@ -13,7 +13,7 @@ import type { TimelineEntry, TimelineEntryKind } from "@/plugins/builtin/agent/p
 import { Badge, EmptyState, Icon, IconButton } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
   cancelActiveSessionRun,

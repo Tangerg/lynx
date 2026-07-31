@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentSessionSummary } from "@/plugins/builtin/agent/public/session";
-import type { WorkspaceProjectSummary } from "@/plugins/builtin/workspace/public/data";
+import type { WorkspaceProjectSummary } from "@/plugins/builtin/workspace/public/queries";
 import { buildRecentWorkSessions, buildWorkIndexGroups } from "./buildWorkIndex";
 
 function session(

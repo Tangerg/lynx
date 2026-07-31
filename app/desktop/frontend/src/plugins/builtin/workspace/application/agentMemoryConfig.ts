@@ -7,11 +7,11 @@ import {
 import {
   WORKSPACE_AGENT_MEMORY_KEY,
   useAgentMemory as useAgentMemoryQuery,
-  type AgentMemoryItemInfo,
+  type AgentMemoryEntry,
   type AgentMemoryQuery,
-} from "./workspaceData";
+} from "./workspaceQueries";
 
-export type { AgentMemoryItemInfo, AgentMemoryQuery };
+export type { AgentMemoryEntry, AgentMemoryQuery };
 
 // Read the review surface for a scope. Disabled (enabled=false) parks the query
 // so a not-yet-ready cwd doesn't fire a request; the project scope binds to the

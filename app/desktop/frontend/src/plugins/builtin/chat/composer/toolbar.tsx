@@ -10,11 +10,11 @@ import {
   useApprovalMode,
   type ApprovalMode,
 } from "@/plugins/builtin/agent/public/approvalPolicy";
-import { useModels } from "@/plugins/builtin/settings/providers/public/data";
+import { useModels } from "@/plugins/builtin/settings/providers/public/queries";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { definePlugin } from "@/plugins/sdk";
 import {
   composerApprovalSlot,

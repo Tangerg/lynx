@@ -9,7 +9,7 @@ import {
   type MessageActionsVisibility,
 } from "@/plugins/builtin/chat/message-actions/public/messageActions";
 import { messageBlocksRenderInstant, messageCitations } from "../application/messageBlockModel";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { MESSAGE_CONTENT_CLASS } from "./messageContent";
 import { CitationContext } from "./CitationContext";
 import { MessageContextMenu } from "./MessageContextMenu";

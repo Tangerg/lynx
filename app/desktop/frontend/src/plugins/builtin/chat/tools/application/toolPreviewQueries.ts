@@ -5,7 +5,7 @@ import {
   useWorkspaceDiff,
   useWorkspaceFileHead,
   useWorkspaceGrep,
-} from "@/plugins/builtin/workspace/public/data";
+} from "@/plugins/builtin/workspace/public/queries";
 import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { parseJsonResult } from "./toolResultParsing";

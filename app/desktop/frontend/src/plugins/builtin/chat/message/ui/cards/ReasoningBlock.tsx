@@ -4,7 +4,7 @@ import { MarkdownMessage } from "../markdown/MarkdownMessage";
 import { Collapsible, Icon, StatusDot } from "@/ui";
 import { stopCurrentRootRun } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
 interface Props {
   text: string;

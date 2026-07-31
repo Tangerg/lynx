@@ -5,7 +5,7 @@ export interface SkillPreviewEntry {
   description: string;
 }
 
-export interface GlobPreviewData {
+export interface GlobPreviewModel {
   paths: string[];
   truncated: boolean;
 }
@@ -19,14 +19,14 @@ export interface WebSearchPreviewResult {
 
 const SKILL_ENTRY = /<skill>\s*<name>([\s\S]*?)<\/name>\s*<description>([\s\S]*?)<\/description>/g;
 
-export function skillPreviewEntries(result: string | undefined): SkillPreviewEntry[] {
+export function projectSkillPreview(result: string | undefined): SkillPreviewEntry[] {
   return [...(result ?? "").matchAll(SKILL_ENTRY)].map((match) => ({
     name: match[1]!.trim(),
     description: match[2]!.trim(),
   }));
 }
 
-export function askUserPreviewAnswer(result: string | undefined): string {
+export function projectAskUserAnswer(result: string | undefined): string {
   const text = result?.trim();
   if (!text) return "";
   const parsed = parseJsonResult(result);
@@ -43,7 +43,7 @@ export function askUserPreviewAnswer(result: string | undefined): string {
   return parts.filter(Boolean).join(" · ") || text;
 }
 
-export function globPreviewData(result: string | undefined): GlobPreviewData {
+export function projectGlobPreview(result: string | undefined): GlobPreviewModel {
   const parsed = parseJsonResult(result);
   const arr = [parsed?.hits, parsed?.matches, parsed?.files, parsed?.paths].find(Array.isArray);
   if (!arr) return { paths: [], truncated: parsed?.truncated === true };
@@ -53,12 +53,12 @@ export function globPreviewData(result: string | undefined): GlobPreviewData {
   };
 }
 
-export function lspPreviewOperation(args: string | undefined): string {
+export function projectLspOperation(args: string | undefined): string {
   const parsed = parseJsonResult(args);
   return typeof parsed?.operation === "string" ? parsed.operation : "";
 }
 
-export function webSearchPreviewResults(result: string | undefined): WebSearchPreviewResult[] {
+export function projectWebSearchPreview(result: string | undefined): WebSearchPreviewResult[] {
   const arr = parseJsonResult(result)?.results;
   if (!Array.isArray(arr)) return [];
   return arr.flatMap((entry) => {

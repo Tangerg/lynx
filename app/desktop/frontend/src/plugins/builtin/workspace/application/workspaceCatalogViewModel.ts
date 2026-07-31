@@ -1,6 +1,6 @@
-import type { WorkspaceMemoryEntry } from "./workspaceData";
+import type { WorkspaceMemoryEntry } from "./workspaceQueries";
 import type { CodebaseSearchHit } from "./ports/codebaseGateway";
-import type { WorkspaceAgentDoc, WorkspaceMemoryScope, WorkspaceSkill } from "./workspaceData";
+import type { WorkspaceAgentDoc, WorkspaceMemoryScope, WorkspaceSkill } from "./workspaceQueries";
 
 export interface WorkspaceCatalogViewModel<Row> {
   rows: Row[];

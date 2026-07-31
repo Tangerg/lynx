@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { Button, type ButtonProps, Icon, type IconName } from "@/ui";
 
 // The hover swap is the row's own choreography, so the row performs it. Named

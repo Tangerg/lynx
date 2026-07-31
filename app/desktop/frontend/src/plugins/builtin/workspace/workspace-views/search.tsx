@@ -10,7 +10,7 @@ import { DataView, SearchField } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
-import { useWorkspaceGrep } from "@/plugins/builtin/workspace/application/workspaceData";
+import { useWorkspaceGrep } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import {
   WORKSPACE_SEARCH_MATCH_LIMIT,
   workspaceSearchSubtext,

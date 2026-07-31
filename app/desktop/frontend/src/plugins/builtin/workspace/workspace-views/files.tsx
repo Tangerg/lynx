@@ -7,7 +7,7 @@ import { useT } from "@/lib/i18n";
 import { FilesChanged } from "./views/FilesChanged";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
-import { useWorkspaceFileChanges } from "@/plugins/builtin/workspace/application/workspaceData";
+import { useWorkspaceFileChanges } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import {
   fileChangesSubtext,
   fileChangesViewModel,

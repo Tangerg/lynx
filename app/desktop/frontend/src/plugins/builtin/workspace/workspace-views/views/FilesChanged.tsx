@@ -9,7 +9,7 @@ import type {
 import { memo } from "react";
 import { Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
 interface Props {
   view: FileChangesViewModel;

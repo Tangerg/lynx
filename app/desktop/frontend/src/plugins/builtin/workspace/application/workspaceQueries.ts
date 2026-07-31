@@ -1,5 +1,5 @@
 import { createDataQuery, createParameterizedDataQuery } from "@/plugins/sdk";
-import { useRecipes } from "@/plugins/builtin/chat/recipes/public/data";
+import { useRecipes } from "@/plugins/builtin/chat/recipes/public/queries";
 
 export interface WorkspaceProjectSummary {
   id: string;
@@ -17,7 +17,7 @@ export interface WorkspaceFileChange {
   binary?: boolean;
 }
 
-export interface BuiltinToolInfo {
+export interface BuiltinToolSummary {
   name: string;
   description: string;
   safetyClass?: string;
@@ -33,7 +33,7 @@ export interface WorkspaceSkill {
 // tagged with its curator lifecycle. Distinct from WorkspaceSkill (the agent's
 // project+global discovery view): this is the management surface, which also
 // lists archived skills.
-export interface ManagedSkillInfo {
+export interface ManagedSkill {
   name: string;
   description: string;
   lifecycle: "active" | "archived";
@@ -42,7 +42,7 @@ export interface ManagedSkillInfo {
 // One agent-mined skill proposal awaiting offline review (skills.drafts.list).
 // name+revision is the content-addressed handle a promote/reject decision
 // carries; createdBy/sourceSession is the provenance shown to the reviewer.
-export interface SkillDraftInfo {
+export interface SkillDraft {
   name: string;
   revision: string;
   description: string;
@@ -60,7 +60,7 @@ export interface AgentMemoryQuery {
 // One addressable agent-memory item (agentMemory.list). status is
 // active | pending (pending items await review); origin is auto (mined) | user
 // (authored). Distinct from WorkspaceMemoryEntry (the LYRA.md file cascade).
-export interface AgentMemoryItemInfo {
+export interface AgentMemoryEntry {
   id: string;
   scope: "project" | "user";
   content: string;
@@ -212,13 +212,13 @@ export const useWorkspaceFileHead = createParameterizedDataQuery<
   WorkspaceFileHeadQuery,
   WorkspaceFileLine[]
 >(WORKSPACE_FILE_HEAD_KEY);
-export const useWorkspaceBuiltinTools = createDataQuery<BuiltinToolInfo[]>(
+export const useWorkspaceBuiltinTools = createDataQuery<BuiltinToolSummary[]>(
   WORKSPACE_BUILTIN_TOOLS_KEY,
 );
 export const useWorkspaceSkills = createDataQuery<WorkspaceSkill[]>(WORKSPACE_SKILLS_KEY);
-export const useManagedSkills = createDataQuery<ManagedSkillInfo[]>(WORKSPACE_MANAGED_SKILLS_KEY);
-export const useSkillDrafts = createDataQuery<SkillDraftInfo[]>(WORKSPACE_SKILL_DRAFTS_KEY);
-export const useAgentMemory = createParameterizedDataQuery<AgentMemoryQuery, AgentMemoryItemInfo[]>(
+export const useManagedSkills = createDataQuery<ManagedSkill[]>(WORKSPACE_MANAGED_SKILLS_KEY);
+export const useSkillDrafts = createDataQuery<SkillDraft[]>(WORKSPACE_SKILL_DRAFTS_KEY);
+export const useAgentMemory = createParameterizedDataQuery<AgentMemoryQuery, AgentMemoryEntry[]>(
   WORKSPACE_AGENT_MEMORY_KEY,
 );
 export const useWorkspaceMemory = createParameterizedDataQuery<

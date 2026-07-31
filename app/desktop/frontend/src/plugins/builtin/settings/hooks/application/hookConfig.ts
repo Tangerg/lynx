@@ -1,11 +1,11 @@
-import { useHooks, type HookInfo } from "./hookQueries";
+import { useHooks, type HookReadModel } from "./hookQueries";
 
-export type { HookInfo };
+export type { HookReadModel };
 
 // Derived: the runtime's list plus the one fact the pane needs that the wire
 // doesn't carry — whether any hook came from the project file.
 export interface HookListViewModel {
-  hooks: HookInfo[];
+  hooks: HookReadModel[];
   projectRoot?: string;
   projectTrusted: boolean;
   hasProjectHooks: boolean;

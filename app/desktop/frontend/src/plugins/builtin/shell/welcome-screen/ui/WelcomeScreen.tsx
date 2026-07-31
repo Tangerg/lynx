@@ -2,7 +2,7 @@ import { PROVIDERS_PANE } from "@/plugins/builtin/settings/public/panes";
 import type { IconName } from "@/ui";
 import { Button, Icon, Kbd, PillButton, Surface, Tooltip } from "@/ui";
 import { comboGlyph } from "@/lib/combo";
-import { useProviders } from "@/plugins/builtin/settings/providers/public/data";
+import { useProviders } from "@/plugins/builtin/settings/providers/public/queries";
 import { useT } from "@/lib/i18n";
 import { useSetComposerText } from "@/plugins/builtin/chat/composer/public/draft";
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";

@@ -4,15 +4,19 @@ import {
   APPROVAL_RULES_KEY,
 } from "@/plugins/builtin/agent/public/approvalPolicy";
 import { AGENT_SESSIONS_KEY } from "@/plugins/builtin/agent/public/session";
-import { RECIPES_KEY, type RecipesQuery } from "@/plugins/builtin/chat/recipes/public/data";
-import { GOAL_KEY, type GoalQuery, type GoalState } from "@/plugins/builtin/chat/goal/public/data";
-import { HOOKS_KEY, type HooksQuery } from "@/plugins/builtin/settings/hooks/public/data";
+import { RECIPES_KEY, type RecipesQuery } from "@/plugins/builtin/chat/recipes/public/queries";
+import {
+  GOAL_KEY,
+  type GoalQuery,
+  type GoalState,
+} from "@/plugins/builtin/chat/goal/public/queries";
+import { HOOKS_KEY, type HooksQuery } from "@/plugins/builtin/settings/hooks/public/queries";
 import {
   MCP_CONFIGS_KEY,
   MCP_SERVERS_KEY,
   MCP_TOOLS_KEY,
   type McpToolsQuery,
-} from "@/plugins/builtin/settings/mcp-servers/public/data";
+} from "@/plugins/builtin/settings/mcp-servers/public/queries";
 import {
   CODEBASE_STATUS_KEY,
   EMBEDDING_ROLE_KEY,
@@ -20,8 +24,8 @@ import {
   PROVIDERS_KEY,
   UTILITY_ROLE_KEY,
   type CodebaseStatusQuery,
-} from "@/plugins/builtin/settings/providers/public/data";
-import { SCHEDULES_KEY } from "@/plugins/builtin/settings/schedules/public/data";
+} from "@/plugins/builtin/settings/providers/public/queries";
+import { SCHEDULES_KEY } from "@/plugins/builtin/settings/schedules/public/queries";
 import type {
   WorkspaceDiffQuery,
   WorkspaceFileChangesQuery,
@@ -32,7 +36,7 @@ import type {
   WorkspaceReadFileQuery,
   WorkspaceDiff,
   AgentMemoryQuery,
-} from "@/plugins/builtin/workspace/public/data";
+} from "@/plugins/builtin/workspace/public/queries";
 import {
   WORKSPACE_AGENT_DOCS_KEY,
   WORKSPACE_BUILTIN_TOOLS_KEY,
@@ -48,7 +52,7 @@ import {
   WORKSPACE_MANAGED_SKILLS_KEY,
   WORKSPACE_SKILL_DRAFTS_KEY,
   WORKSPACE_AGENT_MEMORY_KEY,
-} from "@/plugins/builtin/workspace/public/data";
+} from "@/plugins/builtin/workspace/public/queries";
 import type { DataProviderSpec, ContributingHost } from "@/plugins/sdk";
 import type { McpServer as RpcMCPServer } from "@/rpc";
 import { getContainer } from "@/main/container";
@@ -57,12 +61,12 @@ import { collectPages, asSessionId } from "@/rpc";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import {
   emptyPageIfUngated,
-  toMcpConfigInfo,
+  toMCPServerSettings,
+  toMCPServerSummary,
   toWorkspaceFileChangeSummary,
-  toMcpServerStatusSummary,
   toWorkspaceProjectSummary,
   toAgentSessionSummary,
-} from "./runtimeDataAdapters";
+} from "./runtimeReadModelAdapters";
 
 // DATA_PROVIDER intentionally erases each fetcher's parameter type so unlike
 // resources can share one registry. Restore that type once at this adapter
@@ -109,9 +113,7 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
     // listServers entries already carry status/toolCount/error; listTools is
     // reserved for the detail pane's paginated inputSchema view.
     fetcher: async () =>
-      (await client().mcp.listServers().catch(emptyPageIfUngated)).data.map(
-        toMcpServerStatusSummary,
-      ),
+      (await client().mcp.listServers().catch(emptyPageIfUngated)).data.map(toMCPServerSummary),
   });
   contribute({
     key: MCP_CONFIGS_KEY,
@@ -121,7 +123,7 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
         client().mcp.listServers().catch(emptyPageIfUngated),
       ]);
       const live = new Map<string, RpcMCPServer>(srvs.data.map((s) => [s.name, s]));
-      return cfgs.data.map((c) => toMcpConfigInfo(c, live.get(c.name)));
+      return cfgs.data.map((c) => toMCPServerSettings(c, live.get(c.name)));
     },
   });
   contribute({

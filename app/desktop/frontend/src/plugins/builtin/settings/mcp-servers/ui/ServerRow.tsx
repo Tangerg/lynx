@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { IconButton, PillButton, StatusDot, Switch } from "@/ui";
 import {
-  type MCPServerConfigInfo,
+  type MCPServerSettings,
   type MCPTransport,
   useAuthorizeMCPServer,
   useSetMCPServerEnabled,
@@ -11,7 +11,7 @@ import { useT } from "@/lib/i18n";
 import { ServerForm } from "./ServerForm";
 
 const STATUS_TONE: Record<
-  NonNullable<MCPServerConfigInfo["status"]>,
+  NonNullable<MCPServerSettings["status"]>,
   "ok" | "running" | "waiting" | "err" | "idle"
 > = {
   connected: "ok",
@@ -29,7 +29,7 @@ function TransportBadge({ transport }: { transport: MCPTransport }) {
   );
 }
 
-export function ServerRow({ server }: { server: MCPServerConfigInfo }) {
+export function ServerRow({ server }: { server: MCPServerSettings }) {
   const t = useT();
   const setEnabled = useSetMCPServerEnabled();
   const authorize = useAuthorizeMCPServer();

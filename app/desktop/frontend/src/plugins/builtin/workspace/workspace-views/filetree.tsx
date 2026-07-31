@@ -6,7 +6,7 @@ import { isUnsupportedMethod } from "@/lib/rpcErrors";
 import {
   useWorkspaceListFiles,
   useWorkspaceReadFile,
-} from "@/plugins/builtin/workspace/application/workspaceData";
+} from "@/plugins/builtin/workspace/application/workspaceQueries";
 import { FileTree } from "./views/FileTree";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";

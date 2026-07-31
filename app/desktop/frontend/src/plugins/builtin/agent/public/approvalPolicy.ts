@@ -4,7 +4,7 @@ export {
   APPROVAL_RULES_KEY,
   useApprovalMode,
   useApprovalRules,
-  type ApprovalRuleInfo,
+  type ApprovalRuleSummary,
   type ApprovalRulesQuery,
 } from "../application/approvalPolicyQueries";
 export type { ApprovalMode } from "../domain/hitl";

@@ -1,6 +1,6 @@
 import { queryClient } from "@/lib/queryClient";
 import { AGENT_SESSIONS_KEY } from "@/plugins/builtin/agent/public/session";
-import { WORKSPACE_PROJECTS_KEY } from "@/plugins/builtin/workspace/public/data";
+import { WORKSPACE_PROJECTS_KEY } from "@/plugins/builtin/workspace/public/queries";
 
 /**
  * Keep the project index fresh as the session collection moves.

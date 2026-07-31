@@ -3,7 +3,7 @@ import { APPROVAL_MODES, saveApprovalMode, type ApprovalMode } from "../applicat
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
 export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
   const t = useT();

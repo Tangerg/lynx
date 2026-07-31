@@ -4,12 +4,12 @@
 import { useT } from "@/lib/i18n";
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
-import { useDiffToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewData";
+import { useDiffToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewQueries";
 import { diffToolPreviews } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
-import { PREVIEW_WRAP } from "./shared";
+import { TEXT_PREVIEW_CLASS } from "./previewChrome";
 
 const MAX_DIFF_ROWS = 8;
 
@@ -44,7 +44,7 @@ function DiffPreview({ tool, onOpenView }: ToolPreviewProps) {
   // path becomes a hunk-style separator row so MAX_DIFF_ROWS stays one slice.
   const { rows, truncated, hiddenRows } = useDiffToolPreview(tool, MAX_DIFF_ROWS);
   return (
-    <div className={PREVIEW_WRAP}>
+    <div className={TEXT_PREVIEW_CLASS}>
       <div className="font-mono text-ui-sm leading-body">
         {rows.slice(0, MAX_DIFF_ROWS).map((row, i) => {
           if (row.type === "hunk") {

@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { TooltipPrimitive } from "@/ui/primitives";
 import { FLOATING_TIP } from "./floating-surface";
 

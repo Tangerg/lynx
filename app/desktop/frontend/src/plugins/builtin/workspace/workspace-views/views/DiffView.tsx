@@ -1,10 +1,10 @@
 import type { Highlighter } from "shiki";
-import type { WorkspaceDiffRow } from "@/plugins/builtin/workspace/application/workspaceData";
+import type { WorkspaceDiffRow } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import { useMemo } from "react";
 import { intraLineDiff } from "../intraLineDiff";
 import { stripCodeWrapper, useCodeHighlighter } from "@/lib/highlight/useCodeHighlight";
 import { langFromPath, resolveLang } from "@/lib/highlight/shiki";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
 /** Unified (one column, +/− interleaved) vs split (old left, new right). */
 export type DiffLayout = "unified" | "split";

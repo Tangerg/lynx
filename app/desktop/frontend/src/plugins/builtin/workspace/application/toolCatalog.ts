@@ -4,10 +4,10 @@ import type { Tone } from "@/lib/tone";
 import {
   useMCPServers,
   useMCPTools,
-  type MCPServer,
-} from "@/plugins/builtin/settings/mcp-servers/public/data";
+  type MCPServerSummary,
+} from "@/plugins/builtin/settings/mcp-servers/public/queries";
 import { toolCatalogGateway } from "./ports/toolCatalogGateway";
-import { useWorkspaceBuiltinTools, type BuiltinToolInfo } from "./workspaceData";
+import { useWorkspaceBuiltinTools, type BuiltinToolSummary } from "./workspaceQueries";
 
 export interface BuiltinToolSafetyPill {
   label: string;
@@ -27,7 +27,7 @@ export interface BuiltinToolCatalogViewModel {
 }
 
 export interface ToolCatalogViewModel {
-  mcpServers: MCPServer[];
+  mcpServers: MCPServerSummary[];
   activeMcpServerCount: number;
   configuredMcpServerCount: number;
 }
@@ -65,7 +65,7 @@ export function reconnectMCPServer(t: Translate, server: string): void {
     });
 }
 
-export function toolCatalogViewModel(servers: readonly MCPServer[]): ToolCatalogViewModel {
+export function toolCatalogViewModel(servers: readonly MCPServerSummary[]): ToolCatalogViewModel {
   let activeMcpServerCount = 0;
   for (const server of servers) {
     if (server.status === "connected") {
@@ -81,7 +81,7 @@ export function toolCatalogViewModel(servers: readonly MCPServer[]): ToolCatalog
 }
 
 export function builtinToolCatalogViewModel(
-  tools: readonly BuiltinToolInfo[],
+  tools: readonly BuiltinToolSummary[],
 ): BuiltinToolCatalogViewModel {
   return {
     rows: tools.map((tool) => ({
@@ -112,7 +112,7 @@ export function toolCatalogSubtext(
   });
 }
 
-export function builtinToolSafetyTone(safetyClass: BuiltinToolInfo["safetyClass"]): Tone {
+export function builtinToolSafetyTone(safetyClass: BuiltinToolSummary["safetyClass"]): Tone {
   if (!safetyClass) {
     return "neutral";
   }

@@ -7,17 +7,17 @@ import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews
 import { SearchResults } from "@/plugins/builtin/chat/tools/public/previews/SearchResults";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
-import { webSearchPreviewResults } from "@/plugins/builtin/chat/tools/application/specialisedPreviewData";
+import { projectWebSearchPreview } from "@/plugins/builtin/chat/tools/application/specialisedPreviewProjections";
 import { webSearchToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
-import { Overflow, PREVIEW_WRAP } from "./shared";
+import { PreviewOverflow, TEXT_PREVIEW_CLASS } from "./previewChrome";
 
 const MAX_WEB_RESULTS = 8;
 
 function WebSearchPreview({ tool, onOpenView }: ToolPreviewProps) {
-  const results = webSearchPreviewResults(tool.result);
+  const results = projectWebSearchPreview(tool.result);
   if (results.length === 0) {
     return (
-      <div className={PREVIEW_WRAP}>
+      <div className={TEXT_PREVIEW_CLASS}>
         <PreviewPlaceholder
           status={tool.status}
           pending="tools.preview.pending.searching"
@@ -29,7 +29,7 @@ function WebSearchPreview({ tool, onOpenView }: ToolPreviewProps) {
   return (
     <div className="pt-1">
       <SearchResults results={results.slice(0, MAX_WEB_RESULTS)} />
-      <Overflow count={results.length - MAX_WEB_RESULTS} />
+      <PreviewOverflow count={results.length - MAX_WEB_RESULTS} />
       <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>
   );

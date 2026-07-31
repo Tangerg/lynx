@@ -1,12 +1,12 @@
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useActiveWorkspaceFile } from "@/plugins/builtin/workspace/public/navigation";
 import { isVcsUnavailable } from "./vcsAvailability";
-import type { WorkspaceDiff, WorkspaceDiffQuery, WorkspaceFileDiff } from "./workspaceData";
-import { useWorkspaceDiff } from "./workspaceData";
+import type { WorkspaceDiff, WorkspaceDiffQuery, WorkspaceFileDiff } from "./workspaceQueries";
+import { useWorkspaceDiff } from "./workspaceQueries";
 import { useWorkspaceCapability } from "./workspaceCapabilities";
 
 export type WorkspaceDiffMode = NonNullable<WorkspaceDiffQuery["mode"]>;
-export type { WorkspaceFileDiff } from "./workspaceData";
+export type { WorkspaceFileDiff } from "./workspaceQueries";
 
 export interface WorkspaceDiffSubtext {
   added: number;

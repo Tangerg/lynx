@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { Collapsible, Icon } from "@/ui";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { toolGroupModel, type ToolGroupPinnedState } from "../application/toolGroupModel";
 import { ToolCard } from "./ToolCard";

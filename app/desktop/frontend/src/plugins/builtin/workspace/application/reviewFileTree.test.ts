@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { WorkspaceFileDiff } from "./workspaceData";
+import type { WorkspaceFileDiff } from "./workspaceQueries";
 import { buildReviewFileTree, filterReviewFiles } from "./reviewFileTree";
 
 const file = (path: string): WorkspaceFileDiff => ({ path, status: "modified", rows: [] });

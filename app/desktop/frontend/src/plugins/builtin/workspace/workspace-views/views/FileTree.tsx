@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Icon } from "@/ui";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import {
   type WorkspaceFileEntry,
   useWorkspaceListFiles,
-} from "@/plugins/builtin/workspace/application/workspaceData";
+} from "@/plugins/builtin/workspace/application/workspaceQueries";
 
 // Lazy file-tree (B8). Each directory fetches its own children only once
 // expanded (useListFiles is disabled while collapsed), so opening the root

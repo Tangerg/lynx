@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { IconButton, type IconName } from "@/ui";
 
 // The message action bar's button: a library IconButton with the two things this

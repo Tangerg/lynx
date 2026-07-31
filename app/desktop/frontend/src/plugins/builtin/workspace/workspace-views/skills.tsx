@@ -6,7 +6,7 @@ import { DataView } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-import { useWorkspaceSkills } from "@/plugins/builtin/workspace/application/workspaceData";
+import { useWorkspaceSkills } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import { useWorkspaceCapability } from "@/plugins/builtin/workspace/application/workspaceCapabilities";
 import { workspaceSkillsViewModel } from "@/plugins/builtin/workspace/application/workspaceCatalogViewModel";
 

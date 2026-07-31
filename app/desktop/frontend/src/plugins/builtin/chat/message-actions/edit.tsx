@@ -7,7 +7,7 @@ import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { canEditMessage } from "./application/messageActionAvailability";
 import { messageEditActionSlot } from "./application/messageActionContributions";
 import { editMessageInComposer } from "./public/messageActions";
-import { MessageActionButton } from "./_shared";
+import { MessageActionButton } from "./MessageActionButton";
 
 function EditButton() {
   const t = useT();

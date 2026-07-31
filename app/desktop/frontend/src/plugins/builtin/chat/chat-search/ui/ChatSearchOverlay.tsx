@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { IconButton, TextField } from "@/ui";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { clearChatSearchHighlights, paintChatSearchHighlights } from "../adapters/searchHighlights";

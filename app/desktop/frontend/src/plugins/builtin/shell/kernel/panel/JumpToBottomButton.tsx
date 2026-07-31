@@ -1,7 +1,7 @@
 import { scrollStreamToBottom, useStreamAtBottom } from "./streamFollow";
 import { Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
 // Floating "scroll to bottom" affordance, anchored to the bottom of the
 // transcript column and out of the layout flow. It sits just above where the

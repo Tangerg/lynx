@@ -11,7 +11,7 @@ import { messageBlocksRenderInstant, messageCitations } from "../application/mes
 import { CitationContext } from "./CitationContext";
 import { DelegatedRunDisclosure } from "./DelegatedRunDisclosure";
 import { MESSAGE_CONTENT_CLASS } from "./messageContent";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import type { BlockCtx } from "./blockContext";
 
 interface Props {

@@ -4,7 +4,7 @@ import {
   CODEBASE_STATUS_KEY,
   EMBEDDING_ROLE_KEY,
   MODELS_KEY,
-  type ProviderInfo,
+  type ProviderConfiguration,
   PROVIDERS_KEY,
   UTILITY_ROLE_KEY,
   useEmbeddingRole,
@@ -22,7 +22,7 @@ import {
 // Provider configuration mutations (providers.configure / providers.test).
 // Counterpart to the read-side useProviders() query.
 
-export type { ProviderInfo };
+export type { ProviderConfiguration };
 
 export function useProviderConfigs() {
   return useProviders();

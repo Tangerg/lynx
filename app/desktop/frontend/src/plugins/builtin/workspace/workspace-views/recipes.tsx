@@ -8,7 +8,7 @@ import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-import { useWorkspaceRecipes } from "@/plugins/builtin/workspace/application/workspaceData";
+import { useWorkspaceRecipes } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import { workspaceRecipesViewModel } from "@/plugins/builtin/workspace/application/workspaceCatalogViewModel";
 
 function RecipesTab() {

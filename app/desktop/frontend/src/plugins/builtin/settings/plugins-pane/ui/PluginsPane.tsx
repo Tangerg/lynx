@@ -13,7 +13,7 @@ import type { PluginError, PluginErrorSource } from "@/plugins/sdk";
 import { useState } from "react";
 import { Icon, IconButton, PillButton, TextButton } from "@/ui";
 import { copyText } from "@/lib/clipboard";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { reloadPlugin, usePluginErrorStore, usePluginStore } from "@/plugins/sdk";
 import { pluginOrigin } from "@/plugins/host/sideload";

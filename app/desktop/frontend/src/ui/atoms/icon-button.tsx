@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { Icon, type IconName } from "@/ui/icons";
 import { Button, type ButtonProps } from "./button";
 import { Tooltip } from "./tooltip";

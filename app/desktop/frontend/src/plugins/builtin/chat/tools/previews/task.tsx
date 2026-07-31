@@ -9,13 +9,13 @@ import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { resultLines } from "@/plugins/builtin/chat/tools/application/toolResultParsing";
 import { taskToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
-import { MAX_ROWS, Overflow, PREVIEW_WRAP } from "./shared";
+import { INLINE_PREVIEW_ROW_LIMIT, PreviewOverflow, TEXT_PREVIEW_CLASS } from "./previewChrome";
 
 function TaskPreview({ tool, onOpenView }: ToolPreviewProps) {
   const lines = resultLines(tool.result);
-  const reply = lines.slice(0, MAX_ROWS).join("\n");
+  const reply = lines.slice(0, INLINE_PREVIEW_ROW_LIMIT).join("\n");
   return (
-    <div className={PREVIEW_WRAP}>
+    <div className={TEXT_PREVIEW_CLASS}>
       {reply ? (
         <div className="whitespace-pre-wrap break-words text-fg-soft">{reply}</div>
       ) : (
@@ -25,7 +25,7 @@ function TaskPreview({ tool, onOpenView }: ToolPreviewProps) {
           idle="tools.preview.idle.noReply"
         />
       )}
-      <Overflow count={lines.length - MAX_ROWS} />
+      <PreviewOverflow count={lines.length - INLINE_PREVIEW_ROW_LIMIT} />
       <PreviewFoot label="tools.preview.viewReply" onClick={onOpenView} />
     </div>
   );

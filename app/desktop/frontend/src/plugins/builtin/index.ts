@@ -34,7 +34,7 @@ import agentFold from "./agent/public/foldPlugin";
 import {
   defaultAccents,
   defaultCommands,
-  defaultData,
+  defaultDataProviders,
   defaultRoles,
   defaultTitle,
 } from "./defaults";
@@ -125,7 +125,7 @@ const infrastructure: PluginSpec[] = [
   agentBootstrap,
   runtime,
   workspaceBootstrap,
-  defaultData,
+  defaultDataProviders,
   // After bootstrap: watches the discovery result and opens the app's one
   // workspace.subscribe stream (AUX_API §3).
   workspaceEvents,

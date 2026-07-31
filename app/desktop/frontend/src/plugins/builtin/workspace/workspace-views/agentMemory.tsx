@@ -22,7 +22,7 @@ import {
   setAgentMemoryPinned,
   updateAgentMemoryContent,
   useAgentMemory,
-  type AgentMemoryItemInfo,
+  type AgentMemoryEntry,
   type AgentMemoryQuery,
 } from "@/plugins/builtin/workspace/application/agentMemoryConfig";
 
@@ -55,7 +55,7 @@ function useRowAction(): { busy: boolean; run: (op: () => Promise<void>) => void
   return { busy, run };
 }
 
-function OriginBadge({ origin }: { origin: AgentMemoryItemInfo["origin"] }) {
+function OriginBadge({ origin }: { origin: AgentMemoryEntry["origin"] }) {
   const t = useT();
   return (
     <span className="shrink-0 rounded-sm bg-surface-2 px-1.5 py-px text-ui-xs text-fg-faint">
@@ -64,7 +64,7 @@ function OriginBadge({ origin }: { origin: AgentMemoryItemInfo["origin"] }) {
   );
 }
 
-function PendingRow({ item }: { item: AgentMemoryItemInfo }) {
+function PendingRow({ item }: { item: AgentMemoryEntry }) {
   const t = useT();
   const { busy, run } = useRowAction();
   return (
@@ -102,7 +102,7 @@ function PendingRow({ item }: { item: AgentMemoryItemInfo }) {
   );
 }
 
-function ActiveRow({ item }: { item: AgentMemoryItemInfo }) {
+function ActiveRow({ item }: { item: AgentMemoryEntry }) {
   const t = useT();
   const { busy, run } = useRowAction();
   const [editing, setEditing] = useState(false);

@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import type { VariantProps } from "class-variance-authority";
 import { cva } from "class-variance-authority";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { Icon } from "@/ui/icons";
 import { Button } from "./button";
 import { InputPrimitive, type InputPrimitiveProps } from "@/ui/primitives";

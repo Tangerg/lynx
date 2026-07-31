@@ -28,9 +28,9 @@ export {
   useManagedSkills,
   useSkillDrafts,
   useAgentMemory,
-} from "../application/workspaceData";
+} from "../application/workspaceQueries";
 export {
-  type BuiltinToolInfo,
+  type BuiltinToolSummary,
   type WorkspaceAgentDoc,
   type WorkspaceDiff,
   type WorkspaceDiffQuery,
@@ -52,11 +52,11 @@ export {
   type WorkspaceReadFileQuery,
   type WorkspaceMemoryScope,
   type WorkspaceSkill,
-  type ManagedSkillInfo,
-  type SkillDraftInfo,
-  type AgentMemoryItemInfo,
+  type ManagedSkill,
+  type SkillDraft,
+  type AgentMemoryEntry,
   type AgentMemoryQuery,
-} from "../application/workspaceData";
+} from "../application/workspaceQueries";
 
 // Capability gating is part of the published surface: a cross-context consumer
 // (the chat header's diff readout) has to know whether git is negotiated before

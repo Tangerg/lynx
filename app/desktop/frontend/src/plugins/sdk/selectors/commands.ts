@@ -8,21 +8,22 @@ import { useMemo } from "react";
 import type { CommandSpec, ContributedCommand, SlashCommandSpec } from "../types";
 import { COMMAND, SLASH_COMMAND } from "../kernelPoints";
 import { usePluginStore } from "../registry";
-import { runActivator, useDeclaredMerged } from "./_helpers";
+import { useResolvedContributions } from "./declaredContributions";
 import {
   lookupExtensionByKey,
   lookupExtensionOwner,
   useExtensionEntries,
   useExtensionPoint,
 } from "./extensions";
+import { activatePlugin } from "./pluginActivation";
 
 // Registered wins on id collision, so once a plugin is activated its real
 // CommandSpec replaces the contributes.commands placeholder transparently.
 
 export function useCommands(): CommandSpec[] {
   const registered = useExtensionPoint(COMMAND);
-  const declared = usePluginStore((s) => s.declaredCommands);
-  return useDeclaredMerged(registered, declared, declaredToPlaceholder);
+  const declared = usePluginStore((state) => state.declaredCommands);
+  return useResolvedContributions(registered, declared, declaredToPlaceholder);
 }
 
 /** Owner plugin of a registered command — used for error attribution. */
@@ -30,10 +31,10 @@ export function lookupCommandOwner(id: string): string | undefined {
   return lookupExtensionOwner(COMMAND, id);
 }
 
-function declaredToPlaceholder(c: ContributedCommand, pluginName: string): CommandSpec {
+function declaredToPlaceholder(command: ContributedCommand, pluginName: string): CommandSpec {
   return {
-    ...c,
-    run: (...args) => activateAndRun(pluginName, c.id, args),
+    ...command,
+    run: (...args) => activateAndRun(pluginName, command.id, args),
   };
 }
 
@@ -42,7 +43,7 @@ async function activateAndRun(
   commandId: string,
   args: unknown[],
 ): Promise<void> {
-  await runActivator(pluginName);
+  await activatePlugin(pluginName);
   const real = lookupExtensionByKey(COMMAND, commandId);
   if (!real) {
     console.warn(`[plugin] ${pluginName} activated but did not register command ${commandId}`);
@@ -71,7 +72,7 @@ export function executeCommand(id: string, ...args: unknown[]): Promise<void> {
 
 export function useSlashCommands(): Array<{ cmd: string; spec: SlashCommandSpec }> {
   const entries = useExtensionEntries(SLASH_COMMAND);
-  return useMemo(() => entries.map((e) => ({ cmd: e.key, spec: e.item })), [entries]);
+  return useMemo(() => entries.map((entry) => ({ cmd: entry.key, spec: entry.item })), [entries]);
 }
 
 /** Owner plugin of a slash command — used for error attribution when one throws. */

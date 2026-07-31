@@ -1,13 +1,13 @@
 import { queryClient } from "@/lib/queryClient";
 import { goalGateway, type GoalStartInput } from "./ports/goalGateway";
-import { GOAL_KEY, useGoalStateQuery } from "./goalData";
+import { GOAL_KEY, useGoalStateQuery } from "./goalQueries";
 
 export function useGoal(enabled: boolean, sessionId: string | undefined) {
   return useGoalStateQuery(enabled && sessionId ? { sessionId } : undefined);
 }
 
 // A goal's live budget advances via server-launched runs the client can't
-// observe, so the query polls while active (see goalData). Mutations invalidate
+// observe, so the query polls while active (see goalQueries). Mutations invalidate
 // so start/stop/resume reflect immediately without waiting for the poll tick.
 async function invalidate(): Promise<void> {
   await queryClient.invalidateQueries({ queryKey: [GOAL_KEY] });

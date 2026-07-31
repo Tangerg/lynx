@@ -3,7 +3,7 @@ import { setPluginRuntime } from "./hostRuntime";
 import { createLazyActivator } from "./pluginActivation";
 import { loadPlugin, reloadPlugin, unloadPlugin } from "./pluginLifecycle";
 import { loadPlugins } from "./pluginManifest";
-import { setActivator } from "./selectors";
+import { configurePluginActivation } from "./selectors";
 
 /**
  * Identity function — `definePlugin({ ... })` is what plugins default-export.
@@ -17,7 +17,7 @@ export function definePlugin(spec: PluginSpec): PluginSpec {
 }
 
 // Keep composition wiring at the SDK facade so lifecycle modules stay acyclic.
-setActivator(createLazyActivator(loadPlugin));
+configurePluginActivation(createLazyActivator(loadPlugin));
 
 setPluginRuntime({
   load: async (spec) => {

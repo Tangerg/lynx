@@ -3,19 +3,19 @@
 // settled-tool summary).
 
 import type { ToolPreviewProps } from "@/plugins/sdk";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
-import { askUserPreviewAnswer } from "@/plugins/builtin/chat/tools/application/specialisedPreviewData";
+import { projectAskUserAnswer } from "@/plugins/builtin/chat/tools/application/specialisedPreviewProjections";
 import { askUserToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
-import { PREVIEW_WRAP } from "./shared";
+import { TEXT_PREVIEW_CLASS } from "./previewChrome";
 
 function AskUserPreview({ tool }: ToolPreviewProps) {
   const t = useT();
-  const answer = askUserPreviewAnswer(tool.result);
+  const answer = projectAskUserAnswer(tool.result);
   return (
-    <div className={cn(PREVIEW_WRAP, "whitespace-pre-wrap break-words")}>
+    <div className={cn(TEXT_PREVIEW_CLASS, "whitespace-pre-wrap break-words")}>
       {answer ? (
         <>
           <span className="text-fg-faint">{t("tool.askUser.answerPrefix")}</span>

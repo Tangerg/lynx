@@ -7,7 +7,7 @@ import { useT } from "@/lib/i18n";
 import { FileView } from "./views/FileView";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
-import { useWorkspaceReadFile } from "@/plugins/builtin/workspace/application/workspaceData";
+import { useWorkspaceReadFile } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import { useWorkspaceFileViewer } from "@/plugins/builtin/workspace/public/navigation";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 

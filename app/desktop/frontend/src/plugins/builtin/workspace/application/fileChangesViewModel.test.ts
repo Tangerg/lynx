@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { t } from "@/lib/i18n";
-import type { WorkspaceFileChange } from "./workspaceData";
+import type { WorkspaceFileChange } from "./workspaceQueries";
 import { fileChangesSubtext, fileChangesViewModel } from "./fileChangesViewModel";
 
 const change = (over: Partial<WorkspaceFileChange>): WorkspaceFileChange => ({

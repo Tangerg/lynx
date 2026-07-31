@@ -14,7 +14,7 @@ import {
   questionCardSettledView,
   useQuestionCardActions,
 } from "../../application/questionCardModel";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
 interface Props {
   /** Block lifecycle. `"requires-action"` shows the interactive card;

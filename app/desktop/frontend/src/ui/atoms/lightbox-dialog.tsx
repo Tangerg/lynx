@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { DialogPrimitive } from "@/ui/primitives";
 
 interface LightboxDialogProps {

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button, Icon, ProviderIcon, TextField } from "@/ui";
 import {
-  type ProviderInfo,
+  type ProviderConfiguration,
   useConfigureProvider,
   useTestProvider,
 } from "../application/providerConfig";
@@ -12,9 +12,9 @@ import {
 } from "../application/providerDraft";
 import { useT } from "@/lib/i18n";
 import { useProbe } from "../../public";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
-export function ProviderRow({ p }: { p: ProviderInfo }) {
+export function ProviderRow({ p }: { p: ProviderConfiguration }) {
   const t = useT();
   const configure = useConfigureProvider();
   const test = useTestProvider();

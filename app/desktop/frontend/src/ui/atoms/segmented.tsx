@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { TabsPrimitive } from "@/ui/primitives";
 
 export interface SegmentedOption<T> {

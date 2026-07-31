@@ -8,7 +8,7 @@ import {
   CODEBASE_STATUS_KEY,
   useCodebaseStatus,
   useEmbeddingRole,
-} from "@/plugins/builtin/settings/providers/public/data";
+} from "@/plugins/builtin/settings/providers/public/queries";
 import { codebaseGateway, type CodebaseSearchHit } from "./ports/codebaseGateway";
 
 export type { CodebaseSearchHit } from "./ports/codebaseGateway";

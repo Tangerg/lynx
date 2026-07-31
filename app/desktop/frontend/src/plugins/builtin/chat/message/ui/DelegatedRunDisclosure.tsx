@@ -3,7 +3,7 @@ import { useId, useState } from "react";
 import type { AgentRunView } from "@/plugins/builtin/agent/public/viewState";
 import { Collapsible, Icon, IconButton, StatusDot } from "@/ui";
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { delegatedRunCardModel } from "../application/delegatedRunCardModel";
 
 interface Props {

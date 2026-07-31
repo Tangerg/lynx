@@ -6,7 +6,7 @@ import { measureShikiHighlight } from "@/lib/metrics";
 import { getHighlighter, resolveLang } from "@/lib/highlight/shiki";
 import { getCachedHighlight, setCachedHighlight } from "@/lib/highlight/shikiCache";
 import { useShikiTheme } from "@/lib/highlight/useCodeHighlight";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 
 interface Props {

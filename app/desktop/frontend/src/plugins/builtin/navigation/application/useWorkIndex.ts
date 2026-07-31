@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useWorkspaceProjects } from "@/plugins/builtin/workspace/public/data";
+import { useWorkspaceProjects } from "@/plugins/builtin/workspace/public/queries";
 import {
   useActiveSessionCwd,
   useActiveSessionId,

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { DataView, Icon, PillButton } from "@/ui";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { useMCPServerConfigs } from "../application/mcpServerConfig";
 import { JsonImport } from "./JsonImport";

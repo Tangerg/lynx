@@ -2,16 +2,16 @@ import { DataView, IconButton, TextButton } from "@/ui";
 import {
   forgetApprovalRule,
   forgetApprovalRules,
-  type ApprovalRuleInfo,
+  type ApprovalRuleSummary,
   useApprovalRuleConfigs,
 } from "../application/approvalConfig";
 import { isUnsupportedMethod, rpcErrorText } from "@/lib/rpcErrors";
 import { useActiveSession } from "@/plugins/builtin/agent/public/session";
 import { notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
-const SCOPE_CHIP: Record<ApprovalRuleInfo["scope"], string> = {
+const SCOPE_CHIP: Record<ApprovalRuleSummary["scope"], string> = {
   session: "bg-surface-2 text-fg-muted",
   project: "bg-accent-wash text-accent",
   global: "bg-warning-wash text-warning",
@@ -28,7 +28,7 @@ export function RulesRow() {
       notifyError(rpcErrorText(err) ?? t("approvals.error.forget"));
     }
   };
-  const forgetAll = async (rows: ApprovalRuleInfo[]) => {
+  const forgetAll = async (rows: ApprovalRuleSummary[]) => {
     try {
       await forgetApprovalRules(rows);
     } catch (err) {

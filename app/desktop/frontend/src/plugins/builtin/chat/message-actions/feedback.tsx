@@ -4,7 +4,7 @@
 // decisions. Re-rating re-submits; the runtime treats each as a new event.
 
 import { useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import type { MessageFeedbackRating } from "./domain/feedback";
@@ -12,7 +12,7 @@ import { canRateMessage } from "./application/messageActionAvailability";
 import { messageFeedbackActionSlot } from "./application/messageActionContributions";
 import { messageFeedbackRating, submitMessageFeedback } from "./public/feedback";
 import { installRuntimeFeedbackPort } from "./adapters/runtimeFeedback";
-import { MessageActionButton } from "./_shared";
+import { MessageActionButton } from "./MessageActionButton";
 
 function FeedbackButtons() {
   const t = useT();

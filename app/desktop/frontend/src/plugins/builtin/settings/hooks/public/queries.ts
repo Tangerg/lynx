@@ -1,7 +1,7 @@
 export {
   HOOKS_KEY,
   useHooks,
-  type HookListInfo,
-  type HookInfo,
+  type HookCatalog,
+  type HookReadModel,
   type HooksQuery,
 } from "../application/hookQueries";

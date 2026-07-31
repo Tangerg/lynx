@@ -12,7 +12,7 @@ import type { IconName } from "@/ui";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { Collapsible, Icon, StatusDot } from "@/ui";
 import { type ToolMetaItem } from "@/plugins/builtin/agent/public/messagePresentation";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import {
   lookupToolActionOwner,

@@ -2,7 +2,7 @@ import type { VariantProps } from "class-variance-authority";
 import type { ReactNode } from "react";
 import { cva } from "class-variance-authority";
 import type { Tone } from "@/lib/tone";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
 // A word carrying a state: "done", "safe", "needs auth", "3 errors".
 //

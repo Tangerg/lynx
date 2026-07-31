@@ -6,7 +6,7 @@
 import type { VariantProps } from "class-variance-authority";
 import type { ComponentProps, ReactNode } from "react";
 import { cva } from "class-variance-authority";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { Icon, type IconName } from "@/ui/icons";
 import { Button, type ButtonProps } from "./button";
 

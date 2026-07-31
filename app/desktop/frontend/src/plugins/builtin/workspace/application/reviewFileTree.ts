@@ -7,7 +7,7 @@
 // working tree — so nothing is fetched and nothing lazy-loads: the whole shape
 // is known the moment the diff arrives.
 
-import type { WorkspaceFileDiff } from "./workspaceData";
+import type { WorkspaceFileDiff } from "./workspaceQueries";
 
 export interface ReviewTreeFileNode {
   kind: "file";

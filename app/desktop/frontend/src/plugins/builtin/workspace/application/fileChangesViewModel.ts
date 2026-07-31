@@ -1,5 +1,5 @@
 import type { Translate } from "@/lib/i18n";
-import type { WorkspaceFileChange } from "./workspaceData";
+import type { WorkspaceFileChange } from "./workspaceQueries";
 
 export interface FileChangeTag {
   letter: "A" | "D" | "M";

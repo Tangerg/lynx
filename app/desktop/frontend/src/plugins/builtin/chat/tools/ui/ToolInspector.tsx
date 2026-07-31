@@ -1,5 +1,5 @@
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { toolInspectorModel, type ToolInspectorBody } from "../application/toolInspectorModel";
 

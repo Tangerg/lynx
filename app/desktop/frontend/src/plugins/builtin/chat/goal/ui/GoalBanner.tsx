@@ -8,13 +8,13 @@ import { useCallback, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Icon, PillButton, TextArea, TextField } from "@/ui";
 import { swift } from "@/lib/motion";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { notifyError } from "@/plugins/sdk";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { resumeGoal, startGoal, stopGoal, useGoal } from "../application/goalConfig";
-import type { GoalInfo } from "../application/goalData";
+import type { GoalReadModel } from "../application/goalQueries";
 
 function useAction(): { busy: boolean; run: (op: () => Promise<void>) => void } {
   const t = useT();
@@ -57,13 +57,13 @@ export function GoalBanner() {
   );
 }
 
-function statusTone(status: GoalInfo["status"]): string {
+function statusTone(status: GoalReadModel["status"]): string {
   if (status === "active") return "text-accent";
   if (status === "blocked") return "text-negative";
   return "text-fg-muted";
 }
 
-function budgetSummary(t: ReturnType<typeof useT>, goal: GoalInfo): string {
+function budgetSummary(t: ReturnType<typeof useT>, goal: GoalReadModel): string {
   const { budget: b, used: u } = goal;
   const parts: string[] = [];
   parts.push(
@@ -81,7 +81,7 @@ function budgetSummary(t: ReturnType<typeof useT>, goal: GoalInfo): string {
   return parts.join(" · ");
 }
 
-function ActiveGoal({ goal, sessionId }: { goal: GoalInfo; sessionId: string }) {
+function ActiveGoal({ goal, sessionId }: { goal: GoalReadModel; sessionId: string }) {
   const t = useT();
   const { busy, run } = useAction();
   const driving = goal.status === "active";

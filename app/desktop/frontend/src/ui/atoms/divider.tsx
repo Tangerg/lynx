@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
 // Divider — horizontal label flanked by faint hairlines.
 // Used by Checkpoint, ApprovalCard's settled / declined states.

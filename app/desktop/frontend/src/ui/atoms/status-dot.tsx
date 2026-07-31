@@ -1,6 +1,6 @@
 import type { VariantProps } from "class-variance-authority";
 import { cva } from "class-variance-authority";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
 // Small colored dot used as a status indicator (running / waiting / idle).
 // Used in tab strips, session rows, run badges. The accent variant pulses

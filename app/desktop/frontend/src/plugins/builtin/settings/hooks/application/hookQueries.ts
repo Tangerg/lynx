@@ -1,6 +1,6 @@
 import { createParameterizedDataQuery } from "@/plugins/sdk";
 
-export interface HookInfo {
+export interface HookReadModel {
   event: string;
   matcher?: string;
   command?: string;
@@ -11,8 +11,8 @@ export interface HookInfo {
   active: boolean;
 }
 
-export interface HookListInfo {
-  hooks: HookInfo[];
+export interface HookCatalog {
+  hooks: HookReadModel[];
   projectRoot?: string;
   projectTrusted: boolean;
 }
@@ -22,4 +22,4 @@ export interface HooksQuery {
 }
 
 export const HOOKS_KEY = "hooks";
-export const useHooks = createParameterizedDataQuery<HooksQuery, HookListInfo>(HOOKS_KEY);
+export const useHooks = createParameterizedDataQuery<HooksQuery, HookCatalog>(HOOKS_KEY);

@@ -1,6 +1,6 @@
 import { queryClient } from "@/lib/queryClient";
 import { skillLibraryGateway } from "./ports/skillLibraryGateway";
-import { WORKSPACE_MANAGED_SKILLS_KEY, WORKSPACE_SKILLS_KEY } from "./workspaceData";
+import { WORKSPACE_MANAGED_SKILLS_KEY, WORKSPACE_SKILLS_KEY } from "./workspaceQueries";
 
 // Archiving or restoring changes both the management view and the agent's
 // discovery view (an archived skill is no longer loadable), so refresh both.

@@ -14,7 +14,7 @@ import {
   type ApprovalRisk,
   type ApprovalTone,
 } from "@/plugins/builtin/agent/public/messagePresentation";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useApprovalArgsEditor } from "../../application/approvalArgsEditor";
 import { useApprovalCardActions } from "../../application/approvalCardActions";
 import { ApprovalArgsEditor } from "./ApprovalArgsEditor";

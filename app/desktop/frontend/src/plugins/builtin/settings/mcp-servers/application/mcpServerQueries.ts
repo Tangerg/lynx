@@ -1,6 +1,6 @@
 import { createDataQuery, createParameterizedDataQuery } from "@/plugins/sdk";
 
-export interface MCPServer {
+export interface MCPServerSummary {
   id: string;
   name: string;
   desc: string;
@@ -10,7 +10,7 @@ export interface MCPServer {
   icon: string;
 }
 
-export interface McpToolInfo {
+export interface MCPToolSummary {
   name: string;
   description: string;
 }
@@ -21,7 +21,7 @@ export interface McpToolsQuery {
 
 export type MCPTransport = "stdio" | "streamableHttp";
 
-export interface MCPServerConfigInfo {
+export interface MCPServerSettings {
   name: string;
   type: MCPTransport;
   enabled: boolean;
@@ -36,7 +36,7 @@ export interface MCPServerConfigInfo {
   timeoutSeconds?: number;
   disabledTools?: string[];
   autoApproveTools?: string[];
-  status?: MCPServer["status"];
+  status?: MCPServerSummary["status"];
   toolCount?: number;
   errorDetail?: string;
 }
@@ -45,8 +45,8 @@ export const MCP_SERVERS_KEY = "mcp-servers";
 export const MCP_CONFIGS_KEY = "mcp-configs";
 export const MCP_TOOLS_KEY = "mcp-tools";
 
-export const useMCPServers = createDataQuery<MCPServer[]>(MCP_SERVERS_KEY);
-export const useMCPConfigs = createDataQuery<MCPServerConfigInfo[]>(MCP_CONFIGS_KEY);
-export const useMCPTools = createParameterizedDataQuery<McpToolsQuery, McpToolInfo[]>(
+export const useMCPServers = createDataQuery<MCPServerSummary[]>(MCP_SERVERS_KEY);
+export const useMCPConfigs = createDataQuery<MCPServerSettings[]>(MCP_CONFIGS_KEY);
+export const useMCPTools = createParameterizedDataQuery<McpToolsQuery, MCPToolSummary[]>(
   MCP_TOOLS_KEY,
 );

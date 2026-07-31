@@ -8,15 +8,15 @@ import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/Previe
 import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews/PreviewPlaceholder";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
-import { globPreviewData } from "@/plugins/builtin/chat/tools/application/specialisedPreviewData";
+import { projectGlobPreview } from "@/plugins/builtin/chat/tools/application/specialisedPreviewProjections";
 import { globToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
-import { MAX_ROWS, Overflow, PREVIEW_WRAP } from "./shared";
+import { INLINE_PREVIEW_ROW_LIMIT, PreviewOverflow, TEXT_PREVIEW_CLASS } from "./previewChrome";
 
 function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
   const t = useT();
-  const { paths, truncated } = globPreviewData(tool.result);
+  const { paths, truncated } = projectGlobPreview(tool.result);
   return (
-    <div className={PREVIEW_WRAP}>
+    <div className={TEXT_PREVIEW_CLASS}>
       {paths.length === 0 && (
         <PreviewPlaceholder
           status={tool.status}
@@ -24,7 +24,7 @@ function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
           idle="tools.preview.idle.noMatches"
         />
       )}
-      {paths.slice(0, MAX_ROWS).map((p) => (
+      {paths.slice(0, INLINE_PREVIEW_ROW_LIMIT).map((p) => (
         <div
           key={p}
           className="truncate rounded-2xs px-1 py-0.5 text-fg-muted hover:bg-hover transition-colors"
@@ -32,7 +32,7 @@ function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
           {p}
         </div>
       ))}
-      <Overflow count={paths.length - MAX_ROWS} />
+      <PreviewOverflow count={paths.length - INLINE_PREVIEW_ROW_LIMIT} />
       {truncated && <div className="text-fg-faint">… {t("tools.overflow.truncated")}</div>}
       <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { WorkspaceDiff } from "./workspaceData";
+import type { WorkspaceDiff } from "./workspaceQueries";
 import {
   workspaceDiffFileHeader,
   workspaceDiffViewModel,

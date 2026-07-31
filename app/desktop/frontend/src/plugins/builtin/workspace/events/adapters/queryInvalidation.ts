@@ -4,20 +4,20 @@ import {
   AGENT_SESSION_USAGE_KEY,
   synchronizeMountedAgentSessions,
 } from "@/plugins/builtin/agent/public/session";
-import { GOAL_KEY } from "@/plugins/builtin/chat/goal/public/data";
-import { SCHEDULES_KEY } from "@/plugins/builtin/settings/schedules/public/data";
+import { GOAL_KEY } from "@/plugins/builtin/chat/goal/public/queries";
+import { SCHEDULES_KEY } from "@/plugins/builtin/settings/schedules/public/queries";
 import {
   MCP_CONFIGS_KEY,
   MCP_SERVERS_KEY,
   MCP_TOOLS_KEY,
-} from "@/plugins/builtin/settings/mcp-servers/public/data";
+} from "@/plugins/builtin/settings/mcp-servers/public/queries";
 import {
   WORKSPACE_DIFF_KEY,
   WORKSPACE_FILES_CHANGED_KEY,
   WORKSPACE_MANAGED_SKILLS_KEY,
   WORKSPACE_SKILLS_KEY,
   WORKSPACE_SKILL_DRAFTS_KEY,
-} from "@/plugins/builtin/workspace/public/data";
+} from "@/plugins/builtin/workspace/public/queries";
 import {
   workspaceInvalidations,
   type WorkspaceEventLike,

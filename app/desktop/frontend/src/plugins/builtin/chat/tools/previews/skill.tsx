@@ -5,29 +5,29 @@ import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
-import { skillPreviewEntries } from "@/plugins/builtin/chat/tools/application/specialisedPreviewData";
+import { projectSkillPreview } from "@/plugins/builtin/chat/tools/application/specialisedPreviewProjections";
 import { resultLines } from "@/plugins/builtin/chat/tools/application/toolResultParsing";
 import { skillToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
-import { MAX_ROWS, Overflow, PREVIEW_WRAP } from "./shared";
+import { INLINE_PREVIEW_ROW_LIMIT, PreviewOverflow, TEXT_PREVIEW_CLASS } from "./previewChrome";
 
 function SkillPreview({ tool, onOpenView }: ToolPreviewProps) {
-  const entries = skillPreviewEntries(tool.result);
+  const entries = projectSkillPreview(tool.result);
   if (entries.length === 0) {
     const lines = resultLines(tool.result);
     return (
-      <div className={PREVIEW_WRAP}>
+      <div className={TEXT_PREVIEW_CLASS}>
         <div className="whitespace-pre-wrap break-words text-fg-soft">
-          {lines.slice(0, MAX_ROWS).join("\n") ||
+          {lines.slice(0, INLINE_PREVIEW_ROW_LIMIT).join("\n") ||
             (tool.status === "running" ? "Loading…" : "(empty)")}
         </div>
-        <Overflow count={lines.length - MAX_ROWS} />
+        <PreviewOverflow count={lines.length - INLINE_PREVIEW_ROW_LIMIT} />
         <PreviewFoot label="tools.preview.viewText" onClick={onOpenView} />
       </div>
     );
   }
   return (
-    <div className={PREVIEW_WRAP}>
-      {entries.slice(0, MAX_ROWS).map((s) => (
+    <div className={TEXT_PREVIEW_CLASS}>
+      {entries.slice(0, INLINE_PREVIEW_ROW_LIMIT).map((s) => (
         <div
           key={s.name}
           className="flex items-baseline gap-2 rounded-2xs px-1 py-0.5 hover:bg-hover transition-colors"
@@ -38,7 +38,7 @@ function SkillPreview({ tool, onOpenView }: ToolPreviewProps) {
           <span className="truncate text-ui-sm text-fg-muted">{s.description}</span>
         </div>
       ))}
-      <Overflow count={entries.length - MAX_ROWS} />
+      <PreviewOverflow count={entries.length - INLINE_PREVIEW_ROW_LIMIT} />
       <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>
   );

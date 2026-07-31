@@ -23,8 +23,9 @@ import {
 } from "../kernelPoints";
 import { makeLazyActivator } from "../lazyActivator";
 import { usePluginStore } from "../registry";
-import { runActivator, useDeclaredMerged } from "./_helpers";
+import { useResolvedContributions } from "./declaredContributions";
 import { createPointSubIndex, useExtensionPoint } from "./extensions";
+import { activatePlugin } from "./pluginActivation";
 
 const layoutBySlot = createPointSubIndex<{ slot: string; spec: LayoutSlotSpec }, LayoutSlotSpec>(
   LAYOUT_SLOT.id,
@@ -44,8 +45,8 @@ export function useLayoutSlot(slot: string): LayoutSlotSpec[] {
 
 export function useWorkspaceViews(): WorkspaceViewSpec[] {
   const registered = useExtensionPoint(WORKSPACE_VIEW);
-  const declared = usePluginStore((s) => s.declaredViews);
-  return useDeclaredMerged(registered, declared, declaredToWorkspaceView);
+  const declared = usePluginStore((state) => state.declaredViews);
+  return useResolvedContributions(registered, declared, declaredToWorkspaceView);
 }
 
 export function useContextDockDestinations(): ContextDockDestinationSpec[] {
@@ -63,26 +64,29 @@ export function useWorkIndexItems(
   );
 }
 
-function declaredToWorkspaceView(d: ContributedView, pluginName: string): WorkspaceViewSpec {
+function declaredToWorkspaceView(view: ContributedView, pluginName: string): WorkspaceViewSpec {
   return {
-    ...d,
-    component: makeLazyActivator(d.title, () => {
-      void runActivator(pluginName);
+    ...view,
+    component: makeLazyActivator(view.title, () => {
+      void activatePlugin(pluginName);
     }),
   };
 }
 
 export function useSettingsPanes(): SettingsPaneSpec[] {
   const registered = useExtensionPoint(SETTINGS_PANE);
-  const declared = usePluginStore((s) => s.declaredSettingsPanes);
-  return useDeclaredMerged(registered, declared, declaredToSettingsPane);
+  const declared = usePluginStore((state) => state.declaredSettingsPanes);
+  return useResolvedContributions(registered, declared, declaredToSettingsPane);
 }
 
-function declaredToSettingsPane(d: ContributedSettingsPane, pluginName: string): SettingsPaneSpec {
+function declaredToSettingsPane(
+  pane: ContributedSettingsPane,
+  pluginName: string,
+): SettingsPaneSpec {
   return {
-    ...d,
-    component: makeLazyActivator(d.label, () => {
-      void runActivator(pluginName);
+    ...pane,
+    component: makeLazyActivator(pane.label, () => {
+      void activatePlugin(pluginName);
     }),
   };
 }

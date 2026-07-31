@@ -1,6 +1,6 @@
 // Track is exactly twice the thumb — the ratio a physical toggle has, and the
 // travel then reads as the thumb crossing the track rather than sliding along it.
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { SwitchPrimitive } from "@/ui/primitives";
 
 interface SwitchProps {

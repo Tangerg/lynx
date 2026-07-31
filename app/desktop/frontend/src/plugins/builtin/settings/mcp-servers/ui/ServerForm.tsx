@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Icon, PillButton, Segmented, Surface, TextField } from "@/ui";
 import {
-  type MCPServerConfigInfo,
+  type MCPServerSettings,
   type MCPTransport,
   useConfigureMCPServer,
   useRemoveMCPServer,
@@ -19,7 +19,7 @@ import { ToolControls } from "./ToolControls";
 import { useProbe } from "../../public";
 
 interface Props {
-  server?: MCPServerConfigInfo;
+  server?: MCPServerSettings;
   onDone: () => void;
   onCancel: () => void;
 }

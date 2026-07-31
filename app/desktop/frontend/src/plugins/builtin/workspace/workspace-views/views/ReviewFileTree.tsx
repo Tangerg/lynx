@@ -10,9 +10,9 @@
 import { useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import { Icon, IconButton, ScrollArea, TextField } from "@/ui";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
-import type { WorkspaceFileDiff } from "@/plugins/builtin/workspace/application/workspaceData";
+import type { WorkspaceFileDiff } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import {
   type ReviewTreeNode,
   buildReviewFileTree,

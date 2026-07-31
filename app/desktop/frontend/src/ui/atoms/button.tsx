@@ -1,7 +1,7 @@
 import type { VariantProps } from "class-variance-authority";
 import type { ReactNode } from "react";
 import { cva } from "class-variance-authority";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { ButtonPrimitive, type ButtonPrimitiveProps } from "@/ui/primitives";
 
 // Every variant carries a border — transparent where there is nothing to draw.

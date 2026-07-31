@@ -4,7 +4,7 @@ import {
   mentionOptionId,
 } from "@/plugins/builtin/chat/composer/application/fileMentions";
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
 interface Props {
   items: string[];

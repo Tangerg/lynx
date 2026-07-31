@@ -1,6 +1,6 @@
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { Button as BaseButton } from "@base-ui/react/button";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
 export type ButtonPrimitiveProps = ComponentPropsWithoutRef<typeof BaseButton> & {
   children?: ReactNode;

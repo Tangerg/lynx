@@ -11,15 +11,15 @@
 
 import { DataView, EmptyState, Icon, Surface, Switch } from "@/ui";
 import { isUnsupportedMethod, rpcErrorText } from "@/lib/rpcErrors";
-import type { HookInfo } from "../application/hookConfig";
+import type { HookReadModel } from "../application/hookConfig";
 import { useHookConfigs } from "../application/hookConfig";
 import { setHookTrust } from "../application/hookTrust";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
-function HookRow({ h }: { h: HookInfo }) {
+function HookRow({ h }: { h: HookReadModel }) {
   const t = useT();
   return (
     <div

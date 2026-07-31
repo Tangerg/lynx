@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { Icon, IconButton, StepMark, type StepState } from "@/ui";
 import { swift } from "@/lib/motion";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { useCurrentRootPlan, useCurrentRootRunId } from "@/plugins/builtin/agent/public/run";
 import { planProgress } from "../application/progress";

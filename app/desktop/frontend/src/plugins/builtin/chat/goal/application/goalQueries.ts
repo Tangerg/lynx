@@ -5,25 +5,25 @@ export const GOAL_KEY = "goal";
 export type GoalStatus = "active" | "paused" | "blocked";
 
 // A zero field is uncapped on that axis (matches the wire's omit-when-zero).
-export interface GoalBudgetInfo {
+export interface GoalBudget {
   maxTurns: number;
   maxCostUsd: number;
   maxSteps: number;
 }
 
-export interface GoalUsageInfo {
+export interface GoalUsage {
   turns: number;
   costUsd: number;
   steps: number;
 }
 
-export interface GoalInfo {
+export interface GoalReadModel {
   sessionId: string;
   objective: string;
   status: GoalStatus;
   reason: string;
-  budget: GoalBudgetInfo;
-  used: GoalUsageInfo;
+  budget: GoalBudget;
+  used: GoalUsage;
 }
 
 // The read result folds three states into one shape so the banner can tell
@@ -32,7 +32,7 @@ export interface GoalInfo {
 // the data provider never probes goals.get to determine availability.
 export interface GoalState {
   available: boolean;
-  goal: GoalInfo | null;
+  goal: GoalReadModel | null;
 }
 
 export interface GoalQuery {

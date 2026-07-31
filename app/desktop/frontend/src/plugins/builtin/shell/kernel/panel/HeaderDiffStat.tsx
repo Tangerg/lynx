@@ -1,12 +1,12 @@
 import { Button } from "@/ui";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { openDiffViewInDock } from "@/plugins/builtin/workspace/public/deeplinks";
 import {
   useWorkspaceCapability,
   useWorkspaceFileChanges,
-} from "@/plugins/builtin/workspace/public/data";
+} from "@/plugins/builtin/workspace/public/queries";
 
 /**
  * Working-tree churn at a glance — `+added −removed`, opening the diff view.

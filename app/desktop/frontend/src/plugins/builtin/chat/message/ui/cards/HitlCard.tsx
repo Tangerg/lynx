@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { IconName } from "@/ui";
 import { Divider, Icon } from "@/ui";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/classNames";
 
 // Shared chrome for the HITL cards (ApprovalCard / QuestionCard). Only the
 // container + header row + the settled "done" divider are centralised here;

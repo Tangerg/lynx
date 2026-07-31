@@ -1,5 +1,5 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
-import type { WorkspaceMemoryScope } from "../workspaceData";
+import type { WorkspaceMemoryScope } from "../workspaceQueries";
 
 export interface WorkspaceMemoryUpdateInput {
   scope: WorkspaceMemoryScope;
