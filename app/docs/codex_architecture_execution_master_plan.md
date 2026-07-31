@@ -6,8 +6,9 @@
 > W4.1 实施提交：`40cffd81e`；W4.2：`cc85d3039`；W4.3：`ca0949949`
 > W4.4 实施提交：`49b6494bd` + `fcbf8f558` + `34a875d29`
 > W6.1 实施提交：`eae67ca4e`；W6.2：`47970e41d`
-> 当前主任务：`W7.0 — Synara visual baseline and state map`
-> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6 DONE · W7.0 READY`
+> W7.0 基线提交：随本原子 slice 提交
+> 当前主任务：`W7.1 — visual foundation`
+> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6 DONE · W7.0 DONE · W7.1 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 44`
@@ -31,15 +32,17 @@
    Runtime 协议一致性与 child Run 专项台账。
 4. [`codex_desktop_run_tree_execution_plan.md`](codex_desktop_run_tree_execution_plan.md)
    Desktop B1.6 的目标读模型、爆炸半径与原子执行卡。
-5. [`../../doc/AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md`](../../doc/AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md)
+5. [`codex_synara_visual_baseline_and_execution_plan.md`](codex_synara_visual_baseline_and_execution_plan.md)
+   W7 的视觉目标、状态映射、冻结决策、验收矩阵与原子执行卡。
+6. [`../../doc/AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md`](../../doc/AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md)
    Agent Framework 专项台账。
-6. [`../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md`](../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md)、
+7. [`../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md`](../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md)、
    [`../desktop/frontend/ARCHITECTURE.md`](../desktop/frontend/ARCHITECTURE.md) 与
    [`../desktop/docs/FRONTEND_PLUGIN_CONTEXTS.md`](../desktop/docs/FRONTEND_PLUGIN_CONTEXTS.md)
    各模块的现行架构基准。
-7. Contract Registry、生成物、源码、测试和 Git
+8. Contract Registry、生成物、源码、测试和 Git
    证明“当前实现实际上是什么”。
-8. `PROTOCOL_DESIGN.md`、`PROTOCOL_VNEXT_REVIEW.md`、
+9. `PROTOCOL_DESIGN.md`、`PROTOCOL_VNEXT_REVIEW.md`、
    `VNEXT_IMPLEMENTATION_PLAN.md` 与各类 comparison 文档
    保留为决策历史和证据，不再承担当前进度总账。
 
@@ -53,12 +56,13 @@
   [`REFACTORING.md`](../../REFACTORING.md) 为准；
 - 不允许为了迁就现状反向弱化目标契约。
 
-截至 2026-07-31，W2–W6 已完成。B1.7 已用一次 breaking、无兼容分支的原子切片
+截至 2026-07-31，W2–W6 与 W7.0 已完成。B1.7 已用一次 breaking、无兼容分支的原子切片
 接通 frozen Run profile、生产 child admission、cold rehydrate、Artifact tree fidelity、
 生成式 contract 约束以及 Runtime/Desktop capability opt-in。W6 又完成 Agent 泄漏复核、
 Runtime/Desktop 依赖与事实作者审计、Desktop Runtime anti-corruption boundary、全局语义
-命名清理和全门禁收口；未发现需要重做 Agent/Runtime 主模型的证据。后续实施从 §12 的
-W7.0 Synara 视觉基线执行卡继续。
+命名清理和全门禁收口；未发现需要重做 Agent/Runtime 主模型的证据。W7.0 又冻结了
+Synara/Lynx 的真实视觉基线、状态映射、目标 token、有意分歧、验收矩阵和 W7.1–W7.5
+原子边界。后续实施从 §12 的 W7.1 visual foundation 执行卡继续。
 
 ---
 
@@ -250,7 +254,7 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 | Desktop B1.6                 | `DONE`        | normalized Run tree、source-owned fold、durable recovery、root-first UI 与 scope-exact public API     | —                                |
 | Runtime/Desktop B1.7         | `DONE`        | frozen policy、producer/recovery、Artifact/contract、server/Desktop opt-in 与最终 conformance 已闭环  | —                                |
 | Runtime/Desktop 架构持续演进 | `DONE`        | W6.0–W6.3 完成依赖、事实作者、Agent 泄漏、Runtime context、命名、错误、并发生命周期与全门禁收口       | 后续由架构回归门持续守护         |
-| Synara UI 对齐               | `READY`       | 参考仓库已明确为 `~/Desktop/synara`，架构前置工作已清零                                               | 执行 W7.0 视觉基线与状态映射     |
+| Synara UI 对齐               | `IN PROGRESS` | W7.0 已冻结视觉基线、状态映射、目标 token、截图矩阵与 W7.1–W7.5 执行边界                              | 执行 W7.1 visual foundation      |
 
 不使用跨工作流“总百分比”。一个竞态闭环不能与一个命名修正等权；进度只由原子 slice
 和完成证据表达。
@@ -1032,8 +1036,8 @@ W6.0 的证据裁决：
 
 冻结的原子切片：
 
-| Slice | 状态    | 唯一边界                                                       | 完成定义                                                                                                                                                                                                       |
-| ----- | ------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Slice | 状态   | 唯一边界                                                       | 完成定义                                                                                                                                                                                                       |
+| ----- | ------ | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | W6.0  | `DONE` | read-only architecture evidence audit                          | 每个“改/不改”裁决均绑定依赖、owner、consumer 或行为证据；不按行数和目录形式制造工作                                                                                                                            |
 | W6.1  | `DONE` | Desktop Runtime endpoint 与 discovery anti-corruption boundary | application 只依赖两个 consumer ports；错误返回稳定语义而非本地化文案；typed SDK call 只在 adapter；local shell URL 与 selectable endpoint 分属不同事实作者；新增通用 architecture guard；删除旧入口且无 alias |
 | W6.2  | `DONE` | Desktop semantic naming / stale commentary                     | 有证据的失真类型、函数、文件与 public surface 已语义化；rename 无行为变化；generic production filename 与 application/domain suffix guard 已落地                                                               |
@@ -1059,7 +1063,7 @@ W6.1 breaking blast radius：
 
 ### W7 — Synara 视觉基线与像素级 Desktop UI 对齐
 
-状态：`READY`；`W7.0 READY · W7.1 TODO · W7.2 TODO · W7.3 TODO · W7.4 TODO · W7.5 TODO`
+状态：`IN PROGRESS`；`W7.0 DONE · W7.1 READY · W7.2 TODO · W7.3 TODO · W7.4 TODO · W7.5 TODO`
 
 参考仓库：`~/Desktop/synara`
 
@@ -1090,14 +1094,14 @@ W6.1 breaking blast radius：
 
 原子切片：
 
-| Slice | 状态    | 唯一边界                                                                 | 完成定义                                                                                                      |
-| ----- | ------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| W7.0  | `READY` | read-only reference audit、页面/状态映射、固定 viewport 与截图基线       | Synara/Lynx 的 shell、组件、token、状态和交互逐项映射；明确复刻项、有意分歧与验收截图，不修改 production code |
-| W7.1  | `TODO`  | visual foundation：字体、颜色、间距、圆角、边界、阴影、层级与 motion token | token 具有唯一作者；清除已知 CSS 构建告警；不在业务 callsite 堆视觉常量                                      |
-| W7.2  | `TODO`  | desktop shell 与 Work Index                                              | 窗口 chrome、主布局、导航、列表密度及空/选中/悬停/窄窗状态对齐，并保持插件边界                               |
-| W7.3  | `TODO`  | Agent Narrative、composer、Run tree 与 HITL                              | Running/Waiting/Finished/error/长内容/深层 delegated tree 在固定 viewport 和真实内容下对齐                   |
-| W7.4  | `TODO`  | Context Dock、workspace views 与 settings                                | 右侧上下文、文件/差异/时间线及设置表面形成统一视觉语言，不复制 Synara 的业务状态管理                         |
-| W7.5  | `TODO`  | responsive、accessibility、Wails/WebView 与 visual regression closure    | 截图 diff、键盘/focus/ARIA、reduced motion、DPI/滚动/拖拽、全量门禁及零未知构建告警全部通过                  |
+| Slice | 状态    | 唯一边界                                                                            | 完成定义                                                                                                                                |
+| ----- | ------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| W7.0  | `DONE`  | read-only reference audit、页面/状态映射、固定 viewport 与截图基线                  | 已在 `codex_synara_visual_baseline_and_execution_plan.md` 冻结 shell、组件、token、状态、复刻项、有意分歧和截图；production code 无变化 |
+| W7.1  | `READY` | visual foundation：fixture、字体、颜色、间距、圆角、边界、阴影、层级与 motion token | deterministic fixture 覆盖权威状态；token 具有唯一作者；清除已知 CSS 构建告警；不在业务 callsite 堆视觉常量                             |
+| W7.2  | `TODO`  | desktop shell 与 Work Index                                                         | 窗口 chrome、主布局、导航、列表密度及空/选中/悬停/窄窗状态对齐，并保持插件边界                                                          |
+| W7.3  | `TODO`  | Agent Narrative、composer、Run tree 与 HITL                                         | Running/Waiting/Finished/error/长内容/深层 delegated tree 在固定 viewport 和真实内容下对齐                                              |
+| W7.4  | `TODO`  | Context Dock、workspace views 与 settings                                           | 右侧上下文、文件/差异/时间线及设置表面形成统一视觉语言，不复制 Synara 的业务状态管理                                                    |
+| W7.5  | `TODO`  | responsive、accessibility、Wails/WebView 与 visual regression closure               | 截图 diff、键盘/focus/ARIA、reduced motion、DPI/滚动/拖拽、全量门禁及零未知构建告警全部通过                                             |
 
 ---
 
@@ -2018,6 +2022,42 @@ method/DTO shape、root stream 语义、child subscribe refusal、Agent public A
   - 后续功能演进继续遵守 Contract Registry 单一作者、breaking-first 与 consumer-owned
     port，视觉工作不得反向污染领域和协议边界。
 
+### 2026-07-31 — W7.0
+
+- 状态：`DONE`
+- 目标：用当前 Synara 与 Lynx 的源码、真实 DOM/computed style 和固定 viewport
+  实拍，冻结视觉目标、产品语义映射、状态 fixture、验收矩阵与后续原子执行边界。
+- 专项文档：
+  - [`codex_synara_visual_baseline_and_execution_plan.md`](codex_synara_visual_baseline_and_execution_plan.md)
+- 关键裁决：
+  - Synara 只作为视觉/交互品质参考，不复制其领域模型、store、协议或 Electron 边界；
+  - shell 目标固定为 256px sidebar、46px header、736px reading column、14.4px
+    rounded seam、19.2px composer；
+  - 默认 typography 固定为 9/10/11/12/13px、code 11px；默认 row 28px；
+  - composer 使用 real border 画 edge、单层 shadow 画 depth；删除当前 shadow ring 与
+    全局 shadow system 的相反解释；
+  - Work Index / Agent Narrative / Context Dock 继续消费 normalized Run tree 和
+    plugin application ports，不反向修改 Agent/Runtime；
+  - W7.1 先建立 deterministic visual fixture，再修改 production visual foundation。
+- 当前差异：
+  - Lynx 的 sidebar/header/content max、gutter、composer radius 和 drawer motion
+    已与参考同轴；
+  - square seam、14px default base、30px row、8/10px composer footer、composer
+    shadow ring 和无稳定 fixture 已明确为待删除坏味道，不是有意分歧。
+- 生成物：
+  - 只新增审计文档与当前截图证据，并更新总账；
+  - production UI、Agent/Runtime wire、Registry、schema、OpenRPC、Go/TS types、
+    Artifact、Store epoch 与 capability 均未变化。
+- 验证：
+  - Synara 隔离实例和 Lynx standalone frontend 在非默认端口启动；
+  - 1440×900 light/dark 实拍与 Synara shell computed geometry 记录完成；
+  - Markdown format、link/image、Git scope 与 diff hygiene 随本 slice 验证。
+- 残余风险：
+  - 截图中的动态 notification 只作当前证据，不能作为 golden；
+  - standalone Lynx 在无 Runtime 时不能形成完整 Agent panel，W7.1 必须先建立
+    deterministic test-only visual fixture。
+- 下一步：W7.1 visual foundation。
+
 ---
 
 ## 12. 下一张执行卡
@@ -2025,19 +2065,23 @@ method/DTO shape、root stream 语义、child subscribe refusal、Agent public A
 唯一下一任务：
 
 ```text
-W7.0 — Synara visual baseline and state map
+W7.1 — visual foundation
 ```
 
 实施顺序：
 
-1. 只读审计 `~/Desktop/synara` 与 Lynx 当前实现，记录入口、构建方式、字体与资产来源；
-2. 固定可复现的窗口尺寸、DPI、主题、内容 fixture 与关键页面/状态截图；
-3. 建立 shell / Work Index / Agent Narrative / Context Dock / settings 的逐项映射；
-4. 盘点两端 token、布局尺寸、组件状态、motion、focus 与 responsive 行为；
-5. 把差异分类为“必须复刻 / Lynx 领域要求的有意分歧 / 参考实现缺陷不采纳”，每项绑定
-   owner 和后续 slice；
-6. 输出 W7.1–W7.5 的文件爆炸半径、行为不变量、截图验收矩阵和独立提交边界；
-7. W7.0 只提交基线、测试 fixture 或审计文档，不修改 production UI。
+1. 建立 test-only deterministic visual fixture，覆盖 empty、idle、Running、Waiting、
+   terminal、error、delegated tree、dock、settings 与长内容，不引入第二份业务状态；
+2. 将默认 typography 统一为 9/10/11/12/13px、code 11px，并保持字体 preference 与
+   几何解耦；
+3. 将 comfortable density 统一为 28px row、12/20px gutter、composer editor
+   12/8/12/14px、footer 6/8px；
+4. 统一 surface edge/depth：composer 使用 real border + one depth shadow，主卡片 seam
+   使用 14.4px rounded edge；删除相反实现、注释和 token；
+5. 收敛 motion token，禁止 `transition-all` 和同一交互多 duration；
+6. 根治 invalid Tailwind shadow utility、Lightning CSS unknown selector 和本 slice
+   触及的未知构建告警，不用 suppress；
+7. 固定 W7.1 baseline/actual/diff，跑完整 frontend 门禁后原子提交。
 
 W7 的禁止项：
 
