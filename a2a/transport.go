@@ -54,7 +54,7 @@ func dial(ctx context.Context, cardURL string, opts dialOptions) (*a2aclient.Cli
 	resolver := agentcard.NewResolver(cardClient)
 	card, err := resolver.Resolve(resolveCtx, cardURL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("a2a.dial: resolve agent card at %q: %w", cardURL, err)
+		return nil, nil, fmt.Errorf("a2a: resolve agent card at %q: %w", cardURL, err)
 	}
 	if card == nil {
 		return nil, nil, ErrNilCard
@@ -69,7 +69,7 @@ func dial(ctx context.Context, cardURL string, opts dialOptions) (*a2aclient.Cli
 		a2aclient.WithRESTTransport(rpcClient),
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("a2a.dial: open client for %q: %w", card.Name, err)
+		return nil, nil, fmt.Errorf("a2a: open client for agent %q: %w", card.Name, err)
 	}
 	return client, card, nil
 }

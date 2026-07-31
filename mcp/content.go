@@ -6,39 +6,17 @@ import (
 	"fmt"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
-
-	corechat "github.com/Tangerg/lynx/core/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
 // emptyObjectSchema is the canonical "accepts an empty JSON object"
 // schema — the fallback whenever a tool advertises no input schema.
-var emptyObjectSchema = func() json.RawMessage {
-	schema, _ := pkgjson.StringDefSchemaOf(struct{}{})
-	return json.RawMessage(schema)
-}()
+const emptyObjectSchema = `{"type":"object","additionalProperties":false}`
 
 func textOfContent(c sdkmcp.Content) string {
 	if t, ok := c.(*sdkmcp.TextContent); ok {
 		return t.Text
 	}
 	return ""
-}
-
-// chatMessageFromContent maps a (role, content) pair from an MCP
-// message-shaped value into a [chat.Message]. The bool is false when content
-// has no textual payload (chat is text-first; image/audio/resource is
-// dropped for now). Used by both [PromptMessagesToChat] and the
-// internal sampling converter.
-func chatMessageFromContent(role sdkmcp.Role, content sdkmcp.Content) (corechat.Message, bool) {
-	text := textOfContent(content)
-	if text == "" {
-		return corechat.Message{}, false
-	}
-	if role == "assistant" {
-		return corechat.NewAssistantMessage(corechat.NewTextPart(text)), true
-	}
-	return corechat.NewUserMessage(corechat.NewTextPart(text)), true
 }
 
 // flattenContent reduces a [sdkmcp.CallToolResult.Content] slice into
@@ -59,7 +37,7 @@ func flattenContent(items []sdkmcp.Content) (string, error) {
 	}
 	encoded, err := json.Marshal(items)
 	if err != nil {
-		return "", fmt.Errorf("mcp.flattenContent: %w", err)
+		return "", fmt.Errorf("mcp: encode tool content: %w", err)
 	}
 	return string(encoded), nil
 }
@@ -77,9 +55,12 @@ func decodeArguments(arguments string) (any, error) {
 	if arguments == "" {
 		return map[string]any{}, nil
 	}
-	var decoded any
+	var decoded map[string]any
 	if err := json.Unmarshal([]byte(arguments), &decoded); err != nil {
-		return nil, fmt.Errorf("mcp.decodeArguments: %w", err)
+		return nil, fmt.Errorf("mcp: decode tool arguments: %w", err)
+	}
+	if decoded == nil {
+		return nil, errors.New("mcp: tool arguments must be a JSON object")
 	}
 	return decoded, nil
 }
@@ -111,7 +92,7 @@ func schemaToJSON(schema any) (json.RawMessage, error) {
 	default:
 		encoded, err := json.Marshal(v)
 		if err != nil {
-			return nil, fmt.Errorf("mcp.schemaToJSON: %w", err)
+			return nil, fmt.Errorf("mcp: encode tool input schema: %w", err)
 		}
 		return encoded, nil
 	}

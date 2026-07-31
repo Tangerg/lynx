@@ -94,3 +94,16 @@ func TestSchemaToJSON_StructSerializes(t *testing.T) {
 	assert.Equal(t, "object", decoded["type"])
 	assert.Equal(t, false, decoded["additionalProperties"])
 }
+
+func TestDecodeArgumentsRequiresJSONObject(t *testing.T) {
+	for _, input := range []string{"null", `[]`, `"text"`, `1`, `true`, `{]`} {
+		t.Run(input, func(t *testing.T) {
+			_, err := decodeArguments(input)
+			require.Error(t, err)
+		})
+	}
+
+	got, err := decodeArguments(`{"name":"value"}`)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"name": "value"}, got)
+}

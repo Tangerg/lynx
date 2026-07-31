@@ -79,11 +79,11 @@ func newTool(cfg toolConfig) (*tool, error) {
 
 	descriptor, err := snapshotDescriptor(cfg.Descriptor)
 	if err != nil {
-		return nil, fmt.Errorf("mcp.newTool: snapshot descriptor for tool %q: %w", cfg.Descriptor.Name, err)
+		return nil, fmt.Errorf("mcp: snapshot descriptor for tool %q: %w", cfg.Descriptor.Name, err)
 	}
 	schema, err := schemaToJSON(descriptor.InputSchema)
 	if err != nil {
-		return nil, fmt.Errorf("mcp.newTool: convert input schema for tool %q: %w", descriptor.Name, err)
+		return nil, fmt.Errorf("mcp: convert input schema for tool %q: %w", descriptor.Name, err)
 	}
 	definition := corechat.ToolDefinition{
 		Name:        cfg.PrefixedName,
@@ -91,7 +91,7 @@ func newTool(cfg toolConfig) (*tool, error) {
 		InputSchema: schema,
 	}
 	if err := definition.Validate(); err != nil {
-		return nil, fmt.Errorf("mcp.newTool: definition for remote tool %q: %w", descriptor.Name, err)
+		return nil, fmt.Errorf("mcp: build definition for remote tool %q: %w", descriptor.Name, err)
 	}
 
 	return &tool{
@@ -160,7 +160,7 @@ func (t *tool) Call(ctx context.Context, arguments string) (out string, err erro
 
 	args, err := decodeArguments(arguments)
 	if err != nil {
-		return "", fmt.Errorf("mcp.tool.Call: decode arguments for %q: %w", t.remoteName, err)
+		return "", fmt.Errorf("mcp: decode arguments for tool %q: %w", t.remoteName, err)
 	}
 
 	params := &sdkmcp.CallToolParams{
@@ -175,10 +175,10 @@ func (t *tool) Call(ctx context.Context, arguments string) (out string, err erro
 
 	res, err := t.session.CallTool(ctx, params)
 	if err != nil {
-		return "", fmt.Errorf("mcp.tool.Call: %q: %w", t.remoteName, err)
+		return "", fmt.Errorf("mcp: call tool %q: %w", t.remoteName, err)
 	}
 	if res == nil {
-		return "", fmt.Errorf("mcp.tool.Call: %q: nil CallToolResult", t.remoteName)
+		return "", fmt.Errorf("mcp: call tool %q: server returned a nil result", t.remoteName)
 	}
 	if res.IsError {
 		err = &ToolCallError{

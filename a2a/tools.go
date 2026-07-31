@@ -24,8 +24,7 @@ type Endpoint struct {
 }
 
 // EndpointPolicy customizes an endpoint's discovery lifecycle and trust
-// boundary. It is referenced by pointer from [Endpoint] so Endpoint remains
-// comparable for existing callers that use it as a map key.
+// boundary. A nil policy selects the secure defaults.
 type EndpointPolicy struct {
 	// CardTimeout bounds Agent Card resolution only. Zero selects 30 seconds;
 	// it does not impose a timeout on long-running agent RPC calls.
@@ -62,7 +61,7 @@ func Tools(ctx context.Context, endpoints ...Endpoint) ([]toolcontract.Tool, fun
 		}
 		name := tool.Definition().Name
 		if _, dup := seen[name]; dup {
-			err := fmt.Errorf("a2a.Tools: duplicate tool name %q", name)
+			err := fmt.Errorf("a2a: duplicate remote-agent tool name %q", name)
 			return nil, nil, errors.Join(err, closeClients(clients))
 		}
 		seen[name] = struct{}{}

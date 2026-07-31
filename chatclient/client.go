@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"reflect"
 
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -37,7 +38,7 @@ type Client struct {
 // options are reserved for construction-time defaults and composition; a
 // request itself remains an ordinary [chat.Request].
 func New(model chat.Model, options ...Option) (*Client, error) {
-	if model == nil {
+	if isNil(model) {
 		return nil, ErrNilModel
 	}
 
@@ -60,12 +61,12 @@ func New(model chat.Model, options ...Option) (*Client, error) {
 	}
 
 	model = chat.Wrap(model, cfg.callMiddleware...)
-	if model == nil {
+	if isNil(model) {
 		return nil, errors.New("chatclient: call middleware returned a nil model")
 	}
 	if streamer != nil {
 		streamer = chat.WrapStream(streamer, cfg.streamMiddleware...)
-		if streamer == nil {
+		if isNil(streamer) {
 			return nil, errors.New("chatclient: stream middleware returned a nil streamer")
 		}
 	}
@@ -75,6 +76,22 @@ func New(model chat.Model, options ...Option) (*Client, error) {
 		streamer: streamer,
 		defaults: cfg.defaults.Clone(),
 	}, nil
+}
+
+// isNil recognizes both nil interfaces and interfaces holding a typed nil.
+// Constructor boundaries use it so an invalid capability fails immediately
+// instead of panicking on the first request.
+func isNil(value any) bool {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return true
+	}
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
 }
 
 // Call snapshots and validates req, applies client defaults to fields the

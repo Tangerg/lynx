@@ -35,8 +35,22 @@ type callAndStream struct {
 	streamOnly
 }
 
+type pointerModel struct{}
+
+func (*pointerModel) Call(context.Context, *chat.Request) (*chat.Response, error) {
+	return nil, errors.New("unreachable")
+}
+
+type pointerStreamer struct{}
+
+func (*pointerStreamer) Stream(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+	return nil
+}
+
 func TestNewRejectsInvalidConstruction(t *testing.T) {
 	model := callOnly{call: successfulCall}
+	var typedNilModel *pointerModel
+	var typedNilStreamer *pointerStreamer
 	negative := int64(-1)
 
 	tests := []struct {
@@ -46,9 +60,28 @@ func TestNewRejectsInvalidConstruction(t *testing.T) {
 		want    error
 	}{
 		{name: "nil model", want: ErrNilModel},
+		{name: "typed nil model", model: typedNilModel, want: ErrNilModel},
 		{name: "nil option", model: model, options: []Option{nil}},
 		{name: "invalid defaults", model: model, options: []Option{WithDefaults(chat.Options{MaxTokens: &negative})}, want: chat.ErrInvalidOptions},
 		{name: "nil explicit streamer", model: model, options: []Option{WithStreamer(nil)}},
+		{name: "typed nil explicit streamer", model: model, options: []Option{WithStreamer(typedNilStreamer)}},
+		{
+			name:  "middleware returns typed nil model",
+			model: model,
+			options: []Option{WithCallMiddleware(func(chat.Model) chat.Model {
+				return typedNilModel
+			})},
+		},
+		{
+			name:  "middleware returns typed nil streamer",
+			model: model,
+			options: []Option{
+				WithStreamer(streamOnly{stream: func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+					return func(func(*chat.Response, error) bool) {}
+				}}),
+				WithStreamMiddleware(func(chat.Streamer) chat.Streamer { return typedNilStreamer }),
+			},
+		},
 	}
 
 	for _, test := range tests {

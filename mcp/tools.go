@@ -109,23 +109,23 @@ func Tools(ctx context.Context, sources []ToolSource, opts ToolOptions) ([]toolc
 	seen := make(map[string]struct{})
 	for i, src := range sources {
 		if src.Session == nil {
-			return nil, fmt.Errorf("mcp.Tools: source[%d] %q: %w", i, src.Name, ErrNilSession)
+			return nil, fmt.Errorf("mcp: tool source %d %q: %w", i, src.Name, ErrNilSession)
 		}
 		for descriptor, err := range src.Session.Tools(ctx, nil) {
 			if err != nil {
-				return nil, fmt.Errorf("mcp.Tools: list tools from source %q: %w", src.Name, err)
+				return nil, fmt.Errorf("mcp: list tools from source %q: %w", src.Name, err)
 			}
 			if descriptor == nil {
-				return nil, fmt.Errorf("mcp.Tools: source %q: %w", src.Name, errNilDescriptor)
+				return nil, fmt.Errorf("mcp: source %q: %w", src.Name, errNilDescriptor)
 			}
 			namingDescriptor, err := snapshotDescriptor(descriptor)
 			if err != nil {
-				return nil, fmt.Errorf("mcp.Tools: snapshot tool %q from source %q: %w", descriptor.Name, src.Name, err)
+				return nil, fmt.Errorf("mcp: snapshot tool %q from source %q: %w", descriptor.Name, src.Name, err)
 			}
 
 			name := opts.Naming(src.Name, namingDescriptor)
 			if name == "" {
-				return nil, fmt.Errorf("mcp.Tools: source %q tool %q: public name must not be empty", src.Name, descriptor.Name)
+				return nil, fmt.Errorf("mcp: source %q tool %q has an empty public name", src.Name, descriptor.Name)
 			}
 
 			tool, err := newTool(toolConfig{
@@ -137,11 +137,11 @@ func Tools(ctx context.Context, sources []ToolSource, opts ToolOptions) ([]toolc
 				Concurrency:  opts.Concurrency,
 			})
 			if err != nil {
-				return nil, fmt.Errorf("mcp.Tools: wrap tool %q from source %q: %w", descriptor.Name, src.Name, err)
+				return nil, fmt.Errorf("mcp: wrap tool %q from source %q: %w", descriptor.Name, src.Name, err)
 			}
 
 			if _, dup := seen[name]; dup {
-				return nil, fmt.Errorf("mcp.Tools: duplicate tool name after prefixing: %q", name)
+				return nil, fmt.Errorf("mcp: duplicate tool name %q after public naming", name)
 			}
 			seen[name] = struct{}{}
 			all = append(all, tool)

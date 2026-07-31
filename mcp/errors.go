@@ -39,5 +39,8 @@ type ToolCallError struct {
 }
 
 func (e *ToolCallError) Error() string {
+	if e == nil {
+		return "mcp tool call failed"
+	}
 	return fmt.Sprintf("mcp tool %q failed: %s", e.ToolName, e.Message)
 }

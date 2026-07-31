@@ -34,7 +34,7 @@ func Register(server *sdkmcp.Server, tools ...toolcontract.Tool) error {
 
 	registry, err := toolcontract.NewRegistry(tools...)
 	if err != nil {
-		return fmt.Errorf("mcp.Register: %w", err)
+		return fmt.Errorf("mcp: register tools: %w", err)
 	}
 
 	prepared := make([]preparedTool, 0, len(tools))
@@ -62,7 +62,7 @@ type preparedTool struct {
 func prepareOne(tool toolcontract.Tool, definition corechat.ToolDefinition) (preparedTool, error) {
 	schema, err := schemaToAny(definition.InputSchema)
 	if err != nil {
-		return preparedTool{}, fmt.Errorf("mcp.Register: tool %q input schema: %w", definition.Name, err)
+		return preparedTool{}, fmt.Errorf("mcp: register tool %q input schema: %w", definition.Name, err)
 	}
 
 	return preparedTool{

@@ -15,7 +15,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
@@ -25,10 +24,20 @@ var (
 )
 
 type callInput struct {
-	Message string `json:"message" jsonschema:"required" jsonschema_description:"The natural-language request to send to the remote agent."`
+	Message string `json:"message"`
 }
 
-var inputSchema, _ = pkgjson.StringDefSchemaOf(callInput{})
+const callInputSchema = `{
+  "type": "object",
+  "properties": {
+    "message": {
+      "type": "string",
+      "description": "The natural-language request to send to the remote agent."
+    }
+  },
+  "required": ["message"],
+  "additionalProperties": false
+}`
 
 // tool wraps a remote A2A agent as a [tools.Tool]. Each Call sends the
 // argument text as an A2A message and returns the agent's reply, so an
@@ -67,10 +76,10 @@ func newTool(cfg toolConfig) (*tool, error) {
 	definition := corechat.ToolDefinition{
 		Name:        cfg.Name,
 		Description: describeAgent(cfg.Card),
-		InputSchema: json.RawMessage(inputSchema),
+		InputSchema: json.RawMessage(callInputSchema),
 	}
 	if err := definition.Validate(); err != nil {
-		return nil, fmt.Errorf("a2a.newTool: definition for agent %q: %w", cfg.Card.Name, err)
+		return nil, fmt.Errorf("a2a: build tool for agent %q: %w", cfg.Card.Name, err)
 	}
 	return &tool{
 		client:     cfg.Client,
@@ -103,7 +112,7 @@ func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		return "", fmt.Errorf("a2a.tool.Call %q: %w", t.definition.Name, err)
+		return "", fmt.Errorf("a2a: decode arguments for agent %q: %w", t.definition.Name, err)
 	}
 
 	req := &sdka2a.SendMessageRequest{Message: userMessage(input.Message)}
@@ -111,14 +120,14 @@ func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		return "", fmt.Errorf("a2a.tool.Call %q: %w", t.definition.Name, err)
+		return "", fmt.Errorf("a2a: call agent %q: %w", t.definition.Name, err)
 	}
 
 	text, err := textOfResult(result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		return "", fmt.Errorf("a2a.tool.Call %q: decode result: %w", t.definition.Name, err)
+		return "", fmt.Errorf("a2a: decode result from agent %q: %w", t.definition.Name, err)
 	}
 	return text, nil
 }

@@ -45,7 +45,7 @@ func WithDefaults(defaults chat.Options) Option {
 // model itself.
 func WithStreamer(streamer chat.Streamer) Option {
 	return optionFunc(func(cfg *config) error {
-		if streamer == nil {
+		if isNil(streamer) {
 			return errors.New("chatclient: nil streamer")
 		}
 		cfg.streamer = streamer
