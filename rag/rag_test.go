@@ -3,7 +3,6 @@ package rag_test
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
@@ -11,35 +10,42 @@ import (
 )
 
 func TestNewQuery_RequiresText(t *testing.T) {
-	if _, err := rag.NewQuery(""); err == nil {
-		t.Fatal("empty text must error")
-	}
-	if !strings.Contains(mustErr(rag.NewQuery("")).Error(), "rag.NewQuery") {
-		t.Fatal("error must include package context")
+	if _, err := rag.NewQuery(""); !errors.Is(err, rag.ErrInvalidQuery) {
+		t.Fatalf("NewQuery error = %v, want ErrInvalidQuery", err)
 	}
 }
 
-func TestQuery_GetSetExtra(t *testing.T) {
+func TestQueryValidateRejectsZeroValue(t *testing.T) {
+	if err := new(rag.Query).Validate(); !errors.Is(err, rag.ErrInvalidQuery) {
+		t.Fatalf("zero-value Query.Validate error = %v", err)
+	}
+}
+
+func TestQuery_Value(t *testing.T) {
 	q, _ := rag.NewQuery("hi")
 
-	if v, ok := q.Get("missing"); ok || v != nil {
-		t.Fatalf("Get(missing) = (%v,%v)", v, ok)
+	if value, found := q.Value("missing"); found || value != nil {
+		t.Fatalf("Value(missing) = (%v,%v)", value, found)
 	}
-	q.Set("k", "v")
-	if v, _ := q.Get("k"); v != "v" {
-		t.Fatalf("Get(k) = %v", v)
+	q, err := q.WithValue("k", "v")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value, _ := q.Value("k"); value != "v" {
+		t.Fatalf("Value(k) = %v", value)
 	}
 }
 
-func TestQuery_Clone_Independence(t *testing.T) {
+func TestQuery_WithValueReturnsIndependentQuery(t *testing.T) {
 	a, _ := rag.NewQuery("hi")
-	a.Set("k", "v")
+	a, _ = a.WithValue("k", "v")
+	b, _ := a.WithValue("k", "modified")
 
-	b := a.Clone()
-	b.Set("k", "modified")
-
-	if v, _ := a.Get("k"); v != "v" {
-		t.Fatalf("clone leaked: a.k = %v", v)
+	if value, _ := a.Value("k"); value != "v" {
+		t.Fatalf("update leaked into source query: a.k = %v", value)
+	}
+	if value, _ := b.Value("k"); value != "modified" {
+		t.Fatalf("updated value = %v", value)
 	}
 }
 
@@ -62,7 +68,7 @@ func candidate(doc *document.Document, score ...float64) rag.Candidate {
 func (r *fakeRetriever) Retrieve(_ context.Context, q *rag.Query) ([]rag.Candidate, error) {
 	r.hits++
 	if q != nil {
-		r.got = q.Text
+		r.got = q.Text()
 	}
 	if r.err != nil {
 		return nil, r.err
@@ -80,9 +86,7 @@ func (t *fakeTransformer) Transform(_ context.Context, q *rag.Query) (*rag.Query
 	if t.err != nil {
 		return nil, t.err
 	}
-	out := q.Clone()
-	out.Text += t.suffix
-	return out, nil
+	return q.WithText(q.Text() + t.suffix)
 }
 
 func TestWithTransformersFeedsTransformedQueryToRetriever(t *testing.T) {
@@ -90,7 +94,7 @@ func TestWithTransformersFeedsTransformedQueryToRetriever(t *testing.T) {
 	retriever := &fakeRetriever{docs: []rag.Candidate{candidate(doc)}}
 
 	r := rag.WithTransformers(retriever, &fakeTransformer{suffix: "?"})
-	docs, err := r.Retrieve(context.Background(), mustQuery(t, "hi"))
+	docs, err := r.Retrieve(t.Context(), mustQuery(t, "hi"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +114,7 @@ func TestWithTransformersErrorShortCircuits(t *testing.T) {
 	retriever := &fakeRetriever{}
 
 	r := rag.WithTransformers(retriever, &fakeTransformer{err: want})
-	if _, err := r.Retrieve(context.Background(), mustQuery(t, "hi")); !errors.Is(err, want) {
+	if _, err := r.Retrieve(t.Context(), mustQuery(t, "hi")); !errors.Is(err, want) {
 		t.Fatalf("err = %v", err)
 	}
 	if retriever.hits != 0 {
@@ -124,7 +128,7 @@ func TestParallelUnionsResults(t *testing.T) {
 	r1 := &fakeRetriever{docs: []rag.Candidate{candidate(docA)}}
 	r2 := &fakeRetriever{docs: []rag.Candidate{candidate(docB)}}
 
-	docs, err := rag.Parallel(r1, r2).Retrieve(context.Background(), mustQuery(t, "hi"))
+	docs, err := rag.Parallel(r1, r2).Retrieve(t.Context(), mustQuery(t, "hi"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +142,7 @@ func TestParallelPartialFailureReturnsAvailableDocs(t *testing.T) {
 	r1 := &fakeRetriever{docs: []rag.Candidate{candidate(docA)}}
 	r2 := &fakeRetriever{err: errors.New("retriever 2 broken")}
 
-	docs, err := rag.Parallel(r1, r2).Retrieve(context.Background(), mustQuery(t, "hi"))
+	docs, err := rag.Parallel(r1, r2).Retrieve(t.Context(), mustQuery(t, "hi"))
 	if err != nil {
 		t.Fatalf("partial failure should not fail the whole retrieval: %v", err)
 	}
@@ -147,31 +151,37 @@ func TestParallelPartialFailureReturnsAvailableDocs(t *testing.T) {
 	}
 }
 
-func TestIdentityDefaults(t *testing.T) {
-	q, _ := rag.NewQuery("hi")
+func TestParallelTreatsEmptySuccessfulResultAsSuccess(t *testing.T) {
+	success := &fakeRetriever{}
+	failure := &fakeRetriever{err: errors.New("broken")}
 
-	if got, _ := rag.IdentityExpander().Expand(context.Background(), q); len(got) != 1 || got[0] != q {
-		t.Fatal("Expand should pass through")
+	docs, err := rag.Parallel(success, failure).Retrieve(t.Context(), mustQuery(t, "hi"))
+	if err != nil {
+		t.Fatalf("empty successful result was discarded: %v", err)
 	}
-	if got, _ := rag.IdentityTransformer().Transform(context.Background(), q); got != q {
-		t.Fatal("Transform should pass through")
-	}
-	if got, _ := rag.IdentityAugmenter().Augment(context.Background(), q, nil); got != q {
-		t.Fatal("Augment should pass through")
-	}
-	if got, _ := rag.NopRetriever().Retrieve(context.Background(), q); got != nil {
-		t.Fatal("Retrieve should return nil")
-	}
-	if got, _ := rag.IdentityRefiner().Refine(context.Background(), q, nil); got != nil {
-		t.Fatal("Refine should pass through nil")
+	if docs != nil {
+		t.Fatalf("docs = %#v, want nil", docs)
 	}
 }
 
-func mustErr[T any](_ T, err error) error {
-	if err == nil {
-		panic("expected an error")
+func TestIdentityDefaults(t *testing.T) {
+	q, _ := rag.NewQuery("hi")
+
+	if got, _ := rag.IdentityExpander().Expand(t.Context(), q); len(got) != 1 || got[0] != q {
+		t.Fatal("Expand should pass through")
 	}
-	return err
+	if got, _ := rag.IdentityTransformer().Transform(t.Context(), q); got != q {
+		t.Fatal("Transform should pass through")
+	}
+	if got, _ := rag.IdentityAugmenter().Augment(t.Context(), q, nil); got != q {
+		t.Fatal("Augment should pass through")
+	}
+	if got, _ := rag.NopRetriever().Retrieve(t.Context(), q); got != nil {
+		t.Fatal("Retrieve should return nil")
+	}
+	if got, _ := rag.IdentityRefiner().Refine(t.Context(), q, nil); got != nil {
+		t.Fatal("Refine should pass through nil")
+	}
 }
 
 func mustQuery(t *testing.T, text string) *rag.Query {

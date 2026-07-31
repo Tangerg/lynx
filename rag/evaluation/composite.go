@@ -22,7 +22,7 @@ func NewComposite(evaluators ...Evaluator) (*Composite, error) {
 	}
 	snapshot := make([]Evaluator, len(evaluators))
 	for i, evaluator := range evaluators {
-		if evaluator == nil {
+		if isNilCapability(evaluator) {
 			return nil, fmt.Errorf("%w: evaluators[%d] is nil", ErrInvalidConfig, i)
 		}
 		snapshot[i] = evaluator

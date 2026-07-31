@@ -18,15 +18,15 @@ func TestDedupDropsDuplicateIDs(t *testing.T) {
 	dup, _ := document.NewDocument("a-dup", nil)
 	dup.ID = "1"
 
-	got, err := r.Refine(context.Background(), nil, []rag.Candidate{candidate(a), candidate(b), candidate(dup)})
+	got, err := r.Refine(t.Context(), nil, []rag.Candidate{candidate(a), candidate(b), candidate(dup)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 2 {
 		t.Fatalf("got %d docs, want 2", len(got))
 	}
-	if got[0].ID != "1" || got[1].ID != "2" {
-		t.Fatalf("first-occurrence order broken: %s,%s", got[0].ID, got[1].ID)
+	if got[0].Document.ID != "1" || got[1].Document.ID != "2" {
+		t.Fatalf("first-occurrence order broken: %s,%s", got[0].Document.ID, got[1].Document.ID)
 	}
 }
 
@@ -41,7 +41,10 @@ func TestDedupHonorsContextCancel(t *testing.T) {
 }
 
 func TestTopKSortsAndCaps(t *testing.T) {
-	r := rag.TopK(2)
+	r, err := rag.TopK(2)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	aDoc, _ := document.NewDocument("a", nil)
 	bDoc, _ := document.NewDocument("b", nil)
@@ -50,7 +53,7 @@ func TestTopKSortsAndCaps(t *testing.T) {
 	b := candidate(bDoc, 0.9)
 	c := candidate(cDoc, 0.5)
 
-	got, err := r.Refine(context.Background(), nil, []rag.Candidate{a, b, c})
+	got, err := r.Refine(t.Context(), nil, []rag.Candidate{a, b, c})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,21 +65,19 @@ func TestTopKSortsAndCaps(t *testing.T) {
 	}
 }
 
-func TestTopKNormalizesNonPositiveLimit(t *testing.T) {
-	// topK 0 / negative should fall back to 1, not panic / not return empty.
-	r := rag.TopK(0)
-	a, _ := document.NewDocument("a", nil)
-	got, err := r.Refine(context.Background(), nil, []rag.Candidate{candidate(a)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 1 {
-		t.Fatalf("got %d, want 1", len(got))
+func TestTopKRejectsNonPositiveLimit(t *testing.T) {
+	for _, limit := range []int{0, -1} {
+		if _, err := rag.TopK(limit); err == nil {
+			t.Fatalf("TopK(%d) succeeded, want error", limit)
+		}
 	}
 }
 
 func TestTopKDoesNotMutateInput(t *testing.T) {
-	r := rag.TopK(10)
+	r, err := rag.TopK(10)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	aDoc, _ := document.NewDocument("a", nil)
 	bDoc, _ := document.NewDocument("b", nil)
@@ -84,7 +85,7 @@ func TestTopKDoesNotMutateInput(t *testing.T) {
 	b := candidate(bDoc, 0.9)
 	in := []rag.Candidate{a, b}
 
-	_, _ = r.Refine(context.Background(), nil, in)
+	_, _ = r.Refine(t.Context(), nil, in)
 
 	if in[0].Score != 0.1 || in[1].Score != 0.9 {
 		t.Fatalf("input mutated: %v %v", in[0].Score, in[1].Score)

@@ -53,15 +53,15 @@ func TestContextualAugmenter_RendersDocsAsContext(t *testing.T) {
 	q, _ := rag.NewQuery("what is GOAP?")
 	doc, _ := document.NewDocument("GOAP is goal-oriented action planning.", nil)
 
-	got, err := aug.Augment(context.Background(), q, []rag.Candidate{candidate(doc)})
+	got, err := aug.Augment(t.Context(), q, []rag.Candidate{candidate(doc)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(got.Text, "GOAP is goal-oriented") {
-		t.Fatalf("docs not embedded in augmented prompt: %q", got.Text)
+	if !strings.Contains(got.Text(), "GOAP is goal-oriented") {
+		t.Fatalf("docs not embedded in augmented prompt: %q", got.Text())
 	}
-	if !strings.Contains(got.Text, "what is GOAP?") {
-		t.Fatalf("query missing from augmented prompt: %q", got.Text)
+	if !strings.Contains(got.Text(), "what is GOAP?") {
+		t.Fatalf("query missing from augmented prompt: %q", got.Text())
 	}
 }
 
@@ -72,14 +72,17 @@ func TestContextualAugmenter_PreservesQueryExtra(t *testing.T) {
 	}
 
 	q, _ := rag.NewQuery("what is GOAP?")
-	q.Set("route", "docs")
-	doc, _ := document.NewDocument("GOAP is goal-oriented action planning.", nil)
-
-	got, err := aug.Augment(context.Background(), q, []rag.Candidate{candidate(doc)})
+	q, err = q.WithValue("route", "docs")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v, _ := got.Get("route"); v != "docs" {
+	doc, _ := document.NewDocument("GOAP is goal-oriented action planning.", nil)
+
+	got, err := aug.Augment(t.Context(), q, []rag.Candidate{candidate(doc)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := got.Value("route"); v != "docs" {
 		t.Fatalf("query metadata was not preserved: route=%v", v)
 	}
 }
@@ -88,12 +91,12 @@ func TestContextualAugmenter_EmptyDocs_DefaultRefusal(t *testing.T) {
 	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
 
 	q, _ := rag.NewQuery("hi")
-	got, err := aug.Augment(context.Background(), q, nil)
+	got, err := aug.Augment(t.Context(), q, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(got.Text, "knowledge base") {
-		t.Fatalf("default empty-context message missing: %q", got.Text)
+	if !strings.Contains(got.Text(), "knowledge base") {
+		t.Fatalf("default empty-context message missing: %q", got.Text())
 	}
 }
 
@@ -101,7 +104,7 @@ func TestContextualAugmenter_EmptyDocs_AllowEmptyPassesThrough(t *testing.T) {
 	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{AllowEmptyContext: true})
 
 	q, _ := rag.NewQuery("hi")
-	got, err := aug.Augment(context.Background(), q, nil)
+	got, err := aug.Augment(t.Context(), q, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +115,7 @@ func TestContextualAugmenter_EmptyDocs_AllowEmptyPassesThrough(t *testing.T) {
 
 func TestContextualAugmenter_NilQuery(t *testing.T) {
 	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
-	if _, err := aug.Augment(context.Background(), nil, nil); err == nil {
+	if _, err := aug.Augment(t.Context(), nil, nil); err == nil {
 		t.Fatal("nil query must error")
 	}
 }
@@ -182,18 +185,21 @@ func TestMultiQueryExpander_ParsesNewlineVariants(t *testing.T) {
 	}
 
 	q, _ := rag.NewQuery("hi")
-	q.Set("route", "docs")
-	got, err := exp.Expand(context.Background(), q)
+	q, err = q.WithValue("route", "docs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := exp.Expand(t.Context(), q)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 3 {
 		t.Fatalf("got %d variants, want 3", len(got))
 	}
-	if got[0].Text != "variant 1" {
-		t.Fatalf("first variant = %q", got[0].Text)
+	if got[0].Text() != "variant 1" {
+		t.Fatalf("first variant = %q", got[0].Text())
 	}
-	if v, _ := got[0].Get("route"); v != "docs" {
+	if v, _ := got[0].Value("route"); v != "docs" {
 		t.Fatalf("variant metadata was not preserved: route=%v", v)
 	}
 }
@@ -207,9 +213,9 @@ func TestMultiQueryExpander_IncludeOriginal(t *testing.T) {
 	})
 
 	q, _ := rag.NewQuery("orig")
-	got, _ := exp.Expand(context.Background(), q)
-	if len(got) != 3 || got[0].Text != "orig" {
-		t.Fatalf("IncludeOriginal=true should prepend original; got %d entries, first=%q", len(got), got[0].Text)
+	got, _ := exp.Expand(t.Context(), q)
+	if len(got) != 3 || got[0].Text() != "orig" {
+		t.Fatalf("IncludeOriginal=true should prepend original; got %d entries, first=%q", len(got), got[0].Text())
 	}
 }
 
@@ -218,7 +224,7 @@ func TestMultiQueryExpander_EmptyLLMFallsBackToOriginal(t *testing.T) {
 	exp, _ := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{ChatModel: model})
 
 	q, _ := rag.NewQuery("orig")
-	got, _ := exp.Expand(context.Background(), q)
+	got, _ := exp.Expand(t.Context(), q)
 	if len(got) != 1 || got[0] != q {
 		t.Fatal("empty LLM output must fall back to the original query")
 	}
@@ -240,17 +246,20 @@ func TestCompressionTransformer_UsesChatHistory(t *testing.T) {
 	}
 
 	q, _ := rag.NewQuery("follow-up")
-	q.Set(rag.ChatHistoryKey, []chat.Message{
+	q, err = q.WithValue(rag.ChatHistoryKey, []chat.Message{
 		chat.NewUserMessage(chat.NewTextPart("first turn")),
 		chat.NewAssistantMessage(chat.NewTextPart("first reply")),
 	})
-
-	out, err := tr.Transform(context.Background(), q)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Text != "compressed query" {
-		t.Fatalf("Text = %q, want compressed query", out.Text)
+
+	out, err := tr.Transform(t.Context(), q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Text() != "compressed query" {
+		t.Fatalf("Text = %q, want compressed query", out.Text())
 	}
 	if !strings.Contains(model.captured, "first turn") {
 		t.Fatal("history was not threaded into the prompt")
@@ -262,9 +271,9 @@ func TestCompressionTransformer_EmptyOutputPreservesOriginal(t *testing.T) {
 	tr, _ := rag.NewCompressionTransformer(rag.CompressionTransformerConfig{ChatModel: model})
 
 	q, _ := rag.NewQuery("orig")
-	got, _ := tr.Transform(context.Background(), q)
-	if got.Text != "orig" {
-		t.Fatalf("Text = %q, want orig (empty LLM reply must preserve)", got.Text)
+	got, _ := tr.Transform(t.Context(), q)
+	if got.Text() != "orig" {
+		t.Fatalf("Text = %q, want orig (empty LLM reply must preserve)", got.Text())
 	}
 }
 
@@ -275,7 +284,7 @@ func TestRewriteTransformer_DefaultsToVectorStoreTarget(t *testing.T) {
 	tr, _ := rag.NewRewriteTransformer(rag.RewriteTransformerConfig{ChatModel: model})
 
 	q, _ := rag.NewQuery("user input")
-	if _, err := tr.Transform(context.Background(), q); err != nil {
+	if _, err := tr.Transform(t.Context(), q); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(model.captured, "vector store") {
@@ -291,7 +300,7 @@ func TestRewriteTransformer_HonorsCustomTarget(t *testing.T) {
 	})
 
 	q, _ := rag.NewQuery("input")
-	_, _ = tr.Transform(context.Background(), q)
+	_, _ = tr.Transform(t.Context(), q)
 	if !strings.Contains(model.captured, "elasticsearch") {
 		t.Fatalf("custom target not threaded: %q", model.captured)
 	}
@@ -314,12 +323,12 @@ func TestTranslationTransformer_TranslatesText(t *testing.T) {
 	})
 
 	q, _ := rag.NewQuery("hello")
-	got, err := tr.Transform(context.Background(), q)
+	got, err := tr.Transform(t.Context(), q)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Text != "你好" {
-		t.Fatalf("Text = %q, want 你好", got.Text)
+	if got.Text() != "你好" {
+		t.Fatalf("Text = %q, want 你好", got.Text())
 	}
 }
 
@@ -333,7 +342,7 @@ func TestTranslationTransformer_PropagatesError(t *testing.T) {
 	})
 
 	q, _ := rag.NewQuery("hi")
-	if _, err := tr.Transform(context.Background(), q); err == nil {
+	if _, err := tr.Transform(t.Context(), q); err == nil {
 		t.Fatal("error must propagate")
 	}
 }

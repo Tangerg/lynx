@@ -17,7 +17,8 @@
 //
 //	r := rag.WithTransformers(base, rewrite, translate)
 //	r = rag.WithExpander(r, multiQuery)
-//	r = rag.WithRefiners(r, rag.Dedup(), rag.TopK(8))
+//	top, err := rag.TopK(8)
+//	r = rag.WithRefiners(r, rag.Dedup(), top)
 //	docs, err := r.Retrieve(ctx, q)
 //
 // Optional stages use identity implementations: [IdentityTransformer],
@@ -31,10 +32,11 @@
 // result lists into a flat slice; use refiners to re-organize that slice.
 // The canonical "join overlapping retriever results" pattern is:
 //
+//	top, err := rag.TopK(topK)
 //	r := rag.WithRefiners(
 //	    rag.Parallel(vectorR1, vectorR2),
 //	    rag.Dedup(),
-//	    rag.TopK(topK),
+//	    top,
 //	)
 //
 // This works for any number of retrievers whose scores live on the
@@ -57,7 +59,7 @@
 //	    docsR, logsR rag.Retriever
 //	}
 //	func (r *routingRetriever) Retrieve(ctx context.Context, q *rag.Query) ([]Candidate, error) {
-//	    if route, _ := q.Get("route"); route == "logs" {
+//	    if route, _ := q.Value("route"); route == "logs" {
 //	        return r.logsR.Retrieve(ctx, q)
 //	    }
 //	    return r.docsR.Retrieve(ctx, q)

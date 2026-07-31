@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/metadata"
@@ -15,7 +16,21 @@ var (
 	ErrInvalidRequest = errors.New("evaluation: invalid request")
 	ErrInvalidResult  = errors.New("evaluation: invalid result")
 	ErrNoScore        = errors.New("evaluation: no score in [0, 1]")
+	ErrNilResponse    = errors.New("evaluation: model returned a nil response")
 )
+
+func isNilCapability(value any) bool {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return true
+	}
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
+}
 
 // DefaultPassThreshold is used when ModelConfig.Threshold is zero.
 const DefaultPassThreshold = 0.5

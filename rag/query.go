@@ -2,94 +2,115 @@ package rag
 
 import (
 	"errors"
+	"fmt"
 	"maps"
+	"strings"
 )
 
-// Sentinel errors for the rag contracts. Callers can match these with
-// [errors.Is] to distinguish caller-side input errors (nil query)
-// from store/model failures returned by downstream retrievers,
-// transformers, augmenters.
 var (
-	// ErrNilQuery is returned when a nil [*Query] reaches a RAG
-	// operation.
+	// ErrNilQuery reports a missing query at a RAG stage boundary.
 	ErrNilQuery = errors.New("rag: query must not be nil")
-
-	// ErrNilRetriever is returned when a nil [Retriever] is passed to
-	// a helper that requires one.
+	// ErrInvalidQuery reports an invalid query text or extension key.
+	ErrInvalidQuery = errors.New("rag: invalid query")
+	// ErrNilRetriever reports a missing retrieval capability.
 	ErrNilRetriever = errors.New("rag: retriever must not be nil")
 )
 
-// ChatHistoryKey is the [Query.Extra] key used by [NewMiddleware] and
-// [NewCompressionTransformer] to pass chat history through the RAG boundary.
+// ChatHistoryKey identifies chat history in a Query's extension values.
 const ChatHistoryKey = "lynx:ai:rag:chat_history"
 
-// Query is the canonical user-input shape passed through RAG components.
-// [Query.Text] is required; [Query.Extra] exposes per-call metadata that
-// components may read or write (filters, user ids, language tags, ...).
+// Query is an immutable retrieval query. Text is required; extension values
+// carry per-call filters and ambient context without allowing parallel stages
+// to mutate shared query state.
 type Query struct {
-	// Text is the natural-language query body.
-	Text string
-
-	extra map[string]any
+	text   string
+	values map[string]any
 }
 
-// NewQuery builds a [Query]. Returns an error when text is empty.
+// NewQuery constructs a query and rejects blank text.
 func NewQuery(text string) (*Query, error) {
-	if text == "" {
-		return nil, errors.New("rag.NewQuery: text must not be empty")
+	query := &Query{text: text}
+	if err := query.Validate(); err != nil {
+		return nil, err
 	}
-	return &Query{Text: text}, nil
+	return query, nil
 }
 
-func (q *Query) ensureExtra() {
-	if q.extra == nil {
-		q.extra = make(map[string]any)
+// Validate reports whether q contains usable retrieval text.
+func (q *Query) Validate() error {
+	if q == nil {
+		return ErrNilQuery
 	}
+	if strings.TrimSpace(q.text) == "" {
+		return fmt.Errorf("%w: text must not be blank", ErrInvalidQuery)
+	}
+	return nil
 }
 
-// Get returns the Extra value for key plus an existence flag. Safe to
-// call concurrently with other Get calls; concurrent with Set is not.
-func (q *Query) Get(key string) (any, bool) {
-	if q.extra == nil {
+// Text returns the query text. A nil query returns an empty string.
+func (q *Query) Text() string {
+	if q == nil {
+		return ""
+	}
+	return q.text
+}
+
+// Value returns the extension value stored under key.
+func (q *Query) Value(key string) (any, bool) {
+	if q == nil {
 		return nil, false
 	}
-	value, exists := q.extra[key]
-	return value, exists
+	value, found := q.values[key]
+	return value, found
 }
 
-// Set stores value under key, allocating the metadata map when needed.
-func (q *Query) Set(key string, value any) {
-	q.ensureExtra()
-	q.extra[key] = value
-}
-
-// Extra returns a shallow copy of the query metadata.
-func (q *Query) Extra() map[string]any {
-	return maps.Clone(q.extra)
-}
-
-// Clone returns a copy with an independent metadata map.
-func (q *Query) Clone() *Query {
-	return &Query{
-		Text:  q.Text,
-		extra: maps.Clone(q.extra),
+// Values returns a shallow copy of all extension values.
+func (q *Query) Values() map[string]any {
+	if q == nil {
+		return nil
 	}
+	return maps.Clone(q.values)
 }
 
-func (q *Query) withText(text string) (*Query, error) {
-	if text == "" {
-		return nil, errors.New("rag.Query: text must not be empty")
+// WithValue returns an independent query containing key and value.
+func (q *Query) WithValue(key string, value any) (*Query, error) {
+	if err := q.Validate(); err != nil {
+		return nil, err
 	}
-	clone := q.Clone()
-	clone.Text = text
+	return q.withValues(map[string]any{key: value})
+}
+
+// WithText returns an independent query with replacement text.
+func (q *Query) WithText(text string) (*Query, error) {
+	if err := q.Validate(); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(text) == "" {
+		return nil, fmt.Errorf("%w: text must not be blank", ErrInvalidQuery)
+	}
+	return &Query{text: text, values: maps.Clone(q.values)}, nil
+}
+
+func (q *Query) withValues(values map[string]any) (*Query, error) {
+	if q == nil {
+		return nil, ErrNilQuery
+	}
+	for key := range values {
+		if strings.TrimSpace(key) == "" {
+			return nil, fmt.Errorf("%w: extension key must not be blank", ErrInvalidQuery)
+		}
+	}
+	clone := &Query{text: q.text, values: maps.Clone(q.values)}
+	if clone.values == nil {
+		clone.values = make(map[string]any, len(values))
+	}
+	maps.Copy(clone.values, values)
 	return clone, nil
 }
 
 func (q *Query) withModelText(text string) *Query {
-	if text == "" {
-		return q.Clone()
+	if strings.TrimSpace(text) == "" {
+		return &Query{text: q.text, values: maps.Clone(q.values)}
 	}
-	clone := q.Clone()
-	clone.Text = text
-	return clone
+	return &Query{text: text, values: maps.Clone(q.values)}
 }

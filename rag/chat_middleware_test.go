@@ -66,6 +66,23 @@ func TestNewMiddlewareRejectsInvalidConfig(t *testing.T) {
 	if _, _, err := rag.NewMiddleware(rag.MiddlewareConfig{}); err == nil {
 		t.Fatal("missing retrievers must error")
 	}
+	var typedNilRetriever *stubRetriever
+	if _, _, err := rag.NewMiddleware(rag.MiddlewareConfig{Retriever: typedNilRetriever}); err == nil {
+		t.Fatal("typed nil retriever must error")
+	}
+}
+
+func TestMiddlewarePreservesMissingCapabilities(t *testing.T) {
+	callMiddleware, streamMiddleware, err := rag.NewMiddleware(rag.MiddlewareConfig{Retriever: &stubRetriever{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if callMiddleware(nil) != nil {
+		t.Fatal("call middleware synthesized a model capability")
+	}
+	if streamMiddleware(nil) != nil {
+		t.Fatal("stream middleware synthesized a streaming capability")
+	}
 }
 
 func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
@@ -82,7 +99,7 @@ func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 
 	model := &echoChatModel{}
 	request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("what is RAG?")))
-	response, err := callMW(model).Call(context.Background(), request)
+	response, err := callMW(model).Call(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +131,7 @@ func TestMiddlewareStreamAugmentsOnceAndAttachesDocs(t *testing.T) {
 	model := &echoChatModel{}
 	request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("question")))
 	var chunks int
-	for response, streamErr := range streamMW(model).Stream(context.Background(), request) {
+	for response, streamErr := range streamMW(model).Stream(t.Context(), request) {
 		if streamErr != nil {
 			t.Fatal(streamErr)
 		}
@@ -149,9 +166,33 @@ func TestMiddlewarePropagatesRetrieverError(t *testing.T) {
 	}
 
 	request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("hi")))
-	_, err = callMW(&echoChatModel{}).Call(context.Background(), request)
+	_, err = callMW(&echoChatModel{}).Call(t.Context(), request)
 	if !errors.Is(err, want) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestMiddlewarePreservesPartialModelResponse(t *testing.T) {
+	doc, _ := document.NewDocument("retrieved info", nil)
+	callMiddleware, _, err := rag.NewMiddleware(rag.MiddlewareConfig{
+		Retriever: &stubRetriever{docs: []rag.Candidate{candidate(doc)}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantErr := errors.New("partial model failure")
+	partial := textResponse("partial")
+	model := chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
+		return partial, wantErr
+	})
+	request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("question")))
+
+	response, err := callMiddleware(model).Call(t.Context(), request)
+	if response != partial || !errors.Is(err, wantErr) {
+		t.Fatalf("response/error = %p/%v, want %p/%v", response, err, partial, wantErr)
+	}
+	if _, found, decodeErr := metadata.Decode[[]rag.Candidate](response.Extensions, rag.DocumentContextKey); decodeErr != nil || !found {
+		t.Fatalf("partial response document extension = present %v, error %v", found, decodeErr)
 	}
 }
 
@@ -175,7 +216,7 @@ func TestMiddlewareDoesNotMutateCallerMessages(t *testing.T) {
 	model := &echoChatModel{}
 	userMessage := chat.NewUserMessage(chat.NewTextPart("what is RAG?"))
 	request, _ := chat.NewRequest(userMessage)
-	if _, err := callMW(model).Call(context.Background(), request); err != nil {
+	if _, err := callMW(model).Call(t.Context(), request); err != nil {
 		t.Fatal(err)
 	}
 

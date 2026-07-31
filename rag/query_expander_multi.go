@@ -62,10 +62,10 @@ type multiQueryExpander struct {
 // query phrasings.
 func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (Expander, error) {
 	if cfg.ChatModel == nil {
-		return nil, errors.New("rag.MultiQueryExpanderConfig: ChatModel is required")
+		return nil, errors.New("rag: multi-query expander requires a chat model")
 	}
 	if cfg.NumberOfQueries < 0 {
-		return nil, errors.New("rag.MultiQueryExpanderConfig: NumberOfQueries must be >= 0")
+		return nil, errors.New("rag: number of expanded queries must not be negative")
 	}
 	if cfg.NumberOfQueries == 0 {
 		cfg.NumberOfQueries = defaultMultiQueryCount
@@ -98,13 +98,13 @@ func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (Expander, error) {
 // original query is returned, ensuring downstream retrieval always
 // has at least one query to run.
 func (m *multiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query, error) {
-	if query == nil {
-		return nil, ErrNilQuery
+	if err := query.Validate(); err != nil {
+		return nil, err
 	}
 
 	expanded, err := callPrompt(ctx, m.chatClient, m.promptTemplate, map[string]any{
 		"Number": m.numberOfQueries,
-		"Query":  query.Text,
+		"Query":  query.Text(),
 	})
 	if err != nil {
 		return nil, err
@@ -132,7 +132,7 @@ func (m *multiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query
 		if text == "" {
 			continue
 		}
-		clone, err := query.withText(text)
+		clone, err := query.WithText(text)
 		if err != nil {
 			return nil, err
 		}

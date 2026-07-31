@@ -2,11 +2,19 @@ package rag
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"slices"
 
 	"github.com/Tangerg/lynx/core/chat"
+)
+
+var (
+	// ErrNilChatResponse reports a model that returned no response and no error.
+	ErrNilChatResponse = errors.New("rag: chat model returned a nil response")
+	// ErrNilChatStream reports a streamer that returned a nil sequence.
+	ErrNilChatStream = errors.New("rag: chat streamer returned a nil sequence")
 )
 
 // DocumentContextKey is the [chat.Response.Extensions] key under which the
@@ -32,10 +40,10 @@ type middleware struct {
 // request, augment the last user message, and attach retrieved documents to
 // response extensions under [DocumentContextKey].
 func NewMiddleware(config MiddlewareConfig) (chat.CallMiddleware, chat.StreamMiddleware, error) {
-	if config.Retriever == nil {
+	if isNilCapability(config.Retriever) {
 		return nil, nil, ErrNilRetriever
 	}
-	if config.Augmenter == nil {
+	if isNilCapability(config.Augmenter) {
 		config.Augmenter = IdentityAugmenter()
 	}
 
@@ -43,78 +51,113 @@ func NewMiddleware(config MiddlewareConfig) (chat.CallMiddleware, chat.StreamMid
 	return mw.wrapCallHandler, mw.wrapStreamHandler, nil
 }
 
-func (m *middleware) run(ctx context.Context, req *chat.Request) (*Query, []Candidate, error) {
+func (m *middleware) run(ctx context.Context, req *chat.Request) (*chat.Request, *Query, []Candidate, error) {
+	if req == nil {
+		return nil, nil, nil, fmt.Errorf("%w: nil request", chat.ErrInvalidRequest)
+	}
+	prepared := req.Clone()
+	if err := prepared.Validate(); err != nil {
+		return nil, nil, nil, err
+	}
 	userText := ""
-	for index := len(req.Messages) - 1; index >= 0; index-- {
-		if req.Messages[index].Role == chat.RoleUser {
-			userText = req.Messages[index].Text()
+	for index := len(prepared.Messages) - 1; index >= 0; index-- {
+		if prepared.Messages[index].Role == chat.RoleUser {
+			userText = prepared.Messages[index].Text()
 			break
 		}
 	}
 	query, err := NewQuery(userText)
 	if err != nil {
-		return nil, nil, fmt.Errorf("rag.NewMiddleware: build query: %w", err)
+		return nil, nil, nil, fmt.Errorf("rag: build query from final user message: %w", err)
 	}
 
-	values, err := req.Extensions.Values()
+	values, err := prepared.Extensions.Values()
 	if err != nil {
-		return nil, nil, fmt.Errorf("rag.NewMiddleware: decode request extensions: %w", err)
+		return nil, nil, nil, fmt.Errorf("rag: decode request extensions: %w", err)
 	}
-	for key, value := range values {
-		query.Set(key, value)
+	if values == nil {
+		values = make(map[string]any)
 	}
-	query.Set(ChatHistoryKey, req.Messages)
+	values[ChatHistoryKey] = slices.Clone(prepared.Messages)
+	query, err = query.withValues(values)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 
 	docs, err := m.retriever.Retrieve(ctx, query)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+	for index, candidate := range docs {
+		if err := candidate.Validate(); err != nil {
+			return nil, nil, nil, fmt.Errorf("rag: retrieved candidate %d: %w", index, err)
+		}
 	}
 	augmented, err := m.augmenter.Augment(ctx, query, docs)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return augmented, docs, nil
+	if augmented == nil {
+		return nil, nil, nil, ErrNilQuery
+	}
+	return prepared, augmented, docs, nil
 }
 
 // executeCall is the synchronous flow: retrieve → augment → call next → attach
 // docs to response extensions.
 func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next chat.Model) (*chat.Response, error) {
-	augmented, docs, err := m.run(ctx, req)
+	prepared, augmented, docs, err := m.run(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	req = withAugmentedUserText(req, augmented.Text)
+	prepared = withAugmentedUserText(prepared, augmented.Text())
 
-	resp, err := next.Call(ctx, req)
-	if err != nil {
-		return nil, err
+	resp, err := next.Call(ctx, prepared)
+	if resp == nil {
+		if err != nil {
+			return nil, err
+		}
+		return nil, ErrNilChatResponse
 	}
-	if err := resp.SetExtension(DocumentContextKey, docs); err != nil {
-		return nil, err
+	if extensionErr := resp.SetExtension(DocumentContextKey, docs); extensionErr != nil {
+		return resp, errors.Join(err, extensionErr)
 	}
-	return resp, nil
+	return resp, err
 }
 
 // executeStream is the streaming flow: retrieve once before the stream begins,
 // swap the user message, then forward chunks while attaching docs to extensions.
 func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next chat.Streamer) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		augmented, docs, err := m.run(ctx, req)
+		prepared, augmented, docs, err := m.run(ctx, req)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
 
-		req = withAugmentedUserText(req, augmented.Text)
+		prepared = withAugmentedUserText(prepared, augmented.Text())
 
-		for resp, err := range next.Stream(ctx, req) {
-			if err != nil {
-				yield(resp, err)
+		sequence := next.Stream(ctx, prepared)
+		if sequence == nil {
+			yield(nil, ErrNilChatStream)
+			return
+		}
+		for resp, err := range sequence {
+			if resp == nil {
+				if err != nil {
+					yield(nil, err)
+					return
+				}
+				yield(nil, ErrNilChatResponse)
 				return
 			}
-			if err := resp.SetExtension(DocumentContextKey, docs); err != nil {
-				yield(nil, err)
+			if extensionErr := resp.SetExtension(DocumentContextKey, docs); extensionErr != nil {
+				yield(resp, errors.Join(err, extensionErr))
+				return
+			}
+			if err != nil {
+				yield(resp, err)
 				return
 			}
 			if !yield(resp, nil) {
@@ -160,12 +203,18 @@ func withAugmentedUserText(req *chat.Request, text string) *chat.Request {
 }
 
 func (m *middleware) wrapCallHandler(next chat.Model) chat.Model {
+	if isNilCapability(next) {
+		return nil
+	}
 	return chat.ModelFunc(func(ctx context.Context, req *chat.Request) (*chat.Response, error) {
 		return m.executeCall(ctx, req, next)
 	})
 }
 
 func (m *middleware) wrapStreamHandler(next chat.Streamer) chat.Streamer {
+	if isNilCapability(next) {
+		return nil
+	}
 	return chat.StreamerFunc(func(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
 		return m.executeStream(ctx, req, next)
 	})

@@ -32,12 +32,18 @@ func callPrompt(ctx context.Context, client *chatclient.Client, prompt *chatclie
 	if err != nil {
 		return "", err
 	}
+	if response == nil {
+		return "", ErrNilChatResponse
+	}
 	return response.Text(), nil
 }
 
-func formatChatHistory(messages []chat.Message) string {
+func formatChatHistory(messages []chat.Message) (string, error) {
 	var output strings.Builder
 	for messageIndex := range messages {
+		if err := messages[messageIndex].Validate(); err != nil {
+			return "", fmt.Errorf("rag: format chat history message %d: %w", messageIndex, err)
+		}
 		if output.Len() != 0 {
 			output.WriteString("\n\n")
 		}
@@ -61,5 +67,5 @@ func formatChatHistory(messages []chat.Message) string {
 			}
 		}
 	}
-	return output.String()
+	return output.String(), nil
 }

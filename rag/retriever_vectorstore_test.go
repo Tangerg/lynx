@@ -55,7 +55,7 @@ func TestRetrieverAppliesTopKAndMinScore(t *testing.T) {
 	}
 
 	q, _ := rag.NewQuery("hi")
-	if _, err := r.Retrieve(context.Background(), q); err != nil {
+	if _, err := r.Retrieve(t.Context(), q); err != nil {
 		t.Fatal(err)
 	}
 
@@ -87,9 +87,12 @@ func TestRetrieverPerQueryFilterOverridesFunc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	q.Set(rag.VectorStoreFilterKey, parsed)
+	q, err = q.WithValue(rag.VectorStoreFilterKey, parsed)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	if _, err := r.Retrieve(context.Background(), q); err != nil {
+	if _, err := r.Retrieve(t.Context(), q); err != nil {
 		t.Fatal(err)
 	}
 	if funcCalls != 0 {
@@ -107,9 +110,12 @@ func TestRetrieverStringFilterIsParsed(t *testing.T) {
 	})
 
 	q, _ := rag.NewQuery("hi")
-	q.Set(rag.VectorStoreFilterKey, `year >= 2020`)
+	q, err := q.WithValue(rag.VectorStoreFilterKey, `year >= 2020`)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	if _, err := r.Retrieve(context.Background(), q); err != nil {
+	if _, err := r.Retrieve(t.Context(), q); err != nil {
 		t.Fatal(err)
 	}
 	if store.got.Filter == nil {
@@ -123,7 +129,7 @@ func TestRetrieverPropagatesError(t *testing.T) {
 	r, _ := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{VectorStore: store})
 
 	q, _ := rag.NewQuery("hi")
-	if _, err := r.Retrieve(context.Background(), q); !errors.Is(err, want) {
+	if _, err := r.Retrieve(t.Context(), q); !errors.Is(err, want) {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -132,7 +138,7 @@ func TestRetrieverNilQuery(t *testing.T) {
 	r, _ := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{
 		VectorStore: &fakeVectorSearcher{},
 	})
-	if _, err := r.Retrieve(context.Background(), nil); err == nil {
+	if _, err := r.Retrieve(t.Context(), nil); err == nil {
 		t.Fatal("nil query must error")
 	}
 }

@@ -51,7 +51,7 @@ type rewriteTransformer struct {
 // ambiguous user query for a configured search target.
 func NewRewriteTransformer(cfg RewriteTransformerConfig) (Transformer, error) {
 	if cfg.ChatModel == nil {
-		return nil, errors.New("rag.RewriteTransformerConfig: ChatModel is required")
+		return nil, errors.New("rag: rewrite transformer requires a chat model")
 	}
 	if cfg.TargetSearchSystem == "" {
 		cfg.TargetSearchSystem = defaultRewriteTarget
@@ -82,13 +82,13 @@ func NewRewriteTransformer(cfg RewriteTransformerConfig) (Transformer, error) {
 // Text replaced by the LLM output; an empty LLM response leaves Text
 // unchanged.
 func (r *rewriteTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
-	if query == nil {
-		return nil, ErrNilQuery
+	if err := query.Validate(); err != nil {
+		return nil, err
 	}
 
 	rewritten, err := callPrompt(ctx, r.chatClient, r.promptTemplate, map[string]any{
 		"Target": r.targetSearchSystem,
-		"Query":  query.Text,
+		"Query":  query.Text(),
 	})
 	if err != nil {
 		return nil, err

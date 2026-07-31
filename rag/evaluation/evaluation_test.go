@@ -30,6 +30,10 @@ func TestModelEvaluatorConstructionValidatesConfiguration(t *testing.T) {
 	if _, err := evaluation.NewFactEvaluator(evaluation.ModelConfig{Model: model, Prompt: "{{.Missing}}"}); !errors.Is(err, evaluation.ErrInvalidConfig) {
 		t.Fatalf("unknown field error = %v", err)
 	}
+	var typedNilModel *fakeModel
+	if _, err := evaluation.NewFactEvaluator(evaluation.ModelConfig{Model: typedNilModel}); !errors.Is(err, evaluation.ErrInvalidConfig) {
+		t.Fatalf("typed nil model error = %v", err)
+	}
 }
 
 func TestFactEvaluatorBuildsPlainRequestAndParsesVerdict(t *testing.T) {
@@ -131,6 +135,18 @@ func TestModelEvaluatorPreservesCancellationAndModelErrors(t *testing.T) {
 	}
 }
 
+func TestModelEvaluatorRejectsNilResponse(t *testing.T) {
+	model := &fakeModel{nilResponse: true}
+	evaluator, err := evaluation.NewFactEvaluator(evaluation.ModelConfig{Model: model})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = evaluator.Evaluate(t.Context(), evaluation.Request{Answer: "answer", Context: []string{"source"}})
+	if !errors.Is(err, evaluation.ErrNilResponse) {
+		t.Fatalf("nil response error = %v", err)
+	}
+}
+
 func TestModelEvaluatorRejectsRepliesWithoutNormalizedScore(t *testing.T) {
 	for _, reply := range []string{"YES", "5 out of 10", "", "score 2"} {
 		model := &fakeModel{reply: reply}
@@ -188,6 +204,10 @@ func TestCompositeValidatesConstructionErrorsAndSingleResultOwnership(t *testing
 	}
 	if _, err := evaluation.NewComposite(nil); !errors.Is(err, evaluation.ErrInvalidConfig) {
 		t.Fatalf("nil evaluator error = %v", err)
+	}
+	var typedNilEvaluator evaluation.EvaluatorFunc
+	if _, err := evaluation.NewComposite(typedNilEvaluator); !errors.Is(err, evaluation.ErrInvalidConfig) {
+		t.Fatalf("typed nil evaluator error = %v", err)
 	}
 
 	childErr := errors.New("child failed")
@@ -271,11 +291,12 @@ func TestResultValidation(t *testing.T) {
 }
 
 type fakeModel struct {
-	mu      sync.Mutex
-	reply   string
-	err     error
-	request *chat.Request
-	calls   int
+	mu          sync.Mutex
+	reply       string
+	err         error
+	nilResponse bool
+	request     *chat.Request
+	calls       int
 }
 
 func (m *fakeModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
@@ -285,6 +306,9 @@ func (m *fakeModel) Call(_ context.Context, request *chat.Request) (*chat.Respon
 	m.request = request
 	if m.err != nil {
 		return nil, m.err
+	}
+	if m.nilResponse {
+		return nil, nil
 	}
 	if m.reply == "" {
 		return &chat.Response{}, nil

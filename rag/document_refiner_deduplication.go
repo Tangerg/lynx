@@ -2,8 +2,7 @@ package rag
 
 import (
 	"context"
-
-	"github.com/Tangerg/lynx/pkg/sets"
+	"fmt"
 )
 
 var _ Refiner = deduper{}
@@ -25,15 +24,23 @@ func (d deduper) Refine(ctx context.Context, _ *Query, documents []Candidate) ([
 		return nil, err
 	}
 
-	seen := sets.NewHashSet[string]()
+	seen := make(map[string]struct{}, len(documents))
 	out := make([]Candidate, 0, len(documents))
 
-	for _, doc := range documents {
-		if seen.Contains(doc.ID) {
+	for index, candidate := range documents {
+		if err := candidate.Validate(); err != nil {
+			return nil, fmt.Errorf("rag: deduplicate candidate %d: %w", index, err)
+		}
+		id := candidate.Document.ID
+		if id == "" {
+			out = append(out, candidate)
 			continue
 		}
-		seen.Add(doc.ID)
-		out = append(out, doc)
+		if _, duplicate := seen[id]; duplicate {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, candidate)
 	}
 	return out, nil
 }

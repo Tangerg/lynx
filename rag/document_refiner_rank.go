@@ -3,6 +3,8 @@ package rag
 import (
 	"cmp"
 	"context"
+	"errors"
+	"fmt"
 	"slices"
 )
 
@@ -14,12 +16,12 @@ type topKRefiner struct {
 }
 
 // TopK returns a [Refiner] that sorts documents by score descending and keeps
-// at most topK entries. Non-positive topK is treated as 1.
-func TopK(topK int) Refiner {
+// at most topK entries. topK must be positive.
+func TopK(topK int) (Refiner, error) {
 	if topK < 1 {
-		topK = 1
+		return nil, errors.New("rag: top K must be positive")
 	}
-	return topKRefiner{topK: topK}
+	return topKRefiner{topK: topK}, nil
 }
 
 // Refine sorts documents by score (descending) and returns at most
@@ -27,6 +29,11 @@ func TopK(topK int) Refiner {
 func (r topKRefiner) Refine(ctx context.Context, _ *Query, documents []Candidate) ([]Candidate, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	for index, candidate := range documents {
+		if err := candidate.Validate(); err != nil {
+			return nil, fmt.Errorf("rag: rank candidate %d: %w", index, err)
+		}
 	}
 
 	sorted := slices.Clone(documents)

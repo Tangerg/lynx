@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
 
-// VectorStoreFilterKey is the [Query.Extra] metadata key under which a caller
+// VectorStoreFilterKey is the query extension key under which a caller
 // may stash a per-call filter expression — either as a parsed
 // [filter.Predicate] or as a raw filter-DSL string. The retriever consults
 // this slot before falling back to the configured FilterFunc.
@@ -28,7 +28,7 @@ type VectorStoreConfig struct {
 	MinScore float64
 
 	// FilterFunc dynamically builds a metadata filter from the query's
-	// Extra map. Optional; when both [VectorStoreFilterKey] is set on the
+	// extension values. Optional; when both [VectorStoreFilterKey] is set on the
 	// query and FilterFunc is provided, the per-query filter wins.
 	FilterFunc func(ctx context.Context, params map[string]any) (filter.Predicate, error)
 }
@@ -47,15 +47,15 @@ type vectorStoreRetriever struct {
 // configured filters via [VectorStoreConfig.FilterFunc], top-K capping, and
 // similarity thresholds.
 func NewVectorStoreRetriever(cfg VectorStoreConfig) (Retriever, error) {
-	if cfg.VectorStore == nil {
-		return nil, errors.New("rag.VectorStoreConfig: VectorStore is required")
+	if isNilCapability(cfg.VectorStore) {
+		return nil, errors.New("rag: vector store is required")
 	}
 	if cfg.TopK < 0 {
-		return nil, errors.New("rag.VectorStoreConfig: TopK must be >= 0")
+		return nil, errors.New("rag: vector-store top K must not be negative")
 	}
 	if cfg.MinScore < corevs.MinSimilarityScore || cfg.MinScore > corevs.MaxSimilarityScore {
 		return nil, fmt.Errorf(
-			"rag.VectorStoreConfig: MinScore must be in [%.1f, %.1f]",
+			"rag: vector-store minimum score must be in [%.1f, %.1f]",
 			corevs.MinSimilarityScore,
 			corevs.MaxSimilarityScore,
 		)
@@ -74,8 +74,8 @@ func NewVectorStoreRetriever(cfg VectorStoreConfig) (Retriever, error) {
 
 // Retrieve issues a similarity search via the underlying vector store.
 func (v *vectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]Candidate, error) {
-	if query == nil {
-		return nil, ErrNilQuery
+	if err := query.Validate(); err != nil {
+		return nil, err
 	}
 
 	expr, err := v.resolveFilter(ctx, query)
@@ -84,7 +84,7 @@ func (v *vectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]Ca
 	}
 
 	request := corevs.SearchRequest{
-		Query:    query.Text,
+		Query:    query.Text(),
 		TopK:     v.topK,
 		MinScore: v.minScore,
 		Filter:   expr,
@@ -104,7 +104,7 @@ func (v *vectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]Ca
 // preferring the per-query [VectorStoreFilterKey] slot over the configured
 // FilterFunc. Returns nil, nil when no filter applies.
 func (v *vectorStoreRetriever) resolveFilter(ctx context.Context, query *Query) (filter.Predicate, error) {
-	if value, exists := query.Get(VectorStoreFilterKey); exists {
+	if value, exists := query.Value(VectorStoreFilterKey); exists {
 		switch typed := value.(type) {
 		case string:
 			return filter.Parse(typed)
@@ -114,7 +114,7 @@ func (v *vectorStoreRetriever) resolveFilter(ctx context.Context, query *Query) 
 	}
 
 	if v.filterFunc != nil {
-		return v.filterFunc(ctx, query.Extra())
+		return v.filterFunc(ctx, query.Values())
 	}
 	return nil, nil
 }

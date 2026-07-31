@@ -12,8 +12,11 @@ import (
 
 // Retrieve calls r.Retrieve after checking that r is non-nil.
 func Retrieve(ctx context.Context, r Retriever, query *Query) ([]Candidate, error) {
-	if r == nil {
+	if isNilCapability(r) {
 		return nil, ErrNilRetriever
+	}
+	if err := query.Validate(); err != nil {
+		return nil, err
 	}
 	return r.Retrieve(ctx, query)
 }
@@ -23,8 +26,8 @@ func Retrieve(ctx context.Context, r Retriever, query *Query) ([]Candidate, erro
 // recorded on the current span and the successful documents are returned.
 func Parallel(retrievers ...Retriever) Retriever {
 	return RetrieverFunc(func(ctx context.Context, query *Query) ([]Candidate, error) {
-		if query == nil {
-			return nil, ErrNilQuery
+		if err := query.Validate(); err != nil {
+			return nil, err
 		}
 		if len(retrievers) == 0 {
 			return nil, ErrNilRetriever
@@ -37,7 +40,7 @@ func Parallel(retrievers ...Retriever) Retriever {
 		}()
 		docs, err = parallelCollect(ctx, "rag.Parallel", retrievers, "retriever",
 			func(ctx context.Context, _ int, retriever Retriever) ([]Candidate, error) {
-				if retriever == nil {
+				if isNilCapability(retriever) {
 					return nil, ErrNilRetriever
 				}
 				return retriever.Retrieve(ctx, query)
@@ -50,24 +53,24 @@ func Parallel(retrievers ...Retriever) Retriever {
 // transformers before calling next.
 func WithTransformers(next Retriever, transformers ...Transformer) Retriever {
 	return RetrieverFunc(func(ctx context.Context, query *Query) ([]Candidate, error) {
-		if next == nil {
+		if isNilCapability(next) {
 			return nil, ErrNilRetriever
 		}
-		if query == nil {
-			return nil, ErrNilQuery
+		if err := query.Validate(); err != nil {
+			return nil, err
 		}
 		current := query
 		for i, transformer := range transformers {
-			if transformer == nil {
+			if isNilCapability(transformer) {
 				continue
 			}
 			var err error
 			current, err = transformer.Transform(ctx, current)
 			if err != nil {
-				return nil, fmt.Errorf("rag.WithTransformers: transformer #%d: %w", i, err)
+				return nil, fmt.Errorf("rag: transformer %d: %w", i, err)
 			}
-			if current == nil {
-				return nil, ErrNilQuery
+			if err := current.Validate(); err != nil {
+				return nil, err
 			}
 		}
 		return next.Retrieve(ctx, current)
@@ -78,26 +81,26 @@ func WithTransformers(next Retriever, transformers ...Transformer) Retriever {
 // calls next for each expanded query in parallel.
 func WithExpander(next Retriever, expander Expander) Retriever {
 	return RetrieverFunc(func(ctx context.Context, query *Query) ([]Candidate, error) {
-		if next == nil {
+		if isNilCapability(next) {
 			return nil, ErrNilRetriever
 		}
-		if query == nil {
-			return nil, ErrNilQuery
+		if err := query.Validate(); err != nil {
+			return nil, err
 		}
-		if expander == nil {
+		if isNilCapability(expander) {
 			return next.Retrieve(ctx, query)
 		}
 		queries, err := expander.Expand(ctx, query)
 		if err != nil {
-			return nil, fmt.Errorf("rag.WithExpander: %w", err)
+			return nil, fmt.Errorf("rag: expand query: %w", err)
 		}
 		if len(queries) == 0 {
 			queries = []*Query{query}
 		}
 		return parallelCollect(ctx, "rag.WithExpander", queries, "query",
 			func(ctx context.Context, _ int, q *Query) ([]Candidate, error) {
-				if q == nil {
-					return nil, ErrNilQuery
+				if err := q.Validate(); err != nil {
+					return nil, err
 				}
 				return next.Retrieve(ctx, q)
 			})
@@ -108,23 +111,23 @@ func WithExpander(next Retriever, expander Expander) Retriever {
 // refiners to the returned documents in order.
 func WithRefiners(next Retriever, refiners ...Refiner) Retriever {
 	return RetrieverFunc(func(ctx context.Context, query *Query) ([]Candidate, error) {
-		if next == nil {
+		if isNilCapability(next) {
 			return nil, ErrNilRetriever
 		}
-		if query == nil {
-			return nil, ErrNilQuery
+		if err := query.Validate(); err != nil {
+			return nil, err
 		}
 		docs, err := next.Retrieve(ctx, query)
 		if err != nil {
 			return nil, err
 		}
 		for i, refiner := range refiners {
-			if refiner == nil {
+			if isNilCapability(refiner) {
 				continue
 			}
 			docs, err = refiner.Refine(ctx, query, docs)
 			if err != nil {
-				return nil, fmt.Errorf("rag.WithRefiners: refiner #%d: %w", i, err)
+				return nil, fmt.Errorf("rag: refiner %d: %w", i, err)
 			}
 		}
 		return docs, nil
@@ -175,7 +178,7 @@ func parallelCollect[Item, Out any](
 	if len(errs) == 0 {
 		return out, nil
 	}
-	if len(out) == 0 {
+	if len(errs) == len(items) {
 		return nil, fmt.Errorf("%s: every %s failed: %w", op, itemLabel, errors.Join(errs...))
 	}
 	span := trace.SpanFromContext(ctx)

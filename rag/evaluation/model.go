@@ -9,6 +9,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -30,14 +31,14 @@ type promptData struct {
 }
 
 type modelEvaluator struct {
-	model     chat.Model
+	client    *chatclient.Client
 	prompt    *template.Template
 	threshold float64
 	validate  func(Request) error
 }
 
 func newModelEvaluator(config ModelConfig, defaultPrompt string, validate func(Request) error) (*modelEvaluator, error) {
-	if config.Model == nil {
+	if isNilCapability(config.Model) {
 		return nil, fmt.Errorf("%w: nil model", ErrInvalidConfig)
 	}
 	if config.Threshold < 0 || config.Threshold > 1 {
@@ -57,8 +58,12 @@ func newModelEvaluator(config ModelConfig, defaultPrompt string, validate func(R
 	if err := prompt.Execute(&check, promptData{}); err != nil {
 		return nil, fmt.Errorf("%w: validate prompt: %w", ErrInvalidConfig, err)
 	}
+	client, err := chatclient.New(config.Model)
+	if err != nil {
+		return nil, fmt.Errorf("%w: model: %w", ErrInvalidConfig, err)
+	}
 	return &modelEvaluator{
-		model: config.Model, prompt: prompt, threshold: config.Threshold, validate: validate,
+		client: client, prompt: prompt, threshold: config.Threshold, validate: validate,
 	}, nil
 }
 
@@ -80,9 +85,12 @@ func (e *modelEvaluator) Evaluate(ctx context.Context, request Request) (Result,
 	if err != nil {
 		return Result{}, fmt.Errorf("evaluation: build model request: %w", err)
 	}
-	response, err := e.model.Call(ctx, modelRequest)
+	response, err := e.client.Call(ctx, modelRequest)
 	if err != nil {
 		return Result{}, fmt.Errorf("evaluation: model call: %w", err)
+	}
+	if response == nil {
+		return Result{}, ErrNilResponse
 	}
 	return parseScore(response.Text(), e.threshold)
 }

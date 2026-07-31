@@ -2,15 +2,52 @@ package rag
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"math"
+	"reflect"
 
 	"github.com/Tangerg/lynx/core/document"
 )
 
+// isNilCapability recognizes both nil interfaces and interfaces containing a
+// typed nil. Capability boundaries use it to fail during composition instead
+// of panicking on the first request.
+func isNilCapability(value any) bool {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return true
+	}
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
+}
+
+// ErrInvalidCandidate reports a missing/invalid document or non-finite score.
+var ErrInvalidCandidate = errors.New("rag: invalid retrieval candidate")
+
 // Candidate relates a document to the retrieval operation that produced it.
 // Score is query-specific and therefore does not belong on document.Document.
 type Candidate struct {
-	*document.Document
-	Score float64
+	Document *document.Document
+	Score    float64
+}
+
+// Validate checks the candidate's document and score.
+func (c Candidate) Validate() error {
+	if c.Document == nil {
+		return fmt.Errorf("%w: document must not be nil", ErrInvalidCandidate)
+	}
+	if err := c.Document.Validate(); err != nil {
+		return fmt.Errorf("%w: document: %w", ErrInvalidCandidate, err)
+	}
+	if math.IsNaN(c.Score) || math.IsInf(c.Score, 0) {
+		return fmt.Errorf("%w: score must be finite", ErrInvalidCandidate)
+	}
+	return nil
 }
 
 // Transformer rewrites a query to be more retrieval-friendly — translation,

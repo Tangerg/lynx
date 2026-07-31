@@ -43,10 +43,10 @@ type compressionTransformer struct {
 
 // NewCompressionTransformer returns a [Transformer] that collapses chat history
 // plus a follow-up question into a single self-contained query. It reads chat
-// history from [Query.Extra] under [ChatHistoryKey].
+// history from the query value stored under [ChatHistoryKey].
 func NewCompressionTransformer(cfg CompressionTransformerConfig) (Transformer, error) {
 	if cfg.ChatModel == nil {
-		return nil, errors.New("rag.CompressionTransformerConfig: ChatModel is required")
+		return nil, errors.New("rag: compression transformer requires a chat model")
 	}
 	promptTemplate, err := resolvePromptTemplate(
 		cfg.PromptTemplate,
@@ -73,15 +73,18 @@ func NewCompressionTransformer(cfg CompressionTransformerConfig) (Transformer, e
 // Returns a clone of the input with Text replaced by the LLM output;
 // when the LLM returns empty text the original Text is preserved.
 func (c *compressionTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
-	if query == nil {
-		return nil, ErrNilQuery
+	if err := query.Validate(); err != nil {
+		return nil, err
 	}
 
-	history := c.extractHistory(query)
+	history, err := c.extractHistory(query)
+	if err != nil {
+		return nil, err
+	}
 
 	compressed, err := callPrompt(ctx, c.chatClient, c.promptTemplate, map[string]any{
 		"History": history,
-		"Query":   query.Text,
+		"Query":   query.Text(),
 	})
 	if err != nil {
 		return nil, err
@@ -90,18 +93,18 @@ func (c *compressionTransformer) Transform(ctx context.Context, query *Query) (*
 	return query.withModelText(compressed), nil
 }
 
-// extractHistory pulls the conversation messages out of the query's
-// Extra map under [ChatHistoryKey] and renders them as one string.
+// extractHistory pulls the conversation messages out of the query value under
+// [ChatHistoryKey] and renders them as one string.
 // Returns "" when the slot is missing or holds the wrong type.
-func (c *compressionTransformer) extractHistory(query *Query) string {
-	value, exists := query.Get(ChatHistoryKey)
+func (c *compressionTransformer) extractHistory(query *Query) (string, error) {
+	value, exists := query.Value(ChatHistoryKey)
 	if !exists {
-		return ""
+		return "", nil
 	}
 
 	messages, ok := value.([]chat.Message)
 	if !ok {
-		return ""
+		return "", nil
 	}
 	return formatChatHistory(messages)
 }

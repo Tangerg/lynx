@@ -48,10 +48,10 @@ type translationTransformer struct {
 // into the target language expected by downstream retrieval.
 func NewTranslationTransformer(cfg TranslationTransformerConfig) (Transformer, error) {
 	if cfg.ChatModel == nil {
-		return nil, errors.New("rag.TranslationTransformerConfig: ChatModel is required")
+		return nil, errors.New("rag: translation transformer requires a chat model")
 	}
 	if cfg.TargetLanguage == "" {
-		return nil, errors.New("rag.TranslationTransformerConfig: TargetLanguage is required")
+		return nil, errors.New("rag: translation target language is required")
 	}
 	promptTemplate, err := resolvePromptTemplate(
 		cfg.PromptTemplate,
@@ -79,13 +79,13 @@ func NewTranslationTransformer(cfg TranslationTransformerConfig) (Transformer, e
 // Text replaced by the LLM output; an empty LLM response leaves Text
 // unchanged.
 func (t *translationTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
-	if query == nil {
-		return nil, ErrNilQuery
+	if err := query.Validate(); err != nil {
+		return nil, err
 	}
 
 	translated, err := callPrompt(ctx, t.chatClient, t.promptTemplate, map[string]any{
 		"Target": t.targetLanguage,
-		"Query":  query.Text,
+		"Query":  query.Text(),
 	})
 	if err != nil {
 		return nil, err

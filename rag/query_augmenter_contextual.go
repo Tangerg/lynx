@@ -94,11 +94,8 @@ func NewContextualAugmenter(cfg ContextualAugmenterConfig) (Augmenter, error) {
 		return nil, err
 	}
 	formatter := cfg.Formatter
-	if formatter == nil {
+	if isNilCapability(formatter) {
 		formatter = FormatterFunc(func(doc *document.Document) (string, error) {
-			if doc == nil {
-				return "", nil
-			}
 			return doc.Text, nil
 		})
 	}
@@ -119,8 +116,8 @@ func (c *contextualAugmenter) Augment(ctx context.Context, query *Query, documen
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if query == nil {
-		return nil, ErrNilQuery
+	if err := query.Validate(); err != nil {
+		return nil, err
 	}
 
 	if len(documents) == 0 {
@@ -129,6 +126,9 @@ func (c *contextualAugmenter) Augment(ctx context.Context, query *Query, documen
 
 	contextTexts := make([]string, 0, len(documents))
 	for _, candidate := range documents {
+		if err := candidate.Validate(); err != nil {
+			return nil, err
+		}
 		formatted, err := c.formatter.Format(candidate.Document)
 		if err != nil {
 			return nil, err
@@ -138,12 +138,12 @@ func (c *contextualAugmenter) Augment(ctx context.Context, query *Query, documen
 
 	rendered, err := c.promptTemplate.Render(map[string]any{
 		"Context": strings.Join(contextTexts, "\n\n---\n\n"),
-		"Query":   query.Text,
+		"Query":   query.Text(),
 	})
 	if err != nil {
 		return nil, err
 	}
-	return query.withText(rendered)
+	return query.WithText(rendered)
 }
 
 // handleEmptyContext implements the no-docs branch: pass through the
@@ -158,5 +158,5 @@ func (c *contextualAugmenter) handleEmptyContext(query *Query) (*Query, error) {
 	if err != nil {
 		return nil, err
 	}
-	return query.withText(rendered)
+	return query.WithText(rendered)
 }
