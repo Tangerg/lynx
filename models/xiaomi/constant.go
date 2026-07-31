@@ -18,28 +18,9 @@ const (
 	BaseURLAnthropic = "https://api.xiaomimimo.com/anthropic"
 )
 
-// Chat model ids. The MiMo lineup is versioned aggressively; consult
-// https://platform.xiaomimimo.com/docs/en-US/api/chat for the live
-// catalog.
+// Current Chat model ids. See
+// https://mimo.mi.com/static/docs/quick-start/summary/model.md.
 const (
-	// ModelV25Pro (mimo-v2.5-pro) is the current flagship — tuned
-	// for Agent / Coding workloads, tops the open-source leaderboard.
-	// Supports the thinking mode for visible chain-of-thought.
 	ModelV25Pro = "mimo-v2.5-pro"
-
-	// ModelV25 (mimo-v2.5) is the V2.5 multimodal model with 1M-token
-	// context.
-	ModelV25 = "mimo-v2.5"
-
-	// ModelV2Pro (mimo-v2-pro) is the V2-series 1T flagship; precedes
-	// V2.5-pro.
-	ModelV2Pro = "mimo-v2-pro"
-
-	// ModelV2Flash (mimo-v2-flash) is the 309B-param MoE open-source
-	// model — cheap and fast.
-	ModelV2Flash = "mimo-v2-flash"
-
-	// ModelV2Omni (mimo-v2-omni) handles text + image + audio + video
-	// input.
-	ModelV2Omni = "mimo-v2-omni"
+	ModelV25    = "mimo-v2.5"
 )

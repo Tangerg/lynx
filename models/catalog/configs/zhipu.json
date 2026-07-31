@@ -295,9 +295,9 @@
       "last_updated": "2026-03-27T00:00:00Z",
       "pricing": [
         {
-          "input_per_1m": 6,
-          "output_per_1m": 24,
-          "cache_read_per_1m": 1.3
+          "input_per_1m": 1.4,
+          "output_per_1m": 4.4,
+          "cache_read_per_1m": 0.26
         }
       ],
       "reasoning": {
@@ -315,6 +315,36 @@
       "structured_output": true,
       "limits": {
         "context_window": 200000,
+        "max_output_tokens": 131072
+      }
+    },
+    {
+      "id": "glm-5.2",
+      "display_name": "GLM-5.2",
+      "release_date": "2026-06-13T00:00:00Z",
+      "last_updated": "2026-06-13T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 1.4,
+          "output_per_1m": 4.4,
+          "cache_read_per_1m": 0.26
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1000000,
         "max_output_tokens": 131072
       }
     },

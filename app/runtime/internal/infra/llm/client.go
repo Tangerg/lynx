@@ -3,7 +3,9 @@ package llm
 import (
 	"fmt"
 
+	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 	anthropicopt "github.com/anthropics/anthropic-sdk-go/option"
+	openaisdk "github.com/openai/openai-go/v3"
 	openaiopt "github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/chatclient"
@@ -67,53 +69,53 @@ type providerEntry struct {
 // passthroughs reuse the native OpenAI / Anthropic adapters with a caller URL.
 var providerInfo = map[Provider]providerEntry{
 	// Native wire adapters (base URL optional — defaults to the vendor endpoint).
-	ProviderAnthropic: {defaultModel: "claude-3-5-haiku-20241022", apiKeyEnv: "ANTHROPIC_API_KEY", build: anthropicNative},
-	ProviderOpenAI:    {defaultModel: "gpt-4o-mini", apiKeyEnv: "OPENAI_API_KEY", build: openaiNative},
-	ProviderGoogle: {defaultModel: "gemini-2.0-flash-lite", apiKeyEnv: "GOOGLE_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
+	ProviderAnthropic: {defaultModel: string(anthropicsdk.ModelClaudeOpus5), apiKeyEnv: "ANTHROPIC_API_KEY", build: anthropicNative},
+	ProviderOpenAI:    {defaultModel: string(openaisdk.ChatModelGPT5_6Sol), apiKeyEnv: "OPENAI_API_KEY", build: openaiNative},
+	ProviderGoogle: {defaultModel: google.ModelGemini36Flash, apiKeyEnv: "GOOGLE_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return google.NewChat(google.ChatConfig{APIKey: s.APIKey, DefaultOptions: o})
 	}},
 
 	// OpenAI-compatible vendors — each adapter encodes its own endpoint.
-	ProviderMoonshot: {defaultModel: "kimi-k2-0905-preview", apiKeyEnv: "MOONSHOT_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
+	ProviderMoonshot: {defaultModel: moonshot.ModelK3, apiKeyEnv: "MOONSHOT_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return moonshot.NewOpenAIChat(moonshot.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderDeepSeek: {defaultModel: "deepseek-v4-flash", apiKeyEnv: "DEEPSEEK_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
+	ProviderDeepSeek: {defaultModel: deepseek.ModelV4Flash, apiKeyEnv: "DEEPSEEK_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return deepseek.NewOpenAIChat(deepseek.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderAlibaba: {defaultModel: "qwen-flash", apiKeyEnv: "ALIBABA_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
+	ProviderAlibaba: {defaultModel: alibaba.ModelQwen37Plus, apiKeyEnv: "ALIBABA_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return alibaba.NewOpenAIChat(alibaba.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderFireworks: {defaultModel: "accounts/fireworks/models/gpt-oss-20b", apiKeyEnv: "FIREWORKS_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
+	ProviderFireworks: {defaultModel: fireworks.ModelGPTOSS20B, apiKeyEnv: "FIREWORKS_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return fireworks.NewOpenAIChat(fireworks.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderGroq: {defaultModel: "llama-3.1-8b-instant", apiKeyEnv: "GROQ_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
+	ProviderGroq: {defaultModel: groq.ModelGPTOSS20B, apiKeyEnv: "GROQ_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return groq.NewOpenAIChat(groq.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderHuggingface: {defaultModel: "XiaomiMiMo/MiMo-V2-Flash", apiKeyEnv: "HUGGINGFACE_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
+	ProviderHuggingface: {defaultModel: huggingface.ModelGPTOSS120B, apiKeyEnv: "HUGGINGFACE_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return huggingface.NewOpenAIChat(huggingface.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderMinimax: {defaultModel: "MiniMax-M2", apiKeyEnv: "MINIMAX_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
+	ProviderMinimax: {defaultModel: minimax.ModelM3, apiKeyEnv: "MINIMAX_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return minimax.NewOpenAIChat(minimax.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderMistral: {defaultModel: "ministral-3b-latest", apiKeyEnv: "MISTRAL_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
-		return mistral.NewOpenAIChat(mistral.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
+	ProviderMistral: {defaultModel: mistral.ModelSmall, apiKeyEnv: "MISTRAL_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
+		return mistral.NewChat(mistral.ChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderOpenRouter: {defaultModel: "inclusionai/ling-2.6-flash", apiKeyEnv: "OPENROUTER_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
+	ProviderOpenRouter: {defaultModel: openrouter.ModelAuto, apiKeyEnv: "OPENROUTER_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return openrouter.NewOpenAIChat(openrouter.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderPerplexity: {defaultModel: "sonar", apiKeyEnv: "PERPLEXITY_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
+	ProviderPerplexity: {defaultModel: perplexity.ModelSonar, apiKeyEnv: "PERPLEXITY_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return perplexity.NewOpenAIChat(perplexity.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderTogether: {defaultModel: "essentialai/Rnj-1-Instruct", apiKeyEnv: "TOGETHER_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
+	ProviderTogether: {defaultModel: together.ModelRnj1Instruct, apiKeyEnv: "TOGETHER_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return together.NewOpenAIChat(together.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderXAI: {defaultModel: "grok-build-0.1", apiKeyEnv: "XAI_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
+	ProviderXAI: {defaultModel: xai.ModelGrok45, apiKeyEnv: "XAI_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return xai.NewOpenAIChat(xai.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderXiaomi: {defaultModel: "mimo-v2-flash", apiKeyEnv: "XIAOMI_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
+	ProviderXiaomi: {defaultModel: xiaomi.ModelV25Pro, apiKeyEnv: "XIAOMI_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return xiaomi.NewOpenAIChat(xiaomi.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderZhipu: {defaultModel: "glm-4.7-flashx", apiKeyEnv: "ZHIPU_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
+	ProviderZhipu: {defaultModel: zhipu.ModelGLM52, apiKeyEnv: "ZHIPU_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return zhipu.NewOpenAIChat(zhipu.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
 
@@ -123,10 +125,10 @@ var providerInfo = map[Provider]providerEntry{
 		return ollama.NewOpenAIChat(ollama.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
 
-	// Azure: the base URL is the per-resource endpoint; the model id is a
-	// deployment name. Both are user-supplied, so requiresBaseURL.
+	// Azure: the base URL is the complete per-resource /openai/v1 endpoint;
+	// the model id is a deployment name. Both are user-supplied.
 	ProviderAzureOpenAI: {apiKeyEnv: "AZURE_OPENAI_API_KEY", requiresBaseURL: true, build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
-		return azureopenai.NewChat(azureopenai.ChatConfig{APIKey: s.APIKey, Endpoint: s.BaseURL, DefaultOptions: o})
+		return azureopenai.NewChat(azureopenai.ChatConfig{APIKey: s.APIKey, BaseURL: s.BaseURL, DefaultOptions: o})
 	}},
 
 	// Generic bring-your-own-endpoint passthroughs: native adapter + caller URL.

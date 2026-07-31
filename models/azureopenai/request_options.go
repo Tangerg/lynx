@@ -1,25 +1,39 @@
 package azureopenai
 
 import (
-	"cmp"
+	"errors"
+	"net/url"
+	"strings"
 
-	"github.com/openai/openai-go/v3/azure"
 	"github.com/openai/openai-go/v3/option"
 )
 
-// buildAzureRequestOptions applies endpoint, API version, and authentication
-// consistently across every Azure OpenAI modality. The placeholder satisfies
-// the upstream client constructor when Azure AD middleware owns authentication.
-func buildAzureRequestOptions(apiKey string, endpoint, apiVersion string, extra []option.RequestOption) (string, []option.RequestOption) {
-	version := cmp.Or(apiVersion, DefaultAPIVersion)
-	options := []option.RequestOption{azure.WithEndpoint(endpoint, version)}
-	if apiKey != "" {
-		options = append(options, azure.WithAPIKey(apiKey))
+func buildRequestOptions(baseURL string, extra []option.RequestOption) ([]option.RequestOption, error) {
+	normalized, err := normalizeBaseURL(baseURL)
+	if err != nil {
+		return nil, err
 	}
-	options = append(options, extra...)
 
-	if apiKey == "" {
-		return "azure-ad", options
+	options := make([]option.RequestOption, 0, len(extra)+1)
+	options = append(options, option.WithBaseURL(normalized))
+	options = append(options, extra...)
+	return options, nil
+}
+
+func normalizeBaseURL(baseURL string) (string, error) {
+	if baseURL == "" {
+		return "", errors.New("azureopenai: BaseURL is required")
 	}
-	return apiKey, options
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return "", errors.New("azureopenai: BaseURL must be a valid absolute URL")
+	}
+	if parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", errors.New("azureopenai: BaseURL must be an absolute URL without credentials, query parameters, or fragments")
+	}
+	if !strings.HasSuffix(parsed.Path, "/openai/v1") && !strings.HasSuffix(parsed.Path, "/openai/v1/") {
+		return "", errors.New("azureopenai: BaseURL must end with /openai/v1/")
+	}
+	parsed.Path = strings.TrimSuffix(parsed.Path, "/") + "/"
+	return parsed.String(), nil
 }

@@ -1,7 +1,9 @@
 package luma_test
 
 import (
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -13,33 +15,42 @@ import (
 func TestImageModel_Call_Mock(t *testing.T) {
 	var polls testutil.PollCounter
 
-	srv := testutil.MuxServer(
-		testutil.Route{Method: "POST", Contains: "/generations/image", Handle: func(w http.ResponseWriter, r *http.Request) {
+	var server *httptest.Server
+	server = testutil.MuxServer(
+		testutil.Route{Method: "POST", Contains: "/generations", Handle: func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "Bearer test-key" {
+				t.Errorf("Authorization = %q", r.Header.Get("Authorization"))
+			}
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"id":"gen-1","state":"queued"}`))
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"id":"gen-1","created_at":"2026-07-31T08:00:00Z","model":"uni-1","state":"queued","type":"image","output":[]}`))
 		}},
 		testutil.Route{Method: "GET", Contains: "/generations/", Handle: func(w http.ResponseWriter, r *http.Request) {
 			n := polls.Inc()
-			state := "dreaming"
-			img := ""
+			state := "processing"
+			output := "[]"
 			if n >= 2 {
 				state = "completed"
-				img = "https://cdn.test/img.png"
+				output = fmt.Sprintf(`[{"type":"image","url":%q}]`, server.URL+"/output.png")
 			}
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"id":"gen-1","state":"` + state + `","assets":{"image":"` + img + `"}}`))
+			w.Write([]byte(`{"id":"gen-1","created_at":"2026-07-31T08:00:00Z","model":"uni-1","state":"` + state + `","type":"image","output":` + output + `}`))
+		}},
+		testutil.Route{Method: "GET", Contains: "/output.png", Handle: func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write([]byte("PNG"))
 		}},
 	)
-	t.Cleanup(srv.Close)
+	t.Cleanup(server.Close)
 
-	opts, err := image.NewOptions("photon-1")
+	opts, err := image.NewOptions(luma.ModelUni1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	m, err := luma.NewImageModel(luma.ImageModelConfig{
 		APIKey:         "test-key",
 		DefaultOptions: opts,
-		BaseURL:        srv.URL,
+		BaseURL:        server.URL,
 		PollInterval:   10 * time.Millisecond,
 		PollTimeout:    5 * time.Second,
 	})
@@ -52,7 +63,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if out.First() == nil {
-		t.Fatal("nil result")
+	if out.First() == nil || string(out.First().Media.Source.Bytes) != "PNG" {
+		t.Fatalf("result = %#v", out.First())
 	}
 }

@@ -7,11 +7,12 @@
       "knowledge_cutoff": "2025-09-01T00:00:00Z",
       "release_date": "2025-12-01T00:00:00Z",
       "last_updated": "2026-02-28T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 0.14,
           "output_per_1m": 0.28,
-          "cache_read_per_1m": 0.028
+          "cache_read_per_1m": 0.0028
         }
       ],
       "modalities": {
@@ -34,11 +35,12 @@
       "knowledge_cutoff": "2025-09-01T00:00:00Z",
       "release_date": "2025-12-01T00:00:00Z",
       "last_updated": "2026-02-28T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 0.14,
           "output_per_1m": 0.28,
-          "cache_read_per_1m": 0.028
+          "cache_read_per_1m": 0.0028
         }
       ],
       "reasoning": {
@@ -74,8 +76,9 @@
       "reasoning": {
         "supported": true,
         "levels": [
+          "low",
           "high",
-          "xhigh"
+          "max"
         ],
         "default_level": "high"
       },
@@ -110,8 +113,9 @@
       "reasoning": {
         "supported": true,
         "levels": [
+          "low",
           "high",
-          "xhigh"
+          "max"
         ],
         "default_level": "high"
       },

@@ -3,7 +3,9 @@ package google
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
+	"net/http"
 	"slices"
 
 	"google.golang.org/genai"
@@ -24,6 +26,8 @@ type AudioTTSModelConfig struct {
 
 	// BaseURL overrides the genai endpoint. Optional.
 	BaseURL string
+
+	HTTPClient *http.Client
 }
 
 func (c AudioTTSModelConfig) Validate() error {
@@ -42,13 +46,14 @@ func (c AudioTTSModelConfig) Validate() error {
 var _ tts.Model = (*AudioTTSModel)(nil)
 var _ tts.Streamer = (*AudioTTSModel)(nil)
 
-// AudioTTSModel wraps Gemini 2.5's native TTS, exposed not as a dedicated
-// endpoint but as GenerateContent with ResponseModalities=AUDIO. Models:
-// "gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts".
+// AudioTTSModel wraps Gemini's native TTS through GenerateContent with
+// ResponseModalities=AUDIO. Current supported models are declared in
+// constant.go; only Gemini 3.1 Flash TTS supports incremental streaming.
 //
 // Speed and OutputFormat are not honored: Gemini's TTS has no
-// playback-rate knob, and the output container is fixed at 24 kHz
-// signed 16-bit little-endian PCM in a WAV wrapper.
+// playback-rate knob. GenerateContent returns 24 kHz signed 16-bit
+// little-endian PCM; callers choose their own container at the application
+// boundary.
 type AudioTTSModel struct {
 	api            *API
 	defaultOptions tts.Options
@@ -60,11 +65,12 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 	}
 
 	api, err := NewAPI(APIConfig{
-		APIKey:   cfg.APIKey,
-		Backend:  cfg.Backend,
-		Project:  cfg.Project,
-		Location: cfg.Location,
-		BaseURL:  cfg.BaseURL,
+		APIKey:     cfg.APIKey,
+		Backend:    cfg.Backend,
+		Project:    cfg.Project,
+		Location:   cfg.Location,
+		BaseURL:    cfg.BaseURL,
+		HTTPClient: cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -88,7 +94,7 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.C
 		return "", nil, nil, err
 	}
 
-	cfg, err := options.GetParams[genai.GenerateContentConfig](mergedOpts.Extensions, OptionsKey)
+	cfg, err := options.GetParams[genai.GenerateContentConfig](mergedOpts.Extensions, SpeechRequestExtensionKey)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -156,7 +162,7 @@ func (a *AudioTTSModel) buildTTSResponse(apiResp *genai.GenerateContentResponse)
 
 	resultMeta := &tts.ResultMetadata{}
 	if mimeType != "" {
-		if err := resultMeta.Set("mime_type", mimeType); err != nil {
+		if err := resultMeta.Set("google/mime_type", mimeType); err != nil {
 			return nil, err
 		}
 	}
@@ -167,6 +173,9 @@ func (a *AudioTTSModel) buildTTSResponse(apiResp *genai.GenerateContentResponse)
 	}
 
 	meta := &tts.ResponseMetadata{Model: apiResp.ModelVersion}
+	if err := meta.Set(SpeechResponseExtensionKey, apiResp); err != nil {
+		return nil, err
+	}
 
 	return tts.NewResponse(result, meta)
 }
@@ -197,6 +206,10 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 		modelName, contents, cfg, err := a.buildAPITTSRequest(req)
 		if err != nil {
 			yield(nil, err)
+			return
+		}
+		if modelName != ModelGemini31FlashTTSPreview {
+			yield(nil, fmt.Errorf("google: speech: model %q does not support streaming; use %q", modelName, ModelGemini31FlashTTSPreview))
 			return
 		}
 

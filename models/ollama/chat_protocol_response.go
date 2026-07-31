@@ -11,15 +11,17 @@ import (
 )
 
 const (
+	// ResponseExtensionKey preserves the complete official Ollama response (or
+	// the current official stream chunk), including log probabilities and image
+	// output that Core does not normalize.
+	ResponseExtensionKey        = "ollama/response"
 	protocolNativeDoneReasonKey = "ollama/native_done_reason"
 	protocolCreatedAtKey        = "ollama/created_at"
-	protocolDurationsKey        = "ollama/durations_ms"
+	protocolDurationsKey        = "ollama/durations_ns"
 	protocolMetricsKey          = "ollama/metrics"
 )
 
-type protocolResponseMapper struct {
-	partOffset int
-}
+type protocolResponseMapper struct{}
 
 func newProtocolResponseMapper() *protocolResponseMapper {
 	return new(protocolResponseMapper)
@@ -37,6 +39,9 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response ollam
 			OutputTokens: int64(response.EvalCount),
 		},
 	}
+	if err := mapped.SetExtension(ResponseExtensionKey, response); err != nil {
+		return nil, fmt.Errorf("ollama: preserve native response: %w", err)
+	}
 
 	choice, present, err := m.mapChoice(response)
 	if err != nil {
@@ -52,10 +57,10 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response ollam
 	}
 	if hasProtocolDurations(response.Metrics) {
 		durations := map[string]int64{
-			"total":       response.TotalDuration.Milliseconds(),
-			"load":        response.LoadDuration.Milliseconds(),
-			"prompt_eval": response.PromptEvalDuration.Milliseconds(),
-			"eval":        response.EvalDuration.Milliseconds(),
+			"total":       int64(response.TotalDuration),
+			"load":        int64(response.LoadDuration),
+			"prompt_eval": int64(response.PromptEvalDuration),
+			"eval":        int64(response.EvalDuration),
 		}
 		if err := mapped.SetExtension(protocolDurationsKey, durations); err != nil {
 			return nil, err
@@ -102,7 +107,7 @@ func (m *protocolResponseMapper) mapChoice(response ollamaapi.ChatResponse) (cor
 		}
 		id := toolCall.ID
 		if id == "" {
-			id = fmt.Sprintf("ollama/0/%d", m.partOffset+len(parts))
+			id = fmt.Sprintf("%s%d", protocolGeneratedToolPrefix, toolCall.Function.Index)
 		}
 		parts = append(parts, corechat.NewToolCallPart(corechat.ToolCall{
 			ID:        id,
@@ -112,7 +117,6 @@ func (m *protocolResponseMapper) mapChoice(response ollamaapi.ChatResponse) (cor
 	}
 	if len(parts) > 0 {
 		choice.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
-		m.partOffset += len(parts)
 	}
 	present := choice.Message != nil || choice.FinishReason != "" || len(choice.Extensions) > 0
 	return choice, present, nil

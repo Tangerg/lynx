@@ -49,7 +49,7 @@ func TestChat_CoreConformance(t *testing.T) {
 				t.Errorf("reasoning = %#v", reasoning)
 			}
 			call := first.Message.Parts[2].ToolCall
-			if call == nil || call.ID != "google/0/2" || call.Name != "calculate" || call.Arguments != `{"x":2}` {
+			if call == nil || call.ID != "google/generated/0/2" || call.Name != "calculate" || call.Arguments != `{"x":2}` {
 				t.Errorf("tool call = %#v", call)
 			}
 			second := response.Choices[1]
@@ -91,7 +91,7 @@ func TestChat_CoreConformance(t *testing.T) {
 			if reasoning.String() != "verify result" || string(signature) != "sig-google" || text.String() != "The value is four." {
 				t.Errorf("stream reasoning/signature/text = %q/%q/%q", reasoning.String(), signature, text.String())
 			}
-			if toolID != "google/0/2" {
+			if toolID != "google/generated/0/2" {
 				t.Errorf("synthetic stream tool ID = %q", toolID)
 			}
 			if finalUsage.InputTokens != 23 || finalUsage.OutputTokens != 13 {
@@ -109,7 +109,7 @@ func TestChat_CoreConformance(t *testing.T) {
 			}
 			call := choice.Message.Parts[2].ToolCall
 			if choice.Message.Parts[0].Text != "verify result" || string(choice.Message.Parts[0].Signature) != "sig-google" ||
-				choice.Message.Parts[1].Text != "The value is four." || call == nil || call.ID != "google/0/2" {
+				choice.Message.Parts[1].Text != "The value is four." || call == nil || call.ID != "google/generated/0/2" {
 				t.Errorf("aggregated parts = %#v", choice.Message.Parts)
 			}
 			if response.Usage.InputTokens != 23 || response.Usage.OutputTokens != 13 {

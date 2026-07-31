@@ -1,11 +1,10 @@
 // Package prodia wraps Prodia's image generation REST API.
 //
-// [NewImageModel] targets Prodia's /v2/job/start + /v2/job/{id}
-// endpoints, supporting a catalog of Stable-Diffusion / SDXL / SD3 /
-// FLUX checkpoints and LoRAs. Model selection is via the upstream
-// "model" field (extension-threaded) — Prodia model ids look like
-// "sd_xl_base_1.0.safetensors [be9edd61]" rather than the canonical
-// brand names.
+// [NewImageModel] targets the synchronous POST /v2/job endpoint for
+// text-to-image job types. [image.Options].Model is the official job type
+// discriminator, such as "inference.flux-fast.schnell.txt2img.v2"; the
+// type-specific config is available through [JobRequest] under [ImageRequestExtensionKey].
+// PNG, JPEG, and WebP output use the endpoint's standard Accept negotiation.
 //
-// See https://docs.prodia.com/ for the full reference.
+// See https://docs.prodia.com/reference/inference/ for the full reference.
 package prodia

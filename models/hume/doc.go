@@ -5,8 +5,10 @@
 // driven by acting / description prompts in addition to plain text.
 //
 // Provider-specific knobs (description, voice (named or cloned),
-// trailing_silence, format, num_generations) ride through
-// extension-threaded TTSRequest fields.
+// trailing_silence, format, timestamps, and instant_mode) ride through
+// extension-threaded [TTSRequest] fields. [speech.Options].Model selects the
+// official Octave protocol version ("1" or "2"). Streaming uses Hume's
+// newline-delimited /v0/tts/stream/json endpoint directly.
 //
 // Hume's broader expression-measurement APIs (face / voice / language
 // emotion analysis) aren't exposed — they don't fit core/model's

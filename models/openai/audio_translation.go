@@ -80,7 +80,7 @@ func (a *AudioTranslationModel) buildAPITranslationRequest(req *transcription.Re
 		return nil, err
 	}
 
-	params, err := options.GetParams[openai.AudioTranslationNewParams](mergedOpts.Extensions, OptionsKey)
+	params, err := options.GetParams[openai.AudioTranslationNewParams](mergedOpts.Extensions, TranslationRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}

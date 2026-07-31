@@ -30,8 +30,9 @@
         ]
       },
       "tool_call": true,
+      "structured_output": true,
       "limits": {
-        "context_window": 2000000,
+        "context_window": 1000000,
         "max_output_tokens": 30000
       }
     },
@@ -67,8 +68,9 @@
         ]
       },
       "tool_call": true,
+      "structured_output": true,
       "limits": {
-        "context_window": 2000000,
+        "context_window": 1000000,
         "max_output_tokens": 30000
       }
     },
@@ -103,8 +105,9 @@
           "text"
         ]
       },
+      "structured_output": true,
       "limits": {
-        "context_window": 2000000,
+        "context_window": 1000000,
         "max_output_tokens": 30000
       }
     },
@@ -140,9 +143,48 @@
         ]
       },
       "tool_call": true,
+      "structured_output": true,
       "limits": {
         "context_window": 1000000,
         "max_output_tokens": 30000
+      }
+    },
+    {
+      "id": "grok-4.5",
+      "display_name": "Grok 4.5",
+      "release_date": "2026-07-08T00:00:00Z",
+      "last_updated": "2026-07-08T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 6,
+          "cache_read_per_1m": 0.3
+        },
+        {
+          "threshold": 200000,
+          "input_per_1m": 4,
+          "output_per_1m": 12,
+          "cache_read_per_1m": 1
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 500000,
+        "max_output_tokens": 500000
       }
     },
     {

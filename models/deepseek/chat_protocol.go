@@ -13,6 +13,11 @@ import (
 	"github.com/Tangerg/lynx/models/openai"
 )
 
+const (
+	OpenAIResponseExtensionKey    = "deepseek/openai_response"
+	OpenAIStreamChunkExtensionKey = "deepseek/openai_stream_chunk"
+)
+
 // OpenAIChatConfig configures DeepSeek's OpenAI-compatible Core chat adapter.
 type OpenAIChatConfig struct {
 	APIKey         string
@@ -36,14 +41,20 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if config.APIKey == "" {
 		return nil, errors.New("deepseek: APIKey is required")
 	}
+	if err := (RequestOptions{}).validate(config.DefaultOptions, nil, false); err != nil {
+		return nil, fmt.Errorf("deepseek: DefaultOptions: %w", err)
+	}
 	requestOptions := append([]option.RequestOption{option.WithBaseURL(cmp.Or(config.BaseURL, BaseURL))}, config.RequestOptions...)
+	dialect := openai.ReasoningContentToolReplayDialect("deepseek")
+	dialect.RequestOptions = requestDialect{defaults: config.DefaultOptions.Clone()}
+	dialect.DisableRawRequestExtension = true
 	protocol, err := openai.NewCompatibleChat(
 		openai.ChatConfig{
 			APIKey:         config.APIKey,
 			DefaultOptions: config.DefaultOptions,
 			RequestOptions: requestOptions,
 		},
-		openai.ReasoningContentToolReplayDialect(),
+		dialect,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("deepseek: construct OpenAI-compatible chat: %w", err)

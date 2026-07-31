@@ -76,12 +76,16 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-	jobOpts, err := options.GetParams[JobOptions](mergedOpts.Extensions, OptionsKey)
+	jobOpts, err := options.GetParams[JobOptions](mergedOpts.Extensions, RequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
 	if jobOpts.Language == "" && mergedOpts.Language != "" {
 		jobOpts.Language = mergedOpts.Language
+	}
+	jobOpts.Transcriber = mergedOpts.Model
+	if jobOpts.Transcriber != ModelMachine && jobOpts.Transcriber != ModelHuman {
+		return nil, fmt.Errorf("revai: transcription model must be %q or %q, got %q", ModelMachine, ModelHuman, jobOpts.Transcriber)
 	}
 
 	var job *Job
@@ -92,7 +96,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		if audioErr != nil {
 			return nil, audioErr
 		}
-		job, err = a.api.Upload(ctx, audio, *jobOpts)
+		job, err = a.api.Upload(ctx, audio, req.Audio.MIME, *jobOpts)
 	}
 	if err != nil {
 		return nil, err
@@ -110,12 +114,12 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 
 	resultMeta := &transcription.ResultMetadata{}
 	if final.Language != "" {
-		if err := resultMeta.Set("language", final.Language); err != nil {
+		if err := resultMeta.Set("revai/language", final.Language); err != nil {
 			return nil, err
 		}
 	}
 	if final.DurationSeconds > 0 {
-		if err := resultMeta.Set("duration_seconds", final.DurationSeconds); err != nil {
+		if err := resultMeta.Set("revai/duration_seconds", final.DurationSeconds); err != nil {
 			return nil, err
 		}
 	}
@@ -125,8 +129,11 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, err
 	}
 
-	meta := &transcription.ResponseMetadata{}
-	if err := meta.Set("job_id", final.ID); err != nil {
+	meta := &transcription.ResponseMetadata{Model: jobOpts.Transcriber}
+	if err := meta.Set("revai/job_id", final.ID); err != nil {
+		return nil, err
+	}
+	if err := meta.Set(ResponseExtensionKey, final); err != nil {
 		return nil, err
 	}
 	return transcription.NewResponse(result, meta)

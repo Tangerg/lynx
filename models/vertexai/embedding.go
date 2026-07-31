@@ -2,6 +2,7 @@ package vertexai
 
 import (
 	"errors"
+	"net/http"
 
 	"google.golang.org/genai"
 
@@ -13,6 +14,8 @@ type EmbeddingModelConfig struct {
 	Project        string
 	Location       string
 	DefaultOptions embedding.Options
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 func (c EmbeddingModelConfig) Validate() error {
@@ -31,9 +34,8 @@ func (c EmbeddingModelConfig) Validate() error {
 	return nil
 }
 
-// NewEmbeddingModel returns a [google.EmbeddingModel] backed by
-// Vertex AI. Supported models: text-embedding-005,
-// text-multilingual-embedding-002, gemini-embedding-001.
+// NewEmbeddingModel returns a [google.EmbeddingModel] backed by Vertex AI.
+// Select a model that implements Vertex's EmbedContent contract.
 func NewEmbeddingModel(cfg EmbeddingModelConfig) (*google.EmbeddingModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -43,5 +45,7 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*google.EmbeddingModel, error)
 		Project:        cfg.Project,
 		Location:       cfg.Location,
 		DefaultOptions: cfg.DefaultOptions,
+		BaseURL:        cfg.BaseURL,
+		HTTPClient:     cfg.HTTPClient,
 	})
 }

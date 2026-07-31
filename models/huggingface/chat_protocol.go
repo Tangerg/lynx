@@ -13,6 +13,12 @@ import (
 	"github.com/Tangerg/lynx/models/openai"
 )
 
+const (
+	OpenAIRequestExtensionKey     = "huggingface/openai_request"
+	OpenAIResponseExtensionKey    = "huggingface/openai_response"
+	OpenAIStreamChunkExtensionKey = "huggingface/openai_stream_chunk"
+)
+
 var (
 	_ corechat.Model    = (*OpenAIChat)(nil)
 	_ corechat.Streamer = (*OpenAIChat)(nil)
@@ -37,7 +43,7 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 		return nil, errors.New("huggingface: APIKey is required")
 	}
 	requestOptions := append([]option.RequestOption{option.WithBaseURL(cmp.Or(config.BaseURL, DefaultBaseURL))}, config.RequestOptions...)
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.ReasoningContentDialect())
+	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.Dialect{Provider: "huggingface"})
 	if err != nil {
 		return nil, fmt.Errorf("huggingface: construct OpenAI-compatible chat: %w", err)
 	}

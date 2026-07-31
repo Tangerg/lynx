@@ -17,7 +17,7 @@
 //     transcription.Model).
 //
 // Model id constants aren't exported here — they're maintained by
-// openai-go ([openai.ChatModelGPT4o], [openai.EmbeddingModelTextEmbedding3Large],
+// openai-go ([openai.ChatModelGPT5_6Sol], [openai.EmbeddingModelTextEmbedding3Large],
 // etc.). Import openai-go directly when you need them.
 //
 // Provider-specific OpenAI request fields not modeled by core/chat reach the

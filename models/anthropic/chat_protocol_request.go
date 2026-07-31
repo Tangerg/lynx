@@ -18,24 +18,29 @@ import (
 )
 
 const (
-	protocolRequestExtensionKey    = "anthropic/request"
-	protocolRedactedReasoningKey   = "anthropic/redacted_reasoning"
-	protocolNativeStopReasonKey    = "anthropic/native_stop_reason"
-	protocolStopSequenceKey        = "anthropic/stop_sequence"
-	protocolUsageKey               = "anthropic/usage"
-	protocolRedactedReasoningDelta = "anthropic/redacted_reasoning_delta"
+	// RequestExtensionKey stores official Anthropic Messages API parameters in
+	// a Core request for fields without a provider-neutral equivalent.
+	RequestExtensionKey          = "anthropic/request"
+	protocolReasoningKindKey     = "anthropic/reasoning_kind"
+	protocolReasoningProviderKey = "anthropic/reasoning_provider"
+	protocolReasoningThinking    = "thinking"
+	protocolReasoningRedacted    = "redacted_thinking"
+	protocolNativeStopReasonKey  = "anthropic/native_stop_reason"
+	protocolStopSequenceKey      = "anthropic/stop_sequence"
+	protocolUsageKey             = "anthropic/usage"
 )
 
-func mapProtocolRequest(defaults corechat.Options, req *corechat.Request) (*anthropicsdk.MessageNewParams, error) {
-	params, found, err := metadata.Decode[anthropicsdk.MessageNewParams](req.Extensions, protocolRequestExtensionKey)
+func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, dialect Dialect) (*anthropicsdk.MessageNewParams, error) {
+	extensionKey := protocolRequestExtensionKey(dialect.Provider)
+	params, found, err := metadata.Decode[anthropicsdk.MessageNewParams](req.Extensions, extensionKey)
 	if err != nil {
-		return nil, fmt.Errorf("anthropic: extension %q: %w", protocolRequestExtensionKey, err)
+		return nil, fmt.Errorf("anthropic: extension %q: %w", extensionKey, err)
 	}
 	if !found {
 		params = anthropicsdk.MessageNewParams{}
 	}
 
-	options := mergeProtocolOptions(defaults, req.Options)
+	options := defaults.Overlay(req.Options)
 	if options.Model == "" {
 		return nil, errors.New("anthropic: model is required in defaults or request options")
 	}
@@ -45,10 +50,19 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request) (*anth
 	if options.PresencePenalty != nil {
 		return nil, errors.New("anthropic: options.presence_penalty is not supported")
 	}
+	if dialect.RejectTopK && options.TopK != nil {
+		return nil, errors.New("anthropic: options.top_k is not supported by current Claude models")
+	}
+	if dialect.RejectTopP && options.TopP != nil {
+		return nil, errors.New("anthropic: options.top_p is not supported by current Claude models")
+	}
+	if dialect.MaxTemperature > 0 && options.Temperature != nil && *options.Temperature > dialect.MaxTemperature {
+		return nil, fmt.Errorf("anthropic: options.temperature must be between 0 and %g", dialect.MaxTemperature)
+	}
 	params.Model = options.Model
 	if options.MaxTokens != nil {
 		params.MaxTokens = *options.MaxTokens
-	} else if params.MaxTokens == 0 {
+	} else if !extensionHasField(req.Extensions, extensionKey, "max_tokens") {
 		params.MaxTokens = protocolDefaultMaxTokens
 	}
 	if options.Temperature != nil {
@@ -64,7 +78,7 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request) (*anth
 		params.StopSequences = slices.Clone(options.Stop)
 	}
 
-	system, messages, err := mapProtocolMessages(req.Messages)
+	system, messages, err := mapProtocolMessages(req.Messages, dialect.Provider)
 	if err != nil {
 		return nil, err
 	}
@@ -75,60 +89,23 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request) (*anth
 		return nil, err
 	}
 	params.Tools = append(params.Tools, tools...)
-	applyProtocolPromptCaching(&params)
 	return &params, nil
 }
 
-func cloneProtocolOptions(options corechat.Options) corechat.Options {
-	clone := options
-	clone.Stop = slices.Clone(options.Stop)
-	clone.FrequencyPenalty = cloneProtocolPointer(options.FrequencyPenalty)
-	clone.MaxTokens = cloneProtocolPointer(options.MaxTokens)
-	clone.PresencePenalty = cloneProtocolPointer(options.PresencePenalty)
-	clone.Temperature = cloneProtocolPointer(options.Temperature)
-	clone.TopK = cloneProtocolPointer(options.TopK)
-	clone.TopP = cloneProtocolPointer(options.TopP)
-	return clone
+func extensionHasField(extensions metadata.Map, extensionKey, field string) bool {
+	raw, found := extensions[extensionKey]
+	if !found {
+		return false
+	}
+	var object map[string]json.RawMessage
+	if json.Unmarshal(raw, &object) != nil {
+		return false
+	}
+	_, found = object[field]
+	return found
 }
 
-func cloneProtocolPointer[T any](value *T) *T {
-	if value == nil {
-		return nil
-	}
-	clone := *value
-	return &clone
-}
-
-func mergeProtocolOptions(defaults, overrides corechat.Options) corechat.Options {
-	merged := cloneProtocolOptions(defaults)
-	if overrides.Model != "" {
-		merged.Model = overrides.Model
-	}
-	if overrides.FrequencyPenalty != nil {
-		merged.FrequencyPenalty = overrides.FrequencyPenalty
-	}
-	if overrides.MaxTokens != nil {
-		merged.MaxTokens = overrides.MaxTokens
-	}
-	if overrides.PresencePenalty != nil {
-		merged.PresencePenalty = overrides.PresencePenalty
-	}
-	if len(overrides.Stop) > 0 {
-		merged.Stop = slices.Clone(overrides.Stop)
-	}
-	if overrides.Temperature != nil {
-		merged.Temperature = overrides.Temperature
-	}
-	if overrides.TopK != nil {
-		merged.TopK = overrides.TopK
-	}
-	if overrides.TopP != nil {
-		merged.TopP = overrides.TopP
-	}
-	return merged
-}
-
-func mapProtocolMessages(messages []corechat.Message) ([]anthropicsdk.TextBlockParam, []anthropicsdk.MessageParam, error) {
+func mapProtocolMessages(messages []corechat.Message, provider string) ([]anthropicsdk.TextBlockParam, []anthropicsdk.MessageParam, error) {
 	system := make([]anthropicsdk.TextBlockParam, 0)
 	conversation := make([]anthropicsdk.MessageParam, 0, len(messages))
 	for i := range messages {
@@ -145,7 +122,7 @@ func mapProtocolMessages(messages []corechat.Message) ([]anthropicsdk.TextBlockP
 			}
 			conversation = append(conversation, anthropicsdk.NewUserMessage(blocks...))
 		case corechat.RoleAssistant:
-			blocks, err := mapProtocolAssistant(message)
+			blocks, err := mapProtocolAssistant(message, provider)
 			if err != nil {
 				return nil, nil, fmt.Errorf("anthropic: messages[%d]: %w", i, err)
 			}
@@ -244,28 +221,45 @@ func protocolImageMIME(mediaType string) bool {
 	}
 }
 
-func mapProtocolAssistant(message corechat.Message) ([]anthropicsdk.ContentBlockParamUnion, error) {
-	redacted, err := protocolRedactedReasoning(message.Metadata)
-	if err != nil {
-		return nil, err
-	}
-	blocks := make([]anthropicsdk.ContentBlockParamUnion, 0, len(redacted)+len(message.Parts))
-	for _, value := range redacted {
-		blocks = append(blocks, anthropicsdk.NewRedactedThinkingBlock(value))
-	}
+func mapProtocolAssistant(message corechat.Message, provider string) ([]anthropicsdk.ContentBlockParamUnion, error) {
+	blocks := make([]anthropicsdk.ContentBlockParamUnion, 0, len(message.Parts))
 	for i := range message.Parts {
 		part := message.Parts[i]
 		switch part.Kind {
 		case corechat.PartText:
 			blocks = append(blocks, anthropicsdk.NewTextBlock(part.Text))
 		case corechat.PartReasoning:
-			if len(part.Signature) == 0 {
-				// Unsigned reasoning is not Anthropic replay state. It may come
-				// from another provider, so omit it instead of coupling history
-				// portability to Anthropic's signature format.
+			issuer, issuerFound, err := metadata.Decode[string](part.Metadata, protocolReasoningProviderKey)
+			if err != nil {
+				return nil, fmt.Errorf("parts[%d].metadata[%q]: %w", i, protocolReasoningProviderKey, err)
+			}
+			if !issuerFound || issuer != provider {
+				// Opaque state is valid only for the provider that issued it.
 				continue
 			}
-			blocks = append(blocks, anthropicsdk.NewThinkingBlock(string(part.Signature), part.Text))
+			kind, found, err := metadata.Decode[string](part.Metadata, protocolReasoningKindKey)
+			if err != nil {
+				return nil, fmt.Errorf("parts[%d].metadata[%q]: %w", i, protocolReasoningKindKey, err)
+			}
+			if !found {
+				// Unsigned or foreign-provider reasoning is visible Core state,
+				// not valid Anthropic replay state.
+				continue
+			}
+			switch kind {
+			case protocolReasoningThinking:
+				if len(part.Signature) == 0 {
+					return nil, fmt.Errorf("parts[%d]: Anthropic thinking requires its provider signature", i)
+				}
+				blocks = append(blocks, anthropicsdk.NewThinkingBlock(string(part.Signature), part.Text))
+			case protocolReasoningRedacted:
+				if len(part.Signature) == 0 {
+					return nil, fmt.Errorf("parts[%d]: Anthropic redacted thinking requires opaque data", i)
+				}
+				blocks = append(blocks, anthropicsdk.NewRedactedThinkingBlock(string(part.Signature)))
+			default:
+				return nil, fmt.Errorf("parts[%d].metadata[%q]: unknown kind %q", i, protocolReasoningKindKey, kind)
+			}
 		case corechat.PartToolCall:
 			var input any
 			if part.ToolCall.Arguments == "" {
@@ -279,30 +273,6 @@ func mapProtocolAssistant(message corechat.Message) ([]anthropicsdk.ContentBlock
 		}
 	}
 	return blocks, nil
-}
-
-func protocolRedactedReasoning(values metadata.Map) ([]string, error) {
-	raw, ok := values[protocolRedactedReasoningKey]
-	if !ok {
-		return nil, nil
-	}
-	var single string
-	if err := json.Unmarshal(raw, &single); err == nil {
-		if single == "" {
-			return nil, nil
-		}
-		return []string{single}, nil
-	}
-	var multiple []string
-	if err := json.Unmarshal(raw, &multiple); err != nil {
-		return nil, fmt.Errorf("metadata %q must be a string or string array", protocolRedactedReasoningKey)
-	}
-	for i, value := range multiple {
-		if value == "" {
-			return nil, fmt.Errorf("metadata %q[%d] is empty", protocolRedactedReasoningKey, i)
-		}
-	}
-	return multiple, nil
 }
 
 func mapProtocolTools(definitions []corechat.ToolDefinition) ([]anthropicsdk.ToolUnionParam, error) {
@@ -321,47 +291,4 @@ func mapProtocolTools(definitions []corechat.ToolDefinition) ([]anthropicsdk.Too
 		tools = append(tools, anthropicsdk.ToolUnionParam{OfTool: &tool})
 	}
 	return tools, nil
-}
-
-func applyProtocolPromptCaching(params *anthropicsdk.MessageNewParams) {
-	if len(params.Tools) == 0 || protocolHasCacheControl(params) {
-		return
-	}
-	if cacheControl := params.Tools[len(params.Tools)-1].GetCacheControl(); cacheControl != nil {
-		*cacheControl = anthropicsdk.NewCacheControlEphemeralParam()
-	}
-	if len(params.Messages) == 0 {
-		return
-	}
-	content := params.Messages[len(params.Messages)-1].Content
-	if len(content) == 0 {
-		return
-	}
-	if cacheControl := content[len(content)-1].GetCacheControl(); cacheControl != nil {
-		*cacheControl = anthropicsdk.NewCacheControlEphemeralParam()
-	}
-}
-
-func protocolHasCacheControl(params *anthropicsdk.MessageNewParams) bool {
-	if !param.IsOmitted(params.CacheControl) {
-		return true
-	}
-	for i := range params.System {
-		if !param.IsOmitted(params.System[i].CacheControl) {
-			return true
-		}
-	}
-	for i := range params.Tools {
-		if value := params.Tools[i].GetCacheControl(); value != nil && !param.IsOmitted(*value) {
-			return true
-		}
-	}
-	for i := range params.Messages {
-		for j := range params.Messages[i].Content {
-			if value := params.Messages[i].Content[j].GetCacheControl(); value != nil && !param.IsOmitted(*value) {
-				return true
-			}
-		}
-	}
-	return false
 }

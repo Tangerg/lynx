@@ -12,5 +12,5 @@
 // and [BaseURLIntl] / [BaseURLIntlAnthropic] for the international
 // (api.moonshot.ai) host.
 //
-// See https://platform.moonshot.cn/docs for the docs.
+// See https://platform.kimi.com/docs for the docs.
 package moonshot

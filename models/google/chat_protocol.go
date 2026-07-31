@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"net/http"
 
 	"google.golang.org/genai"
 
@@ -19,6 +20,7 @@ type ChatConfig struct {
 	Project        string
 	Location       string
 	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 // Validate verifies construction-time configuration.
@@ -49,16 +51,17 @@ func NewChat(cfg ChatConfig) (*Chat, error) {
 		return nil, err
 	}
 	api, err := NewAPI(APIConfig{
-		APIKey:   cfg.APIKey,
-		Backend:  cfg.Backend,
-		Project:  cfg.Project,
-		Location: cfg.Location,
-		BaseURL:  cfg.BaseURL,
+		APIKey:     cfg.APIKey,
+		Backend:    cfg.Backend,
+		Project:    cfg.Project,
+		Location:   cfg.Location,
+		BaseURL:    cfg.BaseURL,
+		HTTPClient: cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &Chat{api: api, defaults: cloneProtocolOptions(cfg.DefaultOptions)}, nil
+	return &Chat{api: api, defaults: cfg.DefaultOptions.Clone()}, nil
 }
 
 // Call performs one non-streaming GenerateContent request.

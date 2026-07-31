@@ -13,6 +13,12 @@ import (
 	"github.com/Tangerg/lynx/models/openai"
 )
 
+const (
+	OpenAIRequestExtensionKey     = "alibaba/openai_request"
+	OpenAIResponseExtensionKey    = "alibaba/openai_response"
+	OpenAIStreamChunkExtensionKey = "alibaba/openai_stream_chunk"
+)
+
 var (
 	_ corechat.Model    = (*OpenAIChat)(nil)
 	_ corechat.Streamer = (*OpenAIChat)(nil)
@@ -38,7 +44,7 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 		return nil, errors.New("alibaba: APIKey is required")
 	}
 	requestOptions := append([]option.RequestOption{option.WithBaseURL(cmp.Or(config.BaseURL, BaseURLChina))}, config.RequestOptions...)
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.ReasoningContentDialect())
+	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.ReasoningContentReplayDialect("alibaba"))
 	if err != nil {
 		return nil, fmt.Errorf("alibaba: construct OpenAI-compatible chat: %w", err)
 	}

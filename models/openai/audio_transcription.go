@@ -64,7 +64,7 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 		return nil, err
 	}
 
-	params, err := options.GetParams[openai.AudioTranscriptionNewParams](mergedOpts.Extensions, OptionsKey)
+	params, err := options.GetParams[openai.AudioTranscriptionNewParams](mergedOpts.Extensions, TranscriptionRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}

@@ -1,32 +1,20 @@
-// Package vertexai wraps Google Cloud's Vertex AI generative surface.
+// Package vertexai exposes Google Gen AI capabilities through Vertex AI's GCP
+// backend and Application Default Credentials.
 //
-// Vertex AI hosts the same Gemini / Imagen / embedding models as the
-// public Gemini API but routes through GCP infrastructure: auth flows
-// through Application Default Credentials (gcloud auth login, service
-// accounts, Workload Identity), models are addressed under a GCP
-// project + region, and quotas come from the GCP billing account
-// rather than an api-key allowance.
+// Chat, transcription, speech, and text embedding share the official Google
+// Gen AI SDK protocol mappers with package google while supplying
+// genai.BackendVertexAI, project, and location. Image generation has its own
+// adapter because the current Vertex contract is GenerateContent with Gemini
+// image models, whereas the public Gemini Developer API now recommends the
+// Interactions API. Treating those two transports as interchangeable would
+// leak backend details and preserve deprecated Imagen behavior.
 //
-// This package is a thin facade over [models/google]: every constructor
-// pre-fills [genai.BackendVertexAI] and forwards the typed Project /
-// Location knobs to genai.ClientConfig. The returned model types are
-// the same [google.Chat] / [google.EmbeddingModel] / etc — so
-// downstream code works identically across the two backends.
+// API keys are not used. Authenticate locally with Application Default
+// Credentials or provide an authenticated HTTP client; production workloads
+// normally use a service account or Workload Identity.
 //
-// Auth note: APIKey is not used here. Vertex authenticates via ADC
-// (https://cloud.google.com/docs/authentication/application-default-credentials).
-// Run "gcloud auth application-default login" locally, or attach a
-// service account in production.
+// Model availability and regions change independently on Vertex AI. Select an
+// explicit model id and location from the current Vertex model documentation.
 //
-// Available models on Vertex AI (use the same model id strings you
-// would for the Gemini API):
-//
-//   - gemini-2.5-pro / gemini-2.5-flash / gemini-2.5-flash-lite
-//   - gemini-2.0-flash / gemini-2.0-flash-lite
-//   - text-embedding-005 / text-multilingual-embedding-002 /
-//     gemini-embedding-001
-//   - imagen-4.0-generate-001 / imagen-3.0-generate-002
-//
-// See https://cloud.google.com/vertex-ai/generative-ai/docs for the
-// full reference.
+// See https://cloud.google.com/vertex-ai/generative-ai/docs.
 package vertexai

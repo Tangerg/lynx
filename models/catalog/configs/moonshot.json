@@ -207,6 +207,104 @@
         "context_window": 262144,
         "max_output_tokens": 262144
       }
+    },
+    {
+      "id": "kimi-k2.7-code",
+      "display_name": "Kimi K2.7 Code",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-06-12T00:00:00Z",
+      "last_updated": "2026-06-12T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.95,
+          "output_per_1m": 4,
+          "cache_read_per_1m": 0.19
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 262144
+      }
+    },
+    {
+      "id": "kimi-k2.7-code-highspeed",
+      "display_name": "Kimi K2.7 Code HighSpeed",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-06-12T00:00:00Z",
+      "last_updated": "2026-06-12T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 1.9,
+          "output_per_1m": 8,
+          "cache_read_per_1m": 0.38
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 262144
+      }
+    },
+    {
+      "id": "kimi-k3",
+      "display_name": "Kimi K3",
+      "release_date": "2026-07-16T00:00:00Z",
+      "last_updated": "2026-07-16T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 3,
+          "output_per_1m": 15,
+          "cache_read_per_1m": 0.3
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 131072
+      }
     }
   ]
 }

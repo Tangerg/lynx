@@ -9,9 +9,9 @@
 //   - [NewOpenAIChat] — Gemini's first-party OpenAI-compat
 //     bridge at [BaseURLOpenAI] (generativelanguage.googleapis.com/
 //     v1beta/openai). Wire-format-only conversion;
-//   - [NewEmbeddingModel] — text-embedding-004 / gemini-embedding-001
+//   - [NewEmbeddingModel] — gemini-embedding-2
 //     with output_dimensionality truncation;
-//   - [NewImageModel] — Imagen 4 / 3 / 2 image generation;
+//   - [NewImageModel] — Gemini image generation through Interactions;
 //   - [NewAudioTTSModel] — Gemini-TTS via generate_content with
 //     audio response modality;
 //   - [NewAudioTranscriptionModel] — audio-input → text via

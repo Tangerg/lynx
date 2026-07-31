@@ -2,6 +2,12 @@ package vertexai
 
 const (
 	Provider = "VertexAI"
+
+	ImageRequestExtensionKey  = "vertexai/image_request"
+	ImageResponseExtensionKey = "vertexai/image_response"
+
+	ModelGemini25FlashImage = "gemini-2.5-flash-image"
+	ModelGemini3ProImage    = "gemini-3-pro-image"
 )
 
 // Common Vertex AI regions. See

@@ -11,7 +11,6 @@ const (
 	BaseURLIntl = "https://api.minimaxi.com/v1"
 
 	// BaseURLChina is the domestic OpenAI-compat endpoint (RMB billing).
-	// The legacy api.minimax.chat host redirects here.
 	BaseURLChina = "https://api.minimax.io/v1"
 )
 
@@ -28,17 +27,15 @@ const (
 	BaseURLChinaAnthropic = "https://api.minimax.io/anthropic"
 )
 
-// Chat model ids. See
-// https://platform.minimaxi.com/document/algorithm-concept.
+// Current Chat model ids. See
+// https://platform.minimaxi.com/docs/guides/models-intro.
 const (
-	// ModelM2 (MiniMax-M2) is the flagship reasoning model.
-	ModelM2 = "MiniMax-M2"
-
-	// ModelText01 (MiniMax-Text-01) is the predecessor general-purpose
-	// 1M-context model.
-	ModelText01 = "MiniMax-Text-01"
-
-	// ModelAbab65SChat (abab6.5s-chat) is the legacy abab-series chat
-	// model; new builds should prefer ModelM2 or ModelText01.
-	ModelAbab65SChat = "abab6.5s-chat"
+	ModelM3           = "MiniMax-M3"
+	ModelM27          = "MiniMax-M2.7"
+	ModelM27HighSpeed = "MiniMax-M2.7-highspeed"
+	ModelM25          = "MiniMax-M2.5"
+	ModelM25HighSpeed = "MiniMax-M2.5-highspeed"
+	ModelM21          = "MiniMax-M2.1"
+	ModelM21HighSpeed = "MiniMax-M2.1-highspeed"
+	ModelM2           = "MiniMax-M2"
 )

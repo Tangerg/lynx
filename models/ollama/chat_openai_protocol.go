@@ -14,6 +14,12 @@ import (
 	"github.com/Tangerg/lynx/models/openai"
 )
 
+const (
+	OpenAIRequestExtensionKey     = "ollama/openai_request"
+	OpenAIResponseExtensionKey    = "ollama/openai_response"
+	OpenAIStreamChunkExtensionKey = "ollama/openai_stream_chunk"
+)
+
 var (
 	_ corechat.Model    = (*OpenAIChat)(nil)
 	_ corechat.Streamer = (*OpenAIChat)(nil)
@@ -39,7 +45,7 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 		apiKey = "ollama"
 	}
 	requestOptions := append([]option.RequestOption{option.WithBaseURL(resolveOpenAIBaseURL(config.BaseURL))}, config.RequestOptions...)
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: apiKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.ReasoningContentDialect())
+	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: apiKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.Dialect{Provider: "ollama"})
 	if err != nil {
 		return nil, fmt.Errorf("ollama: construct OpenAI-compatible chat: %w", err)
 	}

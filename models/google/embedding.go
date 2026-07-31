@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
-	"time"
+	"net/http"
 
 	"google.golang.org/genai"
 
@@ -26,6 +25,8 @@ type EmbeddingModelConfig struct {
 
 	// BaseURL overrides the genai endpoint. Optional.
 	BaseURL string
+
+	HTTPClient *http.Client
 }
 
 func (c EmbeddingModelConfig) Validate() error {
@@ -43,10 +44,11 @@ func (c EmbeddingModelConfig) Validate() error {
 
 var _ embedding.Model = (*EmbeddingModel)(nil)
 
-// EmbeddingModel wraps Gemini's embed_content endpoint. Supported models:
-//   - "gemini-embedding-001" (3072 dims; supports OutputDimensionality
-//     truncation to 128/256/...);
-//   - "text-embedding-004" (768 dims; legacy, no OutputDimensionality).
+// EmbeddingModel wraps Gemini's embed_content endpoint. New integrations use
+// gemini-embedding-2, whose output dimensionality is configurable from 128 to
+// 3072. Core's text-only request intentionally exposes only that model's text
+// input capability; richer multimodal embedding inputs belong in a dedicated
+// protocol rather than being hidden inside text.
 type EmbeddingModel struct {
 	api            *API
 	defaultOptions embedding.Options
@@ -58,11 +60,12 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 	}
 
 	api, err := NewAPI(APIConfig{
-		APIKey:   cfg.APIKey,
-		Backend:  cfg.Backend,
-		Project:  cfg.Project,
-		Location: cfg.Location,
-		BaseURL:  cfg.BaseURL,
+		APIKey:     cfg.APIKey,
+		Backend:    cfg.Backend,
+		Project:    cfg.Project,
+		Location:   cfg.Location,
+		BaseURL:    cfg.BaseURL,
+		HTTPClient: cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -80,14 +83,14 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (string, []*gen
 		return "", nil, nil, err
 	}
 
-	cfg, err := options.GetParams[genai.EmbedContentConfig](mergedOpts.Extensions, OptionsKey)
+	cfg, err := options.GetParams[genai.EmbedContentConfig](mergedOpts.Extensions, EmbeddingRequestExtensionKey)
 	if err != nil {
 		return "", nil, nil, err
 	}
 
 	if mergedOpts.Dimensions != nil {
-		if *mergedOpts.Dimensions > int64(math.MaxInt32) {
-			return "", nil, nil, fmt.Errorf("google: embedding: dimensions exceed int32: %d", *mergedOpts.Dimensions)
+		if *mergedOpts.Dimensions < 128 || *mergedOpts.Dimensions > 3072 {
+			return "", nil, nil, fmt.Errorf("google: embedding: dimensions must be between 128 and 3072: %d", *mergedOpts.Dimensions)
 		}
 		cfg.OutputDimensionality = new(int32(*mergedOpts.Dimensions))
 	}
@@ -100,9 +103,12 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (string, []*gen
 	return mergedOpts.Model, contents, cfg, nil
 }
 
-func (e *EmbeddingModel) buildResponse(modelName string, apiResp *genai.EmbedContentResponse) (*embedding.Response, error) {
+func (e *EmbeddingModel) buildResponse(modelName string, apiResp *genai.EmbedContentResponse, expectedResults int) (*embedding.Response, error) {
 	if len(apiResp.Embeddings) == 0 {
 		return nil, errors.New("google: embed_content response has no embeddings")
+	}
+	if len(apiResp.Embeddings) != expectedResults {
+		return nil, fmt.Errorf("google: embed_content response returned %d results for %d inputs", len(apiResp.Embeddings), expectedResults)
 	}
 
 	results := make([]*embedding.Result, 0, len(apiResp.Embeddings))
@@ -111,10 +117,10 @@ func (e *EmbeddingModel) buildResponse(modelName string, apiResp *genai.EmbedCon
 
 		resultMeta := &embedding.ResultMetadata{}
 		if item.Statistics != nil {
-			if err := resultMeta.Set("token_count", item.Statistics.TokenCount); err != nil {
+			if err := resultMeta.Set("google/token_count", item.Statistics.TokenCount); err != nil {
 				return nil, err
 			}
-			if err := resultMeta.Set("truncated", item.Statistics.Truncated); err != nil {
+			if err := resultMeta.Set("google/truncated", item.Statistics.Truncated); err != nil {
 				return nil, err
 			}
 		}
@@ -127,14 +133,16 @@ func (e *EmbeddingModel) buildResponse(modelName string, apiResp *genai.EmbedCon
 	}
 
 	meta := &embedding.ResponseMetadata{
-		Model:   modelName,
-		Created: time.Now().Unix(),
+		Model: modelName,
+	}
+	if err := meta.Set(EmbeddingResponseExtensionKey, apiResp); err != nil {
+		return nil, err
 	}
 	if apiResp.Metadata != nil {
 		// Gemini does not report per-modality prompt tokens; surface the
 		// billable character count instead so callers can still cost the
 		// call.
-		if err := meta.Set("billable_character_count", apiResp.Metadata.BillableCharacterCount); err != nil {
+		if err := meta.Set("google/billable_character_count", apiResp.Metadata.BillableCharacterCount); err != nil {
 			return nil, err
 		}
 	}
@@ -156,5 +164,5 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 		return nil, err
 	}
 
-	return e.buildResponse(modelName, apiResp)
+	return e.buildResponse(modelName, apiResp, len(req.Texts))
 }

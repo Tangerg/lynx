@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"strings"
 	"time"
@@ -89,7 +90,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	apiReq, err := options.GetParams[GenerateRequest](mergedOpts.Extensions, OptionsKey)
+	apiReq, err := options.GetParams[GenerateRequest](mergedOpts.Extensions, ImageRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -118,28 +119,47 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	final, err := i.pollUntilDone(ctx, async.ID)
+	if async.ID == "" {
+		return nil, errors.New("blackforestlabs: generation response has no task id")
+	}
+	if async.PollingURL == "" {
+		return nil, errors.New("blackforestlabs: generation response has no polling_url")
+	}
+
+	final, err := i.pollUntilDone(ctx, async.PollingURL)
 	if err != nil {
 		return nil, err
 	}
+	if final.Result.Sample == "" {
+		return nil, errors.New("blackforestlabs: ready result has no sample URL")
+	}
 
-	mimeType := mergedOpts.OutputFormat
+	data, mimeType, err := i.api.DownloadOutput(ctx, final.Result.Sample)
+	if err != nil {
+		return nil, err
+	}
+	if mimeType == "" {
+		mimeType = mime.TypeByExtension("." + apiReq.OutputFormat)
+	}
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
-	value, err := media.NewURI(mimeType, final.Result.Sample)
+	value, err := media.NewBytes(mimeType, data)
 	if err != nil {
 		return nil, err
 	}
 
 	resultMeta := &image.ResultMetadata{}
+	if err := resultMeta.Set("blackforestlabs/output_url", final.Result.Sample); err != nil {
+		return nil, err
+	}
 	if final.Result.Seed != 0 {
-		if err := resultMeta.Set("seed", final.Result.Seed); err != nil {
+		if err := resultMeta.Set("blackforestlabs/seed", final.Result.Seed); err != nil {
 			return nil, err
 		}
 	}
 	if final.Result.Duration != 0 {
-		if err := resultMeta.Set("duration_ms", final.Result.Duration); err != nil {
+		if err := resultMeta.Set("blackforestlabs/duration_ms", final.Result.Duration); err != nil {
 			return nil, err
 		}
 	}
@@ -149,14 +169,20 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	meta := &image.ResponseMetadata{Created: time.Now().Unix()}
-	if err := meta.Set("task_id", async.ID); err != nil {
+	meta := &image.ResponseMetadata{}
+	if err := meta.Set("blackforestlabs/task_id", async.ID); err != nil {
+		return nil, err
+	}
+	if err := meta.Set("blackforestlabs/submit_response", async); err != nil {
+		return nil, err
+	}
+	if err := meta.Set("blackforestlabs/result_response", final); err != nil {
 		return nil, err
 	}
 	return image.NewResponse([]*image.Result{result}, meta)
 }
 
-func (i *ImageModel) pollUntilDone(ctx context.Context, id string) (*PollResult, error) {
+func (i *ImageModel) pollUntilDone(ctx context.Context, pollingURL string) (*PollResult, error) {
 	deadline, cancel := context.WithTimeout(ctx, i.pollTimeout)
 	defer cancel()
 
@@ -164,14 +190,14 @@ func (i *ImageModel) pollUntilDone(ctx context.Context, id string) (*PollResult,
 	defer ticker.Stop()
 
 	for {
-		resp, err := i.api.GetResult(deadline, id)
+		resp, err := i.api.GetResult(deadline, pollingURL)
 		if err != nil {
 			return nil, err
 		}
 		switch resp.Status {
 		case "Ready":
 			return resp, nil
-		case "Error", "Content Moderated", "Request Moderated", "Task not found":
+		case "Error", "Failed", "Content Moderated", "Request Moderated", "Task not found":
 			return nil, fmt.Errorf("blackforestlabs: generation failed: %s", resp.Status)
 		}
 		select {

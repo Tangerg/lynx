@@ -37,7 +37,7 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	)
 	t.Cleanup(srv.Close)
 
-	opts, err := transcription.NewOptions("best")
+	opts, err := transcription.NewOptions(assemblyai.ModelUniversal3Point5Pro)
 	if err != nil {
 		t.Fatal(err)
 	}

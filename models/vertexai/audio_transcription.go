@@ -2,6 +2,7 @@ package vertexai
 
 import (
 	"errors"
+	"net/http"
 
 	"google.golang.org/genai"
 
@@ -13,6 +14,8 @@ type AudioTranscriptionModelConfig struct {
 	Project        string
 	Location       string
 	DefaultOptions transcription.Options
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 func (c AudioTranscriptionModelConfig) Validate() error {
@@ -43,5 +46,7 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*google.Audi
 		Project:        cfg.Project,
 		Location:       cfg.Location,
 		DefaultOptions: cfg.DefaultOptions,
+		BaseURL:        cfg.BaseURL,
+		HTTPClient:     cfg.HTTPClient,
 	})
 }

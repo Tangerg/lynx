@@ -70,7 +70,7 @@ func TestModalityModelBoundariesValidateRequests(t *testing.T) {
 	}
 }
 
-func TestProviderOptionKeysAreNamespaced(t *testing.T) {
+func TestProviderExtensionKeysAreSemanticAndNamespaced(t *testing.T) {
 	t.Parallel()
 
 	root := modelsRoot(t)
@@ -91,7 +91,7 @@ func TestProviderOptionKeysAreNamespaced(t *testing.T) {
 			return err
 		}
 		provider := strings.Split(filepath.ToSlash(relative), "/")[0]
-		want := provider + "/options"
+		prefix := provider + "/"
 		for _, declaration := range file.Decls {
 			general, ok := declaration.(*ast.GenDecl)
 			if !ok || general.Tok != token.CONST {
@@ -100,17 +100,24 @@ func TestProviderOptionKeysAreNamespaced(t *testing.T) {
 			for _, specification := range general.Specs {
 				values := specification.(*ast.ValueSpec)
 				for index, name := range values.Names {
-					if name.Name != "OptionsKey" || index >= len(values.Values) {
+					if name.Name == "OptionsKey" {
+						t.Errorf("%s:%d use a modality-specific RequestExtensionKey name instead of OptionsKey", filepath.ToSlash(relative), fset.Position(name.Pos()).Line)
+						continue
+					}
+					if !strings.HasSuffix(name.Name, "ExtensionKey") || index >= len(values.Values) {
 						continue
 					}
 					literal, ok := values.Values[index].(*ast.BasicLit)
 					if !ok || literal.Kind != token.STRING {
-						t.Errorf("%s:%d OptionsKey must be a string literal", filepath.ToSlash(relative), fset.Position(name.Pos()).Line)
+						t.Errorf("%s:%d %s must be a string literal", filepath.ToSlash(relative), fset.Position(name.Pos()).Line, name.Name)
 						continue
 					}
 					got, err := strconv.Unquote(literal.Value)
-					if err != nil || got != want {
-						t.Errorf("%s:%d OptionsKey = %q, want %q", filepath.ToSlash(relative), fset.Position(name.Pos()).Line, got, want)
+					if err != nil || !strings.HasPrefix(got, prefix) {
+						t.Errorf("%s:%d %s = %q, want prefix %q", filepath.ToSlash(relative), fset.Position(name.Pos()).Line, name.Name, got, prefix)
+					}
+					if strings.HasSuffix(got, "/options") {
+						t.Errorf("%s:%d %s = %q is ambiguous; name the request modality", filepath.ToSlash(relative), fset.Position(name.Pos()).Line, name.Name, got)
 					}
 				}
 			}

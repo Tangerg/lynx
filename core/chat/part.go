@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 // PartKind identifies which payload in Part is active.
@@ -35,7 +36,9 @@ func (k PartKind) Valid() bool {
 }
 
 // Part is a tagged protocol value. Kind selects exactly one payload shape:
-// Text, Media, reasoning Text/Signature, ToolCall, or ToolResult.
+// Text, Media, reasoning Text/Signature, ToolCall, or ToolResult. Metadata
+// retains JSON-safe, part-scoped provider state without weakening the common
+// semantic payload.
 type Part struct {
 	Kind       PartKind     `json:"kind"`
 	Text       string       `json:"text,omitempty"`
@@ -43,6 +46,7 @@ type Part struct {
 	Signature  []byte       `json:"signature,omitempty"`
 	ToolCall   *ToolCall    `json:"tool_call,omitempty"`
 	ToolResult *ToolResult  `json:"tool_result,omitempty"`
+	Metadata   metadata.Map `json:"metadata,omitzero"`
 }
 
 // Clone returns an independent copy of p.
@@ -50,6 +54,7 @@ func (p Part) Clone() Part {
 	clone := p
 	clone.Signature = slices.Clone(p.Signature)
 	clone.Media = p.Media.Clone()
+	clone.Metadata = p.Metadata.Clone()
 	if p.ToolCall != nil {
 		clone.ToolCall = new(*p.ToolCall)
 	}
@@ -90,11 +95,14 @@ func (p Part) Validate() error {
 	if !p.Kind.Valid() {
 		return fmt.Errorf("%w: unknown kind %q", ErrInvalidPart, p.Kind)
 	}
+	if err := p.Metadata.Validate(); err != nil {
+		return fmt.Errorf("%w: metadata: %w", ErrInvalidPart, err)
+	}
 
 	switch p.Kind {
 	case PartText:
-		if p.Text == "" || p.Media != nil || len(p.Signature) != 0 || p.ToolCall != nil || p.ToolResult != nil {
-			return fmt.Errorf("%w: kind %q requires non-empty text and no other payload", ErrInvalidPart, p.Kind)
+		if (p.Text == "" && len(p.Metadata) == 0) || p.Media != nil || len(p.Signature) != 0 || p.ToolCall != nil || p.ToolResult != nil {
+			return fmt.Errorf("%w: kind %q requires text or metadata and no other payload", ErrInvalidPart, p.Kind)
 		}
 	case PartMedia:
 		if p.Text != "" || p.Media == nil || len(p.Signature) != 0 || p.ToolCall != nil || p.ToolResult != nil {

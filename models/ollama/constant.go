@@ -5,7 +5,7 @@ const (
 )
 
 const (
-	OptionsKey = "ollama/options"
+	EmbeddingRequestExtensionKey = "ollama/embedding_request"
 
 	// DefaultBaseURL is Ollama's default local listen address.
 	DefaultBaseURL = "http://127.0.0.1:11434"

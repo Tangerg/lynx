@@ -1,6 +1,7 @@
 package blackforestlabs_test
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -12,26 +13,41 @@ import (
 
 func TestImageModel_Call_Mock(t *testing.T) {
 	var polls testutil.PollCounter
+	var serverURL string
 
 	srv := testutil.MuxServer(
 		// POST /v1/<model> returns the async id
 		testutil.Route{Method: "POST", Contains: "flux", Handle: func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("x-key") != "test-key" {
+				t.Errorf("submit x-key = %q", r.Header.Get("x-key"))
+			}
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"id":"task-1","polling_url":"/v1/get_result?id=task-1"}`))
+			fmt.Fprintf(w, `{"id":"task-1","polling_url":%q}`, serverURL+"/v1/get_result?id=task-1")
 		}},
 		// GET /v1/get_result?id=... polls until Ready
 		testutil.Route{Method: "GET", Contains: "/get_result", Handle: func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("x-key") != "test-key" {
+				t.Errorf("poll x-key = %q", r.Header.Get("x-key"))
+			}
 			n := polls.Inc()
 			status := "Pending"
 			sample := ""
 			if n >= 2 {
 				status = "Ready"
-				sample = "https://example.com/img.png"
+				sample = serverURL + "/delivery/img.png"
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"id":"task-1","status":"` + status + `","result":{"sample":"` + sample + `","seed":42,"duration":100}}`))
 		}},
+		testutil.Route{Method: "GET", Contains: "/delivery/img.png", Handle: func(w http.ResponseWriter, r *http.Request) {
+			if value := r.Header.Get("x-key"); value != "" {
+				t.Errorf("download leaked x-key = %q", value)
+			}
+			w.Header().Set("Content-Type", "image/png")
+			w.Write([]byte("PNG"))
+		}},
 	)
+	serverURL = srv.URL
 	t.Cleanup(srv.Close)
 
 	opts, err := image.NewOptions("flux-pro-1.1")
@@ -56,5 +72,8 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	}
 	if out.First() == nil {
 		t.Fatal("nil result")
+	}
+	if out.First().Media.Source.Kind != "bytes" {
+		t.Fatalf("output source = %q, want bytes", out.First().Media.Source.Kind)
 	}
 }

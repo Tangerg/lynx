@@ -11,9 +11,9 @@ import (
 )
 
 func TestAudioTTSModel_Call_Mock(t *testing.T) {
-	// Gemini 2.5 TTS routes audio through GenerateContent with inline
+	// Gemini TTS routes audio through GenerateContent with inline
 	// data — Part.inlineData.{mimeType, data} carries the PCM bytes.
-	audioB64 := base64.StdEncoding.EncodeToString([]byte("FAKE-WAV"))
+	audioB64 := base64.StdEncoding.EncodeToString([]byte("FAKE-PCM"))
 	body := `{
   "candidates": [{
     "content": {"role": "model", "parts": [{"inlineData": {"mimeType": "audio/L16;rate=24000", "data": "` + audioB64 + `"}}]},
@@ -24,7 +24,7 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	srv := testutil.JSONServer(http.StatusOK, body)
 	t.Cleanup(srv.Close)
 
-	opts, err := tts.NewOptions("gemini-2.5-flash-preview-tts")
+	opts, err := tts.NewOptions(google.ModelGemini31FlashTTSPreview)
 	if err != nil {
 		t.Fatal(err)
 	}

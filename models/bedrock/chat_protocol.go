@@ -19,7 +19,12 @@ import (
 
 const (
 	// ChatRequestExtensionKey stores [ChatRequestOptions] in a Core request.
-	ChatRequestExtensionKey   = "bedrock/request"
+	ChatRequestExtensionKey = "bedrock/request"
+	// ChatResponseExtensionKey preserves the complete official Converse output.
+	ChatResponseExtensionKey  = "bedrock/response"
+	chatReasoningKindKey      = "bedrock/reasoning_kind"
+	chatReasoningText         = "reasoning_text"
+	chatReasoningRedacted     = "redacted_content"
 	chatNativeFinishReasonKey = "bedrock/native_finish_reason"
 )
 
@@ -73,7 +78,7 @@ func NewChat(ctx context.Context, cfg ChatConfig) (*Chat, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Chat{api: api, defaults: cloneChatOptions(cfg.DefaultOptions)}, nil
+	return &Chat{api: api, defaults: cfg.DefaultOptions.Clone()}, nil
 }
 
 // Call performs one Bedrock Converse request.
@@ -181,7 +186,7 @@ func (c *Chat) prepareRequest(req *corechat.Request) (*preparedChatRequest, erro
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("bedrock: request: %w", err)
 	}
-	options := mergeChatOptions(c.defaults, req.Options)
+	options := c.defaults.Overlay(req.Options)
 	if options.Model == "" {
 		return nil, errors.New("bedrock: model is required in defaults or request options")
 	}
@@ -213,54 +218,6 @@ func (c *Chat) prepareRequest(req *corechat.Request) (*preparedChatRequest, erro
 		tools:     tools,
 		native:    native,
 	}, nil
-}
-
-func cloneChatOptions(options corechat.Options) corechat.Options {
-	clone := options
-	clone.Stop = slices.Clone(options.Stop)
-	clone.FrequencyPenalty = clonePointer(options.FrequencyPenalty)
-	clone.MaxTokens = clonePointer(options.MaxTokens)
-	clone.PresencePenalty = clonePointer(options.PresencePenalty)
-	clone.Temperature = clonePointer(options.Temperature)
-	clone.TopK = clonePointer(options.TopK)
-	clone.TopP = clonePointer(options.TopP)
-	return clone
-}
-
-func clonePointer[T any](value *T) *T {
-	if value == nil {
-		return nil
-	}
-	return new(*value)
-}
-
-func mergeChatOptions(defaults, overrides corechat.Options) corechat.Options {
-	merged := cloneChatOptions(defaults)
-	if overrides.Model != "" {
-		merged.Model = overrides.Model
-	}
-	if overrides.FrequencyPenalty != nil {
-		merged.FrequencyPenalty = clonePointer(overrides.FrequencyPenalty)
-	}
-	if overrides.MaxTokens != nil {
-		merged.MaxTokens = clonePointer(overrides.MaxTokens)
-	}
-	if overrides.PresencePenalty != nil {
-		merged.PresencePenalty = clonePointer(overrides.PresencePenalty)
-	}
-	if len(overrides.Stop) != 0 {
-		merged.Stop = slices.Clone(overrides.Stop)
-	}
-	if overrides.Temperature != nil {
-		merged.Temperature = clonePointer(overrides.Temperature)
-	}
-	if overrides.TopK != nil {
-		merged.TopK = clonePointer(overrides.TopK)
-	}
-	if overrides.TopP != nil {
-		merged.TopP = clonePointer(overrides.TopP)
-	}
-	return merged
 }
 
 func mapInferenceOptions(options corechat.Options) *types.InferenceConfiguration {
@@ -298,48 +255,69 @@ func mapProtocolMessages(messages []corechat.Message) ([]types.SystemContentBloc
 		}
 		blocks := make([]types.ContentBlock, 0, len(message.Parts))
 		for partIndex := range message.Parts {
-			block, err := mapProtocolPart(message.Parts[partIndex])
+			block, include, err := mapProtocolPart(message.Parts[partIndex])
 			if err != nil {
 				return nil, nil, fmt.Errorf("bedrock: messages[%d].parts[%d]: %w", messageIndex, partIndex, err)
 			}
-			blocks = append(blocks, block)
+			if include {
+				blocks = append(blocks, block)
+			}
+		}
+		if len(blocks) == 0 {
+			return nil, nil, fmt.Errorf("bedrock: messages[%d]: no parts are valid for Bedrock", messageIndex)
 		}
 		result = append(result, types.Message{Role: role, Content: blocks})
 	}
 	return system, result, nil
 }
 
-func mapProtocolPart(part corechat.Part) (types.ContentBlock, error) {
+func mapProtocolPart(part corechat.Part) (types.ContentBlock, bool, error) {
 	switch part.Kind {
 	case corechat.PartText:
-		return &types.ContentBlockMemberText{Value: part.Text}, nil
+		return &types.ContentBlockMemberText{Value: part.Text}, true, nil
 	case corechat.PartMedia:
-		block := mediaToBlock(part.Media)
-		if block == nil {
-			return nil, fmt.Errorf("unsupported media MIME type %q", part.Media.MIME)
+		block, err := mediaToBlock(part.Media)
+		if err != nil {
+			return nil, false, err
 		}
-		return block, nil
+		return block, true, nil
 	case corechat.PartReasoning:
-		reasoning := types.ReasoningTextBlock{}
-		if part.Text != "" {
-			reasoning.Text = aws.String(part.Text)
+		kind, found, err := metadata.Decode[string](part.Metadata, chatReasoningKindKey)
+		if err != nil {
+			return nil, false, err
 		}
-		if len(part.Signature) != 0 {
-			reasoning.Signature = aws.String(string(part.Signature))
+		if !found {
+			// Reasoning from another provider is portable display state, not
+			// valid Bedrock replay state.
+			return nil, false, nil
 		}
-		return &types.ContentBlockMemberReasoningContent{Value: &types.ReasoningContentBlockMemberReasoningText{Value: reasoning}}, nil
+		switch kind {
+		case chatReasoningText:
+			if part.Text == "" || len(part.Signature) == 0 {
+				return nil, false, errors.New("Bedrock reasoning text requires text and its unmodified signature")
+			}
+			reasoning := types.ReasoningTextBlock{Text: aws.String(part.Text), Signature: aws.String(string(part.Signature))}
+			return &types.ContentBlockMemberReasoningContent{Value: &types.ReasoningContentBlockMemberReasoningText{Value: reasoning}}, true, nil
+		case chatReasoningRedacted:
+			if len(part.Signature) == 0 {
+				return nil, false, errors.New("Bedrock redacted reasoning requires opaque content")
+			}
+			return &types.ContentBlockMemberReasoningContent{Value: &types.ReasoningContentBlockMemberRedactedContent{Value: slices.Clone(part.Signature)}}, true, nil
+		default:
+			return nil, false, fmt.Errorf("unknown Bedrock reasoning kind %q", kind)
+		}
 	case corechat.PartToolCall:
 		var arguments any
 		if part.ToolCall.Arguments != "" {
 			if err := json.Unmarshal([]byte(part.ToolCall.Arguments), &arguments); err != nil {
-				return nil, fmt.Errorf("tool call arguments: %w", err)
+				return nil, false, fmt.Errorf("tool call arguments: %w", err)
 			}
 		}
 		return &types.ContentBlockMemberToolUse{Value: types.ToolUseBlock{
 			ToolUseId: aws.String(part.ToolCall.ID),
 			Name:      aws.String(part.ToolCall.Name),
 			Input:     toDocument(arguments),
-		}}, nil
+		}}, true, nil
 	case corechat.PartToolResult:
 		status := types.ToolResultStatusSuccess
 		if part.ToolResult.IsError {
@@ -351,9 +329,9 @@ func mapProtocolPart(part corechat.Part) (types.ContentBlock, error) {
 			Content: []types.ToolResultContentBlock{
 				&types.ToolResultContentBlockMemberText{Value: part.ToolResult.Result},
 			},
-		}}, nil
+		}}, true, nil
 	default:
-		return nil, fmt.Errorf("unsupported part kind %q", part.Kind)
+		return nil, false, fmt.Errorf("unsupported part kind %q", part.Kind)
 	}
 }
 
@@ -399,6 +377,9 @@ func mapProtocolConverseResponse(model string, output *bedrockruntime.ConverseOu
 		}
 	}
 	response := &corechat.Response{Model: model, Choices: []corechat.Choice{choice}, Usage: mapProtocolUsage(output.Usage)}
+	if err := response.SetExtension(ChatResponseExtensionKey, output); err != nil {
+		return nil, fmt.Errorf("bedrock: preserve native response: %w", err)
+	}
 	if err := response.Validate(); err != nil {
 		return nil, fmt.Errorf("bedrock: response: %w", err)
 	}
@@ -413,21 +394,41 @@ func mapProtocolResponseBlocks(blocks []types.ContentBlock) ([]corechat.Part, er
 			if block.Value != "" {
 				parts = append(parts, corechat.NewTextPart(block.Value))
 			}
+		case *types.ContentBlockMemberImage:
+			value, err := bedrockImageToMedia(block.Value)
+			if err != nil {
+				return nil, fmt.Errorf("bedrock: response content[%d]: %w", index, err)
+			}
+			parts = append(parts, corechat.NewMediaPart(value))
+		case *types.ContentBlockMemberAudio:
+			value, err := bedrockAudioToMedia(block.Value)
+			if err != nil {
+				return nil, fmt.Errorf("bedrock: response content[%d]: %w", index, err)
+			}
+			parts = append(parts, corechat.NewMediaPart(value))
+		case *types.ContentBlockMemberVideo:
+			value, err := bedrockVideoToMedia(block.Value)
+			if err != nil {
+				return nil, fmt.Errorf("bedrock: response content[%d]: %w", index, err)
+			}
+			parts = append(parts, corechat.NewMediaPart(value))
 		case *types.ContentBlockMemberReasoningContent:
-			reasoning, ok := block.Value.(*types.ReasoningContentBlockMemberReasoningText)
-			if !ok {
-				continue
-			}
-			var text string
-			var signature []byte
-			if reasoning.Value.Text != nil {
-				text = *reasoning.Value.Text
-			}
-			if reasoning.Value.Signature != nil {
-				signature = []byte(*reasoning.Value.Signature)
-			}
-			if text != "" || len(signature) != 0 {
-				parts = append(parts, corechat.NewReasoningPart(text, signature))
+			switch reasoning := block.Value.(type) {
+			case *types.ReasoningContentBlockMemberReasoningText:
+				if reasoning.Value.Text == nil || reasoning.Value.Signature == nil {
+					return nil, fmt.Errorf("bedrock: response content[%d]: reasoning text lacks text or signature", index)
+				}
+				part, err := NewReasoningPart(*reasoning.Value.Text, []byte(*reasoning.Value.Signature))
+				if err != nil {
+					return nil, fmt.Errorf("bedrock: response content[%d]: %w", index, err)
+				}
+				parts = append(parts, part)
+			case *types.ReasoningContentBlockMemberRedactedContent:
+				part, err := NewRedactedReasoningPart(reasoning.Value)
+				if err != nil {
+					return nil, fmt.Errorf("bedrock: response content[%d]: %w", index, err)
+				}
+				parts = append(parts, part)
 			}
 		case *types.ContentBlockMemberToolUse:
 			if block.Value.ToolUseId == nil || block.Value.Name == nil {
@@ -556,12 +557,29 @@ func (a *protocolChunkAccumulator) mapDelta(delta types.ContentBlockDeltaEvent) 
 			if reasoning.Value == "" {
 				return corechat.Part{}, false, nil
 			}
-			return corechat.NewReasoningPart(reasoning.Value, nil), true, nil
+			part := corechat.NewReasoningPart(reasoning.Value, nil)
+			if err := setReasoningKind(&part, chatReasoningText); err != nil {
+				return corechat.Part{}, false, err
+			}
+			return part, true, nil
 		case *types.ReasoningContentBlockDeltaMemberSignature:
 			if reasoning.Value == "" {
 				return corechat.Part{}, false, nil
 			}
-			return corechat.NewReasoningPart("", []byte(reasoning.Value)), true, nil
+			part := corechat.NewReasoningPart("", []byte(reasoning.Value))
+			if err := setReasoningKind(&part, chatReasoningText); err != nil {
+				return corechat.Part{}, false, err
+			}
+			return part, true, nil
+		case *types.ReasoningContentBlockDeltaMemberRedactedContent:
+			if len(reasoning.Value) == 0 {
+				return corechat.Part{}, false, nil
+			}
+			part := corechat.NewReasoningPart("", reasoning.Value)
+			if err := setReasoningKind(&part, chatReasoningRedacted); err != nil {
+				return corechat.Part{}, false, err
+			}
+			return part, true, nil
 		}
 	case *types.ContentBlockDeltaMemberToolUse:
 		if value.Value.Input == nil || *value.Value.Input == "" || delta.ContentBlockIndex == nil {

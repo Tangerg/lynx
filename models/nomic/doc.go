@@ -6,7 +6,7 @@
 // (search_query / search_document / classification / clustering for
 // asymmetric retrieval and downstream tasks) and long_text_mode —
 // are reached via the extension-threaded SDK params, see
-// [EmbeddingRequest] and [OptionsKey].
+// [EmbeddingRequest] and [EmbeddingRequestExtensionKey].
 //
 // Nomic's /embedding/text request shape uses `texts` (not OpenAI's
 // `input`), `task_type` (not `input_type`), and `dimensionality`

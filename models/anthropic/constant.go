@@ -4,10 +4,6 @@ const (
 	Provider = "Anthropic"
 )
 
-const (
-	OptionsKey = "anthropic/options"
-)
-
 // BaseURLOpenAI is Anthropic's first-party OpenAI-compatible endpoint
 // (https://docs.claude.com/en/api/openai-sdk). Use it via
 // [NewOpenAIChat] to keep an OpenAI-SDK integration while

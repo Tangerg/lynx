@@ -3,6 +3,7 @@ package elevenlabs
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"net/http"
 
@@ -76,7 +77,7 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (voiceID, outputFormat
 		return "", "", nil, errors.New("elevenlabs: Voice (voice id) is required - set Options.Voice")
 	}
 
-	body, err = options.GetParams[TTSRequest](mergedOpts.Extensions, OptionsKey)
+	body, err = options.GetParams[TTSRequest](mergedOpts.Extensions, SpeechRequestExtensionKey)
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -84,27 +85,32 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (voiceID, outputFormat
 	body.ModelID = mergedOpts.Model
 
 	if mergedOpts.Speed != 0 {
-		// ElevenLabs voice speed is 0.7..1.2 in v3; let the API
-		// reject out-of-range values rather than clamp here.
+		if mergedOpts.Speed < 0.7 || mergedOpts.Speed > 1.2 {
+			return "", "", nil, fmt.Errorf("elevenlabs: speech speed must be between 0.7 and 1.2, got %g", mergedOpts.Speed)
+		}
 		if body.VoiceSettings == nil {
 			body.VoiceSettings = &VoiceSettings{}
 		}
 		v := mergedOpts.Speed
 		body.VoiceSettings.Speed = &v
 	}
+	if body.OptimizeStreamingLatency != nil && (*body.OptimizeStreamingLatency < 0 || *body.OptimizeStreamingLatency > 4) {
+		return "", "", nil, fmt.Errorf("elevenlabs: optimize_streaming_latency must be between 0 and 4, got %d", *body.OptimizeStreamingLatency)
+	}
+	if mergedOpts.OutputFormat != "" && !isSupportedOutputFormat(mergedOpts.OutputFormat) {
+		return "", "", nil, fmt.Errorf("elevenlabs: unsupported output format %q", mergedOpts.OutputFormat)
+	}
 
 	return mergedOpts.Voice, mergedOpts.OutputFormat, body, nil
 }
 
 func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Response, error) {
+	if len(audio) == 0 {
+		return nil, errors.New("elevenlabs: speech response contained no audio")
+	}
 	resultMeta := &tts.ResultMetadata{}
 	if ct := hdr.Get("Content-Type"); ct != "" {
-		if err := resultMeta.Set("mime_type", ct); err != nil {
-			return nil, err
-		}
-	}
-	if rid := hdr.Get("request-id"); rid != "" {
-		if err := resultMeta.Set("request_id", rid); err != nil {
+		if err := resultMeta.Set("elevenlabs/mime_type", ct); err != nil {
 			return nil, err
 		}
 	}
@@ -114,7 +120,41 @@ func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Respo
 		return nil, err
 	}
 
-	return tts.NewResponse(result, &tts.ResponseMetadata{})
+	responseMetadata := &tts.ResponseMetadata{}
+	for key, value := range map[string]string{
+		"elevenlabs/character_cost": hdr.Get("character-cost"),
+		"elevenlabs/request_id":     hdr.Get("request-id"),
+		"elevenlabs/trace_id":       hdr.Get("x-trace-id"),
+	} {
+		if value != "" {
+			if err := responseMetadata.Set(key, value); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err := responseMetadata.Set(SpeechResponseExtensionKey, map[string]any{
+		"content_type":   hdr.Get("Content-Type"),
+		"character_cost": hdr.Get("character-cost"),
+		"request_id":     hdr.Get("request-id"),
+		"trace_id":       hdr.Get("x-trace-id"),
+	}); err != nil {
+		return nil, err
+	}
+	return tts.NewResponse(result, responseMetadata)
+}
+
+func isSupportedOutputFormat(format string) bool {
+	switch format {
+	case "alaw_8000",
+		"mp3_22050_32", "mp3_24000_48", "mp3_44100_32", "mp3_44100_64", "mp3_44100_96", "mp3_44100_128", "mp3_44100_192",
+		"opus_48000_32", "opus_48000_64", "opus_48000_96", "opus_48000_128", "opus_48000_192",
+		"pcm_8000", "pcm_16000", "pcm_22050", "pcm_24000", "pcm_32000", "pcm_44100", "pcm_48000",
+		"ulaw_8000",
+		"wav_8000", "wav_16000", "wav_22050", "wav_24000", "wav_32000", "wav_44100", "wav_48000":
+		return true
+	default:
+		return false
+	}
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {

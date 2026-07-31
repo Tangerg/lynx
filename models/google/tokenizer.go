@@ -3,6 +3,7 @@ package google
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	"google.golang.org/genai"
 
@@ -14,11 +15,13 @@ import (
 // you intend to send chat requests under so the count matches the real
 // billing.
 type TextEstimatorConfig struct {
-	APIKey   string
-	Model    string
-	Backend  genai.Backend
-	Project  string
-	Location string
+	APIKey     string
+	Model      string
+	Backend    genai.Backend
+	Project    string
+	Location   string
+	BaseURL    string
+	HTTPClient *http.Client
 }
 
 func (c TextEstimatorConfig) Validate() error {
@@ -47,10 +50,12 @@ func NewTextEstimator(cfg TextEstimatorConfig) (*TextEstimator, error) {
 	}
 
 	api, err := NewAPI(APIConfig{
-		APIKey:   cfg.APIKey,
-		Backend:  cfg.Backend,
-		Project:  cfg.Project,
-		Location: cfg.Location,
+		APIKey:     cfg.APIKey,
+		Backend:    cfg.Backend,
+		Project:    cfg.Project,
+		Location:   cfg.Location,
+		BaseURL:    cfg.BaseURL,
+		HTTPClient: cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err

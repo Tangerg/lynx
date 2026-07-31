@@ -1,7 +1,9 @@
 package openai_test
 
 import (
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -99,8 +101,8 @@ func TestResponsesChatModel_Call_InterleavedOutput(t *testing.T) {
 	if reasoning.Text != "想想看" {
 		t.Errorf("reasoning text = %q", reasoning.Text)
 	}
-	if string(reasoning.Signature) != "enc_xyz" {
-		t.Errorf("reasoning signature = %q; want enc_xyz", reasoning.Signature)
+	if len(reasoning.Signature) == 0 || string(reasoning.Signature) == "enc_xyz" {
+		t.Errorf("reasoning signature did not preserve the full reasoning item")
 	}
 
 	if msg.Parts[1].Text != "先查天气：" {
@@ -182,8 +184,8 @@ func TestResponsesChatModel_Stream_InterleavedDeltas(t *testing.T) {
 	if reasoning.Text != "想想看" {
 		t.Errorf("reasoning text = %q", reasoning.Text)
 	}
-	if string(reasoning.Signature) != "enc_xyz" {
-		t.Errorf("reasoning signature = %q; want enc_xyz", string(reasoning.Signature))
+	if len(reasoning.Signature) == 0 || string(reasoning.Signature) == "enc_xyz" {
+		t.Errorf("reasoning signature did not preserve the full reasoning item")
 	}
 
 	if msg.Parts[1].Text != "先查天气：" {
@@ -204,6 +206,55 @@ func TestResponsesChatModel_Stream_InterleavedDeltas(t *testing.T) {
 	}
 	if response.Usage.InputTokens != 12 {
 		t.Errorf("usage = %+v", response.Usage)
+	}
+}
+
+func TestResponsesChatReplaysProviderIssuedReasoningItem(t *testing.T) {
+	requests := make([]map[string]any, 0, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Errorf("decode request: %v", err)
+			http.Error(writer, "invalid request", http.StatusBadRequest)
+			return
+		}
+		requests = append(requests, body)
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(responsesInterleavedJSON))
+	}))
+	t.Cleanup(server.Close)
+
+	model := newResponsesModel(t, server.URL, "gpt-5")
+	userMessage := chat.NewUserMessage(chat.NewTextPart("weather"))
+	response, err := model.Call(t.Context(), &chat.Request{Messages: []chat.Message{userMessage}})
+	if err != nil {
+		t.Fatalf("first Call: %v", err)
+	}
+	if _, err := model.Call(t.Context(), &chat.Request{Messages: []chat.Message{
+		userMessage,
+		response.First().Message.Clone(),
+		chat.NewToolMessage(chat.ToolResult{ID: "call_w", Name: "weather", Result: "sunny"}),
+	}}); err != nil {
+		t.Fatalf("second Call: %v", err)
+	}
+	input := requests[1]["input"].([]any)
+	var reasoning map[string]any
+	for _, value := range input {
+		item := value.(map[string]any)
+		if item["type"] == "reasoning" {
+			reasoning = item
+			break
+		}
+	}
+	if reasoning == nil {
+		t.Fatalf("reasoning item missing from replay: %#v", input)
+	}
+	if reasoning["id"] != "rs_1" || reasoning["encrypted_content"] != "enc_xyz" || reasoning["status"] != "completed" {
+		t.Fatalf("reasoning item identity changed: %#v", reasoning)
+	}
+	summary := reasoning["summary"].([]any)
+	if len(summary) != 1 || summary[0].(map[string]any)["text"] != "想想看" {
+		t.Fatalf("reasoning summary changed: %#v", summary)
 	}
 }
 

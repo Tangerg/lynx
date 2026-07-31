@@ -12,6 +12,9 @@ import (
 )
 
 const (
+	// ResponseExtensionKey preserves the complete official GenerateContent
+	// response (or the current official stream chunk).
+	ResponseExtensionKey          = "google/response"
 	protocolNativeFinishReasonKey = "google/native_finish_reason"
 	protocolSafetyRatingsKey      = "google/safety_ratings"
 	protocolFinishMessageKey      = "google/finish_message"
@@ -41,6 +44,9 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response *gena
 		ID:      response.ResponseID,
 		Model:   modelName,
 		Choices: make([]corechat.Choice, 0, len(response.Candidates)),
+	}
+	if err := mapped.SetExtension(ResponseExtensionKey, response); err != nil {
+		return nil, fmt.Errorf("google: preserve native response: %w", err)
 	}
 	indices := make(map[int]struct{}, len(response.Candidates))
 	for position, candidate := range response.Candidates {
@@ -124,6 +130,7 @@ func (m *protocolResponseMapper) mapCandidate(index int, candidate *genai.Candid
 }
 
 func mapProtocolCandidatePart(choiceIndex, partIndex int, part *genai.Part) (corechat.Part, error) {
+	var mapped corechat.Part
 	switch {
 	case part.FunctionCall != nil:
 		if part.FunctionCall.Name == "" {
@@ -135,30 +142,38 @@ func mapProtocolCandidatePart(choiceIndex, partIndex int, part *genai.Part) (cor
 		}
 		id := part.FunctionCall.ID
 		if id == "" {
-			id = fmt.Sprintf("google/%d/%d", choiceIndex, partIndex)
+			id = fmt.Sprintf("%s%d/%d", protocolGeneratedToolPrefix, choiceIndex, partIndex)
 		}
-		return corechat.NewToolCallPart(corechat.ToolCall{ID: id, Name: part.FunctionCall.Name, Arguments: arguments}), nil
-	case part.Thought || len(part.ThoughtSignature) > 0:
-		return corechat.NewReasoningPart(part.Text, part.ThoughtSignature), nil
+		mapped = corechat.NewToolCallPart(corechat.ToolCall{ID: id, Name: part.FunctionCall.Name, Arguments: arguments})
+	case part.Thought:
+		mapped = corechat.NewReasoningPart(part.Text, part.ThoughtSignature)
 	case part.Text != "":
-		return corechat.NewTextPart(part.Text), nil
+		mapped = corechat.NewTextPart(part.Text)
 	case part.InlineData != nil:
 		value, err := media.NewBytes(part.InlineData.MIMEType, part.InlineData.Data)
 		if err != nil {
 			return corechat.Part{}, err
 		}
 		value.Name = part.InlineData.DisplayName
-		return corechat.NewMediaPart(value), nil
+		mapped = corechat.NewMediaPart(value)
 	case part.FileData != nil:
 		value, err := media.NewURI(part.FileData.MIMEType, part.FileData.FileURI)
 		if err != nil {
 			return corechat.Part{}, err
 		}
 		value.Name = part.FileData.DisplayName
-		return corechat.NewMediaPart(value), nil
+		mapped = corechat.NewMediaPart(value)
 	default:
-		return corechat.Part{}, errors.New("unsupported or empty response part")
+		// Some official parts (server tools, executable code, and the empty
+		// signed part emitted at the end of a stream) have no Core semantic
+		// payload. A metadata-only text part keeps their exact position and
+		// makes them replayable without inventing a false common abstraction.
+		mapped = corechat.Part{Kind: corechat.PartText}
 	}
+	if err := mapped.Metadata.Set(protocolNativePartKey, part); err != nil {
+		return corechat.Part{}, fmt.Errorf("preserve native part: %w", err)
+	}
+	return mapped, nil
 }
 
 func protocolJSON(value any) (string, error) {

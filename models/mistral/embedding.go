@@ -33,9 +33,9 @@ func (c EmbeddingModelConfig) Validate() error {
 	return nil
 }
 
-// NewEmbeddingModel returns an openai-backed [embedding.Model] pointed
-// at Mistral's /embeddings endpoint (OpenAI-compatible shape). Models:
-// "mistral-embed", "codestral-embed".
+// NewEmbeddingModel returns an openai-backed [embedding.Model] pointed at
+// Mistral's officially OpenAI-compatible /embeddings endpoint. Models:
+// "mistral-embed", "codestral-embed-2505".
 func NewEmbeddingModel(cfg EmbeddingModelConfig) (*openai.EmbeddingModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err

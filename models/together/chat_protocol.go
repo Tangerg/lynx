@@ -13,6 +13,12 @@ import (
 	"github.com/Tangerg/lynx/models/openai"
 )
 
+const (
+	OpenAIRequestExtensionKey     = "together/openai_request"
+	OpenAIResponseExtensionKey    = "together/openai_response"
+	OpenAIStreamChunkExtensionKey = "together/openai_stream_chunk"
+)
+
 var (
 	_ corechat.Model    = (*OpenAIChat)(nil)
 	_ corechat.Streamer = (*OpenAIChat)(nil)
@@ -39,7 +45,7 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	requestOptions := append([]option.RequestOption{option.WithBaseURL(cmp.Or(config.BaseURL, BaseURL))}, config.RequestOptions...)
 	protocol, err := openai.NewCompatibleChat(
 		openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions},
-		openai.ReasoningContentDialect(),
+		openai.ReasoningReplayDialect("together"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("together: construct OpenAI-compatible chat: %w", err)

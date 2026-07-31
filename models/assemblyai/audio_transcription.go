@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/Tangerg/lynx/core/transcription"
@@ -101,12 +102,13 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-	apiReq, err := options.GetParams[TranscriptRequest](mergedOpts.Extensions, OptionsKey)
+	apiReq, err := options.GetParams[TranscriptRequest](mergedOpts.Extensions, RequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
-	if apiReq.SpeechModel == "" {
-		apiReq.SpeechModel = mergedOpts.Model
+	apiReq.SpeechModels = prioritizedSpeechModels(mergedOpts.Model, apiReq.SpeechModels)
+	if err := validateTranscriptRequest(apiReq); err != nil {
+		return nil, err
 	}
 	if apiReq.LanguageCode == "" && mergedOpts.Language != "" {
 		apiReq.LanguageCode = mergedOpts.Language
@@ -175,21 +177,21 @@ func (a *AudioTranscriptionModel) pollUntilDone(ctx context.Context, id string) 
 
 func (a *AudioTranscriptionModel) buildResponse(apiResp *TranscriptResponse) (*transcription.Response, error) {
 	resultMeta := &transcription.ResultMetadata{}
-	if err := resultMeta.Set("confidence", apiResp.Confidence); err != nil {
+	if err := resultMeta.Set("assemblyai/confidence", apiResp.Confidence); err != nil {
 		return nil, err
 	}
 	if apiResp.LanguageCode != "" {
-		if err := resultMeta.Set("language_code", apiResp.LanguageCode); err != nil {
+		if err := resultMeta.Set("assemblyai/language_code", apiResp.LanguageCode); err != nil {
 			return nil, err
 		}
 	}
 	if len(apiResp.Utterances) > 0 {
-		if err := resultMeta.Set("utterances", apiResp.Utterances); err != nil {
+		if err := resultMeta.Set("assemblyai/utterances", apiResp.Utterances); err != nil {
 			return nil, err
 		}
 	}
 	if len(apiResp.Words) > 0 {
-		if err := resultMeta.Set("words", apiResp.Words); err != nil {
+		if err := resultMeta.Set("assemblyai/words", apiResp.Words); err != nil {
 			return nil, err
 		}
 	}
@@ -199,13 +201,48 @@ func (a *AudioTranscriptionModel) buildResponse(apiResp *TranscriptResponse) (*t
 		return nil, err
 	}
 
-	meta := &transcription.ResponseMetadata{}
-	if err := meta.Set("transcript_id", apiResp.ID); err != nil {
+	meta := &transcription.ResponseMetadata{Model: apiResp.SpeechModelUsed}
+	if err := meta.Set("assemblyai/transcript_id", apiResp.ID); err != nil {
 		return nil, err
 	}
-	if err := meta.Set("audio_duration", apiResp.AudioDuration); err != nil {
+	if err := meta.Set("assemblyai/audio_duration_seconds", apiResp.AudioDuration); err != nil {
+		return nil, err
+	}
+	if err := meta.Set(ResponseExtensionKey, apiResp.Raw); err != nil {
 		return nil, err
 	}
 
 	return transcription.NewResponse(result, meta)
+}
+
+func prioritizedSpeechModels(primary string, fallbacks []string) []string {
+	models := make([]string, 0, len(fallbacks)+1)
+	models = append(models, primary)
+	for _, model := range fallbacks {
+		if !slices.Contains(models, model) {
+			models = append(models, model)
+		}
+	}
+	return models
+}
+
+func validateTranscriptRequest(req *TranscriptRequest) error {
+	for index, model := range req.SpeechModels {
+		if model != ModelUniversal3Point5Pro && model != ModelUniversal2 {
+			return fmt.Errorf("assemblyai: speech_models[%d] must be %q or %q, got %q", index, ModelUniversal3Point5Pro, ModelUniversal2, model)
+		}
+	}
+	if req.Prompt != "" && len(req.KeytermsPrompt) > 0 {
+		return errors.New("assemblyai: prompt and keyterms_prompt are mutually exclusive")
+	}
+	if req.LanguageConfidenceThreshold != nil && (*req.LanguageConfidenceThreshold < 0 || *req.LanguageConfidenceThreshold > 1) {
+		return fmt.Errorf("assemblyai: language_confidence_threshold must be between 0 and 1, got %g", *req.LanguageConfidenceThreshold)
+	}
+	if req.SpeechThreshold != nil && (*req.SpeechThreshold < 0 || *req.SpeechThreshold > 1) {
+		return fmt.Errorf("assemblyai: speech_threshold must be between 0 and 1, got %g", *req.SpeechThreshold)
+	}
+	if req.ContentSafetyConfidence != nil && (*req.ContentSafetyConfidence < 25 || *req.ContentSafetyConfidence > 100) {
+		return fmt.Errorf("assemblyai: content_safety_confidence must be between 25 and 100, got %d", *req.ContentSafetyConfidence)
+	}
+	return nil
 }

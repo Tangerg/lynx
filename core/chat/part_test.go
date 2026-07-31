@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 func TestNewReasoningPartCopiesSignature(t *testing.T) {
@@ -118,5 +119,26 @@ func TestPartKindValid(t *testing.T) {
 	}
 	if chat.PartKind("future").Valid() {
 		t.Fatal("future kind must be invalid")
+	}
+}
+
+func TestPartAllowsMetadataOnlyTextCarrier(t *testing.T) {
+	part := chat.Part{Kind: chat.PartText}
+	if err := part.Metadata.Set("google/native_part", map[string]any{"thoughtSignature": "opaque"}); err != nil {
+		t.Fatalf("set metadata: %v", err)
+	}
+	if err := part.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+
+	clone := part.Clone()
+	clone.Metadata["google/native_part"][0] = '['
+	if err := part.Metadata.Validate(); err != nil {
+		t.Fatalf("Clone aliased metadata: %v", err)
+	}
+
+	invalid := chat.Part{Kind: chat.PartText, Metadata: metadata.Map{"bad": json.RawMessage(`{`)}}
+	if err := invalid.Validate(); !errors.Is(err, metadata.ErrInvalidValue) {
+		t.Fatalf("invalid metadata error = %v, want ErrInvalidValue", err)
 	}
 }

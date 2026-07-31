@@ -1,8 +1,10 @@
 package openai
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,7 +22,17 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
-const responsesRequestExtensionKey = "openai/responses_request"
+const (
+	// ResponsesRequestExtensionKey stores official Responses API parameters in
+	// a Core request for fields without a provider-neutral equivalent.
+	ResponsesRequestExtensionKey = "openai/responses_request"
+	// ResponsesResponseExtensionKey preserves the complete official Responses
+	// API response, including output item types Core does not normalize.
+	ResponsesResponseExtensionKey = "openai/responses_response"
+	responsesReasoningFrameSize   = 8
+)
+
+var responsesReasoningFrameMagic = [4]byte{'O', 'A', 'R', 'I'}
 
 // ResponsesChat adapts OpenAI's ordered Responses API output to the minimal
 // Core chat Model and Streamer capabilities.
@@ -43,7 +55,7 @@ func NewResponsesChat(cfg ChatConfig) (*ResponsesChat, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ResponsesChat{api: api, defaults: cloneProtocolOptions(cfg.DefaultOptions)}, nil
+	return &ResponsesChat{api: api, defaults: cfg.DefaultOptions.Clone()}, nil
 }
 
 // Call performs one non-streaming Responses API request.
@@ -99,15 +111,15 @@ func (c *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("openai responses: request: %w", err)
 	}
-	params, found, err := metadata.Decode[responses.ResponseNewParams](req.Extensions, responsesRequestExtensionKey)
+	params, found, err := metadata.Decode[responses.ResponseNewParams](req.Extensions, ResponsesRequestExtensionKey)
 	if err != nil {
-		return nil, fmt.Errorf("openai responses: extension %q: %w", responsesRequestExtensionKey, err)
+		return nil, fmt.Errorf("openai responses: extension %q: %w", ResponsesRequestExtensionKey, err)
 	}
 	if !found {
 		params = responses.ResponseNewParams{}
 	}
 
-	options := mergeProtocolOptions(c.defaults, req.Options)
+	options := c.defaults.Overlay(req.Options)
 	if options.Model == "" {
 		return nil, errors.New("openai responses: model is required in defaults or request options")
 	}
@@ -180,7 +192,7 @@ func mapResponsesMessage(messageIndex int, message corechat.Message) ([]response
 			Content: responses.EasyInputMessageContentUnionParam{OfInputItemContentList: content},
 		}}}, nil
 	case corechat.RoleAssistant:
-		return mapResponsesAssistantItems(messageIndex, message.Parts), nil
+		return mapResponsesAssistantItems(message.Parts)
 	case corechat.RoleTool:
 		return mapResponsesToolResults(message.Parts), nil
 	default:
@@ -261,7 +273,7 @@ func mapResponsesMedia(value *media.Media) (responses.ResponseInputContentUnionP
 	return responses.ResponseInputContentUnionParam{OfInputFile: file}, nil
 }
 
-func mapResponsesAssistantItems(messageIndex int, parts []corechat.Part) []responses.ResponseInputItemUnionParam {
+func mapResponsesAssistantItems(parts []corechat.Part) ([]responses.ResponseInputItemUnionParam, error) {
 	items := make([]responses.ResponseInputItemUnionParam, 0, len(parts))
 	for partIndex := range parts {
 		part := parts[partIndex]
@@ -272,20 +284,27 @@ func mapResponsesAssistantItems(messageIndex int, parts []corechat.Part) []respo
 			if len(part.Signature) == 0 {
 				continue
 			}
-			item := &responses.ResponseReasoningItemParam{
-				ID: fmt.Sprintf("rs_lynx_%d_%d", messageIndex, partIndex), EncryptedContent: openaisdk.String(string(part.Signature)),
+			reasoningItems, framed, err := decodeResponsesReasoningFrames(part.Signature)
+			if err != nil {
+				return nil, fmt.Errorf("parts[%d].reasoning signature: %w", partIndex, err)
 			}
-			if part.Text != "" {
-				item.Summary = []responses.ResponseReasoningItemSummaryParam{{Text: part.Text}}
+			if !framed {
+				// A signature from another provider is not valid OpenAI Responses
+				// replay state. The visible text remains portable but is not sent as
+				// a reasoning item without the provider-issued identity.
+				continue
 			}
-			items = append(items, responses.ResponseInputItemUnionParam{OfReasoning: item})
+			for index := range reasoningItems {
+				item := reasoningItems[index]
+				items = append(items, responses.ResponseInputItemUnionParam{OfReasoning: &item})
+			}
 		case corechat.PartToolCall:
 			items = append(items, responses.ResponseInputItemUnionParam{OfFunctionCall: &responses.ResponseFunctionToolCallParam{
 				CallID: part.ToolCall.ID, Name: part.ToolCall.Name, Arguments: part.ToolCall.Arguments,
 			}})
 		}
 	}
-	return items
+	return items, nil
 }
 
 func mapResponsesToolResults(parts []corechat.Part) []responses.ResponseInputItemUnionParam {
@@ -316,10 +335,8 @@ func mapResponsesResponse(response *responses.Response) (*corechat.Response, err
 	result := &corechat.Response{
 		ID: response.ID, Model: string(response.Model), Choices: []corechat.Choice{choice}, Usage: responsesUsage(response.Usage),
 	}
-	if response.CreatedAt != 0 {
-		if err := result.SetExtension(responseCreatedKey, int64(response.CreatedAt)); err != nil {
-			return nil, err
-		}
+	if err := result.SetExtension(ResponsesResponseExtensionKey, response); err != nil {
+		return nil, fmt.Errorf("openai responses: preserve native response: %w", err)
 	}
 	if err := result.Validate(); err != nil {
 		return nil, fmt.Errorf("openai responses: response: %w", err)
@@ -343,9 +360,11 @@ func responsesOutputParts(output []responses.ResponseOutputItemUnion) ([]corecha
 		case "reasoning":
 			reasoning := item.AsReasoning()
 			text := joinResponsesReasoning(reasoning)
-			if text != "" || reasoning.EncryptedContent != "" {
-				parts = append(parts, corechat.NewReasoningPart(text, []byte(reasoning.EncryptedContent)))
+			signature, encodeErr := encodeResponsesReasoningFrame(reasoning.ToParam())
+			if encodeErr != nil {
+				return nil, false, fmt.Errorf("openai responses: output[%d] reasoning: %w", index, encodeErr)
 			}
+			parts = append(parts, corechat.NewReasoningPart(text, signature))
 		case "function_call":
 			call := item.AsFunctionCall()
 			id := call.CallID
@@ -473,10 +492,11 @@ func (s *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion
 			return nil, false, nil
 		}
 		reasoning := typed.Item.AsReasoning()
-		if reasoning.EncryptedContent == "" {
-			return nil, false, nil
+		signature, err := encodeResponsesReasoningFrame(reasoning.ToParam())
+		if err != nil {
+			return nil, false, fmt.Errorf("openai responses: stream reasoning item: %w", err)
 		}
-		return s.deltaResponse(corechat.NewReasoningPart("", []byte(reasoning.EncryptedContent)))
+		return s.deltaResponse(corechat.NewReasoningPart("", signature))
 	case responses.ResponseCompletedEvent:
 		hasToolCall := slices.ContainsFunc(typed.Response.Output, func(item responses.ResponseOutputItemUnion) bool {
 			return item.Type == "function_call"
@@ -486,6 +506,9 @@ func (s *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion
 			Choices: []corechat.Choice{{Index: 0, FinishReason: responsesFinishReason(&typed.Response, hasToolCall)}},
 			Usage:   responsesUsage(typed.Response.Usage),
 		}
+		if err := response.SetExtension(ResponsesResponseExtensionKey, typed.Response); err != nil {
+			return nil, false, fmt.Errorf("openai responses: preserve completed response: %w", err)
+		}
 		if err := response.Validate(); err != nil {
 			return nil, false, err
 		}
@@ -493,6 +516,51 @@ func (s *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion
 	default:
 		return nil, false, nil
 	}
+}
+
+func encodeResponsesReasoningFrame(item responses.ResponseReasoningItemParam) ([]byte, error) {
+	raw, err := json.Marshal(item)
+	if err != nil {
+		return nil, err
+	}
+	if uint64(len(raw)) > uint64(^uint32(0)) {
+		return nil, errors.New("reasoning item exceeds framing limit")
+	}
+	frame := make([]byte, responsesReasoningFrameSize+len(raw))
+	copy(frame, responsesReasoningFrameMagic[:])
+	binary.BigEndian.PutUint32(frame[4:responsesReasoningFrameSize], uint32(len(raw)))
+	copy(frame[responsesReasoningFrameSize:], raw)
+	return frame, nil
+}
+
+func decodeResponsesReasoningFrames(signature []byte) ([]responses.ResponseReasoningItemParam, bool, error) {
+	if len(signature) < len(responsesReasoningFrameMagic) || !bytes.Equal(signature[:len(responsesReasoningFrameMagic)], responsesReasoningFrameMagic[:]) {
+		return nil, false, nil
+	}
+	items := make([]responses.ResponseReasoningItemParam, 0, 1)
+	for offset := 0; offset < len(signature); {
+		if len(signature)-offset < responsesReasoningFrameSize {
+			return nil, true, errors.New("truncated frame header")
+		}
+		if !bytes.Equal(signature[offset:offset+4], responsesReasoningFrameMagic[:]) {
+			return nil, true, fmt.Errorf("invalid frame magic at byte %d", offset)
+		}
+		length := int(binary.BigEndian.Uint32(signature[offset+4 : offset+responsesReasoningFrameSize]))
+		offset += responsesReasoningFrameSize
+		if length > len(signature)-offset {
+			return nil, true, fmt.Errorf("frame length %d exceeds remaining %d bytes", length, len(signature)-offset)
+		}
+		var item responses.ResponseReasoningItemParam
+		if err := json.Unmarshal(signature[offset:offset+length], &item); err != nil {
+			return nil, true, fmt.Errorf("decode reasoning item: %w", err)
+		}
+		if item.ID == "" {
+			return nil, true, errors.New("reasoning item ID is required")
+		}
+		items = append(items, item)
+		offset += length
+	}
+	return items, true, nil
 }
 
 func (s *responsesStreamState) deltaResponse(part corechat.Part) (*corechat.Response, bool, error) {

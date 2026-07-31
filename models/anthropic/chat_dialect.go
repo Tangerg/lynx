@@ -26,6 +26,34 @@ type ResponseDialect interface {
 // Dialect groups the independently typed request and response protocol facets
 // selected by an Anthropic-compatible provider adapter.
 type Dialect struct {
-	Request  RequestDialect
-	Response ResponseDialect
+	// Provider scopes opaque reasoning state to the API that issued it. It is
+	// required even when the provider uses Anthropic's wire shape because signed
+	// thinking is not portable across vendors.
+	Provider       string
+	Request        RequestDialect
+	Response       ResponseDialect
+	MaxTemperature float64
+	RejectTopK     bool
+	RejectTopP     bool
+}
+
+func protocolRequestExtensionKey(provider string) string {
+	if provider == "anthropic" {
+		return RequestExtensionKey
+	}
+	return provider + "/anthropic_request"
+}
+
+func protocolResponseExtensionKey(provider string) string {
+	if provider == "anthropic" {
+		return ResponseExtensionKey
+	}
+	return provider + "/anthropic_response"
+}
+
+func protocolStreamEventExtensionKey(provider string) string {
+	if provider == "anthropic" {
+		return StreamEventExtensionKey
+	}
+	return provider + "/anthropic_stream_event"
 }

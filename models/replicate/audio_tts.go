@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"iter"
 	"net/http"
-	"strings"
 	"time"
 
 	tts "github.com/Tangerg/lynx/core/speech"
@@ -17,13 +14,14 @@ import (
 type AudioTTSModelConfig struct {
 	APIKey         string
 	DefaultOptions tts.Options
+	InputSchema    SpeechInputSchema
 	BaseURL        string
 	HTTPClient     *http.Client
 
 	// PollInterval / PollTimeout configure the synchronous wrapper
 	// around Replicate's async generation. Zero values fall back to
-	// the package defaults — TTS jobs (especially Tortoise) can take
-	// 30s+ so PollTimeout defaults higher than image.
+	// the package defaults; community TTS jobs can include cold-start
+	// latency, so PollTimeout defaults higher than image.
 	PollInterval time.Duration
 	PollTimeout  time.Duration
 }
@@ -38,29 +36,69 @@ func (c AudioTTSModelConfig) Validate() error {
 	if _, err := c.DefaultOptions.Merged(); err != nil {
 		return err
 	}
+	if err := c.InputSchema.Validate(); err != nil {
+		return err
+	}
 	return nil
 }
 
-var _ tts.Model = (*AudioTTSModel)(nil)
-var _ tts.Streamer = (*AudioTTSModel)(nil)
+// SpeechInputSchema explicitly binds Core speech fields to one Replicate
+// model version's OpenAPI schema.
+type SpeechInputSchema struct {
+	TextKey       string
+	VoiceKey      string
+	SpeedKey      string
+	VoiceRequired bool
+	OutputKind    FileOutputKind
+}
 
-// AudioTTSModel wraps Replicate's TTS surface. It targets open-weight
-// TTS models that don't ship as commercial APIs — XTTS-v2 (voice
-// cloning), Bark (mixed speech / song / sfx), Tortoise-TTS (highest
-// quality, slow).
-//
-// Field mapping. [tts.Request].Text maps to "text" for most models
-// or "prompt" for Bark; [tts.Options].Voice maps to "speaker" for
-// XTTS, "voice_a" for Tortoise, and "history_prompt" for Bark. To
-// stay accurate across the long tail of community models, callers
-// should set provider-specific keys directly via the
-// extension-threaded PredictionRequest at [OptionsKey].
+func (s SpeechInputSchema) Validate() error {
+	if s.TextKey == "" {
+		return errors.New("replicate: SpeechInputSchema.TextKey is required")
+	}
+	if s.VoiceRequired && s.VoiceKey == "" {
+		return errors.New("replicate: SpeechInputSchema.VoiceRequired requires VoiceKey")
+	}
+	if s.OutputKind != FileOutputURI && s.OutputKind != FileOutputURIList {
+		return fmt.Errorf("replicate: SpeechInputSchema.OutputKind must be %q or %q", FileOutputURI, FileOutputURIList)
+	}
+	keys := []string{s.TextKey, s.VoiceKey, s.SpeedKey}
+	seen := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		if key == "" {
+			continue
+		}
+		if _, duplicate := seen[key]; duplicate {
+			return fmt.Errorf("replicate: SpeechInputSchema maps multiple fields to input key %q", key)
+		}
+		seen[key] = struct{}{}
+	}
+	return nil
+}
+
+// XTTSV2SpeechInputSchema returns the official schema binding for the pinned
+// [ModelXTTSV2] version.
+func XTTSV2SpeechInputSchema() SpeechInputSchema {
+	return SpeechInputSchema{
+		TextKey:       "text",
+		VoiceKey:      "speaker",
+		VoiceRequired: true,
+		OutputKind:    FileOutputURI,
+	}
+}
+
+var _ tts.Model = (*AudioTTSModel)(nil)
+
+// AudioTTSModel wraps one explicitly bound Replicate TTS model version. It
+// never infers fields from a model name: community models have independent,
+// versioned schemas and must be constructed with the matching binding.
 type AudioTTSModel struct {
 	api            *API
+	model          string
+	inputSchema    SpeechInputSchema
 	defaultOptions tts.Options
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
-	httpClient     *http.Client
 }
 
 func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
@@ -83,16 +121,13 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if pt <= 0 {
 		pt = time.Duration(DefaultTTSPollTimeoutSeconds) * time.Second
 	}
-	hc := cfg.HTTPClient
-	if hc == nil {
-		hc = http.DefaultClient
-	}
 	return &AudioTTSModel{
 		api:            api,
+		model:          cfg.DefaultOptions.Model,
+		inputSchema:    cfg.InputSchema,
 		defaultOptions: cfg.DefaultOptions.Clone(),
 		pollInterval:   pi,
 		pollTimeout:    pt,
-		httpClient:     hc,
 	}, nil
 }
 
@@ -104,13 +139,18 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	if err != nil {
 		return nil, err
 	}
+	if mergedOpts.Model != a.model {
+		return nil, fmt.Errorf("replicate: speech: model override %q does not match bound schema for %q", mergedOpts.Model, a.model)
+	}
 	if err := options.RejectUnsupported("replicate: speech", map[string]bool{
 		"output_format": mergedOpts.OutputFormat != "",
+		"speed":         mergedOpts.Speed != 0 && a.inputSchema.SpeedKey == "",
+		"voice":         mergedOpts.Voice != "" && a.inputSchema.VoiceKey == "",
 	}); err != nil {
 		return nil, err
 	}
 
-	apiReq, err := options.GetParams[PredictionRequest](mergedOpts.Extensions, OptionsKey)
+	apiReq, err := options.GetParams[PredictionRequest](mergedOpts.Extensions, SpeechRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -118,18 +158,17 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		apiReq.Input = map[string]any{}
 	}
 
-	textKey, voiceKey := ttsInputKeys(mergedOpts.Model)
-	if _, set := apiReq.Input[textKey]; !set {
-		apiReq.Input[textKey] = req.Text
-	}
+	apiReq.Input[a.inputSchema.TextKey] = req.Text
 	if mergedOpts.Voice != "" {
-		if _, set := apiReq.Input[voiceKey]; !set {
-			apiReq.Input[voiceKey] = mergedOpts.Voice
-		}
+		apiReq.Input[a.inputSchema.VoiceKey] = mergedOpts.Voice
 	}
 	if mergedOpts.Speed > 0 {
-		if _, set := apiReq.Input["speed"]; !set {
-			apiReq.Input["speed"] = mergedOpts.Speed
+		apiReq.Input[a.inputSchema.SpeedKey] = mergedOpts.Speed
+	}
+	if a.inputSchema.VoiceRequired {
+		voice, exists := apiReq.Input[a.inputSchema.VoiceKey]
+		if !exists || voice == nil || voice == "" {
+			return nil, fmt.Errorf("replicate: speech: model %q requires input %q", a.model, a.inputSchema.VoiceKey)
 		}
 	}
 
@@ -143,24 +182,24 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		return nil, err
 	}
 
-	url, err := firstAudioURL(final.Output)
+	url, err := firstAudioURL(final.Output, a.inputSchema.OutputKind)
 	if err != nil {
 		return nil, err
 	}
 
-	audio, contentType, err := a.fetchAudio(ctx, url)
+	audio, contentType, err := a.api.DownloadOutput(ctx, url)
 	if err != nil {
 		return nil, err
 	}
 
 	resultMeta := &tts.ResultMetadata{}
 	if contentType != "" {
-		if err := resultMeta.Set("mime_type", contentType); err != nil {
+		if err := resultMeta.Set("replicate/mime_type", contentType); err != nil {
 			return nil, err
 		}
 	}
 	if final.Metrics.PredictTime > 0 {
-		if err := resultMeta.Set("predict_time_ms", int64(final.Metrics.PredictTime*1000)); err != nil {
+		if err := resultMeta.Set("replicate/predict_time_ms", int64(final.Metrics.PredictTime*1000)); err != nil {
 			return nil, err
 		}
 	}
@@ -170,33 +209,29 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		return nil, err
 	}
 
-	meta := &tts.ResponseMetadata{Model: mergedOpts.Model, Created: time.Now().Unix()}
-	if err := meta.Set("prediction_id", final.ID); err != nil {
+	meta := &tts.ResponseMetadata{Model: mergedOpts.Model}
+	if final.CreatedAt != "" {
+		createdAt, err := time.Parse(time.RFC3339Nano, final.CreatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("replicate: invalid prediction created_at %q: %w", final.CreatedAt, err)
+		}
+		meta.Created = createdAt.Unix()
+	}
+	if err := meta.Set("replicate/prediction_id", final.ID); err != nil {
 		return nil, err
 	}
 	if final.Version != "" {
-		if err := meta.Set("version", final.Version); err != nil {
+		if err := meta.Set("replicate/version", final.Version); err != nil {
 			return nil, err
 		}
 	}
-	if err := meta.Set("audio_url", url); err != nil {
+	if err := meta.Set("replicate/audio_url", url); err != nil {
+		return nil, err
+	}
+	if err := meta.Set(SpeechResponseExtensionKey, final); err != nil {
 		return nil, err
 	}
 	return tts.NewResponse(result, meta)
-}
-
-func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
-	// Replicate has no streaming TTS API — yield the full audio as a
-	// single chunk so callers writing against tts.Model.Stream still
-	// work, just without incremental playback.
-	return func(yield func(*tts.Response, error) bool) {
-		resp, err := a.Call(ctx, req)
-		if err != nil {
-			yield(nil, err)
-			return
-		}
-		yield(resp, nil)
-	}
 }
 
 // pollUntilDone blocks until the prediction reaches a terminal status.
@@ -230,79 +265,28 @@ func (a *AudioTTSModel) pollUntilDone(ctx context.Context, id string) (*Predicti
 	}
 }
 
-// fetchAudio downloads the audio bytes from a Replicate-hosted URL
-// (replicate.delivery CDN). Returns the bytes plus the response
-// Content-Type for downstream metadata.
-func (a *AudioTTSModel) fetchAudio(ctx context.Context, url string) ([]byte, string, error) {
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, "", fmt.Errorf("replicate: build audio fetch: %w", err)
+func firstAudioURL(out any, kind FileOutputKind) (string, error) {
+	if out == nil {
+		return "", errors.New("replicate: speech output is null")
 	}
-	resp, err := a.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, "", fmt.Errorf("replicate: fetch audio: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		return nil, "", fmt.Errorf("replicate: fetch audio http %d", resp.StatusCode)
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, "", fmt.Errorf("replicate: read audio: %w", err)
-	}
-	if len(body) == 0 {
-		return nil, "", errors.New("replicate: empty audio response")
-	}
-	return body, resp.Header.Get("Content-Type"), nil
-}
-
-// firstAudioURL extracts the audio URL from a prediction's output.
-// Most TTS models return a single string URL; some (Bark variants)
-// wrap it in an array.
-func firstAudioURL(out any) (string, error) {
-	switch v := out.(type) {
-	case string:
-		if v == "" {
-			return "", errors.New("replicate: empty output URL")
+	switch kind {
+	case FileOutputURI:
+		value, ok := out.(string)
+		if !ok || value == "" {
+			return "", fmt.Errorf("replicate: speech output must be a non-empty URI, got %T", out)
 		}
-		return v, nil
-	case []any:
-		if len(v) == 0 {
-			return "", errors.New("replicate: empty output array")
+		return value, nil
+	case FileOutputURIList:
+		values, ok := out.([]any)
+		if !ok || len(values) != 1 {
+			return "", fmt.Errorf("replicate: speech output must be a one-element URI array, got %T", out)
 		}
-		s, ok := v[0].(string)
-		if !ok {
-			return "", fmt.Errorf("replicate: unsupported output element type %T", v[0])
+		value, ok := values[0].(string)
+		if !ok || value == "" {
+			return "", fmt.Errorf("replicate: speech output[0] must be a non-empty URI, got %T", values[0])
 		}
-		return s, nil
-	case map[string]any:
-		// Bark on Replicate returns { "audio_out": "url" }.
-		for _, key := range []string{"audio_out", "audio", "url"} {
-			if val, ok := v[key]; ok {
-				if s, isStr := val.(string); isStr && s != "" {
-					return s, nil
-				}
-			}
-		}
-		return "", errors.New("replicate: no audio URL in map output")
-	case nil:
-		return "", errors.New("replicate: output is null")
+		return value, nil
 	default:
-		return "", fmt.Errorf("replicate: unsupported output type %T", out)
-	}
-}
-
-// ttsInputKeys returns (textKey, voiceKey) for the given Replicate
-// model id. Bark uses "prompt" + "history_prompt"; Tortoise uses
-// "text" + "voice_a"; XTTS and most others use "text" + "speaker".
-func ttsInputKeys(modelID string) (textKey, voiceKey string) {
-	_, name, _ := parseModelID(modelID)
-	switch {
-	case strings.Contains(name, "bark"):
-		return "prompt", "history_prompt"
-	case strings.Contains(name, "tortoise"):
-		return "text", "voice_a"
-	default:
-		return "text", "speaker"
+		return "", fmt.Errorf("replicate: unsupported speech output schema %q", kind)
 	}
 }

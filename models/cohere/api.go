@@ -31,7 +31,8 @@ func (c APIConfig) Validate() error {
 // embeddings — multilingual retrieval especially — Cohere remains
 // competitive, so that's the slice exposed here.
 type API struct {
-	v2 *cohereclientv2.Client
+	v2             *cohereclientv2.Client
+	requestOptions []cohereoption.RequestOption
 }
 
 func NewAPI(cfg APIConfig) (*API, error) {
@@ -47,12 +48,16 @@ func NewAPI(cfg APIConfig) (*API, error) {
 		BaseURL: cfg.BaseURL,
 	}
 
-	return &API{v2: cohereclientv2.NewClient(reqOpts)}, nil
+	return &API{
+		v2:             cohereclientv2.NewClient(reqOpts),
+		requestOptions: append([]cohereoption.RequestOption(nil), cfg.RequestOptions...),
+	}, nil
 }
 
 func (a *API) Embed(ctx context.Context, req *cohere.V2EmbedRequest, opts ...cohereoption.RequestOption) (*cohere.EmbedByTypeResponse, error) {
 	if req == nil {
 		return nil, errors.New("cohere: request must not be nil")
 	}
-	return a.v2.Embed(ctx, req, opts...)
+	requestOptions := append(append([]cohereoption.RequestOption(nil), a.requestOptions...), opts...)
+	return a.v2.Embed(ctx, req, requestOptions...)
 }

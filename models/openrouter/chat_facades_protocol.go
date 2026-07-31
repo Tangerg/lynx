@@ -15,6 +15,15 @@ import (
 	"github.com/Tangerg/lynx/models/openai"
 )
 
+const (
+	OpenAIRequestExtensionKey        = "openrouter/openai_request"
+	OpenAIResponseExtensionKey       = "openrouter/openai_response"
+	OpenAIStreamChunkExtensionKey    = "openrouter/openai_stream_chunk"
+	AnthropicRequestExtensionKey     = "openrouter/anthropic_request"
+	AnthropicResponseExtensionKey    = "openrouter/anthropic_response"
+	AnthropicStreamEventExtensionKey = "openrouter/anthropic_stream_event"
+)
+
 var (
 	_ corechat.Model    = (*OpenAIChat)(nil)
 	_ corechat.Streamer = (*OpenAIChat)(nil)
@@ -55,7 +64,16 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 		requestOptions = append(requestOptions, openaioption.WithHeader(HeaderAppTitle, config.AppTitle))
 	}
 	requestOptions = append(requestOptions, config.RequestOptions...)
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.ReasoningContentDialect())
+	dialect, err := openai.ReasoningDetailsDialect(openai.ReasoningDetailsConfig{
+		Provider:        "openrouter",
+		TextField:       "reasoning",
+		DetailsField:    "reasoning_details",
+		ReplayPlainText: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("openrouter: configure reasoning dialect: %w", err)
+	}
+	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, dialect)
 	if err != nil {
 		return nil, fmt.Errorf("openrouter: construct OpenAI-compatible chat: %w", err)
 	}
@@ -85,7 +103,7 @@ func NewAnthropicChat(config AnthropicChatConfig) (*AnthropicChat, error) {
 		requestOptions = append(requestOptions, anthropicoption.WithHeader(HeaderAppTitle, config.AppTitle))
 	}
 	requestOptions = append(requestOptions, config.RequestOptions...)
-	protocol, err := anthropic.NewCompatibleChat(anthropic.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, anthropic.Dialect{})
+	protocol, err := anthropic.NewCompatibleChat(anthropic.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, anthropic.Dialect{Provider: "openrouter"})
 	if err != nil {
 		return nil, fmt.Errorf("openrouter: construct Anthropic-compatible chat: %w", err)
 	}

@@ -3,7 +3,7 @@ package openai
 import (
 	"context"
 	"errors"
-	"time"
+	"fmt"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -64,7 +64,7 @@ func (e *EmbeddingModel) buildAPIEmbeddingRequest(req *embedding.Request) (*open
 		return nil, err
 	}
 
-	params, err := options.GetParams[openai.EmbeddingNewParams](mergedOpts.Extensions, OptionsKey)
+	params, err := options.GetParams[openai.EmbeddingNewParams](mergedOpts.Extensions, EmbeddingRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -81,17 +81,30 @@ func (e *EmbeddingModel) buildAPIEmbeddingRequest(req *embedding.Request) (*open
 	return params, nil
 }
 
-func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingResponse) (*embedding.Response, error) {
+func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingResponse, expectedResults int) (*embedding.Response, error) {
+	if len(apiResp.Data) == 0 {
+		return nil, errors.New("openai: embeddings response has no data")
+	}
+	if len(apiResp.Data) != expectedResults {
+		return nil, fmt.Errorf("openai: embeddings response returned %d results for %d inputs", len(apiResp.Data), expectedResults)
+	}
+
 	meta := &embedding.ResponseMetadata{
 		Model: apiResp.Model,
 		Usage: &embedding.Usage{
 			InputTokens: apiResp.Usage.PromptTokens,
 		},
-		Created: time.Now().Unix(),
 	}
 
-	results := make([]*embedding.Result, 0, len(apiResp.Data))
+	results := make([]*embedding.Result, len(apiResp.Data))
+	seen := make([]bool, len(apiResp.Data))
 	for _, item := range apiResp.Data {
+		if item.Index < 0 || item.Index >= int64(len(results)) {
+			return nil, fmt.Errorf("openai: embeddings response index %d is out of range", item.Index)
+		}
+		if seen[item.Index] {
+			return nil, fmt.Errorf("openai: embeddings response repeats index %d", item.Index)
+		}
 		resultMeta := &embedding.ResultMetadata{}
 
 		result, err := embedding.NewResult(item.Embedding, resultMeta)
@@ -99,7 +112,8 @@ func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingR
 			return nil, err
 		}
 
-		results = append(results, result)
+		results[item.Index] = result
+		seen[item.Index] = true
 	}
 
 	return embedding.NewResponse(results, meta)
@@ -119,5 +133,5 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 		return nil, err
 	}
 
-	return e.buildEmbeddingResponse(apiResp)
+	return e.buildEmbeddingResponse(apiResp, len(req.Texts))
 }

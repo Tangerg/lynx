@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"time"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
@@ -63,17 +63,15 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err != nil {
 		return nil, err
 	}
-	if err := options.RejectUnsupported("prodia: image", map[string]bool{
-		"output_format": mergedOpts.OutputFormat != "",
-	}); err != nil {
-		return nil, err
-	}
-	apiReq, err := options.GetParams[JobRequest](mergedOpts.Extensions, OptionsKey)
+	apiReq, err := options.GetParams[JobRequest](mergedOpts.Extensions, ImageRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
 	if apiReq.Type == "" {
 		apiReq.Type = mergedOpts.Model
+	}
+	if !strings.Contains(apiReq.Type, ".txt2img.") {
+		return nil, errors.New("prodia: image model requires a text-to-image job type containing .txt2img.")
 	}
 	if apiReq.Config == nil {
 		apiReq.Config = map[string]any{}
@@ -102,12 +100,21 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		}
 	}
 
-	body, hdr, err := i.api.Job(ctx, apiReq, "")
+	accept := mergedOpts.OutputFormat
+	switch accept {
+	case "", "image/jpeg", "image/png", "image/webp":
+	default:
+		return nil, errors.New("prodia: image: output_format must be image/jpeg, image/png, or image/webp")
+	}
+	body, hdr, err := i.api.Job(ctx, apiReq, accept)
 	if err != nil {
 		return nil, err
 	}
 
 	mimeType := hdr.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = accept
+	}
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
@@ -121,5 +128,9 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	return image.NewResponse([]*image.Result{result}, &image.ResponseMetadata{Created: time.Now().Unix()})
+	metadata := &image.ResponseMetadata{}
+	if err := metadata.Set("prodia/job_type", apiReq.Type); err != nil {
+		return nil, err
+	}
+	return image.NewResponse([]*image.Result{result}, metadata)
 }

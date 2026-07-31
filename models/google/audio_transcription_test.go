@@ -22,7 +22,7 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	srv := testutil.JSONServer(http.StatusOK, body)
 	t.Cleanup(srv.Close)
 
-	opts, err := transcription.NewOptions("gemini-2.0-flash")
+	opts, err := transcription.NewOptions(google.ModelGemini36Flash)
 	if err != nil {
 		t.Fatal(err)
 	}

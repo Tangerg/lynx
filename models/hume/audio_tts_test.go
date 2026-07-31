@@ -3,6 +3,7 @@ package hume_test
 import (
 	"encoding/base64"
 	"net/http"
+	"strings"
 	"testing"
 
 	tts "github.com/Tangerg/lynx/core/speech"
@@ -13,10 +14,14 @@ import (
 func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	audioB64 := base64.StdEncoding.EncodeToString([]byte("FAKE-MP3"))
 	body := `{"generations":[{"generation_id":"g1","audio":"` + audioB64 + `","duration":1.0,"file_size":8,"snippets":[],"encoding":{"format":"mp3","sample_rate":44100}}]}`
-	srv := testutil.JSONServer(http.StatusOK, body)
+	srv := testutil.JSONServer(http.StatusOK, body, func(r *http.Request) {
+		if r.URL.Path != "/tts" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+	})
 	t.Cleanup(srv.Close)
 
-	opts, err := tts.NewOptions("octave-tts")
+	opts, err := tts.NewOptions(hume.ModelOctave2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,5 +42,41 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	}
 	if out.Result == nil {
 		t.Fatal("nil result")
+	}
+}
+
+func TestAudioTTSModel_Stream_Mock(t *testing.T) {
+	first := base64.StdEncoding.EncodeToString([]byte("first"))
+	second := base64.StdEncoding.EncodeToString([]byte("second"))
+	srv := testutil.MuxServer(testutil.Route{Method: "POST", Contains: "/tts/stream/json", Handle: func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		w.Write([]byte(`{"type":"audio","audio":"` + first + `","audio_format":"mp3","chunk_index":0,"generation_id":"g1","request_id":"r1","snippet_id":"s1","text":"hello"}` + "\n"))
+		w.Write([]byte(`{"type":"audio","audio":"` + second + `","audio_format":"mp3","chunk_index":1,"generation_id":"g1","request_id":"r1","snippet_id":"s1","text":"hello","is_last_chunk":true}` + "\n"))
+	}})
+	t.Cleanup(srv.Close)
+
+	opts, err := tts.NewOptions(hume.ModelOctave2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.Voice = "test-voice"
+	model, err := hume.NewAudioTTSModel(hume.AudioTTSModelConfig{
+		APIKey:         "test-key",
+		DefaultOptions: opts,
+		BaseURL:        srv.URL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, _ := tts.NewRequest("hello")
+	var audio strings.Builder
+	for response, streamErr := range model.Stream(t.Context(), request) {
+		if streamErr != nil {
+			t.Fatal(streamErr)
+		}
+		audio.Write(response.Result.Audio)
+	}
+	if got := audio.String(); got != "firstsecond" {
+		t.Fatalf("streamed audio = %q", got)
 	}
 }

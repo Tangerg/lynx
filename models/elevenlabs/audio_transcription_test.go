@@ -21,7 +21,7 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	srv := testutil.JSONServer(http.StatusOK, elevenSTTJSON)
 	t.Cleanup(srv.Close)
 
-	opts, err := transcription.NewOptions("scribe_v1")
+	opts, err := transcription.NewOptions(elevenlabs.ModelScribeV2)
 	if err != nil {
 		t.Fatal(err)
 	}

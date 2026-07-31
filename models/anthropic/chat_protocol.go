@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"strings"
 
 	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -48,7 +49,7 @@ type Chat struct {
 
 // NewChat constructs Anthropic's native Messages adapter.
 func NewChat(config ChatConfig) (*Chat, error) {
-	return newChat(config, Dialect{})
+	return newChat(config, Dialect{Provider: "anthropic", MaxTemperature: 1, RejectTopK: true, RejectTopP: true})
 }
 
 // NewCompatibleChat constructs a Messages adapter with one explicit provider
@@ -62,6 +63,9 @@ func newChat(config ChatConfig, dialect Dialect) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+	if dialect.Provider == "" || strings.TrimSpace(dialect.Provider) != dialect.Provider || strings.Contains(dialect.Provider, "/") {
+		return nil, errors.New("anthropic: dialect.Provider is required, must not contain '/', and must not have surrounding whitespace")
+	}
 	api, err := NewAPI(APIConfig{
 		APIKey:         config.APIKey,
 		RequestOptions: config.RequestOptions,
@@ -71,7 +75,7 @@ func newChat(config ChatConfig, dialect Dialect) (*Chat, error) {
 	}
 	return &Chat{
 		api:      api,
-		defaults: cloneProtocolOptions(config.DefaultOptions),
+		defaults: config.DefaultOptions.Clone(),
 		dialect:  dialect,
 	}, nil
 }
@@ -86,7 +90,7 @@ func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Respo
 	if err != nil {
 		return nil, err
 	}
-	mapped, err := mapProtocolMessage(response)
+	mapped, err := mapProtocolMessage(response, c.dialect.Provider)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +121,7 @@ func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*cor
 		}
 		defer stream.Close()
 
-		state := newProtocolStreamState()
+		state := newProtocolStreamState(c.dialect.Provider)
 		for stream.Next() {
 			event := stream.Current()
 			response, include, mapErr := state.mapEvent(event)
@@ -152,7 +156,7 @@ func (c *Chat) buildProtocolRequest(req *corechat.Request) (*anthropicsdk.Messag
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("anthropic: request: %w", err)
 	}
-	params, err := mapProtocolRequest(c.defaults, req)
+	params, err := mapProtocolRequest(c.defaults, req, c.dialect)
 	if err != nil {
 		return nil, err
 	}

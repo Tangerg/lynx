@@ -304,15 +304,17 @@
   "deepseek": {
     "deepseek-v4-flash": {
       "levels": [
+        "low",
         "high",
-        "xhigh"
+        "max"
       ],
       "default_level": "high"
     },
     "deepseek-v4-pro": {
       "levels": [
+        "low",
         "high",
-        "xhigh"
+        "max"
       ],
       "default_level": "high"
     }

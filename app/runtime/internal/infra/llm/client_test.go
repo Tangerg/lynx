@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/models/deepseek"
 )
 
 // TestProviderTable_Invariants holds the data-driven table to its contract:
@@ -52,16 +53,16 @@ func TestBuildClient_DeepSeekReasoningSurvivesOrdinarySecondTurn(t *testing.T) {
 		}
 		writer.Header().Set("Content-Type", "application/json")
 		if call == 1 {
-			_, _ = writer.Write([]byte(`{"id":"first","model":"deepseek-v4","choices":[{"index":0,"message":{"role":"assistant","reasoning_content":"private chain","content":"first answer"},"finish_reason":"stop"}]}`))
+			_, _ = writer.Write([]byte(`{"id":"first","model":"deepseek-v4-flash","choices":[{"index":0,"message":{"role":"assistant","reasoning_content":"private chain","content":"first answer"},"finish_reason":"stop"}]}`))
 			return
 		}
-		_, _ = writer.Write([]byte(`{"id":"second","model":"deepseek-v4","choices":[{"index":0,"message":{"role":"assistant","content":"second answer"},"finish_reason":"stop"}]}`))
+		_, _ = writer.Write([]byte(`{"id":"second","model":"deepseek-v4-flash","choices":[{"index":0,"message":{"role":"assistant","content":"second answer"},"finish_reason":"stop"}]}`))
 	}))
 	t.Cleanup(server.Close)
 
 	client, err := BuildClient(ClientSpec{
 		Provider: ProviderDeepSeek,
-		Model:    "deepseek-v4",
+		Model:    deepseek.ModelV4Flash,
 		APIKey:   "test-key",
 		BaseURL:  server.URL,
 	})

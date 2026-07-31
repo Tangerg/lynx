@@ -14,7 +14,6 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/models/anthropic"
 	"github.com/Tangerg/lynx/models/internal/conformance"
 )
@@ -50,7 +49,7 @@ func TestCompatibleChat_DialectFacets(t *testing.T) {
 			DefaultOptions: corechat.Options{Model: "claude-opus-4-6"},
 			RequestOptions: []option.RequestOption{option.WithBaseURL(server.URL)},
 		},
-		anthropic.Dialect{Request: dialect, Response: dialect},
+		anthropic.Dialect{Provider: "anthropic", Request: dialect, Response: dialect},
 	)
 	if err != nil {
 		t.Fatalf("NewCompatibleChat: %v", err)
@@ -104,20 +103,21 @@ func TestChat_CoreConformance(t *testing.T) {
 			if choice.FinishReason != corechat.FinishReasonToolCalls || choice.Message == nil {
 				t.Fatalf("choice = %#v", choice)
 			}
-			if len(choice.Message.Parts) != 3 {
+			if len(choice.Message.Parts) != 4 {
 				t.Fatalf("parts = %#v", choice.Message.Parts)
 			}
 			reasoning := choice.Message.Parts[0]
 			if reasoning.Kind != corechat.PartReasoning || reasoning.Text != "compare the evidence" || string(reasoning.Signature) != "sig-response" {
 				t.Errorf("reasoning = %#v", reasoning)
 			}
-			call := choice.Message.Parts[2].ToolCall
+			redacted := choice.Message.Parts[1]
+			kind, found, err := anthropic.ReasoningBlockKindOf(redacted)
+			if err != nil || !found || kind != anthropic.ReasoningBlockRedacted || string(redacted.Signature) != "opaque-redacted-block" {
+				t.Errorf("redacted reasoning = %#v/%q/%v/%v", redacted, kind, found, err)
+			}
+			call := choice.Message.Parts[3].ToolCall
 			if call == nil || call.ID != "toolu-2" || call.Name != "lookup" || call.Arguments != `{"id":8}` {
 				t.Errorf("tool call = %#v", call)
-			}
-			redacted, ok, err := metadata.Decode[string](choice.Message.Metadata, "anthropic/redacted_reasoning")
-			if err != nil || !ok || redacted != "opaque-redacted-block" {
-				t.Errorf("redacted reasoning = %q/%v/%v", redacted, ok, err)
 			}
 			if response.Usage.InputTokens != 160 || response.Usage.OutputTokens != 30 ||
 				response.Usage.ReasoningTokens == nil || *response.Usage.ReasoningTokens != 10 ||
@@ -139,14 +139,20 @@ func TestChat_CoreConformance(t *testing.T) {
 					if message == nil {
 						continue
 					}
-					if value, ok, err := metadata.Decode[string](message.Metadata, "anthropic/redacted_reasoning"); err == nil && ok && value == "opaque-stream" {
-						sawRedacted = true
-					}
 					for _, part := range message.Parts {
 						switch part.Kind {
 						case corechat.PartText:
 							text.WriteString(part.Text)
 						case corechat.PartReasoning:
+							kind, found, err := anthropic.ReasoningBlockKindOf(part)
+							if err != nil || !found {
+								t.Errorf("reasoning kind = %q/%v/%v", kind, found, err)
+								continue
+							}
+							if kind == anthropic.ReasoningBlockRedacted {
+								sawRedacted = string(part.Signature) == "opaque-stream"
+								continue
+							}
 							reasoning.WriteString(part.Text)
 							signature.Write(part.Signature)
 						case corechat.PartToolCall:
@@ -179,17 +185,15 @@ func TestChat_CoreConformance(t *testing.T) {
 				t.Fatalf("aggregated identity/choices = %q/%q/%d", response.ID, response.Model, len(response.Choices))
 			}
 			choice := response.Choices[0]
-			if choice.Message == nil || len(choice.Message.Parts) != 3 || choice.FinishReason != corechat.FinishReasonToolCalls {
+			if choice.Message == nil || len(choice.Message.Parts) != 4 || choice.FinishReason != corechat.FinishReasonToolCalls {
 				t.Fatalf("aggregated choice = %#v", choice)
 			}
 			reasoning := choice.Message.Parts[0]
-			call := choice.Message.Parts[2].ToolCall
-			if reasoning.Text != "compare evidence" || string(reasoning.Signature) != "sig-stream" || choice.Message.Parts[1].Text != "need another lookup" ||
+			redacted := choice.Message.Parts[1]
+			call := choice.Message.Parts[3].ToolCall
+			if reasoning.Text != "compare evidence" || string(reasoning.Signature) != "sig-stream" || string(redacted.Signature) != "opaque-stream" || choice.Message.Parts[2].Text != "need another lookup" ||
 				call == nil || call.ID != "toolu-stream" || call.Arguments != `{"id":9}` {
 				t.Errorf("aggregated parts = %#v; call = %#v", choice.Message.Parts, call)
-			}
-			if redacted, found, err := metadata.Decode[string](choice.Message.Metadata, "anthropic/redacted_reasoning"); err != nil || !found || redacted != "opaque-stream" {
-				t.Errorf("aggregated redacted reasoning = %q/%v/%v", redacted, found, err)
 			}
 			if response.Usage.InputTokens != 160 || response.Usage.OutputTokens != 30 {
 				t.Errorf("aggregated usage = %#v", response.Usage)
@@ -210,15 +214,20 @@ func newProtocolChatRequest(t *testing.T) *corechat.Request {
 	}
 	pdf.Name = "paper.pdf"
 
+	thinking, err := anthropic.NewThinkingPart("need a lookup", []byte("sig-anthropic"))
+	if err != nil {
+		t.Fatalf("NewThinkingPart: %v", err)
+	}
+	redacted, err := anthropic.NewRedactedThinkingPart([]byte("prior-opaque-block"))
+	if err != nil {
+		t.Fatalf("NewRedactedThinkingPart: %v", err)
+	}
 	assistant := corechat.NewAssistantMessage(
-		corechat.NewReasoningPart("need a lookup", []byte("sig-anthropic")),
+		redacted,
+		thinking,
 		corechat.NewTextPart("I need one fact."),
 		corechat.NewToolCallPart(corechat.ToolCall{ID: "toolu-1", Name: "lookup", Arguments: `{"id":7}`}),
 	)
-	assistant.Metadata = metadata.Map{}
-	if err := assistant.Metadata.Set("anthropic/redacted_reasoning", "prior-opaque-block"); err != nil {
-		t.Fatalf("set redacted reasoning: %v", err)
-	}
 
 	request, err := corechat.NewRequest(
 		corechat.NewSystemMessage("Follow policy."),
@@ -231,23 +240,20 @@ func newProtocolChatRequest(t *testing.T) *corechat.Request {
 	}
 	maxTokens := int64(1024)
 	temperature := 0.2
-	topK := int64(40)
-	topP := 0.95
 	request.Options = corechat.Options{
 		Model:       "claude-opus-4-6",
 		MaxTokens:   &maxTokens,
 		Stop:        []string{"END"},
 		Temperature: &temperature,
-		TopK:        &topK,
-		TopP:        &topP,
 	}
 	request.Tools = []corechat.ToolDefinition{{
 		Name:        "lookup",
 		Description: "Look up a record",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"}}}`),
 	}}
-	if err := request.SetExtension("anthropic/request", map[string]any{
-		"thinking": map[string]any{"type": "enabled", "budget_tokens": 512},
+	if err := request.SetExtension(anthropic.RequestExtensionKey, map[string]any{
+		"thinking":      map[string]any{"type": "enabled", "budget_tokens": 512},
+		"cache_control": map[string]any{"type": "ephemeral"},
 	}); err != nil {
 		t.Fatalf("SetExtension: %v", err)
 	}
@@ -265,6 +271,9 @@ func newProtocolChatServer(t *testing.T) *httptest.Server {
 				Type         string `json:"type"`
 				BudgetTokens int64  `json:"budget_tokens"`
 			} `json:"thinking"`
+			CacheControl struct {
+				Type string `json:"type"`
+			} `json:"cache_control"`
 			System []struct {
 				Text string `json:"text"`
 			} `json:"system"`
@@ -321,8 +330,8 @@ func newProtocolChatServer(t *testing.T) *httptest.Server {
 		if len(toolResult) != 1 || toolResult[0].Type != "tool_result" || !toolResult[0].IsError || toolResult[0].ToolUseID != "toolu-1" {
 			t.Errorf("tool result = %#v", toolResult)
 		}
-		if body.Tools[0].CacheControl.Type != "ephemeral" || toolResult[0].CacheControl.Type != "ephemeral" {
-			t.Errorf("automatic cache breakpoints = tool %q/message %q", body.Tools[0].CacheControl.Type, toolResult[0].CacheControl.Type)
+		if body.CacheControl.Type != "ephemeral" || body.Tools[0].CacheControl.Type != "" || toolResult[0].CacheControl.Type != "" {
+			t.Errorf("cache control = top-level %q/tool %q/message %q", body.CacheControl.Type, body.Tools[0].CacheControl.Type, toolResult[0].CacheControl.Type)
 		}
 		if body.Stream {
 			writeProtocolChatStream(writer)

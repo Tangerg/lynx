@@ -8,7 +8,7 @@
 //     is supplied through [tts.Options].Voice;
 //   - /v1/speech-to-text via [NewAudioTranscriptionModel] —
 //     transcribes audio with speaker diarization, language id, and
-//     timestamps; uses the scribe_v1 model family.
+//     timestamps; uses the Scribe v2 model family.
 //
 // ElevenLabs' voice cloning / library / projects surfaces aren't
 // modeled here — they don't fit core/model's tts/transcription

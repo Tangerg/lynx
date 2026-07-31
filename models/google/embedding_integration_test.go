@@ -17,7 +17,7 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 			t.Helper()
 			modelID, _ := testutil.LookupEnv("LYNX_TEST_GOOGLE_EMBEDDING_MODEL")
 			if modelID == "" {
-				modelID = "gemini-embedding-001"
+				modelID = google.ModelGeminiEmbedding2
 			}
 			opts, err := embedding.NewOptions(modelID)
 			if err != nil {

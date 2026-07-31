@@ -6,11 +6,10 @@ const (
 	BaseURL = "https://api.x.ai/v1"
 )
 
-// See https://docs.x.ai/docs/models for the current catalog.
+// See https://docs.x.ai/developers/models for the current catalog.
 const (
-	ModelGrok4         = "grok-4"
-	ModelGrok4Fast     = "grok-4-fast"
-	ModelGrok3         = "grok-3"
-	ModelGrok3Mini     = "grok-3-mini"
-	ModelGrokCodeFast1 = "grok-code-fast-1"
+	ModelGrok45      = "grok-4.5"
+	ModelGrok43      = "grok-4.3"
+	ModelGrokBuild01 = "grok-build-0.1"
+	ModelGrok4       = "grok-4"
 )

@@ -47,7 +47,7 @@ func NewChat(cfg ChatConfig) (*Chat, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Chat{api: api, defaults: cloneProtocolOptions(cfg.DefaultOptions)}, nil
+	return &Chat{api: api, defaults: cfg.DefaultOptions.Clone()}, nil
 }
 
 // Call performs one non-streaming native chat request.

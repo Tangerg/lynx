@@ -4,8 +4,10 @@
 // fronts foundation models from Anthropic, Meta, Mistral, Amazon
 // Titan / Nova, Cohere, AI21, Stability and others. [NewChat]
 // uses the unified Converse / ConverseStream API which speaks a
-// provider-agnostic message shape; [NewEmbeddingModel] targets
-// InvokeModel against Titan Embed and Cohere Embed.
+// provider-agnostic message shape; [NewEmbeddingModel] targets the native
+// InvokeModel contracts for Titan Text Embeddings V1/V2 and Cohere Embed
+// V3/V4. Provider-only embedding controls use [EmbeddingRequestOptions] under
+// [EmbeddingRequestExtensionKey].
 //
 // Model selection is via the upstream model id (e.g.
 // "anthropic.claude-3-5-sonnet-20241022-v2:0",

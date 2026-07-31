@@ -21,7 +21,7 @@ func TestEmbeddingModel_Call_Mock(t *testing.T) {
 	srv := testutil.JSONServer(http.StatusOK, googleEmbedJSON)
 	t.Cleanup(srv.Close)
 
-	opts, err := embedding.NewOptions("gemini-embedding-001")
+	opts, err := embedding.NewOptions(google.ModelGeminiEmbedding2)
 	if err != nil {
 		t.Fatal(err)
 	}

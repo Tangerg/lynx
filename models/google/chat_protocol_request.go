@@ -6,21 +6,30 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 
 	"google.golang.org/genai"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
-const protocolRequestExtensionKey = "google/request"
+const (
+	// RequestExtensionKey stores an official [genai.GenerateContentConfig].
+	// Core options, messages, and tools take precedence over overlapping fields.
+	RequestExtensionKey = "google/request"
+
+	protocolNativePartKey       = "google/native_part"
+	protocolGeneratedToolPrefix = "google/generated/"
+)
 
 func mapProtocolRequest(defaults corechat.Options, req *corechat.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {
 	config, err := decodeProtocolConfig(req)
 	if err != nil {
 		return "", nil, nil, err
 	}
-	options := mergeProtocolOptions(defaults, req.Options)
+	options := defaults.Overlay(req.Options)
 	if options.Model == "" {
 		return "", nil, nil, errors.New("google: model is required in defaults or request options")
 	}
@@ -74,20 +83,20 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request) (strin
 }
 
 func decodeProtocolConfig(req *corechat.Request) (*genai.GenerateContentConfig, error) {
-	raw, found := req.Extensions[protocolRequestExtensionKey]
+	raw, found := req.Extensions[RequestExtensionKey]
 	if !found {
 		return &genai.GenerateContentConfig{}, nil
 	}
 	var config genai.GenerateContentConfig
 	if err := json.Unmarshal(raw, &config); err != nil {
-		return nil, fmt.Errorf("google: extension %q: %w", protocolRequestExtensionKey, err)
+		return nil, fmt.Errorf("google: extension %q: %w", RequestExtensionKey, err)
 	}
 	var aliases struct {
 		SafetySettings     []*genai.SafetySetting `json:"safety_settings"`
 		ResponseModalities []string               `json:"response_modalities"`
 	}
 	if err := json.Unmarshal(raw, &aliases); err != nil {
-		return nil, fmt.Errorf("google: extension %q aliases: %w", protocolRequestExtensionKey, err)
+		return nil, fmt.Errorf("google: extension %q aliases: %w", RequestExtensionKey, err)
 	}
 	if len(config.SafetySettings) == 0 && len(aliases.SafetySettings) > 0 {
 		config.SafetySettings = aliases.SafetySettings
@@ -96,55 +105,6 @@ func decodeProtocolConfig(req *corechat.Request) (*genai.GenerateContentConfig, 
 		config.ResponseModalities = slices.Clone(aliases.ResponseModalities)
 	}
 	return &config, nil
-}
-
-func cloneProtocolOptions(options corechat.Options) corechat.Options {
-	clone := options
-	clone.Stop = slices.Clone(options.Stop)
-	clone.FrequencyPenalty = cloneProtocolPointer(options.FrequencyPenalty)
-	clone.MaxTokens = cloneProtocolPointer(options.MaxTokens)
-	clone.PresencePenalty = cloneProtocolPointer(options.PresencePenalty)
-	clone.Temperature = cloneProtocolPointer(options.Temperature)
-	clone.TopK = cloneProtocolPointer(options.TopK)
-	clone.TopP = cloneProtocolPointer(options.TopP)
-	return clone
-}
-
-func cloneProtocolPointer[T any](value *T) *T {
-	if value == nil {
-		return nil
-	}
-	clone := *value
-	return &clone
-}
-
-func mergeProtocolOptions(defaults, overrides corechat.Options) corechat.Options {
-	merged := cloneProtocolOptions(defaults)
-	if overrides.Model != "" {
-		merged.Model = overrides.Model
-	}
-	if overrides.FrequencyPenalty != nil {
-		merged.FrequencyPenalty = overrides.FrequencyPenalty
-	}
-	if overrides.MaxTokens != nil {
-		merged.MaxTokens = overrides.MaxTokens
-	}
-	if overrides.PresencePenalty != nil {
-		merged.PresencePenalty = overrides.PresencePenalty
-	}
-	if len(overrides.Stop) > 0 {
-		merged.Stop = slices.Clone(overrides.Stop)
-	}
-	if overrides.Temperature != nil {
-		merged.Temperature = overrides.Temperature
-	}
-	if overrides.TopK != nil {
-		merged.TopK = overrides.TopK
-	}
-	if overrides.TopP != nil {
-		merged.TopP = overrides.TopP
-	}
-	return merged
 }
 
 func mapProtocolMessages(messages []corechat.Message) (*genai.Content, []*genai.Content, error) {
@@ -173,8 +133,12 @@ func mapProtocolMessages(messages []corechat.Message) (*genai.Content, []*genai.
 			parts := make([]*genai.Part, 0, len(message.Parts))
 			for j := range message.Parts {
 				result := message.Parts[j].ToolResult
+				id := result.ID
+				if strings.HasPrefix(id, protocolGeneratedToolPrefix) {
+					id = ""
+				}
 				parts = append(parts, &genai.Part{FunctionResponse: &genai.FunctionResponse{
-					ID:       result.ID,
+					ID:       id,
 					Name:     result.Name,
 					Response: protocolToolResult(result.Result, result.IsError),
 				}})
@@ -214,6 +178,14 @@ func mapProtocolAssistantParts(parts []corechat.Part) ([]*genai.Part, error) {
 	mapped := make([]*genai.Part, 0, len(parts))
 	for i := range parts {
 		part := parts[i]
+		native, found, err := metadata.Decode[genai.Part](part.Metadata, protocolNativePartKey)
+		if err != nil {
+			return nil, fmt.Errorf("parts[%d].metadata[%q]: %w", i, protocolNativePartKey, err)
+		}
+		if found {
+			mapped = append(mapped, &native)
+			continue
+		}
 		switch part.Kind {
 		case corechat.PartText:
 			mapped = append(mapped, genai.NewPartFromText(part.Text))
@@ -226,8 +198,12 @@ func mapProtocolAssistantParts(parts []corechat.Part) ([]*genai.Part, error) {
 					return nil, fmt.Errorf("parts[%d].tool_call.arguments: %w", i, err)
 				}
 			}
+			id := part.ToolCall.ID
+			if strings.HasPrefix(id, protocolGeneratedToolPrefix) {
+				id = ""
+			}
 			mapped = append(mapped, &genai.Part{FunctionCall: &genai.FunctionCall{
-				ID:   part.ToolCall.ID,
+				ID:   id,
 				Name: part.ToolCall.Name,
 				Args: arguments,
 			}})

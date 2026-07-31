@@ -1,7 +1,10 @@
 package replicate_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -13,9 +16,22 @@ import (
 func TestImageModel_Call_Mock(t *testing.T) {
 	var polls testutil.PollCounter
 
-	srv := testutil.MuxServer(
+	var srv *httptest.Server
+	srv = testutil.MuxServer(
 		// POST /v1/models/<owner>/<name>/predictions OR /v1/predictions
 		testutil.Route{Method: "POST", Contains: "/predictions", Handle: func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "Bearer test-key" {
+				t.Errorf("Authorization = %q", r.Header.Get("Authorization"))
+			}
+			var body struct {
+				Input map[string]any `json:"input"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Errorf("decode request: %v", err)
+			}
+			if body.Input["prompt"] != "a serene mountain lake" || body.Input["output_format"] != "jpg" {
+				t.Errorf("input = %#v", body.Input)
+			}
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"id":"pred-1","status":"starting","urls":{"get":"/v1/predictions/pred-1"}}`))
 		}},
@@ -26,21 +42,30 @@ func TestImageModel_Call_Mock(t *testing.T) {
 			output := "null"
 			if n >= 2 {
 				status = "succeeded"
-				output = `["https://cdn.test/img-1.png","https://cdn.test/img-2.png"]`
+				output = fmt.Sprintf(`[%q,%q]`, srv.URL+"/img-1.png", srv.URL+"/img-2.png")
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"id":"pred-1","status":"` + status + `","output":` + output + `}`))
 		}},
+		testutil.Route{Method: "GET", Contains: "/img-", Handle: func(w http.ResponseWriter, r *http.Request) {
+			if authorization := r.Header.Get("Authorization"); authorization != "" {
+				t.Errorf("output download leaked Authorization = %q", authorization)
+			}
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write([]byte("PNG"))
+		}},
 	)
 	t.Cleanup(srv.Close)
 
-	opts, err := image.NewOptions("black-forest-labs/flux-schnell")
+	opts, err := image.NewOptions(replicate.ModelFluxSchnell)
 	if err != nil {
 		t.Fatal(err)
 	}
+	opts.OutputFormat = "image/jpeg"
 	m, err := replicate.NewImageModel(replicate.ImageModelConfig{
 		APIKey:         "test-key",
 		DefaultOptions: opts,
+		InputSchema:    replicate.FluxSchnellImageInputSchema(),
 		BaseURL:        srv.URL,
 		PollInterval:   10 * time.Millisecond,
 		PollTimeout:    5 * time.Second,

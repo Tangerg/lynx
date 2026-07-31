@@ -18,12 +18,16 @@ func TestChatBuildConverseInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	reasoning, err := NewReasoningPart("thinking", []byte("sig"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	request := &corechat.Request{
 		Messages: []corechat.Message{
 			corechat.NewSystemMessage("system"),
 			corechat.NewUserMessage(corechat.NewTextPart("look"), corechat.NewMediaPart(image)),
 			corechat.NewAssistantMessage(
-				corechat.NewReasoningPart("thinking", []byte("sig")),
+				reasoning,
 				corechat.NewToolCallPart(corechat.ToolCall{ID: "call-1", Name: "weather", Arguments: `{"city":"Paris"}`}),
 			),
 			corechat.NewToolMessage(corechat.ToolResult{ID: "call-1", Name: "weather", Result: "rain", IsError: true}),
@@ -72,6 +76,7 @@ func TestMapProtocolConverseResponse(t *testing.T) {
 			Role: types.ConversationRoleAssistant,
 			Content: []types.ContentBlock{
 				&types.ContentBlockMemberReasoningContent{Value: &types.ReasoningContentBlockMemberReasoningText{Value: types.ReasoningTextBlock{Text: aws.String("think"), Signature: aws.String("sig")}}},
+				&types.ContentBlockMemberReasoningContent{Value: &types.ReasoningContentBlockMemberRedactedContent{Value: []byte("opaque")}},
 				&types.ContentBlockMemberText{Value: "answer"},
 				&types.ContentBlockMemberToolUse{Value: types.ToolUseBlock{ToolUseId: aws.String("call-1"), Name: aws.String("weather"), Input: toDocument(map[string]any{"city": "Paris"})}},
 			},
@@ -89,12 +94,16 @@ func TestMapProtocolConverseResponse(t *testing.T) {
 	if response.Model != "model" || response.First().FinishReason != corechat.FinishReasonToolCalls {
 		t.Fatalf("response = %#v", response)
 	}
-	wantKinds := []corechat.PartKind{corechat.PartReasoning, corechat.PartText, corechat.PartToolCall}
+	wantKinds := []corechat.PartKind{corechat.PartReasoning, corechat.PartReasoning, corechat.PartText, corechat.PartToolCall}
 	parts := response.First().Message.Parts
 	for index, want := range wantKinds {
 		if parts[index].Kind != want {
 			t.Fatalf("part[%d] = %q, want %q", index, parts[index].Kind, want)
 		}
+	}
+	kind, found, err := ReasoningBlockKindOf(parts[1])
+	if err != nil || !found || kind != ReasoningBlockRedacted || string(parts[1].Signature) != "opaque" {
+		t.Fatalf("redacted reasoning = %#v/%q/%v/%v", parts[1], kind, found, err)
 	}
 	if response.Usage.InputTokens != 11 || response.Usage.OutputTokens != 7 || response.Usage.CacheReadInputTokens == nil || *response.Usage.CacheReadInputTokens != 3 {
 		t.Fatalf("usage = %#v", response.Usage)
@@ -127,5 +136,38 @@ func TestProtocolChunkAccumulatorRetainsToolIdentity(t *testing.T) {
 	call := response.First().Message.Parts[0].ToolCall
 	if call.ID != "call-1" || call.Name != "weather" || call.Arguments != arguments {
 		t.Fatalf("tool call = %#v", call)
+	}
+}
+
+func TestMediaToBlockSupportsOfficialConverseModalities(t *testing.T) {
+	document, err := media.NewBytes("application/pdf", []byte("pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	document.Name = "design.pdf"
+	block, err := mediaToBlock(document)
+	if err != nil {
+		t.Fatalf("document: %v", err)
+	}
+	documentBlock, ok := block.(*types.ContentBlockMemberDocument)
+	if !ok || documentBlock.Value.Format != types.DocumentFormatPdf || aws.ToString(documentBlock.Value.Name) != "design" {
+		t.Fatalf("document block = %#v", block)
+	}
+
+	audio, err := media.NewURI("audio/wav", "s3://bucket/input.wav")
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, err = mediaToBlock(audio)
+	if err != nil {
+		t.Fatalf("audio: %v", err)
+	}
+	audioBlock, ok := block.(*types.ContentBlockMemberAudio)
+	if !ok || audioBlock.Value.Format != types.AudioFormatWav {
+		t.Fatalf("audio block = %#v", block)
+	}
+	source, ok := audioBlock.Value.Source.(*types.AudioSourceMemberS3Location)
+	if !ok || aws.ToString(source.Value.Uri) != "s3://bucket/input.wav" {
+		t.Fatalf("audio source = %#v", audioBlock.Value.Source)
 	}
 }

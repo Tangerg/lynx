@@ -4,93 +4,59 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 
-	"github.com/go-resty/resty/v2"
+	lumaagents "github.com/lumalabs/luma-agents-go"
+	lumaoption "github.com/lumalabs/luma-agents-go/option"
 )
 
 type APIConfig struct {
-	APIKey     string
-	BaseURL    string
-	HTTPClient *http.Client
+	APIKey         string
+	BaseURL        string
+	HTTPClient     *http.Client
+	RequestOptions []lumaoption.RequestOption
 }
 
-func (c APIConfig) Validate() error {
-	if c.APIKey == "" {
+func (config APIConfig) Validate() error {
+	if config.APIKey == "" {
 		return errors.New("luma: APIKey is required")
 	}
 	return nil
 }
 
+// API is a narrow wrapper around Luma's official Agents SDK.
 type API struct {
-	http *resty.Client
+	client *lumaagents.Client
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func NewAPI(config APIConfig) (*API, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	client := resty.New().
-		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetAuthToken(cfg.APIKey).
-		SetHeader("Content-Type", "application/json")
-	if cfg.HTTPClient != nil {
-		client.SetTransport(cfg.HTTPClient.Transport)
+	requestOptions := []lumaoption.RequestOption{
+		lumaoption.WithAuthToken(config.APIKey),
+		lumaoption.WithBaseURL(cmp.Or(config.BaseURL, DefaultBaseURL)),
 	}
-	return &API{http: client}, nil
+	if config.HTTPClient != nil {
+		requestOptions = append(requestOptions, lumaoption.WithHTTPClient(config.HTTPClient))
+	}
+	requestOptions = append(requestOptions, config.RequestOptions...)
+	return &API{client: lumaagents.NewClient(requestOptions...)}, nil
 }
 
-// ImageGenerateRequest mirrors POST /generations/image. Luma uses
-// Photon for stills (Dream Machine handles video — out of scope).
-type ImageGenerateRequest struct {
-	Prompt      string `json:"prompt"`
-	AspectRatio string `json:"aspect_ratio,omitempty"`
-	Model       string `json:"model,omitempty"`
-	// ImageRef is an array of {url, weight}; kept as map[string]any
-	// so callers can thread richer refs via Extra without prescribing
-	// the exact wire shape.
-	ImageRef       []map[string]any `json:"image_ref,omitzero"`
-	StyleRef       []map[string]any `json:"style_ref,omitzero"`
-	CharacterRef   map[string]any   `json:"character_ref,omitzero"`
-	ModifyImageRef map[string]any   `json:"modify_image_ref,omitzero"`
+func (api *API) CreateGeneration(ctx context.Context, params lumaagents.GenerationNewParams) (*lumaagents.Generation, error) {
+	if api == nil || api.client == nil || api.client.Generations == nil {
+		return nil, errors.New("luma: nil API")
+	}
+	return api.client.Generations.New(ctx, params)
 }
 
-// Generation is the poll-result body. State moves through "queued" /
-// "dreaming" / "completed" / "failed".
-type Generation struct {
-	ID            string `json:"id"`
-	State         string `json:"state"`
-	FailureReason string `json:"failure_reason"`
-	Assets        struct {
-		Image string `json:"image"`
-		Video string `json:"video"`
-	} `json:"assets"`
-}
-
-func (a *API) GenerateImage(ctx context.Context, req *ImageGenerateRequest) (*Generation, error) {
-	if req == nil {
-		return nil, errors.New("luma: request must not be nil")
+func (api *API) GetGeneration(ctx context.Context, generationID string) (*lumaagents.Generation, error) {
+	if api == nil || api.client == nil || api.client.Generations == nil {
+		return nil, errors.New("luma: nil API")
 	}
-	var out Generation
-	resp, err := a.http.R().SetContext(ctx).SetBody(req).SetResult(&out).Post("/generations/image")
-	if err != nil {
-		return nil, fmt.Errorf("luma: request failed: %w", err)
+	if generationID == "" {
+		return nil, errors.New("luma: generation ID is required")
 	}
-	if !resp.IsSuccess() {
-		return nil, fmt.Errorf("luma: http %d: %s", resp.StatusCode(), resp.String())
-	}
-	return &out, nil
-}
-
-func (a *API) GetGeneration(ctx context.Context, id string) (*Generation, error) {
-	var out Generation
-	resp, err := a.http.R().SetContext(ctx).SetResult(&out).Get("/generations/" + id)
-	if err != nil {
-		return nil, fmt.Errorf("luma: poll failed: %w", err)
-	}
-	if !resp.IsSuccess() {
-		return nil, fmt.Errorf("luma: http %d: %s", resp.StatusCode(), resp.String())
-	}
-	return &out, nil
+	return api.client.Generations.Get(ctx, generationID)
 }

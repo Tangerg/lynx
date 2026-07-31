@@ -3,9 +3,10 @@ package cohere
 import (
 	"context"
 	"errors"
-	"time"
+	"fmt"
 
 	cohere "github.com/cohere-ai/cohere-go/v2"
+	cohereoption "github.com/cohere-ai/cohere-go/v2/option"
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/models/internal/options"
@@ -15,6 +16,7 @@ type EmbeddingModelConfig struct {
 	APIKey         string
 	DefaultOptions embedding.Options
 	BaseURL        string
+	RequestOptions []cohereoption.RequestOption
 }
 
 func (c EmbeddingModelConfig) Validate() error {
@@ -48,7 +50,7 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL})
+	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, RequestOptions: cfg.RequestOptions})
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +67,7 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*cohere.V2Embe
 		return nil, err
 	}
 
-	apiReq, err := options.GetParams[cohere.V2EmbedRequest](mergedOpts.Extensions, OptionsKey)
+	apiReq, err := options.GetParams[cohere.V2EmbedRequest](mergedOpts.Extensions, EmbeddingRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -73,11 +75,8 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*cohere.V2Embe
 	apiReq.Model = mergedOpts.Model
 	apiReq.Texts = req.Texts
 
-	// Cohere requires input_type. Default to search_document for the
-	// most common (RAG indexing) case when the caller didn't set one
-	// via Extra.
 	if apiReq.InputType == "" {
-		apiReq.InputType = cohere.EmbedInputTypeSearchDocument
+		return nil, fmt.Errorf("cohere: extension %q input_type is required; choose search_document, search_query, classification, or clustering", EmbeddingRequestExtensionKey)
 	}
 
 	// Cohere requires at least one embedding type. Core normalizes provider
@@ -97,9 +96,12 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*cohere.V2Embe
 	return apiReq, nil
 }
 
-func (e *EmbeddingModel) buildResponse(apiResp *cohere.EmbedByTypeResponse) (*embedding.Response, error) {
+func (e *EmbeddingModel) buildResponse(apiResp *cohere.EmbedByTypeResponse, expectedResults int) (*embedding.Response, error) {
 	if apiResp.Embeddings == nil || len(apiResp.Embeddings.Float) == 0 {
 		return nil, errors.New("cohere: embed response has no float embeddings")
+	}
+	if len(apiResp.Embeddings.Float) != expectedResults {
+		return nil, fmt.Errorf("cohere: embed response returned %d results for %d inputs", len(apiResp.Embeddings.Float), expectedResults)
 	}
 
 	results := make([]*embedding.Result, 0, len(apiResp.Embeddings.Float))
@@ -113,9 +115,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *cohere.EmbedByTypeResponse) (*em
 		results = append(results, result)
 	}
 
-	meta := &embedding.ResponseMetadata{
-		Created: time.Now().Unix(),
-	}
+	meta := &embedding.ResponseMetadata{}
 	if apiResp.Meta != nil && apiResp.Meta.BilledUnits != nil {
 		usage := new(embedding.Usage)
 		if v := apiResp.Meta.BilledUnits.InputTokens; v != nil {
@@ -141,5 +141,5 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 		return nil, err
 	}
 
-	return e.buildResponse(apiResp)
+	return e.buildResponse(apiResp, len(req.Texts))
 }

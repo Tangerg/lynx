@@ -21,7 +21,7 @@ func TestModels(t *testing.T) {
 }
 
 func TestLookup(t *testing.T) {
-	info, ok := catalog.Lookup("anthropic", "claude-3-5-haiku-20241022")
+	info, ok := catalog.Lookup("anthropic", "claude-opus-5")
 	if !ok {
 		t.Fatal("known model must be found")
 	}

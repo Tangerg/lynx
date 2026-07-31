@@ -13,6 +13,12 @@ import (
 	"github.com/Tangerg/lynx/models/openai"
 )
 
+const (
+	OpenAIRequestExtensionKey     = "fireworks/openai_request"
+	OpenAIResponseExtensionKey    = "fireworks/openai_response"
+	OpenAIStreamChunkExtensionKey = "fireworks/openai_stream_chunk"
+)
+
 var (
 	_ corechat.Model    = (*OpenAIChat)(nil)
 	_ corechat.Streamer = (*OpenAIChat)(nil)
@@ -37,7 +43,7 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 		return nil, errors.New("fireworks: APIKey is required")
 	}
 	requestOptions := append([]option.RequestOption{option.WithBaseURL(cmp.Or(config.BaseURL, BaseURL))}, config.RequestOptions...)
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.ReasoningContentDialect())
+	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.ReasoningContentReplayDialect("fireworks"))
 	if err != nil {
 		return nil, fmt.Errorf("fireworks: construct OpenAI-compatible chat: %w", err)
 	}

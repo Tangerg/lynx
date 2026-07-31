@@ -5,8 +5,11 @@ const (
 )
 
 const (
-	OptionsKey                 = "luma/options"
-	DefaultBaseURL             = "https://api.lumalabs.ai/dream-machine/v1"
+	ImageRequestExtensionKey   = "luma/image_request"
+	ResponseExtensionKey       = "luma/response"
+	DefaultBaseURL             = "https://agents.lumalabs.ai/v1"
 	DefaultPollIntervalSeconds = 2
 	DefaultPollTimeoutSeconds  = 300
+	ModelUni1                  = "uni-1"
+	ModelUni1Max               = "uni-1-max"
 )

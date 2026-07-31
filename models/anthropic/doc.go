@@ -24,8 +24,8 @@
 // is not exposed.
 //
 // Model id constants aren't exported — anthropic-sdk-go owns them
-// ([anthropicsdk.ModelClaudeOpus4_5], [anthropicsdk.ModelClaudeSonnet4_5],
-// [anthropicsdk.ModelClaudeHaiku4_5], etc.). Import the SDK directly
+// ([anthropicsdk.ModelClaudeOpus5], [anthropicsdk.ModelClaudeSonnet5],
+// [anthropicsdk.ModelClaudeFable5], etc.). Import the SDK directly
 // when you need them.
 //
 // See https://docs.claude.com/en/api for the full API reference.

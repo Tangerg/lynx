@@ -75,7 +75,7 @@ func (i *ImageModel) buildAPIImageRequest(req *image.Request) (*openai.ImageGene
 		return nil, errors.New("openai: image: width and height must be set together")
 	}
 
-	params, err := options.GetParams[openai.ImageGenerateParams](mergedOpts.Extensions, OptionsKey)
+	params, err := options.GetParams[openai.ImageGenerateParams](mergedOpts.Extensions, ImageRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (i *ImageModel) buildImageResponse(resp *openai.ImagesResponse, mimeType st
 		}
 		resultMetadata := &image.ResultMetadata{}
 		if generated.RevisedPrompt != "" {
-			if err := resultMetadata.Set("revised_prompt", generated.RevisedPrompt); err != nil {
+			if err := resultMetadata.Set("openai/revised_prompt", generated.RevisedPrompt); err != nil {
 				return nil, err
 			}
 		}

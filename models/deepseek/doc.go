@@ -9,12 +9,9 @@
 //   - ordinary prior assistant reasoning is omitted on later turns;
 //   - reasoning associated with tool calls is replayed as reasoning_content.
 //
-// Provider-specific features that need explicit BaseURL switching:
-//
-//   - prefix completion (assistant messages with "prefix": true) must
-//     be sent to BaseURLBeta — set [OpenAIChatConfig.BaseURL] to
-//     [BaseURLBeta] when using this mode. Provider-specific request fields use
-//     the namespaced OpenAI request extension.
+// Provider-specific request controls use the typed [RequestOptions] extension;
+// the OpenAI SDK request shape is intentionally not exposed. Prefix completion
+// remains a separate beta protocol and is not accepted by [OpenAIChat].
 //
 // See https://api-docs.deepseek.com/ for the full API reference.
 package deepseek

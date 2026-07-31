@@ -3,11 +3,13 @@ package lmnt
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"net/http"
 
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/internal/options"
+	pkgio "github.com/Tangerg/lynx/pkg/io"
 )
 
 type AudioTTSModelConfig struct {
@@ -38,9 +40,8 @@ var _ tts.Streamer = (*AudioTTSModel)(nil)
 // engine ("aurora", "blizzard", ...) and [tts.Options].Voice picks the
 // voice id.
 //
-// LMNT also exposes a websocket streaming endpoint; that's a different
-// SPI shape and not surfaced here. Stream() returns the full audio as a
-// single chunk for shape compatibility.
+// The official bytes endpoint streams a binary HTTP response. Call buffers it;
+// Stream exposes provider chunks as they arrive.
 type AudioTTSModel struct {
 	api            *API
 	defaultOptions tts.Options
@@ -63,7 +64,7 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (*SynthesizeRequest, e
 		return nil, err
 	}
 
-	body, err := options.GetParams[SynthesizeRequest](mergedOpts.Extensions, OptionsKey)
+	body, err := options.GetParams[SynthesizeRequest](mergedOpts.Extensions, RequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -77,9 +78,11 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (*SynthesizeRequest, e
 	if body.Format == "" && mergedOpts.OutputFormat != "" {
 		body.Format = mergedOpts.OutputFormat
 	}
-	if body.Speed == nil && mergedOpts.Speed != 0 {
-		v := mergedOpts.Speed
-		body.Speed = &v
+	if mergedOpts.Speed != 0 {
+		return nil, errors.New("lmnt: options.speed is not supported by the current speech bytes API")
+	}
+	if err := validateSynthesizeRequest(body); err != nil {
+		return nil, err
 	}
 	return body, nil
 }
@@ -92,39 +95,101 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	if err != nil {
 		return nil, err
 	}
-	apiResp, err := a.api.Synthesize(ctx, body)
+	audio, headers, err := a.api.Synthesize(ctx, body)
 	if err != nil {
 		return nil, err
 	}
-	audio, err := apiResp.Decode()
-	if err != nil {
-		return nil, err
+	return buildResponse(audio, headers, body.Model)
+}
+
+func buildResponse(audio []byte, headers http.Header, model string) (*tts.Response, error) {
+	if len(audio) == 0 {
+		return nil, errors.New("lmnt: speech response contained no audio")
 	}
-	resultMeta := &tts.ResultMetadata{}
-	if apiResp.Seed != 0 {
-		if err := resultMeta.Set("seed", apiResp.Seed); err != nil {
+	resultMetadata := &tts.ResultMetadata{}
+	if contentType := headers.Get("Content-Type"); contentType != "" {
+		if err := resultMetadata.Set("lmnt/mime_type", contentType); err != nil {
 			return nil, err
 		}
 	}
-	if len(apiResp.Durations) > 0 {
-		if err := resultMeta.Set("durations", apiResp.Durations); err != nil {
-			return nil, err
-		}
-	}
-	result, err := tts.NewResult(audio, resultMeta)
+	result, err := tts.NewResult(audio, resultMetadata)
 	if err != nil {
 		return nil, err
 	}
-	return tts.NewResponse(result, &tts.ResponseMetadata{})
+	metadata := &tts.ResponseMetadata{Model: model}
+	if requestID := headers.Get("request-id"); requestID != "" {
+		if err := metadata.Set("lmnt/request_id", requestID); err != nil {
+			return nil, err
+		}
+	}
+	if err := metadata.Set(ResponseExtensionKey, map[string]string{
+		"content_type": headers.Get("Content-Type"),
+		"request_id":   headers.Get("request-id"),
+	}); err != nil {
+		return nil, err
+	}
+	return tts.NewResponse(result, metadata)
 }
 
 func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
 	return func(yield func(*tts.Response, error) bool) {
-		resp, err := a.Call(ctx, req)
+		if err := req.Validate(); err != nil {
+			yield(nil, err)
+			return
+		}
+		request, err := a.buildAPIRequest(req)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
-		yield(resp, nil)
+		body, headers, err := a.api.SynthesizeStream(ctx, request)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		defer body.Close()
+		for chunk, err := range pkgio.Read(body, 16*1024) {
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			response, err := buildResponse(chunk, headers, request.Model)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			if !yield(response, nil) {
+				return
+			}
+		}
 	}
+}
+
+func validateSynthesizeRequest(req *SynthesizeRequest) error {
+	if req.Model != ModelBlizzard {
+		return fmt.Errorf("lmnt: speech model must be %q, got %q", ModelBlizzard, req.Model)
+	}
+	if req.Voice == "" {
+		return errors.New("lmnt: speech voice is required")
+	}
+	if len(req.Text) > 5000 {
+		return fmt.Errorf("lmnt: speech text exceeds the 5000-character limit: %d", len(req.Text))
+	}
+	if req.Format != "" {
+		switch req.Format {
+		case "aac", "mp3", "ulaw", "wav", "webm", "pcm_s16le", "pcm_f32le":
+		default:
+			return fmt.Errorf("lmnt: unsupported speech format %q", req.Format)
+		}
+	}
+	if req.SampleRate != 0 && req.SampleRate != 8000 && req.SampleRate != 16000 && req.SampleRate != 24000 {
+		return fmt.Errorf("lmnt: sample_rate must be 8000, 16000, or 24000, got %d", req.SampleRate)
+	}
+	if req.Temperature != nil && *req.Temperature < 0 {
+		return fmt.Errorf("lmnt: temperature must be non-negative, got %g", *req.Temperature)
+	}
+	if req.TopP != nil && (*req.TopP < 0 || *req.TopP > 1) {
+		return fmt.Errorf("lmnt: top_p must be between 0 and 1, got %g", *req.TopP)
+	}
+	return nil
 }

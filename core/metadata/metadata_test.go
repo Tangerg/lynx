@@ -155,6 +155,18 @@ func TestMergeRejectsInvalidMapsAtomically(t *testing.T) {
 	}
 }
 
+func TestEqual(t *testing.T) {
+	left := metadata.Map{"a": json.RawMessage(`{"value":1}`)}
+	right := left.Clone()
+	if !left.Equal(right) || !metadata.Map(nil).Equal(metadata.Map{}) {
+		t.Fatal("equal maps were not equal")
+	}
+	right["a"] = json.RawMessage(`{"value":2}`)
+	if left.Equal(right) {
+		t.Fatal("different maps were equal")
+	}
+}
+
 func TestDecodeMissingAndTypeMismatch(t *testing.T) {
 	if got, ok, err := metadata.Decode[string](nil, "missing"); err != nil || ok || got != "" {
 		t.Fatalf("missing Decode = (%q, %v, %v)", got, ok, err)

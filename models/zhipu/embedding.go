@@ -36,7 +36,7 @@ func (c EmbeddingModelConfig) Validate() error {
 // NewEmbeddingModel returns an openai-backed embedding model pointed
 // at Zhipu's /embeddings endpoint. Use [ModelEmbedding3] with
 // [embedding.Options.Dimensions] (256/512/1024/2048) for output
-// truncation; [ModelEmbedding2] is the legacy fixed-1024-dim model.
+// truncation.
 func NewEmbeddingModel(cfg EmbeddingModelConfig) (*openai.EmbeddingModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err

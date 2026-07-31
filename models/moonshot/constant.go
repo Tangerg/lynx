@@ -23,20 +23,11 @@ const (
 	BaseURLIntlAnthropic = "https://api.moonshot.ai/anthropic"
 )
 
-// Chat model ids. See https://platform.moonshot.cn/docs/intro/models.
+// Current Chat model ids. See https://platform.kimi.com/docs/models.
 const (
-	// ModelK2 (kimi-k2-0905-preview / kimi-k2-thinking) is the flagship
-	// reasoning model.
-	ModelK2 = "kimi-k2-0905-preview"
-
-	// ModelK2Thinking is the K2 variant that returns chain-of-thought
-	// via reasoning_content (auto-surfaced as a [chat.ReasoningPart]
-	// in AssistantMessage.Parts).
-	ModelK2Thinking = "kimi-k2-thinking"
-
-	// ModelV1_8K / 32K / 128K are the legacy moonshot-v1 chat models.
-	// Number is the context-window cap. New builds should prefer K2.
-	ModelV1_8K   = "moonshot-v1-8k"
-	ModelV1_32K  = "moonshot-v1-32k"
-	ModelV1_128K = "moonshot-v1-128k"
+	ModelK3               = "kimi-k3"
+	ModelK27Code          = "kimi-k2.7-code"
+	ModelK27CodeHighSpeed = "kimi-k2.7-code-highspeed"
+	ModelK26              = "kimi-k2.6"
+	ModelK25              = "kimi-k2.5"
 )

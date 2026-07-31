@@ -66,7 +66,7 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (*openai.AudioSpeec
 		return nil, err
 	}
 
-	params, err := options.GetParams[openai.AudioSpeechNewParams](mergedOpts.Extensions, OptionsKey)
+	params, err := options.GetParams[openai.AudioSpeechNewParams](mergedOpts.Extensions, SpeechRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}

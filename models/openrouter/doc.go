@@ -2,10 +2,9 @@
 // to 100+ LLMs across 50+ providers through a single OpenAI-compatible
 // API.
 //
-// Model ids use a "provider/model-name" format (e.g.
-// "anthropic/claude-3.5-sonnet", "openai/gpt-4o",
-// "google/gemini-2.5-pro", "deepseek/deepseek-chat:free"). Suffixes
-// like ":free" / ":nitro" / ":floor" select cost/latency variants.
+// Model ids use a "provider/model-name" format. [ModelAuto] delegates model
+// choice to OpenRouter's task-aware router. Suffixes like ":free", ":nitro",
+// and ":floor" select cost or latency variants.
 //
 // OpenRouter-specific features the openai facade plumbs through
 // transparently:

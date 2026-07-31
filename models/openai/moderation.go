@@ -3,7 +3,6 @@ package openai
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -63,7 +62,7 @@ func (m *ModerationModel) buildAPIModerationRequest(req *moderation.Request) (*o
 		return nil, err
 	}
 
-	params, err := options.GetParams[openai.ModerationNewParams](mergedOpts.Extensions, OptionsKey)
+	params, err := options.GetParams[openai.ModerationNewParams](mergedOpts.Extensions, ModerationRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -144,9 +143,8 @@ func (m *ModerationModel) buildModerationResponse(resp *openai.ModerationNewResp
 	}
 
 	meta := &moderation.ResponseMetadata{
-		ID:      resp.ID,
-		Model:   resp.Model,
-		Created: time.Now().Unix(),
+		ID:    resp.ID,
+		Model: resp.Model,
 	}
 
 	return moderation.NewResponse(results, meta)

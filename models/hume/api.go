@@ -4,8 +4,10 @@ import (
 	"cmp"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/go-resty/resty/v2"
@@ -32,13 +34,13 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	client := resty.New().
-		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
+	client := resty.New()
+	if cfg.HTTPClient != nil {
+		client = resty.NewWithClient(cfg.HTTPClient)
+	}
+	client.SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
 		SetHeader("X-Hume-API-Key", cfg.APIKey).
 		SetHeader("Content-Type", "application/json")
-	if cfg.HTTPClient != nil {
-		client.SetTransport(cfg.HTTPClient.Transport)
-	}
 	return &API{http: client}, nil
 }
 
@@ -65,12 +67,16 @@ type Utterance struct {
 // SplitUtterances controls whether the response includes per-utterance
 // timing.
 type TTSRequest struct {
-	Utterances      []Utterance    `json:"utterances"`
-	Context         map[string]any `json:"context,omitzero"`
-	Format          map[string]any `json:"format,omitzero"`
-	NumGenerations  int            `json:"num_generations,omitempty"`
-	SplitUtterances *bool          `json:"split_utterances,omitempty"`
-	StripHeaders    *bool          `json:"strip_headers,omitempty"`
+	Utterances            []Utterance    `json:"utterances"`
+	Context               map[string]any `json:"context,omitzero"`
+	Format                map[string]any `json:"format,omitzero"`
+	IncludeTimestampTypes []string       `json:"include_timestamp_types,omitempty"`
+	NumGenerations        int            `json:"num_generations,omitempty"`
+	SplitUtterances       *bool          `json:"split_utterances,omitempty"`
+	StripHeaders          *bool          `json:"strip_headers,omitempty"`
+	Temperature           *float64       `json:"temperature,omitempty"`
+	Version               string         `json:"version,omitempty"`
+	InstantMode           *bool          `json:"instant_mode,omitempty"`
 }
 
 // TTSResponse is the JSON envelope. Generations[0].Audio is the
@@ -83,17 +89,86 @@ type TTSResponse struct {
 			Format     string `json:"format"`
 			SampleRate int    `json:"sample_rate"`
 		} `json:"encoding"`
-		Duration float64 `json:"duration"`
+		Duration float64         `json:"duration"`
+		FileSize int64           `json:"file_size"`
+		Snippets json.RawMessage `json:"snippets,omitempty"`
 	} `json:"generations"`
 	RequestID string `json:"request_id"`
+}
+
+// TTSStreamEvent is one JSON-line union member returned by
+// /tts/stream/json. Type is either "audio" or "timestamp".
+type TTSStreamEvent struct {
+	Type            string          `json:"type"`
+	Audio           string          `json:"audio,omitempty"`
+	AudioFormat     string          `json:"audio_format,omitempty"`
+	ChunkIndex      int64           `json:"chunk_index,omitempty"`
+	GenerationID    string          `json:"generation_id,omitempty"`
+	IsLastChunk     bool            `json:"is_last_chunk,omitempty"`
+	RequestID       string          `json:"request_id,omitempty"`
+	Snippet         json.RawMessage `json:"snippet,omitempty"`
+	SnippetID       string          `json:"snippet_id,omitempty"`
+	Text            string          `json:"text,omitempty"`
+	TranscribedText *string         `json:"transcribed_text,omitempty"`
+	UtteranceIndex  *int64          `json:"utterance_index,omitempty"`
+	Timestamp       json.RawMessage `json:"timestamp,omitempty"`
+}
+
+// DecodeAudio decodes an audio stream event.
+func (event *TTSStreamEvent) DecodeAudio() ([]byte, error) {
+	if event.Type != "audio" {
+		return nil, fmt.Errorf("hume: stream event type %q has no audio", event.Type)
+	}
+	if event.Audio == "" {
+		return nil, errors.New("hume: audio stream event has no audio")
+	}
+	audio, err := base64.StdEncoding.DecodeString(event.Audio)
+	if err != nil {
+		return nil, fmt.Errorf("hume: decode streamed audio: %w", err)
+	}
+	return audio, nil
 }
 
 // DecodeAudio returns the raw audio bytes from the first generation.
 func (r *TTSResponse) DecodeAudio() ([]byte, error) {
 	if len(r.Generations) == 0 {
+		return nil, errors.New("hume: TTS response has no generations")
+	}
+	if r.Generations[0].Audio == "" {
+		return nil, errors.New("hume: TTS response generation has no audio")
+	}
+	audio, err := base64.StdEncoding.DecodeString(r.Generations[0].Audio)
+	if err != nil {
+		return nil, fmt.Errorf("hume: decode TTS response audio: %w", err)
+	}
+	return audio, nil
+}
+
+// TTSStream starts the official streamed JSON-lines endpoint.
+func (a *API) TTSStream(ctx context.Context, req *TTSRequest) (io.ReadCloser, error) {
+	if req == nil {
 		return nil, errors.New("hume: request must not be nil")
 	}
-	return base64.StdEncoding.DecodeString(r.Generations[0].Audio)
+	resp, err := a.http.R().
+		SetContext(ctx).
+		SetBody(req).
+		SetDoNotParseResponse(true).
+		Post("/tts/stream/json")
+	if err != nil {
+		return nil, fmt.Errorf("hume: stream request failed: %w", err)
+	}
+	if !resp.IsSuccess() {
+		defer resp.RawBody().Close()
+		body, readErr := io.ReadAll(resp.RawBody())
+		if readErr != nil {
+			return nil, fmt.Errorf("hume: stream http %d; read error response: %w", resp.StatusCode(), readErr)
+		}
+		return nil, fmt.Errorf("hume: stream http %d: %s", resp.StatusCode(), string(body))
+	}
+	if resp.RawBody() == nil {
+		return nil, errors.New("hume: stream response has no body")
+	}
+	return resp.RawBody(), nil
 }
 
 func (a *API) TTS(ctx context.Context, req *TTSRequest) (*TTSResponse, error) {

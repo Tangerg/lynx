@@ -9,7 +9,8 @@ const (
 )
 
 const (
-	OptionsKey = "assemblyai/options"
+	RequestExtensionKey  = "assemblyai/request"
+	ResponseExtensionKey = "assemblyai/response"
 
 	// DefaultBaseURL is AssemblyAI's production REST endpoint.
 	DefaultBaseURL = "https://api.assemblyai.com/v2"
@@ -25,4 +26,9 @@ const (
 	// while, so the ceiling is set generously; callers wanting a
 	// tighter SLA should pass a ctx with their own deadline.
 	DefaultPollTimeout = 30 * time.Minute
+)
+
+const (
+	ModelUniversal3Point5Pro = "universal-3-5-pro"
+	ModelUniversal2          = "universal-2"
 )

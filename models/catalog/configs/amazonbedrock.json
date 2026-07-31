@@ -12,6 +12,9 @@
           "output_per_1m": 2.75
         }
       ],
+      "reasoning": {
+        "supported": true
+      },
       "modalities": {
         "input": [
           "text",
@@ -114,6 +117,39 @@
       }
     },
     {
+      "id": "anthropic.claude-fable-5",
+      "display_name": "Claude Fable 5",
+      "knowledge_cutoff": "2026-01-31T00:00:00Z",
+      "release_date": "2026-06-09T00:00:00Z",
+      "last_updated": "2026-06-09T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 10,
+          "output_per_1m": 50,
+          "cache_read_per_1m": 1,
+          "cache_write_per_1m": 12.5
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
       "id": "anthropic.claude-haiku-4-5-20251001-v1:0",
       "display_name": "Claude Haiku 4.5",
       "knowledge_cutoff": "2025-02-28T00:00:00Z",
@@ -153,6 +189,7 @@
       "knowledge_cutoff": "2025-03-31T00:00:00Z",
       "release_date": "2025-08-05T00:00:00Z",
       "last_updated": "2025-08-05T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 15,
@@ -284,8 +321,42 @@
     {
       "id": "anthropic.claude-opus-4-8",
       "display_name": "Claude Opus 4.8",
+      "knowledge_cutoff": "2026-01-01T00:00:00Z",
       "release_date": "2026-05-28T00:00:00Z",
       "last_updated": "2026-05-28T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 5,
+          "output_per_1m": 25,
+          "cache_read_per_1m": 0.5,
+          "cache_write_per_1m": 6.25
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "anthropic.claude-opus-5",
+      "display_name": "Claude Opus 5",
+      "knowledge_cutoff": "2026-05-01T00:00:00Z",
+      "release_date": "2026-07-24T00:00:00Z",
+      "last_updated": "2026-07-24T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -382,6 +453,40 @@
       }
     },
     {
+      "id": "anthropic.claude-sonnet-5",
+      "display_name": "Claude Sonnet 5",
+      "knowledge_cutoff": "2026-01-31T00:00:00Z",
+      "release_date": "2026-06-30T00:00:00Z",
+      "last_updated": "2026-06-30T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.2,
+          "cache_write_per_1m": 2.5
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
       "id": "au.anthropic.claude-haiku-4-5-20251001-v1:0",
       "display_name": "Claude Haiku 4.5 (AU)",
       "knowledge_cutoff": "2025-02-28T00:00:00Z",
@@ -452,8 +557,42 @@
     {
       "id": "au.anthropic.claude-opus-4-8",
       "display_name": "Claude Opus 4.8 (AU)",
+      "knowledge_cutoff": "2026-01-01T00:00:00Z",
       "release_date": "2026-05-28T00:00:00Z",
       "last_updated": "2026-05-28T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 5,
+          "output_per_1m": 25,
+          "cache_read_per_1m": 0.5,
+          "cache_write_per_1m": 6.25
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "au.anthropic.claude-opus-5",
+      "display_name": "Claude Opus 5 (AU)",
+      "knowledge_cutoff": "2026-05-01T00:00:00Z",
+      "release_date": "2026-07-24T00:00:00Z",
+      "last_updated": "2026-07-24T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -527,6 +666,40 @@
           "output_per_1m": 16.5,
           "cache_read_per_1m": 0.33,
           "cache_write_per_1m": 4.125
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "au.anthropic.claude-sonnet-5",
+      "display_name": "Claude Sonnet 5 (AU)",
+      "knowledge_cutoff": "2026-01-31T00:00:00Z",
+      "release_date": "2026-06-30T00:00:00Z",
+      "last_updated": "2026-06-30T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.2,
+          "cache_write_per_1m": 2.5
         }
       ],
       "reasoning": {
@@ -639,6 +812,39 @@
       }
     },
     {
+      "id": "eu.anthropic.claude-fable-5",
+      "display_name": "Claude Fable 5 (EU)",
+      "knowledge_cutoff": "2026-01-31T00:00:00Z",
+      "release_date": "2026-06-09T00:00:00Z",
+      "last_updated": "2026-06-09T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 11,
+          "output_per_1m": 55,
+          "cache_read_per_1m": 1.1,
+          "cache_write_per_1m": 13.75
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
       "id": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
       "display_name": "Claude Haiku 4.5 (EU)",
       "knowledge_cutoff": "2025-02-28T00:00:00Z",
@@ -646,10 +852,10 @@
       "last_updated": "2025-10-15T00:00:00Z",
       "pricing": [
         {
-          "input_per_1m": 1,
-          "output_per_1m": 5,
-          "cache_read_per_1m": 0.1,
-          "cache_write_per_1m": 1.25
+          "input_per_1m": 1.1,
+          "output_per_1m": 5.5,
+          "cache_read_per_1m": 0.11,
+          "cache_write_per_1m": 1.375
         }
       ],
       "reasoning": {
@@ -680,10 +886,10 @@
       "last_updated": "2025-08-01T00:00:00Z",
       "pricing": [
         {
-          "input_per_1m": 5,
-          "output_per_1m": 25,
-          "cache_read_per_1m": 0.5,
-          "cache_write_per_1m": 6.25
+          "input_per_1m": 5.5,
+          "output_per_1m": 27.5,
+          "cache_read_per_1m": 0.55,
+          "cache_write_per_1m": 6.875
         }
       ],
       "reasoning": {
@@ -714,10 +920,10 @@
       "last_updated": "2026-03-13T00:00:00Z",
       "pricing": [
         {
-          "input_per_1m": 5,
-          "output_per_1m": 25,
-          "cache_read_per_1m": 0.5,
-          "cache_write_per_1m": 6.25
+          "input_per_1m": 5.5,
+          "output_per_1m": 27.5,
+          "cache_read_per_1m": 0.55,
+          "cache_write_per_1m": 6.875
         }
       ],
       "reasoning": {
@@ -748,10 +954,10 @@
       "last_updated": "2026-04-16T00:00:00Z",
       "pricing": [
         {
-          "input_per_1m": 5,
-          "output_per_1m": 25,
-          "cache_read_per_1m": 0.5,
-          "cache_write_per_1m": 6.25
+          "input_per_1m": 5.5,
+          "output_per_1m": 27.5,
+          "cache_read_per_1m": 0.55,
+          "cache_write_per_1m": 6.875
         }
       ],
       "reasoning": {
@@ -776,14 +982,48 @@
     {
       "id": "eu.anthropic.claude-opus-4-8",
       "display_name": "Claude Opus 4.8 (EU)",
+      "knowledge_cutoff": "2026-01-01T00:00:00Z",
       "release_date": "2026-05-28T00:00:00Z",
       "last_updated": "2026-05-28T00:00:00Z",
       "pricing": [
         {
-          "input_per_1m": 5,
-          "output_per_1m": 25,
-          "cache_read_per_1m": 0.5,
-          "cache_write_per_1m": 6.25
+          "input_per_1m": 5.5,
+          "output_per_1m": 27.5,
+          "cache_read_per_1m": 0.55,
+          "cache_write_per_1m": 6.875
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "eu.anthropic.claude-opus-5",
+      "display_name": "Claude Opus 5 (EU)",
+      "knowledge_cutoff": "2026-05-01T00:00:00Z",
+      "release_date": "2026-07-24T00:00:00Z",
+      "last_updated": "2026-07-24T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 5.5,
+          "output_per_1m": 27.5,
+          "cache_read_per_1m": 0.55,
+          "cache_write_per_1m": 6.875
         }
       ],
       "reasoning": {
@@ -813,10 +1053,10 @@
       "last_updated": "2025-09-29T00:00:00Z",
       "pricing": [
         {
-          "input_per_1m": 3,
-          "output_per_1m": 15,
-          "cache_read_per_1m": 0.3,
-          "cache_write_per_1m": 3.75
+          "input_per_1m": 3.3,
+          "output_per_1m": 16.5,
+          "cache_read_per_1m": 0.33,
+          "cache_write_per_1m": 4.125
         }
       ],
       "reasoning": {
@@ -847,10 +1087,10 @@
       "last_updated": "2026-03-13T00:00:00Z",
       "pricing": [
         {
-          "input_per_1m": 3,
-          "output_per_1m": 15,
-          "cache_read_per_1m": 0.3,
-          "cache_write_per_1m": 3.75
+          "input_per_1m": 3.3,
+          "output_per_1m": 16.5,
+          "cache_read_per_1m": 0.33,
+          "cache_write_per_1m": 4.125
         }
       ],
       "reasoning": {
@@ -871,6 +1111,73 @@
       "limits": {
         "context_window": 1000000,
         "max_output_tokens": 64000
+      }
+    },
+    {
+      "id": "eu.anthropic.claude-sonnet-5",
+      "display_name": "Claude Sonnet 5 (EU)",
+      "knowledge_cutoff": "2026-01-31T00:00:00Z",
+      "release_date": "2026-06-30T00:00:00Z",
+      "last_updated": "2026-06-30T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 2.2,
+          "output_per_1m": 11,
+          "cache_read_per_1m": 0.22,
+          "cache_write_per_1m": 2.75
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "global.anthropic.claude-fable-5",
+      "display_name": "Claude Fable 5 (Global)",
+      "knowledge_cutoff": "2026-01-31T00:00:00Z",
+      "release_date": "2026-06-09T00:00:00Z",
+      "last_updated": "2026-06-09T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 10,
+          "output_per_1m": 50,
+          "cache_read_per_1m": 1,
+          "cache_write_per_1m": 12.5
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
       }
     },
     {
@@ -1011,8 +1318,42 @@
     {
       "id": "global.anthropic.claude-opus-4-8",
       "display_name": "Claude Opus 4.8 (Global)",
+      "knowledge_cutoff": "2026-01-01T00:00:00Z",
       "release_date": "2026-05-28T00:00:00Z",
       "last_updated": "2026-05-28T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 5,
+          "output_per_1m": 25,
+          "cache_read_per_1m": 0.5,
+          "cache_write_per_1m": 6.25
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "global.anthropic.claude-opus-5",
+      "display_name": "Claude Opus 5 (Global)",
+      "knowledge_cutoff": "2026-05-01T00:00:00Z",
+      "release_date": "2026-07-24T00:00:00Z",
+      "last_updated": "2026-07-24T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -1109,6 +1450,40 @@
       }
     },
     {
+      "id": "global.anthropic.claude-sonnet-5",
+      "display_name": "Claude Sonnet 5 (Global)",
+      "knowledge_cutoff": "2026-01-31T00:00:00Z",
+      "release_date": "2026-06-30T00:00:00Z",
+      "last_updated": "2026-06-30T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.2,
+          "cache_write_per_1m": 2.5
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
       "id": "google.gemma-3-12b-it",
       "display_name": "Google Gemma 3 12B",
       "knowledge_cutoff": "2024-12-01T00:00:00Z",
@@ -1190,6 +1565,40 @@
       }
     },
     {
+      "id": "jp.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "display_name": "Claude Haiku 4.5 (JP)",
+      "knowledge_cutoff": "2025-02-28T00:00:00Z",
+      "release_date": "2025-10-15T00:00:00Z",
+      "last_updated": "2025-10-15T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 5,
+          "cache_read_per_1m": 0.1,
+          "cache_write_per_1m": 1.25
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
+    },
+    {
       "id": "jp.anthropic.claude-opus-4-7",
       "display_name": "Claude Opus 4.7 (JP)",
       "knowledge_cutoff": "2026-01-31T00:00:00Z",
@@ -1225,8 +1634,42 @@
     {
       "id": "jp.anthropic.claude-opus-4-8",
       "display_name": "Claude Opus 4.8 (JP)",
+      "knowledge_cutoff": "2026-01-01T00:00:00Z",
       "release_date": "2026-05-28T00:00:00Z",
       "last_updated": "2026-05-28T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 5,
+          "output_per_1m": 25,
+          "cache_read_per_1m": 0.5,
+          "cache_write_per_1m": 6.25
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "jp.anthropic.claude-opus-5",
+      "display_name": "Claude Opus 5 (JP)",
+      "knowledge_cutoff": "2026-05-01T00:00:00Z",
+      "release_date": "2026-07-24T00:00:00Z",
+      "last_updated": "2026-07-24T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -1320,6 +1763,40 @@
       "limits": {
         "context_window": 1000000,
         "max_output_tokens": 64000
+      }
+    },
+    {
+      "id": "jp.anthropic.claude-sonnet-5",
+      "display_name": "Claude Sonnet 5 (JP)",
+      "knowledge_cutoff": "2026-01-31T00:00:00Z",
+      "release_date": "2026-06-30T00:00:00Z",
+      "last_updated": "2026-06-30T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.2,
+          "cache_write_per_1m": 2.5
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
       }
     },
     {
@@ -1951,6 +2428,203 @@
       }
     },
     {
+      "id": "openai.gpt-5.4",
+      "display_name": "GPT-5.4",
+      "knowledge_cutoff": "2025-08-31T00:00:00Z",
+      "release_date": "2026-03-05T00:00:00Z",
+      "last_updated": "2026-06-01T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 2.75,
+          "output_per_1m": 16.5,
+          "cache_read_per_1m": 0.275
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 272000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "openai.gpt-5.5",
+      "display_name": "GPT-5.5",
+      "knowledge_cutoff": "2025-12-01T00:00:00Z",
+      "release_date": "2026-04-23T00:00:00Z",
+      "last_updated": "2026-06-01T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 5.5,
+          "output_per_1m": 33,
+          "cache_read_per_1m": 0.55
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 272000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "openai.gpt-5.6-luna",
+      "display_name": "GPT-5.6 Luna",
+      "knowledge_cutoff": "2026-02-16T00:00:00Z",
+      "release_date": "2026-07-09T00:00:00Z",
+      "last_updated": "2026-07-09T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.22,
+          "output_per_1m": 1.32,
+          "cache_read_per_1m": 0.022,
+          "cache_write_per_1m": 0.275
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 272000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "openai.gpt-5.6-sol",
+      "display_name": "GPT-5.6 Sol",
+      "knowledge_cutoff": "2026-02-16T00:00:00Z",
+      "release_date": "2026-07-09T00:00:00Z",
+      "last_updated": "2026-07-09T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 5.5,
+          "output_per_1m": 33,
+          "cache_read_per_1m": 0.55,
+          "cache_write_per_1m": 6.88
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 272000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "openai.gpt-5.6-terra",
+      "display_name": "GPT-5.6 Terra",
+      "knowledge_cutoff": "2026-02-16T00:00:00Z",
+      "release_date": "2026-07-09T00:00:00Z",
+      "last_updated": "2026-07-09T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 2.2,
+          "output_per_1m": 13.2,
+          "cache_read_per_1m": 0.22,
+          "cache_write_per_1m": 2.75
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 272000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "openai.gpt-oss-120b",
+      "display_name": "gpt-oss-120b",
+      "release_date": "2025-08-05T00:00:00Z",
+      "last_updated": "2025-08-05T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.15,
+          "output_per_1m": 0.6
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 16384
+      }
+    },
+    {
       "id": "openai.gpt-oss-120b-1:0",
       "display_name": "gpt-oss-120b",
       "release_date": "2025-08-05T00:00:00Z",
@@ -1961,6 +2635,38 @@
           "output_per_1m": 0.6
         }
       ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 16384
+      }
+    },
+    {
+      "id": "openai.gpt-oss-20b",
+      "display_name": "gpt-oss-20b",
+      "release_date": "2025-08-05T00:00:00Z",
+      "last_updated": "2025-08-05T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.07,
+          "output_per_1m": 0.3
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
       "modalities": {
         "input": [
           "text"
@@ -1987,6 +2693,9 @@
           "output_per_1m": 0.3
         }
       ],
+      "reasoning": {
+        "supported": true
+      },
       "modalities": {
         "input": [
           "text"
@@ -2248,6 +2957,39 @@
       }
     },
     {
+      "id": "us.anthropic.claude-fable-5",
+      "display_name": "Claude Fable 5 (US)",
+      "knowledge_cutoff": "2026-01-31T00:00:00Z",
+      "release_date": "2026-06-09T00:00:00Z",
+      "last_updated": "2026-06-09T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 10,
+          "output_per_1m": 50,
+          "cache_read_per_1m": 1,
+          "cache_write_per_1m": 12.5
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
       "id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       "display_name": "Claude Haiku 4.5 (US)",
       "knowledge_cutoff": "2025-02-28T00:00:00Z",
@@ -2287,6 +3029,7 @@
       "knowledge_cutoff": "2025-03-31T00:00:00Z",
       "release_date": "2025-08-05T00:00:00Z",
       "last_updated": "2025-08-05T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 15,
@@ -2418,8 +3161,42 @@
     {
       "id": "us.anthropic.claude-opus-4-8",
       "display_name": "Claude Opus 4.8 (US)",
+      "knowledge_cutoff": "2026-01-01T00:00:00Z",
       "release_date": "2026-05-28T00:00:00Z",
       "last_updated": "2026-05-28T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 5,
+          "output_per_1m": 25,
+          "cache_read_per_1m": 0.5,
+          "cache_write_per_1m": 6.25
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "us.anthropic.claude-opus-5",
+      "display_name": "Claude Opus 5 (US)",
+      "knowledge_cutoff": "2026-05-01T00:00:00Z",
+      "release_date": "2026-07-24T00:00:00Z",
+      "last_updated": "2026-07-24T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -2513,6 +3290,40 @@
       "limits": {
         "context_window": 1000000,
         "max_output_tokens": 64000
+      }
+    },
+    {
+      "id": "us.anthropic.claude-sonnet-5",
+      "display_name": "Claude Sonnet 5 (US)",
+      "knowledge_cutoff": "2026-01-31T00:00:00Z",
+      "release_date": "2026-06-30T00:00:00Z",
+      "last_updated": "2026-06-30T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.2,
+          "cache_write_per_1m": 2.5
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
       }
     },
     {
@@ -2652,6 +3463,37 @@
       "limits": {
         "context_window": 1040000,
         "max_output_tokens": 8192
+      }
+    },
+    {
+      "id": "xai.grok-4.3",
+      "display_name": "Grok 4.3",
+      "release_date": "2026-04-17T00:00:00Z",
+      "last_updated": "2026-06-28T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 2.5,
+          "cache_read_per_1m": 0.2
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 131072
       }
     },
     {

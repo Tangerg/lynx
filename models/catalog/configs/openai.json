@@ -23,6 +23,7 @@
       "knowledge_cutoff": "2021-09-01T00:00:00Z",
       "release_date": "2023-03-01T00:00:00Z",
       "last_updated": "2023-11-06T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -48,6 +49,7 @@
       "knowledge_cutoff": "2023-11-01T00:00:00Z",
       "release_date": "2023-11-06T00:00:00Z",
       "last_updated": "2024-04-09T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 30,
@@ -74,6 +76,7 @@
       "knowledge_cutoff": "2023-12-01T00:00:00Z",
       "release_date": "2023-11-06T00:00:00Z",
       "last_updated": "2024-04-09T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 10,
@@ -161,6 +164,7 @@
       "knowledge_cutoff": "2024-04-01T00:00:00Z",
       "release_date": "2025-04-14T00:00:00Z",
       "last_updated": "2025-04-14T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -220,6 +224,7 @@
       "knowledge_cutoff": "2023-09-01T00:00:00Z",
       "release_date": "2024-05-13T00:00:00Z",
       "last_updated": "2024-05-13T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 5,
@@ -336,78 +341,6 @@
       "knowledge_cutoff": "2024-09-30T00:00:00Z",
       "release_date": "2025-08-07T00:00:00Z",
       "last_updated": "2025-08-07T00:00:00Z",
-      "pricing": [
-        {
-          "input_per_1m": 1.25,
-          "output_per_1m": 10,
-          "cache_read_per_1m": 0.125
-        }
-      ],
-      "reasoning": {
-        "supported": true,
-        "levels": [
-          "minimal",
-          "low",
-          "medium",
-          "high"
-        ],
-        "default_level": "medium"
-      },
-      "modalities": {
-        "input": [
-          "text",
-          "image"
-        ],
-        "output": [
-          "text"
-        ]
-      },
-      "tool_call": true,
-      "structured_output": true,
-      "limits": {
-        "context_window": 400000,
-        "max_input_tokens": 272000,
-        "max_output_tokens": 128000
-      }
-    },
-    {
-      "id": "gpt-5-chat-latest",
-      "display_name": "GPT-5 Chat (latest)",
-      "knowledge_cutoff": "2024-09-30T00:00:00Z",
-      "release_date": "2025-08-07T00:00:00Z",
-      "last_updated": "2025-08-07T00:00:00Z",
-      "pricing": [
-        {
-          "input_per_1m": 1.25,
-          "output_per_1m": 10,
-          "cache_read_per_1m": 0.125
-        }
-      ],
-      "reasoning": {
-        "supported": true
-      },
-      "modalities": {
-        "input": [
-          "text",
-          "image"
-        ],
-        "output": [
-          "text"
-        ]
-      },
-      "structured_output": true,
-      "limits": {
-        "context_window": 400000,
-        "max_input_tokens": 272000,
-        "max_output_tokens": 128000
-      }
-    },
-    {
-      "id": "gpt-5-codex",
-      "display_name": "GPT-5-Codex",
-      "knowledge_cutoff": "2024-09-30T00:00:00Z",
-      "release_date": "2025-09-15T00:00:00Z",
-      "last_updated": "2025-09-15T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -593,157 +526,6 @@
       }
     },
     {
-      "id": "gpt-5.1-chat-latest",
-      "display_name": "GPT-5.1 Chat",
-      "knowledge_cutoff": "2024-09-30T00:00:00Z",
-      "release_date": "2025-11-13T00:00:00Z",
-      "last_updated": "2025-11-13T00:00:00Z",
-      "pricing": [
-        {
-          "input_per_1m": 1.25,
-          "output_per_1m": 10,
-          "cache_read_per_1m": 0.125
-        }
-      ],
-      "reasoning": {
-        "supported": true
-      },
-      "modalities": {
-        "input": [
-          "text",
-          "image"
-        ],
-        "output": [
-          "text"
-        ]
-      },
-      "tool_call": true,
-      "structured_output": true,
-      "limits": {
-        "context_window": 128000,
-        "max_output_tokens": 16384
-      }
-    },
-    {
-      "id": "gpt-5.1-codex",
-      "display_name": "GPT-5.1 Codex",
-      "knowledge_cutoff": "2024-09-30T00:00:00Z",
-      "release_date": "2025-11-13T00:00:00Z",
-      "last_updated": "2025-11-13T00:00:00Z",
-      "pricing": [
-        {
-          "input_per_1m": 1.25,
-          "output_per_1m": 10,
-          "cache_read_per_1m": 0.125
-        }
-      ],
-      "reasoning": {
-        "supported": true,
-        "levels": [
-          "minimal",
-          "low",
-          "medium",
-          "high"
-        ],
-        "default_level": "medium"
-      },
-      "modalities": {
-        "input": [
-          "text",
-          "image"
-        ],
-        "output": [
-          "text"
-        ]
-      },
-      "tool_call": true,
-      "structured_output": true,
-      "limits": {
-        "context_window": 400000,
-        "max_input_tokens": 272000,
-        "max_output_tokens": 128000
-      }
-    },
-    {
-      "id": "gpt-5.1-codex-max",
-      "display_name": "GPT-5.1 Codex Max",
-      "knowledge_cutoff": "2024-09-30T00:00:00Z",
-      "release_date": "2025-11-13T00:00:00Z",
-      "last_updated": "2025-11-13T00:00:00Z",
-      "pricing": [
-        {
-          "input_per_1m": 1.25,
-          "output_per_1m": 10,
-          "cache_read_per_1m": 0.125
-        }
-      ],
-      "reasoning": {
-        "supported": true,
-        "levels": [
-          "minimal",
-          "low",
-          "medium",
-          "high"
-        ],
-        "default_level": "medium"
-      },
-      "modalities": {
-        "input": [
-          "text",
-          "image"
-        ],
-        "output": [
-          "text"
-        ]
-      },
-      "tool_call": true,
-      "structured_output": true,
-      "limits": {
-        "context_window": 400000,
-        "max_input_tokens": 272000,
-        "max_output_tokens": 128000
-      }
-    },
-    {
-      "id": "gpt-5.1-codex-mini",
-      "display_name": "GPT-5.1 Codex mini",
-      "knowledge_cutoff": "2024-09-30T00:00:00Z",
-      "release_date": "2025-11-13T00:00:00Z",
-      "last_updated": "2025-11-13T00:00:00Z",
-      "pricing": [
-        {
-          "input_per_1m": 0.25,
-          "output_per_1m": 2,
-          "cache_read_per_1m": 0.025
-        }
-      ],
-      "reasoning": {
-        "supported": true,
-        "levels": [
-          "low",
-          "medium",
-          "high"
-        ],
-        "default_level": "medium"
-      },
-      "modalities": {
-        "input": [
-          "text",
-          "image"
-        ],
-        "output": [
-          "text"
-        ]
-      },
-      "tool_call": true,
-      "structured_output": true,
-      "limits": {
-        "context_window": 400000,
-        "max_input_tokens": 272000,
-        "max_output_tokens": 128000
-      }
-    },
-    {
       "id": "gpt-5.2",
       "display_name": "GPT-5.2",
       "knowledge_cutoff": "2025-08-31T00:00:00Z",
@@ -813,47 +595,6 @@
       "limits": {
         "context_window": 128000,
         "max_output_tokens": 16384
-      }
-    },
-    {
-      "id": "gpt-5.2-codex",
-      "display_name": "GPT-5.2 Codex",
-      "knowledge_cutoff": "2025-08-31T00:00:00Z",
-      "release_date": "2025-12-11T00:00:00Z",
-      "last_updated": "2025-12-11T00:00:00Z",
-      "pricing": [
-        {
-          "input_per_1m": 1.75,
-          "output_per_1m": 14,
-          "cache_read_per_1m": 0.175
-        }
-      ],
-      "reasoning": {
-        "supported": true,
-        "levels": [
-          "minimal",
-          "low",
-          "medium",
-          "high"
-        ],
-        "default_level": "medium"
-      },
-      "modalities": {
-        "input": [
-          "text",
-          "image",
-          "pdf"
-        ],
-        "output": [
-          "text"
-        ]
-      },
-      "tool_call": true,
-      "structured_output": true,
-      "limits": {
-        "context_window": 400000,
-        "max_input_tokens": 272000,
-        "max_output_tokens": 128000
       }
     },
     {
@@ -1253,6 +994,174 @@
       }
     },
     {
+      "id": "gpt-5.6",
+      "display_name": "GPT-5.6",
+      "knowledge_cutoff": "2026-02-16T00:00:00Z",
+      "release_date": "2026-07-09T00:00:00Z",
+      "last_updated": "2026-07-09T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 5,
+          "output_per_1m": 30,
+          "cache_read_per_1m": 0.5,
+          "cache_write_per_1m": 6.25
+        },
+        {
+          "threshold": 272000,
+          "input_per_1m": 10,
+          "output_per_1m": 45,
+          "cache_read_per_1m": 1,
+          "cache_write_per_1m": 12.5
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1050000,
+        "max_input_tokens": 922000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "gpt-5.6-luna",
+      "display_name": "GPT-5.6 Luna",
+      "knowledge_cutoff": "2026-02-16T00:00:00Z",
+      "release_date": "2026-07-09T00:00:00Z",
+      "last_updated": "2026-07-09T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 1.2,
+          "cache_read_per_1m": 0.02,
+          "cache_write_per_1m": 0.25
+        },
+        {
+          "threshold": 272000,
+          "input_per_1m": 0.4,
+          "output_per_1m": 1.8,
+          "cache_read_per_1m": 0.04,
+          "cache_write_per_1m": 0.5
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1050000,
+        "max_input_tokens": 922000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "gpt-5.6-sol",
+      "display_name": "GPT-5.6 Sol",
+      "knowledge_cutoff": "2026-02-16T00:00:00Z",
+      "release_date": "2026-07-09T00:00:00Z",
+      "last_updated": "2026-07-09T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 5,
+          "output_per_1m": 30,
+          "cache_read_per_1m": 0.5,
+          "cache_write_per_1m": 6.25
+        },
+        {
+          "threshold": 272000,
+          "input_per_1m": 10,
+          "output_per_1m": 45,
+          "cache_read_per_1m": 1,
+          "cache_write_per_1m": 12.5
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1050000,
+        "max_input_tokens": 922000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "gpt-5.6-terra",
+      "display_name": "GPT-5.6 Terra",
+      "knowledge_cutoff": "2026-02-16T00:00:00Z",
+      "release_date": "2026-07-09T00:00:00Z",
+      "last_updated": "2026-07-09T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 12,
+          "cache_read_per_1m": 0.2,
+          "cache_write_per_1m": 2.5
+        },
+        {
+          "threshold": 272000,
+          "input_per_1m": 4,
+          "output_per_1m": 18,
+          "cache_read_per_1m": 0.4,
+          "cache_write_per_1m": 5
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1050000,
+        "max_input_tokens": 922000,
+        "max_output_tokens": 128000
+      }
+    },
+    {
       "id": "gpt-image-1-mini",
       "display_name": "gpt-image-1-mini",
       "release_date": "2025-09-26T00:00:00Z",
@@ -1285,11 +1194,46 @@
       }
     },
     {
+      "id": "gpt-realtime-2.1",
+      "display_name": "GPT-Realtime-2.1",
+      "knowledge_cutoff": "2024-09-30T00:00:00Z",
+      "release_date": "2026-07-06T00:00:00Z",
+      "last_updated": "2026-07-06T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 4,
+          "output_per_1m": 24,
+          "cache_read_per_1m": 0.4
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "audio",
+          "image"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 128000,
+        "max_input_tokens": 96000,
+        "max_output_tokens": 32000
+      }
+    },
+    {
       "id": "o1",
       "display_name": "o1",
       "knowledge_cutoff": "2023-09-01T00:00:00Z",
       "release_date": "2024-12-05T00:00:00Z",
       "last_updated": "2024-12-05T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 15,
@@ -1318,70 +1262,12 @@
       }
     },
     {
-      "id": "o1-mini",
-      "display_name": "o1-mini",
-      "knowledge_cutoff": "2023-09-01T00:00:00Z",
-      "release_date": "2024-09-12T00:00:00Z",
-      "last_updated": "2024-09-12T00:00:00Z",
-      "pricing": [
-        {
-          "input_per_1m": 1.1,
-          "output_per_1m": 4.4,
-          "cache_read_per_1m": 0.55
-        }
-      ],
-      "reasoning": {
-        "supported": true
-      },
-      "modalities": {
-        "input": [
-          "text"
-        ],
-        "output": [
-          "text"
-        ]
-      },
-      "structured_output": true,
-      "limits": {
-        "context_window": 128000,
-        "max_output_tokens": 65536
-      }
-    },
-    {
-      "id": "o1-preview",
-      "display_name": "o1-preview",
-      "knowledge_cutoff": "2023-09-01T00:00:00Z",
-      "release_date": "2024-09-12T00:00:00Z",
-      "last_updated": "2024-09-12T00:00:00Z",
-      "pricing": [
-        {
-          "input_per_1m": 15,
-          "output_per_1m": 60,
-          "cache_read_per_1m": 7.5
-        }
-      ],
-      "reasoning": {
-        "supported": true
-      },
-      "modalities": {
-        "input": [
-          "text"
-        ],
-        "output": [
-          "text"
-        ]
-      },
-      "limits": {
-        "context_window": 128000,
-        "max_output_tokens": 32768
-      }
-    },
-    {
       "id": "o1-pro",
       "display_name": "o1-pro",
       "knowledge_cutoff": "2023-09-01T00:00:00Z",
       "release_date": "2025-03-19T00:00:00Z",
       "last_updated": "2025-03-19T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 150,
@@ -1447,42 +1333,12 @@
       }
     },
     {
-      "id": "o3-deep-research",
-      "display_name": "o3-deep-research",
-      "knowledge_cutoff": "2024-05-01T00:00:00Z",
-      "release_date": "2024-06-26T00:00:00Z",
-      "last_updated": "2024-06-26T00:00:00Z",
-      "pricing": [
-        {
-          "input_per_1m": 10,
-          "output_per_1m": 40,
-          "cache_read_per_1m": 2.5
-        }
-      ],
-      "reasoning": {
-        "supported": true
-      },
-      "modalities": {
-        "input": [
-          "text",
-          "image"
-        ],
-        "output": [
-          "text"
-        ]
-      },
-      "tool_call": true,
-      "limits": {
-        "context_window": 200000,
-        "max_output_tokens": 100000
-      }
-    },
-    {
       "id": "o3-mini",
       "display_name": "o3-mini",
       "knowledge_cutoff": "2024-05-01T00:00:00Z",
       "release_date": "2024-12-20T00:00:00Z",
       "last_updated": "2025-01-29T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 1.1,
@@ -1551,6 +1407,7 @@
       "knowledge_cutoff": "2024-05-01T00:00:00Z",
       "release_date": "2025-04-16T00:00:00Z",
       "last_updated": "2025-04-16T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 1.1,
@@ -1578,37 +1435,6 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "limits": {
-        "context_window": 200000,
-        "max_output_tokens": 100000
-      }
-    },
-    {
-      "id": "o4-mini-deep-research",
-      "display_name": "o4-mini-deep-research",
-      "knowledge_cutoff": "2024-05-01T00:00:00Z",
-      "release_date": "2024-06-26T00:00:00Z",
-      "last_updated": "2024-06-26T00:00:00Z",
-      "pricing": [
-        {
-          "input_per_1m": 2,
-          "output_per_1m": 8,
-          "cache_read_per_1m": 0.5
-        }
-      ],
-      "reasoning": {
-        "supported": true
-      },
-      "modalities": {
-        "input": [
-          "text",
-          "image"
-        ],
-        "output": [
-          "text"
-        ]
-      },
-      "tool_call": true,
       "limits": {
         "context_window": 200000,
         "max_output_tokens": 100000

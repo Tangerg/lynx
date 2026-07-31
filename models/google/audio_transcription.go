@@ -3,6 +3,7 @@ package google
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 
 	"google.golang.org/genai"
@@ -23,6 +24,8 @@ type AudioTranscriptionModelConfig struct {
 
 	// BaseURL overrides the genai endpoint. Optional.
 	BaseURL string
+
+	HTTPClient *http.Client
 }
 
 func (c AudioTranscriptionModelConfig) Validate() error {
@@ -55,11 +58,12 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 	}
 
 	api, err := NewAPI(APIConfig{
-		APIKey:   cfg.APIKey,
-		Backend:  cfg.Backend,
-		Project:  cfg.Project,
-		Location: cfg.Location,
-		BaseURL:  cfg.BaseURL,
+		APIKey:     cfg.APIKey,
+		Backend:    cfg.Backend,
+		Project:    cfg.Project,
+		Location:   cfg.Location,
+		BaseURL:    cfg.BaseURL,
+		HTTPClient: cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -82,7 +86,7 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 		return "", nil, nil, err
 	}
 
-	cfg, err := options.GetParams[genai.GenerateContentConfig](mergedOpts.Extensions, OptionsKey)
+	cfg, err := options.GetParams[genai.GenerateContentConfig](mergedOpts.Extensions, TranscriptionRequestExtensionKey)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -127,6 +131,9 @@ func (a *AudioTranscriptionModel) buildTranscriptionResponse(apiResp *genai.Gene
 	}
 
 	meta := &transcription.ResponseMetadata{Model: apiResp.ModelVersion}
+	if err := meta.Set(TranscriptionResponseExtensionKey, apiResp); err != nil {
+		return nil, err
+	}
 
 	return transcription.NewResponse(result, meta)
 }

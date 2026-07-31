@@ -1,14 +1,22 @@
 package bedrock
 
 import (
+	"errors"
+	"fmt"
 	"mime"
+	"path"
+	"regexp"
+	"slices"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/document"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 
 	"github.com/Tangerg/lynx/core/media"
 )
+
+var bedrockDocumentNamePattern = regexp.MustCompile(`^[[:alnum:]()\[\]-]+(?: [[:alnum:]()\[\]-]+)*$`)
 
 func toDocument(value any) document.Interface {
 	if value == nil {
@@ -20,36 +28,172 @@ func toDocument(value any) document.Interface {
 	return document.NewLazyDocument(value)
 }
 
-func mediaToBlock(value *media.Media) types.ContentBlock {
+func mediaToBlock(value *media.Media) (types.ContentBlock, error) {
 	if value == nil {
-		return nil
+		return nil, errors.New("nil media")
 	}
 	mediaType, _, err := mime.ParseMediaType(value.MIME)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("invalid media MIME %q: %w", value.MIME, err)
 	}
-	major, subtype, ok := strings.Cut(mediaType, "/")
-	if !ok || !strings.EqualFold(major, "image") {
-		return nil
-	}
-	format, ok := bedrockImageFormat(subtype)
+	major, subtype, ok := strings.Cut(strings.ToLower(mediaType), "/")
 	if !ok {
-		return nil
+		return nil, fmt.Errorf("invalid media MIME %q", value.MIME)
 	}
-	raw, err := value.Bytes()
-	if err != nil || len(raw) == 0 {
-		return nil
-	}
-	return &types.ContentBlockMemberImage{
-		Value: types.ImageBlock{
+
+	switch major {
+	case "image":
+		format, ok := bedrockImageFormat(subtype)
+		if !ok {
+			return nil, fmt.Errorf("unsupported Bedrock image MIME %q", value.MIME)
+		}
+		source, err := bedrockImageSource(value)
+		if err != nil {
+			return nil, err
+		}
+		return &types.ContentBlockMemberImage{Value: types.ImageBlock{Format: format, Source: source}}, nil
+	case "audio":
+		format, ok := bedrockAudioFormat(subtype)
+		if !ok {
+			return nil, fmt.Errorf("unsupported Bedrock audio MIME %q", value.MIME)
+		}
+		source, err := bedrockAudioSource(value)
+		if err != nil {
+			return nil, err
+		}
+		return &types.ContentBlockMemberAudio{Value: types.AudioBlock{Format: format, Source: source}}, nil
+	case "video":
+		format, ok := bedrockVideoFormat(subtype)
+		if !ok {
+			return nil, fmt.Errorf("unsupported Bedrock video MIME %q", value.MIME)
+		}
+		source, err := bedrockVideoSource(value)
+		if err != nil {
+			return nil, err
+		}
+		return &types.ContentBlockMemberVideo{Value: types.VideoBlock{Format: format, Source: source}}, nil
+	default:
+		format, ok := bedrockDocumentFormat(mediaType)
+		if !ok {
+			return nil, fmt.Errorf("unsupported Bedrock document MIME %q", value.MIME)
+		}
+		source, err := bedrockDocumentSource(value)
+		if err != nil {
+			return nil, err
+		}
+		name, err := bedrockDocumentName(value.Name)
+		if err != nil {
+			return nil, err
+		}
+		return &types.ContentBlockMemberDocument{Value: types.DocumentBlock{
 			Format: format,
-			Source: &types.ImageSourceMemberBytes{Value: raw},
-		},
+			Name:   aws.String(name),
+			Source: source,
+		}}, nil
 	}
 }
 
+func bedrockImageSource(value *media.Media) (types.ImageSource, error) {
+	switch value.Source.Kind {
+	case media.SourceBytes:
+		data, err := value.Bytes()
+		if err != nil {
+			return nil, err
+		}
+		return &types.ImageSourceMemberBytes{Value: data}, nil
+	default:
+		location, err := bedrockS3Location(value)
+		if err != nil {
+			return nil, err
+		}
+		return &types.ImageSourceMemberS3Location{Value: location}, nil
+	}
+}
+
+func bedrockAudioSource(value *media.Media) (types.AudioSource, error) {
+	switch value.Source.Kind {
+	case media.SourceBytes:
+		data, err := value.Bytes()
+		if err != nil {
+			return nil, err
+		}
+		return &types.AudioSourceMemberBytes{Value: data}, nil
+	default:
+		location, err := bedrockS3Location(value)
+		if err != nil {
+			return nil, err
+		}
+		return &types.AudioSourceMemberS3Location{Value: location}, nil
+	}
+}
+
+func bedrockVideoSource(value *media.Media) (types.VideoSource, error) {
+	switch value.Source.Kind {
+	case media.SourceBytes:
+		data, err := value.Bytes()
+		if err != nil {
+			return nil, err
+		}
+		return &types.VideoSourceMemberBytes{Value: data}, nil
+	default:
+		location, err := bedrockS3Location(value)
+		if err != nil {
+			return nil, err
+		}
+		return &types.VideoSourceMemberS3Location{Value: location}, nil
+	}
+}
+
+func bedrockDocumentSource(value *media.Media) (types.DocumentSource, error) {
+	switch value.Source.Kind {
+	case media.SourceBytes:
+		data, err := value.Bytes()
+		if err != nil {
+			return nil, err
+		}
+		return &types.DocumentSourceMemberBytes{Value: data}, nil
+	default:
+		location, err := bedrockS3Location(value)
+		if err != nil {
+			return nil, err
+		}
+		return &types.DocumentSourceMemberS3Location{Value: location}, nil
+	}
+}
+
+func bedrockS3Location(value *media.Media) (types.S3Location, error) {
+	var location string
+	var err error
+	switch value.Source.Kind {
+	case media.SourceURI:
+		location, err = value.URI()
+	case media.SourceReference:
+		location, err = value.Reference()
+	default:
+		return types.S3Location{}, fmt.Errorf("Bedrock media source %q is unsupported; use bytes or an s3:// URI", value.Source.Kind)
+	}
+	if err != nil {
+		return types.S3Location{}, err
+	}
+	if !strings.HasPrefix(location, "s3://") || len(strings.TrimPrefix(location, "s3://")) == 0 {
+		return types.S3Location{}, fmt.Errorf("Bedrock media URI %q must use s3://", location)
+	}
+	return types.S3Location{Uri: aws.String(location)}, nil
+}
+
+func bedrockDocumentName(name string) (string, error) {
+	if name == "" {
+		return "document", nil
+	}
+	name = strings.TrimSuffix(name, path.Ext(name))
+	if !bedrockDocumentNamePattern.MatchString(name) {
+		return "", fmt.Errorf("Bedrock document name %q may contain only alphanumerics, single spaces, hyphens, parentheses, and square brackets", name)
+	}
+	return name, nil
+}
+
 func bedrockImageFormat(subtype string) (types.ImageFormat, bool) {
-	switch strings.ToLower(subtype) {
+	switch subtype {
 	case "png":
 		return types.ImageFormatPng, true
 	case "jpeg", "jpg":
@@ -60,5 +204,106 @@ func bedrockImageFormat(subtype string) (types.ImageFormat, bool) {
 		return types.ImageFormatWebp, true
 	default:
 		return "", false
+	}
+}
+
+func bedrockAudioFormat(subtype string) (types.AudioFormat, bool) {
+	aliases := map[string]types.AudioFormat{
+		"mpeg":  types.AudioFormatMpeg,
+		"mp3":   types.AudioFormatMp3,
+		"x-m4a": types.AudioFormatM4a,
+	}
+	if value, ok := aliases[subtype]; ok {
+		return value, true
+	}
+	format := types.AudioFormat(subtype)
+	return format, slices.Contains(format.Values(), format)
+}
+
+func bedrockVideoFormat(subtype string) (types.VideoFormat, bool) {
+	aliases := map[string]types.VideoFormat{"quicktime": types.VideoFormatMov, "3gpp": types.VideoFormatThreeGp}
+	if value, ok := aliases[subtype]; ok {
+		return value, true
+	}
+	format := types.VideoFormat(subtype)
+	return format, slices.Contains(format.Values(), format)
+}
+
+func bedrockDocumentFormat(mediaType string) (types.DocumentFormat, bool) {
+	formats := map[string]types.DocumentFormat{
+		"application/pdf":    types.DocumentFormatPdf,
+		"text/csv":           types.DocumentFormatCsv,
+		"application/msword": types.DocumentFormatDoc,
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document": types.DocumentFormatDocx,
+		"application/vnd.ms-excel": types.DocumentFormatXls,
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": types.DocumentFormatXlsx,
+		"text/html":     types.DocumentFormatHtml,
+		"text/plain":    types.DocumentFormatTxt,
+		"text/markdown": types.DocumentFormatMd,
+	}
+	format, ok := formats[mediaType]
+	return format, ok
+}
+
+func bedrockImageToMedia(block types.ImageBlock) (*media.Media, error) {
+	mimeType := map[types.ImageFormat]string{
+		types.ImageFormatPng: "image/png", types.ImageFormatJpeg: "image/jpeg",
+		types.ImageFormatGif: "image/gif", types.ImageFormatWebp: "image/webp",
+	}[block.Format]
+	if mimeType == "" {
+		return nil, fmt.Errorf("unsupported Bedrock image format %q", block.Format)
+	}
+	switch source := block.Source.(type) {
+	case *types.ImageSourceMemberBytes:
+		return media.NewBytes(mimeType, source.Value)
+	case *types.ImageSourceMemberS3Location:
+		if source.Value.Uri == nil {
+			return nil, errors.New("image S3 source has no URI")
+		}
+		return media.NewURI(mimeType, *source.Value.Uri)
+	default:
+		return nil, fmt.Errorf("unsupported Bedrock image source %T", block.Source)
+	}
+}
+
+func bedrockAudioToMedia(block types.AudioBlock) (*media.Media, error) {
+	mimeType := "audio/" + string(block.Format)
+	switch block.Format {
+	case types.AudioFormatMp3:
+		mimeType = "audio/mpeg"
+	case types.AudioFormatM4a:
+		mimeType = "audio/x-m4a"
+	}
+	switch source := block.Source.(type) {
+	case *types.AudioSourceMemberBytes:
+		return media.NewBytes(mimeType, source.Value)
+	case *types.AudioSourceMemberS3Location:
+		if source.Value.Uri == nil {
+			return nil, errors.New("audio S3 source has no URI")
+		}
+		return media.NewURI(mimeType, *source.Value.Uri)
+	default:
+		return nil, fmt.Errorf("unsupported Bedrock audio source %T", block.Source)
+	}
+}
+
+func bedrockVideoToMedia(block types.VideoBlock) (*media.Media, error) {
+	mimeType := "video/" + string(block.Format)
+	switch block.Format {
+	case types.VideoFormatMov:
+		mimeType = "video/quicktime"
+	case types.VideoFormatThreeGp:
+		mimeType = "video/3gpp"
+	}
+	switch source := block.Source.(type) {
+	case *types.VideoSourceMemberBytes:
+		return media.NewBytes(mimeType, source.Value)
+	case *types.VideoSourceMemberS3Location:
+		if source.Value.Uri == nil {
+			return nil, errors.New("video S3 source has no URI")
+		}
+		return media.NewURI(mimeType, *source.Value.Uri)
+	default:
+		return nil, fmt.Errorf("unsupported Bedrock video source %T", block.Source)
 	}
 }

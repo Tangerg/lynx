@@ -1,0 +1,65 @@
+package vertexai_test
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/Tangerg/lynx/core/image"
+	"github.com/Tangerg/lynx/models/vertexai"
+)
+
+func TestImageModelUsesVertexGenerateContent(t *testing.T) {
+	imageData := base64.StdEncoding.EncodeToString([]byte("PNG"))
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if !strings.Contains(request.URL.Path, ":generateContent") {
+			t.Errorf("path = %q", request.URL.Path)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+		generationConfig, _ := body["generationConfig"].(map[string]any)
+		modalities, _ := generationConfig["responseModalities"].([]any)
+		if len(modalities) != 1 || modalities[0] != "IMAGE" {
+			t.Errorf("responseModalities = %#v", modalities)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{
+			"responseId":"response-1",
+			"modelVersion":"gemini-2.5-flash-image-001",
+			"candidates":[{"content":{"role":"model","parts":[
+				{"thought":true,"inlineData":{"mimeType":"image/png","data":"` + imageData + `"}},
+				{"text":"done"},
+				{"inlineData":{"mimeType":"image/png","data":"` + imageData + `"}}
+			]}}]
+		}`))
+	}))
+	t.Cleanup(server.Close)
+
+	defaultOptions, err := image.NewOptions(vertexai.ModelGemini25FlashImage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model, err := vertexai.NewImageModel(vertexai.ImageModelConfig{
+		Project:        "test-project",
+		Location:       vertexai.LocationGlobal,
+		DefaultOptions: defaultOptions,
+		BaseURL:        server.URL,
+		HTTPClient:     server.Client(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, _ := image.NewRequest("a lynx in snow")
+	response, err := model.Call(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Results) != 1 || string(response.Results[0].Media.Source.Bytes) != "PNG" {
+		t.Fatalf("results = %#v", response.Results)
+	}
+}

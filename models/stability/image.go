@@ -1,14 +1,12 @@
 package stability
 
 import (
-	"cmp"
 	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
@@ -20,13 +18,6 @@ type ImageModelConfig struct {
 	DefaultOptions image.Options
 	BaseURL        string
 	HTTPClient     *http.Client
-
-	// Endpoint selects which v2beta engine to call. Defaults to
-	// [EndpointCore] when empty. Use [EndpointUltra] for highest
-	// quality or [EndpointSD3] for the Stable Diffusion 3 family
-	// (which also requires Options.Extensions["stability/options"] to
-	// pick the SD3 variant via the extension-threaded [GenerateRequest]).
-	Endpoint string
 }
 
 func (c ImageModelConfig) Validate() error {
@@ -52,13 +43,11 @@ var _ image.Model = (*ImageModel)(nil)
 // to an aspect ratio (lossy guess); set AspectRatio on the
 // extension-threaded [GenerateRequest] when control is needed.
 //
-// One ImageModel is locked to one engine via [ImageModelConfig.Endpoint]
-// (Core / Ultra / SD3); callers wanting another tier construct another
-// model.
+// [image.Options].Model selects Core, Ultra, or one exact SD 3.5 model;
+// the adapter derives the official endpoint and request model field from it.
 type ImageModel struct {
 	api            *API
 	defaultOptions image.Options
-	endpoint       string
 }
 
 func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
@@ -78,26 +67,30 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 	return &ImageModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions.Clone(),
-		endpoint:       cmp.Or(cfg.Endpoint, EndpointCore),
 	}, nil
 }
 
-func (i *ImageModel) buildAPIRequest(req *image.Request) (*GenerateRequest, error) {
+func (i *ImageModel) buildAPIRequest(req *image.Request) (string, *GenerateRequest, error) {
 	mergedOpts, err := i.defaultOptions.Merged(req.Options)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	if err := options.RejectUnsupported("stability: image", map[string]bool{
 		"height": mergedOpts.Height != nil,
 		"width":  mergedOpts.Width != nil,
 	}); err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
-	apiReq, err := options.GetParams[GenerateRequest](mergedOpts.Extensions, OptionsKey)
+	apiReq, err := options.GetParams[GenerateRequest](mergedOpts.Extensions, RequestExtensionKey)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
+	endpoint, wireModel, err := resolveModel(mergedOpts.Model)
+	if err != nil {
+		return "", nil, err
+	}
+	apiReq.Model = wireModel
 
 	apiReq.Prompt = req.Prompt
 	if mergedOpts.NegativePrompt != "" {
@@ -112,8 +105,11 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (*GenerateRequest, erro
 
 	// Force JSON mode to get FinishReason / Seed echoed back.
 	apiReq.Mode = ResponseModeJSON
+	if err := validateGenerateRequest(apiReq); err != nil {
+		return "", nil, err
+	}
 
-	return apiReq, nil
+	return endpoint, apiReq, nil
 }
 
 func (i *ImageModel) buildResponse(body []byte, hdr http.Header, outputFormat string) (*image.Response, error) {
@@ -137,14 +133,12 @@ func (i *ImageModel) buildResponse(body []byte, hdr http.Header, outputFormat st
 
 	resultMeta := &image.ResultMetadata{}
 	if envelope.FinishReason != "" {
-		if err := resultMeta.Set("finish_reason", envelope.FinishReason); err != nil {
+		if err := resultMeta.Set("stability/finish_reason", envelope.FinishReason); err != nil {
 			return nil, err
 		}
 	}
-	if envelope.Seed != 0 {
-		if err := resultMeta.Set("seed", envelope.Seed); err != nil {
-			return nil, err
-		}
+	if err := resultMeta.Set("stability/seed", envelope.Seed); err != nil {
+		return nil, err
 	}
 
 	result, err := image.NewResult(value, resultMeta)
@@ -152,11 +146,14 @@ func (i *ImageModel) buildResponse(body []byte, hdr http.Header, outputFormat st
 		return nil, err
 	}
 
-	meta := &image.ResponseMetadata{Created: time.Now().Unix()}
+	meta := &image.ResponseMetadata{}
 	if rid := hdr.Get("request-id"); rid != "" {
-		if err := meta.Set("request_id", rid); err != nil {
+		if err := meta.Set("stability/request_id", rid); err != nil {
 			return nil, err
 		}
+	}
+	if err := meta.Set(ResponseExtensionKey, envelope); err != nil {
+		return nil, err
 	}
 
 	return image.NewResponse([]*image.Result{result}, meta)
@@ -166,15 +163,48 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	apiReq, err := i.buildAPIRequest(req)
+	endpoint, apiReq, err := i.buildAPIRequest(req)
 	if err != nil {
 		return nil, err
 	}
 
-	body, hdr, err := i.api.Generate(ctx, i.endpoint, apiReq)
+	body, hdr, err := i.api.Generate(ctx, endpoint, apiReq)
 	if err != nil {
 		return nil, err
 	}
 
 	return i.buildResponse(body, hdr, apiReq.OutputFormat)
+}
+
+func resolveModel(model string) (endpoint, wireModel string, err error) {
+	switch model {
+	case ModelCore:
+		return endpointCore, "", nil
+	case ModelUltra:
+		return endpointUltra, "", nil
+	case ModelSD3Point5Large, ModelSD3Point5LargeTurbo, ModelSD3Point5Medium, ModelSD3Point5Flash:
+		return endpointSD3, model, nil
+	default:
+		return "", "", fmt.Errorf("stability: unsupported image model %q", model)
+	}
+}
+
+func validateGenerateRequest(req *GenerateRequest) error {
+	if req.AspectRatio != "" {
+		switch req.AspectRatio {
+		case "16:9", "1:1", "21:9", "2:3", "3:2", "4:5", "5:4", "9:16", "9:21":
+		default:
+			return fmt.Errorf("stability: unsupported aspect_ratio %q", req.AspectRatio)
+		}
+	}
+	if req.OutputFormat != "" && req.OutputFormat != "jpeg" && req.OutputFormat != "png" && req.OutputFormat != "webp" {
+		return fmt.Errorf("stability: output_format must be jpeg, png, or webp, got %q", req.OutputFormat)
+	}
+	if req.Seed != nil && (*req.Seed < 0 || *req.Seed > 4294967294) {
+		return fmt.Errorf("stability: seed must be between 0 and 4294967294, got %d", *req.Seed)
+	}
+	if req.CFGScale != nil && (*req.CFGScale < 1 || *req.CFGScale > 10) {
+		return fmt.Errorf("stability: cfg_scale must be between 1 and 10, got %g", *req.CFGScale)
+	}
+	return nil
 }

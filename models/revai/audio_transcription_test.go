@@ -42,7 +42,7 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	)
 	t.Cleanup(srv.Close)
 
-	opts, err := transcription.NewOptions("machine_v2")
+	opts, err := transcription.NewOptions(revai.ModelMachine)
 	if err != nil {
 		t.Fatal(err)
 	}

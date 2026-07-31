@@ -6,12 +6,13 @@
       "display_name": "MiMo-V2-Flash",
       "knowledge_cutoff": "2024-12-01T00:00:00Z",
       "release_date": "2025-12-16T00:00:00Z",
-      "last_updated": "2026-02-04T00:00:00Z",
+      "last_updated": "2026-06-24T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
-          "input_per_1m": 0.1,
-          "output_per_1m": 0.3,
-          "cache_read_per_1m": 0.01
+          "input_per_1m": 0.14,
+          "output_per_1m": 0.28,
+          "cache_read_per_1m": 0.0028
         }
       ],
       "reasoning": {
@@ -36,12 +37,13 @@
       "display_name": "MiMo-V2-Omni",
       "knowledge_cutoff": "2024-12-01T00:00:00Z",
       "release_date": "2026-03-18T00:00:00Z",
-      "last_updated": "2026-03-18T00:00:00Z",
+      "last_updated": "2026-06-24T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
-          "input_per_1m": 0.4,
-          "output_per_1m": 2,
-          "cache_read_per_1m": 0.08
+          "input_per_1m": 0.14,
+          "output_per_1m": 0.28,
+          "cache_read_per_1m": 0.0028
         }
       ],
       "reasoning": {
@@ -70,18 +72,13 @@
       "display_name": "MiMo-V2-Pro",
       "knowledge_cutoff": "2024-12-01T00:00:00Z",
       "release_date": "2026-03-18T00:00:00Z",
-      "last_updated": "2026-03-18T00:00:00Z",
+      "last_updated": "2026-06-24T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
-          "input_per_1m": 1,
-          "output_per_1m": 3,
-          "cache_read_per_1m": 0.2
-        },
-        {
-          "threshold": 256000,
-          "input_per_1m": 2,
-          "output_per_1m": 6,
-          "cache_read_per_1m": 0.4
+          "input_per_1m": 0.435,
+          "output_per_1m": 0.87,
+          "cache_read_per_1m": 0.0036
         }
       ],
       "reasoning": {
@@ -106,18 +103,12 @@
       "display_name": "MiMo-V2.5",
       "knowledge_cutoff": "2024-12-01T00:00:00Z",
       "release_date": "2026-04-22T00:00:00Z",
-      "last_updated": "2026-04-22T00:00:00Z",
+      "last_updated": "2026-06-24T00:00:00Z",
       "pricing": [
         {
-          "input_per_1m": 0.4,
-          "output_per_1m": 2,
-          "cache_read_per_1m": 0.08
-        },
-        {
-          "threshold": 256000,
-          "input_per_1m": 0.8,
-          "output_per_1m": 4,
-          "cache_read_per_1m": 0.16
+          "input_per_1m": 0.14,
+          "output_per_1m": 0.28,
+          "cache_read_per_1m": 0.0028
         }
       ],
       "reasoning": {
@@ -145,18 +136,42 @@
       "display_name": "MiMo-V2.5-Pro",
       "knowledge_cutoff": "2024-12-01T00:00:00Z",
       "release_date": "2026-04-22T00:00:00Z",
-      "last_updated": "2026-04-22T00:00:00Z",
+      "last_updated": "2026-06-24T00:00:00Z",
       "pricing": [
         {
-          "input_per_1m": 1,
-          "output_per_1m": 3,
-          "cache_read_per_1m": 0.2
-        },
+          "input_per_1m": 0.435,
+          "output_per_1m": 0.87,
+          "cache_read_per_1m": 0.0036
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 131072
+      }
+    },
+    {
+      "id": "mimo-v2.5-pro-ultraspeed",
+      "display_name": "MiMo-V2.5-Pro-UltraSpeed",
+      "knowledge_cutoff": "2024-12-01T00:00:00Z",
+      "release_date": "2026-06-08T00:00:00Z",
+      "last_updated": "2026-06-09T00:00:00Z",
+      "pricing": [
         {
-          "threshold": 256000,
-          "input_per_1m": 2,
-          "output_per_1m": 6,
-          "cache_read_per_1m": 0.4
+          "input_per_1m": 1.305,
+          "output_per_1m": 2.61,
+          "cache_read_per_1m": 0.0108
         }
       ],
       "reasoning": {

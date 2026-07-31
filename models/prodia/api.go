@@ -31,12 +31,12 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	client := resty.New().
-		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetHeader("Authorization", "Bearer "+cfg.APIKey)
+	client := resty.New()
 	if cfg.HTTPClient != nil {
-		client.SetTransport(cfg.HTTPClient.Transport)
+		client = resty.NewWithClient(cfg.HTTPClient)
 	}
+	client.SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
+		SetHeader("Authorization", "Bearer "+cfg.APIKey)
 	return &API{http: client}, nil
 }
 

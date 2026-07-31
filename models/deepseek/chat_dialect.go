@@ -1,0 +1,232 @@
+package deepseek
+
+import (
+	"errors"
+	"fmt"
+	"regexp"
+
+	"github.com/openai/openai-go/v3/option"
+
+	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/metadata"
+)
+
+const RequestExtensionKey = "deepseek/request"
+
+var userIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+// ThinkingMode selects whether DeepSeek emits reasoning_content before its
+// final answer. The API defaults to enabled when the field is omitted.
+type ThinkingMode string
+
+const (
+	ThinkingEnabled  ThinkingMode = "enabled"
+	ThinkingDisabled ThinkingMode = "disabled"
+)
+
+// ThinkingConfig controls DeepSeek's hybrid thinking mode.
+type ThinkingConfig struct {
+	Type ThinkingMode `json:"type"`
+}
+
+// ReasoningEffort controls the amount of reasoning performed in thinking
+// mode. DeepSeek V4 Flash supports all three levels. V4 Pro currently accepts
+// low but maps it to high.
+type ReasoningEffort string
+
+const (
+	ReasoningEffortLow  ReasoningEffort = "low"
+	ReasoningEffortHigh ReasoningEffort = "high"
+	ReasoningEffortMax  ReasoningEffort = "max"
+)
+
+// ResponseFormat selects DeepSeek's documented output representation.
+type ResponseFormat string
+
+const (
+	ResponseFormatText       ResponseFormat = "text"
+	ResponseFormatJSONObject ResponseFormat = "json_object"
+)
+
+// ToolChoiceMode controls whether DeepSeek may select a tool. To force one
+// function, set [ToolChoice.FunctionName] instead of Mode.
+type ToolChoiceMode string
+
+const (
+	ToolChoiceNone     ToolChoiceMode = "none"
+	ToolChoiceAuto     ToolChoiceMode = "auto"
+	ToolChoiceRequired ToolChoiceMode = "required"
+)
+
+// ToolChoice represents DeepSeek's string-or-named-function tool_choice
+// union without exposing the OpenAI SDK type through this provider package.
+type ToolChoice struct {
+	Mode         ToolChoiceMode `json:"mode,omitempty"`
+	FunctionName string         `json:"function_name,omitempty"`
+}
+
+// RequestOptions contains documented DeepSeek Chat Completions fields that
+// have no provider-neutral Core equivalent. Store it in
+// [chat.Request.Extensions] under [RequestExtensionKey].
+type RequestOptions struct {
+	Thinking        *ThinkingConfig `json:"thinking,omitempty"`
+	ReasoningEffort ReasoningEffort `json:"reasoning_effort,omitempty"`
+	ResponseFormat  ResponseFormat  `json:"response_format,omitempty"`
+	ToolChoice      *ToolChoice     `json:"tool_choice,omitempty"`
+	LogProbs        *bool           `json:"logprobs,omitempty"`
+	TopLogProbs     *int64          `json:"top_logprobs,omitempty"`
+	IncludeUsage    *bool           `json:"include_usage,omitempty"`
+	UserID          string          `json:"user_id,omitempty"`
+}
+
+type requestDialect struct {
+	defaults corechat.Options
+}
+
+func (dialect requestDialect) PrepareRequestOptions(request *corechat.Request, stream bool) ([]option.RequestOption, error) {
+	options, _, err := metadata.Decode[RequestOptions](request.Extensions, RequestExtensionKey)
+	if err != nil {
+		return nil, fmt.Errorf("extension %q: %w", RequestExtensionKey, err)
+	}
+	effective := dialect.defaults.Overlay(request.Options)
+	if err := options.validate(effective, request.Tools, stream); err != nil {
+		return nil, err
+	}
+
+	requestOptions := make([]option.RequestOption, 0, 8)
+	if options.Thinking != nil {
+		requestOptions = append(requestOptions, option.WithJSONSet("thinking", options.Thinking))
+	}
+	if options.ReasoningEffort != "" {
+		requestOptions = append(requestOptions, option.WithJSONSet("reasoning_effort", options.ReasoningEffort))
+	}
+	if options.ResponseFormat != "" {
+		requestOptions = append(requestOptions, option.WithJSONSet("response_format", map[string]ResponseFormat{
+			"type": options.ResponseFormat,
+		}))
+	}
+	if options.ToolChoice != nil {
+		var value any = options.ToolChoice.Mode
+		if options.ToolChoice.FunctionName != "" {
+			value = map[string]any{
+				"type": "function",
+				"function": map[string]string{
+					"name": options.ToolChoice.FunctionName,
+				},
+			}
+		}
+		requestOptions = append(requestOptions, option.WithJSONSet("tool_choice", value))
+	}
+	if options.LogProbs != nil {
+		requestOptions = append(requestOptions, option.WithJSONSet("logprobs", *options.LogProbs))
+	}
+	if options.TopLogProbs != nil {
+		requestOptions = append(requestOptions, option.WithJSONSet("top_logprobs", *options.TopLogProbs))
+	}
+	if options.IncludeUsage != nil {
+		requestOptions = append(requestOptions, option.WithJSONSet("stream_options", map[string]bool{
+			"include_usage": *options.IncludeUsage,
+		}))
+	}
+	if options.UserID != "" {
+		requestOptions = append(requestOptions, option.WithJSONSet("user_id", options.UserID))
+	}
+	return requestOptions, nil
+}
+
+func (options RequestOptions) validate(generation corechat.Options, tools []corechat.ToolDefinition, stream bool) error {
+	thinkingEnabled := options.Thinking == nil || options.Thinking.Type != ThinkingDisabled
+	if options.Thinking != nil {
+		switch options.Thinking.Type {
+		case ThinkingEnabled, ThinkingDisabled:
+		default:
+			return fmt.Errorf("thinking.type has unsupported value %q", options.Thinking.Type)
+		}
+	}
+	switch options.ReasoningEffort {
+	case "", ReasoningEffortLow, ReasoningEffortHigh, ReasoningEffortMax:
+	default:
+		return fmt.Errorf("reasoning_effort has unsupported value %q", options.ReasoningEffort)
+	}
+	if !thinkingEnabled && options.ReasoningEffort != "" {
+		return errors.New("reasoning_effort requires thinking.type=enabled")
+	}
+	if generation.FrequencyPenalty != nil {
+		return errors.New("options.frequency_penalty is deprecated and unsupported by DeepSeek")
+	}
+	if generation.PresencePenalty != nil {
+		return errors.New("options.presence_penalty is deprecated and unsupported by DeepSeek")
+	}
+	if thinkingEnabled && generation.Temperature != nil {
+		return errors.New("options.temperature has no effect while DeepSeek thinking is enabled")
+	}
+	if thinkingEnabled && generation.TopP != nil {
+		return errors.New("options.top_p has no effect while DeepSeek thinking is enabled")
+	}
+	if len(generation.Stop) > 16 {
+		return errors.New("options.stop must contain at most 16 sequences for DeepSeek")
+	}
+	if len(tools) > 128 {
+		return errors.New("tools must contain at most 128 functions for DeepSeek")
+	}
+
+	switch options.ResponseFormat {
+	case "", ResponseFormatText, ResponseFormatJSONObject:
+	default:
+		return fmt.Errorf("response_format has unsupported value %q", options.ResponseFormat)
+	}
+	if err := options.ToolChoice.validate(tools); err != nil {
+		return fmt.Errorf("tool_choice: %w", err)
+	}
+	if options.TopLogProbs != nil {
+		if *options.TopLogProbs < 0 || *options.TopLogProbs > 20 {
+			return errors.New("top_logprobs must be between 0 and 20")
+		}
+		if options.LogProbs == nil || !*options.LogProbs {
+			return errors.New("top_logprobs requires logprobs=true")
+		}
+	}
+	if options.IncludeUsage != nil && !stream {
+		return errors.New("include_usage is valid only for streaming requests")
+	}
+	if options.UserID != "" {
+		if len(options.UserID) > 512 {
+			return errors.New("user_id must contain at most 512 characters")
+		}
+		if !userIDPattern.MatchString(options.UserID) {
+			return errors.New("user_id may contain only ASCII letters, digits, hyphens, and underscores")
+		}
+	}
+	return nil
+}
+
+func (choice *ToolChoice) validate(tools []corechat.ToolDefinition) error {
+	if choice == nil {
+		return nil
+	}
+	if choice.Mode != "" && choice.FunctionName != "" {
+		return errors.New("mode and function_name are mutually exclusive")
+	}
+	if choice.Mode == "" && choice.FunctionName == "" {
+		return errors.New("mode or function_name is required")
+	}
+	if choice.Mode != "" {
+		switch choice.Mode {
+		case ToolChoiceNone:
+			return nil
+		case ToolChoiceAuto, ToolChoiceRequired:
+			if len(tools) == 0 {
+				return fmt.Errorf("mode %q requires at least one tool", choice.Mode)
+			}
+			return nil
+		default:
+			return fmt.Errorf("mode has unsupported value %q", choice.Mode)
+		}
+	}
+	for index := range tools {
+		if tools[index].Name == choice.FunctionName {
+			return nil
+		}
+	}
+	return fmt.Errorf("function_name %q does not match a declared tool", choice.FunctionName)
+}

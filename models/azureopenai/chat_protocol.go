@@ -12,6 +12,12 @@ import (
 	"github.com/Tangerg/lynx/models/openai"
 )
 
+const (
+	OpenAIRequestExtensionKey     = "azureopenai/openai_request"
+	OpenAIResponseExtensionKey    = "azureopenai/openai_response"
+	OpenAIStreamChunkExtensionKey = "azureopenai/openai_stream_chunk"
+)
+
 var (
 	_ corechat.Model    = (*Chat)(nil)
 	_ corechat.Streamer = (*Chat)(nil)
@@ -25,20 +31,21 @@ type Chat struct {
 // ChatConfig configures the Core chat adapter for Azure OpenAI.
 type ChatConfig struct {
 	APIKey         string
-	Endpoint       string
-	APIVersion     string
+	BaseURL        string
 	DefaultOptions corechat.Options
 	RequestOptions []option.RequestOption
 }
 
-// NewChat constructs a Core chat adapter for Azure OpenAI. APIKey may be
-// empty when RequestOptions provide Azure AD authentication.
+// NewChat constructs a Core chat adapter for Azure OpenAI's v1 endpoint.
 func NewChat(config ChatConfig) (*Chat, error) {
-	if config.Endpoint == "" {
-		return nil, errors.New("azureopenai: Endpoint is required")
+	if config.APIKey == "" {
+		return nil, errors.New("azureopenai: APIKey is required")
 	}
-	apiKey, requestOptions := buildAzureRequestOptions(config.APIKey, config.Endpoint, config.APIVersion, config.RequestOptions)
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: apiKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.ReasoningContentDialect())
+	requestOptions, err := buildRequestOptions(config.BaseURL, config.RequestOptions)
+	if err != nil {
+		return nil, err
+	}
+	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.Dialect{Provider: "azureopenai"})
 	if err != nil {
 		return nil, fmt.Errorf("azureopenai: construct chat: %w", err)
 	}

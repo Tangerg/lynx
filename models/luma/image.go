@@ -4,8 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"time"
+
+	lumaagents "github.com/lumalabs/luma-agents-go"
+	lumaoption "github.com/lumalabs/luma-agents-go/option"
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
@@ -17,123 +22,140 @@ type ImageModelConfig struct {
 	DefaultOptions image.Options
 	BaseURL        string
 	HTTPClient     *http.Client
+	RequestOptions []lumaoption.RequestOption
 	PollInterval   time.Duration
 	PollTimeout    time.Duration
 }
 
-func (c ImageModelConfig) Validate() error {
-	if c.APIKey == "" {
+func (config ImageModelConfig) Validate() error {
+	if config.APIKey == "" {
 		return errors.New("luma: APIKey is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if config.DefaultOptions.Model == "" {
 		return errors.New("luma: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
-		return err
+	if _, err := config.DefaultOptions.Merged(); err != nil {
+		return fmt.Errorf("luma: DefaultOptions: %w", err)
 	}
 	return nil
 }
 
 var _ image.Model = (*ImageModel)(nil)
 
-// ImageModel wraps Luma's Photon image-generation endpoint
-// (/dream-machine/v1/generations/image). Luma is async — Call submits
-// then polls until the asset is ready.
+// ImageModel implements Luma Agents image generation and editing with the
+// official SDK. Provider output URLs are downloaded before they expire.
 type ImageModel struct {
 	api            *API
 	defaultOptions image.Options
+	httpClient     *http.Client
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
 }
 
-func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := NewAPI(APIConfig{
+		APIKey:         config.APIKey,
+		BaseURL:        config.BaseURL,
+		HTTPClient:     config.HTTPClient,
+		RequestOptions: config.RequestOptions,
+	})
 	if err != nil {
 		return nil, err
 	}
-	pi := cfg.PollInterval
-	if pi <= 0 {
-		pi = time.Duration(DefaultPollIntervalSeconds) * time.Second
+	httpClient := config.HTTPClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
 	}
-	pt := cfg.PollTimeout
-	if pt <= 0 {
-		pt = time.Duration(DefaultPollTimeoutSeconds) * time.Second
+	pollInterval := config.PollInterval
+	if pollInterval <= 0 {
+		pollInterval = time.Duration(DefaultPollIntervalSeconds) * time.Second
 	}
-	return &ImageModel{api: api, defaultOptions: cfg.DefaultOptions.Clone(), pollInterval: pi, pollTimeout: pt}, nil
+	pollTimeout := config.PollTimeout
+	if pollTimeout <= 0 {
+		pollTimeout = time.Duration(DefaultPollTimeoutSeconds) * time.Second
+	}
+	return &ImageModel{
+		api:            api,
+		defaultOptions: config.DefaultOptions.Clone(),
+		httpClient:     httpClient,
+		pollInterval:   pollInterval,
+		pollTimeout:    pollTimeout,
+	}, nil
 }
 
-func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
-	if err := req.Validate(); err != nil {
-		return nil, err
+func (model *ImageModel) Call(ctx context.Context, request *image.Request) (*image.Response, error) {
+	if model == nil || model.api == nil {
+		return nil, errors.New("luma: nil ImageModel")
 	}
-	mergedOpts, err := i.defaultOptions.Merged(req.Options)
+	if err := request.Validate(); err != nil {
+		return nil, fmt.Errorf("luma: request: %w", err)
+	}
+	optionsValue, err := model.defaultOptions.Merged(request.Options)
 	if err != nil {
 		return nil, err
 	}
 	if err := options.RejectUnsupported("luma: image", map[string]bool{
-		"height":          mergedOpts.Height != nil,
-		"negative_prompt": mergedOpts.NegativePrompt != "",
-		"output_format":   mergedOpts.OutputFormat != "",
-		"seed":            mergedOpts.Seed != nil,
-		"width":           mergedOpts.Width != nil,
+		"height":          optionsValue.Height != nil,
+		"negative_prompt": optionsValue.NegativePrompt != "",
+		"seed":            optionsValue.Seed != nil,
+		"width":           optionsValue.Width != nil,
 	}); err != nil {
 		return nil, err
 	}
 
-	apiReq, err := options.GetParams[ImageGenerateRequest](mergedOpts.Extensions, OptionsKey)
+	params, err := options.GetParams[lumaagents.GenerationNewParams](optionsValue.Extensions, ImageRequestExtensionKey)
+	if err != nil {
+		return nil, fmt.Errorf("luma: extension %q: %w", ImageRequestExtensionKey, err)
+	}
+	params.Prompt = lumaagents.F(request.Prompt)
+	params.Model = lumaagents.F(lumaagents.Model(optionsValue.Model))
+	if !params.Type.Present {
+		params.Type = lumaagents.F(lumaagents.GenerationNewParamsTypeImage)
+	}
+	if params.Type.Value != lumaagents.GenerationNewParamsTypeImage && params.Type.Value != lumaagents.GenerationNewParamsTypeImageEdit {
+		return nil, fmt.Errorf("luma: extension %q type %q is not an image operation", ImageRequestExtensionKey, params.Type.Value)
+	}
+	if optionsValue.OutputFormat != "" {
+		format := strings.TrimPrefix(optionsValue.OutputFormat, "image/")
+		switch format {
+		case "png":
+			params.OutputFormat = lumaagents.F(lumaagents.GenerationNewParamsOutputFormatPng)
+		case "jpeg", "jpg":
+			params.OutputFormat = lumaagents.F(lumaagents.GenerationNewParamsOutputFormatJpeg)
+		default:
+			return nil, fmt.Errorf("luma: output format %q is unsupported; use image/png or image/jpeg", optionsValue.OutputFormat)
+		}
+	}
+
+	submitted, err := model.api.CreateGeneration(ctx, *params)
+	if err != nil {
+		return nil, fmt.Errorf("luma: create generation: %w", err)
+	}
+	completed, err := model.pollUntilDone(ctx, submitted.ID)
 	if err != nil {
 		return nil, err
 	}
-	apiReq.Prompt = req.Prompt
-	if apiReq.Model == "" {
-		apiReq.Model = mergedOpts.Model
-	}
-
-	async, err := i.api.GenerateImage(ctx, apiReq)
-	if err != nil {
-		return nil, err
-	}
-
-	final, err := i.pollUntilDone(ctx, async.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	value, err := media.NewURI("application/octet-stream", final.Assets.Image)
-	if err != nil {
-		return nil, err
-	}
-
-	result, err := image.NewResult(value, &image.ResultMetadata{})
-	if err != nil {
-		return nil, err
-	}
-
-	meta := &image.ResponseMetadata{Created: time.Now().Unix()}
-	if err := meta.Set("task_id", async.ID); err != nil {
-		return nil, err
-	}
-	return image.NewResponse([]*image.Result{result}, meta)
+	return model.mapResponse(ctx, completed)
 }
 
-func (i *ImageModel) pollUntilDone(ctx context.Context, id string) (*Generation, error) {
-	deadline, cancel := context.WithTimeout(ctx, i.pollTimeout)
+func (model *ImageModel) pollUntilDone(ctx context.Context, generationID string) (*lumaagents.Generation, error) {
+	deadline, cancel := context.WithTimeout(ctx, model.pollTimeout)
 	defer cancel()
-	ticker := time.NewTicker(i.pollInterval)
+	ticker := time.NewTicker(model.pollInterval)
 	defer ticker.Stop()
 	for {
-		resp, err := i.api.GetGeneration(deadline, id)
+		generation, err := model.api.GetGeneration(deadline, generationID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("luma: get generation %q: %w", generationID, err)
 		}
-		switch resp.State {
-		case "completed":
-			return resp, nil
-		case "failed":
-			return nil, fmt.Errorf("luma: generation failed: %s", resp.FailureReason)
+		switch generation.State {
+		case lumaagents.GenerationStateCompleted:
+			return generation, nil
+		case lumaagents.GenerationStateFailed:
+			return nil, fmt.Errorf("luma: generation %q failed (%s): %s", generationID, generation.FailureCode, generation.FailureReason)
 		}
 		select {
 		case <-deadline.Done():
@@ -141,4 +163,70 @@ func (i *ImageModel) pollUntilDone(ctx context.Context, id string) (*Generation,
 		case <-ticker.C:
 		}
 	}
+}
+
+func (model *ImageModel) mapResponse(ctx context.Context, generation *lumaagents.Generation) (*image.Response, error) {
+	if generation == nil {
+		return nil, errors.New("luma: nil generation response")
+	}
+	if len(generation.Output) == 0 {
+		return nil, fmt.Errorf("luma: generation %q completed without output", generation.ID)
+	}
+	results := make([]*image.Result, 0, len(generation.Output))
+	for outputIndex := range generation.Output {
+		output := generation.Output[outputIndex]
+		data, mimeType, err := model.downloadOutput(ctx, output.URL)
+		if err != nil {
+			return nil, fmt.Errorf("luma: output[%d]: %w", outputIndex, err)
+		}
+		value, err := media.NewBytes(mimeType, data)
+		if err != nil {
+			return nil, err
+		}
+		resultMetadata := &image.ResultMetadata{}
+		if err := resultMetadata.Set("luma/output", output); err != nil {
+			return nil, err
+		}
+		result, err := image.NewResult(value, resultMetadata)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, result)
+	}
+	createdAt, err := time.Parse(time.RFC3339Nano, generation.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("luma: generation created_at %q: %w", generation.CreatedAt, err)
+	}
+	metadata := &image.ResponseMetadata{Created: createdAt.Unix()}
+	if err := metadata.Set(ResponseExtensionKey, generation); err != nil {
+		return nil, err
+	}
+	return image.NewResponse(results, metadata)
+}
+
+func (model *ImageModel) downloadOutput(ctx context.Context, rawURL string) ([]byte, string, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("build download request: %w", err)
+	}
+	response, err := model.httpClient.Do(request)
+	if err != nil {
+		return nil, "", fmt.Errorf("download: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return nil, "", fmt.Errorf("download HTTP %d", response.StatusCode)
+	}
+	data, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("read download: %w", err)
+	}
+	if len(data) == 0 {
+		return nil, "", errors.New("download is empty")
+	}
+	mimeType := strings.TrimSpace(strings.SplitN(response.Header.Get("Content-Type"), ";", 2)[0])
+	if mimeType == "" {
+		mimeType = http.DetectContentType(data)
+	}
+	return data, mimeType, nil
 }

@@ -3,9 +3,11 @@ package replicate
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/go-resty/resty/v2"
@@ -25,33 +27,77 @@ func (c APIConfig) Validate() error {
 }
 
 type API struct {
-	http *resty.Client
+	http     *resty.Client
+	download *resty.Client
+	baseHost string
 }
 
 func NewAPI(cfg APIConfig) (*API, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	client := resty.New().
-		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
+	client := resty.New()
+	download := resty.New()
+	if cfg.HTTPClient != nil {
+		client = resty.NewWithClient(cfg.HTTPClient)
+		download = resty.NewWithClient(cfg.HTTPClient)
+	}
+	baseURL := cmp.Or(cfg.BaseURL, DefaultBaseURL)
+	parsedBaseURL, err := url.Parse(baseURL)
+	if err != nil || parsedBaseURL.Scheme == "" || parsedBaseURL.Host == "" {
+		return nil, fmt.Errorf("replicate: invalid BaseURL %q", baseURL)
+	}
+	client.SetBaseURL(baseURL).
 		SetAuthToken(cfg.APIKey).
 		SetHeader("Content-Type", "application/json")
-	if cfg.HTTPClient != nil {
-		client.SetTransport(cfg.HTTPClient.Transport)
-	}
-	return &API{http: client}, nil
+	return &API{http: client, download: download, baseHost: parsedBaseURL.Hostname()}, nil
 }
 
-// PredictionRequest is the JSON body for both prediction endpoints.
-// Input is a model-specific dictionary that Replicate forwards
-// verbatim to the upstream model's input schema. Version is only set
-// when posting to the community endpoint /v1/predictions.
+// PredictionRequest contains the caller-controlled body fields shared by both
+// prediction endpoints. CreatePrediction derives version exclusively from the
+// model id so endpoint routing and the immutable version cannot disagree.
 type PredictionRequest struct {
+	Input               map[string]any `json:"input"`
+	Webhook             string         `json:"webhook,omitempty"`
+	WebhookEventsFilter []string       `json:"webhook_events_filter,omitzero"`
+}
+
+func (r PredictionRequest) Validate() error {
+	if r.Input == nil {
+		return errors.New("replicate: prediction input is required")
+	}
+	if _, err := json.Marshal(r.Input); err != nil {
+		return fmt.Errorf("replicate: prediction input is not valid JSON: %w", err)
+	}
+	if r.Webhook != "" {
+		parsed, err := url.Parse(r.Webhook)
+		if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+			return fmt.Errorf("replicate: webhook must be an absolute HTTPS URL: %q", r.Webhook)
+		}
+	}
+	if len(r.WebhookEventsFilter) > 0 && r.Webhook == "" {
+		return errors.New("replicate: webhook_events_filter requires webhook")
+	}
+	seenEvents := make(map[string]struct{}, len(r.WebhookEventsFilter))
+	for index, event := range r.WebhookEventsFilter {
+		switch event {
+		case "start", "output", "logs", "completed":
+		default:
+			return fmt.Errorf("replicate: webhook_events_filter[%d]: unsupported event %q", index, event)
+		}
+		if _, duplicate := seenEvents[event]; duplicate {
+			return fmt.Errorf("replicate: webhook_events_filter[%d]: duplicate event %q", index, event)
+		}
+		seenEvents[event] = struct{}{}
+	}
+	return nil
+}
+
+type predictionRequestBody struct {
 	Input               map[string]any `json:"input"`
 	Version             string         `json:"version,omitempty"`
 	Webhook             string         `json:"webhook,omitempty"`
 	WebhookEventsFilter []string       `json:"webhook_events_filter,omitzero"`
-	Stream              bool           `json:"stream,omitzero"`
 }
 
 // PredictionResponse mirrors Replicate's prediction-job document.
@@ -71,6 +117,8 @@ type PredictionResponse struct {
 	CreatedAt   string         `json:"created_at,omitempty"`
 	StartedAt   string         `json:"started_at,omitempty"`
 	CompletedAt string         `json:"completed_at,omitempty"`
+	DataRemoved bool           `json:"data_removed,omitempty"`
+	Source      string         `json:"source,omitempty"`
 	URLs        struct {
 		Get    string `json:"get"`
 		Cancel string `json:"cancel"`
@@ -91,6 +139,9 @@ func (a *API) CreatePrediction(ctx context.Context, modelID string, req *Predict
 	if req == nil {
 		return nil, errors.New("replicate: request must not be nil")
 	}
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	if modelID == "" {
 		return nil, errors.New("replicate: model id must not be empty")
 	}
@@ -102,11 +153,15 @@ func (a *API) CreatePrediction(ctx context.Context, modelID string, req *Predict
 
 	var (
 		path string
-		body = *req
+		body = predictionRequestBody{
+			Input:               req.Input,
+			Webhook:             req.Webhook,
+			WebhookEventsFilter: req.WebhookEventsFilter,
+		}
 	)
 	if version != "" {
 		path = "/predictions"
-		body.Version = version
+		body.Version = modelID
 	} else {
 		path = fmt.Sprintf("/models/%s/%s/predictions", owner, name)
 	}
@@ -120,6 +175,35 @@ func (a *API) CreatePrediction(ctx context.Context, modelID string, req *Predict
 		return nil, fmt.Errorf("replicate: http %d: %s", resp.StatusCode(), resp.String())
 	}
 	return &out, nil
+}
+
+// DownloadOutput fetches a provider-issued prediction file without forwarding
+// the API bearer token. Replicate output-file URLs are independently
+// authorized and ephemeral; sending the account token to a delivery host is
+// both unnecessary and unsafe.
+func (a *API) DownloadOutput(ctx context.Context, rawURL string) ([]byte, string, error) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return nil, "", fmt.Errorf("replicate: invalid output URL %q", rawURL)
+	}
+	host := parsed.Hostname()
+	if parsed.Scheme != "https" && host != a.baseHost {
+		return nil, "", fmt.Errorf("replicate: output URL must use HTTPS, got %q", parsed.Scheme)
+	}
+	if host != a.baseHost && host != "replicate.delivery" && !strings.HasSuffix(host, ".replicate.delivery") {
+		return nil, "", fmt.Errorf("replicate: untrusted output host %q", host)
+	}
+	response, err := a.download.R().SetContext(ctx).Get(rawURL)
+	if err != nil {
+		return nil, "", fmt.Errorf("replicate: download output: %w", err)
+	}
+	if !response.IsSuccess() {
+		return nil, "", fmt.Errorf("replicate: download output http %d: %s", response.StatusCode(), response.String())
+	}
+	if len(response.Body()) == 0 {
+		return nil, "", errors.New("replicate: downloaded output is empty")
+	}
+	return response.Body(), response.Header().Get("Content-Type"), nil
 }
 
 // GetPrediction polls a prediction's current state.
@@ -158,10 +242,13 @@ func (a *API) CancelPrediction(ctx context.Context, id string) (*PredictionRespo
 // returns indicate the input wasn't well-formed.
 func parseModelID(id string) (owner, name, version string) {
 	owner, rest, ok := strings.Cut(id, "/")
-	if !ok {
+	if !ok || owner == "" || rest == "" || strings.Contains(rest, "/") {
 		return "", "", ""
 	}
 	if n, v, hasVersion := strings.Cut(rest, ":"); hasVersion {
+		if n == "" || v == "" || strings.Contains(v, ":") {
+			return "", "", ""
+		}
 		return owner, n, v
 	}
 	return owner, rest, ""

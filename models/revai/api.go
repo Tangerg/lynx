@@ -33,12 +33,12 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	client := resty.New().
-		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetAuthToken(cfg.APIKey)
+	client := resty.New()
 	if cfg.HTTPClient != nil {
-		client.SetTransport(cfg.HTTPClient.Transport)
+		client = resty.NewWithClient(cfg.HTTPClient)
 	}
+	client.SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
+		SetAuthToken(cfg.APIKey)
 	return &API{http: client}, nil
 }
 
@@ -62,7 +62,7 @@ type JobOptions struct {
 	CustomVocabularyID   string         `json:"custom_vocabulary_id,omitempty"`
 	CustomVocabularies   []any          `json:"custom_vocabularies,omitzero"`
 	Language             string         `json:"language,omitempty"`
-	TranscriberType      string         `json:"transcriber,omitempty"` // "machine_v2" / "human"
+	Transcriber          string         `json:"transcriber,omitempty"`
 	VerbatimMode         bool           `json:"verbatim,omitzero"`
 	RushMode             bool           `json:"rush,omitzero"`
 	TestMode             bool           `json:"test_mode,omitzero"`
@@ -103,16 +103,19 @@ func (a *API) SubmitURL(ctx context.Context, opts JobOptions) (*Job, error) {
 
 // Upload submits a job with the audio bytes as the multipart "media"
 // field plus the options as a JSON "options" field.
-func (a *API) Upload(ctx context.Context, audio []byte, opts JobOptions) (*Job, error) {
+func (a *API) Upload(ctx context.Context, audio []byte, mimeType string, opts JobOptions) (*Job, error) {
 	if len(audio) == 0 {
-		return nil, errors.New("revai: request must not be nil")
+		return nil, errors.New("revai: upload audio must not be empty")
 	}
-	optsJSON, _ := json.Marshal(opts)
+	optsJSON, err := json.Marshal(opts)
+	if err != nil {
+		return nil, fmt.Errorf("revai: encode job options: %w", err)
+	}
 
 	var out Job
 	resp, err := a.http.R().
 		SetContext(ctx).
-		SetFileReader("media", "audio", bytes.NewReader(audio)).
+		SetMultipartField("media", "audio", cmp.Or(mimeType, "application/octet-stream"), bytes.NewReader(audio)).
 		SetMultipartField("options", "", "application/json", bytes.NewReader(optsJSON)).
 		SetResult(&out).
 		Post("/jobs")

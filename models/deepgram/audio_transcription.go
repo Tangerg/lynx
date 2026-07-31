@@ -74,7 +74,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-	params, err := options.GetParams[ListenParams](mergedOpts.Extensions, OptionsKey)
+	params, err := options.GetParams[ListenParams](mergedOpts.Extensions, TranscriptionRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -83,6 +83,9 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	}
 	if params.Language == "" && mergedOpts.Language != "" {
 		params.Language = mergedOpts.Language
+	}
+	if params.Summarize == "v1" {
+		return nil, errors.New("deepgram: summarize=v1 is deprecated; use true or v2")
 	}
 
 	audio, err := req.Audio.Bytes()
@@ -104,14 +107,14 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	alt := apiResp.Results.Channels[0].Alternatives[0]
 
 	resultMeta := &transcription.ResultMetadata{}
-	if err := resultMeta.Set("confidence", alt.Confidence); err != nil {
+	if err := resultMeta.Set("deepgram/confidence", alt.Confidence); err != nil {
 		return nil, err
 	}
-	if err := resultMeta.Set("words", alt.Words); err != nil {
+	if err := resultMeta.Set("deepgram/words", alt.Words); err != nil {
 		return nil, err
 	}
 	if len(apiResp.Results.Utterances) > 0 {
-		if err := resultMeta.Set("utterances", apiResp.Results.Utterances); err != nil {
+		if err := resultMeta.Set("deepgram/utterances", apiResp.Results.Utterances); err != nil {
 			return nil, err
 		}
 	}
@@ -121,14 +124,17 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, err
 	}
 
-	meta := &transcription.ResponseMetadata{}
-	if err := meta.Set("request_id", apiResp.Metadata.RequestID); err != nil {
+	meta := &transcription.ResponseMetadata{Model: params.Model}
+	if err := meta.Set("deepgram/request_id", apiResp.Metadata.RequestID); err != nil {
 		return nil, err
 	}
-	if err := meta.Set("duration", apiResp.Metadata.Duration); err != nil {
+	if err := meta.Set("deepgram/duration_seconds", apiResp.Metadata.Duration); err != nil {
 		return nil, err
 	}
-	if err := meta.Set("channels", apiResp.Metadata.Channels); err != nil {
+	if err := meta.Set("deepgram/channels", apiResp.Metadata.Channels); err != nil {
+		return nil, err
+	}
+	if err := meta.Set(TranscriptionResponseExtensionKey, apiResp.Raw); err != nil {
 		return nil, err
 	}
 

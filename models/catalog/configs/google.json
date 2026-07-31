@@ -2,11 +2,94 @@
   "provider": "google",
   "models": [
     {
+      "id": "deep-research-max-preview-04-2026",
+      "display_name": "Deep Research Max Preview (Apr-21-2026)",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-04-21T00:00:00Z",
+      "last_updated": "2026-04-21T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 12,
+          "cache_read_per_1m": 0.2
+        },
+        {
+          "threshold": 200000,
+          "input_per_1m": 4,
+          "output_per_1m": 18,
+          "cache_read_per_1m": 0.4
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 65536
+      }
+    },
+    {
+      "id": "deep-research-preview-04-2026",
+      "display_name": "Deep Research Preview (Apr-21-2026)",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-04-21T00:00:00Z",
+      "last_updated": "2026-04-21T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 12,
+          "cache_read_per_1m": 0.2
+        },
+        {
+          "threshold": 200000,
+          "input_per_1m": 4,
+          "output_per_1m": 18,
+          "cache_read_per_1m": 0.4
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 65536
+      }
+    },
+    {
       "id": "gemini-2.0-flash",
       "display_name": "Gemini 2.0 Flash",
       "knowledge_cutoff": "2024-06-01T00:00:00Z",
       "release_date": "2024-12-11T00:00:00Z",
       "last_updated": "2024-12-11T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -39,6 +122,7 @@
       "knowledge_cutoff": "2024-06-01T00:00:00Z",
       "release_date": "2024-12-11T00:00:00Z",
       "last_updated": "2024-12-11T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 0.075,
@@ -65,11 +149,46 @@
       }
     },
     {
+      "id": "gemini-2.5-computer-use-preview-10-2025",
+      "display_name": "Gemini 2.5 Computer Use Preview 10-2025",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2025-10-07T00:00:00Z",
+      "last_updated": "2025-10-07T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10
+        },
+        {
+          "threshold": 200000,
+          "input_per_1m": 2.5,
+          "output_per_1m": 15
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 65536
+      }
+    },
+    {
       "id": "gemini-2.5-flash",
       "display_name": "Gemini 2.5 Flash",
       "knowledge_cutoff": "2025-01-01T00:00:00Z",
-      "release_date": "2025-03-20T00:00:00Z",
-      "last_updated": "2025-06-05T00:00:00Z",
+      "release_date": "2025-06-17T00:00:00Z",
+      "last_updated": "2025-06-17T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -102,7 +221,7 @@
     {
       "id": "gemini-2.5-flash-image",
       "display_name": "Nano Banana",
-      "knowledge_cutoff": "2025-06-01T00:00:00Z",
+      "knowledge_cutoff": "2024-06-01T00:00:00Z",
       "release_date": "2025-08-26T00:00:00Z",
       "last_updated": "2025-08-26T00:00:00Z",
       "pricing": [
@@ -169,8 +288,8 @@
       "id": "gemini-2.5-pro",
       "display_name": "Gemini 2.5 Pro",
       "knowledge_cutoff": "2025-01-01T00:00:00Z",
-      "release_date": "2025-03-20T00:00:00Z",
-      "last_updated": "2025-06-05T00:00:00Z",
+      "release_date": "2025-06-17T00:00:00Z",
+      "last_updated": "2025-06-17T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -249,11 +368,72 @@
       }
     },
     {
+      "id": "gemini-3-pro-image",
+      "display_name": "Nano Banana Pro",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-05-28T00:00:00Z",
+      "last_updated": "2026-05-28T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 120
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 32768
+      }
+    },
+    {
+      "id": "gemini-3-pro-image-preview",
+      "display_name": "Nano Banana Pro",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2025-11-20T00:00:00Z",
+      "last_updated": "2025-11-20T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 120
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 32768
+      }
+    },
+    {
       "id": "gemini-3-pro-preview",
       "display_name": "Gemini 3 Pro Preview",
       "knowledge_cutoff": "2025-01-01T00:00:00Z",
       "release_date": "2025-11-18T00:00:00Z",
       "last_updated": "2025-11-18T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 2,
@@ -291,6 +471,38 @@
       "structured_output": true,
       "limits": {
         "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
+    },
+    {
+      "id": "gemini-3.1-flash-image",
+      "display_name": "Nano Banana 2",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-05-28T00:00:00Z",
+      "last_updated": "2026-05-28T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.5,
+          "output_per_1m": 60
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "limits": {
+        "context_window": 65536,
         "max_output_tokens": 65536
       }
     },
@@ -361,11 +573,43 @@
       }
     },
     {
+      "id": "gemini-3.1-flash-lite-image",
+      "display_name": "Nano Banana 2 Lite",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-06-30T00:00:00Z",
+      "last_updated": "2026-06-30T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.25,
+          "output_per_1m": 30
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 65536,
+        "max_output_tokens": 65536
+      }
+    },
+    {
       "id": "gemini-3.1-flash-lite-preview",
       "display_name": "Gemini 3.1 Flash Lite Preview",
       "knowledge_cutoff": "2025-01-01T00:00:00Z",
       "release_date": "2026-03-03T00:00:00Z",
       "last_updated": "2026-03-03T00:00:00Z",
+      "deprecated": true,
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -392,6 +636,39 @@
       "structured_output": true,
       "limits": {
         "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
+    },
+    {
+      "id": "gemini-3.1-flash-live-preview",
+      "display_name": "Gemini 3.1 Flash Live Preview",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-03-26T00:00:00Z",
+      "last_updated": "2026-03-26T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.75,
+          "output_per_1m": 4.5
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 131072,
         "max_output_tokens": 65536
       }
     },
@@ -526,16 +803,16 @@
       }
     },
     {
-      "id": "gemini-flash-latest",
-      "display_name": "Gemini Flash Latest",
-      "knowledge_cutoff": "2025-01-01T00:00:00Z",
-      "release_date": "2025-09-25T00:00:00Z",
-      "last_updated": "2025-09-25T00:00:00Z",
+      "id": "gemini-3.5-flash-lite",
+      "display_name": "Gemini 3.5 Flash Lite",
+      "knowledge_cutoff": "2026-03-01T00:00:00Z",
+      "release_date": "2026-07-21T00:00:00Z",
+      "last_updated": "2026-07-21T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.3,
           "output_per_1m": 2.5,
-          "cache_read_per_1m": 0.075
+          "cache_read_per_1m": 0.03
         }
       ],
       "reasoning": {
@@ -545,8 +822,104 @@
         "input": [
           "text",
           "image",
-          "audio",
           "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
+    },
+    {
+      "id": "gemini-3.5-live-translate-preview",
+      "display_name": "Gemini 3.5 Live Translate Preview",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-06-09T00:00:00Z",
+      "last_updated": "2026-06-09T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 3.5,
+          "output_per_1m": 21
+        }
+      ],
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "audio",
+          "text"
+        ]
+      },
+      "limits": {
+        "context_window": 16384,
+        "max_output_tokens": 32768
+      }
+    },
+    {
+      "id": "gemini-3.6-flash",
+      "display_name": "Gemini 3.6 Flash",
+      "knowledge_cutoff": "2026-03-01T00:00:00Z",
+      "release_date": "2026-07-21T00:00:00Z",
+      "last_updated": "2026-07-21T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 1.5,
+          "output_per_1m": 7.5,
+          "cache_read_per_1m": 0.15
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
+    },
+    {
+      "id": "gemini-flash-latest",
+      "display_name": "Gemini Flash Latest",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-05-19T00:00:00Z",
+      "last_updated": "2026-05-19T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 1.5,
+          "output_per_1m": 9,
+          "cache_read_per_1m": 0.15
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
           "pdf"
         ],
         "output": [
@@ -564,12 +937,12 @@
       "id": "gemini-flash-lite-latest",
       "display_name": "Gemini Flash-Lite Latest",
       "knowledge_cutoff": "2025-01-01T00:00:00Z",
-      "release_date": "2025-09-25T00:00:00Z",
-      "last_updated": "2025-09-25T00:00:00Z",
+      "release_date": "2026-05-07T00:00:00Z",
+      "last_updated": "2026-05-07T00:00:00Z",
       "pricing": [
         {
-          "input_per_1m": 0.1,
-          "output_per_1m": 0.4,
+          "input_per_1m": 0.25,
+          "output_per_1m": 1.5,
           "cache_read_per_1m": 0.025
         }
       ],
@@ -580,8 +953,8 @@
         "input": [
           "text",
           "image",
-          "audio",
           "video",
+          "audio",
           "pdf"
         ],
         "output": [
@@ -592,6 +965,39 @@
       "structured_output": true,
       "limits": {
         "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
+    },
+    {
+      "id": "gemini-robotics-er-1.6-preview",
+      "display_name": "Gemini Robotics-ER 1.6 Preview",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-04-14T00:00:00Z",
+      "last_updated": "2026-04-14T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 5
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 131072,
         "max_output_tokens": 65536
       }
     },
@@ -641,6 +1047,46 @@
       "limits": {
         "context_window": 262144,
         "max_output_tokens": 32768
+      }
+    },
+    {
+      "id": "lyria-3-clip-preview",
+      "display_name": "Lyria 3 Clip Preview",
+      "release_date": "2026-03-25T00:00:00Z",
+      "last_updated": "2026-03-25T00:00:00Z",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      },
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
+    },
+    {
+      "id": "lyria-3-pro-preview",
+      "display_name": "Lyria 3 Pro Preview",
+      "release_date": "2026-03-25T00:00:00Z",
+      "last_updated": "2026-03-25T00:00:00Z",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      },
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 65536
       }
     }
   ]

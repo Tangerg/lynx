@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -35,29 +36,37 @@ func NewAPI(cfg APIConfig) (*API, error) {
 		return nil, err
 	}
 
-	client := resty.New().
-		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
+	client := resty.New()
+	if cfg.HTTPClient != nil {
+		client = resty.NewWithClient(cfg.HTTPClient)
+	}
+	client.SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
 		SetHeader("xi-api-key", cfg.APIKey).
 		SetHeader("Accept", "audio/*")
-	if cfg.HTTPClient != nil {
-		client.SetTransport(cfg.HTTPClient.Transport)
-	}
 
 	return &API{http: client}, nil
 }
 
 type TTSRequest struct {
-	Text                           string         `json:"text"`
-	ModelID                        string         `json:"model_id,omitempty"`
-	LanguageCode                   string         `json:"language_code,omitempty"`
-	VoiceSettings                  *VoiceSettings `json:"voice_settings,omitempty"`
-	Seed                           *int64         `json:"seed,omitempty"`
-	PreviousText                   string         `json:"previous_text,omitempty"`
-	NextText                       string         `json:"next_text,omitempty"`
-	PreviousRequestIDs             []string       `json:"previous_request_ids,omitzero"`
-	NextRequestIDs                 []string       `json:"next_request_ids,omitzero"`
-	ApplyTextNormalization         string         `json:"apply_text_normalization,omitempty"`
-	ApplyLanguageTextNormalization *bool          `json:"apply_language_text_normalization,omitempty"`
+	EnableLogging                   *bool                            `json:"-"`
+	OptimizeStreamingLatency        *int                             `json:"-"`
+	Text                            string                           `json:"text"`
+	ModelID                         string                           `json:"model_id,omitempty"`
+	LanguageCode                    string                           `json:"language_code,omitempty"`
+	VoiceSettings                   *VoiceSettings                   `json:"voice_settings,omitempty"`
+	Seed                            *int64                           `json:"seed,omitempty"`
+	PreviousText                    string                           `json:"previous_text,omitempty"`
+	NextText                        string                           `json:"next_text,omitempty"`
+	PreviousRequestIDs              []string                         `json:"previous_request_ids,omitzero"`
+	NextRequestIDs                  []string                         `json:"next_request_ids,omitzero"`
+	ApplyTextNormalization          string                           `json:"apply_text_normalization,omitempty"`
+	ApplyLanguageTextNormalization  *bool                            `json:"apply_language_text_normalization,omitempty"`
+	PronunciationDictionaryLocators []PronunciationDictionaryLocator `json:"pronunciation_dictionary_locators,omitzero"`
+}
+
+type PronunciationDictionaryLocator struct {
+	PronunciationDictionaryID string `json:"pronunciation_dictionary_id"`
+	VersionID                 string `json:"version_id,omitempty"`
 }
 
 type VoiceSettings struct {
@@ -109,13 +118,19 @@ func (a *API) buildAudioRequest(ctx context.Context, outputFormat string, body *
 	if outputFormat != "" {
 		req = req.SetQueryParam("output_format", outputFormat)
 	}
+	if body.EnableLogging != nil {
+		req.SetQueryParam("enable_logging", boolStr(*body.EnableLogging))
+	}
+	if body.OptimizeStreamingLatency != nil {
+		req.SetQueryParam("optimize_streaming_latency", intStr(*body.OptimizeStreamingLatency))
+	}
 	return req
 }
 
 // TranscriptionRequest mirrors POST /v1/speech-to-text (multipart/form-data).
-// Audio is uploaded as the "file" form field; other parameters ride as
-// form fields too. The "scribe_v1" model identifier is what ElevenLabs
-// expects in 2025.
+// Audio is uploaded as the "file" form field; other parameters are form fields.
+// It intentionally models only synchronous, single-result options representable
+// by Core's transcription protocol.
 type TranscriptionRequest struct {
 	ModelID               string
 	LanguageCode          string
@@ -123,26 +138,44 @@ type TranscriptionRequest struct {
 	NumSpeakers           *int
 	TagAudioEvents        *bool
 	TimestampsGranularity string
-	Tags                  []string
+	DiarizationThreshold  *float64
+	FileFormat            string
+	Temperature           *float64
+	Seed                  *int
+	NoVerbatim            *bool
+	UseSpeakerLibrary     *bool
+	DetectSpeakerRoles    *bool
+	Keyterms              []string
 }
 
 // TranscriptionResponse models /v1/speech-to-text JSON output.
 type TranscriptionResponse struct {
-	LanguageCode        string  `json:"language_code"`
-	LanguageProbability float64 `json:"language_probability"`
-	Text                string  `json:"text"`
-	Words               []struct {
-		Text      string  `json:"text"`
-		Type      string  `json:"type"`
-		Start     float64 `json:"start"`
-		End       float64 `json:"end"`
-		SpeakerID string  `json:"speaker_id,omitempty"`
-	} `json:"words"`
+	LanguageCode        string                `json:"language_code"`
+	LanguageProbability float64               `json:"language_probability"`
+	Text                string                `json:"text"`
+	Words               []TranscriptionWord   `json:"words"`
+	Entities            []TranscriptionEntity `json:"entities,omitempty"`
+}
+
+type TranscriptionWord struct {
+	Text         string  `json:"text"`
+	Type         string  `json:"type"`
+	Start        float64 `json:"start"`
+	End          float64 `json:"end"`
+	SpeakerID    string  `json:"speaker_id,omitempty"`
+	ChannelIndex *int    `json:"channel_index,omitempty"`
+}
+
+type TranscriptionEntity struct {
+	Text       string `json:"text"`
+	EntityType string `json:"entity_type"`
+	StartChar  int    `json:"start_char"`
+	EndChar    int    `json:"end_char"`
 }
 
 func (a *API) Transcription(ctx context.Context, audio []byte, mimeType string, req *TranscriptionRequest) (*TranscriptionResponse, error) {
 	if len(audio) == 0 {
-		return nil, errors.New("elevenlabs: request must not be nil")
+		return nil, errors.New("elevenlabs: transcription audio must not be empty")
 	}
 
 	form := map[string]string{}
@@ -165,17 +198,42 @@ func (a *API) Transcription(ctx context.Context, audio []byte, mimeType string, 
 		if req.TimestampsGranularity != "" {
 			form["timestamps_granularity"] = req.TimestampsGranularity
 		}
+		if req.DiarizationThreshold != nil {
+			form["diarization_threshold"] = strconv.FormatFloat(*req.DiarizationThreshold, 'f', -1, 64)
+		}
+		if req.FileFormat != "" {
+			form["file_format"] = req.FileFormat
+		}
+		if req.Temperature != nil {
+			form["temperature"] = strconv.FormatFloat(*req.Temperature, 'f', -1, 64)
+		}
+		if req.Seed != nil {
+			form["seed"] = intStr(*req.Seed)
+		}
+		if req.NoVerbatim != nil {
+			form["no_verbatim"] = boolStr(*req.NoVerbatim)
+		}
+		if req.UseSpeakerLibrary != nil {
+			form["use_speaker_library"] = boolStr(*req.UseSpeakerLibrary)
+		}
+		if req.DetectSpeakerRoles != nil {
+			form["detect_speaker_roles"] = boolStr(*req.DetectSpeakerRoles)
+		}
+		if len(req.Keyterms) > 0 {
+			encoded, err := json.Marshal(req.Keyterms)
+			if err != nil {
+				return nil, fmt.Errorf("elevenlabs: encode transcription keyterms: %w", err)
+			}
+			form["keyterms"] = string(encoded)
+		}
 	}
 
 	var out TranscriptionResponse
 	r := a.http.R().
 		SetContext(ctx).
-		SetFileReader("file", "audio", bytes.NewReader(audio)).
+		SetMultipartField("file", "audio", cmp.Or(mimeType, "application/octet-stream"), bytes.NewReader(audio)).
 		SetMultipartFormData(form).
 		SetResult(&out)
-	if mimeType != "" {
-		r.SetHeader("Content-Type", mimeType)
-	}
 	resp, err := r.Post("/speech-to-text")
 	if err != nil {
 		return nil, fmt.Errorf("elevenlabs: request failed: %w", err)

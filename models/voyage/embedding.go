@@ -3,8 +3,8 @@ package voyage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/models/internal/options"
@@ -40,8 +40,8 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 // Anthropic-centric stacks a first-class RAG embedder without routing
 // through OpenAI/Google.
 //
-// Supported models include voyage-3-large, voyage-3, voyage-3-lite,
-// voyage-code-3, voyage-finance-2, voyage-law-2, voyage-multilingual-2.
+// Current general-purpose models are voyage-4-large, voyage-4, and
+// voyage-4-lite. Specialized models such as voyage-code-3 remain supported.
 //
 // Voyage-specific knobs that don't fit the generic surface — InputType
 // ("query" / "document" for asymmetric retrieval), Truncation,
@@ -79,7 +79,7 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*EmbeddingRequ
 		return nil, err
 	}
 
-	apiReq, err := options.GetParams[EmbeddingRequest](mergedOpts.Extensions, OptionsKey)
+	apiReq, err := options.GetParams[EmbeddingRequest](mergedOpts.Extensions, EmbeddingRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -90,24 +90,44 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*EmbeddingRequ
 	if mergedOpts.Dimensions != nil {
 		apiReq.OutputDimension = mergedOpts.Dimensions
 	}
+	if apiReq.OutputDtype == "" {
+		apiReq.OutputDtype = "float"
+	}
+	if apiReq.OutputDtype != "float" {
+		return nil, fmt.Errorf("voyage: extension %q output_dtype %q cannot be represented by Core float embeddings", EmbeddingRequestExtensionKey, apiReq.OutputDtype)
+	}
+	if apiReq.EncodingFormat != "" {
+		return nil, fmt.Errorf("voyage: extension %q encoding_format is unsupported by Core float embeddings", EmbeddingRequestExtensionKey)
+	}
 
 	return apiReq, nil
 }
 
-func (e *EmbeddingModel) buildResponse(apiResp *EmbeddingResponse) (*embedding.Response, error) {
+func (e *EmbeddingModel) buildResponse(apiResp *EmbeddingResponse, expectedResults int) (*embedding.Response, error) {
 	if len(apiResp.Data) == 0 {
 		return nil, errors.New("voyage: embedding response has no data")
 	}
+	if len(apiResp.Data) != expectedResults {
+		return nil, fmt.Errorf("voyage: embedding response returned %d results for %d inputs", len(apiResp.Data), expectedResults)
+	}
 
-	results := make([]*embedding.Result, 0, len(apiResp.Data))
+	results := make([]*embedding.Result, len(apiResp.Data))
+	seen := make([]bool, len(apiResp.Data))
 	for _, item := range apiResp.Data {
+		if item.Index < 0 || item.Index >= int64(len(results)) {
+			return nil, fmt.Errorf("voyage: embedding response index %d is out of range", item.Index)
+		}
+		if seen[item.Index] {
+			return nil, fmt.Errorf("voyage: embedding response repeats index %d", item.Index)
+		}
 		resultMeta := &embedding.ResultMetadata{}
 
 		result, err := embedding.NewResult(item.Embedding, resultMeta)
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, result)
+		results[item.Index] = result
+		seen[item.Index] = true
 	}
 
 	meta := &embedding.ResponseMetadata{
@@ -115,7 +135,6 @@ func (e *EmbeddingModel) buildResponse(apiResp *EmbeddingResponse) (*embedding.R
 		Usage: &embedding.Usage{
 			InputTokens: apiResp.Usage.TotalTokens,
 		},
-		Created: time.Now().Unix(),
 	}
 
 	return embedding.NewResponse(results, meta)
@@ -135,5 +154,5 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 		return nil, err
 	}
 
-	return e.buildResponse(apiResp)
+	return e.buildResponse(apiResp, len(req.Texts))
 }

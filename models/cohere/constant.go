@@ -5,5 +5,5 @@ const (
 )
 
 const (
-	OptionsKey = "cohere/options"
+	EmbeddingRequestExtensionKey = "cohere/embedding_request"
 )

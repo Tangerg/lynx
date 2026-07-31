@@ -45,7 +45,7 @@ func TestTargetChatProviderConstructorsCompile(t *testing.T) {
 		_ func(huggingface.OpenAIChatConfig) (*huggingface.OpenAIChat, error)     = huggingface.NewOpenAIChat
 		_ func(minimax.OpenAIChatConfig) (*minimax.OpenAIChat, error)             = minimax.NewOpenAIChat
 		_ func(minimax.AnthropicChatConfig) (*minimax.AnthropicChat, error)       = minimax.NewAnthropicChat
-		_ func(mistral.OpenAIChatConfig) (*mistral.OpenAIChat, error)             = mistral.NewOpenAIChat
+		_ func(mistral.ChatConfig) (*mistral.Chat, error)                         = mistral.NewChat
 		_ func(moonshot.OpenAIChatConfig) (*moonshot.OpenAIChat, error)           = moonshot.NewOpenAIChat
 		_ func(moonshot.AnthropicChatConfig) (*moonshot.AnthropicChat, error)     = moonshot.NewAnthropicChat
 		_ func(ollama.ChatConfig) (*ollama.Chat, error)                           = ollama.NewChat

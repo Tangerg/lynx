@@ -34,8 +34,8 @@ func (c EmbeddingModelConfig) Validate() error {
 }
 
 // NewEmbeddingModel returns an openai-backed embedding model pointed
-// at DashScope's compatible-mode /embeddings. text-embedding-v3 and
-// text-embedding-v4 both accept the OpenAI-shaped dimensions param
+// at DashScope's compatible-mode /embeddings. text-embedding-v4 accepts
+// the OpenAI-shaped dimensions param
 // via [embedding.Options.Dimensions].
 func NewEmbeddingModel(cfg EmbeddingModelConfig) (*openai.EmbeddingModel, error) {
 	if err := cfg.Validate(); err != nil {

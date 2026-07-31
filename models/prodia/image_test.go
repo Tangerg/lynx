@@ -1,6 +1,7 @@
 package prodia_test
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/image"
@@ -10,10 +11,19 @@ import (
 
 func TestImageModel_Call_Mock(t *testing.T) {
 	// Prodia /job returns the raw image bytes directly (sync endpoint).
-	srv := testutil.BinaryServer(200, "image/jpeg", []byte("FAKE-JPEG-BYTES"))
+	srv := testutil.MuxServer(testutil.Route{Method: "POST", Contains: "/job", Handle: func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer test-key" {
+			t.Errorf("Authorization = %q", got)
+		}
+		if got := r.Header.Get("Accept"); got != "image/png" {
+			t.Errorf("Accept = %q", got)
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Write([]byte("FAKE-PNG-BYTES"))
+	}})
 	t.Cleanup(srv.Close)
 
-	opts, err := image.NewOptions("inference.flux.schnell.txt2img.v1")
+	opts, err := image.NewOptions(prodia.JobFluxFastSchnellTextToImage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,6 +37,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	}
 
 	req, _ := image.NewRequest("a small red square")
+	req.Options.OutputFormat = "image/png"
 	out, err := m.Call(t.Context(), req)
 	if err != nil {
 		t.Fatalf("Call: %v", err)

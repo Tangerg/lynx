@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -32,12 +33,12 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	client := resty.New().
-		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetHeader("x-gladia-key", cfg.APIKey)
+	client := resty.New()
 	if cfg.HTTPClient != nil {
-		client.SetTransport(cfg.HTTPClient.Transport)
+		client = resty.NewWithClient(cfg.HTTPClient)
 	}
+	client.SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
+		SetHeader("x-gladia-key", cfg.APIKey)
 	return &API{http: client}, nil
 }
 
@@ -51,21 +52,37 @@ type UploadResponse struct {
 }
 
 type TranscriptionRequest struct {
-	AudioURL               string         `json:"audio_url"`
-	DetectLanguage         *bool          `json:"detect_language,omitempty"`
-	EnableCodeSwitching    *bool          `json:"enable_code_switching,omitempty"`
-	Diarization            *bool          `json:"diarization,omitempty"`
-	DiarizationConfig      map[string]any `json:"diarization_config,omitzero"`
-	Translation            *bool          `json:"translation,omitempty"`
-	TranslationConfig      map[string]any `json:"translation_config,omitzero"`
-	Summarization          *bool          `json:"summarization,omitempty"`
-	SummarizationConfig    map[string]any `json:"summarization_config,omitzero"`
-	NamedEntityRecognition *bool          `json:"named_entity_recognition,omitempty"`
-	SentimentAnalysis      *bool          `json:"sentiment_analysis,omitempty"`
-	Subtitles              *bool          `json:"subtitles,omitempty"`
-	SubtitlesConfig        map[string]any `json:"subtitles_config,omitzero"`
-	Punctuation            *bool          `json:"punctuation,omitempty"`
-	CustomVocabulary       []any          `json:"custom_vocabulary,omitzero"`
+	AudioURL               string          `json:"audio_url"`
+	Model                  string          `json:"model,omitempty"`
+	LanguageConfig         *LanguageConfig `json:"language_config,omitempty"`
+	CustomVocabulary       any             `json:"custom_vocabulary,omitempty"`
+	CustomVocabularyConfig map[string]any  `json:"custom_vocabulary_config,omitzero"`
+	Callback               *bool           `json:"callback,omitempty"`
+	CallbackConfig         map[string]any  `json:"callback_config,omitzero"`
+	Diarization            *bool           `json:"diarization,omitempty"`
+	DiarizationConfig      map[string]any  `json:"diarization_config,omitzero"`
+	Translation            *bool           `json:"translation,omitempty"`
+	TranslationConfig      map[string]any  `json:"translation_config,omitzero"`
+	Summarization          *bool           `json:"summarization,omitempty"`
+	SummarizationConfig    map[string]any  `json:"summarization_config,omitzero"`
+	NamedEntityRecognition *bool           `json:"named_entity_recognition,omitempty"`
+	CustomSpelling         *bool           `json:"custom_spelling,omitempty"`
+	CustomSpellingConfig   map[string]any  `json:"custom_spelling_config,omitzero"`
+	SentimentAnalysis      *bool           `json:"sentiment_analysis,omitempty"`
+	AudioToLLM             *bool           `json:"audio_to_llm,omitempty"`
+	AudioToLLMConfig       map[string]any  `json:"audio_to_llm_config,omitzero"`
+	PIIRedaction           *bool           `json:"pii_redaction,omitempty"`
+	PIIRedactionConfig     map[string]any  `json:"pii_redaction_config,omitzero"`
+	Subtitles              *bool           `json:"subtitles,omitempty"`
+	SubtitlesConfig        map[string]any  `json:"subtitles_config,omitzero"`
+	Sentences              *bool           `json:"sentences,omitempty"`
+	PunctuationEnhanced    *bool           `json:"punctuation_enhanced,omitempty"`
+	CustomMetadata         map[string]any  `json:"custom_metadata,omitzero"`
+}
+
+type LanguageConfig struct {
+	Languages     []string `json:"languages,omitzero"`
+	CodeSwitching *bool    `json:"code_switching,omitempty"`
 }
 
 type TranscriptionCreateResponse struct {
@@ -87,19 +104,20 @@ type TranscriptionResult struct {
 		Translation   any `json:"translation,omitempty"`
 		Summarization any `json:"summarization,omitempty"`
 	} `json:"result"`
-	ErrorCode string `json:"error_code,omitempty"`
+	ErrorCode string         `json:"error_code,omitempty"`
+	Raw       map[string]any `json:"-"`
 }
 
 // Upload posts raw audio bytes to /upload, returning a Gladia-hosted
 // URL the caller passes to /pre-recorded.
 func (a *API) Upload(ctx context.Context, audio []byte, mimeType string) (*UploadResponse, error) {
 	if len(audio) == 0 {
-		return nil, errors.New("gladia: request must not be nil")
+		return nil, errors.New("gladia: upload audio must not be empty")
 	}
 	var out UploadResponse
 	resp, err := a.http.R().
 		SetContext(ctx).
-		SetFileReader("audio", "audio", bytes.NewReader(audio)).
+		SetMultipartField("audio", "audio", cmp.Or(mimeType, "application/octet-stream"), bytes.NewReader(audio)).
 		SetResult(&out).
 		Post("/upload")
 	if err != nil {
@@ -107,6 +125,9 @@ func (a *API) Upload(ctx context.Context, audio []byte, mimeType string) (*Uploa
 	}
 	if !resp.IsSuccess() {
 		return nil, fmt.Errorf("gladia: upload http %d: %s", resp.StatusCode(), resp.String())
+	}
+	if out.AudioURL == "" {
+		return nil, errors.New("gladia: upload response omitted audio_url")
 	}
 	return &out, nil
 }
@@ -132,6 +153,9 @@ func (a *API) CreateTranscription(ctx context.Context, req *TranscriptionRequest
 }
 
 func (a *API) GetTranscription(ctx context.Context, id string) (*TranscriptionResult, error) {
+	if id == "" {
+		return nil, errors.New("gladia: transcription id must not be empty")
+	}
 	var out TranscriptionResult
 	resp, err := a.http.R().SetContext(ctx).SetResult(&out).Get("/pre-recorded/" + id)
 	if err != nil {
@@ -139,6 +163,9 @@ func (a *API) GetTranscription(ctx context.Context, id string) (*TranscriptionRe
 	}
 	if !resp.IsSuccess() {
 		return nil, fmt.Errorf("gladia: http %d: %s", resp.StatusCode(), resp.String())
+	}
+	if err := json.Unmarshal(resp.Body(), &out.Raw); err != nil {
+		return nil, fmt.Errorf("gladia: preserve transcription response: %w", err)
 	}
 	return &out, nil
 }

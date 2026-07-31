@@ -13,7 +13,6 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/models/internal/conformance"
 	lynxopenai "github.com/Tangerg/lynx/models/openai"
 )
@@ -30,7 +29,7 @@ func TestCompatibleChat_CoreConformance(t *testing.T) {
 					DefaultOptions: corechat.Options{Model: "gpt-default-must-be-overridden"},
 					RequestOptions: []option.RequestOption{option.WithBaseURL(server.URL)},
 				},
-				lynxopenai.ReasoningContentDialect(),
+				lynxopenai.ReasoningContentDialect("test"),
 			)
 			if err != nil {
 				t.Fatalf("NewChat: %v", err)
@@ -40,6 +39,12 @@ func TestCompatibleChat_CoreConformance(t *testing.T) {
 		Request: newCoreChatRequest,
 		AssertCall: func(t *testing.T, response *corechat.Response) {
 			t.Helper()
+			if _, found := response.Extensions["test/openai_response"]; !found {
+				t.Fatal("compatible response did not preserve the provider-scoped official response")
+			}
+			if _, found := response.Extensions[lynxopenai.ResponseExtensionKey]; found {
+				t.Fatal("compatible response leaked into OpenAI's native extension namespace")
+			}
 			if response.ID != "chatcmpl-core" || response.Model != "gpt-5.2" {
 				t.Fatalf("identity = %q/%q", response.ID, response.Model)
 			}
@@ -55,9 +60,6 @@ func TestCompatibleChat_CoreConformance(t *testing.T) {
 			}
 			if first.Message.Parts[0].Kind != corechat.PartReasoning || first.Message.Parts[0].Text != "checking sources" {
 				t.Errorf("reasoning part = %#v", first.Message.Parts[0])
-			}
-			if audioID, ok, err := metadata.Decode[string](first.Message.Metadata, "openai/audio_id"); err != nil || !ok || audioID != "audio-1" {
-				t.Errorf("audio replay metadata = %q/%v/%v", audioID, ok, err)
 			}
 			call := first.Message.Parts[2].ToolCall
 			if call == nil || call.ID != "call-2" || call.Name != "search" {
@@ -82,6 +84,12 @@ func TestCompatibleChat_CoreConformance(t *testing.T) {
 			var toolIDs []string
 			var finalUsage corechat.Usage
 			for _, response := range responses {
+				if _, found := response.Extensions["test/openai_stream_chunk"]; !found {
+					t.Error("compatible stream did not preserve a provider-scoped official chunk")
+				}
+				if _, found := response.Extensions[lynxopenai.StreamChunkExtensionKey]; found {
+					t.Error("compatible stream leaked into OpenAI's native extension namespace")
+				}
 				finalUsage = response.Usage
 				for i := range response.Choices {
 					if response.Choices[i].Message == nil {
@@ -147,17 +155,15 @@ func newCoreChatRequest(t *testing.T) *corechat.Request {
 	}
 	file.Name = "spec.pdf"
 
+	previousAudio, err := media.NewReference("audio/wav", "audio-prev")
+	if err != nil {
+		t.Fatalf("NewReference: %v", err)
+	}
 	assistant := corechat.NewAssistantMessage(
 		corechat.NewTextPart("I will search."),
 		corechat.NewToolCallPart(corechat.ToolCall{ID: "call-1", Name: "search", Arguments: `{"q":"lynx"}`}),
+		corechat.NewMediaPart(previousAudio),
 	)
-	assistant.Metadata = metadata.Map{}
-	if err := assistant.Metadata.Set("openai/audio_id", "audio-prev"); err != nil {
-		t.Fatalf("set audio metadata: %v", err)
-	}
-	if err := assistant.Metadata.Set("openai/refusal", ""); err != nil {
-		t.Fatalf("set refusal metadata: %v", err)
-	}
 
 	request, err := corechat.NewRequest(
 		corechat.NewSystemMessage("You are precise."),
@@ -176,7 +182,7 @@ func newCoreChatRequest(t *testing.T) *corechat.Request {
 		Description: "Search the index",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"q":{"type":"string"}},"required":["q"]}`),
 	}}
-	if err := request.SetExtension("openai/request", map[string]any{
+	if err := request.SetExtension("test/openai_request", map[string]any{
 		"modalities": []string{"text", "audio"},
 		"audio":      map[string]any{"format": "wav", "voice": "alloy"},
 		"response_format": map[string]any{
@@ -192,12 +198,12 @@ func newCoreChatServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		var body struct {
-			Model               string            `json:"model"`
-			Stream              bool              `json:"stream"`
-			Messages            []json.RawMessage `json:"messages"`
-			Tools               []json.RawMessage `json:"tools"`
-			Modalities          []string          `json:"modalities"`
-			MaxCompletionTokens int64             `json:"max_completion_tokens"`
+			Model      string            `json:"model"`
+			Stream     bool              `json:"stream"`
+			Messages   []json.RawMessage `json:"messages"`
+			Tools      []json.RawMessage `json:"tools"`
+			Modalities []string          `json:"modalities"`
+			MaxTokens  int64             `json:"max_tokens"`
 		}
 		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 			t.Errorf("decode request: %v", err)
@@ -207,8 +213,8 @@ func newCoreChatServer(t *testing.T) *httptest.Server {
 		if request.URL.Path != "/chat/completions" || request.Header.Get("Authorization") != "Bearer test-key" {
 			t.Errorf("request identity = %q/%q", request.URL.Path, request.Header.Get("Authorization"))
 		}
-		if body.Model != "gpt-5.2" || len(body.Messages) != 4 || len(body.Tools) != 1 || body.MaxCompletionTokens != 512 {
-			t.Errorf("request shape = model %q messages %d tools %d max %d", body.Model, len(body.Messages), len(body.Tools), body.MaxCompletionTokens)
+		if body.Model != "gpt-5.2" || len(body.Messages) != 4 || len(body.Tools) != 1 || body.MaxTokens != 512 {
+			t.Errorf("request shape = model %q messages %d tools %d max %d", body.Model, len(body.Messages), len(body.Tools), body.MaxTokens)
 		}
 		if strings.Join(body.Modalities, ",") != "text,audio" {
 			t.Errorf("modalities = %v", body.Modalities)

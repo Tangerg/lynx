@@ -7,16 +7,21 @@ import (
 	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
-const protocolCitationDeltaKey = "anthropic/citation_delta"
+const (
+	// ResponseExtensionKey preserves the complete official Anthropic response.
+	ResponseExtensionKey = "anthropic/response"
+	// StreamEventExtensionKey preserves each official Anthropic stream event.
+	StreamEventExtensionKey  = "anthropic/stream_event"
+	protocolCitationDeltaKey = "anthropic/citation_delta"
+)
 
-func mapProtocolMessage(message *anthropicsdk.Message) (*corechat.Response, error) {
+func mapProtocolMessage(message *anthropicsdk.Message, provider string) (*corechat.Response, error) {
 	if message == nil {
 		return nil, errors.New("anthropic: nil response")
 	}
-	parts, redacted, err := mapProtocolContent(message.Content)
+	parts, err := mapProtocolContent(message.Content, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -29,19 +34,15 @@ func mapProtocolMessage(message *anthropicsdk.Message) (*corechat.Response, erro
 	}
 	if len(parts) > 0 {
 		choice.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
-		if err := setProtocolRedacted(&choice.Message.Metadata, redacted); err != nil {
-			return nil, err
-		}
-	} else if len(redacted) > 0 {
-		if err := choice.SetExtension(protocolRedactedReasoningDelta, protocolRedactedValue(redacted)); err != nil {
-			return nil, err
-		}
 	}
 	response := &corechat.Response{
 		ID:      message.ID,
 		Model:   string(message.Model),
 		Choices: []corechat.Choice{choice},
 		Usage:   mapProtocolUsage(message.Usage),
+	}
+	if err := response.SetExtension(protocolResponseExtensionKey(provider), message); err != nil {
+		return nil, err
 	}
 	if message.StopSequence != "" {
 		if err := response.SetExtension(protocolStopSequenceKey, message.StopSequence); err != nil {
@@ -57,9 +58,8 @@ func mapProtocolMessage(message *anthropicsdk.Message) (*corechat.Response, erro
 	return response, nil
 }
 
-func mapProtocolContent(blocks []anthropicsdk.ContentBlockUnion) ([]corechat.Part, []string, error) {
+func mapProtocolContent(blocks []anthropicsdk.ContentBlockUnion, provider string) ([]corechat.Part, error) {
 	parts := make([]corechat.Part, 0, len(blocks))
-	redacted := make([]string, 0)
 	for i := range blocks {
 		block := blocks[i]
 		switch block.Type {
@@ -69,14 +69,22 @@ func mapProtocolContent(blocks []anthropicsdk.ContentBlockUnion) ([]corechat.Par
 			}
 		case "thinking":
 			if block.Thinking == "" && block.Signature == "" {
-				return nil, nil, fmt.Errorf("anthropic: content[%d]: empty thinking block", i)
+				return nil, fmt.Errorf("anthropic: content[%d]: empty thinking block", i)
 			}
-			parts = append(parts, corechat.NewReasoningPart(block.Thinking, []byte(block.Signature)))
+			part := corechat.NewReasoningPart(block.Thinking, []byte(block.Signature))
+			if err := setProtocolReasoningState(&part, provider, protocolReasoningThinking); err != nil {
+				return nil, err
+			}
+			parts = append(parts, part)
 		case "redacted_thinking":
 			if block.Data == "" {
-				return nil, nil, fmt.Errorf("anthropic: content[%d]: empty redacted thinking block", i)
+				return nil, fmt.Errorf("anthropic: content[%d]: empty redacted thinking block", i)
 			}
-			redacted = append(redacted, block.Data)
+			part := corechat.NewReasoningPart("", []byte(block.Data))
+			if err := setProtocolReasoningState(&part, provider, protocolReasoningRedacted); err != nil {
+				return nil, err
+			}
+			parts = append(parts, part)
 		case "tool_use":
 			parts = append(parts, corechat.NewToolCallPart(corechat.ToolCall{
 				ID:        block.ID,
@@ -84,10 +92,13 @@ func mapProtocolContent(blocks []anthropicsdk.ContentBlockUnion) ([]corechat.Par
 				Arguments: string(block.Input),
 			}))
 		default:
-			return nil, nil, fmt.Errorf("anthropic: content[%d]: unsupported block type %q", i, block.Type)
+			// Server-tool and future native blocks have no provider-neutral Core
+			// part. The complete message remains available under
+			// ResponseExtensionKey, so skipping them here is lossless.
+			continue
 		}
 	}
-	return parts, redacted, nil
+	return parts, nil
 }
 
 func mapProtocolUsage(usage anthropicsdk.Usage) corechat.Usage {
@@ -134,18 +145,14 @@ func normalizeProtocolStopReason(reason anthropicsdk.StopReason) corechat.Finish
 	}
 }
 
-func setProtocolRedacted(target *metadata.Map, values []string) error {
-	if len(values) == 0 {
-		return nil
+func setProtocolReasoningState(part *corechat.Part, provider, kind string) error {
+	if err := part.Metadata.Set(protocolReasoningProviderKey, provider); err != nil {
+		return fmt.Errorf("anthropic: preserve reasoning provider: %w", err)
 	}
-	return target.Set(protocolRedactedReasoningKey, protocolRedactedValue(values))
-}
-
-func protocolRedactedValue(values []string) any {
-	if len(values) == 1 {
-		return values[0]
+	if err := part.Metadata.Set(protocolReasoningKindKey, kind); err != nil {
+		return fmt.Errorf("anthropic: preserve reasoning kind: %w", err)
 	}
-	return values
+	return nil
 }
 
 type protocolStreamTool struct {
@@ -155,21 +162,29 @@ type protocolStreamTool struct {
 }
 
 type protocolStreamState struct {
-	id              string
-	model           string
-	tools           map[int64]protocolStreamTool
-	pendingRedacted []string
-	usage           corechat.Usage
+	provider       string
+	streamEventKey string
+	id             string
+	model          string
+	tools          map[int64]protocolStreamTool
+	usage          corechat.Usage
 }
 
-func newProtocolStreamState() *protocolStreamState {
-	return &protocolStreamState{tools: make(map[int64]protocolStreamTool)}
+func newProtocolStreamState(provider string) *protocolStreamState {
+	return &protocolStreamState{
+		provider:       provider,
+		streamEventKey: protocolStreamEventExtensionKey(provider),
+		tools:          make(map[int64]protocolStreamTool),
+	}
 }
 
 func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnion) (*corechat.Response, bool, error) {
 	response := &corechat.Response{ID: s.id, Model: s.model}
+	if err := response.SetExtension(s.streamEventKey, event); err != nil {
+		return nil, false, err
+	}
 	var choice *corechat.Choice
-	include := false
+	include := true
 
 	switch value := event.AsAny().(type) {
 	case anthropicsdk.MessageStartEvent:
@@ -183,11 +198,10 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 			return nil, false, err
 		}
 		if len(value.Message.Content) > 0 {
-			parts, redacted, err := mapProtocolContent(value.Message.Content)
+			parts, err := mapProtocolContent(value.Message.Content, s.provider)
 			if err != nil {
 				return nil, false, err
 			}
-			s.pendingRedacted = append(s.pendingRedacted, redacted...)
 			if len(parts) > 0 {
 				message, err := s.protocolMessage(parts)
 				if err != nil {
@@ -239,12 +253,6 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 				return nil, false, err
 			}
 		}
-		if len(s.pendingRedacted) > 0 {
-			if err := choice.SetExtension(protocolRedactedReasoningDelta, protocolRedactedValue(s.pendingRedacted)); err != nil {
-				return nil, false, err
-			}
-			s.pendingRedacted = nil
-		}
 		s.mergeDeltaUsage(value.Usage)
 		response.Usage = s.usage
 		if err := response.SetExtension(protocolUsageKey, value.Usage); err != nil {
@@ -261,10 +269,9 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 		include = choice != nil || len(response.Extensions) > 0
 
 	case anthropicsdk.ContentBlockStopEvent, anthropicsdk.MessageStopEvent:
-		return nil, false, nil
 
 	default:
-		return nil, false, fmt.Errorf("anthropic: unsupported stream event %q", event.Type)
+		// Preserve forward-compatible events in StreamEventExtensionKey.
 	}
 
 	if choice != nil {
@@ -273,6 +280,10 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 	if !include {
 		return nil, false, nil
 	}
+	// Usage is a cumulative stream snapshot. Event-only chunks still carry the
+	// latest known value so observing native lifecycle events cannot make a
+	// consumer's view of usage move backwards.
+	response.Usage = s.usage
 	if err := response.Validate(); err != nil {
 		return nil, false, fmt.Errorf("anthropic: mapped stream response: %w", err)
 	}
@@ -291,13 +302,20 @@ func (s *protocolStreamState) mapBlockStart(event anthropicsdk.ContentBlockStart
 		if block.Thinking == "" && block.Signature == "" {
 			return corechat.Part{}, false, nil
 		}
-		return corechat.NewReasoningPart(block.Thinking, []byte(block.Signature)), true, nil
+		part := corechat.NewReasoningPart(block.Thinking, []byte(block.Signature))
+		if err := setProtocolReasoningState(&part, s.provider, protocolReasoningThinking); err != nil {
+			return corechat.Part{}, false, err
+		}
+		return part, true, nil
 	case "redacted_thinking":
 		if block.Data == "" {
 			return corechat.Part{}, false, errors.New("anthropic: empty redacted thinking block")
 		}
-		s.pendingRedacted = append(s.pendingRedacted, block.Data)
-		return corechat.Part{}, false, nil
+		part := corechat.NewReasoningPart("", []byte(block.Data))
+		if err := setProtocolReasoningState(&part, s.provider, protocolReasoningRedacted); err != nil {
+			return corechat.Part{}, false, err
+		}
+		return part, true, nil
 	case "tool_use":
 		tool := s.tools[event.Index]
 		tool.id = block.ID
@@ -311,7 +329,7 @@ func (s *protocolStreamState) mapBlockStart(event anthropicsdk.ContentBlockStart
 		s.tools[event.Index] = tool
 		return corechat.NewToolCallPart(corechat.ToolCall{ID: tool.id, Name: tool.name, Arguments: arguments}), true, nil
 	default:
-		return corechat.Part{}, false, fmt.Errorf("anthropic: unsupported stream block type %q", block.Type)
+		return corechat.Part{}, false, nil
 	}
 }
 
@@ -326,12 +344,20 @@ func (s *protocolStreamState) mapBlockDelta(event anthropicsdk.ContentBlockDelta
 		if delta.Thinking == "" {
 			return corechat.Part{}, false, nil, nil
 		}
-		return corechat.NewReasoningPart(delta.Thinking, nil), true, nil, nil
+		part := corechat.NewReasoningPart(delta.Thinking, nil)
+		if err := setProtocolReasoningState(&part, s.provider, protocolReasoningThinking); err != nil {
+			return corechat.Part{}, false, nil, err
+		}
+		return part, true, nil, nil
 	case anthropicsdk.SignatureDelta:
 		if delta.Signature == "" {
 			return corechat.Part{}, false, nil, nil
 		}
-		return corechat.NewReasoningPart("", []byte(delta.Signature)), true, nil, nil
+		part := corechat.NewReasoningPart("", []byte(delta.Signature))
+		if err := setProtocolReasoningState(&part, s.provider, protocolReasoningThinking); err != nil {
+			return corechat.Part{}, false, nil, err
+		}
+		return part, true, nil, nil
 	case anthropicsdk.InputJSONDelta:
 		tool := s.tools[event.Index]
 		tool.pendingArguments += delta.PartialJSON
@@ -346,17 +372,12 @@ func (s *protocolStreamState) mapBlockDelta(event anthropicsdk.ContentBlockDelta
 	case anthropicsdk.CitationsDelta:
 		return corechat.Part{}, false, delta, nil
 	default:
-		return corechat.Part{}, false, nil, fmt.Errorf("anthropic: unsupported content delta type %q", event.Delta.Type)
+		return corechat.Part{}, false, nil, nil
 	}
 }
 
 func (s *protocolStreamState) protocolMessage(parts []corechat.Part) (*corechat.Message, error) {
-	message := &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
-	if err := setProtocolRedacted(&message.Metadata, s.pendingRedacted); err != nil {
-		return nil, err
-	}
-	s.pendingRedacted = nil
-	return message, nil
+	return &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}, nil
 }
 
 func (s *protocolStreamState) mergeDeltaUsage(usage anthropicsdk.MessageDeltaUsage) {

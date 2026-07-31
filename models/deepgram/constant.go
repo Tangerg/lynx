@@ -5,7 +5,10 @@ const (
 )
 
 const (
-	OptionsKey = "deepgram/options"
+	SpeechRequestExtensionKey         = "deepgram/speech_request"
+	SpeechResponseExtensionKey        = "deepgram/speech_response"
+	TranscriptionRequestExtensionKey  = "deepgram/transcription_request"
+	TranscriptionResponseExtensionKey = "deepgram/transcription_response"
 
 	// DefaultBaseURL is Deepgram's production REST endpoint.
 	DefaultBaseURL = "https://api.deepgram.com/v1"

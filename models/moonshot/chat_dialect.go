@@ -1,0 +1,143 @@
+package moonshot
+
+import (
+	"fmt"
+
+	openaisdk "github.com/openai/openai-go/v3"
+
+	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/metadata"
+)
+
+const RequestExtensionKey = "moonshot/request"
+
+// ThinkingType controls thinking for Kimi K2.x models.
+type ThinkingType string
+
+const (
+	ThinkingEnabled  ThinkingType = "enabled"
+	ThinkingDisabled ThinkingType = "disabled"
+)
+
+// ThinkingKeep controls preserved thinking for Kimi K2.x models.
+type ThinkingKeep string
+
+const ThinkingKeepAll ThinkingKeep = "all"
+
+// ReasoningEffort controls Kimi K3 reasoning intensity.
+type ReasoningEffort string
+
+const (
+	ReasoningEffortLow  ReasoningEffort = "low"
+	ReasoningEffortHigh ReasoningEffort = "high"
+	ReasoningEffortMax  ReasoningEffort = "max"
+)
+
+// Thinking configures Kimi K2.x reasoning.
+type Thinking struct {
+	Type ThinkingType `json:"type"`
+	Keep ThinkingKeep `json:"keep,omitempty"`
+}
+
+// ChatRequestOptions contains Kimi Chat Completions fields without a
+// provider-neutral Core equivalent.
+type ChatRequestOptions struct {
+	Thinking         *Thinking       `json:"thinking,omitempty"`
+	ReasoningEffort  ReasoningEffort `json:"reasoning_effort,omitempty"`
+	PromptCacheKey   string          `json:"prompt_cache_key,omitempty"`
+	SafetyIdentifier string          `json:"safety_identifier,omitempty"`
+	Partial          *bool           `json:"partial,omitempty"`
+}
+
+func (options ChatRequestOptions) validate(model string) error {
+	if options.Thinking != nil {
+		switch options.Thinking.Type {
+		case ThinkingEnabled, ThinkingDisabled:
+		default:
+			return fmt.Errorf("thinking.type must be %q or %q", ThinkingEnabled, ThinkingDisabled)
+		}
+		switch options.Thinking.Keep {
+		case "", ThinkingKeepAll:
+		default:
+			return fmt.Errorf("thinking.keep must be %q when set", ThinkingKeepAll)
+		}
+		if options.Thinking.Type == ThinkingDisabled && options.Thinking.Keep != "" {
+			return fmt.Errorf("thinking.keep requires thinking.type %q", ThinkingEnabled)
+		}
+	}
+	switch options.ReasoningEffort {
+	case "", ReasoningEffortLow, ReasoningEffortHigh, ReasoningEffortMax:
+	default:
+		return fmt.Errorf("reasoning_effort must be %q, %q, or %q", ReasoningEffortLow, ReasoningEffortHigh, ReasoningEffortMax)
+	}
+
+	switch model {
+	case ModelK3:
+		if options.Thinking != nil {
+			return fmt.Errorf("model %q does not accept thinking; use reasoning_effort", model)
+		}
+	case ModelK27Code, ModelK27CodeHighSpeed:
+		if options.ReasoningEffort != "" {
+			return fmt.Errorf("model %q does not accept reasoning_effort", model)
+		}
+		if options.Thinking != nil && (options.Thinking.Type != ThinkingEnabled || options.Thinking.Keep != ThinkingKeepAll) {
+			return fmt.Errorf("model %q only accepts thinking {type:%q, keep:%q}", model, ThinkingEnabled, ThinkingKeepAll)
+		}
+	case ModelK26, ModelK25:
+		if options.ReasoningEffort != "" {
+			return fmt.Errorf("model %q does not accept reasoning_effort", model)
+		}
+		if model == ModelK25 && options.Thinking != nil && options.Thinking.Keep != "" {
+			return fmt.Errorf("model %q does not accept thinking.keep", model)
+		}
+	}
+	return nil
+}
+
+type requestDialect struct {
+	reasoning openAIRequestDialect
+}
+
+type openAIRequestDialect interface {
+	PrepareRequest(source *corechat.Request, target *openaisdk.ChatCompletionNewParams) error
+}
+
+func (dialect requestDialect) PrepareRequest(source *corechat.Request, target *openaisdk.ChatCompletionNewParams) error {
+	if dialect.reasoning != nil {
+		if err := dialect.reasoning.PrepareRequest(source, target); err != nil {
+			return err
+		}
+	}
+	options, found, err := metadata.Decode[ChatRequestOptions](source.Extensions, RequestExtensionKey)
+	if err != nil {
+		return fmt.Errorf("moonshot: extension %q: %w", RequestExtensionKey, err)
+	}
+	if !found {
+		return nil
+	}
+	if err := options.validate(string(target.Model)); err != nil {
+		return fmt.Errorf("moonshot: extension %q: %w", RequestExtensionKey, err)
+	}
+	extraFields := target.ExtraFields()
+	merged := make(map[string]any, len(extraFields)+5)
+	for key, value := range extraFields {
+		merged[key] = value
+	}
+	if options.Thinking != nil {
+		merged["thinking"] = options.Thinking
+	}
+	if options.ReasoningEffort != "" {
+		merged["reasoning_effort"] = options.ReasoningEffort
+	}
+	if options.PromptCacheKey != "" {
+		merged["prompt_cache_key"] = options.PromptCacheKey
+	}
+	if options.SafetyIdentifier != "" {
+		merged["safety_identifier"] = options.SafetyIdentifier
+	}
+	if options.Partial != nil {
+		merged["partial"] = *options.Partial
+	}
+	target.SetExtraFields(merged)
+	return nil
+}

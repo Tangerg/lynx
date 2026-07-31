@@ -204,6 +204,21 @@ func (m Map) Clone() Map {
 	return clone
 }
 
+// Equal reports whether m and other contain byte-identical JSON values under
+// the same keys. Values produced through Set are canonical enough for protocol
+// merge decisions; callers that need semantic JSON equality should decode them.
+func (m Map) Equal(other Map) bool {
+	if len(m) != len(other) {
+		return false
+	}
+	for key, value := range m {
+		if !bytes.Equal(value, other[key]) {
+			return false
+		}
+	}
+	return true
+}
+
 // Validate reports empty keys and values that are not complete JSON values.
 func (m Map) Validate() error {
 	for key, value := range m {

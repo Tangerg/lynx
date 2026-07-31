@@ -2,8 +2,8 @@
 // Every Sonar model runs an online retrieval step before answering;
 // the response includes citations + search results.
 //
-// Perplexity-specific knobs reachable through the namespaced OpenAI request
-// extension:
+// Perplexity-specific knobs are exposed as [RequestOptions] through
+// [RequestExtensionKey]:
 //
 //   - "search_mode" ("web" / "academic"), "search_domain_filter",
 //     "search_recency_filter" steer the underlying web search.
@@ -12,9 +12,9 @@
 //   - "web_search_options" controls per-call search behavior
 //     (search context size, user location, etc.).
 //
-// Response extras (citations, search_results, related_questions) come
-// back as provider response fields and are preserved in namespaced
-// core/chat response extensions when mapped by the OpenAI adapter.
+// Response extras (citations, search_results, images, related_questions,
+// detailed usage, and costs) are preserved from the exact provider JSON in
+// the namespaced Core response extension.
 //
 // See https://docs.perplexity.ai/ for the full API reference.
 package perplexity

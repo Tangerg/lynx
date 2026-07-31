@@ -13,7 +13,6 @@ const (
 const (
 	ModelSonar             = "sonar"
 	ModelSonarPro          = "sonar-pro"
-	ModelSonarReasoning    = "sonar-reasoning"
 	ModelSonarReasoningPro = "sonar-reasoning-pro"
 	ModelSonarDeepResearch = "sonar-deep-research"
 )

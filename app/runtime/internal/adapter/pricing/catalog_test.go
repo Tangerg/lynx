@@ -8,13 +8,14 @@ import (
 )
 
 func TestCatalogUsesProviderScopedCatalog(t *testing.T) {
+	const model = "claude-opus-5"
 	usage := &chat.Usage{InputTokens: 1000, OutputTokens: 250}
-	info, ok := catalog.Lookup("anthropic", "claude-3-5-haiku-20241022")
+	info, ok := catalog.Lookup("anthropic", model)
 	if !ok {
 		t.Fatal("test fixture model missing from catalog")
 	}
 
-	got := Catalog()("anthropic", "claude-3-5-haiku-20241022", usage)
+	got := Catalog()("anthropic", model, usage)
 	want := catalog.CostOf(info.Pricing, catalog.Usage{InputTokens: 1000, OutputTokens: 250})
 	if got != want {
 		t.Fatalf("Catalog = %v, want %v", got, want)
@@ -22,7 +23,7 @@ func TestCatalogUsesProviderScopedCatalog(t *testing.T) {
 }
 
 func TestCatalogUnknownProviderIsZero(t *testing.T) {
-	got := Catalog()("does-not-exist", "claude-3-5-haiku-20241022", &chat.Usage{InputTokens: 1000})
+	got := Catalog()("does-not-exist", "claude-opus-5", &chat.Usage{InputTokens: 1000})
 	if got != 0 {
 		t.Fatalf("Catalog for unknown provider = %v, want 0", got)
 	}

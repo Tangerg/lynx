@@ -73,14 +73,18 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-	if err := options.RejectUnsupported("gladia: transcription", map[string]bool{
-		"language": mergedOpts.Language != "",
-	}); err != nil {
+	apiReq, err := options.GetParams[TranscriptionRequest](mergedOpts.Extensions, RequestExtensionKey)
+	if err != nil {
 		return nil, err
 	}
-
-	apiReq, err := options.GetParams[TranscriptionRequest](mergedOpts.Extensions, OptionsKey)
-	if err != nil {
+	apiReq.Model = mergedOpts.Model
+	if mergedOpts.Language != "" {
+		if apiReq.LanguageConfig == nil {
+			apiReq.LanguageConfig = &LanguageConfig{}
+		}
+		apiReq.LanguageConfig.Languages = []string{mergedOpts.Language}
+	}
+	if err := validateTranscriptionRequest(apiReq); err != nil {
 		return nil, err
 	}
 	if apiReq.AudioURL == "" {
@@ -109,22 +113,22 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 
 	resultMeta := &transcription.ResultMetadata{}
 	if len(final.Result.Transcription.Languages) > 0 {
-		if err := resultMeta.Set("languages", final.Result.Transcription.Languages); err != nil {
+		if err := resultMeta.Set("gladia/languages", final.Result.Transcription.Languages); err != nil {
 			return nil, err
 		}
 	}
 	if len(final.Result.Transcription.Utterances) > 0 {
-		if err := resultMeta.Set("utterances", final.Result.Transcription.Utterances); err != nil {
+		if err := resultMeta.Set("gladia/utterances", final.Result.Transcription.Utterances); err != nil {
 			return nil, err
 		}
 	}
 	if final.Result.Translation != nil {
-		if err := resultMeta.Set("translation", final.Result.Translation); err != nil {
+		if err := resultMeta.Set("gladia/translation", final.Result.Translation); err != nil {
 			return nil, err
 		}
 	}
 	if final.Result.Summarization != nil {
-		if err := resultMeta.Set("summarization", final.Result.Summarization); err != nil {
+		if err := resultMeta.Set("gladia/summarization", final.Result.Summarization); err != nil {
 			return nil, err
 		}
 	}
@@ -134,11 +138,29 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, err
 	}
 
-	meta := &transcription.ResponseMetadata{}
-	if err := meta.Set("transcript_id", final.ID); err != nil {
+	meta := &transcription.ResponseMetadata{Model: apiReq.Model}
+	if err := meta.Set("gladia/transcript_id", final.ID); err != nil {
+		return nil, err
+	}
+	if err := meta.Set(ResponseExtensionKey, final.Raw); err != nil {
 		return nil, err
 	}
 	return transcription.NewResponse(result, meta)
+}
+
+func validateTranscriptionRequest(req *TranscriptionRequest) error {
+	if req.Model != ModelSolaria3 && req.Model != ModelSolaria1 {
+		return fmt.Errorf("gladia: transcription model must be %q or %q, got %q", ModelSolaria3, ModelSolaria1, req.Model)
+	}
+	if req.Model == ModelSolaria3 {
+		if req.LanguageConfig == nil || len(req.LanguageConfig.Languages) != 1 {
+			return errors.New("gladia: solaria-3 requires exactly one language_config.languages entry")
+		}
+		if req.LanguageConfig.CodeSwitching != nil && *req.LanguageConfig.CodeSwitching {
+			return errors.New("gladia: solaria-3 does not support language code switching")
+		}
+	}
+	return nil
 }
 
 func (a *AudioTranscriptionModel) pollUntilDone(ctx context.Context, id string) (*TranscriptionResult, error) {

@@ -4,13 +4,23 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/models/deepseek"
+	"github.com/Tangerg/lynx/models/openai"
 )
 
 func TestOpenAIChat_ReasoningReplay(t *testing.T) {
+	privateChain, err := openai.NewTextReasoningPart("deepseek", openai.TextReasoningContent, "private chain")
+	if err != nil {
+		t.Fatalf("NewTextReasoningPart: %v", err)
+	}
+	toolReasoning, err := openai.NewTextReasoningPart("deepseek", openai.TextReasoningContent, "need a tool")
+	if err != nil {
+		t.Fatalf("NewTextReasoningPart: %v", err)
+	}
 	tests := []struct {
 		name              string
 		messages          []corechat.Message
@@ -21,7 +31,7 @@ func TestOpenAIChat_ReasoningReplay(t *testing.T) {
 			messages: []corechat.Message{
 				corechat.NewUserMessage(corechat.NewTextPart("first")),
 				corechat.NewAssistantMessage(
-					corechat.NewReasoningPart("private chain", nil),
+					privateChain,
 					corechat.NewTextPart("first answer"),
 				),
 				corechat.NewUserMessage(corechat.NewTextPart("second")),
@@ -32,7 +42,7 @@ func TestOpenAIChat_ReasoningReplay(t *testing.T) {
 			messages: []corechat.Message{
 				corechat.NewUserMessage(corechat.NewTextPart("search")),
 				corechat.NewAssistantMessage(
-					corechat.NewReasoningPart("need a tool", nil),
+					toolReasoning,
 					corechat.NewToolCallPart(corechat.ToolCall{ID: "call-1", Name: "search", Arguments: `{"q":"lynx"}`}),
 				),
 				corechat.NewToolMessage(corechat.ToolResult{ID: "call-1", Name: "search", Result: "found"}),
@@ -53,7 +63,7 @@ func TestOpenAIChat_ReasoningReplay(t *testing.T) {
 					return
 				}
 				writer.Header().Set("Content-Type", "application/json")
-				_, _ = writer.Write([]byte(`{"id":"chat-1","model":"deepseek-v4","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`))
+				_, _ = writer.Write([]byte(`{"id":"chat-1","model":"deepseek-v4-flash","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`))
 			}))
 			t.Cleanup(server.Close)
 
@@ -61,7 +71,7 @@ func TestOpenAIChat_ReasoningReplay(t *testing.T) {
 				APIKey:  "test-key",
 				BaseURL: server.URL,
 				DefaultOptions: corechat.Options{
-					Model: "deepseek-v4",
+					Model: deepseek.ModelV4Flash,
 				},
 			})
 			if err != nil {
@@ -79,6 +89,206 @@ func TestOpenAIChat_ReasoningReplay(t *testing.T) {
 		})
 	}
 }
+
+func TestOpenAIChatMapsOfficialRequestOptions(t *testing.T) {
+	var body map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Errorf("decode request: %v", err)
+			http.Error(writer, "invalid request", http.StatusBadRequest)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"id":"chat-1","model":"deepseek-v4-flash","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	model, err := deepseek.NewOpenAIChat(deepseek.OpenAIChatConfig{
+		APIKey:         "test-key",
+		BaseURL:        server.URL,
+		DefaultOptions: corechat.Options{Model: deepseek.ModelV4Flash},
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIChat: %v", err)
+	}
+	logProbs := true
+	topLogProbs := int64(5)
+	request := &corechat.Request{
+		Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart("Return JSON"))},
+		Tools: []corechat.ToolDefinition{{
+			Name:        "lookup",
+			Description: "Look up a record",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		}},
+	}
+	if err := request.SetExtension(deepseek.RequestExtensionKey, deepseek.RequestOptions{
+		Thinking:        &deepseek.ThinkingConfig{Type: deepseek.ThinkingEnabled},
+		ReasoningEffort: deepseek.ReasoningEffortMax,
+		ResponseFormat:  deepseek.ResponseFormatJSONObject,
+		ToolChoice:      &deepseek.ToolChoice{FunctionName: "lookup"},
+		LogProbs:        &logProbs,
+		TopLogProbs:     &topLogProbs,
+		UserID:          "tenant_42-user",
+	}); err != nil {
+		t.Fatalf("SetExtension: %v", err)
+	}
+	if _, err := model.Call(t.Context(), request); err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+
+	thinking, ok := body["thinking"].(map[string]any)
+	if !ok || thinking["type"] != "enabled" {
+		t.Fatalf("thinking = %#v", body["thinking"])
+	}
+	if body["reasoning_effort"] != "max" || body["user_id"] != "tenant_42-user" {
+		t.Fatalf("DeepSeek fields missing: %#v", body)
+	}
+	format, ok := body["response_format"].(map[string]any)
+	if !ok || format["type"] != "json_object" {
+		t.Fatalf("response_format = %#v", body["response_format"])
+	}
+	choice, ok := body["tool_choice"].(map[string]any)
+	if !ok || choice["type"] != "function" {
+		t.Fatalf("tool_choice = %#v", body["tool_choice"])
+	}
+	function, ok := choice["function"].(map[string]any)
+	if !ok || function["name"] != "lookup" {
+		t.Fatalf("tool_choice.function = %#v", choice["function"])
+	}
+	if body["logprobs"] != true || body["top_logprobs"] != float64(5) {
+		t.Fatalf("log probability fields missing: %#v", body)
+	}
+}
+
+func TestOpenAIChatThinkingDisabledAllowsSampling(t *testing.T) {
+	var body map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Errorf("decode request: %v", err)
+			http.Error(writer, "invalid request", http.StatusBadRequest)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"id":"chat-1","model":"deepseek-v4-flash","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	model, err := deepseek.NewOpenAIChat(deepseek.OpenAIChatConfig{
+		APIKey:         "test-key",
+		BaseURL:        server.URL,
+		DefaultOptions: corechat.Options{Model: deepseek.ModelV4Flash},
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIChat: %v", err)
+	}
+	temperature := 0.7
+	request := &corechat.Request{
+		Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart("hello"))},
+		Options:  corechat.Options{Temperature: &temperature},
+	}
+	if err := request.SetExtension(deepseek.RequestExtensionKey, deepseek.RequestOptions{
+		Thinking: &deepseek.ThinkingConfig{Type: deepseek.ThinkingDisabled},
+	}); err != nil {
+		t.Fatalf("SetExtension: %v", err)
+	}
+	if _, err := model.Call(t.Context(), request); err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	if body["temperature"] != temperature {
+		t.Fatalf("temperature = %#v; want %v", body["temperature"], temperature)
+	}
+}
+
+func TestOpenAIChatMapsStreamingUsageOption(t *testing.T) {
+	var body map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Errorf("decode request: %v", err)
+			http.Error(writer, "invalid request", http.StatusBadRequest)
+			return
+		}
+		writer.Header().Set("Content-Type", "text/event-stream")
+		_, _ = writer.Write([]byte("data: {\"id\":\"chat-1\",\"model\":\"deepseek-v4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"ok\"},\"finish_reason\":null}]}\n\ndata: [DONE]\n\n"))
+	}))
+	t.Cleanup(server.Close)
+
+	model, err := deepseek.NewOpenAIChat(deepseek.OpenAIChatConfig{
+		APIKey:         "test-key",
+		BaseURL:        server.URL,
+		DefaultOptions: corechat.Options{Model: deepseek.ModelV4Flash},
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIChat: %v", err)
+	}
+	includeUsage := true
+	request := &corechat.Request{Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart("hello"))}}
+	if err := request.SetExtension(deepseek.RequestExtensionKey, deepseek.RequestOptions{IncludeUsage: &includeUsage}); err != nil {
+		t.Fatalf("SetExtension: %v", err)
+	}
+	for _, streamErr := range model.Stream(t.Context(), request) {
+		if streamErr != nil {
+			t.Fatalf("Stream: %v", streamErr)
+		}
+	}
+	streamOptions, ok := body["stream_options"].(map[string]any)
+	if !ok || streamOptions["include_usage"] != true {
+		t.Fatalf("stream_options = %#v", body["stream_options"])
+	}
+}
+
+func TestOpenAIChatRejectsInvalidDeepSeekOptions(t *testing.T) {
+	model, err := deepseek.NewOpenAIChat(deepseek.OpenAIChatConfig{
+		APIKey:         "test-key",
+		DefaultOptions: corechat.Options{Model: deepseek.ModelV4Flash},
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIChat: %v", err)
+	}
+	trueValue := true
+	topLogProbs := int64(1)
+	tests := []struct {
+		name    string
+		options deepseek.RequestOptions
+		core    corechat.Options
+		tools   []corechat.ToolDefinition
+		want    string
+	}{
+		{name: "unknown thinking mode", options: deepseek.RequestOptions{Thinking: &deepseek.ThinkingConfig{Type: "sometimes"}}, want: "thinking.type has unsupported value"},
+		{name: "effort without thinking", options: deepseek.RequestOptions{Thinking: &deepseek.ThinkingConfig{Type: deepseek.ThinkingDisabled}, ReasoningEffort: deepseek.ReasoningEffortHigh}, want: "reasoning_effort requires thinking.type=enabled"},
+		{name: "ignored temperature", core: corechat.Options{Temperature: float64Pointer(0.5)}, want: "temperature has no effect"},
+		{name: "top logprobs without logprobs", options: deepseek.RequestOptions{TopLogProbs: &topLogProbs}, want: "top_logprobs requires logprobs=true"},
+		{name: "usage on non-streaming call", options: deepseek.RequestOptions{IncludeUsage: &trueValue}, want: "include_usage is valid only for streaming"},
+		{name: "invalid user id", options: deepseek.RequestOptions{UserID: "private@example.com"}, want: "user_id may contain only"},
+		{name: "missing named tool", options: deepseek.RequestOptions{ToolChoice: &deepseek.ToolChoice{FunctionName: "missing"}}, want: "does not match a declared tool"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := &corechat.Request{
+				Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart("hello"))},
+				Options:  test.core,
+				Tools:    test.tools,
+			}
+			if err := request.SetExtension(deepseek.RequestExtensionKey, test.options); err != nil {
+				t.Fatalf("SetExtension: %v", err)
+			}
+			if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("Call error = %v; want substring %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestNewOpenAIChatRejectsIgnoredDefaultSampling(t *testing.T) {
+	_, err := deepseek.NewOpenAIChat(deepseek.OpenAIChatConfig{
+		APIKey:         "test-key",
+		DefaultOptions: corechat.Options{Model: deepseek.ModelV4Flash, Temperature: float64Pointer(0.5)},
+	})
+	if err == nil || !strings.Contains(err.Error(), "temperature has no effect") {
+		t.Fatalf("NewOpenAIChat error = %v; want ignored temperature error", err)
+	}
+}
+
+func float64Pointer(value float64) *float64 { return &value }
 
 func findAssistantMessage(t *testing.T, messages []map[string]any) map[string]any {
 	t.Helper()

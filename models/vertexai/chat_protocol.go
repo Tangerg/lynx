@@ -2,6 +2,7 @@ package vertexai
 
 import (
 	"errors"
+	"net/http"
 
 	"google.golang.org/genai"
 
@@ -14,6 +15,8 @@ type ChatConfig struct {
 	Project        string
 	Location       string
 	DefaultOptions corechat.Options
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 // NewChat constructs a Core chat adapter backed by Vertex AI and Application
@@ -30,5 +33,7 @@ func NewChat(cfg ChatConfig) (*google.Chat, error) {
 		Project:        cfg.Project,
 		Location:       cfg.Location,
 		DefaultOptions: cfg.DefaultOptions,
+		BaseURL:        cfg.BaseURL,
+		HTTPClient:     cfg.HTTPClient,
 	})
 }

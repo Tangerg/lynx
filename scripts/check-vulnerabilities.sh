@@ -72,9 +72,9 @@ for id in "${reachable[@]}"; do
     any(.[].finding?;
       .osv == $id and
       any(.trace[]?;
-        .module == "github.com/ollama/ollama" and .version == "v0.32.0"))
+        .module == "github.com/ollama/ollama" and .version == "v0.32.5"))
   ' "$report" >/dev/null; then
-    echo "$module: $id no longer matches reviewed Ollama v0.32.0 risk" >&2
+    echo "$module: $id no longer matches reviewed Ollama v0.32.5 risk" >&2
     exit 1
   fi
   if ! jq -ers --arg id "$id" '

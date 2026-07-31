@@ -3,8 +3,8 @@ package ollama
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
-	"time"
 
 	ollamaapi "github.com/ollama/ollama/api"
 
@@ -64,7 +64,7 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*ollamaapi.Emb
 		return nil, err
 	}
 
-	apiReq, err := options.GetParams[ollamaapi.EmbedRequest](mergedOpts.Extensions, OptionsKey)
+	apiReq, err := options.GetParams[ollamaapi.EmbedRequest](mergedOpts.Extensions, EmbeddingRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -82,9 +82,12 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*ollamaapi.Emb
 	return apiReq, nil
 }
 
-func (e *EmbeddingModel) buildResponse(apiResp *ollamaapi.EmbedResponse) (*embedding.Response, error) {
+func (e *EmbeddingModel) buildResponse(apiResp *ollamaapi.EmbedResponse, expectedResults int) (*embedding.Response, error) {
 	if len(apiResp.Embeddings) == 0 {
 		return nil, errors.New("ollama: embed response has no embeddings")
+	}
+	if len(apiResp.Embeddings) != expectedResults {
+		return nil, fmt.Errorf("ollama: embed response returned %d results for %d inputs", len(apiResp.Embeddings), expectedResults)
 	}
 
 	results := make([]*embedding.Result, 0, len(apiResp.Embeddings))
@@ -101,16 +104,15 @@ func (e *EmbeddingModel) buildResponse(apiResp *ollamaapi.EmbedResponse) (*embed
 	}
 
 	meta := &embedding.ResponseMetadata{
-		Model:   apiResp.Model,
-		Created: time.Now().Unix(),
+		Model: apiResp.Model,
 	}
-	if err := meta.Set("total_duration_ms", apiResp.TotalDuration.Milliseconds()); err != nil {
+	if err := meta.Set("ollama/total_duration_ns", apiResp.TotalDuration.Nanoseconds()); err != nil {
 		return nil, err
 	}
-	if err := meta.Set("load_duration_ms", apiResp.LoadDuration.Milliseconds()); err != nil {
+	if err := meta.Set("ollama/load_duration_ns", apiResp.LoadDuration.Nanoseconds()); err != nil {
 		return nil, err
 	}
-	if err := meta.Set("prompt_eval_count", apiResp.PromptEvalCount); err != nil {
+	if err := meta.Set("ollama/prompt_eval_count", apiResp.PromptEvalCount); err != nil {
 		return nil, err
 	}
 
@@ -131,5 +133,5 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 		return nil, err
 	}
 
-	return e.buildResponse(apiResp)
+	return e.buildResponse(apiResp, len(req.Texts))
 }

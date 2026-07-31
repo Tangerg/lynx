@@ -1,0 +1,99 @@
+package xiaomi_test
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/models/openai"
+	"github.com/Tangerg/lynx/models/xiaomi"
+)
+
+func TestOpenAIChatUsesMiMoThinkingAndToolReasoningContract(t *testing.T) {
+	var body map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Errorf("decode request: %v", err)
+			http.Error(writer, "invalid request", http.StatusBadRequest)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"id":"chat-1","model":"mimo-v2.5-pro","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"answer","reasoning_content":"thinking"}}]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	maxTokens := int64(4096)
+	model, err := xiaomi.NewOpenAIChat(xiaomi.OpenAIChatConfig{
+		APIKey:  "test-key",
+		BaseURL: server.URL,
+		DefaultOptions: corechat.Options{
+			Model:     xiaomi.ModelV25Pro,
+			MaxTokens: &maxTokens,
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIChat: %v", err)
+	}
+	toolReasoning, err := openai.NewTextReasoningPart("xiaomi", openai.TextReasoningContent, "tool thinking")
+	if err != nil {
+		t.Fatalf("NewTextReasoningPart: %v", err)
+	}
+	request := &corechat.Request{Messages: []corechat.Message{
+		corechat.NewUserMessage(corechat.NewTextPart("look up")),
+		corechat.NewAssistantMessage(
+			toolReasoning,
+			corechat.NewToolCallPart(corechat.ToolCall{ID: "call-1", Name: "lookup", Arguments: `{}`}),
+		),
+		corechat.NewToolMessage(corechat.ToolResult{ID: "call-1", Name: "lookup", Result: "found"}),
+	}}
+	if err := request.SetExtension(xiaomi.RequestExtensionKey, xiaomi.ChatRequestOptions{Thinking: xiaomi.ThinkingEnabled}); err != nil {
+		t.Fatalf("SetExtension: %v", err)
+	}
+	response, err := model.Call(t.Context(), request)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	if body["max_completion_tokens"] != float64(maxTokens) {
+		t.Fatalf("max_completion_tokens = %#v", body["max_completion_tokens"])
+	}
+	if _, found := body["max_tokens"]; found {
+		t.Fatalf("deprecated max_tokens sent: %#v", body)
+	}
+	thinking := body["thinking"].(map[string]any)
+	if thinking["type"] != string(xiaomi.ThinkingEnabled) {
+		t.Fatalf("thinking = %#v", thinking)
+	}
+	messages := body["messages"].([]any)
+	if messages[1].(map[string]any)["reasoning_content"] != "tool thinking" {
+		t.Fatalf("assistant history = %#v", messages[1])
+	}
+	parts := response.Choices[0].Message.Parts
+	if len(parts) != 2 || parts[0].Kind != corechat.PartReasoning || parts[0].Text != "thinking" {
+		t.Fatalf("response parts = %#v", parts)
+	}
+}
+
+func TestOpenAIChatRejectsTemperatureAboveOfficialMaximum(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("request must fail before transport")
+	}))
+	t.Cleanup(server.Close)
+	model, err := xiaomi.NewOpenAIChat(xiaomi.OpenAIChatConfig{
+		APIKey:         "test-key",
+		BaseURL:        server.URL,
+		DefaultOptions: corechat.Options{Model: xiaomi.ModelV25Pro},
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIChat: %v", err)
+	}
+	temperature := 1.6
+	_, err = model.Call(t.Context(), &corechat.Request{
+		Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart("hello"))},
+		Options:  corechat.Options{Temperature: &temperature},
+	})
+	if err == nil {
+		t.Fatal("Call succeeded; want temperature validation error")
+	}
+}

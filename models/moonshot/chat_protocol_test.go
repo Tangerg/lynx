@@ -1,0 +1,96 @@
+package moonshot_test
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/models/moonshot"
+	"github.com/Tangerg/lynx/models/openai"
+)
+
+func TestOpenAIChatUsesCurrentKimiWireContract(t *testing.T) {
+	var body map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Errorf("decode request: %v", err)
+			http.Error(writer, "invalid request", http.StatusBadRequest)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"id":"chat-1","model":"kimi-k3","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"answer","reasoning_content":"thinking"}}]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	maxTokens := int64(4096)
+	model, err := moonshot.NewOpenAIChat(moonshot.OpenAIChatConfig{
+		APIKey:  "test-key",
+		BaseURL: server.URL,
+		DefaultOptions: corechat.Options{
+			Model:     moonshot.ModelK3,
+			MaxTokens: &maxTokens,
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIChat: %v", err)
+	}
+	previousThinking, err := openai.NewTextReasoningPart("moonshot", openai.TextReasoningContent, "previous thinking")
+	if err != nil {
+		t.Fatalf("NewTextReasoningPart: %v", err)
+	}
+	request := &corechat.Request{Messages: []corechat.Message{
+		corechat.NewUserMessage(corechat.NewTextPart("continue")),
+		corechat.NewAssistantMessage(previousThinking, corechat.NewTextPart("previous answer")),
+		corechat.NewUserMessage(corechat.NewTextPart("again")),
+	}}
+	if err := request.SetExtension(moonshot.RequestExtensionKey, moonshot.ChatRequestOptions{ReasoningEffort: moonshot.ReasoningEffortHigh}); err != nil {
+		t.Fatalf("SetExtension: %v", err)
+	}
+	response, err := model.Call(t.Context(), request)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	if body["max_completion_tokens"] != float64(maxTokens) {
+		t.Fatalf("max_completion_tokens = %#v", body["max_completion_tokens"])
+	}
+	if _, found := body["max_tokens"]; found {
+		t.Fatalf("deprecated max_tokens sent: %#v", body)
+	}
+	if body["reasoning_effort"] != string(moonshot.ReasoningEffortHigh) {
+		t.Fatalf("reasoning_effort = %#v", body["reasoning_effort"])
+	}
+	messages := body["messages"].([]any)
+	if messages[1].(map[string]any)["reasoning_content"] != "previous thinking" {
+		t.Fatalf("assistant history = %#v", messages[1])
+	}
+	parts := response.Choices[0].Message.Parts
+	if len(parts) != 2 || parts[0].Kind != corechat.PartReasoning || parts[0].Text != "thinking" || parts[1].Text != "answer" {
+		t.Fatalf("response parts = %#v", parts)
+	}
+}
+
+func TestOpenAIChatRejectsK2ThinkingOptionsForK3(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("request must fail before transport")
+	}))
+	t.Cleanup(server.Close)
+	model, err := moonshot.NewOpenAIChat(moonshot.OpenAIChatConfig{
+		APIKey:         "test-key",
+		BaseURL:        server.URL,
+		DefaultOptions: corechat.Options{Model: moonshot.ModelK3},
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIChat: %v", err)
+	}
+	request := &corechat.Request{Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart("hello"))}}
+	if err := request.SetExtension(moonshot.RequestExtensionKey, moonshot.ChatRequestOptions{
+		Thinking: &moonshot.Thinking{Type: moonshot.ThinkingEnabled, Keep: moonshot.ThinkingKeepAll},
+	}); err != nil {
+		t.Fatalf("SetExtension: %v", err)
+	}
+	if _, err := model.Call(t.Context(), request); err == nil {
+		t.Fatal("Call succeeded; want model-specific validation error")
+	}
+}

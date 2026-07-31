@@ -1412,6 +1412,46 @@
       }
     },
     {
+      "id": "qwen3.7-plus",
+      "display_name": "Qwen3.7 Plus",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2026-06-02T00:00:00Z",
+      "last_updated": "2026-06-04T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.5,
+          "output_per_1m": 3,
+          "cache_read_per_1m": 0.05,
+          "cache_write_per_1m": 0.625
+        },
+        {
+          "threshold": 256000,
+          "input_per_1m": 2,
+          "output_per_1m": 6,
+          "cache_read_per_1m": 0.2,
+          "cache_write_per_1m": 2.5
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 65536
+      }
+    },
+    {
       "id": "qwq-plus",
       "display_name": "QwQ Plus",
       "knowledge_cutoff": "2024-04-01T00:00:00Z",

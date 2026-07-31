@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"time"
 
 	"github.com/Tangerg/lynx/core/moderation"
 )
@@ -79,9 +78,8 @@ func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*m
 	}
 
 	meta := &moderation.ResponseMetadata{
-		ID:      apiResp.ID,
-		Model:   apiResp.Model,
-		Created: time.Now().Unix(),
+		ID:    apiResp.ID,
+		Model: apiResp.Model,
 	}
 	return moderation.NewResponse(results, meta)
 }

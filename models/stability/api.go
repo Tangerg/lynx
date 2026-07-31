@@ -34,12 +34,12 @@ func NewAPI(cfg APIConfig) (*API, error) {
 		return nil, err
 	}
 
-	client := resty.New().
-		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetAuthToken(cfg.APIKey)
+	client := resty.New()
 	if cfg.HTTPClient != nil {
-		client.SetTransport(cfg.HTTPClient.Transport)
+		client = resty.NewWithClient(cfg.HTTPClient)
 	}
+	client.SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
+		SetAuthToken(cfg.APIKey)
 
 	return &API{http: client}, nil
 }
@@ -56,6 +56,7 @@ type GenerateRequest struct {
 	OutputFormat   string
 	Seed           *int64
 	StylePreset    string
+	CFGScale       *float64
 	Mode           string
 }
 
@@ -98,6 +99,9 @@ func buildFormFields(req *GenerateRequest) map[string]string {
 	put("model", req.Model)
 	put("output_format", req.OutputFormat)
 	put("style_preset", req.StylePreset)
+	if req.CFGScale != nil {
+		out["cfg_scale"] = strconv.FormatFloat(*req.CFGScale, 'f', -1, 64)
+	}
 	if req.Seed != nil {
 		out["seed"] = strconv.FormatInt(*req.Seed, 10)
 	}

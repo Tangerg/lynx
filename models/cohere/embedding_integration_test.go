@@ -5,6 +5,8 @@ package cohere_test
 import (
 	"testing"
 
+	coheresdk "github.com/cohere-ai/cohere-go/v2"
+
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/models/cohere"
 	"github.com/Tangerg/lynx/models/internal/testutil"
@@ -17,10 +19,15 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 			t.Helper()
 			modelID, _ := testutil.LookupEnv("LYNX_TEST_COHERE_MODEL")
 			if modelID == "" {
-				modelID = "embed-english-v3.0"
+				modelID = "embed-v4.0"
 			}
 			opts, err := embedding.NewOptions(modelID)
 			if err != nil {
+				t.Fatal(err)
+			}
+			if err := opts.SetExtension(cohere.EmbeddingRequestExtensionKey, coheresdk.V2EmbedRequest{
+				InputType: coheresdk.EmbedInputTypeSearchDocument,
+			}); err != nil {
 				t.Fatal(err)
 			}
 			m, err := cohere.NewEmbeddingModel(cohere.EmbeddingModelConfig{

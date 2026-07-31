@@ -11,15 +11,14 @@ import (
 
 type AudioTranscriptionModelConfig struct {
 	APIKey         string
-	Endpoint       string
-	APIVersion     string
+	BaseURL        string
 	DefaultOptions transcription.Options
 	RequestOptions []option.RequestOption
 }
 
 func (c AudioTranscriptionModelConfig) Validate() error {
-	if c.Endpoint == "" {
-		return errors.New("azureopenai: Endpoint is required")
+	if c.APIKey == "" {
+		return errors.New("azureopenai: APIKey is required")
 	}
 	if c.DefaultOptions.Model == "" {
 		return errors.New("azureopenai: DefaultOptions.Model is required")
@@ -31,16 +30,19 @@ func (c AudioTranscriptionModelConfig) Validate() error {
 }
 
 // NewAudioTranscriptionModel returns an [openai.AudioTranscriptionModel]
-// pointed at Azure OpenAI's /audio/transcriptions endpoint.
+// pointed at Azure OpenAI's v1 /audio/transcriptions endpoint.
 // [transcription.Options].Model is the Azure deployment id (typically
 // pointing at "whisper" / "gpt-4o-transcribe" / "gpt-4o-mini-transcribe").
 func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*openai.AudioTranscriptionModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	apiKey, reqOpts := buildAzureRequestOptions(cfg.APIKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
+	reqOpts, err := buildRequestOptions(cfg.BaseURL, cfg.RequestOptions)
+	if err != nil {
+		return nil, err
+	}
 	return openai.NewAudioTranscriptionModel(openai.AudioTranscriptionModelConfig{
-		APIKey:         apiKey,
+		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 	})

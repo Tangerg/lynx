@@ -15,6 +15,15 @@ import (
 	"github.com/Tangerg/lynx/models/openai"
 )
 
+const (
+	OpenAIRequestExtensionKey        = "xiaomi/openai_request"
+	OpenAIResponseExtensionKey       = "xiaomi/openai_response"
+	OpenAIStreamChunkExtensionKey    = "xiaomi/openai_stream_chunk"
+	AnthropicRequestExtensionKey     = "xiaomi/anthropic_request"
+	AnthropicResponseExtensionKey    = "xiaomi/anthropic_response"
+	AnthropicStreamEventExtensionKey = "xiaomi/anthropic_stream_event"
+)
+
 var (
 	_ corechat.Model    = (*OpenAIChat)(nil)
 	_ corechat.Streamer = (*OpenAIChat)(nil)
@@ -46,7 +55,10 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 		return nil, errors.New("xiaomi: APIKey is required")
 	}
 	requestOptions := append([]openaioption.RequestOption{openaioption.WithBaseURL(cmp.Or(config.BaseURL, BaseURL))}, config.RequestOptions...)
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.ReasoningContentDialect())
+	dialect := openai.ReasoningContentToolReplayDialect("xiaomi")
+	dialect.Request = requestDialect{reasoning: dialect.Request}
+	dialect.TokenLimitField = openai.TokenLimitMaxCompletionTokens
+	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, dialect)
 	if err != nil {
 		return nil, fmt.Errorf("xiaomi: construct OpenAI-compatible chat: %w", err)
 	}
@@ -67,7 +79,7 @@ func NewAnthropicChat(config AnthropicChatConfig) (*AnthropicChat, error) {
 		return nil, errors.New("xiaomi: APIKey is required")
 	}
 	requestOptions := append([]anthropicoption.RequestOption{anthropicoption.WithBaseURL(cmp.Or(config.BaseURL, BaseURLAnthropic))}, config.RequestOptions...)
-	protocol, err := anthropic.NewCompatibleChat(anthropic.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, anthropic.Dialect{})
+	protocol, err := anthropic.NewCompatibleChat(anthropic.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, anthropic.Dialect{Provider: "xiaomi"})
 	if err != nil {
 		return nil, fmt.Errorf("xiaomi: construct Anthropic-compatible chat: %w", err)
 	}

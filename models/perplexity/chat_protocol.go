@@ -13,6 +13,11 @@ import (
 	"github.com/Tangerg/lynx/models/openai"
 )
 
+const (
+	OpenAIResponseExtensionKey    = "perplexity/openai_response"
+	OpenAIStreamChunkExtensionKey = "perplexity/openai_stream_chunk"
+)
+
 var (
 	_ corechat.Model    = (*OpenAIChat)(nil)
 	_ corechat.Streamer = (*OpenAIChat)(nil)
@@ -36,8 +41,20 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if config.APIKey == "" {
 		return nil, errors.New("perplexity: APIKey is required")
 	}
+	if err := validateCoreOptions(config.DefaultOptions); err != nil {
+		return nil, fmt.Errorf("perplexity: DefaultOptions: %w", err)
+	}
 	requestOptions := append([]option.RequestOption{option.WithBaseURL(cmp.Or(config.BaseURL, BaseURL))}, config.RequestOptions...)
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.ReasoningContentDialect())
+	dialect := sonarDialect{}
+	protocol, err := openai.NewCompatibleChat(
+		openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions},
+		openai.Dialect{
+			Provider:                   "perplexity",
+			Request:                    dialect,
+			RequestOptions:             dialect,
+			DisableRawRequestExtension: true,
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("perplexity: construct OpenAI-compatible chat: %w", err)
 	}

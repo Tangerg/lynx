@@ -1,6 +1,7 @@
 package replicate_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -19,6 +20,16 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	var audioURL string
 	srv := testutil.MuxServer(
 		testutil.Route{Method: "POST", Contains: "/predictions", Handle: func(w http.ResponseWriter, r *http.Request) {
+			var body struct {
+				Version string         `json:"version"`
+				Input   map[string]any `json:"input"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Errorf("decode request: %v", err)
+			}
+			if body.Version != replicate.ModelXTTSV2 || body.Input["text"] != "hello world" || body.Input["speaker"] != "https://example.com/reference.wav" {
+				t.Errorf("prediction request = %#v", body)
+			}
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"id":"pred-tts","status":"starting","urls":{"get":"/v1/predictions/pred-tts"}}`))
 		}},
@@ -34,6 +45,9 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 			w.Write([]byte(`{"id":"pred-tts","status":"` + status + `","output":` + output + `}`))
 		}},
 		testutil.Route{Method: "GET", Contains: "/audio.bin", Handle: func(w http.ResponseWriter, r *http.Request) {
+			if authorization := r.Header.Get("Authorization"); authorization != "" {
+				t.Errorf("output download leaked Authorization = %q", authorization)
+			}
 			w.Header().Set("Content-Type", "audio/mpeg")
 			w.Write([]byte("FAKE-MP3"))
 		}},
@@ -41,14 +55,15 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	t.Cleanup(srv.Close)
 	audioURL = srv.URL + "/audio.bin"
 
-	opts, err := tts.NewOptions("minimax/speech-02-hd")
+	opts, err := tts.NewOptions(replicate.ModelXTTSV2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	opts.Voice = "voice-1"
+	opts.Voice = "https://example.com/reference.wav"
 	m, err := replicate.NewAudioTTSModel(replicate.AudioTTSModelConfig{
 		APIKey:         "test-key",
 		DefaultOptions: opts,
+		InputSchema:    replicate.XTTSV2SpeechInputSchema(),
 		BaseURL:        srv.URL,
 		PollInterval:   10 * time.Millisecond,
 		PollTimeout:    5 * time.Second,

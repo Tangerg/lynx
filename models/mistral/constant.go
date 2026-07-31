@@ -5,52 +5,29 @@ const (
 )
 
 const (
-	OptionsKey     = "mistral/options"
 	DefaultBaseURL = "https://api.mistral.ai/v1"
 )
 
-// Chat model ids. See https://docs.mistral.ai/getting-started/models/models_overview/.
-// The "-latest" aliases auto-track Mistral's current production
-// snapshot; pin to a dated alias (e.g. mistral-large-2411) if you
-// need reproducibility.
+// Current chat model ids. See https://docs.mistral.ai/models/.
 const (
-	// ModelLarge (mistral-large-latest) is the top-tier flagship —
-	// best reasoning quality, highest cost.
-	ModelLarge = "mistral-large-latest"
+	// ModelMedium is the current frontier-class model with adjustable reasoning.
+	ModelMedium = "mistral-medium-3-5"
 
-	// ModelMedium (mistral-medium-latest) is the mid-tier model.
-	ModelMedium = "mistral-medium-latest"
+	// ModelSmall is the current hybrid instruct, reasoning, and coding model.
+	ModelSmall = "mistral-small-2603"
 
-	// ModelSmall (mistral-small-latest) is the cheap / fast tier.
-	ModelSmall = "mistral-small-latest"
+	// ModelLarge is Mistral Large 3.
+	ModelLarge = "mistral-large-2512"
 
-	// ModelCodestral (codestral-latest) targets code generation,
-	// FIM, and code reasoning.
-	ModelCodestral = "codestral-latest"
+	// ModelCodestral targets code generation and fill-in-the-middle.
+	ModelCodestral = "codestral-2508"
 
-	// ModelMinistral3B (ministral-3b-latest) is the 3B-param edge
-	// model.
-	ModelMinistral3B = "ministral-3b-latest"
+	ModelMinistral3B  = "ministral-3b-2512"
+	ModelMinistral8B  = "ministral-8b-2512"
+	ModelMinistral14B = "ministral-14b-2512"
 
-	// ModelMinistral8B (ministral-8b-latest) is the 8B-param edge
-	// model.
-	ModelMinistral8B = "ministral-8b-latest"
-
-	// ModelPixtralLarge (pixtral-large-latest) is the multimodal
-	// vision-language flagship.
-	ModelPixtralLarge = "pixtral-large-latest"
-
-	// ModelMagistralMedium (magistral-medium-latest) is the medium
-	// reasoning model — visible chain-of-thought via reasoning_content.
-	ModelMagistralMedium = "magistral-medium-latest"
-
-	// ModelMagistralSmall (magistral-small-latest) is the small
-	// reasoning variant.
-	ModelMagistralSmall = "magistral-small-latest"
-
-	// ModelDevstralMedium (devstral-medium-latest) targets agentic
-	// software-engineering workloads.
-	ModelDevstralMedium = "devstral-medium-latest"
+	// ModelPixtralLarge remains the supported Pixtral Large model.
+	ModelPixtralLarge = "pixtral-large-2411"
 )
 
 // Embedding model ids.
@@ -60,14 +37,14 @@ const (
 	// to truncate.
 	ModelEmbed = "mistral-embed"
 
-	// ModelCodestralEmbed (codestral-embed) is the code-tuned
+	// ModelCodestralEmbed is the code-tuned
 	// embedding model.
-	ModelCodestralEmbed = "codestral-embed"
+	ModelCodestralEmbed = "codestral-embed-2505"
 )
 
 // Moderation model ids.
 const (
-	// ModelModeration (mistral-moderation-latest) is the moderation
+	// ModelModeration is the current moderation
 	// classifier reachable via [NewModerationModel].
-	ModelModeration = "mistral-moderation-latest"
+	ModelModeration = "mistral-moderation-2603"
 )

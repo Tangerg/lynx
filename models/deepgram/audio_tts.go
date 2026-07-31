@@ -1,9 +1,9 @@
 package deepgram
 
 import (
-	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"net/http"
 
@@ -71,35 +71,46 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (string, *SpeakParams,
 		return "", nil, err
 	}
 	if err := options.RejectUnsupported("deepgram: speech", map[string]bool{
-		"speed": mergedOpts.Speed != 0,
 		"voice": mergedOpts.Voice != "",
 	}); err != nil {
 		return "", nil, err
 	}
 
-	params, err := options.GetParams[SpeakParams](mergedOpts.Extensions, OptionsKey)
+	params, err := options.GetParams[SpeakParams](mergedOpts.Extensions, SpeechRequestExtensionKey)
 	if err != nil {
 		return "", nil, err
 	}
 	if params.Model == "" {
 		params.Model = mergedOpts.Model
 	}
-	if params.Encoding == "" && mergedOpts.OutputFormat != "" {
-		params.Encoding = mergedOpts.OutputFormat
+	if mergedOpts.OutputFormat != "" {
+		switch mergedOpts.OutputFormat {
+		case "wav":
+			params.Encoding = "linear16"
+			params.Container = "wav"
+		case "mp3", "flac", "aac", "opus", "mulaw", "alaw", "linear16":
+			params.Encoding = mergedOpts.OutputFormat
+		default:
+			return "", nil, fmt.Errorf("deepgram: speech: unsupported output format %q", mergedOpts.OutputFormat)
+		}
+	}
+	if mergedOpts.Speed != 0 {
+		if mergedOpts.Speed < 0.7 || mergedOpts.Speed > 1.5 {
+			return "", nil, errors.New("deepgram: speech: speed must be between 0.7 and 1.5")
+		}
+		params.Speed = mergedOpts.Speed
 	}
 
 	return req.Text, params, nil
 }
 
 func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Response, error) {
+	if len(audio) == 0 {
+		return nil, errors.New("deepgram: speech response contained no audio")
+	}
 	resultMeta := &tts.ResultMetadata{}
 	if ct := hdr.Get("Content-Type"); ct != "" {
-		if err := resultMeta.Set("mime_type", ct); err != nil {
-			return nil, err
-		}
-	}
-	if rid := hdr.Get("dg-request-id"); rid != "" {
-		if err := resultMeta.Set("request_id", rid); err != nil {
+		if err := resultMeta.Set("deepgram/mime_type", ct); err != nil {
 			return nil, err
 		}
 	}
@@ -108,7 +119,20 @@ func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Respo
 	if err != nil {
 		return nil, err
 	}
-	return tts.NewResponse(result, &tts.ResponseMetadata{})
+	meta := &tts.ResponseMetadata{Model: hdr.Get("dg-model-name")}
+	if requestID := hdr.Get("dg-request-id"); requestID != "" {
+		if err := meta.Set("deepgram/request_id", requestID); err != nil {
+			return nil, err
+		}
+	}
+	if err := meta.Set(SpeechResponseExtensionKey, map[string]string{
+		"content_type": hdr.Get("Content-Type"),
+		"model_name":   hdr.Get("dg-model-name"),
+		"request_id":   hdr.Get("dg-request-id"),
+	}); err != nil {
+		return nil, err
+	}
+	return tts.NewResponse(result, meta)
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
@@ -128,29 +152,27 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	return a.buildResponse(audio, hdr)
 }
 
-// Stream re-uses /speak: the response body is chunked, so reading it in
-// 16KB slices gives the same incremental playback shape callers get from
-// the streaming-tts endpoint. (Deepgram has a separate websocket
-// streaming endpoint; that's a different SPI and not surfaced here.)
+// Stream exposes the chunked response body from Deepgram's official REST
+// /speak endpoint as it arrives.
 func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
 	return func(yield func(*tts.Response, error) bool) {
 		if err := req.Validate(); err != nil {
 			yield(nil, err)
 			return
 		}
-		audio, hdr, err := func() ([]byte, http.Header, error) {
-			text, params, err := a.buildAPIRequest(req)
-			if err != nil {
-				return nil, nil, err
-			}
-			return a.api.Speak(ctx, text, params)
-		}()
+		text, params, err := a.buildAPIRequest(req)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
+		body, hdr, err := a.api.SpeakStream(ctx, text, params)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		defer body.Close()
 
-		for chunk, err := range pkgio.Read(bytes.NewReader(audio), 16*1024) {
+		for chunk, err := range pkgio.Read(body, 16*1024) {
 			if err != nil {
 				yield(nil, err)
 				return

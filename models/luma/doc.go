@@ -1,12 +1,10 @@
-// Package luma wraps Luma AI's image generation API.
+// Package luma wraps Luma's current Agents API using the official Go SDK.
 //
-// [NewImageModel] targets Luma's async /dream-machine/v1/generations/
-// image endpoint (the Photon family). The model targets photorealism
-// and image editing; submit → poll → fetch is orchestrated here.
+// [NewImageModel] targets the async /v1/generations endpoint for the uni-1
+// family. It submits, polls, and downloads expiring output URLs before
+// returning provider-neutral image bytes.
 //
-// Note: Luma's flagship surface is video generation (Dream Machine /
-// Ray-2). Video isn't modeled by the framework — only Luma's image side fits
-// core/image's Model interface.
+// Video generation is outside core/image and is not surfaced here.
 //
-// See https://docs.lumalabs.ai/ for the full reference.
+// See https://docs.agents.lumalabs.ai/ for the official reference.
 package luma

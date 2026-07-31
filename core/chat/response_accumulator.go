@@ -159,12 +159,12 @@ func (a *accumulatedChoice) mergePart(delta Part) error {
 	parts := &a.choice.Message.Parts
 	switch delta.Kind {
 	case PartText:
-		if len(*parts) > 0 && (*parts)[len(*parts)-1].Kind == PartText {
+		if len(*parts) > 0 && (*parts)[len(*parts)-1].Kind == PartText && (*parts)[len(*parts)-1].Metadata.Equal(delta.Metadata) {
 			(*parts)[len(*parts)-1].Text += delta.Text
 			return nil
 		}
 	case PartReasoning:
-		if len(*parts) > 0 && (*parts)[len(*parts)-1].Kind == PartReasoning {
+		if len(*parts) > 0 && (*parts)[len(*parts)-1].Kind == PartReasoning && (*parts)[len(*parts)-1].Metadata.Equal(delta.Metadata) {
 			last := &(*parts)[len(*parts)-1]
 			last.Text += delta.Text
 			last.Signature = append(last.Signature, delta.Signature...)
@@ -172,11 +172,15 @@ func (a *accumulatedChoice) mergePart(delta Part) error {
 		}
 	case PartToolCall:
 		if position, exists := a.toolParts[delta.ToolCall.ID]; exists {
-			call := (*parts)[position].ToolCall
+			part := &(*parts)[position]
+			call := part.ToolCall
 			if call.Name != delta.ToolCall.Name {
 				return fmt.Errorf("tool call %q changed name from %q to %q", call.ID, call.Name, delta.ToolCall.Name)
 			}
 			call.Arguments += delta.ToolCall.Arguments
+			if err := part.Metadata.Merge(delta.Metadata); err != nil {
+				return fmt.Errorf("tool call %q metadata: %w", call.ID, err)
+			}
 			return nil
 		}
 		cloned := delta.Clone()

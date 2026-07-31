@@ -2,9 +2,9 @@
 //
 // [NewAudioTranscriptionModel] orchestrates the upload → submit →
 // poll → fetch flow against AssemblyAI's async /v2/transcript
-// endpoints. The default speech model is "universal"; pass
-// "slam-1" through [transcription.Options].Model for the latest
-// frontier model.
+// endpoints. [transcription.Options].Model selects the primary official model;
+// use "universal-3-5-pro" for the current frontier model and add
+// "universal-2" to [TranscriptRequest.SpeechModels] as a fallback.
 //
 // Provider extras (speaker diarization, auto chapters, sentiment
 // analysis, entity detection, PII redaction, content safety,

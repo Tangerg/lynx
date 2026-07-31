@@ -6,11 +6,10 @@ const (
 	BaseURL = "https://api.fireworks.ai/inference/v1"
 )
 
-// See https://fireworks.ai/models for the full catalog — Fireworks
-// prefixes model ids with "accounts/fireworks/models/".
+// Current serverless model ids. See https://fireworks.ai/models for the live
+// catalog — Fireworks prefixes model ids with "accounts/fireworks/models/".
 const (
-	ModelLlamaV3p3_70BInstruct  = "accounts/fireworks/models/llama-v3p3-70b-instruct"
-	ModelLlamaV3p1_405BInstruct = "accounts/fireworks/models/llama-v3p1-405b-instruct"
-	ModelDeepSeekV3             = "accounts/fireworks/models/deepseek-v3"
-	ModelDeepSeekR1             = "accounts/fireworks/models/deepseek-r1"
+	ModelGPTOSS20B = "accounts/fireworks/models/gpt-oss-20b"
+	ModelKimiK26   = "accounts/fireworks/models/kimi-k2p6"
+	ModelGLM52     = "accounts/fireworks/models/glm-5p2"
 )

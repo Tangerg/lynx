@@ -21,7 +21,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	}
 	m, err := azureopenai.NewImageModel(azureopenai.ImageModelConfig{
 		APIKey:         "test-key",
-		Endpoint:       srv.URL,
+		BaseURL:        srv.URL + "/openai/v1/",
 		DefaultOptions: opts,
 	})
 	if err != nil {

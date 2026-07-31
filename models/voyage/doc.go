@@ -2,7 +2,7 @@
 //
 // Voyage publishes retrieval-tuned text and multimodal embedding
 // models that consistently lead public retrieval benchmarks; the
-// flagship voyage-3-large / voyage-3 / voyage-3-lite models support
+// current voyage-4-large / voyage-4 / voyage-4-lite models support
 // matryoshka-style output truncation via the output_dimension
 // parameter.
 //

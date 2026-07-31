@@ -3,9 +3,9 @@ package lmnt
 import (
 	"cmp"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/go-resty/resty/v2"
@@ -32,57 +32,71 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	client := resty.New().
-		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetHeader("X-API-Key", cfg.APIKey).
-		SetHeader("Content-Type", "application/json")
+	client := resty.New()
 	if cfg.HTTPClient != nil {
-		client.SetTransport(cfg.HTTPClient.Transport)
+		client = resty.NewWithClient(cfg.HTTPClient)
 	}
+	client.SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
+		SetHeader("X-API-Key", cfg.APIKey).
+		SetHeader("lmnt-version", CurrentAPIVersion).
+		SetHeader("Content-Type", "application/json")
 	return &API{http: client}, nil
 }
 
-// SynthesizeRequest mirrors POST /ai/speech/bytes. LMNT returns JSON
-// with base64-encoded audio under the "audio" key, plus a seed and
-// optional durations.
+// SynthesizeRequest mirrors the current POST /ai/speech/bytes contract.
 type SynthesizeRequest struct {
-	Text            string   `json:"text"`
-	Voice           string   `json:"voice"`
-	Model           string   `json:"model,omitempty"`
-	Format          string   `json:"format,omitempty"`
-	SampleRate      int      `json:"sample_rate,omitempty"`
-	Speed           *float64 `json:"speed,omitempty"`
-	Language        string   `json:"language,omitempty"`
-	Seed            *int64   `json:"seed,omitempty"`
-	Temperature     *float64 `json:"temperature,omitempty"`
-	TopP            *float64 `json:"top_p,omitempty"`
-	ReturnDurations *bool    `json:"return_durations,omitempty"`
+	Text        string   `json:"text"`
+	Voice       string   `json:"voice"`
+	Debug       *bool    `json:"debug,omitempty"`
+	Format      string   `json:"format,omitempty"`
+	Language    string   `json:"language,omitempty"`
+	Model       string   `json:"model,omitempty"`
+	SampleRate  int      `json:"sample_rate,omitempty"`
+	Temperature *float64 `json:"temperature,omitempty"`
+	TopP        *float64 `json:"top_p,omitempty"`
+	Seed        *int64   `json:"seed,omitempty"`
 }
 
-// SynthesizeResponse is the JSON envelope. Audio is base64-encoded
-// bytes — callers decode with [SynthesizeResponse.Decode] to get the
-// raw audio buffer.
-type SynthesizeResponse struct {
-	Audio     string `json:"audio"`
-	Seed      int64  `json:"seed"`
-	Durations []any  `json:"durations,omitzero"`
-}
-
-func (s *SynthesizeResponse) Decode() ([]byte, error) {
-	return base64.StdEncoding.DecodeString(s.Audio)
-}
-
-func (a *API) Synthesize(ctx context.Context, req *SynthesizeRequest) (*SynthesizeResponse, error) {
-	if req == nil {
-		return nil, errors.New("lmnt: request must not be nil")
-	}
-	var out SynthesizeResponse
-	resp, err := a.http.R().SetContext(ctx).SetBody(req).SetResult(&out).Post("/ai/speech/bytes")
+// Synthesize returns the official binary response and response headers.
+func (a *API) Synthesize(ctx context.Context, req *SynthesizeRequest) ([]byte, http.Header, error) {
+	body, headers, err := a.SynthesizeStream(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("lmnt: request failed: %w", err)
+		return nil, nil, err
+	}
+	defer body.Close()
+	audio, err := io.ReadAll(body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("lmnt: read speech response: %w", err)
+	}
+	if len(audio) == 0 {
+		return nil, nil, errors.New("lmnt: speech response is empty")
+	}
+	return audio, headers, nil
+}
+
+// SynthesizeStream exposes the official binary response as it arrives.
+func (a *API) SynthesizeStream(ctx context.Context, req *SynthesizeRequest) (io.ReadCloser, http.Header, error) {
+	if req == nil {
+		return nil, nil, errors.New("lmnt: request must not be nil")
+	}
+	resp, err := a.http.R().
+		SetContext(ctx).
+		SetBody(req).
+		SetDoNotParseResponse(true).
+		Post("/ai/speech/bytes")
+	if err != nil {
+		return nil, nil, fmt.Errorf("lmnt: request failed: %w", err)
 	}
 	if !resp.IsSuccess() {
-		return nil, fmt.Errorf("lmnt: http %d: %s", resp.StatusCode(), resp.String())
+		defer resp.RawBody().Close()
+		body, readErr := io.ReadAll(resp.RawBody())
+		if readErr != nil {
+			return nil, nil, fmt.Errorf("lmnt: http %d; read error response: %w", resp.StatusCode(), readErr)
+		}
+		return nil, nil, fmt.Errorf("lmnt: http %d: %s", resp.StatusCode(), string(body))
 	}
-	return &out, nil
+	if resp.RawBody() == nil {
+		return nil, nil, errors.New("lmnt: speech response has no body")
+	}
+	return resp.RawBody(), resp.Header(), nil
 }

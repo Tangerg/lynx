@@ -64,7 +64,7 @@ func TestChat_CoreConformance(t *testing.T) {
 			if reasoning.String() != "inspect colors" || content.String() != "It is a blue square." {
 				t.Errorf("stream reasoning/text = %q/%q", reasoning.String(), content.String())
 			}
-			if toolCall == nil || toolCall.ID != "ollama/0/2" || toolCall.Name != "inspect" || toolCall.Arguments != `{"detail":true}` {
+			if toolCall == nil || toolCall.ID != "ollama/generated/0" || toolCall.Name != "inspect" || toolCall.Arguments != `{"detail":true}` {
 				t.Errorf("stream tool call = %#v", toolCall)
 			}
 			if final == nil || final.Usage.InputTokens != 11 || final.Usage.OutputTokens != 5 {
@@ -177,7 +177,7 @@ func newProtocolChatRequest(t *testing.T) *corechat.Request {
 		Description: "Inspect image details",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"detail":{"type":"boolean"}}}`),
 	}}
-	if err := request.SetExtension("ollama/request", map[string]any{
+	if err := request.SetExtension(ollama.RequestExtensionKey, map[string]any{
 		"keep_alive": "10m",
 		"format":     "json",
 		"think":      true,
@@ -293,7 +293,7 @@ func assertProtocolResponse(t *testing.T, response *corechat.Response) {
 		t.Errorf("reasoning/text = %#v", choice.Message.Parts)
 	}
 	call := choice.Message.Parts[2].ToolCall
-	if call == nil || call.ID != "ollama/0/2" || call.Name != "inspect" || call.Arguments != `{"detail":true}` {
+	if call == nil || call.ID != "ollama/generated/0" || call.Name != "inspect" || call.Arguments != `{"detail":true}` {
 		t.Errorf("tool call = %#v", call)
 	}
 	if response.Usage.InputTokens != 11 || response.Usage.OutputTokens != 5 {
@@ -303,8 +303,8 @@ func assertProtocolResponse(t *testing.T, response *corechat.Response) {
 	if createdAt != "2026-07-14T12:00:00Z" {
 		t.Errorf("created_at = %q", createdAt)
 	}
-	durations := decodeExtension[map[string]int64](t, response.Extensions, "ollama/durations_ms")
-	if durations["total"] != 1250 || durations["load"] != 100 || durations["prompt_eval"] != 300 || durations["eval"] != 700 {
+	durations := decodeExtension[map[string]int64](t, response.Extensions, "ollama/durations_ns")
+	if durations["total"] != 1_250_000_000 || durations["load"] != 100_000_000 || durations["prompt_eval"] != 300_000_000 || durations["eval"] != 700_000_000 {
 		t.Errorf("durations = %#v", durations)
 	}
 	metrics := decodeExtension[map[string]int](t, response.Extensions, "ollama/metrics")

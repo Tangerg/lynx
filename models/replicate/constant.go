@@ -5,7 +5,10 @@ const (
 )
 
 const (
-	OptionsKey = "replicate/options"
+	ImageRequestExtensionKey   = "replicate/image_request"
+	SpeechRequestExtensionKey  = "replicate/speech_request"
+	ImageResponseExtensionKey  = "replicate/image_response"
+	SpeechResponseExtensionKey = "replicate/speech_response"
 
 	// DefaultBaseURL is Replicate's production API root.
 	DefaultBaseURL = "https://api.replicate.com/v1"
@@ -28,9 +31,10 @@ const (
 	DefaultTTSPollTimeoutSeconds = 300
 )
 
-// Common image model ids on Replicate. The "owner/name" shape pins
-// to whatever the model owner has marked latest — Replicate handles
-// the version resolution server-side.
+// Official image model ids on Replicate. The unversioned owner/name form is
+// valid only for official models and routes through the official-model
+// prediction endpoint. Bind each id to its current OpenAPI schema before using
+// it with ImageModel.
 const (
 	// ModelFluxSchnell is the cheapest / fastest FLUX (4-step
 	// distilled, ~1s).
@@ -56,13 +60,6 @@ const (
 	ModelFluxKontextPro = "black-forest-labs/flux-kontext-pro"
 	ModelFluxKontextMax = "black-forest-labs/flux-kontext-max"
 
-	// ModelSDXL is Stability's SDXL — version-pinned community model;
-	// use the ":version" suffix to lock to a tested hash.
-	ModelSDXL = "stability-ai/sdxl"
-
-	// ModelSD35Large is Stable Diffusion 3.5 Large.
-	ModelSD35Large = "stability-ai/stable-diffusion-3.5-large"
-
 	// ModelIdeogramV2 is Ideogram V2 — strong on typography and
 	// poster compositions.
 	ModelIdeogramV2 = "ideogram-ai/ideogram-v2"
@@ -71,24 +68,9 @@ const (
 	ModelIdeogramV2Turbo = "ideogram-ai/ideogram-v2-turbo"
 )
 
-// Common TTS model ids on Replicate. These are open-weight models
-// not available through commercial TTS APIs — for hosted commercial
-// voices use [models/elevenlabs/hume/lmnt] / [models/openai] /
-// [models/deepgram] / [models/google] instead.
+// ModelXTTSV2 is a version-pinned community model id. Community-model
+// predictions require an immutable version; using owner/name without a version
+// would incorrectly target Replicate's official-model endpoint.
 const (
-	// ModelXTTSV2 (Coqui XTTS-v2) is a multilingual open voice-clone
-	// model. Supports 17 languages and zero-shot cloning from a 6-
-	// second reference WAV passed via Extra "speaker_wav".
-	ModelXTTSV2 = "lucataco/xtts-v2"
-
-	// ModelBark (Suno Bark) is an open generative audio model
-	// covering speech, song, laughs, and sound effects. Voice
-	// presets ride through Extra "history_prompt".
-	ModelBark = "suno-ai/bark"
-
-	// ModelTortoiseTTS (mrhan1993/tortoise-tts) is high-quality but
-	// slow open TTS. Voice ids go in Extra "voice_a"; quality
-	// presets ("ultra_fast", "fast", "standard", "high_quality")
-	// via "preset".
-	ModelTortoiseTTS = "afiaka87/tortoise-tts"
+	ModelXTTSV2 = "lucataco/xtts-v2:684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e"
 )

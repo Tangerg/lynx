@@ -15,6 +15,15 @@ import (
 	"github.com/Tangerg/lynx/models/openai"
 )
 
+const (
+	OpenAIRequestExtensionKey        = "minimax/openai_request"
+	OpenAIResponseExtensionKey       = "minimax/openai_response"
+	OpenAIStreamChunkExtensionKey    = "minimax/openai_stream_chunk"
+	AnthropicRequestExtensionKey     = "minimax/anthropic_request"
+	AnthropicResponseExtensionKey    = "minimax/anthropic_response"
+	AnthropicStreamEventExtensionKey = "minimax/anthropic_stream_event"
+)
+
 var (
 	_ corechat.Model    = (*OpenAIChat)(nil)
 	_ corechat.Streamer = (*OpenAIChat)(nil)
@@ -46,7 +55,20 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 		return nil, errors.New("minimax: APIKey is required")
 	}
 	requestOptions := append([]openaioption.RequestOption{openaioption.WithBaseURL(cmp.Or(config.BaseURL, BaseURLIntl))}, config.RequestOptions...)
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.ReasoningContentDialect())
+	reasoningDialect, err := openai.ReasoningDetailsDialect(openai.ReasoningDetailsConfig{
+		Provider:     "minimax",
+		TextField:    "reasoning_content",
+		DetailsField: "reasoning_details",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("minimax: configure reasoning dialect: %w", err)
+	}
+	reasoningDialect.Request = combinedRequestDialect{reasoning: reasoningDialect.Request}
+	reasoningDialect.TokenLimitField = openai.TokenLimitMaxCompletionTokens
+	protocol, err := openai.NewCompatibleChat(
+		openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions},
+		reasoningDialect,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("minimax: construct OpenAI-compatible chat: %w", err)
 	}
@@ -67,7 +89,7 @@ func NewAnthropicChat(config AnthropicChatConfig) (*AnthropicChat, error) {
 		return nil, errors.New("minimax: APIKey is required")
 	}
 	requestOptions := append([]anthropicoption.RequestOption{anthropicoption.WithBaseURL(cmp.Or(config.BaseURL, BaseURLIntlAnthropic))}, config.RequestOptions...)
-	protocol, err := anthropic.NewCompatibleChat(anthropic.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, anthropic.Dialect{})
+	protocol, err := anthropic.NewCompatibleChat(anthropic.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, anthropic.Dialect{Provider: "minimax"})
 	if err != nil {
 		return nil, fmt.Errorf("minimax: construct Anthropic-compatible chat: %w", err)
 	}

@@ -1,10 +1,13 @@
 package google
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"iter"
+	"net/http"
 
+	"github.com/go-resty/resty/v2"
 	"google.golang.org/genai"
 )
 
@@ -31,6 +34,10 @@ type APIConfig struct {
 	// production users should leave it empty (the SDK picks the right
 	// host per Backend). Useful for mock servers / corporate proxies.
 	BaseURL string
+
+	// HTTPClient is shared by the official Gen AI SDK and the Interactions
+	// transport. Optional.
+	HTTPClient *http.Client
 }
 
 func (c APIConfig) Validate() error {
@@ -43,7 +50,8 @@ func (c APIConfig) Validate() error {
 }
 
 type API struct {
-	client *genai.Client
+	client           *genai.Client
+	interactionsHTTP *resty.Client
 }
 
 func NewAPI(cfg APIConfig) (*API, error) {
@@ -51,7 +59,10 @@ func NewAPI(cfg APIConfig) (*API, error) {
 		return nil, err
 	}
 
-	clientCfg := &genai.ClientConfig{Backend: cfg.Backend}
+	clientCfg := &genai.ClientConfig{
+		Backend:    cfg.Backend,
+		HTTPClient: cfg.HTTPClient,
+	}
 	if cfg.Backend == 0 {
 		clientCfg.Backend = genai.BackendGeminiAPI
 	}
@@ -73,7 +84,16 @@ func NewAPI(cfg APIConfig) (*API, error) {
 		return nil, err
 	}
 
-	return &API{client: client}, nil
+	interactionsHTTP := resty.New()
+	if cfg.HTTPClient != nil {
+		interactionsHTTP = resty.NewWithClient(cfg.HTTPClient)
+	}
+	interactionsHTTP.
+		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
+		SetHeader("x-goog-api-key", cfg.APIKey).
+		SetHeader("Content-Type", "application/json")
+
+	return &API{client: client, interactionsHTTP: interactionsHTTP}, nil
 }
 
 func (a *API) ChatCompletion(ctx context.Context, modelName string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
@@ -86,10 +106,6 @@ func (a *API) ChatCompletionStream(ctx context.Context, modelName string, conten
 
 func (a *API) Embedding(ctx context.Context, modelName string, contents []*genai.Content, config *genai.EmbedContentConfig) (*genai.EmbedContentResponse, error) {
 	return a.client.Models.EmbedContent(ctx, modelName, contents, config)
-}
-
-func (a *API) Image(ctx context.Context, modelName string, prompt string, config *genai.GenerateImagesConfig) (*genai.GenerateImagesResponse, error) {
-	return a.client.Models.GenerateImages(ctx, modelName, prompt, config)
 }
 
 func (a *API) CountTokens(ctx context.Context, modelName string, contents []*genai.Content, config *genai.CountTokensConfig) (*genai.CountTokensResponse, error) {

@@ -29,7 +29,7 @@ func TestEmbeddingModel_Call_Mock(t *testing.T) {
 	}
 	m, err := azureopenai.NewEmbeddingModel(azureopenai.EmbeddingModelConfig{
 		APIKey:         "test-key",
-		Endpoint:       srv.URL,
+		BaseURL:        srv.URL + "/openai/v1/",
 		DefaultOptions: opts,
 	})
 	if err != nil {

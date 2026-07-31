@@ -74,6 +74,22 @@ var providerMap = map[string]string{
 	"xiaomi":         "xiaomi",
 }
 
+var officialModelIDs = map[string]map[string]string{
+	"together": {
+		"essentialai/Rnj-1-Instruct": "essentialai/rnj-1-instruct",
+	},
+}
+
+// officialDeprecatedModelIDs corrects stale upstream status when a provider
+// has published a retirement date. Deprecated rows remain available only for
+// historical cost attribution; provider adapters do not expose legacy aliases.
+var officialDeprecatedModelIDs = map[string]map[string]bool{
+	"deepseek": {
+		"deepseek-chat":     true,
+		"deepseek-reasoner": true,
+	},
+}
+
 // apiModel mirrors the subset of a models.dev model spec consumed here.
 type apiModel struct {
 	ID               string `json:"id"`
@@ -159,6 +175,12 @@ func main() {
 		for id, m := range p.Models {
 			if !isChat(m) {
 				continue
+			}
+			if officialID := officialModelIDs[provider][m.ID]; officialID != "" {
+				m.ID = officialID
+			}
+			if officialDeprecatedModelIDs[provider][m.ID] {
+				m.Status = "deprecated"
 			}
 			models = append(models, toModelInfo(m, augs[provider][id]))
 		}

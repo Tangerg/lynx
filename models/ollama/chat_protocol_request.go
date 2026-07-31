@@ -14,10 +14,17 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 )
 
-const protocolRequestExtensionKey = "ollama/request"
+const (
+	// RequestExtensionKey stores official Ollama /api/chat request fields that
+	// have no provider-neutral Core equivalent. Core model, messages, tools,
+	// streaming, and common options take precedence.
+	RequestExtensionKey = "ollama/request"
+
+	protocolGeneratedToolPrefix = "ollama/generated/"
+)
 
 func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, stream bool) (*ollamaapi.ChatRequest, error) {
-	options := mergeProtocolOptions(defaults, req.Options)
+	options := defaults.Overlay(req.Options)
 	if err := options.Validate(); err != nil {
 		return nil, fmt.Errorf("ollama: options: %w", err)
 	}
@@ -71,17 +78,20 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, stream
 	if options.TopP != nil {
 		apiReq.Options["top_p"] = float32(*options.TopP)
 	}
+	if apiReq.TopLogprobs < 0 || apiReq.TopLogprobs > 20 {
+		return nil, errors.New("ollama: top_logprobs must be between 0 and 20")
+	}
 	return apiReq, nil
 }
 
 func decodeProtocolRequestExtension(req *corechat.Request) (*ollamaapi.ChatRequest, error) {
 	apiReq := new(ollamaapi.ChatRequest)
-	raw, found := req.Extensions[protocolRequestExtensionKey]
+	raw, found := req.Extensions[RequestExtensionKey]
 	if !found {
 		return apiReq, nil
 	}
 	if err := json.Unmarshal(raw, apiReq); err != nil {
-		return nil, fmt.Errorf("ollama: extension %q: %w", protocolRequestExtensionKey, err)
+		return nil, fmt.Errorf("ollama: extension %q: %w", RequestExtensionKey, err)
 	}
 	return apiReq, nil
 }
@@ -92,55 +102,6 @@ func protocolInt(name string, value int64) (int, error) {
 		return 0, fmt.Errorf("ollama: options.%s exceeds int", name)
 	}
 	return int(value), nil
-}
-
-func cloneProtocolOptions(options corechat.Options) corechat.Options {
-	clone := options
-	clone.Stop = slices.Clone(options.Stop)
-	clone.FrequencyPenalty = cloneProtocolPointer(options.FrequencyPenalty)
-	clone.MaxTokens = cloneProtocolPointer(options.MaxTokens)
-	clone.PresencePenalty = cloneProtocolPointer(options.PresencePenalty)
-	clone.Temperature = cloneProtocolPointer(options.Temperature)
-	clone.TopK = cloneProtocolPointer(options.TopK)
-	clone.TopP = cloneProtocolPointer(options.TopP)
-	return clone
-}
-
-func cloneProtocolPointer[T any](value *T) *T {
-	if value == nil {
-		return nil
-	}
-	clone := *value
-	return &clone
-}
-
-func mergeProtocolOptions(defaults, overrides corechat.Options) corechat.Options {
-	merged := cloneProtocolOptions(defaults)
-	if overrides.Model != "" {
-		merged.Model = overrides.Model
-	}
-	if overrides.FrequencyPenalty != nil {
-		merged.FrequencyPenalty = cloneProtocolPointer(overrides.FrequencyPenalty)
-	}
-	if overrides.MaxTokens != nil {
-		merged.MaxTokens = cloneProtocolPointer(overrides.MaxTokens)
-	}
-	if overrides.PresencePenalty != nil {
-		merged.PresencePenalty = cloneProtocolPointer(overrides.PresencePenalty)
-	}
-	if len(overrides.Stop) > 0 {
-		merged.Stop = slices.Clone(overrides.Stop)
-	}
-	if overrides.Temperature != nil {
-		merged.Temperature = cloneProtocolPointer(overrides.Temperature)
-	}
-	if overrides.TopK != nil {
-		merged.TopK = cloneProtocolPointer(overrides.TopK)
-	}
-	if overrides.TopP != nil {
-		merged.TopP = cloneProtocolPointer(overrides.TopP)
-	}
-	return merged
 }
 
 func mapProtocolMessages(messages []corechat.Message) ([]ollamaapi.Message, error) {
@@ -165,11 +126,15 @@ func mapProtocolMessages(messages []corechat.Message) ([]ollamaapi.Message, erro
 		case corechat.RoleTool:
 			for j := range message.Parts {
 				result := message.Parts[j].ToolResult
+				id := result.ID
+				if strings.HasPrefix(id, protocolGeneratedToolPrefix) {
+					id = ""
+				}
 				mapped = append(mapped, ollamaapi.Message{
 					Role:       "tool",
 					Content:    result.Result,
 					ToolName:   result.Name,
-					ToolCallID: result.ID,
+					ToolCallID: id,
 				})
 			}
 		default:
@@ -234,8 +199,12 @@ func mapProtocolAssistantMessage(message corechat.Message) (ollamaapi.Message, e
 			if err != nil {
 				return ollamaapi.Message{}, fmt.Errorf("parts[%d].tool_call.arguments: %w", i, err)
 			}
+			id := part.ToolCall.ID
+			if strings.HasPrefix(id, protocolGeneratedToolPrefix) {
+				id = ""
+			}
 			mapped.ToolCalls = append(mapped.ToolCalls, ollamaapi.ToolCall{
-				ID: part.ToolCall.ID,
+				ID: id,
 				Function: ollamaapi.ToolCallFunction{
 					Index:     len(mapped.ToolCalls),
 					Name:      part.ToolCall.Name,

@@ -3,8 +3,10 @@ package deepgram
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -34,33 +36,39 @@ func NewAPI(cfg APIConfig) (*API, error) {
 		return nil, err
 	}
 
-	client := resty.New().
-		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetHeader("Authorization", "Token "+cfg.APIKey)
+	client := resty.New()
 	if cfg.HTTPClient != nil {
-		client.SetTransport(cfg.HTTPClient.Transport)
+		client = resty.NewWithClient(cfg.HTTPClient)
 	}
+	client.SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
+		SetHeader("Authorization", "Token "+cfg.APIKey)
 
 	return &API{http: client}, nil
 }
 
-// ListenParams holds the query-string knobs Deepgram /listen accepts.
-// Extra is appended as-is for params not surfaced as typed fields.
+// ListenParams holds current query-string options for Deepgram /listen.
+// Extra is available for newly released official query parameters that have
+// not yet acquired a typed field.
 type ListenParams struct {
-	Model        string
-	Language     string
-	Tier         string
-	Version      string
-	Punctuate    *bool
-	SmartFormat  *bool
-	Diarize      *bool
-	Numerals     *bool
-	Paragraphs   *bool
-	Utterances   *bool
-	DetectTopics *bool
-	Summarize    string
-	Redact       []string
-	Extra        url.Values
+	Model          string
+	Language       string
+	Tier           string
+	Version        string
+	Punctuate      *bool
+	SmartFormat    *bool
+	Diarize        *bool
+	Numerals       *bool
+	Paragraphs     *bool
+	Utterances     *bool
+	Topics         *bool
+	Sentiment      *bool
+	Intents        *bool
+	DetectEntities *bool
+	DetectLanguage *bool
+	Summarize      string
+	Redact         []string
+	Keyterms       []string
+	Extra          url.Values
 }
 
 type ListenResponse struct {
@@ -96,11 +104,12 @@ type ListenResponse struct {
 			Transcript string  `json:"transcript"`
 		} `json:"utterances,omitempty"`
 	} `json:"results"`
+	Raw map[string]any `json:"-"`
 }
 
 func (a *API) Listen(ctx context.Context, audio []byte, contentType string, params *ListenParams) (*ListenResponse, error) {
 	if len(audio) == 0 {
-		return nil, errors.New("deepgram: request must not be nil")
+		return nil, errors.New("deepgram: transcription audio must not be empty")
 	}
 
 	var out ListenResponse
@@ -117,6 +126,9 @@ func (a *API) Listen(ctx context.Context, audio []byte, contentType string, para
 	if !resp.IsSuccess() {
 		return nil, fmt.Errorf("deepgram: http %d: %s", resp.StatusCode(), resp.String())
 	}
+	if err := json.Unmarshal(resp.Body(), &out.Raw); err != nil {
+		return nil, fmt.Errorf("deepgram: preserve transcription response: %w", err)
+	}
 	return &out, nil
 }
 
@@ -128,14 +140,32 @@ type SpeakParams struct {
 	Container  string // "wav" / "none"
 	SampleRate int
 	BitRate    int
+	Speed      float64
 	Extra      url.Values
 }
 
 // Speak posts text to /speak and returns the raw audio bytes plus the
 // response headers (request id / content-type live there).
 func (a *API) Speak(ctx context.Context, text string, params *SpeakParams) ([]byte, http.Header, error) {
+	body, headers, err := a.SpeakStream(ctx, text, params)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer body.Close()
+	audio, err := io.ReadAll(body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("deepgram: read speech response: %w", err)
+	}
+	if len(audio) == 0 {
+		return nil, nil, errors.New("deepgram: speech response is empty")
+	}
+	return audio, headers, nil
+}
+
+// SpeakStream posts text to /speak and exposes the response body as it arrives.
+func (a *API) SpeakStream(ctx context.Context, text string, params *SpeakParams) (io.ReadCloser, http.Header, error) {
 	if text == "" {
-		return nil, nil, errors.New("deepgram: request must not be nil")
+		return nil, nil, errors.New("deepgram: speech text must not be empty")
 	}
 
 	resp, err := a.http.R().
@@ -144,14 +174,23 @@ func (a *API) Speak(ctx context.Context, text string, params *SpeakParams) ([]by
 		SetHeader("Accept", "audio/*").
 		SetQueryParamsFromValues(buildSpeakQuery(params)).
 		SetBody(map[string]string{"text": text}).
+		SetDoNotParseResponse(true).
 		Post("/speak")
 	if err != nil {
 		return nil, nil, fmt.Errorf("deepgram: request failed: %w", err)
 	}
 	if !resp.IsSuccess() {
-		return nil, nil, fmt.Errorf("deepgram: http %d: %s", resp.StatusCode(), resp.String())
+		defer resp.RawBody().Close()
+		body, readErr := io.ReadAll(resp.RawBody())
+		if readErr != nil {
+			return nil, nil, fmt.Errorf("deepgram: http %d; read error response: %w", resp.StatusCode(), readErr)
+		}
+		return nil, nil, fmt.Errorf("deepgram: http %d: %s", resp.StatusCode(), string(body))
 	}
-	return resp.Body(), resp.Header(), nil
+	if resp.RawBody() == nil {
+		return nil, nil, errors.New("deepgram: speech response has no body")
+	}
+	return resp.RawBody(), resp.Header(), nil
 }
 
 func buildSpeakQuery(p *SpeakParams) url.Values {
@@ -178,6 +217,9 @@ func buildSpeakQuery(p *SpeakParams) url.Values {
 	}
 	if p.BitRate > 0 {
 		q.Set("bit_rate", strconv.Itoa(p.BitRate))
+	}
+	if p.Speed > 0 {
+		q.Set("speed", strconv.FormatFloat(p.Speed, 'f', -1, 64))
 	}
 	return q
 }
@@ -218,9 +260,16 @@ func buildListenQuery(p *ListenParams) url.Values {
 	setBool("numerals", p.Numerals)
 	setBool("paragraphs", p.Paragraphs)
 	setBool("utterances", p.Utterances)
-	setBool("detect_topics", p.DetectTopics)
+	setBool("topics", p.Topics)
+	setBool("sentiment", p.Sentiment)
+	setBool("intents", p.Intents)
+	setBool("detect_entities", p.DetectEntities)
+	setBool("detect_language", p.DetectLanguage)
 	for _, r := range p.Redact {
 		q.Add("redact", r)
+	}
+	for _, keyterm := range p.Keyterms {
+		q.Add("keyterm", keyterm)
 	}
 	return q
 }

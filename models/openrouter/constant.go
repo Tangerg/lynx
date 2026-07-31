@@ -7,6 +7,10 @@ const (
 const (
 	// BaseURL is OpenRouter's production endpoint.
 	BaseURL = "https://openrouter.ai/api/v1"
+
+	// ModelAuto delegates per-request model selection to OpenRouter's
+	// task-aware Auto Router.
+	ModelAuto = "openrouter/auto"
 )
 
 const (

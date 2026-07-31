@@ -2,6 +2,34 @@
   "provider": "huggingface",
   "models": [
     {
+      "id": "MiniMaxAI/MiniMax-M2",
+      "display_name": "MiniMax-M2",
+      "release_date": "2025-10-27T00:00:00Z",
+      "last_updated": "2025-10-27T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 1.2
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 128000
+      }
+    },
+    {
       "id": "MiniMaxAI/MiniMax-M2.1",
       "display_name": "MiniMax-M2.1",
       "knowledge_cutoff": "2025-10-01T00:00:00Z",
@@ -90,6 +118,66 @@
       }
     },
     {
+      "id": "MiniMaxAI/MiniMax-M3",
+      "display_name": "MiniMax-M3",
+      "release_date": "2026-06-01T00:00:00Z",
+      "last_updated": "2026-06-01T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 1.2
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 524288,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "Qwen/Qwen3-235B-A22B",
+      "display_name": "Qwen3 235B-A22B",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-04-01T00:00:00Z",
+      "last_updated": "2025-04-01T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.8
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 40960,
+        "max_output_tokens": 16384
+      }
+    },
+    {
       "id": "Qwen/Qwen3-235B-A22B-Thinking-2507",
       "display_name": "Qwen3-235B-A22B-Thinking-2507",
       "knowledge_cutoff": "2025-04-01T00:00:00Z",
@@ -116,6 +204,63 @@
       "limits": {
         "context_window": 262144,
         "max_output_tokens": 131072
+      }
+    },
+    {
+      "id": "Qwen/Qwen3-32B",
+      "display_name": "Qwen3 32B",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-04-01T00:00:00Z",
+      "last_updated": "2025-04-01T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.29,
+          "output_per_1m": 0.59
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 16384
+      }
+    },
+    {
+      "id": "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+      "display_name": "Qwen3-Coder 30B-A3B Instruct",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-04-01T00:00:00Z",
+      "last_updated": "2025-04-01T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.07,
+          "output_per_1m": 0.26
+        }
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 65536
       }
     },
     {
@@ -223,6 +368,96 @@
       }
     },
     {
+      "id": "Qwen/Qwen3.5-122B-A10B",
+      "display_name": "Qwen3.5 122B-A10B",
+      "release_date": "2026-02-23T00:00:00Z",
+      "last_updated": "2026-02-23T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.4,
+          "output_per_1m": 3.2
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 65536
+      }
+    },
+    {
+      "id": "Qwen/Qwen3.5-27B",
+      "display_name": "Qwen3.5 27B",
+      "release_date": "2026-02-23T00:00:00Z",
+      "last_updated": "2026-02-23T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 2.4
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 65536
+      }
+    },
+    {
+      "id": "Qwen/Qwen3.5-35B-A3B",
+      "display_name": "Qwen3.5 35B-A3B",
+      "release_date": "2026-02-23T00:00:00Z",
+      "last_updated": "2026-02-23T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.25,
+          "output_per_1m": 2
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 65536
+      }
+    },
+    {
       "id": "Qwen/Qwen3.5-397B-A17B",
       "display_name": "Qwen3.5-397B-A17B",
       "knowledge_cutoff": "2025-04-01T00:00:00Z",
@@ -253,6 +488,96 @@
       }
     },
     {
+      "id": "Qwen/Qwen3.5-9B",
+      "display_name": "Qwen3.5 9B",
+      "release_date": "2026-02-23T00:00:00Z",
+      "last_updated": "2026-02-23T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.17,
+          "output_per_1m": 0.25
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 65536
+      }
+    },
+    {
+      "id": "Qwen/Qwen3.6-27B",
+      "display_name": "Qwen3.6 27B",
+      "release_date": "2026-04-22T00:00:00Z",
+      "last_updated": "2026-04-22T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.47,
+          "output_per_1m": 3.19
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 65536
+      }
+    },
+    {
+      "id": "Qwen/Qwen3.6-35B-A3B",
+      "display_name": "Qwen3.6 35B-A3B",
+      "release_date": "2026-04-17T00:00:00Z",
+      "last_updated": "2026-04-17T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.15,
+          "output_per_1m": 0.95
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 65536
+      }
+    },
+    {
       "id": "XiaomiMiMo/MiMo-V2-Flash",
       "display_name": "MiMo-V2-Flash",
       "knowledge_cutoff": "2024-12-01T00:00:00Z",
@@ -279,6 +604,96 @@
       "limits": {
         "context_window": 262144,
         "max_output_tokens": 4096
+      }
+    },
+    {
+      "id": "XiaomiMiMo/MiMo-V2.5",
+      "display_name": "MiMo-V2.5",
+      "knowledge_cutoff": "2024-12-01T00:00:00Z",
+      "release_date": "2026-04-22T00:00:00Z",
+      "last_updated": "2026-04-22T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.4,
+          "output_per_1m": 2
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 131072
+      }
+    },
+    {
+      "id": "XiaomiMiMo/MiMo-V2.5-Pro",
+      "display_name": "MiMo-V2.5-Pro",
+      "knowledge_cutoff": "2024-12-01T00:00:00Z",
+      "release_date": "2026-04-22T00:00:00Z",
+      "last_updated": "2026-04-22T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 3
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 131072
+      }
+    },
+    {
+      "id": "deepseek-ai/DeepSeek-R1",
+      "display_name": "DeepSeek-R1",
+      "knowledge_cutoff": "2024-07-01T00:00:00Z",
+      "release_date": "2025-01-20T00:00:00Z",
+      "last_updated": "2025-05-29T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.7,
+          "output_per_1m": 2.5
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 64000,
+        "max_output_tokens": 32768
       }
     },
     {
@@ -340,6 +755,36 @@
       }
     },
     {
+      "id": "deepseek-ai/DeepSeek-V4-Flash",
+      "display_name": "DeepSeek V4 Flash",
+      "knowledge_cutoff": "2025-05-01T00:00:00Z",
+      "release_date": "2026-04-24T00:00:00Z",
+      "last_updated": "2026-04-24T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.14,
+          "output_per_1m": 0.28
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 384000
+      }
+    },
+    {
       "id": "deepseek-ai/DeepSeek-V4-Pro",
       "display_name": "DeepSeek V4 Pro",
       "knowledge_cutoff": "2025-05-01T00:00:00Z",
@@ -368,6 +813,93 @@
       "limits": {
         "context_window": 1048576,
         "max_output_tokens": 393216
+      }
+    },
+    {
+      "id": "google/gemma-4-26B-A4B-it",
+      "display_name": "Gemma 4 26B A4B IT",
+      "release_date": "2026-04-02T00:00:00Z",
+      "last_updated": "2026-04-02T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.13,
+          "output_per_1m": 0.4
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 32768
+      }
+    },
+    {
+      "id": "google/gemma-4-31B-it",
+      "display_name": "Gemma 4 31B IT",
+      "release_date": "2026-04-02T00:00:00Z",
+      "last_updated": "2026-04-02T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.14,
+          "output_per_1m": 0.4
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 32768
+      }
+    },
+    {
+      "id": "meta-llama/Llama-3.3-70B-Instruct",
+      "display_name": "Llama-3.3-70B-Instruct",
+      "knowledge_cutoff": "2023-12-01T00:00:00Z",
+      "release_date": "2024-12-06T00:00:00Z",
+      "last_updated": "2024-12-06T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.59,
+          "output_per_1m": 0.79
+        }
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 4096
       }
     },
     {
@@ -517,6 +1049,361 @@
       }
     },
     {
+      "id": "moonshotai/Kimi-K2.7-Code",
+      "display_name": "Kimi K2.7 Code",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-06-12T00:00:00Z",
+      "last_updated": "2026-06-12T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.95,
+          "output_per_1m": 4
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 262144
+      }
+    },
+    {
+      "id": "moonshotai/Kimi-K3",
+      "display_name": "Kimi K3",
+      "release_date": "2026-07-16T00:00:00Z",
+      "last_updated": "2026-07-16T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 3,
+          "output_per_1m": 15
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 131072
+      }
+    },
+    {
+      "id": "openai/gpt-oss-120b",
+      "display_name": "GPT OSS 120B",
+      "release_date": "2025-08-05T00:00:00Z",
+      "last_updated": "2025-08-05T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.25,
+          "output_per_1m": 0.69
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 32768
+      }
+    },
+    {
+      "id": "openai/gpt-oss-20b",
+      "display_name": "GPT OSS 20B",
+      "release_date": "2025-08-05T00:00:00Z",
+      "last_updated": "2025-08-05T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.1,
+          "output_per_1m": 0.5
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 32768
+      }
+    },
+    {
+      "id": "stepfun-ai/Step-3.5-Flash",
+      "display_name": "Step 3.5 Flash",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-01-29T00:00:00Z",
+      "last_updated": "2026-02-13T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.1,
+          "output_per_1m": 0.3
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 256000
+      }
+    },
+    {
+      "id": "stepfun-ai/Step-3.7-Flash",
+      "display_name": "Step 3.7 Flash",
+      "knowledge_cutoff": "2026-03-01T00:00:00Z",
+      "release_date": "2026-05-29T00:00:00Z",
+      "last_updated": "2026-05-29T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 1.15
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 256000
+      }
+    },
+    {
+      "id": "tencent/Hy3",
+      "display_name": "Hy3",
+      "release_date": "2026-07-06T00:00:00Z",
+      "last_updated": "2026-07-06T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.14,
+          "output_per_1m": 0.58
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 64000
+      }
+    },
+    {
+      "id": "thinkingmachines/Inkling",
+      "display_name": "Inkling",
+      "release_date": "2026-07-15T00:00:00Z",
+      "last_updated": "2026-07-15T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 4.05
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 1048576
+      }
+    },
+    {
+      "id": "zai-org/GLM-4.5",
+      "display_name": "GLM-4.5",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-07-28T00:00:00Z",
+      "last_updated": "2025-07-28T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 2.2
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 98304
+      }
+    },
+    {
+      "id": "zai-org/GLM-4.5-Air",
+      "display_name": "GLM-4.5-Air",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-07-28T00:00:00Z",
+      "last_updated": "2025-07-28T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.13,
+          "output_per_1m": 0.85
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 98304
+      }
+    },
+    {
+      "id": "zai-org/GLM-4.5V",
+      "display_name": "GLM-4.5V",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-08-11T00:00:00Z",
+      "last_updated": "2025-08-11T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 1.8
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 65536,
+        "max_output_tokens": 16384
+      }
+    },
+    {
+      "id": "zai-org/GLM-4.6",
+      "display_name": "GLM-4.6",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-09-30T00:00:00Z",
+      "last_updated": "2025-09-30T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.55,
+          "output_per_1m": 2.2
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
+    },
+    {
       "id": "zai-org/GLM-4.7",
       "display_name": "GLM-4.7",
       "knowledge_cutoff": "2025-04-01T00:00:00Z",
@@ -624,6 +1511,35 @@
       "tool_call": true,
       "limits": {
         "context_window": 202752,
+        "max_output_tokens": 131072
+      }
+    },
+    {
+      "id": "zai-org/GLM-5.2",
+      "display_name": "GLM-5.2",
+      "release_date": "2026-06-13T00:00:00Z",
+      "last_updated": "2026-06-13T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 1.4,
+          "output_per_1m": 4.4
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 262144,
         "max_output_tokens": 131072
       }
     }
