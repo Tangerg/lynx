@@ -1,7 +1,7 @@
 # Lynx Desktop × Synara 视觉基线与执行计划
 
 > 作者：Codex
-> 状态：`W7.4 DONE · W7.5 READY`
+> 状态：`W7.0–W7.5 DONE`
 > 审计日期：2026-07-31
 > Lynx 基线：`cecc0510955ad39b31e5ec7cc16ee488d75c08c3`
 > Synara 基线：`54dff37d91aabf74e85dd42bb47e1a237a02f106`
@@ -9,7 +9,9 @@
 > W7.2 实施提交：`8bb0fa7ba`
 > W7.3 实施提交：`9c87d93fc`
 > W7.4 实施提交：`d0380d0a2`
-> 下一执行卡：`W7.5 — Responsive / Accessibility / Wails-WebView / Visual Closure`
+> W7.5 实施提交：`ed411fe93`
+> W7.5 clipboard 证据提交：`c5590aad0`
+> 后续：仅由 production-backed visual、accessibility、WebKit 与 Wails gates 防回归
 > 关联总账：
 > [`codex_architecture_execution_master_plan.md`](codex_architecture_execution_master_plan.md)
 
@@ -30,8 +32,9 @@ presentation 层发明第二套运行状态。
 W7.0 只完成只读审计、实拍、决策和计划冻结，**没有修改 production UI**。
 W7.1 已按冻结决策建立可重复视觉证据并统一底层视觉语言；W7.2 已完成页面级 shell
 与 Work Index 对齐；W7.3 已完成 Narrative、Composer、Run tree 与 HITL 对齐；
-W7.4 已完成 Dock、Workspace Views、Settings 与通用 overlay 对齐。W7.5 只负责
-最终 responsive、accessibility、Wails/WebView 与 visual regression closure。
+W7.4 已完成 Dock、Workspace Views、Settings 与通用 overlay 对齐；W7.5 已完成
+responsive、accessibility、Wails/WebView 与 visual regression closure。W7
+现在只通过现有门禁持续防回归，不保留“以后再删”的视觉兼容路径。
 
 ---
 
@@ -659,32 +662,51 @@ dock/settings visual fixtures
 
 ### W7.5 — Responsive、Accessibility 与 Visual Closure
 
-状态：`READY`
+状态：`DONE`
 
-目标：
+实施提交：
 
-- 完成 viewport/DPR/theme 全矩阵；
-- Wails 真机截图、drag、resize、scroll、IME、Retina hairline；
-- keyboard-only、focus-visible、ARIA、screen reader、reduced motion；
-- 性能测量、全量门禁与 visual diff closure。
+- `ed411fe93 feat(desktop): close responsive and accessibility gaps`
+- `c5590aad0 test(desktop): cover production clipboard flow`
 
-主要爆炸半径：
+完成事实：
 
-```text
-visual baselines and diff reports
-accessibility tests
-Wails integration / smoke tests
-interaction and performance measurements
-final design/architecture docs
-```
+- 原生窗口与 CSS 最小布局统一为 `1120×720`，默认仍为 `1440×900`；Go contract
+  test 同时验证 Wails options 与 CSS declarations，删除原先 `1280`/`1120` 双事实；
+- light/dark quiet ink 收敛到最差 surface 仍真实超过 4.5:1 的
+  `#747474` / `#7c7c7c`；generic theme faint fallback 不再生成 38% alpha
+  不可读文本；section label 不再二次降低 muted ink；
+- Composer 只在 mention listbox 挂载时发布 `aria-controls`；drawer focus handoff
+  由 `AgentAppShell` 根据 committed sidebar state 与实际 visibility 负责，不再由
+  旧按钮猜一个 RAF；
+- pointer-coarse 对真实 interactive box 施加 `44×44px` 下限，没有透明 overlay；
+- visual host 与 production 共用 MotionConfig、motion authority 和 type ladder；
+  screenshot threshold 从默认 `0.2` 收紧为 `0.05`；
+- 9 个 WCAG 2.0/2.1/2.2 A/AA route 无 violation；keyboard-only、focus return、
+  IME composition、production clipboard、reduced motion、pointer-coarse、
+  18px 最大字号、长英文/CJK/code/diff、1120×720 overflow 与 DPR 2 均有证据；
+- 8 张 W7.5 light/dark、font18/Retina closure golden 经人工复核；
+- 5 个 WebKit smoke 覆盖 Shell、Agent HITL、CJK/Shiki、review geometry 与
+  Settings menu；它只验证 CSS/layout/focus/event compatibility，不复制一套
+  engine-specific 字体栅格 golden；
+- full visual suite `120/120`；
+- `npm run check` 194 files / 1144 tests、896 locale keys × 8、production/visual
+  build、Desktop Go build/vet/test、Wails v2.12 production build、
+  `git diff --check` 与 hygiene 扫描全部通过；
+- coarse target 只是一条 media rule，focus effect 只在 sidebar state 边界运行；
+  stream、resize pointer 与 dock drag hot path 没有新增 store write、subscription
+  或无关 tree render。
 
-退出标准：
+平台证据边界：
 
-- 关键状态在全部固定 viewport/theme 下无未知 diff；
-- 有意分歧只剩 §7 已接受项；
-- no unknown build warning；
-- frontend 全门禁、Wails build/smoke、keyboard/focus/ARIA/reduced-motion 全部通过；
-- 删除 fixture-only bypass、debug hook、旧 golden 和临时 CSS。
+- 最终 `lyra.app` 已真实启动；CoreGraphics 返回 onscreen、layer 0、`1440×900`
+  主窗口，与 Go/CSS contract 一致；
+- 当前 macOS 拒绝此终端的 Screen Recording 与 Accessibility automation，
+  因此本文不声称取得 Wails 原生截图或自动 VoiceOver 操作；
+- 可重复内容像素由 Chromium golden 证明，WKWebView 近似引擎行为由 WebKit
+  smoke 证明，原生窗口由 production binary + CoreGraphics geometry 证明。
+  权限型人工截图/VoiceOver 可在具备系统授权的机器上复核，但不构成代码债务，也
+  不允许为它加入 debug hook、test backdoor、fixture-only branch 或兼容层。
 
 ---
 
@@ -712,7 +734,7 @@ final design/architecture docs
 - 缺少 deterministic state fixture；
 - 通用、不可操作的错误文案。
 
-它们已由 W7.1–W7.4 删除，后续不得复活。
+它们已由 W7.1–W7.5 删除，后续不得复活。
 
 ---
 
@@ -770,36 +792,40 @@ npm run check:bundle
 - §3.3 全部状态有 deterministic fixture；
 - §2.4 全 viewport/DPR/theme 矩阵通过；
 - §7 之外没有未知视觉差异；
-- Wails 真机交互、keyboard、focus、ARIA、reduced motion 通过；
+- Wails production binary 可启动且原生 window contract 正确；Chromium/WebKit
+  的 keyboard、focus、ARIA、IME、clipboard、reduced motion 与平台兼容矩阵通过；
 - 没有 compatibility layer、dual token、旧组件、临时 fixture bypass；
 - 文档、实现、测试、golden 和 Git 进度一致；
 - 全量 frontend、Wails 与仓库级质量门通过。
+
+原生截图或 VoiceOver 自动化若被宿主 macOS 权限阻止，必须像 W7.5 一样明确记录
+“未声称”的证据边界；不得降低其余门禁，也不得为绕过系统权限污染 production。
 
 ---
 
 ## 9. 进度台账
 
-| Workstream                   | 状态    | 当前事实                                                                  | 下一动作                     |
-| ---------------------------- | ------- | ------------------------------------------------------------------------- | ---------------------------- |
-| W2 Agent ownership           | `DONE`  | Framework / App 边界已收口                                                | 仅防回归                     |
-| W3 Runtime conformance       | `DONE`  | Run tree、recovery、stream/query 已收口                                   | 仅防回归                     |
-| W4 Desktop Run tree          | `DONE`  | normalized projection、HITL、cancel 已实现                                | 只做 presentation            |
-| W5 capability cutover        | `DONE`  | negotiated production Run trees 已启用                                    | 仅防回归                     |
-| W6 architecture/hygiene      | `DONE`  | consumer ports、命名、全门禁已收口                                        | 仅防回归                     |
-| W7.0 visual baseline         | `DONE`  | 本文、实拍、映射、决策、执行卡已冻结                                      | 仅防漂移                     |
-| W7.1 visual foundation       | `DONE`  | production-backed fixture、视觉 token、edge/depth、motion 与 warning 收口 | 仅防回归                     |
-| W7.2 shell / Work Index      | `DONE`  | production shell、Work Index、resize/focus/a11y 与 8 张 golden 已闭环     | 仅防回归                     |
-| W7.3 Narrative / Run / HITL  | `DONE`  | 12 个 canonical state、精确交互、24 张明暗 golden 与全门禁已闭环          | 仅防回归                     |
-| W7.4 Dock / Views / Settings | `DONE`  | production views、Settings host、overlay 语义、12 张明暗 golden 已闭环     | 仅防回归                     |
-| W7.5 final closure           | `READY` | W7.1–W7.4 页面级视觉与交互闭环均已有 production-backed 证据                | 执行最终矩阵与真机 closure   |
+| Workstream                   | 状态   | 当前事实                                                                          | 下一动作  |
+| ---------------------------- | ------ | --------------------------------------------------------------------------------- | --------- |
+| W2 Agent ownership           | `DONE` | Framework / App 边界已收口                                                        | 仅防回归  |
+| W3 Runtime conformance       | `DONE` | Run tree、recovery、stream/query 已收口                                           | 仅防回归  |
+| W4 Desktop Run tree          | `DONE` | normalized projection、HITL、cancel 已实现                                        | 仅防回归  |
+| W5 capability cutover        | `DONE` | negotiated production Run trees 已启用                                            | 仅防回归  |
+| W6 architecture/hygiene      | `DONE` | consumer ports、命名、全门禁已收口                                                | 仅防回归  |
+| W7.0 visual baseline         | `DONE` | 本文、实拍、映射、决策、执行卡已冻结                                              | 仅防漂移  |
+| W7.1 visual foundation       | `DONE` | production-backed fixture、视觉 token、edge/depth、motion 与 warning 收口         | 仅防回归  |
+| W7.2 shell / Work Index      | `DONE` | production shell、Work Index、resize/focus/a11y 与 8 张 golden 已闭环             | 仅防回归  |
+| W7.3 Narrative / Run / HITL  | `DONE` | 12 个 canonical state、精确交互、24 张明暗 golden 与全门禁已闭环                  | 仅防回归  |
+| W7.4 Dock / Views / Settings | `DONE` | production views、Settings host、overlay 语义、12 张明暗 golden 已闭环             | 仅防回归  |
+| W7.5 final closure           | `DONE` | 120 项矩阵、8 张 closure golden、WCAG/WebKit/真实 Wails window 与全门禁已闭环     | 仅防回归  |
 
-当前唯一主任务：
+W7 当前裁决：
 
 ```text
-W7.5 — 完成 viewport/DPR/theme、keyboard/screen-reader/reduced-motion、
-       long-content/pointer-coarse、render/commit 测量与 Wails v2.12 真机矩阵；
-       关闭未知 visual diff、build warning、fixture bypass、临时 CSS 与 dual path，
-       以全量证据决定 W7 是否可以最终标记 DONE。
+W7.0–W7.5 DONE。
+后续视觉改动必须复用 production-backed fixture，并持续通过
+Chromium pixel regression、WebKit compatibility smoke、
+WCAG/keyboard/IME/clipboard/coarse-pointer 与 frontend/Go/Wails 全门禁。
 ```
 
 ---

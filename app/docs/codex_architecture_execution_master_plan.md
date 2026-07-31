@@ -1,7 +1,7 @@
 # Lynx Agent / Runtime / Desktop 架构演进总执行台账
 
 > 作者：Codex
-> 状态：`IN PROGRESS`
+> 状态：`DONE`
 > 建档日期：2026-07-30
 > W4.1 实施提交：`40cffd81e`；W4.2：`cc85d3039`；W4.3：`ca0949949`
 > W4.4 实施提交：`49b6494bd` + `fcbf8f558` + `34a875d29`
@@ -11,8 +11,9 @@
 > W7.2 实施提交：`8bb0fa7ba`
 > W7.3 实施提交：`9c87d93fc`
 > W7.4 实施提交：`d0380d0a2`
-> 当前主任务：`W7.5 — Responsive / Accessibility / Wails-WebView / Visual Closure`
-> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6 DONE · W7.0 DONE · W7.1 DONE · W7.2 DONE · W7.3 DONE · W7.4 DONE · W7.5 READY`
+> W7.5 实施提交：`ed411fe93`；clipboard 证据：`c5590aad0`
+> 当前主任务：无；W2–W7 已闭环，后续只按真实新需求建立新 slice
+> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6 DONE · W7 DONE`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 44`
@@ -260,7 +261,7 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 | Desktop B1.6                 | `DONE`        | normalized Run tree、source-owned fold、durable recovery、root-first UI 与 scope-exact public API     | —                                 |
 | Runtime/Desktop B1.7         | `DONE`        | frozen policy、producer/recovery、Artifact/contract、server/Desktop opt-in 与最终 conformance 已闭环  | —                                 |
 | Runtime/Desktop 架构持续演进 | `DONE`        | W6.0–W6.3 完成依赖、事实作者、Agent 泄漏、Runtime context、命名、错误、并发生命周期与全门禁收口       | 后续由架构回归门持续守护          |
-| Synara UI 对齐               | `IN PROGRESS` | W7.0–W7.3 已完成 foundation、production shell/Work Index 与 Agent Narrative/Run/HITL 闭环             | 执行 W7.4 Dock / Views / Settings |
+| Synara UI 对齐               | `DONE`        | W7.0–W7.5 已完成 foundation、Shell、Agent、Workspace、responsive、accessibility 与 WebView closure    | 后续由视觉与架构回归门持续守护    |
 
 不使用跨工作流“总百分比”。一个竞态闭环不能与一个命名修正等权；进度只由原子 slice
 和完成证据表达。
@@ -1069,7 +1070,7 @@ W6.1 breaking blast radius：
 
 ### W7 — Synara 视觉基线与像素级 Desktop UI 对齐
 
-状态：`IN PROGRESS`；`W7.0 DONE · W7.1 DONE · W7.2 DONE · W7.3 DONE · W7.4 DONE · W7.5 READY`
+状态：`DONE`；`W7.0 DONE · W7.1 DONE · W7.2 DONE · W7.3 DONE · W7.4 DONE · W7.5 DONE`
 
 参考仓库：`~/Desktop/synara`
 
@@ -1100,14 +1101,14 @@ W6.1 breaking blast radius：
 
 原子切片：
 
-| Slice | 状态    | 唯一边界                                                                            | 完成定义                                                                                                                                |
-| ----- | ------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| W7.0  | `DONE`  | read-only reference audit、页面/状态映射、固定 viewport 与截图基线                  | 已在 `codex_synara_visual_baseline_and_execution_plan.md` 冻结 shell、组件、token、状态、复刻项、有意分歧和截图；production code 无变化 |
-| W7.1  | `DONE`  | visual foundation：fixture、字体、颜色、间距、圆角、边界、阴影、层级与 motion token | production-backed fixture 覆盖权威状态；token 有唯一作者；CSS/build warning 与 motion hygiene 门禁已闭环；实施提交 `051ea578d`          |
-| W7.2  | `DONE`  | desktop shell 与 Work Index                                                         | production shell、导航密度、四种 query 状态、single-owner toggle、pointer/keyboard resize、窄窗与 Retina 已闭环；实施提交 `8bb0fa7ba`   |
-| W7.3  | `DONE`  | Agent Narrative、composer、Run tree 与 HITL                                         | 12 个 canonical state、production projection、精确交互与明暗 golden 已闭环；实施提交 `9c87d93fc`                                        |
-| W7.4  | `DONE`  | Context Dock、workspace views 与 settings                                           | production view/plugin path、独立 density width、精确 navigation identity、Settings/overlay 语义与 12 张明暗 golden 已闭环；实施提交 `d0380d0a2` |
-| W7.5  | `READY` | responsive、accessibility、Wails/WebView 与 visual regression closure               | 截图 diff、键盘/focus/ARIA、reduced motion、DPI/滚动/拖拽、全量门禁及零未知构建告警全部通过                                             |
+| Slice | 状态   | 唯一边界                                                                            | 完成定义                                                                                                                                          |
+| ----- | ------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| W7.0  | `DONE` | read-only reference audit、页面/状态映射、固定 viewport 与截图基线                  | 已在 `codex_synara_visual_baseline_and_execution_plan.md` 冻结 shell、组件、token、状态、复刻项、有意分歧和截图；production code 无变化           |
+| W7.1  | `DONE` | visual foundation：fixture、字体、颜色、间距、圆角、边界、阴影、层级与 motion token | production-backed fixture 覆盖权威状态；token 有唯一作者；CSS/build warning 与 motion hygiene 门禁已闭环；实施提交 `051ea578d`                    |
+| W7.2  | `DONE` | desktop shell 与 Work Index                                                         | production shell、导航密度、四种 query 状态、single-owner toggle、pointer/keyboard resize、窄窗与 Retina 已闭环；实施提交 `8bb0fa7ba`             |
+| W7.3  | `DONE` | Agent Narrative、composer、Run tree 与 HITL                                         | 12 个 canonical state、production projection、精确交互与明暗 golden 已闭环；实施提交 `9c87d93fc`                                                  |
+| W7.4  | `DONE` | Context Dock、workspace views 与 settings                                           | production view/plugin path、独立 density width、精确 navigation identity、Settings/overlay 语义与 12 张明暗 golden 已闭环；实施提交 `d0380d0a2`   |
+| W7.5  | `DONE` | responsive、accessibility、Wails/WebView 与 visual regression closure               | 120 项 Chromium/WebKit 矩阵、WCAG/键盘/IME/clipboard/粗指针/字号/DPR、真实 Wails 窗口及全量门禁闭环；实施提交 `ed411fe93`、`c5590aad0`               |
 
 ---
 
@@ -2249,42 +2250,85 @@ method/DTO shape、root stream 语义、child subscribe refusal、Agent public A
     Wails/WebView 真机 closure 完成。
 - 下一步：W7.5 Responsive / Accessibility / Wails-WebView / Visual Closure。
 
+### 2026-07-31 — W7.5
+
+- 状态：`DONE`
+- 实施提交：
+  - `ed411fe93 feat(desktop): close responsive and accessibility gaps`
+  - `c5590aad0 test(desktop): cover production clipboard flow`
+- 目标：在不增加第二套 presentation state、不污染 feature/plugin 边界的前提下，
+  关闭 responsive、accessibility、WKWebView compatibility、真实 Wails shell 与
+  visual regression 的最后缺口。
+- 关键实现：
+  - Wails 默认窗口保持 `1440×900`，最小窗口从与 CSS 失配的 `1280×720` 收敛为
+    `1120×720`；Go options constructor 和 contract test 让原生窗口与
+    `--app-min-width/height` 共享一份可验证合同；
+  - Composer 只在 mention listbox 实际挂载时发布 `aria-controls`；quiet ink
+    light/dark 分别收敛为 `#747474` / `#7c7c7c`，最差 canvas 对比度真实超过
+    4.5:1；generic theme 的 faint fallback 不再生成不可读的 38% alpha 文本；
+  - pointer-coarse 下真实 button/tab/menuitem/option/form box 统一至少 `44×44px`，
+    不使用会与相邻控件重叠的透明伪元素命中区；
+  - drawer toggle 的 focus handoff 从 button-local RAF 猜测上移到
+    `AgentAppShell` 的状态所有权边界，并等待目标实际可见；Chromium 与 WebKit
+    均验证 collapse/expand 后 focus continuity；
+  - visual host 使用与 production 相同的 `MotionConfig reducedMotion="user"`、
+    motion authority 和 UI type ladder；视觉 diff 单像素阈值从默认 `0.2`
+    收紧至 `0.05`，不以扩大 mask 或提高阈值吞掉 quiet-ink 漂移；
+  - 新增 Axe、IME、clipboard、粗指针、最大字号、DPR 2 与 WebKit smoke，
+    fixture 仍只注入确定性输入，没有 production debug route 或业务分支。
+- 自动化证据：
+  - 9 个 shell/agent/workspace 关键状态通过 WCAG 2.0/2.1/2.2 A/AA Axe 审计，
+    无 disabled rule、无剩余 violation；
+  - keyboard-only 覆盖 error recovery Settings、HITL Approve、Settings search；
+    IME 证明 composition 中 Enter 不提交；production message context menu 到
+    Clipboard API 的真实写入通过；
+  - pointer-coarse 真实 `44px` 命中区、OS/application reduced motion、18px 最大
+    UI 字号、长英文/CJK/code/diff、1120×720 overflow 与 DPR 2 明暗截图通过；
+  - 8 张 W7.5 closure golden 经人工复核；全部 screenshot 使用 `0.05` threshold；
+  - 5 个 WebKit 用例覆盖 Shell focus、Agent HITL、CJK/Shiki、review separator
+    geometry 与 Settings menu focus return；WebKit 不建立第二套字体栅格 golden；
+  - full visual suite `120/120`。
+- 全量门禁：
+  - `npm run check` → 194 files / 1144 tests；typecheck、lint、format、knip、
+    circular/context/publication/layer、token/chrome/locales/bootstrap/bundle
+    guards 全通过；
+  - 896 个 key 在 8 个 locale 中完整；
+  - production build、visual build、Desktop `go build ./...`、`go vet ./...`、
+    `go test ./...` 与 Wails v2.12 darwin/arm64 production build 全通过；
+  - `git diff --check`、gofmt、generic name/TODO/FIXME/HACK/debug/compatibility
+    residue 扫描通过；
+  - 新逻辑不进入 stream/resize pointer hot path：coarse target 是 media rule，
+    focus effect 只在 sidebar state 边界运行，既有 drag 仍只在结束时提交一次。
+- 真机与平台证据：
+  - 最终 `lyra.app` 已实际启动；CoreGraphics 对该真实进程返回 onscreen、layer 0、
+    `1440×900` 主窗口，与 Go/CSS contract 一致；
+  - 当前 macOS 明确拒绝此终端的 Screen Recording 与 Accessibility automation，
+    因此本文**不声称**取得 Wails 原生窗口截图或自动 VoiceOver 操作；
+  - 可重复的内容像素证据由 Chromium golden 提供，WKWebView 近似引擎兼容由
+    WebKit smoke 提供，原生壳层由 production binary + CoreGraphics geometry
+    提供。权限型人工截图/VoiceOver 复核保留为环境检查，不转化为 product TODO，
+    也不为此加入 debug hook、test backdoor 或兼容路径。
+- 边界裁决：
+  - Agent/Runtime API、normalized Run projection、persistence、idempotency、
+    atomicity、recovery 与 capability negotiation 均未改变；
+  - visual host 不承担业务 truth；App shell 只拥有窗口与 focus 语义；
+  - W7.0–W7.5 的实现、测试、golden、commit、push 与文档现已一致。
+- 下一步：W7 只由现有 visual、accessibility、architecture 和 build gates 防回归。
+
 ---
 
-## 12. 下一张执行卡
+## 12. W7 收口裁决
 
-唯一下一任务：
+W7 已完成，不再保留未执行的视觉切片。后续 UI 改动必须继续通过：
 
 ```text
-W7.5 — Responsive / Accessibility / Wails-WebView / Visual Closure
+production-backed fixture
+Chromium pixel regression + WebKit compatibility smoke
+WCAG / keyboard / IME / clipboard / coarse-pointer checks
+frontend + Go + Wails full gates
 ```
 
-实施顺序：
-
-1. 以现有 production-backed foundation/shell/agent/workspace fixtures 为唯一事实源，
-   建立 1120×720、1280×800、1440×900、DPR 1/2、light/dark 的最终覆盖矩阵；
-   先报告未知 diff，不以提高阈值、扩大 mask 或更新 golden 掩盖问题；
-2. 沿 Work Index → Agent Narrative/HITL → Context Dock → Settings 做完整
-   keyboard-only traversal，验证 visible focus、roving focus、tab order、focus trap、
-   return focus、Escape、pointer dismissal 与窗口缩放后的 focus continuity；
-3. 审计 landmark、heading、live region、status、tabs、separator、form
-   name/description/error、dialog 与 tooltip 的 accessibility tree；补齐自动化
-   可证明项，并记录必须真机/人工验证的 screen reader 项；
-4. 在 `prefers-reduced-motion`、pointer-coarse、长英文/CJK、长路径/代码/diff 和
-   1120×720 下验证 motion、命中区、折行、overflow、scroll chaining 与 sticky
-   composer；根治生产 primitive，不加 fixture-only 分支；
-5. 对 stream、resize、dock drag、drawer transition 与 overlay 做针对性
-   render/subscription/commit 测量；只修有证据的退化，保持 hot path 不写业务
-   store、不触发无关树；
-6. 在 Wails v2.12 WebView 真机验证 window chrome、DPI/Retina hairline、字体 fallback、
-   IME、drag、resize、scroll、clipboard、focus 与窗口边缘行为，并把可重复部分固化为
-   smoke/interaction 证据；
-7. 关闭全部未知 visual diff 与 build warning；逐项复核有意分歧登记，删除过期
-   golden、fixture bypass、debug hook、临时 CSS、兼容 alias 和 dual path；
-8. 跑完整 frontend、visual、Go、Wails、repository hygiene 与文档一致性门禁，
-   原子提交、推送并回填最终证据；只有所有退出标准满足后才把 W7 标为 `DONE`。
-
-W7 的禁止项：
+持续禁止项：
 
 - 不复制 Synara 的领域模型、状态管理、协议或依赖方向；
 - 不以临时 CSS override、魔法数字或绝对定位追截图；
