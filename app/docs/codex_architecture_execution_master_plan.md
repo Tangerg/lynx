@@ -5,8 +5,8 @@
 > 建档日期：2026-07-30
 > W4.1 实施提交：`40cffd81e`；W4.2：`cc85d3039`；W4.3：`ca0949949`
 > W4.4 实施提交：`49b6494bd` + `fcbf8f558` + `34a875d29`
-> 当前主任务：`W5 — B1.7 final conformance + capability enablement`
-> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 READY`
+> 当前主任务：`W5.1 — B1.7 atomic capability cutover`
+> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5.0 DONE · W5.1 READY`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 43`
@@ -52,8 +52,10 @@
   [`REFACTORING.md`](../../REFACTORING.md) 为准；
 - 不允许为了迁就现状反向弱化目标契约。
 
-截至 2026-07-30，W2、W3、W4 已全部完成，B1.1–B1.6 的 Runtime 与 Desktop
-闭环已经具备可复核证据。后续实施必须从 §12 的 W5.0 唯一执行卡继续。
+截至 2026-07-31，W2、W3、W4 与 W5.0 已完成。B1.1–B1.6 的 Runtime 与 Desktop
+闭环已经具备可复核证据；W5.0 又证明底层 child Run producer、transaction、barrier、
+cancel、query、recovery 与 Desktop consumer 已基本成立，同时定位了 capability
+生产接线和最终 contract 的四项阻断缺口。后续实施必须从 §12 的 W5.1 唯一执行卡继续。
 
 ---
 
@@ -940,7 +942,7 @@ W4.0 审计裁决：
 
 ### W5 — B1.7 最终 conformance 与 capability enablement
 
-状态：`READY`
+状态：`IN PROGRESS`
 
 只有以下项目全部通过后，才能将 `features.subagents.enabled` 改为 `true`：
 
@@ -963,8 +965,8 @@ slice 中完成，不能先改布尔值。
 
 | Slice | 状态      | 边界                                                                 |
 | ----- | --------- | -------------------------------------------------------------------- |
-| W5.0  | `READY`   | read-only completion audit：逐项绑定现有 producer/conformance 证据   |
-| W5.1  | `PENDING` | 原子启用 server capability，更新 canonical docs 与 capability tests  |
+| W5.0  | `DONE`    | read-only completion audit：逐项绑定现有 producer/conformance 证据   |
+| W5.1  | `READY`   | 根治 profile/恢复/Artifact/contract 缺口并原子启用 server + Desktop |
 | W5.2  | `PENDING` | Runtime/Desktop 高风险竞态、全门禁、双 generation 与无兼容残留收口  |
 
 ### W6 — Runtime / Desktop 架构最终复核
@@ -1714,6 +1716,134 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
     或 cost 概念；
   - `features.subagents` 继续诚实 disabled，留给 W5 原子启用。
 
+### 2026-07-31 — W5.0
+
+- 状态：`DONE`
+- 类型：read-only completion audit；没有修改 production code、wire、store 或
+  capability。
+- 审计基线：`main@f5d285cce`
+- 验证基线：
+  - Runtime targeted packages：
+    `go test ./internal/application/runs ./internal/adapter/runsegment ./internal/adapter/agentexec/turn ./internal/delivery/server ./internal/delivery/dispatch ./internal/infra/storage/sqlite -count=1`
+    → `PASS`；
+  - Agent：
+    `go test ./internal/arch ./runtime -count=1` → `PASS`；
+  - Desktop Agent/RPC：
+    `npx vitest run src/plugins/builtin/agent src/rpc/preflight.test.ts src/rpc/sdk.test.ts src/rpc/stream.test.ts`
+    → `PASS`，41 files / 253 tests。
+
+#### W5.0 完成证据矩阵
+
+| Gate | Production owner | 现有关键行为证据 | 裁决 |
+|---|---|---|---|
+| child 在发布/执行前原子 admission | Agent `runtime.ChildAdmitter` + App `agentexec` adapter + Runs coordinator | `TestChildAdmissionCompletesBeforeCreatedEventAndExecution`、`TestRejectedChildAdmissionRemovesUnpublishedProcess`、`TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem`、SQLite child opening test | `PASS` |
+| child/sibling/nested lineage 与 root stream | Runs coordinator + root Journal | child source projection、nested lineage、canonical postorder、drained-stream barrier tests | `PASS` |
+| 完整 tree HITL barrier | Agent snapshot + Runs transformation + runsegment transaction | complete sibling answer set、tree barrier、boot-resumable triplet、commit failure rollback tests | `PASS` |
+| Running child cancel | root-owned cancellation arbiter + executor subtree teardown + App transaction | exact subtree、surviving root、quiescence、teardown failure、natural terminal race tests | `PASS` |
+| Waiting child cancel：仍有 boundary | prepared Agent mutation + App write-set + runsegment transaction | reduced Pending set、restart、rollback、root/child arbitration tests | `PASS` |
+| Waiting child cancel：最后 boundary | 同上；一次打开 surviving suspended Runs 的新 Segment | final-boundary continuation、activation failure、SQLite restart tests | `PASS` |
+| parent `child_run_canceled` exactly once | executor settlement + App terminal projection | live/waiting cancel、natural terminal/approve/resume race tests | `PASS` |
+| durable child get/list/items | Queries + SQLite keyset projections + delivery state-dependent gate | descendant page、exact/subtree item scope、ancestor summaries、child capability refusal tests | `PASS`；启用后的正向 delivery case 待 W5.1 |
+| child subscribe refusal | Runs subscribe root identity check | `TestChildRunCannotBecomeAnIndependentSubscriptionRoot` | `PASS`；保持 `run_not_root` |
+| restart/cold recovery | SQLite reconciliation + process-tree snapshot + Runs rehydrate | complete parked tree preservation、lost-tree settlement、sibling answer restart tests | `PASS`；未来 child admission policy 恢复有阻断缺口 |
+| Desktop tree fold/recovery/cancel | Agent bounded context application view + one root stream + durable snapshot | source-owned reducer、tree/narrative、reattach、replay、exact child cancel tests | `PASS`；first-party client 尚未 opt in |
+| Artifact tree fidelity | terminal portable projection + aggregate restore | lineage export与 disabled-build refusal | `PARTIAL`；启用后的整树 import/export 尚无最大 round-trip 证据 |
+| capability/contract/generated | Feature/Method/Shape registries | dispatcher/discovery/SDK 条件 gate 等价、drift gates | `PARTIAL`；production composition、profile constraints 仍有阻断缺口 |
+| Agent Framework 边界 | Agent execution primitives | architecture guards + admission lifecycle tests | `PASS` |
+
+#### Agent Framework 抽象泄漏复核
+
+本轮再次从“App 是 Agent Framework 的消费者”出发审计，而不是从现有调用方便性
+反推 Framework API：
+
+- Framework 的 `ChildAdmitter` 只暴露通用、只读的 `core.ProcessView`，并在
+  `ProcessCreated` 与首次执行前同步调用；
+- Framework 自己拥有未发布 child 的拒绝/ panic 清理、process tree、budget tree、
+  checkpoint 与执行生命周期；
+- App adapter 把 `ProcessView` 收窄为 `ChildProcess`，App coordinator 才把 process
+  identity 投影成 Run/Item lineage，并在自己的 transaction 中完成 admission；
+- Agent production packages 未出现 App 的 Session/Run/Item、SQLite、repository、
+  transaction、idempotency、artifact、retention 或 protocol DTO；
+- `SpawnCallID` 是所有 Agent 消费者都成立的 execution causal identity，不是 App
+  wire identity，因此不是泄漏。
+
+裁决：当前 child admission seam 是必要且足够窄的 Framework 能力，不迁入 App
+事务，也不需要再抽象一层。W5.1 不修改 Agent public API。
+
+#### W5.1 的四项阻断缺口
+
+1. **composition 仍 disabled**
+   - `server.go` 仍固定广告 `features.subagents.enabled=false`；
+   - 这是当前诚实状态，不是待单独翻转的开关。
+2. **协商结果未驱动生产 child admission**
+   - delivery 已把 opt-in 协商为 frozen profile；
+   - `runs.Coordinator.Start` 只把 Interrupt kinds 送进 `StartTurn`，没有把 child
+     policy 送给 executor；
+   - 因而只翻 server boolean 会“广告支持但永远不创建 first-class child Run”。
+3. **cold rehydrate 从当前拓扑猜未来能力**
+   - `prepareTurn` 使用 `len(pending.Continuations) > 1` 决定是否重装 child
+     admission；
+   - 一个允许 subagents、但在首次 park 前尚未生成 child 的 root，重启后会失去
+     未来创建 child 的能力；
+   - capability 必须来自 root 的不可变 admission policy，绝不能从当前树形反推。
+4. **Artifact / contract 尚未达到启用态**
+   - Artifact 只证明 tree lineage export 和 disabled composition refusal，尚未证明
+     enabled composition 下 root profile + child lineage 的最大 round-trip；
+   - import 尚未在写入前拒绝 root profile 中 composition 不支持/不认识的 required
+     feature；
+   - `RunProtocolProfile.requiredFeatures/interruptTypes` 的
+     `uniqueItems` 与合法 required-feature vocabulary 尚未进入 Registry 生成链；
+   - Desktop 固定 request capabilities 尚未声明 `subagents:true`，因此
+     capability-aware descendant query 仍只会走 root-only 分支。
+
+#### W5.1 架构裁决与最小 breaking blast radius
+
+采用一个原子切片，不采用“加一个 `Contains(\"subagents\")` 再翻开关”的补丁：
+
+1. **内层 profile 改为 typed semantic policy**
+   - 保留 wire 的 `RunProtocolProfile.requiredFeatures`，因为这是冻结协议；
+   - App inner model 不再保存 opaque wire key，改为显式 `ChildRuns bool` +
+     `InterruptKinds`；
+   - delivery 是 `subagents` wire key 与 `ChildRuns` 语义之间唯一 translator；
+   - 不引入 feature interface、generic policy registry、Manager 或第二个 bool。
+2. **policy 成为唯一生产来源**
+   - start 从 frozen root policy 设置 `StartTurn.ChildRunAdmissionEnabled`；
+   - live continuation沿用已安装 admission；
+   - cold rehydrate 只从 `pending.ProtocolProfile.ChildRuns` 恢复，不读取
+     continuation 数量、tool name、transcript 或 live registry。
+3. **fresh-store cutover**
+   - SQLite profile JSON 改存语义字段 `childRuns`，并把 `schemaEpoch` 从 43 提升；
+   - 删除 `requiredFeatures` 的 inner/store 表达，不双读、不迁移、不 fallback。
+4. **wire/Artifact 完整收口**
+   - negotiation/presenter/profile-gap 显式双向映射；
+   - import 在任何写入前拒绝未知或当前 composition 不支持的 required feature；
+   - enabled build 增加 root profile + child lineage 的最大 Artifact v7 round-trip，
+     删除“disabled 所以不可达”的测试豁免；
+   - Artifact version 不变：live/portable wire shape 没变，变化的是实现能力与 fresh
+     store epoch。
+5. **server + first-party client 同时启用**
+   - composition 广告 `subagents=true`；
+   - Desktop 固定 request profile 同时 opt in；
+   - 补 start/rehydrate propagation、positive/negative get/list/items/cancel、
+     Minimal Profile 和 Desktop request-meta 回归测试。
+6. **Registry 约束补齐并重新生成**
+   - 两个 profile 集合都由 Registry 生成 `uniqueItems`；
+   - required feature 只能是 Registry 中 `requiredByRunProtocol:true` 的合法 key；
+   - Go/TS validator、Schema、OpenRPC、manifest、API Reference 与 samples 同步。
+
+允许的 breaking scope：App inner Go type、SQLite fresh schema epoch、测试 fixture 与
+first-party Desktop 默认 capability。明确不变：protocolVersion、Artifact v7、JSON-RPC
+method/DTO shape、root stream 语义、child subscribe refusal、Agent public API。
+
+被否决的替代：
+
+- 只翻 `server.go`：会形成虚假广告；
+- 保留 opaque `RequiredFeatures []string` 再由 application 判断 wire key：把 delivery
+  vocabulary 泄漏进 domain/application；
+- 同时保存 `RequiredFeatures` 与 `ChildRuns`：两个事实作者，必然漂移；
+- 用 continuation 数量恢复：当前拓扑不是 admission policy；
+- 兼容读取旧 profile JSON：项目处于 dev，直接升 epoch，不能制造永久 decoder 债务。
+
 ---
 
 ## 12. 下一张执行卡
@@ -1721,19 +1851,21 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 唯一下一任务：
 
 ```text
-W5.0 — B1.7
-Read-only completion audit
+W5.1 — B1.7
+Atomic capability cutover
 ```
 
 实施顺序：
 
-1. 逐项把 W5 gate 映射到当前 production source 与行为测试，缺证据即视为未完成；
-2. 审计 capability composition、client opt-in、RunProtocolProfile 与 artifact import/export；
-3. 证明 child producer、barrier、waiting/running cancel、query、root stream、restart 与
-   Desktop consumer 在 negotiated capability 下闭环；
-4. 冻结 W5.1 的最小 breaking blast radius，不在 W5.0 修改 capability；
-5. W5.1 在同一原子提交启用 capability、更新 canonical docs/tests/generated artifacts；
-6. W5.2 跑高风险 race、Runtime/Desktop 全门禁与连续两次 generation no-diff。
+1. typed inner profile + fresh store epoch，删除 opaque feature key 的内层表达；
+2. start/rehydrate 只从 frozen policy 安装 child admission；
+3. 补齐 Artifact enabled round-trip、unsupported profile refusal 与 profile Registry
+   constraints；
+4. 同时启用 server composition 与 Desktop opt-in；
+5. 运行 targeted Runtime/Agent/Desktop tests，更新 canonical docs 与生成物后原子
+   commit/push；
+6. 进入 W5.2，运行高风险 race、Runtime/Desktop 全门禁、连续两次 generation no-diff
+   与无兼容残留扫描。
 
 W5 的禁止项：
 

@@ -1948,7 +1948,7 @@ Desktop 专项完成记录：
 
 - [`codex_desktop_run_tree_execution_plan.md`](codex_desktop_run_tree_execution_plan.md)
 
-当前进度：`W4 DONE · W5 READY`。B1.6 已删除 single `view.run`、global
+当前进度：`W4 DONE · W5.0 DONE · W5.1 READY`。B1.6 已删除 single `view.run`、global
 turn/plan/error、implicit owner、synthetic recovery、启发式 message reconciliation 与
 失真 `activeRun` public surface；`AgentSessionView`、durable atomic projection、
 root-first tree UI 与 exact cancel 已通过完整 Desktop gates。
@@ -2006,7 +2006,30 @@ canonical ordering、hygiene 与兼容债收口。B1.5 只扩展 durable read/su
   删除旧表达；
 - 所有 terminal publication 继续使用 B1.3 冻结的 canonical postorder。
 
-`features.subagents=false` 在 W5.0 只读完成审计期间继续保持。W5.1 只有在 producer、
-tree transaction、interrupt barrier、cold recovery、Desktop tree consumer 和 §11.3
-全部证据逐项成立后，才能在同一原子 slice 启用并更新 canonical docs/tests；仍采用
-breaking-first，不增加过渡 alias、兼容 decoder、disabled fallback 或双写路径。
+W5.0 read-only audit 已在
+[`codex_architecture_execution_master_plan.md`](codex_architecture_execution_master_plan.md)
+形成逐项证据矩阵。结论：
+
+- Agent child admission、App atomic projection、tree barrier、Running/Waiting subtree
+  cancel、canonical terminal ordering、durable query/restart 与 Desktop tree consumer
+  已有行为证据；
+- Agent Framework 仍只提供通用 execution primitive，没有吸收 App persistence、
+  transaction、idempotency 或 protocol DTO；
+- `features.subagents=false` 仍是诚实状态，因为 production start 尚未从 frozen profile
+  安装 child admission，cold rehydrate 还从 continuation 数量猜 policy；
+- Artifact enabled tree round-trip、unsupported root profile refusal、
+  `RunProtocolProfile` 两个集合的 Registry 约束与 Desktop first-party opt-in 仍缺失。
+
+W5.1 已冻结为一次原子切换：
+
+1. App inner profile 用 typed `ChildRuns` 语义替换 opaque wire feature keys；
+2. start/rehydrate 只从 frozen root policy 安装 child admission；
+3. SQLite profile 改为 semantic encoding 并直接提升 fresh schema epoch，不读旧格式；
+4. 补齐 Artifact tree/profile 正向 round-trip 与 unsupported profile 前置拒绝；
+5. 补齐 Registry profile constraints 并重生成全部 contract artifacts；
+6. 同时启用 server composition 与 Desktop `subagents:true` request opt-in；
+7. targeted tests 通过后提交，W5.2 再执行 race/full gates、双 generation 与 debt scan。
+
+不得把这个切片拆成“先翻 server boolean、以后再接 producer”，也不得同时保留
+`RequiredFeatures` 与 `ChildRuns` 两份内层事实。protocolVersion、Artifact v7、
+JSON-RPC shape、root stream 与 child `run_not_root` 语义保持不变。
