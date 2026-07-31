@@ -30,10 +30,10 @@ production Settings surface without a parallel presentation model.
 
 `closure.visual.spec.ts` adds cross-surface release evidence: WCAG A/AA audits,
 keyboard-only traversal, IME composition, real 44 px coarse-pointer targets,
-OS and application motion preferences, the maximum 18 px UI type setting, and
-DPR 2 hairlines. Its goldens use a `0.05` per-pixel threshold so subtle ink
-regressions remain visible; geometry and contrast also have semantic
-assertions.
+the production clipboard path, OS and application motion preferences, the
+maximum 18 px UI type setting, and DPR 2 hairlines. Its goldens use a `0.05`
+per-pixel threshold so subtle ink regressions remain visible; geometry and
+contrast also have semantic assertions.
 
 `webkit.visual.spec.ts` is a compatibility smoke suite for the rendering engine
 closest to Wails' macOS WKWebView. It validates shell focus handoff, Agent HITL

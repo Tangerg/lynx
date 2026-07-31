@@ -194,6 +194,27 @@ test("IME composition keeps Enter inside the composer until text is committed", 
   await expect(composer).toHaveValue("你");
 });
 
+test("message copy writes through the production clipboard path", async ({ context, page }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: "http://127.0.0.1:4174",
+  });
+  await openFixture(page, {
+    fixture: "agent",
+    state: "long-content",
+    theme: "light",
+  });
+
+  const response = page.locator(".msg-content").filter({
+    hasText: "The consumer owns persistence policy and transaction scope.",
+  });
+  await response.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Copy markdown" }).click();
+
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toContain("The consumer owns persistence policy and transaction scope.");
+});
+
 for (const theme of ["light", "dark"] as const) {
   test(`maximum UI text remains readable without horizontal clipping ${theme}`, async ({
     page,
