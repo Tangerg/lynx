@@ -2,14 +2,12 @@ package agentexec
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
 	"sync"
 	"testing"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/chatclient"
 	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
@@ -279,72 +277,65 @@ func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName,
 
 type jsonProcessStore struct {
 	mu          sync.Mutex
-	snapshots   map[string]json.RawMessage
+	snapshots   map[string]execution.ProcessState
 	checkpoints map[string]execution.ProcessCheckpoint
 }
 
 func newJSONProcessStore() *jsonProcessStore {
 	return &jsonProcessStore{
-		snapshots:   map[string]json.RawMessage{},
+		snapshots:   map[string]execution.ProcessState{},
 		checkpoints: map[string]execution.ProcessCheckpoint{},
 	}
 }
 
-func (s *jsonProcessStore) SaveTree(_ context.Context, tree core.ProcessSnapshotTree, checkpoint execution.ProcessCheckpoint) error {
+func (s *jsonProcessStore) SaveTree(_ context.Context, tree execution.ProcessTreeState, checkpoint execution.ProcessCheckpoint) error {
 	if err := tree.Validate(); err != nil {
 		return err
 	}
 	if err := checkpoint.Validate(); err != nil {
 		return err
 	}
-	prepared := make(map[string]json.RawMessage, len(tree.Snapshots))
-	for _, snapshot := range tree.Snapshots {
-		raw, err := json.Marshal(snapshot)
-		if err != nil {
-			return err
-		}
-		prepared[snapshot.ID] = raw
+	prepared := make(map[string]execution.ProcessState, len(tree.Processes))
+	for _, process := range tree.Processes {
+		process.Payload = append([]byte(nil), process.Payload...)
+		prepared[process.ID] = process
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.deleteTree(tree.RootID); err != nil {
 		return err
 	}
-	for id, raw := range prepared {
-		s.snapshots[id] = raw
+	for id, process := range prepared {
+		s.snapshots[id] = process
 	}
 	s.checkpoints[tree.RootID] = checkpoint
 	return nil
 }
 
-func (s *jsonProcessStore) LoadTree(_ context.Context, id string) (core.ProcessSnapshotTree, execution.ProcessCheckpoint, error) {
+func (s *jsonProcessStore) LoadTree(_ context.Context, id string) (execution.ProcessTreeState, execution.ProcessCheckpoint, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_, ok := s.snapshots[id]
 	if !ok {
-		return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("json process store: load %q: %w", id, execution.ErrProcessSnapshotNotFound)
+		return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, fmt.Errorf("json process store: load %q: %w", id, execution.ErrProcessStateNotFound)
 	}
 	children := make(map[string][]string)
-	decoded := make(map[string]core.ProcessSnapshot, len(s.snapshots))
-	for processID, raw := range s.snapshots {
-		var snapshot core.ProcessSnapshot
-		if err := json.Unmarshal(raw, &snapshot); err != nil {
-			return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, err
-		}
-		decoded[processID] = snapshot
-		children[snapshot.ParentID] = append(children[snapshot.ParentID], processID)
+	for processID, process := range s.snapshots {
+		children[process.ParentID] = append(children[process.ParentID], processID)
 	}
-	var snapshots []core.ProcessSnapshot
+	var processes []execution.ProcessState
 	var collect func(string)
 	collect = func(processID string) {
-		snapshots = append(snapshots, decoded[processID])
+		process := s.snapshots[processID]
+		process.Payload = append([]byte(nil), process.Payload...)
+		processes = append(processes, process)
 		for _, childID := range children[processID] {
 			collect(childID)
 		}
 	}
 	collect(id)
 	checkpoint := s.checkpoints[id]
-	return core.ProcessSnapshotTree{RootID: id, Snapshots: snapshots}, checkpoint, nil
+	return execution.ProcessTreeState{RootID: id, Processes: processes}, checkpoint, nil
 }
 
 func (s *jsonProcessStore) List(context.Context) ([]string, error) {
@@ -370,13 +361,9 @@ func (s *jsonProcessStore) DeleteTrees(_ context.Context, rootIDs []string) erro
 
 func (s *jsonProcessStore) deleteTree(rootID string) error {
 	children := make(map[string][]string)
-	for id, raw := range s.snapshots {
-		var snapshot core.ProcessSnapshot
-		if err := json.Unmarshal(raw, &snapshot); err != nil {
-			return fmt.Errorf("json process store: decode %q for delete: %w", id, err)
-		}
-		if snapshot.ParentID != "" {
-			children[snapshot.ParentID] = append(children[snapshot.ParentID], id)
+	for id, process := range s.snapshots {
+		if process.ParentID != "" {
+			children[process.ParentID] = append(children[process.ParentID], id)
 		}
 	}
 	var remove func(string)

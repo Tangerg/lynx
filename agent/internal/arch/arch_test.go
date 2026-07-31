@@ -255,6 +255,69 @@ func TestFrameworkDoesNotImportStorageBackends(t *testing.T) {
 	}
 }
 
+// TestRuntimeExportsNoHostTransactionProtocol prevents the concrete regression
+// removed by P25: a framework plan must not grow settlement or persistence
+// methods that ask a consumer to coordinate external state while runtime keeps
+// ownership. The exported API golden remains the review gate for other changes;
+// this test intentionally avoids a broad vocabulary denylist.
+func TestRuntimeExportsNoHostTransactionProtocol(t *testing.T) {
+	root := filepath.Join(moduleRoot(t), "runtime")
+	fset := token.NewFileSet()
+	removedDeclarations := map[string]struct{}{
+		"PreparedWaitingSubtreeCancellation": {},
+		"PrepareWaitingSubtreeCancellation":  {},
+	}
+	forbiddenPlanMethods := map[string]struct{}{
+		"Prepare":           {},
+		"Commit":            {},
+		"Abort":             {},
+		"Persist":           {},
+		"PersistCheckpoint": {},
+	}
+	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			return err
+		}
+		for _, declaration := range file.Decls {
+			switch value := declaration.(type) {
+			case *ast.FuncDecl:
+				if !value.Name.IsExported() {
+					continue
+				}
+				if _, removed := removedDeclarations[value.Name.Name]; removed {
+					t.Errorf("Agent runtime restores removed host transaction operation %q: %s", value.Name.Name, filepath.Base(path))
+				}
+				if receiverTypeName(value) == "WaitingSubtreeCancellationPlan" {
+					if _, forbidden := forbiddenPlanMethods[value.Name.Name]; forbidden {
+						t.Errorf("Agent runtime transition plan exports host settlement method %q: %s", value.Name.Name, filepath.Base(path))
+					}
+				}
+			case *ast.GenDecl:
+				for _, spec := range value.Specs {
+					typeSpec, ok := spec.(*ast.TypeSpec)
+					if !ok || !typeSpec.Name.IsExported() {
+						continue
+					}
+					if _, removed := removedDeclarations[typeSpec.Name.Name]; removed {
+						t.Errorf("Agent runtime restores removed host transaction type %q: %s", typeSpec.Name.Name, filepath.Base(path))
+					}
+				}
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk Agent runtime: %v", walkErr)
+	}
+}
+
 func TestRuntimeNamedJSONStructsAreExecutionState(t *testing.T) {
 	allowed := map[string]struct{}{
 		"canonicalAction":      {},

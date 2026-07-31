@@ -111,7 +111,7 @@ func TestWaitingChildAndRootCancellationHaveOneApplicationOwner(t *testing.T) {
 			}
 		}
 		if prepared.committed != 0 {
-			t.Fatalf("prepared mutation committed before durable release: %d", prepared.committed)
+			t.Fatalf("prepared application operation committed before durable release: %d", prepared.committed)
 		}
 
 		closeTestBarrier(release)

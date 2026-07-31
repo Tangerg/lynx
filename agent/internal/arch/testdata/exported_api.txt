@@ -471,6 +471,7 @@ runtime: func (e *DeploymentConflictError) Error() string
 runtime: func (e *DeploymentConflictError) Unwrap() error
 runtime: func (e *Engine) ActiveDeployment(name string) (*Deployment, bool)
 runtime: func (e *Engine) ActiveDeployments() []*Deployment
+runtime: func (e *Engine) ApplyWaitingSubtreeCancellation( ctx context.Context, plan *WaitingSubtreeCancellationPlan, ) error
 runtime: func (e *Engine) Continue(ctx context.Context, id string) error
 runtime: func (e *Engine) ContinueAsync(ctx context.Context, id string) (*Segment, error)
 runtime: func (e *Engine) Dependencies() *core.Dependencies
@@ -482,7 +483,7 @@ runtime: func (e *Engine) Kill(ctx context.Context, id string) error
 runtime: func (e *Engine) KillChildren(ctx context.Context, parentID string) ([]string, error)
 runtime: func (e *Engine) NewBlackboard(agent *core.Agent) (core.Blackboard, error)
 runtime: func (e *Engine) PendingSuspensions(ctx context.Context, processID string) ([]PendingSuspension, error)
-runtime: func (e *Engine) PrepareWaitingSubtreeCancellation( ctx context.Context, rootProcessID string, targetProcessID string, ) (*PreparedWaitingSubtreeCancellation, error)
+runtime: func (e *Engine) PlanWaitingSubtreeCancellation( ctx context.Context, rootProcessID string, targetProcessID string, ) (*WaitingSubtreeCancellationPlan, error)
 runtime: func (e *Engine) Process(id string) (*Process, bool)
 runtime: func (e *Engine) Processes() []*Process
 runtime: func (e *Engine) RemoveTree(ctx context.Context, processID string) error
@@ -498,11 +499,6 @@ runtime: func (e *Engine) SnapshotTree(ctx context.Context, processID string) (c
 runtime: func (e *Engine) Start( ctx context.Context, agent *core.Agent, bindings core.Bindings, options core.ProcessOptions, ) (*Segment, error)
 runtime: func (e *Engine) Undeploy(ctx context.Context, name string) error
 runtime: func (e *Engine) ValidateRestoreTree(tree core.ProcessSnapshotTree) error
-runtime: func (p *PreparedWaitingSubtreeCancellation) Abort()
-runtime: func (p *PreparedWaitingSubtreeCancellation) CanceledProcessIDs() []string
-runtime: func (p *PreparedWaitingSubtreeCancellation) Commit(ctx context.Context) error
-runtime: func (p *PreparedWaitingSubtreeCancellation) PendingSuspensions() []PendingSuspension
-runtime: func (p *PreparedWaitingSubtreeCancellation) SnapshotTree() core.ProcessSnapshotTree
 runtime: func (p *Process) Blackboard() core.BlackboardReader
 runtime: func (p *Process) Deployment() core.DeploymentRef
 runtime: func (p *Process) Failure() error
@@ -516,6 +512,9 @@ runtime: func (p *Process) Suspension() *interaction.Suspension
 runtime: func (p *Process) TerminalError() error
 runtime: func (p *Process) Usage() core.Usage
 runtime: func (p *Process) WorldState() core.WorldState
+runtime: func (p *WaitingSubtreeCancellationPlan) CanceledProcessIDs() []string
+runtime: func (p *WaitingSubtreeCancellationPlan) PendingSuspensions() []PendingSuspension
+runtime: func (p *WaitingSubtreeCancellationPlan) ResultingTree() core.ProcessSnapshotTree
 runtime: func (s *Segment) Await(ctx context.Context) (RunCompletion, error)
 runtime: func (s *Segment) Process() *Process
 runtime: func CompletionResult[T any](completion RunCompletion) (T, bool)
@@ -533,11 +532,11 @@ runtime: type DeploymentConflictError struct { Active core.DeploymentRef Candida
 runtime: type Engine struct { }
 runtime: type EventListener interface { core.Extension OnEvent(ctx context.Context, event event.Event) }
 runtime: type PendingSuspension struct { ProcessID string SuspensionID string Prompt json.RawMessage ResumeSchema json.RawMessage }
-runtime: type PreparedWaitingSubtreeCancellation struct { }
 runtime: type Process struct { }
 runtime: type RunCompletion struct { Status core.ProcessStatus Failure error Err error }
 runtime: type Segment struct { }
 runtime: type SubtreeEventListener interface { EventListener ObserveSubtree() }
+runtime: type WaitingSubtreeCancellationPlan struct { }
 runtime: var ( ErrProcessNotFound = errors.New("runtime: process not found") ErrProcessRunning = errors.New("runtime: process is already running") ErrProcessCheckpointBusy = errors.New("runtime: process checkpoint is busy") ErrProcessActive = errors.New("runtime: process is active") ErrChildProcessCanceled = errors.New("runtime: delegated child process was canceled") )
 runtime: var ErrChildBudget = errors.New("run child: budget must be configured on the root process")
 runtime: var ErrChildDepth = errors.New("run child: max delegation depth exceeded")

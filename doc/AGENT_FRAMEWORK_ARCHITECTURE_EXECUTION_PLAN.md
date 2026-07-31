@@ -1,16 +1,16 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P24 Waiting child checkpoint settlement 已完成，4/4）
+> 状态：持续开发（P25 Framework/Host zero-leak closure 已完成，4/4）
 > 建立日期：2026-07-15
-> 最后更新：2026-07-30
+> 最后更新：2026-08-01
 > 维护者：Lynx 仓库维护者
 > 适用范围：`agent`、直接支撑它的基础模块，以及 `app/runtime`、MCP/A2A 等直接消费者
 > Core 基线：`8ae840171`（Core 架构计划 73/73 关闭）
 
 本文档是 Agent Framework 后续架构调整的唯一执行基准，负责记录目标定位、边界、目标架构、阶段任务、验收标准、进度、风险和设计决策。实施过程中如果代码便利性与本文冲突，以本文为准；如果事实证明本文的方向不成立，必须先更新第 17 节决策记录，再修改代码。
 
-P0–P23 的问题清单、候选方案和阶段日志作为决策历史保留，不再构成当前 API 规范；其中出现的
-旧标识符只说明当时被删除的设计。当前合同以 P24、最新 ADR、GoDoc、`agent/docs/GUIDE.md`
+P0–P24 的问题清单、候选方案和阶段日志作为决策历史保留，不再构成当前 API 规范；其中出现的
+旧标识符只说明当时被删除的设计。当前合同以 P25、最新 ADR、GoDoc、`agent/docs/GUIDE.md`
 和 exported API baseline 为准，禁止从历史阶段恢复已删除的兼容路径。
 
 上位约束是 [`../CLAUDE.md`](../CLAUDE.md)、[`../DESIGN_PHILOSOPHY.md`](../DESIGN_PHILOSOPHY.md) 和 [`../REFACTORING.md`](../REFACTORING.md)。Core 的稳定协议边界以 [`../core/CLAUDE.md`](../core/CLAUDE.md) 为准。本文只规划 Agent Framework，不重新打开已经关闭的 Core 架构重构。
@@ -1972,6 +1972,46 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
 durable state 与 live runtime 不出现分裂；剩余 Pending 非空时全树仍静止，为空时复用同一
 checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persistence 泄漏进 Agent。
 
+### P25：Framework/Host zero-leak closure
+
+- [x] **P25-01 删除 Runtime 的 Host transaction protocol**（完成：2026-08-01）
+  - 删除 `PreparedWaitingSubtreeCancellation` 及 `Prepare/Commit/Abort` public choreography；
+    不保留 alias、deprecated wrapper 或双路径。
+  - 新 API 为 `PlanWaitingSubtreeCancellation` 与
+    `ApplyWaitingSubtreeCancellation`：Plan 只观察稳定完整树，返回前释放全部 lock、claim 与
+    live ownership；Apply 只在规划时的 execution state 仍然有效时执行内存状态变换。
+  - Runtime 不知道 App transaction、rollback、Store、BuildID 或 durable failure policy；
+    plan 重复应用不承诺幂等，宿主请求幂等仍归 App。
+- [x] **P25-02 App 建立 opaque process-state anti-corruption boundary**（完成：2026-08-01）
+  - `adapter/agentexec` 是唯一 Agent snapshot codec owner；它把 framework tree 投影为
+    App-owned `execution.ProcessTreeState`，只暴露 process identity、parent topology、started-at
+    与 opaque payload。
+  - `infra/storage/sqlite` 不再 import Agent SDK、不再 unmarshal `ProcessSnapshot`，只保存和
+    加载 App envelope；framework payload 的 schema/continuation 校验回到 agentexec。
+  - SQLite schema epoch 直接升级 45，使用 App-owned `process_states`、opaque `payload BLOB`
+    与独立 `started_at` envelope column；开发期不迁移、不兼容 epoch 44。
+- [x] **P25-03 App transaction 与 Framework transition 各守职责**（完成：2026-08-01）
+  - Application 继续拥有 prepared cancellation capability、单一 durable transaction、
+    Commit/Abort、Run/Item/Pending/Segment 原子写集和失败恢复。
+  - App transaction 期间只持有 App lifecycle claim；失败时 Abort 只释放该 claim，Agent 无
+    资源需要回滚。事务成功后才 Apply live execution transition；stale plan 在任何 live mutation
+    前失败。
+  - durable commit 后若 Apply 仍失败，App 自己将 root Run tree 以 `run_lost` fail closed，并
+    teardown 已过期的 live tree；不要求 Framework 提供 rollback、补偿或两阶段提交。
+  - remaining/final Pending、Continue 与 restart 语义不变，App 从不解析 `FrameworkState`。
+- [x] **P25-04 Architecture guard、文档与完整门禁**（完成：2026-08-01）
+  - Agent guard 精确禁止 Runtime 恢复旧 prepared protocol，或在 framework plan 上增加
+    settlement/persistence method；不使用阻碍合法演进的宽词汇黑名单。App guard 将 Agent SDK
+    imports 限定在 agentexec 与 framework-tool adapters。
+  - API baseline、Agent Guide、App execution architecture、schema epoch、codec/envelope/stale-plan
+    tests 与唯一执行计划同步；breaking scope 一次迁移完成。
+  - Agent/App 全量普通 test、build、vet、staticcheck、golangci-lint、tidy diff 与 diff check
+    通过；遵从维护者要求，不执行 fuzz 或 race。
+
+退出标准：Framework public API 不提供 Host transaction choreography，不在外部 I/O 期间持有
+execution ownership；App application/domain/infra/delivery 不依赖 Agent concrete snapshots，
+SQLite 只认识 App-owned opaque envelope；Host 原子性、幂等、恢复与产品事实仍完全留在 App。
+
 ---
 
 ## 15. 当前进度
@@ -2005,18 +2045,18 @@ checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persis
 | P22 Framework/Application 工具边界 | 完成 | 5/5 | Goal 纯规划、typed child AgentTool、role-only ToolGroup、Host-owned publication/policy |
 | P23 可执行能力与观察投影边界 | 完成 | 5/5 | inert descriptors、Host-owned result projection、base tool protocol、caller-owned model copy |
 | P24 Waiting child checkpoint settlement | 完成 | 4/4 | ToolLoop、Runtime prepared mutation、App durable transaction 与 W2.1–W2.4 conformance 全部完成 |
-| **总计** | **完成** | **170/170（100%）** | **P24-01 至 P24-04 全部完成；后续只响应 App B1.5 的真实 consumer 需求，不执行封版、tag 或 release** |
+| P25 Framework/Host zero-leak closure | 完成 | 4/4 | Runtime 删除 Host transaction choreography；App/SQLite 改用 opaque process envelope；边界守卫与门禁收口 |
+| **总计** | **完成** | **174/174（100%）** | **P25-01 至 P25-04 全部完成；Agent core runtime 与 App host ownership 零交叉，不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P24 Waiting child checkpoint settlement，4/4，已完成。
-- 下一任务：Agent 无独立推测性任务；App 进入 B1.5/W3 durable query、subscribe 与 cold
-  recovery，只有出现真实 Framework 缺口时才回到 Agent。
-  本批不封版、不创建 tag 或 release。
+- 当前阶段：P25 Framework/Host zero-leak closure，4/4，已完成。
+- 下一任务：以新的零泄露边界继续 App consumer 演进；只有出现真实 Framework core runtime
+  缺口时才回到 Agent。本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：W2.4 以四组重复 race、全量门禁和 receiver/错误/接口/兼容债审计关闭 P24；
-  Agent 仍只拥有 execution framework 语义，App transaction/idempotency/persistence
-  ownership 与 `features.subagents=false` 均保持不变。
+- 最近完成：删除 Runtime prepared transaction API，并把 Agent snapshot codec 收回
+  agentexec；SQLite 只持久化 App-owned opaque envelope。Agent 只拥有 execution framework
+  语义，App transaction/idempotency/persistence ownership 保持不变。
 
 ### 15.3 进度更新规则
 
@@ -2229,14 +2269,15 @@ checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persis
 
 ### ADR-AF-021：Process tree 是捕获、恢复、聚合与释放的唯一生命周期单位
 
-- 状态：已接受并实现。
+- 状态：已接受并实现；subtree cancel 的旧 prepared 例外已被 ADR-AF-025 收紧。
 - 决策：Agent 只捕获、恢复和释放完整根进程树。单节点 snapshot/restore、局部 remove/prune
   和后台 child 会制造彼此不一致的 registry、budget、checkpoint 生命周期，因此直接删除，
   不提供兼容入口。
 - 窄例外：Host 已经拥有 first-class subtree cancel 事实时，只能通过
-  `PrepareWaitingSubtreeCancellation` 在完整根树 ownership 下同时重写 parent checkpoint、
-  守恒 usage 并 detach 已终止 target subtree；这不是任意 local prune，也不重新引入单节点
-  snapshot/restore/remove API。
+  `PlanWaitingSubtreeCancellation` 取得稳定值计划，再以
+  `ApplyWaitingSubtreeCancellation` 应用完整根树变换；规划阶段不得持有 runtime lock、claim
+  或 live object ownership，应用阶段必须在首个副作用前拒绝 stale source。这不是任意 local
+  prune，也不重新引入单节点 snapshot/restore/remove API。
 - checkpoint：snapshot v8 只接受 Waiting、Paused 和终态等稳定边界；Running/NotStarted
   不可持久化。崩溃后是否重新发起未提交应用工作由 Host 根据幂等、事务、租约或补偿语义决定。
 - child：同步 AgentTool 与 workflow child 始终保留在父树中，直到 Host 释放完整根树。父级
@@ -2284,21 +2325,44 @@ checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persis
 
 ### ADR-AF-024：Host 可结算 checkpoint 事实，但持久化协调仍归 Host
 
-- 状态：已接受，P24 实施中。
+- 状态：checkpoint 结算部分已接受并实现；prepared runtime transaction choreography 已被
+  ADR-AF-025 取代。
 - 决策：ToolLoop 将“paused call 已被外部确定性结算”建模为 checkpoint 自身的一种稳定状态。
   `CompletePausedCall` 只返回不可变新值；`Runner.Continue` 只推进 ready checkpoint，
   不执行已结算工具，也不伪造用户 `Resume`。
 - Runtime ownership：Agent Runtime 负责把 child relation、ancestor continuation 与完整
   process tree 变换成可验证执行状态；不得让 App 解析 `FrameworkState` 或手工改 JSON。
-- execution：`PrepareWaitingSubtreeCancellation` 在 root sequencer 与全部 checkpoint claim 下
-  产生 replacement tree；`Abort` 零副作用，`Commit` 应用预验证状态并 detach target。
+- 历史 execution：P24 曾由 `PrepareWaitingSubtreeCancellation` 跨 Host transaction 保留
+  runtime ownership，再以 `Commit/Abort` 结算。P25 已删除这组 public protocol，不保留
+  alias、shim 或兼容路径。
   active nested ancestor 使用 framework-ready + `Runner.ContinuePaused`，不写 Suspension
   Response、不发布伪造的 Resume event。被删子树 usage 归入直接父进程
   `RetiredChildUsage`，tree aggregate 不变且不伪装成父进程直接消耗。
 - Host ownership：Run/Item/Interrupt/Segment、BuildID、usage ledger、ProcessStore 与事务仍
-  全部属于 App。Agent 只提供 prepare/commit/abort 所需的执行状态能力，不定义 Store、
-  Repository、幂等或 SQLite 协议。
+  全部属于 App。Agent 不定义 Store、Repository、幂等、Commit/Abort 或 SQLite 协议。
 - breaking：checkpoint schema 直接升级 v4；开发期不读 v3、不双写、不增加 migration shim。
+
+### ADR-AF-025：Framework transition 与 Host transaction 零交叉
+
+- 状态：已接受并实现。
+- Framework ownership：Agent 只拥有执行树的校验、稳定变换与 runtime 应用。
+  `PlanWaitingSubtreeCancellation` 返回不可变值计划并在返回前释放全部 runtime ownership；
+  `ApplyWaitingSubtreeCancellation` 只在应用期间取得框架内部 mutation ownership，并在首个
+  副作用前校验 source tree 仍匹配。计划不提供 `Commit`、`Abort`、持久化或幂等语义。
+- Host ownership：App 独立拥有 UoW、数据库 transaction、prepared application operation、
+  `Commit/Abort`、幂等、原子性、失败恢复及产品状态发布。App 可围绕 Agent 的纯计划结果编排
+  自己的事务，但 Agent 不参与、感知或跨越该事务。
+- anti-corruption boundary：`agentexec` 是 Agent execution state 的唯一 App codec owner；它把
+  framework `ProcessSnapshotTree` 映射为 App 自有 `ProcessTreeState` 信封。App Domain 只校验
+  identity/topology/time，SQLite 只原样保存 opaque process payload，二者均不 import、解析或
+  重建 Agent snapshot。
+- dependency governance：App 生产代码只允许 `internal/adapter/agentexec` 与
+  `internal/adapter/toolset` import Agent SDK；Domain、Application、Infrastructure、Delivery 和
+  其他 adapter 一律禁止。Agent Runtime 的 exported API guard 禁止重新出现 host transaction
+  protocol。
+- breaking：删除旧 prepared API，不留兼容层；SQLite schema epoch 直接升级为 45，旧
+  `process_snapshots.snapshot TEXT` 直接替换为 App-owned
+  `process_states.payload BLOB` 并新增 `started_at` 列，不迁移、不双读、不接受旧 shape。
 
 ---
 
@@ -2306,6 +2370,7 @@ checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persis
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-08-01 | 完成 P25 Framework/Host zero-leak closure：Agent Runtime 删除跨 App transaction 持有 ownership 的 prepared protocol，改为无资源保留的 Plan/Apply；App 建立自有 `ProcessTreeState` 信封，Agent snapshot codec 收口到 `agentexec`，SQLite 以 `process_states.payload BLOB` 仅保存 opaque payload；schema epoch 45，双侧架构守卫与 breaking migration 同步 | Codex |
 | 2026-07-30 | 完成 P24-04 / W2.4 full closure：四组高风险 race `-count=10`、Agent/App 全量门禁、receiver/静态错误/canonical order/接口/兼容债审计全绿；Agent GoDoc 删除 App Run/Item/Interrupt/Segment/持久事务措辞；public API/wire/schema/capability 不变 | Codex |
 | 2026-07-30 | 完成 P24-04 / W2.3 restart/query/publication/quiescence：App file-backed restart 精确保留 canceled subtree、target/root query、checkpoint/Pending 与 invalidation；boot recovery 以 root-owned 完整 Run tree 校验 continuation；取消后无 late child event；Agent API/wire/persistence ownership 不变 | Codex |
 | 2026-07-30 | 完成 P24-04 / W2.2 failure conformance：App SQLite transaction 的 stale/checkpoint/Item/Run/Pending/Resume/opening/commit failure 全部整体回滚；已提交 continuation 失败由既有 pump error-terminalize；executor teardown 保留可重试 owner；Agent API 与 persistence ownership 不变 | Codex |
@@ -2369,6 +2434,7 @@ checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persis
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-08-01 | P25 Framework/Host zero-leak closure | Agent prepared `Prepare/Commit/Abort` protocol 被 Plan/Apply 直接替换：plan 返回前释放所有 runtime ownership，apply 在副作用前拒绝 stale source。App 的 Commit/Abort、SQLite transaction 与 post-commit run-lost recovery 保持 application-owned；`agentexec` 独占 framework snapshot codec，Domain/SQLite 只见 App-owned envelope，存储落为 `process_states.payload BLOB`。新增双侧 AST/API guard，schema epoch 45，无 shim、双路径或旧数据迁移。普通 build/vet/test/staticcheck/lint/tidy/API/arch/diff 门禁全绿；API baseline 632 行、SHA-256 `a8f911341c8e8b24a47d9a30dca1fb33eb6a913792c8aa074d034e24740c90b2`，wire 160 行且 hash 不变；按用户要求不执行 fuzz/race。 | 174/174 关闭；形成独立提交并 push，不创建 tag/release |
 | 2026-07-30 | P24-04 / W2.4 race、hygiene 与完整门禁 | Agent runtime/toolloop、App runs/runsegment/SQLite race `-count=10`；双模块 build/vet/全量 test/lint/tidy、contract/arch/diff 全绿。所有 receiver 同类型同名，生产静态 `fmt.Errorf("constant")` 清零；canonical ordering 汇聚领域 RunTree；Agent 无 App persistence 术语；无旧 decoder/shim/双读写/migration，capability 仍关闭。 | App B1.5 / W3；Agent 只响应真实 consumer 缺口 |
 | 2026-07-30 | P24-04 / W2.3 restart/query/publication/quiescence conformance | real file close/reopen 后，canceled target + nested descendant、exact target/root response、child-addressed full tree、replacement BuildID/usage/process snapshot 与 reduced Pending 均精确 round-trip；App 结算 canceled interrupt Items，并将 boot recovery 从 root-only 改为完整 active tree + all-continuation validation；remaining tree 保留 Interrupted，final Running root 诚实按既有 run_lost 收口。exact invalidation 与 cancel-return Journal quiescence 通过，三组高风险 race 均 `-count=10`；无 Agent API/wire/schema/capability/兼容路径变化。 | P24-04 / W2.4 race、hygiene 与完整门禁 |
 | 2026-07-30 | P24-04 / W2.2 stale/failure/rollback conformance | real SQLite 按真实副作用顺序注入 stale Pending、checkpoint、parent Item、terminal Run、reduced Pending、tree Resume、opening Item 与 transaction completion failure，完整 Pending/Item/Run/process tree/checkpoint/transcript 均不变；post-commit Continue/activation 只 Commit 一次并由 pump error-terminalize；subtree/discard teardown failure 保留 claim/turn retry owner。错误包含 operation + identity + `%w` cause。高风险 race `-count=10`，Agent/App build、vet、全量 test、lint、tidy diff 与 diff check 全绿；无 wire/schema/capability/兼容路径变化。 | P24-04 / W2.3 restart/query/publication/quiescence conformance |

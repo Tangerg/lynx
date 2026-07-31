@@ -69,7 +69,7 @@ func TestRestoreTurnMissingSnapshotIsStateLoss(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	process, err := engine.RestoreTurn(t.Context(), "missing", RestoreTurnRequest{})
-	if process != nil || !errors.Is(err, ErrProcessSnapshotLost) || !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
+	if process != nil || !errors.Is(err, ErrProcessSnapshotLost) || !errors.Is(err, execution.ErrProcessStateNotFound) {
 		t.Fatalf("RestoreTurn = (%T, %v), want snapshot loss wrapping not found", process, err)
 	}
 }
@@ -205,13 +205,13 @@ type failingProcessStore struct {
 	err   error
 }
 
-func (s *failingProcessStore) SaveTree(context.Context, core.ProcessSnapshotTree, execution.ProcessCheckpoint) error {
+func (s *failingProcessStore) SaveTree(context.Context, execution.ProcessTreeState, execution.ProcessCheckpoint) error {
 	s.saves.Add(1)
 	return s.err
 }
 
-func (*failingProcessStore) LoadTree(context.Context, string) (core.ProcessSnapshotTree, execution.ProcessCheckpoint, error) {
-	return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, execution.ErrProcessSnapshotNotFound
+func (*failingProcessStore) LoadTree(context.Context, string) (execution.ProcessTreeState, execution.ProcessCheckpoint, error) {
+	return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, execution.ErrProcessStateNotFound
 }
 
 func (*failingProcessStore) DeleteTrees(context.Context, []string) error { return nil }

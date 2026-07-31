@@ -88,9 +88,10 @@ func (s *memoryDispatcher) CancelSubtree(
 	return nil
 }
 
-// PrepareWaitingSubtreeCancellation claims one parked turn and prepares the
-// Agent runtime's immutable checkpoint replacement. The returned application
-// capability owns that claim until Commit or Abort.
+// PrepareWaitingSubtreeCancellation claims one parked turn and asks the Agent
+// adapter for an immutable execution-transition plan. The returned application
+// capability owns only the App lifecycle claim until Commit or Abort; Agent
+// runtime retains no resource while the App transaction runs.
 func (s *memoryDispatcher) PrepareWaitingSubtreeCancellation(
 	ctx context.Context,
 	handle TurnHandle,
@@ -117,30 +118,29 @@ func (s *memoryDispatcher) PrepareWaitingSubtreeCancellation(
 			handle.TurnID,
 		)
 	}
-	preparer, ok := process.(agentexec.WaitingSubtreePreparer)
+	planner, ok := process.(agentexec.WaitingSubtreePlanner)
 	if !ok {
 		state.abortWaitingMutation()
-		return nil, errors.New("turn: process does not support waiting subtree cancellation")
+		return nil, errors.New("turn: process does not support planning a waiting subtree cancellation")
 	}
-	prepared, err := preparer.PrepareWaitingSubtreeCancellation(ctx, processID)
+	plan, err := planner.PlanWaitingSubtreeCancellation(ctx, processID)
 	if err != nil {
 		state.abortWaitingMutation()
 		return nil, fmt.Errorf(
-			"turn: prepare waiting process subtree %q in turn %q: %w",
+			"turn: plan waiting process subtree %q in turn %q: %w",
 			processID,
 			handle.TurnID,
 			err,
 		)
 	}
-	suspensions := prepared.PendingSuspensions()
+	suspensions := plan.PendingSuspensions()
 	projected := make([]runs.ProcessSuspension, len(suspensions))
 	for index, boundary := range suspensions {
 		interrupt, ok := typedInterrupt(boundary.Prompt)
 		if !ok {
-			prepared.Abort()
 			state.abortWaitingMutation()
 			return nil, fmt.Errorf(
-				"turn: prepared process %q suspension %q has an unsupported interrupt payload",
+				"turn: planned process %q suspension %q has an unsupported interrupt payload",
 				boundary.ProcessID,
 				boundary.SuspensionID,
 			)
@@ -154,8 +154,8 @@ func (s *memoryDispatcher) PrepareWaitingSubtreeCancellation(
 	return &preparedWaitingSubtreeCancellation{
 		dispatcher:  s,
 		state:       state,
-		prepared:    prepared,
-		canceledIDs: prepared.CanceledProcessIDs(),
+		plan:        plan,
+		canceledIDs: plan.CanceledProcessIDs(),
 		suspensions: projected,
 	}, nil
 }
@@ -165,7 +165,7 @@ type preparedWaitingSubtreeCancellation struct {
 
 	dispatcher  *memoryDispatcher
 	state       *turnState
-	prepared    agentexec.PreparedWaitingSubtreeCancellation
+	plan        agentexec.WaitingSubtreeCancellationPlan
 	canceledIDs []string
 	suspensions []runs.ProcessSuspension
 	settled     bool
@@ -190,23 +190,23 @@ func (prepared *preparedWaitingSubtreeCancellation) PendingSuspensions() []runs.
 }
 
 func (prepared *preparedWaitingSubtreeCancellation) PersistCheckpoint(ctx context.Context) error {
-	if prepared == nil {
-		return errors.New("turn: persist waiting subtree cancellation: nil mutation")
+	if prepared == nil || prepared.plan == nil {
+		return errors.New("turn: persist waiting subtree cancellation: incomplete plan")
 	}
 	prepared.mu.Lock()
 	defer prepared.mu.Unlock()
 	if prepared.settled {
 		return errors.New("turn: persist waiting subtree cancellation after settlement")
 	}
-	return prepared.prepared.PersistCheckpoint(ctx)
+	return prepared.plan.PersistCheckpoint(ctx)
 }
 
 func (prepared *preparedWaitingSubtreeCancellation) Commit(
 	ctx context.Context,
 	disposition runs.WaitingSubtreeDisposition,
 ) error {
-	if prepared == nil || prepared.state == nil || prepared.prepared == nil {
-		return errors.New("turn: commit waiting subtree cancellation: incomplete mutation")
+	if prepared == nil || prepared.state == nil || prepared.plan == nil {
+		return errors.New("turn: commit waiting subtree cancellation: incomplete application operation")
 	}
 	prepared.mu.Lock()
 	defer prepared.mu.Unlock()
@@ -220,10 +220,10 @@ func (prepared *preparedWaitingSubtreeCancellation) Commit(
 	}
 
 	prepared.state.lifecycleMu.Lock()
-	if err := prepared.prepared.Commit(ctx); err != nil {
+	if err := prepared.plan.Apply(ctx); err != nil {
 		prepared.state.lifecycleMu.Unlock()
 		return fmt.Errorf(
-			"turn: commit waiting subtree runtime mutation for turn %q: %w",
+			"turn: apply waiting subtree runtime transition for turn %q: %w",
 			prepared.state.handle.TurnID,
 			err,
 		)
@@ -234,9 +234,9 @@ func (prepared *preparedWaitingSubtreeCancellation) Commit(
 		prepared.state.lifecycleMu.Unlock()
 		return nil
 	}
-	if err := prepared.prepared.Continue(prepared.state.ctx); err != nil {
+	if err := prepared.plan.Continue(prepared.state.ctx); err != nil {
 		continuationErr := fmt.Errorf(
-			"turn: continue committed waiting subtree mutation for turn %q: %w",
+			"turn: continue applied waiting subtree transition for turn %q: %w",
 			prepared.state.handle.TurnID,
 			err,
 		)
@@ -261,7 +261,7 @@ func (prepared *preparedWaitingSubtreeCancellation) Commit(
 }
 
 func (prepared *preparedWaitingSubtreeCancellation) Abort() {
-	if prepared == nil || prepared.state == nil || prepared.prepared == nil {
+	if prepared == nil || prepared.state == nil || prepared.plan == nil {
 		return
 	}
 	prepared.mu.Lock()
@@ -270,7 +270,6 @@ func (prepared *preparedWaitingSubtreeCancellation) Abort() {
 		return
 	}
 	prepared.state.lifecycleMu.Lock()
-	prepared.prepared.Abort()
 	prepared.state.abortWaitingMutation()
 	prepared.state.lifecycleMu.Unlock()
 	prepared.settled = true

@@ -39,7 +39,7 @@ type fakePreparedWaitingCancellation struct {
 	persistErr  error
 	commitErr   error
 	// settleOnCommitError models the real turn adapter's post-commit Continue
-	// failure: the prepared runtime mutation is already applied, so Abort must
+	// failure: the planned runtime transition is already applied, so Abort must
 	// be a no-op while the opened segment error-terminalizes.
 	settleOnCommitError bool
 
@@ -227,7 +227,7 @@ func TestPublishWaitingChildCancellationInvalidatesExactReadSet(t *testing.T) {
 	}
 }
 
-func TestCancelWaitingChildCommitsReducedPendingBeforeRuntimeMutation(t *testing.T) {
+func TestCancelWaitingChildCommitsReducedPendingBeforeRuntimeTransition(t *testing.T) {
 	plan := waitingCancellationPlan(t, "run_a", false)
 	prepared := &fakePreparedWaitingCancellation{
 		canceled: []string{"process_a", "process_grandchild"},
@@ -277,6 +277,60 @@ func TestCancelWaitingChildCommitsReducedPendingBeforeRuntimeMutation(t *testing
 	}
 	if turns.prepared != plan.turn {
 		t.Fatalf("prepared turn = %+v, want %+v", turns.prepared, plan.turn)
+	}
+}
+
+func TestCancelWaitingChildRecoversCommittedTreeWhenRuntimeApplyFails(t *testing.T) {
+	plan := waitingCancellationPlan(t, "run_a", false)
+	applyErr := errors.New("runtime apply failed")
+	prepared := &fakePreparedWaitingCancellation{
+		canceled:  []string{"process_a", "process_grandchild"},
+		commitErr: applyErr,
+		suspensions: []ProcessSuspension{{
+			ProcessID:    "process_b",
+			SuspensionID: "suspension_b",
+			Interrupt:    waitingQuestionPrompt(),
+		}},
+	}
+	effects := &fakeEffects{
+		waitingResult: WaitingSubtreeCancellationResult{
+			TargetRun: canceledWaitingRun(
+				plan.target.run,
+				"stop delegated branch",
+				time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
+			),
+			RootRun: plan.root.run,
+		},
+	}
+	coordinator, turns := waitingCancellationCoordinator(t, plan, prepared, effects, &fakeExecutor{})
+	sessions := coordinator.sessions.(*fakeRunSessions)
+	var operations []string
+	sessions.operations = &operations
+	turns.operations = &operations
+
+	_, err := coordinator.Cancel(t.Context(), CancelCommand{
+		RunID:         plan.target.run.ID,
+		Reason:        "stop delegated branch",
+		AllowChildRun: true,
+	})
+	if !errors.Is(err, applyErr) {
+		t.Fatalf("Cancel error = %v, want runtime apply failure", err)
+	}
+	if prepared.committed != 1 || prepared.aborted != 1 {
+		t.Fatalf(
+			"prepared settlement = commits:%d aborts:%d, want 1/1",
+			prepared.committed,
+			prepared.aborted,
+		)
+	}
+	if sessions.lostRunID != plan.root.run.ID {
+		t.Fatalf("recovered Run = %q, want root %q", sessions.lostRunID, plan.root.run.ID)
+	}
+	if !reflect.DeepEqual(turns.canceled, []execution.TurnRef{plan.turn}) {
+		t.Fatalf("canceled turns = %+v, want [%+v]", turns.canceled, plan.turn)
+	}
+	if !slices.Equal(operations, []string{"durable.lost", "turn.cancel"}) {
+		t.Fatalf("recovery operations = %v, want durable.lost then turn.cancel", operations)
 	}
 }
 
@@ -505,7 +559,7 @@ func TestCancelWaitingChildTerminalizesCommittedTreeWhenActivationFails(t *testi
 	}
 }
 
-func TestCancelWaitingChildAbortsPreparedMutationWhenDurableCommitFails(t *testing.T) {
+func TestCancelWaitingChildAbortsPreparedOperationWhenDurableCommitFails(t *testing.T) {
 	plan := waitingCancellationPlan(t, "run_a", false)
 	prepared := &fakePreparedWaitingCancellation{
 		canceled: []string{"process_a", "process_grandchild"},

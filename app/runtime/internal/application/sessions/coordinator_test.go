@@ -181,7 +181,7 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 	// see the kind and wrote one default for every way a run can be lost.
 	if applied.Run.Error == nil ||
 		applied.Run.Error.Kind != transcript.RunLostProblem ||
-		applied.Run.Error.Detail != "the parked run's process snapshot could not be restored" {
+		applied.Run.Error.Detail != "the parked run's executor process state could not be restored" {
 		t.Fatalf("terminal failure = %+v, want run_lost naming its cause", applied.Run.Error)
 	}
 	if len(applied.Items) != 1 || applied.Items[0].Status != transcript.ItemIncomplete ||

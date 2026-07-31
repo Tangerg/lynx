@@ -284,6 +284,61 @@ func TestAppDoesNotInterpretAgentContinuationState(t *testing.T) {
 	}
 }
 
+// TestAgentSDKStaysBehindExecutionAdapters keeps the reusable framework at the
+// App's anti-corruption edge. agentexec translates process/runtime values;
+// toolset implements framework tool capabilities. Domain, application,
+// delivery, infrastructure, and unrelated adapters must see only App-owned
+// values and ports.
+func TestAgentSDKStaysBehindExecutionAdapters(t *testing.T) {
+	root := moduleRoot(t)
+	allowed := []string{
+		filepath.Join(root, "internal", "adapter", "agentexec"),
+		filepath.Join(root, "internal", "adapter", "toolset"),
+	}
+	fset := token.NewFileSet()
+	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			name := entry.Name()
+			if name == "vendor" || (strings.HasPrefix(name, ".") && path != root) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imported := range file.Imports {
+			importPath := strings.Trim(imported.Path.Value, `"`)
+			if importPath != "github.com/Tangerg/lynx/agent" &&
+				!strings.HasPrefix(importPath, "github.com/Tangerg/lynx/agent/") {
+				continue
+			}
+			contained := false
+			for _, dir := range allowed {
+				if path == dir || strings.HasPrefix(path, dir+string(filepath.Separator)) {
+					contained = true
+					break
+				}
+			}
+			if !contained {
+				relativePath, _ := filepath.Rel(root, path)
+				t.Errorf("Agent SDK import escaped execution adapters: %s imports %q", relativePath, importPath)
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk App runtime: %v", walkErr)
+	}
+}
+
 // TestExecutionDomainStaysPure enforces §16 rule 2: the core execution context
 // (domain/execution + its sub-contexts) is the innermost, most-protected code —
 // it must not touch the filesystem, a SQL driver, HTTP, OTel, the agent SDK, or a

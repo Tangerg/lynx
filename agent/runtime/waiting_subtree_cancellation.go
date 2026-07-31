@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
-	"sync"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
@@ -14,89 +14,133 @@ import (
 
 const canceledChildToolResult = "error: delegated child canceled"
 
-// PreparedWaitingSubtreeCancellation owns one stable process tree while its
-// caller coordinates the replacement with external state. Prepare performs
-// every fallible runtime check and computes the replacement snapshot without
-// changing live execution state. The caller must call Commit after accepting
-// the replacement, or Abort on every failure path.
-//
-// Holding a prepared value intentionally blocks Run, Resume, Kill, Snapshot,
-// Restore, and removal mutations for the same tree. Values must not be copied.
-type PreparedWaitingSubtreeCancellation struct {
-	mu sync.Mutex
-
+// WaitingSubtreeCancellationPlan is an immutable description of one validated
+// process-tree transition. Planning observes one stable tree and releases it
+// before returning; the value owns no live process, lock, or external resource.
+// Applying the plan later succeeds only while that observed execution state is
+// still current.
+type WaitingSubtreeCancellationPlan struct {
 	engine          *Engine
-	root            *claimedSnapshotTree
-	releaseMutation func()
-	target          *claimedSnapshotTree
-	targetProcesses []*Process
-	parent          *Process
-
-	tree          core.ProcessSnapshotTree
-	pending       []PendingSuspension
-	canceled      []string
-	parentRetired core.Usage
-	settlement    preparedCancellationSettlement
+	rootProcessID   string
+	targetProcessID string
+	source          core.ProcessSnapshotTree
+	result          core.ProcessSnapshotTree
+	pending         []PendingSuspension
+	canceled        []string
 }
 
-type preparedCancellationSettlement uint8
-
-const (
-	preparedCancellationOpen preparedCancellationSettlement = iota
-	preparedCancellationCommitted
-	preparedCancellationAborted
-)
-
-// PrepareWaitingSubtreeCancellation freezes one complete idle tree and builds
-// the exact checkpoint replacement for canceling a waiting non-root process.
-// It performs no external I/O, publishes no event, and does not mutate live
-// process state. rootProcessID must name the complete tree root;
-// targetProcessID must name a waiting descendant in that tree.
-func (e *Engine) PrepareWaitingSubtreeCancellation(
+// PlanWaitingSubtreeCancellation computes the framework state transition for
+// canceling a waiting non-root process. It performs no external I/O, publishes
+// no event, mutates no live process, and retains no runtime ownership.
+// rootProcessID must name the complete tree root; targetProcessID must name a
+// waiting descendant in that tree.
+func (e *Engine) PlanWaitingSubtreeCancellation(
 	ctx context.Context,
 	rootProcessID string,
 	targetProcessID string,
-) (*PreparedWaitingSubtreeCancellation, error) {
+) (*WaitingSubtreeCancellationPlan, error) {
 	if e == nil {
-		return nil, errors.New("runtime.Engine.PrepareWaitingSubtreeCancellation: nil Engine")
-	}
-	root, ok := e.processes.get(rootProcessID)
-	if !ok {
-		return nil, processNotFoundError("prepare waiting subtree cancellation", rootProcessID)
-	}
-	if root.ParentID() != "" || root.depth != 0 {
-		return nil, fmt.Errorf(
-			"runtime.Engine.PrepareWaitingSubtreeCancellation: process %q is not a process-tree root",
-			rootProcessID,
-		)
+		return nil, errors.New("runtime.Engine.PlanWaitingSubtreeCancellation: nil Engine")
 	}
 	if targetProcessID == rootProcessID {
-		return nil, errors.New("runtime.Engine.PrepareWaitingSubtreeCancellation: target must be a non-root process")
+		return nil, errors.New("runtime.Engine.PlanWaitingSubtreeCancellation: target must be a non-root process")
+	}
+	captured, err := e.SnapshotTree(ctx, rootProcessID)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.PlanWaitingSubtreeCancellation: %w", err)
+	}
+	transformed, canceled, _, err := cancelWaitingSnapshotSubtree(captured, targetProcessID)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.PlanWaitingSubtreeCancellation: %w", err)
+	}
+	pending, err := collectPendingSuspensions(transformed)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.PlanWaitingSubtreeCancellation: collect pending suspensions: %w", err)
+	}
+	return &WaitingSubtreeCancellationPlan{
+		engine:          e,
+		rootProcessID:   rootProcessID,
+		targetProcessID: targetProcessID,
+		source:          cloneProcessSnapshotTree(captured),
+		result:          cloneProcessSnapshotTree(transformed),
+		pending:         clonePendingSuspensions(pending),
+		canceled:        slices.Clone(canceled),
+	}, nil
+}
+
+// ResultingTree returns the ownership-isolated process tree produced by the
+// planned transition.
+func (p *WaitingSubtreeCancellationPlan) ResultingTree() core.ProcessSnapshotTree {
+	if p == nil {
+		return core.ProcessSnapshotTree{}
+	}
+	return cloneProcessSnapshotTree(p.result)
+}
+
+// PendingSuspensions returns the surviving external-input boundaries after the
+// planned cancellation, in runtime execution order.
+func (p *WaitingSubtreeCancellationPlan) PendingSuspensions() []PendingSuspension {
+	if p == nil {
+		return nil
+	}
+	return clonePendingSuspensions(p.pending)
+}
+
+// CanceledProcessIDs returns the exact target subtree in deterministic
+// parent-before-child snapshot order.
+func (p *WaitingSubtreeCancellationPlan) CanceledProcessIDs() []string {
+	if p == nil {
+		return nil
+	}
+	return slices.Clone(p.canceled)
+}
+
+// ApplyWaitingSubtreeCancellation applies one previously planned framework
+// transition. It fails without mutation when the tree has changed since the
+// plan was produced. The method coordinates only in-memory execution state; it
+// knows nothing about persistence, transactions, or application workflow.
+func (e *Engine) ApplyWaitingSubtreeCancellation(
+	ctx context.Context,
+	plan *WaitingSubtreeCancellationPlan,
+) error {
+	if e == nil {
+		return errors.New("runtime.Engine.ApplyWaitingSubtreeCancellation: nil Engine")
+	}
+	if plan == nil {
+		return errors.New("runtime.Engine.ApplyWaitingSubtreeCancellation: nil plan")
+	}
+	if plan.engine != e {
+		return errors.New("runtime.Engine.ApplyWaitingSubtreeCancellation: plan belongs to a different Engine")
+	}
+	root, ok := e.processes.get(plan.rootProcessID)
+	if !ok {
+		return processNotFoundError("apply waiting subtree cancellation", plan.rootProcessID)
+	}
+	if root.ParentID() != "" || root.depth != 0 {
+		return fmt.Errorf(
+			"runtime.Engine.ApplyWaitingSubtreeCancellation: process %q is not a process-tree root",
+			plan.rootProcessID,
+		)
 	}
 
 	ctx = normalizeContext(ctx)
-	releaseMutation, err := e.processMutations.acquire(ctx, rootProcessID)
+	releaseMutation, err := e.processMutations.acquire(ctx, plan.rootProcessID)
 	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.PrepareWaitingSubtreeCancellation: acquire process tree: %w", err)
+		return fmt.Errorf("runtime.Engine.ApplyWaitingSubtreeCancellation: acquire process tree: %w", err)
 	}
-	releaseOnFailure := true
+	releaseMutationOnFailure := true
 	defer func() {
-		if releaseOnFailure {
+		if releaseMutationOnFailure {
 			releaseMutation()
 		}
 	}()
-
 	if !e.processes.available(root) {
-		return nil, processNotFoundError("prepare waiting subtree cancellation", rootProcessID)
-	}
-	target, ok := e.processes.get(targetProcessID)
-	if !ok || !e.processes.available(target) || e.processTreeRootID(target) != rootProcessID {
-		return nil, processNotFoundError("prepare waiting subtree cancellation target", targetProcessID)
+		return processNotFoundError("apply waiting subtree cancellation", plan.rootProcessID)
 	}
 
 	claimed, err := e.claimSnapshotTree(root, make(map[string]struct{}))
 	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.PrepareWaitingSubtreeCancellation: %w", err)
+		return fmt.Errorf("runtime.Engine.ApplyWaitingSubtreeCancellation: %w", err)
 	}
 	releaseClaimsOnFailure := true
 	defer func() {
@@ -104,28 +148,34 @@ func (e *Engine) PrepareWaitingSubtreeCancellation(
 			releaseSnapshotTree(claimed)
 		}
 	}()
-
 	var snapshots []core.ProcessSnapshot
 	if err := captureSnapshotTree(claimed, &snapshots); err != nil {
-		return nil, fmt.Errorf("runtime.Engine.PrepareWaitingSubtreeCancellation: capture: %w", err)
+		return fmt.Errorf("runtime.Engine.ApplyWaitingSubtreeCancellation: capture: %w", err)
 	}
-	captured := core.ProcessSnapshotTree{RootID: rootProcessID, Snapshots: snapshots}
-	transformed, canceled, parentID, err := cancelWaitingSnapshotSubtree(captured, targetProcessID)
-	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.PrepareWaitingSubtreeCancellation: %w", err)
-	}
-	pending, err := collectPendingSuspensions(transformed)
-	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.PrepareWaitingSubtreeCancellation: collect pending suspensions: %w", err)
+	current := core.ProcessSnapshotTree{RootID: plan.rootProcessID, Snapshots: snapshots}
+	if !reflect.DeepEqual(current, plan.source) {
+		return fmt.Errorf(
+			"runtime.Engine.ApplyWaitingSubtreeCancellation: process tree %q changed after planning: %w",
+			plan.rootProcessID,
+			interaction.ErrSuspensionStale,
+		)
 	}
 
-	targetClaim := findClaimedSnapshotTree(claimed, targetProcessID)
+	transformed, _, parentID, err := cancelWaitingSnapshotSubtree(current, plan.targetProcessID)
+	if err != nil {
+		return fmt.Errorf("runtime.Engine.ApplyWaitingSubtreeCancellation: %w", err)
+	}
+	if !reflect.DeepEqual(transformed, plan.result) {
+		panic("runtime: waiting subtree cancellation plan produced a different result")
+	}
+
+	targetClaim := findClaimedSnapshotTree(claimed, plan.targetProcessID)
 	if targetClaim == nil {
-		return nil, fmt.Errorf("%w: target process %q is absent from claimed tree", core.ErrInvalidSnapshot, targetProcessID)
+		return fmt.Errorf("%w: target process %q is absent from claimed tree", core.ErrInvalidSnapshot, plan.targetProcessID)
 	}
 	targetProcesses := flattenClaimedProcesses(targetClaim)
 	if !e.processes.reserveProcesses(targetProcesses) {
-		return nil, fmt.Errorf("runtime.Engine.PrepareWaitingSubtreeCancellation: reserve target subtree: %w", ErrProcessActive)
+		return fmt.Errorf("runtime.Engine.ApplyWaitingSubtreeCancellation: reserve target subtree: %w", ErrProcessActive)
 	}
 	releaseReservationOnFailure := true
 	defer func() {
@@ -133,155 +183,68 @@ func (e *Engine) PrepareWaitingSubtreeCancellation(
 			e.processes.releaseProcesses(targetProcesses)
 		}
 	}()
-
 	parent, ok := e.processes.get(parentID)
 	if !ok || !e.processes.available(parent) {
-		return nil, fmt.Errorf("%w: target parent process %q is unavailable", core.ErrInvalidSnapshot, parentID)
+		return fmt.Errorf("%w: target parent process %q is unavailable", core.ErrInvalidSnapshot, parentID)
 	}
-	if !parent.budget.hasChild(target) {
-		return nil, fmt.Errorf("%w: target process %q is absent from parent budget ownership", core.ErrInvalidSnapshot, targetProcessID)
+	if !parent.budget.hasChild(targetClaim.process) {
+		return fmt.Errorf("%w: target process %q is absent from parent budget ownership", core.ErrInvalidSnapshot, plan.targetProcessID)
 	}
 	parentSnapshot, ok := snapshotInTree(transformed, parentID)
 	if !ok {
-		return nil, fmt.Errorf("%w: transformed parent process %q is missing", core.ErrInvalidSnapshot, parentID)
+		return fmt.Errorf("%w: transformed parent process %q is missing", core.ErrInvalidSnapshot, parentID)
 	}
 
-	prepared := &PreparedWaitingSubtreeCancellation{
-		engine:          e,
-		root:            claimed,
-		releaseMutation: releaseMutation,
-		target:          targetClaim,
-		targetProcesses: targetProcesses,
-		parent:          parent,
-		tree:            transformed,
-		pending:         clonePendingSuspensions(pending),
-		canceled:        slices.Clone(canceled),
-		parentRetired:   parentSnapshot.RetiredChildUsage,
-	}
-	releaseReservationOnFailure = false
-	releaseClaimsOnFailure = false
-	releaseOnFailure = false
-	return prepared, nil
-}
-
-// SnapshotTree returns the ownership-isolated replacement for the caller to
-// coordinate with its external state transition.
-func (p *PreparedWaitingSubtreeCancellation) SnapshotTree() core.ProcessSnapshotTree {
-	if p == nil {
-		return core.ProcessSnapshotTree{}
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return cloneProcessSnapshotTree(p.tree)
-}
-
-// PendingSuspensions returns the surviving external-input boundaries after the
-// prepared cancellation, in runtime execution order.
-func (p *PreparedWaitingSubtreeCancellation) PendingSuspensions() []PendingSuspension {
-	if p == nil {
-		return nil
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return clonePendingSuspensions(p.pending)
-}
-
-// CanceledProcessIDs returns the exact target subtree in deterministic
-// parent-before-child snapshot order.
-func (p *PreparedWaitingSubtreeCancellation) CanceledProcessIDs() []string {
-	if p == nil {
-		return nil
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return slices.Clone(p.canceled)
-}
-
-// Commit applies the already-validated in-memory checkpoint replacement,
-// detaches the canceled subtree, releases tree ownership, and then publishes
-// ProcessKilled for processes that became terminal. Calling Commit again is
-// idempotent. Calling it after Abort fails because a replacement must not be
-// accepted after runtime ownership was relinquished.
-func (p *PreparedWaitingSubtreeCancellation) Commit(ctx context.Context) error {
-	if p == nil {
-		return errors.New("runtime.PreparedWaitingSubtreeCancellation.Commit: nil receiver")
-	}
-	p.mu.Lock()
-	switch p.settlement {
-	case preparedCancellationCommitted:
-		p.mu.Unlock()
-		return nil
-	case preparedCancellationAborted:
-		p.mu.Unlock()
-		return errors.New("runtime.PreparedWaitingSubtreeCancellation.Commit: cancellation was aborted")
-	}
-
-	byID := make(map[string]core.ProcessSnapshot, len(p.tree.Snapshots))
-	for _, snapshot := range p.tree.Snapshots {
+	byID := make(map[string]core.ProcessSnapshot, len(transformed.Snapshots))
+	for _, snapshot := range transformed.Snapshots {
 		byID[snapshot.ID] = snapshot
 	}
-	canceledSet := make(map[string]struct{}, len(p.targetProcesses))
-	for _, process := range p.targetProcesses {
+	canceledSet := make(map[string]struct{}, len(targetProcesses))
+	for _, process := range targetProcesses {
 		canceledSet[process.ID()] = struct{}{}
 	}
-	for _, process := range flattenClaimedProcesses(p.root) {
+	for _, process := range flattenClaimedProcesses(claimed) {
 		if _, canceled := canceledSet[process.ID()]; canceled {
 			continue
 		}
 		snapshot, ok := byID[process.ID()]
 		if !ok {
-			panic("runtime: prepared waiting subtree cancellation lost a surviving snapshot")
+			panic("runtime: waiting subtree cancellation lost a surviving snapshot")
 		}
 		if snapshot.Status == core.StatusWaiting {
 			if !process.state.replaceClaimedSuspension(snapshot.Suspension) {
-				panic("runtime: prepared waiting subtree cancellation lost checkpoint ownership")
+				panic("runtime: waiting subtree cancellation lost checkpoint ownership")
 			}
-			checkpoint, err := nestedChildrenFromSuspension(snapshot.Suspension)
-			if err != nil {
-				panic(fmt.Sprintf("runtime: prepared waiting subtree cancellation contains invalid suspension: %v", err))
+			checkpoint, checkpointErr := nestedChildrenFromSuspension(snapshot.Suspension)
+			if checkpointErr != nil {
+				panic(fmt.Sprintf("runtime: waiting subtree cancellation contains invalid suspension: %v", checkpointErr))
 			}
 			process.commitNestedSuspension(checkpoint)
 		}
 	}
-	p.parent.budget.replaceRetiredChildUsage(p.parentRetired)
+	parent.budget.replaceRetiredChildUsage(parentSnapshot.RetiredChildUsage)
 
-	_, killed := p.engine.killSubtreeOwned(p.target.process)
-	releaseClaimedProcesses(p.targetProcesses)
-	if !p.engine.processes.unregisterReservedTree(p.targetProcesses) {
-		panic("runtime: prepared waiting subtree cancellation target changed before commit")
+	_, killed := e.killSubtreeOwned(targetClaim.process)
+	releaseClaimedProcesses(targetProcesses)
+	if !e.processes.unregisterReservedTree(targetProcesses) {
+		panic("runtime: waiting subtree cancellation target changed while applying")
 	}
-	if !p.parent.budget.removeChild(p.target.process) {
-		panic("runtime: prepared waiting subtree cancellation lost parent budget ownership")
+	if !parent.budget.removeChild(targetClaim.process) {
+		panic("runtime: waiting subtree cancellation lost parent budget ownership")
 	}
-	releaseProcessDeployments(p.targetProcesses)
-	releaseSurvivingClaims(p.root, canceledSet)
-	p.releaseMutation()
-	p.settlement = preparedCancellationCommitted
-	p.mu.Unlock()
+	releaseProcessDeployments(targetProcesses)
+	releaseSurvivingClaims(claimed, canceledSet)
+	releaseMutation()
+	releaseReservationOnFailure = false
+	releaseClaimsOnFailure = false
+	releaseMutationOnFailure = false
 
 	publishKilledProcesses(
 		normalizeContext(ctx),
 		killed,
-		"waiting delegated subtree cancellation committed",
+		"waiting delegated subtree canceled",
 	)
 	return nil
-}
-
-// Abort releases all runtime ownership without changing live state. It is safe
-// to defer Abort immediately after Prepare; Abort after Commit is a no-op.
-func (p *PreparedWaitingSubtreeCancellation) Abort() {
-	if p == nil {
-		return
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.settlement != preparedCancellationOpen {
-		return
-	}
-	p.engine.processes.releaseProcesses(p.targetProcesses)
-	releaseSnapshotTree(p.root)
-	p.releaseMutation()
-	p.settlement = preparedCancellationAborted
 }
 
 func cancelWaitingSnapshotSubtree(

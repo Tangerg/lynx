@@ -149,11 +149,14 @@ Agent snapshot，而是与 process tree 一起由 App `ProcessStore` 原子提�
 仍只有一个 root-owned Pending aggregate；其中可以包含多个 source-aware direct
 Interrupt，但只有一个 claim owner、一个 transaction 和一条 terminal 路径。
 
-Interrupted tree 中取消 child 时，application 先在 root/worktree admission 内冻结
-cancel plan，再通过 Agent adapter prepare execution-only subtree replacement。App 的纯
-transformation 随后一次确定 canceled postorder、parent spawning Item、reduced Pending /
-private tree continuation 与 replacement checkpoint；runsegment 在一个 transaction 中
-提交这些 durable facts。失败则 Abort prepared mutation，成功后才 Commit live runtime。
+Interrupted tree 中取消 child 时，application 先在 root/worktree admission 内取得自己的
+cancel claim，再通过 Agent adapter 规划 execution-only subtree transition。Agent plan 返回前
+已经释放全部 Runtime ownership，不在 App transaction 期间持锁。App 的纯 transformation
+随后一次确定 canceled postorder、parent spawning Item、reduced Pending / private tree
+continuation 与 resulting process state；runsegment 在一个 transaction 中提交这些 durable
+facts。失败只释放 App claim，成功后才 Apply live Agent transition。
+若 durable commit 已成功但 live Apply 失败，App 立即把 root Run tree 以 `run_lost` fail closed，
+删除已失效的 durable process state 并 teardown 旧 runtime tree；该补偿/恢复政策完全属于 App。
 若仍有外部 Interrupt，整树继续静止；若移除了最后一个外部边界，同一 transaction 打开
 surviving Runs 的新 Segment，Agent 通过 Continue 推进 ready checkpoint，不构造用户
 Resume。Agent 始终不知道 BuildID、ProcessStore、CAS 或 SQLite transaction。
@@ -162,11 +165,14 @@ Resume。Agent 始终不知道 BuildID、ProcessStore、CAS 或 SQLite transacti
 
 Process checkpoint 的执行状态、Agent 声明 compatibility 和 nested relation 由
 Agent framework 解释；Agent 不拥有 backend、宿主 build identity 或应用计费明细。
-`adapter/agentexec` 在 Waiting 段边界调用 `SnapshotTree`，再通过消费侧
-`ProcessStore.SaveTree` 提交完整树、App usage snapshot 和 App BuildID。启动恢复先由
-`ProcessStore.LoadTree` 加载并在 App 校验 BuildID 与两份 usage 聚合一致性，再调用 Agent
-的 `ValidateRestoreTree` / `ValidateResumableSnapshot` / `RestoreTree`。SQLite 的提交时间、
-替换、删除、产品 subtask lineage 和事务全部留在 App。
+`adapter/agentexec` 在 Waiting 段边界调用 `SnapshotTree`，由该防腐层把每个 Agent snapshot
+编码为 App-owned `ProcessTreeState`：App 只认识 process identity、topology、started-at 和
+opaque payload。`ProcessStore.SaveTree` 提交该 envelope、App usage snapshot 和 App BuildID；
+SQLite 只把 payload 写入 `process_states.payload BLOB`，不导入 Agent SDK，也不解析内容。
+启动恢复先由 `ProcessStore.LoadTree` 加载并在
+App 校验 BuildID，再由 agentexec 解码、校验两份 usage 聚合，最后调用 Agent 的
+`ValidateRestoreTree` / `ValidateResumableSnapshot` / `RestoreTree`。SQLite 的提交时间、替换、
+删除、产品 subtask lineage 和事务全部留在 App。
 
 Waiting snapshot 可以处于未回答或已回答待继续阶段。Agent 只校验和重建这两种 execution
 state；App 决定是否把 response、请求幂等记录和 checkpoint 放入同一事务。恢复后未回答

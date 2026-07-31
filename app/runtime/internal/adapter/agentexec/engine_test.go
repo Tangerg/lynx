@@ -998,7 +998,11 @@ func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 	if checkpoint.BuildID != testBuildID {
 		t.Fatalf("checkpoint build = %q, want %q", checkpoint.BuildID, testBuildID)
 	}
-	snapshot, ok := tree.Root()
+	frameworkTree, err := decodeProcessTreeState(tree)
+	if err != nil {
+		t.Fatalf("decode snapshot: %v", err)
+	}
+	snapshot, ok := frameworkTree.Root()
 	if !ok {
 		t.Fatalf("snapshot tree has no root %q: %+v", process.ID(), tree)
 	}

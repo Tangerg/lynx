@@ -47,11 +47,21 @@ func bootstrapWaitingSnapshot(id string) core.ProcessSnapshot {
 	}
 }
 
-func bootstrapSnapshotTree(rootID string, snapshots ...core.ProcessSnapshot) core.ProcessSnapshotTree {
-	return core.ProcessSnapshotTree{
-		RootID:    rootID,
-		Snapshots: snapshots,
+func bootstrapSnapshotTree(rootID string, snapshots ...core.ProcessSnapshot) execution.ProcessTreeState {
+	processes := make([]execution.ProcessState, len(snapshots))
+	for index, snapshot := range snapshots {
+		payload, err := json.Marshal(snapshot)
+		if err != nil {
+			panic(err)
+		}
+		processes[index] = execution.ProcessState{
+			ID:        snapshot.ID,
+			ParentID:  snapshot.ParentID,
+			StartedAt: snapshot.StartedAt,
+			Payload:   payload,
+		}
 	}
+	return execution.ProcessTreeState{RootID: rootID, Processes: processes}
 }
 
 func bootstrapCheckpoint(sessionID string, usage accounting.Snapshot) execution.ProcessCheckpoint {
@@ -233,10 +243,10 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived cancel: %+v", open)
 	}
-	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
+	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessStateNotFound) {
 		t.Fatalf("process snapshot after cancel = %v, want not found", err)
 	}
-	if _, _, err := ss.processes.LoadTree(ctx, child.ID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
+	if _, _, err := ss.processes.LoadTree(ctx, child.ID); !errors.Is(err, execution.ErrProcessStateNotFound) {
 		t.Fatalf("child process snapshot after cancel = %v, want not found", err)
 	}
 	// The admission row is terminal, so the session can start a fresh run.
@@ -278,10 +288,10 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived run_lost: %+v", open)
 	}
-	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
+	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessStateNotFound) {
 		t.Fatalf("process snapshot after run_lost = %v, want not found", err)
 	}
-	if _, _, err := ss.processes.LoadTree(ctx, child.ID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
+	if _, _, err := ss.processes.LoadTree(ctx, child.ID); !errors.Is(err, execution.ErrProcessStateNotFound) {
 		t.Fatalf("child process snapshot after run_lost = %v, want not found", err)
 	}
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
@@ -323,7 +333,7 @@ func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("dropped run's interrupt survived rollback: %+v", open)
 	}
-	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
+	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessStateNotFound) {
 		t.Fatalf("process snapshot after rollback = %v, want not found", err)
 	}
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
@@ -485,7 +495,7 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived delete: %+v", open)
 	}
-	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
+	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessStateNotFound) {
 		t.Fatalf("process snapshot after delete = %v, want not found", err)
 	}
 	if _, err := ss.sessions.Get(ctx, "ses_A"); !errors.Is(err, session.ErrNotFound) {

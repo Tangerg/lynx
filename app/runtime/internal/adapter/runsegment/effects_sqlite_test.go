@@ -471,7 +471,7 @@ func TestCommitTreeBarrierProducesBootResumableTriplet(t *testing.T) {
 		RootID:    snapshot.ID,
 		Snapshots: []core.ProcessSnapshot{snapshot},
 	}
-	if err := sqlite.NewProcessStore(db).SaveTree(ctx, tree, execution.ProcessCheckpoint{
+	if err := sqlite.NewProcessStore(db).SaveTree(ctx, persistedProcessTree(t, tree), execution.ProcessCheckpoint{
 		BuildID: checkpointBuildID,
 		Scope:   execution.TurnScope{SessionID: "ses_1"},
 		Usage:   accounting.Snapshot{},
@@ -522,7 +522,7 @@ func TestCommitTreeBarrierProducesBootResumableTriplet(t *testing.T) {
 
 type sqliteProcessCheckpointWrite struct {
 	store      *sqlite.ProcessStore
-	tree       core.ProcessSnapshotTree
+	tree       execution.ProcessTreeState
 	checkpoint execution.ProcessCheckpoint
 }
 
@@ -574,10 +574,11 @@ func TestCommitWaitingSubtreeCancellationCommitsCompleteWriteSet(t *testing.T) {
 	assertStoredRunState(t, fixture.db, fixture.childRun.ID, "terminal")
 	assertStoredRunState(t, fixture.db, fixture.grandchildRun.ID, "terminal")
 	assertStoredRunState(t, fixture.db, fixture.rootRun.ID, "running")
-	tree, checkpoint, err := fixture.processes.LoadTree(fixture.ctx, "process_root")
+	storedTree, checkpoint, err := fixture.processes.LoadTree(fixture.ctx, "process_root")
 	if err != nil {
 		t.Fatalf("load replacement process tree: %v", err)
 	}
+	tree := restoredProcessTree(t, storedTree)
 	if len(tree.Snapshots) != 1 ||
 		tree.Snapshots[0].Suspension == nil ||
 		string(tree.Snapshots[0].Suspension.Prompt) != `"after-cancel"` ||
@@ -606,10 +607,11 @@ func TestCommitWaitingSubtreeCancellationRollsBackCheckpointAndApplicationFacts(
 	assertStoredRunState(t, fixture.db, fixture.childRun.ID, "interrupted")
 	assertStoredRunState(t, fixture.db, fixture.grandchildRun.ID, "interrupted")
 	assertStoredRunState(t, fixture.db, fixture.rootRun.ID, "interrupted")
-	tree, checkpoint, err := fixture.processes.LoadTree(fixture.ctx, "process_root")
+	storedTree, checkpoint, err := fixture.processes.LoadTree(fixture.ctx, "process_root")
 	if err != nil {
 		t.Fatalf("load rolled-back process tree: %v", err)
 	}
+	tree := restoredProcessTree(t, storedTree)
 	rootSnapshot, found := processSnapshotByID(tree, "process_root")
 	if len(tree.Snapshots) != 3 ||
 		!found ||
@@ -935,7 +937,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 			Calls:      1,
 		}}},
 	}
-	if err := processStore.SaveTree(ctx, originalTree, originalCheckpoint); err != nil {
+	if err := processStore.SaveTree(ctx, persistedProcessTree(t, originalTree), originalCheckpoint); err != nil {
 		t.Fatalf("seed process tree: %v", err)
 	}
 	replacementRoot := originalRoot
@@ -1064,7 +1066,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 			RemainingPending: remainingPending,
 			Checkpoint: sqliteProcessCheckpointWrite{
 				store:      processStore,
-				tree:       replacementTree,
+				tree:       persistedProcessTree(t, replacementTree),
 				checkpoint: replacementCheckpoint,
 			},
 			TerminalRuns:  []transcript.Run{terminalGrandchild, terminalChild},
@@ -1087,6 +1089,43 @@ func processSnapshotByID(
 		}
 	}
 	return core.ProcessSnapshot{}, false
+}
+
+func persistedProcessTree(t *testing.T, tree core.ProcessSnapshotTree) execution.ProcessTreeState {
+	t.Helper()
+	processes := make([]execution.ProcessState, len(tree.Snapshots))
+	for index, snapshot := range tree.Snapshots {
+		payload, err := json.Marshal(snapshot)
+		if err != nil {
+			t.Fatalf("encode process snapshot %q: %v", snapshot.ID, err)
+		}
+		processes[index] = execution.ProcessState{
+			ID:        snapshot.ID,
+			ParentID:  snapshot.ParentID,
+			StartedAt: snapshot.StartedAt,
+			Payload:   payload,
+		}
+	}
+	state := execution.ProcessTreeState{RootID: tree.RootID, Processes: processes}
+	if err := state.Validate(); err != nil {
+		t.Fatalf("encode process tree state: %v", err)
+	}
+	return state
+}
+
+func restoredProcessTree(t *testing.T, state execution.ProcessTreeState) core.ProcessSnapshotTree {
+	t.Helper()
+	snapshots := make([]core.ProcessSnapshot, len(state.Processes))
+	for index, process := range state.Processes {
+		if err := json.Unmarshal(process.Payload, &snapshots[index]); err != nil {
+			t.Fatalf("decode process state %q: %v", process.ID, err)
+		}
+	}
+	tree := core.ProcessSnapshotTree{RootID: state.RootID, Snapshots: snapshots}
+	if err := tree.Validate(); err != nil {
+		t.Fatalf("decode process tree state: %v", err)
+	}
+	return tree
 }
 
 type sqliteOpeningStores struct {

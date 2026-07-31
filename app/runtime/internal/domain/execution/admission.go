@@ -18,7 +18,7 @@ var ErrSessionBusy = errors.New("execution: session has a non-terminal root run"
 // root claims the Session's one non-terminal tree slot; a child carries all
 // lineage edges and shares that claim. Streamed segments, usage, and terminal
 // Outcome accrue afterward. Executor recovery handles do not belong on the Run
-// row; a parked interrupt records the process snapshot id when it is known.
+// row; a parked interrupt records the executor process ID when it is known.
 type RunDraft struct {
 	RunID           string
 	SessionID       string

@@ -16,14 +16,14 @@ import (
 // every surviving child into a false orphan after restart.
 //
 // An impossible partial application write is corruption and fails startup. A
-// missing or executor-incompatible process snapshot is an external-resource
+// missing or executor-incompatible process state is an external-resource
 // loss and returns resumable=false so reconciliation can recover the whole tree
 // as run_lost.
 func (s *RunStore) validateParkedTree(
 	ctx context.Context,
 	tree nonTerminalRunTree,
 	pending interrupts.Pending,
-	validateSnapshot ProcessSnapshotValidator,
+	validateProcess ResumableProcessValidator,
 ) (bool, error) {
 	if err := pending.Validate(); err != nil {
 		return false, fmt.Errorf(
@@ -101,10 +101,10 @@ func (s *RunStore) validateParkedTree(
 	}
 
 	rootContinuation, _ := pending.RootContinuation()
-	return s.hasResumableProcessSnapshot(
+	return s.hasResumableProcess(
 		ctx,
 		rootContinuation.ProcessID,
-		validateSnapshot,
+		validateProcess,
 	)
 }
 

@@ -344,10 +344,11 @@ func assertWaitingCancellationUnchanged(
 		assertStoredRunState(t, fixture.db, continuation.RunID, "interrupted")
 	}
 
-	tree, checkpoint, err := fixture.processes.LoadTree(fixture.ctx, fixture.originalTree.RootID)
+	storedTree, checkpoint, err := fixture.processes.LoadTree(fixture.ctx, fixture.originalTree.RootID)
 	if err != nil {
 		t.Fatalf("load process tree after rollback: %v", err)
 	}
+	tree := restoredProcessTree(t, storedTree)
 	if !reflect.DeepEqual(
 		normalizedProcessTree(tree),
 		normalizedProcessTree(fixture.originalTree),

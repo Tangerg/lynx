@@ -3,7 +3,6 @@ package agentexec
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -41,13 +40,13 @@ type MemorySearcher interface {
 	Search(ctx context.Context, scope agentmemory.Scope, project, query string, topK int) ([]agentmemory.Item, error)
 }
 
-// ProcessStore is the execution adapter's durable checkpoint boundary.
-// Storage atomically owns the process tree, application usage projection,
-// build compatibility metadata, replacement, and deletion semantics; the
-// Agent runtime knows only how to capture and rebuild the supplied tree value.
+// ProcessStore is the execution adapter's durable checkpoint boundary. Storage
+// atomically owns the App envelope, usage projection, build compatibility
+// metadata, replacement, and deletion semantics. State payloads remain opaque;
+// only this adapter translates them to and from Agent framework snapshots.
 type ProcessStore interface {
-	SaveTree(ctx context.Context, tree core.ProcessSnapshotTree, checkpoint execution.ProcessCheckpoint) error
-	LoadTree(ctx context.Context, rootID string) (core.ProcessSnapshotTree, execution.ProcessCheckpoint, error)
+	SaveTree(ctx context.Context, tree execution.ProcessTreeState, checkpoint execution.ProcessCheckpoint) error
+	LoadTree(ctx context.Context, rootID string) (execution.ProcessTreeState, execution.ProcessCheckpoint, error)
 	DeleteTrees(ctx context.Context, rootIDs []string) error
 }
 

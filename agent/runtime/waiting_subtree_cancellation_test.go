@@ -17,7 +17,7 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-func TestPreparedWaitingSubtreeCancellationAbortsWithoutSideEffects(t *testing.T) {
+func TestWaitingSubtreeCancellationPlanHasNoSideEffects(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	parent, _ := deployNestedRestoreAgents(t, engine)
 	root := startWaitingNestedRestoreTree(t, engine, parent)
@@ -27,14 +27,14 @@ func TestPreparedWaitingSubtreeCancellationAbortsWithoutSideEffects(t *testing.T
 	}
 	childID := onlyChildSnapshot(t, before, root.ID()).ID
 
-	prepared, err := engine.PrepareWaitingSubtreeCancellation(t.Context(), root.ID(), childID)
+	plan, err := engine.PlanWaitingSubtreeCancellation(t.Context(), root.ID(), childID)
 	if err != nil {
-		t.Fatalf("PrepareWaitingSubtreeCancellation: %v", err)
+		t.Fatalf("PlanWaitingSubtreeCancellation: %v", err)
 	}
-	if got := prepared.CanceledProcessIDs(); len(got) != 1 || got[0] != childID {
+	if got := plan.CanceledProcessIDs(); len(got) != 1 || got[0] != childID {
 		t.Fatalf("canceled process IDs = %v, want [%s]", got, childID)
 	}
-	replacement := prepared.SnapshotTree()
+	replacement := plan.ResultingTree()
 	if len(replacement.Snapshots) != 1 {
 		t.Fatalf("replacement snapshot count = %d, want 1", len(replacement.Snapshots))
 	}
@@ -51,7 +51,7 @@ func TestPreparedWaitingSubtreeCancellationAbortsWithoutSideEffects(t *testing.T
 			childSnapshot.OwnUsage,
 		)
 	}
-	if pending := prepared.PendingSuspensions(); len(pending) != 0 {
+	if pending := plan.PendingSuspensions(); len(pending) != 0 {
 		t.Fatalf("replacement pending suspensions = %#v, want none", pending)
 	}
 	beforeUsage, err := before.Usage()
@@ -66,42 +66,45 @@ func TestPreparedWaitingSubtreeCancellationAbortsWithoutSideEffects(t *testing.T
 		t.Fatalf("replacement usage = %#v, want preserved %#v", replacementUsage, beforeUsage)
 	}
 
-	// Returned protocol values are copies, not aliases into the prepared
-	// transaction.
+	// Returned protocol values are copies, not aliases into the plan.
 	replacement.Snapshots[0].Suspension.FrameworkState[0] = '['
-	canceled := prepared.CanceledProcessIDs()
+	canceled := plan.CanceledProcessIDs()
 	canceled[0] = "mutated"
-	if again := prepared.SnapshotTree(); again.Snapshots[0].Suspension.FrameworkState[0] == '[' {
-		t.Fatal("SnapshotTree returned mutable prepared state")
+	if again := plan.ResultingTree(); again.Snapshots[0].Suspension.FrameworkState[0] == '[' {
+		t.Fatal("ResultingTree returned mutable plan state")
 	}
-	if again := prepared.CanceledProcessIDs(); again[0] != childID {
+	if again := plan.CanceledProcessIDs(); again[0] != childID {
 		t.Fatal("CanceledProcessIDs returned mutable prepared state")
 	}
 
-	prepared.Abort()
-	prepared.Abort()
 	after, err := engine.SnapshotTree(t.Context(), root.ID())
 	if err != nil {
-		t.Fatalf("SnapshotTree after Abort: %v", err)
+		t.Fatalf("SnapshotTree after planning: %v", err)
 	}
 	if len(after.Snapshots) != len(before.Snapshots) {
-		t.Fatalf("snapshot count after Abort = %d, want %d", len(after.Snapshots), len(before.Snapshots))
+		t.Fatalf("snapshot count after planning = %d, want %d", len(after.Snapshots), len(before.Snapshots))
 	}
 	if _, ok := engine.Process(childID); !ok {
 		t.Fatalf("child %q disappeared after Abort", childID)
 	}
 	if err := engine.Resume(t.Context(), root.ID(), "nested-approval", true); err != nil {
-		t.Fatalf("Resume after Abort: %v", err)
+		t.Fatalf("Resume after planning: %v", err)
+	}
+	if err := engine.ApplyWaitingSubtreeCancellation(t.Context(), plan); !errors.Is(err, interaction.ErrSuspensionStale) {
+		t.Fatalf("Apply changed plan error = %v, want ErrSuspensionStale", err)
+	}
+	if _, ok := engine.Process(childID); !ok {
+		t.Fatalf("stale plan removed child %q", childID)
 	}
 	if err := engine.Continue(t.Context(), root.ID()); err != nil {
-		t.Fatalf("Continue after Abort: %v", err)
+		t.Fatalf("Continue after planning: %v", err)
 	}
 	if root.Status() != core.StatusCompleted {
 		t.Fatalf("root status after normal continuation = %s, want completed", root.Status())
 	}
 }
 
-func TestPreparedWaitingSubtreeCancellationCommitsPortableCheckpoint(t *testing.T) {
+func TestWaitingSubtreeCancellationPlanAppliesPortableCheckpoint(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	parent, parentRef := deployNestedRestoreAgents(t, engine)
 	root := startWaitingNestedRestoreTree(t, engine, parent)
@@ -112,24 +115,23 @@ func TestPreparedWaitingSubtreeCancellationCommitsPortableCheckpoint(t *testing.
 	childID := onlyChildSnapshot(t, before, root.ID()).ID
 	beforeUsage := root.Usage()
 
-	prepared, err := engine.PrepareWaitingSubtreeCancellation(t.Context(), root.ID(), childID)
+	plan, err := engine.PlanWaitingSubtreeCancellation(t.Context(), root.ID(), childID)
 	if err != nil {
-		t.Fatalf("PrepareWaitingSubtreeCancellation: %v", err)
+		t.Fatalf("PlanWaitingSubtreeCancellation: %v", err)
 	}
-	portable := prepared.SnapshotTree()
-	if err := prepared.Commit(t.Context()); err != nil {
-		t.Fatalf("Commit: %v", err)
+	portable := plan.ResultingTree()
+	if err := engine.ApplyWaitingSubtreeCancellation(t.Context(), plan); err != nil {
+		t.Fatalf("ApplyWaitingSubtreeCancellation: %v", err)
 	}
-	if err := prepared.Commit(t.Context()); err != nil {
-		t.Fatalf("second Commit: %v", err)
+	if err := engine.ApplyWaitingSubtreeCancellation(t.Context(), plan); err == nil {
+		t.Fatal("second ApplyWaitingSubtreeCancellation unexpectedly succeeded")
 	}
-	prepared.Abort()
 
 	if _, ok := engine.Process(childID); ok {
 		t.Fatalf("canceled child %q remains registered", childID)
 	}
 	if root.Status() != core.StatusWaiting {
-		t.Fatalf("root status after Commit = %s, want waiting", root.Status())
+		t.Fatalf("root status after apply = %s, want waiting", root.Status())
 	}
 	if got := root.Usage(); got != beforeUsage {
 		t.Fatalf("root usage after child detach = %#v, want %#v", got, beforeUsage)
@@ -168,7 +170,7 @@ func TestPreparedWaitingSubtreeCancellationCommitsPortableCheckpoint(t *testing.
 	}
 }
 
-func TestPreparedWaitingSubtreeCancellationSettlesManagedToolCallInOrder(t *testing.T) {
+func TestWaitingSubtreeCancellationPlanSettlesManagedToolCallInOrder(t *testing.T) {
 	for _, test := range []struct {
 		name        string
 		targetIndex int
@@ -206,21 +208,21 @@ func TestPreparedWaitingSubtreeCancellationSettlesManagedToolCallInOrder(t *test
 			target := pending[test.targetIndex]
 			survivor := pending[1-test.targetIndex]
 
-			prepared, err := engine.PrepareWaitingSubtreeCancellation(
+			plan, err := engine.PlanWaitingSubtreeCancellation(
 				t.Context(),
 				root.ID(),
 				target.ProcessID,
 			)
 			if err != nil {
-				t.Fatalf("PrepareWaitingSubtreeCancellation: %v", err)
+				t.Fatalf("PlanWaitingSubtreeCancellation: %v", err)
 			}
-			if got := prepared.PendingSuspensions(); len(got) != 1 ||
+			if got := plan.PendingSuspensions(); len(got) != 1 ||
 				got[0].ProcessID != survivor.ProcessID ||
 				got[0].SuspensionID != survivor.SuspensionID {
-				t.Fatalf("prepared pending suspensions = %#v, want survivor %#v", got, survivor)
+				t.Fatalf("planned pending suspensions = %#v, want survivor %#v", got, survivor)
 			}
-			if err := prepared.Commit(t.Context()); err != nil {
-				t.Fatalf("Commit: %v", err)
+			if err := engine.ApplyWaitingSubtreeCancellation(t.Context(), plan); err != nil {
+				t.Fatalf("ApplyWaitingSubtreeCancellation: %v", err)
 			}
 
 			if test.targetIndex == 0 {
@@ -266,7 +268,7 @@ func TestPreparedWaitingSubtreeCancellationSettlesManagedToolCallInOrder(t *test
 	}
 }
 
-func TestPreparedWaitingSubtreeCancellationPropagatesReadinessToManagedAncestor(t *testing.T) {
+func TestWaitingSubtreeCancellationPlanPropagatesReadinessToManagedAncestor(t *testing.T) {
 	model := &nestedWaitingCancellationModel{}
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 
@@ -357,19 +359,19 @@ func TestPreparedWaitingSubtreeCancellationPropagatesReadinessToManagedAncestor(
 	}
 	leafProcessID := pending[0].ProcessID
 
-	prepared, err := engine.PrepareWaitingSubtreeCancellation(
+	plan, err := engine.PlanWaitingSubtreeCancellation(
 		t.Context(),
 		root.ID(),
 		leafProcessID,
 	)
 	if err != nil {
-		t.Fatalf("PrepareWaitingSubtreeCancellation: %v", err)
+		t.Fatalf("PlanWaitingSubtreeCancellation: %v", err)
 	}
-	if pending := prepared.PendingSuspensions(); len(pending) != 0 {
-		t.Fatalf("prepared pending suspensions = %#v, want none", pending)
+	if pending := plan.PendingSuspensions(); len(pending) != 0 {
+		t.Fatalf("planned pending suspensions = %#v, want none", pending)
 	}
-	if err := prepared.Commit(t.Context()); err != nil {
-		t.Fatalf("Commit: %v", err)
+	if err := engine.ApplyWaitingSubtreeCancellation(t.Context(), plan); err != nil {
+		t.Fatalf("ApplyWaitingSubtreeCancellation: %v", err)
 	}
 	if err := engine.Continue(t.Context(), root.ID()); err != nil {
 		t.Fatalf("Continue framework-ready ancestor chain: %v", err)

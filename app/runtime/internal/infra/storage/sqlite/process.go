@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -29,10 +28,10 @@ func NewProcessStore(db *sql.DB) *ProcessStore {
 	return &ProcessStore{db: db}
 }
 
-type encodedProcessSnapshot struct {
+type storedProcessState struct {
 	id        string
 	parentID  string
-	data      []byte
+	payload   []byte
 	startedAt int64
 }
 
@@ -75,7 +74,7 @@ type processModelUsageWire struct {
 // lineage commit atomically.
 func (s *ProcessStore) SaveTree(
 	ctx context.Context,
-	tree core.ProcessSnapshotTree,
+	tree execution.ProcessTreeState,
 	checkpoint execution.ProcessCheckpoint,
 ) error {
 	if err := tree.Validate(); err != nil {
@@ -92,23 +91,19 @@ func (s *ProcessStore) SaveTree(
 	if err != nil {
 		return fmt.Errorf("sqlite: encode process tree usage: %w", err)
 	}
-	encoded := make([]encodedProcessSnapshot, len(tree.Snapshots))
-	for index, snapshot := range tree.Snapshots {
-		data, err := json.Marshal(snapshot)
-		if err != nil {
-			return fmt.Errorf("sqlite: encode process snapshots[%d]: %w", index, err)
-		}
-		encoded[index] = encodedProcessSnapshot{
-			id:        snapshot.ID,
-			parentID:  snapshot.ParentID,
-			data:      data,
-			startedAt: snapshot.StartedAt.UnixNano(),
+	states := make([]storedProcessState, len(tree.Processes))
+	for index, process := range tree.Processes {
+		states[index] = storedProcessState{
+			id:        process.ID,
+			parentID:  process.ParentID,
+			payload:   append([]byte(nil), process.Payload...),
+			startedAt: process.StartedAt.UnixNano(),
 		}
 	}
 	// Process ID is a total order, which is all this needs: rows carry no
 	// referential constraint, so the sort exists to make one concurrent capture
 	// produce one byte-identical write sequence.
-	slices.SortFunc(encoded, func(left, right encodedProcessSnapshot) int {
+	slices.SortFunc(states, func(left, right storedProcessState) int {
 		return cmp.Compare(left.id, right.id)
 	})
 
@@ -117,28 +112,29 @@ func (s *ProcessStore) SaveTree(
 		if err := s.deleteTree(ctx, tree.RootID); err != nil {
 			return err
 		}
-		for index, snapshot := range encoded {
+		for index, process := range states {
 			var policyData, usageData string
-			if snapshot.id == tree.RootID {
+			if process.id == tree.RootID {
 				policyData = string(encodedPolicy)
 				usageData = string(encodedUsage)
 			}
 			if _, err := conn(ctx, s.db).ExecContext(ctx,
-				`INSERT INTO process_snapshots(id, parent_id, build_id, snapshot, policy, usage, committed_at)
-				 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-				snapshot.id,
-				snapshot.parentID,
+				`INSERT INTO process_states(id, parent_id, started_at, build_id, payload, policy, usage, committed_at)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+				process.id,
+				process.parentID,
+				process.startedAt,
 				checkpoint.BuildID,
-				string(snapshot.data),
+				process.payload,
 				policyData,
 				usageData,
 				committedAt,
 			); err != nil {
-				return fmt.Errorf("sqlite: save process snapshots[%d] %q: %w", index, snapshot.id, err)
+				return fmt.Errorf("sqlite: save process states[%d] %q: %w", index, process.id, err)
 			}
 		}
 
-		if checkpoint.Scope.SessionID == "" || len(encoded) == 1 {
+		if checkpoint.Scope.SessionID == "" || len(states) == 1 {
 			return nil
 		}
 
@@ -146,21 +142,21 @@ func (s *ProcessStore) SaveTree(
 		if _, err := sessions.Get(ctx, checkpoint.Scope.SessionID); err != nil {
 			return fmt.Errorf("sqlite: save process lineage: session %q: %w", checkpoint.Scope.SessionID, err)
 		}
-		for _, snapshot := range encoded {
-			if snapshot.id == tree.RootID {
+		for _, process := range states {
+			if process.id == tree.RootID {
 				continue
 			}
-			parentID := snapshot.parentID
+			parentID := process.parentID
 			if parentID == tree.RootID {
 				parentID = checkpoint.Scope.SessionID
 			}
 			if _, err := sessions.SaveSubtask(ctx, session.Subtask{
-				ID:        snapshot.id,
+				ID:        process.id,
 				ParentID:  parentID,
-				StartedAt: time.Unix(0, snapshot.startedAt).UTC(),
+				StartedAt: time.Unix(0, process.startedAt).UTC(),
 				UpdatedAt: time.Unix(0, committedAt).UTC(),
 			}); err != nil {
-				return fmt.Errorf("sqlite: save process subtask %q: %w", snapshot.id, err)
+				return fmt.Errorf("sqlite: save process subtask %q: %w", process.id, err)
 			}
 		}
 		return nil
@@ -169,99 +165,99 @@ func (s *ProcessStore) SaveTree(
 
 // LoadTree returns the complete durable subtree and its application-owned
 // checkpoint metadata from one committed tree version.
-func (s *ProcessStore) LoadTree(ctx context.Context, rootID string) (core.ProcessSnapshotTree, execution.ProcessCheckpoint, error) {
+func (s *ProcessStore) LoadTree(ctx context.Context, rootID string) (execution.ProcessTreeState, execution.ProcessCheckpoint, error) {
 	if strings.TrimSpace(rootID) == "" || strings.TrimSpace(rootID) != rootID {
-		return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, errors.New("sqlite: load process tree: invalid root ID")
+		return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, errors.New("sqlite: load process tree: invalid root ID")
 	}
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`WITH RECURSIVE process_tree(id, snapshot, build_id, policy, usage) AS (
-			SELECT id, snapshot, build_id, policy, usage FROM process_snapshots WHERE id = ?
+		`WITH RECURSIVE process_tree(id, parent_id, started_at, payload, build_id, policy, usage) AS (
+			SELECT id, parent_id, started_at, payload, build_id, policy, usage FROM process_states WHERE id = ?
 			UNION
-			SELECT child.id, child.snapshot, child.build_id, child.policy, child.usage
-			FROM process_snapshots AS child
+			SELECT child.id, child.parent_id, child.started_at, child.payload, child.build_id, child.policy, child.usage
+			FROM process_states AS child
 			JOIN process_tree AS parent ON child.parent_id = parent.id
 		)
-		SELECT id, snapshot, build_id, policy, usage FROM process_tree ORDER BY id`,
+		SELECT id, parent_id, started_at, payload, build_id, policy, usage FROM process_tree ORDER BY id`,
 		rootID,
 	)
 	if err != nil {
-		return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: load process tree %q: %w", rootID, err)
+		return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: load process tree %q: %w", rootID, err)
 	}
 	defer rows.Close()
 
-	var snapshots []core.ProcessSnapshot
+	var processes []execution.ProcessState
 	var buildID string
 	var policy execution.ProcessCheckpoint
 	var usage accounting.Snapshot
 	metadataLoaded := false
 	for rows.Next() {
-		var id, data, rowBuildID, policyData, usageData string
-		if err := rows.Scan(&id, &data, &rowBuildID, &policyData, &usageData); err != nil {
-			return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: scan process tree %q: %w", rootID, err)
+		var id, parentID, rowBuildID, policyData, usageData string
+		var payload []byte
+		var startedAt int64
+		if err := rows.Scan(&id, &parentID, &startedAt, &payload, &rowBuildID, &policyData, &usageData); err != nil {
+			return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: scan process tree %q: %w", rootID, err)
 		}
 		if strings.TrimSpace(rowBuildID) == "" || rowBuildID != strings.TrimSpace(rowBuildID) {
-			return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf(
+			return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, fmt.Errorf(
 				"sqlite: process tree %q has invalid build identity: %w",
 				rootID,
-				core.ErrInvalidSnapshot,
+				execution.ErrInvalidProcessTreeState,
 			)
 		}
 		if buildID == "" {
 			buildID = rowBuildID
 		} else if rowBuildID != buildID {
-			return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf(
+			return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, fmt.Errorf(
 				"sqlite: process tree %q mixes build identities %q and %q: %w",
 				rootID,
 				buildID,
 				rowBuildID,
-				core.ErrInvalidSnapshot,
+				execution.ErrInvalidProcessTreeState,
 			)
-		}
-		var snapshot core.ProcessSnapshot
-		if err := json.Unmarshal([]byte(data), &snapshot); err != nil {
-			return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: parse snapshot %q: %w: %w", id, core.ErrInvalidSnapshot, err)
-		}
-		if snapshot.ID != id {
-			return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: snapshot ID %q does not match row %q: %w", snapshot.ID, id, core.ErrInvalidSnapshot)
 		}
 		if id == rootID {
 			if policyData == "" || usageData == "" {
-				return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: process tree %q has incomplete checkpoint metadata: %w", rootID, core.ErrInvalidSnapshot)
+				return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: process tree %q has incomplete checkpoint metadata: %w", rootID, execution.ErrInvalidProcessTreeState)
 			}
 			decodedPolicy, err := decodeProcessPolicy(policyData)
 			if err != nil {
-				return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: parse process tree %q policy: %w: %w", rootID, core.ErrInvalidSnapshot, err)
+				return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: parse process tree %q policy: %w: %w", rootID, execution.ErrInvalidProcessTreeState, err)
 			}
 			decodedUsage, err := decodeProcessUsage(usageData)
 			if err != nil {
-				return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: parse process tree %q usage: %w: %w", rootID, core.ErrInvalidSnapshot, err)
+				return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: parse process tree %q usage: %w: %w", rootID, execution.ErrInvalidProcessTreeState, err)
 			}
 			policy = decodedPolicy
 			usage = decodedUsage
 			metadataLoaded = true
 		} else if policyData != "" || usageData != "" {
-			return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: descendant snapshot %q carries root checkpoint metadata: %w", id, core.ErrInvalidSnapshot)
+			return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: descendant process state %q carries root checkpoint metadata: %w", id, execution.ErrInvalidProcessTreeState)
 		}
-		snapshots = append(snapshots, snapshot)
+		processes = append(processes, execution.ProcessState{
+			ID:        id,
+			ParentID:  parentID,
+			StartedAt: time.Unix(0, startedAt).UTC(),
+			Payload:   append([]byte(nil), payload...),
+		})
 	}
 	if err := rows.Err(); err != nil {
-		return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: load process tree %q: %w", rootID, err)
+		return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: load process tree %q: %w", rootID, err)
 	}
-	if len(snapshots) == 0 {
-		return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: load process tree %q: %w", rootID, execution.ErrProcessSnapshotNotFound)
+	if len(processes) == 0 {
+		return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: load process tree %q: %w", rootID, execution.ErrProcessStateNotFound)
 	}
 	if !metadataLoaded {
-		return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: process tree %q has no checkpoint metadata: %w", rootID, core.ErrInvalidSnapshot)
+		return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: process tree %q has no checkpoint metadata: %w", rootID, execution.ErrInvalidProcessTreeState)
 	}
-	tree := core.ProcessSnapshotTree{RootID: rootID, Snapshots: snapshots}
+	tree := execution.ProcessTreeState{RootID: rootID, Processes: processes}
 	if err := tree.Validate(); err != nil {
-		return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: load process tree %q: %w", rootID, err)
+		return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: load process tree %q: %w", rootID, err)
 	}
 	checkpoint := policy
 	checkpoint.BuildID = buildID
 	checkpoint.Usage = usage
 	if err := checkpoint.Validate(); err != nil {
-		return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: load process tree %q checkpoint: %w: %w", rootID, core.ErrInvalidSnapshot, err)
+		return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: load process tree %q checkpoint: %w: %w", rootID, execution.ErrInvalidProcessTreeState, err)
 	}
 	return tree, checkpoint, nil
 }
@@ -411,13 +407,13 @@ func (s *ProcessStore) DeleteTrees(ctx context.Context, rootIDs []string) error 
 func (s *ProcessStore) deleteTree(ctx context.Context, rootID string) error {
 	if _, err := conn(ctx, s.db).ExecContext(ctx,
 		`WITH RECURSIVE process_tree(id) AS (
-			SELECT id FROM process_snapshots WHERE id = ?
+			SELECT id FROM process_states WHERE id = ?
 			UNION
 			SELECT child.id
-			FROM process_snapshots AS child
+			FROM process_states AS child
 			JOIN process_tree AS parent ON child.parent_id = parent.id
 		)
-		DELETE FROM process_snapshots WHERE id IN (SELECT id FROM process_tree)`,
+		DELETE FROM process_states WHERE id IN (SELECT id FROM process_tree)`,
 		rootID,
 	); err != nil {
 		return fmt.Errorf("sqlite: delete process tree %q: %w", rootID, err)

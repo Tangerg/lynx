@@ -2,13 +2,11 @@ package turn_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"sync"
 	"sync/atomic"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
@@ -22,7 +20,7 @@ type failNthSaveProcessStore struct {
 
 func (s *failNthSaveProcessStore) SaveTree(
 	ctx context.Context,
-	tree core.ProcessSnapshotTree,
+	tree execution.ProcessTreeState,
 	checkpoint execution.ProcessCheckpoint,
 ) error {
 	if s.saves.Add(1) == s.failAt {
@@ -33,71 +31,64 @@ func (s *failNthSaveProcessStore) SaveTree(
 
 type memoryProcessStore struct {
 	mu          sync.Mutex
-	snapshots   map[string]json.RawMessage
+	snapshots   map[string]execution.ProcessState
 	checkpoints map[string]execution.ProcessCheckpoint
 }
 
 func newMemoryProcessStore() *memoryProcessStore {
 	return &memoryProcessStore{
-		snapshots:   make(map[string]json.RawMessage),
+		snapshots:   make(map[string]execution.ProcessState),
 		checkpoints: make(map[string]execution.ProcessCheckpoint),
 	}
 }
 
-func (s *memoryProcessStore) SaveTree(_ context.Context, tree core.ProcessSnapshotTree, checkpoint execution.ProcessCheckpoint) error {
+func (s *memoryProcessStore) SaveTree(_ context.Context, tree execution.ProcessTreeState, checkpoint execution.ProcessCheckpoint) error {
 	if err := tree.Validate(); err != nil {
 		return err
 	}
 	if err := checkpoint.Validate(); err != nil {
 		return err
 	}
-	prepared := make(map[string]json.RawMessage, len(tree.Snapshots))
-	for _, snapshot := range tree.Snapshots {
-		data, err := json.Marshal(snapshot)
-		if err != nil {
-			return err
-		}
-		prepared[snapshot.ID] = data
+	prepared := make(map[string]execution.ProcessState, len(tree.Processes))
+	for _, process := range tree.Processes {
+		process.Payload = append([]byte(nil), process.Payload...)
+		prepared[process.ID] = process
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.deleteTree(tree.RootID); err != nil {
 		return err
 	}
-	for id, data := range prepared {
-		s.snapshots[id] = data
+	for id, process := range prepared {
+		s.snapshots[id] = process
 	}
 	s.checkpoints[tree.RootID] = checkpoint
 	return nil
 }
 
-func (s *memoryProcessStore) LoadTree(_ context.Context, rootID string) (core.ProcessSnapshotTree, execution.ProcessCheckpoint, error) {
+func (s *memoryProcessStore) LoadTree(_ context.Context, rootID string) (execution.ProcessTreeState, execution.ProcessCheckpoint, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.snapshots[rootID]; !ok {
-		return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("%w: %s", execution.ErrProcessSnapshotNotFound, rootID)
+		return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, fmt.Errorf("%w: %s", execution.ErrProcessStateNotFound, rootID)
 	}
 	children := make(map[string][]string)
-	decoded := make(map[string]core.ProcessSnapshot, len(s.snapshots))
-	for id, data := range s.snapshots {
-		var snapshot core.ProcessSnapshot
-		if err := json.Unmarshal(data, &snapshot); err != nil {
-			return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, err
-		}
-		decoded[id] = snapshot
-		children[snapshot.ParentID] = append(children[snapshot.ParentID], id)
+	for id, process := range s.snapshots {
+		children[process.ParentID] = append(children[process.ParentID], id)
 	}
-	var snapshots []core.ProcessSnapshot
+	var processes []execution.ProcessState
 	var collect func(string)
 	collect = func(id string) {
-		snapshots = append(snapshots, decoded[id])
+		process := s.snapshots[id]
+		process.Payload = append([]byte(nil), process.Payload...)
+		processes = append(processes, process)
 		for _, childID := range children[id] {
 			collect(childID)
 		}
 	}
 	collect(rootID)
 	checkpoint := s.checkpoints[rootID]
-	return core.ProcessSnapshotTree{RootID: rootID, Snapshots: snapshots}, checkpoint, nil
+	return execution.ProcessTreeState{RootID: rootID, Processes: processes}, checkpoint, nil
 }
 
 func (s *memoryProcessStore) DeleteTrees(_ context.Context, rootIDs []string) error {
@@ -124,12 +115,8 @@ func (s *memoryProcessStore) List(_ context.Context) ([]string, error) {
 
 func (s *memoryProcessStore) deleteTree(rootID string) error {
 	children := make(map[string][]string)
-	for id, data := range s.snapshots {
-		var snapshot core.ProcessSnapshot
-		if err := json.Unmarshal(data, &snapshot); err != nil {
-			return err
-		}
-		children[snapshot.ParentID] = append(children[snapshot.ParentID], id)
+	for id, process := range s.snapshots {
+		children[process.ParentID] = append(children[process.ParentID], id)
 	}
 	var remove func(string)
 	remove = func(id string) {

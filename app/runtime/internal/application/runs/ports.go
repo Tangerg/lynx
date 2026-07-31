@@ -46,11 +46,11 @@ const (
 )
 
 // PreparedWaitingSubtreeCancellation is the application-owned control protocol
-// around an executor's frozen waiting-tree mutation. It exposes only identities
+// around a parked turn's waiting-tree transition. It exposes only identities
 // and typed prompts the application can correlate. PersistCheckpoint writes the
-// adapter-owned checkpoint projection into the caller's transaction; Commit
-// crosses the live runtime boundary after that transaction succeeds; Abort
-// releases ownership with no live mutation.
+// adapter-owned state projection into the caller's transaction; Commit crosses
+// the live executor boundary after that transaction succeeds; Abort releases
+// only the App lifecycle claim because the executor plan owns no live resource.
 type PreparedWaitingSubtreeCancellation interface {
 	CanceledProcessIDs() []string
 	PendingSuspensions() []ProcessSuspension
@@ -126,7 +126,7 @@ type StartTurn struct {
 }
 
 // RehydrateTurn describes rebuilding a parked executor turn from its durable
-// process snapshot after process-local state was lost.
+// process state after executor-local state was lost.
 type RehydrateTurn struct {
 	SessionID                string
 	TurnID                   string
@@ -160,9 +160,10 @@ type TurnControl interface {
 	// identity previously observed through ExecutorSource; the adapter must
 	// prove that it belongs to ref before crossing the executor side effect.
 	CancelSubtree(ctx context.Context, ref execution.TurnRef, processID string) error
-	// PrepareWaitingSubtreeCancellation freezes a parked executor tree and
-	// computes the replacement checkpoint without changing live execution.
-	// The returned capability owns that freeze until Commit or Abort.
+	// PrepareWaitingSubtreeCancellation claims a parked App turn and computes an
+	// executor transition plan without changing live execution or retaining an
+	// executor lock. The returned capability owns the App claim until Commit or
+	// Abort.
 	PrepareWaitingSubtreeCancellation(
 		ctx context.Context,
 		ref execution.TurnRef,

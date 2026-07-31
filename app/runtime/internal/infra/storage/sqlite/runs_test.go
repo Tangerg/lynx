@@ -988,7 +988,7 @@ func TestReconcileOrphansDoesNotLetStaleInterruptProtectRunningRun(t *testing.T)
 	if pending, err := interruptStore.List(ctx, "ses_1"); err != nil || len(pending) != 0 {
 		t.Fatalf("stale interrupts after reconcile = (%+v, %v), want none", pending, err)
 	}
-	if _, _, err := processStore.LoadTree(ctx, "proc_stale"); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
+	if _, _, err := processStore.LoadTree(ctx, "proc_stale"); !errors.Is(err, execution.ErrProcessStateNotFound) {
 		t.Fatalf("stale process snapshot after reconcile = %v, want not found", err)
 	}
 }
@@ -1122,7 +1122,7 @@ func TestReconcileOrphansTerminalizesExecutorIncompatibleSnapshot(t *testing.T) 
 	if _, found, err := ints.Get(ctx, "run_park"); err != nil || found {
 		t.Fatalf("interrupt after incompatible snapshot = found:%v err:%v, want removed", found, err)
 	}
-	if _, _, err := processes.LoadTree(ctx, "proc_run_park"); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
+	if _, _, err := processes.LoadTree(ctx, "proc_run_park"); !errors.Is(err, execution.ErrProcessStateNotFound) {
 		t.Fatalf("snapshot after incompatible recovery = %v, want not found", err)
 	}
 	runs, err := store.ListRuns(ctx, "ses_park")

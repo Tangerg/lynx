@@ -1,6 +1,6 @@
 // Package sqlite hosts the SQLite-backed implementations of Runtime's storage
 // ports. One SQLite file is the single
-// durable backend — sessions / process snapshots / interrupts / history /
+// durable backend — sessions / process states / interrupts / history /
 // providers each live in their own table, sharing one *sql.DB. Human-authored
 // memory is the deliberate exception: it stays a user-editable LYRA.md file
 // cascade. Agent-extracted ledger and curated memory are ordinary SQLite state.
@@ -60,7 +60,7 @@ func Open(path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 44
+const schemaEpoch = 45
 
 func installCurrentSchema(db *sql.DB, path string) error {
 	var epoch int
@@ -101,17 +101,18 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			ON sessions(updated_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_parent
 			ON sessions(parent_id)`,
-		`CREATE TABLE IF NOT EXISTS process_snapshots (
+		`CREATE TABLE IF NOT EXISTS process_states (
 			id           TEXT    PRIMARY KEY,
 			parent_id    TEXT    NOT NULL,
+			started_at   INTEGER NOT NULL,
 			build_id     TEXT    NOT NULL,
-			snapshot     TEXT    NOT NULL,
+			payload      BLOB    NOT NULL,
 			policy       TEXT    NOT NULL,
 			usage        TEXT    NOT NULL,
 			committed_at INTEGER NOT NULL
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_process_snapshots_parent
-			ON process_snapshots(parent_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_process_states_parent
+			ON process_states(parent_id)`,
 		// One row per root or child Run. state is the coarse admission position —
 		// 'running' | 'interrupted' | 'terminal' — and the partial unique index
 		// below is the durable "one non-terminal root Run tree per Session"

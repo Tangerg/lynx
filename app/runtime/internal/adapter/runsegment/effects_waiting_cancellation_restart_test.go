@@ -117,13 +117,14 @@ func TestWaitingSubtreeCancellationSurvivesSQLiteRestart(t *testing.T) {
 				}
 			}
 
-			processTree, checkpoint, err := processStore.LoadTree(
+			storedTree, checkpoint, err := processStore.LoadTree(
 				fixture.ctx,
 				fixture.replacementTree.RootID,
 			)
 			if err != nil {
 				t.Fatalf("load restarted process tree: %v", err)
 			}
+			processTree := restoredProcessTree(t, storedTree)
 			assertReplacementCheckpoint(
 				t,
 				processTree,
@@ -284,10 +285,11 @@ func assertRestartedWaitingBoundary(
 					fixture.replacementTree.RootID,
 				)
 			}
-			tree, checkpoint, err := processStore.LoadTree(ctx, processID)
+			storedTree, checkpoint, err := processStore.LoadTree(ctx, processID)
 			if err != nil {
 				return false, err
 			}
+			tree := restoredProcessTree(t, storedTree)
 			if !reflect.DeepEqual(
 				normalizedProcessTree(tree),
 				normalizedProcessTree(fixture.replacementTree),

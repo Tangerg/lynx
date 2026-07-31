@@ -1,11 +1,49 @@
 package execution
 
 import (
+	"errors"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 )
+
+func TestProcessTreeStateValidateEnvelopeTopology(t *testing.T) {
+	startedAt := time.Date(2026, time.August, 1, 10, 0, 0, 0, time.UTC)
+	valid := ProcessTreeState{
+		RootID: "root",
+		Processes: []ProcessState{
+			{ID: "root", StartedAt: startedAt, Payload: []byte("opaque-root")},
+			{ID: "child", ParentID: "root", StartedAt: startedAt, Payload: []byte("opaque-child")},
+		},
+	}
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+
+	for name, mutate := range map[string]func(*ProcessTreeState){
+		"missing root": func(tree *ProcessTreeState) { tree.RootID = "missing" },
+		"empty payload": func(tree *ProcessTreeState) {
+			tree.Processes[1].Payload = nil
+		},
+		"external parent": func(tree *ProcessTreeState) {
+			tree.Processes[1].ParentID = "missing"
+		},
+		"duplicate process": func(tree *ProcessTreeState) {
+			tree.Processes = append(tree.Processes, tree.Processes[1])
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tree := valid
+			tree.Processes = append([]ProcessState(nil), valid.Processes...)
+			mutate(&tree)
+			if err := tree.Validate(); !errors.Is(err, ErrInvalidProcessTreeState) {
+				t.Fatalf("Validate error = %v, want ErrInvalidProcessTreeState", err)
+			}
+		})
+	}
+}
 
 func TestProcessCheckpointValidateOwnsHostContinuationMetadata(t *testing.T) {
 	valid := ProcessCheckpoint{

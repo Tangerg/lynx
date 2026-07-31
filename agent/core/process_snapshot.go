@@ -78,8 +78,8 @@ type ProcessSnapshot struct {
 	Failure    *ProcessFailure         `json:"failure,omitempty"`
 
 	OwnUsage Usage `json:"own_usage"`
-	// RetiredChildUsage preserves resources consumed by child subtrees that a
-	// committed host operation detached from portable execution ownership.
+	// RetiredChildUsage preserves resources consumed by child subtrees detached
+	// from portable execution ownership by a framework tree transition.
 	// It is historical aggregate usage, not work performed by this process.
 	RetiredChildUsage Usage `json:"retired_child_usage"`
 

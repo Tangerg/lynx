@@ -12,23 +12,23 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-// ProcessSnapshotValidator asks the executor that owns processID whether its
+// ResumableProcessValidator asks the executor that owns processID whether its
 // durable continuation is resumable. false, nil means the external state is
 // unusable and the owning Run must be recovered lost; a non-nil error means the
 // check itself failed and aborts the reconciliation transaction.
-type ProcessSnapshotValidator func(context.Context, string) (bool, error)
+type ResumableProcessValidator func(context.Context, string) (bool, error)
 
 // ReconcileOrphans repairs non-terminal Run trees abandoned by a process exit
 // before any new Run is admitted. A completely interrupted tree with a coherent
-// transcript, matching durable Pending, and resumable process snapshot survives.
+// transcript, matching durable Pending, and resumable process state survives.
 // Every other non-terminal tree is lost in canonical postorder: its running
 // transcript Items become incomplete, each Run becomes a terminal
-// error(run_lost), and orphan Pending/process snapshots are removed. The complete
+// error(run_lost), and orphan Pending/process states are removed. The complete
 // cross-table repair commits in one transaction, so boot never exposes a
 // half-reconciled lifecycle.
-func (s *RunStore) ReconcileOrphans(ctx context.Context, validateSnapshot ProcessSnapshotValidator) (int, error) {
-	if validateSnapshot == nil {
-		return 0, errors.New("sqlite: process snapshot validator is required")
+func (s *RunStore) ReconcileOrphans(ctx context.Context, validateProcess ResumableProcessValidator) (int, error) {
+	if validateProcess == nil {
+		return 0, errors.New("sqlite: resumable process validator is required")
 	}
 	var reconciled int
 	now := time.Now().UTC()
@@ -50,7 +50,7 @@ func (s *RunStore) ReconcileOrphans(ctx context.Context, validateSnapshot Proces
 				return fmt.Errorf("sqlite: interrupt %q has no root continuation", interrupt.RootRunID)
 			}
 			if owner, duplicate := processOwners[root.ProcessID]; duplicate {
-				return fmt.Errorf("sqlite: process snapshot %q is owned by interrupts %q and %q", root.ProcessID, owner, interrupt.RootRunID)
+				return fmt.Errorf("sqlite: process state %q is owned by interrupts %q and %q", root.ProcessID, owner, interrupt.RootRunID)
 			}
 			processOwners[root.ProcessID] = interrupt.RootRunID
 			pendingByRun[interrupt.RootRunID] = interrupt
@@ -76,7 +76,7 @@ func (s *RunStore) ReconcileOrphans(ctx context.Context, validateSnapshot Proces
 					ctx,
 					tree,
 					pendingInterrupt,
-					validateSnapshot,
+					validateProcess,
 				)
 				if err != nil {
 					return err
@@ -98,7 +98,7 @@ func (s *RunStore) ReconcileOrphans(ctx context.Context, validateSnapshot Proces
 			root, ok := interrupt.RootContinuation()
 			if ok {
 				if err := NewProcessStore(s.db).DeleteTrees(ctx, []string{root.ProcessID}); err != nil {
-					return fmt.Errorf("sqlite: reconcile orphan process snapshot: %w", err)
+					return fmt.Errorf("sqlite: reconcile orphan process state: %w", err)
 				}
 			}
 			if err := interruptStore.Delete(ctx, interrupt.RootRunID); err != nil {
@@ -113,10 +113,10 @@ func (s *RunStore) ReconcileOrphans(ctx context.Context, validateSnapshot Proces
 	return reconciled, nil
 }
 
-func (s *RunStore) hasResumableProcessSnapshot(ctx context.Context, processID string, validateSnapshot ProcessSnapshotValidator) (bool, error) {
-	resumable, err := validateSnapshot(ctx, processID)
+func (s *RunStore) hasResumableProcess(ctx context.Context, processID string, validateProcess ResumableProcessValidator) (bool, error) {
+	resumable, err := validateProcess(ctx, processID)
 	if err != nil {
-		return false, fmt.Errorf("sqlite: validate process snapshot %q resumable state: %w", processID, err)
+		return false, fmt.Errorf("sqlite: validate process %q resumable state: %w", processID, err)
 	}
 	return resumable, nil
 }

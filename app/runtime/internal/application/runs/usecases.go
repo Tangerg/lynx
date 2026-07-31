@@ -361,9 +361,10 @@ func (c *Coordinator) cancelLiveChild(
 
 // cancelWaitingChild removes one complete child subtree from an executor tree
 // parked at a human boundary. It first reserves the Session + working tree,
-// then freezes the Agent runtime mutation. The application projections and the
-// replacement checkpoint commit in one transaction; only after that durable
-// boundary may the prepared live mutation become visible.
+// claims the App turn lifecycle, and obtains an immutable Agent transition plan
+// that retains no runtime ownership. The application projections and replacement
+// process state commit in one transaction; only after that durable boundary may
+// App apply the planned live transition.
 //
 // When another external boundary survives, the tree stays Interrupted. Removing
 // the final boundary instead opens continuation Segments in the same transaction
@@ -495,12 +496,19 @@ func (c *Coordinator) cancelWaitingChild(
 			return CancelResult{}, err
 		}
 		if err := prepared.Commit(cleanupCtx, WaitingSubtreeRemainsInterrupted); err != nil {
-			return CancelResult{}, fmt.Errorf(
+			applyErr := fmt.Errorf(
 				"runs: apply committed cancellation of waiting child Run %q in root Run %q: %w",
 				plan.target.run.ID,
 				plan.root.run.ID,
 				err,
 			)
+			// The database transaction is already authoritative. Release the App
+			// claim before asking the turn adapter to tear down its obsolete live
+			// tree, then fail the durable tree closed as run_lost. This recovery is
+			// application policy; Agent Runtime remains unaware of the transaction.
+			prepared.Abort()
+			recoveryErr := c.recoverCommittedWaitingCancellation(cleanupCtx, plan)
+			return CancelResult{}, errors.Join(applyErr, recoveryErr)
 		}
 		if err := validateWaitingChildCancellationResult(plan, result); err != nil {
 			return CancelResult{}, err
@@ -564,6 +572,35 @@ func (c *Coordinator) cancelWaitingChild(
 	}
 	c.publishWaitingChildCancellation(plan, transformation)
 	return CancelResult{Run: committed.TargetRun, RootRun: &committed.RootRun}, nil
+}
+
+func (c *Coordinator) recoverCommittedWaitingCancellation(
+	ctx context.Context,
+	plan cancellationPlan,
+) error {
+	recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
+	defer cancel()
+	if err := c.sessions.ApplyRunLost(
+		recoveryCtx,
+		plan.pending.SessionID,
+		plan.root.run.ID,
+		c.now().UTC(),
+	); err != nil {
+		return fmt.Errorf(
+			"runs: recover root Run %q after committed process state could not be applied to live runtime: %w",
+			plan.root.run.ID,
+			err,
+		)
+	}
+	if err := c.turns.CancelTurn(recoveryCtx, plan.turn); err != nil {
+		return fmt.Errorf(
+			"runs: release obsolete turn %q after root Run %q was recovered lost: %w",
+			plan.turn.TurnID,
+			plan.root.run.ID,
+			err,
+		)
+	}
+	return nil
 }
 
 func validateWaitingChildCancellationResult(
@@ -868,7 +905,7 @@ func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pendin
 	// and its memory extraction on the REAL tree — the exact pollution isolation
 	// exists to prevent. Fail closed: the run's world is gone, so it is lost, not
 	// resumable. Reusing ErrTurnStateLost routes it through the same durable
-	// lost-run cleanup as a missing process snapshot.
+	// lost-run cleanup as missing executor process state.
 	if isolated {
 		return execution.TurnRef{}, fmt.Errorf("%w: an isolated run cannot resume after its sandbox process ended", ErrTurnStateLost)
 	}

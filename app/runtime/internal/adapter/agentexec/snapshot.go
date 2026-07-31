@@ -21,12 +21,19 @@ func (e *Engine) ResumableProcess(ctx context.Context, processID string) (bool, 
 	if e.processStore == nil {
 		return false, errors.New("engine: ProcessStore is required")
 	}
-	tree, checkpoint, err := e.processStore.LoadTree(ctx, processID)
+	state, checkpoint, err := e.processStore.LoadTree(ctx, processID)
 	if err != nil {
 		if isProcessSnapshotLoss(err) {
 			return false, nil
 		}
 		return false, fmt.Errorf("engine: load process tree: %w", err)
+	}
+	tree, err := decodeProcessTreeState(state)
+	if err != nil {
+		if isProcessSnapshotLoss(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("engine: decode process tree: %w", err)
 	}
 	if err := checkpoint.Validate(); err != nil {
 		return false, nil

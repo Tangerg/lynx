@@ -16,8 +16,8 @@ import (
 type subtreeTurnProcess struct {
 	rootCanceled bool
 	targets      []string
-	prepared     agentexec.PreparedWaitingSubtreeCancellation
-	prepareErr   error
+	plan         agentexec.WaitingSubtreeCancellationPlan
+	planErr      error
 	discardErr   error
 	discarded    chan<- struct{}
 }
@@ -53,11 +53,11 @@ func (process *subtreeTurnProcess) Discard(context.Context) error {
 	return process.discardErr
 }
 
-func (process *subtreeTurnProcess) PrepareWaitingSubtreeCancellation(
+func (process *subtreeTurnProcess) PlanWaitingSubtreeCancellation(
 	context.Context,
 	string,
-) (agentexec.PreparedWaitingSubtreeCancellation, error) {
-	return process.prepared, process.prepareErr
+) (agentexec.WaitingSubtreeCancellationPlan, error) {
+	return process.plan, process.planErr
 }
 
 func TestCancelSubtreeDoesNotClaimTheTurnLifecycle(t *testing.T) {
@@ -86,37 +86,34 @@ func TestCancelSubtreeDoesNotClaimTheTurnLifecycle(t *testing.T) {
 	}
 }
 
-type preparedSubtreeMutation struct {
-	commitErr   error
+type stubWaitingSubtreePlan struct {
+	applyErr    error
 	continueErr error
 	pending     []agentexec.PendingSuspension
-	committed   int
+	applied     int
 	continued   int
-	aborted     int
 }
 
-func (*preparedSubtreeMutation) CanceledProcessIDs() []string { return []string{"process_child"} }
+func (*stubWaitingSubtreePlan) CanceledProcessIDs() []string { return []string{"process_child"} }
 
-func (mutation *preparedSubtreeMutation) PendingSuspensions() []agentexec.PendingSuspension {
-	return append([]agentexec.PendingSuspension(nil), mutation.pending...)
+func (plan *stubWaitingSubtreePlan) PendingSuspensions() []agentexec.PendingSuspension {
+	return append([]agentexec.PendingSuspension(nil), plan.pending...)
 }
 
-func (*preparedSubtreeMutation) PersistCheckpoint(context.Context) error { return nil }
+func (*stubWaitingSubtreePlan) PersistCheckpoint(context.Context) error { return nil }
 
-func (mutation *preparedSubtreeMutation) Commit(context.Context) error {
-	mutation.committed++
-	return mutation.commitErr
+func (plan *stubWaitingSubtreePlan) Apply(context.Context) error {
+	plan.applied++
+	return plan.applyErr
 }
 
-func (mutation *preparedSubtreeMutation) Continue(context.Context) error {
-	mutation.continued++
-	return mutation.continueErr
+func (plan *stubWaitingSubtreePlan) Continue(context.Context) error {
+	plan.continued++
+	return plan.continueErr
 }
-
-func (mutation *preparedSubtreeMutation) Abort() { mutation.aborted++ }
 
 func TestPrepareWaitingCancellationProjectsTypedBoundaryAndReleasesClaimOnAbort(t *testing.T) {
-	mutation := &preparedSubtreeMutation{
+	plan := &stubWaitingSubtreePlan{
 		pending: []agentexec.PendingSuspension{{
 			ProcessID:    "process_sibling",
 			SuspensionID: "suspension_sibling",
@@ -125,7 +122,7 @@ func TestPrepareWaitingCancellationProjectsTypedBoundaryAndReleasesClaimOnAbort(
 			),
 		}},
 	}
-	process := &subtreeTurnProcess{prepared: mutation}
+	process := &subtreeTurnProcess{plan: plan}
 	handle := TurnHandle{SessionID: "session", TurnID: "turn"}
 	state := newRunningTestState(t.Context(), handle, process)
 	if !state.parkIfLive() {
@@ -152,9 +149,6 @@ func TestPrepareWaitingCancellationProjectsTypedBoundaryAndReleasesClaimOnAbort(
 		t.Fatalf("projected pending suspensions = %+v", pending)
 	}
 	prepared.Abort()
-	if mutation.aborted != 1 {
-		t.Fatalf("runtime aborts = %d, want 1", mutation.aborted)
-	}
 	if !state.claimWaitingMutation() {
 		t.Fatal("Abort did not release the parked-turn mutation claim")
 	}
@@ -175,11 +169,11 @@ func TestPreparedWaitingCancellationContinuationFailureDoesNotReenterLifecycleLo
 		seenSessions: map[string]struct{}{},
 	}
 	continueErr := errors.New("continue failed")
-	mutation := &preparedSubtreeMutation{continueErr: continueErr}
+	plan := &stubWaitingSubtreePlan{continueErr: continueErr}
 	prepared := &preparedWaitingSubtreeCancellation{
 		dispatcher: dispatcher,
 		state:      state,
-		prepared:   mutation,
+		plan:       plan,
 	}
 
 	done := make(chan error, 1)
@@ -197,11 +191,11 @@ func TestPreparedWaitingCancellationContinuationFailureDoesNotReenterLifecycleLo
 	case <-time.After(time.Second):
 		t.Fatal("Commit deadlocked while terminalizing a failed continuation")
 	}
-	if mutation.committed != 1 || mutation.continued != 1 {
+	if plan.applied != 1 || plan.continued != 1 {
 		t.Fatalf(
-			"runtime mutation calls = commit:%d continue:%d, want 1/1",
-			mutation.committed,
-			mutation.continued,
+			"runtime plan calls = apply:%d continue:%d, want 1/1",
+			plan.applied,
+			plan.continued,
 		)
 	}
 	if !state.terminalized() {
@@ -230,7 +224,7 @@ func TestPreparedWaitingCancellationContinuationFailureDoesNotReenterLifecycleLo
 	}
 }
 
-func TestPreparedWaitingCancellationRuntimeCommitFailureReleasesClaimOnAbort(t *testing.T) {
+func TestPreparedWaitingCancellationRuntimeApplyFailureReleasesClaimOnAbort(t *testing.T) {
 	process := &subtreeTurnProcess{}
 	handle := TurnHandle{SessionID: "session", TurnID: "turn"}
 	state := newRunningTestState(t.Context(), handle, process)
@@ -241,31 +235,27 @@ func TestPreparedWaitingCancellationRuntimeCommitFailureReleasesClaimOnAbort(t *
 		turns:        map[string]*turnState{handle.TurnID: state},
 		seenSessions: map[string]struct{}{},
 	}
-	commitErr := errors.New("runtime commit failed")
-	mutation := &preparedSubtreeMutation{commitErr: commitErr}
+	applyErr := errors.New("runtime apply failed")
+	plan := &stubWaitingSubtreePlan{applyErr: applyErr}
 	prepared := &preparedWaitingSubtreeCancellation{
 		dispatcher: dispatcher,
 		state:      state,
-		prepared:   mutation,
+		plan:       plan,
 	}
 
 	err := prepared.Commit(t.Context(), runs.WaitingSubtreeRemainsInterrupted)
-	if !errors.Is(err, commitErr) {
+	if !errors.Is(err, applyErr) {
 		t.Fatalf("Commit error = %v, want runtime cause", err)
 	}
 	if !strings.Contains(err.Error(), handle.TurnID) {
 		t.Fatalf("Commit error = %q, want turn identity", err)
 	}
 	prepared.Abort()
-	if mutation.committed != 1 || mutation.aborted != 1 {
-		t.Fatalf(
-			"runtime mutation calls = commit:%d abort:%d, want 1/1",
-			mutation.committed,
-			mutation.aborted,
-		)
+	if plan.applied != 1 {
+		t.Fatalf("runtime apply calls = %d, want 1", plan.applied)
 	}
 	if !state.claimWaitingMutation() {
-		t.Fatal("runtime commit failure retained the waiting mutation claim")
+		t.Fatal("runtime apply failure retained the App waiting-mutation claim")
 	}
 	state.abortWaitingMutation()
 }

@@ -22,7 +22,8 @@
 //	  → ResumeAsync(admissionCtx, runCtx, ...)          // atomically reply + own a Segment
 //	  → PendingSuspensions                              // direct external waits across the tree
 //	  → SnapshotTree / RestoreTree                      // portable complete-tree state, no I/O
-//	  → PrepareWaitingSubtreeCancellation               // caller-coordinated waiting child cancel
+//	  → PlanWaitingSubtreeCancellation / ApplyWaitingSubtreeCancellation
+//	                                                   // waiting-child execution transition
 //	  → Kill / RemoveTree
 //
 // HITL is a first-class state: when an action surfaces a suspension from
@@ -36,10 +37,10 @@
 // child that waits promotes the same suspension to its parent and retains the
 // exact child/tool-loop checkpoint, so Resume/Continue finishes the original
 // tool call without replaying completed siblings.
-// [Engine.PrepareWaitingSubtreeCancellation] freezes that complete tree while
-// its caller coordinates the replacement with external state; Commit then
-// applies the prevalidated runtime mutation, while Abort leaves live state
-// unchanged.
+// [Engine.PlanWaitingSubtreeCancellation] computes a validated transition
+// without retaining runtime ownership; [Engine.ApplyWaitingSubtreeCancellation]
+// later applies it only if the observed process state is still current. Neither
+// method knows about persistence or application transactions.
 // [Engine.RunChildWithState] and [Engine.RunChild]
 // bind an exact Deployment with explicit inheritance
 // semantics, join the parent's budget tree, and receive

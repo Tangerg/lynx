@@ -376,12 +376,16 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 	if e.processStore == nil {
 		return nil, errors.New("engine: restore chat: ProcessStore is required")
 	}
-	tree, checkpoint, err := e.processStore.LoadTree(ctx, processID)
+	state, checkpoint, err := e.processStore.LoadTree(ctx, processID)
 	if err != nil {
 		if isProcessSnapshotLoss(err) {
 			return nil, processSnapshotLost("restore", err)
 		}
 		return nil, fmt.Errorf("engine: load process tree: %w", err)
+	}
+	tree, err := decodeProcessTreeState(state)
+	if err != nil {
+		return nil, processSnapshotLost("decode", err)
 	}
 	if err := checkpoint.Validate(); err != nil {
 		return nil, processSnapshotLost("restore metadata", err)
@@ -455,7 +459,8 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 }
 
 func isProcessSnapshotLoss(err error) bool {
-	return errors.Is(err, execution.ErrProcessSnapshotNotFound) ||
+	return errors.Is(err, execution.ErrProcessStateNotFound) ||
+		errors.Is(err, execution.ErrInvalidProcessTreeState) ||
 		errors.Is(err, core.ErrSnapshotSchema) ||
 		errors.Is(err, core.ErrInvalidSnapshot) ||
 		errors.Is(err, agentruntime.ErrDeploymentNotFound)

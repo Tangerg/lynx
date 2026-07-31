@@ -448,7 +448,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	if pending, err := cfg.InterruptStore.List(ctx, sessionID); err != nil || len(pending) != 0 {
 		t.Fatalf("pending after assemble = (%+v, %v), want none", pending, err)
 	}
-	if _, _, err := cfg.ProcessStore.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
+	if _, _, err := cfg.ProcessStore.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessStateNotFound) {
 		t.Fatalf("process snapshot after assemble = %v, want not found", err)
 	}
 	runs, err := cfg.RunStore.ListRuns(ctx, sessionID)

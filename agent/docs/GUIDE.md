@@ -150,8 +150,9 @@ tool 或业务写入应由对应实现结合真实副作用语义处理；框架
 - `Resume`：校验并记录 Suspension 响应，不暗中启动执行；
 - `ResumeAsync`：在同一个进程树临界区记录响应并取得 continuation 所有权，成功后返回唯一 `Segment`；
 - `PendingSuspensions`：在同一稳定快照上列出整棵树中真正等待外部输入的边界，并标明直接发起它的 Process；
-- `PrepareWaitingSubtreeCancellation`：冻结完整 Waiting tree，预计算子树取消后的 checkpoint、
-  snapshot 与 Pending 集合，由 Host 在 durable transaction 成功后 `Commit`，失败时 `Abort`；
+- `PlanWaitingSubtreeCancellation`：在稳定快照上计算 Waiting 子树取消后的状态，不保留锁或
+  live ownership；
+- `ApplyWaitingSubtreeCancellation`：仅当被规划的执行状态仍然有效时应用该框架状态变换；
 - `Kill`：终止一棵进程子树；
 - `Process`、`Processes`：读取当前 registry 快照；
 - `Engine.SnapshotTree`：在稳定执行边界捕获完整根进程树；
@@ -294,7 +295,7 @@ event 建立，并在自己的事务边界持久化。任意 live error 的 sent
 链不具备通用 wire 表达，因此恢复后的 `Process.Failure()` 是 message-only
 `*core.ProcessFailure`；需要识别时使用 `errors.As`，不要假定跨进程 `errors.Is`。
 Child 各自在 snapshot 中携带自己的 `OwnUsage`，Restore 通过父子关系重建聚合；读取完整
-委派树用量时使用 `Process.Usage()`。被 committed host operation detach 的 child subtree
+委派树用量时使用 `Process.Usage()`。被 framework tree transition detach 的 child subtree
 不再拥有 portable snapshot，其历史消耗进入直接父进程的 `RetiredChildUsage`；它不会冒充
 父进程直接消耗，但仍参与 tree usage、预算恢复与应用账本对账。
 
@@ -311,7 +312,7 @@ checkpoint 不跨出 Runtime。Host 应把整组响应作为一个产品事务�
 continuation，不能把父进程为传播控制流而持有的 Suspension 副本误当成第二个用户问题。
 
 取消 Waiting delegated child 时，Host 不得先 `Kill` 再自行编辑 snapshot。
-`Engine.PrepareWaitingSubtreeCancellation(rootID, targetID)` 会在完整树 mutation ownership 下：
+`Engine.PlanWaitingSubtreeCancellation(rootID, targetID)` 会基于一份稳定完整树：
 
 - 精确移除 target subtree 的 live relation 与 portable snapshot；
 - 将 canceled tool call 结算为确定性的 error result，并按 tool-call 顺序保留其发布位置；
@@ -320,10 +321,13 @@ continuation，不能把父进程为传播控制流而持有的 Suspension 副�
 - 将 active ancestor 标记为 framework-ready，而不是写入或伪造外部 Suspension Response；
 - 返回 ownership-isolated 的 replacement tree、surviving Pending 与 exact canceled IDs。
 
-Prepare 不执行用户代码、不发布事件、不写存储，也不改变 live state。它会独占该进程树，
-因此调用方必须在 durable transaction 失败时 `Abort`；transaction 成功后调用 `Commit`，
-再由 Runtime 应用已验证的内存变换、detach canceled subtree 并发布 lifecycle event。
-`Commit` 之后仍有 Pending 时进程树保持 Waiting；Host 需要驱动时先调用 `Continue` 消费
+Plan 不执行用户代码、不发布事件、不写存储、不改变 live state，也不在返回后持有任何
+框架资源。Host 自行决定如何把 `ResultingTree` 纳入应用事务；事务成功后调用
+`ApplyWaitingSubtreeCancellation`，Runtime 会先验证规划时观察到的执行状态仍然有效，再
+detach canceled subtree 并发布 lifecycle event。框架不参与 Host 的 commit、abort、rollback
+或幂等策略。
+
+Apply 之后仍有 Pending 时进程树保持 Waiting；Host 需要驱动时先调用 `Continue` 消费
 framework-ready 边界，待 Runtime 暴露下一个真实输入边界后再 `Resume`。若 Pending 为空，
 直接 `Continue`。对 framework-ready boundary 调用 `Resume` 会以 stale 明确拒绝。
 

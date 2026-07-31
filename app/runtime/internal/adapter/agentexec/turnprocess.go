@@ -92,27 +92,26 @@ type TurnProcess interface {
 	Discard(ctx context.Context) error
 }
 
-// WaitingSubtreePreparer is the optional mutation capability implemented by
+// WaitingSubtreePlanner is the optional mutation capability implemented by
 // the real Agent runtime process. Keeping it separate from TurnProcess lets
 // ordinary execution tests and alternate executors implement only the lifecycle
 // surface they actually support.
-type WaitingSubtreePreparer interface {
-	PrepareWaitingSubtreeCancellation(
+type WaitingSubtreePlanner interface {
+	PlanWaitingSubtreeCancellation(
 		ctx context.Context,
 		processID string,
-	) (PreparedWaitingSubtreeCancellation, error)
+	) (WaitingSubtreeCancellationPlan, error)
 }
 
-// PreparedWaitingSubtreeCancellation is the Agent-execution adapter's private
-// checkpoint mutation boundary. It deliberately exposes no FrameworkState or
-// storage representation to application/runs.
-type PreparedWaitingSubtreeCancellation interface {
+// WaitingSubtreeCancellationPlan is the Agent-execution adapter's private
+// projection of a framework transition plan. It deliberately exposes no
+// FrameworkState or storage representation to application/runs.
+type WaitingSubtreeCancellationPlan interface {
 	CanceledProcessIDs() []string
 	PendingSuspensions() []PendingSuspension
 	PersistCheckpoint(ctx context.Context) error
-	Commit(ctx context.Context) error
+	Apply(ctx context.Context) error
 	Continue(ctx context.Context) error
-	Abort()
 }
 
 // turnProcess is the canonical [TurnProcess] backed by a real
@@ -212,54 +211,54 @@ func (p *turnProcess) CancelSubtree(ctx context.Context, processID string) error
 	return p.owner.runtime.Kill(ctx, processID)
 }
 
-func (p *turnProcess) PrepareWaitingSubtreeCancellation(
+func (p *turnProcess) PlanWaitingSubtreeCancellation(
 	ctx context.Context,
 	processID string,
-) (PreparedWaitingSubtreeCancellation, error) {
+) (WaitingSubtreeCancellationPlan, error) {
 	if p == nil || p.owner == nil || p.owner.runtime == nil || p.process == nil {
-		return nil, errors.New("agentexec: prepare waiting subtree cancellation: incomplete turn process")
+		return nil, errors.New("agentexec: plan waiting subtree cancellation: incomplete turn process")
 	}
 	if processID == "" {
-		return nil, errors.New("agentexec: prepare waiting subtree cancellation: target process id is required")
+		return nil, errors.New("agentexec: plan waiting subtree cancellation: target process id is required")
 	}
 	if processID == p.process.ID() {
 		return nil, fmt.Errorf(
-			"agentexec: prepare waiting subtree cancellation: target %q is the turn root",
+			"agentexec: plan waiting subtree cancellation: target %q is the turn root",
 			processID,
 		)
 	}
-	prepared, err := p.owner.runtime.PrepareWaitingSubtreeCancellation(
+	plan, err := p.owner.runtime.PlanWaitingSubtreeCancellation(
 		ctx,
 		p.process.ID(),
 		processID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"agentexec: prepare waiting subtree cancellation for process %q: %w",
+			"agentexec: plan waiting subtree cancellation for process %q: %w",
 			processID,
 			err,
 		)
 	}
-	return &preparedWaitingSubtreeCancellation{process: p, runtime: prepared}, nil
+	return &waitingSubtreeCancellationPlan{process: p, runtime: plan}, nil
 }
 
-type preparedWaitingSubtreeCancellation struct {
+type waitingSubtreeCancellationPlan struct {
 	process *turnProcess
-	runtime *runtime.PreparedWaitingSubtreeCancellation
+	runtime *runtime.WaitingSubtreeCancellationPlan
 }
 
-func (prepared *preparedWaitingSubtreeCancellation) CanceledProcessIDs() []string {
-	if prepared == nil || prepared.runtime == nil {
+func (plan *waitingSubtreeCancellationPlan) CanceledProcessIDs() []string {
+	if plan == nil || plan.runtime == nil {
 		return nil
 	}
-	return prepared.runtime.CanceledProcessIDs()
+	return plan.runtime.CanceledProcessIDs()
 }
 
-func (prepared *preparedWaitingSubtreeCancellation) PendingSuspensions() []PendingSuspension {
-	if prepared == nil || prepared.runtime == nil {
+func (plan *waitingSubtreeCancellationPlan) PendingSuspensions() []PendingSuspension {
+	if plan == nil || plan.runtime == nil {
 		return nil
 	}
-	pending := prepared.runtime.PendingSuspensions()
+	pending := plan.runtime.PendingSuspensions()
 	out := make([]PendingSuspension, len(pending))
 	for index, boundary := range pending {
 		out[index] = PendingSuspension{
@@ -271,47 +270,42 @@ func (prepared *preparedWaitingSubtreeCancellation) PendingSuspensions() []Pendi
 	return out
 }
 
-func (prepared *preparedWaitingSubtreeCancellation) PersistCheckpoint(ctx context.Context) error {
-	if prepared == nil || prepared.runtime == nil || prepared.process == nil {
-		return errors.New("agentexec: persist prepared waiting subtree cancellation: incomplete mutation")
+func (plan *waitingSubtreeCancellationPlan) PersistCheckpoint(ctx context.Context) error {
+	if plan == nil || plan.runtime == nil || plan.process == nil {
+		return errors.New("agentexec: persist waiting subtree cancellation plan: incomplete plan")
 	}
-	return prepared.process.persistProcessTree(ctx, prepared.runtime.SnapshotTree())
+	return plan.process.persistProcessTree(ctx, plan.runtime.ResultingTree())
 }
 
-func (prepared *preparedWaitingSubtreeCancellation) Commit(ctx context.Context) error {
-	if prepared == nil || prepared.runtime == nil {
-		return errors.New("agentexec: commit prepared waiting subtree cancellation: incomplete mutation")
+func (plan *waitingSubtreeCancellationPlan) Apply(ctx context.Context) error {
+	if plan == nil || plan.runtime == nil || plan.process == nil ||
+		plan.process.owner == nil || plan.process.owner.runtime == nil {
+		return errors.New("agentexec: apply waiting subtree cancellation plan: incomplete plan")
 	}
-	return prepared.runtime.Commit(ctx)
+	return plan.process.owner.runtime.ApplyWaitingSubtreeCancellation(ctx, plan.runtime)
 }
 
-func (prepared *preparedWaitingSubtreeCancellation) Continue(ctx context.Context) error {
-	if prepared == nil || prepared.process == nil {
-		return errors.New("agentexec: continue prepared waiting subtree cancellation: incomplete mutation")
+func (plan *waitingSubtreeCancellationPlan) Continue(ctx context.Context) error {
+	if plan == nil || plan.process == nil {
+		return errors.New("agentexec: continue waiting subtree cancellation: incomplete plan")
 	}
-	process := prepared.process
+	process := plan.process
 	if process.segment != nil {
 		return fmt.Errorf(
-			"agentexec: continue prepared waiting subtree cancellation: process %q already has an active segment",
+			"agentexec: continue waiting subtree cancellation: process %q already has an active segment",
 			process.process.ID(),
 		)
 	}
 	segment, err := process.owner.runtime.ContinueAsync(ctx, process.process.ID())
 	if err != nil {
 		return fmt.Errorf(
-			"agentexec: continue prepared waiting subtree cancellation for process %q: %w",
+			"agentexec: continue waiting subtree cancellation for process %q: %w",
 			process.process.ID(),
 			err,
 		)
 	}
 	process.segment = segment
 	return nil
-}
-
-func (prepared *preparedWaitingSubtreeCancellation) Abort() {
-	if prepared != nil && prepared.runtime != nil {
-		prepared.runtime.Abort()
-	}
 }
 
 func (p *turnProcess) requireDescendant(target *runtime.Process) error {
@@ -549,7 +543,11 @@ func (p *turnProcess) persistProcessTree(
 		Budget:   p.budget,
 		Usage:    usage,
 	}
-	if err := p.owner.processStore.SaveTree(ctx, tree, checkpoint); err != nil {
+	state, err := encodeProcessTreeState(tree)
+	if err != nil {
+		return fmt.Errorf("agentexec: persist process tree: %w", err)
+	}
+	if err := p.owner.processStore.SaveTree(ctx, state, checkpoint); err != nil {
 		return fmt.Errorf("agentexec: persist process tree: %w", err)
 	}
 	return nil

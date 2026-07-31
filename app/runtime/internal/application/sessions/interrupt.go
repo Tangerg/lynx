@@ -71,7 +71,7 @@ func (c *Coordinator) ApplyRunCancel(ctx context.Context, sessionID, runID, reas
 	return c.terminalizeParkedRun(ctx, sessionID, runID, finishedAt, execution.OutcomeCanceled, reason)
 }
 
-// ApplyRunLost atomically ends a parked run whose process snapshot cannot be
+// ApplyRunLost atomically ends a parked run whose executor process state cannot be
 // restored. It uses the recovery transition because the interrupted Run never
 // resumed into a normal executor terminal path.
 func (c *Coordinator) ApplyRunLost(ctx context.Context, sessionID, runID string, finishedAt time.Time) error {
@@ -155,10 +155,10 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 		run.Error = &transcript.Problem{
 			Kind:  transcript.RunLostProblem,
 			Scope: transcript.RunProblem,
-			// This run was parked on an interrupt and its process snapshot turned out
+			// This run was parked on an interrupt and its executor process state turned out
 			// to be unrestorable — it never re-entered the executor, so no terminal
 			// path could describe it.
-			Detail: "the parked run's process snapshot could not be restored",
+			Detail: "the parked run's executor process state could not be restored",
 		}
 	}
 	run.Detail = detail
