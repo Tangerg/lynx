@@ -31,7 +31,7 @@ func newVectorStoreMiddleware(t *testing.T) (*lynxotel.VectorStoreMiddleware, *t
 	t.Helper()
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	t.Cleanup(func() { _ = provider.Shutdown(t.Context()) })
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
 	middleware, err := lynxotel.NewVectorStore(lynxotel.VectorStoreConfig{
 		System:         "  Qdrant  ",
 		Collection:     "knowledge",
@@ -47,6 +47,30 @@ func newVectorStoreMiddleware(t *testing.T) (*lynxotel.VectorStoreMiddleware, *t
 func TestNewVectorStoreRequiresSystem(t *testing.T) {
 	if _, err := lynxotel.NewVectorStore(lynxotel.VectorStoreConfig{}); !errors.Is(err, lynxotel.ErrInvalidVectorStoreConfig) {
 		t.Fatalf("NewVectorStore() error = %v, want ErrInvalidVectorStoreConfig", err)
+	}
+	var provider *sdktrace.TracerProvider
+	if _, err := lynxotel.NewVectorStore(lynxotel.VectorStoreConfig{System: "qdrant", TracerProvider: provider}); err != nil {
+		t.Fatalf("typed nil tracer provider must use global default: %v", err)
+	}
+}
+
+func TestVectorStoreMiddlewarePreservesMissingCapabilities(t *testing.T) {
+	middleware, _ := newVectorStoreMiddleware(t)
+	var indexer indexerFunc
+	var searcher searcherFunc
+	var idDeleter vectorstore.IDDeleter
+	var filterDeleter vectorstore.FilterDeleter
+	if middleware.Index(indexer) != nil {
+		t.Fatal("Index synthesized an indexer capability")
+	}
+	if middleware.Search(searcher) != nil {
+		t.Fatal("Search synthesized a searcher capability")
+	}
+	if middleware.DeleteIDs(idDeleter) != nil {
+		t.Fatal("DeleteIDs synthesized an ID-deleter capability")
+	}
+	if middleware.DeleteWhere(filterDeleter) != nil {
+		t.Fatal("DeleteWhere synthesized a filter-deleter capability")
 	}
 }
 

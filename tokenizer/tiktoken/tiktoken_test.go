@@ -9,13 +9,13 @@ import (
 )
 
 func TestEncodeDecodeRoundTrip(t *testing.T) {
-	tk, err := tiktoken.NewDefault()
+	tk, err := tiktoken.New(tiktoken.CL100KBase)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	const want = "hello world"
-	encoded, err := tk.Encode(context.Background(), want)
+	encoded, err := tk.Encode(t.Context(), want)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +23,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 		t.Fatal("encoded token list is empty")
 	}
 
-	got, err := tk.Decode(context.Background(), encoded)
+	got, err := tk.Decode(t.Context(), encoded)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,11 +33,11 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 }
 
 func TestEstimateText(t *testing.T) {
-	tk, err := tiktoken.NewDefault()
+	tk, err := tiktoken.New(tiktoken.CL100KBase)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := tk.EstimateText(context.Background(), "hello world")
+	got, err := tk.EstimateText(t.Context(), "hello world")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,11 +47,11 @@ func TestEstimateText(t *testing.T) {
 }
 
 func TestOperationsHonorCanceledContext(t *testing.T) {
-	tk, err := tiktoken.NewDefault()
+	tk, err := tiktoken.New(tiktoken.CL100KBase)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	if _, err := tk.Encode(ctx, "hello"); !errors.Is(err, context.Canceled) {
@@ -66,7 +66,20 @@ func TestOperationsHonorCanceledContext(t *testing.T) {
 }
 
 func TestNewRejectsUnknownEncoding(t *testing.T) {
-	if _, err := tiktoken.New("nope-such-encoding"); err == nil {
-		t.Fatal("New() accepted an unknown encoding")
+	for _, name := range []string{"", "   ", "nope-such-encoding"} {
+		if _, err := tiktoken.New(name); !errors.Is(err, tiktoken.ErrInvalidEncoding) {
+			t.Fatalf("New(%q) error = %v, want ErrInvalidEncoding", name, err)
+		}
+	}
+}
+
+func TestZeroValueTokenizerReturnsError(t *testing.T) {
+	var tk *tiktoken.Tokenizer
+	if _, err := tk.Encode(t.Context(), "hello"); !errors.Is(err, tiktoken.ErrUninitialized) {
+		t.Fatalf("nil Tokenizer.Encode error = %v", err)
+	}
+	tk = new(tiktoken.Tokenizer)
+	if _, err := tk.Decode(t.Context(), []int{1}); !errors.Is(err, tiktoken.ErrUninitialized) {
+		t.Fatalf("zero-value Tokenizer.Decode error = %v", err)
 	}
 }

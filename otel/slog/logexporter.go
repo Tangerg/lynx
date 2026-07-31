@@ -3,6 +3,7 @@ package slog
 import (
 	"context"
 	stdslog "log/slog"
+	"sync/atomic"
 
 	otellog "go.opentelemetry.io/otel/log"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
@@ -30,7 +31,8 @@ import (
 // from the record's own trace context (the SDK fills them from the emitting
 // span — native correlation, no manual stamping).
 type LogExporter struct {
-	logger *stdslog.Logger
+	logger   *stdslog.Logger
+	shutdown atomic.Bool
 }
 
 // NewLogExporter returns a log exporter writing to logger; a nil logger
@@ -42,10 +44,23 @@ func NewLogExporter(logger *stdslog.Logger) *LogExporter {
 	return &LogExporter{logger: logger}
 }
 
-// Export writes one slog record per OTel log record. Always returns nil: a
-// dev sink must never fail the pipeline (mirrors [SpanExporter.ExportSpans]).
+// Export writes one slog record per OTel log record. It returns only context
+// cancellation/deadline errors; after Shutdown it is a no-op as required by
+// [sdklog.Exporter].
 func (e *LogExporter) Export(ctx context.Context, records []sdklog.Record) error {
+	if e.shutdown.Load() {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	for _, rec := range records {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if e.shutdown.Load() {
+			return nil
+		}
 		attrs := make([]stdslog.Attr, 0, rec.AttributesLen()+3)
 		if tid := rec.TraceID(); tid.IsValid() {
 			attrs = append(attrs, stdslog.String("trace_id", tid.String()))
@@ -65,8 +80,23 @@ func (e *LogExporter) Export(ctx context.Context, records []sdklog.Record) error
 	return nil
 }
 
-func (e *LogExporter) ForceFlush(ctx context.Context) error { return nil }
-func (e *LogExporter) Shutdown(ctx context.Context) error   { return nil }
+func (e *LogExporter) ForceFlush(ctx context.Context) error {
+	if e.shutdown.Load() {
+		return nil
+	}
+	return ctx.Err()
+}
+
+func (e *LogExporter) Shutdown(ctx context.Context) error {
+	if e.shutdown.Load() {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	e.shutdown.Store(true)
+	return nil
+}
 
 // severityToLevel maps an OTel log severity (Trace..Fatal, 1-24) onto the
 // nearest slog level: Error and above → Error, Warn band → Warn, Info band →

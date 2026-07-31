@@ -3,6 +3,7 @@ package slog
 import (
 	"context"
 	stdslog "log/slog"
+	"sync/atomic"
 
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -30,10 +31,10 @@ import (
 //   - parent_span_id (only if the span has a parent)
 //
 // All span attributes and event names are attached as additional slog
-// attributes, preserving their OTel key names (e.g. "gen_ai.system",
-// "gen_ai.agent.name").
+// attributes, preserving their OTel key names (e.g. "gen_ai.provider.name").
 type SpanExporter struct {
-	logger *stdslog.Logger
+	logger   *stdslog.Logger
+	shutdown atomic.Bool
 }
 
 // NewSpanExporter returns a new slog span exporter.
@@ -45,12 +46,23 @@ func NewSpanExporter(logger *stdslog.Logger) *SpanExporter {
 	return &SpanExporter{logger: logger}
 }
 
-// ExportSpans writes each provided span as a single slog record.
-// Always returns nil; slog errors (if any) are ignored because they would
-// only propagate into the tracer provider's error handler and typically
-// indicate a misconfigured handler rather than a recoverable condition.
+// ExportSpans writes each provided span as a single slog record. It returns
+// context cancellation/deadline errors; slog handler failures are not exposed
+// by log/slog. After Shutdown it performs no work.
 func (e *SpanExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
+	if e.shutdown.Load() {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	for _, span := range spans {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if e.shutdown.Load() {
+			return nil
+		}
 		attrs := make([]stdslog.Attr, 0, 6+len(span.Attributes()))
 
 		sc := span.SpanContext()
@@ -93,4 +105,13 @@ func (e *SpanExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnl
 	return nil
 }
 
-func (e *SpanExporter) Shutdown(ctx context.Context) error { return nil }
+func (e *SpanExporter) Shutdown(ctx context.Context) error {
+	if e.shutdown.Load() {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	e.shutdown.Store(true)
+	return nil
+}

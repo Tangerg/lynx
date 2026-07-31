@@ -44,11 +44,11 @@ type VectorStoreMiddleware struct {
 func NewVectorStore(config VectorStoreConfig) (*VectorStoreMiddleware, error) {
 	system := strings.ToLower(strings.TrimSpace(config.System))
 	if system == "" {
-		return nil, fmt.Errorf("%w: System is required", ErrInvalidVectorStoreConfig)
+		return nil, fmt.Errorf("%w: system is required", ErrInvalidVectorStoreConfig)
 	}
 
 	tracerProvider := config.TracerProvider
-	if tracerProvider == nil {
+	if isNilCapability(tracerProvider) {
 		tracerProvider = apiotel.GetTracerProvider()
 	}
 	return &VectorStoreMiddleware{
@@ -61,6 +61,9 @@ func NewVectorStore(config VectorStoreConfig) (*VectorStoreMiddleware, error) {
 
 // Index instruments only the [vectorstore.Indexer] capability.
 func (m *VectorStoreMiddleware) Index(next vectorstore.Indexer) vectorstore.Indexer {
+	if isNilCapability(next) {
+		return nil
+	}
 	return indexerFunc(func(ctx context.Context, docs []*document.Document) error {
 		extra := make([]attribute.KeyValue, 0, 1)
 		if len(docs) > 1 {
@@ -75,6 +78,9 @@ func (m *VectorStoreMiddleware) Index(next vectorstore.Indexer) vectorstore.Inde
 
 // Search instruments only the [vectorstore.Searcher] capability.
 func (m *VectorStoreMiddleware) Search(next vectorstore.Searcher) vectorstore.Searcher {
+	if isNilCapability(next) {
+		return nil
+	}
 	return searcherFunc(func(ctx context.Context, request vectorstore.SearchRequest) ([]vectorstore.Match, error) {
 		ctx, span := m.start(ctx, "search",
 			attribute.Int("db.vector.query.top_k", request.TopK),
@@ -91,6 +97,9 @@ func (m *VectorStoreMiddleware) Search(next vectorstore.Searcher) vectorstore.Se
 
 // DeleteIDs instruments only the [vectorstore.IDDeleter] capability.
 func (m *VectorStoreMiddleware) DeleteIDs(next vectorstore.IDDeleter) vectorstore.IDDeleter {
+	if isNilCapability(next) {
+		return nil
+	}
 	return idDeleterFunc(func(ctx context.Context, ids []string) error {
 		extra := make([]attribute.KeyValue, 0, 1)
 		if len(ids) > 1 {
@@ -105,6 +114,9 @@ func (m *VectorStoreMiddleware) DeleteIDs(next vectorstore.IDDeleter) vectorstor
 
 // DeleteWhere instruments only the [vectorstore.FilterDeleter] capability.
 func (m *VectorStoreMiddleware) DeleteWhere(next vectorstore.FilterDeleter) vectorstore.FilterDeleter {
+	if isNilCapability(next) {
+		return nil
+	}
 	return filterDeleterFunc(func(ctx context.Context, predicate filter.Predicate) error {
 		ctx, span := m.start(ctx, "delete_where")
 		err := next.DeleteWhere(ctx, predicate)

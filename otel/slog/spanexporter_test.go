@@ -61,9 +61,9 @@ func TestExporter_SuccessSpan(t *testing.T) {
 	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
 
 	tracer := tp.Tracer("test")
-	_, span := tracer.Start(context.Background(), "unit.test.op")
+	_, span := tracer.Start(t.Context(), "unit.test.op")
 	span.SetAttributes(
-		attribute.String("gen_ai.system", "openai"),
+		attribute.String("gen_ai.provider.name", "openai"),
 		attribute.Int("gen_ai.request.max_tokens", 1024),
 	)
 	span.AddEvent("first_token_received")
@@ -86,8 +86,8 @@ func TestExporter_SuccessSpan(t *testing.T) {
 	if attrs["name"] != "unit.test.op" {
 		t.Errorf("want name=unit.test.op, got %v", attrs["name"])
 	}
-	if attrs["gen_ai.system"] != "openai" {
-		t.Errorf("want gen_ai.system=openai, got %v", attrs["gen_ai.system"])
+	if attrs["gen_ai.provider.name"] != "openai" {
+		t.Errorf("want gen_ai.provider.name=openai, got %v", attrs["gen_ai.provider.name"])
 	}
 	if attrs["gen_ai.request.max_tokens"] != int64(1024) {
 		t.Errorf("want gen_ai.request.max_tokens=1024, got %v", attrs["gen_ai.request.max_tokens"])
@@ -113,7 +113,7 @@ func TestExporter_ErrorSpan(t *testing.T) {
 	tp := newTestProvider(exp)
 	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
 
-	_, span := tp.Tracer("test").Start(context.Background(), "failing.op")
+	_, span := tp.Tracer("test").Start(t.Context(), "failing.op")
 	span.RecordError(errors.New("boom"))
 	span.SetStatus(codes.Error, "boom")
 	span.End()
@@ -139,7 +139,7 @@ func TestExporter_ChildSpan_RecordsParent(t *testing.T) {
 	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
 
 	tracer := tp.Tracer("test")
-	ctx, parent := tracer.Start(context.Background(), "parent")
+	ctx, parent := tracer.Start(t.Context(), "parent")
 	_, child := tracer.Start(ctx, "child")
 	child.End()
 	parent.End()
@@ -173,13 +173,32 @@ func TestExporter_NilLogger_UsesDefault(t *testing.T) {
 	tp := newTestProvider(exp)
 	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
 
-	_, span := tp.Tracer("test").Start(context.Background(), "smoke")
+	_, span := tp.Tracer("test").Start(t.Context(), "smoke")
 	span.End()
 }
 
 func TestExporter_Shutdown_ReturnsNil(t *testing.T) {
 	exp := slog.NewSpanExporter(stdslog.Default())
-	if err := exp.Shutdown(context.Background()); err != nil {
+	if err := exp.Shutdown(t.Context()); err != nil {
 		t.Errorf("Shutdown: %v", err)
+	}
+}
+
+func TestSpanExporterLifecycle(t *testing.T) {
+	exporter := slog.NewSpanExporter(stdslog.New(&captureHandler{}))
+	canceled, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	if err := exporter.ExportSpans(canceled, nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("ExportSpans canceled error = %v", err)
+	}
+	if err := exporter.Shutdown(canceled); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Shutdown canceled error = %v", err)
+	}
+	if err := exporter.Shutdown(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := exporter.ExportSpans(canceled, nil); err != nil {
+		t.Fatalf("ExportSpans after shutdown = %v, want nil", err)
 	}
 }

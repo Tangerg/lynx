@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"reflect"
 	"strings"
 	"time"
 
@@ -61,11 +62,11 @@ func NewChat(config ChatConfig) (*ChatMiddleware, error) {
 	}
 
 	tracerProvider := config.TracerProvider
-	if tracerProvider == nil {
+	if isNilCapability(tracerProvider) {
 		tracerProvider = apiotel.GetTracerProvider()
 	}
 	meterProvider := config.MeterProvider
-	if meterProvider == nil {
+	if isNilCapability(meterProvider) {
 		meterProvider = apiotel.GetMeterProvider()
 	}
 
@@ -90,6 +91,9 @@ func NewChat(config ChatConfig) (*ChatMiddleware, error) {
 // Call is a [chat.CallMiddleware]. It preserves the wrapped model's response
 // and error exactly; observation is a read-only side effect.
 func (m *ChatMiddleware) Call(next chat.Model) chat.Model {
+	if isNilCapability(next) {
+		return nil
+	}
 	return chat.ModelFunc(func(ctx context.Context, request *chat.Request) (*chat.Response, error) {
 		started := time.Now()
 		ctx, span := m.start(ctx, request)
@@ -105,6 +109,9 @@ func (m *ChatMiddleware) Call(next chat.Model) chat.Model {
 // accumulation problem is recorded as an event and never becomes a business
 // error.
 func (m *ChatMiddleware) Stream(next chat.Streamer) chat.Streamer {
+	if isNilCapability(next) {
+		return nil
+	}
 	return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
 		return func(yield func(*chat.Response, error) bool) {
 			started := time.Now()
@@ -129,26 +136,41 @@ func (m *ChatMiddleware) Stream(next chat.Streamer) chat.Streamer {
 				if stopped {
 					return false
 				}
+				if !firstToken && hasGeneratedContent(chunk) {
+					span.AddEvent("first_token_received")
+					firstToken = true
+				}
+				if chunk != nil {
+					if accumulationErr := accumulator.Add(chunk); accumulationErr != nil {
+						span.AddEvent("gen_ai.stream.accumulation_error",
+							trace.WithAttributes(semconv.ErrorTypeKey.String(errorType(accumulationErr))),
+						)
+					}
+				}
 				if err != nil {
 					streamErr = err
 					stopped = true
 					yield(chunk, err)
 					return false
 				}
-				if !firstToken && hasGeneratedContent(chunk) {
-					span.AddEvent("first_token_received")
-					firstToken = true
-				}
-				if err := accumulator.Add(chunk); err != nil {
-					span.AddEvent("gen_ai.stream.accumulation_error",
-						trace.WithAttributes(semconv.ErrorTypeKey.String(errorType(err))),
-					)
-				}
 				stopped = !yield(chunk, nil)
 				return !stopped
 			})
 		}
 	})
+}
+
+func isNilCapability(value any) bool {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return true
+	}
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
 }
 
 func (m *ChatMiddleware) start(
@@ -180,11 +202,10 @@ func (m *ChatMiddleware) finish(
 	elapsed time.Duration,
 ) {
 	defer span.End()
+	span.SetAttributes(responseAttributes(response)...)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-	} else {
-		span.SetAttributes(responseAttributes(response)...)
 	}
 	m.recordMetrics(ctx, request, response, elapsed, err)
 }

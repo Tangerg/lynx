@@ -2,6 +2,7 @@ package slog_test
 
 import (
 	"context"
+	"errors"
 	stdslog "log/slog"
 	"testing"
 
@@ -29,15 +30,15 @@ func TestMetricExporter_WritesOneRecordPerMetric(t *testing.T) {
 	if err != nil {
 		t.Fatalf("counter: %v", err)
 	}
-	ctr.Add(context.Background(), 3, metric.WithAttributes(attribute.String("k", "v")))
+	ctr.Add(t.Context(), 3, metric.WithAttributes(attribute.String("k", "v")))
 
 	var rm metricdata.ResourceMetrics
-	if err := reader.Collect(context.Background(), &rm); err != nil {
+	if err := reader.Collect(t.Context(), &rm); err != nil {
 		t.Fatalf("collect: %v", err)
 	}
 
 	exp := slog.NewMetricExporter(logger)
-	if err := exp.Export(context.Background(), &rm); err != nil {
+	if err := exp.Export(t.Context(), &rm); err != nil {
 		t.Fatalf("export: %v", err)
 	}
 
@@ -55,5 +56,30 @@ func TestMetricExporter_WritesOneRecordPerMetric(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected a metric record for runs.started")
+	}
+}
+
+func TestMetricExporterLifecycle(t *testing.T) {
+	exporter := slog.NewMetricExporter(stdslog.New(&captureHandler{}))
+	canceled, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	if err := exporter.Export(canceled, &metricdata.ResourceMetrics{}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Export canceled error = %v", err)
+	}
+	if err := exporter.Export(t.Context(), nil); err == nil {
+		t.Fatal("Export accepted nil ResourceMetrics")
+	}
+	if err := exporter.ForceFlush(canceled); !errors.Is(err, context.Canceled) {
+		t.Fatalf("ForceFlush canceled error = %v", err)
+	}
+	if err := exporter.Shutdown(canceled); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Shutdown canceled error = %v", err)
+	}
+	if err := exporter.Shutdown(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := exporter.Export(t.Context(), &metricdata.ResourceMetrics{}); !errors.Is(err, sdkmetric.ErrExporterShutdown) {
+		t.Fatalf("Export after shutdown = %v, want ErrExporterShutdown", err)
 	}
 }

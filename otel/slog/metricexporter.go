@@ -2,12 +2,16 @@ package slog
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	stdslog "log/slog"
+	"sync/atomic"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
+
+var errNilResourceMetrics = errors.New("otel/slog: resource metrics must not be nil")
 
 // MetricExporter writes OpenTelemetry metric data to a log/slog logger —
 // the Metrics leg of the dev observability triad, a sibling of
@@ -23,7 +27,8 @@ import (
 // scope, and a compact rendering of its data points. Like [SpanExporter]
 // this is for local visibility; production should use an OTLP metric exporter.
 type MetricExporter struct {
-	logger *stdslog.Logger
+	logger   *stdslog.Logger
+	shutdown atomic.Bool
 }
 
 // NewMetricExporter returns a metric exporter writing to logger; a nil
@@ -45,11 +50,27 @@ func (e *MetricExporter) Aggregation(k sdkmetric.InstrumentKind) sdkmetric.Aggre
 	return sdkmetric.DefaultAggregationSelector(k)
 }
 
-// Export writes one slog record per metric. Always returns nil: a dev sink
-// must never fail a collection cycle (mirrors [SpanExporter.ExportSpans]).
+// Export writes one slog record per metric. It reports cancellation, nil
+// input, and the SDK's shutdown state; slog handler failures are not exposed by
+// log/slog and therefore cannot become collection errors.
 func (e *MetricExporter) Export(ctx context.Context, rm *metricdata.ResourceMetrics) error {
+	if e.shutdown.Load() {
+		return sdkmetric.ErrExporterShutdown
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if rm == nil {
+		return errNilResourceMetrics
+	}
 	for _, sm := range rm.ScopeMetrics {
 		for _, m := range sm.Metrics {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if e.shutdown.Load() {
+				return sdkmetric.ErrExporterShutdown
+			}
 			attrs := []stdslog.Attr{
 				stdslog.String("metric", m.Name),
 				stdslog.String("scope", sm.Scope.Name),
@@ -64,8 +85,23 @@ func (e *MetricExporter) Export(ctx context.Context, rm *metricdata.ResourceMetr
 	return nil
 }
 
-func (e *MetricExporter) ForceFlush(ctx context.Context) error { return nil }
-func (e *MetricExporter) Shutdown(ctx context.Context) error   { return nil }
+func (e *MetricExporter) ForceFlush(ctx context.Context) error {
+	if e.shutdown.Load() {
+		return sdkmetric.ErrExporterShutdown
+	}
+	return ctx.Err()
+}
+
+func (e *MetricExporter) Shutdown(ctx context.Context) error {
+	if e.shutdown.Load() {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	e.shutdown.Store(true)
+	return nil
+}
 
 // summarize renders a metric's aggregation as a compact human string for
 // the dev log line — point count plus per-point value/sum/count, enough to

@@ -96,6 +96,26 @@ func TestNewChatValidatesAndNormalizesProvider(t *testing.T) {
 	if got := attrs["gen_ai.provider.name"].AsString(); got != "openai" {
 		t.Fatalf("gen_ai.provider.name = %q, want openai", got)
 	}
+
+	var traces *sdktrace.TracerProvider
+	var meters *sdkmetric.MeterProvider
+	if _, err := lynxotel.NewChat(lynxotel.ChatConfig{
+		Provider: "openai", TracerProvider: traces, MeterProvider: meters,
+	}); err != nil {
+		t.Fatalf("typed nil providers must use global defaults: %v", err)
+	}
+}
+
+func TestChatMiddlewarePreservesMissingCapabilities(t *testing.T) {
+	middleware, _ := newRig(t, "openai")
+	var model chat.ModelFunc
+	var streamer chat.StreamerFunc
+	if middleware.Call(model) != nil {
+		t.Fatal("Call synthesized a model capability")
+	}
+	if middleware.Stream(streamer) != nil {
+		t.Fatal("Stream synthesized a streaming capability")
+	}
 }
 
 func TestChatCallRecordsCurrentGenAISemantics(t *testing.T) {
@@ -178,6 +198,7 @@ func TestChatCallPreservesResponseAndError(t *testing.T) {
 	if span.Status().Code != codes.Error || len(span.Events()) != 1 || span.Events()[0].Name != "exception" {
 		t.Fatalf("error span status/events = %v/%v", span.Status(), span.Events())
 	}
+	assertStringAttr(t, spanAttributes(t, span), "gen_ai.response.model", "served-model")
 	metrics := collectMetrics(t, rig.reader)
 	if metricExists(metrics, "gen_ai.client.token.usage") {
 		t.Fatal("failed calls must not emit token usage")
@@ -284,6 +305,28 @@ func TestChatStreamReportsNilAndProviderErrors(t *testing.T) {
 		}
 		if !errors.Is(got, want) || rig.spans.Ended()[0].Status().Code != codes.Error {
 			t.Fatalf("error/status = %v/%v", got, rig.spans.Ended()[0].Status())
+		}
+	})
+
+	t.Run("partial response and provider error", func(t *testing.T) {
+		middleware, rig := newRig(t, "openai")
+		want := errors.New("stream failed after a partial response")
+		partial := response("partial", chat.FinishReasonStop, 3, 1)
+		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+			return func(yield func(*chat.Response, error) bool) { yield(partial, want) }
+		})
+		var gotResponse *chat.Response
+		var gotErr error
+		for chunk, err := range middleware.Stream(streamer).Stream(t.Context(), request("gpt")) {
+			gotResponse, gotErr = chunk, err
+		}
+		if gotResponse != partial || !errors.Is(gotErr, want) {
+			t.Fatalf("response/error = %p/%v, want %p/%v", gotResponse, gotErr, partial, want)
+		}
+		span := rig.spans.Ended()[0]
+		assertStringAttr(t, spanAttributes(t, span), "gen_ai.response.model", "served-model")
+		if span.Status().Code != codes.Error {
+			t.Fatalf("span status = %v, want error", span.Status())
 		}
 	})
 }

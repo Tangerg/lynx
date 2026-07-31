@@ -30,9 +30,8 @@
 //	otel.SetTracerProvider(tp)
 //	defer tp.Shutdown(context.Background())
 //
-// See lyra/cmd/lyra/observability.go for the full triad wiring (the log
-// path goes through the contrib otelslog bridge → a LoggerProvider →
-// [LogExporter]).
+// The log path goes through the contrib otelslog bridge to a LoggerProvider
+// configured with [LogExporter].
 //
 // Note: this package is named `slog` to match the otel/<backend>
 // convention. Callers that also import the standard library's `log/slog`
