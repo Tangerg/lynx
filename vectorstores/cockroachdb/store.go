@@ -143,7 +143,7 @@ func initialize(ctx context.Context, config StoreConfig) error {
 		}
 	}
 	if dimensions <= 0 {
-		return errors.New("Dimensions must be > 0")
+		return errors.New("dimensions must be > 0")
 	}
 
 	if _, err := config.Pool.Exec(ctx, fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", config.SchemaName)); err != nil {

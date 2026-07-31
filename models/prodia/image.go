@@ -71,7 +71,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		apiReq.Type = mergedOpts.Model
 	}
 	if !strings.Contains(apiReq.Type, ".txt2img.") {
-		return nil, errors.New("prodia: image model requires a text-to-image job type containing .txt2img.")
+		return nil, errors.New("prodia: image model requires a text-to-image job type containing .txt2img")
 	}
 	if apiReq.Config == nil {
 		apiReq.Config = map[string]any{}

@@ -69,8 +69,9 @@ func (t *Template) Require(names ...string) error {
 	}
 	used := make(map[string]struct{})
 	for _, associated := range t.compiled.Templates() {
-		if associated.Tree != nil && associated.Tree.Root != nil {
-			collectTemplateFields(associated.Tree.Root, used)
+		tree := associated.Tree
+		if tree != nil && tree.Root != nil {
+			collectTemplateFields(tree.Root, used)
 		}
 	}
 

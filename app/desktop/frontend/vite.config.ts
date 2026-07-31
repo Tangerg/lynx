@@ -12,7 +12,7 @@ import path from "node:path";
 // WebView pointed at a port nothing is listening on.
 const devServer = new URL(
   (
-    JSON.parse(readFileSync(path.resolve(__dirname, "../wails.json"), "utf8")) as {
+    JSON.parse(readFileSync(path.resolve(import.meta.dirname, "../wails.json"), "utf8")) as {
       "frontend:dev:serverUrl": string;
     }
   )["frontend:dev:serverUrl"],
@@ -34,7 +34,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
   build: {

@@ -294,13 +294,13 @@ func mapProtocolPart(part corechat.Part) (types.ContentBlock, bool, error) {
 		switch kind {
 		case chatReasoningText:
 			if part.Text == "" || len(part.Signature) == 0 {
-				return nil, false, errors.New("Bedrock reasoning text requires text and its unmodified signature")
+				return nil, false, errors.New("bedrock reasoning text requires text and its unmodified signature")
 			}
 			reasoning := types.ReasoningTextBlock{Text: aws.String(part.Text), Signature: aws.String(string(part.Signature))}
 			return &types.ContentBlockMemberReasoningContent{Value: &types.ReasoningContentBlockMemberReasoningText{Value: reasoning}}, true, nil
 		case chatReasoningRedacted:
 			if len(part.Signature) == 0 {
-				return nil, false, errors.New("Bedrock redacted reasoning requires opaque content")
+				return nil, false, errors.New("bedrock redacted reasoning requires opaque content")
 			}
 			return &types.ContentBlockMemberReasoningContent{Value: &types.ReasoningContentBlockMemberRedactedContent{Value: slices.Clone(part.Signature)}}, true, nil
 		default:

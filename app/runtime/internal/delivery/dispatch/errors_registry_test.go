@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 )
 
 // TestEveryDeclarableProblemTypeHasARecoveryAction is the Error Registry's own
@@ -169,6 +168,5 @@ func problemOf(t *testing.T, err error) protocol.ProblemData {
 	if decodeErr := json.Unmarshal(rpcErr.Data, &problem); decodeErr != nil {
 		t.Fatalf("decode problem: %v", decodeErr)
 	}
-	var _ *transport.Error = rpcErr
 	return problem
 }

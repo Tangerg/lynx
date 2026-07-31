@@ -252,7 +252,7 @@ func (s *Store) initialize(ctx context.Context, initSchema bool, replication str
 	cols.WriteString(s.contentColumn)
 	cols.WriteString(" text, ")
 	cols.WriteString(s.embeddingColumn)
-	cols.WriteString(fmt.Sprintf(" vector<float, %d>", s.dimensions))
+	fmt.Fprintf(&cols, " vector<float, %d>", s.dimensions)
 	for _, m := range s.metadataColumns {
 		cols.WriteString(", ")
 		cols.WriteString(m.Name)

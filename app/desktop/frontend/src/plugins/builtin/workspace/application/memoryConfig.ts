@@ -2,8 +2,6 @@ import { queryClient } from "@/lib/queryClient";
 import { workspaceMemoryGateway, type WorkspaceMemoryUpdateInput } from "./ports/memoryGateway";
 import { WORKSPACE_MEMORY_KEY, useWorkspaceMemory as useMemoryQuery } from "./workspaceQueries";
 
-export type { WorkspaceMemoryEntry } from "./workspaceQueries";
-
 export function useWorkspaceMemory(enabled: boolean, cwd?: string) {
   return useMemoryQuery(enabled ? { cwd } : undefined);
 }

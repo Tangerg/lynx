@@ -20,7 +20,7 @@ import {
 // `selectors/extensions` + `kernelPoints` paths (neither pulls host).
 import type { CustomTheme, Theme, UiState } from "./uiPreferences";
 
-export type { CustomTheme, Theme, UiState } from "./uiPreferences";
+export type { CustomTheme, UiState } from "./uiPreferences";
 
 // localStorage payload schema. Validated on rehydrate so a corrupted
 // `lyra.ui` entry (manual edit, downgrade leaving a future-shape blob,

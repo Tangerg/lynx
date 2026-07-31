@@ -55,9 +55,8 @@ func progressTokenFromContext(ctx context.Context) any {
 
 // WithServerSession returns a copy of ctx carrying the MCP server
 // session. The tool dispatcher calls this before invoking a
-// a `tools.Tool` so reverse-capability helpers ([ReportProgress],
-// [ElicitFromClient], [LogToClient]) can recover the session from
-// context.
+// `tools.Tool` so reverse-capability helpers ([ReportProgress] and
+// [ElicitFromClient]) can recover the session from context.
 //
 // Application code rarely needs to call this directly — it is exposed
 // for tests and for callers building bespoke dispatch loops.
@@ -73,10 +72,9 @@ func WithServerSession(ctx context.Context, session *sdkmcp.ServerSession) conte
 // invocation.
 //
 // Tool authors generally prefer the higher-level helpers
-// ([ReportProgress], [ElicitFromClient], [LogToClient]) over reading
-// the session directly; this accessor exists for callers that need
-// the full [*sdkmcp.ServerSession] surface (ListRoots, sampling
-// initiation, ...).
+// ([ReportProgress] and [ElicitFromClient]) over reading the session
+// directly; this accessor exists for callers that need the full
+// [*sdkmcp.ServerSession] surface.
 //
 // Example — guard for non-MCP invocations:
 //

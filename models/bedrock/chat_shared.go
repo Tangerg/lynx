@@ -170,13 +170,13 @@ func bedrockS3Location(value *media.Media) (types.S3Location, error) {
 	case media.SourceReference:
 		location, err = value.Reference()
 	default:
-		return types.S3Location{}, fmt.Errorf("Bedrock media source %q is unsupported; use bytes or an s3:// URI", value.Source.Kind)
+		return types.S3Location{}, fmt.Errorf("bedrock media source %q is unsupported; use bytes or an s3:// URI", value.Source.Kind)
 	}
 	if err != nil {
 		return types.S3Location{}, err
 	}
 	if !strings.HasPrefix(location, "s3://") || len(strings.TrimPrefix(location, "s3://")) == 0 {
-		return types.S3Location{}, fmt.Errorf("Bedrock media URI %q must use s3://", location)
+		return types.S3Location{}, fmt.Errorf("bedrock media URI %q must use s3://", location)
 	}
 	return types.S3Location{Uri: aws.String(location)}, nil
 }
@@ -187,7 +187,7 @@ func bedrockDocumentName(name string) (string, error) {
 	}
 	name = strings.TrimSuffix(name, path.Ext(name))
 	if !bedrockDocumentNamePattern.MatchString(name) {
-		return "", fmt.Errorf("Bedrock document name %q may contain only alphanumerics, single spaces, hyphens, parentheses, and square brackets", name)
+		return "", fmt.Errorf("bedrock document name %q may contain only alphanumerics, single spaces, hyphens, parentheses, and square brackets", name)
 	}
 	return name, nil
 }

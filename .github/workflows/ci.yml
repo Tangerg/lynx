@@ -44,9 +44,9 @@ jobs:
           - tokenizer
           - app/runtime
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.26.5"
           cache: true
@@ -125,14 +125,11 @@ jobs:
           -run '^(TestReleaseBackendCoverage|TestRun|TestStoreConformance)$'
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: v1.64.8
-          # Build golangci-lint from source with the runner's Go (1.26.5) rather
-          # than pulling the prebuilt binary: the prebuilt v1.64.8 is built with
-          # go1.24, and golangci-lint refuses to run when its build Go is older
-          # than go.mod's `go 1.26.5`. goinstall sidesteps that — same as the
-          # local `go install`-ed binary that works.
+          version: v2.12.2
+          # Build with the repository's Go version so the analyzer and target
+          # modules always agree on language and export-data versions.
           install-mode: goinstall
           working-directory: ${{ matrix.module }}
           args: --config=${{ github.workspace }}/.golangci.yml
@@ -142,5 +139,5 @@ jobs:
       # version; it fails if their module/version changes or a fix appears.
       - name: govulncheck
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
+          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
           scripts/check-vulnerabilities.sh '${{ matrix.module }}'

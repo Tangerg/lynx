@@ -3,8 +3,8 @@ module github.com/Tangerg/lynx/pkg
 go 1.26.5
 
 require (
-	github.com/bits-and-blooms/bitset v1.24.5
-	github.com/gabriel-vasile/mimetype v1.4.13
+	github.com/bits-and-blooms/bitset v1.24.6
+	github.com/gabriel-vasile/mimetype v1.4.15
 	github.com/gammazero/workerpool v1.2.1
 	github.com/invopop/jsonschema v0.14.0
 	github.com/panjf2000/ants/v2 v2.12.1
@@ -15,7 +15,7 @@ require (
 
 require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
-	github.com/buger/jsonparser v1.2.0 // indirect
+	github.com/buger/jsonparser v1.6.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/gammazero/deque v1.2.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
@@ -23,7 +23,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.6 // indirect
-	golang.org/x/sync v0.21.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

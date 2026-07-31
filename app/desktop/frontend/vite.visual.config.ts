@@ -15,7 +15,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
   server: {
@@ -32,7 +32,7 @@ export default defineConfig({
     // entry and carry the same reviewed capability shape as production.
     chunkSizeWarningLimit: 1600,
     rollupOptions: {
-      input: path.resolve(__dirname, "visual/index.html"),
+      input: path.resolve(import.meta.dirname, "visual/index.html"),
     },
   },
 });

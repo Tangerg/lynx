@@ -66,7 +66,7 @@ func (v *Visitor) buildMatchCondition(fieldKey string, fieldValue any) (*qdrant.
 		}
 		return qdrant.NewMatchInt(fieldKey, int64(v)), nil
 	case float64:
-		return nil, fmt.Errorf("Qdrant match requires an integer, got %v", v)
+		return nil, fmt.Errorf("qdrant match requires an integer, got %v", v)
 	case bool:
 		// Boolean: use bool match
 		return qdrant.NewMatchBool(fieldKey, v), nil

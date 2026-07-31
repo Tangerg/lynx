@@ -1,7 +1,6 @@
 package http
 
 import (
-	"context"
 	"iter"
 	"net/http"
 	"time"
@@ -45,11 +44,7 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *trans
 		w.Header().Set("X-Method", methodLabel)
 	}
 
-	sw, err := sse.NewHTTPWriter(w)
-	if err != nil {
-		writeProblem(w, http.StatusInternalServerError, "streaming_unsupported", "response streaming is unavailable", false)
-		return
-	}
+	sw := sse.NewHTTPWriter(w)
 	ctx := r.Context()
 	// A fresh deadline per frame (see streamWriteTimeout) bounds each blocking Write
 	// on the underlying connection. recordingResponseWriter.Unwrap lets the
@@ -60,7 +55,7 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *trans
 
 	// First frame: this call's JSON-RPC response (the runId ack), no SSE id.
 	setWriteDeadline()
-	if err := writeSSEMessage(ctx, sw, "", resp); err != nil {
+	if err := writeSSEMessage(sw, "", resp); err != nil {
 		return
 	}
 
@@ -95,12 +90,12 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *trans
 			// its SSE id (replayable run events carry one; non-replayable run
 			// events and workspace events don't). The transport just writes it.
 			setWriteDeadline()
-			if err := writeSSEMessage(ctx, sw, frame.SSEID, frame.Notif); err != nil {
+			if err := writeSSEMessage(sw, frame.SSEID, frame.Notif); err != nil {
 				return // write failed — client gone; the source continues server-side
 			}
 		case <-ticker.C:
 			setWriteDeadline()
-			if err := sw.Comment(ctx, "heartbeat"); err != nil {
+			if err := sw.Comment("heartbeat"); err != nil {
 				return
 			}
 		case <-ctx.Done():
@@ -112,10 +107,10 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *trans
 // writeSSEMessage encodes msg as JSON and emits one SSE frame. eventID is
 // the SSE `id:` line — set for run-event frames (drives Last-Event-Id
 // resume), empty for the one-shot response ack frame.
-func writeSSEMessage(ctx context.Context, sw *sse.Writer, eventID string, msg transport.Message) error {
+func writeSSEMessage(sw *sse.Writer, eventID string, msg transport.Message) error {
 	body, err := transport.EncodeMessage(msg)
 	if err != nil {
 		return err
 	}
-	return sw.Message(ctx, sse.Message{ID: eventID, Data: body})
+	return sw.Write(sse.Message{ID: eventID, Data: body})
 }

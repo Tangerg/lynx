@@ -1,15 +1,11 @@
 // Package-level reverse-capability helpers for MCP tool authors.
 //
-// MCP servers can send back to the connected client three "reverse"
-// messages while a tool is running:
+// MCP servers can send back to the connected client while a tool is running:
 //
 //   - Progress  — open-ended status updates ([ReportProgress])
 //   - Elicit    — request additional structured input from the
 //     end user via the client ([ElicitFromClient])
-//   - Logging   — server-emitted log records at slog levels
-//     ([LogToClient])
-//
-// All three helpers recover the active [*sdkmcp.ServerSession] from
+// Both helpers recover the active [*sdkmcp.ServerSession] from
 // context and return [ErrNoServerSession] when the tool is invoked
 // outside an MCP dispatch (e.g. unit tests calling tool.Call
 // directly). This makes the helpers safe to sprinkle into tool bodies
@@ -21,13 +17,12 @@ package mcp
 import (
 	"context"
 	"errors"
-	"log/slog"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// ErrNoServerSession is returned by [ReportProgress], [ElicitFromClient]
-// and [LogToClient] when the call happens outside an MCP server tool
+// ErrNoServerSession is returned by [ReportProgress] and [ElicitFromClient]
+// when the call happens outside an MCP server tool
 // invocation (the dispatcher did not stamp a session onto ctx).
 //
 // Tool authors usually ignore this error — it tells you "there is no
@@ -144,66 +139,4 @@ func ElicitFromClient(ctx context.Context, opts ElicitOptions) (*sdkmcp.ElicitRe
 		ElicitationID:   opts.ElicitationID,
 	}
 	return session.Elicit(ctx, params)
-}
-
-// LogToClient forwards a log line over the MCP control channel to the
-// connected client. Levels follow slog's convention; the SDK maps
-// them onto the MCP wire enum (debug / info / notice / warning /
-// error / critical / alert / emergency).
-//
-// data may be a string, structured map[string]any, or any other JSON-
-// serialisable value. logger is the optional logger-name field — pass
-// the empty string to leave it unset.
-//
-// The MCP spec requires the client to have called setLogLevel before
-// any log is forwarded; the SDK silently drops messages below the
-// client's threshold. ErrNoServerSession is the only sentinel a tool
-// author needs to special-case.
-//
-// Example:
-//
-//	mcp.LogToClient(ctx, slog.LevelInfo, "indexed 412 documents",
-//	    map[string]any{"corpus": "docs/2026-Q2"}, "indexer")
-func LogToClient(ctx context.Context, level slog.Level, message string, data any, logger string) error {
-	session := ServerSessionFromContext(ctx)
-	if session == nil {
-		return ErrNoServerSession
-	}
-
-	if data == nil {
-		data = message
-	}
-	params := &sdkmcp.LoggingMessageParams{
-		Level:  slogLevelToMCP(level),
-		Data:   data,
-		Logger: logger,
-	}
-	return session.Log(ctx, params)
-}
-
-// slogLevelToMCP mirrors the SDK's mapping but is private to avoid
-// coupling to the SDK's unexported helper. The
-// SDK exposes slog-style level constants; map by the closest numeric
-// ordering used in the SDK's mcp/logging.go. Levels at or below
-// LevelDebug map to "debug"; everything above LevelAlert falls through
-// to "emergency".
-func slogLevelToMCP(l slog.Level) sdkmcp.LoggingLevel {
-	switch {
-	case l <= slog.LevelDebug:
-		return "debug"
-	case l <= slog.LevelInfo:
-		return "info"
-	case l <= sdkmcp.LevelNotice:
-		return "notice"
-	case l <= slog.LevelWarn:
-		return "warning"
-	case l <= slog.LevelError:
-		return "error"
-	case l <= sdkmcp.LevelCritical:
-		return "critical"
-	case l <= sdkmcp.LevelAlert:
-		return "alert"
-	default:
-		return "emergency"
-	}
 }

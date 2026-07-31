@@ -40,18 +40,9 @@ func main() {
 	}
 	defer srvSession.Close()
 
-	samplingHandler, err := lynxmcp.NewSamplingHandler(model)
-	if err != nil {
-		log.Fatal(err)
-	}
 	cli := sdkmcp.NewClient(
 		&sdkmcp.Implementation{Name: "lynx-mcp-agent", Version: "v0.1.0"},
-		&sdkmcp.ClientOptions{
-			// Sampling: lets the MCP server "borrow" the engine LLM via
-			// createMessage. This particular example doesn't exercise it,
-			// but the wiring is part of a complete client.
-			CreateMessageHandler: samplingHandler,
-		},
+		nil,
 	)
 	cliSession, err := cli.Connect(ctx, cliT, nil)
 	if err != nil {

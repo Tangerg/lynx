@@ -440,9 +440,10 @@ func TestFutureTaskGetWithTimeout(t *testing.T) {
 			go future.Run()
 
 			_, err := future.GetWithTimeout(50 * time.Millisecond)
-			if err == nil {
+			switch err {
+			case nil:
 				successes++
-			} else if err == ErrFutureTimedOut {
+			case ErrFutureTimedOut:
 				timeouts++
 			}
 		}

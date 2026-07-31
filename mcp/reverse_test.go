@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"sync"
 	"testing"
 
@@ -16,9 +15,8 @@ import (
 	"github.com/Tangerg/lynx/mcp"
 )
 
-// progressTool exercises ReportProgress + LogToClient from inside a
-// tool body. ElicitFromClient needs a client-side handler, exercised
-// in a dedicated test below.
+// progressTool exercises ReportProgress from inside a tool body.
+// ElicitFromClient needs a client-side handler, exercised separately.
 type progressTool struct {
 	calls *atomicInt
 }
@@ -41,21 +39,16 @@ func (t *progressTool) Call(ctx context.Context, _ string) (string, error) {
 			!errors.Is(err, mcp.ErrNoServerSession) {
 			return "", err
 		}
-		_ = mcp.LogToClient(ctx, slog.LevelInfo, "step done", map[string]any{"i": i}, "demo")
 	}
 	t.calls.inc()
 	return "ok", nil
 }
 
-func TestNotifyHelpers_ProgressAndLog(t *testing.T) {
+func TestNotifyHelpers_Progress(t *testing.T) {
 	ctx := context.Background()
 
-	// Capture progress notifications + log messages observed by the client.
-	var (
-		mu       sync.Mutex
-		progress []sdkmcp.ProgressNotificationParams
-		logLines []sdkmcp.LoggingMessageParams
-	)
+	var mu sync.Mutex
+	var progress []sdkmcp.ProgressNotificationParams
 
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-srv", Version: "v0.1.0"}, nil)
 	require.NoError(t, mcp.Register(server, &progressTool{calls: &atomicInt{}}))
@@ -66,11 +59,6 @@ func TestNotifyHelpers_ProgressAndLog(t *testing.T) {
 			ProgressNotificationHandler: func(_ context.Context, req *sdkmcp.ProgressNotificationClientRequest) {
 				mu.Lock()
 				progress = append(progress, *req.Params)
-				mu.Unlock()
-			},
-			LoggingMessageHandler: func(_ context.Context, req *sdkmcp.LoggingMessageRequest) {
-				mu.Lock()
-				logLines = append(logLines, *req.Params)
 				mu.Unlock()
 			},
 		},
@@ -85,10 +73,7 @@ func TestNotifyHelpers_ProgressAndLog(t *testing.T) {
 	require.NoError(t, err)
 	defer cliSession.Close()
 
-	// Opt into log streaming (server stays silent until SetLevel).
-	require.NoError(t, cliSession.SetLoggingLevel(ctx, &sdkmcp.SetLoggingLevelParams{Level: "debug"}))
-
-	// Issue a tools/call with a progress token so progress notifications flow.
+	// Issue a tools/call with a progress token so notifications flow.
 	params := &sdkmcp.CallToolParams{Name: "progress_demo"}
 	params.SetProgressToken("p1")
 	res, err := cliSession.CallTool(ctx, params)
@@ -104,16 +89,11 @@ func TestNotifyHelpers_ProgressAndLog(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	assert.Len(t, progress, 3, "expected 3 progress notifications")
-	if assert.GreaterOrEqual(t, len(logLines), 1) {
-		assert.Equal(t, sdkmcp.LoggingLevel("info"), logLines[0].Level)
-	}
 }
 
 func TestNotifyHelpers_NoSessionReturnsSentinel(t *testing.T) {
 	ctx := context.Background()
 	err := mcp.ReportProgress(ctx, 1, nil, "no session")
-	assert.ErrorIs(t, err, mcp.ErrNoServerSession)
-	err = mcp.LogToClient(ctx, slog.LevelInfo, "no session", nil, "")
 	assert.ErrorIs(t, err, mcp.ErrNoServerSession)
 	_, err = mcp.ElicitFromClient(ctx, mcp.ElicitOptions{Message: "x"})
 	assert.ErrorIs(t, err, mcp.ErrNoServerSession)

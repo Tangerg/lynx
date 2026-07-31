@@ -18,11 +18,10 @@ mcp/
 ├── doc.go       // 包注释和 import alias 约定
 ├── meta.go      // context scoped _meta helpers
 ├── session.go   // active ServerSession/progress token context helpers
-├── reverse.go   // progress / elicitation / logging reverse helpers
+├── reverse.go   // progress / elicitation reverse helpers
 ├── tool.go      // remote MCP tool -> tools.Tool
 ├── tools.go     // list remote tools and wrap them as []tools.Tool
 ├── server.go    // tools.Tool -> MCP server tool
-├── sampling.go  // MCP sampling via a consumer-owned ChatCaller capability
 └── prompt.go    // MCP prompt messages -> []chat.Message
 ```
 
@@ -49,10 +48,8 @@ import (
 | `ServerSessionFromContext` | 从 tool 调用 context 取出当前 `*sdkmcp.ServerSession` |
 | `ReportProgress` | 根据原始 progress token 发送 progress notification |
 | `ElicitFromClient` | tool 执行中向客户端发起 elicitation |
-| `LogToClient` | 通过 MCP logging notification 向客户端发送日志 |
 | `Tools(ctx, sources, opts)` | 现场列出远端 MCP tools，并包装成 `[]tools.Tool` |
 | `Register(server, tools...)` | 把 lynx `tools.Tool` 暴露到 MCP server |
-| `NewSamplingHandler` | 用最小 `ChatCaller` 能力构造 MCP sampling handler |
 | `PromptMessagesToChat` | 把 MCP prompt messages 转成 `[]chat.Message` |
 
 根包刻意不提供：

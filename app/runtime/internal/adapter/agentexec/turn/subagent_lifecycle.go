@@ -43,11 +43,11 @@ func (l *subagentLifecycle) confirmRoot(id string) error {
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	switch {
-	case l.rootID == "":
+	switch l.rootID {
+	case "":
 		l.rootID = id
 		return nil
-	case l.rootID == id:
+	case id:
 		return nil
 	default:
 		return fmt.Errorf("subagent lifecycle: created root %q differs from returned process %q", l.rootID, id)

@@ -1,13 +1,16 @@
 {
   "$schema": "https://unpkg.com/knip@latest/schema.json",
-  "entry": ["visual/main.tsx", "visual/**/*.visual.spec.ts"],
-  "ignoreExportsUsedInFile": true,
-  "ignore": [
-    "sample-plugins/**",
-    "src/rpc/wire.generated.ts",
-    "src/rpc/types.ts",
-    "src/rpc/ids.ts"
+  "entry": [
+    "visual/main.tsx",
+    "visual/**/*.visual.spec.ts",
+    "src/plugins/**/public/**/*.{ts,tsx}",
+    "src/plugins/builtin/chat/message/ui/index.ts",
+    "src/plugins/builtin/theme/kit/defineThemePlugin.ts",
+    "src/plugins/sdk/host.ts",
+    "src/rpc/index.ts",
+    "src/ui/atoms/index.ts"
   ],
-  "ignoreDependencies": ["husky", "lint-staged", "@commitlint/cli"],
-  "ignoreBinaries": ["frontend.bin/husky"]
+  "ignoreExportsUsedInFile": true,
+  "ignore": ["sample-plugins/**", "src/rpc/wire.generated.ts"],
+  "ignoreDependencies": ["husky", "lint-staged", "@commitlint/cli"]
 }

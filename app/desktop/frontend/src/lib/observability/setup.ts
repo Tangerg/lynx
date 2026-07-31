@@ -135,8 +135,8 @@ async function loadOtlp(endpoint: string): Promise<OtlpBundle> {
       exporter: new metricExp.OTLPMetricExporter({ url: `${base}/v1/metrics` }),
       exportIntervalMillis: 10_000,
     }),
-    logProcessor: new BatchLogRecordProcessor(
-      new logExp.OTLPLogExporter({ url: `${base}/v1/logs` }),
-    ),
+    logProcessor: new BatchLogRecordProcessor({
+      exporter: new logExp.OTLPLogExporter({ url: `${base}/v1/logs` }),
+    }),
   };
 }

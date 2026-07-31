@@ -5,7 +5,7 @@
 // for protocol clients, servers, sessions, and transports. The root lynx
 // package keeps the small adapters lynx needs around those SDK primitives:
 // context metadata, reverse-capability helpers, chat.Tool wrapping, tool
-// registration, sampling, and prompt conversion.
+// registration and prompt conversion.
 //
 // # Naming
 //

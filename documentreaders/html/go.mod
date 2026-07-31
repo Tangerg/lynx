@@ -4,10 +4,10 @@ go 1.26.5
 
 require (
 	github.com/PuerkitoBio/goquery v1.12.0
-	github.com/Tangerg/lynx/core v0.0.0-20260715080233-229e06c8ed2f
+	github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9
 )
 
 require (
 	github.com/andybalholm/cascadia v1.3.4 // indirect
-	golang.org/x/net v0.56.0 // indirect
+	golang.org/x/net v0.57.0 // indirect
 )

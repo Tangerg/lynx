@@ -82,8 +82,8 @@ func prepareOne(tool toolcontract.Tool, definition corechat.ToolDefinition) (pre
 // and hide the failure from the LLM's view.
 //
 // The MCP server session is stamped onto the context so tool authors
-// can use the reverse-capability helpers ([ReportProgress],
-// [ElicitFromClient], [LogToClient]) without taking a direct
+// can use the reverse-capability helpers ([ReportProgress] and
+// [ElicitFromClient]) without taking a direct
 // dependency on the SDK.
 func serverHandler(tool toolcontract.Tool, toolName string) sdkmcp.ToolHandler {
 	return func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {

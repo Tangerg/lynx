@@ -164,7 +164,7 @@ func initialize(ctx context.Context, config StoreConfig) error {
 		}
 	}
 	if dimensions <= 0 {
-		return errors.New("Dimensions must be > 0")
+		return errors.New("dimensions must be > 0")
 	}
 
 	statements := []string{

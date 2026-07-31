@@ -1,77 +1,72 @@
-# Project-wide lint config. Applied to every Go module in the
-# workspace; scripts/check.sh + .github/workflows/ci.yml iterate
-# modules and run `golangci-lint run` per module.
-#
-# Why these linters:
-#   errcheck / govet / staticcheck / unused / ineffassign / gosimple
-#     — the "you actually have a bug" core set; staticcheck alone
-#     covers most of what the bug audit would find by hand
-#   gofmt / goimports — formatting + import order consistency
-#   misspell — catches typos in comments / strings
-#
-# Why NOT some popular linters:
-#   revive — too opinionated about doc comments; would flood with
-#     "exported X should have comment" for every internal interface
-#   gocyclo — complexity metric is noisy without a meaningful
-#     threshold; we use SRP audits instead
-#   lll (line length) — Go style doesn't enforce one
-#   gomnd (magic numbers) — too many false positives in protocol /
-#     parser code where literals have semantic meaning
-
-run:
-  timeout: 5m
-
+# Project-wide lint policy. scripts/check.sh and CI apply this configuration
+# independently to every Go module in the workspace.
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
     - errcheck
     - govet
+    - ineffassign
+    - misspell
     - staticcheck
     - unused
-    - ineffassign
-    - gosimple
-    - gofmt
-    - goimports
-    - misspell
-
-linters-settings:
-  errcheck:
-    # Stdlib functions whose error returns are commonly ignored on
-    # purpose (response.Body.Close in defer, etc). Allowed via
-    # explicit `_ = ...` discards.
-    check-blank: false
-    check-type-assertions: false
-  govet:
-    enable-all: true
-    disable:
-      # fieldalignment forces struct field reordering for tiny memory
-      # wins; readability loses. Re-enable if memory profiling shows
-      # struct layout is hot.
-      - fieldalignment
-      # shadow occasionally flags intentional `if err := ...; err != nil`
-      # patterns. Off by default.
-      - shadow
-  misspell:
-    # US locale (initialize / behavior / labeled). Linter blocks any
-    # UK regressions sliding back in via PR.
-    locale: US
-  goimports:
-    local-prefixes: github.com/Tangerg/lynx
-
+  settings:
+    errcheck:
+      # Explicit blank assignments document intentionally ignored errors.
+      check-type-assertions: false
+      check-blank: false
+    govet:
+      disable:
+        # These checks trade readability for low-value layout or shadow noise.
+        - fieldalignment
+        - shadow
+      enable-all: true
+    misspell:
+      # Keep user-facing strings and documentation on one spelling convention.
+      locale: US
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+        path: _test\.go
+      # These explicit function types are compile-time constructor contracts;
+      # inferring them would erase the assertion the test exists to make.
+      - linters:
+          - staticcheck
+        path: models/internal/arch/chat_providers_test\.go
+        text: QF1011
+    paths:
+      - examples
+      - agent/examples
+      - lyra/doc
+      - lyra/docs
+      - third_party$
+      - builtin$
+      - examples$
 issues:
-  exclude-dirs:
-    - "examples"
-    - "agent/examples"
-    - "lyra/doc"
-    - "lyra/docs"
-  exclude-rules:
-    # Generated files & vendored deps are ignored implicitly by the
-    # tool — no rule needed.
-    #
-    # Test files often have intentional patterns the linters
-    # misjudge (e.g. errcheck on cleanup defers).
-    - path: _test\.go
-      linters:
-        - errcheck
   max-issues-per-linter: 0
   max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/Tangerg/lynx
+  exclusions:
+    generated: lax
+    paths:
+      - examples
+      - agent/examples
+      - lyra/doc
+      - lyra/docs
+      - third_party$
+      - builtin$
+      - examples$
