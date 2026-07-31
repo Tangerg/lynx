@@ -1,16 +1,16 @@
-// Tool card — renders one agent tool invocation as a flat activity card
-// (Geist / Codex aesthetic). A leading status-tinted icon chip + a stacked
-// name / mono-detail column + trailing meta pills / running dot / chevron.
+// Tool activity — renders one agent tool invocation as a compact disclosure
+// in the Narrative's shared activity grammar.
 // Expands inline to the plugin-contributed preview (or ToolInspector
 // fallback). Selected state drives the inspector pane via the workspace
 // navigation wiring.
 //
-// Separation is the card's own fill against the reading column,
-// not a drop-shadow or grey border — see chat DESIGN notes. Error / requires-
-// action tint the whole card so a failure reads at a glance even collapsed.
+// Status colour stays on the glyph / dot / metadata instead of washing the
+// whole row, so nested tools remain readable as a hierarchy rather than a
+// stack of competing cards.
 import type { IconName } from "@/ui";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import { Collapsible, Icon, StatusDot } from "@/ui";
+import { IconButton, StatusDot } from "@/ui";
+import { AgentActivityDisclosure } from "@/ui/agent";
 import { type ToolMetaItem } from "@/plugins/builtin/agent/public/messagePresentation";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
@@ -54,142 +54,58 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
       }
     : undefined;
 
-  const actionClass = cn(
-    "grid h-6 w-6 shrink-0 place-items-center rounded-md border-0 transition-[opacity,color,background-color]",
-    model.isError
-      ? "bg-canvas text-fg-muted opacity-100 shadow-[var(--shadow-control)] hover:text-fg"
-      : "bg-transparent text-fg-faint opacity-0 group-hover:opacity-100 hover:bg-hover hover:text-fg",
-  );
-
   return (
-    <div className="group relative my-1">
-      <div
-        className={cn(
-          "overflow-hidden rounded-lg transition-colors duration-[var(--dur-fast)]",
-          model.isError ? "bg-negative-wash" : model.needsAction ? "bg-warning-wash" : "bg-surface",
-        )}
-      >
-        <button
-          type="button"
-          aria-expanded={expanded}
-          onClick={onToggleExpand}
-          className={cn(
-            "flex w-full items-center gap-3 px-3 py-2.5 text-left",
-            "transition-colors duration-[var(--dur-fast)]",
-            model.isError
-              ? "hover:bg-negative-wash"
-              : model.needsAction
-                ? "hover:bg-warning-wash"
-                : "hover:bg-hover",
-          )}
-        >
-          {/* Leading status chip — tool glyph, tinted by status. */}
-          <IconChip status={tool.status} tool={tool} />
-
-          {/* Name + mono detail, stacked. */}
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span
-              title={model.intent.label}
-              className={cn(
-                "truncate text-ui-lg font-medium leading-snug",
-                model.isError
-                  ? "text-negative"
-                  : model.needsAction
-                    ? "text-warning"
-                    : model.running
-                      ? "text-accent"
-                      : "text-fg",
-              )}
-            >
-              {model.intent.label}
-            </span>
-            {model.detail && (
-              <span
-                title={model.detail}
-                className={cn(
-                  "font-mono text-ui-md leading-body",
-                  model.isError ? "break-words text-negative/80" : "truncate text-fg-muted",
-                )}
-              >
-                {model.detail}
-              </span>
-            )}
-          </div>
-
-          {/* Trailing meta pills — inline status counts (+N / -N / matches …). */}
+    <AgentActivityDisclosure
+      icon={toolRowIcon(tool)}
+      tone={model.isError ? "negative" : model.needsAction ? "warning" : "neutral"}
+      label={<span title={model.intent.label}>{model.intent.label}</span>}
+      detail={
+        model.detail ? (
+          <span title={model.detail} className={cn(model.isError && "text-negative")}>
+            {model.detail}
+          </span>
+        ) : undefined
+      }
+      trailing={
+        <>
           <ToolMeta items={model.metaItems} running={model.running} />
-
-          {/* Running indicator — accent pulse dot. */}
-          {model.running && <StatusDot tone="running" className="ml-0.5" />}
-
-          {/* Plugin actions — hover-reveal, or an always-visible retry chip on error. */}
-          {actions.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              title={t(a.title)}
-              onClick={(e) => {
-                e.stopPropagation();
-                void Promise.resolve(a.run(tool)).catch((err) => {
-                  const owner = lookupToolActionOwner(a.id) ?? "unknown";
-                  console.error(`[plugin] tool action ${a.id} threw:`, err);
-                  reportPluginError(owner, "command", err, `tool action: ${a.id}`);
-                });
-              }}
-              className={actionClass}
-            >
-              <Icon name={a.icon as IconName} size={12} />
-            </button>
-          ))}
-
-          {/* Expand chevron — rotates -90° when collapsed. */}
-          <Icon
-            name="chevron-down"
-            size={14}
-            className={cn(
-              "shrink-0 text-fg-faint transition-transform duration-[var(--dur-fast)]",
-              !expanded && "-rotate-90",
-            )}
-          />
-        </button>
-
-        {/* Expanded inline preview — plugin renderer or ToolInspector fallback. */}
-        <Collapsible open={expanded}>
-          <div className="px-3 pb-3 pt-0.5">
-            <ToolPreview tool={tool} onOpenView={onOpenView} />
-          </div>
-        </Collapsible>
-      </div>
-    </div>
+          {model.running && <StatusDot tone="running" />}
+        </>
+      }
+      actions={actions.map((action) => (
+        <IconButton
+          key={action.id}
+          icon={action.icon as IconName}
+          size="xs"
+          quiet={!model.isError}
+          title={t(action.title)}
+          onClick={(event) => {
+            event.stopPropagation();
+            void Promise.resolve(action.run(tool)).catch((err) => {
+              const owner = lookupToolActionOwner(action.id) ?? "unknown";
+              console.error(`[plugin] tool action ${action.id} threw:`, err);
+              reportPluginError(owner, "command", err, `tool action: ${action.id}`);
+            });
+          }}
+          className={cn(
+            !model.isError &&
+              "opacity-0 transition-opacity group-hover/activity:opacity-100 focus-visible:opacity-100",
+          )}
+        />
+      ))}
+      open={expanded}
+      onToggle={onToggleExpand}
+    >
+      <ToolPreview tool={tool} onOpenView={onOpenView} />
+    </AgentActivityDisclosure>
   );
 }
 
-// Leading 28px chip. Keeps the per-tool glyph (so a glance tells read from
-// write from search) while the fill/ink encodes status.
-function IconChip({ status, tool }: { status: ToolCall["status"]; tool: ToolCall }) {
-  const tone =
-    status === "err"
-      ? "bg-negative-badge text-negative"
-      : status === "requires-action"
-        ? "bg-warning-badge text-warning"
-        : status === "ok"
-          ? "bg-success-badge text-success"
-          : status === "denied"
-            ? "bg-fg/[0.06] text-fg-faint"
-            : "bg-surface-2 text-fg-muted"; // running / pending
-  const icon: IconName =
-    status === "err"
-      ? "x"
-      : status === "requires-action"
-        ? "alert"
-        : status === "denied"
-          ? "stop"
-          : toolIconFor(toolRoutingKey(tool));
-  return (
-    <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-sm", tone)}>
-      <Icon name={icon} size={15} />
-    </span>
-  );
+function toolRowIcon(tool: ToolCall): IconName {
+  if (tool.status === "err") return "x";
+  if (tool.status === "requires-action") return "alert";
+  if (tool.status === "denied") return "stop";
+  return toolIconFor(toolRoutingKey(tool));
 }
 
 function ToolMeta({ items, running }: { items: ToolMetaItem[]; running: boolean }) {
@@ -197,24 +113,24 @@ function ToolMeta({ items, running }: { items: ToolMetaItem[]; running: boolean 
   if (shown.length === 0) return null;
 
   return (
-    <div className="hidden shrink-0 items-center gap-1 sm:flex">
+    <span className="hidden shrink-0 items-center gap-1.5 sm:flex">
       {shown.map((item) => (
         <span
           key={item.id}
           className={cn(
-            "inline-flex h-5 items-center rounded-pill px-2 font-mono text-ui-sm font-medium",
+            "font-mono text-ui-xs font-medium tabular-nums",
             toolMetaToneClass(item.tone),
           )}
         >
           {item.label}
         </span>
       ))}
-    </div>
+    </span>
   );
 }
 
 function toolMetaToneClass(tone: ToolMetaItem["tone"]): string {
-  if (tone === "success") return "bg-success-badge text-success";
-  if (tone === "negative") return "bg-negative-badge text-negative";
-  return "bg-fg/[0.06] text-fg-muted";
+  if (tone === "success") return "text-success";
+  if (tone === "negative") return "text-negative";
+  return "text-fg-muted";
 }

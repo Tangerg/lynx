@@ -119,7 +119,10 @@ export function Composer({
           above stays pure: attach + model on the left, send on the right. Its
           inset is tighter than the editor's and flush to the card's edges,
           which is what keeps the controls reading as chrome, not content. */}
-      <div className="flex flex-nowrap items-center gap-1.5 pr-[var(--density-composer-footer-end)] pb-[var(--density-composer-footer)] pl-[var(--density-composer-footer)]">
+      <div
+        data-slot="composer-footer"
+        className="flex flex-nowrap items-center gap-1.5 pr-[var(--density-composer-footer-end)] pb-[var(--density-composer-footer)] pl-[var(--density-composer-footer)]"
+      >
         <Slot name="composer.toolbar.start" />
         <div className="flex-1 min-w-2" />
         <Slot name="composer.toolbar.end" />

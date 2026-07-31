@@ -43,7 +43,7 @@ export function CwdMissingBanner() {
   };
 
   return (
-    <SystemMessage variant="warning" className="mx-4 mt-2.5 mb-1 items-start px-4 py-3">
+    <SystemMessage variant="warning" className="my-2.5 items-start px-3 py-2.5">
       <div className="min-w-0">
         <div className="mb-0.5 text-ui-lg font-semibold text-warning">{t("cwdMissing.title")}</div>
         <div className="text-ui-lg text-fg-soft break-words">

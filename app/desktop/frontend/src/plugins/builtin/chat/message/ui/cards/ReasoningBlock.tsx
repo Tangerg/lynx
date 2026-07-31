@@ -1,7 +1,8 @@
 import type { BlockStatus } from "@/plugins/builtin/agent/public/viewState";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MarkdownMessage } from "../markdown/MarkdownMessage";
-import { Collapsible, Icon, StatusDot } from "@/ui";
+import { Button, Icon, StatusDot } from "@/ui";
+import { AgentActivityDisclosure } from "@/ui/agent";
 import { stopCurrentRootRun } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
@@ -129,92 +130,69 @@ export function ReasoningBlock({ text, status }: Props) {
   const showBottomFade = isOpen && streaming && edges.overflowing && !edges.atBottom;
 
   return (
-    <div className="my-2 rounded-lg bg-surface">
-      <div className="flex w-full items-center gap-2">
-        <button
-          type="button"
-          onClick={toggle}
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border-0 bg-transparent px-3.5 py-3 text-left transition-colors duration-[var(--dur-fast)] hover:bg-hover"
-        >
-          <Icon name="sparkle" size={14} className="shrink-0 text-fg-muted" />
-          <span className="shrink-0 text-ui-lg font-medium text-fg [font-feature-settings:'tnum']">
-            {label}
-          </span>
-          {!isOpen && preview && (
-            <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-ui-md font-normal text-fg-faint">
-              {preview}
-            </span>
-          )}
-          {streaming && isOpen && <StatusDot tone="running" />}
-          <span className="flex-1" />
-          <Icon
-            name={isOpen ? "chevron-up" : "chevron-down"}
-            size={14}
-            className="shrink-0 text-fg-muted"
-          />
-        </button>
-        {/* "Answer now" — interrupt the run so the model skips the rest of its
-            thinking and commits to an answer. Only while streaming; a settled
-            block has nothing to stop. A sibling of the toggle (buttons can't
-            nest) wired to the imperative stop action — a handler read, not a
-            subscription, per §5 effect discipline. */}
-        {streaming && (
-          <button
-            type="button"
+    <AgentActivityDisclosure
+      icon="sparkle"
+      label={<span className="[font-feature-settings:'tnum']">{label}</span>}
+      detail={!isOpen && preview ? preview : undefined}
+      trailing={streaming && isOpen ? <StatusDot tone="running" /> : undefined}
+      actions={
+        streaming ? (
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={() => {
               stopCurrentRootRun();
             }}
-            className="mr-3.5 shrink-0 border-b border-dotted border-fg-faint/60 pb-px text-ui-md leading-none text-fg-muted transition-colors hover:border-fg hover:text-fg"
+            className="text-fg-muted"
           >
             {t("reasoning.answerNow")}
-          </button>
+          </Button>
+        ) : undefined
+      }
+      open={isOpen}
+      onToggle={toggle}
+      className="my-1.5"
+      contentClassName="relative"
+    >
+      <div
+        ref={scrollRef}
+        onScroll={measure}
+        className={cn(
+          "relative overflow-hidden pr-2",
+          streaming && isOpen && "max-h-48 overflow-y-auto",
         )}
-      </div>
-      {/* Collapsible (grid-rows), not a height:auto tween — this block lives
-          inside the message stream, where FM's auto-measure makes
-          use-stick-to-bottom clamp the chat to the top (see Collapsible). */}
-      <Collapsible open={isOpen}>
+      >
+        {/* Top fade — visible when scrolled down. */}
         <div
-          ref={scrollRef}
-          onScroll={measure}
           className={cn(
-            "relative overflow-hidden px-3.5 pb-3",
-            streaming && isOpen && "max-h-48 overflow-y-auto",
+            "pointer-events-none absolute inset-x-0 top-0 z-10 h-6",
+            "bg-[linear-gradient(to_bottom,var(--color-canvas),transparent)]",
+            "transition-opacity duration-[var(--dur-fast)]",
+            showTopFade ? "opacity-100" : "opacity-0",
           )}
+        />
+        <div
+          ref={contentRef}
+          className="whitespace-pre-wrap text-ui-md leading-relaxed text-fg-muted"
         >
-          {/* Top fade — visible when scrolled down. Fades into the card's
-              surface, not the canvas, so the mask is invisible against the bg. */}
-          <div
-            className={cn(
-              "pointer-events-none absolute inset-x-0 top-0 z-10 h-6",
-              "bg-[linear-gradient(to_bottom,var(--color-surface),transparent)]",
-              "transition-opacity duration-[var(--dur-fast)]",
-              showTopFade ? "opacity-100" : "opacity-0",
-            )}
-          />
-          <div
-            ref={contentRef}
-            className="whitespace-pre-wrap pl-[26px] text-ui-lg leading-relaxed text-fg-muted"
-          >
-            <MarkdownMessage text={text} streaming={streaming} />
-            {status === "incomplete" && (
-              <div className="mt-1 font-mono text-ui-sm text-fg-faint">
-                <Icon name="x" size={10} /> {t("reasoning.interrupted")}
-              </div>
-            )}
-          </div>
-          {/* Bottom fade — visible while streaming and not at bottom */}
-          <div
-            className={cn(
-              "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6",
-              "bg-[linear-gradient(to_top,var(--color-surface),transparent)]",
-              "transition-opacity duration-[var(--dur-fast)]",
-              showBottomFade ? "opacity-100" : "opacity-0",
-            )}
-          />
+          <MarkdownMessage text={text} streaming={streaming} />
+          {status === "incomplete" && (
+            <div className="mt-1 font-mono text-ui-sm text-fg-faint">
+              <Icon name="x" size={10} /> {t("reasoning.interrupted")}
+            </div>
+          )}
         </div>
-      </Collapsible>
-    </div>
+        {/* Bottom fade — visible while streaming and not at bottom. */}
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6",
+            "bg-[linear-gradient(to_top,var(--color-canvas),transparent)]",
+            "transition-opacity duration-[var(--dur-fast)]",
+            showBottomFade ? "opacity-100" : "opacity-0",
+          )}
+        />
+      </div>
+    </AgentActivityDisclosure>
   );
 }
 

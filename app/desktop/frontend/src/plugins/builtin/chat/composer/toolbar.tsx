@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { Button, DropdownMenu, Icon, IconButton, ProviderIcon, Tooltip } from "@/ui";
+import { Button, DropdownMenu, Icon, IconButton, ProviderIcon } from "@/ui";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
 import { useSelectedModel } from "./public/selectedModel";
 import {
@@ -109,17 +109,14 @@ function AttachButton() {
           if (files.length > 0) addImageFiles(files);
         }}
       />
-      <Tooltip
-        label={canAttach ? t("composer.attachImage") : t("composer.attachImage.unsupported")}
-      >
-        <IconButton
-          icon="plus"
-          aria-label={t("composer.attachImage")}
-          disabled={!canAttach}
-          onClick={() => inputRef.current?.click()}
-          className="disabled:opacity-25"
-        />
-      </Tooltip>
+      <IconButton
+        icon="plus"
+        aria-label={t("composer.attachImage")}
+        title={canAttach ? t("composer.attachImage") : t("composer.attachImage.unsupported")}
+        disabled={!canAttach}
+        onClick={() => inputRef.current?.click()}
+        className="disabled:opacity-25"
+      />
     </>
   );
 }

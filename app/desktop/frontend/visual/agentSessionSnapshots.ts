@@ -1,13 +1,17 @@
-import type { Item, RunRef } from "@/rpc";
+import type { Item, RunEvent, RunRef, StreamEvent } from "@/rpc";
 import type { AgentSessionSnapshot } from "@/plugins/builtin/agent/application/ports/runtimeGateway";
 
 export const VISUAL_AGENT_STATES = [
   "empty",
   "idle",
   "running",
+  "steer",
   "waiting",
+  "question",
   "terminal",
+  "canceled",
   "error",
+  "recovery",
   "delegated",
   "long-content",
 ] as const;
@@ -61,6 +65,62 @@ const RESPONSE = message(
   "The boundary is clean: the framework exposes execution primitives, while the application owns persistence, idempotency, and transaction policy.",
 );
 
+const RUNNING_RESPONSE: Item = {
+  type: "agentMessage",
+  id: "item_running_response",
+  runId: ROOT_RUN_ID,
+  status: "running",
+  createdAt: CREATED_AT,
+  content: [{ type: "text", text: "I’m tracing the ownership boundary and verifying" }],
+};
+
+const RUNNING_REASONING: Item = {
+  type: "reasoning",
+  id: "item_reasoning",
+  runId: ROOT_RUN_ID,
+  status: "running",
+  createdAt: CREATED_AT,
+  text: "The framework must expose execution capability without knowing the application’s persistence records.",
+};
+
+const RUNNING_PLAN: Item = {
+  type: "plan",
+  id: "item_plan",
+  runId: ROOT_RUN_ID,
+  status: "running",
+  createdAt: CREATED_AT,
+  steps: [
+    { id: "step_boundary", title: "Verify boundary ownership", status: "completed" },
+    { id: "step_projection", title: "Inspect the normalized projection", status: "running" },
+    { id: "step_gates", title: "Run conformance gates", status: "pending" },
+  ],
+};
+
+const RUNNING_TOOL: Item = {
+  type: "toolCall",
+  id: "item_running_tool",
+  runId: ROOT_RUN_ID,
+  status: "running",
+  createdAt: CREATED_AT,
+  tool: {
+    name: "grep",
+    arguments: {
+      pattern: "idempotency|atomicity",
+      path: "app/runtime",
+    },
+  },
+};
+
+function tailEvent(index: number, event: StreamEvent): RunEvent {
+  return {
+    event,
+    eventId: `event_visual_${index}`,
+    runId: ROOT_RUN_ID,
+    segmentId: "seg_root",
+    timestamp: CREATED_AT,
+  };
+}
+
 const LONG_RESPONSE = message(
   "agentMessage",
   "item_long_response",
@@ -104,7 +164,23 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
   },
   running: {
     runs: [run("running")],
-    items: [PROMPT, RESPONSE],
+    items: [PROMPT],
+    pendingInterruptSets: [],
+    state: {
+      type: "todos",
+      sessionId: SESSION_ID,
+      revision: 3,
+      updatedAt: "2026-07-31T08:00:08.000Z",
+      todos: [
+        { id: "todo_boundary", text: "Verify boundary ownership", status: "completed" },
+        { id: "todo_visual", text: "Review visual evidence", status: "in_progress" },
+        { id: "todo_gates", text: "Run quality gates", status: "pending" },
+      ],
+    },
+  },
+  steer: {
+    runs: [run("running")],
+    items: [PROMPT],
     pendingInterruptSets: [],
     state: {
       type: "todos",
@@ -145,7 +221,59 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
       },
     ],
   },
+  question: {
+    runs: [run("waiting")],
+    items: [PROMPT, RESPONSE],
+    pendingInterruptSets: [
+      {
+        rootRunId: ROOT_RUN_ID,
+        sessionId: SESSION_ID,
+        createdAt: "2026-07-31T08:00:09.000Z",
+        interrupts: [
+          {
+            type: "question",
+            itemId: "item_question",
+            runId: ROOT_RUN_ID,
+            payload: {
+              question: {
+                prompt: "Choose the next conformance gate.",
+                fields: [
+                  {
+                    type: "choice",
+                    name: "gate",
+                    header: "Gate",
+                    label: "Which gate should run next?",
+                    required: true,
+                    options: [
+                      {
+                        label: "Race detector",
+                        description: "Exercise concurrency and cancellation paths.",
+                      },
+                      {
+                        label: "Visual suite",
+                        description: "Verify light, dark, long-content, and HITL states.",
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      },
+    ],
+  },
   terminal: {
+    runs: [
+      run("finished", {
+        finishedAt: "2026-07-31T08:00:12.000Z",
+        outcome: { type: "completed" },
+      }),
+    ],
+    items: [PROMPT, RESPONSE],
+    pendingInterruptSets: [],
+  },
+  canceled: {
     runs: [
       run("finished", {
         finishedAt: "2026-07-31T08:00:12.000Z",
@@ -164,6 +292,22 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
           error: {
             type: "provider_rejected",
             detail: "The provider rejected the request. Verify the selected model and retry.",
+          },
+        },
+      }),
+    ],
+    items: [PROMPT],
+    pendingInterruptSets: [],
+  },
+  recovery: {
+    runs: [
+      run("finished", {
+        finishedAt: "2026-07-31T08:00:12.000Z",
+        outcome: {
+          type: "error",
+          error: {
+            type: "run_lost",
+            detail: "The Runtime restarted before this Run reached a terminal event.",
           },
         },
       }),
@@ -268,4 +412,30 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
   },
 };
 
+export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, RunEvent[]>> = {
+  empty: [],
+  idle: [],
+  running: [
+    tailEvent(1, { type: "item.started", item: RUNNING_REASONING }),
+    tailEvent(2, { type: "item.started", item: RUNNING_PLAN }),
+    tailEvent(3, { type: "item.started", item: RUNNING_TOOL }),
+    tailEvent(4, { type: "item.started", item: RUNNING_RESPONSE }),
+  ],
+  steer: [
+    tailEvent(1, { type: "item.started", item: RUNNING_REASONING }),
+    tailEvent(2, { type: "item.started", item: RUNNING_PLAN }),
+    tailEvent(3, { type: "item.started", item: RUNNING_TOOL }),
+    tailEvent(4, { type: "item.started", item: RUNNING_RESPONSE }),
+  ],
+  waiting: [],
+  question: [],
+  terminal: [],
+  canceled: [],
+  error: [],
+  recovery: [],
+  delegated: [],
+  "long-content": [],
+};
+
 export const VISUAL_SESSION_ID = SESSION_ID;
+export const VISUAL_ROOT_RUN_ID = ROOT_RUN_ID;

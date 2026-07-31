@@ -19,6 +19,7 @@ import {
   useAgentSharedState,
   useAgentToolCalls,
   useCurrentRootContextTokens,
+  useCurrentRootOutcome,
   useCurrentRootPlan,
   useCurrentRootRunId,
   useCurrentRootSegmentId,
@@ -97,6 +98,7 @@ export function installAgentStatePorts(): () => void {
 
   const disposeViewState = configureAgentSessionViewPort({
     useCurrentRootAttention,
+    useCurrentRootOutcome,
     useCurrentRootRunId,
     useCurrentRootSegmentId,
     useCurrentRootPlan,

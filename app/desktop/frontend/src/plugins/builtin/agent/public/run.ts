@@ -10,6 +10,7 @@ export {
   useActiveSessionTimeline,
   useActiveSessionToolCalls,
   useCurrentRootPlan,
+  useCurrentRootOutcome,
   useCurrentRootRunId,
   useIsCurrentRootRunning,
 } from "../application/run/runReadModel";

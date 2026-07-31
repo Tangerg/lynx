@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
-import { useId, useState } from "react";
+import { useState } from "react";
 import type { AgentRunView } from "@/plugins/builtin/agent/public/viewState";
-import { Collapsible, Icon, IconButton, StatusDot } from "@/ui";
+import { IconButton, StatusDot } from "@/ui";
+import { AgentActivityDisclosure } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
 import { delegatedRunCardModel } from "../application/delegatedRunCardModel";
@@ -29,65 +30,45 @@ export function DelegatedRunDisclosure({
   const model = delegatedRunCardModel(t, run, ordinal, siblingCount);
   const [pinnedExpanded, setPinnedExpanded] = useState<boolean | null>(null);
   const expanded = pinnedExpanded ?? model.autoExpanded;
-  const headingId = useId();
-  const panelId = useId();
 
   return (
-    <section className="my-2 overflow-hidden rounded-lg border border-field bg-surface">
-      <div className="flex min-h-10 items-stretch">
-        <button
-          id={headingId}
-          type="button"
-          aria-expanded={expanded}
-          aria-controls={panelId}
-          onClick={() => setPinnedExpanded(!expanded)}
-          className="flex min-h-10 min-w-0 flex-1 items-center gap-2.5 px-3 text-left transition-colors duration-[var(--dur-fast)] hover:bg-hover"
-        >
-          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-sm bg-surface-2 text-fg-muted">
-            <Icon name="bot" size={15} />
+    <AgentActivityDisclosure
+      icon="bot"
+      label={model.label}
+      detail={
+        model.detail ? (
+          <span title={model.detail} className="text-pretty">
+            {model.detail}
           </span>
-          <span className="min-w-0 flex-1 py-2">
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="truncate text-ui-md font-semibold text-fg">{model.label}</span>
-              <span
-                className={cn(
-                  "inline-flex shrink-0 items-center gap-1.5 text-ui-xs font-medium",
-                  model.status === "running"
-                    ? "text-accent"
-                    : model.status === "waiting" || model.status === "limit"
-                      ? "text-warning"
-                      : model.status === "error"
-                        ? "text-negative"
-                        : "text-fg-muted",
-                )}
-              >
-                <StatusDot tone={model.dotTone} />
-                {model.statusLabel}
-              </span>
-            </span>
-            <span className="mt-0.5 flex min-w-0 items-center gap-2 text-ui-sm text-fg-muted">
-              {model.detail && (
-                <span title={model.detail} className="truncate text-pretty">
-                  {model.detail}
-                </span>
-              )}
-              <span className="ml-auto shrink-0 font-mono tabular-nums">{model.stepsLabel}</span>
-            </span>
-          </span>
-          <Icon
-            name="chevron-down"
-            size={14}
+        ) : undefined
+      }
+      trailing={
+        <>
+          <span
             className={cn(
-              "shrink-0 text-fg-faint transition-transform duration-[var(--dur-fast)] motion-reduce:transition-none",
-              !expanded && "-rotate-90",
+              "inline-flex items-center gap-1 text-ui-xs font-medium",
+              model.status === "running"
+                ? "text-accent"
+                : model.status === "waiting" || model.status === "limit"
+                  ? "text-warning"
+                  : model.status === "error"
+                    ? "text-negative"
+                    : "text-fg-muted",
             )}
-          />
-        </button>
-
-        <div className="flex shrink-0 items-center border-l border-field px-0.5">
+          >
+            <StatusDot tone={model.dotTone} />
+            {model.statusLabel}
+          </span>
+          <span className="font-mono text-ui-xs tabular-nums text-fg-faint">
+            {model.stepsLabel}
+          </span>
+        </>
+      }
+      actions={
+        <>
           <IconButton
             icon="history"
-            size="lg"
+            size="sm"
             quiet
             title={t("agent.runTree.action.audit")}
             onClick={onOpenAudit}
@@ -95,31 +76,30 @@ export function DelegatedRunDisclosure({
           {model.cancelable && (
             <IconButton
               icon="stop"
-              size="lg"
+              size="sm"
               quiet
               title={t("agent.runTree.action.cancel")}
               onClick={onCancel}
             />
           )}
-        </div>
-      </div>
-
-      <Collapsible open={expanded}>
-        <div
-          id={panelId}
-          role="region"
-          aria-labelledby={headingId}
-          className="border-t border-field px-3 pb-3 pt-2.5"
-        >
-          {hasMaterial ? (
-            children
-          ) : (
-            <p className="text-pretty text-ui-sm text-fg-muted">
-              {t("agent.runTree.material.empty")}
-            </p>
-          )}
-        </div>
-      </Collapsible>
-    </section>
+        </>
+      }
+      open={expanded}
+      onToggle={() => setPinnedExpanded(!expanded)}
+      tone={
+        model.status === "error"
+          ? "negative"
+          : model.status === "waiting" || model.status === "limit"
+            ? "warning"
+            : "neutral"
+      }
+      className="my-1.5"
+    >
+      {hasMaterial ? (
+        children
+      ) : (
+        <p className="text-pretty text-ui-sm text-fg-muted">{t("agent.runTree.material.empty")}</p>
+      )}
+    </AgentActivityDisclosure>
   );
 }

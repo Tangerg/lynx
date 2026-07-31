@@ -136,14 +136,14 @@ export function ApprovalCard({
         </span>
       }
     >
-      <div className="mb-1.5 text-display-sm font-semibold leading-body text-fg">
+      <div className="mb-1 text-ui-lg font-semibold leading-body text-fg">
         {approvalHeadline(t, toolName)}
       </div>
       {/* Shell-prompt command line — only for command-style approvals. Other
           tools have no `cmd` (their payload is just args), so skip the box
           instead of rendering a lonely "$". Dark code chip on the light card. */}
       {cmd.trim() && (
-        <code className="my-1.5 block whitespace-pre-wrap break-all rounded-sm bg-fg p-3 font-mono text-ui-md text-on-fg">
+        <code className="my-1.5 block whitespace-pre-wrap break-all rounded-sm bg-fg px-2.5 py-2 font-mono text-ui-sm text-on-fg">
           $ {cmd}
         </code>
       )}
@@ -205,7 +205,7 @@ export function ApprovalCard({
           )}
         </div>
       )}
-      <div className="mb-2 text-ui-lg leading-body text-fg-muted">{reason}</div>
+      <div className="mb-2 text-ui-md leading-body text-fg-muted">{reason}</div>
       <div className="flex items-center gap-2">
         <Button variant="primary" size="sm" disabled={disabled} onClick={approve}>
           {t("approval.action.approve")}

@@ -56,8 +56,8 @@ const UNRETRYABLE: readonly string[] = ["invalid_api_key", "invalid_params", "pr
 // The runtime deliberately does not supply that sentence — it would be one
 // locale's copy authored where no translator can see it.
 // Sits above the message stream so a render error inside MessageStream
-// doesn't take the error notice down with it. Tinted with --color-negative
-// so it reads as a stoppable problem, not a passing notice.
+// doesn't take the error notice down with it. The negative cue stays on the
+// icon/title/action rather than washing the full reading width.
 //
 // UX review §3.3: error must not be a dead end — gives the user a
 // concrete next step (Retry / Open timeline / Open diagnostics) instead
@@ -109,18 +109,18 @@ export function RunErrorBanner() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={disclosureTransition}
-          className="grid grid-cols-[auto_1fr_auto] items-start gap-2.5 mx-4 mt-2.5 mb-1 rounded-lg px-4 py-3 bg-negative-wash text-fg font-sans"
+          className="my-2.5 grid grid-cols-[auto_1fr_auto] items-start gap-2.5 rounded-lg bg-surface px-3 py-2.5 font-sans text-fg"
         >
-          <Icon name="bug" size={14} className="text-negative mt-0.5" />
+          <Icon name="alert" size={14} className="mt-0.5 text-negative" />
           <div className="min-w-0">
-            <div className="text-ui-lg font-semibold text-negative mb-0.5">
+            <div className="mb-0.5 text-ui-md font-semibold text-negative">
               {t("runError.title")}
               {error.code ? ` · ${error.code}` : ""}
             </div>
-            <div className="text-ui-lg text-fg-soft whitespace-pre-wrap break-words">
+            <div className="whitespace-pre-wrap break-words text-ui-md leading-body text-fg-soft">
               {error.message ?? describeErrorType(error.code) ?? t("runError.unknown")}
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               {canRetry && (
                 <BannerAction
                   icon="loop"

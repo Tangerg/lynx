@@ -1,4 +1,5 @@
 export { AgentAppShell } from "./app-shell";
+export { AgentActivityDisclosure } from "./activity-disclosure";
 export { AgentComposerSurface } from "./composer-surface";
 export { AgentContentCard } from "./content-card";
 export { AgentContextDock, AgentDockTabs, type AgentDockTab } from "./context-dock";

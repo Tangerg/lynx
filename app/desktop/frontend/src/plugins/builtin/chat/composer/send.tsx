@@ -1,4 +1,4 @@
-import { IconButton, Tooltip } from "@/ui";
+import { IconButton } from "@/ui";
 import { useSendComposerInput } from "./public/sendToAgent";
 import { useIsCurrentRootRunning, useStopCurrentRootRun } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
@@ -35,29 +35,27 @@ function SendButton() {
     submitComposer({ value, clear, sendInput: send, images, pastes, recordHistory });
 
   const stopButton = (primary: boolean) => (
-    <Tooltip label={t("composer.action.stop")}>
-      <IconButton
-        icon="stop"
-        iconSize={12}
-        press={false}
-        disabled={!stop}
-        onClick={() => stop?.()}
-        className={primary ? (stop ? CIRCLE : CIRCLE_OFF) : QUIET}
-      />
-    </Tooltip>
+    <IconButton
+      icon="stop"
+      iconSize={12}
+      press={false}
+      disabled={!stop}
+      title={t("composer.action.stop")}
+      onClick={() => stop?.()}
+      className={primary ? (stop ? CIRCLE : CIRCLE_OFF) : QUIET}
+    />
   );
 
   const submitButton = (label: string, enabled: boolean) => (
-    <Tooltip label={label}>
-      <IconButton
-        icon="arrow-up"
-        iconSize={18}
-        press={false}
-        disabled={!enabled}
-        onClick={submit}
-        className={enabled ? CIRCLE : CIRCLE_OFF}
-      />
-    </Tooltip>
+    <IconButton
+      icon="arrow-up"
+      iconSize={18}
+      press={false}
+      disabled={!enabled}
+      title={label}
+      onClick={submit}
+      className={enabled ? CIRCLE : CIRCLE_OFF}
+    />
   );
 
   return (

@@ -1,5 +1,6 @@
 import type {
   AgentProblem,
+  AgentRunOutcome,
   PlanItem,
   TimelineEntry,
   ToolCall,
@@ -13,6 +14,10 @@ export function useIsCurrentRootRunning(): boolean {
 
 export function useCurrentRootRunId(): string | null {
   return agentSessionView().useCurrentRootRunId();
+}
+
+export function useCurrentRootOutcome(): AgentRunOutcome | null {
+  return agentSessionView().useCurrentRootOutcome();
 }
 
 export function useCurrentRootPlan(): PlanItem[] {

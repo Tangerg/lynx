@@ -82,11 +82,11 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
       iconClassName="text-accent"
       label={t("question.required")}
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         {questions.map((q) => {
           const cur = draft[q.id] ?? { selected: [], text: "" };
           return (
-            <div key={q.id} className="flex flex-col gap-2">
+            <div key={q.id} className="flex flex-col gap-1.5">
               <div className="flex items-center gap-2">
                 <span className="rounded-sm bg-surface-2 px-1.5 py-px font-mono text-ui-xs font-semibold text-fg-muted">
                   {q.header}
@@ -97,7 +97,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                   </span>
                 )}
               </div>
-              <div className="text-display-sm font-semibold leading-body text-fg">{q.question}</div>
+              <div className="text-ui-lg font-semibold leading-body text-fg">{q.question}</div>
 
               <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
                 {q.options.map((opt) => {
@@ -109,15 +109,15 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                       aria-pressed={active}
                       onClick={() => setDraft((prev) => toggleQuestionOption(prev, q, opt.label))}
                       className={cn(
-                        "flex flex-col gap-0.5 rounded-md border-[0.5px] border-transparent px-3 py-2 text-left transition-colors duration-[var(--dur-fast)]",
+                        "flex flex-col gap-0.5 rounded-md border-[0.5px] border-transparent px-2.5 py-1.5 text-left transition-colors duration-[var(--dur-fast)]",
                         active
                           ? "border-accent/60 bg-accent-wash"
                           : "bg-surface-2 hover:bg-surface-3",
                       )}
                     >
-                      <span className="text-ui-lg font-medium text-fg">{opt.label}</span>
+                      <span className="text-ui-md font-medium text-fg">{opt.label}</span>
                       {opt.description && (
-                        <span className="text-ui-md leading-body text-fg-muted">
+                        <span className="text-ui-sm leading-body text-fg-muted">
                           {opt.description}
                         </span>
                       )}
@@ -149,7 +149,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
         })}
       </div>
 
-      <div className="mt-3.5 flex items-center gap-2">
+      <div className="mt-2.5 flex items-center gap-2">
         <Button variant="primary" size="sm" disabled={actions.disabled} onClick={actions.submit}>
           {t("question.action.submit")}
         </Button>

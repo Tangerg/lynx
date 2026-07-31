@@ -4,6 +4,7 @@ export {
   PlanBlock,
   QuestionCard,
   ReasoningBlock,
+  RootRunOutcome,
   renderBlock,
   type BlockCtx,
 } from "../ui";

@@ -5,6 +5,7 @@ import type { ApprovalDecision, RememberScope } from "../../domain/hitl";
 import type { WireDecision } from "../hitl/wireDecision";
 import type {
   AgentProblem,
+  AgentRunOutcome,
   AgentSessionView,
   Message,
   PlanItem,
@@ -68,6 +69,7 @@ export interface AgentViewRefreshToken {
 
 export interface AgentSessionViewPort {
   useCurrentRootAttention(): AgentRootAttention;
+  useCurrentRootOutcome(): AgentRunOutcome | null;
   useCurrentRootRunId(): string | null;
   useCurrentRootSegmentId(): string | null;
   useCurrentRootPlan(): PlanItem[];

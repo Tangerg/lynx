@@ -23,6 +23,7 @@ import {
   useToggleWorkspaceTool,
 } from "@/plugins/builtin/workspace/public/navigation";
 import { useUiStore } from "@/state/uiStore";
+import { Icon } from "@/ui";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
 import { ComposerSurface } from "./ComposerSurface";
 import { CwdMissingBanner } from "./CwdMissingBanner";
@@ -106,15 +107,15 @@ export function ChatStream({ onSend }: Props) {
   // The stream's scroll lives inside MessageStream's own container, so these stay
   // put while the user scrolls messages below them.
   const banners = (
-    <>
+    <div className="mx-auto w-full max-w-[var(--content-max)] shrink-0 px-[var(--density-column-gutter)] sm:px-[var(--density-column-gutter-wide)]">
       {/* Keyed on the session so the relocate input never carries a
           half-typed path across a session switch. */}
       <CwdMissingBanner key={resetKey} />
       <RunErrorBanner />
-      <div className="pointer-events-auto mx-auto w-full max-w-[var(--content-max)] px-[var(--density-column-gutter)] sm:px-[var(--density-column-gutter-wide)]">
+      <div className="pointer-events-auto">
         <Slot name="chat.banner.top" />
       </div>
-    </>
+    </div>
   );
 
   // Empty state (Codex / ChatGPT voice): the hero + composer are ONE
@@ -129,7 +130,8 @@ export function ChatStream({ onSend }: Props) {
             sits at the optical centre rather than the heading floating above a
             bottom-anchored input. */}
         <div className="panel-scroll flex flex-1 flex-col items-center justify-center px-[var(--density-column-gutter)] sm:px-[var(--density-column-gutter-wide)]">
-          <div className="flex w-full max-w-[var(--content-max)] flex-col items-center gap-4 pb-5">
+          <div className="flex w-full max-w-[var(--content-max)] flex-col items-center gap-3 pb-5">
+            <Icon name="spark" size={30} strokeWidth={1.7} className="text-fg" />
             <h1 className="text-balance text-center text-display-lg font-normal text-fg/95 sm:text-display-xl">
               {t("welcome.title")}
             </h1>

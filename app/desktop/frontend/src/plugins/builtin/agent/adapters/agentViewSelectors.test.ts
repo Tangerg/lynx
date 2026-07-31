@@ -16,6 +16,7 @@ import {
   useAgentProblem,
   useAgentSharedState,
   useCurrentRootAttention,
+  useCurrentRootOutcome,
 } from "./agentViewSelectors";
 
 function seed(commandError: AgentProblem | null, shared: Record<string, unknown>) {
@@ -99,5 +100,62 @@ describe("agent view selectors react to session switch", () => {
 
     expect(result.current).toBe(first);
     expect(result.current).toEqual({ status: "running", runId: "run-1" });
+  });
+
+  it("does not re-render the root outcome subscriber for unrelated projection writes", () => {
+    const outcome = { type: "completed" as const };
+    const finished = {
+      id: "run-1",
+      sessionId: "a",
+      parentRunId: null,
+      rootRunId: "run-1",
+      spawnedByItemId: null,
+      status: "finished" as const,
+      activeSegmentId: null,
+      outcome,
+      metrics: {
+        steps: 1,
+        activeDurationMs: 10,
+        usage: { inputTokens: 3, outputTokens: 2, cacheReadTokens: 0 },
+      },
+      progress: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      finishedAt: "2026-01-01T00:00:01.000Z",
+    };
+    useAgentStore.setState({
+      sessions: {
+        a: {
+          ...seed(null, {}),
+          view: { ...EMPTY_AGENT_SESSION_VIEW, runsById: { [finished.id]: finished } },
+        },
+      },
+    });
+    useAgentSessionStore.setState({ activeSessionId: "a" });
+
+    let renders = 0;
+    const { result } = renderHook(() => {
+      renders += 1;
+      return useCurrentRootOutcome();
+    });
+    expect(result.current).toBe(outcome);
+
+    act(() =>
+      useAgentStore.setState((state) => {
+        const current = state.sessions.a!;
+        return {
+          sessions: {
+            ...state.sessions,
+            a: {
+              ...current,
+              view: { ...current.view, shared: { unrelated: true } },
+              viewRevision: current.viewRevision + 1,
+            },
+          },
+        };
+      }),
+    );
+
+    expect(renders).toBe(1);
+    expect(result.current).toBe(outcome);
   });
 });

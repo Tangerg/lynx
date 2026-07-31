@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type {
   AgentProblem,
+  AgentRunOutcome,
   AgentSessionView,
   Message,
   PlanItem,
@@ -56,6 +57,10 @@ export function useCurrentRootAttention(): AgentRootAttention {
     () => (root ? { status: root.status, runId: root.id } : { status: "idle", runId: null }),
     [root],
   );
+}
+
+export function useCurrentRootOutcome(): AgentRunOutcome | null {
+  return useActiveAgentView((view) => selectCurrentRootRun(view)?.outcome ?? null);
 }
 
 export function useCurrentRootRunId(): string | null {

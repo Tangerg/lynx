@@ -10,7 +10,7 @@ import { useT } from "@/lib/i18n";
 import { Loader } from "@/ui";
 import { Slot } from "@/plugins/host/Slot";
 import { useIsCurrentRootRunning } from "@/plugins/builtin/agent/public/run";
-import { MessageBlock } from "@/plugins/builtin/chat/message/public/rendering";
+import { MessageBlock, RootRunOutcome } from "@/plugins/builtin/chat/message/public/rendering";
 
 // Chat scroll surface, backed by use-stick-to-bottom. `resetKey`
 // re-keys the subtree on session switch so a new thread lands at the
@@ -92,7 +92,7 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
     >
       <StickToBottom.Content
         scrollClassName="panel-scroll"
-        className="relative mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-10 px-[var(--density-column-gutter)] pt-8 pb-8 sm:px-[var(--density-column-gutter-wide)]"
+        className="relative mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-8 px-[var(--density-column-gutter)] pt-7 pb-7 sm:px-[var(--density-column-gutter-wide)]"
       >
         <AnimatePresence initial={false}>
           {messages.map((m, i) => (
@@ -136,6 +136,7 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
             <Loader variant="dots" />
           </div>
         )}
+        {!running && <RootRunOutcome />}
       </StickToBottom.Content>
       <ControlsRelay />
     </StickToBottom>

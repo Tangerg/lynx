@@ -2,9 +2,9 @@ import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
 import type { MouseEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { Icon, IconButton, StepMark, type StepState } from "@/ui";
+import { IconButton, StepMark, type StepState } from "@/ui";
+import { AgentActivityDisclosure } from "@/ui/agent";
 import { disclosureTransition } from "@/lib/motion";
-import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { useCurrentRootPlan, useCurrentRootRunId } from "@/plugins/builtin/agent/public/run";
 import { planProgress } from "../application/progress";
@@ -34,29 +34,11 @@ export function PlanProgressBanner() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -4 }}
           transition={disclosureTransition}
-          className="mt-2 mb-1 overflow-hidden rounded-lg bg-surface"
+          className="mt-1.5 mb-1"
         >
-          <div className="flex items-center">
-            <button
-              type="button"
-              data-focus-inset=""
-              onClick={() => setExpanded((value) => !value)}
-              aria-expanded={expanded}
-              aria-label={
-                expanded
-                  ? t("plan.collapse")
-                  : t("plan.expand", {
-                      done: progress.done,
-                      total: progress.total,
-                      pct: progress.percent,
-                    })
-              }
-              className={cn(
-                "flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5",
-                "border-0 bg-transparent text-left transition-colors hover:bg-hover",
-              )}
-            >
-              <StepMark state={STEP_STATE[progress.current.status]} />
+          <AgentActivityDisclosure
+            leading={<StepMark state={STEP_STATE[progress.current.status]} />}
+            label={
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
                   key={expanded ? "summary" : "current"}
@@ -64,51 +46,51 @@ export function PlanProgressBanner() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -3 }}
                   transition={disclosureTransition}
-                  className="min-w-0 flex-1 truncate text-ui-lg leading-body text-fg"
+                  className="block min-w-0 truncate"
                 >
                   {expanded
                     ? t("plan.complete", { done: progress.done, total: progress.total })
                     : progress.current.text}
                 </motion.span>
               </AnimatePresence>
-              <span className="shrink-0 font-mono text-ui-sm font-medium text-fg-muted">
+            }
+            trailing={
+              <span className="font-mono text-ui-xs font-medium tabular-nums">
                 {progress.percent}%
               </span>
-              <Icon
-                name={expanded ? "chevron-up" : "chevron-down"}
-                size={14}
-                className="shrink-0 text-fg-faint"
+            }
+            actions={
+              <IconButton
+                icon="x"
+                iconSize={12}
+                size="sm"
+                quiet
+                title={t("plan.dismiss")}
+                aria-label={t("plan.dismissAria")}
+                onClick={dismiss}
               />
-            </button>
-            <IconButton
-              icon="x"
-              iconSize={12}
-              size="sm"
-              quiet
-              title={t("plan.dismiss")}
-              aria-label={t("plan.dismissAria")}
-              onClick={dismiss}
-              className="mr-1.5 shrink-0"
-            />
-          </div>
-
-          <div
-            className={cn(
-              "grid transition-[grid-template-rows] duration-[var(--dur-disclosure)] ease-out",
-              expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-            )}
+            }
+            open={expanded}
+            onToggle={() => setExpanded((value) => !value)}
+            toggleLabel={
+              expanded
+                ? t("plan.collapse")
+                : t("plan.expand", {
+                    done: progress.done,
+                    total: progress.total,
+                    pct: progress.percent,
+                  })
+            }
           >
-            <div className="overflow-hidden">
-              <ul className="flex flex-col gap-1 px-3 py-2">
-                {plan.map((item) => (
-                  <li key={item.id} className="flex items-center gap-2.5 py-0.5">
-                    <StepMark state={STEP_STATE[item.status]} />
-                    <span className={itemTextClass(item.status)}>{item.text}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
+            <ul className="flex flex-col gap-0.5">
+              {plan.map((item) => (
+                <li key={item.id} className="flex items-center gap-2 py-0.5">
+                  <StepMark state={STEP_STATE[item.status]} />
+                  <span className={itemTextClass(item.status)}>{item.text}</span>
+                </li>
+              ))}
+            </ul>
+          </AgentActivityDisclosure>
         </motion.div>
       )}
     </AnimatePresence>
@@ -122,10 +104,11 @@ const STEP_STATE: Record<PlanItem["status"], StepState> = {
 };
 
 function itemTextClass(status: PlanItem["status"]) {
-  return cn(
-    "min-w-0 flex-1 truncate text-ui-lg leading-body",
-    status === "done" && "text-fg-faint line-through decoration-line-soft",
-    status === "doing" && "font-semibold text-fg",
-    status === "todo" && "text-fg-soft",
-  );
+  if (status === "done") {
+    return "min-w-0 flex-1 truncate text-ui-md leading-body text-fg-faint line-through decoration-line-soft";
+  }
+  if (status === "doing") {
+    return "min-w-0 flex-1 truncate text-ui-md font-semibold leading-body text-fg";
+  }
+  return "min-w-0 flex-1 truncate text-ui-md leading-body text-fg-soft";
 }

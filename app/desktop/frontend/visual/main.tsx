@@ -12,7 +12,12 @@ import "../src/styles/globals.css";
 type FixtureTheme = "light" | "dark";
 
 const VISUAL_NOW = Date.parse("2026-07-31T14:30:00Z");
-Date.now = () => VISUAL_NOW;
+const VISUAL_CLOCK_STARTED_AT = performance.now();
+// Keep time-based labels deterministic without freezing the browser clock.
+// Disclosure/scroll libraries use Date.now() to advance their frame loops; a
+// constant clock leaves those loops waiting forever and hides the production
+// transcript's real initial-scroll behaviour from visual tests.
+Date.now = () => VISUAL_NOW + (performance.now() - VISUAL_CLOCK_STARTED_AT);
 setLocale("en");
 
 function fixtureTheme(value: string | null): FixtureTheme {
@@ -66,8 +71,8 @@ async function fixtureNode(): Promise<ReactNode> {
     import("./VisualAgentStateFixture"),
     import("./installVisualAgentFixture"),
   ]);
-  const view = installVisualAgentFixture(state);
-  return <VisualAgentStateFixture state={state} theme={theme} view={view} />;
+  const view = await installVisualAgentFixture(state);
+  return <VisualAgentStateFixture state={state} view={view} />;
 }
 
 const node = await fixtureNode();
