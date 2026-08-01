@@ -2,7 +2,7 @@
 
 > **来源**：对 **opencode**（sst/opencode，开源 TS coding agent，Bun/Effect 生态，~2500 .ts + 590 .tsx；桌面克隆 `~/Desktop/opencode`）的源码级对比分析。核心形态 = **headless server + 多客户端**（`opencode serve` loopback HTTP server，TUI/web/Wails/IDE/slack/github 皆客户端）——与 lyra 的 runtime+desktop 分离**同构**。正处 **v1（promise+Zod）→ v2（Effect+Drizzle 事件溯源）迁移中途**，很多子系统两代并存，判断真 delta 时认准 v2。方法与 [`GROK.md`](GROK.md) 一致；跨应用总索引见 [`README.md`](README.md)。
 >
-> **状态**：全部 proposed。已跳过 parity 项（结构化输出=lyra JSONParser、skills 自著、LSP、rules、agent 配置、tool-output spill=lyra A2、approval 粒度、`external_directory`≈B5）。
+> **状态**：全部 proposed。已跳过 parity 项（结构化输出=`chatclient.Output[T]` + `agent.Prompt[T]`、skills 自著、LSP、rules、agent 配置、tool-output spill=lyra A2、approval 粒度、`external_directory`≈B5）。
 
 ---
 

@@ -106,7 +106,7 @@ Deferred tool loading（ToolSearch）· 多 agent swarm（coordinator + Team*/Ta
 |---|---|---|
 | **output styles（persona）** | `outputStyles/` | 与 rules/recipes/per-role-models 重叠的第三机制；需要就并入 rules |
 | **SleepTool** | `tools/SleepTool/` | lyra 已定 `bash_output` 的 `block+timeout` 优于独立 Sleep 工具 |
-| **SyntheticOutputTool（结构化输出）** | `tools/SyntheticOutputTool/` | lyra `JSONParser[T]`/`ListParser`/`MapParser` 已闭环 |
+| **SyntheticOutputTool（结构化输出）** | `tools/SyntheticOutputTool/` | `chatclient.Output[T]` + `agent.Prompt[T]` 已覆盖 typed managed output，无需伪造工具 |
 | **teamMemorySync / mailbox / tmux panes / RemoteAgentTask / coordinator-mode 整机** | `services/teamMemorySync/`、`coordinator/`、`tasks/RemoteAgentTask` | team 共享=多租户、远程=跨机（违 filter #2）+ 多机制债（违 filter #3）；只抽"异步 worker + 续跑语义"薄层（CC6）|
 | **cache_edits microcompaction** | `microCompact.ts` | 依赖 Anthropic `cache_edits`/`cache_reference` beta，provider 专属；lyra A2（超大 offload）+ A3（分级 trim）已覆盖。"按 recency 保留最近 N 个 tool_result"若 A3 未覆盖可小参考，机制本身不吸 |
 | **GrowthBook flags / `tengu_*` analytics / OAuth / bridge / voice / buddy / upstreamproxy** | 多处 | Anthropic 内部基建或触 provider-OAuth（反向不变量）/多机，与 lyra 无关或明确反向 |

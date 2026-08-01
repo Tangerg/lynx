@@ -188,7 +188,7 @@ interface ToolCallingManager { List<ToolDefinition> resolveToolDefinitions(...);
 - core `chat` 只有 `ToolDefinition`、`ToolCall`、`ToolResult` 等协议值,**没有可执行 `Tool` 接口**,也没有 `ToolCallingManager` 这类编排服务。可执行工具的最小接口位于外圈 `tools` 模块。
 - 工具循环是 `agent/toolloop.Runner`:消费 `chat.Model` + `Request` + `ToolResolver`,emit `iter.Seq2` 的 `Event`;工具默认互斥,实现 `ConcurrentTool` 后可按 resource key 做有界 conflict-aware 并发,但结果与 continuation 始终按原 tool-call 顺序提交;无自动 retry,可 `checkpoint`/`resume`(pause 在 pending call 处续跑,不重放已完成工具或模型轮)。协议值与运行时状态**分离**:model request/response 是协议值,可执行工具在运行时的 `ToolResolver` 里,pause/resume 通过 `Event` 表达,不往 provider `Response` 塞运行时状态。
 
-**取舍与理由**:core 是"协议,不是总框架"。`ToolCallingManager` / 工具循环是**运行时语义**,不是 provider 之间稳定共享的协议 —— 放 core 会让 core 反向不变量(❌ 在 core 放 tool executor/registry / agent control flow)破功。lynx 把它下沉到 agent framework,core 只欠"一个 tool-call 长什么样"的协议定义。此外 lynx 不把 structured output 当 tool-options 的一个开关(Spring 的 `StructuredOutputChatOptions`),而是 `chat.JSONParser[T]` / `ListParser` / `MapParser` 一族 parser,Reasoning 是 first-class([[feedback_structured_output_closed]])。
+**取舍与理由**:core 是"协议,不是总框架"。`ToolCallingManager` / 工具循环是**运行时语义**,不是 provider 之间稳定共享的协议 —— 放 core 会让 core 反向不变量(❌ 在 core 放 tool executor/registry / agent control flow)破功。lynx 把它下沉到 agent framework,core 只欠"一个 tool-call 长什么样"的协议定义。此外 lynx 不把 structured output 当 tool-options 的一个开关(Spring 的 `StructuredOutputChatOptions`),而由 `chatclient.Output[T]` 组合调用方拥有的 instructions 与 decoder；`agent.Prompt[T]` 只把这个 abstraction 接入 managed ToolLoop。Reasoning 是 first-class([[feedback_structured_output_closed]])。
 
 ---
 
@@ -339,7 +339,7 @@ class NonTransientAiException extends RuntimeException {}    // 4xx → 不重�
 - **advisor 库**(memory/RAG/safeguard/logger/结构化校验)(§6)—— 拆到 `chathistory`/`rag`/agent guardrails,用 middleware 接入。
 - **ANTLR 文法与生成 parser**(§8)—— 手写。
 - **Micrometer 内嵌 SPI**(§10)—— `otel` 边界装饰。
-- **StringTemplate(ST)模板引擎 / `BeanOutputConverter`**(ChatClient 的 `entity()` + 模板渲染)—— 高层便利在 `chatclient`;结构化输出是 `chat.JSONParser[T]` 一族。
+- **StringTemplate(ST)模板引擎 / `BeanOutputConverter`**(ChatClient 的 `entity()` + 模板渲染)—— 高层便利在 `chatclient`;结构化输出由 `chatclient.Output[T]` 统一表达。
 - **`getNativeUsage()` / `getNativeClient()` 原始对象逃生口** —— 协议层不开逃生口。
 - **RAG advisor(`QuestionAnswerAdvisor`/`RetrievalAugmentationAdvisor`)** —— 独立 `rag` 模块。
 

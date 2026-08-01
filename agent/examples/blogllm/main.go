@@ -2,11 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"iter"
 	"log"
-	"strings"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/event"
@@ -24,6 +22,10 @@ type (
 		Sources []string
 		Summary string
 	}
+	BriefContent struct {
+		Sources []string `json:"sources"`
+		Summary string   `json:"summary"`
+	}
 )
 
 const researchToolRole = "research"
@@ -37,21 +39,14 @@ func main() {
 	resolver := researchToolResolver{group: newResearchToolGroup()}
 
 	a := agent.New(agent.AgentConfig{Name: "BriefingAgent", Description: "ask the LLM for a topic brief, with a search tool available", Actions: []agent.Action{agent.NewAction("brief", func(ctx context.Context, pc *agent.ProcessContext, in Topic) (Brief, error) {
-		prompt := fmt.Sprintf("Write a one-paragraph brief on %q. "+"Use the `research_search` tool to gather sources first; "+"then summarise. Reply with JSON: "+`{"summary":"...","sources":["..."]}`, in.Title)
-		text, err := pc.Prompt(ctx, prompt, agent.PromptConfig{
+		prompt := fmt.Sprintf("Write a one-paragraph brief on %q. Use the `research_search` tool to gather sources first, then return the summary and source URLs.", in.Title)
+		content, err := agent.Prompt(ctx, pc, prompt, agent.PromptConfig{
 			System: "You are a research analyst. Cite sources you used.",
-		})
+		}, chatclient.JSON[BriefContent]())
 		if err != nil {
 			return Brief{}, err
 		}
-		var parsed struct {
-			Summary string   `json:"summary"`
-			Sources []string `json:"sources"`
-		}
-		if jsonErr := json.Unmarshal([]byte(extractJSON(text)), &parsed); jsonErr != nil {
-			parsed.Summary = strings.TrimSpace(text)
-		}
-		return Brief{Topic: in.Title, Sources: parsed.Sources, Summary: parsed.Summary}, nil
+		return Brief{Topic: in.Title, Sources: content.Sources, Summary: content.Summary}, nil
 	}, agent.ActionConfig{ToolGroups: []string{researchToolRole}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
 
 	engine := agent.MustNewEngine(agent.EngineConfig{
@@ -174,22 +169,6 @@ func newResearchToolGroup() *researchToolGroup {
 
 func (g *researchToolGroup) Tools(_ context.Context) ([]tools.Tool, error) {
 	return g.tools, nil
-}
-
-// ============================================================================
-// Misc helpers
-// ============================================================================
-
-// extractJSON pulls the first balanced JSON object out of text — the
-// stub LLM is well-behaved, but real models often wrap their JSON in
-// prose so this is the kind of cleanup a real example would need.
-func extractJSON(text string) string {
-	start := strings.Index(text, "{")
-	end := strings.LastIndex(text, "}")
-	if start < 0 || end <= start {
-		return text
-	}
-	return text[start : end+1]
 }
 
 // eventLogger prints each event one-liner — illustrative only.

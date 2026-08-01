@@ -212,11 +212,29 @@ answer, err := process.Prompt(ctx, prompt, agent.PromptConfig{
 })
 ```
 
-需要结构化结果时，把格式约定和解码交给下层：`chatclient.JSON[T]` / `chatclient.JSONSchema[T]`
-提供 instructions 与 decoder，Action 把 instructions 拼进 prompt、再用 decoder 解一次
-`Prompt` 的返回文本。Framework 不写 prompt 文案，也不重复一份结构化解析。需要完全控制
-Request、observer 或 budget 时，使用 `ProcessContext.Interact`。所有这些入口最终进入 framework-managed interaction，由
-Runtime 记录 model call、usage、事件、限制和可恢复 tool checkpoint。
+需要结构化结果时，沿用同一条 framework-managed interaction：
+
+```go
+type Answer struct {
+    Summary string   `json:"summary"`
+    Sources []string `json:"sources"`
+}
+
+answer, err := agent.Prompt(
+    ctx,
+    process,
+    prompt,
+    agent.PromptConfig{Tools: []tools.Tool{searchTool}},
+    chatclient.JSON[Answer](),
+)
+```
+
+`chatclient.Output[T]` 仍然唯一拥有格式 instructions 与 decoder；`agent.Prompt` 只把它接到
+Agent 托管路径，先校验、再追加调用方拥有的 instructions，最后解码终态文本。Framework
+不生成 schema、不复制 JSON parser，也不提供 `PromptJSON` 平行抽象。需要 schema 时传
+`chatclient.JSONSchema[T]` 成功构造的 output；需要原始 response、自定义修复或逐事件控制时，使用
+`ProcessContext.Interact`。Runtime 仍统一记录 model call、usage、事件、限制和可恢复 tool
+checkpoint。
 
 `agent/toolloop.Runner` 是可独立复用的叶子执行器，不是第二套 Agent runtime。直接使用它的
 调用方自行负责 Process、usage、事件和持久化。

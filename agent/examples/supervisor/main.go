@@ -25,6 +25,10 @@ type (
 		Sources []string
 		Text    string
 	}
+	BriefContent struct {
+		Sources []string `json:"sources"`
+		Summary string   `json:"summary"`
+	}
 )
 
 func main() {
@@ -57,22 +61,15 @@ func main() {
 	parent := agent.New(agent.AgentConfig{Name: "supervisor", Description: "orchestrates research + summarize via the LLM", Actions: []agent.Action{agent.NewAction("brief", func(ctx context.Context, pc *agent.ProcessContext, in Topic) (Brief, error) {
 		researchTool, _ := runtime.NewAgentTool[Topic, Sources](engine, researchDeployment)
 		summarizeTool, _ := runtime.NewAgentTool[Sources, Summary](engine, summarizeDeployment)
-		prompt := fmt.Sprintf("Brief me on %q. Use research-agent first to gather sources, "+"then summarize-agent to synthesise. Reply with JSON: "+`{"sources":[...],"summary":"..."}`, in.Title)
-		text, err := pc.Prompt(ctx, prompt, agent.PromptConfig{
+		prompt := fmt.Sprintf("Brief me on %q. Use research-agent first to gather sources, then summarize-agent to synthesise. Return the source URLs and summary.", in.Title)
+		content, err := agent.Prompt(ctx, pc, prompt, agent.PromptConfig{
 			System: "You are a supervisor that delegates to specialised agents.",
 			Tools:  []tools.Tool{researchTool, summarizeTool},
-		})
+		}, chatclient.JSON[BriefContent]())
 		if err != nil {
 			return Brief{}, err
 		}
-		var parsed struct {
-			Sources []string `json:"sources"`
-			Summary string   `json:"summary"`
-		}
-		if jsonErr := json.Unmarshal([]byte(extractJSON(text)), &parsed); jsonErr != nil {
-			parsed.Summary = strings.TrimSpace(text)
-		}
-		return Brief{Topic: in.Title, Sources: parsed.Sources, Text: parsed.Summary}, nil
+		return Brief{Topic: in.Title, Sources: content.Sources, Text: content.Summary}, nil
 	}, agent.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "brief produced"})}})
 
 	if _, err := engine.Deploy(context.Background(), parent); err != nil {
@@ -187,13 +184,4 @@ func slug(s string) string {
 	s = strings.ToLower(s)
 	s = strings.ReplaceAll(s, " ", "-")
 	return s
-}
-
-func extractJSON(text string) string {
-	start := strings.Index(text, "{")
-	end := strings.LastIndex(text, "}")
-	if start < 0 || end <= start {
-		return text
-	}
-	return text[start : end+1]
 }

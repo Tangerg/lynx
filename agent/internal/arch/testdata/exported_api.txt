@@ -15,6 +15,7 @@
 .: func NewEngine(config EngineConfig) (*Engine, error)
 .: func NewGoal(config GoalConfig) *Goal
 .: func NewOutputGoal[T any](config GoalConfig) *Goal
+.: func Prompt[T any](ctx context.Context, process *ProcessContext, text string, config PromptConfig, output chatclient.Output[T]) (T, error)
 .: func RequireType[T any]() string
 .: func Result[T any](process ProcessView) (T, bool)
 .: func ToolCallFromContext(ctx context.Context) (chat.ToolCall, bool)

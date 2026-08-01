@@ -35,13 +35,13 @@
 | HITL / 恢复 | `Awaitable` + repository SPI;仓库内置实现以 live object/in-memory 为主 | 版本化 snapshot、原子进程树变更、pending tool call 原位续跑 | lynx 的 durable continuation 更完整 |
 | 子 Agent | 通常复制父 blackboard 并继承 options | full / ambient / isolated 三档,默认 ambient-only | lynx 的状态所有权更安全 |
 | 并发 | 可并发执行共享黑板上的计划 Action;工具批次并行 | process tick 串行;工具显式声明并发安全并按资源键互斥 | Embabel 更激进;lynx 更可复现 |
-| 流式/结构化输出 | PromptRunner 原生覆盖 streaming、thinking、模板、多模态、校验及 native structured output | reasoning 已是协议值,有 `interaction.StreamCall`,但普通 `Prompt` 仍不自动流式,`PromptJSON` 较薄 | 这是 lynx 当前最明确的作者体验差距 |
+| 流式/结构化输出 | PromptRunner 原生覆盖 streaming、thinking、模板、多模态、校验及 native structured output | reasoning 已是协议值,有 `interaction.StreamCall`;`agent.Prompt[T]` 复用 `chatclient.Output[T]` 进入 managed ToolLoop,但普通 `ProcessContext.Prompt` 仍不自动流式 | typed happy path 已收敛;streaming 与 provider-native schema 仍有差距 |
 | 发布成熟度 | `v1.0.0`,更大的 Spring 生态和测试体量 | 开发候选版,公共 API/wire fixture/arch tests 已成体系 | Embabel 外部成熟度领先;lynx runtime 契约更强调可演进 wire |
 
 ### 应该借鉴什么
 
 1. **把 streaming 接进标准 `Prompt` / managed interaction 路径**:宿主仍决定模型与策略,业务 Action 不必手工包 `interaction.StreamCall`。
-2. **加强结构化输出的统一作者路径**:复用已有 parser/output abstraction 接入 managed ToolLoop,补校验、错误诊断和可选修复;不要复制一条平行 converter 链。
+2. **按真实需求评估 provider-native structured output**:`agent.Prompt[T]` 已复用 `chatclient.Output[T]` 接入 managed ToolLoop；若 native schema 的跨 provider 语义能够收敛，再扩展 owner abstraction，不在 Agent 复制 converter 链。
 3. **完善 progressive-tool authoring facade**:保留 `PromoteTools` 这个小而确定的 runtime primitive,在上层补 catalog/group/nested tool 的易用封装。
 4. **补 per-tool / batch timeout 的标准策略入口**:保持取消由 `context.Context` 传播,但减少每个宿主重复包装。
 5. **多态 typed-dataflow 按真实需求推进**:Embabel 的父/子类型自动连边很强,也会扩大条件空间并引入反射隐式性;在出现稳定业务案例前不追求表面 parity。
@@ -229,7 +229,7 @@ internal interface LlmOperations { createObject/generate/doTransform(messages, L
 
 - `ProcessContext` 的能力按文件分区:`process_context_chat.go`(模型调用)/ `process_context_control.go` / `process_context_interaction.go`(HITL)/ `process_context_tools.go` / `process_context_usage.go` —— 不再用一个接口覆盖所有作者能力。
 - 工具循环 = `toolloop.Runner`:消费 `chat.Model` + `Request` + `ToolResolver`,emit `iter.Seq2` 的 `Event`(model/tool/pause/resume)。**默认互斥、显式 opt-in 的有界资源键并发、无自动 retry、可 checkpoint/resume**。执行可并发,但 `ToolResult` event 与下一轮 model request 始终按模型原始 tool-call 顺序提交,因此 chat-history/cache 输入稳定。checkpoint v2 按 call 保存状态与 `NextResult`;`PromoteTools` 允许在 loop 中途公布此前已可解析但未广告的工具。协议值(model request/response)与运行时状态(可执行工具、pause)**分离**,不往 provider `Response` 塞运行时状态。
-- model 选择走 process-scope `core.ChatProvider` / `ChatCapability`;`routing.ModelRanker` 只负责给 `agent × goal` 路由候选打分。reasoning 是 `chat.PartReasoning` 协议值;`interaction.StreamCall` 已能消费 `chat.Streamer` 并累积 delta,但普通 `ProcessContext.Prompt` 仍只调用 `chat.Model`。`PromptJSON[T]` 当前主要是 schema instruction + `json.Unmarshal`,作者体验明显薄于 Embabel 的 PromptRunner/native structured output。
+- model 选择走 process-scope `core.ChatProvider` / `ChatCapability`;`routing.ModelRanker` 只负责给 `agent × goal` 路由候选打分。reasoning 是 `chat.PartReasoning` 协议值;`interaction.StreamCall` 已能消费 `chat.Streamer` 并累积 delta,但普通 `ProcessContext.Prompt` 仍只调用 `chat.Model`。typed happy path 由 `agent.Prompt[T]` 把 `chatclient.Output[T]` 接进 managed ToolLoop；格式 instructions 与 decoder 仍只有一份 owner，Agent 不复制 `PromptJSON` / converter 链。provider-native schema 只有在跨 provider 契约能独立成立时才应进入下层协议。
 
 **取舍与理由**:
 

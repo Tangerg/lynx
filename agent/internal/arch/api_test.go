@@ -130,7 +130,7 @@ func TestRootFacadeBudget(t *testing.T) {
 		"Action", "ActionConfig", "Agent", "Process", "DeploymentRef",
 		"Deployment", "Engine", "EngineConfig", "Goal", "MustNewEngine", "New", "NewAction",
 		"NewEngine", "ProcessContext", "PromptConfig", "ChatCapability",
-		"ProcessOptions", "Result",
+		"ProcessOptions", "Prompt", "Result",
 	} {
 		if _, ok := names[required]; !ok {
 			t.Errorf("root agent façade is missing standard-path symbol %s", required)
@@ -140,8 +140,8 @@ func TestRootFacadeBudget(t *testing.T) {
 		"ActionQoS", "ChatClientProvider", "AgentProcess", "AgentProcessStatus",
 		"AgentRef", "ComputedCondition", "Determination", "GoalExport", "IOBinding",
 		"Platform", "PlatformConfig", "ProcessType", "ServiceProvider", "Config",
-		// Coaxing typed output out of a model is a provider-interaction concern
-		// that chatclient owns; the framework writes no prompt copy.
+		// JSON-specific prompt helpers would duplicate chatclient.Output instead
+		// of adapting that owner abstraction to the managed Agent path.
 		"PromptJSON",
 	} {
 		if _, ok := names[forbidden]; ok {
