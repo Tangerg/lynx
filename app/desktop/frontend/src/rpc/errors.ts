@@ -27,12 +27,16 @@ export class RpcError extends Error {
    *  renumber. */
   readonly code?: number;
   readonly data: unknown;
+  /** Runtime-generated transport correlation id. It deliberately stays outside
+   * ProblemData so business errors remain transport-agnostic. */
+  readonly requestId?: string;
 
-  constructor(payload: LocalRefusal | RpcErrorPayload) {
+  constructor(payload: LocalRefusal | RpcErrorPayload, requestId?: string) {
     super(payload.message);
     this.name = "RpcError";
     this.code = "code" in payload ? payload.code : undefined;
     this.data = payload.data;
+    this.requestId = requestId;
   }
 }
 
@@ -65,14 +69,16 @@ export class RpcTransportError extends Error {
 /** An inbound JSON-RPC frame contradicted the generated Runtime contract. */
 export class RpcProtocolError extends Error {
   readonly violations: readonly WireViolation[];
+  readonly requestId?: string;
 
-  constructor(subject: string, violations: readonly WireViolation[]) {
+  constructor(subject: string, violations: readonly WireViolation[], requestId?: string) {
     const detail = violations
       .map((violation) => `${violation.path} ${violation.detail}`)
       .join("; ");
     super(`invalid ${subject}: ${detail}`);
     this.name = "RpcProtocolError";
     this.violations = violations;
+    this.requestId = requestId;
   }
 }
 

@@ -8,7 +8,12 @@
 
 import { errorMessage, RpcError, RpcProtocolError, RpcTransportError } from "./errors";
 import { NOTIFICATIONS_RUN_EVENT, runEventReliability, type RequestMeta } from "./wire.generated";
-import type { Transport, TransportEvent, TransportRequest } from "./transport";
+import type {
+  Transport,
+  TransportEvent,
+  TransportRequest,
+  TransportResponseMetadata,
+} from "./transport";
 import {
   wireMethodReturnsValue,
   type WireMethodName,
@@ -129,9 +134,9 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
 
   function dispatchInbound(event: TransportEvent): void {
     if (event.type === "requestError") {
-      const entry = pending.get(event.requestId);
+      const entry = pending.get(event.rpcId);
       if (!entry) return;
-      pending.delete(event.requestId);
+      pending.delete(event.rpcId);
       entry.reject(event.error);
       return;
     }
@@ -139,10 +144,10 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
       for (const handler of streamEndHandlers) handler(event);
       return;
     }
-    dispatchMessage(event.message);
+    dispatchMessage(event.message, event.metadata);
   }
 
-  function dispatchMessage(msg: RpcMessage): void {
+  function dispatchMessage(msg: RpcMessage, metadata?: TransportResponseMetadata): void {
     if (isResponse(msg)) {
       const entry = pending.get(msg.id);
       if (!entry) return; // unsolicited or already settled — drop silently
@@ -152,16 +157,20 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
         if (payload.data !== undefined) {
           const violations = validateWire("ProblemData", payload.data);
           if (violations.length > 0) {
-            entry.reject(new RpcProtocolError(`${entry.method} error data`, violations));
+            entry.reject(
+              new RpcProtocolError(`${entry.method} error data`, violations, metadata?.requestId),
+            );
             return;
           }
         }
-        entry.reject(new RpcError(payload));
+        entry.reject(new RpcError(payload, metadata?.requestId));
       } else {
         const result = msg.result;
         const violations = validateMethodResult(entry.method, result);
         if (violations.length > 0) {
-          entry.reject(new RpcProtocolError(`${entry.method} result`, violations));
+          entry.reject(
+            new RpcProtocolError(`${entry.method} result`, violations, metadata?.requestId),
+          );
           return;
         }
         entry.resolve(wireMethodReturnsValue(entry.method) ? result : undefined);
@@ -174,7 +183,11 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
       if (!handlers) return;
       const violations = validateNotificationParams(msg.method, msg.params);
       if (violations.length > 0) {
-        const failure = new RpcProtocolError(`${msg.method} params`, violations);
+        const failure = new RpcProtocolError(
+          `${msg.method} params`,
+          violations,
+          metadata?.requestId,
+        );
         if (
           msg.method === NOTIFICATIONS_RUN_EVENT &&
           runEventReliability(notificationEventType(msg.params)) === "ephemeral"

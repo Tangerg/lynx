@@ -62,19 +62,23 @@ describe("RpcClient", () => {
 
     const promise = client.call("sessions.get", { sessionId: "missing" });
     const request = await waitForRequest(transport, "sessions.get");
-    transport.inject({
-      jsonrpc: JSONRPC_VERSION,
-      id: request.id,
-      error: {
-        code: SOME_BUSINESS_CODE,
-        message: "not found",
-        data: { type: "session_not_found", recoveryAction: "refetch" },
+    transport.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        id: request.id,
+        error: {
+          code: SOME_BUSINESS_CODE,
+          message: "not found",
+          data: { type: "session_not_found", recoveryAction: "refetch" },
+        },
       },
-    } as RpcMessage);
+      { requestId: "req_business_01" },
+    );
 
     await expect(promise).rejects.toMatchObject({
       name: "RpcError",
       code: SOME_BUSINESS_CODE,
+      requestId: "req_business_01",
     } satisfies Partial<RpcError>);
     await client.close();
   });

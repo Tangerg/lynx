@@ -39,6 +39,7 @@ import {
   type Transport,
   type TransportEvent,
   type TransportRequest,
+  type TransportResponseMetadata,
   type TransportSendOptions,
 } from "../transport";
 import type { RpcId } from "../types";
@@ -122,6 +123,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     body: ReadableStream<Uint8Array>,
     requestId: RpcId,
     method: WireStreamingMethodName,
+    metadata: TransportResponseMetadata,
     signal?: AbortSignal,
   ): Promise<void> {
     let responseSeen = false;
@@ -132,7 +134,11 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
         if (!event.data) return;
         const msg = parseRpcMessage(event.data);
         if (!msg) {
-          streamError = new RpcTransportError("invalid JSON-RPC envelope in event stream");
+          streamError = new RpcTransportError(
+            "invalid JSON-RPC envelope in event stream",
+            undefined,
+            metadata.requestId,
+          );
           throw streamError;
         }
         if (isResponse(msg) && msg.id === requestId) {
@@ -149,7 +155,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
           const runId = stringMember(msg.params, "runId");
           if (runId) runIds.add(runId);
         }
-        channel.push({ type: "message", message: msg });
+        channel.push({ type: "message", message: msg, metadata });
       },
     });
     const reader = body.getReader();
@@ -178,9 +184,14 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     if (!responseSeen) {
       channel.push({
         type: "requestError",
-        requestId,
+        rpcId: requestId,
         error:
-          streamError ?? new RpcTransportError("event stream ended before the call's response"),
+          streamError ??
+          new RpcTransportError(
+            "event stream ended before the call's response",
+            undefined,
+            metadata.requestId,
+          ),
       });
     }
     if (runIds.size > 0 || method === RUNTIME_SUBSCRIBE_METHOD) {
@@ -189,6 +200,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
         method,
         runIds: [...runIds],
         ...(streamError ? { error: streamError } : {}),
+        metadata,
       });
     }
   }
@@ -202,7 +214,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
 
     const method = msg.method;
     const url = `${baseUrl}${RPC_PATH}`;
-    const requestId = msg.id;
+    const rpcId = msg.id;
     const requestSignal = signal
       ? AbortSignal.any([signal, closeController.signal])
       : closeController.signal;
@@ -236,6 +248,10 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       throw new RpcTransportError(`fetch failed: ${errorMessage(err)}`);
     }
     span.setAttribute("rpc.http.status_code", res.status);
+    const metadata: TransportResponseMetadata = {
+      requestId: res.headers.get("Request-Id") ?? undefined,
+    };
+    if (metadata.requestId) span.setAttribute("lyra.request_id", metadata.requestId);
 
     // This client sends Requests only; a bodyless notification acknowledgement is
     // therefore always a protocol mismatch.
@@ -243,7 +259,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       const err = new RpcTransportError(
         `http ${res.status}: RPC call ended without a response`,
         res.status,
-        res.headers.get("Request-Id") ?? undefined,
+        metadata.requestId,
       );
       endSpan(span, err);
       throw err;
@@ -253,7 +269,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       const problem = parseTransportProblem(text);
-      const requestId = problem?.requestId ?? res.headers.get("Request-Id") ?? undefined;
+      const requestId = problem?.requestId ?? metadata.requestId;
       const detail = problem?.detail || res.statusText || "transport request failed";
       const err = new RpcTransportError(
         `http ${res.status}: ${detail}${requestId ? ` (request ${requestId})` : ""}`,
@@ -272,20 +288,26 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       if (!isWireStreamingMethodName(method)) {
         const err = new RpcTransportError(
           `non-streaming RPC method ${method} returned an event stream`,
+          undefined,
+          metadata.requestId,
         );
         endSpan(span, err);
         await res.body?.cancel();
         throw err;
       }
       if (!res.body) {
-        const err = new RpcTransportError("event-stream response has no body");
+        const err = new RpcTransportError(
+          "event-stream response has no body",
+          undefined,
+          metadata.requestId,
+        );
         endSpan(span, err);
         throw err;
       }
       // A stream may drain for minutes; that wall-clock belongs to the run,
       // not the HTTP request span. The reader remains bound to requestSignal.
       endSpan(span);
-      void drainStream(res.body, requestId, method, requestSignal);
+      void drainStream(res.body, rpcId, method, metadata, requestSignal);
       return;
     }
 
@@ -296,12 +318,20 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     try {
       text = await res.text();
     } catch (cause) {
-      const err = new RpcTransportError(`failed to read RPC response: ${errorMessage(cause)}`);
+      const err = new RpcTransportError(
+        `failed to read RPC response: ${errorMessage(cause)}`,
+        undefined,
+        metadata.requestId,
+      );
       endSpan(span, err);
       throw err;
     }
     if (!text) {
-      const err = new RpcTransportError("RPC response body is empty");
+      const err = new RpcTransportError(
+        "RPC response body is empty",
+        undefined,
+        metadata.requestId,
+      );
       endSpan(span, err);
       throw err;
     }
@@ -309,16 +339,22 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     if (!inbound) {
       const err = new RpcTransportError(
         `invalid JSON-RPC envelope in response body: ${text.slice(0, 200)}`,
+        undefined,
+        metadata.requestId,
       );
       endSpan(span, err);
       throw err;
     }
-    if (!isResponse(inbound) || inbound.id !== requestId) {
-      const err = new RpcTransportError("RPC response does not match the outbound request");
+    if (!isResponse(inbound) || inbound.id !== rpcId) {
+      const err = new RpcTransportError(
+        "RPC response does not match the outbound request",
+        undefined,
+        metadata.requestId,
+      );
       endSpan(span, err);
       throw err;
     }
-    channel.push({ type: "message", message: inbound });
+    channel.push({ type: "message", message: inbound, metadata });
     endSpan(span);
   }
 

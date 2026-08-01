@@ -7,7 +7,7 @@ import { createHttpTransport } from "./http";
 afterEach(() => vi.restoreAllMocks());
 
 // A 200 text/event-stream POST response whose body emits the given chunks.
-function sseResponse(chunks: string[]): Response {
+function sseResponse(chunks: string[], requestId?: string): Response {
   const enc = new TextEncoder();
   const body = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -15,7 +15,13 @@ function sseResponse(chunks: string[]): Response {
       controller.close();
     },
   });
-  return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/event-stream",
+      ...(requestId ? { "Request-Id": requestId } : {}),
+    },
+  });
 }
 
 // A stream that emits one chunk, then errors with an AbortError on next read —
@@ -36,10 +42,13 @@ function abortingSseResponse(firstChunk: string): Response {
   return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
 }
 
-function jsonResponse(obj: unknown): Response {
+function jsonResponse(obj: unknown, requestId?: string): Response {
   return new Response(JSON.stringify(obj), {
     status: 200,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(requestId ? { "Request-Id": requestId } : {}),
+    },
   });
 }
 
@@ -78,7 +87,10 @@ describe("HTTPTransport — streamable HTTP", () => {
     const cut = Math.floor(wire.length / 2); // split mid-stream → parser must buffer across chunks
 
     const fetchStub = (async () =>
-      sseResponse([wire.slice(0, cut), wire.slice(cut)])) as unknown as typeof fetch;
+      sseResponse(
+        [wire.slice(0, cut), wire.slice(cut)],
+        "req_stream_01",
+      )) as unknown as typeof fetch;
     const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
     const it = transport.recv()[Symbol.asyncIterator]();
 
@@ -91,6 +103,7 @@ describe("HTTPTransport — streamable HTTP", () => {
     expect(r0.value).toMatchObject({
       type: "message",
       message: { id: "1", result: { runId: "run_01" } },
+      metadata: { requestId: "req_stream_01" },
     });
     expect(r1.value).toMatchObject({
       type: "message",
@@ -104,11 +117,14 @@ describe("HTTPTransport — streamable HTTP", () => {
 
   it("non-streaming method: POST returns a single application/json message", async () => {
     const fetchStub = vi.fn(async () =>
-      jsonResponse({
-        jsonrpc: "2.0",
-        id: "2",
-        result: { id: "ses_1" },
-      }),
+      jsonResponse(
+        {
+          jsonrpc: "2.0",
+          id: "2",
+          result: { id: "ses_1" },
+        },
+        "req_unary_01",
+      ),
     );
     const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
     const it = transport.recv()[Symbol.asyncIterator]();
@@ -120,6 +136,7 @@ describe("HTTPTransport — streamable HTTP", () => {
     expect(r.value).toMatchObject({
       type: "message",
       message: { id: "2", result: { id: "ses_1" } },
+      metadata: { requestId: "req_unary_01" },
     });
     expect(fetchStub).toHaveBeenCalledWith(
       "http://x/v2/rpc",
@@ -286,7 +303,7 @@ describe("HTTPTransport — streamable HTTP", () => {
 
     expect(r.value).toMatchObject({
       type: "requestError",
-      requestId: "7",
+      rpcId: "7",
       error: expect.any(RpcTransportError),
     });
   });

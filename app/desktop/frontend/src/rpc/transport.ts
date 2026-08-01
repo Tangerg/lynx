@@ -16,14 +16,21 @@ export const RUNTIME_SUBSCRIBE_METHOD = "runtime.subscribe" satisfies WireMethod
 
 export type TransportRequest = Omit<RpcRequest, "method"> & { method: WireMethodName };
 
+/** Typed response metadata carried outside the JSON-RPC envelope. */
+export interface TransportResponseMetadata {
+  /** Runtime-generated HTTP Request-Id used to correlate logs and traces. */
+  requestId?: string;
+}
+
 export type TransportEvent =
-  | { type: "message"; message: RpcMessage }
-  | { type: "requestError"; requestId: RpcId; error: Error }
+  | { type: "message"; message: RpcMessage; metadata?: TransportResponseMetadata }
+  | { type: "requestError"; rpcId: RpcId; error: Error }
   | {
       type: "streamEnd";
       method: WireStreamingMethodName;
       runIds: readonly string[];
       error?: Error;
+      metadata?: TransportResponseMetadata;
     };
 
 export interface Transport {

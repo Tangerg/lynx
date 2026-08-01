@@ -4,13 +4,18 @@
 // tests inspect via `outbox()`.
 
 import { createPushPullChannel } from "../channel";
-import type { Transport, TransportEvent, TransportRequest } from "../transport";
+import type {
+  Transport,
+  TransportEvent,
+  TransportRequest,
+  TransportResponseMetadata,
+} from "../transport";
 import type { WireStreamingMethodName } from "../wire.methods.generated";
 import type { RpcMessage } from "../types";
 
 export interface MemoryTransport extends Transport {
   /** Push a message as if it arrived from the runtime. */
-  inject(msg: RpcMessage): void;
+  inject(msg: RpcMessage, metadata?: TransportResponseMetadata): void;
   /** End one streaming response as if reported by the transport. */
   endStream(method: WireStreamingMethodName, runIds?: readonly string[]): void;
   /** Drain all messages the client has sent so far. */
@@ -30,9 +35,9 @@ export function createMemoryTransport(): MemoryTransport {
     async close() {
       channel.close();
     },
-    inject(msg) {
+    inject(msg, metadata) {
       if (channel.closed) throw new Error("transport closed");
-      channel.push({ type: "message", message: msg });
+      channel.push({ type: "message", message: msg, metadata });
     },
     endStream(method, runIds = []) {
       if (channel.closed) throw new Error("transport closed");
