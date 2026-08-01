@@ -1,10 +1,14 @@
 import { cn } from "@/lib/classNames";
 import { Icon, type IconName } from "@/ui/icons";
+import { useState } from "react";
 import { Button, type ButtonProps } from "./button";
 import { Tooltip } from "./tooltip";
 
 interface IconButtonProps extends Omit<ButtonProps, "children" | "variant" | "size"> {
   icon: IconName;
+  /** Contextual glyph revealed on hover/focus. Both glyphs remain mounted so
+   *  the transition can cross-fade instead of popping between SVGs. */
+  hoverIcon?: IconName;
   /** xs = 24px, for inline affordances inside a row of text; sm = 28px, dense
    *  chrome rows; md = 32px, the default chrome control; lg = 40px, for a
    *  standalone touch target inside content. */
@@ -34,6 +38,7 @@ const ICON_SIZE = { xs: 12, sm: 14, md: 16, lg: 16 } as const;
 // keyboard focus, which the native one never does.
 export function IconButton({
   icon,
+  hoverIcon,
   size = "md",
   iconSize = ICON_SIZE[size],
   active,
@@ -41,13 +46,34 @@ export function IconButton({
   badge,
   className,
   title,
+  onPointerEnter,
+  onPointerLeave,
+  onFocus,
+  onBlur,
   ...props
 }: IconButtonProps) {
+  const [showHoverIcon, setShowHoverIcon] = useState(false);
   return (
     <Tooltip label={title}>
       <Button
         {...props}
         aria-label={props["aria-label"] ?? title}
+        onPointerEnter={(event) => {
+          setShowHoverIcon(true);
+          onPointerEnter?.(event);
+        }}
+        onPointerLeave={(event) => {
+          setShowHoverIcon(false);
+          onPointerLeave?.(event);
+        }}
+        onFocus={(event) => {
+          setShowHoverIcon(true);
+          onFocus?.(event);
+        }}
+        onBlur={(event) => {
+          setShowHoverIcon(false);
+          onBlur?.(event);
+        }}
         variant="ghost"
         size={BOX[size]}
         data-active={active ? "" : undefined}
@@ -57,7 +83,18 @@ export function IconButton({
           className,
         )}
       >
-        <Icon name={icon} size={iconSize} strokeWidth={1.8} />
+        {hoverIcon ? (
+          <span className="t-icon-swap" data-state={showHoverIcon ? "b" : "a"}>
+            <span className="t-icon" data-icon="a">
+              <Icon name={icon} size={iconSize} strokeWidth={1.8} />
+            </span>
+            <span className="t-icon" data-icon="b">
+              <Icon name={hoverIcon} size={iconSize} strokeWidth={1.8} />
+            </span>
+          </span>
+        ) : (
+          <Icon name={icon} size={iconSize} strokeWidth={1.8} />
+        )}
         {badge !== undefined && badge !== "" && badge !== 0 && (
           <span className="absolute -top-0.5 -right-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-0.5 font-mono text-ui-2xs font-semibold text-on-accent">
             {badge}

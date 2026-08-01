@@ -252,6 +252,22 @@ test("dock controls expose focusable tooltip help", async ({ page }) => {
   await expect(page.getByRole("tooltip")).toHaveCount(0);
 });
 
+test("dock close control reveals its contextual glyph on hover and focus", async ({ page }) => {
+  await openWorkspace(page, { state: "dock-light" });
+
+  const hide = page.getByRole("button", { name: "Hide the context dock" });
+  const swap = hide.locator(".t-icon-swap");
+  await expect(swap).toHaveAttribute("data-state", "a");
+
+  await hide.hover();
+  await expect(swap).toHaveAttribute("data-state", "b");
+  await page.mouse.move(0, 0);
+  await expect(swap).toHaveAttribute("data-state", "a");
+
+  await hide.focus();
+  await expect(swap).toHaveAttribute("data-state", "b");
+});
+
 test("plugin notifications use the production toast and dismiss automatically", async ({
   page,
 }) => {

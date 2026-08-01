@@ -17,20 +17,11 @@
  * current build parser does not understand that platform selector.
  */
 
-/* Fonts: the native system stack (SF Pro / PingFang on macOS, the app's
-   primary target) — no bundled webfont, no CDN @import. The OS face is the
-   premium, native default; it loads instantly and renders CJK best. */
+/* Fonts: native UI first. Calm desktop density comes from SF Pro / PingFang
+   rather than a webfont trying to imitate platform chrome. Geist Mono stays
+   bundled for code, where stable metrics matter. */
 @import "tailwindcss";
 
-/* Geist — Vercel's design system face (OFL-1.1), bundled as variable woff2
-   (latin subset; CJK falls through to the system stack below). */
-@font-face {
-  font-family: "Geist";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 100 900;
-  src: url("/fonts/geist.woff2") format("woff2-variations");
-}
 @font-face {
   font-family: "Geist Mono";
   font-style: normal;
@@ -140,16 +131,16 @@
   /* UI type ladder — `text-ui-2xs … text-ui-lg`. Every step is derived from a
      single base size at runtime (lib/typography.ts writes the --fs-* vars), so
      the ladder cannot drift the way per-call-site pixel values did.
-     `--text-*--letter-spacing` rides along: Geist's default tracking is too
-     tight below 12px, so the small steps open up and the display steps close in.
-     Values must stay `var()` references — `@theme inline` inlines the reference,
-     which is what lets the runtime font-size preference reach every callsite. */
+     Native UI faces own their optical spacing, so chrome steps deliberately use
+     neutral tracking. Values must stay `var()` references — `@theme inline`
+     inlines the reference, which is what lets the runtime font-size preference
+     reach every callsite. */
   --text-ui-2xs: var(--fs-ui-2xs);
-  --text-ui-2xs--letter-spacing: 0.01em;
+  --text-ui-2xs--letter-spacing: 0;
   --text-ui-xs: var(--fs-ui-xs);
-  --text-ui-xs--letter-spacing: 0.008em;
+  --text-ui-xs--letter-spacing: 0;
   --text-ui-sm: var(--fs-ui-sm);
-  --text-ui-sm--letter-spacing: 0.005em;
+  --text-ui-sm--letter-spacing: 0;
   --text-ui-md: var(--fs-ui-md);
   --text-ui-lg: var(--fs-ui-lg);
   --text-code: var(--fs-code);
@@ -193,12 +184,11 @@
   --radius-bubble: var(--shape-bubble);
   --radius-pill: var(--shape-pill);
 
-  /* Fonts — Geist (bundled) leads; system stack backs it up for CJK
-     (PingFang / Microsoft YaHei) + any glyph Geist lacks. Single source of
-     truth for the html base and every `font-sans` / `font-mono` utility. */
+  /* Fonts — the OS UI face leads so window chrome, dense rows and CJK all read
+     as one native desktop surface. Geist Mono remains the coding face. */
   --font-sans:
-    "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto,
-    "PingFang SC", "Hiragino Sans", "Microsoft YaHei", sans-serif;
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", system-ui,
+    "Segoe UI", "Microsoft YaHei", sans-serif;
   --font-mono:
     "Geist Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "Cascadia Code", Consolas,
     monospace;
@@ -238,6 +228,34 @@
     transform: scale(1) translateY(0);
     opacity: 1;
   }
+}
+
+/* prettier-ignore */
+.t-icon-swap {
+  position: relative; display: inline-grid;
+}
+/* prettier-ignore */
+.t-icon-swap .t-icon {
+  grid-area: 1 / 1;
+  transition:
+    opacity   var(--icon-swap-dur) var(--icon-swap-ease),
+    filter    var(--icon-swap-dur) var(--icon-swap-ease),
+    transform var(--icon-swap-dur) var(--icon-swap-ease);
+  will-change: opacity, filter, transform;
+}
+/* prettier-ignore */
+.t-icon-swap[data-state="a"] .t-icon[data-icon="a"],
+.t-icon-swap[data-state="b"] .t-icon[data-icon="b"] {
+  opacity: 1; filter: blur(0); transform: scale(1);
+}
+/* prettier-ignore */
+.t-icon-swap[data-state="a"] .t-icon[data-icon="b"],
+.t-icon-swap[data-state="b"] .t-icon[data-icon="a"] {
+  opacity: 0; filter: blur(var(--icon-swap-blur)); transform: scale(var(--icon-swap-start-scale));
+}
+/* prettier-ignore */
+@media (prefers-reduced-motion: reduce) {
+  .t-icon-swap .t-icon { transition: none !important; }
 }
 
 /* Loader variants (ui/atoms/loader.tsx). `pulse-dot` reuses lyra-pulse and
@@ -496,6 +514,11 @@
 
   --polish-fast: var(--dur-fast) var(--ease-out);
   --polish-med: var(--dur-med) var(--ease-out);
+
+  --icon-swap-dur: 250ms;
+  --icon-swap-blur: 2px;
+  --icon-swap-start-scale: 0.25;
+  --icon-swap-ease: ease-in-out;
 
   /* -----------------------------------------------------------------------
    *  Shadow system — one edge mechanism per role. Composer owns a real border,
@@ -1222,6 +1245,14 @@ html.theme-dark {
   flex-direction: column;
   overflow: hidden;
   background: var(--color-bg);
+}
+
+/* Dock chrome: the tab strip is a dense desktop toolbar, not a second content
+   header. Keep its controls close to the pane edge while the view-owned toolbar
+   below retains the standard reading inset. */
+.agent-context-dock > .agent-surface-header:first-child {
+  gap: 4px;
+  padding-inline: 6px;
 }
 
 .agent-dock-tabs {

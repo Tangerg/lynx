@@ -1,7 +1,7 @@
 import { DOCK_COLUMN, dockWidthRow } from "./dockWidth";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
-import type { IconName } from "@/ui";
+import { Icon, IconButton, type IconName } from "@/ui";
 import {
   AgentContentCard,
   AgentContextDock,
@@ -11,9 +11,7 @@ import {
   AgentStatusPill,
   AgentSurfaceHeader,
 } from "@/ui/agent";
-import { IconButton } from "@/ui";
 import { useAgentSessions } from "@/plugins/builtin/agent/public/session";
-import { basename } from "@/lib/path";
 import { useActiveSession } from "@/plugins/builtin/agent/public/session";
 import { useIsCurrentRootRunning } from "@/plugins/builtin/agent/public/run";
 import {
@@ -62,15 +60,21 @@ function DockHeader({
   const t = useT();
   return (
     <AgentSurfaceHeader className="gap-1">
-      <AgentDockTabs tabs={tabs} ariaLabel={t("dock.tabs.label")} />
-      <IconButton icon="more" size="sm" title={t("dock.action.browse")} onClick={onBrowse} />
+      <AgentDockTabs tabs={tabs} ariaLabel={t("dock.tabs.label")} compactInactive />
+      <IconButton icon="plus" size="sm" title={t("dock.action.browse")} onClick={onBrowse} />
       <IconButton
         icon="maximize"
         size="sm"
         title={t("workspace.view.promote")}
         onClick={onMaximize}
       />
-      <IconButton icon="panel-r" size="sm" title={t("dock.action.hide")} onClick={onHide} />
+      <IconButton
+        icon="panel-r"
+        hoverIcon="x"
+        size="sm"
+        title={t("dock.action.hide")}
+        onClick={onHide}
+      />
     </AgentSurfaceHeader>
   );
 }
@@ -150,11 +154,8 @@ export function ChatPanel({ onSend }: Props) {
                   collapseLabel={t("sidebar.action.collapse")}
                 />
               )}
-              <span className="font-mono text-ui-md text-fg-faint">
-                {activeSession?.cwd ? basename(activeSession.cwd) : "lynx"}
-              </span>
-              <span className="text-ui-lg text-fg-faint">/</span>
-              <span className="min-w-0 max-w-[320px] truncate text-ui-lg font-semibold text-fg">
+              <Icon name="sparkle" size={14} strokeWidth={1.7} className="shrink-0 text-fg-muted" />
+              <span className="min-w-0 max-w-[420px] truncate text-ui-lg font-normal text-fg">
                 {activeSession?.title || t("welcome.title")}
               </span>
               {running && (
