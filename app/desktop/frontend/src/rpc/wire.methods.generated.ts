@@ -3,8 +3,8 @@
 // The method surface of the Lyra Runtime Protocol: which methods exist, what each
 // one carries, and what has to be negotiated before one will run.
 //
-// The SDK in methods.ts composes these with its own transport concerns. This file
-// holds no policy of its own — every fact in it is read from the Contract Registry.
+// The SDK in methods.ts composes these with transport concerns. Every protocol
+// fact in this file is read from the Contract Registry.
 
 import type {
   AgentMemoryAddRequest,
@@ -339,6 +339,111 @@ export function wireMethodReturnsValue(
   method: WireMethodName,
 ): method is WireValueMethodName {
   return (VALUE_METHOD_NAMES as readonly string[]).includes(method);
+}
+
+export type WireOperationKind = "query" | "command" | "subscription";
+export type WireResponseKind = "unary" | "stream";
+export type WireIdempotencyPolicy = "none" | "replayResponse" | "replayRunStream";
+
+export interface WireMethodPolicy {
+  operation: WireOperationKind;
+  response: WireResponseKind;
+  idempotency: WireIdempotencyPolicy;
+}
+
+export const WIRE_METHOD_POLICY: {
+  readonly [M in WireMethodName]: WireMethodPolicy;
+} = {
+  "runtime.discover": { operation: "query", response: "unary", idempotency: "none" },
+  "sessions.list": { operation: "query", response: "unary", idempotency: "none" },
+  "sessions.get": { operation: "query", response: "unary", idempotency: "none" },
+  "sessions.create": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "sessions.update": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "sessions.delete": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "sessions.fork": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "sessions.rollback": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "sessions.export": { operation: "query", response: "unary", idempotency: "none" },
+  "sessions.import": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "runs.start": { operation: "command", response: "stream", idempotency: "replayRunStream" },
+  "runs.resume": { operation: "command", response: "stream", idempotency: "replayRunStream" },
+  "runs.subscribe": { operation: "subscription", response: "stream", idempotency: "none" },
+  "runs.cancel": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "runs.steer": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "runs.get": { operation: "query", response: "unary", idempotency: "none" },
+  "runs.list": { operation: "query", response: "unary", idempotency: "none" },
+  "interrupts.list": { operation: "query", response: "unary", idempotency: "none" },
+  "todos.get": { operation: "query", response: "unary", idempotency: "none" },
+  "items.list": { operation: "query", response: "unary", idempotency: "none" },
+  "workspace.listFileChanges": { operation: "query", response: "unary", idempotency: "none" },
+  "workspace.getDiff": { operation: "query", response: "unary", idempotency: "none" },
+  "workspace.getFileHead": { operation: "query", response: "unary", idempotency: "none" },
+  "workspace.grep": { operation: "query", response: "unary", idempotency: "none" },
+  "workspace.listFiles": { operation: "query", response: "unary", idempotency: "none" },
+  "workspace.readFile": { operation: "query", response: "unary", idempotency: "none" },
+  "workspace.listProjects": { operation: "query", response: "unary", idempotency: "none" },
+  "runtime.subscribe": { operation: "subscription", response: "stream", idempotency: "none" },
+  "skills.discovered.list": { operation: "query", response: "unary", idempotency: "none" },
+  "skills.library.list": { operation: "query", response: "unary", idempotency: "none" },
+  "skills.library.archive": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "skills.library.restore": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "skills.drafts.list": { operation: "query", response: "unary", idempotency: "none" },
+  "skills.drafts.promote": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "skills.drafts.reject": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "recipes.list": { operation: "query", response: "unary", idempotency: "none" },
+  "agentDocs.list": { operation: "query", response: "unary", idempotency: "none" },
+  "mcp.servers.list": { operation: "query", response: "unary", idempotency: "none" },
+  "mcp.tools.list": { operation: "query", response: "unary", idempotency: "none" },
+  "mcp.servers.reconnect": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "mcp.servers.authorize": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "mcp.configs.list": { operation: "query", response: "unary", idempotency: "none" },
+  "mcp.configs.configure": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "mcp.configs.remove": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "mcp.configs.setEnabled": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "mcp.configs.test": { operation: "query", response: "unary", idempotency: "none" },
+  "hooks.list": { operation: "query", response: "unary", idempotency: "none" },
+  "hooks.setTrust": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "approval.getMode": { operation: "query", response: "unary", idempotency: "none" },
+  "approval.setMode": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "approval.listRules": { operation: "query", response: "unary", idempotency: "none" },
+  "approval.forgetRule": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "schedules.list": { operation: "query", response: "unary", idempotency: "none" },
+  "schedules.create": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "schedules.update": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "schedules.delete": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "schedules.runNow": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "goals.start": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "goals.get": { operation: "query", response: "unary", idempotency: "none" },
+  "goals.stop": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "goals.resume": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "codebase.search": { operation: "query", response: "unary", idempotency: "none" },
+  "codebase.status": { operation: "query", response: "unary", idempotency: "none" },
+  "codebase.reindex": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "providers.list": { operation: "query", response: "unary", idempotency: "none" },
+  "providers.configure": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "providers.test": { operation: "query", response: "unary", idempotency: "none" },
+  "models.list": { operation: "query", response: "unary", idempotency: "none" },
+  "models.getUtilityRole": { operation: "query", response: "unary", idempotency: "none" },
+  "models.setUtilityRole": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "models.getEmbeddingRole": { operation: "query", response: "unary", idempotency: "none" },
+  "models.setEmbeddingRole": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "tools.list": { operation: "query", response: "unary", idempotency: "none" },
+  "tools.invoke": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "usage.session": { operation: "query", response: "unary", idempotency: "none" },
+  "usage.summary": { operation: "query", response: "unary", idempotency: "none" },
+  "memory.list": { operation: "query", response: "unary", idempotency: "none" },
+  "memory.get": { operation: "query", response: "unary", idempotency: "none" },
+  "memory.update": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "agentMemory.list": { operation: "query", response: "unary", idempotency: "none" },
+  "agentMemory.review": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "agentMemory.update": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "agentMemory.delete": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "agentMemory.add": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "feedback.create": { operation: "command", response: "unary", idempotency: "replayResponse" },
+};
+
+/** True only for calls whose first response the runtime durably replays. */
+export function wireMethodRequiresIdempotency(method: WireMethodName): boolean {
+  return WIRE_METHOD_POLICY[method].operation === "command";
 }
 
 /** One condition on the request that decides whether a rule applies. */

@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
@@ -429,6 +430,9 @@ func capabilitiesFor(features featureAvailability, replay protocol.RunReplayLimi
 		// The two bounds a client cannot discover by trying: what a reconnect can expect
 		// to get back, and how wide one subscription may be.
 		Limits: protocol.RuntimeLimits{
+			Idempotency: protocol.IdempotencyLimits{
+				RetentionSeconds: int(idempotency.Retention.Seconds()),
+			},
 			// No process-wide run cap is enforced, so maxConcurrentRuns stays absent
 			// rather than advertising a limit the admission layer does not own.
 			RunReplay: replay,

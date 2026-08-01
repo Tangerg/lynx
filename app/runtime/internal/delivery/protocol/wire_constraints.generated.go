@@ -1072,6 +1072,12 @@ func (value RunReplayLimits) ValidateWire() error {
 	)
 }
 
+func (value IdempotencyLimits) ValidateWire() error {
+	return collectWireViolations("IdempotencyLimits",
+		positiveNumber("retentionSeconds", value.RetentionSeconds),
+	)
+}
+
 func (value SubscriptionLimits) ValidateWire() error {
 	return collectWireViolations("SubscriptionLimits",
 		positiveNumber("maxTopics", value.MaxTopics),

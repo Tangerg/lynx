@@ -114,6 +114,7 @@ describe("the published JSON Schema bundle", () => {
     const runtimeLimits = ajv.getSchema("schema.json#/$defs/RuntimeLimits");
     expect(
       runtimeLimits?.({
+        idempotency: { retentionSeconds: 86_400 },
         runReplay: {
           scope: "processRootSegment",
           maxEvents: 2048,

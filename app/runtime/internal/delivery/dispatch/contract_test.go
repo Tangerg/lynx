@@ -71,15 +71,22 @@ func TestCapabilityRulesNameAPublishedFeature(t *testing.T) {
 	}
 }
 
-// TestReplayPolicyCoversEveryMutation guards the invariant the deleted
-// replay-protected list used to carry by hand: a method that opens a run replays
-// by re-attaching, never by handing back a cached ack alone.
-func TestReplayPolicyCoversEveryMutation(t *testing.T) {
+// TestReplayPolicyCoversEveryCommand guards the invariant the deleted
+// replay-protected list used to carry by hand: every command has replay semantics,
+// while reads and subscriptions never acquire mutation semantics by accident.
+func TestReplayPolicyCoversEveryCommand(t *testing.T) {
 	t.Parallel()
 
 	for _, meta := range contract.Metas() {
-		if meta.Idempotency == IdempotencyReplayRunStream && meta.Kind != KindStream {
-			t.Errorf("%s: re-attach replay on a non-streaming method", meta.Name)
+		switch meta.Operation {
+		case OperationCommand:
+			if !meta.Idempotency.Replays() {
+				t.Errorf("%s: command has no replay protection", meta.Name)
+			}
+		case OperationQuery, OperationSubscription:
+			if meta.Idempotency.Replays() {
+				t.Errorf("%s: non-command unexpectedly keeps replay state", meta.Name)
+			}
 		}
 	}
 	for _, name := range []string{"runs.start", "runs.resume"} {

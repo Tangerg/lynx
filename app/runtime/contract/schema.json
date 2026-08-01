@@ -2405,6 +2405,18 @@
         "projectTrusted"
       ]
     },
+    "IdempotencyLimits": {
+      "type": "object",
+      "properties": {
+        "retentionSeconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "retentionSeconds"
+      ]
+    },
     "ImportSessionRequest": {
       "type": "object",
       "properties": {
@@ -5433,6 +5445,9 @@
     "RuntimeLimits": {
       "type": "object",
       "properties": {
+        "idempotency": {
+          "$ref": "#/$defs/IdempotencyLimits"
+        },
         "maxConcurrentRuns": {
           "type": "integer"
         },
@@ -5444,6 +5459,7 @@
         }
       },
       "required": [
+        "idempotency",
         "runReplay",
         "runtimeSubscription"
       ]

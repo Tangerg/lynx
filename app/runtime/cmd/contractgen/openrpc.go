@@ -51,6 +51,7 @@ type openrpcMethod struct {
 	// semantics, capability gating, and the event stream a streaming method's
 	// response body becomes.
 	Kind         string          `json:"x-lyra-kind"`
+	Operation    string          `json:"x-lyra-operation"`
 	Idempotency  string          `json:"x-lyra-idempotency"`
 	Stability    string          `json:"x-lyra-stability"`
 	Features     []string        `json:"x-lyra-features,omitempty"`
@@ -110,6 +111,7 @@ func openrpcMethodFor(meta dispatch.MethodMeta, set *schemaSet, codes map[string
 		ParamStructure: "by-name",
 		Params:         []openrpcParam{},
 		Kind:           meta.Kind.String(),
+		Operation:      meta.Operation.String(),
 		Idempotency:    meta.Idempotency.String(),
 		Stability:      string(meta.Stability),
 		Features:       meta.Features(),

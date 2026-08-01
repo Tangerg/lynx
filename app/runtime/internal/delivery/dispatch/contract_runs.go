@@ -10,7 +10,7 @@ import (
 func registerLifecycle(r *Registry) {
 	// runtime.discover takes no params; struct{} makes an unexpected field a
 	// decode failure rather than something silently ignored.
-	Unary(r, MethodMeta{Name: "runtime.discover", Stability: stable},
+	Query(r, MethodMeta{Name: "runtime.discover", Stability: stable},
 		func(d *Dispatcher, ctx context.Context, _ struct{}) (*protocol.DiscoverResponse, error) {
 			return d.api.Discover(ctx)
 		})
@@ -20,9 +20,8 @@ func registerRuns(r *Registry) {
 	// runs.start and runs.resume open a run. A same-key retry must land back on
 	// THAT run — replaying the cached ack alone would give the client a runId with
 	// no stream behind it (TRANSPORT §6.2).
-	Stream(r, MethodMeta{
-		Name:        "runs.start",
-		Idempotency: IdempotencyReplayRunStream,
+	RunStreamCommand(r, MethodMeta{
+		Name: "runs.start",
 		Errors: []string{
 			protocol.ErrSessionNotFound.Error(),
 			protocol.ErrSessionBusy.Error(),
@@ -35,9 +34,8 @@ func registerRuns(r *Registry) {
 		return d.api.StartRun(ctx, in)
 	}, runEventFramer)
 
-	Stream(r, MethodMeta{
-		Name:        "runs.resume",
-		Idempotency: IdempotencyReplayRunStream,
+	RunStreamCommand(r, MethodMeta{
+		Name: "runs.resume",
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
 			protocol.ErrInterruptNotOpen.Error(),
@@ -55,7 +53,7 @@ func registerRuns(r *Registry) {
 	// cannot be served. Each is declared because each sends the client somewhere
 	// different — rootRunId, interrupts.list, items.list, runs.get, or a cursorless
 	// reattach — and one collapsed run_not_found would send it nowhere.
-	Stream(r, MethodMeta{
+	Subscription(r, MethodMeta{
 		Name: "runs.subscribe",
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
@@ -72,9 +70,8 @@ func registerRuns(r *Registry) {
 		return d.api.SubscribeRun(ctx, in)
 	}, runEventFramer)
 
-	Unary(r, MethodMeta{
-		Name:        "runs.cancel",
-		Idempotency: IdempotencyReplayResponse,
+	Command(r, MethodMeta{
+		Name: "runs.cancel",
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
 			protocol.ErrRunFinished.Error(),
@@ -91,9 +88,8 @@ func registerRuns(r *Registry) {
 	// that has parked, finished or moved to another segment says so, and the client
 	// asks the user again rather than delivering an instruction to work they never
 	// saw.
-	UnaryAck(r, MethodMeta{
-		Name:        "runs.steer",
-		Idempotency: IdempotencyReplayResponse,
+	CommandAck(r, MethodMeta{
+		Name: "runs.steer",
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
 			protocol.ErrRunNotRoot.Error(),
@@ -108,7 +104,7 @@ func registerRuns(r *Registry) {
 
 	// runs.get answers "what is this run" for a runId a client already holds — from
 	// an event, a page, or a link — without it having to know the session first.
-	Unary(r, MethodMeta{
+	Query(r, MethodMeta{
 		Name: "runs.get",
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
@@ -124,7 +120,7 @@ func registerRuns(r *Registry) {
 	// `includeDescendants: false` as "not asking", so an explicit false and an
 	// absent field behave alike — while an explicit true is refused rather than
 	// read as false, which would hand back a page that looks complete and is not.
-	Unary(r, MethodMeta{
+	Query(r, MethodMeta{
 		Name: "runs.list",
 		CapabilityRules: []CapabilityRule{{
 			When:     []FieldCondition{{Field: "includeDescendants", Operator: OperatorPresent}},
@@ -143,7 +139,7 @@ func registerInterrupts(r *Registry) {
 	//
 	// run_not_root is declared because the filter can name a child, and that is a
 	// different answer from "nothing is waiting".
-	Unary(r, MethodMeta{
+	Query(r, MethodMeta{
 		Name: "interrupts.list",
 		Errors: []string{
 			protocol.ErrRunNotRoot.Error(),
@@ -159,7 +155,7 @@ func registerTodos(r *Registry) {
 	// The recovery source the todos state key declares. A session with no list yet
 	// answers with the empty state at revision 0 — "nothing written" is a fact, and
 	// only a session that does not exist is an error.
-	Unary(r, MethodMeta{
+	Query(r, MethodMeta{
 		Name:            "todos.get",
 		Errors:          []string{protocol.ErrSessionNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureTodos),
@@ -174,7 +170,7 @@ func registerItems(r *Registry) {
 	// differs — find the session, or find the run — so both refusals are declared.
 	// Asking a run scope for its subtree needs features.subagents; the scope itself
 	// does not, since a root run is a run.
-	Unary(r, MethodMeta{
+	Query(r, MethodMeta{
 		Name: "items.list",
 		Errors: []string{
 			protocol.ErrSessionNotFound.Error(),

@@ -32,6 +32,38 @@ func (k MethodKind) String() string {
 	}
 }
 
+// OperationKind describes what a call means independently of how its response is
+// delivered. A query observes state, a command may change state or cause an
+// external effect, and a subscription observes a live stream. Keeping this
+// separate from [MethodKind] avoids treating "streaming" as a business semantic.
+//
+// Registration factories set this value together with the only valid
+// idempotency policy for the operation. A new command therefore cannot compile
+// into the registry while silently opting out of replay protection.
+type OperationKind uint8
+
+const (
+	operationUnspecified OperationKind = iota
+	OperationQuery
+	OperationCommand
+	OperationSubscription
+)
+
+func (k OperationKind) String() string {
+	switch k {
+	case operationUnspecified:
+		return "unspecified"
+	case OperationQuery:
+		return "query"
+	case OperationCommand:
+		return "command"
+	case OperationSubscription:
+		return "subscription"
+	default:
+		return fmt.Sprintf("OperationKind(%d)", k)
+	}
+}
+
 // IdempotencyPolicy says what an `Idempotency-Key` retry of this method must do
 // (TRANSPORT §6.2 / §10). It replaces a hand-kept list of replay-protected
 // method names: a method declares its own retry semantics where it is
@@ -105,6 +137,10 @@ type MethodMeta struct {
 
 	// Kind is filled in by the registration factory.
 	Kind MethodKind
+	// Operation is filled in by the registration factory. It is orthogonal to
+	// Kind: runs.start is a streaming command, while runs.subscribe is a
+	// subscription.
+	Operation OperationKind
 
 	Idempotency IdempotencyPolicy
 
@@ -199,6 +235,18 @@ func (m MethodMeta) validate() error {
 			m.Name, m.Kind, KindUnary, KindStream,
 		)
 	}
+	switch m.Operation {
+	case OperationQuery, OperationCommand, OperationSubscription:
+	default:
+		return fmt.Errorf(
+			"%s: invalid operation kind %s; expected %s, %s or %s",
+			m.Name,
+			m.Operation,
+			OperationQuery,
+			OperationCommand,
+			OperationSubscription,
+		)
+	}
 	switch m.Idempotency {
 	case IdempotencyNone, IdempotencyReplayResponse, IdempotencyReplayRunStream:
 	default:
@@ -228,11 +276,22 @@ func (m MethodMeta) validate() error {
 			return fmt.Errorf("%s: problem type %q is declared twice", m.Name, problem)
 		}
 	}
-	if m.Kind == KindStream && m.Idempotency == IdempotencyReplayResponse {
-		return fmt.Errorf("%s: a streaming method replays by re-attaching, not by returning a cached ack", m.Name)
-	}
-	if m.Kind == KindUnary && m.Idempotency == IdempotencyReplayRunStream {
-		return fmt.Errorf("%s: only a run-opening stream can replay by re-attaching", m.Name)
+	switch m.Operation {
+	case OperationQuery:
+		if m.Kind != KindUnary || m.Idempotency != IdempotencyNone {
+			return fmt.Errorf("%s: a query must be unary and must not keep an idempotency replay", m.Name)
+		}
+	case OperationSubscription:
+		if m.Kind != KindStream || m.Idempotency != IdempotencyNone {
+			return fmt.Errorf("%s: a subscription must stream and must not keep an idempotency replay", m.Name)
+		}
+	case OperationCommand:
+		if m.Kind == KindUnary && m.Idempotency != IdempotencyReplayResponse {
+			return fmt.Errorf("%s: a unary command must replay its first response", m.Name)
+		}
+		if m.Kind == KindStream && m.Idempotency != IdempotencyReplayRunStream {
+			return fmt.Errorf("%s: a streaming run command must replay by re-attaching to its run", m.Name)
+		}
 	}
 	if m.Params == nil {
 		return fmt.Errorf("%s: params type is required — a method with no schema cannot be published", m.Name)

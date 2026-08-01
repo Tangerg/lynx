@@ -222,6 +222,12 @@ func registerRuntimeValues(s *Shapes) {
 		},
 	})
 	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.IdempotencyLimits](),
+		Constraints: []FieldConstraint{
+			{Field: "retentionSeconds", Kind: ConstraintPositive},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.SubscriptionLimits](),
 		Constraints: []FieldConstraint{
 			{Field: "maxTopics", Kind: ConstraintPositive},

@@ -24,10 +24,10 @@ import (
 // literals, dozens of result types, and a parallel union of the nineteen capability
 // keys.
 //
-// What is NOT generated is how this client calls. §12 keeps the wire narrow and
-// gives the SDK the friendly handles, so the frame TYPES land here and `methods.ts`
-// composes them with its own transport concerns (abort signal, idempotency key). A
-// generated wrapper per method would be a third layer that only forwards.
+// The ergonomic SDK still owns transport handles such as AbortSignal, but it reads
+// operation and idempotency behavior from the policy emitted here. Otherwise every
+// wrapper would have to choose between query and mutation paths by hand, which is
+// exactly how a newly added command can accidentally skip replay protection.
 const tsMethodsFileName = "wire.methods.generated.ts"
 
 type methodsEmitter struct {
@@ -52,10 +52,46 @@ func newWireMethods(registry *dispatch.Registry, set *schemaSet) string {
 	emitter.names(metas)
 	emitter.streamingNames(metas)
 	emitter.valueMethodNames(metas)
+	emitter.methodPolicy(metas)
 	emitter.policy(metas)
 	emitter.out.WriteString(shapes)
 	emitter.helpers()
 	return emitter.out.String()
+}
+
+// methodPolicy emits the semantic category and response/replay behavior for every
+// method. The SDK consumes this table to attach idempotency keys to commands by
+// construction; method wrappers never classify themselves.
+func (e *methodsEmitter) methodPolicy(metas []dispatch.MethodMeta) {
+	e.line("export type WireOperationKind = \"query\" | \"command\" | \"subscription\";")
+	e.line("export type WireResponseKind = \"unary\" | \"stream\";")
+	e.line("export type WireIdempotencyPolicy = \"none\" | \"replayResponse\" | \"replayRunStream\";")
+	e.line("")
+	e.line("export interface WireMethodPolicy {")
+	e.line("  operation: WireOperationKind;")
+	e.line("  response: WireResponseKind;")
+	e.line("  idempotency: WireIdempotencyPolicy;")
+	e.line("}")
+	e.line("")
+	e.line("export const WIRE_METHOD_POLICY: {")
+	e.line("  readonly [M in WireMethodName]: WireMethodPolicy;")
+	e.line("} = {")
+	for _, meta := range metas {
+		e.line(
+			"  %s: { operation: %s, response: %s, idempotency: %s },",
+			strconv.Quote(meta.Name),
+			strconv.Quote(meta.Operation.String()),
+			strconv.Quote(meta.Kind.String()),
+			strconv.Quote(meta.Idempotency.String()),
+		)
+	}
+	e.line("};")
+	e.line("")
+	e.line("/** True only for calls whose first response the runtime durably replays. */")
+	e.line("export function wireMethodRequiresIdempotency(method: WireMethodName): boolean {")
+	e.line("  return WIRE_METHOD_POLICY[method].operation === \"command\";")
+	e.line("}")
+	e.line("")
 }
 
 // policy emits the capability rules the SDK preflights against what the server
@@ -124,8 +160,8 @@ func (e *methodsEmitter) header() {
 	e.line("// The method surface of the Lyra Runtime Protocol: which methods exist, what each")
 	e.line("// one carries, and what has to be negotiated before one will run.")
 	e.line("//")
-	e.line("// The SDK in methods.ts composes these with its own transport concerns. This file")
-	e.line("// holds no policy of its own — every fact in it is read from the Contract Registry.")
+	e.line("// The SDK in methods.ts composes these with transport concerns. Every protocol")
+	e.line("// fact in this file is read from the Contract Registry.")
 	e.line("")
 }
 

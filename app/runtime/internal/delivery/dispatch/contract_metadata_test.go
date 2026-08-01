@@ -20,6 +20,7 @@ func TestRegistryViewsAreSnapshots(t *testing.T) {
 	registry.add(MethodMeta{
 		Name:        "tests.snapshot",
 		Kind:        KindUnary,
+		Operation:   OperationQuery,
 		Idempotency: IdempotencyNone,
 		Errors:      []string{protocol.ErrRunNotFound.Error()},
 		CapabilityRules: []CapabilityRule{{
@@ -86,6 +87,12 @@ func TestMetadataEnumsRejectUnknownValuesWithoutMasqueradingAsDefaults(t *testin
 		},
 		want: []string{"runs.list", "MethodKind(255)"},
 	}, {
+		name: "operation kind",
+		mutate: func(meta *MethodMeta) {
+			meta.Operation = OperationKind(255)
+		},
+		want: []string{"runs.list", "OperationKind(255)"},
+	}, {
 		name: "idempotency policy",
 		mutate: func(meta *MethodMeta) {
 			meta.Idempotency = IdempotencyPolicy(255)
@@ -124,6 +131,9 @@ func TestMetadataEnumsRejectUnknownValuesWithoutMasqueradingAsDefaults(t *testin
 
 	if got := MethodKind(255).String(); got == KindUnary.String() || got == KindStream.String() {
 		t.Fatalf("unknown method kind masquerades as %q", got)
+	}
+	if got := OperationKind(255).String(); got == OperationQuery.String() {
+		t.Fatalf("unknown operation kind masquerades as %q", got)
 	}
 	if got := IdempotencyPolicy(255).String(); got == IdempotencyNone.String() {
 		t.Fatalf("unknown idempotency policy masquerades as %q", got)

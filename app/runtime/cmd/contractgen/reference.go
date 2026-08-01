@@ -23,11 +23,11 @@ func reference(m manifest) string {
 		m.Protocol.Current, m.Protocol.MinSupported, len(m.Methods))
 
 	b.WriteString("## Methods\n\n")
-	b.WriteString("| method | kind | retry | features | documented errors |\n")
-	b.WriteString("| --- | --- | --- | --- | --- |\n")
+	b.WriteString("| method | operation | response | retry | features | documented errors |\n")
+	b.WriteString("| --- | --- | --- | --- | --- | --- |\n")
 	for _, method := range m.Methods {
-		fmt.Fprintf(&b, "| `%s` | %s | %s | %s | %s |\n",
-			method.Name, method.Kind, method.Idempotency,
+		fmt.Fprintf(&b, "| `%s` | %s | %s | %s | %s | %s |\n",
+			method.Name, method.Operation, method.Kind, method.Idempotency,
 			code(method.Features), code(method.Errors))
 	}
 

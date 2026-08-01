@@ -30,6 +30,7 @@ const capabilities: ServerCapabilities = {
     clientTools: stable(false),
   },
   limits: {
+    idempotency: { retentionSeconds: 86_400 },
     runReplay: { scope: "processRootSegment", maxEvents: 2048, maxBytes: 16_777_216 },
     runtimeSubscription: { maxTopics: 32, maxWatches: 32 },
   },

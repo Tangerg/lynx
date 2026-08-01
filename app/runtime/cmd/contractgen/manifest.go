@@ -37,6 +37,7 @@ type manifest struct {
 type methodEntry struct {
 	Name        string   `json:"name"`
 	Kind        string   `json:"kind"`
+	Operation   string   `json:"operation"`
 	Idempotency string   `json:"idempotency"`
 	Errors      []string `json:"errors,omitempty"`
 	Features    []string `json:"features,omitempty"`
@@ -192,6 +193,7 @@ func methods(registry *dispatch.Registry) []methodEntry {
 		out = append(out, methodEntry{
 			Name:        meta.Name,
 			Kind:        meta.Kind.String(),
+			Operation:   meta.Operation.String(),
 			Idempotency: meta.Idempotency.String(),
 			Errors:      meta.ProblemTypes(),
 			Features:    meta.Features(),

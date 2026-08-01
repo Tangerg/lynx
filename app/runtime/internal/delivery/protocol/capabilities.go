@@ -193,6 +193,10 @@ func MissingFeatureRequirements(
 // RuntimeLimits — server-side hard caps surfaced to the client.
 type RuntimeLimits struct {
 	MaxConcurrentRuns int `json:"maxConcurrentRuns,omitempty"`
+	// Idempotency tells clients how long a command's first response remains
+	// replayable under the same Idempotency-Key. A client must not invent this
+	// window: retrying after it expires may execute the command again.
+	Idempotency IdempotencyLimits `json:"idempotency"`
 	// RunReplay is what a reconnecting subscriber can expect to get back. Published
 	// because the alternative is a client discovering the ceiling by losing events:
 	// knowing the bound is what lets it choose replay or a cold read.
@@ -203,6 +207,11 @@ type RuntimeLimits struct {
 	RunReplay RunReplayLimits `json:"runReplay"`
 	// RuntimeSubscription bounds one subscription's fan-out.
 	RuntimeSubscription SubscriptionLimits `json:"runtimeSubscription"`
+}
+
+// IdempotencyLimits is the replay promise for command requests.
+type IdempotencyLimits struct {
+	RetentionSeconds int `json:"retentionSeconds"`
 }
 
 // RunReplayScope is what a replay buffer belongs to. One value today, and it is named

@@ -132,6 +132,9 @@
       }
     },
     "limits": {
+      "idempotency": {
+        "retentionSeconds": 86400
+      },
       "runReplay": {
         "scope": "processRootSegment",
         "maxEvents": 2048,

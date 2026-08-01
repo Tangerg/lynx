@@ -399,7 +399,13 @@ describe("the generated wire checks", () => {
       validateWire("RuntimeLimits", {
         runtimeSubscription: { maxTopics: 32, maxWatches: 32 },
       }),
-    ).toEqual([{ path: "RuntimeLimits.runReplay", detail: "is required" }]);
+    ).toEqual([
+      { path: "RuntimeLimits.idempotency", detail: "is required" },
+      { path: "RuntimeLimits.runReplay", detail: "is required" },
+    ]);
+    expect(validateWire("IdempotencyLimits", { retentionSeconds: 0 })).toEqual([
+      { path: "IdempotencyLimits.retentionSeconds", detail: "expected at least 1" },
+    ]);
     expect(
       validateWire("PendingInterruptSet", {
         rootRunId: "run_01",

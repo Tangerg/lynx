@@ -95,7 +95,12 @@ import type {
   WorkspaceFileChange,
 } from "./wire.generated";
 import { streamRunEvents, streamRuntimeEvents } from "./stream";
-import type { WireMethodName, WireParams, WireResult } from "./wire.methods.generated";
+import {
+  wireMethodRequiresIdempotency,
+  type WireMethodName,
+  type WireParams,
+  type WireResult,
+} from "./wire.methods.generated";
 import { RUNTIME_SUBSCRIBE_METHOD } from "./transport";
 
 export interface StreamingResult<R, E> {
@@ -132,8 +137,6 @@ async function callOrDispose<R>(
   }
 }
 
-const IDEMPOTENCY_RETENTION_MS = 24 * 60 * 60 * 1_000;
-
 interface PendingMutation {
   key: string;
   createdAt: number;
@@ -145,12 +148,13 @@ interface PendingMutation {
 class MutationAttempts {
   private readonly pending = new Map<string, PendingMutation>();
 
+  constructor(private readonly replayRetentionMs: () => number | undefined) {}
+
   async call<M extends WireMethodName>(
     client: RpcClient,
     method: M,
     params: WireParams<M>,
-    signal?: AbortSignal,
-    requestMeta?: RequestMeta | null,
+    options?: RpcCallOptions,
   ): Promise<WireResult<M>> {
     const identity = mutationIdentity(method, params);
     const now = Date.now();
@@ -162,9 +166,8 @@ class MutationAttempts {
     }
     try {
       const result = await client.call(method, params, {
-        signal,
+        ...options,
         idempotencyKey: attempt.key,
-        requestMeta,
       });
       this.release(identity, attempt.key);
       return result;
@@ -183,8 +186,10 @@ class MutationAttempts {
   }
 
   private prune(now: number): void {
+    const retentionMs = this.replayRetentionMs();
+    if (retentionMs === undefined) return;
     for (const [identity, attempt] of this.pending) {
-      if (now - attempt.createdAt >= IDEMPOTENCY_RETENTION_MS) this.pending.delete(identity);
+      if (now - attempt.createdAt >= retentionMs) this.pending.delete(identity);
     }
   }
 }
@@ -513,7 +518,10 @@ export interface MethodsOptions {
 }
 
 export function createMethods(client: RpcClient, options: MethodsOptions = {}): Methods {
-  const mutations = new MutationAttempts();
+  const mutations = new MutationAttempts(() => {
+    const seconds = options.capabilities?.()?.limits.idempotency.retentionSeconds;
+    return seconds === undefined ? undefined : seconds * 1_000;
+  });
 
   // Every outbound call passes the preflight, because the alternative is a
   // round-trip whose only possible answer is the refusal we already hold.
@@ -541,27 +549,13 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     const ownsRequestMeta = options.requestMeta !== undefined;
     const requestMeta = ownsRequestMeta ? options.requestMeta?.() : callOptions?.requestMeta;
     refuse(method, params, requestMeta);
-    return client.call(
-      method,
-      params,
-      ownsRequestMeta ? { ...callOptions, requestMeta: requestMeta ?? null } : callOptions,
-    );
-  };
-  const mutate = async <M extends WireMethodName>(
-    method: M,
-    params: WireParams<M>,
-    signal?: AbortSignal,
-  ): Promise<WireResult<M>> => {
-    const ownsRequestMeta = options.requestMeta !== undefined;
-    const requestMeta = ownsRequestMeta ? options.requestMeta?.() : undefined;
-    refuse(method, params, requestMeta);
-    return mutations.call(
-      client,
-      method,
-      params,
-      signal,
-      ownsRequestMeta ? (requestMeta ?? null) : undefined,
-    );
+    const effectiveOptions = ownsRequestMeta
+      ? { ...callOptions, requestMeta: requestMeta ?? null }
+      : callOptions;
+    if (wireMethodRequiresIdempotency(method)) {
+      return mutations.call(client, method, params, effectiveOptions);
+    }
+    return client.call(method, params, effectiveOptions);
   };
 
   return {
@@ -571,14 +565,14 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     sessions: {
       list: (query) => call("sessions.list", query ?? {}),
       get: (sessionId) => call("sessions.get", { sessionId }),
-      create: (params, signal) => mutate("sessions.create", params ?? {}, signal),
-      update: (params) => mutate("sessions.update", params),
-      delete: (sessionId) => mutate("sessions.delete", { sessionId }),
-      fork: (params) => mutate("sessions.fork", params),
-      rollback: (params) => mutate("sessions.rollback", params),
+      create: (params, signal) => call("sessions.create", params ?? {}, { signal }),
+      update: (params) => call("sessions.update", params),
+      delete: (sessionId) => call("sessions.delete", { sessionId }),
+      fork: (params) => call("sessions.fork", params),
+      rollback: (params) => call("sessions.rollback", params),
       export: (sessionId, format) => call("sessions.export", { sessionId, format }),
       import: (artifact) =>
-        mutate("sessions.import", {
+        call("sessions.import", {
           artifact,
         }),
     },
@@ -591,7 +585,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
         // the head (see streamRunEvents).
         const stream = streamRunEvents(client, signal);
         const result = await callOrDispose(stream, () =>
-          mutate("runs.start", params, stream.requestSignal),
+          call("runs.start", params, { signal: stream.requestSignal }),
         );
         stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };
@@ -600,7 +594,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
         // A resume opens a NEW segment of the SAME run — bind the tree to it.
         const stream = streamRunEvents(client, signal);
         const result = await callOrDispose(stream, () =>
-          mutate("runs.resume", params, stream.requestSignal),
+          call("runs.resume", params, { signal: stream.requestSignal }),
         );
         stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };
@@ -618,9 +612,9 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
         stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };
       },
-      cancel: (runId, reason) => mutate("runs.cancel", { runId, reason }),
+      cancel: (runId, reason) => call("runs.cancel", { runId, reason }),
       steer: async (runId, expectedSegmentId, input) => {
-        await mutate("runs.steer", { runId, expectedSegmentId, input });
+        await call("runs.steer", { runId, expectedSegmentId, input });
       },
       get: (runId) => call("runs.get", { runId }),
       list: (query) => call("runs.list", query ?? {}),
@@ -658,7 +652,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     hooks: {
       list: (cwd) => call("hooks.list", { cwd }),
       setTrust: (projectRoot, trusted) =>
-        mutate("hooks.setTrust", {
+        call("hooks.setTrust", {
           projectRoot,
           trusted,
         }),
@@ -666,50 +660,50 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     skills: {
       listDiscovered: (cwd) => call("skills.discovered.list", { cwd }),
       listLibrary: () => call("skills.library.list", {}),
-      archive: (name) => mutate("skills.library.archive", { name }),
-      restore: (name) => mutate("skills.library.restore", { name }),
+      archive: (name) => call("skills.library.archive", { name }),
+      restore: (name) => call("skills.library.restore", { name }),
       listDrafts: () => call("skills.drafts.list", {}),
-      promoteDraft: (ref) => mutate("skills.drafts.promote", ref),
-      rejectDraft: (ref) => mutate("skills.drafts.reject", ref),
+      promoteDraft: (ref) => call("skills.drafts.promote", ref),
+      rejectDraft: (ref) => call("skills.drafts.reject", ref),
     },
     agentDocs: {
       list: (cwd) => call("agentDocs.list", { cwd }),
     },
     mcp: {
       listConfigs: (query) => call("mcp.configs.list", query ?? {}),
-      configure: (params) => mutate("mcp.configs.configure", params),
-      remove: (name) => mutate("mcp.configs.remove", { name }),
+      configure: (params) => call("mcp.configs.configure", params),
+      remove: (name) => call("mcp.configs.remove", { name }),
       setEnabled: (name, enabled) =>
-        mutate("mcp.configs.setEnabled", {
+        call("mcp.configs.setEnabled", {
           name,
           enabled,
         }),
       test: (params) => call("mcp.configs.test", params),
       listServers: () => call("mcp.servers.list", {}),
       listTools: (server) => call("mcp.tools.list", server ? { server } : {}),
-      reconnect: (server) => mutate("mcp.servers.reconnect", { server }),
-      authorize: (server) => mutate("mcp.servers.authorize", { server }),
+      reconnect: (server) => call("mcp.servers.reconnect", { server }),
+      authorize: (server) => call("mcp.servers.authorize", { server }),
     },
     providers: {
       list: () => call("providers.list", {}),
-      configure: (params) => mutate("providers.configure", params),
+      configure: (params) => call("providers.configure", params),
       test: (provider) => call("providers.test", { provider }),
     },
     models: {
       list: (provider) => call("models.list", provider ? { provider } : {}),
       getUtilityRole: () => call("models.getUtilityRole", {}),
-      setUtilityRole: (params) => mutate("models.setUtilityRole", params),
+      setUtilityRole: (params) => call("models.setUtilityRole", params),
       getEmbeddingRole: () => call("models.getEmbeddingRole", {}),
-      setEmbeddingRole: (params) => mutate("models.setEmbeddingRole", params),
+      setEmbeddingRole: (params) => call("models.setEmbeddingRole", params),
     },
     codebase: {
       search: (params) => call("codebase.search", params),
       status: (cwd) => call("codebase.status", { cwd }),
-      reindex: (cwd) => mutate("codebase.reindex", { cwd }),
+      reindex: (cwd) => call("codebase.reindex", { cwd }),
     },
     tools: {
       list: () => call("tools.list", {}),
-      invoke: (params) => mutate("tools.invoke", params),
+      invoke: (params) => call("tools.invoke", params),
     },
     usage: {
       session: (sessionId) => call("usage.session", { sessionId }),
@@ -718,40 +712,40 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     memory: {
       list: (cwd) => call("memory.list", { cwd }),
       get: (scope, cwd) => call("memory.get", { scope, cwd }),
-      update: (params) => mutate("memory.update", params),
+      update: (params) => call("memory.update", params),
     },
     agentMemory: {
       list: (params) => call("agentMemory.list", params ?? {}),
       review: (id, decision) =>
-        mutate("agentMemory.review", {
+        call("agentMemory.review", {
           id,
           decision,
         }),
-      update: (params) => mutate("agentMemory.update", params),
-      delete: (id) => mutate("agentMemory.delete", { id }),
-      add: (params) => mutate("agentMemory.add", params),
+      update: (params) => call("agentMemory.update", params),
+      delete: (id) => call("agentMemory.delete", { id }),
+      add: (params) => call("agentMemory.add", params),
     },
     goals: {
       get: (sessionId) => call("goals.get", { sessionId }),
-      start: (params) => mutate("goals.start", params),
-      stop: (sessionId) => mutate("goals.stop", { sessionId }),
-      resume: (sessionId) => mutate("goals.resume", { sessionId }),
+      start: (params) => call("goals.start", params),
+      stop: (sessionId) => call("goals.stop", { sessionId }),
+      resume: (sessionId) => call("goals.resume", { sessionId }),
     },
     feedback: {
-      create: (params) => mutate("feedback.create", params),
+      create: (params) => call("feedback.create", params),
     },
     approval: {
       getMode: () => call("approval.getMode", {}),
-      setMode: (mode) => mutate("approval.setMode", { mode }),
+      setMode: (mode) => call("approval.setMode", { mode }),
       listRules: (sessionId) => call("approval.listRules", { sessionId }),
-      forgetRule: (id) => mutate("approval.forgetRule", { id }),
+      forgetRule: (id) => call("approval.forgetRule", { id }),
     },
     schedules: {
       list: (query) => call("schedules.list", query ?? {}),
-      create: (params) => mutate("schedules.create", params),
-      update: (params) => mutate("schedules.update", params),
-      delete: (id) => mutate("schedules.delete", { id }),
-      runNow: (id) => mutate("schedules.runNow", { id }),
+      create: (params) => call("schedules.create", params),
+      update: (params) => call("schedules.update", params),
+      delete: (id) => call("schedules.delete", { id }),
+      runNow: (id) => call("schedules.runNow", { id }),
     },
   };
 }

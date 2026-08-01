@@ -28,6 +28,7 @@ func (fakeRuntime) Discover(context.Context) (*protocol.DiscoverResponse, error)
 			StreamingMethods: []string{},
 			Features:         map[string]protocol.FeatureCapability{},
 			Limits: protocol.RuntimeLimits{
+				Idempotency: protocol.IdempotencyLimits{RetentionSeconds: 1},
 				RunReplay: protocol.RunReplayLimits{
 					Scope: protocol.ReplayScopeProcessRootSegment, MaxEvents: 1, MaxBytes: 1,
 				},

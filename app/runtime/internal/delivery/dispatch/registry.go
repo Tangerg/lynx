@@ -35,7 +35,8 @@ type Method struct {
 	Meta MethodMeta
 
 	// handle runs the whole request: decode + constraints, capability gate, the
-	// typed call, and the reply. Built by [Unary] / [UnaryAck] / [Stream] so no
+	// typed call, and the reply. Built by the query, command, and subscription
+	// registration factories so no
 	// registration can assemble the steps in the wrong order or skip one.
 	handle func(*Dispatcher, context.Context, *transport.Request) HandleResult
 }
@@ -115,17 +116,40 @@ func (r *Registry) StreamMethods() []string {
 	return out
 }
 
-// Unary registers a method that answers with one JSON-RPC result.
+// Query registers a read-only method that answers with one JSON-RPC result.
 //
 // The pipeline is fixed here, once: decode the params (and their declared
 // constraints), refuse the call if a required feature is off, invoke, encode. A
 // registration supplies only what is method-specific.
-func Unary[Params, Result any](
+func Query[Params, Result any](
 	registry *Registry,
 	meta MethodMeta,
 	call func(*Dispatcher, context.Context, Params) (Result, error),
 ) {
 	meta.Kind = KindUnary
+	meta.Operation = OperationQuery
+	meta.Idempotency = IdempotencyNone
+	registerUnary(registry, meta, call)
+}
+
+// Command registers a replay-protected method that may change state or cause an
+// external effect and returns its canonical result.
+func Command[Params, Result any](
+	registry *Registry,
+	meta MethodMeta,
+	call func(*Dispatcher, context.Context, Params) (Result, error),
+) {
+	meta.Kind = KindUnary
+	meta.Operation = OperationCommand
+	meta.Idempotency = IdempotencyReplayResponse
+	registerUnary(registry, meta, call)
+}
+
+func registerUnary[Params, Result any](
+	registry *Registry,
+	meta MethodMeta,
+	call func(*Dispatcher, context.Context, Params) (Result, error),
+) {
 	meta.Params = reflect.TypeFor[Params]()
 	meta.Result = reflect.TypeFor[Result]()
 	registry.add(meta, func(d *Dispatcher, ctx context.Context, msg *transport.Request) HandleResult {
@@ -141,14 +165,17 @@ func Unary[Params, Result any](
 	})
 }
 
-// UnaryAck registers a method whose success carries no data. The reply is an
-// empty object rather than null so a client reads every response the same way.
-func UnaryAck[Params any](
+// CommandAck registers a replay-protected command whose success carries no data.
+// The reply is an empty object rather than null so a client reads every response
+// the same way.
+func CommandAck[Params any](
 	registry *Registry,
 	meta MethodMeta,
 	call func(*Dispatcher, context.Context, Params) error,
 ) {
 	meta.Kind = KindUnary
+	meta.Operation = OperationCommand
+	meta.Idempotency = IdempotencyReplayResponse
 	meta.Params = reflect.TypeFor[Params]()
 	registry.add(meta, func(d *Dispatcher, ctx context.Context, msg *transport.Request) HandleResult {
 		in, bad := decode[Params](msg)
@@ -162,19 +189,46 @@ func UnaryAck[Params any](
 	})
 }
 
-// Stream registers a method whose response body is this call's event stream.
+// Subscription registers a read-only method whose response body remains open as
+// this call's event stream.
 //
 // framer is the per-request event encoder. It stays a registration argument
 // because which events a client may receive is a delivery policy (declared
 // events, ephemeral opt-out, replay ids) that differs per stream — the run stream
 // carries replayable ids, the workspace stream deliberately does not.
-func Stream[Params, Ack, Event any](
+func Subscription[Params, Ack, Event any](
 	registry *Registry,
 	meta MethodMeta,
 	call func(*Dispatcher, context.Context, Params) (Ack, iter.Seq[Event], error),
 	framer func(context.Context) func(Event) (StreamFrame, bool),
 ) {
 	meta.Kind = KindStream
+	meta.Operation = OperationSubscription
+	meta.Idempotency = IdempotencyNone
+	registerStream(registry, meta, call, framer)
+}
+
+// RunStreamCommand registers a replay-protected command that opens a run stream.
+// A same-key retry returns the original ack and re-attaches to that run instead of
+// executing the command again.
+func RunStreamCommand[Params, Ack, Event any](
+	registry *Registry,
+	meta MethodMeta,
+	call func(*Dispatcher, context.Context, Params) (Ack, iter.Seq[Event], error),
+	framer func(context.Context) func(Event) (StreamFrame, bool),
+) {
+	meta.Kind = KindStream
+	meta.Operation = OperationCommand
+	meta.Idempotency = IdempotencyReplayRunStream
+	registerStream(registry, meta, call, framer)
+}
+
+func registerStream[Params, Ack, Event any](
+	registry *Registry,
+	meta MethodMeta,
+	call func(*Dispatcher, context.Context, Params) (Ack, iter.Seq[Event], error),
+	framer func(context.Context) func(Event) (StreamFrame, bool),
+) {
 	meta.Params = reflect.TypeFor[Params]()
 	meta.Result = reflect.TypeFor[Ack]()
 	meta.Event = reflect.TypeFor[Event]()

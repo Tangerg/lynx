@@ -125,6 +125,7 @@ export type WireTypeName =
   | "HookInfo"
   | "HookScope"
   | "HooksListResult"
+  | "IdempotencyLimits"
   | "ImportSessionRequest"
   | "ImportSessionResponse"
   | "Interrupt"
@@ -1008,6 +1009,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     projectRoot: text(),
     projectTrusted: flag(),
   }, ["hooks", "projectTrusted"]),
+  IdempotencyLimits: object({
+    retentionSeconds: allOf([integer(), minimum(1)]),
+  }, ["retentionSeconds"]),
   ImportSessionRequest: allOf([
     object({
       artifact: ref(() => CHECKS.SessionArtifact),
@@ -2011,10 +2015,11 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["event"]),
   RuntimeEventType: enumOf(["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "resync"]),
   RuntimeLimits: object({
+    idempotency: ref(() => CHECKS.IdempotencyLimits),
     maxConcurrentRuns: integer(),
     runReplay: ref(() => CHECKS.RunReplayLimits),
     runtimeSubscription: ref(() => CHECKS.SubscriptionLimits),
-  }, ["runReplay", "runtimeSubscription"]),
+  }, ["idempotency", "runReplay", "runtimeSubscription"]),
   RuntimeSubscribeRequest: object({
     topics: allOf([array(ref(() => CHECKS.RuntimeTopic)), minItems(1), uniqueItems()]),
     watches: array(ref(() => CHECKS.WatchSpec)),

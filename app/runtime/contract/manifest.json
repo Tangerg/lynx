@@ -28,18 +28,21 @@
     {
       "name": "runtime.discover",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "stability": "stable"
     },
     {
       "name": "sessions.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "stability": "stable"
     },
     {
       "name": "sessions.get",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "session_not_found"
@@ -49,6 +52,7 @@
     {
       "name": "sessions.create",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "cwd_unavailable"
@@ -58,6 +62,7 @@
     {
       "name": "sessions.update",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "session_not_found",
@@ -73,6 +78,7 @@
     {
       "name": "sessions.delete",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "session_not_found"
@@ -82,6 +88,7 @@
     {
       "name": "sessions.fork",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "session_not_found",
@@ -92,6 +99,7 @@
     {
       "name": "sessions.rollback",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "session_not_found",
@@ -108,6 +116,7 @@
     {
       "name": "sessions.export",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "session_not_found",
@@ -121,6 +130,7 @@
     {
       "name": "sessions.import",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
@@ -133,6 +143,7 @@
     {
       "name": "runs.start",
       "kind": "stream",
+      "operation": "command",
       "idempotency": "replayRunStream",
       "errors": [
         "session_not_found",
@@ -146,6 +157,7 @@
     {
       "name": "runs.resume",
       "kind": "stream",
+      "operation": "command",
       "idempotency": "replayRunStream",
       "errors": [
         "run_not_found",
@@ -157,6 +169,7 @@
     {
       "name": "runs.subscribe",
       "kind": "stream",
+      "operation": "subscription",
       "idempotency": "none",
       "errors": [
         "run_not_found",
@@ -173,6 +186,7 @@
     {
       "name": "runs.cancel",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "run_not_found",
@@ -185,6 +199,7 @@
     {
       "name": "runs.steer",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "run_not_found",
@@ -198,6 +213,7 @@
     {
       "name": "runs.get",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "run_not_found",
@@ -208,6 +224,7 @@
     {
       "name": "runs.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "capability_not_negotiated"
@@ -220,6 +237,7 @@
     {
       "name": "interrupts.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "run_not_root",
@@ -230,6 +248,7 @@
     {
       "name": "todos.get",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "session_not_found",
@@ -243,6 +262,7 @@
     {
       "name": "items.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "session_not_found",
@@ -257,6 +277,7 @@
     {
       "name": "workspace.listFileChanges",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "cwd_unavailable",
@@ -267,6 +288,7 @@
     {
       "name": "workspace.getDiff",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "cwd_unavailable",
@@ -278,6 +300,7 @@
     {
       "name": "workspace.getFileHead",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "cwd_unavailable",
@@ -288,6 +311,7 @@
     {
       "name": "workspace.grep",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "cwd_unavailable",
@@ -298,6 +322,7 @@
     {
       "name": "workspace.listFiles",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "cwd_unavailable",
@@ -308,6 +333,7 @@
     {
       "name": "workspace.readFile",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "cwd_unavailable",
@@ -318,12 +344,14 @@
     {
       "name": "workspace.listProjects",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "stability": "stable"
     },
     {
       "name": "runtime.subscribe",
       "kind": "stream",
+      "operation": "subscription",
       "idempotency": "none",
       "errors": [
         "capability_not_negotiated"
@@ -336,6 +364,7 @@
     {
       "name": "skills.discovered.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "cwd_unavailable",
@@ -349,6 +378,7 @@
     {
       "name": "skills.library.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "capability_not_negotiated"
@@ -361,6 +391,7 @@
     {
       "name": "skills.library.archive",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
@@ -373,6 +404,7 @@
     {
       "name": "skills.library.restore",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
@@ -385,6 +417,7 @@
     {
       "name": "skills.drafts.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "capability_not_negotiated"
@@ -397,7 +430,8 @@
     {
       "name": "skills.drafts.promote",
       "kind": "unary",
-      "idempotency": "none",
+      "operation": "command",
+      "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
       ],
@@ -409,7 +443,8 @@
     {
       "name": "skills.drafts.reject",
       "kind": "unary",
-      "idempotency": "none",
+      "operation": "command",
+      "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
       ],
@@ -421,6 +456,7 @@
     {
       "name": "recipes.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "cwd_unavailable"
@@ -430,6 +466,7 @@
     {
       "name": "agentDocs.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "cwd_unavailable"
@@ -439,6 +476,7 @@
     {
       "name": "mcp.servers.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "capability_not_negotiated"
@@ -451,6 +489,7 @@
     {
       "name": "mcp.tools.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "capability_not_negotiated"
@@ -463,6 +502,7 @@
     {
       "name": "mcp.servers.reconnect",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
@@ -475,6 +515,7 @@
     {
       "name": "mcp.servers.authorize",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
@@ -487,6 +528,7 @@
     {
       "name": "mcp.configs.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "capability_not_negotiated"
@@ -499,6 +541,7 @@
     {
       "name": "mcp.configs.configure",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
@@ -511,6 +554,7 @@
     {
       "name": "mcp.configs.remove",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
@@ -523,6 +567,7 @@
     {
       "name": "mcp.configs.setEnabled",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
@@ -535,6 +580,7 @@
     {
       "name": "mcp.configs.test",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "capability_not_negotiated"
@@ -547,6 +593,7 @@
     {
       "name": "hooks.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "cwd_unavailable"
@@ -556,36 +603,42 @@
     {
       "name": "hooks.setTrust",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "stability": "stable"
     },
     {
       "name": "approval.getMode",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "stability": "stable"
     },
     {
       "name": "approval.setMode",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "stability": "stable"
     },
     {
       "name": "approval.listRules",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "stability": "stable"
     },
     {
       "name": "approval.forgetRule",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "stability": "stable"
     },
     {
       "name": "schedules.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "capability_not_negotiated"
@@ -598,6 +651,7 @@
     {
       "name": "schedules.create",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
@@ -610,6 +664,7 @@
     {
       "name": "schedules.update",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "revision_conflict",
@@ -623,6 +678,7 @@
     {
       "name": "schedules.delete",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
@@ -635,6 +691,7 @@
     {
       "name": "schedules.runNow",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
@@ -647,7 +704,8 @@
     {
       "name": "goals.start",
       "kind": "unary",
-      "idempotency": "none",
+      "operation": "command",
+      "idempotency": "replayResponse",
       "errors": [
         "session_not_found",
         "capability_not_negotiated"
@@ -660,6 +718,7 @@
     {
       "name": "goals.get",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "session_not_found",
@@ -673,7 +732,8 @@
     {
       "name": "goals.stop",
       "kind": "unary",
-      "idempotency": "none",
+      "operation": "command",
+      "idempotency": "replayResponse",
       "errors": [
         "session_not_found",
         "capability_not_negotiated"
@@ -686,7 +746,8 @@
     {
       "name": "goals.resume",
       "kind": "unary",
-      "idempotency": "none",
+      "operation": "command",
+      "idempotency": "replayResponse",
       "errors": [
         "session_not_found",
         "capability_not_negotiated"
@@ -699,6 +760,7 @@
     {
       "name": "codebase.search",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "cwd_unavailable",
@@ -712,6 +774,7 @@
     {
       "name": "codebase.status",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "cwd_unavailable",
@@ -725,6 +788,7 @@
     {
       "name": "codebase.reindex",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "cwd_unavailable",
@@ -738,60 +802,70 @@
     {
       "name": "providers.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "stability": "stable"
     },
     {
       "name": "providers.configure",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "stability": "stable"
     },
     {
       "name": "providers.test",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "stability": "stable"
     },
     {
       "name": "models.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "stability": "stable"
     },
     {
       "name": "models.getUtilityRole",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "stability": "stable"
     },
     {
       "name": "models.setUtilityRole",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "stability": "stable"
     },
     {
       "name": "models.getEmbeddingRole",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "stability": "stable"
     },
     {
       "name": "models.setEmbeddingRole",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "stability": "stable"
     },
     {
       "name": "tools.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "stability": "stable"
     },
     {
       "name": "tools.invoke",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "cwd_unavailable",
@@ -802,6 +876,7 @@
     {
       "name": "usage.session",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "session_not_found"
@@ -811,12 +886,14 @@
     {
       "name": "usage.summary",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "stability": "stable"
     },
     {
       "name": "memory.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "cwd_unavailable",
@@ -830,6 +907,7 @@
     {
       "name": "memory.get",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "cwd_unavailable",
@@ -843,6 +921,7 @@
     {
       "name": "memory.update",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
         "cwd_unavailable",
@@ -856,6 +935,7 @@
     {
       "name": "agentMemory.list",
       "kind": "unary",
+      "operation": "query",
       "idempotency": "none",
       "errors": [
         "capability_not_negotiated"
@@ -868,7 +948,8 @@
     {
       "name": "agentMemory.review",
       "kind": "unary",
-      "idempotency": "none",
+      "operation": "command",
+      "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
       ],
@@ -880,7 +961,8 @@
     {
       "name": "agentMemory.update",
       "kind": "unary",
-      "idempotency": "none",
+      "operation": "command",
+      "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
       ],
@@ -892,7 +974,8 @@
     {
       "name": "agentMemory.delete",
       "kind": "unary",
-      "idempotency": "none",
+      "operation": "command",
+      "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
       ],
@@ -904,7 +987,8 @@
     {
       "name": "agentMemory.add",
       "kind": "unary",
-      "idempotency": "none",
+      "operation": "command",
+      "idempotency": "replayResponse",
       "errors": [
         "capability_not_negotiated"
       ],
@@ -916,6 +1000,7 @@
     {
       "name": "feedback.create",
       "kind": "unary",
+      "operation": "command",
       "idempotency": "replayResponse",
       "stability": "stable"
     }
@@ -3606,6 +3691,15 @@
         },
         {
           "field": "maxBytes",
+          "constraint": "positive"
+        }
+      ]
+    },
+    {
+      "type": "IdempotencyLimits",
+      "rules": [
+        {
+          "field": "retentionSeconds",
           "constraint": "positive"
         }
       ]

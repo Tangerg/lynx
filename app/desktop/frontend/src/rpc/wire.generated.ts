@@ -606,6 +606,10 @@ export interface HooksListResult {
   projectTrusted: boolean;
 }
 
+export interface IdempotencyLimits {
+  retentionSeconds: number;
+}
+
 export interface ImportSessionRequest {
   artifact: SessionArtifact;
 }
@@ -1134,6 +1138,7 @@ export interface RuntimeEventNotification {
 export type RuntimeEventType = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "state.changed" | "goals.changed" | "interrupts.changed" | "resync";
 
 export interface RuntimeLimits {
+  idempotency: IdempotencyLimits;
   maxConcurrentRuns?: number;
   runReplay: RunReplayLimits;
   runtimeSubscription: SubscriptionLimits;
