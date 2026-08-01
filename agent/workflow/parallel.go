@@ -123,11 +123,13 @@ func Parallel[In, Element, Result any](
 		}
 	}
 
-	return ScatterGather(ScatterGatherConfig[In, Element, Result]{
+	return scatterGather(ScatterGatherConfig[In, Element, Result]{
 		Name:           config.Name,
 		Description:    config.Description,
 		MaxConcurrency: config.MaxConcurrency,
 		Generators:     generators,
 		Joiner:         config.Joiner,
+	}, func(ctx context.Context, process *core.ProcessContext) context.Context {
+		return core.WithProcessView(ctx, process.Process())
 	})
 }

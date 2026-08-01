@@ -227,7 +227,7 @@ internal interface LlmOperations { createObject/generate/doTransform(messages, L
 
 **lynx**:`ProcessContext` 按面拆成多个窄文件,工具循环是**显式的 `toolloop.Runner`**。Embabel 当前也已经把 `ToolLoop` 提升为公开、框架无关的 SPI,因此现状差异不再是“显式 vs 隐藏”,而是两边公开状态机的能力重心不同。
 
-- `ProcessContext` 的能力按文件分区:`process_context_chat.go`(模型调用)/ `process_context_control.go` / `process_context_interaction.go`(HITL)/ `process_context_tools.go` / `process_context_usage.go` —— 不再用一个接口覆盖所有作者能力。
+- `ProcessContext` 只暴露 Blackboard、Dependencies、managed `Interact` / `Prompt`、Action tools 与生命周期控制等窄方法；装配与控制实现在 `core/process_context.go`，常用模型交互在 `core/prompt.go`，不会用一个宽 gateway 暴露 Runtime 内部对象。
 - 工具循环 = `toolloop.Runner`:消费 `chat.Model` + `Request` + `ToolResolver`,emit `iter.Seq2` 的 `Event`(model/tool/pause/resume)。**默认互斥、显式 opt-in 的有界资源键并发、无自动 retry、可 checkpoint/resume**。执行可并发,但 `ToolResult` event 与下一轮 model request 始终按模型原始 tool-call 顺序提交,因此 chat-history/cache 输入稳定。checkpoint v2 按 call 保存状态与 `NextResult`;`PromoteTools` 允许在 loop 中途公布此前已可解析但未广告的工具。协议值(model request/response)与运行时状态(可执行工具、pause)**分离**,不往 provider `Response` 塞运行时状态。
 - model 选择走 process-scope `core.ChatProvider` / `ChatCapability`;`routing.ModelRanker` 只负责给 `agent × goal` 路由候选打分。reasoning 是 `chat.PartReasoning` 协议值;`interaction.StreamCall` 已能消费 `chat.Streamer` 并累积 delta,但普通 `ProcessContext.Prompt` 仍只调用 `chat.Model`。typed happy path 由 `agent.Prompt[T]` 把 `chatclient.Output[T]` 接进 managed ToolLoop；格式 instructions 与 decoder 仍只有一份 owner，Agent 不复制 `PromptJSON` / converter 链。provider-native schema 只有在跨 provider 契约能独立成立时才应进入下层协议。
 
@@ -355,7 +355,7 @@ Session；当前 `ProcessSnapshot` schema 为 v9、`Suspension` schema 为 v2、
 - **执行顺序与提交顺序分离**。同一并发段内工具可乱序完成,但 `ToolResult` event、continuation tool message、下一轮 model/cache 输入始终按原 tool-call 顺序提交。checkpoint v2 为每个 call 保存 `queued/completed/paused` 独立状态、`NextResult` 与原 `MaxConcurrentCalls`,因此后完成的结果可以安全缓冲在前序 pause 后面,重启也不会静默换一套调度宽度。
 - **插件失败被限制在工具边界**。工具 `Call` panic 被转换为当前位置的 recoverable error ToolResult,不会从并发 goroutine 击穿 Host;同批 sibling 的结果仍按调用顺序提交。
 - **AgentTool 是并发安全的子进程能力**。每个调用拥有隔离 child process,通过精确 `tool_call_id` 关联;同名、同参数的多个调用不会混淆。多个 child 同时暂停时,parent 对外仍只暴露 call-order 中最早的 suspension,其余 suspension 已持久化但不越序可见。
-- **workflow 组合器做显式 fan-out**:`scatter-gather`/`consensus` 的 generator 只接收 context 与 typed input，父 Process 能力在类型层面不可达；`parallel` 使用拥有独立 Blackboard 与生命周期的 child Process。结果按声明顺序 join，多个 failure 也按声明位置确定性选 cause；取消是协作式且等待已启动分支退出。这些组合器**都编译回普通 GOAP agent**,不是新 runtime 概念。
+- **workflow 组合器做显式 fan-out**:`scatter-gather`/`consensus` 的 generator 只接收 context 与 typed input，Framework 还会遮蔽 inherited `ProcessView`，因此父 Process 能力不可达；`parallel` 的内部 adapter 仅保留派生 child 所需的父身份，每个 child 拥有独立 Blackboard 与生命周期。结果按声明顺序 join，多个 failure 也按声明位置确定性选 cause；取消是协作式且等待已启动分支退出。这些组合器**都编译回普通 GOAP agent**,不是新 runtime 概念。
 - AgentTool child 只在父 tool batch 内并发，并在父 action 前进前结构化收敛；
   `workflow.Parallel` / `ScatterGather` 支持有界并发与按输入顺序稳定 join。框架不提供脱离父
   process tree 生命周期的后台 child。

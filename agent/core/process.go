@@ -57,10 +57,16 @@ type ProcessControl interface {
 // ambient context; actions receive those only through ProcessContext methods.
 type processViewCtxKey struct{}
 
+type processViewContextValue struct {
+	process ProcessView
+}
+
 // WithProcessView attaches a read-only process view to ctx so nested policy
-// helpers can inspect execution state without receiving lifecycle control.
+// helpers can inspect execution state without receiving lifecycle control. A
+// nil process masks an inherited view while preserving cancellation and other
+// context values.
 func WithProcessView(ctx context.Context, process ProcessView) context.Context {
-	return context.WithValue(ctx, processViewCtxKey{}, process)
+	return context.WithValue(ctx, processViewCtxKey{}, processViewContextValue{process: process})
 }
 
 // ProcessViewFrom retrieves the view previously attached via WithProcessView.
@@ -69,8 +75,8 @@ func ProcessViewFrom(ctx context.Context) ProcessView {
 	if ctx == nil {
 		return nil
 	}
-	p, _ := ctx.Value(processViewCtxKey{}).(ProcessView)
-	return p
+	value, _ := ctx.Value(processViewCtxKey{}).(processViewContextValue)
+	return value.process
 }
 
 // Result pulls the most-recent T from a process's blackboard.

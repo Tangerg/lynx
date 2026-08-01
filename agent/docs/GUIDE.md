@@ -431,12 +431,13 @@ callback 只获得 child 的 `AgentDescriptor`，不能通过配置策略取得�
 `workflow.Sequence`、`Parallel`、`Loop`、`Team`、`RepeatUntil`、`RepeatUntilAcceptable`、
 `ScatterGather`、`Consensus` 和 `Supervisor` 最终都编译回普通 Agent。需要在构造期部署
 子 Agent 的 builder 接收 `context.Context`；`Team` 只合成定义，不拥有部署或执行。
-`ScatterGather` / `Consensus` 的 generator 只接收 `context.Context` 和 typed input，从类型上
-无法取得父 Process 的 Blackboard、生命周期控制或托管 Interaction；只有显式返回值按声明顺序
-join。需要托管 Prompt/ToolLoop、暂停、终止、checkpoint 或进程级预算的并行单元必须使用
-`Parallel` Child Process。`MaxConcurrency == 0` 表示同时启动全部已声明分支，负数配置会在
-构造期失败。一个分支失败会取消共享 context，但 generator 必须协作退出；框架等待所有已启动
-分支返回，且多个失败始终选择最低声明位置的非取消错误，不让完成时序改变 Process failure。
+`ScatterGather` / `Consensus` 的 generator 只接收 `context.Context` 和 typed input；Framework
+会遮蔽 Action context 中的 ambient `ProcessView`，因此 generator 无法取得父 Process 的
+Blackboard、生命周期控制或托管 Interaction，普通调用方 context values 则继续传播。只有显式
+返回值按声明顺序 join。需要托管 Prompt/ToolLoop、暂停、终止、checkpoint 或进程级预算的
+并行单元必须使用 `Parallel` Child Process。`MaxConcurrency == 0` 表示同时启动全部已声明分支，
+负数配置会在构造期失败。一个分支失败会取消共享 context，但 generator 必须协作退出；框架等待
+所有已启动分支返回，且多个失败始终选择最低声明位置的非取消错误，不让完成时序改变 Process failure。
 
 ToolLoop 的并发是另一层语义：工具默认独占，实现 `toolloop.ConcurrentTool` 后可按
 resource key 有界并发。`toolloop.Config.MaxConcurrentCalls` 控制低层 Runner，

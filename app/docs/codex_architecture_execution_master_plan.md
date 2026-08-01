@@ -17,8 +17,9 @@
 > P26 实施提交：随本原子 slice 提交
 > P27 实施提交：随本原子 slice 提交
 > P28 实施提交：随本原子 slice 提交
-> 当前主任务：无；P29 已闭环，后续 seam 变更必须通过专项所有权守卫
-> 执行进度：`W2–W8 DONE · P25 DONE · P26 DONE · P27 DONE · P28 DONE · P29 DONE`
+> P31 实施提交：`60729739f`、`14aae8eda`、`1ff0c8db6`、`277f36b72`、`12998274d`、`01177233f`、`9a2c9222a`
+> 当前主任务：无；P31 已闭环，后续并发、RAG 或 Agent authoring 变更必须通过本节反向不变量
+> 执行进度：`W2–W8 DONE · P25–P31 DONE`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
 > 当前 Store：`schemaEpoch = 50`
@@ -89,6 +90,11 @@ checkpoint、Pending、Run、Session、recovery 的原子性和 retention。P29 
 清除了 Pending overwrite、root-only mutation authority、checkpoint policy/usage 回退、Goal
 recovery 漏记账、parked tree root-only terminalization、Run/Continuation 冻结事实可漂移，
 以及 executor `Budget` 与 Run `Limits` 双重权威；SQLite 直接切换 epoch 50，不保留兼容路径。
+P30 随后删除 App durable state 与 product hook 中最后的 Framework topology 泄露，并阻止 peer
+adapter 互相借用具体端口。P31 转向 Framework 使用面：继续保持顶层 Process 串行逐 tick
+重规划，把所有并发限制在显式 fan-out / child Process / ToolLoop；补齐 RAG 唯一 TopK、Markdown
+结构化切分、集合 metadata membership 与 managed typed prompt。整个阶段没有引入自动并行
+Plan Stage、共享 Blackboard、RAG 大 Pipeline、test-only 公共包或 provider-native schema 猜测层。
 专项判据、裁决和防复发规则见
 [`codex_agent_app_abstraction_boundary_audit.md`](codex_agent_app_abstraction_boundary_audit.md)。
 
@@ -2778,3 +2784,76 @@ Peer adapters:
 专项细节与自动守卫以
 [`codex_agent_app_abstraction_boundary_audit.md`](codex_agent_app_abstraction_boundary_audit.md)
 为准。
+
+---
+
+## 18. P31 显式并发、RAG 语义与 Agent authoring 人体工学收口
+
+### 18.1 目标与结果
+
+- 状态：`DONE`
+- 目标：吸收 Embabel 的并发、RAG 与 PromptRunner 思想，但只保留能在 Lynx 所有权模型中
+  严密成立的部分；不把逻辑可执行性误当并发安全，不复制 parser/provider schema，也不把
+  Host 原子性重新推回 Framework。
+- 兼容政策：dev 阶段直接使用正确终态；无旧 API alias、fallback decoder、双语义 filter 或
+  历史 chunker shim。
+
+| Slice | 状态 | 结果 | 提交 |
+|---|---|---|---|
+| P31.1 Framework/Host lifecycle | `DONE` | Agent transition 只负责 execution；App checkpoint、Pending、Run 与事务继续由 Application 独占 | `60729739f` |
+| P31.2 fan-out capability isolation | `DONE` | Generator 只接收 `context.Context + typed input`；managed interaction、工具、Suspend/Terminate 必须进入独立 child Process | `14aae8eda` |
+| P31.3 deterministic fan-out failure | `DONE` | 稳定 index join；多个错误按最低声明位置选择非取消 cause；panic 归因；协作式取消后等待已启动分支退出 | `1ff0c8db6` |
+| P31.4 unique retrieval ranking | `DONE` | 相同非空 Document ID 只占一个名额，保留最高分；`TopK` 在截断前唯一化，组合顺序不再改变结果 | `277f36b72` |
+| P31.5 Markdown semantic chunking | `DONE` | 独立可选模块保留 heading ancestry，并只在 table row、list item、code line 等语义边界切分 | `12998274d` |
+| P31.6 collection membership | `DONE` | `IN` 明确为 scalar-in-literals；新增 `HAS` 表达 collection-contains-scalar，并按 provider 官方能力映射或显式拒绝 | `01177233f` |
+| P31.7 managed typed prompt | `DONE` | `agent.Prompt[T]` 复用唯一 owner `chatclient.Output[T]`，保留 ToolLoop/lifecycle/event/usage，删除示例手工 JSON 截取与静默 fallback | `9a2c9222a` |
+| P31.8 final audit | `DONE` | 拒绝恢复 public store/provider testkit；清理旧 `Extra`、旧文件名和结构化输出文档漂移；全量非 fuzz 门禁通过 | 随本原子 slice 提交 |
+
+### 18.2 最终执行与数据心智模型
+
+```text
+Planner plan
+  -> top-level Process executes one Action
+  -> observe new Blackboard state
+  -> replan next tick
+
+Explicit parallel work
+  -> ScatterGather / Consensus: no Framework Process capability in Generator branches
+  -> Parallel: isolated child Processes for managed Agent work
+  -> ToolLoop: tool opt-in + resource-key conflicts + bounded execution
+  -> all joins/commits preserve declaration or model-call order
+
+RAG
+  -> independent Retriever combinators
+  -> unique-before-TopK ranking
+  -> format-aware chunker lives outside the format-neutral base module
+  -> provider metadata filtering uses explicit scalar IN vs collection HAS
+
+Typed model output
+  -> chatclient.Output[T] owns instructions + decoder
+  -> agent.Prompt[T] adapts it to the managed Process interaction
+  -> providers and Agent do not grow parallel converter hierarchies
+```
+
+### 18.3 刻意不增加的能力
+
+1. 不实现 Embabel `ConcurrentAgentProcess`，Runtime 不扫描“当前可执行”Action 并猜测并发安全；
+2. 不增加推测性的 `Plan Stage`、`ParallelSafe`、Blackboard patch/commit、事务、幂等或补偿系统；
+3. 不给 raw generator 暴露 `ProcessContext`，也不靠运行时拒绝模拟窄 capability；
+4. 不把 RAG 焊进 Agent，不增加固定 Pipeline/QueryRouter/DocumentJoiner 大抽象；
+5. 不用 `IN` 同时表达 scalar 与 collection 两种含混语义，不伪造 provider 不支持的映射；
+6. 不增加 `PromptJSON`、第二套 schema generator 或 provider-native structured-output 公共协议；
+7. 不恢复 `storetest/providertest`：Host-owned 存储合同由真实消费方测试，Extension shape 在真实
+   dispatch 边界 fail closed。
+
+### 18.4 防回归判据
+
+以下任一变化都必须重新立项并给出真实消费者与反例：
+
+- top-level Process 同一 tick 并发提交多个 planner Action；
+- 并发分支共享可写 Blackboard、生命周期控制或隐式 application context；
+- 结果/错误/ToolResult 顺序由 goroutine 完成时序决定；
+- RAG `TopK` 先截断后去重，或 format-aware 解析器反向进入基础 document/core；
+- collection filter 在不支持的 provider 上退化成错误但“看似成功”的 scalar 比较；
+- Agent 自己生成结构化输出 schema、绕过 managed interaction，或重新实现 decoder；
+- 为测试方便发布没有生产消费者的公共接口/package。

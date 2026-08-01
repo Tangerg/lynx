@@ -17,7 +17,9 @@
 - **单包优先**:同一 RAG 域先放根包、用具体类型名表达职责,不预先拆 `rag/vectorstore`、`rag/llm` 之类子包。
 - **只有 fan-out 检索并行**:多路检索 / query 扩展并发收集;transform / refine / evaluation 是明确的顺序步骤。
 - **同一文档身份只占一个检索名额**:相同非空 Document ID 保留最高分候选,同分按首次身份出现稳定决胜;`TopK` 在截断前完成该唯一化,不能让 refiner 顺序决定结果正确性。
-- **Query 的 per-call metadata 走 Extra**:filter / history / tenant 等上下文跨组件传递靠它。
+- **Query 的 per-call metadata 走 values**：filter / history / tenant 等上下文通过不可变的
+  Query envelope 传递；顶层 map 由 Query 复制，引用型 value 仍归调用方所有，并行检索时必须
+  只读。
 - **evaluation 是独立策略域**:`rag/evaluation` 只依赖最小 Chat Model 和普通 Query/Answer/Context 值，不反向耦合 Document/VectorStore 或固定 RAG pipeline。
 
 ## 模块特有反向不变量

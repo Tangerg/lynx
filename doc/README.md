@@ -15,7 +15,7 @@ lynx/
 ├── tools/           Tool 实现
 ├── chatclient/      高层 Chat 调用便利层
 ├── embeddingclient/ 向量提取便利层（文本/Document → 独立向量）
-├── documentpipeline/文档 formatter / transformer / batcher / ID
+├── documentpipeline/ 文档 formatter / transformer / batcher / ID；Markdown 结构化切分为可选子模块
 ├── tokenizer/       tokenizer SPI 与 tiktoken 实现
 ├── mcp/             Model Context Protocol 桥接
 ├── a2a/             Agent-to-Agent 协议桥接

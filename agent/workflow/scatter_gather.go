@@ -69,6 +69,15 @@ type ScatterGatherConfig[In, Element, Result any] struct {
 // Returns an error on missing Name, negative MaxConcurrency, empty Generators,
 // a nil Generator, or nil Joiner.
 func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Element, Result]) (*core.Agent, error) {
+	return scatterGather(config, func(ctx context.Context, _ *core.ProcessContext) context.Context {
+		return core.WithProcessView(ctx, nil)
+	})
+}
+
+func scatterGather[In, Element, Result any](
+	config ScatterGatherConfig[In, Element, Result],
+	generatorContext func(context.Context, *core.ProcessContext) context.Context,
+) (*core.Agent, error) {
 	if config.Name == "" {
 		return nil, errors.New("workflow.ScatterGather: Name must not be empty")
 	}
@@ -95,10 +104,11 @@ func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Eleme
 
 	scatter := core.NewAction[In, scatterOutput[Element]](
 		name+"-scatter",
-		func(ctx context.Context, _ *core.ProcessContext, input In) (scatterOutput[Element], error) {
+		func(ctx context.Context, process *core.ProcessContext, input In) (scatterOutput[Element], error) {
 			items := make([]Element, len(generators))
 			generatorErrors := make([]error, len(generators))
 			group, groupContext := errgroup.WithContext(ctx)
+			branchContext := generatorContext(groupContext, process)
 			if maxConcurrency > 0 {
 				group.SetLimit(maxConcurrency)
 			}
@@ -111,11 +121,11 @@ func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Eleme
 				// Go blocks here once the limit is reached, which is the whole
 				// admission control: a branch starts only when a slot frees.
 				group.Go(func() error {
-					if err := groupContext.Err(); err != nil {
+					if err := branchContext.Err(); err != nil {
 						generatorErrors[index] = fmt.Errorf("workflow.ScatterGather: generator %d: %w", index, err)
 						return generatorErrors[index]
 					}
-					output, err := invokeGenerator(groupContext, index, generator, input)
+					output, err := invokeGenerator(branchContext, index, generator, input)
 					generatorErrors[index] = err
 					if err != nil {
 						return err

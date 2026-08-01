@@ -65,7 +65,7 @@ func TestContextualAugmenter_RendersDocsAsContext(t *testing.T) {
 	}
 }
 
-func TestContextualAugmenter_PreservesQueryExtra(t *testing.T) {
+func TestContextualAugmenterPreservesQueryValues(t *testing.T) {
 	aug, err := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
 	if err != nil {
 		t.Fatal(err)

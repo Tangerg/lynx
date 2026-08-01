@@ -19,9 +19,10 @@ var (
 // ChatHistoryKey identifies chat history in a Query's extension values.
 const ChatHistoryKey = "lynx:ai:rag:chat_history"
 
-// Query is an immutable retrieval query. Text is required; extension values
-// carry per-call filters and ambient context without allowing parallel stages
-// to mutate shared query state.
+// Query is a persistent retrieval query: Text is required, and WithText or
+// WithValue returns a new envelope with an independent top-level value map.
+// Referenced values remain caller-owned and must be treated as read-only when
+// the same query is used by parallel retrieval stages.
 type Query struct {
 	text   string
 	values map[string]any

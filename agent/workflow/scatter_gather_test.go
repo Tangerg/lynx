@@ -106,6 +106,47 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 	}
 }
 
+func TestScatterGatherMasksParentProcessView(t *testing.T) {
+	type contextKey struct{}
+	const ambient = "caller value"
+
+	var calls atomic.Int32
+	generator := func(ctx context.Context, _ sgIn) (sgElement, error) {
+		if process := core.ProcessViewFrom(ctx); process != nil {
+			return sgElement{}, errors.New("generator received the parent process view")
+		}
+		if got := ctx.Value(contextKey{}); got != ambient {
+			return sgElement{}, errors.New("generator lost an ordinary caller context value")
+		}
+		calls.Add(1)
+		return sgElement{Score: 1}, nil
+	}
+
+	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
+		Name:       "fanout-capability-isolation",
+		Generators: []workflow.Generator[sgIn, sgElement]{generator, generator},
+		Joiner: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
+			return sgResult{Total: len(items)}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("ScatterGather: %v", err)
+	}
+
+	engine := agent.MustNewEngine(runtime.Config{})
+	ctx := context.WithValue(t.Context(), contextKey{}, ambient)
+	process, err := engine.Run(ctx, a, core.Input(sgIn{}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusCompleted {
+		t.Fatalf("status/failure = %s/%v, want completed", process.Status(), process.Failure())
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("generator calls = %d, want 2", calls.Load())
+	}
+}
+
 func TestScatterGather_GeneratorErrorCancelsSiblingsAndWaitsForExit(t *testing.T) {
 	cause := errors.New("boom")
 	blockingStarted := make(chan struct{})

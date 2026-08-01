@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P25 Framework/Host zero-leak closure 已完成，4/4）
+> 状态：持续开发（P31 显式并发、RAG 与 authoring 人体工学收口已完成，8/8）
 > 建立日期：2026-07-15
 > 最后更新：2026-08-01
 > 维护者：Lynx 仓库维护者
@@ -10,7 +10,7 @@
 本文档是 Agent Framework 后续架构调整的唯一执行基准，负责记录目标定位、边界、目标架构、阶段任务、验收标准、进度、风险和设计决策。实施过程中如果代码便利性与本文冲突，以本文为准；如果事实证明本文的方向不成立，必须先更新第 17 节决策记录，再修改代码。
 
 P0–P24 的问题清单、候选方案和阶段日志作为决策历史保留，不再构成当前 API 规范；其中出现的
-旧标识符只说明当时被删除的设计。当前合同以 P25、最新 ADR、GoDoc、`agent/docs/GUIDE.md`
+旧标识符只说明当时被删除的设计。当前合同以最新 ADR、GoDoc、`agent/docs/GUIDE.md`
 和 exported API baseline 为准，禁止从历史阶段恢复已删除的兼容路径。
 
 上位约束是 [`../CLAUDE.md`](../CLAUDE.md)、[`../DESIGN_PHILOSOPHY.md`](../DESIGN_PHILOSOPHY.md) 和 [`../REFACTORING.md`](../REFACTORING.md)。Core 的稳定协议边界以 [`../core/CLAUDE.md`](../core/CLAUDE.md) 为准。本文只规划 Agent Framework，不重新打开已经关闭的 Core 架构重构。
@@ -2013,6 +2013,27 @@ checkpoint 继续；不存在 v3 reader、兼容 shim、双写或 product persis
 execution ownership；App application/domain/infra/delivery 不依赖 Agent concrete snapshots，
 SQLite 只认识 App-owned opaque envelope；Host 原子性、幂等、恢复与产品事实仍完全留在 App。
 
+### P31：显式并发、RAG 与 authoring 人体工学收口
+
+- [x] **P31-01 Framework/Host lifecycle 复核**：Agent transition 与 App transaction 各守职责，
+  Framework 不持有 Host checkpoint/commit ownership。
+- [x] **P31-02 fan-out capability isolation**：Generator 只接收 context 与 typed input；需要
+  managed interaction、tools 或生命周期控制的并发任务使用独立 child Process。
+- [x] **P31-03 deterministic failure/join**：结果按声明位置归并；多个错误选择最低位置的
+  非取消 cause；panic 被归因；取消后等待已启动分支协作退出。
+- [x] **P31-04 RAG ranking**：相同 Document ID 保留最高分，TopK 在截断前唯一化。
+- [x] **P31-05 document ergonomics**：Markdown 结构化 splitter 作为可选子模块保留 heading、
+  table、list 与 code 语义边界。
+- [x] **P31-06 filter semantics**：`IN` 与 `HAS` 分别表达 scalar membership 和 collection
+  membership；provider 映射按官方能力实现或显式拒绝。
+- [x] **P31-07 typed managed Prompt**：复用 `chatclient.Output[T]`，不复制 JSON/schema/parser，
+  不绕过 Framework ToolLoop、event、usage 或 lifecycle。
+- [x] **P31-08 negative-space/final gate**：不恢复 automatic Process concurrency、Plan Stage、
+  shared Blackboard、test-only public package 或 Host transaction abstraction；完整非 fuzz 门禁通过。
+
+退出标准：顶层 Process 保持串行逐 tick 重规划；所有并发都有显式作者边界、隔离能力与稳定
+提交顺序；RAG/切分/filter/typed output 的常用路径准确可发现，且没有第二套抽象或兼容债。
+
 ---
 
 ## 15. 当前进度
@@ -2047,17 +2068,19 @@ SQLite 只认识 App-owned opaque envelope；Host 原子性、幂等、恢复与
 | P23 可执行能力与观察投影边界 | 完成 | 5/5 | inert descriptors、Host-owned result projection、base tool protocol、caller-owned model copy |
 | P24 Waiting child checkpoint settlement | 完成 | 4/4 | ToolLoop、Runtime prepared mutation、App durable transaction 与 W2.1–W2.4 conformance 全部完成 |
 | P25 Framework/Host zero-leak closure | 完成 | 4/4 | Runtime 删除 Host transaction choreography；App/SQLite 改用 opaque process envelope；边界守卫与门禁收口 |
-| **总计** | **完成** | **174/174（100%）** | **P25-01 至 P25-04 全部完成；Agent core runtime 与 App host ownership 零交叉，不执行封版、tag 或 release** |
+| P31 显式并发、RAG 与 authoring 人体工学 | 完成 | 8/8 | capability isolation、deterministic join、RAG/filter/chunking/typed output 与负向边界审计完成 |
+| **总计** | **完成** | **182/182（100%）** | **P31-01 至 P31-08 全部完成；不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P25 Framework/Host zero-leak closure，4/4，已完成。
-- 下一任务：以新的零泄露边界继续 App consumer 演进；只有出现真实 Framework core runtime
-  缺口时才回到 Agent。本批不封版、不创建 tag 或 release。
+- 当前阶段：P31 显式并发、RAG 与 authoring 人体工学收口，8/8，已完成。
+- 下一任务：只有出现真实消费者、正确性反例或 profiling 证据时才扩展并发/RAG/provider
+  structured-output 能力。本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：删除 Runtime prepared transaction API，并把 Agent snapshot codec 收回
-  agentexec；SQLite 只持久化 App-owned opaque envelope。Agent 只拥有 execution framework
-  语义，App transaction/idempotency/persistence ownership 保持不变。
+- 最近完成：保持顶层 Process 串行重规划，收窄 fan-out capability 并固定 join/error 顺序；
+  RAG unique TopK、Markdown 结构化切分、collection `HAS` 与 managed typed Prompt 已落地。
+  Agent 只拥有 execution framework 语义，App transaction/idempotency/persistence ownership
+  保持不变。
 
 ### 15.3 进度更新规则
 
@@ -2382,12 +2405,26 @@ SQLite 只认识 App-owned opaque envelope；Host 原子性、幂等、恢复与
 - breaking：SQLite schema epoch 直接升级为 46，删除 `sessions.kind`、Subtask API 与全部旧清理
   分支，不 migration、不双读写、不保留 compatibility shim。
 
+### ADR-AF-027：并发边界与 typed output 必须由作者显式表达
+
+- 状态：已接受并实现。
+- Process：顶层 planning tick 只执行一个 Action，观察新状态后重新规划；Runtime 不从
+  precondition 推导副作用安全，也不自动并发当前可执行 Action。
+- fan-out：raw Generator 没有 ProcessContext；managed work 使用独立 child Process；ToolLoop
+  只有 tool 显式 opt-in 才并发，并保持模型调用顺序提交。
+- failure：取消是协作式且不承诺外部副作用回滚；结果和多个 failure 都按声明顺序确定。
+- typed output：`chatclient.Output[T]` 唯一拥有 instructions 与 decoder，`agent.Prompt[T]` 只
+  适配 managed interaction，不建立 `PromptJSON` 或 provider schema 平行层。
+- negative space：没有真实消费者或测量证据前，不增加 Plan Stage、ParallelSafe、Blackboard
+  patch/transaction 或仅为测试存在的公共 conformance package。
+
 ---
 
 ## 18. 变更日志
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-08-01 | 完成 P31 explicit concurrency/RAG/authoring closure：顶层 Process 保持串行重规划；fan-out capability 与错误顺序确定化；RAG unique TopK、Markdown 结构化切分、collection `HAS` 与 managed typed Prompt 落地；拒绝自动 Plan Stage、共享 Blackboard、test-only public package 与 provider schema 猜测层 | Codex |
 | 2026-08-01 | 完成 P26 durable checkpoint/Application ownership closure：waiting capture 改为无 I/O，checkpoint/Pending/Run suspension 同事务；terminal Discard 改为纯 live cleanup，Run terminalization 与 checkpoint deletion 同事务；boot 精确保留 owned roots；删除 process-derived hidden Session，schema epoch 46；新增 package-wide AST guard 与专项防复发文档 | Codex |
 | 2026-08-01 | 完成 P25 Framework/Host zero-leak closure：Agent Runtime 删除跨 App transaction 持有 ownership 的 prepared protocol，改为无资源保留的 Plan/Apply；App 建立自有 `ProcessTreeState` 信封，Agent snapshot codec 收口到 `agentexec`，SQLite 以 `process_states.payload BLOB` 仅保存 opaque payload；schema epoch 45，双侧架构守卫与 breaking migration 同步 | Codex |
 | 2026-07-30 | 完成 P24-04 / W2.4 full closure：四组高风险 race `-count=10`、Agent/App 全量门禁、receiver/静态错误/canonical order/接口/兼容债审计全绿；Agent GoDoc 删除 App Run/Item/Interrupt/Segment/持久事务措辞；public API/wire/schema/capability 不变 | Codex |
@@ -2453,6 +2490,7 @@ SQLite 只认识 App-owned opaque envelope；Host 原子性、幂等、恢复与
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-08-01 | P31 显式并发、RAG 与 authoring 人体工学收口 | `60729739f`、`14aae8eda`、`1ff0c8db6`、`277f36b72`、`12998274d`、`01177233f`、`9a2c9222a`；Agent workflow/toolloop/prompt race+lint，RAG/filter/Markdown/provider 定向门禁及 workspace 69 项 build/vet/test 全绿；按维护者要求不执行 fuzz | 无；8/8 关闭，形成最终文档提交并 push |
 | 2026-08-01 | P26 durable checkpoint/Application ownership closure | 普通 waiting capture 无 I/O，App tree barrier 原子提交 checkpoint/Pending/Run suspension；root terminal transaction 原子 terminalize + delete checkpoint，Framework Discard 只清 live registry；boot exact preserved set 与 Session-root metadata 清理孤儿；process-derived hidden Session 全部删除，schema epoch 46；新增真实 SQLite rollback/restart tests、package-wide AST guard 与专项审计文档；Agent/App build、vet、普通 test、lint、staticcheck、tidy、architecture/diff 门禁全绿，按用户要求不执行 fuzz/race。 | 形成独立提交并 push；后续 seam 变更按 ADR-AF-026 与专项 checklist 审查 |
 | 2026-08-01 | P25 Framework/Host zero-leak closure | Agent prepared `Prepare/Commit/Abort` protocol 被 Plan/Apply 直接替换：plan 返回前释放所有 runtime ownership，apply 在副作用前拒绝 stale source。App 的 Commit/Abort、SQLite transaction 与 post-commit run-lost recovery 保持 application-owned；`agentexec` 独占 framework snapshot codec，Domain/SQLite 只见 App-owned envelope，存储落为 `process_states.payload BLOB`。新增双侧 AST/API guard，schema epoch 45，无 shim、双路径或旧数据迁移。普通 build/vet/test/staticcheck/lint/tidy/API/arch/diff 门禁全绿；API baseline 632 行、SHA-256 `a8f911341c8e8b24a47d9a30dca1fb33eb6a913792c8aa074d034e24740c90b2`，wire 160 行且 hash 不变；按用户要求不执行 fuzz/race。 | 174/174 关闭；形成独立提交并 push，不创建 tag/release |
 | 2026-07-30 | P24-04 / W2.4 race、hygiene 与完整门禁 | Agent runtime/toolloop、App runs/runsegment/SQLite race `-count=10`；双模块 build/vet/全量 test/lint/tidy、contract/arch/diff 全绿。所有 receiver 同类型同名，生产静态 `fmt.Errorf("constant")` 清零；canonical ordering 汇聚领域 RunTree；Agent 无 App persistence 术语；无旧 decoder/shim/双读写/migration，capability 仍关闭。 | App B1.5 / W3；Agent 只响应真实 consumer 缺口 |
