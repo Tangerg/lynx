@@ -4,6 +4,12 @@
 // branch on the problem TYPE rather than parsing the message string.
 
 import { errorType, type RpcErrorPayload } from "./types";
+import type { WireViolation } from "./wireCheck";
+
+/** Stable diagnostic text even when a dependency throws a non-Error value. */
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 /** True when `error` is a JSON-RPC business error of the given ProblemData
  *  `type` (API.md §8: judge errors by type, never by code or message). The
@@ -53,6 +59,20 @@ export class RpcTransportError extends Error {
     this.status = status;
     this.requestId = requestId;
     this.problemType = problemType;
+  }
+}
+
+/** An inbound JSON-RPC frame contradicted the generated Runtime contract. */
+export class RpcProtocolError extends Error {
+  readonly violations: readonly WireViolation[];
+
+  constructor(subject: string, violations: readonly WireViolation[]) {
+    const detail = violations
+      .map((violation) => `${violation.path} ${violation.detail}`)
+      .join("; ");
+    super(`invalid ${subject}: ${detail}`);
+    this.name = "RpcProtocolError";
+    this.violations = violations;
   }
 }
 

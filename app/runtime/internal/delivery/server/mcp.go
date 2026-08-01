@@ -10,8 +10,7 @@ import (
 )
 
 // mcp.* is runtime-global, so these methods take no cwd (API.md §7.5).
-// Reconnect's outcome rides the workspace event stream as mcp.serverChanged
-// (AUX_API §5).
+// Reconnect's outcome rides runtime.event as mcp.changed.
 
 // ListMCPServers lists every configured MCP server with its real
 // connection state (AUX_API §5.1). Boot tolerates a per-server failure, so the
@@ -39,8 +38,8 @@ func (s *Server) ListMCPTools(ctx context.Context, in protocol.MCPListToolsReque
 }
 
 // ReconnectMCPServer re-dials a configured MCP server (AUX_API §5.2). It has
-// no synchronous result — the outcome rides notifications.workspace.event as
-// mcp.serverChanged, in the guaranteed order connecting → (connected | failed).
+// no synchronous result — the outcome rides runtime.event as mcp.changed, in the
+// guaranteed order connecting → (connected | failed).
 // The capabilities coordinator validates the name synchronously (unknown →
 // invalid_params) then runs the dial fire-and-forget on its component task group,
 // publishing the connecting + settled frames through the MCP-status bridge.

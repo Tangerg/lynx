@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { validateWire } from "./wire.validate.generated";
+import {
+  validateMethodResult,
+  validateNotificationParams,
+  validateWire,
+} from "./wire.validate.generated";
+import { runEventReliability } from "./wire.generated";
 
 // One case per rule the compiler translates, because each rule takes its own code
 // path out of the schema tree: a type keyword, `required`, a closed `enum`, a value
@@ -42,8 +47,40 @@ const finishedRun = {
 };
 
 describe("the generated wire checks", () => {
+  it("derives run-event reliability from the protocol event registry", () => {
+    expect(runEventReliability("segment.finished")).toBe("authoritative");
+    expect(runEventReliability("item.delta")).toBe("ephemeral");
+    expect(runEventReliability("future.event")).toBeUndefined();
+  });
+
   it("accepts a well-formed frame", () => {
     expect(validateWire("Session", session)).toEqual([]);
+  });
+
+  it("binds every method result to its registered wire shape", () => {
+    expect(validateMethodResult("sessions.get", session)).toEqual([]);
+    const { revision: _revision, ...malformed } = session;
+    expect(validateMethodResult("sessions.get", malformed)).toEqual([
+      { path: "sessions.get.result.revision", detail: "is required" },
+    ]);
+    expect(validateMethodResult("goals.get", null)).toEqual([]);
+    expect(validateMethodResult("sessions.delete", {})).toEqual([]);
+  });
+
+  it("binds every downstream notification to its registered params shape", () => {
+    expect(
+      validateNotificationParams("notifications.runtime.event", {
+        event: { type: "skills.changed", sequence: 1 },
+      }),
+    ).toEqual([]);
+    expect(
+      validateNotificationParams("notifications.runtime.event", {
+        event: { type: "skills.changed", sequence: 0 },
+      }),
+    ).toContainEqual({
+      path: "notifications.runtime.event.params.event.sequence",
+      detail: "expected at least 1",
+    });
   });
 
   it("names every missing required field", () => {

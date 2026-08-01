@@ -4,6 +4,7 @@ import { createMemoryTransport } from "./transports/memory";
 import { waitForRequest } from "./transports/memory.testkit";
 import { JSONRPC_VERSION, type RpcMessage } from "./types";
 import { PROTOCOL_VERSION, type ServerCapabilities } from "./wire.generated";
+import discoverResponse from "./samples/method.discover.resp.json";
 
 describe("createLyraClient", () => {
   it("attaches request metadata to typed calls", async () => {
@@ -16,6 +17,8 @@ describe("createLyraClient", () => {
       }),
     });
 
+    expect("rpc" in client).toBe(false);
+
     const promise = client.runtime.discover();
     const req = await waitForRequest(transport, "runtime.discover");
 
@@ -26,7 +29,11 @@ describe("createLyraClient", () => {
       },
     });
 
-    transport.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: {} } as RpcMessage);
+    transport.inject({
+      jsonrpc: JSONRPC_VERSION,
+      id: req.id,
+      result: discoverResponse,
+    } as RpcMessage);
     await promise;
     await client.close();
   });

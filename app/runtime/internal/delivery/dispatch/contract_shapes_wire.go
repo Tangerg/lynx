@@ -16,6 +16,7 @@ var shapes = buildShapes()
 
 func buildShapes() *Shapes {
 	s := &Shapes{}
+	registerNotifications(s)
 	registerRunUnions(s)
 	registerItemUnions(s)
 	registerInterruptUnions(s)
@@ -27,6 +28,17 @@ func buildShapes() *Shapes {
 	registerCarriedShapes(s)
 	registerValueConstraints(s)
 	return s
+}
+
+func registerNotifications(s *Shapes) {
+	s.notification(NotificationSpec{
+		Name:       NotificationRunEvent,
+		ParamsType: typeOf[protocol.RunEvent](),
+	})
+	s.notification(NotificationSpec{
+		Name:       NotificationRuntimeEvent,
+		ParamsType: typeOf[protocol.RuntimeEventNotification](),
+	})
 }
 
 func typeOf[T any]() reflect.Type { return reflect.TypeFor[T]() }

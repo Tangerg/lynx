@@ -19,8 +19,9 @@
 // above the transport — there is no standing-connection reconnect loop here.
 //
 // HTTP status (docs/protocol/TRANSPORT.md §6.3): 200 = JSON-RPC response (json) or
-// stream opened (event-stream); 204/202 = notification ack; any other status
-// = transport-layer failure → RpcTransportError.
+// stream opened (event-stream). The runtime reserves 204/202 for client
+// notifications, but this closed SDK sends Requests only, so either is a protocol
+// mismatch here. Any other status is a transport failure → RpcTransportError.
 
 import {
   context,
@@ -32,17 +33,26 @@ import {
 } from "@opentelemetry/api";
 import { createParser } from "eventsource-parser";
 import { createPushPullChannel } from "../channel";
-import { parseTransportProblem, RpcTransportError } from "../errors";
+import { errorMessage, parseTransportProblem, RpcTransportError } from "../errors";
 import {
-  STREAM_DOWN_METHOD,
   RUNTIME_SUBSCRIBE_METHOD,
   type Transport,
+  type TransportEvent,
+  type TransportRequest,
   type TransportSendOptions,
 } from "../transport";
-import type { RpcId, RpcMessage } from "../types";
-import { JSONRPC_VERSION, isResponse, parseRpcMessage } from "../types";
+import type { RpcId } from "../types";
+import { isErrorResponse, isNotification, isResponse, parseRpcMessage } from "../types";
+import { NOTIFICATIONS_RUN_EVENT } from "../wire.generated";
+import { isWireStreamingMethodName, type WireStreamingMethodName } from "../wire.methods.generated";
 
 const RPC_PATH = "/v2/rpc";
+
+function stringMember(value: unknown, member: string): string | undefined {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const found = (value as Record<string, unknown>)[member];
+  return typeof found === "string" ? found : undefined;
+}
 
 // Delegating tracer — resolves to the global provider once observability is
 // installed (no-op spans before then). One CLIENT span per RPC call; the
@@ -77,7 +87,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
   const baseUrl = config.baseUrl.replace(/\/+$/, "");
   const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
 
-  const channel = createPushPullChannel<RpcMessage>();
+  const channel = createPushPullChannel<TransportEvent>();
   const closeController = new AbortController();
   // Active SSE body readers — close() cancels in-flight streams through these.
   const readers = new Set<ReadableStreamDefaultReader<Uint8Array>>();
@@ -98,49 +108,48 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
   // signal, the call whose response never arrived hangs its pending promise
   // forever, and a run mid-stream leaves the UI stuck "running". So we sniff
   // what this stream carried — whether `requestId`'s response was delivered,
-  // and which runIds streamed events here — and on an abnormal end synthesize
-  // (a) an error Response settling the un-responded call, and (b) a
-  // STREAM_DOWN notification (transport.ts) so rpc/stream.ts closes the
-  // affected runs' channels. A unary call's stream EOSing after its one
+  // and which runIds streamed events here — then reports typed transport
+  // lifecycle events. They never impersonate JSON-RPC responses or notifications.
+  // A unary call's stream EOSing after its one
   // response frame produces neither (responseSeen, no runIds) — that's the
   // normal case, not a death.
   //
-  // workspace.subscribe is the one NON-run stream: it has no runId to
+  // runtime.subscribe is the one NON-run stream: it has no runId to
   // attribute and no terminal frame, so for it ANY non-abort end — graceful
   // EOS included — means "subscription over, resubscribe" (AUX_API §3.1). We
-  // signal that with a method-attributed STREAM_DOWN.
+  // signal that with a method-attributed streamEnd event.
   async function drainStream(
     body: ReadableStream<Uint8Array>,
-    requestId?: RpcId,
-    method?: string,
+    requestId: RpcId,
+    method: WireStreamingMethodName,
     signal?: AbortSignal,
   ): Promise<void> {
     let responseSeen = false;
+    let streamError: Error | undefined;
     const runIds = new Set<string>();
     const parser = createParser({
       onEvent(event) {
         if (!event.data) return;
-        // Not valid JSON / not a JSON-RPC envelope — skip this frame rather
-        // than tearing down the stream (trust boundary; see parseRpcMessage).
         const msg = parseRpcMessage(event.data);
-        if (!msg) return;
-        const m = msg as {
-          id?: RpcId;
-          method?: string;
-          params?: { runId?: string };
-          result?: { runId?: string };
-        };
-        if (requestId !== undefined && isResponse(msg) && m.id === requestId) {
+        if (!msg) {
+          streamError = new RpcTransportError("invalid JSON-RPC envelope in event stream");
+          throw streamError;
+        }
+        if (isResponse(msg) && msg.id === requestId) {
           responseSeen = true;
           // runs.start/resume/subscribe responses carry the stream's root
           // runId — record it so a death BEFORE the first run event still
-          // names the run in the STREAM_DOWN synthetic.
-          if (typeof m.result?.runId === "string") runIds.add(m.result.runId);
+          // names the run in the streamEnd event.
+          if (!isErrorResponse(msg)) {
+            const runId = stringMember(msg.result, "runId");
+            if (runId) runIds.add(runId);
+          }
         }
-        if (m.method === "notifications.run.event" && typeof m.params?.runId === "string") {
-          runIds.add(m.params.runId);
+        if (isNotification(msg) && msg.method === NOTIFICATIONS_RUN_EVENT) {
+          const runId = stringMember(msg.params, "runId");
+          if (runId) runIds.add(runId);
         }
-        channel.push(msg);
+        channel.push({ type: "message", message: msg });
       },
     });
     const reader = body.getReader();
@@ -159,46 +168,41 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       // expected teardown via the fetch signal — not failures, stay quiet.
       aborted = signal?.aborted === true || (err instanceof Error && err.name === "AbortError");
       if (!aborted && !channel.closed) {
-        console.warn("[rpc] stream read error:", (err as Error).message);
+        streamError = err instanceof Error ? err : new RpcTransportError(String(err));
       }
     } finally {
       readers.delete(reader);
       reader.releaseLock();
     }
     if (aborted || channel.closed) return;
-    if (requestId !== undefined && !responseSeen) {
+    if (!responseSeen) {
       channel.push({
-        jsonrpc: JSONRPC_VERSION,
-        id: requestId,
-        error: { code: -32000, message: "transport: stream ended before the call's response" },
-      } as RpcMessage);
+        type: "requestError",
+        requestId,
+        error:
+          streamError ?? new RpcTransportError("event stream ended before the call's response"),
+      });
     }
     if (runIds.size > 0 || method === RUNTIME_SUBSCRIBE_METHOD) {
       channel.push({
-        jsonrpc: JSONRPC_VERSION,
-        method: STREAM_DOWN_METHOD,
-        params: { runIds: [...runIds], method },
-      } as RpcMessage);
+        type: "streamEnd",
+        method,
+        runIds: [...runIds],
+        ...(streamError ? { error: streamError } : {}),
+      });
     }
   }
 
   async function send(
-    msg: RpcMessage,
+    msg: TransportRequest,
     signal?: AbortSignal,
     options: TransportSendOptions = {},
   ): Promise<void> {
     if (channel.closed) throw new RpcTransportError("transport closed");
 
-    // Response messages don't carry a method and HTTPTransport never sends them
-    // (the server issues responses as the first frame of the method's own stream).
-    const method = "method" in msg ? msg.method : undefined;
-    if (!method) {
-      throw new RpcTransportError(
-        "HTTP transport only sends Request / Notification messages (which carry a `method`)",
-      );
-    }
+    const method = msg.method;
     const url = `${baseUrl}${RPC_PATH}`;
-    const requestId = "id" in msg ? msg.id : undefined;
+    const requestId = msg.id;
     const requestSignal = signal
       ? AbortSignal.any([signal, closeController.signal])
       : closeController.signal;
@@ -229,23 +233,20 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       });
     } catch (err) {
       endSpan(span, err);
-      throw new RpcTransportError(`fetch failed: ${(err as Error).message}`);
+      throw new RpcTransportError(`fetch failed: ${errorMessage(err)}`);
     }
     span.setAttribute("rpc.http.status_code", res.status);
 
-    // 204/202 = notification accepted; no body (TRANSPORT.md §6.3).
+    // This client sends Requests only; a bodyless notification acknowledgement is
+    // therefore always a protocol mismatch.
     if (res.status === 204 || res.status === 202) {
-      if (requestId !== undefined) {
-        const err = new RpcTransportError(
-          `http ${res.status}: RPC call ended without a response`,
-          res.status,
-          res.headers.get("Request-Id") ?? undefined,
-        );
-        endSpan(span, err);
-        throw err;
-      }
-      endSpan(span);
-      return;
+      const err = new RpcTransportError(
+        `http ${res.status}: RPC call ended without a response`,
+        res.status,
+        res.headers.get("Request-Id") ?? undefined,
+      );
+      endSpan(span, err);
+      throw err;
     }
 
     // Any non-2xx is a transport-layer failure represented as Problem Details.
@@ -268,6 +269,14 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     // stream (response frame + notifications). Drain it in the background so
     // send() returns once headers are in, not at stream end.
     if ((res.headers.get("Content-Type") ?? "").includes("text/event-stream")) {
+      if (!isWireStreamingMethodName(method)) {
+        const err = new RpcTransportError(
+          `non-streaming RPC method ${method} returned an event stream`,
+        );
+        endSpan(span, err);
+        await res.body?.cancel();
+        throw err;
+      }
       if (!res.body) {
         const err = new RpcTransportError("event-stream response has no body");
         endSpan(span, err);
@@ -287,7 +296,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     try {
       text = await res.text();
     } catch (cause) {
-      const err = new RpcTransportError(`failed to read RPC response: ${(cause as Error).message}`);
+      const err = new RpcTransportError(`failed to read RPC response: ${errorMessage(cause)}`);
       endSpan(span, err);
       throw err;
     }
@@ -304,16 +313,16 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       endSpan(span, err);
       throw err;
     }
-    if (requestId === undefined || !isResponse(inbound) || inbound.id !== requestId) {
+    if (!isResponse(inbound) || inbound.id !== requestId) {
       const err = new RpcTransportError("RPC response does not match the outbound request");
       endSpan(span, err);
       throw err;
     }
-    channel.push(inbound);
+    channel.push({ type: "message", message: inbound });
     endSpan(span);
   }
 
-  function recv(): AsyncIterable<RpcMessage> {
+  function recv(): AsyncIterable<TransportEvent> {
     // RpcClient calls recv() once and consumes the iterator for the transport's
     // life; every inbound message arrives via a POST response (see send()).
     return channel.iterator();

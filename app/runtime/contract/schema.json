@@ -5404,6 +5404,17 @@
         }
       ]
     },
+    "RuntimeEventNotification": {
+      "type": "object",
+      "properties": {
+        "event": {
+          "$ref": "#/$defs/RuntimeEvent"
+        }
+      },
+      "required": [
+        "event"
+      ]
+    },
     "RuntimeEventType": {
       "type": "string",
       "enum": [

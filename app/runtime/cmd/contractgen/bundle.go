@@ -20,9 +20,9 @@ type bundle struct {
 const schemaDialect = "https://json-schema.org/draft/2020-12/schema"
 
 // walkWireTypes walks every type a client can send or receive: each method's
-// params, its result, and — for a streaming method — its events. Anything not
-// reachable from a registered method is not on the wire, and publishing a schema
-// for it would describe a frame nobody can produce.
+// params, its result, and — for a streaming method — its events. Downstream
+// notification params are registered separately because they are not callable
+// methods, but are equally part of the wire surface.
 func walkWireTypes(registry *dispatch.Registry, shapes *dispatch.Shapes) *schemaSet {
 	set := newSchemaSet(shapes)
 	for _, meta := range registry.Metas() {
@@ -33,6 +33,9 @@ func walkWireTypes(registry *dispatch.Registry, shapes *dispatch.Shapes) *schema
 		if meta.Event != nil {
 			set.walk(meta.Event)
 		}
+	}
+	for _, notification := range shapes.Notifications() {
+		set.walk(notification.ParamsType)
 	}
 	// The union and constraint specs are registered against types the methods above
 	// already reach; walking them again would be a no-op. Walk them anyway so a spec

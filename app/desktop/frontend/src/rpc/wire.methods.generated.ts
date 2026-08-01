@@ -245,6 +245,102 @@ const METHOD_NAMES = [
 /** One method the runtime routes. */
 export type WireMethodName = (typeof METHOD_NAMES)[number];
 
+// Every method whose HTTP response remains open as an event stream.
+export const WIRE_STREAMING_METHOD_NAMES = [
+  "runs.start",
+  "runs.resume",
+  "runs.subscribe",
+  "runtime.subscribe",
+] as const;
+
+export type WireStreamingMethodName = (typeof WIRE_STREAMING_METHOD_NAMES)[number];
+
+export function isWireStreamingMethodName(
+  method: WireMethodName,
+): method is WireStreamingMethodName {
+  return (WIRE_STREAMING_METHOD_NAMES as readonly string[]).includes(method);
+}
+
+// Methods whose validated wire result becomes a value in the ergonomic SDK.
+const VALUE_METHOD_NAMES = [
+  "runtime.discover",
+  "sessions.list",
+  "sessions.get",
+  "sessions.create",
+  "sessions.update",
+  "sessions.fork",
+  "sessions.rollback",
+  "sessions.export",
+  "sessions.import",
+  "runs.start",
+  "runs.resume",
+  "runs.subscribe",
+  "runs.cancel",
+  "runs.get",
+  "runs.list",
+  "interrupts.list",
+  "todos.get",
+  "items.list",
+  "workspace.listFileChanges",
+  "workspace.getDiff",
+  "workspace.getFileHead",
+  "workspace.grep",
+  "workspace.listFiles",
+  "workspace.readFile",
+  "workspace.listProjects",
+  "runtime.subscribe",
+  "skills.discovered.list",
+  "skills.library.list",
+  "skills.drafts.list",
+  "recipes.list",
+  "agentDocs.list",
+  "mcp.servers.list",
+  "mcp.tools.list",
+  "mcp.configs.list",
+  "mcp.configs.configure",
+  "mcp.configs.test",
+  "hooks.list",
+  "approval.getMode",
+  "approval.setMode",
+  "approval.listRules",
+  "schedules.list",
+  "schedules.create",
+  "schedules.update",
+  "schedules.runNow",
+  "goals.start",
+  "goals.get",
+  "goals.stop",
+  "goals.resume",
+  "codebase.search",
+  "codebase.status",
+  "codebase.reindex",
+  "providers.list",
+  "providers.configure",
+  "providers.test",
+  "models.list",
+  "models.getUtilityRole",
+  "models.setUtilityRole",
+  "models.getEmbeddingRole",
+  "models.setEmbeddingRole",
+  "tools.list",
+  "tools.invoke",
+  "usage.session",
+  "usage.summary",
+  "memory.list",
+  "memory.get",
+  "agentMemory.list",
+  "agentMemory.update",
+  "agentMemory.add",
+] as const;
+
+type WireValueMethodName = (typeof VALUE_METHOD_NAMES)[number];
+
+export function wireMethodReturnsValue(
+  method: WireMethodName,
+): method is WireValueMethodName {
+  return (VALUE_METHOD_NAMES as readonly string[]).includes(method);
+}
+
 /** One condition on the request that decides whether a rule applies. */
 export interface WireCapabilityCondition {
   field: string;

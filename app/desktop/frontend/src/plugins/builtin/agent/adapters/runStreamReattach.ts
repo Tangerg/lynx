@@ -42,6 +42,20 @@ export function createRunStreamReattach({
       runId: asRunId(position.runId),
       segmentId: asSegmentId(position.segmentId),
     };
+    const recoverAndTail = async (): Promise<RunStream | null> => {
+      await recoverProjection();
+      if (isCancelled() || signal.aborted) return null;
+      try {
+        const tail = await client().runs.subscribe(target, signal);
+        return { result: brandAck(tail.result), events: tail.events };
+      } catch (tailErr) {
+        if (!isCancelled() && !signal.aborted)
+          console.warn("[agent] run tail reattach failed:", sessionId, tailErr);
+        return null;
+      }
+    };
+
+    if (position.recovery === "cold") return recoverAndTail();
     try {
       const stream = await client().runs.subscribe(target, signal, {
         ...(position.lastEventId ? { lastEventId: position.lastEventId } : {}),
@@ -54,16 +68,7 @@ export function createRunStreamReattach({
         console.warn("[agent] run reattach failed:", sessionId, err);
         return null;
       }
-      await recoverProjection();
-      if (isCancelled() || signal.aborted) return null;
-      try {
-        const tail = await client().runs.subscribe(target, signal);
-        return { result: brandAck(tail.result), events: tail.events };
-      } catch (tailErr) {
-        if (!isCancelled() && !signal.aborted)
-          console.warn("[agent] run tail reattach failed:", sessionId, tailErr);
-        return null;
-      }
+      return recoverAndTail();
     }
   };
 }

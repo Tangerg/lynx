@@ -60,6 +60,28 @@ describe("SidecarClient", () => {
     } satisfies Partial<RpcTransportError>);
   });
 
+  it("rejects sidecar JSON that violates the endpoint contract", async () => {
+    const info = createSidecarClient({
+      baseUrl: "http://x",
+      fetch: makeFetch(200, {
+        protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
+        server: { name: "lyra-core", version: "0.8.1" },
+        transport: "ipc",
+        endpoints: {},
+      }),
+    });
+    await expect(info.info()).rejects.toMatchObject({
+      name: "RpcTransportError",
+      message: expect.stringContaining("response violates its contract"),
+    } satisfies Partial<RpcTransportError>);
+
+    const readiness = createSidecarClient({
+      baseUrl: "http://x",
+      fetch: makeFetch(503, { status: "starting", checks: { storage: "unknown" } }),
+    });
+    await expect(readiness.readiness()).rejects.toBeInstanceOf(RpcTransportError);
+  });
+
   it("uses distinct liveness and readiness endpoints", async () => {
     const seen: string[] = [];
     const stub = vi.fn(async (url: string) => {

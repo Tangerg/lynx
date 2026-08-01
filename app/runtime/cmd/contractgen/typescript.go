@@ -61,6 +61,7 @@ func newTypeScript(set *schemaSet, notifications []string) string {
 		emitter.define(name, set.defs[name])
 	}
 	emitter.enumValues(names)
+	emitter.runEventReliability()
 	return emitter.out.String()
 }
 
@@ -121,6 +122,30 @@ func (e *tsEmitter) enumValues(names []string) {
 		e.line("  %s: [%s],", name, strings.Join(quoteAll(node.Enum), ", "))
 	}
 	e.line("} as const;")
+}
+
+func (e *tsEmitter) runEventReliability() {
+	values, ok := protocol.WireEnum(reflect.TypeFor[protocol.StreamEventType]())
+	if !ok {
+		panic("contractgen: StreamEventType is not a registered wire enum")
+	}
+	e.line("")
+	e.line("/** Reliability is owned by event type; a frame cannot promote itself. */")
+	e.line("export type RunEventReliability = \"authoritative\" | \"ephemeral\";")
+	e.line("export const RUN_EVENT_RELIABILITY = {")
+	for _, value := range values {
+		reliability := "ephemeral"
+		if (protocol.StreamEvent{Type: protocol.StreamEventType(value)}).Authoritative() {
+			reliability = "authoritative"
+		}
+		e.line("  %s: %s,", strconv.Quote(value), strconv.Quote(reliability))
+	}
+	e.line("} as const satisfies Record<StreamEventType, RunEventReliability>;")
+	e.line("")
+	e.line("export function runEventReliability(value: unknown): RunEventReliability | undefined {")
+	e.line("  if (typeof value !== \"string\") return undefined;")
+	e.line("  return (RUN_EVENT_RELIABILITY as Partial<Record<string, RunEventReliability>>)[value];")
+	e.line("}")
 }
 
 func (e *tsEmitter) header() {

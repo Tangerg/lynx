@@ -113,6 +113,14 @@ type CarriedSpec struct {
 	GoType  reflect.Type
 }
 
+// NotificationSpec declares one downstream JSON-RPC notification and the exact
+// params shape it carries. Notifications are not callable methods, so they belong
+// to the wire-shape registry rather than the request dispatcher.
+type NotificationSpec struct {
+	Name       string
+	ParamsType reflect.Type
+}
+
 // ConstraintKind is a value constraint a field's JSON type does not express.
 type ConstraintKind uint8
 
@@ -181,11 +189,12 @@ type FieldConstraintSpec struct {
 // and the artifacts generated from it (oneOf + discriminator, if/then) are
 // per-type, not per-method.
 type Shapes struct {
-	unions      []UnionSpec
-	constraints []ObjectConstraintSpec
-	stateKeys   []StateKeySpec
-	carried     []CarriedSpec
-	values      []FieldConstraintSpec
+	unions        []UnionSpec
+	constraints   []ObjectConstraintSpec
+	stateKeys     []StateKeySpec
+	carried       []CarriedSpec
+	notifications []NotificationSpec
+	values        []FieldConstraintSpec
 }
 
 func (s *Shapes) Unions() []UnionSpec {
@@ -226,6 +235,9 @@ func (s *Shapes) Constraints() []ObjectConstraintSpec {
 }
 func (s *Shapes) StateKeys() []StateKeySpec { return slices.Clone(s.stateKeys) }
 func (s *Shapes) Carried() []CarriedSpec    { return slices.Clone(s.carried) }
+func (s *Shapes) Notifications() []NotificationSpec {
+	return slices.Clone(s.notifications)
+}
 func (s *Shapes) ValueConstraints() []FieldConstraintSpec {
 	out := make([]FieldConstraintSpec, len(s.values))
 	for index, spec := range s.values {
@@ -327,6 +339,18 @@ func (s *Shapes) carriedShape(spec CarriedSpec) {
 		))
 	}
 	s.carried = append(s.carried, spec)
+}
+
+func (s *Shapes) notification(spec NotificationSpec) {
+	if err := spec.validate(); err != nil {
+		panic("dispatch: invalid notification spec: " + err.Error())
+	}
+	if slices.ContainsFunc(s.notifications, func(existing NotificationSpec) bool {
+		return existing.Name == spec.Name
+	}) {
+		panic(fmt.Sprintf("dispatch: notification %q is registered twice", spec.Name))
+	}
+	s.notifications = append(s.notifications, spec)
 }
 
 // validate checks a union spec against the struct it describes.
@@ -530,6 +554,20 @@ func (c CarriedSpec) validate() error {
 		return errors.New("carried shape spec needs the wire member it rides in")
 	case c.GoType == nil:
 		return fmt.Errorf("carrier %q has no type", c.Carrier)
+	}
+	return nil
+}
+
+func (n NotificationSpec) validate() error {
+	switch {
+	case n.Name == "":
+		return errors.New("notification spec needs a method name")
+	case n.ParamsType == nil:
+		return fmt.Errorf("notification %q has no params type", n.Name)
+	case n.ParamsType.Kind() != reflect.Struct || n.ParamsType.Name() == "":
+		return fmt.Errorf("notification %q params must be a named struct, got %v", n.Name, n.ParamsType)
+	case !strings.HasPrefix(n.Name, "notifications."):
+		return fmt.Errorf("notification %q must use the notifications namespace", n.Name)
 	}
 	return nil
 }

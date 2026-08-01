@@ -33,7 +33,7 @@ function subscriptionPorts(
 }
 
 describe("startWorkspaceEventSubscription", () => {
-  it("starts immediately when the runtime advertises workspace.subscribe", () => {
+  it("starts immediately when the runtime advertises runtime.subscribe", () => {
     const ports = subscriptionPorts();
 
     startWorkspaceEventSubscription(ports);

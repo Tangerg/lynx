@@ -16,60 +16,14 @@
 // owning item we've already seen on this tree. The stream ends when the ROOT
 // SEGMENT's `segment.finished` arrives (a subagent's has a different segmentId).
 
-import { z } from "zod";
 import { createPushPullChannel, type PushPullChannel } from "./channel";
 import type { RpcClient } from "./client";
-import type { RunEvent, StreamEvent, RuntimeEvent } from "./wire.generated";
-import { STREAM_DOWN_METHOD, RUNTIME_SUBSCRIBE_METHOD, type StreamDownParams } from "./transport";
+import type { RunEvent, RuntimeEvent } from "./wire.generated";
+import { RUNTIME_SUBSCRIBE_METHOD } from "./transport";
 import { NOTIFICATIONS_RUN_EVENT, NOTIFICATIONS_RUNTIME_EVENT } from "./wire.generated";
 
 export const RUN_EVENT_METHOD = NOTIFICATIONS_RUN_EVENT;
 export const RUNTIME_EVENT_METHOD = NOTIFICATIONS_RUNTIME_EVENT;
-
-// ---------------------------------------------------------------------------
-// Trust-boundary validation (CLAUDE.md: "validate at trust boundaries with Zod")
-// ---------------------------------------------------------------------------
-//
-// We validate the RunEvent ENVELOPE shape + the StreamEvent discriminator
-// here. The inner `event` payload (Item / ItemDelta / RunOutcome) is the
-// Go runtime's codegen-typed output — we cast it to StreamEvent rather
-// than re-deriving the full union in Zod (that would duplicate the whole
-// §4 catalog at the boundary for no added safety the discriminator check
-// doesn't already give). On wrapper-validation failure: warn + drop the
-// one notification; a single malformed event must not kill a run.
-
-const RunEventEnvelopeSchema = z.object({
-  runId: z.string(),
-  segmentId: z.string(),
-  eventId: z.string(),
-  timestamp: z.string(),
-  // No `durable` on the envelope — durability derives from event.type
-  // (isDurableEvent), only `custom` carries its own (API.md §5.2 / TRANSPORT §6.4).
-  event: z.looseObject({ type: z.string() }),
-});
-
-function makeParser<S extends z.ZodTypeAny>(method: string, schema: S) {
-  return (raw: unknown): z.infer<S> | null => {
-    const result = schema.safeParse(raw);
-    if (!result.success) {
-      console.warn(
-        `[rpc/stream] dropping malformed ${method} payload:`,
-        z.treeifyError(result.error),
-      );
-      return null;
-    }
-    return result.data as z.infer<S>;
-  };
-}
-
-const parseRunEvent = makeParser(RUN_EVENT_METHOD, RunEventEnvelopeSchema);
-
-// Same envelope-only discipline as RunEvent: validate the wrapper + type
-// discriminator, cast the typed payload (AUX_API §3.2).
-const RuntimeEventEnvelopeSchema = z.object({
-  event: z.looseObject({ type: z.string() }),
-});
-const parseRuntimeEvent = makeParser(RUNTIME_EVENT_METHOD, RuntimeEventEnvelopeSchema);
 
 // ---------------------------------------------------------------------------
 // Run-tree membership tracker
@@ -82,7 +36,8 @@ class RunTree {
   // Subagent runIds admitted onto this tree PLUS the root run's own runId
   // (learned from the root-segment segment.started). The root's OWN events are
   // matched by segmentId, not by this set; the set exists so subagents can be
-  // admitted by runId and so STREAM_DOWN (which reports runIds) can match.
+  // admitted by runId and so transport stream termination (which reports runIds)
+  // can match.
   private readonly runs = new Set<string>();
   private readonly itemOwner = new Map<string, string>(); // itemId → owning runId
   // Event ids already delivered on this stream. §9.2 requires the client to
@@ -108,7 +63,7 @@ class RunTree {
   }
 
   /** True if the given run belongs to this stream's tree (root or subagent) —
-   *  used by STREAM_DOWN, which is keyed on runId. The root run is known from
+   *  used by transport stream termination, which is keyed on runId. The root run is known from
    *  the call response; descendant runs are learned from segment.started. */
   hasRun(runId: string): boolean {
     return this.runs.has(runId);
@@ -122,28 +77,18 @@ class RunTree {
 
   /** Update tree membership from an event; return true if it belongs here. */
   admit(ev: RunEvent): boolean {
-    // The Zod envelope only guarantees `segmentId`/`runId` are strings and
-    // `event.type` a string — the inner payload is cast, not validated (see
-    // top-of-file note). So treat run/item as possibly-absent here: a malformed
-    // event must update nothing and be dropped, never throw. This runs inside
-    // the `client.subscribe` callback, which has no try/catch — an unguarded
-    // deref would kill the whole run stream, not just drop one event.
-    const e = ev.event as {
-      type: string;
-      run?: { id: string; spawnedByItemId?: string };
-      item?: { id: string };
-    };
-    if (e.type === "segment.started" && e.run) {
+    const event = ev.event;
+    if (event.type === "segment.started") {
       if (ev.segmentId === this.rootSegmentId) {
-        // Root-segment segment.started — learn the root runId (for STREAM_DOWN).
-        this.runs.add(e.run.id);
+        // Root-segment segment.started — learn the root runId for stream termination.
+        this.runs.add(event.run.id);
       } else {
         // A subagent segment.started — admit it iff its spawning item is on the tree.
-        const spawnedBy = e.run.spawnedByItemId;
-        if (spawnedBy && this.itemOwner.has(spawnedBy)) this.runs.add(e.run.id);
+        const spawnedBy = event.run.spawnedByItemId;
+        if (spawnedBy && this.itemOwner.has(spawnedBy)) this.runs.add(event.run.id);
       }
-    } else if ((e.type === "item.started" || e.type === "item.completed") && e.item) {
-      if (this.belongs(ev)) this.itemOwner.set(e.item.id, ev.runId);
+    } else if (event.type === "item.started" || event.type === "item.completed") {
+      if (this.belongs(ev)) this.itemOwner.set(event.item.id, ev.runId);
     }
     return this.belongs(ev);
   }
@@ -170,9 +115,14 @@ function iterableOf<T>(channel: PushPullChannel<T>, cleanup: () => void): AsyncI
           return this;
         },
         next: async (): Promise<IteratorResult<T>> => {
-          const result = await inner.next();
-          if (result.done) cleanup();
-          return result;
+          try {
+            const result = await inner.next();
+            if (result.done) cleanup();
+            return result;
+          } catch (error) {
+            cleanup();
+            throw error;
+          }
         },
         return: async (): Promise<IteratorResult<T>> => {
           channel.close();
@@ -189,32 +139,44 @@ function iterableOf<T>(channel: PushPullChannel<T>, cleanup: () => void): AsyncI
 function bindLifecycle<T>(
   channel: PushPullChannel<T>,
   unsub: () => void,
-  signal?: AbortSignal,
+  lifetime: StreamLifetime,
 ): () => void {
-  const onAbort = () => channel.close();
-  if (signal) {
-    if (signal.aborted) channel.close();
-    else signal.addEventListener("abort", onAbort, { once: true });
-  }
+  const signal = lifetime.signal;
   let cleaned = false;
-  return () => {
+  const cleanup = () => {
     if (cleaned) return;
     cleaned = true;
     unsub();
-    if (signal) signal.removeEventListener("abort", onAbort);
+    signal.removeEventListener("abort", onAbort);
+    lifetime.abort();
+  };
+  const onAbort = () => {
+    channel.close();
+    cleanup();
+  };
+  if (signal.aborted) onAbort();
+  else signal.addEventListener("abort", onAbort, { once: true });
+  return cleanup;
+}
+
+interface StreamLifetime {
+  /** Combined caller + stream-owned signal passed to the transport request. */
+  signal: AbortSignal;
+  /** End only this stream without mutating the caller-owned signal. */
+  abort(): void;
+}
+
+function createStreamLifetime(parent?: AbortSignal): StreamLifetime {
+  const controller = new AbortController();
+  return {
+    signal: parent ? AbortSignal.any([parent, controller.signal]) : controller.signal,
+    abort: () => controller.abort(),
   };
 }
 
 // ---------------------------------------------------------------------------
 // Run-event streams
 // ---------------------------------------------------------------------------
-
-/** Parse + cast a raw notification payload into a RunEvent (null if malformed). */
-function toRunEvent(params: unknown): RunEvent | null {
-  const parsed = parseRunEvent(params);
-  if (!parsed) return null;
-  return { ...parsed, event: parsed.event as StreamEvent } as RunEvent;
-}
 
 /** Push an event into the stream if it belongs to the tree; close on root finish. */
 function feedRunEvent(tree: RunTree, channel: PushPullChannel<RunEvent>, ev: RunEvent): void {
@@ -234,6 +196,8 @@ function feedRunEvent(tree: RunTree, channel: PushPullChannel<RunEvent>, ev: Run
  *  pre-bind buffer) leaks, since iterableOf's cleanup only runs on iteration. */
 export interface RunEventStream {
   events: AsyncIterable<RunEvent>;
+  /** Signal owned by this stream and passed to its opening RPC request. */
+  requestSignal: AbortSignal;
   dispose: () => void;
 }
 
@@ -253,28 +217,34 @@ export function streamRunEvents(
   client: RpcClient,
   signal?: AbortSignal,
 ): RunEventStream & { bind: (rootRunId: string, rootSegmentId: string) => void } {
+  const lifetime = createStreamLifetime(signal);
   const channel = createPushPullChannel<RunEvent>();
   const buffer: RunEvent[] = [];
-  const streamsEndedBeforeBind = new Set<string>();
+  const streamsEndedBeforeBind = new Map<string, Error | null>();
   let tree: RunTree | null = null;
 
-  const unsubEvents = client.subscribe(RUN_EVENT_METHOD, (msg) => {
-    if (channel.closed) return;
-    const ev = toRunEvent(msg.params);
-    if (!ev) return;
-    // Not bound yet — keep raw until bind() supplies our root segment id.
-    if (tree === null) buffer.push(ev);
-    else feedRunEvent(tree, channel, ev);
+  const unsubEvents = client.subscribe(RUN_EVENT_METHOD, {
+    next(event) {
+      if (channel.closed) return;
+      if (tree === null) buffer.push(event);
+      else feedRunEvent(tree, channel, event);
+    },
+    error: (error) => {
+      channel.fail(error);
+      lifetime.abort();
+    },
   });
-  const unsubDown = client.subscribe(STREAM_DOWN_METHOD, (msg) => {
+  const unsubDown = client.onStreamEnd((event) => {
     if (channel.closed) return;
-    const runIds = (msg.params as StreamDownParams | undefined)?.runIds ?? [];
     if (tree === null) {
-      for (const runId of runIds) streamsEndedBeforeBind.add(runId);
+      for (const runId of event.runIds) streamsEndedBeforeBind.set(runId, event.error ?? null);
       return;
     }
     const activeTree = tree;
-    if (runIds.some((runId) => activeTree.hasRun(runId))) channel.close();
+    if (event.runIds.some((runId) => activeTree.hasRun(runId))) {
+      if (event.error) channel.fail(event.error);
+      else channel.close();
+    }
   });
 
   const bind = (rootRunId: string, rootSegmentId: string): void => {
@@ -282,7 +252,11 @@ export function streamRunEvents(
     tree = new RunTree(rootRunId, rootSegmentId);
     for (const ev of buffer) feedRunEvent(tree, channel, ev);
     buffer.length = 0;
-    if (streamsEndedBeforeBind.has(rootRunId)) channel.close();
+    if (streamsEndedBeforeBind.has(rootRunId)) {
+      const error = streamsEndedBeforeBind.get(rootRunId);
+      if (error) channel.fail(error);
+      else channel.close();
+    }
     streamsEndedBeforeBind.clear();
   };
 
@@ -292,10 +266,11 @@ export function streamRunEvents(
       unsubEvents();
       unsubDown();
     },
-    signal,
+    lifetime,
   );
   return {
     events: iterableOf(channel, cleanup),
+    requestSignal: lifetime.signal,
     bind,
     dispose: () => {
       channel.close();
@@ -305,29 +280,38 @@ export function streamRunEvents(
 }
 
 // ---------------------------------------------------------------------------
-// Workspace event stream (workspace.subscribe, AUX_API §3)
+// Runtime event stream
 // ---------------------------------------------------------------------------
 
-/** The workspace notification stream plus its teardown (see RunEventStream).
+/** The runtime notification stream plus its teardown (see RunEventStream).
  *  Connection-scoped and lossy: no terminal frame, no replay — the stream
- *  ends when its POST stream does, signalled via a method-attributed
- *  STREAM_DOWN. The consumer resubscribes and treats reconnect as `resync`. */
+ *  ends when its POST stream does, reported as a typed transport stream-end event.
+ *  The consumer resubscribes and treats reconnect as `resync`. */
 export interface RuntimeEventStream {
   events: AsyncIterable<RuntimeEvent>;
+  /** Signal owned by this stream and passed to its opening RPC request. */
+  requestSignal: AbortSignal;
   dispose: () => void;
 }
 
 export function streamRuntimeEvents(client: RpcClient, signal?: AbortSignal): RuntimeEventStream {
+  const lifetime = createStreamLifetime(signal);
   const channel = createPushPullChannel<RuntimeEvent>();
-  const unsubEvents = client.subscribe(RUNTIME_EVENT_METHOD, (msg) => {
-    if (channel.closed) return;
-    const parsed = parseRuntimeEvent(msg.params);
-    if (parsed) channel.push(parsed.event as RuntimeEvent);
+  const unsubEvents = client.subscribe(RUNTIME_EVENT_METHOD, {
+    next(params) {
+      if (channel.closed) return;
+      channel.push(params.event);
+    },
+    error: (error) => {
+      channel.fail(error);
+      lifetime.abort();
+    },
   });
-  const unsubDown = client.subscribe(STREAM_DOWN_METHOD, (msg) => {
+  const unsubDown = client.onStreamEnd((event) => {
     if (channel.closed) return;
-    if ((msg.params as StreamDownParams | undefined)?.method === RUNTIME_SUBSCRIBE_METHOD)
-      channel.close();
+    if (event.method !== RUNTIME_SUBSCRIBE_METHOD) return;
+    if (event.error) channel.fail(event.error);
+    else channel.close();
   });
   const cleanup = bindLifecycle(
     channel,
@@ -335,10 +319,11 @@ export function streamRuntimeEvents(client: RpcClient, signal?: AbortSignal): Ru
       unsubEvents();
       unsubDown();
     },
-    signal,
+    lifetime,
   );
   return {
     events: iterableOf(channel, cleanup),
+    requestSignal: lifetime.signal,
     dispose: () => {
       channel.close();
       cleanup();

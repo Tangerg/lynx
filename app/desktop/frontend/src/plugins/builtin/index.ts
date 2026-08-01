@@ -126,7 +126,7 @@ const infrastructure: PluginSpec[] = [
   workspaceBootstrap,
   defaultDataProviders,
   // After bootstrap: watches the discovery result and opens the app's one
-  // workspace.subscribe stream (AUX_API §3).
+  // runtime.subscribe stream.
   workspaceEvents,
   workspaceSessionNavigation,
   rpcAgent,

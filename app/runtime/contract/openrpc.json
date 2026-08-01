@@ -223,6 +223,12 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "errors": [
         {
           "code": -32002,
@@ -767,6 +773,12 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "errors": [
         {
           "code": -32003,
@@ -1617,6 +1629,12 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "errors": [
         {
           "code": -32006,
@@ -1652,6 +1670,12 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "errors": [
         {
           "code": -32006,
@@ -1740,6 +1764,12 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "errors": [
         {
           "code": -32006,
@@ -1782,6 +1812,12 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "errors": [
         {
           "code": -32006,
@@ -1999,6 +2035,12 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "errors": [
         {
           "code": -32006,
@@ -2034,6 +2076,12 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "errors": [
         {
           "code": -32006,
@@ -2251,6 +2299,12 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "errors": [
         {
           "code": -32006,
@@ -2293,6 +2347,12 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "errors": [
         {
           "code": -32006,
@@ -2501,6 +2561,12 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "replayResponse",
       "x-lyra-stability": "stable",
@@ -2587,6 +2653,12 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "replayResponse",
       "x-lyra-stability": "stable",
@@ -2819,6 +2891,12 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "errors": [
         {
           "code": -32006,
@@ -2968,7 +3046,14 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "schema.json#/$defs/Goal"
+          "anyOf": [
+            {
+              "$ref": "schema.json#/$defs/Goal"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "errors": [
@@ -3719,6 +3804,12 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "errors": [
         {
           "code": -32005,
@@ -3811,6 +3902,12 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "errors": [
         {
           "code": -32006,
@@ -3899,6 +3996,12 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "errors": [
         {
           "code": -32006,
@@ -4010,11 +4113,31 @@
           }
         }
       ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
       "x-lyra-kind": "unary",
       "x-lyra-idempotency": "replayResponse",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
         "$ref": "schema.json#/$defs/FeedbackRequest"
+      }
+    }
+  ],
+  "x-lyra-notifications": [
+    {
+      "name": "notifications.run.event",
+      "params": {
+        "$ref": "schema.json#/$defs/RunEvent"
+      }
+    },
+    {
+      "name": "notifications.runtime.event",
+      "params": {
+        "$ref": "schema.json#/$defs/RuntimeEventNotification"
       }
     }
   ]

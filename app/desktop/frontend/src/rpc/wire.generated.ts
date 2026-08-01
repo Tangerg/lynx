@@ -1127,6 +1127,10 @@ export type RuntimeEvent =
   | { type: "interrupts.changed"; runIds?: string[]; sequence: number; sessionIds?: string[] }
   | { type: "resync"; sequence: number; topics: RuntimeTopic[]; watchIds?: string[] };
 
+export interface RuntimeEventNotification {
+  event: RuntimeEvent;
+}
+
 export type RuntimeEventType = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "state.changed" | "goals.changed" | "interrupts.changed" | "resync";
 
 export interface RuntimeLimits {
@@ -1531,3 +1535,21 @@ export const WIRE_ENUMS = {
   SuppressibleRunEventType: ["segment.progress", "item.delta"],
   TodoStatus: ["pending", "in_progress", "completed"],
 } as const;
+
+/** Reliability is owned by event type; a frame cannot promote itself. */
+export type RunEventReliability = "authoritative" | "ephemeral";
+export const RUN_EVENT_RELIABILITY = {
+  "segment.started": "authoritative",
+  "segment.progress": "ephemeral",
+  "segment.finished": "authoritative",
+  "item.started": "authoritative",
+  "item.delta": "ephemeral",
+  "item.completed": "authoritative",
+  "state.snapshot": "authoritative",
+  "custom": "ephemeral",
+} as const satisfies Record<StreamEventType, RunEventReliability>;
+
+export function runEventReliability(value: unknown): RunEventReliability | undefined {
+  if (typeof value !== "string") return undefined;
+  return (RUN_EVENT_RELIABILITY as Partial<Record<string, RunEventReliability>>)[value];
+}

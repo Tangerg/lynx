@@ -4,7 +4,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import type { RunEvent } from "@/rpc";
-import { asRunId, asSegmentId } from "@/rpc";
+import { asRunId, asSegmentId, RpcProtocolError } from "@/rpc";
 import { createAgentRunPump, type RunStream, type RunStreamPosition } from "./agentRunPump";
 
 const RUN = asRunId("run_1");
@@ -60,7 +60,31 @@ describe("agent run pump reattach", () => {
     await pump.pump(streamOf([frame("evt_7", progressed)]), new AbortController().signal);
 
     expect(positions).toHaveLength(1);
-    expect(positions[0]).toMatchObject({ runId: RUN, segmentId: SEGMENT, lastEventId: "evt_7" });
+    expect(positions[0]).toMatchObject({
+      runId: RUN,
+      segmentId: SEGMENT,
+      lastEventId: "evt_7",
+      recovery: "replay",
+    });
+  });
+
+  it("requests cold recovery after an authoritative protocol violation", async () => {
+    const failed: RunStream = {
+      result: { runId: RUN, segmentId: SEGMENT },
+      events: (async function* () {
+        yield frame("evt_7", progressed);
+        throw new RpcProtocolError("notifications.run.event params", [
+          { path: "event.item", detail: "is required" },
+        ]);
+      })(),
+    };
+    const { pump, positions } = pumpWith(() =>
+      Promise.resolve(streamOf([frame("evt_9", finished)])),
+    );
+
+    await pump.pump(failed, new AbortController().signal);
+
+    expect(positions[0]).toMatchObject({ lastEventId: "evt_7", recovery: "cold" });
   });
 
   it("hands back the head the attach captured when it folded nothing", async () => {

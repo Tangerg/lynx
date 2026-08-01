@@ -7,6 +7,7 @@
 //   - push(value) buffers OR resolves a waiting next() call.
 //   - close() drains pending values to the consumer and then returns
 //     done=true. Idempotent.
+//   - fail(error) drains pending values, then rejects iteration with that error.
 //   - iterator() returns a fresh iterator object; the underlying queue
 //     is shared, so callers must treat the channel as single-consumer
 //     (multiple iterators would race for buffered values).
@@ -17,20 +18,27 @@ export interface PushPullChannel<T> {
   push(value: T): void;
   /** Close the channel. Idempotent. */
   close(): void;
+  /** Terminate the channel with an error. Idempotent. */
+  fail(error: unknown): void;
   readonly closed: boolean;
   iterator(): AsyncIterableIterator<T>;
 }
 
 export function createPushPullChannel<T>(): PushPullChannel<T> {
   const buffer: T[] = [];
-  const waiters: Array<(result: IteratorResult<T>) => void> = [];
+  const waiters: Array<{
+    resolve: (result: IteratorResult<T>) => void;
+    reject: (error: unknown) => void;
+  }> = [];
   let isClosed = false;
+  let failure: unknown;
+  let failed = false;
 
   function push(value: T): void {
     if (isClosed) return;
-    const w = waiters.shift();
-    if (w) {
-      w({ value, done: false });
+    const waiter = waiters.shift();
+    if (waiter) {
+      waiter.resolve({ value, done: false });
     } else {
       buffer.push(value);
     }
@@ -39,12 +47,23 @@ export function createPushPullChannel<T>(): PushPullChannel<T> {
   function close(): void {
     if (isClosed) return;
     isClosed = true;
-    for (const w of waiters.splice(0)) w({ value: undefined as never, done: true });
+    for (const waiter of waiters.splice(0)) {
+      waiter.resolve({ value: undefined as never, done: true });
+    }
+  }
+
+  function fail(error: unknown): void {
+    if (isClosed) return;
+    isClosed = true;
+    failed = true;
+    failure = error;
+    for (const waiter of waiters.splice(0)) waiter.reject(error);
   }
 
   return {
     push,
     close,
+    fail,
     get closed() {
       return isClosed;
     },
@@ -55,9 +74,10 @@ export function createPushPullChannel<T>(): PushPullChannel<T> {
         },
         async next(): Promise<IteratorResult<T>> {
           if (buffer.length > 0) return { value: buffer.shift()!, done: false };
+          if (failed) throw failure;
           if (isClosed) return { value: undefined as never, done: true };
-          return new Promise<IteratorResult<T>>((resolve) => {
-            waiters.push(resolve);
+          return new Promise<IteratorResult<T>>((resolve, reject) => {
+            waiters.push({ resolve, reject });
           });
         },
         async return(): Promise<IteratorResult<T>> {

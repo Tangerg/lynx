@@ -50,6 +50,8 @@ func newWireMethods(registry *dispatch.Registry, set *schemaSet) string {
 	emitter.imports()
 	emitter.features()
 	emitter.names(metas)
+	emitter.streamingNames(metas)
+	emitter.valueMethodNames(metas)
 	emitter.policy(metas)
 	emitter.out.WriteString(shapes)
 	emitter.helpers()
@@ -164,6 +166,46 @@ func (e *methodsEmitter) names(metas []dispatch.MethodMeta) {
 	e.line("")
 	e.line("/** One method the runtime routes. */")
 	e.line("export type WireMethodName = (typeof METHOD_NAMES)[number];")
+	e.line("")
+}
+
+func (e *methodsEmitter) streamingNames(metas []dispatch.MethodMeta) {
+	e.line("// Every method whose HTTP response remains open as an event stream.")
+	e.line("export const WIRE_STREAMING_METHOD_NAMES = [")
+	for _, meta := range metas {
+		if meta.Event != nil {
+			e.line("  %s,", strconv.Quote(meta.Name))
+		}
+	}
+	e.line("] as const;")
+	e.line("")
+	e.line("export type WireStreamingMethodName = (typeof WIRE_STREAMING_METHOD_NAMES)[number];")
+	e.line("")
+	e.line("export function isWireStreamingMethodName(")
+	e.line("  method: WireMethodName,")
+	e.line("): method is WireStreamingMethodName {")
+	e.line("  return (WIRE_STREAMING_METHOD_NAMES as readonly string[]).includes(method);")
+	e.line("}")
+	e.line("")
+}
+
+func (e *methodsEmitter) valueMethodNames(metas []dispatch.MethodMeta) {
+	e.line("// Methods whose validated wire result becomes a value in the ergonomic SDK.")
+	e.line("const VALUE_METHOD_NAMES = [")
+	for _, meta := range metas {
+		if meta.Result != nil {
+			e.line("  %s,", strconv.Quote(meta.Name))
+		}
+	}
+	e.line("] as const;")
+	e.line("")
+	e.line("type WireValueMethodName = (typeof VALUE_METHOD_NAMES)[number];")
+	e.line("")
+	e.line("export function wireMethodReturnsValue(")
+	e.line("  method: WireMethodName,")
+	e.line("): method is WireValueMethodName {")
+	e.line("  return (VALUE_METHOD_NAMES as readonly string[]).includes(method);")
+	e.line("}")
 	e.line("")
 }
 

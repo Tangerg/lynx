@@ -25,7 +25,7 @@ event id 做流重连。桌面外壳走的是 loopback HTTP，不是宿主 IPC�
 
 **原则**：JSON-RPC `params` 承载**业务 / 语义载荷**（这次操作"是关于什么"的数据），以及 `params._meta`
 里的请求自描述信息（协议版本、clientInfo、clientCapabilities）。**只有纯传输 / 观测 / 可靠性元数据**才走带外通道
-（HTTP header、`context.Context`、IPC metadata）。
+（HTTP header、`context.Context`）。
 
 **判定一个字段放哪**：问"它是这次操作语义的一部分，还是只是承载这次操作的传输上下文？"
 
@@ -68,7 +68,7 @@ interface Transport {
 
 transport **不**配对 request/response id —— 那是上层 RPC client 的事。
 
-> `receive()` 的入站消息**从哪来**是各 transport 自己的事，抽象层不规定：InProcess/IPC 走宿主的 push
+> `receive()` 的入站消息**从哪来**是各 transport 自己的事，抽象层不规定：InProcess 走同进程 push
 > channel / callback；HTTP **streamable** 则来自各 POST 的响应（`application/json` 单条，或
 > `text/event-stream` 多帧，§6.4）汇入同一条可迭代流。**没有"常开的 server→client 通道"这一前提** —— 响应
 > 与通知都依附于某次调用。
@@ -394,9 +394,9 @@ sidecar 端点不走 JSON-RPC（扁平 JSON、无需 discovery、无鉴权）。
 
 **它们只在 HTTP transport 存在**，因为只有 HTTP 才有这种运维场景：`curl` / oncall 探活、k8s
 liveness/readiness、反代 upstream 健康检查 —— 这些要的是"不套 envelope、无鉴权"的端点。
-InProcess / IPC 没有 HTTP 运维探针；宿主直接管理对象生命周期与依赖检查：
+InProcess 没有 HTTP 运维探针；宿主直接管理对象生命周期与依赖检查：
 
-| 需求                                            | HTTP                     | InProcess / IPC                                 |
+| 需求                                            | HTTP                     | InProcess                                       |
 | ----------------------------------------------- | ------------------------ | ----------------------------------------------- |
 | 运行信息（serverInfo / version / capabilities） | sidecar `GET /v2/info`   | `runtime.discover` 响应（本就携带同样内容）     |
 | 存活探测                                        | `GET /v2/health/live`    | 宿主进程状态                                    |

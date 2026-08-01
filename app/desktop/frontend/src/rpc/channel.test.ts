@@ -86,6 +86,46 @@ describe("createPushPullChannel", () => {
     expect(ch.closed).toBe(true);
   });
 
+  it("fail() drains buffered values and then rejects iteration", async () => {
+    const ch = createPushPullChannel<number>();
+    const failure = new Error("upstream stream failed");
+    ch.push(10);
+    ch.push(20);
+    ch.fail(failure);
+
+    const it = ch.iterator();
+    expect(await it.next()).toEqual({ value: 10, done: false });
+    expect(await it.next()).toEqual({ value: 20, done: false });
+    await expect(it.next()).rejects.toBe(failure);
+  });
+
+  it("fail() rejects every waiting next() immediately", async () => {
+    const ch = createPushPullChannel<number>();
+    const it = ch.iterator();
+    const first = it.next();
+    const second = it.next();
+    const failure = new Error("connection lost");
+
+    ch.fail(failure);
+
+    await expect(first).rejects.toBe(failure);
+    await expect(second).rejects.toBe(failure);
+  });
+
+  it("keeps the first terminal state", async () => {
+    const failed = createPushPullChannel<number>();
+    const firstFailure = new Error("first failure");
+    failed.fail(firstFailure);
+    failed.fail(new Error("second failure"));
+    failed.close();
+    await expect(failed.iterator().next()).rejects.toBe(firstFailure);
+
+    const closed = createPushPullChannel<number>();
+    closed.close();
+    closed.fail(new Error("too late"));
+    expect(await closed.iterator().next()).toEqual({ value: undefined, done: true });
+  });
+
   it("iterator.return() closes the channel", async () => {
     const ch = createPushPullChannel<number>();
     const it = ch.iterator();

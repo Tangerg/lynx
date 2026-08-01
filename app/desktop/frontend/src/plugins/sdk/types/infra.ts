@@ -57,7 +57,7 @@ export type LogSubscriber = (event: LogEvent) => void;
  * fetcher must return a fully-typed result, but the registry erases that
  * type so all providers fit in one map — call sites cast on their way out.
  *
- * Plugins can swap the underlying transport (HTTP, IPC, in-memory mock)
+ * Plugins can swap the underlying transport (HTTP, in-memory mock)
  * without callers having to know.
  */
 export interface DataProviderSpec<T = unknown, P = unknown> {

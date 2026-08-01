@@ -160,7 +160,7 @@ func build(walked *schemaSet) manifest {
 		Protocol:         protocol.SupportedProtocolRange(),
 		Features:         protocol.FeatureKeys(),
 		Methods:          methods(registry),
-		Notifications:    []string{dispatch.NotificationRunEvent, dispatch.NotificationRuntimeEvent},
+		Notifications:    notificationNames(shapes),
 		StreamingMethods: registry.StreamMethods(),
 		Errors:           errors(registry),
 		CapabilityPolicy: capabilities(registry),
@@ -174,6 +174,15 @@ func build(walked *schemaSet) manifest {
 		SystemInvariants: invariants(),
 		CanonicalSamples: canonicalSamples(),
 	}
+}
+
+func notificationNames(shapes *dispatch.Shapes) []string {
+	notifications := shapes.Notifications()
+	out := make([]string, 0, len(notifications))
+	for _, notification := range notifications {
+		out = append(out, notification.Name)
+	}
+	return out
 }
 
 func methods(registry *dispatch.Registry) []methodEntry {

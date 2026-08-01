@@ -10,7 +10,7 @@
 // protocol method.
 
 import { z } from "zod";
-import { RpcTransportError } from "./errors";
+import { errorMessage, RpcTransportError } from "./errors";
 
 /** One sideloaded plugin the shell advertises: a stable id + the path (relative
  *  to baseUrl) of its ESM entry bundle. */
@@ -47,14 +47,14 @@ export function createShellClient(config: ShellClientConfig): ShellClient {
           signal,
         });
       } catch (err) {
-        throw new RpcTransportError(`shell /plugins: ${(err as Error).message}`);
+        throw new RpcTransportError(`shell /plugins: ${errorMessage(err)}`);
       }
       if (!res.ok) throw new RpcTransportError(`shell /plugins: http ${res.status}`, res.status);
       let json: unknown;
       try {
         json = JSON.parse(await res.text());
       } catch (err) {
-        throw new RpcTransportError(`shell /plugins: invalid JSON: ${(err as Error).message}`);
+        throw new RpcTransportError(`shell /plugins: invalid JSON: ${errorMessage(err)}`);
       }
       const parsed = SideloadListSchema.safeParse(json);
       if (!parsed.success) {

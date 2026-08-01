@@ -59,7 +59,7 @@ func run(dir, validatorDir, tsDir string) error {
 	}{
 		{"manifest.json", built},
 		{"schema.json", newBundle(walked)},
-		{"openrpc.json", newOpenRPC(registry, walked)},
+		{"openrpc.json", newOpenRPC(registry, shapes, walked)},
 	} {
 		if err := writeJSON(filepath.Join(dir, artifact.name), artifact.content); err != nil {
 			return err
@@ -84,7 +84,7 @@ func run(dir, validatorDir, tsDir string) error {
 	// which hand-written fixture proves which shape.
 	for _, artifact := range []struct{ name, content string }{
 		{tsFileName, newTypeScript(walked, built.Notifications)},
-		{tsValidatorFileName, newWireChecks(walked)},
+		{tsValidatorFileName, newWireChecks(registry, shapes, walked)},
 		{tsMethodsFileName, newWireMethods(registry, walked)},
 		{tsSamplesFileName, newWireSamples()},
 	} {

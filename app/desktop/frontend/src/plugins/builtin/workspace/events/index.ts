@@ -1,4 +1,4 @@
-// Built-in plugin: the app's ONE workspace.subscribe consumer (AUX_API §3).
+// Built-in plugin: the app's ONE runtime.subscribe consumer.
 //
 // The plugin entry is now only the composition root. Runtime subscription,
 // active-cwd resolution, reconnect/retarget looping, and query invalidation

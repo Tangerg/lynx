@@ -7,8 +7,12 @@
 // What each call MEANS lives in wireCheck.ts. This file only says which rule
 // applies where.
 
-import { absent, allOf, anything, array, enumOf, fields, flag, ifThen, integer, literal, minItems, minLength, minimum, numeric, object, oneOf, record, ref, text, uniqueItems } from "./wireCheck";
+import { absent, allOf, anything, array, enumOf, fields, flag, ifThen, integer, literal, minItems, minLength, minimum, nullable, numeric, object, oneOf, record, ref, text, uniqueItems } from "./wireCheck";
 import type { WireCheck, WireViolation } from "./wireCheck";
+
+import type { WireMethodName } from "./wire.methods.generated";
+
+import type * as Wire from "./wire.generated";
 
 /** Every shape the protocol publishes. */
 export type WireTypeName =
@@ -225,6 +229,7 @@ export type WireTypeName =
   | "RunStatus"
   | "RunSummary"
   | "RuntimeEvent"
+  | "RuntimeEventNotification"
   | "RuntimeEventType"
   | "RuntimeLimits"
   | "RuntimeSubscribeRequest"
@@ -2001,6 +2006,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["sequence", "topics", "type"]),
     ]),
   ]),
+  RuntimeEventNotification: object({
+    event: ref(() => CHECKS.RuntimeEvent),
+  }, ["event"]),
   RuntimeEventType: enumOf(["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "resync"]),
   RuntimeLimits: object({
     maxConcurrentRuns: integer(),
@@ -2469,24 +2477,131 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, []),
 };
 
-// The shape each state.snapshot key carries.
-const STATE_PAYLOADS: Readonly<Record<string, WireCheck>> = {
-  todos: ref(() => CHECKS.StateSnapshot),
+const METHOD_RESULTS: Record<WireMethodName, WireCheck> = {
+  "runtime.discover": ref(() => CHECKS.DiscoverResponse),
+  "sessions.list": ref(() => CHECKS.PageOfSession),
+  "sessions.get": ref(() => CHECKS.Session),
+  "sessions.create": ref(() => CHECKS.Session),
+  "sessions.update": ref(() => CHECKS.Session),
+  "sessions.delete": object({}, []),
+  "sessions.fork": ref(() => CHECKS.Session),
+  "sessions.rollback": ref(() => CHECKS.RollbackSessionResponse),
+  "sessions.export": ref(() => CHECKS.ExportSessionResponse),
+  "sessions.import": ref(() => CHECKS.ImportSessionResponse),
+  "runs.start": ref(() => CHECKS.StartRunResponse),
+  "runs.resume": ref(() => CHECKS.ResumeRunResponse),
+  "runs.subscribe": ref(() => CHECKS.SubscribeRunResponse),
+  "runs.cancel": ref(() => CHECKS.CancelRunResponse),
+  "runs.steer": object({}, []),
+  "runs.get": ref(() => CHECKS.RunRef),
+  "runs.list": ref(() => CHECKS.PageOfRunRef),
+  "interrupts.list": ref(() => CHECKS.PageOfPendingInterruptSet),
+  "todos.get": ref(() => CHECKS.StateSnapshot),
+  "items.list": ref(() => CHECKS.ListItemsResponse),
+  "workspace.listFileChanges": ref(() => CHECKS.PageOfWorkspaceFileChange),
+  "workspace.getDiff": ref(() => CHECKS.Diff),
+  "workspace.getFileHead": ref(() => CHECKS.FileHead),
+  "workspace.grep": ref(() => CHECKS.GrepResult),
+  "workspace.listFiles": ref(() => CHECKS.PageOfFileEntry),
+  "workspace.readFile": ref(() => CHECKS.FileContent),
+  "workspace.listProjects": ref(() => CHECKS.PageOfProject),
+  "runtime.subscribe": ref(() => CHECKS.RuntimeSubscribeResponse),
+  "skills.discovered.list": ref(() => CHECKS.PageOfSkill),
+  "skills.library.list": ref(() => CHECKS.PageOfManagedSkill),
+  "skills.library.archive": object({}, []),
+  "skills.library.restore": object({}, []),
+  "skills.drafts.list": ref(() => CHECKS.PageOfSkillDraft),
+  "skills.drafts.promote": object({}, []),
+  "skills.drafts.reject": object({}, []),
+  "recipes.list": ref(() => CHECKS.PageOfRecipe),
+  "agentDocs.list": ref(() => CHECKS.PageOfAgentDoc),
+  "mcp.servers.list": ref(() => CHECKS.PageOfMcpServer),
+  "mcp.tools.list": ref(() => CHECKS.PageOfMcpTool),
+  "mcp.servers.reconnect": object({}, []),
+  "mcp.servers.authorize": object({}, []),
+  "mcp.configs.list": ref(() => CHECKS.PageOfMcpServerConfig),
+  "mcp.configs.configure": ref(() => CHECKS.McpServerConfig),
+  "mcp.configs.remove": object({}, []),
+  "mcp.configs.setEnabled": object({}, []),
+  "mcp.configs.test": ref(() => CHECKS.McpTestResult),
+  "hooks.list": ref(() => CHECKS.HooksListResult),
+  "hooks.setTrust": object({}, []),
+  "approval.getMode": ref(() => CHECKS.ApprovalModeResult),
+  "approval.setMode": ref(() => CHECKS.ApprovalModeResult),
+  "approval.listRules": ref(() => CHECKS.ListApprovalRulesResult),
+  "approval.forgetRule": object({}, []),
+  "schedules.list": ref(() => CHECKS.PageOfSchedule),
+  "schedules.create": ref(() => CHECKS.Schedule),
+  "schedules.update": ref(() => CHECKS.Schedule),
+  "schedules.delete": object({}, []),
+  "schedules.runNow": ref(() => CHECKS.RunScheduleNowResponse),
+  "goals.start": ref(() => CHECKS.Goal),
+  "goals.get": nullable(ref(() => CHECKS.Goal)),
+  "goals.stop": ref(() => CHECKS.Goal),
+  "goals.resume": ref(() => CHECKS.Goal),
+  "codebase.search": ref(() => CHECKS.CodebaseSearchResult),
+  "codebase.status": ref(() => CHECKS.CodebaseStatus),
+  "codebase.reindex": ref(() => CHECKS.CodebaseReindexResponse),
+  "providers.list": ref(() => CHECKS.PageOfProvider),
+  "providers.configure": ref(() => CHECKS.Provider),
+  "providers.test": ref(() => CHECKS.ProviderTestResult),
+  "models.list": ref(() => CHECKS.PageOfModel),
+  "models.getUtilityRole": ref(() => CHECKS.UtilityRole),
+  "models.setUtilityRole": ref(() => CHECKS.UtilityRole),
+  "models.getEmbeddingRole": ref(() => CHECKS.EmbeddingRole),
+  "models.setEmbeddingRole": ref(() => CHECKS.EmbeddingRole),
+  "tools.list": ref(() => CHECKS.PageOfToolSpec),
+  "tools.invoke": anything(),
+  "usage.session": ref(() => CHECKS.Usage),
+  "usage.summary": ref(() => CHECKS.UsageSummary),
+  "memory.list": ref(() => CHECKS.PageOfMemoryEntry),
+  "memory.get": ref(() => CHECKS.MemoryEntry),
+  "memory.update": object({}, []),
+  "agentMemory.list": ref(() => CHECKS.AgentMemoryList),
+  "agentMemory.review": object({}, []),
+  "agentMemory.update": ref(() => CHECKS.AgentMemoryItem),
+  "agentMemory.delete": object({}, []),
+  "agentMemory.add": ref(() => CHECKS.AgentMemoryItem),
+  "feedback.create": object({}, []),
 };
 
-/**
- * validateStatePayload checks one state.snapshot key's value against the shape
- * declared for it.
- *
- * A key this build does not know is not a violation: the envelope is open by design,
- * so a newer runtime may carry one, and refusing it would be a client deciding what
- * the protocol may grow.
- */
-export function validateStatePayload(key: string, value: unknown): WireViolation[] {
-  const check = STATE_PAYLOADS[key];
-  if (!check) return [];
+/** Validate the success result carried by one registered method. */
+export function validateMethodResult(method: WireMethodName, value: unknown): WireViolation[] {
   const out: WireViolation[] = [];
-  check(value, key, out);
+  METHOD_RESULTS[method](value, `${method}.result`, out);
+  return out;
+}
+
+export const WIRE_NOTIFICATION_NAMES = [
+  "notifications.run.event",
+  "notifications.runtime.event",
+] as const;
+
+export type WireNotificationName = (typeof WIRE_NOTIFICATION_NAMES)[number];
+
+/** The validated params carried by each downstream notification. */
+export interface WireNotificationParams {
+  "notifications.run.event": Wire.RunEvent;
+  "notifications.runtime.event": Wire.RuntimeEventNotification;
+}
+
+const NOTIFICATION_PARAMS: Record<WireNotificationName, WireCheck> = {
+  "notifications.run.event": ref(() => CHECKS.RunEvent),
+  "notifications.runtime.event": ref(() => CHECKS.RuntimeEventNotification),
+};
+
+/** True when a method is one of the runtime's published downstream notifications. */
+export function isWireNotificationName(name: string): name is WireNotificationName {
+  return (WIRE_NOTIFICATION_NAMES as readonly string[]).includes(name);
+}
+
+/** Validate the params carried by one published downstream notification. */
+export function validateNotificationParams(
+  method: WireNotificationName,
+  value: unknown,
+): WireViolation[] {
+  const out: WireViolation[] = [];
+  NOTIFICATION_PARAMS[method](value, `${method}.params`, out);
   return out;
 }
 

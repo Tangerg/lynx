@@ -19,9 +19,15 @@ const openrpcVersion = "1.3.2"
 const bundleRef = "schema.json"
 
 type openrpcDocument struct {
-	OpenRPC string          `json:"openrpc"`
-	Info    openrpcInfo     `json:"info"`
-	Methods []openrpcMethod `json:"methods"`
+	OpenRPC       string                `json:"openrpc"`
+	Info          openrpcInfo           `json:"info"`
+	Methods       []openrpcMethod       `json:"methods"`
+	Notifications []openrpcNotification `json:"x-lyra-notifications"`
+}
+
+type openrpcNotification struct {
+	Name   string  `json:"name"`
+	Params *schema `json:"params"`
 }
 
 type openrpcInfo struct {
@@ -76,7 +82,7 @@ type openrpcError struct {
 	Message string `json:"message"`
 }
 
-func newOpenRPC(registry *dispatch.Registry, set *schemaSet) openrpcDocument {
+func newOpenRPC(registry *dispatch.Registry, shapes *dispatch.Shapes, set *schemaSet) openrpcDocument {
 	codes := problemCodes(registry)
 	document := openrpcDocument{
 		OpenRPC: openrpcVersion,
@@ -88,6 +94,12 @@ func newOpenRPC(registry *dispatch.Registry, set *schemaSet) openrpcDocument {
 	}
 	for _, meta := range registry.Metas() {
 		document.Methods = append(document.Methods, openrpcMethodFor(meta, set, codes))
+	}
+	for _, notification := range shapes.Notifications() {
+		document.Notifications = append(document.Notifications, openrpcNotification{
+			Name:   notification.Name,
+			Params: external(set.walk(notification.ParamsType)),
+		})
 	}
 	return document
 }
@@ -111,9 +123,14 @@ func openrpcMethodFor(meta dispatch.MethodMeta, set *schemaSet, codes map[string
 			Schema:   external(set.walk(field.Type)),
 		})
 	}
+	result := &schema{Type: schemaTypeObject}
 	if meta.Result != nil {
-		method.Result = &openrpcResult{Name: "result", Schema: external(set.walk(meta.Result))}
+		result = set.walk(meta.Result)
+		if meta.ResultNullable {
+			result = &schema{AnyOf: []*schema{result, {Type: schemaTypeNull}}}
+		}
 	}
+	method.Result = &openrpcResult{Name: "result", Schema: external(result)}
 	if meta.Event != nil {
 		method.StreamEvent = external(set.walk(meta.Event))
 	}

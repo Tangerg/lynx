@@ -3,15 +3,26 @@ import { createRpcClient, type RpcCallOptions, type RpcClient } from "./client";
 import { RpcError, RpcTransportError } from "./errors";
 import { asRunId, asSegmentId, asSessionId } from "./ids";
 import { createMethods } from "./methods";
-import type { RunEvent, StreamEvent } from "./wire.generated";
+import type { Item, RunEvent, StreamEvent } from "./wire.generated";
 import { RUN_EVENT_METHOD } from "./stream";
 import { createMemoryTransport } from "./transports/memory";
 import { waitForRequest } from "./transports/memory.testkit";
 import type { RpcMessage } from "./types";
 import { JSONRPC_VERSION } from "./types";
+import runRef from "./samples/runref.full.json";
 
 function runEvent(runId: string, segmentId: string, eventId: string, event: StreamEvent): RunEvent {
   return { runId, segmentId, eventId, timestamp: "2026-06-03T00:00:00Z", event } as RunEvent;
+}
+
+function agentMessageItem(id: string, runId: string, status: Item["status"]): Item {
+  return {
+    id,
+    runId,
+    status,
+    createdAt: "2026-06-03T00:00:00Z",
+    type: "agentMessage",
+  } as Item;
 }
 
 describe("methods factory", () => {
@@ -136,8 +147,9 @@ describe("methods factory", () => {
     const req = await waitForRequest(t, "runs.get");
     expect(req.params).toEqual({ runId: "run_1" });
 
-    t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: { id: "run_1" } } as RpcMessage);
-    await expect(promise).resolves.toEqual({ id: "run_1" });
+    const result = { ...runRef, id: "run_1" };
+    t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result } as RpcMessage);
+    await expect(promise).resolves.toEqual(result);
     await client.close();
   });
 
@@ -188,7 +200,7 @@ describe("methods factory", () => {
       method: RUN_EVENT_METHOD,
       params: runEvent("run_1", "seg_1", "evt_1", {
         type: "item.started",
-        item: { id: asRunId("item_1"), type: "agentMessage" } as never,
+        item: agentMessageItem("item_1", "run_1", "running"),
       }),
     });
     t.inject({
@@ -229,7 +241,7 @@ describe("methods factory", () => {
       method: RUN_EVENT_METHOD,
       params: runEvent("run_OTHER", "seg_OTHER", "evt_x", {
         type: "item.started",
-        item: { id: asRunId("item_x"), type: "agentMessage" } as never,
+        item: agentMessageItem("item_x", "run_OTHER", "running"),
       }),
     });
     t.inject({
@@ -237,7 +249,7 @@ describe("methods factory", () => {
       method: RUN_EVENT_METHOD,
       params: runEvent("run_1", "seg_1", "evt_1", {
         type: "item.completed",
-        item: { id: asRunId("item_1"), type: "agentMessage" } as never,
+        item: agentMessageItem("item_1", "run_1", "completed"),
       }),
     });
     t.inject({

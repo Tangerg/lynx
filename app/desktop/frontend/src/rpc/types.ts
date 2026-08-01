@@ -8,7 +8,7 @@
 //   Notification: { jsonrpc, method, params? }         (no id)
 //
 // Lyra currently uses notifications only for runtime→client event delivery
-// (`notifications.run.event` and `notifications.workspace.event`). Mutations
+// (`notifications.run.event` and `notifications.runtime.event`). Mutations
 // such as `sessions.update` are ordinary requests with correlated responses.
 
 import { z } from "zod";
@@ -132,21 +132,37 @@ export function isErrorResponse(msg: RpcResponse): msg is RpcResponseError {
 // Inbound envelope gate (trust boundary — CLAUDE.md §3).
 // ---------------------------------------------------------------------------
 
-// Validates JSON-RPC 2.0 envelope STRUCTURE only. `result` / `params` stay
-// `unknown`: per-method payload schemas are deliberately not maintained (kept
-// in sync by review — see API.md / the no-codegen note), and leaving them
-// opaque keeps the check O(top-level keys), cheap enough for the per-event
-// streaming path. `looseObject` so a forward-compatible envelope extension
-// isn't rejected. Which kind a message is (request / response / notification)
-// is still routed by the discriminators above, not by this schema.
-const RpcEnvelopeSchema = z.looseObject({
-  jsonrpc: z.literal(JSONRPC_VERSION),
-  id: z.string().optional(),
-  method: z.string().optional(),
-  params: z.unknown().optional(),
-  result: z.unknown().optional(),
-  error: z.looseObject({ code: z.number(), message: z.string() }).optional(),
-});
+// Payloads stay unknown here and are checked against generated per-method schemas
+// by RpcClient after response correlation / notification routing. The envelope is
+// open to extension, but its three JSON-RPC shapes remain mutually exclusive.
+const RpcEnvelopeSchema = z
+  .looseObject({
+    jsonrpc: z.literal(JSONRPC_VERSION),
+    id: z.string().optional(),
+    method: z.string().optional(),
+    params: z.unknown().optional(),
+    result: z.unknown().optional(),
+    error: z
+      .looseObject({ code: z.number().int(), message: z.string(), data: z.unknown().optional() })
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    const hasId = value.id !== undefined;
+    const hasMethod = value.method !== undefined;
+    const hasParams = Object.hasOwn(value, "params");
+    const hasResult = Object.hasOwn(value, "result");
+    const hasError = value.error !== undefined;
+
+    const validRequest = hasId && hasMethod && !hasResult && !hasError;
+    const validResponse = hasId && !hasMethod && !hasParams && hasResult !== hasError;
+    const validNotification = !hasId && hasMethod && !hasResult && !hasError;
+    if (!validRequest && !validResponse && !validNotification) {
+      context.addIssue({
+        code: "custom",
+        message: "expected exactly one JSON-RPC request, response, or notification shape",
+      });
+    }
+  });
 
 // Parse + envelope-validate one raw inbound wire message (the trust boundary
 // where untrusted bytes become an RpcMessage). Returns the message on success,

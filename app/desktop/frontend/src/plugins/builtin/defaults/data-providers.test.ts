@@ -23,6 +23,7 @@ import { lookupDataProvider } from "@/plugins/sdk/selectors";
 import { createLyraClient } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess, waitForRequest } from "@/rpc/transports/memory.testkit";
+import type { WireMethodName } from "@/rpc/wire.methods.generated";
 import { defaultDataProviders } from "./index";
 
 afterEach(resetContainer);
@@ -32,7 +33,7 @@ afterEach(resetContainer);
 // are answered in the order listed, which is also the fire order.
 async function runProvider<T>(
   key: string,
-  responses: Array<[method: string, result: unknown]>,
+  responses: Array<[method: WireMethodName, result: unknown]>,
   params?: unknown,
 ): Promise<{ value: T; requests: Array<{ method: string; params: unknown }> }> {
   const t = createMemoryTransport();

@@ -11,9 +11,11 @@
 // this module.
 
 import type { MemoryTransport } from "./memory";
+import type { TransportRequest } from "../transport";
 import type { RunMetrics, SegmentOutcome, StreamEvent } from "../wire.generated";
+import type { WireMethodName } from "../wire.methods.generated";
 import { RUN_EVENT_METHOD } from "../stream";
-import { JSONRPC_VERSION, isRequest, type RpcId, type RpcMessage, type RpcRequest } from "../types";
+import { JSONRPC_VERSION, type RpcId, type RpcMessage } from "../types";
 
 // Outbound (client → server) — synchronisation helpers
 
@@ -26,9 +28,14 @@ import { JSONRPC_VERSION, isRequest, type RpcId, type RpcMessage, type RpcReques
  * Use to grab the id the client allocated so you can craft a matching
  * Response via {@link respondSuccess} / {@link respondError}.
  */
-export async function waitForRequest(t: MemoryTransport, method: string): Promise<RpcRequest> {
+export async function waitForRequest<M extends WireMethodName>(
+  t: MemoryTransport,
+  method: M,
+): Promise<TransportRequest & { method: M }> {
   for (let attempt = 0; attempt < 50; attempt++) {
-    const found = t.outbox().find((m): m is RpcRequest => isRequest(m) && m.method === method);
+    const found = t
+      .outbox()
+      .find((message): message is TransportRequest & { method: M } => message.method === method);
     if (found) return found;
     await new Promise((r) => setTimeout(r, 0));
   }
@@ -48,7 +55,7 @@ export function injectNotification(t: MemoryTransport, method: string, params: u
 }
 
 /** Inject a `notifications.run.event` carrying a v2 StreamEvent (§5). A
- *  fixed timestamp keeps fixtures stable; `durable` defaults to true. The
+ *  fixed timestamp keeps fixtures stable. The
  *  envelope carries BOTH runId and segmentId — the stream tree keys on the
  *  segmentId (a resume opens a new segment of the same run). */
 export function injectRunEvent(
@@ -57,14 +64,12 @@ export function injectRunEvent(
   segmentId: string,
   eventId: string,
   event: StreamEvent,
-  durable = true,
 ): void {
   injectNotification(t, RUN_EVENT_METHOD, {
     runId,
     segmentId,
     eventId,
     timestamp: "2026-06-03T00:00:00Z",
-    durable,
     event,
   });
 }

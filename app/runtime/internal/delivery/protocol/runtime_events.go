@@ -92,6 +92,14 @@ type WatchSpec struct {
 // stream, mirroring StartRunResponse's role for runs.
 type RuntimeSubscribeResponse struct{}
 
+// RuntimeEventNotification is the params carried by
+// notifications.runtime.event. The wrapper is part of the wire contract: unlike
+// run events, runtime events live under an event member so the notification can
+// grow envelope metadata without changing the event union itself.
+type RuntimeEventNotification struct {
+	Event RuntimeEvent `json:"event"`
+}
+
 // RuntimeEvent is one change signal (§7.3): a flat tag-discriminated struct whose
 // optional fields say WHICH resources moved.
 //

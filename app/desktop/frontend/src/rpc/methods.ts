@@ -145,13 +145,13 @@ interface PendingMutation {
 class MutationAttempts {
   private readonly pending = new Map<string, PendingMutation>();
 
-  async call<R, P>(
+  async call<M extends WireMethodName>(
     client: RpcClient,
-    method: string,
-    params: P,
+    method: M,
+    params: WireParams<M>,
     signal?: AbortSignal,
     requestMeta?: RequestMeta | null,
-  ): Promise<R> {
+  ): Promise<WireResult<M>> {
     const identity = mutationIdentity(method, params);
     const now = Date.now();
     this.prune(now);
@@ -161,7 +161,7 @@ class MutationAttempts {
       this.pending.set(identity, attempt);
     }
     try {
-      const result = await client.call<R, P>(method, params, {
+      const result = await client.call(method, params, {
         signal,
         idempotencyKey: attempt.key,
         requestMeta,
@@ -590,14 +590,18 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
         // response immediately; binding only after `call` resolves could drop
         // the head (see streamRunEvents).
         const stream = streamRunEvents(client, signal);
-        const result = await callOrDispose(stream, () => mutate("runs.start", params, signal));
+        const result = await callOrDispose(stream, () =>
+          mutate("runs.start", params, stream.requestSignal),
+        );
         stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };
       },
       resume: async (params, signal) => {
         // A resume opens a NEW segment of the SAME run — bind the tree to it.
         const stream = streamRunEvents(client, signal);
-        const result = await callOrDispose(stream, () => mutate("runs.resume", params, signal));
+        const result = await callOrDispose(stream, () =>
+          mutate("runs.resume", params, stream.requestSignal),
+        );
         stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };
       },
@@ -606,7 +610,10 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
         // binds to it (same deferred-bind head-drop guard).
         const stream = streamRunEvents(client, signal);
         const result = await callOrDispose(stream, () =>
-          call("runs.subscribe", params, { signal, lastEventId: options?.lastEventId }),
+          call("runs.subscribe", params, {
+            signal: stream.requestSignal,
+            lastEventId: options?.lastEventId,
+          }),
         );
         stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };
@@ -625,7 +632,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       subscribe: async (params, signal) => {
         const stream = streamRuntimeEvents(client, signal);
         const result = await callOrDispose(stream, () =>
-          call(RUNTIME_SUBSCRIBE_METHOD, params, { signal }),
+          call(RUNTIME_SUBSCRIBE_METHOD, params, { signal: stream.requestSignal }),
         );
         return { result, events: stream.events };
       },

@@ -30,9 +30,9 @@ func EncodeRuntimeEvent(ev protocol.RuntimeEvent) (transport.Message, error) {
 	if err := protocol.ValidateWireTree(ev); err != nil {
 		return nil, fmt.Errorf("encode runtime event: %w", err)
 	}
-	return transport.NewNotification(NotificationRuntimeEvent, struct {
-		Event protocol.RuntimeEvent `json:"event"`
-	}{Event: ev})
+	return transport.NewNotification(NotificationRuntimeEvent, protocol.RuntimeEventNotification{
+		Event: ev,
+	})
 }
 
 // Client notifications currently have no public methods. Unknown

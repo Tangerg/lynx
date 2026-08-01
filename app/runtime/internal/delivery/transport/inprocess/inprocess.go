@@ -103,7 +103,7 @@ func NewTransport(cfg Config) (*Transport, error) {
 
 // Send dispatches one outbound message through the dispatch. For
 // streaming methods (runs.start, ...), the resulting events are
-// piped onto the Recv channel as notifications/run/event entries.
+// piped onto the Recv channel as notifications.run.event entries.
 func (t *Transport) Send(ctx context.Context, msg transport.Message) error {
 	callCtx, release, ok := t.calls.AttachLinked(ctx)
 	if !ok {

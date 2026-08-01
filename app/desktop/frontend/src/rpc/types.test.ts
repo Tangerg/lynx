@@ -32,13 +32,13 @@ describe("rpc/types discriminators", () => {
   });
 
   it("isNotification matches { jsonrpc, method } with no id", () => {
-    expect(isNotification({ jsonrpc: JSONRPC_VERSION, method: "notifications/run/event" })).toBe(
-      true,
-    );
+    expect(
+      isNotification({ jsonrpc: JSONRPC_VERSION, method: "notifications.example.event" }),
+    ).toBe(true);
     expect(
       isNotification({
         jsonrpc: JSONRPC_VERSION,
-        method: "notifications/run/event",
+        method: "notifications.example.event",
         params: { x: 1 },
       }),
     ).toBe(true);
@@ -93,6 +93,23 @@ describe("parseRpcMessage envelope gate", () => {
     expect(parseRpcMessage(`"a string"`)).toBeNull();
     expect(parseRpcMessage(`42`)).toBeNull();
     expect(parseRpcMessage(`null`)).toBeNull();
+  });
+
+  it("rejects ambiguous or incomplete envelope shapes", () => {
+    expect(parseRpcMessage(`{"jsonrpc":"2.0","id":"1"}`)).toBeNull();
+    expect(
+      parseRpcMessage(
+        `{"jsonrpc":"2.0","id":"1","result":{},"error":{"code":-32603,"message":"no"}}`,
+      ),
+    ).toBeNull();
+    expect(parseRpcMessage(`{"jsonrpc":"2.0","id":"1","method":"x","result":{}}`)).toBeNull();
+    expect(parseRpcMessage(`{"jsonrpc":"2.0","id":"1","result":{},"params":{}}`)).toBeNull();
+    expect(
+      parseRpcMessage(`{"jsonrpc":"2.0","method":"x","error":{"code":1,"message":"no"}}`),
+    ).toBeNull();
+    expect(
+      parseRpcMessage(`{"jsonrpc":"2.0","id":"1","error":{"code":1.5,"message":"no"}}`),
+    ).toBeNull();
   });
 });
 

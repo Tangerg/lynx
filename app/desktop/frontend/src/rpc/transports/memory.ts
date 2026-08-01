@@ -1,23 +1,25 @@
-// In-memory Transport for unit tests + future InProcess (Bubble Tea
-// would use a Go equivalent). Backed by a push-pull async channel
+// In-memory Transport for unit tests. Backed by a push-pull async channel
 // (`channel.ts`) for the inbound side; `inject()` is just a thin alias
 // for `channel.push()`. Outbound side stores messages in an array that
 // tests inspect via `outbox()`.
 
 import { createPushPullChannel } from "../channel";
-import type { Transport } from "../transport";
+import type { Transport, TransportEvent, TransportRequest } from "../transport";
+import type { WireStreamingMethodName } from "../wire.methods.generated";
 import type { RpcMessage } from "../types";
 
 export interface MemoryTransport extends Transport {
   /** Push a message as if it arrived from the runtime. */
   inject(msg: RpcMessage): void;
+  /** End one streaming response as if reported by the transport. */
+  endStream(method: WireStreamingMethodName, runIds?: readonly string[]): void;
   /** Drain all messages the client has sent so far. */
-  outbox(): RpcMessage[];
+  outbox(): TransportRequest[];
 }
 
 export function createMemoryTransport(): MemoryTransport {
-  const sent: RpcMessage[] = [];
-  const channel = createPushPullChannel<RpcMessage>();
+  const sent: TransportRequest[] = [];
+  const channel = createPushPullChannel<TransportEvent>();
 
   return {
     async send(msg) {
@@ -30,7 +32,11 @@ export function createMemoryTransport(): MemoryTransport {
     },
     inject(msg) {
       if (channel.closed) throw new Error("transport closed");
-      channel.push(msg);
+      channel.push({ type: "message", message: msg });
+    },
+    endStream(method, runIds = []) {
+      if (channel.closed) throw new Error("transport closed");
+      channel.push({ type: "streamEnd", method, runIds });
     },
     outbox() {
       return [...sent];

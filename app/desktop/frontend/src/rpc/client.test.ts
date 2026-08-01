@@ -1,144 +1,234 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createRpcClient } from "./client";
-import { RpcError, RpcTransportError } from "./errors";
+import { RpcError, RpcProtocolError, RpcTransportError } from "./errors";
 import { createMemoryTransport } from "./transports/memory";
 import { waitForRequest } from "./transports/memory.testkit";
 import type { RpcMessage } from "./types";
 import { JSONRPC_VERSION, RPC_METHOD_NOT_FOUND } from "./types";
+import session from "./samples/session.json";
 
-// A business error's number is the runtime's to assign and this client no longer
-// mirrors the table; the correlation this test is about does not depend on which
-// number arrives.
 const SOME_BUSINESS_CODE = -32002;
 
 describe("RpcClient", () => {
-  it("call() sends a Request and resolves with result", async () => {
-    const t = createMemoryTransport();
-    const client = createRpcClient(t);
+  it("sends a registered Request and resolves a validated result", async () => {
+    const transport = createMemoryTransport();
+    const client = createRpcClient(transport);
 
-    const promise = client.call<{ ok: boolean }>("test.echo");
-    const req = await waitForRequest(t, "test.echo");
-    expect(req.method).toBe("test.echo");
-    expect(req.jsonrpc).toBe(JSONRPC_VERSION);
+    const promise = client.call("sessions.get", { sessionId: "ses_01" });
+    const request = await waitForRequest(transport, "sessions.get");
+    expect(request.jsonrpc).toBe(JSONRPC_VERSION);
 
-    t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: { ok: true } } as RpcMessage);
-
-    expect(await promise).toEqual({ ok: true });
-    await client.close();
-  });
-
-  it("call() rejects with RpcError on error response", async () => {
-    const t = createMemoryTransport();
-    const client = createRpcClient(t);
-
-    const promise = client.call("sessions.get", { id: "missing" });
-    const req = await waitForRequest(t, "sessions.get");
-
-    t.inject({
+    transport.inject({
       jsonrpc: JSONRPC_VERSION,
-      id: req.id,
-      error: { code: SOME_BUSINESS_CODE, message: "not found" },
+      id: request.id,
+      result: session,
     } as RpcMessage);
 
-    await expect(promise).rejects.toBeInstanceOf(RpcError);
-    await expect(promise).rejects.toMatchObject({ code: SOME_BUSINESS_CODE });
+    await expect(promise).resolves.toEqual(session);
     await client.close();
   });
 
-  it("notify() sends a Notification with no id", async () => {
-    const t = createMemoryTransport();
-    const client = createRpcClient(t);
-    await client.notify("test.notification", { id: "5" });
-    const sent = t.outbox()[0];
-    expect(sent).toBeDefined();
-    expect("id" in (sent as object)).toBe(false);
-    expect((sent as { method: string }).method).toBe("test.notification");
+  it("rejects a malformed method result at the generated contract boundary", async () => {
+    const transport = createMemoryTransport();
+    const client = createRpcClient(transport);
+
+    const promise = client.call("sessions.get", { sessionId: "ses_01" });
+    const request = await waitForRequest(transport, "sessions.get");
+    const { revision: _revision, ...malformed } = session;
+    transport.inject({ jsonrpc: JSONRPC_VERSION, id: request.id, result: malformed } as RpcMessage);
+
+    await expect(promise).rejects.toMatchObject({
+      name: "RpcProtocolError",
+      violations: [{ path: "sessions.get.result.revision", detail: "is required" }],
+    } satisfies Partial<RpcProtocolError>);
     await client.close();
   });
 
-  it("subscribe() dispatches inbound notifications to matching handlers", async () => {
-    const t = createMemoryTransport();
-    const client = createRpcClient(t);
-    const events: unknown[] = [];
-    const unsub = client.subscribe("notifications/run/event", (msg) => events.push(msg.params));
+  it("validates an ack result and exposes it as void", async () => {
+    const transport = createMemoryTransport();
+    const client = createRpcClient(transport);
 
-    t.inject({
+    const promise = client.call("sessions.delete", { sessionId: "ses_01" });
+    const request = await waitForRequest(transport, "sessions.delete");
+    transport.inject({ jsonrpc: JSONRPC_VERSION, id: request.id, result: {} });
+
+    await expect(promise).resolves.toBeUndefined();
+    await client.close();
+  });
+
+  it("rejects with RpcError on a valid error response", async () => {
+    const transport = createMemoryTransport();
+    const client = createRpcClient(transport);
+
+    const promise = client.call("sessions.get", { sessionId: "missing" });
+    const request = await waitForRequest(transport, "sessions.get");
+    transport.inject({
       jsonrpc: JSONRPC_VERSION,
-      method: "notifications/run/event",
-      params: { eventId: "1", event: { type: "TEXT_MESSAGE_CONTENT" } },
-    });
-    // Give the dispatch loop a tick.
-    await new Promise((r) => setTimeout(r, 0));
-    expect(events).toHaveLength(1);
+      id: request.id,
+      error: {
+        code: SOME_BUSINESS_CODE,
+        message: "not found",
+        data: { type: "session_not_found", recoveryAction: "refetch" },
+      },
+    } as RpcMessage);
 
-    unsub();
-    t.inject({
-      jsonrpc: JSONRPC_VERSION,
-      method: "notifications/run/event",
-      params: { eventId: "2" },
-    });
-    await new Promise((r) => setTimeout(r, 0));
-    expect(events).toHaveLength(1); // unsubscribed — no second event
+    await expect(promise).rejects.toMatchObject({
+      name: "RpcError",
+      code: SOME_BUSINESS_CODE,
+    } satisfies Partial<RpcError>);
     await client.close();
   });
 
-  it("close() rejects pending calls and prevents further use", async () => {
-    const t = createMemoryTransport();
-    const client = createRpcClient(t);
-    const promise = client.call("test.echo");
-    await waitForRequest(t, "test.echo");
+  it("dispatches only validated published notifications", async () => {
+    const transport = createMemoryTransport();
+    const client = createRpcClient(transport);
+    const next = vi.fn();
+    const error = vi.fn();
+    const unsubscribe = client.subscribe("notifications.runtime.event", { next, error });
+
+    transport.inject({
+      jsonrpc: JSONRPC_VERSION,
+      method: "notifications.runtime.event",
+      params: { event: { type: "skills.changed", sequence: 1 } },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(error).not.toHaveBeenCalled();
+    unsubscribe();
+    await client.close();
+  });
+
+  it("terminates subscribers when notification params violate the contract", async () => {
+    const transport = createMemoryTransport();
+    const client = createRpcClient(transport);
+    const next = vi.fn();
+    const error = vi.fn();
+    client.subscribe("notifications.runtime.event", { next, error });
+
+    transport.inject({
+      jsonrpc: JSONRPC_VERSION,
+      method: "notifications.runtime.event",
+      params: { event: { type: "skills.changed", sequence: 0 } },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(next).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith(expect.any(RpcProtocolError));
+    await client.close();
+  });
+
+  it("drops a malformed ephemeral run event without terminating its stream", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const transport = createMemoryTransport();
+    const client = createRpcClient(transport);
+    const next = vi.fn();
+    const error = vi.fn();
+    client.subscribe("notifications.run.event", { next, error });
+
+    transport.inject({
+      jsonrpc: JSONRPC_VERSION,
+      method: "notifications.run.event",
+      params: {
+        runId: "run_01",
+        segmentId: "seg_01",
+        eventId: "evt_01",
+        timestamp: "2026-08-02T00:00:00Z",
+        event: { type: "item.delta" },
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(next).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("invalid ephemeral notification"));
+    warn.mockRestore();
+    await client.close();
+  });
+
+  it("terminates a run stream when an authoritative event is malformed", async () => {
+    const transport = createMemoryTransport();
+    const client = createRpcClient(transport);
+    const next = vi.fn();
+    const error = vi.fn();
+    client.subscribe("notifications.run.event", { next, error });
+
+    transport.inject({
+      jsonrpc: JSONRPC_VERSION,
+      method: "notifications.run.event",
+      params: {
+        runId: "run_01",
+        segmentId: "seg_01",
+        eventId: "evt_01",
+        timestamp: "2026-08-02T00:00:00Z",
+        event: { type: "segment.finished" },
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(next).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith(expect.any(RpcProtocolError));
+    await client.close();
+  });
+
+  it("close rejects pending calls and prevents further use", async () => {
+    const transport = createMemoryTransport();
+    const client = createRpcClient(transport);
+    const promise = client.call("sessions.get", { sessionId: "ses_01" });
+    await waitForRequest(transport, "sessions.get");
 
     await client.close();
     await expect(promise).rejects.toBeInstanceOf(RpcTransportError);
-    await expect(client.call("test.echo")).rejects.toBeInstanceOf(RpcTransportError);
+    await expect(client.call("sessions.get", { sessionId: "ses_01" })).rejects.toBeInstanceOf(
+      RpcTransportError,
+    );
   });
 
   it("rejects in-flight calls when the transport stream ends cleanly", async () => {
-    // Close the transport directly (not via client.close()), simulating a
-    // remote/clean EOS while a request is in flight. recv() completes
-    // without throwing — the pump must still settle the pending call.
-    const t = createMemoryTransport();
-    const client = createRpcClient(t);
-    const promise = client.call("test.echo");
-    await waitForRequest(t, "test.echo");
+    const transport = createMemoryTransport();
+    const client = createRpcClient(transport);
+    const promise = client.call("sessions.get", { sessionId: "ses_01" });
+    await waitForRequest(transport, "sessions.get");
 
-    await t.close();
+    await transport.close();
     await expect(promise).rejects.toBeInstanceOf(RpcTransportError);
-    await expect(client.call("test.echo")).rejects.toBeInstanceOf(RpcTransportError);
-    await expect(client.notify("test.notification", { id: "late" })).rejects.toBeInstanceOf(
+    await expect(client.call("sessions.get", { sessionId: "ses_01" })).rejects.toBeInstanceOf(
       RpcTransportError,
     );
   });
 
   it("AbortSignal cancels an in-flight call without a second protocol message", async () => {
-    const t = createMemoryTransport();
-    const client = createRpcClient(t);
-    const ctrl = new AbortController();
-    const promise = client.call("runs.start", undefined, { signal: ctrl.signal });
-    await waitForRequest(t, "runs.start");
-    ctrl.abort();
+    const transport = createMemoryTransport();
+    const client = createRpcClient(transport);
+    const controller = new AbortController();
+    const promise = client.call(
+      "runs.start",
+      { sessionId: "ses_01", input: [{ type: "text", text: "hello" }] },
+      { signal: controller.signal },
+    );
+    await waitForRequest(transport, "runs.start");
+    controller.abort();
+
     await expect(promise).rejects.toBeInstanceOf(RpcTransportError);
-    expect(t.outbox()).toHaveLength(1);
+    expect(transport.outbox()).toHaveLength(1);
     await client.close();
   });
 
-  it("ignores method-not-found errors when no matching subscriber", async () => {
-    const t = createMemoryTransport();
-    const client = createRpcClient(t);
-    // Inject a notification nobody subscribed to — should not crash.
-    t.inject({
+  it("ignores unknown server notifications without poisoning correlation", async () => {
+    const transport = createMemoryTransport();
+    const client = createRpcClient(transport);
+    transport.inject({
       jsonrpc: JSONRPC_VERSION,
-      method: "notifications/unknown",
+      method: "notifications.unknown",
       params: {},
     });
-    await new Promise((r) => setTimeout(r, 0));
-    // Survives — call still works.
-    const promise = client.call<number>("test.echo");
-    const req = await waitForRequest(t, "test.echo");
-    t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: 1 });
-    expect(await promise).toBe(1);
+    await Promise.resolve();
+
+    const promise = client.call("sessions.get", { sessionId: "ses_01" });
+    const request = await waitForRequest(transport, "sessions.get");
+    transport.inject({ jsonrpc: JSONRPC_VERSION, id: request.id, result: session } as RpcMessage);
+    await expect(promise).resolves.toEqual(session);
     await client.close();
-    // Reference unused import to please knip in test:
     expect(RPC_METHOD_NOT_FOUND).toBeLessThan(0);
   });
 });

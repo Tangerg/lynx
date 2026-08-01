@@ -1,10 +1,5 @@
-// End-to-end smoke test — exercises the happy path of the Lyra Runtime
-// Protocol v2 (docs/protocol/API.md). Uses MemoryTransport to simulate the server,
-// so this runs in CI without any backend dependency.
-//
-// Swapping MemoryTransport for HTTPTransport validates wire compatibility
-// against the real backend. The request / response / notification
-// interleavings encoded here ARE the protocol contract.
+// In-memory protocol scenario covering response/notification interleavings. The
+// separate runtime-http.e2e test owns real Go Runtime ↔ HTTP ↔ TypeScript coverage.
 //
 // Coverage:
 //   1. runtime.discover            (optional capability discovery)
@@ -98,6 +93,7 @@ describe("smoke: v2 end-to-end happy path", () => {
       cwd: "/work",
       createdAt: "2026-06-03T00:00:00Z",
       updatedAt: "2026-06-03T00:00:00Z",
+      revision: 1,
     });
     const session = await createPromise;
     expect(session.id).toBe("ses_1");
@@ -110,7 +106,11 @@ describe("smoke: v2 end-to-end happy path", () => {
     });
     const startReq = await waitForRequest(transport, "runs.start");
     expect(startReq.params).toMatchObject({ sessionId: "ses_1" });
-    respondSuccess(transport, startReq.id, { runId: "run_1", segmentId: "seg_1" });
+    respondSuccess(transport, startReq.id, {
+      runId: "run_1",
+      segmentId: "seg_1",
+      userItemId: "item_user_1",
+    });
     const { result: started, events } = await startPromise;
     expect(started.runId).toBe("run_1");
     expect(started.segmentId).toBe("seg_1");
@@ -130,18 +130,11 @@ describe("smoke: v2 end-to-end happy path", () => {
         type: "item.started",
         item: agentMessageItem("item_1", "run_1", "", "running"),
       });
-      injectRunEvent(
-        transport,
-        "run_1",
-        "seg_1",
-        "evt_3",
-        {
-          type: "item.delta",
-          itemId: asItemId("item_1"),
-          delta: { type: "content", text: "Running ls…" },
-        },
-        false,
-      );
+      injectRunEvent(transport, "run_1", "seg_1", "evt_3", {
+        type: "item.delta",
+        itemId: asItemId("item_1"),
+        delta: { type: "content", text: "Running ls…" },
+      });
       injectRunEvent(transport, "run_1", "seg_1", "evt_4", {
         type: "item.started",
         item: {
@@ -236,7 +229,11 @@ describe("smoke: v2 end-to-end happy path", () => {
       input: [{ type: "text", text: "hi" }],
     });
     const req = await waitForRequest(transport, "runs.start");
-    respondSuccess(transport, req.id, { runId: "run_ours", segmentId: "seg_ours" });
+    respondSuccess(transport, req.id, {
+      runId: "run_ours",
+      segmentId: "seg_ours",
+      userItemId: "item_user_ours",
+    });
     const { events } = await startPromise;
 
     setTimeout(() => {
@@ -256,7 +253,7 @@ describe("smoke: v2 end-to-end happy path", () => {
     expect(collected.map((e) => e.runId)).toEqual(["run_ours", "run_ours"]);
   });
 
-  it("malformed notification params are dropped (Zod boundary)", async () => {
+  it("malformed notification params terminate the stream at the generated boundary", async () => {
     transport = createMemoryTransport();
     client = createRpcClient(transport);
     methods = createMethods(client);
@@ -266,7 +263,11 @@ describe("smoke: v2 end-to-end happy path", () => {
       input: [{ type: "text", text: "hi" }],
     });
     const req = await waitForRequest(transport, "runs.start");
-    respondSuccess(transport, req.id, { runId: "run_1", segmentId: "seg_1" });
+    respondSuccess(transport, req.id, {
+      runId: "run_1",
+      segmentId: "seg_1",
+      userItemId: "item_user_1",
+    });
     const { events } = await startPromise;
 
     setTimeout(() => {
@@ -276,15 +277,12 @@ describe("smoke: v2 end-to-end happy path", () => {
         method: "notifications.run.event",
         params: { runId: "run_1", event: { type: "item.started" } },
       });
-      injectRunEvent(transport, "run_1", "seg_1", "evt_1", {
-        type: "item.completed",
-        item: agentMessageItem("item_ok", "run_1", "ok", "completed"),
-      });
-      injectRunFinished(transport, "run_1", "seg_1", "evt_2");
     }, 0);
 
-    const collected: RunEvent[] = [];
-    for await (const ev of events) collected.push(ev);
-    expect(collected.map((e) => e.event.type)).toEqual(["item.completed", "segment.finished"]);
+    await expect(async () => {
+      for await (const _event of events) {
+        // The malformed first frame yields nothing.
+      }
+    }).rejects.toMatchObject({ name: "RpcProtocolError" });
   });
 });

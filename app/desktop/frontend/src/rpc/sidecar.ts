@@ -1,35 +1,40 @@
-import { parseTransportProblem, RpcTransportError } from "./errors";
+import { z } from "zod";
+import { errorMessage, parseTransportProblem, RpcTransportError } from "./errors";
 
 const INFO_PATH = "/v2/info";
 const LIVENESS_PATH = "/v2/health/live";
 const READINESS_PATH = "/v2/health/ready";
 
-export interface RuntimeInfo {
-  protocol: {
-    current: string;
-    minSupported: string;
-  };
-  server: {
-    name: string;
-    version: string;
-  };
-  transport: "http";
-  endpoints: {
-    rpc: string;
-    info: string;
-    liveness: string;
-    readiness: string;
-  };
-}
+const HealthStateSchema = z.enum(["ok", "degraded", "unhealthy"]);
 
-export interface LivenessStatus {
-  status: "ok";
-}
+const RuntimeInfoSchema = z.looseObject({
+  protocol: z.looseObject({
+    current: z.string(),
+    minSupported: z.string(),
+  }),
+  server: z.looseObject({
+    name: z.string(),
+    version: z.string(),
+  }),
+  transport: z.literal("http"),
+  endpoints: z.looseObject({
+    rpc: z.string(),
+    info: z.string(),
+    liveness: z.string(),
+    readiness: z.string(),
+  }),
+});
 
-export interface ReadinessStatus {
-  status: "ok" | "degraded" | "unhealthy";
-  checks?: Record<string, "ok" | "degraded" | "unhealthy">;
-}
+const LivenessStatusSchema = z.looseObject({ status: z.literal("ok") });
+
+const ReadinessStatusSchema = z.looseObject({
+  status: HealthStateSchema,
+  checks: z.record(z.string(), HealthStateSchema).optional(),
+});
+
+export type RuntimeInfo = z.infer<typeof RuntimeInfoSchema>;
+export type LivenessStatus = z.infer<typeof LivenessStatusSchema>;
+export type ReadinessStatus = z.infer<typeof ReadinessStatusSchema>;
 
 export interface SidecarClientConfig {
   baseUrl: string;
@@ -48,6 +53,7 @@ export function createSidecarClient(config: SidecarClientConfig): SidecarClient 
 
   async function getJson<T>(
     path: string,
+    schema: z.ZodType<T>,
     signal?: AbortSignal,
     acceptUnavailable = false,
   ): Promise<T> {
@@ -59,14 +65,14 @@ export function createSidecarClient(config: SidecarClientConfig): SidecarClient 
         signal,
       });
     } catch (err) {
-      throw new RpcTransportError(`sidecar ${path}: ${(err as Error).message}`);
+      throw new RpcTransportError(`sidecar ${path}: ${errorMessage(err)}`);
     }
     let text: string;
     try {
       text = await res.text();
     } catch (err) {
       throw new RpcTransportError(
-        `sidecar ${path}: response could not be read: ${(err as Error).message}`,
+        `sidecar ${path}: response could not be read: ${errorMessage(err)}`,
         res.status,
         res.headers.get("Request-Id") ?? undefined,
       );
@@ -82,20 +88,30 @@ export function createSidecarClient(config: SidecarClientConfig): SidecarClient 
         problem?.type,
       );
     }
+    let json: unknown;
     try {
-      return JSON.parse(text) as T;
+      json = JSON.parse(text);
     } catch (err) {
       throw new RpcTransportError(
-        `sidecar ${path}: invalid JSON: ${(err as Error).message}`,
+        `sidecar ${path}: invalid JSON: ${errorMessage(err)}`,
         res.status,
         res.headers.get("Request-Id") ?? undefined,
       );
     }
+    const parsed = schema.safeParse(json);
+    if (!parsed.success) {
+      throw new RpcTransportError(
+        `sidecar ${path}: response violates its contract: ${parsed.error.message}`,
+        res.status,
+        res.headers.get("Request-Id") ?? undefined,
+      );
+    }
+    return parsed.data;
   }
 
   return {
-    info: (signal) => getJson<RuntimeInfo>(INFO_PATH, signal),
-    liveness: (signal) => getJson<LivenessStatus>(LIVENESS_PATH, signal),
-    readiness: (signal) => getJson<ReadinessStatus>(READINESS_PATH, signal, true),
+    info: (signal) => getJson(INFO_PATH, RuntimeInfoSchema, signal),
+    liveness: (signal) => getJson(LIVENESS_PATH, LivenessStatusSchema, signal),
+    readiness: (signal) => getJson(READINESS_PATH, ReadinessStatusSchema, signal, true),
   };
 }

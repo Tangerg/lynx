@@ -1,5 +1,11 @@
 import { queryClient } from "@/lib/queryClient";
-import type { RunEvent, RunId, SegmentId, StreamingResult } from "@/rpc";
+import {
+  RpcProtocolError,
+  type RunEvent,
+  type RunId,
+  type SegmentId,
+  type StreamingResult,
+} from "@/rpc";
 import { AGENT_SESSION_USAGE_KEY } from "../application/session/sessionUsage";
 import { createRunEventBatcher } from "./runEventBatcher";
 
@@ -21,6 +27,7 @@ export interface RunStreamPosition {
   runId: RunId;
   segmentId: SegmentId;
   lastEventId: string;
+  recovery: "replay" | "cold";
 }
 
 interface AgentRunPumpOptions {
@@ -74,6 +81,7 @@ export function createAgentRunPump({
         runId,
         segmentId: stream.result.segmentId,
         lastEventId: stream.result.headEventId ?? "",
+        recovery: "replay",
       };
       let events: AsyncIterable<RunEvent> | null = stream.events;
       try {
@@ -84,12 +92,13 @@ export function createAgentRunPump({
           const next = await reattach(position, signal);
           if (!next) break;
           position = {
-            ...position,
+            runId,
             segmentId: next.result.segmentId,
             // Only adopt the ack's head when this client holds no cursor of its own:
             // the head of a replaying attach sits AHEAD of what was asked for, so
             // taking it would silently skip everything the replay is delivering.
             lastEventId: position.lastEventId || (next.result.headEventId ?? ""),
+            recovery: "replay",
           };
           currentSegmentId = next.result.segmentId;
           events = next.events;
@@ -130,6 +139,9 @@ export function createAgentRunPump({
         }
       }
     } catch (err) {
+      if (err instanceof RpcProtocolError) {
+        position = { ...position, recovery: "cold" };
+      }
       if (!isCancelled() && !signal.aborted)
         console.warn("[agent] run stream ended early:", sessionId, err);
     }

@@ -34,6 +34,14 @@ func TestRegisteredShapesDescribeRealTypes(t *testing.T) {
 			t.Errorf("state key %s: %v", key.Key, err)
 		}
 	}
+	if len(shapes.Notifications()) == 0 {
+		t.Fatal("no downstream notification is registered")
+	}
+	for _, notification := range shapes.Notifications() {
+		if err := notification.validate(); err != nil {
+			t.Errorf("notification %s: %v", notification.Name, err)
+		}
+	}
 }
 
 func TestShapeViewsAreSnapshots(t *testing.T) {
@@ -58,6 +66,53 @@ func TestShapeViewsAreSnapshots(t *testing.T) {
 	stateKeys[0].Key = "corrupted"
 	if got := shapes.StateKeys()[0].Key; got != originalKey {
 		t.Fatalf("StateKeys exposed registry storage: got %q, want %q", got, originalKey)
+	}
+
+	notifications := shapes.Notifications()
+	originalName := notifications[0].Name
+	notifications[0].Name = "notifications.corrupted"
+	if got := shapes.Notifications()[0].Name; got != originalName {
+		t.Fatalf("Notifications exposed registry storage: got %q, want %q", got, originalName)
+	}
+}
+
+func TestNotificationValidationRejectsUnpublishableParams(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		spec NotificationSpec
+		want string
+	}{
+		{name: "empty method", spec: NotificationSpec{}, want: "method name"},
+		{
+			name: "missing params",
+			spec: NotificationSpec{Name: "notifications.test.event"},
+			want: "no params type",
+		},
+		{
+			name: "anonymous params",
+			spec: NotificationSpec{
+				Name: "notifications.test.event", ParamsType: reflect.TypeFor[struct{}](),
+			},
+			want: "named struct",
+		},
+		{
+			name: "wrong namespace",
+			spec: NotificationSpec{
+				Name: "runtime.event", ParamsType: reflect.TypeFor[protocol.RuntimeEventNotification](),
+			},
+			want: "notifications namespace",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := test.spec.validate()
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("validate error = %v, want it to mention %q", err, test.want)
+			}
+		})
 	}
 }
 

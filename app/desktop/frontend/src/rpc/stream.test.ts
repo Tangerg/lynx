@@ -8,43 +8,55 @@
 //   - the client subscription is torn down on BOTH natural completion and
 //     early break (otherwise every finished run leaks a subscriber).
 
-import type { NotificationHandler, RpcClient } from "./client";
+import type { NotificationObserver, RpcClient, StreamEndHandler } from "./client";
 import { describe, expect, it } from "vitest";
 import type { RunEvent } from "./wire.generated";
 import { RUN_EVENT_METHOD, streamRunEvents } from "./stream";
-import { STREAM_DOWN_METHOD } from "./transport";
-import { JSONRPC_VERSION } from "./types";
+import type { WireNotificationName, WireNotificationParams } from "./wire.validate.generated";
 
 function fakeClient() {
-  const subs = new Map<string, Set<NotificationHandler>>();
+  const subs = new Map<WireNotificationName, Set<NotificationObserver>>();
+  const streamEndHandlers = new Set<StreamEndHandler>();
   let active = 0;
   const client = {
     call: async () => {
       throw new Error("unused");
     },
-    notify: async () => undefined,
     close: async () => undefined,
-    subscribe(method: string, handler: NotificationHandler) {
+    subscribe(method: WireNotificationName, observer: NotificationObserver) {
       let set = subs.get(method);
       if (!set) {
         set = new Set();
         subs.set(method, set);
       }
-      set.add(handler);
+      set.add(observer);
       active++;
       return () => {
-        set.delete(handler);
+        set.delete(observer);
+        active--;
+      };
+    },
+    onStreamEnd(handler: StreamEndHandler) {
+      streamEndHandlers.add(handler);
+      active++;
+      return () => {
+        streamEndHandlers.delete(handler);
         active--;
       };
     },
   } as unknown as RpcClient;
 
-  const emitTo = (method: string, params: unknown) => {
-    for (const h of subs.get(method) ?? [])
-      h({ jsonrpc: JSONRPC_VERSION, method, params } as Parameters<NotificationHandler>[0]);
+  const emitTo = <M extends WireNotificationName>(method: M, params: WireNotificationParams[M]) => {
+    for (const observer of subs.get(method) ?? []) {
+      observer.next(params);
+    }
   };
-  const emit = (params: unknown) => emitTo(RUN_EVENT_METHOD, params);
-  const emitDown = (runIds: string[]) => emitTo(STREAM_DOWN_METHOD, { runIds });
+  const emit = (params: RunEvent) => emitTo(RUN_EVENT_METHOD, params);
+  const emitDown = (runIds: string[]) => {
+    for (const handler of streamEndHandlers) {
+      handler({ type: "streamEnd", method: "runs.start", runIds });
+    }
+  };
   return { client, emit, emitDown, activeCount: () => active };
 }
 
@@ -58,7 +70,7 @@ function evt(
 }
 
 // A root-segment segment.started — its `run.id` is the root runId (learned by the
-// tree for STREAM_DOWN matching); it lands FIRST on every real stream.
+// tree for transport stream-end matching); it lands FIRST on every real stream.
 function rootStarted(): RunEvent {
   return evt("run_root", "seg_root", "evt_start", {
     type: "segment.started",
@@ -208,9 +220,10 @@ describe("streamRunEvents — tree membership (bound)", () => {
     await consume;
     expect(collected).toEqual(["item.started"]);
     expect(activeCount()).toBe(0);
+    expect(stream.requestSignal.aborted).toBe(true);
   });
 
-  it("a stream-down naming a tree run closes the stream (consumer unblocks)", async () => {
+  it("a stream-end naming a tree run closes the stream (consumer unblocks)", async () => {
     const { client, emit, emitDown, activeCount } = fakeClient();
     const stream = streamRunEvents(client);
     stream.bind("run_root", "seg_root");
@@ -236,7 +249,7 @@ describe("streamRunEvents — tree membership (bound)", () => {
     expect(activeCount()).toBe(0);
   });
 
-  it("remembers a stream-down that arrives before the call result is bound", async () => {
+  it("remembers a stream-end that arrives before the call result is bound", async () => {
     const { client, emitDown, activeCount } = fakeClient();
     const stream = streamRunEvents(client);
     const iterator = stream.events[Symbol.asyncIterator]();
@@ -251,7 +264,7 @@ describe("streamRunEvents — tree membership (bound)", () => {
     expect(activeCount()).toBe(0);
   });
 
-  it("a stream-down for an unrelated run leaves the stream open", async () => {
+  it("a stream-end for an unrelated run leaves the stream open", async () => {
     const { client, emit, emitDown } = fakeClient();
     const stream = streamRunEvents(client);
     stream.bind("run_root", "seg_root");
@@ -282,7 +295,7 @@ describe("streamRunEvents — tree membership (bound)", () => {
 });
 
 describe("streamRunEvents — deferred bind lifecycle", () => {
-  it("subscribes to the run-event + stream-down methods on creation", () => {
+  it("subscribes to run events and transport stream-end events on creation", () => {
     const { client, activeCount } = fakeClient();
     streamRunEvents(client);
     expect(activeCount()).toBe(2);
@@ -296,6 +309,7 @@ describe("streamRunEvents — deferred bind lifecycle", () => {
     expect(activeCount()).toBe(2);
     stream.dispose();
     expect(activeCount()).toBe(0);
+    expect(stream.requestSignal.aborted).toBe(true);
   });
 
   it("short-circuits + cleans up on an already-aborted signal", async () => {

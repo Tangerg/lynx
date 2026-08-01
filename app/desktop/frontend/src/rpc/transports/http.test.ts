@@ -1,7 +1,7 @@
-import type { RpcMessage } from "../types";
+import type { TransportRequest } from "../transport";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RpcTransportError } from "../errors";
-import { STREAM_DOWN_METHOD } from "../transport";
+import type { WireMethodName } from "../wire.methods.generated";
 import { createHttpTransport } from "./http";
 
 afterEach(() => vi.restoreAllMocks());
@@ -48,8 +48,12 @@ function jsonResponse(obj: unknown): Response {
 const frame = (obj: unknown, id?: string): string =>
   `${id ? `id: ${id}\n` : ""}data: ${JSON.stringify(obj)}\n\n`;
 
-const req = (id: string, method: string): RpcMessage =>
-  ({ jsonrpc: "2.0", id, method, params: {} }) as RpcMessage;
+const req = (id: string, method: WireMethodName): TransportRequest => ({
+  jsonrpc: "2.0",
+  id,
+  method,
+  params: {},
+});
 
 describe("HTTPTransport — streamable HTTP", () => {
   it("streaming method: POST response stream yields the call response then its events", async () => {
@@ -84,9 +88,18 @@ describe("HTTPTransport — streamable HTTP", () => {
     const r2 = await it.next();
     await transport.close();
 
-    expect(r0.value).toMatchObject({ id: "1", result: { runId: "run_01" } });
-    expect(r1.value).toMatchObject({ params: { event: { type: "segment.started" } } });
-    expect(r2.value).toMatchObject({ params: { event: { type: "segment.finished" } } });
+    expect(r0.value).toMatchObject({
+      type: "message",
+      message: { id: "1", result: { runId: "run_01" } },
+    });
+    expect(r1.value).toMatchObject({
+      type: "message",
+      message: { params: { event: { type: "segment.started" } } },
+    });
+    expect(r2.value).toMatchObject({
+      type: "message",
+      message: { params: { event: { type: "segment.finished" } } },
+    });
   });
 
   it("non-streaming method: POST returns a single application/json message", async () => {
@@ -104,11 +117,24 @@ describe("HTTPTransport — streamable HTTP", () => {
     const r = await it.next();
     await transport.close();
 
-    expect(r.value).toMatchObject({ id: "2", result: { id: "ses_1" } });
+    expect(r.value).toMatchObject({
+      type: "message",
+      message: { id: "2", result: { id: "ses_1" } },
+    });
     expect(fetchStub).toHaveBeenCalledWith(
       "http://x/v2/rpc",
       expect.objectContaining({ method: "POST" }),
     );
+  });
+
+  it("rejects an event stream returned for a non-streaming method", async () => {
+    const fetchStub = (async () => sseResponse([])) as unknown as typeof fetch;
+    const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
+
+    await expect(transport.send(req("2", "sessions.get"))).rejects.toThrow(
+      "non-streaming RPC method sessions.get returned an event stream",
+    );
+    await transport.close();
   });
 
   it("sends the logical mutation idempotency key as transport metadata", async () => {
@@ -126,15 +152,6 @@ describe("HTTPTransport — streamable HTTP", () => {
 
     const headers = fetchStub.mock.calls[0]?.[1]?.headers as Record<string, string>;
     expect(headers["Idempotency-Key"]).toBe("operation-key-1");
-  });
-
-  it("204 notification ack is a no-op", async () => {
-    const fetchStub = (async () => new Response(null, { status: 204 })) as unknown as typeof fetch;
-    const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
-    await expect(
-      transport.send({ jsonrpc: "2.0", method: "test.notification", params: {} } as RpcMessage),
-    ).resolves.toBeUndefined();
-    await transport.close();
   });
 
   it("rejects a no-content response for a call", async () => {
@@ -214,11 +231,10 @@ describe("HTTPTransport — streamable HTTP", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it("a stream dying mid-run synthesizes a stream-down naming the run", async () => {
-    vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("a stream dying mid-run reports a typed stream termination", async () => {
     // Response frame arrives (runId run_01), then the connection dies with a
     // non-abort error — no segment.finished was ever delivered. Without the
-    // synthetic, every consumer of run_01's events would await forever.
+    // transport event, every consumer of run_01's events would await forever.
     const responseFrame = frame({ jsonrpc: "2.0", id: "1", result: { runId: "run_01" } });
     const enc = new TextEncoder();
     let sent = false;
@@ -242,14 +258,22 @@ describe("HTTPTransport — streamable HTTP", () => {
 
     await transport.send(req("1", "runs.start"));
     const r0 = await it.next(); // the call's response
-    const r1 = await it.next(); // the synthetic stream-down
+    const r1 = await it.next(); // the typed stream termination
     await transport.close();
 
-    expect(r0.value).toMatchObject({ id: "1", result: { runId: "run_01" } });
-    expect(r1.value).toMatchObject({ method: STREAM_DOWN_METHOD, params: { runIds: ["run_01"] } });
+    expect(r0.value).toMatchObject({
+      type: "message",
+      message: { id: "1", result: { runId: "run_01" } },
+    });
+    expect(r1.value).toMatchObject({
+      type: "streamEnd",
+      method: "runs.start",
+      runIds: ["run_01"],
+      error: expect.any(Error),
+    });
   });
 
-  it("a stream ending before the call's response synthesizes an error Response", async () => {
+  it("a stream ending before the call's response reports a request failure", async () => {
     // The POST opened but the stream EOS'd before the first (response) frame
     // — the pending call must reject, not hang forever.
     const fetchStub = (async () => sseResponse([])) as unknown as typeof fetch;
@@ -260,21 +284,30 @@ describe("HTTPTransport — streamable HTTP", () => {
     const r = await it.next();
     await transport.close();
 
-    expect(r.value).toMatchObject({ id: "7", error: { code: -32000 } });
+    expect(r.value).toMatchObject({
+      type: "requestError",
+      requestId: "7",
+      error: expect.any(RpcTransportError),
+    });
   });
 
-  it("skips a malformed frame without tearing down the stream", async () => {
+  it("fails a stream carrying a malformed JSON-RPC envelope", async () => {
     const wire =
-      `data: {not json}\n\n` +
-      frame({ jsonrpc: "2.0", method: "notifications.run.event", params: { ok: 1 } }, "evt_1");
+      frame({ jsonrpc: "2.0", id: "1", result: { runId: "run_01" } }) + `data: {not json}\n\n`;
     const fetchStub = (async () => sseResponse([wire])) as unknown as typeof fetch;
     const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
     const it = transport.recv()[Symbol.asyncIterator]();
 
     await transport.send(req("1", "runs.start"));
-    const r = await it.next();
+    const response = await it.next();
+    const ended = await it.next();
     await transport.close();
 
-    expect(r.value).toMatchObject({ params: { ok: 1 } });
+    expect(response.value).toMatchObject({ type: "message", message: { id: "1" } });
+    expect(ended.value).toMatchObject({
+      type: "streamEnd",
+      method: "runs.start",
+      error: expect.any(RpcTransportError),
+    });
   });
 });

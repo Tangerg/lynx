@@ -187,6 +187,13 @@ export function anything(): WireCheck {
   return () => {};
 }
 
+/** A nullable result: JSON null or the declared non-null shape. */
+export function nullable(value: WireCheck): WireCheck {
+  return (candidate, path, out) => {
+    if (candidate !== null) value(candidate, path, out);
+  };
+}
+
 export function array(items: WireCheck): WireCheck {
   return (value, path, out) => {
     if (!Array.isArray(value)) {

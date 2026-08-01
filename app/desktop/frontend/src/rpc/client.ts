@@ -6,20 +6,39 @@
 // the recv() loop pops the entry by id and settles the promise.
 // Notifications go through subscribe() — no id, no waiter.
 
-import { RpcError, RpcTransportError } from "./errors";
-import type { RequestMeta } from "./wire.generated";
-import type { Transport } from "./transport";
-import type {
-  RpcId,
-  RpcMessage,
-  RpcNotification,
-  RpcRequest,
-  RpcResponseError,
-  RpcResponseSuccess,
-} from "./types";
+import { errorMessage, RpcError, RpcProtocolError, RpcTransportError } from "./errors";
+import { NOTIFICATIONS_RUN_EVENT, runEventReliability, type RequestMeta } from "./wire.generated";
+import type { Transport, TransportEvent, TransportRequest } from "./transport";
+import {
+  wireMethodReturnsValue,
+  type WireMethodName,
+  type WireParams,
+  type WireResult,
+} from "./wire.methods.generated";
+import {
+  isWireNotificationName,
+  validateMethodResult,
+  validateNotificationParams,
+  validateWire,
+  type WireNotificationName,
+  type WireNotificationParams,
+} from "./wire.validate.generated";
+import type { RpcId, RpcMessage } from "./types";
 import { JSONRPC_VERSION, isErrorResponse, isNotification, isResponse } from "./types";
 
-export type NotificationHandler = (msg: RpcNotification) => void;
+export interface NotificationObserver<M extends WireNotificationName = WireNotificationName> {
+  next(params: WireNotificationParams[M]): void;
+  error(error: RpcProtocolError | RpcTransportError): void;
+}
+
+export type StreamEndHandler = (event: Extract<TransportEvent, { type: "streamEnd" }>) => void;
+
+function notificationEventType(params: unknown): unknown {
+  if (params === null || typeof params !== "object" || Array.isArray(params)) return undefined;
+  const event = (params as Record<string, unknown>).event;
+  if (event === null || typeof event !== "object" || Array.isArray(event)) return undefined;
+  return (event as Record<string, unknown>).type;
+}
 
 export interface RpcClientOptions {
   requestMeta?: () => RequestMeta | undefined;
@@ -42,16 +61,24 @@ export interface RpcCallOptions {
 
 export interface RpcClient {
   /** Send a Request and resolve with its result, or reject with RpcError. */
-  call<R = unknown, P = unknown>(method: string, params?: P, options?: RpcCallOptions): Promise<R>;
-  /** Send a Notification (fire-and-forget). */
-  notify<P = unknown>(method: string, params?: P): Promise<void>;
+  call<M extends WireMethodName>(
+    method: M,
+    params: WireParams<M>,
+    options?: RpcCallOptions,
+  ): Promise<WireResult<M>>;
   /** Subscribe to inbound notifications matching `method`. Returns an unsubscribe fn. */
-  subscribe(method: string, handler: NotificationHandler): () => void;
+  subscribe<M extends WireNotificationName>(
+    method: M,
+    observer: NotificationObserver<M>,
+  ): () => void;
+  /** Observe transport-level termination of one streaming response. */
+  onStreamEnd(handler: StreamEndHandler): () => void;
   /** Tear down the client + underlying transport. */
   close(): Promise<void>;
 }
 
 interface Pending {
+  method: WireMethodName;
   resolve: (value: unknown) => void;
   reject: (err: unknown) => void;
 }
@@ -64,7 +91,8 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
   const pending = new Map<RpcId, Pending>();
   // method → handlers. We allow multiple subscribers per method so multiple
   // UI consumers can listen to the same stream.
-  const subscribers = new Map<string, Set<NotificationHandler>>();
+  const subscribers = new Map<WireNotificationName, Set<NotificationObserver>>();
+  const streamEndHandlers = new Set<StreamEndHandler>();
   let closed = false;
 
   function failAllPending(failure: RpcTransportError): void {
@@ -75,44 +103,92 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
   function failConnection(failure: RpcTransportError): void {
     closed = true;
     failAllPending(failure);
+    for (const observers of subscribers.values()) {
+      for (const observer of observers) observer.error(failure);
+    }
     subscribers.clear();
+    streamEndHandlers.clear();
   }
 
   // Long-running pump that drains the transport's recv() into pending
   // promises + subscribers. When the stream ends — whether it throws or
   // closes cleanly — no further Responses can arrive, so every in-flight
   // request must be settled (rejected). Handling only the throw path left
-  // pending calls hung forever on a clean EOS (e.g. a future WebSocket /
-  // InProcess transport whose recv() ends without an exception).
+  // pending calls hung forever on a clean EOS (for example, an InProcess
+  // transport whose recv() ends without an exception).
   void (async () => {
     try {
-      for await (const msg of transport.recv()) {
-        dispatchInbound(msg);
+      for await (const event of transport.recv()) {
+        dispatchInbound(event);
       }
       failConnection(new RpcTransportError("transport stream ended"));
     } catch (err) {
-      failConnection(new RpcTransportError(`transport recv() failed: ${(err as Error).message}`));
+      failConnection(new RpcTransportError(`transport recv() failed: ${errorMessage(err)}`));
     }
   })();
 
-  function dispatchInbound(msg: RpcMessage): void {
+  function dispatchInbound(event: TransportEvent): void {
+    if (event.type === "requestError") {
+      const entry = pending.get(event.requestId);
+      if (!entry) return;
+      pending.delete(event.requestId);
+      entry.reject(event.error);
+      return;
+    }
+    if (event.type === "streamEnd") {
+      for (const handler of streamEndHandlers) handler(event);
+      return;
+    }
+    dispatchMessage(event.message);
+  }
+
+  function dispatchMessage(msg: RpcMessage): void {
     if (isResponse(msg)) {
       const entry = pending.get(msg.id);
       if (!entry) return; // unsolicited or already settled — drop silently
       pending.delete(msg.id);
       if (isErrorResponse(msg)) {
-        entry.reject(new RpcError((msg as RpcResponseError).error));
+        const payload = msg.error;
+        if (payload.data !== undefined) {
+          const violations = validateWire("ProblemData", payload.data);
+          if (violations.length > 0) {
+            entry.reject(new RpcProtocolError(`${entry.method} error data`, violations));
+            return;
+          }
+        }
+        entry.reject(new RpcError(payload));
       } else {
-        entry.resolve((msg as RpcResponseSuccess).result);
+        const result = msg.result;
+        const violations = validateMethodResult(entry.method, result);
+        if (violations.length > 0) {
+          entry.reject(new RpcProtocolError(`${entry.method} result`, violations));
+          return;
+        }
+        entry.resolve(wireMethodReturnsValue(entry.method) ? result : undefined);
       }
       return;
     }
     if (isNotification(msg)) {
+      if (!isWireNotificationName(msg.method)) return;
       const handlers = subscribers.get(msg.method);
       if (!handlers) return;
-      for (const handler of handlers) {
+      const violations = validateNotificationParams(msg.method, msg.params);
+      if (violations.length > 0) {
+        const failure = new RpcProtocolError(`${msg.method} params`, violations);
+        if (
+          msg.method === NOTIFICATIONS_RUN_EVENT &&
+          runEventReliability(notificationEventType(msg.params)) === "ephemeral"
+        ) {
+          console.warn(`[rpc] dropping invalid ephemeral notification: ${failure.message}`);
+          return;
+        }
+        subscribers.delete(msg.method);
+        for (const observer of handlers) observer.error(failure);
+        return;
+      }
+      for (const observer of handlers) {
         try {
-          handler(msg);
+          observer.next(msg.params as WireNotificationParams[typeof msg.method]);
         } catch (err) {
           // Subscribers must not crash the dispatch loop. Log and move on.
           console.error(`[rpc] notification handler for "${msg.method}" threw:`, err);
@@ -129,22 +205,22 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
     params: P | undefined,
     meta: RequestMeta | null | undefined = options.requestMeta?.(),
   ): unknown {
-    if (!meta) return params as P;
+    if (!meta) return params;
     if (params === undefined) return { _meta: meta };
     if (params !== null && typeof params === "object" && !Array.isArray(params)) {
-      return { ...(params as Record<string, unknown>), _meta: meta } as P;
+      return Object.assign({}, params, { _meta: meta });
     }
-    return params as P;
+    return params;
   }
 
-  async function call<R, P>(
-    method: string,
-    params?: P,
+  async function call<M extends WireMethodName>(
+    method: M,
+    params: WireParams<M>,
     callOptions: RpcCallOptions = {},
-  ): Promise<R> {
+  ): Promise<WireResult<M>> {
     if (closed) throw new RpcTransportError("client closed");
     const id = String(nextId++);
-    const req: RpcRequest = {
+    const req: TransportRequest = {
       jsonrpc: JSONRPC_VERSION,
       id,
       method,
@@ -154,7 +230,7 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
       })(),
     };
 
-    return new Promise<R>((resolve, reject) => {
+    return new Promise<WireResult<M>>((resolve, reject) => {
       const { signal } = callOptions;
       // Aborting the transport request propagates cancellation through the
       // server request context; no second cancellation protocol is needed.
@@ -168,6 +244,7 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
       // listener per completed call ({ once: true } only fires on abort).
       const detach = () => signal?.removeEventListener("abort", onAbort);
       pending.set(id, {
+        method,
         resolve: (value) => {
           detach();
           (resolve as (v: unknown) => void)(value);
@@ -200,39 +277,38 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
     });
   }
 
-  async function notify<P>(method: string, params?: P): Promise<void> {
-    if (closed) throw new RpcTransportError("client closed");
-    const withMeta = paramsWithMeta(params);
-    const msg: RpcNotification = {
-      jsonrpc: JSONRPC_VERSION,
-      method,
-      ...(withMeta !== undefined ? { params: withMeta } : {}),
-    };
-    await transport.send(msg);
-  }
-
-  function subscribe(method: string, handler: NotificationHandler): () => void {
+  function subscribe<M extends WireNotificationName>(
+    method: M,
+    observer: NotificationObserver<M>,
+  ): () => void {
+    // The map is heterogeneous by method. Erasure happens once, here; dispatch only
+    // invokes the observer after the generated validator for this same key succeeds.
+    const validatedObserver = observer as NotificationObserver;
     let set = subscribers.get(method);
     if (!set) {
       set = new Set();
       subscribers.set(method, set);
     }
-    set.add(handler);
+    set.add(validatedObserver);
     return () => {
       const current = subscribers.get(method);
       if (!current) return;
-      current.delete(handler);
+      current.delete(validatedObserver);
       if (current.size === 0) subscribers.delete(method);
     };
+  }
+
+  function onStreamEnd(handler: StreamEndHandler): () => void {
+    streamEndHandlers.add(handler);
+    return () => streamEndHandlers.delete(handler);
   }
 
   async function close(): Promise<void> {
     if (closed) return;
     closed = true;
-    failAllPending(new RpcTransportError("client closed"));
-    subscribers.clear();
+    failConnection(new RpcTransportError("client closed"));
     await transport.close();
   }
 
-  return { call, notify, subscribe, close };
+  return { call, subscribe, onStreamEnd, close };
 }

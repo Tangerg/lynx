@@ -40,7 +40,7 @@ type checkEmitter struct {
 	used map[string]bool
 }
 
-func newWireChecks(set *schemaSet) string {
+func newWireChecks(registry *dispatch.Registry, shapes *dispatch.Shapes, set *schemaSet) string {
 	emitter := &checkEmitter{set: set, used: make(map[string]bool)}
 	names := slices.Sorted(maps.Keys(set.defs))
 
@@ -51,20 +51,26 @@ func newWireChecks(set *schemaSet) string {
 		fmt.Fprintf(&body, "  %s: %s,\n", name, shift(emitter.compile(set.defs[name]), 1))
 	}
 	body.WriteString("};\n")
-	// Rendered before the import list, because these two are what decide it.
-	payloads := emitter.statePayloads()
+	// Rendered before the import list, because these are what decide it.
+	methodResults := emitter.methodResults(registry)
+	notifications := emitter.notifications(shapes)
 
 	var out strings.Builder
 	out.WriteString(checksHeader)
 	fmt.Fprintf(&out, "import { %s } from \"./wireCheck\";\n", strings.Join(slices.Sorted(maps.Keys(emitter.used)), ", "))
 	out.WriteString("import type { WireCheck, WireViolation } from \"./wireCheck\";\n\n")
+	out.WriteString("import type { WireMethodName } from \"./wire.methods.generated\";\n\n")
+	if len(shapes.Notifications()) > 0 {
+		out.WriteString("import type * as Wire from \"./wire.generated\";\n\n")
+	}
 	out.WriteString("/** Every shape the protocol publishes. */\nexport type WireTypeName =\n")
 	for _, name := range names {
 		fmt.Fprintf(&out, "  | %s\n", strconv.Quote(name))
 	}
 	out.WriteString("  ;\n\n")
 	out.WriteString(body.String())
-	out.WriteString(payloads)
+	out.WriteString(methodResults)
+	out.WriteString(notifications)
 	out.WriteString(checksEntryPoint)
 	return out.String()
 }
@@ -95,48 +101,80 @@ export function validateWire(type: WireTypeName, value: unknown): WireViolation[
 }
 `
 
-// statePayloads emits which shape each state key's value is.
-//
-// The state envelope is a map[string]any so a new key needs no wire change, and the
-// cost is that nothing about a key's value is checkable from the envelope's own type.
-// The shape is declared per key; published here, a client can check the value it just
-// received instead of trusting it.
-// statePayloads emits a check per state key.
-//
-// It publishes a CHECK rather than a shape name because a payload need not BE a named
-// shape — todos is a list of one, and no definition is called "TodoSnapshot[]".
-// Naming the element and leaving the arrayness to the reader would publish half of it.
-//
-// The state envelope is a map[string]any so a new key needs no wire change, and the
-// cost is that nothing about a key's value is checkable from the envelope's own type.
-// This is what makes a declared payload enforceable on the client rather than merely
-// documented.
-func (e *checkEmitter) statePayloads() string {
-	keys := dispatch.WireShapes().StateKeys()
-	if len(keys) == 0 {
-		return ""
-	}
+// methodResults emits the terminal result check for every callable method. Ack-only
+// methods still have one wire result — the empty success object — so every entry is
+// total and a client never needs a "validator missing" fallback.
+func (e *checkEmitter) methodResults(registry *dispatch.Registry) string {
 	var out strings.Builder
-	out.WriteString("\n// The shape each state.snapshot key carries.\n")
-	out.WriteString("const STATE_PAYLOADS: Readonly<Record<string, WireCheck>> = {\n")
-	for _, key := range keys {
-		fmt.Fprintf(&out, "  %s: %s,\n", propertyKey(key.Key), shift(e.compile(e.set.walk(key.PayloadType)), 1))
+	out.WriteString("\nconst METHOD_RESULTS: Record<WireMethodName, WireCheck> = {\n")
+	for _, meta := range registry.Metas() {
+		check := e.call("object", "{}", "[]")
+		if meta.Result != nil {
+			check = e.compile(e.set.walk(meta.Result))
+			if meta.ResultNullable {
+				check = e.call("nullable", check)
+			}
+		}
+		fmt.Fprintf(&out, "  %s: %s,\n", strconv.Quote(meta.Name), shift(check, 1))
 	}
 	out.WriteString("};\n")
 	out.WriteString(`
-/**
- * validateStatePayload checks one state.snapshot key's value against the shape
- * declared for it.
- *
- * A key this build does not know is not a violation: the envelope is open by design,
- * so a newer runtime may carry one, and refusing it would be a client deciding what
- * the protocol may grow.
- */
-export function validateStatePayload(key: string, value: unknown): WireViolation[] {
-  const check = STATE_PAYLOADS[key];
-  if (!check) return [];
+/** Validate the success result carried by one registered method. */
+export function validateMethodResult(method: WireMethodName, value: unknown): WireViolation[] {
   const out: WireViolation[] = [];
-  check(value, key, out);
+  METHOD_RESULTS[method](value, ` + "`${method}.result`" + `, out);
+  return out;
+}
+`)
+	return out.String()
+}
+
+// notifications emits the closed downstream method set and each method's params
+// check. Both come from NotificationSpec, so dispatch, generated names and runtime
+// validation cannot disagree about what one notification carries.
+func (e *checkEmitter) notifications(shapes *dispatch.Shapes) string {
+	notifications := shapes.Notifications()
+	var out strings.Builder
+	out.WriteString("\nexport const WIRE_NOTIFICATION_NAMES = [\n")
+	for _, notification := range notifications {
+		fmt.Fprintf(&out, "  %s,\n", strconv.Quote(notification.Name))
+	}
+	out.WriteString("] as const;\n")
+	out.WriteString("\nexport type WireNotificationName = (typeof WIRE_NOTIFICATION_NAMES)[number];\n")
+	out.WriteString("\n/** The validated params carried by each downstream notification. */\n")
+	out.WriteString("export interface WireNotificationParams {\n")
+	for _, notification := range notifications {
+		node := e.set.walk(notification.ParamsType)
+		name, ok := strings.CutPrefix(node.Ref, refPrefix)
+		if !ok {
+			panic(fmt.Sprintf("contractgen: notification %q params has no published shape", notification.Name))
+		}
+		fmt.Fprintf(&out, "  %s: Wire.%s;\n", strconv.Quote(notification.Name), name)
+	}
+	out.WriteString("}\n")
+	out.WriteString("\nconst NOTIFICATION_PARAMS: Record<WireNotificationName, WireCheck> = {\n")
+	for _, notification := range notifications {
+		fmt.Fprintf(
+			&out,
+			"  %s: %s,\n",
+			strconv.Quote(notification.Name),
+			shift(e.compile(e.set.walk(notification.ParamsType)), 1),
+		)
+	}
+	out.WriteString("};\n")
+	out.WriteString(`
+/** True when a method is one of the runtime's published downstream notifications. */
+export function isWireNotificationName(name: string): name is WireNotificationName {
+  return (WIRE_NOTIFICATION_NAMES as readonly string[]).includes(name);
+}
+
+/** Validate the params carried by one published downstream notification. */
+export function validateNotificationParams(
+  method: WireNotificationName,
+  value: unknown,
+): WireViolation[] {
+  const out: WireViolation[] = [];
+  NOTIFICATION_PARAMS[method](value, ` + "`${method}.params`" + `, out);
   return out;
 }
 `)
