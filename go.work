@@ -8,6 +8,7 @@ use (
 	./chathistory
 	./core
 	./documentpipeline
+	./documentpipeline/markdown
 	./documentreaders
 	./documentreaders/html
 	./documentreaders/markdown

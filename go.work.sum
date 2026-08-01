@@ -884,6 +884,7 @@ github.com/Tangerg/lynx/chatclient v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:
 github.com/Tangerg/lynx/chathistory v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:29yD8K9sQ+qQwuuzuq31R8KM0LScn7fSPmrkMuYd8p4=
 github.com/Tangerg/lynx/core v0.0.0-20260627110629-977ea6791375/go.mod h1:bBPiCdrGjFI3Y7Gws4QqmbZf9rePGvpQrx7tyevOXc8=
 github.com/Tangerg/lynx/core v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
+github.com/Tangerg/lynx/documentpipeline v0.0.0-20260731193916-0098789d89e9/go.mod h1:Kir8CqvXH2MYJQiWabjOXUJvFiEfhsjzZ7oKq0d+fYc=
 github.com/Tangerg/lynx/mcp v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:/4Qwxrf9qRFKY7+jGUt9FUO0kFe3r5cpl9CVdKvvK0g=
 github.com/Tangerg/lynx/models v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:mvv6qvd6twLOJ1coLU2xhRgw5otJYceqN+6h7NyRJqU=
 github.com/Tangerg/lynx/otel v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:ivOThIRaMNETTtTcseizChbM6zfb9rS1YObeLKli9FY=
