@@ -3,6 +3,7 @@ package rag
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
@@ -41,9 +42,14 @@ type compressionTransformer struct {
 	promptTemplate *chatclient.Template
 }
 
+type compressionPromptVariables struct {
+	History string
+	Query   string
+}
+
 // NewCompressionTransformer returns a [Transformer] that collapses chat history
 // plus a follow-up question into a single self-contained query. It reads chat
-// history from the query value stored under [ChatHistoryKey].
+// history from the query value stored under [ChatHistoryValueKey].
 func NewCompressionTransformer(cfg CompressionTransformerConfig) (Transformer, error) {
 	if cfg.ChatModel == nil {
 		return nil, errors.New("rag: compression transformer requires a chat model")
@@ -51,8 +57,8 @@ func NewCompressionTransformer(cfg CompressionTransformerConfig) (Transformer, e
 	promptTemplate, err := resolvePromptTemplate(
 		cfg.PromptTemplate,
 		compressionDefaultTemplate,
-		"History",
-		"Query",
+		promptVariableHistory,
+		promptVariableQuery,
 	)
 	if err != nil {
 		return nil, err
@@ -70,8 +76,7 @@ func NewCompressionTransformer(cfg CompressionTransformerConfig) (Transformer, e
 }
 
 // Transform asks the LLM for a self-contained version of the query.
-// Returns a clone of the input with Text replaced by the LLM output;
-// when the LLM returns empty text the original Text is preserved.
+// Returns a clone of the input with Text replaced by the LLM output.
 func (c *compressionTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
 	if err := query.Validate(); err != nil {
 		return nil, err
@@ -82,28 +87,26 @@ func (c *compressionTransformer) Transform(ctx context.Context, query *Query) (*
 		return nil, err
 	}
 
-	compressed, err := callPrompt(ctx, c.chatClient, c.promptTemplate, map[string]any{
-		"History": history,
-		"Query":   query.Text(),
+	compressed, err := callPrompt(ctx, c.chatClient, c.promptTemplate, compressionPromptVariables{
+		History: history,
+		Query:   query.Text(),
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return query.withModelText(compressed), nil
+	return query.WithText(compressed)
 }
 
 // extractHistory pulls the conversation messages out of the query value under
-// [ChatHistoryKey] and renders them as one string.
-// Returns "" when the slot is missing or holds the wrong type.
+// [ChatHistoryValueKey] and renders them as one string.
+// Returns "" when the slot is missing.
 func (c *compressionTransformer) extractHistory(query *Query) (string, error) {
-	value, exists := query.Value(ChatHistoryKey)
-	if !exists {
-		return "", nil
+	messages, exists, err := LookupValue(query, chatHistoryValueKey)
+	if err != nil {
+		return "", fmt.Errorf("rag: read chat history: %w", err)
 	}
-
-	messages, ok := value.([]chat.Message)
-	if !ok {
+	if !exists {
 		return "", nil
 	}
 	return formatChatHistory(messages)

@@ -12,6 +12,8 @@ import (
 	"github.com/Tangerg/lynx/rag"
 )
 
+var routeKey = rag.MustValueKey[string]("route")
+
 // fakeChatModel is the target core/chat mock used by every LLM-backed
 // component test.
 type fakeChatModel struct {
@@ -72,7 +74,7 @@ func TestContextualAugmenterPreservesQueryValues(t *testing.T) {
 	}
 
 	q, _ := rag.NewQuery("what is GOAP?")
-	q, err = q.WithValue("route", "docs")
+	q, err = rag.WithValue(q, routeKey, "docs")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +84,7 @@ func TestContextualAugmenterPreservesQueryValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v, _ := got.Value("route"); v != "docs" {
+	if v, _, _ := rag.LookupValue(got, routeKey); v != "docs" {
 		t.Fatalf("query metadata was not preserved: route=%v", v)
 	}
 }
@@ -185,7 +187,7 @@ func TestMultiQueryExpander_ParsesNewlineVariants(t *testing.T) {
 	}
 
 	q, _ := rag.NewQuery("hi")
-	q, err = q.WithValue("route", "docs")
+	q, err = rag.WithValue(q, routeKey, "docs")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +201,7 @@ func TestMultiQueryExpander_ParsesNewlineVariants(t *testing.T) {
 	if got[0].Text() != "variant 1" {
 		t.Fatalf("first variant = %q", got[0].Text())
 	}
-	if v, _ := got[0].Value("route"); v != "docs" {
+	if v, _, _ := rag.LookupValue(got[0], routeKey); v != "docs" {
 		t.Fatalf("variant metadata was not preserved: route=%v", v)
 	}
 }
@@ -219,14 +221,13 @@ func TestMultiQueryExpander_IncludeOriginal(t *testing.T) {
 	}
 }
 
-func TestMultiQueryExpander_EmptyLLMFallsBackToOriginal(t *testing.T) {
+func TestMultiQueryExpanderRejectsEmptyModelOutput(t *testing.T) {
 	model := newFakeChatModel(t, "")
 	exp, _ := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{ChatModel: model})
 
 	q, _ := rag.NewQuery("orig")
-	got, _ := exp.Expand(t.Context(), q)
-	if len(got) != 1 || got[0] != q {
-		t.Fatal("empty LLM output must fall back to the original query")
+	if _, err := exp.Expand(t.Context(), q); !errors.Is(err, rag.ErrEmptyModelOutput) {
+		t.Fatalf("Expand error = %v, want ErrEmptyModelOutput", err)
 	}
 }
 
@@ -246,7 +247,7 @@ func TestCompressionTransformer_UsesChatHistory(t *testing.T) {
 	}
 
 	q, _ := rag.NewQuery("follow-up")
-	q, err = q.WithValue(rag.ChatHistoryKey, []chat.Message{
+	q, err = rag.WithValue(q, rag.ChatHistoryValueKey(), []chat.Message{
 		chat.NewUserMessage(chat.NewTextPart("first turn")),
 		chat.NewAssistantMessage(chat.NewTextPart("first reply")),
 	})
@@ -266,14 +267,13 @@ func TestCompressionTransformer_UsesChatHistory(t *testing.T) {
 	}
 }
 
-func TestCompressionTransformer_EmptyOutputPreservesOriginal(t *testing.T) {
+func TestCompressionTransformerRejectsEmptyModelOutput(t *testing.T) {
 	model := newFakeChatModel(t, "")
 	tr, _ := rag.NewCompressionTransformer(rag.CompressionTransformerConfig{ChatModel: model})
 
 	q, _ := rag.NewQuery("orig")
-	got, _ := tr.Transform(t.Context(), q)
-	if got.Text() != "orig" {
-		t.Fatalf("Text = %q, want orig (empty LLM reply must preserve)", got.Text())
+	if _, err := tr.Transform(t.Context(), q); !errors.Is(err, rag.ErrEmptyModelOutput) {
+		t.Fatalf("Transform error = %v, want ErrEmptyModelOutput", err)
 	}
 }
 

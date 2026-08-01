@@ -9,11 +9,11 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
 
-// VectorStoreFilterKey is the query extension key under which a caller
-// may stash a per-call filter expression — either as a parsed
-// [filter.Predicate] or as a raw filter-DSL string. The retriever consults
-// this slot before falling back to the configured FilterFunc.
-const VectorStoreFilterKey = "lynx:ai:rag:retriever:filter_expr"
+var vectorStoreFilterValueKey = MustValueKey[filter.Predicate]("vector store filter")
+
+// VectorStoreFilterValueKey returns the typed query slot for a parsed per-call
+// filter. Parse textual filter DSL with [filter.Parse] before attaching it.
+func VectorStoreFilterValueKey() ValueKey[filter.Predicate] { return vectorStoreFilterValueKey }
 
 type VectorStoreConfig struct {
 	// VectorStore performs the actual similarity search. Required.
@@ -27,10 +27,9 @@ type VectorStoreConfig struct {
 	// Range [0.0, 1.0].
 	MinScore float64
 
-	// FilterFunc dynamically builds a metadata filter from the query's
-	// extension values. Optional; when both [VectorStoreFilterKey] is set on the
-	// query and FilterFunc is provided, the per-query filter wins.
-	FilterFunc func(ctx context.Context, params map[string]any) (filter.Predicate, error)
+	// FilterFunc dynamically builds a metadata filter from the complete query.
+	// Optional; when [VectorStoreFilterValueKey] is set, the per-query filter wins.
+	FilterFunc func(ctx context.Context, query *Query) (filter.Predicate, error)
 }
 
 var _ Retriever = (*vectorStoreRetriever)(nil)
@@ -39,15 +38,15 @@ type vectorStoreRetriever struct {
 	vectorStore corevs.Searcher
 	topK        int
 	minScore    float64
-	filterFunc  func(ctx context.Context, params map[string]any) (filter.Predicate, error)
+	filterFunc  func(ctx context.Context, query *Query) (filter.Predicate, error)
 }
 
 // NewVectorStoreRetriever returns a [Retriever] backed by a core vector store.
-// It supports per-query metadata filters via [VectorStoreFilterKey],
+// It supports per-query metadata filters via [VectorStoreFilterValueKey],
 // configured filters via [VectorStoreConfig.FilterFunc], top-K capping, and
 // similarity thresholds.
 func NewVectorStoreRetriever(cfg VectorStoreConfig) (Retriever, error) {
-	if isNilCapability(cfg.VectorStore) {
+	if isNil(cfg.VectorStore) {
 		return nil, errors.New("rag: vector store is required")
 	}
 	if cfg.TopK < 0 {
@@ -101,20 +100,19 @@ func (v *vectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]Ca
 }
 
 // resolveFilter picks the filter expression to use for this call,
-// preferring the per-query [VectorStoreFilterKey] slot over the configured
+// preferring the per-query [VectorStoreFilterValueKey] slot over the configured
 // FilterFunc. Returns nil, nil when no filter applies.
 func (v *vectorStoreRetriever) resolveFilter(ctx context.Context, query *Query) (filter.Predicate, error) {
-	if value, exists := query.Value(VectorStoreFilterKey); exists {
-		switch typed := value.(type) {
-		case string:
-			return filter.Parse(typed)
-		case filter.Predicate:
-			return typed, nil
-		}
+	expression, exists, err := LookupValue(query, vectorStoreFilterValueKey)
+	if err != nil {
+		return nil, fmt.Errorf("rag: read vector-store filter: %w", err)
+	}
+	if exists {
+		return expression, nil
 	}
 
 	if v.filterFunc != nil {
-		return v.filterFunc(ctx, query.Values())
+		return v.filterFunc(ctx, query)
 	}
 	return nil, nil
 }

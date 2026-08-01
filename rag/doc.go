@@ -15,10 +15,10 @@
 //
 // Composition is explicit. Wrap a retriever with the stages you need:
 //
-//	r := rag.WithTransformers(base, rewrite, translate)
-//	r = rag.WithExpander(r, multiQuery)
+//	r, err := rag.WithTransformers(base, rewrite, translate)
+//	r, err = rag.WithExpander(r, multiQuery)
 //	top, err := rag.TopK(8)
-//	r = rag.WithRefiners(r, top)
+//	r, err = rag.WithRefiners(r, top)
 //	docs, err := r.Retrieve(ctx, q)
 //
 // Optional stages use identity implementations: [IdentityTransformer],
@@ -33,10 +33,8 @@
 // The canonical "join overlapping retriever results" pattern is:
 //
 //	top, err := rag.TopK(topK)
-//	r := rag.WithRefiners(
-//	    rag.Parallel(vectorR1, vectorR2),
-//	    top,
-//	)
+//	combined, err := rag.Parallel(vectorR1, vectorR2)
+//	r, err := rag.WithRefiners(combined, top)
 //
 // TopK keeps the highest-scoring candidate for each non-empty document ID
 // before ranking and capping, so duplicate hits cannot consume result slots.
@@ -57,11 +55,17 @@
 // your retrievers in a custom [Retriever] that switches on the query
 // internally:
 //
+//	var routeKey = rag.MustValueKey[string]("route")
+//
 //	type routingRetriever struct {
 //	    docsR, logsR rag.Retriever
 //	}
 //	func (r *routingRetriever) Retrieve(ctx context.Context, q *rag.Query) ([]Candidate, error) {
-//	    if route, _ := q.Value("route"); route == "logs" {
+//	    route, _, err := rag.LookupValue(q, routeKey)
+//	    if err != nil {
+//	        return nil, err
+//	    }
+//	    if route == "logs" {
 //	        return r.logsR.Retrieve(ctx, q)
 //	    }
 //	    return r.docsR.Retrieve(ctx, q)

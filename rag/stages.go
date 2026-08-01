@@ -10,10 +10,8 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 )
 
-// isNilCapability recognizes both nil interfaces and interfaces containing a
-// typed nil. Capability boundaries use it to fail during composition instead
-// of panicking on the first request.
-func isNilCapability(value any) bool {
+// isNil recognizes both nil interfaces and interfaces containing a typed nil.
+func isNil(value any) bool {
 	reflected := reflect.ValueOf(value)
 	if !reflected.IsValid() {
 		return true
@@ -26,8 +24,18 @@ func isNilCapability(value any) bool {
 	}
 }
 
-// ErrInvalidCandidate reports a missing/invalid document or non-finite score.
-var ErrInvalidCandidate = errors.New("rag: invalid retrieval candidate")
+var (
+	// ErrInvalidCandidate reports a missing/invalid document or non-finite score.
+	ErrInvalidCandidate = errors.New("rag: invalid retrieval candidate")
+	// ErrNilTransformer reports a missing query transformation capability.
+	ErrNilTransformer = errors.New("rag: transformer must not be nil")
+	// ErrNilExpander reports a missing query expansion capability.
+	ErrNilExpander = errors.New("rag: expander must not be nil")
+	// ErrNilRefiner reports a missing candidate refinement capability.
+	ErrNilRefiner = errors.New("rag: refiner must not be nil")
+	// ErrEmptyExpansion reports an expander that returned no queries.
+	ErrEmptyExpansion = errors.New("rag: expander returned no queries")
+)
 
 // Candidate relates a document to the retrieval operation that produced it.
 // Score is query-specific and therefore does not belong on document.Document.

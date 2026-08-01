@@ -74,14 +74,19 @@ type contextualAugmenter struct {
 	formatter                  Formatter
 }
 
+type contextualPromptVariables struct {
+	Context string
+	Query   string
+}
+
 // NewContextualAugmenter returns an [Augmenter] that folds retrieved
 // documents into the query text as a context block.
 func NewContextualAugmenter(cfg ContextualAugmenterConfig) (Augmenter, error) {
 	promptTemplate, err := resolvePromptTemplate(
 		cfg.PromptTemplate,
 		contextualDefaultTemplate,
-		"Context",
-		"Query",
+		promptVariableContext,
+		promptVariableQuery,
 	)
 	if err != nil {
 		return nil, err
@@ -94,7 +99,7 @@ func NewContextualAugmenter(cfg ContextualAugmenterConfig) (Augmenter, error) {
 		return nil, err
 	}
 	formatter := cfg.Formatter
-	if isNilCapability(formatter) {
+	if isNil(formatter) {
 		formatter = FormatterFunc(func(doc *document.Document) (string, error) {
 			return doc.Text, nil
 		})
@@ -136,9 +141,9 @@ func (c *contextualAugmenter) Augment(ctx context.Context, query *Query, documen
 		contextTexts = append(contextTexts, formatted)
 	}
 
-	rendered, err := c.promptTemplate.Render(map[string]any{
-		"Context": strings.Join(contextTexts, "\n\n---\n\n"),
-		"Query":   query.Text(),
+	rendered, err := c.promptTemplate.Render(contextualPromptVariables{
+		Context: strings.Join(contextTexts, "\n\n---\n\n"),
+		Query:   query.Text(),
 	})
 	if err != nil {
 		return nil, err

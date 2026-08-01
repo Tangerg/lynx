@@ -119,6 +119,38 @@ func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 	}
 }
 
+func TestMiddlewareKeepsChatExtensionsAndHistoryInTypedSlots(t *testing.T) {
+	var capturedExtensions metadata.Map
+	var capturedHistory []chat.Message
+	retriever := rag.RetrieverFunc(func(_ context.Context, query *rag.Query) ([]rag.Candidate, error) {
+		var err error
+		capturedExtensions, _, err = rag.LookupValue(query, rag.RequestExtensionsValueKey())
+		if err != nil {
+			return nil, err
+		}
+		capturedHistory, _, err = rag.LookupValue(query, rag.ChatHistoryValueKey())
+		return nil, err
+	})
+	callMiddleware, _, err := rag.NewMiddleware(rag.MiddlewareConfig{Retriever: retriever})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("question")))
+	if err := request.SetExtension("test/tenant", "acme"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := callMiddleware(&echoChatModel{}).Call(t.Context(), request); err != nil {
+		t.Fatal(err)
+	}
+	tenant, found, err := metadata.Decode[string](capturedExtensions, "test/tenant")
+	if err != nil || !found || tenant != "acme" {
+		t.Fatalf("request extension = (%q, %v, %v), want (acme, true, nil)", tenant, found, err)
+	}
+	if len(capturedHistory) != 1 || capturedHistory[0].Text() != "question" {
+		t.Fatalf("chat history = %#v, want the request message", capturedHistory)
+	}
+}
+
 func TestMiddlewareStreamAugmentsOnceAndAttachesDocs(t *testing.T) {
 	doc, _ := document.NewDocument("streamed context", nil)
 	retriever := &countingRetriever{docs: []rag.Candidate{candidate(doc)}}

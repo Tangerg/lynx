@@ -73,7 +73,7 @@ func TestRetrieverPerQueryFilterOverridesFunc(t *testing.T) {
 
 	r, err := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{
 		VectorStore: store,
-		FilterFunc: func(_ context.Context, _ map[string]any) (filter.Predicate, error) {
+		FilterFunc: func(_ context.Context, _ *rag.Query) (filter.Predicate, error) {
 			funcCalls++
 			return nil, nil
 		},
@@ -87,7 +87,7 @@ func TestRetrieverPerQueryFilterOverridesFunc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	q, err = q.WithValue(rag.VectorStoreFilterKey, parsed)
+	q, err = rag.WithValue(q, rag.VectorStoreFilterValueKey(), parsed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,14 +103,18 @@ func TestRetrieverPerQueryFilterOverridesFunc(t *testing.T) {
 	}
 }
 
-func TestRetrieverStringFilterIsParsed(t *testing.T) {
+func TestRetrieverUsesParsedQueryFilter(t *testing.T) {
 	store := &fakeVectorSearcher{}
 	r, _ := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{
 		VectorStore: store,
 	})
 
 	q, _ := rag.NewQuery("hi")
-	q, err := q.WithValue(rag.VectorStoreFilterKey, `year >= 2020`)
+	parsed, err := filter.Parse(`year >= 2020`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, err = rag.WithValue(q, rag.VectorStoreFilterValueKey(), parsed)
 	if err != nil {
 		t.Fatal(err)
 	}

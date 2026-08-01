@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 var (
@@ -21,6 +22,20 @@ var (
 // middleware stashes retrieved documents so downstream callers can re-render or
 // audit the context the LLM saw.
 const DocumentContextKey = "rag/document_context"
+
+var (
+	chatHistoryValueKey       = MustValueKey[[]chat.Message]("chat history")
+	requestExtensionsValueKey = MustValueKey[metadata.Map]("chat request extensions")
+)
+
+// ChatHistoryValueKey returns the immutable message snapshot slot populated
+// when a query originates from [NewMiddleware].
+func ChatHistoryValueKey() ValueKey[[]chat.Message] { return chatHistoryValueKey }
+
+// RequestExtensionsValueKey returns the request extension envelope slot. The
+// envelope remains separate from the RAG value namespace rather than being
+// flattened into a weakly typed map.
+func RequestExtensionsValueKey() ValueKey[metadata.Map] { return requestExtensionsValueKey }
 
 type MiddlewareConfig struct {
 	// Retriever fetches documents for the latest user message. Required.
@@ -40,10 +55,10 @@ type middleware struct {
 // request, augment the last user message, and attach retrieved documents to
 // response extensions under [DocumentContextKey].
 func NewMiddleware(config MiddlewareConfig) (chat.CallMiddleware, chat.StreamMiddleware, error) {
-	if isNilCapability(config.Retriever) {
+	if isNil(config.Retriever) {
 		return nil, nil, ErrNilRetriever
 	}
-	if isNilCapability(config.Augmenter) {
+	if isNil(config.Augmenter) {
 		config.Augmenter = IdentityAugmenter()
 	}
 
@@ -71,17 +86,15 @@ func (m *middleware) run(ctx context.Context, req *chat.Request) (*chat.Request,
 		return nil, nil, nil, fmt.Errorf("rag: build query from final user message: %w", err)
 	}
 
-	values, err := prepared.Extensions.Values()
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("rag: decode request extensions: %w", err)
+	if len(prepared.Extensions) != 0 {
+		query, err = WithValue(query, requestExtensionsValueKey, prepared.Extensions.Clone())
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("rag: attach request extensions: %w", err)
+		}
 	}
-	if values == nil {
-		values = make(map[string]any)
-	}
-	values[ChatHistoryKey] = slices.Clone(prepared.Messages)
-	query, err = query.withValues(values)
+	query, err = WithValue(query, chatHistoryValueKey, slices.Clone(prepared.Messages))
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("rag: attach chat history: %w", err)
 	}
 
 	docs, err := m.retriever.Retrieve(ctx, query)
@@ -203,7 +216,7 @@ func withAugmentedUserText(req *chat.Request, text string) *chat.Request {
 }
 
 func (m *middleware) wrapCallHandler(next chat.Model) chat.Model {
-	if isNilCapability(next) {
+	if isNil(next) {
 		return nil
 	}
 	return chat.ModelFunc(func(ctx context.Context, req *chat.Request) (*chat.Response, error) {
@@ -212,7 +225,7 @@ func (m *middleware) wrapCallHandler(next chat.Model) chat.Model {
 }
 
 func (m *middleware) wrapStreamHandler(next chat.Streamer) chat.Streamer {
-	if isNilCapability(next) {
+	if isNil(next) {
 		return nil
 	}
 	return chat.StreamerFunc(func(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {

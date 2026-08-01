@@ -44,6 +44,11 @@ type translationTransformer struct {
 	promptTemplate *chatclient.Template
 }
 
+type translationPromptVariables struct {
+	Target string
+	Query  string
+}
+
 // NewTranslationTransformer returns a [Transformer] that translates queries
 // into the target language expected by downstream retrieval.
 func NewTranslationTransformer(cfg TranslationTransformerConfig) (Transformer, error) {
@@ -56,8 +61,8 @@ func NewTranslationTransformer(cfg TranslationTransformerConfig) (Transformer, e
 	promptTemplate, err := resolvePromptTemplate(
 		cfg.PromptTemplate,
 		translationDefaultTemplate,
-		"Target",
-		"Query",
+		promptVariableTarget,
+		promptVariableQuery,
 	)
 	if err != nil {
 		return nil, err
@@ -75,21 +80,20 @@ func NewTranslationTransformer(cfg TranslationTransformerConfig) (Transformer, e
 	}, nil
 }
 
-// Transform asks the LLM to translate the query. Returns a clone with
-// Text replaced by the LLM output; an empty LLM response leaves Text
-// unchanged.
+// Transform asks the LLM to translate the query and returns a clone with Text
+// replaced by the model output.
 func (t *translationTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
 	if err := query.Validate(); err != nil {
 		return nil, err
 	}
 
-	translated, err := callPrompt(ctx, t.chatClient, t.promptTemplate, map[string]any{
-		"Target": t.targetLanguage,
-		"Query":  query.Text(),
+	translated, err := callPrompt(ctx, t.chatClient, t.promptTemplate, translationPromptVariables{
+		Target: t.targetLanguage,
+		Query:  query.Text(),
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return query.withModelText(translated), nil
+	return query.WithText(translated)
 }

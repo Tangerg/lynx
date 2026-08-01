@@ -2,12 +2,26 @@ package rag
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 )
+
+const (
+	promptVariableContext = "Context"
+	promptVariableHistory = "History"
+	promptVariableNumber  = "Number"
+	promptVariableQuery   = "Query"
+	promptVariableTarget  = "Target"
+)
+
+// ErrEmptyModelOutput reports a successful model call that produced no usable
+// query text. A requested transform or expansion must not silently become an
+// identity operation.
+var ErrEmptyModelOutput = errors.New("rag: model returned empty query text")
 
 func resolvePromptTemplate(current *chatclient.Template, fallback string, required ...string) (*chatclient.Template, error) {
 	if current == nil {
@@ -35,7 +49,11 @@ func callPrompt(ctx context.Context, client *chatclient.Client, prompt *chatclie
 	if response == nil {
 		return "", ErrNilChatResponse
 	}
-	return response.Text(), nil
+	text := strings.TrimSpace(response.Text())
+	if text == "" {
+		return "", ErrEmptyModelOutput
+	}
+	return text, nil
 }
 
 func formatChatHistory(messages []chat.Message) (string, error) {

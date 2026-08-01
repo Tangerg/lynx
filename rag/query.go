@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"reflect"
 	"strings"
 )
 
@@ -14,10 +15,68 @@ var (
 	ErrInvalidQuery = errors.New("rag: invalid query")
 	// ErrNilRetriever reports a missing retrieval capability.
 	ErrNilRetriever = errors.New("rag: retriever must not be nil")
+	// ErrInvalidQueryValueKey reports an empty, whitespace-padded, zero-value,
+	// or untyped query value key.
+	ErrInvalidQueryValueKey = errors.New("rag: invalid query value key")
+	// ErrQueryValueTypeMismatch reports the same key name used with different
+	// declared value types.
+	ErrQueryValueTypeMismatch = errors.New("rag: query value type mismatch")
+	// ErrNilQueryValue reports an ambiguous nil query value.
+	ErrNilQueryValue = errors.New("rag: query value must not be nil")
 )
 
-// ChatHistoryKey identifies chat history in a Query's extension values.
-const ChatHistoryKey = "lynx:ai:rag:chat_history"
+var queryAnyType = reflect.TypeFor[any]()
+
+// ValueKey is a typed, named slot in a [Query]. Define keys once and share the
+// value with the code that writes and reads the slot. A key's name is its
+// identity; reusing a name with another T is an explicit error.
+//
+// The zero value and ValueKey[any] are invalid. Use [NewValueKey] or
+// [MustValueKey] with a concrete value type.
+type ValueKey[T any] struct {
+	name string
+	typ  reflect.Type
+}
+
+// NewValueKey validates name and returns a typed query value key.
+func NewValueKey[T any](name string) (ValueKey[T], error) {
+	key := ValueKey[T]{name: name, typ: reflect.TypeFor[T]()}
+	if err := key.validate(); err != nil {
+		return ValueKey[T]{}, err
+	}
+	return key, nil
+}
+
+// MustValueKey is the declaration-time companion to [NewValueKey].
+func MustValueKey[T any](name string) ValueKey[T] {
+	key, err := NewValueKey[T](name)
+	if err != nil {
+		panic(err)
+	}
+	return key
+}
+
+// Name returns the stable diagnostic identity of the key.
+func (k ValueKey[T]) Name() string { return k.name }
+
+func (k ValueKey[T]) validate() error {
+	switch {
+	case k.name == "", k.name != strings.TrimSpace(k.name), k.typ == nil:
+		return fmt.Errorf(
+			"%w: name must be non-empty without surrounding whitespace",
+			ErrInvalidQueryValueKey,
+		)
+	case k.typ == queryAnyType:
+		return fmt.Errorf("%w: value type must not be any", ErrInvalidQueryValueKey)
+	default:
+		return nil
+	}
+}
+
+type queryValue struct {
+	typ   reflect.Type
+	value any
+}
 
 // Query is a persistent retrieval query: Text is required, and WithText or
 // WithValue returns a new envelope with an independent top-level value map.
@@ -25,7 +84,7 @@ const ChatHistoryKey = "lynx:ai:rag:chat_history"
 // the same query is used by parallel retrieval stages.
 type Query struct {
 	text   string
-	values map[string]any
+	values map[string]queryValue
 }
 
 // NewQuery constructs a query and rejects blank text.
@@ -56,29 +115,68 @@ func (q *Query) Text() string {
 	return q.text
 }
 
-// Value returns the extension value stored under key.
-func (q *Query) Value(key string) (any, bool) {
-	if q == nil {
-		return nil, false
+// LookupValue returns the value stored under key. Missing values are distinct
+// from invalid keys and same-name/different-type collisions.
+func LookupValue[T any](query *Query, key ValueKey[T]) (T, bool, error) {
+	var zero T
+	if err := query.Validate(); err != nil {
+		return zero, false, err
 	}
-	value, found := q.values[key]
-	return value, found
+	if err := key.validate(); err != nil {
+		return zero, false, err
+	}
+	entry, found := query.values[key.name]
+	if !found {
+		return zero, false, nil
+	}
+	if entry.typ != key.typ {
+		return zero, false, fmt.Errorf(
+			"%w for %q: stored %s, requested %s",
+			ErrQueryValueTypeMismatch,
+			key.name,
+			entry.typ,
+			key.typ,
+		)
+	}
+	value, ok := entry.value.(T)
+	if !ok {
+		return zero, false, fmt.Errorf(
+			"%w for %q: stored %T, requested %s",
+			ErrQueryValueTypeMismatch,
+			key.name,
+			entry.value,
+			key.typ,
+		)
+	}
+	return value, true, nil
 }
 
-// Values returns a shallow copy of all extension values.
-func (q *Query) Values() map[string]any {
-	if q == nil {
-		return nil
-	}
-	return maps.Clone(q.values)
-}
-
-// WithValue returns an independent query containing key and value.
-func (q *Query) WithValue(key string, value any) (*Query, error) {
-	if err := q.Validate(); err != nil {
+// WithValue returns an independent query containing value under key.
+func WithValue[T any](query *Query, key ValueKey[T], value T) (*Query, error) {
+	if err := query.Validate(); err != nil {
 		return nil, err
 	}
-	return q.withValues(map[string]any{key: value})
+	if err := key.validate(); err != nil {
+		return nil, err
+	}
+	if isNil(value) {
+		return nil, fmt.Errorf("%w for %q", ErrNilQueryValue, key.name)
+	}
+	if current, found := query.values[key.name]; found && current.typ != key.typ {
+		return nil, fmt.Errorf(
+			"%w for %q: stored %s, new %s",
+			ErrQueryValueTypeMismatch,
+			key.name,
+			current.typ,
+			key.typ,
+		)
+	}
+	clone := &Query{text: query.text, values: maps.Clone(query.values)}
+	if clone.values == nil {
+		clone.values = make(map[string]queryValue, 1)
+	}
+	clone.values[key.name] = queryValue{typ: key.typ, value: value}
+	return clone, nil
 }
 
 // WithText returns an independent query with replacement text.
@@ -90,28 +188,4 @@ func (q *Query) WithText(text string) (*Query, error) {
 		return nil, fmt.Errorf("%w: text must not be blank", ErrInvalidQuery)
 	}
 	return &Query{text: text, values: maps.Clone(q.values)}, nil
-}
-
-func (q *Query) withValues(values map[string]any) (*Query, error) {
-	if q == nil {
-		return nil, ErrNilQuery
-	}
-	for key := range values {
-		if strings.TrimSpace(key) == "" {
-			return nil, fmt.Errorf("%w: extension key must not be blank", ErrInvalidQuery)
-		}
-	}
-	clone := &Query{text: q.text, values: maps.Clone(q.values)}
-	if clone.values == nil {
-		clone.values = make(map[string]any, len(values))
-	}
-	maps.Copy(clone.values, values)
-	return clone, nil
-}
-
-func (q *Query) withModelText(text string) *Query {
-	if strings.TrimSpace(text) == "" {
-		return &Query{text: q.text, values: maps.Clone(q.values)}
-	}
-	return &Query{text: text, values: maps.Clone(q.values)}
 }

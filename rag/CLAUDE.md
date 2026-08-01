@@ -15,11 +15,11 @@
 - **Retriever 是窄腰**:围绕它用组合函数(叠加 transformer / expander / refiner)显式表达能力,而非用一个大 Config 描述整条 pipeline。
 - **组合用函数,不用框架式配置**:没有 PipelineConfig / Pipeline 这类中心配置对象。
 - **单包优先**:同一 RAG 域先放根包、用具体类型名表达职责,不预先拆 `rag/vectorstore`、`rag/llm` 之类子包。
-- **只有 fan-out 检索并行**:多路检索 / query 扩展并发收集;transform / refine / evaluation 是明确的顺序步骤。
+- **只有 fan-out 检索并行**:多路检索 / query 扩展并发收集;transform / refine / evaluation 是明确的顺序步骤。并发结果按声明顺序归并，任一分支失败则本次检索失败，不把不完整结果伪装成完整命中。
 - **同一文档身份只占一个检索名额**:相同非空 Document ID 保留最高分候选,同分按首次身份出现稳定决胜;`TopK` 在截断前完成该唯一化,不能让 refiner 顺序决定结果正确性。
-- **Query 的 per-call metadata 走 values**：filter / history / tenant 等上下文通过不可变的
-  Query envelope 传递；顶层 map 由 Query 复制，引用型 value 仍归调用方所有，并行检索时必须
-  只读。
+- **Query 的 per-call metadata 走类型化 ValueKey**：filter / history / tenant 等上下文通过
+  不可变 Query envelope 传递；公开 API 不暴露 string-key `any` map，同名异型会显式报错。
+  引用型 value 仍归调用方所有，并行检索时必须只读。
 - **evaluation 是独立策略域**:`rag/evaluation` 只依赖最小 Chat Model 和普通 Query/Answer/Context 值，不反向耦合 Document/VectorStore 或固定 RAG pipeline。
 
 ## 模块特有反向不变量
@@ -29,6 +29,7 @@
 - ❌ **把根包拆回 `rag/vectorstore`、`rag/llm`、`rag/ragchat`** —— 单包 + 具体命名即可；独立的 evaluation 策略域除外。
 - ❌ **为能力加大 Config / Builder** —— 小接口 + 函数组合优先,只有真实可选项才进 Config。
 - ❌ **让重复候选占用 TopK 或保留低分首次命中** —— 多 Retriever 合并必须保留同 ID 最高分,`Dedup` 与 `TopK` 组合顺序不得改变唯一 Top K。
+- ❌ **把 nil/空输出静默降级成 identity** —— 可选能力用显式 Identity/Nop；组合器构造期拒绝 nil，空模型输出、空 expansion 和并发分支错误必须返回。
 
 ## 改动前必看(波及面)
 
