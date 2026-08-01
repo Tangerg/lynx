@@ -1191,7 +1191,7 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 			CallID: "call_1", ToolName: "shell", Arguments: `{"command":"pwd"}`,
 			SafetyClass: "write",
 		},
-		TreeInterrupted{Suspensions: []ProcessSuspension{{
+		TreeInterrupted{Checkpoint: noopProcessCheckpoint{}, Suspensions: []ProcessSuspension{{
 			ProcessID: "process_root", SuspensionID: "suspension_1",
 			Interrupt: Interrupt{
 				Kind: execution.ApprovalInterrupt,

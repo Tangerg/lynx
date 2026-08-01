@@ -402,16 +402,37 @@ func TestPendingSuspensionsReportsConcurrentCallsInModelOrder(t *testing.T) {
 				index, pending[index], process.ID(), wantID)
 		}
 	}
+	tree, err := engine.SnapshotTree(t.Context(), process.ID())
+	if err != nil {
+		t.Fatalf("SnapshotTree: %v", err)
+	}
+	fromCapture, err := runtime.PendingSuspensionsIn(tree)
+	if err != nil {
+		t.Fatalf("PendingSuspensionsIn: %v", err)
+	}
+	if len(fromCapture) != len(pending) {
+		t.Fatalf("captured pending suspensions = %#v, want %#v", fromCapture, pending)
+	}
+	for index := range pending {
+		if fromCapture[index].ProcessID != pending[index].ProcessID ||
+			fromCapture[index].SuspensionID != pending[index].SuspensionID {
+			t.Fatalf("captured pending[%d] = %#v, want %#v", index, fromCapture[index], pending[index])
+		}
+	}
 
 	// Results are ownership-isolated just like snapshots: protocol bytes can be
 	// changed by a caller without corrupting the parked process or a later read.
 	pending[0].Prompt[0] = 'x'
+	fromCapture[0].Prompt[0] = 'y'
 	again, err := engine.PendingSuspensions(t.Context(), process.ID())
 	if err != nil {
 		t.Fatalf("PendingSuspensions again: %v", err)
 	}
 	if again[0].Prompt[0] == 'x' {
 		t.Fatal("PendingSuspensions returned mutable runtime state")
+	}
+	if again[0].Prompt[0] == 'y' {
+		t.Fatal("PendingSuspensionsIn returned mutable snapshot state")
 	}
 }
 

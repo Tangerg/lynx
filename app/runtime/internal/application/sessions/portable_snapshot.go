@@ -35,7 +35,7 @@ type PortableSnapshot struct {
 }
 
 // PortableSession is the terminal archive identity. It intentionally excludes
-// live aggregate details such as lineage, kind, isolation, and revision: an
+// live aggregate details such as lineage, isolation, and revision: an
 // imported archive is always admitted as a standalone conversation.
 type PortableSession struct {
 	ID        string

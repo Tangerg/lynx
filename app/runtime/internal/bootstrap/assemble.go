@@ -480,6 +480,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Messages:           messages.conversation,
 		Titles:             maintenance.NewTitler(utilityClient),
 		RunState:           cfg.RunStore,
+		ProcessTrees:       cfg.ProcessStore,
 		Tx:                 runsegment.Transactor(cfg.Transactor),
 		Checkpoints:        checkpoints,
 		Tasks:              effectsTasks,

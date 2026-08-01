@@ -105,6 +105,18 @@ func (s *RunStore) ReconcileOrphans(ctx context.Context, validateProcess Resumab
 				return fmt.Errorf("sqlite: reconcile orphan interrupt: %w", err)
 			}
 		}
+		preservedProcessIDs := make([]string, 0, len(preserved))
+		for rootRunID := range preserved {
+			root, ok := pendingByRun[rootRunID].RootContinuation()
+			if !ok {
+				return fmt.Errorf("sqlite: preserved interrupt %q has no root continuation", rootRunID)
+			}
+			preservedProcessIDs = append(preservedProcessIDs, root.ProcessID)
+		}
+		slices.Sort(preservedProcessIDs)
+		if err := NewProcessStore(s.db).DeleteUnownedTrees(ctx, preservedProcessIDs); err != nil {
+			return fmt.Errorf("sqlite: reconcile unowned process trees: %w", err)
+		}
 		return nil
 	})
 	if err != nil {

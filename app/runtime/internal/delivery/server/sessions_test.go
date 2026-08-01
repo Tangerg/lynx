@@ -109,11 +109,6 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	created, _ := svc.Create(ctx, "doomed", "/w")
 	id := created.ID
 	now := time.Now().UTC()
-	if _, err := svc.SaveSubtask(ctx, session.Subtask{
-		ID: "ses_subtask", ParentID: id, StartedAt: now, UpdatedAt: now,
-	}); err != nil {
-		t.Fatalf("seed subtask: %v", err)
-	}
 	fork, err := svc.Fork(ctx, id)
 	if err != nil {
 		t.Fatalf("seed user fork: %v", err)
@@ -139,9 +134,6 @@ func TestDeleteSession_Cascade(t *testing.T) {
 
 	if _, err := svc.Get(ctx, id); !errors.Is(err, session.ErrNotFound) {
 		t.Errorf("session still present after delete: err = %v", err)
-	}
-	if _, err := svc.Get(ctx, "ses_subtask"); !errors.Is(err, session.ErrNotFound) {
-		t.Errorf("owned subtask still present after parent delete: err = %v", err)
 	}
 	if _, err := svc.Get(ctx, fork.ID); err != nil {
 		t.Errorf("independent user fork was deleted with its parent: %v", err)

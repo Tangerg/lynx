@@ -46,6 +46,10 @@ func (*subtreeTurnProcess) PendingSuspensions(context.Context) ([]agentexec.Pend
 	return nil, nil
 }
 
+func (*subtreeTurnProcess) CaptureWaitingCheckpoint(context.Context) (agentexec.WaitingCheckpoint, error) {
+	return testWaitingCheckpoint{}, nil
+}
+
 func (process *subtreeTurnProcess) Discard(context.Context) error {
 	if process.discarded != nil {
 		process.discarded <- struct{}{}

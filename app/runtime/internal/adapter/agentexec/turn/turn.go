@@ -163,7 +163,7 @@ func (s *memoryDispatcher) handleWaiting(st *turnState, process agentexec.TurnPr
 		}
 	}
 	if canSurfaceAll {
-		s.emitInterrupt(st, process, pending)
+		s.emitInterrupt(st, process)
 		return
 	}
 	answers := make([]agentexec.SuspensionAnswer, len(pending))
@@ -187,8 +187,14 @@ func (s *memoryDispatcher) handleWaiting(st *turnState, process agentexec.TurnPr
 func (s *memoryDispatcher) emitInterrupt(
 	st *turnState,
 	process agentexec.TurnProcess,
-	pending []agentexec.PendingSuspension,
 ) {
+	checkpoint, err := process.CaptureWaitingCheckpoint(st.ctx)
+	if err != nil {
+		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
+		recordTurnCleanupError(st, s.finishFailedTurn(st, internalRunProblem(), err))
+		return
+	}
+	pending := checkpoint.PendingSuspensions()
 	if !st.parkIfLive() {
 		// Canceled between handleWaiting's top ctx check and here: don't surface
 		// an interrupt nobody will answer — terminate like the canceled path so
@@ -198,7 +204,10 @@ func (s *memoryDispatcher) emitInterrupt(
 		recordTurnCleanupError(st, s.finishTurn(st, execution.OutcomeCanceled))
 		return
 	}
-	barrier := runs.TreeInterrupted{Suspensions: make([]runs.ProcessSuspension, len(pending))}
+	barrier := runs.TreeInterrupted{
+		Checkpoint:  checkpoint,
+		Suspensions: make([]runs.ProcessSuspension, len(pending)),
+	}
 	for index, suspension := range pending {
 		interrupt, ok := typedInterrupt(suspension.Prompt)
 		if !ok {

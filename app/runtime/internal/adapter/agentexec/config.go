@@ -47,7 +47,6 @@ type MemorySearcher interface {
 type ProcessStore interface {
 	SaveTree(ctx context.Context, tree execution.ProcessTreeState, checkpoint execution.ProcessCheckpoint) error
 	LoadTree(ctx context.Context, rootID string) (execution.ProcessTreeState, execution.ProcessCheckpoint, error)
-	DeleteTrees(ctx context.Context, rootIDs []string) error
 }
 
 // Config is the engine construction-time bundle. ChatClient is the
@@ -118,9 +117,11 @@ type Config struct {
 	// ambiguous across providers). Empty when no default is configured.
 	Provider string
 
-	// ProcessStore persists complete process trees at turn-segment boundaries.
-	// nil keeps execution in memory. The application adapter, rather than the
-	// Agent framework, owns durable commit and failure policy.
+	// ProcessStore reads and writes complete process-tree checkpoints. nil keeps
+	// execution in memory and makes surfaced waiting boundaries unavailable.
+	// Captures perform no I/O until the Application invokes their persistence
+	// capability inside its own atomic write-set; terminal deletion is likewise
+	// owned by the Application's run lifecycle.
 	ProcessStore ProcessStore
 
 	// ToolResultStore backs tool-result eviction: a single tool output larger

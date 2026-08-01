@@ -163,10 +163,17 @@ type ProcessSuspension struct {
 // in one transaction.
 type TreeInterrupted struct {
 	executorPayloadBase
+	// Checkpoint is the immutable executor state captured at the same waiting
+	// boundary as Suspensions. The Coordinator never interprets it; it only
+	// places its write into the tree-barrier transaction.
+	Checkpoint  ProcessCheckpointWrite
 	Suspensions []ProcessSuspension
 }
 
 func (barrier TreeInterrupted) validate() error {
+	if barrier.Checkpoint == nil {
+		return errors.New("runs: executor tree interrupt has no process checkpoint")
+	}
 	if len(barrier.Suspensions) == 0 {
 		return errors.New("runs: executor emitted an empty tree interrupt")
 	}

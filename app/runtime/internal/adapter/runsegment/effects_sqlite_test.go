@@ -471,12 +471,14 @@ func TestCommitTreeBarrierProducesBootResumableTriplet(t *testing.T) {
 		RootID:    snapshot.ID,
 		Snapshots: []core.ProcessSnapshot{snapshot},
 	}
-	if err := sqlite.NewProcessStore(db).SaveTree(ctx, persistedProcessTree(t, tree), execution.ProcessCheckpoint{
-		BuildID: checkpointBuildID,
-		Scope:   execution.TurnScope{SessionID: "ses_1"},
-		Usage:   accounting.Snapshot{},
-	}); err != nil {
-		t.Fatalf("save process snapshot: %v", err)
+	checkpoint := sqliteProcessCheckpointWrite{
+		store: sqlite.NewProcessStore(db),
+		tree:  persistedProcessTree(t, tree),
+		checkpoint: execution.ProcessCheckpoint{
+			BuildID: checkpointBuildID,
+			Scope:   execution.TurnScope{SessionID: "ses_1"},
+			Usage:   accounting.Snapshot{},
+		},
 	}
 	question := &transcript.Question{Prompt: "Continue?"}
 	open := []transcript.Interrupt{{
@@ -495,7 +497,8 @@ func TestCommitTreeBarrierProducesBootResumableTriplet(t *testing.T) {
 		createdAt, parkedAt,
 	)
 	if err := effects.CommitTreeBarrier(ctx, runs.TreeBarrierCommit{
-		Pending: pending,
+		Pending:    pending,
+		Checkpoint: checkpoint,
 		Runs: []runs.EventCommit{{
 			RunID: "run_1", SessionID: "ses_1", State: runs.StateSuspend,
 			Items: []transcript.Item{{
@@ -518,6 +521,144 @@ func TestCommitTreeBarrierProducesBootResumableTriplet(t *testing.T) {
 	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_next", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: parkedAt}); !errors.Is(err, execution.ErrSessionBusy) {
 		t.Fatalf("admit after intact park = %v, want ErrSessionBusy", err)
 	}
+}
+
+func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := t.Context()
+	createdAt := time.Unix(1, 0).UTC()
+	parkedAt := time.Unix(2, 0).UTC()
+	snapshot := waitingProcessSnapshot("proc_rollback", createdAt, parkedAt)
+	checkpoint := sqliteProcessCheckpointWrite{
+		store: sqlite.NewProcessStore(db),
+		tree: persistedProcessTree(t, core.ProcessSnapshotTree{
+			RootID: snapshot.ID, Snapshots: []core.ProcessSnapshot{snapshot},
+		}),
+		checkpoint: execution.ProcessCheckpoint{
+			BuildID: checkpointBuildID,
+			Scope:   execution.TurnScope{SessionID: "ses_rollback"},
+			Usage:   accounting.Snapshot{},
+		},
+	}
+	interruptStore := sqlite.NewInterruptStore(db)
+	effects := sqliteEffects(sqliteOpeningStores{
+		interrupts: interruptStore,
+		transcript: sqlite.NewTranscriptStore(db),
+	}, Config{
+		RunState: sqlite.NewRunStore(db),
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			return sqlite.RunInTx(ctx, db, fn)
+		},
+	})
+	pending := singleRunPending(
+		t,
+		"run_missing", "ses_rollback", snapshot.ID, snapshot.Suspension.ID, "item_question",
+		createdAt, parkedAt,
+	)
+	parkedRun := parkedRunRecord("run_missing", "ses_rollback", createdAt)
+	err = effects.CommitTreeBarrier(ctx, runs.TreeBarrierCommit{
+		Pending:    pending,
+		Checkpoint: checkpoint,
+		Runs: []runs.EventCommit{{
+			RunID: "run_missing", SessionID: "ses_rollback", State: runs.StateSuspend,
+			Run: &parkedRun,
+		}},
+	})
+	if err == nil {
+		t.Fatal("CommitTreeBarrier succeeded without an admitted Run")
+	}
+	if _, _, loadErr := checkpoint.store.LoadTree(ctx, snapshot.ID); !errors.Is(loadErr, execution.ErrProcessStateNotFound) {
+		t.Fatalf("checkpoint survived failed tree barrier: %v", loadErr)
+	}
+	if _, found, getErr := interruptStore.Get(ctx, pending.RootRunID); getErr != nil || found {
+		t.Fatalf("interrupt survived failed tree barrier: found=%v err=%v", found, getErr)
+	}
+}
+
+func TestCommitTerminalOwnsProcessCheckpointDeletion(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		deleteFail bool
+	}{
+		{name: "commit"},
+		{name: "rollback when checkpoint delete fails", deleteFail: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			db, err := sqlite.Open(":memory:")
+			if err != nil {
+				t.Fatalf("open: %v", err)
+			}
+			t.Cleanup(func() { _ = db.Close() })
+			ctx := t.Context()
+			createdAt := time.Unix(1, 0).UTC()
+			runStore := sqlite.NewRunStore(db)
+			if err := runStore.Admit(ctx, execution.RunDraft{
+				RunID: "run_terminal", SessionID: "ses_terminal", SegmentID: "seg_terminal",
+				CreatedAt: createdAt,
+			}); err != nil {
+				t.Fatalf("admit: %v", err)
+			}
+			processStore := sqlite.NewProcessStore(db)
+			snapshot := waitingProcessSnapshot("proc_terminal", createdAt, createdAt.Add(time.Second))
+			if err := processStore.SaveTree(ctx, persistedProcessTree(t, core.ProcessSnapshotTree{
+				RootID: snapshot.ID, Snapshots: []core.ProcessSnapshot{snapshot},
+			}), execution.ProcessCheckpoint{
+				BuildID: checkpointBuildID,
+				Scope:   execution.TurnScope{SessionID: "ses_terminal"},
+				Usage:   accounting.Snapshot{},
+			}); err != nil {
+				t.Fatalf("seed checkpoint: %v", err)
+			}
+
+			var processTrees ProcessTreeStore = processStore
+			if test.deleteFail {
+				processTrees = failingProcessTreeStore{err: errors.New("delete unavailable")}
+			}
+			effects := New(Config{
+				RunState:     runStore,
+				ProcessTrees: processTrees,
+				Tx: func(ctx context.Context, fn func(context.Context) error) error {
+					return sqlite.RunInTx(ctx, db, fn)
+				},
+			})
+			finished := finishedRunRecord("run_terminal", "ses_terminal", execution.OutcomeCompleted)
+			finished.MessageMark = 0
+			err = effects.CommitEvent(ctx, runs.EventCommit{
+				RunID: "run_terminal", SessionID: "ses_terminal", State: runs.StateTerminalize,
+				Outcome: execution.OutcomeCompleted, Run: finished, ObsoleteProcessTreeRootID: snapshot.ID,
+			})
+			if test.deleteFail {
+				if err == nil {
+					t.Fatal("terminal commit succeeded after checkpoint deletion failed")
+				}
+				runsAfter, listErr := runStore.ListRuns(ctx, "ses_terminal")
+				if listErr != nil || len(runsAfter) != 1 || runsAfter[0].State != execution.Running {
+					t.Fatalf("Run after rollback = %+v, %v; want running", runsAfter, listErr)
+				}
+				if _, _, loadErr := processStore.LoadTree(ctx, snapshot.ID); loadErr != nil {
+					t.Fatalf("checkpoint lost after terminal rollback: %v", loadErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("CommitEvent: %v", err)
+			}
+			if _, _, loadErr := processStore.LoadTree(ctx, snapshot.ID); !errors.Is(loadErr, execution.ErrProcessStateNotFound) {
+				t.Fatalf("terminal checkpoint survived: %v", loadErr)
+			}
+		})
+	}
+}
+
+type failingProcessTreeStore struct{ err error }
+
+func (store failingProcessTreeStore) DeleteTrees(context.Context, []string) error {
+	return store.err
 }
 
 type sqliteProcessCheckpointWrite struct {

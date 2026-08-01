@@ -60,7 +60,7 @@ func Open(path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 45
+const schemaEpoch = 46
 
 func installCurrentSchema(db *sql.DB, path string) error {
 	var epoch int
@@ -92,7 +92,6 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			started_at  INTEGER NOT NULL,
 			updated_at  INTEGER NOT NULL,
 			model       TEXT    NOT NULL DEFAULT '',
-			kind        TEXT    NOT NULL DEFAULT '',
 			favorite    INTEGER NOT NULL DEFAULT 0,
 			isolated    INTEGER NOT NULL DEFAULT 0,
 			revision    INTEGER NOT NULL DEFAULT 1
@@ -104,6 +103,7 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		`CREATE TABLE IF NOT EXISTS process_states (
 			id           TEXT    PRIMARY KEY,
 			parent_id    TEXT    NOT NULL,
+			session_id   TEXT    NOT NULL,
 			started_at   INTEGER NOT NULL,
 			build_id     TEXT    NOT NULL,
 			payload      BLOB    NOT NULL,
@@ -113,6 +113,8 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_process_states_parent
 			ON process_states(parent_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_process_states_session
+			ON process_states(session_id)`,
 		// One row per root or child Run. state is the coarse admission position —
 		// 'running' | 'interrupted' | 'terminal' — and the partial unique index
 		// below is the durable "one non-terminal root Run tree per Session"

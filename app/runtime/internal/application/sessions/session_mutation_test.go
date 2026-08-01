@@ -172,94 +172,41 @@ func TestDeleteSessionDiscardsIsolatedSandboxCopyPostCommit(t *testing.T) {
 	}
 }
 
-func TestRollbackDropsSubtaskCheckpointsAndReportsCleanupFailures(t *testing.T) {
+func TestRollbackReportsParkedTurnCleanupFailure(t *testing.T) {
 	turnErr := errors.New("turn cleanup failed")
-	checkpointErr := errors.New("checkpoint cleanup failed")
 	stores := newMutationStores("")
-	checkpoints := &mutationCheckpoints{operations: &stores.operations, err: checkpointErr}
 	coordinator := New(testDependencies(stores, Dependencies{
-		Turns:       mutationTurns{operations: &stores.operations, err: turnErr},
-		Paths:       testCwdResolver{},
-		Checkpoints: checkpoints,
+		Turns: mutationTurns{operations: &stores.operations, err: turnErr},
+		Paths: testCwdResolver{},
 	}))
 	boundary := transcript.Boundary{Dropped: []transcript.RunNode{{ID: "run_1"}}}
 
-	err := coordinator.applyRollback(t.Context(), "ses_1", boundary, []string{"ses_sub"})
-	if !errors.Is(err, turnErr) || !errors.Is(err, checkpointErr) {
-		t.Fatalf("applyRollback error = %v, want turn and checkpoint cleanup failures", err)
+	err := coordinator.applyRollback(t.Context(), "ses_1", boundary)
+	if !errors.Is(err, turnErr) {
+		t.Fatalf("applyRollback error = %v, want turn cleanup failure", err)
 	}
 	want := []string{
-		"interrupts.list",
 		"apply.rollback",
 		"turn.cancel",
-		"session.forget",
-		"checkpoint.drop:ses_sub",
 	}
 	if !slices.Equal(stores.operations, want) {
 		t.Fatalf("operations = %v, want %v", stores.operations, want)
 	}
 }
 
-func TestDeleteSessionRemovesOwnedSubtaskTreeButPreservesUserForks(t *testing.T) {
+func TestDeleteSessionAddressesOnlyTheRequestedConversation(t *testing.T) {
 	stores := newMutationStores("")
-	stores.children = map[string][]session.Session{
-		"ses_1": {
-			{ID: "ses_sub", Kind: session.KindSubtask},
-			{ID: "ses_fork"},
-		},
-		"ses_sub": {{ID: "ses_nested", Kind: session.KindSubtask}},
-	}
-	stores.pending["ses_sub"] = []interrupts.Pending{{
-		RootRunID: "run_sub", SessionID: "ses_sub", TurnID: "turn_sub",
-		Continuations: []interrupts.Continuation{{RunID: "run_sub", ProcessID: "proc_sub"}},
-	}}
 	claims := new(testClaimer)
 
 	if err := newCoordinatorWithAdmissions(stores, mutationTurns{operations: &stores.operations}, claims).DeleteSession(t.Context(), "ses_1"); err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
-	wantDeleted := []string{"ses_nested", "ses_sub", "ses_1"}
+	wantDeleted := []string{"ses_1"}
 	if !slices.Equal(stores.deleted, wantDeleted) {
-		t.Fatalf("deleted = %v, want %v (user fork preserved)", stores.deleted, wantDeleted)
+		t.Fatalf("deleted = %v, want %v", stores.deleted, wantDeleted)
 	}
 	if len(claims.claimed) != 0 || len(claims.released) != len(wantDeleted) {
 		t.Fatalf("claims after delete = %+v releases=%v", claims.claimed, claims.released)
-	}
-}
-
-func TestDeleteSessionRejectsActiveSubtaskDescendant(t *testing.T) {
-	stores := newMutationStores("")
-	stores.children = map[string][]session.Session{
-		"ses_1": {{ID: "ses_sub", Kind: session.KindSubtask}},
-	}
-	claims := &testClaimer{claimed: map[string]bool{"ses_sub": true}}
-
-	err := newCoordinatorWithAdmissions(stores, mutationTurns{operations: &stores.operations}, claims).DeleteSession(t.Context(), "ses_1")
-	if !errors.Is(err, ErrSessionBusy) {
-		t.Fatalf("DeleteSession error = %v, want ErrSessionBusy", err)
-	}
-	if slices.Contains(stores.operations, "apply.delete") {
-		t.Fatal("active descendant allowed the delete write-set to commit")
-	}
-	if claims.claimed["ses_1"] {
-		t.Fatal("failed subtree claim leaked the root admission")
-	}
-}
-
-func TestRollbackRejectsActiveSubtaskDescendantBeforeWriteSet(t *testing.T) {
-	stores := newMutationStores("")
-	stores.children = map[string][]session.Session{
-		"ses_1": {{ID: "ses_sub", Kind: session.KindSubtask}},
-	}
-	claims := &testClaimer{claimed: map[string]bool{"ses_sub": true}}
-	boundary := transcript.Boundary{Dropped: []transcript.RunNode{{ID: "run_drop"}}}
-
-	_, _, err := newCoordinatorWithAdmissions(stores, mutationTurns{operations: &stores.operations}, claims).prepareRollbackSessions(t.Context(), "ses_1", boundary)
-	if !errors.Is(err, ErrSessionBusy) {
-		t.Fatalf("Rollback error = %v, want ErrSessionBusy", err)
-	}
-	if slices.Contains(stores.operations, "apply.rollback") {
-		t.Fatal("active subtask descendant allowed the rollback write-set to commit")
 	}
 }
 
@@ -331,7 +278,6 @@ type mutationStores struct {
 	deleted    []string
 	restored   []RestorePlan
 	ints       *mutationInterrupts
-	children   map[string][]session.Session
 	pending    map[string][]interrupts.Pending
 }
 
@@ -383,7 +329,7 @@ func (s *mutationStores) ApplyDelete(_ context.Context, plan DeletePlan) error {
 	if err := s.record("apply.delete"); err != nil {
 		return err
 	}
-	s.deleted = append(s.deleted, plan.SessionIDs...)
+	s.deleted = append(s.deleted, plan.SessionID)
 	return nil
 }
 func (s *mutationStores) ApplyTerminal(context.Context, TerminalPlan) error {
@@ -404,9 +350,6 @@ func (*mutationStores) Ensure(context.Context, session.Session) (session.Session
 }
 func (*mutationStores) Patch(context.Context, string, session.Patch) (session.Session, error) {
 	panic("unused")
-}
-func (s *mutationStores) Children(_ context.Context, parentID string) ([]session.Session, error) {
-	return s.children[parentID], nil
 }
 
 type mutationInterrupts struct{ stores *mutationStores }

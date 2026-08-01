@@ -369,6 +369,9 @@ func (p treePublisher) publish(
 		// event the store doesn't yet back. A commit failure aborts the turn (as
 		// the interrupt path does) rather than publishing an unbacked event.
 		if reduced.Commit != nil {
+			if reduced.Commit.State == StateTerminalize && route.source.ParentID == "" {
+				reduced.Commit.ObsoleteProcessTreeRootID = route.source.ProcessID
+			}
 			if err := p.coordinator.effects.CommitEvent(ctx, *reduced.Commit); err != nil {
 				return reductionPublication{}, fmt.Errorf("runs: commit %T: %w", reduced.Event, err)
 			}
@@ -514,8 +517,9 @@ func (p treePublisher) publishTreeBarrier(
 
 	committed, err := p.live.commitInterrupt(ctx, func(interruptCtx context.Context) error {
 		if err := p.coordinator.effects.CommitTreeBarrier(interruptCtx, TreeBarrierCommit{
-			Pending: pending,
-			Runs:    commits,
+			Pending:    pending,
+			Runs:       commits,
+			Checkpoint: barrier.Checkpoint,
 		}); err != nil {
 			return err
 		}

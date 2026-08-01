@@ -4,11 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
 // DeleteSession atomically removes all durable session state (the atomic
@@ -18,41 +15,35 @@ import (
 // state is gone. Checkpoint cleanup runs last, after the durable delete has
 // already succeeded; all post-commit cleanup failures are returned together.
 func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error {
-	admissions, sessionIDs, err := c.claimDeleteTree(ctx, sessionID)
+	admission, err := c.ClaimMutationSlot(sessionID)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		for i := len(admissions) - 1; i >= 0; i-- {
-			admissions[i].Release()
-		}
-	}()
+	defer admission.Release()
 
 	var pending []interrupts.Pending
 	return c.withGoalMutation(
 		ctx,
-		sessionIDs,
+		[]string{sessionID},
 		func(ctx context.Context) error {
-			for _, id := range sessionIDs {
-				if c.interrupts == nil {
-					return errors.New("sessions: interrupt store is unavailable")
-				}
-				open, err := c.interrupts.List(ctx, id)
-				if err != nil {
-					return err
-				}
-				pending = append(pending, open...)
+			if c.interrupts == nil {
+				return errors.New("sessions: interrupt store is unavailable")
 			}
+			open, err := c.interrupts.List(ctx, sessionID)
+			if err != nil {
+				return err
+			}
+			pending = append(pending, open...)
 			if c.writes == nil {
 				return errors.New("sessions: write sets are unavailable")
 			}
-			return c.writes.ApplyDelete(ctx, DeletePlan{SessionIDs: sessionIDs})
+			return c.writes.ApplyDelete(ctx, DeletePlan{SessionID: sessionID})
 		},
 		func(ctx context.Context) error {
 			// The durable cascade is gone as of here, so the signal cannot outrun it —
 			// and it goes out before the process-local cleanup, whose failures are the
 			// caller's to report but change nothing a client can read.
-			c.publishAggregateMoved(sessionIDs, nil)
+			c.publishAggregateMoved([]string{sessionID}, nil)
 			var cleanupErrs []error
 			for _, item := range pending {
 				if err := c.cancelTurn(ctx, RunTurnBinding{
@@ -63,91 +54,10 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 					cleanupErrs = append(cleanupErrs, err)
 				}
 			}
-			cleanupErrs = append(cleanupErrs, c.dropSessionResources(sessionIDs, "deleted")...)
+			cleanupErrs = append(cleanupErrs, c.dropSessionResources([]string{sessionID}, "deleted")...)
 			return errors.Join(cleanupErrs...)
 		},
 	)
-}
-
-func (c *Coordinator) claimDeleteTree(ctx context.Context, sessionID string) ([]RunAdmission, []string, error) {
-	root, err := c.ClaimMutationSlot(sessionID)
-	if err != nil {
-		return nil, nil, err
-	}
-	admissions := []RunAdmission{root}
-	var sessionIDs []string
-	seen := map[string]struct{}{sessionID: {}}
-
-	var visit func(string, bool) error
-	visit = func(parentID string, ownedSubtree bool) error {
-		if c.sessions == nil {
-			return errors.New("sessions: session store is unavailable")
-		}
-		children, err := c.sessions.Children(ctx, parentID)
-		if err != nil {
-			return err
-		}
-		for _, child := range children {
-			if !ownedSubtree && child.Kind != session.KindSubtask {
-				continue
-			}
-			if _, exists := seen[child.ID]; exists {
-				return fmt.Errorf("sessions: delete tree contains duplicate or cyclic session %q", child.ID)
-			}
-			seen[child.ID] = struct{}{}
-			admission, err := c.ClaimMutationSlot(child.ID)
-			if err != nil {
-				return err
-			}
-			admissions = append(admissions, admission)
-			if err := visit(child.ID, true); err != nil {
-				return err
-			}
-			sessionIDs = append(sessionIDs, child.ID)
-		}
-		return nil
-	}
-	if err := visit(sessionID, false); err != nil {
-		for i := len(admissions) - 1; i >= 0; i-- {
-			admissions[i].Release()
-		}
-		return nil, nil, err
-	}
-	return admissions, append(sessionIDs, sessionID), nil
-}
-
-func (c *Coordinator) claimMutationSlots(sessionIDs []string) ([]RunAdmission, error) {
-	admissions := make([]RunAdmission, 0, len(sessionIDs))
-	for _, sessionID := range sessionIDs {
-		admission, err := c.ClaimMutationSlot(sessionID)
-		if err != nil {
-			releaseAdmissions(admissions)
-			return nil, err
-		}
-		admissions = append(admissions, admission)
-	}
-	return admissions, nil
-}
-
-func (c *Coordinator) prepareRollbackSessions(ctx context.Context, sessionID string, boundary transcript.Boundary) ([]string, []RunAdmission, error) {
-	if len(boundary.Dropped) == 0 {
-		return nil, nil, nil
-	}
-	sessionIDs, err := c.subtaskSessionsAfter(ctx, sessionID, boundary.BoundaryTime)
-	if err != nil {
-		return nil, nil, err
-	}
-	admissions, err := c.claimMutationSlots(sessionIDs)
-	if err != nil {
-		return nil, nil, err
-	}
-	return sessionIDs, admissions, nil
-}
-
-func releaseAdmissions(admissions []RunAdmission) {
-	for i := len(admissions) - 1; i >= 0; i-- {
-		admissions[i].Release()
-	}
 }
 
 // dropSessionResources removes the process-local resources which outlive a
@@ -250,53 +160,4 @@ func (c *Coordinator) RestorePortableSession(ctx context.Context, portable Porta
 		return SessionView{}, err
 	}
 	return c.restoreSession(ctx, snapshot, true)
-}
-
-// subtaskSessionsAfter resolves the internal subtask subtrees a rollback must
-// delete. User-created forks share ParentID but have an empty Kind and remain
-// independent conversations; only KindSubtask roots are attributed to runs.
-// IDs are post-order so descendants are deleted before their parent.
-func (c *Coordinator) subtaskSessionsAfter(ctx context.Context, parentID string, boundary time.Time) ([]string, error) {
-	if c.sessions == nil {
-		return nil, errors.New("sessions: session store is unavailable")
-	}
-	children, err := c.sessions.Children(ctx, parentID)
-	if err != nil {
-		return nil, err
-	}
-	var out []string
-	seen := map[string]struct{}{parentID: {}}
-	for _, child := range children {
-		if child.Kind != session.KindSubtask {
-			continue
-		}
-		if !boundary.IsZero() && child.StartedAt.Before(boundary) {
-			continue
-		}
-		if err := c.appendSessionSubtree(ctx, child.ID, seen, &out); err != nil {
-			return nil, err
-		}
-	}
-	return out, nil
-}
-
-func (c *Coordinator) appendSessionSubtree(ctx context.Context, sessionID string, seen map[string]struct{}, out *[]string) error {
-	if _, exists := seen[sessionID]; exists {
-		return fmt.Errorf("sessions: rollback tree contains duplicate or cyclic session %q", sessionID)
-	}
-	seen[sessionID] = struct{}{}
-	if c.sessions == nil {
-		return errors.New("sessions: session store is unavailable")
-	}
-	children, err := c.sessions.Children(ctx, sessionID)
-	if err != nil {
-		return err
-	}
-	for _, child := range children {
-		if err := c.appendSessionSubtree(ctx, child.ID, seen, out); err != nil {
-			return err
-		}
-	}
-	*out = append(*out, sessionID)
-	return nil
 }

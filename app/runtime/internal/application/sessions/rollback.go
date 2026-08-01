@@ -3,21 +3,19 @@ package sessions
 import (
 	"context"
 	"errors"
-	"fmt"
-	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // applyRollback truncates the chat history log to the boundary watermark and drops each run's
 // durable record + dangling interrupt as ONE atomic write-set (§8.1), then cancels
-// any in-process parked turns that were abandoned and purges the subagent child
-// sessions spawned at/after the boundary. A keepMark < 0 (unknown watermark —
+// any in-process parked turns that were abandoned. Delegated work is represented
+// by first-class child Runs in this same session, so there is no parallel hidden
+// Session tree to infer or purge. A keepMark < 0 (unknown watermark —
 // chain terminal still in-flight / pre-watermark) leaves the log untouched
 // rather than guessing at a boundary that was never recorded. An empty boundary
-// (nothing dropped) is a no-op. The caller resolves and claims dropSessionIDs
-// before any cross-resource file restore starts.
-func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, boundary transcript.Boundary, dropSessionIDs []string) error {
+// (nothing dropped) is a no-op.
+func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, boundary transcript.Boundary) error {
 	if len(boundary.Dropped) == 0 {
 		return nil
 	}
@@ -25,10 +23,6 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 	// Read the parked turns BEFORE the write-set consumes their interrupts — the
 	// in-process turns still need canceling once the durable records are gone.
 	parked, err := c.parkedTurns(ctx, dropRunIDs)
-	if err != nil {
-		return err
-	}
-	childParked, err := c.parkedSessionTurns(ctx, dropSessionIDs)
 	if err != nil {
 		return err
 	}
@@ -41,34 +35,32 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 	}
 	// A dropped parked run held the session's durable admission slot; dropping its
 	// record releases the slot, so the session can start a fresh run afterward.
-	sessionIDs := append([]string{sessionID}, dropSessionIDs...)
 	return c.withGoalMutation(
 		ctx,
-		sessionIDs,
+		[]string{sessionID},
 		func(ctx context.Context) error {
 			if c.writes == nil {
 				return errors.New("sessions: write sets are unavailable")
 			}
 			return c.writes.ApplyRollback(ctx, RollbackPlan{
-				SessionID:      sessionID,
-				KeepMark:       boundary.KeepMark,
-				DropRunIDs:     dropRunIDs,
-				DropSessionIDs: dropSessionIDs,
-				ProcessIDs:     parkedProcessIDs(parked),
-				Todos:          todos,
+				SessionID:  sessionID,
+				KeepMark:   boundary.KeepMark,
+				DropRunIDs: dropRunIDs,
+				ProcessIDs: parkedProcessIDs(parked),
+				Todos:      todos,
 			})
 		},
 		func(ctx context.Context) error {
-			// The truncation is committed: the dropped runs are gone, the boundary's task
-			// list is published, and any subtask session it owned was deleted with it.
-			c.publishAggregateMoved(sessionIDs, dropRunIDs)
+			// The truncation is committed: the dropped Run subtree is gone and the
+			// boundary's task list is published. Delegated work has no parallel
+			// Session identity to clean up.
+			c.publishAggregateMoved([]string{sessionID}, dropRunIDs)
 			var cleanupErrs []error
-			for _, r := range slices.Concat(parked, childParked) {
+			for _, r := range parked {
 				if err := c.cancelTurn(ctx, r); err != nil {
 					cleanupErrs = append(cleanupErrs, err)
 				}
 			}
-			cleanupErrs = append(cleanupErrs, c.dropSessionResources(dropSessionIDs, "rolled-back subtask")...)
 			return errors.Join(cleanupErrs...)
 		},
 	)
@@ -82,28 +74,4 @@ func parkedProcessIDs(parked []RunTurnBinding) []string {
 		}
 	}
 	return ids
-}
-
-func (c *Coordinator) parkedSessionTurns(ctx context.Context, sessionIDs []string) ([]RunTurnBinding, error) {
-	var out []RunTurnBinding
-	for _, sessionID := range sessionIDs {
-		if c.interrupts == nil {
-			return nil, errors.New("sessions: interrupt store is unavailable")
-		}
-		pending, err := c.interrupts.List(ctx, sessionID)
-		if err != nil {
-			return nil, err
-		}
-		for _, item := range pending {
-			root, ok := item.RootContinuation()
-			if !ok {
-				return nil, fmt.Errorf("sessions: parked run %q has no root continuation", item.RootRunID)
-			}
-			out = append(out, RunTurnBinding{
-				RunID: item.RootRunID, SessionID: item.SessionID,
-				TurnID: item.TurnID, ProcessID: root.ProcessID,
-			})
-		}
-	}
-	return out, nil
 }

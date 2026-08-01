@@ -155,29 +155,15 @@ func TestRollbackSession_CancelsDroppedParkedRun(t *testing.T) {
 	}
 }
 
-// TestRollbackSession_DropAll clears the session (omit toRunId) and purges the
-// subagent child sessions it spawned (boundary zero → all children).
+// TestRollbackSession_DropAll clears the addressed conversation timeline when
+// toRunId is omitted. Delegated work is part of the same first-class Run tree;
+// rollback never discovers or deletes a parallel hidden Session tree.
 func TestRollbackSession_DropAll(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
-	now := time.Now().UTC()
-	child, _ := rt.sess.SaveSubtask(ctx, session.Subtask{
-		ID: "ses_child", ParentID: sess.ID, StartedAt: now, UpdatedAt: now,
-	})
 	rt.history[sess.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("u1")), chat.NewAssistantMessage(chat.NewTextPart("a1"))}
-	rt.history[child.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("sub"))}
 	putRun(t, rt, sess.ID, "run_1", 100, 2)
-	if err := rt.interrupts.Put(ctx, serverPending(
-		"run_child",
-		child.ID,
-		"",
-		"",
-		nil,
-		time.Now().UTC(),
-	)); err != nil {
-		t.Fatalf("seed child interrupt: %v", err)
-	}
 
 	out, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: sess.ID})
 	if err != nil {
@@ -188,16 +174,6 @@ func TestRollbackSession_DropAll(t *testing.T) {
 	}
 	if _, ok := rt.history[sess.ID]; ok {
 		t.Fatal("session messages must be cleared on drop-all")
-	}
-	// The subagent child session and its messages are purged.
-	if _, err := rt.sess.Get(ctx, child.ID); err == nil {
-		t.Fatal("subagent child session must be purged on drop-all")
-	}
-	if _, ok := rt.history[child.ID]; ok {
-		t.Fatal("subagent child messages must be purged")
-	}
-	if pending, _ := rt.interrupts.List(ctx, child.ID); len(pending) != 0 {
-		t.Fatalf("subagent child interrupts = %+v, want purged", pending)
 	}
 }
 

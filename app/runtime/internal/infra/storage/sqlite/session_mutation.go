@@ -33,11 +33,11 @@ func (s *SessionStore) Create(ctx context.Context, title, cwd string) (session.S
 func (s *SessionStore) Ensure(ctx context.Context, sess session.Session) (session.Session, error) {
 	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO NOTHING`,
 		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		sess.Model, sess.Kind, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
+		sess.Model, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
 	)
 	if err != nil {
 		return session.Session{}, fmt.Errorf("sqlite: ensure session: %w", err)
@@ -51,10 +51,10 @@ func (s *SessionStore) Ensure(ctx context.Context, sess session.Session) (sessio
 func (s *SessionStore) Restore(ctx context.Context, sess session.Session) error {
 	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT OR REPLACE INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		sess.Model, sess.Kind, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
+		sess.Model, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: restore session: %w", err)
@@ -200,10 +200,10 @@ func (s *SessionStore) insert(ctx context.Context, sess session.Session) error {
 func (s *SessionStore) execInsert(ctx context.Context, ex execer, sess session.Session) error {
 	_, err := ex.ExecContext(ctx,
 		`INSERT INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		sess.Model, sess.Kind, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
+		sess.Model, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: insert session: %w", err)

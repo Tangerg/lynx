@@ -14,11 +14,11 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// ProcessStore persists complete Agent process trees and delegated product
-// session lineage in one SQLite transaction.
+// ProcessStore persists complete executor process trees. Payload interpretation
+// belongs exclusively to the execution adapter; this store never derives
+// product Sessions or Runs from executor identity.
 type ProcessStore struct {
 	db *sql.DB
 }
@@ -70,8 +70,9 @@ type processModelUsageWire struct {
 }
 
 // SaveTree replaces the durable subtree rooted at tree.RootID. Stale
-// descendants disappear before the complete new tree and its delegated session
-// lineage commit atomically.
+// descendants disappear before the complete new tree commits atomically.
+// session_id is App-owned checkpoint metadata used only for aggregate cleanup;
+// it never turns executor children into product Sessions.
 func (s *ProcessStore) SaveTree(
 	ctx context.Context,
 	tree execution.ProcessTreeState,
@@ -113,16 +114,18 @@ func (s *ProcessStore) SaveTree(
 			return err
 		}
 		for index, process := range states {
-			var policyData, usageData string
+			var sessionID, policyData, usageData string
 			if process.id == tree.RootID {
+				sessionID = checkpoint.Scope.SessionID
 				policyData = string(encodedPolicy)
 				usageData = string(encodedUsage)
 			}
 			if _, err := conn(ctx, s.db).ExecContext(ctx,
-				`INSERT INTO process_states(id, parent_id, started_at, build_id, payload, policy, usage, committed_at)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO process_states(id, parent_id, session_id, started_at, build_id, payload, policy, usage, committed_at)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				process.id,
 				process.parentID,
+				sessionID,
 				process.startedAt,
 				checkpoint.BuildID,
 				process.payload,
@@ -134,31 +137,6 @@ func (s *ProcessStore) SaveTree(
 			}
 		}
 
-		if checkpoint.Scope.SessionID == "" || len(states) == 1 {
-			return nil
-		}
-
-		sessions := NewSessionStore(s.db)
-		if _, err := sessions.Get(ctx, checkpoint.Scope.SessionID); err != nil {
-			return fmt.Errorf("sqlite: save process lineage: session %q: %w", checkpoint.Scope.SessionID, err)
-		}
-		for _, process := range states {
-			if process.id == tree.RootID {
-				continue
-			}
-			parentID := process.parentID
-			if parentID == tree.RootID {
-				parentID = checkpoint.Scope.SessionID
-			}
-			if _, err := sessions.SaveSubtask(ctx, session.Subtask{
-				ID:        process.id,
-				ParentID:  parentID,
-				StartedAt: time.Unix(0, process.startedAt).UTC(),
-				UpdatedAt: time.Unix(0, committedAt).UTC(),
-			}); err != nil {
-				return fmt.Errorf("sqlite: save process subtask %q: %w", process.id, err)
-			}
-		}
 		return nil
 	})
 }
@@ -402,6 +380,94 @@ func (s *ProcessStore) DeleteTrees(ctx context.Context, rootIDs []string) error 
 		}
 		return nil
 	})
+}
+
+// DeleteSessionTrees removes every checkpoint aggregate owned by sessionID.
+// Root ownership is indexed as App metadata; child rows are reached through the
+// executor tree relation and are never interpreted as product identities.
+func (s *ProcessStore) DeleteSessionTrees(ctx context.Context, sessionID string) error {
+	if strings.TrimSpace(sessionID) == "" || strings.TrimSpace(sessionID) != sessionID {
+		return errors.New("sqlite: delete session process trees: invalid session ID")
+	}
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		rootIDs, err := s.queryProcessTreeRootIDs(ctx,
+			`SELECT id FROM process_states WHERE parent_id = '' AND session_id = ? ORDER BY id`,
+			sessionID,
+		)
+		if err != nil {
+			return fmt.Errorf("sqlite: list process trees for session %q: %w", sessionID, err)
+		}
+		for _, rootID := range rootIDs {
+			if err := s.deleteTree(ctx, rootID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// DeleteUnownedTrees removes checkpoint aggregates that are not in keepRootIDs.
+// Boot reconciliation calls it after proving the exact set of interrupted Run
+// trees that still own resumable continuations.
+func (s *ProcessStore) DeleteUnownedTrees(ctx context.Context, keepRootIDs []string) error {
+	keep := make(map[string]struct{}, len(keepRootIDs))
+	for _, rootID := range keepRootIDs {
+		if strings.TrimSpace(rootID) == "" || strings.TrimSpace(rootID) != rootID {
+			return fmt.Errorf("sqlite: delete unowned process trees: invalid preserved root ID %q", rootID)
+		}
+		if _, duplicate := keep[rootID]; duplicate {
+			return fmt.Errorf("sqlite: delete unowned process trees: duplicate preserved root ID %q", rootID)
+		}
+		keep[rootID] = struct{}{}
+	}
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		rootIDs, err := s.queryProcessTreeRootIDs(ctx,
+			`SELECT id FROM process_states WHERE parent_id = '' ORDER BY id`,
+		)
+		if err != nil {
+			return fmt.Errorf("sqlite: list process tree roots: %w", err)
+		}
+		var stale []string
+		for _, rootID := range rootIDs {
+			if _, preserved := keep[rootID]; !preserved {
+				stale = append(stale, rootID)
+			}
+		}
+		for _, rootID := range stale {
+			if err := s.deleteTree(ctx, rootID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (s *ProcessStore) queryProcessTreeRootIDs(
+	ctx context.Context,
+	query string,
+	args ...any,
+) ([]string, error) {
+	rows, err := conn(ctx, s.db).QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	var rootIDs []string
+	for rows.Next() {
+		var rootID string
+		if err := rows.Scan(&rootID); err != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("scan process tree root: %w", err)
+		}
+		rootIDs = append(rootIDs, rootID)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close process tree roots: %w", err)
+	}
+	return rootIDs, nil
 }
 
 func (s *ProcessStore) deleteTree(ctx context.Context, rootID string) error {

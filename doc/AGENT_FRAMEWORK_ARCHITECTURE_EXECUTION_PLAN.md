@@ -2211,12 +2211,12 @@ SQLite 只认识 App-owned opaque envelope；Host 原子性、幂等、恢复与
 
 ### ADR-AF-017：Execution snapshot 与 Application persistence 彻底分层
 
-- 状态：已接受并实现，产品 identity 边界由 ADR-AF-018 进一步收紧。
+- 状态：已接受并实现，产品 identity 与 durability 边界由 ADR-AF-018/026 进一步收紧。
 - 决策：删除 Agent 的 `ProcessStore`、Session stores、自动快照、持久化失败 policy、
   `RunInSession`、store fixtures 和 change-set。Agent 只提供 `Snapshot` / `SnapshotTree` /
   `ValidateRestoreTree` / `RestoreTree` / `RemoveTree`。`app/runtime` 在 consumer side 定义
-  `ProcessStore`，只在 Waiting segment 提交完整树，并在同一 SQLite transaction 中维护
-  snapshot replacement 与产品 subtask lineage。
+  `ProcessStore`。Waiting segment 只捕获 immutable tree，由 App 在同一 SQLite transaction
+  中提交 snapshot replacement、root-owned Pending 与全部 active Run suspension。
 - 失败语义：Waiting checkpoint 提交失败时 App 不发布 interrupt，而是终止并失败收口 Run；
   terminal segment 不生成无意义快照。恢复缺失、损坏或 deployment 不兼容由 App 分类为
   `run_lost`。
@@ -2233,8 +2233,8 @@ SQLite 只认识 App-owned opaque envelope；Host 原子性、幂等、恢复与
 - snapshot 语言：Agent 定义的是可捕获执行状态，因此 `DurableState` 和 canonical
   `durable_state` 直接改为 `SnapshotState` / `snapshot_state`。不提供旧字段 reader、alias 或
   双 digest。
-- App 不变量：没有产品 conversation 的执行只提交 process tree，不生成产品 subtask lineage；
-  显式 conversation 不存在则在同一 SQLite transaction 中回滚 tree 与 lineage。
+- App 不变量：execution process tree 永不派生产品 Session。delegated process 映射为同一
+  Session 下的 first-class child Run；adapter-private history partition 也不成为产品 identity。
 - 守卫：Agent architecture test 禁止重新公开 Session/ConversationID/BindConversation、
   Store/Repository/Transaction 与历史持久化配置。
 
@@ -2364,12 +2364,30 @@ SQLite 只认识 App-owned opaque envelope；Host 原子性、幂等、恢复与
   `process_snapshots.snapshot TEXT` 直接替换为 App-owned
   `process_states.payload BLOB` 并新增 `started_at` 列，不迁移、不双读、不接受旧 shape。
 
+### ADR-AF-026：Durable checkpoint 生命周期完全由 Application write-set 拥有
+
+- 状态：已接受并实现。
+- waiting：Agent segment join 与 tree capture 均不做 I/O。`agentexec` 从同一个 immutable
+  `ProcessSnapshotTree` 投影 opaque checkpoint write 与 pending suspension set；App 的 tree
+  barrier transaction 同时写 checkpoint、Pending 与全部 active Run suspension。
+- terminal：Framework `RemoveTree` 只清 live registry。root Run terminal commit 把 obsolete
+  process-tree identity 带入 App transaction，由 App 同时 terminalize Run 并删除 durable
+  checkpoint；child terminal 不独立删除 root aggregate。
+- recovery/retention：App 只保留被完整 Interrupted Run tree、coherent Pending 与 resumable
+  state 共同证明拥有的 checkpoint root；boot 删除其余 aggregate。Session delete 使用 root 行的
+  App-owned `session_id` cleanup metadata，不通过 Pending 猜测 ownership。
+- product identity：删除由 child process 派生的 hidden `Session(kind=subtask)`；delegation 只由
+  first-class child Run 表达。Framework 继续完全不知道 Session/Run/Store/BuildID/transaction。
+- breaking：SQLite schema epoch 直接升级为 46，删除 `sessions.kind`、Subtask API 与全部旧清理
+  分支，不 migration、不双读写、不保留 compatibility shim。
+
 ---
 
 ## 18. 变更日志
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-08-01 | 完成 P26 durable checkpoint/Application ownership closure：waiting capture 改为无 I/O，checkpoint/Pending/Run suspension 同事务；terminal Discard 改为纯 live cleanup，Run terminalization 与 checkpoint deletion 同事务；boot 精确保留 owned roots；删除 process-derived hidden Session，schema epoch 46；新增 package-wide AST guard 与专项防复发文档 | Codex |
 | 2026-08-01 | 完成 P25 Framework/Host zero-leak closure：Agent Runtime 删除跨 App transaction 持有 ownership 的 prepared protocol，改为无资源保留的 Plan/Apply；App 建立自有 `ProcessTreeState` 信封，Agent snapshot codec 收口到 `agentexec`，SQLite 以 `process_states.payload BLOB` 仅保存 opaque payload；schema epoch 45，双侧架构守卫与 breaking migration 同步 | Codex |
 | 2026-07-30 | 完成 P24-04 / W2.4 full closure：四组高风险 race `-count=10`、Agent/App 全量门禁、receiver/静态错误/canonical order/接口/兼容债审计全绿；Agent GoDoc 删除 App Run/Item/Interrupt/Segment/持久事务措辞；public API/wire/schema/capability 不变 | Codex |
 | 2026-07-30 | 完成 P24-04 / W2.3 restart/query/publication/quiescence：App file-backed restart 精确保留 canceled subtree、target/root query、checkpoint/Pending 与 invalidation；boot recovery 以 root-owned 完整 Run tree 校验 continuation；取消后无 late child event；Agent API/wire/persistence ownership 不变 | Codex |
@@ -2434,6 +2452,7 @@ SQLite 只认识 App-owned opaque envelope；Host 原子性、幂等、恢复与
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-08-01 | P26 durable checkpoint/Application ownership closure | 普通 waiting capture 无 I/O，App tree barrier 原子提交 checkpoint/Pending/Run suspension；root terminal transaction 原子 terminalize + delete checkpoint，Framework Discard 只清 live registry；boot exact preserved set 与 Session-root metadata 清理孤儿；process-derived hidden Session 全部删除，schema epoch 46；新增真实 SQLite rollback/restart tests、package-wide AST guard 与专项审计文档；Agent/App build、vet、普通 test、lint、staticcheck、tidy、architecture/diff 门禁全绿，按用户要求不执行 fuzz/race。 | 形成独立提交并 push；后续 seam 变更按 ADR-AF-026 与专项 checklist 审查 |
 | 2026-08-01 | P25 Framework/Host zero-leak closure | Agent prepared `Prepare/Commit/Abort` protocol 被 Plan/Apply 直接替换：plan 返回前释放所有 runtime ownership，apply 在副作用前拒绝 stale source。App 的 Commit/Abort、SQLite transaction 与 post-commit run-lost recovery 保持 application-owned；`agentexec` 独占 framework snapshot codec，Domain/SQLite 只见 App-owned envelope，存储落为 `process_states.payload BLOB`。新增双侧 AST/API guard，schema epoch 45，无 shim、双路径或旧数据迁移。普通 build/vet/test/staticcheck/lint/tidy/API/arch/diff 门禁全绿；API baseline 632 行、SHA-256 `a8f911341c8e8b24a47d9a30dca1fb33eb6a913792c8aa074d034e24740c90b2`，wire 160 行且 hash 不变；按用户要求不执行 fuzz/race。 | 174/174 关闭；形成独立提交并 push，不创建 tag/release |
 | 2026-07-30 | P24-04 / W2.4 race、hygiene 与完整门禁 | Agent runtime/toolloop、App runs/runsegment/SQLite race `-count=10`；双模块 build/vet/全量 test/lint/tidy、contract/arch/diff 全绿。所有 receiver 同类型同名，生产静态 `fmt.Errorf("constant")` 清零；canonical ordering 汇聚领域 RunTree；Agent 无 App persistence 术语；无旧 decoder/shim/双读写/migration，capability 仍关闭。 | App B1.5 / W3；Agent 只响应真实 consumer 缺口 |
 | 2026-07-30 | P24-04 / W2.3 restart/query/publication/quiescence conformance | real file close/reopen 后，canceled target + nested descendant、exact target/root response、child-addressed full tree、replacement BuildID/usage/process snapshot 与 reduced Pending 均精确 round-trip；App 结算 canceled interrupt Items，并将 boot recovery 从 root-only 改为完整 active tree + all-continuation validation；remaining tree 保留 Interrupted，final Running root 诚实按既有 run_lost 收口。exact invalidation 与 cancel-return Journal quiescence 通过，三组高风险 race 均 `-count=10`；无 Agent API/wire/schema/capability/兼容路径变化。 | P24-04 / W2.4 race、hygiene 与完整门禁 |

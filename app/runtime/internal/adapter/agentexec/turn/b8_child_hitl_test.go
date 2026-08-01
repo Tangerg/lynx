@@ -119,6 +119,7 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 	for event := range events {
 		switch event := event.Payload.(type) {
 		case runs.TreeInterrupted:
+			persistTreeBarrier(t, event)
 			outcome.interruptCount++
 			if len(event.Suspensions) != 1 {
 				t.Fatalf("suspensions = %#v", event.Suspensions)
@@ -208,6 +209,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 	for event := range events {
 		switch event := event.Payload.(type) {
 		case runs.TreeInterrupted:
+			persistTreeBarrier(t, event)
 			interruptCount++
 			if len(event.Suspensions) != 1 ||
 				event.Suspensions[0].Interrupt.Kind != execution.QuestionInterrupt {
@@ -271,6 +273,7 @@ func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *
 	for event := range events {
 		switch event := event.Payload.(type) {
 		case runs.TreeInterrupted:
+			persistTreeBarrier(t, event)
 			interruptCount++
 			if len(event.Suspensions) != 2 {
 				t.Fatalf("barrier suspensions = %#v, want two", event.Suspensions)
@@ -355,6 +358,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 	for event := range events {
 		if interrupted, ok := event.Payload.(runs.TreeInterrupted); ok {
 			barrier = interrupted
+			persistTreeBarrier(t, barrier)
 			break
 		}
 	}
@@ -419,6 +423,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 	for event := range restoredEvents {
 		switch payload := event.Payload.(type) {
 		case runs.TreeInterrupted:
+			persistTreeBarrier(t, payload)
 			replayedBarriers++
 		case runs.TurnEnd:
 			endReason = payload.Reason
@@ -432,14 +437,13 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 	}
 }
 
-func TestCompleteAnswerSetCheckpointFailureTerminalizesWithoutReplayingBarrier(t *testing.T) {
+func TestCompleteAnswerSetDoesNotPersistDuringLiveContinuation(t *testing.T) {
 	const buildID = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 	baseStore := newMemoryProcessStore()
-	checkpointErr := errors.New("checkpoint unavailable")
 	store := &failNthSaveProcessStore{
 		ProcessStore: baseStore,
 		failAt:       2,
-		err:          checkpointErr,
+		err:          errors.New("unexpected executor-owned checkpoint write"),
 	}
 	dispatcher := buildB8PersistentDispatcher(
 		t,
@@ -471,6 +475,7 @@ func TestCompleteAnswerSetCheckpointFailureTerminalizesWithoutReplayingBarrier(t
 	for event := range events {
 		switch payload := event.Payload.(type) {
 		case runs.TreeInterrupted:
+			persistTreeBarrier(t, payload)
 			barrierCount++
 			if len(payload.Suspensions) != 2 {
 				t.Fatalf("barrier suspensions = %#v, want two", payload.Suspensions)
@@ -485,8 +490,8 @@ func TestCompleteAnswerSetCheckpointFailureTerminalizesWithoutReplayingBarrier(t
 			}
 		case runs.TurnEnd:
 			terminalCount++
-			if payload.Reason != execution.OutcomeError || payload.Problem == nil {
-				t.Fatalf("TurnEnd = %+v, want canonical error terminal", payload)
+			if payload.Reason != execution.OutcomeCompleted || payload.Problem != nil {
+				t.Fatalf("TurnEnd = %+v, want completed without hidden checkpoint I/O", payload)
 			}
 		}
 	}
@@ -496,8 +501,8 @@ func TestCompleteAnswerSetCheckpointFailureTerminalizesWithoutReplayingBarrier(t
 	if terminalCount != 1 {
 		t.Fatalf("TurnEnd count = %d, want one", terminalCount)
 	}
-	if saves := store.saves.Load(); saves != 2 {
-		t.Fatalf("checkpoint save attempts = %d, want initial barrier plus failed intermediate checkpoint", saves)
+	if saves := store.saves.Load(); saves != 1 {
+		t.Fatalf("checkpoint save attempts = %d, want only the application-committed barrier", saves)
 	}
 }
 
@@ -537,6 +542,7 @@ func TestCompleteAnswerSetEncodingFailurePrecedesAnyContinuationSideEffect(t *te
 	for event := range events {
 		switch payload := event.Payload.(type) {
 		case runs.TreeInterrupted:
+			persistTreeBarrier(t, payload)
 			barrierCount++
 			answers := questionAnswersForBarrier(payload, "encoding-failure")
 			answers[len(answers)-1].Resolution.RememberScope = approval.Scope("unknown")
@@ -607,6 +613,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	for event := range events {
 		if interrupted, ok := event.Payload.(runs.TreeInterrupted); ok {
 			barrier = interrupted
+			persistTreeBarrier(t, barrier)
 			if len(interrupted.Suspensions) != 1 {
 				t.Fatalf("suspensions = %#v", interrupted.Suspensions)
 			}
@@ -703,8 +710,14 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list process snapshots: %v", err)
 	}
-	if len(ids) != 0 {
-		t.Fatalf("terminal restored tree leaked snapshots: %v", ids)
+	if len(ids) != 2 {
+		t.Fatalf("terminal adapter checkpoint rows = %v, want App-owned cleanup still pending", ids)
+	}
+	if err := store.DeleteTrees(t.Context(), []string{processID}); err != nil {
+		t.Fatalf("application terminal checkpoint cleanup: %v", err)
+	}
+	if ids, err = store.List(t.Context()); err != nil || len(ids) != 0 {
+		t.Fatalf("checkpoint rows after application cleanup = %v, %v", ids, err)
 	}
 }
 
@@ -737,10 +750,16 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	interruptsSeen := 0
 	terminalCount := 0
 	endReason := execution.OutcomeError
+	var processID string
 	for event := range events {
 		switch event := event.Payload.(type) {
 		case runs.TreeInterrupted:
+			persistTreeBarrier(t, event)
 			interruptsSeen++
+			processID, err = dispatcher.ProcessID(t.Context(), handle)
+			if err != nil {
+				t.Fatalf("ProcessID: %v", err)
+			}
 			if err := dispatcher.Cancel(t.Context(), handle); err != nil {
 				t.Fatalf("Cancel: %v", err)
 			}
@@ -759,8 +778,14 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list snapshots: %v", err)
 	}
-	if len(ids) != 0 {
-		t.Fatalf("cancel parked child leaked snapshots: %v", ids)
+	if len(ids) != 2 {
+		t.Fatalf("canceled adapter checkpoint rows = %v, want App-owned cleanup still pending", ids)
+	}
+	if err := store.DeleteTrees(t.Context(), []string{processID}); err != nil {
+		t.Fatalf("application cancel checkpoint cleanup: %v", err)
+	}
+	if ids, err = store.List(t.Context()); err != nil || len(ids) != 0 {
+		t.Fatalf("checkpoint rows after application cleanup = %v, %v", ids, err)
 	}
 }
 
@@ -791,7 +816,8 @@ func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
 		t.Fatalf("Events: %v", err)
 	}
 	for event := range events {
-		if _, ok := event.Payload.(runs.TreeInterrupted); ok {
+		if barrier, ok := event.Payload.(runs.TreeInterrupted); ok {
+			persistTreeBarrier(t, barrier)
 			break
 		}
 	}
@@ -861,6 +887,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 		for event := range events {
 			switch event := event.Payload.(type) {
 			case runs.TreeInterrupted:
+				persistTreeBarrier(t, event)
 				raced = true
 				start := make(chan struct{})
 				var (
@@ -946,6 +973,7 @@ func TestCompleteSiblingAnswerSetCancelRaceHasOneTerminalAndNoSecondBarrier(t *t
 				if barrierCount != 1 {
 					continue
 				}
+				persistTreeBarrier(t, payload)
 				answers := questionAnswersForBarrier(payload, fmt.Sprintf("race-%d", index))
 				start := make(chan struct{})
 				var (
@@ -1030,7 +1058,9 @@ func buildB8Dispatcher(
 	}
 	cleanupToolEnvironment(t, built)
 	engine, err := agentexec.New(t.Context(), agentexec.Config{
+		BuildID:      testProcessBuildID,
 		ChatClient:   client,
+		ProcessStore: newMemoryProcessStore(),
 		ToolResolver: built.Resolver,
 	})
 	if err != nil {

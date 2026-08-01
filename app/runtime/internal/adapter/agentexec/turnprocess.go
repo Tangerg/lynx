@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
@@ -17,12 +16,13 @@ import (
 )
 
 // TurnCompletion is the typed application projection of one Agent runtime
-// segment completion.
+// segment completion. Durable checkpoint policy is deliberately absent: the
+// App captures a waiting checkpoint after it decides to expose the boundary,
+// then commits that value in its own tree-barrier transaction.
 //
 // A segment reports its process failure and its own driving error separately,
 // and how those two combine is the framework's rule — not something to restate
-// here. Err is what that rule produced, with Runtime's own terminal work (the
-// waiting checkpoint) appended.
+// here. Err is exactly what that rule produced.
 type TurnCompletion struct {
 	Status    core.ProcessStatus
 	Output    TurnOutput
@@ -83,13 +83,25 @@ type TurnProcess interface {
 	// control flow are excluded.
 	PendingSuspensions(ctx context.Context) ([]PendingSuspension, error)
 
-	// Discard releases a TERMINATED process: it removes the process from the
-	// engine registry and deletes any persisted waiting snapshot. Only a parked
-	// process needs a restart checkpoint; terminal segments are never persisted.
-	// A failure retains the terminal runtime tree so cleanup can retry the same
-	// deletion. Calling Discard on a non-terminal process fails before storage
-	// is touched.
+	// CaptureWaitingCheckpoint captures one immutable waiting tree and its
+	// unanswered boundaries without performing I/O. PersistCheckpoint on the
+	// returned value joins whatever App transaction its caller supplies.
+	CaptureWaitingCheckpoint(ctx context.Context) (WaitingCheckpoint, error)
+
+	// Discard releases a TERMINATED process from the live framework registry.
+	// Durable checkpoint deletion belongs to the Application terminal write-set,
+	// so this method performs no storage I/O. A failure retains the terminal tree
+	// so cleanup can retry. Calling Discard on an active process is rejected.
 	Discard(ctx context.Context) error
+}
+
+// WaitingCheckpoint is an immutable App-adapter capture of one Agent waiting
+// tree. It exposes only the external boundaries needed for product projection
+// and one persistence capability; Framework snapshot types remain private to
+// this package.
+type WaitingCheckpoint interface {
+	PendingSuspensions() []PendingSuspension
+	PersistCheckpoint(ctx context.Context) error
 }
 
 // WaitingSubtreePlanner is the optional mutation capability implemented by
@@ -129,8 +141,6 @@ type turnProcess struct {
 	pendingResponses map[suspensionKey]json.RawMessage
 }
 
-const checkpointCommitTimeout = 10 * time.Second
-
 type suspensionKey struct {
 	processID    string
 	suspensionID string
@@ -156,7 +166,6 @@ func (p *turnProcess) Await() TurnCompletion {
 			completion.Output = output
 			completion.HasOutput = true
 		}
-		completion.Err = errors.Join(completion.Err, p.persistWaitingCheckpoint(completion.Status))
 		if completion.Err != nil || completion.Status != core.StatusWaiting || len(p.pendingResponses) == 0 {
 			if completion.Status != core.StatusWaiting && len(p.pendingResponses) > 0 {
 				completion.Err = errors.Join(
@@ -239,12 +248,21 @@ func (p *turnProcess) PlanWaitingSubtreeCancellation(
 			err,
 		)
 	}
-	return &waitingSubtreeCancellationPlan{process: p, runtime: plan}, nil
+	checkpoint, err := p.captureProcessTree(plan.ResultingTree())
+	if err != nil {
+		return nil, fmt.Errorf(
+			"agentexec: capture waiting subtree cancellation checkpoint for process %q: %w",
+			processID,
+			err,
+		)
+	}
+	return &waitingSubtreeCancellationPlan{process: p, runtime: plan, checkpoint: checkpoint}, nil
 }
 
 type waitingSubtreeCancellationPlan struct {
-	process *turnProcess
-	runtime *runtime.WaitingSubtreeCancellationPlan
+	process    *turnProcess
+	runtime    *runtime.WaitingSubtreeCancellationPlan
+	checkpoint *capturedProcessTree
 }
 
 func (plan *waitingSubtreeCancellationPlan) CanceledProcessIDs() []string {
@@ -271,10 +289,10 @@ func (plan *waitingSubtreeCancellationPlan) PendingSuspensions() []PendingSuspen
 }
 
 func (plan *waitingSubtreeCancellationPlan) PersistCheckpoint(ctx context.Context) error {
-	if plan == nil || plan.runtime == nil || plan.process == nil {
+	if plan == nil || plan.checkpoint == nil {
 		return errors.New("agentexec: persist waiting subtree cancellation plan: incomplete plan")
 	}
-	return plan.process.persistProcessTree(ctx, plan.runtime.ResultingTree())
+	return plan.checkpoint.PersistCheckpoint(ctx)
 }
 
 func (plan *waitingSubtreeCancellationPlan) Apply(ctx context.Context) error {
@@ -471,6 +489,43 @@ func (p *turnProcess) PendingSuspensions(ctx context.Context) ([]PendingSuspensi
 	return out, nil
 }
 
+func (p *turnProcess) CaptureWaitingCheckpoint(ctx context.Context) (WaitingCheckpoint, error) {
+	if p == nil || p.process == nil || p.owner == nil || p.owner.runtime == nil {
+		return nil, errors.New("agentexec: capture waiting checkpoint: incomplete turn process")
+	}
+	tree, err := p.owner.runtime.SnapshotTree(ctx, p.process.ID())
+	if err != nil {
+		return nil, fmt.Errorf("agentexec: capture waiting checkpoint: %w", err)
+	}
+	root, ok := tree.Root()
+	if !ok {
+		return nil, fmt.Errorf("agentexec: capture waiting checkpoint: %w", core.ErrInvalidSnapshot)
+	}
+	if err := runtime.ValidateResumableSnapshot(root); err != nil {
+		return nil, fmt.Errorf("agentexec: capture waiting checkpoint: %w", err)
+	}
+	pending, err := runtime.PendingSuspensionsIn(tree)
+	if err != nil {
+		return nil, fmt.Errorf("agentexec: capture waiting checkpoint boundaries: %w", err)
+	}
+	if len(pending) == 0 {
+		return nil, errors.New("agentexec: capture waiting checkpoint: tree has no unanswered suspension")
+	}
+	captured, err := p.captureProcessTree(tree)
+	if err != nil {
+		return nil, err
+	}
+	captured.pending = make([]PendingSuspension, len(pending))
+	for index, boundary := range pending {
+		captured.pending[index] = PendingSuspension{
+			ProcessID:    boundary.ProcessID,
+			SuspensionID: boundary.SuspensionID,
+			Prompt:       append([]byte(nil), boundary.Prompt...),
+		}
+	}
+	return captured, nil
+}
+
 func (p *turnProcess) Discard(ctx context.Context) error {
 	if p == nil || p.process == nil || p.owner == nil || p.owner.runtime == nil {
 		return errors.New("agentexec: discard process: incomplete turn process")
@@ -478,63 +533,24 @@ func (p *turnProcess) Discard(ctx context.Context) error {
 	if !p.process.Status().IsTerminal() {
 		return fmt.Errorf("agentexec: discard process %q: %w", p.process.ID(), runtime.ErrProcessActive)
 	}
-	if p.owner.processStore != nil {
-		if err := p.owner.processStore.DeleteTrees(ctx, []string{p.process.ID()}); err != nil {
-			return fmt.Errorf("agentexec: discard process snapshots: %w", err)
-		}
-	}
 	return p.owner.runtime.RemoveTree(ctx, p.process.ID())
 }
 
-func (p *turnProcess) persistWaitingCheckpoint(status core.ProcessStatus) error {
-	if p == nil || p.process == nil || p.owner == nil || p.owner.runtime == nil || p.owner.processStore == nil {
-		return nil
-	}
-	if status != core.StatusWaiting {
-		return nil
-	}
-	base := p.runCtx
-	if base == nil {
-		base = context.Background()
-	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(base), checkpointCommitTimeout)
-	defer cancel()
-	tree, err := p.owner.runtime.SnapshotTree(ctx, p.process.ID())
-	if err != nil {
-		return fmt.Errorf("agentexec: capture process tree: %w", err)
-	}
-	root, ok := tree.Root()
-	if !ok {
-		return fmt.Errorf("agentexec: capture process tree: %w", core.ErrInvalidSnapshot)
-	}
-	if root.Status.IsTerminal() {
-		// Cancellation may win after the segment reported Waiting but before
-		// capture acquires the process tree. A terminal tree has no continuation
-		// and must not replace the last usable checkpoint.
-		return nil
-	}
-	if err := runtime.ValidateResumableSnapshot(root); err != nil {
-		return fmt.Errorf("agentexec: validate waiting checkpoint: %w", err)
-	}
-	return p.persistProcessTree(ctx, tree)
-}
-
-func (p *turnProcess) persistProcessTree(
-	ctx context.Context,
+func (p *turnProcess) captureProcessTree(
 	tree core.ProcessSnapshotTree,
-) error {
+) (*capturedProcessTree, error) {
 	if p == nil || p.process == nil || p.owner == nil || p.owner.processStore == nil {
-		return errors.New("agentexec: persist process tree: incomplete turn process")
+		return nil, errors.New("agentexec: capture process tree: checkpoint store is unavailable")
 	}
 	if p.usage == nil {
-		return errors.New("agentexec: persist process tree: usage ledger is missing")
+		return nil, errors.New("agentexec: capture process tree: usage ledger is missing")
 	}
 	usage, err := p.usage.snapshot()
 	if err != nil {
-		return fmt.Errorf("agentexec: capture usage projection: %w", err)
+		return nil, fmt.Errorf("agentexec: capture process tree usage: %w", err)
 	}
 	if err := validateCheckpointUsage(tree, usage); err != nil {
-		return fmt.Errorf("agentexec: validate checkpoint usage: %w", err)
+		return nil, fmt.Errorf("agentexec: capture process tree usage: %w", err)
 	}
 	checkpoint := execution.ProcessCheckpoint{
 		BuildID:  p.owner.buildID,
@@ -545,9 +561,42 @@ func (p *turnProcess) persistProcessTree(
 	}
 	state, err := encodeProcessTreeState(tree)
 	if err != nil {
-		return fmt.Errorf("agentexec: persist process tree: %w", err)
+		return nil, fmt.Errorf("agentexec: capture process tree: %w", err)
 	}
-	if err := p.owner.processStore.SaveTree(ctx, state, checkpoint); err != nil {
+	return &capturedProcessTree{
+		store:      p.owner.processStore,
+		state:      state,
+		checkpoint: checkpoint,
+	}, nil
+}
+
+type capturedProcessTree struct {
+	store      ProcessStore
+	state      execution.ProcessTreeState
+	checkpoint execution.ProcessCheckpoint
+	pending    []PendingSuspension
+}
+
+func (captured *capturedProcessTree) PendingSuspensions() []PendingSuspension {
+	if captured == nil {
+		return nil
+	}
+	pending := make([]PendingSuspension, len(captured.pending))
+	for index, boundary := range captured.pending {
+		pending[index] = PendingSuspension{
+			ProcessID:    boundary.ProcessID,
+			SuspensionID: boundary.SuspensionID,
+			Prompt:       append([]byte(nil), boundary.Prompt...),
+		}
+	}
+	return pending
+}
+
+func (captured *capturedProcessTree) PersistCheckpoint(ctx context.Context) error {
+	if captured == nil || captured.store == nil {
+		return errors.New("agentexec: persist process tree: incomplete checkpoint")
+	}
+	if err := captured.store.SaveTree(ctx, captured.state, captured.checkpoint); err != nil {
 		return fmt.Errorf("agentexec: persist process tree: %w", err)
 	}
 	return nil

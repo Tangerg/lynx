@@ -28,8 +28,8 @@ import (
 )
 
 // SessionStore is the coordinator's consumer view of session persistence: the
-// session-aggregate reads/create, the atomic multi-field Patch, and child
-// traversal. Patch is single-domain (all on the session row), so it stays an
+// session-aggregate reads/create and the atomic multi-field Patch. Patch is
+// single-domain (all on the session row), so it stays an
 // aggregate store method; the multi-store write-sets (fork, rollback, restore,
 // delete) go through [WriteSets].
 type SessionStore interface {
@@ -39,7 +39,6 @@ type SessionStore interface {
 	Create(ctx context.Context, title, cwd string) (session.Session, error)
 	Ensure(ctx context.Context, sess session.Session) (session.Session, error)
 	Patch(ctx context.Context, id string, patch session.Patch) (session.Session, error)
-	Children(ctx context.Context, parentID string) ([]session.Session, error)
 }
 
 // InterruptStore is the lifecycle coordinator's read view of open HITL
@@ -87,16 +86,17 @@ type WriteSets interface {
 	// and titles it — atomically — returning the created child.
 	ApplyFork(ctx context.Context, plan ForkPlan) (session.Session, error)
 	// ApplyRollback truncates the chat log to the boundary, drops each
-	// past-boundary run, republishes the boundary's todo projection, terminalizes an
-	// abandoned parked run, and removes attributed internal subtask subtrees — atomically.
+	// past-boundary run, republishes the boundary's todo projection, and
+	// terminalizes an abandoned parked run — atomically. Delegated work is
+	// already represented by child Runs in the same session.
 	ApplyRollback(ctx context.Context, plan RollbackPlan) error
 	// ApplyRestore recreates a session under its original id and replaces its
 	// whole history (clear old session-owned projections + seed decoded
 	// messages/runs/items) — atomically.
 	ApplyRestore(ctx context.Context, plan RestorePlan) error
-	// ApplyDelete removes all durable state for the plan's post-order session
-	// cascade — transcript, chat log, todos, session approval rules, interrupts,
-	// admission rows, and session rows — atomically.
+	// ApplyDelete removes all durable state for the addressed session —
+	// transcript, chat log, todos, session approval rules, interrupts, admission
+	// rows, and the session row — atomically.
 	ApplyDelete(ctx context.Context, plan DeletePlan) error
 	// ApplyTerminal ends a parked run: it persists the terminal transcript
 	// projection, drops the open interrupt, and closes admission — atomically.

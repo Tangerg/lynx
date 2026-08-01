@@ -105,19 +105,6 @@ func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (Rollback
 	if spec.RestoreHistory {
 		result.Dropped = droppedRuns(boundary, runs, transcript.OpeningInputs(items))
 	}
-	// Resolve and claim the complete internal session subtree before restoring
-	// files. Waiting until the SQLite phase would let a child run reject the
-	// history delete only after the working tree had already been rewound.
-	var dropSessionIDs []string
-	var childAdmissions []RunAdmission
-	if spec.RestoreHistory {
-		dropSessionIDs, childAdmissions, err = c.prepareRollbackSessions(ctx, spec.SessionID, boundary)
-		if err != nil {
-			return result, err
-		}
-	}
-	defer releaseAdmissions(childAdmissions)
-
 	// Every file restore is logged before Git touches the working tree. A reset
 	// updates multiple paths and can fail after changing only some of them, so
 	// even files-only rollback needs boot recovery. RestoreHistory distinguishes
@@ -150,7 +137,7 @@ func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (Rollback
 	// boot recovery completes the truncation (the tree + history would otherwise
 	// disagree).
 	if spec.RestoreHistory && len(boundary.Dropped) > 0 {
-		if err := c.applyRollback(ctx, spec.SessionID, boundary, dropSessionIDs); err != nil {
+		if err := c.applyRollback(ctx, spec.SessionID, boundary); err != nil {
 			return result, err
 		}
 	}
@@ -205,7 +192,6 @@ func (c *Coordinator) RecoverWorkspaceMutations(ctx context.Context) error {
 
 func (c *Coordinator) recoverRollback(ctx context.Context, m execution.WorkspaceMutation) error {
 	var boundary transcript.Boundary
-	var dropSessionIDs []string
 	if m.RestoreHistory {
 		if c.runs == nil {
 			return errors.New("sessions: run store is unavailable")
@@ -218,18 +204,12 @@ func (c *Coordinator) recoverRollback(ctx context.Context, m execution.Workspace
 		if err != nil {
 			return err
 		}
-		if len(boundary.Dropped) > 0 {
-			dropSessionIDs, err = c.subtaskSessionsAfter(ctx, m.SessionID, boundary.BoundaryTime)
-			if err != nil {
-				return err
-			}
-		}
 	}
 	if err := c.restore(ctx, m.SessionID, m.Cwd, m.ToRunID); err != nil {
 		return err
 	}
 	if m.RestoreHistory && len(boundary.Dropped) > 0 {
-		if err := c.applyRollback(ctx, m.SessionID, boundary, dropSessionIDs); err != nil {
+		if err := c.applyRollback(ctx, m.SessionID, boundary); err != nil {
 			return err
 		}
 	}

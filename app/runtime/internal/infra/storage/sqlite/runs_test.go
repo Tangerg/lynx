@@ -523,6 +523,14 @@ func TestReconcileOrphansSweepsCrashedButPreservesParked(t *testing.T) {
 	if err := store.Admit(ctx, runDraft("run_crash", "ses_crash")); err != nil {
 		t.Fatalf("admit crash: %v", err)
 	}
+	crashedSnapshot := validStoredSnapshot("proc_crash", core.StatusWaiting)
+	if err := processes.SaveTree(
+		ctx,
+		storedSnapshotTree(crashedSnapshot.ID, crashedSnapshot),
+		storedCheckpoint("ses_crash", storedBuildID, storedUsage()),
+	); err != nil {
+		t.Fatalf("seed crashed process checkpoint: %v", err)
+	}
 	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
 		t.Fatalf("admit park: %v", err)
 	}
@@ -537,6 +545,12 @@ func TestReconcileOrphansSweepsCrashedButPreservesParked(t *testing.T) {
 	}
 	if swept != 1 {
 		t.Fatalf("swept = %d, want 1 (only the crashed orphan)", swept)
+	}
+	if _, _, err := processes.LoadTree(ctx, crashedSnapshot.ID); !errors.Is(err, execution.ErrProcessStateNotFound) {
+		t.Fatalf("orphan process checkpoint after reconcile = %v, want not found", err)
+	}
+	if _, _, err := processes.LoadTree(ctx, "proc_run_park"); err != nil {
+		t.Fatalf("preserved parked checkpoint was swept: %v", err)
 	}
 	if err := store.Admit(ctx, runDraft("run_crash2", "ses_crash")); err != nil {
 		t.Fatalf("re-admit swept session: %v", err)

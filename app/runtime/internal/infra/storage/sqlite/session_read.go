@@ -10,8 +10,6 @@ import (
 )
 
 // List returns user-facing sessions (roots and forks), newest-updated first.
-// Internal subtask-delegation sessions ([session.KindSubtask]) are excluded so
-// they never clutter the session list — query the lineage via [Children].
 func (s *SessionStore) List(ctx context.Context) ([]session.Session, error) {
 	return s.ListPage(ctx, false, 0, "", 0)
 }
@@ -26,14 +24,14 @@ func (s *SessionStore) List(ctx context.Context) ([]session.Session, error) {
 // slicing a fully-resolved list did that work for every session to return one
 // page of them.
 func (s *SessionStore) ListPage(ctx context.Context, afterFavorite bool, afterUpdatedAt int64, afterID string, limit int) ([]session.Session, error) {
-	query := `SELECT ` + sessionColumns + ` FROM sessions WHERE kind != ?`
-	args := []any{session.KindSubtask}
+	query := `SELECT ` + sessionColumns + ` FROM sessions`
+	var args []any
 	if afterUpdatedAt > 0 || afterID != "" {
 		favorite := 0
 		if afterFavorite {
 			favorite = 1
 		}
-		query += ` AND (favorite < ?
+		query += ` WHERE (favorite < ?
 			OR (favorite = ? AND updated_at < ?)
 			OR (favorite = ? AND updated_at = ? AND id < ?))`
 		args = append(args, favorite, favorite, afterUpdatedAt, favorite, afterUpdatedAt, afterID)
@@ -89,30 +87,4 @@ func (s *SessionStore) Get(ctx context.Context, id string) (session.Session, err
 		return session.Session{}, fmt.Errorf("sqlite: get session: %w", err)
 	}
 	return sess, nil
-}
-
-// Children returns the sessions whose parent_id is parentID — the delegation /
-// fork lineage under a session, newest-updated first. Includes KindSubtask
-// children (which List hides).
-func (s *SessionStore) Children(ctx context.Context, parentID string) ([]session.Session, error) {
-	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT `+sessionColumns+` FROM sessions WHERE parent_id = ? ORDER BY updated_at DESC`,
-		parentID)
-	if err != nil {
-		return nil, fmt.Errorf("sqlite: list session children: %w", err)
-	}
-	defer rows.Close()
-
-	out := make([]session.Session, 0)
-	for rows.Next() {
-		sess, err := rowToSession(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, sess)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("sqlite: list session children: %w", err)
-	}
-	return out, nil
 }

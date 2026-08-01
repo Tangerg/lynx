@@ -521,6 +521,7 @@ runtime: func CompletionResult[T any](completion RunCompletion) (T, bool)
 runtime: func MustNew(config Config) *Engine
 runtime: func New(config Config) (*Engine, error)
 runtime: func NewAgentTool[In, Out any](engine *Engine, deployment *Deployment) (tools.Tool, error)
+runtime: func PendingSuspensionsIn(tree core.ProcessSnapshotTree) ([]PendingSuspension, error)
 runtime: func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error
 runtime: type BlackboardRestorer interface { Restore(BlackboardState) error }
 runtime: type BlackboardSnapshotter interface { Snapshot() (BlackboardState, error) }

@@ -286,7 +286,8 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 	}}
 
 	err := effects.CommitTreeBarrier(context.Background(), runs.TreeBarrierCommit{
-		Pending: pending,
+		Pending:    pending,
+		Checkpoint: processCheckpointWriteFunc(noopProcessCheckpoint),
 		Runs: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
@@ -339,7 +340,8 @@ func TestCommitTreeBarrierRejectsIncompleteContinuation(t *testing.T) {
 	pending.Continuations[0].ProcessID = ""
 
 	err := effects.CommitTreeBarrier(context.Background(), runs.TreeBarrierCommit{
-		Pending: pending,
+		Pending:    pending,
+		Checkpoint: processCheckpointWriteFunc(noopProcessCheckpoint),
 		Runs: []runs.EventCommit{{
 			RunID: "run_1", SessionID: "ses_1", State: runs.StateSuspend,
 			Run: &transcript.Run{

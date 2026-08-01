@@ -713,6 +713,15 @@ func TestCoordinatorResumesCompleteRunTreeInOneCanonicalOpening(t *testing.T) {
 	if !slices.Equal(finished, wantPostorder) {
 		t.Fatalf("SegmentFinished order = %v, want %v", finished, wantPostorder)
 	}
+	var checkpointDeletes []string
+	for _, commit := range effects.commitSnapshot() {
+		if commit.ObsoleteProcessTreeRootID != "" {
+			checkpointDeletes = append(checkpointDeletes, commit.ObsoleteProcessTreeRootID)
+		}
+	}
+	if !slices.Equal(checkpointDeletes, []string{rootSource.ProcessID}) {
+		t.Fatalf("terminal process checkpoint deletes = %v, want root only", checkpointDeletes)
+	}
 }
 
 func resumedTreePending(createdAt time.Time) interrupts.Pending {
@@ -1839,7 +1848,7 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 		{Source: grandchild, Payload: requestGrandchild},
 		// Deliberately report sibling B before the deeper descendant. Durable
 		// and public ordering follows Run-tree postorder, not executor arrival.
-		{Source: root, Payload: TreeInterrupted{Suspensions: []ProcessSuspension{
+		{Source: root, Payload: TreeInterrupted{Checkpoint: noopProcessCheckpoint{}, Suspensions: []ProcessSuspension{
 			{
 				ProcessID: childB.ProcessID, SuspensionID: "suspension_b",
 				Interrupt: treeBarrierQuestion("Continue sibling B?"),
@@ -1959,7 +1968,7 @@ func TestCoordinatorTreeBarrierCommitFailurePublishesNoInterruptedFact(t *testin
 	root := ExecutorSource{ProcessID: "process_root"}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{{
 		Source: root,
-		Payload: TreeInterrupted{Suspensions: []ProcessSuspension{{
+		Payload: TreeInterrupted{Checkpoint: noopProcessCheckpoint{}, Suspensions: []ProcessSuspension{{
 			ProcessID: root.ProcessID, SuspensionID: "suspension_root",
 			Interrupt: treeBarrierQuestion("Continue root?"),
 		}}},

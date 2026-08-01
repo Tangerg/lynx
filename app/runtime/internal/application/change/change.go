@@ -49,8 +49,8 @@ func InSession(resource Resource, sessionID string, runIDs ...string) Notice {
 	return Notice{Resource: resource, SessionIDs: sessionIDs(sessionID), RunIDs: runIDs}
 }
 
-// InSessions is the notice for a resource that moved in several sessions at once —
-// a delete cascade, or a rollback that also purges subtask sessions.
+// InSessions is the notice for a resource that moved in several sessions at
+// once, such as a bulk lifecycle mutation.
 func InSessions(resource Resource, ids ...string) Notice {
 	return Notice{Resource: resource, SessionIDs: ids}
 }

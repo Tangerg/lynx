@@ -856,6 +856,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	if initial.Status != core.StatusWaiting {
 		t.Fatalf("initial status = %s, want waiting", initial.Status)
 	}
+	persistWaitingCheckpoint(t, proc)
 
 	eng2, err := New(context.Background(), Config{
 		ChatClient:   client,
@@ -991,6 +992,7 @@ func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 	if completion := process.Await(); completion.Err != nil {
 		t.Fatalf("initial turn: %v", completion.Err)
 	}
+	persistWaitingCheckpoint(t, process)
 	tree, checkpoint, err := store.LoadTree(t.Context(), process.ID())
 	if err != nil {
 		t.Fatalf("load snapshot: %v", err)

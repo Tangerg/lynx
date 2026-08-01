@@ -99,6 +99,9 @@ func (*blockingCancelProcess) Resume(context.Context, []agentexec.SuspensionAnsw
 func (*blockingCancelProcess) PendingSuspensions(context.Context) ([]agentexec.PendingSuspension, error) {
 	return nil, nil
 }
+func (*blockingCancelProcess) CaptureWaitingCheckpoint(context.Context) (agentexec.WaitingCheckpoint, error) {
+	return testWaitingCheckpoint{}, nil
+}
 func (p *blockingCancelProcess) Discard(context.Context) error {
 	err := p.discardErr
 	if p.discarded != nil {
@@ -106,6 +109,11 @@ func (p *blockingCancelProcess) Discard(context.Context) error {
 	}
 	return err
 }
+
+type testWaitingCheckpoint struct{}
+
+func (testWaitingCheckpoint) PendingSuspensions() []agentexec.PendingSuspension { return nil }
+func (testWaitingCheckpoint) PersistCheckpoint(context.Context) error           { return nil }
 
 func TestShutdownReportsProcessCancellationFailure(t *testing.T) {
 	cancelErr := errors.New("kill failed")

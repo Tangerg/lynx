@@ -105,6 +105,7 @@ func TestRestoreRejectsUsageProjectionThatDriftedFromProcessTree(t *testing.T) {
 	if completion := process.Await(); completion.Err != nil {
 		t.Fatalf("initial turn: %v", completion.Err)
 	}
+	persistWaitingCheckpoint(t, process)
 
 	store.mu.Lock()
 	checkpoint := store.checkpoints[process.ID()]
@@ -126,7 +127,7 @@ func TestRestoreRejectsUsageProjectionThatDriftedFromProcessTree(t *testing.T) {
 	}
 }
 
-func TestWaitingSnapshotCommitFailureDoesNotRewriteAgentState(t *testing.T) {
+func TestWaitingCheckpointPersistenceFailureDoesNotRewriteAgentState(t *testing.T) {
 	model := newOptionToolStub()
 	client, err := chatclient.New(model, chatclient.WithDefaults(*model.defaults))
 	if err != nil {
@@ -156,17 +157,21 @@ func TestWaitingSnapshotCommitFailureDoesNotRewriteAgentState(t *testing.T) {
 		t.Fatalf("StartTurn: %v", err)
 	}
 	completion := process.Await()
-	if !errors.Is(completion.Err, want) {
-		t.Fatalf("completion error = %v, want snapshot failure", completion.Err)
+	if completion.Err != nil {
+		t.Fatalf("waiting completion = %v, want checkpoint policy outside Await", completion.Err)
 	}
 	if completion.Status != core.StatusWaiting {
 		t.Fatalf("process status = %s, want waiting", completion.Status)
 	}
-	if store.saves.Load() == 0 {
-		t.Fatal("process never attempted a segment-boundary snapshot")
+	checkpoint := captureWaitingCheckpoint(t, process)
+	if got := store.saves.Load(); got != 0 {
+		t.Fatalf("checkpoint saves before application commit = %d, want 0", got)
 	}
-	if errors.Is(completion.Err, ErrProcessSnapshotLost) {
-		t.Fatalf("active snapshot write failure was misclassified as restore loss: %v", completion.Err)
+	if err := checkpoint.PersistCheckpoint(t.Context()); !errors.Is(err, want) {
+		t.Fatalf("PersistCheckpoint error = %v, want %v", err, want)
+	}
+	if got := store.saves.Load(); got != 1 {
+		t.Fatalf("checkpoint saves after application commit = %d, want 1", got)
 	}
 }
 

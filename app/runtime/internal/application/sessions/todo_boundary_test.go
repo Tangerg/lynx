@@ -61,7 +61,7 @@ func TestRollbackPublishesTheBoundaryTodoList(t *testing.T) {
 		"run_keep": {{Content: "the plan as of the boundary", Status: todo.StatusPending}},
 	})
 
-	if err := c.applyRollback(t.Context(), "ses_A", droppedBoundary("run_keep", 4), nil); err != nil {
+	if err := c.applyRollback(t.Context(), "ses_A", droppedBoundary("run_keep", 4)); err != nil {
 		t.Fatalf("applyRollback: %v", err)
 	}
 	if !plan.Todos.Recorded {
@@ -79,7 +79,7 @@ func TestRollbackLeavesAnUnrecordedBoundaryAlone(t *testing.T) {
 	var plan RollbackPlan
 	c := boundaryCoordinator(idleStores(&plan), recordedBoundaries{})
 
-	if err := c.applyRollback(t.Context(), "ses_A", droppedBoundary("run_imported", 4), nil); err != nil {
+	if err := c.applyRollback(t.Context(), "ses_A", droppedBoundary("run_imported", 4)); err != nil {
 		t.Fatalf("applyRollback: %v", err)
 	}
 	if plan.Todos.Recorded || plan.Todos.Items != nil {
@@ -96,7 +96,7 @@ func TestRollbackToBeforeEveryRunClearsWithoutALookup(t *testing.T) {
 	c := boundaryCoordinator(idleStores(&plan), refusingBoundaries{})
 
 	boundary := transcript.Boundary{Dropped: []transcript.RunNode{{ID: "run_1"}}}
-	if err := c.applyRollback(t.Context(), "ses_A", boundary, nil); err != nil {
+	if err := c.applyRollback(t.Context(), "ses_A", boundary); err != nil {
 		t.Fatalf("applyRollback: %v", err)
 	}
 	if !plan.Todos.Recorded || len(plan.Todos.Items) != 0 {

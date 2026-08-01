@@ -211,11 +211,6 @@ func (s *SessionStores) ApplyRollback(ctx context.Context, plan sessions.Rollbac
 				return err
 			}
 		}
-		for _, sessionID := range plan.DropSessionIDs {
-			if err := s.deleteSession(ctx, sessionID); err != nil {
-				return err
-			}
-		}
 		return nil
 	})
 }
@@ -267,18 +262,13 @@ func (s *SessionStores) ApplyRestore(ctx context.Context, plan sessions.RestoreP
 	})
 }
 
-// ApplyDelete removes all durable state for the requested session cascade.
+// ApplyDelete removes all durable state for the addressed session.
 func (s *SessionStores) ApplyDelete(ctx context.Context, plan sessions.DeletePlan) error {
-	if len(plan.SessionIDs) == 0 {
-		return errors.New("persistence: delete plan has no sessions")
+	if plan.SessionID == "" {
+		return errors.New("persistence: delete plan has no session")
 	}
 	return s.runInTx(ctx, func(ctx context.Context) error {
-		for _, sessionID := range plan.SessionIDs {
-			if err := s.deleteSession(ctx, sessionID); err != nil {
-				return err
-			}
-		}
-		return nil
+		return s.deleteSession(ctx, plan.SessionID)
 	})
 }
 
@@ -298,6 +288,11 @@ func (s *SessionStores) clearSessionOwnedState(ctx context.Context, sessionID st
 	}
 	if err := s.deleteInterrupts(ctx, sessionID); err != nil {
 		return err
+	}
+	if s.processes != nil {
+		if err := s.processes.DeleteSessionTrees(ctx, sessionID); err != nil {
+			return err
+		}
 	}
 	if err := s.runs.DeleteForSession(ctx, sessionID); err != nil {
 		return err
@@ -362,19 +357,6 @@ func (s *SessionStores) deleteInterrupts(ctx context.Context, sessionID string) 
 	pending, err := s.interrupts.List(ctx, sessionID)
 	if err != nil {
 		return err
-	}
-	processIDs := make([]string, 0, len(pending))
-	for _, interrupt := range pending {
-		root, ok := interrupt.RootContinuation()
-		if !ok {
-			return fmt.Errorf("persistence: interrupt %q has no root continuation", interrupt.RootRunID)
-		}
-		processIDs = append(processIDs, root.ProcessID)
-	}
-	if len(processIDs) > 0 {
-		if err := s.processes.DeleteTrees(ctx, processIDs); err != nil {
-			return err
-		}
 	}
 	for _, interrupt := range pending {
 		if err := s.interrupts.Delete(ctx, interrupt.RootRunID); err != nil {

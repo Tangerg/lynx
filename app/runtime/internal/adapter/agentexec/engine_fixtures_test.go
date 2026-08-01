@@ -98,6 +98,24 @@ func cleanupBuiltTools(t *testing.T, built toolset.Built) {
 	})
 }
 
+func captureWaitingCheckpoint(t *testing.T, process TurnProcess) WaitingCheckpoint {
+	t.Helper()
+	checkpoint, err := process.CaptureWaitingCheckpoint(t.Context())
+	if err != nil {
+		t.Fatalf("CaptureWaitingCheckpoint: %v", err)
+	}
+	return checkpoint
+}
+
+func persistWaitingCheckpoint(t *testing.T, process TurnProcess) WaitingCheckpoint {
+	t.Helper()
+	checkpoint := captureWaitingCheckpoint(t, process)
+	if err := checkpoint.PersistCheckpoint(t.Context()); err != nil {
+		t.Fatalf("PersistCheckpoint: %v", err)
+	}
+	return checkpoint
+}
+
 func (e *Engine) runTurnSync(ctx context.Context, req TurnRequest) (TurnOutput, error) {
 	proc, err := e.StartTurn(ctx, req)
 	if err != nil {

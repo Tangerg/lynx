@@ -6,10 +6,24 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
+	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
+
+const testProcessBuildID = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+func persistTreeBarrier(t testing.TB, barrier runs.TreeInterrupted) {
+	t.Helper()
+	if barrier.Checkpoint == nil {
+		t.Fatal("tree barrier has no process checkpoint")
+	}
+	if err := barrier.Checkpoint.PersistCheckpoint(context.Background()); err != nil {
+		t.Fatalf("persist tree barrier checkpoint: %v", err)
+	}
+}
 
 type failNthSaveProcessStore struct {
 	agentexec.ProcessStore

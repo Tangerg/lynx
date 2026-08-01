@@ -347,69 +347,31 @@ func TestProcessStoreDoesNotCreateProductLineageWithoutConversation(t *testing.T
 	}
 }
 
-func TestProcessStoreMissingConversationRollsBackTreeAndLineage(t *testing.T) {
+func TestProcessStoreDoesNotDeriveProductSessions(t *testing.T) {
 	db, store := newProcessStorage(t)
-	root := validStoredSnapshot("root-missing-conversation", core.StatusWaiting)
-	child := validStoredSnapshot("child-missing-conversation", core.StatusWaiting)
+	root := validStoredSnapshot("root-opaque", core.StatusWaiting)
+	child := validStoredSnapshot("child-opaque", core.StatusWaiting)
 	child.ParentID = root.ID
 
-	err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child), storedCheckpoint("missing-conversation", storedBuildID, accounting.Snapshot{}))
-	if !errors.Is(err, session.ErrNotFound) {
-		t.Fatalf("SaveTree error = %v, want ErrNotFound", err)
-	}
-	if _, _, err := store.LoadTree(t.Context(), root.ID); !errors.Is(err, execution.ErrProcessStateNotFound) {
-		t.Fatalf("rolled-back process tree lookup = %v, want ErrProcessStateNotFound", err)
-	}
-	if _, err := sqlite.NewSessionStore(db).Get(t.Context(), child.ID); !errors.Is(err, session.ErrNotFound) {
-		t.Fatalf("rolled-back child session lookup = %v, want ErrNotFound", err)
-	}
-}
-
-func TestProcessStorePersistsDelegationLineageInSameWrite(t *testing.T) {
-	db, store := newProcessStorage(t)
-	sessions := sqlite.NewSessionStore(db)
-	parent, err := sessions.Create(t.Context(), "Parent", "/workspace")
-	if err != nil {
-		t.Fatal(err)
-	}
-	root := validStoredSnapshot("root", core.StatusWaiting)
-	child := validStoredSnapshot("child", core.StatusWaiting)
-	child.ParentID = root.ID
-	leaf := validStoredSnapshot("leaf", core.StatusCompleted)
-	leaf.ParentID = child.ID
-
-	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child, leaf), storedCheckpoint(parent.ID, storedBuildID, accounting.Snapshot{})); err != nil {
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child), storedCheckpoint("missing-conversation", storedBuildID, accounting.Snapshot{})); err != nil {
 		t.Fatalf("SaveTree: %v", err)
 	}
-	storedChild, err := sessions.Get(t.Context(), child.ID)
-	if err != nil {
-		t.Fatal(err)
+	if _, _, err := store.LoadTree(t.Context(), root.ID); err != nil {
+		t.Fatalf("LoadTree: %v", err)
 	}
-	if storedChild.Kind != session.KindSubtask || storedChild.ParentID != parent.ID || storedChild.Cwd != parent.Cwd {
-		t.Fatalf("child lineage = %#v", storedChild)
-	}
-	storedLeaf, err := sessions.Get(t.Context(), leaf.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if storedLeaf.Kind != session.KindSubtask || storedLeaf.ParentID != child.ID {
-		t.Fatalf("leaf lineage = %#v", storedLeaf)
+	if _, err := sqlite.NewSessionStore(db).Get(t.Context(), child.ID); !errors.Is(err, session.ErrNotFound) {
+		t.Fatalf("process checkpoint created product session: %v", err)
 	}
 }
 
 func TestProcessStoreOwnsCheckpointCaptureMetadata(t *testing.T) {
 	db, store := newProcessStorage(t)
-	sessions := sqlite.NewSessionStore(db)
-	parent, err := sessions.Create(t.Context(), "Parent", "/workspace")
-	if err != nil {
-		t.Fatal(err)
-	}
 	root := validStoredSnapshot("capture-root", core.StatusWaiting)
 	child := validStoredSnapshot("capture-child", core.StatusCompleted)
 	child.ParentID = root.ID
 	beforeCommit := time.Now().UTC().Add(-time.Second)
 
-	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child), storedCheckpoint(parent.ID, storedBuildID, accounting.Snapshot{})); err != nil {
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child), storedCheckpoint("conversation", storedBuildID, accounting.Snapshot{})); err != nil {
 		t.Fatalf("SaveTree: %v", err)
 	}
 	rows, err := db.QueryContext(t.Context(),
@@ -450,13 +412,6 @@ func TestProcessStoreOwnsCheckpointCaptureMetadata(t *testing.T) {
 	if committedAt == 0 {
 		t.Fatal("process tree has no storage capture metadata")
 	}
-	storedChild, err := sessions.Get(t.Context(), child.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if storedChild.UpdatedAt.UnixNano() != committedAt {
-		t.Fatalf("subtask audit time = %s, want process-tree commit %s", storedChild.UpdatedAt, time.Unix(0, committedAt))
-	}
 }
 
 func TestProcessStoreDeleteTreeRemovesDescendantsOnly(t *testing.T) {
@@ -482,5 +437,48 @@ func TestProcessStoreDeleteTreeRemovesDescendantsOnly(t *testing.T) {
 	tree, _, err := store.LoadTree(t.Context(), unrelated.ID)
 	if err != nil || len(tree.Processes) != 1 || tree.Processes[0].ID != unrelated.ID {
 		t.Fatalf("unrelated tree = %+v, %v", tree, err)
+	}
+}
+
+func TestProcessStoreDeletesCheckpointAggregatesByApplicationOwnership(t *testing.T) {
+	_, store := newProcessStorage(t)
+	rootA := validStoredSnapshot("root-a", core.StatusWaiting)
+	childA := validStoredSnapshot("child-a", core.StatusWaiting)
+	childA.ParentID = rootA.ID
+	rootB := validStoredSnapshot("root-b", core.StatusWaiting)
+	for _, seed := range []struct {
+		sessionID string
+		tree      execution.ProcessTreeState
+	}{
+		{sessionID: "session-a", tree: storedSnapshotTree(rootA.ID, rootA, childA)},
+		{sessionID: "session-b", tree: storedSnapshotTree(rootB.ID, rootB)},
+	} {
+		if err := store.SaveTree(t.Context(), seed.tree, storedCheckpoint(seed.sessionID, storedBuildID, accounting.Snapshot{})); err != nil {
+			t.Fatalf("seed %s: %v", seed.sessionID, err)
+		}
+	}
+
+	if err := store.DeleteSessionTrees(t.Context(), "session-a"); err != nil {
+		t.Fatalf("DeleteSessionTrees: %v", err)
+	}
+	if _, _, err := store.LoadTree(t.Context(), rootA.ID); !errors.Is(err, execution.ErrProcessStateNotFound) {
+		t.Fatalf("session-a tree survived: %v", err)
+	}
+	if _, _, err := store.LoadTree(t.Context(), rootB.ID); err != nil {
+		t.Fatalf("unrelated session-b tree was deleted: %v", err)
+	}
+
+	rootC := validStoredSnapshot("root-c", core.StatusWaiting)
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(rootC.ID, rootC), storedCheckpoint("session-c", storedBuildID, accounting.Snapshot{})); err != nil {
+		t.Fatalf("seed session-c: %v", err)
+	}
+	if err := store.DeleteUnownedTrees(t.Context(), []string{rootB.ID}); err != nil {
+		t.Fatalf("DeleteUnownedTrees: %v", err)
+	}
+	if _, _, err := store.LoadTree(t.Context(), rootB.ID); err != nil {
+		t.Fatalf("preserved tree was deleted: %v", err)
+	}
+	if _, _, err := store.LoadTree(t.Context(), rootC.ID); !errors.Is(err, execution.ErrProcessStateNotFound) {
+		t.Fatalf("unowned tree survived: %v", err)
 	}
 }

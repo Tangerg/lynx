@@ -13,11 +13,13 @@
 > W7.4 实施提交：`d0380d0a2`
 > W7.5 实施提交：`ed411fe93`；clipboard 证据：`c5590aad0`
 > W8 实施提交：随本原子 slice 提交
-> 当前主任务：无；W2–W8 已闭环，后续只按真实新需求建立新 slice
-> 执行进度：`W2 DONE · W3 DONE · W4 DONE · W5 DONE · W6 DONE · W7 DONE · W8 DONE`
+> P25 实施提交：`03773c52d`
+> P26 实施提交：随本原子 slice 提交
+> 当前主任务：无；W2–W8、P25–P26 已闭环，后续变更必须通过 Agent/App 语义所有权审查
+> 执行进度：`W2–W8 DONE · P25 DONE · P26 DONE`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
-> 当前 Store：`schemaEpoch = 44`
+> 当前 Store：`schemaEpoch = 46`
 
 ## 0. 文档职责
 
@@ -72,7 +74,13 @@ Synara/Lynx 的真实视觉基线、状态映射、目标 token、有意分歧�
 HITL、Context Dock/Workspace/Settings 与最终 WebView/accessibility closure。W8 又以
 “抽象不泄露、不过少、不过度”为主线完成全仓复核，关闭 Desktop design-system 绕行、
 复合交互错误抽象、Go receiver 命名回归和视觉尾部取整不确定性；Runtime/Frontend
-生成契约、协议生命周期与模块依赖仍保持闭环。
+生成契约、协议生命周期与模块依赖仍保持闭环。P25 将 Agent 的 Host transaction protocol
+替换为纯 Plan/Apply，并把 Framework snapshot codec 收口到 `agentexec`。P26 继续关闭三项
+同源泄露：普通 waiting checkpoint 不再先于 App barrier 单独落盘；terminal `Discard` 不再
+后台删除 durable state；child process 不再派生隐藏 product Session。App 现在独占 checkpoint、
+Pending、Run、Session 与 recovery 的原子性和 retention，SQLite 直接切换 epoch 46，不保留
+兼容路径。专项判据、裁决和防复发规则见
+[`codex_agent_app_abstraction_boundary_audit.md`](codex_agent_app_abstraction_boundary_audit.md)。
 
 ---
 
@@ -407,14 +415,14 @@ coordinator、锁层、协议方法或兼容分支。
 | Machine contract  | 单一 Contract Registry 生成 manifest、Schema、OpenRPC、Go validator、TS types/validator/method map；arch drift gate 通过 | 目标结构已成立，不再新增平行 registry               |
 | 协议表面          | manifest 当前有 85 个方法，4 个 stream method；协议只服务 `2026-07-27`；Artifact 只接受 v7                               | hard cutover 已成立，没有版本协商假象               |
 | Run 心智模型      | `Session → Run → Segment → Item`、Run 三态、正交 outcome/metrics、typed Interrupt、durable query 均已落地                | API 主模型无需重做                                  |
-| Agent Framework   | execution tree、HITL、checkpoint、prepared waiting-subtree mutation、Continue 与 consumer/recovery/race 门禁已成立       | P24 完成；后续只按真实 consumer 需求演进            |
+| Agent Framework   | execution tree、HITL、checkpoint、无资源保留的 waiting-subtree Plan/Apply、Continue 与 consumer/recovery 门禁已成立       | P25/P26 证明 Host transaction、Store 与产品 identity 未下沉 |
 | App Runtime 写面  | child admission、source routing、tree barrier/resume、Running/Waiting child cancel 与 B1.4d conformance 已完成           | 事实 owner 正确；后续不得重新分配所有权             |
 | App Runtime 读面  | descendant paging、exact/subtree items、root stream replay、cold tree recovery 与 child subscribe 拒绝均已闭环           | durable tree query 与 stream ownership 已成立       |
 | Desktop transport | root stream、durable snapshot、reattach、replay fallback、exact child cancel 与 source-owned fold 已闭环                 | first-party consumer 已完整 opt in                  |
 | Desktop fold      | root/child/sibling/nested Run 均按 source identity 独立折叠，并形成 root-first tree/narrative UI                         | B1.6 完成，无 single-run 或 synthetic recovery path |
 | Capability        | server 稳定广告 `features.subagents.enabled=true`，Desktop 显式请求；未协商调用仍 fail closed                            | B1.7 已原子启用且保持 opt-in                        |
 | 依赖治理          | Go architecture tests、Frontend layer/context/public-boundary/cycle gates 全绿                                           | 不需要全局换目录；每个 slice 内做局部治本           |
-| 历史兼容          | SQLite 单 epoch 44、protocol current=min、旧 store/artifact/schema 直接拒绝                                              | 符合 dev 阶段 breaking-first                        |
+| 历史兼容          | SQLite 单 epoch 46、protocol current=min、旧 store/artifact/schema 直接拒绝                                              | 符合 dev 阶段 breaking-first                        |
 
 ### 4.5 B1.4d 证据闭环矩阵
 
@@ -1026,7 +1034,7 @@ W6.0 的证据裁决：
   transaction/use case 切成转发接口，裁决为**保留**；
 - Agent production graph 不依赖 `app/**`，public execution vocabulary 中没有
   Session/Run/Segment/Item、SQLite、BuildID、idempotency store、transaction 或
-  产品计费账本；process snapshot、prepared waiting-subtree mutation 与 opaque cost
+  产品计费账本；process snapshot、无资源保留的 waiting-subtree Plan/Apply 与 opaque cost
   projection 都对任意 Framework 消费者成立，裁决为**不迁移、不增加 App seam**；
 - Runtime/Agent production 未发现 `Manager`、`Helper`、`Impl`、generic
   `impl.go/helper.go/utils.go`、常量专用 `fmt.Errorf`、同类型 receiver 多命名或精确

@@ -41,18 +41,6 @@ func stringPointer(value string) *string {
 	return &value
 }
 
-func TestParseKindRejectsUnknownStorageValue(t *testing.T) {
-	for _, value := range []string{"", string(KindSubtask)} {
-		kind, err := ParseKind(value)
-		if err != nil || string(kind) != value {
-			t.Fatalf("ParseKind(%q) = (%q, %v)", value, kind, err)
-		}
-	}
-	if _, err := ParseKind("legacy"); err == nil {
-		t.Fatal("ParseKind accepted unknown kind")
-	}
-}
-
 func TestSessionFork(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 	parent := Session{
@@ -82,100 +70,5 @@ func TestSessionFork(t *testing.T) {
 	// A fork starts a fresh conversation: the parent's model is not inherited.
 	if child.Model != "" {
 		t.Errorf("Model = %q, want empty (not inherited)", child.Model)
-	}
-}
-
-func TestSessionNewSubtask(t *testing.T) {
-	now := time.Unix(1700000000, 0).UTC()
-	parent := Session{ID: "ses_parent", Title: "research", Cwd: "/work/proj", Model: "claude-opus-4-8"}
-	subtask := Subtask{
-		ID:        "ses_child",
-		ParentID:  parent.ID,
-		StartedAt: now,
-		UpdatedAt: now,
-	}
-
-	child, err := parent.NewSubtask(subtask)
-	if err != nil {
-		t.Fatalf("NewSubtask: %v", err)
-	}
-
-	if child.ID != "ses_child" {
-		t.Errorf("ID = %q, want ses_child", child.ID)
-	}
-	if child.ParentID != parent.ID {
-		t.Errorf("ParentID = %q, want %q", child.ParentID, parent.ID)
-	}
-	if child.Title != "research · subtask" {
-		t.Errorf("Title = %q, want %q", child.Title, "research · subtask")
-	}
-	if child.Cwd != parent.Cwd {
-		t.Errorf("Cwd = %q, want inherited %q", child.Cwd, parent.Cwd)
-	}
-	if child.Kind != KindSubtask {
-		t.Errorf("Kind = %q, want %q", child.Kind, KindSubtask)
-	}
-	if !child.StartedAt.Equal(now) || !child.UpdatedAt.Equal(now) {
-		t.Errorf("timestamps = %v / %v, want %v", child.StartedAt, child.UpdatedAt, now)
-	}
-	if child.Model != "" {
-		t.Errorf("subtask started fresh? Model=%q", child.Model)
-	}
-
-	// An untitled parent (the id-only stand-in the adapter passes when the
-	// parent is missing) yields the bare "subtask" title, no dangling separator.
-	untitled := subtask
-	untitled.ID = "ses_c"
-	untitled.ParentID = "ses_p"
-	got, err := (Session{ID: "ses_p"}).NewSubtask(untitled)
-	if err != nil {
-		t.Fatalf("untitled parent NewSubtask: %v", err)
-	}
-	if got.Title != "subtask" {
-		t.Errorf("untitled-parent subtask title = %q, want %q", got.Title, "subtask")
-	}
-}
-
-func TestSubtaskValidate(t *testing.T) {
-	now := time.Unix(1700000000, 0).UTC()
-	valid := Subtask{ID: "ses_c", ParentID: "ses_p", StartedAt: now, UpdatedAt: now}
-	if err := valid.Validate(); err != nil {
-		t.Fatalf("valid subtask: %v", err)
-	}
-	invalid := valid
-	invalid.ParentID = invalid.ID
-	if err := invalid.Validate(); !errors.Is(err, ErrInvalidSubtask) {
-		t.Fatalf("Validate error = %v, want ErrInvalidSubtask", err)
-	}
-}
-
-func TestSubtaskSameIdentity(t *testing.T) {
-	now := time.Unix(1700000000, 0).UTC()
-	subtask := Subtask{
-		ID: "ses_c", ParentID: "ses_p",
-		StartedAt: now, UpdatedAt: now,
-	}
-	existing, err := (Session{ID: subtask.ParentID}).NewSubtask(subtask)
-	if err != nil {
-		t.Fatalf("NewSubtask: %v", err)
-	}
-	existing.UpdatedAt = existing.UpdatedAt.Add(time.Hour)
-	if !subtask.SameIdentity(existing) {
-		t.Fatal("SameIdentity rejected mutable audit fields")
-	}
-
-	for name, mutate := range map[string]func(*Session){
-		"kind":       func(s *Session) { s.Kind = "" },
-		"ID":         func(s *Session) { s.ID = "other" },
-		"parent ID":  func(s *Session) { s.ParentID = "other" },
-		"started at": func(s *Session) { s.StartedAt = s.StartedAt.Add(time.Second) },
-	} {
-		t.Run(name, func(t *testing.T) {
-			candidate := existing
-			mutate(&candidate)
-			if subtask.SameIdentity(candidate) {
-				t.Fatal("SameIdentity accepted changed identity")
-			}
-		})
 	}
 }

@@ -16,11 +16,10 @@ import (
 // run boundary. A parked run among DropRunIDs needs no terminalization: dropping
 // its record is also how it releases the session's admission slot.
 type RollbackPlan struct {
-	SessionID      string
-	KeepMark       int
-	DropRunIDs     []string
-	DropSessionIDs []string
-	ProcessIDs     []string
+	SessionID  string
+	KeepMark   int
+	DropRunIDs []string
+	ProcessIDs []string
 	// Todos is the task list the boundary held. Applying it is a NEW state commit
 	// (Replace, never delete-and-rewrite): the live revision has to move forward or a
 	// client holding a higher one discards the rolled-back list as stale.
@@ -90,11 +89,11 @@ func runsInParentFirstOrder(runs []transcript.Run) []transcript.Run {
 	return ordered
 }
 
-// DeletePlan is the post-order session set removed by one delete cascade. It
-// contains the addressed session plus its owned internal-subtask descendants;
-// user-created forks are independent and are not included.
+// DeletePlan removes exactly one addressed conversation. User-created forks are
+// independent conversations and delegated work is represented by child Runs,
+// not hidden Session rows.
 type DeletePlan struct {
-	SessionIDs []string
+	SessionID string
 }
 
 // TerminalPlan is the complete durable projection for ending a parked run by

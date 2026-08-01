@@ -197,8 +197,8 @@ type Effects interface {
 	// run-state transition) in one transaction. Every durable commit completes
 	// before publication; any error aborts the segment.
 	CommitEvent(ctx context.Context, commit EventCommit) error
-	// CommitTreeBarrier atomically writes the one root-owned pending set and
-	// suspends every active Run in the tree.
+	// CommitTreeBarrier atomically writes the captured executor checkpoint, the
+	// one root-owned pending set, and every active Run suspension in the tree.
 	CommitTreeBarrier(ctx context.Context, barrier TreeBarrierCommit) error
 	// CommitWaitingSubtreeCancellation atomically persists one prepared process
 	// checkpoint replacement and every application fact that makes the same

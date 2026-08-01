@@ -40,9 +40,32 @@ func (e *Engine) PendingSuspensions(ctx context.Context, processID string) ([]Pe
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.PendingSuspensions: %w", err)
 	}
-	pending, err := collectPendingSuspensions(tree)
+	pending, err := PendingSuspensionsIn(tree)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.PendingSuspensions: %w", err)
+	}
+	return pending, nil
+}
+
+// PendingSuspensionsIn returns every unanswered external-input boundary in a
+// caller-owned process-tree snapshot. It is the pure counterpart of
+// [Engine.PendingSuspensions]: callers that also need to persist the exact
+// captured tree can inspect that same value instead of taking a second capture
+// and risking two observations of different execution instants.
+//
+// Framework checkpoint state remains private to runtime. The returned values
+// contain only source identity, prompt, and response schema, each with isolated
+// byte ownership.
+func PendingSuspensionsIn(tree core.ProcessSnapshotTree) ([]PendingSuspension, error) {
+	if err := tree.Validate(); err != nil {
+		return nil, fmt.Errorf("runtime.PendingSuspensionsIn: %w", err)
+	}
+	if err := validateNestedSnapshotRelations(tree); err != nil {
+		return nil, fmt.Errorf("runtime.PendingSuspensionsIn: %w", err)
+	}
+	pending, err := collectPendingSuspensions(tree)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.PendingSuspensionsIn: %w", err)
 	}
 	return pending, nil
 }

@@ -99,7 +99,24 @@ func (e *Effects) CommitEvent(ctx context.Context, commit runs.EventCommit) erro
 	if commit.State == runs.StateSuspend {
 		return errors.New("runsegment: per-Run suspend commit is not allowed")
 	}
-	err := e.runInTx(ctx, func(ctx context.Context) error { return e.applyCommit(ctx, commit) })
+	if commit.ObsoleteProcessTreeRootID != "" && commit.State != runs.StateTerminalize {
+		return errors.New("runsegment: process checkpoint deletion requires a terminal Run commit")
+	}
+	err := e.runInTx(ctx, func(ctx context.Context) error {
+		if err := e.applyCommit(ctx, commit); err != nil {
+			return err
+		}
+		if commit.ObsoleteProcessTreeRootID == "" {
+			return nil
+		}
+		if e.processTrees == nil {
+			return errors.New("runsegment: process-tree persistence is unavailable")
+		}
+		if err := e.processTrees.DeleteTrees(ctx, []string{commit.ObsoleteProcessTreeRootID}); err != nil {
+			return fmt.Errorf("runsegment: delete terminal process checkpoint %q: %w", commit.ObsoleteProcessTreeRootID, err)
+		}
+		return nil
+	})
 	if err != nil {
 		return e.compensateFailedCommit(ctx, commit, err)
 	}
@@ -113,6 +130,9 @@ func (e *Effects) CommitEvent(ctx context.Context, commit runs.EventCommit) erro
 func (e *Effects) CommitTreeBarrier(ctx context.Context, barrier runs.TreeBarrierCommit) error {
 	if e.tx == nil {
 		return errors.New("runsegment: transactor is unavailable")
+	}
+	if barrier.Checkpoint == nil {
+		return errors.New("runsegment: tree barrier has no process checkpoint")
 	}
 	if err := barrier.Pending.Validate(); err != nil {
 		return fmt.Errorf("runsegment: invalid tree barrier: %w", err)
@@ -153,6 +173,9 @@ func (e *Effects) CommitTreeBarrier(ctx context.Context, barrier runs.TreeBarrie
 	}
 
 	err := e.runInTx(ctx, func(ctx context.Context) error {
+		if err := barrier.Checkpoint.PersistCheckpoint(ctx); err != nil {
+			return fmt.Errorf("runsegment: persist tree barrier process checkpoint: %w", err)
+		}
 		if err := e.putInterrupt(ctx, barrier.Pending); err != nil {
 			return err
 		}

@@ -482,6 +482,13 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 		t.Fatalf("seed session: %v", err)
 	}
 	processID := park(t, ss.sessions, runs, ints, ss.processes, "ses_A", "run_1")
+	orphanProcessID := "proc_orphan"
+	if err := ss.processes.SaveTree(ctx, bootstrapSnapshotTree(
+		orphanProcessID,
+		bootstrapWaitingSnapshot(orphanProcessID),
+	), bootstrapCheckpoint("ses_A", accounting.Snapshot{})); err != nil {
+		t.Fatalf("seed orphan checkpoint: %v", err)
+	}
 	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "owned", Status: todo.StatusPending}}); err != nil {
 		t.Fatalf("seed todos: %v", err)
 	}
@@ -489,7 +496,7 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 		t.Fatalf("seed approval: %v", err)
 	}
 
-	if err := ss.ApplyDelete(ctx, sessions.DeletePlan{SessionIDs: []string{"ses_A"}}); err != nil {
+	if err := ss.ApplyDelete(ctx, sessions.DeletePlan{SessionID: "ses_A"}); err != nil {
 		t.Fatalf("ApplyDelete: %v", err)
 	}
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
@@ -497,6 +504,9 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	}
 	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessStateNotFound) {
 		t.Fatalf("process snapshot after delete = %v, want not found", err)
+	}
+	if _, _, err := ss.processes.LoadTree(ctx, orphanProcessID); !errors.Is(err, execution.ErrProcessStateNotFound) {
+		t.Fatalf("orphan process snapshot after delete = %v, want not found", err)
 	}
 	if _, err := ss.sessions.Get(ctx, "ses_A"); !errors.Is(err, session.ErrNotFound) {
 		t.Fatalf("session survived delete: %v", err)
@@ -564,23 +574,14 @@ func testApprovalRule(t *testing.T, scope approval.Scope, scopeKey, toolName str
 	return rule
 }
 
-func TestApplyRollbackDeletesSubtaskSetAtomically(t *testing.T) {
+func TestApplyRollbackRejectsInvalidProcessSetAtomically(t *testing.T) {
 	ss, _, _ := newWriteSetFixture(t)
 	ctx := t.Context()
 	parent, err := ss.sessions.Create(ctx, "parent", "/repo")
 	if err != nil {
 		t.Fatalf("create parent: %v", err)
 	}
-	now := time.Now().UTC()
-	child, err := ss.sessions.SaveSubtask(ctx, session.Subtask{
-		ID: "ses_child", ParentID: parent.ID, StartedAt: now, UpdatedAt: now,
-	})
-	if err != nil {
-		t.Fatalf("create child: %v", err)
-	}
-	if err := ss.history.Seed(ctx, child.ID, []chat.Message{chat.NewUserMessage(chat.NewTextPart("preserve on rollback"))}); err != nil {
-		t.Fatalf("seed child history: %v", err)
-	}
+	seedGoal(t, ss, parent.ID)
 	if err := ss.processes.SaveTree(ctx, bootstrapSnapshotTree(
 		"proc_preserve",
 		bootstrapWaitingSnapshot("proc_preserve"),
@@ -589,18 +590,14 @@ func TestApplyRollbackDeletesSubtaskSetAtomically(t *testing.T) {
 	}
 
 	err = ss.ApplyRollback(ctx, sessions.RollbackPlan{
-		SessionID: parent.ID, KeepMark: -1, ProcessIDs: []string{"proc_preserve"},
-		DropSessionIDs: []string{child.ID, ""},
+		SessionID: parent.ID, KeepMark: -1,
+		ProcessIDs: []string{"proc_preserve", ""},
 	})
 	if err == nil {
-		t.Fatal("ApplyRollback unexpectedly accepted an invalid subtask id")
+		t.Fatal("ApplyRollback unexpectedly accepted an invalid process id")
 	}
-	if _, err := ss.sessions.Get(ctx, child.ID); err != nil {
-		t.Fatalf("child delete was not rolled back: %v", err)
-	}
-	messages, err := ss.history.Read(ctx, child.ID)
-	if err != nil || len(messages) != 1 {
-		t.Fatalf("child history after rollback = %+v, %v", messages, err)
+	if _, ok, err := ss.goals.Get(ctx, parent.ID); err != nil || !ok {
+		t.Fatalf("goal clear was not rolled back: ok=%v err=%v", ok, err)
 	}
 	if _, _, err := ss.processes.LoadTree(ctx, "proc_preserve"); err != nil {
 		t.Fatalf("process snapshot delete was not rolled back: %v", err)
@@ -691,7 +688,7 @@ func TestApplyDeleteClearsSessionGoal(t *testing.T) {
 	ctx := context.Background()
 	seedGoal(t, ss, "ses_goal")
 
-	if err := ss.ApplyDelete(ctx, sessions.DeletePlan{SessionIDs: []string{"ses_goal"}}); err != nil {
+	if err := ss.ApplyDelete(ctx, sessions.DeletePlan{SessionID: "ses_goal"}); err != nil {
 		t.Fatalf("ApplyDelete: %v", err)
 	}
 	if _, ok, err := ss.goals.Get(ctx, "ses_goal"); err != nil || ok {

@@ -427,11 +427,6 @@ func (s stubLifecycleStores) ApplyRollback(ctx context.Context, plan sessions.Ro
 			return err
 		}
 	}
-	for _, sessionID := range plan.DropSessionIDs {
-		if err := s.deleteSession(ctx, sessionID); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -489,12 +484,7 @@ func (s stubLifecycleStores) ApplyRestore(ctx context.Context, plan sessions.Res
 }
 
 func (s stubLifecycleStores) ApplyDelete(ctx context.Context, plan sessions.DeletePlan) error {
-	for _, sessionID := range plan.SessionIDs {
-		if err := s.deleteSession(ctx, sessionID); err != nil {
-			return err
-		}
-	}
-	return nil
+	return s.deleteSession(ctx, plan.SessionID)
 }
 
 func (s stubLifecycleStores) deleteSession(ctx context.Context, sessionID string) error {

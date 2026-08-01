@@ -23,12 +23,16 @@ type EventCommit struct {
 	Items     []transcript.Item
 	Run       *transcript.Run
 	GoalTurn  *goal.TurnRecord
+	// ObsoleteProcessTreeRootID identifies the executor checkpoint aggregate the
+	// root Run terminal makes obsolete. Child terminal commits leave it empty.
+	ObsoleteProcessTreeRootID string
 }
 
 func (c EventCommit) isEmpty() bool {
 	return len(c.Items) == 0 &&
 		c.Run == nil &&
 		c.GoalTurn == nil &&
+		c.ObsoleteProcessTreeRootID == "" &&
 		c.State == StateUnchanged
 }
 
@@ -37,6 +41,7 @@ func (c EventCommit) isEmpty() bool {
 // Runs contains one StateSuspend commit for every active Run in deterministic
 // postorder. No individual Run commit may write or consume the root-owned set.
 type TreeBarrierCommit struct {
-	Pending interrupts.Pending
-	Runs    []EventCommit
+	Pending    interrupts.Pending
+	Runs       []EventCommit
+	Checkpoint ProcessCheckpointWrite
 }

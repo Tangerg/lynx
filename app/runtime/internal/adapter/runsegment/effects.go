@@ -85,6 +85,13 @@ type RunWriter interface {
 	Terminalize(ctx context.Context, run transcript.Run) error
 }
 
+// ProcessTreeStore removes durable executor checkpoints selected by the
+// Application lifecycle. It deliberately exposes no snapshot codec: only the
+// execution adapter may interpret checkpoint payloads.
+type ProcessTreeStore interface {
+	DeleteTrees(ctx context.Context, rootIDs []string) error
+}
+
 // Transactor runs fn inside one storage transaction: every store call made by
 // fn joins that transaction through the context. Durable commits reject a nil
 // transactor rather than silently weakening atomicity.
@@ -129,6 +136,7 @@ type Config struct {
 	Messages           MessageCounter
 	Titles             TitleGenerator
 	RunState           RunWriter
+	ProcessTrees       ProcessTreeStore
 	Tx                 Transactor
 	Checkpoints        Checkpoints
 	Tasks              TaskLauncher
@@ -148,6 +156,7 @@ type Effects struct {
 	messages        MessageCounter
 	titles          TitleGenerator
 	runState        RunWriter
+	processTrees    ProcessTreeStore
 	tx              Transactor
 	checkpoints     Checkpoints
 	tasks           TaskLauncher
@@ -171,6 +180,7 @@ func New(cfg Config) *Effects {
 		messages:        cfg.Messages,
 		titles:          cfg.Titles,
 		runState:        cfg.RunState,
+		processTrees:    cfg.ProcessTrees,
 		tx:              cfg.Tx,
 		checkpoints:     cfg.Checkpoints,
 		tasks:           cfg.Tasks,

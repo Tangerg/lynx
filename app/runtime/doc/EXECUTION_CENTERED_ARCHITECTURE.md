@@ -135,8 +135,9 @@ Agent snapshot，而是与 process tree 一起由 App `ProcessStore` 原子提�
 - cancel root 会递归终止存活 child；
 - `task` 本身是纯编排，不重复审批或执行 tool hooks；child 的真实工具调用逐个 gating；
 - child approval/question 产生真实 nested suspension，不编码为普通工具 JSON；
-- Agent 私有 checkpoint 保存 parent pending call 与 child relation，按 leaf → root
-  durable commit；公开 `ProcessSnapshot` / Runtime wire 不增加嵌套字段；
+- Agent 私有 checkpoint 保存 parent pending call 与 child relation；App 在完整 waiting tree
+  capture 后，以一个 tree-barrier transaction 同时提交 checkpoint、root-owned Pending 与
+  所有 active Run 的 suspension；公开 `ProcessSnapshot` / Runtime wire 不增加产品字段；
 - Runtime suspension prompt 只允许 application-owned typed `runs.Interrupt`；
 - suspension prompt 与 resolution 的 JSON 只在 `adapter/agentexec/suspension` 编解码；
   `runs.Interrupt` 与 `interrupts.Resolution`（包括 `approval.Scope`）不携带 agent 或 wire
@@ -167,12 +168,14 @@ Process checkpoint 的执行状态、Agent 声明 compatibility 和 nested relat
 Agent framework 解释；Agent 不拥有 backend、宿主 build identity 或应用计费明细。
 `adapter/agentexec` 在 Waiting 段边界调用 `SnapshotTree`，由该防腐层把每个 Agent snapshot
 编码为 App-owned `ProcessTreeState`：App 只认识 process identity、topology、started-at 和
-opaque payload。`ProcessStore.SaveTree` 提交该 envelope、App usage snapshot 和 App BuildID；
-SQLite 只把 payload 写入 `process_states.payload BLOB`，不导入 Agent SDK，也不解析内容。
-启动恢复先由 `ProcessStore.LoadTree` 加载并在
+opaque payload。capture 本身不做 I/O；它返回一个不可变 checkpoint write capability，随后
+由 Application 的 tree-barrier transaction 调用。`ProcessStore.SaveTree` 在该 transaction
+内提交 envelope、App usage snapshot 和 App BuildID；SQLite 只把 payload 写入
+`process_states.payload BLOB`，不导入 Agent SDK，也不解析内容。启动恢复先由
+`ProcessStore.LoadTree` 加载并在
 App 校验 BuildID，再由 agentexec 解码、校验两份 usage 聚合，最后调用 Agent 的
 `ValidateRestoreTree` / `ValidateResumableSnapshot` / `RestoreTree`。SQLite 的提交时间、替换、
-删除、产品 subtask lineage 和事务全部留在 App。
+删除、retention 和事务全部留在 App。
 
 Waiting snapshot 可以处于未回答或已回答待继续阶段。Agent 只校验和重建这两种 execution
 state；App 决定是否把 response、请求幂等记录和 checkpoint 放入同一事务。恢复后未回答
@@ -184,6 +187,17 @@ digest 或 snapshot wire。只有 Waiting 段拥有可恢复 continuation，因�
 snapshot。Waiting checkpoint 提交失败时 App 不暴露 interrupt，而是终止并失败收口该 Run；
 build 不兼容、snapshot 缺失或损坏确定性转为 `run_lost` 并清理 process tree，不做 migration
 或旧 shape 兼容。
+
+终态遵循同一所有权：Agent `Discard` 只从 live Framework registry 移除终态 tree，不触碰
+durable state；root Run 的 terminal `EventCommit` 把 obsolete process-tree root identity 带入
+App transaction，由 `runsegment` 将 Run terminalization 与 checkpoint 删除一起提交。child
+terminal 不单独删除 root-owned aggregate。若 terminal transaction 失败，Run 与 checkpoint
+同时保留；启动 reconciliation 会把没有完整 Interrupted Run + Pending 所有权证明的 non-terminal
+Run 收口为 `run_lost`，并删除所有不在精确 preserved set 中的 checkpoint tree。
+
+Session 与 executor process 是两套不同 identity。用户对话及 fork 才是 `Session`；delegated
+work 由同一 Session 下的 first-class child Run 表达，不再从 child process 派生隐藏 Session。
+当前 SQLite `schemaEpoch = 46`，没有旧 `sessions.kind`、双读写或迁移分支。
 
 ### 3.4 Tool、MCP 与 maintenance
 
@@ -230,6 +244,10 @@ Application 依赖 SQLite：用例依赖自己需要的窄读写/事务端口，
 - durable state 先 commit，成功后才 publish `RunEvent`；
 - fresh start 的 admission 与 opening projections 在同一事务提交；
 - resume 的 interrupt consume、run resume state 与 opening projections 同批提交；
+- waiting tree 的 checkpoint、Pending 与全部 Run suspension 在同一事务提交；
+- root terminalization 与 obsolete process checkpoint 删除在同一事务提交；
+- Session delete 通过 checkpoint root 的 App-owned `session_id` 元数据删除该 Session 的全部
+  process trees；boot 只保留被完整 Interrupted Run/Pending 证明拥有的 process trees；
 - 数据库与 filesystem/Git 不能伪装成一个原子事务，跨资源操作使用显式 intent 和补偿；
   Git work-tree reset 本身也不是跨文件原子操作，因此 files-only rollback 同样先记录
   intent；intent 明确携带是否还需截断 history，启动恢复只重驱已请求的效果；

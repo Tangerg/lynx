@@ -420,8 +420,8 @@ func TestDeliveryServerDoesNotOwnFilesystemTechnology(t *testing.T) {
 
 // TestProductSessionsDoNotCarryAgentContinuation prevents agent-core identity
 // and opaque continuation JSON from drifting back into the Session bounded
-// context. Bootstrap/storage owns the opaque sidecar; the product domain owns
-// only lineage and presentation.
+// context. The checkpoint aggregate owns opaque executor state; the product
+// domain owns conversation identity, user-created fork lineage and presentation.
 func TestProductSessionsDoNotCarryAgentContinuation(t *testing.T) {
 	root := moduleRoot(t)
 	dir := filepath.Join(root, "internal", "domain", "session")

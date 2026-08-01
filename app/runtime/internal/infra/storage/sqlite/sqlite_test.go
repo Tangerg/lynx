@@ -117,12 +117,8 @@ func TestSessionFork(t *testing.T) {
 	}
 
 	// Child round-trips through Get as a pure product Session projection.
-	gotChild, err := svc.Get(ctx, child.ID)
-	if err != nil {
+	if _, err := svc.Get(ctx, child.ID); err != nil {
 		t.Fatalf("Get child: %v", err)
-	}
-	if gotChild.Kind != session.KindConversation {
-		t.Fatalf("fork kind = %q, want conversation", gotChild.Kind)
 	}
 }
 
@@ -563,88 +559,5 @@ func TestOpenInstallsIntoAnEmptyFile(t *testing.T) {
 	var epoch int
 	if err := db.QueryRow(`PRAGMA user_version`).Scan(&epoch); err != nil || epoch == 0 {
 		t.Fatalf("installed epoch = %d, err=%v, want the current epoch", epoch, err)
-	}
-}
-
-// TestSessionSubtaskLineage covers the delegation-lineage recording: a
-// subtask child is stored under a caller-supplied id, inherits the parent's
-// cwd, is marked KindSubtask, is hidden from List, yet is reachable via
-// Children and Get. Re-saving may update audit data but not product identity.
-func TestSessionSubtaskLineage(t *testing.T) {
-	ctx := context.Background()
-	svc := newTempDB(t)
-
-	parent, err := svc.Create(ctx, "Parent", "/work/proj")
-	if err != nil {
-		t.Fatalf("Create parent: %v", err)
-	}
-
-	now := time.Now().UTC()
-	subtask := session.Subtask{
-		ID:        "proc-123",
-		ParentID:  parent.ID,
-		StartedAt: now,
-		UpdatedAt: now,
-	}
-	child, err := svc.SaveSubtask(ctx, subtask)
-	if err != nil {
-		t.Fatalf("SaveSubtask: %v", err)
-	}
-	if child.ID != "proc-123" {
-		t.Errorf("child id = %q, want proc-123", child.ID)
-	}
-	if child.ParentID != parent.ID {
-		t.Errorf("child ParentID = %q, want %q", child.ParentID, parent.ID)
-	}
-	if child.Kind != session.KindSubtask {
-		t.Errorf("child Kind = %q, want %q", child.Kind, session.KindSubtask)
-	}
-	if child.Cwd != "/work/proj" {
-		t.Errorf("child Cwd = %q, want inherited /work/proj", child.Cwd)
-	}
-	// Re-saving the same identity updates audit state without
-	// losing product-owned title/cwd enrichment.
-	subtask.UpdatedAt = now.Add(time.Second)
-	again, err := svc.SaveSubtask(ctx, subtask)
-	if err != nil || again.ID != child.ID ||
-		again.Title != child.Title || again.Cwd != child.Cwd || again.Kind != child.Kind ||
-		!again.UpdatedAt.Equal(subtask.UpdatedAt) {
-		t.Fatalf("SaveSubtask update = (%#v, %v)", again, err)
-	}
-	for name, mutate := range map[string]func(*session.Subtask){
-		"parent": func(s *session.Subtask) { s.ParentID = "other-parent" },
-		"start":  func(s *session.Subtask) { s.StartedAt = s.StartedAt.Add(time.Second) },
-	} {
-		t.Run("conflicting "+name, func(t *testing.T) {
-			conflict := subtask
-			mutate(&conflict)
-			if _, err := svc.SaveSubtask(ctx, conflict); !errors.Is(err, session.ErrSubtaskConflict) {
-				t.Fatalf("SaveSubtask conflict = %v, want ErrSubtaskConflict", err)
-			}
-		})
-	}
-
-	// List hides subtask children — only the user-facing parent shows.
-	list, err := svc.List(ctx)
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	if len(list) != 1 || list[0].ID != parent.ID {
-		t.Fatalf("List should show only the parent; got %d entries", len(list))
-	}
-
-	// Children surfaces the subtask under the parent (lineage queryable).
-	kids, err := svc.Children(ctx, parent.ID)
-	if err != nil {
-		t.Fatalf("Children: %v", err)
-	}
-	if len(kids) != 1 || kids[0].ID != "proc-123" {
-		t.Fatalf("Children(parent) = %+v, want one subtask proc-123", kids)
-	}
-
-	// Get resolves the subtask directly.
-	got, err := svc.Get(ctx, "proc-123")
-	if err != nil || got.ParentID != parent.ID {
-		t.Fatalf("Get(subtask): err=%v parent=%q", err, got.ParentID)
 	}
 }
