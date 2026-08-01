@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"reflect"
 	"strings"
 
@@ -46,15 +45,12 @@ func WithPassword(pw string) Option {
 	return func(r *Reader) { r.password = pw }
 }
 
-// WithMetadata adds caller-supplied metadata to every emitted document
-// (source URI, tenant, doc type, ...). The map is cloned, so later
-// caller mutations don't leak in. Reader-derived `pdf.*` keys take
+// WithMetadata adds validated caller-supplied metadata to every emitted
+// document. The map is deep-cloned, and reader-derived pdf.* keys take
 // precedence on conflict.
-func WithMetadata(md map[string]any) Option {
+func WithMetadata(md coremetadata.Map) Option {
 	return func(r *Reader) {
-		if len(md) > 0 {
-			r.extraMetadata = maps.Clone(md)
-		}
+		r.extraMetadata = md.Clone()
 	}
 }
 
@@ -65,7 +61,7 @@ type Reader struct {
 	perPage       bool
 	sourceName    string
 	password      string
-	extraMetadata map[string]any
+	extraMetadata coremetadata.Map
 }
 
 // NewReader builds a PDF reader. The underlying source must implement
@@ -85,6 +81,9 @@ func NewReader(src io.ReaderAt, size int64, opts ...Option) (*Reader, error) {
 			return nil, fmt.Errorf("pdf reader: option %d is nil", index)
 		}
 		opt(r)
+	}
+	if err := r.extraMetadata.Validate(); err != nil {
+		return nil, fmt.Errorf("pdf reader: invalid metadata: %w", err)
 	}
 	return r, nil
 }
@@ -160,7 +159,7 @@ func (r *Reader) readWhole(ctx context.Context, pdfReader *ledongthuc.Reader, to
 	if err != nil {
 		return nil, fmt.Errorf("pdf: build document: %w", err)
 	}
-	doc.Metadata, err = coremetadata.FromValues(r.baseMetadata(total))
+	doc.Metadata, err = r.baseMetadata(total)
 	if err != nil {
 		return nil, fmt.Errorf("pdf: encode metadata: %w", err)
 	}
@@ -192,12 +191,14 @@ func (r *Reader) readPages(ctx context.Context, pdfReader *ledongthuc.Reader, to
 		if err != nil {
 			return nil, fmt.Errorf("pdf: page %d build: %w", i, err)
 		}
-		md := r.baseMetadata(total)
-		md[MetadataPageIndex] = i
-		doc.Metadata, err = coremetadata.FromValues(md)
+		md, err := r.baseMetadata(total)
 		if err != nil {
 			return nil, fmt.Errorf("pdf: page %d metadata: %w", i, err)
 		}
+		if err := md.Set(MetadataPageIndex, i); err != nil {
+			return nil, fmt.Errorf("pdf: page %d metadata: %w", i, err)
+		}
+		doc.Metadata = md
 		docs = append(docs, doc)
 	}
 	if len(pageErrs) > 0 {
@@ -206,16 +207,17 @@ func (r *Reader) readPages(ctx context.Context, pdfReader *ledongthuc.Reader, to
 	return docs, nil
 }
 
-func (r *Reader) baseMetadata(total int) map[string]any {
-	md := maps.Clone(r.extraMetadata)
-	if md == nil {
-		md = map[string]any{}
+func (r *Reader) baseMetadata(total int) (coremetadata.Map, error) {
+	md := r.extraMetadata.Clone()
+	if err := md.Set(MetadataPagesTotal, total); err != nil {
+		return nil, err
 	}
-	md[MetadataPagesTotal] = total
 	if r.sourceName != "" {
-		md[MetadataSourceName] = r.sourceName
+		if err := md.Set(MetadataSourceName, r.sourceName); err != nil {
+			return nil, err
+		}
 	}
-	return md
+	return md, nil
 }
 
 // readAllText streams every page through [pageText] and concatenates

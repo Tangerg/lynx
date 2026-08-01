@@ -2,19 +2,23 @@ package html_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
+	coremetadata "github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/documentreaders/html"
 )
 
 func TestWithMetadata_AppliedToEveryDocument(t *testing.T) {
+	metadata := mustMetadata(t, map[string]any{"source": "page.html", "tenant": "acme"})
 	r, err := html.NewReader(strings.NewReader(samplePage),
-		html.WithMetadata(map[string]any{"source": "page.html", "tenant": "acme"}),
+		html.WithMetadata(metadata),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
+	metadata["source"][0] = 'x'
 	docs, err := r.Read(t.Context())
 	if err != nil {
 		t.Fatal(err)
@@ -27,6 +31,25 @@ func TestWithMetadata_AppliedToEveryDocument(t *testing.T) {
 			t.Fatalf("doc %d missing extra metadata: %v", i, d.Metadata)
 		}
 	}
+}
+
+func TestWithMetadata_RejectsInvalidMetadataAtConstruction(t *testing.T) {
+	_, err := html.NewReader(
+		strings.NewReader(samplePage),
+		html.WithMetadata(coremetadata.Map{"broken": []byte("{")}),
+	)
+	if !errors.Is(err, coremetadata.ErrInvalidValue) {
+		t.Fatalf("NewReader error = %v, want ErrInvalidValue", err)
+	}
+}
+
+func mustMetadata(t *testing.T, values map[string]any) coremetadata.Map {
+	t.Helper()
+	metadata, err := coremetadata.FromValues(values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return metadata
 }
 
 func TestRead_HonorsContextCancellation(t *testing.T) {

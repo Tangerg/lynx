@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"reflect"
 	"strings"
 
@@ -46,15 +45,12 @@ func WithStripWhitespace(strip bool) Option {
 	return func(r *Reader) { r.stripWhitespace = strip }
 }
 
-// WithMetadata adds caller-supplied metadata to every emitted document
-// (source URI, tenant, doc type, ...). The map is cloned, so later
-// caller mutations don't leak in. Reader-derived `html.*` keys take
+// WithMetadata adds validated caller-supplied metadata to every emitted
+// document. The map is deep-cloned, and reader-derived html.* keys take
 // precedence on conflict.
-func WithMetadata(md map[string]any) Option {
+func WithMetadata(md coremetadata.Map) Option {
 	return func(r *Reader) {
-		if len(md) > 0 {
-			r.extraMetadata = maps.Clone(md)
-		}
+		r.extraMetadata = md.Clone()
 	}
 }
 
@@ -65,7 +61,7 @@ type Reader struct {
 	matcher         goquery.Matcher
 	sourceName      string
 	stripWhitespace bool
-	extraMetadata   map[string]any
+	extraMetadata   coremetadata.Map
 }
 
 // NewReader builds an HTML reader over src.
@@ -79,6 +75,9 @@ func NewReader(src io.Reader, opts ...Option) (*Reader, error) {
 			return nil, fmt.Errorf("html reader: option %d is nil", index)
 		}
 		opt(r)
+	}
+	if err := r.extraMetadata.Validate(); err != nil {
+		return nil, fmt.Errorf("html reader: invalid metadata: %w", err)
 	}
 	if r.selector != "" {
 		matcher, err := cascadia.Compile(r.selector)
@@ -119,7 +118,7 @@ func (r *Reader) readWhole(doc *goquery.Document, page pageInfo) ([]*document.Do
 	if err != nil {
 		return nil, fmt.Errorf("html: build document: %w", err)
 	}
-	d.Metadata, err = coremetadata.FromValues(r.buildMetadata(page, ""))
+	d.Metadata, err = r.buildMetadata(page, "")
 	if err != nil {
 		return nil, fmt.Errorf("html: encode metadata: %w", err)
 	}
@@ -144,7 +143,7 @@ func (r *Reader) readSelector(ctx context.Context, doc *goquery.Document, page p
 			buildErr = err
 			return false
 		}
-		d.Metadata, err = coremetadata.FromValues(r.buildMetadata(page, r.selector))
+		d.Metadata, err = r.buildMetadata(page, r.selector)
 		if err != nil {
 			buildErr = fmt.Errorf("encode metadata: %w", err)
 			return false
@@ -174,30 +173,37 @@ func isNil(value any) bool {
 	}
 }
 
-func (r *Reader) buildMetadata(page pageInfo, selector string) map[string]any {
-	md := maps.Clone(r.extraMetadata)
-	if md == nil {
-		md = map[string]any{}
-	}
+func (r *Reader) buildMetadata(page pageInfo, selector string) (coremetadata.Map, error) {
+	md := r.extraMetadata.Clone()
 	if page.title != "" {
-		md[MetadataTitle] = page.title
+		if err := md.Set(MetadataTitle, page.title); err != nil {
+			return nil, err
+		}
 	}
 	if page.description != "" {
-		md[MetadataDescription] = page.description
+		if err := md.Set(MetadataDescription, page.description); err != nil {
+			return nil, err
+		}
 	}
 	if page.canonical != "" {
-		md[MetadataCanonical] = page.canonical
+		if err := md.Set(MetadataCanonical, page.canonical); err != nil {
+			return nil, err
+		}
 	}
 	if r.sourceName != "" {
-		md[MetadataSourceName] = r.sourceName
+		if err := md.Set(MetadataSourceName, r.sourceName); err != nil {
+			return nil, err
+		}
 	}
 	if selector != "" {
-		md[MetadataSelector] = selector
+		if err := md.Set(MetadataSelector, selector); err != nil {
+			return nil, err
+		}
 	}
 	if len(md) == 0 {
-		return nil
+		return nil, nil
 	}
-	return md
+	return md, nil
 }
 
 func (r *Reader) extractText(sel *goquery.Selection) string {

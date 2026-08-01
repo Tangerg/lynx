@@ -2,20 +2,24 @@ package markdown_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
+	coremetadata "github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/documentreaders/markdown"
 )
 
 func TestWithMetadata_AppliedToEveryDocument(t *testing.T) {
+	metadata := mustMetadata(t, map[string]any{"source": "manual.md", "tenant": "acme"})
 	r, err := markdown.NewReader(strings.NewReader(sample),
 		markdown.WithHeadingSplit(2),
-		markdown.WithMetadata(map[string]any{"source": "manual.md", "tenant": "acme"}),
+		markdown.WithMetadata(metadata),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
+	metadata["source"][0] = 'x'
 	docs, err := r.Read(t.Context())
 	if err != nil {
 		t.Fatal(err)
@@ -36,7 +40,7 @@ func TestWithMetadata_DoesNotClobberReaderKeys(t *testing.T) {
 	// A user key colliding with a reader-namespaced key must not win.
 	r, _ := markdown.NewReader(strings.NewReader(sample),
 		markdown.WithHeadingSplit(1),
-		markdown.WithMetadata(map[string]any{markdown.MetadataHeading: "HIJACK"}),
+		markdown.WithMetadata(mustMetadata(t, map[string]any{markdown.MetadataHeading: "HIJACK"})),
 	)
 	docs, err := r.Read(t.Context())
 	if err != nil {
@@ -47,6 +51,25 @@ func TestWithMetadata_DoesNotClobberReaderKeys(t *testing.T) {
 			t.Fatal("reader-derived heading must take precedence over extra metadata")
 		}
 	}
+}
+
+func TestWithMetadata_RejectsInvalidMetadataAtConstruction(t *testing.T) {
+	_, err := markdown.NewReader(
+		strings.NewReader(sample),
+		markdown.WithMetadata(coremetadata.Map{"broken": []byte("{")}),
+	)
+	if !errors.Is(err, coremetadata.ErrInvalidValue) {
+		t.Fatalf("NewReader error = %v, want ErrInvalidValue", err)
+	}
+}
+
+func mustMetadata(t *testing.T, values map[string]any) coremetadata.Map {
+	t.Helper()
+	metadata, err := coremetadata.FromValues(values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return metadata
 }
 
 func TestRead_HonorsContextCancellation(t *testing.T) {

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"reflect"
 	"strings"
 
@@ -46,15 +45,12 @@ func WithSourceName(name string) Option {
 	return func(r *Reader) { r.sourceName = name }
 }
 
-// WithMetadata adds caller-supplied metadata to every emitted document
-// (source URI, tenant, doc type, ...). The map is cloned, so later
-// caller mutations don't leak in. Reader-derived `markdown.*` keys take
+// WithMetadata adds validated caller-supplied metadata to every emitted
+// document. The map is deep-cloned, and reader-derived markdown.* keys take
 // precedence on conflict.
-func WithMetadata(md map[string]any) Option {
+func WithMetadata(md coremetadata.Map) Option {
 	return func(r *Reader) {
-		if len(md) > 0 {
-			r.extraMetadata = maps.Clone(md)
-		}
+		r.extraMetadata = md.Clone()
 	}
 }
 
@@ -65,7 +61,7 @@ type Reader struct {
 	headingSplitConfigured bool
 	headingSplitLevel      int
 	sourceName             string
-	extraMetadata          map[string]any
+	extraMetadata          coremetadata.Map
 }
 
 // NewReader builds a markdown reader over src.
@@ -82,6 +78,9 @@ func NewReader(src io.Reader, opts ...Option) (*Reader, error) {
 			return nil, fmt.Errorf("markdown reader: option %d is nil", index)
 		}
 		opt(r)
+	}
+	if err := r.extraMetadata.Validate(); err != nil {
+		return nil, fmt.Errorf("markdown reader: invalid metadata: %w", err)
 	}
 	if r.headingSplitConfigured && (r.headingSplitLevel < 1 || r.headingSplitLevel > 6) {
 		return nil, fmt.Errorf("markdown reader: heading split level %d is outside [1, 6]", r.headingSplitLevel)
@@ -131,11 +130,9 @@ func (r *Reader) readWhole(raw []byte) ([]*document.Document, error) {
 	if err != nil {
 		return nil, fmt.Errorf("markdown: build document: %w", err)
 	}
-	if md := r.baseMetadata(); len(md) > 0 {
-		doc.Metadata, err = coremetadata.FromValues(md)
-		if err != nil {
-			return nil, fmt.Errorf("markdown: encode metadata: %w", err)
-		}
+	doc.Metadata, err = r.baseMetadata()
+	if err != nil {
+		return nil, fmt.Errorf("markdown: encode metadata: %w", err)
 	}
 	return []*document.Document{doc}, nil
 }
@@ -201,22 +198,26 @@ func (r *Reader) sectionsToDocuments(ctx context.Context, sections []*section) (
 		if body == "" {
 			continue
 		}
-		md := r.baseMetadata()
+		md, err := r.baseMetadata()
+		if err != nil {
+			return nil, fmt.Errorf("markdown: encode section metadata: %w", err)
+		}
 		if sec.heading != "" {
-			md[MetadataHeading] = sec.heading
-			md[MetadataHeadingLevel] = sec.level
-			md[MetadataHeadingPath] = sec.path
+			if err := md.Set(MetadataHeading, sec.heading); err != nil {
+				return nil, fmt.Errorf("markdown: encode section heading: %w", err)
+			}
+			if err := md.Set(MetadataHeadingLevel, sec.level); err != nil {
+				return nil, fmt.Errorf("markdown: encode section heading level: %w", err)
+			}
+			if err := md.Set(MetadataHeadingPath, sec.path); err != nil {
+				return nil, fmt.Errorf("markdown: encode section heading path: %w", err)
+			}
 		}
 		doc, err := document.NewDocument(body, nil)
 		if err != nil {
 			return nil, fmt.Errorf("markdown: build section document: %w", err)
 		}
-		if len(md) > 0 {
-			doc.Metadata, err = coremetadata.FromValues(md)
-			if err != nil {
-				return nil, fmt.Errorf("markdown: encode section metadata: %w", err)
-			}
-		}
+		doc.Metadata = md
 		docs = append(docs, doc)
 	}
 	return docs, nil
@@ -235,15 +236,14 @@ func extractHeadingText(h *ast.Heading, raw []byte) string {
 	return b.String()
 }
 
-func (r *Reader) baseMetadata() map[string]any {
-	md := maps.Clone(r.extraMetadata)
-	if md == nil {
-		md = map[string]any{}
-	}
+func (r *Reader) baseMetadata() (coremetadata.Map, error) {
+	md := r.extraMetadata.Clone()
 	if r.sourceName != "" {
-		md[MetadataSourceName] = r.sourceName
+		if err := md.Set(MetadataSourceName, r.sourceName); err != nil {
+			return nil, err
+		}
 	}
-	return md
+	return md, nil
 }
 
 // section is the accumulated body of a single emitted document.
