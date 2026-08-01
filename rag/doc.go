@@ -18,7 +18,7 @@
 //	r := rag.WithTransformers(base, rewrite, translate)
 //	r = rag.WithExpander(r, multiQuery)
 //	top, err := rag.TopK(8)
-//	r = rag.WithRefiners(r, rag.Dedup(), top)
+//	r = rag.WithRefiners(r, top)
 //	docs, err := r.Retrieve(ctx, q)
 //
 // Optional stages use identity implementations: [IdentityTransformer],
@@ -35,13 +35,15 @@
 //	top, err := rag.TopK(topK)
 //	r := rag.WithRefiners(
 //	    rag.Parallel(vectorR1, vectorR2),
-//	    rag.Dedup(),
 //	    top,
 //	)
 //
-// This works for any number of retrievers whose scores live on the
-// same scale (e.g. all are vector-similarity stores). Reciprocal Rank
-// Fusion (RRF) — the rank-based fusion algorithm — only adds value
+// TopK keeps the highest-scoring candidate for each non-empty document ID
+// before ranking and capping, so duplicate hits cannot consume result slots.
+// Use [Dedup] separately only when unique documents are needed without score
+// ordering or a result cap. This works for any number of retrievers whose
+// scores live on the same scale (e.g. all are vector-similarity stores).
+// Reciprocal Rank Fusion (RRF) — the rank-based fusion algorithm — only adds value
 // when retriever scores are NOT comparable (BM25 mixed with dense
 // vectors, sparse mixed with hybrid, etc.). Until lynx ships a non-
 // vector retriever, RRF doesn't solve a real problem; a dedicated

@@ -16,6 +16,7 @@
 - **组合用函数,不用框架式配置**:没有 PipelineConfig / Pipeline 这类中心配置对象。
 - **单包优先**:同一 RAG 域先放根包、用具体类型名表达职责,不预先拆 `rag/vectorstore`、`rag/llm` 之类子包。
 - **只有 fan-out 检索并行**:多路检索 / query 扩展并发收集;transform / refine / evaluation 是明确的顺序步骤。
+- **同一文档身份只占一个检索名额**:相同非空 Document ID 保留最高分候选,同分按首次身份出现稳定决胜;`TopK` 在截断前完成该唯一化,不能让 refiner 顺序决定结果正确性。
 - **Query 的 per-call metadata 走 Extra**:filter / history / tenant 等上下文跨组件传递靠它。
 - **evaluation 是独立策略域**:`rag/evaluation` 只依赖最小 Chat Model 和普通 Query/Answer/Context 值，不反向耦合 Document/VectorStore 或固定 RAG pipeline。
 
@@ -25,6 +26,7 @@
 - ❌ **加 QueryRouter / DocumentJoiner 之类固定阶段** —— 路由写成自定义 Retriever,合并写成 Refiner。
 - ❌ **把根包拆回 `rag/vectorstore`、`rag/llm`、`rag/ragchat`** —— 单包 + 具体命名即可；独立的 evaluation 策略域除外。
 - ❌ **为能力加大 Config / Builder** —— 小接口 + 函数组合优先,只有真实可选项才进 Config。
+- ❌ **让重复候选占用 TopK 或保留低分首次命中** —— 多 Retriever 合并必须保留同 ID 最高分,`Dedup` 与 `TopK` 组合顺序不得改变唯一 Top K。
 
 ## 改动前必看(波及面)
 

@@ -10,13 +10,14 @@ import (
 
 var _ Refiner = topKRefiner{}
 
-// topKRefiner sorts candidates by score descending and keeps the top K.
+// topKRefiner selects the highest-scoring unique documents.
 type topKRefiner struct {
 	topK int
 }
 
-// TopK returns a [Refiner] that sorts documents by score descending and keeps
-// at most topK entries. topK must be positive.
+// TopK returns a [Refiner] that keeps the highest-scoring candidate for each
+// known document identity, sorts the unique results by score descending, and
+// returns at most topK documents. topK must be positive.
 func TopK(topK int) (Refiner, error) {
 	if topK < 1 {
 		return nil, errors.New("rag: top K must be positive")
@@ -24,8 +25,8 @@ func TopK(topK int) (Refiner, error) {
 	return topKRefiner{topK: topK}, nil
 }
 
-// Refine sorts documents by score (descending) and returns at most
-// topK entries. The input slice is not mutated. Honors ctx cancellation.
+// Refine returns at most topK unique documents ordered by descending score.
+// The input slice is not mutated. Honors ctx cancellation.
 func (r topKRefiner) Refine(ctx context.Context, _ *Query, documents []Candidate) ([]Candidate, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -36,7 +37,7 @@ func (r topKRefiner) Refine(ctx context.Context, _ *Query, documents []Candidate
 		}
 	}
 
-	sorted := slices.Clone(documents)
+	sorted := uniqueBestCandidates(documents)
 	slices.SortStableFunc(sorted, func(a, b Candidate) int {
 		return cmp.Compare(b.Score, a.Score) // descending; stable keeps retrieval order on ties
 	})

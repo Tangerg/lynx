@@ -371,7 +371,7 @@ Session；当前 `ProcessSnapshot` schema 为 v9、`Suspension` schema 为 v2、
 - 遗留 pipeline:`RagService`/`NavigableRagService`/`FacetedRagService` + 两级装饰增强器(HyDE→recall widening→dedup→chunk-merge→压缩→rerank→filter)+ RAGAS 质量度量。
 - 当前 agentic:`ToolishRag` 反射 `SearchOperations` 装出能力域工具(vector/text/regex/find/expand),**让 LLM 自己迭代检索**,透明 metadata/entity filter 做多租户隔离。
 
-**lynx**:RAG 是**独立 `rag` 模块**,不在 agent framework 内。agent **消费** RAG(作为工具/能力),但 runtime 不内建 RAG pipeline。core 定义 `vectorstore` 语义,`rag` 模块实现检索增强。
+**lynx**:RAG 是**独立 `rag` 模块**,不在 agent framework 内。agent **消费** RAG(作为工具/能力),但 runtime 不内建 RAG pipeline。core 定义 `vectorstore` 语义,`rag` 模块实现检索增强。并行 Retriever 的候选保持声明顺序汇合；相同非空 Document ID 统一保留最高分候选，`TopK` 在截断前唯一化，因此 `Dedup` 与 `TopK` 的组合顺序不会改变唯一 Top K。
 
 **取舍与理由**:高内聚低耦合。RAG 是一个 domain,不该焊进 agent runtime —— agent 只需能「调用一个检索工具」,至于工具背后是 pipeline 还是 agentic 迭代,是 `rag` 模块的事。Embabel 把两代 RAG(含正在弃用的 pipeline)都塞进 agent 模块,lynx 保持 agent runtime 只关心「规划 + 执行 + 工具循环」,RAG 通过工具边界接入。这也让 agent 模块不背 RAGAS/Lucene/Tika 这些重依赖。
 

@@ -7,40 +7,50 @@ import (
 
 var _ Refiner = deduper{}
 
-// deduper drops duplicate documents by [document.Document.ID], preserving
-// first-occurrence order.
+// deduper collapses retrieval candidates that identify the same document.
 type deduper struct{}
 
-// Dedup returns a [Refiner] that drops duplicate documents by
-// [document.Document.ID], preserving first-occurrence order.
+// Dedup returns a [Refiner] that keeps the highest-scoring candidate for each
+// non-empty [document.Document.ID]. Document identities retain first-seen
+// order, and equal scores retain the first candidate. Documents without an ID
+// remain distinct because the framework cannot prove they are duplicates.
 func Dedup() Refiner {
 	return deduper{}
 }
 
-// Refine returns documents with duplicate IDs removed, keeping the
-// first occurrence in input order. Honors ctx cancellation.
+// Refine returns the best candidate for every known document identity. Honors
+// ctx cancellation.
 func (d deduper) Refine(ctx context.Context, _ *Query, documents []Candidate) ([]Candidate, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	seen := make(map[string]struct{}, len(documents))
-	out := make([]Candidate, 0, len(documents))
-
 	for index, candidate := range documents {
 		if err := candidate.Validate(); err != nil {
 			return nil, fmt.Errorf("rag: deduplicate candidate %d: %w", index, err)
 		}
+	}
+	return uniqueBestCandidates(documents), nil
+}
+
+func uniqueBestCandidates(candidates []Candidate) []Candidate {
+	positions := make(map[string]int, len(candidates))
+	unique := make([]Candidate, 0, len(candidates))
+	for _, candidate := range candidates {
 		id := candidate.Document.ID
 		if id == "" {
-			out = append(out, candidate)
+			unique = append(unique, candidate)
 			continue
 		}
-		if _, duplicate := seen[id]; duplicate {
+		position, exists := positions[id]
+		if !exists {
+			positions[id] = len(unique)
+			unique = append(unique, candidate)
 			continue
 		}
-		seen[id] = struct{}{}
-		out = append(out, candidate)
+		if candidate.Score > unique[position].Score {
+			unique[position] = candidate
+		}
 	}
-	return out, nil
+	return unique
 }

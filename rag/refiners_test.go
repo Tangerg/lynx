@@ -8,25 +8,66 @@ import (
 	"github.com/Tangerg/lynx/rag"
 )
 
-func TestDedupDropsDuplicateIDs(t *testing.T) {
+func TestDedupKeepsHighestScoreAtFirstIdentityPosition(t *testing.T) {
 	r := rag.Dedup()
 
-	a, _ := document.NewDocument("a", nil)
-	a.ID = "1"
+	low, _ := document.NewDocument("low", nil)
+	low.ID = "1"
 	b, _ := document.NewDocument("b", nil)
 	b.ID = "2"
-	dup, _ := document.NewDocument("a-dup", nil)
-	dup.ID = "1"
+	high, _ := document.NewDocument("high", nil)
+	high.ID = "1"
 
-	got, err := r.Refine(t.Context(), nil, []rag.Candidate{candidate(a), candidate(b), candidate(dup)})
+	got, err := r.Refine(t.Context(), nil, []rag.Candidate{
+		candidate(low, 0.2),
+		candidate(b, 0.6),
+		candidate(high, 0.9),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 2 {
 		t.Fatalf("got %d docs, want 2", len(got))
 	}
-	if got[0].Document.ID != "1" || got[1].Document.ID != "2" {
-		t.Fatalf("first-occurrence order broken: %s,%s", got[0].Document.ID, got[1].Document.ID)
+	if got[0].Document != high || got[0].Score != 0.9 {
+		t.Fatalf("first identity representative = %#v, want highest-scoring candidate", got[0])
+	}
+	if got[1].Document != b {
+		t.Fatalf("identity order broken: second document = %#v", got[1].Document)
+	}
+}
+
+func TestDedupEqualScoresKeepFirstCandidate(t *testing.T) {
+	first, _ := document.NewDocument("first", nil)
+	first.ID = "same"
+	second, _ := document.NewDocument("second", nil)
+	second.ID = "same"
+
+	got, err := rag.Dedup().Refine(t.Context(), nil, []rag.Candidate{
+		candidate(first, 0.8),
+		candidate(second, 0.8),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Document != first {
+		t.Fatalf("equal-score representative = %#v, want first candidate", got)
+	}
+}
+
+func TestDedupKeepsDocumentsWithoutIdentityDistinct(t *testing.T) {
+	first, _ := document.NewDocument("first", nil)
+	second, _ := document.NewDocument("second", nil)
+
+	got, err := rag.Dedup().Refine(t.Context(), nil, []rag.Candidate{
+		candidate(first, 0.8),
+		candidate(second, 0.9),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Document != first || got[1].Document != second {
+		t.Fatalf("identity-free documents were collapsed: %#v", got)
 	}
 }
 
@@ -62,6 +103,83 @@ func TestTopKSortsAndCaps(t *testing.T) {
 	}
 	if got[0].Score != 0.9 || got[1].Score != 0.5 {
 		t.Fatalf("sort order broken: %v, %v", got[0].Score, got[1].Score)
+	}
+}
+
+func TestTopKDeduplicatesBeforeApplyingLimit(t *testing.T) {
+	r, err := rag.TopK(2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	low, _ := document.NewDocument("duplicate low", nil)
+	low.ID = "a"
+	high, _ := document.NewDocument("duplicate high", nil)
+	high.ID = "a"
+	other, _ := document.NewDocument("other", nil)
+	other.ID = "b"
+
+	got, err := r.Refine(t.Context(), nil, []rag.Candidate{
+		candidate(low, 0.8),
+		candidate(high, 0.9),
+		candidate(other, 0.7),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d documents, want two unique results", len(got))
+	}
+	if got[0].Document != high || got[1].Document != other {
+		t.Fatalf("results = %#v, want highest duplicate followed by other document", got)
+	}
+}
+
+func TestDedupAndTopKOrderDoesNotChangeResult(t *testing.T) {
+	top, err := rag.TopK(2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, _ := document.NewDocument("first low", nil)
+	first.ID = "a"
+	second, _ := document.NewDocument("second", nil)
+	second.ID = "b"
+	best, _ := document.NewDocument("first best", nil)
+	best.ID = "a"
+	third, _ := document.NewDocument("third", nil)
+	third.ID = "c"
+	input := []rag.Candidate{
+		candidate(first, 0.2),
+		candidate(second, 0.8),
+		candidate(best, 0.9),
+		candidate(third, 0.7),
+	}
+
+	deduped, err := rag.Dedup().Refine(t.Context(), nil, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dedupThenTop, err := top.Refine(t.Context(), nil, deduped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	topped, err := top.Refine(t.Context(), nil, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	topThenDedup, err := rag.Dedup().Refine(t.Context(), nil, topped)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(dedupThenTop) != len(topThenDedup) || len(dedupThenTop) != 2 {
+		t.Fatalf("result lengths differ: dedup-then-top=%d top-then-dedup=%d", len(dedupThenTop), len(topThenDedup))
+	}
+	for index := range dedupThenTop {
+		left, right := dedupThenTop[index], topThenDedup[index]
+		if left.Document != right.Document || left.Score != right.Score {
+			t.Fatalf("result[%d] differs by composition order: %#v != %#v", index, left, right)
+		}
 	}
 }
 

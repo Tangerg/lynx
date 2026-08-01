@@ -147,7 +147,8 @@ func parallelCollect[Item, Out any](
 
 	// Each goroutine writes only its own index, so no lock is needed and the
 	// union stays in input order regardless of completion order — Dedup's
-	// first-occurrence representative and TopK's tie-break depend on it.
+	// identity order and equal-score selection, plus TopK's tie-break, depend on
+	// it.
 	results := make([][]Out, len(items))
 	failures := make([]error, len(items))
 
