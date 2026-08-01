@@ -724,7 +724,7 @@ import { COMMAND } from "@/plugins/sdk/kernelPoints";
 export default definePlugin({
   name: "lyra.example.hello",
   version: "1.0.0",
-  apiVersion: "^3.0.0",                          // 可选；不写接受任意 host
+  apiVersion: "^4.0.0",                          // 可选；不写接受任意 host
   requires: ["lyra.builtin.default-themes"],     // 可选；依赖（拓扑排序）
   capabilities: ["extensions", "commands", "events", "message", "notify", "log"], // 可选；最小权限
   setup({ host }) {
@@ -830,14 +830,14 @@ declare module "@/plugins/sdk/types/contentBlock" {
 **现状**：`plugins/builtin/navigation/` 已承接左侧工作索引投影，`sidebar/` 不再现场 join `projects + sessions + active session`，expanded sidebar 与 rail 都从 `navigation/public/workIndex` 消费分组 / 最近会话 read model。会话运行状态在 navigation application 投影为 `WorkSession.attention`，sidebar 只显示 Work Index attention，不泄漏底层 `AgentSessionSummary.status`。
 **维护触发**：继续推进 `FRONTEND_AGENT_WORKSPACE_MODEL.md` 的后续阶段时，新的 workspace/cwd 面板不要塞回 `sidebar/`。
 
-#### E. Context Dock open intent（首批落地）
+#### E. Right workspace open intent（已落地）
 
-**现状**：`workspace/application/contextDock.ts` 已把“打开当前工作材料”建模成 Context Dock intent，内部复用现有 split view；右侧 handle 打开 `context` launcher，左侧顶级 workspace menu 与 workspace grep 入口已移除，workspace/run/session destination 都从右侧进入，不再抢占 Agent Narrative 的 full view。Context Dock 的可达入口由 `CONTEXT_DOCK_DESTINATION` extension point 贡献，内置 workspace 插件在 application 层维护首批 files / diff / search / codebase / skills / recipes / memory / plan / timeline 等 destination，launcher 通过 workspace application read model 按 `workspace / run / session` scope 分组。
-**维护触发**：新 workspace/cwd-scoped 入口贡献 `CONTEXT_DOCK_DESTINATION` 并默认走 `openContextDockDestination`；打开 launcher 走 `openContextDockLauncher`。只有 settings / notifications 这类 global surface 才用 full workspace view。
+**现状**：右侧已从“单一 dock view + context launcher”改为用户拥有的 workspace tab set。`openWorkspaceViewInDock(id)` 负责新增或聚焦 singleton tab；header 的 add-panel menu 直接读取 `CONTEXT_DOCK_DESTINATION`，按 `workspace / run / session` scope 分组，不再用中间 launcher view 替换当前材料。tab 可逐个关闭，关闭 active tab 后选相邻项；折叠只隐藏 workspace，不销毁 tab set 或已挂载 view。Settings 等 global surface 仍使用 full workspace view。
+**维护触发**：新 workspace/cwd-scoped 入口贡献 `CONTEXT_DOCK_DESTINATION` 并默认走 `openWorkspaceViewInDock`。不要重建 launcher view、固定 pinned tabs 或 dock→full 的隐式迁移路径。
 
 #### F. Context Dock session scope（已落地）
 
-**现状**：`contextDockStore` 已把 dock material state 按 active session scope 保存/恢复；`workspaceSurfaceStore` 只承载 app-global surface state（main tabs / settings target）。`workspace.session-navigation` 监听 agent session selection/lifecycle，切换 session 时保存离开的 dock scope、恢复进入的 dock scope，关闭 session 后清理不再打开的 scope。
+**现状**：`contextDockStore` 已把 `dockOpen + dockViewIds + activeDockViewId` 及 material state 按 active session scope 保存/恢复；`workspaceSurfaceStore` 只承载 app-global surface state（main tabs / settings target）。`workspace.session-navigation` 监听 agent session selection/lifecycle，切换 session 时保存离开的右侧 workspace、恢复进入的 workspace，关闭 session 后清理不再打开的 scope。右栏宽度是稳定的单一用户偏好，切换 tab 不改变列宽。
 **维护触发**：后续如果引入 cwd 级共享，不要把 app-global surface state 与 session-scoped dock state 重新揉回一个 store；在 workspace application 层显式定义 `sessionId -> cwd` 的归属规则。
 
 ### 12.2 想做但当前 KISS / YAGNI 不允许

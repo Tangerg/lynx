@@ -5,32 +5,31 @@ import type {
 } from "@/plugins/sdk";
 
 // A dock destination joined with its WorkspaceViewSpec — the view supplies
-// title/icon, the spec supplies scope/order. This is the Context Dock
-// launcher's read model (what the launcher renders and opens).
-export interface ContextDockLauncherItem {
+// title/icon, the spec supplies scope/order. This is the catalog rendered by
+// the dock's add-panel menu.
+export interface ContextDockItem {
   viewId: string;
   title: string;
   icon?: string;
   scope: ContextDockDestinationScope;
   order?: number;
-  pinned?: boolean;
 }
 
 export interface ContextDockDestinationGroup {
   id: ContextDockDestinationScope;
   title: string;
-  destinations: ContextDockLauncherItem[];
+  destinations: ContextDockItem[];
 }
 
 // Join destinations with the registered workspace views. A destination whose
 // viewId no longer resolves (a plugin referencing a removed view) is dropped so
-// the launcher never renders a title-less ghost; builtins are guarded by a test.
+// the menu never renders a title-less ghost; builtins are guarded by a test.
 export function resolveContextDockItems(
   destinations: readonly ContextDockDestinationSpec[],
   views: readonly Pick<WorkspaceViewSpec, "id" | "title" | "icon">[],
-): ContextDockLauncherItem[] {
+): ContextDockItem[] {
   const byId = new Map(views.map((view) => [view.id, view]));
-  const items: ContextDockLauncherItem[] = [];
+  const items: ContextDockItem[] = [];
   for (const destination of destinations) {
     const view = byId.get(destination.viewId);
     if (!view) continue;
@@ -40,20 +39,9 @@ export function resolveContextDockItems(
       icon: view.icon,
       scope: destination.scope,
       order: destination.order,
-      pinned: destination.pinned,
     });
   }
   return items;
-}
-
-/** The destinations that keep a chip in the dock's tab strip, in launcher order.
- *  A pinned destination whose view is gone drops out with the rest. */
-export function pinnedContextDockItems(
-  items: ContextDockLauncherItem[],
-): ContextDockLauncherItem[] {
-  return items
-    .filter((item) => item.pinned)
-    .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
 }
 
 const groupOrder: Array<{ id: ContextDockDestinationScope; title: string }> = [
@@ -63,7 +51,7 @@ const groupOrder: Array<{ id: ContextDockDestinationScope; title: string }> = [
 ];
 
 export function groupContextDockDestinations(
-  items: ContextDockLauncherItem[],
+  items: ContextDockItem[],
 ): ContextDockDestinationGroup[] {
   return groupOrder
     .map((group) => ({

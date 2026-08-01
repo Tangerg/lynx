@@ -234,6 +234,5 @@ export const diffView = defineWorkspaceView({
   icon: "diff",
   order: 40,
   splittable: true,
-  density: "review",
   component: ReviewPanel,
 });

@@ -45,12 +45,11 @@ export const ko: Record<string, string> = {
   "chat.error.retry": "재시도",
   "chat.jumpToBottom": "맨 아래로 이동",
 
-  "dock.action.browse": "컨텍스트 뷰 둘러보기",
-  "dock.action.hide": "컨텍스트 독 숨기기",
-  "dock.action.resize": "컨텍스트 독 너비 조정",
-  "dock.action.show": "컨텍스트 독 표시",
-  "dock.tabs.label": "컨텍스트 보기",
-  "workspace.view.promote": "전체 너비로 확장",
+  "dock.action.browse": "패널 추가",
+  "dock.action.hide": "오른쪽 작업 영역 접기",
+  "dock.action.resize": "오른쪽 작업 영역 크기 조절",
+  "dock.action.show": "오른쪽 작업 영역 열기",
+  "dock.tabs.label": "오른쪽 작업 영역 패널",
   "workspace.view.openBeside": "컨텍스트 독에서 열기",
   "workspace.view.unavailable.title": "뷰를 사용할 수 없음",
   "workspace.view.unavailable.body":
@@ -238,7 +237,6 @@ export const ko: Record<string, string> = {
 
   "workspace.view.title.files": "파일",
   "workspace.view.title.diff": "차이",
-  "workspace.view.title.context": "컨텍스트",
   "contextDock.group.workspace": "작업 영역",
   "contextDock.group.run": "실행",
   "contextDock.group.session": "세션",

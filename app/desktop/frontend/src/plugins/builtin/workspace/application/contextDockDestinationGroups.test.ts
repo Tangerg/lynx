@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   groupContextDockDestinations,
   resolveContextDockItems,
-  type ContextDockLauncherItem,
+  type ContextDockItem,
 } from "./contextDockDestinationGroups";
 
 const item = (
-  patch: Pick<ContextDockLauncherItem, "viewId" | "scope"> & Partial<ContextDockLauncherItem>,
-): ContextDockLauncherItem => ({
+  patch: Pick<ContextDockItem, "viewId" | "scope"> & Partial<ContextDockItem>,
+): ContextDockItem => ({
   title: `title.${patch.viewId}`,
   ...patch,
 });

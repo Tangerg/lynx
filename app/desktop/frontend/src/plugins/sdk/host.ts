@@ -124,7 +124,7 @@ export function createHost(
       },
       closeView(id: string): void {
         useWorkspaceSurfaceStore.getState().closeMainView(id);
-        useContextDockStore.getState().closeDockViewIf(id);
+        useContextDockStore.getState().closeDockView(id);
       },
     },
 

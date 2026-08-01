@@ -1,7 +1,8 @@
+import { Fragment } from "react";
 import { DOCK_COLUMN, dockWidthRow } from "./dockWidth";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
-import { Icon, IconButton, type IconName } from "@/ui";
+import { Button, DropdownMenu, Icon, IconButton, Tooltip, type IconName } from "@/ui";
 import {
   AgentContentCard,
   AgentContextDock,
@@ -11,20 +12,22 @@ import {
   AgentStatusPill,
   AgentSurfaceHeader,
 } from "@/ui/agent";
-import { useAgentSessions } from "@/plugins/builtin/agent/public/session";
-import { useActiveSession } from "@/plugins/builtin/agent/public/session";
+import { useAgentSessions, useActiveSession } from "@/plugins/builtin/agent/public/session";
 import { useIsCurrentRootRunning } from "@/plugins/builtin/agent/public/run";
 import {
   closeWorkspaceDockView,
   closeWorkspaceView,
-  openContextDockLauncher,
+  collapseWorkspaceDock,
   openWorkspaceViewInDock,
-  promoteWorkspaceDockViewToFull,
-  toggleContextDock,
+  selectWorkspaceDockView,
+  showWorkspaceDock,
   useActiveWorkspaceViewId,
-  useDockWorkspaceViewId,
+  useWorkspaceDock,
 } from "@/plugins/builtin/workspace/public/navigation";
-import { useContextDockPinned } from "@/plugins/builtin/workspace/public/contextDockTabs";
+import {
+  useContextDockCatalog,
+  type ContextDockDestinationGroup,
+} from "@/plugins/builtin/workspace/public/contextDockCatalog";
 import { useWorkspaceViews } from "@/plugins/sdk";
 import { useDockWidth, useSidebarDrawer } from "@/plugins/builtin/workspace/public/sidebarDrawer";
 import { ChatStream } from "./ChatStream";
@@ -42,38 +45,87 @@ interface Props {
   onSend: (input: UserInput) => void;
 }
 
-// The dock's own bar: the pinned view chips plus the controls that belong to the
-// dock as a container — browse everything else, hand the view the whole card,
-// hide the dock. The view inside contributes its subtext and its own actions, but
-// not a second title: the chip already names it.
+function AddDockViewMenu({
+  groups,
+  openViewIds,
+}: {
+  groups: ContextDockDestinationGroup[];
+  openViewIds: ReadonlySet<string>;
+}) {
+  const t = useT();
+  return (
+    <DropdownMenu.Root>
+      <Tooltip label={t("dock.action.browse")} side="bottom">
+        <DropdownMenu.Trigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("dock.action.browse")}
+              className="data-[popup-open]:bg-selected data-[popup-open]:text-fg"
+            >
+              <Icon name="plus" size={14} strokeWidth={1.8} />
+            </Button>
+          }
+        />
+      </Tooltip>
+      <DropdownMenu.Content
+        align="end"
+        sideOffset={5}
+        className="max-h-[min(560px,calc(100vh-80px))] min-w-[232px] overflow-y-auto"
+      >
+        {groups.map((group, index) => (
+          <Fragment key={group.id}>
+            {index > 0 && <DropdownMenu.Separator />}
+            <div className="px-2 pb-1 pt-1.5 text-ui-xs font-medium text-fg-faint">
+              {t(group.title)}
+            </div>
+            {group.destinations.map((destination) => {
+              const isOpen = openViewIds.has(destination.viewId);
+              return (
+                <DropdownMenu.Item
+                  key={destination.viewId}
+                  onClick={() => openWorkspaceViewInDock(destination.viewId)}
+                  className="grid-cols-[16px_minmax(0,1fr)_14px]"
+                >
+                  <Icon
+                    name={viewIcon(destination.icon) ?? "panel-r"}
+                    size={14}
+                    strokeWidth={1.7}
+                    className="text-fg-muted"
+                  />
+                  <span className="truncate">{t(destination.title)}</span>
+                  {isOpen ? <Icon name="check" size={12} className="text-accent" /> : <span />}
+                </DropdownMenu.Item>
+              );
+            })}
+          </Fragment>
+        ))}
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
+  );
+}
+
 function DockHeader({
   tabs,
-  onBrowse,
-  onMaximize,
-  onHide,
+  groups,
+  openViewIds,
 }: {
   tabs: AgentDockTab[];
-  onBrowse: () => void;
-  onMaximize: () => void;
-  onHide: () => void;
+  groups: ContextDockDestinationGroup[];
+  openViewIds: ReadonlySet<string>;
 }) {
   const t = useT();
   return (
     <AgentSurfaceHeader className="gap-1">
-      <AgentDockTabs tabs={tabs} ariaLabel={t("dock.tabs.label")} compactInactive />
-      <IconButton icon="plus" size="sm" title={t("dock.action.browse")} onClick={onBrowse} />
-      <IconButton
-        icon="maximize"
-        size="sm"
-        title={t("workspace.view.promote")}
-        onClick={onMaximize}
-      />
+      <AgentDockTabs tabs={tabs} ariaLabel={t("dock.tabs.label")} />
+      <AddDockViewMenu groups={groups} openViewIds={openViewIds} />
       <IconButton
         icon="panel-r"
         hoverIcon="x"
         size="sm"
         title={t("dock.action.hide")}
-        onClick={onHide}
+        onClick={collapseWorkspaceDock}
       />
     </AgentSurfaceHeader>
   );
@@ -81,55 +133,40 @@ function DockHeader({
 
 export function ChatPanel({ onSend }: Props) {
   const activeMainView = useActiveWorkspaceViewId();
-  const dockViewId = useDockWorkspaceViewId();
+  const dock = useWorkspaceDock();
   const drawer = useSidebarDrawer();
-  const pinnedDockViews = useContextDockPinned();
+  const catalog = useContextDockCatalog();
   const views = useWorkspaceViews();
-  // The dock is as wide as its material needs. The view in it declares that, so
-  // the width is read from — and a drag written back to — the density's own slot.
-  const dockDensity = views.find((view) => view.id === dockViewId)?.density ?? "light";
-  const { width: dockWidth } = useDockWidth(dockDensity);
+  const { width: dockWidth } = useDockWidth();
   const { isLoading } = useAgentSessions();
   const activeSession = useActiveSession();
   const running = useIsCurrentRootRunning();
   const t = useT();
 
-  // Suppress the panel only while the FIRST sessions fetch is in flight (and
-  // no workspace view is open) — avoids a blank-but-bordered flash. Once
-  // loaded, render even with ZERO sessions: ChatStream shows the welcome
-  // screen + composer, which is the empty-state entry point (sending there
-  // spins up a session via useChatSend). Returning null on empty stranded
-  // the user with a blank main area and no way to start.
-  if (isLoading && !activeMainView && !dockViewId) return null;
+  if (isLoading && !activeMainView && !dock.open) return null;
 
-  // Placement controls handed to a view's own ViewHeader (via the ViewPlacement
-  // context) so it can move itself full ↔ dock / close, without ChatPanel
-  // reaching into the view body.
   const placementFor = (id: string, placement: "full" | "dock"): ViewPlacement => ({
     placement,
     splittable: views.find((view) => view.id === id)?.splittable ?? false,
     onOpenInDock: () => openWorkspaceViewInDock(id),
-    onClose: () => (placement === "dock" ? closeWorkspaceDockView() : closeWorkspaceView(id)),
+    onClose: () => (placement === "dock" ? closeWorkspaceDockView(id) : closeWorkspaceView(id)),
   });
 
-  // The active view keeps a chip while it is open even when it is not pinned, so
-  // the strip always shows where you are.
-  const dockTabSources =
-    dockViewId && !pinnedDockViews.some((view) => view.viewId === dockViewId)
-      ? [
-          ...views
-            .filter((view) => view.id === dockViewId)
-            .map((view) => ({ viewId: view.id, title: view.title, icon: view.icon })),
-          ...pinnedDockViews,
-        ]
-      : pinnedDockViews;
-  const dockTabs = dockTabSources.map((view) => ({
-    id: view.viewId,
-    title: t(view.title),
-    icon: viewIcon(view.icon),
-    active: view.viewId === dockViewId,
-    onSelect: () => openWorkspaceViewInDock(view.viewId),
-  }));
+  const viewsById = new Map(views.map((view) => [view.id, view]));
+  const dockTabs = dock.viewIds.map((id) => {
+    const view = viewsById.get(id);
+    const title = view ? t(view.title) : id;
+    return {
+      id,
+      title,
+      icon: viewIcon(view?.icon),
+      active: id === dock.activeViewId,
+      onSelect: () => selectWorkspaceDockView(id),
+      onClose: () => closeWorkspaceDockView(id),
+      closeLabel: `${t("common.close")} ${title}`,
+    };
+  });
+  const openViewIds = new Set(dock.viewIds);
 
   return (
     <AgentContentCard label={t("shell.region.workspace")}>
@@ -139,12 +176,7 @@ export function ChatPanel({ onSend }: Props) {
         </ViewPlacementProvider>
       ) : (
         <div className="flex min-h-0 flex-1" style={dockWidthRow(dockWidth)}>
-          {/* Center reading column — its own header sits above the chat stream
-              and spans only this column (the dock runs full-height beside it). */}
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-            {/* Height, inset, the traffic-light gutter and the window drag region
-                are owned by `.agent-surface-header` in globals.css — a `pl-*`
-                utility here can't win against that unlayered rule. */}
             <AgentSurfaceHeader windowCorner>
               {drawer.collapsed && (
                 <AgentDrawerToggle
@@ -163,35 +195,46 @@ export function ChatPanel({ onSend }: Props) {
               )}
               <span className="min-w-4 flex-1" />
               <HeaderDiffStat />
-              {!dockViewId && (
+              {!dock.open && (
                 <IconButton
                   icon="panel-r"
                   size="sm"
                   title={t("dock.action.show")}
-                  onClick={toggleContextDock}
+                  onClick={showWorkspaceDock}
                 />
               )}
             </AgentSurfaceHeader>
             <ChatStream onSend={onSend} />
           </div>
-          {/* Right context dock — a full-height, resizable column with its own
-              bar. `dockViewId` alone says whether it is open: there is no second
-              collapse flag that could disagree and leave a toggle inert. */}
-          {dockViewId && (
-            <>
-              <DockResizer density={dockDensity} />
-              <AgentContextDock className="shrink-0 grow-0" style={DOCK_COLUMN}>
-                <DockHeader
-                  tabs={dockTabs}
-                  onBrowse={openContextDockLauncher}
-                  onMaximize={promoteWorkspaceDockViewToFull}
-                  onHide={closeWorkspaceDockView}
-                />
-                <ViewPlacementProvider value={placementFor(dockViewId, "dock")}>
-                  <WorkspaceViewBody viewId={dockViewId} />
-                </ViewPlacementProvider>
-              </AgentContextDock>
-            </>
+          {dock.open && dock.activeViewId && <DockResizer />}
+          {dock.viewIds.length > 0 && (
+            <AgentContextDock
+              className="shrink-0 grow-0"
+              style={{
+                ...DOCK_COLUMN,
+                display: dock.open && dock.activeViewId ? undefined : "none",
+              }}
+            >
+              <DockHeader tabs={dockTabs} groups={catalog} openViewIds={openViewIds} />
+              <div className="relative min-h-0 flex-1">
+                {dock.viewIds.map((viewId) => {
+                  const active = viewId === dock.activeViewId;
+                  return (
+                    <div
+                      key={viewId}
+                      data-dock-view-id={viewId}
+                      inert={active ? undefined : true}
+                      aria-hidden={active ? undefined : true}
+                      className={active ? "absolute inset-0 flex flex-col" : "hidden"}
+                    >
+                      <ViewPlacementProvider value={placementFor(viewId, "dock")}>
+                        <WorkspaceViewBody viewId={viewId} />
+                      </ViewPlacementProvider>
+                    </div>
+                  );
+                })}
+              </div>
+            </AgentContextDock>
           )}
         </div>
       )}

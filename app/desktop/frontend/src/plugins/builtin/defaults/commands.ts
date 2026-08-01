@@ -13,9 +13,8 @@ import type { Disposable, ThemeAccentSpec, WorkspaceViewSpec } from "@/plugins/s
 import { toggleThemeScheme } from "@/plugins/builtin/theme/public/scheme";
 import { closeActiveAgentSession, createSession } from "@/plugins/builtin/agent/public/session";
 import {
+  closeActiveWorkspaceDockView,
   closeActiveWorkspaceView,
-  closeWorkspaceDockView,
-  getWorkspaceDockViewId,
   openWorkspaceView,
   openWorkspaceViewInDock,
 } from "@/plugins/builtin/workspace/public/navigation";
@@ -29,14 +28,11 @@ import {
   defaultWorkspaceViewCommands,
 } from "./application/defaultContributions";
 
-// Close the surface the user is looking at, innermost first: a maximised view,
-// then the dock's view, then the session itself.
+// Close the surface the user is looking at, innermost first: a full view, then
+// the active dock tab, then the session itself.
 function closeFocusedSurface(): void {
   if (closeActiveWorkspaceView()) return;
-  if (getWorkspaceDockViewId()) {
-    closeWorkspaceDockView();
-    return;
-  }
+  if (closeActiveWorkspaceDockView()) return;
   closeActiveAgentSession();
 }
 

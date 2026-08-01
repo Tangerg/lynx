@@ -45,12 +45,11 @@ export const ja: Record<string, string> = {
   "chat.error.retry": "再試行",
   "chat.jumpToBottom": "最下部へ移動",
 
-  "dock.action.browse": "コンテキストビューを一覧",
-  "dock.action.hide": "コンテキストドックを隠す",
-  "dock.action.resize": "コンテキストドックの幅を調整",
-  "dock.action.show": "コンテキストドックを表示",
-  "dock.tabs.label": "コンテキストビュー",
-  "workspace.view.promote": "全幅に広げる",
+  "dock.action.browse": "パネルを追加",
+  "dock.action.hide": "右ワークスペースを折りたたむ",
+  "dock.action.resize": "右ワークスペースの幅を調整",
+  "dock.action.show": "右ワークスペースを開く",
+  "dock.tabs.label": "右ワークスペースのパネル",
   "workspace.view.openBeside": "コンテキストドックで開く",
   "workspace.view.unavailable.title": "ビューを利用できません",
   "workspace.view.unavailable.body":
@@ -239,7 +238,6 @@ export const ja: Record<string, string> = {
 
   "workspace.view.title.files": "ファイル",
   "workspace.view.title.diff": "差分",
-  "workspace.view.title.context": "コンテキスト",
   "contextDock.group.workspace": "ワークスペース",
   "contextDock.group.run": "実行",
   "contextDock.group.session": "セッション",

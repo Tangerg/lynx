@@ -3,7 +3,6 @@
 // specific file (composer, sidebar, message).
 
 import type { ComponentType } from "react";
-import type { DockDensity } from "@/lib/shellGeometry";
 
 export interface SettingsPaneSpec {
   /** Stable id used as the rail key + storage namespace if needed. */
@@ -49,11 +48,6 @@ export interface WorkspaceViewSpec {
    *  (diff / files / terminal / plan / timeline); false (default) for
    *  full-area surfaces like settings / notifications. */
   splittable?: boolean;
-  /** How much room this view's material needs in the dock. Omitted = `light`,
-   *  the reading width a list or inspector wants; `review` is for a diff, which
-   *  needs a code column. The dock remembers a width per density, so opening a
-   *  review does not resize every list the user opens afterwards. */
-  density?: DockDensity;
   /** The body component. Receives no props. */
   component: ComponentType;
 }
@@ -69,9 +63,6 @@ export interface ContextDockDestinationSpec {
   viewId: string;
   scope: ContextDockDestinationScope;
   order?: number;
-  /** Keep a chip for this destination in the dock's tab strip, so switching to
-   *  it costs one click instead of a trip through the launcher. */
-  pinned?: boolean;
 }
 
 /**

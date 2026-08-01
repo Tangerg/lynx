@@ -1,5 +1,4 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
-import type { DockDensity } from "@/lib/shellGeometry";
 
 export interface WorkspaceFileViewer {
   path: string;
@@ -13,9 +12,15 @@ export interface WorkspaceColumnWidth {
   setWidth: (width: number) => void;
 }
 
+export interface WorkspaceDockSnapshot {
+  open: boolean;
+  viewIds: string[];
+  activeViewId: string | null;
+}
+
 export interface WorkspaceNavigationPort {
   useActiveViewId(): string | null;
-  useDockViewId(): string | null;
+  useDock(): WorkspaceDockSnapshot;
   useActiveFile(): string;
   useFileViewer(): WorkspaceFileViewer | null;
   useSettingsPaneTarget(): string | null;
@@ -24,18 +29,17 @@ export interface WorkspaceNavigationPort {
   useToggleTool(): (id: string) => void;
   useSidebarDrawer(): { collapsed: boolean; toggle: () => void };
   useSidebarWidth(): WorkspaceColumnWidth;
-  /** The dock's width for the material it is currently showing — the density
-   *  decides which remembered width a drag reads and writes. */
-  useDockWidth(density: DockDensity): WorkspaceColumnWidth;
+  useDockWidth(): WorkspaceColumnWidth;
   selectChat(): void;
   openView(id: string): void;
   openViewInDock(id: string): void;
+  selectDockView(id: string): void;
+  closeDockView(id: string): void;
+  collapseDock(): void;
+  showDock(defaultViewId: string): void;
   closeView(id: string): void;
   activeViewId(): string | null;
-  dockViewId(): string | null;
-  lastDockViewId(): string | null;
-  closeDockView(): void;
-  promoteDockViewToFull(): void;
+  dock(): WorkspaceDockSnapshot;
   setSettingsPane(pane: string | null): void;
   settingsPaneTarget(): string | null;
   setActiveFile(path: string): void;

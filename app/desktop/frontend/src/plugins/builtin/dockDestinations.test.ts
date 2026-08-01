@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { DOCK_DENSITIES, type DockDensity } from "@/lib/shellGeometry";
 import * as workspaceViews from "./workspace/workspace-views";
 import contextDockDestinations from "./workspace/context-dock";
 import diagnostics from "./workspace/diagnostics";
@@ -10,7 +9,7 @@ import { CONTEXT_DOCK_DESTINATION, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPo
 // A composition invariant, so it lives with the manifest rather than inside one
 // context: destinations are contributed by one plugin and the views they name by
 // several others, and it is the assembled set that has to agree. Read off the
-// registry — the same data the launcher and the dock's tab strip read.
+// registry — the same data the dock's add-panel menu reads.
 describe("assembled context dock destinations", () => {
   async function assemble() {
     await Promise.all(
@@ -25,7 +24,7 @@ describe("assembled context dock destinations", () => {
   }
 
   // A destination whose viewId no longer resolves would render as a title-less
-  // ghost (resolveContextDockItems drops it), so the launcher would silently
+  // ghost (resolveContextDockItems drops it), so the menu would silently
   // lose an entry.
   it("every destination names a registered view", async () => {
     const { destinations, views } = await assemble();
@@ -48,19 +47,5 @@ describe("assembled context dock destinations", () => {
       .filter((viewId) => views.get(viewId)?.splittable !== true);
 
     expect(notSplittable).toEqual([]);
-  });
-
-  // The dock keeps one remembered width per density, so a density nothing
-  // declares is a width the user can never reach — and a width nobody can reach
-  // is a preference the app pretends to have. Reading the registry rather than a
-  // list here is the point: a new density has to be claimed by a view to exist.
-  it("every dock density is claimed by at least one view", async () => {
-    const { views } = await assemble();
-
-    const claimed = new Set(
-      [...views.values()].map((view) => view.density ?? "light"),
-    ) as ReadonlySet<DockDensity>;
-
-    expect([...DOCK_DENSITIES].filter((density) => !claimed.has(density))).toEqual([]);
   });
 });

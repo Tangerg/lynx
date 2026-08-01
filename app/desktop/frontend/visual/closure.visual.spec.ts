@@ -138,7 +138,7 @@ test("coarse pointers receive real 44px controls without overlapping hit targets
 
     for (const control of [
       page.getByRole("tab", { name: "Plan" }),
-      page.getByRole("button", { name: "Hide the context dock" }),
+      page.getByRole("button", { name: "Collapse right workspace" }),
       page.getByRole("button", { name: "Attach image" }),
     ]) {
       const box = await control.boundingBox();

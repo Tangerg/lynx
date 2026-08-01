@@ -6,12 +6,11 @@ export interface WorkspaceFileViewer {
 }
 
 interface ContextDockSessionScope {
-  /** The view the dock is showing. `null` IS the closed dock — there is no
-   *  second "collapsed" flag to disagree with it. */
-  dockViewId: string | null;
-  /** What reopening restores, so the dock toggle is a round trip rather than a
-   *  trip back to the launcher. Kept across a close on purpose. */
-  lastDockViewId: string | null;
+  /** Visibility is independent from the open view set. Collapsing the dock is
+   *  therefore lossless: tabs and their mounted view state remain intact. */
+  dockOpen: boolean;
+  dockViewIds: string[];
+  activeDockViewId: string | null;
   activeFile: string;
   fileViewer: WorkspaceFileViewer | null;
   selectedToolId: string;
@@ -25,8 +24,10 @@ interface ContextDockState extends ContextDockSessionScope {
 
 interface ContextDockActions {
   openDockView: (id: string) => void;
-  closeDockView: () => void;
-  closeDockViewIf: (id: string) => void;
+  selectDockView: (id: string) => void;
+  closeDockView: (id: string) => void;
+  collapseDock: () => void;
+  showDock: (defaultViewId: string) => void;
   setActiveFile: (path: string) => void;
   setFileViewer: (path: string, line?: number) => void;
   setSelectedToolId: (id: string) => void;
@@ -42,8 +43,9 @@ function emptySessionScope(): ContextDockSessionScope {
     fileViewer: null,
     selectedToolId: "",
     expandedToolIds: new Set<string>(),
-    dockViewId: null,
-    lastDockViewId: null,
+    dockOpen: false,
+    dockViewIds: [],
+    activeDockViewId: null,
   };
 }
 
@@ -53,8 +55,9 @@ function cloneSessionScope(scope: ContextDockSessionScope): ContextDockSessionSc
     fileViewer: scope.fileViewer ? { ...scope.fileViewer } : null,
     selectedToolId: scope.selectedToolId,
     expandedToolIds: new Set(scope.expandedToolIds),
-    dockViewId: scope.dockViewId,
-    lastDockViewId: scope.lastDockViewId,
+    dockOpen: scope.dockOpen,
+    dockViewIds: [...scope.dockViewIds],
+    activeDockViewId: scope.activeDockViewId,
   };
 }
 
@@ -67,18 +70,56 @@ function saveCurrentSessionScope(state: ContextDockState) {
 export const useContextDockStore = create<ContextDockState & ContextDockActions>((set, get) => ({
   activeSessionScopeId: "",
   sessionScopes: new Map<string, ContextDockSessionScope>(),
-  dockViewId: null,
-  lastDockViewId: null,
+  dockOpen: false,
+  dockViewIds: [],
+  activeDockViewId: null,
   activeFile: "",
   fileViewer: null,
   selectedToolId: "",
   expandedToolIds: new Set<string>(),
 
-  openDockView: (id) => set({ dockViewId: id, lastDockViewId: id }),
-  closeDockView: () => set({ dockViewId: null }),
-  closeDockViewIf: (id) => {
-    if (get().dockViewId === id) set({ dockViewId: null });
-  },
+  openDockView: (id) =>
+    set((state) => ({
+      dockOpen: true,
+      dockViewIds: state.dockViewIds.includes(id) ? state.dockViewIds : [...state.dockViewIds, id],
+      activeDockViewId: id,
+    })),
+  selectDockView: (id) =>
+    set((state) =>
+      state.dockViewIds.includes(id) ? { dockOpen: true, activeDockViewId: id } : {},
+    ),
+  closeDockView: (id) =>
+    set((state) => {
+      const index = state.dockViewIds.indexOf(id);
+      if (index < 0) return {};
+
+      const dockViewIds = state.dockViewIds.filter((viewId) => viewId !== id);
+      if (state.activeDockViewId !== id) return { dockViewIds };
+
+      const activeDockViewId = dockViewIds[index] ?? dockViewIds[index - 1] ?? null;
+      return {
+        dockOpen: activeDockViewId !== null,
+        dockViewIds,
+        activeDockViewId,
+      };
+    }),
+  collapseDock: () => set({ dockOpen: false }),
+  showDock: (defaultViewId) =>
+    set((state) => {
+      if (state.dockViewIds.length === 0) {
+        return {
+          dockOpen: true,
+          dockViewIds: [defaultViewId],
+          activeDockViewId: defaultViewId,
+        };
+      }
+      return {
+        dockOpen: true,
+        activeDockViewId: state.dockViewIds.includes(state.activeDockViewId ?? "")
+          ? state.activeDockViewId
+          : (state.dockViewIds[0] ?? null),
+      };
+    }),
   setActiveFile: (path) => set({ activeFile: path }),
   setFileViewer: (path, line) => set({ fileViewer: { path, line: line ?? 0 } }),
   setSelectedToolId: (id) => set({ selectedToolId: id }),

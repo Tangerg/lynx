@@ -2,15 +2,15 @@ import { ChatPanel } from "@/plugins/builtin/shell/kernel/panel/ChatPanel";
 import { PluginToaster } from "@/plugins/host/PluginToaster";
 import {
   useActiveWorkspaceViewId,
-  useDockWorkspaceViewId,
+  useWorkspaceDock,
 } from "@/plugins/builtin/workspace/public/navigation";
 import { useDockWidth } from "@/plugins/builtin/workspace/public/sidebarDrawer";
 import { AgentAppShell, AgentRow, AgentSurfaceHeader } from "@/ui/agent";
 import type { VisualWorkspaceState } from "./workspaceFixtureStates";
 
 const STATE_LABELS: Record<VisualWorkspaceState, string> = {
-  "dock-light": "Plan · light",
-  "dock-review": "Diff · review",
+  "dock-light": "Plan workspace",
+  "dock-review": "Diff review",
   "dock-empty": "Diff · empty",
   "dock-loading": "Diff · loading",
   "dock-error": "Diff · error",
@@ -49,10 +49,9 @@ function WorkspaceStateSidebar({ state }: { state: VisualWorkspaceState }) {
 }
 
 function WorkspaceFixtureReadout({ state }: { state: VisualWorkspaceState }) {
-  const dockViewId = useDockWorkspaceViewId();
+  const dock = useWorkspaceDock();
   const activeMainViewId = useActiveWorkspaceViewId();
-  const lightWidth = useDockWidth("light").width;
-  const reviewWidth = useDockWidth("review").width;
+  const dockWidth = useDockWidth().width;
 
   return (
     <>
@@ -60,16 +59,19 @@ function WorkspaceFixtureReadout({ state }: { state: VisualWorkspaceState }) {
         {state}
       </output>
       <output className="sr-only" data-testid="active-dock-view">
-        {dockViewId ?? ""}
+        {dock.activeViewId ?? ""}
+      </output>
+      <output className="sr-only" data-testid="dock-open">
+        {String(dock.open)}
+      </output>
+      <output className="sr-only" data-testid="dock-view-ids">
+        {dock.viewIds.join(",")}
       </output>
       <output className="sr-only" data-testid="active-main-view">
         {activeMainViewId ?? ""}
       </output>
-      <output className="sr-only" data-testid="persisted-light-dock-width">
-        {lightWidth}
-      </output>
-      <output className="sr-only" data-testid="persisted-review-dock-width">
-        {reviewWidth}
+      <output className="sr-only" data-testid="persisted-dock-width">
+        {dockWidth}
       </output>
     </>
   );

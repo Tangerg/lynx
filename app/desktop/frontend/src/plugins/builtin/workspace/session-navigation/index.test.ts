@@ -75,7 +75,9 @@ function resetWorkspace() {
   useContextDockStore.setState({
     activeSessionScopeId: "",
     sessionScopes: new Map(),
-    dockViewId: null,
+    dockOpen: false,
+    dockViewIds: [],
+    activeDockViewId: null,
     activeFile: "",
     fileViewer: null,
     selectedToolId: "",
@@ -88,7 +90,9 @@ function seedInspector() {
     activeFile: "src/a.ts",
     selectedToolId: "tool-1",
     expandedToolIds: new Set(["tool-1"]),
-    dockViewId: "diff",
+    dockOpen: true,
+    dockViewIds: ["explorer", "diff"],
+    activeDockViewId: "diff",
   });
 }
 
@@ -97,7 +101,9 @@ function expectSessionScopedStateBlank() {
   expect(state.activeFile).toBe("");
   expect(state.selectedToolId).toBe("");
   expect(state.expandedToolIds.size).toBe(0);
-  expect(state.dockViewId).toBeNull();
+  expect(state.dockOpen).toBe(false);
+  expect(state.dockViewIds).toEqual([]);
+  expect(state.activeDockViewId).toBeNull();
 }
 
 function expectSessionScopedStatePreserved() {
@@ -105,7 +111,9 @@ function expectSessionScopedStatePreserved() {
   expect(state.activeFile).toBe("src/a.ts");
   expect(state.selectedToolId).toBe("tool-1");
   expect(state.expandedToolIds.has("tool-1")).toBe(true);
-  expect(state.dockViewId).toBe("diff");
+  expect(state.dockOpen).toBe(true);
+  expect(state.dockViewIds).toEqual(["explorer", "diff"]);
+  expect(state.activeDockViewId).toBe("diff");
 }
 
 describe("workspace session navigation", () => {
@@ -138,7 +146,9 @@ describe("workspace session navigation", () => {
       activeFile: "src/b.ts",
       selectedToolId: "tool-2",
       expandedToolIds: new Set(["tool-2"]),
-      dockViewId: "terminal",
+      dockOpen: true,
+      dockViewIds: ["terminal"],
+      activeDockViewId: "terminal",
     });
 
     agentSessionSelection.emit(selection("s1", 2), selection("s2", 1));
@@ -149,7 +159,9 @@ describe("workspace session navigation", () => {
     expect(state.activeFile).toBe("src/b.ts");
     expect(state.selectedToolId).toBe("tool-2");
     expect(state.expandedToolIds.has("tool-2")).toBe(true);
-    expect(state.dockViewId).toBe("terminal");
+    expect(state.dockOpen).toBe(true);
+    expect(state.dockViewIds).toEqual(["terminal"]);
+    expect(state.activeDockViewId).toBe("terminal");
   });
 
   it("re-selecting the same session preserves session-scoped workspace state", () => {

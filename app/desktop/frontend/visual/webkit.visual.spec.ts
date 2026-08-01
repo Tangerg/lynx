@@ -76,7 +76,7 @@ test("WebKit workspace keeps review geometry and separator semantics", async ({ 
   await openFixture(page, { fixture: "workspace", state: "dock-review", theme: "dark" });
 
   await expect(page.locator("[data-diff-file]")).toHaveCount(2);
-  const separator = page.getByRole("separator", { name: "Resize the context dock" });
+  const separator = page.getByRole("separator", { name: "Resize right workspace" });
   await expect(separator).toHaveAttribute("aria-valuemin", "300");
   await expect
     .poll(async () => Number(await separator.getAttribute("aria-valuenow")))

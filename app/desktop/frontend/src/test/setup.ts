@@ -45,7 +45,9 @@ beforeEach(() => {
   useContextDockStore.setState({
     activeSessionScopeId: "",
     sessionScopes: new Map(),
-    dockViewId: null,
+    dockOpen: false,
+    dockViewIds: [],
+    activeDockViewId: null,
     activeFile: "",
     fileViewer: null,
     selectedToolId: "",

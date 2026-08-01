@@ -5,18 +5,16 @@ import type { ContextDockDestinationSpec } from "@/plugins/sdk";
 // workspace-views/), joined at launch time — a test guards that every viewId
 // here resolves to a registered view.
 //
-// Every registered view a user can navigate to is listed: the launcher is the
-// hub, so a view missing from it is a view reachable only by knowing its name in
-// the command palette. `file` is here too — pinned, because it is what a file
-// reference in the transcript opens into.
+// Every registered view a user can navigate to is listed so the add-panel menu
+// remains the discoverable entry point for the whole right workspace.
 export const builtinContextDockDestinations: ContextDockDestinationSpec[] = [
   { viewId: "search", scope: "workspace", order: 10 },
   { viewId: "explorer", scope: "workspace", order: 20 },
-  { viewId: "file", scope: "workspace", order: 25, pinned: true },
+  { viewId: "file", scope: "workspace", order: 25 },
   { viewId: "files", scope: "workspace", order: 30 },
-  { viewId: "diff", scope: "workspace", order: 40, pinned: true },
-  { viewId: "codebase", scope: "workspace", order: 50, pinned: true },
-  { viewId: "terminal", scope: "workspace", order: 60, pinned: true },
+  { viewId: "diff", scope: "workspace", order: 40 },
+  { viewId: "codebase", scope: "workspace", order: 50 },
+  { viewId: "terminal", scope: "workspace", order: 60 },
   { viewId: "tools", scope: "workspace", order: 70 },
   { viewId: "skills", scope: "workspace", order: 80 },
   { viewId: "skill-drafts", scope: "workspace", order: 85 },

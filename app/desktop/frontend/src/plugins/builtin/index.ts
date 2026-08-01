@@ -89,7 +89,6 @@ import {
 import welcomeScreen from "./shell/welcome-screen";
 import {
   agentDocsView,
-  contextView,
   diffView,
   fileView,
   filesView,
@@ -198,7 +197,6 @@ const panes: PluginSpec[] = [
   hooksPane,
   schedulesPane,
   contextDockDestinations,
-  contextView,
   diffView,
   fileView,
   terminalView,

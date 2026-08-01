@@ -46,12 +46,11 @@ export const fr: Record<string, string> = {
   "chat.error.retry": "Réessayer",
   "chat.jumpToBottom": "Aller en bas",
 
-  "dock.action.browse": "Parcourir les vues de contexte",
-  "dock.action.hide": "Masquer le dock de contexte",
-  "dock.action.resize": "Ajuster la largeur du dock de contexte",
-  "dock.action.show": "Afficher le dock de contexte",
-  "dock.tabs.label": "Vues contextuelles",
-  "workspace.view.promote": "Étendre sur toute la largeur",
+  "dock.action.browse": "Ajouter un panneau",
+  "dock.action.hide": "Replier l’espace de droite",
+  "dock.action.resize": "Redimensionner l’espace de droite",
+  "dock.action.show": "Ouvrir l’espace de droite",
+  "dock.tabs.label": "Panneaux de l’espace de droite",
   "workspace.view.openBeside": "Ouvrir dans le dock de contexte",
   "workspace.view.unavailable.title": "Vue indisponible",
   "workspace.view.unavailable.body":
@@ -242,7 +241,6 @@ export const fr: Record<string, string> = {
 
   "workspace.view.title.files": "Fichiers",
   "workspace.view.title.diff": "Diff",
-  "workspace.view.title.context": "Contexte",
   "contextDock.group.workspace": "Espace",
   "contextDock.group.run": "Exécution",
   "contextDock.group.session": "Session",

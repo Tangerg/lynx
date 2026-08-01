@@ -6,7 +6,11 @@ import { configureWorkspaceNavigationPort } from "../application/ports/navigatio
 export function installWorkspaceNavigationPort(): () => void {
   return configureWorkspaceNavigationPort({
     useActiveViewId: () => useWorkspaceSurfaceStore((state) => state.activeMainView),
-    useDockViewId: () => useContextDockStore((state) => state.dockViewId),
+    useDock: () => ({
+      open: useContextDockStore((state) => state.dockOpen),
+      viewIds: useContextDockStore((state) => state.dockViewIds),
+      activeViewId: useContextDockStore((state) => state.activeDockViewId),
+    }),
     useActiveFile: () => useContextDockStore((state) => state.activeFile),
     useFileViewer: () => useContextDockStore((state) => state.fileViewer),
     useSettingsPaneTarget: () => useWorkspaceSurfaceStore((state) => state.settingsPane),
@@ -25,11 +29,11 @@ export function installWorkspaceNavigationPort(): () => void {
       width: useUiStore((state) => state.sidebarWidth),
       setWidth: useUiStore((state) => state.setSidebarWidth),
     }),
-    useDockWidth: (density) => {
+    useDockWidth: () => {
       const setDockWidth = useUiStore((state) => state.setDockWidth);
       return {
-        width: useUiStore((state) => state.dockWidths[density]),
-        setWidth: (width) => setDockWidth(density, width),
+        width: useUiStore((state) => state.dockWidth),
+        setWidth: setDockWidth,
       };
     },
     selectChat: () => useWorkspaceSurfaceStore.getState().selectChat(),
@@ -40,19 +44,22 @@ export function installWorkspaceNavigationPort(): () => void {
       useWorkspaceSurfaceStore.getState().selectChat();
       useContextDockStore.getState().openDockView(id);
     },
-    closeView: (id) => {
-      useWorkspaceSurfaceStore.getState().closeMainView(id);
-      useContextDockStore.getState().closeDockViewIf(id);
+    selectDockView: (id) => useContextDockStore.getState().selectDockView(id),
+    closeDockView: (id) => useContextDockStore.getState().closeDockView(id),
+    collapseDock: () => useContextDockStore.getState().collapseDock(),
+    showDock: (defaultViewId) => {
+      useWorkspaceSurfaceStore.getState().selectChat();
+      useContextDockStore.getState().showDock(defaultViewId);
     },
+    closeView: (id) => useWorkspaceSurfaceStore.getState().closeMainView(id),
     activeViewId: () => useWorkspaceSurfaceStore.getState().activeMainView,
-    dockViewId: () => useContextDockStore.getState().dockViewId,
-    lastDockViewId: () => useContextDockStore.getState().lastDockViewId,
-    closeDockView: () => useContextDockStore.getState().closeDockView(),
-    promoteDockViewToFull: () => {
-      const dockViewId = useContextDockStore.getState().dockViewId;
-      if (!dockViewId) return;
-      useWorkspaceSurfaceStore.getState().openMainView(dockViewId);
-      useContextDockStore.getState().closeDockView();
+    dock: () => {
+      const state = useContextDockStore.getState();
+      return {
+        open: state.dockOpen,
+        viewIds: state.dockViewIds,
+        activeViewId: state.activeDockViewId,
+      };
     },
     setSettingsPane: (pane) => useWorkspaceSurfaceStore.getState().setSettingsPane(pane),
     settingsPaneTarget: () => useWorkspaceSurfaceStore.getState().settingsPane,

@@ -16,14 +16,16 @@ import { localeEn } from "@/plugins/builtin/i18n/locales/en";
 import { installWorkspaceErrorClassifier } from "@/plugins/builtin/workspace/adapters/runtimeWorkspaceErrorClassifier";
 import {
   WORKSPACE_DIFF_KEY,
+  WORKSPACE_LIST_FILES_KEY,
   WORKSPACE_READ_FILE_KEY,
   type WorkspaceDiff,
+  type WorkspaceFileEntry,
   type WorkspaceFileContent,
 } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import {
-  contextView,
   diffView,
   fileView,
+  fileTreeView,
   planView,
   terminalView,
   timelineView,
@@ -194,6 +196,15 @@ function workspaceDataPlugin(state: VisualWorkspaceState): PluginSpec {
         },
       });
       host.extensions.contribute(DATA_PROVIDER, {
+        key: WORKSPACE_LIST_FILES_KEY,
+        fetcher: async () =>
+          [
+            { path: "app", name: "app", type: "dir" },
+            { path: "go.mod", name: "go.mod", type: "file", sizeBytes: 4_096 },
+            { path: "README.md", name: "README.md", type: "file", sizeBytes: 2_048 },
+          ] satisfies WorkspaceFileEntry[],
+      });
+      host.extensions.contribute(DATA_PROVIDER, {
         key: PROVIDERS_KEY,
         fetcher: async () => PROVIDERS,
       });
@@ -218,11 +229,12 @@ const workspaceDockDestinations = definePlugin({
   version: "1.0.0",
   setup({ host }) {
     for (const destination of [
-      { viewId: "file", scope: "workspace", order: 25, pinned: true },
-      { viewId: "diff", scope: "workspace", order: 40, pinned: true },
-      { viewId: "terminal", scope: "workspace", order: 60, pinned: true },
-      { viewId: "plan", scope: "run", order: 120, pinned: true },
-      { viewId: "timeline", scope: "session", order: 140, pinned: true },
+      { viewId: "explorer", scope: "workspace", order: 20 },
+      { viewId: "file", scope: "workspace", order: 25 },
+      { viewId: "diff", scope: "workspace", order: 40 },
+      { viewId: "terminal", scope: "workspace", order: 60 },
+      { viewId: "plan", scope: "run", order: 120 },
+      { viewId: "timeline", scope: "session", order: 140 },
     ] as const) {
       host.extensions.contribute(CONTEXT_DOCK_DESTINATION, destination);
     }
@@ -282,8 +294,9 @@ export async function installVisualWorkspaceFixture(
   useContextDockStore.setState({
     activeSessionScopeId: VISUAL_SESSION_ID,
     sessionScopes: new Map(),
-    dockViewId,
-    lastDockViewId: dockViewId,
+    dockOpen: true,
+    dockViewIds: ["explorer", "file", "diff", "terminal", "plan", "timeline"],
+    activeDockViewId: dockViewId,
     activeFile: ACTIVE_DIFF_FILE,
     fileViewer: { path: ACTIVE_DIFF_FILE, line: 6 },
     selectedToolId: "",
@@ -298,15 +311,15 @@ export async function installVisualWorkspaceFixture(
     motionScale: 0,
     sidebarCollapsed: false,
     sidebarWidth: 256,
-    dockWidths: { light: 420, review: 720 },
+    dockWidth: 520,
   });
 
   await loadVisualPlugins([
     workspaceDataPlugin(state),
     workspaceDockDestinations,
-    contextView,
     diffView,
     fileView,
+    fileTreeView,
     terminalView,
     planView,
     timelineView,
@@ -323,7 +336,7 @@ export async function installVisualWorkspaceFixture(
   const root = document.documentElement;
   root.dataset.visualDockWidthCommits = "0";
   useUiStore.subscribe((next, previous) => {
-    if (next.dockWidths === previous.dockWidths) return;
+    if (next.dockWidth === previous.dockWidth) return;
     root.dataset.visualDockWidthCommits = String(
       Number(root.dataset.visualDockWidthCommits ?? "0") + 1,
     );

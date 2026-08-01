@@ -55,30 +55,51 @@ for (const state of VISUAL_WORKSPACE_STATES) {
   });
 }
 
-test("hide and reopen preserve the exact dock view identity", async ({ page }) => {
+test("collapse and reopen preserve the dock workspace", async ({ page }) => {
   await openWorkspace(page, { state: "dock-light" });
   await expect(page.getByTestId("active-dock-view")).toHaveText("plan");
 
-  await page.getByRole("button", { name: "Hide the context dock" }).click();
-  await expect(page.getByTestId("active-dock-view")).toHaveText("");
-  await page.getByRole("button", { name: "Show the context dock" }).click();
+  await page.getByRole("button", { name: "Collapse right workspace" }).click();
+  await expect(page.getByTestId("dock-open")).toHaveText("false");
+  await expect(page.getByTestId("active-dock-view")).toHaveText("plan");
+  await expect(page.getByTestId("dock-view-ids")).toHaveText(
+    "explorer,file,diff,terminal,plan,timeline",
+  );
+  await page.getByRole("button", { name: "Open right workspace" }).click();
 
+  await expect(page.getByTestId("dock-open")).toHaveText("true");
   await expect(page.getByTestId("active-dock-view")).toHaveText("plan");
   await expect(page.getByRole("tab", { name: "Plan" })).toHaveAttribute("data-active", "");
 });
 
-test("promote, close, and reopen keep one navigation identity", async ({ page }) => {
+test("closing tabs selects a neighbor without collapsing the workspace", async ({ page }) => {
   await openWorkspace(page, { state: "dock-light" });
 
-  await page.getByRole("button", { name: "Expand to full width" }).click();
-  await expect(page.getByTestId("active-dock-view")).toHaveText("");
-  await expect(page.getByTestId("active-main-view")).toHaveText("plan");
-  await expect(page.getByText("Plan", { exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "Plan" }).hover();
+  await page.getByRole("button", { name: "Close Plan" }).click();
+  await expect(page.getByTestId("active-dock-view")).toHaveText("timeline");
+  await expect(page.getByTestId("dock-open")).toHaveText("true");
 
-  await page.getByRole("button", { name: "Close" }).click();
-  await expect(page.getByTestId("active-main-view")).toHaveText("");
-  await page.getByRole("button", { name: "Show the context dock" }).click();
-  await expect(page.getByTestId("active-dock-view")).toHaveText("plan");
+  await page.getByRole("tab", { name: "Timeline" }).hover();
+  await page.getByRole("button", { name: "Close Timeline" }).click();
+  await expect(page.getByTestId("active-dock-view")).toHaveText("terminal");
+  await expect(page.getByTestId("dock-view-ids")).toHaveText("explorer,file,diff,terminal");
+});
+
+test("add-panel menu restores a closed singleton and focuses it", async ({ page }) => {
+  await openWorkspace(page, { state: "dock-light" });
+
+  await page.getByRole("tab", { name: "Terminal" }).hover();
+  await page.getByRole("button", { name: "Close Terminal" }).click();
+  await expect(page.getByTestId("dock-view-ids")).not.toContainText("terminal");
+
+  await page.getByRole("button", { name: "Add panel" }).click();
+  await page.getByRole("menuitem", { name: "Terminal" }).click();
+
+  await expect(page.getByTestId("active-dock-view")).toHaveText("terminal");
+  await expect(page.getByTestId("dock-view-ids")).toHaveText(
+    "explorer,file,diff,plan,timeline,terminal",
+  );
 });
 
 test("dock tabs use roving focus and arrow-key activation", async ({ page }) => {
@@ -98,48 +119,45 @@ test("file and timeline tabs render through their production view plugins", asyn
 
   await page.getByRole("tab", { name: "File" }).click();
   await expect(page.getByTestId("active-dock-view")).toHaveText("file");
-  await expect(page.getByText(/const currentWidth = readDockWidth/)).toBeVisible();
+  const fileView = page.locator('[data-dock-view-id="file"]');
+  await expect(fileView.getByText(/const currentWidth = readDockWidth/)).toBeVisible();
 
   await page.getByRole("tab", { name: "Timeline" }).click();
   await expect(page.getByTestId("active-dock-view")).toHaveText("timeline");
+  await expect(fileView.getByText(/const currentWidth = readDockWidth/)).toBeHidden();
   await expect(page.getByText("Root run", { exact: true })).toBeVisible();
   await expect(page.getByText("run_root", { exact: true })).toBeVisible();
 });
 
-test("light and review views retain independent dock widths", async ({ page }) => {
+test("all dock views share one stable user-owned width", async ({ page }) => {
   await openWorkspace(page, { state: "dock-light" });
 
-  const separator = page.getByRole("separator", { name: "Resize the context dock" });
+  const separator = page.getByRole("separator", { name: "Resize right workspace" });
   await separator.focus();
-  await separator.press("ArrowLeft");
-  await expect(page.getByTestId("persisted-light-dock-width")).toHaveText("428");
-  await expect(page.getByTestId("persisted-review-dock-width")).toHaveText("720");
+  await separator.press("ArrowRight");
+  await expect(page.getByTestId("persisted-dock-width")).toHaveText("424");
 
   await page.getByRole("tab", { name: "Diff" }).click();
   await expect(page.getByTestId("active-dock-view")).toHaveText("diff");
-  await separator.focus();
-  await separator.press("ArrowRight");
-
-  await expect(page.getByTestId("persisted-light-dock-width")).toHaveText("428");
-  const reviewWidth = Number(await page.getByTestId("persisted-review-dock-width").textContent());
-  expect(reviewWidth).toBeLessThan(720);
+  await expect(separator).toHaveAttribute("aria-valuenow", "424");
+  await expect(page.getByTestId("persisted-dock-width")).toHaveText("424");
 
   await page.getByRole("tab", { name: "Plan" }).click();
-  await expect(page.getByTestId("persisted-light-dock-width")).toHaveText("428");
-  await expect(page.getByTestId("persisted-review-dock-width")).toHaveText(String(reviewWidth));
+  await expect(separator).toHaveAttribute("aria-valuenow", "424");
+  await expect(page.getByTestId("persisted-dock-width")).toHaveText("424");
 });
 
 test("dock separator exposes its real range and commits a pointer drag once", async ({ page }) => {
   await openWorkspace(page, { state: "dock-review" });
   await waitForWorkspaceState(page, "dock-review");
 
-  const separator = page.getByRole("separator", { name: "Resize the context dock" });
-  const persistedWidth = page.getByTestId("persisted-review-dock-width");
+  const separator = page.getByRole("separator", { name: "Resize right workspace" });
+  const persistedWidth = page.getByTestId("persisted-dock-width");
   await expect(separator).toHaveAttribute("aria-valuemin", "300");
   const max = Number(await separator.getAttribute("aria-valuemax"));
   const now = Number(await separator.getAttribute("aria-valuenow"));
   expect(now).toBe(max);
-  await expect(persistedWidth).toHaveText("720");
+  await expect(persistedWidth).toHaveText("520");
 
   const dock = page.locator(".agent-context-dock");
   const dockBefore = (await dock.boundingBox())?.width;
@@ -149,28 +167,29 @@ test("dock separator exposes its real range and commits a pointer drag once", as
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 48, box.y + box.height / 2);
 
-  await expect(persistedWidth).toHaveText("720");
+  await expect(persistedWidth).toHaveText("520");
   await expect(page.locator("html")).toHaveAttribute("data-visual-dock-width-commits", "0");
   await expect.poll(async () => (await dock.boundingBox())?.width ?? 0).toBeLessThan(dockBefore);
 
   await page.mouse.up();
   await expect(page.locator("html")).toHaveAttribute("data-visual-dock-width-commits", "1");
-  await expect(persistedWidth).not.toHaveText("720");
+  await expect(persistedWidth).not.toHaveText("520");
   const settledWidth = await persistedWidth.textContent();
   if (!settledWidth) throw new Error("Persisted dock width is missing");
   await expect(separator).toHaveAttribute("aria-valuenow", settledWidth);
 });
 
-test("window clamping does not overwrite the review preference", async ({ page }) => {
+test("window clamping does not overwrite the dock preference", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openWorkspace(page, { state: "dock-review" });
   await waitForWorkspaceState(page, "dock-review");
 
-  const separator = page.getByRole("separator", { name: "Resize the context dock" });
-  const persistedWidth = page.getByTestId("persisted-review-dock-width");
+  const separator = page.getByRole("separator", { name: "Resize right workspace" });
+  const persistedWidth = page.getByTestId("persisted-dock-width");
   const wideMax = Number(await separator.getAttribute("aria-valuemax"));
-  await expect(separator).toHaveAttribute("aria-valuenow", String(wideMax));
-  await expect(persistedWidth).toHaveText("720");
+  expect(wideMax).toBeGreaterThan(520);
+  await expect(separator).toHaveAttribute("aria-valuenow", "520");
+  await expect(persistedWidth).toHaveText("520");
 
   await page.setViewportSize({ width: 1120, height: 720 });
   await expect
@@ -183,11 +202,11 @@ test("window clamping does not overwrite the review preference", async ({ page }
         Number(await separator.getAttribute("aria-valuemax")),
     )
     .toBe(true);
-  await expect(persistedWidth).toHaveText("720");
+  await expect(persistedWidth).toHaveText("520");
 
   await page.setViewportSize({ width: 1440, height: 900 });
-  await expect(separator).toHaveAttribute("aria-valuenow", String(wideMax));
-  await expect(persistedWidth).toHaveText("720");
+  await expect(separator).toHaveAttribute("aria-valuenow", "520");
+  await expect(persistedWidth).toHaveText("520");
 });
 
 test("settings filtering and menu dismissal stay inside production semantics", async ({ page }) => {
@@ -242,12 +261,12 @@ test("provider and model settings keep validation local to their form", async ({
   await expect(saveButtons.last()).toBeEnabled();
 });
 
-test("dock controls expose focusable tooltip help", async ({ page }) => {
+test("dock add-panel control exposes focusable tooltip help", async ({ page }) => {
   await openWorkspace(page, { state: "dock-light" });
 
-  const maximize = page.getByRole("button", { name: "Expand to full width" });
-  await maximize.hover();
-  await expect(page.getByRole("tooltip")).toHaveText("Expand to full width");
+  const add = page.getByRole("button", { name: "Add panel" });
+  await add.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Add panel");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("tooltip")).toHaveCount(0);
 });
@@ -255,7 +274,7 @@ test("dock controls expose focusable tooltip help", async ({ page }) => {
 test("dock close control reveals its contextual glyph on hover and focus", async ({ page }) => {
   await openWorkspace(page, { state: "dock-light" });
 
-  const hide = page.getByRole("button", { name: "Hide the context dock" });
+  const hide = page.getByRole("button", { name: "Collapse right workspace" });
   const swap = hide.locator(".t-icon-swap");
   await expect(swap).toHaveAttribute("data-state", "a");
 

@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useContextDockStore } from "@/state/contextDockStore";
 import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
-import { toggleContextDock } from "./contextDock";
 import {
+  closeActiveWorkspaceDockView,
   closeActiveWorkspaceView,
+  collapseWorkspaceDock,
   locateWorkspaceTool,
   openWorkspaceView,
   openWorkspaceViewInDock,
-  promoteWorkspaceDockViewToFull,
+  selectWorkspaceDockView,
+  showWorkspaceDock,
 } from "./navigation";
 
 function reset() {
@@ -16,8 +18,9 @@ function reset() {
   useContextDockStore.setState({
     activeSessionScopeId: "",
     sessionScopes: new Map(),
-    dockViewId: null,
-    lastDockViewId: null,
+    dockOpen: false,
+    dockViewIds: [],
+    activeDockViewId: null,
     activeFile: "",
     fileViewer: null,
     selectedToolId: "",
@@ -28,54 +31,79 @@ function reset() {
 describe("workspace navigation port", () => {
   beforeEach(reset);
 
-  it("promoteWorkspaceDockViewToFull hands the dock's view the whole card", () => {
-    openWorkspaceViewInDock("v2");
-    expect(useContextDockStore.getState().dockViewId).toBe("v2");
+  it("opens dock views as stable singleton tabs beside chat", () => {
+    openWorkspaceViewInDock("explorer");
+    openWorkspaceViewInDock("diff");
+    openWorkspaceViewInDock("explorer");
 
-    promoteWorkspaceDockViewToFull();
-
-    expect(useContextDockStore.getState().dockViewId).toBeNull();
-    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBe("v2");
+    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
+    expect(useContextDockStore.getState()).toMatchObject({
+      dockOpen: true,
+      dockViewIds: ["explorer", "diff"],
+      activeDockViewId: "explorer",
+    });
   });
 
-  it("promoteWorkspaceDockViewToFull is a no-op when the dock is closed", () => {
-    promoteWorkspaceDockViewToFull();
-
-    expect(useContextDockStore.getState().dockViewId).toBeNull();
-    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBe("v2");
+  it("only selects views that already belong to the dock", () => {
+    openWorkspaceViewInDock("explorer");
+    selectWorkspaceDockView("diff");
+    expect(useContextDockStore.getState().activeDockViewId).toBe("explorer");
   });
 
-  it("a full view leaves the dock's own selection alone", () => {
-    openWorkspaceViewInDock("v1");
+  it("a full view leaves the dock workspace alone", () => {
+    openWorkspaceViewInDock("explorer");
+    collapseWorkspaceDock();
     openWorkspaceView("v3");
 
     expect(useWorkspaceSurfaceStore.getState().activeMainView).toBe("v3");
-    expect(useContextDockStore.getState().dockViewId).toBe("v1");
+    expect(useContextDockStore.getState()).toMatchObject({
+      dockOpen: false,
+      dockViewIds: ["explorer"],
+      activeDockViewId: "explorer",
+    });
   });
 
-  it("closing a full view returns to the chat, never to another view", () => {
-    openWorkspaceView("v1");
+  it("closing a full view returns to chat without changing dock tabs", () => {
+    openWorkspaceViewInDock("explorer");
     openWorkspaceView("v3");
 
     expect(closeActiveWorkspaceView()).toBe(true);
-
     expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
+    expect(useContextDockStore.getState().dockViewIds).toEqual(["explorer"]);
   });
 
-  it("toggling the dock restores the view it last held", () => {
-    openWorkspaceViewInDock("v1");
+  it("collapse and show are a lossless round trip", () => {
+    openWorkspaceViewInDock("diff");
+    collapseWorkspaceDock();
+    showWorkspaceDock();
 
-    toggleContextDock();
-    expect(useContextDockStore.getState().dockViewId).toBeNull();
-
-    toggleContextDock();
-    expect(useContextDockStore.getState().dockViewId).toBe("v1");
+    expect(useContextDockStore.getState()).toMatchObject({
+      dockOpen: true,
+      dockViewIds: ["diff"],
+      activeDockViewId: "diff",
+    });
   });
 
-  it("toggling a dock that has never been opened lands on the launcher", () => {
-    toggleContextDock();
+  it("showing an empty dock starts in Explorer", () => {
+    showWorkspaceDock();
 
-    expect(useContextDockStore.getState().dockViewId).toBe("context");
+    expect(useContextDockStore.getState()).toMatchObject({
+      dockOpen: true,
+      dockViewIds: ["explorer"],
+      activeDockViewId: "explorer",
+    });
+  });
+
+  it("closes the active dock tab before the session-level command can run", () => {
+    openWorkspaceViewInDock("explorer");
+    openWorkspaceViewInDock("diff");
+
+    expect(closeActiveWorkspaceDockView()).toBe(true);
+    expect(useContextDockStore.getState()).toMatchObject({
+      dockOpen: true,
+      dockViewIds: ["explorer"],
+      activeDockViewId: "explorer",
+    });
   });
 
   it("locates a parent task by selecting chat and atomically revealing its tool", () => {

@@ -8,7 +8,7 @@ import {
   useToggleFavorite,
 } from "@/plugins/builtin/agent/public/session";
 import { focusComposer } from "@/plugins/builtin/chat/composer/public/focus";
-import { openContextDockLauncher } from "@/plugins/builtin/workspace/public/navigation";
+import { showWorkspaceDock } from "@/plugins/builtin/workspace/public/navigation";
 import { openSettingsView } from "@/plugins/builtin/workspace/public/deeplinks";
 
 export interface WorkIndexActions {
@@ -53,7 +53,7 @@ export function useWorkIndexActions(): WorkIndexActions {
       toggleFavorite: (id, expectedRevision, favorite) => {
         void toggleFavorite(id, expectedRevision, favorite);
       },
-      openContextDock: openContextDockLauncher,
+      openContextDock: showWorkspaceDock,
       openSettings: () => {
         openSettingsView();
       },

@@ -1,16 +1,18 @@
-import type { DockDensity } from "@/lib/shellGeometry";
 import {
   workspaceNavigation,
   type WorkspaceColumnWidth,
+  type WorkspaceDockSnapshot,
   type WorkspaceFileViewer,
 } from "./ports/navigationState";
+
+const DEFAULT_DOCK_VIEW_ID = "explorer";
 
 export function useActiveWorkspaceViewId(): string | null {
   return workspaceNavigation().useActiveViewId();
 }
 
-export function useDockWorkspaceViewId(): string | null {
-  return workspaceNavigation().useDockViewId();
+export function useWorkspaceDock(): WorkspaceDockSnapshot {
+  return workspaceNavigation().useDock();
 }
 
 export function useActiveWorkspaceFile(): string {
@@ -47,8 +49,8 @@ export function useSidebarWidth(): WorkspaceColumnWidth {
   return workspaceNavigation().useSidebarWidth();
 }
 
-export function useDockWidth(density: DockDensity): WorkspaceColumnWidth {
-  return workspaceNavigation().useDockWidth(density);
+export function useDockWidth(): WorkspaceColumnWidth {
+  return workspaceNavigation().useDockWidth();
 }
 
 export function selectWorkspaceChat(): void {
@@ -56,7 +58,7 @@ export function selectWorkspaceChat(): void {
 }
 
 /** Give a view the whole content card. Reserved for surfaces that have nothing
- *  to say beside a conversation (settings) and for an explicit "maximise". */
+ *  to say beside a conversation, such as settings. */
 export function openWorkspaceView(id: string): void {
   workspaceNavigation().openView(id);
 }
@@ -65,6 +67,29 @@ export function openWorkspaceView(id: string): void {
  *  anything opened *from* the conversation or the palette. */
 export function openWorkspaceViewInDock(id: string): void {
   workspaceNavigation().openViewInDock(id);
+}
+
+export function selectWorkspaceDockView(id: string): void {
+  workspaceNavigation().selectDockView(id);
+}
+
+export function closeWorkspaceDockView(id: string): void {
+  workspaceNavigation().closeDockView(id);
+}
+
+export function closeActiveWorkspaceDockView(): boolean {
+  const activeViewId = workspaceNavigation().dock().activeViewId;
+  if (!activeViewId) return false;
+  workspaceNavigation().closeDockView(activeViewId);
+  return true;
+}
+
+export function collapseWorkspaceDock(): void {
+  workspaceNavigation().collapseDock();
+}
+
+export function showWorkspaceDock(): void {
+  workspaceNavigation().showDock(DEFAULT_DOCK_VIEW_ID);
 }
 
 export function closeWorkspaceView(id: string): void {
@@ -76,18 +101,6 @@ export function closeActiveWorkspaceView(): boolean {
   if (!activeViewId) return false;
   workspaceNavigation().closeView(activeViewId);
   return true;
-}
-
-export function getWorkspaceDockViewId(): string | null {
-  return workspaceNavigation().dockViewId();
-}
-
-export function closeWorkspaceDockView(): void {
-  workspaceNavigation().closeDockView();
-}
-
-export function promoteWorkspaceDockViewToFull(): void {
-  workspaceNavigation().promoteDockViewToFull();
 }
 
 export function openWorkspaceSettingsPane(pane: string): void {
