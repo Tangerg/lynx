@@ -227,18 +227,35 @@ type changePresentation struct {
 	Changes []presentedChange `json:"changes"`
 }
 
+type changeStatus string
+
+const (
+	changeAdded    changeStatus = "added"
+	changeDeleted  changeStatus = "deleted"
+	changeModified changeStatus = "modified"
+	changeMoved    changeStatus = "moved"
+)
+
 type presentedChange struct {
-	Path   string    `json:"path"`
-	Status string    `json:"status"`
-	From   string    `json:"from,omitempty"`
-	Diff   []diffRow `json:"diff,omitempty"`
+	Path   string       `json:"path"`
+	Status changeStatus `json:"status"`
+	From   string       `json:"from,omitempty"`
+	Diff   []diffRow    `json:"diff,omitempty"`
 }
 
+type diffRowType string
+
+const (
+	diffRowAdded   diffRowType = "added"
+	diffRowContext diffRowType = "context"
+	diffRowDeleted diffRowType = "deleted"
+)
+
 type diffRow struct {
-	Type      string `json:"type"`
-	LeftLine  int    `json:"leftLine,omitempty"`
-	RightLine int    `json:"rightLine,omitempty"`
-	Code      string `json:"code"`
+	Type      diffRowType `json:"type"`
+	LeftLine  int         `json:"leftLine,omitempty"`
+	RightLine int         `json:"rightLine,omitempty"`
+	Code      string      `json:"code"`
 }
 
 func presentEditResult(arguments tool.Arguments, result tool.Result) tool.Result {
@@ -249,7 +266,7 @@ func presentEditResult(arguments tool.Arguments, result tool.Result) tool.Result
 	if !ok || args.FilePath == "" {
 		return result
 	}
-	change := presentedChange{Path: args.FilePath, Status: "modified"}
+	change := presentedChange{Path: args.FilePath, Status: changeModified}
 	change.Diff = editDiff(args.OldString, args.NewString)
 	return projectResult(result, changePresentation{Changes: []presentedChange{change}})
 }
@@ -273,14 +290,14 @@ func presentApplyPatchResult(result tool.Result) tool.Result {
 	}
 	changes := make([]presentedChange, 0, len(decoded.Files))
 	for _, file := range decoded.Files {
-		status := "modified"
+		status := changeModified
 		switch {
 		case file.MovedFrom != "":
-			status = "moved"
+			status = changeMoved
 		case file.Created:
-			status = "added"
+			status = changeAdded
 		case file.Deleted:
-			status = "deleted"
+			status = changeDeleted
 		}
 		changes = append(changes, presentedChange{
 			Path: file.FilePath, Status: status, From: file.MovedFrom,
@@ -298,7 +315,7 @@ func presentWriteResult(arguments tool.Arguments, result tool.Result) tool.Resul
 		return result
 	}
 	return projectResult(result, changePresentation{Changes: []presentedChange{{
-		Path: args.FilePath, Status: "modified",
+		Path: args.FilePath, Status: changeModified,
 	}}})
 }
 
@@ -356,13 +373,13 @@ func editDiff(oldText, newText string) []diffRow {
 		switch operation.Tag {
 		case 'e':
 			for i := operation.I1; i < operation.I2; i++ {
-				rows = append(rows, diffRow{Type: "context", LeftLine: left, RightLine: right, Code: oldLines[i]})
+				rows = append(rows, diffRow{Type: diffRowContext, LeftLine: left, RightLine: right, Code: oldLines[i]})
 				left++
 				right++
 			}
 		case 'd', 'r':
 			for i := operation.I1; i < operation.I2; i++ {
-				rows = append(rows, diffRow{Type: "deleted", LeftLine: left, Code: oldLines[i]})
+				rows = append(rows, diffRow{Type: diffRowDeleted, LeftLine: left, Code: oldLines[i]})
 				left++
 			}
 			if operation.Tag != 'r' {
@@ -371,7 +388,7 @@ func editDiff(oldText, newText string) []diffRow {
 			fallthrough
 		case 'i':
 			for i := operation.J1; i < operation.J2; i++ {
-				rows = append(rows, diffRow{Type: "added", RightLine: right, Code: newLines[i]})
+				rows = append(rows, diffRow{Type: diffRowAdded, RightLine: right, Code: newLines[i]})
 				right++
 			}
 		}
