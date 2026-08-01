@@ -275,10 +275,6 @@ func modelToolCallID(processID string, round int, callID string) string {
 	return fmt.Sprintf("model:%d:%s:%d:%s", len(processID), processID, round, callID)
 }
 
-func (o *toolObservation) begin(process core.ProcessView, round int, call chat.ToolCall) {
-	o.beginRef(processRef(process), round, call)
-}
-
 func (o *toolObservation) beginRef(ref ProcessRef, round int, call chat.ToolCall) {
 	observed := &observedModelCall{
 		id: modelToolCallID(ref.ID, round, call.ID), sourceCallID: call.ID, process: ref,
@@ -357,14 +353,10 @@ func (o *toolObservation) finish(call *observedModelCall, bound bool, arguments,
 	o.target.OnToolCallEnd(call.process, call.id, call.name, arguments, output, ref, mutatedPaths, err)
 }
 
-// result closes canonical calls that never reached a resolved tool wrapper,
+// resultRef closes canonical calls that never reached a resolved tool wrapper,
 // such as an unknown tool. Wrapped calls have already emitted their richer
 // completion (effective arguments, mutation paths, and original error), so the
 // matching model result only retires the deduplication marker.
-func (o *toolObservation) result(process core.ProcessView, round int, result chat.ToolResult) {
-	o.resultRef(processRef(process), round, result)
-}
-
 func (o *toolObservation) resultRef(ref ProcessRef, round int, result chat.ToolResult) {
 	id := modelToolCallID(ref.ID, round, result.ID)
 	key := processToolCallKey{processID: ref.ID, callID: result.ID}

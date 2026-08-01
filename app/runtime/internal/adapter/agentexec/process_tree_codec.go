@@ -22,16 +22,9 @@ func encodeProcessTree(tree core.ProcessSnapshotTree) ([]byte, error) {
 	return payload, nil
 }
 
-// decodeProcessTree is the only App path that interprets the opaque executor
-// payload. The decoded root must agree with the App-owned aggregate identity so
-// storage corruption cannot redirect one continuation under another root.
-func decodeProcessTree(checkpoint execution.ExecutorCheckpoint) (core.ProcessSnapshotTree, error) {
-	if err := checkpoint.Validate(); err != nil {
-		return core.ProcessSnapshotTree{}, fmt.Errorf("agentexec: decode process tree: %w", err)
-	}
-	return decodeValidatedProcessTree(checkpoint)
-}
-
+// decodeValidatedProcessTree is the only App path that interprets a validated
+// opaque executor payload. The decoded root must agree with the App-owned
+// aggregate identity so storage corruption cannot redirect a continuation.
 func decodeValidatedProcessTree(checkpoint execution.ExecutorCheckpoint) (core.ProcessSnapshotTree, error) {
 	var tree core.ProcessSnapshotTree
 	if err := json.Unmarshal(checkpoint.Payload, &tree); err != nil {
