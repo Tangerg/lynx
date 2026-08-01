@@ -5,7 +5,7 @@
 > method the runtime does not serve. Prose, rationale and wire examples live in
 > `app/desktop/docs/protocol/`; this is the mechanical index.
 
-Protocol `2026-07-27` (minimum supported `2026-07-27`) · 85 methods
+Protocol `2026-08-02` (minimum supported `2026-08-02`) · 86 methods
 
 ## Methods
 
@@ -14,8 +14,8 @@ Protocol `2026-07-27` (minimum supported `2026-07-27`) · 85 methods
 | `runtime.discover` | query | unary | none | — | — |
 | `sessions.list` | query | unary | none | — | — |
 | `sessions.get` | query | unary | none | — | `session_not_found` |
-| `sessions.create` | command | unary | replayResponse | — | `cwd_unavailable` |
-| `sessions.update` | command | unary | replayResponse | `relocate` | `session_not_found`, `revision_conflict`, `cwd_unavailable`, `capability_not_negotiated` |
+| `sessions.create` | command | unary | replayResponse | — | `workspace_unavailable` |
+| `sessions.update` | command | unary | replayResponse | `relocate` | `session_not_found`, `revision_conflict`, `workspace_unavailable`, `capability_not_negotiated` |
 | `sessions.delete` | command | unary | replayResponse | — | `session_not_found` |
 | `sessions.fork` | command | unary | replayResponse | — | `session_not_found`, `run_not_found` |
 | `sessions.rollback` | command | unary | replayResponse | `checkpoints` | `session_not_found`, `run_not_found`, `session_busy`, `checkpoint_unavailable`, `capability_not_negotiated` |
@@ -31,23 +31,24 @@ Protocol `2026-07-27` (minimum supported `2026-07-27`) · 85 methods
 | `interrupts.list` | query | unary | none | — | `run_not_root`, `capability_not_negotiated` |
 | `todos.get` | query | unary | none | `todos` | `session_not_found`, `capability_not_negotiated` |
 | `items.list` | query | unary | none | `subagents` | `session_not_found`, `run_not_found`, `capability_not_negotiated` |
-| `workspace.listFileChanges` | query | unary | none | — | `cwd_unavailable`, `vcs_unavailable` |
-| `workspace.getDiff` | query | unary | none | — | `cwd_unavailable`, `vcs_unavailable`, `path_outside_root` |
-| `workspace.getFileHead` | query | unary | none | — | `cwd_unavailable`, `path_outside_root` |
-| `workspace.grep` | query | unary | none | — | `cwd_unavailable`, `path_outside_root` |
-| `workspace.listFiles` | query | unary | none | — | `cwd_unavailable`, `path_outside_root` |
-| `workspace.readFile` | query | unary | none | — | `cwd_unavailable`, `path_outside_root` |
-| `workspace.listProjects` | query | unary | none | — | — |
+| `workspaces.resolve` | query | unary | none | — | `workspace_unavailable` |
+| `workspaces.list` | query | unary | none | — | — |
+| `workspace.changes.list` | query | unary | none | `git` | `workspace_unavailable`, `vcs_unavailable`, `capability_not_negotiated` |
+| `workspace.diff.get` | query | unary | none | `git` | `workspace_unavailable`, `vcs_unavailable`, `path_outside_root`, `capability_not_negotiated` |
+| `workspace.files.head` | query | unary | none | — | `workspace_unavailable`, `path_outside_root` |
+| `workspace.files.search` | query | unary | none | — | `workspace_unavailable`, `path_outside_root` |
+| `workspace.files.list` | query | unary | none | — | `workspace_unavailable`, `path_outside_root` |
+| `workspace.files.read` | query | unary | none | — | `workspace_unavailable`, `path_outside_root` |
 | `runtime.subscribe` | subscription | stream | none | `fileWatch` | `capability_not_negotiated` |
-| `skills.discovered.list` | query | unary | none | `skills` | `cwd_unavailable`, `capability_not_negotiated` |
+| `skills.discovered.list` | query | unary | none | `skills` | `workspace_unavailable`, `capability_not_negotiated` |
 | `skills.library.list` | query | unary | none | `skills` | `capability_not_negotiated` |
 | `skills.library.archive` | command | unary | replayResponse | `skills` | `capability_not_negotiated` |
 | `skills.library.restore` | command | unary | replayResponse | `skills` | `capability_not_negotiated` |
 | `skills.drafts.list` | query | unary | none | `skills` | `capability_not_negotiated` |
 | `skills.drafts.promote` | command | unary | replayResponse | `skills` | `capability_not_negotiated` |
 | `skills.drafts.reject` | command | unary | replayResponse | `skills` | `capability_not_negotiated` |
-| `recipes.list` | query | unary | none | — | `cwd_unavailable` |
-| `agentDocs.list` | query | unary | none | — | `cwd_unavailable` |
+| `recipes.list` | query | unary | none | — | `workspace_unavailable` |
+| `agentDocs.list` | query | unary | none | — | `workspace_unavailable` |
 | `mcp.servers.list` | query | unary | none | `mcp` | `capability_not_negotiated` |
 | `mcp.tools.list` | query | unary | none | `mcp` | `capability_not_negotiated` |
 | `mcp.servers.reconnect` | command | unary | replayResponse | `mcp` | `capability_not_negotiated` |
@@ -57,7 +58,7 @@ Protocol `2026-07-27` (minimum supported `2026-07-27`) · 85 methods
 | `mcp.configs.remove` | command | unary | replayResponse | `mcp` | `capability_not_negotiated` |
 | `mcp.configs.setEnabled` | command | unary | replayResponse | `mcp` | `capability_not_negotiated` |
 | `mcp.configs.test` | query | unary | none | `mcp` | `capability_not_negotiated` |
-| `hooks.list` | query | unary | none | — | `cwd_unavailable` |
+| `hooks.list` | query | unary | none | — | `workspace_unavailable` |
 | `hooks.setTrust` | command | unary | replayResponse | — | — |
 | `approval.getMode` | query | unary | none | — | — |
 | `approval.setMode` | command | unary | replayResponse | — | — |
@@ -72,9 +73,9 @@ Protocol `2026-07-27` (minimum supported `2026-07-27`) · 85 methods
 | `goals.get` | query | unary | none | `goals` | `session_not_found`, `capability_not_negotiated` |
 | `goals.stop` | command | unary | replayResponse | `goals` | `session_not_found`, `capability_not_negotiated` |
 | `goals.resume` | command | unary | replayResponse | `goals` | `session_not_found`, `capability_not_negotiated` |
-| `codebase.search` | query | unary | none | `codebase` | `cwd_unavailable`, `capability_not_negotiated` |
-| `codebase.status` | query | unary | none | `codebase` | `cwd_unavailable`, `capability_not_negotiated` |
-| `codebase.reindex` | command | unary | replayResponse | `codebase` | `cwd_unavailable`, `capability_not_negotiated` |
+| `codebase.search` | query | unary | none | `codebase` | `workspace_unavailable`, `capability_not_negotiated` |
+| `codebase.status` | query | unary | none | `codebase` | `workspace_unavailable`, `capability_not_negotiated` |
+| `codebase.reindex` | command | unary | replayResponse | `codebase` | `workspace_unavailable`, `capability_not_negotiated` |
 | `providers.list` | query | unary | none | — | — |
 | `providers.configure` | command | unary | replayResponse | — | — |
 | `providers.test` | query | unary | none | — | — |
@@ -84,12 +85,12 @@ Protocol `2026-07-27` (minimum supported `2026-07-27`) · 85 methods
 | `models.getEmbeddingRole` | query | unary | none | — | — |
 | `models.setEmbeddingRole` | command | unary | replayResponse | — | — |
 | `tools.list` | query | unary | none | — | — |
-| `tools.invoke` | command | unary | replayResponse | — | `cwd_unavailable`, `path_outside_root` |
+| `tools.invoke` | command | unary | replayResponse | — | `workspace_unavailable`, `path_outside_root` |
 | `usage.session` | query | unary | none | — | `session_not_found` |
 | `usage.summary` | query | unary | none | — | — |
-| `memory.list` | query | unary | none | `memory` | `cwd_unavailable`, `capability_not_negotiated` |
-| `memory.get` | query | unary | none | `memory` | `cwd_unavailable`, `capability_not_negotiated` |
-| `memory.update` | command | unary | replayResponse | `memory` | `cwd_unavailable`, `capability_not_negotiated` |
+| `memory.list` | query | unary | none | `memory` | `workspace_unavailable`, `capability_not_negotiated` |
+| `memory.get` | query | unary | none | `memory` | `workspace_unavailable`, `capability_not_negotiated` |
+| `memory.update` | command | unary | replayResponse | `memory` | `workspace_unavailable`, `capability_not_negotiated` |
 | `agentMemory.list` | query | unary | none | `agentMemory` | `capability_not_negotiated` |
 | `agentMemory.review` | command | unary | replayResponse | `agentMemory` | `capability_not_negotiated` |
 | `agentMemory.update` | command | unary | replayResponse | `agentMemory` | `capability_not_negotiated` |
@@ -257,7 +258,7 @@ Forbidden on every variant: `durable`.
 
 | tag | required | optional |
 | --- | --- | --- |
-| `files.changed` | `sequence`, `paths` | `watchId`, `cwd` |
+| `files.changed` | `sequence`, `paths` | `watchId`, `workspace` |
 | `skills.changed` | `sequence` | `names` |
 | `mcp.changed` | `sequence` | `serverIds` |
 | `schedules.changed` | `sequence` | `scheduleIds` |
@@ -353,6 +354,7 @@ TypeScript validator from this single registry projection.
 | `SessionUsageRequest` | `sessionId` | `nonEmpty` |
 | `ListRunsRequest` | `statuses` | `nonEmptyItems` |
 | `ListRunsRequest` | `statuses` | `uniqueItems` |
+| `WorkspaceRef` | `path` | `nonEmpty` |
 | `GetFileHeadRequest` | `path` | `nonEmpty` |
 | `ReadFileRequest` | `path` | `nonEmpty` |
 | `GrepRequest` | `query` | `nonEmpty` |
@@ -416,7 +418,7 @@ available. Refusal is `capability_not_negotiated` — never a silent downgrade.
 
 | method | when | requires |
 | --- | --- | --- |
-| `sessions.update` | `cwd` present | `relocate` |
+| `sessions.update` | `workspace` present | `relocate` |
 | `sessions.rollback` | `restoreType` == `files` | `checkpoints` |
 | `sessions.rollback` | `restoreType` == `both` | `checkpoints` |
 | `sessions.export` | always | `sessionExport` |
@@ -424,6 +426,8 @@ available. Refusal is `capability_not_negotiated` — never a silent downgrade.
 | `runs.list` | `includeDescendants` present | `subagents` |
 | `todos.get` | always | `todos` |
 | `items.list` | `scope.includeDescendants` present | `subagents` |
+| `workspace.changes.list` | always | `git` |
+| `workspace.diff.get` | always | `git` |
 | `runtime.subscribe` | `watches` present | `fileWatch` |
 | `skills.discovered.list` | always | `skills` |
 | `skills.library.list` | always | `skills` |

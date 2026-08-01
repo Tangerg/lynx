@@ -10,7 +10,7 @@ import (
 
 // ListWorkspaceFileChanges projects application VCS status onto the wire.
 func (s *Server) ListWorkspaceFileChanges(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
-	changes, err := s.workspaceVCS.ListFileChanges(ctx, in.Cwd)
+	changes, err := s.workspaceVCS.ListFileChanges(ctx, in.Workspace.Path)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
@@ -18,7 +18,7 @@ func (s *Server) ListWorkspaceFileChanges(ctx context.Context, in protocol.Works
 	for _, change := range changes {
 		status, ok := fileStatusWire(change.Status)
 		if !ok {
-			return nil, fmt.Errorf("workspace.listFileChanges: unsupported file status %q", change.Status)
+			return nil, fmt.Errorf("workspace.changes.list: unsupported file status %q", change.Status)
 		}
 		entry := protocol.WorkspaceFileChange{
 			Path: change.Path, Status: status, PreviousPath: change.PreviousPath, Binary: change.Binary,
@@ -44,7 +44,7 @@ func (s *Server) GetWorkspaceDiff(ctx context.Context, in protocol.GetDiffReques
 		return nil, fmt.Errorf("%w: unknown mode %q", protocol.ErrInvalidParams, in.Mode)
 	}
 	diff, err := s.workspaceVCS.Diff(ctx, workspaceapp.DiffInput{
-		Cwd: in.Cwd, Path: in.Path, Base: base, Raw: in.Format == protocol.DiffFormatRaw, Limit: in.Limit,
+		Cwd: in.Workspace.Path, Path: in.Path, Base: base, Raw: in.Format == protocol.DiffFormatRaw, Limit: in.Limit,
 	})
 	if err != nil {
 		return nil, wireWorkspaceError(err)
@@ -64,7 +64,7 @@ func diffFilesWire(files []workspaceapp.FileDiff) ([]protocol.FileDiff, error) {
 	for _, file := range files {
 		status, ok := fileStatusWire(file.Status)
 		if !ok {
-			return nil, fmt.Errorf("workspace.getDiff: unsupported file status %q", file.Status)
+			return nil, fmt.Errorf("workspace.diff.get: unsupported file status %q", file.Status)
 		}
 		rows, err := diffRowsWire(file.Rows)
 		if err != nil {
@@ -88,7 +88,7 @@ func diffRowsWire(rows []workspaceapp.DiffRow) ([]protocol.DiffRow, error) {
 	for _, row := range rows {
 		kind, ok := diffRowTypeWire(row.Type)
 		if !ok {
-			return nil, fmt.Errorf("workspace.getDiff: unsupported row type %q", row.Type)
+			return nil, fmt.Errorf("workspace.diff.get: unsupported row type %q", row.Type)
 		}
 		out = append(out, protocol.DiffRow{
 			Type: kind, Text: row.Text, LeftLine: row.LeftLine, RightLine: row.RightLine, Code: row.Code,

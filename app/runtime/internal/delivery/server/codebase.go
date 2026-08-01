@@ -18,7 +18,7 @@ import (
 // CodebaseSearch returns the chunks most similar to the query in the cwd's
 // project (codebase.search), building/refreshing the index first.
 func (s *Server) CodebaseSearch(ctx context.Context, in protocol.CodebaseSearchRequest) (*protocol.CodebaseSearchResult, error) {
-	hits, err := s.codebase.Search(ctx, in.Cwd, in.Query, in.Limit)
+	hits, err := s.codebase.Search(ctx, in.Workspace.Path, in.Query, in.Limit)
 	if err != nil {
 		return nil, mapCodebaseErr(err)
 	}
@@ -37,7 +37,7 @@ func (s *Server) CodebaseSearch(ctx context.Context, in protocol.CodebaseSearchR
 
 // CodebaseStatus reports the cwd's index state (codebase.status).
 func (s *Server) CodebaseStatus(ctx context.Context, in protocol.CodebaseStatusRequest) (*protocol.CodebaseStatus, error) {
-	st, err := s.codebase.Status(ctx, in.Cwd)
+	st, err := s.codebase.Status(ctx, in.Workspace.Path)
 	if err != nil {
 		return nil, mapCodebaseErr(err)
 	}
@@ -53,7 +53,7 @@ func (s *Server) CodebaseStatus(ctx context.Context, in protocol.CodebaseStatusR
 // (codebase.reindex) — a big reindex can take seconds, so the status surface
 // polls codebase.status for progress rather than blocking the call.
 func (s *Server) CodebaseReindex(ctx context.Context, in protocol.CodebaseReindexRequest) (*protocol.CodebaseReindexResponse, error) {
-	operationID, err := s.codebase.StartReindex(ctx, in.Cwd)
+	operationID, err := s.codebase.StartReindex(ctx, in.Workspace.Path)
 	if err != nil {
 		return nil, mapCodebaseErr(err)
 	}

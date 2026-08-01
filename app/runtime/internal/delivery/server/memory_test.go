@@ -58,7 +58,7 @@ func TestListMemoryWithoutStoreReturnsCapabilityError(t *testing.T) {
 	s := serverWithMemory(nil)
 
 	_, err := s.ListMemory(context.Background(), protocol.WorkspaceListQuery{
-		WorkspaceQuery: protocol.WorkspaceQuery{Cwd: "/repo"},
+		WorkspaceQuery: protocol.WorkspaceQuery{Workspace: protocol.WorkspaceRef{Path: "/repo"}},
 	})
 	if !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("list memory err = %v, want capability_not_negotiated", err)
@@ -91,7 +91,7 @@ func TestListMemoryMapsEntriesToWire(t *testing.T) {
 	s := serverWithMemory(store)
 
 	got, err := s.ListMemory(context.Background(), protocol.WorkspaceListQuery{
-		WorkspaceQuery: protocol.WorkspaceQuery{Cwd: repo},
+		WorkspaceQuery: protocol.WorkspaceQuery{Workspace: protocol.WorkspaceRef{Path: repo}},
 	})
 	if err != nil {
 		t.Fatalf("list memory: %v", err)
@@ -109,7 +109,9 @@ func TestGetAndUpdateMemoryMapScopeToRuntime(t *testing.T) {
 	s := serverWithMemory(store)
 	repo := t.TempDir()
 
-	got, err := s.GetMemory(context.Background(), protocol.GetMemoryRequest{Scope: protocol.MemoryScopeProjectRoot, Cwd: repo})
+	got, err := s.GetMemory(context.Background(), protocol.GetMemoryRequest{
+		Scope: protocol.MemoryScopeProjectRoot, Workspace: &protocol.WorkspaceRef{Path: repo},
+	})
 	if err != nil {
 		t.Fatalf("get memory: %v", err)
 	}
@@ -118,9 +120,9 @@ func TestGetAndUpdateMemoryMapScopeToRuntime(t *testing.T) {
 	}
 
 	err = s.UpdateMemory(context.Background(), protocol.UpdateMemoryRequest{
-		Scope:   protocol.MemoryScopeHome,
-		Cwd:     "/ignored",
-		Content: "global prefs",
+		Scope:     protocol.MemoryScopeHome,
+		Workspace: &protocol.WorkspaceRef{Path: "/ignored"},
+		Content:   "global prefs",
 	})
 	if err != nil {
 		t.Fatalf("update memory: %v", err)
@@ -136,16 +138,16 @@ func TestProjectMemoryRejectsUnavailableCwd(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing")
 
 	if _, err := s.GetMemory(context.Background(), protocol.GetMemoryRequest{
-		Scope: protocol.MemoryScopeCwd,
-		Cwd:   missing,
-	}); !errors.Is(err, protocol.ErrCwdUnavailable) {
-		t.Fatalf("get memory err = %v, want ErrCwdUnavailable", err)
+		Scope:     protocol.MemoryScopeCwd,
+		Workspace: &protocol.WorkspaceRef{Path: missing},
+	}); !errors.Is(err, protocol.ErrWorkspaceUnavailable) {
+		t.Fatalf("get memory err = %v, want ErrWorkspaceUnavailable", err)
 	}
 	if err := s.UpdateMemory(context.Background(), protocol.UpdateMemoryRequest{
-		Scope:   protocol.MemoryScopeProjectRoot,
-		Cwd:     missing,
-		Content: "notes",
-	}); !errors.Is(err, protocol.ErrCwdUnavailable) {
-		t.Fatalf("update memory err = %v, want ErrCwdUnavailable", err)
+		Scope:     protocol.MemoryScopeProjectRoot,
+		Workspace: &protocol.WorkspaceRef{Path: missing},
+		Content:   "notes",
+	}); !errors.Is(err, protocol.ErrWorkspaceUnavailable) {
+		t.Fatalf("update memory err = %v, want ErrWorkspaceUnavailable", err)
 	}
 }

@@ -74,6 +74,7 @@ var wireEnums = map[reflect.Type][]string{
 	reflect.TypeFor[Stability]():                 {string(StabilityStable), string(StabilityExperimental)},
 	reflect.TypeFor[StreamEventType]():           {string(StreamSegmentStarted), string(StreamSegmentProgress), string(StreamSegmentFinished), string(StreamItemStarted), string(StreamItemDelta), string(StreamItemCompleted), string(StreamStateSnapshot), string(StreamCustom)},
 	reflect.TypeFor[TodoStatus]():                {string(TodoStatusPending), string(TodoStatusInProgress), string(TodoStatusCompleted)},
+	reflect.TypeFor[WorkspaceAvailability]():     {string(WorkspaceAvailable), string(WorkspaceMissing)},
 	reflect.TypeFor[RuntimeEventType]():          runtimeEventValues(),
 	reflect.TypeFor[RuntimeTopic]():              runtimeTopicValues(),
 	reflect.TypeFor[RunReplayScope]():            {string(ReplayScopeProcessRootSegment)},

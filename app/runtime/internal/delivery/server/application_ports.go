@@ -145,8 +145,9 @@ type workspaceVCSUseCases interface {
 
 type workspaceDiscoveryUseCases interface {
 	ListAgentDocs(ctx context.Context, cwd string) ([]workspaceapp.AgentDoc, error)
-	ListProjects(ctx context.Context) ([]workspaceapp.Project, error)
+	ListWorkspaces(ctx context.Context) ([]workspaceapp.WorkspaceSummary, error)
 	ListRecipes(ctx context.Context, cwd string) ([]workspaceapp.Recipe, error)
+	ResolveWorkspace(path string) (workspaceapp.ResolvedWorkspace, error)
 }
 
 type workspaceKnowledgeUseCases interface {

@@ -83,6 +83,7 @@ function requiredParams<P>(key: string, params: unknown): P {
 
 export function registerDefaultDataProviders(host: ContributingHost): void {
   const client = () => getContainer().client();
+  const workspace = (cwd?: string) => client().workspaces.open(cwd ? { path: cwd } : undefined);
   const contribute = (provider: DataProviderSpec): void => {
     host.extensions.contribute(DATA_PROVIDER, provider);
   };
@@ -96,17 +97,14 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
   });
   contribute({
     key: WORKSPACE_PROJECTS_KEY,
-    fetcher: async () =>
-      (await client().workspace.listProjects()).data.map(toWorkspaceProjectSummary),
+    fetcher: async () => (await client().workspaces.list()).data.map(toWorkspaceProjectSummary),
   });
   contribute({
     key: WORKSPACE_FILES_CHANGED_KEY,
-    fetcher: async (params) =>
-      (
-        await client().workspace.listFileChanges(
-          optionalParams<WorkspaceFileChangesQuery>(params)?.cwd,
-        )
-      ).data.map(toWorkspaceFileChangeSummary),
+    fetcher: async (params) => {
+      const resources = await workspace(optionalParams<WorkspaceFileChangesQuery>(params)?.cwd);
+      return (await resources.changes.list()).data.map(toWorkspaceFileChangeSummary);
+    },
   });
   contribute({
     key: MCP_SERVERS_KEY,
@@ -138,33 +136,38 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
   contribute({
     key: WORKSPACE_DIFF_KEY,
     fetcher: async (params) => {
-      const query = requiredParams<WorkspaceDiffQuery>(WORKSPACE_DIFF_KEY, params);
-      const diff = await client().workspace.getDiff({ ...query, format: "rows" });
+      const { cwd, ...query } = requiredParams<WorkspaceDiffQuery>(WORKSPACE_DIFF_KEY, params);
+      const diff = await (await workspace(cwd)).diff.get({ ...query, format: "rows" });
       return { files: diff.files ?? [], truncated: diff.truncated } satisfies WorkspaceDiff;
     },
   });
   contribute({
     key: WORKSPACE_GREP_KEY,
-    fetcher: async (params) =>
-      client().workspace.grep(requiredParams<WorkspaceGrepQuery>(WORKSPACE_GREP_KEY, params)),
+    fetcher: async (params) => {
+      const { cwd, ...query } = requiredParams<WorkspaceGrepQuery>(WORKSPACE_GREP_KEY, params);
+      return (await workspace(cwd)).files.search(query);
+    },
   });
   contribute({
     key: WORKSPACE_FILE_HEAD_KEY,
-    fetcher: async (params) =>
-      (
-        await client().workspace.getFileHead(
-          requiredParams<WorkspaceFileHeadQuery>(WORKSPACE_FILE_HEAD_KEY, params),
-        )
-      ).lines,
+    fetcher: async (params) => {
+      const { cwd, ...query } = requiredParams<WorkspaceFileHeadQuery>(
+        WORKSPACE_FILE_HEAD_KEY,
+        params,
+      );
+      return (await (await workspace(cwd)).files.head(query)).lines;
+    },
   });
   contribute({
     key: WORKSPACE_SKILLS_KEY,
     fetcher: async () =>
-      (await client().skills.listDiscovered().catch(emptyPageIfUngated)).data.map((s) => ({
-        name: s.name,
-        description: s.description ?? "",
-        source: s.source ?? "",
-      })),
+      (await (await workspace()).skills.listDiscovered().catch(emptyPageIfUngated)).data.map(
+        (s) => ({
+          name: s.name,
+          description: s.description ?? "",
+          source: s.source ?? "",
+        }),
+      ),
   });
   contribute({
     key: WORKSPACE_MANAGED_SKILLS_KEY,
@@ -197,24 +200,27 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
   });
   contribute({
     key: WORKSPACE_MEMORY_KEY,
-    fetcher: async (params) =>
-      (
-        await client()
-          .memory.list(optionalParams<WorkspaceMemoryQuery>(params)?.cwd)
-          .catch(emptyPageIfUngated)
-      ).data.map((m) => ({
+    fetcher: async (params) => {
+      const resources = await workspace(optionalParams<WorkspaceMemoryQuery>(params)?.cwd);
+      return (await resources.memory.list().catch(emptyPageIfUngated)).data.map((m) => ({
         scope: m.scope,
         path: m.path,
         content: m.content,
         updatedAt: m.updatedAt,
-      })),
+      }));
+    },
   });
   contribute({
     key: WORKSPACE_AGENT_MEMORY_KEY,
     fetcher: async (params) => {
       const q = requiredParams<AgentMemoryQuery>(WORKSPACE_AGENT_MEMORY_KEY, params);
       if (!runtimeCapability("agentMemory")) return [];
-      return (await client().agentMemory.list({ scope: q.scope, cwd: q.cwd })).items.map((m) => ({
+      return (
+        await client().agentMemory.list({
+          scope: q.scope,
+          ...(q.cwd ? { workspace: { path: q.cwd } } : {}),
+        })
+      ).items.map((m) => ({
         id: m.id,
         scope: m.scope,
         content: m.content,
@@ -262,7 +268,7 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
   contribute({
     key: WORKSPACE_AGENT_DOCS_KEY,
     fetcher: async () =>
-      (await client().agentDocs.list().catch(emptyPageIfUngated)).data.map((d) => ({
+      (await (await workspace()).agentDocs.list().catch(emptyPageIfUngated)).data.map((d) => ({
         path: d.path,
         title: d.title ?? "",
         scope: d.scope,
@@ -321,7 +327,9 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
       if (!runtimeCapability("codebase")) {
         return Promise.resolve({ state: "none" as const, fileCount: 0, chunkCount: 0 });
       }
-      return client().codebase.status(optionalParams<CodebaseStatusQuery>(params)?.cwd);
+      return workspace(optionalParams<CodebaseStatusQuery>(params)?.cwd).then((resources) =>
+        resources.codebase.status(),
+      );
     },
   });
   contribute({
@@ -333,7 +341,8 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
   });
   contribute({
     key: HOOKS_KEY,
-    fetcher: (params) => client().hooks.list(optionalParams<HooksQuery>(params)?.cwd),
+    fetcher: async (params) =>
+      (await workspace(optionalParams<HooksQuery>(params)?.cwd)).hooks.list(),
   });
   contribute({
     key: SCHEDULES_KEY,
@@ -344,25 +353,19 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
   });
   contribute({
     key: RECIPES_KEY,
-    fetcher: async (params) =>
-      (
-        await client()
-          .recipes.list(optionalParams<RecipesQuery>(params)?.cwd)
-          .catch(emptyPageIfUngated)
-      ).data,
+    fetcher: async (params) => {
+      const resources = await workspace(optionalParams<RecipesQuery>(params)?.cwd);
+      return (await resources.recipes.list().catch(emptyPageIfUngated)).data;
+    },
   });
   contribute({
     key: WORKSPACE_LIST_FILES_KEY,
     fetcher: async (params) => {
-      const q = requiredParams<WorkspaceListFilesQuery>(WORKSPACE_LIST_FILES_KEY, params);
-      return (
-        await client().workspace.listFiles({
-          cwd: q.cwd,
-          path: q.path,
-          recursive: q.recursive,
-          limit: q.limit,
-        })
-      ).data.map((e) => ({
+      const { cwd, ...query } = requiredParams<WorkspaceListFilesQuery>(
+        WORKSPACE_LIST_FILES_KEY,
+        params,
+      );
+      return (await (await workspace(cwd)).files.list(query)).data.map((e) => ({
         path: e.path,
         name: e.name,
         type: e.type,
@@ -373,8 +376,11 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
   contribute({
     key: WORKSPACE_READ_FILE_KEY,
     fetcher: async (params) => {
-      const q = requiredParams<WorkspaceReadFileQuery>(WORKSPACE_READ_FILE_KEY, params);
-      const r = await client().workspace.readFile({ path: q.path, cwd: q.cwd });
+      const { cwd, ...query } = requiredParams<WorkspaceReadFileQuery>(
+        WORKSPACE_READ_FILE_KEY,
+        params,
+      );
+      const r = await (await workspace(cwd)).files.read(query);
       return { content: r.content, totalLines: r.totalLines, truncated: r.truncated };
     },
   });

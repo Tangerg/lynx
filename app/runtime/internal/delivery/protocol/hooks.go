@@ -14,10 +14,10 @@ type Hooks interface {
 // project's hooks are trusted to run (a cloned repo's hooks stay inert until
 // trusted).
 
-// ListHooksRequest — hooks.list body. Cwd scopes project discovery
-// (empty = the runtime server cwd); global ~/.lyra hooks are always included.
+// ListHooksRequest — hooks.list body. Workspace scopes project discovery;
+// global ~/.lyra hooks are always included.
 type ListHooksRequest struct {
-	Cwd string `json:"cwd,omitempty"`
+	Workspace WorkspaceRef `json:"workspace"`
 }
 
 type HookEvent string

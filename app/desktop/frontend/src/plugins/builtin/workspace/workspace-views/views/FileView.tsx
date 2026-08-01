@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { stripCodeWrapper, useCodeHighlighter } from "@/lib/highlight/useCodeHighlight";
 import { cn } from "@/lib/classNames";
 
-// Whole-file viewer (workspace.readFile) — the target of a clickable file:line
+// Whole-file viewer (workspace.files.read) — the target of a clickable file:line
 // reference. The file is highlighted in ONE Shiki pass and split into per-line
 // HTML (Shiki separates source lines by a literal newline inside <code>), so a
 // large file costs one highlight call, not one per line. The target line is

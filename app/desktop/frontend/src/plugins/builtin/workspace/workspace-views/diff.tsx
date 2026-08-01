@@ -7,7 +7,7 @@
 // thing a reviewer needs — where this file sits in the change — was what the
 // click threw away. The active file is now a focus target (what the navigator
 // highlights, what the panel scrolls to on open), and the diff is always the
-// whole comparison. Structured per-file diff from workspace.getDiff (AUX_API §2.3).
+// whole comparison. Structured per-file diff from workspace.diff.get (AUX_API §2.3).
 
 import { useEffect, useRef, useState } from "react";
 import { DataView, Icon, IconButton, Pressable, ScrollArea, Segmented } from "@/ui";

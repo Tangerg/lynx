@@ -31,7 +31,7 @@ func (s *Server) ListAgentMemory(ctx context.Context, in protocol.AgentMemoryLis
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.agentMemory.List(ctx, scope, in.Cwd)
+	items, err := s.agentMemory.List(ctx, scope, workspaceRefPath(in.Workspace))
 	if err != nil {
 		return nil, mapAgentMemoryErr(err, "agentMemory.list")
 	}
@@ -84,7 +84,7 @@ func (s *Server) AddAgentMemory(ctx context.Context, in protocol.AgentMemoryAddR
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.agentMemory.Add(ctx, scope, in.Cwd, in.Content)
+	item, err := s.agentMemory.Add(ctx, scope, workspaceRefPath(in.Workspace), in.Content)
 	if err != nil {
 		return nil, mapAgentMemoryErr(err, "agentMemory.add")
 	}

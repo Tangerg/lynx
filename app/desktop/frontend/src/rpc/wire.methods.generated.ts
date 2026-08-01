@@ -76,7 +76,6 @@ import type {
   PageOfMemoryEntry,
   PageOfModel,
   PageOfPendingInterruptSet,
-  PageOfProject,
   PageOfProvider,
   PageOfRecipe,
   PageOfRunRef,
@@ -86,11 +85,13 @@ import type {
   PageOfSkillDraft,
   PageOfToolSpec,
   PageOfWorkspaceFileChange,
+  PageOfWorkspaceSummary,
   PageQuery,
   Provider,
   ProviderTestResult,
   ReadFileRequest,
   RemoveMCPServerRequest,
+  ResolveWorkspaceRequest,
   ResumeRunRequest,
   ResumeRunResponse,
   RollbackSessionRequest,
@@ -123,6 +124,7 @@ import type {
   UsageSummary,
   UsageSummaryRequest,
   UtilityRole,
+  WorkspaceInfo,
   WorkspaceListQuery,
 } from "./wire.generated";
 
@@ -175,13 +177,14 @@ const METHOD_NAMES = [
   "interrupts.list",
   "todos.get",
   "items.list",
-  "workspace.listFileChanges",
-  "workspace.getDiff",
-  "workspace.getFileHead",
-  "workspace.grep",
-  "workspace.listFiles",
-  "workspace.readFile",
-  "workspace.listProjects",
+  "workspaces.resolve",
+  "workspaces.list",
+  "workspace.changes.list",
+  "workspace.diff.get",
+  "workspace.files.head",
+  "workspace.files.search",
+  "workspace.files.list",
+  "workspace.files.read",
   "runtime.subscribe",
   "skills.discovered.list",
   "skills.library.list",
@@ -281,13 +284,14 @@ const VALUE_METHOD_NAMES = [
   "interrupts.list",
   "todos.get",
   "items.list",
-  "workspace.listFileChanges",
-  "workspace.getDiff",
-  "workspace.getFileHead",
-  "workspace.grep",
-  "workspace.listFiles",
-  "workspace.readFile",
-  "workspace.listProjects",
+  "workspaces.resolve",
+  "workspaces.list",
+  "workspace.changes.list",
+  "workspace.diff.get",
+  "workspace.files.head",
+  "workspace.files.search",
+  "workspace.files.list",
+  "workspace.files.read",
   "runtime.subscribe",
   "skills.discovered.list",
   "skills.library.list",
@@ -374,13 +378,14 @@ export const WIRE_METHOD_POLICY: {
   "interrupts.list": { operation: "query", response: "unary", idempotency: "none" },
   "todos.get": { operation: "query", response: "unary", idempotency: "none" },
   "items.list": { operation: "query", response: "unary", idempotency: "none" },
-  "workspace.listFileChanges": { operation: "query", response: "unary", idempotency: "none" },
-  "workspace.getDiff": { operation: "query", response: "unary", idempotency: "none" },
-  "workspace.getFileHead": { operation: "query", response: "unary", idempotency: "none" },
-  "workspace.grep": { operation: "query", response: "unary", idempotency: "none" },
-  "workspace.listFiles": { operation: "query", response: "unary", idempotency: "none" },
-  "workspace.readFile": { operation: "query", response: "unary", idempotency: "none" },
-  "workspace.listProjects": { operation: "query", response: "unary", idempotency: "none" },
+  "workspaces.resolve": { operation: "query", response: "unary", idempotency: "none" },
+  "workspaces.list": { operation: "query", response: "unary", idempotency: "none" },
+  "workspace.changes.list": { operation: "query", response: "unary", idempotency: "none" },
+  "workspace.diff.get": { operation: "query", response: "unary", idempotency: "none" },
+  "workspace.files.head": { operation: "query", response: "unary", idempotency: "none" },
+  "workspace.files.search": { operation: "query", response: "unary", idempotency: "none" },
+  "workspace.files.list": { operation: "query", response: "unary", idempotency: "none" },
+  "workspace.files.read": { operation: "query", response: "unary", idempotency: "none" },
   "runtime.subscribe": { operation: "subscription", response: "stream", idempotency: "none" },
   "skills.discovered.list": { operation: "query", response: "unary", idempotency: "none" },
   "skills.library.list": { operation: "query", response: "unary", idempotency: "none" },
@@ -466,7 +471,7 @@ export const WIRE_CAPABILITY_POLICY: {
   readonly [M in WireMethodName]?: readonly WireCapabilityRule[];
 } = {
   "sessions.update": [
-    { when: [{ field: "cwd", operator: "present" }], requires: ["relocate"] },
+    { when: [{ field: "workspace", operator: "present" }], requires: ["relocate"] },
   ],
   "sessions.rollback": [
     { when: [{ field: "restoreType", operator: "equals", value: "files" }], requires: ["checkpoints"] },
@@ -486,6 +491,12 @@ export const WIRE_CAPABILITY_POLICY: {
   ],
   "items.list": [
     { when: [{ field: "scope.includeDescendants", operator: "present" }], requires: ["subagents"] },
+  ],
+  "workspace.changes.list": [
+    { requires: ["git"] },
+  ],
+  "workspace.diff.get": [
+    { requires: ["git"] },
   ],
   "runtime.subscribe": [
     { when: [{ field: "watches", operator: "present" }], requires: ["fileWatch"] },
@@ -622,13 +633,14 @@ export interface WireShapes {
   "interrupts.list": { params: ListInterruptsRequest; result: PageOfPendingInterruptSet };
   "todos.get": { params: GetTodosRequest; result: StateSnapshot };
   "items.list": { params: ListItemsRequest; result: ListItemsResponse };
-  "workspace.listFileChanges": { params: WorkspaceListQuery; result: PageOfWorkspaceFileChange };
-  "workspace.getDiff": { params: GetDiffRequest; result: Diff };
-  "workspace.getFileHead": { params: GetFileHeadRequest; result: FileHead };
-  "workspace.grep": { params: GrepRequest; result: GrepResult };
-  "workspace.listFiles": { params: ListFilesRequest; result: PageOfFileEntry };
-  "workspace.readFile": { params: ReadFileRequest; result: FileContent };
-  "workspace.listProjects": { params: PageQuery; result: PageOfProject };
+  "workspaces.resolve": { params: ResolveWorkspaceRequest; result: WorkspaceInfo };
+  "workspaces.list": { params: PageQuery; result: PageOfWorkspaceSummary };
+  "workspace.changes.list": { params: WorkspaceListQuery; result: PageOfWorkspaceFileChange };
+  "workspace.diff.get": { params: GetDiffRequest; result: Diff };
+  "workspace.files.head": { params: GetFileHeadRequest; result: FileHead };
+  "workspace.files.search": { params: GrepRequest; result: GrepResult };
+  "workspace.files.list": { params: ListFilesRequest; result: PageOfFileEntry };
+  "workspace.files.read": { params: ReadFileRequest; result: FileContent };
   "runtime.subscribe": { params: RuntimeSubscribeRequest; result: RuntimeSubscribeResponse };
   "skills.discovered.list": { params: WorkspaceListQuery; result: PageOfSkill };
   "skills.library.list": { params: PageQuery; result: PageOfManagedSkill };

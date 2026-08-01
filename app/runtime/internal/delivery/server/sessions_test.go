@@ -51,28 +51,34 @@ func TestUpdateSession(t *testing.T) {
 		t.Errorf("unknown id err = %v, want ErrSessionNotFound", err)
 	}
 
-	// relocate to a non-existent dir → cwd_unavailable (a stale path would
+	// relocate to a non-existent dir → workspace_unavailable (a stale path would
 	// silently break later runs)
 	ghost := "/no/such/dir"
-	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID, Cwd: &ghost}); !errors.Is(err, protocol.ErrCwdUnavailable) {
-		t.Errorf("relocate to ghost err = %v, want ErrCwdUnavailable", err)
+	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{
+		SessionID: created.ID, Workspace: &protocol.WorkspaceRef{Path: ghost},
+	}); !errors.Is(err, protocol.ErrWorkspaceUnavailable) {
+		t.Errorf("relocate to ghost err = %v, want ErrWorkspaceUnavailable", err)
 	}
 
 	// relocate to a real dir → cwd surfaces on the wire
 	newCwd := t.TempDir()
-	out, err = s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID, Cwd: &newCwd})
+	out, err = s.UpdateSession(ctx, protocol.UpdateSessionRequest{
+		SessionID: created.ID, Workspace: &protocol.WorkspaceRef{Path: newCwd},
+	})
 	if err != nil {
 		t.Fatalf("relocate: %v", err)
 	}
-	if out.Cwd != workspacepath.Canonical(newCwd) {
-		t.Errorf("Cwd = %q, want relocated %q", out.Cwd, workspacepath.Canonical(newCwd))
+	if out.Workspace.Ref.Path != workspacepath.Canonical(newCwd) {
+		t.Errorf("workspace = %q, want relocated %q", out.Workspace.Ref.Path, workspacepath.Canonical(newCwd))
 	}
 	releaseSession, ok := rt.admissions.AcquireSession(created.ID)
 	if !ok {
 		t.Fatal("claim active session")
 	}
 	busyCwd := t.TempDir()
-	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID, Cwd: &busyCwd}); !errors.Is(err, protocol.ErrSessionBusy) {
+	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{
+		SessionID: created.ID, Workspace: &protocol.WorkspaceRef{Path: busyCwd},
+	}); !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("relocate under active run = %v, want ErrSessionBusy", err)
 	}
 	releaseSession()
@@ -84,7 +90,7 @@ func TestUpdateSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get session with missing cwd: %v", err)
 	}
-	if !out.CwdMissing || out.ProjectRoot != out.Cwd {
+	if out.Workspace.Availability != protocol.WorkspaceMissing || out.Workspace.ProjectRoot != out.Workspace.Ref.Path {
 		t.Fatalf("missing workspace projection = %+v", out)
 	}
 }
@@ -235,8 +241,8 @@ func TestForkSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fork: %v", err)
 	}
-	if child.Cwd != "/work/proj" {
-		t.Errorf("child cwd = %q, want inherited /work/proj", child.Cwd)
+	if child.Workspace.Ref.Path != "/work/proj" {
+		t.Errorf("child workspace = %q, want inherited /work/proj", child.Workspace.Ref.Path)
 	}
 	if child.Title != "branch A" {
 		t.Errorf("child title = %q, want override 'branch A'", child.Title)

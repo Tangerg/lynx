@@ -96,9 +96,9 @@ func (h *workspaceHub) closeAdmissions() {
 func (h *workspaceHub) observe(src Source[runs.FileChange]) {
 	src.Observe(func(change runs.FileChange) {
 		h.publish(protocol.RuntimeEvent{
-			Type:  protocol.RuntimeFilesChanged,
-			Cwd:   change.Cwd,
-			Paths: change.Paths,
+			Type:      protocol.RuntimeFilesChanged,
+			Workspace: workspaceRefFromPath(change.Cwd),
+			Paths:     change.Paths,
 		})
 	})
 }
@@ -423,7 +423,7 @@ func watchCwds(specs []protocol.WatchSpec, topics map[protocol.RuntimeTopic]bool
 		if slices.Contains(watchIDs, spec.WatchID) {
 			return nil, nil, fmt.Errorf("%w: watchId %q is registered twice", protocol.ErrInvalidParams, spec.WatchID)
 		}
-		cwds = append(cwds, spec.Cwd)
+		cwds = append(cwds, spec.Workspace.Path)
 		watchIDs = append(watchIDs, spec.WatchID)
 	}
 	return cwds, watchIDs, nil

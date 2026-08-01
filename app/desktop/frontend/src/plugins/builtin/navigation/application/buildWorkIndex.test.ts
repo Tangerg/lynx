@@ -21,7 +21,6 @@ function project(
 ): WorkspaceProjectSummary {
   return {
     name: overrides.id,
-    branch: "",
     sessionCount: 0,
     ...overrides,
   };

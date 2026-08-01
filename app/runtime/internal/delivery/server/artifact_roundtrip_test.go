@@ -31,13 +31,13 @@ import (
 // is that the document this build writes is the version the contract named. Bumping
 // it is a breaking act, so it should cost a deliberate edit here.
 func TestArtifactVersionIsTheOneVNextFroze(t *testing.T) {
-	if protocol.SessionArtifactVersion != 7 {
-		t.Fatalf("SessionArtifactVersion = %d; vNext froze the artifact at 7",
+	if protocol.SessionArtifactVersion != 8 {
+		t.Fatalf("SessionArtifactVersion = %d; vNext froze the artifact at 8",
 			protocol.SessionArtifactVersion)
 	}
 }
 
-// TestArtifactV7RoundTripsEveryFieldItCarries is the rest of gate 15.
+// TestArtifactV8RoundTripsEveryFieldItCarries is the rest of gate 15.
 //
 // The failure mode a version bump actually has is a field the encoder writes and
 // the decoder drops — the archive still imports, still looks right, and the value is
@@ -50,7 +50,7 @@ func TestArtifactVersionIsTheOneVNextFroze(t *testing.T) {
 //   - the archive survives the trip WHOLE — export, wipe, import, export again, and
 //     the two documents must be identical byte for byte. Any field the decoder
 //     forgets is missing from the second document.
-func TestArtifactV7RoundTripsEveryFieldItCarries(t *testing.T) {
+func TestArtifactV8RoundTripsEveryFieldItCarries(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	s.features.todos = true // this composition owns the key, so it may restore it
 	ctx := t.Context()
@@ -161,7 +161,7 @@ func TestImportRefusesAChildWhoseRootProfileDisallowsChildren(t *testing.T) {
 	artifact := protocol.SessionArtifact{
 		Version: protocol.SessionArtifactVersion,
 		Session: protocol.ArtifactSession{
-			ID: "ses_tree", Title: "tree", Cwd: t.TempDir(), CreatedAt: at, UpdatedAt: at,
+			ID: "ses_tree", Title: "tree", Workspace: protocol.WorkspaceRef{Path: t.TempDir()}, CreatedAt: at, UpdatedAt: at,
 		},
 		Runs: []protocol.ArtifactRun{
 			{
@@ -198,7 +198,9 @@ func TestImportRefusesAnUnknownRunProtocolFeature(t *testing.T) {
 	}
 	artifact := protocol.SessionArtifact{
 		Version: protocol.SessionArtifactVersion,
-		Session: protocol.ArtifactSession{ID: "ses_unknown_profile", Title: "profile", Cwd: t.TempDir()},
+		Session: protocol.ArtifactSession{
+			ID: "ses_unknown_profile", Title: "profile", Workspace: protocol.WorkspaceRef{Path: t.TempDir()},
+		},
 		Runs: []protocol.ArtifactRun{{
 			ID: "run_root", SessionID: "ses_unknown_profile", ProtocolProfile: &profile,
 			Outcome: protocol.ArtifactOutcome{Type: protocol.ArtifactOutcomeCompleted},
@@ -246,7 +248,7 @@ func assertArtifactFixtureIsComplete(t *testing.T, artifact protocol.SessionArti
 		case populated[field] && excused:
 			t.Errorf("%s is populated AND excused (%q) — one of the two is wrong", field, reason)
 		case !populated[field] && !excused:
-			t.Errorf("%s is part of the v7 document and the round-trip fixture never sets it, "+
+			t.Errorf("%s is part of the v8 document and the round-trip fixture never sets it, "+
 				"so nothing proves it survives an import", field)
 		}
 	}
@@ -323,7 +325,7 @@ func carriesAValue(value reflect.Value) bool {
 	}
 }
 
-// seedMaximalSession writes a session that reaches every corner of the v7 document:
+// seedMaximalSession writes a session that reaches every corner of the v8 document:
 // two runs (one completed with full accounting, one failed with its problem), one
 // item per transcript kind, an offloaded tool body, and a task list.
 func seedMaximalSession(t *testing.T, s *Server, rt *stubRuntime) string {

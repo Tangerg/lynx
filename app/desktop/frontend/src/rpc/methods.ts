@@ -28,16 +28,21 @@ import type {
   FileEntry,
   FileHead,
   ForkSessionRequest,
+  GetDiffRequest,
+  GetFileHeadRequest,
+  GrepRequest,
   GrepResult,
   HooksListResult,
   ImportSessionResponse,
   DiscoverResponse,
   CodebaseReindexResponse,
+  CodebaseSearchRequest,
   CodebaseSearchResult,
   CodebaseStatus,
   EmbeddingRole,
   InvokeToolRequest,
   ListApprovalRulesResult,
+  ListFilesRequest,
   ListItemsResponse,
   McpServer,
   McpServerConfig,
@@ -49,7 +54,6 @@ import type {
   PendingInterruptSet,
   Page,
   PageQuery,
-  Project,
   Provider,
   ProviderTestResult,
   ResumeRunRequest,
@@ -60,6 +64,7 @@ import type {
   RollbackSessionRequest,
   RollbackSessionResponse,
   RunEvent,
+  ReadFileRequest,
   Recipe,
   ItemListScope,
   ItemOrder,
@@ -93,6 +98,9 @@ import type {
   RuntimeEvent,
   RequestMeta,
   WorkspaceFileChange,
+  WorkspaceInfo,
+  WorkspaceRef,
+  WorkspaceSummary,
 } from "./wire.generated";
 import { streamRunEvents, streamRuntimeEvents } from "./stream";
 import {
@@ -209,6 +217,45 @@ function canonicalJSON(value: unknown): string {
     .join(",")}}`;
 }
 
+export interface WorkspaceMethods {
+  /** The immutable resource identity bound to every operation below. */
+  readonly ref: Readonly<WorkspaceRef>;
+  changes: {
+    list: (query?: PageQuery) => Promise<Page<WorkspaceFileChange>>;
+  };
+  diff: {
+    get: (params?: Omit<GetDiffRequest, "workspace">) => Promise<Diff>;
+  };
+  files: {
+    head: (params: Omit<GetFileHeadRequest, "workspace">) => Promise<FileHead>;
+    search: (params: Omit<GrepRequest, "workspace">) => Promise<GrepResult>;
+    list: (params?: Omit<ListFilesRequest, "workspace">) => Promise<Page<FileEntry>>;
+    read: (params: Omit<ReadFileRequest, "workspace">) => Promise<FileContent>;
+  };
+  recipes: {
+    list: (query?: PageQuery) => Promise<Page<Recipe>>;
+  };
+  hooks: {
+    list: () => Promise<HooksListResult>;
+  };
+  skills: {
+    listDiscovered: (query?: PageQuery) => Promise<Page<Skill>>;
+  };
+  agentDocs: {
+    list: (query?: PageQuery) => Promise<Page<AgentDoc>>;
+  };
+  codebase: {
+    search: (params: Omit<CodebaseSearchRequest, "workspace">) => Promise<CodebaseSearchResult>;
+    status: () => Promise<CodebaseStatus>;
+    reindex: () => Promise<CodebaseReindexResponse>;
+  };
+  memory: {
+    list: (query?: PageQuery) => Promise<Page<MemoryEntry>>;
+    get: (scope: MemoryScope) => Promise<MemoryEntry>;
+    update: (params: { scope: MemoryScope; content: string }) => Promise<void>;
+  };
+}
+
 export interface Methods {
   runtime: {
     discover: () => Promise<DiscoverResponse>;
@@ -292,43 +339,14 @@ export interface Methods {
       limit?: number;
     }) => Promise<ListItemsResponse>;
   };
-  workspace: {
-    listFileChanges: (cwd?: string) => Promise<Page<WorkspaceFileChange>>;
-    getDiff: (params?: {
-      cwd?: string;
-      path?: string;
-      mode?: "worktree" | "base"; // default worktree (includes untracked); base = vs default-branch merge-base
-      format?: "rows" | "raw"; // default rows
-      limit?: number; // row cap, truncated at file boundaries
-    }) => Promise<Diff>;
-    getFileHead: (params: { path: string; cwd?: string; lines?: number }) => Promise<FileHead>;
-    grep: (params: {
-      query: string;
-      cwd?: string;
-      path?: string;
-      limit?: number;
-    }) => Promise<GrepResult>;
-    // General directory listing / glob — feeds the file tree + @file.
-    // Respects .gitignore + backstop excludes unless includeIgnored; not gated (basic read).
-    listFiles: (params: {
-      cwd?: string;
-      path?: string; // start dir, relative to cwd (default = cwd root)
-      glob?: string; // e.g. "**/*.go"; implies recursive
-      recursive?: boolean; // default false — one level (lazy tree)
-      includeIgnored?: boolean; // default false
-      cursor?: string;
-      limit?: number;
-    }) => Promise<Page<FileEntry>>;
-    // Full-text file read (B8) — startLine/endLine are 1-based inclusive; truncated self-describes.
-    readFile: (params: {
-      path: string;
-      cwd?: string;
-      startLine?: number;
-      endLine?: number;
-      maxBytes?: number;
-    }) => Promise<FileContent>;
-    listProjects: () => Promise<Page<Project>>;
+  workspaces: {
+    resolve: (ref?: WorkspaceRef) => Promise<WorkspaceInfo>;
+    list: (query?: PageQuery) => Promise<Page<WorkspaceSummary>>;
+    /** Resolve the runtime default when omitted, then bind a scoped client. */
+    open: (ref?: WorkspaceRef) => Promise<WorkspaceMethods>;
   };
+  /** Bind one workspace once; every resource operation inherits its identity. */
+  workspace: (ref: WorkspaceRef) => WorkspaceMethods;
   // The app-wide change-signal channel (§7): lossy "this moved → read it again"
   // events, connection-scoped, no replay. One stream per app; resubscribing IS the
   // resync. `topics` is required — a subscription says what it can fold.
@@ -338,18 +356,9 @@ export interface Methods {
       signal?: AbortSignal,
     ) => Promise<StreamingResult<RuntimeSubscribeResponse, RuntimeEvent>>;
   };
-  // Prompt recipes (§7.5): the parameterized prompt templates discovered for a
-  // cwd (project over global). The client expands a chosen recipe's body and
-  // sends it as a turn — read-only discovery.
-  recipes: {
-    list: (cwd?: string) => Promise<Page<Recipe>>;
-  };
-  // Lifecycle hooks (§7.5): list the hooks discovered for a cwd (global +
-  // project, each marked active = does-it-currently-run) and toggle whether a
-  // project's hooks are trusted to run. A cloned repo's project hooks stay
-  // inert until trusted; the toggle takes effect on the next turn.
+  // Trust changes target the canonical root returned by
+  // workspace(ref).hooks.list(); discovery itself remains workspace-scoped.
   hooks: {
-    list: (cwd?: string) => Promise<HooksListResult>;
     setTrust: (projectRoot: string, trusted: boolean) => Promise<void>;
   };
   // Self-authored skill management (§7.7). listDiscovered is the agent's
@@ -361,16 +370,12 @@ export interface Methods {
   // disabled). promoteDraft/rejectDraft carry the content-addressed ref so a
   // decision acts on the exact revision that was reviewed.
   skills: {
-    listDiscovered: (cwd?: string) => Promise<Page<Skill>>;
     listLibrary: () => Promise<Page<ManagedSkill>>;
     archive: (name: string) => Promise<void>;
     restore: (name: string) => Promise<void>;
     listDrafts: () => Promise<Page<SkillDraft>>;
     promoteDraft: (ref: SkillDraftRef) => Promise<void>;
     rejectDraft: (ref: SkillDraftRef) => Promise<void>;
-  };
-  agentDocs: {
-    list: (cwd?: string) => Promise<Page<AgentDoc>>;
   };
   mcp: {
     // The editable registry (configure/remove/setEnabled) PLUS a best-effort
@@ -410,17 +415,6 @@ export interface Methods {
     getEmbeddingRole: () => Promise<EmbeddingRole>;
     setEmbeddingRole: (params: EmbeddingRole) => Promise<EmbeddingRole>;
   };
-  // The @codebase semantic index (codebase.*): semantic code search, index
-  // status, and a background reindex. Needs a configured embedding role.
-  codebase: {
-    search: (params: {
-      cwd?: string;
-      query: string;
-      limit?: number;
-    }) => Promise<CodebaseSearchResult>;
-    status: (cwd?: string) => Promise<CodebaseStatus>;
-    reindex: (cwd?: string) => Promise<CodebaseReindexResponse>;
-  };
   tools: {
     list: () => Promise<Page<ToolSpec>>;
     invoke: (params: InvokeToolRequest) => Promise<unknown>;
@@ -430,18 +424,16 @@ export interface Methods {
     session: (sessionId: SessionId) => Promise<Usage>;
     summary: (params?: UsageSummaryRequest) => Promise<UsageSummary>;
   };
-  memory: {
-    list: (cwd?: string) => Promise<Page<MemoryEntry>>;
-    get: (scope: MemoryScope, cwd?: string) => Promise<MemoryEntry>;
-    update: (params: { scope: MemoryScope; cwd?: string; content: string }) => Promise<void>;
-  };
   // agentMemory.* (§7.7, capability-gated): the HITL review surface over the
   // agent's self-maintained memory — list active + pending items (pending
   // first), approve/reject a proposal, edit content / pin an item, delete one,
   // or add a user-authored active item. Distinct from `memory` (the LYRA.md
   // cascade). capability_not_negotiated when the store is not wired.
   agentMemory: {
-    list: (params?: { scope?: AgentMemoryScope; cwd?: string }) => Promise<AgentMemoryList>;
+    list: (params?: {
+      scope?: AgentMemoryScope;
+      workspace?: WorkspaceRef;
+    }) => Promise<AgentMemoryList>;
     review: (id: string, decision: "approve" | "reject") => Promise<void>;
     update: (params: {
       id: string;
@@ -451,7 +443,7 @@ export interface Methods {
     delete: (id: string) => Promise<void>;
     add: (params: {
       scope?: AgentMemoryScope;
-      cwd?: string;
+      workspace?: WorkspaceRef;
       content: string;
     }) => Promise<AgentMemoryItem>;
   };
@@ -517,6 +509,50 @@ export interface MethodsOptions {
   requestMeta?: () => RequestMeta | undefined;
 }
 
+function bindWorkspace(call: WireCall, ref: WorkspaceRef): WorkspaceMethods {
+  // Copy and freeze the identity so a caller cannot silently retarget an
+  // already-created resource client by mutating the original object.
+  const workspace = Object.freeze({ path: ref.path });
+
+  return {
+    ref: workspace,
+    changes: {
+      list: (query) => call("workspace.changes.list", { ...query, workspace }),
+    },
+    diff: {
+      get: (params) => call("workspace.diff.get", { ...params, workspace }),
+    },
+    files: {
+      head: (params) => call("workspace.files.head", { ...params, workspace }),
+      search: (params) => call("workspace.files.search", { ...params, workspace }),
+      list: (params) => call("workspace.files.list", { ...params, workspace }),
+      read: (params) => call("workspace.files.read", { ...params, workspace }),
+    },
+    recipes: {
+      list: (query) => call("recipes.list", { ...query, workspace }),
+    },
+    hooks: {
+      list: () => call("hooks.list", { workspace }),
+    },
+    skills: {
+      listDiscovered: (query) => call("skills.discovered.list", { ...query, workspace }),
+    },
+    agentDocs: {
+      list: (query) => call("agentDocs.list", { ...query, workspace }),
+    },
+    codebase: {
+      search: (params) => call("codebase.search", { ...params, workspace }),
+      status: () => call("codebase.status", { workspace }),
+      reindex: () => call("codebase.reindex", { workspace }),
+    },
+    memory: {
+      list: (query) => call("memory.list", { ...query, workspace }),
+      get: (scope) => call("memory.get", { scope, workspace }),
+      update: (params) => call("memory.update", { ...params, workspace }),
+    },
+  };
+}
+
 export function createMethods(client: RpcClient, options: MethodsOptions = {}): Methods {
   const mutations = new MutationAttempts(() => {
     const seconds = options.capabilities?.()?.limits.idempotency.retentionSeconds;
@@ -556,6 +592,13 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       return mutations.call(client, method, params, effectiveOptions);
     }
     return client.call(method, params, effectiveOptions);
+  };
+
+  let defaultWorkspaceRef: Promise<WorkspaceRef> | undefined;
+  const openWorkspace = async (ref?: WorkspaceRef): Promise<WorkspaceMethods> => {
+    if (ref) return bindWorkspace(call, ref);
+    defaultWorkspaceRef ??= call("workspaces.resolve", {}).then((resolved) => resolved.ref);
+    return bindWorkspace(call, await defaultWorkspaceRef);
   };
 
   return {
@@ -637,20 +680,13 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     items: {
       list: (params) => call("items.list", params),
     },
-    workspace: {
-      listFileChanges: (cwd) => call("workspace.listFileChanges", { cwd }),
-      getDiff: (params) => call("workspace.getDiff", params ?? {}),
-      getFileHead: (params) => call("workspace.getFileHead", params),
-      grep: (params) => call("workspace.grep", params),
-      listFiles: (params) => call("workspace.listFiles", params),
-      readFile: (params) => call("workspace.readFile", params),
-      listProjects: () => call("workspace.listProjects", {}),
+    workspaces: {
+      resolve: (ref) => call("workspaces.resolve", ref ? { ref } : {}),
+      list: (query) => call("workspaces.list", query ?? {}),
+      open: openWorkspace,
     },
-    recipes: {
-      list: (cwd) => call("recipes.list", { cwd }),
-    },
+    workspace: (ref) => bindWorkspace(call, ref),
     hooks: {
-      list: (cwd) => call("hooks.list", { cwd }),
       setTrust: (projectRoot, trusted) =>
         call("hooks.setTrust", {
           projectRoot,
@@ -658,16 +694,12 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
         }),
     },
     skills: {
-      listDiscovered: (cwd) => call("skills.discovered.list", { cwd }),
       listLibrary: () => call("skills.library.list", {}),
       archive: (name) => call("skills.library.archive", { name }),
       restore: (name) => call("skills.library.restore", { name }),
       listDrafts: () => call("skills.drafts.list", {}),
       promoteDraft: (ref) => call("skills.drafts.promote", ref),
       rejectDraft: (ref) => call("skills.drafts.reject", ref),
-    },
-    agentDocs: {
-      list: (cwd) => call("agentDocs.list", { cwd }),
     },
     mcp: {
       listConfigs: (query) => call("mcp.configs.list", query ?? {}),
@@ -696,11 +728,6 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       getEmbeddingRole: () => call("models.getEmbeddingRole", {}),
       setEmbeddingRole: (params) => call("models.setEmbeddingRole", params),
     },
-    codebase: {
-      search: (params) => call("codebase.search", params),
-      status: (cwd) => call("codebase.status", { cwd }),
-      reindex: (cwd) => call("codebase.reindex", { cwd }),
-    },
     tools: {
       list: () => call("tools.list", {}),
       invoke: (params) => call("tools.invoke", params),
@@ -708,11 +735,6 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     usage: {
       session: (sessionId) => call("usage.session", { sessionId }),
       summary: (params) => call("usage.summary", params ?? {}),
-    },
-    memory: {
-      list: (cwd) => call("memory.list", { cwd }),
-      get: (scope, cwd) => call("memory.get", { scope, cwd }),
-      update: (params) => call("memory.update", params),
     },
     agentMemory: {
       list: (params) => call("agentMemory.list", params ?? {}),

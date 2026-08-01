@@ -32,42 +32,42 @@ type Schedules interface {
 // ("min hour dom month dow"). lastRunAt is omitted until first fired; nextRunAt
 // is omitted when the schedule is disabled.
 type Schedule struct {
-	ID        string     `json:"id"`
-	Title     string     `json:"title"`
-	Prompt    string     `json:"prompt"`
-	Cwd       string     `json:"cwd,omitempty"`
-	Provider  string     `json:"provider,omitempty"`
-	Model     string     `json:"model,omitempty"`
-	Cron      string     `json:"cron"`
-	Enabled   bool       `json:"enabled"`
-	LastRunAt *time.Time `json:"lastRunAt,omitempty"`
-	NextRunAt *time.Time `json:"nextRunAt,omitempty"`
-	CreatedAt time.Time  `json:"createdAt"`
-	Revision  uint64     `json:"revision"`
+	ID        string        `json:"id"`
+	Title     string        `json:"title"`
+	Prompt    string        `json:"prompt"`
+	Workspace *WorkspaceRef `json:"workspace,omitempty"`
+	Provider  string        `json:"provider,omitempty"`
+	Model     string        `json:"model,omitempty"`
+	Cron      string        `json:"cron"`
+	Enabled   bool          `json:"enabled"`
+	LastRunAt *time.Time    `json:"lastRunAt,omitempty"`
+	NextRunAt *time.Time    `json:"nextRunAt,omitempty"`
+	CreatedAt time.Time     `json:"createdAt"`
+	Revision  uint64        `json:"revision"`
 }
 
 // CreateScheduleRequest — schedules.create body. A new schedule is enabled.
 type CreateScheduleRequest struct {
-	Title    string `json:"title,omitempty"`
-	Prompt   string `json:"prompt"`
-	Cwd      string `json:"cwd,omitempty"`
-	Provider string `json:"provider,omitempty"`
-	Model    string `json:"model,omitempty"`
-	Cron     string `json:"cron"`
+	Title     string        `json:"title,omitempty"`
+	Prompt    string        `json:"prompt"`
+	Workspace *WorkspaceRef `json:"workspace,omitempty"`
+	Provider  string        `json:"provider,omitempty"`
+	Model     string        `json:"model,omitempty"`
+	Cron      string        `json:"cron"`
 }
 
 // UpdateScheduleRequest — schedules.update body (full-replace of the editable
 // fields by id).
 type UpdateScheduleRequest struct {
-	ID               string  `json:"id"`
-	ExpectedRevision uint64  `json:"expectedRevision"`
-	Title            *string `json:"title,omitempty"`
-	Prompt           *string `json:"prompt,omitempty"`
-	Cwd              *string `json:"cwd,omitempty"`
-	Provider         *string `json:"provider,omitempty"`
-	Model            *string `json:"model,omitempty"`
-	Cron             *string `json:"cron,omitempty"`
-	Enabled          *bool   `json:"enabled,omitempty"`
+	ID               string        `json:"id"`
+	ExpectedRevision uint64        `json:"expectedRevision"`
+	Title            *string       `json:"title,omitempty"`
+	Prompt           *string       `json:"prompt,omitempty"`
+	Workspace        *WorkspaceRef `json:"workspace,omitempty"`
+	Provider         *string       `json:"provider,omitempty"`
+	Model            *string       `json:"model,omitempty"`
+	Cron             *string       `json:"cron,omitempty"`
+	Enabled          *bool         `json:"enabled,omitempty"`
 }
 
 // DeleteScheduleRequest — schedules.delete body.

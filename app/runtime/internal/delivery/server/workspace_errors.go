@@ -8,6 +8,28 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
+func workspaceRefPath(ref *protocol.WorkspaceRef) string {
+	if ref == nil {
+		return ""
+	}
+	return ref.Path
+}
+
+func workspaceRefFromPath(path string) *protocol.WorkspaceRef {
+	if path == "" {
+		return nil
+	}
+	return &protocol.WorkspaceRef{Path: path}
+}
+
+func workspacePathPatch(ref *protocol.WorkspaceRef) *string {
+	if ref == nil {
+		return nil
+	}
+	path := ref.Path
+	return &path
+}
+
 // wireWorkspaceError is the sole translation from workspace use-case failures
 // to the JSON-RPC error vocabulary. The application never imports protocol.
 func wireWorkspaceError(err error) error {
@@ -15,7 +37,7 @@ func wireWorkspaceError(err error) error {
 	case err == nil:
 		return nil
 	case errors.Is(err, workspaceapp.ErrCwdUnavailable):
-		return fmt.Errorf("%w: %w", protocol.ErrCwdUnavailable, err)
+		return fmt.Errorf("%w: %w", protocol.ErrWorkspaceUnavailable, err)
 	case errors.Is(err, workspaceapp.ErrPathOutsideRoot):
 		return protocol.ErrPathOutsideRoot
 	case errors.Is(err, workspaceapp.ErrPathRequired),

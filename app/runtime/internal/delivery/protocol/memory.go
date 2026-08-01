@@ -37,13 +37,13 @@ type MemoryEntry struct {
 
 // GetMemoryRequest — memory.get body.
 type GetMemoryRequest struct {
-	Scope MemoryScope `json:"scope"`
-	Cwd   string      `json:"cwd,omitempty"`
+	Scope     MemoryScope   `json:"scope"`
+	Workspace *WorkspaceRef `json:"workspace,omitempty"`
 }
 
 // UpdateMemoryRequest — memory.update body.
 type UpdateMemoryRequest struct {
-	Scope   MemoryScope `json:"scope"`
-	Cwd     string      `json:"cwd,omitempty"`
-	Content string      `json:"content"`
+	Scope     MemoryScope   `json:"scope"`
+	Workspace *WorkspaceRef `json:"workspace,omitempty"`
+	Content   string        `json:"content"`
 }

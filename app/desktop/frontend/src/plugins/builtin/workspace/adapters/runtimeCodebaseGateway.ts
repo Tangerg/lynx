@@ -4,11 +4,18 @@ import type { CodebaseGateway } from "../application/ports/codebaseGateway";
 
 const gateway: CodebaseGateway = {
   async search(input) {
-    const result = await getContainer().client().codebase.search(input);
+    const { cwd, ...query } = input;
+    const workspace = await getContainer()
+      .client()
+      .workspaces.open(cwd ? { path: cwd } : undefined);
+    const result = await workspace.codebase.search(query);
     return result.hits;
   },
   async reindex(cwd) {
-    await getContainer().client().codebase.reindex(cwd);
+    const workspace = await getContainer()
+      .client()
+      .workspaces.open(cwd ? { path: cwd } : undefined);
+    await workspace.codebase.reindex();
   },
 };
 

@@ -19,11 +19,11 @@ type ToolSpec struct {
 	SafetyClass SafetyClass    `json:"safetyClass,omitempty"` // see SafetyClass
 }
 
-// InvokeToolRequest — tools.invoke body (API.md §7.6). Cwd is the admitted
-// workspace root for this direct diagnostic call; filesystem arguments must
-// remain within it.
+// InvokeToolRequest — tools.invoke body (API.md §7.6). Workspace is optional for
+// diagnostics that do not touch files; when present, filesystem arguments must
+// remain within its admitted root.
 type InvokeToolRequest struct {
 	Name      string         `json:"name"`
 	Arguments map[string]any `json:"arguments"`
-	Cwd       string         `json:"cwd,omitempty"`
+	Workspace *WorkspaceRef  `json:"workspace,omitempty"`
 }

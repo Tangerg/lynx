@@ -1,12 +1,12 @@
 {
   "protocol": {
-    "current": "2026-07-27",
-    "minSupported": "2026-07-27"
+    "current": "2026-08-02",
+    "minSupported": "2026-08-02"
   },
   "serverInfo": {
     "name": "lyra",
     "version": "0.1.0",
-    "cwd": "/Users/dev/project",
+    "defaultWorkspace": { "path": "/Users/dev/project" },
     "home": "/Users/dev/.lyra"
   },
   "capabilities": {

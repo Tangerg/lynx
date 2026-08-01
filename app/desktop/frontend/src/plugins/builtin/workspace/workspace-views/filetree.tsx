@@ -12,7 +12,7 @@ import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
 // The workspace file-tree browser (B8/G12). Lazy tree of the active session's
-// cwd; selecting a file swaps to a plain-text viewer (workspace.readFile, capped
+// cwd; selecting a file swaps to a plain-text viewer (workspace.files.read, capped
 // + self-describing-truncated). Not feature-gated — listFiles/readFile are basic
 // reads — but a pre-B8 runtime errors the query, which DataView surfaces.
 
@@ -54,7 +54,7 @@ function ExplorerView() {
           items={roots}
           isLoading={isLoading}
           isError={isError}
-          // A runtime without workspace.listFiles (pre-B8) errors the query —
+          // A runtime without workspace.files.list errors the query —
           // show a calm "unavailable here" state, not the generic load error.
           error={
             isUnsupportedMethod(error)

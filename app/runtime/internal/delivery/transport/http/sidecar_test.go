@@ -15,9 +15,12 @@ import (
 func newProbeServer(t *testing.T, probes ...lyrahttp.HealthProbe) *httptest.Server {
 	t.Helper()
 	srv, err := lyrahttp.NewServer(lyrahttp.Config{
-		Runtime:         &fakeRuntime{},
-		Addr:            ":0",
-		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0", Cwd: "/secret/project", Home: "/secret/home"},
+		Runtime: &fakeRuntime{},
+		Addr:    ":0",
+		ServerInfo: protocol.ServerInfo{
+			Name: "lyra-test", Version: "0.0.0",
+			DefaultWorkspace: protocol.WorkspaceRef{Path: "/secret/project"}, Home: "/secret/home",
+		},
 		ProtocolVersion: testProtocolVersion,
 		HealthProbes:    probes,
 	})

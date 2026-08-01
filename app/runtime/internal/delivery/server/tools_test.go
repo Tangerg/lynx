@@ -63,7 +63,7 @@ func TestInvokeToolPassesJSONArgumentsToRuntime(t *testing.T) {
 	got, err := s.InvokeTool(context.Background(), protocol.InvokeToolRequest{
 		Name:      "read",
 		Arguments: map[string]any{"file_path": "main.go"},
-		Cwd:       "/workspace",
+		Workspace: &protocol.WorkspaceRef{Path: "/workspace"},
 	})
 	if err != nil {
 		t.Fatalf("invoke tool: %v", err)

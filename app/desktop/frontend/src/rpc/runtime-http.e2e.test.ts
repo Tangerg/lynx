@@ -153,7 +153,10 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
     );
     const events = subscription.events[Symbol.asyncIterator]();
 
-    const created = await client.sessions.create({ cwd: root, title: "HTTP contract e2e" });
+    const created = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP contract e2e",
+    });
     const sessionId = asSessionId(created.id);
     expect(created.revision).toBe(1);
     const changed = await nextRuntimeEvent(events, "sessions.changed");

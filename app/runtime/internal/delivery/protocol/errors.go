@@ -236,7 +236,7 @@ const (
 	CodeSessionNotFound        = -32002
 	CodeRunNotFound            = -32003
 	CodeItemNotFound           = -32004
-	CodeCwdUnavailable         = -32005
+	CodeWorkspaceUnavailable   = -32005
 	CodeCapabilityNotNeg       = -32006
 	CodeCheckpointUnavail      = -32009
 	CodeUnsupportedMime        = -32011
@@ -269,7 +269,7 @@ var (
 	ErrSessionNotFound       = errors.New("session_not_found")
 	ErrRunNotFound           = errors.New("run_not_found")
 	ErrItemNotFound          = errors.New("item_not_found")
-	ErrCwdUnavailable        = errors.New("cwd_unavailable")
+	ErrWorkspaceUnavailable  = errors.New("workspace_unavailable")
 	ErrCapabilityNotNeg      = errors.New("capability_not_negotiated")
 	ErrCheckpointUnavailable = errors.New("checkpoint_unavailable")
 	ErrUnsupportedMime       = errors.New("unsupported_mime")

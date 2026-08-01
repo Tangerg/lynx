@@ -38,7 +38,7 @@ func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleR
 	created, err := s.schedules.Create(ctx, scheduleapp.CreateCommand{
 		Title:          in.Title,
 		Prompt:         in.Prompt,
-		Cwd:            in.Cwd,
+		Cwd:            workspaceRefPath(in.Workspace),
 		ModelSelection: selection,
 		Cron:           in.Cron,
 		Enabled:        true,
@@ -59,7 +59,7 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 		Patch: schedule.Patch{
 			Title:    in.Title,
 			Prompt:   in.Prompt,
-			Cwd:      in.Cwd,
+			Cwd:      workspacePathPatch(in.Workspace),
 			Provider: in.Provider,
 			Model:    in.Model,
 			Cron:     in.Cron,
@@ -102,7 +102,7 @@ func mapScheduleErr(err error, method, id string) error {
 		return fmt.Errorf("%w: schedule %q not found", protocol.ErrInvalidParams, id)
 	}
 	if errors.Is(err, schedule.ErrCwdUnavailable) {
-		return fmt.Errorf("%w: %w", protocol.ErrCwdUnavailable, err)
+		return fmt.Errorf("%w: %w", protocol.ErrWorkspaceUnavailable, err)
 	}
 	if errors.Is(err, schedule.ErrRevisionConflict) {
 		return fmt.Errorf("%w: schedule %q changed after it was read", protocol.ErrRevisionConflict, id)
@@ -125,7 +125,7 @@ func scheduleToWire(sc schedule.Schedule) protocol.Schedule {
 		ID:        sc.ID,
 		Title:     sc.Title,
 		Prompt:    sc.Prompt,
-		Cwd:       sc.Cwd,
+		Workspace: workspaceRefFromPath(sc.Cwd),
 		Provider:  sc.ModelSelection.Provider(),
 		Model:     sc.ModelSelection.Model(),
 		Cron:      sc.Cron,

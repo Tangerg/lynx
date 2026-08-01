@@ -1,10 +1,10 @@
 {
-  "version": 6,
+  "version": 8,
   "session": {
     "id": "ses_01",
     "title": "Refactor the runtime protocol",
     "model": "claude-opus-4-8",
-    "cwd": "/Users/dev/project",
+    "workspace": { "path": "/Users/dev/project" },
     "createdAt": "2026-07-07T10:00:00Z",
     "updatedAt": "2026-07-07T10:05:00Z"
   },

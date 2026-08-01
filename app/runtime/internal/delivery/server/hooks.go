@@ -13,7 +13,7 @@ import (
 // (global always; project only when the project is trusted). The client renders
 // this for review + a trust toggle (hooks.list, API.md §7.5).
 func (s *Server) ListHooks(ctx context.Context, in protocol.ListHooksRequest) (*protocol.HooksListResult, error) {
-	insp, err := s.workspaceHooks.InspectHooks(ctx, in.Cwd)
+	insp, err := s.workspaceHooks.InspectHooks(ctx, in.Workspace.Path)
 	if err != nil {
 		return nil, wireWorkspaceError(fmt.Errorf("workspace: inspect hooks: %w", err))
 	}

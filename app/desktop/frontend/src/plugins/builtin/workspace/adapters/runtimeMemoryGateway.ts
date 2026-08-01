@@ -4,7 +4,11 @@ import type { WorkspaceMemoryGateway } from "../application/ports/memoryGateway"
 
 const gateway: WorkspaceMemoryGateway = {
   async save(input) {
-    await getContainer().client().memory.update(input);
+    const { cwd, ...update } = input;
+    const workspace = await getContainer()
+      .client()
+      .workspaces.open(cwd ? { path: cwd } : undefined);
+    await workspace.memory.update(update);
   },
 };
 

@@ -33,14 +33,16 @@ export async function subscribeRuntimeWorkspaceEvents(
 ): Promise<AsyncIterable<RuntimeEvent>> {
   // Watches are legal only alongside files.changed, and only when the runtime offers
   // the capability that produces them.
-  const watches = runtimeCapability("fileWatch")
-    ? [{ watchId: "active-session", ...(cwd ? { cwd } : {}) }]
+  const client = getContainer().client();
+  const workspace = runtimeCapability("fileWatch")
+    ? await client.workspaces.open(cwd ? { path: cwd } : undefined)
     : undefined;
-  const { events } = await getContainer()
-    .client()
-    .runtimeEvents.subscribe(
-      { topics: [...SUBSCRIBED_TOPICS], ...(watches ? { watches } : {}) },
-      signal,
-    );
+  const watches = workspace
+    ? [{ watchId: "active-session", workspace: { path: workspace.ref.path } }]
+    : undefined;
+  const { events } = await client.runtimeEvents.subscribe(
+    { topics: [...SUBSCRIBED_TOPICS], ...(watches ? { watches } : {}) },
+    signal,
+  );
   return events;
 }

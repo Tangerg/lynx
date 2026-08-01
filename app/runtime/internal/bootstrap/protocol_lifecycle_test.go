@@ -45,7 +45,7 @@ func TestProtocolLifecycleSurvivesColdRestart(t *testing.T) {
 		},
 	})
 	session, err := api.CreateSession(ctx, protocol.CreateSessionRequest{
-		Cwd: home, Title: "protocol lifecycle",
+		Workspace: &protocol.WorkspaceRef{Path: home}, Title: "protocol lifecycle",
 	})
 	if err != nil {
 		t.Fatalf("sessions.create: %v", err)
@@ -308,7 +308,8 @@ func protocolServer(stack Stack, cwd string) (*runtimeserver.Server, error) {
 		GitAvailable:       stack.GitAvailable,
 		TodosEnabled:       stack.TodosEnabled,
 		ServerInfo: protocol.ServerInfo{
-			Name: "conformance-test", Version: "0.0.0-test", Cwd: cwd, Home: cwd,
+			Name: "conformance-test", Version: "0.0.0-test",
+			DefaultWorkspace: protocol.WorkspaceRef{Path: cwd}, Home: cwd,
 		},
 	})
 }

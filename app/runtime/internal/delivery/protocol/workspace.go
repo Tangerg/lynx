@@ -3,27 +3,63 @@ package protocol
 import (
 	"context"
 	"iter"
+	"time"
 )
 
-// Workspace is the workspace.* method group (API.md §7.5). Its methods stay
-// limited to the worktree view: VCS, files, search, projects, and its event
-// stream. Independently named wire roots live in their own method groups.
+// Workspace is the workspace.* and workspaces.* method surface. Workspace-scoped
+// methods carry an explicit WorkspaceRef; resolve/list are the discovery roots.
 type Workspace interface {
+	ResolveWorkspace(ctx context.Context, in ResolveWorkspaceRequest) (*WorkspaceInfo, error)
+	ListWorkspaces(ctx context.Context, q PageQuery) (*Page[WorkspaceSummary], error)
 	ListWorkspaceFileChanges(ctx context.Context, in WorkspaceListQuery) (*Page[WorkspaceFileChange], error)
 	GetWorkspaceDiff(ctx context.Context, in GetDiffRequest) (*Diff, error)
 	GetWorkspaceFileHead(ctx context.Context, in GetFileHeadRequest) (*FileHead, error)
 	GrepWorkspace(ctx context.Context, in GrepRequest) (*GrepResult, error)
 	ListWorkspaceFiles(ctx context.Context, in ListFilesRequest) (*Page[FileEntry], error)
 	ReadWorkspaceFile(ctx context.Context, in ReadFileRequest) (*FileContent, error)
-	ListWorkspaceProjects(ctx context.Context, q PageQuery) (*Page[Project], error)
 }
 
-// Runtime-wide change notification (§7). It is not a workspace concern: sessions,
-// runs, goals and waiting sets change with no file involved, and a stream named after
-// the workspace could only carry them by lying about what it was.
+// RuntimeSubscription is the runtime-wide change notification surface. It is
+// separate from workspace scope because sessions, runs, goals, and interrupts may
+// change without a filesystem workspace changing.
 type RuntimeSubscription interface {
-	// SubscribeRuntime opens the change-signal stream for the topics the caller asks
-	// for. Returns an ack + the event sequence, ending when the request ctx ends.
-	// Streaming method (in streamingMethods).
 	SubscribeRuntime(ctx context.Context, in RuntimeSubscribeRequest) (*RuntimeSubscribeResponse, iter.Seq[RuntimeEvent], error)
+}
+
+// WorkspaceRef is the stable wire reference to a filesystem workspace. Path is
+// absolute and server-canonical in responses. Requests pass a reference rather
+// than a loose cwd string so workspace scope has one reusable shape everywhere.
+type WorkspaceRef struct {
+	Path string `json:"path"`
+}
+
+// WorkspaceAvailability is the live filesystem state of an admitted reference.
+type WorkspaceAvailability string
+
+const (
+	WorkspaceAvailable WorkspaceAvailability = "available"
+	WorkspaceMissing   WorkspaceAvailability = "missing"
+)
+
+// WorkspaceInfo is the server-resolved identity of one filesystem workspace.
+// ProjectRoot is the nearest repository root, or Ref.Path outside a repository.
+type WorkspaceInfo struct {
+	Ref          WorkspaceRef          `json:"ref"`
+	ProjectRoot  string                `json:"projectRoot,omitempty"`
+	Availability WorkspaceAvailability `json:"availability"`
+}
+
+// WorkspaceSummary adds the user-facing session catalog facts to a Workspace.
+type WorkspaceSummary struct {
+	Workspace    WorkspaceInfo `json:"workspace"`
+	Name         string        `json:"name"`
+	SessionCount int           `json:"sessionCount"`
+	LastActiveAt *time.Time    `json:"lastActiveAt,omitzero"`
+}
+
+// ResolveWorkspaceRequest resolves Ref, or the runtime's default workspace when
+// Ref is omitted. Omission is allowed only here and on session creation; scoped
+// business requests always carry a concrete WorkspaceRef.
+type ResolveWorkspaceRequest struct {
+	Ref *WorkspaceRef `json:"ref,omitempty"`
 }

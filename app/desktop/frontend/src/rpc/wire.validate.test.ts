@@ -20,7 +20,11 @@ const session = {
   title: "Refactor the runtime protocol",
   status: "idle",
   model: "claude-opus-4-8",
-  cwd: "/Users/dev/project",
+  workspace: {
+    ref: { path: "/Users/dev/project" },
+    projectRoot: "/Users/dev/project",
+    availability: "available",
+  },
   createdAt: "2026-07-07T10:00:00Z",
   updatedAt: "2026-07-07T10:05:00Z",
   revision: 3,
@@ -30,7 +34,7 @@ const artifactSession = {
   id: "ses_01",
   title: "Refactor the runtime protocol",
   model: "claude-opus-4-8",
-  cwd: "/Users/dev/project",
+  workspace: { path: "/Users/dev/project" },
   createdAt: "2026-07-07T10:00:00Z",
   updatedAt: "2026-07-07T10:05:00Z",
 };
@@ -194,7 +198,7 @@ describe("the generated wire checks", () => {
   // one that reads `minLength` with no type keyword beside it.
   it("states a constraint on a field of a shared shape", () => {
     const artifact = {
-      version: 7,
+      version: 8,
       session: artifactSession,
       items: [],
       messages: [],

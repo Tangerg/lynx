@@ -1,5 +1,5 @@
 {
-  "cwd": "/Users/me/project",
+  "workspace": { "path": "/Users/me/project" },
   "path": "src/main.go",
   "mode": "worktree",
   "format": "rows",

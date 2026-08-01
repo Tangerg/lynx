@@ -564,7 +564,7 @@ export const zhTW: Record<string, string> = {
   "diff.error.noBaseline": "無基線分支",
   "diff.error.loadFailed": "無法載入 diff",
   "diff.error.noBaselineSub": "無法解析預設分支（無遠端 / 獨立 HEAD）。",
-  "diff.error.loadFailedSub": "執行時拒絕了 workspace.getDiff —— 請查看診斷資訊。",
+  "diff.error.loadFailedSub": "執行時拒絕了 workspace.diff.get —— 請查看診斷資訊。",
   "file.lines": "{{count}} 行",
   "file.truncated": "已截斷",
   "file.empty.title": "未開啟檔案",
@@ -907,7 +907,7 @@ export const zhTW: Record<string, string> = {
 
   "rpcError.session_busy": "工作階段正忙 —— 請等目前的執行結束。",
   "rpcError.checkpoint_unavailable": "該輪沒有檔案檢查點 —— 未變更任何檔案。",
-  "rpcError.cwd_unavailable": "執行環境磁碟上不存在該路徑。",
+  "rpcError.workspace_unavailable": "執行環境磁碟上不存在該工作區。",
   "rpcError.vcs_unavailable": "該資料夾不是 git 倉庫。",
   "rpcError.rate_limited": "模型供應方正在限流 —— 稍等一下再重試。",
   "rpcError.invalid_api_key": "供應方拒絕了該 API key —— 請在供應方設定裡檢查。",

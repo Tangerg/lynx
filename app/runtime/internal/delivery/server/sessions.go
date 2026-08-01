@@ -20,7 +20,7 @@ func wireSessionErr(err error) error {
 		return fmt.Errorf("%w: title must not be empty", protocol.ErrInvalidParams)
 	}
 	if errors.Is(err, session.ErrCwdUnavailable) {
-		return fmt.Errorf("%w: %w", protocol.ErrCwdUnavailable, err)
+		return fmt.Errorf("%w: %w", protocol.ErrWorkspaceUnavailable, err)
 	}
 	if errors.Is(err, session.ErrRevisionConflict) {
 		return fmt.Errorf("%w: the session changed after it was read", protocol.ErrRevisionConflict)
@@ -53,11 +53,11 @@ func (s *Server) GetSession(ctx context.Context, id string) (*protocol.Session, 
 }
 
 func (s *Server) CreateSession(ctx context.Context, in protocol.CreateSessionRequest) (*protocol.Session, error) {
-	// cwd defaults to the serve directory (ServerInfo.cwd) when the
+	// Workspace defaults to the serve directory when the
 	// client omits it — cold-start zero friction (API.md §7.2 / §0.2).
-	cwd := in.Cwd
-	if cwd == "" {
-		cwd = s.serverInfo.Cwd
+	cwd := s.serverInfo.DefaultWorkspace.Path
+	if in.Workspace != nil {
+		cwd = in.Workspace.Path
 	}
 	view, err := s.sessions.CreateView(ctx, in.Title, cwd)
 	if err != nil {
@@ -88,10 +88,15 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 // fields are left alone; the updated session is returned. The
 // dispatch layer already rejects an empty SessionID.
 func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
+	var cwd *string
+	if in.Workspace != nil {
+		path := in.Workspace.Path
+		cwd = &path
+	}
 	view, err := s.sessions.UpdateView(ctx, in.SessionID, session.Patch{
 		Title:            in.Title,
 		Model:            in.Model,
-		Cwd:              in.Cwd,
+		Cwd:              cwd,
 		Favorite:         in.Favorite,
 		ExpectedRevision: in.ExpectedRevision,
 	})
@@ -136,17 +141,15 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 // or model-default lookup.
 func sessionViewToWire(view sessions.SessionView) protocol.Session {
 	return protocol.Session{
-		ID:          view.ID,
-		Title:       view.Title,
-		Cwd:         view.Cwd,
-		ProjectRoot: view.ProjectRoot,
-		CwdMissing:  view.CwdMissing,
-		Model:       view.Model,
-		Status:      sessionStateToWire(view.State),
-		CreatedAt:   view.CreatedAt,
-		UpdatedAt:   view.UpdatedAt,
-		Favorite:    view.Favorite,
-		Revision:    view.Revision,
+		ID:        view.ID,
+		Title:     view.Title,
+		Workspace: workspaceInfoToWire(view.Cwd, view.ProjectRoot, view.CwdMissing),
+		Model:     view.Model,
+		Status:    sessionStateToWire(view.State),
+		CreatedAt: view.CreatedAt,
+		UpdatedAt: view.UpdatedAt,
+		Favorite:  view.Favorite,
+		Revision:  view.Revision,
 	}
 }
 

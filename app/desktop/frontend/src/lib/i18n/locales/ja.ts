@@ -563,7 +563,7 @@ export const ja: Record<string, string> = {
   "diff.error.noBaselineSub":
     "デフォルトブランチを解決できませんでした（リモートなし / デタッチド HEAD）。",
   "diff.error.loadFailedSub":
-    "ランタイムが workspace.getDiff を拒否しました — 診断を確認してください。",
+    "ランタイムが workspace.diff.get を拒否しました — 診断を確認してください。",
   "diff.empty.title": "比較するものがありません",
   "diff.empty.sub": "ワーキングツリーに未コミットの変更はありません。",
   "diff.binary": "バイナリファイル",
@@ -928,7 +928,7 @@ export const ja: Record<string, string> = {
   "rpcError.session_busy": "セッションは実行中です — 現在の実行が終わるまで待ってください。",
   "rpcError.checkpoint_unavailable":
     "そのターンにはファイルのチェックポイントがありません — 何も変更されていません。",
-  "rpcError.cwd_unavailable": "そのパスはランタイムのディスク上に存在しません。",
+  "rpcError.workspace_unavailable": "そのワークスペースはランタイムのディスク上に存在しません。",
   "rpcError.vcs_unavailable": "このフォルダは git リポジトリではありません。",
   "rpcError.rate_limited":
     "モデルプロバイダがレート制限中です — 少し待ってから再試行してください。",

@@ -557,7 +557,7 @@ export const ko: Record<string, string> = {
   "diff.error.noBaseline": "기준 브랜치 없음",
   "diff.error.loadFailed": "Diff를 불러올 수 없음",
   "diff.error.noBaselineSub": "기본 브랜치를 확인할 수 없습니다 (원격 없음 / 분리된 HEAD).",
-  "diff.error.loadFailedSub": "런타임이 workspace.getDiff를 거부했습니다 — 진단을 확인하세요.",
+  "diff.error.loadFailedSub": "런타임이 workspace.diff.get을 거부했습니다 — 진단을 확인하세요.",
   "diff.empty.title": "비교할 내용 없음",
   "diff.empty.sub": "워킹 트리에 커밋되지 않은 변경 사항이 없습니다.",
   "diff.binary": "바이너리 파일",
@@ -917,7 +917,7 @@ export const ko: Record<string, string> = {
   "rpcError.session_busy": "세션이 실행 중입니다 — 현재 실행이 끝날 때까지 기다리세요.",
   "rpcError.checkpoint_unavailable":
     "해당 턴에는 파일 체크포인트가 없습니다 — 변경된 파일이 없습니다.",
-  "rpcError.cwd_unavailable": "런타임 디스크에 해당 경로가 없습니다.",
+  "rpcError.workspace_unavailable": "런타임 디스크에 해당 작업 공간이 없습니다.",
   "rpcError.vcs_unavailable": "이 폴더는 git 저장소가 아닙니다.",
   "rpcError.rate_limited": "모델 제공자가 요청 속도를 제한하고 있습니다 — 잠시 후 다시 시도하세요.",
   "rpcError.invalid_api_key": "제공자가 API 키를 거부했습니다 — 제공자 설정에서 확인하세요.",

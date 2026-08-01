@@ -18,7 +18,11 @@ const gateway: AgentMemoryGateway = {
   async add(input) {
     await getContainer()
       .client()
-      .agentMemory.add({ scope: input.scope, cwd: input.cwd, content: input.content });
+      .agentMemory.add({
+        scope: input.scope,
+        ...(input.cwd ? { workspace: { path: input.cwd } } : {}),
+        content: input.content,
+      });
   },
 };
 

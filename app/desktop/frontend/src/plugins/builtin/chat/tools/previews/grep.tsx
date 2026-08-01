@@ -1,6 +1,6 @@
 // grep preview — matches from the call's own result (output_mode honors
 // glob/type/context filters a re-query can't reproduce), falling back to the
-// workspace.grep re-query. The query comes off `tool.fn` (search → query, the
+// workspace.files.search re-query. The query comes off `tool.fn` (search → query, the
 // §4.4.2 projection).
 
 import { useT } from "@/lib/i18n";

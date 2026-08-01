@@ -136,14 +136,14 @@ func NewVCS(context *Context, git GitReader) *VCS { return &VCS{context: context
 
 // Discovery owns project, recipe, and instruction-document discovery.
 type Discovery struct {
-	context   *Context
-	projects  ProjectCatalog
-	agentDocs AgentDocFinder
-	recipes   RecipeLister
+	context    *Context
+	workspaces WorkspaceCatalog
+	agentDocs  AgentDocFinder
+	recipes    RecipeLister
 }
 
-func NewDiscovery(context *Context, projects ProjectCatalog, agentDocs AgentDocFinder, recipes RecipeLister) *Discovery {
-	return &Discovery{context: context, projects: projects, agentDocs: agentDocs, recipes: recipes}
+func NewDiscovery(context *Context, workspaces WorkspaceCatalog, agentDocs AgentDocFinder, recipes RecipeLister) *Discovery {
+	return &Discovery{context: context, workspaces: workspaces, agentDocs: agentDocs, recipes: recipes}
 }
 
 // Knowledge owns the human-authored LYRA.md cascade use cases.

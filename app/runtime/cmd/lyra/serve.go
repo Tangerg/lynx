@@ -71,7 +71,7 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 	info := lyrahttp.ServerInfoOrDefault()
 	info.Version = resolvedVersion()
 	if home, err := os.UserHomeDir(); err == nil {
-		info.Cwd = home
+		info.DefaultWorkspace = protocol.WorkspaceRef{Path: home}
 		info.Home = home
 	}
 

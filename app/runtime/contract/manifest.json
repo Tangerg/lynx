@@ -1,7 +1,7 @@
 {
   "protocol": {
-    "current": "2026-07-27",
-    "minSupported": "2026-07-27"
+    "current": "2026-08-02",
+    "minSupported": "2026-08-02"
   },
   "features": [
     "reasoning",
@@ -55,7 +55,7 @@
       "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
-        "cwd_unavailable"
+        "workspace_unavailable"
       ],
       "stability": "stable"
     },
@@ -67,7 +67,7 @@
       "errors": [
         "session_not_found",
         "revision_conflict",
-        "cwd_unavailable",
+        "workspace_unavailable",
         "capability_not_negotiated"
       ],
       "features": [
@@ -275,77 +275,95 @@
       "stability": "stable"
     },
     {
-      "name": "workspace.listFileChanges",
+      "name": "workspaces.resolve",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
       "errors": [
-        "cwd_unavailable",
-        "vcs_unavailable"
+        "workspace_unavailable"
       ],
       "stability": "stable"
     },
     {
-      "name": "workspace.getDiff",
+      "name": "workspaces.list",
+      "kind": "unary",
+      "operation": "query",
+      "idempotency": "none",
+      "stability": "stable"
+    },
+    {
+      "name": "workspace.changes.list",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
       "errors": [
-        "cwd_unavailable",
+        "workspace_unavailable",
         "vcs_unavailable",
-        "path_outside_root"
+        "capability_not_negotiated"
+      ],
+      "features": [
+        "git"
       ],
       "stability": "stable"
     },
     {
-      "name": "workspace.getFileHead",
+      "name": "workspace.diff.get",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
       "errors": [
-        "cwd_unavailable",
-        "path_outside_root"
+        "workspace_unavailable",
+        "vcs_unavailable",
+        "path_outside_root",
+        "capability_not_negotiated"
+      ],
+      "features": [
+        "git"
       ],
       "stability": "stable"
     },
     {
-      "name": "workspace.grep",
+      "name": "workspace.files.head",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
       "errors": [
-        "cwd_unavailable",
+        "workspace_unavailable",
         "path_outside_root"
       ],
       "stability": "stable"
     },
     {
-      "name": "workspace.listFiles",
+      "name": "workspace.files.search",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
       "errors": [
-        "cwd_unavailable",
+        "workspace_unavailable",
         "path_outside_root"
       ],
       "stability": "stable"
     },
     {
-      "name": "workspace.readFile",
+      "name": "workspace.files.list",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
       "errors": [
-        "cwd_unavailable",
+        "workspace_unavailable",
         "path_outside_root"
       ],
       "stability": "stable"
     },
     {
-      "name": "workspace.listProjects",
+      "name": "workspace.files.read",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "errors": [
+        "workspace_unavailable",
+        "path_outside_root"
+      ],
       "stability": "stable"
     },
     {
@@ -367,7 +385,7 @@
       "operation": "query",
       "idempotency": "none",
       "errors": [
-        "cwd_unavailable",
+        "workspace_unavailable",
         "capability_not_negotiated"
       ],
       "features": [
@@ -459,7 +477,7 @@
       "operation": "query",
       "idempotency": "none",
       "errors": [
-        "cwd_unavailable"
+        "workspace_unavailable"
       ],
       "stability": "stable"
     },
@@ -469,7 +487,7 @@
       "operation": "query",
       "idempotency": "none",
       "errors": [
-        "cwd_unavailable"
+        "workspace_unavailable"
       ],
       "stability": "stable"
     },
@@ -596,7 +614,7 @@
       "operation": "query",
       "idempotency": "none",
       "errors": [
-        "cwd_unavailable"
+        "workspace_unavailable"
       ],
       "stability": "stable"
     },
@@ -763,7 +781,7 @@
       "operation": "query",
       "idempotency": "none",
       "errors": [
-        "cwd_unavailable",
+        "workspace_unavailable",
         "capability_not_negotiated"
       ],
       "features": [
@@ -777,7 +795,7 @@
       "operation": "query",
       "idempotency": "none",
       "errors": [
-        "cwd_unavailable",
+        "workspace_unavailable",
         "capability_not_negotiated"
       ],
       "features": [
@@ -791,7 +809,7 @@
       "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
-        "cwd_unavailable",
+        "workspace_unavailable",
         "capability_not_negotiated"
       ],
       "features": [
@@ -868,7 +886,7 @@
       "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
-        "cwd_unavailable",
+        "workspace_unavailable",
         "path_outside_root"
       ],
       "stability": "stable"
@@ -896,7 +914,7 @@
       "operation": "query",
       "idempotency": "none",
       "errors": [
-        "cwd_unavailable",
+        "workspace_unavailable",
         "capability_not_negotiated"
       ],
       "features": [
@@ -910,7 +928,7 @@
       "operation": "query",
       "idempotency": "none",
       "errors": [
-        "cwd_unavailable",
+        "workspace_unavailable",
         "capability_not_negotiated"
       ],
       "features": [
@@ -924,7 +942,7 @@
       "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
-        "cwd_unavailable",
+        "workspace_unavailable",
         "capability_not_negotiated"
       ],
       "features": [
@@ -1071,7 +1089,9 @@
           "skills.library.archive",
           "skills.library.list",
           "skills.library.restore",
-          "todos.get"
+          "todos.get",
+          "workspace.changes.list",
+          "workspace.diff.get"
         ]
       },
       {
@@ -1080,32 +1100,6 @@
         "recoveryAction": "promptUser",
         "methods": [
           "sessions.rollback"
-        ]
-      },
-      {
-        "type": "cwd_unavailable",
-        "code": -32005,
-        "recoveryAction": "promptUser",
-        "methods": [
-          "agentDocs.list",
-          "codebase.reindex",
-          "codebase.search",
-          "codebase.status",
-          "hooks.list",
-          "memory.get",
-          "memory.list",
-          "memory.update",
-          "recipes.list",
-          "sessions.create",
-          "sessions.update",
-          "skills.discovered.list",
-          "tools.invoke",
-          "workspace.getDiff",
-          "workspace.getFileHead",
-          "workspace.grep",
-          "workspace.listFileChanges",
-          "workspace.listFiles",
-          "workspace.readFile"
         ]
       },
       {
@@ -1153,11 +1147,11 @@
         "recoveryAction": "promptUser",
         "methods": [
           "tools.invoke",
-          "workspace.getDiff",
-          "workspace.getFileHead",
-          "workspace.grep",
-          "workspace.listFiles",
-          "workspace.readFile"
+          "workspace.diff.get",
+          "workspace.files.head",
+          "workspace.files.list",
+          "workspace.files.read",
+          "workspace.files.search"
         ]
       },
       {
@@ -1295,8 +1289,35 @@
         "code": -32017,
         "recoveryAction": "promptUser",
         "methods": [
-          "workspace.getDiff",
-          "workspace.listFileChanges"
+          "workspace.changes.list",
+          "workspace.diff.get"
+        ]
+      },
+      {
+        "type": "workspace_unavailable",
+        "code": -32005,
+        "recoveryAction": "promptUser",
+        "methods": [
+          "agentDocs.list",
+          "codebase.reindex",
+          "codebase.search",
+          "codebase.status",
+          "hooks.list",
+          "memory.get",
+          "memory.list",
+          "memory.update",
+          "recipes.list",
+          "sessions.create",
+          "sessions.update",
+          "skills.discovered.list",
+          "tools.invoke",
+          "workspace.changes.list",
+          "workspace.diff.get",
+          "workspace.files.head",
+          "workspace.files.list",
+          "workspace.files.read",
+          "workspace.files.search",
+          "workspaces.resolve"
         ]
       }
     ],
@@ -1326,7 +1347,7 @@
         {
           "when": [
             {
-              "field": "cwd",
+              "field": "workspace",
               "operator": "present"
             }
           ],
@@ -1423,6 +1444,26 @@
           ],
           "requires": [
             "subagents"
+          ]
+        }
+      ]
+    },
+    {
+      "method": "workspace.changes.list",
+      "rules": [
+        {
+          "requires": [
+            "git"
+          ]
+        }
+      ]
+    },
+    {
+      "method": "workspace.diff.get",
+      "rules": [
+        {
+          "requires": [
+            "git"
           ]
         }
       ]
@@ -2414,7 +2455,7 @@
           ],
           "optional": [
             "watchId",
-            "cwd"
+            "workspace"
           ]
         },
         {
@@ -3348,6 +3389,15 @@
       ]
     },
     {
+      "type": "WorkspaceRef",
+      "rules": [
+        {
+          "field": "path",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
       "type": "GetFileHeadRequest",
       "rules": [
         {
@@ -3937,8 +3987,8 @@
       "shape": "Session"
     },
     {
-      "file": "project.json",
-      "shape": "Project"
+      "file": "workspace.json",
+      "shape": "WorkspaceSummary"
     },
     {
       "file": "method.sessions.create.req.json",

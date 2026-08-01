@@ -1,5 +1,5 @@
 // glob preview family — a matched-path list. A glob pattern is not a
-// workspace.grep query and GlobResponse carries the paths inline, so it gets its
+// workspace.files.search query and GlobResponse carries the paths inline, so it gets its
 // own preview rather than riding the grep one.
 
 import { useT } from "@/lib/i18n";

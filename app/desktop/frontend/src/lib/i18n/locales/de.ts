@@ -570,7 +570,7 @@ export const de: Record<string, string> = {
   "diff.error.loadFailed": "Diff konnte nicht geladen werden",
   "diff.error.noBaselineSub":
     "Der Standard-Branch konnte nicht aufgelöst werden (kein Remote / detached HEAD).",
-  "diff.error.loadFailedSub": "Die Runtime hat workspace.getDiff abgelehnt — siehe Diagnose.",
+  "diff.error.loadFailedSub": "Die Runtime hat workspace.diff.get abgelehnt — siehe Diagnose.",
   "diff.empty.title": "Nichts zu vergleichen",
   "diff.empty.sub": "Der Arbeitsbaum hat keine nicht-committeten Änderungen.",
   "diff.binary": "Binärdatei",
@@ -944,7 +944,8 @@ export const de: Record<string, string> = {
   "rpcError.session_busy": "Sitzung ist beschäftigt — warte, bis der laufende Durchlauf endet.",
   "rpcError.checkpoint_unavailable":
     "Kein Datei-Checkpoint für diesen Zug — es wurde nichts geändert.",
-  "rpcError.cwd_unavailable": "Dieser Pfad existiert auf der Festplatte der Runtime nicht.",
+  "rpcError.workspace_unavailable":
+    "Dieser Workspace existiert nicht auf der Festplatte der Runtime.",
   "rpcError.vcs_unavailable": "Dieser Ordner ist kein Git-Repository.",
   "rpcError.rate_limited":
     "Der Modellanbieter begrenzt die Anfragerate — kurz warten, dann erneut versuchen.",

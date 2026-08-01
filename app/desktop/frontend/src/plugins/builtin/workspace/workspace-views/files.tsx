@@ -1,5 +1,5 @@
 // Built-in plugin: "Files" workspace view — the working-tree summary from
-// workspace.listFileChanges (AUX_API §2.2). Selecting a row updates the
+// workspace.changes.list (AUX_API §2.2). Selecting a row updates the
 // shared active-file state and opens the Diff tab.
 
 import { DataView } from "@/ui";

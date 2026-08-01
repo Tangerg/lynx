@@ -8,36 +8,50 @@ import (
 )
 
 func registerWorkspace(r *Registry) {
-	// The git reads are NOT capability-gated: features.git=false tells the client
-	// to hide the panel and not call, and a non-repo cwd is vcs_unavailable — three
-	// distinct answers the contract keeps distinct (AUX_API §2).
 	Query(r, MethodMeta{
-		Name: "workspace.listFileChanges",
+		Name:      "workspaces.resolve",
+		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
+		Stability: stable,
+	}, func(d *Dispatcher, ctx context.Context, in protocol.ResolveWorkspaceRequest) (*protocol.WorkspaceInfo, error) {
+		return d.api.ResolveWorkspace(ctx, in)
+	})
+
+	Query(r, MethodMeta{Name: "workspaces.list", Stability: stable},
+		func(d *Dispatcher, ctx context.Context, in protocol.PageQuery) (*protocol.Page[protocol.WorkspaceSummary], error) {
+			return d.api.ListWorkspaces(ctx, in)
+		})
+
+	// Git reads require the advertised capability. Once negotiated, a path that is
+	// not a repository is the distinct vcs_unavailable domain answer.
+	Query(r, MethodMeta{
+		Name: "workspace.changes.list",
 		Errors: []string{
-			protocol.ErrCwdUnavailable.Error(),
+			protocol.ErrWorkspaceUnavailable.Error(),
 			protocol.ErrVcsUnavailable.Error(),
 		},
-		Stability: stable,
+		CapabilityRules: requires(protocol.FeatureGit),
+		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
 		return d.api.ListWorkspaceFileChanges(ctx, in)
 	})
 
 	Query(r, MethodMeta{
-		Name: "workspace.getDiff",
+		Name: "workspace.diff.get",
 		Errors: []string{
-			protocol.ErrCwdUnavailable.Error(),
+			protocol.ErrWorkspaceUnavailable.Error(),
 			protocol.ErrVcsUnavailable.Error(),
 			protocol.ErrPathOutsideRoot.Error(),
 		},
-		Stability: stable,
+		CapabilityRules: requires(protocol.FeatureGit),
+		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.GetDiffRequest) (*protocol.Diff, error) {
 		return d.api.GetWorkspaceDiff(ctx, in)
 	})
 
 	Query(r, MethodMeta{
-		Name: "workspace.getFileHead",
+		Name: "workspace.files.head",
 		Errors: []string{
-			protocol.ErrCwdUnavailable.Error(),
+			protocol.ErrWorkspaceUnavailable.Error(),
 			protocol.ErrPathOutsideRoot.Error(),
 		},
 		Stability: stable,
@@ -46,9 +60,9 @@ func registerWorkspace(r *Registry) {
 	})
 
 	Query(r, MethodMeta{
-		Name: "workspace.grep",
+		Name: "workspace.files.search",
 		Errors: []string{
-			protocol.ErrCwdUnavailable.Error(),
+			protocol.ErrWorkspaceUnavailable.Error(),
 			protocol.ErrPathOutsideRoot.Error(),
 		},
 		Stability: stable,
@@ -57,9 +71,9 @@ func registerWorkspace(r *Registry) {
 	})
 
 	Query(r, MethodMeta{
-		Name: "workspace.listFiles",
+		Name: "workspace.files.list",
 		Errors: []string{
-			protocol.ErrCwdUnavailable.Error(),
+			protocol.ErrWorkspaceUnavailable.Error(),
 			protocol.ErrPathOutsideRoot.Error(),
 		},
 		Stability: stable,
@@ -68,20 +82,15 @@ func registerWorkspace(r *Registry) {
 	})
 
 	Query(r, MethodMeta{
-		Name: "workspace.readFile",
+		Name: "workspace.files.read",
 		Errors: []string{
-			protocol.ErrCwdUnavailable.Error(),
+			protocol.ErrWorkspaceUnavailable.Error(),
 			protocol.ErrPathOutsideRoot.Error(),
 		},
 		Stability: stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.ReadFileRequest) (*protocol.FileContent, error) {
 		return d.api.ReadWorkspaceFile(ctx, in)
 	})
-
-	Query(r, MethodMeta{Name: "workspace.listProjects", Stability: stable},
-		func(d *Dispatcher, ctx context.Context, in protocol.PageQuery) (*protocol.Page[protocol.Project], error) {
-			return d.api.ListWorkspaceProjects(ctx, in)
-		})
 
 }
 
@@ -108,7 +117,7 @@ func registerRuntimeSubscription(r *Registry) {
 func registerSkills(r *Registry) {
 	Query(r, MethodMeta{
 		Name:            "skills.discovered.list",
-		Errors:          []string{protocol.ErrCwdUnavailable.Error()},
+		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Skill], error) {
@@ -165,7 +174,7 @@ func registerSkills(r *Registry) {
 
 	Query(r, MethodMeta{
 		Name:      "recipes.list",
-		Errors:    []string{protocol.ErrCwdUnavailable.Error()},
+		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Recipe], error) {
 		return d.api.ListRecipes(ctx, in)
@@ -173,7 +182,7 @@ func registerSkills(r *Registry) {
 
 	Query(r, MethodMeta{
 		Name:      "agentDocs.list",
-		Errors:    []string{protocol.ErrCwdUnavailable.Error()},
+		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.AgentDoc], error) {
 		return d.api.ListAgentDocs(ctx, in)
@@ -183,7 +192,7 @@ func registerSkills(r *Registry) {
 func registerHooks(r *Registry) {
 	Query(r, MethodMeta{
 		Name:      "hooks.list",
-		Errors:    []string{protocol.ErrCwdUnavailable.Error()},
+		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.ListHooksRequest) (*protocol.HooksListResult, error) {
 		return d.api.ListHooks(ctx, in)

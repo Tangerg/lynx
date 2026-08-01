@@ -12,7 +12,12 @@ import runtimePlugin from "./index";
 // describe a runtime that does not exist.
 const discovery: DiscoverResponse = {
   protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
-  serverInfo: { name: "lyra-runtime", version: "1.2.3", cwd: "/w", home: "/h" },
+  serverInfo: {
+    name: "lyra-runtime",
+    version: "1.2.3",
+    defaultWorkspace: { path: "/w" },
+    home: "/h",
+  },
   capabilities: {
     features: {},
     runEvents: [],

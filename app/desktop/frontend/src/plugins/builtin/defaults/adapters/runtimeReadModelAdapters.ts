@@ -11,9 +11,9 @@ import type {
 import type {
   McpServer as RpcMCPServer,
   McpServerConfig as RpcMCPServerConfig,
-  Project as RpcProject,
   Session,
   WorkspaceFileChange as RpcFileChange,
+  WorkspaceSummary as RpcWorkspaceSummary,
 } from "@/rpc";
 import { isErrorType } from "@/rpc";
 
@@ -24,9 +24,9 @@ export function toAgentSessionSummary(session: Session): AgentSessionSummary {
     title: session.title,
     status: session.status,
     model: session.model,
-    cwd: session.cwd,
-    cwdMissing: session.cwdMissing,
-    favorite: session.favorite,
+    cwd: session.workspace.ref.path,
+    ...(session.workspace.availability === "missing" ? { cwdMissing: true } : {}),
+    ...(session.favorite !== undefined ? { favorite: session.favorite } : {}),
     time: session.updatedAt || session.createdAt,
   };
 }
@@ -77,13 +77,12 @@ export function toMCPServerSettings(
   };
 }
 
-export function toWorkspaceProjectSummary(project: RpcProject): WorkspaceProjectSummary {
+export function toWorkspaceProjectSummary(summary: RpcWorkspaceSummary): WorkspaceProjectSummary {
   return {
-    id: project.cwd,
-    name: project.name,
-    branch: project.branch ?? "",
-    sessionCount: project.sessionCount,
-    cwdMissing: project.cwdMissing,
+    id: summary.workspace.ref.path,
+    name: summary.name,
+    sessionCount: summary.sessionCount,
+    ...(summary.workspace.availability === "missing" ? { cwdMissing: true } : {}),
   };
 }
 

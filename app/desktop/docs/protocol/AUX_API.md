@@ -1,4 +1,4 @@
-# Lyra Runtime Protocol · 旁路 API（定稿 `2026-07-27`）
+# Lyra Runtime Protocol · 旁路 API（定稿 `2026-08-02`）
 
 > **状态：正式契约（canonical）。** 本文是 [`API.md`](./API.md) 的配套契约，定义 Lyra Runtime 的**旁路面**——不经 LLM 的
 > 辅助能力：git/VCS、失效事件流、会话回退 / 派生 / 归档、MCP 生命周期、审批 scope。与 `API.md` /
@@ -11,7 +11,7 @@
 > **字段级真相在生成物**（`runtime/contract/{schema,openrpc,manifest}.json` 与 `API_REFERENCE.md`，`API.md §14`）。
 > 本文写语义与不变量，不重述字段表。
 >
-> 文内裸 `§x` 指**本文**小节；引 `API.md` 一律写全 `API.md §x.y`。`protocolVersion`：**`2026-07-27`**（与 `API.md` 同）。
+> 文内裸 `§x` 指**本文**小节；引 `API.md` 一律写全 `API.md §x.y`。`protocolVersion`：**`2026-08-02`**（与 `API.md` 同）。
 
 ---
 
@@ -34,7 +34,7 @@
 
 | feature       | 门控                                                                      | 关闭时                                                                  |
 | ------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `git`         | §2 `workspace.listFileChanges` / `getDiff`（git 二进制在 PATH，启动探测）  | 客户端隐藏 VCS 面板、**不发起**这两个调用                               |
+| `git`         | §2 `workspace.changes.list` / `workspace.diff.get`（git 二进制在 PATH，启动探测） | 客户端隐藏 VCS 面板、**不发起**这两个调用                          |
 | `fileWatch`   | §3 `runtime.subscribe` 的 `watches`（git-state 监视）                     | 带 `watches` 订阅 → `capability_not_negotiated`；只订 topic 仍可用      |
 | `checkpoints` | §4.1 `sessions.rollback` 的 `restoreType:"files"\|"both"`（影子 git 快照） | 仅 `restoreType:"history"` 可用                                         |
 | `sessionExport` | §4.3 `sessions.export` / `sessions.import`                              | 两个方法都 `capability_not_negotiated`                                  |
@@ -46,7 +46,7 @@
 
 | `type`                   | 含义                                                                                                   |
 | ------------------------ | ------------------------------------------------------------------------------------------------------ |
-| `vcs_unavailable`        | 有 git 二进制、但目标 cwd 不是 git 仓——与"干净仓 = 空结果"区分，与"无 git = `features.git=false`"区分  |
+| `vcs_unavailable`        | 有 git 二进制、但目标 workspace 不是 git 仓——与"干净仓 = 空结果"区分，与"无 git = `features.git=false`"区分 |
 | `session_busy`           | session 有 run 在飞，拒绝会破坏正在 append 的历史（§4.1）                                              |
 | `checkpoint_unavailable` | `restoreType:"files"\|"both"` 所需快照不可用 / 影子 git 未启用                                          |
 
@@ -56,24 +56,24 @@
 
 ### 2.1 三态回应
 
-`workspace.listFileChanges` / `workspace.getDiff` 读 cwd 的 git 工作区状态，受 `features.git` 门控，并按**三态**
+`workspace.changes.list` / `workspace.diff.get` 读显式 `WorkspaceRef` 的 git 状态，受 `features.git` 门控，并按**三态**
 回应——客户端据此区分，不把三种情形糊成一个错误：
 
-| cwd 情形             | 回应                                             |
+| workspace 情形       | 回应                                             |
 | -------------------- | ------------------------------------------------ |
 | 无 git 二进制        | `features.git=false`——客户端隐藏面板、不发起调用 |
-| 有 git、cwd 非仓     | `vcs_unavailable`                                |
+| 有 git、workspace 非仓 | `vcs_unavailable`                              |
 | 有 git、是仓、无改动 | 成功，空结果（`data: []` / `files: []`）         |
 
-### 2.2 `workspace.listFileChanges`
+### 2.2 `workspace.changes.list`
 
-工作区逐文件改动（VCS 扫描态），返回 `Page<WorkspaceFileChange>`；缺省 cwd = serve 目录。
+工作区逐文件改动（VCS 扫描态），返回 `Page<WorkspaceFileChange>`；`workspace: WorkspaceRef` 必填。
 
 - `status` 用**过去式**词汇（`added` / `modified` / `deleted` / `renamed` / `untracked`），描述"变更后的态"。
 - `previousPath` **仅 `renamed`** 给。
 - `added` / `removed`（±行）在 binary 时**省略**——不伪造 0：0 行变化和"没法数行"是两件事。
 
-### 2.3 `workspace.getDiff`
+### 2.3 `workspace.diff.get`
 
 工作区结构化 / 原始 diff，返回 `Diff`（**sum-type**：`format:"rows"` → `files`、`"raw"` → `patch`，不是同时带两者的
 松对象）。
@@ -82,7 +82,7 @@
   rows 出现）/ `base`（相对默认分支的 merge-base）。
 - **`mode:"base"` 的基线** = `git merge-base HEAD <defaultBranch>`，`defaultBranch` 依次取 `origin/HEAD` → `main` →
   `master`。解析不出基线（无 remote / detached HEAD / 两个候选都不存在）→ **`invalid_params`**：**不**塌成空结果、
-  **不**返 `vcs_unavailable`（后者专指"cwd 非仓"）。让一个无法回答的请求看起来像"没有改动"是最坏的一种回答。
+  **不**返 `vcs_unavailable`（后者专指"workspace 非仓"）。让一个无法回答的请求看起来像"没有改动"是最坏的一种回答。
 - **`path`** 限定单文件 / 子路径，jail 到根，越界 `path_outside_root`。
 - **`limit`** 是行上限，超出置 `truncated:true` 并**在文件边界截断**（不出半截文件，no silent caps）。
 
@@ -98,8 +98,8 @@
 
 - **订阅点名 topic**：`topics` 是闭合集合（`RuntimeTopic`），客户端只收它点过的名。上限在
   `capabilities.limits.runtimeSubscription{maxTopics,maxWatches}` 里公布并被强制执行。
-- **`watches` 是文件监视的附加维度**（`features.fileWatch`）：`watchId` 由客户端起名并在 `files.changed` 上回显，
-  `cwd` 缺省 serve 目录。
+- **`watches` 是文件监视的附加维度**（`features.fileWatch`）：每个 watch 必带客户端命名的 `watchId` 与显式
+  `workspace: WorkspaceRef`，`files.changed` 原样回显二者。
 - **作用域 = 这条流本身**：topic / watch 集随订阅参数走，无独立 `watch` / `unwatch` 方法——**改集合 = 关流重订**。
 - **信号只说"再读一次"**：每条事件带被影响资源的 id（`sessionIds` / `runIds` / `paths` / …），**不带业务数据**。
   客户端收到后调对应读方法重取（`state.changed` 带 `key`，指向该 key 声明的 `recoveryMethod`，`API.md §5.3`）。
@@ -159,7 +159,7 @@ run 粒度、按 `runId` 寻址的三个会话操作：**回退**（就地销毁
 
 ### 4.2 `sessions.fork`
 
-把会话历史复制到一条新会话（快照语义），继承源 cwd。
+把会话历史复制到一条新会话（快照语义），继承源 workspace。
 
 - 省略 `fromRunId` = 整段 fork；给定 = **含 `fromRunId` 在内**截断复制到该 run 边界。
 - **只复制已完结的 run**（in-flight run 不进副本，等价"先 interrupt 再 fork"）——故 fork **无 `session_busy`**，

@@ -26,10 +26,11 @@ type ClientInfo struct {
 
 // ServerInfo identifies the runtime + its serve directory context. The full
 // value is returned by runtime.discover; the public /v2/info sidecar projects
-// only name and version. Cwd/Home seed the client's cold-start directory.
+// only name and version. DefaultWorkspace/Home seed the client's cold-start
+// filesystem context.
 type ServerInfo struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Cwd     string `json:"cwd"`
-	Home    string `json:"home"`
+	Name             string       `json:"name"`
+	Version          string       `json:"version"`
+	DefaultWorkspace WorkspaceRef `json:"defaultWorkspace"`
+	Home             string       `json:"home"`
 }

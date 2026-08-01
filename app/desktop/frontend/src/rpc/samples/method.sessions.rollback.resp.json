@@ -4,7 +4,11 @@
     "title": "Refactor the runtime protocol",
     "status": "idle",
     "model": "claude-opus-4-8",
-    "cwd": "/Users/dev/project",
+    "workspace": {
+      "ref": { "path": "/Users/dev/project" },
+      "projectRoot": "/Users/dev/project",
+      "availability": "available"
+    },
     "createdAt": "2026-07-07T10:00:00Z",
     "updatedAt": "2026-07-07T10:05:00Z",
     "revision": 3

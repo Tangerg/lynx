@@ -178,7 +178,6 @@ export type WireTypeName =
   | "PageOfMemoryEntry"
   | "PageOfModel"
   | "PageOfPendingInterruptSet"
-  | "PageOfProject"
   | "PageOfProvider"
   | "PageOfRecipe"
   | "PageOfRunRef"
@@ -188,12 +187,12 @@ export type WireTypeName =
   | "PageOfSkillDraft"
   | "PageOfToolSpec"
   | "PageOfWorkspaceFileChange"
+  | "PageOfWorkspaceSummary"
   | "PageQuery"
   | "PendingInterruptSet"
   | "PlanStep"
   | "PlanStepStatus"
   | "ProblemData"
-  | "Project"
   | "ProtocolRange"
   | "Provider"
   | "ProviderKeySource"
@@ -209,6 +208,7 @@ export type WireTypeName =
   | "RememberScopeKind"
   | "RemoveMCPServerRequest"
   | "RequestMeta"
+  | "ResolveWorkspaceRequest"
   | "RestoreType"
   | "ResumeRunRequest"
   | "ResumeRunResponse"
@@ -287,8 +287,12 @@ export type WireTypeName =
   | "UtilityRole"
   | "WatchSpec"
   | "WebSearchResult"
+  | "WorkspaceAvailability"
   | "WorkspaceFileChange"
+  | "WorkspaceInfo"
   | "WorkspaceListQuery"
+  | "WorkspaceRef"
+  | "WorkspaceSummary"
   ;
 
 const CHECKS: Record<WireTypeName, WireCheck> = {
@@ -304,8 +308,8 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   AgentDocScope: enumOf(["cwd", "projectRoot", "home"]),
   AgentMemoryAddRequest: object({
     content: allOf([text(), minLength(1)]),
-    cwd: text(),
     scope: ref(() => CHECKS.AgentMemoryScope),
+    workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["content"]),
   AgentMemoryItem: object({
     content: text(),
@@ -326,8 +330,8 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     items: array(ref(() => CHECKS.AgentMemoryItem)),
   }, ["items"]),
   AgentMemoryListRequest: object({
-    cwd: text(),
     scope: ref(() => CHECKS.AgentMemoryScope),
+    workspace: ref(() => CHECKS.WorkspaceRef),
   }, []),
   AgentMemoryOrigin: enumOf(["auto", "user"]),
   AgentMemoryReviewDecision: enumOf(["approve", "reject"]),
@@ -604,13 +608,13 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["activeDurationMs", "steps"]),
   ArtifactSession: object({
     createdAt: text(),
-    cwd: text(),
     favorite: flag(),
     id: text(),
     model: text(),
     title: text(),
     updatedAt: text(),
-  }, ["createdAt", "cwd", "id", "model", "title", "updatedAt"]),
+    workspace: ref(() => CHECKS.WorkspaceRef),
+  }, ["createdAt", "id", "model", "title", "updatedAt", "workspace"]),
   ArtifactState: allOf([
     object({
       todos: array(ref(() => CHECKS.TodoSnapshot)),
@@ -704,16 +708,16 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     startLine: integer(),
   }, ["endLine", "path", "score", "snippet", "startLine"]),
   CodebaseReindexRequest: object({
-    cwd: text(),
-  }, []),
+    workspace: ref(() => CHECKS.WorkspaceRef),
+  }, ["workspace"]),
   CodebaseReindexResponse: object({
     operationId: text(),
   }, ["operationId"]),
   CodebaseSearchRequest: object({
-    cwd: text(),
     limit: integer(),
     query: allOf([text(), minLength(1)]),
-  }, ["query"]),
+    workspace: ref(() => CHECKS.WorkspaceRef),
+  }, ["query", "workspace"]),
   CodebaseSearchResult: object({
     hits: array(ref(() => CHECKS.CodebaseHit)),
   }, ["hits"]),
@@ -728,8 +732,8 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     truncated: flag(),
   }, ["chunkCount", "fileCount", "state"]),
   CodebaseStatusRequest: object({
-    cwd: text(),
-  }, []),
+    workspace: ref(() => CHECKS.WorkspaceRef),
+  }, ["workspace"]),
   ConfigureMCPServerRequest: object({
     args: array(text()),
     authorization: text(),
@@ -773,15 +777,15 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   ContentBlockType: enumOf(["text", "image"]),
   CreateScheduleRequest: object({
     cron: text(),
-    cwd: text(),
     model: text(),
     prompt: text(),
     provider: text(),
     title: text(),
+    workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["cron", "prompt"]),
   CreateSessionRequest: object({
-    cwd: text(),
     title: text(),
+    workspace: ref(() => CHECKS.WorkspaceRef),
   }, []),
   DeleteScheduleRequest: object({
     id: allOf([text(), minLength(1)]),
@@ -927,20 +931,20 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     topP: numeric(),
   }, []),
   GetDiffRequest: object({
-    cwd: text(),
     format: ref(() => CHECKS.DiffFormat),
     limit: integer(),
     mode: ref(() => CHECKS.DiffMode),
     path: text(),
-  }, []),
+    workspace: ref(() => CHECKS.WorkspaceRef),
+  }, ["workspace"]),
   GetFileHeadRequest: object({
-    cwd: text(),
     lines: integer(),
     path: allOf([text(), minLength(1)]),
-  }, ["path"]),
+    workspace: ref(() => CHECKS.WorkspaceRef),
+  }, ["path", "workspace"]),
   GetMemoryRequest: object({
-    cwd: text(),
     scope: ref(() => CHECKS.MemoryScope),
+    workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["scope"]),
   GetRunRequest: object({
     runId: allOf([text(), minLength(1)]),
@@ -983,11 +987,11 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     text: text(),
   }, ["lineNumber", "path", "text"]),
   GrepRequest: object({
-    cwd: text(),
     limit: integer(),
     path: text(),
     query: allOf([text(), minLength(1)]),
-  }, ["query"]),
+    workspace: ref(() => CHECKS.WorkspaceRef),
+  }, ["query", "workspace"]),
   GrepResult: object({
     matches: array(ref(() => CHECKS.GrepMatch)),
     total: integer(),
@@ -1113,8 +1117,8 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   InterruptType: enumOf(["approval", "question", "toolResult"]),
   InvokeToolRequest: object({
     arguments: record(anything()),
-    cwd: text(),
     name: allOf([text(), minLength(1)]),
+    workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["arguments", "name"]),
   Item: allOf([
     object({
@@ -1289,16 +1293,16 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["rules"]),
   ListFilesRequest: object({
     cursor: text(),
-    cwd: text(),
     glob: text(),
     includeIgnored: flag(),
     limit: integer(),
     path: text(),
     recursive: flag(),
-  }, []),
+    workspace: ref(() => CHECKS.WorkspaceRef),
+  }, ["workspace"]),
   ListHooksRequest: object({
-    cwd: text(),
-  }, []),
+    workspace: ref(() => CHECKS.WorkspaceRef),
+  }, ["workspace"]),
   ListInterruptsRequest: object({
     cursor: text(),
     limit: integer(),
@@ -1465,10 +1469,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     data: array(ref(() => CHECKS.PendingInterruptSet)),
     nextCursor: text(),
   }, ["data"]),
-  PageOfProject: object({
-    data: array(ref(() => CHECKS.Project)),
-    nextCursor: text(),
-  }, ["data"]),
   PageOfProvider: object({
     data: array(ref(() => CHECKS.Provider)),
     nextCursor: text(),
@@ -1503,6 +1503,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["data"]),
   PageOfWorkspaceFileChange: object({
     data: array(ref(() => CHECKS.WorkspaceFileChange)),
+    nextCursor: text(),
+  }, ["data"]),
+  PageOfWorkspaceSummary: object({
+    data: array(ref(() => CHECKS.WorkspaceSummary)),
     nextCursor: text(),
   }, ["data"]),
   PageQuery: object({
@@ -1553,15 +1557,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["requiredCapabilities"]),
     ),
   ]),
-  Project: object({
-    branch: text(),
-    cwd: text(),
-    cwdMissing: flag(),
-    lastActiveAt: text(),
-    name: text(),
-    projectRoot: text(),
-    sessionCount: integer(),
-  }, ["cwd", "name", "sessionCount"]),
   ProtocolRange: object({
     current: text(),
     minSupported: text(),
@@ -1612,12 +1607,12 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     preview: text(),
   }, ["label"]),
   ReadFileRequest: object({
-    cwd: text(),
     endLine: integer(),
     maxBytes: integer(),
     path: allOf([text(), minLength(1)]),
     startLine: integer(),
-  }, ["path"]),
+    workspace: ref(() => CHECKS.WorkspaceRef),
+  }, ["path", "workspace"]),
   Recipe: object({
     argumentHint: text(),
     body: text(),
@@ -1638,6 +1633,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     clientCapabilities: ref(() => CHECKS.ClientCapabilities),
     clientInfo: ref(() => CHECKS.ClientInfo),
     protocolVersion: text(),
+  }, []),
+  ResolveWorkspaceRequest: object({
+    ref: ref(() => CHECKS.WorkspaceRef),
   }, []),
   RestoreType: enumOf(["history", "files", "both"]),
   ResumeRunRequest: object({
@@ -1870,7 +1868,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   ]),
   RuntimeEvent: allOf([
     object({
-      cwd: text(),
       key: ref(() => CHECKS.StateSnapshotType),
       names: allOf([array(text()), minItems(1), uniqueItems()]),
       paths: allOf([array(text()), minItems(1), uniqueItems()]),
@@ -1883,6 +1880,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       type: ref(() => CHECKS.RuntimeEventType),
       watchId: text(),
       watchIds: allOf([array(text()), minItems(1), uniqueItems()]),
+      workspace: ref(() => CHECKS.WorkspaceRef),
     }, []),
     oneOf([
       fields({
@@ -1897,7 +1895,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         watchIds: absent(),
       }, ["paths", "sequence", "type"]),
       fields({
-        cwd: absent(),
         key: absent(),
         paths: absent(),
         runIds: absent(),
@@ -1908,9 +1905,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("skills.changed"),
         watchId: absent(),
         watchIds: absent(),
+        workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        cwd: absent(),
         key: absent(),
         names: absent(),
         paths: absent(),
@@ -1921,9 +1918,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("mcp.changed"),
         watchId: absent(),
         watchIds: absent(),
+        workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        cwd: absent(),
         key: absent(),
         names: absent(),
         paths: absent(),
@@ -1934,9 +1931,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("schedules.changed"),
         watchId: absent(),
         watchIds: absent(),
+        workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        cwd: absent(),
         key: absent(),
         names: absent(),
         paths: absent(),
@@ -1947,9 +1944,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("sessions.changed"),
         watchId: absent(),
         watchIds: absent(),
+        workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        cwd: absent(),
         key: absent(),
         names: absent(),
         paths: absent(),
@@ -1959,9 +1956,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("runs.changed"),
         watchId: absent(),
         watchIds: absent(),
+        workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        cwd: absent(),
         names: absent(),
         paths: absent(),
         scheduleIds: absent(),
@@ -1970,9 +1967,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("state.changed"),
         watchId: absent(),
         watchIds: absent(),
+        workspace: absent(),
       }, ["key", "sequence", "type"]),
       fields({
-        cwd: absent(),
         key: absent(),
         names: absent(),
         paths: absent(),
@@ -1983,9 +1980,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("goals.changed"),
         watchId: absent(),
         watchIds: absent(),
+        workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        cwd: absent(),
         key: absent(),
         names: absent(),
         paths: absent(),
@@ -1995,9 +1992,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("interrupts.changed"),
         watchId: absent(),
         watchIds: absent(),
+        workspace: absent(),
       }, ["sequence", "type"]),
       fields({
-        cwd: absent(),
         key: absent(),
         names: absent(),
         paths: absent(),
@@ -2007,6 +2004,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         sessionIds: absent(),
         type: literal("resync"),
         watchId: absent(),
+        workspace: absent(),
       }, ["sequence", "topics", "type"]),
     ]),
   ]),
@@ -2030,7 +2028,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   Schedule: object({
     createdAt: text(),
     cron: text(),
-    cwd: text(),
     enabled: flag(),
     id: text(),
     lastRunAt: text(),
@@ -2040,6 +2037,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     provider: text(),
     revision: allOf([integer(), minimum(0)]),
     title: text(),
+    workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["createdAt", "cron", "enabled", "id", "prompt", "revision", "title"]),
   SearchHit: object({
     lineNumber: integer(),
@@ -2130,24 +2128,22 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     streamingMethods: array(text()),
   }, ["features", "limits", "runEvents", "runtimeTopics", "stateSnapshots", "streamingMethods"]),
   ServerInfo: object({
-    cwd: text(),
+    defaultWorkspace: ref(() => CHECKS.WorkspaceRef),
     home: text(),
     name: text(),
     version: text(),
-  }, ["cwd", "home", "name", "version"]),
+  }, ["defaultWorkspace", "home", "name", "version"]),
   Session: object({
     createdAt: text(),
-    cwd: text(),
-    cwdMissing: flag(),
     favorite: flag(),
     id: text(),
     model: text(),
-    projectRoot: text(),
     revision: allOf([integer(), minimum(0)]),
     status: ref(() => CHECKS.SessionStatus),
     title: text(),
     updatedAt: text(),
-  }, ["createdAt", "cwd", "id", "model", "revision", "status", "title", "updatedAt"]),
+    workspace: ref(() => CHECKS.WorkspaceInfo),
+  }, ["createdAt", "id", "model", "revision", "status", "title", "updatedAt", "workspace"]),
   SessionArtifact: object({
     items: array(ref(() => CHECKS.ArtifactItem)),
     messages: array(anything()),
@@ -2401,12 +2397,11 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["name"]),
   UpdateMemoryRequest: object({
     content: text(),
-    cwd: text(),
     scope: ref(() => CHECKS.MemoryScope),
+    workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["content", "scope"]),
   UpdateScheduleRequest: object({
     cron: text(),
-    cwd: text(),
     enabled: flag(),
     expectedRevision: allOf([integer(), minimum(1)]),
     id: allOf([text(), minLength(1)]),
@@ -2414,14 +2409,15 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     prompt: text(),
     provider: text(),
     title: text(),
+    workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["expectedRevision", "id"]),
   UpdateSessionRequest: object({
-    cwd: text(),
     expectedRevision: allOf([integer(), minimum(1)]),
     favorite: flag(),
     model: text(),
     sessionId: allOf([text(), minLength(1)]),
     title: text(),
+    workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["expectedRevision", "sessionId"]),
   Usage: object({
     byModel: record(ref(() => CHECKS.ModelUsage)),
@@ -2458,15 +2454,16 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     provider: text(),
   }, []),
   WatchSpec: object({
-    cwd: text(),
     watchId: text(),
-  }, ["watchId"]),
+    workspace: ref(() => CHECKS.WorkspaceRef),
+  }, ["watchId", "workspace"]),
   WebSearchResult: object({
     faviconUrl: text(),
     snippet: text(),
     title: text(),
     url: text(),
   }, ["url"]),
+  WorkspaceAvailability: enumOf(["available", "missing"]),
   WorkspaceFileChange: object({
     added: integer(),
     binary: flag(),
@@ -2475,11 +2472,25 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     removed: integer(),
     status: ref(() => CHECKS.FileStatus),
   }, ["path", "status"]),
+  WorkspaceInfo: object({
+    availability: ref(() => CHECKS.WorkspaceAvailability),
+    projectRoot: text(),
+    ref: ref(() => CHECKS.WorkspaceRef),
+  }, ["availability", "ref"]),
   WorkspaceListQuery: object({
     cursor: text(),
-    cwd: text(),
     limit: integer(),
-  }, []),
+    workspace: ref(() => CHECKS.WorkspaceRef),
+  }, ["workspace"]),
+  WorkspaceRef: object({
+    path: allOf([text(), minLength(1)]),
+  }, ["path"]),
+  WorkspaceSummary: object({
+    lastActiveAt: text(),
+    name: text(),
+    sessionCount: integer(),
+    workspace: ref(() => CHECKS.WorkspaceInfo),
+  }, ["name", "sessionCount", "workspace"]),
 };
 
 const METHOD_RESULTS: Record<WireMethodName, WireCheck> = {
@@ -2503,13 +2514,14 @@ const METHOD_RESULTS: Record<WireMethodName, WireCheck> = {
   "interrupts.list": ref(() => CHECKS.PageOfPendingInterruptSet),
   "todos.get": ref(() => CHECKS.StateSnapshot),
   "items.list": ref(() => CHECKS.ListItemsResponse),
-  "workspace.listFileChanges": ref(() => CHECKS.PageOfWorkspaceFileChange),
-  "workspace.getDiff": ref(() => CHECKS.Diff),
-  "workspace.getFileHead": ref(() => CHECKS.FileHead),
-  "workspace.grep": ref(() => CHECKS.GrepResult),
-  "workspace.listFiles": ref(() => CHECKS.PageOfFileEntry),
-  "workspace.readFile": ref(() => CHECKS.FileContent),
-  "workspace.listProjects": ref(() => CHECKS.PageOfProject),
+  "workspaces.resolve": ref(() => CHECKS.WorkspaceInfo),
+  "workspaces.list": ref(() => CHECKS.PageOfWorkspaceSummary),
+  "workspace.changes.list": ref(() => CHECKS.PageOfWorkspaceFileChange),
+  "workspace.diff.get": ref(() => CHECKS.Diff),
+  "workspace.files.head": ref(() => CHECKS.FileHead),
+  "workspace.files.search": ref(() => CHECKS.GrepResult),
+  "workspace.files.list": ref(() => CHECKS.PageOfFileEntry),
+  "workspace.files.read": ref(() => CHECKS.FileContent),
   "runtime.subscribe": ref(() => CHECKS.RuntimeSubscribeResponse),
   "skills.discovered.list": ref(() => CHECKS.PageOfSkill),
   "skills.library.list": ref(() => CHECKS.PageOfManagedSkill),

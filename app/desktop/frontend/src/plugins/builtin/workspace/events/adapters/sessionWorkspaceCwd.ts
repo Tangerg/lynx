@@ -16,7 +16,7 @@ export async function resolveActiveSessionWorkspaceCwd(): Promise<string | undef
   return getContainer()
     .client()
     .sessions.get(asSessionId(id))
-    .then((session) => session.cwd)
+    .then((session) => session.workspace.ref.path)
     .catch(() => undefined);
 }
 

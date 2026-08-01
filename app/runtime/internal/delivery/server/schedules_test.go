@@ -82,7 +82,7 @@ func serverWithSchedules(reg *fakeScheduleRegistry) *Server {
 		Store: reg,
 		Paths: workspacepath.Resolver{},
 	})
-	s.scheduleFiring = schedules.NewFiring(reg, schedules.NewRunLauncher(s.coordinator, s.serverInfo.Cwd, nil))
+	s.scheduleFiring = schedules.NewFiring(reg, schedules.NewRunLauncher(s.coordinator, s.serverInfo.DefaultWorkspace.Path, nil))
 	s.features.schedules = true
 	return s
 }
@@ -93,10 +93,8 @@ func TestCreateScheduleBuildsEnabledDomainSchedule(t *testing.T) {
 	cwd := t.TempDir()
 
 	got, err := s.CreateSchedule(context.Background(), protocol.CreateScheduleRequest{
-		Title:  "Morning",
-		Prompt: "Summarize the repo",
-		Cwd:    cwd,
-		Cron:   "@daily",
+		Title: "Morning", Prompt: "Summarize the repo",
+		Workspace: &protocol.WorkspaceRef{Path: cwd}, Cron: "@daily",
 	})
 	if err != nil {
 		t.Fatalf("create schedule: %v", err)
@@ -121,12 +119,11 @@ func TestCreateScheduleRejectsUnavailableCwd(t *testing.T) {
 	s := serverWithSchedules(reg)
 
 	_, err := s.CreateSchedule(context.Background(), protocol.CreateScheduleRequest{
-		Prompt: "Summarize the repo",
-		Cwd:    t.TempDir() + "/missing",
-		Cron:   "@daily",
+		Prompt:    "Summarize the repo",
+		Workspace: &protocol.WorkspaceRef{Path: t.TempDir() + "/missing"}, Cron: "@daily",
 	})
-	if !errors.Is(err, protocol.ErrCwdUnavailable) {
-		t.Fatalf("create schedule cwd err = %v, want ErrCwdUnavailable", err)
+	if !errors.Is(err, protocol.ErrWorkspaceUnavailable) {
+		t.Fatalf("create schedule workspace err = %v, want ErrWorkspaceUnavailable", err)
 	}
 	if len(reg.created) != 0 {
 		t.Fatalf("created %d schedule(s), want 0", len(reg.created))
@@ -147,7 +144,7 @@ func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 		ExpectedRevision: 1,
 		Title:            valuePtr("Disabled"),
 		Prompt:           valuePtr("Stand down"),
-		Cwd:              valuePtr(cwd),
+		Workspace:        &protocol.WorkspaceRef{Path: cwd},
 		Cron:             valuePtr("@daily"),
 		Enabled:          valuePtr(false),
 	})

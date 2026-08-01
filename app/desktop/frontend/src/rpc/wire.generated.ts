@@ -9,7 +9,7 @@
 // in the generated validator and in schema.json.
 
 // The wire version this runtime serves; a client states it in request metadata.
-export const PROTOCOL_VERSION = "2026-07-27";
+export const PROTOCOL_VERSION = "2026-08-02";
 
 // The methods the runtime sends downstream. A client only ever subscribes.
 export const NOTIFICATIONS_RUN_EVENT = "notifications.run.event";
@@ -35,8 +35,8 @@ export type AgentDocScope = "cwd" | "projectRoot" | "home";
 
 export interface AgentMemoryAddRequest {
   content: string;
-  cwd?: string;
   scope?: AgentMemoryScope;
+  workspace?: WorkspaceRef;
 }
 
 export interface AgentMemoryItem {
@@ -61,8 +61,8 @@ export interface AgentMemoryList {
 }
 
 export interface AgentMemoryListRequest {
-  cwd?: string;
   scope?: AgentMemoryScope;
+  workspace?: WorkspaceRef;
 }
 
 export type AgentMemoryOrigin = "auto" | "user";
@@ -206,12 +206,12 @@ export interface ArtifactRunMetrics {
 
 export interface ArtifactSession {
   createdAt: string;
-  cwd: string;
   favorite?: boolean;
   id: string;
   model: string;
   title: string;
   updatedAt: string;
+  workspace: WorkspaceRef;
 }
 
 export type ArtifactState =
@@ -283,7 +283,7 @@ export interface CodebaseHit {
 }
 
 export interface CodebaseReindexRequest {
-  cwd?: string;
+  workspace: WorkspaceRef;
 }
 
 export interface CodebaseReindexResponse {
@@ -291,9 +291,9 @@ export interface CodebaseReindexResponse {
 }
 
 export interface CodebaseSearchRequest {
-  cwd?: string;
   limit?: number;
   query: string;
+  workspace: WorkspaceRef;
 }
 
 export interface CodebaseSearchResult {
@@ -313,7 +313,7 @@ export interface CodebaseStatus {
 }
 
 export interface CodebaseStatusRequest {
-  cwd?: string;
+  workspace: WorkspaceRef;
 }
 
 export interface ConfigureMCPServerRequest {
@@ -347,16 +347,16 @@ export type ContentBlockType = "text" | "image";
 
 export interface CreateScheduleRequest {
   cron: string;
-  cwd?: string;
   model?: string;
   prompt: string;
   provider?: string;
   title?: string;
+  workspace?: WorkspaceRef;
 }
 
 export interface CreateSessionRequest {
-  cwd?: string;
   title?: string;
+  workspace?: WorkspaceRef;
 }
 
 export interface DeleteScheduleRequest {
@@ -506,22 +506,22 @@ export interface GenerationParams {
 }
 
 export interface GetDiffRequest {
-  cwd?: string;
   format?: DiffFormat;
   limit?: number;
   mode?: DiffMode;
   path?: string;
+  workspace: WorkspaceRef;
 }
 
 export interface GetFileHeadRequest {
-  cwd?: string;
   lines?: number;
   path: string;
+  workspace: WorkspaceRef;
 }
 
 export interface GetMemoryRequest {
-  cwd?: string;
   scope: MemoryScope;
+  workspace?: WorkspaceRef;
 }
 
 export interface GetRunRequest {
@@ -574,10 +574,10 @@ export interface GrepMatch {
 }
 
 export interface GrepRequest {
-  cwd?: string;
   limit?: number;
   path?: string;
   query: string;
+  workspace: WorkspaceRef;
 }
 
 export interface GrepResult {
@@ -647,8 +647,8 @@ export type InterruptType = "approval" | "question" | "toolResult";
 
 export interface InvokeToolRequest {
   arguments: Record<string, unknown>;
-  cwd?: string;
   name: string;
+  workspace?: WorkspaceRef;
 }
 
 export type Item =
@@ -691,16 +691,16 @@ export interface ListApprovalRulesResult {
 
 export interface ListFilesRequest {
   cursor?: string;
-  cwd?: string;
   glob?: string;
   includeIgnored?: boolean;
   limit?: number;
   path?: string;
   recursive?: boolean;
+  workspace: WorkspaceRef;
 }
 
 export interface ListHooksRequest {
-  cwd?: string;
+  workspace: WorkspaceRef;
 }
 
 export interface ListInterruptsRequest {
@@ -866,8 +866,6 @@ export type PageOfModel = Page<Model>;
 
 export type PageOfPendingInterruptSet = Page<PendingInterruptSet>;
 
-export type PageOfProject = Page<Project>;
-
 export type PageOfProvider = Page<Provider>;
 
 export type PageOfRecipe = Page<Recipe>;
@@ -885,6 +883,8 @@ export type PageOfSkillDraft = Page<SkillDraft>;
 export type PageOfToolSpec = Page<ToolSpec>;
 
 export type PageOfWorkspaceFileChange = Page<WorkspaceFileChange>;
+
+export type PageOfWorkspaceSummary = Page<WorkspaceSummary>;
 
 export interface PageQuery {
   cursor?: string;
@@ -914,16 +914,6 @@ export interface ProblemData {
   requiredCapabilities?: CapabilityRequirement[];
   retryAfterSeconds?: number;
   type: string;
-}
-
-export interface Project {
-  branch?: string;
-  cwd: string;
-  cwdMissing?: boolean;
-  lastActiveAt?: string;
-  name: string;
-  projectRoot?: string;
-  sessionCount: number;
 }
 
 export interface ProtocolRange {
@@ -966,11 +956,11 @@ export interface QuestionOption {
 }
 
 export interface ReadFileRequest {
-  cwd?: string;
   endLine?: number;
   maxBytes?: number;
   path: string;
   startLine?: number;
+  workspace: WorkspaceRef;
 }
 
 export interface Recipe {
@@ -998,6 +988,10 @@ export interface RequestMeta {
   clientCapabilities?: ClientCapabilities;
   clientInfo?: ClientInfo;
   protocolVersion?: string;
+}
+
+export interface ResolveWorkspaceRequest {
+  ref?: WorkspaceRef;
 }
 
 export type RestoreType = "history" | "files" | "both";
@@ -1120,7 +1114,7 @@ export interface RunSummary {
 }
 
 export type RuntimeEvent =
-  | { type: "files.changed"; cwd?: string; paths: string[]; sequence: number; watchId?: string }
+  | { type: "files.changed"; paths: string[]; sequence: number; watchId?: string; workspace?: WorkspaceRef }
   | { type: "skills.changed"; names?: string[]; sequence: number }
   | { type: "mcp.changed"; sequence: number; serverIds?: string[] }
   | { type: "schedules.changed"; scheduleIds?: string[]; sequence: number }
@@ -1159,7 +1153,6 @@ export type SafetyClass = "safe" | "write" | "exec" | "network";
 export interface Schedule {
   createdAt: string;
   cron: string;
-  cwd?: string;
   enabled: boolean;
   id: string;
   lastRunAt?: string;
@@ -1169,6 +1162,7 @@ export interface Schedule {
   provider?: string;
   revision: number;
   title: string;
+  workspace?: WorkspaceRef;
 }
 
 export interface SearchHit {
@@ -1198,7 +1192,7 @@ export interface ServerCapabilities {
 }
 
 export interface ServerInfo {
-  cwd: string;
+  defaultWorkspace: WorkspaceRef;
   home: string;
   name: string;
   version: string;
@@ -1206,16 +1200,14 @@ export interface ServerInfo {
 
 export interface Session {
   createdAt: string;
-  cwd: string;
-  cwdMissing?: boolean;
   favorite?: boolean;
   id: string;
   model: string;
-  projectRoot?: string;
   revision: number;
   status: SessionStatus;
   title: string;
   updatedAt: string;
+  workspace: WorkspaceInfo;
 }
 
 export interface SessionArtifact {
@@ -1383,13 +1375,12 @@ export interface ToolSpec {
 
 export interface UpdateMemoryRequest {
   content: string;
-  cwd?: string;
   scope: MemoryScope;
+  workspace?: WorkspaceRef;
 }
 
 export interface UpdateScheduleRequest {
   cron?: string;
-  cwd?: string;
   enabled?: boolean;
   expectedRevision: number;
   id: string;
@@ -1397,15 +1388,16 @@ export interface UpdateScheduleRequest {
   prompt?: string;
   provider?: string;
   title?: string;
+  workspace?: WorkspaceRef;
 }
 
 export interface UpdateSessionRequest {
-  cwd?: string;
   expectedRevision: number;
   favorite?: boolean;
   model?: string;
   sessionId: string;
   title?: string;
+  workspace?: WorkspaceRef;
 }
 
 export interface Usage {
@@ -1448,8 +1440,8 @@ export interface UtilityRole {
 }
 
 export interface WatchSpec {
-  cwd?: string;
   watchId: string;
+  workspace: WorkspaceRef;
 }
 
 export interface WebSearchResult {
@@ -1458,6 +1450,8 @@ export interface WebSearchResult {
   title?: string;
   url: string;
 }
+
+export type WorkspaceAvailability = "available" | "missing";
 
 export interface WorkspaceFileChange {
   added?: number;
@@ -1468,10 +1462,27 @@ export interface WorkspaceFileChange {
   status: FileStatus;
 }
 
+export interface WorkspaceInfo {
+  availability: WorkspaceAvailability;
+  projectRoot?: string;
+  ref: WorkspaceRef;
+}
+
 export interface WorkspaceListQuery {
   cursor?: string;
-  cwd?: string;
   limit?: number;
+  workspace: WorkspaceRef;
+}
+
+export interface WorkspaceRef {
+  path: string;
+}
+
+export interface WorkspaceSummary {
+  lastActiveAt?: string;
+  name: string;
+  sessionCount: number;
+  workspace: WorkspaceInfo;
 }
 
 // The closed value sets, as data: a union type does not exist at runtime.
@@ -1539,6 +1550,7 @@ export const WIRE_ENUMS = {
   StreamEventType: ["segment.started", "segment.progress", "segment.finished", "item.started", "item.delta", "item.completed", "state.snapshot", "custom"],
   SuppressibleRunEventType: ["segment.progress", "item.delta"],
   TodoStatus: ["pending", "in_progress", "completed"],
+  WorkspaceAvailability: ["available", "missing"],
 } as const;
 
 /** Reliability is owned by event type; a frame cannot promote itself. */

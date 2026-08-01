@@ -7,18 +7,21 @@ import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities
 
 const gateway: AgentRuntimeGateway = {
   async createSession(input, signal) {
-    const session = await getContainer().client().sessions.create(input, signal);
+    const session = await getContainer()
+      .client()
+      .sessions.create(input.cwd ? { workspace: { path: input.cwd } } : {}, signal);
     return { id: session.id };
   },
   async deleteSession(sessionId) {
     await getContainer().client().sessions.delete(asSessionId(sessionId));
   },
-  async updateSession({ sessionId, ...patch }) {
+  async updateSession({ sessionId, cwd, ...patch }) {
     const updated = await getContainer()
       .client()
       .sessions.update({
         sessionId: asSessionId(sessionId),
         ...patch,
+        ...(cwd ? { workspace: { path: cwd } } : {}),
       });
     return { revision: updated.revision };
   },

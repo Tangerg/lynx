@@ -73,10 +73,10 @@ type AgentMemoryList struct {
 }
 
 // AgentMemoryListRequest — agentMemory.list body. scope is "project" (default)
-// or "user"; cwd resolves the project for the project scope.
+// or "user"; Workspace resolves the project for the project scope.
 type AgentMemoryListRequest struct {
-	Scope AgentMemoryScope `json:"scope,omitempty"`
-	Cwd   string           `json:"cwd,omitempty"`
+	Scope     AgentMemoryScope `json:"scope,omitempty"`
+	Workspace *WorkspaceRef    `json:"workspace,omitempty"`
 }
 
 // AgentMemoryReviewRequest — agentMemory.review body. decision is
@@ -108,7 +108,7 @@ type AgentMemoryItemRequest struct {
 
 // AgentMemoryAddRequest — agentMemory.add body.
 type AgentMemoryAddRequest struct {
-	Scope   AgentMemoryScope `json:"scope,omitempty"`
-	Cwd     string           `json:"cwd,omitempty"`
-	Content string           `json:"content"`
+	Scope     AgentMemoryScope `json:"scope,omitempty"`
+	Workspace *WorkspaceRef    `json:"workspace,omitempty"`
+	Content   string           `json:"content"`
 }

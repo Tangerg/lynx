@@ -21,6 +21,10 @@ type fakeRuntime struct{ protocol.Runtime }
 func (fakeRuntime) Discover(context.Context) (*protocol.DiscoverResponse, error) {
 	return &protocol.DiscoverResponse{
 		Protocol: protocol.SupportedProtocolRange(),
+		ServerInfo: protocol.ServerInfo{
+			Name: "lyra-test", Version: "0.0.0",
+			DefaultWorkspace: protocol.WorkspaceRef{Path: "/workspace"}, Home: "/home",
+		},
 		Capabilities: protocol.ServerCapabilities{
 			RunEvents:        []protocol.StreamEventType{},
 			RuntimeTopics:    []protocol.RuntimeTopic{},

@@ -82,10 +82,10 @@ type RuntimeSubscribeRequest struct {
 }
 
 // WatchSpec is one file-watch registration. WatchID is client-chosen and echoed on
-// every files.changed it produces; Cwd defaults to the serve directory.
+// every files.changed it produces.
 type WatchSpec struct {
-	WatchID string `json:"watchId"`
-	Cwd     string `json:"cwd,omitempty"`
+	WatchID   string       `json:"watchId"`
+	Workspace WorkspaceRef `json:"workspace"`
 }
 
 // RuntimeSubscribeResponse is the (empty) streaming ack — the first frame of the
@@ -114,9 +114,9 @@ type RuntimeEvent struct {
 	Sequence uint64 `json:"sequence"`
 
 	// files.changed
-	WatchID string   `json:"watchId,omitempty"`
-	Cwd     string   `json:"cwd,omitempty"`
-	Paths   []string `json:"paths,omitempty"`
+	WatchID   string        `json:"watchId,omitempty"`
+	Workspace *WorkspaceRef `json:"workspace,omitempty"`
+	Paths     []string      `json:"paths,omitempty"`
 	// skills.changed
 	Names []string `json:"names,omitempty"`
 	// mcp.changed

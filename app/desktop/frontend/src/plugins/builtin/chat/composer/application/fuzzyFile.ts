@@ -2,7 +2,7 @@
 // matcher (T2.3). Scores higher for hits in the basename, consecutive runs,
 // and segment/word starts, so "cmp" surfaces Composer.tsx above a deep
 // incidental match. Small and dependency-free; the candidate set is the
-// already-bounded workspace.listFiles result.
+// already-bounded workspace.files.list result.
 
 interface Hit {
   path: string;

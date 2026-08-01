@@ -22,13 +22,13 @@ func registerSessions(r *Registry) {
 
 	Command(r, MethodMeta{
 		Name:      "sessions.create",
-		Errors:    []string{protocol.ErrCwdUnavailable.Error()},
+		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.CreateSessionRequest) (*protocol.Session, error) {
 		return d.api.CreateSession(ctx, in)
 	})
 
-	// Setting cwd is a relocate, which is its own capability (API.md §9) — hence a
+	// Setting workspace is a relocate, which is its own capability (API.md §9) — hence a
 	// conditional rule: the rest of sessions.update stays available when relocate
 	// is off, instead of the whole method disappearing.
 	Command(r, MethodMeta{
@@ -36,10 +36,10 @@ func registerSessions(r *Registry) {
 		Errors: []string{
 			protocol.ErrSessionNotFound.Error(),
 			protocol.ErrRevisionConflict.Error(),
-			protocol.ErrCwdUnavailable.Error(),
+			protocol.ErrWorkspaceUnavailable.Error(),
 		},
 		CapabilityRules: []CapabilityRule{{
-			When:     []FieldCondition{{Field: "cwd", Operator: OperatorPresent}},
+			When:     []FieldCondition{{Field: "workspace", Operator: OperatorPresent}},
 			Requires: []string{protocol.FeatureRelocate},
 		}},
 		Stability: stable,

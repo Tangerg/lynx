@@ -11,7 +11,7 @@ import (
 // The entire memory.* group is capability-gated, so an unwired store is a
 // capability error rather than a synthetic empty collection.
 func (s *Server) ListMemory(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.MemoryEntry], error) {
-	entries, err := s.workspaceKnowledge.ListMemoryEntries(ctx, in.Cwd)
+	entries, err := s.workspaceKnowledge.ListMemoryEntries(ctx, in.Workspace.Path)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
@@ -29,7 +29,7 @@ func (s *Server) ListMemory(ctx context.Context, in protocol.WorkspaceListQuery)
 // GetMemory returns one scope's LYRA.md content. Dispatch has already
 // validated the scope (MemoryScope.Valid).
 func (s *Server) GetMemory(ctx context.Context, in protocol.GetMemoryRequest) (*protocol.MemoryEntry, error) {
-	scope, cwd, err := s.memoryTargetFromWire(in.Scope, in.Cwd)
+	scope, cwd, err := s.memoryTargetFromWire(in.Scope, workspaceRefPath(in.Workspace))
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func (s *Server) GetMemory(ctx context.Context, in protocol.GetMemoryRequest) (*
 }
 
 func (s *Server) UpdateMemory(ctx context.Context, in protocol.UpdateMemoryRequest) error {
-	scope, cwd, err := s.memoryTargetFromWire(in.Scope, in.Cwd)
+	scope, cwd, err := s.memoryTargetFromWire(in.Scope, workspaceRefPath(in.Workspace))
 	if err != nil {
 		return err
 	}

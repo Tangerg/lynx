@@ -63,7 +63,7 @@ var rpcErrorSpecs = mustRPCErrorSpecs([]rpcErrorSpec{
 	// declare a capability, or what to do about a conflicting key.
 	{sentinel: protocol.ErrSessionHasActiveRun, code: protocol.CodeSessionHasActiveRun, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
 	{sentinel: protocol.ErrCapabilityNotNeg, code: protocol.CodeCapabilityNotNeg, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
-	{sentinel: protocol.ErrCwdUnavailable, code: protocol.CodeCwdUnavailable, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
+	{sentinel: protocol.ErrWorkspaceUnavailable, code: protocol.CodeWorkspaceUnavailable, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
 	{sentinel: protocol.ErrCheckpointUnavailable, code: protocol.CodeCheckpointUnavail, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
 	{sentinel: protocol.ErrUnsupportedMime, code: protocol.CodeUnsupportedMime, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
 	{sentinel: protocol.ErrPathOutsideRoot, code: protocol.CodePathOutsideRoot, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},

@@ -735,7 +735,7 @@ export const zh: Record<string, string> = {
   "diff.error.noBaseline": "无基线分支",
   "diff.error.loadFailed": "无法加载 diff",
   "diff.error.noBaselineSub": "无法解析默认分支（无远程 / 独立 HEAD）。",
-  "diff.error.loadFailedSub": "运行时拒绝了 workspace.getDiff —— 请查看诊断信息。",
+  "diff.error.loadFailedSub": "运行时拒绝了 workspace.diff.get —— 请查看诊断信息。",
   "file.lines": "{{count}} 行",
   "file.truncated": "已截断",
   "file.empty.title": "未打开文件",
@@ -908,7 +908,7 @@ export const zh: Record<string, string> = {
 
   "rpcError.session_busy": "会话正忙 —— 请等当前运行结束。",
   "rpcError.checkpoint_unavailable": "该轮没有文件检查点 —— 未改动任何文件。",
-  "rpcError.cwd_unavailable": "运行时磁盘上不存在该路径。",
+  "rpcError.workspace_unavailable": "运行时磁盘上不存在该工作区。",
   "rpcError.vcs_unavailable": "该目录不是 git 仓库。",
   "rpcError.rate_limited": "模型提供方正在限流 —— 稍等一下再重试。",
   "rpcError.invalid_api_key": "提供方拒绝了该 API key —— 请在提供方设置里检查。",

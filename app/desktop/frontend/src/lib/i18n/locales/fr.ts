@@ -571,7 +571,7 @@ export const fr: Record<string, string> = {
   "diff.error.loadFailed": "Impossible de charger le diff",
   "diff.error.noBaselineSub":
     "La branche par défaut n'a pas pu être résolue (pas de remote / HEAD détaché).",
-  "diff.error.loadFailedSub": "Le runtime a rejeté workspace.getDiff — voir Diagnostics.",
+  "diff.error.loadFailedSub": "Le runtime a rejeté workspace.diff.get — voir Diagnostics.",
   "diff.empty.title": "Rien à comparer",
   "diff.empty.sub": "L'arbre de travail n'a aucune modification non validée.",
   "diff.binary": "Fichier binaire",
@@ -943,7 +943,7 @@ export const fr: Record<string, string> = {
   "rpcError.session_busy": "La session est occupée — attends la fin de l'exécution en cours.",
   "rpcError.checkpoint_unavailable":
     "Aucun point de restauration de fichiers pour ce tour — rien n'a été modifié.",
-  "rpcError.cwd_unavailable": "Ce chemin n'existe pas sur le disque du runtime.",
+  "rpcError.workspace_unavailable": "Cet espace de travail n'existe pas sur le disque du runtime.",
   "rpcError.vcs_unavailable": "Ce dossier n'est pas un dépôt git.",
   "rpcError.rate_limited":
     "Le fournisseur de modèle limite le débit des requêtes — attends un instant, puis réessaie.",

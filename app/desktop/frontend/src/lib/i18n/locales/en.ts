@@ -839,7 +839,7 @@ export const en: Record<string, string> = {
   "diff.error.loadFailed": "Couldn't load the diff",
   "diff.error.noBaselineSub":
     "The default branch couldn't be resolved (no remote / detached HEAD).",
-  "diff.error.loadFailedSub": "The runtime rejected workspace.getDiff — see Diagnostics.",
+  "diff.error.loadFailedSub": "The runtime rejected workspace.diff.get — see Diagnostics.",
   "file.lines": "{{count}} lines",
   "file.truncated": "truncated",
   "file.empty.title": "No file open",
@@ -970,7 +970,7 @@ export const en: Record<string, string> = {
   "rpcError.stale_segment": "That run has moved on — reload it to see where it stands.",
   "rpcError.session_busy": "Session is busy — wait for the current run to finish.",
   "rpcError.checkpoint_unavailable": "No file checkpoint for that turn — nothing was changed.",
-  "rpcError.cwd_unavailable": "That path does not exist on the runtime's disk.",
+  "rpcError.workspace_unavailable": "That workspace does not exist on the runtime's disk.",
   "rpcError.vcs_unavailable": "This folder isn't a git repository.",
   "rpcError.rate_limited":
     "The model provider is rate-limiting requests — wait a moment, then retry.",

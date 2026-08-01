@@ -71,7 +71,7 @@ func portableArtifactFromWire(art protocol.SessionArtifact) (sessions.PortableSn
 	}
 	return sessions.PortableSnapshot{
 		Session: sessions.PortableSession{
-			ID: art.Session.ID, Title: art.Session.Title, Cwd: art.Session.Cwd, Model: art.Session.Model,
+			ID: art.Session.ID, Title: art.Session.Title, Cwd: art.Session.Workspace.Path, Model: art.Session.Model,
 			CreatedAt: art.Session.CreatedAt, UpdatedAt: art.Session.UpdatedAt, Favorite: art.Session.Favorite,
 		},
 		Messages: messages, Runs: runs, Items: items, ToolResults: toolResults, Todos: todos,

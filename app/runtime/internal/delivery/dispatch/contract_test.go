@@ -169,11 +169,11 @@ func problemType(t *testing.T, resp *transport.Response) string {
 func TestCapabilityGateRefusesADisabledFeature(t *testing.T) {
 	t.Parallel()
 
-	off := call(t, map[string]bool{"memory": false}, "memory.list", `{}`)
+	off := call(t, map[string]bool{"memory": false}, "memory.list", `{"workspace":{"path":"/workspace"}}`)
 	if got := problemType(t, off); got != "capability_not_negotiated" {
 		t.Fatalf("memory.list with the feature off = %q, want capability_not_negotiated", got)
 	}
-	on := call(t, map[string]bool{"memory": true}, "memory.list", `{}`)
+	on := call(t, map[string]bool{"memory": true}, "memory.list", `{"workspace":{"path":"/workspace"}}`)
 	if on.Error != nil {
 		t.Fatalf("memory.list with the feature on: %+v", on.Error)
 	}
@@ -203,7 +203,7 @@ func TestCapabilityGateOnlyBitesTheGatedRequest(t *testing.T) {
 		want:     "",
 	}, {
 		name:   "registering a watch needs fileWatch",
-		method: "runtime.subscribe", params: `{"topics":["files.changed"],"watches":[{"watchId":"w1"}]}`,
+		method: "runtime.subscribe", params: `{"topics":["files.changed"],"watches":[{"watchId":"w1","workspace":{"path":"/workspace"}}]}`,
 		features: map[string]bool{"fileWatch": false},
 		want:     "capability_not_negotiated",
 	}, {

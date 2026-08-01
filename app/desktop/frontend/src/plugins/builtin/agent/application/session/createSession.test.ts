@@ -63,7 +63,7 @@ describe("useCreateSession", () => {
     });
   });
 
-  it("forwards cwd so the session lands in the chosen project directory", async () => {
+  it("wraps the chosen directory in a workspace reference", async () => {
     const create = vi.fn().mockResolvedValue(fakeSession("new-cwd"));
     stubCreate(create);
     const { result } = renderHook(() => useCreateSession(), { wrapper });
@@ -71,7 +71,10 @@ describe("useCreateSession", () => {
     await result.current({ cwd: "/tmp/proj" });
 
     // Second arg is the AbortSignal.timeout guard (CREATE_TIMEOUT_MS).
-    expect(create).toHaveBeenCalledWith({ cwd: "/tmp/proj" }, expect.any(AbortSignal));
+    expect(create).toHaveBeenCalledWith(
+      { workspace: { path: "/tmp/proj" } },
+      expect.any(AbortSignal),
+    );
   });
 
   it("creates an empty draft (no message) for the New button", async () => {

@@ -125,6 +125,7 @@ func registerRunValues(s *Shapes) {
 }
 
 func registerWorkspaceValues(s *Shapes) {
+	nonEmpty[protocol.WorkspaceRef](s, "path")
 	nonEmpty[protocol.GetFileHeadRequest](s, "path")
 	nonEmpty[protocol.ReadFileRequest](s, "path")
 	nonEmpty[protocol.GrepRequest](s, "query")

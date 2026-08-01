@@ -138,8 +138,8 @@ func renderSessionMarkdown(ses protocol.Session, items []transcript.Item) string
 		title = ses.ID
 	}
 	fmt.Fprintf(&b, "# %s\n\n", title)
-	if ses.Cwd != "" {
-		fmt.Fprintf(&b, "- cwd: `%s`\n", ses.Cwd)
+	if ses.Workspace.Ref.Path != "" {
+		fmt.Fprintf(&b, "- workspace: `%s`\n", ses.Workspace.Ref.Path)
 	}
 	if ses.Model != "" {
 		fmt.Fprintf(&b, "- model: `%s`\n", ses.Model)

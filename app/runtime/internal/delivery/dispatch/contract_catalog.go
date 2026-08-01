@@ -63,7 +63,7 @@ func registerCatalog(r *Registry) {
 	Command(r, MethodMeta{
 		Name: "tools.invoke",
 		Errors: []string{
-			protocol.ErrCwdUnavailable.Error(),
+			protocol.ErrWorkspaceUnavailable.Error(),
 			protocol.ErrPathOutsideRoot.Error(),
 		},
 		Stability: stable,
@@ -90,7 +90,7 @@ func registerUsage(r *Registry) {
 func registerMemory(r *Registry) {
 	Query(r, MethodMeta{
 		Name:            "memory.list",
-		Errors:          []string{protocol.ErrCwdUnavailable.Error()},
+		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureMemory),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.MemoryEntry], error) {
@@ -99,7 +99,7 @@ func registerMemory(r *Registry) {
 
 	Query(r, MethodMeta{
 		Name:            "memory.get",
-		Errors:          []string{protocol.ErrCwdUnavailable.Error()},
+		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureMemory),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.GetMemoryRequest) (*protocol.MemoryEntry, error) {
@@ -108,7 +108,7 @@ func registerMemory(r *Registry) {
 
 	CommandAck(r, MethodMeta{
 		Name:            "memory.update",
-		Errors:          []string{protocol.ErrCwdUnavailable.Error()},
+		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureMemory),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.UpdateMemoryRequest) error {

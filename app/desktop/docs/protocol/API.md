@@ -1,4 +1,4 @@
-# Lyra Runtime Protocol（定稿 `2026-07-27`）
+# Lyra Runtime Protocol（定稿 `2026-08-02`）
 
 > **状态：正式契约（canonical）。** 本文是 Lyra 客户端 ↔ Lyra Runtime 的 wire 契约真相源之一。物理传输见同目录
 > [`TRANSPORT.md`](./TRANSPORT.md)，旁路能力见 [`AUX_API.md`](./AUX_API.md)。
@@ -13,14 +13,14 @@
 > **本文写的是生成物写不出来的东西**：语义、不变量、"为什么不能是另一种形状"、以及跨方法的走查。一个事实一个作者
 > —— 本文一旦重述字段表，它就成了第二份会腐烂的真相。
 >
-> `protocolVersion`: **`2026-07-27`**（`minSupported` 同值：本 build 只服务这一个版本，旧版本请求确定性返回
+> `protocolVersion`: **`2026-08-02`**（`minSupported` 同值：本 build 只服务这一个版本，旧版本请求确定性返回
 > `invalid_protocol_version`，见 §12）。
 
 ---
 
 ## 目录
 
-- §0 模型与概念（Session/Run/Item · cwd · R 模型 · Run vs Segment）
+- §0 模型与概念（Workspace/Session/Run/Item · R 模型 · Run vs Segment）
 - §1 Wire 格式（JSON-RPC 2.0 / §1.1 信封规则）
 - §2 命名规范（**一个判别字段 `type`**）
 - §3 Lifecycle（无状态 discovery / 取消 / §3.1 端到端走查 / §3.2 Minimal Profile）
@@ -48,15 +48,18 @@ Lyra Runtime 是一个**本地、领域中立的 agent runtime**。客户端可�
 **"领域中立"是核心设计立场**：协议核心只懂 Session / Run / Item / 通用工具调用这套**通用原语**；"某个工具长什么样、
 该怎么富渲染"是**领域知识**，不焊进 wire（见 §4.4）。换个领域（客服 / 数据分析 / 运营）协议核心一字不改。
 
-### 0.1 三级资源模型
+### 0.1 资源层级模型
 
 ```text
-Session            会话；绑定一个工作目录 cwd                    id: ses_…
-  └─ Run           一次 agent 执行，从用户输入到一个 outcome      id: run_…
-       └─ Item     run 内一个持久化工作单元                       id: item_…
+Workspace          文件、配置发现与执行的显式资源根              ref: {path}
+  └─ Session       会话；绑定一个 WorkspaceInfo                  id: ses_…
+       └─ Run      一次 agent 执行，从用户输入到一个 outcome      id: run_…
+            └─ Item run 内一个持久化工作单元                      id: item_…
 ```
 
-- **Session**：一次对话，绑定 `cwd`。
+- **Workspace**：文件系统资源根。wire 只以 `WorkspaceRef{path}` 寻址，以 `WorkspaceInfo` 回报规范化身份、
+  `projectRoot` 与 `availability`。
+- **Session**：一次对话，绑定一个 `WorkspaceInfo`。
 - **Run**：一次 agent 执行。它有**三个**持久化状态（`RunStatus`）：`running`（在执行）/ `waiting`（停在人身上）/
   `finished`（终结，带 `RunOutcome`）。`waiting` 不是 `finished` 的一种打扮 —— 一个等人回答的 Run 既没有结束、也没有
   在烧钱，把它记成任何一个都会让列表说谎。
@@ -67,14 +70,15 @@ Session            会话；绑定一个工作目录 cwd                    id: 
 历史 `items.list` 返回持久化 Item。**没有独立的 `Message` 资源类型**；"消息"就是 `userMessage`/`agentMessage`
 两种 Item。
 
-### 0.2 工程目录模型（cwd）
+### 0.2 Workspace 资源模型
 
-- `cwd` 是**项目身份 + 文件系统工具根**。`Session.cwd` 建会话时设定，可经 relocate（`sessions.update`，门控
-  `features.relocate`）更新。
-- runtime **不持有连接级的 active project**；workspace 读方法显式收 `cwd?`，缺省 = runtime serve 目录
-  （`ServerInfo.cwd`）。
-- `Project` 是按 `Session.cwd` 分组的**派生视图**：无不透明 id、无 active 标记。
-- `projectRoot` 只是**配置发现根**（向上找到最近含 `.git` 的祖先，找不到回落 cwd），**不取代** cwd 作为身份/工具根。
+- `WorkspaceRef.path` 是**资源身份 + 文件系统工具根**；它是值对象，不是服务端铸造的不透明 id。
+- runtime **不持有连接级 active workspace**。每个作用域方法必带 `workspace: WorkspaceRef`；只有
+  `workspaces.resolve{ref?}` 与创建 Session 时允许省略，省略即使用 `ServerInfo.defaultWorkspace`。
+- `WorkspaceInfo.availability` 显式表达资源根当前是 `available` 还是 `missing`；失联不是另一个布尔字段，也不改变身份。
+- `workspaces.list` 返回按 Session 绑定聚合的 `WorkspaceSummary`；无 active 标记，不制造平行的 Project 资源。
+- `projectRoot` 只是**配置发现根**（向上找到最近含 `.git` 的祖先，找不到回落 workspace path），不取代
+  `WorkspaceRef` 作为身份与工具根。
 
 ### 0.3 HITL 采用 R 模型（分段续跑）
 
@@ -173,7 +177,7 @@ method params。
 ### 2.2 字段与枚举
 
 - 字段名、枚举值一律 **camelCase**。
-- 缩写**白名单**（写死，其余全词）：`id` / `url` / `mime` / `cwd` / `api`（如 `apiKey` / `apiKeyMasked`）。
+- 缩写**白名单**（写死，其余全词）：`id` / `url` / `mime` / `api`（如 `apiKey` / `apiKeyMasked`）。
 - 单位用显式后缀，**后缀集也写死**（新单位先在此登记）：
   - `Usd`（货币）：`maxBudgetUsd` / `inputUsdPerMillionTokens`
   - `Ms`（毫秒）：`activeDurationMs`
@@ -291,17 +295,17 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
 > [`API_REFERENCE.md`](../../../runtime/contract/API_REFERENCE.md)。本节只写生成物表达不了的语义、不变量与
 > "为什么不是另一种形状"。小节编号与生成物里的类型名一一对得上。
 
-### 4.1 Session / Project
+### 4.1 Session / Workspace
 
-`Session` 是会话聚合：身份（`id` / `title` / `createdAt`）、绑定（`cwd` / `projectRoot`）、默认 `model`、
+`Session` 是会话聚合：身份（`id` / `title` / `createdAt`）、绑定（`workspace: WorkspaceInfo`）、默认 `model`、
 派生 `status`（`running|waiting|idle`）与乐观并发的 `revision`。
 
 - **`revision` 是条件写的唯一凭证**：`sessions.update` 必带 `expectedRevision`，过期返回 `revision_conflict`
   （客户端重拉聚合再合并）。没有"最后写赢"的路径。
 - **`status` 是派生的**：它由该会话的 run 推出来（有 running run → `running`；有 waiting run → `waiting`；否则
   `idle`），不是一个可以单独被写坏的字段。
-- **`cwdMissing`**：cwd 在磁盘失联 → 降级纯聊天 + 可 relocate；不是错误态，是一个客户端要显式渲染的事实。
-- `Project` 是按 `cwd` 分组的派生视图（`workspace.listProjects`），无 id、无 active 标记。
+- **`workspace.availability="missing"`**：资源根在磁盘失联 → 降级纯聊天 + 可 relocate；不是错误态，是客户端要显式渲染的事实。
+- `WorkspaceSummary` 是按 `workspace.ref` 分组的派生读模型（`workspaces.list`），不是另一个可写聚合。
 
 ### 4.2 Run（`RunSummary` / `RunRef` 分层）
 
@@ -656,8 +660,8 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
 
 `list` / `get` / `create` / `update` / `delete` / `fork` / `rollback` / `export` / `import`。
 
-- **`create` 的 `cwd` 缺省 = `ServerInfo.cwd`**（冷启动零摩擦，不弹强制选择框），返回规范化后的绝对路径。
-- **`update` 是条件写**：必带 `expectedRevision`（§4.1）。改 `cwd` 需 `features.relocate`。
+- **`create` 的 `workspace` 缺省 = `ServerInfo.defaultWorkspace`**（冷启动零摩擦），返回完整 `WorkspaceInfo`。
+- **`update` 是条件写**：必带 `expectedRevision`（§4.1）。改 `workspace` 需 `features.relocate`。
 - **`fork` 在一个 run 边界切开**：`fromRunId` 之前（含）的历史进新会话，之后的不进。会话级 state 也按同一个边界
   走 —— fork 出来的会话拿到的是**那一刻**的任务清单，不是现在的。
 - **`rollback` 是回退到某个 run 之前**（AUX_API §4.1）：删掉之后的 run、把消息日志截回该 run 的水位、按
@@ -715,11 +719,12 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
 - **`order`** 显式（默认按时间正序）；**页级 `runs: RunSummary[]`** 随每页返回该页 item 所属的 run，客户端因此
   能在拿到第一页时就把树连起来，而不必先把所有页拉完。
 
-### 7.5 workspace.\*
+### 7.5 workspaces.\* / workspace.\*
 
-`listFileChanges` / `getDiff` / `getFileHead` / `grep` / `listFiles` / `readFile` / `listProjects`。全部是显式
-`cwd?` 的读方法（§0.2），路径 jail 到根、越界 `path_outside_root`（§15）。git 相关的两个需 `features.git`；
-有 git 二进制但 cwd 非仓库是 `vcs_unavailable`（与"干净仓 = 空结果"区分）。
+集合根提供 `workspaces.resolve` / `workspaces.list`；单资源根按层级提供
+`workspace.changes.list` / `workspace.diff.get` / `workspace.files.head|search|list|read`。单资源操作全部显式带
+`workspace: WorkspaceRef`（§0.2），路径 jail 到该根、越界 `path_outside_root`（§15）。git 相关读需
+`features.git`；有 git 二进制但 workspace 非仓库是 `vcs_unavailable`（与"干净仓 = 空结果"区分）。
 
 文件事件与工作区失效走 `runtime.subscribe`（§7.8 / AUX_API §3）。
 
@@ -782,7 +787,7 @@ embedding 角色属于运行时配置（§7.6），不是每次检索的参数�
 
 | #   | 落点            | 何时                                                                                       | 怎么投递                                                        | 终止 run？                     |
 | --- | --------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------- | ------------------------------ |
-| a   | RPC error       | 调用本身就错：`session_not_found` / `invalid_params` / `cwd_unavailable` / `capability_not_negotiated` | 该 method 的**同步 JSON-RPC error response**（带 `error.code`） | 调用未起 run                   |
+| a   | RPC error       | 调用本身就错：`session_not_found` / `invalid_params` / `workspace_unavailable` / `capability_not_negotiated` | 该 method 的**同步 JSON-RPC error response**（带 `error.code`） | 调用未起 run                   |
 | b   | run 终态        | run 已起、执行中整体失败                                                                   | 流内 `segment.finished{ outcome:{ type:"error", error } }`       | 是                             |
 | c   | item            | 单个工具失败                                                                               | 对应 `toolCall` item 的 `error` + `status:"incomplete"`          | **否**（agent 多半换方案继续） |
 
@@ -938,7 +943,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 
 ## 12. 版本规则
 
-- `protocolVersion` 是日期串（本定稿 `2026-07-27`），`minSupported` 与之同值：**本 build 只服务一个版本**。
+- `protocolVersion` 是日期串（本定稿 `2026-08-02`），`minSupported` 与之同值：**本 build 只服务一个版本**。
   一个更宽的范围会宣称一次代码并不执行的协商。
 - 版本不兼容以 request 级 `invalid_protocol_version` 返回（带上本 build 服务的范围），**不存在连接级硬断开**。
 - **加什么不用 bump**：加 method / 加可选响应字段 / 加 `features` map key / 加开放枚举值 → 同版本号。
@@ -946,7 +951,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
   exhaustive switch，§2.3）、加 state key、改语义 / 删字段 / 改字段类型。
 - **判据不是"加还是改"，而是"老客户端会不会做错事"**。这条规则由 CI 强制：compatibility differ 拿本次产物与
   上一版基线对比，判定 breaking 就要求同批 bump（§14）。
-- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **7**）：一份归档可能被一个更新的
+- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **8**）：一份归档可能被一个更新的
   runtime 读到。不认识的版本确定性拒绝，**dev 阶段不写 migration**。
 - HTTP URL 里的 `/v2/`（wire major epoch）与日期 `protocolVersion`（epoch 内请求版本）是两个层级
   （见 TRANSPORT §6.1）。
@@ -960,7 +965,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 - JSON-RPC batch。
 - stdio transport。
 - 客户端自选的业务资源 id。
-- 多根 workspace（`Session.cwd` 单根）。
+- 单个 Session 绑定多个 workspace（`Session.workspace` 始终单根）。
 - **强类型领域工具变体**（`commandExecution`/`fileChange`/… 作为 wire 一等类型）——核心领域中立，富渲染走客户端
   展示注册表（§4.4）。
 - **本轮不做子 Run 的行为**：`features.subagents` 恒 false，不产出 child run。血缘字段、`suspended` 段终态、
@@ -990,16 +995,16 @@ capability 规则在 dispatcher / discovery / SDK preflight 三方等价；schem
 每条 system invariant 有跨 projection fixture；TS 产物可编译且**都有消费者**；canonical 样本三方通过（含一个不
 参与生产的 JSON Schema 验证器）；list query fixture；**protocol manifest / canonical 文档 / 代码 / canonical 样本
 版本一致**；错误 type↔code 单一源；每个 state key 有 typed 事件、冷读、scope、writer 与 revision 策略；
-Artifact v7 round-trip；compatibility differ 判定 breaking 并要求同批 bump（§12）。
+Artifact v8 round-trip；compatibility differ 判定 breaking 并要求同批 bump（§12）。
 
 ---
 
 ## 15. 安全不变量汇总
 
-- **路径 containment**：fs 工具路径相对 `cwd`，越界 → `path_outside_root`。
+- **路径 containment**：fs 工具路径相对 `WorkspaceRef.path`，越界 → `path_outside_root`。
 - **provider secret**：只回 `apiKeyMasked`，永不可逆推（§4.9）。
 - **协议层零鉴权**：无 user / account 概念；本地进程门禁由 transport 层处理（TRANSPORT §11）。
-- **cwd 是会话身份不是传输上下文**：走 body 不走带外 directory header（TRANSPORT §2）。
+- **workspace 是业务身份不是传输上下文**：`WorkspaceRef` 走 body，不走带外 directory header（TRANSPORT §2）。
 - **防挂死**：server 不产出 client 解不了的 open interrupt（§6.2）。
 - **归档不越权**：import 在任何写入之前拒绝它无法完整还原的文档（未广告的 state key、带血缘的 run 树、
   不认识的版本）。
@@ -1017,7 +1022,7 @@ Artifact v7 round-trip；compatibility differ 判定 breaking 并要求同批 bu
    `metrics` 与 `outcome` 分家（§4.2）。
 5. **HITL = R 模型**：interrupt 收尾当前**段**、`runs.resume` 在同一 Run 上续段；所有 interrupt payload
    **自包含**（§6 / §4.8）。
-6. **元数据带外、业务进 params**：cwd/sessionId/runId 进 params；trace/版本/token/游标走带外（TRANSPORT §2）。
+6. **元数据带外、业务进 params**：workspace/sessionId/runId 进 params；trace/版本/token/游标走带外（TRANSPORT §2）。
 7. **能力开放可加、但闭合集合加成员要 bump**：`features` 是开放 map；闭合 union / 枚举 / state key 加成员是
    breaking（§2.3 / §12）。
 8. **discovery 只说做得到的事**：每个 topic 有生产者、每个 state key 有 writer 与冷读、每个数字被强制执行（§9）。
@@ -1046,7 +1051,7 @@ Artifact v7 round-trip；compatibility differ 判定 breaking 并要求同批 bu
 
 ## 附录 C · 已落地扩展说明
 
-### C.1 · `workspace.listFiles` / `workspace.readFile`（基础读，不门控）
+### C.1 · `workspace.files.list` / `workspace.files.read`（基础读，不门控）
 
 `listFiles` 是 gitignore-aware 的目录读（repo 用 `git ls-files --cached --others --exclude-standard`，非 repo 走
 兜底 walk + 排除 `.git`/`node_modules` 等），支持 `path` / `recursive` / `glob` / `includeIgnored` / 分页；每项的

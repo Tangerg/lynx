@@ -8,27 +8,52 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-// ListWorkspaceProjects projects the application-owned distinct-workspace view
-// derived from user-facing sessions.
-func (s *Server) ListWorkspaceProjects(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Project], error) {
-	projects, err := s.workspaceDiscovery.ListProjects(ctx)
+// ResolveWorkspace projects the application's current filesystem identity onto
+// the canonical wire resource.
+func (s *Server) ResolveWorkspace(_ context.Context, in protocol.ResolveWorkspaceRequest) (*protocol.WorkspaceInfo, error) {
+	path := ""
+	if in.Ref != nil {
+		path = in.Ref.Path
+	}
+	resolved, err := s.workspaceDiscovery.ResolveWorkspace(path)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
-	out := make([]protocol.Project, 0, len(projects))
-	for _, project := range projects {
-		lastActiveAt := project.LastActiveAt
-		out = append(out, protocol.Project{
-			Name: project.Name, Cwd: project.Cwd, ProjectRoot: project.ProjectRoot, CwdMissing: project.CwdMissing,
-			SessionCount: project.SessionCount, LastActiveAt: &lastActiveAt,
+	out := workspaceInfoToWire(resolved.Path, resolved.ProjectRoot, resolved.Missing)
+	return &out, nil
+}
+
+// ListWorkspaces projects the application-owned distinct-workspace view
+// derived from user-facing sessions.
+func (s *Server) ListWorkspaces(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.WorkspaceSummary], error) {
+	workspaces, err := s.workspaceDiscovery.ListWorkspaces(ctx)
+	if err != nil {
+		return nil, wireWorkspaceError(err)
+	}
+	out := make([]protocol.WorkspaceSummary, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		lastActiveAt := workspace.LastActiveAt
+		out = append(out, protocol.WorkspaceSummary{
+			Workspace: workspaceInfoToWire(workspace.Path, workspace.ProjectRoot, workspace.Missing),
+			Name:      workspace.Name, SessionCount: workspace.SessionCount, LastActiveAt: &lastActiveAt,
 		})
 	}
 	return protocol.NewPage(out), nil
 }
 
+func workspaceInfoToWire(path, projectRoot string, missing bool) protocol.WorkspaceInfo {
+	availability := protocol.WorkspaceAvailable
+	if missing {
+		availability = protocol.WorkspaceMissing
+	}
+	return protocol.WorkspaceInfo{
+		Ref: protocol.WorkspaceRef{Path: path}, ProjectRoot: projectRoot, Availability: availability,
+	}
+}
+
 // ListDiscoveredSkills maps application skill discovery to the protocol shape.
 func (s *Server) ListDiscoveredSkills(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Skill], error) {
-	found, err := s.workspaceSkills.ListSkills(ctx, in.Cwd)
+	found, err := s.workspaceSkills.ListSkills(ctx, in.Workspace.Path)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
@@ -45,7 +70,7 @@ func (s *Server) ListDiscoveredSkills(ctx context.Context, in protocol.Workspace
 
 // ListRecipes maps application recipe discovery to the protocol shape.
 func (s *Server) ListRecipes(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Recipe], error) {
-	found, err := s.workspaceDiscovery.ListRecipes(ctx, in.Cwd)
+	found, err := s.workspaceDiscovery.ListRecipes(ctx, in.Workspace.Path)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
@@ -66,7 +91,7 @@ func (s *Server) ListRecipes(ctx context.Context, in protocol.WorkspaceListQuery
 // ListAgentDocs maps the application-owned instruction-document
 // cascade onto the protocol shape.
 func (s *Server) ListAgentDocs(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.AgentDoc], error) {
-	docs, err := s.workspaceDiscovery.ListAgentDocs(ctx, in.Cwd)
+	docs, err := s.workspaceDiscovery.ListAgentDocs(ctx, in.Workspace.Path)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}

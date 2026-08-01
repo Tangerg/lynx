@@ -1,5 +1,5 @@
 // @file autocomplete (T2.3): detect an `@token` at the caret, fuzzy-match it
-// against the workspace file list (workspace.listFiles, recursive), and let the
+// against the workspace file list (workspace.files.list, recursive), and let the
 // user pick a path that's spliced back into the composer text. The picker owns
 // ↑/↓/Enter/Tab/Esc while open (Composer routes keydowns here before its normal
 // keymap). The file list is fetched lazily (only once a mention opens) and

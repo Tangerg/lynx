@@ -8,7 +8,7 @@ function scheduleInput(input: ScheduleConfigInput): CreateScheduleRequest {
   return {
     title: input.title,
     prompt: input.prompt,
-    cwd: input.cwd,
+    workspace: { path: input.cwd },
     cron: input.cron,
   };
 }

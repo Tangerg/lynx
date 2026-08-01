@@ -75,7 +75,9 @@ describe("smoke: v2 end-to-end happy path", () => {
     respondSuccess(transport, discoverReq.id, discoverResponse);
     const discovery = await discoverPromise;
     expect(discovery.protocol.current).toBe(PROTOCOL_VERSION);
-    expect(discovery.serverInfo.cwd).toBe(discoverResponse.serverInfo.cwd);
+    expect(discovery.serverInfo.defaultWorkspace).toEqual(
+      discoverResponse.serverInfo.defaultWorkspace,
+    );
     expect(discovery.capabilities.features.reasoning?.enabled).toBe(true);
 
     // ---- Step 2: sessions.create ------------------------------------------
@@ -90,14 +92,18 @@ describe("smoke: v2 end-to-end happy path", () => {
       title: "smoke",
       status: "idle",
       model: "claude",
-      cwd: "/work",
+      workspace: {
+        ref: { path: "/work" },
+        projectRoot: "/work",
+        availability: "available",
+      },
       createdAt: "2026-06-03T00:00:00Z",
       updatedAt: "2026-06-03T00:00:00Z",
       revision: 1,
     });
     const session = await createPromise;
     expect(session.id).toBe("ses_1");
-    expect(session.cwd).toBe("/work");
+    expect(session.workspace.ref.path).toBe("/work");
 
     // ---- Step 3: runs.start -----------------------------------------------
     const startPromise = methods.runs.start({

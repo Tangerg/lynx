@@ -570,7 +570,7 @@ export const es: Record<string, string> = {
   "diff.error.loadFailed": "No se pudo cargar el diff",
   "diff.error.noBaselineSub":
     "No se pudo resolver la rama predeterminada (sin remoto / HEAD separado).",
-  "diff.error.loadFailedSub": "El runtime rechazó workspace.getDiff — consulta Diagnóstico.",
+  "diff.error.loadFailedSub": "El runtime rechazó workspace.diff.get — consulta Diagnóstico.",
   "diff.empty.title": "Nada que comparar",
   "diff.empty.sub": "El árbol de trabajo no tiene cambios sin confirmar.",
   "diff.binary": "Archivo binario",
@@ -937,7 +937,7 @@ export const es: Record<string, string> = {
   "rpcError.session_busy": "La sesión está ocupada — espera a que termine la ejecución actual.",
   "rpcError.checkpoint_unavailable":
     "No hay punto de restauración de archivos para ese turno — no se cambió nada.",
-  "rpcError.cwd_unavailable": "Esa ruta no existe en el disco del runtime.",
+  "rpcError.workspace_unavailable": "Ese espacio de trabajo no existe en el disco del runtime.",
   "rpcError.vcs_unavailable": "Esta carpeta no es un repositorio git.",
   "rpcError.rate_limited":
     "El proveedor del modelo está limitando la tasa de peticiones — espera un momento y reintenta.",

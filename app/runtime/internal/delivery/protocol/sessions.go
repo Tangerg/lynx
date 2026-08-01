@@ -15,31 +15,17 @@ const (
 	SessionStatusIdle    SessionStatus = "idle"
 )
 
-// Session is one conversation, bound to a working directory (API.md §4.1).
+// Session is one conversation, bound to a resolved workspace (API.md §4.1).
 type Session struct {
-	ID          string        `json:"id"`
-	Title       string        `json:"title"`
-	Status      SessionStatus `json:"status"`
-	Model       string        `json:"model"`
-	Cwd         string        `json:"cwd"`                   // abs path, server-resolved (symlinks)
-	ProjectRoot string        `json:"projectRoot,omitempty"` // derived: nearest .git ancestor, else = cwd
-	CwdMissing  bool          `json:"cwdMissing,omitempty"`  // cwd lost on disk → degrade to chat + relocate
-	CreatedAt   time.Time     `json:"createdAt"`
-	UpdatedAt   time.Time     `json:"updatedAt"`
-	Favorite    bool          `json:"favorite,omitempty"` // user-pinned; sorts ahead in the session list
-	Revision    uint64        `json:"revision"`
-}
-
-// Project is the distinct-Session.cwd derived view (API.md §4.1). No
-// opaque id, no active flag — identity is the cwd itself.
-type Project struct {
-	Cwd          string     `json:"cwd"`
-	Name         string     `json:"name"`
-	ProjectRoot  string     `json:"projectRoot,omitempty"`
-	Branch       string     `json:"branch,omitempty"`
-	SessionCount int        `json:"sessionCount"`
-	LastActiveAt *time.Time `json:"lastActiveAt,omitzero"`
-	CwdMissing   bool       `json:"cwdMissing,omitempty"`
+	ID        string        `json:"id"`
+	Title     string        `json:"title"`
+	Status    SessionStatus `json:"status"`
+	Model     string        `json:"model"`
+	Workspace WorkspaceInfo `json:"workspace"`
+	CreatedAt time.Time     `json:"createdAt"`
+	UpdatedAt time.Time     `json:"updatedAt"`
+	Favorite  bool          `json:"favorite,omitempty"` // user-pinned; sorts ahead in the session list
+	Revision  uint64        `json:"revision"`
 }
 
 // Sessions is the sessions.* method group (API.md §7.2).
@@ -76,22 +62,22 @@ type DeleteSessionRequest struct {
 	SessionID string `json:"sessionId"`
 }
 
-// CreateSessionRequest — sessions.create body. Cwd is optional; empty
-// defaults to ServerInfo.cwd (cold-start zero friction, API.md §7.2).
+// CreateSessionRequest — sessions.create body. Workspace is optional and defaults
+// to ServerInfo.defaultWorkspace (cold-start zero friction, API.md §7.2).
 type CreateSessionRequest struct {
-	Cwd   string `json:"cwd,omitempty"`
-	Title string `json:"title,omitempty"`
+	Workspace *WorkspaceRef `json:"workspace,omitempty"`
+	Title     string        `json:"title,omitempty"`
 }
 
-// UpdateSessionRequest — sessions.update body. Nil pointers mean
-// "leave alone". Setting Cwd is a relocate (gated on features.relocate).
+// UpdateSessionRequest — sessions.update body. Nil pointers mean "leave alone".
+// Setting Workspace is a relocate (gated on features.relocate).
 type UpdateSessionRequest struct {
-	SessionID        string  `json:"sessionId"`
-	ExpectedRevision uint64  `json:"expectedRevision"`
-	Title            *string `json:"title,omitempty"`
-	Cwd              *string `json:"cwd,omitempty"`
-	Model            *string `json:"model,omitempty"`
-	Favorite         *bool   `json:"favorite,omitempty"`
+	SessionID        string        `json:"sessionId"`
+	ExpectedRevision uint64        `json:"expectedRevision"`
+	Title            *string       `json:"title,omitempty"`
+	Workspace        *WorkspaceRef `json:"workspace,omitempty"`
+	Model            *string       `json:"model,omitempty"`
+	Favorite         *bool         `json:"favorite,omitempty"`
 }
 
 // ForkSessionRequest — sessions.fork body (AUX_API §4.2). Omit fromRunId for a
@@ -179,12 +165,13 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// v7 is the vNext shape: terminal-only runs carrying lineage and outcome,
-// session-scoped state values, and dropped-run records. A v6 document describes
+// v8 replaces the process-oriented cwd field with a typed WorkspaceRef. v7 was
+// the terminal-only run shape with lineage, outcomes, session-scoped state values,
+// and dropped-run records. An older document describes
 // runs whose status vocabulary no longer exists, so reading one would mean
 // inventing the fields it lacks — refused instead, by the version check that
 // runs before any write.
-const SessionArtifactVersion = 7
+const SessionArtifactVersion = 8
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -237,13 +224,13 @@ type ArtifactState struct {
 // ArtifactSession is the durable session identity and user-owned metadata. It
 // deliberately excludes live status, revision, and workspace-derived fields.
 type ArtifactSession struct {
-	ID        string    `json:"id"`
-	Title     string    `json:"title"`
-	Cwd       string    `json:"cwd"`
-	Model     string    `json:"model"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
-	Favorite  bool      `json:"favorite,omitempty"`
+	ID        string       `json:"id"`
+	Title     string       `json:"title"`
+	Workspace WorkspaceRef `json:"workspace"`
+	Model     string       `json:"model"`
+	CreatedAt time.Time    `json:"createdAt"`
+	UpdatedAt time.Time    `json:"updatedAt"`
+	Favorite  bool         `json:"favorite,omitempty"`
 }
 
 // ArtifactRun is the durable terminal record of one run. Outcome is stored as

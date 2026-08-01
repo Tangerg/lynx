@@ -194,7 +194,7 @@ func registerGoals(r *Registry) {
 func registerCodebase(r *Registry) {
 	Query(r, MethodMeta{
 		Name:            "codebase.search",
-		Errors:          []string{protocol.ErrCwdUnavailable.Error()},
+		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureCodebase),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.CodebaseSearchRequest) (*protocol.CodebaseSearchResult, error) {
@@ -203,7 +203,7 @@ func registerCodebase(r *Registry) {
 
 	Query(r, MethodMeta{
 		Name:            "codebase.status",
-		Errors:          []string{protocol.ErrCwdUnavailable.Error()},
+		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureCodebase),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.CodebaseStatusRequest) (*protocol.CodebaseStatus, error) {
@@ -212,7 +212,7 @@ func registerCodebase(r *Registry) {
 
 	Command(r, MethodMeta{
 		Name:            "codebase.reindex",
-		Errors:          []string{protocol.ErrCwdUnavailable.Error()},
+		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureCodebase),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.CodebaseReindexRequest) (*protocol.CodebaseReindexResponse, error) {

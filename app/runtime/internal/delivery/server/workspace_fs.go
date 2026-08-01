@@ -13,7 +13,7 @@ import (
 // the wire contract.
 func (s *Server) ListWorkspaceFiles(ctx context.Context, in protocol.ListFilesRequest) (*protocol.Page[protocol.FileEntry], error) {
 	page, err := s.workspaceFiles.ListFiles(ctx, workspaceapp.FileListInput{
-		Cwd: in.Cwd,
+		Cwd: in.Workspace.Path,
 		FileListOptions: workspaceapp.FileListOptions{
 			Path: in.Path, Glob: in.Glob, Recursive: in.Recursive, IncludeIgnored: in.IncludeIgnored,
 		},
@@ -27,7 +27,7 @@ func (s *Server) ListWorkspaceFiles(ctx context.Context, in protocol.ListFilesRe
 	for _, entry := range page.Entries {
 		kind, ok := fileEntryTypeWire(entry.Kind)
 		if !ok {
-			return nil, fmt.Errorf("workspace.listFiles: unsupported entry kind %q", entry.Kind)
+			return nil, fmt.Errorf("workspace.files.list: unsupported entry kind %q", entry.Kind)
 		}
 		var sizeBytes *int64
 		if entry.Kind == workspaceapp.FileEntryFile {
@@ -56,7 +56,7 @@ func fileEntryTypeWire(kind workspaceapp.FileEntryKind) (protocol.FileEntryType,
 
 // GetWorkspaceFileHead projects the application file preview onto wire lines.
 func (s *Server) GetWorkspaceFileHead(ctx context.Context, in protocol.GetFileHeadRequest) (*protocol.FileHead, error) {
-	head, err := s.workspaceFiles.FileHead(ctx, in.Cwd, in.Path, in.Lines)
+	head, err := s.workspaceFiles.FileHead(ctx, in.Workspace.Path, in.Path, in.Lines)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
@@ -69,7 +69,7 @@ func (s *Server) GetWorkspaceFileHead(ctx context.Context, in protocol.GetFileHe
 
 // ReadWorkspaceFile maps the application file read onto the protocol response.
 func (s *Server) ReadWorkspaceFile(ctx context.Context, in protocol.ReadFileRequest) (*protocol.FileContent, error) {
-	read, err := s.workspaceFiles.ReadFile(ctx, in.Cwd, workspaceapp.FileReadInput{
+	read, err := s.workspaceFiles.ReadFile(ctx, in.Workspace.Path, workspaceapp.FileReadInput{
 		Path: in.Path, MaxBytes: in.MaxBytes, StartLine: in.StartLine, EndLine: in.EndLine,
 	})
 	if err != nil {
@@ -87,7 +87,7 @@ func (s *Server) ReadWorkspaceFile(ctx context.Context, in protocol.ReadFileRequ
 
 // GrepWorkspace maps the application content search onto the protocol result.
 func (s *Server) GrepWorkspace(ctx context.Context, in protocol.GrepRequest) (*protocol.GrepResult, error) {
-	result, err := s.workspaceFiles.Grep(ctx, in.Cwd, workspaceapp.GrepInput{Path: in.Path, Query: in.Query, Limit: in.Limit})
+	result, err := s.workspaceFiles.Grep(ctx, in.Workspace.Path, workspaceapp.GrepInput{Path: in.Path, Query: in.Query, Limit: in.Limit})
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}

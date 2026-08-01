@@ -98,7 +98,7 @@ func TestRunEffectsNudgePublishesFileChange(t *testing.T) {
 	effects.Nudge("/proj", []string{"src/a.go"})
 	select {
 	case ev := <-events:
-		if ev.Type != "files.changed" || ev.Cwd != "/proj" || len(ev.Paths) != 1 || ev.Paths[0] != "src/a.go" {
+		if ev.Type != "files.changed" || ev.Workspace == nil || ev.Workspace.Path != "/proj" || len(ev.Paths) != 1 || ev.Paths[0] != "src/a.go" {
 			t.Fatalf("event = %+v, want files.changed cwd=/proj [src/a.go]", ev)
 		}
 	default:

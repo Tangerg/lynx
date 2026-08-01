@@ -1,4 +1,4 @@
-// Built-in workspace view: "Search" — user-facing workspace.grep over the
+// Built-in workspace view: "Search" — user-facing workspace.files.search over the
 // active session's cwd. Until now grep only powered tool-card previews; this
 // gives the user a direct regex search entry. Debounced live query; results
 // grouped by file; server truncation surfaced honestly (§7.5 no-silent-caps:

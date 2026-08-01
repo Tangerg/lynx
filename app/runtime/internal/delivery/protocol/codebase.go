@@ -18,12 +18,12 @@ type Codebase interface {
 	CodebaseReindex(ctx context.Context, in CodebaseReindexRequest) (*CodebaseReindexResponse, error)
 }
 
-// CodebaseSearchRequest — codebase.search body. Cwd scopes the project (empty =
-// serve dir); Limit caps the hits (default 8).
+// CodebaseSearchRequest — codebase.search body. Workspace scopes the project;
+// Limit caps the hits (default 8).
 type CodebaseSearchRequest struct {
-	Cwd   string `json:"cwd,omitempty"`
-	Query string `json:"query"`
-	Limit int    `json:"limit,omitempty"`
+	Workspace WorkspaceRef `json:"workspace"`
+	Query     string       `json:"query"`
+	Limit     int          `json:"limit,omitempty"`
 }
 
 // CodebaseHit is one search result — a code span with its cosine score [0,1].
@@ -40,12 +40,12 @@ type CodebaseSearchResult struct {
 	Hits []CodebaseHit `json:"hits"`
 }
 
-// CodebaseStatusRequest / CodebaseReindexRequest — cwd-scoped (empty = serve dir).
+// CodebaseStatusRequest / CodebaseReindexRequest are explicitly workspace-scoped.
 type CodebaseStatusRequest struct {
-	Cwd string `json:"cwd,omitempty"`
+	Workspace WorkspaceRef `json:"workspace"`
 }
 type CodebaseReindexRequest struct {
-	Cwd string `json:"cwd,omitempty"`
+	Workspace WorkspaceRef `json:"workspace"`
 }
 
 // CodebaseState is the index lifecycle phase (CodebaseStatus.state).

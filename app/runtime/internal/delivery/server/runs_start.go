@@ -43,7 +43,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	}
 	result, err := s.coordinator.Start(ctx, runs.StartCommand{
 		SessionID:      in.SessionID,
-		DefaultCwd:     s.serverInfo.Cwd,
+		DefaultCwd:     s.serverInfo.DefaultWorkspace.Path,
 		ModelSelection: selection,
 		Limits: execution.RunLimits{
 			MaxTotalTokens: in.MaxTotalTokens,

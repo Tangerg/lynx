@@ -22,7 +22,7 @@ export { asEventId, asItemId, asRunId, asSegmentId, asSessionId } from "./ids";
 export type { EventId, ItemId, RunId, SegmentId, SessionId } from "./ids";
 export { collectPages, eachPage } from "./pagination";
 export { createMethods } from "./methods";
-export type { Methods, StreamingResult } from "./methods";
+export type { Methods, StreamingResult, WorkspaceMethods } from "./methods";
 export { createLyraClient } from "./sdk";
 export type { LyraClient } from "./sdk";
 export { PROTOCOL_VERSION } from "./wire.generated";
@@ -35,10 +35,13 @@ export type {
   InterruptType,
   RequestMeta,
   DiscoverResponse,
-  // Sessions / projects
+  // Sessions / workspaces
   Session,
   SessionStatus,
-  Project,
+  WorkspaceAvailability,
+  WorkspaceInfo,
+  WorkspaceRef,
+  WorkspaceSummary,
   CreateSessionRequest,
   UpdateSessionRequest,
   ForkSessionRequest,

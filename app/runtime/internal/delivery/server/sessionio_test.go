@@ -76,8 +76,8 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 		t.Fatalf("export = %+v, want a json artifact", exp)
 	}
 	art := exp.Artifact
-	if art.Session.Title != "My Session" || art.Session.Cwd != ses.Cwd {
-		t.Errorf("artifact session = %+v, want title/cwd preserved", art.Session)
+	if art.Session.Title != "My Session" || art.Session.Workspace.Path != ses.Cwd {
+		t.Errorf("artifact session = %+v, want title/workspace preserved", art.Session)
 	}
 	if len(art.Messages) != 2 || len(art.Items) != 2 || len(art.Runs) != 1 {
 		t.Fatalf("artifact = %d msgs / %d items / %d runs, want 2/2/1", len(art.Messages), len(art.Items), len(art.Runs))
@@ -102,8 +102,8 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("import: %v", err)
 	}
-	if imp.Session == nil || imp.Session.ID != ses.ID || imp.Session.Title != "My Session" || imp.Session.Cwd != canonicalCwd {
-		t.Fatalf("imported session = %+v, want id/title/cwd restored", imp.Session)
+	if imp.Session == nil || imp.Session.ID != ses.ID || imp.Session.Title != "My Session" || imp.Session.Workspace.Ref.Path != canonicalCwd {
+		t.Fatalf("imported session = %+v, want id/title/workspace restored", imp.Session)
 	}
 
 	// Chat history restored.
@@ -250,9 +250,9 @@ func TestSessionImportRejectsActiveSession(t *testing.T) {
 		Artifact: protocol.SessionArtifact{
 			Version: protocol.SessionArtifactVersion,
 			Session: protocol.ArtifactSession{
-				ID:    ses.ID,
-				Title: "Restored",
-				Cwd:   "/restore",
+				ID:        ses.ID,
+				Title:     "Restored",
+				Workspace: protocol.WorkspaceRef{Path: "/restore"},
 			},
 		},
 	})
@@ -310,9 +310,9 @@ func TestSessionImportRejectsOpenInterrupt(t *testing.T) {
 		Artifact: protocol.SessionArtifact{
 			Version: protocol.SessionArtifactVersion,
 			Session: protocol.ArtifactSession{
-				ID:    ses.ID,
-				Title: "Restored",
-				Cwd:   "/restore",
+				ID:        ses.ID,
+				Title:     "Restored",
+				Workspace: protocol.WorkspaceRef{Path: "/restore"},
 			},
 		},
 	})
@@ -514,11 +514,13 @@ func TestSessionImportRejectsUnavailableCwd(t *testing.T) {
 	_, err := s.ImportSession(t.Context(), protocol.ImportSessionRequest{
 		Artifact: protocol.SessionArtifact{
 			Version: protocol.SessionArtifactVersion,
-			Session: protocol.ArtifactSession{ID: "ses_missing_cwd", Cwd: missing},
+			Session: protocol.ArtifactSession{
+				ID: "ses_missing_cwd", Workspace: protocol.WorkspaceRef{Path: missing},
+			},
 		},
 	})
-	if !errors.Is(err, protocol.ErrCwdUnavailable) {
-		t.Fatalf("import error = %v, want ErrCwdUnavailable", err)
+	if !errors.Is(err, protocol.ErrWorkspaceUnavailable) {
+		t.Fatalf("import error = %v, want ErrWorkspaceUnavailable", err)
 	}
 }
 
@@ -629,7 +631,9 @@ func TestSessionImportRefusesAnUnadvertisedStateKey(t *testing.T) {
 
 	artifact := protocol.SessionArtifact{
 		Version: protocol.SessionArtifactVersion,
-		Session: protocol.ArtifactSession{ID: ses.ID, Title: "planned", Cwd: ses.Cwd},
+		Session: protocol.ArtifactSession{
+			ID: ses.ID, Title: "planned", Workspace: protocol.WorkspaceRef{Path: ses.Cwd},
+		},
 		States: []protocol.ArtifactState{{
 			Type:  protocol.ArtifactStateTodos,
 			Todos: []protocol.TodoSnapshot{{ID: "0", Text: "plan", Status: protocol.TodoStatusPending}},

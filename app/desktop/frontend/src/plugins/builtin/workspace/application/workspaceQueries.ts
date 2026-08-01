@@ -4,7 +4,6 @@ import { useRecipes } from "@/plugins/builtin/chat/recipes/public/queries";
 export interface WorkspaceProjectSummary {
   id: string;
   name: string;
-  branch: string;
   sessionCount: number;
   cwdMissing?: boolean;
 }

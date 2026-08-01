@@ -1,14 +1,14 @@
-# Lyra Runtime Transport（定稿 `2026-07-27`）
+# Lyra Runtime Transport（定稿 `2026-08-02`）
 
 > **状态：正式契约（canonical）。** 本文定义同目录 [`API.md`](./API.md)（Lyra Runtime Protocol）如何在具体 transport
 > 上承载，并且是 **binding 层的唯一作者**：端点、POST 契约、HTTP status、SSE 帧、续流、门禁 token、sidecar、CORS、
-> 背压 —— 这些在别处都没有第二份定义。`protocolVersion`: **`2026-07-27`**。
+> 背压 —— 这些在别处都没有第二份定义。`protocolVersion`: **`2026-08-02`**。
 
 ## 0. 目的
 
 API 定义 JSON-RPC 方法、资源、事件语义；transport 定义 message 如何在 client 与 runtime 之间搬运。
 
-**transport 层不得解读业务 params**（如 `cwd` / `sessionId` / `runId`）。
+**transport 层不得解读业务 params**（如 `workspace` / `sessionId` / `runId`）。
 
 ## 1. Transport 矩阵
 
@@ -29,7 +29,7 @@ event id 做流重连。桌面外壳走的是 loopback HTTP，不是宿主 IPC�
 
 **判定一个字段放哪**：问"它是这次操作语义的一部分，还是只是承载这次操作的传输上下文？"
 
-- **是语义的一部分 → params**（如 `cwd` 决定 session 属于哪个项目、`sessionId` / `runId` 指明操作对象）。
+- **是语义的一部分 → params**（如 `WorkspaceRef` 决定资源根、`sessionId` / `runId` 指明操作对象）。
 - **只是传输上下文 → 带外**（trace、门禁 token、流游标）。
 
 走带外的（**非业务**）：
@@ -45,7 +45,7 @@ event id 做流重连。桌面外壳走的是 loopback HTTP，不是宿主 IPC�
 
 规则与易错点：
 
-- `cwd` 是**会话身份**（业务）→ **进 params**，**永不**走带外 directory header（它像目录、其实是身份）。
+- `workspace` 是**资源身份**（业务）→ **进 params**，**永不**走带外 directory header。
 - `sessionId` / `runId` = 业务 → 进 params。
 - 协议版本 / clientInfo / clientCapabilities = 请求自描述 → `params._meta`。
 - trace / 门禁 token / `Last-Event-Id` = 传输上下文 → 带外。
@@ -149,7 +149,7 @@ body：
   "method": "runs.start",
   "params": {
     "_meta": {
-      "protocolVersion": "2026-07-27",
+      "protocolVersion": "2026-08-02",
       "clientInfo": { "name": "lyra-desktop", "version": "0.1.0" },
       "clientCapabilities": {
         "features": {},
@@ -251,13 +251,13 @@ X-Server: lyra-runtime
 data: {"jsonrpc":"2.0","id":"1","result":{"runId":"run_01","segmentId":"seg_01","userItemId":"item_00"}}
 
 id: evt_0001
-data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","segmentId":"seg_01","eventId":"evt_0001","timestamp":"2026-07-27T10:00:00Z","event":{"type":"segment.started","run":{"id":"run_01","sessionId":"ses_01","status":"running","activeSegmentId":"seg_01","metrics":{"steps":0,"activeDurationMs":0},"protocolProfile":{"requiredFeatures":[],"interruptTypes":["approval"]}}}}}
+data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","segmentId":"seg_01","eventId":"evt_0001","timestamp":"2026-08-02T10:00:00Z","event":{"type":"segment.started","run":{"id":"run_01","sessionId":"ses_01","status":"running","activeSegmentId":"seg_01","metrics":{"steps":0,"activeDurationMs":0},"protocolProfile":{"requiredFeatures":[],"interruptTypes":["approval"]}}}}}
 
 id: evt_0002
-data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","segmentId":"seg_01","eventId":"evt_0002","timestamp":"2026-07-27T10:00:01Z","event":{"type":"item.delta","itemId":"item_01","delta":{"type":"content","text":"Hello"}}}}
+data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","segmentId":"seg_01","eventId":"evt_0002","timestamp":"2026-08-02T10:00:01Z","event":{"type":"item.delta","itemId":"item_01","delta":{"type":"content","text":"Hello"}}}}
 
 id: evt_0009
-data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","segmentId":"seg_01","eventId":"evt_0009","timestamp":"2026-07-27T10:00:09Z","event":{"type":"segment.finished","outcome":{"type":"completed"},"metrics":{"steps":3,"activeDurationMs":1500,"usage":{"inputTokens":120,"outputTokens":40,"costUsd":0.01}}}}}
+data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","segmentId":"seg_01","eventId":"evt_0009","timestamp":"2026-08-02T10:00:09Z","event":{"type":"segment.finished","outcome":{"type":"completed"},"metrics":{"steps":3,"activeDurationMs":1500,"usage":{"inputTokens":120,"outputTokens":40,"costUsd":0.01}}}}}
 ```
 
 > `RunEvent` 信封和 `StreamEvent` 都**不带 reliability flag**。authoritative /
@@ -402,7 +402,7 @@ InProcess 没有 HTTP 运维探针；宿主直接管理对象生命周期与依�
 | 存活探测                                        | `GET /v2/health/live`    | 宿主进程状态                                    |
 | 就绪探测                                        | `GET /v2/health/ready`   | 宿主依赖检查                                    |
 
-`/v2/info` 只公开接入所需信息，不泄露 cwd、home、能力快照或内部依赖。
+`/v2/info` 只公开接入所需信息，不泄露 workspace path、home、能力快照或内部依赖。
 
 > **规律：非 JSON-RPC 的旁路通道各 transport 用自己的原生形态实现；场景不适用的 transport 由协议内
 > 方法替代。**（图片输入不属于此类——它内联在 `runs.start.input` 的 image ContentBlock 里走常规 JSON-RPC，
@@ -420,7 +420,7 @@ live 只返回 200；ready 在依赖异常时返回 503，并携带 `checks`。
 
 ```json
 {
-  "protocol": { "current": "2026-07-27", "minSupported": "2026-07-27" },
+  "protocol": { "current": "2026-08-02", "minSupported": "2026-08-02" },
   "server": { "name": "lyra-runtime", "version": "0.0.0" },
   "transport": "http",
   "endpoints": {
@@ -473,7 +473,7 @@ server **不得静默丢弃 replayable 事件**；订阅者积压超过窗口时
 （若有）、传输 status。流式响应另记 `runId` 与该流发出的事件数。请求的 trace 关联走入站 `traceparent`
 （W3C TraceContext）；HTTP 响应在可用时应带 `X-Method` / `X-Server`。
 
-> **反向不变量**：`cwd` / 路径不进高 cardinality metric label（路径无界会爆 Prometheus，需要时只在结构化
+> **反向不变量**：workspace path 不进高 cardinality metric label（路径无界会爆 Prometheus，需要时只在结构化
 > 日志记 hash / basename）；PII（消息 / prompt 内容）不进 access log / metric。
 
 ## 17. 安全边界
@@ -481,7 +481,7 @@ server **不得静默丢弃 replayable 事件**；订阅者积压超过窗口时
 | 层               | 负责                                                                                                 |
 | ---------------- | ---------------------------------------------------------------------------------------------------- |
 | transport 层     | 本地门禁 token 校验、origin 检查、body 大小限制、content-type 检查、流响应生命周期                   |
-| API / runtime 层 | `cwd` 下的 path containment、URL fetch egress 策略、工具审批策略、能力声明匹配、provider secret 处理 |
+| API / runtime 层 | workspace 下的 path containment、URL fetch egress 策略、工具审批策略、能力声明匹配、provider secret 处理 |
 
 ## 18. v2 不支持
 

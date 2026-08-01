@@ -1,5 +1,5 @@
 // Built-in plugin: "File" workspace view — renders a file's full contents
-// (workspace.readFile) at a target line, opened by a clickable file:line
+// (workspace.files.read) at a target line, opened by a clickable file:line
 // reference in the conversation.
 
 import { DataView } from "@/ui";

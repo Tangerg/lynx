@@ -81,9 +81,9 @@ var CanonicalSamples = []CanonicalSample{
 	{"method.runs.subscribe.req.json", reflect.TypeFor[SubscribeRunRequest]()},
 	{"method.runs.subscribe.resp.json", reflect.TypeFor[SubscribeRunResponse]()},
 
-	// §4.1 Session — Session/Project + method envelopes.
+	// §4.1 Session — Session/WorkspaceSummary + method envelopes.
 	{"session.json", reflect.TypeFor[Session]()},
-	{"project.json", reflect.TypeFor[Project]()},
+	{"workspace.json", reflect.TypeFor[WorkspaceSummary]()},
 	{"method.sessions.create.req.json", reflect.TypeFor[CreateSessionRequest]()},
 	{"method.sessions.list.resp.json", reflect.TypeFor[Page[Session]]()},
 	{"method.sessions.rollback.req.json", reflect.TypeFor[RollbackSessionRequest]()},

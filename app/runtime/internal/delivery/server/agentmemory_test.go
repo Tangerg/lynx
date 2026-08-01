@@ -71,7 +71,9 @@ func TestAgentMemoryListResolvesTargetAndMapsWire(t *testing.T) {
 	s.agentMemory = rec
 	s.features.agentMemory = true
 
-	out, err := s.ListAgentMemory(context.Background(), protocol.AgentMemoryListRequest{Scope: "project", Cwd: "/repo/"})
+	out, err := s.ListAgentMemory(context.Background(), protocol.AgentMemoryListRequest{
+		Scope: "project", Workspace: &protocol.WorkspaceRef{Path: "/repo/"},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +84,9 @@ func TestAgentMemoryListResolvesTargetAndMapsWire(t *testing.T) {
 		t.Fatalf("wire = %+v", out.Items)
 	}
 
-	if _, err := s.ListAgentMemory(context.Background(), protocol.AgentMemoryListRequest{Scope: "user", Cwd: "/ignored"}); err != nil {
+	if _, err := s.ListAgentMemory(context.Background(), protocol.AgentMemoryListRequest{
+		Scope: "user", Workspace: &protocol.WorkspaceRef{Path: "/ignored"},
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if rec.listScope != agentmemory.ScopeUser || rec.listCwd != "/ignored" {
@@ -132,7 +136,9 @@ func TestAgentMemoryUpdateAndAdd(t *testing.T) {
 		t.Fatalf("update wire = %+v", out)
 	}
 
-	added, err := s.AddAgentMemory(context.Background(), protocol.AgentMemoryAddRequest{Scope: "project", Cwd: "/repo", Content: "- new note"})
+	added, err := s.AddAgentMemory(context.Background(), protocol.AgentMemoryAddRequest{
+		Scope: "project", Workspace: &protocol.WorkspaceRef{Path: "/repo"}, Content: "- new note",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

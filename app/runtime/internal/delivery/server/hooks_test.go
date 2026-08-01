@@ -64,8 +64,8 @@ func TestSetHookTrustRejectsUnavailableProjectRoot(t *testing.T) {
 		ProjectRoot: missing,
 		Trusted:     true,
 	})
-	if !errors.Is(err, protocol.ErrCwdUnavailable) {
-		t.Fatalf("setTrust err = %v, want ErrCwdUnavailable", err)
+	if !errors.Is(err, protocol.ErrWorkspaceUnavailable) {
+		t.Fatalf("setTrust err = %v, want ErrWorkspaceUnavailable", err)
 	}
 	if trust.calls != 0 {
 		t.Fatalf("trust store calls = %d, want 0", trust.calls)

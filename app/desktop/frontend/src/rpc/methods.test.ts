@@ -26,6 +26,49 @@ function agentMessageItem(id: string, runId: string, status: Item["status"]): It
 }
 
 describe("methods factory", () => {
+  it("binds an immutable workspace identity into every nested resource call", async () => {
+    const call = vi.fn().mockResolvedValue({ data: [] });
+    const methods = createMethods({ call } as unknown as RpcClient);
+    const ref = { path: "/repo" };
+    const workspace = methods.workspace(ref);
+
+    ref.path = "/retargeted";
+    await workspace.files.list({ path: "src" });
+
+    expect(workspace.ref).toEqual({ path: "/repo" });
+    expect(call).toHaveBeenCalledWith(
+      "workspace.files.list",
+      { path: "src", workspace: { path: "/repo" } },
+      undefined,
+    );
+  });
+
+  it("resolves and caches the default workspace when opening an omitted ref", async () => {
+    const call = vi.fn(async (method: string) => {
+      if (method === "workspaces.resolve") {
+        return {
+          ref: { path: "/default" },
+          projectRoot: "/default",
+          availability: "available",
+        };
+      }
+      return { data: [] };
+    });
+    const methods = createMethods({ call } as unknown as RpcClient);
+
+    const first = await methods.workspaces.open();
+    const second = await methods.workspaces.open();
+    await second.changes.list();
+
+    expect(first.ref).toEqual({ path: "/default" });
+    expect(call.mock.calls.filter(([method]) => method === "workspaces.resolve")).toHaveLength(1);
+    expect(call).toHaveBeenLastCalledWith(
+      "workspace.changes.list",
+      { workspace: { path: "/default" } },
+      undefined,
+    );
+  });
+
   it("reuses a mutation key after an indeterminate failure and rotates after success", async () => {
     const call = vi
       .fn()
@@ -63,10 +106,10 @@ describe("methods factory", () => {
     const client = { call } as unknown as RpcClient;
     const methods = createMethods(client);
 
-    await expect(methods.sessions.create({ title: "same", cwd: "/repo" })).rejects.toBeInstanceOf(
-      RpcError,
-    );
-    await methods.sessions.create({ cwd: "/repo", title: "same" });
+    await expect(
+      methods.sessions.create({ title: "same", workspace: { path: "/repo" } }),
+    ).rejects.toBeInstanceOf(RpcError);
+    await methods.sessions.create({ workspace: { path: "/repo" }, title: "same" });
 
     const first = call.mock.calls[0]?.[2] as RpcCallOptions | undefined;
     const second = call.mock.calls[1]?.[2] as RpcCallOptions | undefined;

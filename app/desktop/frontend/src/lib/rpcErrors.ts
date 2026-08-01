@@ -29,7 +29,7 @@ const MAPPED_TYPES: readonly string[] = [
   "run_finished",
   "stale_segment",
   "checkpoint_unavailable",
-  "cwd_unavailable",
+  "workspace_unavailable",
   "vcs_unavailable",
   // Provider failures, one stable symbol per mode (API.md §8.4) so copy +
   // behavior branch on the symbol, never on free-text detail. provider_error

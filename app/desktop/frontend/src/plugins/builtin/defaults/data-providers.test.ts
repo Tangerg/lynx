@@ -2,7 +2,7 @@
 // stack. Locks the full wiring (provider → container.methods() → client →
 // transport) plus each v2 shape mapping:
 //   - sessions:    Page<Session>.data → AgentSessionSummary (updatedAt → time)
-//   - projects:    Page<Project>.data (cwd identity) → WorkspaceProjectSummary (cwd → id)
+//   - projects:    Page<WorkspaceSummary>.data → WorkspaceProjectSummary
 //   - mcp-servers: enriched B3 entry → status summary (id + icon + inline toolCount)
 //   - grep:        params pass-through, result verbatim (matches + total)
 //   - file-head:   params pass-through, FileHead unwrapped to its lines
@@ -86,7 +86,11 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
               title: "Refactor auth",
               status: "running",
               model: "claude",
-              cwd: "/work/auth",
+              workspace: {
+                ref: { path: "/work/auth" },
+                projectRoot: "/work/auth",
+                availability: "available",
+              },
               createdAt: "2026-06-01T00:00:00Z",
               updatedAt: "2026-06-01T01:00:00Z",
             },
@@ -107,13 +111,21 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
     ]);
   });
 
-  it("projects: maps v2 Project (cwd identity) into WorkspaceProjectSummary rows", async () => {
+  it("projects: maps WorkspaceSummary identity into workspace rows", async () => {
     const { value: rows } = await runProvider<WorkspaceProjectSummary[]>("projects", [
       [
-        "workspace.listProjects",
+        "workspaces.list",
         {
           data: [
-            { cwd: "/work/fern", name: "fern-api", branch: "feat/result-type", sessionCount: 3 },
+            {
+              workspace: {
+                ref: { path: "/work/fern" },
+                projectRoot: "/work/fern",
+                availability: "available",
+              },
+              name: "fern-api",
+              sessionCount: 3,
+            },
           ],
         },
       ],
@@ -122,9 +134,7 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
       {
         id: "/work/fern",
         name: "fern-api",
-        branch: "feat/result-type",
         sessionCount: 3,
-        cwdMissing: undefined,
       },
     ]);
   });
@@ -182,7 +192,7 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
       "files-changed",
       [
         [
-          "workspace.listFileChanges",
+          "workspace.changes.list",
           {
             data: [
               { path: "src/a.ts", status: "modified", added: 3, removed: 1 },
@@ -193,7 +203,7 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
       ],
       { cwd: "/work/auth" },
     );
-    expect(requests[0]?.params).toEqual({ cwd: "/work/auth" });
+    expect(requests[0]?.params).toEqual({ workspace: { path: "/work/auth" } });
     expect(rows).toEqual([
       { path: "src/a.ts", change: "mod", added: 3, removed: 1, binary: undefined },
       { path: "logo.png", change: "add", added: undefined, removed: undefined, binary: true },
@@ -203,10 +213,15 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
   it("diff: pins format=rows on the wire and defaults files to []", async () => {
     const { value, requests } = await runProvider<WorkspaceDiff>(
       "diff",
-      [["workspace.getDiff", { truncated: true }]], // rows response may omit files
-      { path: "src/a.ts", mode: "worktree" },
+      [["workspace.diff.get", { truncated: true }]], // rows response may omit files
+      { cwd: "/work/auth", path: "src/a.ts", mode: "worktree" },
     );
-    expect(requests[0]?.params).toEqual({ path: "src/a.ts", mode: "worktree", format: "rows" });
+    expect(requests[0]?.params).toEqual({
+      path: "src/a.ts",
+      mode: "worktree",
+      format: "rows",
+      workspace: { path: "/work/auth" },
+    });
     expect(value).toEqual({ files: [], truncated: true });
   });
 
@@ -217,10 +232,14 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
     };
     const { value, requests } = await runProvider<WorkspaceGrepResult>(
       "grep",
-      [["workspace.grep", result]],
-      { query: "const x", limit: 1 },
+      [["workspace.files.search", result]],
+      { cwd: "/work/auth", query: "const x", limit: 1 },
     );
-    expect(requests[0]?.params).toEqual({ query: "const x", limit: 1 });
+    expect(requests[0]?.params).toEqual({
+      query: "const x",
+      limit: 1,
+      workspace: { path: "/work/auth" },
+    });
     expect(value).toEqual(result);
   });
 
@@ -229,13 +248,17 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
       "file-head",
       [
         [
-          "workspace.getFileHead",
+          "workspace.files.head",
           { path: "src/a.ts", lines: [{ lineNumber: 1, text: "import x" }] },
         ],
       ],
-      { path: "src/a.ts", lines: 40 },
+      { cwd: "/work/auth", path: "src/a.ts", lines: 40 },
     );
-    expect(requests[0]?.params).toEqual({ path: "src/a.ts", lines: 40 });
+    expect(requests[0]?.params).toEqual({
+      path: "src/a.ts",
+      lines: 40,
+      workspace: { path: "/work/auth" },
+    });
     expect(value).toEqual([{ lineNumber: 1, text: "import x" }]);
   });
 });

@@ -86,11 +86,11 @@ func TestRequestFingerprintCanonicalizesObjectOrder(t *testing.T) {
 		return request
 	}
 
-	first, err := requestFingerprint(decode(`{"jsonrpc":"2.0","id":"1","method":"sessions.create","params":{"cwd":"/tmp","title":"x"}}`))
+	first, err := requestFingerprint(decode(`{"jsonrpc":"2.0","id":"1","method":"sessions.create","params":{"workspace":{"path":"/tmp"},"title":"x"}}`))
 	if err != nil {
 		t.Fatalf("fingerprint first request: %v", err)
 	}
-	second, err := requestFingerprint(decode(`{"jsonrpc":"2.0","id":"2","method":"sessions.create","params":{"title":"x","cwd":"/tmp"}}`))
+	second, err := requestFingerprint(decode(`{"jsonrpc":"2.0","id":"2","method":"sessions.create","params":{"title":"x","workspace":{"path":"/tmp"}}}`))
 	if err != nil {
 		t.Fatalf("fingerprint second request: %v", err)
 	}
