@@ -13,12 +13,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/codebasesearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolsearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/httpreq"
 )
@@ -30,15 +28,14 @@ import (
 // Resolver is the engine-scope [core.ToolGroupResolver] for the
 // coding + subtask roles. The working-directory-independent tools (online
 // providers, MCP servers, the `task` delegation tool) are built once at
-// engine construction and captured here; the filesystem + shell tools are
-// rebuilt per resolution against the working directory the resolving
-// turn carries in application context, falling back to defaultWorkdir. That is
+// engine construction and captured here; filesystem and skill tools are
+// rebuilt per resolution, while shell and LSP tools read the resolving turn's
+// application context per call. Both paths fall back to defaultWorkdir. That is
 // what lets a single engine serve many sessions —
 // each running its tools in its own project directory — without a
 // per-session engine.
 type Resolver struct {
-	catalogMu sync.RWMutex
-	catalog   []tools.Tool
+	taskMu sync.RWMutex
 
 	defaultWorkdir  string
 	skillsGlobalDir string                                      // user-scope skills dir; merged under each turn's project skills
@@ -51,7 +48,7 @@ type Resolver struct {
 	pathLocker      *pathLocker                                 // serializes same-path fs calls across every concurrent turn resolution
 	shell           []tools.Tool                                // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
 	task            tools.Tool                                  // bounded recursive delegation tool; nil until set
-	staticTools     []staticToolSpec                            // built-once tools with one role/phase policy shared by catalog + turns
+	staticTools     []staticToolSpec                            // built-once tools with one role/placement policy for turn manifests
 	goalActive      func(context.Context, string) (bool, error) // reports whether the session has an active goal; nil → update_goal never offered
 
 	// codebaseIndex backs codebase_search (both roles). Held as the index (not
@@ -94,11 +91,9 @@ const (
 	toolCodingTail
 )
 
-// staticToolSpec is the single policy table for built-once tools. The direct
-// catalog consumes every present entry; a turn consumes only entries in its
-// placement and audience, evaluating the one dynamic active-goal condition.
-// That keeps tools.list and the per-turn manifest as projections of one source
-// of truth without turning tool resolution into a generic registry framework.
+// staticToolSpec is the policy table for built-once per-turn tools. A turn
+// consumes entries in its placement and audience, evaluating the one dynamic
+// active-goal condition without turning resolution into a generic registry.
 type staticToolSpec struct {
 	tool         tools.Tool
 	audience     toolAudience
@@ -107,9 +102,9 @@ type staticToolSpec struct {
 }
 
 // Deps bundles the working-directory-independent inputs the resolver captures
-// at construction. The fs/shell/lsp/skill tools are rebuilt per resolution
-// against the turn's cwd; the online / A2A sets and the code-intelligence
-// analyzer are built once and held.
+// at construction. Filesystem and skill tools are rebuilt per resolution;
+// shell and LSP tools are built once but read the turn's cwd per call. Online,
+// A2A, and code-intelligence capabilities are also built once and held.
 type Deps struct {
 	DefaultWorkdir  string
 	SkillsGlobalDir string
@@ -117,7 +112,7 @@ type Deps struct {
 	Online          []tools.Tool                                // network tools (webfetch/websearch/httpreq)
 	A2A             []tools.Tool                                // remote A2A delegation tools
 	LSP             []tools.Tool                                // code-intelligence tools
-	Shell           []tools.Tool                                // shell tools (shell / shell_output / shell_kill)
+	Shell           []tools.Tool                                // shell tools (shell / shell_output / shell_kill); nil means omitted
 	AskUser         tools.Tool                                  // ask_user HITL tool (both roles)
 	ExitPlan        tools.Tool                                  // exit_plan_mode HITL tool (both roles); nil → omitted
 	Todo            tools.Tool                                  // todo_write task-list tool (both roles); nil → omitted
@@ -143,22 +138,9 @@ type mcpToolIdentity interface {
 
 // NewResolver builds the engine-scoped tool resolver from its
 // working-directory-independent inputs. The `task` delegation tool is injected
-// afterward via [Resolver.UseTaskTool] because it needs the agent engine; the MCP tool
-// set is seeded + hot-swapped via [Resolver.SetMCPTools].
+// afterward via [Resolver.UseTaskTool] because it needs the agent engine; the
+// MCP tool set is seeded + hot-swapped via [Resolver.SetMCPTools].
 func NewResolver(d Deps) (*Resolver, error) {
-	shellTools := d.Shell
-	if shellTools == nil {
-		// Bare resolver (a unit-test engine with no injected tool environment):
-		// own a private exec.Shells so the shell tool and its background companions are
-		// still available. The production path injects shell tools built over the
-		// shared shell set whose KillAll is a shutdown closer (toolset.Build); this
-		// private shell set has no closer, fine for a process-lifetime test engine.
-		var err error
-		shellTools, err = shell.Build(exec.NewShells(nil, false), d.DefaultWorkdir)
-		if err != nil {
-			return nil, fmt.Errorf("toolset.NewResolver: build fallback shell tools: %w", err)
-		}
-	}
 	if d.CodeIntel == nil {
 		return nil, errors.New("toolset.NewResolver: CodeIntel is nil")
 	}
@@ -172,7 +154,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 		online:          slices.Clone(d.Online),
 		a2a:             slices.Clone(d.A2A),
 		lsp:             slices.Clone(d.LSP),
-		shell:           slices.Clone(shellTools),
+		shell:           slices.Clone(d.Shell),
 		staticTools: []staticToolSpec{
 			{tool: d.AskUser, audience: toolAudienceBoth, placement: toolAfterCodebase},
 			{tool: d.Todo, audience: toolAudienceBoth, placement: toolAfterSkill},
@@ -192,45 +174,15 @@ func NewResolver(d Deps) (*Resolver, error) {
 		downloadAllow:   d.DownloadAllow,
 		mcpToolDisabled: d.MCPToolDisabled,
 	}
-	catalog, err := resolver.catalogTools()
-	if err != nil {
-		return nil, err
-	}
-	resolver.catalog = catalog
 	return resolver, nil
 }
 
-// catalogTools builds the direct catalog's immutable capability core. MCP,
-// search_tools, and the cwd-scoped skill tool are intentionally projected live
-// by toolsFor; `task` is appended later because it needs the engine that owns
-// this resolver. The catalog deliberately describes capabilities that may be
-// gated for a given turn (goal, plan mode, or live codebase availability).
-func (r *Resolver) catalogTools() ([]tools.Tool, error) {
-	catalog := r.workdirTools(r.defaultWorkdir)
-	catalog = append(catalog, r.online...)
-	catalog = append(catalog, r.a2a...)
-	catalog = append(catalog, r.lsp...)
-	catalog = append(catalog, r.shell...)
-	catalog, err := r.appendStaticTools(context.Background(), catalog, toolAfterSkill, "", true)
-	if err != nil {
-		return nil, err
-	}
-	if r.codebaseIndex != nil {
-		codebaseSearch, err := codebasesearch.New(r.codebaseIndex)
-		if err != nil {
-			return nil, fmt.Errorf("toolset.NewResolver: build codebase_search: %w", err)
-		}
-		catalog = append(catalog, codebaseSearch)
-	}
-	return catalog, nil
-}
-
-func (r *Resolver) appendStaticTools(ctx context.Context, into []tools.Tool, placement toolPlacement, role string, catalog bool) ([]tools.Tool, error) {
+func (r *Resolver) appendStaticTools(ctx context.Context, into []tools.Tool, placement toolPlacement, role string) ([]tools.Tool, error) {
 	for _, spec := range r.staticTools {
-		if spec.tool == nil || (!catalog && (spec.placement != placement || !spec.audience.includes(role))) {
+		if spec.tool == nil || spec.placement != placement || !spec.audience.includes(role) {
 			continue
 		}
-		if !catalog && spec.requiresGoal {
+		if spec.requiresGoal {
 			if r.goalActive == nil {
 				continue
 			}
@@ -247,48 +199,18 @@ func (r *Resolver) appendStaticTools(ctx context.Context, into []tools.Tool, pla
 	return into, nil
 }
 
-// UseTaskTool installs the `task` delegation tool for both execution roles and
-// the direct diagnostic catalog. The agent engine builds this tool after it
-// exists because the tool starts child processes through that engine.
+// UseTaskTool installs the task delegation tool for both execution roles. The
+// agent engine builds this tool after it exists because the tool starts child
+// processes through that engine.
 func (r *Resolver) UseTaskTool(tool tools.Tool) {
-	r.catalogMu.Lock()
-	defer r.catalogMu.Unlock()
-
-	if r.task == nil {
-		r.catalog = append(r.catalog, tool)
-	} else {
-		oldName := r.task.Definition().Name
-		for index := range r.catalog {
-			if r.catalog[index].Definition().Name == oldName {
-				r.catalog[index] = tool
-				break
-			}
-		}
-	}
+	r.taskMu.Lock()
+	defer r.taskMu.Unlock()
 	r.task = tool
 }
 
-// toolsFor projects the direct catalog for ctx's working directory. The direct
-// registry uses it so skill metadata follows a caller that carries a turn cwd.
-func (r *Resolver) toolsFor(ctx context.Context) []tools.Tool {
-	r.catalogMu.RLock()
-	catalog := slices.Clone(r.catalog)
-	r.catalogMu.RUnlock()
-
-	mcpTools := r.mcpTools()
-	catalog = append(catalog, mcpTools...)
-	if skillTool := skill.Build(r.workdirFor(ctx), r.skillsGlobalDir, r.skillUsage); skillTool != nil {
-		catalog = append(catalog, skillTool)
-	}
-	if search := toolsearch.New(mcpTools); search != nil {
-		catalog = append(catalog, search)
-	}
-	return catalog
-}
-
 func (r *Resolver) taskTool() tools.Tool {
-	r.catalogMu.RLock()
-	defer r.catalogMu.RUnlock()
+	r.taskMu.RLock()
+	defer r.taskMu.RUnlock()
 	return r.task
 }
 
@@ -388,15 +310,15 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	tools = append(tools, g.resolver.lsp...)
 	tools = append(tools, g.resolver.shell...)
 	// The skill tool is working-directory scoped (project skills live under
-	// the turn's cwd), so it is built per resolution like fs/shell and is
+	// the turn's cwd), so it is built per resolution like filesystem tools and is
 	// available to both coding and subtask roles. nil when no skills exist.
 	if skillTool := skill.Build(workdir, g.resolver.skillsGlobalDir, g.resolver.skillUsage); skillTool != nil {
 		tools = append(tools, skillTool)
 	}
 	// Built-once, session-keyed helpers (todo/result/memory/transcript search)
-	// are projected from the same policy table as tools.list.
+	// are projected from the resolver's role and placement policy.
 	var err error
-	tools, err = g.resolver.appendStaticTools(ctx, tools, toolAfterSkill, g.role, false)
+	tools, err = g.resolver.appendStaticTools(ctx, tools, toolAfterSkill, g.role)
 	if err != nil {
 		return nil, err
 	}
@@ -420,7 +342,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	}
 	// Both roles can ask the user and leave plan mode. A child question parks
 	// through the same nested suspension tree as a child approval.
-	tools, err = g.resolver.appendStaticTools(ctx, tools, toolAfterCodebase, g.role, false)
+	tools, err = g.resolver.appendStaticTools(ctx, tools, toolAfterCodebase, g.role)
 	if err != nil {
 		return nil, err
 	}
@@ -430,7 +352,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	if g.role == domaintool.GroupCoding {
 		// The remaining schedule, authoring, and active-goal capabilities are
 		// product-root operations rather than generic child execution tools.
-		tools, err = g.resolver.appendStaticTools(ctx, tools, toolCodingTail, g.role, false)
+		tools, err = g.resolver.appendStaticTools(ctx, tools, toolCodingTail, g.role)
 		if err != nil {
 			return nil, err
 		}

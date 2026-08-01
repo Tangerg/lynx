@@ -18,12 +18,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-// emptyGoalState is enough to make goaltool.New return a non-nil update_goal
-// tool (Goal mode wired) without an active goal.
-type emptyGoalState struct{}
+type activeGoalState struct{}
 
-func (emptyGoalState) Active(context.Context, string) (bool, error) { return false, nil }
-func (emptyGoalState) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
+func (activeGoalState) Active(context.Context, string) (bool, error) { return true, nil }
+func (activeGoalState) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
 	return goals.ReportNoActiveGoal, nil
 }
 
@@ -72,22 +70,15 @@ func toolNameSet(ts []tools.Tool) map[string]bool {
 	return names
 }
 
-// TestCatalogCoversPerTurnCodingTools is the tools.list parity guard: the
-// direct catalog (tools.list) and the per-turn coding manifest have intentionally
-// different gates and drifted once (exit_plan_mode / update_goal were dropped
-// from the catalog). The catalog is the "possibly exists" tier — it must
-// cover every tool the coding turn can offer EXCEPT `task`, which the engine
-// appends after the catalog is built. Raw MCP tools vs. search_tools stay a
-// deliberate difference and are covered by the raw append in Build.
-func TestCatalogCoversPerTurnCodingTools(t *testing.T) {
+func TestCodingResolverIncludesConfiguredConditionalTools(t *testing.T) {
 	policy, err := approval.New(approval.ModeBalanced, nil)
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
 	}
 	built, err := Build(t.Context(), BuildConfig{
 		Workdir:  t.TempDir(),
-		Approval: policy,           // backs exit_plan_mode
-		Goals:    emptyGoalState{}, // backs update_goal (Goal mode wired)
+		Approval: policy, // backs exit_plan_mode
+		Goals:    activeGoalState{},
 		Interrupt: func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
 			return interrupts.Resolution{}, nil
 		},
@@ -97,29 +88,18 @@ func TestCatalogCoversPerTurnCodingTools(t *testing.T) {
 	}
 	closeBuiltToolset(t, built)
 
-	catalog := toolNameSet(built.Resolver.toolsFor(t.Context()))
-	// The two tools the catalog historically dropped.
-	for _, want := range []string{"exit_plan_mode", "update_goal"} {
-		if !catalog[want] {
-			t.Fatalf("tools.list catalog missing %q: %v", want, catalog)
-		}
-	}
-
 	group, ok, err := built.Resolver.Resolve(t.Context(), tool.GroupCoding)
 	if err != nil || !ok {
 		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 	}
-	perTurn, err := group.Tools(t.Context())
+	resolved, err := group.Tools(t.Context())
 	if err != nil {
 		t.Fatalf("Tools: %v", err)
 	}
-	for _, tl := range perTurn {
-		name := tl.Definition().Name
-		if name == "task" { // engine-appended after the catalog is built
-			continue
-		}
-		if !catalog[name] {
-			t.Errorf("per-turn coding tool %q is absent from the tools.list catalog (drift)", name)
+	names := toolNameSet(resolved)
+	for _, want := range []string{"exit_plan_mode", "update_goal"} {
+		if !names[want] {
+			t.Errorf("configured coding tools missing %q: %v", want, names)
 		}
 	}
 }
@@ -135,7 +115,7 @@ func TestCatalogCoversPerTurnCodingTools(t *testing.T) {
 // from two modules (the app's own tools plus the SDK's fs / shell families), so
 // finding out meant grepping both.
 //
-// The catalog is built with every optional subsystem wired, because a name is
+// The resolver is built with every optional subsystem wired, because a name is
 // only unreachable if NO configuration reaches it.
 func TestSafetyTableNamesOnlyToolsThatExist(t *testing.T) {
 	policy, err := approval.New(approval.ModeBalanced, nil)
@@ -146,7 +126,7 @@ func TestSafetyTableNamesOnlyToolsThatExist(t *testing.T) {
 		Workdir:         t.TempDir(),
 		SkillsGlobalDir: t.TempDir(), // backs skill
 		Approval:        policy,
-		Goals:           emptyGoalState{},
+		Goals:           activeGoalState{},
 		Schedules:       allWiredSchedules{},      // backs schedule
 		CodebaseIndex:   allWiredCodebaseIndex{},  // backs codebase_search
 		SkillAuthoring:  allWiredSkillAuthoring{}, // backs propose_skill
@@ -164,9 +144,16 @@ func TestSafetyTableNamesOnlyToolsThatExist(t *testing.T) {
 	}
 	closeBuiltToolset(t, built)
 
-	existing := toolNameSet(built.Resolver.toolsFor(t.Context()))
-	// `task` is appended by the engine after the catalog is built, so the catalog
-	// never contains it — the same exemption the parity guard above makes.
+	group, ok, err := built.Resolver.Resolve(t.Context(), tool.GroupCoding)
+	if err != nil || !ok {
+		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
+	}
+	resolved, err := group.Tools(t.Context())
+	if err != nil {
+		t.Fatalf("Tools: %v", err)
+	}
+	existing := toolNameSet(resolved)
+	// The engine injects task only after it deploys the child Agent.
 	existing["task"] = true
 
 	var unreachable []string
