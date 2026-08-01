@@ -153,5 +153,17 @@ describe("the published JSON Schema bundle", () => {
         requiredCapabilities: [repeatedRequirement, repeatedRequirement],
       }),
     ).toBe(false);
+    expect(problem?.({ type: "run_lost" })).toBe(true);
+    expect(problem?.({ type: "mcp_dial_failed", detail: "connection failed" })).toBe(false);
+    expect(problem?.({ type: "plugin:acme/model_timeout", retryAfterSeconds: 2 })).toBe(true);
+    expect(problem?.({ type: "model_timeout" })).toBe(false);
+    expect(problem?.({ type: "plugin:Acme/model_timeout" })).toBe(false);
+    expect(
+      problem?.({
+        type: "run_lost",
+        activeRun: { runId: "run_1", status: "running" },
+      }),
+    ).toBe(false);
+    expect(problem?.({ type: "idempotency_in_progress", retryAfterSeconds: 0 })).toBe(false);
   });
 });

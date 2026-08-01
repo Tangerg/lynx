@@ -82,7 +82,7 @@ export function describeRpcError(err: unknown): string | undefined {
  *  cause rather than the thing to put in front of someone. */
 export function describeProblem(problem: ProblemData | undefined): string | undefined {
   if (!problem) return undefined;
-  return problem.detail || describeErrorType(problem.type) || problem.type || undefined;
+  return errorDetail(problem) || describeErrorType(problem.type) || problem.type || undefined;
 }
 
 /** Best human-readable text for any RPC error: mapped copy, then the

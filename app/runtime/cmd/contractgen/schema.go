@@ -62,6 +62,8 @@ type schema struct {
 	Enum            []string       `json:"enum,omitempty"`
 	MinLength       *int           `json:"minLength,omitempty"`
 	Const           string         `json:"const,omitempty"`
+	Pattern         string         `json:"pattern,omitempty"`
+	TypeScriptType  string         `json:"-"`
 	Minimum         *int64         `json:"minimum,omitempty"`
 	MinItems        *int           `json:"minItems,omitempty"`
 	UniqueItems     bool           `json:"uniqueItems,omitempty"`
@@ -232,14 +234,14 @@ func (s *schemaSet) object(t reflect.Type) *schema {
 	return out
 }
 
-// variants renders a closed union as `oneOf`: each branch pins the discriminator
-// to its tag, requires that tag's fields, and forbids every field belonging to
-// another tag.
+// variants renders a discriminated union as `oneOf`: each branch pins or narrows
+// the discriminator, requires that branch's fields, and forbids every field
+// belonging to another branch.
 func (s *schemaSet) variants(t reflect.Type, union dispatch.UnionSpec) []*schema {
 	tagValues := s.discriminatorValues(t, union)
 	roots := protocol.WireFieldNames(t)
 
-	out := make([]*schema, 0, len(union.Variants))
+	out := make([]*schema, 0, len(union.Variants)+1)
 	for _, variant := range union.Variants {
 		if tagValues != nil && !slices.Contains(tagValues, variant.Tag) {
 			panic(fmt.Sprintf("contractgen: %s variant %q is not a value of its discriminator type", t.Name(), variant.Tag))
@@ -251,6 +253,20 @@ func (s *schemaSet) variants(t reflect.Type, union dispatch.UnionSpec) []*schema
 		}
 		forbiddenFields := append(forbidden(t, union.Discriminator, roots, claimed), union.Forbidden...)
 		constrain(branch, t, variant.Required, forbiddenFields)
+		normalize(branch)
+		out = append(out, branch)
+	}
+	if pattern := union.PatternVariant; pattern != nil {
+		claimed := slices.Concat(pattern.Required, pattern.Optional)
+		branch := &schema{
+			Properties: map[string]any{union.Discriminator: &schema{
+				Type: schemaTypeString, Pattern: pattern.TagPattern,
+				TypeScriptType: pattern.TypeScriptType,
+			}},
+			Required: []string{union.Discriminator},
+		}
+		forbiddenFields := append(forbidden(t, union.Discriminator, roots, claimed), union.Forbidden...)
+		constrain(branch, t, pattern.Required, forbiddenFields)
 		normalize(branch)
 		out = append(out, branch)
 	}

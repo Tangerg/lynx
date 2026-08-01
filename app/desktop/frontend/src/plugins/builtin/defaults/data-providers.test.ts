@@ -139,7 +139,7 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
     ]);
   });
 
-  it("mcp-servers: maps the enriched B3 entry (inline toolCount, 5-state, error detail)", async () => {
+  it("mcp-servers: maps tool counts, five states, and localized inline errors", async () => {
     const { value: rows } = await runProvider<MCPServerSummary[]>("mcp-servers", [
       [
         "mcp.servers.list",
@@ -149,7 +149,7 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
             {
               name: "Flaky",
               status: "failed",
-              error: { type: "mcp_spawn_failed", detail: "exit 1" },
+              error: { type: "mcp_dial_failed" },
             },
             { name: "Cloud", status: "needsAuth", authStatus: "notLoggedIn" },
           ],
@@ -172,7 +172,7 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
         desc: "",
         tools: 0,
         status: "failed",
-        errorDetail: "exit 1",
+        errorDetail: "Couldn't reach this server — check the command or URL and retry.",
         icon: "tool",
       },
       {

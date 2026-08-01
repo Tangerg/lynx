@@ -116,6 +116,16 @@ export function minLength(least: number): WireCheck {
   };
 }
 
+/** `pattern`, applied only to strings as JSON Schema specifies. */
+export function pattern(expression: string): WireCheck {
+  const compiled = new RegExp(expression);
+  return (value, path, out) => {
+    if (typeof value === "string" && !compiled.test(value)) {
+      out.push({ path, detail: `expected to match ${expression}` });
+    }
+  };
+}
+
 /** `minimum`, which constrains a number and says nothing about anything else. */
 export function minimum(least: number): WireCheck {
   return (value, path, out) => {

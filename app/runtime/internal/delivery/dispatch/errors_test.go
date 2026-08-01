@@ -33,8 +33,7 @@ func TestMalformedStructuredProblemFailsClosedAsInternalError(t *testing.T) {
 	// frame. The error boundary must not publish a payload whose recovery contract
 	// it cannot satisfy.
 	rpcErr := problemError(
-		protocol.CodeCapabilityNotNeg,
-		protocol.ErrCapabilityNotNeg.Error(),
+		protocol.ErrCapabilityNotNeg,
 		"missing structured requirements",
 	)
 	if rpcErr.Code != protocol.CodeInternalError || rpcErr.Message != protocol.ProblemInternalError {

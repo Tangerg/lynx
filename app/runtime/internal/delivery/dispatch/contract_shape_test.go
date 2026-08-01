@@ -53,6 +53,17 @@ func TestShapeViewsAreSnapshots(t *testing.T) {
 	if got := shapes.Unions()[0].Variants[0].Tag; got != originalTag {
 		t.Fatalf("Unions exposed registry storage: got %q, want %q", got, originalTag)
 	}
+	for index := range unions {
+		if unions[index].PatternVariant == nil {
+			continue
+		}
+		originalPattern := unions[index].PatternVariant.TagPattern
+		unions[index].PatternVariant.TagPattern = "corrupted"
+		if got := shapes.Unions()[index].PatternVariant.TagPattern; got != originalPattern {
+			t.Fatalf("Unions exposed pattern variant storage: got %q, want %q", got, originalPattern)
+		}
+		break
+	}
 
 	values := shapes.ValueConstraints()
 	originalField := values[0].Constraints[0].Field
@@ -116,21 +127,22 @@ func TestNotificationValidationRejectsUnpublishableParams(t *testing.T) {
 	}
 }
 
-// TestEveryClosedWireUnionIsRegistered lists every closed union in the frozen
+// TestEveryWireUnionIsRegistered lists every discriminated union in the frozen
 // contract. A new wire union does not exist until both its Go carrier and its
-// machine-readable UnionSpec land.
+// machine-readable UnionSpec land. ProblemData includes one namespaced extension
+// branch; that is still a registered union, not an arbitrary string escape hatch.
 //
 // DiffRow is not one of the thirteen §11.2 names: its godoc always described a
 // union and the frontend always modeled it as one, but nothing on the wire said
 // so, so the published shape allowed a row with a hunk's text and both line
 // numbers. Generating the TypeScript is what surfaced it.
-func TestEveryClosedWireUnionIsRegistered(t *testing.T) {
+func TestEveryWireUnionIsRegistered(t *testing.T) {
 	t.Parallel()
 
 	want := []string{
 		"ArtifactContentBlock", "ArtifactItem", "ArtifactOutcome", "ArtifactState",
 		"CancelRunResponse", "CapabilityRequirement", "ContentBlock", "DiffRow", "Interrupt", "InterruptResponseValue", "Item", "ItemDelta",
-		"ItemListScope", "QuestionField", "RunOutcome", "RuntimeEvent", "SegmentOutcome", "StateSnapshot", "StreamEvent",
+		"ItemListScope", "ProblemData", "QuestionField", "RunOutcome", "RuntimeEvent", "SegmentOutcome", "StateSnapshot", "StreamEvent",
 	}
 	got := make([]string, 0, len(shapes.Unions()))
 	for _, union := range shapes.Unions() {
@@ -227,6 +239,34 @@ func TestUnionValidationCatchesTheDriftItExistsFor(t *testing.T) {
 			Forbidden: []string{"data"},
 		},
 		want: `forbidden field "data" still exists on the Go wire shape`,
+	}, {
+		name: "an invalid extension pattern",
+		spec: UnionSpec{
+			GoType: reflect.TypeFor[protocol.ContentBlock](), Discriminator: "type",
+			Variants: validContentBlockVariants,
+			PatternVariant: &PatternVariantSpec{
+				TagPattern: "[", TypeScriptType: "`plugin:${string}/${string}`",
+			},
+		},
+		want: "invalid pattern variant tag",
+	}, {
+		name: "an extension pattern overlaps a literal tag",
+		spec: UnionSpec{
+			GoType: reflect.TypeFor[protocol.ContentBlock](), Discriminator: "type",
+			Variants: validContentBlockVariants,
+			PatternVariant: &PatternVariantSpec{
+				TagPattern: "^text$", TypeScriptType: "`plugin:${string}/${string}`",
+			},
+		},
+		want: `pattern variant also matches literal tag "text"`,
+	}, {
+		name: "an extension pattern needs a TypeScript type",
+		spec: UnionSpec{
+			GoType: reflect.TypeFor[protocol.ContentBlock](), Discriminator: "type",
+			Variants:       validContentBlockVariants,
+			PatternVariant: &PatternVariantSpec{TagPattern: "^plugin:"},
+		},
+		want: "pattern variant needs a TypeScript type",
 	}}
 
 	for _, tt := range tests {

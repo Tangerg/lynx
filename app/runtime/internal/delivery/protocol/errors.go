@@ -193,13 +193,13 @@ type FieldError struct {
 	Detail string `json:"detail"`
 }
 
-// First-party ProblemData.Type symbols for the run and tool channels (API.md
-// §8.2). ProblemData.Type stays an open string — the RPC-channel symbols (the
-// Err* sentinels below) and plugin-namespaced `plugin:<name>/<symbol>` types
-// also ride it — so these are named constants for the first-party set, not a
-// closed enum: the wire value is the string itself; production assigns the
-// constant (no typo drift), tests assert the literal (pins the wire value).
+// First-party ProblemData.Type symbols for the run, tool and inline-status
+// channels (API.md §8.2). The contract registry combines these constants with
+// the RPC sentinels below into the exact first-party union. Third-party types
+// have one deliberately narrow extension branch:
+// `plugin:<pluginName>/<symbol>`.
 const (
+	ProblemInvalidRequest = "invalid_request"
 	// ProblemInternalError is the unclassified-failure fallback on every channel
 	// (run outcome:error, RPC error, tool error); the full error rides the span,
 	// never the wire.
@@ -263,6 +263,8 @@ const (
 // maps each onto its {code, data.type} pair (API.md §8.2). Unrecognized
 // errors map to internal_error.
 var (
+	ErrInvalidRequest        = errors.New(ProblemInvalidRequest)
+	ErrInternalError         = errors.New(ProblemInternalError)
 	ErrMethodNotFound        = errors.New("method_not_found")
 	ErrInvalidParams         = errors.New("invalid_params")
 	ErrProviderError         = errors.New("provider_error")

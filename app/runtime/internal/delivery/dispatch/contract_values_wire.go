@@ -208,9 +208,16 @@ func registerRuntimeValues(s *Shapes) {
 	// it. Empty ids satisfy JSON's string type but identify neither resource, so
 	// both the live segment outcome and cold interrupt read must reject them.
 	nonEmpty[protocol.Interrupt](s, "itemId", "runId")
+	// Structured problems are useful only when their leaves identify something.
+	// Register the leaf types as validation roots too, so ValidateWireTree applies
+	// their string and enum constraints when they are nested in ProblemData.
+	nonEmpty[protocol.ActiveRunRef](s, "runId")
+	nonEmpty[protocol.CapabilityRequirement](s, "name")
+	nonEmpty[protocol.FieldError](s, "field", "detail")
 	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.ProblemData](),
 		Constraints: []FieldConstraint{
+			{Field: "retryAfterSeconds", Kind: ConstraintPositive},
 			{Field: "requiredCapabilities", Kind: ConstraintNonEmptyItems},
 			{Field: "requiredCapabilities", Kind: ConstraintUniqueItems},
 		},

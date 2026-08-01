@@ -513,7 +513,6 @@ func seedEveryItemKind(t *testing.T, rt *stubRuntime, sessionID string) {
 			Error: &transcript.Problem{
 				Kind: transcript.ToolFailedProblem, Scope: transcript.ToolProblem,
 				Detail: "exit 1", DocURL: "https://example.invalid/tools",
-				RetryAfterSeconds: 5,
 			},
 			Tool: &transcript.ToolInvocation{Name: "shell", Arguments: arguments},
 		},

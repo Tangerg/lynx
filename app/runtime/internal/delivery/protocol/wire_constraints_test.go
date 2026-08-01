@@ -91,6 +91,116 @@ func TestOutputCollectionWireConstraints(t *testing.T) {
 	assertConstraintField(t, capability.ValidateWire(), "ProblemData", "requiredCapabilities")
 }
 
+func TestProblemDataWireUnion(t *testing.T) {
+	t.Parallel()
+
+	validCapability := []CapabilityRequirement{{Type: RequirementFeature, Name: "subagents"}}
+	tests := []struct {
+		name    string
+		problem ProblemData
+		field   string
+	}{
+		{name: "ordinary first party problem", problem: ProblemData{Type: ProblemRunLost}},
+		{
+			name:    "inline status carries no server authored copy",
+			problem: ProblemData{Type: ProblemMCPDialFailed, Detail: "connection failed"},
+			field:   "detail",
+		},
+		{
+			name: "capability problem carries its gaps",
+			problem: ProblemData{
+				Type: ErrCapabilityNotNeg.Error(), RequiredCapabilities: validCapability,
+			},
+		},
+		{
+			name:    "capability problem requires gaps",
+			problem: ProblemData{Type: ErrCapabilityNotNeg.Error()},
+			field:   "requiredCapabilities",
+		},
+		{
+			name:    "structured fields belong to their variant",
+			problem: ProblemData{Type: ProblemRunLost, RequiredCapabilities: validCapability},
+			field:   "requiredCapabilities",
+		},
+		{
+			name: "active run belongs only to the conflict",
+			problem: ProblemData{
+				Type:      ProblemRunLost,
+				ActiveRun: &ActiveRunRef{RunID: "run_1", Status: RunStatusRunning},
+			},
+			field: "activeRun",
+		},
+		{
+			name:    "idempotency progress requires a delay",
+			problem: ProblemData{Type: ErrIdempotencyInProgress.Error()},
+			field:   "retryAfterSeconds",
+		},
+		{
+			name:    "retry delay is positive",
+			problem: ProblemData{Type: ProblemTimeout, RetryAfterSeconds: -1},
+			field:   "retryAfterSeconds",
+		},
+		{
+			name: "plugin problem uses its namespace",
+			problem: ProblemData{
+				Type: "plugin:acme/model_timeout", Detail: "try another region",
+				RetryAfterSeconds: 2,
+			},
+		},
+		{
+			name: "plugin problem cannot borrow first party fields",
+			problem: ProblemData{
+				Type: "plugin:acme/model_timeout", RequiredCapabilities: validCapability,
+			},
+			field: "requiredCapabilities",
+		},
+		{
+			name:    "unnamespaced extension is rejected",
+			problem: ProblemData{Type: "model_timeout"},
+			field:   "type",
+		},
+		{
+			name:    "malformed plugin namespace is rejected",
+			problem: ProblemData{Type: "plugin:Acme/model_timeout"},
+			field:   "type",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := ValidateWireTree(test.problem)
+			if test.field == "" {
+				if err != nil {
+					t.Fatalf("ValidateWireTree rejected a valid problem: %v", err)
+				}
+				return
+			}
+			assertConstraintField(t, err, "ProblemData", test.field)
+		})
+	}
+}
+
+func TestProblemDataStructuredLeavesAreValidated(t *testing.T) {
+	t.Parallel()
+
+	activeRun := ProblemData{
+		Type:      ErrSessionHasActiveRun.Error(),
+		ActiveRun: &ActiveRunRef{Status: RunStatus("teleported")},
+	}
+	err := ValidateWireTree(activeRun)
+	assertConstraintField(t, err, "ProblemData", "activeRun.runId")
+	assertConstraintField(t, err, "ProblemData", "activeRun.status")
+
+	invalidFields := ProblemData{
+		Type:   ErrInvalidParams.Error(),
+		Errors: []FieldError{{}},
+	}
+	err = ValidateWireTree(invalidFields)
+	assertConstraintField(t, err, "ProblemData", "errors[0].field")
+	assertConstraintField(t, err, "ProblemData", "errors[0].detail")
+}
+
 func TestRunOpeningResponseWireConstraints(t *testing.T) {
 	t.Parallel()
 

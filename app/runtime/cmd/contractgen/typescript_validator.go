@@ -214,6 +214,9 @@ func (e *checkEmitter) compile(node *schema) string {
 	if node.MinLength != nil {
 		parts = append(parts, e.call("minLength", strconv.Itoa(*node.MinLength)))
 	}
+	if node.Pattern != "" {
+		parts = append(parts, e.call("pattern", strconv.Quote(node.Pattern)))
+	}
 	if node.Minimum != nil {
 		parts = append(parts, e.call("minimum", strconv.FormatInt(*node.Minimum, 10)))
 	}

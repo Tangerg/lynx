@@ -3,8 +3,12 @@
 // is the same refusal with the round-trip removed. Wraps the raw payload so callers
 // branch on the problem TYPE rather than parsing the message string.
 
-import { errorType, type RpcErrorPayload } from "./types";
+import type { ProblemData } from "./wire.generated";
 import type { WireViolation } from "./wireCheck";
+
+type ProblemOf<Type extends ProblemData["type"]> = Type extends `plugin:${string}/${string}`
+  ? Extract<ProblemData, { type: `plugin:${string}/${string}` }>
+  : Extract<ProblemData, { type: Type }>;
 
 /** Stable diagnostic text even when a dependency throws a non-Error value. */
 export function errorMessage(error: unknown): string {
@@ -15,8 +19,11 @@ export function errorMessage(error: unknown): string {
  *  `type` (API.md §8: judge errors by type, never by code or message). The
  *  one idiom every "this failure is an expected state" branch needs —
  *  capability gating, vcs_unavailable, session_busy. */
-export function isErrorType(error: unknown, type: string): boolean {
-  return error instanceof RpcError && errorType(error.data) === type;
+export function isErrorType<Type extends ProblemData["type"]>(
+  error: unknown,
+  type: Type,
+): error is RpcError & { readonly data: ProblemOf<Type> } {
+  return error instanceof RpcError && error.data?.type === type;
 }
 
 export class RpcError extends Error {
@@ -26,25 +33,27 @@ export class RpcError extends Error {
    *  the stable name, and this number is a classification the protocol is free to
    *  renumber. */
   readonly code?: number;
-  readonly data: unknown;
+  readonly data?: ProblemData;
   /** Runtime-generated transport correlation id. It deliberately stays outside
    * ProblemData so business errors remain transport-agnostic. */
   readonly requestId?: string;
 
-  constructor(payload: LocalRefusal | RpcErrorPayload, requestId?: string) {
+  constructor(payload: BusinessErrorPayload, requestId?: string) {
     super(payload.message);
     this.name = "RpcError";
-    this.code = "code" in payload ? payload.code : undefined;
+    this.code = payload.code;
     this.data = payload.data;
     this.requestId = requestId;
   }
 }
 
-/** A refusal this client produced itself. It has no numeric code because no server
- *  answered it: the preflight already holds the negotiation that would say no. */
-interface LocalRefusal {
+/** A validated runtime error or a refusal this client produced itself. Local
+ * refusals omit code because no server answered them; both carry the same typed
+ * ProblemData contract. */
+interface BusinessErrorPayload {
+  code?: number;
   message: string;
-  data?: unknown;
+  data?: ProblemData;
 }
 
 // Lower-level transport failure — used when an HTTP request fails before

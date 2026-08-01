@@ -47,9 +47,10 @@ func reference(m manifest) string {
 		fmt.Fprintf(&b, "| `%s` | %s | %s |\n", event.Type, yes(event.Authoritative), yes(event.Replayable))
 	}
 
-	b.WriteString("\n## Closed unions\n\n")
+	b.WriteString("\n## Discriminated unions\n\n")
 	b.WriteString("Discriminated by `type` with no exceptions (API.md §2.1). A field belongs to at\n")
-	b.WriteString("least one variant; the registry refuses a union where one does not.\n\n")
+	b.WriteString("least one variant; the registry refuses a union where one does not. A union may\n")
+	b.WriteString("publish one namespaced pattern branch without weakening first-party tags.\n\n")
 	for _, union := range m.Unions {
 		fmt.Fprintf(&b, "### `%s`\n\n", union.Type)
 		if len(union.Forbidden) > 0 {
@@ -58,6 +59,9 @@ func reference(m manifest) string {
 		b.WriteString("| tag | required | optional |\n| --- | --- | --- |\n")
 		for _, variant := range union.Variants {
 			fmt.Fprintf(&b, "| `%s` | %s | %s |\n", variant.Tag, code(variant.Required), code(variant.Optional))
+		}
+		if pattern := union.PatternVariant; pattern != nil {
+			fmt.Fprintf(&b, "| `%s` | %s | %s |\n", pattern.TagPattern, code(pattern.Required), code(pattern.Optional))
 		}
 		b.WriteString("\n")
 	}

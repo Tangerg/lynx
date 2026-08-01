@@ -96,14 +96,14 @@ export function errorDetail(data: unknown): string | undefined {
   return undefined;
 }
 
-/** Read a provider-requested retry delay without trusting RpcError.data. */
+/** Read a positive provider-requested retry delay without trusting input. */
 export function errorRetryAfterSeconds(data: unknown): number | undefined {
   if (data && typeof data === "object") {
     const retryAfterSeconds = (data as { retryAfterSeconds?: unknown }).retryAfterSeconds;
     if (
       typeof retryAfterSeconds === "number" &&
       Number.isInteger(retryAfterSeconds) &&
-      retryAfterSeconds >= 0
+      retryAfterSeconds > 0
     ) {
       return retryAfterSeconds;
     }

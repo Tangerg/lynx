@@ -121,7 +121,11 @@ func validatorChecks(
 			}
 			checks = append(checks, fmt.Sprintf("%s(%s, %s)", validatorName, field, stringExpr(selector, leaf.Type)))
 		case dispatch.ConstraintPositive:
-			checks = append(checks, fmt.Sprintf("positiveNumber(%s, value.%s)", field, selector))
+			validatorName := "positiveNumber"
+			if leaf.Optional {
+				validatorName = "optionalPositiveNumber"
+			}
+			checks = append(checks, fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector))
 		case dispatch.ConstraintNonNegative:
 			checks = append(checks, fmt.Sprintf("nonNegativeNumber(%s, value.%s)", field, selector))
 		case dispatch.ConstraintNonEmptyItems:
@@ -165,10 +169,37 @@ func unionChecks(union dispatch.UnionSpec) []string {
 	}
 	paths := unionPaths(union)
 	var checks []string
+	if pattern := union.PatternVariant; pattern != nil {
+		field, ok := protocol.LookupWireField(union.GoType, union.Discriminator)
+		if !ok {
+			panic(fmt.Sprintf("contractgen: %s has no discriminator %q", union.GoType.Name(), union.Discriminator))
+		}
+		tags := make([]string, 0, len(union.Variants))
+		for _, variant := range union.Variants {
+			tags = append(tags, variant.Tag)
+		}
+		checks = append(checks, fmt.Sprintf(
+			"unionTag(%q, string(value.%s), %s, %q)",
+			union.Discriminator, field.GoName, valueList(tags), pattern.TagPattern,
+		))
+	}
 	for _, variant := range union.Variants {
 		applies := fmt.Sprintf("wireFieldEquals(value, %q, %q)", union.Discriminator, variant.Tag)
 		allowed := append(slices.Clone(variant.Required), variant.Optional...)
 		for _, field := range variant.Required {
+			checks = append(checks, fmt.Sprintf("requiredWhen(%s, %q, value)", applies, field))
+		}
+		for _, field := range paths {
+			if slices.Contains(allowed, field) {
+				continue
+			}
+			checks = append(checks, fmt.Sprintf("forbiddenWhen(%s, %q, value)", applies, field))
+		}
+	}
+	if pattern := union.PatternVariant; pattern != nil {
+		applies := fmt.Sprintf("wireFieldMatches(value, %q, %q)", union.Discriminator, pattern.TagPattern)
+		allowed := append(slices.Clone(pattern.Required), pattern.Optional...)
+		for _, field := range pattern.Required {
 			checks = append(checks, fmt.Sprintf("requiredWhen(%s, %q, value)", applies, field))
 		}
 		for _, field := range paths {
@@ -185,6 +216,13 @@ func unionPaths(union dispatch.UnionSpec) []string {
 	var paths []string
 	for _, variant := range union.Variants {
 		for _, field := range append(slices.Clone(variant.Required), variant.Optional...) {
+			if field != union.Discriminator && !slices.Contains(paths, field) {
+				paths = append(paths, field)
+			}
+		}
+	}
+	if pattern := union.PatternVariant; pattern != nil {
+		for _, field := range append(slices.Clone(pattern.Required), pattern.Optional...) {
 			if field != union.Discriminator && !slices.Contains(paths, field) {
 				paths = append(paths, field)
 			}

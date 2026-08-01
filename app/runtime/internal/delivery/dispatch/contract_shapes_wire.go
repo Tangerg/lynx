@@ -9,14 +9,16 @@ import (
 
 // shapes is the registered union / constraint / state-key contract.
 //
-// Every high-risk closed union in the contract is registered here. The Go type,
-// runtime validator, JSON Schema, and generated TypeScript all consume the same
-// declaration so a variant cannot drift in only one layer.
+// Every high-risk discriminated union in the contract is registered here. The Go
+// type, runtime validator, JSON Schema, and generated TypeScript all consume the
+// same declaration so a variant cannot drift in only one layer. Extension seams
+// remain narrow pattern branches rather than arbitrary strings.
 var shapes = buildShapes()
 
 func buildShapes() *Shapes {
 	s := &Shapes{}
 	registerNotifications(s)
+	registerProblemUnion(s)
 	registerRunUnions(s)
 	registerItemUnions(s)
 	registerInterruptUnions(s)
@@ -28,6 +30,26 @@ func buildShapes() *Shapes {
 	registerCarriedShapes(s)
 	registerValueConstraints(s)
 	return s
+}
+
+func registerProblemUnion(s *Shapes) {
+	contracts := ProblemContracts()
+	variants := make([]VariantSpec, 0, len(contracts))
+	for _, contract := range contracts {
+		variants = append(variants, VariantSpec{
+			Tag:      contract.Type,
+			Required: contract.Required,
+			Optional: contract.Optional,
+		})
+	}
+	s.union(UnionSpec{
+		GoType: typeOf[protocol.ProblemData](), Discriminator: "type", Variants: variants,
+		PatternVariant: &PatternVariantSpec{
+			TagPattern:     `^plugin:[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$`,
+			TypeScriptType: "`plugin:${string}/${string}`",
+			Optional:       []string{"detail", "docUrl", "retryAfterSeconds"},
+		},
+	})
 }
 
 func registerNotifications(s *Shapes) {
@@ -409,23 +431,6 @@ func registerObjectConstraints(s *Shapes) {
 		}, {
 			When:      []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.SegmentSuspended)}},
 			Forbidden: []string{"interrupts", "error", "detail"},
-		}},
-	})
-
-	// §9.2's frame table: a known problem type's structured fields are required by
-	// the type, and forbidden on every other. The alternative is prose — the payload
-	// folded into `detail`, where nothing can check it and every client parses it
-	// differently.
-	s.constraint(ObjectConstraintSpec{
-		GoType: typeOf[protocol.ProblemData](),
-		Rules: []PresenceRule{{
-			When:      []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: protocol.ErrSessionHasActiveRun.Error()}},
-			Required:  []string{"activeRun"},
-			Forbidden: []string{"requiredCapabilities", "retryAfterSeconds"},
-		}, {
-			When:      []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: protocol.ErrCapabilityNotNeg.Error()}},
-			Required:  []string{"requiredCapabilities"},
-			Forbidden: []string{"activeRun", "retryAfterSeconds"},
 		}},
 	})
 

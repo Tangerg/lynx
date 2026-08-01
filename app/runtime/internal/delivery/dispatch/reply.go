@@ -18,8 +18,7 @@ import (
 func responseResult(id transport.ID, result any) HandleResult {
 	if err := protocol.ValidateWireTree(result); err != nil {
 		return responseError(id, problemError(
-			protocol.CodeInternalError,
-			protocol.ProblemInternalError,
+			protocol.ErrInternalError,
 			"the runtime produced an invalid response",
 		))
 	}
@@ -28,7 +27,7 @@ func responseResult(id transport.ID, result any) HandleResult {
 		// Response encoding is an infrastructure fault. Its serializer detail can
 		// contain arbitrary implementation data, so the protocol exposes only a
 		// stable client-safe problem.
-		return responseError(id, problemError(protocol.CodeInternalError, protocol.ProblemInternalError, "the runtime could not encode the response"))
+		return responseError(id, problemError(protocol.ErrInternalError, "the runtime could not encode the response"))
 	}
 	return HandleResult{Response: resp}
 }

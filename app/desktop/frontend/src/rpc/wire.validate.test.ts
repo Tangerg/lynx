@@ -458,5 +458,45 @@ describe("the generated wire checks", () => {
       path: "ProblemData.requiredCapabilities",
       detail: "expected no repeated items",
     });
+
+    expect(validateWire("ProblemData", { type: "run_lost" })).toEqual([]);
+    expect(
+      validateWire("ProblemData", { type: "mcp_dial_failed", detail: "connection failed" }),
+    ).toContainEqual({
+      path: "ProblemData",
+      detail: "matches no permitted variant",
+    });
+    expect(
+      validateWire("ProblemData", {
+        type: "plugin:acme/model_timeout",
+        retryAfterSeconds: 2,
+      }),
+    ).toEqual([]);
+    expect(validateWire("ProblemData", { type: "model_timeout" })).toContainEqual({
+      path: "ProblemData",
+      detail: "matches no permitted variant",
+    });
+    expect(validateWire("ProblemData", { type: "plugin:Acme/model_timeout" })).toContainEqual({
+      path: "ProblemData",
+      detail: "matches no permitted variant",
+    });
+    expect(
+      validateWire("ProblemData", {
+        type: "run_lost",
+        activeRun: { runId: "run_1", status: "running" },
+      }),
+    ).toContainEqual({
+      path: "ProblemData",
+      detail: "matches no permitted variant",
+    });
+    expect(
+      validateWire("ProblemData", {
+        type: "idempotency_in_progress",
+        retryAfterSeconds: 0,
+      }),
+    ).toContainEqual({
+      path: "ProblemData.retryAfterSeconds",
+      detail: "expected at least 1",
+    });
   });
 });

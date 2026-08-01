@@ -7,7 +7,12 @@
 // Notifications go through subscribe() — no id, no waiter.
 
 import { errorMessage, RpcError, RpcProtocolError, RpcTransportError } from "./errors";
-import { NOTIFICATIONS_RUN_EVENT, runEventReliability, type RequestMeta } from "./wire.generated";
+import {
+  NOTIFICATIONS_RUN_EVENT,
+  runEventReliability,
+  type ProblemData,
+  type RequestMeta,
+} from "./wire.generated";
 import type {
   Transport,
   TransportEvent,
@@ -163,7 +168,18 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
             return;
           }
         }
-        entry.reject(new RpcError(payload, metadata?.requestId));
+        // The generated validator above is the trust boundary that turns the raw
+        // envelope payload into the generated discriminated union.
+        entry.reject(
+          new RpcError(
+            {
+              code: payload.code,
+              message: payload.message,
+              data: payload.data as ProblemData | undefined,
+            },
+            metadata?.requestId,
+          ),
+        );
       } else {
         const result = msg.result;
         const violations = validateMethodResult(entry.method, result);

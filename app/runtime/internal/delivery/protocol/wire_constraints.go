@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -240,6 +241,17 @@ func positiveNumber[Number wireNumber](field string, value Number) FieldError {
 	return FieldError{}
 }
 
+// optionalPositiveNumber treats zero as absence because encoding/json omits an
+// optional scalar at its zero value. A negative value is still present and
+// illegal. JSON Schema and the TypeScript validator apply minimum: 1 only when
+// the property exists, which is the same serialized contract.
+func optionalPositiveNumber[Number wireNumber](field string, value Number) FieldError {
+	if value < 0 {
+		return FieldError{Field: field, Detail: "must be greater than zero when present"}
+	}
+	return FieldError{}
+}
+
 type wireNumeric interface {
 	wireNumber | ~float32 | ~float64
 }
@@ -316,6 +328,16 @@ func closedEnumItems[Enum ~string](field string, items []Enum, values []string) 
 	return FieldError{}
 }
 
+func unionTag(field, value string, literals []string, pattern string) FieldError {
+	if slices.Contains(literals, value) {
+		return FieldError{}
+	}
+	if matched, err := regexp.MatchString(pattern, value); err == nil && matched {
+		return FieldError{}
+	}
+	return FieldError{Field: field, Detail: "must be a known tag or match " + pattern}
+}
+
 func requiredWhen(applies bool, field string, value any) FieldError {
 	if applies && !wireFieldPresent(value, field) {
 		return FieldError{Field: field, Detail: "is required"}
@@ -333,6 +355,15 @@ func forbiddenWhen(applies bool, field string, value any) FieldError {
 func wireFieldEquals(value any, path, expected string) bool {
 	field, _, ok := lookupWireValue(reflect.ValueOf(value), path)
 	return ok && field.Kind() == reflect.String && field.String() == expected
+}
+
+func wireFieldMatches(value any, path, pattern string) bool {
+	field, _, ok := lookupWireValue(reflect.ValueOf(value), path)
+	if !ok || field.Kind() != reflect.String {
+		return false
+	}
+	matched, err := regexp.MatchString(pattern, field.String())
+	return err == nil && matched
 }
 
 // wireFieldPresent answers whether encoding/json would put a registered field on

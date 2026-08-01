@@ -1114,6 +1114,11 @@
         "retryAfterSeconds": 1
       },
       {
+        "type": "internal_error",
+        "code": -32603,
+        "recoveryAction": "stop"
+      },
+      {
         "type": "interrupt_not_open",
         "code": -32014,
         "recoveryAction": "coldRecover",
@@ -1130,6 +1135,11 @@
         "type": "invalid_protocol_version",
         "code": -32016,
         "recoveryAction": "promptUser"
+      },
+      {
+        "type": "invalid_request",
+        "code": -32600,
+        "recoveryAction": "stop"
       },
       {
         "type": "item_not_found",
@@ -1322,15 +1332,16 @@
       }
     ],
     "runChannelTypes": [
-      "internal_error",
-      "run_lost",
       "agent_stuck",
-      "rate_limited",
-      "invalid_api_key",
-      "timeout",
-      "provider_unavailable",
-      "provider_rejected",
+      "child_run_canceled",
       "denied_by_user",
+      "internal_error",
+      "invalid_api_key",
+      "provider_rejected",
+      "provider_unavailable",
+      "rate_limited",
+      "run_lost",
+      "timeout",
       "tool_failed"
     ],
     "inlineStatusTypes": [
@@ -1960,6 +1971,305 @@
     }
   ],
   "unions": [
+    {
+      "type": "ProblemData",
+      "discriminator": "type",
+      "variants": [
+        {
+          "tag": "agent_stuck",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "capability_not_negotiated",
+          "required": [
+            "requiredCapabilities"
+          ],
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "checkpoint_unavailable",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "child_run_canceled",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "denied_by_user",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "idempotency_conflict",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "idempotency_in_progress",
+          "required": [
+            "retryAfterSeconds"
+          ],
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "internal_error",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "interrupt_not_open",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "invalid_api_key",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "invalid_params",
+          "optional": [
+            "detail",
+            "docUrl",
+            "errors"
+          ]
+        },
+        {
+          "tag": "invalid_protocol_version",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "invalid_request",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "item_not_found",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "mcp_authorization_required"
+        },
+        {
+          "tag": "mcp_dial_failed"
+        },
+        {
+          "tag": "method_not_found",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "path_outside_root",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "provider_error",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "provider_not_configured"
+        },
+        {
+          "tag": "provider_rejected",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "provider_test_failed"
+        },
+        {
+          "tag": "provider_unavailable",
+          "optional": [
+            "detail",
+            "docUrl",
+            "retryAfterSeconds"
+          ]
+        },
+        {
+          "tag": "rate_limited",
+          "optional": [
+            "detail",
+            "docUrl",
+            "retryAfterSeconds"
+          ]
+        },
+        {
+          "tag": "replay_cursor_invalid",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "replay_unavailable",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "revision_conflict",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "run_finished",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "run_lost",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "run_not_found",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "run_not_root",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "run_waiting",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "session_busy",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "session_has_active_run",
+          "required": [
+            "activeRun"
+          ],
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "session_not_found",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "stale_segment",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "timeout",
+          "optional": [
+            "detail",
+            "docUrl",
+            "retryAfterSeconds"
+          ]
+        },
+        {
+          "tag": "tool_failed",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "unsupported_mime",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "vcs_unavailable",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "workspace_unavailable",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        }
+      ],
+      "patternVariant": {
+        "tagPattern": "^plugin:[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$",
+        "typeScriptType": "`plugin:${string}/${string}`",
+        "optional": [
+          "detail",
+          "docUrl",
+          "retryAfterSeconds"
+        ]
+      }
+    },
     {
       "type": "CancelRunResponse",
       "discriminator": "type",
@@ -2995,43 +3305,6 @@
       ]
     },
     {
-      "type": "ProblemData",
-      "rules": [
-        {
-          "when": [
-            {
-              "field": "type",
-              "operator": "equals",
-              "value": "session_has_active_run"
-            }
-          ],
-          "required": [
-            "activeRun"
-          ],
-          "forbidden": [
-            "requiredCapabilities",
-            "retryAfterSeconds"
-          ]
-        },
-        {
-          "when": [
-            {
-              "field": "type",
-              "operator": "equals",
-              "value": "capability_not_negotiated"
-            }
-          ],
-          "required": [
-            "requiredCapabilities"
-          ],
-          "forbidden": [
-            "activeRun",
-            "retryAfterSeconds"
-          ]
-        }
-      ]
-    },
-    {
       "type": "PendingInterruptSet",
       "rules": [
         {
@@ -3720,8 +3993,43 @@
       ]
     },
     {
+      "type": "ActiveRunRef",
+      "rules": [
+        {
+          "field": "runId",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "CapabilityRequirement",
+      "rules": [
+        {
+          "field": "name",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "FieldError",
+      "rules": [
+        {
+          "field": "field",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "detail",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
       "type": "ProblemData",
       "rules": [
+        {
+          "field": "retryAfterSeconds",
+          "constraint": "positive"
+        },
         {
           "field": "requiredCapabilities",
           "constraint": "nonEmptyItems"

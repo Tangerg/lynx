@@ -7,7 +7,8 @@
       "type": "object",
       "properties": {
         "runId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "status": {
           "$ref": "#/$defs/RunStatus"
@@ -1164,7 +1165,8 @@
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "type": {
           "$ref": "#/$defs/CapabilityRequirementType"
@@ -1866,10 +1868,12 @@
       "type": "object",
       "properties": {
         "detail": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "field": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -4074,57 +4078,605 @@
           }
         },
         "retryAfterSeconds": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 1
         },
         "type": {
           "type": "string"
         }
       },
-      "required": [
-        "type"
-      ],
-      "allOf": [
+      "oneOf": [
         {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "session_has_active_run"
-              }
-            },
-            "required": [
-              "type"
-            ]
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "agent_stuck"
+            }
           },
-          "then": {
-            "properties": {
-              "requiredCapabilities": false,
-              "retryAfterSeconds": false
-            },
-            "required": [
-              "activeRun"
-            ]
-          }
+          "required": [
+            "type"
+          ]
         },
         {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "capability_not_negotiated"
-              }
-            },
-            "required": [
-              "type"
-            ]
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "capability_not_negotiated"
+            }
           },
-          "then": {
-            "properties": {
-              "activeRun": false,
-              "retryAfterSeconds": false
-            },
-            "required": [
-              "requiredCapabilities"
-            ]
-          }
+          "required": [
+            "requiredCapabilities",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "checkpoint_unavailable"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "child_run_canceled"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "denied_by_user"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "idempotency_conflict"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "type": {
+              "const": "idempotency_in_progress"
+            }
+          },
+          "required": [
+            "retryAfterSeconds",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "internal_error"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "interrupt_not_open"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "invalid_api_key"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "invalid_params"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "invalid_protocol_version"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "invalid_request"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "item_not_found"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "detail": false,
+            "docUrl": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "mcp_authorization_required"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "detail": false,
+            "docUrl": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "mcp_dial_failed"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "method_not_found"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "path_outside_root"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "provider_error"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "detail": false,
+            "docUrl": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "provider_not_configured"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "provider_rejected"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "detail": false,
+            "docUrl": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "provider_test_failed"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "type": {
+              "const": "provider_unavailable"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "type": {
+              "const": "rate_limited"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "replay_cursor_invalid"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "replay_unavailable"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "revision_conflict"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "run_finished"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "run_lost"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "run_not_found"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "run_not_root"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "run_waiting"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "session_busy"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "session_has_active_run"
+            }
+          },
+          "required": [
+            "activeRun",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "session_not_found"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "stale_segment"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "type": {
+              "const": "timeout"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "tool_failed"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "unsupported_mime"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "vcs_unavailable"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "workspace_unavailable"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "type": {
+              "type": "string",
+              "pattern": "^plugin:[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$"
+            }
+          },
+          "required": [
+            "type"
+          ]
         }
       ]
     },

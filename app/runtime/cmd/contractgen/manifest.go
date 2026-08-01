@@ -115,10 +115,18 @@ type carriedEntry struct {
 }
 
 type unionEntry struct {
-	Type          string       `json:"type"`
-	Discriminator string       `json:"discriminator"`
-	Variants      []variantRow `json:"variants"`
-	Forbidden     []string     `json:"forbidden,omitempty"`
+	Type           string             `json:"type"`
+	Discriminator  string             `json:"discriminator"`
+	Variants       []variantRow       `json:"variants"`
+	PatternVariant *patternVariantRow `json:"patternVariant,omitempty"`
+	Forbidden      []string           `json:"forbidden,omitempty"`
+}
+
+type patternVariantRow struct {
+	TagPattern     string   `json:"tagPattern"`
+	TypeScriptType string   `json:"typeScriptType"`
+	Required       []string `json:"required,omitempty"`
+	Optional       []string `json:"optional,omitempty"`
 }
 
 type variantRow struct {
@@ -213,26 +221,10 @@ func errors(registry *dispatch.Registry) errorRegistry {
 		// The run/tool channels carry no numeric code — only a symbolic type
 		// (API.md §8.4). They are listed so a client's copy table can be checked
 		// for completeness against the runtime rather than against a doc.
-		RunTypes: []string{
-			protocol.ProblemInternalError,
-			protocol.ProblemRunLost,
-			protocol.ProblemAgentStuck,
-			protocol.ProblemRateLimited,
-			protocol.ProblemInvalidAPIKey,
-			protocol.ProblemTimeout,
-			protocol.ProblemProviderUnavailable,
-			protocol.ProblemProviderRejected,
-			protocol.ProblemDeniedByUser,
-			protocol.ProblemToolFailed,
-		},
+		RunTypes: dispatch.ProblemTypesFor(dispatch.ProblemChannelExecution),
 		// Inline-status problems ride a query's own result instead of failing the
 		// call, and deliberately carry no detail — the copy is the client's.
-		Inline: []string{
-			protocol.ProblemMCPAuthorizationRequired,
-			protocol.ProblemMCPDialFailed,
-			protocol.ProblemProviderNotConfigured,
-			protocol.ProblemProviderTestFailed,
-		},
+		Inline: dispatch.ProblemTypesFor(dispatch.ProblemChannelInlineStatus),
 	}
 }
 
@@ -338,9 +330,18 @@ func unions(shapes *dispatch.Shapes) []unionEntry {
 				Tag: variant.Tag, Required: variant.Required, Optional: variant.Optional,
 			})
 		}
+		var pattern *patternVariantRow
+		if spec.PatternVariant != nil {
+			pattern = &patternVariantRow{
+				TagPattern:     spec.PatternVariant.TagPattern,
+				TypeScriptType: spec.PatternVariant.TypeScriptType,
+				Required:       spec.PatternVariant.Required,
+				Optional:       spec.PatternVariant.Optional,
+			}
+		}
 		out = append(out, unionEntry{
 			Type: spec.GoType.Name(), Discriminator: spec.Discriminator,
-			Variants: variants, Forbidden: spec.Forbidden,
+			Variants: variants, PatternVariant: pattern, Forbidden: spec.Forbidden,
 		})
 	}
 	return out

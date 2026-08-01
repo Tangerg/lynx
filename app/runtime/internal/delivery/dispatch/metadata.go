@@ -45,8 +45,7 @@ func bindRequestMeta(ctx context.Context, req *transport.Request) (context.Conte
 	}
 	if meta.ProtocolVersion != "" && !protocol.SupportsProtocolVersion(meta.ProtocolVersion) {
 		return ctx, problemError(
-			protocol.CodeInvalidProtocolVersion,
-			protocol.ErrInvalidProtocolVersion.Error(),
+			protocol.ErrInvalidProtocolVersion,
 			fmt.Sprintf("protocolVersion %q is unsupported; supported range is %q through %q", meta.ProtocolVersion, protocol.MinProtocolVersion, protocol.ProtocolVersion),
 		)
 	}

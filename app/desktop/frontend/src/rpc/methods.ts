@@ -575,9 +575,13 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     if (missing.length === 0) return;
     throw new RpcError({
       message: `${method} requires ${missing.join(", ")}`,
-      // The type is the whole payload: a client's copy for this problem is its
-      // own (§8.4), so manufacturing a detail here would put runtime words in it.
-      data: { type: "capability_not_negotiated" },
+      // This is the same typed refusal the runtime would return, with every gap in
+      // one frame. Manufacturing a detail here would put runtime words in a local
+      // refusal, so the UI still owns the prose.
+      data: {
+        type: "capability_not_negotiated",
+        requiredCapabilities: missing.map((name) => ({ type: "feature", name })),
+      },
     });
   };
 

@@ -427,9 +427,10 @@ JSON 树兜底渲染。富 result 形状复用 §4.5 的可复用结构。
 `Usage` 是**非重叠细分**（`inputTokens` / `outputTokens` / `cacheReadTokens` / `cacheWriteTokens` /
 `reasoningTokens` + `costUsd` + `byModel`）：把同一批 token 计两次的读数没法做占用条。
 
-`ProblemData` 是错误的**唯一形状**，三个落点共用（§8）：`type`（符号名，唯一机器判别键）+ `detail?` + `docUrl?` +
-`retryAfterSeconds?` + `errors?`（字段级）+ 按 problem 类型附加的结构化成员（`activeRun` /
-`requiredCapabilities`）。
+`ProblemData` 是错误的**唯一判别联合**，三个落点共用（§8）。`type` 是唯一机器判别键；每个 first-party type
+只开放它实际拥有的成员，其他成员必须拒绝，而不是把 `detail?` / `retryAfterSeconds?` / `errors?` /
+`activeRun?` / `requiredCapabilities?` 当作任意组合的可选字段袋。完整且可执行的 variant 表由 Contract Registry
+生成在 `contract/API_REFERENCE.md`；第三方只经 §2.6 的命名空间分支进入。
 
 - **没有 `retryable`**：那个布尔量除了"这个 type"之外不携带任何信息，且 `omitempty` 让 `false` 与"缺席"不可区分，
   任何 `retryable !== false` 形式的门禁恒为真。客户端的重试门禁一律**按 `type` 判**。
@@ -819,12 +820,15 @@ embedding 角色属于运行时配置（§7.6），不是每次检索的参数�
 约定好的扩展成员：
 
 - **`docUrl`** —— 可选，指向该 `type` 的文档页；缺省时客户端按符号名查本地文案表。
-- **`retryAfterSeconds`** —— 值得等的 type（`rate_limited` / `timeout` / `provider_unavailable`）回传的最早重试
-  时机；**是否附带由 `type` 直接决定**，不经任何中间布尔量。
+- **`retryAfterSeconds`** —— 值得等的 type（`rate_limited` / `timeout` / `provider_unavailable`，以及必带该值的
+  `idempotency_in_progress`）回传的正整数最早重试时机；**是否允许/必须附带由 `type` 直接决定**，不经任何中间布尔量。
 - **`errors: FieldError[]`** —— 字段级校验错误（典型 `invalid_params`、provider 配置 / `question` 答案表单）；
   `field` = 出错 params key，UI 可逐字段标红。
 - **按 type 附带的结构化成员** —— `activeRun`（`session_has_active_run`）、`requiredCapabilities`
   （`capability_not_negotiated`）。它们由 problem 自己填，不由投递层从 `detail` 反推。
+
+这些成员不是全局可选字段：某个 variant 没有列出的字段在该 variant 上必须不存在。first-party type 是生成的精确联合；
+扩展 type 只接受 `plugin:<pluginName>/<symbol>`，并只开放 `detail` / `docUrl` / `retryAfterSeconds` 三个通用成员。
 
 ### 8.4 `type` 命名空间（防撞名）
 

@@ -33,6 +33,8 @@ type rpcErrorSpec struct {
 }
 
 var rpcErrorSpecs = mustRPCErrorSpecs([]rpcErrorSpec{
+	{sentinel: protocol.ErrInvalidRequest, code: protocol.CodeInvalidRequest, recovery: protocol.RecoveryStop},
+	{sentinel: protocol.ErrInternalError, code: protocol.CodeInternalError, recovery: protocol.RecoveryStop},
 	// The request itself is wrong: nothing the client retries changes the answer, and
 	// only a person can decide what it meant to ask.
 	{sentinel: protocol.ErrMethodNotFound, code: protocol.CodeMethodNotFound, recovery: protocol.RecoveryStop},
@@ -202,21 +204,29 @@ func errorToRPC(err error) *transport.Error {
 	}
 	for _, spec := range rpcErrorSpecs {
 		if errors.Is(err, spec.sentinel) {
-			return problemFrame(spec, spec.sentinel.Error(), err)
+			return problemFrame(spec, err)
 		}
 	}
-	return problemError(protocol.CodeInternalError, protocol.ProblemInternalError, "the runtime could not complete the request")
+	return problemError(protocol.ErrInternalError, "the runtime could not complete the request")
 }
 
-// problemError builds an Error carrying a ProblemData{type, detail}.
-// typ is the symbolic name (API.md §8.2); detail is the human string.
-func problemError(code int, typ, detail string) *transport.Error {
-	return problemErrorWithSpec(rpcErrorSpec{code: code}, typ, detail)
+// problemError builds an Error carrying the registered sentinel's code and
+// ProblemData type. Keeping both on the spec makes an impossible pair
+// unrepresentable at call sites.
+func problemError(sentinel error, detail string) *transport.Error {
+	return problemErrorWithFields(sentinel, detail)
 }
 
-func problemErrorWithSpec(spec rpcErrorSpec, typ, detail string, fields ...protocol.FieldError) *transport.Error {
+func problemErrorWithFields(sentinel error, detail string, fields ...protocol.FieldError) *transport.Error {
+	if sentinel == nil {
+		return invalidProblemResponse("the runtime could not encode an unregistered error response")
+	}
+	spec, ok := specFor(sentinel.Error())
+	if !ok {
+		return invalidProblemResponse("the runtime could not encode an unregistered error response")
+	}
 	return marshalProblem(spec, protocol.ProblemData{
-		Type: typ, Detail: detail,
+		Type: sentinel.Error(), Detail: detail,
 		RetryAfterSeconds: spec.retryAfterSeconds,
 		Errors:            fields,
 	})
@@ -228,9 +238,9 @@ func problemErrorWithSpec(spec rpcErrorSpec, typ, detail string, fields ...proto
 // The alternative is a switch here that re-derives each type's payload from
 // somewhere else — a second author for a fact the error already carried, and the one
 // place it could go missing.
-func problemFrame(spec rpcErrorSpec, typ string, err error) *transport.Error {
+func problemFrame(spec rpcErrorSpec, err error) *transport.Error {
 	problem := protocol.ProblemData{
-		Type: typ, Detail: err.Error(),
+		Type: spec.sentinel.Error(), Detail: err.Error(),
 		RetryAfterSeconds: spec.retryAfterSeconds,
 	}
 	if detailed, ok := errors.AsType[protocol.ProblemDetailed](err); ok {
@@ -241,24 +251,25 @@ func problemFrame(spec rpcErrorSpec, typ string, err error) *transport.Error {
 
 func marshalProblem(spec rpcErrorSpec, problem protocol.ProblemData) *transport.Error {
 	if err := protocol.ValidateWireTree(problem); err != nil {
-		fallback := protocol.ProblemData{
-			Type:   protocol.ProblemInternalError,
-			Detail: "the runtime could not encode a valid error response",
-		}
-		encodedFallback, _ := json.Marshal(fallback)
-		return transport.NewError(
-			protocol.CodeInternalError,
-			protocol.ProblemInternalError,
-			encodedFallback,
-		)
+		return invalidProblemResponse("the runtime could not encode a valid error response")
 	}
 	encodedProblem, _ := json.Marshal(problem)
 	return transport.NewError(spec.code, problem.Type, encodedProblem)
 }
 
+func invalidProblemResponse(detail string) *transport.Error {
+	fallback := protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: detail}
+	encodedFallback, _ := json.Marshal(fallback)
+	return transport.NewError(
+		protocol.CodeInternalError,
+		protocol.ProblemInternalError,
+		encodedFallback,
+	)
+}
+
 // invalidParams wraps a params-validation failure as invalid_params.
 func invalidParams(reason string) *transport.Error {
-	return problemError(protocol.CodeInvalidParams, "invalid_params", reason)
+	return problemError(protocol.ErrInvalidParams, reason)
 }
 
 // invalidRequestShape reports a decoded request that broke its own constraints.
@@ -267,22 +278,19 @@ func invalidParams(reason string) *transport.Error {
 // parsing one sentence. Anything else only has prose to offer.
 func invalidRequestShape(err error) *transport.Error {
 	if constraint, ok := errors.AsType[*protocol.ConstraintError](err); ok {
-		return problemErrorWithSpec(
-			rpcErrorSpec{code: protocol.CodeInvalidParams},
-			"invalid_params", constraint.Error(), constraint.Fields...,
-		)
+		return problemErrorWithFields(protocol.ErrInvalidParams, constraint.Error(), constraint.Fields...)
 	}
 	return invalidParams(err.Error())
 }
 
 // methodNotFound is the canonical envelope for an unknown method.
 func methodNotFound(method string) *transport.Error {
-	return problemError(protocol.CodeMethodNotFound, "method_not_found",
+	return problemError(protocol.ErrMethodNotFound,
 		fmt.Sprintf("unknown method %q", method))
 }
 
 // badEnvelope is returned for malformed JSON-RPC envelopes (non-string
 // id, wrong shape) at the dispatcher boundary.
 func badEnvelope(detail string) *transport.Error {
-	return problemError(protocol.CodeInvalidRequest, "invalid_request", detail)
+	return problemError(protocol.ErrInvalidRequest, detail)
 }

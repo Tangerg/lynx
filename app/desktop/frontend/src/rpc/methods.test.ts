@@ -99,7 +99,7 @@ describe("methods factory", () => {
         new RpcError({
           code: -32021,
           message: "idempotency_in_progress",
-          data: { type: "idempotency_in_progress" },
+          data: { type: "idempotency_in_progress", retryAfterSeconds: 1 },
         }),
       )
       .mockResolvedValueOnce({ id: "session_1" });

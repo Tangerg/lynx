@@ -1,3 +1,4 @@
+import { errorDetail } from "@/rpc";
 import type { ProblemData, RunMetrics, RunOutcome, RunRef, SegmentOutcome, Usage } from "@/rpc";
 import type {
   AgentProblem,
@@ -33,10 +34,11 @@ export function projectRunMetrics(metrics: RunMetrics): AgentRunMetrics {
 }
 
 export function projectProblem(problem: ProblemData): AgentProblem {
+  const retryAfterSeconds = "retryAfterSeconds" in problem ? problem.retryAfterSeconds : undefined;
   return {
-    message: problem.detail,
+    message: errorDetail(problem),
     code: problem.type,
-    retryAfterSeconds: problem.retryAfterSeconds,
+    retryAfterSeconds,
   };
 }
 

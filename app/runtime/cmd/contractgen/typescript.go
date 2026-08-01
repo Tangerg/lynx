@@ -246,7 +246,7 @@ func (e *tsEmitter) objectBody(node *schema, substitute string) string {
 	return out.String()
 }
 
-// branch renders one variant of a closed union: the shared fields this tag permits,
+// branch renders one variant of a discriminated union: the shared fields this tag permits,
 // with the discriminator pinned and the other tags' fields gone.
 func (e *tsEmitter) branch(unionSchema, variantSchema *schema) string {
 	var fields []string
@@ -275,6 +275,9 @@ func (e *tsEmitter) branch(unionSchema, variantSchema *schema) string {
 func (e *tsEmitter) narrow(baseChild, narrowing *schema) string {
 	if narrowing.Const != "" {
 		return strconv.Quote(narrowing.Const)
+	}
+	if narrowing.TypeScriptType != "" {
+		return narrowing.TypeScriptType
 	}
 	frame := e.resolve(baseChild)
 	if frame == nil {
@@ -305,6 +308,9 @@ func (e tsTypes) resolve(node *schema) *schema {
 
 // typeOf renders a schema node as a TypeScript type expression.
 func (e tsTypes) typeOf(node *schema) string {
+	if node.TypeScriptType != "" {
+		return node.TypeScriptType
+	}
 	if node.Ref != "" {
 		name, _ := strings.CutPrefix(node.Ref, refPrefix)
 		return name

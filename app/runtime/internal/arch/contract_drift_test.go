@@ -637,6 +637,13 @@ func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 			switch constraint.Kind {
 			case dispatch.ConstraintPositive:
 				keyword, helper = "minimum", "positiveNumber"
+				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)
+				if !ok {
+					t.Fatalf("%s has no field %q", shape, constraint.Field)
+				}
+				if leaf.Optional {
+					helper = "optionalPositiveNumber"
+				}
 			case dispatch.ConstraintNonNegative:
 				keyword, helper = "minimum", "nonNegativeNumber"
 			case dispatch.ConstraintNonEmptyItems:

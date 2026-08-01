@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -22,19 +23,35 @@ import (
 // does not have, or a struct field no variant accounts for, fails at startup
 // instead of silently producing a schema that permits an illegal frame.
 
-// UnionSpec declares one closed tag-discriminated union (contract §11.2).
+// UnionSpec declares one tag-discriminated union (contract §11.2). Literal
+// variants are exact; PatternVariant is its only optional extension seam.
 type UnionSpec struct {
 	GoType reflect.Type
 	// Discriminator is the JSON field carrying the tag. API.md §2.1 fixes it at
 	// `type` for every first-party union, with no exceptions.
 	Discriminator string
 	Variants      []VariantSpec
+	// PatternVariant keeps a union extensible without weakening its known variants
+	// to `type: string`. Its tag pattern must be disjoint from every literal tag;
+	// TypeScriptType is the corresponding narrow string type emitted by the SDK
+	// (for example `plugin:${string}/${string}`).
+	PatternVariant *PatternVariantSpec
 	// Forbidden names wire members that no variant may carry even though the Go
 	// shape no longer has them. This is for protocol-level negative invariants
 	// under an otherwise open object envelope, such as rejecting a removed
 	// sender-controlled reliability assertion. It never enables decoding an old
 	// shape.
 	Forbidden []string
+}
+
+// PatternVariantSpec is the one namespaced extension branch of an otherwise
+// literal-tagged union. Required and Optional have the same whole-frame meaning
+// as [VariantSpec].
+type PatternVariantSpec struct {
+	TagPattern     string
+	TypeScriptType string
+	Required       []string
+	Optional       []string
 }
 
 // VariantSpec is one tag of a union and the fields that tag brings. Names are
@@ -254,6 +271,12 @@ func cloneUnionSpec(spec UnionSpec) UnionSpec {
 		spec.Variants[index].Required = slices.Clone(spec.Variants[index].Required)
 		spec.Variants[index].Optional = slices.Clone(spec.Variants[index].Optional)
 	}
+	if spec.PatternVariant != nil {
+		pattern := *spec.PatternVariant
+		pattern.Required = slices.Clone(pattern.Required)
+		pattern.Optional = slices.Clone(pattern.Optional)
+		spec.PatternVariant = &pattern
+	}
 	return spec
 }
 
@@ -366,7 +389,7 @@ func (u UnionSpec) validate() error {
 		return fmt.Errorf("%s: %w", name, err)
 	}
 	if len(u.Variants) == 0 {
-		return fmt.Errorf("%s: a closed union with no variants describes nothing", name)
+		return fmt.Errorf("%s: a union with no literal variants describes nothing", name)
 	}
 	for index, field := range u.Forbidden {
 		switch {
@@ -424,11 +447,49 @@ func (u UnionSpec) validate() error {
 			}
 		}
 	}
+	if pattern := u.PatternVariant; pattern != nil {
+		compiled, err := regexp.Compile(pattern.TagPattern)
+		switch {
+		case pattern.TagPattern == "":
+			return fmt.Errorf("%s: pattern variant needs a tag pattern", name)
+		case err != nil:
+			return fmt.Errorf("%s: invalid pattern variant tag %q: %w", name, pattern.TagPattern, err)
+		case pattern.TypeScriptType == "":
+			return fmt.Errorf("%s: pattern variant needs a TypeScript type", name)
+		}
+		for tag := range tags {
+			if compiled.MatchString(tag) {
+				return fmt.Errorf("%s: pattern variant also matches literal tag %q", name, tag)
+			}
+		}
+		for index, field := range pattern.Required {
+			if slices.Contains(pattern.Required[:index], field) {
+				return fmt.Errorf("%s pattern variant: required field %q is declared twice", name, field)
+			}
+		}
+		for index, field := range pattern.Optional {
+			switch {
+			case slices.Contains(pattern.Optional[:index], field):
+				return fmt.Errorf("%s pattern variant: optional field %q is declared twice", name, field)
+			case slices.Contains(pattern.Required, field):
+				return fmt.Errorf("%s pattern variant: field %q cannot be both required and optional", name, field)
+			}
+		}
+		for _, field := range slices.Concat(pattern.Required, pattern.Optional) {
+			if err := protocol.HasWirePath(u.GoType, field); err != nil {
+				return fmt.Errorf("%s pattern variant: %w", name, err)
+			}
+			root := strings.Split(field, ".")[0]
+			if !slices.Contains(accounted, root) {
+				accounted = append(accounted, root)
+			}
+		}
+	}
 	// The drift that actually happens: a field is added to the struct and no
 	// variant claims it, so the generated schema would allow it under every tag.
 	for _, field := range protocol.WireFieldNames(u.GoType) {
 		if !slices.Contains(accounted, field) {
-			return fmt.Errorf("%s: field %q belongs to no variant — every field of a closed union must name its tag", name, field)
+			return fmt.Errorf("%s: field %q belongs to no variant — every union field must name its tag", name, field)
 		}
 	}
 	return nil

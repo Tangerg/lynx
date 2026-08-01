@@ -906,15 +906,49 @@ export interface PlanStep {
 
 export type PlanStepStatus = "pending" | "running" | "completed" | "failed";
 
-export interface ProblemData {
-  activeRun?: ActiveRunRef;
-  detail?: string;
-  docUrl?: string;
-  errors?: FieldError[];
-  requiredCapabilities?: CapabilityRequirement[];
-  retryAfterSeconds?: number;
-  type: string;
-}
+export type ProblemData =
+  | { type: "agent_stuck"; detail?: string; docUrl?: string }
+  | { type: "capability_not_negotiated"; detail?: string; docUrl?: string; requiredCapabilities: CapabilityRequirement[] }
+  | { type: "checkpoint_unavailable"; detail?: string; docUrl?: string }
+  | { type: "child_run_canceled"; detail?: string; docUrl?: string }
+  | { type: "denied_by_user"; detail?: string; docUrl?: string }
+  | { type: "idempotency_conflict"; detail?: string; docUrl?: string }
+  | { type: "idempotency_in_progress"; detail?: string; docUrl?: string; retryAfterSeconds: number }
+  | { type: "internal_error"; detail?: string; docUrl?: string }
+  | { type: "interrupt_not_open"; detail?: string; docUrl?: string }
+  | { type: "invalid_api_key"; detail?: string; docUrl?: string }
+  | { type: "invalid_params"; detail?: string; docUrl?: string; errors?: FieldError[] }
+  | { type: "invalid_protocol_version"; detail?: string; docUrl?: string }
+  | { type: "invalid_request"; detail?: string; docUrl?: string }
+  | { type: "item_not_found"; detail?: string; docUrl?: string }
+  | { type: "mcp_authorization_required" }
+  | { type: "mcp_dial_failed" }
+  | { type: "method_not_found"; detail?: string; docUrl?: string }
+  | { type: "path_outside_root"; detail?: string; docUrl?: string }
+  | { type: "provider_error"; detail?: string; docUrl?: string }
+  | { type: "provider_not_configured" }
+  | { type: "provider_rejected"; detail?: string; docUrl?: string }
+  | { type: "provider_test_failed" }
+  | { type: "provider_unavailable"; detail?: string; docUrl?: string; retryAfterSeconds?: number }
+  | { type: "rate_limited"; detail?: string; docUrl?: string; retryAfterSeconds?: number }
+  | { type: "replay_cursor_invalid"; detail?: string; docUrl?: string }
+  | { type: "replay_unavailable"; detail?: string; docUrl?: string }
+  | { type: "revision_conflict"; detail?: string; docUrl?: string }
+  | { type: "run_finished"; detail?: string; docUrl?: string }
+  | { type: "run_lost"; detail?: string; docUrl?: string }
+  | { type: "run_not_found"; detail?: string; docUrl?: string }
+  | { type: "run_not_root"; detail?: string; docUrl?: string }
+  | { type: "run_waiting"; detail?: string; docUrl?: string }
+  | { type: "session_busy"; detail?: string; docUrl?: string }
+  | { type: "session_has_active_run"; activeRun: ActiveRunRef; detail?: string; docUrl?: string }
+  | { type: "session_not_found"; detail?: string; docUrl?: string }
+  | { type: "stale_segment"; detail?: string; docUrl?: string }
+  | { type: "timeout"; detail?: string; docUrl?: string; retryAfterSeconds?: number }
+  | { type: "tool_failed"; detail?: string; docUrl?: string }
+  | { type: "unsupported_mime"; detail?: string; docUrl?: string }
+  | { type: "vcs_unavailable"; detail?: string; docUrl?: string }
+  | { type: "workspace_unavailable"; detail?: string; docUrl?: string }
+  | { detail?: string; docUrl?: string; retryAfterSeconds?: number; type: `plugin:${string}/${string}` };
 
 export interface ProtocolRange {
   current: string;

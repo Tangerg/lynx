@@ -125,10 +125,58 @@ state is still correct (API.md §5.2).
 | `state.snapshot` | yes | yes |
 | `custom` | no | no |
 
-## Closed unions
+## Discriminated unions
 
 Discriminated by `type` with no exceptions (API.md §2.1). A field belongs to at
-least one variant; the registry refuses a union where one does not.
+least one variant; the registry refuses a union where one does not. A union may
+publish one namespaced pattern branch without weakening first-party tags.
+
+### `ProblemData`
+
+| tag | required | optional |
+| --- | --- | --- |
+| `agent_stuck` | — | `detail`, `docUrl` |
+| `capability_not_negotiated` | `requiredCapabilities` | `detail`, `docUrl` |
+| `checkpoint_unavailable` | — | `detail`, `docUrl` |
+| `child_run_canceled` | — | `detail`, `docUrl` |
+| `denied_by_user` | — | `detail`, `docUrl` |
+| `idempotency_conflict` | — | `detail`, `docUrl` |
+| `idempotency_in_progress` | `retryAfterSeconds` | `detail`, `docUrl` |
+| `internal_error` | — | `detail`, `docUrl` |
+| `interrupt_not_open` | — | `detail`, `docUrl` |
+| `invalid_api_key` | — | `detail`, `docUrl` |
+| `invalid_params` | — | `detail`, `docUrl`, `errors` |
+| `invalid_protocol_version` | — | `detail`, `docUrl` |
+| `invalid_request` | — | `detail`, `docUrl` |
+| `item_not_found` | — | `detail`, `docUrl` |
+| `mcp_authorization_required` | — | — |
+| `mcp_dial_failed` | — | — |
+| `method_not_found` | — | `detail`, `docUrl` |
+| `path_outside_root` | — | `detail`, `docUrl` |
+| `provider_error` | — | `detail`, `docUrl` |
+| `provider_not_configured` | — | — |
+| `provider_rejected` | — | `detail`, `docUrl` |
+| `provider_test_failed` | — | — |
+| `provider_unavailable` | — | `detail`, `docUrl`, `retryAfterSeconds` |
+| `rate_limited` | — | `detail`, `docUrl`, `retryAfterSeconds` |
+| `replay_cursor_invalid` | — | `detail`, `docUrl` |
+| `replay_unavailable` | — | `detail`, `docUrl` |
+| `revision_conflict` | — | `detail`, `docUrl` |
+| `run_finished` | — | `detail`, `docUrl` |
+| `run_lost` | — | `detail`, `docUrl` |
+| `run_not_found` | — | `detail`, `docUrl` |
+| `run_not_root` | — | `detail`, `docUrl` |
+| `run_waiting` | — | `detail`, `docUrl` |
+| `session_busy` | — | `detail`, `docUrl` |
+| `session_has_active_run` | `activeRun` | `detail`, `docUrl` |
+| `session_not_found` | — | `detail`, `docUrl` |
+| `stale_segment` | — | `detail`, `docUrl` |
+| `timeout` | — | `detail`, `docUrl`, `retryAfterSeconds` |
+| `tool_failed` | — | `detail`, `docUrl` |
+| `unsupported_mime` | — | `detail`, `docUrl` |
+| `vcs_unavailable` | — | `detail`, `docUrl` |
+| `workspace_unavailable` | — | `detail`, `docUrl` |
+| `^plugin:[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$` | — | `detail`, `docUrl`, `retryAfterSeconds` |
 
 ### `CancelRunResponse`
 
@@ -403,6 +451,11 @@ TypeScript validator from this single registry projection.
 | `PendingInterruptSet` | `interrupts` | `nonEmptyItems` |
 | `Interrupt` | `itemId` | `nonEmpty` |
 | `Interrupt` | `runId` | `nonEmpty` |
+| `ActiveRunRef` | `runId` | `nonEmpty` |
+| `CapabilityRequirement` | `name` | `nonEmpty` |
+| `FieldError` | `field` | `nonEmpty` |
+| `FieldError` | `detail` | `nonEmpty` |
+| `ProblemData` | `retryAfterSeconds` | `positive` |
 | `ProblemData` | `requiredCapabilities` | `nonEmptyItems` |
 | `ProblemData` | `requiredCapabilities` | `uniqueItems` |
 | `RunReplayLimits` | `maxEvents` | `positive` |

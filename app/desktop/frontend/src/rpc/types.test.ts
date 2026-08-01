@@ -135,8 +135,9 @@ describe("errorDetail reports only what the runtime said", () => {
 });
 
 describe("errorRetryAfterSeconds", () => {
-  it("accepts only a non-negative integer delay", () => {
+  it("accepts only a positive integer delay", () => {
     expect(errorRetryAfterSeconds({ retryAfterSeconds: 3 })).toBe(3);
+    expect(errorRetryAfterSeconds({ retryAfterSeconds: 0 })).toBeUndefined();
     expect(errorRetryAfterSeconds({ retryAfterSeconds: -1 })).toBeUndefined();
     expect(errorRetryAfterSeconds({ retryAfterSeconds: 1.5 })).toBeUndefined();
     expect(errorRetryAfterSeconds({ retryAfterSeconds: "3" })).toBeUndefined();

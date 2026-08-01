@@ -64,6 +64,8 @@ func TestUsageAndProblemValidate(t *testing.T) {
 		{name: "infinite cost", usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &infiniteCost}}, wantErr: true},
 		{name: "unknown problem scope", problem: &transcript.Problem{Scope: transcript.ProblemScope(99)}, wantErr: true},
 		{name: "wrong problem owner", problem: &transcript.Problem{Scope: transcript.RunProblem}, wantErr: true},
+		{name: "retry delay on permanent failure", problem: &transcript.Problem{Scope: transcript.ToolProblem, Kind: transcript.InvalidAPIKeyProblem, RetryAfterSeconds: 1}, wantErr: true},
+		{name: "retry delay on rate limit", problem: &transcript.Problem{Scope: transcript.ToolProblem, Kind: transcript.RateLimitedProblem, RetryAfterSeconds: 1}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

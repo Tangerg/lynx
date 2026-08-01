@@ -568,6 +568,13 @@ func (problem *Problem) Validate() error {
 	if problem.RetryAfterSeconds < 0 {
 		return errors.New("retry delay must not be negative")
 	}
+	if problem.RetryAfterSeconds > 0 {
+		switch problem.Kind {
+		case RateLimitedProblem, TimeoutProblem, ProviderUnavailableProblem:
+		default:
+			return fmt.Errorf("problem kind %d cannot carry a retry delay", problem.Kind)
+		}
+	}
 	return nil
 }
 
