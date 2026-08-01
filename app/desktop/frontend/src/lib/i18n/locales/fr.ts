@@ -260,6 +260,9 @@ export const fr: Record<string, string> = {
   "settings.theme": "Thème",
   "settings.theme.sub":
     "Choisissez un thème. Les plugins peuvent en ajouter — ils apparaissent ici automatiquement.",
+  "settings.visualStyle": "Style de l’interface",
+  "settings.visualStyle.sub":
+    "Modifie la forme des composants, la séparation, la profondeur et les interactions.",
   "settings.accent": "Accent",
   "settings.accent.sub": "Couleur de surbrillance — exécuter / actif / CTA.",
   "settings.accent.custom": "Choisir une couleur",

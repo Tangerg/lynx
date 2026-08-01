@@ -1,10 +1,18 @@
 import { resolveThemeScheme } from "@/plugins/builtin/theme/public/scheme";
-import { appearancePreferences, type CustomTheme, type Theme } from "./ports/preferences";
+import type { ColorThemeId } from "@/lib/appearance";
+import { appearancePreferences, type CustomTheme } from "./ports/preferences";
 
 export function useThemePreference() {
   return {
     theme: appearancePreferences().useTheme(),
     setTheme: appearancePreferences().useSetTheme(),
+  };
+}
+
+export function useVisualStylePreference() {
+  return {
+    visualStyle: appearancePreferences().useVisualStyle(),
+    setVisualStyle: appearancePreferences().useSetVisualStyle(),
   };
 }
 
@@ -18,7 +26,7 @@ export function useAccentPreference() {
 }
 
 export function useCustomThemePreference(): {
-  theme: Theme;
+  theme: ColorThemeId;
   customTheme: CustomTheme;
   setCustomTheme: (patch: Partial<CustomTheme>) => void;
 } {

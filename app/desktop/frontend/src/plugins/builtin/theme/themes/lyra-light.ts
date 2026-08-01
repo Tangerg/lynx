@@ -9,7 +9,7 @@
 // Accent (blue-700) is reserved for live / focus / links; the primary CTA is the
 // inverting ink-on-white button, so blue stays rare.
 
-import { defineThemePlugin } from "../kit/defineThemePlugin";
+import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 
 const c = {
   // The one accent. Live indicators, focus rings, links.
@@ -44,7 +44,7 @@ const c = {
   hairTertiary: "rgb(0 0 0 / 0.04)",
 };
 
-export default defineThemePlugin({
+export default defineColorThemePlugin({
   id: "light",
   label: "Light",
   scheme: "light",

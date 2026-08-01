@@ -16,7 +16,7 @@ export { definePluginPack } from "./definePluginPack";
 // Open extension points — the JetBrains-style substrate: a plugin defines a
 // typed point, any plugin contributes, any plugin consumes.
 export { defineExtensionPoint } from "./defineExtensionPoint";
-// Built-in kernel points (THEME / COMMAND / LAYOUT_SLOT / …). Re-exported so
+// Built-in kernel points (COLOR_THEME / COMMAND / LAYOUT_SLOT / …). Re-exported so
 // sideload bundles — which only see the SDK via `window.__LYRA__.SDK` — can
 // contribute to kernel surfaces, the same way built-ins do via the deep path.
 export * from "./kernelPoints";
@@ -141,8 +141,9 @@ export type {
   SlashCommandRunCtx,
   SlashCommandSpec,
   StateUpdate,
-  ThemeAccentSpec,
-  ThemeSpec,
+  ColorThemeSpec,
+  AccentSpec,
+  VisualStyleSpec,
   ToolActionSpec,
   ToolPreviewComponent,
   ToolPreviewProps,

@@ -31,7 +31,7 @@ export function AgentComposerSurface({
     <div
       {...props}
       className={cn(
-        "rounded-composer border border-field bg-canvas",
+        "rounded-composer border-[var(--composer-edge-width)] border-field bg-canvas",
         "shadow-[var(--shadow-composer-depth)] focus-within:border-field-strong",
         "transition-[border-color] duration-[var(--dur-med)] ease-out",
         className,

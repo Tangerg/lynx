@@ -1,10 +1,10 @@
-// The `theme` package entry: every built-in theme shipped as one Plugin Pack.
+// The appearance package: colour themes, visual styles and the document painter.
 //
 // Adding a theme = drop a new file under `theme/themes/`, add it to the array
 // below, done — mirrors `i18n/` (pack entry + `locales/` data files). The
 // manifest pulls in this single pack and never touches individual theme
 // imports. `themes/` holds the data files; `kit/` holds the shared
-// theme-authoring helper (`defineThemePlugin` + tokens + types).
+// theme-authoring helper (`defineColorThemePlugin` + tokens + types).
 
 import type { PluginSpec } from "@/plugins/sdk";
 import { definePluginPack } from "@/plugins/sdk";
@@ -20,6 +20,7 @@ import solarizedDark from "./themes/solarized-dark";
 import solarizedLight from "./themes/solarized-light";
 import tokyoNightLight from "./themes/tokyo-night-light";
 import tokyoNightStorm from "./themes/tokyo-night-storm";
+import { builtinVisualStyles } from "./visualStyles";
 
 const builtinThemes: PluginSpec[] = [
   lyraDark,
@@ -37,8 +38,8 @@ const builtinThemes: PluginSpec[] = [
 // Themes have no `requires` and distinct ids, so child array order is purely
 // the picker's sort hint. The user-editable custom theme rides along as the
 // last child.
-export const themesPack = definePluginPack({
-  name: "lyra.builtin.themes",
+export const appearancePack = definePluginPack({
+  name: "lyra.builtin.appearance-system",
   version: "1.0.0",
-  children: [...builtinThemes, customTheme, appearancePainter],
+  children: [...builtinThemes, customTheme, ...builtinVisualStyles, appearancePainter],
 });

@@ -1,14 +1,14 @@
 // Unit tests for the buildTokenMap workhorse. Was untested when it lived
-// inline in defineThemePlugin.ts — extracted to ./tokens.ts in Batch D
+// inline in defineColorThemePlugin.ts — extracted to ./tokens.ts in Batch D
 // made it possible. These pin the resolution rules so future theme
 // tweaks (e.g. adding a new optional override) can't silently shift
 // existing themes' tokens.
 
 import { describe, expect, it } from "vitest";
-import type { ThemePluginSpec } from "./types";
-import { DARK_SHADOWS, LIGHT_SHADOWS, SCHEME_ICON, buildTokenMap } from "./tokens";
+import type { ColorThemePluginSpec } from "./types";
+import { SCHEME_ICON, buildTokenMap } from "./tokens";
 
-function makeSpec(overrides: Partial<ThemePluginSpec> = {}): ThemePluginSpec {
+function makeSpec(overrides: Partial<ColorThemePluginSpec> = {}): ColorThemePluginSpec {
   return {
     id: "test",
     label: "Test",
@@ -98,34 +98,10 @@ describe("buildTokenMap", () => {
     expect(tokens).not.toHaveProperty("color-surface-4");
   });
 
-  it("dark scheme picks DARK_SHADOWS; light picks LIGHT_SHADOWS", () => {
-    const dark = buildTokenMap(makeSpec({ scheme: "dark" }));
-    const light = buildTokenMap(makeSpec({ scheme: "light" }));
-    expect(dark["shadow-composer"]).toBe(DARK_SHADOWS.composer);
-    expect(dark["shadow-popover"]).toBe(DARK_SHADOWS.popover);
-    expect(light["shadow-composer"]).toBe(LIGHT_SHADOWS.composer);
-    expect(light["shadow-popover"]).toBe(LIGHT_SHADOWS.popover);
-    // No card `surface` shadow — a card's edge is its own fill plus, when it
-    // floats, the shadow's ring layer.
-    expect(dark).not.toHaveProperty("shadow-surface");
-    expect(light).not.toHaveProperty("shadow-surface");
-  });
-
-  it("spec.shadows merges per-key over scheme defaults", () => {
-    const tokens = buildTokenMap(
-      makeSpec({ shadows: { composer: "0 0 red", popover: "2px 2px blue" } }),
-    );
-    expect(tokens["shadow-composer"]).toBe("0 0 red");
-    expect(tokens["shadow-popover"]).toBe("2px 2px blue");
-    // Untouched shadow keys still come from DARK defaults.
-  });
-
-  // Corner radius is NOT a theme concern: one continuous `--shape-*` ladder in
-  // globals.css owns it, scaled by the user's Shape preference. A theme emitting
-  // radius tokens would be writing values nothing reads.
-  it("never emits radius tokens", () => {
+  it("never emits visual-style tokens", () => {
     const tokens = buildTokenMap(makeSpec());
-    expect(Object.keys(tokens).filter((key) => key.startsWith("radius-"))).toEqual([]);
+    expect(Object.keys(tokens).filter((key) => key.startsWith("style-shape-"))).toEqual([]);
+    expect(Object.keys(tokens).filter((key) => key.startsWith("shadow-"))).toEqual([]);
   });
 
   it("depthStep defaults to 5% but spec can override", () => {

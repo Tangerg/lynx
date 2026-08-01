@@ -23,7 +23,8 @@
         var scheme = systemDark ? "dark" : "light";
         try {
           var raw = localStorage.getItem("lyra.ui");
-          var id = raw ? JSON.parse(raw)?.state?.theme : null;
+          var state = raw ? JSON.parse(raw)?.state : null;
+          var id = state?.theme;
           if (id === "light") scheme = "light";
           else if (id && id !== "system") scheme = "dark"; // "dark" + custom ids
           // "system" / missing → keep the prefers-color-scheme default above.
@@ -31,6 +32,7 @@
           /* localStorage blocked, malformed JSON — keep the system default */
         }
         var root = document.documentElement;
+        root.dataset.visualStyle = state?.visualStyle || "synara";
         root.classList.add("theme-" + scheme);
         // Paint the canvas colour on <html> BEFORE the CSS bundle parses, so a
         // cold boot opens straight into the app surface instead of flashing white.

@@ -6,10 +6,10 @@
 
 import type { ReactNode } from "react";
 import type { Scheme } from "@/lib/appearance";
-import type { ThemeSpec } from "@/plugins/sdk";
+import type { ColorThemeSpec } from "@/plugins/sdk";
 import { DropdownMenu, Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
-import { THEME, useExtensionPoint } from "@/plugins/sdk";
+import { COLOR_THEME, useExtensionPoint } from "@/plugins/sdk";
 import { SettingRow } from "../../public";
 import { useThemePreference } from "../application/appearancePreferences";
 
@@ -21,7 +21,7 @@ const FALLBACK_TOKENS: Record<Scheme, { bg: string; surface: string; accent: str
   light: { bg: "#ffffff", surface: "#f6f7f8", accent: "#2563eb" },
 };
 
-function previewTokens(spec: ThemeSpec): { bg: string; surface: string; accent: string } {
+function previewTokens(spec: ColorThemeSpec): { bg: string; surface: string; accent: string } {
   const fallback = FALLBACK_TOKENS[spec.scheme];
   return {
     bg: spec.tokens?.["color-bg"] ?? fallback.bg,
@@ -91,7 +91,7 @@ function ThemeItem({
 
 export function ThemeSection() {
   const t = useT();
-  const themes = useExtensionPoint(THEME);
+  const themes = useExtensionPoint(COLOR_THEME);
   const { theme, setTheme } = useThemePreference();
 
   const isSystem = theme === "system";
@@ -106,7 +106,7 @@ export function ThemeSection() {
     <SettingRow label={t("settings.theme")} sub={t("settings.theme.sub")}>
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
-          className="inline-flex w-fit min-w-[220px] items-center gap-2.5 rounded-md border-[0.5px] border-field bg-surface-2 px-3 py-1.5 text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3"
+          className="inline-flex min-h-[var(--field-height-md)] w-fit min-w-[220px] items-center gap-2.5 rounded-[var(--field-radius)] border-[var(--control-edge-width)] border-field bg-surface-2 px-3 py-1.5 text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3"
           aria-label={t("settings.theme")}
         >
           {triggerSwatch}

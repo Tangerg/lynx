@@ -9,7 +9,7 @@
 // it doesn't matter whether contributors load before or after — the
 // subscription catches up either way.
 
-import type { Disposable, ThemeAccentSpec, WorkspaceViewSpec } from "@/plugins/sdk";
+import type { AccentSpec, Disposable, WorkspaceViewSpec } from "@/plugins/sdk";
 import { toggleThemeScheme } from "@/plugins/builtin/theme/public/scheme";
 import { closeActiveAgentSession, createSession } from "@/plugins/builtin/agent/public/session";
 import {
@@ -61,7 +61,7 @@ export const defaultCommands = definePlugin({
     // re-registers from current state.
     let dynamic: Disposable[] = [];
 
-    const rebuild = (views: WorkspaceViewSpec[], accents: ThemeAccentSpec[]) => {
+    const rebuild = (views: WorkspaceViewSpec[], accents: AccentSpec[]) => {
       for (const d of dynamic) d.dispose();
       dynamic = [];
       for (const command of defaultWorkspaceViewCommands(views, {

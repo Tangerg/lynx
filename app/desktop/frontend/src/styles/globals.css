@@ -456,23 +456,51 @@
   --leading-body: 1.55;
   --leading-relaxed: 1.65;
 
-  /* Shape source — one continuous ladder off a 10px base. Everything multiplies
-     through `--radius-scale` (Settings → Shape: Sharp / Default / Soft), and
-     `@theme inline` aliases these into the `rounded-*` utilities by reference so
-     the preset actually reaches them. Themes may override --radius-scale to ship
-     their own baseline. */
+  /* Visual-style geometry is the base; the user's radius preference is the
+     multiplier. Colour themes never write either side of this equation. */
+  --style-shape-2xs: 4px;
+  --style-shape-xs: 6px;
+  --style-shape-sm: 8px;
+  --style-shape-md: 10px;
+  --style-shape-lg: 14px;
+  --style-shape-xl: 18px;
+  --style-shape-content: 14.4px;
+  --style-shape-composer: 19.2px;
+  --style-shape-bubble: 12.8px;
   --radius-scale: 1;
-  --shape-2xs: calc(4px * var(--radius-scale)); /* inline code, kbd, cite marks */
-  --shape-xs: calc(6px * var(--radius-scale));
-  --shape-sm: calc(8px * var(--radius-scale));
-  --shape-md: calc(10px * var(--radius-scale)); /* default control radius */
-  --shape-lg: calc(14px * var(--radius-scale)); /* cards */
-  --shape-xl: calc(18px * var(--radius-scale)); /* menus, popovers, dock card */
-  --app-content-card-radius: calc(14.4px * var(--radius-scale));
-  --shape-composer: calc(19.2px * var(--radius-scale));
-  --shape-bubble: calc(12.8px * var(--radius-scale)); /* user message bubble */
+  --shape-2xs: calc(var(--style-shape-2xs) * var(--radius-scale));
+  --shape-xs: calc(var(--style-shape-xs) * var(--radius-scale));
+  --shape-sm: calc(var(--style-shape-sm) * var(--radius-scale));
+  --shape-md: calc(var(--style-shape-md) * var(--radius-scale));
+  --shape-lg: calc(var(--style-shape-lg) * var(--radius-scale));
+  --shape-xl: calc(var(--style-shape-xl) * var(--radius-scale));
+  --app-content-card-radius: calc(var(--style-shape-content) * var(--radius-scale));
+  --shape-composer: calc(var(--style-shape-composer) * var(--radius-scale));
+  --shape-bubble: calc(var(--style-shape-bubble) * var(--radius-scale));
   /* Conceptual ("fully round") — not scaled. */
   --shape-pill: 9999px;
+
+  /* Component-role geometry. A style can make actions pill-shaped without also
+     turning text fields and tool windows into pills. */
+  --button-radius: var(--shape-md);
+  --field-radius: var(--shape-md);
+  --segmented-radius: var(--shape-md);
+  --segment-radius: var(--shape-xs);
+  --surface-card-radius: var(--shape-lg);
+  --floating-panel-radius: var(--shape-xl);
+  --floating-tip-radius: var(--shape-md);
+  --dock-tab-radius: var(--shape-md);
+  --control-height-xs: 24px;
+  --control-height-sm: 28px;
+  --control-height-md: 32px;
+  --control-height-lg: 40px;
+  --field-height-sm: 26px;
+  --field-height-md: 32px;
+  --field-height-lg: 36px;
+  --menu-row-height: 26px;
+  --dock-tab-height: 28px;
+  --control-edge-width: 0.5px;
+  --composer-edge-width: 1px;
 
   /* Density — first-paint defaults for `comfortable`. installUiStoreEffects
      recomputes these from the user's pick (lib/density.ts). Chrome-bar heights
@@ -495,22 +523,28 @@
      CSS-controlled animations + the motion/react presets that read
      the scale via lib/motion.ts. */
   --motion-scale: 1;
-  --animation-duration: calc(150ms * var(--motion-scale));
+  --dur-instant-base: 80ms;
+  --dur-fast-base: 150ms;
+  --dur-med-base: 200ms;
+  --dur-disclosure-base: 220ms;
+  --dur-slow-base: 360ms;
+  --dur-drawer-base: 300ms;
+  --animation-duration: calc(var(--dur-fast-base) * var(--motion-scale));
   --ease-out: cubic-bezier(0.3, 0, 0, 1);
   --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
   /* Emphasized decel — bigger, slower tail. Large surface moves only. */
   --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
 
-  --dur-instant: calc(80ms * var(--motion-scale));
+  --dur-instant: calc(var(--dur-instant-base) * var(--motion-scale));
   /* Press — how far a control sinks under the pointer. One value, because a
      control that answers at 0.90 next to one at 0.98 reads as two different
      apps; reach for it as `active:scale-[var(--press-scale)]`. */
   --press-scale: 0.96;
 
-  --dur-fast: calc(150ms * var(--motion-scale));
-  --dur-med: calc(200ms * var(--motion-scale));
-  --dur-disclosure: calc(220ms * var(--motion-scale));
-  --dur-slow: calc(360ms * var(--motion-scale));
+  --dur-fast: calc(var(--dur-fast-base) * var(--motion-scale));
+  --dur-med: calc(var(--dur-med-base) * var(--motion-scale));
+  --dur-disclosure: calc(var(--dur-disclosure-base) * var(--motion-scale));
+  --dur-slow: calc(var(--dur-slow-base) * var(--motion-scale));
 
   --polish-fast: var(--dur-fast) var(--ease-out);
   --polish-med: var(--dur-med) var(--ease-out);
@@ -541,6 +575,7 @@
   --shadow-raised-chip:
     0 1px 1.5px rgb(0 0 0 / 0.04), inset 0 0 0 0.5px rgb(255 255 255 / 0.35),
     inset 0 1px 0 rgb(255 255 255 / 0.5);
+  --shadow-surface-card: none;
   /* The halo on a "this is live right now" dot. Theme-agnostic on purpose: it is
      the accent bleeding, so it follows whatever accent the user picked. Two
      callsites had spelled it out identically — the status dot and, beside a
@@ -566,6 +601,7 @@
   --app-drawer-surface: color-mix(in srgb, var(--color-bg) 64%, transparent);
   --app-drawer-backdrop: blur(8px) saturate(135%);
   --app-drawer-shadow: inset 0 1px 0 rgb(0 0 0 / 0.025);
+  --app-drawer-sheen-opacity: 1;
   /* The card's outer edge should read as solid — deliberately stronger than the
      internal chrome hairline below. Do not unify the two. */
   --seam-line: color-mix(in srgb, var(--color-text) 8%, transparent);
@@ -573,6 +609,13 @@
   /* Internal chrome dividers (header bottoms, pane splits) sit a step more
      transparent than the seam so they recede behind it. */
   --app-surface-divider: color-mix(in srgb, var(--color-border) 60%, transparent);
+  --app-content-surface: var(--color-bg);
+  --app-content-shadow: -6.5px 0 12px -10px var(--seam-shadow-color);
+  --app-content-ring: inset 0 0 0 1px var(--seam-line);
+  --app-content-ring-opacity: 1;
+  --app-header-surface: transparent;
+  --app-dock-surface: var(--color-bg);
+  --app-card-surface: var(--color-surface);
 
   /* Content max-width — the centered reading island. */
   --content-max: 736px;
@@ -901,7 +944,7 @@ html.theme-light .msg-content code {
   --surface-header-height: 46px;
   /* Drawer slide. One duration + curve for the sidebar container, its spacer,
      the seam corner, and the card's depth shadow, so they move as one object. */
-  --dur-drawer: calc(300ms * var(--motion-scale));
+  --dur-drawer: calc(var(--dur-drawer-base) * var(--motion-scale));
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
@@ -962,6 +1005,7 @@ html.theme-dark {
   background:
     radial-gradient(90% 75% at 0% 0%, rgb(255 255 255 / 0.06), transparent 58%),
     linear-gradient(180deg, rgb(255 255 255 / 0.025), rgb(255 255 255 / 0.008));
+  opacity: var(--app-drawer-sheen-opacity);
 }
 
 /* The drawer itself is out of flow, so it can slide without reflowing the card.
@@ -1078,11 +1122,11 @@ html.theme-dark {
   flex: 1;
   flex-direction: column;
   overflow: hidden;
-  background: var(--color-bg);
+  background: var(--app-content-surface);
   border-radius: var(--app-content-card-radius) 0 0 var(--app-content-card-radius);
   /* Low spread + negative offset keeps the shadow hugging the seam instead of
      fanning across the drawer. */
-  box-shadow: -6.5px 0 12px -10px var(--seam-shadow-color);
+  box-shadow: var(--app-content-shadow);
   transition:
     box-shadow var(--dur-drawer) var(--ease-drawer),
     border-radius var(--dur-drawer) var(--ease-drawer);
@@ -1098,7 +1142,8 @@ html.theme-dark {
   z-index: 1;
   pointer-events: none;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 1px var(--seam-line);
+  box-shadow: var(--app-content-ring);
+  opacity: var(--app-content-ring-opacity);
   clip-path: inset(0 calc(100% - var(--app-content-card-radius)) 0 0);
   transition: opacity var(--dur-drawer) var(--ease-drawer);
 }
@@ -1107,6 +1152,13 @@ html.theme-dark {
    second element. */
 .agent-shell:has(.agent-seam-rail:is(:hover, :focus-visible)) .agent-content-card {
   --seam-line: color-mix(in srgb, var(--color-text) 30%, transparent);
+}
+
+html[data-region-layout]:not([data-region-layout="floating-card"]) .agent-content-card::before {
+  clip-path: none;
+  border-radius: 0;
+  box-shadow: inset 1px 0 0 var(--app-surface-divider);
+  opacity: 1;
 }
 
 /* Pane resizer — the shell's seam rail and this splitter are the same gesture,
@@ -1152,6 +1204,7 @@ html.theme-dark {
   align-items: center;
   gap: 8px;
   padding-inline: 12px;
+  background-color: var(--app-header-surface);
   /* A frameless window has no title bar but the chrome bars, so every one of
      them drags the window. Stated once here rather than per component: the
      components that forgot left whole surfaces (the settings page, a maximised
@@ -1244,7 +1297,7 @@ html.theme-dark {
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  background: var(--color-bg);
+  background: var(--app-dock-surface);
 }
 
 /* Dock chrome: the tab strip is a dense desktop toolbar, not a second content
@@ -1267,6 +1320,26 @@ html.theme-dark {
 
 .agent-dock-tabs::-webkit-scrollbar {
   display: none;
+}
+
+html[data-control-treatment="outlined"] .agent-dock-tabs > [data-active] {
+  border-radius: 0;
+  background: transparent;
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+}
+
+html[data-control-treatment="elevated"] .agent-dock-tabs > [data-active] {
+  box-shadow: var(--shadow-control);
+}
+
+html[data-control-treatment="elevated"]
+  :where(
+    [data-slot="button"][data-variant="soft"],
+    [data-slot="button"][data-variant="outline"],
+    [data-slot="button"][data-variant="primary"],
+    [data-slot="text-field"][data-variant="boxed"]
+  ) {
+  box-shadow: var(--shadow-control);
 }
 
 /* ---------- Scroll containers ---------- */

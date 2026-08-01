@@ -23,7 +23,7 @@ export function Chip({ icon, children, title, onClose }: Props) {
   const t = useT();
   return (
     <Tooltip label={title}>
-      <span className="group inline-flex h-7 items-center gap-1.5 rounded-md border border-field bg-surface-2 pl-2 pr-1 text-ui-sm font-normal text-fg-muted">
+      <span className="group inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-[var(--button-radius)] border-[var(--control-edge-width)] border-field bg-surface-2 pl-2 pr-1 text-ui-sm font-normal text-fg-muted">
         {icon && <Icon name={icon} size={12} />}
         <span className="max-w-[220px] truncate font-mono">{children}</span>
         {onClose && (

@@ -1,32 +1,12 @@
 // Theme token computation — defaults ladder + spec → flat CSS-variable
-// map. Split out of defineThemePlugin.ts so the entry module reads
+// map. Split out of defineColorThemePlugin.ts so the entry module reads
 // as a small registration wrapper, and so this pure-function workhorse
 // (buildTokenMap) can be unit-tested independently of the plugin
 // machinery.
 
 import { colord } from "colord";
 import type { Scheme } from "@/lib/appearance";
-import type { ThemeCta, ThemePluginSpec, ThemeShadows } from "./types";
-
-// Default shadow ladders.
-//
-// Floating surfaces use the desktop polish model: optical edge ring + contact
-// shadow + ambient shadow. The first layer is a 0.5px shadow ring, not a CSS
-// border, so it gives the crisp Raycast/Geist edge without adding grey layout
-// chrome. Tiled/docked regions separate by the chrome hairline and structural
-// hairlines; these shadows are reserved for composer and transient surfaces.
-export const DARK_SHADOWS: ThemeShadows = {
-  composer: "0 0 0 1px var(--seam-line), 0 8px 40px -12px rgb(0 0 0 / 0.4)",
-  popover:
-    "0 0 0 1px var(--seam-line), 0 12px 32px -12px rgb(0 0 0 / 0.55), 0 2px 6px -2px rgb(0 0 0 / 0.4)",
-};
-
-export const LIGHT_SHADOWS: ThemeShadows = {
-  composer:
-    "0 0 0 1px var(--seam-line), 0 6px 30px -8px color-mix(in srgb, var(--color-text) 9%, transparent)",
-  popover:
-    "0 0 0 1px var(--seam-line), 0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent)",
-};
+import type { ColorThemePluginSpec, ThemeCta } from "./types";
 
 export const SCHEME_ICON: Record<Scheme, string> = {
   dark: "moon",
@@ -40,18 +20,13 @@ export const SCHEME_ICON: Record<Scheme, string> = {
  * function — same input always produces the same output, no I/O.
  *
  * Resolution rules:
- *  - shadow defaults pick from DARK/LIGHT by `spec.scheme`; spec.shadows
- *    overrides per-key
  *  - accentBorder / accentPress auto-derive from spec.brand.accent via
  *    colord unless the spec passes explicit overrides
  *  - CTA defaults to accent-driven (accent fill + textOnAccent ink);
  *    spec.cta overrides individual fields
  *  - spec.extras wins on collision (last spread)
  */
-export function buildTokenMap(spec: ThemePluginSpec): Record<string, string> {
-  const shadowDefaults = spec.scheme === "dark" ? DARK_SHADOWS : LIGHT_SHADOWS;
-  const shadows: ThemeShadows = { ...shadowDefaults, ...spec.shadows };
-
+export function buildTokenMap(spec: ColorThemePluginSpec): Record<string, string> {
   // Auto-derive accentBorder / accentPress from the base accent via
   // colord. Themes can still pass explicit values when the perceptual
   // darkening doesn't land where the palette wants it.
@@ -109,13 +84,7 @@ export function buildTokenMap(spec: ThemePluginSpec): Record<string, string> {
     "color-cta-hover": cta.ctaHover,
     "color-cta-text": cta.ctaText,
 
-    // Shadows — floating-elevation tokens only (no card `surface` shadow).
-    "shadow-composer": shadows.composer,
-    "shadow-popover": shadows.popover,
-
-    // Radii
-
-    // Free-form extras win on collision so theme-level overrides
+    // Free-form extras win on collision so palette-level overrides
     // always take precedence.
     ...spec.extras,
   };

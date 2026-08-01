@@ -382,6 +382,8 @@ export const zh: Record<string, string> = {
   "settings.theme": "主题",
   "settings.theme.system": "系统",
   "settings.theme.sub": "选择一个配色方案。插件可以注册更多主题——会自动出现在这里。",
+  "settings.visualStyle": "界面风格",
+  "settings.visualStyle.sub": "切换组件形态、区域分割、阴影层级与交互语言。",
   "settings.accent": "强调色",
   "settings.accent.sub": "功能性高亮——运行、激活、主要操作。",
   "settings.accent.custom": "自定义颜色",

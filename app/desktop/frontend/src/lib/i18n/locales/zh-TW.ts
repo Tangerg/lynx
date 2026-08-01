@@ -257,6 +257,8 @@ export const zhTW: Record<string, string> = {
   "workspace.view.title.diagnostics": "診斷",
   "settings.theme": "佈景",
   "settings.theme.sub": "挑選配色方案。外掛可以註冊更多——會自動出現在這裡。",
+  "settings.visualStyle": "介面風格",
+  "settings.visualStyle.sub": "切換元件形態、區域分割、陰影層級與互動語言。",
   "settings.accent": "強調色",
   "settings.accent.sub": "功能性高亮——執行、啟用、主要操作。",
   "settings.accent.custom": "自訂顏色",

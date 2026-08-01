@@ -31,8 +31,9 @@ import type {
   SettingsPaneSpec,
   ShortcutSpec,
   SlashCommandSpec,
-  ThemeAccentSpec,
-  ThemeSpec,
+  ColorThemeSpec,
+  AccentSpec,
+  VisualStyleSpec,
   ToolActionSpec,
   ToolPreviewComponent,
   ToolViewOpenerSpec,
@@ -44,13 +45,18 @@ import { defineExtensionPoint } from "./defineExtensionPoint";
 import { LIFECYCLE_POINT_IDS } from "./pointIds";
 import { normalizeCombo } from "./registry";
 
-export const THEME = defineExtensionPoint<ThemeSpec>({
-  id: "lyra.theme",
+export const COLOR_THEME = defineExtensionPoint<ColorThemeSpec>({
+  id: "lyra.colorTheme",
   capability: "theme",
   keying: "single",
 });
-export const ACCENT = defineExtensionPoint<ThemeAccentSpec>({
+export const ACCENT = defineExtensionPoint<AccentSpec>({
   id: "lyra.accent",
+  capability: "theme",
+  keying: "single",
+});
+export const VISUAL_STYLE = defineExtensionPoint<VisualStyleSpec>({
+  id: "lyra.visualStyle",
   capability: "theme",
   keying: "single",
 });

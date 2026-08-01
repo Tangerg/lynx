@@ -18,7 +18,8 @@ import {
 //           chip row). Metrics stay off in that case: the container set the
 //           height, and a second one here would fight it.
 const EDGE = {
-  boxed: "rounded-md border-[0.5px] border-field bg-canvas focus:border-field-strong",
+  boxed:
+    "rounded-[var(--field-radius)] border-[var(--control-edge-width)] border-field bg-canvas focus:border-field-strong",
   bare: "border-0 bg-transparent",
 } as const;
 
@@ -50,9 +51,9 @@ const inputStyles = cva(BASE, {
     size: { sm: "text-ui-md", md: "text-ui-md", lg: "text-ui-lg" },
   },
   compoundVariants: [
-    { variant: "boxed", size: "sm", class: "h-6.5 px-2" },
-    { variant: "boxed", size: "md", class: "h-8 px-2.5" },
-    { variant: "boxed", size: "lg", class: "h-9 px-3" },
+    { variant: "boxed", size: "sm", class: "h-[var(--field-height-sm)] px-2" },
+    { variant: "boxed", size: "md", class: "h-[var(--field-height-md)] px-2.5" },
+    { variant: "boxed", size: "lg", class: "h-[var(--field-height-lg)] px-3" },
     ...INVALID_COMPOUNDS,
   ],
   defaultVariants: { variant: "boxed", size: "md", font: "mono", invalid: false },
@@ -79,6 +80,8 @@ export function TextField({ variant, size, font, invalid, className, ...props }:
   return (
     <InputPrimitive
       {...props}
+      data-slot="text-field"
+      data-variant={variant ?? "boxed"}
       className={cn(inputStyles({ variant, size, font, invalid }), className)}
     />
   );
@@ -110,9 +113,9 @@ export function TextArea({ variant, size, font, invalid, className, ...props }: 
 // field classes, a shadow ring, a literal border), so the affordance read
 // slightly differently in each corner of the app.
 const SEARCH_BOX = {
-  sm: "h-6.5 gap-1.5 px-2",
-  md: "h-8 gap-1.5 px-2.5",
-  lg: "h-9 gap-2 px-3",
+  sm: "h-[var(--field-height-sm)] gap-1.5 px-2",
+  md: "h-[var(--field-height-md)] gap-1.5 px-2.5",
+  lg: "h-[var(--field-height-lg)] gap-2 px-3",
 } as const;
 
 const SEARCH_GLYPH = { sm: 12, md: 13, lg: 15 } as const;

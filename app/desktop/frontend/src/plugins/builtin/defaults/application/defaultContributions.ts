@@ -1,9 +1,4 @@
-import type {
-  CommandSpec,
-  MessageRoleSpec,
-  ThemeAccentSpec,
-  WorkspaceViewSpec,
-} from "@/plugins/sdk";
+import type { CommandSpec, MessageRoleSpec, AccentSpec, WorkspaceViewSpec } from "@/plugins/sdk";
 
 export type CommandRun = CommandSpec["run"];
 
@@ -24,9 +19,9 @@ export interface WorkspaceViewOpeners {
   openFull: (id: WorkspaceViewSpec["id"]) => void;
 }
 
-export type AccentSetter = (accent: ThemeAccentSpec["dark"]) => void;
+export type AccentSetter = (accent: AccentSpec["dark"]) => void;
 
-export const DEFAULT_ACCENTS: ThemeAccentSpec[] = [
+export const DEFAULT_ACCENTS: AccentSpec[] = [
   {
     id: "blue",
     label: "Blue",
@@ -158,7 +153,7 @@ export function defaultWorkspaceViewCommands(
 }
 
 export function defaultAccentCommands(
-  accents: ThemeAccentSpec[],
+  accents: AccentSpec[],
   setAccent: AccentSetter,
 ): CommandSpec[] {
   return [...accents]

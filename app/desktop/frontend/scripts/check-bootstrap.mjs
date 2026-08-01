@@ -28,7 +28,7 @@ const read = (path) => readFileSync(new URL(path, import.meta.url).pathname, "ut
 const html = read("../index.html");
 const css = read("../src/styles/globals.css");
 const store = read("../src/state/uiStore.ts");
-const painter = read("../src/plugins/builtin/theme/adapters/documentTheme.ts");
+const painter = read("../src/plugins/builtin/theme/adapters/documentAppearance.ts");
 const shell = read("../../main.go");
 
 const failures = [];

@@ -1,7 +1,7 @@
 // Catppuccin Latte — light counterpart to Mocha. Saturated mauve to
 // bite against the bright surface.
 
-import { defineThemePlugin } from "../kit/defineThemePlugin";
+import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 
 const c = {
   mauve: "#8839ef",
@@ -20,7 +20,7 @@ const c = {
   subtext0: "#6c6f85",
 };
 
-export default defineThemePlugin({
+export default defineColorThemePlugin({
   id: "catppuccin-latte",
   label: "Catppuccin Latte",
   scheme: "light",

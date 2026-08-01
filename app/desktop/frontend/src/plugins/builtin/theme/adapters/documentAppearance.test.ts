@@ -12,15 +12,28 @@
 import type { Disposable } from "@/plugins/sdk/types";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createHost } from "@/plugins/sdk/host";
-import { ACCENT, THEME } from "@/plugins/sdk/kernelPoints";
+import { ACCENT, COLOR_THEME, VISUAL_STYLE } from "@/plugins/sdk/kernelPoints";
 import { useUiStore } from "@/state/uiStore";
-import { installDocumentTheme } from "./documentTheme";
+import { installDocumentAppearance } from "./documentAppearance";
 import { installSystemAppearance } from "./systemAppearance";
 import { toggleThemeScheme } from "../application/themeScheme";
 import { installThemePreferencePort } from "./uiThemePreference";
 
 const sink: Disposable[] = [];
 let uninstall: () => void = () => {};
+const TEST_MOTION = {
+  instantMs: 80,
+  fastMs: 150,
+  mediumMs: 200,
+  disclosureMs: 220,
+  slowMs: 360,
+  drawerMs: 300,
+  easeOut: [0.22, 1, 0.36, 1],
+  easeInOut: [0.45, 0, 0.55, 1],
+  easeEmphasized: [0.16, 1, 0.3, 1],
+  easeDrawer: [0.32, 0.72, 0, 1],
+  pressScale: 0.96,
+} as const;
 
 beforeEach(() => {
   // Wipe inline styles + class so each spec starts from a known root.
@@ -29,6 +42,7 @@ beforeEach(() => {
   // Reset UI store to defaults (the setup file already wipes plugin store).
   useUiStore.setState({
     theme: "dark",
+    visualStyle: "synara",
     accent: "#1ed760",
     contrast: 60,
     uiFont: "",
@@ -44,13 +58,13 @@ beforeEach(() => {
   uninstall();
   installThemePreferencePort();
   installSystemAppearance();
-  uninstall = installDocumentTheme(useUiStore);
+  uninstall = installDocumentAppearance(useUiStore);
 });
 
 describe("applyTheme — theme-as-plugin contract", () => {
   it("writes spec.tokens to :root.style when the active theme is registered", () => {
     const host = createHost("test", sink);
-    host.extensions.contribute(THEME, {
+    host.extensions.contribute(COLOR_THEME, {
       id: "dark",
       label: "Dark",
       scheme: "dark",
@@ -69,7 +83,7 @@ describe("applyTheme — theme-as-plugin contract", () => {
 
   it("toggles theme-{scheme} class — drives structural CSS overrides", () => {
     const host = createHost("test", sink);
-    host.extensions.contribute(THEME, {
+    host.extensions.contribute(COLOR_THEME, {
       id: "solarized-light",
       label: "Solarized Light",
       scheme: "light",
@@ -86,13 +100,13 @@ describe("applyTheme — theme-as-plugin contract", () => {
 
   it("switching themes replaces token values", () => {
     const host = createHost("test", sink);
-    host.extensions.contribute(THEME, {
+    host.extensions.contribute(COLOR_THEME, {
       id: "dark",
       label: "Dark",
       scheme: "dark",
       tokens: { "color-bg": "#010102", "color-text": "#f7f8f8" },
     });
-    host.extensions.contribute(THEME, {
+    host.extensions.contribute(COLOR_THEME, {
       id: "light",
       label: "Light",
       scheme: "light",
@@ -112,13 +126,13 @@ describe("applyTheme — theme-as-plugin contract", () => {
 
   it("removes tokens omitted by the next theme", () => {
     const host = createHost("test", sink);
-    host.extensions.contribute(THEME, {
+    host.extensions.contribute(COLOR_THEME, {
       id: "dark",
       label: "Dark",
       scheme: "dark",
       tokens: { "color-bg": "#010102", "color-warning": "#f0c000" },
     });
-    host.extensions.contribute(THEME, {
+    host.extensions.contribute(COLOR_THEME, {
       id: "light",
       label: "Light",
       scheme: "light",
@@ -134,7 +148,7 @@ describe("applyTheme — theme-as-plugin contract", () => {
 
   it("resolves accent through the registry for light-scheme themes", () => {
     const host = createHost("test", sink);
-    host.extensions.contribute(THEME, {
+    host.extensions.contribute(COLOR_THEME, {
       id: "light",
       label: "Light",
       scheme: "light",
@@ -154,14 +168,14 @@ describe("applyTheme — theme-as-plugin contract", () => {
 
   it("toggleTheme flips to the first registered theme of the opposite scheme", () => {
     const host = createHost("test", sink);
-    host.extensions.contribute(THEME, {
+    host.extensions.contribute(COLOR_THEME, {
       id: "dark",
       label: "Dark",
       scheme: "dark",
       order: 0,
       tokens: {},
     });
-    host.extensions.contribute(THEME, {
+    host.extensions.contribute(COLOR_THEME, {
       id: "solarized-light",
       label: "Solarized Light",
       scheme: "light",
@@ -175,6 +189,77 @@ describe("applyTheme — theme-as-plugin contract", () => {
 
     toggleThemeScheme();
     expect(useUiStore.getState().theme).toBe("dark");
+  });
+});
+
+describe("visual-style contract", () => {
+  it("applies component tokens and structural traits independently from colour", () => {
+    const host = createHost("test", sink);
+    host.extensions.contribute(VISUAL_STYLE, {
+      id: "test-style",
+      label: "Test style",
+      description: "Test",
+      traits: { regions: "tool-windows", controls: "outlined" },
+      motion: TEST_MOTION,
+      preview: {
+        canvas: "#fff",
+        sidebar: "#eee",
+        dock: "#f5f5f5",
+        edge: "#ccc",
+        accent: "#06f",
+      },
+      tokens: { "style-shape-md": "5px", "app-content-shadow": "none" },
+    });
+
+    useUiStore.getState().setVisualStyle("test-style");
+
+    const root = document.documentElement;
+    expect(root.dataset.visualStyle).toBe("test-style");
+    expect(root.dataset.regionLayout).toBe("tool-windows");
+    expect(root.dataset.controlTreatment).toBe("outlined");
+    expect(root.style.getPropertyValue("--style-shape-md")).toBe("5px");
+    expect(root.style.getPropertyValue("--app-content-shadow")).toBe("none");
+    expect(root.style.getPropertyValue("--dur-fast-base")).toBe("150ms");
+    expect(root.style.getPropertyValue("--ease-out")).toBe("cubic-bezier(0.22, 1, 0.36, 1)");
+  });
+
+  it("removes tokens omitted by the next visual style", () => {
+    const host = createHost("test", sink);
+    host.extensions.contribute(VISUAL_STYLE, {
+      id: "first",
+      label: "First",
+      description: "First",
+      traits: { regions: "floating-card", controls: "quiet" },
+      motion: TEST_MOTION,
+      preview: {
+        canvas: "#fff",
+        sidebar: "#eee",
+        dock: "#fff",
+        edge: "#ccc",
+        accent: "#06f",
+      },
+      tokens: { "shadow-surface-card": "0 8px 20px black" },
+    });
+    host.extensions.contribute(VISUAL_STYLE, {
+      id: "second",
+      label: "Second",
+      description: "Second",
+      traits: { regions: "flush-panes", controls: "quiet" },
+      motion: TEST_MOTION,
+      preview: {
+        canvas: "#111",
+        sidebar: "#222",
+        dock: "#111",
+        edge: "#333",
+        accent: "#69f",
+      },
+      tokens: {},
+    });
+
+    useUiStore.getState().setVisualStyle("first");
+    useUiStore.getState().setVisualStyle("second");
+
+    expect(document.documentElement.style.getPropertyValue("--shadow-surface-card")).toBe("");
   });
 });
 

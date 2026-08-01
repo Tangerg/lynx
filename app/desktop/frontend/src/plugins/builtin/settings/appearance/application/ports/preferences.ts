@@ -1,6 +1,6 @@
+import type { ColorThemeId, VisualStyleId } from "@/lib/appearance";
 import type { UiDensity } from "@/lib/density";
 import { createSingletonPort } from "@/lib/ports/singletonPort";
-export type Theme = string;
 
 export interface CustomTheme {
   bg: string;
@@ -8,8 +8,10 @@ export interface CustomTheme {
 }
 
 export interface AppearancePreferencesPort {
-  useTheme(): Theme;
-  useSetTheme(): (theme: Theme) => void;
+  useTheme(): ColorThemeId;
+  useSetTheme(): (theme: ColorThemeId) => void;
+  useVisualStyle(): VisualStyleId;
+  useSetVisualStyle(): (visualStyle: VisualStyleId) => void;
   useAccent(): string;
   useSetAccent(): (accent: string) => void;
   useCustomTheme(): CustomTheme;

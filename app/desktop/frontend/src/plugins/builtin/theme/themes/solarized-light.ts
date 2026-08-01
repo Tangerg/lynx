@@ -1,6 +1,6 @@
 // Solarized Light — same 8 accent hues as Dark, base-* ladder inverted.
 
-import { defineThemePlugin } from "../kit/defineThemePlugin";
+import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 
 const c = {
   blue: "#268bd2",
@@ -15,7 +15,7 @@ const c = {
   base3: "#fdf6e3",
 };
 
-export default defineThemePlugin({
+export default defineColorThemePlugin({
   id: "solarized-light",
   label: "Solarized Light",
   scheme: "light",

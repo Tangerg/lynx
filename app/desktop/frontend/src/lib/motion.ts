@@ -8,30 +8,30 @@
 // getter is fine — no need for hook plumbing at every consumer.
 
 import type { Transition } from "motion/react";
-import { motionScale } from "./appearance";
-
-// "Sonance" curve — the same cubic-bezier(0.3, 0, 0, 1) we use in CSS,
-// tuned for snappy "in" motion that decelerates without overshoot.
-const ease = [0.3, 0, 0, 1] as const;
+import { motionScale, visualStyleMotion } from "./appearance";
 
 // Build a Transition whose `duration` field is a live getter — reads the
 // current scale on every access. Framer-motion samples it once per animation
 // start, so the cost is negligible and the user sees the new scale immediately
 // after toggling.
-function scaled(seconds: number): Transition {
-  const t = { ease } as Transition;
+function scaled(duration: "mediumMs" | "disclosureMs"): Transition {
+  const t = {} as Transition;
   Object.defineProperty(t, "duration", {
     enumerable: true,
-    get: () => seconds * motionScale(),
+    get: () => (visualStyleMotion()[duration] / 1000) * motionScale(),
+  });
+  Object.defineProperty(t, "ease", {
+    enumerable: true,
+    get: () => visualStyleMotion().easeOut,
   });
   return t;
 }
 
 /** Expand/collapse and banner replacement: enough time for structure to read. */
-export const disclosureTransition: Transition = scaled(0.22);
+export const disclosureTransition: Transition = scaled("disclosureMs");
 
 /** Small content entrance: shorter than structural disclosure motion. */
-const contentEnterTransition: Transition = scaled(0.2);
+const contentEnterTransition: Transition = scaled("mediumMs");
 
 // Soft enter from a few px below — for new chat messages.
 export const enterUp = {

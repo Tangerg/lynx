@@ -1,6 +1,6 @@
 // Atom One Light — canonical one-light-syntax palette.
 
-import { defineThemePlugin } from "../kit/defineThemePlugin";
+import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 
 const c = {
   blue: "#526fff",
@@ -22,7 +22,7 @@ const c = {
   hairTertiary: "#a0a1a7",
 };
 
-export default defineThemePlugin({
+export default defineColorThemePlugin({
   id: "atom-one-light",
   label: "Atom One Light",
   scheme: "light",

@@ -1,8 +1,8 @@
-import type { ThemeSpec } from "@/plugins/sdk";
+import type { ColorThemeSpec } from "@/plugins/sdk";
 import { buildTokenMap, SCHEME_ICON } from "./tokens";
-import type { ThemePluginSpec } from "./types";
+import type { ColorThemePluginSpec } from "./types";
 
-export function themeContribution(spec: ThemePluginSpec): ThemeSpec {
+export function colorThemeContribution(spec: ColorThemePluginSpec): ColorThemeSpec {
   return {
     id: spec.id,
     label: spec.label,

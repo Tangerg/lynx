@@ -19,6 +19,6 @@ export * from "./infra";
 export * from "./message";
 export * from "./navigation";
 export * from "./plugin";
-export * from "./theme";
+export * from "./appearance";
 export * from "./tool";
 export * from "./workspace";

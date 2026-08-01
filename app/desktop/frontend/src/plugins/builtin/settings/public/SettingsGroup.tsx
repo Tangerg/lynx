@@ -14,7 +14,10 @@ export function SettingsGroup({ className, children, ...props }: ComponentPropsW
     <Surface
       {...props}
       inset="none"
-      className={cn("overflow-hidden border-[0.5px] border-field bg-transparent", className)}
+      className={cn(
+        "overflow-hidden border-[var(--control-edge-width)] border-field bg-transparent",
+        className,
+      )}
     >
       {children}
     </Surface>

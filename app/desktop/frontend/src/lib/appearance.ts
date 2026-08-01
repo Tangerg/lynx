@@ -1,8 +1,8 @@
 // The active appearance, as leaf code sees it.
 //
-// Two leaf modules need it: the motion presets scale every duration by the
-// user's Motion preference, and the Shiki preset pairs with the active scheme.
-// Both used to import `useUiStore` (and the THEME registry) directly from `lib`,
+// Leaf modules use it for scheme-aware rendering and style-aware motion without
+// reaching into the preference store or plugin registry. Those reads used to
+// import `useUiStore` (and the colour-theme registry) directly from `lib`,
 // which inverted the ring — and worse, laundered an edge the layer guard
 // forbids: `ui/atoms/shiki-code-block` reached the global preference store and
 // the plugin registry *through* `lib/highlight`, so the design system depended
@@ -29,9 +29,40 @@ import { useSyncExternalStore } from "react";
  * must agree forever with nothing checking that they do.
  */
 export type Scheme = "dark" | "light";
+export type ColorThemeId = string;
+export type VisualStyleId = string;
+
+export interface VisualStyleMotion {
+  instantMs: number;
+  fastMs: number;
+  mediumMs: number;
+  disclosureMs: number;
+  slowMs: number;
+  drawerMs: number;
+  easeOut: readonly [number, number, number, number];
+  easeInOut: readonly [number, number, number, number];
+  easeEmphasized: readonly [number, number, number, number];
+  easeDrawer: readonly [number, number, number, number];
+  pressScale: number;
+}
+
+const DEFAULT_MOTION: VisualStyleMotion = {
+  instantMs: 80,
+  fastMs: 150,
+  mediumMs: 200,
+  disclosureMs: 220,
+  slowMs: 360,
+  drawerMs: 300,
+  easeOut: [0.22, 1, 0.36, 1],
+  easeInOut: [0.45, 0, 0.55, 1],
+  easeEmphasized: [0.16, 1, 0.3, 1],
+  easeDrawer: [0.32, 0.72, 0, 1],
+  pressScale: 0.96,
+};
 
 let scheme: Scheme = "dark";
 let scale = 1;
+let motion = DEFAULT_MOTION;
 let tokenRevision = 0;
 const listeners = new Set<() => void>();
 
@@ -68,8 +99,17 @@ export function publishMotionScale(next: number): void {
   scale = next;
 }
 
+/** Publish the active style's motion language for non-CSS animation consumers. */
+export function publishVisualStyleMotion(next: VisualStyleMotion): void {
+  motion = next;
+}
+
 export function motionScale(): number {
   return scale;
+}
+
+export function visualStyleMotion(): VisualStyleMotion {
+  return motion;
 }
 
 function subscribe(onChange: () => void): () => void {

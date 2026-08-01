@@ -1,6 +1,6 @@
 // Tokyo Night Storm — canonical enkia/tokyonight Storm variant.
 
-import { defineThemePlugin } from "../kit/defineThemePlugin";
+import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 
 const c = {
   blue: "#7aa2f7",
@@ -23,7 +23,7 @@ const c = {
   hairTertiary: "#6873a3",
 };
 
-export default defineThemePlugin({
+export default defineColorThemePlugin({
   id: "tokyo-night-storm",
   label: "Tokyo Night Storm",
   scheme: "dark",

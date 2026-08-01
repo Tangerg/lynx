@@ -1,7 +1,5 @@
+import type { ColorThemeId, VisualStyleId } from "@/lib/appearance";
 import type { UiDensity } from "@/lib/density";
-
-/** A registered theme id. `system` resolves against the current OS scheme. */
-export type Theme = string;
 
 export interface CustomTheme {
   bg: string;
@@ -9,7 +7,8 @@ export interface CustomTheme {
 }
 
 export interface UiState {
-  theme: Theme;
+  theme: ColorThemeId;
+  visualStyle: VisualStyleId;
   accent: string;
   customTheme: CustomTheme;
   contrast: number;

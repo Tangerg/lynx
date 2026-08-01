@@ -1,37 +1,36 @@
-// Helper for the "theme as plugin" pattern — turns a typed ThemePluginSpec
+// Helper for the "colour theme as plugin" pattern — turns a typed ColorThemePluginSpec
 // into a PluginSpec ready for the builtin manifest. Required sections
 // (brand / surfaces / ink / borders / semantic) are enforced by TypeScript;
-// shadows / depthStep / cta / extras are optional overrides.
+// depthStep / cta / extras are optional palette overrides.
 //
 // The token-computation workhorse (buildTokenMap + default ladders) lives
 // in `./tokens.ts` so it can be unit-tested in isolation. The type
-// surface (ThemePluginSpec + sections) lives in `./types.ts` so
+// surface (ColorThemePluginSpec + sections) lives in `./types.ts` so
 // `tokens.ts` can pull it without forming a cycle with this file.
 
 import type { PluginSpec } from "@/plugins/sdk";
 import { definePlugin } from "@/plugins/sdk";
-import { THEME } from "@/plugins/sdk/kernelPoints";
-import { themeContribution } from "./themeContributions";
-import type { ThemePluginSpec } from "./types";
+import { COLOR_THEME } from "@/plugins/sdk/kernelPoints";
+import { colorThemeContribution } from "./colorThemeContribution";
+import type { ColorThemePluginSpec } from "./types";
 
 export type {
   ThemeBorders,
   ThemeBrand,
   ThemeCta,
   ThemeInk,
-  ThemePluginSpec,
+  ColorThemePluginSpec,
   ThemeSemantic,
-  ThemeShadows,
   ThemeSurfaces,
 } from "./types";
 
-export function defineThemePlugin(spec: ThemePluginSpec): PluginSpec {
-  const theme = themeContribution(spec);
+export function defineColorThemePlugin(spec: ColorThemePluginSpec): PluginSpec {
+  const theme = colorThemeContribution(spec);
   return definePlugin({
-    name: `lyra.builtin.theme-${spec.id}`,
+    name: `lyra.builtin.color-theme-${spec.id}`,
     version: "1.0.0",
     setup({ host }) {
-      host.extensions.contribute(THEME, theme);
+      host.extensions.contribute(COLOR_THEME, theme);
     },
   });
 }

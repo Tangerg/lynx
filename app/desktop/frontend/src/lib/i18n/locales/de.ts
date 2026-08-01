@@ -260,6 +260,9 @@ export const de: Record<string, string> = {
   "settings.theme": "Theme",
   "settings.theme.sub":
     "Wähle ein Farbschema. Plugins können weitere registrieren — sie erscheinen automatisch.",
+  "settings.visualStyle": "Oberflächenstil",
+  "settings.visualStyle.sub":
+    "Ändert Komponentenform, Bereichstrennung, Tiefe und Interaktionssprache.",
   "settings.accent": "Akzentfarbe",
   "settings.accent.sub": "Funktionale Hervorhebung — Ausführen / Aktiv / CTA.",
   "settings.accent.custom": "Eigene Farbe wählen",

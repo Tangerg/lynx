@@ -17,7 +17,7 @@ import { ButtonPrimitive, type ButtonPrimitiveProps } from "@/ui/primitives";
 const buttonStyles = cva(
   [
     "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap",
-    "border border-transparent font-sans font-medium leading-none outline-none",
+    "border-[var(--control-edge-width)] border-transparent font-sans font-medium leading-none outline-none",
     "transition-[background-color,border-color,color,scale] duration-[var(--dur-fast)] ease-out",
     "disabled:cursor-not-allowed disabled:opacity-64 disabled:active:scale-100",
     "[&_svg:not([class*='opacity-'])]:opacity-80",
@@ -43,13 +43,17 @@ const buttonStyles = cva(
         warning: "",
       },
       size: {
-        xs: "h-6 rounded-sm px-[7px] text-ui-sm",
-        sm: "h-7 rounded-md px-[9px] text-ui-md",
-        md: "h-8 rounded-md px-[11px] text-ui-md",
-        "icon-xs": "h-6 w-6 rounded-sm p-0",
-        "icon-sm": "h-7 w-7 rounded-md p-0",
-        "icon-md": "h-8 w-8 rounded-md p-0",
-        "icon-lg": "h-10 w-10 rounded-md p-0",
+        xs: "h-[var(--control-height-xs)] rounded-[var(--button-radius)] px-[7px] text-ui-sm",
+        sm: "h-[var(--control-height-sm)] rounded-[var(--button-radius)] px-[9px] text-ui-md",
+        md: "h-[var(--control-height-md)] rounded-[var(--button-radius)] px-[11px] text-ui-md",
+        "icon-xs":
+          "h-[var(--control-height-xs)] w-[var(--control-height-xs)] rounded-[var(--button-radius)] p-0",
+        "icon-sm":
+          "h-[var(--control-height-sm)] w-[var(--control-height-sm)] rounded-[var(--button-radius)] p-0",
+        "icon-md":
+          "h-[var(--control-height-md)] w-[var(--control-height-md)] rounded-[var(--button-radius)] p-0",
+        "icon-lg":
+          "h-[var(--control-height-lg)] w-[var(--control-height-lg)] rounded-[var(--button-radius)] p-0",
       },
       press: {
         true: "active:scale-[var(--press-scale)]",
@@ -82,9 +86,12 @@ export type ButtonProps = Omit<ButtonPrimitiveProps, "children"> &
   };
 
 export function Button({ variant, size, tone, press, className, children, ...props }: ButtonProps) {
+  const resolvedVariant = variant ?? "ghost";
   return (
     <ButtonPrimitive
       {...props}
+      data-slot="button"
+      data-variant={resolvedVariant}
       className={cn(buttonStyles({ variant, size, tone, press }), className)}
     >
       {children}

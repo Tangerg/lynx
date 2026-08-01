@@ -1,5 +1,5 @@
 import type { Scheme } from "@/lib/appearance";
-import { THEME } from "@/plugins/sdk/kernelPoints";
+import { COLOR_THEME } from "@/plugins/sdk/kernelPoints";
 import { lookupExtensionByKey, lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
 import { systemAppearance } from "./ports/systemAppearance";
 import { themePreference } from "./ports/themePreference";
@@ -15,11 +15,11 @@ import { themePreference } from "./ports/themePreference";
  *
  * This lived in the kernel's theme selector, where nothing in the kernel used it
  * — the scheme of a contributed theme is this context's business, and it owns
- * both the THEME point the answer comes from and the meaning of `"system"`.
+ * both the COLOR_THEME point the answer comes from and the meaning of `"system"`.
  */
 export function resolveThemeScheme(themeId: string): Scheme {
   if (themeId === "system") return systemAppearance().scheme();
-  return lookupExtensionByKey(THEME, themeId)?.scheme ?? "dark";
+  return lookupExtensionByKey(COLOR_THEME, themeId)?.scheme ?? "dark";
 }
 
 export function isLightTheme(themeId: string): boolean {
@@ -30,7 +30,7 @@ export function isLightTheme(themeId: string): boolean {
  * Flip to the primary theme of the opposite scheme.
  *
  * Lives here rather than on the store: picking *which* theme comes next needs
- * the THEME registry and its contributed order, and a store that reaches into
+ * the COLOR_THEME registry and its contributed order, and a store that reaches into
  * the plugin registry is a store that knows about the plugin system. The store
  * keeps `setTheme` — it holds the value; this decides it.
  *
@@ -41,6 +41,6 @@ export function isLightTheme(themeId: string): boolean {
 export function toggleThemeScheme(): void {
   const preference = themePreference();
   const target = resolveThemeScheme(preference.activeTheme()) === "dark" ? "light" : "dark";
-  const next = lookupExtensionPoint(THEME).find((spec) => spec.scheme === target);
+  const next = lookupExtensionPoint(COLOR_THEME).find((spec) => spec.scheme === target);
   if (next) preference.setTheme(next.id);
 }

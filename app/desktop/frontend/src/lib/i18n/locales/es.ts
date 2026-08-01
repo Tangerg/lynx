@@ -258,6 +258,9 @@ export const es: Record<string, string> = {
   "settings.theme": "Tema",
   "settings.theme.sub":
     "Elige un tema. Los plugins pueden registrar más — aparecen aquí automáticamente.",
+  "settings.visualStyle": "Estilo de interfaz",
+  "settings.visualStyle.sub":
+    "Cambia la forma de los componentes, la separación, la profundidad y la interacción.",
   "settings.accent": "Acento",
   "settings.accent.sub": "Color de resaltado — ejecutar / activo / acción principal.",
   "settings.accent.custom": "Elige un color personalizado",

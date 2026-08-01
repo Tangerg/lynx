@@ -392,6 +392,9 @@ export const en: Record<string, string> = {
   "settings.theme.system": "System",
   "settings.theme.sub":
     "Pick a color theme. Plugins can register more — they show up here automatically.",
+  "settings.visualStyle": "Interface style",
+  "settings.visualStyle.sub":
+    "Change component geometry, pane separation, elevation and interaction language.",
   "settings.accent": "Accent",
   "settings.accent.sub": "Functional highlight color — play / active / CTA.",
   "settings.accent.custom": "Pick a custom color",

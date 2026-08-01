@@ -256,6 +256,8 @@ export const ja: Record<string, string> = {
   "workspace.view.title.diagnostics": "診断",
   "settings.theme": "テーマ",
   "settings.theme.sub": "配色テーマを選択。プラグインで追加されたものも自動表示されます。",
+  "settings.visualStyle": "インターフェーススタイル",
+  "settings.visualStyle.sub": "コンポーネント形状、領域分割、奥行き、操作表現を切り替えます。",
   "settings.accent": "アクセント",
   "settings.accent.sub": "機能ハイライト色 — 実行 / アクティブ / CTA。",
   "settings.accent.custom": "カラーを選択",

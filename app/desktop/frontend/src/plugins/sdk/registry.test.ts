@@ -20,7 +20,7 @@ import {
   SETTINGS_PANE,
   SHORTCUT,
   SLASH_COMMAND,
-  THEME,
+  COLOR_THEME,
   TOOL_ACTION,
   TOOL_ICON,
   TOOL_PREVIEW,
@@ -242,17 +242,21 @@ describe("plugin registry", () => {
   it("theme.registerTheme + lookupTheme round-trip", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    const d = host.extensions.contribute(THEME, { id: "dim", label: "Dim", scheme: "dark" });
+    const d = host.extensions.contribute(COLOR_THEME, {
+      id: "dim",
+      label: "Dim",
+      scheme: "dark",
+    });
 
-    expect(lookupExtensionByKey(THEME, "dim")?.label).toBe("Dim");
+    expect(lookupExtensionByKey(COLOR_THEME, "dim")?.label).toBe("Dim");
     d.dispose();
-    expect(lookupExtensionByKey(THEME, "dim")).toBeUndefined();
+    expect(lookupExtensionByKey(COLOR_THEME, "dim")).toBeUndefined();
   });
 
   it("theme.registerTheme retains the tokens map for applyTheme to consume", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.extensions.contribute(THEME, {
+    host.extensions.contribute(COLOR_THEME, {
       id: "dim",
       label: "Dim",
       scheme: "dark",
@@ -262,7 +266,7 @@ describe("plugin registry", () => {
       },
     });
 
-    const spec = lookupExtensionByKey(THEME, "dim");
+    const spec = lookupExtensionByKey(COLOR_THEME, "dim");
     expect(spec?.tokens).toEqual({
       "color-bg": "#101010",
       "color-text": "#fafafa",

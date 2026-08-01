@@ -255,6 +255,8 @@ export const ko: Record<string, string> = {
   "workspace.view.title.diagnostics": "진단",
   "settings.theme": "테마",
   "settings.theme.sub": "색상 테마 선택. 플러그인이 추가한 테마도 여기에 자동 표시됩니다.",
+  "settings.visualStyle": "인터페이스 스타일",
+  "settings.visualStyle.sub": "컴포넌트 형태, 영역 구분, 깊이와 상호작용 표현을 바꿉니다.",
   "settings.accent": "강조색",
   "settings.accent.sub": "기능 하이라이트 — 실행 / 활성 / 주요 동작.",
   "settings.accent.custom": "사용자 색상 선택",

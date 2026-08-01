@@ -1,6 +1,6 @@
 // Atom One Dark — canonical palette from one-dark-syntax / One Dark Pro.
 
-import { defineThemePlugin } from "../kit/defineThemePlugin";
+import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 
 const c = {
   blue: "#528bff",
@@ -22,7 +22,7 @@ const c = {
   hairTertiary: "#5c6370",
 };
 
-export default defineThemePlugin({
+export default defineColorThemePlugin({
   id: "atom-one-dark",
   label: "Atom One Dark",
   scheme: "dark",

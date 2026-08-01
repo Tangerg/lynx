@@ -63,7 +63,7 @@ export function AgentDockTabs({ tabs, ariaLabel }: { tabs: AgentDockTab[]; ariaL
               key={tab.id}
               data-active={tab.active ? "" : undefined}
               className={cn(
-                "group flex h-7 min-w-0 shrink-0 items-center rounded-md",
+                "group flex h-[var(--dock-tab-height)] min-w-0 shrink-0 items-center rounded-[var(--dock-tab-radius)]",
                 "text-fg-muted transition-[background-color,color] duration-[var(--dur-fast)] ease-out",
                 "hover:bg-hover hover:text-fg focus-within:text-fg",
                 "data-[active]:bg-selected data-[active]:text-fg",
@@ -72,7 +72,7 @@ export function AgentDockTabs({ tabs, ariaLabel }: { tabs: AgentDockTab[]; ariaL
               <TabsPrimitive.Tab
                 value={tab.id}
                 data-chrome-focus=""
-                className="inline-flex h-full min-w-0 max-w-40 items-center gap-1.5 rounded-md border-0 bg-transparent py-0 pl-2 pr-1 text-ui-sm font-normal text-inherit focus-visible:outline-none"
+                className="inline-flex h-full min-w-0 max-w-40 items-center gap-1.5 rounded-[inherit] border-0 bg-transparent py-0 pl-2 pr-1 text-ui-sm font-normal text-inherit focus-visible:outline-none"
               >
                 {tab.icon && (
                   <Icon

@@ -20,8 +20,8 @@ const FLOATING_SURFACE_BASE = [
 ].join(" ");
 
 /** Menus, popovers, command panels — anything holding rows the pointer travels. */
-export const FLOATING_PANEL = `${FLOATING_SURFACE_BASE} rounded-xl`;
+export const FLOATING_PANEL = `${FLOATING_SURFACE_BASE} rounded-[var(--floating-panel-radius)]`;
 
 /** Tooltips and hover cards. Tighter radius: they wrap a line or two, and a panel
  *  radius on something that small reads as a lozenge. */
-export const FLOATING_TIP = `${FLOATING_SURFACE_BASE} rounded-md`;
+export const FLOATING_TIP = `${FLOATING_SURFACE_BASE} rounded-[var(--floating-tip-radius)]`;

@@ -1,20 +1,21 @@
-// Persisted UI preferences — theme + accent + fonts + message-style +
+// Persisted UI preferences — colour theme + visual style + accent + fonts + message-style +
 // sidebar collapse state. Single Zustand store + single persistence key
 // since every field is "what the user's UI should look like across
 // launches". The side-effects at the bottom of this file mirror the
-// active theme spec + font preferences to :root (inline CSS vars +
+// active appearance specs + font preferences to :root (inline CSS vars +
 // theme-{scheme} class on <html>).
 
 import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { DEFAULT_UI_DENSITY, UI_DENSITY_MODES, type UiDensity } from "@/lib/density";
+import type { ColorThemeId, VisualStyleId } from "@/lib/appearance";
 import { DOCK_DEFAULT_WIDTH_PX, SIDEBAR_DEFAULT_WIDTH_PX } from "@/lib/shellGeometry";
 // Direct registry import — going through the SDK barrel pulls in
 // host.ts which imports this file, creating a TDZ cycle under Vitest.
 // Same reason the extension-point reads below import from the deep
 // `selectors/extensions` + `kernelPoints` paths (neither pulls host).
-import type { CustomTheme, Theme, UiState } from "./uiPreferences";
+import type { CustomTheme, UiState } from "./uiPreferences";
 
 export type { CustomTheme, UiState } from "./uiPreferences";
 
@@ -24,6 +25,7 @@ export type { CustomTheme, UiState } from "./uiPreferences";
 // crashing the boot.
 const uiPersistSchema = z.object({
   theme: z.string(),
+  visualStyle: z.string(),
   accent: z.string(),
   customTheme: z.object({ bg: z.string(), fg: z.string() }),
   contrast: z.number(),
@@ -43,7 +45,8 @@ const uiPersistSchema = z.object({
 });
 
 interface UiActions {
-  setTheme: (theme: Theme) => void;
+  setTheme: (theme: ColorThemeId) => void;
+  setVisualStyle: (visualStyle: VisualStyleId) => void;
   /**
    * Flip to the opposite SCHEME (not just "dark"/"light" id) so custom
    * theme plugins still toggle sensibly. Picks the first registered
@@ -73,6 +76,7 @@ export const useUiStore = create<UiState & UiActions>()(
   persist(
     (set) => ({
       theme: "light",
+      visualStyle: "synara",
       accent: "#006bff",
       customTheme: { bg: "#0f1117", fg: "#e6e8ee" },
       contrast: 60,
@@ -91,6 +95,7 @@ export const useUiStore = create<UiState & UiActions>()(
       completionSound: false,
 
       setTheme: (theme) => set({ theme }),
+      setVisualStyle: (visualStyle) => set({ visualStyle }),
       setAccent: (accent) => set({ accent }),
       setCustomTheme: (patch) => set((s) => ({ customTheme: { ...s.customTheme, ...patch } })),
       setContrast: (contrast) => set({ contrast }),
@@ -111,7 +116,7 @@ export const useUiStore = create<UiState & UiActions>()(
     {
       name: "lyra.ui",
       storage: createJSONStorage(() => localStorage),
-      version: 8,
+      version: 9,
       merge: (persisted, current) => {
         if (persisted === undefined) return current;
         const parsed = uiPersistSchema.safeParse(persisted);

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { definePlugin, loadPlugin, loadPlugins, reloadPlugin, unloadPlugin } from "./definePlugin";
 import { definePluginPack } from "./definePluginPack";
 import { usePluginErrorStore } from "./errors";
-import { COMMAND, THEME, TOOL_PREVIEW } from "./kernelPoints";
+import { COLOR_THEME, COMMAND, TOOL_PREVIEW } from "./kernelPoints";
 import { setPluginOrigin } from "./pluginOrigin";
 import { usePluginStore } from "./registry";
 import { lookupExtensionByKey, lookupExtensionPoint } from "./selectors";
@@ -379,12 +379,12 @@ describe("sideload default-deny", () => {
         version: "1.0.0",
         // no `capabilities` → deny-all for sideload (full access only for built-ins)
         setup: ({ host }) => {
-          host.extensions.contribute(THEME, { id: "x", label: "X", scheme: "dark" });
+          host.extensions.contribute(COLOR_THEME, { id: "x", label: "X", scheme: "dark" });
         },
       }),
     );
     expect(result.kind).toBe("failed");
-    expect(lookupExtensionPoint(THEME)).toHaveLength(0);
+    expect(lookupExtensionPoint(COLOR_THEME)).toHaveLength(0);
     expect(usePluginErrorStore.getState().log.at(-1)?.message).toMatch(/needs capability "theme"/);
   });
 
@@ -396,12 +396,16 @@ describe("sideload default-deny", () => {
         version: "1.0.0",
         capabilities: ["theme"],
         setup: ({ host }) => {
-          host.extensions.contribute(THEME, { id: "brand", label: "Brand", scheme: "dark" });
+          host.extensions.contribute(COLOR_THEME, {
+            id: "brand",
+            label: "Brand",
+            scheme: "dark",
+          });
         },
       }),
     );
     expect(result.kind).toBe("loaded");
-    expect(lookupExtensionByKey(THEME, "brand")?.label).toBe("Brand");
+    expect(lookupExtensionByKey(COLOR_THEME, "brand")?.label).toBe("Brand");
   });
 
   it("a built-in (no recorded origin) keeps full access when capabilities are omitted", async () => {
@@ -410,12 +414,16 @@ describe("sideload default-deny", () => {
         name: "lyra.builtin.trusted",
         version: "1.0.0",
         setup: ({ host }) => {
-          host.extensions.contribute(THEME, { id: "trusted", label: "T", scheme: "dark" });
+          host.extensions.contribute(COLOR_THEME, {
+            id: "trusted",
+            label: "T",
+            scheme: "dark",
+          });
         },
       }),
     );
     expect(result.kind).toBe("loaded");
-    expect(lookupExtensionByKey(THEME, "trusted")?.label).toBe("T");
+    expect(lookupExtensionByKey(COLOR_THEME, "trusted")?.label).toBe("T");
   });
 });
 

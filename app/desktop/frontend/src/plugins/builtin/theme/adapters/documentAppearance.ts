@@ -1,24 +1,20 @@
-// Paints the user's appearance preferences onto the document: theme tokens and
-// scheme class, accent, contrast depth, fonts, density, radius and motion.
-//
-// This lives in the theme context, not beside the store it reads. The store's job
-// is to hold the preference; turning "contrast: 40" into `--depth-step: 5.2%` is
-// presentation, and *which themes exist* is this context's business — it owns the
-// THEME and ACCENT extension points and the token vocabulary in globals.css. It
-// sat in `state/` for a while, which meant the store layer reached up into the
-// plugin registry and knew the names of custom properties.
-
 import { colord } from "colord";
 import type { StoreApi } from "zustand";
-import { usePluginStore } from "@/plugins/sdk/registry";
-import { ACCENT, THEME } from "@/plugins/sdk/kernelPoints";
-import { lookupExtensionByKey, lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
-import { resolveThemeScheme } from "../application/themeScheme";
-import { subscribeSystemScheme } from "./systemAppearance";
-import { publishMotionScale, publishScheme, publishTokens } from "@/lib/appearance";
+import type { ColorThemeId, VisualStyleId, VisualStyleMotion } from "@/lib/appearance";
+import {
+  publishMotionScale,
+  publishScheme,
+  publishTokens,
+  publishVisualStyleMotion,
+} from "@/lib/appearance";
 import { densityCssVariables } from "@/lib/density";
 import { uiTypeLadderCssVariables } from "@/lib/typography";
-import type { Theme, UiState } from "@/state/uiPreferences";
+import { ACCENT, COLOR_THEME, VISUAL_STYLE } from "@/plugins/sdk/kernelPoints";
+import { usePluginStore } from "@/plugins/sdk/registry";
+import { lookupExtensionByKey, lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
+import type { UiState } from "@/state/uiPreferences";
+import { resolveThemeScheme } from "../application/themeScheme";
+import { subscribeSystemScheme } from "./systemAppearance";
 
 type UiEffectStore<T extends UiState> = Pick<StoreApi<T>, "getState" | "subscribe">;
 
@@ -27,37 +23,66 @@ function lightAccent(darkHex: string): string {
   return preset?.light ?? preset?.dark ?? colord(darkHex).darken(0.2).toHex();
 }
 
-let appliedTokenNames: string[] = [];
+function replaceTokens(previous: string[], tokens: Record<string, string>): string[] {
+  const root = document.documentElement;
+  for (const property of previous) root.style.removeProperty(property);
+  const next: string[] = [];
+  for (const [name, value] of Object.entries(tokens)) {
+    const property = `--${name}`;
+    root.style.setProperty(property, value);
+    next.push(property);
+  }
+  return next;
+}
 
-function applyTheme(theme: Theme, accent: string, contrast: number): void {
+let appliedColorTokens: string[] = [];
+let appliedStyleTokens: string[] = [];
+
+function applyColorTheme(theme: ColorThemeId, accent: string, contrast: number): void {
   const root = document.documentElement;
   const scheme = resolveThemeScheme(theme);
-  const spec = lookupExtensionByKey(THEME, theme === "system" ? scheme : theme);
+  const spec = lookupExtensionByKey(COLOR_THEME, theme === "system" ? scheme : theme);
 
   root.classList.remove("theme-light", "theme-dark");
   root.classList.add(`theme-${scheme}`);
-
-  for (const name of appliedTokenNames) root.style.removeProperty(name);
-  appliedTokenNames = [];
-
-  for (const [name, value] of Object.entries(spec?.tokens ?? {})) {
-    const property = `--${name}`;
-    root.style.setProperty(property, value);
-    appliedTokenNames.push(property);
-  }
+  appliedColorTokens = replaceTokens(appliedColorTokens, spec?.tokens ?? {});
 
   root.style.setProperty("--color-accent", scheme === "light" ? lightAccent(accent) : accent);
-  appliedTokenNames.push("--color-accent");
-
+  appliedColorTokens.push("--color-accent");
   root.style.setProperty("--depth-step", `${(2 + (contrast / 100) * 8).toFixed(1)}%`);
-  appliedTokenNames.push("--depth-step");
+  appliedColorTokens.push("--depth-step");
 
-  // Leaf code (the Shiki preset) can't read the store or the registry — the
-  // scheme reaches it from here, where it just became true. `publishTokens` is
-  // the broader signal: every colour on :root was just rewritten, which is what
-  // code reading computed values needs to hear.
   publishScheme(scheme);
-  publishTokens();
+}
+
+function applyVisualStyle(id: VisualStyleId): void {
+  const root = document.documentElement;
+  const spec =
+    lookupExtensionByKey(VISUAL_STYLE, id) ?? lookupExtensionByKey(VISUAL_STYLE, "synara");
+  const motionTokens = spec ? visualStyleMotionTokens(spec.motion) : {};
+  appliedStyleTokens = replaceTokens(appliedStyleTokens, { ...spec?.tokens, ...motionTokens });
+  if (spec) publishVisualStyleMotion(spec.motion);
+  root.dataset.visualStyle = spec?.id ?? "synara";
+  root.dataset.regionLayout = spec?.traits.regions ?? "floating-card";
+  root.dataset.controlTreatment = spec?.traits.controls ?? "quiet";
+}
+
+function visualStyleMotionTokens(motion: VisualStyleMotion): Record<string, string> {
+  const bezier = (value: readonly [number, number, number, number]) =>
+    `cubic-bezier(${value.join(", ")})`;
+  return {
+    "dur-instant-base": `${motion.instantMs}ms`,
+    "dur-fast-base": `${motion.fastMs}ms`,
+    "dur-med-base": `${motion.mediumMs}ms`,
+    "dur-disclosure-base": `${motion.disclosureMs}ms`,
+    "dur-slow-base": `${motion.slowMs}ms`,
+    "dur-drawer-base": `${motion.drawerMs}ms`,
+    "ease-out": bezier(motion.easeOut),
+    "ease-in-out": bezier(motion.easeInOut),
+    "ease-emphasized": bezier(motion.easeEmphasized),
+    "ease-drawer": bezier(motion.easeDrawer),
+    "press-scale": String(motion.pressScale),
+  };
 }
 
 function applyFonts(
@@ -88,9 +113,6 @@ function applyFonts(
     root.style.removeProperty("--font-mono");
   }
 
-  // The type base drives the derived `--fs-*` ladder, NOT the root font-size.
-  // Scaling `<html>` would move every rem-based padding, gap and width along with
-  // the text, so fixed chrome geometry (header height, row height) could not hold.
   for (const [property, value] of Object.entries(uiTypeLadderCssVariables(fontSize))) {
     root.style.setProperty(property, value);
   }
@@ -108,9 +130,11 @@ function applyShape(density: string, radiusScale: number, motionScale: number): 
   else root.removeAttribute("data-motion");
 }
 
-export function installDocumentTheme<T extends UiState>(store: UiEffectStore<T>): () => void {
+export function installDocumentAppearance<T extends UiState>(store: UiEffectStore<T>): () => void {
   const initial = store.getState();
-  applyTheme(initial.theme, initial.accent, initial.contrast);
+  applyColorTheme(initial.theme, initial.accent, initial.contrast);
+  applyVisualStyle(initial.visualStyle);
+  publishTokens();
   applyFonts(initial.uiFont, initial.codeFont, initial.fontSize, initial.fontSmoothing);
   applyShape(initial.density, initial.radiusScale, initial.motionScale);
 
@@ -120,7 +144,12 @@ export function installDocumentTheme<T extends UiState>(store: UiEffectStore<T>)
       state.accent !== previous.accent ||
       state.contrast !== previous.contrast
     ) {
-      applyTheme(state.theme, state.accent, state.contrast);
+      applyColorTheme(state.theme, state.accent, state.contrast);
+      applyVisualStyle(state.visualStyle);
+      publishTokens();
+    } else if (state.visualStyle !== previous.visualStyle) {
+      applyVisualStyle(state.visualStyle);
+      publishTokens();
     }
     if (
       state.uiFont !== previous.uiFont ||
@@ -141,13 +170,18 @@ export function installDocumentTheme<T extends UiState>(store: UiEffectStore<T>)
 
   const unsubscribePlugins = usePluginStore.subscribe((state, previous) => {
     if (state.extensions === previous.extensions) return;
-    const { theme, accent, contrast } = store.getState();
-    applyTheme(theme, accent, contrast);
+    const current = store.getState();
+    applyColorTheme(current.theme, current.accent, current.contrast);
+    applyVisualStyle(current.visualStyle);
+    publishTokens();
   });
 
   const unsubscribeScheme = subscribeSystemScheme(() => {
-    const { theme, accent, contrast } = store.getState();
-    if (theme === "system") applyTheme(theme, accent, contrast);
+    const current = store.getState();
+    if (current.theme !== "system") return;
+    applyColorTheme(current.theme, current.accent, current.contrast);
+    applyVisualStyle(current.visualStyle);
+    publishTokens();
   });
 
   return () => {

@@ -2,7 +2,7 @@
 // ladder is non-linear (perceptually equal steps on a yellow-blue
 // axis, not a lightness ramp), so surface-2/3/4 are pinned explicitly.
 
-import { defineThemePlugin } from "../kit/defineThemePlugin";
+import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 
 const c = {
   blue: "#268bd2",
@@ -17,7 +17,7 @@ const c = {
   base3: "#fdf6e3",
 };
 
-export default defineThemePlugin({
+export default defineColorThemePlugin({
   id: "solarized-dark",
   label: "Solarized Dark",
   scheme: "dark",

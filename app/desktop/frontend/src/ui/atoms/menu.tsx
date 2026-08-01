@@ -7,7 +7,7 @@ import { FLOATING_PANEL } from "./floating-surface";
 const MENU_CONTENT_CLASSES = `${FLOATING_PANEL} p-1`;
 
 const MENU_ITEM_CLASSES = [
-  "relative grid min-h-[26px] items-center gap-2 rounded-sm px-2 py-px",
+  "relative grid min-h-[var(--menu-row-height)] items-center gap-2 rounded-[var(--shape-sm)] px-2 py-px",
   "text-ui-md text-fg outline-none data-[highlighted]:bg-hover",
 ].join(" ");
 

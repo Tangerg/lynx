@@ -1,7 +1,7 @@
 // Tokyo Night Light — canonical Day variant. Cool-grey bg ladder
 // instead of pure white so the saturated blue accent doesn't scream.
 
-import { defineThemePlugin } from "../kit/defineThemePlugin";
+import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 
 const c = {
   blue: "#34548a",
@@ -22,7 +22,7 @@ const c = {
   hairTertiary: "#7882a8",
 };
 
-export default defineThemePlugin({
+export default defineColorThemePlugin({
   id: "tokyo-night-light",
   label: "Tokyo Night Light",
   scheme: "light",

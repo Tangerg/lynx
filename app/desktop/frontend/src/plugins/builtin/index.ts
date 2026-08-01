@@ -70,7 +70,7 @@ import { sidebarFooter, sidebarNewSession, sidebarProjects } from "./sidebar";
 import slashHints from "./chat/slash-hints";
 import { completionNotify, statusNotifications, windowTitle } from "./shell/status";
 import { tasksPill } from "./workspace/tasks";
-import { themesPack } from "./theme";
+import { appearancePack } from "./theme";
 import toaster from "./shell/toaster";
 import { toolActions, toolIcons } from "./chat/tools/meta";
 import toolViewOpener from "./workspace/tool-view-opener";
@@ -132,7 +132,7 @@ const infrastructure: PluginSpec[] = [
   rpcAgent,
   defaultTitle,
   defaultAccents,
-  themesPack,
+  appearancePack,
   localesPack,
   mainRoute,
 ];

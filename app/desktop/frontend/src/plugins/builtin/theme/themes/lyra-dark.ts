@@ -6,7 +6,7 @@
 // makes the chrome look like a lighter panel glued on, while a near-black pair
 // with one hairline between them reads as depth.
 
-import { defineThemePlugin } from "../kit/defineThemePlugin";
+import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 
 const c = {
   // Same accent hue as light; reads clean on near-black.
@@ -35,7 +35,7 @@ const c = {
   hairTertiary: "rgb(255 255 255 / 0.03)",
 };
 
-export default defineThemePlugin({
+export default defineColorThemePlugin({
   id: "dark",
   label: "Dark",
   scheme: "dark",

@@ -16,10 +16,10 @@ import { colord } from "colord";
 import type { Scheme } from "@/lib/appearance";
 import { disposeOnHmr } from "@/lib/hmr";
 import { definePlugin } from "@/plugins/sdk";
-import { THEME } from "@/plugins/sdk/kernelPoints";
+import { COLOR_THEME } from "@/plugins/sdk/kernelPoints";
 import { useUiStore } from "@/state/uiStore";
-import { themeContribution } from "../kit/themeContributions";
-import type { ThemePluginSpec } from "../kit/types";
+import { colorThemeContribution } from "../kit/colorThemeContribution";
+import type { ColorThemePluginSpec } from "../kit/types";
 import type { CustomTheme } from "@/state/uiStore";
 
 const CUSTOM_THEME_ID = "custom";
@@ -32,7 +32,7 @@ const mix = (a: string, pct: number, b: string): string =>
 /** Derive a full theme spec from the custom bg/fg + the shared global accent.
  *  `contrast` (0–100) scales how far each derived ladder spreads from the
  *  base colors — low = flat/subtle, high = punchy. */
-function deriveCustomSpec(ct: CustomTheme, accent: string, contrast: number): ThemePluginSpec {
+function deriveCustomSpec(ct: CustomTheme, accent: string, contrast: number): ColorThemePluginSpec {
   const { bg, fg } = ct;
   const k = Math.min(100, Math.max(0, contrast)) / 100; // 0..1 — global contrast
   // lerp a fg-toward-bg mix percentage by contrast, then round to an int.
@@ -70,8 +70,8 @@ export default definePlugin({
       const { customTheme, accent, contrast } = useUiStore.getState();
       const spec = deriveCustomSpec(customTheme, accent, contrast);
       host.extensions.contribute(
-        THEME,
-        themeContribution({
+        COLOR_THEME,
+        colorThemeContribution({
           ...spec,
           icon: "spark",
           order: 99, // after the built-in packs, before plugin themes

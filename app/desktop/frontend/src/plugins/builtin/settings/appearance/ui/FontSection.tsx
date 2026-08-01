@@ -38,7 +38,7 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
         <DropdownMenu.Trigger
           disabled={!customEnabled}
           className={cn(
-            "inline-flex w-fit min-w-[220px] max-w-[280px] items-center justify-between gap-2 rounded-md border-[0.5px] border-field bg-surface-2 px-2.5 py-1.5 text-ui-lg text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3",
+            "inline-flex min-h-[var(--field-height-md)] w-fit min-w-[220px] max-w-[280px] items-center justify-between gap-2 rounded-[var(--field-radius)] border-[var(--control-edge-width)] border-field bg-surface-2 px-2.5 py-1.5 text-ui-lg text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3",
             "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface-2",
             mono && customEnabled && "font-mono text-ui-md",
           )}

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { themeContribution } from "./themeContributions";
-import type { ThemePluginSpec } from "./types";
+import { colorThemeContribution } from "./colorThemeContribution";
+import type { ColorThemePluginSpec } from "./types";
 
-function makeSpec(overrides: Partial<ThemePluginSpec> = {}): ThemePluginSpec {
+function makeSpec(overrides: Partial<ColorThemePluginSpec> = {}): ColorThemePluginSpec {
   return {
     id: "test",
     label: "Test",
@@ -32,9 +32,9 @@ function makeSpec(overrides: Partial<ThemePluginSpec> = {}): ThemePluginSpec {
   };
 }
 
-describe("themeContribution", () => {
+describe("colorThemeContribution", () => {
   it("projects theme plugin specs into theme registry contributions", () => {
-    const contribution = themeContribution(makeSpec());
+    const contribution = colorThemeContribution(makeSpec());
 
     expect(contribution).toMatchObject({
       id: "test",
@@ -48,6 +48,6 @@ describe("themeContribution", () => {
   });
 
   it("keeps explicit picker icon overrides", () => {
-    expect(themeContribution(makeSpec({ icon: "spark", scheme: "light" })).icon).toBe("spark");
+    expect(colorThemeContribution(makeSpec({ icon: "spark", scheme: "light" })).icon).toBe("spark");
   });
 });
