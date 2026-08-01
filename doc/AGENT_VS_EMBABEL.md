@@ -355,7 +355,7 @@ Session；当前 `ProcessSnapshot` schema 为 v9、`Suspension` schema 为 v2、
 - **执行顺序与提交顺序分离**。同一并发段内工具可乱序完成,但 `ToolResult` event、continuation tool message、下一轮 model/cache 输入始终按原 tool-call 顺序提交。checkpoint v2 为每个 call 保存 `queued/completed/paused` 独立状态、`NextResult` 与原 `MaxConcurrentCalls`,因此后完成的结果可以安全缓冲在前序 pause 后面,重启也不会静默换一套调度宽度。
 - **插件失败被限制在工具边界**。工具 `Call` panic 被转换为当前位置的 recoverable error ToolResult,不会从并发 goroutine 击穿 Host;同批 sibling 的结果仍按调用顺序提交。
 - **AgentTool 是并发安全的子进程能力**。每个调用拥有隔离 child process,通过精确 `tool_call_id` 关联;同名、同参数的多个调用不会混淆。多个 child 同时暂停时,parent 对外仍只暴露 call-order 中最早的 suspension,其余 suspension 已持久化但不越序可见。
-- **workflow 组合器做显式 fan-out**:`scatter-gather`/`consensus` 的 generator 只接收 context 与 typed input，父 Process 能力在类型层面不可达；`parallel` 使用拥有独立 Blackboard 与生命周期的 child Process。结果都按声明顺序 join，这些组合器**都编译回普通 GOAP agent**,不是新 runtime 概念。
+- **workflow 组合器做显式 fan-out**:`scatter-gather`/`consensus` 的 generator 只接收 context 与 typed input，父 Process 能力在类型层面不可达；`parallel` 使用拥有独立 Blackboard 与生命周期的 child Process。结果按声明顺序 join，多个 failure 也按声明位置确定性选 cause；取消是协作式且等待已启动分支退出。这些组合器**都编译回普通 GOAP agent**,不是新 runtime 概念。
 - AgentTool child 只在父 tool batch 内并发，并在父 action 前进前结构化收敛；
   `workflow.Parallel` / `ScatterGather` 支持有界并发与按输入顺序稳定 join。框架不提供脱离父
   process tree 生命周期的后台 child。

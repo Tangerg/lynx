@@ -21,6 +21,19 @@ type paIn struct{ Topic string }
 type paScore struct{ Value int }
 type paSummary struct{ Total int }
 
+type countingChildRuntime struct {
+	deployCalls atomic.Int32
+}
+
+func (childRuntime *countingChildRuntime) Deploy(context.Context, *core.Agent) (*runtime.Deployment, error) {
+	childRuntime.deployCalls.Add(1)
+	return nil, errors.New("unexpected deploy")
+}
+
+func (*countingChildRuntime) RunChild(context.Context, *runtime.Deployment, any) (*runtime.Process, error) {
+	return nil, errors.New("unexpected child run")
+}
+
 // makeScoringAgent: takes paIn, produces paScore. The score is parameterized
 // so we can build N distinct agents that produce different values.
 func makeScoringAgent(name string, score int) *core.Agent {
@@ -242,5 +255,26 @@ func TestParallel_RejectsNilJoiner(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestParallel_RejectsNegativeMaxConcurrency(t *testing.T) {
+	childRuntime := &countingChildRuntime{}
+	_, err := workflow.Parallel[paIn, paScore, paSummary](t.Context(),
+		childRuntime,
+		workflow.ParallelConfig[paIn, paScore, paSummary]{
+			Name:           "negative-concurrency",
+			MaxConcurrency: -1,
+			Agents:         []*core.Agent{makeScoringAgent("a", 1)},
+			Joiner: func(_ context.Context, _ *core.ProcessContext, _ []paScore) (paSummary, error) {
+				return paSummary{}, nil
+			},
+		},
+	)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if calls := childRuntime.deployCalls.Load(); calls != 0 {
+		t.Fatalf("Deploy calls = %d, want validation before deployment", calls)
 	}
 }

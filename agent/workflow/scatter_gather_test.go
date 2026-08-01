@@ -106,8 +106,11 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 	}
 }
 
-func TestScatterGather_FirstErrorCancelsAndJoinsOtherBranches(t *testing.T) {
+func TestScatterGather_GeneratorErrorCancelsSiblingsAndWaitsForExit(t *testing.T) {
+	cause := errors.New("boom")
 	blockingStarted := make(chan struct{})
+	cancellationObserved := make(chan struct{})
+	release := make(chan struct{})
 	blockingExited := make(chan struct{})
 	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 		Name: "fanout-cancel",
@@ -115,12 +118,14 @@ func TestScatterGather_FirstErrorCancelsAndJoinsOtherBranches(t *testing.T) {
 			func(ctx context.Context, _ sgIn) (sgElement, error) {
 				close(blockingStarted)
 				<-ctx.Done()
+				close(cancellationObserved)
+				<-release
 				close(blockingExited)
 				return sgElement{}, ctx.Err()
 			},
 			func(context.Context, sgIn) (sgElement, error) {
 				<-blockingStarted
-				return sgElement{}, errors.New("boom")
+				return sgElement{}, cause
 			},
 		},
 		Joiner: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
@@ -134,17 +139,103 @@ func TestScatterGather_FirstErrorCancelsAndJoinsOtherBranches(t *testing.T) {
 	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	proc, _ := engine.Run(t.Context(), a,
-		core.Input(sgIn{Topic: "x"}),
-		core.ProcessOptions{},
-	)
+	type runResult struct {
+		process *runtime.Process
+		err     error
+	}
+	done := make(chan runResult, 1)
+	go func() {
+		process, runErr := engine.Run(t.Context(), a,
+			core.Input(sgIn{Topic: "x"}),
+			core.ProcessOptions{},
+		)
+		done <- runResult{process: process, err: runErr}
+	}()
+	<-cancellationObserved
+	select {
+	case result := <-done:
+		close(release)
+		t.Fatalf("Run returned before the canceled generator exited: %v", result.err)
+	default:
+	}
+	close(release)
+	result := <-done
+	if result.err != nil {
+		t.Fatalf("Run: %v", result.err)
+	}
 	select {
 	case <-blockingExited:
 	default:
 		t.Fatal("Run returned before the canceled branch exited")
 	}
-	if proc.Status() == core.StatusCompleted {
-		t.Fatal("expected failed process after generator error")
+	if result.process.Status() != core.StatusFailed || !errors.Is(result.process.Failure(), cause) {
+		t.Fatalf("status/failure = %s/%v, want generator failure", result.process.Status(), result.process.Failure())
+	}
+}
+
+func TestScatterGather_MultipleFailuresChooseLowestGeneratorIndex(t *testing.T) {
+	lowIndexFailure := errors.New("generator zero failed")
+	highIndexFailure := errors.New("generator one failed first")
+	lowIndexStarted := make(chan struct{})
+	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
+		Name: "fanout-deterministic-error",
+		Generators: []workflow.Generator[sgIn, sgElement]{
+			func(ctx context.Context, _ sgIn) (sgElement, error) {
+				close(lowIndexStarted)
+				<-ctx.Done()
+				return sgElement{}, lowIndexFailure
+			},
+			func(context.Context, sgIn) (sgElement, error) {
+				<-lowIndexStarted
+				return sgElement{}, highIndexFailure
+			},
+		},
+		Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) {
+			return sgResult{}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine := agent.MustNewEngine(runtime.Config{})
+	process, err := engine.Run(t.Context(), a, core.Input(sgIn{}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusFailed || !errors.Is(process.Failure(), lowIndexFailure) {
+		t.Fatalf("status/failure = %s/%v, want lowest-index failure", process.Status(), process.Failure())
+	}
+	if errors.Is(process.Failure(), highIndexFailure) {
+		t.Fatalf("failure = %v, completion-order failure leaked", process.Failure())
+	}
+}
+
+func TestScatterGather_GeneratorPanicBecomesProcessFailure(t *testing.T) {
+	cause := errors.New("generator panic")
+	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
+		Name: "fanout-panic",
+		Generators: []workflow.Generator[sgIn, sgElement]{
+			func(context.Context, sgIn) (sgElement, error) {
+				panic(cause)
+			},
+		},
+		Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) {
+			return sgResult{}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine := agent.MustNewEngine(runtime.Config{})
+	process, err := engine.Run(t.Context(), a, core.Input(sgIn{}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusFailed || !errors.Is(process.Failure(), cause) {
+		t.Fatalf("status/failure = %s/%v, want recovered panic", process.Status(), process.Failure())
+	}
+	if failure := process.Failure().Error(); !strings.Contains(failure, "generator 0 panicked") {
+		t.Fatalf("failure = %q, want generator index and panic attribution", failure)
 	}
 }
 
@@ -269,6 +360,14 @@ func TestScatterGather_RejectsInvalidSpec(t *testing.T) {
 		}},
 		{"empty generators", workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 			Name:   "x",
+			Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
+		}},
+		{"negative max concurrency", workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
+			Name:           "x",
+			MaxConcurrency: -1,
+			Generators: []workflow.Generator[sgIn, sgElement]{
+				func(context.Context, sgIn) (sgElement, error) { return sgElement{}, nil },
+			},
 			Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
 		}},
 		{"nil joiner", workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{

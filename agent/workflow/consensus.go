@@ -29,7 +29,8 @@ type ConsensusConfig[In, Element any] struct {
 	// Description is the agent's human-facing summary.
 	Description string
 
-	// MaxConcurrency caps in-flight voters. <=0 means unbounded.
+	// MaxConcurrency caps in-flight voters. Zero runs all declared voters
+	// concurrently; negative values are invalid.
 	MaxConcurrency int
 
 	// Voters is the parallel ensemble. Each receives In and
@@ -49,10 +50,14 @@ type ConsensusConfig[In, Element any] struct {
 // often. Ties are broken by voter order (the earliest voter whose
 // Key tied for the lead wins).
 //
-// Returns an error on missing Name / empty Voters / nil Key.
+// Returns an error on missing Name, negative MaxConcurrency, empty Voters, or
+// nil Key.
 func Consensus[In, Element any](config ConsensusConfig[In, Element]) (*core.Agent, error) {
 	if config.Name == "" {
 		return nil, errors.New("workflow.Consensus: Name must not be empty")
+	}
+	if config.MaxConcurrency < 0 {
+		return nil, errors.New("workflow.Consensus: MaxConcurrency must not be negative")
 	}
 	if len(config.Voters) == 0 {
 		return nil, errors.New("workflow.Consensus: Voters must not be empty")

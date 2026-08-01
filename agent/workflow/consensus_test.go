@@ -89,6 +89,12 @@ func TestConsensus_RejectsInvalidSpec(t *testing.T) {
 		{"empty voters", workflow.ConsensusConfig[consensusIn, consensusVote]{
 			Name: "x", Key: workflow.DefaultKey[consensusVote],
 		}},
+		{"negative max concurrency", workflow.ConsensusConfig[consensusIn, consensusVote]{
+			Name:           "x",
+			MaxConcurrency: -1,
+			Voters:         []workflow.Generator[consensusIn, consensusVote]{voter("y")},
+			Key:            workflow.DefaultKey[consensusVote],
+		}},
 		{"nil key", workflow.ConsensusConfig[consensusIn, consensusVote]{
 			Name:   "x",
 			Voters: []workflow.Generator[consensusIn, consensusVote]{voter("y")},

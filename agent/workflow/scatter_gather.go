@@ -9,6 +9,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
 // scatterOutput keeps the fan-out result distinct on the workflow blackboard.
@@ -29,7 +30,9 @@ type scatterOutput[Element any] struct {
 // Each generator runs in its own goroutine without access to the parent
 // ProcessContext. Joiner sees the slice of Elements in generator order only
 // after every started generator has returned. A generator error cancels the
-// shared context, but cancellation remains cooperative.
+// shared context, but cancellation remains cooperative. If multiple generators
+// fail, the lowest-index non-cancellation failure wins so completion timing
+// cannot change the process error.
 type ScatterGatherConfig[In, Element, Result any] struct {
 	// Name names the produced agent + its goal + the action names.
 	// Required.
@@ -38,7 +41,8 @@ type ScatterGatherConfig[In, Element, Result any] struct {
 	// Description is the agent's human-facing summary. Optional.
 	Description string
 
-	// MaxConcurrency caps in-flight generators. <=0 means unbounded.
+	// MaxConcurrency caps in-flight generators. Zero runs all declared
+	// generators concurrently; negative values are invalid.
 	MaxConcurrency int
 
 	// Generators is the parallel fan-out. Each receives the same
@@ -62,10 +66,14 @@ type ScatterGatherConfig[In, Element, Result any] struct {
 // The single goal targets Result, so [runtime.Engine.Run] terminates
 // when Joiner has bound it.
 //
-// Returns an error on missing Name, empty Generators, or nil Joiner.
+// Returns an error on missing Name, negative MaxConcurrency, empty Generators,
+// a nil Generator, or nil Joiner.
 func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Element, Result]) (*core.Agent, error) {
 	if config.Name == "" {
 		return nil, errors.New("workflow.ScatterGather: Name must not be empty")
+	}
+	if config.MaxConcurrency < 0 {
+		return nil, errors.New("workflow.ScatterGather: MaxConcurrency must not be negative")
 	}
 	if len(config.Generators) == 0 {
 		return nil, errors.New("workflow.ScatterGather: Generators must not be empty")
@@ -89,6 +97,7 @@ func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Eleme
 		name+"-scatter",
 		func(ctx context.Context, _ *core.ProcessContext, input In) (scatterOutput[Element], error) {
 			items := make([]Element, len(generators))
+			generatorErrors := make([]error, len(generators))
 			group, groupContext := errgroup.WithContext(ctx)
 			if maxConcurrency > 0 {
 				group.SetLimit(maxConcurrency)
@@ -103,21 +112,27 @@ func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Eleme
 				// admission control: a branch starts only when a slot frees.
 				group.Go(func() error {
 					if err := groupContext.Err(); err != nil {
-						return err
+						generatorErrors[index] = fmt.Errorf("workflow.ScatterGather: generator %d: %w", index, err)
+						return generatorErrors[index]
 					}
-					output, err := generator(groupContext, input)
+					output, err := invokeGenerator(groupContext, index, generator, input)
+					generatorErrors[index] = err
 					if err != nil {
-						return fmt.Errorf("scatter generator %d: %w", index, err)
+						return err
 					}
 					items[index] = output
 					return nil
 				})
 			}
-			if err := group.Wait(); err != nil {
+			waitErr := group.Wait()
+			if err := preferredGeneratorError(generatorErrors); err != nil {
 				return scatterOutput[Element]{}, err
 			}
 			if schedulingErr != nil {
 				return scatterOutput[Element]{}, schedulingErr
+			}
+			if waitErr != nil {
+				return scatterOutput[Element]{}, waitErr
 			}
 			return scatterOutput[Element]{Items: items}, nil
 		},
@@ -138,4 +153,40 @@ func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Eleme
 		Actions:     []core.Action{scatter, gather},
 		Goals:       []*core.Goal{core.NewOutputGoal[Result](core.GoalConfig{Name: name})},
 	}), nil
+}
+
+func invokeGenerator[In, Out any](
+	ctx context.Context,
+	index int,
+	generator Generator[In, Out],
+	input In,
+) (output Out, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			var zero Out
+			output = zero
+			err = panicerr.New(fmt.Sprintf("workflow.ScatterGather: generator %d panicked", index), recovered)
+		}
+	}()
+	output, err = generator(ctx, input)
+	if err != nil {
+		return output, fmt.Errorf("workflow.ScatterGather: generator %d: %w", index, err)
+	}
+	return output, nil
+}
+
+func preferredGeneratorError(generatorErrors []error) error {
+	var cancellation error
+	for _, err := range generatorErrors {
+		if err == nil {
+			continue
+		}
+		if cancellation == nil {
+			cancellation = err
+		}
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
+	}
+	return cancellation
 }

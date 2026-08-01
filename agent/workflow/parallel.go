@@ -34,7 +34,8 @@ type ParallelConfig[In, Element, Result any] struct {
 	// Description is the agent's human-facing summary.
 	Description string
 
-	// MaxConcurrency caps in-flight sub-agents. <=0 means unbounded.
+	// MaxConcurrency caps in-flight sub-agents. Zero runs all declared agents
+	// concurrently; negative values are invalid.
 	MaxConcurrency int
 
 	// Agents is the parallel set. Each must accept In and produce
@@ -62,9 +63,9 @@ type ParallelConfig[In, Element, Result any] struct {
 // or missing Element) cancels the errgroup and propagates as the
 // process failure, naming the offending agent.
 //
-// Returns an error on nil engine, missing Name, empty Agents, a nil
-// sub-agent, or nil Joiner — caller decides whether to surface, retry,
-// or panic.
+// Returns an error on nil child runtime, missing Name, negative
+// MaxConcurrency, empty Agents, a nil sub-agent, or nil Joiner — caller
+// decides whether to surface, retry, or panic.
 func Parallel[In, Element, Result any](
 	ctx context.Context,
 	childRuntime ChildRuntime,
@@ -75,6 +76,9 @@ func Parallel[In, Element, Result any](
 	}
 	if config.Name == "" {
 		return nil, errors.New("workflow.Parallel: Name must not be empty")
+	}
+	if config.MaxConcurrency < 0 {
+		return nil, errors.New("workflow.Parallel: MaxConcurrency must not be negative")
 	}
 	if len(config.Agents) == 0 {
 		return nil, errors.New("workflow.Parallel: Agents must not be empty")

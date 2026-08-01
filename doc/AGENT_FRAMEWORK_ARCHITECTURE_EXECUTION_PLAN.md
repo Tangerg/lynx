@@ -1105,7 +1105,8 @@ app 当前两个 LLM action 已显式 `MaxAttempts:1`，迁移后可删除冗余
 
 - `ScatterGather` / `Consensus` 的 generator 只接收 `context.Context` 与 typed input；父 Process 的 Blackboard、Dependencies、生命周期控制和 managed Interact 在类型层面不可达，不再用完整 `ProcessContext` 加运行时拒绝模拟窄能力。
 - branch 结果写入预分配 index，join 永远按声明顺序，不按 goroutine 完成顺序。
-- generator 错误取消 group context，但取消是协作式；框架等待所有已启动 generator 返回，不承诺强制终止或回滚外部副作用。
+- generator 错误取消 group context，但取消是协作式；框架等待所有已启动 generator 返回，不承诺强制终止或回滚外部副作用。并发 panic 在 generator goroutine 边界转成普通 failure；多个失败按最低声明位置选择非取消 cause，不让完成时序决定 Process error。
+- `MaxConcurrency == 0` 表示同时运行全部有限声明分支，负数在构造期失败；`Parallel` 在部署 child 前执行该验证，不产生半完成装配副作用。
 - 需要 managed Interact、工具循环、Suspend、Terminate 或独立 checkpoint 的并行单元必须创建 child Process；`Parallel` 只负责把这些 child 结构化收敛回一个普通 workflow Action。
 
 如果未来出现必须并行提交多个 planner action 的真实消费者，必须以新 ADR 证明需求，再选择
