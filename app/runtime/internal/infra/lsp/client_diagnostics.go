@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"time"
 )
@@ -18,14 +19,20 @@ func (c *client) diagnostics(ctx context.Context, abs string, settle time.Durati
 	uri := pathToURI(abs)
 	// Nudge servers that only publish on save (typescript-language-server) —
 	// harmless for those that publish on change (gopls).
-	_ = c.conn.Notify(ctx, "textDocument/didSave", didSaveParams{TextDocument: textDocumentIdentifier{URI: uri}})
+	if err := c.conn.Notify(ctx, "textDocument/didSave", didSaveParams{TextDocument: textDocumentIdentifier{URI: uri}}); err != nil {
+		return nil, fmt.Errorf("lsp: notify didSave for %s: %w", abs, err)
+	}
 	deadline := time.NewTimer(settle)
 	defer deadline.Stop()
 	for {
 		c.mu.Lock()
 		ds, ok := c.diags[uri]
+		protocolErr := c.diagnosticsErr
 		wait := c.updated
 		c.mu.Unlock()
+		if protocolErr != nil {
+			return nil, fmt.Errorf("lsp: diagnostics notification: %w", protocolErr)
+		}
 		if ok && ds.version >= version {
 			return slices.Clone(ds.diagnostics), nil
 		}
@@ -34,7 +41,11 @@ func (c *client) diagnostics(ctx context.Context, abs string, settle time.Durati
 		case <-deadline.C:
 			c.mu.Lock()
 			ds := c.diags[uri]
+			protocolErr := c.diagnosticsErr
 			c.mu.Unlock()
+			if protocolErr != nil {
+				return nil, fmt.Errorf("lsp: diagnostics notification: %w", protocolErr)
+			}
 			return slices.Clone(ds.diagnostics), nil // best effort: whatever we have
 		case <-ctx.Done():
 			return nil, ctx.Err()

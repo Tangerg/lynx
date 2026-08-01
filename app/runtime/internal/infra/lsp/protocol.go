@@ -168,6 +168,14 @@ type workspaceSymbolParams struct {
 	Query string `json:"query"`
 }
 
+// configurationItem is the server's request for one settings scope. Lynx has
+// no LSP-specific settings, but decoding the shape still prevents malformed
+// requests from being acknowledged as valid configuration queries.
+type configurationItem struct {
+	ScopeURI string `json:"scopeUri,omitempty"`
+	Section  string `json:"section,omitempty"`
+}
+
 // callHierarchyItem is one node in the call graph (a function/method), returned
 // by prepareCallHierarchy and carried back into incoming/outgoingCalls. We type
 // the fields the tool layer renders; the server round-trips the rest opaquely
@@ -215,6 +223,51 @@ type publishDiagnosticsParams struct {
 	URI         string       `json:"uri"`
 	Version     int          `json:"version"`
 	Diagnostics []Diagnostic `json:"diagnostics"`
+}
+
+func (p publishDiagnosticsParams) validate() error {
+	if strings.TrimSpace(p.URI) == "" {
+		return errors.New("uri is empty")
+	}
+	for index, diagnostic := range p.Diagnostics {
+		if err := diagnostic.validate(); err != nil {
+			return fmt.Errorf("diagnostic %d: %w", index, err)
+		}
+	}
+	return nil
+}
+
+func (d Diagnostic) validate() error {
+	if d.Severity > DiagnosticSeverityHint {
+		return fmt.Errorf("unknown severity %d", d.Severity)
+	}
+	if err := d.Range.validate(); err != nil {
+		return fmt.Errorf("range: %w", err)
+	}
+	return nil
+}
+
+func (r Range) validate() error {
+	if err := r.Start.validate(); err != nil {
+		return fmt.Errorf("start: %w", err)
+	}
+	if err := r.End.validate(); err != nil {
+		return fmt.Errorf("end: %w", err)
+	}
+	if r.End.Line < r.Start.Line || (r.End.Line == r.Start.Line && r.End.Character < r.Start.Character) {
+		return errors.New("end precedes start")
+	}
+	return nil
+}
+
+func (p Position) validate() error {
+	if p.Line < 0 {
+		return errors.New("line is negative")
+	}
+	if p.Character < 0 {
+		return errors.New("character is negative")
+	}
+	return nil
 }
 
 // --- response shapes we parse flexibly ---

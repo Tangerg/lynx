@@ -28,8 +28,13 @@ type client struct {
 	mu    sync.Mutex
 	open  map[string]openDoc // uri → last synced version + content hash
 	diags map[string]diagSet // uri → latest pushed diagnostics
+	// diagnosticsErr carries the latest malformed publishDiagnostics
+	// notification until a valid notification proves the stream healthy again.
+	// The JSON-RPC handler cannot return notification errors to the server, so
+	// the next diagnostics caller is the first honest observation boundary.
+	diagnosticsErr error
 	// updated is closed (and replaced) on every diagnostics push, so a waiter
-	// can block for the next one without polling.
+	// can block for the next valid push or protocol error without polling.
 	updated chan struct{}
 }
 
