@@ -37,6 +37,18 @@ import (
 // at the same bundle rather than carrying a second copy of the shapes.
 const refPrefix = "#/$defs/"
 
+type schemaType string
+
+const (
+	schemaTypeArray   schemaType = "array"
+	schemaTypeBoolean schemaType = "boolean"
+	schemaTypeInteger schemaType = "integer"
+	schemaTypeNull    schemaType = "null"
+	schemaTypeNumber  schemaType = "number"
+	schemaTypeObject  schemaType = "object"
+	schemaTypeString  schemaType = "string"
+)
+
 // schema is a JSON Schema node, holding only the keywords this contract needs.
 //
 // Properties values are `any` because a forbidden field is the boolean schema
@@ -44,7 +56,7 @@ const refPrefix = "#/$defs/"
 // how a union variant excludes another variant's fields.
 type schema struct {
 	Ref             string         `json:"$ref,omitempty"`
-	Type            any            `json:"type,omitempty"`
+	Type            schemaType     `json:"type,omitempty"`
 	Format          string         `json:"format,omitempty"`
 	ContentEncoding string         `json:"contentEncoding,omitempty"`
 	Enum            []string       `json:"enum,omitempty"`
@@ -110,7 +122,7 @@ func (s *schemaSet) walk(t reflect.Type) *schema {
 	switch t {
 	case timeType:
 		// RFC 3339 in, RFC 3339 out — time.Time's own JSON encoding.
-		return &schema{Type: "string", Format: "date-time"}
+		return &schema{Type: schemaTypeString, Format: "date-time"}
 	case rawMessageType:
 		// An opaque passthrough: any JSON value, by design. Naming a shape here
 		// would be inventing one the runtime does not enforce.
@@ -122,28 +134,28 @@ func (s *schemaSet) walk(t reflect.Type) *schema {
 	case reflect.Interface:
 		return &schema{}
 	case reflect.Bool:
-		return &schema{Type: "boolean"}
+		return &schema{Type: schemaTypeBoolean}
 	case reflect.String:
 		if values, ok := protocol.WireEnum(t); ok {
-			return s.define(t, &schema{Type: "string", Enum: values})
+			return s.define(t, &schema{Type: schemaTypeString, Enum: values})
 		}
-		return &schema{Type: "string"}
+		return &schema{Type: schemaTypeString}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return &schema{Type: "integer"}
+		return &schema{Type: schemaTypeInteger}
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return &schema{Type: "integer", Minimum: new(int64(0))}
+		return &schema{Type: schemaTypeInteger, Minimum: new(int64(0))}
 	case reflect.Float32, reflect.Float64:
-		return &schema{Type: "number"}
+		return &schema{Type: schemaTypeNumber}
 	case reflect.Slice, reflect.Array:
 		if t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.Uint8 {
-			return &schema{Type: "string", ContentEncoding: "base64"}
+			return &schema{Type: schemaTypeString, ContentEncoding: "base64"}
 		}
-		return &schema{Type: "array", Items: s.walk(t.Elem())}
+		return &schema{Type: schemaTypeArray, Items: s.walk(t.Elem())}
 	case reflect.Map:
 		if t.Key().Kind() != reflect.String {
 			panic(fmt.Sprintf("contractgen: %s has a non-string map key; that is not JSON", t))
 		}
-		return &schema{Type: "object", AdditionalProps: s.walk(t.Elem())}
+		return &schema{Type: schemaTypeObject, AdditionalProps: s.walk(t.Elem())}
 	case reflect.Struct:
 		if t.Name() == "" {
 			return s.object(t)
@@ -176,7 +188,7 @@ func (s *schemaSet) define(t reflect.Type, body *schema) *schema {
 // object walks a struct's fields. Optionality comes from the json tag — the
 // encoder is the only authority on whether a field can be absent.
 func (s *schemaSet) object(t reflect.Type) *schema {
-	out := &schema{Type: "object", Properties: make(map[string]any)}
+	out := &schema{Type: schemaTypeObject, Properties: make(map[string]any)}
 	for _, field := range protocol.WireFields(t) {
 		node := s.walk(field.Type)
 		// A value constraint on a directly-owned field narrows it in place; the

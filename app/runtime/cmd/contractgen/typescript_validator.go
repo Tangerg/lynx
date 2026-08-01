@@ -209,9 +209,9 @@ func (e *checkEmitter) compile(node *schema) string {
 
 // value renders the `type` keyword and the constraints that ride on it.
 func (e *checkEmitter) value(node *schema) string {
-	keyword, _ := node.Type.(string)
+	keyword := node.Type
 	switch keyword {
-	case "object":
+	case schemaTypeObject:
 		if node.AdditionalProps != nil {
 			child, ok := node.AdditionalProps.(*schema)
 			if !ok {
@@ -220,15 +220,15 @@ func (e *checkEmitter) value(node *schema) string {
 			return e.call("record", e.compile(child))
 		}
 		return e.call("object", e.properties(node), values(node.Required))
-	case "array":
+	case schemaTypeArray:
 		return e.call("array", e.compile(node.Items))
-	case "string":
+	case schemaTypeString:
 		return e.call("text")
-	case "integer":
+	case schemaTypeInteger:
 		return e.call("integer")
-	case "number":
+	case schemaTypeNumber:
 		return e.call("numeric")
-	case "boolean":
+	case schemaTypeBoolean:
 		return e.call("flag")
 	case "":
 		// A union branch and a presence rule state fields with no type keyword: the
@@ -238,7 +238,7 @@ func (e *checkEmitter) value(node *schema) string {
 		}
 		return ""
 	default:
-		panic("contractgen: the wire check compiler has no translation for JSON type " + keyword)
+		panic("contractgen: the wire check compiler has no translation for JSON type " + string(keyword))
 	}
 }
 

@@ -232,11 +232,13 @@ func conditionExpression(conditions []dispatch.FieldCondition) string {
 // is what the linter deletes, so emitting one everywhere would make the generated
 // file fail the check it is generated to pass.
 func stringExpr(selector string, leaf reflect.Type) string {
+	const builtinStringTypeName = "string"
+
 	value := "value." + selector
 	if leaf.Kind() == reflect.Pointer {
 		return value
 	}
-	if leaf.Kind() == reflect.String && leaf.Name() != "string" {
+	if leaf.Kind() == reflect.String && leaf.Name() != builtinStringTypeName {
 		return fmt.Sprintf("string(value.%s)", selector)
 	}
 	return value

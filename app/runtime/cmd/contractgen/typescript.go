@@ -307,17 +307,17 @@ func (e tsTypes) typeOf(node *schema) string {
 	return unionOf(parts)
 }
 
-func (e tsTypes) keyword(name string, node *schema) string {
+func (e tsTypes) keyword(name schemaType, node *schema) string {
 	switch name {
-	case "string":
+	case schemaTypeString:
 		return "string"
-	case "integer", "number":
+	case schemaTypeInteger, schemaTypeNumber:
 		return "number"
-	case "boolean":
+	case schemaTypeBoolean:
 		return "boolean"
-	case "null":
+	case schemaTypeNull:
 		return "null"
-	case "array":
+	case schemaTypeArray:
 		if node.Items == nil {
 			return "unknown[]"
 		}
@@ -326,7 +326,7 @@ func (e tsTypes) keyword(name string, node *schema) string {
 			return "(" + element + ")[]"
 		}
 		return element + "[]"
-	case "object":
+	case schemaTypeObject:
 		if child, ok := node.AdditionalProps.(*schema); ok {
 			return "Record<string, " + e.typeOf(child) + ">"
 		}
@@ -343,7 +343,7 @@ func (e tsTypes) keyword(name string, node *schema) string {
 		}
 		return "{ " + strings.Join(fields, "; ") + " }"
 	default:
-		panic("contractgen: no TypeScript type for JSON type " + name)
+		panic("contractgen: no TypeScript type for JSON type " + string(name))
 	}
 }
 
@@ -429,17 +429,12 @@ func optionalMark(owner *schema, property string) string {
 	return "?"
 }
 
-// typeKeywords normalizes the `type` keyword, which is one name or a list when a
-// nil Go value can marshal as null.
-func typeKeywords(value any) []string {
-	switch typed := value.(type) {
-	case string:
-		return []string{typed}
-	case []string:
-		return typed
-	default:
+// typeKeywords keeps the type-emission loop uniform for an optional keyword.
+func typeKeywords(value schemaType) []schemaType {
+	if value == "" {
 		return nil
 	}
+	return []schemaType{value}
 }
 
 var identifier = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
