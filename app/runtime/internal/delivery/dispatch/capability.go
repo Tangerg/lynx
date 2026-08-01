@@ -29,7 +29,11 @@ func (d *Dispatcher) enforceCapabilities(ctx context.Context, meta MethodMeta, p
 			if frame == nil {
 				// Decoded lazily and only for a conditional rule: an unconditional
 				// rule never looks at the request, so the common path pays nothing.
-				frame = decodeFrame(params)
+				var err error
+				frame, err = decodeFrame(params)
+				if err != nil {
+					return errorToRPC(fmt.Errorf("dispatch: decode capability condition frame: %w", err))
+				}
 			}
 			if !matchesAll(rule.When, frame) {
 				continue
@@ -71,18 +75,21 @@ func (d *Dispatcher) missingFeatureRequirements(
 }
 
 // decodeFrame reads the request as a generic JSON frame so a [FieldCondition]
-// can address a field by its wire name. Undecodable params yield an empty frame:
-// the typed decode has already rejected them, so a condition simply does not
-// match and the unconditional rules still apply.
-func decodeFrame(params json.RawMessage) map[string]any {
+// can address a field by its wire name. The typed request decode runs first, so
+// an invalid or non-object frame here is an internal invariant violation rather
+// than an absent condition.
+func decodeFrame(params json.RawMessage) (map[string]any, error) {
 	if len(params) == 0 {
-		return map[string]any{}
+		return map[string]any{}, nil
 	}
 	var frame map[string]any
-	if err := json.Unmarshal(params, &frame); err != nil || frame == nil {
-		return map[string]any{}
+	if err := json.Unmarshal(params, &frame); err != nil {
+		return nil, fmt.Errorf("decode request object: %w", err)
 	}
-	return frame
+	if frame == nil {
+		return nil, errors.New("request frame is not an object")
+	}
+	return frame, nil
 }
 
 func matchesAll(conditions []FieldCondition, frame map[string]any) bool {
