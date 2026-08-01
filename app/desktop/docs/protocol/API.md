@@ -244,9 +244,9 @@ metadata 判断本次 run / subscription 能否产出某些事件或 HITL interr
 
 取消有两个不同对象：
 
-| 对象                    | 信号                                 | 效果                                   |
-| ----------------------- | ------------------------------------ | -------------------------------------- |
-| 在飞的 JSON-RPC request | transport context / HTTP abort       | 取消一个慢请求                         |
+| 对象                    | 信号                                 | 效果                                                 |
+| ----------------------- | ------------------------------------ | ---------------------------------------------------- |
+| 在飞的 JSON-RPC request | transport context / HTTP abort       | 取消一个慢请求                                       |
 | agent run               | `runs.cancel`（request，带 `runId`） | 硬终止 Running / Waiting run，并返回已提交的终态快照 |
 
 网络断开**不**取消 run。
@@ -311,10 +311,10 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
 
 同一个 Run 有**两个投影**，因为两个读者要的不是一回事：
 
-| 类型         | 谁给                                                               | 载什么                                                                |
-| ------------ | ------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| `RunSummary` | `items.list.runs` / 归档，且嵌入每个 `RunRef`                      | 身份 + 血缘 + 状态 + 终态：列一行、连一棵树够用                       |
-| `RunRef`     | `runs.get/list` / `segment.started.run` / `runs.cancel` 成功结果   | Summary + `metrics` + `limits` + `activeSegmentId` + `protocolProfile` |
+| 类型         | 谁给                                                             | 载什么                                                                 |
+| ------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `RunSummary` | `items.list.runs` / 归档，且嵌入每个 `RunRef`                    | 身份 + 血缘 + 状态 + 终态：列一行、连一棵树够用                        |
+| `RunRef`     | `runs.get/list` / `segment.started.run` / `runs.cancel` 成功结果 | Summary + `metrics` + `limits` + `activeSegmentId` + `protocolProfile` |
 
 - **`status` 与 `outcome` 正交**：`outcome` 只在 `finished` 时存在，`activeSegmentId` 只在 `running` 时存在，
   `finishedAt` 只在 `finished` 时存在。这三条是 schema 里的 presence 规则，不是约定。
@@ -353,15 +353,15 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
 
 | 出现处                                            | 值                                                                                          |
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `McpTool.name`（`mcp.tools.list`，§4.10）          | MCP server **原样播报**的远端工具名（可含 `.` / 任意字符）                                  |
-| `ToolInvocation.name`（toolCall Item / 审批载荷）   | **模型可见名** `sanitize("<server>_<tool>")`：非 `[A-Za-z0-9_-]` 一律换 `_`，超 64 字符截断 |
+| `McpTool.name`（`mcp.tools.list`，§4.10）         | MCP server **原样播报**的远端工具名（可含 `.` / 任意字符）                                  |
+| `ToolInvocation.name`（toolCall Item / 审批载荷） | **模型可见名** `sanitize("<server>_<tool>")`：非 `[A-Za-z0-9_-]` 一律换 `_`，超 64 字符截断 |
 
 模型可见名是**有损**的：不同 `(server, tool)` 对可能塌成同一个字符串（`("a_b","c")` 与 `("a","b_c")` 都得
 `a_b_c`）。因此：
 
 - 要把一次 toolCall 关联回 `mcp.tools.list` 的条目时**不能**反解 `ToolInvocation.name`；需要精确身份就按
   `(server, tool)` 对匹配。
-- `mcp.configs.*` 的 `disabledTools` / `autoApproveTools` 用**远端原名**（在其 server 条目内寻址，不受塌名影响）。
+- `McpServer.disabledTools` / `autoApproveTools` 用**远端原名**（在其 server 条目内寻址，不受塌名影响）。
 - 审批记忆（`remember`，AUX_API §6）的 key 是**模型可见名** —— 塌名的两个 MCP 工具会共享一条规则。这是当前形态的
   已知后果，非疏漏。
 
@@ -392,17 +392,17 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
 下表是**客户端展示层**按 `name` 富渲染时识别的 `arguments` / `result` 约定 —— **不是 wire 强制**。未知 `name` 一律
 JSON 树兜底渲染。富 result 形状复用 §4.5 的可复用结构。
 
-| name（约定）             | arguments（取值键）                         | result（取值键）                                             | 富渲染卡片       |
-| ------------------------ | ------------------------------------------- | ------------------------------------------------------------ | ---------------- |
-| `shell`                  | `command`, `timeout?`                       | `{ output, exitCode? }`                                       | 命令卡片         |
-| `edit`                   | `file_path`, `old_string`, `new_string`      | `{ changes: FileEdit[] }`                                     | diff 卡片        |
-| `write`                  | `file_path`                                 | `{ changes: FileEdit[] }`                                     | diff 卡片        |
-| `grep`                   | `pattern`, `path?`, `glob?`, `output_mode?`  | `{ hits: SearchHit[] }`                                       | 本地搜索卡片     |
-| `glob`                   | `pattern`, `path?`                          | `{ hits: SearchHit[] }`                                       | 本地搜索卡片     |
-| `web_search`             | `query`                                     | `{ results: WebSearchResult[] }`                              | 网络结果卡片     |
-| `read`                   | `file_path`, `offset?`, `limit?`             | `{ content, start_line, end_line, total_lines, truncated? }`  |                  |
-| `task`                   | `description`, `prompt`                      | 字符串（子 agent 的最终答复）                                 |                  |
-| `<server>_<tool>`（MCP） | 工具自定义                                  | 工具自定义                                                    | JSON 树（默认）  |
+| name（约定）             | arguments（取值键）                         | result（取值键）                                             | 富渲染卡片      |
+| ------------------------ | ------------------------------------------- | ------------------------------------------------------------ | --------------- |
+| `shell`                  | `command`, `timeout?`                       | `{ output, exitCode? }`                                      | 命令卡片        |
+| `edit`                   | `file_path`, `old_string`, `new_string`     | `{ changes: FileEdit[] }`                                    | diff 卡片       |
+| `write`                  | `file_path`                                 | `{ changes: FileEdit[] }`                                    | diff 卡片       |
+| `grep`                   | `pattern`, `path?`, `glob?`, `output_mode?` | `{ hits: SearchHit[] }`                                      | 本地搜索卡片    |
+| `glob`                   | `pattern`, `path?`                          | `{ hits: SearchHit[] }`                                      | 本地搜索卡片    |
+| `web_search`             | `query`                                     | `{ results: WebSearchResult[] }`                             | 网络结果卡片    |
+| `read`                   | `file_path`, `offset?`, `limit?`            | `{ content, start_line, end_line, total_lines, truncated? }` |                 |
+| `task`                   | `description`, `prompt`                     | 字符串（子 agent 的最终答复）                                |                 |
+| `<server>_<tool>`（MCP） | 工具自定义                                  | 工具自定义                                                   | JSON 树（默认） |
 
 ⚠️ **`result` 的键风格按工具而分**：被 runtime 归一化过的用 camelCase；**未归一化的工具原样透传其模型侧形状**
 （故 `read` 是 snake_case）。归一化是**幂等**的：结果里已有目标键时原样返回。
@@ -469,6 +469,21 @@ provider **不从 model 名推断**。`models.list` 的 `contextWindow` 配 `Run
 MCP server / skills / recipes / hooks / schedules / codebase / memory / goals / agentMemory 等可选域的类型都在
 `schema.json` 里，语义见 [`AUX_API.md`](./AUX_API.md)。每个域由 §9 的一个 feature 门控。
 
+MCP 只发布一个 `McpServer` 资源，不再把可编辑配置与连接状态拆成两个集合让客户端 join：
+
+- `connection` 是闭合的**安全读联合**：`stdio{command,args?,envMasked?,dir?}` 或
+  `streamableHttp{url,authorizationMasked?,headersMasked?}`；另一种 transport 的字段不可出现，secret 原文永不通过读
+  API 返回。
+- `status` 是闭合联合：`disabled` / `disconnected` / `connecting` /
+  `connected{toolCount}` / `failed{error}` / `needsAuth{error}`。`disabled` 是持久化开关关闭，`disconnected` 是已启用但
+  当前 live projection 尚无连接；二者不再靠字段缺席或客户端猜测区分。
+- authorization / headers / environment 都是 write-only，分别使用 `McpAuthorizationChange` / `McpHeadersChange` /
+  `McpEnvironmentChange`；三者共享精确的 `set` / `clear` 词汇，但保留独立领域类型，避免把一种 secret 误传到另一种
+  位置。省略仅在相同 secret scope 内表示保留：HTTP 以 URL origin 为 scope；stdio 以完整进程目标
+  `(command,args,dir)` 为 scope。scope 变化且已有 secret 时必须显式 `set` 或 `clear`，runtime 绝不把凭证静默带到新
+  origin / 进程，也不替调用方猜测是否删除。显式切换 transport 会原子丢弃旧 transport 专属 secret；它们不可能进入新
+  transport 的联合。`set.value` 必须非空；删除只用 `clear`，不让空 map 成为第二种删除写法。
+
 ### 4.11 分页（所有 list 统一）
 
 - **所有 list 方法一律返回 `Page<T>`**（`data` + 可选 `nextCursor`），客户端一个读法。
@@ -488,16 +503,16 @@ MCP server / skills / recipes / hooks / schedules / codebase / memory / goals / 
 （`runId` / `segmentId` / `eventId` / `timestamp` / `event: StreamEvent`）。八个 `StreamEvent` 变体与各自必填字段见
 `manifest.json` 的 `unions`；下面是它们的语义。
 
-| event.type          | 语义                                                               |
-| ------------------- | ------------------------------------------------------------------ |
-| `segment.started`   | 这一段开始，带 `run: RunRef`（含 `activeSegmentId` 与 profile）    |
-| `segment.progress`  | 瞬时读数（step / activity / usage / contextTokens）                |
-| `item.started`      | 一个 Item 的壳落地                                                 |
-| `item.delta`        | 该 Item 的增量预览（五种，§5.1）                                   |
-| `item.completed`    | 该 Item 的**权威终态**                                             |
-| `state.snapshot`    | 一个 session-scoped 共享状态的**整份**当前值（§5.3）              |
-| `segment.finished`  | 这一段结束，带 `outcome: SegmentOutcome` + `metrics: RunMetrics`   |
-| `custom`            | 第三方扩展的一次性实时信号（`name` + 可选 `payload`）              |
+| event.type         | 语义                                                             |
+| ------------------ | ---------------------------------------------------------------- |
+| `segment.started`  | 这一段开始，带 `run: RunRef`（含 `activeSegmentId` 与 profile）  |
+| `segment.progress` | 瞬时读数（step / activity / usage / contextTokens）              |
+| `item.started`     | 一个 Item 的壳落地                                               |
+| `item.delta`       | 该 Item 的增量预览（五种，§5.1）                                 |
+| `item.completed`   | 该 Item 的**权威终态**                                           |
+| `state.snapshot`   | 一个 session-scoped 共享状态的**整份**当前值（§5.3）             |
+| `segment.finished` | 这一段结束，带 `outcome: SegmentOutcome` + `metrics: RunMetrics` |
+| `custom`           | 第三方扩展的一次性实时信号（`name` + 可选 `payload`）            |
 
 > **`contextTokens` 不是 `usage.inputTokens`**：前者是**此刻**窗口占了多少（压缩后会回落），后者是跨轮**累计**只增。
 > 它**没有 authoritative 落点** —— 重连或历史回放的客户端在下一个 `segment.progress` 到达前**不知道**当前占用（不是拿到
@@ -531,20 +546,20 @@ Authoritative、replayable 与 persisted 是三个不同概念：
 因此 `custom.durable` 在所有变体上明确禁止。这张表由 Registry 生成到
 `manifest.json.runEventPolicy`，SSE id 与 replay journal 只读取 replayable：
 
-| event.type                  | authoritative | replayable | 冷恢复 / 权威落点                                         |
-| --------------------------- | ------------- | ---------- | --------------------------------------------------------- |
-| `segment.started`           | ✅            | ✅         | RunRef                                                    |
-| `segment.finished`          | ✅            | ✅         | RunRef / Interrupt query                                  |
-| `item.started`              | ✅            | ✅         | `items.list`                                              |
-| `item.completed`            | ✅            | ✅         | `items.list`                                              |
-| `state.snapshot`            | ✅            | ✅         | Registry 登记的 recovery query                            |
-| `segment.progress`          | ⬜            | ⬜         | `segment.finished.metrics` / RunRef.metrics               |
-| `item.delta{content}`       | ⬜            | ⬜         | `agentMessage.content`（completed）                       |
-| `item.delta{reasoning}`     | ⬜            | ⬜         | `reasoning.text`（completed）                             |
-| `item.delta{toolArguments}` | ⬜            | ⬜         | `tool.arguments`（completed，§4.4）                       |
-| `item.delta{toolOutput}`    | ⬜            | ⬜         | `tool.result.output`（completed，§4.4.2）                  |
-| `item.delta{plan}`          | ⬜            | ⬜         | `plan.steps`（completed）                                 |
-| `custom`                    | ⬜            | ⬜         | 无；只能改善实时体验                                      |
+| event.type                  | authoritative | replayable | 冷恢复 / 权威落点                           |
+| --------------------------- | ------------- | ---------- | ------------------------------------------- |
+| `segment.started`           | ✅            | ✅         | RunRef                                      |
+| `segment.finished`          | ✅            | ✅         | RunRef / Interrupt query                    |
+| `item.started`              | ✅            | ✅         | `items.list`                                |
+| `item.completed`            | ✅            | ✅         | `items.list`                                |
+| `state.snapshot`            | ✅            | ✅         | Registry 登记的 recovery query              |
+| `segment.progress`          | ⬜            | ⬜         | `segment.finished.metrics` / RunRef.metrics |
+| `item.delta{content}`       | ⬜            | ⬜         | `agentMessage.content`（completed）         |
+| `item.delta{reasoning}`     | ⬜            | ⬜         | `reasoning.text`（completed）               |
+| `item.delta{toolArguments}` | ⬜            | ⬜         | `tool.arguments`（completed，§4.4）         |
+| `item.delta{toolOutput}`    | ⬜            | ⬜         | `tool.result.output`（completed，§4.4.2）   |
+| `item.delta{plan}`          | ⬜            | ⬜         | `plan.steps`（completed）                   |
+| `custom`                    | ⬜            | ⬜         | 无；只能改善实时体验                        |
 
 **硬规则**：每个 first-party preview **必须**在 authoritative projection 上有命名终值。
 `custom` 不得承载正确性所依赖的事实；第三方若需要持久化事实，使用已有的领域中立 Item，
@@ -755,9 +770,9 @@ provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参�
 
 **只有两个**：
 
-| method                        | params         | 载什么                                                           |
-| ----------------------------- | -------------- | ---------------------------------------------------------------- |
-| `notifications.run.event`     | `RunEvent`     | 一个 run 段的 run/item/state 事件（§5）                          |
+| method                        | params         | 载什么                                                                                                                                                                                         |
+| ----------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `notifications.run.event`     | `RunEvent`     | 一个 run 段的 run/item/state 事件（§5）                                                                                                                                                        |
 | `notifications.runtime.event` | `RuntimeEvent` | 失效信号：`files.changed` / `skills.changed` / `mcp.changed` / `schedules.changed` / `sessions.changed` / `runs.changed` / `state.changed` / `goals.changed` / `interrupts.changed` / `resync` |
 
 失效信号的契约（§9 / AUX_API §3）：
@@ -796,16 +811,16 @@ embedding 角色属于运行时配置（§7.6），不是每次检索的参数�
 
 错误可能出现在**三个落点**。新对接者常只预期"错误在响应里"，故先给决策表：
 
-| #   | 落点            | 何时                                                                                       | 怎么投递                                                        | 终止 run？                     |
-| --- | --------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------- | ------------------------------ |
-| a   | RPC error       | 调用本身就错：`session_not_found` / `invalid_params` / `workspace_unavailable` / `capability_not_negotiated` | 该 method 的**同步 JSON-RPC error response**（带 `error.code`） | 调用未起 run                   |
-| b   | run 终态        | run 已起、执行中整体失败                                                                   | 流内 `segment.finished{ outcome:{ type:"error", error } }`       | 是                             |
-| c   | item            | 单个工具失败                                                                               | 对应 `toolCall` item 的 `error` + `status:"incomplete"`          | **否**（agent 多半换方案继续） |
+| #   | 落点      | 何时                                                                                                         | 怎么投递                                                        | 终止 run？                     |
+| --- | --------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- | ------------------------------ |
+| a   | RPC error | 调用本身就错：`session_not_found` / `invalid_params` / `workspace_unavailable` / `capability_not_negotiated` | 该 method 的**同步 JSON-RPC error response**（带 `error.code`） | 调用未起 run                   |
+| b   | run 终态  | run 已起、执行中整体失败                                                                                     | 流内 `segment.finished{ outcome:{ type:"error", error } }`      | 是                             |
+| c   | item      | 单个工具失败                                                                                                 | 对应 `toolCall` item 的 `error` + `status:"incomplete"`         | **否**（agent 多半换方案继续） |
 
 三处都用**同一个 `ProblemData` 形状**。**落点本身就是判别**（§4.6：没有 `channel` 字段）。**反直觉但关键**：工具
 失败（c）通常不终止 run；实现方**不要**期望 run 执行期错误（b/c）能在 `runs.start` 的同步 response（a）里拿到。
 
-第四类是**内联状态**：它骑在**某个查询自己的结果**里（`McpServer.error` / `ProviderTestResult.error`），表达
+第四类是**内联状态**：它骑在**某个查询自己的结果**里（`McpServer.status.error` / `ProviderTestResult.error`），表达
 "这个东西当前坏在哪"，而不是"你这次调用失败了"，所以调用**成功**返回。见 §8.4。
 
 ### 8.2 错误码与符号名
@@ -869,14 +884,14 @@ error `type` 是 §2.6 命名空间的一个实例：first-party 用裸 `snake_c
 
 `ServerCapabilities`（`runtime.discover` / `GET /v2/info`）由六部分组成，每部分都是**runtime 真做得到的事**：
 
-| 字段               | 含义                                                                                    |
-| ------------------ | --------------------------------------------------------------------------------------- |
-| `features`         | 开放 map：能力 key → `{enabled, stability, clientOptIn, requiredByRunProtocol}`          |
+| 字段               | 含义                                                                                                       |
+| ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `features`         | 开放 map：能力 key → `{enabled, stability, clientOptIn, requiredByRunProtocol}`                            |
 | `limits`           | 强制执行的正数值：必填 `runReplay{scope,maxEvents,maxBytes}` / `runtimeSubscription{maxTopics,maxWatches}` |
-| `runEvents`        | 本 build 会发的 `StreamEventType` 集合                                                  |
-| `runtimeTopics`    | 可订阅的失效 topic 集合（每个都有生产者）                                               |
-| `stateSnapshots`   | 每个 state key 的 `{key, scope, writer, recoveryMethod}`（§5.3）                         |
-| `streamingMethods` | 走流式响应的方法名集合（§7）                                                            |
+| `runEvents`        | 本 build 会发的 `StreamEventType` 集合                                                                     |
+| `runtimeTopics`    | 可订阅的失效 topic 集合（每个都有生产者）                                                                  |
+| `stateSnapshots`   | 每个 state key 的 `{key, scope, writer, recoveryMethod}`（§5.3）                                           |
+| `streamingMethods` | 走流式响应的方法名集合（§7）                                                                               |
 
 **`features` 是开放 map（与 `ClientCapabilities.features` 对称）**：runtime advertise 新能力 = 加一个 key，
 老客户端按"忽略未知"自动容忍。每个 feature 自带三个协商事实：`clientOptIn`（客户端必须显式声明才给）、

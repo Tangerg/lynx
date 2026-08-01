@@ -46,8 +46,8 @@ func TestMCPServerStoreRoundTrip(t *testing.T) {
 		if err := want.Validate(); err != nil {
 			t.Fatalf("invalid fixture %q: %v", want.Name, err)
 		}
-		if err := store.Configure(t.Context(), want); err != nil {
-			t.Fatalf("Configure %q: %v", want.Name, err)
+		if err := store.Save(t.Context(), want); err != nil {
+			t.Fatalf("Save %q: %v", want.Name, err)
 		}
 
 		got, ok, err := store.Get(t.Context(), want.Name)
@@ -95,7 +95,7 @@ func TestMCPServerStoreRejectsMalformedJSONFields(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if err := store.Configure(t.Context(), server); err != nil {
+			if err := store.Save(t.Context(), server); err != nil {
 				t.Fatalf("Configure: %v", err)
 			}
 			if _, err := db.ExecContext(t.Context(), test.update, server.Name); err != nil {

@@ -14,7 +14,6 @@ describe("workspaceInvalidations", () => {
     ]);
     expect(workspaceInvalidations({ type: "mcp.changed", sequence: 3 })).toEqual([
       "mcpServers",
-      "mcpConfigs",
       "mcpTools",
     ]);
     // A fired schedule starts a run in a fresh session, so both lists move.

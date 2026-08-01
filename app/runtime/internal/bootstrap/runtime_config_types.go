@@ -94,7 +94,7 @@ type Config struct {
 	// MCPRegistry is the runtime-mutable MCP-server registry. The enabled
 	// entries are dialed at boot (the env seed lands here first, in the
 	// composition root) and the registry is the source for runtime
-	// mcp.configs.configure / remove / setEnabled. Required.
+	// mcp.servers.create / update / delete. Required.
 	MCPRegistry integrations.Registry
 
 	// SessionStore persists Lyra sessions. Required; the composition root injects

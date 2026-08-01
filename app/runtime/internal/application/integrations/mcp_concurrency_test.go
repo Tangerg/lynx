@@ -77,9 +77,9 @@ func (p *blockingMCPProjection) Authorize(ctx context.Context, name string) erro
 
 func TestMCPRegistryMutationIsLinearizedThroughLiveApply(t *testing.T) {
 	registry := &testMCPRegistry{
-		servers:            map[string]mcpserver.Server{},
-		configureCommitted: make(chan struct{}),
-		releaseConfigure:   make(chan struct{}),
+		servers:       map[string]mcpserver.Server{},
+		saveCommitted: make(chan struct{}),
+		releaseSave:   make(chan struct{}),
 	}
 	live := &mcpLiveSet{servers: map[string]bool{}}
 	policy := mcpserver.NewToolPolicy(nil)
@@ -88,22 +88,22 @@ func TestMCPRegistryMutationIsLinearizedThroughLiveApply(t *testing.T) {
 
 	configured := make(chan error, 1)
 	go func() {
-		_, err := c.ConfigureMCPServer(context.Background(), mcpInput(server))
+		_, err := c.CreateMCPServer(context.Background(), mcpInput(server))
 		configured <- err
 	}()
-	<-registry.configureCommitted
+	<-registry.saveCommitted
 	if c.mcpMutationMu.TryLock() {
 		c.mcpMutationMu.Unlock()
 		t.Fatal("configure released the mutation order before applying its live projection")
 	}
 	removed := make(chan error, 1)
-	go func() { removed <- c.RemoveMCPServer(context.Background(), server.Name) }()
-	close(registry.releaseConfigure)
+	go func() { removed <- c.DeleteMCPServer(context.Background(), server.Name) }()
+	close(registry.releaseSave)
 	if err := <-configured; err != nil {
-		t.Fatalf("ConfigureMCPServer: %v", err)
+		t.Fatalf("CreateMCPServer: %v", err)
 	}
 	if err := <-removed; err != nil {
-		t.Fatalf("RemoveMCPServer: %v", err)
+		t.Fatalf("DeleteMCPServer: %v", err)
 	}
 
 	if _, ok, err := registry.Get(context.Background(), server.Name); err != nil || ok {
@@ -119,9 +119,9 @@ func TestMCPRegistryMutationIsLinearizedThroughLiveApply(t *testing.T) {
 
 func TestMCPPostCommitReconciliationOutlivesRequestCancellation(t *testing.T) {
 	registry := &testMCPRegistry{
-		servers:            map[string]mcpserver.Server{},
-		configureCommitted: make(chan struct{}),
-		releaseConfigure:   make(chan struct{}),
+		servers:       map[string]mcpserver.Server{},
+		saveCommitted: make(chan struct{}),
+		releaseSave:   make(chan struct{}),
 	}
 	live := &mcpLiveSet{servers: map[string]bool{}, configured: make(chan string, 1)}
 	policy := mcpserver.NewToolPolicy(nil)
@@ -130,15 +130,15 @@ func TestMCPPostCommitReconciliationOutlivesRequestCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		_, err := c.ConfigureMCPServer(ctx, mcpInput(server))
+		_, err := c.CreateMCPServer(ctx, mcpInput(server))
 		done <- err
 	}()
 
-	<-registry.configureCommitted
+	<-registry.saveCommitted
 	cancel()
-	close(registry.releaseConfigure)
+	close(registry.releaseSave)
 	if err := <-done; err != nil {
-		t.Fatalf("ConfigureMCPServer after durable commit: %v", err)
+		t.Fatalf("CreateMCPServer after durable commit: %v", err)
 	}
 	if got := <-live.configured; got != server.Name {
 		t.Fatalf("reconciled server = %q, want %q", got, server.Name)
@@ -153,11 +153,26 @@ func TestMCPPostCommitReconciliationOutlivesRequestCancellation(t *testing.T) {
 }
 
 func mcpInput(server mcpserver.Server) MCPServerInput {
+	var authorization *MCPAuthorizationChange
+	if server.Authorization != "" {
+		authorization = &MCPAuthorizationChange{Kind: MCPSecretSet, Value: server.Authorization}
+	}
+	var headers *MCPHeadersChange
+	if len(server.Headers) > 0 {
+		headers = &MCPHeadersChange{Kind: MCPSecretSet, Value: server.Headers}
+	}
+	var environment *MCPEnvironmentChange
+	if len(server.Env) > 0 {
+		environment = &MCPEnvironmentChange{Kind: MCPSecretSet, Value: server.Env}
+	}
 	return MCPServerInput{
-		Name: server.Name, Transport: server.Transport, Enabled: server.Enabled,
-		Description: server.Description, URL: server.URL, Authorization: server.Authorization,
-		Headers: server.Headers, Command: server.Command, Args: server.Args, Env: server.Env,
-		Dir: server.Dir, Timeout: server.Timeout, DisabledTools: server.DisabledTools,
+		Name: server.Name, Enabled: server.Enabled, Description: server.Description,
+		Connection: MCPConnectionInput{
+			Transport: server.Transport, URL: server.URL,
+			Authorization: authorization, Headers: headers,
+			Command: server.Command, Args: server.Args, Environment: environment, Dir: server.Dir,
+		},
+		Timeout: server.Timeout, DisabledTools: server.DisabledTools,
 		AutoApproveTools: server.AutoApproveTools,
 	}
 }
@@ -188,12 +203,12 @@ func TestMCPRemoveDoesNotWaitForInteractiveConnection(t *testing.T) {
 	<-live.reconnectStarted
 
 	removed := make(chan error, 1)
-	go func() { removed <- c.RemoveMCPServer(context.Background(), name) }()
+	go func() { removed <- c.DeleteMCPServer(context.Background(), name) }()
 	select {
 	case err := <-removed:
 		if err != nil {
 			close(live.releaseReconnect)
-			t.Fatalf("RemoveMCPServer: %v", err)
+			t.Fatalf("DeleteMCPServer: %v", err)
 		}
 	case <-time.After(time.Second):
 		close(live.releaseReconnect)
@@ -237,7 +252,7 @@ func TestMCPQueuedReconnectCannotReviveRemovedServer(t *testing.T) {
 	})
 
 	removed := make(chan error, 1)
-	go func() { removed <- c.RemoveMCPServer(context.Background(), name) }()
+	go func() { removed <- c.DeleteMCPServer(context.Background(), name) }()
 	<-registry.removeCommitted
 	if err := c.ReconnectMCPServer(context.Background(), name); !errors.Is(err, ErrUnknownMCPServer) {
 		close(registry.releaseRemove)
@@ -247,7 +262,7 @@ func TestMCPQueuedReconnectCannotReviveRemovedServer(t *testing.T) {
 	close(registry.releaseRemove)
 	if err := <-removed; err != nil {
 		requireCoordinatorShutdown(t, c)
-		t.Fatalf("RemoveMCPServer: %v", err)
+		t.Fatalf("DeleteMCPServer: %v", err)
 	}
 	requireCoordinatorShutdown(t, c)
 

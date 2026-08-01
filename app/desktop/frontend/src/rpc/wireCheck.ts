@@ -144,6 +144,21 @@ export function minItems(least: number): WireCheck {
   };
 }
 
+/** `minProperties`, which constrains an object's own-property count. */
+export function minProperties(least: number): WireCheck {
+  return (value, path, out) => {
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      !Array.isArray(value) &&
+      Object.keys(value).length < least
+    ) {
+      const noun = least === 1 ? "property" : "properties";
+      out.push({ path, detail: `expected at least ${least} ${noun}` });
+    }
+  };
+}
+
 /**
  * `uniqueItems`. Elements are compared by their JSON text, which is what the
  * keyword means: two array entries are the same item when they are the same value,

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -10,40 +9,60 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-func (s *Server) mcpServersWire(ctx context.Context) []protocol.McpServer {
-	statuses := s.integrations.MCPServerStatuses(ctx)
-	out := make([]protocol.McpServer, 0, len(statuses))
-	for _, st := range statuses {
-		out = append(out, s.mcpServerWire(st))
+func mcpServerWire(server integrations.MCPServer) (protocol.McpServer, error) {
+	connection, err := mcpConnectionWire(server.Connection)
+	if err != nil {
+		return protocol.McpServer{}, err
+	}
+	return protocol.McpServer{
+		Name:             server.Name,
+		Description:      server.Description,
+		Connection:       connection,
+		TimeoutSeconds:   int(server.Timeout / time.Second),
+		DisabledTools:    server.DisabledTools,
+		AutoApproveTools: server.AutoApproveTools,
+		Status:           mcpServerStateWire(server.State),
+	}, nil
+}
+
+func mcpConnectionWire(connection integrations.MCPConnection) (protocol.McpConnection, error) {
+	transport, ok := mcpTransportWire(connection.Transport)
+	if !ok {
+		return protocol.McpConnection{}, fmt.Errorf("mcp: unsupported transport %q", connection.Transport)
+	}
+	return protocol.McpConnection{
+		Type:                transport,
+		URL:                 connection.URL,
+		AuthorizationMasked: connection.AuthorizationMasked,
+		HeadersMasked:       connection.HeadersMasked,
+		Command:             connection.Command,
+		Args:                connection.Args,
+		EnvMasked:           connection.EnvironmentMasked,
+		Dir:                 connection.Dir,
+	}, nil
+}
+
+func mcpServerStateWire(state integrations.MCPServerState) protocol.McpServerState {
+	out := protocol.McpServerState{ToolCount: state.ToolCount}
+	switch state.Type {
+	case integrations.MCPServerDisabled:
+		out.Type = protocol.McpServerDisabled
+	case integrations.MCPServerDisconnected:
+		out.Type = protocol.McpServerDisconnected
+	case integrations.MCPServerConnecting:
+		out.Type = protocol.McpServerConnecting
+	case integrations.MCPServerConnected:
+		out.Type = protocol.McpServerConnected
+	case integrations.MCPServerFailed:
+		out.Type = protocol.McpServerFailed
+		out.Error = mcpStatusProblem(mcpserver.ConnectionFailed)
+	case integrations.MCPServerNeedsAuth:
+		out.Type = protocol.McpServerNeedsAuth
+		out.Error = mcpStatusProblem(mcpserver.ConnectionNeedsAuth)
+	default:
+		panic("server: unknown MCP server state")
 	}
 	return out
-}
-
-func (s *Server) mcpServerWire(st integrations.MCPServerStatus) protocol.McpServer {
-	return protocol.McpServer{
-		Name: st.Name, Status: mcpStateWire(st.State),
-		ToolCount: st.ToolCount, Error: mcpStatusProblem(st.State),
-	}
-}
-
-// mcpStateWire panics on a connection state it does not map, matching the run
-// presenter: an unmapped domain enum means this projection was not updated with
-// the domain, which is a defect and not a state a server can be in. Reporting it
-// as a failed server with an invented type shipped the defect as a user-visible
-// verdict.
-func mcpStateWire(state mcpserver.ConnectionState) protocol.McpStatus {
-	switch state {
-	case mcpserver.ConnectionConnecting:
-		return protocol.McpConnecting
-	case mcpserver.ConnectionConnected:
-		return protocol.McpConnected
-	case mcpserver.ConnectionFailed:
-		return protocol.McpFailed
-	case mcpserver.ConnectionNeedsAuth:
-		return protocol.McpNeedsAuth
-	default:
-		panic("server: unknown MCP connection state")
-	}
 }
 
 func mcpStatusProblem(state mcpserver.ConnectionState) *protocol.ProblemData {
@@ -61,36 +80,13 @@ func mcpProbeProblem() *protocol.ProblemData {
 	return &protocol.ProblemData{Type: protocol.ProblemMCPDialFailed}
 }
 
-func mcpToolWire(t mcpserver.ToolInfo) protocol.McpTool {
+func mcpToolWire(tool mcpserver.ToolInfo) protocol.McpTool {
 	return protocol.McpTool{
-		Server:      t.Server,
-		Name:        t.Name,
-		Description: t.Description,
-		InputSchema: t.InputSchema.Map(),
+		Server:      tool.Server,
+		Name:        tool.Name,
+		Description: tool.Description,
+		InputSchema: tool.InputSchema.Map(),
 	}
-}
-
-func mcpConfigWire(srv integrations.MCPServerConfig) (protocol.McpServerConfig, error) {
-	transport, ok := mcpTransportWire(srv.Transport)
-	if !ok {
-		return protocol.McpServerConfig{}, fmt.Errorf("mcp: unsupported transport %q", srv.Transport)
-	}
-	return protocol.McpServerConfig{
-		Name:                srv.Name,
-		Transport:           transport,
-		Enabled:             srv.Enabled,
-		Description:         srv.Description,
-		URL:                 srv.URL,
-		AuthorizationMasked: srv.AuthorizationMasked,
-		Headers:             srv.Headers,
-		Command:             srv.Command,
-		Args:                srv.Args,
-		Env:                 srv.Env,
-		Dir:                 srv.Dir,
-		TimeoutSeconds:      int(srv.Timeout / time.Second),
-		DisabledTools:       srv.DisabledTools,
-		AutoApproveTools:    srv.AutoApproveTools,
-	}, nil
 }
 
 func mcpTransportWire(transport mcpserver.Transport) (protocol.McpTransport, bool) {

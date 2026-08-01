@@ -4,7 +4,7 @@
 //
 // It mirrors the provider registry ([internal/domain/provider]): a persisted,
 // runtime-editable set seeded at startup (from the LYRA_MCP_SERVERS env) and
-// edited at runtime via mcp.configs.configure / remove / setEnabled. Persisted
+// edited at runtime via mcp.servers.create / update / delete. Persisted
 // backends (sqlite) keep runtime edits across restarts. Unlike providers there
 // is no "supported set" to seed — every entry is a user-defined server, so the
 // registry is a plain create/update/delete set, not a seeded catalog.
@@ -53,9 +53,9 @@ type Server struct {
 	Authorization string
 
 	// Headers carries extra static HTTP request headers (e.g. "X-API-Key") sent
-	// on every request — HTTP transport only. Unlike Authorization these are not
-	// masked (they're treated as non-secret config, matching how the ecosystem
-	// surfaces a headers map); put a bearer token in Authorization, not here.
+	// on every request — HTTP transport only. Values are stored raw, masked at
+	// the wire boundary, and never logged because arbitrary headers may carry
+	// credentials.
 	Headers map[string]string
 
 	// Command is the executable to spawn. Used when Transport == [TransportStdio].
@@ -65,7 +65,8 @@ type Server struct {
 	Args []string
 
 	// Env REPLACES the subprocess environment (stdio) as a KEY→value map; it does
-	// not extend the parent env. The dial layer flattens it to "KEY=value".
+	// not extend the parent env. Values are stored raw, masked at the wire
+	// boundary, and never logged. The dial layer flattens it to "KEY=value".
 	Env map[string]string
 
 	// Dir sets the subprocess working directory; empty inherits the parent's (stdio).
@@ -104,6 +105,15 @@ func (s Server) Validate() error {
 		}
 		if s.Command != "" {
 			return fmt.Errorf("mcpserver %q: Command must be empty for streamableHttp transport", s.Name)
+		}
+		if len(s.Args) > 0 {
+			return fmt.Errorf("mcpserver %q: Args apply to stdio transport only", s.Name)
+		}
+		if len(s.Env) > 0 {
+			return fmt.Errorf("mcpserver %q: Env applies to stdio transport only", s.Name)
+		}
+		if s.Dir != "" {
+			return fmt.Errorf("mcpserver %q: Dir applies to stdio transport only", s.Name)
 		}
 	case TransportStdio:
 		if s.Command == "" {

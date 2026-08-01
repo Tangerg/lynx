@@ -23,7 +23,6 @@ import type {
   CodebaseSearchResult,
   CodebaseStatus,
   CodebaseStatusRequest,
-  ConfigureMCPServerRequest,
   CreateScheduleRequest,
   CreateSessionRequest,
   DeleteScheduleRequest,
@@ -62,15 +61,15 @@ import type {
   ListModelsRequest,
   ListRunsRequest,
   MCPListToolsRequest,
+  MCPServerCandidate,
   MCPServerRequest,
-  McpServerConfig,
+  McpServer,
   McpTestResult,
   MemoryEntry,
   PageOfAgentDoc,
   PageOfFileEntry,
   PageOfManagedSkill,
   PageOfMcpServer,
-  PageOfMcpServerConfig,
   PageOfMcpTool,
   PageOfMemoryEntry,
   PageOfModel,
@@ -89,7 +88,6 @@ import type {
   Provider,
   ProviderTestResult,
   ReadFileRequest,
-  RemoveMCPServerRequest,
   ResolveWorkspaceRequest,
   ResumeRunRequest,
   ResumeRunResponse,
@@ -105,7 +103,6 @@ import type {
   SessionUsageRequest,
   SetApprovalModeRequest,
   SetHookTrustRequest,
-  SetMCPEnabledRequest,
   SkillDraftRef,
   SkillNameRequest,
   StartGoalRequest,
@@ -116,6 +113,7 @@ import type {
   SubscribeRunRequest,
   SubscribeRunResponse,
   TestProviderRequest,
+  UpdateMCPServerRequest,
   UpdateMemoryRequest,
   UpdateProviderRequest,
   UpdateScheduleRequest,
@@ -196,14 +194,13 @@ const METHOD_NAMES = [
   "recipes.list",
   "agentDocs.list",
   "mcp.servers.list",
+  "mcp.servers.create",
+  "mcp.servers.update",
+  "mcp.servers.delete",
+  "mcp.servers.test",
   "mcp.tools.list",
   "mcp.servers.reconnect",
   "mcp.servers.authorize",
-  "mcp.configs.list",
-  "mcp.configs.configure",
-  "mcp.configs.remove",
-  "mcp.configs.setEnabled",
-  "mcp.configs.test",
   "hooks.list",
   "hooks.setTrust",
   "approval.getMode",
@@ -299,10 +296,10 @@ const VALUE_METHOD_NAMES = [
   "recipes.list",
   "agentDocs.list",
   "mcp.servers.list",
+  "mcp.servers.create",
+  "mcp.servers.update",
+  "mcp.servers.test",
   "mcp.tools.list",
-  "mcp.configs.list",
-  "mcp.configs.configure",
-  "mcp.configs.test",
   "hooks.list",
   "approval.getMode",
   "approval.setMode",
@@ -397,14 +394,13 @@ export const WIRE_METHOD_POLICY: {
   "recipes.list": { operation: "query", response: "unary", idempotency: "none" },
   "agentDocs.list": { operation: "query", response: "unary", idempotency: "none" },
   "mcp.servers.list": { operation: "query", response: "unary", idempotency: "none" },
+  "mcp.servers.create": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "mcp.servers.update": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "mcp.servers.delete": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "mcp.servers.test": { operation: "query", response: "unary", idempotency: "none" },
   "mcp.tools.list": { operation: "query", response: "unary", idempotency: "none" },
   "mcp.servers.reconnect": { operation: "command", response: "unary", idempotency: "replayResponse" },
   "mcp.servers.authorize": { operation: "command", response: "unary", idempotency: "replayResponse" },
-  "mcp.configs.list": { operation: "query", response: "unary", idempotency: "none" },
-  "mcp.configs.configure": { operation: "command", response: "unary", idempotency: "replayResponse" },
-  "mcp.configs.remove": { operation: "command", response: "unary", idempotency: "replayResponse" },
-  "mcp.configs.setEnabled": { operation: "command", response: "unary", idempotency: "replayResponse" },
-  "mcp.configs.test": { operation: "query", response: "unary", idempotency: "none" },
   "hooks.list": { operation: "query", response: "unary", idempotency: "none" },
   "hooks.setTrust": { operation: "command", response: "unary", idempotency: "replayResponse" },
   "approval.getMode": { operation: "query", response: "unary", idempotency: "none" },
@@ -525,6 +521,18 @@ export const WIRE_CAPABILITY_POLICY: {
   "mcp.servers.list": [
     { requires: ["mcp"] },
   ],
+  "mcp.servers.create": [
+    { requires: ["mcp"] },
+  ],
+  "mcp.servers.update": [
+    { requires: ["mcp"] },
+  ],
+  "mcp.servers.delete": [
+    { requires: ["mcp"] },
+  ],
+  "mcp.servers.test": [
+    { requires: ["mcp"] },
+  ],
   "mcp.tools.list": [
     { requires: ["mcp"] },
   ],
@@ -532,21 +540,6 @@ export const WIRE_CAPABILITY_POLICY: {
     { requires: ["mcp"] },
   ],
   "mcp.servers.authorize": [
-    { requires: ["mcp"] },
-  ],
-  "mcp.configs.list": [
-    { requires: ["mcp"] },
-  ],
-  "mcp.configs.configure": [
-    { requires: ["mcp"] },
-  ],
-  "mcp.configs.remove": [
-    { requires: ["mcp"] },
-  ],
-  "mcp.configs.setEnabled": [
-    { requires: ["mcp"] },
-  ],
-  "mcp.configs.test": [
     { requires: ["mcp"] },
   ],
   "schedules.list": [
@@ -652,14 +645,13 @@ export interface WireShapes {
   "recipes.list": { params: WorkspaceListQuery; result: PageOfRecipe };
   "agentDocs.list": { params: WorkspaceListQuery; result: PageOfAgentDoc };
   "mcp.servers.list": { params: PageQuery; result: PageOfMcpServer };
+  "mcp.servers.create": { params: MCPServerCandidate; result: McpServer };
+  "mcp.servers.update": { params: UpdateMCPServerRequest; result: McpServer };
+  "mcp.servers.delete": { params: MCPServerRequest };
+  "mcp.servers.test": { params: MCPServerCandidate; result: McpTestResult };
   "mcp.tools.list": { params: MCPListToolsRequest; result: PageOfMcpTool };
   "mcp.servers.reconnect": { params: MCPServerRequest };
   "mcp.servers.authorize": { params: MCPServerRequest };
-  "mcp.configs.list": { params: PageQuery; result: PageOfMcpServerConfig };
-  "mcp.configs.configure": { params: ConfigureMCPServerRequest; result: McpServerConfig };
-  "mcp.configs.remove": { params: RemoveMCPServerRequest };
-  "mcp.configs.setEnabled": { params: SetMCPEnabledRequest };
-  "mcp.configs.test": { params: ConfigureMCPServerRequest; result: McpTestResult };
   "hooks.list": { params: ListHooksRequest; result: HooksListResult };
   "hooks.setTrust": { params: SetHookTrustRequest };
   "approval.getMode": { params: Record<string, never>; result: ApprovalModeResult };

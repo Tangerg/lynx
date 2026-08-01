@@ -32,23 +32,23 @@
 
 旁路面方法由 `ServerCapabilities.features`（`API.md §9` 开放 map）的下列位门控；缺省 / falsy 即关闭：
 
-| feature       | 门控                                                                      | 关闭时                                                                  |
-| ------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `git`         | §2 `workspace.changes.list` / `workspace.diff.get`（git 二进制在 PATH，启动探测） | 客户端隐藏 VCS 面板、**不发起**这两个调用                          |
-| `fileWatch`   | §3 `runtime.subscribe` 的 `watches`（git-state 监视）                     | 带 `watches` 订阅 → `capability_not_negotiated`；只订 topic 仍可用      |
-| `checkpoints` | §4.1 `sessions.rollback` 的 `restoreType:"files"\|"both"`（影子 git 快照） | 仅 `restoreType:"history"` 可用                                         |
-| `sessionExport` | §4.3 `sessions.export` / `sessions.import`                              | 两个方法都 `capability_not_negotiated`                                  |
-| `mcp`         | §5 `mcp.*`                                                                | 客户端隐藏 MCP 面板                                                     |
+| feature         | 门控                                                                              | 关闭时                                                             |
+| --------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `git`           | §2 `workspace.changes.list` / `workspace.diff.get`（git 二进制在 PATH，启动探测） | 客户端隐藏 VCS 面板、**不发起**这两个调用                          |
+| `fileWatch`     | §3 `runtime.subscribe` 的 `watches`（git-state 监视）                             | 带 `watches` 订阅 → `capability_not_negotiated`；只订 topic 仍可用 |
+| `checkpoints`   | §4.1 `sessions.rollback` 的 `restoreType:"files"\|"both"`（影子 git 快照）        | 仅 `restoreType:"history"` 可用                                    |
+| `sessionExport` | §4.3 `sessions.export` / `sessions.import`                                        | 两个方法都 `capability_not_negotiated`                             |
+| `mcp`           | §5 `mcp.*`                                                                        | 客户端隐藏 MCP 面板                                                |
 
 `runtime.subscribe` 计入 `ServerCapabilities.streamingMethods`（`API.md §9`）。
 
 旁路面贡献的错误 `type`（完整 type↔code 表在生成的错误注册表里，`API.md §8.2`；客户端按 `type` 判错）：
 
-| `type`                   | 含义                                                                                                   |
-| ------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `type`                   | 含义                                                                                                        |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------- |
 | `vcs_unavailable`        | 有 git 二进制、但目标 workspace 不是 git 仓——与"干净仓 = 空结果"区分，与"无 git = `features.git=false`"区分 |
-| `session_busy`           | session 有 run 在飞，拒绝会破坏正在 append 的历史（§4.1）                                              |
-| `checkpoint_unavailable` | `restoreType:"files"\|"both"` 所需快照不可用 / 影子 git 未启用                                          |
+| `session_busy`           | session 有 run 在飞，拒绝会破坏正在 append 的历史（§4.1）                                                   |
+| `checkpoint_unavailable` | `restoreType:"files"\|"both"` 所需快照不可用 / 影子 git 未启用                                              |
 
 ---
 
@@ -59,11 +59,11 @@
 `workspace.changes.list` / `workspace.diff.get` 读显式 `WorkspaceRef` 的 git 状态，受 `features.git` 门控，并按**三态**
 回应——客户端据此区分，不把三种情形糊成一个错误：
 
-| workspace 情形       | 回应                                             |
-| -------------------- | ------------------------------------------------ |
-| 无 git 二进制        | `features.git=false`——客户端隐藏面板、不发起调用 |
-| 有 git、workspace 非仓 | `vcs_unavailable`                              |
-| 有 git、是仓、无改动 | 成功，空结果（`data: []` / `files: []`）         |
+| workspace 情形         | 回应                                             |
+| ---------------------- | ------------------------------------------------ |
+| 无 git 二进制          | `features.git=false`——客户端隐藏面板、不发起调用 |
+| 有 git、workspace 非仓 | `vcs_unavailable`                                |
+| 有 git、是仓、无改动   | 成功，空结果（`data: []` / `files: []`）         |
 
 ### 2.2 `workspace.changes.list`
 
@@ -184,16 +184,29 @@ run 粒度、按 `runId` 寻址的三个会话操作：**回退**（就地销毁
 
 ## 5. MCP 生命周期
 
-`mcp.*` 受 `features.mcp` 门控。条目富化（`toolCount` / `authStatus` / `error` 内联），免去
-`mcp.servers.list ⨝ mcp.tools.list` 的 join；`mcp.tools.list` 留给详情面板（分页 + `inputSchema`）。
+`mcp.*` 受 `features.mcp` 门控。`mcp.servers.list` 的成员就是完整 `McpServer` 资源：安全的持久化配置与当前连接态一次
+返回，客户端不再做 `configs ⨝ servers`。`mcp.tools.list` 只留给详情面板的远端工具目录（含 `inputSchema`）。
 
-`McpStatus` 是闭合联合：`connecting` / `connected` / `disconnected` / `failed` / `needsAuth`。
+资源操作采用明确的 create/update/delete 语义：
 
-> **`disconnected` 是联合里一个没有作者的值** —— domain 的连接状态机只有四态（"没连上"要么是 `failed`、要么是
-> `needsAuth`；"没配置"则该条目根本不在列表里）。客户端仍须容忍它（它在联合里），但不必为它设计任何 UI。
+| method               | 语义                                                                  |
+| -------------------- | --------------------------------------------------------------------- |
+| `mcp.servers.list`   | 列出所有持久化 server，并叠加 live 状态；disabled 条目不会消失        |
+| `mcp.servers.create` | 创建新名字；已存在返回 `mcp_server_already_exists`，绝不隐式覆盖      |
+| `mcp.servers.update` | 部分更新；字段省略 = 保留，显式空值/空集合/0 = 清空                   |
+| `mcp.servers.delete` | 删除配置与 live projection；不存在返回 `mcp_server_not_found`         |
+| `mcp.servers.test`   | 探测完整候选配置，不持久化；失败 verdict 内联在 `McpTestResult.error` |
 
-`McpServer.error` 是**内联状态**（`API.md §8.4`）：`failed` → `mcp_dial_failed`，`needsAuth` →
-`mcp_authorization_required`。它们没有 `detail`，文案归客户端按 `type` 查本地表。
+连接配置中的 authorization、HTTP headers 与 stdio environment 全部按 secret 处理：读模型只给
+`authorizationMasked` / `headersMasked` / `envMasked`，绝不回传原文；写模型使用三个领域专用 change union，省略 = 在
+同一 secret scope 保留、`set` = 整体替换、`clear` = 删除。HTTP scope 是 URL origin；stdio scope 是
+`(command,args,dir)`。改变 scope 时，已有 secret 必须显式 set 或 clear，防止凭证被静默转交给另一个网络端点或进程。
+显式切换 transport 则原子丢弃旧 transport 专属 secret，因为闭合输入联合不允许它们出现在新 transport 上。
+
+`McpServer.status` 是闭合联合：`disabled` / `disconnected` / `connecting` /
+`connected{toolCount}` / `failed{error}` / `needsAuth{error}`。`disconnected` 的作者是“已启用但 live pool 尚无该 server 的
+投影”，因此启动、异步 redial 前和 projection 重建窗口都有确定含义。`failed` 与 `needsAuth` 的 `error` 是内联状态：
+分别为 `mcp_dial_failed` 与 `mcp_authorization_required`；文案归客户端按 `type` 本地化。
 
 ### 5.1 状态推送与 `mcp.servers.reconnect`
 
@@ -205,7 +218,7 @@ run 粒度、按 `runId` 寻址的三个会话操作：**回退**（就地销毁
   客户端重拉 `mcp.servers.list`（§3）。
 - 启动时**容忍单个 server 失败**：一个连不上的 server 不该让整个 runtime 起不来，它以 `failed` + 内联 error 出现在
   列表里。
-- `mcp.servers.authorize` 与 `mcp.configs.*`（可编辑注册表 CRUD + 连接测试）共用这条推送路径。
+- `mcp.servers.authorize` 与 `mcp.servers.create/update/delete/test` 共用这条失效路径。
 
 ---
 
@@ -233,19 +246,19 @@ run 粒度、按 `runId` 寻址的三个会话操作：**回退**（就地销毁
 
 ## 7. 明确不做
 
-| 项                                                                     | 理由                                                                                                      |
-| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `background.*`（任务注册表 + 独立通知 + `BackgroundTask`）             | 后台子任务 = 子 agent 的 run，挂在 run 树上随其流式（`API.md §5.4`）；无需 client 可见的第二套任务注册表。 |
-| `items.edit`                                                           | run 粒度下"编辑某条重跑" = §4.1 `sessions.rollback{toRunId}` + `runs.start`，item 级精确编辑无独立理由。   |
-| `sessions.fork.fromItemId`                                             | 改用 `fromRunId`：run 边界可靠解析，无需 item↔message join。                                              |
-| 失效流的 `Last-Event-Id` 续传                                          | 本流的事件是"某域已失效"，重订即隐式全量失效，比补发一串已过期的失效更便宜也更正确（§3.1）。               |
+| 项                                                         | 理由                                                                                                       |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `background.*`（任务注册表 + 独立通知 + `BackgroundTask`） | 后台子任务 = 子 agent 的 run，挂在 run 树上随其流式（`API.md §5.4`）；无需 client 可见的第二套任务注册表。 |
+| `items.edit`                                               | run 粒度下"编辑某条重跑" = §4.1 `sessions.rollback{toRunId}` + `runs.start`，item 级精确编辑无独立理由。   |
+| `sessions.fork.fromItemId`                                 | 改用 `fromRunId`：run 边界可靠解析，无需 item↔message join。                                               |
+| 失效流的 `Last-Event-Id` 续传                              | 本流的事件是"某域已失效"，重订即隐式全量失效，比补发一串已过期的失效更便宜也更正确（§3.1）。               |
 
 ---
 
 ## 附录 · 类型索引
 
 本文约束的 wire 类型：`WorkspaceFileChange` · `Diff` · `FileDiff`（§2）、`RuntimeEvent` · `RuntimeTopic` ·
-`WatchSpec`（§3）、`DroppedRun` · `SessionArtifact`（§4）、`McpServer` · `McpStatus`（§5）、
+`WatchSpec`（§3）、`DroppedRun` · `SessionArtifact`（§4）、`McpServer` · `McpServerState`（§5）、
 `InterruptResponse.approval` 的 `remember` / `editedArgs`（§6）。**字段表见
 [`schema.json`](../../../runtime/contract/schema.json)**。
 

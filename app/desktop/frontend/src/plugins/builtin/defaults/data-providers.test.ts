@@ -139,24 +139,36 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
     ]);
   });
 
-  it("mcp-servers: maps tool counts, five states, and localized inline errors", async () => {
+  it("mcp-servers: maps unified configuration, lifecycle, and localized inline errors", async () => {
     const { value: rows } = await runProvider<MCPServerSummary[]>("mcp-servers", [
       [
         "mcp.servers.list",
         {
           data: [
-            { name: "Git", status: "connected", toolCount: 2, description: "Branches, commits" },
+            {
+              name: "Git",
+              description: "Branches, commits",
+              connection: { type: "stdio", command: "mcp-git" },
+              status: { type: "connected", toolCount: 2 },
+            },
             {
               name: "Flaky",
-              status: "failed",
-              error: { type: "mcp_dial_failed" },
+              connection: { type: "stdio", command: "mcp-flaky" },
+              status: { type: "failed", error: { type: "mcp_dial_failed" } },
             },
-            { name: "Cloud", status: "needsAuth", authStatus: "notLoggedIn" },
+            {
+              name: "Cloud",
+              connection: { type: "streamableHttp", url: "https://mcp.example/rpc" },
+              status: {
+                type: "needsAuth",
+                error: { type: "mcp_authorization_required" },
+              },
+            },
           ],
         },
       ],
     ]);
-    expect(rows).toEqual([
+    expect(rows).toMatchObject([
       {
         id: "Git",
         name: "Git",
@@ -165,6 +177,10 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
         status: "connected",
         errorDetail: undefined,
         icon: "branch",
+        type: "stdio",
+        enabled: true,
+        command: "mcp-git",
+        toolCount: 2,
       },
       {
         id: "Flaky",
@@ -174,6 +190,9 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
         status: "failed",
         errorDetail: "Couldn't reach this server — check the command or URL and retry.",
         icon: "tool",
+        type: "stdio",
+        enabled: true,
+        command: "mcp-flaky",
       },
       {
         id: "Cloud",
@@ -181,8 +200,11 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
         desc: "",
         tools: 0,
         status: "needsAuth",
-        errorDetail: undefined,
+        errorDetail: "This server needs you to sign in before it can be used.",
         icon: "tool",
+        type: "streamableHttp",
+        enabled: true,
+        url: "https://mcp.example/rpc",
       },
     ]);
   });

@@ -12,7 +12,7 @@ import (
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
 
-// Probe tests cfg with a throwaway client (mcp.configs.test). It reuses an
+// Probe tests cfg with a throwaway client (mcp.servers.test). It reuses an
 // active OAuth sign-in for the same-named server this session, because an
 // anonymous probe of an OAuth-protected server would always 401 even though the
 // live connection is authorized; the probe must carry the session's token to

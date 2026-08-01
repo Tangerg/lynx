@@ -1399,74 +1399,6 @@
         "workspace"
       ]
     },
-    "ConfigureMCPServerRequest": {
-      "type": "object",
-      "properties": {
-        "args": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "authorization": {
-          "type": "string"
-        },
-        "autoApproveTools": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "command": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "dir": {
-          "type": "string"
-        },
-        "disabledTools": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "enabled": {
-          "type": "boolean"
-        },
-        "env": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "headers": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "timeoutSeconds": {
-          "type": "integer"
-        },
-        "type": {
-          "$ref": "#/$defs/McpTransport"
-        },
-        "url": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "enabled",
-        "name",
-        "type"
-      ]
-    },
     "ContentBlock": {
       "type": "object",
       "properties": {
@@ -3287,6 +3219,47 @@
         }
       }
     },
+    "MCPServerCandidate": {
+      "type": "object",
+      "properties": {
+        "autoApproveTools": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "connection": {
+          "$ref": "#/$defs/McpConnectionInput"
+        },
+        "description": {
+          "type": "string"
+        },
+        "disabledTools": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "connection",
+        "enabled",
+        "name"
+      ]
+    },
     "MCPServerRequest": {
       "type": "object",
       "properties": {
@@ -3317,43 +3290,43 @@
         "name"
       ]
     },
-    "McpAuthStatus": {
-      "type": "string",
-      "enum": [
-        "none",
-        "bearerToken",
-        "oauth",
-        "notLoggedIn"
-      ]
-    },
-    "McpServer": {
+    "McpAuthorizationChange": {
       "type": "object",
       "properties": {
-        "authStatus": {
-          "$ref": "#/$defs/McpAuthStatus"
+        "type": {
+          "$ref": "#/$defs/McpSecretChangeType"
         },
-        "description": {
-          "type": "string"
-        },
-        "error": {
-          "$ref": "#/$defs/ProblemData"
-        },
-        "name": {
-          "type": "string"
-        },
-        "status": {
-          "$ref": "#/$defs/McpStatus"
-        },
-        "toolCount": {
-          "type": "integer"
+        "value": {
+          "type": "string",
+          "minLength": 1
         }
       },
-      "required": [
-        "name",
-        "status"
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "set"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "clear"
+            },
+            "value": false
+          },
+          "required": [
+            "type"
+          ]
+        }
       ]
     },
-    "McpServerConfig": {
+    "McpConnection": {
       "type": "object",
       "properties": {
         "args": {
@@ -3365,19 +3338,228 @@
         "authorizationMasked": {
           "type": "string"
         },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dir": {
+          "type": "string"
+        },
+        "envMasked": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "headersMasked": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "type": {
+          "$ref": "#/$defs/McpTransport"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "args": false,
+            "command": false,
+            "dir": false,
+            "envMasked": false,
+            "type": {
+              "const": "streamableHttp"
+            }
+          },
+          "required": [
+            "type",
+            "url"
+          ]
+        },
+        {
+          "properties": {
+            "authorizationMasked": false,
+            "headersMasked": false,
+            "type": {
+              "const": "stdio"
+            },
+            "url": false
+          },
+          "required": [
+            "command",
+            "type"
+          ]
+        }
+      ]
+    },
+    "McpConnectionInput": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "authorization": {
+          "$ref": "#/$defs/McpAuthorizationChange"
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dir": {
+          "type": "string"
+        },
+        "env": {
+          "$ref": "#/$defs/McpEnvironmentChange"
+        },
+        "headers": {
+          "$ref": "#/$defs/McpHeadersChange"
+        },
+        "type": {
+          "$ref": "#/$defs/McpTransport"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "args": false,
+            "command": false,
+            "dir": false,
+            "env": false,
+            "type": {
+              "const": "streamableHttp"
+            }
+          },
+          "required": [
+            "type",
+            "url"
+          ]
+        },
+        {
+          "properties": {
+            "authorization": false,
+            "headers": false,
+            "type": {
+              "const": "stdio"
+            },
+            "url": false
+          },
+          "required": [
+            "command",
+            "type"
+          ]
+        }
+      ]
+    },
+    "McpEnvironmentChange": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/McpSecretChangeType"
+        },
+        "value": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "set"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "clear"
+            },
+            "value": false
+          },
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "McpHeadersChange": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/McpSecretChangeType"
+        },
+        "value": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "set"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "clear"
+            },
+            "value": false
+          },
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "McpSecretChangeType": {
+      "type": "string",
+      "enum": [
+        "set",
+        "clear"
+      ]
+    },
+    "McpServer": {
+      "type": "object",
+      "properties": {
         "autoApproveTools": {
           "type": "array",
           "items": {
             "type": "string"
           }
         },
-        "command": {
-          "type": "string"
+        "connection": {
+          "$ref": "#/$defs/McpConnection"
         },
         "description": {
-          "type": "string"
-        },
-        "dir": {
           "type": "string"
         },
         "disabledTools": {
@@ -3386,46 +3568,117 @@
             "type": "string"
           }
         },
-        "enabled": {
-          "type": "boolean"
-        },
-        "env": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "headers": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
         "name": {
           "type": "string"
         },
+        "status": {
+          "$ref": "#/$defs/McpServerState"
+        },
         "timeoutSeconds": {
           "type": "integer"
-        },
-        "type": {
-          "$ref": "#/$defs/McpTransport"
-        },
-        "url": {
-          "type": "string"
         }
       },
       "required": [
-        "enabled",
+        "connection",
         "name",
-        "type"
+        "status"
       ]
     },
-    "McpStatus": {
+    "McpServerState": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/ProblemData"
+        },
+        "toolCount": {
+          "type": "integer"
+        },
+        "type": {
+          "$ref": "#/$defs/McpServerStateType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "error": false,
+            "toolCount": false,
+            "type": {
+              "const": "disabled"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "error": false,
+            "toolCount": false,
+            "type": {
+              "const": "disconnected"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "error": false,
+            "toolCount": false,
+            "type": {
+              "const": "connecting"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "error": false,
+            "type": {
+              "const": "connected"
+            }
+          },
+          "required": [
+            "toolCount",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "toolCount": false,
+            "type": {
+              "const": "failed"
+            }
+          },
+          "required": [
+            "error",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "toolCount": false,
+            "type": {
+              "const": "needsAuth"
+            }
+          },
+          "required": [
+            "error",
+            "type"
+          ]
+        }
+      ]
+    },
+    "McpServerStateType": {
       "type": "string",
       "enum": [
+        "disabled",
+        "disconnected",
         "connecting",
         "connected",
-        "disconnected",
         "failed",
         "needsAuth"
       ]
@@ -3689,23 +3942,6 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/McpServer"
-          }
-        },
-        "nextCursor": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "data"
-      ]
-    },
-    "PageOfMcpServerConfig": {
-      "type": "object",
-      "properties": {
-        "data": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/McpServerConfig"
           }
         },
         "nextCursor": {
@@ -4289,6 +4525,48 @@
             "retryAfterSeconds": false,
             "type": {
               "const": "mcp_dial_failed"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "mcp_server_already_exists"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "mcp_server_disabled"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "mcp_server_not_found"
             }
           },
           "required": [
@@ -4949,18 +5227,6 @@
         "session",
         "project",
         "global"
-      ]
-    },
-    "RemoveMCPServerRequest": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "name"
       ]
     },
     "RequestMeta": {
@@ -6547,22 +6813,6 @@
         "trusted"
       ]
     },
-    "SetMCPEnabledRequest": {
-      "type": "object",
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "enabled",
-        "name"
-      ]
-    },
     "Skill": {
       "type": "object",
       "properties": {
@@ -7206,6 +7456,45 @@
       },
       "required": [
         "name"
+      ]
+    },
+    "UpdateMCPServerRequest": {
+      "type": "object",
+      "properties": {
+        "autoApproveTools": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "connection": {
+          "$ref": "#/$defs/McpConnectionInput"
+        },
+        "description": {
+          "type": "string"
+        },
+        "disabledTools": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "server": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "server"
       ]
     },
     "UpdateMemoryRequest": {

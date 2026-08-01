@@ -12,7 +12,6 @@ import {
 } from "@/plugins/builtin/chat/goal/public/queries";
 import { HOOKS_KEY, type HooksQuery } from "@/plugins/builtin/settings/hooks/public/queries";
 import {
-  MCP_CONFIGS_KEY,
   MCP_SERVERS_KEY,
   MCP_TOOLS_KEY,
   type McpToolsQuery,
@@ -54,7 +53,6 @@ import {
   WORKSPACE_AGENT_MEMORY_KEY,
 } from "@/plugins/builtin/workspace/public/queries";
 import type { DataProviderSpec, ContributingHost } from "@/plugins/sdk";
-import type { McpServer as RpcMCPServer } from "@/rpc";
 import { getContainer } from "@/main/container";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 import { collectPages, asSessionId } from "@/rpc";
@@ -62,7 +60,6 @@ import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities
 import {
   emptyPageIfUngated,
   toMCPServerSettings,
-  toMCPServerSummary,
   toWorkspaceFileChangeSummary,
   toWorkspaceProjectSummary,
   toAgentSessionSummary,
@@ -108,21 +105,10 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
   });
   contribute({
     key: MCP_SERVERS_KEY,
-    // listServers entries already carry status/toolCount/error; listTools is
-    // reserved for the detail pane's paginated inputSchema view.
+    // One server entry carries both configuration and live state. listTools is
+    // reserved for the detail pane's input-schema view.
     fetcher: async () =>
-      (await client().mcp.listServers().catch(emptyPageIfUngated)).data.map(toMCPServerSummary),
-  });
-  contribute({
-    key: MCP_CONFIGS_KEY,
-    fetcher: async () => {
-      const [cfgs, srvs] = await Promise.all([
-        client().mcp.listConfigs().catch(emptyPageIfUngated),
-        client().mcp.listServers().catch(emptyPageIfUngated),
-      ]);
-      const live = new Map<string, RpcMCPServer>(srvs.data.map((s) => [s.name, s]));
-      return cfgs.data.map((c) => toMCPServerSettings(c, live.get(c.name)));
-    },
+      (await client().mcp.list().catch(emptyPageIfUngated)).data.map(toMCPServerSettings),
   });
   contribute({
     key: MCP_TOOLS_KEY,

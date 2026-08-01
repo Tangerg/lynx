@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/httporigin"
@@ -29,59 +31,71 @@ var ErrInvalidMCPServerConfiguration = errors.New("integrations: invalid MCP ser
 // result. The underlying domain sentinel remains internal to this package.
 var ErrUnknownMCPServer = errors.New("integrations: unknown MCP server")
 
+// ErrMCPServerAlreadyExists reports a create whose stable name is already in
+// use. Create and update remain distinct operations; storage never guesses from
+// an upsert whether the caller meant to replace an existing resource.
+var ErrMCPServerAlreadyExists = errors.New("integrations: MCP server already exists")
+
 // ErrMCPServerDisabled reports a connection command against a configured
 // server whose durable enablement gate is closed.
 var ErrMCPServerDisabled = errors.New("integrations: MCP server is disabled")
 
-// resolveMCPServerConfiguration applies the registry-owned credential policy to
-// an editable command. An omitted HTTP Authorization retains a stored token only
-// when the transport and origin remain unchanged; credentials never silently
-// cross to a different endpoint.
-func (c *Coordinator) resolveMCPServerConfiguration(ctx context.Context, candidate mcpserver.Server) (mcpserver.Server, error) {
-	if candidate.Authorization != "" || candidate.Name == "" || c.mcpRegistry == nil {
-		return candidate, nil
+// CreateMCPServer creates one durable resource and projects it into the live MCP
+// pool. A duplicate name is a conflict, never an implicit update.
+func (c *Coordinator) CreateMCPServer(ctx context.Context, input MCPServerInput) (MCPServer, error) {
+	write, err := c.beginMCPWrite(ctx)
+	if err != nil {
+		return MCPServer{}, err
 	}
-	current, found, err := c.mcpRegistry.Get(ctx, candidate.Name)
-	if err != nil || !found {
-		return candidate, err
+	defer write.close()
+	if _, found, err := c.mcpRegistry.Get(write.requestCtx, input.Name); err != nil {
+		return MCPServer{}, err
+	} else if found {
+		return MCPServer{}, ErrMCPServerAlreadyExists
 	}
-	if current.Transport == mcpserver.TransportStreamableHTTP &&
-		candidate.Transport == mcpserver.TransportStreamableHTTP &&
-		httporigin.Same(current.URL, candidate.URL) {
-		candidate.Authorization = current.Authorization
+	srv, err := mcpServerCandidate(input, nil)
+	if err != nil {
+		return MCPServer{}, err
 	}
-	return candidate, nil
+	return c.commitMCPServer(write, srv)
 }
 
-// ConfigureMCPServer upserts a server in the registry and applies it to the live
-// connections: an enabled server is (re)dialed, a disabled one is dropped from
-// the live set (it stays in the registry). A dial failure does not fail the call
-// — the server is persisted and tracked "failed" (reconnectable); the
-// connectivity feedback path is TestMCPServer.
-func (c *Coordinator) ConfigureMCPServer(ctx context.Context, input MCPServerInput) (MCPServerConfig, error) {
-	candidate, err := mcpServerCandidate(input)
-	if err != nil {
-		return MCPServerConfig{}, err
+// UpdateMCPServer applies an explicit partial update to an existing resource.
+// The mutation lock keeps the read/patch/save sequence atomic inside the runtime.
+func (c *Coordinator) UpdateMCPServer(ctx context.Context, name string, patch MCPServerPatch) (MCPServer, error) {
+	if patch.Empty() {
+		return MCPServer{}, fmt.Errorf("%w: update contains no changes", ErrInvalidMCPServerConfiguration)
 	}
 	write, err := c.beginMCPWrite(ctx)
 	if err != nil {
-		return MCPServerConfig{}, err
+		return MCPServer{}, err
 	}
 	defer write.close()
-	// Credential retention reads the current durable entry inside the same
-	// mutation order as the following upsert. Resolving it before admission would
-	// let a concurrent configure overwrite a newer token with a stale snapshot.
-	srv, err := c.resolveMCPServerConfiguration(write.requestCtx, candidate)
+	current, found, err := c.mcpRegistry.Get(write.requestCtx, name)
 	if err != nil {
-		return MCPServerConfig{}, err
+		return MCPServer{}, err
 	}
-	if err := c.mcpRegistry.Configure(write.requestCtx, srv); err != nil {
-		return MCPServerConfig{}, err
+	if !found {
+		return MCPServer{}, ErrUnknownMCPServer
+	}
+	updated, err := applyMCPServerPatch(current, patch)
+	if err != nil {
+		return MCPServer{}, err
+	}
+	return c.commitMCPServer(write, updated)
+}
+
+func (c *Coordinator) commitMCPServer(write *mcpWrite, srv mcpserver.Server) (MCPServer, error) {
+	if err := c.mcpRegistry.Save(write.requestCtx, srv); err != nil {
+		return MCPServer{}, err
+	}
+	if !srv.Enabled {
+		c.cancelMCPDial(srv.Name)
 	}
 	reconcileCtx, cancel := context.WithTimeout(write.ownerCtx, mcpReconcileTimeout)
 	defer cancel()
 	if err := c.applyMCPRegistryChange(reconcileCtx, srv); err != nil {
-		return MCPServerConfig{}, err
+		return MCPServer{}, err
 	}
 	var statusEvent mcpStatusEvent
 	if !srv.Enabled {
@@ -93,21 +107,30 @@ func (c *Coordinator) ConfigureMCPServer(ctx context.Context, input MCPServerInp
 	} else {
 		c.publishMCPStatus(statusEvent)
 	}
-	return mcpConfigView(srv), nil
+	status, ok := c.mcpStatusesByName()[srv.Name]
+	if ok {
+		return mcpServerView(srv, &status), nil
+	}
+	return mcpServerView(srv, nil), nil
 }
 
-// RemoveMCPServer deletes a server from the registry and drops it from the live
+// DeleteMCPServer deletes a server from the registry and drops it from the live
 // connections.
-func (c *Coordinator) RemoveMCPServer(ctx context.Context, name string) error {
+func (c *Coordinator) DeleteMCPServer(ctx context.Context, name string) error {
 	write, err := c.beginMCPWrite(ctx)
 	if err != nil {
 		return err
 	}
 	defer write.close()
-	c.cancelMCPDial(name)
+	if _, found, err := c.mcpRegistry.Get(write.requestCtx, name); err != nil {
+		return err
+	} else if !found {
+		return ErrUnknownMCPServer
+	}
 	if err := c.mcpRegistry.Remove(write.requestCtx, name); err != nil {
 		return err
 	}
+	c.cancelMCPDial(name)
 	reconcileCtx, cancel := context.WithTimeout(write.ownerCtx, mcpReconcileTimeout)
 	defer cancel()
 	// Shrink the live set before publishing the new policy: dropping tools can't
@@ -125,45 +148,6 @@ func (c *Coordinator) RemoveMCPServer(ctx context.Context, name string) error {
 	write.unlock()
 	c.publishMCPStatus(statusEvent)
 	return errors.Join(projectionErr, policyErr)
-}
-
-// SetMCPServerEnabled flips a server's enablement in the registry and applies it
-// to the live connections (enable → dial, disable → drop).
-func (c *Coordinator) SetMCPServerEnabled(ctx context.Context, name string, enabled bool) error {
-	write, err := c.beginMCPWrite(ctx)
-	if err != nil {
-		return err
-	}
-	defer write.close()
-	if err := c.mcpRegistry.SetEnabled(write.requestCtx, name, enabled); err != nil {
-		return err
-	}
-	reconcileCtx, cancel := context.WithTimeout(write.ownerCtx, mcpReconcileTimeout)
-	defer cancel()
-	srv, ok, err := c.mcpRegistry.Get(reconcileCtx, name)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return ErrUnknownMCPServer
-	}
-	if !srv.Enabled {
-		c.cancelMCPDial(name)
-	}
-	if err := c.applyMCPRegistryChange(reconcileCtx, srv); err != nil {
-		return err
-	}
-	var statusEvent mcpStatusEvent
-	if !srv.Enabled {
-		statusEvent = c.prepareMCPStatus(MCPServerStatus{Name: srv.Name})
-	}
-	write.unlock()
-	if srv.Enabled {
-		c.redialMCPServer(write.ownerCtx, srv)
-	} else {
-		c.publishMCPStatus(statusEvent)
-	}
-	return nil
 }
 
 type mcpWrite struct {
@@ -228,7 +212,7 @@ func (write *mcpWrite) close() {
 // visible:
 //   - enabling publishes policy here; the live (re)dial is NOT done here — the
 //     caller dispatches it detached, after releasing the lock, because a network
-//     handshake must never hold the control-plane lock (see ConfigureMCPServer);
+//     handshake must never hold the control-plane lock (see commitMCPServer);
 //   - disabling detaches the live projection before publishing policy; physical
 //     session retirement remains owned by the adapter's shutdown lifecycle.
 //
@@ -284,20 +268,181 @@ func (c *Coordinator) TestMCPServer(ctx context.Context, input MCPServerInput) (
 }
 
 func (c *Coordinator) validatedMCPServer(ctx context.Context, input MCPServerInput) (mcpserver.Server, error) {
-	candidate, err := mcpServerCandidate(input)
+	var current *mcpserver.Server
+	if c.mcpRegistry != nil && input.Name != "" {
+		stored, found, err := c.mcpRegistry.Get(ctx, input.Name)
+		if err != nil {
+			return mcpserver.Server{}, err
+		}
+		if found {
+			current = &stored
+		}
+	}
+	return mcpServerCandidate(input, current)
+}
+
+func mcpServerCandidate(input MCPServerInput, current *mcpserver.Server) (mcpserver.Server, error) {
+	connection, err := resolveMCPConnection(input.Connection, current)
 	if err != nil {
 		return mcpserver.Server{}, err
 	}
-	return c.resolveMCPServerConfiguration(ctx, candidate)
-}
-
-func mcpServerCandidate(input MCPServerInput) (mcpserver.Server, error) {
-	srv := input.server()
-	err := srv.Validate()
-	if err != nil {
+	srv := mcpserver.Server{
+		Name:             input.Name,
+		Transport:        connection.Transport,
+		Enabled:          input.Enabled,
+		Description:      input.Description,
+		URL:              connection.URL,
+		Authorization:    connection.Authorization,
+		Headers:          connection.Headers,
+		Command:          connection.Command,
+		Args:             connection.Args,
+		Env:              connection.Env,
+		Dir:              connection.Dir,
+		Timeout:          input.Timeout,
+		DisabledTools:    slices.Clone(input.DisabledTools),
+		AutoApproveTools: slices.Clone(input.AutoApproveTools),
+	}
+	if err := srv.Validate(); err != nil {
 		return mcpserver.Server{}, fmt.Errorf("%w: %w", ErrInvalidMCPServerConfiguration, err)
 	}
 	return srv, nil
+}
+
+func applyMCPServerPatch(current mcpserver.Server, patch MCPServerPatch) (mcpserver.Server, error) {
+	updated := current
+	if patch.Enabled != nil {
+		updated.Enabled = *patch.Enabled
+	}
+	if patch.Description != nil {
+		updated.Description = *patch.Description
+	}
+	if patch.Connection != nil {
+		connection, err := resolveMCPConnection(*patch.Connection, &current)
+		if err != nil {
+			return mcpserver.Server{}, err
+		}
+		updated.Transport = connection.Transport
+		updated.URL = connection.URL
+		updated.Authorization = connection.Authorization
+		updated.Headers = connection.Headers
+		updated.Command = connection.Command
+		updated.Args = connection.Args
+		updated.Env = connection.Env
+		updated.Dir = connection.Dir
+	}
+	if patch.Timeout != nil {
+		updated.Timeout = *patch.Timeout
+	}
+	if patch.DisabledTools != nil {
+		updated.DisabledTools = slices.Clone(*patch.DisabledTools)
+	}
+	if patch.AutoApproveTools != nil {
+		updated.AutoApproveTools = slices.Clone(*patch.AutoApproveTools)
+	}
+	if err := updated.Validate(); err != nil {
+		return mcpserver.Server{}, fmt.Errorf("%w: %w", ErrInvalidMCPServerConfiguration, err)
+	}
+	return updated, nil
+}
+
+func resolveMCPConnection(input MCPConnectionInput, current *mcpserver.Server) (mcpserver.Server, error) {
+	connection := mcpserver.Server{
+		Transport: input.Transport,
+		URL:       input.URL,
+		Command:   input.Command,
+		Args:      slices.Clone(input.Args),
+		Dir:       input.Dir,
+	}
+	switch input.Transport {
+	case mcpserver.TransportStreamableHTTP:
+		if input.Environment != nil {
+			return mcpserver.Server{}, fmt.Errorf("%w: environment applies to stdio transport only", ErrInvalidMCPServerConfiguration)
+		}
+		if _, err := httporigin.Parse(input.URL); err != nil {
+			return mcpserver.Server{}, fmt.Errorf("%w: invalid HTTP endpoint: %w", ErrInvalidMCPServerConfiguration, err)
+		}
+		sameOrigin := current != nil &&
+			current.Transport == mcpserver.TransportStreamableHTTP &&
+			httporigin.Same(current.URL, input.URL)
+		switch {
+		case input.Authorization == nil:
+			if sameOrigin {
+				connection.Authorization = current.Authorization
+			} else if current != nil && current.Authorization != "" {
+				return mcpserver.Server{}, fmt.Errorf(
+					"%w: changing the HTTP origin requires authorization to be explicitly set or cleared",
+					ErrInvalidMCPServerConfiguration,
+				)
+			}
+		case input.Authorization.Kind == MCPSecretSet:
+			if input.Authorization.Value == "" {
+				return mcpserver.Server{}, fmt.Errorf("%w: authorization set value is empty", ErrInvalidMCPServerConfiguration)
+			}
+			connection.Authorization = input.Authorization.Value
+		case input.Authorization.Kind == MCPSecretClear:
+			if current == nil {
+				return mcpserver.Server{}, fmt.Errorf("%w: authorization clear requires an existing server", ErrInvalidMCPServerConfiguration)
+			}
+		default:
+			return mcpserver.Server{}, fmt.Errorf("%w: unknown authorization change", ErrInvalidMCPServerConfiguration)
+		}
+		switch {
+		case input.Headers == nil:
+			if sameOrigin {
+				connection.Headers = maps.Clone(current.Headers)
+			} else if current != nil && len(current.Headers) > 0 {
+				return mcpserver.Server{}, fmt.Errorf(
+					"%w: changing the HTTP origin requires headers to be explicitly set or cleared",
+					ErrInvalidMCPServerConfiguration,
+				)
+			}
+		case input.Headers.Kind == MCPSecretSet:
+			if len(input.Headers.Value) == 0 {
+				return mcpserver.Server{}, fmt.Errorf("%w: headers set value is empty", ErrInvalidMCPServerConfiguration)
+			}
+			connection.Headers = maps.Clone(input.Headers.Value)
+		case input.Headers.Kind == MCPSecretClear:
+			if current == nil {
+				return mcpserver.Server{}, fmt.Errorf("%w: headers clear requires an existing server", ErrInvalidMCPServerConfiguration)
+			}
+		default:
+			return mcpserver.Server{}, fmt.Errorf("%w: unknown headers change", ErrInvalidMCPServerConfiguration)
+		}
+	case mcpserver.TransportStdio:
+		if input.Authorization != nil || input.Headers != nil {
+			return mcpserver.Server{}, fmt.Errorf("%w: authorization and headers apply to HTTP transport only", ErrInvalidMCPServerConfiguration)
+		}
+		sameTarget := current != nil &&
+			current.Transport == mcpserver.TransportStdio &&
+			current.Command == input.Command &&
+			slices.Equal(current.Args, input.Args) &&
+			current.Dir == input.Dir
+		switch {
+		case input.Environment == nil:
+			if sameTarget {
+				connection.Env = maps.Clone(current.Env)
+			} else if current != nil && len(current.Env) > 0 {
+				return mcpserver.Server{}, fmt.Errorf(
+					"%w: changing the stdio process target requires environment variables to be explicitly set or cleared",
+					ErrInvalidMCPServerConfiguration,
+				)
+			}
+		case input.Environment.Kind == MCPSecretSet:
+			if len(input.Environment.Value) == 0 {
+				return mcpserver.Server{}, fmt.Errorf("%w: environment set value is empty", ErrInvalidMCPServerConfiguration)
+			}
+			connection.Env = maps.Clone(input.Environment.Value)
+		case input.Environment.Kind == MCPSecretClear:
+			if current == nil {
+				return mcpserver.Server{}, fmt.Errorf("%w: environment clear requires an existing server", ErrInvalidMCPServerConfiguration)
+			}
+		default:
+			return mcpserver.Server{}, fmt.Errorf("%w: unknown environment change", ErrInvalidMCPServerConfiguration)
+		}
+	default:
+		return mcpserver.Server{}, fmt.Errorf("%w: unknown transport %q", ErrInvalidMCPServerConfiguration, input.Transport)
+	}
+	return connection, nil
 }
 
 // MCPTools lists tools advertised by the connected MCP servers (scoped to server

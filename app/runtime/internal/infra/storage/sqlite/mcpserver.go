@@ -12,7 +12,7 @@ import (
 )
 
 // MCPServerStore persists MCP server entries in SQLite. One row per server
-// name; Configure is an upsert. The list columns (args /
+// name; Save atomically replaces one complete entry. The list columns (args /
 // disabled_tools / auto_approve_tools) and the map columns (env / headers) are
 // JSON-encoded; timeout is stored as nanoseconds. The DB must have been opened
 // via [Open] so the mcp_servers table exists.
@@ -65,7 +65,7 @@ func (s *MCPServerStore) Get(ctx context.Context, name string) (mcpserver.Server
 	return srv, true, nil
 }
 
-func (s *MCPServerStore) Configure(ctx context.Context, srv mcpserver.Server) error {
+func (s *MCPServerStore) Save(ctx context.Context, srv mcpserver.Server) error {
 	if err := srv.Validate(); err != nil {
 		return fmt.Errorf("sqlite: validate mcp server: %w", err)
 	}
@@ -87,7 +87,7 @@ func (s *MCPServerStore) Configure(ctx context.Context, srv mcpserver.Server) er
 		encodeStringMap(srv.Env), srv.Dir, int64(srv.Timeout),
 		encodeStrings(srv.DisabledTools), encodeStrings(srv.AutoApproveTools))
 	if err != nil {
-		return fmt.Errorf("sqlite: configure mcp server: %w", err)
+		return fmt.Errorf("sqlite: save mcp server: %w", err)
 	}
 	return nil
 }
@@ -95,14 +95,6 @@ func (s *MCPServerStore) Configure(ctx context.Context, srv mcpserver.Server) er
 func (s *MCPServerStore) Remove(ctx context.Context, name string) error {
 	if _, err := conn(ctx, s.db).ExecContext(ctx, `DELETE FROM mcp_servers WHERE name = ?`, name); err != nil {
 		return fmt.Errorf("sqlite: remove mcp server: %w", err)
-	}
-	return nil
-}
-
-func (s *MCPServerStore) SetEnabled(ctx context.Context, name string, enabled bool) error {
-	if _, err := conn(ctx, s.db).ExecContext(ctx,
-		`UPDATE mcp_servers SET enabled = ? WHERE name = ?`, enabled, name); err != nil {
-		return fmt.Errorf("sqlite: set mcp server enabled: %w", err)
 	}
 	return nil
 }

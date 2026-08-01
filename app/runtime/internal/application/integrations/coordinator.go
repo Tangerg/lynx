@@ -43,9 +43,8 @@ type MCPRegistryCommands interface {
 type Registry interface {
 	List(ctx context.Context) ([]mcpserver.Server, error)
 	Get(ctx context.Context, name string) (mcpserver.Server, bool, error)
-	Configure(ctx context.Context, server mcpserver.Server) error
+	Save(ctx context.Context, server mcpserver.Server) error
 	Remove(ctx context.Context, name string) error
-	SetEnabled(ctx context.Context, name string, enabled bool) error
 }
 
 // Coordinator owns the MCP integration use cases: the durable server registry,

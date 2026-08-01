@@ -263,7 +263,7 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			provider  TEXT NOT NULL DEFAULT '',
 			model     TEXT NOT NULL DEFAULT ''
 		)`,
-		// MCP-server registry (mcp.configs.configure). One row per server
+		// MCP-server registry (mcp.servers.create/update). One row per server
 		// name; the list columns (args/disabled_tools/auto_approve_tools) and the
 		// map columns (env/headers) are JSON; timeout is nanoseconds. transport is
 		// "stdio" | "streamableHttp".

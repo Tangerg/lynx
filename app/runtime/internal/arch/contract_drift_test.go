@@ -665,6 +665,8 @@ func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 				} else {
 					helper = "requiredItems"
 				}
+			case dispatch.ConstraintNonEmptyProperties:
+				keyword, helper = "minProperties", "nonEmptyProperties"
 			case dispatch.ConstraintUniqueItems:
 				keyword, helper = "uniqueItems", "uniqueItems"
 			}

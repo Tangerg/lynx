@@ -18,7 +18,7 @@ import type {
   ApprovalModeResult,
   CancelRunResponse,
   ContentBlock,
-  ConfigureMCPServerRequest,
+  MCPServerCandidate,
   UpdateProviderRequest,
   CreateSessionRequest,
   Diff,
@@ -45,7 +45,6 @@ import type {
   ListFilesRequest,
   ListItemsResponse,
   McpServer,
-  McpServerConfig,
   McpTestResult,
   McpTool,
   MemoryEntry,
@@ -91,6 +90,7 @@ import type {
   RuntimeSubscribeResponse,
   ToolSpec,
   UpdateSessionRequest,
+  UpdateMCPServerRequest,
   Usage,
   UsageSummary,
   UsageSummaryRequest,
@@ -378,19 +378,15 @@ export interface Methods {
     rejectDraft: (ref: SkillDraftRef) => Promise<void>;
   };
   mcp: {
-    // The editable registry (configure/remove/setEnabled) PLUS a best-effort
-    // live status folded into each entry. listServers is the lighter
-    // status-only view; listConfigs carries the full persisted config.
-    listConfigs: (query?: PageQuery) => Promise<Page<McpServerConfig>>;
-    // Upsert by name. authorization is the RAW token; omitted = keep the
-    // stored one only when the HTTP origin is unchanged. Returns it re-masked.
-    configure: (params: ConfigureMCPServerRequest) => Promise<McpServerConfig>;
-    remove: (name: string) => Promise<void>;
-    setEnabled: (name: string, enabled: boolean) => Promise<void>;
+    // One resource carries durable configuration and live state. Create and
+    // update are distinct; update uses exact omission=preserve semantics.
+    list: (query?: PageQuery) => Promise<Page<McpServer>>;
+    create: (params: MCPServerCandidate) => Promise<McpServer>;
+    update: (params: UpdateMCPServerRequest) => Promise<McpServer>;
+    delete: (server: string) => Promise<void>;
     // Dry-run connection probe (NOT persisted). A failed probe is
     // `{ ok:false, error }`, never an RPC error (mirrors providers.test).
-    test: (params: ConfigureMCPServerRequest) => Promise<McpTestResult>;
-    listServers: () => Promise<Page<McpServer>>;
+    test: (params: MCPServerCandidate) => Promise<McpTestResult>;
     listTools: (server?: string) => Promise<Page<McpTool>>;
     reconnect: (server: string) => Promise<void>;
     // Interactive OAuth sign-in (opens the browser; the outcome rides
@@ -706,16 +702,11 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       rejectDraft: (ref) => call("skills.drafts.reject", ref),
     },
     mcp: {
-      listConfigs: (query) => call("mcp.configs.list", query ?? {}),
-      configure: (params) => call("mcp.configs.configure", params),
-      remove: (name) => call("mcp.configs.remove", { name }),
-      setEnabled: (name, enabled) =>
-        call("mcp.configs.setEnabled", {
-          name,
-          enabled,
-        }),
-      test: (params) => call("mcp.configs.test", params),
-      listServers: () => call("mcp.servers.list", {}),
+      list: (query) => call("mcp.servers.list", query ?? {}),
+      create: (params) => call("mcp.servers.create", params),
+      update: (params) => call("mcp.servers.update", params),
+      delete: (server) => call("mcp.servers.delete", { server }),
+      test: (params) => call("mcp.servers.test", params),
       listTools: (server) => call("mcp.tools.list", server ? { server } : {}),
       reconnect: (server) => call("mcp.servers.reconnect", { server }),
       authorize: (server) => call("mcp.servers.authorize", { server }),

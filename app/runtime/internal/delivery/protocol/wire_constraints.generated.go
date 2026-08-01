@@ -150,28 +150,27 @@ func (value SkillNameRequest) ValidateWire() error {
 	)
 }
 
+func (value MCPServerCandidate) ValidateWire() error {
+	return collectWireViolations("MCPServerCandidate",
+		requiredText("name", value.Name),
+		nonNegativeNumber("timeoutSeconds", value.TimeoutSeconds),
+		uniqueItems("disabledTools", value.DisabledTools),
+		uniqueItems("autoApproveTools", value.AutoApproveTools),
+	)
+}
+
+func (value UpdateMCPServerRequest) ValidateWire() error {
+	return collectWireViolations("UpdateMCPServerRequest",
+		requiredText("server", value.Server),
+		optionalNonNegativeNumber("timeoutSeconds", value.TimeoutSeconds),
+		optionalUniqueItems("disabledTools", value.DisabledTools),
+		optionalUniqueItems("autoApproveTools", value.AutoApproveTools),
+	)
+}
+
 func (value MCPServerRequest) ValidateWire() error {
 	return collectWireViolations("MCPServerRequest",
 		requiredText("server", value.Server),
-	)
-}
-
-func (value ConfigureMCPServerRequest) ValidateWire() error {
-	return collectWireViolations("ConfigureMCPServerRequest",
-		requiredText("name", value.Name),
-		closedEnum("type", string(value.Transport), []string{"stdio", "streamableHttp"}, false),
-	)
-}
-
-func (value RemoveMCPServerRequest) ValidateWire() error {
-	return collectWireViolations("RemoveMCPServerRequest",
-		requiredText("name", value.Name),
-	)
-}
-
-func (value SetMCPEnabledRequest) ValidateWire() error {
-	return collectWireViolations("SetMCPEnabledRequest",
-		requiredText("name", value.Name),
 	)
 }
 
@@ -304,7 +303,7 @@ func (value ProblemData) ValidateWire() error {
 		optionalPositiveNumber("retryAfterSeconds", value.RetryAfterSeconds),
 		nonEmptyItems("requiredCapabilities", value.RequiredCapabilities),
 		uniqueItems("requiredCapabilities", value.RequiredCapabilities),
-		unionTag("type", string(value.Type), []string{"agent_stuck", "capability_not_negotiated", "checkpoint_unavailable", "child_run_canceled", "denied_by_user", "idempotency_conflict", "idempotency_in_progress", "internal_error", "interrupt_not_open", "invalid_api_key", "invalid_params", "invalid_protocol_version", "invalid_request", "item_not_found", "mcp_authorization_required", "mcp_dial_failed", "method_not_found", "path_outside_root", "provider_error", "provider_not_configured", "provider_rejected", "provider_test_failed", "provider_unavailable", "rate_limited", "replay_cursor_invalid", "replay_unavailable", "revision_conflict", "run_finished", "run_lost", "run_not_found", "run_not_root", "run_waiting", "session_busy", "session_has_active_run", "session_not_found", "stale_segment", "timeout", "tool_failed", "unsupported_mime", "vcs_unavailable", "workspace_unavailable"}, "^plugin:[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$"),
+		unionTag("type", string(value.Type), []string{"agent_stuck", "capability_not_negotiated", "checkpoint_unavailable", "child_run_canceled", "denied_by_user", "idempotency_conflict", "idempotency_in_progress", "internal_error", "interrupt_not_open", "invalid_api_key", "invalid_params", "invalid_protocol_version", "invalid_request", "item_not_found", "mcp_authorization_required", "mcp_dial_failed", "mcp_server_already_exists", "mcp_server_disabled", "mcp_server_not_found", "method_not_found", "path_outside_root", "provider_error", "provider_not_configured", "provider_rejected", "provider_test_failed", "provider_unavailable", "rate_limited", "replay_cursor_invalid", "replay_unavailable", "revision_conflict", "run_finished", "run_lost", "run_not_found", "run_not_root", "run_waiting", "session_busy", "session_has_active_run", "session_not_found", "stale_segment", "timeout", "tool_failed", "unsupported_mime", "vcs_unavailable", "workspace_unavailable"}, "^plugin:[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$"),
 		forbiddenWhen(wireFieldEquals(value, "type", "agent_stuck"), "requiredCapabilities", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agent_stuck"), "retryAfterSeconds", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agent_stuck"), "errors", value),
@@ -372,6 +371,18 @@ func (value ProblemData) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "mcp_dial_failed"), "retryAfterSeconds", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "mcp_dial_failed"), "errors", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "mcp_dial_failed"), "activeRun", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_server_already_exists"), "requiredCapabilities", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_server_already_exists"), "retryAfterSeconds", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_server_already_exists"), "errors", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_server_already_exists"), "activeRun", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_server_disabled"), "requiredCapabilities", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_server_disabled"), "retryAfterSeconds", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_server_disabled"), "errors", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_server_disabled"), "activeRun", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_server_not_found"), "requiredCapabilities", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_server_not_found"), "retryAfterSeconds", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_server_not_found"), "errors", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_server_not_found"), "activeRun", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "method_not_found"), "requiredCapabilities", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "method_not_found"), "retryAfterSeconds", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "method_not_found"), "errors", value),
@@ -725,6 +736,85 @@ func (value ProviderConfigChange) ValidateWire() error {
 		closedEnum("type", string(value.Type), []string{"set", "clear"}, false),
 		requiredWhen(wireFieldEquals(value, "type", "set"), "value", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "clear"), "value", value),
+	)
+}
+
+func (value McpConnection) ValidateWire() error {
+	return collectWireViolations("McpConnection",
+		requiredText("url", value.URL),
+		requiredText("command", value.Command),
+		closedEnum("type", string(value.Type), []string{"stdio", "streamableHttp"}, false),
+		requiredWhen(wireFieldEquals(value, "type", "streamableHttp"), "url", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "streamableHttp"), "command", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "streamableHttp"), "args", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "streamableHttp"), "envMasked", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "streamableHttp"), "dir", value),
+		requiredWhen(wireFieldEquals(value, "type", "stdio"), "command", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "stdio"), "url", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "stdio"), "authorizationMasked", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "stdio"), "headersMasked", value),
+	)
+}
+
+func (value McpConnectionInput) ValidateWire() error {
+	return collectWireViolations("McpConnectionInput",
+		requiredText("url", value.URL),
+		requiredText("command", value.Command),
+		closedEnum("type", string(value.Type), []string{"stdio", "streamableHttp"}, false),
+		requiredWhen(wireFieldEquals(value, "type", "streamableHttp"), "url", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "streamableHttp"), "command", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "streamableHttp"), "args", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "streamableHttp"), "env", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "streamableHttp"), "dir", value),
+		requiredWhen(wireFieldEquals(value, "type", "stdio"), "command", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "stdio"), "url", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "stdio"), "authorization", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "stdio"), "headers", value),
+	)
+}
+
+func (value McpAuthorizationChange) ValidateWire() error {
+	return collectWireViolations("McpAuthorizationChange",
+		requiredText("value", value.Value),
+		closedEnum("type", string(value.Type), []string{"set", "clear"}, false),
+		requiredWhen(wireFieldEquals(value, "type", "set"), "value", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "clear"), "value", value),
+	)
+}
+
+func (value McpHeadersChange) ValidateWire() error {
+	return collectWireViolations("McpHeadersChange",
+		nonEmptyProperties("value", value.Value),
+		closedEnum("type", string(value.Type), []string{"set", "clear"}, false),
+		requiredWhen(wireFieldEquals(value, "type", "set"), "value", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "clear"), "value", value),
+	)
+}
+
+func (value McpEnvironmentChange) ValidateWire() error {
+	return collectWireViolations("McpEnvironmentChange",
+		nonEmptyProperties("value", value.Value),
+		closedEnum("type", string(value.Type), []string{"set", "clear"}, false),
+		requiredWhen(wireFieldEquals(value, "type", "set"), "value", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "clear"), "value", value),
+	)
+}
+
+func (value McpServerState) ValidateWire() error {
+	return collectWireViolations("McpServerState",
+		closedEnum("type", string(value.Type), []string{"disabled", "disconnected", "connecting", "connected", "failed", "needsAuth"}, false),
+		forbiddenWhen(wireFieldEquals(value, "type", "disabled"), "toolCount", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "disabled"), "error", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "disconnected"), "toolCount", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "disconnected"), "error", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "connecting"), "toolCount", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "connecting"), "error", value),
+		requiredWhen(wireFieldEquals(value, "type", "connected"), "toolCount", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "connected"), "error", value),
+		requiredWhen(wireFieldEquals(value, "type", "failed"), "error", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "failed"), "toolCount", value),
+		requiredWhen(wireFieldEquals(value, "type", "needsAuth"), "error", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "needsAuth"), "toolCount", value),
 	)
 }
 

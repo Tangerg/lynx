@@ -160,6 +160,15 @@ describe("the generated wire checks", () => {
     ]);
   });
 
+  it("rejects an empty secret-map replacement", () => {
+    expect(
+      validateWire("McpHeadersChange", { type: "set", value: { "X-API-Key": "secret" } }),
+    ).toEqual([]);
+    expect(validateWire("McpHeadersChange", { type: "set", value: {} })).toEqual([
+      { path: "McpHeadersChange.value", detail: "expected at least 1 property" },
+    ]);
+  });
+
   it("requires structured non-empty steering input", () => {
     expect(
       validateWire("SteerRunRequest", {

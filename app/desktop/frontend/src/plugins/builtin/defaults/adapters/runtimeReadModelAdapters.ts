@@ -1,16 +1,12 @@
 import { describeProblem } from "@/lib/rpcErrors";
 import type { AgentSessionSummary } from "@/plugins/builtin/agent/public/session";
-import type {
-  MCPServerSummary,
-  MCPServerSettings,
-} from "@/plugins/builtin/settings/mcp-servers/public/queries";
+import type { MCPServerSettings } from "@/plugins/builtin/settings/mcp-servers/public/queries";
 import type {
   WorkspaceFileChange as WorkspaceFileChangeSummary,
   WorkspaceProjectSummary,
 } from "@/plugins/builtin/workspace/public/queries";
 import type {
   McpServer as RpcMCPServer,
-  McpServerConfig as RpcMCPServerConfig,
   Session,
   WorkspaceFileChange as RpcFileChange,
   WorkspaceSummary as RpcWorkspaceSummary,
@@ -42,38 +38,32 @@ const MCP_ICON: Record<string, string> = {
   Slack: "chat",
 };
 
-export function toMCPServerSummary(server: RpcMCPServer): MCPServerSummary {
+export function toMCPServerSettings(server: RpcMCPServer): MCPServerSettings {
+  const connection = server.connection;
+  const status = server.status;
   return {
     id: server.name,
     name: server.name,
     desc: server.description ?? "",
-    tools: server.toolCount ?? 0,
-    status: server.status,
-    errorDetail: describeProblem(server.error),
+    tools: status.type === "connected" ? status.toolCount : 0,
+    status: status.type,
+    errorDetail: "error" in status ? describeProblem(status.error) : undefined,
     icon: MCP_ICON[server.name] ?? "tool",
-  };
-}
-
-export function toMCPServerSettings(
-  configuration: RpcMCPServerConfig,
-  live?: RpcMCPServer,
-): MCPServerSettings {
-  return {
-    name: configuration.name,
-    type: configuration.type,
-    enabled: configuration.enabled,
-    description: configuration.description,
-    url: configuration.url,
-    authorizationMasked: configuration.authorizationMasked,
-    command: configuration.command,
-    args: configuration.args,
-    env: configuration.env,
-    dir: configuration.dir,
-    disabledTools: configuration.disabledTools,
-    autoApproveTools: configuration.autoApproveTools,
-    status: live?.status,
-    toolCount: live?.toolCount,
-    errorDetail: describeProblem(live?.error),
+    type: connection.type,
+    enabled: status.type !== "disabled",
+    description: server.description,
+    url: connection.type === "streamableHttp" ? connection.url : undefined,
+    authorizationMasked:
+      connection.type === "streamableHttp" ? connection.authorizationMasked : undefined,
+    headersMasked: connection.type === "streamableHttp" ? connection.headersMasked : undefined,
+    command: connection.type === "stdio" ? connection.command : undefined,
+    args: connection.type === "stdio" ? connection.args : undefined,
+    envMasked: connection.type === "stdio" ? connection.envMasked : undefined,
+    dir: connection.type === "stdio" ? connection.dir : undefined,
+    timeoutSeconds: server.timeoutSeconds,
+    disabledTools: server.disabledTools,
+    autoApproveTools: server.autoApproveTools,
+    toolCount: status.type === "connected" ? status.toolCount : undefined,
   };
 }
 

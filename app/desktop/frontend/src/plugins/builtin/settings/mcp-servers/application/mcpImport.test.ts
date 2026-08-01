@@ -25,7 +25,7 @@ describe("parseMcpImport", () => {
       }),
     );
 
-    expect(result.configs).toEqual([
+    expect(result.servers).toEqual([
       {
         name: "git",
         transport: "stdio",
@@ -41,7 +41,7 @@ describe("parseMcpImport", () => {
         transport: "streamableHttp",
         enabled: true,
         url: "https://example.com/mcp",
-        authorization: "secret",
+        authorization: "Bearer secret",
         headers: { "X-Trace": "abc" },
         timeoutSeconds: 30,
       },

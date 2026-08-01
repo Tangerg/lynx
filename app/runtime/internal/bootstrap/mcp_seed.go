@@ -8,12 +8,12 @@ import (
 
 type mcpServerSeeder interface {
 	Get(ctx context.Context, name string) (mcpserver.Server, bool, error)
-	Configure(ctx context.Context, server mcpserver.Server) error
+	Save(ctx context.Context, server mcpserver.Server) error
 }
 
 // SeedMCPServers writes any env-sourced servers (LYRA_MCP_SERVERS) into the
 // registry that aren't already present, mirroring bootstrap.SeedConfiguredProvider: the
-// env is a first-run seed, runtime edits (a persisted configure) win and are
+// env is a first-run seed, runtime edits (a persisted resource) win and are
 // left untouched.
 func SeedMCPServers(ctx context.Context, svc mcpServerSeeder, servers []mcpserver.Server) error {
 	for _, srv := range servers {
@@ -22,7 +22,7 @@ func SeedMCPServers(ctx context.Context, svc mcpServerSeeder, servers []mcpserve
 		} else if ok {
 			continue
 		}
-		if err := svc.Configure(ctx, srv); err != nil {
+		if err := svc.Save(ctx, srv); err != nil {
 			return err
 		}
 	}

@@ -7,7 +7,7 @@
 // What each call MEANS lives in wireCheck.ts. This file only says which rule
 // applies where.
 
-import { absent, allOf, anything, array, enumOf, fields, flag, ifThen, integer, literal, minItems, minLength, minimum, nullable, numeric, object, oneOf, pattern, record, ref, text, uniqueItems } from "./wireCheck";
+import { absent, allOf, anything, array, enumOf, fields, flag, ifThen, integer, literal, minItems, minLength, minProperties, minimum, nullable, numeric, object, oneOf, pattern, record, ref, text, uniqueItems } from "./wireCheck";
 import type { WireCheck, WireViolation } from "./wireCheck";
 
 import type { WireMethodName } from "./wire.methods.generated";
@@ -72,7 +72,6 @@ export type WireTypeName =
   | "CodebaseState"
   | "CodebaseStatus"
   | "CodebaseStatusRequest"
-  | "ConfigureMCPServerRequest"
   | "ContentBlock"
   | "ContentBlockType"
   | "CreateScheduleRequest"
@@ -152,12 +151,18 @@ export type WireTypeName =
   | "ListModelsRequest"
   | "ListRunsRequest"
   | "MCPListToolsRequest"
+  | "MCPServerCandidate"
   | "MCPServerRequest"
   | "ManagedSkill"
-  | "McpAuthStatus"
+  | "McpAuthorizationChange"
+  | "McpConnection"
+  | "McpConnectionInput"
+  | "McpEnvironmentChange"
+  | "McpHeadersChange"
+  | "McpSecretChangeType"
   | "McpServer"
-  | "McpServerConfig"
-  | "McpStatus"
+  | "McpServerState"
+  | "McpServerStateType"
   | "McpTestResult"
   | "McpTool"
   | "McpTransport"
@@ -172,7 +177,6 @@ export type WireTypeName =
   | "PageOfFileEntry"
   | "PageOfManagedSkill"
   | "PageOfMcpServer"
-  | "PageOfMcpServerConfig"
   | "PageOfMcpTool"
   | "PageOfMemoryEntry"
   | "PageOfModel"
@@ -207,7 +211,6 @@ export type WireTypeName =
   | "RecipeScope"
   | "RememberScope"
   | "RememberScopeKind"
-  | "RemoveMCPServerRequest"
   | "RequestMeta"
   | "ResolveWorkspaceRequest"
   | "RestoreType"
@@ -250,7 +253,6 @@ export type WireTypeName =
   | "SessionUsageRequest"
   | "SetApprovalModeRequest"
   | "SetHookTrustRequest"
-  | "SetMCPEnabledRequest"
   | "Skill"
   | "SkillDraft"
   | "SkillDraftRef"
@@ -278,6 +280,7 @@ export type WireTypeName =
   | "TodoStatus"
   | "ToolInvocation"
   | "ToolSpec"
+  | "UpdateMCPServerRequest"
   | "UpdateMemoryRequest"
   | "UpdateProviderRequest"
   | "UpdateScheduleRequest"
@@ -736,22 +739,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   CodebaseStatusRequest: object({
     workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["workspace"]),
-  ConfigureMCPServerRequest: object({
-    args: array(text()),
-    authorization: text(),
-    autoApproveTools: array(text()),
-    command: text(),
-    description: text(),
-    dir: text(),
-    disabledTools: array(text()),
-    enabled: flag(),
-    env: record(text()),
-    headers: record(text()),
-    name: allOf([text(), minLength(1)]),
-    timeoutSeconds: integer(),
-    type: ref(() => CHECKS.McpTransport),
-    url: text(),
-  }, ["enabled", "name", "type"]),
   ContentBlock: allOf([
     object({
       data: text(),
@@ -1341,6 +1328,15 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     limit: integer(),
     server: text(),
   }, []),
+  MCPServerCandidate: object({
+    autoApproveTools: allOf([array(text()), uniqueItems()]),
+    connection: ref(() => CHECKS.McpConnectionInput),
+    description: text(),
+    disabledTools: allOf([array(text()), uniqueItems()]),
+    enabled: flag(),
+    name: allOf([text(), minLength(1)]),
+    timeoutSeconds: allOf([integer(), minimum(0)]),
+  }, ["connection", "enabled", "name"]),
   MCPServerRequest: object({
     server: allOf([text(), minLength(1)]),
   }, ["server"]),
@@ -1349,32 +1345,152 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     lifecycle: ref(() => CHECKS.SkillLifecycle),
     name: text(),
   }, ["lifecycle", "name"]),
-  McpAuthStatus: enumOf(["none", "bearerToken", "oauth", "notLoggedIn"]),
+  McpAuthorizationChange: allOf([
+    object({
+      type: ref(() => CHECKS.McpSecretChangeType),
+      value: allOf([text(), minLength(1)]),
+    }, []),
+    oneOf([
+      fields({
+        type: literal("set"),
+      }, ["type", "value"]),
+      fields({
+        type: literal("clear"),
+        value: absent(),
+      }, ["type"]),
+    ]),
+  ]),
+  McpConnection: allOf([
+    object({
+      args: array(text()),
+      authorizationMasked: text(),
+      command: allOf([text(), minLength(1)]),
+      dir: text(),
+      envMasked: record(text()),
+      headersMasked: record(text()),
+      type: ref(() => CHECKS.McpTransport),
+      url: allOf([text(), minLength(1)]),
+    }, []),
+    oneOf([
+      fields({
+        args: absent(),
+        command: absent(),
+        dir: absent(),
+        envMasked: absent(),
+        type: literal("streamableHttp"),
+      }, ["type", "url"]),
+      fields({
+        authorizationMasked: absent(),
+        headersMasked: absent(),
+        type: literal("stdio"),
+        url: absent(),
+      }, ["command", "type"]),
+    ]),
+  ]),
+  McpConnectionInput: allOf([
+    object({
+      args: array(text()),
+      authorization: ref(() => CHECKS.McpAuthorizationChange),
+      command: allOf([text(), minLength(1)]),
+      dir: text(),
+      env: ref(() => CHECKS.McpEnvironmentChange),
+      headers: ref(() => CHECKS.McpHeadersChange),
+      type: ref(() => CHECKS.McpTransport),
+      url: allOf([text(), minLength(1)]),
+    }, []),
+    oneOf([
+      fields({
+        args: absent(),
+        command: absent(),
+        dir: absent(),
+        env: absent(),
+        type: literal("streamableHttp"),
+      }, ["type", "url"]),
+      fields({
+        authorization: absent(),
+        headers: absent(),
+        type: literal("stdio"),
+        url: absent(),
+      }, ["command", "type"]),
+    ]),
+  ]),
+  McpEnvironmentChange: allOf([
+    object({
+      type: ref(() => CHECKS.McpSecretChangeType),
+      value: allOf([record(text()), minProperties(1)]),
+    }, []),
+    oneOf([
+      fields({
+        type: literal("set"),
+      }, ["type", "value"]),
+      fields({
+        type: literal("clear"),
+        value: absent(),
+      }, ["type"]),
+    ]),
+  ]),
+  McpHeadersChange: allOf([
+    object({
+      type: ref(() => CHECKS.McpSecretChangeType),
+      value: allOf([record(text()), minProperties(1)]),
+    }, []),
+    oneOf([
+      fields({
+        type: literal("set"),
+      }, ["type", "value"]),
+      fields({
+        type: literal("clear"),
+        value: absent(),
+      }, ["type"]),
+    ]),
+  ]),
+  McpSecretChangeType: enumOf(["set", "clear"]),
   McpServer: object({
-    authStatus: ref(() => CHECKS.McpAuthStatus),
-    description: text(),
-    error: ref(() => CHECKS.ProblemData),
-    name: text(),
-    status: ref(() => CHECKS.McpStatus),
-    toolCount: integer(),
-  }, ["name", "status"]),
-  McpServerConfig: object({
-    args: array(text()),
-    authorizationMasked: text(),
     autoApproveTools: array(text()),
-    command: text(),
+    connection: ref(() => CHECKS.McpConnection),
     description: text(),
-    dir: text(),
     disabledTools: array(text()),
-    enabled: flag(),
-    env: record(text()),
-    headers: record(text()),
     name: text(),
+    status: ref(() => CHECKS.McpServerState),
     timeoutSeconds: integer(),
-    type: ref(() => CHECKS.McpTransport),
-    url: text(),
-  }, ["enabled", "name", "type"]),
-  McpStatus: enumOf(["connecting", "connected", "disconnected", "failed", "needsAuth"]),
+  }, ["connection", "name", "status"]),
+  McpServerState: allOf([
+    object({
+      error: ref(() => CHECKS.ProblemData),
+      toolCount: integer(),
+      type: ref(() => CHECKS.McpServerStateType),
+    }, []),
+    oneOf([
+      fields({
+        error: absent(),
+        toolCount: absent(),
+        type: literal("disabled"),
+      }, ["type"]),
+      fields({
+        error: absent(),
+        toolCount: absent(),
+        type: literal("disconnected"),
+      }, ["type"]),
+      fields({
+        error: absent(),
+        toolCount: absent(),
+        type: literal("connecting"),
+      }, ["type"]),
+      fields({
+        error: absent(),
+        type: literal("connected"),
+      }, ["toolCount", "type"]),
+      fields({
+        toolCount: absent(),
+        type: literal("failed"),
+      }, ["error", "type"]),
+      fields({
+        toolCount: absent(),
+        type: literal("needsAuth"),
+      }, ["error", "type"]),
+    ]),
+  ]),
+  McpServerStateType: enumOf(["disabled", "disconnected", "connecting", "connected", "failed", "needsAuth"]),
   McpTestResult: object({
     error: ref(() => CHECKS.ProblemData),
     ok: flag(),
@@ -1444,10 +1560,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["data"]),
   PageOfMcpServer: object({
     data: array(ref(() => CHECKS.McpServer)),
-    nextCursor: text(),
-  }, ["data"]),
-  PageOfMcpServerConfig: object({
-    data: array(ref(() => CHECKS.McpServerConfig)),
     nextCursor: text(),
   }, ["data"]),
   PageOfMcpTool: object({
@@ -1648,6 +1760,27 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         requiredCapabilities: absent(),
         retryAfterSeconds: absent(),
         type: literal("mcp_dial_failed"),
+      }, ["type"]),
+      fields({
+        activeRun: absent(),
+        errors: absent(),
+        requiredCapabilities: absent(),
+        retryAfterSeconds: absent(),
+        type: literal("mcp_server_already_exists"),
+      }, ["type"]),
+      fields({
+        activeRun: absent(),
+        errors: absent(),
+        requiredCapabilities: absent(),
+        retryAfterSeconds: absent(),
+        type: literal("mcp_server_disabled"),
+      }, ["type"]),
+      fields({
+        activeRun: absent(),
+        errors: absent(),
+        requiredCapabilities: absent(),
+        retryAfterSeconds: absent(),
+        type: literal("mcp_server_not_found"),
       }, ["type"]),
       fields({
         activeRun: absent(),
@@ -1917,9 +2050,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     scope: ref(() => CHECKS.RememberScopeKind),
   }, ["scope"]),
   RememberScopeKind: enumOf(["session", "project", "global"]),
-  RemoveMCPServerRequest: object({
-    name: allOf([text(), minLength(1)]),
-  }, ["name"]),
   RequestMeta: object({
     clientCapabilities: ref(() => CHECKS.ClientCapabilities),
     clientInfo: ref(() => CHECKS.ClientInfo),
@@ -2455,10 +2585,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     projectRoot: allOf([text(), minLength(1)]),
     trusted: flag(),
   }, ["projectRoot", "trusted"]),
-  SetMCPEnabledRequest: object({
-    enabled: flag(),
-    name: allOf([text(), minLength(1)]),
-  }, ["enabled", "name"]),
   Skill: object({
     description: text(),
     name: text(),
@@ -2686,6 +2812,15 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     parameters: record(anything()),
     safetyClass: ref(() => CHECKS.SafetyClass),
   }, ["name"]),
+  UpdateMCPServerRequest: object({
+    autoApproveTools: allOf([array(text()), uniqueItems()]),
+    connection: ref(() => CHECKS.McpConnectionInput),
+    description: text(),
+    disabledTools: allOf([array(text()), uniqueItems()]),
+    enabled: flag(),
+    server: allOf([text(), minLength(1)]),
+    timeoutSeconds: allOf([integer(), minimum(0)]),
+  }, ["server"]),
   UpdateMemoryRequest: object({
     content: text(),
     scope: ref(() => CHECKS.MemoryScope),
@@ -2829,14 +2964,13 @@ const METHOD_RESULTS: Record<WireMethodName, WireCheck> = {
   "recipes.list": ref(() => CHECKS.PageOfRecipe),
   "agentDocs.list": ref(() => CHECKS.PageOfAgentDoc),
   "mcp.servers.list": ref(() => CHECKS.PageOfMcpServer),
+  "mcp.servers.create": ref(() => CHECKS.McpServer),
+  "mcp.servers.update": ref(() => CHECKS.McpServer),
+  "mcp.servers.delete": object({}, []),
+  "mcp.servers.test": ref(() => CHECKS.McpTestResult),
   "mcp.tools.list": ref(() => CHECKS.PageOfMcpTool),
   "mcp.servers.reconnect": object({}, []),
   "mcp.servers.authorize": object({}, []),
-  "mcp.configs.list": ref(() => CHECKS.PageOfMcpServerConfig),
-  "mcp.configs.configure": ref(() => CHECKS.McpServerConfig),
-  "mcp.configs.remove": object({}, []),
-  "mcp.configs.setEnabled": object({}, []),
-  "mcp.configs.test": ref(() => CHECKS.McpTestResult),
   "hooks.list": ref(() => CHECKS.HooksListResult),
   "hooks.setTrust": object({}, []),
   "approval.getMode": ref(() => CHECKS.ApprovalModeResult),

@@ -51,7 +51,7 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 // Configure adds a new server or re-dials an existing one with the given
 // config, then refreshes the model-facing tool set so the model immediately
 // sees the (re)connected server. It is the runtime-mutable counterpart to the
-// boot-time [Dial]: mcp.configs.configure / enabling a server routes here.
+// boot-time [Dial]: mcp.servers.create/update and re-enabling a server route here.
 // Serialized with [Reconnect] (both dial + swap a session). Nil-safe only on a
 // nil receiver is NOT supported — Configure mutates and a nil here is a wiring
 // bug, so callers hold a real *Connections.

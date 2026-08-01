@@ -44,6 +44,9 @@ var rpcErrorSpecs = mustRPCErrorSpecs([]rpcErrorSpec{
 	{sentinel: protocol.ErrSessionNotFound, code: protocol.CodeSessionNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
 	{sentinel: protocol.ErrRunNotFound, code: protocol.CodeRunNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
 	{sentinel: protocol.ErrItemNotFound, code: protocol.CodeItemNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
+	{sentinel: protocol.ErrMCPServerNotFound, code: protocol.CodeMCPServerNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
+	{sentinel: protocol.ErrMCPServerAlreadyExists, code: protocol.CodeMCPServerExists, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
+	{sentinel: protocol.ErrMCPServerDisabled, code: protocol.CodeMCPServerDisabled, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
 	{sentinel: protocol.ErrRunNotRoot, code: protocol.CodeRunNotRoot, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
 	// Something else holds the session or the working tree, or the revision moved.
 	// Reading again is how the client learns whether it still does.

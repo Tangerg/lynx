@@ -1,14 +1,37 @@
 import { createDataQuery, createParameterizedDataQuery } from "@/plugins/sdk";
 
-export interface MCPServerSummary {
+export type MCPTransport = "stdio" | "streamableHttp";
+export type MCPServerStatus =
+  "disabled" | "disconnected" | "connecting" | "connected" | "failed" | "needsAuth";
+
+// MCPServerSettings is the frontend's unified MCP resource. Workspace and
+// settings views intentionally consume the same read model instead of joining
+// separate configuration and live-status caches.
+export interface MCPServerSettings {
   id: string;
   name: string;
   desc: string;
   tools: number;
-  status: "connecting" | "connected" | "disconnected" | "failed" | "needsAuth";
+  status: MCPServerStatus;
   errorDetail?: string;
   icon: string;
+  type: MCPTransport;
+  enabled: boolean;
+  description?: string;
+  url?: string;
+  authorizationMasked?: string;
+  headersMasked?: Record<string, string>;
+  command?: string;
+  args?: string[];
+  envMasked?: Record<string, string>;
+  dir?: string;
+  timeoutSeconds?: number;
+  disabledTools?: string[];
+  autoApproveTools?: string[];
+  toolCount?: number;
 }
+
+export type MCPServerSummary = MCPServerSettings;
 
 export interface MCPToolSummary {
   name: string;
@@ -19,34 +42,10 @@ export interface McpToolsQuery {
   server: string;
 }
 
-export type MCPTransport = "stdio" | "streamableHttp";
-
-export interface MCPServerSettings {
-  name: string;
-  type: MCPTransport;
-  enabled: boolean;
-  description?: string;
-  url?: string;
-  authorizationMasked?: string;
-  headers?: Record<string, string>;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  dir?: string;
-  timeoutSeconds?: number;
-  disabledTools?: string[];
-  autoApproveTools?: string[];
-  status?: MCPServerSummary["status"];
-  toolCount?: number;
-  errorDetail?: string;
-}
-
 export const MCP_SERVERS_KEY = "mcp-servers";
-export const MCP_CONFIGS_KEY = "mcp-configs";
 export const MCP_TOOLS_KEY = "mcp-tools";
 
-export const useMCPServers = createDataQuery<MCPServerSummary[]>(MCP_SERVERS_KEY);
-export const useMCPConfigs = createDataQuery<MCPServerSettings[]>(MCP_CONFIGS_KEY);
+export const useMCPServers = createDataQuery<MCPServerSettings[]>(MCP_SERVERS_KEY);
 export const useMCPTools = createParameterizedDataQuery<McpToolsQuery, MCPToolSummary[]>(
   MCP_TOOLS_KEY,
 );

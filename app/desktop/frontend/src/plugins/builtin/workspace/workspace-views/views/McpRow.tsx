@@ -17,6 +17,7 @@ import {
 // locally (reconnect guarantees connecting → terminal ordering, §5.2).
 // i18n key → pill classes. Labels are resolved at render via t().
 const STATUS_CLASSES: Record<MCPServerSummary["status"], { key: string; classes: string }> = {
+  disabled: { key: "tools.status.off", classes: "bg-surface-2 text-fg-faint" },
   connecting: {
     key: "tools.status.connecting",
     classes: "bg-surface-2 text-fg-muted animate-pulse",
@@ -55,7 +56,7 @@ function McpToolList({ server }: { server: string }) {
 }
 
 // A needsAuth server needs a bearer token, which is part of its persisted
-// config now (set as `authorization` via mcp.configs.configure) — not a
+// connection config — not a
 // separate one-shot handoff. So this row just routes the user to the MCP
 // settings pane, deep-linked, rather than holding its own token field.
 function McpAuthGuide({ server }: { server: string }) {
@@ -119,7 +120,7 @@ export function McpRow({ server }: { server: MCPServerSummary }) {
           icon="loop"
           iconSize={13}
           title={t("tools.reconnect")}
-          disabled={connecting}
+          disabled={connecting || server.status === "disabled"}
           onClick={() => reconnectMCPServer(t, server.id)}
           className={cn(connecting && "animate-spin")}
         />

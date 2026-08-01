@@ -11,7 +11,7 @@
 // header is preserved (no silent drop).
 
 import { z } from "zod";
-import type { MCPServerConfigInput } from "./mcpServerInput";
+import type { MCPServerInput } from "./mcpServerInput";
 
 // env may be a map ({KEY:"val"}) or a "KEY=value" array; both normalize to the
 // KEY→value map our config input carries (split on the FIRST '=' so a value may
@@ -52,10 +52,9 @@ const serverSchema = z.object({
 
 type ParsedServer = z.infer<typeof serverSchema>;
 
-function bearerFrom(s: ParsedServer): string | undefined {
+function authorizationFrom(s: ParsedServer): string | undefined {
   const raw = s.authorization ?? s.headers?.Authorization ?? s.headers?.authorization ?? undefined;
-  if (raw === undefined) return undefined;
-  return raw.replace(/^Bearer\s+/i, "");
+  return raw;
 }
 
 // headersExceptAuth keeps every imported header EXCEPT Authorization (which goes
@@ -72,7 +71,7 @@ function headersExceptAuth(s: ParsedServer): Record<string, string> | undefined 
 }
 
 export interface McpImportResult {
-  configs: MCPServerConfigInput[];
+  servers: MCPServerInput[];
 }
 
 /**
@@ -91,7 +90,7 @@ export function parseMcpImport(text: string): McpImportResult {
   if (!parsed.success) {
     throw new Error('Expected {"mcpServers": { "<name>": { … } }}');
   }
-  const configs: MCPServerConfigInput[] = [];
+  const servers: MCPServerInput[] = [];
   for (const [name, s] of Object.entries(parsed.data.mcpServers)) {
     // stdio stays stdio; any other (http / streamableHttp / sse / …) or a bare
     // url collapses onto streamableHttp — our one remote transport.
@@ -108,7 +107,7 @@ export function parseMcpImport(text: string): McpImportResult {
       throw new Error(`Server "${name}" has neither a command (stdio) nor a url (streamableHttp)`);
     }
     if (type === "stdio") {
-      configs.push({
+      servers.push({
         name,
         transport: type,
         enabled: true,
@@ -119,17 +118,17 @@ export function parseMcpImport(text: string): McpImportResult {
         timeoutSeconds: s.timeout,
       });
     } else {
-      configs.push({
+      servers.push({
         name,
         transport: type,
         enabled: true,
         url: s.url,
-        authorization: bearerFrom(s),
+        authorization: authorizationFrom(s),
         headers: headersExceptAuth(s),
         timeoutSeconds: s.timeout,
       });
     }
   }
-  if (configs.length === 0) throw new Error("No servers found under mcpServers");
-  return { configs };
+  if (servers.length === 0) throw new Error("No servers found under mcpServers");
+  return { servers };
 }

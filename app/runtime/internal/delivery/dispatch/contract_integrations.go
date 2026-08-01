@@ -15,6 +15,42 @@ func registerMCP(r *Registry) {
 		return d.api.ListMCPServers(ctx, in)
 	})
 
+	Command(r, MethodMeta{
+		Name:            "mcp.servers.create",
+		Errors:          []string{protocol.ErrMCPServerAlreadyExists.Error()},
+		CapabilityRules: requires(protocol.FeatureMCP),
+		Stability:       stable,
+	}, func(d *Dispatcher, ctx context.Context, in protocol.CreateMCPServerRequest) (*protocol.McpServer, error) {
+		return d.api.CreateMCPServer(ctx, in)
+	})
+
+	Command(r, MethodMeta{
+		Name:            "mcp.servers.update",
+		Errors:          []string{protocol.ErrMCPServerNotFound.Error()},
+		CapabilityRules: requires(protocol.FeatureMCP),
+		Stability:       stable,
+	}, func(d *Dispatcher, ctx context.Context, in protocol.UpdateMCPServerRequest) (*protocol.McpServer, error) {
+		return d.api.UpdateMCPServer(ctx, in)
+	})
+
+	CommandAck(r, MethodMeta{
+		Name:            "mcp.servers.delete",
+		Errors:          []string{protocol.ErrMCPServerNotFound.Error()},
+		CapabilityRules: requires(protocol.FeatureMCP),
+		Stability:       stable,
+	}, func(d *Dispatcher, ctx context.Context, in protocol.MCPServerRequest) error {
+		return d.api.DeleteMCPServer(ctx, in.Server)
+	})
+
+	// A connection probe persists nothing, so a retry is not a replay concern.
+	Query(r, MethodMeta{
+		Name:            "mcp.servers.test",
+		CapabilityRules: requires(protocol.FeatureMCP),
+		Stability:       stable,
+	}, func(d *Dispatcher, ctx context.Context, in protocol.MCPServerCandidate) (*protocol.McpTestResult, error) {
+		return d.api.TestMCPServer(ctx, in)
+	})
+
 	Query(r, MethodMeta{
 		Name:            "mcp.tools.list",
 		CapabilityRules: requires(protocol.FeatureMCP),
@@ -25,6 +61,7 @@ func registerMCP(r *Registry) {
 
 	CommandAck(r, MethodMeta{
 		Name:            "mcp.servers.reconnect",
+		Errors:          []string{protocol.ErrMCPServerNotFound.Error(), protocol.ErrMCPServerDisabled.Error()},
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.MCPServerRequest) error {
@@ -33,52 +70,13 @@ func registerMCP(r *Registry) {
 
 	CommandAck(r, MethodMeta{
 		Name:            "mcp.servers.authorize",
+		Errors:          []string{protocol.ErrMCPServerNotFound.Error(), protocol.ErrMCPServerDisabled.Error()},
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.MCPServerRequest) error {
 		return d.api.AuthorizeMCPServer(ctx, in.Server)
 	})
 
-	Query(r, MethodMeta{
-		Name:            "mcp.configs.list",
-		CapabilityRules: requires(protocol.FeatureMCP),
-		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.PageQuery) (*protocol.Page[protocol.McpServerConfig], error) {
-		return d.api.ListMCPServerConfigs(ctx, in)
-	})
-
-	Command(r, MethodMeta{
-		Name:            "mcp.configs.configure",
-		CapabilityRules: requires(protocol.FeatureMCP),
-		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpServerConfig, error) {
-		return d.api.ConfigureMCPServer(ctx, in)
-	})
-
-	CommandAck(r, MethodMeta{
-		Name:            "mcp.configs.remove",
-		CapabilityRules: requires(protocol.FeatureMCP),
-		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.RemoveMCPServerRequest) error {
-		return d.api.RemoveMCPServer(ctx, in.Name)
-	})
-
-	CommandAck(r, MethodMeta{
-		Name:            "mcp.configs.setEnabled",
-		CapabilityRules: requires(protocol.FeatureMCP),
-		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.SetMCPEnabledRequest) error {
-		return d.api.SetMCPServerEnabled(ctx, in)
-	})
-
-	// A connection probe persists nothing, so a retry is not a replay concern.
-	Query(r, MethodMeta{
-		Name:            "mcp.configs.test",
-		CapabilityRules: requires(protocol.FeatureMCP),
-		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpTestResult, error) {
-		return d.api.TestMCPServer(ctx, in)
-	})
 }
 
 func registerApproval(r *Registry) {

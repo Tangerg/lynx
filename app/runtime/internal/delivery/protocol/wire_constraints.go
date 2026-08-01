@@ -264,6 +264,13 @@ func nonNegativeNumber[Number wireNumeric](field string, value Number) FieldErro
 	return FieldError{}
 }
 
+func optionalNonNegativeNumber[Number wireNumeric](field string, value *Number) FieldError {
+	if value == nil {
+		return FieldError{}
+	}
+	return nonNegativeNumber(field, *value)
+}
+
 // requiredItems rejects an absent or empty required array. Requiredness comes
 // from the DTO's JSON tag; the generator selects this helper for a field without
 // omitempty so the runtime enforces the same required + minItems contract as the
@@ -287,6 +294,15 @@ func nonEmptyItems[T any](field string, values []T) FieldError {
 	return FieldError{}
 }
 
+// nonEmptyProperties rejects an empty object map. nil remains a valid omission;
+// a present empty map is rejected by the same length check after decoding.
+func nonEmptyProperties[Value any](field string, values map[string]Value) FieldError {
+	if values != nil && len(values) == 0 {
+		return FieldError{Field: field, Detail: "must not be empty"}
+	}
+	return FieldError{}
+}
+
 // uniqueItems rejects a repeated element, so a filter that is a set is checked as
 // one. Comparing values directly keeps the rule independent of order: the caller
 // may list them however it likes.
@@ -299,6 +315,13 @@ func uniqueItems[T comparable](field string, values []T) FieldError {
 		seen[value] = true
 	}
 	return FieldError{}
+}
+
+func optionalUniqueItems[T comparable](field string, values *[]T) FieldError {
+	if values == nil {
+		return FieldError{}
+	}
+	return uniqueItems(field, *values)
 }
 
 // closedEnum rejects a value outside a closed set. Go's decoder puts any string

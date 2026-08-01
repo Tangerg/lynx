@@ -4,7 +4,6 @@ export type WorkspaceInvalidationTarget =
   | "diff"
   | "filesChanged"
   | "goal"
-  | "mcpConfigs"
   | "mcpServers"
   | "mcpTools"
   | "schedules"
@@ -51,7 +50,7 @@ export function workspaceInvalidations(ev: WorkspaceEventLike): WorkspaceInvalid
     case "skills.changed":
       return ["skills", "managedSkills", "skillDrafts"];
     case "mcp.changed":
-      return ["mcpServers", "mcpConfigs", "mcpTools"];
+      return ["mcpServers", "mcpTools"];
     case "schedules.changed":
       // A schedule that fired starts a run in a fresh session, so the session list
       // moves with it.

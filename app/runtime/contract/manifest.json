@@ -505,6 +505,61 @@
       "stability": "stable"
     },
     {
+      "name": "mcp.servers.create",
+      "kind": "unary",
+      "operation": "command",
+      "idempotency": "replayResponse",
+      "errors": [
+        "mcp_server_already_exists",
+        "capability_not_negotiated"
+      ],
+      "features": [
+        "mcp"
+      ],
+      "stability": "stable"
+    },
+    {
+      "name": "mcp.servers.update",
+      "kind": "unary",
+      "operation": "command",
+      "idempotency": "replayResponse",
+      "errors": [
+        "mcp_server_not_found",
+        "capability_not_negotiated"
+      ],
+      "features": [
+        "mcp"
+      ],
+      "stability": "stable"
+    },
+    {
+      "name": "mcp.servers.delete",
+      "kind": "unary",
+      "operation": "command",
+      "idempotency": "replayResponse",
+      "errors": [
+        "mcp_server_not_found",
+        "capability_not_negotiated"
+      ],
+      "features": [
+        "mcp"
+      ],
+      "stability": "stable"
+    },
+    {
+      "name": "mcp.servers.test",
+      "kind": "unary",
+      "operation": "query",
+      "idempotency": "none",
+      "errors": [
+        "capability_not_negotiated"
+      ],
+      "features": [
+        "mcp"
+      ],
+      "stability": "stable"
+    },
+    {
       "name": "mcp.tools.list",
       "kind": "unary",
       "operation": "query",
@@ -523,6 +578,8 @@
       "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
+        "mcp_server_not_found",
+        "mcp_server_disabled",
         "capability_not_negotiated"
       ],
       "features": [
@@ -536,71 +593,8 @@
       "operation": "command",
       "idempotency": "replayResponse",
       "errors": [
-        "capability_not_negotiated"
-      ],
-      "features": [
-        "mcp"
-      ],
-      "stability": "stable"
-    },
-    {
-      "name": "mcp.configs.list",
-      "kind": "unary",
-      "operation": "query",
-      "idempotency": "none",
-      "errors": [
-        "capability_not_negotiated"
-      ],
-      "features": [
-        "mcp"
-      ],
-      "stability": "stable"
-    },
-    {
-      "name": "mcp.configs.configure",
-      "kind": "unary",
-      "operation": "command",
-      "idempotency": "replayResponse",
-      "errors": [
-        "capability_not_negotiated"
-      ],
-      "features": [
-        "mcp"
-      ],
-      "stability": "stable"
-    },
-    {
-      "name": "mcp.configs.remove",
-      "kind": "unary",
-      "operation": "command",
-      "idempotency": "replayResponse",
-      "errors": [
-        "capability_not_negotiated"
-      ],
-      "features": [
-        "mcp"
-      ],
-      "stability": "stable"
-    },
-    {
-      "name": "mcp.configs.setEnabled",
-      "kind": "unary",
-      "operation": "command",
-      "idempotency": "replayResponse",
-      "errors": [
-        "capability_not_negotiated"
-      ],
-      "features": [
-        "mcp"
-      ],
-      "stability": "stable"
-    },
-    {
-      "name": "mcp.configs.test",
-      "kind": "unary",
-      "operation": "query",
-      "idempotency": "none",
-      "errors": [
+        "mcp_server_not_found",
+        "mcp_server_disabled",
         "capability_not_negotiated"
       ],
       "features": [
@@ -1054,14 +1048,13 @@
           "goals.stop",
           "interrupts.list",
           "items.list",
-          "mcp.configs.configure",
-          "mcp.configs.list",
-          "mcp.configs.remove",
-          "mcp.configs.setEnabled",
-          "mcp.configs.test",
           "mcp.servers.authorize",
+          "mcp.servers.create",
+          "mcp.servers.delete",
           "mcp.servers.list",
           "mcp.servers.reconnect",
+          "mcp.servers.test",
+          "mcp.servers.update",
           "mcp.tools.list",
           "memory.get",
           "memory.list",
@@ -1145,6 +1138,34 @@
         "type": "item_not_found",
         "code": -32004,
         "recoveryAction": "refetch"
+      },
+      {
+        "type": "mcp_server_already_exists",
+        "code": -32030,
+        "recoveryAction": "refetch",
+        "methods": [
+          "mcp.servers.create"
+        ]
+      },
+      {
+        "type": "mcp_server_disabled",
+        "code": -32031,
+        "recoveryAction": "refetch",
+        "methods": [
+          "mcp.servers.authorize",
+          "mcp.servers.reconnect"
+        ]
+      },
+      {
+        "type": "mcp_server_not_found",
+        "code": -32029,
+        "recoveryAction": "refetch",
+        "methods": [
+          "mcp.servers.authorize",
+          "mcp.servers.delete",
+          "mcp.servers.reconnect",
+          "mcp.servers.update"
+        ]
       },
       {
         "type": "method_not_found",
@@ -1576,6 +1597,46 @@
       ]
     },
     {
+      "method": "mcp.servers.create",
+      "rules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ]
+    },
+    {
+      "method": "mcp.servers.update",
+      "rules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ]
+    },
+    {
+      "method": "mcp.servers.delete",
+      "rules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ]
+    },
+    {
+      "method": "mcp.servers.test",
+      "rules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ]
+    },
+    {
       "method": "mcp.tools.list",
       "rules": [
         {
@@ -1597,56 +1658,6 @@
     },
     {
       "method": "mcp.servers.authorize",
-      "rules": [
-        {
-          "requires": [
-            "mcp"
-          ]
-        }
-      ]
-    },
-    {
-      "method": "mcp.configs.list",
-      "rules": [
-        {
-          "requires": [
-            "mcp"
-          ]
-        }
-      ]
-    },
-    {
-      "method": "mcp.configs.configure",
-      "rules": [
-        {
-          "requires": [
-            "mcp"
-          ]
-        }
-      ]
-    },
-    {
-      "method": "mcp.configs.remove",
-      "rules": [
-        {
-          "requires": [
-            "mcp"
-          ]
-        }
-      ]
-    },
-    {
-      "method": "mcp.configs.setEnabled",
-      "rules": [
-        {
-          "requires": [
-            "mcp"
-          ]
-        }
-      ]
-    },
-    {
-      "method": "mcp.configs.test",
       "rules": [
         {
           "requires": [
@@ -2085,6 +2096,27 @@
         },
         {
           "tag": "mcp_dial_failed"
+        },
+        {
+          "tag": "mcp_server_already_exists",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "mcp_server_disabled",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
+        },
+        {
+          "tag": "mcp_server_not_found",
+          "optional": [
+            "detail",
+            "docUrl"
+          ]
         },
         {
           "tag": "method_not_found",
@@ -2638,6 +2670,138 @@
         },
         {
           "tag": "clear"
+        }
+      ]
+    },
+    {
+      "type": "McpConnection",
+      "discriminator": "type",
+      "variants": [
+        {
+          "tag": "streamableHttp",
+          "required": [
+            "url"
+          ],
+          "optional": [
+            "authorizationMasked",
+            "headersMasked"
+          ]
+        },
+        {
+          "tag": "stdio",
+          "required": [
+            "command"
+          ],
+          "optional": [
+            "args",
+            "envMasked",
+            "dir"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "McpConnectionInput",
+      "discriminator": "type",
+      "variants": [
+        {
+          "tag": "streamableHttp",
+          "required": [
+            "url"
+          ],
+          "optional": [
+            "authorization",
+            "headers"
+          ]
+        },
+        {
+          "tag": "stdio",
+          "required": [
+            "command"
+          ],
+          "optional": [
+            "args",
+            "env",
+            "dir"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "McpAuthorizationChange",
+      "discriminator": "type",
+      "variants": [
+        {
+          "tag": "set",
+          "required": [
+            "value"
+          ]
+        },
+        {
+          "tag": "clear"
+        }
+      ]
+    },
+    {
+      "type": "McpHeadersChange",
+      "discriminator": "type",
+      "variants": [
+        {
+          "tag": "set",
+          "required": [
+            "value"
+          ]
+        },
+        {
+          "tag": "clear"
+        }
+      ]
+    },
+    {
+      "type": "McpEnvironmentChange",
+      "discriminator": "type",
+      "variants": [
+        {
+          "tag": "set",
+          "required": [
+            "value"
+          ]
+        },
+        {
+          "tag": "clear"
+        }
+      ]
+    },
+    {
+      "type": "McpServerState",
+      "discriminator": "type",
+      "variants": [
+        {
+          "tag": "disabled"
+        },
+        {
+          "tag": "disconnected"
+        },
+        {
+          "tag": "connecting"
+        },
+        {
+          "tag": "connected",
+          "required": [
+            "toolCount"
+          ]
+        },
+        {
+          "tag": "failed",
+          "required": [
+            "error"
+          ]
+        },
+        {
+          "tag": "needsAuth",
+          "required": [
+            "error"
+          ]
         }
       ]
     },
@@ -3749,29 +3913,97 @@
       ]
     },
     {
-      "type": "ConfigureMCPServerRequest",
+      "type": "McpConnection",
       "rules": [
         {
-          "field": "name",
+          "field": "url",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "command",
           "constraint": "nonEmpty"
         }
       ]
     },
     {
-      "type": "RemoveMCPServerRequest",
+      "type": "McpConnectionInput",
       "rules": [
         {
-          "field": "name",
+          "field": "url",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "command",
           "constraint": "nonEmpty"
         }
       ]
     },
     {
-      "type": "SetMCPEnabledRequest",
+      "type": "McpAuthorizationChange",
+      "rules": [
+        {
+          "field": "value",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "McpHeadersChange",
+      "rules": [
+        {
+          "field": "value",
+          "constraint": "nonEmptyProperties"
+        }
+      ]
+    },
+    {
+      "type": "McpEnvironmentChange",
+      "rules": [
+        {
+          "field": "value",
+          "constraint": "nonEmptyProperties"
+        }
+      ]
+    },
+    {
+      "type": "MCPServerCandidate",
       "rules": [
         {
           "field": "name",
           "constraint": "nonEmpty"
+        },
+        {
+          "field": "timeoutSeconds",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "disabledTools",
+          "constraint": "uniqueItems"
+        },
+        {
+          "field": "autoApproveTools",
+          "constraint": "uniqueItems"
+        }
+      ]
+    },
+    {
+      "type": "UpdateMCPServerRequest",
+      "rules": [
+        {
+          "field": "server",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "timeoutSeconds",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "disabledTools",
+          "constraint": "uniqueItems"
+        },
+        {
+          "field": "autoApproveTools",
+          "constraint": "uniqueItems"
         }
       ]
     },
@@ -4501,10 +4733,6 @@
     {
       "file": "mcpServer.json",
       "shape": "McpServer"
-    },
-    {
-      "file": "mcpServerConfig.json",
-      "shape": "McpServerConfig"
     },
     {
       "file": "hooksList.json",

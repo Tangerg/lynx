@@ -9,99 +9,18 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-// mcp.* is runtime-global, so these methods take no cwd (API.md §7.5).
-// Reconnect's outcome rides runtime.event as mcp.changed.
+// mcp.* is runtime-global, so these methods take no workspace reference.
 
-// ListMCPServers lists every configured MCP server with its real
-// connection state (AUX_API §5.1). Boot tolerates a per-server failure, so the
-// list includes servers that couldn't connect — each carrying its failure
-// reason as Error — alongside the connected ones, instead of the old
-// "everything is connected" assumption.
+// ListMCPServers returns the single authoritative MCP resource collection:
+// durable configuration enriched with current live state.
 func (s *Server) ListMCPServers(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServer], error) {
-	return protocol.NewPage(s.mcpServersWire(ctx)), nil
-}
-
-// ListMCPTools lists tools advertised by the connected MCP servers,
-// scoped to in.Server when set (empty = all). Each tool's bare name + the
-// server it belongs to are kept separate on the wire (the model sees them as
-// "<server>_<name>").
-func (s *Server) ListMCPTools(ctx context.Context, in protocol.MCPListToolsRequest) (*protocol.Page[protocol.McpTool], error) {
-	found, err := s.integrations.MCPTools(ctx, in.Server)
+	servers, err := s.integrations.MCPServers(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]protocol.McpTool, 0, len(found))
-	for _, t := range found {
-		out = append(out, mcpToolWire(t))
-	}
-	return protocol.NewPage(out), nil
-}
-
-// ReconnectMCPServer re-dials a configured MCP server (AUX_API §5.2). It has
-// no synchronous result — the outcome rides runtime.event as mcp.changed, in the
-// guaranteed order connecting → (connected | failed).
-// The capabilities coordinator validates the name synchronously (unknown →
-// invalid_params) then runs the dial fire-and-forget on its component task group,
-// publishing the connecting + settled frames through the MCP-status bridge.
-func (s *Server) ReconnectMCPServer(ctx context.Context, server string) error {
-	return wireMCPError(s.integrations.ReconnectMCPServer(ctx, server))
-}
-
-// AuthorizeMCPServer starts the interactive OAuth sign-in for an HTTP MCP
-// server (mcp.servers.authorize). Like reconnect it is fire-and-forget: the
-// coordinator validates the name synchronously (unknown → invalid_params) then
-// runs the flow — open the browser, catch the loopback redirect, exchange the
-// code — publishing the connecting + settled frames as it settles.
-func (s *Server) AuthorizeMCPServer(ctx context.Context, server string) error {
-	return wireMCPError(s.integrations.AuthorizeMCPServer(ctx, server))
-}
-
-// wireMCPError maps the coordinator's unknown-server sentinel onto invalid_params
-// (an unknown / empty name is a bad request); every other error surfaces as-is.
-func wireMCPError(err error) error {
-	if errors.Is(err, integrations.ErrUnknownMCPServer) ||
-		errors.Is(err, integrations.ErrMCPServerDisabled) {
-		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
-	}
-	if errors.Is(err, integrations.ErrInvalidMCPServerConfiguration) {
-		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
-	}
-	return err
-}
-
-// observeMCPStatus installs the MCP-status bridge consumer: the coordinator
-// publishes a connection transition, and the Server signals which server moved.
-//
-// The signal carries the id and nothing else. It used to carry the status, the tool
-// count and the failure — a second source of truth for what mcp.servers answers, and
-// one that went wrong the moment a frame was dropped: the panel showed a state the
-// runtime had already left. Now the client reads the server again, which is the only
-// answer that cannot be stale in a way nobody notices.
-func (s *Server) observeMCPStatus(src Source[integrations.MCPServerStatus]) {
-	src.Observe(func(status integrations.MCPServerStatus) {
-		s.PublishRuntimeEvent(protocol.RuntimeEvent{
-			Type: protocol.RuntimeMCPChanged, ServerIDs: []string{status.Name},
-		})
-	})
-}
-
-// mcp.configs registry CRUD — the editable configuration the settings pane
-// drives. listConfigs returns the registry with bearer tokens masked;
-// configure/remove/setEnabled persist + apply to the live connections, while
-// the application status bridge publishes mcp.serverChanged. Test probes a
-// candidate config without persisting.
-
-// ListMCPServerConfigs returns every registered MCP server's editable
-// configuration (token masked). Live connection state is not included — read it
-// from mcp.servers.list (McpServer), keyed by name.
-func (s *Server) ListMCPServerConfigs(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServerConfig], error) {
-	servers, err := s.integrations.ListMCPServerConfigs(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]protocol.McpServerConfig, 0, len(servers))
-	for _, config := range servers {
-		wire, err := mcpConfigWire(config)
+	out := make([]protocol.McpServer, 0, len(servers))
+	for _, server := range servers {
+		wire, err := mcpServerWire(server)
 		if err != nil {
 			return nil, err
 		}
@@ -110,58 +29,49 @@ func (s *Server) ListMCPServerConfigs(ctx context.Context, _ protocol.PageQuery)
 	return protocol.NewPage(out), nil
 }
 
-// ConfigureMCPServer upserts a server in the registry and applies it to the
-// live connections, returning the stored configuration (token masked). A blank
-// Authorization preserves the existing token only for the same HTTP origin.
-func (s *Server) ConfigureMCPServer(ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpServerConfig, error) {
-	if in.Name == "" {
-		return nil, protocol.ErrInvalidParams
-	}
-	input, err := mcpServerInputFromRequest(in)
+// CreateMCPServer creates and returns one unified MCP server resource.
+func (s *Server) CreateMCPServer(ctx context.Context, in protocol.CreateMCPServerRequest) (*protocol.McpServer, error) {
+	input, err := mcpServerInputFromCandidate(in)
 	if err != nil {
 		return nil, err
 	}
-	config, err := s.integrations.ConfigureMCPServer(ctx, input)
+	server, err := s.integrations.CreateMCPServer(ctx, input)
 	if err != nil {
 		return nil, wireMCPError(err)
 	}
-	out, err := mcpConfigWire(config)
+	out, err := mcpServerWire(server)
 	if err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// RemoveMCPServer deletes a server from the registry + the live set. The
-// follow-up mcp.serverChanged frame omits status (entry no longer exists).
-func (s *Server) RemoveMCPServer(ctx context.Context, name string) error {
-	if name == "" {
-		return protocol.ErrInvalidParams
+// UpdateMCPServer applies an explicit partial update and returns the resulting
+// unified resource.
+func (s *Server) UpdateMCPServer(ctx context.Context, in protocol.UpdateMCPServerRequest) (*protocol.McpServer, error) {
+	patch, err := mcpServerPatchFromRequest(in)
+	if err != nil {
+		return nil, err
 	}
-	if err := s.integrations.RemoveMCPServer(ctx, name); err != nil {
-		return err
+	server, err := s.integrations.UpdateMCPServer(ctx, in.Server, patch)
+	if err != nil {
+		return nil, wireMCPError(err)
 	}
-	return nil
+	out, err := mcpServerWire(server)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
-// SetMCPServerEnabled flips a server's enablement (enable → dial, disable →
-// drop from the live set) and publishes the resulting status.
-func (s *Server) SetMCPServerEnabled(ctx context.Context, in protocol.SetMCPEnabledRequest) error {
-	if in.Name == "" {
-		return protocol.ErrInvalidParams
-	}
-	if err := s.integrations.SetMCPServerEnabled(ctx, in.Name, in.Enabled); err != nil {
-		return err
-	}
-	return nil
+// DeleteMCPServer deletes one configured server and its live projection.
+func (s *Server) DeleteMCPServer(ctx context.Context, server string) error {
+	return wireMCPError(s.integrations.DeleteMCPServer(ctx, server))
 }
 
-// TestMCPServer probes a candidate configuration (a throwaway dial + tools
-// list) without persisting — the connection-test button. A blank Authorization
-// reuses the stored token only for the same HTTP origin, so testing an ordinary
-// edit needn't re-enter the secret and testing a new endpoint cannot leak it.
-func (s *Server) TestMCPServer(ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpTestResult, error) {
-	input, err := mcpServerInputFromRequest(in)
+// TestMCPServer probes a complete candidate without persisting it.
+func (s *Server) TestMCPServer(ctx context.Context, in protocol.MCPServerCandidate) (*protocol.McpTestResult, error) {
+	input, err := mcpServerInputFromCandidate(in)
 	if err != nil {
 		return nil, err
 	}
@@ -174,4 +84,54 @@ func (s *Server) TestMCPServer(ctx context.Context, in protocol.ConfigureMCPServ
 		problem = mcpProbeProblem()
 	}
 	return &protocol.McpTestResult{OK: result.OK, Error: problem}, nil
+}
+
+// ListMCPTools lists tools advertised by connected MCP servers, optionally
+// narrowed to one server.
+func (s *Server) ListMCPTools(ctx context.Context, in protocol.MCPListToolsRequest) (*protocol.Page[protocol.McpTool], error) {
+	found, err := s.integrations.MCPTools(ctx, in.Server)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]protocol.McpTool, 0, len(found))
+	for _, tool := range found {
+		out = append(out, mcpToolWire(tool))
+	}
+	return protocol.NewPage(out), nil
+}
+
+// ReconnectMCPServer starts a new live dial. Its state transitions invalidate
+// the server resource through runtime.event.
+func (s *Server) ReconnectMCPServer(ctx context.Context, server string) error {
+	return wireMCPError(s.integrations.ReconnectMCPServer(ctx, server))
+}
+
+// AuthorizeMCPServer starts interactive OAuth. This method is replaced by the
+// first-class authorization-attempt resource in the next protocol batch.
+func (s *Server) AuthorizeMCPServer(ctx context.Context, server string) error {
+	return wireMCPError(s.integrations.AuthorizeMCPServer(ctx, server))
+}
+
+func wireMCPError(err error) error {
+	switch {
+	case errors.Is(err, integrations.ErrUnknownMCPServer):
+		return fmt.Errorf("%w: %w", protocol.ErrMCPServerNotFound, err)
+	case errors.Is(err, integrations.ErrMCPServerAlreadyExists):
+		return fmt.Errorf("%w: %w", protocol.ErrMCPServerAlreadyExists, err)
+	case errors.Is(err, integrations.ErrMCPServerDisabled):
+		return fmt.Errorf("%w: %w", protocol.ErrMCPServerDisabled, err)
+	case errors.Is(err, integrations.ErrInvalidMCPServerConfiguration):
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
+	}
+	return err
+}
+
+// observeMCPStatus publishes invalidations only. The resource value remains
+// authoritative in mcp.servers.list.
+func (s *Server) observeMCPStatus(src Source[integrations.MCPServerStatus]) {
+	src.Observe(func(status integrations.MCPServerStatus) {
+		s.PublishRuntimeEvent(protocol.RuntimeEvent{
+			Type: protocol.RuntimeMCPChanged, ServerIDs: []string{status.Name},
+		})
+	})
 }

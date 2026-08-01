@@ -11,9 +11,10 @@ import { useT } from "@/lib/i18n";
 import { ServerForm } from "./ServerForm";
 
 const STATUS_TONE: Record<
-  NonNullable<MCPServerSettings["status"]>,
+  MCPServerSettings["status"],
   "ok" | "running" | "waiting" | "err" | "idle"
 > = {
+  disabled: "idle",
   connected: "ok",
   connecting: "running",
   needsAuth: "waiting",
@@ -51,7 +52,7 @@ export function ServerRow({ server }: { server: MCPServerSettings }) {
     }
   };
 
-  const tone = server.status ? STATUS_TONE[server.status] : "idle";
+  const tone = STATUS_TONE[server.status];
   const active = server.status === "connected";
 
   return (

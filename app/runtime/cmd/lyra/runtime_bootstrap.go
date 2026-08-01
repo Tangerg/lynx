@@ -63,7 +63,7 @@ func bootstrapRuntimeWithBuildID(ctx context.Context, buildIdentity func() (stri
 		return nil, config.Config{}, err
 	}
 	// Seed env-sourced MCP servers (LYRA_MCP_SERVERS) into the registry on
-	// first run; a persisted mcp.configs.configure for the same name wins.
+	// first run; a persisted mcp.servers resource with the same name wins.
 	mcpServers, err := bootstrap.MCPServers(cfg.MCPServers)
 	if err != nil {
 		return nil, config.Config{}, err

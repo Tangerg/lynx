@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Icon, PillButton, Segmented, Surface, TextField } from "@/ui";
+import { Icon, PillButton, Segmented, Surface, Switch, TextField } from "@/ui";
 import {
   type MCPServerSettings,
   type MCPTransport,
-  useConfigureMCPServer,
-  useRemoveMCPServer,
+  useCreateMCPServer,
+  useDeleteMCPServer,
   useTestMCPServer,
+  useUpdateMCPServer,
 } from "../application/mcpServerConfig";
 import { useT } from "@/lib/i18n";
 import { LinesField } from "./ServerFormFields";
@@ -13,6 +14,9 @@ import {
   type MCPServerDraft,
   initialMCPServerDraft,
   isMCPServerDraftValid,
+  mcpAuthorizationNeedsDisposition,
+  mcpEnvironmentNeedsDisposition,
+  mcpHeadersNeedDisposition,
   mcpServerInputFromDraft,
 } from "../application/mcpServerDraft";
 import { ToolControls } from "./ToolControls";
@@ -26,8 +30,9 @@ interface Props {
 
 export function ServerForm({ server, onDone, onCancel }: Props) {
   const t = useT();
-  const configure = useConfigureMCPServer();
-  const remove = useRemoveMCPServer();
+  const create = useCreateMCPServer();
+  const update = useUpdateMCPServer();
+  const remove = useDeleteMCPServer();
   const test = useTestMCPServer();
   const isEdit = server !== undefined;
 
@@ -37,6 +42,8 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
   const { probe, reset, fail, run } = useProbe();
 
   const hasAuthStored = (server?.authorizationMasked ?? "") !== "";
+  const hasHeadersStored = Object.keys(server?.headersMasked ?? {}).length > 0;
+  const hasEnvironmentStored = Object.keys(server?.envMasked ?? {}).length > 0;
 
   const updateDraft = <K extends keyof MCPServerDraft>(key: K, value: MCPServerDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -44,13 +51,18 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
 
   const buildInput = () => mcpServerInputFromDraft(draft, server);
 
-  const valid = isMCPServerDraftValid(draft);
+  const needsAuthorizationDisposition = mcpAuthorizationNeedsDisposition(draft, server);
+  const needsHeadersDisposition = mcpHeadersNeedDisposition(draft, server);
+  const needsEnvironmentDisposition = mcpEnvironmentNeedsDisposition(draft, server);
+  const valid = isMCPServerDraftValid(draft, server);
 
   const onSave = async () => {
     setSaving(true);
     reset(); // invalidate any in-flight test so its result can't overwrite this save
     try {
-      await configure(buildInput());
+      const input = buildInput();
+      if (server) await update(server.name, input);
+      else await create(input);
       onDone();
     } catch (err) {
       fail(err instanceof Error ? err.message : t("mcp.error.save"));
@@ -113,9 +125,30 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
           <LinesField
             label={t("mcp.form.env")}
             value={draft.env}
-            onChange={(value) => updateDraft("env", value)}
-            placeholder={t("mcp.form.env.placeholder")}
+            onChange={(value) => {
+              updateDraft("env", value);
+              if (value.trim()) updateDraft("clearEnvironment", false);
+            }}
+            placeholder={
+              hasEnvironmentStored ? t("mcp.form.env.keep") : t("mcp.form.env.placeholder")
+            }
           />
+          {hasEnvironmentStored && (
+            <label className="flex items-center justify-between gap-3 text-ui-md text-fg-muted">
+              <span>{t("mcp.form.env.clear")}</span>
+              <Switch
+                checked={draft.clearEnvironment}
+                onCheckedChange={(value) => {
+                  updateDraft("clearEnvironment", value);
+                  if (value) updateDraft("env", "");
+                }}
+                ariaLabel={t("mcp.form.env.clear")}
+              />
+            </label>
+          )}
+          {needsEnvironmentDisposition && (
+            <span className="text-ui-md text-warning">{t("mcp.form.env.targetChanged")}</span>
+          )}
           <TextField
             type="text"
             aria-label={t("mcp.form.dir.aria")}
@@ -137,15 +170,55 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
             type="password"
             aria-label={t("mcp.form.auth.aria")}
             value={draft.authorization}
-            onChange={(e) => updateDraft("authorization", e.target.value)}
+            onChange={(e) => {
+              updateDraft("authorization", e.target.value);
+              if (e.target.value) updateDraft("clearAuthorization", false);
+            }}
             placeholder={hasAuthStored ? t("mcp.form.auth.keep") : t("mcp.form.auth.placeholder")}
           />
+          {hasAuthStored && (
+            <label className="flex items-center justify-between gap-3 text-ui-md text-fg-muted">
+              <span>{t("mcp.form.auth.clear")}</span>
+              <Switch
+                checked={draft.clearAuthorization}
+                onCheckedChange={(value) => {
+                  updateDraft("clearAuthorization", value);
+                  if (value) updateDraft("authorization", "");
+                }}
+                ariaLabel={t("mcp.form.auth.clear")}
+              />
+            </label>
+          )}
+          {needsAuthorizationDisposition && (
+            <span className="text-ui-md text-warning">{t("mcp.form.auth.originChanged")}</span>
+          )}
           <LinesField
             label={t("mcp.form.headers")}
             value={draft.headers}
-            onChange={(value) => updateDraft("headers", value)}
-            placeholder={t("mcp.form.headers.placeholder")}
+            onChange={(value) => {
+              updateDraft("headers", value);
+              if (value.trim()) updateDraft("clearHeaders", false);
+            }}
+            placeholder={
+              hasHeadersStored ? t("mcp.form.headers.keep") : t("mcp.form.headers.placeholder")
+            }
           />
+          {hasHeadersStored && (
+            <label className="flex items-center justify-between gap-3 text-ui-md text-fg-muted">
+              <span>{t("mcp.form.headers.clear")}</span>
+              <Switch
+                checked={draft.clearHeaders}
+                onCheckedChange={(value) => {
+                  updateDraft("clearHeaders", value);
+                  if (value) updateDraft("headers", "");
+                }}
+                ariaLabel={t("mcp.form.headers.clear")}
+              />
+            </label>
+          )}
+          {needsHeadersDisposition && (
+            <span className="text-ui-md text-warning">{t("mcp.form.headers.originChanged")}</span>
+          )}
         </>
       )}
 

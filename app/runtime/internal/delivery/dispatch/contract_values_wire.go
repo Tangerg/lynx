@@ -136,9 +136,39 @@ func registerIntegrationValues(s *Shapes) {
 	nonEmpty[protocol.SkillNameRequest](s, "name")
 	nonEmpty[protocol.SetHookTrustRequest](s, "projectRoot")
 	nonEmpty[protocol.MCPServerRequest](s, "server")
-	nonEmpty[protocol.ConfigureMCPServerRequest](s, "name")
-	nonEmpty[protocol.RemoveMCPServerRequest](s, "name")
-	nonEmpty[protocol.SetMCPEnabledRequest](s, "name")
+	nonEmpty[protocol.McpConnection](s, "url", "command")
+	nonEmpty[protocol.McpConnectionInput](s, "url", "command")
+	nonEmpty[protocol.McpAuthorizationChange](s, "value")
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.McpHeadersChange](),
+		Constraints: []FieldConstraint{
+			{Field: "value", Kind: ConstraintNonEmptyProperties},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.McpEnvironmentChange](),
+		Constraints: []FieldConstraint{
+			{Field: "value", Kind: ConstraintNonEmptyProperties},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.MCPServerCandidate](),
+		Constraints: []FieldConstraint{
+			{Field: "name", Kind: ConstraintNonEmpty},
+			{Field: "timeoutSeconds", Kind: ConstraintNonNegative},
+			{Field: "disabledTools", Kind: ConstraintUniqueItems},
+			{Field: "autoApproveTools", Kind: ConstraintUniqueItems},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.UpdateMCPServerRequest](),
+		Constraints: []FieldConstraint{
+			{Field: "server", Kind: ConstraintNonEmpty},
+			{Field: "timeoutSeconds", Kind: ConstraintNonNegative},
+			{Field: "disabledTools", Kind: ConstraintUniqueItems},
+			{Field: "autoApproveTools", Kind: ConstraintUniqueItems},
+		},
+	})
 	nonEmpty[protocol.UpdateProviderRequest](s, "provider")
 	nonEmpty[protocol.ProviderConfigChange](s, "value")
 	nonEmpty[protocol.TestProviderRequest](s, "provider")

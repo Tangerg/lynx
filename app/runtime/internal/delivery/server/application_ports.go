@@ -49,14 +49,13 @@ type sessionUseCases interface {
 
 type integrationUseCases interface {
 	AuthorizeMCPServer(ctx context.Context, name string) error
-	ConfigureMCPServer(ctx context.Context, input integrations.MCPServerInput) (integrations.MCPServerConfig, error)
-	ListMCPServerConfigs(ctx context.Context) ([]integrations.MCPServerConfig, error)
-	MCPServerStatuses(ctx context.Context) []integrations.MCPServerStatus
+	CreateMCPServer(ctx context.Context, input integrations.MCPServerInput) (integrations.MCPServer, error)
+	DeleteMCPServer(ctx context.Context, name string) error
+	MCPServers(ctx context.Context) ([]integrations.MCPServer, error)
 	MCPTools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error)
 	ReconnectMCPServer(ctx context.Context, name string) error
-	RemoveMCPServer(ctx context.Context, name string) error
-	SetMCPServerEnabled(ctx context.Context, name string, enabled bool) error
 	TestMCPServer(ctx context.Context, input integrations.MCPServerInput) (integrations.MCPTestResult, error)
+	UpdateMCPServer(ctx context.Context, name string, patch integrations.MCPServerPatch) (integrations.MCPServer, error)
 }
 
 type approvalUseCases interface {

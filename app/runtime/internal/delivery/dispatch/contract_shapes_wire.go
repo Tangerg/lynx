@@ -22,6 +22,7 @@ func buildShapes() *Shapes {
 	registerRunUnions(s)
 	registerItemUnions(s)
 	registerProviderUnions(s)
+	registerMCPUnions(s)
 	registerInterruptUnions(s)
 	registerEventUnions(s)
 	registerArtifactUnions(s)
@@ -40,6 +41,61 @@ func registerProviderUnions(s *Shapes) {
 		Variants: []VariantSpec{
 			{Tag: string(protocol.ProviderConfigSet), Required: []string{"value"}},
 			{Tag: string(protocol.ProviderConfigClear)},
+		},
+	})
+}
+
+func registerMCPUnions(s *Shapes) {
+	s.union(UnionSpec{
+		GoType:        typeOf[protocol.McpConnection](),
+		Discriminator: "type",
+		Variants: []VariantSpec{
+			{Tag: string(protocol.McpTransportStreamableHTTP), Required: []string{"url"}, Optional: []string{"authorizationMasked", "headersMasked"}},
+			{Tag: string(protocol.McpTransportStdio), Required: []string{"command"}, Optional: []string{"args", "envMasked", "dir"}},
+		},
+	})
+	s.union(UnionSpec{
+		GoType:        typeOf[protocol.McpConnectionInput](),
+		Discriminator: "type",
+		Variants: []VariantSpec{
+			{Tag: string(protocol.McpTransportStreamableHTTP), Required: []string{"url"}, Optional: []string{"authorization", "headers"}},
+			{Tag: string(protocol.McpTransportStdio), Required: []string{"command"}, Optional: []string{"args", "env", "dir"}},
+		},
+	})
+	s.union(UnionSpec{
+		GoType:        typeOf[protocol.McpAuthorizationChange](),
+		Discriminator: "type",
+		Variants: []VariantSpec{
+			{Tag: string(protocol.McpSecretSet), Required: []string{"value"}},
+			{Tag: string(protocol.McpSecretClear)},
+		},
+	})
+	s.union(UnionSpec{
+		GoType:        typeOf[protocol.McpHeadersChange](),
+		Discriminator: "type",
+		Variants: []VariantSpec{
+			{Tag: string(protocol.McpSecretSet), Required: []string{"value"}},
+			{Tag: string(protocol.McpSecretClear)},
+		},
+	})
+	s.union(UnionSpec{
+		GoType:        typeOf[protocol.McpEnvironmentChange](),
+		Discriminator: "type",
+		Variants: []VariantSpec{
+			{Tag: string(protocol.McpSecretSet), Required: []string{"value"}},
+			{Tag: string(protocol.McpSecretClear)},
+		},
+	})
+	s.union(UnionSpec{
+		GoType:        typeOf[protocol.McpServerState](),
+		Discriminator: "type",
+		Variants: []VariantSpec{
+			{Tag: string(protocol.McpServerDisabled)},
+			{Tag: string(protocol.McpServerDisconnected)},
+			{Tag: string(protocol.McpServerConnecting)},
+			{Tag: string(protocol.McpServerConnected), Required: []string{"toolCount"}},
+			{Tag: string(protocol.McpServerFailed), Required: []string{"error"}},
+			{Tag: string(protocol.McpServerNeedsAuth), Required: []string{"error"}},
 		},
 	})
 }

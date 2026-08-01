@@ -66,6 +66,7 @@ type schema struct {
 	TypeScriptType  string         `json:"-"`
 	Minimum         *int64         `json:"minimum,omitempty"`
 	MinItems        *int           `json:"minItems,omitempty"`
+	MinProperties   *int           `json:"minProperties,omitempty"`
 	UniqueItems     bool           `json:"uniqueItems,omitempty"`
 	Items           *schema        `json:"items,omitempty"`
 	Properties      map[string]any `json:"properties,omitempty"`
@@ -457,6 +458,8 @@ func applyValueConstraints(node *schema, kinds []dispatch.ConstraintKind) {
 			node.Minimum = new(int64(0))
 		case dispatch.ConstraintNonEmptyItems:
 			node.MinItems = new(1)
+		case dispatch.ConstraintNonEmptyProperties:
+			node.MinProperties = new(1)
 		case dispatch.ConstraintUniqueItems:
 			node.UniqueItems = true
 		default:

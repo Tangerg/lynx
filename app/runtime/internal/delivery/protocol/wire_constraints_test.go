@@ -91,6 +91,21 @@ func TestOutputCollectionWireConstraints(t *testing.T) {
 	assertConstraintField(t, capability.ValidateWire(), "ProblemData", "requiredCapabilities")
 }
 
+func TestMCPSecretMapChangesRejectEmptyReplacement(t *testing.T) {
+	t.Parallel()
+
+	headers := McpHeadersChange{Type: McpSecretSet, Value: map[string]string{}}
+	assertConstraintField(t, headers.ValidateWire(), "McpHeadersChange", "value")
+
+	environment := McpEnvironmentChange{Type: McpSecretSet, Value: map[string]string{}}
+	assertConstraintField(t, environment.ValidateWire(), "McpEnvironmentChange", "value")
+
+	headers.Value = map[string]string{"X-API-Key": "secret"}
+	if err := headers.ValidateWire(); err != nil {
+		t.Fatalf("ValidateWire rejected a non-empty headers replacement: %v", err)
+	}
+}
+
 func TestProblemDataWireUnion(t *testing.T) {
 	t.Parallel()
 
@@ -294,6 +309,24 @@ func TestPublishedLimitWireConstraints(t *testing.T) {
 	if err := (RunLimits{}).ValidateWire(); err != nil {
 		t.Fatalf("ValidateWire rejected uncapped RunLimits: %v", err)
 	}
+}
+
+func TestOptionalMCPUpdateConstraintsPreserveAndValidatePresentValues(t *testing.T) {
+	t.Parallel()
+
+	request := UpdateMCPServerRequest{Server: "files"}
+	if err := request.ValidateWire(); err != nil {
+		t.Fatalf("ValidateWire rejected an omission-only patch: %v", err)
+	}
+
+	negative := -1
+	request.TimeoutSeconds = &negative
+	assertConstraintField(t, request.ValidateWire(), "UpdateMCPServerRequest", "timeoutSeconds")
+
+	repeated := []string{"read", "read"}
+	request.TimeoutSeconds = nil
+	request.DisabledTools = &repeated
+	assertConstraintField(t, request.ValidateWire(), "UpdateMCPServerRequest", "disabledTools")
 }
 
 func assertConstraintField(t *testing.T, err error, shape, field string) {

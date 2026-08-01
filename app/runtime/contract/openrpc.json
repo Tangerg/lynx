@@ -2078,6 +2078,316 @@
       }
     },
     {
+      "name": "mcp.servers.create",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "enabled",
+          "required": true,
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "description",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "connection",
+          "required": true,
+          "schema": {
+            "$ref": "schema.json#/$defs/McpConnectionInput"
+          }
+        },
+        {
+          "name": "timeoutSeconds",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "disabledTools",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "autoApproveTools",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/McpServer"
+        }
+      },
+      "errors": [
+        {
+          "code": -32030,
+          "message": "mcp_server_already_exists"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-operation": "command",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "mcp"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/MCPServerCandidate"
+      }
+    },
+    {
+      "name": "mcp.servers.update",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "server",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "enabled",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "description",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "connection",
+          "schema": {
+            "$ref": "schema.json#/$defs/McpConnectionInput"
+          }
+        },
+        {
+          "name": "timeoutSeconds",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "disabledTools",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "autoApproveTools",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/McpServer"
+        }
+      },
+      "errors": [
+        {
+          "code": -32029,
+          "message": "mcp_server_not_found"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-operation": "command",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "mcp"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/UpdateMCPServerRequest"
+      }
+    },
+    {
+      "name": "mcp.servers.delete",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "server",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [
+        {
+          "code": -32029,
+          "message": "mcp_server_not_found"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-operation": "command",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "mcp"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/MCPServerRequest"
+      }
+    },
+    {
+      "name": "mcp.servers.test",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "enabled",
+          "required": true,
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "description",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "connection",
+          "required": true,
+          "schema": {
+            "$ref": "schema.json#/$defs/McpConnectionInput"
+          }
+        },
+        {
+          "name": "timeoutSeconds",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "disabledTools",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "autoApproveTools",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/McpTestResult"
+        }
+      },
+      "errors": [
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-operation": "query",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "mcp"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/MCPServerCandidate"
+      }
+    },
+    {
       "name": "mcp.tools.list",
       "paramStructure": "by-name",
       "params": [
@@ -2150,6 +2460,14 @@
       },
       "errors": [
         {
+          "code": -32029,
+          "message": "mcp_server_not_found"
+        },
+        {
+          "code": -32031,
+          "message": "mcp_server_disabled"
+        },
+        {
           "code": -32006,
           "message": "capability_not_negotiated"
         }
@@ -2192,6 +2510,14 @@
       },
       "errors": [
         {
+          "code": -32029,
+          "message": "mcp_server_not_found"
+        },
+        {
+          "code": -32031,
+          "message": "mcp_server_disabled"
+        },
+        {
           "code": -32006,
           "message": "capability_not_negotiated"
         }
@@ -2212,418 +2538,6 @@
       ],
       "x-lyra-requestFrame": {
         "$ref": "schema.json#/$defs/MCPServerRequest"
-      }
-    },
-    {
-      "name": "mcp.configs.list",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "limit",
-          "schema": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "cursor",
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "schema.json#/$defs/PageOfMcpServerConfig"
-        }
-      },
-      "errors": [
-        {
-          "code": -32006,
-          "message": "capability_not_negotiated"
-        }
-      ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-stability": "stable",
-      "x-lyra-features": [
-        "mcp"
-      ],
-      "x-lyra-capabilityRules": [
-        {
-          "requires": [
-            "mcp"
-          ]
-        }
-      ],
-      "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/PageQuery"
-      }
-    },
-    {
-      "name": "mcp.configs.configure",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "name",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "type",
-          "required": true,
-          "schema": {
-            "$ref": "schema.json#/$defs/McpTransport"
-          }
-        },
-        {
-          "name": "enabled",
-          "required": true,
-          "schema": {
-            "type": "boolean"
-          }
-        },
-        {
-          "name": "description",
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "url",
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "authorization",
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "headers",
-          "schema": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            }
-          }
-        },
-        {
-          "name": "command",
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "args",
-          "schema": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        {
-          "name": "env",
-          "schema": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            }
-          }
-        },
-        {
-          "name": "dir",
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "timeoutSeconds",
-          "schema": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "disabledTools",
-          "schema": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        {
-          "name": "autoApproveTools",
-          "schema": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "schema.json#/$defs/McpServerConfig"
-        }
-      },
-      "errors": [
-        {
-          "code": -32006,
-          "message": "capability_not_negotiated"
-        }
-      ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-stability": "stable",
-      "x-lyra-features": [
-        "mcp"
-      ],
-      "x-lyra-capabilityRules": [
-        {
-          "requires": [
-            "mcp"
-          ]
-        }
-      ],
-      "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ConfigureMCPServerRequest"
-      }
-    },
-    {
-      "name": "mcp.configs.remove",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "name",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "type": "object"
-        }
-      },
-      "errors": [
-        {
-          "code": -32006,
-          "message": "capability_not_negotiated"
-        }
-      ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-stability": "stable",
-      "x-lyra-features": [
-        "mcp"
-      ],
-      "x-lyra-capabilityRules": [
-        {
-          "requires": [
-            "mcp"
-          ]
-        }
-      ],
-      "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/RemoveMCPServerRequest"
-      }
-    },
-    {
-      "name": "mcp.configs.setEnabled",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "name",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "enabled",
-          "required": true,
-          "schema": {
-            "type": "boolean"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "type": "object"
-        }
-      },
-      "errors": [
-        {
-          "code": -32006,
-          "message": "capability_not_negotiated"
-        }
-      ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-stability": "stable",
-      "x-lyra-features": [
-        "mcp"
-      ],
-      "x-lyra-capabilityRules": [
-        {
-          "requires": [
-            "mcp"
-          ]
-        }
-      ],
-      "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/SetMCPEnabledRequest"
-      }
-    },
-    {
-      "name": "mcp.configs.test",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "name",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "type",
-          "required": true,
-          "schema": {
-            "$ref": "schema.json#/$defs/McpTransport"
-          }
-        },
-        {
-          "name": "enabled",
-          "required": true,
-          "schema": {
-            "type": "boolean"
-          }
-        },
-        {
-          "name": "description",
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "url",
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "authorization",
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "headers",
-          "schema": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            }
-          }
-        },
-        {
-          "name": "command",
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "args",
-          "schema": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        {
-          "name": "env",
-          "schema": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            }
-          }
-        },
-        {
-          "name": "dir",
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "name": "timeoutSeconds",
-          "schema": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "disabledTools",
-          "schema": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        {
-          "name": "autoApproveTools",
-          "schema": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "schema.json#/$defs/McpTestResult"
-        }
-      },
-      "errors": [
-        {
-          "code": -32006,
-          "message": "capability_not_negotiated"
-        }
-      ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-stability": "stable",
-      "x-lyra-features": [
-        "mcp"
-      ],
-      "x-lyra-capabilityRules": [
-        {
-          "requires": [
-            "mcp"
-          ]
-        }
-      ],
-      "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ConfigureMCPServerRequest"
       }
     },
     {

@@ -95,7 +95,6 @@ export const WIRE_SAMPLES: readonly WireSample[] = [
   { file: "skillDraft.json", shape: "SkillDraft" },
   { file: "agentDoc.json", shape: "AgentDoc" },
   { file: "mcpServer.json", shape: "McpServer" },
-  { file: "mcpServerConfig.json", shape: "McpServerConfig" },
   { file: "hooksList.json", shape: "HooksListResult" },
   { file: "memoryEntry.json", shape: "MemoryEntry" },
   { file: "agentMemoryItem.json", shape: "AgentMemoryItem" },

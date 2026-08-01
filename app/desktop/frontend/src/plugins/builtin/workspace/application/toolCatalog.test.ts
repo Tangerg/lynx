@@ -15,6 +15,8 @@ const server = (over: Partial<MCPServerSummary>): MCPServerSummary => ({
   tools: 0,
   status: "disconnected",
   icon: "tool",
+  type: "stdio",
+  enabled: true,
   ...over,
 });
 

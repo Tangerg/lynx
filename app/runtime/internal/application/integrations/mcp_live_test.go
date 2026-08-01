@@ -12,16 +12,16 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-func TestMCPStatusAndToolsUsePorts(t *testing.T) {
+func TestMCPServersAndToolsUsePorts(t *testing.T) {
 	ports := &fakeMCPPorts{
 		statuses: []mcpserver.ConnectionStatus{{Name: "fs", State: mcpserver.ConnectionConnected, ToolCount: 1}},
 		tools:    []mcpserver.ToolInfo{{Server: "fs", Name: "read"}},
 	}
 	c := New(configWithMCPPorts(ports))
 
-	if got := c.MCPServerStatuses(context.Background()); len(got) != 1 || got[0].Name != "fs" ||
-		got[0].ToolCount == nil || *got[0].ToolCount != 1 {
-		t.Fatalf("MCPServerStatuses = %+v", got)
+	if got, err := c.MCPServers(context.Background()); err != nil || len(got) != 1 || got[0].Name != "fs" ||
+		got[0].State.ToolCount == nil || *got[0].State.ToolCount != 1 {
+		t.Fatalf("MCPServers = %+v, %v", got, err)
 	}
 	if ports.toolsCalls != 0 {
 		t.Fatalf("status read made %d live tools/list calls, want 0", ports.toolsCalls)
@@ -35,7 +35,7 @@ func TestMCPStatusAndToolsUsePorts(t *testing.T) {
 	}
 }
 
-func TestRemoveMCPServerPublishesRemovalAfterProjectionFailure(t *testing.T) {
+func TestDeleteMCPServerPublishesRemovalAfterProjectionFailure(t *testing.T) {
 	projectionErr := errors.New("projection detach failed")
 	ports := &fakeMCPPorts{
 		statuses:  []mcpserver.ConnectionStatus{{Name: "fs", State: mcpserver.ConnectionConnected}},
@@ -46,8 +46,8 @@ func TestRemoveMCPServerPublishesRemovalAfterProjectionFailure(t *testing.T) {
 	cfg.MCPStatus = func(status MCPServerStatus) { notified <- status.Name }
 	c := New(cfg)
 
-	if err := c.RemoveMCPServer(t.Context(), "fs"); !errors.Is(err, projectionErr) {
-		t.Fatalf("RemoveMCPServer = %v, want projection failure", err)
+	if err := c.DeleteMCPServer(t.Context(), "fs"); !errors.Is(err, projectionErr) {
+		t.Fatalf("DeleteMCPServer = %v, want projection failure", err)
 	}
 	if ports.removeName != "fs" {
 		t.Fatalf("live removal = %q, want fs", ports.removeName)
@@ -99,7 +99,7 @@ func TestMCPConnectionValidationUsesDurableRegistry(t *testing.T) {
 	const name = "fs"
 	ports := &fakeMCPPorts{reconnectDone: make(chan string, 1)}
 	registry := &testMCPRegistry{servers: map[string]mcpserver.Server{
-		name: {Name: name, Enabled: true},
+		name: {Name: name, Enabled: true, Transport: mcpserver.TransportStdio, Command: "mcp-fs"},
 	}}
 	c := New(Config{
 		MCPRegistry:           registry,
@@ -155,7 +155,7 @@ func TestMCPStatusCallbackMayReenterMutationWithoutDeadlock(t *testing.T) {
 		statuses: []mcpserver.ConnectionStatus{{Name: name, State: mcpserver.ConnectionConnected}},
 	}
 	registry := &testMCPRegistry{servers: map[string]mcpserver.Server{
-		name: {Name: name, Enabled: true},
+		name: {Name: name, Enabled: true, Transport: mcpserver.TransportStdio, Command: "mcp-fs"},
 	}}
 	statuses := make(chan MCPServerStatus, 2)
 	mutationResult := make(chan error, 1)
@@ -173,7 +173,9 @@ func TestMCPStatusCallbackMayReenterMutationWithoutDeadlock(t *testing.T) {
 			// A status consumer is application-external code. It may synchronously
 			// issue another command; publication must hold neither mutation nor
 			// delivery-ordering locks while invoking it.
-			mutationResult <- c.SetMCPServerEnabled(context.Background(), name, false)
+			enabled := false
+			_, err := c.UpdateMCPServer(context.Background(), name, MCPServerPatch{Enabled: &enabled})
+			mutationResult <- err
 		}
 	}
 	c = New(cfg)
@@ -186,7 +188,7 @@ func TestMCPStatusCallbackMayReenterMutationWithoutDeadlock(t *testing.T) {
 		t.Fatalf("first status = %+v, want connecting", first)
 	}
 	if err := <-mutationResult; err != nil {
-		t.Fatalf("reentrant SetMCPServerEnabled: %v", err)
+		t.Fatalf("reentrant UpdateMCPServer: %v", err)
 	}
 	second := <-statuses
 	if second.Name != name || second.Known {
@@ -253,8 +255,11 @@ func TestTestMCPServerUsesLiveRegistryPort(t *testing.T) {
 	c := New(configWithMCPPorts(ports))
 
 	result, err := c.TestMCPServer(context.Background(), MCPServerInput{
-		Name: "fs", Transport: mcpserver.TransportStdio, Command: "mcp-fs",
-		Args: []string{"--root", "/repo"}, Env: map[string]string{"A": "1"},
+		Name: "fs", Connection: MCPConnectionInput{
+			Transport: mcpserver.TransportStdio, Command: "mcp-fs",
+			Args:        []string{"--root", "/repo"},
+			Environment: &MCPEnvironmentChange{Kind: MCPSecretSet, Value: map[string]string{"A": "1"}},
+		},
 	})
 	if err != nil {
 		t.Fatalf("TestMCPServer err = %v", err)
@@ -359,12 +364,12 @@ func configWithMCPPorts(ports interface {
 // domain Registry's sorted-list contract. Optional mutation hooks let
 // concurrency tests stop a write after its durable commit.
 type testMCPRegistry struct {
-	mu                 sync.Mutex
-	servers            map[string]mcpserver.Server
-	configureCommitted chan struct{}
-	releaseConfigure   chan struct{}
-	removeCommitted    chan struct{}
-	releaseRemove      chan struct{}
+	mu              sync.Mutex
+	servers         map[string]mcpserver.Server
+	saveCommitted   chan struct{}
+	releaseSave     chan struct{}
+	removeCommitted chan struct{}
+	releaseRemove   chan struct{}
 }
 
 func (r *testMCPRegistry) List(context.Context) ([]mcpserver.Server, error) {
@@ -387,15 +392,15 @@ func (r *testMCPRegistry) Get(_ context.Context, name string) (mcpserver.Server,
 	return server, ok, nil
 }
 
-func (r *testMCPRegistry) Configure(_ context.Context, server mcpserver.Server) error {
+func (r *testMCPRegistry) Save(_ context.Context, server mcpserver.Server) error {
 	r.mu.Lock()
 	r.servers[server.Name] = server
 	r.mu.Unlock()
-	if r.configureCommitted != nil {
-		close(r.configureCommitted)
+	if r.saveCommitted != nil {
+		close(r.saveCommitted)
 	}
-	if r.releaseConfigure != nil {
-		<-r.releaseConfigure
+	if r.releaseSave != nil {
+		<-r.releaseSave
 	}
 	return nil
 }
@@ -410,15 +415,5 @@ func (r *testMCPRegistry) Remove(_ context.Context, name string) error {
 	if r.releaseRemove != nil {
 		<-r.releaseRemove
 	}
-	return nil
-}
-
-func (r *testMCPRegistry) SetEnabled(_ context.Context, name string, enabled bool) error {
-	r.mu.Lock()
-	if server, ok := r.servers[name]; ok {
-		server.Enabled = enabled
-		r.servers[name] = server
-	}
-	r.mu.Unlock()
 	return nil
 }

@@ -1,5 +1,5 @@
 import type { MCPServerSettings, MCPTransport } from "./mcpServerConfig";
-import type { MCPServerConfigInput } from "./mcpServerInput";
+import type { MCPServerInput } from "./mcpServerInput";
 
 export interface MCPServerDraft {
   name: string;
@@ -8,10 +8,13 @@ export interface MCPServerDraft {
   command: string;
   args: string;
   env: string;
+  clearEnvironment: boolean;
   dir: string;
   url: string;
   authorization: string;
+  clearAuthorization: boolean;
   headers: string;
+  clearHeaders: boolean;
   timeoutSec: string;
   disabledTools: string[];
   autoApproveTools: string[];
@@ -37,14 +40,6 @@ function linesToMap(text: string): Record<string, string> | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
-function mapToLines(map: Record<string, string> | undefined): string {
-  return map
-    ? Object.entries(map)
-        .map(([key, value]) => `${key}=${value}`)
-        .join("\n")
-    : "";
-}
-
 export function initialMCPServerDraft(server?: MCPServerSettings): MCPServerDraft {
   return {
     name: server?.name ?? "",
@@ -52,30 +47,78 @@ export function initialMCPServerDraft(server?: MCPServerSettings): MCPServerDraf
     description: server?.description ?? "",
     command: server?.command ?? "",
     args: (server?.args ?? []).join("\n"),
-    env: mapToLines(server?.env),
+    env: "",
+    clearEnvironment: false,
     dir: server?.dir ?? "",
     url: server?.url ?? "",
     authorization: "",
-    headers: mapToLines(server?.headers),
+    clearAuthorization: false,
+    headers: "",
+    clearHeaders: false,
     timeoutSec: server?.timeoutSeconds ? String(server.timeoutSeconds) : "",
     disabledTools: server?.disabledTools ?? [],
     autoApproveTools: server?.autoApproveTools ?? [],
   };
 }
 
-export function isMCPServerDraftValid(draft: MCPServerDraft): boolean {
+export function isMCPServerDraftValid(draft: MCPServerDraft, server?: MCPServerSettings): boolean {
   return (
     draft.name.trim() !== "" &&
-    (draft.transport === "stdio" ? draft.command.trim() !== "" : draft.url.trim() !== "")
+    (draft.transport === "stdio" ? draft.command.trim() !== "" : draft.url.trim() !== "") &&
+    !mcpAuthorizationNeedsDisposition(draft, server) &&
+    !mcpHeadersNeedDisposition(draft, server) &&
+    !mcpEnvironmentNeedsDisposition(draft, server)
+  );
+}
+
+export function mcpEnvironmentNeedsDisposition(
+  draft: MCPServerDraft,
+  server?: MCPServerSettings,
+): boolean {
+  return (
+    draft.transport === "stdio" &&
+    linesToMap(draft.env) === undefined &&
+    !draft.clearEnvironment &&
+    server?.type === "stdio" &&
+    Boolean(server.envMasked && Object.keys(server.envMasked).length > 0) &&
+    !sameStdioTarget(server, draft)
+  );
+}
+
+export function mcpHeadersNeedDisposition(
+  draft: MCPServerDraft,
+  server?: MCPServerSettings,
+): boolean {
+  return (
+    draft.transport === "streamableHttp" &&
+    linesToMap(draft.headers) === undefined &&
+    !draft.clearHeaders &&
+    server?.type === "streamableHttp" &&
+    Boolean(server.headersMasked && Object.keys(server.headersMasked).length > 0) &&
+    !sameHTTPOrigin(server.url, draft.url)
+  );
+}
+
+export function mcpAuthorizationNeedsDisposition(
+  draft: MCPServerDraft,
+  server?: MCPServerSettings,
+): boolean {
+  return (
+    draft.transport === "streamableHttp" &&
+    draft.authorization.trim() === "" &&
+    !draft.clearAuthorization &&
+    server?.type === "streamableHttp" &&
+    Boolean(server.authorizationMasked) &&
+    !sameHTTPOrigin(server.url, draft.url)
   );
 }
 
 export function mcpServerInputFromDraft(
   draft: MCPServerDraft,
   server?: MCPServerSettings,
-): MCPServerConfigInput {
+): MCPServerInput {
   const secs = parseInt(draft.timeoutSec, 10);
-  const base: MCPServerConfigInput = {
+  const base: MCPServerInput = {
     name: draft.name.trim(),
     transport: draft.transport,
     enabled: server?.enabled ?? true,
@@ -89,14 +132,52 @@ export function mcpServerInputFromDraft(
       ...base,
       command: draft.command.trim() || undefined,
       args: linesToList(draft.args),
-      env: linesToMap(draft.env),
+      env: environmentFromDraft(draft),
       dir: draft.dir.trim() || undefined,
     };
   }
   return {
     ...base,
     url: draft.url.trim() || undefined,
-    authorization: draft.authorization.trim() || undefined,
-    headers: linesToMap(draft.headers),
+    authorization: authorizationFromDraft(draft),
+    headers: headersFromDraft(draft),
   };
+}
+
+function authorizationFromDraft(draft: MCPServerDraft): string | null | undefined {
+  const entered = draft.authorization.trim();
+  if (entered) return entered;
+  if (draft.clearAuthorization) return null;
+  return undefined;
+}
+
+function headersFromDraft(draft: MCPServerDraft): Record<string, string> | null | undefined {
+  const headers = linesToMap(draft.headers);
+  if (headers) return headers;
+  return draft.clearHeaders ? null : undefined;
+}
+
+function environmentFromDraft(draft: MCPServerDraft): Record<string, string> | null | undefined {
+  const environment = linesToMap(draft.env);
+  if (environment) return environment;
+  return draft.clearEnvironment ? null : undefined;
+}
+
+function sameStdioTarget(server: MCPServerSettings, draft: MCPServerDraft): boolean {
+  const args = linesToList(draft.args) ?? [];
+  const storedArgs = server.args ?? [];
+  return (
+    server.command === draft.command.trim() &&
+    storedArgs.length === args.length &&
+    storedArgs.every((value, index) => value === args[index]) &&
+    (server.dir ?? "") === draft.dir.trim()
+  );
+}
+
+function sameHTTPOrigin(left: string | undefined, right: string): boolean {
+  try {
+    return new URL(left ?? "").origin === new URL(right).origin;
+  } catch {
+    return false;
+  }
 }

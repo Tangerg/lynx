@@ -216,7 +216,7 @@ const (
 	ProblemDeniedByUser     = "denied_by_user"     // denied by the approval verdict
 	ProblemToolFailed       = "tool_failed"        // tool execution returned an error
 	ProblemChildRunCanceled = "child_run_canceled" // delegated Run was canceled by Run identity
-	// Inline status (McpServer.error, ProviderTestResult.error) — a connection or
+	// Inline status (McpServer.status.error, ProviderTestResult.error) — a connection or
 	// probe verdict that rides its own query result instead of failing the call,
 	// so the pane renders it beside the thing it describes.
 	ProblemMCPAuthorizationRequired = "mcp_authorization_required" // an HTTP MCP server needs an interactive sign-in
@@ -257,6 +257,9 @@ const (
 	CodeStaleSegment        = -32026
 	CodeReplayCursorInvalid = -32027
 	CodeReplayUnavailable   = -32028
+	CodeMCPServerNotFound   = -32029
+	CodeMCPServerExists     = -32030
+	CodeMCPServerDisabled   = -32031
 )
 
 // Sentinel errors returned by Runtime implementations. The dispatch
@@ -307,6 +310,9 @@ var (
 	// evicted. The events are not lost, only their replay: the client rebuilds from
 	// the durable reads and tails from now.
 	ErrReplayUnavailable      = errors.New("replay_unavailable")
+	ErrMCPServerNotFound      = errors.New("mcp_server_not_found")
+	ErrMCPServerAlreadyExists = errors.New("mcp_server_already_exists")
+	ErrMCPServerDisabled      = errors.New("mcp_server_disabled")
 	ErrInvalidProtocolVersion = errors.New("invalid_protocol_version")
 	// ErrVcsUnavailable: git is available but the cwd isn't a repo (AUX_API
 	// §2.3) — distinct from "clean repo" (empty result). NOT for missing git

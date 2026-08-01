@@ -316,23 +316,6 @@ export interface CodebaseStatusRequest {
   workspace: WorkspaceRef;
 }
 
-export interface ConfigureMCPServerRequest {
-  args?: string[];
-  authorization?: string;
-  autoApproveTools?: string[];
-  command?: string;
-  description?: string;
-  dir?: string;
-  disabledTools?: string[];
-  enabled: boolean;
-  env?: Record<string, string>;
-  headers?: Record<string, string>;
-  name: string;
-  timeoutSeconds?: number;
-  type: McpTransport;
-  url?: string;
-}
-
 export type ContentBlock =
   | { type: "text"; text: string }
   | { type: "image"; data: string; mime: string };
@@ -737,6 +720,16 @@ export interface MCPListToolsRequest {
   server?: string;
 }
 
+export interface MCPServerCandidate {
+  autoApproveTools?: string[];
+  connection: McpConnectionInput;
+  description?: string;
+  disabledTools?: string[];
+  enabled: boolean;
+  name: string;
+  timeoutSeconds?: number;
+}
+
 export interface MCPServerRequest {
   server: string;
 }
@@ -747,35 +740,47 @@ export interface ManagedSkill {
   name: string;
 }
 
-export type McpAuthStatus = "none" | "bearerToken" | "oauth" | "notLoggedIn";
+export type McpAuthorizationChange =
+  | { type: "set"; value: string }
+  | { type: "clear" };
+
+export type McpConnection =
+  | { type: "streamableHttp"; authorizationMasked?: string; headersMasked?: Record<string, string>; url: string }
+  | { type: "stdio"; args?: string[]; command: string; dir?: string; envMasked?: Record<string, string> };
+
+export type McpConnectionInput =
+  | { type: "streamableHttp"; authorization?: McpAuthorizationChange; headers?: McpHeadersChange; url: string }
+  | { type: "stdio"; args?: string[]; command: string; dir?: string; env?: McpEnvironmentChange };
+
+export type McpEnvironmentChange =
+  | { type: "set"; value: Record<string, string> }
+  | { type: "clear" };
+
+export type McpHeadersChange =
+  | { type: "set"; value: Record<string, string> }
+  | { type: "clear" };
+
+export type McpSecretChangeType = "set" | "clear";
 
 export interface McpServer {
-  authStatus?: McpAuthStatus;
-  description?: string;
-  error?: ProblemData;
-  name: string;
-  status: McpStatus;
-  toolCount?: number;
-}
-
-export interface McpServerConfig {
-  args?: string[];
-  authorizationMasked?: string;
   autoApproveTools?: string[];
-  command?: string;
+  connection: McpConnection;
   description?: string;
-  dir?: string;
   disabledTools?: string[];
-  enabled: boolean;
-  env?: Record<string, string>;
-  headers?: Record<string, string>;
   name: string;
+  status: McpServerState;
   timeoutSeconds?: number;
-  type: McpTransport;
-  url?: string;
 }
 
-export type McpStatus = "connecting" | "connected" | "disconnected" | "failed" | "needsAuth";
+export type McpServerState =
+  | { type: "disabled" }
+  | { type: "disconnected" }
+  | { type: "connecting" }
+  | { type: "connected"; toolCount: number }
+  | { type: "failed"; error: ProblemData }
+  | { type: "needsAuth"; error: ProblemData };
+
+export type McpServerStateType = "disabled" | "disconnected" | "connecting" | "connected" | "failed" | "needsAuth";
 
 export interface McpTestResult {
   error?: ProblemData;
@@ -850,8 +855,6 @@ export type PageOfManagedSkill = Page<ManagedSkill>;
 
 export type PageOfMcpServer = Page<McpServer>;
 
-export type PageOfMcpServerConfig = Page<McpServerConfig>;
-
 export type PageOfMcpTool = Page<McpTool>;
 
 export type PageOfMemoryEntry = Page<MemoryEntry>;
@@ -917,6 +920,9 @@ export type ProblemData =
   | { type: "item_not_found"; detail?: string; docUrl?: string }
   | { type: "mcp_authorization_required" }
   | { type: "mcp_dial_failed" }
+  | { type: "mcp_server_already_exists"; detail?: string; docUrl?: string }
+  | { type: "mcp_server_disabled"; detail?: string; docUrl?: string }
+  | { type: "mcp_server_not_found"; detail?: string; docUrl?: string }
   | { type: "method_not_found"; detail?: string; docUrl?: string }
   | { type: "path_outside_root"; detail?: string; docUrl?: string }
   | { type: "provider_error"; detail?: string; docUrl?: string }
@@ -1013,10 +1019,6 @@ export interface RememberScope {
 }
 
 export type RememberScopeKind = "session" | "project" | "global";
-
-export interface RemoveMCPServerRequest {
-  name: string;
-}
 
 export interface RequestMeta {
   clientCapabilities?: ClientCapabilities;
@@ -1269,11 +1271,6 @@ export interface SetHookTrustRequest {
   trusted: boolean;
 }
 
-export interface SetMCPEnabledRequest {
-  enabled: boolean;
-  name: string;
-}
-
 export interface Skill {
   description?: string;
   name: string;
@@ -1405,6 +1402,16 @@ export interface ToolSpec {
   name: string;
   parameters?: Record<string, unknown>;
   safetyClass?: SafetyClass;
+}
+
+export interface UpdateMCPServerRequest {
+  autoApproveTools?: string[];
+  connection?: McpConnectionInput;
+  description?: string;
+  disabledTools?: string[];
+  enabled?: boolean;
+  server: string;
+  timeoutSeconds?: number;
 }
 
 export interface UpdateMemoryRequest {
@@ -1561,8 +1568,8 @@ export const WIRE_ENUMS = {
   ItemScopeType: ["session", "run"],
   ItemStatus: ["running", "completed", "incomplete"],
   ItemType: ["userMessage", "agentMessage", "reasoning", "plan", "question", "toolCall", "compaction"],
-  McpAuthStatus: ["none", "bearerToken", "oauth", "notLoggedIn"],
-  McpStatus: ["connecting", "connected", "disconnected", "failed", "needsAuth"],
+  McpSecretChangeType: ["set", "clear"],
+  McpServerStateType: ["disabled", "disconnected", "connecting", "connected", "failed", "needsAuth"],
   McpTransport: ["stdio", "streamableHttp"],
   MemoryScope: ["cwd", "projectRoot", "home"],
   Modality: ["text", "image", "audio", "video", "pdf"],

@@ -157,6 +157,10 @@ const (
 	// minimum recovery or transaction unit. An empty third spelling has no useful
 	// meaning in either direction.
 	ConstraintNonEmptyItems
+	// ConstraintNonEmptyProperties rejects an empty object map. Secret-map
+	// replacement uses omission to preserve and a clear variant to remove, so an
+	// empty set value would be a third, ambiguous spelling of clear.
+	ConstraintNonEmptyProperties
 	// ConstraintUniqueItems rejects a repeated element. A filter is a set, and a
 	// value listed twice means the caller believes it is asking something a set
 	// cannot express.
@@ -173,6 +177,8 @@ func (k ConstraintKind) String() string {
 		return "nonNegative"
 	case ConstraintNonEmptyItems:
 		return "nonEmptyItems"
+	case ConstraintNonEmptyProperties:
+		return "nonEmptyProperties"
 	case ConstraintUniqueItems:
 		return "uniqueItems"
 	default:
@@ -587,14 +593,24 @@ func (f FieldConstraintSpec) validate() error {
 				return fmt.Errorf("%s.%s is %s; only a number can be non-negative", name, constraint.Field, kind)
 			}
 		case ConstraintNonEmptyItems, ConstraintUniqueItems:
-			// Deref unwraps slices, so the field's own kind is what answers "is this an
-			// array" — the element type is not the subject of an items constraint.
-			if leaf.Type.Kind() != reflect.Slice {
+			itemType := leaf.Type
+			if itemType.Kind() == reflect.Pointer {
+				itemType = itemType.Elem()
+			}
+			if itemType.Kind() != reflect.Slice {
 				return fmt.Errorf("%s.%s is %s; only an array has items", name, constraint.Field, leaf.Type.Kind())
+			}
+		case ConstraintNonEmptyProperties:
+			propertyType := leaf.Type
+			if propertyType.Kind() == reflect.Pointer {
+				propertyType = propertyType.Elem()
+			}
+			if propertyType.Kind() != reflect.Map {
+				return fmt.Errorf("%s.%s is %s; only an object map has properties", name, constraint.Field, leaf.Type.Kind())
 			}
 		default:
 			return fmt.Errorf(
-				"%s.%s has invalid constraint kind %s; expected %s, %s, %s, %s or %s",
+				"%s.%s has invalid constraint kind %s; expected %s, %s, %s, %s, %s or %s",
 				name,
 				constraint.Field,
 				constraint.Kind,
@@ -602,6 +618,7 @@ func (f FieldConstraintSpec) validate() error {
 				ConstraintPositive,
 				ConstraintNonNegative,
 				ConstraintNonEmptyItems,
+				ConstraintNonEmptyProperties,
 				ConstraintUniqueItems,
 			)
 		}

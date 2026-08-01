@@ -5,7 +5,7 @@
 > method the runtime does not serve. Prose, rationale and wire examples live in
 > `app/desktop/docs/protocol/`; this is the mechanical index.
 
-Protocol `2026-08-02` (minimum supported `2026-08-02`) · 86 methods
+Protocol `2026-08-02` (minimum supported `2026-08-02`) · 85 methods
 
 ## Methods
 
@@ -50,14 +50,13 @@ Protocol `2026-08-02` (minimum supported `2026-08-02`) · 86 methods
 | `recipes.list` | query | unary | none | — | `workspace_unavailable` |
 | `agentDocs.list` | query | unary | none | — | `workspace_unavailable` |
 | `mcp.servers.list` | query | unary | none | `mcp` | `capability_not_negotiated` |
+| `mcp.servers.create` | command | unary | replayResponse | `mcp` | `mcp_server_already_exists`, `capability_not_negotiated` |
+| `mcp.servers.update` | command | unary | replayResponse | `mcp` | `mcp_server_not_found`, `capability_not_negotiated` |
+| `mcp.servers.delete` | command | unary | replayResponse | `mcp` | `mcp_server_not_found`, `capability_not_negotiated` |
+| `mcp.servers.test` | query | unary | none | `mcp` | `capability_not_negotiated` |
 | `mcp.tools.list` | query | unary | none | `mcp` | `capability_not_negotiated` |
-| `mcp.servers.reconnect` | command | unary | replayResponse | `mcp` | `capability_not_negotiated` |
-| `mcp.servers.authorize` | command | unary | replayResponse | `mcp` | `capability_not_negotiated` |
-| `mcp.configs.list` | query | unary | none | `mcp` | `capability_not_negotiated` |
-| `mcp.configs.configure` | command | unary | replayResponse | `mcp` | `capability_not_negotiated` |
-| `mcp.configs.remove` | command | unary | replayResponse | `mcp` | `capability_not_negotiated` |
-| `mcp.configs.setEnabled` | command | unary | replayResponse | `mcp` | `capability_not_negotiated` |
-| `mcp.configs.test` | query | unary | none | `mcp` | `capability_not_negotiated` |
+| `mcp.servers.reconnect` | command | unary | replayResponse | `mcp` | `mcp_server_not_found`, `mcp_server_disabled`, `capability_not_negotiated` |
+| `mcp.servers.authorize` | command | unary | replayResponse | `mcp` | `mcp_server_not_found`, `mcp_server_disabled`, `capability_not_negotiated` |
 | `hooks.list` | query | unary | none | — | `workspace_unavailable` |
 | `hooks.setTrust` | command | unary | replayResponse | — | — |
 | `approval.getMode` | query | unary | none | — | — |
@@ -151,6 +150,9 @@ publish one namespaced pattern branch without weakening first-party tags.
 | `item_not_found` | — | `detail`, `docUrl` |
 | `mcp_authorization_required` | — | — |
 | `mcp_dial_failed` | — | — |
+| `mcp_server_already_exists` | — | `detail`, `docUrl` |
+| `mcp_server_disabled` | — | `detail`, `docUrl` |
+| `mcp_server_not_found` | — | `detail`, `docUrl` |
 | `method_not_found` | — | `detail`, `docUrl` |
 | `path_outside_root` | — | `detail`, `docUrl` |
 | `provider_error` | — | `detail`, `docUrl` |
@@ -277,6 +279,52 @@ publish one namespaced pattern branch without weakening first-party tags.
 | --- | --- | --- |
 | `set` | `value` | — |
 | `clear` | — | — |
+
+### `McpConnection`
+
+| tag | required | optional |
+| --- | --- | --- |
+| `streamableHttp` | `url` | `authorizationMasked`, `headersMasked` |
+| `stdio` | `command` | `args`, `envMasked`, `dir` |
+
+### `McpConnectionInput`
+
+| tag | required | optional |
+| --- | --- | --- |
+| `streamableHttp` | `url` | `authorization`, `headers` |
+| `stdio` | `command` | `args`, `env`, `dir` |
+
+### `McpAuthorizationChange`
+
+| tag | required | optional |
+| --- | --- | --- |
+| `set` | `value` | — |
+| `clear` | — | — |
+
+### `McpHeadersChange`
+
+| tag | required | optional |
+| --- | --- | --- |
+| `set` | `value` | — |
+| `clear` | — | — |
+
+### `McpEnvironmentChange`
+
+| tag | required | optional |
+| --- | --- | --- |
+| `set` | `value` | — |
+| `clear` | — | — |
+
+### `McpServerState`
+
+| tag | required | optional |
+| --- | --- | --- |
+| `disabled` | — | — |
+| `disconnected` | — | — |
+| `connecting` | — | — |
+| `connected` | `toolCount` | — |
+| `failed` | `error` | — |
+| `needsAuth` | `error` | — |
 
 ### `Interrupt`
 
@@ -417,9 +465,21 @@ TypeScript validator from this single registry projection.
 | `SkillNameRequest` | `name` | `nonEmpty` |
 | `SetHookTrustRequest` | `projectRoot` | `nonEmpty` |
 | `MCPServerRequest` | `server` | `nonEmpty` |
-| `ConfigureMCPServerRequest` | `name` | `nonEmpty` |
-| `RemoveMCPServerRequest` | `name` | `nonEmpty` |
-| `SetMCPEnabledRequest` | `name` | `nonEmpty` |
+| `McpConnection` | `url` | `nonEmpty` |
+| `McpConnection` | `command` | `nonEmpty` |
+| `McpConnectionInput` | `url` | `nonEmpty` |
+| `McpConnectionInput` | `command` | `nonEmpty` |
+| `McpAuthorizationChange` | `value` | `nonEmpty` |
+| `McpHeadersChange` | `value` | `nonEmptyProperties` |
+| `McpEnvironmentChange` | `value` | `nonEmptyProperties` |
+| `MCPServerCandidate` | `name` | `nonEmpty` |
+| `MCPServerCandidate` | `timeoutSeconds` | `nonNegative` |
+| `MCPServerCandidate` | `disabledTools` | `uniqueItems` |
+| `MCPServerCandidate` | `autoApproveTools` | `uniqueItems` |
+| `UpdateMCPServerRequest` | `server` | `nonEmpty` |
+| `UpdateMCPServerRequest` | `timeoutSeconds` | `nonNegative` |
+| `UpdateMCPServerRequest` | `disabledTools` | `uniqueItems` |
+| `UpdateMCPServerRequest` | `autoApproveTools` | `uniqueItems` |
 | `UpdateProviderRequest` | `provider` | `nonEmpty` |
 | `ProviderConfigChange` | `value` | `nonEmpty` |
 | `TestProviderRequest` | `provider` | `nonEmpty` |
@@ -498,14 +558,13 @@ available. Refusal is `capability_not_negotiated` — never a silent downgrade.
 | `skills.drafts.promote` | always | `skills` |
 | `skills.drafts.reject` | always | `skills` |
 | `mcp.servers.list` | always | `mcp` |
+| `mcp.servers.create` | always | `mcp` |
+| `mcp.servers.update` | always | `mcp` |
+| `mcp.servers.delete` | always | `mcp` |
+| `mcp.servers.test` | always | `mcp` |
 | `mcp.tools.list` | always | `mcp` |
 | `mcp.servers.reconnect` | always | `mcp` |
 | `mcp.servers.authorize` | always | `mcp` |
-| `mcp.configs.list` | always | `mcp` |
-| `mcp.configs.configure` | always | `mcp` |
-| `mcp.configs.remove` | always | `mcp` |
-| `mcp.configs.setEnabled` | always | `mcp` |
-| `mcp.configs.test` | always | `mcp` |
 | `schedules.list` | always | `schedules` |
 | `schedules.create` | always | `schedules` |
 | `schedules.update` | always | `schedules` |

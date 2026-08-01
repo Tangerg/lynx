@@ -7,7 +7,6 @@ import {
 import { GOAL_KEY } from "@/plugins/builtin/chat/goal/public/queries";
 import { SCHEDULES_KEY } from "@/plugins/builtin/settings/schedules/public/queries";
 import {
-  MCP_CONFIGS_KEY,
   MCP_SERVERS_KEY,
   MCP_TOOLS_KEY,
 } from "@/plugins/builtin/settings/mcp-servers/public/queries";
@@ -31,7 +30,6 @@ const QUERY_KEYS: Record<
   diff: WORKSPACE_DIFF_KEY,
   filesChanged: WORKSPACE_FILES_CHANGED_KEY,
   goal: GOAL_KEY,
-  mcpConfigs: MCP_CONFIGS_KEY,
   mcpServers: MCP_SERVERS_KEY,
   mcpTools: MCP_TOOLS_KEY,
   schedules: SCHEDULES_KEY,

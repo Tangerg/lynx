@@ -53,7 +53,10 @@ func (*fakeMCPPorts) Detach(string) error                               { return
 func fakeMCPPortsConfig(ports *fakeMCPPorts) integrations.Config {
 	servers := make(map[string]mcpserver.Server, len(ports.statuses))
 	for _, status := range ports.statuses {
-		servers[status.Name] = mcpserver.Server{Name: status.Name, Enabled: true}
+		servers[status.Name] = mcpserver.Server{
+			Name: status.Name, Enabled: true,
+			Transport: mcpserver.TransportStdio, Command: "mcp-" + status.Name,
+		}
 	}
 	return integrations.Config{
 		MCPRegistry:           &mcpRegistryFake{servers: servers},
@@ -66,10 +69,10 @@ func fakeMCPPortsConfig(ports *fakeMCPPorts) integrations.Config {
 
 // mcpRegistryFake is the integration registry the MCP config handlers drive.
 type mcpRegistryFake struct {
-	mu         sync.Mutex
-	servers    map[string]mcpserver.Server
-	getErr     error
-	configured []mcpserver.Server
+	mu      sync.Mutex
+	servers map[string]mcpserver.Server
+	getErr  error
+	saved   []mcpserver.Server
 }
 
 func (r *mcpRegistryFake) List(context.Context) ([]mcpserver.Server, error) {
@@ -95,30 +98,20 @@ func (r *mcpRegistryFake) Get(_ context.Context, name string) (mcpserver.Server,
 	return srv, ok, nil
 }
 
-func (r *mcpRegistryFake) Configure(_ context.Context, srv mcpserver.Server) error {
+func (r *mcpRegistryFake) Save(_ context.Context, srv mcpserver.Server) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.servers == nil {
 		r.servers = make(map[string]mcpserver.Server)
 	}
 	r.servers[srv.Name] = srv
-	r.configured = append(r.configured, srv)
+	r.saved = append(r.saved, srv)
 	return nil
 }
 
 func (r *mcpRegistryFake) Remove(_ context.Context, name string) error {
 	r.mu.Lock()
 	delete(r.servers, name)
-	r.mu.Unlock()
-	return nil
-}
-
-func (r *mcpRegistryFake) SetEnabled(_ context.Context, name string, enabled bool) error {
-	r.mu.Lock()
-	if server, ok := r.servers[name]; ok {
-		server.Enabled = enabled
-		r.servers[name] = server
-	}
 	r.mu.Unlock()
 	return nil
 }

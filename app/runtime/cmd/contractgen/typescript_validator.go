@@ -223,6 +223,9 @@ func (e *checkEmitter) compile(node *schema) string {
 	if node.MinItems != nil {
 		parts = append(parts, e.call("minItems", strconv.Itoa(*node.MinItems)))
 	}
+	if node.MinProperties != nil {
+		parts = append(parts, e.call("minProperties", strconv.Itoa(*node.MinProperties)))
+	}
 	if node.UniqueItems {
 		parts = append(parts, e.call("uniqueItems"))
 	}

@@ -15,10 +15,13 @@ describe("mcpServerDraft", () => {
       command: " npx ",
       args: " -y\n@modelcontextprotocol/server-git\n\n",
       env: "TOKEN=a=b\nEMPTY_KEY\n",
+      clearEnvironment: false,
       dir: " /repo ",
       url: "",
       authorization: "",
+      clearAuthorization: false,
       headers: "",
+      clearHeaders: false,
       timeoutSec: "30",
       disabledTools: ["danger"],
       autoApproveTools: ["status"],
@@ -41,9 +44,15 @@ describe("mcpServerDraft", () => {
 
   it("keeps blank http authorization omitted and parses extra headers", () => {
     const server: MCPServerSettings = {
+      id: "cloud",
       name: "cloud",
+      desc: "",
+      tools: 0,
+      status: "disabled",
+      icon: "tool",
       type: "streamableHttp",
       enabled: false,
+      url: "https://example.com/mcp",
       authorizationMasked: "********",
     };
     const input = mcpServerInputFromDraft(
@@ -54,10 +63,13 @@ describe("mcpServerDraft", () => {
         command: "",
         args: "",
         env: "",
+        clearEnvironment: false,
         dir: "",
         url: " https://example.com/mcp ",
         authorization: "   ",
+        clearAuthorization: false,
         headers: "X-Trace=abc=123\nBare\n",
+        clearHeaders: false,
         timeoutSec: "0",
         disabledTools: [],
         autoApproveTools: [],
@@ -80,13 +92,18 @@ describe("mcpServerDraft", () => {
 
   it("initializes editable text fields from an existing server", () => {
     const draft = initialMCPServerDraft({
+      id: "fs",
       name: "fs",
+      desc: "",
+      tools: 0,
+      status: "connected",
+      icon: "folder",
       type: "stdio",
       enabled: true,
       command: "node",
       args: ["server.js", "--root", "/repo"],
-      env: { A: "1", B: "two=three" },
-      headers: { "X-Env": "dev" },
+      envMasked: { A: "********", B: "********" },
+      headersMasked: { "X-Env": "********" },
       timeoutSeconds: 15,
       disabledTools: ["delete"],
       autoApproveTools: ["read"],
@@ -97,13 +114,96 @@ describe("mcpServerDraft", () => {
       transport: "stdio",
       command: "node",
       args: "server.js\n--root\n/repo",
-      env: "A=1\nB=two=three",
-      headers: "X-Env=dev",
+      env: "",
+      clearEnvironment: false,
+      headers: "",
+      clearHeaders: false,
       timeoutSec: "15",
       authorization: "",
+      clearAuthorization: false,
       disabledTools: ["delete"],
       autoApproveTools: ["read"],
     });
+  });
+
+  it("requires an explicit credential decision when the HTTP origin changes", () => {
+    const server: MCPServerSettings = {
+      id: "cloud",
+      name: "cloud",
+      desc: "",
+      tools: 0,
+      status: "disconnected",
+      icon: "tool",
+      type: "streamableHttp",
+      enabled: true,
+      url: "https://old.example/mcp",
+      authorizationMasked: "********",
+    };
+    const draft = {
+      ...initialMCPServerDraft(server),
+      url: "https://new.example/mcp",
+    };
+
+    expect(isMCPServerDraftValid(draft, server)).toBe(false);
+    expect(isMCPServerDraftValid({ ...draft, clearAuthorization: true }, server)).toBe(true);
+    expect(isMCPServerDraftValid({ ...draft, authorization: "Bearer replacement" }, server)).toBe(
+      true,
+    );
+    expect(
+      mcpServerInputFromDraft({ ...draft, clearAuthorization: true }, server).authorization,
+    ).toBe(null);
+  });
+
+  it("requires explicit dispositions for stored headers when the HTTP origin changes", () => {
+    const server: MCPServerSettings = {
+      id: "cloud",
+      name: "cloud",
+      desc: "",
+      tools: 0,
+      status: "disconnected",
+      icon: "tool",
+      type: "streamableHttp",
+      enabled: true,
+      url: "https://old.example/mcp",
+      headersMasked: { "X-API-Key": "********" },
+    };
+    const draft = { ...initialMCPServerDraft(server), url: "https://new.example/mcp" };
+
+    expect(isMCPServerDraftValid(draft, server)).toBe(false);
+    expect(isMCPServerDraftValid({ ...draft, clearHeaders: true }, server)).toBe(true);
+    expect(isMCPServerDraftValid({ ...draft, headers: "X-API-Key=replacement" }, server)).toBe(
+      true,
+    );
+    expect(mcpServerInputFromDraft({ ...draft, clearHeaders: true }, server).headers).toBe(null);
+  });
+
+  it("preserves stored environment only for an unchanged stdio process target", () => {
+    const server: MCPServerSettings = {
+      id: "fs",
+      name: "fs",
+      desc: "",
+      tools: 0,
+      status: "disconnected",
+      icon: "folder",
+      type: "stdio",
+      enabled: true,
+      command: "node",
+      args: ["server.js"],
+      dir: "/repo",
+      envMasked: { API_KEY: "********" },
+    };
+    const unchanged = initialMCPServerDraft(server);
+
+    expect(isMCPServerDraftValid(unchanged, server)).toBe(true);
+    expect(mcpServerInputFromDraft(unchanged, server).env).toBeUndefined();
+
+    const changed = { ...unchanged, args: "other.js" };
+    expect(isMCPServerDraftValid(changed, server)).toBe(false);
+    expect(isMCPServerDraftValid({ ...changed, clearEnvironment: true }, server)).toBe(true);
+    expect(mcpServerInputFromDraft({ ...changed, clearEnvironment: true }, server).env).toBe(null);
+    expect(mcpServerInputFromDraft({ ...changed, env: "API_KEY=replacement" }, server).env).toEqual(
+      { API_KEY: "replacement" },
+    );
   });
 
   it("validates the active transport's required field", () => {

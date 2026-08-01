@@ -2,28 +2,23 @@ package protocol
 
 import "context"
 
-// MCP is the mcp.* method group. Server status, exposed tools, and editable
-// configuration are one integration surface even though they use sub-roots.
+// MCP is the mcp.* resource group. One McpServer resource carries both the
+// durable configuration and its current connection state; clients never join a
+// second configuration collection with a transient status collection.
 type MCP interface {
 	ListMCPServers(ctx context.Context, q PageQuery) (*Page[McpServer], error)
+	CreateMCPServer(ctx context.Context, in CreateMCPServerRequest) (*McpServer, error)
+	UpdateMCPServer(ctx context.Context, in UpdateMCPServerRequest) (*McpServer, error)
+	DeleteMCPServer(ctx context.Context, server string) error
+	TestMCPServer(ctx context.Context, in MCPServerCandidate) (*McpTestResult, error)
 	ListMCPTools(ctx context.Context, in MCPListToolsRequest) (*Page[McpTool], error)
 	ReconnectMCPServer(ctx context.Context, server string) error
 	AuthorizeMCPServer(ctx context.Context, server string) error
-	ListMCPServerConfigs(ctx context.Context, q PageQuery) (*Page[McpServerConfig], error)
-	ConfigureMCPServer(ctx context.Context, in ConfigureMCPServerRequest) (*McpServerConfig, error)
-	RemoveMCPServer(ctx context.Context, name string) error
-	SetMCPServerEnabled(ctx context.Context, in SetMCPEnabledRequest) error
-	TestMCPServer(ctx context.Context, in ConfigureMCPServerRequest) (*McpTestResult, error)
 }
 
-// MCPServerRequest identifies a configured MCP server by name.
+// MCPServerRequest identifies a configured MCP server by its stable name.
 type MCPServerRequest struct {
 	Server string `json:"server"`
-}
-
-// RemoveMCPServerRequest identifies the MCP configuration to remove.
-type RemoveMCPServerRequest struct {
-	Name string `json:"name"`
 }
 
 // MCPListToolsRequest — mcp.tools.list body.
@@ -32,70 +27,38 @@ type MCPListToolsRequest struct {
 	PageQuery
 }
 
-// McpStatus is an MCP server's connection state (AUX_API §5.1). Carried on
-// McpServer.Status and the mcp.serverChanged WorkspaceEvent.
-type McpStatus string
-
-const (
-	McpConnecting   McpStatus = "connecting"
-	McpConnected    McpStatus = "connected"
-	McpDisconnected McpStatus = "disconnected"
-	McpFailed       McpStatus = "failed"
-	McpNeedsAuth    McpStatus = "needsAuth"
-)
-
-// McpAuthStatus is an MCP server's auth posture (AUX_API §5.1); omitted when
-// the server tracks no auth.
-type McpAuthStatus string
-
-const (
-	McpAuthNone        McpAuthStatus = "none"
-	McpAuthBearerToken McpAuthStatus = "bearerToken"
-	McpAuthOAuth       McpAuthStatus = "oauth"
-	McpAuthNotLoggedIn McpAuthStatus = "notLoggedIn"
-)
-
-// McpServer is one configured MCP server (API.md §4.10).
+// McpServer is the single safe read model for one configured MCP server. Its
+// status includes "disabled", so configuration enablement and live lifecycle
+// can never contradict one another on the wire.
 type McpServer struct {
-	Name       string        `json:"name"`
-	Status     McpStatus     `json:"status"` // see McpStatus
-	ToolCount  *int          `json:"toolCount,omitempty"`
-	AuthStatus McpAuthStatus `json:"authStatus,omitempty"` // see McpAuthStatus; omitted when untracked
-	// Error carries the reason for a failed server (AUX_API §5.1); set only
-	// when Status is "failed".
-	Error       *ProblemData `json:"error,omitempty"`
-	Description string       `json:"description,omitempty"`
+	Name             string         `json:"name"`
+	Description      string         `json:"description,omitempty"`
+	Connection       McpConnection  `json:"connection"`
+	TimeoutSeconds   int            `json:"timeoutSeconds,omitempty"`
+	DisabledTools    []string       `json:"disabledTools,omitempty"`
+	AutoApproveTools []string       `json:"autoApproveTools,omitempty"`
+	Status           McpServerState `json:"status"`
 }
 
-// McpTool is one tool exposed by an MCP server (API.md §4.10).
-type McpTool struct {
-	Server      string         `json:"server"`
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	InputSchema map[string]any `json:"inputSchema,omitempty"`
-}
+// McpServerStateType is the complete lifecycle of a configured MCP server. A
+// disabled entry is durable but intentionally has no live connection.
+type McpServerStateType string
 
-// McpServerConfig is one entry in the MCP-server registry — the editable
-// configuration (mcp.configs.list / configure), distinct from McpServer
-// (the live status from listServers). The bearer token is returned masked. Live
-// connection state (status / toolCount / error) is intentionally NOT carried
-// here — read it from mcp.servers.list (McpServer), keyed by name, so
-// the editable and observed shapes don't cross-contaminate.
-type McpServerConfig struct {
-	Name                string            `json:"name"`
-	Transport           McpTransport      `json:"type"`
-	Enabled             bool              `json:"enabled"`
-	Description         string            `json:"description,omitempty"`
-	URL                 string            `json:"url,omitempty"`                 // http transport
-	AuthorizationMasked string            `json:"authorizationMasked,omitempty"` // http; "" = none
-	Headers             map[string]string `json:"headers,omitempty"`             // http; extra request headers (not masked)
-	Command             string            `json:"command,omitempty"`             // stdio transport
-	Args                []string          `json:"args,omitempty"`
-	Env                 map[string]string `json:"env,omitempty"` // stdio; KEY→value, replaces subprocess env
-	Dir                 string            `json:"dir,omitempty"`
-	TimeoutSeconds      int               `json:"timeoutSeconds,omitempty"`   // connect-handshake bound; 0 = unbounded
-	DisabledTools       []string          `json:"disabledTools,omitempty"`    // hidden from the model
-	AutoApproveTools    []string          `json:"autoApproveTools,omitempty"` // skip the approval gate
+const (
+	McpServerDisabled     McpServerStateType = "disabled"
+	McpServerDisconnected McpServerStateType = "disconnected"
+	McpServerConnecting   McpServerStateType = "connecting"
+	McpServerConnected    McpServerStateType = "connected"
+	McpServerFailed       McpServerStateType = "failed"
+	McpServerNeedsAuth    McpServerStateType = "needsAuth"
+)
+
+// McpServerState is a closed union. toolCount belongs only to connected;
+// error belongs only to failed and needsAuth.
+type McpServerState struct {
+	Type      McpServerStateType `json:"type"`
+	ToolCount *int               `json:"toolCount,omitempty"`
+	Error     *ProblemData       `json:"error,omitempty"`
 }
 
 // McpTransport is the protocol's closed MCP transport vocabulary.
@@ -106,37 +69,101 @@ const (
 	McpTransportStreamableHTTP McpTransport = "streamableHttp"
 )
 
-// ConfigureMCPServerRequest — mcp.configs.configure / test body (the editable
-// fields of McpServerConfig). Authorization is the RAW bearer token (http only);
-// an empty Authorization when (re)configuring or testing an EXISTING server
-// preserves its stored token only while the HTTP endpoint origin is unchanged,
-// so editing other fields needn't re-enter the secret without allowing a URL
-// change to transfer credentials to another origin.
-type ConfigureMCPServerRequest struct {
-	Name             string            `json:"name"`
-	Transport        McpTransport      `json:"type"`
-	Enabled          bool              `json:"enabled"`
-	Description      string            `json:"description,omitempty"`
-	URL              string            `json:"url,omitempty"`
-	Authorization    string            `json:"authorization,omitempty"`
-	Headers          map[string]string `json:"headers,omitempty"`
-	Command          string            `json:"command,omitempty"`
-	Args             []string          `json:"args,omitempty"`
-	Env              map[string]string `json:"env,omitempty"`
-	Dir              string            `json:"dir,omitempty"`
-	TimeoutSeconds   int               `json:"timeoutSeconds,omitempty"`
-	DisabledTools    []string          `json:"disabledTools,omitempty"`
-	AutoApproveTools []string          `json:"autoApproveTools,omitempty"`
+// McpConnection is the safe output union for a server's connection descriptor.
+// Secret-bearing values are write-only; reads expose only masked representations.
+type McpConnection struct {
+	Type                McpTransport      `json:"type"`
+	URL                 string            `json:"url,omitempty"`
+	AuthorizationMasked string            `json:"authorizationMasked,omitempty"`
+	HeadersMasked       map[string]string `json:"headersMasked,omitempty"`
+	Command             string            `json:"command,omitempty"`
+	Args                []string          `json:"args,omitempty"`
+	EnvMasked           map[string]string `json:"envMasked,omitempty"`
+	Dir                 string            `json:"dir,omitempty"`
 }
 
-// SetMCPEnabledRequest — mcp.configs.setEnabled body.
-type SetMCPEnabledRequest struct {
-	Name    string `json:"name"`
-	Enabled bool   `json:"enabled"`
+// McpSecretChangeType gives a secret update exact three-state semantics:
+// omission preserves, set replaces, and clear removes.
+type McpSecretChangeType string
+
+const (
+	McpSecretSet   McpSecretChangeType = "set"
+	McpSecretClear McpSecretChangeType = "clear"
+)
+
+// McpAuthorizationChange is the write-only authorization change union.
+type McpAuthorizationChange struct {
+	Type  McpSecretChangeType `json:"type"`
+	Value string              `json:"value,omitempty"`
 }
 
-// McpTestResult — mcp.configs.test result (a connection probe; mirrors
-// ProviderTestResult).
+// McpHeadersChange is the write-only full replacement for HTTP headers. Header
+// values may contain credentials, so reads expose masked values and updates use
+// the same exact omission/set/clear semantics as Authorization.
+type McpHeadersChange struct {
+	Type  McpSecretChangeType `json:"type"`
+	Value map[string]string   `json:"value,omitempty"`
+}
+
+// McpEnvironmentChange is the write-only full replacement for a stdio
+// process's environment. Environment values may contain credentials, so reads
+// expose masked values and updates use exact omission/set/clear semantics.
+type McpEnvironmentChange struct {
+	Type  McpSecretChangeType `json:"type"`
+	Value map[string]string   `json:"value,omitempty"`
+}
+
+// McpConnectionInput is the write union for a complete connection descriptor.
+// A connection replacement is atomic: fields from the other transport cannot
+// survive a transport switch.
+type McpConnectionInput struct {
+	Type          McpTransport            `json:"type"`
+	URL           string                  `json:"url,omitempty"`
+	Authorization *McpAuthorizationChange `json:"authorization,omitempty"`
+	Headers       *McpHeadersChange       `json:"headers,omitempty"`
+	Command       string                  `json:"command,omitempty"`
+	Args          []string                `json:"args,omitempty"`
+	Env           *McpEnvironmentChange   `json:"env,omitempty"`
+	Dir           string                  `json:"dir,omitempty"`
+}
+
+// MCPServerCandidate is a complete, unpersisted MCP server descriptor. Create
+// persists it; test probes it without changing durable or live state.
+type MCPServerCandidate struct {
+	Name             string             `json:"name"`
+	Enabled          bool               `json:"enabled"`
+	Description      string             `json:"description,omitempty"`
+	Connection       McpConnectionInput `json:"connection"`
+	TimeoutSeconds   int                `json:"timeoutSeconds,omitempty"`
+	DisabledTools    []string           `json:"disabledTools,omitempty"`
+	AutoApproveTools []string           `json:"autoApproveTools,omitempty"`
+}
+
+// CreateMCPServerRequest — mcp.servers.create body.
+type CreateMCPServerRequest = MCPServerCandidate
+
+// UpdateMCPServerRequest — mcp.servers.update body. Omitted members preserve
+// their current value; present empty strings, collections, and zeroes clear it.
+// Name is immutable and addressed by Server.
+type UpdateMCPServerRequest struct {
+	Server           string              `json:"server"`
+	Enabled          *bool               `json:"enabled,omitempty"`
+	Description      *string             `json:"description,omitempty"`
+	Connection       *McpConnectionInput `json:"connection,omitempty"`
+	TimeoutSeconds   *int                `json:"timeoutSeconds,omitempty"`
+	DisabledTools    *[]string           `json:"disabledTools,omitempty"`
+	AutoApproveTools *[]string           `json:"autoApproveTools,omitempty"`
+}
+
+// McpTool is one tool exposed by an MCP server (API.md §4.10).
+type McpTool struct {
+	Server      string         `json:"server"`
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+	InputSchema map[string]any `json:"inputSchema,omitempty"`
+}
+
+// McpTestResult is the semantic result of mcp.servers.test.
 type McpTestResult struct {
 	OK    bool         `json:"ok"`
 	Error *ProblemData `json:"error,omitempty"`

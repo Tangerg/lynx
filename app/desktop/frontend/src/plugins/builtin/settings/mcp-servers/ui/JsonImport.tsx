@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Icon, PillButton, Surface, TextArea, TextButton } from "@/ui";
-import { useConfigureMCPServer } from "../application/mcpServerConfig";
+import { useCreateMCPServer } from "../application/mcpServerConfig";
 import { notifyInfo } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { parseMcpImport } from "../application/mcpImport";
 
 export function JsonImport() {
   const t = useT();
-  const configure = useConfigureMCPServer();
+  const create = useCreateMCPServer();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -17,9 +17,9 @@ export function JsonImport() {
     setBusy(true);
     setError(undefined);
     try {
-      const { configs } = parseMcpImport(text);
-      for (const config of configs) await configure(config);
-      notifyInfo(t("mcp.import.ok", { count: configs.length }), { source: "mcp" });
+      const { servers } = parseMcpImport(text);
+      for (const server of servers) await create(server);
+      notifyInfo(t("mcp.import.ok", { count: servers.length }), { source: "mcp" });
       setText("");
       setOpen(false);
     } catch (err) {

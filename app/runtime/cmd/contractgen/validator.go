@@ -127,15 +127,25 @@ func validatorChecks(
 			}
 			checks = append(checks, fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector))
 		case dispatch.ConstraintNonNegative:
-			checks = append(checks, fmt.Sprintf("nonNegativeNumber(%s, value.%s)", field, selector))
+			validatorName := "nonNegativeNumber"
+			if leaf.Type.Kind() == reflect.Pointer {
+				validatorName = "optionalNonNegativeNumber"
+			}
+			checks = append(checks, fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector))
 		case dispatch.ConstraintNonEmptyItems:
 			validatorName := "requiredItems"
 			if leaf.Optional {
 				validatorName = "nonEmptyItems"
 			}
 			checks = append(checks, fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector))
+		case dispatch.ConstraintNonEmptyProperties:
+			checks = append(checks, fmt.Sprintf("nonEmptyProperties(%s, value.%s)", field, selector))
 		case dispatch.ConstraintUniqueItems:
-			checks = append(checks, fmt.Sprintf("uniqueItems(%s, value.%s)", field, selector))
+			validatorName := "uniqueItems"
+			if leaf.Type.Kind() == reflect.Pointer {
+				validatorName = "optionalUniqueItems"
+			}
+			checks = append(checks, fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector))
 		default:
 			panic(fmt.Sprintf(
 				"contractgen: %s.%s uses unsupported constraint %s",
