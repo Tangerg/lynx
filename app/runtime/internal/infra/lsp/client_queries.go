@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 func (c *client) definition(ctx context.Context, abs string, pos Position) ([]Location, error) {
@@ -22,7 +23,11 @@ func (c *client) references(ctx context.Context, abs string, pos Position) ([]Lo
 	}, &raw); err != nil {
 		return nil, fmt.Errorf("lsp: references: %w", err)
 	}
-	return parseLocations(raw), nil
+	locations, err := parseLocations(raw)
+	if err != nil {
+		return nil, fmt.Errorf("lsp: decode references response: %w", err)
+	}
+	return locations, nil
 }
 
 func (c *client) implementation(ctx context.Context, abs string, pos Position) ([]Location, error) {
@@ -43,7 +48,11 @@ func (c *client) positionLocations(ctx context.Context, abs string, pos Position
 	}, &raw); err != nil {
 		return nil, fmt.Errorf("lsp: %s: %w", operation, err)
 	}
-	return parseLocations(raw), nil
+	locations, err := parseLocations(raw)
+	if err != nil {
+		return nil, fmt.Errorf("lsp: decode %s response: %w", operation, err)
+	}
+	return locations, nil
 }
 
 // callHierarchy resolves the symbol at pos to a call-hierarchy item, then
@@ -92,16 +101,18 @@ func (c *client) hover(ctx context.Context, abs string, pos Position) (string, e
 	if _, err := c.ensureOpen(ctx, abs); err != nil {
 		return "", err
 	}
-	var h struct {
-		Contents json.RawMessage `json:"contents"`
-	}
+	var raw json.RawMessage
 	if err := c.conn.Call(ctx, "textDocument/hover", positionParams{
 		TextDocument: textDocumentIdentifier{URI: pathToURI(abs)},
 		Position:     pos,
-	}, &h); err != nil {
+	}, &raw); err != nil {
 		return "", fmt.Errorf("lsp: hover: %w", err)
 	}
-	return hoverText(h.Contents), nil
+	text, err := parseHover(raw)
+	if err != nil {
+		return "", fmt.Errorf("lsp: decode hover response: %w", err)
+	}
+	return text, nil
 }
 
 func (c *client) documentSymbols(ctx context.Context, abs string) ([]Symbol, error) {
@@ -115,7 +126,11 @@ func (c *client) documentSymbols(ctx context.Context, abs string) ([]Symbol, err
 	}, &raw); err != nil {
 		return nil, fmt.Errorf("lsp: documentSymbol: %w", err)
 	}
-	return parseSymbols(raw, uri), nil
+	symbols, err := parseSymbols(raw, uri)
+	if err != nil {
+		return nil, fmt.Errorf("lsp: decode documentSymbol response: %w", err)
+	}
+	return symbols, nil
 }
 
 func (c *client) workspaceSymbols(ctx context.Context, query string) ([]Symbol, error) {
@@ -124,8 +139,17 @@ func (c *client) workspaceSymbols(ctx context.Context, query string) ([]Symbol, 
 		return nil, fmt.Errorf("lsp: workspace/symbol: %w", err)
 	}
 	out := make([]Symbol, 0, len(infos))
-	for _, s := range infos {
-		out = append(out, Symbol{Name: s.Name, Kind: s.Kind, Location: s.Location, Container: s.ContainerName})
+	for index, symbol := range infos {
+		if strings.TrimSpace(symbol.Name) == "" {
+			return nil, fmt.Errorf("lsp: decode workspace/symbol response item %d: name is empty", index)
+		}
+		if symbol.Location == nil {
+			return nil, fmt.Errorf("lsp: decode workspace/symbol response item %d: location is missing or null", index)
+		}
+		if err := validateLocation(*symbol.Location); err != nil {
+			return nil, fmt.Errorf("lsp: decode workspace/symbol response item %d: %w", index, err)
+		}
+		out = append(out, Symbol{Name: symbol.Name, Kind: symbol.Kind, Location: *symbol.Location, Container: symbol.ContainerName})
 	}
 	return out, nil
 }

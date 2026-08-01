@@ -52,7 +52,7 @@ func diagKey(d lsp.Diagnostic) string {
 func diagnosticsSection(file string, diags []lsp.Diagnostic) string {
 	var lines []string
 	for _, d := range diags {
-		if d.Severity > 2 { // 1=error 2=warning; skip 3=info 4=hint
+		if !d.Severity.IsProblem() {
 			continue
 		}
 		sev := d.SeverityName()
