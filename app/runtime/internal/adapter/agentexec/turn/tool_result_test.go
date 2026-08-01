@@ -4,7 +4,17 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
+
+type testToolPresenter struct{}
+
+func (testToolPresenter) Activity(string) string { return "Presenting tool" }
+
+func (testToolPresenter) Present(_ string, _ tool.Arguments, _ tool.Result) (tool.Result, string) {
+	return tool.StringResult("presented"), "plain output"
+}
 
 func TestDecodeToolResult(t *testing.T) {
 	tests := []struct {
@@ -14,13 +24,16 @@ func TestDecodeToolResult(t *testing.T) {
 	}{
 		{name: "empty"},
 		{name: "object", output: `{"stdout":"ok","exit_code":0}`, want: map[string]any{
-			"output": "ok", "exitCode": json.Number("0"),
+			"stdout": "ok", "exit_code": json.Number("0"),
 		}},
 		{name: "plain text", output: "denied", want: "denied"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := decodeToolResult("shell", `{}`, test.output)
+			got, outputText := decodeToolResult(nil, "shell", `{}`, test.output)
+			if outputText != "" {
+				t.Fatalf("output text = %q, want empty", outputText)
+			}
 			if got == nil && test.want == nil {
 				return
 			}
@@ -31,33 +44,26 @@ func TestDecodeToolResult(t *testing.T) {
 	}
 }
 
-func TestToolOutputText(t *testing.T) {
-	encoded := decodeToolResult("shell", `{}`, `{"stdout":"out","stderr":"err"}`)
-	if got := toolOutputText("shell", encoded); got != "out\nerr" {
-		t.Fatalf("shell output = %q, want %q", got, "out\nerr")
+func TestDecodeToolResultUsesInjectedPresenter(t *testing.T) {
+	result, outputText := decodeToolResult(testToolPresenter{}, "custom", `{}`, `{"value":1}`)
+	if result == nil {
+		t.Fatal("result is nil")
 	}
-	if got := toolOutputText("grep", encoded); got != "" {
-		t.Fatalf("grep output = %q, want empty", got)
+	if got, _ := result.String(); got != "presented" {
+		t.Fatalf("result = %v, want presented", result.Any())
 	}
-}
-
-func TestNormalizeToolResultUsesConcreteToolSchemaAtExecutorBoundary(t *testing.T) {
-	got := normalizeToolResult("edit", map[string]any{
-		"file_path": "a.go", "old_string": "old\n", "new_string": "new\n",
-	}, map[string]any{"replacements": 1})
-	want := map[string]any{"changes": []map[string]any{{
-		"path": "a.go", "status": "modified", "diff": []map[string]any{
-			{"type": "deleted", "leftLine": 1, "code": "old"},
-			{"type": "added", "rightLine": 1, "code": "new"},
-		},
-	}}}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("normalizeToolResult = %#v, want %#v", got, want)
+	if outputText != "plain output" {
+		t.Fatalf("output text = %q, want plain output", outputText)
 	}
 }
 
-func TestToolActivityIsProducedBeforeApplicationProjection(t *testing.T) {
-	if got := toolActivity("web_search"); got != "Searching the web" {
-		t.Fatalf("toolActivity = %q, want web-search activity", got)
+func TestToolActivityUsesPresenterAndGenericFallback(t *testing.T) {
+	presented := &memoryDispatcher{toolPresenter: testToolPresenter{}}
+	if got := presented.toolActivity("custom"); got != "Presenting tool" {
+		t.Fatalf("presented activity = %q", got)
+	}
+	generic := new(memoryDispatcher)
+	if got := generic.toolActivity("custom"); got != "Calling custom" {
+		t.Fatalf("generic activity = %q", got)
 	}
 }

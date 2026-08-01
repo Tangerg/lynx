@@ -433,7 +433,7 @@ func (t *turnObserver) OnToolCallStart(process agentexec.ProcessRef, callID, sou
 		SourceCallID: sourceCallID,
 		ToolName:     toolName,
 		Arguments:    arguments,
-		Activity:     toolActivity(toolName),
+		Activity:     t.dispatcher.toolActivity(toolName),
 		SafetyClass:  tool.SafetyClassFor(toolName),
 	})
 }
@@ -461,13 +461,13 @@ func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolN
 	if !process.Child() {
 		t.st.recordToolOutcome(toolName, arguments, output)
 	}
-	result := decodeToolResult(toolName, arguments, output)
+	result, outputText := decodeToolResult(t.dispatcher.toolPresenter, toolName, arguments, output)
 	end := runs.ToolCallEnd{
 		CallID:       callID,
 		Arguments:    arguments,
 		Result:       result,
 		Offload:      ref,
-		OutputText:   toolOutputText(toolName, result),
+		OutputText:   outputText,
 		MutatedPaths: mutatedPaths,
 	}
 	switch {

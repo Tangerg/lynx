@@ -3,10 +3,10 @@ package turn
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/core/chat"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // engineDep is the dispatcher's consumer-side view of Agent execution. The
@@ -57,4 +57,12 @@ type BoundaryMaintenanceInput struct {
 type BoundaryMaintenanceResult struct {
 	Compaction CompactionResult
 	Errors     []error
+}
+
+// ToolPresenter owns tool-specific activity and result projection. Turn owns
+// only execution lifecycle translation; concrete tool names and schemas remain
+// in the tool catalog adapter that implements this interface.
+type ToolPresenter interface {
+	Activity(toolName string) string
+	Present(toolName string, arguments tool.Arguments, result tool.Result) (tool.Result, string)
 }

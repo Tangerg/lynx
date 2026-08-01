@@ -446,6 +446,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Approval:            approvalPolicy,
 		ClientResolver:      resolver,
 		Todos:               ecfg.Todos,
+		ToolPresenter:       toolset.Presenter{},
 		MCPToolAutoApproved: mcpEnv.policy.ToolAutoApproved,
 		Hooks:               cfg.HooksResolver,
 	})

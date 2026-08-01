@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -44,10 +45,11 @@ type testEngine interface {
 func turnDeps(engine testEngine, opts ...func(*turn.Dependencies)) turn.Dependencies {
 	services := noopTurnServices{}
 	deps := turn.Dependencies{
-		Engine:      engine,
-		Steering:    services,
-		Maintenance: services,
-		Approval:    explicitYoloPolicy(),
+		Engine:        engine,
+		Steering:      services,
+		Maintenance:   services,
+		Approval:      explicitYoloPolicy(),
+		ToolPresenter: toolset.Presenter{},
 	}
 	for _, opt := range opts {
 		opt(&deps)

@@ -83,6 +83,10 @@ type Dependencies struct {
 	// todo_write. nil disables the projection.
 	Todos todoReader
 
+	// ToolPresenter projects concrete tool activity and results for clients. nil
+	// preserves canonical tool results and uses generic activity text.
+	ToolPresenter ToolPresenter
+
 	// MCPToolAutoApproved reports whether an identified MCP tool may skip the
 	// approval prompt. nil disables MCP-specific auto-approval.
 	MCPToolAutoApproved func(mcpserver.ToolRef) bool
@@ -129,6 +133,7 @@ func New(deps Dependencies) (*memoryDispatcher, error) {
 		approval:            deps.Approval,
 		resolver:            deps.ClientResolver,
 		todos:               deps.Todos,
+		toolPresenter:       deps.ToolPresenter,
 		mcpToolAutoApproved: deps.MCPToolAutoApproved,
 		hooks:               deps.Hooks,
 		turns:               map[string]*turnState{},
@@ -140,12 +145,13 @@ func New(deps Dependencies) (*memoryDispatcher, error) {
 // tracks live turns in a map keyed by turn id; state lives in
 // process memory and does not survive restart.
 type memoryDispatcher struct {
-	engine      engineDep
-	steering    SteeringSink
-	maintenance BoundaryMaintenance // optional — nil = no turn-boundary maintenance
-	approval    ApprovalGate
-	resolver    clientResolver // optional — nil accepts only the default model
-	todos       todoReader     // optional — nil = no state.snapshot{todos} projection
+	engine        engineDep
+	steering      SteeringSink
+	maintenance   BoundaryMaintenance // optional — nil = no turn-boundary maintenance
+	approval      ApprovalGate
+	resolver      clientResolver // optional — nil accepts only the default model
+	todos         todoReader     // optional — nil = no state.snapshot{todos} projection
+	toolPresenter ToolPresenter  // optional — nil = generic activity and canonical results
 
 	// mcpToolAutoApproved reports whether an identified MCP tool skips the
 	// approval prompt. The runtime recomputes the policy on every
