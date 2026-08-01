@@ -99,9 +99,9 @@ func Parallel[In, Element, Result any](
 	// Build one generator per sub-agent: spawn a fresh child, surface its
 	// failure, extract the typed Element. Errors name the agent so the
 	// ScatterGather-level "scatter generator N" wrap stays attributable.
-	generators := make([]func(context.Context, *core.ProcessContext, In) (Element, error), len(config.Agents))
+	generators := make([]Generator[In, Element], len(config.Agents))
 	for index, deployment := range deployments {
-		generators[index] = func(ctx context.Context, _ *core.ProcessContext, input In) (Element, error) {
+		generators[index] = func(ctx context.Context, input In) (Element, error) {
 			var zero Element
 			name := deployment.Ref().Name
 			child, err := childRuntime.RunChild(ctx, deployment, input)

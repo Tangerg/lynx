@@ -3,10 +3,8 @@ package core
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -92,8 +90,6 @@ type ProcessContext struct {
 	// typed-action wrapper reads it to return ActionWaiting. Per-tick
 	// (fresh ProcessContext each invocation), so no reset needed.
 	suspended bool
-
-	parallelBranch bool
 }
 
 // NewProcessContext assembles a ProcessContext for a runtime tick or an
@@ -138,59 +134,6 @@ func (pc *ProcessContext) Dependencies() *Dependencies {
 		return nil
 	}
 	return pc.dependencies
-}
-
-// ForParallelBranch returns a sibling-safe copy of pc for a goroutine running
-// concurrently with other branches of the SAME action — the workflow fan-out
-// builders (ScatterGather / Consensus / Parallel) hand one to each generator.
-//
-// It shares the read-only ProcessView, but forks Blackboard and
-// action-dependency state from the same pre-branch snapshot. Branch writes,
-// conditions, and dependency registrations
-// are local and discarded; the workflow commits only returned values in
-// declaration order. Lifecycle control and managed interaction are disabled
-// because one Process cannot own multiple competing suspension/termination
-// continuations.
-func (pc *ProcessContext) ForParallelBranch() (*ProcessContext, error) {
-	if pc == nil {
-		return nil, errors.New("agent.ProcessContext.ForParallelBranch: process context is nil")
-	}
-	branch := *pc
-	if pc.blackboard != nil {
-		blackboard, err := cloneBranchBlackboard(pc.blackboard)
-		if err != nil {
-			return nil, fmt.Errorf("agent.ProcessContext.ForParallelBranch: %w", err)
-		}
-		branch.blackboard = blackboard
-	}
-	if pc.dependencies != nil {
-		branch.dependencies = pc.dependencies.Child()
-	}
-	branch.control = nil
-	branch.runInteraction = func(context.Context, Interaction) (interaction.Result, error) {
-		return interaction.Result{}, ErrParallelBranchControl
-	}
-	branch.toolCallCancel = nil
-	branch.suspended = false
-	branch.parallelBranch = true
-	return &branch, nil
-}
-
-func cloneBranchBlackboard(blackboard Blackboard) (clone Blackboard, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			clone = nil
-			err = panicerr.New(fmt.Sprintf("blackboard %T Clone panicked", blackboard), recovered)
-		}
-	}()
-	clone, err = blackboard.Clone()
-	if err != nil {
-		return nil, fmt.Errorf("blackboard %T Clone: %w", blackboard, err)
-	}
-	if valueIsNil(clone) {
-		return nil, fmt.Errorf("blackboard %T Clone returned nil", blackboard)
-	}
-	return clone, nil
 }
 
 // Interact runs a complete framework-managed model/tool interaction and
@@ -252,9 +195,6 @@ func (pc *ProcessContext) lifecycleControl() (ProcessControl, error) {
 	if pc != nil && pc.control != nil {
 		return pc.control, nil
 	}
-	if pc != nil && pc.parallelBranch {
-		return nil, ErrParallelBranchControl
-	}
 	return nil, ErrLifecycleControlUnavailable
 }
 
@@ -289,11 +229,6 @@ func contextOrBackground(ctx context.Context) context.Context {
 	}
 	return ctx
 }
-
-// ErrParallelBranchControl reports lifecycle or managed-interaction use from
-// a workflow branch. Use an isolated child Process when a parallel unit needs
-// suspension, termination, or its own model/tool lifecycle.
-var ErrParallelBranchControl = errors.New("agent: parallel workflow branch cannot control process lifecycle")
 
 // ErrLifecycleControlUnavailable reports lifecycle use on a ProcessContext
 // that was not assembled by the runtime.

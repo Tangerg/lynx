@@ -412,9 +412,11 @@ callback 只获得 child 的 `AgentDescriptor`，不能通过配置策略取得�
 
 `workflow.Sequence`、`Parallel`、`Loop`、`Team`、`RepeatUntil`、`RepeatUntilAcceptable`、
 `ScatterGather`、`Consensus` 和 `Supervisor` 最终都编译回普通 Agent。需要在构造期部署
-子 Agent 的 builder 接收 `context.Context`；`Team` 只合成定义，不拥有部署或执行。并行 branch 在启动
-goroutine 前获得独立 Blackboard 和 Dependencies child；写入不合并，只有返回值按声明顺序
-join。需要独立暂停/终止能力的并行单元应使用 Child Process。
+子 Agent 的 builder 接收 `context.Context`；`Team` 只合成定义，不拥有部署或执行。
+`ScatterGather` / `Consensus` 的 generator 只接收 `context.Context` 和 typed input，从类型上
+无法取得父 Process 的 Blackboard、生命周期控制或托管 Interaction；只有显式返回值按声明顺序
+join。需要托管 Prompt/ToolLoop、暂停、终止、checkpoint 或进程级预算的并行单元必须使用
+`Parallel` Child Process。
 
 ToolLoop 的并发是另一层语义：工具默认独占，实现 `toolloop.ConcurrentTool` 后可按
 resource key 有界并发。`toolloop.Config.MaxConcurrentCalls` 控制低层 Runner，

@@ -13,8 +13,8 @@ import (
 type consensusIn struct{ Question string }
 type consensusVote string
 
-func voter(label consensusVote) func(context.Context, *core.ProcessContext, consensusIn) (consensusVote, error) {
-	return func(context.Context, *core.ProcessContext, consensusIn) (consensusVote, error) {
+func voter(label consensusVote) workflow.Generator[consensusIn, consensusVote] {
+	return func(context.Context, consensusIn) (consensusVote, error) {
 		return label, nil
 	}
 }
@@ -23,7 +23,7 @@ func TestConsensus_PicksMajorityVote(t *testing.T) {
 	// 5 voters: 3 say "yes", 2 say "no". Consensus = "yes".
 	a, err := workflow.Consensus(workflow.ConsensusConfig[consensusIn, consensusVote]{
 		Name: "majority",
-		Voters: []func(context.Context, *core.ProcessContext, consensusIn) (consensusVote, error){
+		Voters: []workflow.Generator[consensusIn, consensusVote]{
 			voter("yes"), voter("no"), voter("yes"), voter("yes"), voter("no"),
 		},
 		Key: workflow.DefaultKey[consensusVote],
@@ -58,7 +58,7 @@ func TestConsensus_TieBreakByVoterOrder(t *testing.T) {
 	// 2 vs 2 tie; expect the first-seen winner (which was "yes" at idx 0).
 	a, err := workflow.Consensus(workflow.ConsensusConfig[consensusIn, consensusVote]{
 		Name: "tie",
-		Voters: []func(context.Context, *core.ProcessContext, consensusIn) (consensusVote, error){
+		Voters: []workflow.Generator[consensusIn, consensusVote]{
 			voter("yes"), voter("no"), voter("yes"), voter("no"),
 		},
 		Key: workflow.DefaultKey[consensusVote],
@@ -83,7 +83,7 @@ func TestConsensus_RejectsInvalidSpec(t *testing.T) {
 		spec workflow.ConsensusConfig[consensusIn, consensusVote]
 	}{
 		{"empty name", workflow.ConsensusConfig[consensusIn, consensusVote]{
-			Voters: []func(context.Context, *core.ProcessContext, consensusIn) (consensusVote, error){voter("y")},
+			Voters: []workflow.Generator[consensusIn, consensusVote]{voter("y")},
 			Key:    workflow.DefaultKey[consensusVote],
 		}},
 		{"empty voters", workflow.ConsensusConfig[consensusIn, consensusVote]{
@@ -91,7 +91,7 @@ func TestConsensus_RejectsInvalidSpec(t *testing.T) {
 		}},
 		{"nil key", workflow.ConsensusConfig[consensusIn, consensusVote]{
 			Name:   "x",
-			Voters: []func(context.Context, *core.ProcessContext, consensusIn) (consensusVote, error){voter("y")},
+			Voters: []workflow.Generator[consensusIn, consensusVote]{voter("y")},
 		}},
 	}
 	for _, tc := range cases {

@@ -26,9 +26,10 @@ type scatterOutput[Element any] struct {
 //   - Element — what each generator produces;
 //   - Result  — the joined output.
 //
-// Each generator runs in its own goroutine; Joiner sees the slice of
-// Elements (in generator order) only after every generator has
-// completed (or any has errored).
+// Each generator runs in its own goroutine without access to the parent
+// ProcessContext. Joiner sees the slice of Elements in generator order only
+// after every started generator has returned. A generator error cancels the
+// shared context, but cancellation remains cooperative.
 type ScatterGatherConfig[In, Element, Result any] struct {
 	// Name names the produced agent + its goal + the action names.
 	// Required.
@@ -42,7 +43,7 @@ type ScatterGatherConfig[In, Element, Result any] struct {
 
 	// Generators is the parallel fan-out. Each receives the same
 	// In and produces an Element. Must be non-empty.
-	Generators []func(ctx context.Context, process *core.ProcessContext, input In) (Element, error)
+	Generators []Generator[In, Element]
 
 	// Joiner consolidates the per-generator outputs into the final
 	// Result. results is in the same order as Generators. Required.
@@ -86,16 +87,8 @@ func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Eleme
 
 	scatter := core.NewAction[In, scatterOutput[Element]](
 		name+"-scatter",
-		func(ctx context.Context, process *core.ProcessContext, input In) (scatterOutput[Element], error) {
+		func(ctx context.Context, _ *core.ProcessContext, input In) (scatterOutput[Element], error) {
 			items := make([]Element, len(generators))
-			branches := make([]*core.ProcessContext, len(generators))
-			for index := range branches {
-				branch, err := process.ForParallelBranch()
-				if err != nil {
-					return scatterOutput[Element]{}, fmt.Errorf("scatter branch %d: %w", index, err)
-				}
-				branches[index] = branch
-			}
 			group, groupContext := errgroup.WithContext(ctx)
 			if maxConcurrency > 0 {
 				group.SetLimit(maxConcurrency)
@@ -112,11 +105,7 @@ func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Eleme
 					if err := groupContext.Err(); err != nil {
 						return err
 					}
-					// Each generator runs in its own goroutine, so hand it a
-					// sibling-safe branch created before fan-out: scratch and
-					// Blackboard writes are isolated; only the returned item is
-					// joined in this stable index.
-					output, err := generator(groupContext, branches[index], input)
+					output, err := generator(groupContext, input)
 					if err != nil {
 						return fmt.Errorf("scatter generator %d: %w", index, err)
 					}

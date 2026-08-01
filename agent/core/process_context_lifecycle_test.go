@@ -26,14 +26,3 @@ func TestProcessContextLifecycleErrorsIdentifyUnavailableControl(t *testing.T) {
 		})
 	}
 }
-
-func TestParallelProcessContextLifecycleErrorsRemainSpecific(t *testing.T) {
-	process := core.NewProcessContext(core.ProcessContextConfig{})
-	branch, err := process.ForParallelBranch()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := branch.TerminateAgent("stop"); !errors.Is(err, core.ErrParallelBranchControl) {
-		t.Fatalf("error = %v, want ErrParallelBranchControl", err)
-	}
-}

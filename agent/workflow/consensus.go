@@ -18,8 +18,10 @@ import (
 // each voter returns (often a string label or small struct that can
 // be compared via Key).
 //
-// ConsensusConfig configures a consensus workflow — voters are plain
-// functions; users inject different chatclient.Client values via closure.
+// ConsensusConfig configures a consensus workflow. Voters are generators and
+// therefore have no parent ProcessContext; inject ordinary dependencies by
+// closure. Use [Parallel] child agents when each vote needs framework-managed
+// interaction, tools, suspension, or checkpoint state.
 type ConsensusConfig[In, Element any] struct {
 	// Name names the produced agent + its goal. Required.
 	Name string
@@ -32,7 +34,7 @@ type ConsensusConfig[In, Element any] struct {
 
 	// Voters is the parallel ensemble. Each receives In and
 	// returns an Element. Must be non-empty.
-	Voters []func(ctx context.Context, process *core.ProcessContext, input In) (Element, error)
+	Voters []Generator[In, Element]
 
 	// Key projects each Element to a comparable string used to
 	// tally votes. Required when Element isn't directly comparable

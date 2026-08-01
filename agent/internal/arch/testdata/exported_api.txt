@@ -149,7 +149,6 @@ core: func (m ActionMetadata) RunCondition() string
 core: func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tools.Tool, error)
 core: func (pc *ProcessContext) Blackboard() Blackboard
 core: func (pc *ProcessContext) Dependencies() *Dependencies
-core: func (pc *ProcessContext) ForParallelBranch() (*ProcessContext, error)
 core: func (pc *ProcessContext) Interact(ctx context.Context, input Interaction) (interaction.Result, error)
 core: func (pc *ProcessContext) Process() ProcessView
 core: func (pc *ProcessContext) Prompt(ctx context.Context, text string, config PromptConfig) (string, error)
@@ -285,7 +284,6 @@ core: var ( ErrSnapshotSchema = errors.New("process snapshot: unsupported schema
 core: var ErrInvalidBudget = errors.New("budget: invalid")
 core: var ErrInvalidUsage = errors.New("usage: invalid")
 core: var ErrLifecycleControlUnavailable = errors.New("agent: process lifecycle control is unavailable")
-core: var ErrParallelBranchControl = errors.New("agent: parallel workflow branch cannot control process lifecycle")
 core: var ErrUndeclaredState = errors.New("core: type is not declared snapshot state")
 core: var ErrUnportableValue = errors.New("core: value has no portable form")
 event: const ( KindAgentDeployed Kind = "agent_deployed" KindAgentUndeployed Kind = "agent_undeployed" KindProcessCreated Kind = "process_created" KindProcessCompleted Kind = "process_completed" KindProcessFailed Kind = "process_failed" KindProcessStuck Kind = "process_stuck" KindProcessWaiting Kind = "process_waiting" KindProcessKilled Kind = "process_killed" KindProcessTerminated Kind = "process_terminated" KindPlanningStarted Kind = "planning_started" KindPlanCreated Kind = "plan_created" KindReplanRequested Kind = "replan_requested" KindActionStarted Kind = "action_started" KindActionFinished Kind = "action_finished" KindGoalAchieved Kind = "goal_achieved" KindInteractionBoundary Kind = "interaction_boundary" )
@@ -620,14 +618,15 @@ workflow: func Team(config TeamConfig) (*core.Agent, error)
 workflow: type AttemptHistory[Out any] struct { }
 workflow: type Attempt[Out any] struct { Output Out Feedback Feedback }
 workflow: type ChildRuntime interface { Deploy(context.Context, *core.Agent) (*runtime.Deployment, error) RunChild(context.Context, *runtime.Deployment, any) (*runtime.Process, error) }
-workflow: type ConsensusConfig[In, Element any] struct { Name string Description string MaxConcurrency int Voters []func(ctx context.Context, process *core.ProcessContext, input In) (Element, error) Key func(Element) string }
+workflow: type ConsensusConfig[In, Element any] struct { Name string Description string MaxConcurrency int Voters []Generator[In, Element] Key func(Element) string }
 workflow: type Evaluator[In, Out any] func(ctx context.Context, process *core.ProcessContext, input In, latest Out) (Feedback, error)
 workflow: type Feedback struct { Score float64 Text string }
+workflow: type Generator[In, Out any] func(ctx context.Context, input In) (Out, error)
 workflow: type History[T any] struct { }
 workflow: type LoopConfig[In, Out any] struct { Name string Description string MaxIterations int Body *core.Agent Until func(ctx context.Context, input In, latest Out) bool }
 workflow: type ParallelConfig[In, Element, Result any] struct { Name string Description string MaxConcurrency int Agents []*core.Agent Joiner func(ctx context.Context, process *core.ProcessContext, results []Element) (Result, error) }
 workflow: type RepeatUntilAcceptableConfig[In, Out any] struct { Name string Description string MaxIterations int AcceptableScore float64 Task func(ctx context.Context, process *core.ProcessContext, input In, history History[Out]) (Out, error) Evaluator Evaluator[In, Out] }
 workflow: type RepeatUntilConfig[In, Out any] struct { Name string Description string MaxIterations int Task func(ctx context.Context, process *core.ProcessContext, input In, history History[Out]) (Out, error) Accept func(ctx context.Context, input In, latest Out, history History[Out]) bool }
-workflow: type ScatterGatherConfig[In, Element, Result any] struct { Name string Description string MaxConcurrency int Generators []func(ctx context.Context, process *core.ProcessContext, input In) (Element, error) Joiner func(ctx context.Context, process *core.ProcessContext, results []Element) (Result, error) }
+workflow: type ScatterGatherConfig[In, Element, Result any] struct { Name string Description string MaxConcurrency int Generators []Generator[In, Element] Joiner func(ctx context.Context, process *core.ProcessContext, results []Element) (Result, error) }
 workflow: type SupervisorConfig[In, Out any] struct { Name string Description string Tools []tools.Tool Instructions string Render func(In) (string, error) Parse func(text string) (Out, error) MaxToolRounds int }
 workflow: type TeamConfig struct { Name string Description string Agents []*core.Agent PlannerName string }

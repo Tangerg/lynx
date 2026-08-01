@@ -22,8 +22,8 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 	release := make(chan struct{})
 	var active atomic.Int32
 	var peak atomic.Int32
-	gen := func(score int) func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
-		return func(ctx context.Context, _ *core.ProcessContext, _ sgIn) (sgElement, error) {
+	gen := func(score int) workflow.Generator[sgIn, sgElement] {
+		return func(ctx context.Context, _ sgIn) (sgElement, error) {
 			now := active.Add(1)
 			defer active.Add(-1)
 			for current := peak.Load(); now > current && !peak.CompareAndSwap(current, now); current = peak.Load() {
@@ -41,7 +41,7 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 		Name:        "fanout",
 		Description: "score-fanout test",
-		Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
+		Generators: []workflow.Generator[sgIn, sgElement]{
 			gen(1), gen(2), gen(3),
 		},
 		Joiner: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
@@ -111,14 +111,14 @@ func TestScatterGather_FirstErrorCancelsAndJoinsOtherBranches(t *testing.T) {
 	blockingExited := make(chan struct{})
 	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 		Name: "fanout-cancel",
-		Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
-			func(ctx context.Context, _ *core.ProcessContext, _ sgIn) (sgElement, error) {
+		Generators: []workflow.Generator[sgIn, sgElement]{
+			func(ctx context.Context, _ sgIn) (sgElement, error) {
 				close(blockingStarted)
 				<-ctx.Done()
 				close(blockingExited)
 				return sgElement{}, ctx.Err()
 			},
-			func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
+			func(context.Context, sgIn) (sgElement, error) {
 				<-blockingStarted
 				return sgElement{}, errors.New("boom")
 			},
@@ -148,71 +148,14 @@ func TestScatterGather_FirstErrorCancelsAndJoinsOtherBranches(t *testing.T) {
 	}
 }
 
-// TestScatterGather_GeneratorsGetIsolatedContext pins the workflow concurrency
-// model: every generator gets private scratch and a Blackboard fork; branch
-// writes/conditions are discarded, and lifecycle/managed interaction are
-// rejected because one parent Process cannot own competing continuations.
-func TestScatterGather_GeneratorsGetIsolatedContext(t *testing.T) {
-	probe := func(_ context.Context, pc *core.ProcessContext, _ sgIn) (sgElement, error) {
-		pc.Blackboard().Store("branch-write", sgElement{Score: 99})
-		pc.Blackboard().StoreCondition("branch-condition", true)
-		if status, err := pc.Suspend(t.Context(), agent.Suspension{}); status != core.ActionFailed || !errors.Is(err, core.ErrParallelBranchControl) {
-			return sgElement{}, errors.New("parallel suspension was not rejected")
-		}
-		if err := pc.TerminateAgent("must stay branch-local"); !errors.Is(err, core.ErrParallelBranchControl) {
-			return sgElement{}, err
-		}
-		if _, err := pc.Interact(t.Context(), core.Interaction{}); !errors.Is(err, core.ErrParallelBranchControl) {
-			return sgElement{}, err
-		}
-		return sgElement{Score: 1}, nil
-	}
-	gens := make([]func(context.Context, *core.ProcessContext, sgIn) (sgElement, error), 8)
-	for i := range gens {
-		gens[i] = probe
-	}
-
-	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
-		Name:       "isolated",
-		Generators: gens,
-		Joiner: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
-			return sgResult{Total: len(items)}, nil
-		},
-	})
-	if err != nil {
-		t.Fatalf("ScatterGather: %v", err)
-	}
-
-	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(t.Context(), a); err != nil {
-		t.Fatalf("deploy: %v", err)
-	}
-	proc, err := engine.Run(t.Context(), a,
-		core.Input(sgIn{Topic: "x"}),
-		core.ProcessOptions{},
-	)
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if proc.Status() != core.StatusCompleted {
-		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
-	}
-	if _, ok := proc.Blackboard().Load("branch-write"); ok {
-		t.Fatal("parallel branch named write leaked into parent blackboard")
-	}
-	if _, ok := proc.Blackboard().Condition("branch-condition"); ok {
-		t.Fatal("parallel branch condition leaked into parent blackboard")
-	}
-}
-
 func TestScatterGather_GeneratorErrorPropagates(t *testing.T) {
 	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 		Name: "fanout-err",
-		Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
-			func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
+		Generators: []workflow.Generator[sgIn, sgElement]{
+			func(context.Context, sgIn) (sgElement, error) {
 				return sgElement{Score: 1}, nil
 			},
-			func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
+			func(context.Context, sgIn) (sgElement, error) {
 				return sgElement{}, errors.New("boom")
 			},
 		},
@@ -245,15 +188,15 @@ func TestScatterGather_CancelledQueuedGeneratorsDoNotStart(t *testing.T) {
 	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 		Name:           "fanout-cancel-queue",
 		MaxConcurrency: 1,
-		Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
-			func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
+		Generators: []workflow.Generator[sgIn, sgElement]{
+			func(context.Context, sgIn) (sgElement, error) {
 				return sgElement{}, cause
 			},
-			func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
+			func(context.Context, sgIn) (sgElement, error) {
 				laterCalls.Add(1)
 				return sgElement{}, nil
 			},
-			func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
+			func(context.Context, sgIn) (sgElement, error) {
 				laterCalls.Add(1)
 				return sgElement{}, nil
 			},
@@ -281,8 +224,8 @@ func TestScatterGather_CancelledQueuedGeneratorsDoNotStart(t *testing.T) {
 func TestScatterGather_OwnsGeneratorSlice(t *testing.T) {
 	originalCalls := 0
 	replacementCalls := 0
-	generators := []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
-		func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
+	generators := []workflow.Generator[sgIn, sgElement]{
+		func(context.Context, sgIn) (sgElement, error) {
 			originalCalls++
 			return sgElement{Score: 1}, nil
 		},
@@ -297,7 +240,7 @@ func TestScatterGather_OwnsGeneratorSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	generators[0] = func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
+	generators[0] = func(context.Context, sgIn) (sgElement, error) {
 		replacementCalls++
 		return sgElement{Score: 99}, nil
 	}
@@ -319,8 +262,8 @@ func TestScatterGather_RejectsInvalidSpec(t *testing.T) {
 		spec workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]
 	}{
 		{"empty name", workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
-			Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
-				func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) { return sgElement{}, nil },
+			Generators: []workflow.Generator[sgIn, sgElement]{
+				func(context.Context, sgIn) (sgElement, error) { return sgElement{}, nil },
 			},
 			Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
 		}},
@@ -330,13 +273,13 @@ func TestScatterGather_RejectsInvalidSpec(t *testing.T) {
 		}},
 		{"nil joiner", workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 			Name: "x",
-			Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
-				func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) { return sgElement{}, nil },
+			Generators: []workflow.Generator[sgIn, sgElement]{
+				func(context.Context, sgIn) (sgElement, error) { return sgElement{}, nil },
 			},
 		}},
 		{"nil generator", workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 			Name: "x",
-			Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
+			Generators: []workflow.Generator[sgIn, sgElement]{
 				nil,
 			},
 			Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },

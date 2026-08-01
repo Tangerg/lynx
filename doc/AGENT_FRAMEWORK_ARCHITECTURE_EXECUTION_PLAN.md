@@ -1103,10 +1103,10 @@ app 当前两个 LLM action 已显式 `MaxAttempts:1`，迁移后可删除冗余
 
 并发只通过 workflow 的结构化 fan-out 和独立 child Process 表达：
 
-- `ScatterGather` / `Consensus` / `Parallel` 在 fan-out 前为每个 branch 预建 Blackboard 与 Service 子作用域；同 key、同 type artifact 和 condition 写入只存在于 branch，永不提交到父 action。
+- `ScatterGather` / `Consensus` 的 generator 只接收 `context.Context` 与 typed input；父 Process 的 Blackboard、Dependencies、生命周期控制和 managed Interact 在类型层面不可达，不再用完整 `ProcessContext` 加运行时拒绝模拟窄能力。
 - branch 结果写入预分配 index，join 永远按声明顺序，不按 goroutine 完成顺序。
-- branch 的 Suspend、Terminate 和 framework-managed Interact 返回 `ErrParallelBranchControl`；需要独立控制生命周期时必须创建 child Process。
-- errgroup 首错取消其余 branch，并等待全部退出后才返回；channel barrier 与 race 测试证明无 sleep-based 猜测和 goroutine 遗留。
+- generator 错误取消 group context，但取消是协作式；框架等待所有已启动 generator 返回，不承诺强制终止或回滚外部副作用。
+- 需要 managed Interact、工具循环、Suspend、Terminate 或独立 checkpoint 的并行单元必须创建 child Process；`Parallel` 只负责把这些 child 结构化收敛回一个普通 workflow Action。
 
 如果未来出现必须并行提交多个 planner action 的真实消费者，必须以新 ADR 证明需求，再选择
 完整 snapshot/patch + deterministic commit；不得恢复共享 Blackboard 的 last-writer-wins。
@@ -1493,7 +1493,7 @@ P8 不是继续增加 Framework 能力，而是对 P0–P7 已成立的生命周
 - [x] **P8-07 收敛 `ProcessContext` 为 action capability object**（完成：2026-07-16）
   - 将 Process/Blackboard/Output/Dependencies 公共字段改成只读方法；action 只看到能力，不看到装配形态。
   - 最终没有保留 take/consume scratch：`Action.Execute` 与 `ActionMiddleware` 显式返回 `(ActionStatus,error)`，`Suspend` 同样显式返回 error；删除 `lastErr/LastError/ResetError/TakeError/ExecuteSafely`，panic recovery 回到 runtime executor，`suspended` 只作 core typed-action 内部状态。
-  - `ForParallelBranch` 仅在 workflow 确有跨包消费者时保留，并明确它是隔离 capability，不是通用 clone。
+  - 后续复审发现把完整 `ProcessContext` 交给 workflow generator 再运行时拒绝生命周期能力仍属过宽承诺；现已删除 `ForParallelBranch` / `ErrParallelBranchControl`，generator 只接收 `context.Context` 与 typed input。
 - [x] **P8-08 删除 runtime 装配类型和 helper 泄漏**（完成：2026-07-16）
   - 内联 `ProcessScope`/`PlatformHooks` 到唯一 runtime wiring config；删除只为字段命名存在的 Chat/Event/Tool/Interaction/Cancel hook func type，真实 public attribution/interaction 协议除外。
   - 内收 `KnownConditions`、`ConversationID`、`BuildScopeAgent`、`SortByNetValueDesc`、`ActionConfig.ApplyDefaults`、`ProcessOptions.ApplyDefaults` 等无外部职责符号。
@@ -2143,8 +2143,8 @@ SQLite 只认识 App-owned opaque envelope；Host 原子性、幂等、恢复与
 ### ADR-AF-008：并发不允许共享写随机胜出
 
 - 状态：已接受并实现。
-- 决策：删除 process-wide action 并发；workflow fan-out 使用隔离 branch、稳定 index
-  join，禁止 branch 控制父 Process。ToolLoop 并发不共享 Blackboard：只有工具显式
+- 决策：删除 process-wide action 并发；workflow fan-out 的 generator 在类型层面拿不到父
+  Process 能力，只能以返回值参与稳定 index join。ToolLoop 并发不共享 Blackboard：只有工具显式
   实现 `ConcurrentTool` 才可重叠，同 resource key 串行，结果仍按模型调用顺序提交。
   未来并行提交 action 必须另开 snapshot/patch ADR。
 

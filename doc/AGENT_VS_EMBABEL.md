@@ -208,7 +208,7 @@ func Get[T any](bb BlackboardReader, name string) (T, bool)   // 顶层泛型(Go
 **取舍与理由**:
 
 - **reader/writer 分离是结构性 ISP**。`ConditionEnv.Blackboard` 只给 `BlackboardReader` —— 编译器保证 condition 在 OBSERVE 阶段**不能 mutate** 状态。Embabel 的 condition 拿到的是完整 `Blackboard`,约束靠约定。
-- **portable value ownership**:写入先取得带精确 Go 类型的 JSON 快照，读取返回独立重建值，`Clone` 复制 owned snapshot；因此 caller、observer、child 和并行 branch 都不能通过共享指针改写同一状态。不可 portable 的 handle/client/channel 属于 `Dependencies`，不是 Blackboard 数据。
+- **portable value ownership**:写入先取得带精确 Go 类型的 JSON 快照，读取返回独立重建值，`Clone` 复制 owned snapshot；因此 caller、observer 和 child 不能通过共享指针改写同一状态。不可 portable 的 handle/client/channel 属于 `Dependencies`，不是 Blackboard 数据。
 - **无 SpEL / 无表达式语言**。Embabel 用 SpEL(`LogicalExpressionParser`)做逻辑条件求值。lynx 的 condition 是 **Go 函数**(`ConditionFunc`)或 `PromptCondition`(LLM 驱动)—— 不引入嵌入式表达式语言(KISS + 无隐藏求值面)。逻辑组合是 `And/Or/Not` composite condition,纯 Go。
 - **Blackboard 是 Extension + prototype 模式**:注册一个,运行时用 `Clone()` 给每个进程一份隔离实例；Clone 失败显式返回 error。Embabel 用 `spawn()`。语义近似,但 lynx 用 Extension 注册统一入口。
 - **`ClearWorkingState()` 清空全部 planner/action 工作状态**。宿主的 session、cwd、isolation、lease 等请求上下文通过 Go `context.Context` 传播，不借 Blackboard 偷渡，也不进入 Agent snapshot。Embabel 的 `bindProtected` 在 lynx 中没有对应能力。
@@ -355,7 +355,7 @@ Session；当前 `ProcessSnapshot` schema 为 v9、`Suspension` schema 为 v2、
 - **执行顺序与提交顺序分离**。同一并发段内工具可乱序完成,但 `ToolResult` event、continuation tool message、下一轮 model/cache 输入始终按原 tool-call 顺序提交。checkpoint v2 为每个 call 保存 `queued/completed/paused` 独立状态、`NextResult` 与原 `MaxConcurrentCalls`,因此后完成的结果可以安全缓冲在前序 pause 后面,重启也不会静默换一套调度宽度。
 - **插件失败被限制在工具边界**。工具 `Call` panic 被转换为当前位置的 recoverable error ToolResult,不会从并发 goroutine 击穿 Host;同批 sibling 的结果仍按调用顺序提交。
 - **AgentTool 是并发安全的子进程能力**。每个调用拥有隔离 child process,通过精确 `tool_call_id` 关联;同名、同参数的多个调用不会混淆。多个 child 同时暂停时,parent 对外仍只暴露 call-order 中最早的 suspension,其余 suspension 已持久化但不越序可见。
-- **workflow 组合器做显式 fan-out**:`scatter-gather`/`parallel`/`repeat-until-acceptable`/`loop`/`sequence`/`consensus`/`supervisor` —— 每个分支拿 `Clone()` 黑板,mutation 在确定性 join 前丢弃(不共享写)。这些组合器**都编译回普通 GOAP agent**,不是新 runtime 概念。
+- **workflow 组合器做显式 fan-out**:`scatter-gather`/`consensus` 的 generator 只接收 context 与 typed input，父 Process 能力在类型层面不可达；`parallel` 使用拥有独立 Blackboard 与生命周期的 child Process。结果都按声明顺序 join，这些组合器**都编译回普通 GOAP agent**,不是新 runtime 概念。
 - AgentTool child 只在父 tool batch 内并发，并在父 action 前进前结构化收敛；
   `workflow.Parallel` / `ScatterGather` 支持有界并发与按输入顺序稳定 join。框架不提供脱离父
   process tree 生命周期的后台 child。
