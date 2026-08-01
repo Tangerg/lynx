@@ -15,7 +15,7 @@ import (
 
 	"github.com/Tangerg/lynx/tools"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 )
 
@@ -71,7 +71,7 @@ func (t *tool) run(ctx context.Context, req request) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("memory_search: %w", err)
 	}
-	cwd := strings.TrimSpace(turnctx.TurnCwd(ctx, ""))
+	cwd := strings.TrimSpace(executionctx.CWD(ctx, ""))
 	if cwd == "" {
 		return "No project is associated with this session, so there is no project memory to search.", nil
 	}

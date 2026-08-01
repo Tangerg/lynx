@@ -17,10 +17,9 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
@@ -649,12 +648,12 @@ func TestEngine_RunChat_ArtificialStopsPreservePartialText(t *testing.T) {
 	}{
 		{
 			name:       "budget",
-			request:    TurnRequest{Message: "go", MaxBudget: 10},
+			request:    TurnRequest{Message: "go", Limits: execution.RunLimits{MaxTotalTokens: 10}},
 			wantReason: agent.InteractionStopBudget,
 		},
 		{
 			name:       "steps",
-			request:    TurnRequest{Message: "go", MaxSteps: 1},
+			request:    TurnRequest{Message: "go", Limits: execution.RunLimits{MaxSteps: 1}},
 			wantReason: agent.InteractionStopSteps,
 		},
 	}
@@ -742,8 +741,9 @@ func TestEngine_StartTurn_PropagatesSteeringGuardrailConstructionError(t *testin
 	}
 
 	process, err := eng.StartTurn(context.Background(), TurnRequest{
-		Message: "go",
-		Steer:   func() []chat.Message { return nil },
+		SessionID: "session",
+		Message:   "go",
+		Steer:     func() []chat.Message { return nil },
 	})
 	if process != nil {
 		t.Fatal("StartTurn returned a process after guardrail construction failed")
@@ -797,7 +797,7 @@ func TestEngine_RunChat_PassesOptions(t *testing.T) {
 func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	stub := newOptionToolStub()
 	client, _ := chatclient.New(stub, chatclient.WithDefaults(*stub.defaults))
-	store := newJSONProcessStore()
+	store := newMemoryCheckpointStore()
 	built, err := toolset.Build(context.Background(), toolset.BuildConfig{})
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
@@ -806,7 +806,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	eng, err := New(context.Background(), Config{
 		ChatClient:   client,
 		ToolResolver: built.Resolver,
-		ProcessStore: store,
+		Checkpoints:  store,
 		BuildID:      testBuildID,
 		Pricing:      func(string, string, *chat.Usage) float64 { return 0.25 },
 	})
@@ -823,22 +823,21 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		GoalLeaseID: "goal-lease-restore",
 	}
 	wantProvider := "selected-provider"
-	wantBudget := accounting.Budget{
-		MaxTokens:  10_000,
-		MaxCostUSD: 10,
-		MaxSteps:   4,
+	wantSelection := mustTestSelection(t, wantProvider, "selected-model")
+	wantLimits := execution.RunLimits{
+		MaxTotalTokens: 10_000,
+		MaxBudgetUSD:   10,
+		MaxSteps:       4,
 	}
 
 	proc, err := eng.StartTurn(context.Background(), TurnRequest{
 		SessionID:      wantScope.SessionID,
 		Message:        "echo lyra",
-		ModelSelection: mustTestSelection(t, wantProvider, "selected-model"),
+		ModelSelection: wantSelection,
 		Cwd:            wantScope.Cwd,
 		Isolated:       wantScope.Isolated,
 		GoalLeaseID:    wantScope.GoalLeaseID,
-		MaxBudget:      wantBudget.MaxTokens,
-		MaxCostUSD:     wantBudget.MaxCostUSD,
-		MaxSteps:       wantBudget.MaxSteps,
+		Limits:         wantLimits,
 		Observer:       observer,
 		Options: &chat.Options{
 			Temperature: &temp,
@@ -856,52 +855,100 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	if initial.Status != core.StatusWaiting {
 		t.Fatalf("initial status = %s, want waiting", initial.Status)
 	}
-	persistWaitingCheckpoint(t, proc)
+	persistWaitingCheckpoint(t, store, proc)
 
 	eng2, err := New(context.Background(), Config{
 		ChatClient:   client,
 		ToolResolver: built.Resolver,
-		ProcessStore: store,
+		Checkpoints:  store,
 		BuildID:      testBuildID,
 		Pricing:      func(string, string, *chat.Usage) float64 { return 0.25 },
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, checkpoint, err := store.LoadTree(t.Context(), proc.ID()); err != nil {
+	if checkpoint, err := store.LoadCheckpoint(t.Context(), proc.ID()); err != nil {
 		t.Fatalf("load checkpoint metadata: %v", err)
 	} else if checkpoint.Scope != wantScope ||
-		checkpoint.Provider != wantProvider ||
-		checkpoint.Budget != wantBudget {
+		checkpoint.ModelSelection != wantSelection ||
+		checkpoint.Limits != wantLimits {
 		t.Fatalf(
-			"checkpoint policy = scope:%+v provider:%q budget:%+v, want scope:%+v provider:%q budget:%+v",
+			"checkpoint policy = scope:%+v model:%q/%q budget:%+v, want scope:%+v model:%q/%q budget:%+v",
 			checkpoint.Scope,
-			checkpoint.Provider,
-			checkpoint.Budget,
+			checkpoint.ModelSelection.Provider(),
+			checkpoint.ModelSelection.Model(),
+			checkpoint.Limits,
 			wantScope,
-			wantProvider,
-			wantBudget,
+			wantSelection.Provider(),
+			wantSelection.Model(),
+			wantLimits,
 		)
 	}
 
 	if mismatched, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
-		SessionID: "another-session",
-		Observer:  observer,
-	}); mismatched != nil || !errors.Is(err, ErrProcessSnapshotLost) {
-		t.Fatalf("cross-session RestoreTurn = (%T, %v), want snapshot loss", mismatched, err)
+		SessionID:      "another-session",
+		ModelSelection: wantSelection,
+		Cwd:            wantScope.Cwd,
+		Isolated:       wantScope.Isolated,
+		GoalLeaseID:    wantScope.GoalLeaseID,
+		Limits:         wantLimits,
+		Observer:       observer,
+	}); mismatched != nil || !errors.Is(err, ErrExecutorCheckpointLost) {
+		t.Fatalf("cross-session RestoreTurn = (%T, %v), want checkpoint loss", mismatched, err)
 	}
 	if mismatched, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
-		SessionID: wantScope.SessionID,
-		Provider:  "another-provider",
-		Observer:  observer,
-	}); mismatched != nil || !errors.Is(err, ErrProcessSnapshotLost) {
-		t.Fatalf("cross-provider RestoreTurn = (%T, %v), want snapshot loss", mismatched, err)
+		SessionID:      wantScope.SessionID,
+		ModelSelection: mustTestSelection(t, "another-provider", wantSelection.Model()),
+		Cwd:            wantScope.Cwd,
+		Isolated:       wantScope.Isolated,
+		GoalLeaseID:    wantScope.GoalLeaseID,
+		Limits:         wantLimits,
+		Observer:       observer,
+	}); mismatched != nil || !errors.Is(err, ErrExecutorCheckpointLost) {
+		t.Fatalf("cross-provider RestoreTurn = (%T, %v), want checkpoint loss", mismatched, err)
+	}
+	if mismatched, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
+		SessionID:      wantScope.SessionID,
+		ModelSelection: mustTestSelection(t, wantSelection.Provider(), "another-model"),
+		Cwd:            wantScope.Cwd,
+		Isolated:       wantScope.Isolated,
+		GoalLeaseID:    wantScope.GoalLeaseID,
+		Limits:         wantLimits,
+		Observer:       observer,
+	}); mismatched != nil || !errors.Is(err, ErrExecutorCheckpointLost) {
+		t.Fatalf("cross-model RestoreTurn = (%T, %v), want checkpoint loss", mismatched, err)
+	}
+	if mismatched, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
+		SessionID:      wantScope.SessionID,
+		ModelSelection: wantSelection,
+		Cwd:            "/another/workspace",
+		Isolated:       wantScope.Isolated,
+		GoalLeaseID:    wantScope.GoalLeaseID,
+		Limits:         wantLimits,
+		Observer:       observer,
+	}); mismatched != nil || !errors.Is(err, ErrExecutorCheckpointLost) {
+		t.Fatalf("cross-workspace RestoreTurn = (%T, %v), want checkpoint loss", mismatched, err)
+	}
+	if mismatched, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
+		SessionID:      wantScope.SessionID,
+		ModelSelection: wantSelection,
+		Cwd:            wantScope.Cwd,
+		Isolated:       wantScope.Isolated,
+		GoalLeaseID:    "another-goal-lease",
+		Limits:         wantLimits,
+		Observer:       observer,
+	}); mismatched != nil || !errors.Is(err, ErrExecutorCheckpointLost) {
+		t.Fatalf("cross-goal RestoreTurn = (%T, %v), want checkpoint loss", mismatched, err)
 	}
 
 	restored, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
-		SessionID: wantScope.SessionID,
-		Provider:  wantProvider,
-		Observer:  observer,
+		SessionID:      wantScope.SessionID,
+		ModelSelection: wantSelection,
+		Cwd:            wantScope.Cwd,
+		Isolated:       wantScope.Isolated,
+		GoalLeaseID:    wantScope.GoalLeaseID,
+		Limits:         wantLimits,
+		Observer:       observer,
 	})
 	if err != nil {
 		t.Fatalf("RestoreTurn: %v", err)
@@ -910,7 +957,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	if !ok {
 		t.Fatalf("restored process = %T, want *turnProcess", restored)
 	}
-	if scope, ok := turnctx.ScopeFrom(restoredProcess.runCtx); !ok || scope != wantScope {
+	if scope, ok := executionctx.Scope(restoredProcess.runCtx); !ok || scope != wantScope {
 		t.Fatalf("restored run scope = (%+v, %v), want %+v", scope, ok, wantScope)
 	}
 	pendingSuspensions, err := restored.PendingSuspensions(context.Background())
@@ -965,7 +1012,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 	stub := newOptionToolStub()
 	client, _ := chatclient.New(stub, chatclient.WithDefaults(*stub.defaults))
-	store := newJSONProcessStore()
+	store := newMemoryCheckpointStore()
 	built, err := toolset.Build(t.Context(), toolset.BuildConfig{})
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
@@ -974,7 +1021,7 @@ func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 	config := Config{
 		ChatClient:   client,
 		ToolResolver: built.Resolver,
-		ProcessStore: store,
+		Checkpoints:  store,
 		BuildID:      testBuildID,
 	}
 	first, err := New(t.Context(), config)
@@ -983,8 +1030,10 @@ func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 	}
 
 	process, err := first.StartTurn(t.Context(), TurnRequest{
-		Message:  "pause for approval",
-		Observer: &hitlApprovalObserver{},
+		SessionID: "session-build",
+		Cwd:       "/workspace/build",
+		Message:   "pause for approval",
+		Observer:  &hitlApprovalObserver{},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -992,21 +1041,21 @@ func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 	if completion := process.Await(); completion.Err != nil {
 		t.Fatalf("initial turn: %v", completion.Err)
 	}
-	persistWaitingCheckpoint(t, process)
-	tree, checkpoint, err := store.LoadTree(t.Context(), process.ID())
+	persistWaitingCheckpoint(t, store, process)
+	checkpoint, err := store.LoadCheckpoint(t.Context(), process.ID())
 	if err != nil {
 		t.Fatalf("load snapshot: %v", err)
 	}
 	if checkpoint.BuildID != testBuildID {
 		t.Fatalf("checkpoint build = %q, want %q", checkpoint.BuildID, testBuildID)
 	}
-	frameworkTree, err := decodeProcessTreeState(tree)
+	frameworkTree, err := decodeProcessTree(checkpoint)
 	if err != nil {
 		t.Fatalf("decode snapshot: %v", err)
 	}
 	snapshot, ok := frameworkTree.Root()
 	if !ok {
-		t.Fatalf("snapshot tree has no root %q: %+v", process.ID(), tree)
+		t.Fatalf("snapshot tree has no root %q: %+v", process.ID(), frameworkTree)
 	}
 	if snapshot.Deployment.Version != "" {
 		t.Fatalf("snapshot display version = %q, want empty application agent version", snapshot.Deployment.Version)
@@ -1017,20 +1066,28 @@ func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second New: %v", err)
 	}
-	resumable, err := second.ResumableProcess(t.Context(), process.ID())
+	resumable, err := second.CanResumeCheckpoint(t.Context(), expectationForCheckpoint(checkpoint))
 	if err != nil {
-		t.Fatalf("ResumableProcess: %v", err)
+		t.Fatalf("CanResumeCheckpoint: %v", err)
 	}
 	if resumable {
 		t.Fatal("checkpoint from another executable build reported resumable")
 	}
 
-	restored, err := second.RestoreTurn(t.Context(), process.ID(), RestoreTurnRequest{Observer: &hitlApprovalObserver{}})
+	restored, err := second.RestoreTurn(t.Context(), process.ID(), RestoreTurnRequest{
+		SessionID:      checkpoint.Scope.SessionID,
+		ModelSelection: checkpoint.ModelSelection,
+		Cwd:            checkpoint.Scope.Cwd,
+		Isolated:       checkpoint.Scope.Isolated,
+		GoalLeaseID:    checkpoint.Scope.GoalLeaseID,
+		Limits:         checkpoint.Limits,
+		Observer:       &hitlApprovalObserver{},
+	})
 	if restored != nil {
 		t.Fatalf("RestoreTurn process = %T, want nil", restored)
 	}
-	if !errors.Is(err, ErrProcessSnapshotLost) {
-		t.Fatalf("RestoreTurn error = %v, want ErrProcessSnapshotLost", err)
+	if !errors.Is(err, ErrExecutorCheckpointLost) {
+		t.Fatalf("RestoreTurn error = %v, want ErrExecutorCheckpointLost", err)
 	}
 }
 

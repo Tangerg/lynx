@@ -2,6 +2,7 @@ package sqlite_test
 
 import (
 	"context"
+	"errors"
 	"math"
 	"path/filepath"
 	"testing"
@@ -45,6 +46,11 @@ func TestGoalStoreRecordTurnIsIdempotentAndBlocksAtBudget(t *testing.T) {
 	}
 	if err := store.RecordTurn(t.Context(), record); err != nil {
 		t.Fatalf("repeat RecordTurn: %v", err)
+	}
+	conflict := record
+	conflict.LeaseID = "another_lease"
+	if err := store.RecordTurn(t.Context(), conflict); !errors.Is(err, goal.ErrTurnIdentityConflict) {
+		t.Fatalf("conflicting RecordTurn = %v, want ErrTurnIdentityConflict", err)
 	}
 	got, found, err := store.Get(t.Context(), sessionID)
 	if err != nil || !found {

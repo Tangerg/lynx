@@ -37,7 +37,7 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatcl
 		SandboxDir:             filepath.Join(stores.Home, "sandbox"),
 		SessionStore:           stores.Session,
 		RunStore:               stores.Runs,
-		ProcessStore:           stores.Process,
+		ExecutorCheckpoints:    stores.ExecutorCheckpoints,
 		WorkspaceMutationStore: stores.WorkspaceMuts,
 		InterruptStore:         stores.Interrupt,
 		TranscriptStore:        stores.Transcript,

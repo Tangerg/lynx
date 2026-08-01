@@ -19,16 +19,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-// Func suspends the current agent process with one application interrupt and
-// resumes it with the user's typed response.
-type Func func(ctx context.Context, key string, prompt runs.Interrupt) (interrupts.Resolution, error)
-
-// Unavailable reports that the current tool environment cannot suspend for a
-// human response.
-func Unavailable(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
-	return interrupts.Resolution{}, errors.New("agent suspension is unavailable")
-}
-
 // Interrupt serializes an application interrupt only at the agent boundary.
 func Interrupt(ctx context.Context, key string, prompt runs.Interrupt) (interrupts.Resolution, error) {
 	if err := prompt.Validate(); err != nil {

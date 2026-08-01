@@ -28,18 +28,16 @@ func TestPendingValidateRequiresOneCanonicalConnectedTree(t *testing.T) {
 			want: "canonical postorder",
 		},
 		{
-			name: "process and Run parent disagree",
+			name: "duplicate opaque process binding",
 			mutate: func(p *Pending) {
-				p.Continuations[0].ParentProcessID = "process_b"
+				p.Continuations[0].ProcessID = p.Continuations[1].ProcessID
 			},
-			want: "not lineage parent",
+			want: "duplicate continuation process",
 		},
 		{
 			name: "disconnected Run",
 			mutate: func(p *Pending) {
-				p.Continuations[1].ParentProcessID = "process_b"
 				p.Continuations[1].Lineage.ParentRunID = "run_b"
-				p.Continuations[2].ParentProcessID = "process_a"
 				p.Continuations[2].Lineage.ParentRunID = "run_a"
 			},
 			want: "cycle",
@@ -50,6 +48,34 @@ func TestPendingValidateRequiresOneCanonicalConnectedTree(t *testing.T) {
 				p.Suspensions[0], p.Suspensions[1] = p.Suspensions[1], p.Suspensions[0]
 			},
 			want: "canonical interrupt order",
+		},
+		{
+			name: "pending identity is not canonical",
+			mutate: func(p *Pending) {
+				p.TurnID = " turn_1"
+			},
+			want: "pending turn id has surrounding whitespace",
+		},
+		{
+			name: "continuation identity is not canonical",
+			mutate: func(p *Pending) {
+				p.Continuations[0].ProcessID += " "
+			},
+			want: "process id has surrounding whitespace",
+		},
+		{
+			name: "suspension identity is not canonical",
+			mutate: func(p *Pending) {
+				p.Suspensions[0].SuspensionID += " "
+			},
+			want: "suspension id has surrounding whitespace",
+		},
+		{
+			name: "interrupt identity is not canonical",
+			mutate: func(p *Pending) {
+				p.Interrupts[0].ItemID += " "
+			},
+			want: "item id has surrounding whitespace",
 		},
 	}
 	for _, test := range tests {
@@ -70,6 +96,10 @@ func validTreePending() Pending {
 		RootRunID: "run_root",
 		SessionID: "session_1",
 		TurnID:    "turn_1",
+		ProtocolProfile: execution.RunProtocolProfile{
+			ChildRuns:      true,
+			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+		},
 		Interrupts: []transcript.Interrupt{
 			{
 				ItemID: "item_grandchild",
@@ -94,10 +124,8 @@ func validTreePending() Pending {
 		},
 		Continuations: []Continuation{
 			{
-				RunID:           "run_grandchild",
-				ProcessID:       "process_grandchild",
-				ParentProcessID: "process_a",
-				SpawnCallID:     "spawn_grandchild",
+				RunID:     "run_grandchild",
+				ProcessID: "process_grandchild",
 				Lineage: execution.RunLineage{
 					SpawnedByItemID: "item_spawn_grandchild",
 					ParentRunID:     "run_a",
@@ -106,10 +134,8 @@ func validTreePending() Pending {
 				RunCreatedAt: createdAt,
 			},
 			{
-				RunID:           "run_a",
-				ProcessID:       "process_a",
-				ParentProcessID: "process_root",
-				SpawnCallID:     "spawn_a",
+				RunID:     "run_a",
+				ProcessID: "process_a",
 				Lineage: execution.RunLineage{
 					SpawnedByItemID: "item_spawn_a",
 					ParentRunID:     "run_root",
@@ -118,10 +144,8 @@ func validTreePending() Pending {
 				RunCreatedAt: createdAt,
 			},
 			{
-				RunID:           "run_b",
-				ProcessID:       "process_b",
-				ParentProcessID: "process_root",
-				SpawnCallID:     "spawn_b",
+				RunID:     "run_b",
+				ProcessID: "process_b",
 				Lineage: execution.RunLineage{
 					SpawnedByItemID: "item_spawn_b",
 					ParentRunID:     "run_root",

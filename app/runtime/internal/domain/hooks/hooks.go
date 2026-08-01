@@ -15,7 +15,8 @@
 // subprocess contract doesn't need.
 //
 // This package is the pure hook core: lifecycle types, matching, and decision
-// combination. Filesystem discovery and shell execution live in adapter/hooks.
+// combination. Filesystem discovery and shell execution are outer runtime
+// concerns and deliberately absent from this package.
 package hooks
 
 import (
@@ -41,9 +42,9 @@ const (
 	// SessionStart fires on the first turn of a session — a hook may inject
 	// session-scoped context.
 	SessionStart Event = "SessionStart"
-	// SubagentStart fires when a delegated sub-agent process starts.
+	// SubagentStart fires after a delegated sub-agent Run is durably admitted.
 	SubagentStart Event = "SubagentStart"
-	// SubagentStop fires when a delegated sub-agent process reaches a terminal
+	// SubagentStop fires when a delegated sub-agent Run reaches a terminal
 	// state.
 	SubagentStop Event = "SubagentStop"
 	// PreCompact fires before turn-boundary compaction — a hook may inject
@@ -163,13 +164,13 @@ func (s SubagentStatus) Valid() bool {
 
 // SubagentInput is the sub-agent slice of an Input for SubagentStart/Stop.
 type SubagentInput struct {
-	ProcessID       string
-	ParentProcessID string
-	Description     string
-	Prompt          string
-	Status          SubagentStatus
-	Result          string
-	Error           string
+	RunID       string
+	ParentRunID string
+	Description string
+	Prompt      string
+	Status      SubagentStatus
+	Result      string
+	Error       string
 }
 
 // Decision is the combined verdict of every hook that fired for one event.

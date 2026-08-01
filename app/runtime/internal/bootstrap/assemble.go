@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runrecovery"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
@@ -417,8 +418,25 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	if err != nil {
 		return nil, fmt.Errorf("runtime: engine: %w", err)
 	}
-	if _, err := cfg.RunStore.ReconcileOrphans(ctx, eng.ResumableProcess); err != nil {
-		return nil, fmt.Errorf("runtime: reconcile orphan runs: %w", err)
+	recoveryPersistence, err := runrecovery.New(runrecovery.Config{
+		Sessions:            cfg.SessionStore,
+		Runs:                cfg.RunStore,
+		Interrupts:          cfg.InterruptStore,
+		Transcript:          cfg.TranscriptStore,
+		Messages:            messages.conversation,
+		GoalTurns:           cfg.GoalStore,
+		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
+		Tx:                  runrecovery.Transactor(cfg.Transactor),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("runtime: boot recovery persistence: %w", err)
+	}
+	bootRecovery, err := runs.NewRecovery(recoveryPersistence, eng)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: boot recovery: %w", err)
+	}
+	if _, err := bootRecovery.Reconcile(ctx); err != nil {
+		return nil, fmt.Errorf("runtime: reconcile abandoned Runs: %w", err)
 	}
 
 	turnDispatcher, err := turn.New(turn.Dependencies{
@@ -470,21 +488,21 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	effectsTasks := &taskgroup.Group{}
 	lifetime.effectsTasks = effectsTasks
 	runEffects := runsegment.New(runsegment.Config{
-		Interrupts:         cfg.InterruptStore,
-		Sessions:           cfg.SessionStore,
-		ScheduleFirings:    cfg.ScheduleStore,
-		GoalTurns:          cfg.GoalStore,
-		Transcript:         cfg.TranscriptStore,
-		ItemReplacer:       cfg.TranscriptStore,
-		ToolResults:        cfg.ToolResultStore,
-		Messages:           messages.conversation,
-		Titles:             maintenance.NewTitler(utilityClient),
-		RunState:           cfg.RunStore,
-		ProcessTrees:       cfg.ProcessStore,
-		Tx:                 runsegment.Transactor(cfg.Transactor),
-		Checkpoints:        checkpoints,
-		Tasks:              effectsTasks,
-		PublishFileChanges: fileChanges.Publish,
+		Interrupts:          cfg.InterruptStore,
+		Sessions:            cfg.SessionStore,
+		ScheduleFirings:     cfg.ScheduleStore,
+		GoalTurns:           cfg.GoalStore,
+		Transcript:          cfg.TranscriptStore,
+		ItemReplacer:        cfg.TranscriptStore,
+		ToolResults:         cfg.ToolResultStore,
+		Messages:            messages.conversation,
+		Titles:              maintenance.NewTitler(utilityClient),
+		RunState:            cfg.RunStore,
+		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
+		Tx:                  runsegment.Transactor(cfg.Transactor),
+		Checkpoints:         checkpoints,
+		Tasks:               effectsTasks,
+		PublishFileChanges:  fileChanges.Publish,
 	})
 	// mcpStatus bridges the integrations coordinator's MCP reconnect/authorize
 	// transitions to the delivery workspace stream the Server observes.
@@ -495,17 +513,17 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 
 	admissions := &admission.Gate{}
 	sessionStorage := persistence.NewSessionStores(persistence.SessionStoresConfig{
-		Sessions:    cfg.SessionStore,
-		Transcript:  cfg.TranscriptStore,
-		Interrupts:  cfg.InterruptStore,
-		Runs:        cfg.RunStore,
-		Processes:   cfg.ProcessStore,
-		History:     messages.conversation,
-		Todos:       cfg.TodoStore,
-		Approvals:   cfg.ApprovalRuleStore,
-		ToolResults: cfg.ToolResultStore,
-		Goals:       cfg.GoalStore,
-		Tx:          persistence.Transactor(cfg.Transactor),
+		Sessions:            cfg.SessionStore,
+		Transcript:          cfg.TranscriptStore,
+		Interrupts:          cfg.InterruptStore,
+		Runs:                cfg.RunStore,
+		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
+		History:             messages.conversation,
+		Todos:               cfg.TodoStore,
+		Approvals:           cfg.ApprovalRuleStore,
+		ToolResults:         cfg.ToolResultStore,
+		Goals:               cfg.GoalStore,
+		Tx:                  persistence.Transactor(cfg.Transactor),
 	})
 	modelCapabilities := modelcatalog.Capabilities{}
 	modelsCoord := models.New(models.Config{
@@ -709,8 +727,8 @@ func validateAssemblyConfig(cfg Config) error {
 	if cfg.RunStore == nil {
 		return errors.New("runtime: RunStore is required")
 	}
-	if cfg.ProcessStore == nil {
-		return errors.New("runtime: ProcessStore is required")
+	if cfg.ExecutorCheckpoints == nil {
+		return errors.New("runtime: ExecutorCheckpoints is required")
 	}
 	if cfg.Transactor == nil {
 		return errors.New("runtime: Transactor is required")

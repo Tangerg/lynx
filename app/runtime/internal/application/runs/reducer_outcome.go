@@ -65,6 +65,7 @@ func (r *reducer) runRecord(state execution.RunState) transcript.Run {
 		ParentRunID:     r.cfg.Lineage.ParentRunID,
 		RootRunID:       r.cfg.Lineage.RootRunID,
 		ModelSelection:  r.cfg.ModelSelection,
+		GoalLeaseID:     r.cfg.GoalLeaseID,
 		State:           state,
 		ActiveSegmentID: activeSegment,
 		Metrics:         r.metrics(),

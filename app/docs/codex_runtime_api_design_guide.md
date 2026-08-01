@@ -347,7 +347,7 @@ interface RunRef {
 
 Run 跨 resume 保持身份，因此计量不能在每个 Segment 开始时悄悄归零。目标语义至少应满足：
 
-- `maxSteps` / `maxBudgetUsd` 是 **Run 生命周期**的限制；若当前契约定义为包含 subagent 树，则 resume 后仍按同一棵树累计；
+- `maxTotalTokens` / `maxSteps` / `maxBudgetUsd` 是 **Run 生命周期**的限制；若当前契约定义为包含 subagent 树，则 resume 后仍按同一棵树累计；`params.maxTokens` 只限制单次模型输出；
 - 每次 `segment.finished` 都携带停止边界上的 authoritative
   `usage / steps / activeDurationMs` **Run 累计快照**，`interrupt` 也不例外；
 - 最终 `RunResult` 是所有 Segment 的累计终值，不能只反映最后一段；

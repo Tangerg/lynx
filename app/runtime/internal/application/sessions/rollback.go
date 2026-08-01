@@ -43,11 +43,11 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 				return errors.New("sessions: write sets are unavailable")
 			}
 			return c.writes.ApplyRollback(ctx, RollbackPlan{
-				SessionID:  sessionID,
-				KeepMark:   boundary.KeepMark,
-				DropRunIDs: dropRunIDs,
-				ProcessIDs: parkedProcessIDs(parked),
-				Todos:      todos,
+				SessionID:         sessionID,
+				KeepMark:          boundary.KeepMark,
+				DropRunIDs:        dropRunIDs,
+				CheckpointRootIDs: parkedCheckpointRootIDs(parked),
+				Todos:             todos,
 			})
 		},
 		func(ctx context.Context) error {
@@ -66,11 +66,11 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 	)
 }
 
-func parkedProcessIDs(parked []RunTurnBinding) []string {
+func parkedCheckpointRootIDs(parked []RunTurnBinding) []string {
 	ids := make([]string, 0, len(parked))
 	for _, binding := range parked {
-		if binding.ProcessID != "" {
-			ids = append(ids, binding.ProcessID)
+		if binding.CheckpointRootID != "" {
+			ids = append(ids, binding.CheckpointRootID)
 		}
 	}
 	return ids

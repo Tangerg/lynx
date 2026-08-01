@@ -295,7 +295,7 @@ func TestSessionImportRejectsOpenInterrupt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := rt.interrupts.Put(ctx, serverPending(
+	if err := rt.interrupts.Open(ctx, serverPending(
 		"run_parked",
 		ses.ID,
 		"",
@@ -328,7 +328,7 @@ func TestSessionExportRejectsOpenInterrupt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := rt.interrupts.Put(ctx, serverPending(
+	if err := rt.interrupts.Open(ctx, serverPending(
 		"run_parked",
 		ses.ID,
 		"",
@@ -354,13 +354,17 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	}
 	rt.history[ses.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("waiting"))}
 	parkedAt := time.Unix(1, 0).UTC()
+	profile := execution.RunProtocolProfile{
+		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+	}
 	if err := rt.runs.Admit(ctx, execution.RunDraft{SegmentID: "seg_open",
-		RunID: "run_parked", SessionID: ses.ID, CreatedAt: parkedAt,
+		RunID: "run_parked", SessionID: ses.ID, ProtocolProfile: profile, CreatedAt: parkedAt,
 	}); err != nil {
 		t.Fatalf("admit parked run: %v", err)
 	}
 	if err := rt.runs.Suspend(ctx, transcript.Run{
 		SessionID: ses.ID, ID: "run_parked", State: execution.Interrupted,
+		ProtocolProfile: profile,
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_question", RunID: "run_parked", Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Prompt: "Continue?"},
@@ -374,9 +378,9 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 		Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
 		Question: &transcript.Question{Prompt: "Continue?"},
 	}); err != nil {
-		t.Fatalf("put interrupt item: %v", err)
+		t.Fatalf("open interrupt item: %v", err)
 	}
-	if err := rt.interrupts.Put(ctx, serverPending(
+	if err := rt.interrupts.Open(ctx, serverPending(
 		"run_parked",
 		ses.ID,
 		"turn_parked",
@@ -388,7 +392,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 		}},
 		parkedAt,
 	)); err != nil {
-		t.Fatalf("put interrupt: %v", err)
+		t.Fatalf("open interrupt: %v", err)
 	}
 
 	cancelResult, err := s.CancelRun(ctx, protocol.CancelRunRequest{RunID: "run_parked", Reason: "user stopped"})
@@ -425,7 +429,7 @@ func TestRestoreSessionApplicationBoundaryRejectsOpenInterrupts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := rt.interrupts.Put(ctx, serverPending(
+	if err := rt.interrupts.Open(ctx, serverPending(
 		"run_old",
 		ses.ID,
 		"",

@@ -17,11 +17,11 @@ func TestLiveChildCancellationReleasesClaimWhenExecutorTeardownFails(t *testing.
 			if ref != (execution.TurnRef{SessionID: "session", TurnID: "turn_root"}) {
 				t.Fatalf("CancelSubtree turn = %+v, want session/turn_root", ref)
 			}
-			if processID != plan.target.source.ProcessID {
+			if processID != plan.target.processID {
 				t.Fatalf(
 					"CancelSubtree process = %q, want %q",
 					processID,
-					plan.target.source.ProcessID,
+					plan.target.processID,
 				)
 			}
 			return teardownErr
@@ -43,7 +43,7 @@ func TestLiveChildCancellationReleasesClaimWhenExecutorTeardownFails(t *testing.
 	if !errors.Is(err, teardownErr) {
 		t.Fatalf("cancel live child error = %v, want teardown cause", err)
 	}
-	for _, identity := range []string{plan.target.run.ID, plan.target.source.ProcessID} {
+	for _, identity := range []string{plan.target.run.ID, plan.target.processID} {
 		if !strings.Contains(err.Error(), identity) {
 			t.Fatalf("cancel live child error = %q, want identity %q", err, identity)
 		}

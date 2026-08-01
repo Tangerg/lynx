@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/todopresentation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
@@ -47,7 +47,7 @@ task is ambiguous, ask one focused question rather than guess.`
 //	                   (~/.lyra, ~/.agents), then project root → cwd)
 //
 // The project side anchors to the TURN's working directory — the
-// session cwd carried in application context ([turnctx.TurnCwd]), the same seam
+// session cwd carried in application context ([executionctx.CWD]), the same seam
 // the fs/shell/skill tools follow — so a session opened on
 // project A briefs the model about project A regardless of where the runtime
 // server process was started.
@@ -57,7 +57,7 @@ task is ambiguous, ask one focused question rather than guess.`
 // Engines built without either memory source simply yield the base prompt +
 // discovered files.
 func (e *Engine) systemPrompt(ctx context.Context) string {
-	prompt := composePrompt(ctx, e.knowledge, e.memory, turnctx.TurnCwd(ctx, e.workdir))
+	prompt := composePrompt(ctx, e.knowledge, e.memory, executionctx.CWD(ctx, e.workdir))
 	return appendTodos(ctx, prompt, e.todos)
 }
 
@@ -71,7 +71,7 @@ func appendTodos(ctx context.Context, prompt string, todos TodoReader) string {
 	if todos == nil {
 		return prompt
 	}
-	sessionID := turnctx.TurnSession(ctx)
+	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return prompt
 	}

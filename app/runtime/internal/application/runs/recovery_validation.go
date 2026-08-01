@@ -1,4 +1,4 @@
-package sqlite
+package runs
 
 import (
 	"context"
@@ -8,34 +8,30 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// validateParkedTree checks the complete durable barrier before boot keeps a
-// Run tree resumable. Pending is root-owned, so its continuations must cover
-// every non-terminal member exactly once; validating only the root would turn
-// every surviving child into a false orphan after restart.
+// validateRecoveryParkedTree checks the complete durable hand-off barrier before
+// boot keeps a Run tree resumable. Pending is root-owned, so its continuations
+// must cover every non-terminal member exactly once.
 //
 // An impossible partial application write is corruption and fails startup. A
-// missing or executor-incompatible process state is an external-resource
-// loss and returns resumable=false so reconciliation can recover the whole tree
-// as run_lost.
-func (s *RunStore) validateParkedTree(
+// missing or executor-incompatible checkpoint is an external-resource loss and
+// returns resumable=false so recovery can mark the whole tree run_lost.
+func validateRecoveryParkedTree(
 	ctx context.Context,
-	tree nonTerminalRunTree,
+	tree recoveryRunTree,
 	pending interrupts.Pending,
-	validateProcess ResumableProcessValidator,
+	sess session.Session,
+	items []transcript.Item,
+	checkpoints CheckpointResumability,
 ) (bool, error) {
 	if err := pending.Validate(); err != nil {
-		return false, fmt.Errorf(
-			"sqlite: validate parked Run tree %q Pending: %w",
-			tree.root.ID,
-			err,
-		)
+		return false, fmt.Errorf("runs: validate recovery Run tree %q Pending: %w", tree.root.ID, err)
 	}
-	if pending.RootRunID != tree.root.ID ||
-		pending.SessionID != tree.root.SessionID {
+	if pending.RootRunID != tree.root.ID || pending.SessionID != tree.root.SessionID {
 		return false, fmt.Errorf(
-			"sqlite: validate parked Run tree %q: Pending identity is %q/%q, want %q/%q",
+			"runs: validate recovery Run tree %q: Pending identity is %q/%q, want %q/%q",
 			tree.root.ID,
 			pending.SessionID,
 			pending.RootRunID,
@@ -43,9 +39,23 @@ func (s *RunStore) validateParkedTree(
 			tree.root.ID,
 		)
 	}
+	if pending.GoalLeaseID != tree.root.GoalLeaseID {
+		return false, fmt.Errorf(
+			"runs: validate recovery Run tree %q: Pending goal lease %q differs from root Run lease %q",
+			tree.root.ID,
+			pending.GoalLeaseID,
+			tree.root.GoalLeaseID,
+		)
+	}
+	if !pending.ProtocolProfile.Equal(tree.root.ProtocolProfile) {
+		return false, fmt.Errorf(
+			"runs: validate recovery Run tree %q: Pending protocol profile differs from root Run admission",
+			tree.root.ID,
+		)
+	}
 	if len(pending.Continuations) != len(tree.runsByID) {
 		return false, fmt.Errorf(
-			"sqlite: validate parked Run tree %q: Pending has %d continuations, want %d active Runs",
+			"runs: validate recovery Run tree %q: Pending has %d continuations, want %d active Runs",
 			tree.root.ID,
 			len(pending.Continuations),
 			len(tree.runsByID),
@@ -55,34 +65,22 @@ func (s *RunStore) validateParkedTree(
 		active, found := tree.runsByID[continuation.RunID]
 		if !found {
 			return false, fmt.Errorf(
-				"sqlite: validate parked Run tree %q: continuation names non-active Run %q",
+				"runs: validate recovery Run tree %q: continuation names non-active Run %q",
 				tree.root.ID,
 				continuation.RunID,
 			)
 		}
-		if err := validateParkedContinuation(active, tree.root, continuation); err != nil {
+		if err := validateRecoveryContinuation(active, tree.root, continuation); err != nil {
 			return false, err
 		}
 	}
 
-	items, err := NewTranscriptStore(s.db).List(ctx, tree.root.SessionID)
-	if err != nil {
-		return false, fmt.Errorf(
-			"sqlite: validate parked Run tree %q transcript: %w",
-			tree.root.ID,
-			err,
-		)
-	}
-	itemsByID := indexTranscriptItems(items)
-	interruptItems, err := validatePendingInterruptItems(
-		tree,
-		pending.Interrupts,
-		itemsByID,
-	)
+	itemsByID := indexRecoveryItems(items)
+	interruptItems, err := validateRecoveryInterruptItems(tree, pending.Interrupts, itemsByID)
 	if err != nil {
 		return false, err
 	}
-	if err := validateRunningInterruptItems(tree, items, interruptItems); err != nil {
+	if err := validateRecoveryRunningItems(tree, items, interruptItems); err != nil {
 		return false, err
 	}
 	claimedItems := make(map[string]string, len(interruptItems))
@@ -90,7 +88,7 @@ func (s *RunStore) validateParkedTree(
 		claimedItems[itemID] = "interrupt"
 	}
 	for _, continuation := range pending.Continuations {
-		if err := validateContinuationTools(
+		if err := validateRecoveryContinuationTools(
 			tree.root.ID,
 			continuation,
 			itemsByID,
@@ -101,14 +99,32 @@ func (s *RunStore) validateParkedTree(
 	}
 
 	rootContinuation, _ := pending.RootContinuation()
-	return s.hasResumableProcess(
-		ctx,
-		rootContinuation.ProcessID,
-		validateProcess,
-	)
+	// Isolated workspaces are process-local scratch copies and are deliberately
+	// never snapshotted. A host restart therefore destroys the world this tree
+	// was parked in even when its executor payload remains decodable.
+	if sess.Isolated {
+		return false, nil
+	}
+	resumable, err := checkpoints.CanResumeCheckpoint(ctx, execution.ExecutorCheckpointExpectation{
+		RootProcessID:  rootContinuation.ProcessID,
+		SessionID:      pending.SessionID,
+		Cwd:            sess.Cwd,
+		Isolated:       false,
+		GoalLeaseID:    pending.GoalLeaseID,
+		ModelSelection: rootContinuation.ModelSelection,
+		Limits:         rootContinuation.Limits,
+	})
+	if err != nil {
+		return false, fmt.Errorf(
+			"runs: validate executor checkpoint %q resumability: %w",
+			rootContinuation.ProcessID,
+			err,
+		)
+	}
+	return resumable, nil
 }
 
-func validateParkedContinuation(
+func validateRecoveryContinuation(
 	active transcript.Run,
 	root transcript.Run,
 	continuation interrupts.Continuation,
@@ -116,7 +132,7 @@ func validateParkedContinuation(
 	switch {
 	case active.SessionID != root.SessionID:
 		return fmt.Errorf(
-			"sqlite: validate parked Run tree %q: Run %q belongs to Session %q, want %q",
+			"runs: validate recovery Run tree %q: Run %q belongs to Session %q, want %q",
 			root.ID,
 			active.ID,
 			active.SessionID,
@@ -124,39 +140,22 @@ func validateParkedContinuation(
 		)
 	case active.State != execution.Interrupted:
 		return fmt.Errorf(
-			"sqlite: validate parked Run tree %q: Run %q is %s, want interrupted",
+			"runs: validate recovery Run tree %q: Run %q is %s, want interrupted",
 			root.ID,
 			active.ID,
 			active.State,
 		)
-	case active.ModelSelection != continuation.ModelSelection:
+	case !active.ProtocolProfile.Equal(root.ProtocolProfile):
 		return fmt.Errorf(
-			"sqlite: validate parked Run tree %q: Run %q admission model %q/%q differs from continuation model %q/%q",
-			root.ID,
-			active.ID,
-			active.ModelSelection.Provider(),
-			active.ModelSelection.Model(),
-			continuation.ModelSelection.Provider(),
-			continuation.ModelSelection.Model(),
-		)
-	case !active.CreatedAt.Equal(continuation.RunCreatedAt):
-		return fmt.Errorf(
-			"sqlite: validate parked Run tree %q: Run %q and continuation creation times differ",
+			"runs: validate recovery Run tree %q: Run %q protocol profile differs from root admission",
 			root.ID,
 			active.ID,
 		)
-	case active.Lineage() != continuation.Lineage:
-		return fmt.Errorf(
-			"sqlite: validate parked Run tree %q: Run %q lineage differs from its continuation",
-			root.ID,
-			active.ID,
-		)
-	default:
-		return nil
 	}
+	return validateContinuationRunFacts(root.ID, active, continuation)
 }
 
-func indexTranscriptItems(items []transcript.Item) map[string]transcript.Item {
+func indexRecoveryItems(items []transcript.Item) map[string]transcript.Item {
 	indexed := make(map[string]transcript.Item, len(items))
 	for _, item := range items {
 		indexed[item.ID] = item
@@ -164,8 +163,8 @@ func indexTranscriptItems(items []transcript.Item) map[string]transcript.Item {
 	return indexed
 }
 
-func validatePendingInterruptItems(
-	tree nonTerminalRunTree,
+func validateRecoveryInterruptItems(
+	tree recoveryRunTree,
 	open []transcript.Interrupt,
 	itemsByID map[string]transcript.Item,
 ) (map[string]struct{}, error) {
@@ -173,7 +172,7 @@ func validatePendingInterruptItems(
 	for _, interrupt := range open {
 		if _, duplicate := seen[interrupt.ItemID]; duplicate {
 			return nil, fmt.Errorf(
-				"sqlite: validate parked Run tree %q: duplicate interrupt Item %q",
+				"runs: validate recovery Run tree %q: duplicate interrupt Item %q",
 				tree.root.ID,
 				interrupt.ItemID,
 			)
@@ -181,7 +180,7 @@ func validatePendingInterruptItems(
 		seen[interrupt.ItemID] = struct{}{}
 		if _, active := tree.runsByID[interrupt.RunID]; !active {
 			return nil, fmt.Errorf(
-				"sqlite: validate parked Run tree %q: interrupt Item %q belongs to non-active Run %q",
+				"runs: validate recovery Run tree %q: interrupt Item %q belongs to non-active Run %q",
 				tree.root.ID,
 				interrupt.ItemID,
 				interrupt.RunID,
@@ -193,7 +192,7 @@ func validatePendingInterruptItems(
 			item.RunID != interrupt.RunID ||
 			item.Status != transcript.ItemRunning {
 			return nil, fmt.Errorf(
-				"sqlite: validate parked Run tree %q: interrupt Item %q is not Running in Run %q",
+				"runs: validate recovery Run tree %q: interrupt Item %q is not Running in Run %q",
 				tree.root.ID,
 				interrupt.ItemID,
 				interrupt.RunID,
@@ -207,7 +206,7 @@ func validatePendingInterruptItems(
 				item.Tool == nil ||
 				!reflect.DeepEqual(*item.Tool, interrupt.Approval.Tool) {
 				return nil, fmt.Errorf(
-					"sqlite: validate parked Run tree %q: malformed approval Item %q",
+					"runs: validate recovery Run tree %q: malformed approval Item %q",
 					tree.root.ID,
 					interrupt.ItemID,
 				)
@@ -219,14 +218,14 @@ func validatePendingInterruptItems(
 				item.Question == nil ||
 				!reflect.DeepEqual(item.Question, interrupt.Question) {
 				return nil, fmt.Errorf(
-					"sqlite: validate parked Run tree %q: malformed question Item %q",
+					"runs: validate recovery Run tree %q: malformed question Item %q",
 					tree.root.ID,
 					interrupt.ItemID,
 				)
 			}
 		default:
 			return nil, fmt.Errorf(
-				"sqlite: validate parked Run tree %q: interrupt Item %q has unknown kind %d",
+				"runs: validate recovery Run tree %q: interrupt Item %q has unknown kind %d",
 				tree.root.ID,
 				interrupt.ItemID,
 				interrupt.Kind,
@@ -236,19 +235,18 @@ func validatePendingInterruptItems(
 	return seen, nil
 }
 
-func validateRunningInterruptItems(
-	tree nonTerminalRunTree,
+func validateRecoveryRunningItems(
+	tree recoveryRunTree,
 	items []transcript.Item,
 	interruptItems map[string]struct{},
 ) error {
 	for _, item := range items {
-		if _, active := tree.runsByID[item.RunID]; !active ||
-			item.Status != transcript.ItemRunning {
+		if _, active := tree.runsByID[item.RunID]; !active || item.Status != transcript.ItemRunning {
 			continue
 		}
 		if _, belongsToInterrupt := interruptItems[item.ID]; !belongsToInterrupt {
 			return fmt.Errorf(
-				"sqlite: validate parked Run tree %q: Running Item %q in Run %q has no matching interrupt",
+				"runs: validate recovery Run tree %q: Running Item %q in Run %q has no matching interrupt",
 				tree.root.ID,
 				item.ID,
 				item.RunID,
@@ -258,20 +256,14 @@ func validateRunningInterruptItems(
 	return nil
 }
 
-func validateContinuationTools(
+func validateRecoveryContinuationTools(
 	rootRunID string,
 	continuation interrupts.Continuation,
 	itemsByID map[string]transcript.Item,
 	claimedItems map[string]string,
 ) error {
 	for _, drained := range continuation.DrainedTools {
-		if err := claimContinuationItem(
-			rootRunID,
-			continuation.RunID,
-			drained.ItemID,
-			"drained tool",
-			claimedItems,
-		); err != nil {
+		if err := claimRecoveryItem(rootRunID, continuation.RunID, drained.ItemID, "drained tool", claimedItems); err != nil {
 			return err
 		}
 		item, found := itemsByID[drained.ItemID]
@@ -284,7 +276,7 @@ func validateContinuationTools(
 			item.Tool.Arguments.Canonical() != drained.Arguments ||
 			item.Error != nil {
 			return fmt.Errorf(
-				"sqlite: validate parked Run tree %q: malformed drained tool Item %q in Run %q",
+				"runs: validate recovery Run tree %q: malformed drained tool Item %q in Run %q",
 				rootRunID,
 				drained.ItemID,
 				continuation.RunID,
@@ -292,13 +284,7 @@ func validateContinuationTools(
 		}
 	}
 	for _, committed := range continuation.CommittedTools {
-		if err := claimContinuationItem(
-			rootRunID,
-			continuation.RunID,
-			committed.ItemID,
-			"committed tool",
-			claimedItems,
-		); err != nil {
+		if err := claimRecoveryItem(rootRunID, continuation.RunID, committed.ItemID, "committed tool", claimedItems); err != nil {
 			return err
 		}
 		item, found := itemsByID[committed.ItemID]
@@ -312,7 +298,7 @@ func validateContinuationTools(
 			item.Error == nil ||
 			!reflect.DeepEqual(*item.Error, committed.Problem) {
 			return fmt.Errorf(
-				"sqlite: validate parked Run tree %q: malformed committed tool Item %q in Run %q",
+				"runs: validate recovery Run tree %q: malformed committed tool Item %q in Run %q",
 				rootRunID,
 				committed.ItemID,
 				continuation.RunID,
@@ -322,7 +308,7 @@ func validateContinuationTools(
 	return nil
 }
 
-func claimContinuationItem(
+func claimRecoveryItem(
 	rootRunID string,
 	runID string,
 	itemID string,
@@ -331,7 +317,7 @@ func claimContinuationItem(
 ) error {
 	if previous, duplicate := claimedItems[itemID]; duplicate {
 		return fmt.Errorf(
-			"sqlite: validate parked Run tree %q: Item %q in Run %q is both %s and %s",
+			"runs: validate recovery Run tree %q: Item %q in Run %q is both %s and %s",
 			rootRunID,
 			itemID,
 			runID,

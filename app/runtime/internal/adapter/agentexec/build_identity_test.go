@@ -32,12 +32,12 @@ func TestNewRequiresContentBuildIdentityForDurableRuntime(t *testing.T) {
 	}{
 		{
 			name:   "missing",
-			config: Config{ChatClient: client, ProcessStore: newJSONProcessStore()},
+			config: Config{ChatClient: client, Checkpoints: newMemoryCheckpointStore()},
 			want:   "BuildID",
 		},
 		{
 			name:   "development fallback",
-			config: Config{ChatClient: client, ProcessStore: newJSONProcessStore(), BuildID: "dev"},
+			config: Config{ChatClient: client, Checkpoints: newMemoryCheckpointStore(), BuildID: "dev"},
 			want:   "BuildID",
 		},
 	}
@@ -61,16 +61,16 @@ func TestRestoreTurnMissingSnapshotIsStateLoss(t *testing.T) {
 		t.Fatalf("chatclient.New: %v", err)
 	}
 	engine, err := New(t.Context(), Config{
-		ChatClient:   client,
-		ProcessStore: newJSONProcessStore(),
-		BuildID:      testBuildID,
+		ChatClient:  client,
+		Checkpoints: newMemoryCheckpointStore(),
+		BuildID:     testBuildID,
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 	process, err := engine.RestoreTurn(t.Context(), "missing", RestoreTurnRequest{})
-	if process != nil || !errors.Is(err, ErrProcessSnapshotLost) || !errors.Is(err, execution.ErrProcessStateNotFound) {
-		t.Fatalf("RestoreTurn = (%T, %v), want snapshot loss wrapping not found", process, err)
+	if process != nil || !errors.Is(err, ErrExecutorCheckpointLost) || !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("RestoreTurn = (%T, %v), want checkpoint loss wrapping not found", process, err)
 	}
 }
 
@@ -85,19 +85,21 @@ func TestRestoreRejectsUsageProjectionThatDriftedFromProcessTree(t *testing.T) {
 		t.Fatalf("toolset.Build: %v", err)
 	}
 	cleanupBuiltTools(t, built)
-	store := newJSONProcessStore()
+	store := newMemoryCheckpointStore()
 	engine, err := New(t.Context(), Config{
 		ChatClient:   client,
 		ToolResolver: built.Resolver,
-		ProcessStore: store,
+		Checkpoints:  store,
 		BuildID:      testBuildID,
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 	process, err := engine.StartTurn(t.Context(), TurnRequest{
-		Message:  "pause for approval",
-		Observer: &hitlApprovalObserver{},
+		SessionID: "session-usage",
+		Cwd:       "/workspace/usage",
+		Message:   "pause for approval",
+		Observer:  &hitlApprovalObserver{},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -105,7 +107,7 @@ func TestRestoreRejectsUsageProjectionThatDriftedFromProcessTree(t *testing.T) {
 	if completion := process.Await(); completion.Err != nil {
 		t.Fatalf("initial turn: %v", completion.Err)
 	}
-	persistWaitingCheckpoint(t, process)
+	persistWaitingCheckpoint(t, store, process)
 
 	store.mu.Lock()
 	checkpoint := store.checkpoints[process.ID()]
@@ -116,18 +118,24 @@ func TestRestoreRejectsUsageProjectionThatDriftedFromProcessTree(t *testing.T) {
 	store.checkpoints[process.ID()] = checkpoint
 	store.mu.Unlock()
 
-	if resumable, err := engine.ResumableProcess(t.Context(), process.ID()); err != nil || resumable {
-		t.Fatalf("ResumableProcess = %v, %v; want false, nil", resumable, err)
+	if resumable, err := engine.CanResumeCheckpoint(t.Context(), expectationForCheckpoint(checkpoint)); err != nil || resumable {
+		t.Fatalf("CanResumeCheckpoint = %v, %v; want false, nil", resumable, err)
 	}
 	restored, err := engine.RestoreTurn(t.Context(), process.ID(), RestoreTurnRequest{
-		Observer: &hitlApprovalObserver{},
+		SessionID:      checkpoint.Scope.SessionID,
+		ModelSelection: checkpoint.ModelSelection,
+		Cwd:            checkpoint.Scope.Cwd,
+		Isolated:       checkpoint.Scope.Isolated,
+		GoalLeaseID:    checkpoint.Scope.GoalLeaseID,
+		Limits:         checkpoint.Limits,
+		Observer:       &hitlApprovalObserver{},
 	})
-	if restored != nil || !errors.Is(err, ErrProcessSnapshotLost) || !errors.Is(err, core.ErrInvalidSnapshot) {
-		t.Fatalf("RestoreTurn = (%T, %v), want snapshot loss wrapping ErrInvalidSnapshot", restored, err)
+	if restored != nil || !errors.Is(err, ErrExecutorCheckpointLost) || !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("RestoreTurn = (%T, %v), want checkpoint loss wrapping ErrInvalidSnapshot", restored, err)
 	}
 }
 
-func TestWaitingCheckpointPersistenceFailureDoesNotRewriteAgentState(t *testing.T) {
+func TestWaitingCheckpointCaptureDoesNotReadCheckpointStorage(t *testing.T) {
 	model := newOptionToolStub()
 	client, err := chatclient.New(model, chatclient.WithDefaults(*model.defaults))
 	if err != nil {
@@ -138,20 +146,20 @@ func TestWaitingCheckpointPersistenceFailureDoesNotRewriteAgentState(t *testing.
 		t.Fatalf("toolset.Build: %v", err)
 	}
 	cleanupBuiltTools(t, built)
-	want := errors.New("snapshot unavailable")
-	store := &failingProcessStore{err: want}
+	reader := &checkpointReaderProbe{}
 	engine, err := New(t.Context(), Config{
 		ChatClient:   client,
 		ToolResolver: built.Resolver,
-		ProcessStore: store,
+		Checkpoints:  reader,
 		BuildID:      testBuildID,
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 	process, err := engine.StartTurn(t.Context(), TurnRequest{
-		Message:  "pause for approval",
-		Observer: &hitlApprovalObserver{},
+		SessionID: "session-capture",
+		Message:   "pause for approval",
+		Observer:  &hitlApprovalObserver{},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -164,32 +172,32 @@ func TestWaitingCheckpointPersistenceFailureDoesNotRewriteAgentState(t *testing.
 		t.Fatalf("process status = %s, want waiting", completion.Status)
 	}
 	checkpoint := captureWaitingCheckpoint(t, process)
-	if got := store.saves.Load(); got != 0 {
-		t.Fatalf("checkpoint saves before application commit = %d, want 0", got)
+	if got := reader.loads.Load(); got != 0 {
+		t.Fatalf("checkpoint reads before capture = %d, want 0", got)
 	}
-	if err := checkpoint.PersistCheckpoint(t.Context()); !errors.Is(err, want) {
-		t.Fatalf("PersistCheckpoint error = %v, want %v", err, want)
+	if err := checkpoint.Checkpoint.Validate(); err != nil {
+		t.Fatalf("captured checkpoint: %v", err)
 	}
-	if got := store.saves.Load(); got != 1 {
-		t.Fatalf("checkpoint saves after application commit = %d, want 1", got)
+	if got := reader.loads.Load(); got != 0 {
+		t.Fatalf("checkpoint reads after capture = %d, want 0", got)
 	}
 }
 
-func TestTerminalSegmentDoesNotPersistUnresumableSnapshot(t *testing.T) {
+func TestTerminalSegmentDoesNotReadCheckpointStorage(t *testing.T) {
 	client, err := chatclient.New(newStreamingStubModel("done"))
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}
-	store := &failingProcessStore{err: errors.New("must not be called")}
+	reader := &checkpointReaderProbe{}
 	engine, err := New(t.Context(), Config{
-		ChatClient:   client,
-		ProcessStore: store,
-		BuildID:      testBuildID,
+		ChatClient:  client,
+		Checkpoints: reader,
+		BuildID:     testBuildID,
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	process, err := engine.StartTurn(t.Context(), TurnRequest{Message: "hello"})
+	process, err := engine.StartTurn(t.Context(), TurnRequest{SessionID: "session-terminal", Message: "hello"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
@@ -200,23 +208,16 @@ func TestTerminalSegmentDoesNotPersistUnresumableSnapshot(t *testing.T) {
 	if completion.Status != core.StatusCompleted {
 		t.Fatalf("process status = %s, want completed", completion.Status)
 	}
-	if got := store.saves.Load(); got != 0 {
-		t.Fatalf("terminal snapshot saves = %d, want 0", got)
+	if got := reader.loads.Load(); got != 0 {
+		t.Fatalf("terminal checkpoint reads = %d, want 0", got)
 	}
 }
 
-type failingProcessStore struct {
-	saves atomic.Int32
-	err   error
+type checkpointReaderProbe struct {
+	loads atomic.Int32
 }
 
-func (s *failingProcessStore) SaveTree(context.Context, execution.ProcessTreeState, execution.ProcessCheckpoint) error {
-	s.saves.Add(1)
-	return s.err
+func (reader *checkpointReaderProbe) LoadCheckpoint(context.Context, string) (execution.ExecutorCheckpoint, error) {
+	reader.loads.Add(1)
+	return execution.ExecutorCheckpoint{}, execution.ErrExecutorCheckpointNotFound
 }
-
-func (*failingProcessStore) LoadTree(context.Context, string) (execution.ProcessTreeState, execution.ProcessCheckpoint, error) {
-	return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, execution.ErrProcessStateNotFound
-}
-
-func (*failingProcessStore) DeleteTrees(context.Context, []string) error { return nil }

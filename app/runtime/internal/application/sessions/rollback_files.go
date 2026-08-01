@@ -68,7 +68,7 @@ func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (Rollback
 	}
 	result := RollbackResult{}
 
-	admission, err := c.ClaimMutationSlot(spec.SessionID)
+	admission, err := c.ClaimSessionMutation(spec.SessionID)
 	if err != nil {
 		return result, err
 	}

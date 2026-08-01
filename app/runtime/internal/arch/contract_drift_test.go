@@ -607,8 +607,8 @@ func exportedStructs(t *testing.T, dir string) []string {
 // value constraint is stated by all THREE emitters.
 //
 // One declaration feeds three independent emitters — the Go validator writes a
-// `required(...)` call, the schema writes `minLength`, the TypeScript checks write
-// `minLength(1)` — and a nested path takes a fourth code path in two of them (an
+// matching helper call, the schema writes its value keyword, and the TypeScript
+// checks write the same keyword — while a nested path takes a fourth code path in two of them (an
 // allOf branch, because the rule belongs to the owner and not to every carrier of
 // the shared type). Construction does not make them agree; only reading the
 // artifacts back does.
@@ -637,6 +637,8 @@ func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 			switch constraint.Kind {
 			case dispatch.ConstraintPositive:
 				keyword, helper = "minimum", "positiveNumber"
+			case dispatch.ConstraintNonNegative:
+				keyword, helper = "minimum", "nonNegativeNumber"
 			case dispatch.ConstraintNonEmptyItems:
 				keyword = "minItems"
 				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)

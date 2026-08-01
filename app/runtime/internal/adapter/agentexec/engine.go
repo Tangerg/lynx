@@ -23,7 +23,7 @@ type Engine struct {
 	runtime      *runtime.Engine
 	agent        *core.Agent
 	dependencies *core.Dependencies
-	processStore ProcessStore
+	checkpoints  CheckpointReader
 	buildID      string
 
 	historyStore   history.Store
@@ -46,11 +46,9 @@ type Engine struct {
 // SubagentProjection is Runtime's own typed view of one delegated process: the
 // task it was given and, once it finishes, the answer it produced.
 type SubagentProjection struct {
-	ParentProcessID string
-	SpawnCallID     string
-	Description     string
-	Prompt          string
-	Reply           string
+	Description string
+	Prompt      string
+	Reply       string
 }
 
 // SubagentProjection reads a delegated process directly rather than off an
@@ -71,10 +69,7 @@ func (e *Engine) SubagentProjection(processID string) (SubagentProjection, bool)
 	}
 	blackboard := process.Blackboard()
 
-	projection := SubagentProjection{
-		ParentProcessID: process.ParentID(),
-		SpawnCallID:     process.SpawnCallID(),
-	}
+	projection := SubagentProjection{}
 	if input, ok := core.Get[taskInput](blackboard, core.DefaultBindingName); ok {
 		projection.Description = input.Description
 		projection.Prompt = input.Prompt
@@ -94,8 +89,8 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 	if config.BuildID != "" && !validBuildID(config.BuildID) {
 		return nil, errors.New("engine: BuildID must use the format sha256:<64 lowercase hex characters>")
 	}
-	if config.ProcessStore != nil && config.BuildID == "" {
-		return nil, errors.New("engine: BuildID is required when ProcessStore is configured")
+	if config.Checkpoints != nil && config.BuildID == "" {
+		return nil, errors.New("engine: BuildID is required when Checkpoints is configured")
 	}
 	if config.HistoryStore == nil {
 		config.HistoryStore = history.NewInMemoryStore()
@@ -122,7 +117,7 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 		todos:                  config.Todos,
 		workdir:                config.Workdir,
 		pricing:                config.Pricing,
-		processStore:           config.ProcessStore,
+		checkpoints:            config.Checkpoints,
 		buildID:                config.BuildID,
 		toolResultStore:        config.ToolResultStore,
 		toolResultThreshold:    config.ToolResultThreshold,

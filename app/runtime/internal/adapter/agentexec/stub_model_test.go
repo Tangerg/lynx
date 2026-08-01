@@ -9,7 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/toolloop"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
+	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -666,7 +666,7 @@ func (*fixedToolResolver) UseTaskTool(tools.Tool) {}
 
 func (r *fixedToolResolver) Resolve(_ context.Context, role string) (core.ToolGroup, bool, error) {
 	switch role {
-	case toolport.ToolRoleCoding, toolport.ToolRoleSubtask:
+	case domaintool.GroupCoding, domaintool.GroupSubtask:
 		return fixedToolGroup{tool: r.tool}, true, nil
 	default:
 		return nil, false, nil

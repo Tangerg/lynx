@@ -2,7 +2,9 @@ package sqlite_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,14 +25,18 @@ func newInterruptStore(t *testing.T) *sqlite.InterruptStore {
 	return sqlite.NewInterruptStore(db)
 }
 
-func TestInterruptStore_PutGetListDelete(t *testing.T) {
+func TestInterruptStore_OpenGetListDelete(t *testing.T) {
 	ctx := context.Background()
 	store := newInterruptStore(t)
 
 	p := interrupts.Pending{
-		RootRunID: "run_1",
-		SessionID: "ses_a",
-		TurnID:    "turn_1",
+		RootRunID:   "run_1",
+		SessionID:   "ses_a",
+		TurnID:      "turn_1",
+		GoalLeaseID: "goal-lease-1",
+		ProtocolProfile: execution.RunProtocolProfile{
+			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_question", RunID: "run_1", Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Prompt: "Choose"},
@@ -48,20 +54,20 @@ func TestInterruptStore_PutGetListDelete(t *testing.T) {
 		}},
 		CreatedAt: time.Unix(5, 0).UTC(),
 	}
-	if err := store.Put(ctx, p); err != nil {
-		t.Fatalf("Put: %v", err)
+	if err := store.Open(ctx, p); err != nil {
+		t.Fatalf("Open: %v", err)
 	}
-	// UPSERT overwrite.
+	// A second barrier cannot overwrite the one already waiting for a decision.
 	p.SessionID = "ses_b"
-	if err := store.Put(ctx, p); err != nil {
-		t.Fatalf("Put overwrite: %v", err)
+	if err := store.Open(ctx, p); !errors.Is(err, transcript.ErrIdentityConflict) {
+		t.Fatalf("Open duplicate error = %v, want ErrIdentityConflict", err)
 	}
 
 	got, ok, err := store.Get(ctx, "run_1")
 	if err != nil || !ok {
 		t.Fatalf("Get: ok=%v err=%v", ok, err)
 	}
-	if got.SessionID != "ses_b" || len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "item_question" || !got.CreatedAt.Equal(time.Unix(5, 0).UTC()) {
+	if got.SessionID != "ses_a" || got.GoalLeaseID != p.GoalLeaseID || len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "item_question" || !got.CreatedAt.Equal(time.Unix(5, 0).UTC()) {
 		t.Fatalf("Get returned %+v", got)
 	}
 	// Per-run model selection round-trips (T1.4 — cross-restart rehydrate rebuilds
@@ -71,8 +77,8 @@ func TestInterruptStore_PutGetListDelete(t *testing.T) {
 		t.Fatalf("Get provider/model = %q/%q, want anthropic/claude-opus-4-8", root.ModelSelection.Provider(), root.ModelSelection.Model())
 	}
 
-	if list, _ := store.List(ctx, "ses_b"); len(list) != 1 {
-		t.Fatalf("List(ses_b) = %d, want 1", len(list))
+	if list, _ := store.List(ctx, "ses_a"); len(list) != 1 {
+		t.Fatalf("List(ses_a) = %d, want 1", len(list))
 	}
 	if list, _ := store.List(ctx, ""); len(list) != 1 {
 		t.Fatalf("List(all) = %d, want 1", len(list))
@@ -81,10 +87,10 @@ func TestInterruptStore_PutGetListDelete(t *testing.T) {
 		t.Fatalf("List(nope) = %d, want 0", len(list))
 	}
 
-	if err := store.Delete(ctx, "run_1"); err != nil {
+	if err := store.Delete(ctx, "ses_a", "run_1"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
-	if err := store.Delete(ctx, "run_1"); err != nil {
+	if err := store.Delete(ctx, "ses_a", "run_1"); err != nil {
 		t.Fatalf("Delete not idempotent: %v", err)
 	}
 	if _, ok, _ := store.Get(ctx, "run_1"); ok {
@@ -102,14 +108,17 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 	store := newInterruptStore(t)
 
 	// Nothing recorded → ok=false.
-	if _, ok, err := store.Consume(ctx, "run_x"); err != nil || ok {
+	if _, ok, err := store.Consume(ctx, "ses_a", "run_x"); err != nil || ok {
 		t.Fatalf("Consume(empty) = ok=%v err=%v, want ok=false", ok, err)
 	}
 
-	if err := store.Put(ctx, interrupts.Pending{
+	if err := store.Open(ctx, interrupts.Pending{
 		RootRunID: "run_1",
 		SessionID: "ses_a",
 		TurnID:    "turn_1",
+		ProtocolProfile: execution.RunProtocolProfile{
+			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_approval", RunID: "run_1", Kind: execution.ApprovalInterrupt,
 			Approval: &transcript.Approval{Risk: tool.RiskHigh},
@@ -124,11 +133,11 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 		}},
 		CreatedAt: time.Unix(7, 0).UTC(),
 	}); err != nil {
-		t.Fatalf("Put: %v", err)
+		t.Fatalf("Open: %v", err)
 	}
 
 	// First consume returns the full record.
-	got, ok, err := store.Consume(ctx, "run_1")
+	got, ok, err := store.Consume(ctx, "ses_a", "run_1")
 	if err != nil || !ok {
 		t.Fatalf("Consume: ok=%v err=%v", ok, err)
 	}
@@ -140,12 +149,45 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 
 	// Second consume finds nothing — the record was removed atomically with
 	// the read, so a racing resume can't re-fire the tool.
-	if _, ok, err := store.Consume(ctx, "run_1"); err != nil || ok {
+	if _, ok, err := store.Consume(ctx, "ses_a", "run_1"); err != nil || ok {
 		t.Fatalf("second Consume = ok=%v err=%v, want ok=false — record must be gone", ok, err)
 	}
 }
 
-func TestInterruptStore_RoundTripsContinuationTopology(t *testing.T) {
+func TestInterruptStoreRejectsForeignSessionMutation(t *testing.T) {
+	store := newInterruptStore(t)
+	pending := interrupts.Pending{
+		RootRunID: "run_1", SessionID: "ses_a", TurnID: "turn_1",
+		ProtocolProfile: execution.RunProtocolProfile{
+			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		},
+		Interrupts: []transcript.Interrupt{{
+			ItemID: "item_question", RunID: "run_1", Kind: execution.QuestionInterrupt,
+			Question: &transcript.Question{Prompt: "Continue?"},
+		}},
+		Suspensions: []interrupts.SuspensionBinding{{
+			InterruptItemID: "item_question", ProcessID: "process_root", SuspensionID: "suspension_root",
+		}},
+		Continuations: []interrupts.Continuation{{
+			RunID: "run_1", ProcessID: "process_root", RunCreatedAt: time.Unix(1, 0).UTC(),
+		}},
+		CreatedAt: time.Unix(2, 0).UTC(),
+	}
+	if err := store.Open(t.Context(), pending); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if _, ok, err := store.Consume(t.Context(), "ses_b", pending.RootRunID); ok || !errors.Is(err, transcript.ErrIdentityConflict) {
+		t.Fatalf("foreign Consume = ok:%t err:%v, want identity conflict", ok, err)
+	}
+	if err := store.Delete(t.Context(), "ses_b", pending.RootRunID); !errors.Is(err, transcript.ErrIdentityConflict) {
+		t.Fatalf("foreign Delete error = %v, want identity conflict", err)
+	}
+	if stored, found, err := store.Get(t.Context(), pending.RootRunID); err != nil || !found || stored.SessionID != pending.SessionID {
+		t.Fatalf("Pending after foreign mutations = found:%t value:%+v err:%v", found, stored, err)
+	}
+}
+
+func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T) {
 	store := newInterruptStore(t)
 	createdAt := time.Unix(10, 0).UTC()
 	lineage := execution.RunLineage{
@@ -157,6 +199,9 @@ func TestInterruptStore_RoundTripsContinuationTopology(t *testing.T) {
 		RootRunID: "run_root",
 		SessionID: "session_1",
 		TurnID:    "turn_1",
+		ProtocolProfile: execution.RunProtocolProfile{
+			ChildRuns: true, InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_child", RunID: "run_child", Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Prompt: "Continue?"},
@@ -168,12 +213,10 @@ func TestInterruptStore_RoundTripsContinuationTopology(t *testing.T) {
 		}},
 		Continuations: []interrupts.Continuation{
 			{
-				RunID:           "run_child",
-				ProcessID:       "process_child",
-				ParentProcessID: "process_root",
-				SpawnCallID:     "spawn_child",
-				Lineage:         lineage,
-				RunCreatedAt:    createdAt,
+				RunID:        "run_child",
+				ProcessID:    "process_child",
+				Lineage:      lineage,
+				RunCreatedAt: createdAt,
 			},
 			{
 				RunID:        "run_root",
@@ -191,17 +234,15 @@ func TestInterruptStore_RoundTripsContinuationTopology(t *testing.T) {
 		},
 		CreatedAt: createdAt.Add(time.Second),
 	}
-	if err := store.Put(t.Context(), pending); err != nil {
-		t.Fatalf("Put: %v", err)
+	if err := store.Open(t.Context(), pending); err != nil {
+		t.Fatalf("Open: %v", err)
 	}
 	got, found, err := store.Get(t.Context(), pending.RootRunID)
 	if err != nil || !found {
 		t.Fatalf("Get: found=%v err=%v", found, err)
 	}
 	child := got.Continuations[0]
-	if child.Lineage != lineage ||
-		child.ParentProcessID != "process_root" ||
-		child.SpawnCallID != "spawn_child" {
+	if child.Lineage != lineage || child.ProcessID != "process_child" {
 		t.Fatalf("child continuation = %+v, want lineage %+v", child, lineage)
 	}
 	root, found := got.RootContinuation()
@@ -214,12 +255,72 @@ func TestInterruptStore_RoundTripsContinuationTopology(t *testing.T) {
 	}
 }
 
-func TestInterruptStore_ProcessSnapshotHasOneOwner(t *testing.T) {
+func TestInterruptStoreRejectsUnknownExecutorTopologyFields(t *testing.T) {
+	database, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatalf("Open database: %v", err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	store := sqlite.NewInterruptStore(database)
+	pending := interrupts.Pending{
+		RootRunID: "run_root", SessionID: "session_1", TurnID: "turn_1",
+		ProtocolProfile: execution.RunProtocolProfile{
+			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		},
+		Interrupts: []transcript.Interrupt{{
+			ItemID: "item_question", RunID: "run_root", Kind: execution.QuestionInterrupt,
+			Question: &transcript.Question{Prompt: "Continue?"},
+		}},
+		Suspensions: []interrupts.SuspensionBinding{{
+			InterruptItemID: "item_question", ProcessID: "process_root", SuspensionID: "suspension_root",
+		}},
+		Continuations: []interrupts.Continuation{{
+			RunID: "run_root", ProcessID: "process_root", RunCreatedAt: time.Unix(1, 0).UTC(),
+		}},
+		CreatedAt: time.Unix(2, 0).UTC(),
+	}
+	if err := store.Open(t.Context(), pending); err != nil {
+		t.Fatalf("Open interrupt: %v", err)
+	}
+	var encoded string
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT continuations FROM interrupts WHERE root_run_id = ?`,
+		pending.RootRunID,
+	).Scan(&encoded); err != nil {
+		t.Fatalf("read continuation JSON: %v", err)
+	}
+	poisoned := strings.Replace(
+		encoded,
+		`"processId":"process_root"`,
+		`"processId":"process_root","parentProcessId":"legacy_parent"`,
+		1,
+	)
+	if poisoned == encoded {
+		t.Fatalf("continuation JSON does not contain process identity: %s", encoded)
+	}
+	if _, err := database.ExecContext(
+		t.Context(),
+		`UPDATE interrupts SET continuations = ? WHERE root_run_id = ?`,
+		poisoned,
+		pending.RootRunID,
+	); err != nil {
+		t.Fatalf("inject unknown topology field: %v", err)
+	}
+	if _, _, err := store.Get(t.Context(), pending.RootRunID); err == nil || !strings.Contains(err.Error(), `unknown field "parentProcessId"`) {
+		t.Fatalf("Get error = %v, want unknown executor topology field", err)
+	}
+}
+
+func TestInterruptStoreExecutorRootHasOnePendingOwner(t *testing.T) {
 	store := newInterruptStore(t)
 	ctx := t.Context()
 	for _, runID := range []string{"run_1", "run_2"} {
-		err := store.Put(ctx, interrupts.Pending{
+		err := store.Open(ctx, interrupts.Pending{
 			RootRunID: runID, SessionID: "ses_" + runID, TurnID: "turn_" + runID,
+			ProtocolProfile: execution.RunProtocolProfile{
+				InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+			},
 			Interrupts: []transcript.Interrupt{{
 				ItemID: "item_" + runID, RunID: runID,
 				Kind: execution.QuestionInterrupt, Question: &transcript.Question{Prompt: "continue?"},
@@ -235,10 +336,10 @@ func TestInterruptStore_ProcessSnapshotHasOneOwner(t *testing.T) {
 			CreatedAt: time.Unix(2, 0).UTC(),
 		})
 		if runID == "run_1" && err != nil {
-			t.Fatalf("first Put: %v", err)
+			t.Fatalf("first Open: %v", err)
 		}
 		if runID == "run_2" && err == nil {
-			t.Fatal("second Put reused a process snapshot owned by another interrupt")
+			t.Fatal("second Open reused an executor checkpoint root owned by another Pending")
 		}
 	}
 }

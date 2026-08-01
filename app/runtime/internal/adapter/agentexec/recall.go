@@ -12,7 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 )
 
@@ -43,7 +43,7 @@ func (e *Engine) recalledMemories(ctx context.Context, query string) (chat.Messa
 	if e.memorySearch == nil || strings.TrimSpace(query) == "" {
 		return chat.Message{}, false
 	}
-	project := resolveCwd(turnctx.TurnCwd(ctx, e.workdir))
+	project := resolveCwd(executionctx.CWD(ctx, e.workdir))
 	if project == "" {
 		return chat.Message{}, false
 	}

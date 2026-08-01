@@ -17,6 +17,8 @@ func TestNew(t *testing.T) {
 		{name: "configured", provider: "openai", model: "gpt-5", wantSet: true},
 		{name: "provider without model", provider: "openai", wantErr: ErrIncomplete},
 		{name: "model without provider", model: "gpt-5", wantErr: ErrIncomplete},
+		{name: "provider whitespace", provider: " openai", model: "gpt-5", wantErr: ErrSurroundingWhitespace},
+		{name: "model whitespace", provider: "openai", model: "gpt-5 ", wantErr: ErrSurroundingWhitespace},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

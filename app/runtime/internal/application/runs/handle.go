@@ -17,19 +17,19 @@ const runCleanupTimeout = 5 * time.Second
 // lifecycle join, event Journal, immutable executor bindings and the root-owned
 // cancellation arbiter; specialized behavior lives beside those concerns.
 type handle struct {
-	mu              sync.Mutex
-	cancel          context.CancelFunc
-	owner           context.Context
-	hub             *Journal
-	done            chan struct{}
-	completionErr   error
-	terminalRun     *transcript.Run
-	terminalRuns    map[string]transcript.Run
-	executorSources map[string]ExecutorSource
-	childCancel     *childCancellation
-	cancelRequested bool
-	cancelReason    string
-	interrupt       interruptBoundary
+	mu                sync.Mutex
+	cancel            context.CancelFunc
+	owner             context.Context
+	hub               *Journal
+	done              chan struct{}
+	completionErr     error
+	terminalRun       *transcript.Run
+	terminalRuns      map[string]transcript.Run
+	executorProcesses map[string]string
+	childCancel       *childCancellation
+	cancelRequested   bool
+	cancelReason      string
+	interrupt         interruptBoundary
 }
 
 func (h *handle) committedTerminalRun() (transcript.Run, bool) {

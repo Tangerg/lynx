@@ -3,6 +3,7 @@ package execution
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -30,6 +31,11 @@ type RunDraft struct {
 	// nothing can attach to.
 	SegmentID      string
 	ModelSelection modelref.Selection
+	// GoalLeaseID is the autonomous-goal incarnation that admitted this root
+	// Run. It is durable admission provenance so crash recovery can terminalize
+	// the Run and charge the exact lease in one transaction. Child Runs leave it
+	// empty because the root is the single goal turn.
+	GoalLeaseID string
 	// Limits is the allowance this Run is admitted under. It is recorded with the
 	// admission and never changes: a resume answers an interrupt, it does not
 	// renegotiate the budget the Run was accepted with.
@@ -60,16 +66,24 @@ func (draft RunDraft) Lineage() RunLineage {
 // which the executor enforces and a cross-process rehydrate must reapply — while
 // what was actually spent is a recorded fact.
 type RunLimits struct {
-	MaxSteps     int
-	MaxBudgetUSD float64
+	MaxTotalTokens int64
+	MaxSteps       int
+	MaxBudgetUSD   float64
 }
 
 // Validate reports whether the allowance is expressible. A negative cap is not
 // "no cap" — it is a cap nothing can satisfy, and admitting one would stop the
 // Run before its first step.
 func (l RunLimits) Validate() error {
-	if l.MaxSteps < 0 || l.MaxBudgetUSD < 0 {
-		return errors.New("execution: run limits must not be negative")
+	switch {
+	case l.MaxTotalTokens < 0:
+		return errors.New("execution: max total tokens must not be negative")
+	case l.MaxSteps < 0:
+		return errors.New("execution: max steps must not be negative")
+	case math.IsNaN(l.MaxBudgetUSD) || math.IsInf(l.MaxBudgetUSD, 0):
+		return errors.New("execution: max budget USD must be finite")
+	case l.MaxBudgetUSD < 0:
+		return errors.New("execution: max budget USD must not be negative")
 	}
 	return nil
 }

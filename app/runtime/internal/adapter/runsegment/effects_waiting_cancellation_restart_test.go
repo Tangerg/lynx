@@ -1,9 +1,6 @@
 package runsegment
 
 import (
-	"context"
-	"errors"
-	"fmt"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -65,7 +62,7 @@ func TestWaitingSubtreeCancellationSurvivesSQLiteRestart(t *testing.T) {
 			runStore := sqlite.NewRunStore(db)
 			interruptStore := sqlite.NewInterruptStore(db)
 			transcriptStore := sqlite.NewTranscriptStore(db)
-			processStore := sqlite.NewProcessStore(db)
+			checkpointStore := sqlite.NewExecutorCheckpointStore(db)
 			query := queries.New(queries.Dependencies{Runs: runStore})
 
 			target := queryRun(t, query, fixture.childRun.ID)
@@ -117,14 +114,14 @@ func TestWaitingSubtreeCancellationSurvivesSQLiteRestart(t *testing.T) {
 				}
 			}
 
-			storedTree, checkpoint, err := processStore.LoadTree(
+			checkpoint, err := checkpointStore.LoadCheckpoint(
 				fixture.ctx,
 				fixture.replacementTree.RootID,
 			)
 			if err != nil {
 				t.Fatalf("load restarted process tree: %v", err)
 			}
-			processTree := restoredProcessTree(t, storedTree)
+			processTree := restoredProcessTree(t, checkpoint)
 			assertReplacementCheckpoint(
 				t,
 				processTree,
@@ -163,7 +160,7 @@ func TestWaitingSubtreeCancellationSurvivesSQLiteRestart(t *testing.T) {
 					runStore,
 					interruptStore,
 					transcriptStore,
-					processStore,
+					checkpointStore,
 				)
 				return
 			}
@@ -216,7 +213,7 @@ func queryRun(
 func assertReplacementCheckpoint(
 	t *testing.T,
 	tree core.ProcessSnapshotTree,
-	checkpoint execution.ProcessCheckpoint,
+	checkpoint execution.ExecutorCheckpoint,
 	fixture waitingCancellationSQLiteFixture,
 ) {
 	t.Helper()
@@ -231,8 +228,8 @@ func assertReplacementCheckpoint(
 		)
 	}
 	if !reflect.DeepEqual(
-		normalizedProcessCheckpoint(checkpoint),
-		normalizedProcessCheckpoint(fixture.replacementCheckpoint),
+		normalizedExecutorCheckpoint(checkpoint),
+		normalizedExecutorCheckpoint(fixture.replacementCheckpoint),
 	) {
 		t.Fatalf(
 			"restarted checkpoint differs from committed replacement:\ngot  %+v\nwant %+v",
@@ -248,7 +245,7 @@ func assertRestartedWaitingBoundary(
 	runStore *sqlite.RunStore,
 	interruptStore *sqlite.InterruptStore,
 	transcriptStore *sqlite.TranscriptStore,
-	processStore *sqlite.ProcessStore,
+	checkpointStore *sqlite.ExecutorCheckpointStore,
 ) {
 	t.Helper()
 	pending, found, err := interruptStore.Get(fixture.ctx, fixture.rootRun.ID)
@@ -275,36 +272,12 @@ func assertRestartedWaitingBoundary(
 		)
 	}
 
-	recovered, err := runStore.ReconcileOrphans(
-		fixture.ctx,
-		func(ctx context.Context, processID string) (bool, error) {
-			if processID != fixture.replacementTree.RootID {
-				return false, fmt.Errorf(
-					"snapshot validator received process %q, want %q",
-					processID,
-					fixture.replacementTree.RootID,
-				)
-			}
-			storedTree, checkpoint, err := processStore.LoadTree(ctx, processID)
-			if err != nil {
-				return false, err
-			}
-			tree := restoredProcessTree(t, storedTree)
-			if !reflect.DeepEqual(
-				normalizedProcessTree(tree),
-				normalizedProcessTree(fixture.replacementTree),
-			) ||
-				!reflect.DeepEqual(
-					normalizedProcessCheckpoint(checkpoint),
-					normalizedProcessCheckpoint(fixture.replacementCheckpoint),
-				) {
-				return false, errors.New("replacement checkpoint changed after restart")
-			}
-			return true, nil
-		},
-	)
-	if err != nil || recovered != 0 {
-		t.Fatalf("boot reconciliation = (%d, %v), want preserved tree", recovered, err)
+	checkpoint, err := checkpointStore.LoadCheckpoint(fixture.ctx, fixture.replacementTree.RootID)
+	if err != nil || !reflect.DeepEqual(
+		normalizedExecutorCheckpoint(checkpoint),
+		normalizedExecutorCheckpoint(fixture.replacementCheckpoint),
+	) {
+		t.Fatalf("restarted executor checkpoint = (%+v, %v), want committed replacement", checkpoint, err)
 	}
 	for _, runID := range []string{"run_sibling", fixture.rootRun.ID} {
 		run, found, err := runStore.Run(fixture.ctx, runID)
@@ -335,26 +308,14 @@ func assertRestartedRunningBoundary(
 			err,
 		)
 	}
-	recovered, err := runStore.ReconcileOrphans(
-		fixture.ctx,
-		func(context.Context, string) (bool, error) {
-			t.Fatal("boot inspected a snapshot for a Running tree")
-			return false, nil
-		},
-	)
-	if err != nil || recovered != 1 {
-		t.Fatalf("boot reconciliation = (%d, %v), want one lost Running root", recovered, err)
-	}
 	root, found, err := runStore.Run(fixture.ctx, fixture.rootRun.ID)
 	if err != nil ||
 		!found ||
-		root.State != execution.Failed ||
-		root.Outcome == nil ||
-		*root.Outcome != execution.OutcomeError ||
-		root.Error == nil ||
-		root.Error.Kind != transcript.RunLostProblem {
+		root.State != execution.Running ||
+		root.Outcome != nil ||
+		root.Error != nil {
 		t.Fatalf(
-			"root after Running restart = found:%t value:%+v err:%v, want failed/run_lost",
+			"root after restart = found:%t value:%+v err:%v, want persisted Running",
 			found,
 			root,
 			err,

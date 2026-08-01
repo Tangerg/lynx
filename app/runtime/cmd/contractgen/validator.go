@@ -122,6 +122,8 @@ func validatorChecks(
 			checks = append(checks, fmt.Sprintf("%s(%s, %s)", validatorName, field, stringExpr(selector, leaf.Type)))
 		case dispatch.ConstraintPositive:
 			checks = append(checks, fmt.Sprintf("positiveNumber(%s, value.%s)", field, selector))
+		case dispatch.ConstraintNonNegative:
+			checks = append(checks, fmt.Sprintf("nonNegativeNumber(%s, value.%s)", field, selector))
 		case dispatch.ConstraintNonEmptyItems:
 			validatorName := "requiredItems"
 			if leaf.Optional {

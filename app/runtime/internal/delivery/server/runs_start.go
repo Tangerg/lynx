@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -41,11 +42,14 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, err
 	}
 	result, err := s.coordinator.Start(ctx, runs.StartCommand{
-		SessionID:       in.SessionID,
-		DefaultCwd:      s.serverInfo.Cwd,
-		ModelSelection:  selection,
-		MaxCostUSD:      in.MaxBudgetUSD,
-		MaxSteps:        in.MaxSteps,
+		SessionID:      in.SessionID,
+		DefaultCwd:     s.serverInfo.Cwd,
+		ModelSelection: selection,
+		Limits: execution.RunLimits{
+			MaxTotalTokens: in.MaxTotalTokens,
+			MaxSteps:       in.MaxSteps,
+			MaxBudgetUSD:   in.MaxBudgetUSD,
+		},
 		Options:         options,
 		ProtocolProfile: profile,
 		Input:           input,

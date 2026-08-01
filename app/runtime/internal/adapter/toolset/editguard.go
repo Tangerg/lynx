@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/tools"
@@ -41,7 +41,7 @@ func withReadTracking(inner tools.Tool, tr *editguardstate.Tracker, workdir stri
 		if a.Path != "" {
 			abs := pathidentity.Canonical(workdir, a.Path)
 			if fingerprint, err := fingerprintFile(abs); err == nil {
-				tr.Record(turnctx.TurnSession(ctx), abs, fingerprint, a.Offset > 0 || a.Limit > 0)
+				tr.Record(executionctx.SessionID(ctx), abs, fingerprint, a.Offset > 0 || a.Limit > 0)
 			}
 		}
 		return out, nil
@@ -68,7 +68,7 @@ func withEditGuard(inner tools.Tool, tr *editguardstate.Tracker, workdir string)
 			if err != nil {
 				continue
 			}
-			if verdict := tr.Check(turnctx.TurnSession(ctx), abs, fingerprint, false); !verdict.Allowed() {
+			if verdict := tr.Check(executionctx.SessionID(ctx), abs, fingerprint, false); !verdict.Allowed() {
 				return editGuardMessage(verdict, path, "editing"), nil
 			}
 		}
@@ -79,7 +79,7 @@ func withEditGuard(inner tools.Tool, tr *editguardstate.Tracker, workdir string)
 		for _, path := range paths {
 			abs := pathidentity.Canonical(workdir, path)
 			if fingerprint, err := fingerprintFile(abs); err == nil {
-				tr.Refresh(turnctx.TurnSession(ctx), abs, fingerprint)
+				tr.Refresh(executionctx.SessionID(ctx), abs, fingerprint)
 			}
 		}
 		return out, nil
@@ -104,7 +104,7 @@ func withWriteGuard(inner tools.Tool, tr *editguardstate.Tracker, workdir string
 			if isExistingFile(abs) {
 				fingerprint, err := fingerprintFile(abs)
 				if err == nil {
-					if verdict := tr.Check(turnctx.TurnSession(ctx), abs, fingerprint, true); !verdict.Allowed() {
+					if verdict := tr.Check(executionctx.SessionID(ctx), abs, fingerprint, true); !verdict.Allowed() {
 						return editGuardMessage(verdict, a.Path, "overwriting"), nil
 					}
 				}
@@ -117,7 +117,7 @@ func withWriteGuard(inner tools.Tool, tr *editguardstate.Tracker, workdir string
 		if a.Path != "" {
 			abs := pathidentity.Canonical(workdir, a.Path)
 			if fingerprint, err := fingerprintFile(abs); err == nil {
-				tr.Refresh(turnctx.TurnSession(ctx), abs, fingerprint)
+				tr.Refresh(executionctx.SessionID(ctx), abs, fingerprint)
 			}
 		}
 		return out, nil

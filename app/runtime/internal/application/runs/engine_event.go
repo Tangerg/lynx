@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
@@ -166,13 +167,13 @@ type TreeInterrupted struct {
 	// Checkpoint is the immutable executor state captured at the same waiting
 	// boundary as Suspensions. The Coordinator never interprets it; it only
 	// places its write into the tree-barrier transaction.
-	Checkpoint  ProcessCheckpointWrite
+	Checkpoint  execution.ExecutorCheckpoint
 	Suspensions []ProcessSuspension
 }
 
 func (barrier TreeInterrupted) validate() error {
-	if barrier.Checkpoint == nil {
-		return errors.New("runs: executor tree interrupt has no process checkpoint")
+	if err := barrier.Checkpoint.Validate(); err != nil {
+		return fmt.Errorf("runs: executor tree interrupt has an invalid checkpoint: %w", err)
 	}
 	if len(barrier.Suspensions) == 0 {
 		return errors.New("runs: executor emitted an empty tree interrupt")
@@ -197,6 +198,39 @@ func (barrier TreeInterrupted) validate() error {
 			)
 		}
 		seen[key] = struct{}{}
+	}
+	return nil
+}
+
+func (barrier TreeInterrupted) validateFor(
+	rootProcessID string,
+	sessionID string,
+	goalLeaseID string,
+	selection modelref.Selection,
+) error {
+	if err := barrier.validate(); err != nil {
+		return err
+	}
+	if err := barrier.Checkpoint.ValidateOwnership(rootProcessID, sessionID); err != nil {
+		return fmt.Errorf("runs: executor tree interrupt checkpoint ownership: %w", err)
+	}
+	if barrier.Checkpoint.Scope.GoalLeaseID != goalLeaseID {
+		return fmt.Errorf(
+			"runs: executor tree interrupt checkpoint goal lease %q does not match Run %q: %w",
+			barrier.Checkpoint.Scope.GoalLeaseID,
+			goalLeaseID,
+			execution.ErrInvalidExecutorCheckpoint,
+		)
+	}
+	if barrier.Checkpoint.ModelSelection != selection {
+		return fmt.Errorf(
+			"runs: executor tree interrupt checkpoint model %q/%q does not match Run %q/%q: %w",
+			barrier.Checkpoint.ModelSelection.Provider(),
+			barrier.Checkpoint.ModelSelection.Model(),
+			selection.Provider(),
+			selection.Model(),
+			execution.ErrInvalidExecutorCheckpoint,
+		)
 	}
 	return nil
 }

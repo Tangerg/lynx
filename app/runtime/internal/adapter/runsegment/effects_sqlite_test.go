@@ -65,7 +65,7 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 		"run_stale", "ses_1", "proc_stale", "susp_stale", "item_stale",
 		time.Now().UTC(), time.Now().UTC(),
 	)
-	if err := ints.Put(ctx, stalePending); err != nil {
+	if err := ints.Open(ctx, stalePending); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
@@ -109,7 +109,7 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 		"run_1", "ses_1", "proc_1", "susp_1", "item_question",
 		created, time.Now().UTC(),
 	)
-	if err := ints.Put(ctx, pending); err != nil {
+	if err := ints.Open(ctx, pending); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
@@ -223,9 +223,13 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 				}
 			}
 			pending := interrupts.Pending{
-				RootRunID:  "run_root",
-				SessionID:  "session_1",
-				TurnID:     "turn_1",
+				RootRunID: "run_root",
+				SessionID: "session_1",
+				TurnID:    "turn_1",
+				ProtocolProfile: execution.RunProtocolProfile{
+					ChildRuns:      true,
+					InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+				},
 				Interrupts: childRun.Interrupts,
 				Suspensions: []interrupts.SuspensionBinding{{
 					InterruptItemID: "item_child",
@@ -234,12 +238,10 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 				}},
 				Continuations: []interrupts.Continuation{
 					{
-						RunID:           "run_child",
-						ProcessID:       "process_child",
-						ParentProcessID: "process_root",
-						SpawnCallID:     "spawn_child",
-						Lineage:         lineage,
-						RunCreatedAt:    createdAt,
+						RunID:        "run_child",
+						ProcessID:    "process_child",
+						Lineage:      lineage,
+						RunCreatedAt: createdAt,
 					},
 					{
 						RunID:        "run_root",
@@ -249,7 +251,7 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 				},
 				CreatedAt: createdAt.Add(time.Second),
 			}
-			if err := ints.Put(ctx, pending); err != nil {
+			if err := ints.Open(ctx, pending); err != nil {
 				t.Fatalf("put pending: %v", err)
 			}
 			effects := sqliteEffects(sqliteOpeningStores{interrupts: ints}, Config{
@@ -406,7 +408,10 @@ func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
 		t.Fatalf("seed goal saved=%v err=%v", saved, err)
 	}
 	state := sqlite.NewRunStore(db)
-	draft := execution.RunDraft{RunID: "run_goal", SessionID: g.SessionID, SegmentID: "seg_open", CreatedAt: created}
+	draft := execution.RunDraft{
+		RunID: "run_goal", SessionID: g.SessionID, SegmentID: "seg_open",
+		GoalLeaseID: g.LeaseID, CreatedAt: created,
+	}
 	if err := state.Admit(ctx, draft); err != nil {
 		t.Fatalf("admit goal run: %v", err)
 	}
@@ -418,6 +423,12 @@ func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
 	})
 	// The watermark is already resolved, so this commit needs no message store.
 	finished := finishedRunRecord(draft.RunID, draft.SessionID, execution.OutcomeCompleted)
+	finished.GoalLeaseID = g.LeaseID
+	costUSD := 0.25
+	finished.Metrics = transcript.RunMetrics{
+		Steps: 2,
+		Usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &costUSD}},
+	}
 	finished.MessageMark = 0
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
 		RunID: draft.RunID, SessionID: draft.SessionID, State: runs.StateTerminalize,
@@ -425,7 +436,7 @@ func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
 		Run:     finished,
 		GoalTurn: &goal.TurnRecord{
 			SessionID: g.SessionID, LeaseID: g.LeaseID, RunID: draft.RunID,
-			Outcome: execution.OutcomeCompleted, CostUSD: 0.25, Steps: 2, CompletedAt: created,
+			Outcome: execution.OutcomeCompleted, CostUSD: costUSD, Steps: 2, CompletedAt: finished.FinishedAt,
 		},
 	}); err != nil {
 		t.Fatalf("CommitEvent: %v", err)
@@ -443,11 +454,11 @@ func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
 	}
 }
 
-// TestCommitTreeBarrierProducesBootResumableTriplet is the event boundary's
+// TestCommitTreeBarrierProducesDurableTriplet is the event boundary's
 // evidence for parked_tree_has_exactly_one_open_interrupt_set: one tree commit
-// lands the pending set, item, and suspended Run together. Boot recovery leaves
-// the coherent triplet alone while a fresh admission is refused.
-func TestCommitTreeBarrierProducesBootResumableTriplet(t *testing.T) {
+// lands the pending set, opaque executor checkpoint, and suspended Run together
+// while a fresh admission is refused.
+func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 	db, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
@@ -462,7 +473,10 @@ func TestCommitTreeBarrierProducesBootResumableTriplet(t *testing.T) {
 	if err := state.Admit(ctx, execution.RunDraft{
 		RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open",
 		ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
-		CreatedAt:      createdAt,
+		ProtocolProfile: execution.RunProtocolProfile{
+			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		},
+		CreatedAt: createdAt,
 	}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
@@ -471,15 +485,13 @@ func TestCommitTreeBarrierProducesBootResumableTriplet(t *testing.T) {
 		RootID:    snapshot.ID,
 		Snapshots: []core.ProcessSnapshot{snapshot},
 	}
-	checkpoint := sqliteProcessCheckpointWrite{
-		store: sqlite.NewProcessStore(db),
-		tree:  persistedProcessTree(t, tree),
-		checkpoint: execution.ProcessCheckpoint{
-			BuildID: checkpointBuildID,
-			Scope:   execution.TurnScope{SessionID: "ses_1"},
-			Usage:   accounting.Snapshot{},
-		},
-	}
+	checkpointStore := sqlite.NewExecutorCheckpointStore(db)
+	checkpoint := executorCheckpoint(t, tree, execution.ExecutorCheckpoint{
+		BuildID:        checkpointBuildID,
+		Scope:          execution.TurnScope{SessionID: "ses_1"},
+		ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
+		Usage:          accounting.Snapshot{},
+	})
 	question := &transcript.Question{Prompt: "Continue?"}
 	open := []transcript.Interrupt{{
 		ItemID:   "item_question",
@@ -488,8 +500,9 @@ func TestCommitTreeBarrierProducesBootResumableTriplet(t *testing.T) {
 		Question: question,
 	}}
 	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
-		RunState: state,
-		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
+		RunState:            state,
+		ExecutorCheckpoints: checkpointStore,
+		Tx:                  func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
 	pending := singleRunPending(
 		t,
@@ -508,15 +521,17 @@ func TestCommitTreeBarrierProducesBootResumableTriplet(t *testing.T) {
 			}},
 			Run: &transcript.Run{
 				SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
-				Interrupts: open, CreatedAt: createdAt, UpdatedAt: parkedAt, MessageMark: -1,
+				ModelSelection:  pending.Continuations[0].ModelSelection,
+				ProtocolProfile: pending.ProtocolProfile,
+				Interrupts:      open, CreatedAt: createdAt, UpdatedAt: parkedAt, MessageMark: -1,
 			},
 		}},
 	}); err != nil {
 		t.Fatalf("park: %v", err)
 	}
 
-	if recovered, err := state.ReconcileOrphans(ctx, func(context.Context, string) (bool, error) { return true, nil }); err != nil || recovered != 0 {
-		t.Fatalf("boot reconcile = (%d, %v), want intact resumable park", recovered, err)
+	if stored, err := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); err != nil || stored.RootProcessID != snapshot.ID {
+		t.Fatalf("stored executor checkpoint = (%+v, %v)", stored, err)
 	}
 	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_next", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: parkedAt}); !errors.Is(err, execution.ErrSessionBusy) {
 		t.Fatalf("admit after intact park = %v, want ErrSessionBusy", err)
@@ -534,23 +549,22 @@ func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
 	createdAt := time.Unix(1, 0).UTC()
 	parkedAt := time.Unix(2, 0).UTC()
 	snapshot := waitingProcessSnapshot("proc_rollback", createdAt, parkedAt)
-	checkpoint := sqliteProcessCheckpointWrite{
-		store: sqlite.NewProcessStore(db),
-		tree: persistedProcessTree(t, core.ProcessSnapshotTree{
-			RootID: snapshot.ID, Snapshots: []core.ProcessSnapshot{snapshot},
-		}),
-		checkpoint: execution.ProcessCheckpoint{
-			BuildID: checkpointBuildID,
-			Scope:   execution.TurnScope{SessionID: "ses_rollback"},
-			Usage:   accounting.Snapshot{},
-		},
-	}
+	checkpointStore := sqlite.NewExecutorCheckpointStore(db)
+	checkpoint := executorCheckpoint(t, core.ProcessSnapshotTree{
+		RootID: snapshot.ID, Snapshots: []core.ProcessSnapshot{snapshot},
+	}, execution.ExecutorCheckpoint{
+		BuildID:        checkpointBuildID,
+		Scope:          execution.TurnScope{SessionID: "ses_rollback"},
+		ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
+		Usage:          accounting.Snapshot{},
+	})
 	interruptStore := sqlite.NewInterruptStore(db)
 	effects := sqliteEffects(sqliteOpeningStores{
 		interrupts: interruptStore,
 		transcript: sqlite.NewTranscriptStore(db),
 	}, Config{
-		RunState: sqlite.NewRunStore(db),
+		RunState:            sqlite.NewRunStore(db),
+		ExecutorCheckpoints: checkpointStore,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},
@@ -572,7 +586,7 @@ func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("CommitTreeBarrier succeeded without an admitted Run")
 	}
-	if _, _, loadErr := checkpoint.store.LoadTree(ctx, snapshot.ID); !errors.Is(loadErr, execution.ErrProcessStateNotFound) {
+	if _, loadErr := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); !errors.Is(loadErr, execution.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("checkpoint survived failed tree barrier: %v", loadErr)
 	}
 	if _, found, getErr := interruptStore.Get(ctx, pending.RootRunID); getErr != nil || found {
@@ -580,7 +594,7 @@ func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
 	}
 }
 
-func TestCommitTerminalOwnsProcessCheckpointDeletion(t *testing.T) {
+func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 	for _, test := range []struct {
 		name       string
 		deleteFail bool
@@ -603,25 +617,28 @@ func TestCommitTerminalOwnsProcessCheckpointDeletion(t *testing.T) {
 			}); err != nil {
 				t.Fatalf("admit: %v", err)
 			}
-			processStore := sqlite.NewProcessStore(db)
+			checkpointStore := sqlite.NewExecutorCheckpointStore(db)
 			snapshot := waitingProcessSnapshot("proc_terminal", createdAt, createdAt.Add(time.Second))
-			if err := processStore.SaveTree(ctx, persistedProcessTree(t, core.ProcessSnapshotTree{
+			if err := checkpointStore.SaveCheckpoint(ctx, executorCheckpoint(t, core.ProcessSnapshotTree{
 				RootID: snapshot.ID, Snapshots: []core.ProcessSnapshot{snapshot},
-			}), execution.ProcessCheckpoint{
+			}, execution.ExecutorCheckpoint{
 				BuildID: checkpointBuildID,
 				Scope:   execution.TurnScope{SessionID: "ses_terminal"},
 				Usage:   accounting.Snapshot{},
-			}); err != nil {
+			})); err != nil {
 				t.Fatalf("seed checkpoint: %v", err)
 			}
 
-			var processTrees ProcessTreeStore = processStore
+			var checkpoints ExecutorCheckpointStore = checkpointStore
 			if test.deleteFail {
-				processTrees = failingProcessTreeStore{err: errors.New("delete unavailable")}
+				checkpoints = failingExecutorCheckpointStore{
+					ExecutorCheckpointStore: checkpointStore,
+					err:                     errors.New("delete unavailable"),
+				}
 			}
 			effects := New(Config{
-				RunState:     runStore,
-				ProcessTrees: processTrees,
+				RunState:            runStore,
+				ExecutorCheckpoints: checkpoints,
 				Tx: func(ctx context.Context, fn func(context.Context) error) error {
 					return sqlite.RunInTx(ctx, db, fn)
 				},
@@ -630,7 +647,7 @@ func TestCommitTerminalOwnsProcessCheckpointDeletion(t *testing.T) {
 			finished.MessageMark = 0
 			err = effects.CommitEvent(ctx, runs.EventCommit{
 				RunID: "run_terminal", SessionID: "ses_terminal", State: runs.StateTerminalize,
-				Outcome: execution.OutcomeCompleted, Run: finished, ObsoleteProcessTreeRootID: snapshot.ID,
+				Outcome: execution.OutcomeCompleted, Run: finished, ObsoleteCheckpointRootID: snapshot.ID,
 			})
 			if test.deleteFail {
 				if err == nil {
@@ -640,7 +657,7 @@ func TestCommitTerminalOwnsProcessCheckpointDeletion(t *testing.T) {
 				if listErr != nil || len(runsAfter) != 1 || runsAfter[0].State != execution.Running {
 					t.Fatalf("Run after rollback = %+v, %v; want running", runsAfter, listErr)
 				}
-				if _, _, loadErr := processStore.LoadTree(ctx, snapshot.ID); loadErr != nil {
+				if _, loadErr := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); loadErr != nil {
 					t.Fatalf("checkpoint lost after terminal rollback: %v", loadErr)
 				}
 				return
@@ -648,27 +665,20 @@ func TestCommitTerminalOwnsProcessCheckpointDeletion(t *testing.T) {
 			if err != nil {
 				t.Fatalf("CommitEvent: %v", err)
 			}
-			if _, _, loadErr := processStore.LoadTree(ctx, snapshot.ID); !errors.Is(loadErr, execution.ErrProcessStateNotFound) {
+			if _, loadErr := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); !errors.Is(loadErr, execution.ErrExecutorCheckpointNotFound) {
 				t.Fatalf("terminal checkpoint survived: %v", loadErr)
 			}
 		})
 	}
 }
 
-type failingProcessTreeStore struct{ err error }
+type failingExecutorCheckpointStore struct {
+	ExecutorCheckpointStore
+	err error
+}
 
-func (store failingProcessTreeStore) DeleteTrees(context.Context, []string) error {
+func (store failingExecutorCheckpointStore) DeleteCheckpoints(context.Context, string, []string) error {
 	return store.err
-}
-
-type sqliteProcessCheckpointWrite struct {
-	store      *sqlite.ProcessStore
-	tree       execution.ProcessTreeState
-	checkpoint execution.ProcessCheckpoint
-}
-
-func (write sqliteProcessCheckpointWrite) PersistCheckpoint(ctx context.Context) error {
-	return write.store.SaveTree(ctx, write.tree, write.checkpoint)
 }
 
 func TestCommitWaitingSubtreeCancellationCommitsCompleteWriteSet(t *testing.T) {
@@ -715,15 +725,15 @@ func TestCommitWaitingSubtreeCancellationCommitsCompleteWriteSet(t *testing.T) {
 	assertStoredRunState(t, fixture.db, fixture.childRun.ID, "terminal")
 	assertStoredRunState(t, fixture.db, fixture.grandchildRun.ID, "terminal")
 	assertStoredRunState(t, fixture.db, fixture.rootRun.ID, "running")
-	storedTree, checkpoint, err := fixture.processes.LoadTree(fixture.ctx, "process_root")
+	checkpoint, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, "process_root")
 	if err != nil {
 		t.Fatalf("load replacement process tree: %v", err)
 	}
-	tree := restoredProcessTree(t, storedTree)
+	tree := restoredProcessTree(t, checkpoint)
 	if len(tree.Snapshots) != 1 ||
 		tree.Snapshots[0].Suspension == nil ||
 		string(tree.Snapshots[0].Suspension.Prompt) != `"after-cancel"` ||
-		checkpoint.BuildID != "replacement-build" {
+		checkpoint.BuildID != "original-build" {
 		t.Fatalf("replacement process tree = %+v checkpoint=%+v", tree, checkpoint)
 	}
 }
@@ -748,11 +758,11 @@ func TestCommitWaitingSubtreeCancellationRollsBackCheckpointAndApplicationFacts(
 	assertStoredRunState(t, fixture.db, fixture.childRun.ID, "interrupted")
 	assertStoredRunState(t, fixture.db, fixture.grandchildRun.ID, "interrupted")
 	assertStoredRunState(t, fixture.db, fixture.rootRun.ID, "interrupted")
-	storedTree, checkpoint, err := fixture.processes.LoadTree(fixture.ctx, "process_root")
+	checkpoint, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, "process_root")
 	if err != nil {
 		t.Fatalf("load rolled-back process tree: %v", err)
 	}
-	tree := restoredProcessTree(t, storedTree)
+	tree := restoredProcessTree(t, checkpoint)
 	rootSnapshot, found := processSnapshotByID(tree, "process_root")
 	if len(tree.Snapshots) != 3 ||
 		!found ||
@@ -769,7 +779,7 @@ type waitingCancellationSQLiteFixture struct {
 	effects               *Effects
 	interrupts            *sqlite.InterruptStore
 	transcript            *sqlite.TranscriptStore
-	processes             *sqlite.ProcessStore
+	checkpoints           *sqlite.ExecutorCheckpointStore
 	runState              *sqlite.RunStore
 	rootRun               transcript.Run
 	childRun              transcript.Run
@@ -777,9 +787,9 @@ type waitingCancellationSQLiteFixture struct {
 	parentItem            transcript.Item
 	originalItems         []transcript.Item
 	originalTree          core.ProcessSnapshotTree
-	originalCheckpoint    execution.ProcessCheckpoint
+	originalCheckpoint    execution.ExecutorCheckpoint
 	replacementTree       core.ProcessSnapshotTree
-	replacementCheckpoint execution.ProcessCheckpoint
+	replacementCheckpoint execution.ExecutorCheckpoint
 	commit                runs.WaitingSubtreeCancellationCommit
 }
 
@@ -827,9 +837,14 @@ func newWaitingCancellationSQLiteFixtureAt(
 		RootRunID:       "run_root",
 	}
 	state := sqlite.NewRunStore(db)
+	profile := execution.RunProtocolProfile{
+		ChildRuns:      true,
+		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+	}
 	if err := state.Admit(ctx, execution.RunDraft{
 		RunID: "run_root", SessionID: "session_1", SegmentID: "segment_root",
-		CreatedAt: createdAt,
+		ProtocolProfile: profile,
+		CreatedAt:       createdAt,
 	}); err != nil {
 		t.Fatalf("admit root: %v", err)
 	}
@@ -889,6 +904,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		createdAt,
 		[]transcript.Interrupt{grandchildQuestion},
 	)
+	grandchildRun.ProtocolProfile = profile
 	grandchildRun.UpdatedAt = finishedAt
 	childQuestion := treeQuestion("item_child_question", "run_child")
 	childRun := interruptedTreeRun(
@@ -898,6 +914,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		createdAt,
 		[]transcript.Interrupt{childQuestion},
 	)
+	childRun.ProtocolProfile = profile
 	childRun.UpdatedAt = finishedAt
 	var siblingRun transcript.Run
 	if survivingBoundary {
@@ -909,6 +926,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 			createdAt,
 			[]transcript.Interrupt{siblingQuestion},
 		)
+		siblingRun.ProtocolProfile = profile
 		siblingRun.UpdatedAt = finishedAt
 	}
 	rootRun := interruptedTreeRun(
@@ -918,6 +936,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		createdAt,
 		nil,
 	)
+	rootRun.ProtocolProfile = profile
 	rootRun.UpdatedAt = finishedAt
 	grandchildQuestionItem := transcript.Item{
 		SessionID: rootRun.SessionID,
@@ -989,20 +1008,16 @@ func newWaitingCancellationSQLiteFixtureAt(
 	}
 	pendingContinuations := []interrupts.Continuation{
 		{
-			RunID:           grandchildRun.ID,
-			ProcessID:       "process_grandchild",
-			ParentProcessID: "process_child",
-			SpawnCallID:     "spawn_grandchild",
-			Lineage:         grandchildLineage,
-			RunCreatedAt:    createdAt,
+			RunID:        grandchildRun.ID,
+			ProcessID:    "process_grandchild",
+			Lineage:      grandchildLineage,
+			RunCreatedAt: createdAt,
 		},
 		{
-			RunID:           childRun.ID,
-			ProcessID:       "process_child",
-			ParentProcessID: "process_root",
-			SpawnCallID:     "spawn_child",
-			Lineage:         childLineage,
-			RunCreatedAt:    createdAt,
+			RunID:        childRun.ID,
+			ProcessID:    "process_child",
+			Lineage:      childLineage,
+			RunCreatedAt: createdAt,
 		},
 	}
 	if survivingBoundary {
@@ -1014,12 +1029,10 @@ func newWaitingCancellationSQLiteFixtureAt(
 			SuspensionID:    "suspension-process_sibling",
 		})
 		pendingContinuations = append(pendingContinuations, interrupts.Continuation{
-			RunID:           siblingRun.ID,
-			ProcessID:       "process_sibling",
-			ParentProcessID: "process_root",
-			SpawnCallID:     "spawn_sibling",
-			Lineage:         siblingLineage,
-			RunCreatedAt:    createdAt,
+			RunID:        siblingRun.ID,
+			ProcessID:    "process_sibling",
+			Lineage:      siblingLineage,
+			RunCreatedAt: createdAt,
 		})
 	}
 	pendingContinuations = append(pendingContinuations, interrupts.Continuation{
@@ -1031,23 +1044,24 @@ func newWaitingCancellationSQLiteFixtureAt(
 		}},
 	})
 	pending := interrupts.Pending{
-		RootRunID:     rootRun.ID,
-		SessionID:     rootRun.SessionID,
-		TurnID:        "turn_1",
-		Interrupts:    pendingInterrupts,
-		Suspensions:   pendingSuspensions,
-		Continuations: pendingContinuations,
-		CreatedAt:     finishedAt,
+		RootRunID:       rootRun.ID,
+		SessionID:       rootRun.SessionID,
+		TurnID:          "turn_1",
+		ProtocolProfile: profile,
+		Interrupts:      pendingInterrupts,
+		Suspensions:     pendingSuspensions,
+		Continuations:   pendingContinuations,
+		CreatedAt:       finishedAt,
 	}
 	if err := pending.Validate(); err != nil {
 		t.Fatalf("pending fixture: %v", err)
 	}
 	interruptStore := sqlite.NewInterruptStore(db)
-	if err := interruptStore.Put(ctx, pending); err != nil {
+	if err := interruptStore.Open(ctx, pending); err != nil {
 		t.Fatalf("seed Pending: %v", err)
 	}
 
-	processStore := sqlite.NewProcessStore(db)
+	checkpointStore := sqlite.NewExecutorCheckpointStore(db)
 	originalRoot := waitingProcessSnapshot("process_root", createdAt, finishedAt)
 	originalRoot.Suspension.Prompt = json.RawMessage(`"before-cancel"`)
 	originalChild := waitingProcessSnapshot("process_child", createdAt, finishedAt)
@@ -1069,16 +1083,17 @@ func newWaitingCancellationSQLiteFixtureAt(
 		RootID:    originalRoot.ID,
 		Snapshots: originalSnapshots,
 	}
-	originalCheckpoint := execution.ProcessCheckpoint{
+	originalCheckpoint := executorCheckpoint(t, originalTree, execution.ExecutorCheckpoint{
 		BuildID: "original-build",
+		Scope:   execution.TurnScope{SessionID: rootRun.SessionID},
 		Usage: accounting.Snapshot{Models: []accounting.ModelUsage{{
 			Model:      "test-model",
 			TokenUsage: accounting.TokenUsage{PromptTokens: 3, CompletionTokens: 2},
 			CostUSD:    0.25,
 			Calls:      1,
 		}}},
-	}
-	if err := processStore.SaveTree(ctx, persistedProcessTree(t, originalTree), originalCheckpoint); err != nil {
+	})
+	if err := checkpointStore.SaveCheckpoint(ctx, originalCheckpoint); err != nil {
 		t.Fatalf("seed process tree: %v", err)
 	}
 	replacementRoot := originalRoot
@@ -1162,20 +1177,22 @@ func newWaitingCancellationSQLiteFixtureAt(
 			}},
 		}
 	}
-	replacementCheckpoint := execution.ProcessCheckpoint{
-		BuildID: "replacement-build",
+	replacementCheckpoint := executorCheckpoint(t, replacementTree, execution.ExecutorCheckpoint{
+		BuildID: "original-build",
+		Scope:   execution.TurnScope{SessionID: rootRun.SessionID},
 		Usage: accounting.Snapshot{Models: []accounting.ModelUsage{{
 			Model:      "test-model",
 			TokenUsage: accounting.TokenUsage{PromptTokens: 8, CompletionTokens: 5},
 			CostUSD:    0.75,
 			Calls:      2,
 		}}},
-	}
+	})
 	effects := sqliteEffects(
 		sqliteOpeningStores{interrupts: interruptStore, transcript: transcriptStore},
 		Config{
-			ItemReplacer: transcriptStore,
-			RunState:     state,
+			ItemReplacer:        transcriptStore,
+			RunState:            state,
+			ExecutorCheckpoints: checkpointStore,
 			Tx: func(ctx context.Context, fn func(context.Context) error) error {
 				return sqlite.RunInTx(ctx, db, fn)
 			},
@@ -1187,7 +1204,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		effects:               effects,
 		interrupts:            interruptStore,
 		transcript:            transcriptStore,
-		processes:             processStore,
+		checkpoints:           checkpointStore,
 		runState:              state,
 		rootRun:               rootRun,
 		childRun:              childRun,
@@ -1205,13 +1222,9 @@ func newWaitingCancellationSQLiteFixtureAt(
 			RootRun:          rootRun,
 			ExpectedPending:  pending,
 			RemainingPending: remainingPending,
-			Checkpoint: sqliteProcessCheckpointWrite{
-				store:      processStore,
-				tree:       persistedProcessTree(t, replacementTree),
-				checkpoint: replacementCheckpoint,
-			},
-			TerminalRuns:  []transcript.Run{terminalGrandchild, terminalChild},
-			TerminalItems: terminalItems,
+			Checkpoint:       replacementCheckpoint,
+			TerminalRuns:     []transcript.Run{terminalGrandchild, terminalChild},
+			TerminalItems:    terminalItems,
 			ParentItem: runs.ItemReplacement{
 				Expected: parentItem, Replacement: replacementItem,
 			},
@@ -1232,39 +1245,32 @@ func processSnapshotByID(
 	return core.ProcessSnapshot{}, false
 }
 
-func persistedProcessTree(t *testing.T, tree core.ProcessSnapshotTree) execution.ProcessTreeState {
+func executorCheckpoint(
+	t *testing.T,
+	tree core.ProcessSnapshotTree,
+	checkpoint execution.ExecutorCheckpoint,
+) execution.ExecutorCheckpoint {
 	t.Helper()
-	processes := make([]execution.ProcessState, len(tree.Snapshots))
-	for index, snapshot := range tree.Snapshots {
-		payload, err := json.Marshal(snapshot)
-		if err != nil {
-			t.Fatalf("encode process snapshot %q: %v", snapshot.ID, err)
-		}
-		processes[index] = execution.ProcessState{
-			ID:        snapshot.ID,
-			ParentID:  snapshot.ParentID,
-			StartedAt: snapshot.StartedAt,
-			Payload:   payload,
-		}
+	payload, err := json.Marshal(tree)
+	if err != nil {
+		t.Fatalf("encode executor process tree %q: %v", tree.RootID, err)
 	}
-	state := execution.ProcessTreeState{RootID: tree.RootID, Processes: processes}
-	if err := state.Validate(); err != nil {
-		t.Fatalf("encode process tree state: %v", err)
+	checkpoint.RootProcessID = tree.RootID
+	checkpoint.Payload = payload
+	if err := checkpoint.Validate(); err != nil {
+		t.Fatalf("executor checkpoint: %v", err)
 	}
-	return state
+	return checkpoint
 }
 
-func restoredProcessTree(t *testing.T, state execution.ProcessTreeState) core.ProcessSnapshotTree {
+func restoredProcessTree(t *testing.T, checkpoint execution.ExecutorCheckpoint) core.ProcessSnapshotTree {
 	t.Helper()
-	snapshots := make([]core.ProcessSnapshot, len(state.Processes))
-	for index, process := range state.Processes {
-		if err := json.Unmarshal(process.Payload, &snapshots[index]); err != nil {
-			t.Fatalf("decode process state %q: %v", process.ID, err)
-		}
+	var tree core.ProcessSnapshotTree
+	if err := json.Unmarshal(checkpoint.Payload, &tree); err != nil {
+		t.Fatalf("decode executor process tree %q: %v", checkpoint.RootProcessID, err)
 	}
-	tree := core.ProcessSnapshotTree{RootID: state.RootID, Snapshots: snapshots}
 	if err := tree.Validate(); err != nil {
-		t.Fatalf("decode process tree state: %v", err)
+		t.Fatalf("decode executor process tree: %v", err)
 	}
 	return tree
 }

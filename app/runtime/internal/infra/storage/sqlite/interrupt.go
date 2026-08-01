@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -40,8 +41,6 @@ type committedToolRow struct {
 type continuationRow struct {
 	RunID           string             `json:"runId"`
 	ProcessID       string             `json:"processId"`
-	ParentProcessID string             `json:"parentProcessId,omitempty"`
-	SpawnCallID     string             `json:"spawnCallId,omitempty"`
 	SpawnedByItemID string             `json:"spawnedByItemId,omitempty"`
 	ParentRunID     string             `json:"parentRunId,omitempty"`
 	RootRunID       string             `json:"rootRunId,omitempty"`
@@ -65,9 +64,12 @@ func NewInterruptStore(db *sql.DB) *InterruptStore {
 	return &InterruptStore{db: db}
 }
 
-func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
+// Open records a newly reached barrier. An existing root Run or executor root
+// is an identity conflict; a barrier is replaced only after its owner consumes
+// the previous one in the same application transaction.
+func (s *InterruptStore) Open(ctx context.Context, p interrupts.Pending) error {
 	if err := p.Validate(); err != nil {
-		return fmt.Errorf("sqlite: put interrupt: %w", err)
+		return fmt.Errorf("sqlite: open interrupt: %w", err)
 	}
 	root, _ := p.RootContinuation()
 	payload, err := json.Marshal(p.Interrupts)
@@ -84,23 +86,15 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 	}
 	profile, err := encodeRunProtocolProfile(p.ProtocolProfile)
 	if err != nil {
-		return fmt.Errorf("sqlite: put interrupt: %w", err)
+		return fmt.Errorf("sqlite: open interrupt: %w", err)
 	}
 	_, err = conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO interrupts(root_run_id, session_id, turn_id, root_process_id, payload, continuations, suspension_bindings, protocol_profile, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(root_run_id) DO UPDATE SET
-		   session_id      = excluded.session_id,
-		   turn_id         = excluded.turn_id,
-		   root_process_id = excluded.root_process_id,
-		   payload         = excluded.payload,
-		   continuations   = excluded.continuations,
-		   suspension_bindings = excluded.suspension_bindings,
-		   protocol_profile = excluded.protocol_profile,
-		   created_at      = excluded.created_at`,
+		`INSERT INTO interrupts(root_run_id, session_id, turn_id, goal_lease_id, root_process_id, payload, continuations, suspension_bindings, protocol_profile, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		p.RootRunID,
 		p.SessionID,
 		p.TurnID,
+		p.GoalLeaseID,
 		root.ProcessID,
 		string(payload),
 		string(continuations),
@@ -108,13 +102,21 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 		profile,
 		p.CreatedAt.UnixNano(),
 	)
+	if isUniqueViolation(err) {
+		return fmt.Errorf(
+			"%w: Pending root Run %q or executor root %q is already claimed",
+			transcript.ErrIdentityConflict,
+			p.RootRunID,
+			root.ProcessID,
+		)
+	}
 	if err != nil {
-		return fmt.Errorf("sqlite: put interrupt: %w", err)
+		return fmt.Errorf("sqlite: open interrupt: %w", err)
 	}
 	return nil
 }
 
-const interruptColumns = `root_run_id, session_id, turn_id, root_process_id, payload, continuations, suspension_bindings, protocol_profile, created_at`
+const interruptColumns = `root_run_id, session_id, turn_id, goal_lease_id, root_process_id, payload, continuations, suspension_bindings, protocol_profile, created_at`
 
 func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
 	return s.list(ctx, sessionID, "", 0, "", 0)
@@ -190,13 +192,19 @@ func (s *InterruptStore) Get(ctx context.Context, runID string) (interrupts.Pend
 // claim contract. A single statement means two concurrent resumes can't both
 // observe the same open interrupt: one claims it, the other gets ok=false, so a
 // non-idempotent tool never re-fires.
-func (s *InterruptStore) Consume(ctx context.Context, runID string) (interrupts.Pending, bool, error) {
+func (s *InterruptStore) Consume(ctx context.Context, sessionID, runID string) (interrupts.Pending, bool, error) {
+	if err := validatePendingOwner(sessionID, runID); err != nil {
+		return interrupts.Pending{}, false, fmt.Errorf("sqlite: consume interrupt: %w", err)
+	}
 	row := conn(ctx, s.db).QueryRowContext(ctx,
-		`DELETE FROM interrupts WHERE root_run_id = ?
+		`DELETE FROM interrupts WHERE session_id = ? AND root_run_id = ?
 		 RETURNING `+interruptColumns,
-		runID)
+		sessionID, runID)
 	p, err := scanPending(row)
 	if errors.Is(err, sql.ErrNoRows) {
+		if err := s.rejectForeignPendingOwner(ctx, sessionID, runID); err != nil {
+			return interrupts.Pending{}, false, err
+		}
 		return interrupts.Pending{}, false, nil
 	}
 	if err != nil {
@@ -205,13 +213,55 @@ func (s *InterruptStore) Consume(ctx context.Context, runID string) (interrupts.
 	return p, true, nil
 }
 
-func (s *InterruptStore) Delete(ctx context.Context, runID string) error {
-	if _, err := conn(ctx, s.db).ExecContext(ctx,
-		`DELETE FROM interrupts WHERE root_run_id = ?`, runID,
-	); err != nil {
+func (s *InterruptStore) Delete(ctx context.Context, sessionID, runID string) error {
+	if err := validatePendingOwner(sessionID, runID); err != nil {
 		return fmt.Errorf("sqlite: delete interrupt: %w", err)
 	}
+	result, err := conn(ctx, s.db).ExecContext(ctx,
+		`DELETE FROM interrupts WHERE session_id = ? AND root_run_id = ?`, sessionID, runID,
+	)
+	if err != nil {
+		return fmt.Errorf("sqlite: delete interrupt: %w", err)
+	}
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("sqlite: inspect deleted interrupt: %w", err)
+	}
+	if deleted == 1 {
+		return nil
+	}
+	return s.rejectForeignPendingOwner(ctx, sessionID, runID)
+}
+
+func validatePendingOwner(sessionID, rootRunID string) error {
+	if strings.TrimSpace(sessionID) == "" || sessionID != strings.TrimSpace(sessionID) {
+		return errors.New("session ID must be non-empty without surrounding whitespace")
+	}
+	if strings.TrimSpace(rootRunID) == "" || rootRunID != strings.TrimSpace(rootRunID) {
+		return errors.New("root Run ID must be non-empty without surrounding whitespace")
+	}
 	return nil
+}
+
+func (s *InterruptStore) rejectForeignPendingOwner(ctx context.Context, sessionID, rootRunID string) error {
+	var owner string
+	err := conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT session_id FROM interrupts WHERE root_run_id = ?`,
+		rootRunID,
+	).Scan(&owner)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("sqlite: inspect interrupt %q owner: %w", rootRunID, err)
+	}
+	return fmt.Errorf(
+		"%w: Pending root Run %q belongs to Session %q, not %q",
+		transcript.ErrIdentityConflict,
+		rootRunID,
+		owner,
+		sessionID,
+	)
 }
 
 // scanRow abstracts *sql.Row and *sql.Rows so one scan path serves Get +
@@ -230,6 +280,7 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 		&p.RootRunID,
 		&p.SessionID,
 		&p.TurnID,
+		&p.GoalLeaseID,
 		&rootProcessID,
 		&payload,
 		&continuations,
@@ -247,14 +298,14 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupts: %w", err)
 	}
 	var continuationValues []continuationRow
-	if err := json.Unmarshal([]byte(continuations), &continuationValues); err != nil {
+	if err := decodeInterruptJSON(continuations, &continuationValues); err != nil {
 		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupt continuations: %w", err)
 	}
 	if p.Continuations, err = continuationsFromRows(continuationValues); err != nil {
 		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupt continuations: %w", err)
 	}
 	var bindingValues []suspensionBindingRow
-	if err := json.Unmarshal([]byte(suspensions), &bindingValues); err != nil {
+	if err := decodeInterruptJSON(suspensions, &bindingValues); err != nil {
 		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupt suspension bindings: %w", err)
 	}
 	p.Suspensions = suspensionBindingsFromRows(bindingValues)
@@ -285,10 +336,26 @@ func decodeInterrupts(payload string) ([]transcript.Interrupt, error) {
 		return nil, nil
 	}
 	var out []transcript.Interrupt
-	if err := json.Unmarshal([]byte(payload), &out); err != nil {
+	if err := decodeInterruptJSON(payload, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
+}
+
+func decodeInterruptJSON(encoded string, target any) error {
+	decoder := json.NewDecoder(strings.NewReader(encoded))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("stored interrupt JSON has a trailing value")
+		}
+		return fmt.Errorf("stored interrupt JSON trailing value: %w", err)
+	}
+	return nil
 }
 
 func drainedToolRows(tools []interrupts.DrainedTool) []drainedToolRow {
@@ -341,8 +408,6 @@ func continuationRows(values []interrupts.Continuation) []continuationRow {
 		rows[index] = continuationRow{
 			RunID:           value.RunID,
 			ProcessID:       value.ProcessID,
-			ParentProcessID: value.ParentProcessID,
-			SpawnCallID:     value.SpawnCallID,
 			SpawnedByItemID: value.Lineage.SpawnedByItemID,
 			ParentRunID:     value.Lineage.ParentRunID,
 			RootRunID:       value.Lineage.RootRunID,
@@ -369,10 +434,8 @@ func continuationsFromRows(rows []continuationRow) ([]interrupts.Continuation, e
 			return nil, fmt.Errorf("continuation[%d] accounting: %w", index, err)
 		}
 		values[index] = interrupts.Continuation{
-			RunID:           row.RunID,
-			ProcessID:       row.ProcessID,
-			ParentProcessID: row.ParentProcessID,
-			SpawnCallID:     row.SpawnCallID,
+			RunID:     row.RunID,
+			ProcessID: row.ProcessID,
 			Lineage: execution.RunLineage{
 				SpawnedByItemID: row.SpawnedByItemID,
 				ParentRunID:     row.ParentRunID,

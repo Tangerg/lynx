@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
-func TestProcessTreeStateCodecRoundTripOwnsFrameworkTranslation(t *testing.T) {
+func TestProcessTreeCodecKeepsFrameworkTopologyInsideExecutionAdapter(t *testing.T) {
 	startedAt := time.Date(2026, time.August, 1, 12, 0, 0, 0, time.UTC)
 	tree := core.ProcessSnapshotTree{
 		RootID: "root",
@@ -30,16 +31,19 @@ func TestProcessTreeStateCodecRoundTripOwnsFrameworkTranslation(t *testing.T) {
 			},
 		},
 	}
-	state, err := encodeProcessTreeState(tree)
+	payload, err := encodeProcessTree(tree)
 	if err != nil {
-		t.Fatalf("encodeProcessTreeState: %v", err)
+		t.Fatalf("encodeProcessTree: %v", err)
 	}
-	if len(state.Processes) != 2 || state.Processes[1].ParentID != "root" {
-		t.Fatalf("encoded state = %+v", state)
+	checkpoint := execution.ExecutorCheckpoint{
+		RootProcessID: tree.RootID,
+		Payload:       payload,
+		BuildID:       "build",
+		Scope:         execution.TurnScope{SessionID: "session"},
 	}
-	restored, err := decodeProcessTreeState(state)
+	restored, err := decodeProcessTree(checkpoint)
 	if err != nil {
-		t.Fatalf("decodeProcessTreeState: %v", err)
+		t.Fatalf("decodeProcessTree: %v", err)
 	}
 	if restored.RootID != tree.RootID || len(restored.Snapshots) != len(tree.Snapshots) {
 		t.Fatalf("restored tree = %+v, want %+v", restored, tree)
@@ -52,8 +56,8 @@ func TestProcessTreeStateCodecRoundTripOwnsFrameworkTranslation(t *testing.T) {
 		}
 	}
 
-	state.Processes[1].StartedAt = state.Processes[1].StartedAt.Add(time.Second)
-	if _, err := decodeProcessTreeState(state); !errors.Is(err, core.ErrInvalidSnapshot) {
-		t.Fatalf("decode mismatched envelope error = %v, want ErrInvalidSnapshot", err)
+	checkpoint.RootProcessID = "another-root"
+	if _, err := decodeProcessTree(checkpoint); !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("decode mismatched root error = %v, want ErrInvalidSnapshot", err)
 	}
 }

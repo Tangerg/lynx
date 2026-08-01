@@ -2,6 +2,7 @@ package sessions
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -53,7 +54,7 @@ func (s coordinatorStores) ApplyRollback(ctx context.Context, plan RollbackPlan)
 		*s.rolledBack = plan
 	}
 	for _, runID := range plan.DropRunIDs {
-		_ = s.interrupts.Delete(ctx, runID)
+		_ = s.interrupts.Delete(ctx, plan.SessionID, runID)
 	}
 	return nil
 }
@@ -61,7 +62,7 @@ func (s coordinatorStores) ApplyRestore(context.Context, RestorePlan) error { re
 func (s coordinatorStores) ApplyDelete(ctx context.Context, plan DeletePlan) error {
 	pending, _ := s.interrupts.List(ctx, plan.SessionID)
 	for _, p := range pending {
-		_ = s.interrupts.Delete(ctx, p.RootRunID)
+		_ = s.interrupts.Delete(ctx, plan.SessionID, p.RootRunID)
 	}
 	return nil
 }
@@ -69,7 +70,11 @@ func (s coordinatorStores) ApplyTerminal(ctx context.Context, plan TerminalPlan)
 	if s.terminal != nil {
 		*s.terminal = plan
 	}
-	return s.interrupts.Delete(ctx, plan.Run.ID)
+	root, ok := plan.RootRun()
+	if !ok {
+		return errors.New("terminal plan has no root Run")
+	}
+	return s.interrupts.Delete(ctx, root.SessionID, root.ID)
 }
 
 type coordinatorInterrupts struct {
@@ -78,9 +83,12 @@ type coordinatorInterrupts struct {
 	onDelete func(string)
 }
 
-func (s *coordinatorInterrupts) Put(_ context.Context, p interrupts.Pending) error {
+func (s *coordinatorInterrupts) Open(_ context.Context, p interrupts.Pending) error {
 	if s.pending == nil {
 		s.pending = map[string]interrupts.Pending{}
+	}
+	if _, exists := s.pending[p.RootRunID]; exists {
+		return transcript.ErrIdentityConflict
 	}
 	s.pending[p.RootRunID] = p
 	return nil
@@ -101,15 +109,18 @@ func (s *coordinatorInterrupts) Get(_ context.Context, parentRunID string) (inte
 	return p, ok, nil
 }
 
-func (s *coordinatorInterrupts) Consume(_ context.Context, parentRunID string) (interrupts.Pending, bool, error) {
+func (s *coordinatorInterrupts) Consume(_ context.Context, sessionID, parentRunID string) (interrupts.Pending, bool, error) {
 	p, ok := s.pending[parentRunID]
+	if ok && p.SessionID != sessionID {
+		return interrupts.Pending{}, false, nil
+	}
 	if ok {
 		delete(s.pending, parentRunID)
 	}
 	return p, ok, nil
 }
 
-func (s *coordinatorInterrupts) Delete(_ context.Context, parentRunID string) error {
+func (s *coordinatorInterrupts) Delete(_ context.Context, _ string, parentRunID string) error {
 	s.deleted = append(s.deleted, parentRunID)
 	if s.onDelete != nil {
 		s.onDelete(parentRunID)

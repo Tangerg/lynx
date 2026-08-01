@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -76,13 +75,13 @@ func (a askUserArgs) arguments() (string, error) {
 }
 
 type tool struct {
-	interrupt suspension.Func
+	interrupt runs.InterruptFunc
 }
 
 // New builds the ask_user tool.
-func New(interrupt suspension.Func) (tools.Tool, error) {
+func New(interrupt runs.InterruptFunc) (tools.Tool, error) {
 	if interrupt == nil {
-		interrupt = suspension.Unavailable
+		interrupt = runs.InterruptUnavailable
 	}
 	t := &tool{interrupt: interrupt}
 	return tools.New[askUserArgs, string](

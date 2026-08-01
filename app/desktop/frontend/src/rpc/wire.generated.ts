@@ -195,6 +195,7 @@ export interface ArtifactRun {
 export interface ArtifactRunLimits {
   maxBudgetUsd?: number;
   maxSteps?: number;
+  maxTotalTokens?: number;
 }
 
 export interface ArtifactRunMetrics {
@@ -1031,6 +1032,7 @@ export interface RunEvent {
 export interface RunLimits {
   maxBudgetUsd?: number;
   maxSteps?: number;
+  maxTotalTokens?: number;
 }
 
 export interface RunMetrics {
@@ -1278,6 +1280,7 @@ export interface StartRunRequest {
   input: ContentBlock[];
   maxBudgetUsd?: number;
   maxSteps?: number;
+  maxTotalTokens?: number;
   model?: string;
   params?: GenerationParams;
   provider?: string;

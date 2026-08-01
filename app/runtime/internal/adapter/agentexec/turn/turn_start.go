@@ -34,6 +34,9 @@ func (s *memoryDispatcher) PrepareTurn(ctx context.Context, request runs.StartTu
 	if err := request.Validate(); err != nil {
 		return TurnHandle{}, err
 	}
+	if request.ModelSelection.Configured() && s.resolver == nil {
+		return TurnHandle{}, errors.New("turn: explicit model selection requires a client resolver")
+	}
 	if s.isClosed() {
 		return TurnHandle{}, ErrDispatcherClosed
 	}

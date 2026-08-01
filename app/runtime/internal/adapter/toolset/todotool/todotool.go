@@ -14,7 +14,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/todopresentation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/tools"
@@ -80,7 +80,7 @@ type Store interface {
 // New builds the todo_write tool over store. It returns a nil tool and nil
 // error when store is nil so the caller can simply omit the tool — the feature
 // is disabled, not a broken tool. The session id is read per-call off the
-// turn's blackboard ([turnctx.TurnSession]), so one tool instance serves every
+// turn's blackboard ([executionctx.SessionID]), so one tool instance serves every
 // session.
 func New(store Store) (tools.Tool, error) {
 	if store == nil {
@@ -93,7 +93,7 @@ func New(store Store) (tools.Tool, error) {
 }
 
 func (t *tool) write(ctx context.Context, a writeArgs) (string, error) {
-	sessionID := turnctx.TurnSession(ctx)
+	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return "error: no active session — cannot maintain a todo list", nil
 	}

@@ -3,6 +3,7 @@ package protocol
 import (
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"slices"
 	"strings"
@@ -235,6 +236,18 @@ type wireNumber interface {
 func positiveNumber[Number wireNumber](field string, value Number) FieldError {
 	if value <= 0 {
 		return FieldError{Field: field, Detail: "must be greater than zero"}
+	}
+	return FieldError{}
+}
+
+type wireNumeric interface {
+	wireNumber | ~float32 | ~float64
+}
+
+func nonNegativeNumber[Number wireNumeric](field string, value Number) FieldError {
+	number := float64(value)
+	if math.IsNaN(number) || math.IsInf(number, 0) || number < 0 {
+		return FieldError{Field: field, Detail: "must be finite and non-negative"}
 	}
 	return FieldError{}
 }

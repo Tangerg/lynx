@@ -11,9 +11,8 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
@@ -59,20 +58,10 @@ type TurnRequest struct {
 	// runs.
 	GoalLeaseID string
 
-	// MaxBudget caps the total tokens (prompt + completion) the turn
-	// may spend across its complete delegation tree. 0 means unlimited.
-	// An admitted model call may cross the ceiling; no later work is admitted.
-	MaxBudget int64
-
-	// MaxCostUSD caps the turn's dollar cost across its complete delegation
-	// tree. 0 means unlimited. It requires a [Config.Pricing] hook and has the
-	// same continuation-ceiling semantics as MaxBudget.
-	MaxCostUSD float64
-
-	// MaxSteps caps cumulative model calls across the root and child delegation
-	// tree (0 = no cap). Admission is strict across concurrent siblings and
-	// exhaustion surfaces as the maxSteps run outcome.
-	MaxSteps int
+	// Limits are the immutable cumulative ceilings for the complete delegation
+	// tree. Token and cost dimensions are continuation ceilings; model-call
+	// admission is strict. Zero leaves a dimension unbounded.
+	Limits execution.RunLimits
 
 	// Options carries per-run generation tuning (temperature, max tokens, stop
 	// sequences). Model selection stays on ModelSelection/ChatClient; these options
@@ -150,13 +139,9 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 	if err := scope.Validate(); err != nil {
 		return nil, fmt.Errorf("engine: start chat: %w", err)
 	}
-	runCtx := turnctx.WithScope(ctx, scope)
+	runCtx := executionctx.WithScope(ctx, scope)
 	provider := request.ModelSelection.Provider()
-	budget := accounting.Budget{
-		MaxTokens:  request.MaxBudget,
-		MaxCostUSD: request.MaxCostUSD,
-		MaxSteps:   request.MaxSteps,
-	}
+	limits := request.Limits
 	input := turnInput{Message: request.Message, Media: request.Media, Options: request.Options}
 	usage := emptyUsageLedger()
 
@@ -167,7 +152,7 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 	processOptions, err := e.turnProcessOptions(
 		request.SessionID,
 		provider,
-		budget,
+		limits,
 		request.Observer,
 		request.EventListener,
 		request.ChatClient,
@@ -189,14 +174,14 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 		return nil, errors.New("engine: start chat: agent runtime returned an invalid segment")
 	}
 	return &turnProcess{
-		process:  segment.Process(),
-		segment:  segment,
-		owner:    e,
-		scope:    scope,
-		runCtx:   runCtx,
-		usage:    usage,
-		provider: provider,
-		budget:   budget,
+		process:        segment.Process(),
+		segment:        segment,
+		owner:          e,
+		scope:          scope,
+		runCtx:         runCtx,
+		usage:          usage,
+		modelSelection: request.ModelSelection,
+		limits:         limits,
 	}, nil
 }
 
@@ -207,7 +192,7 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 func (e *Engine) turnProcessOptions(
 	sessionID string,
 	provider string,
-	budget accounting.Budget,
+	limits execution.RunLimits,
 	observer executionObserver,
 	listener core.Extension,
 	client *chatclient.Client,
@@ -222,8 +207,8 @@ func (e *Engine) turnProcessOptions(
 	if usage == nil {
 		return core.ProcessOptions{}, errors.New("agentexec: usage ledger is required")
 	}
-	if err := budget.Validate(); err != nil {
-		return core.ProcessOptions{}, fmt.Errorf("agentexec: execution budget: %w", err)
+	if err := limits.Validate(); err != nil {
+		return core.ProcessOptions{}, fmt.Errorf("agentexec: execution limits: %w", err)
 	}
 	scope := dependencies.Child()
 	if err := core.RegisterDependency(scope, usageLedgerKey, usage); err != nil {
@@ -232,9 +217,9 @@ func (e *Engine) turnProcessOptions(
 	options := core.ProcessOptions{
 		Dependencies: scope,
 		Budget: core.Budget{
-			CostLimit:      budget.MaxCostUSD,
-			ModelCallLimit: budget.MaxSteps,
-			TokenLimit:     budget.MaxTokens,
+			CostLimit:      limits.MaxBudgetUSD,
+			ModelCallLimit: limits.MaxSteps,
+			TokenLimit:     limits.MaxTotalTokens,
 		},
 	}
 	baseMiddleware := e.chatMiddleware
@@ -327,13 +312,26 @@ func (p perRunChatClient) Chat(core.ProcessView) core.ChatCapability {
 // rebuilt from a checkpoint. Durable host scope comes from that checkpoint.
 type RestoreTurnRequest struct {
 	// SessionID is the expected owner supplied by the application Run. It must
-	// exactly match the checkpoint (including the empty unattached scope), so a
+	// exactly match the checkpoint's non-empty application Session, so a
 	// continuation can never cross product-session boundaries.
 	SessionID string
 
-	// Provider is the persisted model provider identity used for pricing. It
-	// must match the application checkpoint.
-	Provider string
+	// ModelSelection is the immutable provider/model pair admitted for the Run.
+	// It must match the application checkpoint exactly.
+	ModelSelection modelref.Selection
+
+	// Cwd and Isolated are the Session facts independently resolved by the
+	// application. They must match the checkpoint so executor tools, lifecycle
+	// hooks, and delegated work cannot rehydrate into different workspaces.
+	Cwd      string
+	Isolated bool
+	// GoalLeaseID binds autonomous-goal tool context to the same application
+	// lease whose terminal accounting will consume the resumed Segment.
+	GoalLeaseID string
+
+	// Limits are the immutable tree-wide ceilings admitted by the application
+	// Run. Restore rejects a checkpoint that carries a different policy.
+	Limits execution.RunLimits
 
 	// Observer receives the continuation's streaming tool-call + text
 	// deltas, exactly as on a fresh turn. May be nil.
@@ -350,19 +348,19 @@ type RestoreTurnRequest struct {
 	// ChatClient, when non-nil, overrides the model the restored continuation
 	// runs against — the per-run model the parked turn used, re-resolved from
 	// the interrupt's persisted provider+model. nil runs on the engine default
-	// (a run that didn't pick a model, or one whose provider is no longer
-	// configured). Same seam as [TurnRequest.ChatClient] on a fresh turn.
+	// (a run that didn't pick a model). Same seam as [TurnRequest.ChatClient] on
+	// a fresh turn.
 	ChatClient *chatclient.Client
 }
 
-// RestoreTurn rebuilds the agent process identified by processID from the
-// configured ProcessStore snapshot. The framework snapshot already contains
+// RestoreTurn rebuilds the agent process identified by rootProcessID from the
+// configured executor checkpoint. The framework snapshot already contains
 // the exact JSON-safe Suspension and tool checkpoint, so the returned process
 // can be answered immediately without a replay tick.
 //
-// Errors when no ProcessStore is configured, the snapshot is missing, the
+// Errors when no checkpoint reader is configured, the snapshot is missing, the
 // agent is not deployed under the snapshot's name, or the re-tick fails.
-func (e *Engine) RestoreTurn(ctx context.Context, processID string, request RestoreTurnRequest) (TurnProcess, error) {
+func (e *Engine) RestoreTurn(ctx context.Context, rootProcessID string, request RestoreTurnRequest) (TurnProcess, error) {
 	if request.Observer != nil && executionObserverIsNil(request.Observer) {
 		return nil, fmt.Errorf("engine: configure restored chat process: observer: %w", core.ErrNilDependency)
 	}
@@ -373,52 +371,48 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 	if e.runtime == nil {
 		return nil, errors.New("engine: restore chat: agent runtime is required")
 	}
-	if e.processStore == nil {
-		return nil, errors.New("engine: restore chat: ProcessStore is required")
+	if e.checkpoints == nil {
+		return nil, errors.New("engine: restore chat: checkpoint reader is required")
 	}
-	state, checkpoint, err := e.processStore.LoadTree(ctx, processID)
+	checkpoint, err := e.checkpoints.LoadCheckpoint(ctx, rootProcessID)
 	if err != nil {
-		if isProcessSnapshotLoss(err) {
-			return nil, processSnapshotLost("restore", err)
+		if isExecutorCheckpointLoss(err) {
+			return nil, executorCheckpointLost("restore", err)
 		}
 		return nil, fmt.Errorf("engine: load process tree: %w", err)
 	}
-	tree, err := decodeProcessTreeState(state)
-	if err != nil {
-		return nil, processSnapshotLost("decode", err)
+	if err := checkpoint.ValidateFor(execution.ExecutorCheckpointExpectation{
+		RootProcessID:  rootProcessID,
+		SessionID:      request.SessionID,
+		Cwd:            request.Cwd,
+		Isolated:       request.Isolated,
+		GoalLeaseID:    request.GoalLeaseID,
+		ModelSelection: request.ModelSelection,
+		Limits:         request.Limits,
+	}); err != nil {
+		return nil, executorCheckpointLost("restore ownership", err)
 	}
-	if err := checkpoint.Validate(); err != nil {
-		return nil, processSnapshotLost("restore metadata", err)
+	tree, err := decodeValidatedProcessTree(checkpoint)
+	if err != nil {
+		return nil, executorCheckpointLost("decode", err)
 	}
 	if checkpoint.BuildID != e.buildID {
-		return nil, processSnapshotLost(
+		return nil, executorCheckpointLost(
 			"restore",
 			fmt.Errorf("checkpoint build %q does not match runtime build %q", checkpoint.BuildID, e.buildID),
 		)
 	}
-	if request.SessionID != checkpoint.Scope.SessionID {
-		return nil, processSnapshotLost(
-			"restore",
-			fmt.Errorf("checkpoint session %q does not match run session %q", checkpoint.Scope.SessionID, request.SessionID),
-		)
-	}
-	if request.Provider != checkpoint.Provider {
-		return nil, processSnapshotLost(
-			"restore",
-			fmt.Errorf("checkpoint provider %q does not match run provider %q", checkpoint.Provider, request.Provider),
-		)
-	}
 	if err := validateCheckpointUsage(tree, checkpoint.Usage); err != nil {
-		return nil, processSnapshotLost("restore usage", err)
+		return nil, executorCheckpointLost("restore usage", err)
 	}
 	usage, err := newUsageLedger(checkpoint.Usage)
 	if err != nil {
-		return nil, processSnapshotLost("restore usage", err)
+		return nil, executorCheckpointLost("restore usage", err)
 	}
 	options, err := e.turnProcessOptions(
 		checkpoint.Scope.SessionID,
-		checkpoint.Provider,
-		checkpoint.Budget,
+		checkpoint.ModelSelection.Provider(),
+		checkpoint.Limits,
 		request.Observer,
 		request.EventListener,
 		request.ChatClient,
@@ -431,16 +425,16 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 	}
 	root, ok := tree.Root()
 	if !ok {
-		return nil, processSnapshotLost("restore", core.ErrInvalidSnapshot)
+		return nil, executorCheckpointLost("restore", core.ErrInvalidSnapshot)
 	}
 	if err := agentruntime.ValidateResumableSnapshot(root); err != nil {
-		return nil, processSnapshotLost("restore", err)
+		return nil, executorCheckpointLost("restore", err)
 	}
-	runCtx := turnctx.WithScope(ctx, checkpoint.Scope)
+	runCtx := executionctx.WithScope(ctx, checkpoint.Scope)
 	process, err := e.runtime.RestoreTree(runCtx, tree, options)
 	if err != nil {
-		if isProcessSnapshotLoss(err) {
-			return nil, processSnapshotLost("restore", err)
+		if isExecutorCheckpointLoss(err) {
+			return nil, executorCheckpointLost("restore", err)
 		}
 		return nil, fmt.Errorf("engine: restore process tree: %w", err)
 	}
@@ -448,19 +442,19 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 		return nil, errors.New("engine: restore chat: agent runtime returned nil process without an error")
 	}
 	return &turnProcess{
-		process:  process,
-		owner:    e,
-		scope:    checkpoint.Scope,
-		runCtx:   runCtx,
-		usage:    usage,
-		provider: checkpoint.Provider,
-		budget:   checkpoint.Budget,
+		process:        process,
+		owner:          e,
+		scope:          checkpoint.Scope,
+		runCtx:         runCtx,
+		usage:          usage,
+		modelSelection: checkpoint.ModelSelection,
+		limits:         checkpoint.Limits,
 	}, nil
 }
 
-func isProcessSnapshotLoss(err error) bool {
-	return errors.Is(err, execution.ErrProcessStateNotFound) ||
-		errors.Is(err, execution.ErrInvalidProcessTreeState) ||
+func isExecutorCheckpointLoss(err error) bool {
+	return errors.Is(err, execution.ErrExecutorCheckpointNotFound) ||
+		errors.Is(err, execution.ErrInvalidExecutorCheckpoint) ||
 		errors.Is(err, core.ErrSnapshotSchema) ||
 		errors.Is(err, core.ErrInvalidSnapshot) ||
 		errors.Is(err, agentruntime.ErrDeploymentNotFound)

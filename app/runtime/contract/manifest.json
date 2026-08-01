@@ -3078,6 +3078,52 @@
         {
           "field": "input",
           "constraint": "nonEmptyItems"
+        },
+        {
+          "field": "maxTotalTokens",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "maxSteps",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "maxBudgetUsd",
+          "constraint": "nonNegative"
+        }
+      ]
+    },
+    {
+      "type": "RunLimits",
+      "rules": [
+        {
+          "field": "maxTotalTokens",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "maxSteps",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "maxBudgetUsd",
+          "constraint": "nonNegative"
+        }
+      ]
+    },
+    {
+      "type": "ArtifactRunLimits",
+      "rules": [
+        {
+          "field": "maxTotalTokens",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "maxSteps",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "maxBudgetUsd",
+          "constraint": "nonNegative"
         }
       ]
     },
@@ -3609,6 +3655,17 @@
       "boundaries": [
         "runsegment.event",
         "runs.recovery"
+      ]
+    },
+    {
+      "key": "parked_continuation_matches_run_facts",
+      "why": "A continuation is a hand-off of the admitted Run, not a second author. If its model, cumulative accounting, limits, lineage, creation time, goal lease or protocol contract differs, resume or teardown would rewrite history.",
+      "boundaries": [
+        "runsegment.opening",
+        "runsegment.event",
+        "runsegment.waiting_subtree_cancel",
+        "runs.recovery",
+        "sessions.parked_terminal"
       ]
     },
     {

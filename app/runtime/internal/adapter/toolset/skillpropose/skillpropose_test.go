@@ -9,7 +9,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
@@ -37,7 +36,7 @@ func (f *fakeStore) DiscardDraft(ctx context.Context, handle skills.DraftHandle)
 	return f.discardErr
 }
 
-func answering(choice string) suspension.Func {
+func answering(choice string) runs.InterruptFunc {
 	return func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
 		return interrupts.Resolution{Answer: map[string][]string{runs.QuestionFieldID(0): {choice}}}, nil
 	}

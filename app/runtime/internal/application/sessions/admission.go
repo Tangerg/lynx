@@ -28,16 +28,15 @@ func (a WorkingTreeAdmission) Release() {
 	}
 }
 
-// RunAdmission is a held single-writer slot. Release is idempotent across value
-// copies and should be called after the run segment is registered or admission
-// fails.
-type RunAdmission struct {
+// SessionAdmission is a held single-writer slot. Release is idempotent across
+// value copies.
+type SessionAdmission struct {
 	SessionID string
 	release   *releaseOnce
 }
 
 // Release drops the held single-writer slot.
-func (a RunAdmission) Release() {
+func (a SessionAdmission) Release() {
 	if a.release != nil {
 		a.release.run()
 	}
@@ -54,10 +53,10 @@ func (r *releaseOnce) run() {
 	r.once.Do(r.fn)
 }
 
-// heldAdmission builds a slot whose Release drops its owned single-writer claim
-// exactly once.
-func heldAdmission(sessionID string, release func()) RunAdmission {
-	return RunAdmission{
+// heldSessionAdmission builds a slot whose Release drops its owned
+// single-writer claim exactly once.
+func heldSessionAdmission(sessionID string, release func()) SessionAdmission {
+	return SessionAdmission{
 		SessionID: sessionID,
 		release:   newReleaseOnce(release),
 	}
@@ -67,44 +66,45 @@ func heldWorkingTreeAdmission(release func()) WorkingTreeAdmission {
 	return WorkingTreeAdmission{release: newReleaseOnce(release)}
 }
 
-// ClaimRunSlot reserves a session's single-writer slot for a fresh run and
-// rejects sessions already parked on an open interrupt.
-func (c *Coordinator) ClaimRunSlot(ctx context.Context, sessionID string) (RunAdmission, error) {
+// ClaimIdleSession reserves a Session only when it has neither an in-process
+// writer nor a parked Run. Use it for operations whose result cannot remain
+// coherent with an existing executor continuation, such as export, import, or
+// editing execution workspace policy.
+func (c *Coordinator) ClaimIdleSession(ctx context.Context, sessionID string) (SessionAdmission, error) {
 	if c.admissions == nil {
-		return RunAdmission{}, errors.New("sessions: admission gate is unavailable")
+		return SessionAdmission{}, errors.New("sessions: admission gate is unavailable")
 	}
 	release, ok := c.admissions.AcquireSession(sessionID)
 	if !ok {
-		return RunAdmission{}, ErrSessionBusy
+		return SessionAdmission{}, ErrSessionBusy
 	}
-	admission := heldAdmission(sessionID, release)
+	admission := heldSessionAdmission(sessionID, release)
 	if c.interrupts == nil {
 		admission.Release()
-		return RunAdmission{}, errors.New("sessions: interrupt store is unavailable")
+		return SessionAdmission{}, errors.New("sessions: interrupt store is unavailable")
 	}
 	open, err := c.interrupts.List(ctx, sessionID)
 	if err != nil {
 		admission.Release()
-		return RunAdmission{}, err
+		return SessionAdmission{}, err
 	}
 	if len(open) > 0 {
 		admission.Release()
-		return RunAdmission{}, ErrSessionBusy
+		return SessionAdmission{}, ErrSessionBusy
 	}
 	return admission, nil
 }
 
-// ClaimMutationSlot reserves a session's single-writer slot for a destructive
-// session mutation. Unlike [Coordinator.ClaimRunSlot], it does not reject open
-// interrupts: rollback/delete/import decide what to do with parked runs inside
-// their own lifecycle write-set.
-func (c *Coordinator) ClaimMutationSlot(sessionID string) (RunAdmission, error) {
+// ClaimSessionMutation reserves a Session for a lifecycle write-set that
+// explicitly consumes or terminalizes any parked Run it finds. It deliberately
+// does not reject open interrupts; callers must own that disposition atomically.
+func (c *Coordinator) ClaimSessionMutation(sessionID string) (SessionAdmission, error) {
 	if c.admissions == nil {
-		return RunAdmission{}, errors.New("sessions: admission gate is unavailable")
+		return SessionAdmission{}, errors.New("sessions: admission gate is unavailable")
 	}
 	release, ok := c.admissions.AcquireSession(sessionID)
 	if !ok {
-		return RunAdmission{}, ErrSessionBusy
+		return SessionAdmission{}, ErrSessionBusy
 	}
-	return heldAdmission(sessionID, release), nil
+	return heldSessionAdmission(sessionID, release), nil
 }

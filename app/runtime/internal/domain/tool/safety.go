@@ -45,6 +45,7 @@ var safetyClasses = map[string]SafetyClass{
 	"propose_skill":      SafetyClassSafe,
 	"codebase_search":    SafetyClassSafe,
 	"sourcegraph_search": SafetyClassSafe,
+	NameReadToolResult:   SafetyClassSafe,
 	"task":               SafetyClassSafe,
 
 	"write":       SafetyClassWrite,

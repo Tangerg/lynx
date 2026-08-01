@@ -56,6 +56,33 @@ type RunProtocolProfile struct {
 	InterruptKinds []InterruptKind
 }
 
+// Validate reports whether the profile is in its one durable representation.
+// Profiles cross process and persistence boundaries, so accepting multiple
+// spellings of the same set would make equality depend on where a value was
+// decoded. Admission normalizes once; every later boundary can then compare the
+// frozen contract directly and fail closed on corruption.
+func (p RunProtocolProfile) Validate() error {
+	for index, kind := range p.InterruptKinds {
+		if !kind.Valid() {
+			return fmt.Errorf("execution: protocol profile interrupt kind[%d] is unknown", index)
+		}
+		if index > 0 && p.InterruptKinds[index-1] >= kind {
+			return errors.New("execution: protocol profile interrupt kinds must be sorted without duplicates")
+		}
+	}
+	return nil
+}
+
+// Equal reports semantic equality of two protocol contracts. It deliberately
+// ignores order and duplicate spelling so callers validating an external value
+// can explain a contract mismatch instead of accidentally comparing slice
+// headers. Persisted/admitted profiles should additionally pass [Validate].
+func (p RunProtocolProfile) Equal(other RunProtocolProfile) bool {
+	left := p.Normalized()
+	right := other.Normalized()
+	return left.ChildRuns == right.ChildRuns && slices.Equal(left.InterruptKinds, right.InterruptKinds)
+}
+
 // Normalized returns the interrupt policy as a canonical set: sorted and without
 // duplicates. Two profiles that differ only in interrupt order or repetition are
 // the same contract, and comparing or storing them must not depend on how a caller

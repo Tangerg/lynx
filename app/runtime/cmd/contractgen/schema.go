@@ -425,6 +425,8 @@ func applyValueConstraints(node *schema, kinds []dispatch.ConstraintKind) {
 			node.MinLength = new(1)
 		case dispatch.ConstraintPositive:
 			node.Minimum = new(int64(1))
+		case dispatch.ConstraintNonNegative:
+			node.Minimum = new(int64(0))
 		case dispatch.ConstraintNonEmptyItems:
 			node.MinItems = new(1)
 		case dispatch.ConstraintUniqueItems:

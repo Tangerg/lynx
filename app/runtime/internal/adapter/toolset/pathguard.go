@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -35,7 +35,7 @@ var protectedDirs = []string{".git"}
 // paths anywhere are allowed — that is the point of the fs tools).
 func withPathGuard(inner tools.Tool, workdir string) tools.Tool {
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
-		isolated := turnctx.TurnIsolated(ctx)
+		isolated := executionctx.Isolated(ctx)
 		paths, err := mutationPaths(inner, arguments)
 		if err != nil {
 			return "", fmt.Errorf("inspect mutation paths: %w", err)

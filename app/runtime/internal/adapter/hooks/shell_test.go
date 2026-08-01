@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +21,27 @@ func TestShell_CommandReceivesStdin(t *testing.T) {
 	}
 	if strings.TrimSpace(got.Decision.InjectContext) != "saw-event" {
 		t.Fatalf("decision = %+v", got.Decision)
+	}
+}
+
+func TestSubagentHookWireUsesApplicationRunIdentity(t *testing.T) {
+	encoded, err := json.Marshal(hookInputWireFrom(domainhooks.Input{
+		Event: domainhooks.SubagentStart,
+		Subagent: &domainhooks.SubagentInput{
+			RunID: "run-child", ParentRunID: "run-root", Description: "inspect auth",
+		},
+	}))
+	if err != nil {
+		t.Fatalf("marshal hook input: %v", err)
+	}
+	wire := string(encoded)
+	for _, required := range []string{`"runId":"run-child"`, `"parentRunId":"run-root"`} {
+		if !strings.Contains(wire, required) {
+			t.Fatalf("hook wire %s is missing %s", wire, required)
+		}
+	}
+	if strings.Contains(wire, "processId") || strings.Contains(wire, "parentProcessId") {
+		t.Fatalf("hook wire leaks Framework process identity: %s", wire)
 	}
 }
 

@@ -86,7 +86,7 @@ func (e *Executor) PrepareWaitingSubtreeCancellation(
 ) (runs.PreparedWaitingSubtreeCancellation, error) {
 	dispatcher, ok := e.dispatcher.(waitingSubtreeDispatcher)
 	if !ok {
-		return nil, errors.New("turn executor: waiting subtree cancellation is unavailable")
+		return runs.PreparedWaitingSubtreeCancellation{}, errors.New("turn executor: waiting subtree cancellation is unavailable")
 	}
 	prepared, err := dispatcher.PrepareWaitingSubtreeCancellation(
 		ctx,
@@ -94,7 +94,7 @@ func (e *Executor) PrepareWaitingSubtreeCancellation(
 		processID,
 	)
 	if err != nil {
-		return nil, mapControlError(err)
+		return runs.PreparedWaitingSubtreeCancellation{}, mapControlError(err)
 	}
 	return prepared, nil
 }
@@ -150,7 +150,7 @@ func (e *Executor) Resume(ctx context.Context, ref execution.TurnRef, answers []
 	return mapControlError(e.dispatcher.Resume(ctx, concreteHandle(ref), executorAnswers, interruptKinds))
 }
 
-// Rehydrate rebuilds a parked turn from its durable process snapshot.
+// Rehydrate rebuilds a parked turn from its durable executor checkpoint.
 func (e *Executor) Rehydrate(ctx context.Context, request runs.RehydrateTurn) (execution.TurnRef, error) {
 	handle, err := e.dispatcher.Rehydrate(ctx, request)
 	if err != nil {
@@ -178,7 +178,7 @@ func mapControlError(err error) error {
 		return nil
 	}
 	switch {
-	case errors.Is(err, agentexec.ErrProcessSnapshotLost):
+	case errors.Is(err, agentexec.ErrExecutorCheckpointLost):
 		return fmt.Errorf("%w: %w", runs.ErrTurnStateLost, err)
 	case errors.Is(err, ErrParkClaimed):
 		return fmt.Errorf("%w: %w", runs.ErrParkClaimed, err)

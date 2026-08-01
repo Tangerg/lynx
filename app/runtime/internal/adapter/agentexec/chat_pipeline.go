@@ -11,7 +11,6 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	agentruntime "github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	history "github.com/Tangerg/lynx/chathistory"
 	historymw "github.com/Tangerg/lynx/chathistory/middleware"
 	"github.com/Tangerg/lynx/core/chat"
@@ -24,7 +23,7 @@ type chatMiddlewareBuilder func(
 
 func newAgentRuntime(
 	config Config,
-	resolver toolport.ToolResolver,
+	resolver ToolResolver,
 ) (*agentruntime.Engine, error) {
 	extensions := make([]core.Extension, 0, 1)
 	if resolver != nil {

@@ -317,6 +317,9 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
 - **`metrics` 与 `outcome` 分家**：`RunMetrics{usage, steps, activeDurationMs}` 是"花了多少"，`RunOutcome` 是
   "为什么停"。旧形状把两者塞进一个 `result`，于是"取消掉的 run 花了多少钱"没有位置放。`metrics` 单调不减，
   `activeDuration` **不含等人的时间**（一个停在审批上过夜的 Run 不因此变贵）。
+- **`limits` 是一份冻结的 Run-tree policy**：`maxTotalTokens`、`maxSteps`、`maxBudgetUsd` 都跨 child 与 resume
+  累计；其中 `maxTotalTokens` 统计 prompt + completion，而 `params.maxTokens` 只约束一次模型输出。两者不同名，
+  避免 SDK 和 Agent 把累计预算当成 generation 参数。
 - **血缘三字段全有或全无**：`spawnedByItemId` / `parentRunId` / `rootRunId` 要么都在（child），要么都不在（root）。
   半连的树导不出来。`features.subagents` 关闭时不产生 child run，这三个字段恒空——**shape 在、行为关**，这是
   刻意的（见 §13）。

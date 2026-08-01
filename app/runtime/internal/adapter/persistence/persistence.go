@@ -31,28 +31,28 @@ type Bundle struct {
 	Home string
 	Tx   func(context.Context, func(context.Context) error) error
 
-	Session       *sqlitestore.SessionStore
-	Runs          *sqlitestore.RunStore
-	WorkspaceMuts *sqlitestore.WorkspaceMutationStore
-	Memory        *storage.FileKnowledgeStore
-	AgentMemory   *sqlitestore.AgentMemoryStore
-	Process       *sqlitestore.ProcessStore
-	Interrupt     *sqlitestore.InterruptStore
-	Transcript    *sqlitestore.TranscriptStore
-	Feedback      *sqlitestore.FeedbackStore
-	Provider      providersvc.Registry
-	MCPServers    *sqlitestore.MCPServerStore
-	ChatHistory   history.Store
-	Todos         *sqlitestore.TodoStore
-	Goals         *sqlitestore.GoalStore
-	ApprovalRules *sqlitestore.ApprovalRuleStore
-	UtilityRole   *sqlitestore.UtilityRoleStore
-	Trust         *sqlitestore.TrustStore
-	Schedules     *sqlitestore.ScheduleStore
-	EmbeddingRole *sqlitestore.EmbeddingRoleStore
-	Codebase      *sqlitestore.CodebaseIndexStore
-	ToolResults   *sqlitestore.ToolResultStore
-	Idempotency   *sqlitestore.IdempotencyStore
+	Session             *sqlitestore.SessionStore
+	Runs                *sqlitestore.RunStore
+	WorkspaceMuts       *sqlitestore.WorkspaceMutationStore
+	Memory              *storage.FileKnowledgeStore
+	AgentMemory         *sqlitestore.AgentMemoryStore
+	ExecutorCheckpoints *sqlitestore.ExecutorCheckpointStore
+	Interrupt           *sqlitestore.InterruptStore
+	Transcript          *sqlitestore.TranscriptStore
+	Feedback            *sqlitestore.FeedbackStore
+	Provider            providersvc.Registry
+	MCPServers          *sqlitestore.MCPServerStore
+	ChatHistory         history.Store
+	Todos               *sqlitestore.TodoStore
+	Goals               *sqlitestore.GoalStore
+	ApprovalRules       *sqlitestore.ApprovalRuleStore
+	UtilityRole         *sqlitestore.UtilityRoleStore
+	Trust               *sqlitestore.TrustStore
+	Schedules           *sqlitestore.ScheduleStore
+	EmbeddingRole       *sqlitestore.EmbeddingRoleStore
+	Codebase            *sqlitestore.CodebaseIndexStore
+	ToolResults         *sqlitestore.ToolResultStore
+	Idempotency         *sqlitestore.IdempotencyStore
 }
 
 // Open wires the persistence backends. The returned bundle owns the shared
@@ -76,28 +76,28 @@ func Open() (*Bundle, error) {
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlitestore.RunInTx(ctx, db, fn)
 		},
-		Session:       sqlitestore.NewSessionStore(db),
-		Runs:          sqlitestore.NewRunStore(db),
-		WorkspaceMuts: sqlitestore.NewWorkspaceMutationStore(db),
-		Memory:        mem,
-		AgentMemory:   sqlitestore.NewAgentMemoryStore(db),
-		Process:       sqlitestore.NewProcessStore(db),
-		Interrupt:     sqlitestore.NewInterruptStore(db),
-		Transcript:    sqlitestore.NewTranscriptStore(db),
-		Feedback:      sqlitestore.NewFeedbackStore(db),
-		Provider:      sqlitestore.NewProviderStore(db),
-		MCPServers:    sqlitestore.NewMCPServerStore(db),
-		ChatHistory:   sqlitestore.NewMessageStore(db),
-		Todos:         sqlitestore.NewTodoStore(db),
-		Goals:         sqlitestore.NewGoalStore(db),
-		ApprovalRules: sqlitestore.NewApprovalRuleStore(db),
-		UtilityRole:   sqlitestore.NewUtilityRoleStore(db),
-		Trust:         sqlitestore.NewTrustStore(db),
-		Schedules:     sqlitestore.NewScheduleStore(db),
-		EmbeddingRole: sqlitestore.NewEmbeddingRoleStore(db),
-		Codebase:      sqlitestore.NewCodebaseIndexStore(db),
-		ToolResults:   sqlitestore.NewToolResultStore(db),
-		Idempotency:   sqlitestore.NewIdempotencyStore(db),
+		Session:             sqlitestore.NewSessionStore(db),
+		Runs:                sqlitestore.NewRunStore(db),
+		WorkspaceMuts:       sqlitestore.NewWorkspaceMutationStore(db),
+		Memory:              mem,
+		AgentMemory:         sqlitestore.NewAgentMemoryStore(db),
+		ExecutorCheckpoints: sqlitestore.NewExecutorCheckpointStore(db),
+		Interrupt:           sqlitestore.NewInterruptStore(db),
+		Transcript:          sqlitestore.NewTranscriptStore(db),
+		Feedback:            sqlitestore.NewFeedbackStore(db),
+		Provider:            sqlitestore.NewProviderStore(db),
+		MCPServers:          sqlitestore.NewMCPServerStore(db),
+		ChatHistory:         sqlitestore.NewMessageStore(db),
+		Todos:               sqlitestore.NewTodoStore(db),
+		Goals:               sqlitestore.NewGoalStore(db),
+		ApprovalRules:       sqlitestore.NewApprovalRuleStore(db),
+		UtilityRole:         sqlitestore.NewUtilityRoleStore(db),
+		Trust:               sqlitestore.NewTrustStore(db),
+		Schedules:           sqlitestore.NewScheduleStore(db),
+		EmbeddingRole:       sqlitestore.NewEmbeddingRoleStore(db),
+		Codebase:            sqlitestore.NewCodebaseIndexStore(db),
+		ToolResults:         sqlitestore.NewToolResultStore(db),
+		Idempotency:         sqlitestore.NewIdempotencyStore(db),
 	}, nil
 }
 

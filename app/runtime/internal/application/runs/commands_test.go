@@ -5,6 +5,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
@@ -50,6 +51,36 @@ func TestStartTurnValidateKeepsModelSelectionOutsideOptions(t *testing.T) {
 	}).Validate()
 	if !errors.Is(err, ErrInvalidTurnOptions) {
 		t.Fatalf("Validate() error = %v, want ErrInvalidTurnOptions", err)
+	}
+}
+
+func TestStartTurnValidateRejectsNonCanonicalAdmissionPolicy(t *testing.T) {
+	t.Parallel()
+
+	for name, turn := range map[string]StartTurn{
+		"negative token limit": {
+			Message: "hello", Limits: execution.RunLimits{MaxTotalTokens: -1},
+		},
+		"non-finite budget": {
+			Message: "hello", Limits: execution.RunLimits{MaxBudgetUSD: math.Inf(1)},
+		},
+		"duplicate interrupt kind": {
+			Message: "hello",
+			InterruptKinds: []execution.InterruptKind{
+				execution.ApprovalInterrupt,
+				execution.ApprovalInterrupt,
+			},
+		},
+		"goal lease whitespace": {
+			Message: "hello", GoalLeaseID: " lease",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if err := turn.Validate(); err == nil {
+				t.Fatal("Validate accepted non-canonical admission policy")
+			}
+		})
 	}
 }
 

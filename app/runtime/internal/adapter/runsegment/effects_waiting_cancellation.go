@@ -30,7 +30,7 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 		root   transcript.Run
 	)
 	err := e.runInTx(ctx, func(ctx context.Context) error {
-		pending, found, err := e.interrupts.Consume(ctx, commit.RootRunID)
+		pending, found, err := e.interrupts.Consume(ctx, commit.SessionID, commit.RootRunID)
 		if err != nil {
 			return fmt.Errorf(
 				"runsegment: claim waiting cancellation interrupt for root Run %q: %w",
@@ -52,7 +52,7 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 				commit.RootRunID,
 			)
 		}
-		if err := commit.Checkpoint.PersistCheckpoint(ctx); err != nil {
+		if err := e.executorCheckpoints.SaveCheckpoint(ctx, commit.Checkpoint); err != nil {
 			return fmt.Errorf(
 				"runsegment: persist checkpoint for waiting child Run %q in root Run %q: %w",
 				commit.TargetRunID,
@@ -112,7 +112,7 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 
 		root = commit.RootRun
 		if commit.RemainingPending != nil {
-			if err := e.interrupts.Put(ctx, *commit.RemainingPending); err != nil {
+			if err := e.interrupts.Open(ctx, *commit.RemainingPending); err != nil {
 				return fmt.Errorf(
 					"runsegment: persist reduced interrupt for root Run %q: %w",
 					commit.RootRunID,
@@ -176,8 +176,8 @@ func (e *Effects) validateWaitingSubtreeCancellation(
 		return errors.New("runsegment: run-state persistence is unavailable")
 	case e.itemReplacer == nil:
 		return errors.New("runsegment: transcript Item replacement is unavailable")
-	case commit.Checkpoint == nil:
-		return errors.New("runsegment: waiting cancellation checkpoint is unavailable")
+	case e.executorCheckpoints == nil:
+		return errors.New("runsegment: executor checkpoint persistence is unavailable")
 	case commit.RootRunID == "" || commit.TargetRunID == "" || commit.SessionID == "":
 		return errors.New("runsegment: waiting cancellation identity is incomplete")
 	case commit.RootRun.ID != commit.RootRunID ||
@@ -192,6 +192,51 @@ func (e *Effects) validateWaitingSubtreeCancellation(
 	if commit.ExpectedPending.RootRunID != commit.RootRunID ||
 		commit.ExpectedPending.SessionID != commit.SessionID {
 		return errors.New("runsegment: expected waiting cancellation interrupt scope mismatch")
+	}
+	rootContinuation, ok := commit.ExpectedPending.RootContinuation()
+	if !ok {
+		return errors.New("runsegment: expected waiting cancellation interrupt has no root continuation")
+	}
+	if commit.RootRun.GoalLeaseID != commit.ExpectedPending.GoalLeaseID {
+		return errors.New("runsegment: waiting cancellation root Run goal lease differs from Pending")
+	}
+	if !commit.RootRun.ProtocolProfile.Equal(commit.ExpectedPending.ProtocolProfile) {
+		return errors.New("runsegment: waiting cancellation root Run protocol profile differs from Pending")
+	}
+	if err := validateWaitingRunContinuationFacts(commit.RootRun, rootContinuation); err != nil {
+		return fmt.Errorf("runsegment: waiting cancellation root Run: %w", err)
+	}
+	if err := commit.Checkpoint.ValidateOwnership(
+		rootContinuation.ProcessID,
+		commit.SessionID,
+	); err != nil {
+		return fmt.Errorf("runsegment: invalid waiting cancellation executor checkpoint ownership: %w", err)
+	}
+	if commit.Checkpoint.Scope.GoalLeaseID != commit.ExpectedPending.GoalLeaseID {
+		return fmt.Errorf(
+			"runsegment: waiting cancellation checkpoint goal lease %q does not match Pending %q: %w",
+			commit.Checkpoint.Scope.GoalLeaseID,
+			commit.ExpectedPending.GoalLeaseID,
+			execution.ErrInvalidExecutorCheckpoint,
+		)
+	}
+	if commit.Checkpoint.ModelSelection != rootContinuation.ModelSelection {
+		return fmt.Errorf(
+			"runsegment: waiting cancellation checkpoint model %q/%q does not match root continuation %q/%q: %w",
+			commit.Checkpoint.ModelSelection.Provider(),
+			commit.Checkpoint.ModelSelection.Model(),
+			rootContinuation.ModelSelection.Provider(),
+			rootContinuation.ModelSelection.Model(),
+			execution.ErrInvalidExecutorCheckpoint,
+		)
+	}
+	if commit.Checkpoint.Limits != rootContinuation.Limits {
+		return fmt.Errorf(
+			"runsegment: waiting cancellation checkpoint limits %+v do not match root continuation %+v: %w",
+			commit.Checkpoint.Limits,
+			rootContinuation.Limits,
+			execution.ErrInvalidExecutorCheckpoint,
+		)
 	}
 	if (commit.RemainingPending == nil) == (commit.Resume == nil) {
 		return errors.New("runsegment: waiting cancellation requires exactly one surviving disposition")
@@ -266,6 +311,18 @@ func (e *Effects) validateWaitingSubtreeCancellation(
 			return fmt.Errorf("runsegment: canceled Run[%d] session mismatch", index)
 		case run.Lineage() != continuation.Lineage:
 			return fmt.Errorf("runsegment: canceled Run[%d] lineage mismatch", index)
+		case run.ModelSelection != continuation.ModelSelection:
+			return fmt.Errorf("runsegment: canceled Run[%d] model selection mismatch", index)
+		case !run.Metrics.Equal(continuation.Metrics):
+			return fmt.Errorf("runsegment: canceled Run[%d] cumulative metrics mismatch", index)
+		case run.Limits != continuation.Limits:
+			return fmt.Errorf("runsegment: canceled Run[%d] frozen limits mismatch", index)
+		case !run.CreatedAt.Equal(continuation.RunCreatedAt):
+			return fmt.Errorf("runsegment: canceled Run[%d] creation time mismatch", index)
+		case !run.ProtocolProfile.Equal(commit.ExpectedPending.ProtocolProfile):
+			return fmt.Errorf("runsegment: canceled Run[%d] protocol profile mismatch", index)
+		case run.GoalLeaseID != "":
+			return fmt.Errorf("runsegment: canceled child Run[%d] carries a root Goal lease", index)
 		case run.State != execution.Canceled ||
 			run.Outcome == nil ||
 			*run.Outcome != execution.OutcomeCanceled:
@@ -405,6 +462,7 @@ func (e *Effects) validateWaitingSubtreeCancellation(
 			dispositionRunIDs = append(dispositionRunIDs, continuation.RunID)
 		}
 		if commit.RemainingPending.TurnID != commit.ExpectedPending.TurnID ||
+			commit.RemainingPending.GoalLeaseID != commit.ExpectedPending.GoalLeaseID ||
 			!commit.RemainingPending.CreatedAt.Equal(commit.ExpectedPending.CreatedAt) ||
 			!reflect.DeepEqual(
 				normalizeProtocolProfile(commit.RemainingPending.ProtocolProfile),
@@ -542,6 +600,28 @@ func (e *Effects) validateWaitingSubtreeCancellation(
 		}
 	}
 	return nil
+}
+
+func validateWaitingRunContinuationFacts(
+	run transcript.Run,
+	continuation interrupts.Continuation,
+) error {
+	switch {
+	case run.ID != continuation.RunID:
+		return errors.New("identity differs from continuation")
+	case run.Lineage() != continuation.Lineage:
+		return errors.New("lineage differs from continuation")
+	case run.ModelSelection != continuation.ModelSelection:
+		return errors.New("model selection differs from continuation")
+	case !run.Metrics.Equal(continuation.Metrics):
+		return errors.New("cumulative metrics differ from continuation")
+	case run.Limits != continuation.Limits:
+		return errors.New("frozen limits differ from continuation")
+	case !run.CreatedAt.Equal(continuation.RunCreatedAt):
+		return errors.New("creation time differs from continuation")
+	default:
+		return nil
+	}
 }
 
 func directInterrupts(pending interrupts.Pending, runID string) []transcript.Interrupt {

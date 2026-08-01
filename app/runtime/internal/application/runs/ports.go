@@ -45,18 +45,22 @@ const (
 	WaitingSubtreeContinues
 )
 
-// PreparedWaitingSubtreeCancellation is the application-owned control protocol
-// around a parked turn's waiting-tree transition. It exposes only identities
-// and typed prompts the application can correlate. PersistCheckpoint writes the
-// adapter-owned state projection into the caller's transaction; Commit crosses
-// the live executor boundary after that transaction succeeds; Abort releases
-// only the App lifecycle claim because the executor plan owns no live resource.
-type PreparedWaitingSubtreeCancellation interface {
-	CanceledProcessIDs() []string
-	PendingSuspensions() []ProcessSuspension
-	PersistCheckpoint(ctx context.Context) error
+// WaitingSubtreeMutation is the live executor lease attached to a data-only
+// prepared cancellation. Commit crosses the executor boundary only after the
+// application transaction succeeds; Abort releases the App lifecycle claim.
+type WaitingSubtreeMutation interface {
 	Commit(ctx context.Context, disposition WaitingSubtreeDisposition) error
 	Abort()
+}
+
+// PreparedWaitingSubtreeCancellation separates immutable application data from
+// the live executor lease that can apply it. No persistence behavior crosses the
+// application boundary.
+type PreparedWaitingSubtreeCancellation struct {
+	CanceledProcessIDs []string
+	PendingSuspensions []ProcessSuspension
+	Checkpoint         execution.ExecutorCheckpoint
+	Mutation           WaitingSubtreeMutation
 }
 
 // SegmentExecutor is what the run pump needs to observe and cancel the agent
@@ -111,9 +115,7 @@ type StartTurn struct {
 	Cwd            string
 	Isolated       bool
 	ModelSelection modelref.Selection
-	MaxBudget      int64
-	MaxCostUSD     float64
-	MaxSteps       int
+	Limits         execution.RunLimits
 	Options        *corechat.Options
 	InterruptKinds []execution.InterruptKind
 	// ChildRunAdmissionEnabled installs the executor-to-application admission
@@ -126,13 +128,20 @@ type StartTurn struct {
 }
 
 // RehydrateTurn describes rebuilding a parked executor turn from its durable
-// process state after executor-local state was lost.
+// checkpoint after executor-local state was lost.
 type RehydrateTurn struct {
-	SessionID                string
-	TurnID                   string
-	ProcessID                string
+	SessionID string
+	TurnID    string
+	ProcessID string
+	RootRunID string
+	// ChildRuns restores the App identities of already-admitted child executor
+	// members so product lifecycle hooks never need Framework topology.
+	ChildRuns                []ChildRunBinding
 	ModelSelection           modelref.Selection
 	Cwd                      string
+	Isolated                 bool
+	GoalLeaseID              string
+	Limits                   execution.RunLimits
 	ChildRunAdmissionEnabled bool
 }
 
@@ -216,14 +225,6 @@ type Effects interface {
 	Finish(ctx context.Context, fin Finish) error
 }
 
-// ProcessCheckpointWrite is the App-owned persistence capability attached to a
-// prepared executor mutation. The implementation knows the concrete snapshot,
-// BuildID and usage ledger; the application transaction only decides when that
-// write joins its atomic set.
-type ProcessCheckpointWrite interface {
-	PersistCheckpoint(ctx context.Context) error
-}
-
 type ItemReplacement struct {
 	Expected    transcript.Item
 	Replacement transcript.Item
@@ -238,7 +239,7 @@ type WaitingSubtreeCancellationCommit struct {
 	RootRun          transcript.Run
 	ExpectedPending  interrupts.Pending
 	RemainingPending *interrupts.Pending
-	Checkpoint       ProcessCheckpointWrite
+	Checkpoint       execution.ExecutorCheckpoint
 	TerminalRuns     []transcript.Run
 	TerminalItems    []ItemReplacement
 	ParentItem       ItemReplacement

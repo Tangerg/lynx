@@ -6,13 +6,13 @@ import (
 
 	"github.com/Tangerg/lynx/tools"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -50,6 +50,12 @@ func (allWiredCodebaseIndex) Search(context.Context, string, string, int) ([]cod
 func (allWiredCodebaseIndex) Available(context.Context) (bool, error) { return true, nil }
 
 type allWiredSkillAuthoring struct{}
+
+type allWiredToolResults struct{}
+
+func (allWiredToolResults) Fetch(context.Context, string, resultoffload.ID) (string, bool, error) {
+	return "", false, nil
+}
 
 func (allWiredSkillAuthoring) Enabled() bool { return true }
 func (allWiredSkillAuthoring) SaveDraft(context.Context, skills.Draft) (skills.DraftHandle, error) {
@@ -99,7 +105,7 @@ func TestCatalogCoversPerTurnCodingTools(t *testing.T) {
 		}
 	}
 
-	group, ok, err := built.Resolver.Resolve(t.Context(), toolport.ToolRoleCoding)
+	group, ok, err := built.Resolver.Resolve(t.Context(), tool.GroupCoding)
 	if err != nil || !ok {
 		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 	}
@@ -144,6 +150,7 @@ func TestSafetyTableNamesOnlyToolsThatExist(t *testing.T) {
 		Schedules:       allWiredSchedules{},      // backs schedule
 		CodebaseIndex:   allWiredCodebaseIndex{},  // backs codebase_search
 		SkillAuthoring:  allWiredSkillAuthoring{}, // backs propose_skill
+		ToolResults:     allWiredToolResults{},    // backs read_tool_result
 		Online: OnlineConfig{
 			HTTPAllowedHosts:    []string{"example.com"},   // backs download
 			SourcegraphEndpoint: "https://sourcegraph.com", // backs sourcegraph_search

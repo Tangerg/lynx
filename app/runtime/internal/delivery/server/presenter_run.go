@@ -142,7 +142,9 @@ func presentLimits(limits execution.RunLimits) *protocol.RunLimits {
 	if limits.IsZero() {
 		return nil
 	}
-	return &protocol.RunLimits{MaxSteps: limits.MaxSteps, MaxBudgetUSD: limits.MaxBudgetUSD}
+	return &protocol.RunLimits{
+		MaxTotalTokens: limits.MaxTotalTokens, MaxSteps: limits.MaxSteps, MaxBudgetUSD: limits.MaxBudgetUSD,
+	}
 }
 
 func presentProgress(progress runs.RunProgress) protocol.RunProgress {

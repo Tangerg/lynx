@@ -47,28 +47,25 @@ func bootstrapWaitingSnapshot(id string) core.ProcessSnapshot {
 	}
 }
 
-func bootstrapSnapshotTree(rootID string, snapshots ...core.ProcessSnapshot) execution.ProcessTreeState {
-	processes := make([]execution.ProcessState, len(snapshots))
-	for index, snapshot := range snapshots {
-		payload, err := json.Marshal(snapshot)
-		if err != nil {
-			panic(err)
-		}
-		processes[index] = execution.ProcessState{
-			ID:        snapshot.ID,
-			ParentID:  snapshot.ParentID,
-			StartedAt: snapshot.StartedAt,
-			Payload:   payload,
-		}
-	}
-	return execution.ProcessTreeState{RootID: rootID, Processes: processes}
+func bootstrapSnapshotTree(rootID string, snapshots ...core.ProcessSnapshot) core.ProcessSnapshotTree {
+	return core.ProcessSnapshotTree{RootID: rootID, Snapshots: snapshots}
 }
 
-func bootstrapCheckpoint(sessionID string, usage accounting.Snapshot) execution.ProcessCheckpoint {
-	return execution.ProcessCheckpoint{
-		BuildID: bootstrapCheckpointBuildID,
-		Scope:   execution.TurnScope{SessionID: sessionID},
-		Usage:   usage,
+func bootstrapCheckpoint(
+	tree core.ProcessSnapshotTree,
+	sessionID string,
+	usage accounting.Snapshot,
+) execution.ExecutorCheckpoint {
+	payload, err := json.Marshal(tree)
+	if err != nil {
+		panic(err)
+	}
+	return execution.ExecutorCheckpoint{
+		RootProcessID: tree.RootID,
+		Payload:       payload,
+		BuildID:       bootstrapCheckpointBuildID,
+		Scope:         execution.TurnScope{SessionID: sessionID},
+		Usage:         usage,
 	}
 }
 
@@ -81,6 +78,9 @@ func bootstrapPending(
 		RootRunID: runID,
 		SessionID: sessionID,
 		TurnID:    "turn_" + runID,
+		ProtocolProfile: execution.RunProtocolProfile{
+			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID:   itemID,
 			RunID:    runID,
@@ -105,15 +105,15 @@ func bootstrapPending(
 // fixture while delegating every tested write-set to the persistence adapter.
 type sessionStores struct {
 	*persistence.SessionStores
-	sessions   *sqlite.SessionStore
-	transcript *sqlite.TranscriptStore
-	interrupts *sqlite.InterruptStore
-	runs       *sqlite.RunStore
-	processes  *sqlite.ProcessStore
-	history    *conversation.Messages
-	todos      *sqlite.TodoStore
-	approvals  *sqlite.ApprovalRuleStore
-	goals      *sqlite.GoalStore
+	sessions    *sqlite.SessionStore
+	transcript  *sqlite.TranscriptStore
+	interrupts  *sqlite.InterruptStore
+	runs        *sqlite.RunStore
+	checkpoints *sqlite.ExecutorCheckpointStore
+	history     *conversation.Messages
+	todos       *sqlite.TodoStore
+	approvals   *sqlite.ApprovalRuleStore
+	goals       *sqlite.GoalStore
 }
 
 // newWriteSetFixture builds the persistence adapter over a fresh sqlite
@@ -130,19 +130,19 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStore, *sqlite.
 	todos := sqlite.NewTodoStore(db)
 	approvals := sqlite.NewApprovalRuleStore(db)
 	ss := sessionStores{
-		sessions:   sqlite.NewSessionStore(db),
-		transcript: sqlite.NewTranscriptStore(db),
-		interrupts: ints,
-		runs:       runs,
-		processes:  sqlite.NewProcessStore(db),
-		history:    conversation.NewMessages(sqlite.NewMessageStore(db)),
-		todos:      todos,
-		approvals:  approvals,
-		goals:      sqlite.NewGoalStore(db),
+		sessions:    sqlite.NewSessionStore(db),
+		transcript:  sqlite.NewTranscriptStore(db),
+		interrupts:  ints,
+		runs:        runs,
+		checkpoints: sqlite.NewExecutorCheckpointStore(db),
+		history:     conversation.NewMessages(sqlite.NewMessageStore(db)),
+		todos:       todos,
+		approvals:   approvals,
+		goals:       sqlite.NewGoalStore(db),
 	}
 	ss.SessionStores = persistence.NewSessionStores(persistence.SessionStoresConfig{
 		Sessions: ss.sessions, Transcript: ss.transcript, Interrupts: ss.interrupts,
-		Runs: ss.runs, Processes: ss.processes, History: ss.history, Todos: ss.todos,
+		Runs: ss.runs, ExecutorCheckpoints: ss.checkpoints, History: ss.history, Todos: ss.todos,
 		Approvals: ss.approvals, Goals: ss.goals,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
@@ -171,8 +171,19 @@ func park(
 	sessions *sqlite.SessionStore,
 	runs *sqlite.RunStore,
 	ints *sqlite.InterruptStore,
-	processes *sqlite.ProcessStore,
+	checkpoints *sqlite.ExecutorCheckpointStore,
 	sessionID, runID string,
+) string {
+	return parkWithGoalLease(t, sessions, runs, ints, checkpoints, sessionID, runID, "")
+}
+
+func parkWithGoalLease(
+	t *testing.T,
+	sessions *sqlite.SessionStore,
+	runs *sqlite.RunStore,
+	ints *sqlite.InterruptStore,
+	checkpoints *sqlite.ExecutorCheckpointStore,
+	sessionID, runID, goalLeaseID string,
 ) string {
 	t.Helper()
 	ctx := context.Background()
@@ -185,14 +196,28 @@ func park(
 		t.Fatalf("ensure session: %v", err)
 	}
 	processID := "proc_" + runID
-	if err := processes.SaveTree(ctx, bootstrapSnapshotTree(processID, bootstrapWaitingSnapshot(processID)), bootstrapCheckpoint(sessionID, accounting.Snapshot{})); err != nil {
-		t.Fatalf("save process snapshot: %v", err)
+	tree := bootstrapSnapshotTree(processID, bootstrapWaitingSnapshot(processID))
+	checkpoint := bootstrapCheckpoint(tree, sessionID, accounting.Snapshot{})
+	checkpoint.Scope.GoalLeaseID = goalLeaseID
+	if err := checkpoints.SaveCheckpoint(ctx, checkpoint); err != nil {
+		t.Fatalf("save executor checkpoint: %v", err)
 	}
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, SegmentID: "seg_open", CreatedAt: parkCreatedAt}); err != nil {
+	if err := runs.Admit(ctx, execution.RunDraft{
+		RunID: runID, SessionID: sessionID, SegmentID: "seg_open",
+		GoalLeaseID: goalLeaseID,
+		ProtocolProfile: execution.RunProtocolProfile{
+			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		},
+		CreatedAt: parkCreatedAt,
+	}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	if err := runs.Suspend(ctx, transcript.Run{
 		SessionID: sessionID, ID: runID, State: execution.Interrupted,
+		GoalLeaseID: goalLeaseID,
+		ProtocolProfile: execution.RunProtocolProfile{
+			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_" + runID, RunID: runID, Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Prompt: "Continue?"},
@@ -202,15 +227,17 @@ func park(
 	}); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
-	if err := ints.Put(ctx, bootstrapPending(
+	pending := bootstrapPending(
 		runID,
 		sessionID,
 		processID,
 		"item_"+runID,
 		parkCreatedAt,
 		time.Unix(0, 0).UTC(),
-	)); err != nil {
-		t.Fatalf("put interrupt: %v", err)
+	)
+	pending.GoalLeaseID = goalLeaseID
+	if err := ints.Open(ctx, pending); err != nil {
+		t.Fatalf("open interrupt: %v", err)
 	}
 	return processID
 }
@@ -220,34 +247,35 @@ func park(
 func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
-	processID := park(t, ss.sessions, runs, ints, ss.processes, "ses_A", "run_1")
+	processID := park(t, ss.sessions, runs, ints, ss.checkpoints, "ses_A", "run_1")
 	child := bootstrapWaitingSnapshot("child_" + processID)
 	child.ParentID = processID
-	if err := ss.processes.SaveTree(ctx, bootstrapSnapshotTree(
+	tree := bootstrapSnapshotTree(
 		processID,
 		bootstrapWaitingSnapshot(processID),
 		child,
-	), bootstrapCheckpoint("ses_A", accounting.Snapshot{})); err != nil {
-		t.Fatalf("save child process snapshot: %v", err)
+	)
+	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(tree, "ses_A", accounting.Snapshot{})); err != nil {
+		t.Fatalf("save root executor checkpoint containing a child: %v", err)
 	}
 	outcome := execution.OutcomeCanceled
 	finishedAt := time.Date(2026, 7, 13, 2, 3, 4, 0, time.UTC)
 
-	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{ProcessID: processID, Run: transcript.Run{
+	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{CheckpointRootID: processID, Runs: []transcript.Run{{
 		SessionID: "ses_A", ID: "run_1", State: execution.Canceled,
 		Outcome: &outcome, CreatedAt: parkCreatedAt,
 		FinishedAt: finishedAt, UpdatedAt: finishedAt, MessageMark: 0,
-	}}); err != nil {
+	}}}); err != nil {
 		t.Fatalf("ApplyTerminal: %v", err)
 	}
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived cancel: %+v", open)
 	}
-	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessStateNotFound) {
-		t.Fatalf("process snapshot after cancel = %v, want not found", err)
+	if _, err := ss.checkpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("executor checkpoint after cancel = %v, want not found", err)
 	}
-	if _, _, err := ss.processes.LoadTree(ctx, child.ID); !errors.Is(err, execution.ErrProcessStateNotFound) {
-		t.Fatalf("child process snapshot after cancel = %v, want not found", err)
+	if _, err := ss.checkpoints.LoadCheckpoint(ctx, child.ID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("independent child checkpoint after cancel = %v, want not found", err)
 	}
 	// The admission row is terminal, so the session can start a fresh run.
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
@@ -262,37 +290,38 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
-	processID := park(t, ss.sessions, runs, ints, ss.processes, "ses_A", "run_1")
+	processID := park(t, ss.sessions, runs, ints, ss.checkpoints, "ses_A", "run_1")
 	child := bootstrapWaitingSnapshot("child_" + processID)
 	child.ParentID = processID
-	if err := ss.processes.SaveTree(ctx, bootstrapSnapshotTree(
+	tree := bootstrapSnapshotTree(
 		processID,
 		bootstrapWaitingSnapshot(processID),
 		child,
-	), bootstrapCheckpoint("ses_A", accounting.Snapshot{})); err != nil {
-		t.Fatalf("save child process snapshot: %v", err)
+	)
+	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(tree, "ses_A", accounting.Snapshot{})); err != nil {
+		t.Fatalf("save root executor checkpoint containing a child: %v", err)
 	}
 	outcome := execution.OutcomeError
 	finishedAt := time.Date(2026, 7, 16, 2, 3, 4, 0, time.UTC)
 
-	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{ProcessID: processID, Run: transcript.Run{
+	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{CheckpointRootID: processID, Runs: []transcript.Run{{
 		SessionID: "ses_A", ID: "run_1", State: execution.Failed,
 		Outcome: &outcome, Error: &transcript.Problem{
 			Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
 		},
 		CreatedAt:  parkCreatedAt,
 		FinishedAt: finishedAt, UpdatedAt: finishedAt, MessageMark: 0,
-	}}); err != nil {
+	}}}); err != nil {
 		t.Fatalf("ApplyTerminal run_lost: %v", err)
 	}
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived run_lost: %+v", open)
 	}
-	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessStateNotFound) {
-		t.Fatalf("process snapshot after run_lost = %v, want not found", err)
+	if _, err := ss.checkpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("executor checkpoint after run_lost = %v, want not found", err)
 	}
-	if _, _, err := ss.processes.LoadTree(ctx, child.ID); !errors.Is(err, execution.ErrProcessStateNotFound) {
-		t.Fatalf("child process snapshot after run_lost = %v, want not found", err)
+	if _, err := ss.checkpoints.LoadCheckpoint(ctx, child.ID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("independent child checkpoint after run_lost = %v, want not found", err)
 	}
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after run_lost = %v, want the slot freed", err)
@@ -301,6 +330,81 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	if err != nil || len(storedRuns) != 2 || storedRuns[0].Error == nil ||
 		storedRuns[0].Error.Kind != transcript.RunLostProblem {
 		t.Fatalf("terminal runs = %+v (err %v), want run_lost", storedRuns, err)
+	}
+}
+
+func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
+	ss, runs, ints := newWriteSetFixture(t)
+	ctx := t.Context()
+	const leaseID = "lease_terminal_park"
+	processID := parkWithGoalLease(
+		t,
+		ss.sessions,
+		runs,
+		ints,
+		ss.checkpoints,
+		"ses_A",
+		"run_goal",
+		leaseID,
+	)
+	goalValue, err := goal.New(
+		"ses_A",
+		"finish the parked run",
+		modelref.Selection{},
+		goal.Budget{},
+		leaseID,
+		parkCreatedAt,
+	)
+	if err != nil {
+		t.Fatalf("new Goal: %v", err)
+	}
+	if _, applied, err := ss.goals.Save(ctx, goalValue, goal.Version{}); err != nil || !applied {
+		t.Fatalf("save Goal: applied=%t err=%v", applied, err)
+	}
+
+	costUSD := 0.75
+	outcome := execution.OutcomeError
+	finishedAt := parkCreatedAt.Add(time.Minute)
+	terminal := transcript.Run{
+		SessionID: "ses_A", ID: "run_goal", GoalLeaseID: leaseID,
+		State: execution.Failed, Outcome: &outcome,
+		Error: &transcript.Problem{
+			Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
+		},
+		Metrics: transcript.RunMetrics{
+			Steps: 4,
+			Usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &costUSD}},
+		},
+		CreatedAt:   parkCreatedAt,
+		FinishedAt:  finishedAt,
+		UpdatedAt:   finishedAt,
+		MessageMark: 0,
+	}
+	turn := goal.TurnRecord{
+		SessionID: "ses_A", LeaseID: leaseID, RunID: terminal.ID,
+		Outcome: outcome, CostUSD: costUSD, Steps: 4, CompletedAt: finishedAt,
+	}
+	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{
+		Runs: []transcript.Run{terminal}, CheckpointRootID: processID, GoalTurn: &turn,
+	}); err != nil {
+		t.Fatalf("ApplyTerminal: %v", err)
+	}
+
+	storedGoal, found, err := ss.goals.Get(ctx, "ses_A")
+	if err != nil || !found {
+		t.Fatalf("get Goal: found=%t err=%v", found, err)
+	}
+	if storedGoal.Used != (goal.Usage{Turns: 1, CostUSD: costUSD, Steps: 4}) ||
+		storedGoal.Status != goal.StatusPaused ||
+		storedGoal.Reason.Cause != goal.ReasonRunNotCompleted {
+		t.Fatalf("Goal after terminal park = %+v", storedGoal)
+	}
+	storedRun, found, err := runs.Run(ctx, terminal.ID)
+	if err != nil || !found || storedRun.State != execution.Failed {
+		t.Fatalf("Run after terminal park = found:%t value:%+v err:%v", found, storedRun, err)
+	}
+	if open, err := ints.List(ctx, "ses_A"); err != nil || len(open) != 0 {
+		t.Fatalf("interrupt after terminal park = %+v err=%v", open, err)
 	}
 }
 
@@ -313,17 +417,17 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := context.Background()
-	processID := park(t, ss.sessions, runs, ints, ss.processes, "ses_A", "run_1")
+	processID := park(t, ss.sessions, runs, ints, ss.checkpoints, "ses_A", "run_1")
 	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "future work", Status: todo.StatusPending}}); err != nil {
 		t.Fatalf("seed todos: %v", err)
 	}
 	seedGoal(t, ss, "ses_A")
 
 	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
-		SessionID:  "ses_A",
-		KeepMark:   -1,
-		DropRunIDs: []string{"run_1"},
-		ProcessIDs: []string{processID},
+		SessionID:         "ses_A",
+		KeepMark:          -1,
+		DropRunIDs:        []string{"run_1"},
+		CheckpointRootIDs: []string{processID},
 	}); err != nil {
 		t.Fatalf("ApplyRollback: %v", err)
 	}
@@ -333,8 +437,8 @@ func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("dropped run's interrupt survived rollback: %+v", open)
 	}
-	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessStateNotFound) {
-		t.Fatalf("process snapshot after rollback = %v, want not found", err)
+	if _, err := ss.checkpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("executor checkpoint after rollback = %v, want not found", err)
 	}
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after rollback = %v, want the slot freed", err)
@@ -358,7 +462,7 @@ func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 func TestApplyRollbackRepublishesBoundaryTodos(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
-	processID := park(t, ss.sessions, runs, ints, ss.processes, "ses_A", "run_1")
+	processID := park(t, ss.sessions, runs, ints, ss.checkpoints, "ses_A", "run_1")
 	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{
 		{Content: "work the rollback discards", Status: todo.StatusInProgress},
 	}); err != nil {
@@ -371,11 +475,11 @@ func TestApplyRollbackRepublishesBoundaryTodos(t *testing.T) {
 
 	boundary := []todo.Item{{Content: "the plan at the boundary", Status: todo.StatusPending}}
 	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
-		SessionID:  "ses_A",
-		KeepMark:   -1,
-		DropRunIDs: []string{"run_1"},
-		ProcessIDs: []string{processID},
-		Todos:      sessions.TodoBoundary{Items: boundary, Recorded: true},
+		SessionID:         "ses_A",
+		KeepMark:          -1,
+		DropRunIDs:        []string{"run_1"},
+		CheckpointRootIDs: []string{processID},
+		Todos:             sessions.TodoBoundary{Items: boundary, Recorded: true},
 	}); err != nil {
 		t.Fatalf("ApplyRollback: %v", err)
 	}
@@ -398,7 +502,7 @@ func TestApplyRollbackRepublishesBoundaryTodos(t *testing.T) {
 func TestApplyRollbackClearsToARecordedEmptyBoundary(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
-	processID := park(t, ss.sessions, runs, ints, ss.processes, "ses_A", "run_1")
+	processID := park(t, ss.sessions, runs, ints, ss.checkpoints, "ses_A", "run_1")
 	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "later work", Status: todo.StatusPending}}); err != nil {
 		t.Fatalf("seed todos: %v", err)
 	}
@@ -408,11 +512,11 @@ func TestApplyRollbackClearsToARecordedEmptyBoundary(t *testing.T) {
 	}
 
 	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
-		SessionID:  "ses_A",
-		KeepMark:   -1,
-		DropRunIDs: []string{"run_1"},
-		ProcessIDs: []string{processID},
-		Todos:      sessions.TodoBoundary{Recorded: true},
+		SessionID:         "ses_A",
+		KeepMark:          -1,
+		DropRunIDs:        []string{"run_1"},
+		CheckpointRootIDs: []string{processID},
+		Todos:             sessions.TodoBoundary{Recorded: true},
 	}); err != nil {
 		t.Fatalf("ApplyRollback: %v", err)
 	}
@@ -481,12 +585,13 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	if err := ss.sessions.Restore(ctx, session.Session{ID: "ses_A"}); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
-	processID := park(t, ss.sessions, runs, ints, ss.processes, "ses_A", "run_1")
+	processID := park(t, ss.sessions, runs, ints, ss.checkpoints, "ses_A", "run_1")
 	orphanProcessID := "proc_orphan"
-	if err := ss.processes.SaveTree(ctx, bootstrapSnapshotTree(
+	orphanTree := bootstrapSnapshotTree(
 		orphanProcessID,
 		bootstrapWaitingSnapshot(orphanProcessID),
-	), bootstrapCheckpoint("ses_A", accounting.Snapshot{})); err != nil {
+	)
+	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(orphanTree, "ses_A", accounting.Snapshot{})); err != nil {
 		t.Fatalf("seed orphan checkpoint: %v", err)
 	}
 	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "owned", Status: todo.StatusPending}}); err != nil {
@@ -502,11 +607,11 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived delete: %+v", open)
 	}
-	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessStateNotFound) {
-		t.Fatalf("process snapshot after delete = %v, want not found", err)
+	if _, err := ss.checkpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("executor checkpoint after delete = %v, want not found", err)
 	}
-	if _, _, err := ss.processes.LoadTree(ctx, orphanProcessID); !errors.Is(err, execution.ErrProcessStateNotFound) {
-		t.Fatalf("orphan process snapshot after delete = %v, want not found", err)
+	if _, err := ss.checkpoints.LoadCheckpoint(ctx, orphanProcessID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("orphan executor checkpoint after delete = %v, want not found", err)
 	}
 	if _, err := ss.sessions.Get(ctx, "ses_A"); !errors.Is(err, session.ErrNotFound) {
 		t.Fatalf("session survived delete: %v", err)
@@ -582,16 +687,17 @@ func TestApplyRollbackRejectsInvalidProcessSetAtomically(t *testing.T) {
 		t.Fatalf("create parent: %v", err)
 	}
 	seedGoal(t, ss, parent.ID)
-	if err := ss.processes.SaveTree(ctx, bootstrapSnapshotTree(
+	preservedTree := bootstrapSnapshotTree(
 		"proc_preserve",
 		bootstrapWaitingSnapshot("proc_preserve"),
-	), bootstrapCheckpoint(parent.ID, accounting.Snapshot{})); err != nil {
-		t.Fatalf("seed process snapshot: %v", err)
+	)
+	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(preservedTree, parent.ID, accounting.Snapshot{})); err != nil {
+		t.Fatalf("seed executor checkpoint: %v", err)
 	}
 
 	err = ss.ApplyRollback(ctx, sessions.RollbackPlan{
 		SessionID: parent.ID, KeepMark: -1,
-		ProcessIDs: []string{"proc_preserve", ""},
+		CheckpointRootIDs: []string{"proc_preserve", ""},
 	})
 	if err == nil {
 		t.Fatal("ApplyRollback unexpectedly accepted an invalid process id")
@@ -599,8 +705,8 @@ func TestApplyRollbackRejectsInvalidProcessSetAtomically(t *testing.T) {
 	if _, ok, err := ss.goals.Get(ctx, parent.ID); err != nil || !ok {
 		t.Fatalf("goal clear was not rolled back: ok=%v err=%v", ok, err)
 	}
-	if _, _, err := ss.processes.LoadTree(ctx, "proc_preserve"); err != nil {
-		t.Fatalf("process snapshot delete was not rolled back: %v", err)
+	if _, err := ss.checkpoints.LoadCheckpoint(ctx, "proc_preserve"); err != nil {
+		t.Fatalf("executor checkpoint deletion was not rolled back: %v", err)
 	}
 }
 

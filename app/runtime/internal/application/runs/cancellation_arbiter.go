@@ -40,9 +40,9 @@ func (h *handle) beginChildCancellation(
 			plan.treeState,
 		)
 	}
-	if !plan.target.hasSource {
+	if !plan.target.hasProcess {
 		return nil, fmt.Errorf(
-			"runs: child cancellation target %q has no executor source",
+			"runs: child cancellation target %q has no executor process binding",
 			plan.target.run.ID,
 		)
 	}

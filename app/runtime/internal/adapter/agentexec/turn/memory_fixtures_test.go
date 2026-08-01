@@ -86,8 +86,8 @@ func buildDispatcher(t *testing.T) (turnDriver, *agentexec.Engine) {
 
 func buildEngine(t *testing.T, cfg agentexec.Config) *agentexec.Engine {
 	t.Helper()
-	if cfg.ProcessStore == nil {
-		cfg.ProcessStore = newMemoryProcessStore()
+	if cfg.Checkpoints == nil {
+		cfg.Checkpoints = newMemoryCheckpointStore()
 	}
 	if cfg.BuildID == "" {
 		cfg.BuildID = testProcessBuildID

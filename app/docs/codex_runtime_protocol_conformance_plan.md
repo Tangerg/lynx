@@ -1414,9 +1414,10 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
     能成为新的 application `TreeInterrupted`；
   - unsupported interrupt kind 的自动拒绝同样覆盖完整 suspension set，不再因
     multiple waits 直接把整棵树判为 internal error；
-  - `Continuation` 新增不可推导的 application `RunLineage`，与
-    `ParentProcessID/SpawnCallID` 组成双拓扑。`Pending.Validate` 交叉验证 process
-    parent 与 Run parent、root 一致性、连通无环、唯一 root，并只接受
+  - `Continuation` 新增不可推导的 application `RunLineage`。B1.3b 当时还把
+    `ParentProcessID/SpawnCallID` 持久化成第二套拓扑；P30 终审已删除这组字段，现行
+    Pending 只保存 `RunID <-> ProcessID` opaque binding。RunLineage 独立验证
+    parent、root 一致性、连通无环、唯一 root，并只接受
     descendants-before-ancestors、siblings-by-Run-ID、root-last 的一种 postorder；
     `Interrupts[i]` 与 `Suspensions[i]` 也只允许同一 canonical item order；
   - resume 在 activation 前为 Pending 中每个 Run 预建精确 executor route、独立

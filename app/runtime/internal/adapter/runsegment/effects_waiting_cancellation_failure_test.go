@@ -15,15 +15,17 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
-type failingWaitingCheckpoint struct {
+type failingWaitingCheckpointStore struct {
+	ExecutorCheckpointStore
 	err error
 }
 
-func (checkpoint failingWaitingCheckpoint) PersistCheckpoint(context.Context) error {
-	return checkpoint.err
+func (store failingWaitingCheckpointStore) SaveCheckpoint(context.Context, execution.ExecutorCheckpoint) error {
+	return store.err
 }
 
 type failingWaitingItemReplacer struct {
@@ -76,14 +78,14 @@ type failingWaitingInterruptStore struct {
 	putErr error
 }
 
-func (store failingWaitingInterruptStore) Put(
+func (store failingWaitingInterruptStore) Open(
 	ctx context.Context,
 	pending interrupts.Pending,
 ) error {
 	if store.putErr != nil {
 		return store.putErr
 	}
-	return store.InterruptStore.Put(ctx, pending)
+	return store.InterruptStore.Open(ctx, pending)
 }
 
 type failingWaitingTranscriptStore struct {
@@ -105,7 +107,10 @@ func TestCommitWaitingSubtreeCancellationRejectsStalePendingWithoutMutation(t *t
 	fixture := newWaitingCancellationSQLiteFixture(t)
 	changedPending := fixture.commit.ExpectedPending
 	changedPending.TurnID = "turn_replaced"
-	if err := fixture.interrupts.Put(fixture.ctx, changedPending); err != nil {
+	if _, found, err := fixture.interrupts.Consume(fixture.ctx, changedPending.SessionID, changedPending.RootRunID); err != nil || !found {
+		t.Fatalf("consume original Pending fixture: found=%t err=%v", found, err)
+	}
+	if err := fixture.interrupts.Open(fixture.ctx, changedPending); err != nil {
 		t.Fatalf("replace Pending fixture: %v", err)
 	}
 
@@ -122,6 +127,58 @@ func TestCommitWaitingSubtreeCancellationRejectsStalePendingWithoutMutation(t *t
 	assertWaitingCancellationUnchanged(t, fixture, changedPending)
 }
 
+func TestCommitWaitingSubtreeCancellationRejectsMismatchedCheckpointBindingWithoutMutation(t *testing.T) {
+	for name, mutate := range map[string]func(*execution.ExecutorCheckpoint){
+		"root":       func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.RootProcessID = "other_root" },
+		"session":    func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Scope.SessionID = "other_session" },
+		"goal lease": func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = "other_goal" },
+		"limits":     func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Limits.MaxTotalTokens++ },
+		"provider": func(checkpoint *execution.ExecutorCheckpoint) {
+			checkpoint.ModelSelection, _ = modelref.New("openai", "model")
+		},
+		"model": func(checkpoint *execution.ExecutorCheckpoint) {
+			checkpoint.ModelSelection, _ = modelref.New("anthropic", "other-model")
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fixture := newWaitingCancellationSQLiteFixture(t)
+			mutate(&fixture.commit.Checkpoint)
+			_, err := fixture.effects.CommitWaitingSubtreeCancellation(fixture.ctx, fixture.commit)
+			if !errors.Is(err, execution.ErrInvalidExecutorCheckpoint) {
+				t.Fatalf("ownership error = %v, want ErrInvalidExecutorCheckpoint", err)
+			}
+			assertWaitingCancellationUnchanged(t, fixture, fixture.commit.ExpectedPending)
+		})
+	}
+}
+
+// TestCommitWaitingSubtreeCancellationRejectsRunContinuationFactDriftWithoutMutation
+// proves parked_continuation_matches_run_facts at the waiting-subtree transaction:
+// a forged terminal projection cannot rewrite the canceled Run's admitted facts.
+func TestCommitWaitingSubtreeCancellationRejectsRunContinuationFactDriftWithoutMutation(t *testing.T) {
+	for name, mutate := range map[string]func(*runs.WaitingSubtreeCancellationCommit){
+		"cumulative metrics": func(commit *runs.WaitingSubtreeCancellationCommit) {
+			commit.TerminalRuns[0].Metrics.Steps++
+		},
+		"frozen limits": func(commit *runs.WaitingSubtreeCancellationCommit) {
+			commit.TerminalRuns[0].Limits.MaxSteps++
+		},
+		"root protocol profile": func(commit *runs.WaitingSubtreeCancellationCommit) {
+			commit.RootRun.ProtocolProfile.ChildRuns = false
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fixture := newWaitingCancellationSQLiteFixture(t)
+			mutate(&fixture.commit)
+
+			if _, err := fixture.effects.CommitWaitingSubtreeCancellation(fixture.ctx, fixture.commit); err == nil {
+				t.Fatal("waiting subtree cancellation accepted contradictory Run and continuation facts")
+			}
+			assertWaitingCancellationUnchanged(t, fixture, fixture.commit.ExpectedPending)
+		})
+	}
+}
+
 func TestCommitWaitingSubtreeCancellationRollsBackEveryPreCommitFailure(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -133,7 +190,12 @@ func TestCommitWaitingSubtreeCancellationRollsBackEveryPreCommitFailure(t *testi
 			name:      "replacement checkpoint",
 			operation: "persist checkpoint",
 			configure: func(fixture *waitingCancellationSQLiteFixture, injected error) {
-				fixture.commit.Checkpoint = failingWaitingCheckpoint{err: injected}
+				fixture.replaceEffects(func(config *Config) {
+					config.ExecutorCheckpoints = failingWaitingCheckpointStore{
+						ExecutorCheckpointStore: fixture.checkpoints,
+						err:                     injected,
+					}
+				})
 			},
 		},
 		{
@@ -282,10 +344,11 @@ func (fixture *waitingCancellationSQLiteFixture) replaceEffects(
 	configure func(*Config),
 ) {
 	config := Config{
-		Interrupts:   fixture.interrupts,
-		Transcript:   fixture.transcript,
-		ItemReplacer: fixture.transcript,
-		RunState:     fixture.runState,
+		Interrupts:          fixture.interrupts,
+		Transcript:          fixture.transcript,
+		ItemReplacer:        fixture.transcript,
+		RunState:            fixture.runState,
+		ExecutorCheckpoints: fixture.checkpoints,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, fixture.db, fn)
 		},
@@ -344,11 +407,11 @@ func assertWaitingCancellationUnchanged(
 		assertStoredRunState(t, fixture.db, continuation.RunID, "interrupted")
 	}
 
-	storedTree, checkpoint, err := fixture.processes.LoadTree(fixture.ctx, fixture.originalTree.RootID)
+	checkpoint, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, fixture.originalTree.RootID)
 	if err != nil {
 		t.Fatalf("load process tree after rollback: %v", err)
 	}
-	tree := restoredProcessTree(t, storedTree)
+	tree := restoredProcessTree(t, checkpoint)
 	if !reflect.DeepEqual(
 		normalizedProcessTree(tree),
 		normalizedProcessTree(fixture.originalTree),
@@ -356,11 +419,11 @@ func assertWaitingCancellationUnchanged(
 		t.Fatalf("process tree changed after rollback:\ngot  %+v\nwant %+v", tree, fixture.originalTree)
 	}
 	if !reflect.DeepEqual(
-		normalizedProcessCheckpoint(checkpoint),
-		normalizedProcessCheckpoint(fixture.originalCheckpoint),
+		normalizedExecutorCheckpoint(checkpoint),
+		normalizedExecutorCheckpoint(fixture.originalCheckpoint),
 	) {
 		t.Fatalf(
-			"process checkpoint changed after rollback:\ngot  %+v\nwant %+v",
+			"executor checkpoint changed after rollback:\ngot  %+v\nwant %+v",
 			checkpoint,
 			fixture.originalCheckpoint,
 		)
@@ -387,9 +450,9 @@ func normalizedProcessTree(tree core.ProcessSnapshotTree) core.ProcessSnapshotTr
 	return tree
 }
 
-func normalizedProcessCheckpoint(
-	checkpoint execution.ProcessCheckpoint,
-) execution.ProcessCheckpoint {
+func normalizedExecutorCheckpoint(
+	checkpoint execution.ExecutorCheckpoint,
+) execution.ExecutorCheckpoint {
 	checkpoint.Usage.Models = slices.Clone(checkpoint.Usage.Models)
 	if len(checkpoint.Usage.Models) == 0 {
 		checkpoint.Usage.Models = nil

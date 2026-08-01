@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/hitl"
@@ -36,6 +37,9 @@ type turnObserver struct {
 	dispatcher       *memoryDispatcher
 	st               *turnState
 	projectChildRuns bool
+	childRunsMu      sync.RWMutex
+	childRuns        map[string]runs.ChildRunBinding
+	childProcesses   map[string]string
 }
 
 func (t *turnObserver) projects(process agentexec.ProcessRef) bool {
@@ -58,10 +62,67 @@ func (t *turnObserver) admitChild(ctx context.Context, child agentexec.ChildProc
 			return fmt.Errorf("turn: request child process %q opening: executor event stream is closed", child.ID)
 		}
 	}
-	if err := confirmation.Await(ctx); err != nil {
+	binding, err := confirmation.Await(ctx)
+	if err != nil {
 		return fmt.Errorf("turn: admit child process %q: %w", child.ID, err)
 	}
+	if binding.ProcessID != child.ID {
+		return fmt.Errorf(
+			"turn: admitted child process %q returned binding for process %q",
+			child.ID,
+			binding.ProcessID,
+		)
+	}
+	return t.bindChildRun(binding)
+}
+
+func (t *turnObserver) restoreChildRuns(bindings []runs.ChildRunBinding) error {
+	for _, binding := range bindings {
+		if err := t.bindChildRun(binding); err != nil {
+			return fmt.Errorf("turn: restore child Run bindings: %w", err)
+		}
+	}
 	return nil
+}
+
+func (t *turnObserver) bindChildRun(binding runs.ChildRunBinding) error {
+	if err := binding.Validate(); err != nil {
+		return fmt.Errorf("turn: bind child Run: %w", err)
+	}
+	t.childRunsMu.Lock()
+	defer t.childRunsMu.Unlock()
+	if t.childRuns == nil {
+		t.childRuns = make(map[string]runs.ChildRunBinding)
+		t.childProcesses = make(map[string]string)
+	}
+	if existing, ok := t.childRuns[binding.ProcessID]; ok {
+		if existing != binding {
+			return fmt.Errorf(
+				"turn: child process %q binding changed from Run %q to %q",
+				binding.ProcessID,
+				existing.RunID,
+				binding.RunID,
+			)
+		}
+		return nil
+	}
+	if processID, ok := t.childProcesses[binding.RunID]; ok {
+		return fmt.Errorf(
+			"turn: child Run %q is already bound to process %q",
+			binding.RunID,
+			processID,
+		)
+	}
+	t.childRuns[binding.ProcessID] = binding
+	t.childProcesses[binding.RunID] = binding.ProcessID
+	return nil
+}
+
+func (t *turnObserver) childRun(processID string) (runs.ChildRunBinding, bool) {
+	t.childRunsMu.RLock()
+	defer t.childRunsMu.RUnlock()
+	binding, ok := t.childRuns[processID]
+	return binding, ok
 }
 
 // toolGate owns the pre-execution protocol for one tool call: hook input,

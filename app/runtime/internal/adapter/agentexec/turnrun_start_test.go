@@ -36,6 +36,7 @@ func TestEngineStartTurnReturnsProcessCreationErrorsSynchronously(t *testing.T) 
 			name: "duplicate process extension name",
 			request: func() TurnRequest {
 				return TurnRequest{
+					SessionID:     "session",
 					Message:       "hello",
 					Observer:      &recordingObserver{},
 					EventListener: namedStartExtension("tool-observer"),
@@ -48,7 +49,7 @@ func TestEngineStartTurnReturnsProcessCreationErrorsSynchronously(t *testing.T) 
 			arrange: func(engine *Engine) {
 				engine.agent = startFailureAgent("unknown-planner", "missing-planner")
 			},
-			request:   func() TurnRequest { return TurnRequest{Message: "hello"} },
+			request:   func() TurnRequest { return TurnRequest{SessionID: "session", Message: "hello"} },
 			wantError: `planner "missing-planner" which is not registered`,
 		},
 		{
@@ -60,7 +61,7 @@ func TestEngineStartTurnReturnsProcessCreationErrorsSynchronously(t *testing.T) 
 					Goals:   []*core.Goal{core.NewGoal(core.GoalConfig{Name: "done"})},
 				})
 			},
-			request:   func() TurnRequest { return TurnRequest{Message: "hello"} },
+			request:   func() TurnRequest { return TurnRequest{SessionID: "session", Message: "hello"} },
 			wantError: "action at index 0 is nil",
 		},
 		{
@@ -68,7 +69,7 @@ func TestEngineStartTurnReturnsProcessCreationErrorsSynchronously(t *testing.T) 
 			arrange: func(engine *Engine) {
 				engine.agent = startFailureAgent("chat-agent", "")
 			},
-			request:   func() TurnRequest { return TurnRequest{Message: "hello"} },
+			request:   func() TurnRequest { return TurnRequest{SessionID: "session", Message: "hello"} },
 			wantError: "deployment conflict",
 		},
 	}
@@ -115,7 +116,7 @@ func TestEngineRejectsTypedNilTurnObserver(t *testing.T) {
 			name:      "start",
 			configure: "configure chat process",
 			start: func(ctx context.Context) (TurnProcess, error) {
-				return engine.StartTurn(ctx, TurnRequest{Message: "hello", Observer: observer})
+				return engine.StartTurn(ctx, TurnRequest{SessionID: "session", Message: "hello", Observer: observer})
 			},
 		},
 		{

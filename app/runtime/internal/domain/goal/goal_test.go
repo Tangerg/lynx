@@ -2,6 +2,7 @@ package goal
 
 import (
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -33,6 +34,34 @@ func TestNewValidates(t *testing.T) {
 	}
 	if g.Status != StatusActive {
 		t.Fatalf("new goal status = %q, want active", g.Status)
+	}
+}
+
+func TestGoalRejectsNonFiniteBudgetAndUsage(t *testing.T) {
+	for name, value := range map[string]float64{
+		"NaN":               math.NaN(),
+		"positive infinity": math.Inf(1),
+		"negative infinity": math.Inf(-1),
+	} {
+		t.Run("budget "+name, func(t *testing.T) {
+			if _, err := New(
+				"s", "obj", modelref.Selection{}, Budget{MaxCostUSD: value},
+				"lease", time.Unix(0, 0),
+			); err == nil {
+				t.Fatal("New accepted a non-finite goal budget")
+			}
+		})
+		t.Run("usage "+name, func(t *testing.T) {
+			goal, err := New("s", "obj", modelref.Selection{}, Budget{}, "lease", time.Unix(0, 0))
+			if err != nil {
+				t.Fatalf("New: %v", err)
+			}
+			goal.Revision = 1
+			goal.Used.CostUSD = value
+			if err := goal.ValidateSnapshot(); err == nil {
+				t.Fatal("ValidateSnapshot accepted non-finite goal usage")
+			}
+		})
 	}
 }
 

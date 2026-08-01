@@ -1,6 +1,7 @@
 package transcript_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -48,6 +49,8 @@ func TestItemValidateOwnsPayloadInvariants(t *testing.T) {
 
 func TestUsageAndProblemValidate(t *testing.T) {
 	negativeCost := -0.1
+	nanCost := math.NaN()
+	infiniteCost := math.Inf(1)
 	tests := []struct {
 		name    string
 		usage   *transcript.Usage
@@ -57,6 +60,8 @@ func TestUsageAndProblemValidate(t *testing.T) {
 		{name: "valid"},
 		{name: "negative token", usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{InputTokens: -1}}, wantErr: true},
 		{name: "negative cost", usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &negativeCost}}, wantErr: true},
+		{name: "nan cost", usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &nanCost}}, wantErr: true},
+		{name: "infinite cost", usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &infiniteCost}}, wantErr: true},
 		{name: "unknown problem scope", problem: &transcript.Problem{Scope: transcript.ProblemScope(99)}, wantErr: true},
 		{name: "wrong problem owner", problem: &transcript.Problem{Scope: transcript.RunProblem}, wantErr: true},
 	}

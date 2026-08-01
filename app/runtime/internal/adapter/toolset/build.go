@@ -8,7 +8,6 @@ import (
 	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/httpreq"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/askuser"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/codebasesearch"
@@ -23,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skillpropose"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/todotool"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
@@ -55,7 +55,7 @@ type BuildConfig struct {
 	A2AAgents      []A2AAgentConfig
 	Todos          todotool.Store      // backs todo_write; nil → the tool is omitted
 	Approval       exitplan.ModePolicy // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
-	Interrupt      suspension.Func
+	Interrupt      runs.InterruptFunc
 	Schedules      ScheduleManagement     // backs the schedule tool; nil → omitted
 	ToolResults    toolresult.Store       // backs read_tool_result (reads offloaded tool output); nil → omitted
 	SkillAuthoring skillpropose.Authoring // backs propose_skill (staged draft + human-gated promotion); nil/disabled → omitted
@@ -152,7 +152,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 
 	interrupt := config.Interrupt
 	if interrupt == nil {
-		interrupt = suspension.Unavailable
+		interrupt = runs.InterruptUnavailable
 	}
 
 	// ask_user is a build-time tool shared by root and subtask roles. A child

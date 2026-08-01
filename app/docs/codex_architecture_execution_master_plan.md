@@ -15,11 +15,13 @@
 > W8 实施提交：随本原子 slice 提交
 > P25 实施提交：`03773c52d`
 > P26 实施提交：随本原子 slice 提交
-> 当前主任务：无；W2–W8、P25–P26 已闭环，后续变更必须通过 Agent/App 语义所有权审查
-> 执行进度：`W2–W8 DONE · P25 DONE · P26 DONE`
+> P27 实施提交：随本原子 slice 提交
+> P28 实施提交：随本原子 slice 提交
+> 当前主任务：无；P29 已闭环，后续 seam 变更必须通过专项所有权守卫
+> 执行进度：`W2–W8 DONE · P25 DONE · P26 DONE · P27 DONE · P28 DONE · P29 DONE`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
 > 当前 Artifact：`SessionArtifactVersion = 7`
-> 当前 Store：`schemaEpoch = 46`
+> 当前 Store：`schemaEpoch = 50`
 
 ## 0. 文档职责
 
@@ -77,9 +79,17 @@ HITL、Context Dock/Workspace/Settings 与最终 WebView/accessibility closure�
 生成契约、协议生命周期与模块依赖仍保持闭环。P25 将 Agent 的 Host transaction protocol
 替换为纯 Plan/Apply，并把 Framework snapshot codec 收口到 `agentexec`。P26 继续关闭三项
 同源泄露：普通 waiting checkpoint 不再先于 App barrier 单独落盘；terminal `Discard` 不再
-后台删除 durable state；child process 不再派生隐藏 product Session。App 现在独占 checkpoint、
-Pending、Run、Session 与 recovery 的原子性和 retention，SQLite 直接切换 epoch 46，不保留
-兼容路径。专项判据、裁决和防复发规则见
+后台删除 durable state；child process 不再派生隐藏 product Session。P27 进一步删除穿过
+Application 的 checkpoint write capability 和 App-owned process topology envelope，把完整
+Framework tree 收敛成单个 root-owned opaque `ExecutorCheckpoint`；boot recovery 提升为
+Application use case，SQLite 只读写事实并应用 `RecoveryCommit`。P28 再把 separately-valid
+aggregate 之间的 root/Session/workspace/model-selection/goal-lease binding、parked Session
+execution-policy freeze 和 checkpoint owner-bound save/delete 补成显式不变量。App 现在独占
+checkpoint、Pending、Run、Session、recovery 的原子性和 retention。P29 用反例驱动终审继续
+清除了 Pending overwrite、root-only mutation authority、checkpoint policy/usage 回退、Goal
+recovery 漏记账、parked tree root-only terminalization、Run/Continuation 冻结事实可漂移，
+以及 executor `Budget` 与 Run `Limits` 双重权威；SQLite 直接切换 epoch 50，不保留兼容路径。
+专项判据、裁决和防复发规则见
 [`codex_agent_app_abstraction_boundary_audit.md`](codex_agent_app_abstraction_boundary_audit.md)。
 
 ---
@@ -1861,8 +1871,9 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
   identity 投影成 Run/Item lineage，并在自己的 transaction 中完成 admission；
 - Agent production packages 未出现 App 的 Session/Run/Item、SQLite、repository、
   transaction、idempotency、artifact、retention 或 protocol DTO；
-- `SpawnCallID` 是所有 Agent 消费者都成立的 execution causal identity，不是 App
-  wire identity，因此不是泄漏。
+- `SpawnCallID` 是 Framework 的 execution causal identity，只能经 agentexec 形成一次性
+  live routing source；App 不持久化它，也不把它暴露到 hook/wire，因此该 transient seam
+  本身不是泄漏。
 
 裁决：当前 child admission seam 是必要且足够窄的 Framework 能力，不迁入 App
 事务，也不需要再抽象一层。W5.1 不修改 Agent public API。
@@ -2531,3 +2542,239 @@ API 或再造一层“新旧桥接”。
    second wire、fallback decoder 或旧字段 alias；
 6. 审计没有发现真实问题时保持实现不动；“没有 diff”可以是避免过度抽象的正确结果；
 7. 任何例外必须先形成可验证的新不变量，不能靠注释或 whitelist 长期存在。
+
+---
+
+## 14. P27 Agent/App opaque checkpoint 与恢复所有权最终收口
+
+### 14.1 目标与进度
+
+- 状态：`DONE`
+- 基线提交：`0674ac1ef`
+- 目标：清除 P26 后仍残留的控制权和数据模型泄露，使 Framework 私有 process tree、App
+  checkpoint aggregate、Application recovery policy 与 SQLite mechanics 各有唯一 owner。
+- 兼容政策：dev 阶段一次 breaking cutover；不保留旧类型、表、列、callback、codec 或 alias。
+
+| Slice | 状态 | 结果 |
+|---|---|---|
+| P27.1 root-owned opaque aggregate | `DONE` | App 只持有 `ExecutorCheckpoint`；完整 Framework tree 只存在于 opaque payload |
+| P27.2 transaction ownership | `DONE` | 删除 executable checkpoint write capability；runsegment 显式保存/删除 concrete value |
+| P27.3 Application boot recovery | `DONE` | `runs.Recovery` 生成 `RecoveryCommit`；runrecovery adapter 原子应用；SQLite 不做政策裁决 |
+| P27.4 semantic boundary | `DONE` | `executionctx` 中立化；CheckpointRoot 字段与职责型文件名完成 breaking rename |
+| P27.5 prevention/doc | `DONE` | AST fitness rules、recovery invariant fixtures、现行架构与专项审计同步 |
+| P27.6 full gates | `DONE` | Agent/Runtime build、vet、test、lint、tidy-diff、residue scan、diff hygiene |
+
+### 14.2 最终所有权
+
+```text
+Agent Framework
+  process topology + snapshot validity + live mutation
+        |
+adapter/agentexec
+  the only Framework codec; pure capture/restore
+        |
+Application
+  Run/Pending policy + atomic write-set + recovery decision
+        |
+runsegment / runrecovery
+  persistence choreography for an already-decided App plan
+        |
+SQLite epoch 47
+  opaque executor_checkpoints rows + factual projections
+```
+
+关键 breaking change：
+
+- 删除 App `ProcessState`/`ProcessTreeState`/`ProcessCheckpoint`；
+- 删除 `ProcessCheckpointWrite`/`PersistCheckpoint`；
+- `executor_checkpoints` 每个 Framework root 只有一个 opaque aggregate；
+- `CanResumeCheckpoint` 是 recovery 对 execution adapter 的唯一判断 seam；
+- recovery topology/transcript/Pending policy 从 SQLite/Bootstrap 移入 `application/runs`；
+- `adapter/runrecovery` 只实现事实读取和一次 `RecoveryCommit` transaction；
+- `ObsoleteCheckpointRootID`、`CheckpointRootID(s)` 不再暗示 App 理解 process tree storage；
+- `turnctx` 移到中立 `adapter/executionctx`；
+- schema epoch 从 46 直接切换为 47，旧数据库 fail fast。
+
+### 14.3 防复发权威
+
+专项责任矩阵、禁止 seam、transaction timeline、architecture guards 和人工 checklist 以
+[`codex_agent_app_abstraction_boundary_audit.md`](codex_agent_app_abstraction_boundary_audit.md)
+为准；Runtime 现行结构以
+[`../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md`](../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md)
+为准。P25/P26/P27 术语只作为历史过程存在，不能据此恢复旧 API 或 Store shape。
+
+---
+
+## 15. P28 cross-aggregate binding 与恢复上下文零死角收口
+
+### 15.1 目标与结果
+
+- 状态：`DONE`
+- 基线提交：`0674ac1ef`
+- 目标：证明 opaque checkpoint 不只是自身合法，还与拥有它的 Run/Pending/Session 完全一致；
+  清除 restart、waiting-subtree、Session edit 和 Goal continuation 的剩余组合漏洞。
+- 兼容政策：直接切换 epoch 48；不提供 epoch 47 migration、reader、fallback 或 owner 修复分支。
+
+| Slice | 状态 | 结果 |
+|---|---|---|
+| P28.1 binding contract | `DONE` | `ValidateOwnership`/`ValidateFor` 覆盖 root、Session、cwd、isolation、provider、goal lease |
+| P28.2 recovery context | `DONE` | Application recovery 加载 canonical Session；isolated checkpoint 重启后 fail-closed 为 `run_lost` |
+| P28.3 Session policy freeze | `DONE` | `ClaimIdleSession` 阻止 parked Run 期间修改 cwd/isolation；lifecycle mutation 使用独立 admission |
+| P28.4 Goal continuity | `DONE` | `Pending.GoalLeaseID` 贯穿 barrier、resume/rehydrate、waiting cancellation、reducer 和 SQLite |
+| P28.5 owner-bound persistence | `DONE` | root owner 不可跨 Session upsert；targeted delete 必须同时匹配 Session，foreign aggregate 原样保留 |
+| P28.6 prevention | `DONE` | outer-ring vocabulary、checkpoint binding、owner-scoped deletion和旧命名均有自动守卫/反向扫描 |
+| P28.7 full gates | `DONE` | Agent/Runtime build、vet、test、lint、tidy-diff、residue scan、diff hygiene；不执行 fuzz |
+
+### 15.2 恢复判据
+
+一个 parked tree 只有同时满足下列条件才可保留：
+
+1. non-terminal Run tree 拓扑完整，成员全部为 `Interrupted`；
+2. root-owned Pending 覆盖每个 active Run，interrupt/transcript/tool hand-off 一致；
+3. Pending、checkpoint、Run 与 Session 的 root process、Session、provider 和 goal lease 一致；
+4. checkpoint cwd/isolation 与 canonical Session execution policy 一致；
+5. build、opaque payload、Framework snapshot/usage 均可恢复；
+6. Session 非 isolated；isolated scratch workspace 不跨进程恢复。
+
+前四类不可能的 partial application fact 视为 corruption，启动停止且不写；checkpoint
+缺失、build/Framework 不兼容或 isolated workspace 已消失视为 external-resource loss，整树
+按 Application policy 原子收口为 `run_lost`。
+
+### 15.3 新的持久化不变量
+
+```text
+root_process_id -> exactly one immutable Session owner
+
+SaveCheckpoint:
+  same root + same Session     => replace aggregate
+  same root + another Session => reject, preserve original
+
+DeleteCheckpoints:
+  requires Session + root IDs
+  foreign owner => reject, preserve original
+
+DeleteUnownedCheckpoints:
+  boot-only exact-retention operation over Application-proven preserved roots
+```
+
+该区分避免把普通 targeted lifecycle cleanup 与 boot 全局 retention 混成同一个授权级别。
+
+---
+
+## 16. P29 immutable admission authority 与整树终止最终闭环
+
+### 16.1 目标与结果
+
+- 状态：`DONE`
+- 基线提交：`0674ac1ef`
+- 目标：用 hostile counterexample 验证 P28，而不是默认“测试通过即无泄露”；清除身份覆盖、
+  policy 漂移、恢复记账和在线整树终止的最后组合漏洞。
+- 兼容政策：直接切换 epoch 50；不保留 epoch 49 migration、reader、alias、shim 或 fallback。
+
+| Slice | 状态 | 结果 |
+|---|---|---|
+| P29.1 Pending authority | `DONE` | `Put` breaking rename 为 insert-only `Open`；duplicate barrier 拒绝；Consume/Delete 同时校验 Session + root Run |
+| P29.2 checkpoint admission | `DONE` | 冻结 BuildID、TurnScope、完整 `ModelSelection`、RunLimits；cumulative Usage 只能前进 |
+| P29.3 durable Goal provenance | `DONE` | root `Run.GoalLeaseID` 成为 admission fact；child 禁止携带；当前 epoch 50 schema/check 同步 |
+| P29.4 self-validating recovery | `DONE` | `RecoveryCommit.Validate` 证明 lost tree/postorder、Item owner、Goal turn、Pending deletion 与 retention identities |
+| P29.5 fail-closed model routing | `DONE` | 显式 model selection 缺 resolver/client 时拒绝，不回落 default |
+| P29.6 all-path Goal accounting | `DONE` | reducer、boot recovery、在线 cancel/loss 都把 exact Goal turn 与 terminal Run 同事务提交；ledger 只幂等接受 exact retry |
+| P29.7 parked-tree terminal | `DONE` | `TerminalPlan.Runs` 携带 canonical child-before-parent 完整树，删除 root-only 单 Run 写集 |
+| P29.8 prevention/gates | `DONE` | AST guard、真实 SQLite fixture、full non-fuzz build/vet/test/lint/tidy/residue/diff gates |
+| P29.9 continuation congruence | `DONE` | Pending profile canonical 且覆盖 child/interrupt；Run 与 Continuation 的 model、lineage、creation、metrics、limits、profile、goal lease 在 tree barrier、Resume、waiting-subtree cancellation、boot recovery、online terminal 五类边界逐一同值 |
+| P29.10 limits single authority | `DONE` | 删除 executor `accounting.Budget`；唯一 `RunLimits{MaxTotalTokens, MaxSteps, MaxBudgetUSD}` 贯穿 admission/checkpoint/restore/store/wire；`maxTotalTokens` 与 `params.maxTokens` 分义 |
+
+### 16.2 终态不变量
+
+```text
+Pending.Open:
+  new root + new executor root -> insert
+  duplicate identity           -> conflict; preserve old barrier
+
+Pending.Consume/Delete:
+  require SessionID + RootRunID
+  foreign Session -> identity conflict; preserve old barrier
+
+ExecutorCheckpoint.Save:
+  immutable = owner + build + scope + model selection + RunLimits
+  cumulative usage may only advance
+
+TerminalPlan:
+  Runs = exact active parked tree in canonical postorder
+  Items + Pending + checkpoint + Runs + optional root GoalTurn = one transaction
+
+RecoveryCommit:
+  validates itself before any adapter write
+  each Goal-owned lost root <-> exactly one matching GoalTurn
+
+Parked continuation:
+  Pending profile = root Run admitted profile
+  each Continuation = the same Run's frozen model + lineage + creation + limits
+                      + cumulative metrics
+  child tree / interrupt kind must be covered by the admitted profile
+  contradiction -> fail before checkpoint probe or transaction
+```
+
+### 16.3 “幂等”与“忽略冲突”的边界
+
+- exact retry：同一个 Run ID、Session、lease、outcome、cost、steps、completion time，安全返回成功；
+- conflicting retry：复用 identity 但事实任一字段不同，返回 typed conflict，不能 `DO NOTHING` 伪装成功；
+- replacement：只有明确 lifecycle transaction 先 Consume 旧 barrier，才能 Open 新 barrier；
+- Framework 只保证自己的 process-tree concurrency；App 独占产品身份、事务、恢复与 ledger 语义。
+
+---
+
+## 17. P30 双拓扑、产品 hook 与 peer adapter 零残留终审
+
+### 17.1 目标与结果
+
+- 状态：`DONE`
+- 目标：在 P29 全绿后继续做反向依赖与 hostile vocabulary 扫描，清除仍能让 App 或外部
+  hook 感知 Framework topology 的最后路径，并封死 peer adapter 通过 agentexec 共享端口的捷径。
+- 兼容政策：dev 阶段直接 breaking cutover；不保留旧 hook 字段、Continuation 字段、codec、
+  package alias 或转发 shim。
+
+| Slice | 状态 | 结果 |
+|---|---|---|
+| P30.1 durable topology ownership | `DONE` | Continuation/SQLite 删除 `ParentProcessID/SpawnCallID`；只保留 opaque ProcessID binding + App RunLineage |
+| P30.2 resumed live binding | `DONE` | 恢复 child route 先按 Run tree 建立；首次 live executor event 验证 parent process 与 App parent Run 的 binding，随后 source immutable |
+| P30.3 Subagent hook identity | `DONE` | hook JSON breaking 改为 `runId/parentRunId`；fresh child 只在原子 opening 后可观察，restart 显式恢复 ChildRunBinding |
+| P30.4 internal child isolation | `DONE` | 没有 first-class App Run binding 的 Framework child 不再触发产品 SubagentStart/Stop |
+| P30.5 peer adapter ports | `DONE` | 删除 `agentexec/toolport`；工具词汇归 `domain/tool`，InterruptFunc 归 runs consumer contract，toolset→agentexec import 清零 |
+| P30.6 safety vocabulary | `DONE` | `read_tool_result` 纳入 built-in safe 单一分类表，避免只读回读工具 fall-through 为 Exec |
+| P30.7 prevention | `DONE` | architecture guards 固定 Continuation shape、hook Run identity、SQLite 无 topology、toolset 无 agentexec import |
+| P30.8 admission failure closure | `DONE` | restored ChildRunBinding 证明单一连通 App tree；非法 confirmation 同时失败 Coordinator/waiter，失败 opening 不携带 binding 且不遗留阻塞 |
+
+### 17.2 终态所有权
+
+```text
+Framework checkpoint:
+  owns process topology and spawn edges (opaque outside agentexec)
+
+App durable state:
+  owns RunLineage and one RunID <-> opaque ProcessID binding
+
+Live routing:
+  validates transient ProcessID/ParentID/SpawnCallID once; never persists it
+
+Product hooks:
+  expose RunID/ParentRunID only
+
+Peer adapters:
+  share inward domain vocabulary or consumer-owned application ports,
+  never import another concrete adapter as a convenience namespace
+```
+
+### 17.3 回归判据
+
+以下任一变化都直接视为架构回归：
+
+1. Continuation/SQLite 再出现 Framework parent/spawn 字段；
+2. Subagent hook 再出现 `processId/parentProcessId`；
+3. 未通过 App child opening 的 Framework process 触发产品 hook；
+4. `toolset` import `adapter/agentexec/*`；
+5. 为旧字段或旧 package 增加 alias、fallback、dual write/read。
+
+专项细节与自动守卫以
+[`codex_agent_app_abstraction_boundary_audit.md`](codex_agent_app_abstraction_boundary_audit.md)
+为准。

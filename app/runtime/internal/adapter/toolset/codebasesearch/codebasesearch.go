@@ -13,7 +13,7 @@ import (
 
 	"github.com/Tangerg/lynx/tools"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 )
 
@@ -69,7 +69,7 @@ func (t *tool) search(ctx context.Context, request request) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("codebase_search: %w", err)
 	}
-	hits, err := t.index.Search(ctx, turnctx.TurnCwd(ctx, ""), request.Query, request.Limit)
+	hits, err := t.index.Search(ctx, executionctx.CWD(ctx, ""), request.Query, request.Limit)
 	if err != nil {
 		if errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
 			return "", errors.New("codebase_search: no embedding model is configured — set one in Settings → Models (an embedding-capable provider like OpenAI, or a local Ollama)")

@@ -9,7 +9,7 @@ package goaltool
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/tools"
@@ -61,11 +61,11 @@ func New(state State) (tools.Tool, error) {
 }
 
 func (t *tool) update(ctx context.Context, a updateArgs) (string, error) {
-	sessionID := turnctx.TurnSession(ctx)
+	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return "error: no active session — cannot update a goal", nil
 	}
-	leaseID, _ := turnctx.TurnGoalLease(ctx)
+	leaseID, _ := executionctx.GoalLeaseID(ctx)
 	result, err := t.state.Report(ctx, goals.ReportCommand{
 		SessionID: sessionID,
 		LeaseID:   leaseID,

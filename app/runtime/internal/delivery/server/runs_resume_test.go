@@ -53,7 +53,7 @@ func TestResumeRun_KeepsInterruptOpenWhenStartFails(t *testing.T) {
 		time.Unix(1, 0).UTC(),
 	)
 	pending.Continuations[0].ModelSelection = mustResumeSelection(t, "openai", "gpt")
-	if err := rt.interrupts.Put(ctx, pending); err != nil {
+	if err := rt.interrupts.Open(ctx, pending); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
@@ -99,7 +99,9 @@ func mustResumeSelection(t testing.TB, provider, model string) modelref.Selectio
 
 func TestResumeRunRejectsMissingAndUnknownItemCoverage(t *testing.T) {
 	s, rt := rollbackHarness(t)
-	ctx := t.Context()
+	ctx := withClientCapabilities(protocol.ClientCapabilities{
+		InterruptTypes: []protocol.InterruptType{protocol.InterruptApproval},
+	})
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 	pending := serverPending(
 		"run_coverage",
@@ -115,7 +117,7 @@ func TestResumeRunRejectsMissingAndUnknownItemCoverage(t *testing.T) {
 		}},
 		time.Unix(1, 0).UTC(),
 	)
-	if err := rt.interrupts.Put(ctx, pending); err != nil {
+	if err := rt.interrupts.Open(ctx, pending); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 

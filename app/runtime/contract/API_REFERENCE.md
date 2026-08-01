@@ -324,6 +324,15 @@ TypeScript validator from this single registry projection.
 | `RunProtocolProfile` | `requiredFeatures` | `uniqueItems` |
 | `RunProtocolProfile` | `interruptTypes` | `uniqueItems` |
 | `StartRunRequest` | `input` | `nonEmptyItems` |
+| `StartRunRequest` | `maxTotalTokens` | `nonNegative` |
+| `StartRunRequest` | `maxSteps` | `nonNegative` |
+| `StartRunRequest` | `maxBudgetUsd` | `nonNegative` |
+| `RunLimits` | `maxTotalTokens` | `nonNegative` |
+| `RunLimits` | `maxSteps` | `nonNegative` |
+| `RunLimits` | `maxBudgetUsd` | `nonNegative` |
+| `ArtifactRunLimits` | `maxTotalTokens` | `nonNegative` |
+| `ArtifactRunLimits` | `maxSteps` | `nonNegative` |
+| `ArtifactRunLimits` | `maxBudgetUsd` | `nonNegative` |
 | `ResumeRunRequest` | `runId` | `nonEmpty` |
 | `ResumeRunRequest` | `input` | `nonEmptyItems` |
 | `StartRunResponse` | `runId` | `nonEmpty` |
@@ -471,6 +480,8 @@ enforced by a validator — a frame-local check cannot see the whole system.
   - maintained by: `runs.admission`
 - **`parked_tree_has_exactly_one_open_interrupt_set`** — A Run tree parked without one complete pending set cannot be resumed atomically; clients would observe only part of a barrier that can never move.
   - maintained by: `runsegment.event`, `runs.recovery`
+- **`parked_continuation_matches_run_facts`** — A continuation is a hand-off of the admitted Run, not a second author. If its model, cumulative accounting, limits, lineage, creation time, goal lease or protocol contract differs, resume or teardown would rewrite history.
+  - maintained by: `runsegment.opening`, `runsegment.event`, `runsegment.waiting_subtree_cancel`, `runs.recovery`, `sessions.parked_terminal`
 - **`dropped_run_leaves_nothing_behind`** — A dropped Run's items, interrupts, checkpoints and admission slot must go with it, or the session keeps an invisible run holding its only slot.
   - maintained by: `sessions.rollback`, `sessions.delete`
 - **`imported_session_keeps_its_identity`** — Import is restore, not copy: an artifact must come back under the id it was exported with, or its runs and items reference a session that is gone.

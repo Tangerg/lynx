@@ -63,11 +63,17 @@ func (s *RunStore) Admit(ctx context.Context, draft execution.RunDraft) error {
 	if draft.SessionID == "" {
 		return fmt.Errorf("sqlite: admit run %q: session is required", draft.RunID)
 	}
+	if draft.GoalLeaseID != strings.TrimSpace(draft.GoalLeaseID) {
+		return fmt.Errorf("sqlite: admit run %q: goal lease ID has surrounding whitespace", draft.RunID)
+	}
 	lineage := draft.Lineage()
 	if err := lineage.Validate(draft.RunID); err != nil {
 		return fmt.Errorf("sqlite: admit run %q: %w", draft.RunID, err)
 	}
 	if err := draft.Limits.Validate(); err != nil {
+		return fmt.Errorf("sqlite: admit run %q: %w", draft.RunID, err)
+	}
+	if err := draft.ProtocolProfile.Validate(); err != nil {
 		return fmt.Errorf("sqlite: admit run %q: %w", draft.RunID, err)
 	}
 	if lineage.IsChild() && !draft.ProtocolProfile.IsEmpty() {
@@ -76,6 +82,9 @@ func (s *RunStore) Admit(ctx context.Context, draft execution.RunDraft) error {
 			draft.RunID,
 			draft.RootRunID,
 		)
+	}
+	if lineage.IsChild() && draft.GoalLeaseID != "" {
+		return fmt.Errorf("sqlite: admit child run %q: goal lease is owned by root %q", draft.RunID, draft.RootRunID)
 	}
 	profile, err := encodeRunProtocolProfile(draft.ProtocolProfile)
 	if err != nil {
@@ -103,14 +112,15 @@ func (s *RunStore) Admit(ctx context.Context, draft execution.RunDraft) error {
 		_, err := conn(ctx, s.db).ExecContext(ctx,
 			`INSERT INTO runs(
 			   run_id, session_id, spawned_by_item_id, parent_run_id, root_run_id,
-			   state, active_segment_id, provider, model, max_steps, max_budget_usd,
+			   state, active_segment_id, provider, model, goal_lease_id, max_total_tokens, max_steps, max_budget_usd,
 			   protocol_profile, message_mark, started_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			draft.RunID, draft.SessionID,
 			draft.SpawnedByItemID, draft.ParentRunID, draft.RootRunID,
 			runStateRunning, draft.SegmentID,
 			draft.ModelSelection.Provider(), draft.ModelSelection.Model(),
-			draft.Limits.MaxSteps, draft.Limits.MaxBudgetUSD, profile,
+			draft.GoalLeaseID,
+			draft.Limits.MaxTotalTokens, draft.Limits.MaxSteps, draft.Limits.MaxBudgetUSD, profile,
 			transcript.UnknownMessageMark, now, now)
 		// Two constraints can reject this INSERT and they mean opposite things: the
 		// primary key says the id is spoken for, the partial index says the Session
@@ -450,16 +460,17 @@ func (s *RunStore) Restore(ctx context.Context, run transcript.Run) error {
 	_, err = conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO runs(
 		   run_id, session_id, spawned_by_item_id, parent_run_id, root_run_id,
-		   state, outcome, provider, model,
-		   detail, steps, active_duration_ns, usage, problem, max_steps, max_budget_usd,
+		   state, outcome, provider, model, goal_lease_id,
+		   detail, steps, active_duration_ns, usage, problem, max_total_tokens, max_steps, max_budget_usd,
 		   protocol_profile, message_mark, started_at, finished_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID, run.SessionID,
 		run.SpawnedByItemID, run.ParentRunID, run.RootRunID,
 		coarseState(run.State), run.Outcome.String(),
 		run.ModelSelection.Provider(), run.ModelSelection.Model(),
+		run.GoalLeaseID,
 		run.Detail, metrics.steps, metrics.durationNs, metrics.usage, problem,
-		run.Limits.MaxSteps, run.Limits.MaxBudgetUSD, profile, run.MessageMark,
+		run.Limits.MaxTotalTokens, run.Limits.MaxSteps, run.Limits.MaxBudgetUSD, profile, run.MessageMark,
 		run.CreatedAt.UTC().UnixNano(), run.FinishedAt.UTC().UnixNano(), runUpdatedAt(run))
 	if isPrimaryKeyViolation(err) {
 		// A Run id belongs to one Session for its whole lifetime. An import that
@@ -685,8 +696,8 @@ func placeholders(n int) string {
 // is waiting on — kept in the interrupts table so one park is one record.
 const runColumns = `r.run_id, r.session_id, r.spawned_by_item_id, r.parent_run_id, r.root_run_id,
 	r.state, r.active_segment_id, r.outcome,
-	r.provider, r.model, r.detail, r.steps, r.active_duration_ns, r.usage, r.problem,
-	r.max_steps, r.max_budget_usd, r.protocol_profile, tree_root.protocol_profile,
+	r.provider, r.model, r.goal_lease_id, r.detail, r.steps, r.active_duration_ns, r.usage, r.problem,
+	r.max_total_tokens, r.max_steps, r.max_budget_usd, r.protocol_profile, tree_root.protocol_profile,
 	r.message_mark, r.started_at, r.finished_at, r.updated_at, i.payload`
 
 // runReadJoins materializes the root-owned protocol profile and pending set for

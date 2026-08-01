@@ -5,12 +5,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -63,7 +63,7 @@ func TestSubtaskRoleCanAskExitPlanAndDelegateWithoutRootTools(t *testing.T) {
 	}
 	built.Resolver.UseTaskTool(taskTool)
 
-	group, ok, err := built.Resolver.Resolve(t.Context(), toolport.ToolRoleSubtask)
+	group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupSubtask)
 	if err != nil || !ok {
 		t.Fatalf("Resolve(subtask) = %v, %v", ok, err)
 	}
@@ -94,7 +94,7 @@ func TestToolGroupDistinguishesUnavailableCodebaseFromResolverFailure(t *testing
 		}
 		closeBuiltToolset(t, built)
 
-		group, ok, err := built.Resolver.Resolve(t.Context(), toolport.ToolRoleCoding)
+		group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupCoding)
 		if err != nil || !ok {
 			t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 		}
@@ -122,7 +122,7 @@ func TestToolGroupDistinguishesUnavailableCodebaseFromResolverFailure(t *testing
 		}
 		closeBuiltToolset(t, built)
 
-		group, ok, err := built.Resolver.Resolve(t.Context(), toolport.ToolRoleCoding)
+		group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupCoding)
 		if err != nil || !ok {
 			t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 		}
@@ -143,7 +143,7 @@ func TestToolGroupPreservesActiveGoalLookupFailure(t *testing.T) {
 	}
 	closeBuiltToolset(t, built)
 
-	group, ok, err := built.Resolver.Resolve(t.Context(), toolport.ToolRoleCoding)
+	group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupCoding)
 	if err != nil || !ok {
 		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 	}

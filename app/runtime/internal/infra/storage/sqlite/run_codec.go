@@ -44,6 +44,7 @@ type runAccountingRow struct {
 	Steps            int          `json:"steps,omitzero"`
 	ActiveDurationNs int64        `json:"activeDurationNs,omitzero"`
 	Usage            *runUsageRow `json:"usage,omitempty"`
+	MaxTotalTokens   int64        `json:"maxTotalTokens,omitzero"`
 	MaxSteps         int          `json:"maxSteps,omitzero"`
 	MaxBudgetUSD     float64      `json:"maxBudgetUsd,omitzero"`
 }
@@ -53,6 +54,7 @@ func runAccountingRowOf(metrics transcript.RunMetrics, limits execution.RunLimit
 		Steps:            metrics.Steps,
 		ActiveDurationNs: int64(metrics.ActiveDuration),
 		Usage:            runUsageRowOf(metrics.Usage),
+		MaxTotalTokens:   limits.MaxTotalTokens,
 		MaxSteps:         limits.MaxSteps,
 		MaxBudgetUSD:     limits.MaxBudgetUSD,
 	}
@@ -64,7 +66,9 @@ func (row runAccountingRow) values() (transcript.RunMetrics, execution.RunLimits
 		Steps:          row.Steps,
 		ActiveDuration: time.Duration(row.ActiveDurationNs),
 	}
-	limits := execution.RunLimits{MaxSteps: row.MaxSteps, MaxBudgetUSD: row.MaxBudgetUSD}
+	limits := execution.RunLimits{
+		MaxTotalTokens: row.MaxTotalTokens, MaxSteps: row.MaxSteps, MaxBudgetUSD: row.MaxBudgetUSD,
+	}
 	if err := metrics.Validate(); err != nil {
 		return transcript.RunMetrics{}, execution.RunLimits{}, fmt.Errorf("metrics: %w", err)
 	}
@@ -254,8 +258,8 @@ func scanRunRow(row scanRow, pendingPolicy pendingReadPolicy) (transcript.Run, e
 		&run.ID, &run.SessionID,
 		&run.SpawnedByItemID, &run.ParentRunID, &run.RootRunID,
 		&coarse, &run.ActiveSegmentID, &outcome,
-		&provider, &model, &run.Detail, &run.Metrics.Steps, &durationNs, &usage, &problem,
-		&run.Limits.MaxSteps, &run.Limits.MaxBudgetUSD, &ownProfile, &rootProfile,
+		&provider, &model, &run.GoalLeaseID, &run.Detail, &run.Metrics.Steps, &durationNs, &usage, &problem,
+		&run.Limits.MaxTotalTokens, &run.Limits.MaxSteps, &run.Limits.MaxBudgetUSD, &ownProfile, &rootProfile,
 		&run.MessageMark, &startedAt, &finishedAt, &updatedAt, &interruptsSuspended,
 	); err != nil {
 		return transcript.Run{}, fmt.Errorf("scan run row: %w", err)

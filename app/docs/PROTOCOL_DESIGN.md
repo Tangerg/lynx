@@ -161,7 +161,8 @@ Run 跨 resume 保持身份，计量就不能在每段悄悄归零。**已核实
 
 - **每次 `segment.finished`（含 `interrupt`）携带 Run 的累计快照**，terminal `RunResult` 用同一口径。**理由是幂等**：累计快照重放/重复 fold 都不会多算；per-segment 增量值一旦被 replay 就会双计——而"想看单段花了多少"可以两次快照相减得到（可推导，见 §3.6）。
 - **累计口径含 subagent 子树**（与 `maxBudgetUsd` 已定义为含子树一致）；每个 subagent 的 `RunRef` 另带它自己的用量。**客户端永不需要自己求和，也就不必猜有没有重复计。**
-- `maxSteps` / `maxBudgetUsd` 是 **Run 生命周期**限制，跨 resume 按同一棵树继续累计。
+- `maxTotalTokens` / `maxSteps` / `maxBudgetUsd` 是 **Run 生命周期**限制，跨 resume 按同一棵树继续累计；
+  `params.maxTokens` 仍只限制单次模型输出，二者不可混用。
 - `segment.progress` 可近似 / 节流 / 丢帧，**不得**成为计费与预算判断的唯一来源。
 - **duration 只留一个不可推导的量**：`activeDurationMs`（各执行段之和，**不含 Waiting**，累计）。墙钟耗时由 `createdAt` / `finishedAt` **推导**，不再存字段；单段时长归 observability，不进 wire。现有 `durationMs`（"跨 interrupt/resume 的墙钟"）同时被当性能指标和用户总耗时用，**删除**。
 

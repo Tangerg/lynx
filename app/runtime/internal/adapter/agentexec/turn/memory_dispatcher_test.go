@@ -515,14 +515,14 @@ func TestDispatcher_StartTurn_Validation(t *testing.T) {
 	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "s"}); err == nil {
 		t.Error("missing Message should error")
 	}
-	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", MaxSteps: -1}); !errors.Is(err, runs.ErrInvalidTurnLimit) {
+	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", Limits: execution.RunLimits{MaxSteps: -1}}); !errors.Is(err, runs.ErrInvalidTurnLimit) {
 		t.Fatalf("negative MaxSteps err = %v, want ErrInvalidTurnLimit", err)
 	}
-	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", MaxCostUSD: -0.01}); !errors.Is(err, runs.ErrInvalidTurnLimit) {
+	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", Limits: execution.RunLimits{MaxBudgetUSD: -0.01}}); !errors.Is(err, runs.ErrInvalidTurnLimit) {
 		t.Fatalf("negative MaxCostUSD err = %v, want ErrInvalidTurnLimit", err)
 	}
-	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", MaxBudget: -1}); !errors.Is(err, runs.ErrInvalidTurnLimit) {
-		t.Fatalf("negative MaxBudget err = %v, want ErrInvalidTurnLimit", err)
+	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", Limits: execution.RunLimits{MaxTotalTokens: -1}}); !errors.Is(err, runs.ErrInvalidTurnLimit) {
+		t.Fatalf("negative MaxTotalTokens err = %v, want ErrInvalidTurnLimit", err)
 	}
 	opts := &chatmodel.Options{Model: "should-not-select-model-here"}
 	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", Options: opts}); !errors.Is(err, runs.ErrInvalidTurnOptions) {

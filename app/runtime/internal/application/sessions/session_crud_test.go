@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -21,6 +22,7 @@ type crudSessionStore struct {
 	cwd           [2]string
 	favoriteID    string
 	favoriteValue bool
+	isolated      *bool
 	patched       bool
 }
 
@@ -66,6 +68,10 @@ func (s *crudSessionStore) Patch(_ context.Context, id string, patch session.Pat
 		s.favoriteID = id
 		s.favoriteValue = *patch.Favorite
 	}
+	if patch.Isolated != nil {
+		isolated := *patch.Isolated
+		s.isolated = &isolated
+	}
 	if s.modelErr != nil {
 		return session.Session{}, s.modelErr
 	}
@@ -75,11 +81,17 @@ func (s *crudSessionStore) Patch(_ context.Context, id string, patch session.Pat
 type crudStores struct {
 	// session is the port, not the fake: one test pages through a store that seeks,
 	// and the harness has no reason to care which fake it is holding.
-	session SessionStore
+	session    SessionStore
+	interrupts InterruptStore
 }
 
-func (s *crudStores) Session() SessionStore                                { return s.session }
-func (*crudStores) Interrupts() InterruptStore                             { return nil }
+func (s *crudStores) Session() SessionStore { return s.session }
+func (s *crudStores) Interrupts() InterruptStore {
+	if s.interrupts != nil {
+		return s.interrupts
+	}
+	return &coordinatorInterrupts{pending: map[string]interrupts.Pending{}}
+}
 func (*crudStores) Transcript() TranscriptStore                            { return emptyTranscript{} }
 func (*crudStores) Runs() RunStore                                         { return emptyTranscript{} }
 func (*crudStores) ReadSnapshot(context.Context, string) (Snapshot, error) { return Snapshot{}, nil }
@@ -189,6 +201,41 @@ func TestCoordinatorUpdateRejectsRelocationDuringRun(t *testing.T) {
 	}
 	if store.patched {
 		t.Fatal("busy relocation mutated the session")
+	}
+}
+
+func TestCoordinatorUpdateRejectsExecutionPolicyChangeWhileParked(t *testing.T) {
+	for name, patch := range map[string]session.Patch{
+		"cwd": func() session.Patch {
+			cwd := "/requested/project"
+			return session.Patch{Cwd: &cwd}
+		}(),
+		"isolation": func() session.Patch {
+			isolated := true
+			return session.Patch{Isolated: &isolated}
+		}(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			store := &crudSessionStore{}
+			stores := &crudStores{
+				session: store,
+				interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{
+					"run_1": {RootRunID: "run_1", SessionID: "ses_1"},
+				}},
+			}
+			coordinator := New(testDependencies(stores, Dependencies{
+				Paths:      testCwdResolver{resolved: "/resolved/project"},
+				Admissions: new(testClaimer),
+			}))
+
+			_, err := coordinator.Update(t.Context(), "ses_1", patch)
+			if !errors.Is(err, ErrSessionBusy) {
+				t.Fatalf("Update error = %v, want ErrSessionBusy", err)
+			}
+			if store.patched {
+				t.Fatal("parked execution policy change mutated the Session")
+			}
+		})
 	}
 }
 

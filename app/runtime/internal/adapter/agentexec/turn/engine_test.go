@@ -199,7 +199,7 @@ func TestStubEngineBudgetStop(t *testing.T) {
 	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "s",
 		Message:   "go",
-		MaxBudget: 1,
+		Limits:    execution.RunLimits{MaxTotalTokens: 1},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -332,6 +332,7 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 		SessionID: "sess-restored",
 		TurnID:    "turn-original",
 		ProcessID: "process-42",
+		RootRunID: "run-root",
 	})
 	if err != nil {
 		t.Fatalf("Rehydrate: %v", err)
@@ -388,6 +389,7 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 		SessionID: "sess-restored",
 		TurnID:    "turn-original",
 		ProcessID: "process-99",
+		RootRunID: "run-root",
 	})
 	if err != nil {
 		t.Fatalf("Rehydrate: %v", err)
@@ -425,6 +427,7 @@ func TestRehydrateCanceledResumeAdmissionRemainsParked(t *testing.T) {
 		SessionID: "sess-restored",
 		TurnID:    "turn-original",
 		ProcessID: "process-99",
+		RootRunID: "run-root",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -480,6 +483,21 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	stub.mu.Unlock()
 	if got != sentinel {
 		t.Errorf("engine received ChatClient %p, want the resolver's client %p", got, sentinel)
+	}
+}
+
+func TestExplicitModelSelectionRequiresResolverBeforeAdmission(t *testing.T) {
+	dispatcher := mustTurn(turn.New(turnDeps(&stubEngine{})))
+	selection := testModelSelection(t, "openai", "gpt-test")
+	if _, err := dispatcher.PrepareTurn(t.Context(), runs.StartTurn{
+		SessionID: "session", Message: "hello", ModelSelection: selection,
+	}); err == nil || !strings.Contains(err.Error(), "requires a client resolver") {
+		t.Fatalf("PrepareTurn error = %v, want missing resolver", err)
+	}
+	if _, err := dispatcher.Rehydrate(t.Context(), runs.RehydrateTurn{
+		SessionID: "session", ProcessID: "process", RootRunID: "run-root", ModelSelection: selection,
+	}); err == nil || !strings.Contains(err.Error(), "requires a client resolver") {
+		t.Fatalf("Rehydrate error = %v, want missing resolver", err)
 	}
 }
 

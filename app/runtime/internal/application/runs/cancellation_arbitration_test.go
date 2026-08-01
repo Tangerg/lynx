@@ -228,8 +228,9 @@ func TestWaitingChildCancellationAndResumeHaveOneApplicationOwner(t *testing.T) 
 		awaitTestBoundary(t, started, "child cancellation durable transaction")
 
 		if _, err := coordinator.Resume(t.Context(), ResumeCommand{
-			RunID:     plan.root.run.ID,
-			Responses: waitingQuestionResponses(plan.pending),
+			RunID:              plan.root.run.ID,
+			CallerCapabilities: plan.pending.ProtocolProfile,
+			Responses:          waitingQuestionResponses(plan.pending),
 		}); !errors.Is(err, ErrSessionBusy) {
 			t.Fatalf("losing Resume error = %v, want ErrSessionBusy", err)
 		}
@@ -283,8 +284,9 @@ func TestWaitingChildCancellationAndResumeHaveOneApplicationOwner(t *testing.T) 
 		resumeDone := make(chan resumeAttemptOutcome, 1)
 		go func() {
 			result, err := coordinator.Resume(t.Context(), ResumeCommand{
-				RunID:     plan.root.run.ID,
-				Responses: waitingQuestionResponses(plan.pending),
+				RunID:              plan.root.run.ID,
+				CallerCapabilities: plan.pending.ProtocolProfile,
+				Responses:          waitingQuestionResponses(plan.pending),
 			})
 			resumeDone <- resumeAttemptOutcome{result: result, err: err}
 		}()
@@ -415,9 +417,9 @@ func runningChildCancellationPlan() cancellationPlan {
 			State:     execution.Running,
 		}},
 		target: cancellationRun{
-			run:       child,
-			source:    ExecutorSource{ProcessID: "process_child", ParentID: "process_root"},
-			hasSource: true,
+			run:        child,
+			processID:  "process_child",
+			hasProcess: true,
 		},
 		targetSubtree: []cancellationRun{{run: child}},
 		treeState:     execution.Running,

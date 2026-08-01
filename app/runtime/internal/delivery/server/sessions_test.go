@@ -121,7 +121,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	if err := hist.AppendItem(ctx, transcript.Item{SessionID: id, RunID: "run_1", ID: "item_1"}); err != nil {
 		t.Fatalf("seed item: %v", err)
 	}
-	if err := ints.Put(ctx, serverPending("run_1", id, "", "", nil, now)); err != nil {
+	if err := ints.Open(ctx, serverPending("run_1", id, "", "", nil, now)); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 	history := map[string][]chat.Message{id: {chat.NewUserMessage(chat.NewTextPart("hi"))}}
@@ -187,7 +187,7 @@ func TestDeleteSession_CancelsParkedTurn(t *testing.T) {
 	ints := sqlite.NewInterruptStore(db)
 	created, _ := svc.Create(ctx, "parked", "/w")
 	id := created.ID
-	if err := ints.Put(ctx, serverPending(
+	if err := ints.Open(ctx, serverPending(
 		"run_parked",
 		id,
 		"turn_parked",

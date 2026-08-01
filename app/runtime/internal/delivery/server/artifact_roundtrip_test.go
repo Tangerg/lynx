@@ -374,7 +374,7 @@ func seedCompletedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 	if err := rt.runs.Restore(t.Context(), transcript.Run{
 		SessionID: sessionID, ID: "run_done", State: execution.Completed,
 		ModelSelection: selection, Outcome: &outcome,
-		Limits: execution.RunLimits{MaxSteps: 12, MaxBudgetUSD: 3.5},
+		Limits: execution.RunLimits{MaxTotalTokens: 32_768, MaxSteps: 12, MaxBudgetUSD: 3.5},
 		Metrics: transcript.RunMetrics{
 			Usage: &transcript.Usage{
 				ModelUsage: transcript.ModelUsage{

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 type fakeOffloader struct {
@@ -25,7 +25,7 @@ func (f *fakeOffloader) Stage(_ context.Context, stage offload.ToolResultStage) 
 }
 
 func sessionCtx(session string) context.Context {
-	return turnctx.WithScope(context.Background(), execution.TurnScope{SessionID: session})
+	return executionctx.WithScope(context.Background(), execution.TurnScope{SessionID: session})
 }
 
 func newObservationWith(store toolResultOffloader, threshold int) *toolObservation {
@@ -85,7 +85,7 @@ func TestEvict_ReadBackToolExcluded(t *testing.T) {
 	obs := newObservationWith(store, 10)
 	body := strings.Repeat("x", 500)
 	// Evicting the read-back tool's own output would loop.
-	if got, ref := obs.evict(sessionCtx("s"), toolport.ToolNameReadToolResult, body); got != body || ref != nil || store.calls != 0 {
+	if got, ref := obs.evict(sessionCtx("s"), tool.NameReadToolResult, body); got != body || ref != nil || store.calls != 0 {
 		t.Fatalf("read-back tool must not be offloaded (calls %d)", store.calls)
 	}
 }

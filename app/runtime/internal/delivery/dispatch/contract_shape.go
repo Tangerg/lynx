@@ -124,6 +124,9 @@ const (
 	// ConstraintPositive rejects zero. A revision or count of zero is not a value
 	// the caller could have meant.
 	ConstraintPositive
+	// ConstraintNonNegative rejects negative numeric values while preserving zero
+	// as the wire spelling of an omitted/unbounded limit.
+	ConstraintNonNegative
 	// ConstraintNonEmptyItems rejects an empty array. An optional narrowing set
 	// already uses absence for "no narrower scope", while a required set names the
 	// minimum recovery or transaction unit. An empty third spelling has no useful
@@ -141,6 +144,8 @@ func (k ConstraintKind) String() string {
 		return "nonEmpty"
 	case ConstraintPositive:
 		return "positive"
+	case ConstraintNonNegative:
+		return "nonNegative"
 	case ConstraintNonEmptyItems:
 		return "nonEmptyItems"
 	case ConstraintUniqueItems:
@@ -159,7 +164,7 @@ type FieldConstraint struct {
 // FieldConstraintSpec declares the value constraints of one wire shape.
 //
 // These are the checks reflection cannot see: that a string must be non-empty,
-// that a number must exceed zero. Closed-enum membership is NOT declared here —
+// that a number must exceed or not fall below zero. Closed-enum membership is NOT declared here —
 // the enum's value set is already declared, so the check is derived from it, and
 // declaring it twice would let the two disagree.
 //
@@ -492,6 +497,10 @@ func (f FieldConstraintSpec) validate() error {
 			if kind != reflect.Uint64 && kind != reflect.Int && kind != reflect.Int64 {
 				return fmt.Errorf("%s.%s is %s; only a number can be positive", name, constraint.Field, kind)
 			}
+		case ConstraintNonNegative:
+			if kind != reflect.Int && kind != reflect.Int64 && kind != reflect.Float64 {
+				return fmt.Errorf("%s.%s is %s; only a number can be non-negative", name, constraint.Field, kind)
+			}
 		case ConstraintNonEmptyItems, ConstraintUniqueItems:
 			// Deref unwraps slices, so the field's own kind is what answers "is this an
 			// array" — the element type is not the subject of an items constraint.
@@ -500,12 +509,13 @@ func (f FieldConstraintSpec) validate() error {
 			}
 		default:
 			return fmt.Errorf(
-				"%s.%s has invalid constraint kind %s; expected %s, %s, %s or %s",
+				"%s.%s has invalid constraint kind %s; expected %s, %s, %s, %s or %s",
 				name,
 				constraint.Field,
 				constraint.Kind,
 				ConstraintNonEmpty,
 				ConstraintPositive,
+				ConstraintNonNegative,
 				ConstraintNonEmptyItems,
 				ConstraintUniqueItems,
 			)

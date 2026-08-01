@@ -15,10 +15,10 @@ import (
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 	"github.com/Tangerg/lynx/tools"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/mcpconnection"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // runAsMCPServerEnv is the env-var sentinel that flips this test
@@ -30,7 +30,7 @@ const runAsMCPServerEnv = "LYRA_TEST_RUN_AS_MCP_SERVER"
 
 func resolvedCodingTools(t *testing.T, resolver *toolset.Resolver) []tools.Tool {
 	t.Helper()
-	group, ok, err := resolver.Resolve(t.Context(), toolport.ToolRoleCoding)
+	group, ok, err := resolver.Resolve(t.Context(), domaintool.GroupCoding)
 	if err != nil || !ok {
 		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 	}

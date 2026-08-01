@@ -3,79 +3,79 @@ package runs
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
-// bindExecutorSource records the immutable application-Run to executor-process
-// edge owned by this root segment. A child binding is reserved before its
-// durable opening commit, closing the otherwise observable gap in which the Run
-// row exists but cancellation cannot address its process.
-func (h *handle) bindExecutorSource(runID string, source ExecutorSource) error {
+// bindExecutorProcess records the immutable application-Run to opaque executor
+// identity owned by this root segment. Executor parent/spawn topology stays in
+// executorRoutes; cancellation needs only the exact process identity it must
+// address. A child binding is reserved before its durable opening commit,
+// closing the otherwise observable gap in which the Run row exists but
+// cancellation cannot address its process.
+func (h *handle) bindExecutorProcess(runID, processID string) error {
 	if h == nil {
-		return errors.New("runs: bind executor source without a live root handle")
+		return errors.New("runs: bind executor process without a live root handle")
 	}
-	if runID == "" {
-		return errors.New("runs: bind executor source without a run id")
+	if strings.TrimSpace(runID) == "" || runID != strings.TrimSpace(runID) {
+		return errors.New("runs: bind executor process without a canonical Run id")
 	}
-	if err := source.Validate(); err != nil {
-		return fmt.Errorf("runs: bind Run %q executor source: %w", runID, err)
-	}
-	if source.ProcessID == "" {
-		return fmt.Errorf("runs: bind Run %q executor source without a process id", runID)
+	if strings.TrimSpace(processID) == "" || processID != strings.TrimSpace(processID) {
+		return fmt.Errorf("runs: bind Run %q without a canonical executor process id", runID)
 	}
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if existing, bound := h.executorSources[runID]; bound {
-		if existing != source {
+	if existing, bound := h.executorProcesses[runID]; bound {
+		if existing != processID {
 			return fmt.Errorf(
-				"runs: Run %q executor source changed from %q to %q",
+				"runs: Run %q executor process changed from %q to %q",
 				runID,
-				existing.ProcessID,
-				source.ProcessID,
+				existing,
+				processID,
 			)
 		}
 		return nil
 	}
-	for existingRunID, existing := range h.executorSources {
-		if existing.ProcessID == source.ProcessID {
+	for existingRunID, existing := range h.executorProcesses {
+		if existing == processID {
 			return fmt.Errorf(
 				"runs: executor process %q is already bound to Run %q, not %q",
-				source.ProcessID,
+				processID,
 				existingRunID,
 				runID,
 			)
 		}
 	}
-	if h.executorSources == nil {
-		h.executorSources = make(map[string]ExecutorSource)
+	if h.executorProcesses == nil {
+		h.executorProcesses = make(map[string]string)
 	}
-	h.executorSources[runID] = source
+	h.executorProcesses[runID] = processID
 	return nil
 }
 
-// unbindExecutorSource rolls back a pre-commit child reservation. It removes
+// unbindExecutorProcess rolls back a pre-commit child reservation. It removes
 // only the exact binding this opening installed, so it cannot erase a later
 // owner after a conflict.
-func (h *handle) unbindExecutorSource(runID string, source ExecutorSource) {
+func (h *handle) unbindExecutorProcess(runID, processID string) {
 	if h == nil {
 		return
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if existing, bound := h.executorSources[runID]; bound && existing == source {
-		delete(h.executorSources, runID)
+	if existing, bound := h.executorProcesses[runID]; bound && existing == processID {
+		delete(h.executorProcesses, runID)
 	}
 }
 
-func (h *handle) executorSourceSnapshot() map[string]ExecutorSource {
+func (h *handle) executorProcessSnapshot() map[string]string {
 	if h == nil {
 		return nil
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	sources := make(map[string]ExecutorSource, len(h.executorSources))
-	for runID, source := range h.executorSources {
-		sources[runID] = source
+	processes := make(map[string]string, len(h.executorProcesses))
+	for runID, processID := range h.executorProcesses {
+		processes[runID] = processID
 	}
-	return sources
+	return processes
 }

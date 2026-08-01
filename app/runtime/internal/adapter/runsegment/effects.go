@@ -52,8 +52,8 @@ type GoalTurnStore interface {
 // A stream segment only records newly-opened interrupts; claim/resume/delete
 // belongs to lifecycle.
 type InterruptStore interface {
-	Put(ctx context.Context, p interrupts.Pending) error
-	Consume(ctx context.Context, runID string) (interrupts.Pending, bool, error)
+	Open(ctx context.Context, p interrupts.Pending) error
+	Consume(ctx context.Context, sessionID, rootRunID string) (interrupts.Pending, bool, error)
 }
 
 // TranscriptStore is the run-segment append side of durable transcript
@@ -85,11 +85,12 @@ type RunWriter interface {
 	Terminalize(ctx context.Context, run transcript.Run) error
 }
 
-// ProcessTreeStore removes durable executor checkpoints selected by the
-// Application lifecycle. It deliberately exposes no snapshot codec: only the
-// execution adapter may interpret checkpoint payloads.
-type ProcessTreeStore interface {
-	DeleteTrees(ctx context.Context, rootIDs []string) error
+// ExecutorCheckpointStore persists and removes root-owned opaque executor
+// checkpoints selected by the Application lifecycle. It never interprets the
+// payload.
+type ExecutorCheckpointStore interface {
+	SaveCheckpoint(ctx context.Context, checkpoint execution.ExecutorCheckpoint) error
+	DeleteCheckpoints(ctx context.Context, sessionID string, rootIDs []string) error
 }
 
 // Transactor runs fn inside one storage transaction: every store call made by
@@ -126,41 +127,41 @@ type FileChangePublisher func(runs.FileChange)
 
 // Config bundles the Effects dependencies.
 type Config struct {
-	Interrupts         InterruptStore
-	Sessions           SessionStore
-	ScheduleFirings    ScheduleFiringStore
-	GoalTurns          GoalTurnStore
-	Transcript         TranscriptStore
-	ItemReplacer       ItemReplacer
-	ToolResults        ToolResultStore
-	Messages           MessageCounter
-	Titles             TitleGenerator
-	RunState           RunWriter
-	ProcessTrees       ProcessTreeStore
-	Tx                 Transactor
-	Checkpoints        Checkpoints
-	Tasks              TaskLauncher
-	PublishFileChanges FileChangePublisher
+	Interrupts          InterruptStore
+	Sessions            SessionStore
+	ScheduleFirings     ScheduleFiringStore
+	GoalTurns           GoalTurnStore
+	Transcript          TranscriptStore
+	ItemReplacer        ItemReplacer
+	ToolResults         ToolResultStore
+	Messages            MessageCounter
+	Titles              TitleGenerator
+	RunState            RunWriter
+	ExecutorCheckpoints ExecutorCheckpointStore
+	Tx                  Transactor
+	Checkpoints         Checkpoints
+	Tasks               TaskLauncher
+	PublishFileChanges  FileChangePublisher
 }
 
 // Effects coordinates run-segment side effects. It is stateless beyond its
 // dependencies and safe to share.
 type Effects struct {
-	interrupts      InterruptStore
-	sessions        SessionStore
-	scheduleFirings ScheduleFiringStore
-	goalTurns       GoalTurnStore
-	transcript      TranscriptStore
-	itemReplacer    ItemReplacer
-	toolResults     ToolResultStore
-	messages        MessageCounter
-	titles          TitleGenerator
-	runState        RunWriter
-	processTrees    ProcessTreeStore
-	tx              Transactor
-	checkpoints     Checkpoints
-	tasks           TaskLauncher
-	publish         FileChangePublisher
+	interrupts          InterruptStore
+	sessions            SessionStore
+	scheduleFirings     ScheduleFiringStore
+	goalTurns           GoalTurnStore
+	transcript          TranscriptStore
+	itemReplacer        ItemReplacer
+	toolResults         ToolResultStore
+	messages            MessageCounter
+	titles              TitleGenerator
+	runState            RunWriter
+	executorCheckpoints ExecutorCheckpointStore
+	tx                  Transactor
+	checkpoints         Checkpoints
+	tasks               TaskLauncher
+	publish             FileChangePublisher
 }
 
 var _ runs.Effects = (*Effects)(nil)
@@ -170,21 +171,21 @@ const runsegmentTracerName = "lynx/lyra/runsegment"
 // New returns an Effects coordinator.
 func New(cfg Config) *Effects {
 	return &Effects{
-		interrupts:      cfg.Interrupts,
-		sessions:        cfg.Sessions,
-		scheduleFirings: cfg.ScheduleFirings,
-		goalTurns:       cfg.GoalTurns,
-		transcript:      cfg.Transcript,
-		itemReplacer:    cfg.ItemReplacer,
-		toolResults:     cfg.ToolResults,
-		messages:        cfg.Messages,
-		titles:          cfg.Titles,
-		runState:        cfg.RunState,
-		processTrees:    cfg.ProcessTrees,
-		tx:              cfg.Tx,
-		checkpoints:     cfg.Checkpoints,
-		tasks:           cfg.Tasks,
-		publish:         cfg.PublishFileChanges,
+		interrupts:          cfg.Interrupts,
+		sessions:            cfg.Sessions,
+		scheduleFirings:     cfg.ScheduleFirings,
+		goalTurns:           cfg.GoalTurns,
+		transcript:          cfg.Transcript,
+		itemReplacer:        cfg.ItemReplacer,
+		toolResults:         cfg.ToolResults,
+		messages:            cfg.Messages,
+		titles:              cfg.Titles,
+		runState:            cfg.RunState,
+		executorCheckpoints: cfg.ExecutorCheckpoints,
+		tx:                  cfg.Tx,
+		checkpoints:         cfg.Checkpoints,
+		tasks:               cfg.Tasks,
+		publish:             cfg.PublishFileChanges,
 	}
 }
 

@@ -81,3 +81,37 @@ func TestSnapshotTotalAggregatesModelsWithCapacityChecks(t *testing.T) {
 		t.Fatal("overflowing snapshot aggregate was accepted")
 	}
 }
+
+func TestSnapshotValidateAdvanceFromRejectsRegression(t *testing.T) {
+	previous := Snapshot{Models: []ModelUsage{{
+		Model: "model",
+		TokenUsage: TokenUsage{
+			PromptTokens: 4, CompletionTokens: 2, ReasoningTokens: 1,
+			CacheReadTokens: 1, CacheWriteTokens: 1,
+		},
+		CostUSD: 0.5,
+		Calls:   2,
+	}}}
+	next := previous
+	next.Models = append([]ModelUsage(nil), previous.Models...)
+	next.Models[0].Calls++
+	if err := next.ValidateAdvanceFrom(previous); err != nil {
+		t.Fatalf("ValidateAdvanceFrom: %v", err)
+	}
+
+	for name, mutate := range map[string]func(*Snapshot){
+		"model removed": func(value *Snapshot) { value.Models = nil },
+		"tokens":        func(value *Snapshot) { value.Models[0].PromptTokens-- },
+		"cost":          func(value *Snapshot) { value.Models[0].CostUSD -= 0.25 },
+		"calls":         func(value *Snapshot) { value.Models[0].Calls-- },
+	} {
+		t.Run(name, func(t *testing.T) {
+			candidate := previous
+			candidate.Models = append([]ModelUsage(nil), previous.Models...)
+			mutate(&candidate)
+			if err := candidate.ValidateAdvanceFrom(previous); err == nil {
+				t.Fatal("ValidateAdvanceFrom accepted cumulative usage regression")
+			}
+		})
+	}
+}

@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 type fakeStore struct {
@@ -25,7 +25,7 @@ func (f *fakeStore) Fetch(_ context.Context, session string, id resultoffload.ID
 }
 
 func sessionCtx(session string) context.Context {
-	return turnctx.WithScope(context.Background(), execution.TurnScope{SessionID: session})
+	return executionctx.WithScope(context.Background(), execution.TurnScope{SessionID: session})
 }
 
 func TestNew_NilStoreOmitted(t *testing.T) {
@@ -43,8 +43,8 @@ func TestNew_ToolName(t *testing.T) {
 	if err != nil || tool == nil {
 		t.Fatalf("New = (%v, %v), want a tool", tool, err)
 	}
-	if got := tool.Definition().Name; got != toolport.ToolNameReadToolResult {
-		t.Fatalf("tool name = %q, want %q", got, toolport.ToolNameReadToolResult)
+	if got := tool.Definition().Name; got != domaintool.NameReadToolResult {
+		t.Fatalf("tool name = %q, want %q", got, domaintool.NameReadToolResult)
 	}
 }
 

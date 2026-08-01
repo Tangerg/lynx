@@ -1,6 +1,10 @@
 package dispatch
 
-import "github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+import (
+	"reflect"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+)
 
 // The value constraints of wire shapes.
 //
@@ -64,8 +68,21 @@ func registerRunValues(s *Shapes) {
 		GoType: typeOf[protocol.StartRunRequest](),
 		Constraints: []FieldConstraint{
 			{Field: "input", Kind: ConstraintNonEmptyItems},
+			{Field: "maxTotalTokens", Kind: ConstraintNonNegative},
+			{Field: "maxSteps", Kind: ConstraintNonNegative},
+			{Field: "maxBudgetUsd", Kind: ConstraintNonNegative},
 		},
 	})
+	for _, limits := range []any{protocol.RunLimits{}, protocol.ArtifactRunLimits{}} {
+		s.valueConstraint(FieldConstraintSpec{
+			GoType: reflect.TypeOf(limits),
+			Constraints: []FieldConstraint{
+				{Field: "maxTotalTokens", Kind: ConstraintNonNegative},
+				{Field: "maxSteps", Kind: ConstraintNonNegative},
+				{Field: "maxBudgetUsd", Kind: ConstraintNonNegative},
+			},
+		})
+	}
 	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.ResumeRunRequest](),
 		Constraints: []FieldConstraint{

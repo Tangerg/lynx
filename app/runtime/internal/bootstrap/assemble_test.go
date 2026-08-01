@@ -24,6 +24,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/chatclient"
@@ -99,11 +100,11 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 			want: "runtime: RunStore is required",
 		},
 		{
-			name: "process store",
+			name: "executor checkpoint store",
 			edit: func(cfg *Config) {
-				cfg.ProcessStore = nil
+				cfg.ExecutorCheckpoints = nil
 			},
-			want: "runtime: ProcessStore is required",
+			want: "runtime: ExecutorCheckpoints is required",
 		},
 		{
 			name: "transactor",
@@ -359,21 +360,21 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 		t.Fatalf("open sqlite: %v", err)
 	}
 
-	processes := sqlitestore.NewProcessStore(db)
+	checkpoints := sqlitestore.NewExecutorCheckpointStore(db)
 	return Config{
 		Engine: agentexec.Config{
 			ChatClient:   client,
 			BuildID:      "sha256:0000000000000000000000000000000000000000000000000000000000000000",
 			HistoryStore: sqlitestore.NewMessageStore(db),
 		},
-		ProviderRegistry: sqlitestore.NewProviderStore(db),
-		MCPRegistry:      sqlitestore.NewMCPServerStore(db),
-		SessionStore:     sqlitestore.NewSessionStore(db),
-		InterruptStore:   sqlitestore.NewInterruptStore(db),
-		TranscriptStore:  sqlitestore.NewTranscriptStore(db),
-		FeedbackStore:    sqlitestore.NewFeedbackStore(db),
-		RunStore:         sqlitestore.NewRunStore(db),
-		ProcessStore:     processes,
+		ProviderRegistry:    sqlitestore.NewProviderStore(db),
+		MCPRegistry:         sqlitestore.NewMCPServerStore(db),
+		SessionStore:        sqlitestore.NewSessionStore(db),
+		InterruptStore:      sqlitestore.NewInterruptStore(db),
+		TranscriptStore:     sqlitestore.NewTranscriptStore(db),
+		FeedbackStore:       sqlitestore.NewFeedbackStore(db),
+		RunStore:            sqlitestore.NewRunStore(db),
+		ExecutorCheckpoints: checkpoints,
 		Transactor: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlitestore.RunInTx(ctx, db, fn)
 		},
@@ -395,12 +396,24 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 		ItemID: "item_park", RunID: runID, Kind: execution.QuestionInterrupt, Question: question,
 	}}
 
-	if err := cfg.RunStore.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, SegmentID: "seg_open", CreatedAt: createdAt}); err != nil {
+	if _, err := cfg.SessionStore.Ensure(ctx, session.Session{
+		ID: sessionID, Cwd: t.TempDir(), StartedAt: createdAt, UpdatedAt: createdAt,
+	}); err != nil {
+		t.Fatalf("ensure session: %v", err)
+	}
+	profile := execution.RunProtocolProfile{
+		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+	}
+	if err := cfg.RunStore.Admit(ctx, execution.RunDraft{
+		RunID: runID, SessionID: sessionID, SegmentID: "seg_open",
+		ProtocolProfile: profile, CreatedAt: createdAt,
+	}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	if err := cfg.RunStore.Suspend(ctx, transcript.Run{
 		SessionID: sessionID, ID: runID, State: execution.Interrupted,
-		Interrupts: open, CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
+		ProtocolProfile: profile,
+		Interrupts:      open, CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
 	}); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
@@ -411,7 +424,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("put transcript item: %v", err)
 	}
-	if err := cfg.InterruptStore.Put(ctx, bootstrapPending(
+	if err := cfg.InterruptStore.Open(ctx, bootstrapPending(
 		runID,
 		sessionID,
 		processID,
@@ -419,9 +432,9 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 		createdAt,
 		parkedAt,
 	)); err != nil {
-		t.Fatalf("put interrupt: %v", err)
+		t.Fatalf("open interrupt: %v", err)
 	}
-	if err := cfg.ProcessStore.SaveTree(ctx, bootstrapSnapshotTree(processID, core.ProcessSnapshot{
+	tree := bootstrapSnapshotTree(processID, core.ProcessSnapshot{
 		SchemaVersion: core.ProcessSnapshotSchemaVersion,
 		ID:            processID,
 		Deployment:    core.DeploymentRef{Name: "chat-agent", Digest: "different-build"},
@@ -434,8 +447,9 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
 			CreatedAt:     parkedAt,
 		},
-	}), bootstrapCheckpoint(sessionID, accounting.Snapshot{})); err != nil {
-		t.Fatalf("save process snapshot: %v", err)
+	})
+	if err := cfg.ExecutorCheckpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(tree, sessionID, accounting.Snapshot{})); err != nil {
+		t.Fatalf("save executor checkpoint: %v", err)
 	}
 
 	assembly := NewAssembly(cfg)
@@ -448,8 +462,8 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	if pending, err := cfg.InterruptStore.List(ctx, sessionID); err != nil || len(pending) != 0 {
 		t.Fatalf("pending after assemble = (%+v, %v), want none", pending, err)
 	}
-	if _, _, err := cfg.ProcessStore.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessStateNotFound) {
-		t.Fatalf("process snapshot after assemble = %v, want not found", err)
+	if _, err := cfg.ExecutorCheckpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("executor checkpoint after assemble = %v, want not found", err)
 	}
 	runs, err := cfg.RunStore.ListRuns(ctx, sessionID)
 	if err != nil || len(runs) != 1 || runs[0].Error == nil || runs[0].Error.Kind != transcript.RunLostProblem {

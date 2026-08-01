@@ -497,6 +497,12 @@
           }
         },
         {
+          "name": "maxTotalTokens",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
           "name": "maxSteps",
           "schema": {
             "type": "integer"

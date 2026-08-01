@@ -9,22 +9,22 @@ import (
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/codebasesearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolsearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/httpreq"
 )
 
 // The per-turn application-context seam (cwd, session, isolation, goal lease)
-// lives in package turnctx — the resolver, per-tool packages, and prompt
+// lives in package executionctx — the resolver, per-tool packages, and prompt
 // composition all read it inward without coupling to each other.
 
 // Resolver is the engine-scope [core.ToolGroupResolver] for the
@@ -83,7 +83,7 @@ const (
 )
 
 func (a toolAudience) includes(role string) bool {
-	return a == toolAudienceBoth || role == toolport.ToolRoleCoding
+	return a == toolAudienceBoth || role == domaintool.GroupCoding
 }
 
 type toolPlacement uint8
@@ -234,7 +234,7 @@ func (r *Resolver) appendStaticTools(ctx context.Context, into []tools.Tool, pla
 			if r.goalActive == nil {
 				continue
 			}
-			active, err := r.goalActive(ctx, turnctx.TurnSession(ctx))
+			active, err := r.goalActive(ctx, executionctx.SessionID(ctx))
 			if err != nil {
 				return nil, fmt.Errorf("toolset: resolve update_goal availability: %w", err)
 			}
@@ -348,7 +348,7 @@ func (*Resolver) Name() string { return "coding-tools" }
 
 func (r *Resolver) Resolve(_ context.Context, role string) (core.ToolGroup, bool, error) {
 	switch role {
-	case toolport.ToolRoleCoding, toolport.ToolRoleSubtask:
+	case domaintool.GroupCoding, domaintool.GroupSubtask:
 		return &toolGroup{resolver: r, role: role}, true, nil
 	default:
 		return nil, false, nil // unknown role — the runtime skips to the next resolver
@@ -358,7 +358,7 @@ func (r *Resolver) Resolve(_ context.Context, role string) (core.ToolGroup, bool
 // workdirFor reads the per-turn working directory, falling back to the
 // engine default.
 func (r *Resolver) workdirFor(ctx context.Context) string {
-	return turnctx.TurnCwd(ctx, r.defaultWorkdir)
+	return executionctx.CWD(ctx, r.defaultWorkdir)
 }
 
 func (r *Resolver) workdirTools(workdir string) []tools.Tool {
@@ -427,7 +427,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	if task := g.resolver.taskTool(); task != nil {
 		tools = append(tools, task)
 	}
-	if g.role == toolport.ToolRoleCoding {
+	if g.role == domaintool.GroupCoding {
 		// The remaining schedule, authoring, and active-goal capabilities are
 		// product-root operations rather than generic child execution tools.
 		tools, err = g.resolver.appendStaticTools(ctx, tools, toolCodingTail, g.role, false)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
@@ -19,6 +20,7 @@ type subagentLifecycle struct {
 	sessionID string
 	cwd       string
 	hooks     *hooks.Bound
+	childRun  func(string) (runs.ChildRunBinding, bool)
 	project   func(string) (agentexec.SubagentProjection, bool)
 }
 
@@ -26,12 +28,13 @@ func newSubagentLifecycle(
 	sessionID string,
 	cwd string,
 	bound *hooks.Bound,
+	childRun func(string) (runs.ChildRunBinding, bool),
 	project func(string) (agentexec.SubagentProjection, bool),
 ) *subagentLifecycle {
 	if !bound.Handles(hooks.SubagentStart, hooks.SubagentStop) {
 		return nil
 	}
-	return &subagentLifecycle{sessionID: sessionID, cwd: cwd, hooks: bound, project: project}
+	return &subagentLifecycle{sessionID: sessionID, cwd: cwd, hooks: bound, childRun: childRun, project: project}
 }
 
 // confirmRoot binds a restored process, or verifies that the synchronous
@@ -82,10 +85,16 @@ func (l *subagentLifecycle) fireSubagentHook(ctx context.Context, e event.Event)
 	if rootID == "" || e.ProcessID() == rootID {
 		return
 	}
+	if l.childRun == nil {
+		return
+	}
+	binding, ok := l.childRun(e.ProcessID())
+	if !ok {
+		return
+	}
 	switch ev := e.(type) {
 	case event.ProcessCreated:
-		in := l.subagentInput(e.ProcessID(), "")
-		in.ParentProcessID = ev.ParentID
+		in := l.subagentInput(binding, "")
 		_ = l.hooks.Run(ctx, hooks.Input{
 			Event:     hooks.SubagentStart,
 			SessionID: l.sessionID,
@@ -93,15 +102,15 @@ func (l *subagentLifecycle) fireSubagentHook(ctx context.Context, e event.Event)
 			Subagent:  &in,
 		})
 	case event.ProcessCompleted:
-		l.runSubagentStopHook(ctx, e, hooks.SubagentCompleted, "")
+		l.runSubagentStopHook(ctx, binding, hooks.SubagentCompleted, "")
 	case event.ProcessFailed:
-		l.runSubagentStopHook(ctx, e, hooks.SubagentFailed, errorString(ev.Err))
+		l.runSubagentStopHook(ctx, binding, hooks.SubagentFailed, errorString(ev.Err))
 	case event.ProcessKilled:
-		l.runSubagentStopHook(ctx, e, hooks.SubagentKilled, ev.Reason)
+		l.runSubagentStopHook(ctx, binding, hooks.SubagentKilled, ev.Reason)
 	case event.ProcessTerminated:
-		l.runSubagentStopHook(ctx, e, hooks.SubagentTerminated, ev.Reason)
+		l.runSubagentStopHook(ctx, binding, hooks.SubagentTerminated, ev.Reason)
 	case event.ProcessStuck:
-		l.runSubagentStopHook(ctx, e, hooks.SubagentStuck, "")
+		l.runSubagentStopHook(ctx, binding, hooks.SubagentStuck, "")
 	}
 }
 
@@ -118,10 +127,9 @@ func (l *subagentLifecycle) projection(processID string) (agentexec.SubagentProj
 // whether a reply belongs in it: only a subagent that reached its goal has one,
 // so every other terminal status describes a process that stopped before
 // producing an answer. The start hook passes the zero status.
-func (l *subagentLifecycle) subagentInput(processID string, status hooks.SubagentStatus) hooks.SubagentInput {
-	in := hooks.SubagentInput{ProcessID: processID, Status: status}
-	if projection, ok := l.projection(processID); ok {
-		in.ParentProcessID = projection.ParentProcessID
+func (l *subagentLifecycle) subagentInput(binding runs.ChildRunBinding, status hooks.SubagentStatus) hooks.SubagentInput {
+	in := hooks.SubagentInput{RunID: binding.RunID, ParentRunID: binding.ParentRunID, Status: status}
+	if projection, ok := l.projection(binding.ProcessID); ok {
 		in.Description = projection.Description
 		in.Prompt = summarizeHookText(projection.Prompt)
 		if status == hooks.SubagentCompleted {
@@ -131,8 +139,8 @@ func (l *subagentLifecycle) subagentInput(processID string, status hooks.Subagen
 	return in
 }
 
-func (l *subagentLifecycle) runSubagentStopHook(ctx context.Context, e event.Event, status hooks.SubagentStatus, errText string) {
-	in := l.subagentInput(e.ProcessID(), status)
+func (l *subagentLifecycle) runSubagentStopHook(ctx context.Context, binding runs.ChildRunBinding, status hooks.SubagentStatus, errText string) {
+	in := l.subagentInput(binding, status)
 	in.Error = errText
 	_ = l.hooks.Run(ctx, hooks.Input{
 		Event:     hooks.SubagentStop,

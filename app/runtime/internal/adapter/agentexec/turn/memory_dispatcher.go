@@ -23,7 +23,8 @@ import (
 
 // clientResolver resolves a per-turn chat client for one explicit model
 // selection. It is turn's own narrow dependency on the runtime model registry;
-// an unavailable provider or model is reported as an error.
+// success returns a non-nil client, while an unavailable provider or model is
+// reported as an error.
 type clientResolver interface {
 	ResolveClient(ctx context.Context, selection modelref.Selection) (*chatclient.Client, error)
 }
@@ -47,7 +48,7 @@ type ApprovalGate interface {
 }
 
 // turnIDPrefix tags adapter-local turn handles. A TurnID is neither the stable
-// domain RunID nor the agent process snapshot id, so it has its own namespace.
+// domain RunID nor an executor process ID, so it has its own namespace.
 const turnIDPrefix = "turn_"
 
 func newTurnID() string { return turnIDPrefix + uuid.NewString() }
@@ -75,7 +76,7 @@ type Dependencies struct {
 	Approval ApprovalGate
 
 	// ClientResolver resolves an explicit per-turn provider/model client. nil
-	// keeps every turn on the engine default client.
+	// supports only unset selections, which use the engine default client.
 	ClientResolver clientResolver
 
 	// Todos reads the session's todo list for state.snapshot projection after a
@@ -143,7 +144,7 @@ type memoryDispatcher struct {
 	steering    SteeringSink
 	maintenance BoundaryMaintenance // optional — nil = no turn-boundary maintenance
 	approval    ApprovalGate
-	resolver    clientResolver // optional — nil = always use the default model
+	resolver    clientResolver // optional — nil accepts only the default model
 	todos       todoReader     // optional — nil = no state.snapshot{todos} projection
 
 	// mcpToolAutoApproved reports whether an identified MCP tool skips the

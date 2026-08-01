@@ -35,9 +35,15 @@ const (
 	// BoundarySegmentEvent is the one transaction per run event: the open
 	// interrupt, the transcript items, and the lifecycle transition together.
 	BoundarySegmentEvent TransactionBoundary = "runsegment.event"
+	// BoundaryWaitingSubtreeCancellation is the transaction that replaces one
+	// parked child subtree while preserving or resuming the surviving tree.
+	BoundaryWaitingSubtreeCancellation TransactionBoundary = "runsegment.waiting_subtree_cancel"
 	// BoundaryRunRecovery is the boot sweep that converges Runs whose executor
 	// vanished while the process was down.
 	BoundaryRunRecovery TransactionBoundary = "runs.recovery"
+	// BoundaryParkedTermination is the online cancellation or executor-loss write
+	// that ends every member of a parked Run tree and consumes its hand-off.
+	BoundaryParkedTermination TransactionBoundary = "sessions.parked_terminal"
 	// BoundarySessionRollback truncates a session's history at a run boundary.
 	BoundarySessionRollback TransactionBoundary = "sessions.rollback"
 	// BoundarySessionDelete removes a session and everything it owns.
@@ -89,6 +95,18 @@ var systemInvariants = []SystemInvariantSpec{{
 	Why: "A Run tree parked without one complete pending set cannot be resumed " +
 		"atomically; clients would observe only part of a barrier that can never move.",
 	Boundaries: []TransactionBoundary{BoundarySegmentEvent, BoundaryRunRecovery},
+}, {
+	Key: "parked_continuation_matches_run_facts",
+	Why: "A continuation is a hand-off of the admitted Run, not a second author. " +
+		"If its model, cumulative accounting, limits, lineage, creation time, goal " +
+		"lease or protocol contract differs, resume or teardown would rewrite history.",
+	Boundaries: []TransactionBoundary{
+		BoundarySegmentOpening,
+		BoundarySegmentEvent,
+		BoundaryWaitingSubtreeCancellation,
+		BoundaryRunRecovery,
+		BoundaryParkedTermination,
+	},
 }, {
 	Key: "dropped_run_leaves_nothing_behind",
 	Why: "A dropped Run's items, interrupts, checkpoints and admission slot must " +

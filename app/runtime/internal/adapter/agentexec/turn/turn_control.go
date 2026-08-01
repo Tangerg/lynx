@@ -99,20 +99,20 @@ func (s *memoryDispatcher) PrepareWaitingSubtreeCancellation(
 ) (runs.PreparedWaitingSubtreeCancellation, error) {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
-		return nil, err
+		return runs.PreparedWaitingSubtreeCancellation{}, err
 	}
 	state.lifecycleMu.Lock()
 	defer state.lifecycleMu.Unlock()
 	if state.released() {
-		return nil, ErrTurnNotFound
+		return runs.PreparedWaitingSubtreeCancellation{}, ErrTurnNotFound
 	}
 	if !state.claimWaitingMutation() {
-		return nil, ErrParkClaimed
+		return runs.PreparedWaitingSubtreeCancellation{}, ErrParkClaimed
 	}
 	process := state.process()
 	if process == nil {
 		state.abortWaitingMutation()
-		return nil, fmt.Errorf(
+		return runs.PreparedWaitingSubtreeCancellation{}, fmt.Errorf(
 			"turn: prepare waiting process subtree %q: turn %q has no process",
 			processID,
 			handle.TurnID,
@@ -121,12 +121,12 @@ func (s *memoryDispatcher) PrepareWaitingSubtreeCancellation(
 	planner, ok := process.(agentexec.WaitingSubtreePlanner)
 	if !ok {
 		state.abortWaitingMutation()
-		return nil, errors.New("turn: process does not support planning a waiting subtree cancellation")
+		return runs.PreparedWaitingSubtreeCancellation{}, errors.New("turn: process does not support planning a waiting subtree cancellation")
 	}
 	plan, err := planner.PlanWaitingSubtreeCancellation(ctx, processID)
 	if err != nil {
 		state.abortWaitingMutation()
-		return nil, fmt.Errorf(
+		return runs.PreparedWaitingSubtreeCancellation{}, fmt.Errorf(
 			"turn: plan waiting process subtree %q in turn %q: %w",
 			processID,
 			handle.TurnID,
@@ -139,7 +139,7 @@ func (s *memoryDispatcher) PrepareWaitingSubtreeCancellation(
 		interrupt, ok := typedInterrupt(boundary.Prompt)
 		if !ok {
 			state.abortWaitingMutation()
-			return nil, fmt.Errorf(
+			return runs.PreparedWaitingSubtreeCancellation{}, fmt.Errorf(
 				"turn: planned process %q suspension %q has an unsupported interrupt payload",
 				boundary.ProcessID,
 				boundary.SuspensionID,
@@ -151,54 +151,22 @@ func (s *memoryDispatcher) PrepareWaitingSubtreeCancellation(
 			Interrupt:    interrupt,
 		}
 	}
-	return &preparedWaitingSubtreeCancellation{
-		dispatcher:  s,
-		state:       state,
-		plan:        plan,
-		canceledIDs: plan.CanceledProcessIDs(),
-		suspensions: projected,
+	mutation := &preparedWaitingSubtreeCancellation{dispatcher: s, state: state, plan: plan}
+	return runs.PreparedWaitingSubtreeCancellation{
+		CanceledProcessIDs: plan.CanceledProcessIDs(),
+		PendingSuspensions: projected,
+		Checkpoint:         plan.Checkpoint(),
+		Mutation:           mutation,
 	}, nil
 }
 
 type preparedWaitingSubtreeCancellation struct {
 	mu sync.Mutex
 
-	dispatcher  *memoryDispatcher
-	state       *turnState
-	plan        agentexec.WaitingSubtreeCancellationPlan
-	canceledIDs []string
-	suspensions []runs.ProcessSuspension
-	settled     bool
-}
-
-func (prepared *preparedWaitingSubtreeCancellation) CanceledProcessIDs() []string {
-	if prepared == nil {
-		return nil
-	}
-	prepared.mu.Lock()
-	defer prepared.mu.Unlock()
-	return append([]string(nil), prepared.canceledIDs...)
-}
-
-func (prepared *preparedWaitingSubtreeCancellation) PendingSuspensions() []runs.ProcessSuspension {
-	if prepared == nil {
-		return nil
-	}
-	prepared.mu.Lock()
-	defer prepared.mu.Unlock()
-	return append([]runs.ProcessSuspension(nil), prepared.suspensions...)
-}
-
-func (prepared *preparedWaitingSubtreeCancellation) PersistCheckpoint(ctx context.Context) error {
-	if prepared == nil || prepared.plan == nil {
-		return errors.New("turn: persist waiting subtree cancellation: incomplete plan")
-	}
-	prepared.mu.Lock()
-	defer prepared.mu.Unlock()
-	if prepared.settled {
-		return errors.New("turn: persist waiting subtree cancellation after settlement")
-	}
-	return prepared.plan.PersistCheckpoint(ctx)
+	dispatcher *memoryDispatcher
+	state      *turnState
+	plan       agentexec.WaitingSubtreeCancellationPlan
+	settled    bool
 }
 
 func (prepared *preparedWaitingSubtreeCancellation) Commit(

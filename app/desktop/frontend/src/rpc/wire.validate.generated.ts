@@ -587,8 +587,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     ),
   ]),
   ArtifactRunLimits: object({
-    maxBudgetUsd: numeric(),
-    maxSteps: integer(),
+    maxBudgetUsd: allOf([numeric(), minimum(0)]),
+    maxSteps: allOf([integer(), minimum(0)]),
+    maxTotalTokens: allOf([integer(), minimum(0)]),
   }, []),
   ArtifactRunMetrics: object({
     activeDurationMs: integer(),
@@ -1657,8 +1658,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     timestamp: text(),
   }, ["event", "eventId", "runId", "segmentId", "timestamp"]),
   RunLimits: object({
-    maxBudgetUsd: numeric(),
-    maxSteps: integer(),
+    maxBudgetUsd: allOf([numeric(), minimum(0)]),
+    maxSteps: allOf([integer(), minimum(0)]),
+    maxTotalTokens: allOf([integer(), minimum(0)]),
   }, []),
   RunMetrics: object({
     activeDurationMs: integer(),
@@ -2188,8 +2190,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["objective", "sessionId"]),
   StartRunRequest: object({
     input: allOf([array(ref(() => CHECKS.ContentBlock)), minItems(1)]),
-    maxBudgetUsd: numeric(),
-    maxSteps: integer(),
+    maxBudgetUsd: allOf([numeric(), minimum(0)]),
+    maxSteps: allOf([integer(), minimum(0)]),
+    maxTotalTokens: allOf([integer(), minimum(0)]),
     model: text(),
     params: ref(() => CHECKS.GenerationParams),
     provider: text(),

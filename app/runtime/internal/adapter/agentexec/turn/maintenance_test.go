@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/chatclient"
 )
 
 type recordingMaintenance struct {
@@ -35,8 +36,13 @@ func TestTurnDelegatesCleanBoundaryMaintenanceAndPublishesCompaction(t *testing.
 	maintenance := &recordingMaintenance{result: turn.BoundaryMaintenanceResult{
 		Compaction: turn.CompactionResult{Compacted: true, MessagesBefore: 12, MessagesAfter: 5},
 	}}
+	client, err := chatclient.New(newCapturingModel())
+	if err != nil {
+		t.Fatalf("chatclient.New: %v", err)
+	}
 	dispatcher, err := turn.New(turnDeps(engine, func(deps *turn.Dependencies) {
 		deps.Maintenance = maintenance
+		deps.ClientResolver = &fakeResolver{client: client}
 	}))
 	if err != nil {
 		t.Fatalf("New: %v", err)

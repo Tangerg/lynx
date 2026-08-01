@@ -19,6 +19,7 @@ import (
 // Segment reducer.
 type executorRoute struct {
 	source           ExecutorSource
+	sourceBound      bool
 	runID            string
 	segmentID        string
 	rootRunID        string
@@ -35,6 +36,7 @@ type executorRoutes struct {
 	rootBound      bool
 	root           *executorRoute
 	byProcess      map[string]*executorRoute
+	byRunID        map[string]*executorRoute
 	admissionOrder []*executorRoute
 }
 
@@ -66,6 +68,7 @@ func (c *Coordinator) openingRoutes(
 	return &executorRoutes{
 		root:           root,
 		byProcess:      make(map[string]*executorRoute),
+		byRunID:        map[string]*executorRoute{root.runID: root},
 		admissionOrder: []*executorRoute{root},
 	}, nil
 }
@@ -96,8 +99,8 @@ func (c *Coordinator) resumedExecutorRoutes(
 	routes := &executorRoutes{
 		rootBound: true,
 		byProcess: make(map[string]*executorRoute, len(continuation.continuations)),
+		byRunID:   make(map[string]*executorRoute, len(continuation.continuations)),
 	}
-	byRunID := make(map[string]*executorRoute, len(continuation.continuations))
 	segmentIDs := map[string]struct{}{spec.SegmentID: {}}
 	for _, member := range continuation.continuations {
 		segmentID := spec.SegmentID
@@ -117,16 +120,13 @@ func (c *Coordinator) resumedExecutorRoutes(
 			}
 			segmentIDs[segmentID] = struct{}{}
 		}
-		source := ExecutorSource{
-			ProcessID:   member.ProcessID,
-			ParentID:    member.ParentProcessID,
-			SpawnCallID: member.SpawnCallID,
-		}
+		source := ExecutorSource{ProcessID: member.ProcessID}
 		if err := source.Validate(); err != nil {
 			return nil, fmt.Errorf("runs: resumed Run %q source: %w", member.RunID, err)
 		}
 		route := &executorRoute{
 			source:           source,
+			sourceBound:      member.Lineage.IsRoot(),
 			runID:            member.RunID,
 			segmentID:        segmentID,
 			rootRunID:        continuation.rootRunID,
@@ -152,7 +152,7 @@ func (c *Coordinator) resumedExecutorRoutes(
 			Now: c.now, CancelReason: cancellationReason(cancelReason, route.runID),
 		})
 		routes.byProcess[source.ProcessID] = route
-		byRunID[route.runID] = route
+		routes.byRunID[route.runID] = route
 		if route.runID == continuation.rootRunID {
 			routes.root = route
 		}
@@ -160,8 +160,8 @@ func (c *Coordinator) resumedExecutorRoutes(
 	if routes.root == nil {
 		return nil, errors.New("runs: resumed tree has no root route")
 	}
-	children := make(map[string][]*executorRoute, len(byRunID))
-	for _, route := range byRunID {
+	children := make(map[string][]*executorRoute, len(routes.byRunID))
+	for _, route := range routes.byRunID {
 		if route == routes.root {
 			continue
 		}
@@ -260,11 +260,37 @@ func (route *executorRoute) activeDuration(boundary time.Time) time.Duration {
 // after [Coordinator.openChildRun] commits and installs their exact identity.
 func (routes *executorRoutes) resolve(source ExecutorSource) (*executorRoute, error) {
 	if source.Child() {
+		if source.SpawnCallID == "" {
+			return nil, fmt.Errorf("runs: child executor source %q has no spawn-call identity", source.ProcessID)
+		}
 		route := routes.byProcess[source.ProcessID]
 		if route == nil {
 			return nil, fmt.Errorf("runs: child executor source %q has no admitted child run", source.ProcessID)
 		}
-		if route.source != source {
+		if !route.lineage.IsChild() {
+			return nil, fmt.Errorf("runs: root Run %q emitted a child executor source", route.runID)
+		}
+		if !route.sourceBound {
+			parent := routes.byRunID[route.lineage.ParentRunID]
+			if parent == nil || parent.source.ProcessID == "" {
+				return nil, fmt.Errorf(
+					"runs: resumed child Run %q has no bound parent Run %q",
+					route.runID,
+					route.lineage.ParentRunID,
+				)
+			}
+			if source.ParentID != parent.source.ProcessID {
+				return nil, fmt.Errorf(
+					"runs: resumed child executor source %q names parent %q, want Run %q process %q",
+					source.ProcessID,
+					source.ParentID,
+					parent.runID,
+					parent.source.ProcessID,
+				)
+			}
+			route.source = source
+			route.sourceBound = true
+		} else if route.source != source {
 			return nil, fmt.Errorf("runs: child executor source %q changed immutable lineage", source.ProcessID)
 		}
 		if route.segmentFinished {
@@ -276,6 +302,7 @@ func (routes *executorRoutes) resolve(source ExecutorSource) (*executorRoute, er
 	if !routes.rootBound {
 		routes.rootBound = true
 		routes.root.source = source
+		routes.root.sourceBound = true
 		if source.ProcessID != "" {
 			routes.byProcess[source.ProcessID] = routes.root
 		}
@@ -331,7 +358,9 @@ func (routes *executorRoutes) parent(source ExecutorSource) (*executorRoute, err
 
 func (routes *executorRoutes) installChild(source ExecutorSource, route *executorRoute) {
 	route.source = source
+	route.sourceBound = true
 	routes.byProcess[source.ProcessID] = route
+	routes.byRunID[route.runID] = route
 	routes.admissionOrder = append(routes.admissionOrder, route)
 }
 
@@ -549,13 +578,13 @@ func (c *Coordinator) openChildRun(
 		Now:             c.now,
 		CancelReason:    cancellationReason(live.CancelReasonFor, child.runID),
 	})
-	if err := live.bindExecutorSource(child.runID, source); err != nil {
+	if err := live.bindExecutorProcess(child.runID, source.ProcessID); err != nil {
 		return nil, reductionBatch{}, err
 	}
 	bindingCommitted := false
 	defer func() {
 		if !bindingCommitted {
-			live.unbindExecutorSource(child.runID, source)
+			live.unbindExecutorProcess(child.runID, source.ProcessID)
 		}
 	}()
 	projected, err := child.reducer.open()

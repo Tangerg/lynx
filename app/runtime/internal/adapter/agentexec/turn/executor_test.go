@@ -83,8 +83,8 @@ func TestExecutorTranslatesTurnReference(t *testing.T) {
 }
 
 func TestExecutorMapsLostProcessSnapshot(t *testing.T) {
-	err := mapControlError(agentexec.ErrProcessSnapshotLost)
-	if !errors.Is(err, runs.ErrTurnStateLost) || !errors.Is(err, agentexec.ErrProcessSnapshotLost) {
+	err := mapControlError(agentexec.ErrExecutorCheckpointLost)
+	if !errors.Is(err, runs.ErrTurnStateLost) || !errors.Is(err, agentexec.ErrExecutorCheckpointLost) {
 		t.Fatalf("mapControlError = %v, want both turn-state and snapshot-loss identities", err)
 	}
 }

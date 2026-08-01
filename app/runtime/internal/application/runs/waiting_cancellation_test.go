@@ -36,31 +36,66 @@ func (projection *fakeItemProjection) Item(
 type fakePreparedWaitingCancellation struct {
 	canceled    []string
 	suspensions []ProcessSuspension
-	persistErr  error
+	checkpoint  *execution.ExecutorCheckpoint
 	commitErr   error
 	// settleOnCommitError models the real turn adapter's post-commit Continue
 	// failure: the planned runtime transition is already applied, so Abort must
 	// be a no-op while the opened segment error-terminalizes.
 	settleOnCommitError bool
 
-	persisted   int
 	disposition WaitingSubtreeDisposition
 	committed   int
 	aborted     int
 	settled     bool
 }
 
-func (prepared *fakePreparedWaitingCancellation) CanceledProcessIDs() []string {
-	return slices.Clone(prepared.canceled)
+func (prepared *fakePreparedWaitingCancellation) value() PreparedWaitingSubtreeCancellation {
+	checkpoint := testExecutorCheckpoint()
+	if prepared.checkpoint != nil {
+		checkpoint = prepared.checkpoint.Clone()
+	}
+	return PreparedWaitingSubtreeCancellation{
+		CanceledProcessIDs: slices.Clone(prepared.canceled),
+		PendingSuspensions: slices.Clone(prepared.suspensions),
+		Checkpoint:         checkpoint,
+		Mutation:           prepared,
+	}
 }
 
-func (prepared *fakePreparedWaitingCancellation) PendingSuspensions() []ProcessSuspension {
-	return slices.Clone(prepared.suspensions)
-}
-
-func (prepared *fakePreparedWaitingCancellation) PersistCheckpoint(context.Context) error {
-	prepared.persisted++
-	return prepared.persistErr
+func TestPrepareWaitingCancellationRejectsCheckpointBoundToDifferentApplicationFacts(t *testing.T) {
+	plan := waitingCancellationPlan(t, "run_a", false)
+	for name, mutate := range map[string]func(*execution.ExecutorCheckpoint){
+		"root":       func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.RootProcessID = "other_root" },
+		"session":    func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Scope.SessionID = "other_session" },
+		"goal lease": func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = "other_goal" },
+		"provider": func(checkpoint *execution.ExecutorCheckpoint) {
+			checkpoint.ModelSelection = mustSelection("anthropic", checkpoint.ModelSelection.Model())
+		},
+		"model": func(checkpoint *execution.ExecutorCheckpoint) {
+			checkpoint.ModelSelection = mustSelection(checkpoint.ModelSelection.Provider(), "other-model")
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			checkpoint := testExecutorCheckpoint()
+			mutate(&checkpoint)
+			prepared := &fakePreparedWaitingCancellation{
+				canceled:   []string{"process_a", "process_grandchild"},
+				checkpoint: &checkpoint,
+			}
+			_, err := prepareWaitingCancellationTransformation(
+				plan,
+				"stop delegated branch",
+				time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
+				prepared.value(),
+			)
+			if !errors.Is(err, execution.ErrInvalidExecutorCheckpoint) {
+				t.Fatalf("prepare error = %v, want ErrInvalidExecutorCheckpoint", err)
+			}
+			if prepared.committed != 0 || prepared.aborted != 0 {
+				t.Fatalf("mutation touched before ownership validation: committed=%d aborted=%d", prepared.committed, prepared.aborted)
+			}
+		})
+	}
 }
 
 func (prepared *fakePreparedWaitingCancellation) Commit(
@@ -103,7 +138,7 @@ func TestPrepareWaitingCancellationKeepsSurvivingExternalBoundary(t *testing.T) 
 		plan,
 		"stop delegated branch",
 		finishedAt,
-		prepared,
+		prepared.value(),
 	)
 	if err != nil {
 		t.Fatalf("prepare waiting cancellation: %v", err)
@@ -154,7 +189,7 @@ func TestPrepareWaitingCancellationContinuesAfterFinalBoundaryIsRemoved(t *testi
 		plan,
 		"stop final waiting branch",
 		time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
-		prepared,
+		prepared.value(),
 	)
 	if err != nil {
 		t.Fatalf("prepare waiting cancellation: %v", err)
@@ -205,7 +240,7 @@ func TestPublishWaitingChildCancellationInvalidatesExactReadSet(t *testing.T) {
 				plan,
 				"stop delegated branch",
 				time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
-				prepared,
+				prepared.value(),
 			)
 			if err != nil {
 				t.Fatalf("prepare waiting cancellation: %v", err)
@@ -611,12 +646,12 @@ func waitingCancellationCoordinator(
 		processID string,
 	) (PreparedWaitingSubtreeCancellation, error) {
 		if ref != plan.turn {
-			return nil, errors.New("prepared the wrong turn")
+			return PreparedWaitingSubtreeCancellation{}, errors.New("prepared the wrong turn")
 		}
-		if processID != plan.target.source.ProcessID {
-			return nil, errors.New("prepared the wrong process subtree")
+		if processID != plan.target.processID {
+			return PreparedWaitingSubtreeCancellation{}, errors.New("prepared the wrong process subtree")
 		}
-		return prepared, nil
+		return prepared.value(), nil
 	}
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: plan.pending.SessionID, Cwd: "/work"},
@@ -655,7 +690,7 @@ func waitingCancellationPlan(
 	}
 
 	runsByID := make(map[string]transcript.Run, len(pending.Continuations))
-	sources := make(map[string]ExecutorSource, len(pending.Continuations))
+	processes := make(map[string]string, len(pending.Continuations))
 	for index := range pending.Continuations {
 		continuation := &pending.Continuations[index]
 		runsByID[continuation.RunID] = transcript.Run{
@@ -668,12 +703,10 @@ func waitingCancellationPlan(
 			CreatedAt:       continuation.RunCreatedAt,
 			UpdatedAt:       pending.CreatedAt,
 			ModelSelection:  continuation.ModelSelection,
+			ProtocolProfile: pending.ProtocolProfile,
+			MessageMark:     transcript.UnknownMessageMark,
 		}
-		sources[continuation.RunID] = ExecutorSource{
-			ProcessID:   continuation.ProcessID,
-			ParentID:    continuation.ParentProcessID,
-			SpawnCallID: continuation.SpawnCallID,
-		}
+		processes[continuation.RunID] = continuation.ProcessID
 	}
 	target := runsByID[targetRunID]
 	if !target.Lineage().IsChild() {
@@ -706,7 +739,7 @@ func waitingCancellationPlan(
 		targetRunID,
 		runValues,
 		execution.TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID},
-		sources,
+		processes,
 		&pending,
 	)
 	if err != nil {

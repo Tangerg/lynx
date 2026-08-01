@@ -162,7 +162,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		if route.source.ProcessID == "" {
 			continue
 		}
-		if err := live.bindExecutorSource(route.runID, route.source); err != nil {
+		if err := live.bindExecutorProcess(route.runID, route.source.ProcessID); err != nil {
 			cancel()
 			if !resume {
 				err = c.rejectUnadmittedTurn(taskCtx, spec.turnRef(), err)
@@ -248,6 +248,7 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 			SessionID:       spec.SessionID,
 			SegmentID:       spec.SegmentID,
 			ModelSelection:  spec.ModelSelection,
+			GoalLeaseID:     spec.GoalLeaseID,
 			Limits:          spec.Limits,
 			ProtocolProfile: spec.ProtocolProfile,
 			CreatedAt:       spec.CreatedAt,

@@ -15,7 +15,7 @@ type messageEnvironment struct {
 
 func prepareEngineConfig(cfg Config) (agentexec.Config, messageEnvironment, error) {
 	ecfg := cfg.Engine
-	ecfg.ProcessStore = cfg.ProcessStore
+	ecfg.Checkpoints = cfg.ExecutorCheckpoints
 	ecfg.Provider = cfg.Provider
 	// These runtime-wide stores have one composition-root source of truth. The
 	// engine receives only its read views; accepting a second value through

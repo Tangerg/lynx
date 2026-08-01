@@ -7,7 +7,7 @@
 //
 // It is the read half of the eviction feature whose write half is the engine's
 // tool-result eviction middleware; the shared tool name lives in
-// [toolport.ToolNameReadToolResult] so the registered name and the name that
+// [tool.NameReadToolResult] so the registered name and the name that
 // middleware refuses to evict cannot drift.
 package toolresult
 
@@ -16,9 +16,9 @@ import (
 	"fmt"
 	"unicode/utf8"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -60,20 +60,20 @@ type tool struct {
 // New builds the read_tool_result tool over store. It returns a nil tool and
 // nil error when store is nil so the caller can simply omit the tool — the
 // eviction feature is disabled, not a broken tool. The session id is read
-// per-call off the turn's blackboard ([turnctx.TurnSession]), scoping every read
+// per-call off the turn's blackboard ([executionctx.SessionID]), scoping every read
 // to the calling session, so one tool instance serves every session.
 func New(store Store) (tools.Tool, error) {
 	if store == nil {
 		return nil, nil
 	}
 	return tools.New[readArgs, string](
-		tools.Config{Name: toolport.ToolNameReadToolResult, Description: description},
+		tools.Config{Name: domaintool.NameReadToolResult, Description: description},
 		(&tool{store: store}).read,
 	)
 }
 
 func (t *tool) read(ctx context.Context, a readArgs) (string, error) {
-	sessionID := turnctx.TurnSession(ctx)
+	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return "error: no active session — cannot read a stored tool result", nil
 	}

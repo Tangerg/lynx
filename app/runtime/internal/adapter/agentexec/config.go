@@ -3,7 +3,7 @@ package agentexec
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/chatclient"
 	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // KnowledgeReader is the prompt assembler's read-only view of human-authored
@@ -40,13 +41,20 @@ type MemorySearcher interface {
 	Search(ctx context.Context, scope agentmemory.Scope, project, query string, topK int) ([]agentmemory.Item, error)
 }
 
-// ProcessStore is the execution adapter's durable checkpoint boundary. Storage
-// atomically owns the App envelope, usage projection, build compatibility
-// metadata, replacement, and deletion semantics. State payloads remain opaque;
-// only this adapter translates them to and from Agent framework snapshots.
-type ProcessStore interface {
-	SaveTree(ctx context.Context, tree execution.ProcessTreeState, checkpoint execution.ProcessCheckpoint) error
-	LoadTree(ctx context.Context, rootID string) (execution.ProcessTreeState, execution.ProcessCheckpoint, error)
+// CheckpointReader is the execution adapter's read-only durable continuation
+// boundary. The complete executor tree remains opaque inside one App-owned
+// aggregate; writes belong to the application transaction that consumes a
+// captured checkpoint.
+type CheckpointReader interface {
+	LoadCheckpoint(ctx context.Context, rootProcessID string) (execution.ExecutorCheckpoint, error)
+}
+
+// ToolResolver is the execution adapter's view of model-facing tool groups.
+// The interface belongs to this consumer; toolset supplies the implementation
+// without importing agentexec.
+type ToolResolver interface {
+	core.ToolGroupResolver
+	UseTaskTool(tools.Tool)
 }
 
 // Config is the engine construction-time bundle. ChatClient is the
@@ -103,7 +111,7 @@ type Config struct {
 	// ToolResolver supplies the execution-time role groups and accepts the task
 	// delegation tool that can only be built after the subtask Agent deploys.
 	// Catalogs, MCP controls, and shutdown hooks stay with toolset/bootstrap.
-	ToolResolver toolport.ToolResolver
+	ToolResolver ToolResolver
 
 	// Pricing optionally computes per-round USD cost from the round's
 	// provider + served model + token usage. nil leaves cost at zero (the chat
@@ -117,12 +125,10 @@ type Config struct {
 	// ambiguous across providers). Empty when no default is configured.
 	Provider string
 
-	// ProcessStore reads and writes complete process-tree checkpoints. nil keeps
-	// execution in memory and makes surfaced waiting boundaries unavailable.
-	// Captures perform no I/O until the Application invokes their persistence
-	// capability inside its own atomic write-set; terminal deletion is likewise
-	// owned by the Application's run lifecycle.
-	ProcessStore ProcessStore
+	// Checkpoints restores complete executor checkpoints. nil keeps execution in
+	// memory and makes surfaced waiting boundaries unavailable. Captures remain
+	// data-only; the Application persists them inside its own atomic write-set.
+	Checkpoints CheckpointReader
 
 	// ToolResultStore backs tool-result eviction: a single tool output larger
 	// than ToolResultThreshold is offloaded here and replaced in history by a

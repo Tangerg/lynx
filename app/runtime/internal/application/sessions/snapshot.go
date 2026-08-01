@@ -23,7 +23,7 @@ type ExportResult struct {
 // and parked runs are rejected because their executor state is process-local
 // and therefore cannot be represented by a portable session artifact.
 func (c *Coordinator) ExportSession(ctx context.Context, sessionID string) (ExportResult, error) {
-	admission, err := c.ClaimRunSlot(ctx, sessionID)
+	admission, err := c.ClaimIdleSession(ctx, sessionID)
 	if err != nil {
 		return ExportResult{}, err
 	}

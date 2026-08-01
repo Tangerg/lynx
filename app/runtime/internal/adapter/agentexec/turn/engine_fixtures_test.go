@@ -153,18 +153,13 @@ func (cp *stubTurnProcess) PendingSuspensions(context.Context) ([]agentexec.Pend
 }
 
 func (cp *stubTurnProcess) CaptureWaitingCheckpoint(context.Context) (agentexec.WaitingCheckpoint, error) {
-	return stubWaitingCheckpoint{}, nil
+	return validWaitingCheckpoint(), nil
 }
 
 func (cp *stubTurnProcess) Discard(_ context.Context) error {
 	cp.discarded.Store(true)
 	return cp.discardErr
 }
-
-type stubWaitingCheckpoint struct{}
-
-func (stubWaitingCheckpoint) PendingSuspensions() []agentexec.PendingSuspension { return nil }
-func (stubWaitingCheckpoint) PersistCheckpoint(context.Context) error           { return nil }
 
 // stubEngine satisfies the turn dispatcher's engine dependency without touching
 // the real engine, conversation history, or MCP wiring.

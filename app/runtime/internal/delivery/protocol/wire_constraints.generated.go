@@ -50,6 +50,9 @@ func (value ImportSessionRequest) ValidateWire() error {
 func (value StartRunRequest) ValidateWire() error {
 	return collectWireViolations("StartRunRequest",
 		requiredItems("input", value.Input),
+		nonNegativeNumber("maxTotalTokens", value.MaxTotalTokens),
+		nonNegativeNumber("maxSteps", value.MaxSteps),
+		nonNegativeNumber("maxBudgetUsd", value.MaxBudgetUSD),
 	)
 }
 
@@ -1026,6 +1029,22 @@ func (value RunProtocolProfile) ValidateWire() error {
 		uniqueItems("interruptTypes", value.InterruptTypes),
 		closedEnumItems("requiredFeatures", value.RequiredFeatures, []string{"subagents"}),
 		closedEnumItems("interruptTypes", value.InterruptTypes, []string{"approval", "question", "toolResult"}),
+	)
+}
+
+func (value RunLimits) ValidateWire() error {
+	return collectWireViolations("RunLimits",
+		nonNegativeNumber("maxTotalTokens", value.MaxTotalTokens),
+		nonNegativeNumber("maxSteps", value.MaxSteps),
+		nonNegativeNumber("maxBudgetUsd", value.MaxBudgetUSD),
+	)
+}
+
+func (value ArtifactRunLimits) ValidateWire() error {
+	return collectWireViolations("ArtifactRunLimits",
+		nonNegativeNumber("maxTotalTokens", value.MaxTotalTokens),
+		nonNegativeNumber("maxSteps", value.MaxSteps),
+		nonNegativeNumber("maxBudgetUsd", value.MaxBudgetUSD),
 	)
 }
 

@@ -69,7 +69,9 @@ func serverPending(
 		}
 	}
 	bindings := make([]interrupts.SuspensionBinding, len(open))
+	profile := execution.RunProtocolProfile{}
 	for index, interrupt := range open {
+		profile.InterruptKinds = append(profile.InterruptKinds, interrupt.Kind)
 		bindings[index] = interrupts.SuspensionBinding{
 			InterruptItemID: interrupt.ItemID,
 			ProcessID:       processID,
@@ -77,11 +79,12 @@ func serverPending(
 		}
 	}
 	return interrupts.Pending{
-		RootRunID:   runID,
-		SessionID:   sessionID,
-		TurnID:      turnID,
-		Interrupts:  open,
-		Suspensions: bindings,
+		RootRunID:       runID,
+		SessionID:       sessionID,
+		TurnID:          turnID,
+		Interrupts:      open,
+		Suspensions:     bindings,
+		ProtocolProfile: profile.Normalized(),
 		Continuations: []interrupts.Continuation{{
 			RunID:        runID,
 			ProcessID:    processID,
@@ -423,7 +426,7 @@ func (s stubLifecycleStores) ApplyRollback(ctx context.Context, plan sessions.Ro
 		if err := s.rt.runs.Delete(ctx, plan.SessionID, runID); err != nil {
 			return err
 		}
-		if err := s.rt.interrupts.Delete(ctx, runID); err != nil {
+		if err := s.rt.interrupts.Delete(ctx, plan.SessionID, runID); err != nil {
 			return err
 		}
 	}
@@ -509,18 +512,30 @@ func (s stubLifecycleStores) deleteSession(ctx context.Context, sessionID string
 }
 
 func (s stubLifecycleStores) ApplyTerminal(ctx context.Context, plan sessions.TerminalPlan) error {
+	root, ok := plan.RootRun()
+	if !ok {
+		return errors.New("terminal plan has no root Run")
+	}
 	for _, item := range plan.Items {
 		if err := s.rt.hist.AppendItem(ctx, item); err != nil {
 			return err
 		}
 	}
-	if err := s.rt.interrupts.Delete(ctx, plan.Run.ID); err != nil {
+	if err := s.rt.interrupts.Delete(ctx, root.SessionID, root.ID); err != nil {
 		return err
 	}
-	if plan.Run.Outcome != nil && *plan.Run.Outcome == execution.OutcomeError {
-		return s.rt.runs.RecoverLost(ctx, plan.Run)
+	for _, run := range plan.Runs {
+		if run.Outcome != nil && *run.Outcome == execution.OutcomeError {
+			if err := s.rt.runs.RecoverLost(ctx, run); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := s.rt.runs.Terminalize(ctx, run); err != nil {
+			return err
+		}
 	}
-	return s.rt.runs.Terminalize(ctx, plan.Run)
+	return nil
 }
 
 func (s stubLifecycleStores) deleteInterrupts(ctx context.Context, sessionID string) error {
@@ -529,7 +544,7 @@ func (s stubLifecycleStores) deleteInterrupts(ctx context.Context, sessionID str
 		return err
 	}
 	for _, p := range pending {
-		if err := s.rt.interrupts.Delete(ctx, p.RootRunID); err != nil {
+		if err := s.rt.interrupts.Delete(ctx, sessionID, p.RootRunID); err != nil {
 			return err
 		}
 	}

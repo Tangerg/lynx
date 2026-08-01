@@ -920,10 +920,16 @@
       "type": "object",
       "properties": {
         "maxBudgetUsd": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0
         },
         "maxSteps": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxTotalTokens": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
@@ -4518,10 +4524,16 @@
       "type": "object",
       "properties": {
         "maxBudgetUsd": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0
         },
         "maxSteps": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxTotalTokens": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
@@ -6084,10 +6096,16 @@
           }
         },
         "maxBudgetUsd": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0
         },
         "maxSteps": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxTotalTokens": {
+          "type": "integer",
+          "minimum": 0
         },
         "model": {
           "type": "string"

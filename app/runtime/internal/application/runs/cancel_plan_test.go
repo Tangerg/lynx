@@ -3,6 +3,7 @@ package runs
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -10,13 +11,13 @@ import (
 
 func TestCancellationPlanPartitionsCanonicalSubtree(t *testing.T) {
 	runs := cancellationTree(execution.Running)
-	sources := cancellationSources()
+	processes := cancellationProcesses()
 
 	plan, err := newCancellationPlan(
 		"run_a",
 		runs,
 		execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"},
-		sources,
+		processes,
 		nil,
 	)
 	if err != nil {
@@ -34,27 +35,27 @@ func TestCancellationPlanPartitionsCanonicalSubtree(t *testing.T) {
 	if got, want := cancellationRunIDs(plan.survivingTree), []string{"run_b", "run_root"}; !sameStrings(got, want) {
 		t.Fatalf("surviving tree = %v, want %v", got, want)
 	}
-	if plan.target.source.ProcessID != "process_a" || !plan.target.hasSource {
-		t.Fatalf("target source = %+v, bound=%t", plan.target.source, plan.target.hasSource)
+	if plan.target.processID != "process_a" || !plan.target.hasProcess {
+		t.Fatalf("target process = %q, bound=%t", plan.target.processID, plan.target.hasProcess)
 	}
 }
 
 func TestCancellationPlanRejectsInconsistentTreeFacts(t *testing.T) {
 	tests := []struct {
 		name   string
-		mutate func([]transcript.Run, map[string]ExecutorSource)
+		mutate func([]transcript.Run, map[string]string)
 		want   string
 	}{
 		{
 			name: "cross session member",
-			mutate: func(runs []transcript.Run, _ map[string]ExecutorSource) {
+			mutate: func(runs []transcript.Run, _ map[string]string) {
 				runs[0].SessionID = "ses_other"
 			},
 			want: "belongs to session",
 		},
 		{
 			name: "mixed live state",
-			mutate: func(runs []transcript.Run, _ map[string]ExecutorSource) {
+			mutate: func(runs []transcript.Run, _ map[string]string) {
 				runs[0].State = execution.Interrupted
 				runs[0].ActiveSegmentID = ""
 			},
@@ -62,24 +63,22 @@ func TestCancellationPlanRejectsInconsistentTreeFacts(t *testing.T) {
 		},
 		{
 			name: "missing child process",
-			mutate: func(_ []transcript.Run, sources map[string]ExecutorSource) {
-				delete(sources, "run_a1")
+			mutate: func(_ []transcript.Run, processes map[string]string) {
+				delete(processes, "run_a1")
 			},
 			want: "has no executor binding",
 		},
 		{
-			name: "wrong process parent",
-			mutate: func(_ []transcript.Run, sources map[string]ExecutorSource) {
-				source := sources["run_a1"]
-				source.ParentID = "process_b"
-				sources["run_a1"] = source
+			name: "duplicate process binding",
+			mutate: func(_ []transcript.Run, processes map[string]string) {
+				processes["run_a1"] = processes["run_b"]
 			},
-			want: "differs from parent Run",
+			want: "is bound to Runs",
 		},
 		{
 			name: "unknown bound Run",
-			mutate: func(_ []transcript.Run, sources map[string]ExecutorSource) {
-				sources["run_unknown"] = ExecutorSource{ProcessID: "process_unknown"}
+			mutate: func(_ []transcript.Run, processes map[string]string) {
+				processes["run_unknown"] = "process_unknown"
 			},
 			want: "names unknown Run",
 		},
@@ -87,13 +86,13 @@ func TestCancellationPlanRejectsInconsistentTreeFacts(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			runs := cancellationTree(execution.Running)
-			sources := cancellationSources()
-			test.mutate(runs, sources)
+			processes := cancellationProcesses()
+			test.mutate(runs, processes)
 			_, err := newCancellationPlan(
 				"run_a",
 				runs,
 				execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"},
-				sources,
+				processes,
 				nil,
 			)
 			if err == nil || !strings.Contains(err.Error(), test.want) {
@@ -103,11 +102,46 @@ func TestCancellationPlanRejectsInconsistentTreeFacts(t *testing.T) {
 	}
 }
 
+func TestCancellationRejectsLiveOwnerFactDrift(t *testing.T) {
+	spec := testSegment()
+	root := runForSegment(spec)
+	base := liveSegment{record: Record{
+		ID: spec.RunID, SegmentID: spec.SegmentID, SessionID: spec.SessionID,
+		CreatedAt: spec.CreatedAt, TurnID: spec.TurnID,
+		ModelSelection: spec.ModelSelection, ProtocolProfile: spec.ProtocolProfile,
+	}}
+	if err := validateCancellationLiveRoot(base, root); err != nil {
+		t.Fatalf("coherent live owner: %v", err)
+	}
+	tests := []struct {
+		name   string
+		mutate func(*liveSegment)
+	}{
+		{"segment", func(live *liveSegment) { live.record.SegmentID = "seg_other" }},
+		{"creation time", func(live *liveSegment) { live.record.CreatedAt = spec.CreatedAt.Add(time.Second) }},
+		{"model", func(live *liveSegment) { live.record.ModelSelection = mustSelection("anthropic", "model") }},
+		{"protocol profile", func(live *liveSegment) {
+			live.record.ProtocolProfile.ChildRuns = true
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			live := base
+			test.mutate(&live)
+			if err := validateCancellationLiveRoot(live, root); err == nil {
+				t.Fatalf("accepted %s drift between live owner and durable Run", test.name)
+			}
+		})
+	}
+}
+
 func cancellationTree(state execution.RunState) []transcript.Run {
+	createdAt := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
 	run := func(id, parent string) transcript.Run {
 		value := transcript.Run{
 			ID: id, SessionID: "ses_1", State: state,
-			ActiveSegmentID: "segment_" + id,
+			ActiveSegmentID: "segment_" + id, CreatedAt: createdAt,
+			UpdatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
 		}
 		if parent != "" {
 			value.SpawnedByItemID = "item_" + id
@@ -125,21 +159,13 @@ func cancellationTree(state execution.RunState) []transcript.Run {
 	}
 }
 
-func cancellationSources() map[string]ExecutorSource {
-	return map[string]ExecutorSource{
-		"run_root": {ProcessID: "process_root"},
-		"run_a": {
-			ProcessID: "process_a", ParentID: "process_root", SpawnCallID: "spawn_a",
-		},
-		"run_a0": {
-			ProcessID: "process_a0", ParentID: "process_a", SpawnCallID: "spawn_a0",
-		},
-		"run_a1": {
-			ProcessID: "process_a1", ParentID: "process_a", SpawnCallID: "spawn_a1",
-		},
-		"run_b": {
-			ProcessID: "process_b", ParentID: "process_root", SpawnCallID: "spawn_b",
-		},
+func cancellationProcesses() map[string]string {
+	return map[string]string{
+		"run_root": "process_root",
+		"run_a":    "process_a",
+		"run_a0":   "process_a0",
+		"run_a1":   "process_a1",
+		"run_b":    "process_b",
 	}
 }
 

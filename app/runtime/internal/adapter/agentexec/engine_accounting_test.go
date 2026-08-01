@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/chatclient"
@@ -153,8 +154,8 @@ func TestEngine_TaskDelegationDoesNotStartChildAfterTokenBudgetIsSpent(t *testin
 	defer engine.Close()
 
 	output, err := engine.runTurnSync(t.Context(), TurnRequest{
-		Message:   "delegate this",
-		MaxBudget: 2,
+		Message: "delegate this",
+		Limits:  execution.RunLimits{MaxTotalTokens: 2},
 	})
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
@@ -186,8 +187,8 @@ func TestEngine_TaskDelegationDoesNotStartChildAfterCostBudgetIsSpent(t *testing
 		t.Fatalf("New: %v", err)
 	}
 	output, err := engine.runTurnSync(t.Context(), TurnRequest{
-		Message:    "delegate this",
-		MaxCostUSD: 1,
+		Message: "delegate this",
+		Limits:  execution.RunLimits{MaxBudgetUSD: 1},
 	})
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
@@ -207,8 +208,8 @@ func TestEngine_TaskDelegationCountsChildCallsAgainstStepLimit(t *testing.T) {
 	defer engine.Close()
 
 	output, err := engine.runTurnSync(t.Context(), TurnRequest{
-		Message:  "delegate this",
-		MaxSteps: 2,
+		Message: "delegate this",
+		Limits:  execution.RunLimits{MaxSteps: 2},
 	})
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
@@ -224,7 +225,7 @@ func TestEngine_TaskDelegationCountsChildCallsAgainstStepLimit(t *testing.T) {
 // TestEngine_RunChat_StopsOnBudget verifies the per-turn token
 // ceiling halts the tool loop at a round boundary before the next
 // LLM call and reports the partial result with agent.InteractionStopBudget set.
-// Round 1 (tool call) spends 15 tokens; with MaxBudget=10 the loop
+// Round 1 (tool call) spends 15 tokens; with MaxTotalTokens=10 the loop
 // must stop there and never run round 2.
 func TestEngine_RunChat_StopsOnBudget(t *testing.T) {
 	stub := newUsageStubModel(
@@ -237,7 +238,9 @@ func TestEngine_RunChat_StopsOnBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := eng.runTurnSync(context.Background(), TurnRequest{Message: "go", MaxBudget: 10})
+	out, err := eng.runTurnSync(context.Background(), TurnRequest{
+		Message: "go", Limits: execution.RunLimits{MaxTotalTokens: 10},
+	})
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
 	}
@@ -250,8 +253,8 @@ func TestEngine_RunChat_StopsOnBudget(t *testing.T) {
 }
 
 // TestEngine_RunChat_StopsOnCostBudget verifies the dollar ceiling
-// (MaxCostUSD) halts the loop the same way the token one does. With a
-// $1/token stub rate, round 1 costs $15; MaxCostUSD=10 must stop there
+// (RunLimits.MaxBudgetUSD) halts the loop the same way the token one does. With a
+// $1/token stub rate, round 1 costs $15; a $10 ceiling must stop there
 // and never run round 2.
 func TestEngine_RunChat_StopsOnCostBudget(t *testing.T) {
 	stub := newUsageStubModel(
@@ -267,7 +270,9 @@ func TestEngine_RunChat_StopsOnCostBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := eng.runTurnSync(context.Background(), TurnRequest{Message: "go", MaxCostUSD: 10})
+	out, err := eng.runTurnSync(context.Background(), TurnRequest{
+		Message: "go", Limits: execution.RunLimits{MaxBudgetUSD: 10},
+	})
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
 	}

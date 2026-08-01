@@ -17,7 +17,7 @@ type waitingCancellationTransformation struct {
 	parentItem     ItemReplacement
 	remaining      *interrupts.Pending
 	continuation   *treeContinuation
-	checkpoint     ProcessCheckpointWrite
+	checkpoint     execution.ExecutorCheckpoint
 	root           transcript.Run
 	targetRunID    string
 	canceledRunIDs []string
@@ -41,13 +41,46 @@ func prepareWaitingCancellationTransformation(
 		return waitingCancellationTransformation{}, errors.New("runs: waiting cancellation plan has no pending set")
 	case !plan.hasSpawningItem:
 		return waitingCancellationTransformation{}, errors.New("runs: waiting cancellation plan has no spawning Item")
-	case prepared == nil:
-		return waitingCancellationTransformation{}, errors.New("runs: prepared waiting subtree cancellation is required")
+	case prepared.Mutation == nil:
+		return waitingCancellationTransformation{}, errors.New("runs: prepared waiting subtree cancellation has no mutation lease")
 	case finishedAt.IsZero():
 		return waitingCancellationTransformation{}, errors.New("runs: waiting cancellation finish time is required")
 	}
+	rootContinuation, ok := plan.pending.RootContinuation()
+	if !ok {
+		return waitingCancellationTransformation{}, errors.New("runs: waiting cancellation Pending has no root continuation")
+	}
+	if err := prepared.Checkpoint.ValidateOwnership(rootContinuation.ProcessID, plan.pending.SessionID); err != nil {
+		return waitingCancellationTransformation{}, fmt.Errorf("runs: invalid prepared waiting subtree checkpoint ownership: %w", err)
+	}
+	if prepared.Checkpoint.Scope.GoalLeaseID != plan.pending.GoalLeaseID {
+		return waitingCancellationTransformation{}, fmt.Errorf(
+			"runs: prepared waiting subtree checkpoint goal lease %q does not match Pending %q: %w",
+			prepared.Checkpoint.Scope.GoalLeaseID,
+			plan.pending.GoalLeaseID,
+			execution.ErrInvalidExecutorCheckpoint,
+		)
+	}
+	if prepared.Checkpoint.ModelSelection != rootContinuation.ModelSelection {
+		return waitingCancellationTransformation{}, fmt.Errorf(
+			"runs: prepared waiting subtree checkpoint model %q/%q does not match root continuation %q/%q: %w",
+			prepared.Checkpoint.ModelSelection.Provider(),
+			prepared.Checkpoint.ModelSelection.Model(),
+			rootContinuation.ModelSelection.Provider(),
+			rootContinuation.ModelSelection.Model(),
+			execution.ErrInvalidExecutorCheckpoint,
+		)
+	}
+	if prepared.Checkpoint.Limits != rootContinuation.Limits {
+		return waitingCancellationTransformation{}, fmt.Errorf(
+			"runs: prepared waiting subtree checkpoint limits %+v do not match root continuation %+v: %w",
+			prepared.Checkpoint.Limits,
+			rootContinuation.Limits,
+			execution.ErrInvalidExecutorCheckpoint,
+		)
+	}
 
-	canceledProcesses := prepared.CanceledProcessIDs()
+	canceledProcesses := prepared.CanceledProcessIDs
 	canceledProcessSet := make(map[string]struct{}, len(canceledProcesses))
 	for _, processID := range canceledProcesses {
 		if processID == "" {
@@ -71,13 +104,13 @@ func prepareWaitingCancellationTransformation(
 		if member.run.State.IsTerminal() {
 			continue
 		}
-		if !member.hasSource {
+		if !member.hasProcess {
 			return waitingCancellationTransformation{}, fmt.Errorf(
 				"runs: waiting cancellation target Run %q has no executor process",
 				member.run.ID,
 			)
 		}
-		expectedProcesses[member.source.ProcessID] = struct{}{}
+		expectedProcesses[member.processID] = struct{}{}
 		terminalRuns = append(terminalRuns, canceledWaitingRun(member.run, reason, finishedAt))
 		canceledRunIDs = append(canceledRunIDs, member.run.ID)
 	}
@@ -183,7 +216,7 @@ func prepareWaitingCancellationTransformation(
 	for _, continuation := range continuations {
 		survivingRunByProcess[continuation.ProcessID] = continuation.RunID
 	}
-	pendingSuspensions := prepared.PendingSuspensions()
+	pendingSuspensions := prepared.PendingSuspensions
 	remainingInterrupts := make([]transcript.Interrupt, 0, len(pendingSuspensions))
 	remainingBindings := make([]interrupts.SuspensionBinding, 0, len(pendingSuspensions))
 	keptBindings := make(map[int]struct{}, len(pendingSuspensions))
@@ -250,6 +283,7 @@ func prepareWaitingCancellationTransformation(
 		rootRunID:     plan.pending.RootRunID,
 		sessionID:     plan.pending.SessionID,
 		turnID:        plan.pending.TurnID,
+		goalLeaseID:   plan.pending.GoalLeaseID,
 		interrupts:    slices.Clone(remainingInterrupts),
 		continuations: slices.Clone(continuations),
 		profile:       plan.pending.ProtocolProfile,
@@ -282,7 +316,7 @@ func prepareWaitingCancellationTransformation(
 		parentItem:     ItemReplacement{Expected: parentItem, Replacement: replacement},
 		remaining:      remaining,
 		continuation:   continuation,
-		checkpoint:     prepared,
+		checkpoint:     prepared.Checkpoint.Clone(),
 		root:           plan.root.run,
 		targetRunID:    plan.target.run.ID,
 		canceledRunIDs: canceledRunIDs,

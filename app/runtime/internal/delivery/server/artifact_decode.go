@@ -211,7 +211,9 @@ func portableLimitsFromArtifact(artifact *protocol.ArtifactRunLimits) execution.
 	if artifact == nil {
 		return execution.RunLimits{}
 	}
-	return execution.RunLimits{MaxSteps: artifact.MaxSteps, MaxBudgetUSD: artifact.MaxBudgetUSD}
+	return execution.RunLimits{
+		MaxTotalTokens: artifact.MaxTotalTokens, MaxSteps: artifact.MaxSteps, MaxBudgetUSD: artifact.MaxBudgetUSD,
+	}
 }
 
 func portableUsageFromArtifact(artifact *protocol.ArtifactUsage) *transcript.Usage {

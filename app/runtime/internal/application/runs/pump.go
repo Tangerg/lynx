@@ -164,7 +164,7 @@ func (c *Coordinator) pump(
 		if request, opening := ev.Payload.(ChildOpeningRequest); opening {
 			if err := ev.Validate(); err != nil {
 				if request.claim() {
-					_ = request.complete(err)
+					_ = request.complete(ChildRunBinding{}, err)
 				}
 				fail(err)
 				return
@@ -199,7 +199,15 @@ func (c *Coordinator) pump(
 					)
 				}
 			}
-			if confirmationErr := request.complete(openingErr); confirmationErr != nil {
+			binding := ChildRunBinding{}
+			if openingErr == nil {
+				binding = ChildRunBinding{
+					ProcessID:   ev.Source.ProcessID,
+					RunID:       childRoute.runID,
+					ParentRunID: childRoute.lineage.ParentRunID,
+				}
+			}
+			if confirmationErr := request.complete(binding, openingErr); confirmationErr != nil {
 				openingErr = errors.Join(openingErr, confirmationErr)
 			}
 			if openingErr != nil {
@@ -245,7 +253,7 @@ func (c *Coordinator) pump(
 			return
 		}
 		if route.source.ProcessID != "" {
-			if err := live.bindExecutorSource(route.runID, route.source); err != nil {
+			if err := live.bindExecutorProcess(route.runID, route.source.ProcessID); err != nil {
 				fail(err)
 				return
 			}
@@ -370,7 +378,7 @@ func (p treePublisher) publish(
 		// the interrupt path does) rather than publishing an unbacked event.
 		if reduced.Commit != nil {
 			if reduced.Commit.State == StateTerminalize && route.source.ParentID == "" {
-				reduced.Commit.ObsoleteProcessTreeRootID = route.source.ProcessID
+				reduced.Commit.ObsoleteCheckpointRootID = route.source.ProcessID
 			}
 			if err := p.coordinator.effects.CommitEvent(ctx, *reduced.Commit); err != nil {
 				return reductionPublication{}, fmt.Errorf("runs: commit %T: %w", reduced.Event, err)
@@ -411,7 +419,15 @@ func (p treePublisher) publishTreeBarrier(
 	barrier TreeInterrupted,
 	boundaryAt time.Time,
 ) (reductionPublication, error) {
-	if err := barrier.validate(); err != nil {
+	if routes == nil || routes.root == nil {
+		return reductionPublication{}, errors.New("runs: publish tree barrier without a root executor route")
+	}
+	if err := barrier.validateFor(
+		routes.root.source.ProcessID,
+		p.rootSpec.SessionID,
+		p.rootSpec.GoalLeaseID,
+		routes.root.modelSelection,
+	); err != nil {
 		return reductionPublication{}, err
 	}
 	byProcess := make(map[string][]ProcessSuspension, len(barrier.Suspensions))
@@ -434,6 +450,7 @@ func (p treePublisher) publishTreeBarrier(
 		RootRunID:       routes.root.runID,
 		SessionID:       p.rootSpec.SessionID,
 		TurnID:          p.rootSpec.TurnID,
+		GoalLeaseID:     p.rootSpec.GoalLeaseID,
 		ProtocolProfile: routes.root.protocolProfile,
 		CreatedAt:       boundaryAt,
 	}
@@ -496,17 +513,15 @@ func (p treePublisher) publishTreeBarrier(
 			})
 		}
 		pending.Continuations = append(pending.Continuations, interrupts.Continuation{
-			RunID:           route.runID,
-			ProcessID:       route.source.ProcessID,
-			ParentProcessID: route.source.ParentID,
-			SpawnCallID:     route.source.SpawnCallID,
-			Lineage:         route.lineage,
-			ModelSelection:  route.modelSelection,
-			DrainedTools:    slices.Clone(route.reducer.drained),
-			CommittedTools:  route.reducer.resume.remainingCommittedTools(),
-			RunCreatedAt:    run.CreatedAt,
-			Metrics:         run.Metrics,
-			Limits:          run.Limits,
+			RunID:          route.runID,
+			ProcessID:      route.source.ProcessID,
+			Lineage:        route.lineage,
+			ModelSelection: route.modelSelection,
+			DrainedTools:   slices.Clone(route.reducer.drained),
+			CommittedTools: route.reducer.resume.remainingCommittedTools(),
+			RunCreatedAt:   run.CreatedAt,
+			Metrics:        run.Metrics,
+			Limits:         run.Limits,
 		})
 		reductions = append(reductions, treeBarrierReduction{route: route, batch: batch})
 		commits = append(commits, *batch.parkCommit)

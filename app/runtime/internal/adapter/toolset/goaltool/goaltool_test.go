@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
@@ -61,7 +61,7 @@ func activeGoal(session string) goal.Goal {
 }
 
 func sessionCtx(session string) context.Context {
-	return turnctx.WithScope(context.Background(), execution.TurnScope{SessionID: session})
+	return executionctx.WithScope(context.Background(), execution.TurnScope{SessionID: session})
 }
 
 func newTool(t *testing.T, store goals.Store) *tool {
@@ -143,7 +143,7 @@ func TestUpdateGoal_SupersededStampRefused(t *testing.T) {
 	store.put(current)
 
 	// The run carries the lease it was launched under, since superseded.
-	ctx := turnctx.WithScope(context.Background(), execution.TurnScope{
+	ctx := executionctx.WithScope(context.Background(), execution.TurnScope{
 		SessionID:   "s1",
 		GoalLeaseID: "lease-stale",
 	})

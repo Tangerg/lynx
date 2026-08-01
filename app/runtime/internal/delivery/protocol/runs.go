@@ -179,8 +179,9 @@ type RunMetrics struct {
 // RunLimits is the allowance a run may consume before it is stopped (§4.2). An
 // omitted field is that dimension uncapped.
 type RunLimits struct {
-	MaxSteps     int     `json:"maxSteps,omitempty"`
-	MaxBudgetUSD float64 `json:"maxBudgetUsd,omitempty"`
+	MaxTotalTokens int64   `json:"maxTotalTokens,omitempty"`
+	MaxSteps       int     `json:"maxSteps,omitempty"`
+	MaxBudgetUSD   float64 `json:"maxBudgetUsd,omitempty"`
 }
 
 // RunOutcomeType discriminates the RunOutcome union (§4.2).
@@ -272,11 +273,12 @@ type StartRunRequest struct {
 	// one without the other is invalid_params — the provider is explicit,
 	// never inferred from the model id. Both are meaningful slugs (no "Id"
 	// suffix, mirroring `model` and Model.provider).
-	Provider     string            `json:"provider,omitempty"`
-	Model        string            `json:"model,omitempty"`
-	MaxSteps     int               `json:"maxSteps,omitempty"`
-	MaxBudgetUSD float64           `json:"maxBudgetUsd,omitempty"`
-	Params       *GenerationParams `json:"params,omitempty"`
+	Provider       string            `json:"provider,omitempty"`
+	Model          string            `json:"model,omitempty"`
+	MaxTotalTokens int64             `json:"maxTotalTokens,omitempty"`
+	MaxSteps       int               `json:"maxSteps,omitempty"`
+	MaxBudgetUSD   float64           `json:"maxBudgetUsd,omitempty"`
+	Params         *GenerationParams `json:"params,omitempty"`
 }
 
 // StartRunResponse is the synchronous result of runs.start.

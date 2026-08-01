@@ -20,6 +20,7 @@ type treeContinuation struct {
 	rootRunID     string
 	sessionID     string
 	turnID        string
+	goalLeaseID   string
 	interrupts    []transcript.Interrupt
 	continuations []interrupts.Continuation
 	profile       execution.RunProtocolProfile
@@ -33,6 +34,7 @@ func treeContinuationFromPending(pending interrupts.Pending) (*treeContinuation,
 		rootRunID:     pending.RootRunID,
 		sessionID:     pending.SessionID,
 		turnID:        pending.TurnID,
+		goalLeaseID:   pending.GoalLeaseID,
 		interrupts:    slices.Clone(pending.Interrupts),
 		continuations: slices.Clone(pending.Continuations),
 		profile:       pending.ProtocolProfile,
@@ -54,13 +56,14 @@ func (continuation *treeContinuation) validate() error {
 		return errors.New("runs: tree continuation Session id is required")
 	case strings.TrimSpace(continuation.turnID) == "":
 		return errors.New("runs: tree continuation Turn id is required")
+	case continuation.goalLeaseID != strings.TrimSpace(continuation.goalLeaseID):
+		return errors.New("runs: tree continuation goal lease id has surrounding whitespace")
 	case len(continuation.continuations) == 0:
 		return errors.New("runs: tree continuation has no Runs")
 	}
 
 	runIDs := make(map[string]struct{}, len(continuation.continuations))
 	processOwners := make(map[string]string, len(continuation.continuations))
-	byProcess := make(map[string]interrupts.Continuation, len(continuation.continuations))
 	members := make([]execution.RunTreeMember, 0, len(continuation.continuations))
 	for index, member := range continuation.continuations {
 		if err := member.Validate(); err != nil {
@@ -79,7 +82,6 @@ func (continuation *treeContinuation) validate() error {
 		}
 		runIDs[member.RunID] = struct{}{}
 		processOwners[member.ProcessID] = member.RunID
-		byProcess[member.ProcessID] = member
 		members = append(members, execution.RunTreeMember{
 			RunID:   member.RunID,
 			Lineage: member.Lineage,
@@ -97,28 +99,6 @@ func (continuation *treeContinuation) validate() error {
 				index,
 				member.RunID,
 				canonical[index],
-			)
-		}
-		if member.RunID == continuation.rootRunID {
-			if member.ParentProcessID != "" || member.SpawnCallID != "" {
-				return errors.New("runs: root tree continuation carries child process lineage")
-			}
-			continue
-		}
-		parent, exists := byProcess[member.ParentProcessID]
-		if !exists {
-			return fmt.Errorf(
-				"runs: tree continuation Run %q names unknown parent process %q",
-				member.RunID,
-				member.ParentProcessID,
-			)
-		}
-		if parent.RunID != member.Lineage.ParentRunID {
-			return fmt.Errorf(
-				"runs: tree continuation Run %q process parent belongs to Run %q, want %q",
-				member.RunID,
-				parent.RunID,
-				member.Lineage.ParentRunID,
 			)
 		}
 	}

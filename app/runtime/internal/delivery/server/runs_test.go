@@ -160,6 +160,40 @@ func TestStartCommandMaterializeInput(t *testing.T) {
 	}
 }
 
+// TestStartRunCarriesOneLimitsValueToTheDurableRun closes the delivery-to-
+// application boundary: the wire names a cumulative run allowance, and the
+// durable Run must expose that exact allowance. In particular,
+// maxTotalTokens must never be confused with params.maxTokens, which is only a
+// per-model-call output cap.
+func TestStartRunCarriesOneLimitsValueToTheDurableRun(t *testing.T) {
+	s := newBlockingServer(t)
+	sess, err := s.sessions.CreateView(t.Context(), "", t.TempDir())
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	started, _, err := s.StartRun(t.Context(), protocol.StartRunRequest{
+		SessionID:      sess.ID,
+		Input:          []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: "measure this run"}},
+		MaxTotalTokens: 12_345,
+		MaxSteps:       17,
+		MaxBudgetUSD:   2.75,
+	})
+	if err != nil {
+		t.Fatalf("start run: %v", err)
+	}
+	t.Cleanup(s.Close)
+
+	got, err := s.GetRun(t.Context(), protocol.GetRunRequest{RunID: started.RunID})
+	if err != nil {
+		t.Fatalf("get started run: %v", err)
+	}
+	want := protocol.RunLimits{MaxTotalTokens: 12_345, MaxSteps: 17, MaxBudgetUSD: 2.75}
+	if got.Limits == nil || *got.Limits != want {
+		t.Fatalf("durable limits = %+v, want %+v", got.Limits, want)
+	}
+}
+
 func TestWireTurnStartErrMapsInvalidTurnLimit(t *testing.T) {
 	err := wireRunStartErr(runs.ErrInvalidTurnLimit)
 	if !errors.Is(err, protocol.ErrInvalidParams) {

@@ -74,6 +74,9 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 			}
 		}
 		for _, commit := range opening.Events {
+			if err := commit.Validate(); err != nil {
+				return fmt.Errorf("runsegment: invalid opening event commit: %w", err)
+			}
 			if commit.State != runs.StateUnchanged {
 				return errors.New("runsegment: opening commit contains a lifecycle transition")
 			}
@@ -96,24 +99,27 @@ func (e *Effects) CommitEvent(ctx context.Context, commit runs.EventCommit) erro
 	if e.tx == nil {
 		return errors.New("runsegment: transactor is unavailable")
 	}
+	if err := commit.Validate(); err != nil {
+		return fmt.Errorf("runsegment: invalid event commit: %w", err)
+	}
 	if commit.State == runs.StateSuspend {
 		return errors.New("runsegment: per-Run suspend commit is not allowed")
 	}
-	if commit.ObsoleteProcessTreeRootID != "" && commit.State != runs.StateTerminalize {
-		return errors.New("runsegment: process checkpoint deletion requires a terminal Run commit")
+	if commit.ObsoleteCheckpointRootID != "" && commit.State != runs.StateTerminalize {
+		return errors.New("runsegment: executor checkpoint deletion requires a terminal Run commit")
 	}
 	err := e.runInTx(ctx, func(ctx context.Context) error {
 		if err := e.applyCommit(ctx, commit); err != nil {
 			return err
 		}
-		if commit.ObsoleteProcessTreeRootID == "" {
+		if commit.ObsoleteCheckpointRootID == "" {
 			return nil
 		}
-		if e.processTrees == nil {
-			return errors.New("runsegment: process-tree persistence is unavailable")
+		if e.executorCheckpoints == nil {
+			return errors.New("runsegment: executor checkpoint persistence is unavailable")
 		}
-		if err := e.processTrees.DeleteTrees(ctx, []string{commit.ObsoleteProcessTreeRootID}); err != nil {
-			return fmt.Errorf("runsegment: delete terminal process checkpoint %q: %w", commit.ObsoleteProcessTreeRootID, err)
+		if err := e.executorCheckpoints.DeleteCheckpoints(ctx, commit.SessionID, []string{commit.ObsoleteCheckpointRootID}); err != nil {
+			return fmt.Errorf("runsegment: delete terminal executor checkpoint %q: %w", commit.ObsoleteCheckpointRootID, err)
 		}
 		return nil
 	})
@@ -131,11 +137,47 @@ func (e *Effects) CommitTreeBarrier(ctx context.Context, barrier runs.TreeBarrie
 	if e.tx == nil {
 		return errors.New("runsegment: transactor is unavailable")
 	}
-	if barrier.Checkpoint == nil {
-		return errors.New("runsegment: tree barrier has no process checkpoint")
+	if e.executorCheckpoints == nil {
+		return errors.New("runsegment: executor checkpoint persistence is unavailable")
 	}
 	if err := barrier.Pending.Validate(); err != nil {
 		return fmt.Errorf("runsegment: invalid tree barrier: %w", err)
+	}
+	rootContinuation, ok := barrier.Pending.RootContinuation()
+	if !ok {
+		return errors.New("runsegment: tree barrier has no root continuation")
+	}
+	if err := barrier.Checkpoint.ValidateOwnership(
+		rootContinuation.ProcessID,
+		barrier.Pending.SessionID,
+	); err != nil {
+		return fmt.Errorf("runsegment: invalid tree barrier executor checkpoint ownership: %w", err)
+	}
+	if barrier.Checkpoint.Scope.GoalLeaseID != barrier.Pending.GoalLeaseID {
+		return fmt.Errorf(
+			"runsegment: tree barrier checkpoint goal lease %q does not match Pending %q: %w",
+			barrier.Checkpoint.Scope.GoalLeaseID,
+			barrier.Pending.GoalLeaseID,
+			execution.ErrInvalidExecutorCheckpoint,
+		)
+	}
+	if barrier.Checkpoint.ModelSelection != rootContinuation.ModelSelection {
+		return fmt.Errorf(
+			"runsegment: tree barrier checkpoint model %q/%q does not match root continuation %q/%q: %w",
+			barrier.Checkpoint.ModelSelection.Provider(),
+			barrier.Checkpoint.ModelSelection.Model(),
+			rootContinuation.ModelSelection.Provider(),
+			rootContinuation.ModelSelection.Model(),
+			execution.ErrInvalidExecutorCheckpoint,
+		)
+	}
+	if barrier.Checkpoint.Limits != rootContinuation.Limits {
+		return fmt.Errorf(
+			"runsegment: tree barrier checkpoint limits %+v do not match root continuation %+v: %w",
+			barrier.Checkpoint.Limits,
+			rootContinuation.Limits,
+			execution.ErrInvalidExecutorCheckpoint,
+		)
 	}
 	if len(barrier.Runs) != len(barrier.Pending.Continuations) {
 		return fmt.Errorf(
@@ -144,12 +186,15 @@ func (e *Effects) CommitTreeBarrier(ctx context.Context, barrier runs.TreeBarrie
 			len(barrier.Pending.Continuations),
 		)
 	}
-	continuations := make(map[string]struct{}, len(barrier.Pending.Continuations))
+	continuations := make(map[string]interrupts.Continuation, len(barrier.Pending.Continuations))
 	for _, continuation := range barrier.Pending.Continuations {
-		continuations[continuation.RunID] = struct{}{}
+		continuations[continuation.RunID] = continuation
 	}
 	seen := make(map[string]struct{}, len(barrier.Runs))
 	for index, commit := range barrier.Runs {
+		if err := commit.Validate(); err != nil {
+			return fmt.Errorf("runsegment: tree barrier Run[%d]: %w", index, err)
+		}
 		switch {
 		case commit.State != runs.StateSuspend:
 			return fmt.Errorf("runsegment: tree barrier Run[%d] is not a suspend commit", index)
@@ -163,8 +208,26 @@ func (e *Effects) CommitTreeBarrier(ctx context.Context, barrier runs.TreeBarrie
 		case commit.GoalTurn != nil:
 			return fmt.Errorf("runsegment: tree barrier Run[%d] carries a terminal goal charge", index)
 		}
-		if _, exists := continuations[commit.RunID]; !exists {
+		continuation, exists := continuations[commit.RunID]
+		if !exists {
 			return fmt.Errorf("runsegment: tree barrier Run[%d] has no continuation", index)
+		}
+		if commit.Run.Lineage() != continuation.Lineage ||
+			commit.Run.ModelSelection != continuation.ModelSelection ||
+			!commit.Run.CreatedAt.Equal(continuation.RunCreatedAt) ||
+			!commit.Run.Metrics.Equal(continuation.Metrics) ||
+			commit.Run.Limits != continuation.Limits {
+			return fmt.Errorf("runsegment: tree barrier Run[%d] differs from its continuation", index)
+		}
+		if !commit.Run.ProtocolProfile.Equal(barrier.Pending.ProtocolProfile) {
+			return fmt.Errorf("runsegment: tree barrier Run[%d] protocol profile differs from Pending", index)
+		}
+		if commit.RunID == barrier.Pending.RootRunID {
+			if commit.Run.GoalLeaseID != barrier.Pending.GoalLeaseID {
+				return fmt.Errorf("runsegment: tree barrier root Run goal lease differs from Pending")
+			}
+		} else if commit.Run.GoalLeaseID != "" {
+			return fmt.Errorf("runsegment: tree barrier child Run[%d] carries a root Goal lease", index)
 		}
 		if _, duplicate := seen[commit.RunID]; duplicate {
 			return fmt.Errorf("runsegment: tree barrier repeats Run %q", commit.RunID)
@@ -173,10 +236,10 @@ func (e *Effects) CommitTreeBarrier(ctx context.Context, barrier runs.TreeBarrie
 	}
 
 	err := e.runInTx(ctx, func(ctx context.Context) error {
-		if err := barrier.Checkpoint.PersistCheckpoint(ctx); err != nil {
-			return fmt.Errorf("runsegment: persist tree barrier process checkpoint: %w", err)
+		if err := e.executorCheckpoints.SaveCheckpoint(ctx, barrier.Checkpoint); err != nil {
+			return fmt.Errorf("runsegment: persist tree barrier executor checkpoint: %w", err)
 		}
-		if err := e.putInterrupt(ctx, barrier.Pending); err != nil {
+		if err := e.openInterrupt(ctx, barrier.Pending); err != nil {
 			return err
 		}
 		for _, commit := range barrier.Runs {
@@ -245,7 +308,7 @@ func (e *Effects) consumeResume(ctx context.Context, resume execution.TreeResume
 	if e.interrupts == nil {
 		return errors.New("runsegment: interrupt persistence is unavailable")
 	}
-	pending, ok, err := e.interrupts.Consume(ctx, resume.RootRunID)
+	pending, ok, err := e.interrupts.Consume(ctx, resume.SessionID, resume.RootRunID)
 	if err != nil {
 		return fmt.Errorf("runsegment: consume resume interrupt: %w", err)
 	}
@@ -297,11 +360,11 @@ func (e *Effects) runInTx(ctx context.Context, fn func(context.Context) error) e
 	return e.tx(ctx, fn)
 }
 
-func (e *Effects) putInterrupt(ctx context.Context, p interrupts.Pending) error {
+func (e *Effects) openInterrupt(ctx context.Context, p interrupts.Pending) error {
 	if e.interrupts == nil {
 		return errors.New("runsegment: interrupt persistence is unavailable")
 	}
-	if err := e.interrupts.Put(ctx, p); err != nil {
+	if err := e.interrupts.Open(ctx, p); err != nil {
 		return fmt.Errorf("runsegment: persist interrupt: %w", err)
 	}
 	return nil

@@ -20,14 +20,18 @@ import (
 // state. Later segments are driven by [memoryDispatcher.Resume] through the
 // shared [drive] loop. st.ctx (the turn's own lifetime) bounds the run.
 func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
-	// Resolve a per-turn client when the run picked a provider+model and a
-	// resolver is wired; no selection / no resolver runs on the engine's
-	// default client.
+	// Resolve a per-turn client when the Run picked a provider+model. Preparation
+	// has already rejected an explicit selection without a resolver.
 	var client *chatclient.Client
-	if request.ModelSelection.Configured() && s.resolver != nil {
+	if request.ModelSelection.Configured() {
 		c, err := s.resolver.ResolveClient(st.ctx, request.ModelSelection)
 		if err != nil {
 			recordTurnCleanupError(st, s.finishExecutionError(st, problemFromError(err), err))
+			return
+		}
+		if c == nil {
+			err := errors.New("turn: client resolver returned nil for an explicit model selection")
+			recordTurnCleanupError(st, s.finishExecutionError(st, internalRunProblem(), err))
 			return
 		}
 		client = c
@@ -42,7 +46,13 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 	if request.ChildRunAdmissionEnabled {
 		admitChild = observer.admitChild
 	}
-	subagents := newSubagentLifecycle(st.handle.SessionID, st.cwd, st.hooks, s.engine.SubagentProjection)
+	subagents := newSubagentLifecycle(
+		st.handle.SessionID,
+		st.cwd,
+		st.hooks,
+		observer.childRun,
+		s.engine.SubagentProjection,
+	)
 	var eventListener core.Extension
 	if subagents != nil {
 		eventListener = subagents.listener(st.handle.TurnID)
@@ -55,9 +65,7 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 		Cwd:            request.Cwd,
 		Isolated:       request.Isolated,
 		GoalLeaseID:    request.GoalLeaseID,
-		MaxBudget:      request.MaxBudget,
-		MaxCostUSD:     request.MaxCostUSD,
-		MaxSteps:       request.MaxSteps,
+		Limits:         request.Limits,
 		Options:        request.Options,
 		ChatClient:     client,
 		Observer:       observer,
@@ -194,7 +202,7 @@ func (s *memoryDispatcher) emitInterrupt(
 		recordTurnCleanupError(st, s.finishFailedTurn(st, internalRunProblem(), err))
 		return
 	}
-	pending := checkpoint.PendingSuspensions()
+	pending := checkpoint.Suspensions
 	if !st.parkIfLive() {
 		// Canceled between handleWaiting's top ctx check and here: don't surface
 		// an interrupt nobody will answer — terminate like the canceled path so
@@ -205,7 +213,7 @@ func (s *memoryDispatcher) emitInterrupt(
 		return
 	}
 	barrier := runs.TreeInterrupted{
-		Checkpoint:  checkpoint,
+		Checkpoint:  checkpoint.Checkpoint,
 		Suspensions: make([]runs.ProcessSuspension, len(pending)),
 	}
 	for index, suspension := range pending {

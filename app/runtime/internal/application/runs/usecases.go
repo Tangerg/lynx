@@ -30,9 +30,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		Message:                  message,
 		Media:                    media,
 		ModelSelection:           cmd.ModelSelection,
-		MaxBudget:                cmd.MaxBudget,
-		MaxCostUSD:               cmd.MaxCostUSD,
-		MaxSteps:                 cmd.MaxSteps,
+		Limits:                   cmd.Limits,
 		Options:                  cmd.Options,
 		InterruptKinds:           cmd.ProtocolProfile.InterruptKinds,
 		ChildRunAdmissionEnabled: cmd.ProtocolProfile.ChildRuns,
@@ -94,7 +92,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		CreatedAt:        createdAt,
 		OpeningUserText:  openingUserText,
 		Input:            cmd.Input,
-		Limits:           execution.RunLimits{MaxSteps: cmd.MaxSteps, MaxBudgetUSD: cmd.MaxCostUSD},
+		Limits:           cmd.Limits,
 		ProtocolProfile:  cmd.ProtocolProfile,
 		admission:        &runAdmission,
 		Activate: func(activateCtx context.Context) error {
@@ -153,6 +151,16 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		return StartResult{}, fmt.Errorf("%w: session %q or working tree %q has a run or mutation in flight", ErrSessionBusy, pending.SessionID, sess.Cwd)
 	}
 	defer runAdmission.Release()
+	if c.runs == nil {
+		return StartResult{}, errors.New("runs: run projection is required")
+	}
+	parkedRuns, err := c.runs.RunTree(ctx, pending.RootRunID)
+	if err != nil {
+		return StartResult{}, err
+	}
+	if err := validatePendingRunTree(pending, parkedRuns); err != nil {
+		return StartResult{}, err
+	}
 
 	// Resume inherits the copy cwd + isolation from the parked turn's Runtime
 	// scope, so no execution-cwd resolution is needed here. A rehydrate (process
@@ -189,6 +197,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		Cwd:            sess.Cwd,
 		TurnID:         turn.TurnID,
 		ModelSelection: rootContinuation.ModelSelection,
+		GoalLeaseID:    pending.GoalLeaseID,
 		CreatedAt:      createdAt,
 		Input:          cmd.Input,
 		Continuation:   continuation,
@@ -324,13 +333,13 @@ func (c *Coordinator) cancelLiveChild(
 	if err := c.turns.CancelSubtree(
 		cleanupCtx,
 		plan.turn,
-		plan.target.source.ProcessID,
+		plan.target.processID,
 	); err != nil {
 		live.abortChildCancellation(attempt, err)
 		return CancelResult{}, fmt.Errorf(
 			"runs: cancel child Run %q executor subtree %q: %w",
 			plan.target.run.ID,
-			plan.target.source.ProcessID,
+			plan.target.processID,
 			err,
 		)
 	}
@@ -363,7 +372,7 @@ func (c *Coordinator) cancelLiveChild(
 // parked at a human boundary. It first reserves the Session + working tree,
 // claims the App turn lifecycle, and obtains an immutable Agent transition plan
 // that retains no runtime ownership. The application projections and replacement
-// process state commit in one transaction; only after that durable boundary may
+// executor checkpoint commit in one transaction; only after that durable boundary may
 // App apply the planned live transition.
 //
 // When another external boundary survives, the tree stays Interrupted. Removing
@@ -471,12 +480,12 @@ func (c *Coordinator) cancelWaitingChild(
 	prepared, err := c.turns.PrepareWaitingSubtreeCancellation(
 		cleanupCtx,
 		turn,
-		plan.target.source.ProcessID,
+		plan.target.processID,
 	)
 	if err != nil {
 		return CancelResult{}, err
 	}
-	defer prepared.Abort()
+	defer prepared.Mutation.Abort()
 
 	transformation, err := prepareWaitingCancellationTransformation(
 		plan,
@@ -495,7 +504,7 @@ func (c *Coordinator) cancelWaitingChild(
 		if err != nil {
 			return CancelResult{}, err
 		}
-		if err := prepared.Commit(cleanupCtx, WaitingSubtreeRemainsInterrupted); err != nil {
+		if err := prepared.Mutation.Commit(cleanupCtx, WaitingSubtreeRemainsInterrupted); err != nil {
 			applyErr := fmt.Errorf(
 				"runs: apply committed cancellation of waiting child Run %q in root Run %q: %w",
 				plan.target.run.ID,
@@ -506,7 +515,7 @@ func (c *Coordinator) cancelWaitingChild(
 			// claim before asking the turn adapter to tear down its obsolete live
 			// tree, then fail the durable tree closed as run_lost. This recovery is
 			// application policy; Agent Runtime remains unaware of the transaction.
-			prepared.Abort()
+			prepared.Mutation.Abort()
 			recoveryErr := c.recoverCommittedWaitingCancellation(cleanupCtx, plan)
 			return CancelResult{}, errors.Join(applyErr, recoveryErr)
 		}
@@ -533,6 +542,7 @@ func (c *Coordinator) cancelWaitingChild(
 		Cwd:            sess.Cwd,
 		TurnID:         turn.TurnID,
 		ModelSelection: rootContinuation.ModelSelection,
+		GoalLeaseID:    transformation.continuation.goalLeaseID,
 		CreatedAt:      rootContinuation.RunCreatedAt,
 		Continuation:   transformation.continuation,
 		admission:      &runAdmission,
@@ -550,7 +560,7 @@ func (c *Coordinator) cancelWaitingChild(
 			return commitErr
 		},
 		Activate: func(activateCtx context.Context) error {
-			if err := prepared.Commit(activateCtx, WaitingSubtreeContinues); err != nil {
+			if err := prepared.Mutation.Commit(activateCtx, WaitingSubtreeContinues); err != nil {
 				return fmt.Errorf(
 					"runs: activate committed cancellation of waiting child Run %q in root Run %q: %w",
 					plan.target.run.ID,
@@ -587,7 +597,7 @@ func (c *Coordinator) recoverCommittedWaitingCancellation(
 		c.now().UTC(),
 	); err != nil {
 		return fmt.Errorf(
-			"runs: recover root Run %q after committed process state could not be applied to live runtime: %w",
+			"runs: recover root Run %q after its committed executor checkpoint could not be applied to the live runtime: %w",
 			plan.root.run.ID,
 			err,
 		)
@@ -905,7 +915,7 @@ func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pendin
 	// and its memory extraction on the REAL tree — the exact pollution isolation
 	// exists to prevent. Fail closed: the run's world is gone, so it is lost, not
 	// resumable. Reusing ErrTurnStateLost routes it through the same durable
-	// lost-run cleanup as missing executor process state.
+	// lost-run cleanup as a missing executor checkpoint.
 	if isolated {
 		return execution.TurnRef{}, fmt.Errorf("%w: an isolated run cannot resume after its sandbox process ended", ErrTurnStateLost)
 	}
@@ -920,8 +930,13 @@ func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pendin
 		SessionID:                pending.SessionID,
 		TurnID:                   pending.TurnID,
 		ProcessID:                root.ProcessID,
+		RootRunID:                pending.RootRunID,
+		ChildRuns:                childRunBindingsFromPending(pending),
 		ModelSelection:           root.ModelSelection,
 		Cwd:                      cwd,
+		Isolated:                 isolated,
+		GoalLeaseID:              pending.GoalLeaseID,
+		Limits:                   root.Limits,
 		ChildRunAdmissionEnabled: pending.ProtocolProfile.ChildRuns,
 	})
 	if err != nil {
@@ -931,6 +946,21 @@ func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pendin
 		return execution.TurnRef{}, err
 	}
 	return turn, nil
+}
+
+func childRunBindingsFromPending(pending interrupts.Pending) []ChildRunBinding {
+	bindings := make([]ChildRunBinding, 0, len(pending.Continuations)-1)
+	for _, continuation := range pending.Continuations {
+		if !continuation.Lineage.IsChild() {
+			continue
+		}
+		bindings = append(bindings, ChildRunBinding{
+			ProcessID:   continuation.ProcessID,
+			RunID:       continuation.RunID,
+			ParentRunID: continuation.Lineage.ParentRunID,
+		})
+	}
+	return bindings
 }
 
 func (c *Coordinator) validateStartedTurn(ctx context.Context, ref execution.TurnRef, sessionID string) error {

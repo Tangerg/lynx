@@ -116,6 +116,38 @@ func (s Snapshot) Validate() error {
 	return nil
 }
 
+// ValidateAdvanceFrom proves that s is a cumulative continuation of previous.
+// A checkpoint may add models or increase counters, but it cannot erase a model
+// or rewind usage already committed at an earlier barrier.
+func (s Snapshot) ValidateAdvanceFrom(previous Snapshot) error {
+	if err := previous.Validate(); err != nil {
+		return fmt.Errorf("previous usage: %w", err)
+	}
+	if err := s.Validate(); err != nil {
+		return fmt.Errorf("next usage: %w", err)
+	}
+	nextByModel := make(map[string]ModelUsage, len(s.Models))
+	for _, model := range s.Models {
+		nextByModel[model.Model] = model
+	}
+	for _, before := range previous.Models {
+		after, found := nextByModel[before.Model]
+		if !found {
+			return fmt.Errorf("accounting snapshot: model %q disappeared", before.Model)
+		}
+		if after.PromptTokens < before.PromptTokens ||
+			after.CompletionTokens < before.CompletionTokens ||
+			after.ReasoningTokens < before.ReasoningTokens ||
+			after.CacheReadTokens < before.CacheReadTokens ||
+			after.CacheWriteTokens < before.CacheWriteTokens ||
+			after.CostUSD < before.CostUSD ||
+			after.Calls < before.Calls {
+			return fmt.Errorf("accounting snapshot: model %q usage regressed", before.Model)
+		}
+	}
+	return nil
+}
+
 // Validate checks one model's token and cost counters.
 func (m ModelUsage) Validate() error {
 	u := m.TokenUsage
@@ -134,26 +166,6 @@ func (m ModelUsage) Validate() error {
 	}
 	if m.Calls <= 0 {
 		return errors.New("model usage calls must be positive")
-	}
-	return nil
-}
-
-// Budget caps one turn by tokens, cost, and model calls across its complete
-// delegation tree. A zero field is unbounded on that dimension.
-type Budget struct {
-	MaxTokens  int64
-	MaxCostUSD float64
-	MaxSteps   int
-}
-
-// Validate rejects malformed application limits before they are installed on
-// a live process tree or durable checkpoint.
-func (b Budget) Validate() error {
-	if b.MaxTokens < 0 || b.MaxSteps < 0 {
-		return errors.New("execution budget integer limits must not be negative")
-	}
-	if math.IsNaN(b.MaxCostUSD) || math.IsInf(b.MaxCostUSD, 0) || b.MaxCostUSD < 0 {
-		return errors.New("execution budget cost limit must be finite and non-negative")
 	}
 	return nil
 }

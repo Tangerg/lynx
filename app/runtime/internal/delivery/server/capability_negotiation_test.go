@@ -192,7 +192,7 @@ func TestResumeRunRefusesACallerThatCannotFollowTheRun(t *testing.T) {
 	pending.ProtocolProfile = execution.RunProtocolProfile{
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt},
 	}
-	if err := rt.interrupts.Put(ctx, pending); err != nil {
+	if err := rt.interrupts.Open(ctx, pending); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 

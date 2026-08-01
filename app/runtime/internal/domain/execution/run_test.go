@@ -1,6 +1,9 @@
 package execution
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 var allStates = []RunState{Running, Interrupted, Completed, Failed, Canceled}
 
@@ -89,6 +92,26 @@ func TestRecoverLost(t *testing.T) {
 		if got != want || ok != wantOK {
 			t.Errorf("%s.RecoverLost() = (%s, %v), want (%s, %v)", state, got, ok, want, wantOK)
 		}
+	}
+}
+
+func TestRunLimitsValidate(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		limits RunLimits
+	}{
+		{name: "negative tokens", limits: RunLimits{MaxTotalTokens: -1}},
+		{name: "negative steps", limits: RunLimits{MaxSteps: -1}},
+		{name: "negative budget", limits: RunLimits{MaxBudgetUSD: -1}},
+		{name: "nan budget", limits: RunLimits{MaxBudgetUSD: math.NaN()}},
+		{name: "positive infinite budget", limits: RunLimits{MaxBudgetUSD: math.Inf(1)}},
+		{name: "negative infinite budget", limits: RunLimits{MaxBudgetUSD: math.Inf(-1)}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.limits.Validate(); err == nil {
+				t.Fatal("Validate accepted malformed limits")
+			}
+		})
 	}
 }
 

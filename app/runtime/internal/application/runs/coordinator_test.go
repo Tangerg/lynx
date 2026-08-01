@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"iter"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -33,6 +34,7 @@ func testTreeContinuation(pending interrupts.Pending) *treeContinuation {
 		rootRunID:     pending.RootRunID,
 		sessionID:     pending.SessionID,
 		turnID:        pending.TurnID,
+		goalLeaseID:   pending.GoalLeaseID,
 		interrupts:    slices.Clone(pending.Interrupts),
 		continuations: slices.Clone(pending.Continuations),
 		profile:       pending.ProtocolProfile,
@@ -90,7 +92,7 @@ func (e *cancellableChildExecutor) TurnEvents(
 		if !yield(ExecutorEvent{Source: e.childSource, Payload: e.request}) {
 			return
 		}
-		if err := e.confirmation.Await(ctx); err != nil {
+		if _, err := e.confirmation.Await(ctx); err != nil {
 			return
 		}
 		close(e.childOpened)
@@ -150,7 +152,7 @@ func (e *acknowledgedChildExecutor) TurnEvents(ctx context.Context, _ execution.
 		if !yield(ExecutorEvent{Source: e.childSource, Payload: e.request}) {
 			return
 		}
-		if err := e.confirmation.Await(ctx); err != nil {
+		if _, err := e.confirmation.Await(ctx); err != nil {
 			return
 		}
 		close(e.childStarted)
@@ -411,6 +413,83 @@ func testSegment() segmentSpec {
 		RunID: "run_1", SegmentID: "seg_1", SessionID: "ses_1",
 		TurnID: "turn_1", ModelSelection: mustSelection("openai", "model"),
 		CreatedAt: time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC),
+	}
+}
+
+func runForSegment(spec segmentSpec) transcript.Run {
+	return transcript.Run{
+		ID: spec.RunID, SessionID: spec.SessionID, State: execution.Running,
+		ActiveSegmentID: spec.SegmentID, ModelSelection: spec.ModelSelection,
+		GoalLeaseID: spec.GoalLeaseID, Limits: spec.Limits,
+		ProtocolProfile: spec.ProtocolProfile,
+		CreatedAt:       spec.CreatedAt, UpdatedAt: spec.CreatedAt,
+		MessageMark: transcript.UnknownMessageMark,
+	}
+}
+
+func TestResumedExecutorRouteRetainsGoalLeaseForTerminalAccounting(t *testing.T) {
+	createdAt := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
+	pending := testPendingInterrupt("item_1", "process_root", createdAt)
+	pending.GoalLeaseID = "goal-lease-1"
+	pending.Continuations[0].ModelSelection = mustSelection("openai", "model")
+	continuation := mustTreeContinuation(t, pending)
+	spec := testSegment()
+	spec.Continuation = continuation
+	spec.GoalLeaseID = pending.GoalLeaseID
+
+	routes, err := testCoordinator(&fakeExecutor{}, &fakeEffects{}).resumedExecutorRoutes(spec, nil)
+	if err != nil {
+		t.Fatalf("resumedExecutorRoutes: %v", err)
+	}
+	if routes.root.reducer.cfg.GoalLeaseID != pending.GoalLeaseID {
+		t.Fatalf(
+			"resumed reducer goal lease = %q, want %q",
+			routes.root.reducer.cfg.GoalLeaseID,
+			pending.GoalLeaseID,
+		)
+	}
+}
+
+func TestResumedExecutorRoutesBindLiveTopologyWithoutPersistingIt(t *testing.T) {
+	createdAt := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
+	pending := resumedTreePending(createdAt)
+	continuation := mustTreeContinuation(t, pending)
+	spec := testSegment()
+	spec.RunID = pending.RootRunID
+	spec.SessionID = pending.SessionID
+	spec.Continuation = continuation
+
+	coordinator := testCoordinator(&fakeExecutor{}, &fakeEffects{})
+	segmentIDs := []string{"segment_grandchild", "segment_a", "segment_b"}
+	coordinator.newSegmentID = func() string {
+		segmentID := segmentIDs[0]
+		segmentIDs = segmentIDs[1:]
+		return segmentID
+	}
+	routes, err := coordinator.resumedExecutorRoutes(spec, nil)
+	if err != nil {
+		t.Fatalf("resumedExecutorRoutes: %v", err)
+	}
+	child := routes.byRunID["run_a"]
+	if child == nil || child.sourceBound || child.source.ProcessID != "process_a" {
+		t.Fatalf("restored child route = %+v, want opaque process binding without persisted topology", child)
+	}
+
+	source := ExecutorSource{ProcessID: "process_a", ParentID: "process_root", SpawnCallID: "spawn_a"}
+	resolved, err := routes.resolve(source)
+	if err != nil || resolved != child || !child.sourceBound || child.source != source {
+		t.Fatalf("resolve live child source = (%+v, %v), route=%+v", resolved, err, child)
+	}
+	if _, err := routes.resolve(ExecutorSource{
+		ProcessID: "process_a", ParentID: "process_root", SpawnCallID: "changed",
+	}); err == nil || !strings.Contains(err.Error(), "changed immutable lineage") {
+		t.Fatalf("changed live child topology error = %v", err)
+	}
+
+	if _, err := routes.resolve(ExecutorSource{
+		ProcessID: "process_b", ParentID: "process_a", SpawnCallID: "spawn_b",
+	}); err == nil || !strings.Contains(err.Error(), "want Run") {
+		t.Fatalf("wrong live parent error = %v", err)
 	}
 }
 
@@ -715,12 +794,12 @@ func TestCoordinatorResumesCompleteRunTreeInOneCanonicalOpening(t *testing.T) {
 	}
 	var checkpointDeletes []string
 	for _, commit := range effects.commitSnapshot() {
-		if commit.ObsoleteProcessTreeRootID != "" {
-			checkpointDeletes = append(checkpointDeletes, commit.ObsoleteProcessTreeRootID)
+		if commit.ObsoleteCheckpointRootID != "" {
+			checkpointDeletes = append(checkpointDeletes, commit.ObsoleteCheckpointRootID)
 		}
 	}
 	if !slices.Equal(checkpointDeletes, []string{rootSource.ProcessID}) {
-		t.Fatalf("terminal process checkpoint deletes = %v, want root only", checkpointDeletes)
+		t.Fatalf("terminal executor checkpoint deletes = %v, want root only", checkpointDeletes)
 	}
 }
 
@@ -742,6 +821,10 @@ func resumedTreePending(createdAt time.Time) interrupts.Pending {
 		RootRunID: "run_1",
 		SessionID: "ses_1",
 		TurnID:    "turn_1",
+		ProtocolProfile: execution.RunProtocolProfile{
+			ChildRuns:      true,
+			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		},
 		Interrupts: []transcript.Interrupt{
 			question("item_grandchild", "run_grandchild"),
 			question("item_b", "run_b"),
@@ -752,10 +835,8 @@ func resumedTreePending(createdAt time.Time) interrupts.Pending {
 		},
 		Continuations: []interrupts.Continuation{
 			{
-				RunID:           "run_grandchild",
-				ProcessID:       "process_grandchild",
-				ParentProcessID: "process_a",
-				SpawnCallID:     "spawn_grandchild",
+				RunID:     "run_grandchild",
+				ProcessID: "process_grandchild",
 				Lineage: execution.RunLineage{
 					SpawnedByItemID: "item_spawn_grandchild",
 					ParentRunID:     "run_a",
@@ -765,10 +846,8 @@ func resumedTreePending(createdAt time.Time) interrupts.Pending {
 				RunCreatedAt:   createdAt,
 			},
 			{
-				RunID:           "run_a",
-				ProcessID:       "process_a",
-				ParentProcessID: "process_root",
-				SpawnCallID:     "spawn_a",
+				RunID:     "run_a",
+				ProcessID: "process_a",
 				Lineage: execution.RunLineage{
 					SpawnedByItemID: "item_spawn_a",
 					ParentRunID:     "run_1",
@@ -778,10 +857,8 @@ func resumedTreePending(createdAt time.Time) interrupts.Pending {
 				RunCreatedAt:   createdAt,
 			},
 			{
-				RunID:           "run_b",
-				ProcessID:       "process_b",
-				ParentProcessID: "process_root",
-				SpawnCallID:     "spawn_b",
+				RunID:     "run_b",
+				ProcessID: "process_b",
 				Lineage: execution.RunLineage{
 					SpawnedByItemID: "item_spawn_b",
 					ParentRunID:     "run_1",
@@ -991,8 +1068,15 @@ func TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem(t *testing.T) {
 		t.Fatalf("openSegment: %v", err)
 	}
 	collectEvents(stream)
-	if err := confirmation.Await(t.Context()); err != nil {
+	binding, err := confirmation.Await(t.Context())
+	if err != nil {
 		t.Fatalf("child opening confirmation: %v", err)
+	}
+	wantBinding := ChildRunBinding{
+		ProcessID: childSource.ProcessID, RunID: "run_child", ParentRunID: testSegment().RunID,
+	}
+	if binding != wantBinding {
+		t.Fatalf("child opening binding = %+v, want %+v", binding, wantBinding)
 	}
 
 	openings := effects.openingSnapshot()
@@ -1092,7 +1176,7 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 		t.Fatalf("openSegment: %v", err)
 	}
 	events := collectEvents(stream)
-	if err := confirmation.Await(t.Context()); err != nil {
+	if _, err := confirmation.Await(t.Context()); err != nil {
 		t.Fatalf("child opening confirmation: %v", err)
 	}
 
@@ -1247,10 +1331,10 @@ func TestCoordinatorKeepsConcurrentSiblingSegmentsIsolated(t *testing.T) {
 		t.Fatalf("openSegment: %v", err)
 	}
 	events := collectEvents(stream)
-	if err := confirmationA.Await(t.Context()); err != nil {
+	if _, err := confirmationA.Await(t.Context()); err != nil {
 		t.Fatalf("child A opening: %v", err)
 	}
-	if err := confirmationB.Await(t.Context()); err != nil {
+	if _, err := confirmationB.Await(t.Context()); err != nil {
 		t.Fatalf("child B opening: %v", err)
 	}
 
@@ -1379,10 +1463,10 @@ func TestCoordinatorProjectsNestedChildrenWithExactLineageAndPostorderTerminal(t
 		t.Fatalf("openSegment: %v", err)
 	}
 	events := collectEvents(stream)
-	if err := childConfirmation.Await(t.Context()); err != nil {
+	if _, err := childConfirmation.Await(t.Context()); err != nil {
 		t.Fatalf("child opening: %v", err)
 	}
-	if err := grandchildConfirmation.Await(t.Context()); err != nil {
+	if _, err := grandchildConfirmation.Await(t.Context()); err != nil {
 		t.Fatalf("grandchild opening: %v", err)
 	}
 	for index, event := range events {
@@ -1481,10 +1565,10 @@ func TestCoordinatorDrainedStreamClosesNestedChildrenBeforeAncestors(t *testing.
 		t.Fatalf("openSegment: %v", err)
 	}
 	events := collectEvents(stream)
-	if err := childConfirmation.Await(t.Context()); err != nil {
+	if _, err := childConfirmation.Await(t.Context()); err != nil {
 		t.Fatalf("child opening: %v", err)
 	}
-	if err := grandchildConfirmation.Await(t.Context()); err != nil {
+	if _, err := grandchildConfirmation.Await(t.Context()); err != nil {
 		t.Fatalf("grandchild opening: %v", err)
 	}
 
@@ -1541,7 +1625,7 @@ func TestCoordinatorClosesActiveChildrenBeforeRejectingRootTerminal(t *testing.T
 		t.Fatalf("openSegment: %v", err)
 	}
 	events := collectEvents(stream)
-	if err := confirmation.Await(t.Context()); err != nil {
+	if _, err := confirmation.Await(t.Context()); err != nil {
 		t.Fatalf("child opening confirmation: %v", err)
 	}
 
@@ -1603,7 +1687,7 @@ func TestCoordinatorRecoversFromChildTerminalCommitFailureBeforeClosingRoot(t *t
 		t.Fatalf("openSegment: %v", err)
 	}
 	events := collectEvents(stream)
-	if err := confirmation.Await(t.Context()); err != nil {
+	if _, err := confirmation.Await(t.Context()); err != nil {
 		t.Fatalf("child opening: %v", err)
 	}
 
@@ -1666,7 +1750,7 @@ func TestCoordinatorRejectsChildWhenAtomicOpeningFails(t *testing.T) {
 		t.Fatalf("openSegment: %v", err)
 	}
 	events := collectEvents(stream)
-	if err := confirmation.Await(t.Context()); !errors.Is(err, commitErr) {
+	if _, err := confirmation.Await(t.Context()); !errors.Is(err, commitErr) {
 		t.Fatalf("child opening confirmation = %v, want commit failure", err)
 	}
 	if openings := effects.openingSnapshot(); len(openings) != 1 {
@@ -1725,10 +1809,10 @@ func TestCoordinatorClosesAdmittedSiblingWhenNextOpeningRollsBack(t *testing.T) 
 		t.Fatalf("openSegment: %v", err)
 	}
 	events := collectEvents(stream)
-	if err := confirmationA.Await(t.Context()); err != nil {
+	if _, err := confirmationA.Await(t.Context()); err != nil {
 		t.Fatalf("first child opening: %v", err)
 	}
-	if err := confirmationB.Await(t.Context()); !errors.Is(err, commitErr) {
+	if _, err := confirmationB.Await(t.Context()); !errors.Is(err, commitErr) {
 		t.Fatalf("second child opening = %v, want %v", err, commitErr)
 	}
 	openings := effects.openingSnapshot()
@@ -1848,7 +1932,7 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 		{Source: grandchild, Payload: requestGrandchild},
 		// Deliberately report sibling B before the deeper descendant. Durable
 		// and public ordering follows Run-tree postorder, not executor arrival.
-		{Source: root, Payload: TreeInterrupted{Checkpoint: noopProcessCheckpoint{}, Suspensions: []ProcessSuspension{
+		{Source: root, Payload: TreeInterrupted{Checkpoint: testExecutorCheckpoint(), Suspensions: []ProcessSuspension{
 			{
 				ProcessID: childB.ProcessID, SuspensionID: "suspension_b",
 				Interrupt: treeBarrierQuestion("Continue sibling B?"),
@@ -1874,7 +1958,12 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 		return id
 	}
 
-	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	spec := testSegment()
+	spec.ProtocolProfile = execution.RunProtocolProfile{
+		ChildRuns:      true,
+		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+	}
+	stream, err := coordinator.openSegment(t.Context(), spec)
 	if err != nil {
 		t.Fatalf("openSegment: %v", err)
 	}
@@ -1882,7 +1971,7 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 	for name, confirmation := range map[string]ChildOpeningConfirmation{
 		"child A": confirmationA, "child B": confirmationB, "grandchild": confirmationGrandchild,
 	} {
-		if err := confirmation.Await(t.Context()); err != nil {
+		if _, err := confirmation.Await(t.Context()); err != nil {
 			t.Fatalf("%s opening: %v", name, err)
 		}
 	}
@@ -1968,7 +2057,7 @@ func TestCoordinatorTreeBarrierCommitFailurePublishesNoInterruptedFact(t *testin
 	root := ExecutorSource{ProcessID: "process_root"}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{{
 		Source: root,
-		Payload: TreeInterrupted{Checkpoint: noopProcessCheckpoint{}, Suspensions: []ProcessSuspension{{
+		Payload: TreeInterrupted{Checkpoint: testExecutorCheckpoint(), Suspensions: []ProcessSuspension{{
 			ProcessID: root.ProcessID, SuspensionID: "suspension_root",
 			Interrupt: treeBarrierQuestion("Continue root?"),
 		}}},
@@ -2139,7 +2228,7 @@ func TestCoordinatorCancelContextSurvivesRequestContext(t *testing.T) {
 	coordinator.turns = turns
 	coordinator.sessions = &fakeRunSessions{}
 	coordinator.runs = &fakeRunProjection{runs: map[string]transcript.Run{
-		"run_1": {ID: "run_1", SessionID: "ses_1", State: execution.Running, ActiveSegmentID: "seg_1"},
+		"run_1": runForSegment(testSegment()),
 	}}
 	requestContext, cancelRequest := context.WithCancel(context.Background())
 	stream, err := coordinator.openSegment(requestContext, testSegment())

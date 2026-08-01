@@ -332,12 +332,13 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 		defaults: &chat.Options{Model: "b8-restart-parallel-questions"},
 	}
 	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
+	firstCheckpoints := sqlite.NewExecutorCheckpointStore(firstDatabase)
 	first := buildB8PersistentDispatcher(
 		t,
 		model,
 		policy,
 		staticHookResolver{},
-		sqlite.NewProcessStore(firstDatabase),
+		firstCheckpoints,
 		sqlite.NewMessageStore(firstDatabase),
 		buildID,
 	)
@@ -358,7 +359,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 	for event := range events {
 		if interrupted, ok := event.Payload.(runs.TreeInterrupted); ok {
 			barrier = interrupted
-			persistTreeBarrier(t, barrier)
+			persistTreeBarrier(t, barrier, firstCheckpoints)
 			break
 		}
 	}
@@ -380,7 +381,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 		model,
 		policy,
 		staticHookResolver{},
-		sqlite.NewProcessStore(restoredDatabase),
+		sqlite.NewExecutorCheckpointStore(restoredDatabase),
 		sqlite.NewMessageStore(restoredDatabase),
 		buildID,
 	)
@@ -388,6 +389,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 		SessionID: original.SessionID,
 		TurnID:    original.TurnID,
 		ProcessID: processID,
+		RootRunID: "run-root",
 		Cwd:       cwd,
 	})
 	if err != nil {
@@ -439,11 +441,11 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 
 func TestCompleteAnswerSetDoesNotPersistDuringLiveContinuation(t *testing.T) {
 	const buildID = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-	baseStore := newMemoryProcessStore()
-	store := &failNthSaveProcessStore{
-		ProcessStore: baseStore,
-		failAt:       2,
-		err:          errors.New("unexpected executor-owned checkpoint write"),
+	baseStore := newMemoryCheckpointStore()
+	store := &failNthSaveCheckpointStore{
+		testCheckpointStore: baseStore,
+		failAt:              2,
+		err:                 errors.New("unexpected executor-owned checkpoint write"),
 	}
 	dispatcher := buildB8PersistentDispatcher(
 		t,
@@ -475,7 +477,7 @@ func TestCompleteAnswerSetDoesNotPersistDuringLiveContinuation(t *testing.T) {
 	for event := range events {
 		switch payload := event.Payload.(type) {
 		case runs.TreeInterrupted:
-			persistTreeBarrier(t, payload)
+			persistTreeBarrier(t, payload, store)
 			barrierCount++
 			if len(payload.Suspensions) != 2 {
 				t.Fatalf("barrier suspensions = %#v, want two", payload.Suspensions)
@@ -508,9 +510,9 @@ func TestCompleteAnswerSetDoesNotPersistDuringLiveContinuation(t *testing.T) {
 
 func TestCompleteAnswerSetEncodingFailurePrecedesAnyContinuationSideEffect(t *testing.T) {
 	const buildID = "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-	store := &failNthSaveProcessStore{
-		ProcessStore: newMemoryProcessStore(),
-		failAt:       -1,
+	store := &failNthSaveCheckpointStore{
+		testCheckpointStore: newMemoryCheckpointStore(),
+		failAt:              -1,
 	}
 	dispatcher := buildB8PersistentDispatcher(
 		t,
@@ -542,7 +544,7 @@ func TestCompleteAnswerSetEncodingFailurePrecedesAnyContinuationSideEffect(t *te
 	for event := range events {
 		switch payload := event.Payload.(type) {
 		case runs.TreeInterrupted:
-			persistTreeBarrier(t, payload)
+			persistTreeBarrier(t, payload, store)
 			barrierCount++
 			answers := questionAnswersForBarrier(payload, "encoding-failure")
 			answers[len(answers)-1].Resolution.RememberScope = approval.Scope("unknown")
@@ -577,7 +579,7 @@ func TestCompleteAnswerSetEncodingFailurePrecedesAnyContinuationSideEffect(t *te
 func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	const buildID = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	cwd := t.TempDir()
-	store := newMemoryProcessStore()
+	store := newMemoryCheckpointStore()
 	historyStore := history.NewInMemoryStore()
 	model := &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-restart"},
@@ -613,7 +615,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	for event := range events {
 		if interrupted, ok := event.Payload.(runs.TreeInterrupted); ok {
 			barrier = interrupted
-			persistTreeBarrier(t, barrier)
+			persistTreeBarrier(t, barrier, store)
 			if len(interrupted.Suspensions) != 1 {
 				t.Fatalf("suspensions = %#v", interrupted.Suspensions)
 			}
@@ -646,7 +648,13 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 		SessionID: original.SessionID,
 		TurnID:    original.TurnID,
 		ProcessID: processID,
-		Cwd:       cwd,
+		RootRunID: "run-root",
+		ChildRuns: []runs.ChildRunBinding{{
+			ProcessID:   barrier.Suspensions[0].ProcessID,
+			RunID:       "run-child",
+			ParentRunID: "run-root",
+		}},
+		Cwd: cwd,
 	})
 	if err != nil {
 		t.Fatalf("Rehydrate: %v", err)
@@ -698,7 +706,8 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	}
 	stop := stopInputs[0].Subagent
 	if stop == nil ||
-		stop.ParentProcessID != processID ||
+		stop.RunID != "run-child" ||
+		stop.ParentRunID != "run-root" ||
 		stop.Description != "focused child work" ||
 		stop.Prompt != "perform the child work" ||
 		stop.Status != hooks.SubagentCompleted ||
@@ -708,12 +717,12 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	joinTurnCleanup(t, restored, restoredHandle)
 	ids, err := store.List(t.Context())
 	if err != nil {
-		t.Fatalf("list process snapshots: %v", err)
+		t.Fatalf("list executor checkpoints: %v", err)
 	}
-	if len(ids) != 2 {
-		t.Fatalf("terminal adapter checkpoint rows = %v, want App-owned cleanup still pending", ids)
+	if len(ids) != 1 {
+		t.Fatalf("terminal executor checkpoints = %v, want one App-owned aggregate pending cleanup", ids)
 	}
-	if err := store.DeleteTrees(t.Context(), []string{processID}); err != nil {
+	if err := store.DeleteCheckpoints(t.Context(), original.SessionID, []string{processID}); err != nil {
 		t.Fatalf("application terminal checkpoint cleanup: %v", err)
 	}
 	if ids, err = store.List(t.Context()); err != nil || len(ids) != 0 {
@@ -723,7 +732,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 
 func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	const buildID = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-	store := newMemoryProcessStore()
+	store := newMemoryCheckpointStore()
 	model := &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-cancel"},
 		childTool:      "shell",
@@ -754,7 +763,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	for event := range events {
 		switch event := event.Payload.(type) {
 		case runs.TreeInterrupted:
-			persistTreeBarrier(t, event)
+			persistTreeBarrier(t, event, store)
 			interruptsSeen++
 			processID, err = dispatcher.ProcessID(t.Context(), handle)
 			if err != nil {
@@ -778,10 +787,10 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list snapshots: %v", err)
 	}
-	if len(ids) != 2 {
-		t.Fatalf("canceled adapter checkpoint rows = %v, want App-owned cleanup still pending", ids)
+	if len(ids) != 1 {
+		t.Fatalf("canceled executor checkpoints = %v, want one App-owned aggregate pending cleanup", ids)
 	}
-	if err := store.DeleteTrees(t.Context(), []string{processID}); err != nil {
+	if err := store.DeleteCheckpoints(t.Context(), handle.SessionID, []string{processID}); err != nil {
 		t.Fatalf("application cancel checkpoint cleanup: %v", err)
 	}
 	if ids, err = store.List(t.Context()); err != nil || len(ids) != 0 {
@@ -789,9 +798,9 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	}
 }
 
-func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
+func TestRehydrateRejectsCorruptCheckpointPayload(t *testing.T) {
 	const buildID = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-	store := newMemoryProcessStore()
+	store := newMemoryCheckpointStore()
 	historyStore := history.NewInMemoryStore()
 	model := &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-missing"},
@@ -817,7 +826,7 @@ func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
 	}
 	for event := range events {
 		if barrier, ok := event.Payload.(runs.TreeInterrupted); ok {
-			persistTreeBarrier(t, barrier)
+			persistTreeBarrier(t, barrier, store)
 			break
 		}
 	}
@@ -825,22 +834,13 @@ func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ProcessID: %v", err)
 	}
-	ids, err := store.List(t.Context())
+	checkpoint, err := store.LoadCheckpoint(t.Context(), rootID)
 	if err != nil {
-		t.Fatalf("list snapshots: %v", err)
+		t.Fatalf("load executor checkpoint: %v", err)
 	}
-	var childID string
-	for _, id := range ids {
-		if id != rootID {
-			childID = id
-			break
-		}
-	}
-	if childID == "" {
-		t.Fatalf("parked tree snapshots = %v, want root + child", ids)
-	}
-	if err := store.DeleteTrees(t.Context(), []string{childID}); err != nil {
-		t.Fatalf("delete child snapshot: %v", err)
+	checkpoint.Payload = []byte("{")
+	if err := store.SaveCheckpoint(t.Context(), checkpoint); err != nil {
+		t.Fatalf("corrupt opaque checkpoint payload: %v", err)
 	}
 
 	restored := buildB8PersistentDispatcher(
@@ -850,10 +850,11 @@ func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
 		SessionID: handle.SessionID,
 		TurnID:    handle.TurnID,
 		ProcessID: rootID,
+		RootRunID: "run-root",
 		Cwd:       t.TempDir(),
 	})
-	if !errors.Is(err, agentexec.ErrProcessSnapshotLost) {
-		t.Fatalf("Rehydrate error = %v, want process snapshot lost", err)
+	if !errors.Is(err, agentexec.ErrExecutorCheckpointLost) {
+		t.Fatalf("Rehydrate error = %v, want executor checkpoint lost", err)
 	}
 }
 
@@ -1060,7 +1061,7 @@ func buildB8Dispatcher(
 	engine, err := agentexec.New(t.Context(), agentexec.Config{
 		BuildID:      testProcessBuildID,
 		ChatClient:   client,
-		ProcessStore: newMemoryProcessStore(),
+		Checkpoints:  newMemoryCheckpointStore(),
 		ToolResolver: built.Resolver,
 	})
 	if err != nil {
@@ -1084,7 +1085,7 @@ func buildB8PersistentDispatcher(
 		SetMode(context.Context, approval.Mode) error
 	},
 	hookResolver staticHookResolver,
-	store agentexec.ProcessStore,
+	store testCheckpointStore,
 	historyStore history.Store,
 	buildID string,
 ) turnDriver {
@@ -1106,7 +1107,7 @@ func buildB8PersistentDispatcher(
 		BuildID:      buildID,
 		ChatClient:   client,
 		HistoryStore: historyStore,
-		ProcessStore: store,
+		Checkpoints:  store,
 		ToolResolver: built.Resolver,
 	})
 	if err != nil {

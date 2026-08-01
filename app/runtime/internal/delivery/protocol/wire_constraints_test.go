@@ -168,6 +168,22 @@ func TestPublishedLimitWireConstraints(t *testing.T) {
 	err := subscription.ValidateWire()
 	assertConstraintField(t, err, "SubscriptionLimits", "maxTopics")
 	assertConstraintField(t, err, "SubscriptionLimits", "maxWatches")
+
+	start := StartRunRequest{
+		Input:          []ContentBlock{{Type: ContentBlockText, Text: "go"}},
+		MaxTotalTokens: -1,
+	}
+	assertConstraintField(t, start.ValidateWire(), "StartRunRequest", "maxTotalTokens")
+
+	run := RunLimits{MaxSteps: -1}
+	assertConstraintField(t, run.ValidateWire(), "RunLimits", "maxSteps")
+
+	artifact := ArtifactRunLimits{MaxBudgetUSD: -0.01}
+	assertConstraintField(t, artifact.ValidateWire(), "ArtifactRunLimits", "maxBudgetUsd")
+
+	if err := (RunLimits{}).ValidateWire(); err != nil {
+		t.Fatalf("ValidateWire rejected uncapped RunLimits: %v", err)
+	}
 }
 
 func assertConstraintField(t *testing.T, err error, shape, field string) {

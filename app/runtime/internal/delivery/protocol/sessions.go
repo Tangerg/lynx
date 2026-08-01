@@ -281,8 +281,9 @@ type ArtifactRun struct {
 
 // ArtifactRunLimits is the allowance a portable run was admitted under.
 type ArtifactRunLimits struct {
-	MaxSteps     int     `json:"maxSteps,omitempty"`
-	MaxBudgetUSD float64 `json:"maxBudgetUsd,omitempty"`
+	MaxTotalTokens int64   `json:"maxTotalTokens,omitempty"`
+	MaxSteps       int     `json:"maxSteps,omitempty"`
+	MaxBudgetUSD   float64 `json:"maxBudgetUsd,omitempty"`
 }
 
 // ArtifactRunMetrics is what a portable run consumed.

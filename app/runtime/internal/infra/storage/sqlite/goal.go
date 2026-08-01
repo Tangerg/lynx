@@ -116,11 +116,8 @@ func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version
 // a repeated terminal delivery for the same Run cannot charge the Goal twice,
 // while a stale lease is retained as history but never mutates a newer goal.
 func (s *GoalStore) RecordTurn(ctx context.Context, record goal.TurnRecord) error {
-	if record.SessionID == "" || record.LeaseID == "" || record.RunID == "" {
-		return errors.New("sqlite: goal turn identity is required")
-	}
-	if record.CompletedAt.IsZero() {
-		return errors.New("sqlite: goal turn completion time is required")
+	if err := record.Validate(); err != nil {
+		return fmt.Errorf("sqlite: record goal turn: %w", err)
 	}
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
 		res, err := conn(ctx, s.db).ExecContext(ctx,
@@ -136,7 +133,7 @@ func (s *GoalStore) RecordTurn(ctx context.Context, record goal.TurnRecord) erro
 			return err
 		}
 		if !inserted {
-			return nil
+			return s.validateExistingTurn(ctx, record)
 		}
 
 		g, found, err := s.Get(ctx, record.SessionID)
@@ -157,6 +154,36 @@ func (s *GoalStore) RecordTurn(ctx context.Context, record goal.TurnRecord) erro
 		}
 		return nil
 	})
+}
+
+func (s *GoalStore) validateExistingTurn(ctx context.Context, record goal.TurnRecord) error {
+	var (
+		sessionID   string
+		leaseID     string
+		outcome     string
+		costUSD     float64
+		steps       int
+		completedAt int64
+	)
+	err := conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT session_id, lease_id, outcome, cost_usd, steps, completed_at
+		   FROM goal_turns
+		  WHERE run_id = ?`,
+		record.RunID,
+	).Scan(&sessionID, &leaseID, &outcome, &costUSD, &steps, &completedAt)
+	if err != nil {
+		return fmt.Errorf("sqlite: inspect existing goal turn for Run %q: %w", record.RunID, err)
+	}
+	if sessionID == record.SessionID && leaseID == record.LeaseID &&
+		outcome == record.Outcome.String() && costUSD == record.CostUSD &&
+		steps == record.Steps && completedAt == record.CompletedAt.UTC().UnixNano() {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: Run %q is already bound to a different accounting fact",
+		goal.ErrTurnIdentityConflict,
+		record.RunID,
+	)
 }
 
 func rowsAffected(res sql.Result) (bool, error) {

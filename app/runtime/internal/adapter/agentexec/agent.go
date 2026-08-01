@@ -5,8 +5,8 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 )
@@ -61,7 +61,7 @@ type TurnOutput struct {
 // memory store for system-prompt composition without an extra
 // parameter passed through every turn.
 //
-// The Action declares [toolport.ToolRoleCoding] so the runtime resolves the
+// The Action declares [tool.GroupCoding] so the runtime resolves the
 // coding tool group at dispatch time; the body calls
 // [core.ProcessContext.Interact], the framework-managed interaction boundary.
 // Runtime owns model/tool iteration, checkpointing, suspension, usage, and
@@ -81,7 +81,7 @@ func (e *Engine) buildTurnAgent() *core.Agent {
 		func(ctx context.Context, processCtx *core.ProcessContext, input turnInput) (TurnOutput, error) {
 			return e.runTurn(ctx, processCtx, input.Message, input.Media, input.Options)
 		},
-		core.ActionConfig{ToolGroups: []string{toolport.ToolRoleCoding}},
+		core.ActionConfig{ToolGroups: []string{tool.GroupCoding}},
 	)
 	replyGoal := agent.NewOutputGoal[TurnOutput](
 		core.GoalConfig{Description: "single-turn reply produced"},
@@ -108,7 +108,7 @@ type taskInput struct {
 
 // buildSubtaskAgent constructs the agent behind the `task` delegation tool.
 // It shares the main agent's chat body but has three deliberate differences:
-// its name derives the `task` tool name; [toolport.ToolRoleSubtask] exposes
+// its name derives the `task` tool name; [tool.GroupSubtask] exposes
 // coding tools plus bounded recursive delegation while withholding root-only
 // product tools; and its goal returns only the reply string rather than a
 // TurnOutput blob. Agent Runtime's MaxChildDepth and root-owned tree budget
@@ -123,7 +123,7 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 			}
 			return output.Reply, nil
 		},
-		core.ActionConfig{ToolGroups: []string{toolport.ToolRoleSubtask}},
+		core.ActionConfig{ToolGroups: []string{tool.GroupSubtask}},
 	)
 	answerGoal := agent.NewOutputGoal[string](
 		core.GoalConfig{Description: "subtask answer produced"},

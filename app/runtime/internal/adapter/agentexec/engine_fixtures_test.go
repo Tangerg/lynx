@@ -14,7 +14,6 @@ import (
 	"github.com/Tangerg/lynx/tools"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -76,7 +75,7 @@ func mustEngineWith(t *testing.T, client *chatclient.Client, bc toolset.BuildCon
 
 func codingTools(t *testing.T, resolver *toolset.Resolver) []tools.Tool {
 	t.Helper()
-	group, ok, err := resolver.Resolve(t.Context(), toolport.ToolRoleCoding)
+	group, ok, err := resolver.Resolve(t.Context(), tool.GroupCoding)
 	if err != nil || !ok {
 		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 	}
@@ -107,16 +106,39 @@ func captureWaitingCheckpoint(t *testing.T, process TurnProcess) WaitingCheckpoi
 	return checkpoint
 }
 
-func persistWaitingCheckpoint(t *testing.T, process TurnProcess) WaitingCheckpoint {
+func persistWaitingCheckpoint(
+	t *testing.T,
+	store interface {
+		SaveCheckpoint(context.Context, execution.ExecutorCheckpoint) error
+	},
+	process TurnProcess,
+) WaitingCheckpoint {
 	t.Helper()
 	checkpoint := captureWaitingCheckpoint(t, process)
-	if err := checkpoint.PersistCheckpoint(t.Context()); err != nil {
-		t.Fatalf("PersistCheckpoint: %v", err)
+	if err := store.SaveCheckpoint(t.Context(), checkpoint.Checkpoint); err != nil {
+		t.Fatalf("SaveCheckpoint: %v", err)
 	}
 	return checkpoint
 }
 
+func expectationForCheckpoint(
+	checkpoint execution.ExecutorCheckpoint,
+) execution.ExecutorCheckpointExpectation {
+	return execution.ExecutorCheckpointExpectation{
+		RootProcessID:  checkpoint.RootProcessID,
+		SessionID:      checkpoint.Scope.SessionID,
+		Cwd:            checkpoint.Scope.Cwd,
+		Isolated:       checkpoint.Scope.Isolated,
+		GoalLeaseID:    checkpoint.Scope.GoalLeaseID,
+		ModelSelection: checkpoint.ModelSelection,
+		Limits:         checkpoint.Limits,
+	}
+}
+
 func (e *Engine) runTurnSync(ctx context.Context, req TurnRequest) (TurnOutput, error) {
+	if req.SessionID == "" {
+		req.SessionID = "test-session"
+	}
 	proc, err := e.StartTurn(ctx, req)
 	if err != nil {
 		return TurnOutput{}, fmt.Errorf("engine: start turn: %w", err)
@@ -293,106 +315,58 @@ func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName,
 	return ToolApprovalVerdict{Arguments: res.Arguments}
 }
 
-type jsonProcessStore struct {
+type memoryCheckpointStore struct {
 	mu          sync.Mutex
-	snapshots   map[string]execution.ProcessState
-	checkpoints map[string]execution.ProcessCheckpoint
+	checkpoints map[string]execution.ExecutorCheckpoint
 }
 
-func newJSONProcessStore() *jsonProcessStore {
-	return &jsonProcessStore{
-		snapshots:   map[string]execution.ProcessState{},
-		checkpoints: map[string]execution.ProcessCheckpoint{},
+func newMemoryCheckpointStore() *memoryCheckpointStore {
+	return &memoryCheckpointStore{
+		checkpoints: map[string]execution.ExecutorCheckpoint{},
 	}
 }
 
-func (s *jsonProcessStore) SaveTree(_ context.Context, tree execution.ProcessTreeState, checkpoint execution.ProcessCheckpoint) error {
-	if err := tree.Validate(); err != nil {
-		return err
-	}
+func (s *memoryCheckpointStore) SaveCheckpoint(_ context.Context, checkpoint execution.ExecutorCheckpoint) error {
 	if err := checkpoint.Validate(); err != nil {
 		return err
 	}
-	prepared := make(map[string]execution.ProcessState, len(tree.Processes))
-	for _, process := range tree.Processes {
-		process.Payload = append([]byte(nil), process.Payload...)
-		prepared[process.ID] = process
-	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.deleteTree(tree.RootID); err != nil {
-		return err
+	if stored, exists := s.checkpoints[checkpoint.RootProcessID]; exists &&
+		(stored.Scope != checkpoint.Scope || stored.BuildID != checkpoint.BuildID ||
+			stored.ModelSelection != checkpoint.ModelSelection || stored.Limits != checkpoint.Limits) {
+		return execution.ErrInvalidExecutorCheckpoint
 	}
-	for id, process := range prepared {
-		s.snapshots[id] = process
-	}
-	s.checkpoints[tree.RootID] = checkpoint
+	s.checkpoints[checkpoint.RootProcessID] = checkpoint.Clone()
 	return nil
 }
 
-func (s *jsonProcessStore) LoadTree(_ context.Context, id string) (execution.ProcessTreeState, execution.ProcessCheckpoint, error) {
+func (s *memoryCheckpointStore) LoadCheckpoint(_ context.Context, id string) (execution.ExecutorCheckpoint, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, ok := s.snapshots[id]
+	checkpoint, ok := s.checkpoints[id]
 	if !ok {
-		return execution.ProcessTreeState{}, execution.ProcessCheckpoint{}, fmt.Errorf("json process store: load %q: %w", id, execution.ErrProcessStateNotFound)
+		return execution.ExecutorCheckpoint{}, fmt.Errorf("memory checkpoint store: load %q: %w", id, execution.ErrExecutorCheckpointNotFound)
 	}
-	children := make(map[string][]string)
-	for processID, process := range s.snapshots {
-		children[process.ParentID] = append(children[process.ParentID], processID)
-	}
-	var processes []execution.ProcessState
-	var collect func(string)
-	collect = func(processID string) {
-		process := s.snapshots[processID]
-		process.Payload = append([]byte(nil), process.Payload...)
-		processes = append(processes, process)
-		for _, childID := range children[processID] {
-			collect(childID)
-		}
-	}
-	collect(id)
-	checkpoint := s.checkpoints[id]
-	return execution.ProcessTreeState{RootID: id, Processes: processes}, checkpoint, nil
+	return checkpoint.Clone(), nil
 }
 
-func (s *jsonProcessStore) List(context.Context) ([]string, error) {
+func (s *memoryCheckpointStore) List(context.Context) ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ids := make([]string, 0, len(s.snapshots))
-	for id := range s.snapshots {
+	ids := make([]string, 0, len(s.checkpoints))
+	for id := range s.checkpoints {
 		ids = append(ids, id)
 	}
 	return ids, nil
 }
 
-func (s *jsonProcessStore) DeleteTrees(_ context.Context, rootIDs []string) error {
+func (s *memoryCheckpointStore) DeleteCheckpoints(_ context.Context, _ string, rootIDs []string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, rootID := range rootIDs {
-		if err := s.deleteTree(rootID); err != nil {
-			return err
-		}
+		delete(s.checkpoints, rootID)
 	}
-	return nil
-}
-
-func (s *jsonProcessStore) deleteTree(rootID string) error {
-	children := make(map[string][]string)
-	for id, process := range s.snapshots {
-		if process.ParentID != "" {
-			children[process.ParentID] = append(children[process.ParentID], id)
-		}
-	}
-	var remove func(string)
-	remove = func(id string) {
-		delete(s.snapshots, id)
-		delete(s.checkpoints, id)
-		for _, childID := range children[id] {
-			remove(childID)
-		}
-	}
-	remove(rootID)
 	return nil
 }
 

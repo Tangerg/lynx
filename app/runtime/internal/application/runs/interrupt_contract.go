@@ -1,6 +1,7 @@
 package runs
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -8,8 +9,21 @@ import (
 	"unicode/utf8"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
+
+// InterruptFunc is the consumer-owned capability a tool uses to park the
+// current execution on one application interrupt. The Agent adapter provides
+// the live implementation; tool packages depend only on this application
+// contract and never on that concrete adapter.
+type InterruptFunc func(context.Context, string, Interrupt) (interrupts.Resolution, error)
+
+// InterruptUnavailable is the fail-closed default for a tool environment that
+// has no execution interrupt provider.
+func InterruptUnavailable(context.Context, string, Interrupt) (interrupts.Resolution, error) {
+	return interrupts.Resolution{}, errors.New("runs: execution interrupts are unavailable")
+}
 
 // QuestionFieldID returns the durable identifier for a field created from a
 // QuestionPrompt. It is application-owned transcript vocabulary: adapters use
@@ -81,7 +95,7 @@ func (i Interrupt) Tool() (name, arguments string) {
 }
 
 // Validate rejects malformed or ambiguous envelopes before they become
-// durable process state or application events.
+// a durable Pending aggregate or application events.
 func (i Interrupt) Validate() error {
 	switch i.Kind {
 	case execution.ApprovalInterrupt:

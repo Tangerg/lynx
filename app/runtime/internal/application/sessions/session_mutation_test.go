@@ -354,7 +354,7 @@ func (*mutationStores) Patch(context.Context, string, session.Patch) (session.Se
 
 type mutationInterrupts struct{ stores *mutationStores }
 
-func (i *mutationInterrupts) Put(context.Context, interrupts.Pending) error { panic("unused") }
+func (i *mutationInterrupts) Open(context.Context, interrupts.Pending) error { panic("unused") }
 func (i *mutationInterrupts) List(_ context.Context, sessionID string) ([]interrupts.Pending, error) {
 	if err := i.stores.record("interrupts.list"); err != nil {
 		return nil, err
@@ -371,7 +371,7 @@ func (i *mutationInterrupts) Get(_ context.Context, runID string) (interrupts.Pe
 	}
 	return interrupts.Pending{}, false, nil
 }
-func (i *mutationInterrupts) Consume(context.Context, string) (interrupts.Pending, bool, error) {
+func (i *mutationInterrupts) Consume(context.Context, string, string) (interrupts.Pending, bool, error) {
 	panic("unused")
 }
 

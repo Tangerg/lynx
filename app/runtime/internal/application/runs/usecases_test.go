@@ -195,7 +195,7 @@ func (f *fakeTurnControl) PrepareWaitingSubtreeCancellation(
 	processID string,
 ) (PreparedWaitingSubtreeCancellation, error) {
 	if f.prepareWaiting == nil {
-		return nil, errors.New("fake turn control: waiting subtree cancellation is not configured")
+		return PreparedWaitingSubtreeCancellation{}, errors.New("fake turn control: waiting subtree cancellation is not configured")
 	}
 	return f.prepareWaiting(ref, processID)
 }
@@ -207,15 +207,27 @@ func (f *fakeTurnControl) Steer(_ context.Context, ref execution.TurnRef, input 
 }
 
 func newUseCaseCoordinator(exec SegmentExecutor, turns TurnControl, sessions SessionLifecycle, effects Effects) *Coordinator {
+	freshCreatedAt := time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC)
+	projection := &fakeRunProjection{runs: map[string]transcript.Run{
+		"run_1": runForSegment(testSegment()),
+		"run_new": runForSegment(segmentSpec{
+			RunID: "run_new", SegmentID: "seg_new", SessionID: "ses_1",
+			TurnID: "turn_1", CreatedAt: freshCreatedAt,
+		}),
+	}}
+	if fake, ok := sessions.(*fakeRunSessions); ok {
+		for _, pending := range fake.pending {
+			for _, continuation := range pending.Continuations {
+				projection.runs[continuation.RunID] = runForContinuation(pending, continuation)
+			}
+		}
+	}
 	deps := Dependencies{
-		Segments: exec,
-		Turns:    turns,
-		Sessions: sessions,
-		Effects:  effects,
-		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
-			"run_1":   {ID: "run_1", SessionID: "ses_1", State: execution.Running, ActiveSegmentID: "seg_1"},
-			"run_new": {ID: "run_new", SessionID: "ses_1", State: execution.Running, ActiveSegmentID: "seg_new"},
-		}},
+		Segments:     exec,
+		Turns:        turns,
+		Sessions:     sessions,
+		Effects:      effects,
+		Runs:         projection,
 		Now:          func() time.Time { return time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC) },
 		NewRunID:     func() string { return "run_new" },
 		NewSegmentID: func() string { return "seg_new" },
@@ -244,6 +256,7 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	result, err := c.Start(context.Background(), StartCommand{
 		SessionID:       "ses_1",
 		ModelSelection:  mustUseCaseSelection("provider", "model"),
+		Limits:          execution.RunLimits{MaxTotalTokens: 16_384, MaxSteps: 12, MaxBudgetUSD: 3.5},
 		ProtocolProfile: execution.RunProtocolProfile{ChildRuns: true},
 		Input:           []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
 	})
@@ -258,6 +271,10 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	if turns.started.SessionID != "ses_1" || turns.started.Cwd != "/work" {
 		t.Fatalf("started turn = %+v", turns.started)
 	}
+	wantLimits := execution.RunLimits{MaxTotalTokens: 16_384, MaxSteps: 12, MaxBudgetUSD: 3.5}
+	if turns.started.Limits != wantLimits {
+		t.Fatalf("executor limits = %+v, want %+v", turns.started.Limits, wantLimits)
+	}
 	if !turns.validated.ChildRunAdmissionEnabled || !turns.started.ChildRunAdmissionEnabled {
 		t.Fatalf("child admission policy did not reach the executor: validated=%+v started=%+v", turns.validated, turns.started)
 	}
@@ -266,6 +283,8 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	}
 	if opening := effects.opening(); opening.Admit == nil || opening.Admit.RunID != "run_new" {
 		t.Fatalf("opening = %+v, want fresh run admission", opening)
+	} else if opening.Admit.Limits != wantLimits {
+		t.Fatalf("opening limits = %+v, want %+v", opening.Admit.Limits, wantLimits)
 	} else if opening.SessionModel == nil || opening.SessionModel.SessionID != "ses_1" || opening.SessionModel.Model != "model" {
 		t.Fatalf("opening session model = %+v, want ses_1/model", opening.SessionModel)
 	}
@@ -400,6 +419,9 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 
 	result, err := c.Resume(context.Background(), ResumeCommand{
 		RunID: "run_1",
+		CallerCapabilities: execution.RunProtocolProfile{
+			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+		},
 		Responses: []ResumeResponse{{
 			ItemID: "item_1", Kind: ApprovalResponseKind,
 			Approval: &ApprovalResponse{Approved: true},
@@ -418,12 +440,56 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	}
 }
 
+// TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation proves
+// parked_continuation_matches_run_facts at segment opening: Pending cannot
+// supply a different accounting snapshot before the executor is prepared.
+func TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation(t *testing.T) {
+	createdAt := time.Date(2026, 7, 30, 11, 0, 0, 0, time.UTC)
+	pending := testPendingInterrupt("item_1", "process_root", createdAt)
+	sessions := &fakeRunSessions{
+		sess: session.Session{ID: pending.SessionID, Cwd: "/work"},
+		pending: map[string]interrupts.Pending{
+			pending.RootRunID: pending,
+		},
+	}
+	turns := &fakeTurnControl{prepared: execution.TurnRef{
+		SessionID: pending.SessionID,
+		TurnID:    pending.TurnID,
+	}}
+	effects := &fakeEffects{}
+	coordinator := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, effects)
+	contradictory := runForPending(pending)
+	contradictory.Metrics.Steps++
+	coordinator.runs = &fakeRunProjection{runs: map[string]transcript.Run{
+		pending.RootRunID: contradictory,
+	}}
+
+	_, err := coordinator.Resume(t.Context(), ResumeCommand{
+		RunID:              pending.RootRunID,
+		CallerCapabilities: pending.ProtocolProfile,
+		Responses: []ResumeResponse{{
+			ItemID: "item_1", Kind: ApprovalResponseKind,
+			Approval: &ApprovalResponse{Approved: true},
+		}},
+	})
+	if err == nil {
+		t.Fatal("Resume accepted cumulative metrics that differ from the durable Run")
+	}
+	if turns.resumed || turns.rehydrateReq.ProcessID != "" || len(effects.openings) != 0 {
+		t.Fatalf("contradictory continuation reached executor/effects: turns=%+v openings=%d", turns, len(effects.openings))
+	}
+	if _, found := sessions.pending[pending.RootRunID]; !found {
+		t.Fatal("failed validation consumed the open Pending set")
+	}
+}
+
 func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
+	pending := testPendingInterrupt("item_1", "proc_1", createdAt)
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", Cwd: "/work"},
 		pending: map[string]interrupts.Pending{
-			"run_1": testPendingInterrupt("item_1", "proc_1", createdAt),
+			"run_1": pending,
 		},
 	}
 	turns := &fakeTurnControl{
@@ -438,7 +504,7 @@ func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
 	}
 	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, effects)
 	c.runs = &fakeRunProjection{runs: map[string]transcript.Run{
-		"run_1": {ID: "run_1", SessionID: "ses_1", State: execution.Interrupted},
+		"run_1": runForPending(pending),
 	}}
 
 	type resumeOutcome struct {
@@ -449,6 +515,9 @@ func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
 	go func() {
 		result, err := c.Resume(t.Context(), ResumeCommand{
 			RunID: "run_1",
+			CallerCapabilities: execution.RunProtocolProfile{
+				InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+			},
 			Responses: []ResumeResponse{{
 				ItemID: "item_1",
 				Kind:   ApprovalResponseKind,
@@ -516,6 +585,9 @@ func TestResumeWithInputCommitsTheUserTurnWithTheContinuation(t *testing.T) {
 	effects, c := newResumeCase()
 	withInput, err := c.Resume(context.Background(), ResumeCommand{
 		RunID: "run_1", Responses: approve,
+		CallerCapabilities: execution.RunProtocolProfile{
+			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+		},
 		Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "also skip the tests"}},
 	})
 	if err != nil {
@@ -543,7 +615,12 @@ func TestResumeWithInputCommitsTheUserTurnWithTheContinuation(t *testing.T) {
 	}
 
 	_, c = newResumeCase()
-	without, err := c.Resume(context.Background(), ResumeCommand{RunID: "run_1", Responses: approve})
+	without, err := c.Resume(context.Background(), ResumeCommand{
+		RunID: "run_1", Responses: approve,
+		CallerCapabilities: execution.RunProtocolProfile{
+			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+		},
+	})
 	if err != nil {
 		t.Fatalf("Resume without input: %v", err)
 	}
@@ -571,6 +648,9 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 
 	_, err := c.Resume(t.Context(), ResumeCommand{
 		RunID: "run_1",
+		CallerCapabilities: execution.RunProtocolProfile{
+			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+		},
 		Responses: []ResumeResponse{{
 			ItemID: "item_1", Kind: ApprovalResponseKind,
 			Approval: &ApprovalResponse{Approved: true},
@@ -605,6 +685,7 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	pending := resumedTreePending(createdAt)
 	pending.ProtocolProfile.ChildRuns = true
+	pending.GoalLeaseID = "goal-lease-1"
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: pending.SessionID, Cwd: "/work"},
 		pending: map[string]interrupts.Pending{
@@ -627,7 +708,7 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 	}
 	result, err := c.Resume(t.Context(), ResumeCommand{
 		RunID:              pending.RootRunID,
-		CallerCapabilities: execution.RunProtocolProfile{ChildRuns: true},
+		CallerCapabilities: pending.ProtocolProfile,
 		Responses: []ResumeResponse{
 			{
 				ItemID: "item_grandchild",
@@ -656,6 +737,22 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 	if turns.rehydrateReq.ProcessID != "process_root" {
 		t.Fatalf("rehydrate process = %q, want process_root", turns.rehydrateReq.ProcessID)
 	}
+	if turns.rehydrateReq.GoalLeaseID != pending.GoalLeaseID {
+		t.Fatalf("rehydrate goal lease = %q, want %q", turns.rehydrateReq.GoalLeaseID, pending.GoalLeaseID)
+	}
+	wantChildRuns := map[string]ChildRunBinding{
+		"process_grandchild": {ProcessID: "process_grandchild", RunID: "run_grandchild", ParentRunID: "run_a"},
+		"process_a":          {ProcessID: "process_a", RunID: "run_a", ParentRunID: "run_1"},
+		"process_b":          {ProcessID: "process_b", RunID: "run_b", ParentRunID: "run_1"},
+	}
+	if len(turns.rehydrateReq.ChildRuns) != len(wantChildRuns) {
+		t.Fatalf("rehydrate child Runs = %+v, want %+v", turns.rehydrateReq.ChildRuns, wantChildRuns)
+	}
+	for _, binding := range turns.rehydrateReq.ChildRuns {
+		if want, ok := wantChildRuns[binding.ProcessID]; !ok || binding != want {
+			t.Fatalf("rehydrate child Run binding = %+v, want one of %+v", binding, wantChildRuns)
+		}
+	}
 }
 
 func TestResumeRehydrateRestoresChildAdmissionBeforeAnyChildExists(t *testing.T) {
@@ -680,7 +777,7 @@ func TestResumeRehydrateRestoresChildAdmissionBeforeAnyChildExists(t *testing.T)
 
 	result, err := c.Resume(t.Context(), ResumeCommand{
 		RunID:              pending.RootRunID,
-		CallerCapabilities: execution.RunProtocolProfile{ChildRuns: true},
+		CallerCapabilities: pending.ProtocolProfile,
 		Responses: []ResumeResponse{{
 			ItemID: "item_1",
 			Kind:   ApprovalResponseKind,
@@ -718,6 +815,9 @@ func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
 
 	_, err := c.Resume(t.Context(), ResumeCommand{
 		RunID: "run_1",
+		CallerCapabilities: execution.RunProtocolProfile{
+			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+		},
 		Responses: []ResumeResponse{{
 			ItemID: "item_1", Kind: ApprovalResponseKind,
 			Approval: &ApprovalResponse{Approved: true},
@@ -726,7 +826,7 @@ func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
 	if !errors.Is(err, ErrRunNotFound) || !errors.Is(err, ErrTurnStateLost) {
 		t.Fatalf("Resume error = %v, want run not found wrapping turn state lost", err)
 	}
-	if turns.rehydrateReq != (RehydrateTurn{}) {
+	if turns.rehydrateReq.ProcessID != "" || len(turns.rehydrateReq.ChildRuns) != 0 {
 		t.Fatalf("isolated run was rehydrated against %+v, want no rehydrate", turns.rehydrateReq)
 	}
 	if sessions.lostRunID != "run_1" || len(operations) != 1 || operations[0] != "durable.lost" {
@@ -755,6 +855,9 @@ func testPendingInterrupt(itemID, processID string, runCreatedAt time.Time) inte
 		SessionID:  "ses_1",
 		TurnID:     "turn_1",
 		Interrupts: interruptValues,
+		ProtocolProfile: execution.RunProtocolProfile{
+			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+		},
 		Suspensions: []interrupts.SuspensionBinding{{
 			InterruptItemID: itemID,
 			ProcessID:       processID,
@@ -769,11 +872,42 @@ func testPendingInterrupt(itemID, processID string, runCreatedAt time.Time) inte
 	}
 }
 
+func runForPending(pending interrupts.Pending) transcript.Run {
+	root, _ := pending.RootContinuation()
+	return runForContinuation(pending, root)
+}
+
+func runForContinuation(
+	pending interrupts.Pending,
+	continuation interrupts.Continuation,
+) transcript.Run {
+	goalLeaseID := ""
+	if continuation.RunID == pending.RootRunID {
+		goalLeaseID = pending.GoalLeaseID
+	}
+	return transcript.Run{
+		ID:              continuation.RunID,
+		SessionID:       pending.SessionID,
+		SpawnedByItemID: continuation.Lineage.SpawnedByItemID,
+		ParentRunID:     continuation.Lineage.ParentRunID,
+		RootRunID:       continuation.Lineage.RootRunID,
+		ModelSelection:  continuation.ModelSelection,
+		GoalLeaseID:     goalLeaseID,
+		State:           execution.Interrupted,
+		Metrics:         continuation.Metrics,
+		Limits:          continuation.Limits,
+		ProtocolProfile: pending.ProtocolProfile,
+		CreatedAt:       continuation.RunCreatedAt,
+		MessageMark:     transcript.UnknownMessageMark,
+	}
+}
+
 func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 	var operations []string
+	pending := testPendingInterrupt("item_1", "proc_1", time.Now().UTC())
 	sessions := &fakeRunSessions{
 		pending: map[string]interrupts.Pending{
-			"run_1": testPendingInterrupt("item_1", "proc_1", time.Now().UTC()),
+			"run_1": pending,
 		},
 		operations: &operations,
 	}
@@ -781,7 +915,7 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 	c := NewCoordinator(Dependencies{
 		Turns: turns, Sessions: sessions,
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
-			"run_1": {ID: "run_1", SessionID: "ses_1", State: execution.Interrupted},
+			"run_1": runForPending(pending),
 		}},
 		Admissions: new(admission.Gate),
 	})
@@ -881,12 +1015,7 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 	}
 	effects := &fakeEffects{}
 	projection := &fakeRunProjection{runs: map[string]transcript.Run{
-		"run_1": {
-			ID:              "run_1",
-			SessionID:       "ses_1",
-			State:           execution.Running,
-			ActiveSegmentID: "seg_1",
-		},
+		"run_1": runForSegment(testSegment()),
 	}}
 	coordinator := NewCoordinator(Dependencies{
 		Segments:     executor,
@@ -924,6 +1053,12 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 		RootRunID:       childDraft.RootRunID,
 		State:           execution.Running,
 		ActiveSegmentID: childDraft.SegmentID,
+		ModelSelection:  childDraft.ModelSelection,
+		Limits:          childDraft.Limits,
+		ProtocolProfile: childDraft.ProtocolProfile,
+		CreatedAt:       childDraft.CreatedAt,
+		UpdatedAt:       childDraft.CreatedAt,
+		MessageMark:     transcript.UnknownMessageMark,
 	}
 
 	result, err := coordinator.Cancel(t.Context(), CancelCommand{
@@ -1021,14 +1156,15 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 
 func TestCancelParkedRunReportsTurnCleanupFailureAfterDurableCommit(t *testing.T) {
 	cleanupErr := errors.New("turn cleanup failed")
+	pending := testPendingInterrupt("item_1", "proc_1", time.Now().UTC())
 	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{
-		"run_1": testPendingInterrupt("item_1", "proc_1", time.Now().UTC()),
+		"run_1": pending,
 	}}
 	turns := &fakeTurnControl{cancelErr: cleanupErr}
 	c := NewCoordinator(Dependencies{
 		Turns: turns, Sessions: sessions,
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
-			"run_1": {ID: "run_1", SessionID: "ses_1", State: execution.Interrupted},
+			"run_1": runForPending(pending),
 		}},
 		Admissions: new(admission.Gate),
 	})
@@ -1050,7 +1186,7 @@ func TestCancelLiveRunReportsTurnCleanupFailureAndStillTerminalizes(t *testing.T
 	c := NewCoordinator(Dependencies{
 		Segments: executor, Turns: turns, Sessions: &fakeRunSessions{}, Effects: effects,
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
-			"run_1": {ID: "run_1", SessionID: "ses_1", State: execution.Running, ActiveSegmentID: "seg_1"},
+			"run_1": runForSegment(testSegment()),
 		}},
 		Admissions: new(admission.Gate),
 	})
@@ -1138,7 +1274,7 @@ func TestCancelLosesToACommittedNaturalTerminal(t *testing.T) {
 	c := NewCoordinator(Dependencies{
 		Segments: executor, Turns: &fakeTurnControl{}, Sessions: &fakeRunSessions{}, Effects: effects,
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
-			"run_1": {ID: "run_1", SessionID: "ses_1", State: execution.Running, ActiveSegmentID: "seg_1"},
+			"run_1": runForSegment(testSegment()),
 		}},
 		Admissions: new(admission.Gate),
 	})
@@ -1191,7 +1327,7 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 			CallID: "call_1", ToolName: "shell", Arguments: `{"command":"pwd"}`,
 			SafetyClass: "write",
 		},
-		TreeInterrupted{Checkpoint: noopProcessCheckpoint{}, Suspensions: []ProcessSuspension{{
+		TreeInterrupted{Checkpoint: testExecutorCheckpoint(), Suspensions: []ProcessSuspension{{
 			ProcessID: "process_root", SuspensionID: "suspension_1",
 			Interrupt: Interrupt{
 				Kind: execution.ApprovalInterrupt,
@@ -1209,14 +1345,18 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 	var operations []string
 	turns := &fakeTurnControl{operations: &operations}
 	sessions := &fakeRunSessions{operations: &operations}
+	spec := testSegment()
+	spec.ProtocolProfile = execution.RunProtocolProfile{
+		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+	}
 	c := NewCoordinator(Dependencies{
 		Segments: executor, Turns: turns, Sessions: sessions, Effects: effects,
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
-			"run_1": {ID: "run_1", SessionID: "ses_1", State: execution.Running, ActiveSegmentID: "seg_1"},
+			"run_1": runForSegment(spec),
 		}},
 		Admissions: new(admission.Gate),
 	})
-	stream, err := c.openSegment(t.Context(), testSegment())
+	stream, err := c.openSegment(t.Context(), spec)
 	if err != nil {
 		t.Fatalf("openSegment: %v", err)
 	}
@@ -1256,14 +1396,15 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 }
 
 func TestCancelTreatsAlreadyGoneTurnAsIdempotentSuccess(t *testing.T) {
+	pending := testPendingInterrupt("item_1", "proc_1", time.Now().UTC())
 	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{
-		"run_1": testPendingInterrupt("item_1", "proc_1", time.Now().UTC()),
+		"run_1": pending,
 	}}
 	turns := &fakeTurnControl{cancelErr: ErrTurnNotLive}
 	c := NewCoordinator(Dependencies{
 		Turns: turns, Sessions: sessions,
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
-			"run_1": {ID: "run_1", SessionID: "ses_1", State: execution.Interrupted},
+			"run_1": runForPending(pending),
 		}},
 		Admissions: new(admission.Gate),
 	})

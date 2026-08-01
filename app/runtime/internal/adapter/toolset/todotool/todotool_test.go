@@ -42,7 +42,7 @@ func TestTodoWrite_Definition(t *testing.T) {
 
 // TestTodoWrite_NoSession verifies the tool refuses cleanly (a recoverable
 // message, never an error) when the turn carries no session — a bare context
-// has no process/blackboard, so [turnctx.TurnSession] yields "". The
+// has no process/blackboard, so [executionctx.SessionID] yields "". The
 // validate/persist/render path keys off the domain + store, covered by their
 // own tests; injecting a session here would need full process/blackboard
 // plumbing no other toolset test sets up.

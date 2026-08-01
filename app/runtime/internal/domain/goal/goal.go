@@ -1,7 +1,7 @@
 // Package goal is the autonomous-execution loop's durable state: at most one
 // goal per session that drives runs toward an objective until the model signals
-// it complete or blocked, an opt-in budget is spent, or the user stops it. The
-// GoalDriver (application/goals) owns the loop; this package holds the entity,
+// it complete or blocked, an opt-in budget is spent, or the user stops it.
+// The use case driving Runs owns the loop; this package holds the entity,
 // its status vocabulary, and the cross-turn budget accounting. A goal is
 // deliberately session-scoped, not run-scoped: it spans the
 // many runs the loop launches, so it lives outside the per-run execution.RunState
@@ -11,6 +11,8 @@ package goal
 import (
 	"errors"
 	"fmt"
+	"math"
+	"strings"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -52,10 +54,12 @@ type Budget struct {
 	MaxSteps   int     // summed model calls across turns
 }
 
-// Validate reports whether every configured budget ceiling is non-negative.
+// Validate reports whether every configured budget ceiling is finite and
+// non-negative.
 func (b Budget) Validate() error {
-	if b.MaxTurns < 0 || b.MaxCostUSD < 0 || b.MaxSteps < 0 {
-		return errors.New("goal: negative budget")
+	if b.MaxTurns < 0 || b.MaxSteps < 0 || b.MaxCostUSD < 0 ||
+		math.IsNaN(b.MaxCostUSD) || math.IsInf(b.MaxCostUSD, 0) {
+		return errors.New("goal: budget limits must be finite and non-negative")
 	}
 	return nil
 }
@@ -165,6 +169,10 @@ var (
 	// ErrNotResumable rejects a lifecycle transition from a terminal/transient
 	// status. A complete goal is cleared rather than revived.
 	ErrNotResumable = errors.New("goal: status is not resumable")
+	// ErrTurnIdentityConflict reports an attempt to reuse one Run identity for a
+	// different immutable Goal accounting fact. Exact retries are idempotent;
+	// conflicting retries are corruption and must never be silently accepted.
+	ErrTurnIdentityConflict = errors.New("goal: turn identity conflict")
 )
 
 // New builds a new active goal for sessionID. A lease is part of the aggregate
@@ -220,8 +228,9 @@ func (g Goal) ValidateSnapshot() error {
 	if err := g.Budget.Validate(); err != nil {
 		return fmt.Errorf("%w: %w", errInvalidSnapshot, err)
 	}
-	if g.Used.Turns < 0 || g.Used.CostUSD < 0 || g.Used.Steps < 0 {
-		return fmt.Errorf("%w: negative usage", errInvalidSnapshot)
+	if g.Used.Turns < 0 || g.Used.CostUSD < 0 || g.Used.Steps < 0 ||
+		math.IsNaN(g.Used.CostUSD) || math.IsInf(g.Used.CostUSD, 0) {
+		return fmt.Errorf("%w: usage must be finite and non-negative", errInvalidSnapshot)
 	}
 	switch g.Status {
 	case StatusActive, StatusComplete:
@@ -255,6 +264,39 @@ type TurnRecord struct {
 	CostUSD     float64
 	Steps       int
 	CompletedAt time.Time
+}
+
+// Validate reports whether this immutable Goal accounting fact is complete and
+// numerically representable before it reaches the idempotency ledger.
+func (record TurnRecord) Validate() error {
+	for _, identity := range []struct {
+		name  string
+		value string
+	}{
+		{name: "session ID", value: record.SessionID},
+		{name: "lease ID", value: record.LeaseID},
+		{name: "Run ID", value: record.RunID},
+	} {
+		if strings.TrimSpace(identity.value) == "" {
+			return fmt.Errorf("goal: turn %s is required", identity.name)
+		}
+		if identity.value != strings.TrimSpace(identity.value) {
+			return fmt.Errorf("goal: turn %s has surrounding whitespace", identity.name)
+		}
+	}
+	if _, ok := execution.ParseOutcome(record.Outcome.String()); !ok {
+		return fmt.Errorf("goal: turn has unknown outcome %d", record.Outcome)
+	}
+	if record.CostUSD < 0 || math.IsNaN(record.CostUSD) || math.IsInf(record.CostUSD, 0) {
+		return errors.New("goal: turn cost must be a finite non-negative number")
+	}
+	if record.Steps < 0 {
+		return errors.New("goal: turn steps must not be negative")
+	}
+	if record.CompletedAt.IsZero() {
+		return errors.New("goal: turn completion time is required")
+	}
+	return nil
 }
 
 // RecordTurn folds one terminal Run into the matching goal lease. It always

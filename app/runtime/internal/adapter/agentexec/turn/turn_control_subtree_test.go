@@ -47,7 +47,7 @@ func (*subtreeTurnProcess) PendingSuspensions(context.Context) ([]agentexec.Pend
 }
 
 func (*subtreeTurnProcess) CaptureWaitingCheckpoint(context.Context) (agentexec.WaitingCheckpoint, error) {
-	return testWaitingCheckpoint{}, nil
+	return testWaitingCheckpointValue(), nil
 }
 
 func (process *subtreeTurnProcess) Discard(context.Context) error {
@@ -104,7 +104,9 @@ func (plan *stubWaitingSubtreePlan) PendingSuspensions() []agentexec.PendingSusp
 	return append([]agentexec.PendingSuspension(nil), plan.pending...)
 }
 
-func (*stubWaitingSubtreePlan) PersistCheckpoint(context.Context) error { return nil }
+func (*stubWaitingSubtreePlan) Checkpoint() execution.ExecutorCheckpoint {
+	return testWaitingCheckpointValue().Checkpoint
+}
 
 func (plan *stubWaitingSubtreePlan) Apply(context.Context) error {
 	plan.applied++
@@ -145,14 +147,14 @@ func TestPrepareWaitingCancellationProjectsTypedBoundaryAndReleasesClaimOnAbort(
 	if err != nil {
 		t.Fatalf("PrepareWaitingSubtreeCancellation: %v", err)
 	}
-	pending := prepared.PendingSuspensions()
+	pending := prepared.PendingSuspensions
 	if len(pending) != 1 ||
 		pending[0].ProcessID != "process_sibling" ||
 		pending[0].SuspensionID != "suspension_sibling" ||
 		pending[0].Interrupt.Kind != execution.QuestionInterrupt {
 		t.Fatalf("projected pending suspensions = %+v", pending)
 	}
-	prepared.Abort()
+	prepared.Mutation.Abort()
 	if !state.claimWaitingMutation() {
 		t.Fatal("Abort did not release the parked-turn mutation claim")
 	}

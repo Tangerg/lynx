@@ -66,6 +66,7 @@ func TestRehydrateCloseRaceReportsCleanupFailureAfterRelease(t *testing.T) {
 		SessionID: "ses_1",
 		TurnID:    "turn_1",
 		ProcessID: "proc_1",
+		RootRunID: "run_1",
 	})
 	if !errors.Is(err, ErrDispatcherClosed) {
 		t.Fatalf("Rehydrate error = %v, want dispatcher-close", err)
@@ -108,6 +109,7 @@ func TestShutdownReleasesLateRestoredProcessAfterCleanupFailure(t *testing.T) {
 			SessionID: "ses_1",
 			TurnID:    "turn_1",
 			ProcessID: "proc_1",
+			RootRunID: "run_1",
 		})
 		rehydrated <- err
 	}()

@@ -81,7 +81,7 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 			}},
 			time.Unix(2, 0).UTC(),
 		)
-		if err := ints.Put(ctx, pendingSet); err != nil {
+		if err := ints.Open(ctx, pendingSet); err != nil {
 			return err
 		}
 		pendingList, err := ints.List(ctx, "s2")
@@ -91,7 +91,7 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 		if len(pendingList) != 1 || pendingList[0].RootRunID != "run_1" {
 			t.Fatalf("pending interrupts = %+v, want run_1 inside tx", pendingList)
 		}
-		return ints.Delete(ctx, "run_1")
+		return ints.Delete(ctx, "s2", "run_1")
 	}); err != nil {
 		t.Fatalf("interrupt store inside tx: %v", err)
 	}

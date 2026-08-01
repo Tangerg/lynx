@@ -95,7 +95,7 @@ func (c *Coordinator) SetModel(ctx context.Context, id, model string) error {
 }
 
 // Update applies a session edit and returns the updated aggregate. Title (rename),
-// model, cwd (relocate), and favorite are each optional;
+// model, cwd (relocate), isolation, and favorite are each optional;
 // nil fields are left alone. The whole patch commits as one transaction so a
 // mid-sequence failure leaves the session unmodified.
 func (c *Coordinator) Update(ctx context.Context, id string, patch session.Patch) (session.Session, error) {
@@ -109,7 +109,9 @@ func (c *Coordinator) Update(ctx context.Context, id string, patch session.Patch
 			return session.Session{}, err
 		}
 		patch.Cwd = &cwd
-		admission, err := c.ClaimMutationSlot(id)
+	}
+	if patch.Cwd != nil || patch.Isolated != nil {
+		admission, err := c.ClaimIdleSession(ctx, id)
 		if err != nil {
 			return session.Session{}, err
 		}

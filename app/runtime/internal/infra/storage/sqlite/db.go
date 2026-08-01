@@ -1,6 +1,6 @@
 // Package sqlite hosts the SQLite-backed implementations of Runtime's storage
 // ports. One SQLite file is the single
-// durable backend — sessions / process states / interrupts / history /
+// durable backend — sessions / executor checkpoints / interrupts / history /
 // providers each live in their own table, sharing one *sql.DB. Human-authored
 // memory is the deliberate exception: it stays a user-editable LYRA.md file
 // cascade. Agent-extracted ledger and curated memory are ordinary SQLite state.
@@ -60,7 +60,7 @@ func Open(path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 46
+const schemaEpoch = 50
 
 func installCurrentSchema(db *sql.DB, path string) error {
 	var epoch int
@@ -100,21 +100,17 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			ON sessions(updated_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_parent
 			ON sessions(parent_id)`,
-		`CREATE TABLE IF NOT EXISTS process_states (
-			id           TEXT    PRIMARY KEY,
-			parent_id    TEXT    NOT NULL,
-			session_id   TEXT    NOT NULL,
-			started_at   INTEGER NOT NULL,
-			build_id     TEXT    NOT NULL,
-			payload      BLOB    NOT NULL,
-			policy       TEXT    NOT NULL,
-			usage        TEXT    NOT NULL,
-			committed_at INTEGER NOT NULL
+		`CREATE TABLE IF NOT EXISTS executor_checkpoints (
+			root_process_id TEXT    PRIMARY KEY,
+			session_id      TEXT    NOT NULL,
+			build_id        TEXT    NOT NULL,
+			payload         BLOB    NOT NULL,
+			policy          TEXT    NOT NULL,
+			usage           TEXT    NOT NULL,
+			committed_at    INTEGER NOT NULL
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_process_states_parent
-			ON process_states(parent_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_process_states_session
-			ON process_states(session_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_executor_checkpoints_session
+			ON executor_checkpoints(session_id)`,
 		// One row per root or child Run. state is the coarse admission position —
 		// 'running' | 'interrupted' | 'terminal' — and the partial unique index
 		// below is the durable "one non-terminal root Run tree per Session"
@@ -127,7 +123,7 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		// without the other. steps / active_duration_ns / usage are a different
 		// kind of fact — how much the Run has consumed — and are written by every
 		// commit from the first segment on, because a running Run costs money and
-		// a parked one has to report what it already spent. max_steps /
+		// a parked one has to report what it already spent. max_total_tokens / max_steps /
 		// max_budget_usd are the allowance it was admitted under, frozen at
 		// creation: a resume and a cross-restart rehydrate have to apply the same
 		// caps the first segment did, and zero means uncapped.
@@ -156,11 +152,13 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			outcome            TEXT    NOT NULL DEFAULT '',
 			provider           TEXT    NOT NULL DEFAULT '',
 			model              TEXT    NOT NULL DEFAULT '',
+			goal_lease_id      TEXT    NOT NULL DEFAULT '',
 			detail             TEXT    NOT NULL DEFAULT '',
 			steps              INTEGER NOT NULL DEFAULT 0,
 			active_duration_ns INTEGER NOT NULL DEFAULT 0,
 			usage              TEXT    NOT NULL DEFAULT '',
 			problem            TEXT    NOT NULL DEFAULT '',
+			max_total_tokens         INTEGER NOT NULL DEFAULT 0,
 			max_steps          INTEGER NOT NULL DEFAULT 0,
 			max_budget_usd     REAL    NOT NULL DEFAULT 0,
 			protocol_profile   TEXT    NOT NULL DEFAULT '',
@@ -172,7 +170,8 @@ func installCurrentSchema(db *sql.DB, path string) error {
 				(spawned_by_item_id = '' AND parent_run_id = '' AND root_run_id = '') OR
 				(spawned_by_item_id != '' AND parent_run_id != '' AND root_run_id != '' AND
 				 parent_run_id != run_id AND root_run_id != run_id)
-			)
+			),
+			CHECK (root_run_id = '' OR goal_lease_id = '')
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_runs_session_active
 			ON runs(session_id) WHERE state != 'terminal' AND root_run_id = ''`,
@@ -191,6 +190,7 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			root_run_id        TEXT    PRIMARY KEY,
 			session_id         TEXT    NOT NULL,
 			turn_id            TEXT    NOT NULL,
+			goal_lease_id      TEXT    NOT NULL DEFAULT '',
 			-- Derived from the root Continuation and checked again on decode. It
 			-- exists as a relational key so two pending sets cannot claim the same
 			-- executor snapshot even though the complete hand-off stays one JSON

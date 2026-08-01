@@ -405,7 +405,7 @@ func (r *reducer) goalTurn(run transcript.Run) *goal.TurnRecord {
 		LeaseID:     r.cfg.GoalLeaseID,
 		RunID:       r.cfg.RunID,
 		Outcome:     *run.Outcome,
-		CompletedAt: run.UpdatedAt,
+		CompletedAt: run.FinishedAt,
 	}
 	if record.CompletedAt.IsZero() {
 		record.CompletedAt = r.now()
@@ -529,6 +529,9 @@ func validateTerminalReduction(reduced reduction) error {
 		return fmt.Errorf("%w: terminal event commit has an inconsistent outcome", errReducerInvariant)
 	case commit.GoalTurn != nil && (commit.GoalTurn.RunID != commit.RunID || commit.GoalTurn.SessionID != commit.SessionID || commit.GoalTurn.Outcome != commit.Outcome):
 		return fmt.Errorf("%w: terminal event commit has an inconsistent goal turn", errReducerInvariant)
+	}
+	if err := commit.Validate(); err != nil {
+		return fmt.Errorf("%w: %w", errReducerInvariant, err)
 	}
 	wantState, ok := execution.Running.Terminate(commit.Outcome)
 	if !ok || commit.Run.State != wantState {

@@ -7,6 +7,7 @@ package interrupts
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -22,9 +23,13 @@ import (
 // Continuations is the application state required to reopen every surviving Run
 // with a fresh Segment, including after process restart.
 type Pending struct {
-	RootRunID     string
-	SessionID     string
-	TurnID        string
+	RootRunID string
+	SessionID string
+	TurnID    string
+	// GoalLeaseID is the root Run's autonomous-goal incarnation. It is an
+	// application continuation fact, not executor payload: a resumed Segment
+	// needs it to keep terminal budget accounting attached to the same Goal.
+	GoalLeaseID   string
 	Interrupts    []transcript.Interrupt
 	Suspensions   []SuspensionBinding
 	Continuations []Continuation
@@ -37,18 +42,16 @@ type Pending struct {
 	CreatedAt time.Time
 }
 
-// Continuation is the durable hand-off for one suspended Run. Executor identity
-// is recorded beside application identity because neither can be derived from
-// the other after restart. ParentProcessID and SpawnCallID preserve the exact
-// source envelope that future executor events must match.
+// Continuation is the durable hand-off for one suspended Run. ProcessID is the
+// opaque binding between that application Run and its executor member; the
+// executor's parent/spawn topology remains inside its opaque checkpoint. Run
+// lineage is the application's independent tree fact.
 type Continuation struct {
-	RunID           string
-	ProcessID       string
-	ParentProcessID string
-	SpawnCallID     string
-	Lineage         execution.RunLineage
-	ModelSelection  modelref.Selection
-	DrainedTools    []DrainedTool
+	RunID          string
+	ProcessID      string
+	Lineage        execution.RunLineage
+	ModelSelection modelref.Selection
+	DrainedTools   []DrainedTool
 	// CommittedTools are tool results whose transcript projection was completed
 	// by an application transaction while the executor tree stayed parked. The
 	// executor still publishes those results when it re-enters the checkpoint
@@ -132,10 +135,18 @@ func (p Pending) Validate() error {
 	switch {
 	case strings.TrimSpace(p.RootRunID) == "":
 		return errors.New("interrupts: pending root run id is required")
+	case p.RootRunID != strings.TrimSpace(p.RootRunID):
+		return errors.New("interrupts: pending root run id has surrounding whitespace")
 	case strings.TrimSpace(p.SessionID) == "":
 		return errors.New("interrupts: pending session id is required")
+	case p.SessionID != strings.TrimSpace(p.SessionID):
+		return errors.New("interrupts: pending session id has surrounding whitespace")
 	case strings.TrimSpace(p.TurnID) == "":
 		return errors.New("interrupts: pending turn id is required")
+	case p.TurnID != strings.TrimSpace(p.TurnID):
+		return errors.New("interrupts: pending turn id has surrounding whitespace")
+	case p.GoalLeaseID != strings.TrimSpace(p.GoalLeaseID):
+		return errors.New("interrupts: pending goal lease id has surrounding whitespace")
 	case p.CreatedAt.IsZero():
 		return errors.New("interrupts: pending creation time is required")
 	case len(p.Interrupts) == 0:
@@ -149,10 +160,12 @@ func (p Pending) Validate() error {
 			len(p.Interrupts),
 		)
 	}
+	if err := p.ProtocolProfile.Validate(); err != nil {
+		return fmt.Errorf("interrupts: pending protocol profile: %w", err)
+	}
 
 	runIDs := make(map[string]struct{}, len(p.Continuations))
 	processIDs := make(map[string]struct{}, len(p.Continuations))
-	continuationsByProcess := make(map[string]Continuation, len(p.Continuations))
 	treeMembers := make([]execution.RunTreeMember, 0, len(p.Continuations))
 	rootCount := 0
 	for index, continuation := range p.Continuations {
@@ -171,16 +184,11 @@ func (p Pending) Validate() error {
 			return fmt.Errorf("interrupts: duplicate continuation process %q", continuation.ProcessID)
 		}
 		processIDs[continuation.ProcessID] = struct{}{}
-		continuationsByProcess[continuation.ProcessID] = continuation
 		if continuation.RunID == p.RootRunID {
 			rootCount++
-			if continuation.ParentProcessID != "" ||
-				continuation.SpawnCallID != "" ||
-				!continuation.Lineage.IsRoot() {
+			if !continuation.Lineage.IsRoot() {
 				return errors.New("interrupts: root continuation carries child lineage")
 			}
-		} else if continuation.ParentProcessID == "" || continuation.SpawnCallID == "" {
-			return fmt.Errorf("interrupts: child continuation %q has incomplete process lineage", continuation.RunID)
 		} else if continuation.Lineage.RootRunID != p.RootRunID {
 			return fmt.Errorf(
 				"interrupts: child continuation %q names root run %q, want %q",
@@ -193,30 +201,12 @@ func (p Pending) Validate() error {
 	if rootCount != 1 {
 		return fmt.Errorf("interrupts: pending set has %d root continuations", rootCount)
 	}
-	for _, continuation := range p.Continuations {
-		if continuation.RunID == p.RootRunID {
-			continue
-		}
-		parent, exists := continuationsByProcess[continuation.ParentProcessID]
-		if !exists {
-			return fmt.Errorf(
-				"interrupts: child continuation %q names unknown parent process %q",
-				continuation.RunID,
-				continuation.ParentProcessID,
-			)
-		}
-		if parent.RunID != continuation.Lineage.ParentRunID {
-			return fmt.Errorf(
-				"interrupts: child continuation %q process parent belongs to run %q, not lineage parent %q",
-				continuation.RunID,
-				parent.RunID,
-				continuation.Lineage.ParentRunID,
-			)
-		}
-	}
 	tree, err := execution.NewRunTree(p.RootRunID, treeMembers)
 	if err != nil {
 		return fmt.Errorf("interrupts: continuation tree: %w", err)
+	}
+	if len(p.Continuations) > 1 && !p.ProtocolProfile.ChildRuns {
+		return errors.New("interrupts: pending tree has child Runs but its protocol profile forbids them")
 	}
 	canonicalRunIDs := tree.Postorder()
 	for index, continuation := range p.Continuations {
@@ -238,6 +228,13 @@ func (p Pending) Validate() error {
 		if _, exists := runIDs[interrupt.RunID]; !exists {
 			return fmt.Errorf("interrupts: interrupt item %q names unknown run %q", interrupt.ItemID, interrupt.RunID)
 		}
+		if !slices.Contains(p.ProtocolProfile.InterruptKinds, interrupt.Kind) {
+			return fmt.Errorf(
+				"interrupts: interrupt item %q has kind %s outside the frozen protocol profile",
+				interrupt.ItemID,
+				interrupt.Kind,
+			)
+		}
 		if _, duplicate := interruptsByItem[interrupt.ItemID]; duplicate {
 			return fmt.Errorf("interrupts: duplicate interrupt item %q", interrupt.ItemID)
 		}
@@ -247,10 +244,17 @@ func (p Pending) Validate() error {
 	boundItems := make(map[string]struct{}, len(p.Suspensions))
 	boundSuspensions := make(map[string]struct{}, len(p.Suspensions))
 	for index, binding := range p.Suspensions {
-		if strings.TrimSpace(binding.InterruptItemID) == "" ||
-			strings.TrimSpace(binding.ProcessID) == "" ||
-			strings.TrimSpace(binding.SuspensionID) == "" {
-			return fmt.Errorf("interrupts: suspension binding[%d] is incomplete", index)
+		for _, identity := range []struct {
+			name  string
+			value string
+		}{
+			{name: "interrupt item id", value: binding.InterruptItemID},
+			{name: "process id", value: binding.ProcessID},
+			{name: "suspension id", value: binding.SuspensionID},
+		} {
+			if err := validateRequiredIdentity(identity.name, identity.value); err != nil {
+				return fmt.Errorf("interrupts: suspension binding[%d]: %w", index, err)
+			}
 		}
 		interrupt, exists := interruptsByItem[binding.InterruptItemID]
 		if !exists {
@@ -304,24 +308,21 @@ func (p Pending) Validate() error {
 // Validate checks one Run-to-process continuation and all of its transcript
 // hand-off identities independently of the root-owned Pending aggregate.
 func (c Continuation) Validate() error {
+	if err := validateRequiredIdentity("run id", c.RunID); err != nil {
+		return err
+	}
+	if err := validateRequiredIdentity("process id", c.ProcessID); err != nil {
+		return err
+	}
 	switch {
-	case strings.TrimSpace(c.RunID) == "":
-		return errors.New("run id is required")
-	case strings.TrimSpace(c.ProcessID) == "":
-		return errors.New("process id is required")
-	case c.ParentProcessID != strings.TrimSpace(c.ParentProcessID):
-		return errors.New("parent process id has surrounding whitespace")
-	case c.SpawnCallID != strings.TrimSpace(c.SpawnCallID):
-		return errors.New("spawn call id has surrounding whitespace")
-	case c.ParentProcessID == c.ProcessID:
-		return errors.New("process cannot parent itself")
-	case c.ParentProcessID == "" && c.SpawnCallID != "":
-		return errors.New("root process carries a spawn call id")
 	case c.RunCreatedAt.IsZero():
 		return errors.New("run creation time is required")
 	}
 	if err := c.Lineage.Validate(c.RunID); err != nil {
 		return fmt.Errorf("lineage: %w", err)
+	}
+	if err := c.ModelSelection.Validate(); err != nil {
+		return fmt.Errorf("model selection: %w", err)
 	}
 	if err := c.Metrics.Validate(); err != nil {
 		return fmt.Errorf("metrics: %w", err)
@@ -372,26 +373,30 @@ func (c Continuation) Validate() error {
 }
 
 func validateToolIdentity(itemID, callID, name, arguments string) error {
-	switch {
-	case strings.TrimSpace(itemID) == "":
-		return errors.New("item id is required")
-	case strings.TrimSpace(callID) == "":
-		return errors.New("call id is required")
-	case strings.TrimSpace(name) == "":
-		return errors.New("name is required")
-	case strings.TrimSpace(arguments) == "":
-		return errors.New("arguments are required")
-	default:
-		return nil
+	for _, identity := range []struct {
+		name  string
+		value string
+	}{
+		{name: "item id", value: itemID},
+		{name: "call id", value: callID},
+		{name: "name", value: name},
+	} {
+		if err := validateRequiredIdentity(identity.name, identity.value); err != nil {
+			return err
+		}
 	}
+	if strings.TrimSpace(arguments) == "" {
+		return errors.New("arguments are required")
+	}
+	return nil
 }
 
 func validateInterrupt(interrupt transcript.Interrupt) error {
-	switch {
-	case strings.TrimSpace(interrupt.ItemID) == "":
-		return errors.New("item id is required")
-	case strings.TrimSpace(interrupt.RunID) == "":
-		return errors.New("run id is required")
+	if err := validateRequiredIdentity("item id", interrupt.ItemID); err != nil {
+		return err
+	}
+	if err := validateRequiredIdentity("run id", interrupt.RunID); err != nil {
+		return err
 	}
 	switch interrupt.Kind {
 	case execution.ApprovalInterrupt:
@@ -404,6 +409,16 @@ func validateInterrupt(interrupt transcript.Interrupt) error {
 		}
 	default:
 		return fmt.Errorf("unknown interrupt kind %d", interrupt.Kind)
+	}
+	return nil
+}
+
+func validateRequiredIdentity(name, value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("%s is required", name)
+	}
+	if value != strings.TrimSpace(value) {
+		return fmt.Errorf("%s has surrounding whitespace", name)
 	}
 	return nil
 }

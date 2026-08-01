@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -84,7 +83,7 @@ func (o optionArg) toInterrupt() runs.QuestionOptionSpec {
 
 type tool struct {
 	approval  ModePolicy
-	interrupt suspension.Func
+	interrupt runs.InterruptFunc
 }
 
 // ModePolicy is the exit-plan tool's complete view of approval state.
@@ -98,9 +97,9 @@ type ModePolicy interface {
 //
 // The toolset composes the interrupt suspension contract from the composition
 // root.
-func New(appr ModePolicy, interrupt suspension.Func) (tools.Tool, error) {
+func New(appr ModePolicy, interrupt runs.InterruptFunc) (tools.Tool, error) {
 	if interrupt == nil {
-		interrupt = suspension.Unavailable
+		interrupt = runs.InterruptUnavailable
 	}
 	if appr == nil {
 		return nil, nil

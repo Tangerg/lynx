@@ -59,13 +59,13 @@ type hookToolInputWire struct {
 }
 
 type hookSubagentInputWire struct {
-	ProcessID       string `json:"processId"`
-	ParentProcessID string `json:"parentProcessId,omitempty"`
-	Description     string `json:"description,omitempty"`
-	Prompt          string `json:"prompt,omitempty"`
-	Status          string `json:"status,omitempty"`
-	Result          string `json:"result,omitempty"`
-	Error           string `json:"error,omitempty"`
+	RunID       string `json:"runId"`
+	ParentRunID string `json:"parentRunId,omitempty"`
+	Description string `json:"description,omitempty"`
+	Prompt      string `json:"prompt,omitempty"`
+	Status      string `json:"status,omitempty"`
+	Result      string `json:"result,omitempty"`
+	Error       string `json:"error,omitempty"`
 }
 
 func hookInputWireFrom(input domainhooks.Input) hookInputWire {
@@ -75,7 +75,7 @@ func hookInputWireFrom(input domainhooks.Input) hookInputWire {
 	}
 	if input.Subagent != nil {
 		out.Subagent = &hookSubagentInputWire{
-			ProcessID: input.Subagent.ProcessID, ParentProcessID: input.Subagent.ParentProcessID,
+			RunID: input.Subagent.RunID, ParentRunID: input.Subagent.ParentRunID,
 			Description: input.Subagent.Description, Prompt: input.Subagent.Prompt, Status: string(input.Subagent.Status),
 			Result: input.Subagent.Result, Error: input.Subagent.Error,
 		}

@@ -7,8 +7,8 @@ import (
 
 	"github.com/Tangerg/lynx/tools"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 )
 
 // Build exposes the code-intelligence analyzer as the agent's language tools: a
@@ -91,7 +91,7 @@ func (t *lspRunner) query(ctx context.Context, in lspInput) (string, error) {
 	if err := in.validate(); err != nil {
 		return "", err
 	}
-	root := turnctx.TurnCwd(ctx, t.defaultWorkdir)
+	root := executionctx.CWD(ctx, t.defaultWorkdir)
 	switch in.Operation {
 	case "definition":
 		return t.analyzer.Definition(ctx, root, in.FilePath, in.Line, in.Character)
@@ -147,5 +147,5 @@ func (t *diagnosticsTool) diagnostics(ctx context.Context, in lspDiagnosticsInpu
 	if err := in.validate(); err != nil {
 		return "", err
 	}
-	return t.analyzer.Diagnostics(ctx, turnctx.TurnCwd(ctx, t.defaultWorkdir), in.FilePath)
+	return t.analyzer.Diagnostics(ctx, executionctx.CWD(ctx, t.defaultWorkdir), in.FilePath)
 }

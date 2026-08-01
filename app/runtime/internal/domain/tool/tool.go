@@ -1,6 +1,17 @@
 // Package tool defines the runtime's model-facing tool vocabulary.
 package tool
 
+const (
+	// GroupCoding is the complete coding surface used by a root chat agent.
+	GroupCoding = "coding"
+	// GroupSubtask is the bounded coding surface used by delegated agents.
+	GroupSubtask = "subtask"
+
+	// NameReadToolResult is the model-facing name of the tool that reads an
+	// offloaded result back into the conversation.
+	NameReadToolResult = "read_tool_result"
+)
+
 // Tool is the metadata of one registered tool. Schema is the JSON Schema
 // the model is shown; SafetyClass drives the default approval flow
 // (see approval.RuntimePolicy).

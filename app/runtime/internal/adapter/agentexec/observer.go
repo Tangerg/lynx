@@ -10,11 +10,11 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -410,15 +410,15 @@ func (o *toolObservation) evict(ctx context.Context, toolName, output string) (s
 	if o.evictStore == nil || o.evictThreshold <= 0 || len(output) <= o.evictThreshold {
 		return output, nil
 	}
-	if toolName == toolport.ToolNameReadToolResult {
+	if toolName == domaintool.NameReadToolResult {
 		return output, nil
 	}
-	sessionID := turnctx.TurnSession(ctx)
+	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return output, nil
 	}
 	id := offload.NewID()
-	preview := renderToolResultPreview(output, string(id), toolport.ToolNameReadToolResult, min(toolResultPreviewBytes, o.evictThreshold))
+	preview := renderToolResultPreview(output, string(id), domaintool.NameReadToolResult, min(toolResultPreviewBytes, o.evictThreshold))
 	if len(preview) >= len(output) {
 		// Very small configured thresholds can make the retrieval marker larger
 		// than the body. Keep the body inline without staging any durable state.

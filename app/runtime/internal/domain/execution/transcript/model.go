@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
+	"strings"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -36,7 +38,11 @@ type Run struct {
 	ParentRunID     string
 	RootRunID       string
 	ModelSelection  modelref.Selection
-	State           execution.RunState
+	// GoalLeaseID is immutable admission provenance for a root autonomous Run.
+	// It remains private to application accounting and is deliberately omitted
+	// from portable session snapshots, which cannot resurrect a live goal lease.
+	GoalLeaseID string
+	State       execution.RunState
 	// ActiveSegmentID is the segment currently executing. It exists exactly while
 	// the Run is Running: it is established, replaced and cleared in the same
 	// transaction as the state, so a Run's position and the segment driving it can
@@ -90,6 +96,46 @@ func (m RunMetrics) Plus(other RunMetrics) RunMetrics {
 		Steps:          m.Steps + other.Steps,
 		ActiveDuration: m.ActiveDuration + other.ActiveDuration,
 	}
+}
+
+// Equal reports whether two snapshots contain the same cumulative accounting
+// fact. Nil Usage is intentionally distinct from a reported zero, while nil and
+// empty per-model maps are the same set.
+func (m RunMetrics) Equal(other RunMetrics) bool {
+	if m.Steps != other.Steps || m.ActiveDuration != other.ActiveDuration {
+		return false
+	}
+	return equalUsage(m.Usage, other.Usage)
+}
+
+func equalUsage(left, right *Usage) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	if !equalModelUsage(left.ModelUsage, right.ModelUsage) || len(left.ByModel) != len(right.ByModel) {
+		return false
+	}
+	for model, usage := range left.ByModel {
+		other, found := right.ByModel[model]
+		if !found || !equalModelUsage(usage, other) {
+			return false
+		}
+	}
+	return true
+}
+
+func equalModelUsage(left, right ModelUsage) bool {
+	if left.InputTokens != right.InputTokens ||
+		left.OutputTokens != right.OutputTokens ||
+		left.CacheReadTokens != right.CacheReadTokens ||
+		left.CacheWriteTokens != right.CacheWriteTokens ||
+		left.ReasoningTokens != right.ReasoningTokens {
+		return false
+	}
+	if left.CostUSD == nil || right.CostUSD == nil {
+		return left.CostUSD == nil && right.CostUSD == nil
+	}
+	return *left.CostUSD == *right.CostUSD
 }
 
 type ModelUsage struct {
@@ -373,6 +419,15 @@ func (run Run) Validate() error {
 	if err := run.Lineage().Validate(run.ID); err != nil {
 		return err
 	}
+	if err := run.ModelSelection.Validate(); err != nil {
+		return fmt.Errorf("model selection: %w", err)
+	}
+	if run.GoalLeaseID != strings.TrimSpace(run.GoalLeaseID) {
+		return errors.New("goal lease ID has surrounding whitespace")
+	}
+	if run.Lineage().IsChild() && run.GoalLeaseID != "" {
+		return errors.New("child run carries a root goal lease")
+	}
 	// A Run is Running exactly while a segment drives it. Both halves matter: a
 	// running Run with no segment cannot be attached to, and a parked or finished
 	// one still naming a segment would have a client attach to a stream that ended.
@@ -386,6 +441,9 @@ func (run Run) Validate() error {
 		return err
 	}
 	if err := run.Limits.Validate(); err != nil {
+		return err
+	}
+	if err := run.ProtocolProfile.Validate(); err != nil {
 		return err
 	}
 	if run.State.IsTerminal() {
@@ -483,8 +541,8 @@ func (usage ModelUsage) Validate() error {
 	if usage.InputTokens < 0 || usage.OutputTokens < 0 || usage.CacheReadTokens < 0 || usage.CacheWriteTokens < 0 || usage.ReasoningTokens < 0 {
 		return errors.New("token counts must not be negative")
 	}
-	if usage.CostUSD != nil && *usage.CostUSD < 0 {
-		return errors.New("cost must not be negative")
+	if usage.CostUSD != nil && (*usage.CostUSD < 0 || math.IsNaN(*usage.CostUSD) || math.IsInf(*usage.CostUSD, 0)) {
+		return errors.New("cost must be finite and non-negative")
 	}
 	return nil
 }

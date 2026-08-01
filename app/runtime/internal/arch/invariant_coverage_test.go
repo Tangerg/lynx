@@ -82,7 +82,7 @@ var invariantFixtures = map[string]map[appcontract.TransactionBoundary]fixtureRe
 	},
 	"terminal_run_explains_how_it_ended": {
 		appcontract.BoundarySegmentEvent: {"internal/adapter/runsegment", "TestCommitEventPersistsTheTerminalRunsResult"},
-		appcontract.BoundaryRunRecovery:  {"internal/infra/storage/sqlite", "TestReconcileOrphansRepairsWholeDurableLifecycle"},
+		appcontract.BoundaryRunRecovery:  {"internal/adapter/runrecovery", "TestRecoveryRepairsWholeDurableLifecycle"},
 		appcontract.BoundarySessionImport: {
 			"internal/delivery/server", "TestSessionImportRejectsAFailedRunWithoutItsFailure",
 		},
@@ -91,9 +91,26 @@ var invariantFixtures = map[string]map[appcontract.TransactionBoundary]fixtureRe
 		appcontract.BoundaryRunAdmission: {"internal/infra/storage/sqlite", "TestRunProtocolProfileIsImmutable"},
 	},
 	"parked_tree_has_exactly_one_open_interrupt_set": {
-		appcontract.BoundarySegmentEvent: {"internal/adapter/runsegment", "TestCommitTreeBarrierProducesBootResumableTriplet"},
+		appcontract.BoundarySegmentEvent: {"internal/adapter/runsegment", "TestCommitTreeBarrierProducesDurableTriplet"},
 		appcontract.BoundaryRunRecovery: {
-			"internal/infra/storage/sqlite", "TestReconcileOrphansRejectsPartialParkWithoutMutatingIt",
+			"internal/adapter/runrecovery", "TestRecoveryRejectsPartialParkWithoutMutatingIt",
+		},
+	},
+	"parked_continuation_matches_run_facts": {
+		appcontract.BoundarySegmentOpening: {
+			"internal/application/runs", "TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation",
+		},
+		appcontract.BoundarySegmentEvent: {
+			"internal/adapter/runsegment", "TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction",
+		},
+		appcontract.BoundaryWaitingSubtreeCancellation: {
+			"internal/adapter/runsegment", "TestCommitWaitingSubtreeCancellationRejectsRunContinuationFactDriftWithoutMutation",
+		},
+		appcontract.BoundaryRunRecovery: {
+			"internal/application/runs", "TestRecoveryRejectsContinuationFactDriftWithoutProbingCheckpoint",
+		},
+		appcontract.BoundaryParkedTermination: {
+			"internal/application/sessions", "TestApplyRunLostRejectsContinuationFactDriftBeforeTerminalCommit",
 		},
 	},
 	"dropped_run_leaves_nothing_behind": {

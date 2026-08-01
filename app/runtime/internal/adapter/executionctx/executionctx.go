@@ -1,8 +1,9 @@
-// Package turnctx carries application-owned turn scope through Go context.
+// Package executionctx carries application-owned turn scope through Go
+// context.
 // Runtime seeds one immutable scope at the root execution boundary; child
 // Agents inherit it naturally because context propagation is part of execution,
 // while Agent blackboards remain exclusively planner/action working state.
-package turnctx
+package executionctx
 
 import (
 	"context"
@@ -21,8 +22,8 @@ func WithScope(ctx context.Context, scope execution.TurnScope) context.Context {
 	return context.WithValue(ctx, scopeKey{}, scope)
 }
 
-// ScopeFrom returns the application scope attached at the root turn boundary.
-func ScopeFrom(ctx context.Context) (execution.TurnScope, bool) {
+// Scope returns the application scope attached at the root turn boundary.
+func Scope(ctx context.Context) (execution.TurnScope, bool) {
 	if ctx == nil {
 		return execution.TurnScope{}, false
 	}
@@ -30,35 +31,35 @@ func ScopeFrom(ctx context.Context) (execution.TurnScope, bool) {
 	return scope, ok
 }
 
-// TurnCwd returns the execution workspace, falling back when the turn is
+// CWD returns the execution workspace, falling back when the turn is
 // unattached. Every cwd-dependent adapter reads this single host seam.
-func TurnCwd(ctx context.Context, fallback string) string {
-	if scope, ok := ScopeFrom(ctx); ok && scope.Cwd != "" {
+func CWD(ctx context.Context, fallback string) string {
+	if scope, ok := Scope(ctx); ok && scope.Cwd != "" {
 		return scope.Cwd
 	}
 	return fallback
 }
 
-// TurnIsolated reports whether the running turn is in an isolated session
+// Isolated reports whether the running turn is in an isolated session
 // so shell execution applies the host's OS jail.
-func TurnIsolated(ctx context.Context) bool {
-	scope, ok := ScopeFrom(ctx)
+func Isolated(ctx context.Context) bool {
+	scope, ok := Scope(ctx)
 	return ok && scope.Isolated
 }
 
-// TurnGoalLease reports the goal incarnation this run was launched under
+// GoalLeaseID reports the goal incarnation this run was launched under
 // and whether it was set.
-func TurnGoalLease(ctx context.Context) (string, bool) {
-	if scope, ok := ScopeFrom(ctx); ok && scope.GoalLeaseID != "" {
+func GoalLeaseID(ctx context.Context) (string, bool) {
+	if scope, ok := Scope(ctx); ok && scope.GoalLeaseID != "" {
 		return scope.GoalLeaseID, true
 	}
 	return "", false
 }
 
-// TurnSession returns the owning product session, or empty for an unattached
+// SessionID returns the owning product session, or empty for an unattached
 // smoke turn.
-func TurnSession(ctx context.Context) string {
-	if scope, ok := ScopeFrom(ctx); ok {
+func SessionID(ctx context.Context) string {
+	if scope, ok := Scope(ctx); ok {
 		return scope.SessionID
 	}
 	return ""

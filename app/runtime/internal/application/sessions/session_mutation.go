@@ -15,7 +15,7 @@ import (
 // state is gone. Checkpoint cleanup runs last, after the durable delete has
 // already succeeded; all post-commit cleanup failures are returned together.
 func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error {
-	admission, err := c.ClaimMutationSlot(sessionID)
+	admission, err := c.ClaimSessionMutation(sessionID)
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 		return SessionView{}, err
 	}
 	snapshot = normalized
-	admission, err := c.ClaimRunSlot(ctx, snapshot.Session.ID)
+	admission, err := c.ClaimIdleSession(ctx, snapshot.Session.ID)
 	if err != nil {
 		return SessionView{}, err
 	}

@@ -43,7 +43,7 @@ func TestTurnCompletionCarriesTheProcessFailure(t *testing.T) {
 	engine := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer engine.Close()
 
-	process, err := engine.StartTurn(t.Context(), TurnRequest{Message: "go"})
+	process, err := engine.StartTurn(t.Context(), TurnRequest{SessionID: "session", Message: "go"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}

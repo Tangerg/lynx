@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -18,32 +19,32 @@ import (
 // snapshot and atomic write-set ports. Each operation applies the complete
 // application-decided mutation inside one storage transaction.
 type SessionStores struct {
-	sessions    *sqlitestore.SessionStore
-	transcript  *sqlitestore.TranscriptStore
-	interrupts  *sqlitestore.InterruptStore
-	runs        *sqlitestore.RunStore
-	processes   *sqlitestore.ProcessStore
-	history     *conversation.Messages
-	todos       todoProjection
-	approvals   approvalRuleCleaner
-	toolResults *sqlitestore.ToolResultStore
-	goals       goalCleaner
-	tx          Transactor
+	sessions            *sqlitestore.SessionStore
+	transcript          *sqlitestore.TranscriptStore
+	interrupts          *sqlitestore.InterruptStore
+	runs                *sqlitestore.RunStore
+	executorCheckpoints *sqlitestore.ExecutorCheckpointStore
+	history             *conversation.Messages
+	todos               todoProjection
+	approvals           approvalRuleCleaner
+	toolResults         *sqlitestore.ToolResultStore
+	goals               goalStore
+	tx                  Transactor
 }
 
 // SessionStoresConfig is the durable collaborator set for SessionStores.
 type SessionStoresConfig struct {
-	Sessions    *sqlitestore.SessionStore
-	Transcript  *sqlitestore.TranscriptStore
-	Interrupts  *sqlitestore.InterruptStore
-	Runs        *sqlitestore.RunStore
-	Processes   *sqlitestore.ProcessStore
-	History     *conversation.Messages
-	Todos       todoProjection
-	Approvals   approvalRuleCleaner
-	ToolResults *sqlitestore.ToolResultStore
-	Goals       goalCleaner
-	Tx          Transactor
+	Sessions            *sqlitestore.SessionStore
+	Transcript          *sqlitestore.TranscriptStore
+	Interrupts          *sqlitestore.InterruptStore
+	Runs                *sqlitestore.RunStore
+	ExecutorCheckpoints *sqlitestore.ExecutorCheckpointStore
+	History             *conversation.Messages
+	Todos               todoProjection
+	Approvals           approvalRuleCleaner
+	ToolResults         *sqlitestore.ToolResultStore
+	Goals               goalStore
+	Tx                  Transactor
 }
 
 // Transactor runs a complete write-set inside one durable transaction.
@@ -65,25 +66,26 @@ type approvalRuleCleaner interface {
 	DeleteSession(ctx context.Context, sessionID string) error
 }
 
-type goalCleaner interface {
+type goalStore interface {
 	Clear(ctx context.Context, sessionID string) error
+	RecordTurn(ctx context.Context, record goal.TurnRecord) error
 }
 
 // NewSessionStores returns the SQLite adapter for session snapshots and
 // write-sets. Its dependencies are assembled once by Bootstrap.
 func NewSessionStores(cfg SessionStoresConfig) *SessionStores {
 	return &SessionStores{
-		sessions:    cfg.Sessions,
-		transcript:  cfg.Transcript,
-		interrupts:  cfg.Interrupts,
-		runs:        cfg.Runs,
-		processes:   cfg.Processes,
-		history:     cfg.History,
-		todos:       cfg.Todos,
-		approvals:   cfg.Approvals,
-		toolResults: cfg.ToolResults,
-		goals:       cfg.Goals,
-		tx:          cfg.Tx,
+		sessions:            cfg.Sessions,
+		transcript:          cfg.Transcript,
+		interrupts:          cfg.Interrupts,
+		runs:                cfg.Runs,
+		executorCheckpoints: cfg.ExecutorCheckpoints,
+		history:             cfg.History,
+		todos:               cfg.Todos,
+		approvals:           cfg.Approvals,
+		toolResults:         cfg.ToolResults,
+		goals:               cfg.Goals,
+		tx:                  cfg.Tx,
 	}
 }
 
@@ -202,12 +204,12 @@ func (s *SessionStores) ApplyRollback(ctx context.Context, plan sessions.Rollbac
 			if err := s.runs.Delete(ctx, plan.SessionID, runID); err != nil {
 				return err
 			}
-			if err := s.interrupts.Delete(ctx, runID); err != nil {
+			if err := s.interrupts.Delete(ctx, plan.SessionID, runID); err != nil {
 				return err
 			}
 		}
-		if len(plan.ProcessIDs) > 0 {
-			if err := s.processes.DeleteTrees(ctx, plan.ProcessIDs); err != nil {
+		if len(plan.CheckpointRootIDs) > 0 {
+			if err := s.executorCheckpoints.DeleteCheckpoints(ctx, plan.SessionID, plan.CheckpointRootIDs); err != nil {
 				return err
 			}
 		}
@@ -289,8 +291,8 @@ func (s *SessionStores) clearSessionOwnedState(ctx context.Context, sessionID st
 	if err := s.deleteInterrupts(ctx, sessionID); err != nil {
 		return err
 	}
-	if s.processes != nil {
-		if err := s.processes.DeleteSessionTrees(ctx, sessionID); err != nil {
+	if s.executorCheckpoints != nil {
+		if err := s.executorCheckpoints.DeleteSessionCheckpoints(ctx, sessionID); err != nil {
 			return err
 		}
 	}
@@ -321,35 +323,54 @@ func (s *SessionStores) clearSessionOwnedState(ctx context.Context, sessionID st
 }
 
 // ApplyTerminal persists the terminal record for an abandoned parked run and
-// clears its resumable process state atomically.
+// clears its executor checkpoint atomically.
 func (s *SessionStores) ApplyTerminal(ctx context.Context, plan sessions.TerminalPlan) error {
+	if err := plan.Validate(); err != nil {
+		return fmt.Errorf("persistence: invalid terminal plan: %w", err)
+	}
+	root, _ := plan.RootRun()
 	return s.runInTx(ctx, func(ctx context.Context) error {
 		for _, item := range plan.Items {
 			if err := s.transcript.AppendItem(ctx, item); err != nil {
 				return err
 			}
 		}
-		if plan.ProcessID != "" {
-			if err := s.processes.DeleteTrees(ctx, []string{plan.ProcessID}); err != nil {
+		if plan.CheckpointRootID != "" {
+			if err := s.executorCheckpoints.DeleteCheckpoints(ctx, root.SessionID, []string{plan.CheckpointRootID}); err != nil {
 				return err
 			}
 		}
 		// The interrupt goes before the terminal write: while it is open, the Run is
 		// parked ON it, and a Run cannot be both finished and waiting.
-		if err := s.interrupts.Delete(ctx, plan.Run.ID); err != nil {
+		if err := s.interrupts.Delete(ctx, root.SessionID, root.ID); err != nil {
 			return err
 		}
-		if plan.Run.Outcome == nil {
-			return errors.New("persistence: terminal run outcome is required")
+		for _, run := range plan.Runs {
+			if run.Outcome == nil {
+				return fmt.Errorf("persistence: terminal Run %q outcome is required", run.ID)
+			}
+			switch *run.Outcome {
+			case execution.OutcomeCanceled:
+				if err := s.runs.Terminalize(ctx, run); err != nil {
+					return err
+				}
+			case execution.OutcomeError:
+				if err := s.runs.RecoverLost(ctx, run); err != nil {
+					return err
+				}
+			default:
+				return fmt.Errorf("persistence: unsupported parked terminal outcome %s", *run.Outcome)
+			}
 		}
-		switch *plan.Run.Outcome {
-		case execution.OutcomeCanceled:
-			return s.runs.Terminalize(ctx, plan.Run)
-		case execution.OutcomeError:
-			return s.runs.RecoverLost(ctx, plan.Run)
-		default:
-			return fmt.Errorf("persistence: unsupported parked terminal outcome %s", *plan.Run.Outcome)
+		if plan.GoalTurn != nil {
+			if s.goals == nil {
+				return errors.New("persistence: goal-turn store is unavailable for a Goal-owned terminal Run")
+			}
+			if err := s.goals.RecordTurn(ctx, *plan.GoalTurn); err != nil {
+				return fmt.Errorf("persistence: record Goal turn for Run %q: %w", root.ID, err)
+			}
 		}
+		return nil
 	})
 }
 
@@ -359,7 +380,7 @@ func (s *SessionStores) deleteInterrupts(ctx context.Context, sessionID string) 
 		return err
 	}
 	for _, interrupt := range pending {
-		if err := s.interrupts.Delete(ctx, interrupt.RootRunID); err != nil {
+		if err := s.interrupts.Delete(ctx, sessionID, interrupt.RootRunID); err != nil {
 			return err
 		}
 	}

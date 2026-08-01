@@ -34,7 +34,7 @@ type ShutdownResource interface {
 // composition root (the sqlite-backed stores marked "Required" below).
 type Config struct {
 	// Engine is the Agent execution adapter's construction config. The runtime
-	// fills its ProcessStore, Provider, Todos, and ToolResolver.
+	// fills its Checkpoints, Provider, Todos, and ToolResolver.
 	Engine agentexec.Config
 
 	// SkillsGlobalDir is the user-scope Agent Skills directory. Tool resolution
@@ -112,10 +112,10 @@ type Config struct {
 	// would violate the restart-safe admission invariant.
 	RunStore *sqlitestore.RunStore
 
-	// ProcessStore holds the recoverable agent-process snapshot referenced by a
-	// parked interrupt. Required so session cancel/delete/rollback can remove the
-	// snapshot in the same SQLite write-set as the interrupt and admission row.
-	ProcessStore *sqlitestore.ProcessStore
+	// ExecutorCheckpoints stores the opaque, root-owned executor continuation
+	// referenced by a parked interrupt. Required so lifecycle write-sets can save
+	// or remove that continuation atomically without interpreting its payload.
+	ExecutorCheckpoints *sqlitestore.ExecutorCheckpointStore
 
 	// WorkspaceMutationStore is the §8.5 recoverable operation log for file
 	// rollbacks: the intent recorded before a working-tree + history rollback and

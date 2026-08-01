@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -21,7 +21,7 @@ import (
 // job is removed; outliving the window leaves it running, addressable by the
 // same shell id, so shell_output / shell_kill work on it unchanged. This is the
 // auto-background design — lyra selects on the per-shell done channel
-// instead of polling. cwd is read per call (turnctx.TurnCwd) so a command runs in the
+// instead of polling. cwd is read per call (executionctx.CWD) so a command runs in the
 // session's working directory.
 
 // defaultAutoBackgroundSeconds is how long a foreground shell command may run
@@ -133,7 +133,7 @@ func (t *toolSet) run(ctx context.Context, a shellArgs) (string, error) {
 		return "", err
 	}
 
-	id, err := t.shells.Launch(ctx, turnctx.TurnSession(ctx), turnctx.TurnCwd(ctx, t.defaultWorkdir), a.Command, a.timeout(), turnctx.TurnIsolated(ctx))
+	id, err := t.shells.Launch(ctx, executionctx.SessionID(ctx), executionctx.CWD(ctx, t.defaultWorkdir), a.Command, a.timeout(), executionctx.Isolated(ctx))
 	if err != nil {
 		return "", err
 	}

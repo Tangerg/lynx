@@ -142,7 +142,9 @@ func artifactLimitsFromDomain(limits execution.RunLimits) *protocol.ArtifactRunL
 	if limits.IsZero() {
 		return nil
 	}
-	return &protocol.ArtifactRunLimits{MaxSteps: limits.MaxSteps, MaxBudgetUSD: limits.MaxBudgetUSD}
+	return &protocol.ArtifactRunLimits{
+		MaxTotalTokens: limits.MaxTotalTokens, MaxSteps: limits.MaxSteps, MaxBudgetUSD: limits.MaxBudgetUSD,
+	}
 }
 
 func artifactUsageFromDomain(usage *transcript.Usage) *protocol.ArtifactUsage {

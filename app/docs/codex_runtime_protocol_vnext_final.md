@@ -555,6 +555,7 @@ interface RunMetrics {
 }
 
 interface RunLimits {
+  maxTotalTokens?: number;
   maxSteps?: number;
   maxBudgetUsd?: number;
 }
@@ -738,7 +739,9 @@ Segment 的正常结束边界。
   root tree 共享的 execution budget 与明确的最大 child depth 共同约束，root-only
   产品操作不得随通用 `task` 能力下放；
 - `segment.progress` 中出现的计量也是累计预览，不是 delta；
-- `maxSteps`、`maxBudgetUsd` 跨 resume 延续；
+- `maxTotalTokens` 是完整 Run tree 的 prompt + completion 累计 ceiling；它与
+  `params.maxTokens` 的单次模型输出上限不是一个维度；
+- `maxTotalTokens`、`maxSteps`、`maxBudgetUsd` 跨 resume 延续；
 - limit 判断始终使用持久化的有效限额与 committed cumulative metrics，resume
   不得恢复成无上限或重新从零计数；
 - root Run 的 metrics 包含整棵 subagent subtree；
@@ -854,6 +857,7 @@ interface StartRunRequest {
   input: ContentBlock[];
   provider?: string;
   model?: string;
+  maxTotalTokens?: number;
   maxSteps?: number;
   maxBudgetUsd?: number;
   params?: GenerationParams;
@@ -931,7 +935,7 @@ validate all responses
 `responses[].itemId` 必须与该 Run 当前完整 Interrupt set 一一对应：不得遗漏、重复或
 夹带其它 item。请求自身遗漏/重复返回带字段错误的 `invalid_params`；引用已经关闭或
 不属于该 Run 的 item 返回 `interrupt_not_open`。不允许部分 consume。
-`maxSteps`、`maxBudgetUsd` 以及 continuation 必需的 execution policy 来自 durable
+`maxTotalTokens`、`maxSteps`、`maxBudgetUsd` 以及 continuation 必需的 execution policy 来自 durable
 Run projection，不从进程内 start request 或 executor handle 反推。
 
 `input` 若存在必须是非空 `ContentBlock[]`，并在同一事务中作为新 Segment 起点的一条
@@ -1785,6 +1789,7 @@ interface ArtifactRun {
 }
 
 interface ArtifactRunLimits {
+  maxTotalTokens?: number;
   maxSteps?: number;
   maxBudgetUsd?: number;
 }
@@ -1965,7 +1970,8 @@ Registry 还必须为以下对象生成 JSON Schema `if/then` 与等价 `Validat
   payload `runId == envelope.runId` 的同帧约束；
 - `CancelRunResponse` variant 与 nested RunRef 角色/identity 约束；
 - `ArtifactRun` 的 root/child lineage 与 root-only protocol profile 约束；
-- `RunLimits` / `ArtifactRunLimits` 的“存在时至少一个正数 limit”约束；
+- `StartRunRequest` / `RunLimits` / `ArtifactRunLimits` 的每个 limit 都是非负数；零或省略表示该维度
+  uncapped，服务端 projection 不发布空 `limits` 对象；
 - `PendingInterruptSet.interrupts` 非空且 itemId 唯一；
 - 已知 core `ProblemData.type` 对 `activeRun/requiredCapabilities` 的 presence
   constraints，以及 requirements 的 non-empty/uniqueItems；
@@ -2314,7 +2320,7 @@ Batch D 不得重新引入 Batch C 已删除的兼容层。
 - replay 同一 finished event 不重复计量；
 - interrupt 前后的 steps/usage/duration 单调不减；
 - Waiting Run 跨进程冷读的 metrics 与 interrupt 边界 committed snapshot 完全一致；
-- resume 后仍按原 `maxSteps` / `maxBudgetUsd` 判定，不得变成无上限或重新计数；
+- resume 后仍按原 `maxTotalTokens` / `maxSteps` / `maxBudgetUsd` 判定，不得变成无上限或重新计数；
 - root usage 包含 child subtree；
 - child 完成只提交 child metrics；root committed metrics 到下一个 root interrupt
   或 terminal 边界才包含它，不允许在 child 边界额外提交 root；

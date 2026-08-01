@@ -52,7 +52,7 @@ var (
 	ErrParkClaimed = errors.New("runs: parked turn already claimed")
 	ErrTurnNotLive = errors.New("runs: turn not live")
 	// ErrTurnStateLost reports that a parked executor turn has no compatible
-	// durable process state and the application Run must be recovered lost.
+	// durable executor checkpoint and the application Run must be recovered lost.
 	ErrTurnStateLost = errors.New("runs: turn state lost")
 
 	ErrInputRequired      = errors.New("runs: input required")
@@ -97,9 +97,7 @@ type StartCommand struct {
 	DefaultCwd      string
 	NewSessionTitle string
 	ModelSelection  modelref.Selection
-	MaxBudget       int64
-	MaxCostUSD      float64
-	MaxSteps        int
+	Limits          execution.RunLimits
 	Options         *corechat.Options
 	// ProtocolProfile is the protocol contract negotiated for this Run, already
 	// resolved against what this build advertises. It is an input rather than
@@ -319,14 +317,20 @@ func (r StartTurn) Validate() error {
 	if r.Message == "" && len(r.Media) == 0 {
 		return ErrInputRequired
 	}
-	if r.MaxBudget < 0 {
-		return fmt.Errorf("%w: MaxBudget must be non-negative", ErrInvalidTurnLimit)
+	if err := r.Limits.Validate(); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidTurnLimit, err)
 	}
-	if r.MaxCostUSD < 0 {
-		return fmt.Errorf("%w: MaxCostUSD must be non-negative", ErrInvalidTurnLimit)
+	if err := r.ModelSelection.Validate(); err != nil {
+		return fmt.Errorf("runs: turn model selection: %w", err)
 	}
-	if r.MaxSteps < 0 {
-		return fmt.Errorf("%w: MaxSteps must be non-negative", ErrInvalidTurnLimit)
+	if err := (execution.RunProtocolProfile{
+		ChildRuns:      r.ChildRunAdmissionEnabled,
+		InterruptKinds: r.InterruptKinds,
+	}).Validate(); err != nil {
+		return fmt.Errorf("runs: turn protocol profile: %w", err)
+	}
+	if r.GoalLeaseID != strings.TrimSpace(r.GoalLeaseID) {
+		return errors.New("runs: turn goal lease ID has surrounding whitespace")
 	}
 	return validateOptions(r.Options)
 }

@@ -4,13 +4,11 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -27,56 +25,20 @@ func newRunStores(t *testing.T) (*sqlite.RunStore, *sqlite.InterruptStore) {
 	return sqlite.NewRunStore(db), sqlite.NewInterruptStore(db)
 }
 
-func newRunRecoveryStores(t *testing.T) (*sqlite.RunStore, *sqlite.InterruptStore, *sqlite.TranscriptStore, *sqlite.ProcessStore) {
+func newRunProjectionStores(t *testing.T) (*sqlite.RunStore, *sqlite.InterruptStore, *sqlite.TranscriptStore) {
 	t.Helper()
 	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return sqlite.NewRunStore(db), sqlite.NewInterruptStore(db), sqlite.NewTranscriptStore(db), sqlite.NewProcessStore(db)
+	return sqlite.NewRunStore(db), sqlite.NewInterruptStore(db), sqlite.NewTranscriptStore(db)
 }
-
-func acceptProcessSnapshot(context.Context, string) (bool, error) { return true, nil }
 
 // runCreatedAt is when every fixture Run is admitted. The interrupt record
 // carries the same instant, and a park whose two records disagree about when its
 // Run started is rejected as an incomplete boundary.
 var runCreatedAt = time.Unix(1, 0).UTC()
-
-// putParkedState completes a park around an already-suspended Run: the open
-// interrupt, the running item it refers to, and the resumable process snapshot.
-// The Run's own row needs nothing added — Suspend is what parked it.
-func putParkedState(t *testing.T, transcripts *sqlite.TranscriptStore, ints *sqlite.InterruptStore, processes *sqlite.ProcessStore, runID, sessionID string) {
-	t.Helper()
-	createdAt := runCreatedAt
-	parkedAt := time.Unix(2, 0).UTC()
-	question := &transcript.Question{Prompt: "Continue?"}
-	open := []transcript.Interrupt{{
-		ItemID: "item_" + runID, RunID: runID, Kind: execution.QuestionInterrupt, Question: question,
-	}}
-	if err := transcripts.AppendItem(t.Context(), transcript.Item{
-		SessionID: sessionID, ID: "item_" + runID, RunID: runID,
-		Status: transcript.ItemRunning, Kind: transcript.QuestionItem,
-		Question: question, CreatedAt: parkedAt,
-	}); err != nil {
-		t.Fatalf("put parked transcript item: %v", err)
-	}
-	if err := ints.Put(t.Context(), pendingForRun(
-		runID,
-		sessionID,
-		"proc_"+runID,
-		open,
-		parkedAt,
-	)); err != nil {
-		t.Fatalf("put parked interrupt: %v", err)
-	}
-	snapshot := validStoredSnapshot("proc_"+runID, core.StatusWaiting)
-	snapshot.StartedAt = createdAt
-	if err := processes.SaveTree(t.Context(), storedSnapshotTree(snapshot.ID, snapshot), storedCheckpoint(sessionID, storedBuildID, storedUsage())); err != nil {
-		t.Fatalf("put parked process snapshot: %v", err)
-	}
-}
 
 func runDraft(runID, sessionID string) execution.RunDraft {
 	return execution.RunDraft{RunID: runID, SessionID: sessionID, SegmentID: "seg_open", CreatedAt: runCreatedAt}
@@ -133,11 +95,12 @@ func pendingForRun(
 		}
 	}
 	return interrupts.Pending{
-		RootRunID:   runID,
-		SessionID:   sessionID,
-		TurnID:      "turn_" + runID,
-		Interrupts:  copied,
-		Suspensions: bindings,
+		RootRunID:       runID,
+		SessionID:       sessionID,
+		TurnID:          "turn_" + runID,
+		Interrupts:      copied,
+		Suspensions:     bindings,
+		ProtocolProfile: protocolProfileForInterrupts(copied),
 		Continuations: []interrupts.Continuation{{
 			RunID:        runID,
 			ProcessID:    processID,
@@ -145,6 +108,14 @@ func pendingForRun(
 		}},
 		CreatedAt: createdAt,
 	}
+}
+
+func protocolProfileForInterrupts(values []transcript.Interrupt) execution.RunProtocolProfile {
+	profile := execution.RunProtocolProfile{}
+	for _, value := range values {
+		profile.InterruptKinds = append(profile.InterruptKinds, value.Kind)
+	}
+	return profile.Normalized()
 }
 
 // TestParkCommitsInterruptAndSuspendAtomically proves the §8.3 pairing the
@@ -169,7 +140,7 @@ func TestParkCommitsInterruptAndSuspendAtomically(t *testing.T) {
 	// SAME connection (conn(ctx)); using the outer ctx would open a second
 	// connection under MaxOpenConns(1) and deadlock.
 	park := func(ctx context.Context) error {
-		if err := ints.Put(ctx, pendingForRun(
+		if err := ints.Open(ctx, pendingForRun(
 			"run_1",
 			"ses_A",
 			"proc_1",
@@ -473,700 +444,6 @@ func TestDeleteForSessionFreesSlot(t *testing.T) {
 	}
 }
 
-// TestReconcileOrphansSweepsInterruptedWithoutRecord: the boot sweep reclaims a
-// non-terminal run — running OR interrupted — whose session has no open
-// interrupt (a continuation whose consumed-interrupt Resume was missed leaves an
-// interrupted-but-orphaned row), while a genuinely parked interrupted run (its
-// interrupt still recorded) is preserved.
-func TestReconcileOrphansSweepsInterruptedWithoutRecord(t *testing.T) {
-	ctx := context.Background()
-	store, ints, transcripts, processes := newRunRecoveryStores(t)
-
-	// Orphaned interrupted row: interrupted state but no interrupt record.
-	if err := store.Admit(ctx, runDraft("run_orphan", "ses_orphan")); err != nil {
-		t.Fatalf("admit orphan: %v", err)
-	}
-	if err := store.Suspend(ctx, parkedRun("run_orphan", "ses_orphan")); err != nil {
-		t.Fatalf("suspend orphan: %v", err)
-	}
-	// Genuinely parked: interrupted state WITH an open interrupt record.
-	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
-		t.Fatalf("admit park: %v", err)
-	}
-	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
-		t.Fatalf("suspend park: %v", err)
-	}
-	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
-
-	swept, err := store.ReconcileOrphans(ctx, acceptProcessSnapshot)
-	if err != nil {
-		t.Fatalf("reconcile: %v", err)
-	}
-	if swept != 1 {
-		t.Fatalf("swept = %d, want 1 (only the interrupted orphan without a record)", swept)
-	}
-	if err := store.Admit(ctx, runDraft("run_orphan2", "ses_orphan")); err != nil {
-		t.Fatalf("re-admit swept orphan session: %v", err)
-	}
-	if err := store.Admit(ctx, runDraft("run_park2", "ses_park")); !errors.Is(err, execution.ErrSessionBusy) {
-		t.Fatalf("parked-session admit = %v, want ErrSessionBusy (preserved)", err)
-	}
-}
-
-// TestReconcileOrphansSweepsCrashedButPreservesParked: a boot sweep terminalizes
-// a running run whose process is gone with no open interrupt (a crash), but
-// leaves an interrupted run whose matching interrupt makes it resumable.
-func TestReconcileOrphansSweepsCrashedButPreservesParked(t *testing.T) {
-	ctx := context.Background()
-	store, ints, transcripts, processes := newRunRecoveryStores(t)
-
-	if err := store.Admit(ctx, runDraft("run_crash", "ses_crash")); err != nil {
-		t.Fatalf("admit crash: %v", err)
-	}
-	crashedSnapshot := validStoredSnapshot("proc_crash", core.StatusWaiting)
-	if err := processes.SaveTree(
-		ctx,
-		storedSnapshotTree(crashedSnapshot.ID, crashedSnapshot),
-		storedCheckpoint("ses_crash", storedBuildID, storedUsage()),
-	); err != nil {
-		t.Fatalf("seed crashed process checkpoint: %v", err)
-	}
-	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
-		t.Fatalf("admit park: %v", err)
-	}
-	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
-		t.Fatalf("suspend park: %v", err)
-	}
-	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
-
-	swept, err := store.ReconcileOrphans(ctx, acceptProcessSnapshot)
-	if err != nil {
-		t.Fatalf("reconcile: %v", err)
-	}
-	if swept != 1 {
-		t.Fatalf("swept = %d, want 1 (only the crashed orphan)", swept)
-	}
-	if _, _, err := processes.LoadTree(ctx, crashedSnapshot.ID); !errors.Is(err, execution.ErrProcessStateNotFound) {
-		t.Fatalf("orphan process checkpoint after reconcile = %v, want not found", err)
-	}
-	if _, _, err := processes.LoadTree(ctx, "proc_run_park"); err != nil {
-		t.Fatalf("preserved parked checkpoint was swept: %v", err)
-	}
-	if err := store.Admit(ctx, runDraft("run_crash2", "ses_crash")); err != nil {
-		t.Fatalf("re-admit swept session: %v", err)
-	}
-	if err := store.Admit(ctx, runDraft("run_park2", "ses_park")); !errors.Is(err, execution.ErrSessionBusy) {
-		t.Fatalf("parked-session admit err = %v, want ErrSessionBusy (preserved)", err)
-	}
-}
-
-func TestReconcileOrphansPreservesCompleteParkedRunTree(t *testing.T) {
-	ctx := t.Context()
-	path := filepath.Join(t.TempDir(), "lyra.db")
-	db, err := sqlite.Open(path)
-	if err != nil {
-		t.Fatalf("open initial database: %v", err)
-	}
-	store := sqlite.NewRunStore(db)
-	ints := sqlite.NewInterruptStore(db)
-	transcripts := sqlite.NewTranscriptStore(db)
-	processes := sqlite.NewProcessStore(db)
-	rootID := "run_root"
-	childID := "run_child"
-	sessionID := "ses_tree"
-	childLineage := execution.RunLineage{
-		SpawnedByItemID: "item_spawn_child",
-		ParentRunID:     rootID,
-		RootRunID:       rootID,
-	}
-	if err := store.Admit(ctx, runDraft(rootID, sessionID)); err != nil {
-		t.Fatalf("admit root: %v", err)
-	}
-	childDraft := runDraft(childID, sessionID)
-	childDraft.SpawnedByItemID = childLineage.SpawnedByItemID
-	childDraft.ParentRunID = childLineage.ParentRunID
-	childDraft.RootRunID = childLineage.RootRunID
-	if err := store.Admit(ctx, childDraft); err != nil {
-		t.Fatalf("admit child: %v", err)
-	}
-
-	question := &transcript.Question{Prompt: "Continue?"}
-	open := transcript.Interrupt{
-		ItemID:   "item_question",
-		RunID:    childID,
-		Kind:     execution.QuestionInterrupt,
-		Question: question,
-	}
-	child := parkedRun(childID, sessionID)
-	child.SpawnedByItemID = childLineage.SpawnedByItemID
-	child.ParentRunID = childLineage.ParentRunID
-	child.RootRunID = childLineage.RootRunID
-	child.Interrupts = []transcript.Interrupt{open}
-	root := parkedRun(rootID, sessionID)
-	root.Interrupts = nil
-	if err := store.Suspend(ctx, child); err != nil {
-		t.Fatalf("suspend child: %v", err)
-	}
-	if err := store.Suspend(ctx, root); err != nil {
-		t.Fatalf("suspend root: %v", err)
-	}
-	if err := transcripts.AppendItem(ctx, transcript.Item{
-		SessionID: sessionID,
-		ID:        open.ItemID,
-		RunID:     childID,
-		Status:    transcript.ItemRunning,
-		Kind:      transcript.QuestionItem,
-		Question:  question,
-		CreatedAt: time.Unix(2, 0).UTC(),
-	}); err != nil {
-		t.Fatalf("append child question Item: %v", err)
-	}
-	pending := interrupts.Pending{
-		RootRunID:  rootID,
-		SessionID:  sessionID,
-		TurnID:     "turn_tree",
-		Interrupts: []transcript.Interrupt{open},
-		Suspensions: []interrupts.SuspensionBinding{{
-			InterruptItemID: open.ItemID,
-			ProcessID:       "process_child",
-			SuspensionID:    "suspension_child",
-		}},
-		Continuations: []interrupts.Continuation{
-			{
-				RunID:           childID,
-				ProcessID:       "process_child",
-				ParentProcessID: "process_root",
-				SpawnCallID:     "spawn_child",
-				Lineage:         childLineage,
-				RunCreatedAt:    runCreatedAt,
-			},
-			{
-				RunID:        rootID,
-				ProcessID:    "process_root",
-				RunCreatedAt: runCreatedAt,
-			},
-		},
-		CreatedAt: time.Unix(2, 0).UTC(),
-	}
-	if err := ints.Put(ctx, pending); err != nil {
-		t.Fatalf("put tree Pending: %v", err)
-	}
-	rootSnapshot := validStoredSnapshot("process_root", core.StatusWaiting)
-	rootSnapshot.StartedAt = runCreatedAt
-	childSnapshot := validStoredSnapshot("process_child", core.StatusWaiting)
-	childSnapshot.ParentID = rootSnapshot.ID
-	childSnapshot.StartedAt = runCreatedAt
-	if err := processes.SaveTree(
-		ctx,
-		storedSnapshotTree(rootSnapshot.ID, rootSnapshot, childSnapshot),
-		storedCheckpoint("", storedBuildID, storedUsage()),
-	); err != nil {
-		t.Fatalf("save process tree: %v", err)
-	}
-
-	if err := db.Close(); err != nil {
-		t.Fatalf("close parked process database: %v", err)
-	}
-	db, err = sqlite.Open(path)
-	if err != nil {
-		t.Fatalf("reopen database: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	store = sqlite.NewRunStore(db)
-	ints = sqlite.NewInterruptStore(db)
-
-	recovered, err := store.ReconcileOrphans(ctx, acceptProcessSnapshot)
-	if err != nil || recovered != 0 {
-		t.Fatalf("reconcile parked tree = (%d, %v), want (0, nil)", recovered, err)
-	}
-	for _, runID := range []string{childID, rootID} {
-		run, found, err := store.Run(ctx, runID)
-		if err != nil || !found || run.State != execution.Interrupted {
-			t.Fatalf(
-				"Run %q after reconciliation = found:%t value:%+v err:%v, want interrupted",
-				runID,
-				found,
-				run,
-				err,
-			)
-		}
-	}
-	if stored, found, err := ints.Get(ctx, rootID); err != nil ||
-		!found ||
-		stored.RootRunID != pending.RootRunID {
-		t.Fatalf(
-			"Pending after reconciliation = found:%t value:%+v err:%v, want preserved",
-			found,
-			stored,
-			err,
-		)
-	}
-}
-
-func TestReconcileOrphansTerminalizesParkWhoseProcessSnapshotIsMissing(t *testing.T) {
-	store, ints, transcripts, processes := newRunRecoveryStores(t)
-	ctx := t.Context()
-	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
-		t.Fatalf("admit: %v", err)
-	}
-	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
-		t.Fatalf("suspend: %v", err)
-	}
-	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
-	if err := processes.DeleteTrees(ctx, []string{"proc_run_park"}); err != nil {
-		t.Fatalf("delete process snapshot: %v", err)
-	}
-
-	recovered, err := store.ReconcileOrphans(ctx, func(context.Context, string) (bool, error) {
-		return false, nil
-	})
-	if err != nil || recovered != 1 {
-		t.Fatalf("reconcile = (%d, %v), want one recovered lost park", recovered, err)
-	}
-	if pending, err := ints.List(ctx, "ses_park"); err != nil || len(pending) != 0 {
-		t.Fatalf("pending after recovery = (%+v, %v), want none", pending, err)
-	}
-	runs, err := store.ListRuns(ctx, "ses_park")
-	if err != nil || len(runs) != 1 || runs[0].State != execution.Failed || runs[0].Error == nil || runs[0].Error.Kind != transcript.RunLostProblem {
-		t.Fatalf("runs after recovery = (%+v, %v), want failed run_lost", runs, err)
-	}
-	if err := store.Admit(ctx, runDraft("run_next", "ses_park")); err != nil {
-		t.Fatalf("admit after lost park recovery: %v", err)
-	}
-}
-
-// TestReconcileOrphansRepairsWholeDurableLifecycle is the recovery boundary's
-// evidence for terminal_run_explains_how_it_ended: the boot sweep does not merely mark
-// an abandoned run terminal, it lands the run_lost result explaining why — the only
-// chance to, since the executor that could have said is gone.
-func TestReconcileOrphansRepairsWholeDurableLifecycle(t *testing.T) {
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	ctx := t.Context()
-	runStore := sqlite.NewRunStore(db)
-	transcripts := sqlite.NewTranscriptStore(db)
-
-	if err := runStore.Admit(ctx, runDraft("run_lost", "ses_lost")); err != nil {
-		t.Fatalf("admit lost run: %v", err)
-	}
-	if err := transcripts.AppendItem(ctx, transcript.Item{
-		SessionID: "ses_lost", ID: "item_tool", RunID: "run_lost",
-		Status: transcript.ItemRunning, Kind: transcript.ToolCall, CreatedAt: time.Unix(2, 0),
-		Tool: &transcript.ToolInvocation{Name: "shell"},
-	}); err != nil {
-		t.Fatalf("put running item: %v", err)
-	}
-
-	swept, err := runStore.ReconcileOrphans(ctx, acceptProcessSnapshot)
-	if err != nil {
-		t.Fatalf("reconcile: %v", err)
-	}
-	if swept != 1 {
-		t.Fatalf("swept = %d, want 1", swept)
-	}
-	items, err := transcripts.List(ctx, "ses_lost")
-	if err != nil {
-		t.Fatalf("list transcript: %v", err)
-	}
-	runs, err := runStore.ListRuns(ctx, "ses_lost")
-	if err != nil {
-		t.Fatalf("list runs: %v", err)
-	}
-	if len(runs) != 1 || runs[0].State != execution.Failed || runs[0].Outcome == nil || *runs[0].Outcome != execution.OutcomeError {
-		t.Fatalf("recovered run = %+v, want failed/error", runs)
-	}
-	if runs[0].Error == nil || runs[0].Error.Kind != transcript.RunLostProblem {
-		t.Fatalf("recovered run failure = %+v, want run-lost problem", runs[0].Error)
-	}
-	if runs[0].FinishedAt.IsZero() || runs[0].MessageMark != 0 {
-		t.Fatalf("recovered terminal boundary = finished:%v mark:%d", runs[0].FinishedAt, runs[0].MessageMark)
-	}
-	if len(items) != 1 || items[0].Status != transcript.ItemIncomplete || items[0].Error == nil {
-		t.Fatalf("recovered items = %+v, want incomplete failed tool", items)
-	}
-	if err := runStore.Admit(ctx, runDraft("run_next", "ses_lost")); err != nil {
-		t.Fatalf("re-admit after full recovery: %v", err)
-	}
-}
-
-// TestReconcileOrphansPreservesCommittedRunFactsAcrossRestart guards the cold
-// recovery contract, not merely the state transition. Each member has already
-// committed accounting at a park and resumed before the process disappears;
-// boot must terminalize the complete tree without replacing any immutable
-// admission fact or the last committed metrics snapshot with a zero value.
-func TestReconcileOrphansPreservesCommittedRunFactsAcrossRestart(t *testing.T) {
-	ctx := t.Context()
-	path := filepath.Join(t.TempDir(), "lyra.db")
-	db, err := sqlite.Open(path)
-	if err != nil {
-		t.Fatalf("open initial database: %v", err)
-	}
-	store := sqlite.NewRunStore(db)
-	const sessionID = "ses_restart"
-	profile := execution.RunProtocolProfile{
-		ChildRuns:      true,
-		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt},
-	}
-	type expectedRun struct {
-		draft   execution.RunDraft
-		metrics transcript.RunMetrics
-	}
-	costs := []float64{0.125, 0.25, 0.5}
-	expected := []expectedRun{
-		{
-			draft: execution.RunDraft{
-				RunID: "run_root", SessionID: sessionID, SegmentID: "seg_root",
-				ModelSelection:  testModelSelection(t, "openai", "gpt-root"),
-				Limits:          execution.RunLimits{MaxSteps: 20, MaxBudgetUSD: 2.5},
-				ProtocolProfile: profile,
-				CreatedAt:       runCreatedAt,
-			},
-			metrics: transcript.RunMetrics{
-				Steps: 2, ActiveDuration: 2 * time.Second,
-				Usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{
-					InputTokens: 10, OutputTokens: 5, CostUSD: &costs[0],
-				}},
-			},
-		},
-		{
-			draft: execution.RunDraft{
-				RunID: "run_child", SessionID: sessionID, SegmentID: "seg_child",
-				SpawnedByItemID: "item_spawn_child", ParentRunID: "run_root", RootRunID: "run_root",
-				ModelSelection: testModelSelection(t, "anthropic", "claude-child"),
-				Limits:         execution.RunLimits{MaxSteps: 12, MaxBudgetUSD: 1.25},
-				CreatedAt:      runCreatedAt,
-			},
-			metrics: transcript.RunMetrics{
-				Steps: 4, ActiveDuration: 3 * time.Second,
-				Usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{
-					InputTokens: 20, OutputTokens: 8, ReasoningTokens: 3, CostUSD: &costs[1],
-				}},
-			},
-		},
-		{
-			draft: execution.RunDraft{
-				RunID: "run_grandchild", SessionID: sessionID, SegmentID: "seg_grandchild",
-				SpawnedByItemID: "item_spawn_grandchild", ParentRunID: "run_child", RootRunID: "run_root",
-				ModelSelection: testModelSelection(t, "google", "gemini-grandchild"),
-				Limits:         execution.RunLimits{MaxSteps: 8, MaxBudgetUSD: 0.75},
-				CreatedAt:      runCreatedAt,
-			},
-			metrics: transcript.RunMetrics{
-				Steps: 6, ActiveDuration: 4 * time.Second,
-				Usage: &transcript.Usage{
-					ModelUsage: transcript.ModelUsage{
-						InputTokens: 30, OutputTokens: 13, CacheReadTokens: 7, CostUSD: &costs[2],
-					},
-					ByModel: map[string]transcript.ModelUsage{
-						"gemini-grandchild": {InputTokens: 30, OutputTokens: 13, CacheReadTokens: 7, CostUSD: &costs[2]},
-					},
-				},
-			},
-		},
-	}
-	for _, want := range expected {
-		if err := store.Admit(ctx, want.draft); err != nil {
-			t.Fatalf("admit %q: %v", want.draft.RunID, err)
-		}
-		parked := parkedRun(want.draft.RunID, sessionID)
-		parked.SpawnedByItemID = want.draft.SpawnedByItemID
-		parked.ParentRunID = want.draft.ParentRunID
-		parked.RootRunID = want.draft.RootRunID
-		parked.Metrics = want.metrics
-		if err := store.Suspend(ctx, parked); err != nil {
-			t.Fatalf("commit %q metrics at park: %v", want.draft.RunID, err)
-		}
-		if err := store.Resume(
-			ctx,
-			sessionID,
-			execution.RunResumeDraft{
-				RunID:     want.draft.RunID,
-				SegmentID: "seg_resumed_" + want.draft.RunID,
-			},
-			time.Unix(6, 0).UTC(),
-		); err != nil {
-			t.Fatalf("resume %q: %v", want.draft.RunID, err)
-		}
-	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("close crashed process database: %v", err)
-	}
-
-	db, err = sqlite.Open(path)
-	if err != nil {
-		t.Fatalf("reopen database: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	store = sqlite.NewRunStore(db)
-	recovered, err := store.ReconcileOrphans(ctx, acceptProcessSnapshot)
-	if err != nil {
-		t.Fatalf("reconcile after restart: %v", err)
-	}
-	if recovered != len(expected) {
-		t.Fatalf("recovered Runs = %d, want %d", recovered, len(expected))
-	}
-
-	tree, err := store.RunTree(ctx, "run_grandchild")
-	if err != nil {
-		t.Fatalf("read recovered tree: %v", err)
-	}
-	recoveredByID := make(map[string]transcript.Run, len(tree))
-	for _, run := range tree {
-		recoveredByID[run.ID] = run
-	}
-	for _, want := range expected {
-		run, found := recoveredByID[want.draft.RunID]
-		if !found {
-			t.Fatalf("recovered Run %q is missing", want.draft.RunID)
-		}
-		if run.State != execution.Failed ||
-			run.Outcome == nil ||
-			*run.Outcome != execution.OutcomeError ||
-			run.Error == nil ||
-			run.Error.Kind != transcript.RunLostProblem {
-			t.Fatalf("recovered Run %q terminal facts = %+v", run.ID, run)
-		}
-		if !reflect.DeepEqual(run.Metrics, want.metrics) {
-			t.Errorf("recovered Run %q metrics = %+v, want %+v", run.ID, run.Metrics, want.metrics)
-		}
-		if run.Limits != want.draft.Limits {
-			t.Errorf("recovered Run %q limits = %+v, want %+v", run.ID, run.Limits, want.draft.Limits)
-		}
-		if run.ModelSelection != want.draft.ModelSelection {
-			t.Errorf(
-				"recovered Run %q model = %q/%q, want %q/%q",
-				run.ID,
-				run.ModelSelection.Provider(),
-				run.ModelSelection.Model(),
-				want.draft.ModelSelection.Provider(),
-				want.draft.ModelSelection.Model(),
-			)
-		}
-		if run.ProtocolProfile.ChildRuns != profile.ChildRuns ||
-			!slices.Equal(run.ProtocolProfile.InterruptKinds, profile.Normalized().InterruptKinds) {
-			t.Errorf("recovered Run %q profile = %+v, want %+v", run.ID, run.ProtocolProfile, profile.Normalized())
-		}
-		if !run.CreatedAt.Equal(want.draft.CreatedAt) {
-			t.Errorf("recovered Run %q creation time = %v, want %v", run.ID, run.CreatedAt, want.draft.CreatedAt)
-		}
-		if run.ActiveSegmentID != "" || run.MessageMark != 0 || run.FinishedAt.IsZero() {
-			t.Errorf(
-				"recovered Run %q boundary = segment:%q mark:%d finished:%v",
-				run.ID,
-				run.ActiveSegmentID,
-				run.MessageMark,
-				run.FinishedAt,
-			)
-		}
-	}
-}
-
-func TestReconcileOrphansDoesNotLetStaleInterruptProtectRunningRun(t *testing.T) {
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	store := sqlite.NewRunStore(db)
-	interruptStore := sqlite.NewInterruptStore(db)
-	processStore := sqlite.NewProcessStore(db)
-	ctx := t.Context()
-	if err := store.Admit(ctx, runDraft("run_lost", "ses_1")); err != nil {
-		t.Fatalf("admit: %v", err)
-	}
-	if err := processStore.SaveTree(ctx, storedSnapshotTree(
-		"proc_stale",
-		validStoredSnapshot("proc_stale", core.StatusWaiting),
-	), storedCheckpoint("ses_1", storedBuildID, storedUsage())); err != nil {
-		t.Fatalf("put stale process snapshot: %v", err)
-	}
-	stale := []transcript.Interrupt{{
-		ItemID: "item_stale", RunID: "run_stale",
-		Kind: execution.QuestionInterrupt, Question: &transcript.Question{Prompt: "continue?"},
-	}}
-	if err := interruptStore.Put(ctx, pendingForRun(
-		"run_stale",
-		"ses_1",
-		"proc_stale",
-		stale,
-		time.Unix(2, 0).UTC(),
-	)); err != nil {
-		t.Fatalf("put stale interrupt: %v", err)
-	}
-	if swept, err := store.ReconcileOrphans(ctx, acceptProcessSnapshot); err != nil || swept != 1 {
-		t.Fatalf("reconcile = (%d, %v), want (1, nil)", swept, err)
-	}
-	if pending, err := interruptStore.List(ctx, "ses_1"); err != nil || len(pending) != 0 {
-		t.Fatalf("stale interrupts after reconcile = (%+v, %v), want none", pending, err)
-	}
-	if _, _, err := processStore.LoadTree(ctx, "proc_stale"); !errors.Is(err, execution.ErrProcessStateNotFound) {
-		t.Fatalf("stale process snapshot after reconcile = %v, want not found", err)
-	}
-}
-
-// TestReconcileOrphansRejectsPartialParkWithoutMutatingIt is the recovery boundary's
-// evidence for parked_tree_has_exactly_one_open_interrupt_set: a barrier missing
-// half its durable set is neither resumed nor half-repaired, because a sweep that
-// "fixed" only part of it would leave the whole tree waiting forever.
-func TestReconcileOrphansRejectsPartialParkWithoutMutatingIt(t *testing.T) {
-	store, ints, _, _ := newRunRecoveryStores(t)
-	ctx := t.Context()
-	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
-		t.Fatalf("admit: %v", err)
-	}
-	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
-		t.Fatalf("suspend: %v", err)
-	}
-	parkedAt := time.Unix(2, 0).UTC()
-	question := &transcript.Question{Prompt: "Continue?"}
-	open := []transcript.Interrupt{{ItemID: "item_missing", RunID: "run_park", Kind: execution.QuestionInterrupt, Question: question}}
-	if err := ints.Put(ctx, pendingForRun(
-		"run_park",
-		"ses_park",
-		"proc_park",
-		open,
-		parkedAt,
-	)); err != nil {
-		t.Fatalf("put interrupt: %v", err)
-	}
-
-	if _, err := store.ReconcileOrphans(ctx, acceptProcessSnapshot); err == nil {
-		t.Fatal("reconcile accepted a parked run whose interrupt item is missing")
-	}
-	if err := store.Admit(ctx, runDraft("run_next", "ses_park")); !errors.Is(err, execution.ErrSessionBusy) {
-		t.Fatalf("admit after rejected recovery = %v, want original park to remain busy", err)
-	}
-	if _, found, err := ints.Get(ctx, "run_park"); err != nil || !found {
-		t.Fatalf("interrupt after rejected recovery = found:%v err:%v, want preserved transaction", found, err)
-	}
-}
-
-func TestReconcileOrphansRejectsUnmappedRunningItem(t *testing.T) {
-	store, ints, transcripts, processes := newRunRecoveryStores(t)
-	ctx := t.Context()
-	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
-		t.Fatalf("admit: %v", err)
-	}
-	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
-		t.Fatalf("suspend: %v", err)
-	}
-	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
-	if err := transcripts.AppendItem(ctx, transcript.Item{
-		SessionID: "ses_park", RunID: "run_park", ID: "item_unmapped",
-		Status: transcript.ItemRunning, Kind: transcript.QuestionItem,
-		Question: &transcript.Question{Prompt: "orphan"}, CreatedAt: time.Unix(3, 0),
-	}); err != nil {
-		t.Fatalf("append unmapped item: %v", err)
-	}
-
-	if _, err := store.ReconcileOrphans(ctx, acceptProcessSnapshot); err == nil {
-		t.Fatal("reconcile accepted a running item with no matching interrupt")
-	}
-	if _, found, err := ints.Get(ctx, "run_park"); err != nil || !found {
-		t.Fatalf("interrupt after rejected recovery = found:%v err:%v, want preserved", found, err)
-	}
-}
-
-func TestReconcileOrphansRejectsParkModelMismatch(t *testing.T) {
-	store, ints, transcripts, processes := newRunRecoveryStores(t)
-	ctx := t.Context()
-	if err := store.Admit(ctx, execution.RunDraft{SegmentID: "seg_open",
-		RunID: "run_park", SessionID: "ses_park", ModelSelection: testModelSelection(t, "openai", "gpt-test"), CreatedAt: time.Unix(0, 0),
-	}); err != nil {
-		t.Fatalf("admit: %v", err)
-	}
-	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
-		t.Fatalf("suspend: %v", err)
-	}
-	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
-
-	if _, err := store.ReconcileOrphans(ctx, acceptProcessSnapshot); err == nil {
-		t.Fatal("reconcile accepted a park whose model differs from admission")
-	}
-}
-
-func TestReconcileOrphansRejectsDrainedInterruptOverlap(t *testing.T) {
-	store, ints, transcripts, processes := newRunRecoveryStores(t)
-	ctx := t.Context()
-	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
-		t.Fatalf("admit: %v", err)
-	}
-	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
-		t.Fatalf("suspend: %v", err)
-	}
-	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
-	pending, found, err := ints.Get(ctx, "run_park")
-	if err != nil || !found {
-		t.Fatalf("get pending: found=%v err=%v", found, err)
-	}
-	root, _ := pending.RootContinuation()
-	root.DrainedTools = []interrupts.DrainedTool{{
-		ItemID: "item_run_park", CallID: "call_run_park", Name: "ask_user", Arguments: "{}",
-	}}
-	pending.Continuations[0] = root
-	if err := ints.Put(ctx, pending); err != nil {
-		t.Fatalf("replace pending: %v", err)
-	}
-
-	if _, err := store.ReconcileOrphans(ctx, acceptProcessSnapshot); err == nil {
-		t.Fatal("reconcile accepted one item as both interrupt and drained tool")
-	}
-}
-
-func TestReconcileOrphansTerminalizesExecutorIncompatibleSnapshot(t *testing.T) {
-	store, ints, transcripts, processes := newRunRecoveryStores(t)
-	ctx := t.Context()
-	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
-		t.Fatalf("admit: %v", err)
-	}
-	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
-		t.Fatalf("suspend: %v", err)
-	}
-	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
-
-	recovered, err := store.ReconcileOrphans(ctx, func(context.Context, string) (bool, error) {
-		return false, nil
-	})
-	if err != nil || recovered != 1 {
-		t.Fatalf("reconcile = (%d, %v), want one recovered incompatible park", recovered, err)
-	}
-	if _, found, err := ints.Get(ctx, "run_park"); err != nil || found {
-		t.Fatalf("interrupt after incompatible snapshot = found:%v err:%v, want removed", found, err)
-	}
-	if _, _, err := processes.LoadTree(ctx, "proc_run_park"); !errors.Is(err, execution.ErrProcessStateNotFound) {
-		t.Fatalf("snapshot after incompatible recovery = %v, want not found", err)
-	}
-	runs, err := store.ListRuns(ctx, "ses_park")
-	if err != nil || len(runs) != 1 || runs[0].Error == nil || runs[0].Error.Kind != transcript.RunLostProblem {
-		t.Fatalf("runs after incompatible recovery = (%+v, %v), want run_lost", runs, err)
-	}
-}
-
-func TestReconcileOrphansRejectsSnapshotValidatorFailureWithoutMutation(t *testing.T) {
-	store, ints, transcripts, processes := newRunRecoveryStores(t)
-	ctx := t.Context()
-	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
-		t.Fatalf("admit: %v", err)
-	}
-	if err := store.Suspend(ctx, parkedRun("run_park", "ses_park")); err != nil {
-		t.Fatalf("suspend: %v", err)
-	}
-	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
-	want := errors.New("missing executor tail")
-	if _, err := store.ReconcileOrphans(ctx, func(context.Context, string) (bool, error) { return false, want }); !errors.Is(err, want) {
-		t.Fatalf("reconcile error = %v, want executor snapshot error", err)
-	}
-	if _, found, err := ints.Get(ctx, "run_park"); err != nil || !found {
-		t.Fatalf("interrupt after rejected snapshot = found:%v err:%v, want preserved", found, err)
-	}
-	if err := store.Admit(ctx, runDraft("run_next", "ses_park")); !errors.Is(err, execution.ErrSessionBusy) {
-		t.Fatalf("admit after rejected snapshot = %v, want original park busy", err)
-	}
-}
-
 func TestTerminalizeRejectsUnknownOutcome(t *testing.T) {
 	store, _ := newRunStores(t)
 	ctx := t.Context()
@@ -1198,14 +475,14 @@ func TestPageRunsReturnsEveryLifecyclePosition(t *testing.T) {
 		}
 	}
 	parked := parkedRun("run_parked", "ses_B")
-	if err := ints.Put(ctx, pendingForRun(
+	if err := ints.Open(ctx, pendingForRun(
 		parked.ID,
 		parked.SessionID,
 		"proc_parked",
 		parked.Interrupts,
 		time.Unix(0, 10).UTC(),
 	)); err != nil {
-		t.Fatalf("put interrupt: %v", err)
+		t.Fatalf("open interrupt: %v", err)
 	}
 	if err := store.Suspend(ctx, parked); err != nil {
 		t.Fatalf("suspend: %v", err)
@@ -1384,7 +661,7 @@ func TestPageRunsSelectsRootsOrDescendants(t *testing.T) {
 }
 
 func TestPageRunTreeItemsUsesDurableParentEdges(t *testing.T) {
-	store, _, transcripts, _ := newRunRecoveryStores(t)
+	store, _, transcripts := newRunProjectionStores(t)
 	ctx := t.Context()
 	root := finishedRun("run_root", "ses_A", execution.OutcomeCompleted)
 	child := finishedRun("run_child", "ses_A", execution.OutcomeCompleted)
@@ -1484,8 +761,8 @@ func TestRunProtocolProfileIsImmutable(t *testing.T) {
 		time.Unix(5, 0).UTC(),
 	)
 	pending.ProtocolProfile = admitted
-	if err := interruptStore.Put(ctx, pending); err != nil {
-		t.Fatalf("put interrupt: %v", err)
+	if err := interruptStore.Open(ctx, pending); err != nil {
+		t.Fatalf("open interrupt: %v", err)
 	}
 	if err := store.Suspend(ctx, parked); err != nil {
 		t.Fatalf("suspend: %v", err)

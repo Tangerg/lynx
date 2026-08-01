@@ -61,6 +61,9 @@ func singleRunPending(
 		RootRunID: runID,
 		SessionID: sessionID,
 		TurnID:    "turn_" + runID,
+		ProtocolProfile: execution.RunProtocolProfile{
+			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID:   itemID,
 			RunID:    runID,
@@ -132,6 +135,7 @@ func TestCommitEventBindsOffloadedResultWithTranscriptItem(t *testing.T) {
 		RunID: "run_1", SessionID: "ses_1",
 		Items: []transcript.Item{{
 			SessionID: "ses_1", RunID: "run_1", ID: "item_1",
+			Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
 			Tool: &transcript.ToolInvocation{Name: "shell", Result: &preview, Offload: ref},
 		}},
 	})
@@ -163,6 +167,7 @@ func TestCommitEventDiscardsStagedOffloadAfterCommitFailure(t *testing.T) {
 		RunID: "run_1", SessionID: "ses_1",
 		Items: []transcript.Item{{
 			SessionID: "ses_1", RunID: "run_1", ID: "item_1",
+			Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
 			Tool: &transcript.ToolInvocation{Name: "shell", Result: &preview, Offload: ref},
 		}},
 	})
@@ -284,25 +289,29 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 		Name:      "ask_user",
 		Arguments: "{}",
 	}}
+	pending.Continuations[0].Metrics = transcript.RunMetrics{Steps: 2}
 
 	err := effects.CommitTreeBarrier(context.Background(), runs.TreeBarrierCommit{
 		Pending:    pending,
-		Checkpoint: processCheckpointWriteFunc(noopProcessCheckpoint),
+		Checkpoint: testExecutorCheckpoint("proc_1"),
 		Runs: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
 			State:     runs.StateSuspend,
 			Run: &transcript.Run{
 				SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
-				Interrupts:  pending.Interrupts,
-				Metrics:     transcript.RunMetrics{Steps: 2},
-				CreatedAt:   runCreatedAt,
-				UpdatedAt:   barrierCreatedAt,
-				MessageMark: transcript.UnknownMessageMark,
+				ModelSelection:  pending.Continuations[0].ModelSelection,
+				Interrupts:      pending.Interrupts,
+				Metrics:         transcript.RunMetrics{Steps: 2},
+				ProtocolProfile: pending.ProtocolProfile,
+				CreatedAt:       runCreatedAt,
+				UpdatedAt:       barrierCreatedAt,
+				MessageMark:     transcript.UnknownMessageMark,
 			},
 			Items: []transcript.Item{{
 				SessionID: "ses_1", RunID: "run_1", ID: "int_1",
 				Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
+				Question: pending.Interrupts[0].Question,
 			}},
 		}},
 	})
@@ -341,7 +350,7 @@ func TestCommitTreeBarrierRejectsIncompleteContinuation(t *testing.T) {
 
 	err := effects.CommitTreeBarrier(context.Background(), runs.TreeBarrierCommit{
 		Pending:    pending,
-		Checkpoint: processCheckpointWriteFunc(noopProcessCheckpoint),
+		Checkpoint: testExecutorCheckpoint("proc_1"),
 		Runs: []runs.EventCommit{{
 			RunID: "run_1", SessionID: "ses_1", State: runs.StateSuspend,
 			Run: &transcript.Run{
@@ -362,6 +371,141 @@ func TestCommitTreeBarrierRejectsIncompleteContinuation(t *testing.T) {
 	}
 	if tx.calls != 0 {
 		t.Fatalf("transactions = %d, want validation before transaction", tx.calls)
+	}
+}
+
+func TestCommitTreeBarrierRejectsMismatchedCheckpointBindingBeforeTransaction(t *testing.T) {
+	createdAt := time.Unix(1, 0).UTC()
+	pending := singleRunPending(
+		t,
+		"run_1", "ses_1", "proc_1", "susp_1", "int_1",
+		createdAt, createdAt.Add(time.Second),
+	)
+	for name, mutate := range map[string]func(*execution.ExecutorCheckpoint){
+		"root":       func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.RootProcessID = "other_proc" },
+		"session":    func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Scope.SessionID = "other_session" },
+		"goal lease": func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = "other_goal" },
+		"limits":     func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Limits.MaxTotalTokens++ },
+		"provider": func(checkpoint *execution.ExecutorCheckpoint) {
+			checkpoint.ModelSelection, _ = modelref.New("openai", checkpoint.ModelSelection.Model())
+		},
+		"model": func(checkpoint *execution.ExecutorCheckpoint) {
+			checkpoint.ModelSelection, _ = modelref.New(checkpoint.ModelSelection.Provider(), "other-model")
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			stores := &fakeStores{interrupts: &fakeInterrupts{}}
+			tx := &fakeTx{}
+			effects := testEffects(stores, Config{RunState: &fakeRunState{}, Tx: tx.run})
+			checkpoint := testExecutorCheckpoint("proc_1")
+			mutate(&checkpoint)
+			err := effects.CommitTreeBarrier(t.Context(), runs.TreeBarrierCommit{
+				Pending:    pending,
+				Checkpoint: checkpoint,
+				Runs: []runs.EventCommit{{
+					RunID: "run_1", SessionID: "ses_1", State: runs.StateSuspend,
+					Run: &transcript.Run{
+						SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
+						Interrupts: pending.Interrupts, CreatedAt: createdAt,
+						MessageMark: transcript.UnknownMessageMark,
+					},
+				}},
+			})
+			if !errors.Is(err, execution.ErrInvalidExecutorCheckpoint) {
+				t.Fatalf("CommitTreeBarrier error = %v, want ErrInvalidExecutorCheckpoint", err)
+			}
+			if tx.calls != 0 {
+				t.Fatalf("transactions = %d, want validation before transaction", tx.calls)
+			}
+		})
+	}
+}
+
+// TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction proves
+// parked_continuation_matches_run_facts at the segment-event boundary: the Run
+// projection and hand-off must be one fact before the transaction can start.
+func TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*interrupts.Pending, *transcript.Run)
+	}{
+		{
+			name: "cumulative metrics",
+			mutate: func(_ *interrupts.Pending, run *transcript.Run) {
+				run.Metrics.Steps++
+			},
+		},
+		{
+			name: "frozen limits",
+			mutate: func(_ *interrupts.Pending, run *transcript.Run) {
+				run.Limits.MaxSteps++
+			},
+		},
+		{
+			name: "frozen model selection",
+			mutate: func(_ *interrupts.Pending, run *transcript.Run) {
+				run.ModelSelection = mustEffectSelection(t, "openai", "gpt")
+			},
+		},
+		{
+			name: "frozen protocol profile",
+			mutate: func(_ *interrupts.Pending, run *transcript.Run) {
+				run.ProtocolProfile.ChildRuns = true
+			},
+		},
+		{
+			name: "root goal lease",
+			mutate: func(_ *interrupts.Pending, run *transcript.Run) {
+				run.GoalLeaseID = "other-lease"
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			createdAt := time.Unix(1, 0).UTC()
+			pending := singleRunPending(
+				t,
+				"run_1", "ses_1", "proc_1", "susp_1", "int_1",
+				createdAt, createdAt.Add(time.Second),
+			)
+			pending.GoalLeaseID = "goal-lease"
+			pending.Continuations[0].Metrics = transcript.RunMetrics{Steps: 2}
+			pending.Continuations[0].Limits = execution.RunLimits{MaxSteps: 5}
+			run := transcript.Run{
+				SessionID:       pending.SessionID,
+				ID:              pending.RootRunID,
+				ModelSelection:  pending.Continuations[0].ModelSelection,
+				GoalLeaseID:     pending.GoalLeaseID,
+				State:           execution.Interrupted,
+				Interrupts:      pending.Interrupts,
+				Metrics:         pending.Continuations[0].Metrics,
+				Limits:          pending.Continuations[0].Limits,
+				ProtocolProfile: pending.ProtocolProfile,
+				CreatedAt:       createdAt,
+				MessageMark:     transcript.UnknownMessageMark,
+			}
+			test.mutate(&pending, &run)
+			checkpoint := testExecutorCheckpoint("proc_1")
+			checkpoint.Scope.GoalLeaseID = pending.GoalLeaseID
+			checkpoint.Limits = pending.Continuations[0].Limits
+			stores := &fakeStores{interrupts: &fakeInterrupts{}}
+			tx := &fakeTx{}
+			effects := testEffects(stores, Config{RunState: &fakeRunState{}, Tx: tx.run})
+
+			err := effects.CommitTreeBarrier(t.Context(), runs.TreeBarrierCommit{
+				Pending: pending, Checkpoint: checkpoint,
+				Runs: []runs.EventCommit{{
+					RunID: run.ID, SessionID: run.SessionID,
+					State: runs.StateSuspend, Run: &run,
+				}},
+			})
+			if err == nil {
+				t.Fatal("CommitTreeBarrier accepted contradictory Run and continuation facts")
+			}
+			if tx.calls != 0 || stores.interrupts.pending.RootRunID != "" {
+				t.Fatalf("invalid barrier reached persistence: tx=%d pending=%+v", tx.calls, stores.interrupts.pending)
+			}
+		})
 	}
 }
 
@@ -536,6 +680,9 @@ func testEffects(stores *fakeStores, cfg Config) *Effects {
 	cfg.ToolResults = stores.toolResults
 	cfg.Messages = stores
 	cfg.Titles = stores
+	if cfg.ExecutorCheckpoints == nil {
+		cfg.ExecutorCheckpoints = &recordingExecutorCheckpointStore{}
+	}
 	return New(cfg)
 }
 
@@ -639,13 +786,16 @@ type fakeInterrupts struct {
 	pending interrupts.Pending
 }
 
-func (s *fakeInterrupts) Put(_ context.Context, p interrupts.Pending) error {
+func (s *fakeInterrupts) Open(_ context.Context, p interrupts.Pending) error {
+	if s.pending.RootRunID != "" {
+		return transcript.ErrIdentityConflict
+	}
 	s.pending = p
 	return nil
 }
 
-func (s *fakeInterrupts) Consume(_ context.Context, runID string) (interrupts.Pending, bool, error) {
-	if s.pending.RootRunID != runID {
+func (s *fakeInterrupts) Consume(_ context.Context, sessionID, runID string) (interrupts.Pending, bool, error) {
+	if s.pending.SessionID != sessionID || s.pending.RootRunID != runID {
 		return interrupts.Pending{}, false, nil
 	}
 	pending := s.pending

@@ -13,8 +13,8 @@ import (
 func TestEngine_RunChat_DoesNotPersistTerminalSnapshot(t *testing.T) {
 	stub := newStreamingStubModel("done")
 	client, _ := chatclient.New(stub)
-	store := newJSONProcessStore()
-	eng, err := New(context.Background(), Config{ChatClient: client, ProcessStore: store, BuildID: testBuildID})
+	store := newMemoryCheckpointStore()
+	eng, err := New(context.Background(), Config{ChatClient: client, Checkpoints: store, BuildID: testBuildID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,10 +105,9 @@ func TestEngine_RunChat_PersistentHistoryStoreRoundTrip(t *testing.T) {
 	}
 }
 
-// TestEngine_RunChat_NoSessionIDDoesNotPersist verifies turns without
-// a SessionID stay isolated. Running twice with empty SessionID must see
-// identical message counts (no history loaded).
-func TestEngine_RunChat_NoSessionIDDoesNotPersist(t *testing.T) {
+// TestEngine_RunChat_RequiresSessionID verifies the App execution adapter never
+// creates an ownerless turn that cannot form a valid durable TurnScope.
+func TestEngine_RunChat_RequiresSessionID(t *testing.T) {
 	stub := newHistoryAwareStub()
 	client, _ := chatclient.New(stub)
 	eng, err := New(context.Background(), Config{ChatClient: client})
@@ -116,18 +115,11 @@ func TestEngine_RunChat_NoSessionIDDoesNotPersist(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := range 2 {
-		if _, err := eng.runTurnSync(context.Background(), TurnRequest{
-			Message: "hello",
-		}); err != nil {
-			t.Fatalf("turn %d: %v", i, err)
-		}
+	process, err := eng.StartTurn(context.Background(), TurnRequest{Message: "hello"})
+	if process != nil || err == nil {
+		t.Fatalf("StartTurn without SessionID = (%T, %v), want rejection", process, err)
 	}
-
-	if len(stub.seenLengths) != 2 {
-		t.Fatalf("seenLengths = %v, want 2 entries", stub.seenLengths)
-	}
-	if stub.seenLengths[0] != stub.seenLengths[1] {
-		t.Errorf("both turns should see same message count; got %v", stub.seenLengths)
+	if len(stub.seenLengths) != 0 {
+		t.Fatalf("model calls = %v, want none", stub.seenLengths)
 	}
 }
