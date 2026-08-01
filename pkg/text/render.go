@@ -2,164 +2,144 @@ package text
 
 import (
 	"fmt"
-	"maps"
 	"strings"
 	"text/template"
 
 	"github.com/Tangerg/lynx/pkg/assert"
 )
 
-// Renderer is a fluent wrapper around text/template that caches the
-// last rendered output.
-//
-// A Renderer is not safe for concurrent use. For one-off rendering use
-// the package-level [Render] or [MustRender] instead.
-type Renderer struct {
-	tmpl     string
-	vars     map[string]any
-	lDelim   string
-	rDelim   string
-	dirty    bool
-	rendered string
+const (
+	defaultLeftDelimiter  = "{{"
+	defaultRightDelimiter = "}}"
+)
+
+// Renderer is a reusable typed text/template renderer. It caches only the
+// parsed template, never rendered output, so mutations visible through T cannot
+// leave a stale result behind. A Renderer is not safe for concurrent mutation.
+// For one-off rendering use [Render] or [MustRender].
+type Renderer[T any] struct {
+	templateSource string
+	data           T
+	leftDelimiter  string
+	rightDelimiter string
+	parsed         *template.Template
 }
 
-// NewRenderer returns a new Renderer with default delimiters "{{" and
-// "}}".
-func NewRenderer() *Renderer {
-	r := &Renderer{}
-	r.init()
+// NewRenderer returns a renderer with data and the standard template
+// delimiters.
+func NewRenderer[T any](data T) *Renderer[T] {
+	return &Renderer[T]{
+		data:           data,
+		leftDelimiter:  defaultLeftDelimiter,
+		rightDelimiter: defaultRightDelimiter,
+	}
+}
+
+// SetTemplate replaces the template source and invalidates the parsed form.
+func (r *Renderer[T]) SetTemplate(source string) *Renderer[T] {
+	r.templateSource = source
+	r.parsed = nil
 	return r
 }
 
-// init resets internal state. Used by [NewRenderer] and [Renderer.Reset].
-func (r *Renderer) init() {
-	r.tmpl = ""
-	r.vars = make(map[string]any)
-	r.lDelim = "{{"
-	r.rDelim = "}}"
-	r.dirty = false
-	r.rendered = ""
-}
-
-// markDirty invalidates the cached output.
-func (r *Renderer) markDirty() {
-	r.dirty = true
-	r.rendered = ""
-}
-
-// WithTemplate sets the template source.
-func (r *Renderer) WithTemplate(tmpl string) *Renderer {
-	r.tmpl = tmpl
-	r.markDirty()
+// SetData replaces the typed execution data. The parsed template remains
+// reusable because parsing is independent of data.
+func (r *Renderer[T]) SetData(data T) *Renderer[T] {
+	r.data = data
 	return r
 }
 
-// WithVariable sets a single template variable.
-func (r *Renderer) WithVariable(name string, val any) *Renderer {
-	r.vars[name] = val
-	r.markDirty()
+// SetDelimiters replaces the action delimiters and invalidates the parsed
+// template. An empty side resets that side to its standard delimiter.
+func (r *Renderer[T]) SetDelimiters(left, right string) *Renderer[T] {
+	if left == "" {
+		left = defaultLeftDelimiter
+	}
+	if right == "" {
+		right = defaultRightDelimiter
+	}
+	r.leftDelimiter = left
+	r.rightDelimiter = right
+	r.parsed = nil
 	return r
 }
 
-// WithVariables replaces all variables with vars.
-func (r *Renderer) WithVariables(vars map[string]any) *Renderer {
-	clear(r.vars)
-	maps.Copy(r.vars, vars)
-	r.markDirty()
+// Reset returns r to its initial configuration with replacement data.
+func (r *Renderer[T]) Reset(data T) *Renderer[T] {
+	r.templateSource = ""
+	r.data = data
+	r.leftDelimiter = defaultLeftDelimiter
+	r.rightDelimiter = defaultRightDelimiter
+	r.parsed = nil
 	return r
 }
 
-// WithDelimiters sets the action delimiters. Empty values keep the
-// defaults "{{" and "}}".
-func (r *Renderer) WithDelimiters(left, right string) *Renderer {
-	r.lDelim = left
-	r.rDelim = right
-	r.markDirty()
-	return r
+// Clone returns an independent renderer with the same configuration and data.
+// T follows ordinary Go assignment semantics; referenced values remain owned by
+// the caller and must obey their own concurrency rules.
+func (r *Renderer[T]) Clone() *Renderer[T] {
+	return &Renderer[T]{
+		templateSource: r.templateSource,
+		data:           r.data,
+		leftDelimiter:  r.leftDelimiter,
+		rightDelimiter: r.rightDelimiter,
+	}
 }
 
-// Reset returns r to its initial state.
-func (r *Renderer) Reset() *Renderer {
-	r.init()
-	return r
-}
-
-// Clone returns an independent copy of r, including its cached result.
-func (r *Renderer) Clone() *Renderer {
-	c := NewRenderer()
-	c.tmpl = r.tmpl
-	c.vars = maps.Clone(r.vars)
-	c.lDelim = r.lDelim
-	c.rDelim = r.rDelim
-	c.dirty = r.dirty
-	c.rendered = r.rendered
-	return c
-}
-
-// Render parses and executes the template, returning the result. If
-// no template is set, it returns "". Successive calls are served from
-// the cache as long as no configuration has changed.
-func (r *Renderer) Render() (string, error) {
-	if r.tmpl == "" {
+// Render parses the template when necessary and executes it with the current
+// data. An empty template renders as an empty string. Missing map keys are
+// errors rather than implicit "<no value>" text.
+func (r *Renderer[T]) Render() (string, error) {
+	if r.templateSource == "" {
 		return "", nil
 	}
-	if r.dirty {
-		out, err := r.execute()
+	if r.parsed == nil {
+		parsed, err := template.New("renderer").
+			Delims(r.leftDelimiter, r.rightDelimiter).
+			Option("missingkey=error").
+			Parse(r.templateSource)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("text: parse template: %w", err)
 		}
-		r.rendered = out
-		r.dirty = false
+		r.parsed = parsed
 	}
-	return r.rendered, nil
+	var output strings.Builder
+	if err := r.parsed.Execute(&output, r.data); err != nil {
+		return "", fmt.Errorf("text: execute template: %w", err)
+	}
+	return output.String(), nil
 }
 
 // MustRender is like [Renderer.Render] but panics on error.
-func (r *Renderer) MustRender() string {
+func (r *Renderer[T]) MustRender() string {
 	return assert.Must(r.Render())
 }
 
-// RequireVariables returns an error listing any names whose textual
-// placeholder ("{{.name}}" with current delimiters) is not present in
-// the template. Matching is literal — complex expressions like
-// "{{.User.Name}}" are not detected.
-func (r *Renderer) RequireVariables(names ...string) error {
+// RequireVariables returns an error listing names whose direct textual
+// placeholder is absent from the template. Matching is intentionally literal;
+// nested expressions such as "{{.User.Name}}" are not direct placeholders.
+func (r *Renderer[T]) RequireVariables(names ...string) error {
 	missing := make([]string, 0, len(names))
-	for _, n := range names {
-		if !strings.Contains(r.tmpl, r.lDelim+"."+n+r.rDelim) {
-			missing = append(missing, n)
+	for _, name := range names {
+		if name == "" || name != strings.TrimSpace(name) {
+			return fmt.Errorf("text: invalid template variable name %q", name)
+		}
+		if !strings.Contains(r.templateSource, r.leftDelimiter+"."+name+r.rightDelimiter) {
+			missing = append(missing, name)
 		}
 	}
-	if len(missing) > 0 {
-		return fmt.Errorf("template missing required variables: %s", strings.Join(missing, ", "))
+	if len(missing) != 0 {
+		return fmt.Errorf("text: template missing required variables: %s", strings.Join(missing, ", "))
 	}
 	return nil
 }
 
-// execute parses and runs the template, returning the rendered string.
-func (r *Renderer) execute() (string, error) {
-	t, err := template.New("renderer").Delims(r.lDelim, r.rDelim).Parse(r.tmpl)
-	if err != nil {
-		return "", err
-	}
-	var sb strings.Builder
-	if err = t.Execute(&sb, r.vars); err != nil {
-		return "", err
-	}
-	return sb.String(), nil
-}
-
-// Render is a one-shot helper equivalent to
-// NewRenderer().WithTemplate(tmpl).WithVariables(data).Render().
-//
-// Example:
-//
-//	out, err := text.Render("Hello {{.Name}}!", map[string]any{"Name": "world"})
-func Render(tmpl string, data map[string]any) (string, error) {
-	return NewRenderer().WithTemplate(tmpl).WithVariables(data).Render()
+// Render executes a one-shot typed template.
+func Render[T any](source string, data T) (string, error) {
+	return NewRenderer(data).SetTemplate(source).Render()
 }
 
 // MustRender is the panicking variant of [Render].
-func MustRender(tmpl string, data map[string]any) string {
-	return NewRenderer().WithTemplate(tmpl).WithVariables(data).MustRender()
+func MustRender[T any](source string, data T) string {
+	return NewRenderer(data).SetTemplate(source).MustRender()
 }
