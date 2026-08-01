@@ -12,7 +12,7 @@ import (
 // metadata filters don't support a standalone logical NOT (Chroma's
 // model uses != / NIN inversions instead) and don't support LIKE
 // against metadata fields, so the corresponding success cases —
-// including nested_logical which embeds a NOT — are opted out.
+// including nested_logical which embeds a NOT — are declared unsupported.
 func TestVisitor_Conformance(t *testing.T) {
 	storetest.VisitorConformance(t,
 		func(src string) error {
@@ -23,9 +23,9 @@ func TestVisitor_Conformance(t *testing.T) {
 			v := chroma.NewVisitor()
 			return v.Visit(expr)
 		},
-		storetest.Options{
-			Skip: []string{"not", "nested_logical", "like"},
-		},
+		storetest.Options{Unsupported: []string{
+			"not", "nested_logical", "collection_membership", "like",
+		}},
 	)
 }
 

@@ -2,7 +2,9 @@
 // by vector stores.
 //
 // Callers can build predicates with typed constructors such as [EQ], [GE],
-// [In], [And], and [Not], or parse and validate the textual DSL with [Parse].
+// [In], [Has], [And], and [Not], or parse and validate the textual DSL with
+// [Parse]. [In] tests a selected scalar against a supplied list; [Has] tests
+// whether a selected collection contains one complete scalar element.
 // The returned [Predicate] tree contains only semantic nodes ([Ident], [Literal],
 // [ListLiteral], [UnaryExpr], [BinaryExpr], and [IndexExpr]); lexer tokens,
 // scanner state, and parser state are unexported implementation details.

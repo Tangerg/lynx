@@ -183,6 +183,8 @@ func (a *analyzer) visitBinary(binary *BinaryExpr) error {
 		return a.visitComparison(binary, true)
 	case binary.Op == OpIn:
 		return a.visitMembership(binary)
+	case binary.Op == OpHas:
+		return a.visitCollectionMembership(binary)
 	case binary.Op == OpLike:
 		return a.visitLike(binary)
 	case binary.Op == OpIs:
@@ -190,6 +192,20 @@ func (a *analyzer) visitBinary(binary *BinaryExpr) error {
 	default:
 		return fmt.Errorf("filter: unsupported binary operator %q at %s", binary.Op, binary.Start())
 	}
+}
+
+func (a *analyzer) visitCollectionMembership(binary *BinaryExpr) error {
+	if err := a.visitSelector(binary.Left); err != nil {
+		return fmt.Errorf("filter: HAS left operand: %w", err)
+	}
+	literal, ok := binary.Right.(*Literal)
+	if !ok || literal == nil {
+		return fmt.Errorf("filter: HAS right operand must be a literal, got %T at %s", binary.Right, binary.Start())
+	}
+	if literal.IsNull() {
+		return fmt.Errorf("filter: HAS cannot test NULL at %s", binary.Start())
+	}
+	return a.visitLiteral(literal)
 }
 
 func (a *analyzer) visitLogical(binary *BinaryExpr) error {

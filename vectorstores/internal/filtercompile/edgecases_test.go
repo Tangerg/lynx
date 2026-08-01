@@ -10,7 +10,7 @@ import (
 
 func TestDispatchRejectsUnsupportedOperators(t *testing.T) {
 	nullTest := mustParseBinary(t, `field is null`)
-	if err := filtercompile.DispatchBinary(nullTest, nil, nil, nil, nil); err == nil {
+	if err := filtercompile.DispatchBinary(nullTest, filtercompile.BinaryHandlers{}); err == nil {
 		t.Fatal("DispatchBinary accepted a null operator")
 	}
 

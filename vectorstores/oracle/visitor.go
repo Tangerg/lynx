@@ -68,17 +68,44 @@ func (v *Visitor) visit(expr filter.Expr) error {
 		if node.Op.IsNullOperator() {
 			return v.visitNullTestExpr(node)
 		}
-		return filtercompile.DispatchBinary(node,
-			v.visitLogicalExpr,
-			v.visitComparisonExpr,
-			v.visitInExpr,
-			v.visitLikeExpr,
-		)
+		return filtercompile.DispatchBinary(node, filtercompile.BinaryHandlers{
+			Logical:    v.visitLogicalExpr,
+			Comparison: v.visitComparisonExpr,
+			In:         v.visitInExpr,
+			Has:        v.visitHasExpr,
+			Like:       v.visitLikeExpr,
+		})
 	case *filter.UnaryExpr:
 		return filtercompile.DispatchUnary(node, v.visitNotExpr)
 	default:
 		return fmt.Errorf("oracle: unsupported root expression %T", node)
 	}
+}
+
+// visitHasExpr uses a JSON_EXISTS array filter and binds the member through a
+// SQL/JSON variable. Oracle does not accept Boolean SQL/JSON variables, so that
+// genuine provider limitation is rejected explicitly.
+func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+	jsonPath, err := buildJSONPath(expr.Left)
+	if err != nil {
+		return fmt.Errorf("oracle: %w (at %s)", err, expr.Start().String())
+	}
+	value, err := filtercompile.ExtractValue(expr.Right)
+	if err != nil {
+		return fmt.Errorf("oracle: %w (at %s)", err, expr.Start().String())
+	}
+	if _, ok := value.(bool); ok {
+		return fmt.Errorf("oracle: HAS does not support boolean members because JSON_EXISTS PASSING cannot bind BOOLEAN at %s", expr.Start().String())
+	}
+
+	v.sql.WriteString("json_exists(")
+	v.sql.WriteString(v.metadataColumn)
+	v.sql.WriteString(", ")
+	v.sql.WriteString(quoteSQLString(jsonPath + "[*]?(@ == $member)"))
+	v.sql.WriteString(" PASSING ")
+	v.appendValuePlaceholder(value)
+	v.sql.WriteString(" AS \"member\")")
+	return nil
 }
 
 func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {

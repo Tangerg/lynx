@@ -36,6 +36,7 @@ func TestOperatorVocabulary(t *testing.T) {
 		{OpOr, "OR", true, false},
 		{OpNot, "NOT", false, true},
 		{OpIn, "IN", true, false},
+		{OpHas, "HAS", true, false},
 		{OpLike, "LIKE", true, false},
 		{OpIs, "IS", true, false},
 		{Operator("invalid"), "INVALID", false, false},
@@ -58,12 +59,13 @@ func TestOperatorVocabulary(t *testing.T) {
 
 	if !OpEqual.IsEqualityOperator() || !OpLess.IsOrderingOperator() ||
 		!OpGreaterEqual.IsComparisonOperator() || !OpAnd.IsLogicalOperator() ||
-		!OpIn.IsMatchingOperator() || !OpIs.IsNullOperator() {
+		!OpIn.IsMembershipOperator() || !OpHas.IsMembershipOperator() ||
+		!OpHas.IsMatchingOperator() || !OpIs.IsNullOperator() {
 		t.Fatal("operator category helper rejected a member")
 	}
 	if OpLike.IsEqualityOperator() || OpOr.IsOrderingOperator() ||
 		OpNot.IsComparisonOperator() || OpEqual.IsLogicalOperator() ||
-		OpAnd.IsMatchingOperator() || OpEqual.IsNullOperator() {
+		OpAnd.IsMembershipOperator() || OpAnd.IsMatchingOperator() || OpEqual.IsNullOperator() {
 		t.Fatal("operator category helper accepted a non-member")
 	}
 }

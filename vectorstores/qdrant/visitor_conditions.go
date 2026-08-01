@@ -46,6 +46,25 @@ func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
+// visitHasExpr uses Qdrant's match condition, whose exact-match semantics
+// apply to any element when the payload field is an array.
+func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+	fieldKey, err := v.extractFieldKey(expr.Left)
+	if err != nil {
+		return fmt.Errorf("extract collection field at %s: %w", expr.Start().String(), err)
+	}
+	fieldValue, err := v.extractFieldValue(expr.Right)
+	if err != nil {
+		return fmt.Errorf("extract collection member at %s: %w", expr.Start().String(), err)
+	}
+	matchCondition, err := v.buildMatchCondition(fieldKey, fieldValue)
+	if err != nil {
+		return fmt.Errorf("create collection membership condition at %s: %w", expr.Start().String(), err)
+	}
+	v.filter.Must = append(v.filter.Must, matchCondition)
+	return nil
+}
+
 // buildMatchCondition creates an appropriate Qdrant match condition based on value type.
 // The method automatically selects the correct Qdrant match function:
 //   - string -> NewMatchKeyword (exact keyword match)

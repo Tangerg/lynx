@@ -29,3 +29,17 @@ func TestVisitor_PreservesLargeIntegerText(t *testing.T) {
 		t.Fatalf("filter = %q", actual)
 	}
 }
+
+func TestVisitor_HasUsesArrayContains(t *testing.T) {
+	expr, err := filter.Parse(`tags has 'rag'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := milvus.NewVisitor()
+	if err := v.Visit(expr); err != nil {
+		t.Fatal(err)
+	}
+	if got := v.Result(); got != `ARRAY_CONTAINS(tags, "rag")` {
+		t.Fatalf("Result() = %q", got)
+	}
+}

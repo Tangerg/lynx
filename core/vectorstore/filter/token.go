@@ -20,6 +20,7 @@ const (
 	tokenOr
 	tokenNot
 	tokenIn
+	tokenHas
 	tokenLike
 	tokenIs
 	tokenNull
@@ -68,6 +69,8 @@ func (k tokenKind) string() string {
 		return "NOT"
 	case tokenIn:
 		return "IN"
+	case tokenHas:
+		return "HAS"
 	case tokenLike:
 		return "LIKE"
 	case tokenIs:

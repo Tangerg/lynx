@@ -80,7 +80,9 @@ func compileBinary(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
 	case expr.Op.IsComparisonOperator():
 		return compileComparison(expr)
 	case expr.Op.Is(filter.OpIn):
-		return compileMembership(expr)
+		return compileIn(expr)
+	case expr.Op.Is(filter.OpHas):
+		return compileHas(expr)
 	case expr.Op.Is(filter.OpLike):
 		return compileLike(expr)
 	default:
@@ -210,7 +212,7 @@ func scalarFilter(
 	}
 }
 
-func compileMembership(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
+func compileIn(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
 	path, err := filtercompile.CollectKeyPath(expr.Left)
 	if err != nil {
 		return nil, fmt.Errorf("weaviate.filter: left operand of IN: %w", err)
@@ -219,33 +221,34 @@ func compileMembership(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
 	if err != nil {
 		return nil, fmt.Errorf("weaviate.filter: %w", err)
 	}
-	values, _, err := filtercompile.ConvertListLiteral(list)
-	if err != nil {
+	if _, _, err := filtercompile.ConvertListLiteral(list); err != nil {
 		return nil, fmt.Errorf("weaviate.filter: IN values: %w", err)
 	}
 
-	builder := filters.Where().WithPath(path).WithOperator(filters.ContainsAny)
-	switch typed := values.(type) {
-	case []string:
-		return builder.WithValueText(typed...), nil
-	case []bool:
-		return builder.WithValueBoolean(typed...), nil
-	case []int64:
-		return builder.WithValueInt(typed...), nil
-	case []uint64:
-		converted := make([]int64, len(typed))
-		for i, value := range typed {
-			if value > math.MaxInt64 {
-				return nil, fmt.Errorf("weaviate.filter: IN value %d exceeds Weaviate int64", value)
-			}
-			converted[i] = int64(value)
+	operands := make([]*filters.WhereBuilder, 0, len(list.Values))
+	for _, literal := range list.Values {
+		operand, err := scalarFilter(path, filters.Equal, literal)
+		if err != nil {
+			return nil, fmt.Errorf("weaviate.filter: IN value: %w", err)
 		}
-		return builder.WithValueInt(converted...), nil
-	case []float64:
-		return builder.WithValueNumber(typed...), nil
-	default:
-		return nil, fmt.Errorf("weaviate.filter: unsupported IN values %T", values)
+		operands = append(operands, operand)
 	}
+	return filters.Where().
+		WithOperator(filters.Or).
+		WithOperands(operands), nil
+}
+
+func compileHas(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
+	path, err := filtercompile.CollectKeyPath(expr.Left)
+	if err != nil {
+		return nil, fmt.Errorf("weaviate.filter: left operand of HAS: %w", err)
+	}
+	literal, ok := expr.Right.(*filter.Literal)
+	if !ok || literal == nil {
+		return nil, fmt.Errorf("weaviate.filter: right operand of HAS must be a literal, got %T at %s",
+			expr.Right, expr.Start())
+	}
+	return scalarFilter(path, filters.ContainsAny, literal)
 }
 
 func compileLike(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {

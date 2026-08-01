@@ -15,11 +15,10 @@ type BuildFn func(src string) error
 // Options tunes the conformance suite for vendors with genuine
 // capability gaps.
 type Options struct {
-	// Skip is the list of case names the vendor cannot support. Each
-	// matching case is recorded as [testing.T.Skip] rather than run.
-	// Use sparingly — every entry documents a real divergence from
-	// the common filter language.
-	Skip []string
+	// Unsupported lists cases the vendor cannot represent exactly. The suite
+	// verifies that each one returns an error; capability gaps must never turn
+	// into silent approximations or unexecuted tests.
+	Unsupported []string
 }
 
 // VisitorConformance runs the standard expression-coverage suite
@@ -58,6 +57,7 @@ func VisitorConformance(t *testing.T, build BuildFn, opts ...Options) {
 		{"in_strings", `tags in ('a', 'b', 'c')`},
 		{"in_numbers", `years in (2020, 2021, 2022)`},
 		{"in_bools", `flags in (true, false)`},
+		{"collection_membership", `tags has 'a'`},
 		{"like", `title like '%foo%'`},
 		{"indexed_key", `profile['author'] == 'Alice'`},
 		{"nested_index", `profile['a']['b'] == 'x'`},
@@ -65,10 +65,15 @@ func VisitorConformance(t *testing.T, build BuildFn, opts ...Options) {
 	}
 	for _, tc := range success {
 		t.Run("Success_"+tc.name, func(t *testing.T) {
-			if slices.Contains(opt.Skip, tc.name) {
-				t.Skip("vendor opted out of this conformance case")
+			unsupported := slices.Contains(opt.Unsupported, tc.name)
+			err := build(tc.src)
+			if unsupported {
+				if err == nil {
+					t.Fatalf("expected explicit unsupported error on %q, got nil", tc.src)
+				}
+				return
 			}
-			if err := build(tc.src); err != nil {
+			if err != nil {
 				t.Fatalf("expected success on %q, got error: %v", tc.src, err)
 			}
 		})
@@ -89,9 +94,6 @@ func VisitorConformance(t *testing.T, build BuildFn, opts ...Options) {
 	}
 	for _, tc := range failure {
 		t.Run("Failure_"+tc.name, func(t *testing.T) {
-			if slices.Contains(opt.Skip, tc.name) {
-				t.Skip("vendor opted out of this conformance case")
-			}
 			err := build(tc.src)
 			if err == nil {
 				t.Fatalf("expected error on %q, got nil", tc.src)

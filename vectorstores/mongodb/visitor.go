@@ -80,6 +80,8 @@ func (v *Visitor) translateBinary(expr *filter.BinaryExpr) (map[string]any, erro
 		return v.translateLogical(expr)
 	case expr.Op.Is(filter.OpIn):
 		return v.translateIn(expr, "$in")
+	case expr.Op.Is(filter.OpHas):
+		return v.translateHas(expr)
 	case expr.Op.Is(filter.OpLike):
 		return v.translateLike(expr)
 	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
@@ -88,6 +90,20 @@ func (v *Visitor) translateBinary(expr *filter.BinaryExpr) (map[string]any, erro
 		return nil, fmt.Errorf("mongodb: unsupported binary operator '%s' at %s",
 			expr.Op.String(), expr.Start().String())
 	}
+}
+
+// translateHas uses MongoDB equality semantics, which match a scalar against
+// any equal element when the selected field contains an array.
+func (v *Visitor) translateHas(expr *filter.BinaryExpr) (map[string]any, error) {
+	field, err := v.fieldPath(expr.Left)
+	if err != nil {
+		return nil, fmt.Errorf("mongodb: %w (at %s)", err, expr.Start().String())
+	}
+	value, err := filtercompile.ExtractValue(expr.Right)
+	if err != nil {
+		return nil, fmt.Errorf("mongodb: %w (at %s)", err, expr.Start().String())
+	}
+	return map[string]any{field: map[string]any{"$eq": value}}, nil
 }
 
 func (v *Visitor) translateUnary(expr *filter.UnaryExpr) (map[string]any, error) {

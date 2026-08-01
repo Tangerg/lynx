@@ -62,11 +62,27 @@ func (v *Visitor) translateBinary(expr *filter.BinaryExpr) (map[string]any, erro
 		return v.translateLogical(expr)
 	case expr.Op.Is(filter.OpIn):
 		return v.translateIn(expr)
+	case expr.Op.Is(filter.OpHas):
+		return v.translateHas(expr)
 	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
 		return v.translateComparison(expr)
 	default:
 		return nil, fmt.Errorf("s3vectors: unsupported binary operator '%s'", expr.Op.String())
 	}
+}
+
+// translateHas uses S3 Vectors' documented scalar equality behavior for
+// metadata arrays: $eq matches when any array element equals the scalar.
+func (v *Visitor) translateHas(expr *filter.BinaryExpr) (map[string]any, error) {
+	key, err := keyName(expr.Left)
+	if err != nil {
+		return nil, err
+	}
+	value, err := filtercompile.ExtractValue(expr.Right)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{key: map[string]any{"$eq": value}}, nil
 }
 
 func (v *Visitor) translateUnary(expr *filter.UnaryExpr) (map[string]any, error) {

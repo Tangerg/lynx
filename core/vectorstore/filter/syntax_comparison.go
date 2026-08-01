@@ -53,6 +53,17 @@ func In[L IdentifierValue | *IndexExpr, R ListValue](l L, r R) *BinaryExpr {
 	}
 }
 
+// Has builds `l HAS r`: the collection selected by l must contain r as a
+// complete element. It is the inverse direction of [In], which tests one
+// selected scalar against a caller-supplied list.
+func Has[L IdentifierValue | *IndexExpr, R LiteralValue](l L, r R) *BinaryExpr {
+	return &BinaryExpr{
+		Left:  leftOperand(l),
+		Op:    OpHas,
+		Right: NewLiteral(r),
+	}
+}
+
 // Like builds `l LIKE r`. Right operand must be a string. Examples:
 // `name LIKE 'John%'`, `email LIKE '%@gmail.com'`.
 func Like[L IdentifierValue | *IndexExpr, R string | *Literal](l L, r R) *BinaryExpr {

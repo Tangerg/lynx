@@ -73,6 +73,9 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 		return v.visitLogicalExpr(expr)
 	case expr.Op.Is(filter.OpIn):
 		return v.visitInExpr(expr)
+	case expr.Op.Is(filter.OpHas):
+		return fmt.Errorf("vectara: HAS is not supported because Vectara filterable metadata fields are scalar at %s",
+			expr.Start().String())
 	case expr.Op.Is(filter.OpLike):
 		return v.visitLikeExpr(expr)
 	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():

@@ -97,12 +97,18 @@ func (v *Visitor) visit(expr filter.Expr) error {
 
 // visitBinaryExpr routes to the correct handler based on the operator category.
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
-	return filtercompile.DispatchBinary(expr,
-		v.visitLogicalExpr,
-		v.visitComparisonExpr,
-		v.visitInExpr,
-		v.visitLikeExpr,
-	)
+	return filtercompile.DispatchBinary(expr, filtercompile.BinaryHandlers{
+		Logical:    v.visitLogicalExpr,
+		Comparison: v.visitComparisonExpr,
+		In:         v.visitInExpr,
+		Has:        v.visitHasExpr,
+		Like:       v.visitLikeExpr,
+	})
+}
+
+func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+	return fmt.Errorf("chroma: HAS is not supported because Chroma metadata values are scalar (at %s)",
+		expr.Start().String())
 }
 
 // visitComparisonExpr splits equality vs ordering since chroma emits

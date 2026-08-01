@@ -40,6 +40,8 @@ func convertBinary(expr *filter.BinaryExpr) (types.RetrievalFilter, error) {
 		return convertLogical(expr)
 	case expr.Op.Is(filter.OpIn):
 		return convertIn(expr)
+	case expr.Op.Is(filter.OpHas):
+		return convertHas(expr)
 	case expr.Op.Is(filter.OpLike):
 		return convertLike(expr)
 	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
@@ -144,6 +146,21 @@ func convertIn(expr *filter.BinaryExpr) (types.RetrievalFilter, error) {
 		return nil, err
 	}
 	return &types.RetrievalFilterMemberIn{Value: attribute}, nil
+}
+
+func convertHas(expr *filter.BinaryExpr) (types.RetrievalFilter, error) {
+	key, err := keyName(expr.Left)
+	if err != nil {
+		return nil, err
+	}
+	value, err := extractLiteralValue(expr.Right)
+	if err != nil {
+		return nil, err
+	}
+	return &types.RetrievalFilterMemberListContains{Value: types.FilterAttribute{
+		Key:   &key,
+		Value: document.NewLazyDocument(value),
+	}}, nil
 }
 
 func convertNotIn(expr *filter.BinaryExpr) (types.RetrievalFilter, error) {

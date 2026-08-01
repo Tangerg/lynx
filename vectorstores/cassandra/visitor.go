@@ -77,6 +77,9 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 		return v.visitAnd(expr)
 	case expr.Op.Is(filter.OpIn):
 		return v.visitInExpr(expr)
+	case expr.Op.Is(filter.OpHas):
+		return fmt.Errorf("cassandra: HAS requires a declared collection column type, which this scalar metadata schema does not provide at %s",
+			expr.Start().String())
 	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
 		return v.visitComparisonExpr(expr)
 	default:

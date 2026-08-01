@@ -123,6 +123,32 @@ func TestVisitor_RejectsMixedMembershipTypes(t *testing.T) {
 	}
 }
 
+func TestVisitor_DistinguishesInFromCollectionMembership(t *testing.T) {
+	inFilter, err := weaviate.ToFilter(filter.In("status", []string{"active", "pending"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := inFilter.Build()
+	if in.Operator != string(filters.Or) || len(in.Operands) != 2 {
+		t.Fatalf("IN filter = %#v, want OR of two equality filters", in)
+	}
+	for _, operand := range in.Operands {
+		if operand.Operator != string(filters.Equal) {
+			t.Fatalf("IN operand = %#v, want Equal", operand)
+		}
+	}
+
+	hasFilter, err := weaviate.ToFilter(filter.Has("visible_to", "user-42"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	has := hasFilter.Build()
+	if has.Operator != string(filters.ContainsAny) || len(has.Path) != 1 || has.Path[0] != "visible_to" ||
+		len(has.ValueTextArray) != 1 || has.ValueTextArray[0] != "user-42" {
+		t.Fatalf("HAS filter = %#v, want ContainsAny visible_to=user-42", has)
+	}
+}
+
 func TestVisitor_TranslatesSQLLikeWildcards(t *testing.T) {
 	expr, err := filter.Parse(`title like 'intro_%'`)
 	if err != nil {

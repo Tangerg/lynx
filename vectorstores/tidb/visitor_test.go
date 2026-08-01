@@ -1,6 +1,7 @@
 package tidb_test
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -47,5 +48,32 @@ func TestVisitor_IsNotNull(t *testing.T) {
 	}
 	if len(args) != 0 {
 		t.Fatalf("IS NOT NULL takes no bound args, got %v", args)
+	}
+}
+
+func TestVisitorCollectionMembershipPreservesJSONType(t *testing.T) {
+	tests := []struct {
+		name      string
+		predicate filter.Predicate
+		wantSQL   string
+		wantArgs  []any
+	}{
+		{name: "string", predicate: filter.Has("visible_to", "user-42"), wantSQL: "JSON_CONTAINS(metadata, JSON_ARRAY(?), '$.visible_to')", wantArgs: []any{"user-42"}},
+		{name: "boolean", predicate: filter.Has("visible_to", true), wantSQL: "JSON_CONTAINS(metadata, JSON_ARRAY(true), '$.visible_to')"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			visitor := tidb.NewVisitor("metadata")
+			if err := visitor.Visit(test.predicate); err != nil {
+				t.Fatal(err)
+			}
+			sql, args := visitor.Result()
+			if sql != test.wantSQL {
+				t.Fatalf("sql = %q, want %q", sql, test.wantSQL)
+			}
+			if !reflect.DeepEqual(args, test.wantArgs) {
+				t.Fatalf("args = %#v, want %#v", args, test.wantArgs)
+			}
+		})
 	}
 }

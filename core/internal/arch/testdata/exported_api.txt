@@ -311,7 +311,7 @@ transcription: type Result struct { Text string `json:"text"` Metadata *ResultMe
 transcription: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
 transcription: var ( ErrInvalidOptions = errors.New("transcription: invalid options") ErrInvalidRequest = errors.New("transcription: invalid request") ErrInvalidResponse = errors.New("transcription: invalid response") )
 vectorstore/filter: const ( LiteralString LiteralKind = "string" LiteralNumber LiteralKind = "number" LiteralBool LiteralKind = "bool" LiteralNull LiteralKind = "null" )
-vectorstore/filter: const ( OpEqual Operator = "==" OpNotEqual Operator = "!=" OpLess Operator = "<" OpLessEqual Operator = "<=" OpGreater Operator = ">" OpGreaterEqual Operator = ">=" OpAnd Operator = "and" OpOr Operator = "or" OpNot Operator = "not" OpIn Operator = "in" OpLike Operator = "like" OpIs Operator = "is" )
+vectorstore/filter: const ( OpEqual Operator = "==" OpNotEqual Operator = "!=" OpLess Operator = "<" OpLessEqual Operator = "<=" OpGreater Operator = ">" OpGreaterEqual Operator = ">=" OpAnd Operator = "and" OpOr Operator = "or" OpNot Operator = "not" OpIn Operator = "in" OpHas Operator = "has" OpLike Operator = "like" OpIs Operator = "is" )
 vectorstore/filter: func (b *BinaryExpr) End() Position
 vectorstore/filter: func (b *BinaryExpr) Equal(other Expr) bool
 vectorstore/filter: func (b *BinaryExpr) Start() Position
@@ -344,6 +344,7 @@ vectorstore/filter: func (o Operator) IsComparisonOperator() bool
 vectorstore/filter: func (o Operator) IsEqualityOperator() bool
 vectorstore/filter: func (o Operator) IsLogicalOperator() bool
 vectorstore/filter: func (o Operator) IsMatchingOperator() bool
+vectorstore/filter: func (o Operator) IsMembershipOperator() bool
 vectorstore/filter: func (o Operator) IsNullOperator() bool
 vectorstore/filter: func (o Operator) IsOrderingOperator() bool
 vectorstore/filter: func (o Operator) IsUnaryOperator() bool
@@ -357,6 +358,7 @@ vectorstore/filter: func And[L Predicate, R Predicate](l L, r R) *BinaryExpr
 vectorstore/filter: func EQ[L IdentifierValue | *IndexExpr, R LiteralValue](l L, r R) *BinaryExpr
 vectorstore/filter: func GE[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
 vectorstore/filter: func GT[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
+vectorstore/filter: func Has[L IdentifierValue | *IndexExpr, R LiteralValue](l L, r R) *BinaryExpr
 vectorstore/filter: func In[L IdentifierValue | *IndexExpr, R ListValue](l L, r R) *BinaryExpr
 vectorstore/filter: func Index[L IdentifierValue | *IndexExpr, I Number | string | *Literal](left L, index I) *IndexExpr
 vectorstore/filter: func IsNotNull[L IdentifierValue | *IndexExpr](l L) *UnaryExpr

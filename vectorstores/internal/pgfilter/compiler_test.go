@@ -160,6 +160,20 @@ func TestCompiler_InNumbers(t *testing.T) {
 	}
 }
 
+func TestCompiler_HasUsesJSONBCollectionContainment(t *testing.T) {
+	sql, args, err := build(t, `profile['tags'] has 'rag'`)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	wantSQL := `(metadata->'profile'->'tags' @> jsonb_build_array($1))`
+	if sql != wantSQL {
+		t.Fatalf("sql = %q, want %q", sql, wantSQL)
+	}
+	if !reflect.DeepEqual(args, []any{"rag"}) {
+		t.Fatalf("args = %v, want [rag]", args)
+	}
+}
+
 func TestCompiler_Like(t *testing.T) {
 	sql, args, err := build(t, `author like '%Alice%'`)
 	if err != nil {

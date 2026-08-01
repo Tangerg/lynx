@@ -62,3 +62,32 @@ func TestEvaluatorTreatsMissingFieldsAsNonMatches(t *testing.T) {
 		})
 	}
 }
+
+func TestEvaluatorCollectionMembership(t *testing.T) {
+	metadata := map[string]any{
+		"tags":       []any{"go", "ai"},
+		"priorities": []int{1, 2, 3},
+		"scalar":     "go",
+	}
+	for _, test := range []struct {
+		name      string
+		predicate filter.Predicate
+		want      bool
+	}{
+		{name: "present string", predicate: filter.Has("tags", "go"), want: true},
+		{name: "absent string", predicate: filter.Has("tags", "rust")},
+		{name: "typed numeric slice", predicate: filter.Has("priorities", 2), want: true},
+		{name: "missing field", predicate: filter.Has("missing", "go")},
+		{name: "scalar does not masquerade as collection", predicate: filter.Has("scalar", "go")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := matchesFilter(test.predicate, metadata)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != test.want {
+				t.Fatalf("matchesFilter() = %t, want %t", got, test.want)
+			}
+		})
+	}
+}

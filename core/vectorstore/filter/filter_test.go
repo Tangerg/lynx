@@ -26,6 +26,17 @@ func TestParse_ProducesCanonicalPredicates(t *testing.T) {
 			},
 		},
 		{
+			name:  "HAS is reverse collection membership",
+			input: `visible_to has 'user-42'`,
+			check: func(t *testing.T, expr filter.Expr) {
+				binary := expr.(*filter.BinaryExpr)
+				literal, ok := binary.Right.(*filter.Literal)
+				if binary.Op != filter.OpHas || !ok || literal.Value != "user-42" {
+					t.Fatalf("expression = %#v, want HAS with scalar literal", binary)
+				}
+			},
+		},
+		{
 			name:  "grouping remains a predicate",
 			input: `(a == 1)`,
 			check: func(t *testing.T, expr filter.Expr) {

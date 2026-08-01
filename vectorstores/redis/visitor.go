@@ -64,17 +64,23 @@ func (v *Visitor) visit(expr filter.Expr) error {
 
 	switch node := expr.(type) {
 	case *filter.BinaryExpr:
-		return filtercompile.DispatchBinary(node,
-			v.visitLogicalExpr,
-			v.visitComparisonExpr,
-			v.visitInExpr,
-			v.visitTextFieldExpr,
-		)
+		return filtercompile.DispatchBinary(node, filtercompile.BinaryHandlers{
+			Logical:    v.visitLogicalExpr,
+			Comparison: v.visitComparisonExpr,
+			In:         v.visitInExpr,
+			Has:        v.visitHasExpr,
+			Like:       v.visitTextFieldExpr,
+		})
 	case *filter.UnaryExpr:
 		return filtercompile.DispatchUnary(node, v.visitNotExpr)
 	default:
 		return fmt.Errorf("redis: unsupported root expression %T", node)
 	}
+}
+
+func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+	return fmt.Errorf("redis: HAS is not supported because the configured metadata schema exposes scalar TAG, NUMERIC, or TEXT fields (at %s)",
+		expr.Start().String())
 }
 
 func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {

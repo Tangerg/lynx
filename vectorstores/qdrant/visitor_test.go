@@ -23,7 +23,7 @@ func TestVisitor_Conformance(t *testing.T) {
 		storetest.Options{
 			// Qdrant keyword matching can represent LIKE only when the
 			// pattern contains no SQL wildcards.
-			Skip: []string{"like"},
+			Unsupported: []string{"like"},
 		},
 	)
 }
@@ -87,6 +87,15 @@ func TestVisitor_IsNotNull(t *testing.T) {
 	}
 	if key := isNullKey(inner[0]); key != "author" {
 		t.Fatalf("expected nested IsNull condition on key %q, got %q", "author", key)
+	}
+}
+
+func TestVisitor_CollectionMembershipUsesExactArrayMatch(t *testing.T) {
+	result := toFilter(t, `visible_to has 'user-42'`)
+	conditions := result.GetMust()
+	if len(conditions) != 1 || conditions[0].GetField().GetKey() != "visible_to" ||
+		conditions[0].GetField().GetMatch().GetKeyword() != "user-42" {
+		t.Fatalf("conditions = %#v", conditions)
 	}
 }
 

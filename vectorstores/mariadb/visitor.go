@@ -68,17 +68,53 @@ func (v *Visitor) visit(expr filter.Expr) error {
 		if node.Op.IsNullOperator() {
 			return v.visitNullTestExpr(node)
 		}
-		return filtercompile.DispatchBinary(node,
-			v.visitLogicalExpr,
-			v.visitComparisonExpr,
-			v.visitInExpr,
-			v.visitLikeExpr,
-		)
+		return filtercompile.DispatchBinary(node, filtercompile.BinaryHandlers{
+			Logical:    v.visitLogicalExpr,
+			Comparison: v.visitComparisonExpr,
+			In:         v.visitInExpr,
+			Has:        v.visitHasExpr,
+			Like:       v.visitLikeExpr,
+		})
 	case *filter.UnaryExpr:
 		return filtercompile.DispatchUnary(node, v.visitNotExpr)
 	default:
 		return fmt.Errorf("mariadb: unsupported root expression %T", node)
 	}
+}
+
+func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+	jsonPath, err := buildJSONPath(expr.Left)
+	if err != nil {
+		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
+	}
+	value, err := filtercompile.ExtractValue(expr.Right)
+	if err != nil {
+		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
+	}
+
+	v.sql.WriteString("JSON_CONTAINS(")
+	v.sql.WriteString(v.metadataColumn)
+	v.sql.WriteString(", JSON_ARRAY(")
+	v.appendJSONScalar(value)
+	v.sql.WriteString("), ")
+	v.sql.WriteString(quoteSQLString(jsonPath))
+	v.sql.WriteByte(')')
+	return nil
+}
+
+// appendJSONScalar writes a value as JSON_ARRAY input. Unlike JSON_VALUE
+// comparison output, booleans must remain JSON booleans rather than strings.
+func (v *Visitor) appendJSONScalar(value any) {
+	if boolean, ok := value.(bool); ok {
+		if boolean {
+			v.sql.WriteString("true")
+		} else {
+			v.sql.WriteString("false")
+		}
+		return
+	}
+	v.args = append(v.args, value)
+	v.sql.WriteByte('?')
 }
 
 func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {

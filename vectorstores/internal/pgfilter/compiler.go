@@ -76,17 +76,39 @@ func (c *Compiler) visit(expr filter.Expr) error {
 		if node.Op.IsNullOperator() {
 			return c.visitNullTestExpr(node)
 		}
-		return filtercompile.DispatchBinary(node,
-			c.visitLogicalExpr,
-			c.visitComparisonExpr,
-			c.visitInExpr,
-			c.visitLikeExpr,
-		)
+		return filtercompile.DispatchBinary(node, filtercompile.BinaryHandlers{
+			Logical:    c.visitLogicalExpr,
+			Comparison: c.visitComparisonExpr,
+			In:         c.visitInExpr,
+			Has:        c.visitHasExpr,
+			Like:       c.visitLikeExpr,
+		})
 	case *filter.UnaryExpr:
 		return filtercompile.DispatchUnary(node, c.visitNotExpr)
 	default:
 		return fmt.Errorf("pgvector: unsupported root expression type %T", node)
 	}
+}
+
+// visitHasExpr uses JSONB containment against the collection at the selected
+// metadata path. jsonb_build_array preserves the scalar parameter's JSON type.
+func (c *Compiler) visitHasExpr(expr *filter.BinaryExpr) error {
+	value, err := filtercompile.ExtractValue(expr.Right)
+	if err != nil {
+		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
+	}
+	jsonPath, err := buildRawJSONPath(expr.Left, c.metadataCol)
+	if err != nil {
+		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
+	}
+
+	c.args = append(c.args, value)
+	c.sql.WriteString("(")
+	c.sql.WriteString(jsonPath)
+	c.sql.WriteString(" @> jsonb_build_array($")
+	c.sql.WriteString(strconv.Itoa(len(c.args)))
+	c.sql.WriteString("))")
+	return nil
 }
 
 func (c *Compiler) visitNotExpr(expr *filter.UnaryExpr) error {
@@ -302,6 +324,26 @@ func buildJSONPath(expr filter.Expr, metadataCol string, cast jsonCast) (string,
 		case castBoolean:
 			b.WriteString("::boolean")
 		}
+	}
+	return b.String(), nil
+}
+
+// buildRawJSONPath keeps the selected value as JSONB. Collection operators
+// must not use ->>, which would erase the array shape by converting it to text.
+func buildRawJSONPath(expr filter.Expr, metadataCol string) (string, error) {
+	pathParts, err := filtercompile.CollectKeyPath(expr)
+	if err != nil {
+		return "", err
+	}
+	if len(pathParts) == 0 {
+		return "", errors.New("empty key path on left operand")
+	}
+
+	var b strings.Builder
+	b.WriteString(metadataCol)
+	for _, key := range pathParts {
+		b.WriteString("->")
+		b.WriteString(quoteSQLLiteral(key))
 	}
 	return b.String(), nil
 }

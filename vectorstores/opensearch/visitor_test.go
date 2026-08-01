@@ -56,3 +56,14 @@ func TestVisitor_NullTest(t *testing.T) {
 		})
 	}
 }
+
+func TestVisitor_CollectionMembershipUsesExactFieldQuery(t *testing.T) {
+	expr := filter.Has("visible_to", "user-42")
+	visitor := opensearch.NewVisitor("metadata")
+	if err := visitor.Visit(expr); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := visitor.Result(), `metadata.visible_to:"user-42"`; got != want {
+		t.Fatalf("Result() = %q, want %q", got, want)
+	}
+}

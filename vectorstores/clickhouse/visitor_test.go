@@ -14,14 +14,17 @@ import (
 // [storetest.VisitorConformance] suite. Output equivalence stays in the
 // per-test functions below; this is "no shape crashes" coverage.
 func TestVisitor_Conformance(t *testing.T) {
-	storetest.VisitorConformance(t, func(src string) error {
-		expr, err := filter.Parse(src)
-		if err != nil {
-			return err
-		}
-		v := clickhouse.NewVisitor("metadata")
-		return v.Visit(expr)
-	})
+	storetest.VisitorConformance(t,
+		func(src string) error {
+			expr, err := filter.Parse(src)
+			if err != nil {
+				return err
+			}
+			v := clickhouse.NewVisitor("metadata")
+			return v.Visit(expr)
+		},
+		storetest.Options{Unsupported: []string{"collection_membership"}},
+	)
 }
 
 // build is the test driver — parse src, visit, return (sql, args, err).

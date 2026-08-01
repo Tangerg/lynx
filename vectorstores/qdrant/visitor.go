@@ -120,12 +120,13 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	if expr.Op.IsNullOperator() {
 		return v.visitNullTestExpr(expr)
 	}
-	return filtercompile.DispatchBinary(expr,
-		v.visitLogicalExpr,
-		v.visitComparisonExpr,
-		v.visitInExpr,
-		v.visitLikeExpr,
-	)
+	return filtercompile.DispatchBinary(expr, filtercompile.BinaryHandlers{
+		Logical:    v.visitLogicalExpr,
+		Comparison: v.visitComparisonExpr,
+		In:         v.visitInExpr,
+		Has:        v.visitHasExpr,
+		Like:       v.visitLikeExpr,
+	})
 }
 
 // visitComparisonExpr splits equality vs ordering since qdrant emits

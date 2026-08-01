@@ -161,6 +161,19 @@ func (p *parser) parsePredicate() (Predicate, error) {
 			start: left.Start(), end: list.End(),
 		}, nil
 
+	case tokenHas:
+		if err := p.advance(); err != nil {
+			return nil, err
+		}
+		right, err := p.parseLiteral()
+		if err != nil {
+			return nil, err
+		}
+		return &BinaryExpr{
+			Left: left, Op: OpHas, Right: right,
+			start: left.Start(), end: right.End(),
+		}, nil
+
 	case tokenLike:
 		if err := p.advance(); err != nil {
 			return nil, err
@@ -205,7 +218,7 @@ func (p *parser) parsePredicate() (Predicate, error) {
 		}, nil
 
 	default:
-		return nil, p.unexpected("comparison, IN, LIKE, or IS")
+		return nil, p.unexpected("comparison, IN, HAS, LIKE, or IS")
 	}
 }
 

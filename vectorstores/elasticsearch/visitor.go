@@ -67,17 +67,36 @@ func (v *Visitor) visit(expr filter.Expr) error {
 		if node.Op.IsNullOperator() {
 			return v.visitNullTestExpr(node)
 		}
-		return filtercompile.DispatchBinary(node,
-			v.visitLogicalExpr,
-			v.visitComparisonExpr,
-			v.visitInExpr,
-			v.visitLikeExpr,
-		)
+		return filtercompile.DispatchBinary(node, filtercompile.BinaryHandlers{
+			Logical:    v.visitLogicalExpr,
+			Comparison: v.visitComparisonExpr,
+			In:         v.visitInExpr,
+			Has:        v.visitHasExpr,
+			Like:       v.visitLikeExpr,
+		})
 	case *filter.UnaryExpr:
 		return filtercompile.DispatchUnary(node, v.visitNotExpr)
 	default:
 		return fmt.Errorf("elasticsearch: unsupported root expression %T", node)
 	}
+}
+
+// visitHasExpr uses Lucene's exact field query. Elasticsearch applies a term
+// query to every value of a multi-valued field, so this is collection
+// membership rather than scalar coercion at the provider boundary.
+func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+	field, err := v.fieldPath(expr.Left)
+	if err != nil {
+		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
+	}
+	value, err := filtercompile.ExtractValue(expr.Right)
+	if err != nil {
+		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
+	}
+	v.sql.WriteString(field)
+	v.sql.WriteString(":")
+	v.sql.WriteString(formatValue(value))
+	return nil
 }
 
 func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {

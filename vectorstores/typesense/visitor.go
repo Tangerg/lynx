@@ -74,11 +74,30 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 		return v.visitLogicalExpr(expr)
 	case expr.Op.Is(filter.OpIn):
 		return v.visitInExpr(expr)
+	case expr.Op.Is(filter.OpHas):
+		return v.visitHasExpr(expr)
 	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
 		return v.visitComparisonExpr(expr)
 	default:
 		return fmt.Errorf("typesense: unsupported binary operator '%s'", expr.Op.String())
 	}
+}
+
+// visitHasExpr uses Typesense's exact-match syntax. On an array field, an
+// exact scalar filter matches when any array element is equal to that value.
+func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+	field, err := v.fieldPath(expr.Left)
+	if err != nil {
+		return err
+	}
+	value, err := filtercompile.ExtractValue(expr.Right)
+	if err != nil {
+		return err
+	}
+	v.sql.WriteString(field)
+	v.sql.WriteString(":= ")
+	v.sql.WriteString(formatValue(value))
+	return nil
 }
 
 // visitUnaryExpr maps NOT (op) onto the operator's inverse because

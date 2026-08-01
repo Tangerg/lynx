@@ -41,6 +41,6 @@
 // # Capability gaps
 //
 // A backend that genuinely doesn't support a shape (redis can't IN on
-// numeric fields, for example) can opt out via [Options.Skip]. Each
+// numeric fields, for example) declares that case via [Options.Unsupported]. Each
 // entry documents a real vendor capability gap; use sparingly.
 package storetest

@@ -5,6 +5,7 @@ NotExpr      = NOT NotExpr | "(" Predicate ")" | Test ;
 
 Test         = Selector RelationOp Literal
              | Selector [ NOT ] IN ListLiteral
+             | Selector HAS Literal
              | Selector LIKE StringLiteral
              | Selector IS [ NOT ] NULL ;
 RelationOp   = "==" | "!=" | "<" | "<=" | ">" | ">=" ;
@@ -29,6 +30,7 @@ AND   = ? case-insensitive keyword "and" ? ;
 OR    = ? case-insensitive keyword "or" ? ;
 NOT   = ? case-insensitive keyword "not" ? ;
 IN    = ? case-insensitive keyword "in" ? ;
+HAS   = ? case-insensitive keyword "has" ? ;
 LIKE  = ? case-insensitive keyword "like" ? ;
 IS    = ? case-insensitive keyword "is" ? ;
 NULL  = ? case-insensitive keyword "null" ? ;
@@ -40,6 +42,7 @@ FALSE = ? case-insensitive keyword "false" ? ;
    - ordering operators require a number literal;
    - LIKE requires a string literal;
    - IN lists are non-empty, homogeneous, and contain no NULL;
+   - HAS tests one non-NULL scalar against a collection-valued selector;
    - numeric indexes are non-negative integers in the int64 range;
    - identifiers cannot be case-insensitive reserved keywords;
    - selector paths are complete metadata paths: profile['name'] means

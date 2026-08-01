@@ -3,6 +3,7 @@ package inmemory
 import (
 	"fmt"
 	"math"
+	"reflect"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
@@ -175,12 +176,39 @@ func (e *evaluator) evalBinary(b *filter.BinaryExpr) (any, error) {
 		return e.evalOrdering(b)
 	case filter.OpIn:
 		return e.evalIn(b)
+	case filter.OpHas:
+		return e.evalHas(b)
 	case filter.OpLike:
 		return e.evalLike(b)
 	case filter.OpIs:
 		return e.evalNullTest(b)
 	}
 	return nil, fmt.Errorf("inmemory.evalBinary: unsupported binary operator %s", b.Op)
+}
+
+func (e *evaluator) evalHas(b *filter.BinaryExpr) (any, error) {
+	collection, err := e.eval(b.Left)
+	if err != nil {
+		return nil, err
+	}
+	wanted, err := e.eval(b.Right)
+	if err != nil {
+		return nil, err
+	}
+	if collection == nil {
+		return false, nil
+	}
+
+	value := reflect.ValueOf(collection)
+	if value.Kind() != reflect.Array && value.Kind() != reflect.Slice {
+		return false, nil
+	}
+	for index := range value.Len() {
+		if equalValues(value.Index(index).Interface(), wanted) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // evalNullTest evaluates `<field> IS NULL`: true when the field is

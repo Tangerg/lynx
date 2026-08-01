@@ -46,3 +46,16 @@ func TestVisitor_IsNotNull(t *testing.T) {
 		t.Fatalf("cypher=%q must wrap IS NULL in NOT", cypher)
 	}
 }
+
+func TestVisitor_CollectionMembershipReversesInOperands(t *testing.T) {
+	cypher, params, err := build(t, `visible_to has 'user-42'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "$p1 IN node.`metadata.visible_to`"; cypher != want {
+		t.Fatalf("cypher = %q, want %q", cypher, want)
+	}
+	if params["p1"] != "user-42" {
+		t.Fatalf("params = %#v", params)
+	}
+}

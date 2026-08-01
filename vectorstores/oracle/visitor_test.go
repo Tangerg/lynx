@@ -1,6 +1,7 @@
 package oracle_test
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -18,6 +19,27 @@ func TestVisitor_Conformance(t *testing.T) {
 		v := oracle.NewVisitor("metadata")
 		return v.Visit(expr)
 	})
+}
+
+func TestVisitor_CollectionMembershipUsesJSONExists(t *testing.T) {
+	sql, args, err := build(t, `profile['tags'] has 'rag'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `json_exists(metadata, '$.profile.tags[*]?(@ == $member)' PASSING :1 AS "member")`
+	if sql != want {
+		t.Fatalf("sql = %q, want %q", sql, want)
+	}
+	if !reflect.DeepEqual(args, []any{"rag"}) {
+		t.Fatalf("args = %#v", args)
+	}
+}
+
+func TestVisitor_CollectionMembershipRejectsBoolean(t *testing.T) {
+	visitor := oracle.NewVisitor("metadata")
+	if err := visitor.Visit(filter.Has("flags", true)); err == nil {
+		t.Fatal("Visit() error = nil, want Oracle PASSING boolean limitation")
+	}
 }
 
 // build is the test driver — parse src, visit, return (sql, args, err).

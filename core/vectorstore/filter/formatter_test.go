@@ -42,6 +42,11 @@ func TestFormatterCanonicalDSL(t *testing.T) {
 			expect:    `not (tags in ('go', 'ai'))`,
 		},
 		{
+			name:      "collection membership",
+			predicate: filter.Has("visible_to", "user-42"),
+			expect:    `visible_to has 'user-42'`,
+		},
+		{
 			name:      "null test",
 			predicate: filter.IsNotNull("deleted_at"),
 			expect:    `not (deleted_at is null)`,

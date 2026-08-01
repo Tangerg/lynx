@@ -98,12 +98,26 @@ func (v *Visitor) visit(expr filter.Expr) error {
 // comparison wrapper splits equality vs ordering since milvus emits
 // distinct expression shapes for the two families.
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
-	return filtercompile.DispatchBinary(expr,
-		v.visitLogicalExpr,
-		v.visitComparisonExpr,
-		v.visitInExpr,
-		v.visitLikeExpr,
-	)
+	return filtercompile.DispatchBinary(expr, filtercompile.BinaryHandlers{
+		Logical:    v.visitLogicalExpr,
+		Comparison: v.visitComparisonExpr,
+		In:         v.visitInExpr,
+		Has:        v.visitHasExpr,
+		Like:       v.visitLikeExpr,
+	})
+}
+
+func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+	fieldKey, err := v.extractFieldKey(expr.Left)
+	if err != nil {
+		return fmt.Errorf("milvus: extract collection field at %s: %w", expr.Start().String(), err)
+	}
+	fieldValue, err := v.extractFieldValue(expr.Right)
+	if err != nil {
+		return fmt.Errorf("milvus: extract collection member at %s: %w", expr.Start().String(), err)
+	}
+	v.result = fmt.Sprintf("ARRAY_CONTAINS(%s, %s)", fieldKey, fieldValue)
+	return nil
 }
 
 // visitComparisonExpr routes to equality or ordering based on the

@@ -98,6 +98,14 @@ func TestValidateRejectsInvalidSemanticShapes(t *testing.T) {
 		"scalar IN": &filter.BinaryExpr{
 			Left: filter.NewIdent("field"), Op: filter.OpIn, Right: filter.NewLiteral(1),
 		},
+		"list HAS": &filter.BinaryExpr{
+			Left: filter.NewIdent("field"), Op: filter.OpHas,
+			Right: &filter.ListLiteral{Values: []*filter.Literal{filter.NewLiteral(1)}},
+		},
+		"null HAS": &filter.BinaryExpr{
+			Left: filter.NewIdent("field"), Op: filter.OpHas,
+			Right: &filter.Literal{Kind: filter.LiteralNull, Value: "null"},
+		},
 		"fractional index": filter.EQ(filter.Index("field", 1.5), "value"),
 		"negative index":   filter.EQ(filter.Index("field", -1), "value"),
 		"non-finite number": &filter.BinaryExpr{

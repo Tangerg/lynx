@@ -76,6 +76,8 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 		return v.visitLogicalExpr(expr)
 	case expr.Op.Is(filter.OpIn):
 		return v.visitInExpr(expr)
+	case expr.Op.Is(filter.OpHas):
+		return v.visitHasExpr(expr)
 	case expr.Op.Is(filter.OpLike):
 		return v.visitLikeExpr(expr)
 	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
@@ -83,6 +85,41 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	default:
 		return fmt.Errorf("tidb: unsupported binary operator '%s'", expr.Op.String())
 	}
+}
+
+func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+	jsonPath, err := buildJSONPath(expr.Left)
+	if err != nil {
+		return fmt.Errorf("tidb: %w (at %s)", err, expr.Start().String())
+	}
+	value, err := filtercompile.ExtractValue(expr.Right)
+	if err != nil {
+		return fmt.Errorf("tidb: %w (at %s)", err, expr.Start().String())
+	}
+
+	v.sql.WriteString("JSON_CONTAINS(")
+	v.sql.WriteString(v.metadataColumn)
+	v.sql.WriteString(", JSON_ARRAY(")
+	v.appendJSONScalar(value)
+	v.sql.WriteString("), ")
+	v.sql.WriteString(quoteSQLString(jsonPath))
+	v.sql.WriteByte(')')
+	return nil
+}
+
+// appendJSONScalar writes a value as JSON_ARRAY input. Booleans stay JSON
+// booleans instead of the strings returned by JSON_VALUE comparisons.
+func (v *Visitor) appendJSONScalar(value any) {
+	if boolean, ok := value.(bool); ok {
+		if boolean {
+			v.sql.WriteString("true")
+		} else {
+			v.sql.WriteString("false")
+		}
+		return
+	}
+	v.args = append(v.args, value)
+	v.sql.WriteByte('?')
 }
 
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {

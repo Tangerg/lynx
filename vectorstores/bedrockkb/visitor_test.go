@@ -77,3 +77,15 @@ func TestBuildRetrievalFilter_NotIn(t *testing.T) {
 		t.Fatalf("filter = %T, want *types.RetrievalFilterMemberNotIn", result)
 	}
 }
+
+func TestBuildRetrievalFilter_CollectionMembership(t *testing.T) {
+	t.Parallel()
+
+	result, err := bedrockkb.BuildRetrievalFilter(filter.Has("visible_to", "user-42"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := result.(*types.RetrievalFilterMemberListContains); !ok {
+		t.Fatalf("filter = %T, want *types.RetrievalFilterMemberListContains", result)
+	}
+}

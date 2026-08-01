@@ -203,6 +203,8 @@ func keywordKind(literal string) tokenKind {
 		return tokenNot
 	case "in":
 		return tokenIn
+	case "has":
+		return tokenHas
 	case "like":
 		return tokenLike
 	case "is":

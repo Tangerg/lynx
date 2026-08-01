@@ -37,6 +37,7 @@ func TestDispatchBinary_Routes(t *testing.T) {
 		{"lt is comparison", `a < 1`, "comparison"},
 		{"gte is comparison", `a >= 1`, "comparison"},
 		{"in is membership", `a in (1, 2)`, "in"},
+		{"has is collection membership", `a has 1`, "has"},
 		{"like is pattern", `a like '%foo%'`, "like"},
 	}
 
@@ -44,13 +45,13 @@ func TestDispatchBinary_Routes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e := mustParseBinary(t, tc.src)
 			var got string
-			err := filtercompile.DispatchBinary(
-				e,
-				func(*filter.BinaryExpr) error { got = "logical"; return nil },
-				func(*filter.BinaryExpr) error { got = "comparison"; return nil },
-				func(*filter.BinaryExpr) error { got = "in"; return nil },
-				func(*filter.BinaryExpr) error { got = "like"; return nil },
-			)
+			err := filtercompile.DispatchBinary(e, filtercompile.BinaryHandlers{
+				Logical:    func(*filter.BinaryExpr) error { got = "logical"; return nil },
+				Comparison: func(*filter.BinaryExpr) error { got = "comparison"; return nil },
+				In:         func(*filter.BinaryExpr) error { got = "in"; return nil },
+				Has:        func(*filter.BinaryExpr) error { got = "has"; return nil },
+				Like:       func(*filter.BinaryExpr) error { got = "like"; return nil },
+			})
 			if err != nil {
 				t.Fatalf("DispatchBinary: %v", err)
 			}
@@ -61,15 +62,20 @@ func TestDispatchBinary_Routes(t *testing.T) {
 	}
 }
 
+func TestDispatchBinary_MissingHandlerIsExplicitlyUnsupported(t *testing.T) {
+	expr := mustParseBinary(t, `tags has 'rag'`)
+	err := filtercompile.DispatchBinary(expr, filtercompile.BinaryHandlers{})
+	if err == nil || !strings.Contains(err.Error(), "HAS is not supported") {
+		t.Fatalf("error = %v, want explicit HAS unsupported error", err)
+	}
+}
+
 func TestDispatchBinary_HandlerErrorPropagates(t *testing.T) {
 	want := errors.New("boom")
 	e := mustParseBinary(t, `a == 1`)
-	err := filtercompile.DispatchBinary(
-		e,
-		nil, // unreachable for ==
-		func(*filter.BinaryExpr) error { return want },
-		nil, nil,
-	)
+	err := filtercompile.DispatchBinary(e, filtercompile.BinaryHandlers{
+		Comparison: func(*filter.BinaryExpr) error { return want },
+	})
 	if !errors.Is(err, want) {
 		t.Fatalf("err = %v, want chain to %v", err, want)
 	}

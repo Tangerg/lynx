@@ -87,6 +87,8 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 		return v.visitLogicalExpr(expr)
 	case expr.Op.Is(filter.OpIn):
 		return v.visitInExpr(expr)
+	case expr.Op.Is(filter.OpHas):
+		return v.visitHasExpr(expr)
 	case expr.Op.Is(filter.OpLike):
 		return v.visitLikeExpr(expr)
 	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
@@ -95,6 +97,22 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 		return fmt.Errorf("neo4j: unsupported binary operator '%s' at %s",
 			expr.Op.String(), expr.Start().String())
 	}
+}
+
+func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+	prop, err := v.propertyAccess(expr.Left)
+	if err != nil {
+		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
+	}
+	value, err := filtercompile.ExtractValue(expr.Right)
+	if err != nil {
+		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
+	}
+	param := v.bindParam(value)
+	v.sql.WriteString(param)
+	v.sql.WriteString(" IN ")
+	v.sql.WriteString(prop)
+	return nil
 }
 
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {

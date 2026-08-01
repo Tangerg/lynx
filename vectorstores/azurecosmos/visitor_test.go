@@ -43,3 +43,19 @@ func TestLikeCompilationRejectsUnsupportedPatterns(t *testing.T) {
 		}
 	}
 }
+
+func TestCollectionMembershipUsesArrayContains(t *testing.T) {
+	t.Parallel()
+
+	visitor := NewVisitor("c", "metadata")
+	if err := visitor.Visit(filter.Has("visible_to", "user-42")); err != nil {
+		t.Fatal(err)
+	}
+	query, params := visitor.Result()
+	if want := "ARRAY_CONTAINS(c.metadata.visible_to, @p1)"; query != want {
+		t.Fatalf("Result() = %q, want %q", query, want)
+	}
+	if len(params) != 1 || params[0].Name != "@p1" || params[0].Value != "user-42" {
+		t.Fatalf("params = %#v", params)
+	}
+}

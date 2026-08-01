@@ -58,3 +58,14 @@ func TestVisitor_IsNotNull(t *testing.T) {
 		t.Fatalf("sql=%q must wrap IS NULL in NOT", sql)
 	}
 }
+
+func TestVisitor_CollectionMembership(t *testing.T) {
+	sql, err := build(t, `visible_to has 'user-42'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `ANY element IN metadata.` + "`visible_to`" + ` SATISFIES element = "user-42" END`
+	if sql != want {
+		t.Fatalf("sql = %q, want %q", sql, want)
+	}
+}

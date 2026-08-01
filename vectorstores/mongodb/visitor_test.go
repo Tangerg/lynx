@@ -1,6 +1,7 @@
 package mongodb_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
@@ -21,6 +22,17 @@ func TestVisitor_Conformance(t *testing.T) {
 		v := mongodb.NewVisitor("metadata")
 		return v.Visit(expr)
 	})
+}
+
+func TestVisitor_CollectionMembershipUsesArrayElementEquality(t *testing.T) {
+	doc, err := build(t, `visible_to has 'user-42'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{"metadata.visible_to": map[string]any{"$eq": "user-42"}}
+	if !reflect.DeepEqual(doc, want) {
+		t.Fatalf("doc = %#v, want %#v", doc, want)
+	}
 }
 
 // build is the test driver — parse src, visit, return (doc, err).

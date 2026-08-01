@@ -7,29 +7,41 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
 
+// BinaryHandlers names the operator-specific branches of a filter compiler.
+// A nil handler means that the backend does not support that operator.
+type BinaryHandlers struct {
+	Logical    func(*filter.BinaryExpr) error
+	Comparison func(*filter.BinaryExpr) error
+	In         func(*filter.BinaryExpr) error
+	Has        func(*filter.BinaryExpr) error
+	Like       func(*filter.BinaryExpr) error
+}
+
 // DispatchBinary routes an expression to the handler for its operator family.
 // Null tests are handled separately because backend support for them is not
 // universal.
-func DispatchBinary(
-	expr *filter.BinaryExpr,
-	onLogical func(*filter.BinaryExpr) error,
-	onComparison func(*filter.BinaryExpr) error,
-	onIn func(*filter.BinaryExpr) error,
-	onLike func(*filter.BinaryExpr) error,
-) error {
+func DispatchBinary(expr *filter.BinaryExpr, handlers BinaryHandlers) error {
+	var handler func(*filter.BinaryExpr) error
 	switch {
 	case expr.Op.IsLogicalOperator():
-		return onLogical(expr)
+		handler = handlers.Logical
 	case expr.Op.IsComparisonOperator():
-		return onComparison(expr)
+		handler = handlers.Comparison
 	case expr.Op.Is(filter.OpIn):
-		return onIn(expr)
+		handler = handlers.In
+	case expr.Op.Is(filter.OpHas):
+		handler = handlers.Has
 	case expr.Op.Is(filter.OpLike):
-		return onLike(expr)
+		handler = handlers.Like
 	default:
 		return fmt.Errorf("filter: unsupported binary operator %q at %s",
 			expr.Op.String(), expr.Start().String())
 	}
+	if handler == nil {
+		return fmt.Errorf("filter: binary operator %s is not supported at %s",
+			expr.Op.Name(), expr.Start().String())
+	}
+	return handler(expr)
 }
 
 // DispatchUnary routes the only unary operator, NOT, to onNot.

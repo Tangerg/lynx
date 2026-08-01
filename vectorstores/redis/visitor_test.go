@@ -12,7 +12,7 @@ import (
 // redis (RediSearch) visitor. Redis is schema-required, so the
 // per-field-type declarations below mirror the [storetest] case
 // identifiers; redis IN-on-numeric isn't supported by the visitor
-// so `in_numbers` is opted out via [storetest.Options.Skip].
+// so `in_numbers` is declared via [storetest.Options.Unsupported].
 func TestVisitor_Conformance(t *testing.T) {
 	fields := map[string]redis.MetadataFieldType{
 		"author":         redis.FieldTag, // == / !=
@@ -43,7 +43,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			// Redis doesn't support IN on NUMERIC fields — the visitor
 			// errors with "IN is not supported on field type". This is
 			// a real capability gap, not a visitor bug.
-			Skip: []string{"in_numbers"},
+			Unsupported: []string{"in_numbers", "collection_membership"},
 		},
 	)
 }

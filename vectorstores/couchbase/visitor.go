@@ -79,6 +79,8 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 		return v.visitLogicalExpr(expr)
 	case expr.Op.Is(filter.OpIn):
 		return v.visitInExpr(expr)
+	case expr.Op.Is(filter.OpHas):
+		return v.visitHasExpr(expr)
 	case expr.Op.Is(filter.OpLike):
 		return v.visitLikeExpr(expr)
 	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
@@ -87,6 +89,24 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 		return fmt.Errorf("couchbase: unsupported binary operator '%s' at %s",
 			expr.Op.String(), expr.Start().String())
 	}
+}
+
+func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+	field, err := v.fieldPath(expr.Left)
+	if err != nil {
+		return fmt.Errorf("couchbase: %w (at %s)", err, expr.Start().String())
+	}
+	value, err := filtercompile.ExtractValue(expr.Right)
+	if err != nil {
+		return fmt.Errorf("couchbase: %w (at %s)", err, expr.Start().String())
+	}
+
+	v.sql.WriteString("ANY element IN ")
+	v.sql.WriteString(field)
+	v.sql.WriteString(" SATISFIES element = ")
+	v.sql.WriteString(jsonValue(value))
+	v.sql.WriteString(" END")
+	return nil
 }
 
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
