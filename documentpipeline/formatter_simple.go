@@ -1,6 +1,7 @@
 package documentpipeline
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -8,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 // SimpleFormatterConfig configures a [SimpleFormatter]'s metadata
@@ -65,11 +67,10 @@ func (s *SimpleFormatter) Format(doc *document.Document, mode MetadataMode) (str
 	if err != nil {
 		return "", err
 	}
-	values, err := doc.Metadata.Values()
-	if err != nil {
-		return "", fmt.Errorf("document pipeline: decode metadata: %w", err)
+	if err := doc.Metadata.Validate(); err != nil {
+		return "", fmt.Errorf("document pipeline: validate metadata: %w", err)
 	}
-	filtered := s.filterMetadataByMode(values, mode)
+	filtered := s.filterMetadataByMode(doc.Metadata, mode)
 	if len(filtered) == 0 {
 		return doc.Text, nil
 	}
@@ -85,15 +86,15 @@ func (s *SimpleFormatter) Format(doc *document.Document, mode MetadataMode) (str
 	return strings.Join(entries, "\n") + "\n\n" + doc.Text, nil
 }
 
-func (s *SimpleFormatter) filterMetadataByMode(metadata map[string]any, mode MetadataMode) map[string]any {
+func (s *SimpleFormatter) filterMetadataByMode(values metadata.Map, mode MetadataMode) metadata.Map {
 	switch mode {
 	case MetadataModeAll:
-		return maps.Clone(metadata)
+		return values.Clone()
 	case MetadataModeNone:
-		return make(map[string]any)
+		return metadata.Map{}
 	}
 
-	cloned := maps.Clone(metadata)
+	filtered := values.Clone()
 
 	var excluded map[string]struct{}
 	switch mode {
@@ -104,12 +105,12 @@ func (s *SimpleFormatter) filterMetadataByMode(metadata map[string]any, mode Met
 	}
 
 	if len(excluded) > 0 {
-		maps.DeleteFunc(cloned, func(key string, _ any) bool {
+		maps.DeleteFunc(filtered, func(key string, _ json.RawMessage) bool {
 			_, found := excluded[key]
 			return found
 		})
 	}
-	return cloned
+	return filtered
 }
 
 func keySet(keys []string) map[string]struct{} {
@@ -123,16 +124,24 @@ func keySet(keys []string) map[string]struct{} {
 	return set
 }
 
-func metadataValueText(value any) (string, error) {
-	if value == nil {
+func metadataValueText(value json.RawMessage) (string, error) {
+	value = bytes.TrimSpace(value)
+	if !json.Valid(value) {
+		return "", metadata.ErrInvalidValue
+	}
+	if bytes.Equal(value, []byte("null")) {
 		return "", nil
 	}
-	if text, ok := value.(string); ok {
+	if value[0] == '"' {
+		var text string
+		if err := json.Unmarshal(value, &text); err != nil {
+			return "", err
+		}
 		return text, nil
 	}
-	encoded, err := json.Marshal(value)
-	if err != nil {
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, value); err != nil {
 		return "", err
 	}
-	return string(encoded), nil
+	return compact.String(), nil
 }

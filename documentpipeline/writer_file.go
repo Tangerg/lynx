@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 // Metadata keys recognized by [FileWriter] when writing document
@@ -168,14 +167,8 @@ func documentPageRange(doc *document.Document) (string, string, bool, error) {
 	if doc == nil || doc.Metadata == nil {
 		return "", "", false, nil
 	}
-	startValue, startFound, err := metadata.Decode[any](doc.Metadata, metadataKeyStartPageNumber)
-	if err != nil {
-		return "", "", false, fmt.Errorf("decode start page number: %w", err)
-	}
-	endValue, endFound, err := metadata.Decode[any](doc.Metadata, metadataKeyEndPageNumber)
-	if err != nil {
-		return "", "", false, fmt.Errorf("decode end page number: %w", err)
-	}
+	startValue, startFound := doc.Metadata[metadataKeyStartPageNumber]
+	endValue, endFound := doc.Metadata[metadataKeyEndPageNumber]
 	if !startFound || !endFound {
 		return "", "", false, nil
 	}

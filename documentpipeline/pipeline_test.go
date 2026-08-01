@@ -110,6 +110,41 @@ func TestSimpleFormatter_ExcludeKeys(t *testing.T) {
 	}
 }
 
+func TestSimpleFormatter_PreservesTypedMetadataBoundary(t *testing.T) {
+	doc, _ := document.NewDocument("body", nil)
+	doc.Metadata = metadata.Map{
+		"null":   []byte("null"),
+		"number": []byte("9007199254740993"),
+		"object": []byte(`{ "nested": true }`),
+		"string": []byte(`"plain"`),
+	}
+
+	formatted, err := documentpipeline.NewSimpleFormatter(documentpipeline.SimpleFormatterConfig{}).Format(
+		doc,
+		documentpipeline.MetadataModeAll,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "null: \nnumber: 9007199254740993\nobject: {\"nested\":true}\nstring: plain\n\nbody"
+	if formatted != want {
+		t.Fatalf("Format = %q, want %q", formatted, want)
+	}
+}
+
+func TestSimpleFormatter_RejectsInvalidEncodedMetadata(t *testing.T) {
+	doc, _ := document.NewDocument("body", nil)
+	doc.Metadata = metadata.Map{"broken": []byte("{")}
+
+	_, err := documentpipeline.NewSimpleFormatter(documentpipeline.SimpleFormatterConfig{}).Format(
+		doc,
+		documentpipeline.MetadataModeAll,
+	)
+	if !errors.Is(err, metadata.ErrInvalidValue) {
+		t.Fatalf("Format error = %v, want ErrInvalidValue", err)
+	}
+}
+
 func TestTextSplitter_DefaultSeparatorIsNewline(t *testing.T) {
 	s, err := documentpipeline.NewTextSplitter(documentpipeline.TextSplitterConfig{})
 	if err != nil {
