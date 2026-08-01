@@ -10,11 +10,10 @@ import (
 )
 
 type testProviderRegistry struct {
-	entries      map[string]provider.Provider
-	configured   []provider.Provider
-	getErr       error
-	configureErr error
-	dropReadBack bool
+	entries   map[string]provider.Provider
+	updates   []provider.Patch
+	getErr    error
+	updateErr error
 }
 
 func (r *testProviderRegistry) List(context.Context) ([]provider.Provider, error) {
@@ -33,19 +32,19 @@ func (r *testProviderRegistry) Get(_ context.Context, id string) (provider.Provi
 	return entry, ok, nil
 }
 
-func (r *testProviderRegistry) Configure(_ context.Context, entry provider.Provider) error {
-	if r.configureErr != nil {
-		return r.configureErr
+func (r *testProviderRegistry) Update(_ context.Context, id string, patch provider.Patch) (provider.Provider, error) {
+	if r.updateErr != nil {
+		return provider.Provider{}, r.updateErr
 	}
-	r.configured = append(r.configured, entry)
-	if r.dropReadBack {
-		return nil
-	}
+	r.updates = append(r.updates, patch)
 	if r.entries == nil {
 		r.entries = map[string]provider.Provider{}
 	}
-	r.entries[entry.ID] = entry
-	return nil
+	entry := r.entries[id]
+	entry.ID = id
+	entry = entry.Apply(patch)
+	r.entries[id] = entry
+	return entry, nil
 }
 
 type testCatalog struct {
@@ -151,25 +150,44 @@ func TestListModelsSkipsRemoteProbeForStaticProvider(t *testing.T) {
 	}
 }
 
-func TestConfigureProviderOwnsSupportAndBaseURLPolicy(t *testing.T) {
+func TestUpdateProviderOwnsSupportAndBaseURLPolicy(t *testing.T) {
 	registry := &testProviderRegistry{}
 	c := New(Config{
 		Providers: registry,
 		Catalog:   testCatalog{metadata: []ProviderMetadata{{ID: "compat", RequiresBaseURL: true}}},
 	})
 
-	if _, err := c.ConfigureProvider(t.Context(), ConfigureProviderCommand{ID: "compat", APIKey: "sk-secret"}); !errors.Is(err, ErrProviderBaseURLRequired) {
+	apiKey := "sk-secret"
+	if _, err := c.UpdateProvider(t.Context(), UpdateProviderCommand{ID: "compat", APIKey: &apiKey}); !errors.Is(err, ErrProviderBaseURLRequired) {
 		t.Fatalf("missing base URL error = %v", err)
 	}
-	if _, err := c.ConfigureProvider(t.Context(), ConfigureProviderCommand{ID: "unknown"}); !errors.Is(err, ErrProviderUnsupported) {
+	if _, err := c.UpdateProvider(t.Context(), UpdateProviderCommand{ID: "unknown", APIKey: &apiKey}); !errors.Is(err, ErrProviderUnsupported) {
 		t.Fatalf("unknown provider error = %v", err)
 	}
-	configured, err := c.ConfigureProvider(t.Context(), ConfigureProviderCommand{ID: "compat", APIKey: "sk-secret", BaseURL: "https://example.test"})
+	baseURL := "https://example.test"
+	configured, err := c.UpdateProvider(t.Context(), UpdateProviderCommand{ID: "compat", APIKey: &apiKey, BaseURL: &baseURL})
 	if err != nil {
-		t.Fatalf("configure: %v", err)
+		t.Fatalf("update: %v", err)
 	}
-	if len(registry.configured) != 1 || configured.APIKeyMasked == "" || configured.APIKeyMasked == "sk-secret" {
-		t.Fatalf("configured=%+v stored=%+v", configured, registry.configured)
+	if len(registry.updates) != 1 || configured.APIKeyMasked == "" || configured.APIKeyMasked == "sk-secret" {
+		t.Fatalf("updated=%+v patches=%+v", configured, registry.updates)
+	}
+
+	replacement := "sk-replaced"
+	configured, err = c.UpdateProvider(t.Context(), UpdateProviderCommand{ID: "compat", APIKey: &replacement})
+	if err != nil {
+		t.Fatalf("update key while preserving endpoint: %v", err)
+	}
+	if configured.BaseURL != baseURL {
+		t.Fatalf("base URL = %q, want preserved %q", configured.BaseURL, baseURL)
+	}
+
+	clear := ""
+	if _, err := c.UpdateProvider(t.Context(), UpdateProviderCommand{ID: "compat", BaseURL: &clear}); !errors.Is(err, ErrProviderBaseURLRequired) {
+		t.Fatalf("clear required base URL error = %v", err)
+	}
+	if _, err := c.UpdateProvider(t.Context(), UpdateProviderCommand{ID: "compat"}); !errors.Is(err, ErrProviderUpdateRequired) {
+		t.Fatalf("empty update error = %v", err)
 	}
 }
 

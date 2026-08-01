@@ -59,6 +59,7 @@ var wireEnums = map[reflect.Type][]string{
 	reflect.TypeFor[PlanStepStatus]():            {string(PlanStepPending), string(PlanStepRunning), string(PlanStepCompleted), string(PlanStepFailed)},
 	reflect.TypeFor[ProviderKeySource]():         {string(ProviderKeySourceStored), string(ProviderKeySourceEnv)},
 	reflect.TypeFor[QuestionFieldType]():         {string(QuestionFieldText), string(QuestionFieldChoice)},
+	reflect.TypeFor[ProviderConfigChangeType]():  {string(ProviderConfigSet), string(ProviderConfigClear)},
 	reflect.TypeFor[RecipeScope]():               {string(RecipeScopeProject), string(RecipeScopeGlobal)},
 	reflect.TypeFor[RememberScopeKind]():         {string(RememberSession), string(RememberProject), string(RememberGlobal)},
 	reflect.TypeFor[RestoreType]():               {string(RestoreHistory), string(RestoreFiles), string(RestoreBoth)},

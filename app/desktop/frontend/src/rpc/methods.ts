@@ -19,7 +19,7 @@ import type {
   CancelRunResponse,
   ContentBlock,
   ConfigureMCPServerRequest,
-  ConfigureProviderRequest,
+  UpdateProviderRequest,
   CreateSessionRequest,
   Diff,
   ExportSessionResponse,
@@ -399,7 +399,7 @@ export interface Methods {
   };
   providers: {
     list: () => Promise<Page<Provider>>;
-    configure: (params: ConfigureProviderRequest) => Promise<Provider>;
+    update: (params: UpdateProviderRequest) => Promise<Provider>;
     test: (provider: string) => Promise<ProviderTestResult>;
   };
   models: {
@@ -722,7 +722,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     },
     providers: {
       list: () => call("providers.list", {}),
-      configure: (params) => call("providers.configure", params),
+      update: (params) => call("providers.update", params),
       test: (provider) => call("providers.test", { provider }),
     },
     models: {

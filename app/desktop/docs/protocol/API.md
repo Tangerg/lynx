@@ -731,8 +731,18 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
 
 ### 7.6 providers.\* / models.\* / tools.\*
 
-provider 凭证的写入面（`configure` / `test`）、模型目录与角色（utility / embedding）、直接诊断工具的
-`list` / `invoke`（§4.7）。语义见 AUX_API §2 / §5。
+`providers.list` 返回固定受支持集合与当前有效配置；`providers.update` 对已持久化配置做**原子字段变更**：
+
+- 省略 `apiKey` / `baseUrl` 表示保持；
+- `{ type:"set", value }` 表示替换，`value` 必须非空；
+- `{ type:"clear" }` 表示清空，不允许同时携带 `value`。
+
+因此客户端无需发送不可回读的旧密钥，也不会把“空字符串”猜成保持或清空。清空 stored key 后若进程环境提供该
+provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参与读取投影，绝不由更新路径写入持久层。声明
+`requiresBaseUrl:true` 的 provider 在最终状态中必须保有 endpoint，故首次设置 key 时需同时设置 URL，且不能清空
+已有 URL。`providers.test` 是只读探测，失败 verdict 走 `ProviderTestResult.error`，不改变配置。
+
+`models.*` 提供模型目录与 utility / embedding 角色；`tools.*` 提供直接诊断工具的 `list` / `invoke`（§4.7）。
 
 ### 7.7 可选域（capability-gated）
 

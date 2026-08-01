@@ -91,6 +91,28 @@ func TestSeedConfiguredProvider(t *testing.T) {
 	}
 }
 
+func TestSeedConfiguredProviderKeepsEnvironmentKeyOutOfStorageButPersistsEndpoint(t *testing.T) {
+	inner := &providerRegistry{stored: map[string]provider.Provider{}}
+	registry := provider.WithEnvKeys(inner, map[string]string{"openai-compatible": "sk-env"})
+	cfg := config.Config{
+		Provider: "openai-compatible",
+		APIKey:   "sk-env",
+		BaseURL:  "https://gateway.example.test",
+	}
+
+	if err := SeedConfiguredProvider(t.Context(), registry, cfg); err != nil {
+		t.Fatal(err)
+	}
+	stored := inner.stored[cfg.Provider]
+	if stored.APIKey != "" || stored.BaseURL != cfg.BaseURL {
+		t.Fatalf("stored provider = %+v, want endpoint without environment key", stored)
+	}
+	effective, ok, err := registry.Get(t.Context(), cfg.Provider)
+	if err != nil || !ok || effective.KeySource != provider.KeyEnv || effective.APIKey != cfg.APIKey {
+		t.Fatalf("effective provider = %+v, ok=%v, err=%v", effective, ok, err)
+	}
+}
+
 type providerRegistry struct {
 	stored map[string]provider.Provider
 }
@@ -108,7 +130,10 @@ func (r *providerRegistry) Get(_ context.Context, id string) (provider.Provider,
 	return p, ok, nil
 }
 
-func (r *providerRegistry) Configure(_ context.Context, p provider.Provider) error {
-	r.stored[p.ID] = p
-	return nil
+func (r *providerRegistry) Update(_ context.Context, id string, patch provider.Patch) (provider.Provider, error) {
+	p := r.stored[id]
+	p.ID = id
+	p = p.Apply(patch)
+	r.stored[id] = p
+	return p, nil
 }

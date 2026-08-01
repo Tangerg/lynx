@@ -9,7 +9,7 @@ import (
 
 // envKeyRegistry decorates a registry so a provider with no stored key falls
 // back to its environment-variable key. Precedence is stored > env: a key set
-// via providers.configure always wins over the environment. The decorator is
+// via providers.update always wins over the environment. The decorator is
 // the single authority on [Provider.KeySource] — it's the only layer that knows
 // whether the effective key is stored or env-sourced.
 type envKeyRegistry struct {
@@ -21,12 +21,9 @@ type envKeyRegistry struct {
 // provider absent or keyless in inner becomes enabled when its id has an entry
 // in envKeys, with [Provider.KeySource] set to [KeyEnv]. envKeys (from
 // llm.EnvKeys, read once at startup) is copied into an immutable snapshot. An
-// empty map makes this a transparent pass-through, so the decorator is free to
-// apply always.
+// empty map still applies the provenance projection so stored credentials are
+// reported as [KeyStored] rather than losing their source.
 func WithEnvKeys(inner Registry, envKeys map[string]string) Registry {
-	if len(envKeys) == 0 {
-		return inner
-	}
 	return &envKeyRegistry{inner: inner, envKeys: maps.Clone(envKeys)}
 }
 
@@ -85,8 +82,14 @@ func (s *envKeyRegistry) List(ctx context.Context) ([]Provider, error) {
 	return out, nil
 }
 
-// Configure passes through: env keys are read-only, never persisted. A stored
-// key written here takes precedence over the environment on subsequent reads.
-func (s *envKeyRegistry) Configure(ctx context.Context, p Provider) error {
-	return s.inner.Configure(ctx, p)
+// Update delegates the atomic persisted mutation before resolving the returned
+// effective credential. Environment keys remain read-only and are never copied
+// into the durable registry.
+func (s *envKeyRegistry) Update(ctx context.Context, id string, patch Patch) (Provider, error) {
+	p, err := s.inner.Update(ctx, id, patch)
+	if err != nil {
+		return Provider{}, err
+	}
+	resolved, _ := s.resolve(p, true, id)
+	return resolved, nil
 }

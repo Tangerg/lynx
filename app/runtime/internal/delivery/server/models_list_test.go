@@ -46,7 +46,9 @@ func (stubRegistry) List(context.Context) ([]provider.Provider, error) { return 
 func (stubRegistry) Get(context.Context, string) (provider.Provider, bool, error) {
 	return provider.Provider{}, false, nil
 }
-func (stubRegistry) Configure(context.Context, provider.Provider) error { return nil }
+func (stubRegistry) Update(context.Context, string, provider.Patch) (provider.Provider, error) {
+	return provider.Provider{}, nil
+}
 
 func probeServer(meta models.ProviderMetadata, lister models.ProviderModelLister) *Server {
 	return serverWithModels(models.Config{Providers: stubRegistry{}, Catalog: stubCatalog{meta: meta}, Lister: lister})

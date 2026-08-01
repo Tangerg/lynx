@@ -3486,7 +3486,7 @@
       }
     },
     {
-      "name": "providers.configure",
+      "name": "providers.update",
       "paramStructure": "by-name",
       "params": [
         {
@@ -3499,13 +3499,13 @@
         {
           "name": "baseUrl",
           "schema": {
-            "type": "string"
+            "$ref": "schema.json#/$defs/ProviderConfigChange"
           }
         },
         {
           "name": "apiKey",
           "schema": {
-            "type": "string"
+            "$ref": "schema.json#/$defs/ProviderConfigChange"
           }
         }
       ],
@@ -3520,7 +3520,7 @@
       "x-lyra-idempotency": "replayResponse",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ConfigureProviderRequest"
+        "$ref": "schema.json#/$defs/UpdateProviderRequest"
       }
     },
     {

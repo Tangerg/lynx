@@ -23,11 +23,12 @@ type ProviderInfo struct {
 	DefaultEmbeddingModel string
 }
 
-// ConfigureProviderCommand is the editable provider configuration.
-type ConfigureProviderCommand struct {
+// UpdateProviderCommand is an atomic partial change to provider configuration.
+// Nil fields preserve the stored value; a non-nil empty string clears it.
+type UpdateProviderCommand struct {
 	ID      string
-	APIKey  string
-	BaseURL string
+	APIKey  *string
+	BaseURL *string
 }
 
 // ProviderTestOutcome is the complete client-relevant result of a live
@@ -64,28 +65,38 @@ func (c *Coordinator) ListProviders(ctx context.Context) ([]ProviderInfo, error)
 	return out, nil
 }
 
-// ConfigureProvider validates and persists one supported provider, returning
+// UpdateProvider validates and persists one supported provider, returning
 // its redacted stored result.
-func (c *Coordinator) ConfigureProvider(ctx context.Context, cmd ConfigureProviderCommand) (ProviderInfo, error) {
+func (c *Coordinator) UpdateProvider(ctx context.Context, cmd UpdateProviderCommand) (ProviderInfo, error) {
 	meta, err := c.supportedProvider(cmd.ID)
 	if err != nil {
 		return ProviderInfo{}, err
 	}
-	if meta.RequiresBaseURL && cmd.BaseURL == "" {
-		return ProviderInfo{}, fmt.Errorf("%w: provider %q", ErrProviderBaseURLRequired, cmd.ID)
-	}
 	if c.providers == nil {
 		return ProviderInfo{}, errors.New("models: provider registry is unavailable")
 	}
-	if err := c.providers.Configure(ctx, provider.Provider{ID: cmd.ID, APIKey: cmd.APIKey, BaseURL: cmd.BaseURL}); err != nil {
-		return ProviderInfo{}, err
+	patch := provider.Patch{APIKey: cmd.APIKey, BaseURL: cmd.BaseURL}
+	if patch.Empty() {
+		return ProviderInfo{}, fmt.Errorf("%w: provider %q has no changes", ErrProviderUpdateRequired, cmd.ID)
 	}
-	entry, ok, err := c.providers.Get(ctx, cmd.ID)
+	if meta.RequiresBaseURL {
+		if cmd.BaseURL != nil {
+			if *cmd.BaseURL == "" {
+				return ProviderInfo{}, fmt.Errorf("%w: provider %q", ErrProviderBaseURLRequired, cmd.ID)
+			}
+		} else {
+			existing, _, err := c.providers.Get(ctx, cmd.ID)
+			if err != nil {
+				return ProviderInfo{}, err
+			}
+			if existing.BaseURL == "" {
+				return ProviderInfo{}, fmt.Errorf("%w: provider %q", ErrProviderBaseURLRequired, cmd.ID)
+			}
+		}
+	}
+	entry, err := c.providers.Update(ctx, cmd.ID, patch)
 	if err != nil {
 		return ProviderInfo{}, err
-	}
-	if !ok {
-		return ProviderInfo{}, fmt.Errorf("%w: provider %q", ErrProviderReadBack, cmd.ID)
 	}
 	return providerInfo(meta, entry), nil
 }

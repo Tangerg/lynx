@@ -67,7 +67,7 @@ type approvalUseCases interface {
 }
 
 type modelUseCases interface {
-	ConfigureProvider(ctx context.Context, cmd models.ConfigureProviderCommand) (models.ProviderInfo, error)
+	UpdateProvider(ctx context.Context, cmd models.UpdateProviderCommand) (models.ProviderInfo, error)
 	EmbeddingRole() modelref.Selection
 	ListModels(ctx context.Context, providerID string) []models.Model
 	ListProviders(ctx context.Context) ([]models.ProviderInfo, error)

@@ -333,12 +333,6 @@ export interface ConfigureMCPServerRequest {
   url?: string;
 }
 
-export interface ConfigureProviderRequest {
-  apiKey?: string;
-  baseUrl?: string;
-  provider: string;
-}
-
 export type ContentBlock =
   | { type: "text"; text: string }
   | { type: "image"; data: string; mime: string };
@@ -965,6 +959,12 @@ export interface Provider {
   requiresBaseUrl?: boolean;
 }
 
+export type ProviderConfigChange =
+  | { type: "set"; value: string }
+  | { type: "clear" };
+
+export type ProviderConfigChangeType = "set" | "clear";
+
 export type ProviderKeySource = "stored" | "env";
 
 export interface ProviderTestResult {
@@ -1413,6 +1413,12 @@ export interface UpdateMemoryRequest {
   workspace?: WorkspaceRef;
 }
 
+export interface UpdateProviderRequest {
+  apiKey?: ProviderConfigChange;
+  baseUrl?: ProviderConfigChange;
+  provider: string;
+}
+
 export interface UpdateScheduleRequest {
   cron?: string;
   enabled?: boolean;
@@ -1561,6 +1567,7 @@ export const WIRE_ENUMS = {
   MemoryScope: ["cwd", "projectRoot", "home"],
   Modality: ["text", "image", "audio", "video", "pdf"],
   PlanStepStatus: ["pending", "running", "completed", "failed"],
+  ProviderConfigChangeType: ["set", "clear"],
   ProviderKeySource: ["stored", "env"],
   QuestionFieldType: ["text", "choice"],
   RecipeScope: ["project", "global"],

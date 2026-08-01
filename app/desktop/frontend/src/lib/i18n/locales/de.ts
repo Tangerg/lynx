@@ -198,6 +198,7 @@ export const de: Record<string, string> = {
   "approvals.error.forget": "Entscheidung konnte nicht gelöscht werden.",
 
   "providers.apiKey.replace": "API-Schlüssel ersetzen…",
+  "providers.apiKey.clear": "Gespeicherten Schlüssel entfernen",
   "providers.apiKey.placeholder": "API-Schlüssel",
   "providers.apiKey.aria": "{{provider}} API-Schlüssel",
   "providers.baseUrl.placeholder": "Basis-URL (optionale Überschreibung)",

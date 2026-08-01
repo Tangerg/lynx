@@ -13,10 +13,10 @@ func registerCatalog(r *Registry) {
 		})
 
 	Command(r, MethodMeta{
-		Name:      "providers.configure",
+		Name:      "providers.update",
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.ConfigureProviderRequest) (*protocol.Provider, error) {
-		return d.api.ConfigureProvider(ctx, in)
+	}, func(d *Dispatcher, ctx context.Context, in protocol.UpdateProviderRequest) (*protocol.Provider, error) {
+		return d.api.UpdateProvider(ctx, in)
 	})
 
 	// The probe's verdict rides its own result (ProviderTestResult.error), so the

@@ -32,7 +32,8 @@ func TestClientResolver_RejectsUnconfigured(t *testing.T) {
 		t.Fatalf("unconfigured provider error = %#v, want invalid-credentials failure", err)
 	}
 
-	err = ps.Configure(t.Context(), provider.Provider{ID: "deepseek", APIKey: "k"})
+	apiKey := "k"
+	_, err = ps.Update(t.Context(), "deepseek", provider.Patch{APIKey: &apiKey})
 	if err != nil {
 		t.Fatal(err)
 	}

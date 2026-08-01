@@ -21,6 +21,7 @@ func buildShapes() *Shapes {
 	registerProblemUnion(s)
 	registerRunUnions(s)
 	registerItemUnions(s)
+	registerProviderUnions(s)
 	registerInterruptUnions(s)
 	registerEventUnions(s)
 	registerArtifactUnions(s)
@@ -30,6 +31,17 @@ func buildShapes() *Shapes {
 	registerCarriedShapes(s)
 	registerValueConstraints(s)
 	return s
+}
+
+func registerProviderUnions(s *Shapes) {
+	s.union(UnionSpec{
+		GoType:        typeOf[protocol.ProviderConfigChange](),
+		Discriminator: "type",
+		Variants: []VariantSpec{
+			{Tag: string(protocol.ProviderConfigSet), Required: []string{"value"}},
+			{Tag: string(protocol.ProviderConfigClear)},
+		},
+	})
 }
 
 func registerProblemUnion(s *Shapes) {

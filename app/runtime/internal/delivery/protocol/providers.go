@@ -5,7 +5,7 @@ import "context"
 // Providers is the providers.* method group (API.md §7.6).
 type Providers interface {
 	ListProviders(ctx context.Context, q PageQuery) (*Page[Provider], error)
-	ConfigureProvider(ctx context.Context, in ConfigureProviderRequest) (*Provider, error)
+	UpdateProvider(ctx context.Context, in UpdateProviderRequest) (*Provider, error)
 	TestProvider(ctx context.Context, providerID string) (*ProviderTestResult, error)
 }
 
@@ -66,7 +66,7 @@ type Provider struct {
 	BaseURL      string `json:"baseUrl,omitempty"`
 	APIKeyMasked string `json:"apiKeyMasked"` // "" = unconfigured; e.g. "sk****78"
 	// KeySource is the provenance of the key: "stored" (set via
-	// providers.configure, editable) or "env" (read from the provider's
+	// providers.update, editable) or "env" (read from the provider's
 	// environment variable, read-only — shown as "from env"). Omitted when the
 	// provider is unconfigured (apiKeyMasked is also "").
 	KeySource ProviderKeySource `json:"keySource,omitempty"`
@@ -92,14 +92,33 @@ const (
 	ProviderKeySourceEnv    ProviderKeySource = "env"
 )
 
-// ConfigureProviderRequest — providers.configure body. Provider is the
+// ProviderConfigChangeType is the operation applied to one persisted provider
+// setting. Omitting the enclosing request field preserves the stored value.
+type ProviderConfigChangeType string
+
+const (
+	ProviderConfigSet   ProviderConfigChangeType = "set"
+	ProviderConfigClear ProviderConfigChangeType = "clear"
+)
+
+// ProviderConfigChange is an explicit provider-setting mutation. Set requires
+// a non-empty value; clear carries no value. Its tagged shape avoids overloading
+// an empty string or JSON null with hidden update semantics.
+type ProviderConfigChange struct {
+	Type  ProviderConfigChangeType `json:"type"`
+	Value *string                  `json:"value,omitempty"`
+}
+
+// UpdateProviderRequest — providers.update body. Provider is the
 // provider id (Provider.id), e.g. "deepseek" — a meaningful slug, named to
 // match the `provider` reference field elsewhere (Model.provider,
 // runs.start), not "providerId".
-type ConfigureProviderRequest struct {
-	Provider string `json:"provider"`
-	BaseURL  string `json:"baseUrl,omitempty"`
-	APIKey   string `json:"apiKey,omitempty"`
+// Omitted configuration fields are preserved; each present field explicitly
+// sets or clears its stored value.
+type UpdateProviderRequest struct {
+	Provider string                `json:"provider"`
+	BaseURL  *ProviderConfigChange `json:"baseUrl,omitempty"`
+	APIKey   *ProviderConfigChange `json:"apiKey,omitempty"`
 }
 
 // ProviderTestResult — providers.test result.

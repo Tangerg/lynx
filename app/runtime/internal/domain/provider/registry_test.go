@@ -10,3 +10,22 @@ func TestProviderEnabled(t *testing.T) {
 		t.Error("keyed provider should be enabled")
 	}
 }
+
+func TestPatchDistinguishesPreserveReplaceAndClear(t *testing.T) {
+	provider := Provider{ID: "openai", APIKey: "sk-old", BaseURL: "https://old.test"}
+
+	baseURL := "https://new.test"
+	updated := provider.Apply(Patch{BaseURL: &baseURL})
+	if updated.APIKey != provider.APIKey || updated.BaseURL != baseURL {
+		t.Fatalf("replace endpoint = %+v", updated)
+	}
+
+	clear := ""
+	updated = updated.Apply(Patch{APIKey: &clear})
+	if updated.APIKey != "" || updated.BaseURL != baseURL {
+		t.Fatalf("clear key = %+v", updated)
+	}
+	if !(Patch{}).Empty() || (Patch{APIKey: &clear}).Empty() {
+		t.Fatal("Patch.Empty does not distinguish preserve from clear")
+	}
+}

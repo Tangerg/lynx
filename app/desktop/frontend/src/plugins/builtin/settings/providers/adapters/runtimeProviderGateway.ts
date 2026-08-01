@@ -1,11 +1,18 @@
 import { getContainer } from "@/main/container";
 import { describeProblem, rpcErrorText } from "@/lib/rpcErrors";
-import { configureProviderGateway } from "../application/ports/providerGateway";
+import type { ProviderConfigChange } from "@/rpc";
+import { installProviderGateway as registerProviderGateway } from "../application/ports/providerGateway";
 import type { ProviderGateway } from "../application/ports/providerGateway";
 
 const gateway: ProviderGateway = {
-  async configureProvider(input) {
-    await getContainer().client().providers.configure(input);
+  async updateProvider(input) {
+    await getContainer()
+      .client()
+      .providers.update({
+        provider: input.provider,
+        apiKey: toWireChange(input.apiKey),
+        baseUrl: toWireChange(input.baseUrl),
+      });
   },
   async setUtilityRole(role) {
     await getContainer().client().models.setUtilityRole(role);
@@ -25,6 +32,11 @@ const gateway: ProviderGateway = {
   },
 };
 
+function toWireChange(value: string | null | undefined): ProviderConfigChange | undefined {
+  if (value === undefined) return undefined;
+  return value === null ? { type: "clear" } : { type: "set", value };
+}
+
 export function installProviderGateway(): () => void {
-  return configureProviderGateway(gateway);
+  return registerProviderGateway(gateway);
 }

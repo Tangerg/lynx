@@ -1,8 +1,9 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
-export interface ProviderCredentials {
+export interface ProviderUpdate {
   provider: string;
-  apiKey?: string;
-  baseUrl?: string;
+  // undefined preserves, null clears, and a string replaces the setting.
+  apiKey?: string | null;
+  baseUrl?: string | null;
 }
 
 export interface ProviderRole {
@@ -16,7 +17,7 @@ export interface ProviderTestOutcome {
 }
 
 export interface ProviderGateway {
-  configureProvider(input: ProviderCredentials): Promise<void>;
+  updateProvider(input: ProviderUpdate): Promise<void>;
   setUtilityRole(role: ProviderRole): Promise<void>;
   setEmbeddingRole(role: ProviderRole): Promise<void>;
   testProvider(provider: string): Promise<ProviderTestOutcome>;
@@ -25,5 +26,5 @@ export interface ProviderGateway {
 
 const port = createSingletonPort<ProviderGateway>("Provider gateway is not configured");
 
-export const configureProviderGateway = port.configure;
+export const installProviderGateway = port.configure;
 export const providerGateway = port.get;

@@ -20,7 +20,9 @@ func (r *modelProviderFake) Get(_ context.Context, id string) (provider.Provider
 	entry, ok := r.entries[id]
 	return entry, ok, nil
 }
-func (r *modelProviderFake) Configure(context.Context, provider.Provider) error { return nil }
+func (r *modelProviderFake) Update(context.Context, string, provider.Patch) (provider.Provider, error) {
+	return provider.Provider{}, nil
+}
 func (r *modelProviderFake) Supported() []models.ProviderMetadata {
 	return []models.ProviderMetadata{{ID: "anthropic"}}
 }

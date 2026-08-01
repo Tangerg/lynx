@@ -196,6 +196,7 @@ export const es: Record<string, string> = {
   "approvals.error.forget": "No se pudo borrar la decisión.",
 
   "providers.apiKey.replace": "Reemplazar clave de API…",
+  "providers.apiKey.clear": "Quitar clave guardada",
   "providers.apiKey.placeholder": "Clave de API",
   "providers.apiKey.aria": "Clave de API de {{provider}}",
   "providers.baseUrl.placeholder": "URL base (anulación opcional)",

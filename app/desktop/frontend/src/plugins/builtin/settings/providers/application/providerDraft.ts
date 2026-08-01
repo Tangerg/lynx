@@ -1,4 +1,5 @@
-import type { ProviderConfiguration, SaveProviderInput } from "./providerConfig";
+import type { ProviderConfiguration } from "./providerConfig";
+import type { ProviderUpdate } from "./ports/providerGateway";
 
 export interface ProviderCredentialsDraft {
   apiKey: string;
@@ -22,12 +23,14 @@ export function providerCredentialsDirty(
 }
 
 export function providerCredentialsInput(
-  provider: Pick<ProviderConfiguration, "id">,
+  provider: Pick<ProviderConfiguration, "id" | "baseUrl">,
   draft: ProviderCredentialsDraft,
-): SaveProviderInput {
-  const input: SaveProviderInput = { provider: provider.id };
+): ProviderUpdate {
+  const input: ProviderUpdate = { provider: provider.id };
   const apiKey = draft.apiKey.trim();
   if (apiKey) input.apiKey = apiKey;
-  if (draft.baseUrl) input.baseUrl = draft.baseUrl;
+  if (draft.baseUrl !== provider.baseUrl) {
+    input.baseUrl = draft.baseUrl || null;
+  }
   return input;
 }

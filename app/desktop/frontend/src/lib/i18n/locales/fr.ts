@@ -198,6 +198,7 @@ export const fr: Record<string, string> = {
   "approvals.error.forget": "Impossible d'effacer la décision.",
 
   "providers.apiKey.replace": "Remplacer la clé API…",
+  "providers.apiKey.clear": "Supprimer la clé enregistrée",
   "providers.apiKey.placeholder": "Clé API",
   "providers.apiKey.aria": "Clé API {{provider}}",
   "providers.baseUrl.placeholder": "URL de base (remplacement facultatif)",

@@ -24,7 +24,6 @@ import type {
   CodebaseStatus,
   CodebaseStatusRequest,
   ConfigureMCPServerRequest,
-  ConfigureProviderRequest,
   CreateScheduleRequest,
   CreateSessionRequest,
   DeleteScheduleRequest,
@@ -118,6 +117,7 @@ import type {
   SubscribeRunResponse,
   TestProviderRequest,
   UpdateMemoryRequest,
+  UpdateProviderRequest,
   UpdateScheduleRequest,
   UpdateSessionRequest,
   Usage,
@@ -223,7 +223,7 @@ const METHOD_NAMES = [
   "codebase.status",
   "codebase.reindex",
   "providers.list",
-  "providers.configure",
+  "providers.update",
   "providers.test",
   "models.list",
   "models.getUtilityRole",
@@ -319,7 +319,7 @@ const VALUE_METHOD_NAMES = [
   "codebase.status",
   "codebase.reindex",
   "providers.list",
-  "providers.configure",
+  "providers.update",
   "providers.test",
   "models.list",
   "models.getUtilityRole",
@@ -424,7 +424,7 @@ export const WIRE_METHOD_POLICY: {
   "codebase.status": { operation: "query", response: "unary", idempotency: "none" },
   "codebase.reindex": { operation: "command", response: "unary", idempotency: "replayResponse" },
   "providers.list": { operation: "query", response: "unary", idempotency: "none" },
-  "providers.configure": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "providers.update": { operation: "command", response: "unary", idempotency: "replayResponse" },
   "providers.test": { operation: "query", response: "unary", idempotency: "none" },
   "models.list": { operation: "query", response: "unary", idempotency: "none" },
   "models.getUtilityRole": { operation: "query", response: "unary", idempotency: "none" },
@@ -679,7 +679,7 @@ export interface WireShapes {
   "codebase.status": { params: CodebaseStatusRequest; result: CodebaseStatus };
   "codebase.reindex": { params: CodebaseReindexRequest; result: CodebaseReindexResponse };
   "providers.list": { params: PageQuery; result: PageOfProvider };
-  "providers.configure": { params: ConfigureProviderRequest; result: Provider };
+  "providers.update": { params: UpdateProviderRequest; result: Provider };
   "providers.test": { params: TestProviderRequest; result: ProviderTestResult };
   "models.list": { params: ListModelsRequest; result: PageOfModel };
   "models.getUtilityRole": { params: Record<string, never>; result: UtilityRole };

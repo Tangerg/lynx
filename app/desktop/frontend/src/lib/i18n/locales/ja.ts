@@ -195,6 +195,7 @@ export const ja: Record<string, string> = {
   "approvals.error.forget": "決定をクリアできませんでした。",
 
   "providers.apiKey.replace": "API キーを置き換え…",
+  "providers.apiKey.clear": "保存済みキーを削除",
   "providers.apiKey.placeholder": "API キー",
   "providers.apiKey.aria": "{{provider}} の API キー",
   "providers.baseUrl.placeholder": "ベース URL（任意の上書き）",

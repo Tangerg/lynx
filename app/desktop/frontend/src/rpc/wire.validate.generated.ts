@@ -73,7 +73,6 @@ export type WireTypeName =
   | "CodebaseStatus"
   | "CodebaseStatusRequest"
   | "ConfigureMCPServerRequest"
-  | "ConfigureProviderRequest"
   | "ContentBlock"
   | "ContentBlockType"
   | "CreateScheduleRequest"
@@ -195,6 +194,8 @@ export type WireTypeName =
   | "ProblemData"
   | "ProtocolRange"
   | "Provider"
+  | "ProviderConfigChange"
+  | "ProviderConfigChangeType"
   | "ProviderKeySource"
   | "ProviderTestResult"
   | "Question"
@@ -278,6 +279,7 @@ export type WireTypeName =
   | "ToolInvocation"
   | "ToolSpec"
   | "UpdateMemoryRequest"
+  | "UpdateProviderRequest"
   | "UpdateScheduleRequest"
   | "UpdateSessionRequest"
   | "Usage"
@@ -750,11 +752,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     type: ref(() => CHECKS.McpTransport),
     url: text(),
   }, ["enabled", "name", "type"]),
-  ConfigureProviderRequest: object({
-    apiKey: text(),
-    baseUrl: text(),
-    provider: allOf([text(), minLength(1)]),
-  }, ["provider"]),
   ContentBlock: allOf([
     object({
       data: text(),
@@ -1848,6 +1845,22 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     keySource: ref(() => CHECKS.ProviderKeySource),
     requiresBaseUrl: flag(),
   }, ["apiKeyMasked", "id"]),
+  ProviderConfigChange: allOf([
+    object({
+      type: ref(() => CHECKS.ProviderConfigChangeType),
+      value: allOf([text(), minLength(1)]),
+    }, []),
+    oneOf([
+      fields({
+        type: literal("set"),
+      }, ["type", "value"]),
+      fields({
+        type: literal("clear"),
+        value: absent(),
+      }, ["type"]),
+    ]),
+  ]),
+  ProviderConfigChangeType: enumOf(["set", "clear"]),
   ProviderKeySource: enumOf(["stored", "env"]),
   ProviderTestResult: object({
     error: ref(() => CHECKS.ProblemData),
@@ -2678,6 +2691,11 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     scope: ref(() => CHECKS.MemoryScope),
     workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["content", "scope"]),
+  UpdateProviderRequest: object({
+    apiKey: ref(() => CHECKS.ProviderConfigChange),
+    baseUrl: ref(() => CHECKS.ProviderConfigChange),
+    provider: allOf([text(), minLength(1)]),
+  }, ["provider"]),
   UpdateScheduleRequest: object({
     cron: text(),
     enabled: flag(),
@@ -2838,7 +2856,7 @@ const METHOD_RESULTS: Record<WireMethodName, WireCheck> = {
   "codebase.status": ref(() => CHECKS.CodebaseStatus),
   "codebase.reindex": ref(() => CHECKS.CodebaseReindexResponse),
   "providers.list": ref(() => CHECKS.PageOfProvider),
-  "providers.configure": ref(() => CHECKS.Provider),
+  "providers.update": ref(() => CHECKS.Provider),
   "providers.test": ref(() => CHECKS.ProviderTestResult),
   "models.list": ref(() => CHECKS.PageOfModel),
   "models.getUtilityRole": ref(() => CHECKS.UtilityRole),

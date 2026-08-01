@@ -66,6 +66,7 @@ func mapModelError(err error) error {
 	if errors.Is(err, modelapp.ErrProviderUnsupported) ||
 		errors.Is(err, modelapp.ErrProviderBaseURLRequired) ||
 		errors.Is(err, modelapp.ErrProviderUnconfigured) ||
+		errors.Is(err, modelapp.ErrProviderUpdateRequired) ||
 		errors.Is(err, modelapp.ErrEmbeddingUnsupported) ||
 		errors.Is(err, modelref.ErrIncomplete) {
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)

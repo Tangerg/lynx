@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button, Icon, ProviderIcon, TextField } from "@/ui";
 import {
   type ProviderConfiguration,
-  useConfigureProvider,
+  useUpdateProvider,
   useTestProvider,
 } from "../application/providerConfig";
 import {
@@ -16,7 +16,7 @@ import { cn } from "@/lib/classNames";
 
 export function ProviderRow({ p }: { p: ProviderConfiguration }) {
   const t = useT();
-  const configure = useConfigureProvider();
+  const update = useUpdateProvider();
   const test = useTestProvider();
   const [draft, setDraft] = useState(() => initialProviderCredentialsDraft(p));
   const [saving, setSaving] = useState(false);
@@ -25,13 +25,27 @@ export function ProviderRow({ p }: { p: ProviderConfiguration }) {
   const enabled = p.apiKeyMasked !== "";
   // Env keys are read-only at the source, but a typed key still overrides them.
   const fromEnv = p.keySource === "env";
+  const hasStoredKey = p.keySource === "stored";
   const dirty = providerCredentialsDirty(p, draft);
 
   const onSave = async () => {
     setSaving(true);
     reset(); // invalidate any in-flight test so its result can't overwrite the new key state
     try {
-      await configure(providerCredentialsInput(p, draft));
+      await update(providerCredentialsInput(p, draft));
+      setDraft((value) => ({ ...value, apiKey: "" }));
+    } catch (err) {
+      fail(err instanceof Error ? err.message : t("providers.error.save"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onClearKey = async () => {
+    setSaving(true);
+    reset();
+    try {
+      await update({ provider: p.id, apiKey: null });
       setDraft((value) => ({ ...value, apiKey: "" }));
     } catch (err) {
       fail(err instanceof Error ? err.message : t("providers.error.save"));
@@ -103,6 +117,11 @@ export function ProviderRow({ p }: { p: ProviderConfiguration }) {
         >
           {probe.state === "busy" ? t("providers.testing") : t("providers.test")}
         </Button>
+        {hasStoredKey && (
+          <Button variant="ghost" size="sm" disabled={saving} onClick={onClearKey}>
+            {t("providers.apiKey.clear")}
+          </Button>
+        )}
 
         {probe.state === "ok" && (
           <span className="inline-flex items-center gap-1 text-ui-md text-success">

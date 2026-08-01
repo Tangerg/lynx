@@ -49,8 +49,9 @@ func bootstrapRuntimeWithBuildID(ctx context.Context, buildIdentity func() (stri
 	providers := bootstrap.ProviderRegistry(stores.Provider)
 	// Seed the registry with the configured provider's credentials (if not
 	// already enabled), so the default provider works out of the box. Seeding
-	// through the wrapped registry means an env-sourced default isn't redundantly
-	// persisted — it stays surfaced as "from env" rather than copied to "stored".
+	// through the wrapped registry means an env-sourced default key isn't
+	// redundantly persisted — it stays surfaced as "from env" rather than copied
+	// to "stored" — while a required custom endpoint is still persisted by itself.
 	// Other supported providers stay unconfigured until the user sets their keys.
 	if err = bootstrap.SeedConfiguredProvider(ctx, providers, cfg); err != nil {
 		return nil, config.Config{}, err

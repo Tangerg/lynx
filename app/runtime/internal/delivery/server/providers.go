@@ -26,13 +26,21 @@ func (s *Server) ListProviders(ctx context.Context, _ protocol.PageQuery) (*prot
 	return protocol.NewPage(out), nil
 }
 
-// ConfigureProvider validates and persists one provider through the application
+// UpdateProvider validates and persists one provider through the application
 // use case, then projects its redacted result onto the wire.
-func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigureProviderRequest) (*protocol.Provider, error) {
-	configured, err := s.models.ConfigureProvider(ctx, modelapp.ConfigureProviderCommand{
+func (s *Server) UpdateProvider(ctx context.Context, in protocol.UpdateProviderRequest) (*protocol.Provider, error) {
+	apiKey, err := providerConfigValue(in.APIKey)
+	if err != nil {
+		return nil, err
+	}
+	baseURL, err := providerConfigValue(in.BaseURL)
+	if err != nil {
+		return nil, err
+	}
+	configured, err := s.models.UpdateProvider(ctx, modelapp.UpdateProviderCommand{
 		ID:      in.Provider,
-		APIKey:  in.APIKey,
-		BaseURL: in.BaseURL,
+		APIKey:  apiKey,
+		BaseURL: baseURL,
 	})
 	if err != nil {
 		return nil, mapModelError(err)
@@ -42,6 +50,27 @@ func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigurePro
 		return nil, err
 	}
 	return &out, nil
+}
+
+func providerConfigValue(change *protocol.ProviderConfigChange) (*string, error) {
+	if change == nil {
+		return nil, nil
+	}
+	var value string
+	switch change.Type {
+	case protocol.ProviderConfigSet:
+		if change.Value == nil || *change.Value == "" {
+			return nil, protocol.ErrInvalidParams
+		}
+		value = *change.Value
+	case protocol.ProviderConfigClear:
+		if change.Value != nil {
+			return nil, protocol.ErrInvalidParams
+		}
+	default:
+		return nil, protocol.ErrInvalidParams
+	}
+	return &value, nil
 }
 
 // TestProvider returns an inline verdict for a supported, configured provider.

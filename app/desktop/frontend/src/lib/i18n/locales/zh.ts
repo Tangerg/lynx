@@ -303,6 +303,7 @@ export const zh: Record<string, string> = {
   "hooks.error.trust": "无法更改项目钩子信任。",
 
   "providers.apiKey.replace": "替换 API 密钥…",
+  "providers.apiKey.clear": "移除已保存密钥",
   "providers.apiKey.placeholder": "API 密钥",
   "providers.apiKey.envPlaceholder": "正在使用环境变量密钥 — 输入以覆盖",
   "providers.apiKey.aria": "{{provider}} API 密钥",

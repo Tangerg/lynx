@@ -225,8 +225,8 @@ func (value CodebaseSearchRequest) ValidateWire() error {
 	)
 }
 
-func (value ConfigureProviderRequest) ValidateWire() error {
-	return collectWireViolations("ConfigureProviderRequest",
+func (value UpdateProviderRequest) ValidateWire() error {
+	return collectWireViolations("UpdateProviderRequest",
 		requiredText("provider", value.Provider),
 	)
 }
@@ -716,6 +716,15 @@ func (value QuestionField) ValidateWire() error {
 		requiredWhen(wireFieldEquals(value, "type", "choice"), "name", value),
 		requiredWhen(wireFieldEquals(value, "type", "choice"), "label", value),
 		requiredWhen(wireFieldEquals(value, "type", "choice"), "options", value),
+	)
+}
+
+func (value ProviderConfigChange) ValidateWire() error {
+	return collectWireViolations("ProviderConfigChange",
+		optionalText("value", value.Value),
+		closedEnum("type", string(value.Type), []string{"set", "clear"}, false),
+		requiredWhen(wireFieldEquals(value, "type", "set"), "value", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "clear"), "value", value),
 	)
 }
 

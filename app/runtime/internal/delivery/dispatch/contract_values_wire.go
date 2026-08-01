@@ -139,7 +139,8 @@ func registerIntegrationValues(s *Shapes) {
 	nonEmpty[protocol.ConfigureMCPServerRequest](s, "name")
 	nonEmpty[protocol.RemoveMCPServerRequest](s, "name")
 	nonEmpty[protocol.SetMCPEnabledRequest](s, "name")
-	nonEmpty[protocol.ConfigureProviderRequest](s, "provider")
+	nonEmpty[protocol.UpdateProviderRequest](s, "provider")
+	nonEmpty[protocol.ProviderConfigChange](s, "value")
 	nonEmpty[protocol.TestProviderRequest](s, "provider")
 	nonEmpty[protocol.InvokeToolRequest](s, "name")
 }

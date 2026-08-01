@@ -25,10 +25,10 @@ describe("providerDraft", () => {
     expect(providerCredentialsDirty(provider, { apiKey: "", baseUrl: "" })).toBe(true);
   });
 
-  it("builds provider configure input from trimmed draft values", () => {
+  it("builds explicit provider changes from trimmed draft values", () => {
     expect(
       providerCredentialsInput(
-        { id: "openai" },
+        { id: "openai", baseUrl: "" },
         { apiKey: " sk-test ", baseUrl: "https://gateway.example.test" },
       ),
     ).toEqual({
@@ -36,5 +36,14 @@ describe("providerDraft", () => {
       apiKey: "sk-test",
       baseUrl: "https://gateway.example.test",
     });
+  });
+
+  it("preserves an untouched secret and explicitly clears an edited endpoint", () => {
+    expect(
+      providerCredentialsInput(
+        { id: "openai", baseUrl: "https://gateway.example.test" },
+        { apiKey: "", baseUrl: "" },
+      ),
+    ).toEqual({ provider: "openai", baseUrl: null });
   });
 });

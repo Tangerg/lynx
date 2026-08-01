@@ -13,13 +13,9 @@ import {
   useUtilityRole,
 } from "./providerQueries";
 import { queryClient } from "@/lib/queryClient";
-import {
-  providerGateway,
-  type ProviderCredentials,
-  type ProviderRole,
-} from "./ports/providerGateway";
+import { providerGateway, type ProviderRole, type ProviderUpdate } from "./ports/providerGateway";
 
-// Provider configuration mutations (providers.configure / providers.test).
+// Provider configuration mutations (providers.update / providers.test).
 // Counterpart to the read-side useProviders() query.
 
 export type { ProviderConfiguration };
@@ -66,23 +62,14 @@ export function useEmbeddingModelConfig() {
   };
 }
 
-export interface SaveProviderInput {
-  provider: string;
-  apiKey?: string;
-  baseUrl?: string;
-}
-
 /**
- * Upsert a provider's key / baseUrl (providers.configure) and refetch the
+ * Atomically update a provider's key / baseUrl (providers.update) and refetch the
  * providers + models lists so the pane and the composer picker pick up the
  * new enablement immediately.
  */
-export function useConfigureProvider(): (input: SaveProviderInput) => Promise<void> {
+export function useUpdateProvider(): (input: ProviderUpdate) => Promise<void> {
   return useCallback(async (input) => {
-    const params: ProviderCredentials = { provider: input.provider };
-    if (input.apiKey) params.apiKey = input.apiKey;
-    if (input.baseUrl) params.baseUrl = input.baseUrl;
-    await providerGateway().configureProvider(params);
+    await providerGateway().updateProvider(input);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: [PROVIDERS_KEY] }),
       queryClient.invalidateQueries({ queryKey: [MODELS_KEY] }),

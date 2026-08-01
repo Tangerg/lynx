@@ -10,20 +10,27 @@ import (
 
 // SeedConfiguredProvider ensures the config-file provider is present in the
 // registry with its key, so the default provider is enabled on first run. A
-// provider already enabled in the registry (a persisted providers.configure)
-// is left untouched — runtime edits win over the config file.
+// provider enabled by a stored key is left untouched — runtime edits win over
+// the config file. An environment key is never copied into storage; only a
+// missing configured endpoint is seeded beside it.
 func SeedConfiguredProvider(ctx context.Context, svc providersvc.Registry, cfg config.Config) error {
 	id := cfg.Provider
-	if existing, ok, err := svc.Get(ctx, id); err != nil {
+	existing, ok, err := svc.Get(ctx, id)
+	if err != nil {
 		return err
-	} else if ok && existing.Enabled() {
-		return nil
 	}
-	return svc.Configure(ctx, providersvc.Provider{
-		ID:      id,
-		APIKey:  cfg.APIKey,
-		BaseURL: cfg.BaseURL,
+	if ok && existing.Enabled() {
+		if existing.KeySource != providersvc.KeyEnv || existing.BaseURL != "" || cfg.BaseURL == "" {
+			return nil
+		}
+		_, err = svc.Update(ctx, id, providersvc.Patch{BaseURL: &cfg.BaseURL})
+		return err
+	}
+	_, err = svc.Update(ctx, id, providersvc.Patch{
+		APIKey:  &cfg.APIKey,
+		BaseURL: &cfg.BaseURL,
 	})
+	return err
 }
 
 // SeedUtilityRole writes the config-file utility model into the store on first

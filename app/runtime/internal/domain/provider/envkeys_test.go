@@ -23,9 +23,12 @@ func (f *fakeRegistry) Get(_ context.Context, id string) (Provider, bool, error)
 	return p, ok, nil
 }
 
-func (f *fakeRegistry) Configure(_ context.Context, p Provider) error {
-	f.stored[p.ID] = p
-	return nil
+func (f *fakeRegistry) Update(_ context.Context, id string, patch Patch) (Provider, error) {
+	p := f.stored[id]
+	p.ID = id
+	p = p.Apply(patch)
+	f.stored[id] = p
+	return p, nil
 }
 
 func TestWithEnvKeys_StoredWinsOverEnv(t *testing.T) {
@@ -82,6 +85,34 @@ func TestWithEnvKeys_StoredEmptyFallsBackToEnvKeepsBaseURL(t *testing.T) {
 	}
 }
 
+func TestWithEnvKeys_UpdateNeverPersistsEnvironmentKey(t *testing.T) {
+	inner := &fakeRegistry{stored: map[string]Provider{
+		"deepseek": {ID: "deepseek", APIKey: "sk-stored", BaseURL: "https://old"},
+	}}
+	svc := WithEnvKeys(inner, map[string]string{"deepseek": "sk-env"})
+
+	baseURL := "https://new"
+	got, err := svc.Update(t.Context(), "deepseek", Patch{BaseURL: &baseURL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.APIKey != "sk-stored" || inner.stored["deepseek"].APIKey != "sk-stored" {
+		t.Fatalf("base URL update changed key: effective=%+v stored=%+v", got, inner.stored["deepseek"])
+	}
+
+	clear := ""
+	got, err = svc.Update(t.Context(), "deepseek", Patch{APIKey: &clear})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.APIKey != "sk-env" || got.KeySource != KeyEnv {
+		t.Fatalf("cleared stored key resolved as %+v, want env fallback", got)
+	}
+	if inner.stored["deepseek"].APIKey != "" {
+		t.Fatalf("stored key = %q, want cleared without persisting env", inner.stored["deepseek"].APIKey)
+	}
+}
+
 func TestWithEnvKeys_UnconfiguredStaysNone(t *testing.T) {
 	inner := &fakeRegistry{stored: map[string]Provider{}}
 	svc := WithEnvKeys(inner, map[string]string{"openai": "sk-env"})
@@ -119,10 +150,14 @@ func TestWithEnvKeys_ListMergesEnvOnlyAndSorts(t *testing.T) {
 	}
 }
 
-func TestWithEnvKeys_EmptyMapIsPassThrough(t *testing.T) {
-	inner := &fakeRegistry{stored: map[string]Provider{}}
-	if got := WithEnvKeys(inner, nil); got != Registry(inner) {
-		t.Error("empty env map should return inner unchanged")
+func TestWithEnvKeys_EmptyMapStillProjectsStoredSource(t *testing.T) {
+	inner := &fakeRegistry{stored: map[string]Provider{
+		"openai": {ID: "openai", APIKey: "sk-stored"},
+	}}
+	registry := WithEnvKeys(inner, nil)
+	got, ok, err := registry.Get(t.Context(), "openai")
+	if err != nil || !ok || got.KeySource != KeyStored {
+		t.Fatalf("stored provider = %+v, ok=%v, err=%v", got, ok, err)
 	}
 }
 

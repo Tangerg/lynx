@@ -77,7 +77,7 @@ Protocol `2026-08-02` (minimum supported `2026-08-02`) · 86 methods
 | `codebase.status` | query | unary | none | `codebase` | `workspace_unavailable`, `capability_not_negotiated` |
 | `codebase.reindex` | command | unary | replayResponse | `codebase` | `workspace_unavailable`, `capability_not_negotiated` |
 | `providers.list` | query | unary | none | — | — |
-| `providers.configure` | command | unary | replayResponse | — | — |
+| `providers.update` | command | unary | replayResponse | — | — |
 | `providers.test` | query | unary | none | — | — |
 | `models.list` | query | unary | none | — | — |
 | `models.getUtilityRole` | query | unary | none | — | — |
@@ -271,6 +271,13 @@ publish one namespaced pattern branch without weakening first-party tags.
 | `text` | `name`, `label` | `header`, `required` |
 | `choice` | `name`, `label`, `options` | `header`, `required`, `multiple` |
 
+### `ProviderConfigChange`
+
+| tag | required | optional |
+| --- | --- | --- |
+| `set` | `value` | — |
+| `clear` | — | — |
+
 ### `Interrupt`
 
 | tag | required | optional |
@@ -413,7 +420,8 @@ TypeScript validator from this single registry projection.
 | `ConfigureMCPServerRequest` | `name` | `nonEmpty` |
 | `RemoveMCPServerRequest` | `name` | `nonEmpty` |
 | `SetMCPEnabledRequest` | `name` | `nonEmpty` |
-| `ConfigureProviderRequest` | `provider` | `nonEmpty` |
+| `UpdateProviderRequest` | `provider` | `nonEmpty` |
+| `ProviderConfigChange` | `value` | `nonEmpty` |
 | `TestProviderRequest` | `provider` | `nonEmpty` |
 | `InvokeToolRequest` | `name` | `nonEmpty` |
 | `AgentMemoryItemRequest` | `id` | `nonEmpty` |

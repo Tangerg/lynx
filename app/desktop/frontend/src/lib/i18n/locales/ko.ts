@@ -194,6 +194,7 @@ export const ko: Record<string, string> = {
   "approvals.error.forget": "결정을 지울 수 없습니다.",
 
   "providers.apiKey.replace": "API 키 교체…",
+  "providers.apiKey.clear": "저장된 키 제거",
   "providers.apiKey.placeholder": "API 키",
   "providers.apiKey.aria": "{{provider}} API 키",
   "providers.baseUrl.placeholder": "기본 URL(선택적 재정의)",

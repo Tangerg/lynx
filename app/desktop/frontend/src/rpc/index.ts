@@ -119,8 +119,9 @@ export type {
   InvokeToolRequest,
   // Providers / models
   Provider,
+  ProviderConfigChange,
   ProviderTestResult,
-  ConfigureProviderRequest,
+  UpdateProviderRequest,
   Model,
   ModelCapabilities,
   ModelPricing,

@@ -11,15 +11,14 @@ import (
 )
 
 // providerFake satisfies the models coordinator's three provider-facing
-// ports at once: the provider.Registry (List/Get/Configure), the static
+// ports at once: the provider.Registry (List/Get/Update), the static
 // ProviderCatalog (Supported/Metadata), and the ProviderProber (Probe).
 type providerFake struct {
-	entries    map[string]provider.Provider
-	supported  []models.ProviderMetadata
-	configured []provider.Provider
-	probeErr   error
-	probed     []provider.Provider
-	dropStored bool
+	entries   map[string]provider.Provider
+	supported []models.ProviderMetadata
+	updated   []provider.Patch
+	probeErr  error
+	probed    []provider.Provider
 }
 
 func (r *providerFake) Supported() []models.ProviderMetadata {
@@ -55,16 +54,16 @@ func (r *providerFake) Get(_ context.Context, id string) (provider.Provider, boo
 	return entry, ok, nil
 }
 
-func (r *providerFake) Configure(_ context.Context, entry provider.Provider) error {
-	r.configured = append(r.configured, entry)
-	if r.dropStored {
-		return nil
-	}
+func (r *providerFake) Update(_ context.Context, id string, patch provider.Patch) (provider.Provider, error) {
+	r.updated = append(r.updated, patch)
 	if r.entries == nil {
 		r.entries = map[string]provider.Provider{}
 	}
-	r.entries[entry.ID] = entry
-	return nil
+	entry := r.entries[id]
+	entry.ID = id
+	entry = entry.Apply(patch)
+	r.entries[id] = entry
+	return entry, nil
 }
 
 func (r *providerFake) Probe(_ context.Context, entry provider.Provider) error {
@@ -103,56 +102,99 @@ func TestListProvidersMergesSupportedCatalogWithRegistry(t *testing.T) {
 	}
 }
 
-func TestConfigureProviderPersistsThenReturnsStoredEntry(t *testing.T) {
+func TestUpdateProviderPersistsThenReturnsStoredEntry(t *testing.T) {
 	rt := &providerFake{}
 	s := serverWithProviders(rt)
 
-	got, err := s.ConfigureProvider(context.Background(), protocol.ConfigureProviderRequest{
+	got, err := s.UpdateProvider(context.Background(), protocol.UpdateProviderRequest{
 		Provider: "anthropic",
-		APIKey:   "sk-ant-secret",
-		BaseURL:  "https://example.test",
+		APIKey:   setProviderConfig("sk-ant-secret"),
+		BaseURL:  setProviderConfig("https://example.test"),
 	})
 	if err != nil {
-		t.Fatalf("configure provider: %v", err)
+		t.Fatalf("update provider: %v", err)
 	}
-	if len(rt.configured) != 1 {
-		t.Fatalf("configured %d provider(s), want 1", len(rt.configured))
+	if len(rt.updated) != 1 {
+		t.Fatalf("updated %d provider(s), want 1", len(rt.updated))
 	}
-	if rt.configured[0].ID != "anthropic" || rt.configured[0].APIKey != "sk-ant-secret" || rt.configured[0].BaseURL != "https://example.test" {
-		t.Fatalf("configured = %+v", rt.configured[0])
+	stored := rt.entries["anthropic"]
+	if stored.APIKey != "sk-ant-secret" || stored.BaseURL != "https://example.test" {
+		t.Fatalf("stored = %+v", stored)
 	}
 	if got.ID != "anthropic" || got.BaseURL != "https://example.test" || got.APIKeyMasked == "" || got.APIKeyMasked == "sk-ant-secret" {
 		t.Fatalf("wire provider = %+v, want masked stored entry", got)
 	}
 }
 
-func TestConfigureProviderRequiresBaseURLWhenMetadataRequiresIt(t *testing.T) {
+func TestUpdateProviderRequiresBaseURLWhenMetadataRequiresIt(t *testing.T) {
 	rt := &providerFake{supported: []models.ProviderMetadata{{ID: "openai-compatible", RequiresBaseURL: true}}}
 	s := serverWithProviders(rt)
 
-	_, err := s.ConfigureProvider(context.Background(), protocol.ConfigureProviderRequest{
+	_, err := s.UpdateProvider(context.Background(), protocol.UpdateProviderRequest{
 		Provider: "openai-compatible",
-		APIKey:   "sk-secret",
+		APIKey:   setProviderConfig("sk-secret"),
 	})
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("configure err = %v, want ErrInvalidParams", err)
 	}
-	if len(rt.configured) != 0 {
-		t.Fatalf("configured %d provider(s), want none", len(rt.configured))
+	if len(rt.updated) != 0 {
+		t.Fatalf("updated %d provider(s), want none", len(rt.updated))
 	}
 }
 
-func TestConfigureProviderFailsWhenStoredEntryCannotBeReadBack(t *testing.T) {
-	rt := &providerFake{dropStored: true}
+func TestUpdateProviderPreservesOmittedFieldsAndClearsExplicitly(t *testing.T) {
+	rt := &providerFake{entries: map[string]provider.Provider{
+		"anthropic": {ID: "anthropic", APIKey: "sk-ant-secret", BaseURL: "https://old.test"},
+	}}
 	s := serverWithProviders(rt)
 
-	_, err := s.ConfigureProvider(context.Background(), protocol.ConfigureProviderRequest{
+	got, err := s.UpdateProvider(context.Background(), protocol.UpdateProviderRequest{
 		Provider: "anthropic",
-		APIKey:   "sk-ant-secret",
+		BaseURL:  clearProviderConfig(),
 	})
-	if err == nil {
-		t.Fatal("configure provider err = nil, want read-back invariant failure")
+	if err != nil {
+		t.Fatal(err)
 	}
+	if got.BaseURL != "" || got.APIKeyMasked == "" {
+		t.Fatalf("provider after endpoint clear = %+v, want key preserved", got)
+	}
+
+	got, err = s.UpdateProvider(context.Background(), protocol.UpdateProviderRequest{
+		Provider: "anthropic",
+		APIKey:   clearProviderConfig(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.APIKeyMasked != "" {
+		t.Fatalf("provider after key clear = %+v", got)
+	}
+}
+
+func TestUpdateProviderRejectsAmbiguousConfigChanges(t *testing.T) {
+	s := serverWithProviders(&providerFake{})
+	empty := ""
+	for _, change := range []*protocol.ProviderConfigChange{
+		{Type: protocol.ProviderConfigSet},
+		{Type: protocol.ProviderConfigSet, Value: &empty},
+		{Type: protocol.ProviderConfigClear, Value: &empty},
+	} {
+		_, err := s.UpdateProvider(t.Context(), protocol.UpdateProviderRequest{
+			Provider: "anthropic",
+			APIKey:   change,
+		})
+		if !errors.Is(err, protocol.ErrInvalidParams) {
+			t.Fatalf("change %+v error = %v, want invalid params", change, err)
+		}
+	}
+}
+
+func setProviderConfig(value string) *protocol.ProviderConfigChange {
+	return &protocol.ProviderConfigChange{Type: protocol.ProviderConfigSet, Value: &value}
+}
+
+func clearProviderConfig() *protocol.ProviderConfigChange {
+	return &protocol.ProviderConfigChange{Type: protocol.ProviderConfigClear}
 }
 
 func TestTestProviderUsesConfiguredProvider(t *testing.T) {

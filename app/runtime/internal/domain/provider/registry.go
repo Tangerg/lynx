@@ -7,7 +7,7 @@
 // The registry is seeded at startup with the supported provider ids (so
 // providers.list always reports the full supported set), and a provider
 // becomes "enabled" once it has an API key — set from config at boot or via
-// providers.configure at runtime. The SQLite registry keeps runtime edits
+// providers.update at runtime. The SQLite registry keeps runtime edits
 // across restarts.
 //
 // Deliberately a data-only registry (credentials + enablement + CRUD): model
@@ -45,14 +45,14 @@ type Provider struct {
 
 // KeySource is where a provider's effective API key came from. It rides on the
 // wire (Provider.keySource) so the UI can tell a stored key (set via
-// providers.configure, editable + persisted) from one picked up from the
+// providers.update, editable + persisted) from one picked up from the
 // environment (read-only, shown as "from env").
 type KeySource string
 
 const (
 	// KeyNone — no key; the provider is unconfigured and not enabled.
 	KeyNone KeySource = ""
-	// KeyStored — key set via providers.configure (persisted in the registry).
+	// KeyStored — key set via providers.update (persisted in the registry).
 	KeyStored KeySource = "stored"
 	// KeyEnv — key read from the provider's environment variable (not persisted;
 	// surfaced by [WithEnvKeys]). A stored key always takes precedence.
@@ -64,6 +64,30 @@ const (
 // not enabled until a key is set.
 func (p Provider) Enabled() bool { return p.APIKey != "" }
 
+// Patch is an atomic partial update to a provider's persisted configuration.
+// A nil field preserves the stored value; a non-nil field replaces it,
+// including replacing it with the empty string to clear that setting.
+type Patch struct {
+	APIKey  *string
+	BaseURL *string
+}
+
+// Apply returns p with patch applied.
+func (p Provider) Apply(patch Patch) Provider {
+	if patch.APIKey != nil {
+		p.APIKey = *patch.APIKey
+	}
+	if patch.BaseURL != nil {
+		p.BaseURL = *patch.BaseURL
+	}
+	return p
+}
+
+// Empty reports whether patch preserves every persisted field.
+func (patch Patch) Empty() bool {
+	return patch.APIKey == nil && patch.BaseURL == nil
+}
+
 // Registry is the provider registry. All methods are safe for concurrent use.
 type Registry interface {
 	// List returns every known provider (the seeded supported set plus any
@@ -73,8 +97,9 @@ type Registry interface {
 	// Get returns one provider by id; ok is false when unknown.
 	Get(ctx context.Context, id string) (Provider, bool, error)
 
-	// Configure upserts a provider's credentials (key + base URL) by ID,
-	// persisting the change. Used both to seed at startup and to apply a
-	// runtime providers.configure.
-	Configure(ctx context.Context, p Provider) error
+	// Update atomically applies patch to the provider identified by id, creating
+	// an empty entry first when the id has not been persisted. It returns the
+	// resulting persisted value; decorators may project effective credentials
+	// onto that result without changing what is stored.
+	Update(ctx context.Context, id string, patch Patch) (Provider, error)
 }

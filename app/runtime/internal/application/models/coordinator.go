@@ -34,11 +34,10 @@ var (
 	ErrProviderBaseURLRequired = errors.New("models: provider base URL is required")
 	// ErrProviderUnconfigured reports a supported provider with no usable key.
 	ErrProviderUnconfigured = errors.New("models: provider is not configured")
+	// ErrProviderUpdateRequired reports a provider update with no changes.
+	ErrProviderUpdateRequired = errors.New("models: provider update has no changes")
 	// ErrEmbeddingUnsupported reports a provider with no embedding adapter.
 	ErrEmbeddingUnsupported = errors.New("models: provider has no embeddings adapter")
-	// ErrProviderReadBack reports a registry that accepted configuration but did
-	// not subsequently return the configured provider.
-	ErrProviderReadBack = errors.New("models: configured provider was not found")
 )
 
 // ProviderProber validates a provider's credentials with one minimal live call

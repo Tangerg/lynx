@@ -825,7 +825,7 @@
       "stability": "stable"
     },
     {
-      "name": "providers.configure",
+      "name": "providers.update",
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
@@ -2627,6 +2627,21 @@
       ]
     },
     {
+      "type": "ProviderConfigChange",
+      "discriminator": "type",
+      "variants": [
+        {
+          "tag": "set",
+          "required": [
+            "value"
+          ]
+        },
+        {
+          "tag": "clear"
+        }
+      ]
+    },
+    {
       "type": "Interrupt",
       "discriminator": "type",
       "variants": [
@@ -3761,10 +3776,19 @@
       ]
     },
     {
-      "type": "ConfigureProviderRequest",
+      "type": "UpdateProviderRequest",
       "rules": [
         {
           "field": "provider",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "ProviderConfigChange",
+      "rules": [
+        {
+          "field": "value",
           "constraint": "nonEmpty"
         }
       ]

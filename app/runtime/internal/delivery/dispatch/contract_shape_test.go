@@ -142,7 +142,7 @@ func TestEveryWireUnionIsRegistered(t *testing.T) {
 	want := []string{
 		"ArtifactContentBlock", "ArtifactItem", "ArtifactOutcome", "ArtifactState",
 		"CancelRunResponse", "CapabilityRequirement", "ContentBlock", "DiffRow", "Interrupt", "InterruptResponseValue", "Item", "ItemDelta",
-		"ItemListScope", "ProblemData", "QuestionField", "RunOutcome", "RuntimeEvent", "SegmentOutcome", "StateSnapshot", "StreamEvent",
+		"ItemListScope", "ProblemData", "ProviderConfigChange", "QuestionField", "RunOutcome", "RuntimeEvent", "SegmentOutcome", "StateSnapshot", "StreamEvent",
 	}
 	got := make([]string, 0, len(shapes.Unions()))
 	for _, union := range shapes.Unions() {

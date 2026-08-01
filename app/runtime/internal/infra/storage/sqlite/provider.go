@@ -10,7 +10,7 @@ import (
 )
 
 // ProviderStore implements provider.Registry against a SQLite database.
-// One row per provider id; Configure is an upsert. The DB must have been
+// One row per provider id; Update is an atomic partial upsert. The DB must have been
 // opened via [Open] so the providers table exists.
 type ProviderStore struct {
 	db *sql.DB
@@ -59,13 +59,28 @@ func (s *ProviderStore) Get(ctx context.Context, id string) (provider.Provider, 
 	return p, true, nil
 }
 
-func (s *ProviderStore) Configure(ctx context.Context, p provider.Provider) error {
-	_, err := conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO providers (id, api_key, base_url) VALUES (?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET api_key = excluded.api_key, base_url = excluded.base_url`,
-		p.ID, p.APIKey, p.BaseURL)
-	if err != nil {
-		return fmt.Errorf("sqlite: configure provider: %w", err)
+func (s *ProviderStore) Update(ctx context.Context, id string, patch provider.Patch) (provider.Provider, error) {
+	var apiKey, baseURL string
+	updateAPIKey := patch.APIKey != nil
+	if updateAPIKey {
+		apiKey = *patch.APIKey
 	}
-	return nil
+	updateBaseURL := patch.BaseURL != nil
+	if updateBaseURL {
+		baseURL = *patch.BaseURL
+	}
+
+	var out provider.Provider
+	err := conn(ctx, s.db).QueryRowContext(ctx,
+		`INSERT INTO providers (id, api_key, base_url) VALUES (?, ?, ?)
+		 ON CONFLICT(id) DO UPDATE SET
+		   api_key = CASE WHEN ? THEN excluded.api_key ELSE providers.api_key END,
+		   base_url = CASE WHEN ? THEN excluded.base_url ELSE providers.base_url END
+		 RETURNING id, api_key, base_url`,
+		id, apiKey, baseURL, updateAPIKey, updateBaseURL,
+	).Scan(&out.ID, &out.APIKey, &out.BaseURL)
+	if err != nil {
+		return provider.Provider{}, fmt.Errorf("sqlite: update provider: %w", err)
+	}
+	return out, nil
 }

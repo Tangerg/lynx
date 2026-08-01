@@ -1467,24 +1467,6 @@
         "type"
       ]
     },
-    "ConfigureProviderRequest": {
-      "type": "object",
-      "properties": {
-        "apiKey": {
-          "type": "string"
-        },
-        "baseUrl": {
-          "type": "string"
-        },
-        "provider": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "provider"
-      ]
-    },
     "ContentBlock": {
       "type": "object",
       "properties": {
@@ -4725,6 +4707,49 @@
         "id"
       ]
     },
+    "ProviderConfigChange": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ProviderConfigChangeType"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "set"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "clear"
+            },
+            "value": false
+          },
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "ProviderConfigChangeType": {
+      "type": "string",
+      "enum": [
+        "set",
+        "clear"
+      ]
+    },
     "ProviderKeySource": {
       "type": "string",
       "enum": [
@@ -7199,6 +7224,24 @@
       "required": [
         "content",
         "scope"
+      ]
+    },
+    "UpdateProviderRequest": {
+      "type": "object",
+      "properties": {
+        "apiKey": {
+          "$ref": "#/$defs/ProviderConfigChange"
+        },
+        "baseUrl": {
+          "$ref": "#/$defs/ProviderConfigChange"
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "provider"
       ]
     },
     "UpdateScheduleRequest": {

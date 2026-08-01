@@ -255,6 +255,7 @@ export const en: Record<string, string> = {
   "hooks.error.trust": "Couldn't change project hook trust.",
 
   "providers.apiKey.replace": "Replace API key…",
+  "providers.apiKey.clear": "Remove stored key",
   "providers.apiKey.placeholder": "API key",
   "providers.apiKey.envPlaceholder": "Using environment key — type to override",
   "providers.apiKey.aria": "{{provider}} API key",
