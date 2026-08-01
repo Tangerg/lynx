@@ -20,6 +20,11 @@ import (
 const (
 	DefaultDatabase = "neo4j"
 	DefaultLabel    = "ChatMessage"
+
+	fieldConversationID = "conversation_id"
+	fieldMessage        = "message"
+	fieldSequence       = "seq"
+	parameterRows       = "rows"
 )
 
 // Config configures [New]. Only [Config.Driver] is required.
@@ -121,9 +126,9 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	rows := make([]map[string]any, 0, len(encoded))
 	for index, raw := range encoded {
 		rows = append(rows, map[string]any{
-			"conversation_id": conversationID,
-			"seq":             sequenceBase + int64(index),
-			"message":         string(raw),
+			fieldConversationID: conversationID,
+			fieldSequence:       sequenceBase + int64(index),
+			fieldMessage:        string(raw),
 		})
 	}
 
@@ -137,7 +142,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 		})`, s.label)
 
 	_, err = neo4j.ExecuteQuery(ctx, s.driver, cypher,
-		map[string]any{"rows": rows},
+		map[string]any{parameterRows: rows},
 		neo4j.EagerResultTransformer,
 		neo4j.ExecuteQueryWithDatabase(s.database),
 	)
@@ -166,7 +171,7 @@ func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages
 	)
 	var result *neo4j.EagerResult
 	result, err = neo4j.ExecuteQuery(ctx, s.driver, cypher,
-		map[string]any{"conversation_id": conversationID},
+		map[string]any{fieldConversationID: conversationID},
 		neo4j.EagerResultTransformer,
 		neo4j.ExecuteQueryWithDatabase(s.database),
 	)
@@ -176,7 +181,7 @@ func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages
 
 	storedMessages = make([]chat.Message, 0, len(result.Records))
 	for index, record := range result.Records {
-		rawSequence, ok := record.Get("seq")
+		rawSequence, ok := record.Get(fieldSequence)
 		if !ok {
 			return nil, fmt.Errorf("neo4j: read: record %d is missing sequence", index)
 		}
@@ -184,7 +189,7 @@ func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages
 		if !ok || sequence <= 0 {
 			return nil, fmt.Errorf("neo4j: read: record %d sequence is %v (%T), want a positive integer", index, rawSequence, rawSequence)
 		}
-		raw, ok := record.Get("message")
+		raw, ok := record.Get(fieldMessage)
 		if !ok {
 			return nil, fmt.Errorf("neo4j: read: record %d is missing message", index)
 		}
@@ -219,7 +224,7 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		s.label,
 	)
 	_, err = neo4j.ExecuteQuery(ctx, s.driver, cypher,
-		map[string]any{"conversation_id": conversationID},
+		map[string]any{fieldConversationID: conversationID},
 		neo4j.EagerResultTransformer,
 		neo4j.ExecuteQueryWithDatabase(s.database),
 	)
