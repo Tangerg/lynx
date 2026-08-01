@@ -23,7 +23,7 @@ func formatHM(hours float64) string {
 	return fmt.Sprintf("%02d:%02d", h, m)
 }
 
-func (g *reportGenerator) hourlyForecast(dailyMean int, condition string) []HourlyForecast {
+func (g *reportGenerator) hourlyForecast(dailyMean int, condition Condition) []HourlyForecast {
 	out := make([]HourlyForecast, 24)
 	for i := range 24 {
 		hour := time.Date(g.target.Year(), g.target.Month(), g.target.Day(), i, 0, 0, 0, time.UTC)
@@ -64,17 +64,17 @@ func (g *reportGenerator) hourlyForecast(dailyMean int, condition string) []Hour
 	return out
 }
 
-func (g *reportGenerator) alerts(condition string, temp int, windSpeed float64) []Alert {
+func (g *reportGenerator) alerts(condition Condition, temp int, windSpeed float64) []Alert {
 	var alerts []Alert
 	day := g.target.Add(24 * time.Hour)
 
 	if temp >= 35 {
-		severity := "moderate"
+		severity := AlertSeverityModerate
 		if temp >= 40 {
-			severity = "severe"
+			severity = AlertSeveritySevere
 		}
 		alerts = append(alerts, Alert{
-			Type:        "heat",
+			Type:        AlertHeat,
 			Severity:    severity,
 			Title:       "High Temperature Warning",
 			Description: fmt.Sprintf("Temperature is expected to reach %d°C. Stay hydrated and avoid prolonged sun exposure.", temp),
@@ -83,12 +83,12 @@ func (g *reportGenerator) alerts(condition string, temp int, windSpeed float64) 
 		})
 	}
 	if temp <= -10 {
-		severity := "moderate"
+		severity := AlertSeverityModerate
 		if temp <= -20 {
-			severity = "severe"
+			severity = AlertSeveritySevere
 		}
 		alerts = append(alerts, Alert{
-			Type:        "cold",
+			Type:        AlertCold,
 			Severity:    severity,
 			Title:       "Extreme Cold Warning",
 			Description: fmt.Sprintf("Temperature is expected to drop to %d°C. Dress warmly and limit outdoor exposure.", temp),
@@ -97,12 +97,12 @@ func (g *reportGenerator) alerts(condition string, temp int, windSpeed float64) 
 		})
 	}
 	if windSpeed >= 50 {
-		severity := "moderate"
+		severity := AlertSeverityModerate
 		if windSpeed >= 70 {
-			severity = "severe"
+			severity = AlertSeveritySevere
 		}
 		alerts = append(alerts, Alert{
-			Type:        "wind",
+			Type:        AlertWind,
 			Severity:    severity,
 			Title:       "High Wind Warning",
 			Description: fmt.Sprintf("Wind speeds may reach %.1f km/h. Secure loose objects and avoid outdoor activities.", windSpeed),
@@ -110,20 +110,20 @@ func (g *reportGenerator) alerts(condition string, temp int, windSpeed float64) 
 			EndTime:     g.target.Add(12 * time.Hour).Unix(),
 		})
 	}
-	if condition == "Stormy" {
+	if condition == ConditionStormy {
 		alerts = append(alerts, Alert{
-			Type:        "storm",
-			Severity:    "severe",
+			Type:        AlertStorm,
+			Severity:    AlertSeveritySevere,
 			Title:       "Severe Storm Warning",
 			Description: "Severe thunderstorms expected. Stay indoors and avoid travel if possible.",
 			StartTime:   g.target.Unix(),
 			EndTime:     g.target.Add(6 * time.Hour).Unix(),
 		})
 	}
-	if condition == "Blizzard" {
+	if condition == ConditionBlizzard {
 		alerts = append(alerts, Alert{
-			Type:        "snow",
-			Severity:    "severe",
+			Type:        AlertSnow,
+			Severity:    AlertSeveritySevere,
 			Title:       "Blizzard Warning",
 			Description: "Blizzard conditions expected with heavy snow and strong winds. Travel is strongly discouraged.",
 			StartTime:   g.target.Unix(),
@@ -133,8 +133,8 @@ func (g *reportGenerator) alerts(condition string, temp int, windSpeed float64) 
 	month := int(g.target.Month())
 	if (g.zone == zoneTropical || g.zone == zoneSubtropical) && month >= 6 && month <= 10 && g.rng.Float64() < 0.05 {
 		alerts = append(alerts, Alert{
-			Type:        "typhoon",
-			Severity:    "extreme",
+			Type:        AlertTyphoon,
+			Severity:    AlertSeverityExtreme,
 			Title:       "Typhoon Warning",
 			Description: "A typhoon is approaching. Evacuate if instructed by authorities and prepare for extreme weather.",
 			StartTime:   g.target.Unix(),
@@ -144,33 +144,33 @@ func (g *reportGenerator) alerts(condition string, temp int, windSpeed float64) 
 	return alerts
 }
 
-func buildDescription(condition string, temp int, wind Wind, humidity int, precip *Precipitation) string {
+func buildDescription(condition Condition, temp int, wind Wind, humidity int, precip *Precipitation) string {
 	var b strings.Builder
 
 	switch condition {
-	case "Sunny":
+	case ConditionSunny:
 		b.WriteString("Clear skies with abundant sunshine throughout the day.")
-	case "Partly Cloudy":
+	case ConditionPartlyCloudy:
 		b.WriteString("Mix of sun and clouds with pleasant weather conditions.")
-	case "Cloudy":
+	case ConditionCloudy:
 		b.WriteString("Overcast skies with cloud cover throughout the day.")
-	case "Rainy":
+	case ConditionRainy:
 		b.WriteString("Rainy conditions expected.")
 		if precip != nil {
 			fmt.Fprintf(&b, " Rainfall amount: %.1f mm. %s intensity.", precip.Amount, precip.Intensity)
 		}
-	case "Stormy":
+	case ConditionStormy:
 		b.WriteString("Severe thunderstorms with heavy rain and strong winds. Lightning activity expected.")
-	case "Snowy":
+	case ConditionSnowy:
 		b.WriteString("Snow is expected.")
 		if precip != nil {
 			fmt.Fprintf(&b, " Snowfall amount: %.1f mm. %s intensity.", precip.Amount, precip.Intensity)
 		}
-	case "Blizzard":
+	case ConditionBlizzard:
 		b.WriteString("Blizzard conditions with heavy snow and very strong winds. Visibility severely reduced.")
-	case "Foggy":
+	case ConditionFoggy:
 		b.WriteString("Dense fog reducing visibility significantly. Drive with caution.")
-	case "Hot":
+	case ConditionHot:
 		b.WriteString("Hot and sunny conditions. Take precautions against heat.")
 	default:
 		fmt.Fprintf(&b, "%s weather conditions expected.", condition)

@@ -4,14 +4,14 @@ import (
 	"math"
 )
 
-func (g *reportGenerator) wind(condition string) Wind {
+func (g *reportGenerator) wind(condition Condition) Wind {
 	speed := 5.0 + g.rng.Float64()*15.0
 	switch condition {
-	case "Stormy", "Blizzard":
+	case ConditionStormy, ConditionBlizzard:
 		speed += g.rng.Float64() * 30.0
-	case "Rainy", "Snowy":
+	case ConditionRainy, ConditionSnowy:
 		speed += g.rng.Float64() * 15.0
-	case "Sunny", "Clear":
+	case ConditionSunny, ConditionClear:
 		speed *= 0.6
 	}
 	switch g.zone {
@@ -47,7 +47,7 @@ func directionFromDegree(deg int) string {
 
 // humidity follows the zone's typical humidity, lifted by
 // rainy/foggy conditions and reduced by sunny/dusty ones.
-func (g *reportGenerator) humidity(condition string) int {
+func (g *reportGenerator) humidity(condition Condition) int {
 	base := 50
 	switch g.zone {
 	case zoneTropical:
@@ -74,15 +74,15 @@ func (g *reportGenerator) humidity(condition string) int {
 	}
 
 	switch condition {
-	case "Rainy", "Stormy", "Foggy", "Humid", "Drizzle":
+	case ConditionRainy, ConditionStormy, ConditionFoggy, ConditionHumid, ConditionDrizzle:
 		return min(base+20+g.rng.IntN(20), 100)
-	case "Snowy", "Blizzard":
+	case ConditionSnowy, ConditionBlizzard:
 		return min(base+15+g.rng.IntN(15), 95)
-	case "Cloudy", "Partly Cloudy", "Overcast":
+	case ConditionCloudy, ConditionPartlyCloudy, ConditionOvercast:
 		return base + g.rng.IntN(15)
-	case "Sunny", "Clear", "Hot":
+	case ConditionSunny, ConditionClear, ConditionHot:
 		return max(base-20+g.rng.IntN(20), 10)
-	case "Dusty", "Hazy":
+	case ConditionDusty, ConditionHazy:
 		return max(base-30+g.rng.IntN(15), 5)
 	}
 	return base + g.rng.IntN(20) - 10
@@ -111,33 +111,33 @@ func calculateFeelsLike(temp, humidity int, windSpeed float64) int {
 
 // pressure starts from the elevation-corrected MSL pressure and
 // adjusts for the weather (low for storms, high for clear).
-func (g *reportGenerator) pressure(condition string) int {
+func (g *reportGenerator) pressure(condition Condition) int {
 	base := 1013 - g.coords.Elevation/8
 	switch condition {
-	case "Stormy", "Rainy":
+	case ConditionStormy, ConditionRainy:
 		base += -10 - g.rng.IntN(15)
-	case "Sunny", "Clear":
+	case ConditionSunny, ConditionClear:
 		base += 5 + g.rng.IntN(10)
-	case "Cloudy", "Partly Cloudy":
+	case ConditionCloudy, ConditionPartlyCloudy:
 		base += g.rng.IntN(10) - 5
 	}
 	return base
 }
 
-func (g *reportGenerator) visibility(condition string, humidity int) int {
+func (g *reportGenerator) visibility(condition Condition, humidity int) int {
 	var base int
 	switch condition {
-	case "Foggy", "Mist":
+	case ConditionFoggy:
 		base = g.rng.IntN(2) + 1
-	case "Rainy", "Snowy":
+	case ConditionRainy, ConditionSnowy:
 		base = 3 + g.rng.IntN(5)
-	case "Stormy", "Blizzard":
+	case ConditionStormy, ConditionBlizzard:
 		base = 1 + g.rng.IntN(3)
-	case "Dusty", "Hazy":
+	case ConditionDusty, ConditionHazy:
 		base = 2 + g.rng.IntN(6)
-	case "Cloudy":
+	case ConditionCloudy:
 		base = 8 + g.rng.IntN(7)
-	case "Sunny", "Clear":
+	case ConditionSunny, ConditionClear:
 		base = 15 + g.rng.IntN(35)
 	default:
 		base = 10 + g.rng.IntN(10)
@@ -148,17 +148,17 @@ func (g *reportGenerator) visibility(condition string, humidity int) int {
 	return max(1, base)
 }
 
-func (g *reportGenerator) cloudCover(condition string) int {
+func (g *reportGenerator) cloudCover(condition Condition) int {
 	switch condition {
-	case "Sunny", "Clear":
+	case ConditionSunny, ConditionClear:
 		return g.rng.IntN(15)
-	case "Partly Cloudy":
+	case ConditionPartlyCloudy:
 		return 25 + g.rng.IntN(35)
-	case "Cloudy", "Overcast":
+	case ConditionCloudy, ConditionOvercast:
 		return 75 + g.rng.IntN(25)
-	case "Rainy", "Snowy", "Stormy":
+	case ConditionRainy, ConditionSnowy, ConditionStormy:
 		return 90 + g.rng.IntN(10)
-	case "Foggy":
+	case ConditionFoggy:
 		return 100
 	}
 	return 40 + g.rng.IntN(40)
@@ -178,35 +178,35 @@ func calculateDewPoint(temp, humidity int) int {
 	return int(math.Round((b * alpha) / (a - alpha)))
 }
 
-func precipitationFor(condition string) bool {
+func precipitationFor(condition Condition) bool {
 	switch condition {
-	case "Rainy", "Snowy", "Stormy", "Blizzard", "Sleet", "Drizzle":
+	case ConditionRainy, ConditionSnowy, ConditionStormy, ConditionBlizzard, ConditionDrizzle:
 		return true
 	}
 	return false
 }
 
-func (g *reportGenerator) precipitation(condition string, temp int) *Precipitation {
+func (g *reportGenerator) precipitation(condition Condition, temp int) *Precipitation {
 	p := &Precipitation{}
 	switch {
 	case temp < 0:
-		p.Type = "snow"
+		p.Type = PrecipitationSnow
 	case temp < 3:
 		if g.rng.Float64() < 0.3 {
-			p.Type = "sleet"
+			p.Type = PrecipitationSleet
 		} else {
-			p.Type = "snow"
+			p.Type = PrecipitationSnow
 		}
 	default:
-		p.Type = "rain"
+		p.Type = PrecipitationRain
 	}
 
 	switch condition {
-	case "Stormy", "Blizzard":
+	case ConditionStormy, ConditionBlizzard:
 		p.Probability = 85 + g.rng.IntN(15)
-	case "Rainy", "Snowy":
+	case ConditionRainy, ConditionSnowy:
 		p.Probability = 60 + g.rng.IntN(30)
-	case "Drizzle":
+	case ConditionDrizzle:
 		p.Probability = 40 + g.rng.IntN(30)
 	default:
 		p.Probability = 30 + g.rng.IntN(40)
@@ -216,35 +216,35 @@ func (g *reportGenerator) precipitation(condition string, temp int) *Precipitati
 	}
 
 	switch condition {
-	case "Stormy":
+	case ConditionStormy:
 		p.Amount = 20.0 + g.rng.Float64()*40.0
-		p.Intensity = "heavy"
-	case "Rainy":
+		p.Intensity = PrecipitationHeavy
+	case ConditionRainy:
 		p.Amount = 5.0 + g.rng.Float64()*20.0
 		if p.Amount > 15 {
-			p.Intensity = "moderate"
+			p.Intensity = PrecipitationModerate
 		} else {
-			p.Intensity = "light"
+			p.Intensity = PrecipitationLight
 		}
-	case "Drizzle":
+	case ConditionDrizzle:
 		p.Amount = 0.5 + g.rng.Float64()*3.0
-		p.Intensity = "light"
-	case "Snowy", "Blizzard":
+		p.Intensity = PrecipitationLight
+	case ConditionSnowy, ConditionBlizzard:
 		p.Amount = 1.0 + g.rng.Float64()*10.0
-		if condition == "Blizzard" {
-			p.Intensity = "heavy"
+		if condition == ConditionBlizzard {
+			p.Intensity = PrecipitationHeavy
 		} else {
-			p.Intensity = "moderate"
+			p.Intensity = PrecipitationModerate
 		}
 	default:
 		p.Amount = g.rng.Float64() * 5.0
-		p.Intensity = "light"
+		p.Intensity = PrecipitationLight
 	}
 	p.Amount = math.Round(p.Amount*10) / 10
 	return p
 }
 
-func (g *reportGenerator) airQuality(condition string) *AirQuality {
+func (g *reportGenerator) airQuality(condition Condition) *AirQuality {
 	aq := &AirQuality{}
 	aqi := 50
 
@@ -253,11 +253,11 @@ func (g *reportGenerator) airQuality(condition string) *AirQuality {
 	}
 
 	switch condition {
-	case "Foggy", "Hazy":
+	case ConditionFoggy, ConditionHazy:
 		aqi += 40 + g.rng.IntN(30)
-	case "Rainy", "Stormy":
+	case ConditionRainy, ConditionStormy:
 		aqi -= 20 + g.rng.IntN(20)
-	case "Windy":
+	case ConditionWindy:
 		aqi -= 10 + g.rng.IntN(15)
 	}
 	if g.zone == zoneDesert {
@@ -267,22 +267,22 @@ func (g *reportGenerator) airQuality(condition string) *AirQuality {
 	aq.AQI = clamp(aqi, 0, 500)
 	switch {
 	case aq.AQI <= 50:
-		aq.Level = "Good"
+		aq.Level = AirQualityGood
 		aq.Description = "Air quality is satisfactory, and air pollution poses little or no risk."
 	case aq.AQI <= 100:
-		aq.Level = "Moderate"
+		aq.Level = AirQualityModerate
 		aq.Description = "Air quality is acceptable. There may be a risk for some people sensitive to air pollution."
 	case aq.AQI <= 150:
-		aq.Level = "Unhealthy for Sensitive Groups"
+		aq.Level = AirQualityUnhealthyForSensitiveGroups
 		aq.Description = "Members of sensitive groups may experience health effects."
 	case aq.AQI <= 200:
-		aq.Level = "Unhealthy"
+		aq.Level = AirQualityUnhealthy
 		aq.Description = "Some members of the general public may experience health effects."
 	case aq.AQI <= 300:
-		aq.Level = "Very Unhealthy"
+		aq.Level = AirQualityVeryUnhealthy
 		aq.Description = "Health alert: the risk of health effects is increased for everyone."
 	default:
-		aq.Level = "Hazardous"
+		aq.Level = AirQualityHazardous
 		aq.Description = "Health warning of emergency conditions: everyone is more likely to be affected."
 	}
 
@@ -292,7 +292,7 @@ func (g *reportGenerator) airQuality(condition string) *AirQuality {
 	return aq
 }
 
-func (g *reportGenerator) uvIndex(condition string, cloudCover int) UVIndex {
+func (g *reportGenerator) uvIndex(condition Condition, cloudCover int) UVIndex {
 	absLat := math.Abs(g.coords.Latitude)
 	latitudeFactor := 1.0 - absLat/90.0
 	var seasonFactor float64
@@ -308,11 +308,11 @@ func (g *reportGenerator) uvIndex(condition string, cloudCover int) UVIndex {
 	value := int(11.0 * latitudeFactor * seasonFactor)
 	value -= int(float64(cloudCover) * 0.08)
 	switch condition {
-	case "Sunny", "Clear":
+	case ConditionSunny, ConditionClear:
 		value += 1 + g.rng.IntN(2)
-	case "Cloudy", "Overcast":
+	case ConditionCloudy, ConditionOvercast:
 		value -= 2 + g.rng.IntN(2)
-	case "Rainy", "Stormy":
+	case ConditionRainy, ConditionStormy:
 		value -= 4 + g.rng.IntN(3)
 	}
 	value = clamp(value, 0, 11)
@@ -320,19 +320,19 @@ func (g *reportGenerator) uvIndex(condition string, cloudCover int) UVIndex {
 	uv := UVIndex{Value: value}
 	switch {
 	case value <= 2:
-		uv.Level = "Low"
+		uv.Level = UVLow
 		uv.Description = "No protection required. You can safely stay outside."
 	case value <= 5:
-		uv.Level = "Moderate"
+		uv.Level = UVModerate
 		uv.Description = "Seek shade during midday hours. Wear sunscreen and a hat."
 	case value <= 7:
-		uv.Level = "High"
+		uv.Level = UVHigh
 		uv.Description = "Protection essential. Seek shade during midday hours."
 	case value <= 10:
-		uv.Level = "Very High"
+		uv.Level = UVVeryHigh
 		uv.Description = "Extra protection needed. Avoid sun exposure during midday."
 	default:
-		uv.Level = "Extreme"
+		uv.Level = UVExtreme
 		uv.Description = "Take all precautions. Unprotected skin will burn quickly."
 	}
 	return uv

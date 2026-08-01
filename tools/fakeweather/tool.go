@@ -29,7 +29,7 @@ type Response struct {
 	Coordinates    Coordinates      `json:"coordinates"`
 	Timestamp      TimeRange        `json:"timestamp"`
 	Temperature    Temperature      `json:"temperature"`
-	Condition      string           `json:"condition"`
+	Condition      Condition        `json:"condition"`
 	Description    string           `json:"description"`
 	Humidity       int              `json:"humidity"`
 	Pressure       int              `json:"pressure"`    // hPa
@@ -76,27 +76,27 @@ type Wind struct {
 
 // Precipitation describes liquid/solid water expected for the day.
 type Precipitation struct {
-	Type        string  `json:"type"`        // rain, snow, sleet
-	Probability int     `json:"probability"` // 0-100
-	Amount      float64 `json:"amount"`      // mm
-	Intensity   string  `json:"intensity"`   // light, moderate, heavy
+	Type        PrecipitationType      `json:"type"`        // rain, snow, sleet
+	Probability int                    `json:"probability"` // 0-100
+	Amount      float64                `json:"amount"`      // mm
+	Intensity   PrecipitationIntensity `json:"intensity"`   // light, moderate, heavy
 }
 
 // AirQuality is the AQI + breakdown.
 type AirQuality struct {
-	AQI         int    `json:"aqi"`
-	Level       string `json:"level"`
-	PM25        int    `json:"pm2_5"`
-	PM10        int    `json:"pm10"`
-	Ozone       int    `json:"ozone"`
-	Description string `json:"description"`
+	AQI         int             `json:"aqi"`
+	Level       AirQualityLevel `json:"level"`
+	PM25        int             `json:"pm2_5"`
+	PM10        int             `json:"pm10"`
+	Ozone       int             `json:"ozone"`
+	Description string          `json:"description"`
 }
 
 // UVIndex per WHO levels (0-11+).
 type UVIndex struct {
-	Value       int    `json:"value"`
-	Level       string `json:"level"`
-	Description string `json:"description"`
+	Value       int     `json:"value"`
+	Level       UVLevel `json:"level"`
+	Description string  `json:"description"`
 }
 
 // Astronomy holds sun + moon data, all times in HH:MM (location's local
@@ -118,23 +118,23 @@ type TimeRange struct {
 
 // HourlyForecast is one hour of the 24-hour breakdown.
 type HourlyForecast struct {
-	Time          int64   `json:"time"`
-	Temperature   int     `json:"temperature"`
-	Condition     string  `json:"condition"`
-	Precipitation float64 `json:"precipitation"`
-	Humidity      int     `json:"humidity"`
-	WindSpeed     float64 `json:"wind_speed"`
+	Time          int64     `json:"time"`
+	Temperature   int       `json:"temperature"`
+	Condition     Condition `json:"condition"`
+	Precipitation float64   `json:"precipitation"`
+	Humidity      int       `json:"humidity"`
+	WindSpeed     float64   `json:"wind_speed"`
 }
 
 // Alert is a synthesized weather alert (heat, cold, wind, storm,
 // blizzard, typhoon).
 type Alert struct {
-	Type        string `json:"type"`
-	Severity    string `json:"severity"` // minor, moderate, severe, extreme
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	StartTime   int64  `json:"start_time"`
-	EndTime     int64  `json:"end_time"`
+	Type        AlertType     `json:"type"`
+	Severity    AlertSeverity `json:"severity"` // moderate, severe, extreme
+	Title       string        `json:"title"`
+	Description string        `json:"description"`
+	StartTime   int64         `json:"start_time"`
+	EndTime     int64         `json:"end_time"`
 }
 
 var _ toolcontract.Tool = (*Tool)(nil)

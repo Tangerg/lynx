@@ -127,7 +127,7 @@ func identifyClimateZone(location string) climateZone {
 // candidateConditions returns the list of weather conditions that are
 // plausible for the given (mean temp, month, zone, seasonal pattern).
 // The caller picks one uniformly at random.
-func candidateConditions(temp int, month int, zone climateZone, seasonal seasonalPattern) []string {
+func candidateConditions(temp int, month int, zone climateZone, seasonal seasonalPattern) []Condition {
 	isSummer := month >= 6 && month <= 8
 	isWinter := month == 12 || month <= 2
 	isRainy := seasonal.monsoonInfluence && monthInRange(month, seasonal.rainyStart, seasonal.rainyEnd)
@@ -135,63 +135,63 @@ func candidateConditions(temp int, month int, zone climateZone, seasonal seasona
 	switch zone {
 	case zoneTropical:
 		if isRainy {
-			return []string{"Rainy", "Stormy", "Partly Cloudy", "Humid", "Drizzle"}
+			return []Condition{ConditionRainy, ConditionStormy, ConditionPartlyCloudy, ConditionHumid, ConditionDrizzle}
 		}
-		return []string{"Partly Cloudy", "Humid", "Sunny", "Rainy"}
+		return []Condition{ConditionPartlyCloudy, ConditionHumid, ConditionSunny, ConditionRainy}
 
 	case zoneDesert:
 		if temp > 38 {
-			return []string{"Sunny", "Hot", "Clear", "Dusty", "Hazy"}
+			return []Condition{ConditionSunny, ConditionHot, ConditionClear, ConditionDusty, ConditionHazy}
 		}
-		return []string{"Sunny", "Clear", "Partly Cloudy", "Dusty"}
+		return []Condition{ConditionSunny, ConditionClear, ConditionPartlyCloudy, ConditionDusty}
 
 	case zoneMediterranean:
 		if isSummer {
-			return []string{"Sunny", "Clear", "Hot", "Partly Cloudy"}
+			return []Condition{ConditionSunny, ConditionClear, ConditionHot, ConditionPartlyCloudy}
 		}
-		return []string{"Rainy", "Cloudy", "Partly Cloudy", "Clear", "Drizzle"}
+		return []Condition{ConditionRainy, ConditionCloudy, ConditionPartlyCloudy, ConditionClear, ConditionDrizzle}
 
 	case zonePolar:
 		if temp < -15 {
-			return []string{"Snowy", "Blizzard", "Cloudy", "Freezing", "Clear"}
+			return []Condition{ConditionSnowy, ConditionBlizzard, ConditionCloudy, ConditionFreezing, ConditionClear}
 		}
-		return []string{"Snowy", "Cloudy", "Clear", "Cold", "Overcast"}
+		return []Condition{ConditionSnowy, ConditionCloudy, ConditionClear, ConditionCold, ConditionOvercast}
 
 	case zoneContinental:
 		switch {
 		case temp < -5:
-			return []string{"Snowy", "Cloudy", "Clear", "Cold", "Blizzard"}
+			return []Condition{ConditionSnowy, ConditionCloudy, ConditionClear, ConditionCold, ConditionBlizzard}
 		case temp > 28 && isSummer:
-			return []string{"Sunny", "Hot", "Stormy", "Partly Cloudy", "Clear"}
+			return []Condition{ConditionSunny, ConditionHot, ConditionStormy, ConditionPartlyCloudy, ConditionClear}
 		}
-		return []string{"Sunny", "Partly Cloudy", "Cloudy", "Clear", "Rainy"}
+		return []Condition{ConditionSunny, ConditionPartlyCloudy, ConditionCloudy, ConditionClear, ConditionRainy}
 
 	case zoneOceanic:
 		if isWinter {
-			return []string{"Rainy", "Cloudy", "Drizzle", "Overcast", "Foggy"}
+			return []Condition{ConditionRainy, ConditionCloudy, ConditionDrizzle, ConditionOvercast, ConditionFoggy}
 		}
-		return []string{"Partly Cloudy", "Cloudy", "Sunny", "Rainy", "Clear"}
+		return []Condition{ConditionPartlyCloudy, ConditionCloudy, ConditionSunny, ConditionRainy, ConditionClear}
 
 	case zoneAlpine:
 		if temp < 5 {
-			return []string{"Snowy", "Cloudy", "Clear", "Cold", "Windy"}
+			return []Condition{ConditionSnowy, ConditionCloudy, ConditionClear, ConditionCold, ConditionWindy}
 		}
-		return []string{"Partly Cloudy", "Sunny", "Clear", "Cloudy", "Rainy"}
+		return []Condition{ConditionPartlyCloudy, ConditionSunny, ConditionClear, ConditionCloudy, ConditionRainy}
 	}
 
 	// zoneTemperate (default)
 	switch {
 	case temp < 0:
-		return []string{"Snowy", "Cloudy", "Clear", "Cold", "Freezing"}
+		return []Condition{ConditionSnowy, ConditionCloudy, ConditionClear, ConditionCold, ConditionFreezing}
 	case temp < 10:
-		return []string{"Cloudy", "Clear", "Rainy", "Foggy", "Drizzle"}
+		return []Condition{ConditionCloudy, ConditionClear, ConditionRainy, ConditionFoggy, ConditionDrizzle}
 	case temp < 25:
-		return []string{"Sunny", "Partly Cloudy", "Cloudy", "Clear", "Mild"}
+		return []Condition{ConditionSunny, ConditionPartlyCloudy, ConditionCloudy, ConditionClear, ConditionMild}
 	}
 	if isSummer {
-		return []string{"Sunny", "Partly Cloudy", "Rainy", "Stormy", "Hot"}
+		return []Condition{ConditionSunny, ConditionPartlyCloudy, ConditionRainy, ConditionStormy, ConditionHot}
 	}
-	return []string{"Sunny", "Hot", "Partly Cloudy", "Clear"}
+	return []Condition{ConditionSunny, ConditionHot, ConditionPartlyCloudy, ConditionClear}
 }
 
 // monthInRange returns whether month falls within the inclusive
