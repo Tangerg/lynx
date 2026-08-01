@@ -11,6 +11,10 @@ import (
 	"strings"
 )
 
+// nullPatchPath is the unified-diff sentinel for a missing file endpoint. It
+// is patch syntax, not an operating-system path to open or validate.
+const nullPatchPath = "/dev/null"
+
 type unifiedPatch struct {
 	files []filePatch
 }
@@ -52,21 +56,21 @@ type filePatch struct {
 }
 
 func (p filePatch) path() string {
-	if p.newPath != "" && p.newPath != "/dev/null" {
+	if p.newPath != "" && p.newPath != nullPatchPath {
 		return p.newPath
 	}
 	return p.oldPath
 }
 
-func (p filePatch) created() bool { return p.oldPath == "/dev/null" }
-func (p filePatch) deleted() bool { return p.newPath == "/dev/null" }
+func (p filePatch) created() bool { return p.oldPath == nullPatchPath }
+func (p filePatch) deleted() bool { return p.newPath == nullPatchPath }
 
 // moved reports the fourth shape: both headers name a real file and they differ,
 // so the content is read at oldPath, patched, and lands at newPath while oldPath
 // goes away. It is the one shape whose two endpoints are different files.
 func (p filePatch) moved() bool {
 	return p.oldPath != "" && p.newPath != "" &&
-		p.oldPath != "/dev/null" && p.newPath != "/dev/null" &&
+		p.oldPath != nullPatchPath && p.newPath != nullPatchPath &&
 		p.oldPath != p.newPath
 }
 
@@ -88,12 +92,12 @@ func (p filePatch) validate() error {
 	if len(p.hunks) == 0 && !p.moved() {
 		return errors.New("fs.ApplyPatch: file patch has no hunks")
 	}
-	if p.oldPath != "/dev/null" {
+	if p.oldPath != nullPatchPath {
 		if err := validatePatchPath(p.oldPath); err != nil {
 			return err
 		}
 	}
-	if p.newPath != "/dev/null" {
+	if p.newPath != nullPatchPath {
 		if err := validatePatchPath(p.newPath); err != nil {
 			return err
 		}
@@ -237,14 +241,14 @@ func (t patchTarget) locks() []string {
 
 func (l *LocalExecutor) resolveTarget(file filePatch) (patchTarget, error) {
 	var target patchTarget
-	if file.oldPath != "/dev/null" {
+	if file.oldPath != nullPatchPath {
 		from, err := l.resolve(file.oldPath)
 		if err != nil {
 			return patchTarget{}, err
 		}
 		target.from = from
 	}
-	if file.newPath != "/dev/null" {
+	if file.newPath != nullPatchPath {
 		to, err := l.resolve(file.newPath)
 		if err != nil {
 			return patchTarget{}, err
@@ -495,7 +499,7 @@ func parseRange(s string, prefix byte) (start, count int, err error) {
 }
 
 func cleanPatchPath(path string) string {
-	if path == "/dev/null" {
+	if path == nullPatchPath {
 		return path
 	}
 	if before, _, ok := strings.Cut(path, "\t"); ok {
