@@ -61,7 +61,10 @@ func main() {
 		if err != nil {
 			return Brief{}, fmt.Errorf("get prompt: %w", err)
 		}
-		systemMessages := lynxmcp.PromptMessagesToChat(result.Messages)
+		systemMessages, err := lynxmcp.PromptMessagesToChat(result.Messages)
+		if err != nil {
+			return Brief{}, fmt.Errorf("convert MCP prompt messages: %w", err)
+		}
 		var systemPrompt strings.Builder
 		for index := range systemMessages {
 			systemPrompt.WriteString(systemMessages[index].Text())
