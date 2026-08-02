@@ -149,7 +149,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
           title={t("message.code.expand")}
           className={FOLD_TOGGLE}
         >
-          <Icon name="code" size={12} />
+          <Icon name="code" size="xs" />
           <span>{t("message.code.showLines", { count: lineCount })}</span>
         </Pressable>
       ) : (
@@ -168,7 +168,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
               title={t("message.code.collapse")}
               className={FOLD_TOGGLE}
             >
-              <Icon name="minimize" size={12} />
+              <Icon name="minimize" size="xs" />
               <span>{t("message.code.collapseLabel")}</span>
             </Pressable>
           )}

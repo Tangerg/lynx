@@ -31,7 +31,7 @@ function ScheduleActionButton({
   return (
     <IconButton
       icon={icon}
-      iconSize={13}
+      iconSize="sm"
       size="sm"
       quiet
       aria-label={label}

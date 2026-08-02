@@ -52,7 +52,7 @@ const FileRow = memo(function FileRow({
         row.active && "bg-selected",
       )}
     >
-      <Icon name="file" size={12} className="shrink-0" />
+      <Icon name="file" size="xs" className="shrink-0" />
       <span className={cn("shrink-0 text-ui-2xs font-semibold", row.tag.className)}>
         {row.tag.letter}
       </span>

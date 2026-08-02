@@ -72,14 +72,7 @@ export function AgentRow({
         className,
       )}
     >
-      {icon && (
-        <Icon
-          name={icon}
-          size={14}
-          strokeWidth={1.8}
-          className={cn("shrink-0 text-fg/95", iconClassName)}
-        />
-      )}
+      {icon && <Icon name={icon} size="sm" className={cn("shrink-0 text-fg/95", iconClassName)} />}
       <span className="min-w-0 flex-1 truncate">{children}</span>
       {trailing && <span className={cn(action && RESTING_GLYPH)}>{trailing}</span>}
     </Button>

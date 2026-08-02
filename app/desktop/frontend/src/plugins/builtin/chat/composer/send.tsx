@@ -37,7 +37,7 @@ function SendButton() {
   const stopButton = (primary: boolean) => (
     <IconButton
       icon="stop"
-      iconSize={12}
+      iconSize="xs"
       press={false}
       disabled={!stop}
       title={t("composer.action.stop")}
@@ -49,7 +49,7 @@ function SendButton() {
   const submitButton = (label: string, enabled: boolean) => (
     <IconButton
       icon="arrow-up"
-      iconSize={18}
+      iconSize="md"
       press={false}
       disabled={!enabled}
       title={label}

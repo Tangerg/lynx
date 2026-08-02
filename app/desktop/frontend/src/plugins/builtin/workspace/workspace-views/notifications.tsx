@@ -26,7 +26,7 @@ function NotificationsTab() {
       sub={notificationsSubtext(t, view)}
       scrollClassName="py-1"
       actions={
-        <IconButton icon="x" iconSize={14} title={t("notifications.clearAll")} onClick={clearAll} />
+        <IconButton icon="x" iconSize="sm" title={t("notifications.clearAll")} onClick={clearAll} />
       }
     >
       {view.isEmpty && (
@@ -72,7 +72,7 @@ function NotificationRow({ level, message, plugin, timestamp, dismissed, onDismi
         </div>
       </div>
       {!dismissed && (
-        <IconButton icon="x" iconSize={12} title={t("notifications.dismiss")} onClick={onDismiss} />
+        <IconButton icon="x" iconSize="xs" title={t("notifications.dismiss")} onClick={onDismiss} />
       )}
     </div>
   );

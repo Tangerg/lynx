@@ -32,12 +32,12 @@ export function Checkbox({ checked, onCheckedChange, label, disabled, className 
         onCheckedChange={onCheckedChange}
         disabled={disabled}
         className={cn(
-          "grid h-[18px] w-[18px] shrink-0 place-items-center rounded-2xs border-[var(--control-edge-width)] border-field bg-canvas transition-colors duration-[var(--dur-fast)]",
+          "grid h-[18px] w-[18px] shrink-0 place-items-center rounded-2xs border-[length:var(--control-edge-width)] border-field bg-canvas transition-colors duration-[var(--dur-fast)]",
           "data-[checked]:border-accent data-[checked]:bg-accent",
         )}
       >
         <CheckboxPrimitive.Indicator>
-          <Icon name="check" size={12} strokeWidth={3} className="text-on-accent" />
+          <Icon name="check" size="xs" className="text-on-accent" />
         </CheckboxPrimitive.Indicator>
       </CheckboxPrimitive.Root>
       <span>{label}</span>

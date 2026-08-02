@@ -57,7 +57,7 @@ export function FileMentionPopup({ items, index, onPick, onHover }: Props) {
               i === index ? "bg-selected" : "hover:bg-hover",
             )}
           >
-            <Icon name="filetext" size={13} className="shrink-0 text-fg-muted" />
+            <Icon name="filetext" size="sm" className="shrink-0 text-fg-muted" />
             <span className="truncate font-mono text-ui-md">
               <span className="text-fg-faint">{dir}</span>
               <span className="font-medium text-fg">{name}</span>

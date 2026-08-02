@@ -35,7 +35,7 @@ export function WelcomeScreen() {
                 >
                   <Icon
                     name={suggestion.icon as IconName}
-                    size={14}
+                    size="sm"
                     className="shrink-0 text-fg-muted"
                   />
                   <span>{t(suggestion.labelKey)}</span>
@@ -68,7 +68,7 @@ function SetupCard() {
   return (
     <Surface className="w-full text-left">
       <div className="flex items-start gap-3">
-        <Icon name="spark" size={16} className="mt-0.5 shrink-0 text-accent" />
+        <Icon name="spark" size="md" className="mt-0.5 shrink-0 text-accent" />
         <div className="flex flex-col items-start gap-2">
           <div className="text-balance text-ui-lg font-semibold text-fg">
             {t("welcome.setup.title")}
@@ -77,7 +77,7 @@ function SetupCard() {
             {t("welcome.setup.sub")}
           </p>
           <PillButton variant="solid" onClick={onConfigure} className="mt-0.5 font-semibold">
-            <Icon name="settings" size={13} />
+            <Icon name="settings" size="sm" />
             {t("welcome.setup.action")}
           </PillButton>
         </div>

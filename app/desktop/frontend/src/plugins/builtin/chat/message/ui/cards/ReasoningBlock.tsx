@@ -176,7 +176,7 @@ export function ReasoningBlock({ text, status }: Props) {
           <MarkdownMessage text={text} streaming={streaming} />
           {status === "incomplete" && (
             <div className="mt-1 font-mono text-ui-sm text-fg-faint">
-              <Icon name="x" size={10} /> {t("reasoning.interrupted")}
+              <Icon name="x" size="xs" /> {t("reasoning.interrupted")}
             </div>
           )}
         </div>

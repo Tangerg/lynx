@@ -60,7 +60,7 @@ export function VerticalTabs({
                   value={item.id}
                   className="flex h-[var(--control-height-md)] items-center gap-2.5 rounded-[var(--button-radius)] border-0 bg-transparent px-2.5 text-left font-sans text-ui-lg leading-none text-fg transition-[background-color] duration-[var(--dur-fast)] ease-out hover:bg-hover focus-visible:outline-none data-[active]:bg-selected"
                 >
-                  {item.icon && <Icon name={item.icon} size={15} className="shrink-0" />}
+                  {item.icon && <Icon name={item.icon} size="md" className="shrink-0" />}
                   <span className="truncate">{item.label}</span>
                 </TabsPrimitive.Tab>
               ))}

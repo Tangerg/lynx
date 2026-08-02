@@ -372,7 +372,7 @@
   --color-text-bright: #000000;
   --color-text-soft: #4d4d4d;
   --color-text-muted: #686868;
-  --color-text-faint: #747474;
+  --color-text-faint: #6f6f6f;
   --color-text-on-accent: #ffffff;
   /* Ink on a solid `--color-warning` fill (the active search hit). Amber is
      light in both schemes, so this stays dark where on-accent flips. */
@@ -403,19 +403,22 @@
      colors above these are NOT re-emitted per theme (no kit entry) — they live
      here as constants. Distinct from --color-negative/-success on purpose: the
      tints are softer, tuned for large-area 7% row fills rather than punchy
-     status marks. Alphas are pre-baked per role (row tint / sign+meta /
+     status marks. The TINTS are genuinely scheme-independent — a 7% wash reads on
+     either canvas — but `-meta` and `-code` are INK, and ink cannot be: a near-white
+     green was unreadable on the light tint it sat on (1.36:1), so those two pairs
+     are declared per scheme below. Alphas are pre-baked per role (row tint / sign+meta /
      word-level intra-line tint) mirroring the --color-text-N step tokens; -code
      is the near-solid code foreground. Raw vars consumed via var() (not Tailwind
      utilities) because the intra-line tint is injected as inline CSS into
      Shiki-highlighted HTML. */
   --color-diff-added-tint: rgba(30, 215, 96, 0.07);
-  --color-diff-added-meta: rgba(95, 227, 154, 0.7);
+  --color-diff-added-meta: #2f7d4f;
   --color-diff-added-word: rgba(30, 215, 96, 0.3);
-  --color-diff-added-code: #c8f5d8;
+  --color-diff-added-code: #14532d;
   --color-diff-deleted-tint: rgba(243, 114, 127, 0.07);
-  --color-diff-deleted-meta: rgba(243, 114, 127, 0.7);
+  --color-diff-deleted-meta: #a3323f;
   --color-diff-deleted-word: rgba(243, 114, 127, 0.3);
-  --color-diff-deleted-code: #f5cdd2;
+  --color-diff-deleted-code: #7f1d1d;
 
   /* Primary CTA — the inverting ink button (Vercel / ChatGPT): near-black on
      light, near-white on dark. Decoupled from --color-accent so accent stays
@@ -430,12 +433,26 @@
      Absolute px, NOT rem: geometry must not move when the type base moves —
      a rem ladder drags every padding/width along and makes fixed chrome heights
      (header, rows) impossible to hold. */
-  --fs-ui-2xs: 9px;
-  --fs-ui-xs: 10px;
-  --fs-ui-sm: 11px;
-  --fs-ui-md: 12px;
-  --fs-ui-lg: 13px;
-  --fs-code: 11px;
+  --fs-ui-2xs: 11px;
+  --fs-ui-xs: 12px;
+  --fs-ui-sm: 13px;
+  --fs-ui-md: 14px;
+  --fs-ui-lg: 15px;
+  --fs-code: 13px;
+
+  /* Icon ladder — first-paint defaults for the same base as the type ladder;
+     applyFonts recomputes both together (lib/iconScale.ts). Stroke is in
+     Lucide's 24-unit viewBox, derived per size to hold one on-screen weight. */
+  --icon-xs: 12px;
+  --icon-stroke-xs: 2;
+  --icon-sm: 14px;
+  --icon-stroke-sm: 1.89;
+  --icon-md: 16px;
+  --icon-stroke-md: 1.65;
+  --icon-lg: 20px;
+  --icon-stroke-lg: 1.32;
+  --icon-xl: 28px;
+  --icon-stroke-xl: 1.25;
 
   /* 600 is the Geist heading weight — hierarchy via size + weight contrast. */
   --fw-regular: 400;
@@ -609,6 +626,13 @@
   /* Internal chrome dividers (header bottoms, pane splits) sit a step more
      transparent than the seam so they recede behind it. */
   --app-surface-divider: color-mix(in srgb, var(--color-border) 60%, transparent);
+  /* How a pane that splits a region it is INSIDE separates from its sibling.
+     A whole box-shadow rather than a colour, because the two ways to divide are
+     not two colours: a hairline (`inset 1px 0 0`) and a cast (`inset 22px 0 30px
+     -26px`) are the same slot filled by different materials, and a style must be
+     able to pick either — or neither. */
+  --app-pane-split: inset 1px 0 0 0 var(--app-surface-divider);
+  --app-pane-split-end: inset -1px 0 0 0 var(--app-surface-divider);
   --app-content-surface: var(--color-bg);
   --app-content-shadow: -6.5px 0 12px -10px var(--seam-shadow-color);
   --app-content-ring: inset 0 0 0 1px var(--seam-line);
@@ -618,7 +642,7 @@
   --app-card-surface: var(--color-surface);
 
   /* Content max-width — the centered reading island. */
-  --content-max: 736px;
+  --content-max: 800px;
 }
 
 /* IMPORTANT: do not set `font-size` on <html>. It anchors `rem` for
@@ -844,14 +868,19 @@ html.theme-dark {
   --color-text: #f5f5f5;
   --color-text-bright: #ffffff;
   --color-text-soft: #a1a1a1;
-  --color-text-muted: #818181;
-  --color-text-faint: #7c7c7c;
+  --color-text-muted: #8a8a8a;
+  --color-text-faint: #7f7f7f;
   --color-text-on-accent: #ffffff;
   --color-text-on-warning: #000000;
 
   --color-border: rgb(255 255 255 / 0.04);
   --color-border-soft: rgb(255 255 255 / 0.1);
   --color-divider: rgb(255 255 255 / 0.03);
+
+  --color-diff-added-meta: rgba(95, 227, 154, 0.7);
+  --color-diff-added-code: #c8f5d8;
+  --color-diff-deleted-meta: rgba(243, 114, 127, 0.7);
+  --color-diff-deleted-code: #f5cdd2;
 
   --color-negative: #fc0035;
   --color-warning: #ffc543;
@@ -1276,16 +1305,18 @@ html[data-region-layout]:not([data-region-layout="floating-card"]) .agent-conten
    next. The pane keeps its region's fill: with a hairline doing the dividing, a
    second surface value would read as a third region that isn't there. */
 .agent-pane-split {
-  box-shadow: inset 1px 0 0 0 var(--app-surface-divider);
+  box-shadow: var(--app-pane-split);
 }
 
 /* The same split when the pane is the LEADING one and the line belongs to its
    trailing edge (the settings rail). An attribute rather than a second class:
    which edge carries the line is a property of the pane, not a different kind of
    line — and the rail used to draw its own at a control-edge token, so the app
-   had two answers for one hairline. */
+   had two answers for one hairline. A separate token rather than a mirrored
+   calculation: an inset box-shadow cannot be flipped in CSS, and a style that
+   divides with a cast rather than a line needs to say both directions anyway. */
 .agent-pane-split[data-split-side="end"] {
-  box-shadow: inset -1px 0 0 0 var(--app-surface-divider);
+  box-shadow: var(--app-pane-split-end);
 }
 
 /* ---------- Context dock ---------- */

@@ -123,7 +123,7 @@ function CodebaseTab() {
           </PillButton>
           <IconButton
             icon="spark"
-            iconSize={13}
+            iconSize="sm"
             size="sm"
             quiet
             title={t("codebase.reindex")}

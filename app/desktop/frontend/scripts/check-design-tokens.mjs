@@ -54,6 +54,16 @@ const MARKUP_RULES = [
     message: "hand-picked edge alpha — use `border-field` / `border-field-strong`",
   },
   {
+    // A width token in the border utility's ambiguous slot. Tailwind cannot tell a
+    // length from a colour inside a bare `var()`, so it resolves the slot to
+    // colour — and thirteen controls silently lost their edge for a day, because
+    // an invalid `border-color` leaves the width at its default zero. The
+    // `length:` hint is the only thing that makes the intent decidable.
+    pattern: /(?<![\w-])(?:[a-z-]+:)*border(?:-[trbl]{1,2})?-\[var\(--(?!.*edge-color)/g,
+    message:
+      "ambiguous border utility — a width token needs the `length:` hint, or it compiles to border-color",
+  },
+  {
     pattern: /(?<![\w-])(?:[a-z-]+:)*rounded(?:-[trbl]{1,2})?-\[[\d.]+(?:px|rem)\]/g,
     message: "arbitrary corner radius — use a `rounded-*` step",
   },

@@ -34,7 +34,7 @@ const c = {
   inkMuted: "#686868",
   // The quietest readable text rung still clears 4.5:1 on both canvas and
   // surface. Hierarchy comes from size/weight/placement, not illegible ink.
-  inkFaint: "#747474",
+  inkFaint: "#6f6f6f",
 
   // Hairlines ARE the separation mechanism here, so they are tuned low: the seam
   // ring and the chrome divider both derive from `border`, and anything heavier
@@ -71,10 +71,10 @@ export default defineColorThemePlugin({
     divider: c.hairTertiary,
   },
   semantic: {
-    negative: "#ea001d", // red-800
+    negative: "#d1001a", // red-800, darkened to clear 4.5:1 as text on a recessed fill
     warning: "#ffa600", // amber-600
     info: "#006bff", // blue-700
-    success: "#28a948", // green-700
+    success: "#187635", // green-800; #28a948 could not reach 4.5:1 as text on any light surface
   },
   // Primary CTA — inverting ink-on-white. Hover goes pure black.
   cta: {

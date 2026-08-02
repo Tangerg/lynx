@@ -30,7 +30,7 @@ export function BannerAction({
       onClick={onClick}
       disabled={disabled}
     >
-      {icon && <Icon name={icon} size={11} />}
+      {icon && <Icon name={icon} size="xs" />}
       <span>{label}</span>
     </Button>
   );

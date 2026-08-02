@@ -54,7 +54,7 @@ function TaskRow({ task }: { task: TaskReadoutTask }) {
       <div className="flex items-center gap-2">
         <Icon
           name={name}
-          size={11}
+          size="xs"
           className={cn(tone, task.status === "running" && "animate-pulse-dot")}
         />
         <span className="flex-1 truncate text-ui-md font-semibold text-fg">{task.label}</span>

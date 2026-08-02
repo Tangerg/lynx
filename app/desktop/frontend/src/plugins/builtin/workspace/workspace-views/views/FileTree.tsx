@@ -41,13 +41,13 @@ function TreeNode({ entry, cwd, depth, selectedPath, onSelectFile }: NodeProps) 
         {isDir ? (
           <Icon
             name="chevron-down"
-            size={12}
+            size="xs"
             className={cn("shrink-0 transition-transform", !expanded && "-rotate-90")}
           />
         ) : (
           <span className="w-3 shrink-0" />
         )}
-        <Icon name={isDir ? "folder" : "file"} size={13} className="shrink-0" />
+        <Icon name={isDir ? "folder" : "file"} size="sm" className="shrink-0" />
         <span className="truncate">{entry.name}</span>
       </Pressable>
       {isDir && expanded && (

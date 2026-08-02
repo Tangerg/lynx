@@ -68,7 +68,7 @@ export function VisualShellFixture({ state }: { state: VisualWorkIndexState }) {
           <div className="panel-scroll flex min-h-0 flex-1">
             <div className="m-auto flex max-w-[520px] flex-col items-center px-8 text-center">
               <span className="grid h-10 w-10 place-items-center rounded-full bg-surface-2 text-fg-muted">
-                <Icon name="spark" size={18} strokeWidth={1.7} />
+                <Icon name="spark" size="md" />
               </span>
               <h1 className="mt-4 text-display-lg font-semibold leading-tight text-fg">
                 {copy.title}

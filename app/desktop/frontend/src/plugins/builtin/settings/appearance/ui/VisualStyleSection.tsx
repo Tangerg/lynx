@@ -78,7 +78,7 @@ export function VisualStyleSection() {
               aria-pressed={active}
               onClick={() => setVisualStyle(spec.id)}
               className={cn(
-                "group min-w-0 rounded-[var(--surface-card-radius)] border-[var(--control-edge-width)] p-2",
+                "group min-w-0 rounded-[var(--surface-card-radius)] border-[length:var(--control-edge-width)] p-2",
                 "transition-[background-color,border-color,scale] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
                 "hover:bg-hover active:scale-[var(--press-scale)]",
                 active ? "border-accent bg-accent-wash" : "border-field bg-transparent",
@@ -89,7 +89,7 @@ export function VisualStyleSection() {
                 <span className="min-w-0 flex-1 truncate text-ui-md font-medium text-fg">
                   {spec.label}
                 </span>
-                {active && <Icon name="check" size={12} className="shrink-0 text-accent" />}
+                {active && <Icon name="check" size="xs" className="shrink-0 text-accent" />}
               </span>
             </Pressable>
           );

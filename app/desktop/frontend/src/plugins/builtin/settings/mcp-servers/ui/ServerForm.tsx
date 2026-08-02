@@ -286,12 +286,12 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
 
         {probe.state === "ok" && (
           <span className="inline-flex items-center gap-1 text-ui-md text-success">
-            <Icon name="check" size={13} /> {t("mcp.connectionOk")}
+            <Icon name="check" size="sm" /> {t("mcp.connectionOk")}
           </span>
         )}
         {probe.state === "error" && (
           <span className="inline-flex min-w-0 items-center gap-1 text-ui-md text-negative">
-            <Icon name="alert" size={13} />
+            <Icon name="alert" size="sm" />
             <span className="truncate" title={probe.reason}>
               {probe.reason}
             </span>

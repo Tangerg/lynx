@@ -14,7 +14,7 @@
 
 import type { Highlighter } from "shiki";
 
-const THEMES = ["github-dark", "github-light"] as const;
+const THEMES = ["github-dark", "github-light-high-contrast"] as const;
 
 const LANGS = [
   "typescript",

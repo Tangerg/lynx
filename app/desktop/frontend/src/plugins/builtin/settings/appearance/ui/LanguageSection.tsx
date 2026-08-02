@@ -24,11 +24,11 @@ export function LanguageSection() {
           (8 entries today, more via plugins) doesn't fit a single row. */}
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
-          className="inline-flex min-h-[var(--field-height-md)] w-fit min-w-[180px] items-center justify-between gap-2 rounded-[var(--field-radius)] border-[var(--control-edge-width)] border-field bg-surface-2 px-3 py-1.5 text-ui-lg font-medium text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3"
+          className="inline-flex min-h-[var(--field-height-md)] w-fit min-w-[180px] items-center justify-between gap-2 rounded-[var(--field-radius)] border-[length:var(--control-edge-width)] border-field bg-surface-2 px-3 py-1.5 text-ui-lg font-medium text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3"
           aria-label={t("settings.language.label")}
         >
           <span>{active.label}</span>
-          <Icon name="more" size={11} className="text-fg-faint -rotate-90" />
+          <Icon name="more" size="xs" className="text-fg-faint -rotate-90" />
         </DropdownMenu.Trigger>
         <DropdownMenu.Content align="start" sideOffset={4} className="min-w-[180px]">
           {locales.map((l) => (
@@ -39,7 +39,7 @@ export function LanguageSection() {
             >
               <span className="truncate">{l.label}</span>
               {locale === l.id ? (
-                <Icon name="check" size={12} className="text-accent" />
+                <Icon name="check" size="xs" className="text-accent" />
               ) : (
                 <span aria-hidden />
               )}

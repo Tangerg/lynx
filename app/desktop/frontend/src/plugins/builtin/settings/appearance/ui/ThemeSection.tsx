@@ -84,7 +84,7 @@ function ThemeItem({
     <DropdownMenu.Item className="grid-cols-[24px_minmax(0,1fr)_14px]" onClick={onSelect}>
       {swatch}
       <span className="truncate text-ui-lg text-fg">{label}</span>
-      {active ? <Icon name="check" size={13} className="text-accent" /> : <span aria-hidden />}
+      {active ? <Icon name="check" size="sm" className="text-accent" /> : <span aria-hidden />}
     </DropdownMenu.Item>
   );
 }
@@ -106,12 +106,12 @@ export function ThemeSection() {
     <SettingRow label={t("settings.theme")} sub={t("settings.theme.sub")}>
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
-          className="inline-flex min-h-[var(--field-height-md)] w-fit min-w-[220px] items-center gap-2.5 rounded-[var(--field-radius)] border-[var(--control-edge-width)] border-field bg-surface-2 px-3 py-1.5 text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3"
+          className="inline-flex min-h-[var(--field-height-md)] w-fit min-w-[220px] items-center gap-2.5 rounded-[var(--field-radius)] border-[length:var(--control-edge-width)] border-field bg-surface-2 px-3 py-1.5 text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3"
           aria-label={t("settings.theme")}
         >
           {triggerSwatch}
           <span className="flex-1 truncate text-left text-ui-lg font-medium">{triggerLabel}</span>
-          <Icon name="more" size={11} className="-rotate-90 text-fg-faint" />
+          <Icon name="more" size="xs" className="-rotate-90 text-fg-faint" />
         </DropdownMenu.Trigger>
         <DropdownMenu.Content
           align="start"

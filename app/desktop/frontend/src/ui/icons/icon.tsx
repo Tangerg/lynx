@@ -1,24 +1,26 @@
 import type { LucideIcon } from "lucide-react";
 import type { CSSProperties } from "react";
+import type { IconSize } from "@/lib/iconScale";
 import {
-  AlertTriangle,
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  Bell,
   Book,
   Bot,
-  Bell,
   Bug,
   ChartColumn,
   Check,
-  Clock,
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  CircleHelp,
+  Clock,
   Code,
   Command,
   Copy,
   Download,
+  Ellipsis,
   Eye,
   File,
   FileDiff,
@@ -30,15 +32,13 @@ import {
   GitBranch,
   GitFork,
   Globe,
-  History,
   Image as ImageIcon,
+  History,
   List,
   Maximize2,
-  MessageCircleQuestion,
   MessageSquare,
   Minimize2,
   Moon,
-  MoreHorizontal,
   PanelLeft,
   PanelRight,
   Pause,
@@ -55,13 +55,14 @@ import {
   SkipForward,
   Sparkle,
   Sparkles,
-  Star,
-  ThumbsDown,
-  ThumbsUp,
   Square,
+  Star,
   Sun,
   Terminal,
+  ThumbsDown,
+  ThumbsUp,
   Trash2,
+  TriangleAlert,
   User,
   Wrench,
   X,
@@ -77,7 +78,7 @@ import {
 //   - sane defaults (24x24 viewBox, currentColor stroke, rounded ends)
 //   - consistent stroke width without hand-tuning each path
 //
-// Plugins consume the app icon vocabulary (<Icon name="search" size={14} />)
+// Plugins consume the app icon vocabulary (<Icon name="search" size="sm" />)
 // instead of depending on lucide component names directly.
 
 export type IconName =
@@ -164,7 +165,10 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   file: File,
   filetext: FileText,
   send: Send,
-  "send-arrow": Send,
+  // The composer sends with an upward arrow, not a paper plane: the plane is the
+  // "compose a message" affordance, and using it for both made two different
+  // actions wear one glyph.
+  "send-arrow": ArrowUp,
   stop: Square,
   play: Play,
   pause: Pause,
@@ -172,7 +176,7 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   sun: Sun,
   moon: Moon,
   share: Share2,
-  more: MoreHorizontal,
+  more: Ellipsis,
   x: X,
   check: Check,
   branch: GitBranch,
@@ -215,34 +219,47 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   "arrow-left": ArrowLeft,
   "arrow-up": ArrowUp,
   trash: Trash2,
-  alert: AlertTriangle,
+  alert: TriangleAlert,
   eye: Eye,
   "file-plus": FilePlus,
   "folder-search": FolderSearch,
   download: Download,
   bot: Bot,
-  question: MessageCircleQuestion,
+  question: CircleHelp,
   star: Star,
 };
 
 interface Props {
   name: IconName;
-  size?: number;
-  strokeWidth?: number;
+  /** A step on the icon ladder (`lib/iconScale.ts`). Defaults to a glyph sized for
+   *  body text. Numeric sizes are deliberately not accepted: they are how the app
+   *  ended up with eleven of them. */
+  size?: IconSize;
   style?: CSSProperties;
   className?: string;
 }
 
-export function Icon({ name, size = 16, strokeWidth = 2, style, className }: Props) {
+/**
+ * One glyph at one of the five ladder sizes.
+ *
+ * Geometry rides CSS custom properties rather than props so a change to the user's
+ * base size reaches every glyph without re-rendering anything, and so stroke width
+ * stays paired with the size that derives it — the two must move together or the
+ * on-screen weight drifts, which is the failure this ladder exists to end.
+ */
+export function Icon({ name, size = "sm", style, className }: Props) {
   const Glyph = ICON_MAP[name];
   if (!Glyph) return null;
   return (
     <Glyph
-      size={size}
-      strokeWidth={strokeWidth}
-      style={style}
-      className={className}
       aria-hidden="true"
+      className={className}
+      style={{
+        width: `var(--icon-${size})`,
+        height: `var(--icon-${size})`,
+        strokeWidth: `var(--icon-stroke-${size})`,
+        ...style,
+      }}
     />
   );
 }

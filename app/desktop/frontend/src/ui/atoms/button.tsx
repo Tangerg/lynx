@@ -17,7 +17,7 @@ import { ButtonPrimitive, type ButtonPrimitiveProps } from "@/ui/primitives";
 const buttonStyles = cva(
   [
     "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap",
-    "border-[var(--control-edge-width)] border-transparent font-sans font-medium leading-none outline-none",
+    "border-[length:var(--control-edge-width)] border-transparent font-sans font-medium leading-none outline-none",
     "transition-[background-color,border-color,color,scale] duration-[var(--dur-fast)] ease-out",
     "disabled:cursor-not-allowed disabled:opacity-64 disabled:active:scale-100",
     "[&_svg:not([class*='opacity-'])]:opacity-80",

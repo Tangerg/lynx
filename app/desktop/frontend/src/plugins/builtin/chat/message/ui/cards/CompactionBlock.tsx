@@ -33,12 +33,12 @@ export function CompactionBlock({
             aria-expanded={open}
             className="inline-flex items-center gap-1 transition-colors hover:text-fg-muted"
           >
-            <Icon name={open ? "chevron-up" : "chevron-down"} size={12} />
+            <Icon name={open ? "chevron-up" : "chevron-down"} size="xs" />
             <span>{label}</span>
           </TextButton>
         ) : (
           <span className="inline-flex items-center gap-1">
-            <Icon name="minimize" size={12} />
+            <Icon name="minimize" size="xs" />
             <span>{label}</span>
           </span>
         )}

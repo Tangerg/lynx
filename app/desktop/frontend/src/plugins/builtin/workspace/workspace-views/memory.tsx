@@ -62,7 +62,7 @@ function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: strin
       >
         <Icon
           name="chevron-down"
-          size={12}
+          size="xs"
           className={cn("text-fg-faint transition-transform", !open && "-rotate-90")}
         />
         <span className="truncate font-mono text-ui-md text-fg">{row.path}</span>

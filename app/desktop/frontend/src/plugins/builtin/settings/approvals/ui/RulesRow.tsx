@@ -95,7 +95,7 @@ export function RulesRow() {
                   </span>
                   <IconButton
                     icon="x"
-                    iconSize={13}
+                    iconSize="sm"
                     size="xs"
                     quiet
                     className="shrink-0"

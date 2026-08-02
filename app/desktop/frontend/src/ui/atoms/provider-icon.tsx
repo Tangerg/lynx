@@ -19,6 +19,7 @@ import Ollama from "@lobehub/icons/es/Ollama/components/Mono";
 import OpenAI from "@lobehub/icons/es/OpenAI/components/Mono";
 import Qwen from "@lobehub/icons/es/Qwen/components/Mono";
 import Zhipu from "@lobehub/icons/es/Zhipu/components/Mono";
+import type { IconSize } from "@/lib/iconScale";
 import { Icon } from "@/ui/icons";
 
 type BrandIcon = ComponentType<{ size?: number }>;
@@ -42,8 +43,21 @@ const BRAND: Record<string, BrandIcon> = {
   zhipu: Zhipu,
 };
 
-export function ProviderIcon({ provider, size = 16 }: { provider: string; size?: number }) {
+export function ProviderIcon({ provider, size = "md" }: { provider: string; size?: IconSize }) {
   const Brand = BRAND[provider.toLowerCase()];
-  if (Brand) return <Brand size={size} />;
+  // A brand mark is a filled logo, not a stroked glyph, so it takes the ladder's
+  // box but none of its stroke. The box comes from the custom property rather than
+  // a number because these sit inline with labels that follow the user's base size.
+  if (Brand) {
+    return (
+      <span
+        aria-hidden
+        className="inline-grid shrink-0 place-items-center [&>svg]:size-full"
+        style={{ width: `var(--icon-${size})`, height: `var(--icon-${size})` }}
+      >
+        <Brand size={0} />
+      </span>
+    );
+  }
   return <Icon name="spark" size={size} />;
 }

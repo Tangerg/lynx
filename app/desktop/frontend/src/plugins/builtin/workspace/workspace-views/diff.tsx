@@ -69,7 +69,7 @@ function FileCard({
         )}
         <Icon
           name="chevron-down"
-          size={14}
+          size="sm"
           className={cn("shrink-0 opacity-50 transition-transform", collapsed && "-rotate-90")}
         />
       </Pressable>

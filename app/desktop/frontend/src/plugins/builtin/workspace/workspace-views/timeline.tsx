@@ -68,7 +68,7 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
   const icon = KIND_ICON[entry.kind];
   return (
     <div className="flex items-start gap-2.5 px-3.5 py-1.5">
-      <Icon name={icon} size={12} className="mt-1 shrink-0 text-fg-faint" />
+      <Icon name={icon} size="xs" className="mt-1 shrink-0 text-fg-faint" />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className="shrink-0 text-ui-sm font-medium text-fg">
@@ -113,7 +113,7 @@ function TimelineRunHeader({ group }: { group: TimelineRunGroup }) {
   const child = parentRunId !== null;
   return (
     <div className="flex min-h-10 items-center gap-2 rounded-md bg-surface-2 pl-3">
-      <Icon name={child ? "bot" : "branch"} size={13} className="shrink-0 text-fg-muted" />
+      <Icon name={child ? "bot" : "branch"} size="sm" className="shrink-0 text-fg-muted" />
       <div className="min-w-0 flex-1 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="shrink-0 text-ui-sm font-semibold text-fg">
@@ -182,7 +182,7 @@ function TimelineTab() {
       actions={
         <IconButton
           icon="chat"
-          iconSize={14}
+          iconSize="sm"
           title={t("timeline.jumpToChat")}
           onClick={selectWorkspaceChat}
         />

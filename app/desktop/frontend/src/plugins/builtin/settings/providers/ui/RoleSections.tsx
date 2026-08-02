@@ -75,7 +75,7 @@ export function UtilityModelSection() {
             >
               {isSet && selected ? (
                 <>
-                  <ProviderIcon provider={selected.provider} size={14} />
+                  <ProviderIcon provider={selected.provider} size="sm" />
                   <span className="max-w-[160px] truncate font-mono text-ui-sm">
                     {selected.label}
                   </span>
@@ -83,7 +83,7 @@ export function UtilityModelSection() {
               ) : (
                 <span className="text-fg-muted">{t("providers.utility.main")}</span>
               )}
-              <Icon name="chevron-down" size={10} className="text-fg-muted" />
+              <Icon name="chevron-down" size="xs" className="text-fg-muted" />
             </Button>
           }
         />
@@ -95,7 +95,7 @@ export function UtilityModelSection() {
           <DropdownMenu.Item onClick={() => void pick(null)} className={itemClass}>
             <span />
             <span className="truncate">{t("providers.utility.main")}</span>
-            {!isSet && <Icon name="check" size={12} className="text-accent" />}
+            {!isSet && <Icon name="check" size="xs" className="text-accent" />}
           </DropdownMenu.Item>
           {modelOptions.map((m) => (
             <DropdownMenu.Item
@@ -103,10 +103,10 @@ export function UtilityModelSection() {
               onClick={() => void pick({ provider: m.provider, model: m.id })}
               className={itemClass}
             >
-              <ProviderIcon provider={m.provider} size={16} />
+              <ProviderIcon provider={m.provider} size="md" />
               <span className="truncate">{m.label}</span>
               {role?.provider === m.provider && role?.model === m.id && (
-                <Icon name="check" size={12} className="text-accent" />
+                <Icon name="check" size="xs" className="text-accent" />
               )}
             </DropdownMenu.Item>
           ))}
@@ -154,13 +154,13 @@ export function EmbeddingModelSection() {
             >
               {isSet && role?.provider ? (
                 <>
-                  <ProviderIcon provider={role.provider} size={14} />
+                  <ProviderIcon provider={role.provider} size="sm" />
                   <span className="max-w-[160px] truncate font-mono text-ui-sm">{role.model}</span>
                 </>
               ) : (
                 <span className="text-fg-muted">{t("providers.embedding.off")}</span>
               )}
-              <Icon name="chevron-down" size={10} className="text-fg-muted" />
+              <Icon name="chevron-down" size="xs" className="text-fg-muted" />
             </Button>
           }
         />
@@ -172,16 +172,16 @@ export function EmbeddingModelSection() {
           <DropdownMenu.Item onClick={() => void pick(null)} className={itemClass}>
             <span />
             <span className="truncate">{t("providers.embedding.off")}</span>
-            {!isSet && <Icon name="check" size={12} className="text-accent" />}
+            {!isSet && <Icon name="check" size="xs" className="text-accent" />}
           </DropdownMenu.Item>
           {capableProviders.map((p) => (
             <DropdownMenu.Item key={p.id} onClick={() => void pick(p)} className={itemClass}>
-              <ProviderIcon provider={p.id} size={16} />
+              <ProviderIcon provider={p.id} size="md" />
               <span className="truncate">
                 {p.id}
                 {p.defaultEmbeddingModel ? ` · ${p.defaultEmbeddingModel}` : ""}
               </span>
-              {role?.provider === p.id && <Icon name="check" size={12} className="text-accent" />}
+              {role?.provider === p.id && <Icon name="check" size="xs" className="text-accent" />}
             </DropdownMenu.Item>
           ))}
         </DropdownMenu.Content>

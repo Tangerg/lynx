@@ -66,7 +66,7 @@ function FullViewBar({ icon, title, sub, actions, titleStrong }: ViewHeaderProps
           collapseLabel={t("sidebar.action.collapse")}
         />
       )}
-      <Icon name={icon} size={15} strokeWidth={1.8} className="shrink-0 text-fg-muted" />
+      <Icon name={icon} size="md" className="shrink-0 text-fg-muted" />
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span
           className={cn(

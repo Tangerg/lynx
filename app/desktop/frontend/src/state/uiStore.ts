@@ -76,10 +76,10 @@ export const useUiStore = create<UiState & UiActions>()(
   persist(
     (set) => ({
       theme: "light",
-      visualStyle: "synara",
+      visualStyle: "lyra",
       accent: "#006bff",
       customTheme: { bg: "#0f1117", fg: "#e6e8ee" },
-      contrast: 60,
+      contrast: 25,
       uiFont: "",
       codeFont: "",
       fontSize: null,
@@ -116,7 +116,7 @@ export const useUiStore = create<UiState & UiActions>()(
     {
       name: "lyra.ui",
       storage: createJSONStorage(() => localStorage),
-      version: 9,
+      version: 10,
       merge: (persisted, current) => {
         if (persisted === undefined) return current;
         const parsed = uiPersistSchema.safeParse(persisted);

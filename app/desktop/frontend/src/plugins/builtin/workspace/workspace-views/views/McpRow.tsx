@@ -67,7 +67,7 @@ function McpAuthGuide({ server }: { server: string }) {
   return (
     <div className="flex items-center gap-2 px-4 pb-3 pl-[68px]">
       <TextButton onClick={openConfig}>
-        <Icon name="settings" size={13} />
+        <Icon name="settings" size="sm" />
         {t("tools.auth.configure", { server })}
       </TextButton>
     </div>
@@ -91,7 +91,7 @@ export function McpRow({ server }: { server: MCPServerSummary }) {
             server.status === "failed" && "bg-negative-wash text-negative",
           )}
         >
-          <Icon name={server.icon as IconName} size={15} />
+          <Icon name={server.icon as IconName} size="md" />
         </div>
         {/* The name/desc block is the expand toggle (a nested button inside a
             row-button would be invalid HTML — IconButton sits beside it). */}
@@ -118,7 +118,7 @@ export function McpRow({ server }: { server: MCPServerSummary }) {
         </div>
         <IconButton
           icon="loop"
-          iconSize={13}
+          iconSize="sm"
           title={t("tools.reconnect")}
           disabled={connecting || server.status === "disabled"}
           onClick={() => reconnectMCPServer(t, server.id)}

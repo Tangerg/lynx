@@ -12,7 +12,7 @@ export function PreviewFoot({ label, onClick }: { label: string; onClick?: () =>
   return (
     <div className="mt-2 pt-1.5 text-right">
       <Button variant="ghost" size="xs" onClick={onClick}>
-        {t(label)} <Icon name="share" size={11} />
+        {t(label)} <Icon name="share" size="xs" />
       </Button>
     </div>
   );

@@ -64,7 +64,7 @@ function AddDockViewMenu({
               aria-label={t("dock.action.browse")}
               className="data-[popup-open]:bg-selected data-[popup-open]:text-fg"
             >
-              <Icon name="plus" size={14} strokeWidth={1.8} />
+              <Icon name="plus" size="sm" />
             </Button>
           }
         />
@@ -90,12 +90,11 @@ function AddDockViewMenu({
                 >
                   <Icon
                     name={viewIcon(destination.icon) ?? "panel-r"}
-                    size={14}
-                    strokeWidth={1.7}
+                    size="sm"
                     className="text-fg-muted"
                   />
                   <span className="truncate">{t(destination.title)}</span>
-                  {isOpen ? <Icon name="check" size={12} className="text-accent" /> : <span />}
+                  {isOpen ? <Icon name="check" size="xs" className="text-accent" /> : <span />}
                 </DropdownMenu.Item>
               );
             })}
@@ -186,7 +185,7 @@ export function ChatPanel({ onSend }: Props) {
                   collapseLabel={t("sidebar.action.collapse")}
                 />
               )}
-              <Icon name="sparkle" size={14} strokeWidth={1.7} className="shrink-0 text-fg-muted" />
+              <Icon name="sparkle" size="sm" className="shrink-0 text-fg-muted" />
               <span className="min-w-0 max-w-[420px] truncate text-ui-lg font-normal text-fg">
                 {activeSession?.title || t("welcome.title")}
               </span>

@@ -24,7 +24,7 @@ export function MessageActionButton({ role, className, ...props }: MessageAction
   return (
     <IconButton
       {...props}
-      iconSize={13}
+      iconSize="sm"
       size="sm"
       quiet
       className={cn(role === "user" ? "rounded-full" : "rounded-md", className)}

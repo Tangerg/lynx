@@ -78,7 +78,7 @@ export function AgentActivityDisclosure({
             aria-hidden
             className={cn("grid size-4 shrink-0 place-items-center", TONE_CLASS[tone])}
           >
-            {leading ?? (icon ? <Icon name={icon} size={13} /> : null)}
+            {leading ?? (icon ? <Icon name={icon} size="sm" /> : null)}
           </span>
           <span className="min-w-0 truncate text-ui-md font-medium text-fg">{label}</span>
           {detail != null && (
@@ -92,7 +92,7 @@ export function AgentActivityDisclosure({
           )}
           <Icon
             name="chevron-down"
-            size={12}
+            size="xs"
             className={cn(
               "shrink-0 text-fg-faint transition-transform duration-[var(--dur-fast)]",
               !open && "-rotate-90",

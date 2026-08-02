@@ -1,7 +1,22 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const THEMES = ["light", "dark"] as const;
 const SIDEBAR_STATES = ["expanded", "collapsed"] as const;
+
+/** The pixel value `--app-content-card-radius` resolves to, measured by letting the
+ *  engine compute it on a throwaway element. Reading the custom property directly
+ *  returns its unevaluated `calc()`, which is not what a radius assertion can
+ *  compare against. */
+function declaredCardRadius(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.borderTopLeftRadius = "var(--app-content-card-radius)";
+    document.body.append(probe);
+    const radius = getComputedStyle(probe).borderTopLeftRadius;
+    probe.remove();
+    return radius;
+  });
+}
 
 for (const theme of THEMES) {
   for (const sidebar of SIDEBAR_STATES) {
@@ -15,9 +30,14 @@ for (const theme of THEMES) {
 
       await expect(root).toHaveClass(new RegExp(`theme-${theme}`));
       await expect(page.getByTestId("sidebar-state")).toHaveText(sidebar);
+      // Resolved from the token rather than written as a number: the corner is the
+      // active visual style's to declare, and a literal here would assert one
+      // style's shape against every other one. What the shell owns — and what this
+      // guards — is that the card squares off with nothing left to be rounded
+      // against.
       await expect(contentCard).toHaveCSS(
         "border-top-left-radius",
-        sidebar === "expanded" ? "14.4px" : "0px",
+        sidebar === "expanded" ? await declaredCardRadius(page) : "0px",
       );
       await expect(composer).toHaveCSS("border-top-width", "1px");
       await expect(page).toHaveScreenshot(`foundation-${theme}-${sidebar}.png`);

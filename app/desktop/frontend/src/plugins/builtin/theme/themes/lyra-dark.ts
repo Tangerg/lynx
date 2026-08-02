@@ -23,10 +23,10 @@ const c = {
   inkBright: "#ffffff",
   ink: "#f5f5f5",
   inkSoft: "#a1a1a1",
-  inkMuted: "#818181",
+  inkMuted: "#8a8a8a",
   // The quietest readable text rung still clears 4.5:1 on both canvas and
   // surface. Hierarchy comes from size/weight/placement, not illegible ink.
-  inkFaint: "#7c7c7c",
+  inkFaint: "#7f7f7f",
 
   // Hairlines — very low alpha. The seam ring derives from `border`, and on a
   // near-black surface even 10% white reads as a drawn line rather than an edge.

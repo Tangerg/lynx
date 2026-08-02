@@ -47,7 +47,7 @@ export function CommandPalette() {
     >
       <Command className="animate-rise-in relative z-[1] flex w-full max-w-[640px] flex-col overflow-hidden rounded-lg bg-canvas shadow-[var(--shadow-popover)]">
         <div className="flex items-center gap-2.5 px-4 py-3 text-fg-muted">
-          <Icon name="search" size={15} />
+          <Icon name="search" size="md" />
           <Command.Input
             value={query}
             onValueChange={setQuery}
@@ -75,7 +75,7 @@ export function CommandPalette() {
               className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-ui-lg text-fg hover:bg-hover aria-selected:bg-selected transition-colors"
             >
               {command.icon && (
-                <Icon name={command.icon as IconName} size={14} className="shrink-0 text-fg" />
+                <Icon name={command.icon as IconName} size="sm" className="shrink-0 text-fg" />
               )}
               <div className="flex min-w-0 flex-1 flex-col">
                 <div className="truncate font-medium">{t(command.label)}</div>
@@ -104,7 +104,7 @@ export function CommandPalette() {
                   }}
                   className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-ui-lg text-fg hover:bg-hover aria-selected:bg-selected transition-colors"
                 >
-                  <Icon name="chat" size={14} className="shrink-0 text-fg-faint" />
+                  <Icon name="chat" size="sm" className="shrink-0 text-fg-faint" />
                   <div className="min-w-0 flex-1 truncate font-medium">{session.title}</div>
                 </Command.Item>
               ))}

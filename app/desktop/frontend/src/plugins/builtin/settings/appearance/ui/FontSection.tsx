@@ -38,14 +38,14 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
         <DropdownMenu.Trigger
           disabled={!customEnabled}
           className={cn(
-            "inline-flex min-h-[var(--field-height-md)] w-fit min-w-[220px] max-w-[280px] items-center justify-between gap-2 rounded-[var(--field-radius)] border-[var(--control-edge-width)] border-field bg-surface-2 px-2.5 py-1.5 text-ui-lg text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3",
+            "inline-flex min-h-[var(--field-height-md)] w-fit min-w-[220px] max-w-[280px] items-center justify-between gap-2 rounded-[var(--field-radius)] border-[length:var(--control-edge-width)] border-field bg-surface-2 px-2.5 py-1.5 text-ui-lg text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3",
             "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface-2",
             mono && customEnabled && "font-mono text-ui-md",
           )}
           style={customEnabled ? { fontFamily: `"${value}"` } : undefined}
         >
           <span className="truncate">{triggerLabel}</span>
-          <Icon name="more" size={11} className="shrink-0 text-fg-faint -rotate-90" />
+          <Icon name="more" size="xs" className="shrink-0 text-fg-faint -rotate-90" />
         </DropdownMenu.Trigger>
         <DropdownMenu.Content
           align="start"
@@ -61,7 +61,7 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
             >
               <span className="truncate">{f}</span>
               {value === f ? (
-                <Icon name="check" size={12} className="text-accent" />
+                <Icon name="check" size="xs" className="text-accent" />
               ) : (
                 <span aria-hidden />
               )}

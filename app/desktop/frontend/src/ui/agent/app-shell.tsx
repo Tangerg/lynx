@@ -77,11 +77,26 @@ export function AgentAppShell({
     // visibility instead of coupling semantics to an animation duration or an
     // arbitrary timer.
     let frame = 0;
+    const region = sidebarOpen ? "expanded" : "collapsed";
     const focusOwner = () => {
-      const target = shellRef.current?.querySelector<HTMLButtonElement>(
+      const shell = shellRef.current;
+      // A newer toggle superseded this handoff. The termination condition is the
+      // intent going stale, not a frame budget: nothing here may depend on how
+      // many frames a commit or a transition happens to take.
+      if (shell?.dataset.sidebar !== region) return;
+      const target = shell.querySelector<HTMLButtonElement>(
         `[data-drawer-toggle][aria-expanded="${sidebarOpen ? "true" : "false"}"]`,
       );
-      if (!target) return;
+      // Absent is the same wait as invisible. The drawer's own header arrives in a
+      // later commit than the state flip that summons it, so giving up on a null
+      // query lost the handoff in exactly one direction — expanding, where the new
+      // owner is inside the subtree being mounted. Collapsing always worked because
+      // the card's toggle was already on screen, which is what made the bug look
+      // like flake rather than asymmetry.
+      if (!target) {
+        frame = requestAnimationFrame(focusOwner);
+        return;
+      }
       const style = getComputedStyle(target);
       if (style.display === "none" || style.visibility === "hidden") {
         frame = requestAnimationFrame(focusOwner);

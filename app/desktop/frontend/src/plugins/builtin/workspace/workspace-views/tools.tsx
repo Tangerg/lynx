@@ -96,7 +96,7 @@ function ToolsTab() {
               onClick={openMcpSettings}
               className="px-4 pt-3.5 pb-4.5 leading-body"
             >
-              <Icon name="settings" size={12} />
+              <Icon name="settings" size="xs" />
               {t("tools.footer")}
             </TextButton>
           </>

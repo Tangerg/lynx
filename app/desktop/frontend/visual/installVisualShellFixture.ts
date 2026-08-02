@@ -6,6 +6,7 @@ import {
   type AgentSessionSummary,
 } from "@/plugins/builtin/agent/public/session";
 import { sidebarFooter, sidebarNewSession, sidebarProjects } from "@/plugins/builtin/sidebar";
+import { builtinVisualStyles } from "@/plugins/builtin/theme/visualStyles";
 import lyraDark from "@/plugins/builtin/theme/themes/lyra-dark";
 import lyraLight from "@/plugins/builtin/theme/themes/lyra-light";
 import { installWorkspaceNavigationPort } from "@/plugins/builtin/workspace/adapters/navigationStatePort";
@@ -164,14 +165,20 @@ export async function installVisualShellFixture(
   });
   useUiStore.setState({
     theme,
+    visualStyle: "lyra",
     sidebarCollapsed: !sidebarOpen,
     sidebarWidth: 256,
   });
 
+  // The visual styles ship the shell's whole material vocabulary — region fills,
+  // seam, casts, radii, control heights. Without them registered the suite runs on
+  // the globals.css fallbacks, so every screenshot here would be of a skin the
+  // product never renders and no style regression could ever fail a test.
   for (const plugin of [
     dataProviderPlugin(state),
     lyraLight,
     lyraDark,
+    ...builtinVisualStyles,
     sidebarNewSession,
     sidebarProjects,
     sidebarFooter,

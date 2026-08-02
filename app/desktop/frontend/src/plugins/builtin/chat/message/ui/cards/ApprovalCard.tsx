@@ -104,7 +104,7 @@ export function ApprovalCard({
     return <HitlSettledRow label={t("approval.settled.approved")} />;
   }
   if (finalised === "declined") {
-    return <Divider icon={<Icon name="x" size={11} />}>{t("approval.settled.declined")}</Divider>;
+    return <Divider icon={<Icon name="x" size="xs" />}>{t("approval.settled.declined")}</Divider>;
   }
 
   // Pre-decision card. Buttons disabled when not resumable (decorative preview),
@@ -149,7 +149,7 @@ export function ApprovalCard({
       )}
       {dangers.length > 0 && (
         <div className="my-1.5 flex items-start gap-2 rounded-sm bg-negative-wash px-3 py-2 text-ui-md leading-body text-negative">
-          <Icon name="alert" size={13} className="mt-px shrink-0" />
+          <Icon name="alert" size="sm" className="mt-px shrink-0" />
           <span>
             <span className="font-semibold">{t("approval.danger")}</span>{" "}
             {dangers.map((key) => t(key)).join(" · ")}
@@ -189,7 +189,7 @@ export function ApprovalCard({
           ))}
           {target && (
             <span className="inline-flex items-center gap-1 rounded-sm bg-surface-2 px-1.5 py-px font-mono text-ui-sm text-fg-muted">
-              <Icon name="folder" size={10} className="text-fg-faint" />
+              <Icon name="folder" size="xs" className="text-fg-faint" />
               {target}
             </span>
           )}

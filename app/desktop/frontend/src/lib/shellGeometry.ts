@@ -9,8 +9,12 @@ export const SIDEBAR_DEFAULT_WIDTH_PX = 256;
 
 export const DOCK_MIN_WIDTH_PX = 300;
 /** One stable workspace width. Switching tabs must not make both reading
- *  columns jump; the live row clamp still protects chat on narrow windows. */
-export const DOCK_DEFAULT_WIDTH_PX = 520;
+ *  columns jump; the live row clamp still protects chat on narrow windows.
+ *
+ *  336 is where the three references land (Nova 336, Zed 320, JetBrains 300)
+ *  against a reading column of 768–820. The dock had been 520 against 736 — the
+ *  ratio inverted, with ~90px taken off the column people actually read. */
+export const DOCK_DEFAULT_WIDTH_PX = 336;
 
 /** Floor for the reading column. Enforced against the live window width, so the
  *  drawer's maximum shrinks with the window instead of being a fixed number. */

@@ -15,7 +15,7 @@ export function SettingsGroup({ className, children, ...props }: ComponentPropsW
       {...props}
       inset="none"
       className={cn(
-        "overflow-hidden border-[var(--control-edge-width)] border-field bg-transparent",
+        "overflow-hidden border-[length:var(--control-edge-width)] border-field bg-transparent",
         className,
       )}
     >

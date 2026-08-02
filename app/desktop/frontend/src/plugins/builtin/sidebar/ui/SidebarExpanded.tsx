@@ -25,7 +25,7 @@ export function SidebarExpanded() {
           collapseLabel={t("sidebar.action.collapse")}
         />
         <span className="min-w-2 flex-1" />
-        <Icon name="spark" size={14} strokeWidth={1.7} className="text-fg-faint" />
+        <Icon name="spark" size="sm" className="text-fg-faint" />
         <span className="sr-only">{t("common.appName")}</span>
       </AgentSurfaceHeader>
 

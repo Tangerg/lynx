@@ -61,7 +61,7 @@ export function SystemMessage({
           // h-[1lh] pins the icon box to one line's height so it aligns to the
           // first line of text, not the block's center, when copy wraps.
           <span className="flex h-[1lh] shrink-0 items-center justify-center">
-            <Icon name={iconName} size={15} />
+            <Icon name={iconName} size="md" />
           </span>
         )}
         <div className="min-w-0 flex-1 text-ui-lg">{children}</div>

@@ -32,7 +32,7 @@
           /* localStorage blocked, malformed JSON — keep the system default */
         }
         var root = document.documentElement;
-        root.dataset.visualStyle = state?.visualStyle || "synara";
+        root.dataset.visualStyle = state?.visualStyle || "lyra";
         root.classList.add("theme-" + scheme);
         // Paint the canvas colour on <html> BEFORE the CSS bundle parses, so a
         // cold boot opens straight into the app surface instead of flashing white.

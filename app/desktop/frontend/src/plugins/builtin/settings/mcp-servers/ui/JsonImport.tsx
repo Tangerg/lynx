@@ -32,7 +32,7 @@ export function JsonImport() {
   if (!open) {
     return (
       <TextButton onClick={() => setOpen(true)}>
-        <Icon name="download" size={13} />
+        <Icon name="download" size="sm" />
         {t("mcp.import")}
       </TextButton>
     );
@@ -54,7 +54,7 @@ export function JsonImport() {
       />
       {error && (
         <span className="inline-flex items-center gap-1 text-ui-md text-negative">
-          <Icon name="alert" size={13} />
+          <Icon name="alert" size="sm" />
           <span className="truncate" title={error}>
             {error}
           </span>

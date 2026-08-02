@@ -52,7 +52,7 @@ function TreeRows({
           key={`file:${node.path}`}
           depth={depth}
           selected={node.path === selectedPath}
-          leading={<Icon name="file" size={13} className="shrink-0 opacity-70" />}
+          leading={<Icon name="file" size="sm" className="shrink-0 opacity-70" />}
           label={node.name}
           onClick={() => onSelectFile(node.path)}
         />
@@ -67,7 +67,7 @@ function TreeRows({
           leading={
             <Icon
               name="chevron-down"
-              size={12}
+              size="xs"
               className={cn("shrink-0 transition-transform", !open && "-rotate-90")}
             />
           }

@@ -1,3 +1,4 @@
+import type { IconSize } from "@/lib/iconScale";
 import type { VariantProps } from "class-variance-authority";
 import { cva } from "class-variance-authority";
 import { cn } from "@/lib/classNames";
@@ -19,7 +20,7 @@ import {
 //           height, and a second one here would fight it.
 const EDGE = {
   boxed:
-    "rounded-[var(--field-radius)] border-[var(--control-edge-width)] border-field bg-canvas focus:border-field-strong",
+    "rounded-[var(--field-radius)] border-[length:var(--control-edge-width)] border-field bg-canvas focus:border-field-strong",
   bare: "border-0 bg-transparent",
 } as const;
 
@@ -118,7 +119,7 @@ const SEARCH_BOX = {
   lg: "h-[var(--field-height-lg)] gap-2 px-3",
 } as const;
 
-const SEARCH_GLYPH = { sm: 12, md: 13, lg: 15 } as const;
+const SEARCH_GLYPH: Record<keyof typeof SEARCH_BOX, IconSize> = { sm: "xs", md: "sm", lg: "md" };
 
 export type SearchFieldProps = Omit<TextFieldProps, "variant" | "invalid" | "size"> & {
   size?: keyof typeof SEARCH_BOX;
@@ -155,7 +156,7 @@ export function SearchField({
           aria-label={clearLabel}
           className="-mr-1 shrink-0"
         >
-          <Icon name="x" size={11} />
+          <Icon name="x" size="xs" />
         </Button>
       )}
     </label>

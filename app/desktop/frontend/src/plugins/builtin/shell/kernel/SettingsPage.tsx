@@ -142,7 +142,7 @@ function SettingsRailHeader({
           onClick={selectWorkspaceChat}
           className="mb-3 flex h-8 items-center gap-2 rounded-sm border-0 bg-transparent px-2 text-ui-lg font-medium text-fg-muted transition-[background-color,color] duration-[var(--dur-fast)] hover:bg-hover hover:text-fg focus-visible:bg-hover focus-visible:outline-none"
         >
-          <Icon name="arrow-left" size={15} strokeWidth={1.8} className="opacity-100" />
+          <Icon name="arrow-left" size="md" className="opacity-100" />
           <span>{t("settings.backToApp")}</span>
         </Button>
         <SearchField

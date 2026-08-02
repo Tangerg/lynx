@@ -20,7 +20,7 @@ const VARIANT_CLASS: Record<string, string> = {
 /** Settled "done" row — shared by approval (approved) + question (answered). */
 export function HitlSettledRow({ label }: { label: string }) {
   return (
-    <Divider icon={<Icon name="check" size={11} strokeWidth={3} />} intent="accent">
+    <Divider icon={<Icon name="check" size="xs" />} intent="accent">
       {label}
     </Divider>
   );
@@ -50,7 +50,7 @@ export function HitlCardShell({
   return (
     <div data-slot={slot} className={cn("my-2 rounded-lg p-3", VARIANT_CLASS[variant])}>
       <div className="mb-1.5 flex items-center gap-2 text-ui-md font-medium text-fg">
-        <Icon name={icon} size={13} className={iconClassName} />
+        <Icon name={icon} size="sm" className={iconClassName} />
         <span>{label}</span>
         {trailing != null && (
           <>

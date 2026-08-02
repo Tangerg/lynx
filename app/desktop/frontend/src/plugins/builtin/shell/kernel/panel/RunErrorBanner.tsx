@@ -111,7 +111,7 @@ export function RunErrorBanner() {
           transition={disclosureTransition}
           className="my-2.5 grid grid-cols-[auto_1fr_auto] items-start gap-2.5 rounded-lg bg-surface px-3 py-2.5 font-sans text-fg"
         >
-          <Icon name="alert" size={14} className="mt-0.5 text-negative" />
+          <Icon name="alert" size="sm" className="mt-0.5 text-negative" />
           <div className="min-w-0">
             <div className="mb-0.5 text-ui-md font-semibold text-negative">
               {t("runError.title")}
@@ -148,7 +148,7 @@ export function RunErrorBanner() {
           </div>
           <IconButton
             icon="x"
-            iconSize={12}
+            iconSize="xs"
             size="xs"
             quiet
             title={t("runError.action.dismiss")}

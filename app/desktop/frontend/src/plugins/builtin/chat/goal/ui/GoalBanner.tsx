@@ -95,7 +95,7 @@ function ActiveGoal({ goal, sessionId }: { goal: GoalReadModel; sessionId: strin
       className="mt-2 mb-1 overflow-hidden rounded-lg bg-surface"
     >
       <div className="flex items-start gap-2.5 px-3 py-2.5">
-        <Icon name="spark" size={15} className={cn("mt-px shrink-0", statusTone(goal.status))} />
+        <Icon name="spark" size="md" className={cn("mt-px shrink-0", statusTone(goal.status))} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-ui-lg leading-body text-fg">{goal.objective}</div>
           <div className="mt-0.5 flex items-center gap-2 text-ui-sm text-fg-muted">
@@ -156,7 +156,7 @@ function StartGoal({ sessionId }: { sessionId: string }) {
             "text-ui-md text-fg-faint transition-colors hover:bg-hover hover:text-fg-soft",
           )}
         >
-          <Icon name="spark" size={13} />
+          <Icon name="spark" size="sm" />
           {t("goal.setGoal")}
         </Button>
       </div>
@@ -204,7 +204,7 @@ function StartGoal({ sessionId }: { sessionId: string }) {
       className="mt-2 mb-1 flex flex-col gap-2 rounded-lg bg-surface p-3"
     >
       <div className="flex items-center gap-1.5 text-ui-md font-medium text-fg-soft">
-        <Icon name="spark" size={13} className="text-accent" />
+        <Icon name="spark" size="sm" className="text-accent" />
         {t("goal.startTitle")}
       </div>
       <TextArea

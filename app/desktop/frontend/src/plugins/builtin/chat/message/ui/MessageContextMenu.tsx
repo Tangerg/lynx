@@ -106,9 +106,9 @@ export function MessageContextMenu({ msg, children }: Props) {
             {menu.user.restore && (
               <ContextMenu.SubmenuRoot>
                 <ContextMenu.SubmenuTrigger className="grid-cols-[14px_minmax(0,1fr)_12px]">
-                  <Icon name="history" size={12} />
+                  <Icon name="history" size="xs" />
                   <span className="truncate">{t("msgActions.restore")}</span>
-                  <Icon name="chevron-down" size={12} className="-rotate-90 text-fg-faint" />
+                  <Icon name="chevron-down" size="xs" className="-rotate-90 text-fg-faint" />
                 </ContextMenu.SubmenuTrigger>
                 <ContextMenu.Content
                   side="right"

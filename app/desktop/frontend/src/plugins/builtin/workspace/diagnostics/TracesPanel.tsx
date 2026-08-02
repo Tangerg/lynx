@@ -84,7 +84,7 @@ function SpanRowItem({
         <span className="flex w-4 shrink-0 justify-center">
           <Icon
             name="chevron-down"
-            size={11}
+            size="xs"
             className={"text-fg-faint transition-transform " + (open ? "" : "-rotate-90")}
           />
         </span>

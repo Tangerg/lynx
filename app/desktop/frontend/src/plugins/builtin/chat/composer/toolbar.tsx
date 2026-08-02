@@ -63,9 +63,9 @@ function ModelPicker() {
             aria-label={t("composer.switchModel")}
             className="gap-1.5 whitespace-nowrap text-ui-lg text-fg-soft data-[popup-open]:bg-selected data-[popup-open]:text-fg"
           >
-            <ProviderIcon provider={selected.provider} size={14} />
+            <ProviderIcon provider={selected.provider} size="sm" />
             <span className="max-w-[168px] truncate">{selected.label}</span>
-            <Icon name="chevron-down" size={14} className="shrink-0 text-fg-faint" />
+            <Icon name="chevron-down" size="sm" className="shrink-0 text-fg-faint" />
           </Button>
         }
       />
@@ -76,10 +76,10 @@ function ModelPicker() {
             onClick={() => setModel(m.provider, m.id)}
             className="grid-cols-[16px_minmax(0,1fr)_14px] px-2"
           >
-            <ProviderIcon provider={m.provider} size={16} />
+            <ProviderIcon provider={m.provider} size="md" />
             <span className="truncate">{m.label}</span>
             {m.provider === selected.provider && m.id === selected.id && (
-              <Icon name="check" size={12} className="text-accent" />
+              <Icon name="check" size="xs" className="text-accent" />
             )}
           </DropdownMenu.Item>
         ))}
@@ -152,9 +152,9 @@ function ApprovalModePill() {
                 : "text-fg-soft hover:bg-hover hover:text-fg",
             )}
           >
-            <Icon name={full ? "alert" : "shield"} size={14} className="shrink-0 opacity-100" />
+            <Icon name={full ? "alert" : "shield"} size="sm" className="shrink-0 opacity-100" />
             <span className="max-w-[132px] truncate">{t(current.labelKey)}</span>
-            <Icon name="chevron-down" size={14} className="shrink-0 text-fg-faint opacity-100" />
+            <Icon name="chevron-down" size="sm" className="shrink-0 text-fg-faint opacity-100" />
           </Button>
         }
       />
@@ -169,7 +169,7 @@ function ApprovalModePill() {
               <span className="block text-ui-md font-semibold text-fg">{t(m.labelKey)}</span>
               <span className="block text-ui-sm leading-snug text-fg-muted">{t(m.descKey)}</span>
             </span>
-            {m.value === mode && <Icon name="check" size={12} className="mt-0.5 text-accent" />}
+            {m.value === mode && <Icon name="check" size="xs" className="mt-0.5 text-accent" />}
           </DropdownMenu.Item>
         ))}
       </DropdownMenu.Content>

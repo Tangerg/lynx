@@ -15,7 +15,7 @@
 // still move the base through the supported range; 12 is only the clean
 // first-paint and preference fallback, not a second fixed-size path.
 
-export const UI_FONT_SIZE_DEFAULT_PX = 12;
+export const UI_FONT_SIZE_DEFAULT_PX = 14;
 export const UI_FONT_SIZE_MIN_PX = 11;
 export const UI_FONT_SIZE_MAX_PX = 18;
 

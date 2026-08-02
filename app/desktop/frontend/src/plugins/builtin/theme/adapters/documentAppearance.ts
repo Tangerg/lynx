@@ -8,6 +8,7 @@ import {
   publishVisualStyleMotion,
 } from "@/lib/appearance";
 import { densityCssVariables } from "@/lib/density";
+import { iconScaleCssVariables } from "@/lib/iconScale";
 import { uiTypeLadderCssVariables } from "@/lib/typography";
 import { ACCENT, COLOR_THEME, VISUAL_STYLE } from "@/plugins/sdk/kernelPoints";
 import { usePluginStore } from "@/plugins/sdk/registry";
@@ -57,13 +58,12 @@ function applyColorTheme(theme: ColorThemeId, accent: string, contrast: number):
 
 function applyVisualStyle(id: VisualStyleId): void {
   const root = document.documentElement;
-  const spec =
-    lookupExtensionByKey(VISUAL_STYLE, id) ?? lookupExtensionByKey(VISUAL_STYLE, "synara");
+  const spec = lookupExtensionByKey(VISUAL_STYLE, id) ?? lookupExtensionByKey(VISUAL_STYLE, "lyra");
   const motionTokens = spec ? visualStyleMotionTokens(spec.motion) : {};
   appliedStyleTokens = replaceTokens(appliedStyleTokens, { ...spec?.tokens, ...motionTokens });
   if (spec) publishVisualStyleMotion(spec.motion);
-  root.dataset.visualStyle = spec?.id ?? "synara";
-  root.dataset.regionLayout = spec?.traits.regions ?? "floating-card";
+  root.dataset.visualStyle = spec?.id ?? "lyra";
+  root.dataset.regionLayout = spec?.traits.regions ?? "tonal-columns";
   root.dataset.controlTreatment = spec?.traits.controls ?? "quiet";
 }
 
@@ -113,7 +113,12 @@ function applyFonts(
     root.style.removeProperty("--font-mono");
   }
 
-  for (const [property, value] of Object.entries(uiTypeLadderCssVariables(fontSize))) {
+  // The icon ladder rides the same base: a glyph beside a label must grow with it,
+  // and its stroke is derived from the size it lands on.
+  for (const [property, value] of Object.entries({
+    ...uiTypeLadderCssVariables(fontSize),
+    ...iconScaleCssVariables(fontSize),
+  })) {
     root.style.setProperty(property, value);
   }
 }

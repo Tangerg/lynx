@@ -107,7 +107,7 @@ export function UsagePane() {
           <BreakdownSection
             title={t("usage.byProvider")}
             buckets={data.byProvider ?? []}
-            icon={(key) => <ProviderIcon provider={key} size={16} />}
+            icon={(key) => <ProviderIcon provider={key} size="md" />}
           />
           <BreakdownSection title={t("usage.byModel")} buckets={data.byModel ?? []} />
           <BreakdownSection title={t("usage.byDay")} buckets={data.byDay ?? []} />

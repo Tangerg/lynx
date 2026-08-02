@@ -41,7 +41,7 @@ function EnabledSchedulesPane() {
       ) : (
         <div className="flex justify-end">
           <PillButton variant="outlined" size="sm" onClick={() => setAdding(true)}>
-            <Icon name="plus" size={13} />
+            <Icon name="plus" size="sm" />
             {t("schedules.add")}
           </PillButton>
         </div>

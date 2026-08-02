@@ -17,7 +17,7 @@ export function RootRunOutcome() {
 
   if (outcome.type === "completed") {
     return (
-      <Divider icon={<Icon name="check" size={11} strokeWidth={3} />} intent="accent">
+      <Divider icon={<Icon name="check" size="xs" />} intent="accent">
         {t("agent.runOutcome.completed")}
       </Divider>
     );
@@ -25,7 +25,7 @@ export function RootRunOutcome() {
 
   if (outcome.type === "canceled") {
     return (
-      <Divider icon={<Icon name="stop" size={10} />}>
+      <Divider icon={<Icon name="stop" size="xs" />}>
         <span>
           {t("agent.runOutcome.canceled")}
           {outcome.detail && <span className="font-normal"> · {outcome.detail}</span>}
@@ -35,7 +35,7 @@ export function RootRunOutcome() {
   }
 
   return (
-    <Divider icon={<Icon name="alert" size={10} />}>
+    <Divider icon={<Icon name="alert" size="xs" />}>
       <span>
         {t(
           outcome.type === "maxSteps" ? "agent.runOutcome.maxSteps" : "agent.runOutcome.maxBudget",

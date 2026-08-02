@@ -45,7 +45,7 @@ export function EmptyState({ icon, title, sub, action, size, style }: Props) {
     <div className={root({ size })} style={style}>
       {icon && (
         <div className={iconWrap({ size })}>
-          <Icon name={icon} size={size === "compact" ? 16 : 22} />
+          <Icon name={icon} size={size === "compact" ? "md" : "lg"} />
         </div>
       )}
       <div

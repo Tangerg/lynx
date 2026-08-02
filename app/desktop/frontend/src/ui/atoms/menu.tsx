@@ -157,7 +157,7 @@ function ContextIconItem({
         className,
       )}
     >
-      <Icon name={icon} size={12} />
+      <Icon name={icon} size="xs" />
       <span className="truncate">{children}</span>
     </ContextItem>
   );

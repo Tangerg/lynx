@@ -30,6 +30,7 @@ const css = read("../src/styles/globals.css");
 const store = read("../src/state/uiStore.ts");
 const painter = read("../src/plugins/builtin/theme/adapters/documentAppearance.ts");
 const shell = read("../../main.go");
+const typography = read("../src/lib/typography.ts");
 
 const failures = [];
 
@@ -97,6 +98,42 @@ const shellHex =
 expect(
   shellHex !== null && canvasTokens.length === 2 && shellHex === canvasTokens[0],
   `main.go opens the window ${shellHex} where the light --color-bg is ${canvasTokens[0]}`,
+);
+
+// ── 6. The first-paint values of every runtime-derived ladder ─────────────────
+// globals.css restates the type ladder and the surface-depth step as literals so
+// the pre-hydration frame has something to draw with. Both are then recomputed
+// from a store default the moment JS runs, and neither restatement is checked by
+// anything — so `--depth-step` had drifted to 4% against a store default of 60,
+// which resolves to 6.8%. Every recessed fill was painted one value and repainted
+// 70% deeper, and the deeper one put semantic text below 4.5:1 contrast. Same
+// class of silent drift as the canvas colour above, one layer in.
+const typeDefault = Number(
+  typography.match(/UI_FONT_SIZE_DEFAULT_PX\s*=\s*(\d+)/)?.[1] ?? Number.NaN,
+);
+const stepRatios = [...typography.matchAll(/"(ui-[\da-z]+|code)":\s*\{\s*ratio:\s*([\d.]+)/g)];
+for (const [, step, ratio] of stepRatios) {
+  const declared = css.match(new RegExp(`--fs-${step}:\\s*(\\d+)px`))?.[1];
+  const derived = Math.round(typeDefault * Number(ratio));
+  expect(
+    declared !== undefined && Number(declared) === derived,
+    `globals.css paints --fs-${step} at ${declared}px, but base ${typeDefault} derives ${derived}px`,
+  );
+}
+
+const depthFormula = painter.match(
+  /--depth-step",\s*`\$\{\(([\d.]+)\s*\+\s*\(contrast\s*\/\s*100\)\s*\*\s*([\d.]+)\)/,
+);
+const contrastDefault = Number(store.match(/contrast:\s*([\d.]+)/)?.[1] ?? Number.NaN);
+const derivedDepth =
+  depthFormula &&
+  (Number(depthFormula[1]) + (contrastDefault / 100) * Number(depthFormula[2])).toFixed(1);
+const declaredDepth = css.match(/--depth-step:\s*([\d.]+)%/)?.[1];
+expect(
+  derivedDepth !== null &&
+    declaredDepth !== undefined &&
+    Number(declaredDepth) === Number(derivedDepth),
+  `globals.css paints --depth-step at ${declaredDepth}%, but contrast ${contrastDefault} derives ${derivedDepth}%`,
 );
 
 if (failures.length > 0) {

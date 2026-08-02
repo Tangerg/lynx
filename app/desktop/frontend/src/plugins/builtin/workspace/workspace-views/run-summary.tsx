@@ -94,7 +94,7 @@ function RunSummaryTab() {
       actions={
         <IconButton
           icon={copied ? "check" : "copy"}
-          iconSize={14}
+          iconSize="sm"
           title={t(copied ? "runSummary.copied" : "runSummary.copy")}
           onClick={onCopy}
         />
@@ -112,7 +112,7 @@ function RunSummaryTab() {
             key={f.path}
             className="flex items-baseline gap-2 font-mono text-ui-md text-fg-muted"
           >
-            <Icon name="filetext" size={11} className="text-fg-faint" />
+            <Icon name="filetext" size="xs" className="text-fg-faint" />
             <span className="truncate text-fg">{f.path}</span>
             {(f.added != null || f.removed != null) && (
               <span className="ml-auto text-ui-sm">
@@ -128,7 +128,7 @@ function RunSummaryTab() {
       <Section title="runSummary.section.readFiles" count={view.readFiles.count}>
         {view.readFiles.items.map((p) => (
           <div key={p} className="flex items-baseline gap-2 font-mono text-ui-md text-fg-muted">
-            <Icon name="filetext" size={11} className="text-fg-faint" />
+            <Icon name="filetext" size="xs" className="text-fg-faint" />
             <span className="truncate">{p}</span>
           </div>
         ))}
@@ -137,7 +137,7 @@ function RunSummaryTab() {
       <Section title="runSummary.section.commands" count={view.commands.count}>
         {view.commands.items.map((c, i) => (
           <div key={`${c.cmd}:${i}`} className="flex items-baseline gap-2 font-mono text-ui-md">
-            <Icon name="terminal" size={11} className="text-fg-faint" />
+            <Icon name="terminal" size="xs" className="text-fg-faint" />
             <span className={cn("truncate", runSummaryCommandTone(c.status))}>{c.cmd}</span>
           </div>
         ))}
@@ -151,7 +151,7 @@ function RunSummaryTab() {
               key={`${a.command}:${i}`}
               className="flex items-baseline gap-2 font-mono text-ui-md text-fg-muted"
             >
-              <Icon name="shield" size={11} className="text-fg-faint" />
+              <Icon name="shield" size="xs" className="text-fg-faint" />
               <span className="truncate">{a.command || t("runSummary.approval.noCommand")}</span>
               <span className={cn("ml-auto text-ui-xs font-semibold", TONE_INK[approval.tone])}>
                 {t(approval.labelKey)}
@@ -164,7 +164,7 @@ function RunSummaryTab() {
       <Section title="runSummary.section.errors" count={view.errors.count}>
         {view.errors.items.map((e, i) => (
           <div key={`${e}:${i}`} className="flex items-baseline gap-2 text-ui-md text-negative">
-            <Icon name="bug" size={11} />
+            <Icon name="bug" size="xs" />
             <span className="whitespace-pre-wrap break-words">{e}</span>
           </div>
         ))}

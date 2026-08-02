@@ -59,7 +59,7 @@ export function ProviderRow({ p }: { p: ProviderConfiguration }) {
   return (
     <div className="rounded-md px-3 py-3 transition-colors hover:bg-hover">
       <div className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3">
-        <ProviderIcon provider={p.id} size={20} />
+        <ProviderIcon provider={p.id} size="lg" />
         <div className="min-w-0">
           <div className="truncate text-ui-lg font-medium capitalize text-fg">{p.id}</div>
         </div>
@@ -125,12 +125,12 @@ export function ProviderRow({ p }: { p: ProviderConfiguration }) {
 
         {probe.state === "ok" && (
           <span className="inline-flex items-center gap-1 text-ui-md text-success">
-            <Icon name="check" size={13} /> {t("providers.connectionOk")}
+            <Icon name="check" size="sm" /> {t("providers.connectionOk")}
           </span>
         )}
         {probe.state === "error" && (
           <span className="inline-flex min-w-0 items-center gap-1 text-ui-md text-negative">
-            <Icon name="alert" size={13} />
+            <Icon name="alert" size="sm" />
             <span className="truncate" title={probe.reason}>
               {probe.reason}
             </span>

@@ -126,8 +126,17 @@ test("composer keeps one production edge, depth layer, and 6/8 footer inset", as
   await expect(page.getByRole("button", { name: "Attach image" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Switch model" })).toBeVisible();
 
+  // Read from the token rather than restated: the reading column's width is a
+  // design decision that moves, and a literal here asserts one revision of it
+  // against every later one. What must hold is that the composer spans the column.
   const box = await composer.boundingBox();
-  expect(box?.width).toBe(736);
+  expect(box?.width).toBe(
+    await page.evaluate(() =>
+      Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--content-max"),
+      ),
+    ),
+  );
   expect(await composer.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe(
     "none",
   );

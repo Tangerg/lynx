@@ -74,14 +74,7 @@ export function AgentDockTabs({ tabs, ariaLabel }: { tabs: AgentDockTab[]; ariaL
                 data-chrome-focus=""
                 className="inline-flex h-full min-w-0 max-w-40 items-center gap-1.5 rounded-[inherit] border-0 bg-transparent py-0 pl-2 pr-1 text-ui-sm font-normal text-inherit focus-visible:outline-none"
               >
-                {tab.icon && (
-                  <Icon
-                    name={tab.icon}
-                    size={14}
-                    strokeWidth={1.8}
-                    className="shrink-0 opacity-70"
-                  />
-                )}
+                {tab.icon && <Icon name={tab.icon} size="sm" className="shrink-0 opacity-70" />}
                 <span className="truncate">{tab.title}</span>
               </TabsPrimitive.Tab>
               {tab.onClose && (

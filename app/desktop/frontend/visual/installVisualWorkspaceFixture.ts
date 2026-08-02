@@ -10,6 +10,7 @@ import {
   UTILITY_ROLE_KEY,
   type ProviderConfiguration,
 } from "@/plugins/builtin/settings/providers/public/queries";
+import { builtinVisualStyles } from "@/plugins/builtin/theme/visualStyles";
 import lyraDark from "@/plugins/builtin/theme/themes/lyra-dark";
 import lyraLight from "@/plugins/builtin/theme/themes/lyra-light";
 import { localeEn } from "@/plugins/builtin/i18n/locales/en";
@@ -308,6 +309,7 @@ export async function installVisualWorkspaceFixture(
   });
   useUiStore.setState({
     theme,
+    visualStyle: "lyra",
     motionScale: 0,
     sidebarCollapsed: false,
     sidebarWidth: 256,
@@ -315,6 +317,7 @@ export async function installVisualWorkspaceFixture(
   });
 
   await loadVisualPlugins([
+    ...builtinVisualStyles,
     workspaceDataPlugin(state),
     workspaceDockDestinations,
     diffView,

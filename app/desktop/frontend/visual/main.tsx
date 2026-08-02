@@ -7,6 +7,9 @@ import { publishMotionScale } from "@/lib/appearance";
 import { queryClient } from "@/lib/queryClient";
 import { setLocale } from "@/lib/i18n";
 import { uiTypeLadderCssVariables } from "@/lib/typography";
+import { installDocumentAppearance } from "@/plugins/builtin/theme/adapters/documentAppearance";
+import { loadPlugin } from "@/plugins/sdk";
+import { useUiStore } from "@/state/uiStore";
 import { VisualFoundationFixture } from "./VisualFoundationFixture";
 import { VISUAL_AGENT_STATES, type VisualAgentState } from "./agentSessionSnapshots";
 import { VISUAL_WORK_INDEX_STATES, type VisualWorkIndexState } from "./shellFixtureStates";
@@ -72,6 +75,20 @@ if (!container) throw new Error("Visual fixture root element is missing");
 
 async function fixtureNode(): Promise<ReactNode> {
   if (fixture === "foundation") {
+    // Even the fixture that renders nothing but shell materials needs the palette
+    // and style registered: an unregistered theme id resolves to the dark scheme,
+    // and unregistered styles leave the shell on globals.css fallbacks — which is
+    // to say, the one fixture named for the foundation would photograph anything
+    // but it.
+    const [{ default: lyraLight }, { default: lyraDark }, { builtinVisualStyles }] =
+      await Promise.all([
+        import("@/plugins/builtin/theme/themes/lyra-light"),
+        import("@/plugins/builtin/theme/themes/lyra-dark"),
+        import("@/plugins/builtin/theme/visualStyles"),
+      ]);
+    for (const plugin of [lyraLight, lyraDark, ...builtinVisualStyles]) {
+      await loadPlugin(plugin);
+    }
     return <VisualFoundationFixture sidebarOpen={sidebarOpen} />;
   }
   if (fixture === "workspace") {
@@ -99,6 +116,22 @@ async function fixtureNode(): Promise<ReactNode> {
 }
 
 const node = await fixtureNode();
+
+// Run the real appearance pipeline over the fixture's store. Without this the
+// harness photographs globals.css's fallback values: every colour theme and every
+// visual style would be registered but never applied, so no palette or material
+// regression could reach a screenshot. The store already carries the query
+// parameters this file resolved, so the pipeline reproduces the deterministic
+// motion and type the specs depend on rather than fighting it.
+useUiStore.setState({
+  theme,
+  motionScale,
+  ...(requestedFontSize !== null && Number.isFinite(Number(requestedFontSize))
+    ? { fontSize: Number(requestedFontSize) }
+    : {}),
+});
+installDocumentAppearance(useUiStore);
+
 createRoot(container).render(
   <QueryClientProvider client={queryClient}>
     <MotionConfig reducedMotion="user">

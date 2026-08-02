@@ -13,7 +13,7 @@ import { getHighlighter } from "./shiki";
  *  never the theme id, so third-party light themes ("solarized-light" etc.)
  *  also pick the right preset. */
 export function useShikiTheme(): string {
-  return useScheme() === "light" ? "github-light" : "github-dark";
+  return useScheme() === "light" ? "github-light-high-contrast" : "github-dark";
 }
 
 /** The shared highlighter loaded into state (null until ready) plus the active

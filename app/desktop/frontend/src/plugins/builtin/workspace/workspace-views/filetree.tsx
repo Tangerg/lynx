@@ -22,7 +22,7 @@ function FileViewer({ path, cwd, onBack }: { path: string; cwd?: string; onBack:
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <TextButton onClick={onBack} className="px-3 py-2 font-mono">
-        <Icon name="chevron-down" size={12} className="shrink-0 -rotate-90" />
+        <Icon name="chevron-down" size="xs" className="shrink-0 -rotate-90" />
         <span className="truncate">{path}</span>
       </TextButton>
       {isLoading ? (

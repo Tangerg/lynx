@@ -23,7 +23,7 @@ export function McpServersPane() {
           <>
             <JsonImport />
             <PillButton variant="outlined" size="sm" onClick={() => setAdding(true)}>
-              <Icon name="plus" size={13} />
+              <Icon name="plus" size="sm" />
               {t("mcp.add")}
             </PillButton>
           </>

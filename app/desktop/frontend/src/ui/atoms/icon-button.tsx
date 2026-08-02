@@ -1,3 +1,4 @@
+import type { IconSize } from "@/lib/iconScale";
 import { cn } from "@/lib/classNames";
 import { Icon, type IconName } from "@/ui/icons";
 import { useState } from "react";
@@ -13,7 +14,7 @@ interface IconButtonProps extends Omit<ButtonProps, "children" | "variant" | "si
    *  chrome rows; md = 32px, the default chrome control; lg = 40px, for a
    *  standalone touch target inside content. */
   size?: "xs" | "sm" | "md" | "lg";
-  iconSize?: number;
+  iconSize?: IconSize;
   /** Toggled-on: a pinned item, an open panel. Reads as pressed in, not hovered. */
   active?: boolean;
   /** A step fainter at rest. For buttons that sit *inside* content — a list row,
@@ -31,7 +32,7 @@ interface IconButtonProps extends Omit<ButtonProps, "children" | "variant" | "si
 }
 
 const BOX = { xs: "icon-xs", sm: "icon-sm", md: "icon-md", lg: "icon-lg" } as const;
-const ICON_SIZE = { xs: 12, sm: 14, md: 16, lg: 16 } as const;
+const ICON_SIZE: Record<keyof typeof BOX, IconSize> = { xs: "xs", sm: "sm", md: "md", lg: "md" };
 
 // Glyph-only chrome button. The app Tooltip carries the help rather than the
 // native `title` attribute: 250ms instead of the OS's ~1s, and it appears on
@@ -86,14 +87,14 @@ export function IconButton({
         {hoverIcon ? (
           <span className="t-icon-swap" data-state={showHoverIcon ? "b" : "a"}>
             <span className="t-icon" data-icon="a">
-              <Icon name={icon} size={iconSize} strokeWidth={1.8} />
+              <Icon name={icon} size={iconSize} />
             </span>
             <span className="t-icon" data-icon="b">
-              <Icon name={hoverIcon} size={iconSize} strokeWidth={1.8} />
+              <Icon name={hoverIcon} size={iconSize} />
             </span>
           </span>
         ) : (
-          <Icon name={icon} size={iconSize} strokeWidth={1.8} />
+          <Icon name={icon} size={iconSize} />
         )}
         {badge !== undefined && badge !== "" && badge !== 0 && (
           <span className="absolute -top-0.5 -right-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-0.5 font-mono text-ui-2xs font-semibold text-on-accent">

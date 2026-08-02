@@ -62,7 +62,7 @@ export function PlanProgressBanner() {
             actions={
               <IconButton
                 icon="x"
-                iconSize={12}
+                iconSize="xs"
                 size="sm"
                 quiet
                 title={t("plan.dismiss")}

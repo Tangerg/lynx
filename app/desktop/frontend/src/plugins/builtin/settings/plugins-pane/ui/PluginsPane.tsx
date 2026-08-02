@@ -93,9 +93,9 @@ export function PluginsPane() {
                       title={open ? t("plugins.errorDetail.hide") : t("plugins.errorDetail.show")}
                       className="mt-1.5"
                     >
-                      <Icon name="bug" size={12} />
+                      <Icon name="bug" size="xs" />
                       {t("plugins.errors", { count: errCount })}
-                      <Icon name={open ? "chevron-up" : "chevron-down"} size={12} />
+                      <Icon name={open ? "chevron-up" : "chevron-down"} size="xs" />
                     </TextButton>
                   )}
                 </div>
@@ -107,7 +107,7 @@ export function PluginsPane() {
                   )}
                   <IconButton
                     icon="loop"
-                    iconSize={13}
+                    iconSize="sm"
                     title={busy ? t("plugins.reloading") : t("plugins.reload")}
                     onClick={() => handleReload(spec.name)}
                     disabled={busy}
@@ -170,7 +170,7 @@ function ErrorEntry({ err }: { err: PluginError }) {
         </span>
         <div className="flex items-center gap-1.5">
           <span className="font-mono text-ui-xs text-fg-faint">{time}</span>
-          <IconButton icon="copy" iconSize={12} title={t("plugins.copyError")} onClick={copy} />
+          <IconButton icon="copy" iconSize="xs" title={t("plugins.copyError")} onClick={copy} />
         </div>
       </div>
       {err.detail && (

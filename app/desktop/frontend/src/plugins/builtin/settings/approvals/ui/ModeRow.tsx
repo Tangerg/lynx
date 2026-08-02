@@ -47,7 +47,7 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
                   </div>
                   <div className="mt-0.5 text-ui-md leading-body text-fg-muted">{t(o.descKey)}</div>
                 </div>
-                {selected && <Icon name="check" size={15} className="shrink-0 text-accent" />}
+                {selected && <Icon name="check" size="md" className="shrink-0 text-accent" />}
               </Pressable>
             );
           })}

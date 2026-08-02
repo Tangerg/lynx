@@ -39,7 +39,7 @@ export function ProjectRow({
         <IconButton
           icon="plus"
           size="sm"
-          iconSize={12}
+          iconSize="xs"
           data-chrome-focus=""
           aria-label={t("project.row.newSession", { name: project.name })}
           onClick={() => onNewSession(project)}
@@ -51,7 +51,7 @@ export function ProjectRow({
         {project.cwdMissing && (
           <Icon
             name="alert"
-            size={11}
+            size="xs"
             className="shrink-0 text-warning"
             aria-label={t("project.row.missing")}
           />

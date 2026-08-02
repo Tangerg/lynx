@@ -35,7 +35,7 @@ function ThemeToggle() {
           exit={{ opacity: 0, scale: 0.25, filter: "blur(4px)" }}
           transition={{ type: "spring", duration: 0.3, bounce: 0 }}
         >
-          <Icon name={isLight ? "moon" : "sun"} size={14} />
+          <Icon name={isLight ? "moon" : "sun"} size="sm" />
         </motion.span>
       </AnimatePresence>
     </Button>

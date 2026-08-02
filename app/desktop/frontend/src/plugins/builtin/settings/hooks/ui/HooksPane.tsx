@@ -28,7 +28,7 @@ function HookRow({ h }: { h: HookReadModel }) {
         !h.active && "opacity-55",
       )}
     >
-      <Icon name={h.scope === "global" ? "globe" : "folder"} size={14} className="text-fg-faint" />
+      <Icon name={h.scope === "global" ? "globe" : "folder"} size="sm" className="text-fg-faint" />
       <div className="flex min-w-0 items-center gap-2">
         <span className="shrink-0 rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-ui-xs font-medium text-fg-muted">
           {h.event}

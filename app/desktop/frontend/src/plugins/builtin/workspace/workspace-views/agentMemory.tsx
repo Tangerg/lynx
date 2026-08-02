@@ -136,7 +136,7 @@ function ActiveRow({ item }: { item: AgentMemoryEntry }) {
           <div className="mt-1 flex items-center gap-2">
             {item.pinned && (
               <span className="flex shrink-0 items-center gap-1 text-ui-sm text-accent">
-                <Icon name="star" size={11} />
+                <Icon name="star" size="xs" />
                 {t("agentMemory.pinnedLabel")}
               </span>
             )}
@@ -203,7 +203,7 @@ function AddMemory({ scope, cwd }: { scope: Scope; cwd?: string }) {
     return (
       <div className="px-4 pb-1">
         <PillButton size="sm" variant="outlined" onClick={() => setOpen(true)}>
-          <Icon name="plus" size={12} />
+          <Icon name="plus" size="xs" />
           {t("agentMemory.add")}
         </PillButton>
       </div>

@@ -22,7 +22,7 @@ const MARK = "grid h-4 w-4 shrink-0 place-items-center";
 export function StepMark({ state }: { state: StepState }) {
   return (
     <div className={MARK}>
-      {state === "done" && <Icon name="check" size={14} strokeWidth={3} className="text-success" />}
+      {state === "done" && <Icon name="check" size="sm" className="text-success" />}
       {state === "active" && (
         <div className="relative h-3 w-3 rounded-full border-[1.5px] border-accent">
           <div className="absolute inset-0.5 animate-pulse-dot rounded-full bg-accent" />

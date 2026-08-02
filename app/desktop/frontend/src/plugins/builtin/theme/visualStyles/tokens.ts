@@ -40,6 +40,8 @@ type VisualStyleTokenName =
   | "app-dock-surface"
   | "app-card-surface"
   | "app-surface-divider"
+  | "app-pane-split"
+  | "app-pane-split-end"
   | "seam-line"
   | "seam-shadow-color"
   | "shadow-border"
@@ -94,6 +96,8 @@ export const SYNARA_TOKENS: VisualStyleTokens = {
   "app-dock-surface": "var(--color-bg)",
   "app-card-surface": "var(--color-surface)",
   "app-surface-divider": "color-mix(in srgb, var(--color-border) 60%, transparent)",
+  "app-pane-split": "inset 1px 0 0 0 var(--app-surface-divider)",
+  "app-pane-split-end": "inset -1px 0 0 0 var(--app-surface-divider)",
   "seam-line": "color-mix(in srgb, var(--color-text) 8%, transparent)",
   "seam-shadow-color": "color-mix(in srgb, var(--color-text) 12%, transparent)",
   "shadow-border": "0 0 0 0.5px color-mix(in srgb, var(--color-text) 9%, transparent)",

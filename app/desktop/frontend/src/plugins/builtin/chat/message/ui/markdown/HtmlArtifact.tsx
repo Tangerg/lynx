@@ -39,7 +39,7 @@ export function HtmlArtifact({ code }: Props) {
     <div className="my-3.5 overflow-hidden rounded-lg bg-surface">
       <div className="flex items-center justify-between px-3 py-1.5">
         <div className="inline-flex items-center gap-2">
-          <Icon name="globe" size={12} className="text-fg-faint" />
+          <Icon name="globe" size="xs" className="text-fg-faint" />
           <span className="font-mono text-ui-sm font-semibold text-fg-faint">
             {t("markdown.htmlArtifact")}
           </span>
