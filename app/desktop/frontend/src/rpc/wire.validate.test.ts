@@ -443,7 +443,9 @@ describe("the generated wire checks", () => {
             type: "question",
             itemId: "item_01",
             runId: "",
-            payload: { question: { prompt: "Continue?", fields: [] } },
+            payload: {
+              question: { fields: [{ type: "text", prompt: "Continue?" }] },
+            },
           },
         ],
         createdAt: "2026-07-30T00:00:00Z",
@@ -451,6 +453,56 @@ describe("the generated wire checks", () => {
     ).toContainEqual({
       path: "PendingInterruptSet.interrupts[0].runId",
       detail: "expected at least 1 character(s)",
+    });
+    expect(
+      validateWire("Question", {
+        fields: [
+          {
+            type: "choice",
+            prompt: "Choose",
+            options: [{ label: "A" }, { label: "B" }],
+            allowCustom: true,
+          },
+        ],
+      }),
+    ).toEqual([]);
+    expect(
+      validateWire("Question", {
+        fields: [
+          {
+            type: "choice",
+            prompt: "Choose",
+            header: "😀".repeat(12),
+            options: [{ label: "A" }],
+          },
+        ],
+      }),
+    ).toContainEqual({
+      path: "Question.fields[0].options",
+      detail: "expected at least 2 item(s)",
+    });
+    expect(
+      validateWire("Question", {
+        fields: [
+          {
+            type: "text",
+            prompt: "Explain",
+            header: "😀".repeat(13),
+          },
+        ],
+      }),
+    ).toContainEqual({
+      path: "Question.fields[0].header",
+      detail: "expected at most 12 character(s)",
+    });
+    expect(
+      validateWire("InterruptResponseValue", {
+        type: "answer",
+        answers: { q0: ["A"] },
+      }),
+    ).toContainEqual({
+      path: "InterruptResponseValue.answers",
+      detail: "expected an array",
     });
     expect(
       validateWire("ProblemData", {

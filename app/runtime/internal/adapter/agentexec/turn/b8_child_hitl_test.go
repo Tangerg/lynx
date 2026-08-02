@@ -58,7 +58,7 @@ func TestChildToolsShareRootHITLAndHookContract(t *testing.T) {
 			wantInterrupt:  new(execution.QuestionInterrupt),
 			resolution: interrupts.Resolution{
 				Approved: true,
-				Answer:   map[string][]string{runs.QuestionFieldID(0): {"Yes"}},
+				Answers:  [][]string{{"Yes"}},
 			},
 		},
 	}
@@ -217,9 +217,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 			}
 			resolution := interrupts.Resolution{
 				Approved: true,
-				Answer: map[string][]string{
-					runs.QuestionFieldID(0): {"answer"},
-				},
+				Answers:  [][]string{{"answer"}},
 			}
 			if err := dispatcher.Resume(
 				t.Context(),
@@ -285,9 +283,7 @@ func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *
 					SuspensionID: boundary.SuspensionID,
 					Resolution: interrupts.Resolution{
 						Approved: true,
-						Answer: map[string][]string{
-							runs.QuestionFieldID(0): {fmt.Sprintf("answer-%d", index+1)},
-						},
+						Answers:  [][]string{{fmt.Sprintf("answer-%d", index+1)}},
 					},
 				}
 			}
@@ -406,9 +402,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 			SuspensionID: boundary.SuspensionID,
 			Resolution: interrupts.Resolution{
 				Approved: true,
-				Answer: map[string][]string{
-					runs.QuestionFieldID(0): {fmt.Sprintf("restored-answer-%d", index+1)},
-				},
+				Answers:  [][]string{{fmt.Sprintf("restored-answer-%d", index+1)}},
 			},
 		}
 	}
@@ -1262,9 +1256,7 @@ func questionAnswersForBarrier(
 			SuspensionID: boundary.SuspensionID,
 			Resolution: interrupts.Resolution{
 				Approved: true,
-				Answer: map[string][]string{
-					runs.QuestionFieldID(0): {fmt.Sprintf("%s-%d", prefix, index+1)},
-				},
+				Answers:  [][]string{{fmt.Sprintf("%s-%d", prefix, index+1)}},
 			},
 		}
 	}

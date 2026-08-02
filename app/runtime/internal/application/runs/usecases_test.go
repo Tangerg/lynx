@@ -711,18 +711,14 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 		CallerCapabilities: pending.ProtocolProfile,
 		Responses: []ResumeResponse{
 			{
-				ItemID: "item_grandchild",
-				Kind:   QuestionResponseKind,
-				Question: &QuestionResponse{Answers: map[string][]string{
-					"answer": {"continue grandchild"},
-				}},
+				ItemID:   "item_grandchild",
+				Kind:     QuestionResponseKind,
+				Question: &QuestionResponse{Answers: [][]string{{"continue grandchild"}}},
 			},
 			{
-				ItemID: "item_b",
-				Kind:   QuestionResponseKind,
-				Question: &QuestionResponse{Answers: map[string][]string{
-					"answer": {"continue sibling"},
-				}},
+				ItemID:   "item_b",
+				Kind:     QuestionResponseKind,
+				Question: &QuestionResponse{Answers: [][]string{{"continue sibling"}}},
 			},
 		},
 	})

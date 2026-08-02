@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -122,6 +123,30 @@ func TestOutputCollectionWireConstraints(t *testing.T) {
 	duplicate := CapabilityRequirement{Type: RequirementFeature, Name: "subagents"}
 	capability.RequiredCapabilities = []CapabilityRequirement{duplicate, duplicate}
 	assertConstraintField(t, capability.ValidateWire(), "ProblemData", "requiredCapabilities")
+}
+
+func TestQuestionWireConstraints(t *testing.T) {
+	t.Parallel()
+
+	valid := Question{Fields: []QuestionField{{
+		Type:    QuestionFieldChoice,
+		Prompt:  "Choose",
+		Header:  "选择一下",
+		Options: []QuestionOption{{Label: "A"}, {Label: "B"}},
+	}}}
+	if err := ValidateWireTree(valid); err != nil {
+		t.Fatalf("ValidateWireTree rejected a valid question: %v", err)
+	}
+
+	oneOption := valid
+	oneOption.Fields = slices.Clone(valid.Fields)
+	oneOption.Fields[0].Options = []QuestionOption{{Label: "A"}}
+	assertConstraintField(t, ValidateWireTree(oneOption), "Question", "fields[0].options")
+
+	longHeader := valid
+	longHeader.Fields = slices.Clone(valid.Fields)
+	longHeader.Fields[0].Header = "一二三四五六七八九十一二三"
+	assertConstraintField(t, ValidateWireTree(longHeader), "Question", "fields[0].header")
 }
 
 func TestMCPSecretMapChangesRejectEmptyReplacement(t *testing.T) {
@@ -303,7 +328,9 @@ func TestValidateWireTreeComposesNestedConstraints(t *testing.T) {
 			ItemID: "item_question",
 			Type:   InterruptQuestion,
 			Payload: &InterruptPayload{
-				Question: &Question{Prompt: "Continue?"},
+				Question: &Question{Fields: []QuestionField{{
+					Prompt: "Continue?", Type: QuestionFieldText,
+				}}},
 			},
 		}},
 	}

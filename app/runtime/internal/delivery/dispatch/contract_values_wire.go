@@ -90,6 +90,41 @@ func registerRunValues(s *Shapes) {
 			{Field: "input", Kind: ConstraintNonEmptyItems},
 		},
 	})
+	for _, questionType := range []reflect.Type{
+		typeOf[protocol.Question](),
+		typeOf[protocol.ArtifactQuestion](),
+	} {
+		s.valueConstraint(FieldConstraintSpec{
+			GoType:      questionType,
+			Constraints: []FieldConstraint{{Field: "fields", Kind: ConstraintNonEmptyItems}},
+		})
+	}
+	for _, fieldType := range []reflect.Type{
+		typeOf[protocol.QuestionField](),
+		typeOf[protocol.ArtifactQuestionField](),
+	} {
+		s.valueConstraint(FieldConstraintSpec{
+			GoType: fieldType,
+			Constraints: []FieldConstraint{
+				{Field: "prompt", Kind: ConstraintNonEmpty},
+				{Field: "header", Kind: ConstraintMaxLength, Limit: 12},
+				{Field: "options", Kind: ConstraintMinItems, Limit: 2},
+			},
+		})
+	}
+	for _, optionType := range []reflect.Type{
+		typeOf[protocol.QuestionOption](),
+		typeOf[protocol.ArtifactQuestionOption](),
+	} {
+		s.valueConstraint(FieldConstraintSpec{
+			GoType:      optionType,
+			Constraints: []FieldConstraint{{Field: "label", Kind: ConstraintNonEmpty}},
+		})
+	}
+	s.valueConstraint(FieldConstraintSpec{
+		GoType:      typeOf[protocol.InterruptResponseValue](),
+		Constraints: []FieldConstraint{{Field: "answers", Kind: ConstraintNonEmptyItems}},
+	})
 	nonEmpty[protocol.StartRunResponse](s, "runId", "segmentId", "userItemId")
 	nonEmpty[protocol.ResumeRunResponse](s, "runId", "segmentId", "userItemId")
 	// Subscribe and steer both address a SEGMENT: naming only the run would let the

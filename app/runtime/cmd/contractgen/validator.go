@@ -146,6 +146,18 @@ func validatorChecks(
 				validatorName = "optionalUniqueItems"
 			}
 			checks = append(checks, fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector))
+		case dispatch.ConstraintMinItems:
+			validatorName := "requiredMinItems"
+			if leaf.Optional {
+				validatorName = "optionalMinItems"
+			}
+			checks = append(checks, fmt.Sprintf("%s(%s, value.%s, %d)", validatorName, field, selector, constraint.Limit))
+		case dispatch.ConstraintMaxLength:
+			validatorName := "maxLength"
+			if leaf.Type.Kind() == reflect.Pointer {
+				validatorName = "optionalMaxLength"
+			}
+			checks = append(checks, fmt.Sprintf("%s(%s, %s, %d)", validatorName, field, stringExpr(selector, leaf.Type), constraint.Limit))
 		default:
 			panic(fmt.Sprintf(
 				"contractgen: %s.%s uses unsupported constraint %s",
@@ -300,13 +312,13 @@ func valueList(values []string) string {
 	return "[]string{" + strings.Join(quoted, ", ") + "}"
 }
 
-// valueConstraintsFor returns the declared constraints on one field of a shape, so
-// the schema walk can state the same rule as minLength / minimum.
-func (s *schemaSet) valueConstraintsFor(owner reflect.Type, field string) []dispatch.ConstraintKind {
-	var out []dispatch.ConstraintKind
+// valueConstraintsFor returns the declared constraints on one field of a shape,
+// so the schema walk can state the same rule with its corresponding keyword.
+func (s *schemaSet) valueConstraintsFor(owner reflect.Type, field string) []dispatch.FieldConstraint {
+	var out []dispatch.FieldConstraint
 	for _, constraint := range s.values[owner] {
-		if constraint.Field == field && !slices.Contains(out, constraint.Kind) {
-			out = append(out, constraint.Kind)
+		if constraint.Field == field && !slices.Contains(out, constraint) {
+			out = append(out, constraint)
 		}
 	}
 	return out

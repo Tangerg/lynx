@@ -476,7 +476,7 @@ type InterruptResponseValue struct {
 	Remember   *RememberScope        `json:"remember,omitempty"`   // approval: keep this decision (AUX_API §6)
 	EditedArgs map[string]any        `json:"editedArgs,omitempty"` // approval: one-shot arg override
 	Reason     string                `json:"reason,omitempty"`     // approval (deny rationale)
-	Answers    map[string][]string   `json:"answers,omitempty"`    // answer: field name → values (single-select = one-element array, S8)
+	Answers    [][]string            `json:"answers,omitempty"`    // answer: one values array per Question.fields entry, in the same order
 	Result     any                   `json:"result,omitempty"`     // toolResult: best-effort JSON
 	Error      *ProblemData          `json:"error,omitempty"`      // toolResult: client tool failure
 }

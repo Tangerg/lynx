@@ -65,7 +65,7 @@ func EncodeResolution(resolution interrupts.Resolution) (json.RawMessage, error)
 		return nil, fmt.Errorf("agent suspension: unknown remember scope %q", resolution.RememberScope)
 	}
 	encoded, err := json.Marshal(resolutionWire{
-		Approved: resolution.Approved, Arguments: resolution.Arguments, Answer: resolution.Answer,
+		Approved: resolution.Approved, Arguments: resolution.Arguments, Answers: resolution.Answers,
 		Reason: resolution.Reason, RememberScope: rememberScopeWireFrom(resolution.RememberScope),
 	})
 	if err != nil {
@@ -106,16 +106,17 @@ type approvalPromptWire struct {
 }
 
 type questionPromptWire struct {
-	ToolName  string             `json:"toolName"`
-	Arguments string             `json:"arguments"`
-	Questions []questionSpecWire `json:"questions"`
+	ToolName  string                  `json:"toolName"`
+	Arguments string                  `json:"arguments"`
+	Fields    []questionFieldSpecWire `json:"fields"`
 }
 
-type questionSpecWire struct {
-	Question    string               `json:"question"`
+type questionFieldSpecWire struct {
+	Prompt      string               `json:"prompt"`
 	Header      string               `json:"header,omitempty"`
 	Options     []questionOptionWire `json:"options,omitempty"`
-	MultiSelect bool                 `json:"multiSelect,omitempty"`
+	Multiple    bool                 `json:"multiple,omitempty"`
+	AllowCustom bool                 `json:"allowCustom,omitempty"`
 }
 
 type questionOptionWire struct {
@@ -134,7 +135,7 @@ func promptWireFrom(interrupt runs.Interrupt) interruptWire {
 	if prompt := interrupt.Question; prompt != nil {
 		result.Question = &questionPromptWire{
 			ToolName: prompt.ToolName, Arguments: prompt.Arguments,
-			Questions: questionWiresFrom(prompt.Questions),
+			Fields: questionFieldWiresFrom(prompt.Fields),
 		}
 	}
 	return result
@@ -163,21 +164,22 @@ func (wire interruptWire) interrupt() (runs.Interrupt, error) {
 	if prompt := wire.Question; prompt != nil {
 		result.Question = &runs.QuestionPrompt{
 			ToolName: prompt.ToolName, Arguments: prompt.Arguments,
-			Questions: questionSpecsFrom(wire.Question.Questions),
+			Fields: questionFieldSpecsFrom(wire.Question.Fields),
 		}
 	}
 	return result, nil
 }
 
-func questionWiresFrom(specs []runs.QuestionSpec) []questionSpecWire {
+func questionFieldWiresFrom(specs []runs.QuestionFieldSpec) []questionFieldSpecWire {
 	if specs == nil {
 		return nil
 	}
-	result := make([]questionSpecWire, len(specs))
+	result := make([]questionFieldSpecWire, len(specs))
 	for index, spec := range specs {
-		result[index] = questionSpecWire{
-			Question: spec.Question, Header: spec.Header, MultiSelect: spec.MultiSelect,
-			Options: questionOptionWiresFrom(spec.Options),
+		result[index] = questionFieldSpecWire{
+			Prompt: spec.Prompt, Header: spec.Header, Multiple: spec.Multiple,
+			AllowCustom: spec.AllowCustom,
+			Options:     questionOptionWiresFrom(spec.Options),
 		}
 	}
 	return result
@@ -194,15 +196,16 @@ func questionOptionWiresFrom(options []runs.QuestionOptionSpec) []questionOption
 	return result
 }
 
-func questionSpecsFrom(specs []questionSpecWire) []runs.QuestionSpec {
+func questionFieldSpecsFrom(specs []questionFieldSpecWire) []runs.QuestionFieldSpec {
 	if specs == nil {
 		return nil
 	}
-	result := make([]runs.QuestionSpec, len(specs))
+	result := make([]runs.QuestionFieldSpec, len(specs))
 	for index, spec := range specs {
-		result[index] = runs.QuestionSpec{
-			Question: spec.Question, Header: spec.Header, MultiSelect: spec.MultiSelect,
-			Options: questionOptionsFrom(spec.Options),
+		result[index] = runs.QuestionFieldSpec{
+			Prompt: spec.Prompt, Header: spec.Header, Multiple: spec.Multiple,
+			AllowCustom: spec.AllowCustom,
+			Options:     questionOptionsFrom(spec.Options),
 		}
 	}
 	return result
@@ -220,11 +223,11 @@ func questionOptionsFrom(options []questionOptionWire) []runs.QuestionOptionSpec
 }
 
 type resolutionWire struct {
-	Approved      bool                `json:"approved"`
-	Arguments     string              `json:"arguments,omitempty"`
-	Answer        map[string][]string `json:"answer,omitempty"`
-	Reason        string              `json:"reason,omitempty"`
-	RememberScope rememberScopeWire   `json:"remember_scope,omitempty"`
+	Approved      bool              `json:"approved"`
+	Arguments     string            `json:"arguments,omitempty"`
+	Answers       [][]string        `json:"answers,omitempty"`
+	Reason        string            `json:"reason,omitempty"`
+	RememberScope rememberScopeWire `json:"remember_scope,omitempty"`
 }
 
 func (wire resolutionWire) resolution() (interrupts.Resolution, error) {
@@ -233,7 +236,7 @@ func (wire resolutionWire) resolution() (interrupts.Resolution, error) {
 		return interrupts.Resolution{}, err
 	}
 	return interrupts.Resolution{
-		Approved: wire.Approved, Arguments: wire.Arguments, Answer: wire.Answer,
+		Approved: wire.Approved, Arguments: wire.Arguments, Answers: wire.Answers,
 		Reason: wire.Reason, RememberScope: rememberScope,
 	}, nil
 }

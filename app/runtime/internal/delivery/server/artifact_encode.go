@@ -320,9 +320,12 @@ func artifactContentType(kind transcript.ContentKind) (protocol.ContentBlockType
 func artifactQuestionFromDomain(question transcript.Question) (*protocol.ArtifactQuestion, error) {
 	fields := make([]protocol.ArtifactQuestionField, len(question.Fields))
 	for index, field := range question.Fields {
-		options := make([]protocol.ArtifactQuestionOption, len(field.Options))
-		for optionIndex, option := range field.Options {
-			options[optionIndex] = protocol.ArtifactQuestionOption{Label: option.Label, Description: option.Description, Preview: option.Preview}
+		var options []protocol.ArtifactQuestionOption
+		if len(field.Options) > 0 {
+			options = make([]protocol.ArtifactQuestionOption, len(field.Options))
+			for optionIndex, option := range field.Options {
+				options[optionIndex] = protocol.ArtifactQuestionOption{Label: option.Label, Description: option.Description, Preview: option.Preview}
+			}
 		}
 		var fieldType protocol.QuestionFieldType
 		switch field.Kind {
@@ -334,11 +337,11 @@ func artifactQuestionFromDomain(question transcript.Question) (*protocol.Artifac
 			return nil, fmt.Errorf("field %d has unknown type %d", index, field.Kind)
 		}
 		fields[index] = protocol.ArtifactQuestionField{
-			Name: field.Name, Label: field.Label, Header: field.Header, Required: field.Required,
-			Type: fieldType, Options: options, Multiple: field.Multiple,
+			Prompt: field.Prompt, Header: field.Header, Type: fieldType,
+			Options: options, Multiple: field.Multiple, AllowCustom: field.AllowCustom,
 		}
 	}
-	return &protocol.ArtifactQuestion{Prompt: question.Prompt, Fields: fields}, nil
+	return &protocol.ArtifactQuestion{Fields: fields}, nil
 }
 
 func artifactSafetyClass(class tool.SafetyClass) (protocol.SafetyClass, error) {

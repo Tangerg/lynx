@@ -7,7 +7,7 @@
 // What each call MEANS lives in wireCheck.ts. This file only says which rule
 // applies where.
 
-import { absent, allOf, anything, array, enumOf, fields, flag, ifThen, integer, literal, minItems, minLength, minProperties, minimum, nullable, numeric, object, oneOf, pattern, record, ref, text, uniqueItems } from "./wireCheck";
+import { absent, allOf, anything, array, enumOf, fields, flag, ifThen, integer, literal, maxLength, minItems, minLength, minProperties, minimum, nullable, numeric, object, oneOf, pattern, record, ref, text, uniqueItems } from "./wireCheck";
 import type { WireCheck, WireViolation } from "./wireCheck";
 
 import type { WireMethodName } from "./wire.methods.generated";
@@ -585,21 +585,32 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["type"]),
   ArtifactProblemType: enumOf(["internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed", "childRunCanceled"]),
   ArtifactQuestion: object({
-    fields: array(ref(() => CHECKS.ArtifactQuestionField)),
-    prompt: text(),
-  }, ["fields", "prompt"]),
-  ArtifactQuestionField: object({
-    header: text(),
-    label: text(),
-    multiple: flag(),
-    name: text(),
-    options: array(ref(() => CHECKS.ArtifactQuestionOption)),
-    required: flag(),
-    type: ref(() => CHECKS.QuestionFieldType),
-  }, ["label", "name", "type"]),
+    fields: allOf([array(ref(() => CHECKS.ArtifactQuestionField)), minItems(1)]),
+  }, ["fields"]),
+  ArtifactQuestionField: allOf([
+    object({
+      allowCustom: flag(),
+      header: allOf([text(), maxLength(12)]),
+      multiple: flag(),
+      options: allOf([array(ref(() => CHECKS.ArtifactQuestionOption)), minItems(2)]),
+      prompt: allOf([text(), minLength(1)]),
+      type: ref(() => CHECKS.QuestionFieldType),
+    }, []),
+    oneOf([
+      fields({
+        allowCustom: absent(),
+        multiple: absent(),
+        options: absent(),
+        type: literal("text"),
+      }, ["prompt", "type"]),
+      fields({
+        type: literal("choice"),
+      }, ["options", "prompt", "type"]),
+    ]),
+  ]),
   ArtifactQuestionOption: object({
     description: text(),
-    label: text(),
+    label: allOf([text(), minLength(1)]),
     preview: text(),
   }, ["label"]),
   ArtifactRun: allOf([
@@ -1104,7 +1115,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   InterruptResponseType: enumOf(["approval", "answer", "toolResult"]),
   InterruptResponseValue: allOf([
     object({
-      answers: record(array(text())),
+      answers: allOf([array(array(text())), minItems(1)]),
       decision: ref(() => CHECKS.ApprovalDecision),
       editedArgs: record(anything()),
       error: ref(() => CHECKS.ProblemData),
@@ -2130,34 +2141,33 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     ok: flag(),
   }, ["ok"]),
   Question: object({
-    fields: array(ref(() => CHECKS.QuestionField)),
-    prompt: text(),
-  }, ["fields", "prompt"]),
+    fields: allOf([array(ref(() => CHECKS.QuestionField)), minItems(1)]),
+  }, ["fields"]),
   QuestionField: allOf([
     object({
-      header: text(),
-      label: text(),
+      allowCustom: flag(),
+      header: allOf([text(), maxLength(12)]),
       multiple: flag(),
-      name: text(),
-      options: array(ref(() => CHECKS.QuestionOption)),
-      required: flag(),
+      options: allOf([array(ref(() => CHECKS.QuestionOption)), minItems(2)]),
+      prompt: allOf([text(), minLength(1)]),
       type: ref(() => CHECKS.QuestionFieldType),
     }, []),
     oneOf([
       fields({
+        allowCustom: absent(),
         multiple: absent(),
         options: absent(),
         type: literal("text"),
-      }, ["label", "name", "type"]),
+      }, ["prompt", "type"]),
       fields({
         type: literal("choice"),
-      }, ["label", "name", "options", "type"]),
+      }, ["options", "prompt", "type"]),
     ]),
   ]),
   QuestionFieldType: enumOf(["text", "choice"]),
   QuestionOption: object({
     description: text(),
-    label: text(),
+    label: allOf([text(), minLength(1)]),
     preview: text(),
   }, ["label"]),
   ReadFileRequest: object({

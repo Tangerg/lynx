@@ -44,6 +44,9 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	if uncovered, ok := errors.AsType[*execution.ProfileNotCovered](err); ok {
 		return nil, nil, profileGap(uncovered.Gap)
 	}
+	if answerError, ok := errors.AsType[*runs.QuestionAnswerError](err); ok {
+		return nil, nil, questionAnswerParamsError(in.Responses, answerError)
+	}
 	if err != nil {
 		switch {
 		case errors.Is(err, runs.ErrInterruptNotOpen):
@@ -147,18 +150,43 @@ func decodeQuestionResponse(wire protocol.InterruptResponseValue) (*runs.Questio
 	if wire.Decision != "" || wire.Remember != nil || wire.EditedArgs != nil || wire.Reason != "" || wire.Result != nil || wire.Error != nil {
 		return nil, fmt.Errorf("%w: answer response contains fields for another response type", protocol.ErrInvalidParams)
 	}
-	// The answer map is the complete question resolution. The application later
-	// validates it against the stored question's field schema.
+	// The ordered answer list is the complete question resolution. The
+	// application later validates it against the stored question's field schema.
 	return &runs.QuestionResponse{Answers: cloneWireAnswers(wire.Answers)}, nil
 }
 
-func cloneWireAnswers(in map[string][]string) map[string][]string {
+func cloneWireAnswers(in [][]string) [][]string {
 	if in == nil {
 		return nil
 	}
-	out := make(map[string][]string, len(in))
-	for name, values := range in {
-		out[name] = append([]string(nil), values...)
+	out := make([][]string, len(in))
+	for index, values := range in {
+		out[index] = append([]string(nil), values...)
 	}
 	return out
+}
+
+func questionAnswerParamsError(
+	responses []protocol.InterruptResponse,
+	answerError *runs.QuestionAnswerError,
+) error {
+	responseIndex := -1
+	for index, response := range responses {
+		if response.ItemID == answerError.ItemID {
+			responseIndex = index
+			break
+		}
+	}
+	field := "responses"
+	if responseIndex >= 0 {
+		field = fmt.Sprintf("responses[%d].response.answers", responseIndex)
+		if answerError.Index >= 0 {
+			field += fmt.Sprintf("[%d]", answerError.Index)
+		}
+	}
+	constraint := &protocol.ConstraintError{
+		Shape:  "ResumeRunRequest",
+		Fields: []protocol.FieldError{{Field: field, Detail: answerError.Detail}},
+	}
+	return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, constraint)
 }

@@ -155,18 +155,11 @@ export type ArtifactProblemType = "internalError" | "runLost" | "agentStuck" | "
 
 export interface ArtifactQuestion {
   fields: ArtifactQuestionField[];
-  prompt: string;
 }
 
-export interface ArtifactQuestionField {
-  header?: string;
-  label: string;
-  multiple?: boolean;
-  name: string;
-  options?: ArtifactQuestionOption[];
-  required?: boolean;
-  type: QuestionFieldType;
-}
+export type ArtifactQuestionField =
+  | { type: "text"; header?: string; prompt: string }
+  | { type: "choice"; allowCustom?: boolean; header?: string; multiple?: boolean; options: ArtifactQuestionOption[]; prompt: string };
 
 export interface ArtifactQuestionOption {
   description?: string;
@@ -621,7 +614,7 @@ export type InterruptResponseType = "approval" | "answer" | "toolResult";
 
 export type InterruptResponseValue =
   | { type: "approval"; decision: ApprovalDecision; editedArgs?: Record<string, unknown>; reason?: string; remember?: RememberScope }
-  | { type: "answer"; answers: Record<string, string[]> }
+  | { type: "answer"; answers: string[][] }
   | { type: "toolResult"; error?: ProblemData; result?: unknown };
 
 export type InterruptType = "approval" | "question" | "toolResult";
@@ -1010,12 +1003,11 @@ export interface ProviderTestResult {
 
 export interface Question {
   fields: QuestionField[];
-  prompt: string;
 }
 
 export type QuestionField =
-  | { type: "text"; header?: string; label: string; name: string; required?: boolean }
-  | { type: "choice"; header?: string; label: string; multiple?: boolean; name: string; options: QuestionOption[]; required?: boolean };
+  | { type: "text"; header?: string; prompt: string }
+  | { type: "choice"; allowCustom?: boolean; header?: string; multiple?: boolean; options: QuestionOption[]; prompt: string };
 
 export type QuestionFieldType = "text" | "choice";
 

@@ -26,10 +26,8 @@ const toolName = "ask_user"
 
 // askUserArgs is the model-facing argument shape; [tools.New] derives
 // the JSON schema from it and decodes calls back into it, so the advertised
-// schema and parsed value cannot drift. It mirrors [runs.QuestionPrompt]
-// with the LLM-facing copy kept here (out of the domain type, which
-// exit_plan_mode reuses with different wording); the handler maps it across via
-// [askUserArgs.toPrompt].
+// schema and parsed value cannot drift. The handler maps its LLM-oriented names
+// into the application-owned [runs.QuestionPrompt] contract.
 type askUserArgs struct {
 	Questions []questionArg `json:"questions" jsonschema:"required,minItems=1,maxItems=4" jsonschema_description:"The question(s) to ask the user (1-4)."`
 }
@@ -53,17 +51,19 @@ func (a askUserArgs) validate() error {
 	return nil
 }
 
-// toPrompt maps the parsed args to the domain prompt type.
-func (a askUserArgs) toQuestions() []runs.QuestionSpec {
-	qs := make([]runs.QuestionSpec, len(a.Questions))
+func (a askUserArgs) toFields() []runs.QuestionFieldSpec {
+	fields := make([]runs.QuestionFieldSpec, len(a.Questions))
 	for i, q := range a.Questions {
 		var opts []runs.QuestionOptionSpec
 		for _, o := range q.Options {
 			opts = append(opts, runs.QuestionOptionSpec{Label: o.Label, Description: o.Description})
 		}
-		qs[i] = runs.QuestionSpec{Question: q.Question, Header: q.Header, Options: opts, MultiSelect: q.MultiSelect}
+		fields[i] = runs.QuestionFieldSpec{
+			Prompt: q.Question, Header: q.Header, Options: opts,
+			Multiple: q.MultiSelect, AllowCustom: len(opts) > 0,
+		}
 	}
-	return qs
+	return fields
 }
 
 func (a askUserArgs) arguments() (string, error) {
@@ -87,7 +87,7 @@ func New(interrupt runs.InterruptFunc) (tools.Tool, error) {
 	return tools.New[askUserArgs, string](
 		tools.Config{
 			Name:        toolName,
-			Description: "Ask the user a question and wait for their answer. Use when you need a decision, clarification, or information only the user can provide - not for routine progress updates. Give 2-4 `options` for a multiple-choice question (put the recommended one first), or omit `options` for a free-text answer; set `multi_select` when more than one option may apply.",
+			Description: "Ask the user a question and wait for their answer. Use when you need a decision, clarification, or information only the user can provide - not for routine progress updates. Give 2-4 `options` for a multiple-choice question (put the recommended one first); the user may always type a custom answer. Omit `options` for free text, and set `multi_select` when more than one option may apply.",
 		},
 		t.ask,
 	)
@@ -104,7 +104,7 @@ func (t *tool) ask(ctx context.Context, a askUserArgs) (string, error) {
 	in := runs.QuestionPrompt{
 		ToolName:  toolName,
 		Arguments: arguments,
-		Questions: a.toQuestions(),
+		Fields:    a.toFields(),
 	}
 	pending := runs.Interrupt{Kind: execution.QuestionInterrupt, Question: &in}
 	if err := pending.Validate(); err != nil {
@@ -119,25 +119,25 @@ func (t *tool) ask(ctx context.Context, a askUserArgs) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return answerText(in, res.Answer), nil
+	return answerText(in, res.Answers), nil
 }
 
 // answerText renders the human's answers as the tool's result text, pairing
-// each question with its answer (keyed by [runs.QuestionFieldID]). A
+// each question with its answer by the same stable order. A
 // single question returns just its answer (no label noise); multiple questions
 // return "header: answer" lines so the model can tell them apart. Multi-select
 // answers are comma-joined.
-func answerText(in runs.QuestionPrompt, answer map[string][]string) string {
-	if len(in.Questions) == 1 {
-		return strings.Join(answer[runs.QuestionFieldID(0)], "\n")
+func answerText(in runs.QuestionPrompt, answers [][]string) string {
+	if len(in.Fields) == 1 {
+		return strings.Join(answers[0], "\n")
 	}
 	var b strings.Builder
-	for i, q := range in.Questions {
+	for i, q := range in.Fields {
 		label := q.Header
 		if label == "" {
-			label = q.Question
+			label = q.Prompt
 		}
-		fmt.Fprintf(&b, "%s: %s\n", label, strings.Join(answer[runs.QuestionFieldID(i)], ", "))
+		fmt.Fprintf(&b, "%s: %s\n", label, strings.Join(answers[i], ", "))
 	}
 	return strings.TrimSpace(b.String())
 }

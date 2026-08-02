@@ -113,7 +113,7 @@ func (t *tool) propose(ctx context.Context, in proposeArgs) (string, error) {
 		return "", errors.Join(err, t.store.DiscardDraft(context.WithoutCancel(ctx), handle))
 	}
 
-	if selectedChoice(res.Answer) != approveLabel {
+	if selectedChoice(res.Answers) != approveLabel {
 		if err := t.store.DiscardDraft(context.WithoutCancel(ctx), handle); err != nil {
 			return "", fmt.Errorf("propose_skill: discard rejected draft %q: %w", draft.Name, err)
 		}
@@ -139,9 +139,9 @@ func proposePrompt(draft skills.Draft, arguments string) runs.QuestionPrompt {
 	return runs.QuestionPrompt{
 		ToolName:  toolName,
 		Arguments: arguments,
-		Questions: []runs.QuestionSpec{{
-			Question: "The agent proposes a new skill \"" + draft.Name + "\". Add it to your skills?\n\n" + preview,
-			Header:   "New skill",
+		Fields: []runs.QuestionFieldSpec{{
+			Prompt: "The agent proposes a new skill \"" + draft.Name + "\". Add it to your skills?\n\n" + preview,
+			Header: "New skill",
 			Options: []runs.QuestionOptionSpec{
 				{Label: approveLabel, Description: "Save this skill to your global library"},
 				{Label: rejectLabel, Description: "Discard the proposal"},
@@ -158,8 +158,9 @@ func (a proposeArgs) arguments() (string, error) {
 	return string(b), nil
 }
 
-func selectedChoice(answer map[string][]string) string {
-	if v := answer[runs.QuestionFieldID(0)]; len(v) > 0 {
+func selectedChoice(answers [][]string) string {
+	if len(answers) > 0 && len(answers[0]) > 0 {
+		v := answers[0]
 		return v[0]
 	}
 	return ""

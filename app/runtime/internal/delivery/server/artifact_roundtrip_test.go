@@ -31,13 +31,13 @@ import (
 // is that the document this build writes is the version the contract named. Bumping
 // it is a breaking act, so it should cost a deliberate edit here.
 func TestArtifactVersionIsTheOneVNextFroze(t *testing.T) {
-	if protocol.SessionArtifactVersion != 8 {
-		t.Fatalf("SessionArtifactVersion = %d; vNext froze the artifact at 8",
+	if protocol.SessionArtifactVersion != 9 {
+		t.Fatalf("SessionArtifactVersion = %d; ordered questions require artifact v9",
 			protocol.SessionArtifactVersion)
 	}
 }
 
-// TestArtifactV8RoundTripsEveryFieldItCarries is the rest of gate 15.
+// TestArtifactV9RoundTripsEveryFieldItCarries is the rest of gate 15.
 //
 // The failure mode a version bump actually has is a field the encoder writes and
 // the decoder drops — the archive still imports, still looks right, and the value is
@@ -50,7 +50,7 @@ func TestArtifactVersionIsTheOneVNextFroze(t *testing.T) {
 //   - the archive survives the trip WHOLE — export, wipe, import, export again, and
 //     the two documents must be identical byte for byte. Any field the decoder
 //     forgets is missing from the second document.
-func TestArtifactV8RoundTripsEveryFieldItCarries(t *testing.T) {
+func TestArtifactV9RoundTripsEveryFieldItCarries(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	s.features.todos = true // this composition owns the key, so it may restore it
 	ctx := t.Context()
@@ -248,7 +248,7 @@ func assertArtifactFixtureIsComplete(t *testing.T, artifact protocol.SessionArti
 		case populated[field] && excused:
 			t.Errorf("%s is populated AND excused (%q) — one of the two is wrong", field, reason)
 		case !populated[field] && !excused:
-			t.Errorf("%s is part of the v8 document and the round-trip fixture never sets it, "+
+			t.Errorf("%s is part of the v9 document and the round-trip fixture never sets it, "+
 				"so nothing proves it survives an import", field)
 		}
 	}
@@ -325,7 +325,7 @@ func carriesAValue(value reflect.Value) bool {
 	}
 }
 
-// seedMaximalSession writes a session that reaches every corner of the v8 document:
+// seedMaximalSession writes a session that reaches every corner of the v9 document:
 // two runs (one completed with full accounting, one failed with its problem), one
 // item per transcript kind, an offloaded tool body, and a task list.
 func seedMaximalSession(t *testing.T, s *Server, rt *stubRuntime) string {
@@ -491,12 +491,12 @@ func seedEveryItemKind(t *testing.T, rt *stubRuntime, sessionID string) {
 			ID: "item_question", RunID: "run_done", Kind: transcript.QuestionItem,
 			Status: transcript.ItemCompleted, CreatedAt: time.Unix(6, 0).UTC(),
 			Question: &transcript.Question{
-				Prompt: "which way?",
 				Fields: []transcript.QuestionField{{
-					Name: "route", Label: "Route", Header: "Pick one", Required: true,
-					Kind: transcript.QuestionChoice, Multiple: true,
+					Prompt: "Which route?", Header: "Pick one",
+					Kind: transcript.QuestionChoice, Multiple: true, AllowCustom: true,
 					Options: []transcript.QuestionOption{
 						{Label: "left", Description: "the short way", Preview: "◀"},
+						{Label: "right", Description: "the scenic way", Preview: "▶"},
 					},
 				}},
 			},

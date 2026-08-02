@@ -73,7 +73,7 @@ func bootstrapPending(
 	runID, sessionID, processID, itemID string,
 	runCreatedAt, barrierCreatedAt time.Time,
 ) interrupts.Pending {
-	question := &transcript.Question{Prompt: "Continue?"}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	return interrupts.Pending{
 		RootRunID: runID,
 		SessionID: sessionID,
@@ -220,7 +220,7 @@ func parkWithGoalLease(
 		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_" + runID, RunID: runID, Kind: execution.QuestionInterrupt,
-			Question: &transcript.Question{Prompt: "Continue?"},
+			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
 		CreatedAt:   parkCreatedAt,
 		MessageMark: transcript.UnknownMessageMark,

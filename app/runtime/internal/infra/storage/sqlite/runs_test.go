@@ -68,7 +68,7 @@ func parkedRun(runID, sessionID string) transcript.Run {
 		SessionID: sessionID, ID: runID, State: execution.Interrupted,
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "itm_" + runID, RunID: runID, Kind: execution.QuestionInterrupt,
-			Question: &transcript.Question{Prompt: "continue?"},
+			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "continue?"}}},
 		}},
 		Metrics:     transcript.RunMetrics{Steps: 1},
 		CreatedAt:   runCreatedAt,

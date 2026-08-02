@@ -340,7 +340,12 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
 七个变体：`userMessage` / `agentMessage` / `reasoning` / `plan` / `question` / `toolCall` / `compaction`，判别
 字段 `type`，`status ∈ {running, completed, incomplete}`。
 
-- `question` 是一等 Item：一个提问可能成为持久化 interrupt，之后由 `runs.resume` 应答。
+- `question` 是一等 Item：一个提问可能成为持久化 interrupt，之后由 `runs.resume` 应答。它不是另一套 Form
+  子系统：`fields` 是有序、非空、**全部必答**的闭合联合，仅有 `text` 与 `choice`。因此没有与实际行为冲突的
+  `required:false`，也没有 number/date/conditional/external 等配置表单词汇。
+- Question 不携带可从顺序推导的字段 id，也不重复一份顶层 prompt；每个 field 自带 `prompt`。`choice` 至少有两个
+  唯一 label，可选 `multiple` 与 `allowCustom`。普通 `ask_user` 的 choice 允许一个自定义值，让推荐选项不封死用户表达；
+  plan/安全决策保持闭合选项。answer 与 field 始终按同一顺序对应。
 - `toolCall.error`（+ `status:"incomplete"`）是**工具级失败的统一结构化落点**。工具失败**通常不终止整个 run** ——
   agent 可据此换方案、继续（§8 落点 c）。
 - **`compaction`** 标"此处压缩了 N 条更早消息"（`droppedMessages` = 压缩前后净减条数），fold 成时间线分隔条。摘要
@@ -646,7 +651,11 @@ root cancel。root cancel 始终允许，作为所有客户端都能使用的 em
 
 `{ itemId, response: InterruptResponseValue }`，三种 response 与 interrupt 三型对应。
 
-> `answers` 值一律 `string[]`（单选也是单元素数组）——消费端形状统一、不用每次判 `string | string[]`。
+> question response 的 `answers` 是 `string[][]`，与 `Question.fields` **按下标一一对应**；每个 field 的值始终
+> 是 `string[]`（text/单选是一元素，多选可多元素）。它删除了 `q0` 之类可推导 id 和动态 map key，同时避免
+> `string | string[]` 双形状。数量必须精确覆盖全部 fields；choice 去重并验证闭合选项，`allowCustom:true` 时至多
+> 接受一个不在 options 中的自定义值。失败返回 `invalid_params.errors[]`，field 精确指向
+> `responses[i].response.answers[j]`，客户端无需解析 detail 文案。
 >
 > **`remember`（审批 scope，AUX_API §6）**：持久化成一条**细粒度规则**（`ApprovalRule`，§C.2）。规则按
 > `(scope, tool, subject)` 命中：`subject` 是后端按工具从被批准调用里提取的子主题（shell 的 command / 文件工具的
@@ -1002,7 +1011,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
   exhaustive switch，§2.3）、加 state key、改语义 / 删字段 / 改字段类型。
 - **判据不是"加还是改"，而是"老客户端会不会做错事"**。这条规则由 CI 强制：compatibility differ 拿本次产物与
   上一版基线对比，判定 breaking 就要求同批 bump（§14）。
-- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **8**）：一份归档可能被一个更新的
+- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **9**）：一份归档可能被一个更新的
   runtime 读到。不认识的版本确定性拒绝，**dev 阶段不写 migration**。
 - HTTP URL 里的 `/v2/`（wire major epoch）与日期 `protocolVersion`（epoch 内请求版本）是两个层级
   （见 TRANSPORT §6.1）。
@@ -1046,7 +1055,7 @@ capability 规则在 dispatcher / discovery / SDK preflight 三方等价；schem
 每条 system invariant 有跨 projection fixture；TS 产物可编译且**都有消费者**；canonical 样本三方通过（含一个不
 参与生产的 JSON Schema 验证器）；list query fixture；**protocol manifest / canonical 文档 / 代码 / canonical 样本
 版本一致**；错误 type↔code 单一源；每个 state key 有 typed 事件、冷读、scope、writer 与 revision 策略；
-Artifact v8 round-trip；compatibility differ 判定 breaking 并要求同批 bump（§12）。
+Artifact v9 round-trip；compatibility differ 判定 breaking 并要求同批 bump（§12）。
 
 ---
 

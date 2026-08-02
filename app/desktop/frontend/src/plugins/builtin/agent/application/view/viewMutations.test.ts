@@ -45,11 +45,15 @@ function questionBlock(itemId: string): ContentBlock {
     runId: "run_1",
     questions: [
       {
-        id: "choice",
-        question: "Which option?",
+        type: "choice",
+        prompt: "Which option?",
         header: "Choose",
-        options: [{ label: "A", description: "Option A" }],
-        multiSelect: false,
+        options: [
+          { label: "A", description: "Option A" },
+          { label: "B", description: "Option B" },
+        ],
+        multiple: false,
+        allowCustom: true,
       },
     ],
   };
@@ -144,7 +148,7 @@ describe("view mutations - interrupts", () => {
   });
 
   it("settles a question answer without stamping an approval result", () => {
-    const answers = { choice: ["A"] };
+    const answers = [["A"]];
     const original = view({
       messages: [message("assistant-1", [questionBlock("question_1")])],
       pendingInterrupts: [pendingInterrupt([{ itemId: "question_1", kind: "question" }])],

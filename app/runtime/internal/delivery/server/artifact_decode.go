@@ -351,16 +351,19 @@ func portableQuestionFromArtifact(path string, artifact protocol.ArtifactQuestio
 		if err != nil {
 			return transcript.Question{}, err
 		}
-		options := make([]transcript.QuestionOption, len(field.Options))
-		for optionIndex, option := range field.Options {
-			options[optionIndex] = transcript.QuestionOption{Label: option.Label, Description: option.Description, Preview: option.Preview}
+		var options []transcript.QuestionOption
+		if len(field.Options) > 0 {
+			options = make([]transcript.QuestionOption, len(field.Options))
+			for optionIndex, option := range field.Options {
+				options[optionIndex] = transcript.QuestionOption{Label: option.Label, Description: option.Description, Preview: option.Preview}
+			}
 		}
 		fields[index] = transcript.QuestionField{
-			Name: field.Name, Label: field.Label, Header: field.Header, Required: field.Required,
-			Kind: kind, Options: options, Multiple: field.Multiple,
+			Prompt: field.Prompt, Header: field.Header, Kind: kind,
+			Options: options, Multiple: field.Multiple, AllowCustom: field.AllowCustom,
 		}
 	}
-	return transcript.Question{Prompt: artifact.Prompt, Fields: fields}, nil
+	return transcript.Question{Fields: fields}, nil
 }
 
 func portableQuestionFieldKind(path string, value protocol.QuestionFieldType) (transcript.QuestionFieldKind, error) {

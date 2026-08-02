@@ -140,7 +140,7 @@ func TestEveryWireUnionIsRegistered(t *testing.T) {
 	t.Parallel()
 
 	want := []string{
-		"ArtifactContentBlock", "ArtifactItem", "ArtifactOutcome", "ArtifactState",
+		"ArtifactContentBlock", "ArtifactItem", "ArtifactOutcome", "ArtifactQuestionField", "ArtifactState",
 		"CancelRunResponse", "CapabilityRequirement", "ContentBlock", "DiffRow", "Interrupt", "InterruptResponseValue", "Item", "ItemDelta",
 		"ItemListScope", "McpAuthorizationAttemptStatus", "McpAuthorizationChange", "McpConnection", "McpConnectionInput", "McpEnvironmentChange", "McpHeadersChange", "McpServerState", "ProblemData", "ProviderConfigChange", "QuestionField", "RunOutcome", "RuntimeEvent", "SegmentOutcome", "StateSnapshot", "StreamEvent",
 	}

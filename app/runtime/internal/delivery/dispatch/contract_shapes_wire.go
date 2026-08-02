@@ -292,14 +292,19 @@ func registerItemUnions(s *Shapes) {
 		},
 	})
 
-	s.union(UnionSpec{
-		GoType:        typeOf[protocol.QuestionField](),
-		Discriminator: "type",
-		Variants: []VariantSpec{
-			{Tag: string(protocol.QuestionFieldText), Required: []string{"name", "label"}, Optional: []string{"header", "required"}},
-			{Tag: string(protocol.QuestionFieldChoice), Required: []string{"name", "label", "options"}, Optional: []string{"header", "required", "multiple"}},
-		},
-	})
+	for _, fieldType := range []reflect.Type{
+		typeOf[protocol.QuestionField](),
+		typeOf[protocol.ArtifactQuestionField](),
+	} {
+		s.union(UnionSpec{
+			GoType:        fieldType,
+			Discriminator: "type",
+			Variants: []VariantSpec{
+				{Tag: string(protocol.QuestionFieldText), Required: []string{"prompt"}, Optional: []string{"header"}},
+				{Tag: string(protocol.QuestionFieldChoice), Required: []string{"prompt", "options"}, Optional: []string{"header", "multiple", "allowCustom"}},
+			},
+		})
+	}
 }
 
 func registerInterruptUnions(s *Shapes) {

@@ -27,9 +27,9 @@ interface Props {
   questions: QuestionItem[];
   /** Set once the answer is submitted (optimistic) / the run resolves. */
   answered?: boolean;
-  /** The submitted answer (QuestionItem.id → labels), echoed on the settled
-   *  card. Absent on history replay → the card falls back to a bare row. */
-  answers?: Record<string, string[]>;
+  /** Submitted values in Question.fields order, echoed on the settled card.
+   *  Absent on history replay → the card falls back to a bare row. */
+  answers?: string[][];
 }
 
 // Clarifying-question card — presentation shell. Submission coordination lives
@@ -63,11 +63,11 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
           <Icon name="check" size={11} strokeWidth={3} />
           <span>{t("question.settled.answered")}</span>
         </div>
-        {questions.map((q) => (
-          <div key={q.id} className="flex flex-col gap-0.5">
-            <div className="text-ui-md leading-snug text-fg-muted">{q.question}</div>
+        {questions.map((q, index) => (
+          <div key={index} className="flex flex-col gap-0.5">
+            <div className="text-ui-md leading-snug text-fg-muted">{q.prompt}</div>
             <div className="text-ui-lg font-medium text-fg">
-              {questionAnswerText(shown, q.id) || "—"}
+              {questionAnswerText(shown, index) || "—"}
             </div>
           </div>
         ))}
@@ -83,63 +83,71 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
       label={t("question.required")}
     >
       <div className="flex flex-col gap-3">
-        {questions.map((q) => {
-          const cur = draft[q.id] ?? { selected: [], text: "" };
+        {questions.map((q, index) => {
+          const cur = draft[index] ?? { selected: [], text: "" };
           return (
-            <div key={q.id} className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2">
-                <span className="rounded-sm bg-surface-2 px-1.5 py-px font-mono text-ui-xs font-semibold text-fg-muted">
-                  {q.header}
-                </span>
-                {q.multiSelect && (
-                  <span className="font-mono text-ui-xs text-fg-faint">
-                    {t("question.multiSelect")}
-                  </span>
-                )}
-              </div>
-              <div className="text-ui-lg font-semibold leading-body text-fg">{q.question}</div>
+            <div key={index} className="flex flex-col gap-1.5">
+              {(q.header || (q.type === "choice" && q.multiple)) && (
+                <div className="flex items-center gap-2">
+                  {q.header && (
+                    <span className="rounded-sm bg-surface-2 px-1.5 py-px font-mono text-ui-xs font-semibold text-fg-muted">
+                      {q.header}
+                    </span>
+                  )}
+                  {q.type === "choice" && q.multiple && (
+                    <span className="font-mono text-ui-xs text-fg-faint">
+                      {t("question.multiSelect")}
+                    </span>
+                  )}
+                </div>
+              )}
+              <div className="text-ui-lg font-semibold leading-body text-fg">{q.prompt}</div>
 
-              <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
-                {q.options.map((opt) => {
-                  const active = cur.selected.includes(opt.label);
-                  return (
-                    <Pressable
-                      key={opt.label}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => setDraft((prev) => toggleQuestionOption(prev, q, opt.label))}
-                      className={cn(
-                        "flex flex-col gap-0.5 rounded-md border-[0.5px] border-transparent px-2.5 py-1.5 text-left transition-colors duration-[var(--dur-fast)]",
-                        active
-                          ? "border-accent/60 bg-accent-wash"
-                          : "bg-surface-2 hover:bg-surface-3",
-                      )}
-                    >
-                      <span className="text-ui-md font-medium text-fg">{opt.label}</span>
-                      {opt.description && (
-                        <span className="text-ui-sm leading-body text-fg-muted">
-                          {opt.description}
-                        </span>
-                      )}
-                      {opt.preview && (
-                        <code className="mt-1 block whitespace-pre-wrap break-all rounded-sm bg-surface-3 px-2 py-1 font-mono text-ui-sm text-fg-muted">
-                          {opt.preview}
-                        </code>
-                      )}
-                    </Pressable>
-                  );
-                })}
-              </div>
+              {q.type === "choice" && (
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
+                  {q.options.map((opt) => {
+                    const active = cur.selected.includes(opt.label);
+                    return (
+                      <Pressable
+                        key={opt.label}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() =>
+                          setDraft((prev) => toggleQuestionOption(prev, index, q, opt.label))
+                        }
+                        className={cn(
+                          "flex flex-col gap-0.5 rounded-md border-[0.5px] border-transparent px-2.5 py-1.5 text-left transition-colors duration-[var(--dur-fast)]",
+                          active
+                            ? "border-accent/60 bg-accent-wash"
+                            : "bg-surface-2 hover:bg-surface-3",
+                        )}
+                      >
+                        <span className="text-ui-md font-medium text-fg">{opt.label}</span>
+                        {opt.description && (
+                          <span className="text-ui-sm leading-body text-fg-muted">
+                            {opt.description}
+                          </span>
+                        )}
+                        {opt.preview && (
+                          <code className="mt-1 block whitespace-pre-wrap break-all rounded-sm bg-surface-3 px-2 py-1 font-mono text-ui-sm text-fg-muted">
+                            {opt.preview}
+                          </code>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </div>
+              )}
 
-              {q.allowFreeText && (
+              {(q.type === "text" || q.allowCustom) && (
                 <TextField
                   variant="bare"
                   font="sans"
                   value={cur.text}
-                  aria-label={q.question}
+                  aria-label={q.prompt}
                   placeholder={t("question.freetext.placeholder")}
                   onChange={(e) => {
-                    setDraft((prev) => setQuestionText(prev, q, e.target.value));
+                    setDraft((prev) => setQuestionText(prev, index, q, e.target.value));
                   }}
                   className="border-b-[0.5px] border-field py-1 text-display-sm focus:border-fg"
                 />

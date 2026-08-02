@@ -813,51 +813,71 @@
       "properties": {
         "fields": {
           "type": "array",
+          "minItems": 1,
           "items": {
             "$ref": "#/$defs/ArtifactQuestionField"
           }
-        },
-        "prompt": {
-          "type": "string"
         }
       },
       "required": [
-        "fields",
-        "prompt"
+        "fields"
       ]
     },
     "ArtifactQuestionField": {
       "type": "object",
       "properties": {
-        "header": {
-          "type": "string"
+        "allowCustom": {
+          "type": "boolean"
         },
-        "label": {
-          "type": "string"
+        "header": {
+          "type": "string",
+          "maxLength": 12
         },
         "multiple": {
           "type": "boolean"
         },
-        "name": {
-          "type": "string"
-        },
         "options": {
           "type": "array",
+          "minItems": 2,
           "items": {
             "$ref": "#/$defs/ArtifactQuestionOption"
           }
         },
-        "required": {
-          "type": "boolean"
+        "prompt": {
+          "type": "string",
+          "minLength": 1
         },
         "type": {
           "$ref": "#/$defs/QuestionFieldType"
         }
       },
-      "required": [
-        "label",
-        "name",
-        "type"
+      "oneOf": [
+        {
+          "properties": {
+            "allowCustom": false,
+            "multiple": false,
+            "options": false,
+            "type": {
+              "const": "text"
+            }
+          },
+          "required": [
+            "prompt",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "choice"
+            }
+          },
+          "required": [
+            "options",
+            "prompt",
+            "type"
+          ]
+        }
       ]
     },
     "ArtifactQuestionOption": {
@@ -867,7 +887,8 @@
           "type": "string"
         },
         "label": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "preview": {
           "type": "string"
@@ -2611,8 +2632,9 @@
       "type": "object",
       "properties": {
         "answers": {
-          "type": "object",
-          "additionalProperties": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
             "type": "array",
             "items": {
               "type": "string"
@@ -5390,42 +5412,39 @@
       "properties": {
         "fields": {
           "type": "array",
+          "minItems": 1,
           "items": {
             "$ref": "#/$defs/QuestionField"
           }
-        },
-        "prompt": {
-          "type": "string"
         }
       },
       "required": [
-        "fields",
-        "prompt"
+        "fields"
       ]
     },
     "QuestionField": {
       "type": "object",
       "properties": {
-        "header": {
-          "type": "string"
+        "allowCustom": {
+          "type": "boolean"
         },
-        "label": {
-          "type": "string"
+        "header": {
+          "type": "string",
+          "maxLength": 12
         },
         "multiple": {
           "type": "boolean"
         },
-        "name": {
-          "type": "string"
-        },
         "options": {
           "type": "array",
+          "minItems": 2,
           "items": {
             "$ref": "#/$defs/QuestionOption"
           }
         },
-        "required": {
-          "type": "boolean"
+        "prompt": {
+          "type": "string",
+          "minLength": 1
         },
         "type": {
           "$ref": "#/$defs/QuestionFieldType"
@@ -5434,6 +5453,7 @@
       "oneOf": [
         {
           "properties": {
+            "allowCustom": false,
             "multiple": false,
             "options": false,
             "type": {
@@ -5441,8 +5461,7 @@
             }
           },
           "required": [
-            "label",
-            "name",
+            "prompt",
             "type"
           ]
         },
@@ -5453,9 +5472,8 @@
             }
           },
           "required": [
-            "label",
-            "name",
             "options",
+            "prompt",
             "type"
           ]
         }
@@ -5475,7 +5493,8 @@
           "type": "string"
         },
         "label": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "preview": {
           "type": "string"

@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode/utf8"
 )
 
 // WireValidator is implemented by a DTO whose wire contract is stricter than its
@@ -292,6 +293,37 @@ func nonEmptyItems[T any](field string, values []T) FieldError {
 		return FieldError{Field: field, Detail: "must not be empty"}
 	}
 	return FieldError{}
+}
+
+func requiredMinItems[T any](field string, values []T, minimum int) FieldError {
+	if values == nil {
+		return FieldError{Field: field, Detail: "is required"}
+	}
+	if len(values) < minimum {
+		return FieldError{Field: field, Detail: fmt.Sprintf("must contain at least %d items", minimum)}
+	}
+	return FieldError{}
+}
+
+func optionalMinItems[T any](field string, values []T, minimum int) FieldError {
+	if values != nil && len(values) < minimum {
+		return FieldError{Field: field, Detail: fmt.Sprintf("must contain at least %d items", minimum)}
+	}
+	return FieldError{}
+}
+
+func maxLength(field, value string, maximum int) FieldError {
+	if utf8.RuneCountInString(value) > maximum {
+		return FieldError{Field: field, Detail: fmt.Sprintf("must contain at most %d characters", maximum)}
+	}
+	return FieldError{}
+}
+
+func optionalMaxLength(field string, value *string, maximum int) FieldError {
+	if value == nil {
+		return FieldError{}
+	}
+	return maxLength(field, *value, maximum)
 }
 
 // nonEmptyProperties rejects an empty object map. nil remains a valid omission;

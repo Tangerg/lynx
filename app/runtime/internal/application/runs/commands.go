@@ -241,8 +241,27 @@ type ApprovalResponse struct {
 }
 
 type QuestionResponse struct {
-	Answers map[string][]string
+	Answers [][]string
 }
+
+// QuestionAnswerError identifies the exact ordered answer that failed the
+// durable question schema. Index is -1 when the answer collection itself is
+// malformed. Delivery turns it into invalid_params.errors without teaching the
+// application about JSON field paths.
+type QuestionAnswerError struct {
+	ItemID string
+	Index  int
+	Detail string
+}
+
+func (e *QuestionAnswerError) Error() string {
+	if e.Index < 0 {
+		return fmt.Sprintf("question item %q answers: %s", e.ItemID, e.Detail)
+	}
+	return fmt.Sprintf("question item %q answer %d: %s", e.ItemID, e.Index, e.Detail)
+}
+
+func (e *QuestionAnswerError) Unwrap() error { return ErrInvalidInterruptResponse }
 
 // CancelCommand abandons a live or parked run.
 type CancelCommand struct {

@@ -454,11 +454,9 @@ func waitingQuestionResponses(pending interrupts.Pending) []ResumeResponse {
 	responses := make([]ResumeResponse, len(pending.Interrupts))
 	for index, interrupt := range pending.Interrupts {
 		responses[index] = ResumeResponse{
-			ItemID: interrupt.ItemID,
-			Kind:   QuestionResponseKind,
-			Question: &QuestionResponse{Answers: map[string][]string{
-				"answer": {"continue"},
-			}},
+			ItemID:   interrupt.ItemID,
+			Kind:     QuestionResponseKind,
+			Question: &QuestionResponse{Answers: [][]string{{"continue"}}},
 		}
 	}
 	return responses

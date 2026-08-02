@@ -391,7 +391,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	)
 	createdAt := time.Date(2026, 7, 16, 1, 0, 0, 0, time.UTC)
 	parkedAt := createdAt.Add(time.Second)
-	question := &transcript.Question{Prompt: "Continue?"}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	open := []transcript.Interrupt{{
 		ItemID: "item_park", RunID: runID, Kind: execution.QuestionInterrupt, Question: question,
 	}}

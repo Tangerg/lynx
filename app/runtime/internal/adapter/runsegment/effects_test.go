@@ -56,7 +56,7 @@ func singleRunPending(
 	runCreatedAt, barrierCreatedAt time.Time,
 ) interrupts.Pending {
 	t.Helper()
-	question := &transcript.Question{Prompt: "Continue?"}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	return interrupts.Pending{
 		RootRunID: runID,
 		SessionID: sessionID,

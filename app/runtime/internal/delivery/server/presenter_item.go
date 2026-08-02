@@ -116,18 +116,21 @@ func presentQuestion(question transcript.Question) protocol.Question {
 		default:
 			panic("server: unknown transcript question-field kind")
 		}
-		options := make([]protocol.QuestionOption, len(field.Options))
-		for j, option := range field.Options {
-			options[j] = protocol.QuestionOption{
-				Label: option.Label, Description: option.Description, Preview: option.Preview,
+		var options []protocol.QuestionOption
+		if len(field.Options) > 0 {
+			options = make([]protocol.QuestionOption, len(field.Options))
+			for j, option := range field.Options {
+				options[j] = protocol.QuestionOption{
+					Label: option.Label, Description: option.Description, Preview: option.Preview,
+				}
 			}
 		}
 		fields[i] = protocol.QuestionField{
-			Name: field.Name, Label: field.Label, Header: field.Header,
-			Required: field.Required, Type: kind, Options: options, Multiple: field.Multiple,
+			Prompt: field.Prompt, Header: field.Header, Type: kind,
+			Options: options, Multiple: field.Multiple, AllowCustom: field.AllowCustom,
 		}
 	}
-	return protocol.Question{Prompt: question.Prompt, Fields: fields}
+	return protocol.Question{Fields: fields}
 }
 
 func presentTool(tool transcript.ToolInvocation) protocol.ToolInvocation {

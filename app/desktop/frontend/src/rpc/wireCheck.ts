@@ -110,8 +110,17 @@ export function numeric(): WireCheck {
  */
 export function minLength(least: number): WireCheck {
   return (value, path, out) => {
-    if (typeof value === "string" && value.length < least) {
+    if (typeof value === "string" && Array.from(value).length < least) {
       out.push({ path, detail: `expected at least ${least} character(s)` });
+    }
+  };
+}
+
+/** `maxLength`, counted as Unicode code points as required by JSON Schema. */
+export function maxLength(most: number): WireCheck {
+  return (value, path, out) => {
+    if (typeof value === "string" && Array.from(value).length > most) {
+      out.push({ path, detail: `expected at most ${most} character(s)` });
     }
   };
 }

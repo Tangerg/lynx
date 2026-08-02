@@ -7,12 +7,9 @@ import {
 import { canSubmitQuestionCard, questionCardSettledView } from "./questionCardModel";
 
 const question: QuestionItem = {
-  id: "goal",
+  type: "text",
   header: "Goal",
-  question: "What should change?",
-  options: [{ label: "Clean up", description: "" }],
-  allowFreeText: true,
-  multiSelect: false,
+  prompt: "What should change?",
 };
 
 describe("questionCardSettledView", () => {
@@ -26,13 +23,13 @@ describe("questionCardSettledView", () => {
         pending: false,
         questions: [question],
         draft,
-        answers: { goal: ["Refactor"] },
+        answers: [["Refactor"]],
       }),
-    ).toEqual({ settled: true, answers: { goal: ["Refactor"] } });
+    ).toEqual({ settled: true, answers: [["Refactor"]] });
   });
 
   it("echoes the local draft while a submit is pending", () => {
-    const draft = setQuestionText(createQuestionDraft([question]), question, "Extract model");
+    const draft = setQuestionText(createQuestionDraft([question]), 0, question, "Extract model");
 
     expect(
       questionCardSettledView({
@@ -41,7 +38,7 @@ describe("questionCardSettledView", () => {
         questions: [question],
         draft,
       }),
-    ).toEqual({ settled: true, answers: { goal: "Extract model" } });
+    ).toEqual({ settled: true, answers: [["Extract model"]] });
   });
 
   it("stays interactive before a question is answered", () => {

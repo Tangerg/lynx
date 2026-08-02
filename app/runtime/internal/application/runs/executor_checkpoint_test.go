@@ -51,7 +51,7 @@ func TestTreeInterruptedRejectsCheckpointBoundToDifferentApplicationFacts(t *tes
 						Question: &QuestionPrompt{
 							ToolName:  "ask_user",
 							Arguments: `{}`,
-							Questions: []QuestionSpec{{Question: "Continue?", Header: "Continue"}},
+							Fields:    []QuestionFieldSpec{{Prompt: "Continue?", Header: "Continue"}},
 						},
 					},
 				}},

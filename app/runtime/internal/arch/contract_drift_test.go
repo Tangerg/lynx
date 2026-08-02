@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -669,17 +670,36 @@ func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 				keyword, helper = "minProperties", "nonEmptyProperties"
 			case dispatch.ConstraintUniqueItems:
 				keyword, helper = "uniqueItems", "uniqueItems"
+			case dispatch.ConstraintMinItems:
+				keyword = "minItems"
+				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)
+				if !ok {
+					t.Fatalf("%s has no field %q", shape, constraint.Field)
+				}
+				if leaf.Optional {
+					helper = "optionalMinItems"
+				} else {
+					helper = "requiredMinItems"
+				}
+			case dispatch.ConstraintMaxLength:
+				keyword, helper = "maxLength", "maxLength"
+				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)
+				if !ok {
+					t.Fatalf("%s has no field %q", shape, constraint.Field)
+				}
+				if leaf.Type.Kind() == reflect.Pointer {
+					helper = "optionalMaxLength"
+				}
 			}
 			// The schema states the rule somewhere inside the shape's definition —
 			// on the property for a direct field, in an allOf branch for a nested one.
-			if !constraintInSchema(t, definition, constraint.Field, keyword) {
+			if !constraintInSchema(t, definition, constraint.Field, keyword, constraint.Limit) {
 				t.Errorf("%s.%s is declared %s and schema.json states no %s for it",
-					shape, constraint.Field, constraint.Kind, keyword)
+					shape, constraint.Field, constraint, keyword)
 			}
-			call := helper + `("` + constraint.Field + `"`
-			if !strings.Contains(validator, call) {
+			if !statesGoConstraint(validator, helper, constraint.Field, constraint.Limit) {
 				t.Errorf("%s.%s is declared %s and the generated validator has no %s call",
-					shape, constraint.Field, constraint.Kind, helper)
+					shape, constraint.Field, constraint, helper)
 			}
 			// The TypeScript checks name the leaf, so a dotted path is read at the
 			// segment the constraint lands on. Looking inside this shape's own entry —
@@ -689,9 +709,9 @@ func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 				t.Errorf("%s carries value constraints and %s has no check for it", shape, tsWireValidator)
 				continue
 			}
-			if !statesCheck(entry, constraint.Field, keyword) {
+			if !statesCheck(entry, constraint.Field, keyword, constraint.Limit) {
 				t.Errorf("%s.%s is declared %s and its %s check states no %s",
-					shape, constraint.Field, constraint.Kind, tsWireValidator, keyword)
+					shape, constraint.Field, constraint, tsWireValidator, keyword)
 			}
 		}
 	}
@@ -702,14 +722,29 @@ func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 // either way it is stated — `sessionId: allOf([text(), minLength(1)])` beside a type
 // keyword, `id: minLength(1)` alone in an allOf branch — so the line the field names
 // is the whole rule.
-func statesCheck(entry, path, keyword string) bool {
+func statesCheck(entry, path, keyword string, limit int) bool {
 	segments := strings.Split(path, ".")
 	field := segments[len(segments)-1] + ": "
+	call := keyword + "("
+	if limit > 0 {
+		call += strconv.Itoa(limit) + ")"
+	}
 	for line := range strings.SplitSeq(entry, "\n") {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, field) && strings.Contains(trimmed, keyword+"(") {
+		if strings.HasPrefix(trimmed, field) && strings.Contains(trimmed, call) {
 			return true
 		}
+	}
+	return false
+}
+
+func statesGoConstraint(source, helper, field string, limit int) bool {
+	prefix := helper + `("` + field + `"`
+	for line := range strings.SplitSeq(source, "\n") {
+		if !strings.Contains(line, prefix) {
+			continue
+		}
+		return limit == 0 || strings.Contains(line, ", "+strconv.Itoa(limit)+")")
 	}
 	return false
 }
@@ -738,7 +773,7 @@ func checkEntries(t *testing.T, source string) map[string]string {
 
 // constraintInSchema reports whether the definition constrains the last segment of
 // a dotted path with the given keyword, at any depth.
-func constraintInSchema(t *testing.T, definition json.RawMessage, path, keyword string) bool {
+func constraintInSchema(t *testing.T, definition json.RawMessage, path, keyword string, limit int) bool {
 	t.Helper()
 
 	var decoded any
@@ -746,27 +781,32 @@ func constraintInSchema(t *testing.T, definition json.RawMessage, path, keyword 
 		t.Fatalf("decode definition: %v", err)
 	}
 	segments := strings.Split(path, ".")
-	return statesKeyword(decoded, segments[len(segments)-1], keyword)
+	return statesKeyword(decoded, segments[len(segments)-1], keyword, limit)
 }
 
-func statesKeyword(node any, property, keyword string) bool {
+func statesKeyword(node any, property, keyword string, limit int) bool {
 	switch typed := node.(type) {
 	case map[string]any:
 		if properties, ok := typed["properties"].(map[string]any); ok {
 			if constrained, ok := properties[property].(map[string]any); ok {
-				if _, stated := constrained[keyword]; stated {
-					return true
+				if value, stated := constrained[keyword]; stated {
+					if limit == 0 {
+						return true
+					}
+					if number, ok := value.(float64); ok && number == float64(limit) {
+						return true
+					}
 				}
 			}
 		}
 		for _, value := range typed {
-			if statesKeyword(value, property, keyword) {
+			if statesKeyword(value, property, keyword, limit) {
 				return true
 			}
 		}
 	case []any:
 		for _, value := range typed {
-			if statesKeyword(value, property, keyword) {
+			if statesKeyword(value, property, keyword, limit) {
 				return true
 			}
 		}

@@ -197,6 +197,47 @@ func TestShapeMetadataRejectsUnknownValues(t *testing.T) {
 		t.Fatalf("unknown constraint kind masquerades as %q", got)
 	}
 
+	bounded := FieldConstraintSpec{
+		GoType: reflect.TypeFor[protocol.QuestionField](),
+		Constraints: []FieldConstraint{{
+			Field: "options", Kind: ConstraintMinItems,
+		}},
+	}
+	if err := bounded.validate(); err == nil || !strings.Contains(err.Error(), "positive limit") {
+		t.Fatalf("bounded constraint error = %v, want positive limit", err)
+	}
+
+	unbounded := FieldConstraintSpec{
+		GoType: reflect.TypeFor[protocol.GetRunRequest](),
+		Constraints: []FieldConstraint{{
+			Field: "runId", Kind: ConstraintNonEmpty, Limit: 1,
+		}},
+	}
+	if err := unbounded.validate(); err == nil || !strings.Contains(err.Error(), "does not accept a limit") {
+		t.Fatalf("unbounded constraint error = %v, want rejected limit", err)
+	}
+
+	duplicateBound := FieldConstraintSpec{
+		GoType: reflect.TypeFor[protocol.QuestionField](),
+		Constraints: []FieldConstraint{
+			{Field: "options", Kind: ConstraintMinItems, Limit: 2},
+			{Field: "options", Kind: ConstraintMinItems, Limit: 3},
+		},
+	}
+	if err := duplicateBound.validate(); err == nil || !strings.Contains(err.Error(), "declares constraint minItems twice") {
+		t.Fatalf("duplicate bounded constraint error = %v, want duplicate rejection", err)
+	}
+
+	wrongType := FieldConstraintSpec{
+		GoType: reflect.TypeFor[protocol.QuestionField](),
+		Constraints: []FieldConstraint{{
+			Field: "options", Kind: ConstraintMaxLength, Limit: 12,
+		}},
+	}
+	if err := wrongType.validate(); err == nil || !strings.Contains(err.Error(), "only a string has a length") {
+		t.Fatalf("bounded constraint type error = %v, want string requirement", err)
+	}
+
 	objectSpec := ObjectConstraintSpec{
 		GoType: reflect.TypeFor[protocol.ProblemData](),
 		Rules: []PresenceRule{{

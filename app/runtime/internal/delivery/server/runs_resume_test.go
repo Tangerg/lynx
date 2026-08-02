@@ -152,3 +152,23 @@ func TestResumeRunRejectsMissingAndUnknownItemCoverage(t *testing.T) {
 		t.Fatalf("invalid responses consumed interrupt (found=%v err=%v)", found, err)
 	}
 }
+
+func TestQuestionAnswerParamsErrorPreservesExactAnswerPath(t *testing.T) {
+	err := questionAnswerParamsError(
+		[]protocol.InterruptResponse{{ItemID: "item_other"}, {ItemID: "item_question"}},
+		&runs.QuestionAnswerError{ItemID: "item_question", Index: 2, Detail: "unknown choice"},
+	)
+	if !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("error = %v, want invalid_params", err)
+	}
+	var constraint *protocol.ConstraintError
+	if !errors.As(err, &constraint) {
+		t.Fatalf("error = %v, want ConstraintError", err)
+	}
+	want := protocol.FieldError{
+		Field: "responses[1].response.answers[2]", Detail: "unknown choice",
+	}
+	if len(constraint.Fields) != 1 || constraint.Fields[0] != want {
+		t.Fatalf("fields = %#v, want %#v", constraint.Fields, want)
+	}
+}

@@ -61,6 +61,7 @@ type schema struct {
 	ContentEncoding string         `json:"contentEncoding,omitempty"`
 	Enum            []string       `json:"enum,omitempty"`
 	MinLength       *int           `json:"minLength,omitempty"`
+	MaxLength       *int           `json:"maxLength,omitempty"`
 	Const           string         `json:"const,omitempty"`
 	Pattern         string         `json:"pattern,omitempty"`
 	TypeScriptType  string         `json:"-"`
@@ -217,7 +218,7 @@ func (s *schemaSet) object(t reflect.Type) *schema {
 			parent.Properties = make(map[string]any)
 		}
 		narrowed := &schema{}
-		applyValueConstraints(narrowed, []dispatch.ConstraintKind{constraint.Kind})
+		applyValueConstraints(narrowed, []dispatch.FieldConstraint{constraint})
 		parent.Properties[leaf] = narrowed
 		out.AllOf = append(out.AllOf, branch)
 	}
@@ -447,9 +448,9 @@ func defName(t reflect.Type) string {
 
 // applyValueConstraints states a declared value constraint in JSON Schema terms, so
 // the schema and the generated validators refuse the same frames.
-func applyValueConstraints(node *schema, kinds []dispatch.ConstraintKind) {
-	for _, kind := range kinds {
-		switch kind {
+func applyValueConstraints(node *schema, constraints []dispatch.FieldConstraint) {
+	for _, constraint := range constraints {
+		switch constraint.Kind {
 		case dispatch.ConstraintNonEmpty:
 			node.MinLength = new(1)
 		case dispatch.ConstraintPositive:
@@ -462,10 +463,14 @@ func applyValueConstraints(node *schema, kinds []dispatch.ConstraintKind) {
 			node.MinProperties = new(1)
 		case dispatch.ConstraintUniqueItems:
 			node.UniqueItems = true
+		case dispatch.ConstraintMinItems:
+			node.MinItems = new(constraint.Limit)
+		case dispatch.ConstraintMaxLength:
+			node.MaxLength = new(constraint.Limit)
 		default:
 			panic(fmt.Sprintf(
 				"contractgen: unsupported value constraint %s",
-				kind,
+				constraint.Kind,
 			))
 		}
 	}

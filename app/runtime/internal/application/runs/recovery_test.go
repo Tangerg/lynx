@@ -80,7 +80,7 @@ func TestRecoveryMarksAbandonedRunTreeLostInPostorder(t *testing.T) {
 	item := transcript.Item{
 		ID: "item_running", SessionID: root.SessionID, RunID: child.ID,
 		Kind: transcript.QuestionItem, Status: transcript.ItemRunning, CreatedAt: createdAt,
-		Question: &transcript.Question{Prompt: "Continue?"},
+		Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 	}
 	store := &recoveryStoreStub{
 		runs:         []transcript.Run{root, child},
@@ -449,7 +449,7 @@ func coherentRecoveryPark(t *testing.T) (transcript.Run, interrupts.Pending, tra
 	if err != nil {
 		t.Fatalf("model selection: %v", err)
 	}
-	question := &transcript.Question{Prompt: "Continue?"}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	interrupt := transcript.Interrupt{
 		ItemID: "item_question", RunID: "run_root", Kind: execution.QuestionInterrupt, Question: question,
 	}

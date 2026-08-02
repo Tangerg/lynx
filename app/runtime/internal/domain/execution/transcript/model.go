@@ -7,6 +7,7 @@ import (
 	"math"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
@@ -306,18 +307,16 @@ const (
 )
 
 type Question struct {
-	Prompt string
 	Fields []QuestionField
 }
 
 type QuestionField struct {
-	Name     string
-	Label    string
-	Header   string
-	Required bool
-	Kind     QuestionFieldKind
-	Options  []QuestionOption
-	Multiple bool
+	Prompt      string
+	Header      string
+	Kind        QuestionFieldKind
+	Options     []QuestionOption
+	Multiple    bool
+	AllowCustom bool
 }
 
 type QuestionFieldKind uint8
@@ -632,28 +631,41 @@ func (status PlanStepStatus) Valid() bool {
 
 // Validate reports whether the question can be rendered and answered unambiguously.
 func (question Question) Validate() error {
-	seen := make(map[string]struct{}, len(question.Fields))
+	if len(question.Fields) == 0 {
+		return errors.New("question requires at least one field")
+	}
 	for index, field := range question.Fields {
-		if field.Name == "" {
-			return fmt.Errorf("question field %d name is required", index)
+		if strings.TrimSpace(field.Prompt) == "" {
+			return fmt.Errorf("question field %d prompt is required", index)
 		}
-		if _, duplicate := seen[field.Name]; duplicate {
-			return fmt.Errorf("question field %q is duplicated", field.Name)
+		if utf8.RuneCountInString(field.Header) > 12 {
+			return fmt.Errorf("question field %d header must be at most 12 characters", index)
 		}
-		seen[field.Name] = struct{}{}
 		switch field.Kind {
 		case QuestionText:
-			if len(field.Options) != 0 || field.Multiple {
-				return fmt.Errorf("text question field %q cannot carry options or multiple", field.Name)
+			if len(field.Options) != 0 || field.Multiple || field.AllowCustom {
+				return fmt.Errorf("text question field %d cannot carry choice settings", index)
 			}
 		case QuestionChoice:
-		default:
-			return fmt.Errorf("question field %q has unknown kind %d", field.Name, field.Kind)
-		}
-		for optionIndex, option := range field.Options {
-			if option.Label == "" {
-				return fmt.Errorf("question field %q option %d label is required", field.Name, optionIndex)
+			if len(field.Options) < 2 {
+				return fmt.Errorf("choice question field %d requires at least two options", index)
 			}
+		default:
+			return fmt.Errorf("question field %d has unknown kind %d", index, field.Kind)
+		}
+		seenOptions := make(map[string]struct{}, len(field.Options))
+		for optionIndex, option := range field.Options {
+			label := strings.TrimSpace(option.Label)
+			if label == "" {
+				return fmt.Errorf("question field %d option %d label is required", index, optionIndex)
+			}
+			if label != option.Label {
+				return fmt.Errorf("question field %d option %d label has surrounding whitespace", index, optionIndex)
+			}
+			if _, duplicate := seenOptions[label]; duplicate {
+				return fmt.Errorf("question field %d repeats option %q", index, label)
+			}
+			seenOptions[label] = struct{}{}
 		}
 	}
 	return nil

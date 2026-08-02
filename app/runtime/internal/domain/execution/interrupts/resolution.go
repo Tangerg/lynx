@@ -10,7 +10,7 @@ import "github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 type Resolution struct {
 	Approved  bool
 	Arguments string
-	Answer    map[string][]string
+	Answers   [][]string
 	Reason    string
 	// RememberScope, when non-empty, asks the runtime to persist this
 	// approve/deny decision as a rule so matching future calls skip the prompt

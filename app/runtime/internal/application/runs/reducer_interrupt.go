@@ -238,15 +238,15 @@ func (r *reducer) questionInterrupt(in Interrupt) (transcript.Item, transcript.I
 }
 
 func questionFromPrompt(prompt QuestionPrompt) transcript.Question {
-	fields := make([]transcript.QuestionField, len(prompt.Questions))
-	for i, question := range prompt.Questions {
+	fields := make([]transcript.QuestionField, len(prompt.Fields))
+	for i, question := range prompt.Fields {
 		field := transcript.QuestionField{
-			Name: QuestionFieldID(i), Label: question.Question,
-			Header: question.Header, Required: true, Kind: transcript.QuestionText,
+			Prompt: question.Prompt, Header: question.Header, Kind: transcript.QuestionText,
 		}
 		if len(question.Options) > 0 {
 			field.Kind = transcript.QuestionChoice
-			field.Multiple = question.MultiSelect
+			field.Multiple = question.Multiple
+			field.AllowCustom = question.AllowCustom
 			field.Options = make([]transcript.QuestionOption, len(question.Options))
 			for j, option := range question.Options {
 				field.Options[j] = transcript.QuestionOption{Label: option.Label, Description: option.Description}
@@ -254,11 +254,7 @@ func questionFromPrompt(prompt QuestionPrompt) transcript.Question {
 		}
 		fields[i] = field
 	}
-	label := ""
-	if len(prompt.Questions) == 1 {
-		label = prompt.Questions[0].Question
-	}
-	return transcript.Question{Prompt: label, Fields: fields}
+	return transcript.Question{Fields: fields}
 }
 
 type openTools map[string]*openTool

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -25,11 +24,6 @@ func InterruptUnavailable(context.Context, string, Interrupt) (interrupts.Resolu
 	return interrupts.Resolution{}, errors.New("runs: execution interrupts are unavailable")
 }
 
-// QuestionFieldID returns the durable identifier for a field created from a
-// QuestionPrompt. It is application-owned transcript vocabulary: adapters use
-// it to correlate a resumed answer with the question item they submitted.
-func QuestionFieldID(index int) string { return "q" + strconv.Itoa(index) }
-
 // ApprovalPrompt is the complete durable plan for one gated tool call.
 // Arguments are the effective arguments after PreToolUse rewriting, so a
 // continuation (including one restored after restart) can resume without
@@ -49,20 +43,21 @@ type ApprovalPrompt struct {
 
 // QuestionPrompt is the complete durable plan for a question-producing tool
 // call. ToolName and Arguments preserve the logical call that owns the
-// question; Questions are the client-facing answer schema.
+// question; Fields are the client-facing answer schema.
 type QuestionPrompt struct {
 	ToolName  string
 	Arguments string
-	Questions []QuestionSpec
+	Fields    []QuestionFieldSpec
 }
 
-// QuestionSpec is one required answer field. An empty Options slice means
+// QuestionFieldSpec is one required answer field. An empty Options slice means
 // free-text; otherwise 2-4 unique options are accepted.
-type QuestionSpec struct {
-	Question    string
+type QuestionFieldSpec struct {
+	Prompt      string
 	Header      string
 	Options     []QuestionOptionSpec
-	MultiSelect bool
+	Multiple    bool
+	AllowCustom bool
 }
 
 type QuestionOptionSpec struct {
@@ -136,27 +131,27 @@ func (p QuestionPrompt) validate() error {
 	if err := validateArguments(p.Arguments); err != nil {
 		return fmt.Errorf("runs: question arguments: %w", err)
 	}
-	if len(p.Questions) < 1 || len(p.Questions) > 4 {
-		return fmt.Errorf("runs: question count must be between 1 and 4, got %d", len(p.Questions))
+	if len(p.Fields) < 1 || len(p.Fields) > 4 {
+		return fmt.Errorf("runs: question field count must be between 1 and 4, got %d", len(p.Fields))
 	}
-	for index, question := range p.Questions {
-		if err := question.validate(); err != nil {
-			return fmt.Errorf("runs: question %d: %w", index, err)
+	for index, field := range p.Fields {
+		if err := field.validate(); err != nil {
+			return fmt.Errorf("runs: question field %d: %w", index, err)
 		}
 	}
 	return nil
 }
 
-func (q QuestionSpec) validate() error {
-	if strings.TrimSpace(q.Question) == "" {
-		return errors.New("text is required")
+func (q QuestionFieldSpec) validate() error {
+	if strings.TrimSpace(q.Prompt) == "" {
+		return errors.New("prompt is required")
 	}
 	if utf8.RuneCountInString(q.Header) > 12 {
 		return errors.New("header must be at most 12 characters")
 	}
 	if len(q.Options) == 0 {
-		if q.MultiSelect {
-			return errors.New("multiSelect requires options")
+		if q.Multiple || q.AllowCustom {
+			return errors.New("choice settings require options")
 		}
 		return nil
 	}

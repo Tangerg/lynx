@@ -4,11 +4,10 @@
   "type": "question",
   "payload": {
     "question": {
-      "prompt": "Which environment should I deploy to?",
       "fields": [
         {
-          "name": "environment",
-          "label": "Environment",
+          "prompt": "Which environment should I deploy to?",
+          "header": "Environment",
           "type": "choice",
           "options": [
             {

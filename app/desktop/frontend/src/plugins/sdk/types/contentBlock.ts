@@ -13,16 +13,24 @@ export interface QuestionOption {
   preview?: string;
 }
 
-// One clarifying field projected from a runtime question. The card renders
-// these as single/multi-select choices with an optional free-text fallback.
-export interface QuestionItem {
-  id: string;
-  question: string;
+interface QuestionItemBase {
+  prompt: string;
   header: string;
-  options: QuestionOption[];
-  multiSelect: boolean;
-  allowFreeText?: boolean;
 }
+
+export interface TextQuestionItem extends QuestionItemBase {
+  type: "text";
+}
+
+export interface ChoiceQuestionItem extends QuestionItemBase {
+  type: "choice";
+  options: QuestionOption[];
+  multiple: boolean;
+  allowCustom: boolean;
+}
+
+// One required clarifying field projected from the runtime's closed union.
+export type QuestionItem = TextQuestionItem | ChoiceQuestionItem;
 
 export interface BuiltinContentBlockMap {
   text: { kind: "text"; text: string; status: BlockStatus; itemId?: string };
@@ -56,7 +64,7 @@ export interface BuiltinContentBlockMap {
     runId?: string;
     questions: QuestionItem[];
     answered?: boolean;
-    answers?: Record<string, string[]>;
+    answers?: string[][];
   };
   compaction: { kind: "compaction"; summary?: string; droppedMessages?: number };
 }

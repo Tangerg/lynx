@@ -2765,25 +2765,49 @@
         {
           "tag": "text",
           "required": [
-            "name",
-            "label"
+            "prompt"
           ],
           "optional": [
-            "header",
-            "required"
+            "header"
           ]
         },
         {
           "tag": "choice",
           "required": [
-            "name",
-            "label",
+            "prompt",
             "options"
           ],
           "optional": [
             "header",
-            "required",
-            "multiple"
+            "multiple",
+            "allowCustom"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ArtifactQuestionField",
+      "discriminator": "type",
+      "variants": [
+        {
+          "tag": "text",
+          "required": [
+            "prompt"
+          ],
+          "optional": [
+            "header"
+          ]
+        },
+        {
+          "tag": "choice",
+          "required": [
+            "prompt",
+            "options"
+          ],
+          "optional": [
+            "header",
+            "multiple",
+            "allowCustom"
           ]
         }
       ]
@@ -3976,6 +4000,85 @@
         },
         {
           "field": "input",
+          "constraint": "nonEmptyItems"
+        }
+      ]
+    },
+    {
+      "type": "Question",
+      "rules": [
+        {
+          "field": "fields",
+          "constraint": "nonEmptyItems"
+        }
+      ]
+    },
+    {
+      "type": "ArtifactQuestion",
+      "rules": [
+        {
+          "field": "fields",
+          "constraint": "nonEmptyItems"
+        }
+      ]
+    },
+    {
+      "type": "QuestionField",
+      "rules": [
+        {
+          "field": "prompt",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "header",
+          "constraint": "maxLength(12)"
+        },
+        {
+          "field": "options",
+          "constraint": "minItems(2)"
+        }
+      ]
+    },
+    {
+      "type": "ArtifactQuestionField",
+      "rules": [
+        {
+          "field": "prompt",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "header",
+          "constraint": "maxLength(12)"
+        },
+        {
+          "field": "options",
+          "constraint": "minItems(2)"
+        }
+      ]
+    },
+    {
+      "type": "QuestionOption",
+      "rules": [
+        {
+          "field": "label",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "ArtifactQuestionOption",
+      "rules": [
+        {
+          "field": "label",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "InterruptResponseValue",
+      "rules": [
+        {
+          "field": "answers",
           "constraint": "nonEmptyItems"
         }
       ]

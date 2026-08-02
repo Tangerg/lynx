@@ -299,9 +299,8 @@ func treeQuestion(itemID, runID string) transcript.Interrupt {
 		RunID:  runID,
 		Kind:   execution.QuestionInterrupt,
 		Question: &transcript.Question{
-			Prompt: "Continue?",
 			Fields: []transcript.QuestionField{{
-				Name: "answer", Kind: transcript.QuestionText, Required: true,
+				Prompt: "Continue?", Kind: transcript.QuestionText,
 			}},
 		},
 	}
@@ -492,7 +491,7 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 		ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
 		Usage:          accounting.Snapshot{},
 	})
-	question := &transcript.Question{Prompt: "Continue?"}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	open := []transcript.Interrupt{{
 		ItemID:   "item_question",
 		RunID:    "run_1",
@@ -1405,7 +1404,7 @@ func parkedRunRecord(runID, sessionID string, createdAt time.Time) transcript.Ru
 		SessionID: sessionID, ID: runID, State: execution.Interrupted,
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_" + runID, Kind: execution.QuestionInterrupt,
-			Question: &transcript.Question{Prompt: "continue?"},
+			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "continue?"}}},
 		}},
 		CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
 	}

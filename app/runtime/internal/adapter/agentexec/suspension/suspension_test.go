@@ -2,6 +2,7 @@ package suspension
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -17,9 +18,9 @@ func TestDecodePromptDiscriminatesAndRejectsGuesses(t *testing.T) {
 		Question: &runs.QuestionPrompt{
 			ToolName:  "ask_user",
 			Arguments: `{"questions":[{"question":"Continue?"}]}`,
-			Questions: []runs.QuestionSpec{{
-				Question: "Continue?",
-				Options:  []runs.QuestionOptionSpec{{Label: "Yes"}, {Label: "No"}},
+			Fields: []runs.QuestionFieldSpec{{
+				Prompt: "Continue?", AllowCustom: true,
+				Options: []runs.QuestionOptionSpec{{Label: "Yes"}, {Label: "No"}},
 			}},
 		},
 	}
@@ -27,11 +28,17 @@ func TestDecodePromptDiscriminatesAndRejectsGuesses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	encoded := string(raw)
+	if !strings.Contains(encoded, `"fields"`) || !strings.Contains(encoded, `"prompt"`) ||
+		strings.Contains(encoded, `"multiSelect"`) {
+		t.Fatalf("question checkpoint uses stale vocabulary: %s", encoded)
+	}
 	got, err := DecodePrompt(raw)
 	if err != nil {
 		t.Fatalf("DecodePrompt: %v", err)
 	}
-	if got.Kind != execution.QuestionInterrupt || got.Question == nil || got.Question.ToolName != "ask_user" {
+	if got.Kind != execution.QuestionInterrupt || got.Question == nil || got.Question.ToolName != "ask_user" ||
+		!got.Question.Fields[0].AllowCustom {
 		t.Fatalf("decoded = %#v", got)
 	}
 
@@ -57,8 +64,9 @@ func TestDecodePromptDiscriminatesAndRejectsGuesses(t *testing.T) {
 	for _, raw := range [][]byte{
 		[]byte(`{"toolName":"shell","arguments":"{}"}`),
 		[]byte(`{"kind":"future","approval":{"toolName":"shell","arguments":"{}","safetyClass":"exec"}}`),
-		[]byte(`{"kind":"approval","approval":{"toolName":"shell","arguments":"{}","safetyClass":"exec"},"question":{"toolName":"ask_user","arguments":"{}","questions":[{"question":"x"}]}}`),
-		[]byte(`{"kind":"question","question":{"toolName":"ask_user","arguments":"{}","questions":[]}}`),
+		[]byte(`{"kind":"approval","approval":{"toolName":"shell","arguments":"{}","safetyClass":"exec"},"question":{"toolName":"ask_user","arguments":"{}","fields":[{"prompt":"x"}]}}`),
+		[]byte(`{"kind":"question","question":{"toolName":"ask_user","arguments":"{}","fields":[]}}`),
+		[]byte(`{"kind":"question","question":{"toolName":"ask_user","arguments":"{}","questions":[{"question":"x"}]}}`),
 		[]byte(`{"kind":"approval","approval":{"toolName":"shell","arguments":"not-json","safetyClass":"exec"}}`),
 		[]byte(`{"kind":"approval","approval":{"toolName":"shell","arguments":"{}","safetyClass":"future"}}`),
 		[]byte(`{"kind":"approval","approval":{"toolName":"shell","arguments":"{}","safetyClass":"exec","risk":"critical"}}`),
@@ -71,7 +79,8 @@ func TestDecodePromptDiscriminatesAndRejectsGuesses(t *testing.T) {
 
 func TestResolutionCodecUsesAgentWireVocabulary(t *testing.T) {
 	raw, err := EncodeResolution(interrupts.Resolution{
-		Approved: true, Arguments: `{"command":"go test"}`, RememberScope: approval.ScopeSession,
+		Approved: true, Arguments: `{"command":"go test"}`, Answers: [][]string{{"yes"}},
+		RememberScope: approval.ScopeSession,
 	})
 	if err != nil {
 		t.Fatalf("EncodeResolution: %v", err)
@@ -80,14 +89,15 @@ func TestResolutionCodecUsesAgentWireVocabulary(t *testing.T) {
 	if err := json.Unmarshal(raw, &wire); err != nil {
 		t.Fatalf("decode encoded response: %v", err)
 	}
-	if wire["approved"] != true || wire["remember_scope"] != "session" {
+	if wire["approved"] != true || wire["remember_scope"] != "session" || wire["answers"] == nil {
 		t.Fatalf("response wire = %#v", wire)
 	}
 	if _, found := wire["Approved"]; found {
 		t.Fatalf("response leaked Go field name: %#v", wire)
 	}
 	decoded, err := DecodeResolution(raw)
-	if err != nil || decoded.RememberScope != approval.ScopeSession {
+	if err != nil || decoded.RememberScope != approval.ScopeSession ||
+		len(decoded.Answers) != 1 || len(decoded.Answers[0]) != 1 || decoded.Answers[0][0] != "yes" {
 		t.Fatalf("DecodeResolution = %#v, %v", decoded, err)
 	}
 }

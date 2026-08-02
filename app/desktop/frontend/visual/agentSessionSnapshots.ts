@@ -236,14 +236,11 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
             runId: ROOT_RUN_ID,
             payload: {
               question: {
-                prompt: "Choose the next conformance gate.",
                 fields: [
                   {
                     type: "choice",
-                    name: "gate",
                     header: "Gate",
-                    label: "Which gate should run next?",
-                    required: true,
+                    prompt: "Which gate should run next?",
                     options: [
                       {
                         label: "Race detector",

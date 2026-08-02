@@ -165,13 +165,9 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// v8 replaces the process-oriented cwd field with a typed WorkspaceRef. v7 was
-// the terminal-only run shape with lineage, outcomes, session-scoped state values,
-// and dropped-run records. An older document describes
-// runs whose status vocabulary no longer exists, so reading one would mean
-// inventing the fields it lacks — refused instead, by the version check that
-// runs before any write.
-const SessionArtifactVersion = 8
+// v9 makes Question a closed ordered field union and aligns answers by position.
+// Older documents are refused before any write rather than partially decoded.
+const SessionArtifactVersion = 9
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -355,18 +351,16 @@ type ArtifactPlanStep struct {
 }
 
 type ArtifactQuestion struct {
-	Prompt string                  `json:"prompt"`
 	Fields []ArtifactQuestionField `json:"fields"`
 }
 
 type ArtifactQuestionField struct {
-	Name     string                   `json:"name"`
-	Label    string                   `json:"label"`
-	Header   string                   `json:"header,omitempty"`
-	Required bool                     `json:"required,omitempty"`
-	Type     QuestionFieldType        `json:"type"`
-	Options  []ArtifactQuestionOption `json:"options,omitempty"`
-	Multiple bool                     `json:"multiple,omitempty"`
+	Prompt      string                   `json:"prompt"`
+	Header      string                   `json:"header,omitempty"`
+	Type        QuestionFieldType        `json:"type"`
+	Options     []ArtifactQuestionOption `json:"options,omitempty"`
+	Multiple    bool                     `json:"multiple,omitempty"`
+	AllowCustom bool                     `json:"allowCustom,omitempty"`
 }
 
 type ArtifactQuestionOption struct {

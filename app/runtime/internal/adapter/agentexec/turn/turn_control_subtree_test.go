@@ -124,7 +124,7 @@ func TestPrepareWaitingCancellationProjectsTypedBoundaryAndReleasesClaimOnAbort(
 			ProcessID:    "process_sibling",
 			SuspensionID: "suspension_sibling",
 			Prompt: []byte(
-				`{"kind":"question","question":{"toolName":"ask_user","arguments":"{}","questions":[{"question":"Continue?","header":"Continue"}]}}`,
+				`{"kind":"question","question":{"toolName":"ask_user","arguments":"{}","fields":[{"prompt":"Continue?","header":"Continue"}]}}`,
 			),
 		}},
 	}

@@ -477,13 +477,12 @@ describe("reducer — HITL interrupt", () => {
             type: "question",
             payload: {
               question: {
-                prompt: "Which database?",
                 fields: [
                   {
                     type: "choice",
-                    name: "db",
-                    label: "Pick a database",
+                    prompt: "Pick a database",
                     options: [{ label: "Postgres" }, { label: "SQLite" }],
+                    allowCustom: true,
                   },
                 ],
               },
@@ -498,7 +497,7 @@ describe("reducer — HITL interrupt", () => {
       status: "requires-action",
       itemId: "q1",
       runId: "run_1",
-      questions: [{ id: "db", question: "Pick a database" }],
+      questions: [{ type: "choice", prompt: "Pick a database" }],
     });
     expect(s.pendingInterrupts).toHaveLength(1);
     expect(s.pendingInterrupts[0]!.runId).toBe("run_1");

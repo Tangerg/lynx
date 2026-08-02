@@ -62,7 +62,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	item := transcript.Item{
 		ID: "item_running", SessionID: "session", RunID: "run_lost",
 		Kind: transcript.QuestionItem, Status: transcript.ItemRunning, CreatedAt: createdAt,
-		Question: &transcript.Question{Prompt: "Continue?"},
+		Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 	}
 	if err := transcriptStore.AppendItem(ctx, item); err != nil {
 		t.Fatalf("AppendItem: %v", err)
@@ -149,7 +149,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Admit: %v", err)
 	}
-	question := &transcript.Question{Prompt: "Continue?"}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	interrupt := transcript.Interrupt{
 		ItemID: "item_missing", RunID: "run_partial", Kind: execution.QuestionInterrupt, Question: question,
 	}

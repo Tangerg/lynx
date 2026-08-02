@@ -221,25 +221,24 @@ type PlanStep struct {
 	Status PlanStepStatus `json:"status"` // see PlanStepStatus
 }
 
-// Question is a structured clarifying question (API.md §4.3). answers
-// (in AnswerResponse) are keyed by QuestionField.name.
+// Question is one ordered set of required clarifying fields (API.md §4.3).
+// InterruptResponseValue.answers uses this same order; no derivable field IDs
+// or dynamic map keys travel on the wire.
 type Question struct {
-	Prompt string          `json:"prompt"`
 	Fields []QuestionField `json:"fields"`
 }
 
 // QuestionField is one field of a Question. Type selects the shape:
 //
 //	text   → (no extra)
-//	choice → Options, Multiple
+//	choice → Options, Multiple, AllowCustom
 type QuestionField struct {
-	Name     string            `json:"name"`
-	Label    string            `json:"label"`
-	Header   string            `json:"header,omitempty"` // ≤12-char chip
-	Required bool              `json:"required,omitempty"`
-	Type     QuestionFieldType `json:"type"` // see QuestionFieldType
-	Options  []QuestionOption  `json:"options,omitempty"`
-	Multiple bool              `json:"multiple,omitempty"`
+	Prompt      string            `json:"prompt"`
+	Header      string            `json:"header,omitempty"` // ≤12-char chip
+	Type        QuestionFieldType `json:"type"`             // see QuestionFieldType
+	Options     []QuestionOption  `json:"options,omitempty"`
+	Multiple    bool              `json:"multiple,omitempty"`
+	AllowCustom bool              `json:"allowCustom,omitempty"`
 }
 
 // QuestionOption is one choice option (API.md §4.3).

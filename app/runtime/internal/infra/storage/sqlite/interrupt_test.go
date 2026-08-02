@@ -39,7 +39,7 @@ func TestInterruptStore_OpenGetListDelete(t *testing.T) {
 		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_question", RunID: "run_1", Kind: execution.QuestionInterrupt,
-			Question: &transcript.Question{Prompt: "Choose"},
+			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Choose"}}},
 		}},
 		Suspensions: []interrupts.SuspensionBinding{{
 			InterruptItemID: "item_question",
@@ -163,7 +163,7 @@ func TestInterruptStoreRejectsForeignSessionMutation(t *testing.T) {
 		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_question", RunID: "run_1", Kind: execution.QuestionInterrupt,
-			Question: &transcript.Question{Prompt: "Continue?"},
+			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
 		Suspensions: []interrupts.SuspensionBinding{{
 			InterruptItemID: "item_question", ProcessID: "process_root", SuspensionID: "suspension_root",
@@ -204,7 +204,7 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_child", RunID: "run_child", Kind: execution.QuestionInterrupt,
-			Question: &transcript.Question{Prompt: "Continue?"},
+			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
 		Suspensions: []interrupts.SuspensionBinding{{
 			InterruptItemID: "item_child",
@@ -269,7 +269,7 @@ func TestInterruptStoreRejectsUnknownExecutorTopologyFields(t *testing.T) {
 		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_question", RunID: "run_root", Kind: execution.QuestionInterrupt,
-			Question: &transcript.Question{Prompt: "Continue?"},
+			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
 		Suspensions: []interrupts.SuspensionBinding{{
 			InterruptItemID: "item_question", ProcessID: "process_root", SuspensionID: "suspension_root",
@@ -323,7 +323,7 @@ func TestInterruptStoreExecutorRootHasOnePendingOwner(t *testing.T) {
 			},
 			Interrupts: []transcript.Interrupt{{
 				ItemID: "item_" + runID, RunID: runID,
-				Kind: execution.QuestionInterrupt, Question: &transcript.Question{Prompt: "continue?"},
+				Kind: execution.QuestionInterrupt, Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "continue?"}}},
 			}},
 			Suspensions: []interrupts.SuspensionBinding{{
 				InterruptItemID: "item_" + runID,

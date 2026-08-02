@@ -165,6 +165,13 @@ const (
 	// value listed twice means the caller believes it is asking something a set
 	// cannot express.
 	ConstraintUniqueItems
+	// ConstraintMinItems rejects an array shorter than FieldConstraint.Limit.
+	// Unlike ConstraintNonEmptyItems, its bound is part of the contract rather
+	// than the special distinction between omission and an explicitly empty set.
+	ConstraintMinItems
+	// ConstraintMaxLength rejects a string containing more Unicode code points
+	// than FieldConstraint.Limit, matching JSON Schema's length semantics.
+	ConstraintMaxLength
 )
 
 func (k ConstraintKind) String() string {
@@ -181,6 +188,10 @@ func (k ConstraintKind) String() string {
 		return "nonEmptyProperties"
 	case ConstraintUniqueItems:
 		return "uniqueItems"
+	case ConstraintMinItems:
+		return "minItems"
+	case ConstraintMaxLength:
+		return "maxLength"
 	default:
 		return fmt.Sprintf("ConstraintKind(%d)", k)
 	}
@@ -190,6 +201,16 @@ func (k ConstraintKind) String() string {
 type FieldConstraint struct {
 	Field string
 	Kind  ConstraintKind
+	Limit int
+}
+
+func (c FieldConstraint) String() string {
+	switch c.Kind {
+	case ConstraintMinItems, ConstraintMaxLength:
+		return fmt.Sprintf("%s(%d)", c.Kind, c.Limit)
+	default:
+		return c.Kind.String()
+	}
 }
 
 // FieldConstraintSpec declares the value constraints of one wire shape.
@@ -568,7 +589,9 @@ func (f FieldConstraintSpec) validate() error {
 		return fmt.Errorf("%s: a constraint spec with no constraints constrains nothing", name)
 	}
 	for index, constraint := range f.Constraints {
-		if slices.Contains(f.Constraints[:index], constraint) {
+		if slices.ContainsFunc(f.Constraints[:index], func(previous FieldConstraint) bool {
+			return previous.Field == constraint.Field && previous.Kind == constraint.Kind
+		}) {
 			return fmt.Errorf(
 				"%s.%s declares constraint %s twice",
 				name, constraint.Field, constraint.Kind,
@@ -578,7 +601,18 @@ func (f FieldConstraintSpec) validate() error {
 		if !ok {
 			return fmt.Errorf("%s: no JSON field %q", name, constraint.Field)
 		}
-		kind := protocol.Deref(leaf.Type).Kind()
+		leafType := leaf.Type
+		if leafType.Kind() == reflect.Pointer {
+			leafType = leafType.Elem()
+		}
+		kind := leafType.Kind()
+		bounded := constraint.Kind == ConstraintMinItems || constraint.Kind == ConstraintMaxLength
+		if bounded && constraint.Limit <= 0 {
+			return fmt.Errorf("%s.%s constraint %s needs a positive limit", name, constraint.Field, constraint.Kind)
+		}
+		if !bounded && constraint.Limit != 0 {
+			return fmt.Errorf("%s.%s constraint %s does not accept a limit", name, constraint.Field, constraint.Kind)
+		}
 		switch constraint.Kind {
 		case ConstraintNonEmpty:
 			if kind != reflect.String {
@@ -593,24 +627,24 @@ func (f FieldConstraintSpec) validate() error {
 				return fmt.Errorf("%s.%s is %s; only a number can be non-negative", name, constraint.Field, kind)
 			}
 		case ConstraintNonEmptyItems, ConstraintUniqueItems:
-			itemType := leaf.Type
-			if itemType.Kind() == reflect.Pointer {
-				itemType = itemType.Elem()
-			}
-			if itemType.Kind() != reflect.Slice {
+			if leafType.Kind() != reflect.Slice {
 				return fmt.Errorf("%s.%s is %s; only an array has items", name, constraint.Field, leaf.Type.Kind())
 			}
-		case ConstraintNonEmptyProperties:
-			propertyType := leaf.Type
-			if propertyType.Kind() == reflect.Pointer {
-				propertyType = propertyType.Elem()
+		case ConstraintMinItems:
+			if leafType.Kind() != reflect.Slice {
+				return fmt.Errorf("%s.%s is %s; only an array has items", name, constraint.Field, leaf.Type.Kind())
 			}
-			if propertyType.Kind() != reflect.Map {
+		case ConstraintMaxLength:
+			if kind != reflect.String {
+				return fmt.Errorf("%s.%s is %s; only a string has a length", name, constraint.Field, kind)
+			}
+		case ConstraintNonEmptyProperties:
+			if leafType.Kind() != reflect.Map {
 				return fmt.Errorf("%s.%s is %s; only an object map has properties", name, constraint.Field, leaf.Type.Kind())
 			}
 		default:
 			return fmt.Errorf(
-				"%s.%s has invalid constraint kind %s; expected %s, %s, %s, %s, %s or %s",
+				"%s.%s has invalid constraint kind %s; expected %s, %s, %s, %s, %s, %s, %s or %s",
 				name,
 				constraint.Field,
 				constraint.Kind,
@@ -620,6 +654,8 @@ func (f FieldConstraintSpec) validate() error {
 				ConstraintNonEmptyItems,
 				ConstraintNonEmptyProperties,
 				ConstraintUniqueItems,
+				ConstraintMinItems,
+				ConstraintMaxLength,
 			)
 		}
 	}

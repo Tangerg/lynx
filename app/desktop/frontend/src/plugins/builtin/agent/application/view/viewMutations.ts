@@ -7,7 +7,7 @@ import { selectCurrentRootRun } from "./runTree";
 export interface SettledInterrupt {
   decision?: ApprovalDecision;
   answered?: boolean;
-  answers?: Record<string, string[]>;
+  answers?: string[][];
 }
 
 type InterruptBlock = Extract<ContentBlock, { kind: "approval" | "question" }>;

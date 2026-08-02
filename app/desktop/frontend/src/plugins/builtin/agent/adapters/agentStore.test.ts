@@ -72,8 +72,7 @@ function seedInterrupt(kind: "approval" | "question", itemId: string): void {
               id: itemId,
               type: "question",
               question: {
-                prompt: "Which?",
-                fields: [{ type: "text", name: "f1", label: "Which?" }],
+                fields: [{ type: "text", prompt: "Which?" }],
               },
             }),
           ),
@@ -96,8 +95,7 @@ function seedInterrupt(kind: "approval" | "question", itemId: string): void {
                 type: "question",
                 payload: {
                   question: {
-                    prompt: "Which?",
-                    fields: [{ type: "text", name: "f1", label: "Which?" }],
+                    fields: [{ type: "text", prompt: "Which?" }],
                   },
                 },
               },

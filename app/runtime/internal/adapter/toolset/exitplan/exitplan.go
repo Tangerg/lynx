@@ -30,7 +30,7 @@ const (
 
 // exitPlanArgs is the model-facing argument shape; [tools.New] derives
 // the JSON schema from it and decodes calls back into it, so the advertised
-// schema and parsed value cannot drift. The options mirror [runs.Option]
+// schema and parsed value cannot drift. The options mirror [runs.QuestionOptionSpec]
 // with the LLM-facing copy kept here.
 type exitPlanArgs struct {
 	Plan    string      `json:"plan" jsonschema:"required" jsonschema_description:"The plan to present for approval — a concise, ordered list of the steps you intend to take. Markdown is fine."`
@@ -61,10 +61,10 @@ func (a exitPlanArgs) prompt(arguments string) runs.QuestionPrompt {
 	return runs.QuestionPrompt{
 		ToolName:  toolName,
 		Arguments: arguments,
-		Questions: []runs.QuestionSpec{{
-			Question: a.Plan,
-			Header:   "Plan",
-			Options:  opts,
+		Fields: []runs.QuestionFieldSpec{{
+			Prompt:  a.Plan,
+			Header:  "Plan",
+			Options: opts,
 		}},
 	}
 }
@@ -142,7 +142,7 @@ func (t *tool) exit(ctx context.Context, in exitPlanArgs) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return t.applyChoice(ctx, selectedChoice(res.Answer))
+	return t.applyChoice(ctx, selectedChoice(res.Answers))
 }
 
 func (t *tool) applyChoice(ctx context.Context, choice string) (string, error) {
@@ -158,8 +158,9 @@ func (t *tool) applyChoice(ctx context.Context, choice string) (string, error) {
 	return "Plan approved. Plan mode exited; all tools are enabled. Execute the plan.", nil
 }
 
-func selectedChoice(answer map[string][]string) string {
-	if v := answer[runs.QuestionFieldID(0)]; len(v) > 0 {
+func selectedChoice(answers [][]string) string {
+	if len(answers) > 0 && len(answers[0]) > 0 {
+		v := answers[0]
 		return v[0]
 	}
 	return ""

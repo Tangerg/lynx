@@ -745,13 +745,30 @@ func (value ContentBlock) ValidateWire() error {
 
 func (value QuestionField) ValidateWire() error {
 	return collectWireViolations("QuestionField",
+		requiredText("prompt", value.Prompt),
+		maxLength("header", value.Header, 12),
+		optionalMinItems("options", value.Options, 2),
 		closedEnum("type", string(value.Type), []string{"text", "choice"}, false),
-		requiredWhen(wireFieldEquals(value, "type", "text"), "name", value),
-		requiredWhen(wireFieldEquals(value, "type", "text"), "label", value),
+		requiredWhen(wireFieldEquals(value, "type", "text"), "prompt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "text"), "options", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "text"), "multiple", value),
-		requiredWhen(wireFieldEquals(value, "type", "choice"), "name", value),
-		requiredWhen(wireFieldEquals(value, "type", "choice"), "label", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "text"), "allowCustom", value),
+		requiredWhen(wireFieldEquals(value, "type", "choice"), "prompt", value),
+		requiredWhen(wireFieldEquals(value, "type", "choice"), "options", value),
+	)
+}
+
+func (value ArtifactQuestionField) ValidateWire() error {
+	return collectWireViolations("ArtifactQuestionField",
+		requiredText("prompt", value.Prompt),
+		maxLength("header", value.Header, 12),
+		optionalMinItems("options", value.Options, 2),
+		closedEnum("type", string(value.Type), []string{"text", "choice"}, false),
+		requiredWhen(wireFieldEquals(value, "type", "text"), "prompt", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "text"), "options", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "text"), "multiple", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "text"), "allowCustom", value),
+		requiredWhen(wireFieldEquals(value, "type", "choice"), "prompt", value),
 		requiredWhen(wireFieldEquals(value, "type", "choice"), "options", value),
 	)
 }
@@ -882,6 +899,7 @@ func (value Interrupt) ValidateWire() error {
 
 func (value InterruptResponseValue) ValidateWire() error {
 	return collectWireViolations("InterruptResponseValue",
+		nonEmptyItems("answers", value.Answers),
 		closedEnum("type", string(value.Type), []string{"approval", "answer", "toolResult"}, false),
 		closedEnum("decision", string(value.Decision), []string{"approve", "deny"}, true),
 		requiredWhen(wireFieldEquals(value, "type", "approval"), "decision", value),
@@ -1359,6 +1377,30 @@ func (value ArtifactRunLimits) ValidateWire() error {
 		nonNegativeNumber("maxTotalTokens", value.MaxTotalTokens),
 		nonNegativeNumber("maxSteps", value.MaxSteps),
 		nonNegativeNumber("maxBudgetUsd", value.MaxBudgetUSD),
+	)
+}
+
+func (value Question) ValidateWire() error {
+	return collectWireViolations("Question",
+		requiredItems("fields", value.Fields),
+	)
+}
+
+func (value ArtifactQuestion) ValidateWire() error {
+	return collectWireViolations("ArtifactQuestion",
+		requiredItems("fields", value.Fields),
+	)
+}
+
+func (value QuestionOption) ValidateWire() error {
+	return collectWireViolations("QuestionOption",
+		requiredText("label", value.Label),
+	)
+}
+
+func (value ArtifactQuestionOption) ValidateWire() error {
+	return collectWireViolations("ArtifactQuestionOption",
+		requiredText("label", value.Label),
 	)
 }
 

@@ -132,32 +132,23 @@ func resolveQuestionResponse(interrupt transcript.Interrupt, response ResumeResp
 	}
 	answers := response.Question.Answers
 	if len(answers) != len(interrupt.Question.Fields) {
-		return interrupts.Resolution{}, fmt.Errorf(
-			"answers cover %d of %d fields", len(answers), len(interrupt.Question.Fields),
-		)
-	}
-	for _, field := range interrupt.Question.Fields {
-		values, ok := answers[field.Name]
-		if !ok {
-			return interrupts.Resolution{}, fmt.Errorf("missing answer for field %q", field.Name)
+		return interrupts.Resolution{}, &QuestionAnswerError{
+			ItemID: response.ItemID,
+			Index:  -1,
+			Detail: fmt.Sprintf("must contain %d entries, got %d", len(interrupt.Question.Fields), len(answers)),
 		}
+	}
+	for index, field := range interrupt.Question.Fields {
+		values := answers[index]
 		if err := validateQuestionAnswer(field, values); err != nil {
-			return interrupts.Resolution{}, fmt.Errorf("field %q: %w", field.Name, err)
-		}
-	}
-	for name := range answers {
-		found := false
-		for _, field := range interrupt.Question.Fields {
-			if field.Name == name {
-				found = true
-				break
+			return interrupts.Resolution{}, &QuestionAnswerError{
+				ItemID: response.ItemID,
+				Index:  index,
+				Detail: err.Error(),
 			}
 		}
-		if !found {
-			return interrupts.Resolution{}, fmt.Errorf("unknown answer field %q", name)
-		}
 	}
-	return interrupts.Resolution{Approved: true, Answer: cloneAnswers(answers)}, nil
+	return interrupts.Resolution{Approved: true, Answers: cloneAnswers(answers)}, nil
 }
 
 func validateQuestionAnswer(field transcript.QuestionField, values []string) error {
@@ -178,9 +169,23 @@ func validateQuestionAnswer(field transcript.QuestionField, values []string) err
 			allowed[option.Label] = struct{}{}
 		}
 		seen := make(map[string]struct{}, len(values))
+		customValues := 0
 		for _, value := range values {
+			trimmed := strings.TrimSpace(value)
+			if trimmed == "" {
+				return errors.New("choice values must not be empty")
+			}
+			if trimmed != value {
+				return errors.New("choice values must not have surrounding whitespace")
+			}
 			if _, ok := allowed[value]; !ok {
-				return fmt.Errorf("unknown choice %q", value)
+				if !field.AllowCustom {
+					return fmt.Errorf("unknown choice %q", value)
+				}
+				customValues++
+				if customValues > 1 {
+					return errors.New("at most one custom choice is allowed")
+				}
 			}
 			if _, duplicate := seen[value]; duplicate {
 				return errors.New("duplicate choices are not allowed")
@@ -193,13 +198,13 @@ func validateQuestionAnswer(field transcript.QuestionField, values []string) err
 	return nil
 }
 
-func cloneAnswers(in map[string][]string) map[string][]string {
+func cloneAnswers(in [][]string) [][]string {
 	if in == nil {
 		return nil
 	}
-	out := make(map[string][]string, len(in))
-	for name, values := range in {
-		out[name] = slices.Clone(values)
+	out := make([][]string, len(in))
+	for index, values := range in {
+		out[index] = slices.Clone(values)
 	}
 	return out
 }

@@ -532,7 +532,7 @@ func TestReducerRejectsIncoherentTerminalProblems(t *testing.T) {
 }
 
 func TestReducerResumeReusesInterruptedItems(t *testing.T) {
-	question := &transcript.Question{Prompt: "Continue?"}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	config := testReducerConfig()
 	config.Continuation = testTreeContinuation(interrupts.Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
@@ -580,7 +580,7 @@ func TestReducerProjectsParkAsOneAtomicWriteSetBeforeFirstInterruptEvent(t *test
 		}},
 		{Kind: execution.QuestionInterrupt, Question: &QuestionPrompt{
 			ToolName: "ask_user", Arguments: `{"questions":[{"question":"Continue?"}]}`,
-			Questions: []QuestionSpec{{Question: "Continue?"}},
+			Fields: []QuestionFieldSpec{{Prompt: "Continue?"}},
 		}},
 	}})
 

@@ -367,7 +367,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 		ProtocolProfile: profile,
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_question", RunID: "run_parked", Kind: execution.QuestionInterrupt,
-			Question: &transcript.Question{Prompt: "Continue?"},
+			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
 		CreatedAt: parkedAt, MessageMark: transcript.UnknownMessageMark,
 	}); err != nil {
@@ -376,7 +376,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	if err := rt.hist.AppendItem(ctx, transcript.Item{
 		ID: "item_question", RunID: "run_parked", SessionID: ses.ID,
 		Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
-		Question: &transcript.Question{Prompt: "Continue?"},
+		Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 	}); err != nil {
 		t.Fatalf("open interrupt item: %v", err)
 	}
@@ -388,7 +388,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 		[]transcript.Interrupt{{
 			ItemID:   "item_question",
 			Kind:     execution.QuestionInterrupt,
-			Question: &transcript.Question{Prompt: "Continue?"},
+			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
 		parkedAt,
 	)); err != nil {
@@ -490,15 +490,10 @@ func TestSessionExportRejectsUnknownFormat(t *testing.T) {
 	}
 }
 
-// TestSessionImport_VersionMismatch rejects an unrecognized artifact version.
-//
-// 6 is the case that matters: it is the version this build wrote until the vNext
-// cutover, so it is the one a person actually has on disk. Development builds do not
-// migrate — a v6 document describes runs in a status vocabulary that no longer
-// exists, and reading it would mean inventing the fields it lacks.
+// TestSessionImport_VersionMismatch rejects every non-current artifact version.
 func TestSessionImport_VersionMismatch(t *testing.T) {
 	s, _ := rollbackHarness(t)
-	for _, version := range []int{6, 2, 3, 999} {
+	for _, version := range []int{0, protocol.SessionArtifactVersion - 1, protocol.SessionArtifactVersion + 1} {
 		_, err := s.ImportSession(context.Background(), protocol.ImportSessionRequest{
 			Artifact: protocol.SessionArtifact{Version: version, Session: protocol.ArtifactSession{ID: "ses_x"}},
 		})

@@ -58,7 +58,7 @@ func serverPending(
 			ItemID:   "interrupt_" + runID,
 			RunID:    runID,
 			Kind:     execution.QuestionInterrupt,
-			Question: &transcript.Question{Prompt: "Continue?"},
+			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}}
 	} else {
 		open = append([]transcript.Interrupt(nil), open...)

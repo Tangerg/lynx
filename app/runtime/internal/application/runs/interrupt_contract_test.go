@@ -2,6 +2,7 @@ package runs
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -56,7 +57,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 		ItemID: "item_question",
 		Kind:   execution.QuestionInterrupt,
 		Question: &transcript.Question{Fields: []transcript.QuestionField{{
-			Name: "q0", Required: true, Kind: transcript.QuestionChoice,
+			Prompt: "Choose", Kind: transcript.QuestionChoice,
 			Options: []transcript.QuestionOption{{Label: "Go"}, {Label: "Stop"}},
 		}}},
 	}}, Suspensions: []interrupts.SuspensionBinding{{
@@ -66,14 +67,14 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 		ItemID: "item_question",
 		Kind:   QuestionResponseKind,
 		Question: &QuestionResponse{
-			Answers: map[string][]string{"q0": {"Go"}},
+			Answers: [][]string{{"Go"}},
 		},
 	}})
 	if err != nil {
 		t.Fatalf("question: %v", err)
 	}
 	resolution = answers[0].Resolution
-	if !resolution.Approved || len(resolution.Answer["q0"]) != 1 || resolution.Answer["q0"][0] != "Go" {
+	if !resolution.Approved || len(resolution.Answers) != 1 || len(resolution.Answers[0]) != 1 || resolution.Answers[0][0] != "Go" {
 		t.Fatalf("question resolution = %#v", resolution)
 	}
 
@@ -96,7 +97,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 		}, want: ErrInvalidInterruptResponse},
 		{name: "invalid choice", pending: questionPending, responses: []ResumeResponse{{
 			ItemID: "item_question", Kind: QuestionResponseKind,
-			Question: &QuestionResponse{Answers: map[string][]string{"q0": {"Rust"}}},
+			Question: &QuestionResponse{Answers: [][]string{{"Rust"}}},
 		}}, want: ErrInvalidInterruptResponse},
 		{name: "one-off approval cannot be remembered", pending: interrupts.Pending{
 			Interrupts: []transcript.Interrupt{{
@@ -174,5 +175,58 @@ func TestResolveResumeResponsesPreservesCompleteBarrierInCanonicalOrder(t *testi
 		answers[1].Resolution.Approved ||
 		answers[1].Resolution.Reason != "skip b" {
 		t.Fatalf("answer[1] = %#v", answers[1])
+	}
+}
+
+func TestResolveQuestionResponseUsesOrderedExactAnswers(t *testing.T) {
+	question := &transcript.Question{Fields: []transcript.QuestionField{
+		{Prompt: "Name it", Kind: transcript.QuestionText},
+		{
+			Prompt: "Choose", Kind: transcript.QuestionChoice, Multiple: true, AllowCustom: true,
+			Options: []transcript.QuestionOption{{Label: "A"}, {Label: "B"}},
+		},
+	}}
+	interrupt := transcript.Interrupt{ItemID: "item_question", Kind: execution.QuestionInterrupt, Question: question}
+	response := func(answers [][]string) ResumeResponse {
+		return ResumeResponse{
+			ItemID: "item_question", Kind: QuestionResponseKind,
+			Question: &QuestionResponse{Answers: answers},
+		}
+	}
+
+	resolution, err := resolveQuestionResponse(interrupt, response([][]string{{"name"}, {"A", "custom"}}))
+	if err != nil {
+		t.Fatalf("valid ordered answer: %v", err)
+	}
+	if !resolution.Approved || !slices.Equal(resolution.Answers[0], []string{"name"}) ||
+		!slices.Equal(resolution.Answers[1], []string{"A", "custom"}) {
+		t.Fatalf("resolution = %#v", resolution)
+	}
+
+	tests := []struct {
+		name      string
+		answers   [][]string
+		wantIndex int
+	}{
+		{name: "wrong field count", answers: [][]string{{"name"}}, wantIndex: -1},
+		{name: "empty text", answers: [][]string{{""}, {"A"}}, wantIndex: 0},
+		{name: "two custom choices", answers: [][]string{{"name"}, {"custom-1", "custom-2"}}, wantIndex: 1},
+		{name: "duplicate choices", answers: [][]string{{"name"}, {"A", "A"}}, wantIndex: 1},
+		{name: "padded choice", answers: [][]string{{"name"}, {" A "}}, wantIndex: 1},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := resolveQuestionResponse(interrupt, response(test.answers))
+			var answerError *QuestionAnswerError
+			if !errors.As(err, &answerError) || answerError.Index != test.wantIndex ||
+				!errors.Is(err, ErrInvalidInterruptResponse) {
+				t.Fatalf("error = %v, answer error = %#v", err, answerError)
+			}
+		})
+	}
+
+	question.Fields[1].AllowCustom = false
+	if _, err := resolveQuestionResponse(interrupt, response([][]string{{"name"}, {"custom"}})); err == nil {
+		t.Fatal("closed choice accepted custom value")
 	}
 }

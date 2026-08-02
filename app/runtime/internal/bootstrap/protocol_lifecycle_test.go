@@ -108,7 +108,7 @@ func TestProtocolLifecycleSurvivesColdRestart(t *testing.T) {
 			ItemID: question.ItemID,
 			Response: protocol.InterruptResponseValue{
 				Type:    protocol.InterruptResponseAnswer,
-				Answers: map[string][]string{"q0": {"Yes"}},
+				Answers: [][]string{{"Yes"}},
 			},
 		}},
 	})

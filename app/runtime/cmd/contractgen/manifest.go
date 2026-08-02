@@ -371,7 +371,7 @@ func valueConstraints(shapes *dispatch.Shapes) []valueConstraintEntry {
 		rules := make([]valueConstraintRow, 0, len(spec.Constraints))
 		for _, constraint := range spec.Constraints {
 			rules = append(rules, valueConstraintRow{
-				Field: constraint.Field, Constraint: constraint.Kind.String(),
+				Field: constraint.Field, Constraint: constraint.String(),
 			})
 		}
 		out = append(out, valueConstraintEntry{Type: spec.GoType.Name(), Rules: rules})

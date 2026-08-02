@@ -273,8 +273,15 @@ publish one namespaced pattern branch without weakening first-party tags.
 
 | tag | required | optional |
 | --- | --- | --- |
-| `text` | `name`, `label` | `header`, `required` |
-| `choice` | `name`, `label`, `options` | `header`, `required`, `multiple` |
+| `text` | `prompt` | `header` |
+| `choice` | `prompt`, `options` | `header`, `multiple`, `allowCustom` |
+
+### `ArtifactQuestionField`
+
+| tag | required | optional |
+| --- | --- | --- |
+| `text` | `prompt` | `header` |
+| `choice` | `prompt`, `options` | `header`, `multiple`, `allowCustom` |
 
 ### `ProviderConfigChange`
 
@@ -451,6 +458,17 @@ TypeScript validator from this single registry projection.
 | `ArtifactRunLimits` | `maxBudgetUsd` | `nonNegative` |
 | `ResumeRunRequest` | `runId` | `nonEmpty` |
 | `ResumeRunRequest` | `input` | `nonEmptyItems` |
+| `Question` | `fields` | `nonEmptyItems` |
+| `ArtifactQuestion` | `fields` | `nonEmptyItems` |
+| `QuestionField` | `prompt` | `nonEmpty` |
+| `QuestionField` | `header` | `maxLength(12)` |
+| `QuestionField` | `options` | `minItems(2)` |
+| `ArtifactQuestionField` | `prompt` | `nonEmpty` |
+| `ArtifactQuestionField` | `header` | `maxLength(12)` |
+| `ArtifactQuestionField` | `options` | `minItems(2)` |
+| `QuestionOption` | `label` | `nonEmpty` |
+| `ArtifactQuestionOption` | `label` | `nonEmpty` |
+| `InterruptResponseValue` | `answers` | `nonEmptyItems` |
 | `StartRunResponse` | `runId` | `nonEmpty` |
 | `StartRunResponse` | `segmentId` | `nonEmpty` |
 | `StartRunResponse` | `userItemId` | `nonEmpty` |

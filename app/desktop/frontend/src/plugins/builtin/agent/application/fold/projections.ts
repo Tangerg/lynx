@@ -67,28 +67,24 @@ export function mapPlan(steps: PlanStep[] | undefined): PlanItem[] {
 }
 
 export function mapQuestion(q: Question | undefined): QuestionItem[] {
-  const prompt = q?.prompt ?? "";
   return (q?.fields ?? []).map((f) =>
     f.type === "choice"
       ? {
-          id: f.name,
-          question: f.label || prompt,
+          type: "choice" as const,
+          prompt: f.prompt,
           header: f.header ?? "",
           options: f.options.map((o) => ({
             label: o.label,
             description: o.description ?? "",
             preview: o.preview,
           })),
-          multiSelect: !!f.multiple,
-          allowFreeText: false,
+          multiple: !!f.multiple,
+          allowCustom: !!f.allowCustom,
         }
       : {
-          id: f.name,
-          question: f.label || prompt,
+          type: "text" as const,
+          prompt: f.prompt,
           header: f.header ?? "",
-          options: [],
-          multiSelect: false,
-          allowFreeText: true,
         },
   );
 }

@@ -22,7 +22,7 @@ import type {
 export type ResolvePatch = {
   decision?: ApprovalDecision;
   answered?: boolean;
-  answers?: Record<string, string[]>;
+  answers?: string[][];
 };
 
 export type StopCurrentRootRunAction = () => boolean;
@@ -38,7 +38,7 @@ export type InterruptResumePayload =
     }
   | {
       type: "answer";
-      answers: Record<string, string[]>;
+      answers: string[][];
     };
 export interface InterruptResumeInput {
   itemId: string;

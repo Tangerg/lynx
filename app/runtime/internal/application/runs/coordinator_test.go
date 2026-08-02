@@ -525,7 +525,7 @@ func treeBarrierQuestion(prompt string) Interrupt {
 		Question: &QuestionPrompt{
 			ToolName:  "ask_user",
 			Arguments: `{}`,
-			Questions: []QuestionSpec{{Question: prompt, Header: "Decision"}},
+			Fields:    []QuestionFieldSpec{{Prompt: prompt, Header: "Decision"}},
 		},
 	}
 }
@@ -810,9 +810,8 @@ func resumedTreePending(createdAt time.Time) interrupts.Pending {
 			RunID:  runID,
 			Kind:   execution.QuestionInterrupt,
 			Question: &transcript.Question{
-				Prompt: "Continue?",
 				Fields: []transcript.QuestionField{{
-					Name: "answer", Kind: transcript.QuestionText, Required: true,
+					Prompt: "Continue?", Kind: transcript.QuestionText,
 				}},
 			},
 		}

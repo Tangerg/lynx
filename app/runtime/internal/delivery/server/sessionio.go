@@ -169,7 +169,11 @@ func renderSessionMarkdown(ses protocol.Session, items []transcript.Item) string
 			b.WriteString("\n")
 		case protocol.ItemTypeQuestion:
 			if it.Question != nil {
-				fmt.Fprintf(&b, "## Question\n\n%s\n\n", it.Question.Prompt)
+				b.WriteString("## Question\n\n")
+				for _, field := range it.Question.Fields {
+					fmt.Fprintf(&b, "- %s\n", field.Prompt)
+				}
+				b.WriteString("\n")
 			}
 		}
 	}
