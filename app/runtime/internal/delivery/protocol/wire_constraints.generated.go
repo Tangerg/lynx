@@ -2,6 +2,12 @@
 
 package protocol
 
+func (value PageQuery) ValidateWire() error {
+	return collectWireViolations("PageQuery",
+		nonNegativeNumber("limit", value.Limit),
+	)
+}
+
 func (value GetSessionRequest) ValidateWire() error {
 	return collectWireViolations("GetSessionRequest",
 		requiredText("sessionId", value.SessionID),
@@ -49,6 +55,7 @@ func (value ImportSessionRequest) ValidateWire() error {
 
 func (value StartRunRequest) ValidateWire() error {
 	return collectWireViolations("StartRunRequest",
+		requiredText("sessionId", value.SessionID),
 		requiredItems("input", value.Input),
 		nonNegativeNumber("maxTotalTokens", value.MaxTotalTokens),
 		nonNegativeNumber("maxSteps", value.MaxSteps),
@@ -113,6 +120,7 @@ func (value ListItemsRequest) ValidateWire() error {
 
 func (value GetDiffRequest) ValidateWire() error {
 	return collectWireViolations("GetDiffRequest",
+		nonNegativeNumber("limit", value.Limit),
 		closedEnum("mode", string(value.Mode), []string{"worktree", "base"}, true),
 		closedEnum("format", string(value.Format), []string{"rows", "raw"}, true),
 	)
@@ -121,18 +129,23 @@ func (value GetDiffRequest) ValidateWire() error {
 func (value GetFileHeadRequest) ValidateWire() error {
 	return collectWireViolations("GetFileHeadRequest",
 		requiredText("path", value.Path),
+		nonNegativeNumber("lines", value.Lines),
 	)
 }
 
 func (value GrepRequest) ValidateWire() error {
 	return collectWireViolations("GrepRequest",
 		requiredText("query", value.Query),
+		nonNegativeNumber("limit", value.Limit),
 	)
 }
 
 func (value ReadFileRequest) ValidateWire() error {
 	return collectWireViolations("ReadFileRequest",
 		requiredText("path", value.Path),
+		nonNegativeNumber("startLine", value.StartLine),
+		nonNegativeNumber("endLine", value.EndLine),
+		nonNegativeNumber("maxBytes", value.MaxBytes),
 	)
 }
 
@@ -147,6 +160,13 @@ func (value RuntimeSubscribeRequest) ValidateWire() error {
 func (value SkillNameRequest) ValidateWire() error {
 	return collectWireViolations("SkillNameRequest",
 		requiredText("name", value.Name),
+	)
+}
+
+func (value SkillDraftRef) ValidateWire() error {
+	return collectWireViolations("SkillDraftRef",
+		requiredText("name", value.Name),
+		requiredText("revision", value.Revision),
 	)
 }
 
@@ -198,10 +218,31 @@ func (value SetApprovalModeRequest) ValidateWire() error {
 	)
 }
 
+func (value ListApprovalRulesRequest) ValidateWire() error {
+	return collectWireViolations("ListApprovalRulesRequest",
+		requiredText("sessionId", value.SessionID),
+	)
+}
+
+func (value ForgetApprovalRuleRequest) ValidateWire() error {
+	return collectWireViolations("ForgetApprovalRuleRequest",
+		requiredText("id", value.ID),
+	)
+}
+
+func (value CreateScheduleRequest) ValidateWire() error {
+	return collectWireViolations("CreateScheduleRequest",
+		requiredText("prompt", value.Prompt),
+		requiredText("cron", value.Cron),
+	)
+}
+
 func (value UpdateScheduleRequest) ValidateWire() error {
 	return collectWireViolations("UpdateScheduleRequest",
 		requiredText("id", value.ID),
 		positiveNumber("expectedRevision", value.ExpectedRevision),
+		optionalText("prompt", value.Prompt),
+		optionalText("cron", value.Cron),
 	)
 }
 
@@ -233,6 +274,7 @@ func (value GoalRequest) ValidateWire() error {
 func (value CodebaseSearchRequest) ValidateWire() error {
 	return collectWireViolations("CodebaseSearchRequest",
 		requiredText("query", value.Query),
+		nonNegativeNumber("limit", value.Limit),
 	)
 }
 
@@ -257,6 +299,12 @@ func (value InvokeToolRequest) ValidateWire() error {
 func (value SessionUsageRequest) ValidateWire() error {
 	return collectWireViolations("SessionUsageRequest",
 		requiredText("sessionId", value.SessionID),
+	)
+}
+
+func (value UsageSummaryRequest) ValidateWire() error {
+	return collectWireViolations("UsageSummaryRequest",
+		nonNegativeNumber("sinceDays", value.SinceDays),
 	)
 }
 
@@ -316,7 +364,7 @@ func (value FeedbackRequest) ValidateWire() error {
 
 func (value ProblemData) ValidateWire() error {
 	return collectWireViolations("ProblemData",
-		optionalPositiveNumber("retryAfterSeconds", value.RetryAfterSeconds),
+		optionalPositiveScalarNumber("retryAfterSeconds", value.RetryAfterSeconds),
 		nonEmptyItems("requiredCapabilities", value.RequiredCapabilities),
 		uniqueItems("requiredCapabilities", value.RequiredCapabilities),
 		unionTag("type", string(value.Type), []string{"agent_stuck", "capability_not_negotiated", "checkpoint_unavailable", "child_run_canceled", "denied_by_user", "idempotency_conflict", "idempotency_in_progress", "internal_error", "interrupt_not_open", "invalid_api_key", "invalid_params", "invalid_protocol_version", "invalid_request", "item_not_found", "mcp_authorization_attempt_not_found", "mcp_authorization_failed", "mcp_authorization_required", "mcp_dial_failed", "mcp_server_already_exists", "mcp_server_disabled", "mcp_server_not_found", "method_not_found", "path_outside_root", "provider_error", "provider_not_configured", "provider_rejected", "provider_test_failed", "provider_unavailable", "rate_limited", "replay_cursor_invalid", "replay_unavailable", "revision_conflict", "run_finished", "run_lost", "run_not_found", "run_not_root", "run_waiting", "session_busy", "session_has_active_run", "session_not_found", "stale_segment", "timeout", "tool_failed", "unsupported_mime", "vcs_unavailable", "workspace_unavailable"}, "^plugin:[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$"),
@@ -1154,6 +1202,7 @@ func (value ArtifactOutcome) ValidateWire() error {
 
 func (value ArtifactItem) ValidateWire() error {
 	return collectWireViolations("ArtifactItem",
+		nonNegativeNumber("droppedMessages", value.DroppedMessages),
 		closedEnum("status", string(value.Status), []string{"running", "completed", "incomplete"}, false),
 		closedEnum("type", string(value.Type), []string{"userMessage", "agentMessage", "reasoning", "plan", "question", "toolCall", "compaction"}, false),
 		closedEnum("safetyClass", string(value.SafetyClass), []string{"safe", "write", "exec", "network"}, true),
@@ -1345,6 +1394,7 @@ func (value PendingInterruptSet) ValidateWire() error {
 
 func (value ArtifactRun) ValidateWire() error {
 	return collectWireViolations("ArtifactRun",
+		nonNegativeNumber("messageMark", value.MessageMark),
 		forbiddenWhen(wireFieldPresent(value, "spawnedByItemId"), "protocolProfile", value),
 		requiredWhen(wireFieldPresent(value, "spawnedByItemId"), "parentRunId", value),
 		requiredWhen(wireFieldPresent(value, "spawnedByItemId"), "rootRunId", value),
@@ -1355,12 +1405,67 @@ func (value ArtifactRun) ValidateWire() error {
 	)
 }
 
+func (value SessionArtifact) ValidateWire() error {
+	return collectWireViolations("SessionArtifact",
+		minimumNumber("version", value.Version, 9),
+		maximumNumber("version", value.Version, 9),
+	)
+}
+
+func (value ArtifactRunMetrics) ValidateWire() error {
+	return collectWireViolations("ArtifactRunMetrics",
+		nonNegativeNumber("steps", value.Steps),
+		nonNegativeNumber("activeDurationMs", value.ActiveDurationMs),
+	)
+}
+
+func (value ArtifactUsage) ValidateWire() error {
+	return collectWireViolations("ArtifactUsage",
+		nonNegativeNumber("inputTokens", value.InputTokens),
+		nonNegativeNumber("outputTokens", value.OutputTokens),
+		nonNegativeNumber("cacheReadTokens", value.CacheReadTokens),
+		nonNegativeNumber("cacheWriteTokens", value.CacheWriteTokens),
+		nonNegativeNumber("reasoningTokens", value.ReasoningTokens),
+		optionalNonNegativeNumber("costUsd", value.CostUSD),
+	)
+}
+
+func (value ArtifactModelUsage) ValidateWire() error {
+	return collectWireViolations("ArtifactModelUsage",
+		nonNegativeNumber("inputTokens", value.InputTokens),
+		nonNegativeNumber("outputTokens", value.OutputTokens),
+		nonNegativeNumber("cacheReadTokens", value.CacheReadTokens),
+		nonNegativeNumber("cacheWriteTokens", value.CacheWriteTokens),
+		nonNegativeNumber("reasoningTokens", value.ReasoningTokens),
+		optionalNonNegativeNumber("costUsd", value.CostUSD),
+	)
+}
+
+func (value ArtifactProblem) ValidateWire() error {
+	return collectWireViolations("ArtifactProblem",
+		optionalPositiveScalarNumber("retryAfterSeconds", value.RetryAfterSeconds),
+		closedEnum("type", string(value.Type), []string{"internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed", "childRunCanceled"}, false),
+	)
+}
+
 func (value RunProtocolProfile) ValidateWire() error {
 	return collectWireViolations("RunProtocolProfile",
 		uniqueItems("requiredFeatures", value.RequiredFeatures),
 		uniqueItems("interruptTypes", value.InterruptTypes),
 		closedEnumItems("requiredFeatures", value.RequiredFeatures, []string{"subagents"}),
 		closedEnumItems("interruptTypes", value.InterruptTypes, []string{"approval", "question", "toolResult"}),
+	)
+}
+
+func (value GenerationParams) ValidateWire() error {
+	return collectWireViolations("GenerationParams",
+		optionalNonNegativeNumber("temperature", value.Temperature),
+		optionalMaximumNumber("temperature", value.Temperature, 2),
+		optionalPositiveNumber("maxTokens", value.MaxTokens),
+		optionalNonNegativeNumber("topP", value.TopP),
+		optionalMaximumNumber("topP", value.TopP, 1),
+		nonEmptyItems("stop", value.Stop),
+		uniqueItems("stop", value.Stop),
 	)
 }
 
@@ -1423,6 +1528,30 @@ func (value ResumeRunResponse) ValidateWire() error {
 func (value WorkspaceRef) ValidateWire() error {
 	return collectWireViolations("WorkspaceRef",
 		requiredText("path", value.Path),
+	)
+}
+
+func (value GoalBudget) ValidateWire() error {
+	return collectWireViolations("GoalBudget",
+		nonNegativeNumber("maxTurns", value.MaxTurns),
+		nonNegativeNumber("maxCostUsd", value.MaxCostUsd),
+		nonNegativeNumber("maxSteps", value.MaxSteps),
+	)
+}
+
+func (value ClientInfo) ValidateWire() error {
+	return collectWireViolations("ClientInfo",
+		requiredText("name", value.Name),
+		requiredText("version", value.Version),
+	)
+}
+
+func (value ClientCapabilities) ValidateWire() error {
+	return collectWireViolations("ClientCapabilities",
+		uniqueItems("interruptTypes", value.InterruptTypes),
+		uniqueItems("excludedEphemeralEvents", value.ExcludedEphemeralEvents),
+		closedEnumItems("interruptTypes", value.InterruptTypes, []string{"approval", "question", "toolResult"}),
+		closedEnumItems("excludedEphemeralEvents", value.ExcludedEphemeralEvents, []string{"segment.progress", "item.delta"}),
 	)
 }
 

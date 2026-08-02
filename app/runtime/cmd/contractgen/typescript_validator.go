@@ -223,6 +223,9 @@ func (e *checkEmitter) compile(node *schema) string {
 	if node.Minimum != nil {
 		parts = append(parts, e.call("minimum", strconv.FormatInt(*node.Minimum, 10)))
 	}
+	if node.Maximum != nil {
+		parts = append(parts, e.call("maximum", strconv.FormatInt(*node.Maximum, 10)))
+	}
 	if node.MinItems != nil {
 		parts = append(parts, e.call("minItems", strconv.Itoa(*node.MinItems)))
 	}

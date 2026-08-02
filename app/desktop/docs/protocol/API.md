@@ -146,7 +146,8 @@ interface RPCError {
 
 每个 Request 的 `params` 若为对象，可带 `_meta`（`RequestMeta`：`protocolVersion?` / `clientInfo?` /
 `clientCapabilities?`）。`_meta` 是请求自描述元数据，不属于业务参数；runtime 在 dispatch 边界剥离后再解码具体
-method params。
+method params。它先按 `RequestMeta` DTO 严格解码，再走同源生成约束：未知字段直接拒绝；非法枚举、重复集合成员和空
+client identity 返回带精确 `errors[].field` 的 `invalid_params`，不会绕过已发布的 metadata 形状。
 
 ### 1.1 信封规则
 
@@ -159,6 +160,8 @@ method params。
   token / 流游标）走带外通道，判定见 [`TRANSPORT.md`](./TRANSPORT.md) §2。
 - method params 按对应请求 DTO **严格解码**：未知字段、`null`、类型不符或多余 JSON 值均返回 `invalid_params`，
   不允许服务端悄悄丢弃客户端意图。**required 字段不接受 `null`**，客户端也不发 `null` 占位。
+- OpenRPC 的 by-name `params[]` 从完整 request frame 的属性直接投影；不得重新按字段 Go 类型生成一个更宽的副本。
+  因而 `minLength` / `minimum` / `maximum` 等约束在逐参数视图、`x-lyra-requestFrame`、Go 与 TS validator 中完全一致。
 
 ---
 

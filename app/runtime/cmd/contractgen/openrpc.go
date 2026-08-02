@@ -1,6 +1,10 @@
 package main
 
 import (
+	"fmt"
+	"reflect"
+	"strings"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
@@ -107,6 +111,7 @@ func newOpenRPC(registry *dispatch.Registry, shapes *dispatch.Shapes, set *schem
 }
 
 func openrpcMethodFor(meta dispatch.MethodMeta, set *schemaSet, codes map[string]int) openrpcMethod {
+	requestFrame := set.walk(meta.Params)
 	method := openrpcMethod{
 		Name:           meta.Name,
 		ParamStructure: "by-name",
@@ -118,15 +123,19 @@ func openrpcMethodFor(meta dispatch.MethodMeta, set *schemaSet, codes map[string
 		Stability:      string(meta.Stability),
 		Features:       meta.Features(),
 		Capabilities:   capabilityRowsFor(meta),
-		RequestFrame:   external(set.walk(meta.Params)),
+		RequestFrame:   strictRequestFrame(set, requestFrame),
 	}
 	for _, field := range protocol.WireFields(meta.Params) {
 		method.Params = append(method.Params, openrpcParam{
 			Name:     field.Name,
 			Required: !field.Optional,
-			Schema:   external(set.walk(field.Type)),
+			Schema:   external(requestPropertySchema(set, requestFrame, meta.Params, field.Name)),
 		})
 	}
+	method.Params = append(method.Params, openrpcParam{
+		Name:   requestMetaField,
+		Schema: external(set.walk(reflect.TypeFor[protocol.RequestMeta]())),
+	})
 	result := &schema{Type: schemaTypeObject}
 	if meta.Result != nil {
 		result = set.walk(meta.Result)
@@ -146,6 +155,52 @@ func openrpcMethodFor(meta dispatch.MethodMeta, set *schemaSet, codes map[string
 		method.Errors = append(method.Errors, openrpcError{Code: code, Message: problem})
 	}
 	return method
+}
+
+const requestMetaField = "_meta"
+
+// strictRequestFrame publishes the actual object dispatch accepts: the method's
+// typed business params plus the universal optional _meta member, with no other
+// top-level names. Shared schema definitions stay open because the same DTO may
+// be a server result and clients must tolerate result growth; request strictness
+// is contextual, so it belongs on this request-only OpenRPC projection.
+func strictRequestFrame(set *schemaSet, business *schema) *schema {
+	return &schema{
+		AllOf: []*schema{
+			external(business),
+			{
+				Type: schemaTypeObject,
+				Properties: map[string]any{
+					requestMetaField: external(set.walk(reflect.TypeFor[protocol.RequestMeta]())),
+				},
+			},
+		},
+		UnevaluatedProps: new(false),
+	}
+}
+
+// requestPropertySchema returns a by-name OpenRPC parameter from the whole
+// request frame, not by walking the field's Go type again. Value constraints
+// belong to the field in its owner (for example expectedRevision >= 1); a fresh
+// type walk would lose that owner context and publish a weaker parameter than
+// both the runtime validator and x-lyra-requestFrame.
+func requestPropertySchema(set *schemaSet, frame *schema, owner reflect.Type, field string) *schema {
+	body := frame
+	if strings.HasPrefix(frame.Ref, refPrefix) {
+		body = set.defs[strings.TrimPrefix(frame.Ref, refPrefix)]
+	}
+	if body == nil || body.Properties == nil {
+		panic(fmt.Sprintf("contractgen: %s request frame has no object properties", owner))
+	}
+	property, ok := body.Properties[field]
+	if !ok {
+		panic(fmt.Sprintf("contractgen: %s request frame has no property %q", owner, field))
+	}
+	node, ok := property.(*schema)
+	if !ok {
+		panic(fmt.Sprintf("contractgen: %s.%s is forbidden and cannot be an OpenRPC parameter", owner, field))
+	}
+	return node
 }
 
 func capabilityRowsFor(meta dispatch.MethodMeta) []capabilityRow {

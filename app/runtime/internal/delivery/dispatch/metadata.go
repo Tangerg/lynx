@@ -26,22 +26,12 @@ func bindRequestMeta(ctx context.Context, req *transport.Request) (context.Conte
 		return ctx, nil
 	}
 
-	var metaObject map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &metaObject); err != nil {
-		return ctx, invalidParams(requestMetaField + ": " + err.Error())
-	}
-	if metaObject == nil {
-		return ctx, invalidParams(requestMetaField + ": must be an object")
-	}
-
 	var meta protocol.RequestMeta
-	if err := json.Unmarshal(raw, &meta); err != nil {
+	if err := decodeParams(raw, &meta); err != nil {
 		return ctx, invalidParams(requestMetaField + ": " + err.Error())
 	}
-	if meta.ClientCapabilities != nil {
-		if err := meta.ClientCapabilities.Validate(); err != nil {
-			return ctx, invalidParams(requestMetaField + ".clientCapabilities: " + err.Error())
-		}
+	if err := protocol.ValidateWireTree(meta); err != nil {
+		return ctx, invalidRequestShape(err)
 	}
 	if meta.ProtocolVersion != "" && !protocol.SupportsProtocolVersion(meta.ProtocolVersion) {
 		return ctx, problemError(

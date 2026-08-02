@@ -9,7 +9,14 @@
     {
       "name": "runtime.discover",
       "paramStructure": "by-name",
-      "params": [],
+      "params": [
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
+          }
+        }
+      ],
       "result": {
         "name": "result",
         "schema": {
@@ -22,7 +29,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "type": "object"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "type": "object"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -32,13 +52,20 @@
         {
           "name": "limit",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
           }
         },
         {
           "name": "cursor",
           "schema": {
             "type": "string"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -54,7 +81,20 @@
       "x-lyra-pagination": "cursor",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/PageQuery"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/PageQuery"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -65,7 +105,14 @@
           "name": "sessionId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -87,7 +134,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/GetSessionRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/GetSessionRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -104,6 +164,12 @@
           "name": "title",
           "schema": {
             "type": "string"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -125,7 +191,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/CreateSessionRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/CreateSessionRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -136,7 +215,8 @@
           "name": "sessionId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -144,7 +224,7 @@
           "required": true,
           "schema": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 1
           }
         },
         {
@@ -169,6 +249,12 @@
           "name": "favorite",
           "schema": {
             "type": "boolean"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -218,7 +304,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/UpdateSessionRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/UpdateSessionRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -229,7 +328,14 @@
           "name": "sessionId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -251,7 +357,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/DeleteSessionRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/DeleteSessionRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -262,7 +381,8 @@
           "name": "sessionId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -275,6 +395,12 @@
           "name": "title",
           "schema": {
             "type": "string"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -300,7 +426,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ForkSessionRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/ForkSessionRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -311,7 +450,8 @@
           "name": "sessionId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -324,6 +464,12 @@
           "name": "restoreType",
           "schema": {
             "$ref": "schema.json#/$defs/RestoreType"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -390,7 +536,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/RollbackSessionRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/RollbackSessionRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -401,13 +560,20 @@
           "name": "sessionId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
           "name": "format",
           "schema": {
             "$ref": "schema.json#/$defs/ExportFormat"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -443,7 +609,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ExportSessionRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/ExportSessionRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -455,6 +634,12 @@
           "required": true,
           "schema": {
             "$ref": "schema.json#/$defs/SessionArtifact"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -486,7 +671,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ImportSessionRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/ImportSessionRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -497,7 +695,8 @@
           "name": "sessionId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -505,6 +704,7 @@
           "required": true,
           "schema": {
             "type": "array",
+            "minItems": 1,
             "items": {
               "$ref": "schema.json#/$defs/ContentBlock"
             }
@@ -525,25 +725,34 @@
         {
           "name": "maxTotalTokens",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
           }
         },
         {
           "name": "maxSteps",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
           }
         },
         {
           "name": "maxBudgetUsd",
           "schema": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0
           }
         },
         {
           "name": "params",
           "schema": {
             "$ref": "schema.json#/$defs/GenerationParams"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -584,7 +793,20 @@
         "$ref": "schema.json#/$defs/RunEvent"
       },
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/StartRunRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/StartRunRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -595,7 +817,8 @@
           "name": "runId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -612,9 +835,16 @@
           "name": "input",
           "schema": {
             "type": "array",
+            "minItems": 1,
             "items": {
               "$ref": "schema.json#/$defs/ContentBlock"
             }
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -647,7 +877,20 @@
         "$ref": "schema.json#/$defs/RunEvent"
       },
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ResumeRunRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/ResumeRunRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -658,14 +901,22 @@
           "name": "runId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
           "name": "segmentId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -718,7 +969,20 @@
         "$ref": "schema.json#/$defs/RunEvent"
       },
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/SubscribeRunRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/SubscribeRunRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -729,13 +993,20 @@
           "name": "runId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
           "name": "reason",
           "schema": {
             "type": "string"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -769,7 +1040,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/CancelRunRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/CancelRunRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -780,14 +1064,16 @@
           "name": "runId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
           "name": "expectedSegmentId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -795,9 +1081,16 @@
           "required": true,
           "schema": {
             "type": "array",
+            "minItems": 1,
             "items": {
               "$ref": "schema.json#/$defs/ContentBlock"
             }
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -835,7 +1128,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/SteerRunRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/SteerRunRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -846,7 +1152,14 @@
           "name": "runId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -872,7 +1185,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/GetRunRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/GetRunRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -889,6 +1215,8 @@
           "name": "statuses",
           "schema": {
             "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
             "items": {
               "$ref": "schema.json#/$defs/RunStatus"
             }
@@ -903,13 +1231,20 @@
         {
           "name": "limit",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
           }
         },
         {
           "name": "cursor",
           "schema": {
             "type": "string"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -947,7 +1282,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ListRunsRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/ListRunsRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -969,13 +1317,20 @@
         {
           "name": "limit",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
           }
         },
         {
           "name": "cursor",
           "schema": {
             "type": "string"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1001,7 +1356,20 @@
       "x-lyra-pagination": "cursor",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ListInterruptsRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/ListInterruptsRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1012,7 +1380,14 @@
           "name": "sessionId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1048,7 +1423,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/GetTodosRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/GetTodosRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1071,13 +1459,20 @@
         {
           "name": "limit",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
           }
         },
         {
           "name": "cursor",
           "schema": {
             "type": "string"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1123,7 +1518,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ListItemsRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/ListItemsRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1134,6 +1542,12 @@
           "name": "ref",
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1155,13 +1569,33 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ResolveWorkspaceRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/ResolveWorkspaceRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
       "name": "workspaces.list",
       "paramStructure": "by-name",
-      "params": [],
+      "params": [
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
+          }
+        }
+      ],
       "result": {
         "name": "result",
         "schema": {
@@ -1174,7 +1608,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "type": "object"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "type": "object"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1186,6 +1633,12 @@
           "required": true,
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1225,7 +1678,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/WorkspaceQuery"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/WorkspaceQuery"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1260,7 +1726,14 @@
         {
           "name": "limit",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1304,7 +1777,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/GetDiffRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/GetDiffRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1322,13 +1808,21 @@
           "name": "path",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
           "name": "lines",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1354,7 +1848,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/GetFileHeadRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/GetFileHeadRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1372,7 +1879,8 @@
           "name": "query",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -1384,7 +1892,14 @@
         {
           "name": "limit",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1410,7 +1925,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/GrepRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/GrepRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1451,13 +1979,20 @@
         {
           "name": "limit",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
           }
         },
         {
           "name": "cursor",
           "schema": {
             "type": "string"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1483,7 +2018,20 @@
       "x-lyra-pagination": "cursor",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ListFilesRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/ListFilesRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1501,25 +2049,35 @@
           "name": "path",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
           "name": "startLine",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
           }
         },
         {
           "name": "endLine",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
           }
         },
         {
           "name": "maxBytes",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1545,7 +2103,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ReadFileRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/ReadFileRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1557,6 +2128,8 @@
           "required": true,
           "schema": {
             "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
             "items": {
               "$ref": "schema.json#/$defs/RuntimeTopic"
             }
@@ -1569,6 +2142,12 @@
             "items": {
               "$ref": "schema.json#/$defs/WatchSpec"
             }
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1609,7 +2188,20 @@
         "$ref": "schema.json#/$defs/RuntimeEvent"
       },
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/RuntimeSubscribeRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/RuntimeSubscribeRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1621,6 +2213,12 @@
           "required": true,
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1656,13 +2254,33 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/WorkspaceQuery"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/WorkspaceQuery"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
       "name": "skills.library.list",
       "paramStructure": "by-name",
-      "params": [],
+      "params": [
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
+          }
+        }
+      ],
       "result": {
         "name": "result",
         "schema": {
@@ -1691,7 +2309,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "type": "object"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "type": "object"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1702,7 +2333,14 @@
           "name": "name",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1734,7 +2372,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/SkillNameRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/SkillNameRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1745,7 +2396,14 @@
           "name": "name",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1777,13 +2435,33 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/SkillNameRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/SkillNameRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
       "name": "skills.drafts.list",
       "paramStructure": "by-name",
-      "params": [],
+      "params": [
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
+          }
+        }
+      ],
       "result": {
         "name": "result",
         "schema": {
@@ -1812,7 +2490,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "type": "object"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "type": "object"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1823,14 +2514,22 @@
           "name": "name",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
           "name": "revision",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1862,7 +2561,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/SkillDraftRef"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/SkillDraftRef"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1873,14 +2585,22 @@
           "name": "name",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
           "name": "revision",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1912,7 +2632,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/SkillDraftRef"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/SkillDraftRef"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1924,6 +2657,12 @@
           "required": true,
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1945,7 +2684,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/WorkspaceQuery"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/WorkspaceQuery"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1957,6 +2709,12 @@
           "required": true,
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -1978,13 +2736,33 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/WorkspaceQuery"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/WorkspaceQuery"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
       "name": "mcp.servers.list",
       "paramStructure": "by-name",
-      "params": [],
+      "params": [
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
+          }
+        }
+      ],
       "result": {
         "name": "result",
         "schema": {
@@ -2013,7 +2791,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "type": "object"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "type": "object"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2024,7 +2815,8 @@
           "name": "name",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -2050,13 +2842,15 @@
         {
           "name": "timeoutSeconds",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
           }
         },
         {
           "name": "disabledTools",
           "schema": {
             "type": "array",
+            "uniqueItems": true,
             "items": {
               "type": "string"
             }
@@ -2066,9 +2860,16 @@
           "name": "autoApproveTools",
           "schema": {
             "type": "array",
+            "uniqueItems": true,
             "items": {
               "type": "string"
             }
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2104,7 +2905,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/MCPServerCandidate"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/MCPServerCandidate"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2115,7 +2929,8 @@
           "name": "server",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -2139,13 +2954,15 @@
         {
           "name": "timeoutSeconds",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
           }
         },
         {
           "name": "disabledTools",
           "schema": {
             "type": "array",
+            "uniqueItems": true,
             "items": {
               "type": "string"
             }
@@ -2155,9 +2972,16 @@
           "name": "autoApproveTools",
           "schema": {
             "type": "array",
+            "uniqueItems": true,
             "items": {
               "type": "string"
             }
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2193,7 +3017,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/UpdateMCPServerRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/UpdateMCPServerRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2204,7 +3041,14 @@
           "name": "server",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2240,7 +3084,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/MCPServerRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/MCPServerRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2251,7 +3108,8 @@
           "name": "name",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -2277,13 +3135,15 @@
         {
           "name": "timeoutSeconds",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
           }
         },
         {
           "name": "disabledTools",
           "schema": {
             "type": "array",
+            "uniqueItems": true,
             "items": {
               "type": "string"
             }
@@ -2293,9 +3153,16 @@
           "name": "autoApproveTools",
           "schema": {
             "type": "array",
+            "uniqueItems": true,
             "items": {
               "type": "string"
             }
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2327,7 +3194,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/MCPServerCandidate"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/MCPServerCandidate"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2338,6 +3218,12 @@
           "name": "server",
           "schema": {
             "type": "string"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2369,7 +3255,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/MCPListToolsRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/MCPListToolsRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2380,7 +3279,14 @@
           "name": "server",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2420,7 +3326,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/MCPServerRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/MCPServerRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2431,7 +3350,14 @@
           "name": "server",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2471,7 +3397,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/CreateMCPAuthorizationAttemptRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/CreateMCPAuthorizationAttemptRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2482,7 +3421,14 @@
           "name": "attemptId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2518,7 +3464,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/MCPAuthorizationAttemptRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/MCPAuthorizationAttemptRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2530,6 +3489,12 @@
           "required": true,
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2551,7 +3516,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ListHooksRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/ListHooksRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2562,7 +3540,8 @@
           "name": "projectRoot",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -2570,6 +3549,12 @@
           "required": true,
           "schema": {
             "type": "boolean"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2585,13 +3570,33 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/SetHookTrustRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/SetHookTrustRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
       "name": "approval.getMode",
       "paramStructure": "by-name",
-      "params": [],
+      "params": [
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
+          }
+        }
+      ],
       "result": {
         "name": "result",
         "schema": {
@@ -2604,7 +3609,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "type": "object"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "type": "object"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2616,6 +3634,12 @@
           "required": true,
           "schema": {
             "$ref": "schema.json#/$defs/ApprovalMode"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2631,7 +3655,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/SetApprovalModeRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/SetApprovalModeRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2642,7 +3679,14 @@
           "name": "sessionId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2658,7 +3702,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ListApprovalRulesRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/ListApprovalRulesRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2669,7 +3726,14 @@
           "name": "id",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2685,7 +3749,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ForgetApprovalRuleRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/ForgetApprovalRuleRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2695,13 +3772,20 @@
         {
           "name": "limit",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
           }
         },
         {
           "name": "cursor",
           "schema": {
             "type": "string"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2733,7 +3817,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/PageQuery"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/PageQuery"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2750,7 +3847,8 @@
           "name": "prompt",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -2775,7 +3873,14 @@
           "name": "cron",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2807,7 +3912,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/CreateScheduleRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/CreateScheduleRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2818,7 +3936,8 @@
           "name": "id",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -2826,7 +3945,7 @@
           "required": true,
           "schema": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 1
           }
         },
         {
@@ -2838,7 +3957,8 @@
         {
           "name": "prompt",
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -2862,13 +3982,20 @@
         {
           "name": "cron",
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
           "name": "enabled",
           "schema": {
             "type": "boolean"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2904,7 +4031,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/UpdateScheduleRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/UpdateScheduleRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2915,7 +4055,14 @@
           "name": "id",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2947,7 +4094,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/DeleteScheduleRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/DeleteScheduleRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -2958,7 +4118,14 @@
           "name": "id",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -2990,7 +4157,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/RunScheduleNowRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/RunScheduleNowRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3001,14 +4181,16 @@
           "name": "sessionId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
           "name": "objective",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -3027,6 +4209,12 @@
           "name": "budget",
           "schema": {
             "$ref": "schema.json#/$defs/GoalBudget"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3062,7 +4250,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/StartGoalRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/StartGoalRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3073,7 +4274,14 @@
           "name": "sessionId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3116,7 +4324,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/GoalRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/GoalRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3127,7 +4348,14 @@
           "name": "sessionId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3163,7 +4391,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/GoalRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/GoalRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3174,7 +4415,14 @@
           "name": "sessionId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3210,7 +4458,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/GoalRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/GoalRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3228,13 +4489,21 @@
           "name": "query",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
           "name": "limit",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3270,7 +4539,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/CodebaseSearchRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/CodebaseSearchRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3282,6 +4564,12 @@
           "required": true,
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3317,7 +4605,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/CodebaseStatusRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/CodebaseStatusRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3329,6 +4630,12 @@
           "required": true,
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3364,13 +4671,33 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/CodebaseReindexRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/CodebaseReindexRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
       "name": "providers.list",
       "paramStructure": "by-name",
-      "params": [],
+      "params": [
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
+          }
+        }
+      ],
       "result": {
         "name": "result",
         "schema": {
@@ -3383,7 +4710,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "type": "object"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "type": "object"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3394,7 +4734,8 @@
           "name": "provider",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -3407,6 +4748,12 @@
           "name": "apiKey",
           "schema": {
             "$ref": "schema.json#/$defs/ProviderConfigChange"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3422,7 +4769,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/UpdateProviderRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/UpdateProviderRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3433,7 +4793,14 @@
           "name": "provider",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3449,7 +4816,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/TestProviderRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/TestProviderRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3460,6 +4840,12 @@
           "name": "provider",
           "schema": {
             "type": "string"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3475,13 +4861,33 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/ListModelsRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/ListModelsRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
       "name": "models.getUtilityRole",
       "paramStructure": "by-name",
-      "params": [],
+      "params": [
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
+          }
+        }
+      ],
       "result": {
         "name": "result",
         "schema": {
@@ -3494,7 +4900,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "type": "object"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "type": "object"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3512,6 +4931,12 @@
           "schema": {
             "type": "string"
           }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
+          }
         }
       ],
       "result": {
@@ -3526,13 +4951,33 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/UtilityRole"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/UtilityRole"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
       "name": "models.getEmbeddingRole",
       "paramStructure": "by-name",
-      "params": [],
+      "params": [
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
+          }
+        }
+      ],
       "result": {
         "name": "result",
         "schema": {
@@ -3545,7 +4990,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "type": "object"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "type": "object"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3563,6 +5021,12 @@
           "schema": {
             "type": "string"
           }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
+          }
         }
       ],
       "result": {
@@ -3577,13 +5041,33 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/EmbeddingRole"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/EmbeddingRole"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
       "name": "tools.list",
       "paramStructure": "by-name",
-      "params": [],
+      "params": [
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
+          }
+        }
+      ],
       "result": {
         "name": "result",
         "schema": {
@@ -3596,7 +5080,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "type": "object"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "type": "object"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3607,7 +5104,8 @@
           "name": "name",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -3622,6 +5120,12 @@
           "name": "workspace",
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3645,7 +5149,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/InvokeToolRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/InvokeToolRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3656,7 +5173,14 @@
           "name": "sessionId",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3678,7 +5202,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/SessionUsageRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/SessionUsageRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3688,7 +5225,14 @@
         {
           "name": "sinceDays",
           "schema": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3704,7 +5248,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/UsageSummaryRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/UsageSummaryRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3716,6 +5273,12 @@
           "required": true,
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3751,7 +5314,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/WorkspaceQuery"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/WorkspaceQuery"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3769,6 +5345,12 @@
           "name": "workspace",
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3804,7 +5386,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/GetMemoryRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/GetMemoryRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3829,6 +5424,12 @@
           "required": true,
           "schema": {
             "type": "string"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3864,7 +5465,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/UpdateMemoryRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/UpdateMemoryRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3882,6 +5496,12 @@
           "name": "workspace",
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3913,7 +5533,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/AgentMemoryListRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/AgentMemoryListRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3924,7 +5557,8 @@
           "name": "id",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -3932,6 +5566,12 @@
           "required": true,
           "schema": {
             "$ref": "schema.json#/$defs/AgentMemoryReviewDecision"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -3963,7 +5603,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/AgentMemoryReviewRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/AgentMemoryReviewRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -3974,7 +5627,8 @@
           "name": "id",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         {
@@ -3987,6 +5641,12 @@
           "name": "pinned",
           "schema": {
             "type": "boolean"
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -4018,7 +5678,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/AgentMemoryUpdateRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/AgentMemoryUpdateRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -4029,7 +5702,14 @@
           "name": "id",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -4061,7 +5741,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/AgentMemoryItemRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/AgentMemoryItemRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -4085,7 +5778,14 @@
           "name": "content",
           "required": true,
           "schema": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
           }
         }
       ],
@@ -4117,7 +5817,20 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/AgentMemoryAddRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/AgentMemoryAddRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -4153,6 +5866,12 @@
           "schema": {
             "type": "string"
           }
+        },
+        {
+          "name": "_meta",
+          "schema": {
+            "$ref": "schema.json#/$defs/RequestMeta"
+          }
         }
       ],
       "result": {
@@ -4167,7 +5886,20 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/FeedbackRequest"
+        "unevaluatedProperties": false,
+        "allOf": [
+          {
+            "$ref": "schema.json#/$defs/FeedbackRequest"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_meta": {
+                "$ref": "schema.json#/$defs/RequestMeta"
+              }
+            }
+          }
+        ]
       }
     }
   ],

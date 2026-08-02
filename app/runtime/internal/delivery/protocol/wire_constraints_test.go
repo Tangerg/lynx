@@ -371,6 +371,85 @@ func TestPublishedLimitWireConstraints(t *testing.T) {
 	}
 }
 
+func TestRequestBoundsAreWireConstraints(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		shape string
+		field string
+		value WireValidator
+	}{
+		{shape: "PageQuery", field: "limit", value: PageQuery{Limit: -1}},
+		{shape: "GetDiffRequest", field: "limit", value: GetDiffRequest{Limit: -1}},
+		{shape: "GetFileHeadRequest", field: "lines", value: GetFileHeadRequest{Path: "README.md", Lines: -1}},
+		{shape: "GrepRequest", field: "limit", value: GrepRequest{Query: "needle", Limit: -1}},
+		{shape: "ReadFileRequest", field: "startLine", value: ReadFileRequest{Path: "README.md", StartLine: -1}},
+		{shape: "ReadFileRequest", field: "endLine", value: ReadFileRequest{Path: "README.md", EndLine: -1}},
+		{shape: "ReadFileRequest", field: "maxBytes", value: ReadFileRequest{Path: "README.md", MaxBytes: -1}},
+		{shape: "CodebaseSearchRequest", field: "limit", value: CodebaseSearchRequest{Query: "symbol", Limit: -1}},
+		{shape: "UsageSummaryRequest", field: "sinceDays", value: UsageSummaryRequest{SinceDays: -1}},
+	} {
+		test := test
+		t.Run(test.shape+"."+test.field, func(t *testing.T) {
+			t.Parallel()
+			assertConstraintField(t, test.value.ValidateWire(), test.shape, test.field)
+		})
+	}
+}
+
+func TestGenerationAndGoalBoundsAreWireConstraints(t *testing.T) {
+	t.Parallel()
+
+	temperature := 2.1
+	topP := 1.1
+	zeroTokens := int64(0)
+	for _, test := range []struct {
+		field string
+		value GenerationParams
+	}{
+		{field: "temperature", value: GenerationParams{Temperature: &temperature}},
+		{field: "topP", value: GenerationParams{TopP: &topP}},
+		{field: "maxTokens", value: GenerationParams{MaxTokens: &zeroTokens}},
+		{field: "stop", value: GenerationParams{Stop: []string{}}},
+	} {
+		assertConstraintField(t, test.value.ValidateWire(), "GenerationParams", test.field)
+	}
+
+	assertConstraintField(
+		t,
+		(GoalBudget{MaxCostUsd: -0.01}).ValidateWire(),
+		"GoalBudget",
+		"maxCostUsd",
+	)
+}
+
+func TestSessionArtifactBoundsAreWireConstraints(t *testing.T) {
+	t.Parallel()
+
+	artifact := SessionArtifact{Version: SessionArtifactVersion - 1}
+	assertConstraintField(t, artifact.ValidateWire(), "SessionArtifact", "version")
+	artifact.Version = SessionArtifactVersion + 1
+	assertConstraintField(t, artifact.ValidateWire(), "SessionArtifact", "version")
+
+	cost := -0.01
+	for _, test := range []struct {
+		shape string
+		field string
+		value WireValidator
+	}{
+		{shape: "ArtifactRun", field: "messageMark", value: ArtifactRun{MessageMark: -1}},
+		{shape: "ArtifactRunMetrics", field: "steps", value: ArtifactRunMetrics{Steps: -1}},
+		{shape: "ArtifactRunMetrics", field: "activeDurationMs", value: ArtifactRunMetrics{ActiveDurationMs: -1}},
+		{shape: "ArtifactUsage", field: "inputTokens", value: ArtifactUsage{InputTokens: -1}},
+		{shape: "ArtifactUsage", field: "costUsd", value: ArtifactUsage{CostUSD: &cost}},
+		{shape: "ArtifactModelUsage", field: "reasoningTokens", value: ArtifactModelUsage{ReasoningTokens: -1}},
+		{shape: "ArtifactItem", field: "droppedMessages", value: ArtifactItem{DroppedMessages: -1}},
+		{shape: "ArtifactProblem", field: "retryAfterSeconds", value: ArtifactProblem{RetryAfterSeconds: -1}},
+	} {
+		assertConstraintField(t, test.value.ValidateWire(), test.shape, test.field)
+	}
+}
+
 func TestOptionalMCPUpdateConstraintsPreserveAndValidatePresentValues(t *testing.T) {
 	t.Parallel()
 

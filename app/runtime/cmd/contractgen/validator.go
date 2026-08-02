@@ -122,8 +122,10 @@ func validatorChecks(
 			checks = append(checks, fmt.Sprintf("%s(%s, %s)", validatorName, field, stringExpr(selector, leaf.Type)))
 		case dispatch.ConstraintPositive:
 			validatorName := "positiveNumber"
-			if leaf.Optional {
+			if leaf.Type.Kind() == reflect.Pointer {
 				validatorName = "optionalPositiveNumber"
+			} else if leaf.Optional {
+				validatorName = "optionalPositiveScalarNumber"
 			}
 			checks = append(checks, fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector))
 		case dispatch.ConstraintNonNegative:
@@ -158,6 +160,18 @@ func validatorChecks(
 				validatorName = "optionalMaxLength"
 			}
 			checks = append(checks, fmt.Sprintf("%s(%s, %s, %d)", validatorName, field, stringExpr(selector, leaf.Type), constraint.Limit))
+		case dispatch.ConstraintMinimum:
+			validatorName := "minimumNumber"
+			if leaf.Type.Kind() == reflect.Pointer {
+				validatorName = "optionalMinimumNumber"
+			}
+			checks = append(checks, fmt.Sprintf("%s(%s, value.%s, %d)", validatorName, field, selector, constraint.Limit))
+		case dispatch.ConstraintMaximum:
+			validatorName := "maximumNumber"
+			if leaf.Type.Kind() == reflect.Pointer {
+				validatorName = "optionalMaximumNumber"
+			}
+			checks = append(checks, fmt.Sprintf("%s(%s, value.%s, %d)", validatorName, field, selector, constraint.Limit))
 		default:
 			panic(fmt.Sprintf(
 				"contractgen: %s.%s uses unsupported constraint %s",
@@ -316,9 +330,12 @@ func valueList(values []string) string {
 // so the schema walk can state the same rule with its corresponding keyword.
 func (s *schemaSet) valueConstraintsFor(owner reflect.Type, field string) []dispatch.FieldConstraint {
 	var out []dispatch.FieldConstraint
-	for _, constraint := range s.values[owner] {
-		if constraint.Field == field && !slices.Contains(out, constraint) {
-			out = append(out, constraint)
+	owners := append([]reflect.Type{owner}, protocol.WireEmbeds(owner)...)
+	for _, candidate := range owners {
+		for _, constraint := range s.values[candidate] {
+			if constraint.Field == field && !slices.Contains(out, constraint) {
+				out = append(out, constraint)
+			}
 		}
 	}
 	return out

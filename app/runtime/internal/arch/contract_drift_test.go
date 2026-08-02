@@ -649,11 +649,20 @@ func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 				if !ok {
 					t.Fatalf("%s has no field %q", shape, constraint.Field)
 				}
-				if leaf.Optional {
+				if leaf.Type.Kind() == reflect.Pointer {
 					helper = "optionalPositiveNumber"
+				} else if leaf.Optional {
+					helper = "optionalPositiveScalarNumber"
 				}
 			case dispatch.ConstraintNonNegative:
 				keyword, helper = "minimum", "nonNegativeNumber"
+				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)
+				if !ok {
+					t.Fatalf("%s has no field %q", shape, constraint.Field)
+				}
+				if leaf.Type.Kind() == reflect.Pointer {
+					helper = "optionalNonNegativeNumber"
+				}
 			case dispatch.ConstraintNonEmptyItems:
 				keyword = "minItems"
 				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)
@@ -688,6 +697,24 @@ func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 				}
 				if leaf.Type.Kind() == reflect.Pointer {
 					helper = "optionalMaxLength"
+				}
+			case dispatch.ConstraintMinimum:
+				keyword, helper = "minimum", "minimumNumber"
+				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)
+				if !ok {
+					t.Fatalf("%s has no field %q", shape, constraint.Field)
+				}
+				if leaf.Type.Kind() == reflect.Pointer {
+					helper = "optionalMinimumNumber"
+				}
+			case dispatch.ConstraintMaximum:
+				keyword, helper = "maximum", "maximumNumber"
+				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)
+				if !ok {
+					t.Fatalf("%s has no field %q", shape, constraint.Field)
+				}
+				if leaf.Type.Kind() == reflect.Pointer {
+					helper = "optionalMaximumNumber"
 				}
 			}
 			// The schema states the rule somewhere inside the shape's definition —

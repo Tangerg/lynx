@@ -423,7 +423,8 @@
           "format": "date-time"
         },
         "droppedMessages": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "error": {
           "$ref": "#/$defs/ArtifactProblem"
@@ -629,22 +630,28 @@
       "type": "object",
       "properties": {
         "cacheReadTokens": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "cacheWriteTokens": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "costUsd": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0
         },
         "inputTokens": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "outputTokens": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "reasoningTokens": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
@@ -782,7 +789,8 @@
           "type": "string"
         },
         "retryAfterSeconds": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 1
         },
         "type": {
           "$ref": "#/$defs/ArtifactProblemType"
@@ -916,7 +924,8 @@
           "$ref": "#/$defs/ArtifactRunLimits"
         },
         "messageMark": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "metrics": {
           "$ref": "#/$defs/ArtifactRunMetrics"
@@ -1035,10 +1044,12 @@
       "type": "object",
       "properties": {
         "activeDurationMs": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "steps": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "usage": {
           "$ref": "#/$defs/ArtifactUsage"
@@ -1177,22 +1188,28 @@
           }
         },
         "cacheReadTokens": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "cacheWriteTokens": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "costUsd": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0
         },
         "inputTokens": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "outputTokens": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "reasoningTokens": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
@@ -1330,6 +1347,7 @@
       "properties": {
         "excludedEphemeralEvents": {
           "type": "array",
+          "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/SuppressibleRunEventType"
           }
@@ -1342,6 +1360,7 @@
         },
         "interruptTypes": {
           "type": "array",
+          "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/InterruptType"
           }
@@ -1352,10 +1371,12 @@
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "version": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -1416,7 +1437,8 @@
       "type": "object",
       "properties": {
         "limit": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "query": {
           "type": "string",
@@ -1564,13 +1586,15 @@
       "type": "object",
       "properties": {
         "cron": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "model": {
           "type": "string"
         },
         "prompt": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "provider": {
           "type": "string"
@@ -2072,7 +2096,8 @@
       "type": "object",
       "properties": {
         "id": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -2101,19 +2126,26 @@
       "type": "object",
       "properties": {
         "maxTokens": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 1
         },
         "stop": {
           "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
           "items": {
             "type": "string"
           }
         },
         "temperature": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2
         },
         "topP": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
         }
       }
     },
@@ -2124,7 +2156,8 @@
           "$ref": "#/$defs/DiffFormat"
         },
         "limit": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "mode": {
           "$ref": "#/$defs/DiffMode"
@@ -2144,7 +2177,8 @@
       "type": "object",
       "properties": {
         "lines": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "path": {
           "type": "string",
@@ -2259,13 +2293,16 @@
       "type": "object",
       "properties": {
         "maxCostUsd": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0
         },
         "maxSteps": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "maxTurns": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
@@ -2331,7 +2368,8 @@
       "type": "object",
       "properties": {
         "limit": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "path": {
           "type": "string"
@@ -3141,7 +3179,8 @@
       "type": "object",
       "properties": {
         "sessionId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -3175,7 +3214,8 @@
           "type": "boolean"
         },
         "limit": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "path": {
           "type": "string"
@@ -3209,7 +3249,8 @@
           "type": "string"
         },
         "limit": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "rootRunId": {
           "type": "string"
@@ -3226,7 +3267,8 @@
           "type": "string"
         },
         "limit": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "order": {
           "$ref": "#/$defs/ItemOrder"
@@ -3294,7 +3336,8 @@
           "type": "boolean"
         },
         "limit": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "sessionId": {
           "type": "string"
@@ -4513,7 +4556,8 @@
           "type": "string"
         },
         "limit": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
@@ -5496,17 +5540,20 @@
       "type": "object",
       "properties": {
         "endLine": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "maxBytes": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "path": {
           "type": "string",
           "minLength": 1
         },
         "startLine": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "workspace": {
           "$ref": "#/$defs/WorkspaceRef"
@@ -7101,7 +7148,9 @@
           }
         },
         "version": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 9,
+          "maximum": 9
         }
       },
       "required": [
@@ -7205,10 +7254,12 @@
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "revision": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -7307,7 +7358,8 @@
           "type": "string"
         },
         "sessionId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -7884,7 +7936,8 @@
       "type": "object",
       "properties": {
         "cron": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "enabled": {
           "type": "boolean"
@@ -7901,7 +7954,8 @@
           "type": "string"
         },
         "prompt": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "provider": {
           "type": "string"
@@ -8047,7 +8101,8 @@
       "type": "object",
       "properties": {
         "sinceDays": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         }
       }
     },

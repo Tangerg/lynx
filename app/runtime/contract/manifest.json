@@ -3857,6 +3857,15 @@
   ],
   "valueConstraints": [
     {
+      "type": "PageQuery",
+      "rules": [
+        {
+          "field": "limit",
+          "constraint": "nonNegative"
+        }
+      ]
+    },
+    {
       "type": "GetSessionRequest",
       "rules": [
         {
@@ -3924,6 +3933,117 @@
       ]
     },
     {
+      "type": "SessionArtifact",
+      "rules": [
+        {
+          "field": "version",
+          "constraint": "minimum(9)"
+        },
+        {
+          "field": "version",
+          "constraint": "maximum(9)"
+        }
+      ]
+    },
+    {
+      "type": "ArtifactRun",
+      "rules": [
+        {
+          "field": "messageMark",
+          "constraint": "nonNegative"
+        }
+      ]
+    },
+    {
+      "type": "ArtifactRunMetrics",
+      "rules": [
+        {
+          "field": "steps",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "activeDurationMs",
+          "constraint": "nonNegative"
+        }
+      ]
+    },
+    {
+      "type": "ArtifactUsage",
+      "rules": [
+        {
+          "field": "inputTokens",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "outputTokens",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "cacheReadTokens",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "cacheWriteTokens",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "reasoningTokens",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "costUsd",
+          "constraint": "nonNegative"
+        }
+      ]
+    },
+    {
+      "type": "ArtifactModelUsage",
+      "rules": [
+        {
+          "field": "inputTokens",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "outputTokens",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "cacheReadTokens",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "cacheWriteTokens",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "reasoningTokens",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "costUsd",
+          "constraint": "nonNegative"
+        }
+      ]
+    },
+    {
+      "type": "ArtifactItem",
+      "rules": [
+        {
+          "field": "droppedMessages",
+          "constraint": "nonNegative"
+        }
+      ]
+    },
+    {
+      "type": "ArtifactProblem",
+      "rules": [
+        {
+          "field": "retryAfterSeconds",
+          "constraint": "positive"
+        }
+      ]
+    },
+    {
       "type": "RunProtocolProfile",
       "rules": [
         {
@@ -3940,6 +4060,10 @@
       "type": "StartRunRequest",
       "rules": [
         {
+          "field": "sessionId",
+          "constraint": "nonEmpty"
+        },
+        {
           "field": "input",
           "constraint": "nonEmptyItems"
         },
@@ -3954,6 +4078,39 @@
         {
           "field": "maxBudgetUsd",
           "constraint": "nonNegative"
+        }
+      ]
+    },
+    {
+      "type": "GenerationParams",
+      "rules": [
+        {
+          "field": "temperature",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "temperature",
+          "constraint": "maximum(2)"
+        },
+        {
+          "field": "maxTokens",
+          "constraint": "positive"
+        },
+        {
+          "field": "topP",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "topP",
+          "constraint": "maximum(1)"
+        },
+        {
+          "field": "stop",
+          "constraint": "nonEmptyItems"
+        },
+        {
+          "field": "stop",
+          "constraint": "uniqueItems"
         }
       ]
     },
@@ -4215,11 +4372,24 @@
       ]
     },
     {
+      "type": "GetDiffRequest",
+      "rules": [
+        {
+          "field": "limit",
+          "constraint": "nonNegative"
+        }
+      ]
+    },
+    {
       "type": "GetFileHeadRequest",
       "rules": [
         {
           "field": "path",
           "constraint": "nonEmpty"
+        },
+        {
+          "field": "lines",
+          "constraint": "nonNegative"
         }
       ]
     },
@@ -4229,6 +4399,18 @@
         {
           "field": "path",
           "constraint": "nonEmpty"
+        },
+        {
+          "field": "startLine",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "endLine",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "maxBytes",
+          "constraint": "nonNegative"
         }
       ]
     },
@@ -4238,6 +4420,10 @@
         {
           "field": "query",
           "constraint": "nonEmpty"
+        },
+        {
+          "field": "limit",
+          "constraint": "nonNegative"
         }
       ]
     },
@@ -4247,6 +4433,19 @@
         {
           "field": "query",
           "constraint": "nonEmpty"
+        },
+        {
+          "field": "limit",
+          "constraint": "nonNegative"
+        }
+      ]
+    },
+    {
+      "type": "UsageSummaryRequest",
+      "rules": [
+        {
+          "field": "sinceDays",
+          "constraint": "nonNegative"
         }
       ]
     },
@@ -4260,10 +4459,41 @@
       ]
     },
     {
+      "type": "SkillDraftRef",
+      "rules": [
+        {
+          "field": "name",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "revision",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
       "type": "SetHookTrustRequest",
       "rules": [
         {
           "field": "projectRoot",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "ListApprovalRulesRequest",
+      "rules": [
+        {
+          "field": "sessionId",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "ForgetApprovalRuleRequest",
+      "rules": [
+        {
+          "field": "id",
           "constraint": "nonEmpty"
         }
       ]
@@ -4476,6 +4706,19 @@
       ]
     },
     {
+      "type": "CreateScheduleRequest",
+      "rules": [
+        {
+          "field": "prompt",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "cron",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
       "type": "UpdateScheduleRequest",
       "rules": [
         {
@@ -4485,6 +4728,14 @@
         {
           "field": "expectedRevision",
           "constraint": "positive"
+        },
+        {
+          "field": "prompt",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "cron",
+          "constraint": "nonEmpty"
         }
       ]
     },
@@ -4525,6 +4776,49 @@
         {
           "field": "sessionId",
           "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "GoalBudget",
+      "rules": [
+        {
+          "field": "maxTurns",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "maxCostUsd",
+          "constraint": "nonNegative"
+        },
+        {
+          "field": "maxSteps",
+          "constraint": "nonNegative"
+        }
+      ]
+    },
+    {
+      "type": "ClientInfo",
+      "rules": [
+        {
+          "field": "name",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "version",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "ClientCapabilities",
+      "rules": [
+        {
+          "field": "interruptTypes",
+          "constraint": "uniqueItems"
+        },
+        {
+          "field": "excludedEphemeralEvents",
+          "constraint": "uniqueItems"
         }
       ]
     },

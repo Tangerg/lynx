@@ -133,9 +133,9 @@ describe("the generated wire checks", () => {
     expect(violation?.detail).toContain("expected one of");
   });
 
-  // The bundle carries no `additionalProperties: false`, because the runtime's
-  // decoder ignores what it does not know. Refusing an unknown field here would
-  // reject frames the runtime accepts — and break every forward-compatible client.
+  // Shared result definitions stay open so an older client tolerates optional
+  // fields added by a newer runtime. Request strictness is stated contextually by
+  // OpenRPC and enforced by the runtime's request decoder.
   it("ignores a property the contract does not mention", () => {
     expect(validateWire("Session", { ...session, inventedByANewerServer: true })).toEqual([]);
   });
@@ -202,12 +202,24 @@ describe("the generated wire checks", () => {
     ).toEqual([{ path: "UpdateSessionRequest.expectedRevision", detail: "expected at least 1" }]);
   });
 
+  it("enforces generated request bounds", () => {
+    expect(validateWire("PageQuery", { limit: -1 })).toEqual([
+      { path: "PageQuery.limit", detail: "expected at least 0" },
+    ]);
+    expect(validateWire("GenerationParams", { temperature: 2.1 })).toEqual([
+      { path: "GenerationParams.temperature", detail: "expected at most 2" },
+    ]);
+    expect(validateWire("GenerationParams", { topP: 1.1 })).toEqual([
+      { path: "GenerationParams.topP", detail: "expected at most 1" },
+    ]);
+  });
+
   // The constraint belongs to this request, not to every carrier of the shared
   // shape, so the schema states it in an allOf branch — a third code path, and the
   // one that reads `minLength` with no type keyword beside it.
   it("states a constraint on a field of a shared shape", () => {
     const artifact = {
-      version: 8,
+      version: 9,
       session: artifactSession,
       items: [],
       messages: [],

@@ -171,3 +171,70 @@ func TestBindRequestMetaRefusesANonSuppressibleEvent(t *testing.T) {
 		t.Fatalf("error code = %d, want invalid_params (%d)", rpcErr.Code, protocol.CodeInvalidParams)
 	}
 }
+
+func TestBindRequestMetaValidatesItsPublishedWireShape(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		meta  string
+		field string
+	}{
+		{
+			name:  "unknown interrupt type",
+			meta:  `{"clientCapabilities":{"interruptTypes":["telepathy"]}}`,
+			field: "clientCapabilities.interruptTypes[0]",
+		},
+		{
+			name:  "duplicate event exclusion",
+			meta:  `{"clientCapabilities":{"excludedEphemeralEvents":["item.delta","item.delta"]}}`,
+			field: "clientCapabilities.excludedEphemeralEvents",
+		},
+		{
+			name:  "empty client identity",
+			meta:  `{"clientInfo":{"name":"","version":"1.0.0"}}`,
+			field: "clientInfo.name",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			req := &transport.Request{
+				ID:     transport.StringID("1"),
+				Method: "runs.cancel",
+				Params: json.RawMessage(`{"_meta":` + test.meta + `,"runId":"run_1"}`),
+			}
+
+			_, rpcErr := bindRequestMeta(context.Background(), req)
+			if rpcErr == nil || rpcErr.Code != protocol.CodeInvalidParams {
+				t.Fatalf("error = %+v, want invalid_params", rpcErr)
+			}
+			var problem protocol.ProblemData
+			if err := json.Unmarshal(rpcErr.Data, &problem); err != nil {
+				t.Fatalf("decode problem: %v", err)
+			}
+			for _, field := range problem.Errors {
+				if field.Field == test.field {
+					return
+				}
+			}
+			t.Fatalf("problem errors = %+v, want field %q", problem.Errors, test.field)
+		})
+	}
+}
+
+func TestBindRequestMetaRejectsUnknownFields(t *testing.T) {
+	req := &transport.Request{
+		ID:     transport.StringID("1"),
+		Method: "runs.cancel",
+		Params: json.RawMessage(`{"_meta":{"capabilities":{}},"runId":"run_1"}`),
+	}
+
+	_, rpcErr := bindRequestMeta(context.Background(), req)
+	if rpcErr == nil || rpcErr.Code != protocol.CodeInvalidParams {
+		t.Fatalf("error = %+v, want invalid_params", rpcErr)
+	}
+	var problem protocol.ProblemData
+	if err := json.Unmarshal(rpcErr.Data, &problem); err != nil {
+		t.Fatalf("decode problem: %v", err)
+	}
+	if !strings.Contains(problem.Detail, `unknown field "capabilities"`) {
+		t.Fatalf("detail = %q, want unknown metadata field", problem.Detail)
+	}
+}

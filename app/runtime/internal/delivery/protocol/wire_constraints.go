@@ -242,15 +242,22 @@ func positiveNumber[Number wireNumber](field string, value Number) FieldError {
 	return FieldError{}
 }
 
-// optionalPositiveNumber treats zero as absence because encoding/json omits an
+// optionalPositiveScalarNumber treats zero as absence because encoding/json omits an
 // optional scalar at its zero value. A negative value is still present and
 // illegal. JSON Schema and the TypeScript validator apply minimum: 1 only when
 // the property exists, which is the same serialized contract.
-func optionalPositiveNumber[Number wireNumber](field string, value Number) FieldError {
+func optionalPositiveScalarNumber[Number wireNumber](field string, value Number) FieldError {
 	if value < 0 {
 		return FieldError{Field: field, Detail: "must be greater than zero when present"}
 	}
 	return FieldError{}
+}
+
+func optionalPositiveNumber[Number wireNumber](field string, value *Number) FieldError {
+	if value == nil {
+		return FieldError{}
+	}
+	return positiveNumber(field, *value)
 }
 
 type wireNumeric interface {
@@ -270,6 +277,36 @@ func optionalNonNegativeNumber[Number wireNumeric](field string, value *Number) 
 		return FieldError{}
 	}
 	return nonNegativeNumber(field, *value)
+}
+
+func minimumNumber[Number wireNumeric](field string, value Number, minimum Number) FieldError {
+	number := float64(value)
+	if math.IsNaN(number) || math.IsInf(number, 0) || number < float64(minimum) {
+		return FieldError{Field: field, Detail: fmt.Sprintf("must be at least %v", minimum)}
+	}
+	return FieldError{}
+}
+
+func optionalMinimumNumber[Number wireNumeric](field string, value *Number, minimum Number) FieldError {
+	if value == nil {
+		return FieldError{}
+	}
+	return minimumNumber(field, *value, minimum)
+}
+
+func maximumNumber[Number wireNumeric](field string, value Number, maximum Number) FieldError {
+	number := float64(value)
+	if math.IsNaN(number) || math.IsInf(number, 0) || number > float64(maximum) {
+		return FieldError{Field: field, Detail: fmt.Sprintf("must be at most %v", maximum)}
+	}
+	return FieldError{}
+}
+
+func optionalMaximumNumber[Number wireNumeric](field string, value *Number, maximum Number) FieldError {
+	if value == nil {
+		return FieldError{}
+	}
+	return maximumNumber(field, *value, maximum)
 }
 
 // requiredItems rejects an absent or empty required array. Requiredness comes

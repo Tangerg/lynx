@@ -172,6 +172,12 @@ const (
 	// ConstraintMaxLength rejects a string containing more Unicode code points
 	// than FieldConstraint.Limit, matching JSON Schema's length semantics.
 	ConstraintMaxLength
+	// ConstraintMinimum rejects a number smaller than FieldConstraint.Limit.
+	// It is inclusive, matching JSON Schema's minimum keyword.
+	ConstraintMinimum
+	// ConstraintMaximum rejects a number greater than FieldConstraint.Limit.
+	// It is inclusive, matching JSON Schema's maximum keyword.
+	ConstraintMaximum
 )
 
 func (k ConstraintKind) String() string {
@@ -192,6 +198,10 @@ func (k ConstraintKind) String() string {
 		return "minItems"
 	case ConstraintMaxLength:
 		return "maxLength"
+	case ConstraintMinimum:
+		return "minimum"
+	case ConstraintMaximum:
+		return "maximum"
 	default:
 		return fmt.Sprintf("ConstraintKind(%d)", k)
 	}
@@ -206,7 +216,7 @@ type FieldConstraint struct {
 
 func (c FieldConstraint) String() string {
 	switch c.Kind {
-	case ConstraintMinItems, ConstraintMaxLength:
+	case ConstraintMinItems, ConstraintMaxLength, ConstraintMinimum, ConstraintMaximum:
 		return fmt.Sprintf("%s(%d)", c.Kind, c.Limit)
 	default:
 		return c.Kind.String()
@@ -606,7 +616,7 @@ func (f FieldConstraintSpec) validate() error {
 			leafType = leafType.Elem()
 		}
 		kind := leafType.Kind()
-		bounded := constraint.Kind == ConstraintMinItems || constraint.Kind == ConstraintMaxLength
+		bounded := constraint.Kind == ConstraintMinItems || constraint.Kind == ConstraintMaxLength || constraint.Kind == ConstraintMinimum || constraint.Kind == ConstraintMaximum
 		if bounded && constraint.Limit <= 0 {
 			return fmt.Errorf("%s.%s constraint %s needs a positive limit", name, constraint.Field, constraint.Kind)
 		}
@@ -638,13 +648,21 @@ func (f FieldConstraintSpec) validate() error {
 			if kind != reflect.String {
 				return fmt.Errorf("%s.%s is %s; only a string has a length", name, constraint.Field, kind)
 			}
+		case ConstraintMinimum:
+			if kind != reflect.Int && kind != reflect.Int64 && kind != reflect.Float64 {
+				return fmt.Errorf("%s.%s is %s; only a number can have a minimum", name, constraint.Field, kind)
+			}
+		case ConstraintMaximum:
+			if kind != reflect.Int && kind != reflect.Int64 && kind != reflect.Float64 {
+				return fmt.Errorf("%s.%s is %s; only a number can have a maximum", name, constraint.Field, kind)
+			}
 		case ConstraintNonEmptyProperties:
 			if leafType.Kind() != reflect.Map {
 				return fmt.Errorf("%s.%s is %s; only an object map has properties", name, constraint.Field, leaf.Type.Kind())
 			}
 		default:
 			return fmt.Errorf(
-				"%s.%s has invalid constraint kind %s; expected %s, %s, %s, %s, %s, %s, %s or %s",
+				"%s.%s has invalid constraint kind %s; expected %s, %s, %s, %s, %s, %s, %s, %s, %s or %s",
 				name,
 				constraint.Field,
 				constraint.Kind,
@@ -656,6 +674,8 @@ func (f FieldConstraintSpec) validate() error {
 				ConstraintUniqueItems,
 				ConstraintMinItems,
 				ConstraintMaxLength,
+				ConstraintMinimum,
+				ConstraintMaximum,
 			)
 		}
 	}

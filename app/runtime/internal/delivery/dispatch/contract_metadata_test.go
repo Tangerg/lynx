@@ -250,6 +250,26 @@ func TestShapeMetadataRejectsUnknownValues(t *testing.T) {
 		t.Fatalf("bounded constraint type error = %v, want string requirement", err)
 	}
 
+	wrongMaximumType := FieldConstraintSpec{
+		GoType: reflect.TypeFor[protocol.QuestionField](),
+		Constraints: []FieldConstraint{{
+			Field: "options", Kind: ConstraintMaximum, Limit: 3,
+		}},
+	}
+	if err := wrongMaximumType.validate(); err == nil || !strings.Contains(err.Error(), "only a number can have a maximum") {
+		t.Fatalf("maximum constraint type error = %v, want numeric requirement", err)
+	}
+
+	wrongMinimumType := FieldConstraintSpec{
+		GoType: reflect.TypeFor[protocol.QuestionField](),
+		Constraints: []FieldConstraint{{
+			Field: "options", Kind: ConstraintMinimum, Limit: 3,
+		}},
+	}
+	if err := wrongMinimumType.validate(); err == nil || !strings.Contains(err.Error(), "only a number can have a minimum") {
+		t.Fatalf("minimum constraint type error = %v, want numeric requirement", err)
+	}
+
 	objectSpec := ObjectConstraintSpec{
 		GoType: reflect.TypeFor[protocol.ProblemData](),
 		Rules: []PresenceRule{{

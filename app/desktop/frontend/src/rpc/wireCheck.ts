@@ -144,6 +144,15 @@ export function minimum(least: number): WireCheck {
   };
 }
 
+/** `maximum`, which constrains a number and says nothing about anything else. */
+export function maximum(most: number): WireCheck {
+  return (value, path, out) => {
+    if (typeof value === "number" && value > most) {
+      out.push({ path, detail: `expected at most ${most}` });
+    }
+  };
+}
+
 /** `minItems`, which constrains an array's length and says nothing about its elements. */
 export function minItems(least: number): WireCheck {
   return (value, path, out) => {

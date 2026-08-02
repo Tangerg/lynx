@@ -1,10 +1,5 @@
 package protocol
 
-import (
-	"errors"
-	"fmt"
-)
-
 // ClientCapabilities is what the client declares in request metadata (§8.1).
 //
 // It declares what the client can HANDLE, not what it wants to receive. There is
@@ -36,31 +31,6 @@ const (
 	SuppressibleRunSegmentProgress SuppressibleRunEventType = "segment.progress"
 	SuppressibleRunItemDelta       SuppressibleRunEventType = "item.delta"
 )
-
-// ErrNonSuppressibleRunEvent reports a value outside the closed opt-out set.
-var ErrNonSuppressibleRunEvent = errors.New(
-	"client capabilities: excludedEphemeralEvents contains a non-suppressible run event",
-)
-
-// Validate refuses a declaration the runtime cannot honor. It is checked where
-// request metadata is decoded, so an unhonorable exclusion is an invalid request
-// rather than a preference the runtime quietly overrules.
-func (c ClientCapabilities) Validate() error {
-	for _, event := range c.ExcludedEphemeralEvents {
-		switch event {
-		case SuppressibleRunSegmentProgress, SuppressibleRunItemDelta:
-		default:
-			return fmt.Errorf(
-				"%w %q; expected %q or %q",
-				ErrNonSuppressibleRunEvent,
-				event,
-				SuppressibleRunSegmentProgress,
-				SuppressibleRunItemDelta,
-			)
-		}
-	}
-	return nil
-}
 
 type FeaturePreference struct {
 	Enabled bool `json:"enabled"`

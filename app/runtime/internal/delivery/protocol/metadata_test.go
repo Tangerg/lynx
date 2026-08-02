@@ -2,8 +2,6 @@ package protocol
 
 import (
 	"context"
-	"errors"
-	"strings"
 	"testing"
 )
 
@@ -39,7 +37,7 @@ func TestRequestMetaContextOwnsSnapshot(t *testing.T) {
 	}
 }
 
-func TestClientCapabilitiesValidateExcludedEphemeralEvents(t *testing.T) {
+func TestClientCapabilitiesWireValidationRejectsUnknownEphemeralEvents(t *testing.T) {
 	t.Parallel()
 
 	valid := ClientCapabilities{
@@ -48,8 +46,8 @@ func TestClientCapabilitiesValidateExcludedEphemeralEvents(t *testing.T) {
 			SuppressibleRunItemDelta,
 		},
 	}
-	if err := valid.Validate(); err != nil {
-		t.Fatalf("Validate rejected the complete opt-out set: %v", err)
+	if err := valid.ValidateWire(); err != nil {
+		t.Fatalf("ValidateWire rejected the complete opt-out set: %v", err)
 	}
 
 	for _, event := range []SuppressibleRunEventType{"custom", "item.completed", "vendor.preview"} {
@@ -59,13 +57,8 @@ func TestClientCapabilitiesValidateExcludedEphemeralEvents(t *testing.T) {
 
 			err := (ClientCapabilities{
 				ExcludedEphemeralEvents: []SuppressibleRunEventType{event},
-			}).Validate()
-			if !errors.Is(err, ErrNonSuppressibleRunEvent) {
-				t.Fatalf("Validate error = %v, want ErrNonSuppressibleRunEvent", err)
-			}
-			if !strings.Contains(err.Error(), string(event)) {
-				t.Fatalf("Validate error = %q, want offending value %q", err, event)
-			}
+			}).ValidateWire()
+			assertConstraintField(t, err, "ClientCapabilities", "excludedEphemeralEvents[0]")
 		})
 	}
 }

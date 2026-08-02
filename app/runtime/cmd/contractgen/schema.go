@@ -21,10 +21,11 @@ import (
 // enum value sets) and reads the Go types for everything it can (field names,
 // optionality, nesting). Neither half guesses at the other's job.
 //
-// What it deliberately does NOT emit is `additionalProperties: false`. The Go
-// decoder ignores unknown fields, so a closed schema would reject frames the
-// runtime accepts — a schema stricter than the code is as much a lie as one
-// looser, and the strict version breaks every forward-compatible client.
+// What it deliberately does NOT emit on SHARED DEFINITIONS is
+// `additionalProperties: false`. A result may grow optional fields and an older
+// client must keep accepting it. Requests are different: dispatch strictly
+// decodes their DTOs, so OpenRPC closes each contextual x-lyra-requestFrame with
+// `unevaluatedProperties: false` while leaving the reusable result shapes open.
 //
 // Nor does it widen a required field to accept null. A nil Go slice or map DOES
 // marshal to null, so a mechanical reading would publish `T[] | null` on most list
@@ -55,29 +56,31 @@ const (
 // `false` — the one keyword that says "this may not be present at all", which is
 // how a union variant excludes another variant's fields.
 type schema struct {
-	Ref             string         `json:"$ref,omitempty"`
-	Type            schemaType     `json:"type,omitempty"`
-	Format          string         `json:"format,omitempty"`
-	ContentEncoding string         `json:"contentEncoding,omitempty"`
-	Enum            []string       `json:"enum,omitempty"`
-	MinLength       *int           `json:"minLength,omitempty"`
-	MaxLength       *int           `json:"maxLength,omitempty"`
-	Const           string         `json:"const,omitempty"`
-	Pattern         string         `json:"pattern,omitempty"`
-	TypeScriptType  string         `json:"-"`
-	Minimum         *int64         `json:"minimum,omitempty"`
-	MinItems        *int           `json:"minItems,omitempty"`
-	MinProperties   *int           `json:"minProperties,omitempty"`
-	UniqueItems     bool           `json:"uniqueItems,omitempty"`
-	Items           *schema        `json:"items,omitempty"`
-	Properties      map[string]any `json:"properties,omitempty"`
-	AdditionalProps any            `json:"additionalProperties,omitempty"`
-	Required        []string       `json:"required,omitempty"`
-	OneOf           []*schema      `json:"oneOf,omitempty"`
-	AnyOf           []*schema      `json:"anyOf,omitempty"`
-	AllOf           []*schema      `json:"allOf,omitempty"`
-	If              *schema        `json:"if,omitempty"`
-	Then            *schema        `json:"then,omitempty"`
+	Ref              string         `json:"$ref,omitempty"`
+	Type             schemaType     `json:"type,omitempty"`
+	Format           string         `json:"format,omitempty"`
+	ContentEncoding  string         `json:"contentEncoding,omitempty"`
+	Enum             []string       `json:"enum,omitempty"`
+	MinLength        *int           `json:"minLength,omitempty"`
+	MaxLength        *int           `json:"maxLength,omitempty"`
+	Const            string         `json:"const,omitempty"`
+	Pattern          string         `json:"pattern,omitempty"`
+	TypeScriptType   string         `json:"-"`
+	Minimum          *int64         `json:"minimum,omitempty"`
+	Maximum          *int64         `json:"maximum,omitempty"`
+	MinItems         *int           `json:"minItems,omitempty"`
+	MinProperties    *int           `json:"minProperties,omitempty"`
+	UniqueItems      bool           `json:"uniqueItems,omitempty"`
+	Items            *schema        `json:"items,omitempty"`
+	Properties       map[string]any `json:"properties,omitempty"`
+	AdditionalProps  any            `json:"additionalProperties,omitempty"`
+	UnevaluatedProps *bool          `json:"unevaluatedProperties,omitempty"`
+	Required         []string       `json:"required,omitempty"`
+	OneOf            []*schema      `json:"oneOf,omitempty"`
+	AnyOf            []*schema      `json:"anyOf,omitempty"`
+	AllOf            []*schema      `json:"allOf,omitempty"`
+	If               *schema        `json:"if,omitempty"`
+	Then             *schema        `json:"then,omitempty"`
 }
 
 var (
@@ -467,6 +470,10 @@ func applyValueConstraints(node *schema, constraints []dispatch.FieldConstraint)
 			node.MinItems = new(constraint.Limit)
 		case dispatch.ConstraintMaxLength:
 			node.MaxLength = new(constraint.Limit)
+		case dispatch.ConstraintMinimum:
+			node.Minimum = new(int64(constraint.Limit))
+		case dispatch.ConstraintMaximum:
+			node.Maximum = new(int64(constraint.Limit))
 		default:
 			panic(fmt.Sprintf(
 				"contractgen: unsupported value constraint %s",

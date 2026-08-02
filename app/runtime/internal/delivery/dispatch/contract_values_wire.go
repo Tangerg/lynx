@@ -18,13 +18,22 @@ import (
 // declared value set, not restated here.
 
 func registerValueConstraints(s *Shapes) {
+	registerCollectionValues(s)
 	registerSessionValues(s)
+	registerArtifactValues(s)
 	registerRunValues(s)
 	registerWorkspaceValues(s)
 	registerIntegrationValues(s)
 	registerMemoryValues(s)
 	registerScheduleValues(s)
 	registerRuntimeValues(s)
+}
+
+func registerCollectionValues(s *Shapes) {
+	s.valueConstraint(FieldConstraintSpec{
+		GoType:      typeOf[protocol.PageQuery](),
+		Constraints: []FieldConstraint{{Field: "limit", Kind: ConstraintNonNegative}},
+	})
 }
 
 // nonEmpty builds the common spec: these fields are ids or text that must be there.
@@ -34,6 +43,17 @@ func nonEmpty[Request any](s *Shapes, fields ...string) {
 		constraints = append(constraints, FieldConstraint{Field: field, Kind: ConstraintNonEmpty})
 	}
 	s.valueConstraint(FieldConstraintSpec{GoType: typeOf[Request](), Constraints: constraints})
+}
+
+// nonNegative builds the common accounting spec. Token counts, costs, step
+// counts and durations are facts already consumed; a negative value is not an
+// alternate representation of zero.
+func nonNegative[Shape any](s *Shapes, fields ...string) {
+	constraints := make([]FieldConstraint, 0, len(fields))
+	for _, field := range fields {
+		constraints = append(constraints, FieldConstraint{Field: field, Kind: ConstraintNonNegative})
+	}
+	s.valueConstraint(FieldConstraintSpec{GoType: typeOf[Shape](), Constraints: constraints})
 }
 
 func registerSessionValues(s *Shapes) {
@@ -56,6 +76,32 @@ func registerSessionValues(s *Shapes) {
 	nonEmpty[protocol.ImportSessionRequest](s, "artifact.session.id")
 }
 
+func registerArtifactValues(s *Shapes) {
+	// Import accepts exactly the archive revision this development build emits.
+	// Publishing the version as an unconstrained integer would make generated
+	// clients promise support the runtime deliberately refuses.
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.SessionArtifact](),
+		Constraints: []FieldConstraint{
+			{Field: "version", Kind: ConstraintMinimum, Limit: protocol.SessionArtifactVersion},
+			{Field: "version", Kind: ConstraintMaximum, Limit: protocol.SessionArtifactVersion},
+		},
+	})
+	nonNegative[protocol.ArtifactRun](s, "messageMark")
+	nonNegative[protocol.ArtifactRunMetrics](s, "steps", "activeDurationMs")
+	nonNegative[protocol.ArtifactUsage](s,
+		"inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "reasoningTokens", "costUsd",
+	)
+	nonNegative[protocol.ArtifactModelUsage](s,
+		"inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "reasoningTokens", "costUsd",
+	)
+	nonNegative[protocol.ArtifactItem](s, "droppedMessages")
+	s.valueConstraint(FieldConstraintSpec{
+		GoType:      typeOf[protocol.ArtifactProblem](),
+		Constraints: []FieldConstraint{{Field: "retryAfterSeconds", Kind: ConstraintPositive}},
+	})
+}
+
 func registerRunValues(s *Shapes) {
 	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.RunProtocolProfile](),
@@ -67,10 +113,23 @@ func registerRunValues(s *Shapes) {
 	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.StartRunRequest](),
 		Constraints: []FieldConstraint{
+			{Field: "sessionId", Kind: ConstraintNonEmpty},
 			{Field: "input", Kind: ConstraintNonEmptyItems},
 			{Field: "maxTotalTokens", Kind: ConstraintNonNegative},
 			{Field: "maxSteps", Kind: ConstraintNonNegative},
 			{Field: "maxBudgetUsd", Kind: ConstraintNonNegative},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.GenerationParams](),
+		Constraints: []FieldConstraint{
+			{Field: "temperature", Kind: ConstraintNonNegative},
+			{Field: "temperature", Kind: ConstraintMaximum, Limit: 2},
+			{Field: "maxTokens", Kind: ConstraintPositive},
+			{Field: "topP", Kind: ConstraintNonNegative},
+			{Field: "topP", Kind: ConstraintMaximum, Limit: 1},
+			{Field: "stop", Kind: ConstraintNonEmptyItems},
+			{Field: "stop", Kind: ConstraintUniqueItems},
 		},
 	})
 	for _, limits := range []any{protocol.RunLimits{}, protocol.ArtifactRunLimits{}} {
@@ -161,15 +220,54 @@ func registerRunValues(s *Shapes) {
 
 func registerWorkspaceValues(s *Shapes) {
 	nonEmpty[protocol.WorkspaceRef](s, "path")
-	nonEmpty[protocol.GetFileHeadRequest](s, "path")
-	nonEmpty[protocol.ReadFileRequest](s, "path")
-	nonEmpty[protocol.GrepRequest](s, "query")
-	nonEmpty[protocol.CodebaseSearchRequest](s, "query")
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.GetDiffRequest](),
+		Constraints: []FieldConstraint{
+			{Field: "limit", Kind: ConstraintNonNegative},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.GetFileHeadRequest](),
+		Constraints: []FieldConstraint{
+			{Field: "path", Kind: ConstraintNonEmpty},
+			{Field: "lines", Kind: ConstraintNonNegative},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.ReadFileRequest](),
+		Constraints: []FieldConstraint{
+			{Field: "path", Kind: ConstraintNonEmpty},
+			{Field: "startLine", Kind: ConstraintNonNegative},
+			{Field: "endLine", Kind: ConstraintNonNegative},
+			{Field: "maxBytes", Kind: ConstraintNonNegative},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.GrepRequest](),
+		Constraints: []FieldConstraint{
+			{Field: "query", Kind: ConstraintNonEmpty},
+			{Field: "limit", Kind: ConstraintNonNegative},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.CodebaseSearchRequest](),
+		Constraints: []FieldConstraint{
+			{Field: "query", Kind: ConstraintNonEmpty},
+			{Field: "limit", Kind: ConstraintNonNegative},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
+		GoType:      typeOf[protocol.UsageSummaryRequest](),
+		Constraints: []FieldConstraint{{Field: "sinceDays", Kind: ConstraintNonNegative}},
+	})
 }
 
 func registerIntegrationValues(s *Shapes) {
 	nonEmpty[protocol.SkillNameRequest](s, "name")
+	nonEmpty[protocol.SkillDraftRef](s, "name", "revision")
 	nonEmpty[protocol.SetHookTrustRequest](s, "projectRoot")
+	nonEmpty[protocol.ListApprovalRulesRequest](s, "sessionId")
+	nonEmpty[protocol.ForgetApprovalRuleRequest](s, "id")
 	nonEmpty[protocol.MCPServerRequest](s, "server")
 	nonEmpty[protocol.CreateMCPAuthorizationAttemptRequest](s, "server")
 	nonEmpty[protocol.MCPAuthorizationAttemptRequest](s, "attemptId")
@@ -223,20 +321,39 @@ func registerMemoryValues(s *Shapes) {
 }
 
 func registerScheduleValues(s *Shapes) {
+	nonEmpty[protocol.CreateScheduleRequest](s, "prompt", "cron")
 	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.UpdateScheduleRequest](),
 		Constraints: []FieldConstraint{
 			{Field: "id", Kind: ConstraintNonEmpty},
 			{Field: "expectedRevision", Kind: ConstraintPositive},
+			{Field: "prompt", Kind: ConstraintNonEmpty},
+			{Field: "cron", Kind: ConstraintNonEmpty},
 		},
 	})
 	nonEmpty[protocol.DeleteScheduleRequest](s, "id")
 	nonEmpty[protocol.RunScheduleNowRequest](s, "id")
 	nonEmpty[protocol.StartGoalRequest](s, "sessionId", "objective")
 	nonEmpty[protocol.GoalRequest](s, "sessionId")
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.GoalBudget](),
+		Constraints: []FieldConstraint{
+			{Field: "maxTurns", Kind: ConstraintNonNegative},
+			{Field: "maxCostUsd", Kind: ConstraintNonNegative},
+			{Field: "maxSteps", Kind: ConstraintNonNegative},
+		},
+	})
 }
 
 func registerRuntimeValues(s *Shapes) {
+	nonEmpty[protocol.ClientInfo](s, "name", "version")
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.ClientCapabilities](),
+		Constraints: []FieldConstraint{
+			{Field: "interruptTypes", Kind: ConstraintUniqueItems},
+			{Field: "excludedEphemeralEvents", Kind: ConstraintUniqueItems},
+		},
+	})
 	s.valueConstraint(FieldConstraintSpec{
 		GoType:      typeOf[protocol.MCPAuthorizationAttemptLimits](),
 		Constraints: []FieldConstraint{{Field: "retentionSeconds", Kind: ConstraintPositive}},
