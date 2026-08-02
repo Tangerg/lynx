@@ -5,7 +5,7 @@
 > method the runtime does not serve. Prose, rationale and wire examples live in
 > `app/desktop/docs/protocol/`; this is the mechanical index.
 
-Protocol `2026-08-02` (minimum supported `2026-08-02`) · 85 methods
+Protocol `2026-08-02` (minimum supported `2026-08-02`) · 86 methods
 
 ## Methods
 
@@ -56,7 +56,8 @@ Protocol `2026-08-02` (minimum supported `2026-08-02`) · 85 methods
 | `mcp.servers.test` | query | unary | none | `mcp` | `capability_not_negotiated` |
 | `mcp.tools.list` | query | unary | none | `mcp` | `capability_not_negotiated` |
 | `mcp.servers.reconnect` | command | unary | replayResponse | `mcp` | `mcp_server_not_found`, `mcp_server_disabled`, `capability_not_negotiated` |
-| `mcp.servers.authorize` | command | unary | replayResponse | `mcp` | `mcp_server_not_found`, `mcp_server_disabled`, `capability_not_negotiated` |
+| `mcp.authorizationAttempts.create` | command | unary | replayResponse | `mcp` | `mcp_server_not_found`, `mcp_server_disabled`, `capability_not_negotiated` |
+| `mcp.authorizationAttempts.get` | query | unary | none | `mcp` | `mcp_authorization_attempt_not_found`, `capability_not_negotiated` |
 | `hooks.list` | query | unary | none | — | `workspace_unavailable` |
 | `hooks.setTrust` | command | unary | replayResponse | — | — |
 | `approval.getMode` | query | unary | none | — | — |
@@ -148,6 +149,8 @@ publish one namespaced pattern branch without weakening first-party tags.
 | `invalid_protocol_version` | — | `detail`, `docUrl` |
 | `invalid_request` | — | `detail`, `docUrl` |
 | `item_not_found` | — | `detail`, `docUrl` |
+| `mcp_authorization_attempt_not_found` | — | `detail`, `docUrl` |
+| `mcp_authorization_failed` | — | — |
 | `mcp_authorization_required` | — | — |
 | `mcp_dial_failed` | — | — |
 | `mcp_server_already_exists` | — | `detail`, `docUrl` |
@@ -326,6 +329,15 @@ publish one namespaced pattern branch without weakening first-party tags.
 | `failed` | `error` | — |
 | `needsAuth` | `error` | — |
 
+### `McpAuthorizationAttemptStatus`
+
+| tag | required | optional |
+| --- | --- | --- |
+| `pending` | — | — |
+| `succeeded` | — | — |
+| `failed` | `error` | — |
+| `canceled` | — | — |
+
 ### `Interrupt`
 
 | tag | required | optional |
@@ -465,6 +477,10 @@ TypeScript validator from this single registry projection.
 | `SkillNameRequest` | `name` | `nonEmpty` |
 | `SetHookTrustRequest` | `projectRoot` | `nonEmpty` |
 | `MCPServerRequest` | `server` | `nonEmpty` |
+| `CreateMCPAuthorizationAttemptRequest` | `server` | `nonEmpty` |
+| `MCPAuthorizationAttemptRequest` | `attemptId` | `nonEmpty` |
+| `McpAuthorizationAttempt` | `id` | `nonEmpty` |
+| `McpAuthorizationAttempt` | `server` | `nonEmpty` |
 | `McpConnection` | `url` | `nonEmpty` |
 | `McpConnection` | `command` | `nonEmpty` |
 | `McpConnectionInput` | `url` | `nonEmpty` |
@@ -495,6 +511,7 @@ TypeScript validator from this single registry projection.
 | `StartGoalRequest` | `sessionId` | `nonEmpty` |
 | `StartGoalRequest` | `objective` | `nonEmpty` |
 | `GoalRequest` | `sessionId` | `nonEmpty` |
+| `MCPAuthorizationAttemptLimits` | `retentionSeconds` | `positive` |
 | `RuntimeSubscribeRequest` | `topics` | `nonEmptyItems` |
 | `RuntimeSubscribeRequest` | `topics` | `uniqueItems` |
 | `RuntimeEvent` | `sequence` | `positive` |
@@ -564,7 +581,8 @@ available. Refusal is `capability_not_negotiated` — never a silent downgrade.
 | `mcp.servers.test` | always | `mcp` |
 | `mcp.tools.list` | always | `mcp` |
 | `mcp.servers.reconnect` | always | `mcp` |
-| `mcp.servers.authorize` | always | `mcp` |
+| `mcp.authorizationAttempts.create` | always | `mcp` |
+| `mcp.authorizationAttempts.get` | always | `mcp` |
 | `schedules.list` | always | `schedules` |
 | `schedules.create` | always | `schedules` |
 | `schedules.update` | always | `schedules` |

@@ -322,6 +322,10 @@ export type ContentBlock =
 
 export type ContentBlockType = "text" | "image";
 
+export interface CreateMCPAuthorizationAttemptRequest {
+  server: string;
+}
+
 export interface CreateScheduleRequest {
   cron: string;
   model?: string;
@@ -714,6 +718,14 @@ export interface ListRunsRequest {
   statuses?: RunStatus[];
 }
 
+export interface MCPAuthorizationAttemptLimits {
+  retentionSeconds: number;
+}
+
+export interface MCPAuthorizationAttemptRequest {
+  attemptId: string;
+}
+
 export interface MCPListToolsRequest {
   cursor?: string;
   limit?: number;
@@ -739,6 +751,22 @@ export interface ManagedSkill {
   lifecycle: SkillLifecycle;
   name: string;
 }
+
+export interface McpAuthorizationAttempt {
+  createdAt: string;
+  finishedAt?: string;
+  id: string;
+  server: string;
+  status: McpAuthorizationAttemptStatus;
+}
+
+export type McpAuthorizationAttemptStatus =
+  | { type: "pending" }
+  | { type: "succeeded" }
+  | { type: "failed"; error: ProblemData }
+  | { type: "canceled" };
+
+export type McpAuthorizationAttemptStatusType = "pending" | "succeeded" | "failed" | "canceled";
 
 export type McpAuthorizationChange =
   | { type: "set"; value: string }
@@ -918,6 +946,8 @@ export type ProblemData =
   | { type: "invalid_protocol_version"; detail?: string; docUrl?: string }
   | { type: "invalid_request"; detail?: string; docUrl?: string }
   | { type: "item_not_found"; detail?: string; docUrl?: string }
+  | { type: "mcp_authorization_attempt_not_found"; detail?: string; docUrl?: string }
+  | { type: "mcp_authorization_failed" }
   | { type: "mcp_authorization_required" }
   | { type: "mcp_dial_failed" }
   | { type: "mcp_server_already_exists"; detail?: string; docUrl?: string }
@@ -1170,6 +1200,7 @@ export type RuntimeEventType = "files.changed" | "skills.changed" | "mcp.changed
 export interface RuntimeLimits {
   idempotency: IdempotencyLimits;
   maxConcurrentRuns?: number;
+  mcpAuthorizationAttempts: MCPAuthorizationAttemptLimits;
   runReplay: RunReplayLimits;
   runtimeSubscription: SubscriptionLimits;
 }
@@ -1568,6 +1599,7 @@ export const WIRE_ENUMS = {
   ItemScopeType: ["session", "run"],
   ItemStatus: ["running", "completed", "incomplete"],
   ItemType: ["userMessage", "agentMessage", "reasoning", "plan", "question", "toolCall", "compaction"],
+  McpAuthorizationAttemptStatusType: ["pending", "succeeded", "failed", "canceled"],
   McpSecretChangeType: ["set", "clear"],
   McpServerStateType: ["disabled", "disconnected", "connecting", "connected", "failed", "needsAuth"],
   McpTransport: ["stdio", "streamableHttp"],

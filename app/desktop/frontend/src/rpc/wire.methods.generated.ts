@@ -23,6 +23,7 @@ import type {
   CodebaseSearchResult,
   CodebaseStatus,
   CodebaseStatusRequest,
+  CreateMCPAuthorizationAttemptRequest,
   CreateScheduleRequest,
   CreateSessionRequest,
   DeleteScheduleRequest,
@@ -60,9 +61,11 @@ import type {
   ListItemsResponse,
   ListModelsRequest,
   ListRunsRequest,
+  MCPAuthorizationAttemptRequest,
   MCPListToolsRequest,
   MCPServerCandidate,
   MCPServerRequest,
+  McpAuthorizationAttempt,
   McpServer,
   McpTestResult,
   MemoryEntry,
@@ -200,7 +203,8 @@ const METHOD_NAMES = [
   "mcp.servers.test",
   "mcp.tools.list",
   "mcp.servers.reconnect",
-  "mcp.servers.authorize",
+  "mcp.authorizationAttempts.create",
+  "mcp.authorizationAttempts.get",
   "hooks.list",
   "hooks.setTrust",
   "approval.getMode",
@@ -300,6 +304,8 @@ const VALUE_METHOD_NAMES = [
   "mcp.servers.update",
   "mcp.servers.test",
   "mcp.tools.list",
+  "mcp.authorizationAttempts.create",
+  "mcp.authorizationAttempts.get",
   "hooks.list",
   "approval.getMode",
   "approval.setMode",
@@ -400,7 +406,8 @@ export const WIRE_METHOD_POLICY: {
   "mcp.servers.test": { operation: "query", response: "unary", idempotency: "none" },
   "mcp.tools.list": { operation: "query", response: "unary", idempotency: "none" },
   "mcp.servers.reconnect": { operation: "command", response: "unary", idempotency: "replayResponse" },
-  "mcp.servers.authorize": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "mcp.authorizationAttempts.create": { operation: "command", response: "unary", idempotency: "replayResponse" },
+  "mcp.authorizationAttempts.get": { operation: "query", response: "unary", idempotency: "none" },
   "hooks.list": { operation: "query", response: "unary", idempotency: "none" },
   "hooks.setTrust": { operation: "command", response: "unary", idempotency: "replayResponse" },
   "approval.getMode": { operation: "query", response: "unary", idempotency: "none" },
@@ -539,7 +546,10 @@ export const WIRE_CAPABILITY_POLICY: {
   "mcp.servers.reconnect": [
     { requires: ["mcp"] },
   ],
-  "mcp.servers.authorize": [
+  "mcp.authorizationAttempts.create": [
+    { requires: ["mcp"] },
+  ],
+  "mcp.authorizationAttempts.get": [
     { requires: ["mcp"] },
   ],
   "schedules.list": [
@@ -651,7 +661,8 @@ export interface WireShapes {
   "mcp.servers.test": { params: MCPServerCandidate; result: McpTestResult };
   "mcp.tools.list": { params: MCPListToolsRequest; result: PageOfMcpTool };
   "mcp.servers.reconnect": { params: MCPServerRequest };
-  "mcp.servers.authorize": { params: MCPServerRequest };
+  "mcp.authorizationAttempts.create": { params: CreateMCPAuthorizationAttemptRequest; result: McpAuthorizationAttempt };
+  "mcp.authorizationAttempts.get": { params: MCPAuthorizationAttemptRequest; result: McpAuthorizationAttempt };
   "hooks.list": { params: ListHooksRequest; result: HooksListResult };
   "hooks.setTrust": { params: SetHookTrustRequest };
   "approval.getMode": { params: Record<string, never>; result: ApprovalModeResult };

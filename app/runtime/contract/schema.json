@@ -1451,6 +1451,18 @@
         "image"
       ]
     },
+    "CreateMCPAuthorizationAttemptRequest": {
+      "type": "object",
+      "properties": {
+        "server": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "server"
+      ]
+    },
     "CreateScheduleRequest": {
       "type": "object",
       "properties": {
@@ -3205,6 +3217,30 @@
         }
       }
     },
+    "MCPAuthorizationAttemptLimits": {
+      "type": "object",
+      "properties": {
+        "retentionSeconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "retentionSeconds"
+      ]
+    },
+    "MCPAuthorizationAttemptRequest": {
+      "type": "object",
+      "properties": {
+        "attemptId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "attemptId"
+      ]
+    },
     "MCPListToolsRequest": {
       "type": "object",
       "properties": {
@@ -3288,6 +3324,200 @@
       "required": [
         "lifecycle",
         "name"
+      ]
+    },
+    "McpAuthorizationAttempt": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finishedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "server": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "$ref": "#/$defs/McpAuthorizationAttemptStatus"
+        }
+      },
+      "required": [
+        "createdAt",
+        "id",
+        "server",
+        "status"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "properties": {
+                  "type": {
+                    "const": "pending"
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "finishedAt": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "properties": {
+                  "type": {
+                    "const": "succeeded"
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "finishedAt"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "properties": {
+                  "type": {
+                    "const": "failed"
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "finishedAt"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "properties": {
+                  "type": {
+                    "const": "canceled"
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "finishedAt"
+            ]
+          }
+        }
+      ]
+    },
+    "McpAuthorizationAttemptStatus": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/ProblemData"
+        },
+        "type": {
+          "$ref": "#/$defs/McpAuthorizationAttemptStatusType"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "error": false,
+            "type": {
+              "const": "pending"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "error": false,
+            "type": {
+              "const": "succeeded"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "failed"
+            }
+          },
+          "required": [
+            "error",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "error": false,
+            "type": {
+              "const": "canceled"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "McpAuthorizationAttemptStatusType": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "succeeded",
+        "failed",
+        "canceled"
       ]
     },
     "McpAuthorizationChange": {
@@ -4493,6 +4723,36 @@
             "retryAfterSeconds": false,
             "type": {
               "const": "item_not_found"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "mcp_authorization_attempt_not_found"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "activeRun": false,
+            "detail": false,
+            "docUrl": false,
+            "errors": false,
+            "requiredCapabilities": false,
+            "retryAfterSeconds": false,
+            "type": {
+              "const": "mcp_authorization_failed"
             }
           },
           "required": [
@@ -6289,6 +6549,9 @@
         "maxConcurrentRuns": {
           "type": "integer"
         },
+        "mcpAuthorizationAttempts": {
+          "$ref": "#/$defs/MCPAuthorizationAttemptLimits"
+        },
         "runReplay": {
           "$ref": "#/$defs/RunReplayLimits"
         },
@@ -6298,6 +6561,7 @@
       },
       "required": [
         "idempotency",
+        "mcpAuthorizationAttempts",
         "runReplay",
         "runtimeSubscription"
       ]

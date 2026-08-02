@@ -414,10 +414,14 @@ describe("the generated wire checks", () => {
       }),
     ).toEqual([
       { path: "RuntimeLimits.idempotency", detail: "is required" },
+      { path: "RuntimeLimits.mcpAuthorizationAttempts", detail: "is required" },
       { path: "RuntimeLimits.runReplay", detail: "is required" },
     ]);
     expect(validateWire("IdempotencyLimits", { retentionSeconds: 0 })).toEqual([
       { path: "IdempotencyLimits.retentionSeconds", detail: "expected at least 1" },
+    ]);
+    expect(validateWire("MCPAuthorizationAttemptLimits", { retentionSeconds: 0 })).toEqual([
+      { path: "MCPAuthorizationAttemptLimits.retentionSeconds", detail: "expected at least 1" },
     ]);
     expect(
       validateWire("PendingInterruptSet", {

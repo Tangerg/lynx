@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
@@ -48,9 +49,11 @@ type sessionUseCases interface {
 }
 
 type integrationUseCases interface {
-	AuthorizeMCPServer(ctx context.Context, name string) error
+	CreateMCPAuthorizationAttempt(ctx context.Context, name string) (integrations.MCPAuthorizationAttempt, error)
 	CreateMCPServer(ctx context.Context, input integrations.MCPServerInput) (integrations.MCPServer, error)
 	DeleteMCPServer(ctx context.Context, name string) error
+	MCPAuthorizationAttempt(ctx context.Context, id string) (integrations.MCPAuthorizationAttempt, error)
+	MCPAuthorizationAttemptRetention() time.Duration
 	MCPServers(ctx context.Context) ([]integrations.MCPServer, error)
 	MCPTools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error)
 	ReconnectMCPServer(ctx context.Context, name string) error

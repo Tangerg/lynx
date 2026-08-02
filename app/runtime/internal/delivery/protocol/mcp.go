@@ -1,6 +1,9 @@
 package protocol
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // MCP is the mcp.* resource group. One McpServer resource carries both the
 // durable configuration and its current connection state; clients never join a
@@ -13,12 +16,24 @@ type MCP interface {
 	TestMCPServer(ctx context.Context, in MCPServerCandidate) (*McpTestResult, error)
 	ListMCPTools(ctx context.Context, in MCPListToolsRequest) (*Page[McpTool], error)
 	ReconnectMCPServer(ctx context.Context, server string) error
-	AuthorizeMCPServer(ctx context.Context, server string) error
+	CreateMCPAuthorizationAttempt(ctx context.Context, server string) (*McpAuthorizationAttempt, error)
+	GetMCPAuthorizationAttempt(ctx context.Context, attemptID string) (*McpAuthorizationAttempt, error)
 }
 
 // MCPServerRequest identifies a configured MCP server by its stable name.
 type MCPServerRequest struct {
 	Server string `json:"server"`
+}
+
+// CreateMCPAuthorizationAttemptRequest starts one interactive OAuth flow for a
+// configured server.
+type CreateMCPAuthorizationAttemptRequest struct {
+	Server string `json:"server"`
+}
+
+// MCPAuthorizationAttemptRequest identifies one interactive OAuth flow.
+type MCPAuthorizationAttemptRequest struct {
+	AttemptID string `json:"attemptId"`
 }
 
 // MCPListToolsRequest — mcp.tools.list body.
@@ -167,4 +182,32 @@ type McpTool struct {
 type McpTestResult struct {
 	OK    bool         `json:"ok"`
 	Error *ProblemData `json:"error,omitempty"`
+}
+
+// McpAuthorizationAttemptStatusType is the complete lifecycle of one
+// interactive MCP OAuth flow.
+type McpAuthorizationAttemptStatusType string
+
+const (
+	McpAuthorizationAttemptPending   McpAuthorizationAttemptStatusType = "pending"
+	McpAuthorizationAttemptSucceeded McpAuthorizationAttemptStatusType = "succeeded"
+	McpAuthorizationAttemptFailed    McpAuthorizationAttemptStatusType = "failed"
+	McpAuthorizationAttemptCanceled  McpAuthorizationAttemptStatusType = "canceled"
+)
+
+// McpAuthorizationAttemptStatus is a closed union. Only failed carries an
+// error; the full provider/OAuth error remains private telemetry.
+type McpAuthorizationAttemptStatus struct {
+	Type  McpAuthorizationAttemptStatusType `json:"type"`
+	Error *ProblemData                      `json:"error,omitempty"`
+}
+
+// McpAuthorizationAttempt is the observable asynchronous result of interactive
+// authorization. Pending has no finishedAt; every terminal status has one.
+type McpAuthorizationAttempt struct {
+	ID         string                        `json:"id"`
+	Server     string                        `json:"server"`
+	Status     McpAuthorizationAttemptStatus `json:"status"`
+	CreatedAt  time.Time                     `json:"createdAt"`
+	FinishedAt *time.Time                    `json:"finishedAt,omitempty"`
 }

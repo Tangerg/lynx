@@ -14,7 +14,7 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	caps := capabilitiesFor(featureAvailability{
 		memory: true, git: true, fileWatch: true, todos: true,
 		goals: true, agentMemory: true, schedules: true, codebase: true,
-	}, replayLimitsFrom(runs.NewCoordinator(runs.Dependencies{})))
+	}, replayLimitsFrom(runs.NewCoordinator(runs.Dependencies{})), protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 73})
 	want := []protocol.StreamEventType{
 		protocol.StreamSegmentStarted,
 		protocol.StreamSegmentProgress,
@@ -51,6 +51,9 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	if replay.MaxEvents != runs.DefaultRetention.MaxEvents || replay.MaxBytes != runs.DefaultRetention.MaxBytes {
 		t.Fatalf("replay limits = %+v, want the enforced %+v", replay, runs.DefaultRetention)
 	}
+	if got := caps.Limits.MCPAuthorizationAttempts.RetentionSeconds; got != 73 {
+		t.Fatalf("MCP authorization attempt retention = %d, want the enforcing coordinator's 73", got)
+	}
 }
 
 // TestCapabilitiesAdvertiseThePublishedVocabulary pins discovery to
@@ -64,7 +67,11 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 func TestCapabilitiesAdvertiseThePublishedVocabulary(t *testing.T) {
 	t.Parallel()
 
-	caps := capabilitiesFor(featureAvailability{}, replayLimitsFrom(runs.NewCoordinator(runs.Dependencies{})))
+	caps := capabilitiesFor(
+		featureAvailability{},
+		replayLimitsFrom(runs.NewCoordinator(runs.Dependencies{})),
+		protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 73},
+	)
 	for _, feature := range protocol.FeatureKeys() {
 		if _, advertised := caps.Features[feature]; !advertised {
 			t.Errorf("protocol publishes %q and discovery advertises no such key", feature)

@@ -483,6 +483,13 @@ MCP 只发布一个 `McpServer` 资源，不再把可编辑配置与连接状态
   `(command,args,dir)` 为 scope。scope 变化且已有 secret 时必须显式 `set` 或 `clear`，runtime 绝不把凭证静默带到新
   origin / 进程，也不替调用方猜测是否删除。显式切换 transport 会原子丢弃旧 transport 专属 secret；它们不可能进入新
   transport 的联合。`set.value` 必须非空；删除只用 `clear`，不让空 map 成为第二种删除写法。
+- 交互式 OAuth 不是一个“已开始”的 ACK，而是一等 `McpAuthorizationAttempt` 资源：
+  `mcp.authorizationAttempts.create{server}` 返回 `pending`，客户端用
+  `mcp.authorizationAttempts.get{attemptId}` 观察 `succeeded` / `failed{error}` / `canceled`。只有 live server 已实际
+  connected 才是 `succeeded`；该操作只适用于 `streamableHttp`，其他 transport 在创建前拒绝；新的
+  configure/delete/reconnect/authorization 会取消同一 server 的旧 attempt。
+  `failed.error.type=mcp_authorization_failed`，底层 OAuth/provider 文本只进 telemetry。终态保留窗口由
+  `capabilities.limits.mcpAuthorizationAttempts.retentionSeconds` 公布；pending 不按该窗口清理。
 
 ### 4.11 分页（所有 list 统一）
 
@@ -874,9 +881,10 @@ error `type` 是 §2.6 命名空间的一个实例：first-party 用裸 `snake_c
 
 客户端**只按 `type` 分支**，绝不 substring-match `detail`。
 
-**内联状态级**：`mcp_dial_failed` / `mcp_authorization_required`（`McpServer.error`）、`provider_not_configured` /
-`provider_test_failed`（`ProviderTestResult.error`）。**它们没有 `detail`**：一句英文人话对多语言 UI 是负资产，
-文案归客户端按 `type` 查本地表。
+**内联状态级**：`mcp_dial_failed` / `mcp_authorization_required`（`McpServer.error`）、
+`mcp_authorization_failed`（`McpAuthorizationAttempt.error`）、`provider_not_configured` /
+`provider_test_failed`（`ProviderTestResult.error`）。**它们没有 `detail`**：一句英文人话对多语言 UI 是负资产，文案归
+客户端按 `type` 查本地表。
 
 ---
 
@@ -887,7 +895,7 @@ error `type` 是 §2.6 命名空间的一个实例：first-party 用裸 `snake_c
 | 字段               | 含义                                                                                                       |
 | ------------------ | ---------------------------------------------------------------------------------------------------------- |
 | `features`         | 开放 map：能力 key → `{enabled, stability, clientOptIn, requiredByRunProtocol}`                            |
-| `limits`           | 强制执行的正数值：必填 `runReplay{scope,maxEvents,maxBytes}` / `runtimeSubscription{maxTopics,maxWatches}` |
+| `limits`           | 强制执行的正数值：idempotency / run replay / MCP authorization-attempt retention / subscription fan-out |
 | `runEvents`        | 本 build 会发的 `StreamEventType` 集合                                                                     |
 | `runtimeTopics`    | 可订阅的失效 topic 集合（每个都有生产者）                                                                  |
 | `stateSnapshots`   | 每个 state key 的 `{key, scope, writer, recoveryMethod}`（§5.3）                                           |

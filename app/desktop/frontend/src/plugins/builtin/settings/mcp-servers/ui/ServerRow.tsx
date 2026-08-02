@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IconButton, PillButton, StatusDot, Switch } from "@/ui";
 import {
   type MCPServerSettings,
@@ -35,6 +35,17 @@ export function ServerRow({ server }: { server: MCPServerSettings }) {
   const setEnabled = useSetMCPServerEnabled();
   const authorize = useAuthorizeMCPServer();
   const [editing, setEditing] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
+  const authorizationController = useRef<AbortController | null>(null);
+
+  useEffect(
+    () => () => {
+      const controller = authorizationController.current;
+      authorizationController.current = null;
+      controller?.abort();
+    },
+    [],
+  );
 
   const onToggle = async (enabled: boolean) => {
     try {
@@ -45,10 +56,20 @@ export function ServerRow({ server }: { server: MCPServerSettings }) {
   };
 
   const onSignIn = async () => {
+    const controller = new AbortController();
+    authorizationController.current?.abort();
+    authorizationController.current = controller;
+    setSigningIn(true);
     try {
-      await authorize(server.name);
+      await authorize(server.name, controller.signal);
     } catch (err) {
+      if (controller.signal.aborted) return;
       notifyError(err instanceof Error ? err.message : t("mcp.error.signIn"), { source: "mcp" });
+    } finally {
+      if (authorizationController.current === controller) {
+        authorizationController.current = null;
+        setSigningIn(false);
+      }
     }
   };
 
@@ -76,9 +97,14 @@ export function ServerRow({ server }: { server: MCPServerSettings }) {
               {t("mcp.toolCount", { count: server.toolCount ?? 0 })}
             </span>
           )}
-          {server.status === "needsAuth" && (
-            <PillButton variant="accent" size="sm" onClick={() => void onSignIn()}>
-              {t("mcp.signIn")}
+          {(server.status === "needsAuth" || signingIn) && (
+            <PillButton
+              variant="accent"
+              size="sm"
+              disabled={signingIn}
+              onClick={() => void onSignIn()}
+            >
+              {t(signingIn ? "mcp.signingIn" : "mcp.signIn")}
             </PillButton>
           )}
           <Switch

@@ -98,6 +98,16 @@ func registerMCPUnions(s *Shapes) {
 			{Tag: string(protocol.McpServerNeedsAuth), Required: []string{"error"}},
 		},
 	})
+	s.union(UnionSpec{
+		GoType:        typeOf[protocol.McpAuthorizationAttemptStatus](),
+		Discriminator: "type",
+		Variants: []VariantSpec{
+			{Tag: string(protocol.McpAuthorizationAttemptPending)},
+			{Tag: string(protocol.McpAuthorizationAttemptSucceeded)},
+			{Tag: string(protocol.McpAuthorizationAttemptFailed), Required: []string{"error"}},
+			{Tag: string(protocol.McpAuthorizationAttemptCanceled)},
+		},
+	})
 }
 
 func registerProblemUnion(s *Shapes) {
@@ -439,6 +449,23 @@ func registerDiffUnions(s *Shapes) {
 }
 
 func registerObjectConstraints(s *Shapes) {
+	s.constraint(ObjectConstraintSpec{
+		GoType: typeOf[protocol.McpAuthorizationAttempt](),
+		Rules: []PresenceRule{{
+			When:      []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.McpAuthorizationAttemptPending)}},
+			Forbidden: []string{"finishedAt"},
+		}, {
+			When:     []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.McpAuthorizationAttemptSucceeded)}},
+			Required: []string{"finishedAt"},
+		}, {
+			When:     []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.McpAuthorizationAttemptFailed)}},
+			Required: []string{"finishedAt"},
+		}, {
+			When:     []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.McpAuthorizationAttemptCanceled)}},
+			Required: []string{"finishedAt"},
+		}},
+	})
+
 	// A finished Run explains itself, and a run that has not finished does not
 	// pretend to. Without the first rule `status:"finished"` with no outcome is
 	// representable and a client cannot tell "it ended" from "it ended somehow";

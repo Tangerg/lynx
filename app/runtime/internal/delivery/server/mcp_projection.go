@@ -80,6 +80,27 @@ func mcpProbeProblem() *protocol.ProblemData {
 	return &protocol.ProblemData{Type: protocol.ProblemMCPDialFailed}
 }
 
+func mcpAuthorizationAttemptWire(attempt integrations.MCPAuthorizationAttempt) protocol.McpAuthorizationAttempt {
+	status := protocol.McpAuthorizationAttemptStatus{}
+	switch attempt.Status {
+	case integrations.MCPAuthorizationAttemptPending:
+		status.Type = protocol.McpAuthorizationAttemptPending
+	case integrations.MCPAuthorizationAttemptSucceeded:
+		status.Type = protocol.McpAuthorizationAttemptSucceeded
+	case integrations.MCPAuthorizationAttemptFailed:
+		status.Type = protocol.McpAuthorizationAttemptFailed
+		status.Error = &protocol.ProblemData{Type: protocol.ProblemMCPAuthorizationFailed}
+	case integrations.MCPAuthorizationAttemptCanceled:
+		status.Type = protocol.McpAuthorizationAttemptCanceled
+	default:
+		panic("server: unknown MCP authorization attempt status")
+	}
+	return protocol.McpAuthorizationAttempt{
+		ID: attempt.ID, Server: attempt.Server, Status: status,
+		CreatedAt: attempt.CreatedAt, FinishedAt: attempt.FinishedAt,
+	}
+}
+
 func mcpToolWire(tool mcpserver.ToolInfo) protocol.McpTool {
 	return protocol.McpTool{
 		Server:      tool.Server,

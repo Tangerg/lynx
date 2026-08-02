@@ -6,12 +6,19 @@ export interface MCPServerTestOutcome {
   error?: string;
 }
 
+export type MCPAuthorizationAttempt =
+  | { id: string; status: "pending" }
+  | { id: string; status: "succeeded" }
+  | { id: string; status: "failed"; error: string }
+  | { id: string; status: "canceled" };
+
 export interface MCPServerGateway {
   create(input: MCPServerInput): Promise<void>;
   update(name: string, input: MCPServerInput): Promise<void>;
   delete(name: string): Promise<void>;
   setEnabled(name: string, enabled: boolean): Promise<void>;
-  authorize(name: string): Promise<void>;
+  createAuthorizationAttempt(name: string, signal?: AbortSignal): Promise<MCPAuthorizationAttempt>;
+  getAuthorizationAttempt(id: string, signal?: AbortSignal): Promise<MCPAuthorizationAttempt>;
   test(input: MCPServerInput): Promise<MCPServerTestOutcome>;
 }
 

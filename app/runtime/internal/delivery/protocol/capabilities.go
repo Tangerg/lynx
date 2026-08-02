@@ -205,12 +205,21 @@ type RuntimeLimits struct {
 	// required value rather than an optional promise. It is read from that
 	// coordinator rather than restated here.
 	RunReplay RunReplayLimits `json:"runReplay"`
+	// MCPAuthorizationAttempts tells clients how long terminal OAuth outcomes
+	// remain queryable. Pending attempts are retained until they settle.
+	MCPAuthorizationAttempts MCPAuthorizationAttemptLimits `json:"mcpAuthorizationAttempts"`
 	// RuntimeSubscription bounds one subscription's fan-out.
 	RuntimeSubscription SubscriptionLimits `json:"runtimeSubscription"`
 }
 
 // IdempotencyLimits is the replay promise for command requests.
 type IdempotencyLimits struct {
+	RetentionSeconds int `json:"retentionSeconds"`
+}
+
+// MCPAuthorizationAttemptLimits is the retention promise for terminal
+// interactive authorization resources.
+type MCPAuthorizationAttemptLimits struct {
 	RetentionSeconds int `json:"retentionSeconds"`
 }
 

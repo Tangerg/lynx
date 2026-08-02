@@ -26,7 +26,9 @@ type MCPToolCatalog interface {
 // MCPConnectionCommands reconnects and authorizes configured MCP servers.
 // Implementations must sequence operations per server: a newer configure,
 // remove, reconnect, or authorize supersedes an older in-flight operation, while
-// operations for different servers may proceed concurrently.
+// operations for different servers may proceed concurrently. Each call blocks
+// until its live status has settled and honors ctx cancellation; the application
+// owns detachment, lifecycle, and asynchronous result publication.
 type MCPConnectionCommands interface {
 	Reconnect(ctx context.Context, name string) error
 	Authorize(ctx context.Context, name string) error
@@ -56,17 +58,18 @@ type Coordinator struct {
 	// reconciliation and the short pre/post boundaries of asynchronous connect
 	// operations. Network and interactive OAuth waits never hold it; the live
 	// adapter owns per-server latest-operation-wins sequencing.
-	mcpRegistry           Registry
-	mcpStatusReader       MCPStatusReader
-	mcpToolCatalog        MCPToolCatalog
-	mcpConnectionCommands MCPConnectionCommands
-	mcpRegistryCommands   MCPRegistryCommands
-	mcpPolicy             *ToolPolicyState
-	mcpMutationMu         sync.Mutex
-	mcpDialMu             sync.Mutex
-	mcpDials              map[string]*mcpDial
-	mcpStatusSequence     uint64
-	mcpStatusQueue        *mcpStatusQueue
+	mcpRegistry              Registry
+	mcpStatusReader          MCPStatusReader
+	mcpToolCatalog           MCPToolCatalog
+	mcpConnectionCommands    MCPConnectionCommands
+	mcpRegistryCommands      MCPRegistryCommands
+	mcpPolicy                *ToolPolicyState
+	mcpMutationMu            sync.Mutex
+	mcpDialMu                sync.Mutex
+	mcpDials                 map[string]*mcpDial
+	mcpStatusSequence        uint64
+	mcpStatusQueue           *mcpStatusQueue
+	mcpAuthorizationAttempts *mcpAuthorizationAttemptStore
 
 	// tasks is this component's context for post-commit reconcile: MCP registry
 	// mutations outlive the request but are canceled and joined by the
@@ -93,14 +96,15 @@ func New(cfg Config) *Coordinator {
 		cfg.MCPPolicy = NewToolPolicyState(mcpserver.ToolPolicy{})
 	}
 	return &Coordinator{
-		mcpRegistry:           cfg.MCPRegistry,
-		mcpStatusReader:       cfg.MCPStatusReader,
-		mcpToolCatalog:        cfg.MCPToolCatalog,
-		mcpConnectionCommands: cfg.MCPConnectionCommands,
-		mcpRegistryCommands:   cfg.MCPRegistryCommands,
-		mcpPolicy:             cfg.MCPPolicy,
-		mcpDials:              make(map[string]*mcpDial),
-		mcpStatusQueue:        newMCPStatusQueue(cfg.MCPStatus),
+		mcpRegistry:              cfg.MCPRegistry,
+		mcpStatusReader:          cfg.MCPStatusReader,
+		mcpToolCatalog:           cfg.MCPToolCatalog,
+		mcpConnectionCommands:    cfg.MCPConnectionCommands,
+		mcpRegistryCommands:      cfg.MCPRegistryCommands,
+		mcpPolicy:                cfg.MCPPolicy,
+		mcpDials:                 make(map[string]*mcpDial),
+		mcpStatusQueue:           newMCPStatusQueue(cfg.MCPStatus),
+		mcpAuthorizationAttempts: newMCPAuthorizationAttemptStore(),
 	}
 }
 

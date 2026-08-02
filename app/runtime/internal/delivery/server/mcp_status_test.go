@@ -4,11 +4,29 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
+
+func TestMCPAuthorizationAttemptWire(t *testing.T) {
+	finishedAt := time.Date(2026, 8, 2, 12, 1, 0, 0, time.UTC)
+	got := mcpAuthorizationAttemptWire(integrations.MCPAuthorizationAttempt{
+		ID: "mcpauth_example", Server: "github",
+		Status:    integrations.MCPAuthorizationAttemptFailed,
+		CreatedAt: finishedAt.Add(-time.Minute), FinishedAt: &finishedAt,
+	})
+	if got.Status.Type != protocol.McpAuthorizationAttemptFailed || got.Status.Error == nil ||
+		got.Status.Error.Type != protocol.ProblemMCPAuthorizationFailed || got.Status.Error.Detail != "" ||
+		got.FinishedAt == nil {
+		t.Fatalf("authorization attempt = %+v", got)
+	}
+	if err := protocol.ValidateWireTree(got); err != nil {
+		t.Fatalf("authorization attempt violates wire contract: %v", err)
+	}
+}
 
 func TestListMCPServers(t *testing.T) {
 	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{

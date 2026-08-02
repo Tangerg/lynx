@@ -120,6 +120,7 @@ describe("the published JSON Schema bundle", () => {
           maxEvents: 2048,
           maxBytes: 16_777_216,
         },
+        mcpAuthorizationAttempts: { retentionSeconds: 600 },
         runtimeSubscription: { maxTopics: 32, maxWatches: 32 },
       }),
     ).toBe(true);

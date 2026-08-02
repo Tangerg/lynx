@@ -44,6 +44,7 @@ import type {
   ListApprovalRulesResult,
   ListFilesRequest,
   ListItemsResponse,
+  McpAuthorizationAttempt,
   McpServer,
   McpTestResult,
   McpTool,
@@ -389,9 +390,12 @@ export interface Methods {
     test: (params: MCPServerCandidate) => Promise<McpTestResult>;
     listTools: (server?: string) => Promise<Page<McpTool>>;
     reconnect: (server: string) => Promise<void>;
-    // Interactive OAuth sign-in (opens the browser; the outcome rides
-    // mcp.serverChanged, same as reconnect). For servers that auth via OAuth.
-    authorize: (server: string) => Promise<void>;
+    authorizationAttempts: {
+      // Interactive OAuth is an asynchronous resource, not a command ACK. Create
+      // opens the browser; get observes its terminal outcome after reconnects.
+      create: (server: string, signal?: AbortSignal) => Promise<McpAuthorizationAttempt>;
+      get: (attemptId: string, signal?: AbortSignal) => Promise<McpAuthorizationAttempt>;
+    };
   };
   providers: {
     list: () => Promise<Page<Provider>>;
@@ -709,7 +713,12 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       test: (params) => call("mcp.servers.test", params),
       listTools: (server) => call("mcp.tools.list", server ? { server } : {}),
       reconnect: (server) => call("mcp.servers.reconnect", { server }),
-      authorize: (server) => call("mcp.servers.authorize", { server }),
+      authorizationAttempts: {
+        create: (server, signal) =>
+          call("mcp.authorizationAttempts.create", { server }, { signal }),
+        get: (attemptId, signal) =>
+          call("mcp.authorizationAttempts.get", { attemptId }, { signal }),
+      },
     },
     providers: {
       list: () => call("providers.list", {}),

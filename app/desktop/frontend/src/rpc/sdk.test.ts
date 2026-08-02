@@ -57,6 +57,7 @@ describe("createLyraClient", () => {
       limits: {
         idempotency: { retentionSeconds: 86_400 },
         runReplay: { scope: "processRootSegment", maxEvents: 1, maxBytes: 1 },
+        mcpAuthorizationAttempts: { retentionSeconds: 600 },
         runtimeSubscription: { maxTopics: 1, maxWatches: 1 },
       },
     } satisfies ServerCapabilities;

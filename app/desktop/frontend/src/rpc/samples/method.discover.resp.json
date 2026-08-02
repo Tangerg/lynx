@@ -140,6 +140,9 @@
         "maxEvents": 2048,
         "maxBytes": 16777216
       },
+      "mcpAuthorizationAttempts": {
+        "retentionSeconds": 600
+      },
       "runtimeSubscription": {
         "maxTopics": 32,
         "maxWatches": 32

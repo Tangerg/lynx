@@ -68,15 +68,23 @@ func registerMCP(r *Registry) {
 		return d.api.ReconnectMCPServer(ctx, in.Server)
 	})
 
-	CommandAck(r, MethodMeta{
-		Name:            "mcp.servers.authorize",
+	Command(r, MethodMeta{
+		Name:            "mcp.authorizationAttempts.create",
 		Errors:          []string{protocol.ErrMCPServerNotFound.Error(), protocol.ErrMCPServerDisabled.Error()},
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.MCPServerRequest) error {
-		return d.api.AuthorizeMCPServer(ctx, in.Server)
+	}, func(d *Dispatcher, ctx context.Context, in protocol.CreateMCPAuthorizationAttemptRequest) (*protocol.McpAuthorizationAttempt, error) {
+		return d.api.CreateMCPAuthorizationAttempt(ctx, in.Server)
 	})
 
+	Query(r, MethodMeta{
+		Name:            "mcp.authorizationAttempts.get",
+		Errors:          []string{protocol.ErrMCPAuthorizationAttemptNotFound.Error()},
+		CapabilityRules: requires(protocol.FeatureMCP),
+		Stability:       stable,
+	}, func(d *Dispatcher, ctx context.Context, in protocol.MCPAuthorizationAttemptRequest) (*protocol.McpAuthorizationAttempt, error) {
+		return d.api.GetMCPAuthorizationAttempt(ctx, in.AttemptID)
+	})
 }
 
 func registerApproval(r *Registry) {

@@ -220,6 +220,7 @@ const (
 	// probe verdict that rides its own query result instead of failing the call,
 	// so the pane renders it beside the thing it describes.
 	ProblemMCPAuthorizationRequired = "mcp_authorization_required" // an HTTP MCP server needs an interactive sign-in
+	ProblemMCPAuthorizationFailed   = "mcp_authorization_failed"   // an interactive MCP sign-in did not complete successfully
 	ProblemMCPDialFailed            = "mcp_dial_failed"            // the MCP connection, or a test of it, did not succeed
 	ProblemProviderNotConfigured    = "provider_not_configured"    // the provider has no credential yet
 	ProblemProviderTestFailed       = "provider_test_failed"       // the provider was unreachable or rejected the probe
@@ -250,16 +251,17 @@ const (
 	CodeIdempotencyInProgress  = -32021
 	// -32007 / -32008 / -32010 / -32012 / -32015 are retired holes, never reused,
 	// so a new code continues the sequence rather than filling one in.
-	CodeRunNotRoot          = -32022
-	CodeSessionHasActiveRun = -32023
-	CodeRunWaiting          = -32024
-	CodeRunFinished         = -32025
-	CodeStaleSegment        = -32026
-	CodeReplayCursorInvalid = -32027
-	CodeReplayUnavailable   = -32028
-	CodeMCPServerNotFound   = -32029
-	CodeMCPServerExists     = -32030
-	CodeMCPServerDisabled   = -32031
+	CodeRunNotRoot                      = -32022
+	CodeSessionHasActiveRun             = -32023
+	CodeRunWaiting                      = -32024
+	CodeRunFinished                     = -32025
+	CodeStaleSegment                    = -32026
+	CodeReplayCursorInvalid             = -32027
+	CodeReplayUnavailable               = -32028
+	CodeMCPServerNotFound               = -32029
+	CodeMCPServerExists                 = -32030
+	CodeMCPServerDisabled               = -32031
+	CodeMCPAuthorizationAttemptNotFound = -32032
 )
 
 // Sentinel errors returned by Runtime implementations. The dispatch
@@ -309,11 +311,12 @@ var (
 	// gone — a previous process's stream, or a position the retention window has
 	// evicted. The events are not lost, only their replay: the client rebuilds from
 	// the durable reads and tails from now.
-	ErrReplayUnavailable      = errors.New("replay_unavailable")
-	ErrMCPServerNotFound      = errors.New("mcp_server_not_found")
-	ErrMCPServerAlreadyExists = errors.New("mcp_server_already_exists")
-	ErrMCPServerDisabled      = errors.New("mcp_server_disabled")
-	ErrInvalidProtocolVersion = errors.New("invalid_protocol_version")
+	ErrReplayUnavailable               = errors.New("replay_unavailable")
+	ErrMCPServerNotFound               = errors.New("mcp_server_not_found")
+	ErrMCPServerAlreadyExists          = errors.New("mcp_server_already_exists")
+	ErrMCPServerDisabled               = errors.New("mcp_server_disabled")
+	ErrMCPAuthorizationAttemptNotFound = errors.New("mcp_authorization_attempt_not_found")
+	ErrInvalidProtocolVersion          = errors.New("invalid_protocol_version")
 	// ErrVcsUnavailable: git is available but the cwd isn't a repo (AUX_API
 	// §2.3) — distinct from "clean repo" (empty result). NOT for missing git
 	// (that's features.git=false) nor an unresolvable base branch (invalid_params).

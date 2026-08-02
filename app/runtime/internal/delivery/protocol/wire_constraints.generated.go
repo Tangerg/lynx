@@ -174,6 +174,18 @@ func (value MCPServerRequest) ValidateWire() error {
 	)
 }
 
+func (value CreateMCPAuthorizationAttemptRequest) ValidateWire() error {
+	return collectWireViolations("CreateMCPAuthorizationAttemptRequest",
+		requiredText("server", value.Server),
+	)
+}
+
+func (value MCPAuthorizationAttemptRequest) ValidateWire() error {
+	return collectWireViolations("MCPAuthorizationAttemptRequest",
+		requiredText("attemptId", value.AttemptID),
+	)
+}
+
 func (value SetHookTrustRequest) ValidateWire() error {
 	return collectWireViolations("SetHookTrustRequest",
 		requiredText("projectRoot", value.ProjectRoot),
@@ -303,7 +315,7 @@ func (value ProblemData) ValidateWire() error {
 		optionalPositiveNumber("retryAfterSeconds", value.RetryAfterSeconds),
 		nonEmptyItems("requiredCapabilities", value.RequiredCapabilities),
 		uniqueItems("requiredCapabilities", value.RequiredCapabilities),
-		unionTag("type", string(value.Type), []string{"agent_stuck", "capability_not_negotiated", "checkpoint_unavailable", "child_run_canceled", "denied_by_user", "idempotency_conflict", "idempotency_in_progress", "internal_error", "interrupt_not_open", "invalid_api_key", "invalid_params", "invalid_protocol_version", "invalid_request", "item_not_found", "mcp_authorization_required", "mcp_dial_failed", "mcp_server_already_exists", "mcp_server_disabled", "mcp_server_not_found", "method_not_found", "path_outside_root", "provider_error", "provider_not_configured", "provider_rejected", "provider_test_failed", "provider_unavailable", "rate_limited", "replay_cursor_invalid", "replay_unavailable", "revision_conflict", "run_finished", "run_lost", "run_not_found", "run_not_root", "run_waiting", "session_busy", "session_has_active_run", "session_not_found", "stale_segment", "timeout", "tool_failed", "unsupported_mime", "vcs_unavailable", "workspace_unavailable"}, "^plugin:[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$"),
+		unionTag("type", string(value.Type), []string{"agent_stuck", "capability_not_negotiated", "checkpoint_unavailable", "child_run_canceled", "denied_by_user", "idempotency_conflict", "idempotency_in_progress", "internal_error", "interrupt_not_open", "invalid_api_key", "invalid_params", "invalid_protocol_version", "invalid_request", "item_not_found", "mcp_authorization_attempt_not_found", "mcp_authorization_failed", "mcp_authorization_required", "mcp_dial_failed", "mcp_server_already_exists", "mcp_server_disabled", "mcp_server_not_found", "method_not_found", "path_outside_root", "provider_error", "provider_not_configured", "provider_rejected", "provider_test_failed", "provider_unavailable", "rate_limited", "replay_cursor_invalid", "replay_unavailable", "revision_conflict", "run_finished", "run_lost", "run_not_found", "run_not_root", "run_waiting", "session_busy", "session_has_active_run", "session_not_found", "stale_segment", "timeout", "tool_failed", "unsupported_mime", "vcs_unavailable", "workspace_unavailable"}, "^plugin:[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$"),
 		forbiddenWhen(wireFieldEquals(value, "type", "agent_stuck"), "requiredCapabilities", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agent_stuck"), "retryAfterSeconds", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agent_stuck"), "errors", value),
@@ -359,6 +371,16 @@ func (value ProblemData) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "item_not_found"), "retryAfterSeconds", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "item_not_found"), "errors", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "item_not_found"), "activeRun", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_authorization_attempt_not_found"), "requiredCapabilities", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_authorization_attempt_not_found"), "retryAfterSeconds", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_authorization_attempt_not_found"), "errors", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_authorization_attempt_not_found"), "activeRun", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_authorization_failed"), "detail", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_authorization_failed"), "docUrl", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_authorization_failed"), "requiredCapabilities", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_authorization_failed"), "retryAfterSeconds", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_authorization_failed"), "errors", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "mcp_authorization_failed"), "activeRun", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "mcp_authorization_required"), "detail", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "mcp_authorization_required"), "docUrl", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "mcp_authorization_required"), "requiredCapabilities", value),
@@ -818,6 +840,16 @@ func (value McpServerState) ValidateWire() error {
 	)
 }
 
+func (value McpAuthorizationAttemptStatus) ValidateWire() error {
+	return collectWireViolations("McpAuthorizationAttemptStatus",
+		closedEnum("type", string(value.Type), []string{"pending", "succeeded", "failed", "canceled"}, false),
+		forbiddenWhen(wireFieldEquals(value, "type", "pending"), "error", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "succeeded"), "error", value),
+		requiredWhen(wireFieldEquals(value, "type", "failed"), "error", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "canceled"), "error", value),
+	)
+}
+
 func (value Interrupt) ValidateWire() error {
 	return collectWireViolations("Interrupt",
 		requiredText("itemId", value.ItemID),
@@ -1227,6 +1259,17 @@ func (value DiffRow) ValidateWire() error {
 	)
 }
 
+func (value McpAuthorizationAttempt) ValidateWire() error {
+	return collectWireViolations("McpAuthorizationAttempt",
+		requiredText("id", value.ID),
+		requiredText("server", value.Server),
+		forbiddenWhen(wireFieldEquals(value, "status.type", "pending"), "finishedAt", value),
+		requiredWhen(wireFieldEquals(value, "status.type", "succeeded"), "finishedAt", value),
+		requiredWhen(wireFieldEquals(value, "status.type", "failed"), "finishedAt", value),
+		requiredWhen(wireFieldEquals(value, "status.type", "canceled"), "finishedAt", value),
+	)
+}
+
 func (value RunSummary) ValidateWire() error {
 	return collectWireViolations("RunSummary",
 		closedEnum("status", string(value.Status), []string{"running", "waiting", "finished"}, true),
@@ -1334,6 +1377,12 @@ func (value ResumeRunResponse) ValidateWire() error {
 func (value WorkspaceRef) ValidateWire() error {
 	return collectWireViolations("WorkspaceRef",
 		requiredText("path", value.Path),
+	)
+}
+
+func (value MCPAuthorizationAttemptLimits) ValidateWire() error {
+	return collectWireViolations("MCPAuthorizationAttemptLimits",
+		positiveNumber("retentionSeconds", value.RetentionSeconds),
 	)
 }
 

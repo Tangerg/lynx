@@ -137,6 +137,7 @@ var CanonicalSamples = []CanonicalSample{
 	{"managedSkill.json", reflect.TypeFor[ManagedSkill]()},
 	{"skillDraft.json", reflect.TypeFor[SkillDraft]()},
 	{"agentDoc.json", reflect.TypeFor[AgentDoc]()},
+	{"mcpAuthorizationAttempt.json", reflect.TypeFor[McpAuthorizationAttempt]()},
 	{"mcpServer.json", reflect.TypeFor[McpServer]()},
 	{"hooksList.json", reflect.TypeFor[HooksListResult]()},
 	{"memoryEntry.json", reflect.TypeFor[MemoryEntry]()},

@@ -92,6 +92,7 @@ func mustProblemContracts() []ProblemContract {
 	)
 	add(ProblemChannelInlineStatus,
 		protocol.ProblemMCPAuthorizationRequired,
+		protocol.ProblemMCPAuthorizationFailed,
 		protocol.ProblemMCPDialFailed,
 		protocol.ProblemProviderNotConfigured,
 		protocol.ProblemProviderTestFailed,
@@ -113,6 +114,7 @@ func mustProblemContracts() []ProblemContract {
 		case protocol.ProblemRateLimited, protocol.ProblemTimeout, protocol.ProblemProviderUnavailable:
 			contract.Optional = append(contract.Optional, "retryAfterSeconds")
 		case protocol.ProblemMCPAuthorizationRequired,
+			protocol.ProblemMCPAuthorizationFailed,
 			protocol.ProblemMCPDialFailed,
 			protocol.ProblemProviderNotConfigured,
 			protocol.ProblemProviderTestFailed:

@@ -729,6 +729,7 @@ export const ko: Record<string, string> = {
   "mcp.transport.stdio": "stdio",
   "mcp.transport.http": "Streamable HTTP",
   "mcp.signIn": "로그인",
+  "mcp.signingIn": "로그인 중…",
   "mcp.form.name.placeholder": "서버 이름",
   "mcp.form.name.aria": "서버 이름",
   "mcp.form.transport.aria": "전송 방식",
@@ -777,7 +778,7 @@ export const ko: Record<string, string> = {
   "mcp.error.save": "서버를 저장할 수 없습니다.",
   "mcp.error.remove": "서버를 삭제할 수 없습니다.",
   "mcp.error.toggle": "서버를 변경할 수 없습니다.",
-  "mcp.error.signIn": "로그인을 시작할 수 없습니다.",
+  "mcp.error.signIn": "로그인에 실패했습니다.",
   "mcp.error.test": "테스트 실패",
   "workspace.view.title.file": "파일",
   "workspace.view.title.recipes": "레시피",
@@ -948,6 +949,9 @@ export const ko: Record<string, string> = {
   "rpcError.is_a_directory": "해당 경로는 디렉터리입니다 — 읽을 파일을 선택하세요.",
   "rpcError.file_too_large": "파일이 너무 커서 전체를 읽을 수 없습니다 — 줄 범위를 지정하세요.",
   "rpcError.mcp_authorization_required": "이 서버는 사용하기 전에 로그인이 필요합니다.",
+  "rpcError.mcp_authorization_failed": "로그인이 완료되지 않았습니다. 다시 시도하세요.",
+  "rpcError.mcp_authorization_attempt_not_found":
+    "이 로그인 시도는 만료되었습니다. 다시 시작하세요.",
   "rpcError.mcp_dial_failed":
     "이 서버에 연결할 수 없습니다 — 명령이나 URL을 확인하고 다시 시도하세요.",
   "rpcError.provider_not_configured": "먼저 API 키를 입력하세요.",

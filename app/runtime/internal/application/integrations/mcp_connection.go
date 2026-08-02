@@ -12,22 +12,13 @@ import (
 
 // ReconnectMCPServer re-dials a configured MCP server and hot-swaps the live tool
 // set (mcp.servers.reconnect). Fire-and-forget: the name is validated
-// synchronously (unknown → [mcpserver.ErrUnknownServer]), then the dial runs on
+// synchronously (unknown → [ErrUnknownMCPServer], disabled →
+// [ErrMCPServerDisabled]), then the dial runs on
 // the component task group with connecting → settled status published for the
 // workspace stream, so a returning RPC does not abort it while shutdown still can.
 func (c *Coordinator) ReconnectMCPServer(ctx context.Context, name string) error {
 	return c.startMCPConnection(ctx, name, func(ctx context.Context) error {
 		return c.mcpConnectionCommands.Reconnect(ctx, name)
-	})
-}
-
-// AuthorizeMCPServer runs the interactive OAuth sign-in for an HTTP MCP server
-// (mcp.servers.authorize) — opens the system browser, catches the loopback
-// redirect, and connects on success. Fire-and-forget like reconnect; the
-// credentials live for the process only (re-prompt after restart).
-func (c *Coordinator) AuthorizeMCPServer(ctx context.Context, name string) error {
-	return c.startMCPConnection(ctx, name, func(ctx context.Context) error {
-		return c.mcpConnectionCommands.Authorize(ctx, name)
 	})
 }
 
@@ -40,11 +31,18 @@ func (c *Coordinator) AuthorizeMCPServer(ctx context.Context, name string) error
 // configure/remove supersede stale dial completion, while unrelated servers can
 // connect in parallel. The task's context scopes both registry reads and dial.
 // Returns [errMCPConnectionUnavailable] when the coordinator lacks a required
-// connection dependency, [mcpserver.ErrUnknownServer] for an unknown name (the
-// delivery layer maps it to invalid_params), or [errClosed] during shutdown.
+// connection dependency, [ErrUnknownMCPServer] or [ErrMCPServerDisabled] when
+// durable state refuses the command, or [errClosed] during shutdown.
 func (c *Coordinator) startMCPConnection(ctx context.Context, name string, dial func(context.Context) error) error {
+	if _, err := c.mcpConnectionTarget(ctx, name); err != nil {
+		return err
+	}
+	return c.dispatchMCPConnection(ctx, name, dial, nil)
+}
+
+func (c *Coordinator) mcpConnectionTarget(ctx context.Context, name string) (mcpserver.Server, error) {
 	if c.mcpRegistry == nil || c.mcpStatusReader == nil || c.mcpConnectionCommands == nil {
-		return errMCPConnectionUnavailable
+		return mcpserver.Server{}, errMCPConnectionUnavailable
 	}
 	registryCtx := context.Background()
 	if ctx != nil {
@@ -52,16 +50,24 @@ func (c *Coordinator) startMCPConnection(ctx context.Context, name string, dial 
 	}
 	srv, ok, err := c.mcpRegistry.Get(registryCtx, name)
 	if err != nil {
-		return fmt.Errorf("integrations: read MCP server %q: %w", name, err)
+		return mcpserver.Server{}, fmt.Errorf("integrations: read MCP server %q: %w", name, err)
 	}
 	if !ok {
-		return ErrUnknownMCPServer
+		return mcpserver.Server{}, ErrUnknownMCPServer
 	}
 	if !srv.Enabled {
-		return ErrMCPServerDisabled
+		return mcpserver.Server{}, ErrMCPServerDisabled
 	}
-	return c.dispatchMCPConnection(ctx, name, dial)
+	return srv, nil
 }
+
+type mcpConnectionOutcome uint8
+
+const (
+	mcpConnectionSucceeded mcpConnectionOutcome = iota + 1
+	mcpConnectionFailed
+	mcpConnectionCanceled
+)
 
 // dispatchMCPConnection runs a live (re)dial on the component task group, detached
 // from the caller's cancellation. It enters the mutation order only for the
@@ -71,15 +77,26 @@ func (c *Coordinator) startMCPConnection(ctx context.Context, name string, dial 
 // stale completion. A caller that already holds mcpMutationMu may invoke this: the
 // spawned task blocks on the lock until that caller releases it, then proceeds —
 // which is exactly how the registry-write methods dispatch their live dial without
-// holding the lock across the network handshake. Returns errClosed only when the
-// task group is shutting down.
-func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, connect func(context.Context) error) error {
+// holding the lock across the network handshake. When completed is non-nil, an
+// admitted task calls it exactly once after it reaches succeeded, failed, or
+// canceled; admission failure calls nothing. Returns errClosed only when the task
+// group is shutting down.
+func (c *Coordinator) dispatchMCPConnection(
+	ctx context.Context,
+	name string,
+	connect func(context.Context) error,
+	completed func(mcpConnectionOutcome),
+) error {
 	ownerCtx, releaseOwner, ok := c.tasks.Attach(ctx)
 	if !ok {
 		return errClosed
 	}
 	dialCtx, operation := c.replaceMCPDial(ownerCtx, name)
 	if !c.tasks.StartLinked(dialCtx, func(ctx context.Context) {
+		outcome := mcpConnectionCanceled
+		if completed != nil {
+			defer func() { completed(outcome) }()
+		}
 		defer releaseOwner()
 		defer c.clearMCPDial(name, operation)
 		if err := ctx.Err(); err != nil {
@@ -90,6 +107,7 @@ func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, co
 		if err != nil {
 			c.mcpMutationMu.Unlock()
 			recordMCPConnectionError(ctx, fmt.Errorf("integrations: read MCP server %q before connection: %w", name, err))
+			outcome = mcpConnectionFailed
 			return
 		}
 		if !ok || !srv.Enabled {
@@ -112,8 +130,9 @@ func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, co
 		// adapter owns per-server generation/cancellation, so no application-wide
 		// mutation lock is held while dialing. A configure/remove can supersede it
 		// immediately; stale adapter completion cannot swap itself back in.
-		if err := connect(ctx); err != nil && ctx.Err() == nil {
-			recordMCPConnectionError(ctx, fmt.Errorf("integrations: connect MCP server %q: %w", name, err))
+		connectionErr := connect(ctx)
+		if connectionErr != nil && ctx.Err() == nil {
+			recordMCPConnectionError(ctx, fmt.Errorf("integrations: connect MCP server %q: %w", name, connectionErr))
 		}
 		if ctx.Err() != nil {
 			return
@@ -125,6 +144,7 @@ func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, co
 		if err != nil {
 			c.mcpMutationMu.Unlock()
 			recordMCPConnectionError(ctx, fmt.Errorf("integrations: read MCP server %q after connection: %w", name, err))
+			outcome = mcpConnectionFailed
 			return
 		}
 		if !ok || !srv.Enabled || !c.currentMCPDial(name, operation) {
@@ -134,6 +154,11 @@ func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, co
 		settled := c.prepareMCPStatus(status)
 		c.mcpMutationMu.Unlock()
 		c.publishMCPStatus(settled)
+		if connectionErr != nil || status.State != mcpserver.ConnectionConnected {
+			outcome = mcpConnectionFailed
+			return
+		}
+		outcome = mcpConnectionSucceeded
 	}) {
 		operation.cancel()
 		c.clearMCPDial(name, operation)
@@ -144,7 +169,7 @@ func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, co
 }
 
 // replaceMCPDial gives each server exactly one current connection operation.
-// A registry mutation, reconnect, or authorize supersedes the previous dial by
+// A registry mutation, reconnect, or authorization attempt supersedes the previous dial by
 // canceling its context; adapters must honor ctx while dialing and reject a
 // stale completion through their per-server generation check.
 func (c *Coordinator) replaceMCPDial(ctx context.Context, name string) (context.Context, *mcpDial) {

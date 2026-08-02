@@ -40,6 +40,14 @@ var ErrMCPServerAlreadyExists = errors.New("integrations: MCP server already exi
 // server whose durable enablement gate is closed.
 var ErrMCPServerDisabled = errors.New("integrations: MCP server is disabled")
 
+// ErrMCPAuthorizationAttemptNotFound reports an unknown or expired interactive
+// authorization attempt.
+var ErrMCPAuthorizationAttemptNotFound = errors.New("integrations: MCP authorization attempt not found")
+
+// ErrMCPAuthorizationUnsupported reports interactive authorization requested
+// for a transport that cannot perform OAuth.
+var ErrMCPAuthorizationUnsupported = errors.New("integrations: MCP authorization requires streamable HTTP")
+
 // CreateMCPServer creates one durable resource and projects it into the live MCP
 // pool. A duplicate name is a conflict, never an implicit update.
 func (c *Coordinator) CreateMCPServer(ctx context.Context, input MCPServerInput) (MCPServer, error) {
@@ -245,7 +253,7 @@ func (c *Coordinator) redialMCPServer(ctx context.Context, srv mcpserver.Server)
 	}
 	_ = c.dispatchMCPConnection(ctx, srv.Name, func(dialCtx context.Context) error {
 		return c.mcpRegistryCommands.Configure(dialCtx, srv)
-	})
+	}, nil)
 }
 
 // TestMCPServer dials srv with a throwaway client and proves its tools list — a

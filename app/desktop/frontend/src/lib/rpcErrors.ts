@@ -53,9 +53,13 @@ const MAPPED_TYPES: readonly string[] = [
   // Inline status verdicts: they ride an McpServer / ProviderTestResult rather
   // than failing the call, and the runtime sends the symbol alone.
   "mcp_authorization_required",
+  "mcp_authorization_failed",
   "mcp_dial_failed",
   "provider_not_configured",
   "provider_test_failed",
+  // A get after the published terminal-result retention expires cannot recover
+  // that attempt; the person starts a new sign-in instead of retrying the id.
+  "mcp_authorization_attempt_not_found",
 ];
 
 /** Friendly copy for a mapped protocol error type; undefined for an unmapped

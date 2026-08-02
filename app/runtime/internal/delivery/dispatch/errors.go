@@ -47,6 +47,10 @@ var rpcErrorSpecs = mustRPCErrorSpecs([]rpcErrorSpec{
 	{sentinel: protocol.ErrMCPServerNotFound, code: protocol.CodeMCPServerNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
 	{sentinel: protocol.ErrMCPServerAlreadyExists, code: protocol.CodeMCPServerExists, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
 	{sentinel: protocol.ErrMCPServerDisabled, code: protocol.CodeMCPServerDisabled, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
+	// Authorization attempts are intentionally ephemeral. Once one expires, the
+	// same id can never become readable again; repeating get would only repeat the
+	// refusal, so the safe action is to stop polling it.
+	{sentinel: protocol.ErrMCPAuthorizationAttemptNotFound, code: protocol.CodeMCPAuthorizationAttemptNotFound, recovery: protocol.RecoveryStop, methodDeclarable: true},
 	{sentinel: protocol.ErrRunNotRoot, code: protocol.CodeRunNotRoot, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
 	// Something else holds the session or the working tree, or the revision moved.
 	// Reading again is how the client learns whether it still does.

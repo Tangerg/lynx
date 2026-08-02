@@ -39,6 +39,7 @@ function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabiliti
     limits: {
       idempotency: { retentionSeconds: 86_400 },
       runReplay: { scope: "processRootSegment", maxEvents: 2048, maxBytes: 16_777_216 },
+      mcpAuthorizationAttempts: { retentionSeconds: 600 },
       runtimeSubscription: { maxTopics: 32, maxWatches: 32 },
     },
     ...overrides,

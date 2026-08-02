@@ -36,7 +36,8 @@ func (fakeRuntime) Discover(context.Context) (*protocol.DiscoverResponse, error)
 				RunReplay: protocol.RunReplayLimits{
 					Scope: protocol.ReplayScopeProcessRootSegment, MaxEvents: 1, MaxBytes: 1,
 				},
-				RuntimeSubscription: protocol.SubscriptionLimits{MaxTopics: 1, MaxWatches: 1},
+				MCPAuthorizationAttempts: protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 1},
+				RuntimeSubscription:      protocol.SubscriptionLimits{MaxTopics: 1, MaxWatches: 1},
 			},
 		},
 	}, nil

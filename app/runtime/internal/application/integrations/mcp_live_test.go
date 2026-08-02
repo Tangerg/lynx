@@ -57,13 +57,12 @@ func TestDeleteMCPServerPublishesRemovalAfterProjectionFailure(t *testing.T) {
 	}
 }
 
-// TestMCPConnectionCommandsUsePorts: reconnect/authorize are fire-and-forget —
-// they validate the name synchronously, then dial on the component task group and
-// publish the settled frame. The test waits on the settled notification (which
-// runs after the dial) before asserting the live port was driven with the name.
-func TestMCPConnectionCommandsUsePorts(t *testing.T) {
-	ports := &fakeMCPPorts{statuses: []mcpserver.ConnectionStatus{{Name: "fs"}, {Name: "github"}}}
-	settled := make(chan string, 2)
+// TestReconnectMCPServerUsesPort: reconnect is fire-and-forget — it validates
+// the name synchronously, then dials on the component task group and publishes
+// the settled frame.
+func TestReconnectMCPServerUsesPort(t *testing.T) {
+	ports := &fakeMCPPorts{statuses: []mcpserver.ConnectionStatus{{Name: "fs", State: mcpserver.ConnectionConnected}}}
+	settled := make(chan string, 1)
 	cfg := configWithMCPPorts(ports)
 	cfg.MCPStatus = func(status MCPServerStatus) {
 		if status.State != mcpserver.ConnectionConnecting {
@@ -79,19 +78,45 @@ func TestMCPConnectionCommandsUsePorts(t *testing.T) {
 	if got := <-settled; got != "fs" {
 		t.Fatalf("settled server = %q, want fs", got)
 	}
-	if err := c.AuthorizeMCPServer(context.Background(), "github"); err != nil {
-		t.Fatalf("AuthorizeMCPServer err = %v", err)
-	}
-	if got := <-settled; got != "github" {
-		t.Fatalf("settled server = %q, want github", got)
-	}
-
-	if ports.reconnectName != "fs" || ports.authorizeName != "github" {
-		t.Fatalf("reconnect=%q authorize=%q", ports.reconnectName, ports.authorizeName)
+	if ports.reconnectName != "fs" {
+		t.Fatalf("reconnect=%q, want fs", ports.reconnectName)
 	}
 
 	if err := c.ReconnectMCPServer(context.Background(), "ghost"); !errors.Is(err, ErrUnknownMCPServer) {
 		t.Fatalf("reconnect unknown = %v, want ErrUnknownMCPServer", err)
+	}
+}
+
+func TestMCPAuthorizationAttemptUsesPortAndSettles(t *testing.T) {
+	authorizeStarted := make(chan string, 1)
+	releaseAuthorize := make(chan struct{})
+	ports := &fakeMCPPorts{
+		statuses:         []mcpserver.ConnectionStatus{{Name: "github"}},
+		authorizeStarted: authorizeStarted,
+		releaseAuthorize: releaseAuthorize,
+	}
+	c := New(configWithMCPPorts(ports))
+	defer requireCoordinatorShutdown(t, c)
+
+	attempt, err := c.CreateMCPAuthorizationAttempt(context.Background(), "github")
+	if err != nil {
+		t.Fatalf("CreateMCPAuthorizationAttempt: %v", err)
+	}
+	if attempt.ID == "" || attempt.Server != "github" || attempt.Status != MCPAuthorizationAttemptPending ||
+		attempt.CreatedAt.IsZero() || attempt.FinishedAt != nil {
+		t.Fatalf("created attempt = %+v", attempt)
+	}
+	if got := <-authorizeStarted; got != "github" {
+		t.Fatalf("authorization target = %q, want github", got)
+	}
+	close(releaseAuthorize)
+
+	settled := awaitMCPAuthorizationAttempt(t, c, attempt.ID)
+	if settled.Status != MCPAuthorizationAttemptSucceeded || settled.FinishedAt == nil {
+		t.Fatalf("settled attempt = %+v, want succeeded", settled)
+	}
+	if ports.authorizeName != "github" {
+		t.Fatalf("authorize=%q, want github", ports.authorizeName)
 	}
 }
 
@@ -279,9 +304,12 @@ type fakeMCPPorts struct {
 	toolsServer string
 	toolsCalls  int
 
-	reconnectName string
-	reconnectDone chan string
-	authorizeName string
+	reconnectName    string
+	reconnectDone    chan string
+	authorizeName    string
+	authorizeStarted chan string
+	releaseAuthorize chan struct{}
+	authorizeErr     error
 
 	probe      mcpserver.Server
 	configure  mcpserver.Server
@@ -305,9 +333,29 @@ func (f *fakeMCPPorts) Reconnect(_ context.Context, name string) error {
 	return nil
 }
 
-func (f *fakeMCPPorts) Authorize(_ context.Context, name string) error {
+func (f *fakeMCPPorts) Authorize(ctx context.Context, name string) error {
 	f.authorizeName = name
-	return nil
+	if f.authorizeStarted != nil {
+		f.authorizeStarted <- name
+	}
+	if f.releaseAuthorize != nil {
+		select {
+		case <-f.releaseAuthorize:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	for index := range f.statuses {
+		if f.statuses[index].Name != name {
+			continue
+		}
+		if f.authorizeErr != nil {
+			f.statuses[index].State = mcpserver.ConnectionFailed
+		} else {
+			f.statuses[index].State = mcpserver.ConnectionConnected
+		}
+	}
+	return f.authorizeErr
 }
 
 func (f *fakeMCPPorts) Probe(_ context.Context, cfg mcpserver.Server) error {
@@ -349,7 +397,10 @@ func configWithMCPPorts(ports interface {
 }) Config {
 	registry := &testMCPRegistry{servers: make(map[string]mcpserver.Server)}
 	for _, status := range ports.Statuses() {
-		registry.servers[status.Name] = mcpserver.Server{Name: status.Name, Enabled: true}
+		registry.servers[status.Name] = mcpserver.Server{
+			Name: status.Name, Enabled: true,
+			Transport: mcpserver.TransportStreamableHTTP, URL: "https://mcp.example/" + status.Name,
+		}
 	}
 	return Config{
 		MCPRegistry:           registry,
@@ -358,6 +409,23 @@ func configWithMCPPorts(ports interface {
 		MCPConnectionCommands: ports,
 		MCPRegistryCommands:   ports,
 	}
+}
+
+func awaitMCPAuthorizationAttempt(t *testing.T, c *Coordinator, id string) MCPAuthorizationAttempt {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		attempt, err := c.MCPAuthorizationAttempt(context.Background(), id)
+		if err != nil {
+			t.Fatalf("MCPAuthorizationAttempt: %v", err)
+		}
+		if attempt.Status != MCPAuthorizationAttemptPending {
+			return attempt
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("MCP authorization attempt %q did not settle", id)
+	return MCPAuthorizationAttempt{}
 }
 
 // testMCPRegistry is a concurrency-safe registry fake that preserves the

@@ -749,6 +749,7 @@ export const de: Record<string, string> = {
   "mcp.transport.stdio": "stdio",
   "mcp.transport.http": "Streamable HTTP",
   "mcp.signIn": "Anmelden",
+  "mcp.signingIn": "Anmeldung läuft…",
   "mcp.form.name.placeholder": "Servername",
   "mcp.form.name.aria": "Servername",
   "mcp.form.transport.aria": "Transport",
@@ -797,7 +798,7 @@ export const de: Record<string, string> = {
   "mcp.error.save": "Server konnte nicht gespeichert werden.",
   "mcp.error.remove": "Server konnte nicht entfernt werden.",
   "mcp.error.toggle": "Server konnte nicht geändert werden.",
-  "mcp.error.signIn": "Anmeldung konnte nicht gestartet werden.",
+  "mcp.error.signIn": "Anmeldung fehlgeschlagen.",
   "mcp.error.test": "Test fehlgeschlagen",
   "workspace.view.title.file": "Datei",
   "workspace.view.title.recipes": "Rezepte",
@@ -982,6 +983,10 @@ export const de: Record<string, string> = {
     "Die Datei ist zu groß, um sie ganz zu lesen — fordere einen Zeilenbereich an.",
   "rpcError.mcp_authorization_required":
     "Dieser Server verlangt eine Anmeldung, bevor er nutzbar ist.",
+  "rpcError.mcp_authorization_failed":
+    "Die Anmeldung wurde nicht abgeschlossen. Versuche es erneut.",
+  "rpcError.mcp_authorization_attempt_not_found":
+    "Dieser Anmeldeversuch ist abgelaufen. Starte ihn erneut.",
   "rpcError.mcp_dial_failed":
     "Dieser Server ist nicht erreichbar — prüfe Befehl oder URL und versuche es erneut.",
   "rpcError.provider_not_configured": "Hinterlege zuerst den API-Key.",

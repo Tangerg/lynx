@@ -737,6 +737,7 @@ export const ja: Record<string, string> = {
   "mcp.transport.stdio": "stdio",
   "mcp.transport.http": "Streamable HTTP",
   "mcp.signIn": "サインイン",
+  "mcp.signingIn": "サインイン中…",
   "mcp.form.name.placeholder": "サーバー名",
   "mcp.form.name.aria": "サーバー名",
   "mcp.form.transport.aria": "トランスポート",
@@ -785,7 +786,7 @@ export const ja: Record<string, string> = {
   "mcp.error.save": "サーバーを保存できませんでした。",
   "mcp.error.remove": "サーバーを削除できませんでした。",
   "mcp.error.toggle": "サーバーを変更できませんでした。",
-  "mcp.error.signIn": "サインインを開始できませんでした。",
+  "mcp.error.signIn": "サインインに失敗しました。",
   "mcp.error.test": "テストに失敗しました",
   "workspace.view.title.file": "ファイル",
   "workspace.view.title.recipes": "レシピ",
@@ -964,6 +965,9 @@ export const ja: Record<string, string> = {
   "rpcError.is_a_directory": "そのパスはディレクトリです — 読み込むファイルを選んでください。",
   "rpcError.file_too_large": "ファイルが大きすぎて全体を読めません — 行範囲を指定してください。",
   "rpcError.mcp_authorization_required": "このサーバーは使う前にサインインが必要です。",
+  "rpcError.mcp_authorization_failed": "サインインが完了しませんでした。もう一度お試しください。",
+  "rpcError.mcp_authorization_attempt_not_found":
+    "このサインイン試行は期限切れです。もう一度開始してください。",
   "rpcError.mcp_dial_failed":
     "このサーバーに接続できません — コマンドか URL を確認して再試行してください。",
   "rpcError.provider_not_configured": "先に API キーを設定してください。",

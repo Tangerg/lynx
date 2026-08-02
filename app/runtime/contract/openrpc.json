@@ -2491,7 +2491,7 @@
       }
     },
     {
-      "name": "mcp.servers.authorize",
+      "name": "mcp.authorizationAttempts.create",
       "paramStructure": "by-name",
       "params": [
         {
@@ -2505,7 +2505,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "type": "object"
+          "$ref": "schema.json#/$defs/McpAuthorizationAttempt"
         }
       },
       "errors": [
@@ -2537,7 +2537,53 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/MCPServerRequest"
+        "$ref": "schema.json#/$defs/CreateMCPAuthorizationAttemptRequest"
+      }
+    },
+    {
+      "name": "mcp.authorizationAttempts.get",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "attemptId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/McpAuthorizationAttempt"
+        }
+      },
+      "errors": [
+        {
+          "code": -32032,
+          "message": "mcp_authorization_attempt_not_found"
+        },
+        {
+          "code": -32006,
+          "message": "capability_not_negotiated"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-operation": "query",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "mcp"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/MCPAuthorizationAttemptRequest"
       }
     },
     {

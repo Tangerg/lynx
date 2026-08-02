@@ -749,6 +749,7 @@ export const fr: Record<string, string> = {
   "mcp.transport.stdio": "stdio",
   "mcp.transport.http": "Streamable HTTP",
   "mcp.signIn": "Se connecter",
+  "mcp.signingIn": "Connexion…",
   "mcp.form.name.placeholder": "Nom du serveur",
   "mcp.form.name.aria": "Nom du serveur",
   "mcp.form.transport.aria": "Transport",
@@ -797,7 +798,7 @@ export const fr: Record<string, string> = {
   "mcp.error.save": "Impossible d'enregistrer le serveur.",
   "mcp.error.remove": "Impossible de supprimer le serveur.",
   "mcp.error.toggle": "Impossible de modifier le serveur.",
-  "mcp.error.signIn": "Impossible de démarrer la connexion.",
+  "mcp.error.signIn": "Échec de la connexion.",
   "mcp.error.test": "Échec du test",
   "workspace.view.title.file": "Fichier",
   "workspace.view.title.recipes": "Recettes",
@@ -979,6 +980,9 @@ export const fr: Record<string, string> = {
     "Le fichier est trop gros pour être lu en entier — demande une plage de lignes.",
   "rpcError.mcp_authorization_required":
     "Ce serveur demande une connexion avant de pouvoir servir.",
+  "rpcError.mcp_authorization_failed": "La connexion n'a pas abouti. Réessaie.",
+  "rpcError.mcp_authorization_attempt_not_found":
+    "Cette tentative de connexion a expiré. Recommence.",
   "rpcError.mcp_dial_failed":
     "Impossible de joindre ce serveur — vérifie la commande ou l'URL et réessaie.",
   "rpcError.provider_not_configured": "Renseigne d'abord la clé d'API.",

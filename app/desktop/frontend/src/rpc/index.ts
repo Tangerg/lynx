@@ -139,6 +139,8 @@ export type {
   CreateScheduleRequest,
   AgentDoc,
   McpServer,
+  McpAuthorizationAttempt,
+  McpAuthorizationAttemptStatus,
   McpServerState,
   McpServerStateType,
   McpTool,

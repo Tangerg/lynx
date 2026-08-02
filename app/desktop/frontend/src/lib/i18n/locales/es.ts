@@ -746,6 +746,7 @@ export const es: Record<string, string> = {
   "mcp.transport.stdio": "stdio",
   "mcp.transport.http": "Streamable HTTP",
   "mcp.signIn": "Iniciar sesión",
+  "mcp.signingIn": "Iniciando sesión…",
   "mcp.form.name.placeholder": "Nombre del servidor",
   "mcp.form.name.aria": "Nombre del servidor",
   "mcp.form.transport.aria": "Transporte",
@@ -794,7 +795,7 @@ export const es: Record<string, string> = {
   "mcp.error.save": "No se pudo guardar el servidor.",
   "mcp.error.remove": "No se pudo eliminar el servidor.",
   "mcp.error.toggle": "No se pudo modificar el servidor.",
-  "mcp.error.signIn": "No se pudo iniciar el inicio de sesión.",
+  "mcp.error.signIn": "Error al iniciar sesión.",
   "mcp.error.test": "La prueba falló",
   "workspace.view.title.file": "Archivo",
   "workspace.view.title.recipes": "Recetas",
@@ -973,6 +974,9 @@ export const es: Record<string, string> = {
     "El archivo es demasiado grande para leerlo entero — pide un rango de líneas.",
   "rpcError.mcp_authorization_required":
     "Este servidor requiere que inicies sesión antes de usarlo.",
+  "rpcError.mcp_authorization_failed": "No se completó el inicio de sesión. Inténtalo de nuevo.",
+  "rpcError.mcp_authorization_attempt_not_found":
+    "Este intento de inicio de sesión caducó. Inicia uno nuevo.",
   "rpcError.mcp_dial_failed":
     "No se pudo conectar con este servidor — revisa el comando o la URL y reinténtalo.",
   "rpcError.provider_not_configured": "Configura primero la clave de API.",

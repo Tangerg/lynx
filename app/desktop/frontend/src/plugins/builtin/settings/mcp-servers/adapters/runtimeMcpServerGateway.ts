@@ -4,6 +4,7 @@ import { getContainer } from "@/main/container";
 import type {
   MCPServerCandidate,
   McpAuthorizationChange,
+  McpAuthorizationAttempt,
   McpConnectionInput,
   McpEnvironmentChange,
   McpHeadersChange,
@@ -12,6 +13,7 @@ import type {
 import type { MCPServerInput } from "../application/mcpServerInput";
 import {
   configureMCPServerGateway,
+  type MCPAuthorizationAttempt as AuthorizationAttempt,
   type MCPServerGateway,
 } from "../application/ports/mcpServerGateway";
 
@@ -75,6 +77,21 @@ function updateRequest(name: string, input: MCPServerInput): UpdateMCPServerRequ
   };
 }
 
+function authorizationAttempt(attempt: McpAuthorizationAttempt): AuthorizationAttempt {
+  switch (attempt.status.type) {
+    case "pending":
+    case "succeeded":
+    case "canceled":
+      return { id: attempt.id, status: attempt.status.type };
+    case "failed":
+      return {
+        id: attempt.id,
+        status: "failed",
+        error: describeProblem(attempt.status.error) ?? t("mcp.error.signIn"),
+      };
+  }
+}
+
 const gateway: MCPServerGateway = {
   async create(input) {
     await getContainer().client().mcp.create(candidate(input));
@@ -88,8 +105,13 @@ const gateway: MCPServerGateway = {
   async setEnabled(name, enabled) {
     await getContainer().client().mcp.update({ server: name, enabled });
   },
-  async authorize(name) {
-    await getContainer().client().mcp.authorize(name);
+  async createAuthorizationAttempt(name, signal) {
+    const attempt = await getContainer().client().mcp.authorizationAttempts.create(name, signal);
+    return authorizationAttempt(attempt);
+  },
+  async getAuthorizationAttempt(id, signal) {
+    const attempt = await getContainer().client().mcp.authorizationAttempts.get(id, signal);
+    return authorizationAttempt(attempt);
   },
   async test(input) {
     const result = await getContainer().client().mcp.test(candidate(input));

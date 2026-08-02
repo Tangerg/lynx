@@ -189,13 +189,15 @@ run 粒度、按 `runId` 寻址的三个会话操作：**回退**（就地销毁
 
 资源操作采用明确的 create/update/delete 语义：
 
-| method               | 语义                                                                  |
-| -------------------- | --------------------------------------------------------------------- |
-| `mcp.servers.list`   | 列出所有持久化 server，并叠加 live 状态；disabled 条目不会消失        |
-| `mcp.servers.create` | 创建新名字；已存在返回 `mcp_server_already_exists`，绝不隐式覆盖      |
-| `mcp.servers.update` | 部分更新；字段省略 = 保留，显式空值/空集合/0 = 清空                   |
-| `mcp.servers.delete` | 删除配置与 live projection；不存在返回 `mcp_server_not_found`         |
-| `mcp.servers.test`   | 探测完整候选配置，不持久化；失败 verdict 内联在 `McpTestResult.error` |
+| method                                 | 语义                                                                  |
+| -------------------------------------- | --------------------------------------------------------------------- |
+| `mcp.servers.list`                     | 列出所有持久化 server，并叠加 live 状态；disabled 条目不会消失        |
+| `mcp.servers.create`                   | 创建新名字；已存在返回 `mcp_server_already_exists`，绝不隐式覆盖      |
+| `mcp.servers.update`                   | 部分更新；字段省略 = 保留，显式空值/空集合/0 = 清空                   |
+| `mcp.servers.delete`                   | 删除配置与 live projection；不存在返回 `mcp_server_not_found`         |
+| `mcp.servers.test`                     | 探测完整候选配置，不持久化；失败 verdict 内联在 `McpTestResult.error` |
+| `mcp.authorizationAttempts.create`     | 创建交互式 OAuth attempt；立即返回 `pending` 资源                     |
+| `mcp.authorizationAttempts.get`        | 读取 pending 或保留期内的终态 attempt                                 |
 
 连接配置中的 authorization、HTTP headers 与 stdio environment 全部按 secret 处理：读模型只给
 `authorizationMasked` / `headersMasked` / `envMasked`，绝不回传原文；写模型使用三个领域专用 change union，省略 = 在
@@ -218,7 +220,20 @@ run 粒度、按 `runId` 寻址的三个会话操作：**回退**（就地销毁
   客户端重拉 `mcp.servers.list`（§3）。
 - 启动时**容忍单个 server 失败**：一个连不上的 server 不该让整个 runtime 起不来，它以 `failed` + 内联 error 出现在
   列表里。
-- `mcp.servers.authorize` 与 `mcp.servers.create/update/delete/test` 共用这条失效路径。
+- `mcp.authorizationAttempts.create` 引起的 live server 状态变化与
+  `mcp.servers.create/update/delete/test` 共用这条失效路径；attempt 自身不塞进失效帧，客户端按 id 调 get 读取。
+
+### 5.2 交互式授权 attempt
+
+`mcp.authorizationAttempts.create{server}` 是 command，受统一 Idempotency-Key 规则保护；同一个逻辑 mutation 的重试
+返回同一个 attempt，不会重复打开浏览器流程。返回资源的 `status` 是闭合联合：`pending` / `succeeded` /
+`failed{error}` / `canceled`。只有 server 已实际进入 connected 才成功；OAuth 或后续连接失败只给稳定的
+`mcp_authorization_failed`，原始错误留在 telemetry。create 只接受 `streamableHttp` server，其他 transport 在 attempt
+产生前拒绝。对同一 server 发起新的 configure/delete/reconnect/authorization 会取消旧 attempt，防止两条生命周期
+控制线同时拥有一个连接。
+
+终态保留时长由 `runtime.discover.capabilities.limits.mcpAuthorizationAttempts.retentionSeconds` 给出；超过窗口的 get 返回
+`mcp_authorization_attempt_not_found`。pending attempt 不按该窗口过期，实际 OAuth 人机等待由运行时自己的执行上限收敛。
 
 ---
 

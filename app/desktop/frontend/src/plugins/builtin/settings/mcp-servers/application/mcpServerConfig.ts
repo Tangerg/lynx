@@ -9,6 +9,8 @@ import {
 import type { MCPServerInput } from "./mcpServerInput";
 import { mcpServerGateway, type MCPServerTestOutcome } from "./ports/mcpServerGateway";
 
+const AUTHORIZATION_ATTEMPT_POLL_MS = 500;
+
 export type { MCPServerInput } from "./mcpServerInput";
 export type { MCPTransport } from "./mcpServerQueries";
 export type { MCPServerTestOutcome } from "./ports/mcpServerGateway";
@@ -53,11 +55,38 @@ export function useSetMCPServerEnabled(): (name: string, enabled: boolean) => Pr
   }, []);
 }
 
-export function useAuthorizeMCPServer(): (name: string) => Promise<void> {
-  return useCallback(async (name) => {
-    await mcpServerGateway().authorize(name);
-    await invalidateMcp();
-  }, []);
+export function useAuthorizeMCPServer(): (name: string, signal?: AbortSignal) => Promise<void> {
+  return useCallback(authorizeMCPServer, []);
+}
+
+export async function authorizeMCPServer(name: string, signal?: AbortSignal): Promise<void> {
+  const gateway = mcpServerGateway();
+  let attempt = await gateway.createAuthorizationAttempt(name, signal);
+  while (attempt.status === "pending") {
+    await authorizationPollDelay(signal);
+    attempt = await gateway.getAuthorizationAttempt(attempt.id, signal);
+  }
+  await invalidateMcp();
+  if (attempt.status === "failed") {
+    throw new Error(attempt.error);
+  }
+}
+
+function authorizationPollDelay(signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(signal.reason);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(done, AUTHORIZATION_ATTEMPT_POLL_MS);
+    function done(): void {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", aborted);
+      resolve();
+    }
+    function aborted(): void {
+      clearTimeout(timer);
+      reject(signal?.reason);
+    }
+    signal?.addEventListener("abort", aborted, { once: true });
+  });
 }
 
 export function useTestMCPServer(): (input: MCPServerInput) => Promise<MCPServerTestOutcome> {

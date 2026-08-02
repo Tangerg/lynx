@@ -74,6 +74,7 @@ export type WireTypeName =
   | "CodebaseStatusRequest"
   | "ContentBlock"
   | "ContentBlockType"
+  | "CreateMCPAuthorizationAttemptRequest"
   | "CreateScheduleRequest"
   | "CreateSessionRequest"
   | "DeleteScheduleRequest"
@@ -150,10 +151,15 @@ export type WireTypeName =
   | "ListItemsResponse"
   | "ListModelsRequest"
   | "ListRunsRequest"
+  | "MCPAuthorizationAttemptLimits"
+  | "MCPAuthorizationAttemptRequest"
   | "MCPListToolsRequest"
   | "MCPServerCandidate"
   | "MCPServerRequest"
   | "ManagedSkill"
+  | "McpAuthorizationAttempt"
+  | "McpAuthorizationAttemptStatus"
+  | "McpAuthorizationAttemptStatusType"
   | "McpAuthorizationChange"
   | "McpConnection"
   | "McpConnectionInput"
@@ -759,6 +765,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     ]),
   ]),
   ContentBlockType: enumOf(["text", "image"]),
+  CreateMCPAuthorizationAttemptRequest: object({
+    server: allOf([text(), minLength(1)]),
+  }, ["server"]),
   CreateScheduleRequest: object({
     cron: text(),
     model: text(),
@@ -1323,6 +1332,12 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     sessionId: text(),
     statuses: allOf([array(ref(() => CHECKS.RunStatus)), minItems(1), uniqueItems()]),
   }, []),
+  MCPAuthorizationAttemptLimits: object({
+    retentionSeconds: allOf([integer(), minimum(1)]),
+  }, ["retentionSeconds"]),
+  MCPAuthorizationAttemptRequest: object({
+    attemptId: allOf([text(), minLength(1)]),
+  }, ["attemptId"]),
   MCPListToolsRequest: object({
     cursor: text(),
     limit: integer(),
@@ -1345,6 +1360,73 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     lifecycle: ref(() => CHECKS.SkillLifecycle),
     name: text(),
   }, ["lifecycle", "name"]),
+  McpAuthorizationAttempt: allOf([
+    object({
+      createdAt: text(),
+      finishedAt: text(),
+      id: allOf([text(), minLength(1)]),
+      server: allOf([text(), minLength(1)]),
+      status: ref(() => CHECKS.McpAuthorizationAttemptStatus),
+    }, ["createdAt", "id", "server", "status"]),
+    ifThen(
+      fields({
+        status: fields({
+          type: literal("pending"),
+        }, ["type"]),
+      }, ["status"]),
+      fields({
+        finishedAt: absent(),
+      }, []),
+    ),
+    ifThen(
+      fields({
+        status: fields({
+          type: literal("succeeded"),
+        }, ["type"]),
+      }, ["status"]),
+      fields({}, ["finishedAt"]),
+    ),
+    ifThen(
+      fields({
+        status: fields({
+          type: literal("failed"),
+        }, ["type"]),
+      }, ["status"]),
+      fields({}, ["finishedAt"]),
+    ),
+    ifThen(
+      fields({
+        status: fields({
+          type: literal("canceled"),
+        }, ["type"]),
+      }, ["status"]),
+      fields({}, ["finishedAt"]),
+    ),
+  ]),
+  McpAuthorizationAttemptStatus: allOf([
+    object({
+      error: ref(() => CHECKS.ProblemData),
+      type: ref(() => CHECKS.McpAuthorizationAttemptStatusType),
+    }, []),
+    oneOf([
+      fields({
+        error: absent(),
+        type: literal("pending"),
+      }, ["type"]),
+      fields({
+        error: absent(),
+        type: literal("succeeded"),
+      }, ["type"]),
+      fields({
+        type: literal("failed"),
+      }, ["error", "type"]),
+      fields({
+        error: absent(),
+        type: literal("canceled"),
+      }, ["type"]),
+    ]),
+  ]),
+  McpAuthorizationAttemptStatusType: enumOf(["pending", "succeeded", "failed", "canceled"]),
   McpAuthorizationChange: allOf([
     object({
       type: ref(() => CHECKS.McpSecretChangeType),
@@ -1742,6 +1824,22 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         requiredCapabilities: absent(),
         retryAfterSeconds: absent(),
         type: literal("item_not_found"),
+      }, ["type"]),
+      fields({
+        activeRun: absent(),
+        errors: absent(),
+        requiredCapabilities: absent(),
+        retryAfterSeconds: absent(),
+        type: literal("mcp_authorization_attempt_not_found"),
+      }, ["type"]),
+      fields({
+        activeRun: absent(),
+        detail: absent(),
+        docUrl: absent(),
+        errors: absent(),
+        requiredCapabilities: absent(),
+        retryAfterSeconds: absent(),
+        type: literal("mcp_authorization_failed"),
       }, ["type"]),
       fields({
         activeRun: absent(),
@@ -2436,9 +2534,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   RuntimeLimits: object({
     idempotency: ref(() => CHECKS.IdempotencyLimits),
     maxConcurrentRuns: integer(),
+    mcpAuthorizationAttempts: ref(() => CHECKS.MCPAuthorizationAttemptLimits),
     runReplay: ref(() => CHECKS.RunReplayLimits),
     runtimeSubscription: ref(() => CHECKS.SubscriptionLimits),
-  }, ["idempotency", "runReplay", "runtimeSubscription"]),
+  }, ["idempotency", "mcpAuthorizationAttempts", "runReplay", "runtimeSubscription"]),
   RuntimeSubscribeRequest: object({
     topics: allOf([array(ref(() => CHECKS.RuntimeTopic)), minItems(1), uniqueItems()]),
     watches: array(ref(() => CHECKS.WatchSpec)),
@@ -2970,7 +3069,8 @@ const METHOD_RESULTS: Record<WireMethodName, WireCheck> = {
   "mcp.servers.test": ref(() => CHECKS.McpTestResult),
   "mcp.tools.list": ref(() => CHECKS.PageOfMcpTool),
   "mcp.servers.reconnect": object({}, []),
-  "mcp.servers.authorize": object({}, []),
+  "mcp.authorizationAttempts.create": ref(() => CHECKS.McpAuthorizationAttempt),
+  "mcp.authorizationAttempts.get": ref(() => CHECKS.McpAuthorizationAttempt),
   "hooks.list": ref(() => CHECKS.HooksListResult),
   "hooks.setTrust": object({}, []),
   "approval.getMode": ref(() => CHECKS.ApprovalModeResult),

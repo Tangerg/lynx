@@ -136,6 +136,9 @@ func registerIntegrationValues(s *Shapes) {
 	nonEmpty[protocol.SkillNameRequest](s, "name")
 	nonEmpty[protocol.SetHookTrustRequest](s, "projectRoot")
 	nonEmpty[protocol.MCPServerRequest](s, "server")
+	nonEmpty[protocol.CreateMCPAuthorizationAttemptRequest](s, "server")
+	nonEmpty[protocol.MCPAuthorizationAttemptRequest](s, "attemptId")
+	nonEmpty[protocol.McpAuthorizationAttempt](s, "id", "server")
 	nonEmpty[protocol.McpConnection](s, "url", "command")
 	nonEmpty[protocol.McpConnectionInput](s, "url", "command")
 	nonEmpty[protocol.McpAuthorizationChange](s, "value")
@@ -199,6 +202,11 @@ func registerScheduleValues(s *Shapes) {
 }
 
 func registerRuntimeValues(s *Shapes) {
+	s.valueConstraint(FieldConstraintSpec{
+		GoType:      typeOf[protocol.MCPAuthorizationAttemptLimits](),
+		Constraints: []FieldConstraint{{Field: "retentionSeconds", Kind: ConstraintPositive}},
+	})
+
 	// A subscription names a set. Absence and an empty set both describe no stream,
 	// while duplicates claim a set distinction that does not exist.
 	s.valueConstraint(FieldConstraintSpec{

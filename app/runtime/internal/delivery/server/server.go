@@ -215,7 +215,8 @@ type Server struct {
 
 	// replay is the advertised replay window, captured and validated from the
 	// required run coordinator at construction.
-	replay protocol.RunReplayLimits
+	replay                   protocol.RunReplayLimits
+	mcpAuthorizationAttempts protocol.MCPAuthorizationAttemptLimits
 
 	// wsHub fans non-run change signals (files/skills/mcp/schedule/session) out to
 	// runtime.subscribe streams (AUX_API §3). Ephemeral, lossy, connection-
@@ -326,32 +327,39 @@ func New(cfg Config) (*Server, error) {
 	if err := protocol.ValidateWireTree(replay); err != nil {
 		return nil, fmt.Errorf("server: coordinator returned invalid replay retention: %w", err)
 	}
+	mcpAuthorizationAttempts := protocol.MCPAuthorizationAttemptLimits{
+		RetentionSeconds: int(cfg.Integrations.MCPAuthorizationAttemptRetention().Seconds()),
+	}
+	if err := protocol.ValidateWireTree(mcpAuthorizationAttempts); err != nil {
+		return nil, fmt.Errorf("server: integrations returned invalid MCP authorization attempt retention: %w", err)
+	}
 	srv := &Server{
-		sessions:           cfg.Sessions,
-		integrations:       cfg.Integrations,
-		approvals:          cfg.Approvals,
-		models:             cfg.Models,
-		tools:              cfg.Tools,
-		codebase:           cfg.Codebase,
-		coordinator:        cfg.Coordinator,
-		queries:            cfg.Queries,
-		usage:              cfg.Usage,
-		feedback:           cfg.Feedback,
-		serverInfo:         cfg.ServerInfo,
-		wsHub:              newWorkspaceHub(),
-		schedules:          cfg.Schedules,
-		scheduleFiring:     cfg.ScheduleFiring,
-		goals:              cfg.Goals,
-		agentMemory:        cfg.AgentMemory,
-		workspaceFiles:     cfg.WorkspaceFiles,
-		workspaceVCS:       cfg.WorkspaceVCS,
-		workspaceDiscovery: cfg.WorkspaceDiscovery,
-		workspaceKnowledge: cfg.WorkspaceKnowledge,
-		workspaceSkills:    cfg.WorkspaceSkills,
-		workspaceHooks:     cfg.WorkspaceHooks,
-		workspaceWatch:     cfg.WorkspaceWatch,
-		features:           features,
-		replay:             replay,
+		sessions:                 cfg.Sessions,
+		integrations:             cfg.Integrations,
+		approvals:                cfg.Approvals,
+		models:                   cfg.Models,
+		tools:                    cfg.Tools,
+		codebase:                 cfg.Codebase,
+		coordinator:              cfg.Coordinator,
+		queries:                  cfg.Queries,
+		usage:                    cfg.Usage,
+		feedback:                 cfg.Feedback,
+		serverInfo:               cfg.ServerInfo,
+		wsHub:                    newWorkspaceHub(),
+		schedules:                cfg.Schedules,
+		scheduleFiring:           cfg.ScheduleFiring,
+		goals:                    cfg.Goals,
+		agentMemory:              cfg.AgentMemory,
+		workspaceFiles:           cfg.WorkspaceFiles,
+		workspaceVCS:             cfg.WorkspaceVCS,
+		workspaceDiscovery:       cfg.WorkspaceDiscovery,
+		workspaceKnowledge:       cfg.WorkspaceKnowledge,
+		workspaceSkills:          cfg.WorkspaceSkills,
+		workspaceHooks:           cfg.WorkspaceHooks,
+		workspaceWatch:           cfg.WorkspaceWatch,
+		features:                 features,
+		replay:                   replay,
+		mcpAuthorizationAttempts: mcpAuthorizationAttempts,
 	}
 	// The run pump publishes live file-change nudges through the composition-root
 	// bridge; the Server maps each to a wire workspace event on its hub. This is
@@ -382,7 +390,7 @@ func New(cfg Config) (*Server, error) {
 // optional keys come from the same immutable composition facts that handlers
 // use for their capability gates.
 func (s *Server) Capabilities() protocol.ServerCapabilities {
-	return capabilitiesFor(s.features, s.replay)
+	return capabilitiesFor(s.features, s.replay, s.mcpAuthorizationAttempts)
 }
 
 // replayLimitsFrom captures the replay window the run coordinator enforces, at
@@ -408,7 +416,11 @@ func replayLimitsFrom(coordinator runUseCases) protocol.RunReplayLimits {
 // capability is never inferred from an RPC error; discovery and gating share
 // the same facts so an advertised feature is callable and a disabled feature
 // is absent before the client issues a request.
-func capabilitiesFor(features featureAvailability, replay protocol.RunReplayLimits) protocol.ServerCapabilities {
+func capabilitiesFor(
+	features featureAvailability,
+	replay protocol.RunReplayLimits,
+	mcpAuthorizationAttempts protocol.MCPAuthorizationAttemptLimits,
+) protocol.ServerCapabilities {
 	return protocol.ServerCapabilities{
 		RunEvents: []protocol.StreamEventType{
 			protocol.StreamSegmentStarted,
@@ -435,7 +447,8 @@ func capabilitiesFor(features featureAvailability, replay protocol.RunReplayLimi
 			},
 			// No process-wide run cap is enforced, so maxConcurrentRuns stays absent
 			// rather than advertising a limit the admission layer does not own.
-			RunReplay: replay,
+			RunReplay:                replay,
+			MCPAuthorizationAttempts: mcpAuthorizationAttempts,
 			RuntimeSubscription: protocol.SubscriptionLimits{
 				MaxTopics: protocol.MaxSubscriptionTopics, MaxWatches: protocol.MaxSubscriptionWatches,
 			},

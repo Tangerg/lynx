@@ -106,10 +106,25 @@ func (s *Server) ReconnectMCPServer(ctx context.Context, server string) error {
 	return wireMCPError(s.integrations.ReconnectMCPServer(ctx, server))
 }
 
-// AuthorizeMCPServer starts interactive OAuth. This method is replaced by the
-// first-class authorization-attempt resource in the next protocol batch.
-func (s *Server) AuthorizeMCPServer(ctx context.Context, server string) error {
-	return wireMCPError(s.integrations.AuthorizeMCPServer(ctx, server))
+// CreateMCPAuthorizationAttempt starts interactive OAuth and returns its
+// observable asynchronous resource immediately.
+func (s *Server) CreateMCPAuthorizationAttempt(ctx context.Context, server string) (*protocol.McpAuthorizationAttempt, error) {
+	attempt, err := s.integrations.CreateMCPAuthorizationAttempt(ctx, server)
+	if err != nil {
+		return nil, wireMCPError(err)
+	}
+	out := mcpAuthorizationAttemptWire(attempt)
+	return &out, nil
+}
+
+// GetMCPAuthorizationAttempt returns a pending or retained terminal OAuth flow.
+func (s *Server) GetMCPAuthorizationAttempt(ctx context.Context, attemptID string) (*protocol.McpAuthorizationAttempt, error) {
+	attempt, err := s.integrations.MCPAuthorizationAttempt(ctx, attemptID)
+	if err != nil {
+		return nil, wireMCPError(err)
+	}
+	out := mcpAuthorizationAttemptWire(attempt)
+	return &out, nil
 }
 
 func wireMCPError(err error) error {
@@ -120,6 +135,10 @@ func wireMCPError(err error) error {
 		return fmt.Errorf("%w: %w", protocol.ErrMCPServerAlreadyExists, err)
 	case errors.Is(err, integrations.ErrMCPServerDisabled):
 		return fmt.Errorf("%w: %w", protocol.ErrMCPServerDisabled, err)
+	case errors.Is(err, integrations.ErrMCPAuthorizationAttemptNotFound):
+		return fmt.Errorf("%w: %w", protocol.ErrMCPAuthorizationAttemptNotFound, err)
+	case errors.Is(err, integrations.ErrMCPAuthorizationUnsupported):
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	case errors.Is(err, integrations.ErrInvalidMCPServerConfiguration):
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
