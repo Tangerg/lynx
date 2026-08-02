@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/ollama"
+	"github.com/Tangerg/lynx/models/ollama/internal/testutil"
 )
 
 func TestEmbeddingModel_Integration(t *testing.T) {

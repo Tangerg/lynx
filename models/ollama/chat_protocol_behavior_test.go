@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/models/internal/conformance"
 	"github.com/Tangerg/lynx/models/ollama"
+	"github.com/Tangerg/lynx/models/ollama/internal/conformance"
 )
 
 func TestChat_BehaviorConformance(t *testing.T) {

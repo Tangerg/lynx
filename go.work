@@ -17,7 +17,11 @@ use (
 	./examples/mcp
 	./mcp
 	./models
+	./models/bedrock
+	./models/cohere
 	./models/google
+	./models/luma
+	./models/ollama
 	./models/protocol/openai
 	./otel
 	./rag

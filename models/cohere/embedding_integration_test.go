@@ -9,7 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/models/cohere"
-	"github.com/Tangerg/lynx/models/internal/testutil"
+	"github.com/Tangerg/lynx/models/cohere/internal/testutil"
 )
 
 func TestEmbeddingModel_Integration(t *testing.T) {

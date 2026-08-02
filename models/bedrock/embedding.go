@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/models/internal/options"
+	"github.com/Tangerg/lynx/models/bedrock/internal/options"
 )
 
 const (

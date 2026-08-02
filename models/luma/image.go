@@ -14,7 +14,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/models/internal/options"
+	"github.com/Tangerg/lynx/models/luma/internal/options"
 )
 
 type ImageModelConfig struct {

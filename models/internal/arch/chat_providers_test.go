@@ -2,13 +2,11 @@
 package arch_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/Tangerg/lynx/models/alibaba"
 	"github.com/Tangerg/lynx/models/anthropic"
 	"github.com/Tangerg/lynx/models/azureopenai"
-	"github.com/Tangerg/lynx/models/bedrock"
 	"github.com/Tangerg/lynx/models/deepseek"
 	"github.com/Tangerg/lynx/models/fireworks"
 	"github.com/Tangerg/lynx/models/groq"
@@ -16,7 +14,6 @@ import (
 	"github.com/Tangerg/lynx/models/minimax"
 	"github.com/Tangerg/lynx/models/mistral"
 	"github.com/Tangerg/lynx/models/moonshot"
-	"github.com/Tangerg/lynx/models/ollama"
 	"github.com/Tangerg/lynx/models/openai"
 	"github.com/Tangerg/lynx/models/openrouter"
 	"github.com/Tangerg/lynx/models/perplexity"
@@ -34,7 +31,6 @@ func TestTargetChatProviderConstructorsCompile(t *testing.T) {
 		_ func(anthropic.ChatConfig) (*anthropic.Chat, error)                     = anthropic.NewChat
 		_ func(anthropic.OpenAIChatConfig) (*anthropic.OpenAIChat, error)         = anthropic.NewOpenAIChat
 		_ func(azureopenai.ChatConfig) (*azureopenai.Chat, error)                 = azureopenai.NewChat
-		_ func(context.Context, bedrock.ChatConfig) (*bedrock.Chat, error)        = bedrock.NewChat
 		_ func(deepseek.OpenAIChatConfig) (*deepseek.OpenAIChat, error)           = deepseek.NewOpenAIChat
 		_ func(fireworks.OpenAIChatConfig) (*fireworks.OpenAIChat, error)         = fireworks.NewOpenAIChat
 		_ func(groq.OpenAIChatConfig) (*groq.OpenAIChat, error)                   = groq.NewOpenAIChat
@@ -44,8 +40,6 @@ func TestTargetChatProviderConstructorsCompile(t *testing.T) {
 		_ func(mistral.ChatConfig) (*mistral.Chat, error)                         = mistral.NewChat
 		_ func(moonshot.OpenAIChatConfig) (*moonshot.OpenAIChat, error)           = moonshot.NewOpenAIChat
 		_ func(moonshot.AnthropicChatConfig) (*moonshot.AnthropicChat, error)     = moonshot.NewAnthropicChat
-		_ func(ollama.ChatConfig) (*ollama.Chat, error)                           = ollama.NewChat
-		_ func(ollama.OpenAIChatConfig) (*ollama.OpenAIChat, error)               = ollama.NewOpenAIChat
 		_ func(openai.ChatConfig) (*openai.Chat, error)                           = openai.NewChat
 		_ func(openai.ChatConfig) (*openai.ResponsesChat, error)                  = openai.NewResponsesChat
 		_ func(openrouter.OpenAIChatConfig) (*openrouter.OpenAIChat, error)       = openrouter.NewOpenAIChat

@@ -9,7 +9,7 @@ import (
 	cohereoption "github.com/cohere-ai/cohere-go/v2/option"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/models/internal/options"
+	"github.com/Tangerg/lynx/models/cohere/internal/options"
 )
 
 type EmbeddingModelConfig struct {
