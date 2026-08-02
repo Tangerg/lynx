@@ -18,12 +18,12 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/pgfilter"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+	vectorconv "github.com/Tangerg/lynx/vectorstores/internal/vector"
 )
 
 // DistanceMetric selects the pgvector-compatible query operator.
@@ -152,7 +152,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 				return fmt.Errorf("%s.Store.Add: marshal metadata for document %q: %w", s.provider, id, err)
 			}
 
-			vec := pgvec.NewVector(math.ConvertSlice[float64, float32](vectors[i]))
+			vec := pgvec.NewVector(vectorconv.Float32(vectors[i]))
 			batch.Queue(upsertSQL, id, doc.Text, metaJSON, vec)
 		}
 
@@ -198,7 +198,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("%s.Store.Search: embed query: %w", s.provider, err)
 	}
-	queryVec := pgvec.NewVector(math.ConvertSlice[float64, float32](vector))
+	queryVec := pgvec.NewVector(vectorconv.Float32(vector))
 
 	whereSQL, args, err := s.buildWhereClause(req.Filter)
 	if err != nil {

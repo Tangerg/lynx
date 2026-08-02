@@ -6,8 +6,6 @@ cloud.google.com/go/compute/metadata v0.9.0 h1:pDUj4QMoPejqq20dK0Pg2N4yG9zIkYGdB
 cloud.google.com/go/compute/metadata v0.9.0/go.mod h1:E0bWwX5wTnLPedCKqk3pJmVgCBSM6qQI1yTBdEb3C10=
 github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9 h1:MPl9AlCg41y7KSony3MEwczSRX1uGVMJb5773ZFZoWc=
 github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
-github.com/Tangerg/lynx/pkg v0.0.0-20260731193916-0098789d89e9 h1:3xeOyVT+HwDUHW/AFfKHS071F8tOkNqvrxD0ziitH2A=
-github.com/Tangerg/lynx/pkg v0.0.0-20260731193916-0098789d89e9/go.mod h1:+AYRcOYA8qwIZjux7N5N2yVZ+Yq5Y8gWd/hV+PnPad4=
 github.com/Tangerg/lynx/tokenizer v0.0.0-20260731193916-0098789d89e9 h1:qoocazhM1GSe58KXKSVSSiEldkjFjeNMWVvk+iOC5rE=
 github.com/Tangerg/lynx/tokenizer v0.0.0-20260731193916-0098789d89e9/go.mod h1:A3bY1iwmE/UJ107tAGKzPnyqzJw0GUsBphYQvCH72tQ=
 github.com/anthropics/anthropic-sdk-go v1.61.0 h1:JRTnm1tPqn5xo1xd1zfrcFDlcoWXVMvV1K68YmhpZKw=

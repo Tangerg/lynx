@@ -15,11 +15,11 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+	vectorconv "github.com/Tangerg/lynx/vectorstores/internal/vector"
 )
 
 const (
@@ -242,7 +242,7 @@ func (s *Store) buildPointStruct(doc *document.Document, vector []float64) (*qdr
 
 	point := &qdrant.PointStruct{
 		Id:      id,
-		Vectors: qdrant.NewVectors(math.ConvertSlice[float64, float32](vector)...),
+		Vectors: qdrant.NewVectors(vectorconv.Float32(vector)...),
 	}
 
 	metadataValues, err := doc.Metadata.Values()
@@ -313,7 +313,7 @@ func (s *Store) buildQueryPoints(ctx context.Context, req vectorstore.SearchRequ
 		return nil, fmt.Errorf("qdrant: embed query: %w", err)
 	}
 
-	queryPoints.Query = qdrant.NewQuery(math.ConvertSlice[float64, float32](vector)...)
+	queryPoints.Query = qdrant.NewQuery(vectorconv.Float32(vector)...)
 
 	return queryPoints, nil
 }

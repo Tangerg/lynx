@@ -37,8 +37,6 @@ github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9 h1:MPl9AlCg41y7K
 github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
 github.com/Tangerg/lynx/embeddingclient v0.0.0-20260731193916-0098789d89e9 h1:rK37NQzvidbdbf1EbuNBTSkgu91GlOnGd0dncjh3n/Y=
 github.com/Tangerg/lynx/embeddingclient v0.0.0-20260731193916-0098789d89e9/go.mod h1:BWdg/wvTfyHpmN4IfphGzmtTL3sBcIEreJDg0Ax0nSs=
-github.com/Tangerg/lynx/pkg v0.0.0-20260731193916-0098789d89e9 h1:3xeOyVT+HwDUHW/AFfKHS071F8tOkNqvrxD0ziitH2A=
-github.com/Tangerg/lynx/pkg v0.0.0-20260731193916-0098789d89e9/go.mod h1:+AYRcOYA8qwIZjux7N5N2yVZ+Yq5Y8gWd/hV+PnPad4=
 github.com/alecthomas/assert/v2 v2.10.0 h1:jjRCHsj6hBJhkmhznrCzoNpbA3zqy0fYiUcYZP/GkPY=
 github.com/alecthomas/assert/v2 v2.10.0/go.mod h1:Bze95FyfUr7x34QZrjL+XP+0qgp/zg8yS+TtBj1WA3k=
 github.com/alecthomas/repr v0.4.0 h1:GhI2A8MACjfegCPVq9f1FLvIBS+DrQ2KQBFZP1iFzXc=

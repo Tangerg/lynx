@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 	toolcontract "github.com/Tangerg/lynx/tools"
+	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
 // ReadRequest is the LLM-facing argument shape for the read tool.
@@ -29,7 +29,7 @@ type ReadResponse struct {
 	Truncated  bool   `json:"truncated,omitempty"`
 }
 
-var readToolSchema, _ = pkgjson.StringDefSchemaOf(ReadRequest{})
+var readToolSchema, _ = toolschema.String(ReadRequest{})
 
 var _ toolcontract.Tool = (*ReadTool)(nil)
 

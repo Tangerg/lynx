@@ -10,7 +10,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/models/internal/options"
-	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
 type EmbeddingModelConfig struct {
@@ -113,7 +112,10 @@ func (e *EmbeddingModel) buildResponse(modelName string, apiResp *genai.EmbedCon
 
 	results := make([]*embedding.Result, 0, len(apiResp.Embeddings))
 	for _, item := range apiResp.Embeddings {
-		values := pkgSlices.Map(item.Values, func(v float32) float64 { return float64(v) })
+		values := make([]float64, len(item.Values))
+		for i, value := range item.Values {
+			values[i] = float64(value)
+		}
 
 		resultMeta := &embedding.ResultMetadata{}
 		if item.Statistics != nil {

@@ -13,11 +13,11 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+	vectorconv "github.com/Tangerg/lynx/vectorstores/internal/vector"
 )
 
 const Provider = "Chroma"
@@ -231,7 +231,7 @@ func (s *Store) buildAddOptions(docs []*document.Document, vectors [][]float64) 
 	for i, doc := range docs {
 		ids = append(ids, v2.DocumentID(doc.ID))
 
-		f32 := math.ConvertSlice[float64, float32](vectors[i])
+		f32 := vectorconv.Float32(vectors[i])
 		embs = append(embs, chromaEmbed.NewEmbeddingFromFloat32(f32))
 
 		metadataValues, err := doc.Metadata.Values()
@@ -407,7 +407,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, fmt.Errorf("chroma: embed query: %w", err)
 	}
 
-	queryVector := math.ConvertSlice[float64, float32](vector)
+	queryVector := vectorconv.Float32(vector)
 
 	var opts []v2.CollectionQueryOption
 	opts, err = s.buildQueryOptions(req, queryVector)

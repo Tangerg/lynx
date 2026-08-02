@@ -3,8 +3,8 @@ package core
 import (
 	"errors"
 	"reflect"
-
-	pkgstrings "github.com/Tangerg/lynx/pkg/strings"
+	"strings"
+	"unicode"
 )
 
 // ErrUnportableValue reports a write of a value whose Go state cannot survive
@@ -182,5 +182,45 @@ func TypeKey(value any) string {
 	if name == "" {
 		return ""
 	}
-	return string(pkgstrings.AsCamelCase(name).ToSnakeCase())
+	return snakeCase(name)
+}
+
+func snakeCase(value string) string {
+	if value == "" {
+		return ""
+	}
+
+	runes := []rune(value)
+	words := make([]string, 0, len(runes))
+	var word strings.Builder
+	for i, current := range runes {
+		word.WriteRune(current)
+		if i == len(runes)-1 {
+			break
+		}
+
+		next := runes[i+1]
+		switch {
+		case unicode.IsLetter(current) != unicode.IsLetter(next):
+		case unicode.IsLower(current) && unicode.IsUpper(next):
+		case unicode.IsUpper(current) && unicode.IsUpper(next) &&
+			i+2 < len(runes) && unicode.IsLower(runes[i+2]):
+		default:
+			continue
+		}
+		words = append(words, word.String())
+		word.Reset()
+	}
+	if word.Len() > 0 {
+		words = append(words, word.String())
+	}
+
+	normalized := words[:0]
+	for _, current := range words {
+		if current == "" || current == "_" {
+			continue
+		}
+		normalized = append(normalized, strings.ToLower(current))
+	}
+	return strings.Join(normalized, "_")
 }

@@ -17,11 +17,11 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+	vectorconv "github.com/Tangerg/lynx/vectorstores/internal/vector"
 )
 
 const Provider = "S3Vectors"
@@ -170,7 +170,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 
 			records = append(records, types.PutInputVector{
 				Key:      aws.String(id),
-				Data:     &types.VectorDataMemberFloat32{Value: math.ConvertSlice[float64, float32](vectors[i])},
+				Data:     &types.VectorDataMemberFloat32{Value: vectorconv.Float32(vectors[i])},
 				Metadata: s3vdoc.NewLazyDocument(meta),
 			})
 		}
@@ -203,7 +203,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("s3vectors: embed query: %w", err)
 	}
-	queryVec := math.ConvertSlice[float64, float32](vector)
+	queryVec := vectorconv.Float32(vector)
 
 	input := &s3vectors.QueryVectorsInput{
 		VectorBucketName: aws.String(s.vectorBucketName),

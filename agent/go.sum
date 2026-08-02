@@ -4,8 +4,6 @@ github.com/Tangerg/lynx/chatclient v0.0.0-20260731193916-0098789d89e9 h1:8BhoC1P
 github.com/Tangerg/lynx/chatclient v0.0.0-20260731193916-0098789d89e9/go.mod h1:trFaa8ARMyotTzfXw1j1w9NNzQbbOL3qwmbjLsz/gv0=
 github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9 h1:MPl9AlCg41y7KSony3MEwczSRX1uGVMJb5773ZFZoWc=
 github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
-github.com/Tangerg/lynx/pkg v0.0.0-20260731193916-0098789d89e9 h1:3xeOyVT+HwDUHW/AFfKHS071F8tOkNqvrxD0ziitH2A=
-github.com/Tangerg/lynx/pkg v0.0.0-20260731193916-0098789d89e9/go.mod h1:+AYRcOYA8qwIZjux7N5N2yVZ+Yq5Y8gWd/hV+PnPad4=
 github.com/Tangerg/lynx/tools v0.0.0-20260731193916-0098789d89e9 h1:16L6ME/KTVzLId3DkVKbYeeFpAt9oJVA1N0s7omBMQo=
 github.com/Tangerg/lynx/tools v0.0.0-20260731193916-0098789d89e9/go.mod h1:bKPAzH8uN1dZJ1xILko6fFY1XGIWYj9sKQx+Xi1pLNo=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=

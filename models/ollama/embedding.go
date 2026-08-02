@@ -10,7 +10,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/models/internal/options"
-	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
 type EmbeddingModelConfig struct {
@@ -92,7 +91,10 @@ func (e *EmbeddingModel) buildResponse(apiResp *ollamaapi.EmbedResponse, expecte
 
 	results := make([]*embedding.Result, 0, len(apiResp.Embeddings))
 	for _, vec := range apiResp.Embeddings {
-		values := pkgSlices.Map(vec, func(v float32) float64 { return float64(v) })
+		values := make([]float64, len(vec))
+		for i, value := range vec {
+			values[i] = float64(value)
+		}
 
 		resultMeta := &embedding.ResultMetadata{}
 

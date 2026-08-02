@@ -7,8 +7,8 @@ import (
 	"io"
 
 	"github.com/Tangerg/lynx/core/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 	toolcontract "github.com/Tangerg/lynx/tools"
+	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
 // Request is the tool input. Date is optional; when empty the tool
@@ -154,7 +154,7 @@ func New(writer io.Writer) *Tool {
 	return &Tool{writer: writer}
 }
 
-var inputSchema, _ = pkgjson.StringDefSchemaOf(Request{})
+var inputSchema, _ = toolschema.String(Request{})
 
 func (t *Tool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{

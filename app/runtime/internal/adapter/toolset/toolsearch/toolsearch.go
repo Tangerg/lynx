@@ -20,8 +20,8 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/agent/toolloop"
+	toolschema "github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/schema"
 	"github.com/Tangerg/lynx/core/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -39,7 +39,7 @@ type searchArgs struct {
 	Limit int    `json:"limit,omitempty" jsonschema_description:"Max tools to return and load (default 5). Ignored for select:."`
 }
 
-var searchSchema, _ = pkgjson.StringDefSchemaOf(searchArgs{})
+var searchSchema, _ = toolschema.String(searchArgs{})
 
 // entry is one searchable withheld tool with its precomputed match terms.
 type entry struct {

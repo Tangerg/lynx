@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 	toolcontract "github.com/Tangerg/lynx/tools"
+	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
 // EditRequest is the LLM-facing argument shape for the edit tool.
@@ -23,7 +23,7 @@ type EditResponse struct {
 	Replacements int `json:"replacements"`
 }
 
-var editToolSchema, _ = pkgjson.StringDefSchemaOf(EditRequest{})
+var editToolSchema, _ = toolschema.String(EditRequest{})
 
 var (
 	_ toolcontract.Tool                 = (*EditTool)(nil)

@@ -7,7 +7,6 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.47.0
 	github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/embeddingclient v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/pkg v0.0.0-20260731193916-0098789d89e9
 	github.com/amikos-tech/chroma-go v0.4.1
 	github.com/aws/aws-sdk-go-v2 v1.43.2
 	github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime v1.55.2

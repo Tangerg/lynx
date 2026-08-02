@@ -13,7 +13,6 @@ require (
 	github.com/Tangerg/lynx/mcp v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/models v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/otel v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/pkg v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/tools v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/sse v0.0.5
@@ -23,6 +22,7 @@ require (
 	github.com/go-chi/cors v1.2.2
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/google/uuid v1.6.0
+	github.com/invopop/jsonschema v0.14.0
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/openai/openai-go/v3 v3.49.0
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
@@ -53,13 +53,11 @@ require (
 	github.com/Tangerg/lynx/tokenizer v0.0.0-20260731193916-0098789d89e9 // indirect
 	github.com/a2aproject/a2a-go/v2 v2.4.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
-	github.com/bits-and-blooms/bitset v1.24.6 // indirect
 	github.com/buger/jsonparser v1.6.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.15 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
@@ -69,7 +67,6 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.19 // indirect
 	github.com/googleapis/gax-go/v2 v2.23.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
-	github.com/invopop/jsonschema v0.14.0 // indirect
 	github.com/mailru/easyjson v0.9.2 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect

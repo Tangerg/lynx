@@ -9,7 +9,7 @@ import (
 
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/internal/options"
-	pkgio "github.com/Tangerg/lynx/pkg/io"
+	"github.com/Tangerg/lynx/models/internal/streamio"
 )
 
 type AudioTTSModelConfig struct {
@@ -193,7 +193,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 		}
 		defer body_.Close()
 
-		for chunk, err := range pkgio.Read(body_, 16*1024) {
+		for chunk, err := range streamio.Read(body_) {
 			if err != nil {
 				yield(nil, err)
 				return

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	stdmime "mime"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -13,7 +14,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 var (
@@ -149,8 +149,8 @@ func MaterializeUserMessage(input []transcript.ContentBlock) (corechat.Message, 
 			if block.Text != "" {
 				return corechat.Message{}, invalidInputBlock(index, "type", "image content cannot carry text", ErrUnsupportedMedia)
 			}
-			parsed, parseErr := mime.Parse(block.Mime)
-			if parseErr != nil || !mime.IsImage(parsed) {
+			mediaType, _, parseErr := stdmime.ParseMediaType(block.Mime)
+			if parseErr != nil || !strings.HasPrefix(mediaType, "image/") {
 				return corechat.Message{}, invalidInputBlock(
 					index, "mime", fmt.Sprintf("must be a supported image MIME, got %q", block.Mime), ErrUnsupportedMedia,
 				)
@@ -162,7 +162,7 @@ func MaterializeUserMessage(input []transcript.ContentBlock) (corechat.Message, 
 			if decodeErr != nil {
 				return corechat.Message{}, invalidInputBlock(index, "data", "must be valid base64", ErrUnsupportedMedia)
 			}
-			image, mediaErr := media.NewBytes(parsed.TypeAndSubType(), data)
+			image, mediaErr := media.NewBytes(mediaType, data)
 			if mediaErr != nil {
 				return corechat.Message{}, invalidInputBlock(index, "data", mediaErr.Error(), ErrUnsupportedMedia)
 			}

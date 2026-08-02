@@ -7,11 +7,11 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 	toolcontract "github.com/Tangerg/lynx/tools"
+	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
-var toolSchema, _ = pkgjson.StringDefSchemaOf(Request{})
+var toolSchema, _ = toolschema.String(Request{})
 
 var _ toolcontract.Tool = (*Tool)(nil)
 

@@ -1,7 +1,5 @@
 github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9 h1:MPl9AlCg41y7KSony3MEwczSRX1uGVMJb5773ZFZoWc=
 github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
-github.com/Tangerg/lynx/pkg v0.0.0-20260731193916-0098789d89e9 h1:3xeOyVT+HwDUHW/AFfKHS071F8tOkNqvrxD0ziitH2A=
-github.com/Tangerg/lynx/pkg v0.0.0-20260731193916-0098789d89e9/go.mod h1:+AYRcOYA8qwIZjux7N5N2yVZ+Yq5Y8gWd/hV+PnPad4=
 github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9 h1:PgHN9qktO7if006DdpIdAT0bffeeFkPhfqceNb1B30E=
 github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9/go.mod h1:lYDEBvA3vQL5p4mg2Lm+kbwFtr5vxPSnG3NLWQmR6oc=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=

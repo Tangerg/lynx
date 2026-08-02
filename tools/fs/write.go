@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 	toolcontract "github.com/Tangerg/lynx/tools"
+	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
 // WriteRequest is the LLM-facing argument shape for the write tool.
@@ -22,7 +22,7 @@ type WriteResponse struct {
 	BytesWritten int `json:"bytes_written"`
 }
 
-var writeToolSchema, _ = pkgjson.StringDefSchemaOf(WriteRequest{})
+var writeToolSchema, _ = toolschema.String(WriteRequest{})
 
 var (
 	_ toolcontract.Tool                 = (*WriteTool)(nil)

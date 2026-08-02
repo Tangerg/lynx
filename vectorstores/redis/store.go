@@ -19,11 +19,11 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+	vectorconv "github.com/Tangerg/lynx/vectorstores/internal/vector"
 )
 
 const Provider = "Redis"
@@ -443,7 +443,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 			}
 			fields := map[string]any{
 				s.contentField:   doc.Text,
-				s.embeddingField: float32sToBytes(math.ConvertSlice[float64, float32](vectors[i])),
+				s.embeddingField: float32sToBytes(vectorconv.Float32(vectors[i])),
 			}
 			for k, v := range metadataValues {
 				fields[k] = formatMetadataValue(v)
@@ -476,7 +476,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("redis: embed query: %w", err)
 	}
-	queryVec := float32sToBytes(math.ConvertSlice[float64, float32](vector))
+	queryVec := float32sToBytes(vectorconv.Float32(vector))
 
 	filterQuery, err := s.buildFilterQuery(req.Filter)
 	if err != nil {

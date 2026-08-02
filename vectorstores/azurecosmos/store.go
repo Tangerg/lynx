@@ -15,12 +15,12 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+	vectorconv "github.com/Tangerg/lynx/vectorstores/internal/vector"
 )
 
 const Provider = "AzureCosmosDB"
@@ -184,7 +184,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 				s.idField:        id,
 				s.contentField:   doc.Text,
 				s.metadataField:  metaOrEmpty(metadataValues),
-				s.embeddingField: math.ConvertSlice[float64, float32](vectors[i]),
+				s.embeddingField: vectorconv.Float32(vectors[i]),
 			}
 			body, err := json.Marshal(payload)
 			if err != nil {
@@ -215,7 +215,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("azurecosmos: embed query: %w", err)
 	}
-	queryVec := math.ConvertSlice[float64, float32](vector)
+	queryVec := vectorconv.Float32(vector)
 
 	wherePredicate, params, err := s.buildFilter(req.Filter)
 	if err != nil {

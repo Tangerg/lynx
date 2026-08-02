@@ -11,8 +11,8 @@ import (
 	"net/url"
 	"strings"
 
+	toolschema "github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/schema"
 	"github.com/Tangerg/lynx/core/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -53,7 +53,7 @@ type sourcegraphLineMatch struct {
 	LineNumber int    `json:"line_number"`
 }
 
-var sourcegraphSchema = pkgjson.MustStringDefSchemaOf(sourcegraphRequest{})
+var sourcegraphSchema = toolschema.MustString(sourcegraphRequest{})
 
 type sourcegraphTool struct {
 	streamURL string

@@ -13,7 +13,6 @@ require (
 require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Tangerg/lynx/chatclient v0.0.0-20260731193916-0098789d89e9 // indirect
-	github.com/Tangerg/lynx/pkg v0.0.0-20260731193916-0098789d89e9 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.6.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

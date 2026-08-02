@@ -2,8 +2,6 @@ github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAw
 github.com/Masterminds/semver/v3 v3.5.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/Tangerg/lynx/chatclient v0.0.0-20260731193916-0098789d89e9 h1:8BhoC1PKzDbC1wrg+MpHupvHYiPrUF16yoSNAIwCFvk=
 github.com/Tangerg/lynx/chatclient v0.0.0-20260731193916-0098789d89e9/go.mod h1:trFaa8ARMyotTzfXw1j1w9NNzQbbOL3qwmbjLsz/gv0=
-github.com/Tangerg/lynx/pkg v0.0.0-20260731193916-0098789d89e9 h1:3xeOyVT+HwDUHW/AFfKHS071F8tOkNqvrxD0ziitH2A=
-github.com/Tangerg/lynx/pkg v0.0.0-20260731193916-0098789d89e9/go.mod h1:+AYRcOYA8qwIZjux7N5N2yVZ+Yq5Y8gWd/hV+PnPad4=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/buger/jsonparser v1.6.1 h1:I0phFv0PlbLHnM7TZAVjZ2MJ2/eWRTDyuO7GLR98IEs=

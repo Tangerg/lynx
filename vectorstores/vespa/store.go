@@ -18,12 +18,12 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+	vectorconv "github.com/Tangerg/lynx/vectorstores/internal/vector"
 )
 
 const (
@@ -213,7 +213,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 			fields := map[string]any{
 				s.idField:        id,
 				s.contentField:   doc.Text,
-				s.embeddingField: map[string]any{"values": math.ConvertSlice[float64, float32](vectors[i])},
+				s.embeddingField: map[string]any{"values": vectorconv.Float32(vectors[i])},
 			}
 			for k, v := range doc.Metadata {
 				fields[k] = v
@@ -246,7 +246,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("vespa: embed query: %w", err)
 	}
-	queryVec := math.ConvertSlice[float64, float32](vector)
+	queryVec := vectorconv.Float32(vector)
 
 	filterFragment, err := s.buildFilter(req.Filter)
 	if err != nil {

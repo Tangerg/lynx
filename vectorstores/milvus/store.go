@@ -16,11 +16,11 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+	vectorconv "github.com/Tangerg/lynx/vectorstores/internal/vector"
 )
 
 const (
@@ -208,7 +208,7 @@ func (s *Store) buildInsertColumns(docs []*document.Document, vectors [][]float6
 
 	for i, doc := range docs {
 		ids[i] = doc.ID
-		vecs[i] = math.ConvertSlice[float64, float32](vectors[i])
+		vecs[i] = vectorconv.Float32(vectors[i])
 
 		contents[i] = doc.Text
 
@@ -362,7 +362,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, fmt.Errorf("milvus: embed query: %w", err)
 	}
 
-	queryVec := entity.FloatVector(math.ConvertSlice[float64, float32](vector))
+	queryVec := entity.FloatVector(vectorconv.Float32(vector))
 
 	searchOpt := milvusclient.NewSearchOption(s.collectionName, int(req.TopK), []entity.Vector{queryVec}).
 		WithANNSField(fieldVector).

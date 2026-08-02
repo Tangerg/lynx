@@ -888,7 +888,6 @@ github.com/Tangerg/lynx/documentpipeline v0.0.0-20260731193916-0098789d89e9/go.m
 github.com/Tangerg/lynx/mcp v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:/4Qwxrf9qRFKY7+jGUt9FUO0kFe3r5cpl9CVdKvvK0g=
 github.com/Tangerg/lynx/models v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:mvv6qvd6twLOJ1coLU2xhRgw5otJYceqN+6h7NyRJqU=
 github.com/Tangerg/lynx/otel v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:ivOThIRaMNETTtTcseizChbM6zfb9rS1YObeLKli9FY=
-github.com/Tangerg/lynx/pkg v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:+AYRcOYA8qwIZjux7N5N2yVZ+Yq5Y8gWd/hV+PnPad4=
 github.com/Tangerg/lynx/tools v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:bKPAzH8uN1dZJ1xILko6fFY1XGIWYj9sKQx+Xi1pLNo=
 github.com/TheTitanrain/w32 v0.0.0-20180517000239-4f5cfb03fabf h1:FPsprx82rdrX2jiKyS17BH6IrTmUBYqZa/CXT4uvb+I=
 github.com/TheTitanrain/w32 v0.0.0-20180517000239-4f5cfb03fabf/go.mod h1:peYoMncQljjNS6tZwI9WVyQB3qZS6u79/N3mBOcnd3I=
