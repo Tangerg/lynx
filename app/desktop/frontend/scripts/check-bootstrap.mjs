@@ -121,19 +121,26 @@ for (const [, step, ratio] of stepRatios) {
   );
 }
 
+// The step is scheme-aware — dark doubles it, because equal ink percentages do
+// not buy equal separation — so globals.css restates it twice, once per scheme,
+// and both restatements are checked against the one formula that owns them.
 const depthFormula = painter.match(
-  /--depth-step",\s*`\$\{\(([\d.]+)\s*\+\s*\(contrast\s*\/\s*100\)\s*\*\s*([\d.]+)\)/,
+  /const step = \(([\d.]+)\s*\+\s*\(contrast\s*\/\s*100\)\s*\*\s*([\d.]+)\)\s*\*\s*\(scheme === "dark" \? (\d+) : 1\)/,
 );
 const contrastDefault = Number(store.match(/contrast:\s*([\d.]+)/)?.[1] ?? Number.NaN);
-const derivedDepth =
-  depthFormula &&
-  (Number(depthFormula[1]) + (contrastDefault / 100) * Number(depthFormula[2])).toFixed(1);
-const declaredDepth = css.match(/--depth-step:\s*([\d.]+)%/)?.[1];
+const derivedDepths = depthFormula && [
+  (Number(depthFormula[1]) + (contrastDefault / 100) * Number(depthFormula[2])).toFixed(1),
+  (
+    (Number(depthFormula[1]) + (contrastDefault / 100) * Number(depthFormula[2])) *
+    Number(depthFormula[3])
+  ).toFixed(1),
+];
+const declaredDepths = [...css.matchAll(/--depth-step:\s*([\d.]+)%/g)].map((m) => m[1]);
 expect(
-  derivedDepth !== null &&
-    declaredDepth !== undefined &&
-    Number(declaredDepth) === Number(derivedDepth),
-  `globals.css paints --depth-step at ${declaredDepth}%, but contrast ${contrastDefault} derives ${derivedDepth}%`,
+  derivedDepths !== null &&
+    declaredDepths.length === 2 &&
+    declaredDepths.every((declared, i) => Number(declared) === Number(derivedDepths[i])),
+  `globals.css paints --depth-step at ${declaredDepths.join(" / ")}%, but contrast ${contrastDefault} derives ${derivedDepths?.join(" / ")}%`,
 );
 
 if (failures.length > 0) {

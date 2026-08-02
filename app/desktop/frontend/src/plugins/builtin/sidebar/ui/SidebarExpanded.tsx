@@ -1,13 +1,34 @@
-import { Button, Icon } from "@/ui";
-import { AgentSurfaceHeader, AgentWorkIndexBody, AgentWorkIndexSection } from "@/ui/agent";
+import { Icon } from "@/ui";
+import {
+  AgentSurfaceHeader,
+  AgentWorkIndexBody,
+  AgentWorkIndexIdentity,
+  AgentWorkIndexSection,
+} from "@/ui/agent";
+import { basename } from "@/lib/path";
 import { useT } from "@/lib/i18n";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useWorkIndexItems } from "@/plugins/builtin/navigation/public/workIndex";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { Slot } from "@/plugins/host/Slot";
-import { usePaletteStore } from "@/plugins/builtin/command/paletteStore";
+
+// Where the agent is pointed. Derived from the ACTIVE session's directory rather
+// than tracked separately: there is one answer to "where will the next command
+// run", and reading it off the session that owns the run is the only way it
+// cannot drift from that answer.
+function WorkIndexIdentity() {
+  const t = useT();
+  const cwd = useActiveSessionCwd();
+  return (
+    <AgentWorkIndexIdentity
+      icon={<Icon name={cwd ? "folder-open" : "folder"} size="sm" />}
+      name={cwd ? basename(cwd) : t("workIndex.identity.none")}
+      detail={cwd}
+    />
+  );
+}
 
 export function SidebarExpanded() {
-  const t = useT();
   const items = useWorkIndexItems("expanded");
 
   return (
@@ -17,19 +38,7 @@ export function SidebarExpanded() {
         <span className="min-w-2 flex-1" />
       </AgentSurfaceHeader>
 
-      <div className="px-[var(--density-navigation-gutter)] pb-2 pt-1">
-        <Button
-          variant="soft"
-          size="sm"
-          press={false}
-          onClick={() => usePaletteStore.getState().setOpen(true)}
-          className="w-full justify-start gap-2 border border-field bg-surface px-2.5 font-normal text-fg-muted shadow-none hover:bg-hover hover:text-fg"
-        >
-          <Icon name="search" size="sm" className="shrink-0" />
-          <span className="min-w-0 flex-1 truncate text-left">{t("command.openPalette")}</span>
-          <kbd className="shrink-0 font-mono text-ui-xs text-fg-faint">⌘K</kbd>
-        </Button>
-      </div>
+      <WorkIndexIdentity />
 
       <AgentWorkIndexBody>
         {items.map((item) => {

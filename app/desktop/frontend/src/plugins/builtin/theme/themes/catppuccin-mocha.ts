@@ -33,8 +33,12 @@ export default defineColorThemePlugin({
     textOnAccent: c.base,
   },
   surfaces: {
+    // Mantle is the reading plane and base the tool windows around it — the
+    // canonical Catppuccin relationship, and the one the region algorithm wants.
     bg: c.mantle,
     surface: c.base,
+    elevated: c.base,
+    sunken: c.crust,
   },
   ink: {
     text: c.text,

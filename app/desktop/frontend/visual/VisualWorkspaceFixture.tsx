@@ -87,6 +87,9 @@ export function VisualWorkspaceFixture({ state }: { state: VisualWorkspaceState 
       sidebarOpen={!settingsOpen}
       sidebarWidth={256}
       onResize={() => undefined}
+      onSidebarToggle={() => undefined}
+      sidebarExpandLabel="Expand the workspace fixture sidebar"
+      sidebarCollapseLabel="Collapse the workspace fixture sidebar"
       sidebar={settingsOpen ? undefined : <WorkspaceStateSidebar state={state} />}
       main={
         <div className="contents" data-testid="workspace-state" data-state={state}>

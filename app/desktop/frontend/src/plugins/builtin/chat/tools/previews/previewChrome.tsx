@@ -10,12 +10,12 @@ import { useT } from "@/lib/i18n";
 export const TEXT_PREVIEW_CLASS =
   "max-h-60 overflow-y-auto px-0 pt-1 pb-0 font-mono text-ui-md leading-body text-fg-muted";
 
-// Mono code / terminal panel — a bg-surface-2 slab that reads as a defined
-// code block against the bg-surface card, matching the ShikiCodeBlock atom.
-// (Deliberately NOT a bg-fg dark panel: bg-fg inverts per theme, so it would
-// turn bright in dark mode — surface-2 stays a subtle step in both.)
+// Mono code / terminal panel — the recessed well, same material as the
+// ShikiCodeBlock atom, so program output reads as cut into the card rather than
+// stacked on it. (Deliberately NOT a bg-fg dark panel: bg-fg inverts per theme,
+// so it would turn bright in dark mode.)
 export const CODE_PREVIEW_CLASS =
-  "max-h-60 overflow-y-auto rounded-sm bg-surface-2 px-3 py-2.5 font-mono text-ui-md leading-relaxed text-fg-soft";
+  "max-h-60 overflow-y-auto rounded-sm bg-sunken px-3 py-2.5 font-mono text-ui-md leading-relaxed text-fg-soft";
 
 // Rows shown inline in a specialised preview before the "… N more" footer.
 export const INLINE_PREVIEW_ROW_LIMIT = 9;

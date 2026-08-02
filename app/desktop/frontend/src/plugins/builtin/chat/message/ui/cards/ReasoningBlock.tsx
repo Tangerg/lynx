@@ -61,13 +61,10 @@ export function ReasoningBlock({ text, status }: Props) {
   }, [streaming]);
 
   const elapsedLabel = formatElapsed(elapsedMs);
-  const label = streaming
-    ? elapsedLabel
-      ? t("reasoning.thinkingWithTime", { time: elapsedLabel })
-      : t("reasoning.thinking")
-    : elapsedLabel
-      ? t("reasoning.thoughtFor", { time: elapsedLabel })
-      : t("reasoning.thought");
+  // The word and the number are separate slots now: the word is a label and the
+  // number is data, so the number can sit in the row's mono meta column with
+  // every other duration instead of being sentence-cased into the label.
+  const label = streaming ? t("reasoning.thinking") : t("reasoning.thought");
   const preview = streaming ? "" : truncate(text, 80);
 
   // ---- Bounded scroll + auto-follow + fades ----
@@ -130,9 +127,14 @@ export function ReasoningBlock({ text, status }: Props) {
   return (
     <AgentActivityDisclosure
       icon="sparkle"
-      label={<span className="[font-feature-settings:'tnum']">{label}</span>}
+      label={label}
       detail={!isOpen && preview ? preview : undefined}
-      trailing={streaming && isOpen ? <StatusDot tone="running" /> : undefined}
+      trailing={
+        <>
+          {elapsedLabel}
+          {streaming && isOpen ? <StatusDot tone="running" /> : null}
+        </>
+      }
       actions={
         streaming ? (
           <Button
@@ -164,14 +166,14 @@ export function ReasoningBlock({ text, status }: Props) {
         <div
           className={cn(
             "pointer-events-none absolute inset-x-0 top-0 z-10 h-6",
-            "bg-[linear-gradient(to_bottom,var(--color-surface-2),transparent)]",
+            "bg-[linear-gradient(to_bottom,var(--color-sunken),transparent)]",
             "transition-opacity duration-[var(--dur-fast)]",
             showTopFade ? "opacity-100" : "opacity-0",
           )}
         />
         <div
           ref={contentRef}
-          className="whitespace-pre-wrap text-ui-md leading-relaxed text-fg-muted"
+          className="whitespace-pre-wrap text-ui-sm leading-relaxed text-fg-muted"
         >
           <MarkdownMessage text={text} streaming={streaming} />
           {status === "incomplete" && (
@@ -184,7 +186,7 @@ export function ReasoningBlock({ text, status }: Props) {
         <div
           className={cn(
             "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6",
-            "bg-[linear-gradient(to_top,var(--color-surface-2),transparent)]",
+            "bg-[linear-gradient(to_top,var(--color-sunken),transparent)]",
             "transition-opacity duration-[var(--dur-fast)]",
             showBottomFade ? "opacity-100" : "opacity-0",
           )}

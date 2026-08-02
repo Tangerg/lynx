@@ -22,6 +22,7 @@ const STATE_LABELS: Record<VisualAgentState, string> = {
   recovery: "Recovery",
   delegated: "Delegated tree",
   "long-content": "Long content",
+  narrative: "Narrative",
 };
 
 function StateSidebar({ state }: { state: VisualAgentState }) {
@@ -68,6 +69,9 @@ export function VisualAgentStateFixture({
       sidebarOpen
       sidebarWidth={256}
       onResize={() => undefined}
+      onSidebarToggle={() => undefined}
+      sidebarExpandLabel="Expand the agent fixture sidebar"
+      sidebarCollapseLabel="Collapse the agent fixture sidebar"
       sidebar={<StateSidebar state={state} />}
       main={
         <div

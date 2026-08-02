@@ -22,11 +22,12 @@ interface Props {
 
 // Session row — sidebar list item.
 //
-// One quiet line: indented title (fills, truncates) · optional pinned/live state. Idle
-// timestamps stay in the accessible label instead of permanently taking the
-// row's scarce horizontal space; running/waiting remain visible because they
-// require attention now. Accent stays reserved for live state, selection is the
-// soft pill.
+// Two lines: the title, and under it the one thing you would otherwise have to
+// open the session to learn — whether it needs you, and when it last moved. The
+// timestamp used to live only in the accessible label to save horizontal space;
+// giving it its own line costs no width and turns the index into something you
+// can triage from. Accent stays reserved for live state, selection is the soft
+// fill.
 export function SessionRow({
   session,
   active,
@@ -45,12 +46,16 @@ export function SessionRow({
   // formatRelative reads `i18next.t` and `i18next.language` directly
   // — no extra subscription needed.
   const t = useT();
-  const accessibleStatus =
+  const attentionLabel =
     session.attention === "running"
       ? t("session.status.running")
       : session.attention === "waiting"
         ? t("session.status.waiting")
-        : formatRelative(session.time);
+        : undefined;
+  const when = formatRelative(session.time);
+  // The state leads because it is what makes a row worth opening; the time
+  // follows because it is what orders a list of rows in the same state.
+  const accessibleStatus = attentionLabel ? `${attentionLabel} · ${when}` : when;
   const title = session.title.trim() || t("session.untitled");
 
   const row = (
@@ -63,6 +68,21 @@ export function SessionRow({
         active={active}
         indent="nested"
         className="font-normal text-fg-muted hover:text-fg data-[active]:text-fg"
+        // Suppressed mid-rename: the second line would push the input off the
+        // row's vertical centre while it is the thing being typed into.
+        detail={
+          renaming ? undefined : (
+            <>
+              {attentionLabel && (
+                <span className={session.attention === "running" ? "text-accent" : "text-warning"}>
+                  {attentionLabel}
+                </span>
+              )}
+              {attentionLabel && " · "}
+              {when}
+            </>
+          )
+        }
         trailing={
           renaming ? undefined : (
             <span className="flex shrink-0 items-center gap-1.5">

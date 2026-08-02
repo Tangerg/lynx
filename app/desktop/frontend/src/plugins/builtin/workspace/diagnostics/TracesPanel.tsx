@@ -122,7 +122,7 @@ function SpanDetail({ span }: { span: SpanRow }) {
   ];
   const attrs = Object.entries(span.attrs);
   return (
-    <div className="mx-1 mb-1.5 grid gap-2 rounded-md bg-surface-2 px-3 py-2 font-mono text-ui-sm">
+    <div className="mx-1 mb-1.5 grid gap-2 rounded-md bg-sunken px-3 py-2 font-mono text-ui-sm">
       {span.statusMessage && (
         <Field label="error">
           <span className="whitespace-pre-wrap break-words text-negative select-text">

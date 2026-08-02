@@ -12,8 +12,9 @@ import { cn } from "@/lib/classNames";
  * The fill is the first chrome surface: enough separation from the reading plane
  * to read as a durable workbench control without becoming a floating web card.
  *
- * Focus strengthens the border but keeps the ambient layer where it is —
- * lifting the whole surface on focus makes every click read as the composer
+ * Focus takes the border to the accent and leaves the surface where it is. The
+ * accent is this language's "live" colour and the composer is where live starts;
+ * lifting the whole surface instead would make every click read as the composer
  * jumping.
  *
  * Carries no padding: the editor and the footer own their own insets, because the
@@ -29,8 +30,8 @@ export function AgentComposerSurface({
     <div
       {...props}
       className={cn(
-        "overflow-hidden rounded-composer border-[length:var(--composer-edge-width)] border-field bg-surface",
-        "shadow-[var(--shadow-composer-depth)] focus-within:border-field-strong",
+        "overflow-hidden rounded-composer border-[length:var(--composer-edge-width)] border-field bg-card",
+        "shadow-[var(--shadow-composer-depth)] focus-within:border-accent",
         "transition-[border-color] duration-[var(--dur-med)] ease-out",
         className,
       )}

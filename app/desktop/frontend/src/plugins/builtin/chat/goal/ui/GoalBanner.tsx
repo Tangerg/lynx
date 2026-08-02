@@ -92,7 +92,7 @@ function ActiveGoal({ goal, sessionId }: { goal: GoalReadModel; sessionId: strin
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
       transition={disclosureTransition}
-      className="mt-2 mb-1 overflow-hidden rounded-lg bg-surface"
+      className="mt-2 mb-1 overflow-hidden rounded-lg bg-card"
     >
       <div className="flex items-start gap-2.5 px-3 py-2.5">
         <Icon name="spark" size="md" className={cn("mt-px shrink-0", statusTone(goal.status))} />
@@ -201,7 +201,7 @@ function StartGoal({ sessionId }: { sessionId: string }) {
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={disclosureTransition}
-      className="mt-2 mb-1 flex flex-col gap-2 rounded-lg bg-surface p-3"
+      className="mt-2 mb-1 flex flex-col gap-2 rounded-lg bg-card p-3"
     >
       <div className="flex items-center gap-1.5 text-ui-md font-medium text-fg-soft">
         <Icon name="spark" size="sm" className="text-accent" />

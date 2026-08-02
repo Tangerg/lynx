@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Fragment, useEffect } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { enterUp } from "@/lib/motion";
-import { formatDateTime } from "@/lib/i18n/relativeTime";
+import { dayKey, formatDay } from "@/lib/i18n/relativeTime";
 import { useT } from "@/lib/i18n";
 import { Loader } from "@/ui";
 import { Slot } from "@/plugins/host/Slot";
@@ -50,13 +50,37 @@ function ControlsRelay() {
   return null;
 }
 
-function TurnSeparator({ createdAt }: { createdAt?: string }) {
+// A date, once, where the date changes. The clock time lives in every turn's own
+// caption now, so a separator that repeated the full stamp above each turn was
+// saying the same thing twice and saying it loudest at the boundary that carried
+// the least information.
+function DaySeparator({ createdAt }: { createdAt?: string }) {
   // useT() keeps this reactive on locale toggle even though the
   // translation function itself isn't used for the timestamp label.
   useT();
-  const label = formatDateTime(createdAt);
+  const label = formatDay(createdAt);
   if (!label) return null;
-  return <div className="my-1 pl-[38px] font-mono text-ui-xs text-fg-faint">{label}</div>;
+  return (
+    <div className="flex items-center gap-3 py-1">
+      <span className="text-ui-xs text-fg-faint">{label}</span>
+      <span aria-hidden className="h-px flex-1 bg-[var(--color-divider)]" />
+    </div>
+  );
+}
+
+/** Index of every message that opens a new calendar day — the separator's rule,
+ *  computed once per render of the list rather than per row, so a row never has
+ *  to know what came before it. */
+function dayBoundaries(messages: Message[]): ReadonlySet<number> {
+  const boundaries = new Set<number>();
+  let previous: string | null = null;
+  messages.forEach((message, index) => {
+    const day = dayKey(message.createdAt);
+    if (!day) return;
+    if (previous !== null && day !== previous) boundaries.add(index);
+    previous = day;
+  });
+  return boundaries;
 }
 
 export function MessageStream({ messages, ctx, resetKey }: Props) {
@@ -67,7 +91,7 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
   // `running` flips only at run boundaries, so this never churns per token.
   const running = useIsCurrentRootRunning();
 
-  const firstUserIndex = messages.findIndex((m) => m.role === "user");
+  const boundaries = dayBoundaries(messages);
 
   if (messages.length === 0) {
     return (
@@ -90,16 +114,18 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
       initial="instant"
       resize={running ? "instant" : "smooth"}
     >
+      {/* `msg-scroll-viewport` names the element that actually scrolls. The
+          library renders it itself, one level inside the class above, so anything
+          outside the transcript that needs the scroll box — the narrative rails —
+          would otherwise have to guess at that nesting. */}
       <StickToBottom.Content
-        scrollClassName="panel-scroll"
+        scrollClassName="panel-scroll msg-scroll-viewport"
         className="relative mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-7 px-[var(--density-column-gutter)] pb-8 pt-8 sm:px-[var(--density-column-gutter-wide)]"
       >
         <AnimatePresence initial={false}>
           {messages.map((m, i) => (
             <Fragment key={m.id}>
-              {m.role === "user" && i !== firstUserIndex && (
-                <TurnSeparator createdAt={m.createdAt} />
-              )}
+              {boundaries.has(i) && <DaySeparator createdAt={m.createdAt} />}
               {/* No `layout` prop — Motion's layout animation re-tweens
                   the block on every text delta, making the whole bubble
                   (avatar included) bobble while streaming. enterUp is
@@ -114,8 +140,13 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
                   `auto` intrinsic-size remembers each message's real height after
                   its first render, so the scroll height stays accurate; the 220px
                   fallback only covers never-yet-rendered messages far below. */}
+              {/* `data-turn-id` is the anchor the narrative rails navigate by.
+                  An attribute rather than a registry: the rails need the
+                  element's position in the scroller, which only the DOM has. */}
               <motion.div
                 {...enterUp}
+                data-turn-id={m.id}
+                data-turn-role={m.role}
                 className="[content-visibility:auto] [contain-intrinsic-size:auto_220px]"
               >
                 <MessageBlock
@@ -132,7 +163,7 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
             hasn't opened its turn yet (last message is still the user's). Once
             the assistant message arrives it takes over, so this hides itself. */}
         {running && messages[messages.length - 1]?.role === "user" && (
-          <div className="flex pl-[38px]">
+          <div className="flex">
             <Loader variant="dots" />
           </div>
         )}

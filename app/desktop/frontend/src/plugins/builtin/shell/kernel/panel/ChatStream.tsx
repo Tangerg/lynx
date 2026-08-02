@@ -14,6 +14,7 @@ import {
 } from "@/plugins/builtin/agent/public/conversation";
 import { useActiveSessionToolCalls, useCurrentRootPlan } from "@/plugins/builtin/agent/public/run";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/host/Slot";
 import {
@@ -34,6 +35,12 @@ interface Props {
   /** Send the user's message input (text + inlined images) through the live agent. */
   onSend: (input: UserInput) => void;
 }
+
+// The width each rail occupies, mirrored as padding by everything that has to
+// line up with the reading column but sits outside the rails' own row. Spelled
+// as literals rather than a shared token because Tailwind reads source text: a
+// container-query variant assembled from a variable emits nothing at all.
+const RAIL_GUTTERS = "@min-[560px]:pl-11 @min-[900px]:pr-[186px]";
 
 export function ChatStream({ onSend }: Props) {
   const resetKey = useActiveSessionId();
@@ -140,17 +147,31 @@ export function ChatStream({ onSend }: Props) {
   }
 
   return (
-    <>
-      {banners}
-      <div className="relative flex min-h-0 flex-1 flex-col">
-        <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
-          <MessageStream messages={messages} ctx={ctx} resetKey={resetKey} />
-        </ChatErrorBoundary>
-        <JumpToBottomButton />
+    // One container for the whole column. A container query and not a viewport
+    // one: what decides whether a rail fits is the width of THIS column, which
+    // the drawer and the dock both change without the window changing at all.
+    // Banners and composer take the rails' gutters from the same query, so the
+    // three stay on one axis instead of each centring on a different box.
+    <div className="@container flex min-h-0 flex-1 flex-col">
+      <div className={RAIL_GUTTERS}>{banners}</div>
+      <div className="relative flex min-h-0 flex-1">
+        <Slot name="chat.rail.start" />
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
+            <MessageStream messages={messages} ctx={ctx} resetKey={resetKey} />
+          </ChatErrorBoundary>
+          <JumpToBottomButton />
+        </div>
+        <Slot name="chat.rail.end" />
       </div>
-      <div className="relative z-10 w-full shrink-0 border-t border-field bg-[var(--app-content-surface)] px-3 pb-3 pt-3 sm:px-5 sm:pb-4">
+      <div
+        className={cn(
+          "relative z-10 w-full shrink-0 bg-[var(--app-content-surface)] px-3 pb-3 pt-2 sm:px-5 sm:pb-4",
+          RAIL_GUTTERS,
+        )}
+      >
         <div className="mx-auto w-full max-w-[var(--content-max)]">{composer}</div>
       </div>
-    </>
+    </div>
   );
 }

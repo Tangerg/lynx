@@ -21,33 +21,37 @@ export interface WorkspaceViewOpeners {
 
 export type AccentSetter = (accent: AccentSpec["dark"]) => void;
 
+// The tool-window accent set. Each `dark` value is the hue as the language states
+// it; `light` is the same hue pulled down until it clears 4.5:1 as text on the
+// light scheme's chrome — a saturated mid-tone that reads as a fill on near-black
+// reads as a highlighter pen on near-white.
 export const DEFAULT_ACCENTS: AccentSpec[] = [
   {
     id: "blue",
     label: "Blue",
-    dark: "#6c97ff",
-    light: "#2563eb",
+    dark: "#3574f0",
+    light: "#2b5fd0",
     order: 0,
+  },
+  {
+    id: "purple",
+    label: "Purple",
+    dark: "#7f52ff",
+    light: "#6d3ff0",
+    order: 1,
   },
   {
     id: "green",
     label: "Green",
-    dark: "#1ed760",
-    light: "#169c46",
-    order: 1,
-  },
-  {
-    id: "pink",
-    label: "Pink",
-    dark: "#e07acc",
-    light: "#a823a3",
+    dark: "#21a179",
+    light: "#177659",
     order: 2,
   },
   {
     id: "orange",
     label: "Orange",
-    dark: "#ffa42b",
-    light: "#d97706",
+    dark: "#e8590c",
+    light: "#b34208",
     order: 3,
   },
 ];

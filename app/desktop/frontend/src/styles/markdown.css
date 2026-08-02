@@ -203,35 +203,35 @@
 .md-table-wrap > table {
   margin: 0;
 }
+/* A table is a card, so it takes the card's material and corner and needs no
+   outline of its own. Rows separate by alternating fill rather than by rules:
+   a grid of hairlines turns a four-column comparison into a spreadsheet, and the
+   zebra reads at a glance while costing no ink at the edges. */
 .md table {
   border-collapse: collapse;
-  margin: 10px 0;
-  font-size: var(--fs-ui-md);
+  margin: 12px 0;
+  font-size: var(--fs-ui-sm);
   width: auto;
-  border: 1px solid color-mix(in oklab, var(--color-text) 6%, transparent);
-  border-radius: var(--shape-md);
+  background: var(--app-card-surface);
+  border-radius: var(--surface-card-radius);
   overflow: hidden;
 }
 .md table th,
 .md table td {
-  padding: 6px 10px;
+  padding: 9px 14px;
   text-align: left;
-  border-bottom: 1px solid color-mix(in oklab, var(--color-text) 6%, transparent);
-}
-.md table tr:last-child td {
-  border-bottom: 0;
 }
 .md table th {
-  background: var(--color-surface-2);
-  color: var(--color-text);
-  font-weight: 600;
-  font-size: var(--fs-ui-sm);
-  letter-spacing: 0.02em;
-  font-family: var(--font-mono);
-  text-transform: none;
+  background: var(--color-sunken);
+  color: var(--color-text-muted);
+  font-weight: 500;
+  font-size: var(--fs-ui-xs);
+}
+.md table tbody tr:nth-child(even) td {
+  background: var(--color-sunken);
 }
 .md table tbody tr:hover td {
-  background: color-mix(in oklab, var(--color-text) 2%, transparent);
+  background: var(--color-hover);
 }
 
 /* Inline code — surface-2 chip, no border, mono at the ladder's code step so it

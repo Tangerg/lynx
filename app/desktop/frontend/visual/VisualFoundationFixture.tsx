@@ -152,6 +152,9 @@ export function VisualFoundationFixture({ sidebarOpen }: VisualFoundationFixture
       sidebarOpen={sidebarOpen}
       sidebarWidth={256}
       onResize={() => undefined}
+      onSidebarToggle={() => undefined}
+      sidebarExpandLabel="Expand the foundation fixture sidebar"
+      sidebarCollapseLabel="Collapse the foundation fixture sidebar"
       sidebar={<WorkIndexFixture />}
       main={<FoundationSurface sidebarOpen={sidebarOpen} />}
     />

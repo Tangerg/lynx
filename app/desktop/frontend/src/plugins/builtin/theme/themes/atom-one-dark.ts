@@ -5,6 +5,7 @@ import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 const c = {
   blue: "#528bff",
 
+  well: "#16191e",
   panel: "#1c2026",
   editor: "#282c34",
   selection1: "#2c313a",
@@ -33,9 +34,11 @@ export default defineColorThemePlugin({
     textOnAccent: "#ffffff",
   },
   surfaces: {
+    // Atom's selection ladder is non-linear; pin the canonical tones.
     bg: c.panel,
     surface: c.editor,
-    // Atom's selection ladder is non-linear; pin the canonical tones.
+    elevated: c.editor,
+    sunken: c.well,
   },
   ink: {
     text: c.fg,

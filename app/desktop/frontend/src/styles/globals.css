@@ -43,11 +43,22 @@
 }
 
 @theme inline {
-  /* Surface ladder */
+  /* Surface ladder. `canvas` is the reading plane and `surface` the chrome
+     around it; -2 / -3 are the derived rungs above `surface` and read as chips,
+     not as regions. `elevated` and `sunken` are separate anchors because the
+     ladder walks one direction only — see ThemeSurfaces. */
   --color-canvas: var(--color-bg);
   --color-surface: var(--color-surface);
   --color-surface-2: var(--color-surface-2);
   --color-surface-3: var(--color-surface-3);
+  /* A card's fill is a ROLE, so the utility reads the visual style's role token
+     rather than the palette anchor behind it (`--color-elevated`): a style is
+     allowed to decide that cards sit flush with the plane, and every callsite
+     should follow it without being edited. */
+  --color-card: var(--app-card-surface);
+  /* A well is the palette's own recessed material — it means the same thing in
+     every style, so this one reads the anchor directly. */
+  --color-sunken: var(--color-sunken);
 
   /* Ink ladder */
   --color-fg: var(--color-text);
@@ -93,22 +104,17 @@
   --color-field: var(--color-border);
   --color-field-strong: var(--color-border-soft);
 
-  /* Control FILL — what you type into or read out of: composer, user bubble,
-     segmented well. A light ink wash over the card rather than a step on the
-     surface ladder: the ladder is driven by the contrast preference and lands far
-     too heavy for this (19 levels below white, where it reads as a grey slab
-     pasted on), while a fixed wash stays a whisper and inherits the ink's hue. */
-  --color-control: var(--color-control);
-
   /* Interaction fill — the pointer is over this, or this is the chosen one.
      Two values for the whole app, because before them every callsite picked its
      own: eleven different spellings of "neutral hover" (`fg/2%` through `fg/8%`
      plus three surface swaps) meant the same gesture answered at four times the
      strength depending on which panel you were in. An ink wash rather than a
      surface step, so a row lights up the same over a card, a menu or the drawer.
-     Reach for these, never for a bare `hover:bg-fg/[…]`. */
-  --color-hover: color-mix(in srgb, var(--color-text) 4%, transparent);
-  --color-selected: color-mix(in srgb, var(--color-text) 6%, transparent);
+     The strength itself belongs to the visual style (`--wash-*`), which ties it
+     to the same ladder step the regions use — a fixed alpha cannot be right in
+     both schemes at once. Reach for these, never for a bare `hover:bg-fg/[…]`. */
+  --color-hover: var(--wash-hover);
+  --color-selected: var(--wash-selected);
 
   /* Semantic tone fills — two intensities, named because the app already had
      both and had lost count of them. A `wash` tints a surface (an error banner,
@@ -323,21 +329,25 @@
  *  at runtime via :root.style. See DESIGN.md for the spec.
  * ========================================================================= */
 :root {
-  /* Accent — restrained, near-monochrome. Geist blue-700, used ONLY for live /
-     focus / links (DESIGN.md §9). The primary CTA is the inverting ink button,
-     not the accent. Themes + the user's accent pick override it. */
-  --color-accent: #006bff;
-  --color-accent-border: #0060df;
-  --color-accent-press: #0a53c4;
+  /* Accent — the one saturated colour. Live state, progress, focus, links, and
+     the primary CTA (this language spends its colour on the single action that
+     matters and leaves everything else grey). Themes + the user's accent pick
+     override all three; the two shades are re-derived from the live pick. */
+  --color-accent: #2b5fd0;
+  --color-accent-border: #2454bd;
+  --color-accent-press: #1e48a3;
 
-  /* Surface ladder — `bg` and `surface` are manual anchors; -2/-3/-4 always
-     derive via color-mix() so the direction flips per scheme (deeper = darker on
-     light, lighter on dark) and they track --depth-step (the contrast preference).
-     A theme cannot pin them.
-     The reading plane uses bg; durable workbench chrome starts from surface-2.
-     Deeper rungs remain available to selected rows, wells and controls. */
-  --color-bg: #ffffff;
-  --color-surface: #fcfcfc;
+  /* Surface anchors. `bg` is the reading plane, `surface` the chrome columns that
+     frame it, and -2/-3/-4 are chip rungs derived above `surface` via color-mix()
+     so they track --depth-step (the contrast preference) and cannot be pinned by
+     a theme.
+     `elevated` and `sunken` are anchors and not rungs: the ladder can only walk
+     toward the ink, while a card lifts AWAY from it on light and TOWARD it on
+     dark, and a well recedes under both. Keep in step with `themes/lyra-*.ts`. */
+  --color-bg: #fbfbfc;
+  --color-surface: #f0f1f3;
+  --color-elevated: #ffffff;
+  --color-sunken: #eef0f2;
   --depth-step: 4%;
   --color-surface-2: color-mix(
     in oklab,
@@ -354,23 +364,24 @@
     var(--color-text) calc(var(--depth-step) * 3),
     var(--color-surface)
   );
-  /* An explicitly chosen cool grey, NOT a wash of the ink — that was the bug that
-     made these surfaces read dirty. A 5% wash of a neutral ink can only ever
-     produce a neutral grey (the channel separation scales with the alpha, so at 5%
-     it rounds away), and a dead-neutral grey against white reads muddy. The faint
-     blue lift is what makes it read clean. Fixed per scheme rather than derived
-     from --depth-step: this is a control's own fill, not a rung on the region
-     ladder, so it must not drift when the contrast slider moves. */
-  --color-control: #f1f1f4;
 
-  /* Ink — near-black. Measured against Codex, its body copy sits at #030303 and its
-     chrome labels at #282828; a neutral-800 anchor put ours a visible step lighter
-     than both, and `soft` prose put it two. Keep in step with `themes/lyra-light.ts`. */
-  --color-text: #171717;
+  /* Row states. First-paint mirror of the visual style's `--wash-*`, which ties
+     them to the same ladder step the regions use. */
+  --wash-hover: color-mix(in srgb, var(--color-text) calc(var(--depth-step) * 0.75), transparent);
+  --wash-selected: color-mix(in srgb, var(--color-text) var(--depth-step), transparent);
+
+  /* How dark this palette's shadows are. Every directional cast in the shell and
+     every floating panel composes from this one value, so a scheme has exactly
+     one place to say "depth here costs this much black". */
+  --shadow-cast: rgb(0 0 0 / 0.2);
+
+  /* Ink — near-black with the palette's own cool cast rather than a neutral grey.
+     Keep in step with `themes/lyra-light.ts`. */
+  --color-text: #1e1f22;
   --color-text-bright: #000000;
-  --color-text-soft: #4d4d4d;
-  --color-text-muted: #686868;
-  --color-text-faint: #6f6f6f;
+  --color-text-soft: #3d4147;
+  --color-text-muted: #5a5d63;
+  --color-text-faint: #63666d;
   --color-text-on-accent: #ffffff;
   /* Ink on a solid `--color-warning` fill (the active search hit). Amber is
      light in both schemes, so this stays dark where on-accent flips. */
@@ -379,51 +390,47 @@
      --color-bg so a theme that overrides bg gets the right on-fg for free. */
   --color-text-on-fg: var(--color-bg);
 
-  /* Hairlines ARE the separation mechanism: region and chrome dividers both
-     derive from --color-border, so anything heavier turns the UI into a
-     wireframe. Keep in step with `themes/lyra-light.ts`. */
-  --color-border: rgb(0 0 0 / 0.05);
-  --color-border-soft: rgb(0 0 0 / 0.14);
-  --color-divider: rgb(0 0 0 / 0.04);
+  /* Hairlines are the edge of a CONTROL, never of a region: regions separate by
+     value plus a directional cast (the visual style owns both), so nothing here
+     is ever stretched into a pane divider. Keep in step with
+     `themes/lyra-light.ts`. */
+  --color-border: #dfe1e5;
+  --color-border-soft: #c7cad0;
+  --color-divider: rgb(0 0 0 / 0.07);
 
-  /* Semantic — used sparingly per DESIGN.md §9. Dark-tuned per §2: these are
-     the lyra-dark first-paint defaults (the theme re-applies the same values at
-     runtime; lyra-light overrides to the saturated web values that read clean
-     on white). Desaturated + lifted so they don't vibrate on the near-black
-     canvas. */
-  --color-negative: #ea001d; /* red-800 */
-  --color-warning: #ffa600; /* amber-600 */
-  --color-info: #006bff; /* blue-700 */
-  --color-success: #28a948; /* green-700 */
+  /* Semantic — used sparingly per DESIGN.md §9. Light-scheme first paint; the
+     theme re-applies the same values at runtime. One step deeper than the
+     reference language's hues so each clears 4.5:1 as text on this chrome. */
+  --color-negative: #b0342b;
+  --color-warning: #84610e;
+  --color-info: #2b5fd0;
+  --color-success: #2a713e;
 
-  /* Diff add/delete palette — semantic but theme-INDEPENDENT by design: the
-     same vivid green/red reads on both dark and light, so unlike the status
-     colors above these are NOT re-emitted per theme (no kit entry) — they live
-     here as constants. Distinct from --color-negative/-success on purpose: the
-     tints are softer, tuned for large-area 7% row fills rather than punchy
-     status marks. The TINTS are genuinely scheme-independent — a 7% wash reads on
-     either canvas — but `-meta` and `-code` are INK, and ink cannot be: a near-white
-     green was unreadable on the light tint it sat on (1.36:1), so those two pairs
-     are declared per scheme below. Alphas are pre-baked per role (row tint / sign+meta /
-     word-level intra-line tint) mirroring the --color-text-N step tokens; -code
-     is the near-solid code foreground. Raw vars consumed via var() (not Tailwind
-     utilities) because the intra-line tint is injected as inline CSS into
-     Shiki-highlighted HTML. */
-  --color-diff-added-tint: rgba(30, 215, 96, 0.07);
-  --color-diff-added-meta: #2f7d4f;
-  --color-diff-added-word: rgba(30, 215, 96, 0.3);
-  --color-diff-added-code: #14532d;
-  --color-diff-deleted-tint: rgba(243, 114, 127, 0.07);
-  --color-diff-deleted-meta: #a3323f;
-  --color-diff-deleted-word: rgba(243, 114, 127, 0.3);
-  --color-diff-deleted-code: #7f1d1d;
+  /* Diff add/delete palette. Declared per scheme rather than once: a wash that
+     reads as a tint on a near-white hunk reads as a stain on a near-black one,
+     and `-meta` / `-code` are INK, which can never be scheme-independent (a
+     near-white green was unreadable on the light tint it sat on, at 1.36:1).
+     Distinct from --color-negative / --color-success on purpose: these are
+     large-area fills, not punchy status marks. Alphas are pre-baked per role
+     (row tint / sign + meta / word-level intra-line tint). Raw vars consumed via
+     var() rather than Tailwind utilities, because the intra-line tint is injected
+     as inline CSS into Shiki-highlighted HTML. */
+  --color-diff-added-tint: rgba(55, 144, 76, 0.11);
+  --color-diff-added-meta: #2a713e;
+  --color-diff-added-word: rgba(55, 144, 76, 0.28);
+  --color-diff-added-code: #1c4e2c;
+  --color-diff-deleted-tint: rgba(201, 69, 75, 0.09);
+  --color-diff-deleted-meta: #b0342b;
+  --color-diff-deleted-word: rgba(201, 69, 75, 0.26);
+  --color-diff-deleted-code: #6e211c;
 
-  /* Primary CTA — the inverting ink button (Vercel / ChatGPT): near-black on
-     light, near-white on dark. Decoupled from --color-accent so accent stays
-     reserved for "live state". Themes override per-scheme. */
-  --color-cta: #171717;
-  --color-cta-hover: #000000;
-  --color-cta-text: #ffffff;
+  /* Primary CTA — the accent fill. This language keeps one saturated colour and
+     spends it on the single action that matters, so the CTA and the "live"
+     indicator are deliberately the same hue. Follows the user's accent pick;
+     themes override per scheme. */
+  --color-cta: var(--color-accent-border);
+  --color-cta-hover: var(--color-accent-press);
+  --color-cta-text: var(--color-text-on-accent);
 
   /* UI type ladder — first-paint defaults for a 12px base. installUiStoreEffects
      recomputes all six from the user's base size (lib/typography.ts) and writes
@@ -571,26 +578,16 @@
   --icon-swap-ease: ease-in-out;
 
   /* -----------------------------------------------------------------------
-   *  Shadow system — one edge mechanism per role. Composer owns a real border,
-   *  so its shadow carries depth only. Popovers own one optical ring plus depth
-   *  and do not stack a border over it.
+   *  Shadow system. First-paint mirror of the visual style, which owns these:
+   *  flush chrome casts nothing, only surfaces that genuinely leave the plane
+   *  carry depth, and every cast composes from the palette's --shadow-cast.
    * ----------------------------------------------------------------------- */
-  --shadow-border: 0 0 0 1px rgb(17 17 17 / 0.08);
-  --shadow-control:
-    0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 1px rgb(17 17 17 / 0.04),
-    0 4px 10px -4px rgb(17 17 17 / 0.07);
-  --shadow-composer-depth: 0 8px 24px -18px color-mix(in srgb, var(--color-text) 22%, transparent);
-  --shadow-popover:
-    0 0 0 1px var(--seam-line),
-    0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent);
-  /* Recessed track (segmented control): a hairline plus a faint inner shadow read
-     the base as a sunken well, so the selected chip appears to protrude from it. */
-  --shadow-well: inset 0 1px 2px rgb(0 0 0 / 0.06);
-  /* The chip that protrudes: one soft directional drop grounds it, while the rim
-     and the top edge highlight define the raised edge. macOS's own treatment. */
-  --shadow-raised-chip:
-    0 1px 1.5px rgb(0 0 0 / 0.04), inset 0 0 0 0.5px rgb(255 255 255 / 0.35),
-    inset 0 1px 0 rgb(255 255 255 / 0.5);
+  --shadow-border: 0 0 0 1px color-mix(in srgb, var(--color-text) 9%, transparent);
+  --shadow-control: none;
+  --shadow-composer-depth: none;
+  --shadow-popover: 0 6px 20px var(--shadow-cast);
+  --shadow-well: none;
+  --shadow-raised-chip: none;
   --shadow-surface-card: none;
   /* The halo on a "this is live right now" dot. Theme-agnostic on purpose: it is
      the accent bleeding, so it follows whatever accent the user picked. Two
@@ -605,20 +602,22 @@
      no halo). */
   --color-focus-ring: color-mix(in oklab, var(--color-accent) 50%, transparent);
 
-  /* Workbench regions: opaque chrome around one reading plane. Each boundary
-     has one owner and consumes the same derived hairline. */
-  --app-drawer-surface: var(--color-surface-2);
-  --app-surface-divider: color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%);
-  --seam-line: var(--app-surface-divider);
-  --app-pane-split: inset 1px 0 0 0 var(--app-surface-divider);
-  --app-pane-split-end: inset -1px 0 0 0 var(--app-surface-divider);
+  /* Workbench regions: opaque tool windows around one reading plane, separated by
+     value and a directional cast rather than by lines. First-paint mirror of the
+     visual style, which owns the region algorithm. */
+  --app-drawer-surface: var(--color-surface);
   --app-content-surface: var(--color-bg);
-  --app-header-surface: var(--color-surface-2);
-  --app-dock-surface: var(--color-surface-2);
-  --app-card-surface: var(--color-surface-2);
+  --app-header-surface: transparent;
+  --app-dock-surface: color-mix(in oklab, var(--color-bg) 25%, var(--color-surface));
+  --app-card-surface: var(--color-elevated);
+  --app-surface-divider: transparent;
+  --app-card-edge: inset 9px 0 22px -14px var(--shell-boundary);
+  --app-pane-split: -7px 0 22px -10px var(--shadow-cast);
+  --app-pane-split-end: 7px 0 22px -10px var(--shadow-cast);
+  --seam-line: color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%);
 
   /* Content max-width — the centered reading island. */
-  --content-max: 800px;
+  --content-max: 820px;
 }
 
 /* IMPORTANT: do not set `font-size` on <html>. It anchors `rem` for
@@ -837,49 +836,48 @@ html.theme-dark body {
   background: var(--color-bg);
 }
 html.theme-dark {
-  --color-bg: #101010;
-  --color-surface: #0e0e0e;
-  --depth-step: 5%;
+  --color-accent: #3574f0;
+  --color-accent-border: #2a63d8;
+  --color-accent-press: #2354bd;
 
-  --color-text: #f5f5f5;
+  /* The plane is the DARKEST surface and the chrome steps UP from it — an IDE
+     puts you inside the editor and frames it with tool windows. */
+  --color-bg: #1e1f22;
+  --color-surface: #2b2d30;
+  --color-elevated: #2b2d30;
+  --color-sunken: #17181a;
+  /* Double the light scheme's step: 4% of a near-white ink moves a near-black
+     surface a third as far, in perceived lightness, as 4% of a near-black ink
+     moves a near-white one. See `depthStep` in adapters/documentAppearance.ts. */
+  --depth-step: 8%;
+
+  --shadow-cast: rgb(0 0 0 / 0.55);
+
+  --color-text: #e3e5e9;
   --color-text-bright: #ffffff;
-  --color-text-soft: #a1a1a1;
-  --color-text-muted: #8a8a8a;
-  --color-text-faint: #7f7f7f;
+  --color-text-soft: #c6c9cf;
+  --color-text-muted: #aaaeb5;
+  --color-text-faint: #95999f;
   --color-text-on-accent: #ffffff;
   --color-text-on-warning: #000000;
 
-  --color-border: rgb(255 255 255 / 0.04);
-  --color-border-soft: rgb(255 255 255 / 0.1);
-  --color-divider: rgb(255 255 255 / 0.03);
+  --color-border: #3a3d42;
+  --color-border-soft: #4b4e54;
+  --color-divider: rgb(255 255 255 / 0.07);
 
-  --color-diff-added-meta: rgba(95, 227, 154, 0.7);
-  --color-diff-added-code: #c8f5d8;
-  --color-diff-deleted-meta: rgba(243, 114, 127, 0.7);
-  --color-diff-deleted-code: #f5cdd2;
+  --color-diff-added-tint: rgba(73, 156, 84, 0.15);
+  --color-diff-added-meta: #5fad65;
+  --color-diff-added-word: rgba(73, 156, 84, 0.32);
+  --color-diff-added-code: #bcebc4;
+  --color-diff-deleted-tint: rgba(219, 92, 92, 0.13);
+  --color-diff-deleted-meta: #e06c6c;
+  --color-diff-deleted-word: rgba(219, 92, 92, 0.3);
+  --color-diff-deleted-code: #f2cccc;
 
-  --color-negative: #fc0035;
-  --color-warning: #ffc543;
-  --color-info: #006bff;
-  --color-success: #4ce15e;
-
-  --color-cta: #f5f5f5;
-  --color-cta-hover: #ffffff;
-  --color-cta-text: #171717;
-  /* Same faint cool lift as light, one step above the card. */
-  --color-control: #1c1c21;
-
-  --shadow-border: 0 0 0 0.5px rgb(255 255 255 / 0.12);
-  --shadow-control:
-    0 0 0 0.5px rgb(255 255 255 / 0.11), 0 1px 1px rgb(0 0 0 / 0.22),
-    0 7px 18px -14px rgb(0 0 0 / 0.62);
-  --shadow-composer-depth: 0 8px 40px -12px rgb(0 0 0 / 0.4);
-  --shadow-popover:
-    0 0 0 1px var(--seam-line), 0 12px 32px -12px rgb(0 0 0 / 0.55), 0 2px 6px -2px rgb(0 0 0 / 0.4);
-  /* Dark needs a deeper well and a far quieter highlight: on a near-black track a
-     35% white rim reads as a drawn outline, so the lift comes from fill contrast. */
-  --shadow-well: inset 0 1px 2px rgb(0 0 0 / 0.25);
-  --shadow-raised-chip: 0 1px 1.5px rgb(0 0 0 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.04);
+  --color-negative: #e06c6c;
+  --color-warning: #d6a750;
+  --color-info: #3574f0;
+  --color-success: #5fad65;
 }
 
 /* Quieter scrollbar on light — the dark thumb tokens overshoot. */
@@ -930,15 +928,15 @@ html.theme-light .msg-content code {
   --app-min-height: 720px;
   /* Drawer width. Live-updated inline on the shell element while dragging the
      seam rail; AgentAppShell restores the persisted value on mount. */
-  --sidebar-width: 256px;
+  --sidebar-width: 240px;
   /* macOS traffic lights occupy the first ~66px. The shell-level drawer control
      starts after one stable gutter and never changes owner or coordinate. */
   --window-controls-gutter: 78px;
   --window-sidebar-control-span: 36px;
   /* Chrome bar height. Shared by the sidebar header and every content header so
      the two line up across the seam — the single number the macOS traffic-light
-     gutter is centred against. */
-  --surface-header-height: 46px;
+     gutter is centred against. First-paint mirror of the visual style. */
+  --surface-header-height: 42px;
   /* Drawer slide. One duration + curve for the sidebar container, its spacer,
      the seam corner, and the card's depth shadow, so they move as one object. */
   --dur-drawer: calc(var(--dur-drawer-base) * var(--motion-scale));
@@ -1078,6 +1076,12 @@ html.theme-dark {
   z-index: 15;
 }
 
+/* The reading plane. Its leading edge carries the drawer's boundary, because the
+   plane outranks the drawer on z-index (so collapsing slides the drawer under it)
+   and a panel that sits underneath cannot cast onto what covers it.
+   `--shell-boundary` is the contract with the active visual style: the shell says
+   how strong the edge is right now, `--app-card-edge` says what shape it takes —
+   a hairline for a flat family, a directional cast for a spatial one. */
 .agent-content-card {
   position: relative;
   display: flex;
@@ -1088,13 +1092,13 @@ html.theme-dark {
   overflow: hidden;
   background: var(--app-content-surface);
   border-radius: 0;
-  --shell-boundary: var(--app-surface-divider);
-  box-shadow: inset 1px 0 0 var(--shell-boundary);
+  --shell-boundary: var(--shadow-cast);
+  box-shadow: var(--app-card-edge);
   transition: box-shadow var(--dur-drawer) var(--ease-drawer);
 }
 
 .agent-shell:has(.agent-seam-rail:is(:hover, :focus-visible)) .agent-content-card {
-  --shell-boundary: color-mix(in oklab, var(--color-text) 28%, var(--app-surface-divider));
+  --shell-boundary: color-mix(in oklab, var(--color-text) 28%, var(--shadow-cast));
 }
 
 /* Pane resizer — the shell's seam rail and this splitter are the same gesture,
@@ -1120,7 +1124,7 @@ html.theme-dark {
   background: color-mix(in srgb, var(--color-text) 30%, transparent);
 }
 
-/* No adjacent tool window means no leading boundary. */
+/* No adjacent tool window means nothing to cast the boundary. */
 .agent-shell[data-sidebar="collapsed"] .agent-content-card {
   --shell-boundary: transparent;
 }
@@ -1197,8 +1201,14 @@ html.theme-dark {
    against the conversation, the review navigator against the diff). One class
    delegates the boundary to the active visual style: a hairline for flat families
    or a soft directional cast for spatial ones. The pane keeps its region fill so
-   one separator never becomes two competing signals. */
+   one separator never becomes two competing signals.
+
+   It must outrank its sibling: a style that divides by casting ACROSS the split
+   needs the casting pane painted last, or the shadow lands under the opaque
+   column it is supposed to fall on. */
 .agent-pane-split {
+  position: relative;
+  z-index: 1;
   box-shadow: var(--app-pane-split);
 }
 

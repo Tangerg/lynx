@@ -22,7 +22,7 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
         // Until the saved stance loads, show a quiet placeholder rather than
         // selecting a default row — a fake selection could contradict the real
         // mode for a frame.
-        <div className="mt-3 h-[184px] rounded-lg bg-surface" aria-hidden />
+        <div className="mt-3 h-[184px] rounded-lg bg-sunken" aria-hidden />
       ) : (
         <div className="mt-3 flex flex-col gap-0.5">
           {APPROVAL_MODES.map((o) => {

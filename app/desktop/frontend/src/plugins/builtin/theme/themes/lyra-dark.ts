@@ -1,38 +1,41 @@
-// Lyra Dark — system default.
+// Dark — the JetBrains tool-window palette.
 //
-// Mirror of the light scheme's separation model: card and shell sit at nearly the
-// same value and the seam ring plus depth shadow do the dividing. On dark that
-// matters more, not less — a lightness step big enough to read as a region split
-// makes the chrome look like a lighter panel glued on, while a near-black pair
-// with one hairline between them reads as depth.
+// Three region materials, no lines between them. The reading plane is the DARKEST
+// surface and the chrome around it steps up: that inversion is the whole idiom —
+// an IDE puts you inside the editor and frames it with tool windows, where a web
+// app would float a white card on grey. Depth comes from the value delta plus a
+// directional cast at each seam (the visual style owns both), never from a border.
+//
+// Cards sit at the same value as the chrome, so an object on the plane reads as
+// lifted while the same object inside a tool window reads as flush. `sunken` is
+// well below the plane and carries every recessed well: code, terminal, diff.
 
 import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 
 const c = {
-  // Same accent hue as light; reads clean on near-black.
-  accent: "#006bff",
+  // The one accent. Live indicators, progress, primary fills, focus, links.
+  accent: "#3574f0",
 
-  // Card is a whisper above the shell — enough for the frosted drawer (card color
-  // at 72%) to separate, not enough to read as a different material.
-  canvas: "#101010",
-  surface1: "#0e0e0e",
+  // Reading plane, region chrome, and the well beneath both.
+  canvas: "#1e1f22",
+  surface1: "#2b2d30",
+  sunken: "#17181a",
 
-  // surface2/3/4 derive as ink mixes off `surface1`, same as light.
+  // surface2/3/4 derive as ink mixes off `surface1` — those are the chip rungs
+  // (badge, inline code, kbd, selected row), not region materials.
 
-  // Ink
   inkBright: "#ffffff",
-  ink: "#f5f5f5",
-  inkSoft: "#a1a1a1",
-  inkMuted: "#8a8a8a",
-  // The quietest readable text rung still clears 4.5:1 on both canvas and
-  // surface. Hierarchy comes from size/weight/placement, not illegible ink.
-  inkFaint: "#7f7f7f",
+  ink: "#e3e5e9",
+  inkSoft: "#c6c9cf",
+  inkMuted: "#aaaeb5",
+  inkFaint: "#95999f",
 
-  // Hairlines — very low alpha. The seam ring derives from `border`, and on a
-  // near-black surface even 10% white reads as a drawn line rather than an edge.
-  hairline: "rgb(255 255 255 / 0.04)",
-  hairStrong: "rgb(255 255 255 / 0.1)",
-  hairTertiary: "rgb(255 255 255 / 0.03)",
+  // A control's edge is a real line here; a REGION's edge is not. Region
+  // separation is the visual style's cast, so nothing in this ramp is ever
+  // stretched into a pane divider.
+  hairline: "#3a3d42",
+  hairStrong: "#4b4e54",
+  hairTertiary: "rgb(255 255 255 / 0.07)",
 };
 
 export default defineColorThemePlugin({
@@ -48,6 +51,10 @@ export default defineColorThemePlugin({
   surfaces: {
     bg: c.canvas,
     surface: c.surface1,
+    // A card is cut from the same material as the chrome — on the darker plane it
+    // reads as lifted without a second value.
+    elevated: c.surface1,
+    sunken: c.sunken,
   },
   ink: {
     text: c.ink,
@@ -61,17 +68,23 @@ export default defineColorThemePlugin({
     borderSoft: c.hairStrong,
     divider: c.hairTertiary,
   },
+  // Desaturated and lifted so they carry meaning on the warm near-black without
+  // vibrating against it.
   semantic: {
-    negative: "#fc0035", // red-700
-    warning: "#ffc543", // amber-500
-    info: "#006bff", // blue-700
-    success: "#4ce15e", // green-600
+    negative: "#e06c6c",
+    warning: "#d6a750",
+    info: c.accent,
+    success: "#5fad65",
   },
-  // Primary CTA — inverting ink button (near-white fill on dark), mirroring the
-  // light scheme's ink-on-white. Accent (blue) stays reserved for "live".
+  // The primary CTA IS the accent here, not an inverting ink button: this
+  // language spends colour on the one action that matters and keeps everything
+  // else grey. Following `--color-accent` rather than a literal keeps the user's
+  // accent pick on the button too.
+  // One shade below the indicator accent, because white on the accent itself
+  // lands at 4.3:1 — the same hue, deep enough to carry label text.
   cta: {
-    cta: "#f5f5f5",
-    ctaHover: "#ffffff",
-    ctaText: "#171717",
+    cta: "var(--color-accent-border)",
+    ctaHover: "var(--color-accent-press)",
+    ctaText: "var(--color-text-on-accent)",
   },
 });

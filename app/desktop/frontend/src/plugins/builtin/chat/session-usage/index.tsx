@@ -1,8 +1,9 @@
-// The token/cost readout sits in the composer's status strip — `chat.status`, the
-// slot that had been declared and left empty while this chip stacked into the
-// banner band above the transcript, beside the goal control and the plan progress.
-// Those are things you act on; this is a number you glance at, and it belongs next
-// to the input whose next turn adds to it.
+// The token/cost readout sits on the chrome bar that names the session it
+// counts — `chat.header.meta`. It used to sit in the composer's status strip,
+// where it was one more thing between the transcript and the input, and where a
+// number that grows during a run pushed the reading column around. On the bar it
+// is next to the session title, the run state and the diff stat: the row of
+// glanceable facts about the thing you are reading, none of which move anything.
 
 import { definePlugin } from "@/plugins/sdk";
 import { sessionUsageStatusSlot } from "./application/sessionUsageContributions";
@@ -12,6 +13,6 @@ export default definePlugin({
   name: "lyra.builtin.session-usage",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("chat.status", sessionUsageStatusSlot(SessionUsageChip));
+    host.layout.register("chat.header.meta", sessionUsageStatusSlot(SessionUsageChip));
   },
 });

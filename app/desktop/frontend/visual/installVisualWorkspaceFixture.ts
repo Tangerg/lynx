@@ -1,4 +1,5 @@
 import { queryClient } from "@/lib/queryClient";
+import { SIDEBAR_DEFAULT_WIDTH_PX } from "@/lib/shellGeometry";
 import shortcutsSettings from "@/plugins/builtin/command/shortcuts";
 import { useRuntimeStore } from "@/plugins/builtin/runtime/adapters/runtimeCapabilityStore";
 import { kernelSettings } from "@/plugins/builtin/shell/kernel";
@@ -10,16 +11,15 @@ import {
   UTILITY_ROLE_KEY,
   type ProviderConfiguration,
 } from "@/plugins/builtin/settings/providers/public/queries";
-import { builtinVisualStyles } from "@/plugins/builtin/theme/visualStyles";
-import lyraDark from "@/plugins/builtin/theme/themes/lyra-dark";
-import lyraLight from "@/plugins/builtin/theme/themes/lyra-light";
 import { localeEn } from "@/plugins/builtin/i18n/locales/en";
 import { installWorkspaceErrorClassifier } from "@/plugins/builtin/workspace/adapters/runtimeWorkspaceErrorClassifier";
 import {
   WORKSPACE_DIFF_KEY,
+  WORKSPACE_FILES_CHANGED_KEY,
   WORKSPACE_LIST_FILES_KEY,
   WORKSPACE_READ_FILE_KEY,
   type WorkspaceDiff,
+  type WorkspaceFileChange,
   type WorkspaceFileEntry,
   type WorkspaceFileContent,
 } from "@/plugins/builtin/workspace/application/workspaceQueries";
@@ -196,6 +196,29 @@ function workspaceDataPlugin(state: VisualWorkspaceState): PluginSpec {
           return REVIEW_DIFF;
         },
       });
+      // The churn summary the header stat and the Diff tab's badge both read.
+      // It is a separate query from the diff itself — the diff is what you are
+      // looking at, this is what changed — so the fixture has to answer both or
+      // two production readouts stay invisible to every screenshot.
+      host.extensions.contribute(DATA_PROVIDER, {
+        key: WORKSPACE_FILES_CHANGED_KEY,
+        fetcher: async () => {
+          if (state === "dock-loading") return pending<WorkspaceFileChange[]>();
+          if (state === "dock-error") {
+            throw new Error("Visual fixture could not load the workspace file changes");
+          }
+          if (state === "dock-empty") return [];
+          return [
+            {
+              path: "app/desktop/frontend/src/plugins/DockResizer.tsx",
+              change: "mod",
+              added: 18,
+              removed: 6,
+            },
+            { path: "app/runtime/protocol/session.go", change: "mod", added: 7, removed: 3 },
+          ] satisfies WorkspaceFileChange[];
+        },
+      });
       host.extensions.contribute(DATA_PROVIDER, {
         key: WORKSPACE_LIST_FILES_KEY,
         fetcher: async () =>
@@ -312,12 +335,14 @@ export async function installVisualWorkspaceFixture(
     visualStyle: "lyra",
     motionScale: 0,
     sidebarCollapsed: false,
-    sidebarWidth: 256,
+    sidebarWidth: SIDEBAR_DEFAULT_WIDTH_PX,
     dockWidth: 520,
   });
 
+  // The palettes and the visual style come from the agent installer above — this
+  // fixture builds ON it, and loading a plugin twice reports `skipped`, which the
+  // loader here treats as a failure.
   await loadVisualPlugins([
-    ...builtinVisualStyles,
     workspaceDataPlugin(state),
     workspaceDockDestinations,
     diffView,
@@ -327,8 +352,6 @@ export async function installVisualWorkspaceFixture(
     planView,
     timelineView,
     kernelSettings,
-    lyraLight,
-    lyraDark,
     localeEn,
     appearanceSettings,
     providersSettings,

@@ -93,8 +93,13 @@ test("add-panel menu restores a closed singleton and focuses it", async ({ page 
   await page.getByRole("button", { name: "Close Terminal" }).click();
   await expect(page.getByTestId("dock-view-ids")).not.toContainText("terminal");
 
-  await page.getByRole("button", { name: "Add panel" }).click();
-  await page.getByRole("menuitem", { name: "Terminal" }).click();
+  await page.getByRole("button", { name: "Browse panels" }).click();
+  // The catalog is a searchable combobox, not a menu. Filtering and committing
+  // from the keyboard is also the path the control is shaped for: the input takes
+  // focus on open and `autoHighlight` puts the first match under Enter.
+  await page.getByRole("combobox").fill("Terminal");
+  await page.getByRole("option", { name: "Terminal" }).waitFor();
+  await page.keyboard.press("Enter");
 
   await expect(page.getByTestId("active-dock-view")).toHaveText("terminal");
   await expect(page.getByTestId("dock-view-ids")).toHaveText(
@@ -261,14 +266,19 @@ test("provider and model settings keep validation local to their form", async ({
   await expect(saveButtons.last()).toBeEnabled();
 });
 
-test("dock add-panel control exposes focusable tooltip help", async ({ page }) => {
+test("dock add-panel control names itself and dismisses on Escape", async ({ page }) => {
   await openWorkspace(page, { state: "dock-light" });
 
-  const add = page.getByRole("button", { name: "Add panel" });
-  await add.hover();
-  await expect(page.getByRole("tooltip")).toHaveText("Add panel");
+  // The trigger is an icon with no label beside it, so its own accessible name
+  // and native title are the only thing that says what it does.
+  const add = page.getByRole("button", { name: "Browse panels" });
+  await expect(add).toHaveAttribute("title", "Browse panels");
+
+  await add.click();
+  await expect(page.getByRole("listbox")).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(add).toBeFocused();
 });
 
 test("dock close control reveals its contextual glyph on hover and focus", async ({ page }) => {

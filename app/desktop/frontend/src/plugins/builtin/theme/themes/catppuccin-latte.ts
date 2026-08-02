@@ -8,6 +8,7 @@ const c = {
 
   base: "#eff1f5",
   mantle: "#e6e9ef",
+  crust: "#dce0e8",
   surface0: "#ccd0da",
   surface1: "#bcc0cc",
   surface2: "#acb0be",
@@ -31,8 +32,13 @@ export default defineColorThemePlugin({
     textOnAccent: "#ffffff",
   },
   surfaces: {
-    bg: c.mantle,
-    surface: c.base,
+    // Base is the reading plane, mantle the chrome. Inverted from the dark
+    // variant on purpose: in a light scheme the surface you read on has to be the
+    // brightest one, or the chrome shouts over the transcript.
+    bg: c.base,
+    surface: c.mantle,
+    elevated: "#ffffff",
+    sunken: c.crust,
   },
   ink: {
     text: c.text,

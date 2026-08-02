@@ -14,6 +14,7 @@ export const VISUAL_AGENT_STATES = [
   "recovery",
   "delegated",
   "long-content",
+  "narrative",
 ] as const;
 
 export type VisualAgentState = (typeof VISUAL_AGENT_STATES)[number];
@@ -143,6 +144,115 @@ const LONG_RESPONSE = message(
     "A deliberately long final paragraph verifies wrapping, reading measure, CJK fallback（中文混排）, inline code such as `expectedRevision`, and uninterrupted vertical rhythm without inventing a fixture-only message shape.",
   ].join("\n"),
 );
+
+// A multi-turn conversation with the full block vocabulary — the state the
+// narrative rails and the block grammar are actually FOR. Every other fixture is
+// one question and one answer, which is exactly the shape in which a turn map and
+// an answer outline have nothing to say, so neither could be photographed.
+const NARRATIVE_TURN_1 = message(
+  "userMessage",
+  "item_n_ask1",
+  "Pull the retry logic out of checkout into its own hook, run the tests, then show me the tradeoffs.",
+);
+
+const NARRATIVE_REASONING: Item = {
+  type: "reasoning",
+  id: "item_n_reasoning",
+  runId: ROOT_RUN_ID,
+  status: "completed",
+  createdAt: "2026-07-31T08:01:00.000Z",
+  text: "The retry loop is inlined in handleSubmit with a hardcoded ceiling and no backoff. Extracting it has two hazards: the idempotency key has to survive the whole retry cycle, and the component may unmount mid-flight.",
+};
+
+const NARRATIVE_PLAN: Item = {
+  type: "plan",
+  id: "item_n_plan",
+  runId: ROOT_RUN_ID,
+  status: "completed",
+  createdAt: "2026-07-31T08:01:02.000Z",
+  steps: [
+    { id: "n_step1", title: "Locate the existing retry implementation", status: "completed" },
+    { id: "n_step2", title: "Extract useRetryPayment and wire up checkout", status: "completed" },
+    { id: "n_step3", title: "Run the checkout unit tests", status: "running" },
+    { id: "n_step4", title: "Publish the strategy comparison", status: "pending" },
+  ],
+};
+
+function narrativeTool(
+  id: string,
+  name: string,
+  args: Record<string, unknown>,
+  result?: unknown,
+): Item {
+  return {
+    type: "toolCall",
+    id,
+    runId: ROOT_RUN_ID,
+    status: "completed",
+    createdAt: "2026-07-31T08:01:04.000Z",
+    tool: { name, arguments: args, ...(result === undefined ? {} : { result }) },
+  };
+}
+
+const NARRATIVE_ANSWER_1 = message(
+  "agentMessage",
+  "item_n_answer1",
+  [
+    "## The extracted hook",
+    "",
+    "The key is pinning the idempotency key to a `useRef` so the whole retry cycle shares one — otherwise every attempt reads as a new order at the gateway.",
+    "",
+    "- **Exponential backoff**: 400ms → 800ms → 1600ms, three attempts;",
+    "- **Cancellable**: aborts on unmount and stops writing state;",
+    "- **Observable**: every failure reports a `payment.retry` event.",
+    "",
+    "## Strategy comparison",
+    "",
+    "| Strategy | P95 success | Double-charge risk | Cost |",
+    "| --- | --- | --- | --- |",
+    "| Fixed interval | 91.2% | High | Low |",
+    "| Exponential backoff | 96.8% | Medium | Low |",
+    "| Backoff + jitter + key | 98.4% | Low | Medium |",
+    "| Server-side replay queue | 99.1% | Low | High |",
+    "",
+    "Sampled from the payment gateway over 2026-07, n = 41,208.",
+  ].join("\n"),
+);
+
+const NARRATIVE_TURN_2 = message(
+  "userMessage",
+  "item_n_ask2",
+  "There are still a few double charges in production. Check the errors and give me two fixes.",
+);
+
+const NARRATIVE_ANSWER_2 = message(
+  "agentMessage",
+  "item_n_answer2",
+  [
+    "## Two ways to fix it",
+    "",
+    "Both remove the double charge; they differ in which layer owns the key's lifetime.",
+    "",
+    "1. **Key follows the order** — mint it once at checkout and persist it, so a refresh reuses it. Two files, no backend work.",
+    "2. **Server issues the key** — the checkout endpoint returns an intent id and the client only forwards it. Five files, one backend day.",
+  ].join("\n"),
+);
+
+const NARRATIVE_TURN_3 = message(
+  "userMessage",
+  "item_n_ask3",
+  "Go with the first one, and add a regression test for the refresh case.",
+);
+
+const NARRATIVE_COMPACTION: Item = {
+  type: "compaction",
+  id: "item_n_compaction",
+  runId: ROOT_RUN_ID,
+  status: "completed",
+  createdAt: "2026-07-31T08:02:00.000Z",
+  droppedMessages: 34,
+  summary: "Earlier tool output folded into a summary.",
+};
 
 const BASE: AgentSessionSnapshot = {
   runs: [],
@@ -407,6 +517,56 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
     items: [PROMPT, LONG_RESPONSE],
     pendingInterruptSets: [],
   },
+  narrative: {
+    runs: [
+      run("finished", {
+        finishedAt: "2026-07-31T08:02:30.000Z",
+        outcome: { type: "completed" },
+      }),
+    ],
+    items: [
+      NARRATIVE_TURN_1,
+      NARRATIVE_REASONING,
+      NARRATIVE_PLAN,
+      narrativeTool("item_n_read", "read", { file_path: "src/checkout/checkout.tsx" }),
+      narrativeTool("item_n_grep", "grep", { pattern: "retry|backoff", path: "src" }, "7 matches"),
+      narrativeTool(
+        "item_n_edit",
+        "edit",
+        { file_path: "src/checkout/hooks/useRetryPayment.ts" },
+        "Created 85 lines",
+      ),
+      NARRATIVE_ANSWER_1,
+      NARRATIVE_TURN_2,
+      NARRATIVE_COMPACTION,
+      narrativeTool("item_n_search", "web_search", { query: "stripe idempotency key retry" }),
+      NARRATIVE_ANSWER_2,
+      NARRATIVE_TURN_3,
+    ],
+    pendingInterruptSets: [
+      {
+        rootRunId: ROOT_RUN_ID,
+        sessionId: SESSION_ID,
+        createdAt: "2026-07-31T08:02:20.000Z",
+        interrupts: [
+          {
+            type: "approval",
+            itemId: "item_n_approval",
+            runId: ROOT_RUN_ID,
+            payload: {
+              tool: {
+                name: "shell",
+                arguments: { command: "rm -rf node_modules .next && pnpm install" },
+              },
+              reason: "rm -rf deletes uncommitted build output and cannot be undone.",
+              rememberable: true,
+              risk: "high",
+            },
+          },
+        ],
+      },
+    ],
+  },
 };
 
 export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, RunEvent[]>> = {
@@ -432,6 +592,7 @@ export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, RunEve
   recovery: [],
   delegated: [],
   "long-content": [],
+  narrative: [],
 };
 
 export const VISUAL_SESSION_ID = SESSION_ID;

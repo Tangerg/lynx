@@ -9,7 +9,12 @@ import {
 
 describe("DEFAULT_ACCENTS", () => {
   it("keeps accent ids stable and ordered for the appearance picker", () => {
-    expect(DEFAULT_ACCENTS.map((accent) => accent.id)).toEqual(["blue", "green", "pink", "orange"]);
+    expect(DEFAULT_ACCENTS.map((accent) => accent.id)).toEqual([
+      "blue",
+      "purple",
+      "green",
+      "orange",
+    ]);
     expect(DEFAULT_ACCENTS.map((accent) => accent.order)).toEqual([0, 1, 2, 3]);
   });
 

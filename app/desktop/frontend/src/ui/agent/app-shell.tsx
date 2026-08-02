@@ -57,6 +57,11 @@ export function AgentAppShell({
     const shell = shellRef.current;
     if (!shell) return;
     const syncWidth = () => {
+      // Not while the rail is dragging. The observer below fires on any layout
+      // change, and a drag IS one — so under load it could land between two
+      // pointer-moves and snap the drawer back to the value the drag has not
+      // committed yet. The rail marks the shell for exactly this window.
+      if (shell.hasAttribute("data-resizing")) return;
       shell.style.setProperty(
         "--sidebar-width",
         `${clampSidebarWidth(sidebarWidth, shell.clientWidth)}px`,

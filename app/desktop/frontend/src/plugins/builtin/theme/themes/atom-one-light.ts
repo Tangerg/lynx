@@ -33,8 +33,12 @@ export default defineColorThemePlugin({
     textOnAccent: "#ffffff",
   },
   surfaces: {
-    bg: c.panel,
-    surface: c.editor,
+    // The editor tone is the plane and the panel frames it — inverted from the
+    // dark variant, because a light scheme has to read on its brightest surface.
+    bg: c.editor,
+    surface: c.panel,
+    elevated: "#ffffff",
+    sunken: c.sel1,
   },
   ink: {
     text: c.fg,

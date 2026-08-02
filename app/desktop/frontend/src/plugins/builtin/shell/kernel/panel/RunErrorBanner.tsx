@@ -109,7 +109,7 @@ export function RunErrorBanner() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={disclosureTransition}
-          className="my-2.5 grid grid-cols-[auto_1fr_auto] items-start gap-2.5 rounded-lg bg-surface px-3 py-2.5 font-sans text-fg"
+          className="my-2.5 grid grid-cols-[auto_1fr_auto] items-start gap-2.5 rounded-lg bg-card px-3 py-2.5 font-sans text-fg"
         >
           <Icon name="alert" size="sm" className="mt-0.5 text-negative" />
           <div className="min-w-0">

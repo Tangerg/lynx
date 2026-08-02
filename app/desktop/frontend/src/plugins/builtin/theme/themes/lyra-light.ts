@@ -1,47 +1,38 @@
-// Lyra Light — the default skin.
+// Light — the JetBrains tool-window palette, light scheme.
 //
-// The separation model is a raised content card over a frosted drawer, so the
-// two big regions sit at almost the same value: the seam ring and the card's
-// depth shadow carry the split, not a brightness delta. That is why `surface`
-// (the shell the drawer floats on) is a hair BELOW pure white instead of a step
-// of grey — a grey rail beside a white column reads as two pasted rectangles.
+// Same region algorithm as the dark scheme, mirrored: the reading plane is the
+// brightest surface and the chrome around it steps DOWN. Depth is the value delta
+// plus a directional cast at each seam, never a border.
 //
-// Accent (blue-700) is reserved for live / focus / links; the primary CTA is the
-// inverting ink-on-white button, so blue stays rare.
+// The card anchor is where the two schemes stop being a single mix. On dark a card
+// lifts toward the ink; here it lifts away from it, to pure white over an off-white
+// plane. That is why `elevated` is an anchor and not a ladder rung.
+//
+// Semantic hues follow the reference language but are one step deeper than it: the
+// reference's greens and ambers land at 3.4–3.9:1 as text on these surfaces, and a
+// status word nobody can read is not a status. Hue family preserved, luminance
+// pulled until each clears 4.5:1 on the darkest surface it can sit on.
 
 import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 
 const c = {
-  // The one accent. Live indicators, focus rings, links.
-  accent: "#006bff",
+  // Deeper than the dark scheme's #3574f0 for the same reason as the semantics —
+  // the reference blue reads at 3.8:1 on this chrome. Same hue, AA-clean.
+  accent: "#2b5fd0",
 
-  // Card is pure white; the shell behind the drawer is a half-step down. The
-  // drawer itself is the card color at partial opacity over this shell (see
-  // `--app-drawer-surface`), which is what makes it read as the same material.
-  canvas: "#ffffff",
-  surface1: "#fcfcfc",
+  canvas: "#fbfbfc",
+  surface1: "#f0f1f3",
+  sunken: "#eef0f2",
 
-  // surface2/3/4 are deliberately NOT pinned: deriving them as ink mixes off
-  // `surface1` keeps recessed fills (segmented wells, inputs, hover rows) in step
-  // with --depth-step and the user's contrast setting.
-
-  // Ink ramp — near-black anchor. Measured against Codex, body copy there is
-  // essentially black and chrome labels sit around #282828; anchoring at
-  // neutral-800 put every step here a visible notch lighter than both.
   inkBright: "#000000",
-  ink: "#171717",
-  inkSoft: "#4d4d4d",
-  inkMuted: "#686868",
-  // The quietest readable text rung still clears 4.5:1 on both canvas and
-  // surface. Hierarchy comes from size/weight/placement, not illegible ink.
-  inkFaint: "#6f6f6f",
+  ink: "#1e1f22",
+  inkSoft: "#3d4147",
+  inkMuted: "#5a5d63",
+  inkFaint: "#63666d",
 
-  // Hairlines ARE the separation mechanism here, so they are tuned low: the seam
-  // ring and the chrome divider both derive from `border`, and anything heavier
-  // turns the UI into a wireframe.
-  hairline: "rgb(0 0 0 / 0.05)",
-  hairStrong: "rgb(0 0 0 / 0.14)",
-  hairTertiary: "rgb(0 0 0 / 0.04)",
+  hairline: "#dfe1e5",
+  hairStrong: "#c7cad0",
+  hairTertiary: "rgb(0 0 0 / 0.07)",
 };
 
 export default defineColorThemePlugin({
@@ -57,6 +48,8 @@ export default defineColorThemePlugin({
   surfaces: {
     bg: c.canvas,
     surface: c.surface1,
+    elevated: "#ffffff",
+    sunken: c.sunken,
   },
   ink: {
     text: c.ink,
@@ -71,15 +64,16 @@ export default defineColorThemePlugin({
     divider: c.hairTertiary,
   },
   semantic: {
-    negative: "#d1001a", // red-800, darkened to clear 4.5:1 as text on a recessed fill
-    warning: "#ffa600", // amber-600
-    info: "#006bff", // blue-700
-    success: "#187635", // green-800; #28a948 could not reach 4.5:1 as text on any light surface
+    negative: "#b0342b",
+    warning: "#84610e",
+    info: c.accent,
+    success: "#2a713e",
   },
-  // Primary CTA — inverting ink-on-white. Hover goes pure black.
+  // One shade below the indicator accent, because white on the accent itself
+  // lands at 4.3:1 — the same hue, deep enough to carry label text.
   cta: {
-    cta: "#171717",
-    ctaHover: "#000000",
-    ctaText: "#ffffff",
+    cta: "var(--color-accent-border)",
+    ctaHover: "var(--color-accent-press)",
+    ctaText: "var(--color-text-on-accent)",
   },
 });

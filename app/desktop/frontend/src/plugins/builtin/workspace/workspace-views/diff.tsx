@@ -26,6 +26,11 @@ import {
   workspaceDiffFileHeader,
   useWorkspaceDiffView,
 } from "@/plugins/builtin/workspace/application/diffViewModel";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import {
+  useWorkspaceCapability,
+  useWorkspaceFileChanges,
+} from "@/plugins/builtin/workspace/public/queries";
 
 /** Attribute the navigator scrolls to. One spelling, read back by query. */
 const FILE_ANCHOR = "data-diff-file";
@@ -228,10 +233,21 @@ function ReviewPanel() {
   );
 }
 
+// How many files the working tree has moved, on the tab. Silent on a clean tree
+// and while the query is in flight, for the same reason the header stat is.
+function DiffTabBadge() {
+  const gitEnabled = useWorkspaceCapability("git");
+  const cwd = useActiveSessionCwd();
+  const { data: files } = useWorkspaceFileChanges(gitEnabled ? { cwd } : undefined);
+  if (!files || files.length === 0) return null;
+  return String(files.length);
+}
+
 export const diffView = defineWorkspaceView({
   id: "diff",
   title: "workspace.view.title.diff",
   icon: "diff",
+  badge: DiffTabBadge,
   order: 40,
   splittable: true,
   component: ReviewPanel,

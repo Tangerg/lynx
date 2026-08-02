@@ -11,16 +11,13 @@ export function SessionUsageChip() {
   if (!readout) return null;
 
   return (
-    <div className="flex justify-end pt-1">
-      <span
-        title={t("usage.session.hint")}
-        className="inline-flex h-5 items-center gap-1.5 rounded-sm font-mono text-ui-sm text-fg-muted tracking-tight whitespace-nowrap tabular-nums"
-      >
-        <span className="text-fg-soft">{t("usage.session.label")}</span>
-        <span>↑{fmtTokens(readout.inputTokens)}</span>
-        <span>↓{fmtTokens(readout.outputTokens)}</span>
-        {readout.costUsd !== undefined && <span>·&nbsp;{fmtCost(readout.costUsd)}</span>}
-      </span>
-    </div>
+    <span
+      title={t("usage.session.hint")}
+      className="hidden shrink-0 items-center gap-1.5 whitespace-nowrap font-mono text-ui-xs tracking-tight text-fg-faint tabular-nums sm:inline-flex"
+    >
+      <span>↑{fmtTokens(readout.inputTokens)}</span>
+      <span>↓{fmtTokens(readout.outputTokens)}</span>
+      {readout.costUsd !== undefined && <span>·&nbsp;{fmtCost(readout.costUsd)}</span>}
+    </span>
   );
 }

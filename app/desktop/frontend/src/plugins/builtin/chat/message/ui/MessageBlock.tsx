@@ -11,6 +11,7 @@ import {
 import { messageBlocksRenderInstant, messageCitations } from "../application/messageBlockModel";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
+import { formatClock } from "@/lib/i18n/relativeTime";
 import { Icon } from "@/ui";
 import { MESSAGE_CONTENT_CLASS } from "./messageContent";
 import { CitationContext } from "./CitationContext";
@@ -61,49 +62,52 @@ function MessageBlockInner({
   );
 
   const roleLabel = t(isUser ? "role.user" : "role.assistant");
+  const stamp = formatClock(msg.createdAt);
 
   return (
     <MessageContext.Provider value={msg}>
       <CitationContext.Provider value={citations}>
-        {/* minmax(0,1fr) caps the implicit grid column at the parent's
-            width — without it, a wide child (e.g. a ReasoningBlock with
-            a long preview line) stretches the whole row past the
-            intended msg-stream column. */}
-        <div className="group relative grid min-w-0 grid-cols-[26px_minmax(0,1fr)] gap-x-3">
-          <div
-            aria-hidden
-            className={cn(
-              "mt-px grid size-[26px] place-items-center rounded-md border",
-              isUser
-                ? "border-field bg-surface-2 text-fg-muted"
-                : "border-accent/20 bg-accent-wash text-accent",
+        {/* A caption line over a full-width body, not an avatar gutter beside a
+            narrowed one. Who is speaking is a two-word fact you read once per
+            turn; the reading measure is the thing you spend the whole turn
+            inside, and a 38px gutter was taking it from every code block, diff
+            and table below. */}
+        <div className="group relative flex min-w-0 flex-col gap-2">
+          <div className="flex min-h-5 min-w-0 items-center gap-2 text-ui-xs text-fg-faint">
+            <span
+              aria-hidden
+              className={cn(
+                "grid size-[18px] shrink-0 place-items-center rounded-full",
+                isUser ? "bg-surface-2 text-fg-muted" : "text-accent",
+              )}
+            >
+              <Icon name={isUser ? "user" : "sparkle"} size="xs" />
+            </span>
+            <span className="min-w-0 truncate">{roleLabel}</span>
+            {stamp && (
+              <>
+                <span aria-hidden>·</span>
+                <span className="shrink-0 font-mono tabular-nums">{stamp}</span>
+              </>
             )}
-          >
-            <Icon name={isUser ? "user" : "sparkle"} size="sm" />
-          </div>
-          <div className="min-w-0">
-            <div className="mb-2 flex min-h-6 min-w-0 items-center gap-2">
-              <span className="min-w-0 flex-1 truncate text-ui-sm font-semibold text-fg">
-                {roleLabel}
-              </span>
-              <div className={actionsClass}>
-                <Slot name="message.actions" />
-              </div>
+            <span className="min-w-2 flex-1" />
+            <div className={actionsClass}>
+              <Slot name="message.actions" />
             </div>
-            <MessageContextMenu msg={msg}>
-              <div
-                className={cn(
-                  MESSAGE_CONTENT_CLASS,
-                  "min-w-0 text-pretty leading-relaxed",
-                  isUser
-                    ? "rounded-bubble border border-field bg-surface-2 px-3.5 py-3 text-ui-md text-fg"
-                    : "max-w-[var(--content-max)] text-ui-md text-fg-soft",
-                )}
-              >
-                {content}
-              </div>
-            </MessageContextMenu>
           </div>
+          <MessageContextMenu msg={msg}>
+            <div
+              className={cn(
+                MESSAGE_CONTENT_CLASS,
+                "min-w-0 text-pretty leading-relaxed",
+                isUser
+                  ? "rounded-bubble bg-card px-4 py-3.5 text-ui-md text-fg"
+                  : "text-ui-md text-fg-soft",
+              )}
+            >
+              {content}
+            </div>
+          </MessageContextMenu>
         </div>
       </CitationContext.Provider>
     </MessageContext.Provider>

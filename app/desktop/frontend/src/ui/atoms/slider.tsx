@@ -30,7 +30,7 @@ export function Slider({
       onValueChange={onValueChange}
     >
       <SliderPrimitive.Control className="relative flex h-4 grow items-center">
-        <SliderPrimitive.Track className="relative h-1 grow rounded-full bg-surface-2">
+        <SliderPrimitive.Track className="relative h-1 grow rounded-full bg-sunken">
           <SliderPrimitive.Indicator className="absolute h-full rounded-full bg-accent" />
         </SliderPrimitive.Track>
         <SliderPrimitive.Thumb

@@ -16,6 +16,7 @@ import {
 import { ToolCard, ToolGroup } from "@/plugins/builtin/chat/tools/public/rendering";
 import { PluginContentBlock } from "@/plugins/host/PluginContentBlock";
 import { messageBlockRenderUnits } from "../application/messageBlockModel";
+import { BLOCK_ANCHOR_ATTR, renderUnitAnchor } from "../application/renderUnitAnchor";
 import { DelegatedNarrative } from "./DelegatedNarrative";
 
 /**
@@ -138,19 +139,32 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
   }
 }
 
+/**
+ * Render a message's blocks, each in an anchored wrapper.
+ *
+ * The wrapper is a bare `<div>` and adds no spacing of its own: block cards carry
+ * their own margins and the markdown body its own rhythm, so this is layout-inert.
+ * It exists so the narrative outline can scroll to a block without every card
+ * having to learn about anchors — and it is where the React key now lives, which
+ * is what makes `renderUnitAnchor`'s identity rule apply to every block kind at
+ * once instead of to the two that remembered to ask for it.
+ */
 export function renderMessageBlocks(message: Message, ctx: BlockCtx) {
   return messageBlockRenderUnits(message.blocks, ctx.toolCalls).map((unit) => {
-    if (unit.kind === "toolGroup") {
-      return (
-        <ToolGroup
-          key={`group-${unit.tools[0]!.id}`}
-          tools={unit.tools}
-          onSelectTool={ctx.onSelectTool}
-          expandedIds={ctx.expandedIds}
-          onToggleExpand={ctx.onToggleExpand}
-        />
-      );
-    }
-    return renderBlock(unit.block, unit.index, ctx);
+    const anchor = renderUnitAnchor(message.id, unit);
+    return (
+      <div key={anchor} {...{ [BLOCK_ANCHOR_ATTR]: anchor }}>
+        {unit.kind === "toolGroup" ? (
+          <ToolGroup
+            tools={unit.tools}
+            onSelectTool={ctx.onSelectTool}
+            expandedIds={ctx.expandedIds}
+            onToggleExpand={ctx.onToggleExpand}
+          />
+        ) : (
+          renderBlock(unit.block, unit.index, ctx)
+        )}
+      </div>
+    );
   });
 }

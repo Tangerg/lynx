@@ -114,7 +114,8 @@ test("motion preference and OS reduced motion share one final authority", async 
   });
 
   const drawerGap = page.locator(".agent-drawer-gap");
-  await expect(drawerGap).toHaveCSS("transition-duration", "0.3s");
+  // The shipped visual style declares a 240ms drawer (WORKBENCH_MOTION.drawerMs).
+  await expect(drawerGap).toHaveCSS("transition-duration", "0.24s");
 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(drawerGap).toHaveCSS("transition-duration", "0.001s");

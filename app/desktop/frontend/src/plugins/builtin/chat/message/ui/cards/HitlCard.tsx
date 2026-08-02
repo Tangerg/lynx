@@ -13,8 +13,8 @@ import { cn } from "@/lib/classNames";
 // The warning cue lives in the header icon color + a tinted risk badge, not
 // in the container edge.
 const VARIANT_CLASS: Record<string, string> = {
-  neutral: "bg-surface",
-  warning: "bg-surface",
+  neutral: "bg-card",
+  warning: "bg-card",
 };
 
 /** Settled "done" row — shared by approval (approved) + question (answered). */

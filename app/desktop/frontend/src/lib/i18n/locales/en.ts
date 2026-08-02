@@ -26,6 +26,7 @@ export const en: Record<string, string> = {
   "theme.switchToLight": "Switch to light",
   "shell.region.workIndex": "Work index",
   "shell.region.workspace": "Agent workspace",
+  "workIndex.identity.none": "No workspace",
   "workIndex.section.projects": "Projects",
   "sidebar.action.collapse": "Hide sidebar",
   "sidebar.action.expand": "Expand sidebar",
@@ -34,7 +35,7 @@ export const en: Record<string, string> = {
   "sidebar.action.settings": "Settings",
 
   "composer.input.label": "Message composer",
-  "composer.placeholder": "Type freely",
+  "composer.placeholder": "Describe what you want done — @ to reference a file, ⏎ to send",
   "composer.placeholder.steer": "Send a message to steer the running turn…",
   "composer.switchModel": "Switch model",
   "composer.attachImage": "Attach image",
@@ -196,7 +197,6 @@ export const en: Record<string, string> = {
   "settings.pane.schedules": "Schedules",
   "settings.appearance.hero":
     "Themes, contrast, typography, and motion define the working feel of Lynx.",
-  "usage.session.label": "Session",
   "usage.session.hint": "This session's cumulative tokens and cost across all its runs",
   "usage.range.all": "All",
   "usage.range.30d": "30d",
@@ -407,9 +407,6 @@ export const en: Record<string, string> = {
   "settings.theme.system": "System",
   "settings.theme.sub":
     "Pick a color theme. Plugins can register more — they show up here automatically.",
-  "settings.visualStyle": "Interface style",
-  "settings.visualStyle.sub":
-    "Change component geometry, pane separation, elevation and interaction language.",
   "settings.accent": "Accent",
   "settings.accent.sub": "Functional highlight color — play / active / CTA.",
   "settings.accent.custom": "Pick a custom color",
@@ -438,10 +435,6 @@ export const en: Record<string, string> = {
   "settings.motion.sub": "Animation speed across the app.",
   "settings.contrast": "Contrast",
   "settings.contrast.sub": "Surface separation across all themes.",
-  "settings.messageStyle": "Message style",
-  "settings.messageStyle.sub": "How your own messages render.",
-  "settings.messageStyle.bubble": "Bubble",
-  "settings.messageStyle.plain": "Plain",
   "settings.streamReveal": "Streaming style",
   "settings.streamReveal.sub": "How the assistant's replies appear as they stream in.",
   "settings.streamReveal.smooth": "Smooth",
@@ -824,6 +817,14 @@ export const en: Record<string, string> = {
   "agentSource.rpc": "Runtime Protocol (JSON-RPC)",
 
   // ── Message roles ──
+  "narrative.rail.turns": "Your questions",
+  "narrative.rail.outline": "In this answer",
+  "outline.entry.reasoning": "Thinking",
+  "outline.entry.plan": "Plan",
+  "outline.entry.approval": "Approval",
+  "outline.entry.question": "Question",
+  "outline.entry.compaction": "Context compacted",
+  "outline.entry.image": "Image",
   "role.user": "You",
   "role.assistant": "Assistant",
   "role.system": "System",
@@ -961,8 +962,6 @@ export const en: Record<string, string> = {
 
   // ── Reasoning block ──
   "reasoning.thinking": "Thinking…",
-  "reasoning.thinkingWithTime": "Thinking · {{time}}",
-  "reasoning.thoughtFor": "Thought for {{time}}",
   "reasoning.thought": "Thought",
   "reasoning.interrupted": "interrupted",
   "reasoning.answerNow": "Answer now",

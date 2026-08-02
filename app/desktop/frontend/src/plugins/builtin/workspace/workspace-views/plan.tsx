@@ -22,10 +22,19 @@ function PlanTab() {
   );
 }
 
+// Progress through the plan, on the tab. Silent while there is no plan: a tab
+// that permanently reads "0/0" trains the eye to stop looking at it.
+function PlanTabBadge() {
+  const view = planViewModel(useCurrentRootPlan());
+  if (view.isEmpty) return null;
+  return `${view.doneCount}/${view.totalCount}`;
+}
+
 export const planView = defineWorkspaceView({
   id: "plan",
   title: "workspace.view.title.plan",
   icon: "list",
+  badge: PlanTabBadge,
   order: 120,
   splittable: true,
   component: PlanTab,

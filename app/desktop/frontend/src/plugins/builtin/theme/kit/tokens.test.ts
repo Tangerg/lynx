@@ -104,9 +104,26 @@ describe("buildTokenMap", () => {
     expect(Object.keys(tokens).filter((key) => key.startsWith("shadow-"))).toEqual([]);
   });
 
-  it("depthStep defaults to 5% but spec can override", () => {
-    expect(buildTokenMap(makeSpec())["depth-step"]).toBe("5%");
-    expect(buildTokenMap(makeSpec({ depthStep: "8%" }))["depth-step"]).toBe("8%");
+  it("never emits the ladder step — the contrast preference owns it", () => {
+    expect(buildTokenMap(makeSpec())).not.toHaveProperty("depth-step");
+  });
+
+  it("elevated falls back to the first ladder rung, sunken to a per-scheme neutral", () => {
+    const dark = buildTokenMap(makeSpec({ scheme: "dark" }));
+    expect(dark["color-elevated"]).toBe("var(--color-surface-2)");
+    expect(dark["color-sunken"]).toBe("#1c1c21");
+    const light = buildTokenMap(makeSpec({ scheme: "light" }));
+    expect(light["color-sunken"]).toBe("#f1f1f4");
+  });
+
+  it("explicit elevated / sunken anchors pass through verbatim", () => {
+    const tokens = buildTokenMap(
+      makeSpec({
+        surfaces: { bg: "#111111", surface: "#1a1a1a", elevated: "#222", sunken: "#000" },
+      }),
+    );
+    expect(tokens["color-elevated"]).toBe("#222");
+    expect(tokens["color-sunken"]).toBe("#000");
   });
 
   it("extras spread last → wins on key collision", () => {

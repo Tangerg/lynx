@@ -28,6 +28,8 @@ import {
 } from "@/plugins/builtin/workspace/public/contextDockCatalog";
 import { useWorkspaceViews } from "@/plugins/sdk";
 import { useDockWidth } from "@/plugins/builtin/workspace/public/sidebarDrawer";
+import { basename } from "@/lib/path";
+import { Slot } from "@/plugins/host/Slot";
 import { ChatStream } from "./ChatStream";
 import { DockResizer } from "./DockResizer";
 import { HeaderDiffStat } from "./HeaderDiffStat";
@@ -123,10 +125,15 @@ export function ChatPanel({ onSend }: Props) {
   const dockTabs = dock.viewIds.map((id) => {
     const view = viewsById.get(id);
     const title = view ? t(view.title) : id;
+    const Badge = view?.badge;
     return {
       id,
       title,
       icon: viewIcon(view?.icon),
+      // Rendered here, not read here: the count belongs to the view, and a tab
+      // strip that subscribed to every view's data to label it would re-render
+      // on every diff refresh and every plan step.
+      badge: Badge ? <Badge /> : undefined,
       active: id === dock.activeViewId,
       onSelect: () => selectWorkspaceDockView(id),
       onClose: () => closeWorkspaceDockView(id),
@@ -145,13 +152,30 @@ export function ChatPanel({ onSend }: Props) {
         <div className="flex min-h-0 flex-1" style={dockWidthRow(dockWidth)}>
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
             <AgentSurfaceHeader windowCorner>
-              <span className="min-w-0 max-w-[420px] truncate text-ui-md font-semibold text-fg">
+              {/* Where, then what. The workspace name is the quieter half on
+                  purpose: it changes rarely and only has to confirm the session
+                  you are reading belongs to the checkout you think it does. */}
+              {activeSession?.cwd && (
+                <>
+                  <span className="hidden min-w-0 max-w-[160px] shrink truncate font-mono text-ui-sm text-fg-faint lg:inline">
+                    {basename(activeSession.cwd)}
+                  </span>
+                  <span aria-hidden className="hidden shrink-0 text-ui-sm text-fg-faint lg:inline">
+                    /
+                  </span>
+                </>
+              )}
+              <span className="min-w-0 max-w-[420px] truncate text-ui-sm font-semibold text-fg">
                 {activeSession?.title.trim() || t("sidebar.action.newSession")}
               </span>
               {running && (
                 <AgentStatusPill tone="running">{t("session.status.running")}</AgentStatusPill>
               )}
               <span className="min-w-4 flex-1" />
+              {/* Session telemetry — a number you glance at, not a control. It
+                  belongs on the bar that names the session it counts, which is
+                  also the one place it cannot push the transcript around. */}
+              <Slot name="chat.header.meta" />
               <HeaderDiffStat />
               {!dock.open && (
                 <IconButton

@@ -386,26 +386,31 @@ components:
 
 The whole system reduces to five decisions. Everything below elaborates them.
 
-1. **Card over drawer** (revised 2026-07; was "flush, edge-to-edge, background
-   delta"). The work index is a frosted drawer; the content is an opaque card that
-   floats over it, rounded on the seam side. The two are nearly the same value and
-   a single 1px inset ring plus a low-spread directional shadow carries the split —
-   a background delta with no line between reads as two pasted rectangles.
+1. **Tool windows around one reading plane** (revised 2026-08; supersedes both
+   "flush background delta" and "card over drawer"). Three opaque materials — the
+   plane you read on, the chrome columns that frame it, the cards placed on it —
+   separated by VALUE, with a short directional cast at each seam and **no line
+   anywhere between regions**. The plane is the darkest surface on dark and the
+   brightest on light; the chrome steps the other way. A hairline is the edge of a
+   *control*, never of a region. Which mechanism draws which boundary belongs to
+   the active visual style, not to any call site.
 2. **Near-monochrome, one restrained accent** — overall black/white/grey; the
-   accent (a calm **blue**, `#7b8efa` dark / `#2563eb` light by default,
-   user-selectable) appears only on live / steer / focus, and focus is a single
-   thin stroke — never a bright halo or glow on click. The primary CTA fill is
-   `bg-fg` (black/white), NOT accent — accent is reserved for "live" state.
+   accent (a calm **blue**, user-selectable) marks live state, progress, focus,
+   links, and the one primary action per surface. It is the CTA fill too: this
+   language spends its single colour on the action that matters and leaves
+   everything else grey.
 3. **Dual-theme parity, follows the OS** — light and dark are both first-class
    and polished; the default theme is "system" and tracks `prefers-color-scheme`
-   live.
-4. **Native system font** — SF Pro / PingFang on macOS (the OS UI face), no
-   bundled webfont. Sans-first labels everywhere; mono is reserved for genuine
-   data (code / IDs / timestamps / paths), not every eyebrow.
-5. **Airy + discoverable** — generous whitespace, calm rhythm; features are
-   first-class grouped entries in the sidebar + settings (not buried in the
-   command palette). **No tab strip** — one active session; workspace views
-   open full-pane and close via sidebar-toggle / `Esc`.
+   live. The two are mirrors of one region algorithm, not two hand-built skins.
+4. **Native system font, mono as the technical voice** — SF Pro / PingFang on
+   macOS (the OS UI face) for language; mono for everything that is data — paths,
+   counts, durations, tokens, shortcuts, code. That split is what makes a dense
+   agent transcript scannable.
+5. **Dense, not cramped** — a workbench rhythm: 42px chrome bars, short rows, one
+   centred reading measure flanked by navigation rails. Features are first-class
+   grouped entries in the sidebar + settings, not buried in the command palette.
+   **No tab strip** — one active session; workspace views open full-pane or in the
+   dock.
 
 Constant across all of it: the `@theme` token bridge, plugin-contributed chrome,
 accent _scarcity_, tabular numerals, keyboard-focus discipline, reduced-motion.
@@ -418,16 +423,21 @@ Lyra is an agent client — a desktop application (Wails / React) that streams L
 
 Light and dark are **equal first-class themes**; the default follows the OS (`prefers-color-scheme`) and tracks it live. Neither scheme is second-class.
 
-**Reference** — the calm, airy, premium-minimal direction draws on OpenAI's Codex desktop app and the Linear-app aesthetic:
+**Reference** — the direction is the JetBrains tool-window language: an editor you
+are *inside*, framed by opaque panels, with the technical layer set in mono.
 
-- **From Codex**: the flush edge-to-edge layout, the calm centered empty-state (hero + composer as one group), generous whitespace, and grouped, discoverable navigation.
-- **From Linear**: the scarce single-accent policy, the surface-step + hairline approach to depth (no decorative shadow), and sentence-case labels.
+- **Region model**: three materials and no dividing lines; depth from value plus a
+  directional cast. The reading plane is the one surface that is not chrome.
+- **Density**: short chrome bars, two-line index rows, borderless cards.
+- **Voice**: sans for language, mono for data — and the mono is load-bearing, not
+  decorative, because most of what an agent transcript reports IS data.
 
-**Explicitly rejected** (the prior dense / dark-first / "Spotify-derived" vocabulary, _and_ the interim Linear+Vercel-synthesis pass it replaced):
-- Cards-on-canvas gutters + panel drop shadows (the layout is flush)
-- A green brand accent + mono-as-eyebrow-everywhere (accent is a restrained blue; mono is data-only)
-- A bundled webfont (Geist) where the native OS face reads more premium
-- Pill-radius CTAs, ALL-CAPS letter-spaced labels, 700+ display weight, accent used decoratively
+**Explicitly rejected** (both prior passes):
+- Region hairlines and seam rings (regions separate by value + cast now)
+- Cards-on-canvas gutters, panel drop shadows, and glass blur outside floating panels
+- An inverting ink CTA that kept the accent unused (the accent IS the CTA)
+- A bundled UI webfont where the native OS face reads more premium
+- Pill-radius CTAs, ALL-CAPS letter-spaced labels, 700+ display weight
 - Bright focus halos/glows that flash on click (focus is a single quiet stroke)
 
 ## 2. Color
@@ -436,29 +446,39 @@ Light and dark are **equal first-class themes**; the default follows the OS (`pr
 
 Color carries information, not decoration. The system uses **one chromatic accent**, **four greys for surfaces**, **three greys for hairlines**, and **four semantic colors used sparingly**. Decoration comes from the surface ladder, not from color variation.
 
-### Surface ladder
+### Surface anchors
 
-| Token | Hex (dark / light) | Use |
-|---|---|---|
-| `canvas` | `#0c0d0f` / `#ffffff` | **The main reading area** in the flush layout — chat stream, view bodies. The sidebar sits a half-step above it. |
-| `surface` | `#16181b` / `#f6f7f8` | The one lifted chrome step — sidebar, cards, message bubble, tool-call card. Divided from canvas by a hairline, not a gutter. |
-| `surface-2` | derived | Hovered / active row, raised surface, command palette, **inset reading pane** (settings content area — distinct from the outer chrome). |
-| `surface-3` | derived | Sub-nav, dropdown, popover. |
-| `surface-4` | derived (rare) | Deepest lifted surface. |
+Values live in `themes/lyra-*.ts` and are restated for first paint in
+`globals.css`. This table says what each anchor is FOR; it deliberately does not
+repeat the hexes, which is how the previous version of it went stale.
 
-`surface-2/3/4` derive from `surface` via `color-mix(--depth-step)` so the global contrast slider moves the whole ladder per scheme — they're never pinned inline.
+| Token | Role |
+|---|---|
+| `canvas` (`--color-bg`) | The reading plane — transcript, view bodies. Darkest surface on dark, brightest on light. |
+| `surface` | Region chrome — the drawer, the dock, the bars that frame the plane. |
+| `card` (`--app-card-surface` → `--color-elevated`) | An object placed on a region: a message, a tool card, the composer. |
+| `sunken` (`--color-sunken`) | A well cut into a surface: code bodies, terminals, diff hunks, text fields, progress tracks. |
+| `surface-2` / `-3` / `-4` | Derived chip rungs above `surface` — badges, inline code, kbd, selected rows. |
 
-**Inset-pane rule** — when a workspace view has its own internal nav rail + content split (e.g. the settings page), keep the rail on the canvas/chrome and lift the content area to `surface-2` so the reading zone reads as the focus.
+**Why four anchors and not one ladder.** The ladder walks one direction only —
+toward the ink. A card lifts AWAY from the ink on light (white over off-white) and
+TOWARD it on dark, while a well recedes under both. One monotonic mix cannot say
+all three, which is exactly how the card fill, spelled as a ladder step, came out
+grey on light.
+
+`surface-2/3/4` derive from `surface` via `color-mix(--depth-step)` so the
+contrast preference moves the chip rungs per scheme — they are never pinned
+inline. **The step is scheme-aware**: dark doubles it, because 4% of a near-white
+ink over a near-black surface moves it a third as far, in perceived lightness, as
+4% of a near-black ink over a near-white one.
 
 ### Hairlines
 
-| Token | Hex | Use |
-|---|---|---|
-| `hairline` | `#23252a` | Default 1px border on cards, dividers, table rows. |
-| `hairline-strong` | `#34343a` | Input focus border, emphasized divider. |
-| `hairline-tertiary` | `#3e3e44` | Borders on nested surfaces. |
-
-**Hairlines must use literal hex values, not `color-mix(text X%, transparent)`** — semi-transparent borders shift visually across different surface lifts and read as "approximate". Literal hex = precision = perceived craft.
+A hairline is the edge of a **control** — a text field, a chip, the composer.
+Regions do not get one: they separate by value plus `--app-card-edge` /
+`--app-pane-split`, the directional casts the visual style owns. The three-step
+ramp (`border` / `border-soft` / `divider`) uses literal hex per theme, because a
+semi-transparent border shifts across surface lifts and reads as approximate.
 
 **Ink, by contrast, may derive.** Unlike hairlines, the ink ramp (`text-soft` / `text-muted` / `text-faint`) *should* adapt to the surface behind it — that's the Apple label model. A theme can ship just `text` + `text-bright` and let the soft/muted/faint steps derive as `text` at ~82% / ~56% / ~38% alpha over transparent (so they composite against whatever surface they sit on). Palette themes (Solarized, Catppuccin, Tokyo Night, One Dark) instead pin explicit ink hues — their ramp is part of the palette identity, not a single hue at falling opacity. The first-party Lyra themes keep explicit values too; the derivation is the low-friction default for third-party themes.
 
@@ -528,29 +548,38 @@ The full scale is 11 tokens — narrower than the previous 13-step Spotify scale
 
 ### App shell
 
-A frosted drawer with an opaque content card floating over it, divided by the seam
-ring. No bottom status bar:
+Three opaque tool windows and no line between any of them. No bottom status bar:
 
 ```
- drawer (fixed, slides)      content card (z-15, rounded on the seam side)
-┌─────────────┐╭──────────────────────────────────────────────┬─────────┐
-│ (46px hdr)  ││ (46px header, bottom hairline)               │ (46px)  │
-│  · new      │├──────────────────────────────────────────────┤ dock    │
-│  · search   ││                                              │ tabs    │
-│  Projects   ││        Message stream (max-width 736)        │─────────│
-│    · …      ││                                              │         │
-│             ││  ┌────────────────────────────────────────┐  │  views  │
-│  ⚙ settings ││  │ Composer (736, -mt-5 over the stream)  │  │         │
-└─────────────┘╰──┴────────────────────────────────────────┴──┴─────────┘
-       ↑            ↑ seam: 1px inset ring on the card,           ↑ hairline
-   --sidebar-width    clipped to the seam-side radius,          (pane split)
-   (256, resizable)   + -6.5px 0 12px -10px directional shadow
+ drawer (fixed, slides)      reading plane (z-15)                    dock
+┌─────────────┐┌──────────────────────────────────────────────┬─────────┐
+│ 42px header ││ 42px header: project / title · state · meta   │ 42px    │
+│ project     │├──────────────────────────────────────────────┤ tabs +  │
+│ ⌘N ⌘K …     ││ ·                                       In   │─────────│
+│ Projects    ││ ·      Message stream (--content-max)   this │         │
+│   session   ││ ·                                       answ │  views  │
+│   session   ││                                              │         │
+│             ││    ┌──────────────────────────────────────┐  │         │
+│ ⚙ settings  ││    │ Composer                             │  │         │
+└─────────────┘└────┴──────────────────────────────────────┴──┴─────────┘
+       ↑          ↑ turn rail (44)          outline rail (186) ↑ dock casts
+   --sidebar-width  --app-card-edge: the drawer's cast,          leftward
+   (240, resizable) drawn inside the plane                    (--app-pane-split)
 ```
+
+Both rails are container-query gated on the width of the reading column — not the
+window — because the drawer and the dock change it without the window changing at
+all. Banners and composer take the same gutters, so the three stay on one axis.
 
 ### Sidebar
 
-- **Default state: expanded** (`--sidebar-width`, 256px, user-resizable by dragging
+- **Default state: expanded** (`--sidebar-width`, 240px, user-resizable by dragging
   the seam rail; floor 208px, and the reading column never goes below 640px).
+- **Pinned identity** above the scrolling index: the active session's workspace,
+  because the one fact you must be able to read without scrolling is where the next
+  command will run.
+- **Two-line session rows**: title, then state and time — the index is something you
+  triage from, not just a list of names.
 - **Collapsed** (`⌘B`) slides the drawer fully off-canvas under the card — there is
   no icon rail. The card then reaches the window edge, squares its seam corner, and
   its header widens its leading inset to clear the macOS traffic lights.
@@ -561,17 +590,20 @@ ring. No bottom status bar:
 - The seam rail is a focusable vertical separator: pointer movement writes only
   `--sidebar-width`, pointer release commits once, and Arrow/Home/End provide the
   same bounded resize path for keyboard users.
-- The drawer is the card color at partial opacity over the shell background, with a
-  backdrop blur — the same material as the card, which is what makes the card read
-  as lifted off it rather than merely a different grey. It carries NO border: the
-  card's inset ring is the only line at that boundary.
+- The drawer is opaque region chrome (`--app-drawer-surface`), never a translucent
+  sheet. It carries no border and casts no shadow of its own: the plane draws the
+  seam as an inset cast, because the plane outranks the drawer on z-index so the
+  drawer can slide underneath it.
 
 ### Chat measure
 
-- Message stream + composer both cap at **`--content-max: 736px`**, centered, with
-  a `--density-column-gutter` inset (12px, 20px at ≥640px).
-- Long code blocks and tables can exceed it — they scroll horizontally inside their
-  own wrapper; the prose column stays at 736.
+- Message stream + composer both cap at **`--content-max`**, centered between the
+  rails, with a `--density-column-gutter` inset.
+- A turn is a caption line over a full-width body, not an avatar gutter beside a
+  narrowed one: who is speaking is read once, the measure is inhabited for the
+  whole turn, and a 38px gutter was taking it from every code block and table.
+- Long code blocks and tables can exceed the measure — they scroll horizontally
+  inside their own wrapper; the prose column does not move.
 
 ### Tabs — removed (2026-06 redesign)
 
@@ -593,20 +625,26 @@ Lyra is a **product UI**, not a marketing site. Spacing values from the frontmat
 
 ## 5. Elevation & Depth
 
-**Flush, so depth is the surface step + hairlines — not gutters or panel shadows.**
-The layout has no cards-on-canvas frame: the sidebar (`surface`) meets the main
-area (`canvas`) at a single hairline, and neither casts a shadow (dark _or_
-light). The only elements that get a real shadow are **truly-floating overlays**
-(command palette, mermaid lightbox, toaster) — a stacked-subtle drop, never a
-single 24px blur. Everything else builds depth from the ladder:
+**Depth is value plus a directional cast. Flush chrome casts nothing.**
+Every seam between regions is carried by a short, tight cast from the panel that
+overlaps — `--app-card-edge` at the drawer seam (drawn INSIDE the plane, because
+the plane outranks the drawer on z-index so the drawer can slide under it),
+`--app-pane-split` where the dock meets the conversation. No region anywhere
+carries a border. The only elements with a real drop shadow are **truly-floating
+overlays** (menus, popovers, tooltips, command palette, lightbox), which have no
+value delta to lean on because they can land over anything.
 
 | Level | Treatment | Use |
 |---|---|---|
-| 0 | No border, no shadow | Body text, message body, the main area |
-| 1 | `surface` background + 1px `hairline` border | Default card, tool-call card, message bubble, sidebar |
-| 2 | `surface-2` background | Raised surface, inset reading pane |
-| 3 | `surface-3` background | Sub-nav, dropdown |
-| 4 | Stacked-subtle shadow + inset hairline | The few truly-floating overlays only |
+| 0 | Region fill only | The reading plane, prose, a message body |
+| 1 | `bg-card` | Message card, tool card, composer, plan card, table |
+| 2 | `bg-sunken` | Code body, terminal, diff hunk, text field, progress track |
+| 3 | `surface-2` / `-3` | Chips, badges, inline code, kbd, selected rows |
+| 4 | `--shadow-popover` | Floating overlays only — one token, ring plus depth |
+
+Each role owns exactly ONE edge mechanism. A border and a shadow ring on the same
+surface is a double edge; two 1px semi-transparent lines sharing a pixel double
+their alpha and read as a bright dot.
 
 **Row state is not on this ladder.** Hover and selection are `bg-hover` /
 `bg-selected` — an ink wash (`--color-hover` / `--color-selected`), so a row
@@ -615,30 +653,33 @@ while the pointer sits on its neighbour. A surface step as a hover paints a slab
 where there was none; `check-interactive-chrome` fails the build on both that and
 a hand-picked `hover:bg-fg/[…]` alpha.
 
-This holds identically in **both schemes** — light also drops panel/card shadows
-(flush), reserving stacked shadows for floating overlays. (The earlier
-cards-on-canvas model — floating panels with 8px gutters + multi-layer drop
-shadows, and light's full 5-level shadow ladder — is gone.)
+This holds identically in **both schemes**; only the cast's strength differs, and
+that is one palette value (`--shadow-cast`) rather than a per-component decision.
+(Both earlier models are gone: cards-on-canvas with gutters and multi-layer drops,
+and the 2026-07 seam-ring pass that gave every boundary a hairline.)
 
 ## 6. Shapes
 
 ### Radius scale
 
+Four values do all the work. The visual style owns them (`style-shape-*`); the
+user's radius preference multiplies through.
+
 | Token | Value | Use |
 |---|---|---|
-| `none` | 0px | Full-bleed bars (topbar) |
-| `xs` | 4px | Badges, status pills, file chips |
-| `sm` | 6px | Inputs, small buttons, icon button square |
-| `md` | 8px | **Default button**, card chrome, dialog corners |
-| `lg` | 12px | Workspace cards, command palette frame |
-| `xl` | 16px | Lightbox frame, hero panels |
-| `pill` | 9999px | Status badges, segmented toggle ONLY |
-| `circle` | 50% | Avatars, dot indicators |
+| `none` | 0px | Full-bleed bars |
+| `xs` | 4px | Anything that is really a tag — badges, inline code |
+| `sm` | 6px | Controls: buttons, chips, index rows, dock tabs |
+| `md` | 8px | Cards, text fields, segmented tracks |
+| `lg` | 10px | Surfaces that float or receive typing: composer, popovers |
+| `xl` | 12px | Lightbox frame |
+| `pill` | 9999px | Status dots, progress tracks, avatars ONLY |
 
 ### NEVER
 
-- **No pill-radius CTAs.** The previous `--radius-pill: 500px` and `--radius-full: 9999px` are removed from button surfaces. Buttons are `md` 8px square.
-- **No mixed scales on one screen.** Vercel allows pill at marketing scale + 6px at nav; Lyra picks one scale (8px) and stays there.
+- **No pill-radius CTAs.** The action button is a rounded square on the control
+  ladder — a lone disc beside a row of rectangles reads as a different kit.
+- **No mixed scales on one screen.** One corner language, four steps, no exceptions.
 
 ## 7. Motion
 
@@ -731,14 +772,25 @@ When in doubt: **does this surface convey "the agent is alive and live"?** If ye
 
 ## 11. Light theme
 
-Light is full parity, not second-class — and the **default theme follows the OS** (`prefers-color-scheme`, live). Surfaces: canvas `#ffffff` (the white main reading area), surface `#f6f7f8` (gray chrome). Hairlines `#ebebeb` / `#d4d4d6`. Ink `#171717` / `#4d4d4d` / `#5e5e5e`. The accent is the blue's light variant `#2563eb`; the CTA stays black-on-white.
+Light is full parity, not second-class — and the **default theme follows the OS**
+(`prefers-color-scheme`, live). It runs the same region algorithm mirrored: the
+plane is the brightest surface, the chrome steps down from it, cards lift to
+white, wells recede. Values live in `themes/lyra-light.ts`.
 
-Light is **flush too** — no card/panel shadow ladder. Like dark, only truly-floating overlays get a stacked-subtle shadow. The two schemes are symmetric.
+Two places where light is not a mechanical inversion, both for the same reason —
+ink cannot be:
+
+- **Semantic hues sit one step deeper** than the reference language's. Its greens
+  and ambers land at 3.4–3.9:1 as text on this chrome, and a status word nobody
+  can read is not a status. Hue family preserved, luminance pulled until each
+  clears 4.5:1 on the darkest surface it can sit on.
+- **The accent is the deeper blue.** Same reason; the accent carries link text.
 
 ## 12. References
 
-- **Codex desktop (OpenAI)** — the flush layout, the calm centered empty-state (hero + composer as one group), generous whitespace, grouped discoverable nav.
-- **Linear-app** — the scarce single-accent policy, surface-step + hairline depth (no decorative shadow), sentence-case labels.
+- **JetBrains tool windows** — the region model: an editor you are inside, framed
+  by opaque panels, separated by value rather than by lines.
+- **Linear-app** — the scarce single-accent policy and sentence-case labels.
 - Lyra Runtime Protocol — `frontend/src/protocol/run/` + `frontend/src/rpc/` — drives the shape of the data this UI renders.
 
 ## 13. Iteration guide

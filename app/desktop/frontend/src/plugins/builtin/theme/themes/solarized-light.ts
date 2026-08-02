@@ -26,10 +26,14 @@ export default defineColorThemePlugin({
     textOnAccent: c.base3,
   },
   surfaces: {
-    bg: c.base2,
-    surface: c.base3,
-    // Solarized doesn't canonically define light lifted surfaces;
-    // these step toward base2's hue.
+    // base3 is Solarized's editor tone, so it is the plane; base2 is the
+    // highlight tone and frames it. Solarized names nothing above base3, so the
+    // card lifts a hair toward warm white rather than to a neutral #fff, which
+    // would break the palette's yellow cast.
+    bg: c.base3,
+    surface: c.base2,
+    elevated: "#fffdf4",
+    sunken: c.base2,
   },
   ink: {
     text: c.base00,

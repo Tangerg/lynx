@@ -39,13 +39,22 @@ function deriveCustomSpec(ct: CustomTheme, accent: string, contrast: number): Co
   const p = (lo: number, hi: number) => Math.round(lo + (hi - lo) * k);
   const scheme: Scheme = colord(bg).isDark() ? "dark" : "light";
   const extreme = scheme === "dark" ? "#ffffff" : "#000000";
+  const chrome = mix(fg, p(4, 12), bg);
   return {
     id: CUSTOM_THEME_ID,
     label: "Custom",
     scheme,
     // (--depth-step is set globally from contrast in uiStore.applyTheme)
     brand: { accent, textOnAccent: colord(accent).isDark() ? "#ffffff" : "#000000" },
-    surfaces: { bg, surface: mix(fg, p(4, 12), bg) },
+    surfaces: {
+      bg,
+      surface: chrome,
+      // A card lifts away from the ink. On a dark base that is the same step the
+      // chrome takes; on a light one it has to go the other way, toward white.
+      elevated: scheme === "dark" ? chrome : mix("#ffffff", p(35, 80), bg),
+      // A well recedes under the plane in both schemes, so one formula serves.
+      sunken: mix("#000000", p(3, 8), bg),
+    },
     ink: {
       text: fg,
       textBright: mix(fg, 80, extreme), // nudge toward pure white/black

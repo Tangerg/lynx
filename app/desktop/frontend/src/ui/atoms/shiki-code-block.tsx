@@ -116,20 +116,23 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
     <div
       className={cn(
         "shiki-block group/code my-3 overflow-hidden rounded-md font-mono text-code",
-        "bg-surface-2",
+        "bg-sunken",
         folded && "folded",
       )}
     >
-      {/* Header — craft-aligned: flex row, lang left, copy right, subtle surface step. */}
-      <div className="flex items-center justify-between gap-3 px-3 py-1.5">
-        <span className="font-mono text-ui-xs font-medium text-fg-faint uppercase tracking-wider">
+      {/* Header — the card's own material over the recessed body, so the bar
+          reads as the block's lid rather than as the first line of code. Language
+          then path, both left-aligned: they are one caption ("this TypeScript,
+          from there"), and centring the path put the two halves of that sentence
+          at opposite ends of a wide block. */}
+      <div className="flex items-center gap-2.5 bg-card px-3 py-1.5">
+        <span className="shrink-0 font-mono text-ui-2xs font-medium uppercase tracking-wider text-fg-faint">
           {lang || "text"}
         </span>
         {file && (
-          <span className="truncate font-mono text-ui-sm text-fg-muted flex-1 text-center">
-            {file}
-          </span>
+          <span className="min-w-0 flex-1 truncate font-mono text-ui-xs text-fg-muted">{file}</span>
         )}
+        <span className="min-w-1 flex-1" />
         <IconButton
           icon={copied ? "check" : "copy"}
           size="xs"

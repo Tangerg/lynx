@@ -1,6 +1,6 @@
 import { colord } from "colord";
 import type { StoreApi } from "zustand";
-import type { ColorThemeId, VisualStyleId, VisualStyleMotion } from "@/lib/appearance";
+import type { ColorThemeId, Scheme, VisualStyleId, VisualStyleMotion } from "@/lib/appearance";
 import {
   publishMotionScale,
   publishScheme,
@@ -22,6 +22,20 @@ type UiEffectStore<T extends UiState> = Pick<StoreApi<T>, "getState" | "subscrib
 function lightAccent(darkHex: string): string {
   const preset = lookupExtensionPoint(ACCENT).find((accent) => accent.dark === darkHex);
   return preset?.light ?? preset?.dark ?? colord(darkHex).darken(0.2).toHex();
+}
+
+/**
+ * Contrast preference → the surface-ladder step every derived rung reads.
+ *
+ * Doubled on dark, because equal ink percentages do not buy equal separation.
+ * Mixing 4% of a near-white ink into a near-black surface moves it roughly a
+ * third as far in perceived lightness as mixing 4% of a near-black ink into a
+ * near-white one — so at the contrast setting that reads right on light, every
+ * dark scheme's regions, chips and row states collapsed into one flat value.
+ */
+function depthStep(scheme: Scheme, contrast: number): string {
+  const step = (2 + (contrast / 100) * 8) * (scheme === "dark" ? 2 : 1);
+  return `${step.toFixed(1)}%`;
 }
 
 function replaceTokens(previous: string[], tokens: Record<string, string>): string[] {
@@ -48,10 +62,20 @@ function applyColorTheme(theme: ColorThemeId, accent: string, contrast: number):
   root.classList.add(`theme-${scheme}`);
   appliedColorTokens = replaceTokens(appliedColorTokens, spec?.tokens ?? {});
 
-  root.style.setProperty("--color-accent", scheme === "light" ? lightAccent(accent) : accent);
-  appliedColorTokens.push("--color-accent");
-  root.style.setProperty("--depth-step", `${(2 + (contrast / 100) * 8).toFixed(1)}%`);
-  appliedColorTokens.push("--depth-step");
+  // The accent's hover and press shades follow the LIVE accent, not the theme's
+  // declared one. They used to come from the token map, so picking an accent
+  // moved the fill but left its two interaction states on the theme's blue.
+  const liveAccent = scheme === "light" ? lightAccent(accent) : accent;
+  root.style.setProperty("--color-accent", liveAccent);
+  root.style.setProperty("--color-accent-border", colord(liveAccent).darken(0.08).toHex());
+  root.style.setProperty("--color-accent-press", colord(liveAccent).darken(0.16).toHex());
+  root.style.setProperty("--depth-step", depthStep(scheme, contrast));
+  appliedColorTokens.push(
+    "--color-accent",
+    "--color-accent-border",
+    "--color-accent-press",
+    "--depth-step",
+  );
 
   publishScheme(scheme);
 }

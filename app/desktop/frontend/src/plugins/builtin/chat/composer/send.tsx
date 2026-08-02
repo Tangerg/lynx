@@ -10,13 +10,15 @@ import { composerActionLayout } from "./application/composerActionLayout";
 import { composerSendSlot } from "./application/composerContributions";
 import { submitComposer } from "./application/submitComposer";
 
-// Filled dark circle for the primary action; a quiet surface disc when the action
-// is unavailable. The circle is the same in steer / send / stop — only the glyph
-// changes — so the composer's action target reads as one control.
-const CIRCLE =
-  "h-9 w-9 shrink-0 rounded-full bg-cta text-cta-text hover:bg-cta-hover hover:text-cta-text active:translate-y-[0.5px]";
-const CIRCLE_OFF = "h-9 w-9 shrink-0 rounded-full bg-surface-3 text-fg-faint";
-const QUIET = "h-9 w-9 shrink-0 rounded-full";
+// The composer's action target: one control whose glyph changes across steer /
+// send / stop, so the place you click never moves. A rounded square on the
+// control ladder rather than a circle — every other control in this language is
+// a rounded rectangle, and a lone disc beside them reads as a different kit.
+const ACTION =
+  "size-[var(--control-height-md)] shrink-0 rounded-[var(--button-radius)] bg-cta text-cta-text hover:bg-cta-hover hover:text-cta-text active:translate-y-[0.5px]";
+const ACTION_OFF =
+  "size-[var(--control-height-md)] shrink-0 rounded-[var(--button-radius)] bg-surface-2 text-fg-faint";
+const QUIET = "size-[var(--control-height-md)] shrink-0 rounded-[var(--button-radius)]";
 
 function SendButton() {
   const t = useT();
@@ -42,19 +44,19 @@ function SendButton() {
       disabled={!stop}
       title={t("composer.action.stop")}
       onClick={() => stop?.()}
-      className={primary ? (stop ? CIRCLE : CIRCLE_OFF) : QUIET}
+      className={primary ? (stop ? ACTION : ACTION_OFF) : QUIET}
     />
   );
 
   const submitButton = (label: string, enabled: boolean) => (
     <IconButton
       icon="arrow-up"
-      iconSize="md"
+      iconSize="sm"
       press={false}
       disabled={!enabled}
       title={label}
       onClick={submit}
-      className={enabled ? CIRCLE : CIRCLE_OFF}
+      className={enabled ? ACTION : ACTION_OFF}
     />
   );
 

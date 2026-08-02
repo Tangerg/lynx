@@ -31,7 +31,7 @@ func desktopApplicationOptions(host *DesktopHost) *options.App {
 			Assets: assets,
 		},
 		Bind:             []any{host},
-		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
+		BackgroundColour: &options.RGBA{R: 251, G: 251, B: 252, A: 1},
 		// macOS: hide the native titlebar but keep the native traffic-light
 		// controls (inset over our content) — these are the ONLY window controls;
 		// the app draws none of its own. Window stays draggable from the top

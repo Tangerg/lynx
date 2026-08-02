@@ -61,6 +61,15 @@ beforeEach(() => {
   uninstall = installDocumentAppearance(useUiStore);
 });
 
+/** Both schemes registered under their canonical ids — anything a test does that
+ *  depends on the resolved SCHEME (and not just on the token map) needs them,
+ *  because an unregistered id deliberately reads as dark. */
+function registerSchemePair(): void {
+  const host = createHost("test-schemes", sink);
+  host.extensions.contribute(COLOR_THEME, { id: "dark", label: "Dark", scheme: "dark" });
+  host.extensions.contribute(COLOR_THEME, { id: "light", label: "Light", scheme: "light" });
+}
+
 describe("applyTheme — theme-as-plugin contract", () => {
   it("writes spec.tokens to :root.style when the active theme is registered", () => {
     const host = createHost("test", sink);
@@ -292,6 +301,8 @@ describe("UI preference DOM synchronization", () => {
   });
 
   it("applies contrast, radius, and reduced-motion preferences", () => {
+    registerSchemePair();
+    useUiStore.getState().setTheme("light");
     useUiStore.getState().setContrast(100);
     useUiStore.getState().setRadiusScale(1.25);
     useUiStore.getState().setMotionScale(0);
@@ -304,5 +315,17 @@ describe("UI preference DOM synchronization", () => {
 
     useUiStore.getState().setMotionScale(0.5);
     expect(root.dataset.motion).toBeUndefined();
+  });
+
+  // Equal ink percentages do not buy equal separation: the contrast setting that
+  // read right on light collapsed every dark scheme's regions into one value, so
+  // the mapping is doubled there.
+  it("doubles the ladder step on dark so both schemes separate equally", () => {
+    registerSchemePair();
+    useUiStore.getState().setContrast(25);
+    useUiStore.getState().setTheme("light");
+    expect(document.documentElement.style.getPropertyValue("--depth-step")).toBe("4.0%");
+    useUiStore.getState().setTheme("dark");
+    expect(document.documentElement.style.getPropertyValue("--depth-step")).toBe("8.0%");
   });
 });

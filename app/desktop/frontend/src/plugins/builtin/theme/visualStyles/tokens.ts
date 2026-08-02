@@ -27,12 +27,15 @@ type VisualStyleTokenName =
   | "surface-header-height"
   | "control-edge-width"
   | "composer-edge-width"
+  | "wash-hover"
+  | "wash-selected"
   | "app-drawer-surface"
   | "app-content-surface"
   | "app-header-surface"
   | "app-dock-surface"
   | "app-card-surface"
   | "app-surface-divider"
+  | "app-card-edge"
   | "app-pane-split"
   | "app-pane-split-end"
   | "seam-line"
@@ -47,6 +50,8 @@ type VisualStyleTokenName =
 export type VisualStyleTokens = Record<VisualStyleTokenName, string>;
 
 export const WORKBENCH_TOKENS: VisualStyleTokens = {
+  // Corner ladder. Four values do all the work: 4 for anything that is really a
+  // tag, 6 for controls and rows, 8 for cards, 10 for the surfaces that float.
   "style-shape-2xs": "3px",
   "style-shape-xs": "4px",
   "style-shape-sm": "6px",
@@ -54,46 +59,75 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   "style-shape-lg": "10px",
   "style-shape-xl": "12px",
   "style-shape-composer": "10px",
-  "style-shape-bubble": "8px",
+  "style-shape-bubble": "10px",
   "button-radius": "var(--shape-sm)",
-  "field-radius": "var(--shape-sm)",
-  "segmented-radius": "var(--shape-sm)",
-  "segment-radius": "var(--shape-xs)",
+  "field-radius": "var(--shape-md)",
+  "segmented-radius": "var(--shape-md)",
+  "segment-radius": "var(--shape-sm)",
   "surface-card-radius": "var(--shape-md)",
   "floating-panel-radius": "var(--shape-lg)",
   "floating-tip-radius": "var(--shape-sm)",
-  "dock-tab-radius": "var(--shape-xs)",
-  "control-height-xs": "24px",
-  "control-height-sm": "28px",
-  "control-height-md": "32px",
-  "control-height-lg": "38px",
+  "dock-tab-radius": "var(--shape-sm)",
+
+  // Tool-window density: chrome rows are short and the type inside them carries
+  // the hierarchy. Every height is even so a centred 1px rule never lands on a
+  // half pixel.
+  "control-height-xs": "22px",
+  "control-height-sm": "26px",
+  "control-height-md": "30px",
+  "control-height-lg": "34px",
   "field-height-sm": "26px",
-  "field-height-md": "32px",
-  "field-height-lg": "36px",
-  "menu-row-height": "28px",
+  "field-height-md": "28px",
+  "field-height-lg": "32px",
+  "menu-row-height": "30px",
   "dock-tab-height": "28px",
-  "surface-header-height": "46px",
+  "surface-header-height": "42px",
   "control-edge-width": "1px",
   "composer-edge-width": "1px",
-  "app-drawer-surface": "var(--color-surface-2)",
+
+  // Row states ride the SAME step as the surface ladder, so a hovered row is
+  // exactly one rung of separation whatever the scheme and wherever the contrast
+  // slider sits. Pinning them at fixed alphas is what made hover invisible on
+  // dark and heavy-handed on light.
+  "wash-hover": "color-mix(in srgb, var(--color-text) calc(var(--depth-step) * 0.75), transparent)",
+  "wash-selected": "color-mix(in srgb, var(--color-text) var(--depth-step), transparent)",
+
+  // ---- Regions -----------------------------------------------------------
+  // Tool windows: three opaque materials and NO line anywhere between them. The
+  // plane is the reading surface, the chrome columns step away from it, and each
+  // seam is carried by a short directional cast from the column that overlaps.
+  // A hairline here would draw the columns as a wireframe of pasted rectangles —
+  // the value delta is the separation, the cast is the depth.
+  "app-drawer-surface": "var(--color-surface)",
   "app-content-surface": "var(--color-bg)",
-  "app-header-surface": "var(--color-surface-2)",
-  "app-dock-surface": "var(--color-surface-2)",
-  "app-card-surface": "var(--color-surface-2)",
-  "app-surface-divider": "color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%)",
-  "app-pane-split": "inset 1px 0 0 0 var(--app-surface-divider)",
-  "app-pane-split-end": "inset -1px 0 0 0 var(--app-surface-divider)",
-  "seam-line": "var(--app-surface-divider)",
+  // Bars inherit whatever region they sit in. A chrome bar is not a third
+  // material stacked on the column; it is the top of the column.
+  "app-header-surface": "transparent",
+  // The dock recedes a quarter step back toward the plane, so the two flanks are
+  // legible as near and far rather than as one frame in two pieces.
+  "app-dock-surface": "color-mix(in oklab, var(--color-bg) 25%, var(--color-surface))",
+  "app-card-surface": "var(--color-elevated)",
+  "app-surface-divider": "transparent",
+  // The drawer's cast, drawn INSIDE the plane: the plane outranks the drawer on
+  // z-index so the drawer can slide under it, which means the drawer cannot cast
+  // onto it from outside.
+  "app-card-edge": "inset 9px 0 22px -14px var(--shadow-cast)",
+  // A pane that splits the region it lives in casts across the split instead.
+  "app-pane-split": "-7px 0 22px -10px var(--shadow-cast)",
+  "app-pane-split-end": "7px 0 22px -10px var(--shadow-cast)",
+  // Reserved for the one place an optical ring still earns its pixel: a floating
+  // panel, which has no value delta to lean on because it can land over anything.
+  "seam-line": "color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%)",
+
+  // ---- Elevation ---------------------------------------------------------
+  // Flush chrome casts nothing. Only surfaces that genuinely leave the plane —
+  // menus, popovers, tooltips — carry depth, and they carry it as one token.
   "shadow-border": "0 0 0 1px color-mix(in srgb, var(--color-text) 9%, transparent)",
-  "shadow-control":
-    "0 0 0 0.5px color-mix(in srgb, var(--color-text) 9%, transparent), 0 1px 1px color-mix(in srgb, var(--color-text) 4%, transparent), 0 4px 10px -4px color-mix(in srgb, var(--color-text) 7%, transparent)",
-  "shadow-composer-depth":
-    "0 8px 24px -18px color-mix(in srgb, var(--color-text) 22%, transparent)",
-  "shadow-popover":
-    "0 0 0 1px var(--seam-line), 0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent)",
-  "shadow-well": "inset 0 1px 2px color-mix(in srgb, var(--color-text) 6%, transparent)",
-  "shadow-raised-chip":
-    "0 1px 1.5px color-mix(in srgb, var(--color-text) 6%, transparent), inset 0 1px 0 color-mix(in srgb, white 45%, transparent)",
+  "shadow-control": "none",
+  "shadow-composer-depth": "none",
+  "shadow-popover": "0 6px 20px var(--shadow-cast)",
+  "shadow-well": "none",
+  "shadow-raised-chip": "none",
   "shadow-surface-card": "none",
 };
 

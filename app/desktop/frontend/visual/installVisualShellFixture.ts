@@ -1,4 +1,5 @@
 import { queryClient } from "@/lib/queryClient";
+import { SIDEBAR_DEFAULT_WIDTH_PX } from "@/lib/shellGeometry";
 import { installAgentStatePorts } from "@/plugins/builtin/agent/adapters/agentStatePorts";
 import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 import {
@@ -167,7 +168,7 @@ export async function installVisualShellFixture(
     theme,
     visualStyle: "lyra",
     sidebarCollapsed: !sidebarOpen,
-    sidebarWidth: 256,
+    sidebarWidth: SIDEBAR_DEFAULT_WIDTH_PX,
   });
 
   // The visual styles ship the shell's whole material vocabulary — region fills,

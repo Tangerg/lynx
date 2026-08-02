@@ -30,7 +30,7 @@ export function WelcomeScreen() {
               <Tooltip key={suggestion.labelKey} label={t(suggestion.promptKey)} side="bottom">
                 <Button
                   variant="soft"
-                  className="gap-2 bg-surface hover:bg-surface-2"
+                  className="gap-2"
                   onClick={() => setValue(t(suggestion.promptKey))}
                 >
                   <Icon

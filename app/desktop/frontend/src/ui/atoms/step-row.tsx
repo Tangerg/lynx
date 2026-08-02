@@ -54,15 +54,18 @@ export function StepRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 py-0.5 text-ui-lg",
-        state === "done" && "text-fg",
+        "flex items-center gap-2 py-0.5 text-ui-sm",
+        // A finished step is struck through and dimmed: a checklist's job is to
+        // show what is LEFT, and a completed line that still reads at full ink
+        // competes with the one the agent is actually on.
+        state === "done" && "text-fg-faint",
         state === "active" && "font-medium text-fg",
         state === "pending" && "text-fg-muted",
         className,
       )}
     >
       <StepMark state={state} />
-      <span className="min-w-0 flex-1">{children}</span>
+      <span className={cn("min-w-0 flex-1", state === "done" && "line-through")}>{children}</span>
     </div>
   );
 }

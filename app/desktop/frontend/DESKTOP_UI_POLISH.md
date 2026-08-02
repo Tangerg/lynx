@@ -24,65 +24,53 @@ model:
 3. **Ambient shadow**: a wide, low-alpha falloff that gives elevation without a
    muddy border.
 
-**Where the edge comes from (2026-07):** a shadow ring stacked on top of a border
-reads as a double edge. Each role therefore owns exactly one edge mechanism:
+**Where the edge comes from (revised 2026-08).** A shadow ring stacked on a border
+reads as a double edge, so each role owns exactly one mechanism — and, crucially,
+**which mechanism a role uses is the active visual style's decision, not a call
+site's**. The tool-window style now shipping answers:
 
-- **composer** → one real field border plus a depth-only shadow; focus strengthens
-  the same border without moving the surface;
-- **floating overlay** (menus, popovers, tooltips) → one optical ring in its
-  shadow token plus directional depth, with no second border;
-- **fixed control** (inputs and chips) → a real border;
-- **region boundary** → an inset 1px line (the drawer↔card seam, pane splits,
-  chrome-bar bottoms);
-- **state** → background fill only (row hover/selection).
+- **region boundary** → NO line. Regions separate by value, and the seam is a short
+  directional cast (`--app-card-edge` at the drawer, `--app-pane-split` at the
+  dock). A hairline here draws the columns as pasted rectangles.
+- **card** → fill only (`bg-card`). No border, no shadow: it is already a different
+  material from the plane it sits on.
+- **well** → fill only (`bg-sunken`).
+- **floating overlay** (menus, popovers, tooltips) → one optical ring plus
+  directional depth in `--shadow-popover`, and no second border. These are the only
+  surfaces that genuinely leave the plane.
+- **fixed control** (text fields, chips, the composer) → a real border. The composer
+  takes the accent on focus, which is the same "live" colour the run indicator uses.
+- **state** → background fill only (`bg-hover` / `bg-selected`), at a strength tied
+  to the same ladder step the regions use.
 
-Current shapes (authoritative values live in `globals.css` / the theme kit):
+Do not paste shadow values into components. Translate them through the rings:
 
-```css
-/* Composer: real border in the component, depth only here. */
---shadow-composer-depth: 0 6px 30px -8px color-mix(in srgb, var(--color-text) 9%, transparent);
-
-/* Floating overlay: optical edge + depth in one token, no border. */
---shadow-popover:
-  0 0 0 1px var(--seam-line),
-  0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent);
-
-/* A recessed well plus the chip that protrudes from it. */
---shadow-well: inset 0 1px 2px rgb(0 0 0 / 0.06);
---shadow-raised-chip:
-  0 1px 1.5px rgb(0 0 0 / 0.04), inset 0 0 0 0.5px rgb(255 255 255 / 0.35),
-  inset 0 1px 0 rgb(255 255 255 / 0.5);
-```
-
-Do not paste these values directly into components. Translate them through the
-theme system:
-
-- define semantic tokens in the theme kit;
-- override per theme only when a palette needs different alpha or hue;
-- consume `var(--shadow-*)` from components.
+- geometry, elevation and region roles → the **visual style** (`visualStyles/tokens.ts`);
+- how dark a cast is for this palette → the **theme** (`--shadow-cast`);
+- consume `var(--shadow-*)` / `var(--app-*)` from components.
 
 ## 2. Border Discipline
 
 A border is cheap when it is decoration or when it compensates for weak
 elevation. It is correct when it IS the edge of a control or a region.
 
-**Revised 2026-07.** The shell used to separate regions by background delta with
-no line at all — `#f2f2f2` chrome flush against a `#ffffff` column. That reads as
-two rectangles pasted together: with nothing between them, the eye has no cue that
-one floats above the other. The drawer and the content card now sit at nearly the
-same value and a single hairline plus a directional shadow carries the split, which
-is what reads as depth.
+**Revised 2026-08.** Two earlier models both failed, in opposite directions. The
+first separated regions by background delta alone, at a delta too small to read —
+`#f2f2f2` chrome against `#ffffff` — so the eye had no cue at all. The second gave
+every boundary a hairline, which turned three columns into a wireframe. What works
+is the third thing: a delta big enough to read as a different material, **plus** a
+short directional cast at the seam, **and no line**.
 
 Preferred:
 
-- drawer ↔ card: ONE inset ring on the card, clipped to the seam-side radius, plus
-  a low-spread directional shadow;
-- internal pane splits + chrome-bar bottoms: the `--app-surface-divider` hairline
-  (a step more transparent than the seam, so it recedes behind it);
-- composer: one real field border + `--shadow-composer-depth`;
+- drawer ↔ plane: the plane's own inset cast (`--app-card-edge`), because the plane
+  outranks the drawer on z-index and a panel underneath cannot cast onto it;
+- dock ↔ conversation: the dock casts leftward (`--app-pane-split`);
+- chrome-bar bottoms: nothing — a bar is the top of its column, not a third material;
+- composer: a real field border, accent on focus;
 - floating overlay edge: the shadow's own first layer at `--seam-line`, never a
   border as well;
-- fixed control edge (inputs and chips): a real `border`;
+- fixed control edge (text fields and chips): a real `border`;
 - row state: fill delta;
 - focus: the global keyboard-only ring — never a per-control one;
 - danger/warning state: semantic border/fill token.
@@ -141,6 +129,12 @@ These are regressions:
 
 - adding a new hardcoded shadow value inside a feature component;
 - using border and shadow together without a clear reason for each layer;
+- drawing a line at a region boundary — that decision belongs to the visual style,
+  and the one shipping does not draw one;
+- inverting a surface with `bg-fg` to make it stand out: it flips with the scheme,
+  so the thing you emphasised becomes the brightest object on a dark palette and
+  the only inverted one in the app (the approval card's command block did exactly
+  this);
 - making the light sidebar nearly white against a white canvas;
 - adding `backdrop-blur` to make an ordinary panel feel expensive;
 - increasing rounded corners to create perceived softness;

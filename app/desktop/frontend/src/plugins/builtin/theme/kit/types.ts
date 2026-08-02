@@ -25,15 +25,31 @@ export interface ThemeBrand {
   accentPress?: string;
 }
 
-/** Canvas (the content card) + surface (the shell behind the drawer).
- *  The surface-2 / -3 / -4 steps are ALWAYS derived by color-mix off `surface`
- *  and `--depth-step`: a theme cannot pin them, because the contrast preference
- *  drives that step and a pinned ladder would make the slider partially dead. */
+/** The four surface anchors.
+ *
+ *  `bg` and `surface` are the two region materials. The surface-2 / -3 / -4 steps
+ *  above `surface` are ALWAYS derived by color-mix off `--depth-step`: a theme
+ *  cannot pin them, because the contrast preference drives that step and a pinned
+ *  ladder would make the slider partially dead.
+ *
+ *  `elevated` and `sunken` are anchors rather than rungs on that ladder because
+ *  the ladder walks one direction only — toward the ink. A card lifts AWAY from
+ *  the ink on a light palette (white over off-white) and TOWARD it on a dark one,
+ *  while a well recedes under both. One monotonic mix cannot say all three, which
+ *  is how the card fill — spelled as a ladder step — came out grey on light. */
 export interface ThemeSurfaces {
-  /** Page-level background. */
+  /** Page-level background — the reading plane. */
   bg: string;
-  /** Default lifted surface — the shell the drawer floats on. */
+  /** Region chrome — the drawer, the dock, the bars that frame the plane. */
   surface: string;
+  /** Card fill: a message, a tool card, the composer — anything that reads as an
+   *  object placed on a region. Defaults to the first ladder step. */
+  elevated?: string;
+  /** Recessed well: code bodies, terminal panes, diff hunks, text fields,
+   *  progress tracks. Cut INTO the surface in both schemes. Defaults to a fixed
+   *  per-scheme neutral, deliberately off the ladder — a control's own fill must
+   *  not drift when the contrast slider moves. */
+  sunken?: string;
 }
 
 /** The five-step ink ladder. Each step has a defined role — see
@@ -112,12 +128,6 @@ export interface ColorThemePluginSpec {
 
   /** Optional overrides — leave undefined to inherit scheme defaults. */
   cta?: Partial<ThemeCta>;
-  /**
-   * Surface ladder step in percent (e.g. "5%"). Default = 5%.
-   * Higher values give more contrast between surface / surface-2 / -3 / -4,
-   * lower values flatten the ladder.
-   */
-  depthStep?: string;
 
   /**
    * Escape hatch for palette variables not captured by the typed sections.

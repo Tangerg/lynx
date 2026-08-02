@@ -12,7 +12,7 @@ export function ProgressBar({ value, className, indicatorClassName }: ProgressBa
   return (
     <ProgressPrimitive.Root
       value={bounded}
-      className={cn("h-1.5 overflow-hidden rounded-pill bg-surface-2", className)}
+      className={cn("h-1.5 overflow-hidden rounded-pill bg-sunken", className)}
     >
       <ProgressPrimitive.Indicator
         className={cn(

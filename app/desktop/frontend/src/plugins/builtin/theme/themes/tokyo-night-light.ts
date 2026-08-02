@@ -6,6 +6,7 @@ import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 const c = {
   blue: "#34548a",
 
+  bgLift: "#e2e3e7",
   bgDark: "#cbccd1",
   bg: "#d5d6db",
   bgHighlight: "#c4c8d8",
@@ -33,8 +34,11 @@ export default defineColorThemePlugin({
     textOnAccent: "#ffffff",
   },
   surfaces: {
-    bg: c.bgDark,
-    surface: c.bg,
+    // The lighter of the two Day greys reads as the plane; the darker frames it.
+    bg: c.bg,
+    surface: c.bgDark,
+    elevated: c.bgLift,
+    sunken: c.bgHighlight,
   },
   ink: {
     text: c.fg,

@@ -5,13 +5,7 @@ import {
   useSidebarWidth,
 } from "@/plugins/builtin/workspace/public/sidebarDrawer";
 import { Icon } from "@/ui";
-import {
-  AgentAppShell,
-  AgentContentCard,
-  AgentDrawerToggle,
-  AgentStatusPill,
-  AgentSurfaceHeader,
-} from "@/ui/agent";
+import { AgentAppShell, AgentContentCard, AgentStatusPill, AgentSurfaceHeader } from "@/ui/agent";
 import type { VisualWorkIndexState } from "./shellFixtureStates";
 
 const STATE_COPY: Record<VisualWorkIndexState, { title: string; body: string }> = {
@@ -46,18 +40,13 @@ export function VisualShellFixture({ state }: { state: VisualWorkIndexState }) {
       sidebarOpen={!drawer.collapsed}
       sidebarWidth={width}
       onResize={setWidth}
+      onSidebarToggle={drawer.toggle}
+      sidebarExpandLabel={t("sidebar.action.expand")}
+      sidebarCollapseLabel={t("sidebar.action.collapse")}
       sidebar={<SidebarPanel />}
       main={
         <AgentContentCard label="Shell and Work Index visual fixture">
           <AgentSurfaceHeader windowCorner>
-            {drawer.collapsed && (
-              <AgentDrawerToggle
-                collapsed
-                onToggle={drawer.toggle}
-                expandLabel={t("sidebar.action.expand")}
-                collapseLabel={t("sidebar.action.collapse")}
-              />
-            )}
             <span className="font-mono text-ui-md text-fg-faint">lynx</span>
             <span className="text-ui-lg text-fg-faint">/</span>
             <span className="truncate text-ui-lg font-semibold text-fg">Work Index</span>

@@ -75,7 +75,7 @@ export const useUiStore = create<UiState & UiActions>()(
     (set) => ({
       theme: "light",
       visualStyle: "lyra",
-      accent: "#006bff",
+      accent: "#3574f0",
       customTheme: { bg: "#0f1117", fg: "#e6e8ee" },
       contrast: 25,
       uiFont: "",

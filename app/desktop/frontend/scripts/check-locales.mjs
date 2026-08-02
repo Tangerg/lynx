@@ -144,7 +144,10 @@ const JSX_MIXED = /[^\s]>([^<>]*\{[^<>]*\}[^<>]*)<\//g;
 const HTML_ENTITY = /&[a-zA-Z]+;|&#\d+;/g;
 // A string-valued JSX prop. `className` and friends carry mechanisms, not words.
 const JSX_PROP = /\s([a-zA-Z][\w-]*)=["]([^"]*[ ][^"]*)["]/g;
-const MECHANISM_PROP = /^(?:className|class|style|d|viewBox|accept|srcSet|sizes|content|rel)$/;
+// `scrollClassName` belongs here for the same reason `className` does: it is a
+// class list a scroll library forwards onto the element it renders.
+const MECHANISM_PROP =
+  /^(?:className|scrollClassName|class|style|d|viewBox|accept|srcSet|sizes|content|rel)$/;
 
 /**
  * Does this read as a sentence rather than as data?

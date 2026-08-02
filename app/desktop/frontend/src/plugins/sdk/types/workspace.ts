@@ -41,6 +41,15 @@ export interface WorkspaceViewSpec {
   title: string;
   /** Icon name for the tab header. */
   icon?: string;
+  /**
+   * A live count for the tab — "2" changed files, "3/5" plan steps.
+   *
+   * A component rather than a value because only the view knows where its own
+   * number comes from, and the tab strip must not subscribe to every view's data
+   * just to label it. Keep it to a few characters: this renders inside a 28px
+   * tab beside a truncating title.
+   */
+  badge?: ComponentType;
   /** Sort hint within the default location. Lower comes first. */
   order?: number;
   /** May this view sit BESIDE the chat stream (resizable split), not just

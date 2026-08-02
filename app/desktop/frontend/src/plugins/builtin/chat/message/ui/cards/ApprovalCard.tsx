@@ -141,10 +141,16 @@ export function ApprovalCard({
       </div>
       {/* Shell-prompt command line — only for command-style approvals. Other
           tools have no `cmd` (their payload is just args), so skip the box
-          instead of rendering a lonely "$". Dark code chip on the light card. */}
+          instead of rendering a lonely "$".
+
+          The recessed well, not an inverting ink slab: `bg-fg` flips with the
+          scheme, so on a dark palette the single most consequential thing on the
+          card — the command you are about to authorise — rendered as a white
+          block, brighter than anything around it and in the opposite polarity
+          from every other code surface in the app. */}
       {cmd.trim() && (
-        <code className="my-1.5 block whitespace-pre-wrap break-all rounded-sm bg-fg px-2.5 py-2 font-mono text-ui-sm text-on-fg">
-          $ {cmd}
+        <code className="my-1.5 block whitespace-pre-wrap break-all rounded-sm bg-sunken px-2.5 py-2 font-mono text-ui-sm text-fg">
+          <span className="text-success">$</span> {cmd}
         </code>
       )}
       {dangers.length > 0 && (

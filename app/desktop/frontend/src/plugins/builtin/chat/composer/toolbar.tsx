@@ -44,7 +44,7 @@ function ModelPicker() {
     if (!isLoading) return null;
     return (
       <div
-        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 opacity-60"
+        className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-md px-2.5 opacity-60"
         aria-hidden
       >
         <span className="h-1.5 w-1.5 rounded-full bg-surface-2" />
@@ -61,7 +61,7 @@ function ModelPicker() {
           <Button
             variant="ghost"
             aria-label={t("composer.switchModel")}
-            className="gap-1.5 whitespace-nowrap text-ui-lg text-fg-soft data-[popup-open]:bg-selected data-[popup-open]:text-fg"
+            className="gap-1.5 whitespace-nowrap px-2 text-ui-sm text-fg-soft data-[popup-open]:bg-selected data-[popup-open]:text-fg"
           >
             <ProviderIcon provider={selected.provider} size="sm" />
             <span className="max-w-[168px] truncate">{selected.label}</span>
@@ -146,7 +146,7 @@ function ApprovalModePill() {
             press={false}
             aria-label={t("approvals.mode.aria")}
             className={cn(
-              "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border-0 px-2.5 font-sans text-ui-lg font-medium transition-colors data-[popup-open]:bg-selected",
+              "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[var(--button-radius)] border-0 px-2 font-sans text-ui-sm font-medium transition-colors data-[popup-open]:bg-selected",
               full
                 ? "text-warning hover:bg-warning-wash"
                 : "text-fg-soft hover:bg-hover hover:text-fg",

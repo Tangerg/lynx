@@ -1,5 +1,4 @@
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
-import { Slot } from "@/plugins/host/Slot";
 import { Composer, SlashSuggestions } from "@/plugins/builtin/chat/composer/public/ui";
 import { useSelectedModel } from "@/plugins/builtin/chat/composer/public/selectedModel";
 import {
@@ -39,7 +38,6 @@ export function ComposerSurface({ onSend }: { onSend: (input: UserInput) => void
 
   return (
     <>
-      <Slot name="chat.status" />
       <SlashSuggestions value={value} onPick={setValue} />
       <Composer
         value={value}

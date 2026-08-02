@@ -61,7 +61,9 @@ function ProjectGroupNode({
         onNewSession={onNewSession}
       />
       {open && group.sessions.length > 0 && (
-        <div className="flex flex-col">
+        // A hair of air between two-line rows: without it a row's second line
+        // sits flush against the next row's title and reads as belonging to it.
+        <div className="flex flex-col gap-0.5 pt-0.5">
           {visible.map((s) => (
             <SessionRow
               key={s.id}

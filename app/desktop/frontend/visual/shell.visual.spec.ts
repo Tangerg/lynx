@@ -107,15 +107,20 @@ test("resize separator commits once after pointer movement and supports the keyb
   const persistedWidth = page.getByTestId("persisted-sidebar-width");
   await rail.focus();
   await rail.press("ArrowRight");
-  await expect(rail).toHaveAttribute("aria-valuenow", "264");
-  await expect(persistedWidth).toHaveText("264");
+  await expect(rail).toHaveAttribute("aria-valuenow", "248");
+  await expect(persistedWidth).toHaveText("248");
 
+  // `hover()` rather than a measured coordinate: the rail sits exactly at the
+  // drawer's trailing edge, so any layout settling between measuring it and
+  // pressing puts the press next to a 10px target instead of on it. Playwright
+  // re-resolves the element for us; only the vertical position, which the
+  // full-height rail does not care about, is read from the box.
+  await rail.hover();
+  await page.mouse.down();
   const box = await rail.boundingBox();
   if (!box) throw new Error("Resize separator has no layout box");
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
   await page.mouse.move(336, box.y + box.height / 2);
-  await expect(persistedWidth).toHaveText("264");
+  await expect(persistedWidth).toHaveText("248");
   await expect.poll(() => sidebarCssWidth(page)).toBe("336px");
   await page.mouse.up();
   await expect(persistedWidth).toHaveText("336");

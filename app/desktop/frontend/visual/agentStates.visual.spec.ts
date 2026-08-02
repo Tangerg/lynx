@@ -114,7 +114,7 @@ test("plan disclosure expands through the production banner contribution", async
   );
 });
 
-test("composer keeps one production edge, depth layer, and 6/8 footer inset", async ({ page }) => {
+test("composer keeps one production edge and 6/8 footer inset", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=empty");
   await page.locator("html[data-visual-ready]").waitFor();
 
@@ -137,9 +137,10 @@ test("composer keeps one production edge, depth layer, and 6/8 footer inset", as
       ),
     ),
   );
-  expect(await composer.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe(
-    "none",
-  );
+  // ONE edge mechanism, and for the composer that is the border above. The
+  // tool-window style gives flush chrome no cast at all, so a depth shadow here
+  // would be the second edge this test exists to forbid.
+  expect(await composer.evaluate((element) => getComputedStyle(element).boxShadow)).toBe("none");
 
   const borderBeforeFocus = await composer.evaluate(
     (element) => getComputedStyle(element).borderTopColor,

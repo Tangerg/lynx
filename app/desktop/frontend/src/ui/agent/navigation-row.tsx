@@ -23,6 +23,13 @@ interface AgentRowProps extends Omit<ButtonProps, "children" | "variant" | "size
   active?: boolean;
   icon?: IconName;
   iconClassName?: string;
+  /**
+   * A second line under the label — state, time, counts. Opting in swaps the
+   * row's fixed height for a minimum, which is why it is a prop and not
+   * something a caller can hand in through `children`: the row height is part of
+   * the index's rhythm and a caller that grew its own would break the column.
+   */
+  detail?: ReactNode;
   trailing?: ReactNode;
   /**
    * Revealed on hover or focus, taking the resting `trailing` glyph's place. A
@@ -45,6 +52,7 @@ export function AgentRow({
   active,
   icon,
   iconClassName,
+  detail,
   trailing,
   action,
   indent = "none",
@@ -62,19 +70,39 @@ export function AgentRow({
       press={false}
       data-active={active ? "" : undefined}
       className={cn(
-        "h-[var(--density-row-height)] w-full justify-start rounded-sm text-left text-ui-sm font-normal",
+        "w-full justify-start rounded-[var(--surface-card-radius)] text-left text-ui-sm font-normal",
         "gap-[var(--density-row-gap)]",
         "text-fg transition-[background-color,color] duration-[var(--dur-fast)]",
         "hover:bg-hover hover:text-fg focus-visible:bg-hover",
         "data-[active]:bg-selected data-[active]:font-medium data-[active]:text-fg",
+        // `h-auto` is load-bearing: the size variant ships a fixed `h-`, and
+        // without replacing it the second line renders outside the row's fill.
+        detail
+          ? "h-auto min-h-[var(--density-row-height)] items-start py-1.5"
+          : "h-[var(--density-row-height)]",
         indent === "nested" ? "px-2 pl-[30px]" : "px-2",
         action && "pr-8",
         className,
       )}
     >
-      {icon && <Icon name={icon} size="sm" className={cn("shrink-0 text-fg/95", iconClassName)} />}
-      <span className="min-w-0 flex-1 truncate">{children}</span>
-      {trailing && <span className={cn(action && RESTING_GLYPH)}>{trailing}</span>}
+      {icon && (
+        <Icon
+          name={icon}
+          size="sm"
+          className={cn("shrink-0 text-fg/95", detail && "mt-px", iconClassName)}
+        />
+      )}
+      <span className="flex min-w-0 flex-1 flex-col gap-px">
+        <span className="flex min-w-0 items-center gap-2 leading-snug">
+          <span className="min-w-0 flex-1 truncate">{children}</span>
+          {trailing && <span className={cn("shrink-0", action && RESTING_GLYPH)}>{trailing}</span>}
+        </span>
+        {detail != null && (
+          <span className="min-w-0 truncate text-ui-xs font-normal leading-snug text-fg-faint">
+            {detail}
+          </span>
+        )}
+      </span>
     </Button>
   );
 

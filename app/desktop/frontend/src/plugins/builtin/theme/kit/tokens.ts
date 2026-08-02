@@ -13,6 +13,14 @@ export const SCHEME_ICON: Record<Scheme, string> = {
   light: "sun",
 };
 
+/** Recessed-well fallback for a theme that does not name its own. A fixed
+ *  neutral rather than a ladder rung: a text field's fill is the control's own
+ *  material and must hold still while the contrast slider moves the regions. */
+const SCHEME_SUNKEN: Record<Scheme, string> = {
+  dark: "#1c1c21",
+  light: "#f1f1f4",
+};
+
 // buildTokenMap — spec → flat CSS-variable map
 
 /**
@@ -45,8 +53,6 @@ export function buildTokenMap(spec: ColorThemePluginSpec): Record<string, string
   };
 
   return {
-    "depth-step": spec.depthStep ?? "5%",
-
     // Brand
     "color-accent": spec.brand.accent,
     "color-accent-border": accentBorder,
@@ -55,8 +61,12 @@ export function buildTokenMap(spec: ColorThemePluginSpec): Record<string, string
 
     // Surfaces — the -2/-3/-4 steps are the color-mix() ladder in globals.css,
     // never emitted here: they track --depth-step (the contrast preference).
+    // `elevated` and `sunken` are anchors precisely because that ladder can only
+    // walk toward the ink; see ThemeSurfaces for why one mix cannot say all three.
     "color-bg": spec.surfaces.bg,
     "color-surface": spec.surfaces.surface,
+    "color-elevated": spec.surfaces.elevated ?? "var(--color-surface-2)",
+    "color-sunken": spec.surfaces.sunken ?? SCHEME_SUNKEN[spec.scheme],
 
     // Ink — soft/muted default to `text` at decreasing alpha. Faint deliberately
     // shares the muted fallback: a third lower-opacity text rung fails AA on

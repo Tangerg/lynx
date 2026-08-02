@@ -9,7 +9,7 @@
 // stack of competing cards.
 import type { IconName } from "@/ui";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import { IconButton, StatusDot } from "@/ui";
+import { Icon, IconButton, StatusDot } from "@/ui";
 import { AgentActivityDisclosure } from "@/ui/agent";
 import { type ToolMetaItem } from "@/plugins/builtin/agent/public/messagePresentation";
 import { cn } from "@/lib/classNames";
@@ -61,7 +61,8 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
       label={<span title={model.intent.label}>{model.intent.label}</span>}
       detail={
         model.detail ? (
-          <span title={model.detail} className={cn(model.isError && "text-negative")}>
+          // A path, a pattern, a command — data, so it takes the technical face.
+          <span title={model.detail} className={cn("font-mono", model.isError && "text-negative")}>
             {model.detail}
           </span>
         ) : undefined
@@ -70,6 +71,10 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
         <>
           <ToolMeta items={model.metaItems} running={model.running} />
           {model.running && <StatusDot tone="running" />}
+          {/* A settled call ends with its verdict. Without one, a finished row and
+              a row that never ran look the same, and the only way to tell a column
+              of tool calls apart is to open each. */}
+          {tool.status === "ok" && <Icon name="check" size="xs" className="text-success" />}
         </>
       }
       actions={actions.map((action) => (

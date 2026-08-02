@@ -83,6 +83,40 @@ export function formatDateTime(input: string | number | Date | undefined | null)
 }
 
 /**
+ * Clock time alone — for a turn's caption, where the date is carried once by the
+ * day separator above it and repeating it on every turn is noise. 12- vs 24-hour
+ * comes from the locale, as everywhere else here.
+ *
+ * Returns "" on unparseable input so the caller can render a fallback.
+ */
+export function formatClock(input: string | number | Date | undefined | null): string {
+  const d = parse(input);
+  if (!d) return "";
+  return dateTimeFormat("hm", { hour: "numeric", minute: "2-digit" }).format(d);
+}
+
+/**
+ * The calendar day a timestamp falls on, in the local zone, as `YYYY-MM-DD`.
+ *
+ * An identity for grouping, never shown: comparing formatted labels would make
+ * the grouping depend on the display locale, and comparing ISO strings would
+ * group by UTC day, which is the wrong midnight for everyone west of it.
+ */
+export function dayKey(input: string | number | Date | undefined | null): string | null {
+  const d = parse(input);
+  if (!d) return null;
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+/** The date without the clock — the day separator's label. */
+export function formatDay(input: string | number | Date | undefined | null): string {
+  const d = parse(input);
+  if (!d) return "";
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return absolute(d, sameYear);
+}
+
+/**
  * Localised compact time label.
  * Returns "" on unparseable input so the caller can render a fallback.
  */

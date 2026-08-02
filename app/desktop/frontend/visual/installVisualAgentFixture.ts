@@ -15,6 +15,10 @@ import {
 } from "@/plugins/builtin/agent/public/session";
 import { APPROVAL_MODE_KEY } from "@/plugins/builtin/agent/public/approvalPolicy";
 import { composerBootstrap, composerSend, composerToolbar } from "@/plugins/builtin/chat/composer";
+import narrativeRails from "@/plugins/builtin/chat/narrative-rails";
+import { builtinVisualStyles } from "@/plugins/builtin/theme/visualStyles";
+import lyraDark from "@/plugins/builtin/theme/themes/lyra-dark";
+import lyraLight from "@/plugins/builtin/theme/themes/lyra-light";
 import planProgress from "@/plugins/builtin/chat/plan-progress";
 import { toolActions, toolIcons } from "@/plugins/builtin/chat/tools/meta";
 import { shellPreview, taskPreview } from "@/plugins/builtin/chat/tools/previews";
@@ -109,10 +113,18 @@ export async function installVisualAgentFixture(
   queryClient.setQueryData([APPROVAL_MODE_KEY], "ask");
 
   for (const plugin of [
+    // The palettes and the geometry, or the fixture photographs globals.css's
+    // pre-hydration fallbacks: an unregistered theme id resolves to the dark
+    // scheme, which is why every `agent-light-*` golden was a byte-for-byte copy
+    // of its dark twin.
+    lyraLight,
+    lyraDark,
+    ...builtinVisualStyles,
     agentFold,
     composerBootstrap,
     composerToolbar,
     composerSend,
+    narrativeRails,
     planProgress,
     toolIcons,
     toolActions,

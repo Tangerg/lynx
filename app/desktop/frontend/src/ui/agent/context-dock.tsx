@@ -8,6 +8,8 @@ export interface AgentDockTab {
   id: string;
   title: ReactNode;
   icon?: IconName;
+  /** A few characters of live count, set after the title. */
+  badge?: ReactNode;
   active?: boolean;
   onSelect?: () => void;
   onClose?: () => void;
@@ -77,6 +79,11 @@ export function AgentDockTabs({ tabs, ariaLabel }: { tabs: AgentDockTab[]; ariaL
               >
                 {tab.icon && <Icon name={tab.icon} size="sm" className="shrink-0 opacity-70" />}
                 <span className="truncate">{tab.title}</span>
+                {tab.badge != null && (
+                  <span className="shrink-0 font-mono text-ui-2xs leading-none text-fg-faint tabular-nums">
+                    {tab.badge}
+                  </span>
+                )}
               </TabsPrimitive.Tab>
               {tab.onClose && (
                 <IconButton

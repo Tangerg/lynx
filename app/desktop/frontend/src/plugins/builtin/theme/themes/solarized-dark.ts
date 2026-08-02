@@ -7,6 +7,9 @@ import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 const c = {
   blue: "#268bd2",
 
+  // One rung below base03, which Solarized does not name — the well needs to
+  // recede under the darkest canonical tone.
+  base04: "#00222b",
   base03: "#002b36",
   base02: "#073642",
   base01: "#586e75",
@@ -28,9 +31,12 @@ export default defineColorThemePlugin({
     textOnAccent: c.base3,
   },
   surfaces: {
+    // The base-* ladder is a yellow-blue axis, not a lightness ramp, so every
+    // anchor is pinned to a canonical tone rather than mixed.
     bg: c.base03,
     surface: c.base02,
-    // Lifted surfaces extend the blue-grey axis (not a lightness step).
+    elevated: c.base02,
+    sunken: c.base04,
   },
   ink: {
     text: c.base0,

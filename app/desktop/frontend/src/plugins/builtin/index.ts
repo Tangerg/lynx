@@ -58,6 +58,7 @@ import {
   messageFeedback,
   messageRegenerate,
 } from "./chat/message-actions";
+import narrativeRails from "./chat/narrative-rails";
 import planProgress from "./chat/plan-progress";
 import goalMode from "./chat/goal";
 import recipesSlash from "./chat/recipes";
@@ -243,6 +244,7 @@ const overlays: PluginSpec[] = [
   shortcuts,
   globalKeymap,
   iconGallery,
+  narrativeRails,
   planProgress,
   goalMode,
   sessionUsage,

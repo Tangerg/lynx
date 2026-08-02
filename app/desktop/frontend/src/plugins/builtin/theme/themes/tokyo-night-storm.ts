@@ -5,6 +5,7 @@ import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 const c = {
   blue: "#7aa2f7",
 
+  bgDeep: "#1a1b26",
   bgDark: "#1f2335",
   bg: "#24283b",
   bgHighlight: "#292e42",
@@ -37,6 +38,8 @@ export default defineColorThemePlugin({
   surfaces: {
     bg: c.bgDark,
     surface: c.bg,
+    elevated: c.bg,
+    sunken: c.bgDeep,
   },
   ink: {
     text: c.fg,
