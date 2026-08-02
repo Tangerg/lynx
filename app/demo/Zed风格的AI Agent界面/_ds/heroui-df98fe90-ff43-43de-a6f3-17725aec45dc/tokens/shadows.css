@@ -1,8 +1,0 @@
-/* HeroUI v3 — elevation. Source: themes/default/variables.css (v3)
-   Three shadows only. Light mode is soft and low-contrast; dark mode replaces
-   outer shadow with a 1px inset hairline. */
-:root{
-  --surface-shadow: 0 2px 4px 0 rgba(0,0,0,0.04), 0 1px 2px 0 rgba(0,0,0,0.06), 0 0 1px 0 rgba(0,0,0,0.06);
-  --overlay-shadow: 0 2px 8px 0 rgba(0,0,0,0.06), 0 -6px 12px 0 rgba(0,0,0,0.03), 0 14px 28px 0 rgba(0,0,0,0.08);
-  --field-shadow: 0 2px 4px 0 rgba(0,0,0,0.04), 0 1px 2px 0 rgba(0,0,0,0.06), 0 0 1px 0 rgba(0,0,0,0.06);
-}

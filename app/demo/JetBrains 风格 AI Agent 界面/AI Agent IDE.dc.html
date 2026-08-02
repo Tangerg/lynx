@@ -38,6 +38,8 @@ a:hover{color:var(--accent); text-decoration:underline;}
 ::-webkit-scrollbar{width:10px;height:10px;}
 ::-webkit-scrollbar-thumb{background:var(--text-faint);border-radius:8px;border:3px solid transparent;background-clip:content-box;opacity:.5;}
 ::-webkit-scrollbar-track{background:transparent;}
+.nosb{scrollbar-width:none;-ms-overflow-style:none;}
+.nosb::-webkit-scrollbar{display:none;}
 input,textarea,button{font:inherit;color:inherit;background:none;border:none;outline:none;}
 @keyframes cc-caret{0%,45%{opacity:1}46%,100%{opacity:0}}
 @keyframes cc-spin{to{transform:rotate(360deg)}}
@@ -45,33 +47,24 @@ input,textarea,button{font:inherit;color:inherit;background:none;border:none;out
 @keyframes cc-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 </style>
 </helmet>
-<div data-theme="{{ theme }}" style="--accent: {{ accent }}; height:100vh; display:flex; flex-direction:column; position:relative; background:var(--bg-app); color:var(--text); font-family:Geist,'PingFang SC','Microsoft YaHei',sans-serif; font-size:13px; -webkit-font-smoothing:antialiased;">
+<div data-theme="{{ theme }}" style="--accent: {{ accent }}; height:100vh; display:flex; position:relative; background:var(--bg-app); color:var(--text); font-family:Geist,'PingFang SC','Microsoft YaHei',sans-serif; font-size:13px; -webkit-font-smoothing:antialiased;">
 
-  <div style="height:46px; flex:none; display:flex; align-items:center; gap:18px; padding:0 12px; background:var(--bg-bar); position:relative; z-index:5; box-shadow:var(--sh-bar);">
-    <div onClick="{{ toggleLeft }}" title="{{ leftToggleTip }}" style="width:26px; height:24px; display:flex; align-items:center; justify-content:center; border-radius:6px; background:{{ leftToggleBg }}; color:{{ leftIconColor }}; cursor:pointer;" style-hover="background:var(--hover)">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6"></rect><path d="M9.5 4.5v15" stroke="currentColor" stroke-width="1.6"></path><rect x="3.5" y="4.5" width="6" height="15" fill="currentColor" opacity=".4"></rect></svg>
-    </div>
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="2.5" width="19" height="19" rx="4.5" stroke="var(--text-dim)" stroke-width="1.5"></rect><path d="M8 8h4.5M10.2 8v8M8 16h4.5" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"></path></svg>
-    <span style="font-size:13px; font-weight:500;">payments-web</span>
-    <span style="color:var(--border);">/</span>
-    <div style="display:flex; align-items:center; gap:5px; color:var(--text-dim); font-size:12px;">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.5"></circle><circle cx="6" cy="18" r="2.5" stroke="currentColor" stroke-width="1.5"></circle><circle cx="18" cy="8" r="2.5" stroke="currentColor" stroke-width="1.5"></circle><path d="M6 8.5v7M8.5 6H14a4 4 0 0 1 4 4v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
-      feat/payment-retry
-    </div>
-    <div style="flex:1;"></div>
-    <div style="display:flex; align-items:center; gap:6px; padding:3px 9px; border-radius:6px; background:var(--green-bg); color:var(--green); font-size:12px; font-family:'JetBrains Mono',monospace;">
-      <span style="width:6px; height:6px; border-radius:50%; background:currentColor;"></span>agent 运行中
-    </div>
-    <div onClick="{{ toggleRight }}" title="{{ rightToggleTip }}" style="width:26px; height:24px; display:flex; align-items:center; justify-content:center; border-radius:6px; background:{{ rightToggleBg }}; color:{{ rightIconColor }}; cursor:pointer;" style-hover="background:var(--hover)">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6"></rect><path d="M14.5 4.5v15" stroke="currentColor" stroke-width="1.6"></path><rect x="14.5" y="4.5" width="6" height="15" fill="currentColor" opacity=".4"></rect></svg>
-    </div>
-  </div>
-
-  <div style="flex:1; min-height:0; display:flex;">
+  <div style="flex:1; min-width:0; min-height:0; display:flex;">
 
     <sc-if value="{{ leftOpen }}" hint-placeholder-val="{{ true }}">
     <div style="width:240px; flex:none; background:var(--bg-left); position:relative; z-index:3; box-shadow:var(--sh-left); display:flex; flex-direction:column; min-height:0;">
-      <div style="padding:16px 8px 8px; display:flex; flex-direction:column; gap:1px;">
+      <div style="height:42px; flex:none; display:flex; align-items:center; gap:8px; padding:0 8px 0 12px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="flex:none;"><rect x="2.5" y="2.5" width="19" height="19" rx="4.5" stroke="var(--text-dim)" stroke-width="1.5"></rect><path d="M8 8h4.5M10.2 8v8M8 16h4.5" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"></path></svg>
+        <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:1px;">
+          <span style="font-size:12.5px; font-weight:500; line-height:1.25;">payments-web</span>
+          <span style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--text-faint); line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style="flex:none;"><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="2"></circle><circle cx="6" cy="18" r="2.5" stroke="currentColor" stroke-width="2"></circle><circle cx="18" cy="8" r="2.5" stroke="currentColor" stroke-width="2"></circle><path d="M6 8.5v7M8.5 6H14a4 4 0 0 1 4 4v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+            feat/payment-retry
+          </span>
+        </div>
+        <div onClick="{{ toggleLeft }}" title="收起会话栏" style="width:26px; height:24px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:6px; color:var(--text-faint); cursor:pointer;" style-hover="background:var(--hover); color:var(--text)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6"></rect><path d="M9.5 4.5v15" stroke="currentColor" stroke-width="1.6"></path><rect x="3.5" y="4.5" width="6" height="15" fill="currentColor" opacity=".4"></rect></svg></div>
+      </div>
+      <div style="padding:8px 8px; display:flex; flex-direction:column; gap:1px;">
         <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; font-size:13px; cursor:pointer;" style-hover="background:var(--hover)">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-dim);"><path d="M4 20l.9-4.2 11-11a2.1 2.1 0 0 1 3 3l-11 11z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
           新对话
@@ -184,20 +177,34 @@ input,textarea,button{font:inherit;color:inherit;background:none;border:none;out
             </div>
           </sc-if>
         </div>
+        <div onClick="{{ toggleRight }}" title="收起工具栏" style="width:26px; height:26px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:6px; color:var(--text-faint); cursor:pointer;" style-hover="background:var(--hover); color:var(--text)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6"></rect><path d="M14.5 4.5v15" stroke="currentColor" stroke-width="1.6"></path><rect x="14.5" y="4.5" width="6" height="15" fill="currentColor" opacity=".4"></rect></svg></div>
       </div>
     </div>
     </sc-if>
 
     <div style="flex:1; min-width:0; display:flex; flex-direction:column; background:var(--bg-app); padding-left:{{ centerGutter }};">
 
-      <div style="height:42px; flex:none; display:flex; align-items:center; gap:10px; padding:0 20px; background:var(--bg-bar); position:relative; z-index:2; box-shadow:var(--sh-bar);">
-        <span style="font-size:13px; font-weight:600; letter-spacing:-.1px;">抽离支付重试 hook</span>
-        <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-dim); font-size:11px; font-family:'JetBrains Mono',monospace;">AGENT</span>
+      <div style="height:42px; flex:none; display:flex; align-items:center; gap:10px; padding:0 20px; position:relative; z-index:2;">
+        <sc-if value="{{ leftClosed }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ toggleLeft }}" title="展开会话栏" style="width:26px; height:24px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:6px; margin-left:-8px; color:var(--text-faint); cursor:pointer;" style-hover="background:var(--hover); color:var(--text)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6"></rect><path d="M9.5 4.5v15" stroke="currentColor" stroke-width="1.6"></path><rect x="3.5" y="4.5" width="6" height="15" fill="currentColor" opacity=".4"></rect></svg></div>
+        </sc-if>
+        <span style="font-size:13px; font-weight:600; letter-spacing:-.1px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">抽离支付重试 hook</span>
+        <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-dim); font-size:11px; flex:none; font-family:'JetBrains Mono',monospace;">AGENT</span>
         <div style="flex:1;"></div>
-        <span style="font-size:12px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">12 msg · 18.2k tok</span>
+        <sc-if value="{{ showBarStatus }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; align-items:center; gap:6px; padding:3px 9px; border-radius:6px; background:var(--green-bg); color:var(--green); font-size:11.5px; flex:none; white-space:nowrap; font-family:'JetBrains Mono',monospace;">
+            <span style="width:6px; height:6px; border-radius:50%; background:currentColor;"></span>agent 运行中
+          </div>
+        </sc-if>
+        <sc-if value="{{ showBarMeta }}" hint-placeholder-val="{{ true }}">
+          <span style="font-size:12px; color:var(--text-faint); flex:none; white-space:nowrap; font-family:'JetBrains Mono',monospace;">12 msg · 18.2k tok</span>
+        </sc-if>
+        <sc-if value="{{ rightClosed }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ toggleRight }}" title="展开工具栏" style="width:26px; height:24px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:6px; margin-right:-8px; color:var(--text-faint); cursor:pointer;" style-hover="background:var(--hover); color:var(--text)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6"></rect><path d="M14.5 4.5v15" stroke="currentColor" stroke-width="1.6"></path><rect x="14.5" y="4.5" width="6" height="15" fill="currentColor" opacity=".4"></rect></svg></div>
+        </sc-if>
       </div>
 
-      <div style="flex:1; min-height:0; display:flex;">
+      <div style="flex:1; min-width:0; min-height:0; display:flex;">
 
         <sc-if value="{{ showMap }}" hint-placeholder-val="{{ true }}">
         <div style="width:46px; flex:none; padding:34px 0 20px; display:flex; flex-direction:column; align-items:center; gap:8px; overflow:hidden;">
@@ -878,13 +885,13 @@ input,textarea,button{font:inherit;color:inherit;background:none;border:none;out
     <sc-if value="{{ rightOpen }}" hint-placeholder-val="{{ true }}">
     <div style="width:300px; flex:none; background:var(--bg-right); position:relative; z-index:3; box-shadow:var(--sh-right); display:flex; flex-direction:column; min-height:0;">
 
-      <div style="height:42px; flex:none; display:flex; align-items:center; gap:4px; padding:0 8px; background:var(--bg-bar); position:relative; z-index:2; box-shadow:var(--sh-bar);">
-        <div style="flex:1; min-width:0; display:flex; align-items:center; gap:3px; overflow-x:auto;">
+      <div style="height:42px; flex:none; display:flex; align-items:center; gap:4px; padding:0 8px; position:relative; z-index:2;">
+        <div class="nosb" style="flex:1; min-width:0; display:flex; align-items:center; gap:3px; overflow-x:auto;">
           <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
-            <div onClick="{{ t.select }}" style="display:flex; align-items:center; gap:5px; height:28px; flex:none; padding:0 6px 0 10px; border-radius:6px; background:{{ t.bg }}; color:{{ t.fg }}; font-size:12px; white-space:nowrap; cursor:pointer;" style-hover="background:var(--hover)">
-              {{ t.label }}
-              <span style="font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">{{ t.badge }}</span>
-              <div onClick="{{ t.close }}" title="关闭标签" style="width:16px; height:16px; display:flex; align-items:center; justify-content:center; border-radius:4px; color:var(--text-faint);" style-hover="background:var(--chip); color:var(--text)">
+            <div onClick="{{ t.select }}" style="display:flex; align-items:center; gap:5px; height:28px; flex:{{ t.flex }}; min-width:0; overflow:hidden; padding:0 6px 0 10px; border-radius:6px; background:{{ t.bg }}; color:{{ t.fg }}; font-size:12px; white-space:nowrap; cursor:pointer;" style-hover="background:var(--hover)">
+              <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ t.label }}</span>
+              <span style="font-size:11px; color:var(--text-faint); flex:none; font-family:'JetBrains Mono',monospace;">{{ t.badge }}</span>
+              <div onClick="{{ t.close }}" title="关闭标签" style="width:16px; height:16px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:4px; color:var(--text-faint);" style-hover="background:var(--chip); color:var(--text)">
                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path></svg>
               </div>
             </div>
@@ -904,6 +911,7 @@ input,textarea,button{font:inherit;color:inherit;background:none;border:none;out
             </div>
           </sc-if>
         </div>
+        <div onClick="{{ toggleRight }}" title="收起工具栏" style="width:26px; height:26px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:6px; color:var(--text-faint); cursor:pointer;" style-hover="background:var(--hover); color:var(--text)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6"></rect><path d="M14.5 4.5v15" stroke="currentColor" stroke-width="1.6"></path><rect x="14.5" y="4.5" width="6" height="15" fill="currentColor" opacity=".4"></rect></svg></div>
       </div>
 
       <sc-if value="{{ isExplorer }}" hint-placeholder-val="{{ false }}">
@@ -1266,6 +1274,8 @@ class Component extends DCLogic {
       composerPadL: center >= 560 ? '74px' : '28px',
       composerPadR: center >= 820 ? '224px' : '38px',
       showMap: center >= 560,
+      showBarMeta: center >= 620,
+      showBarStatus: center >= 460,
       showToc: center >= 820,
       onChatScroll: (e) => { this._chatPos = e.target.scrollTop; this.syncAnchor(); },
       mapDots: turns.map((t) => ({
@@ -1363,6 +1373,7 @@ class Component extends DCLogic {
       tabs: s.tabs.map((t) => ({
         label: PANELS[t.id].label,
         badge: PANELS[t.id].badge || '',
+        flex: t.id === s.active ? '0 0 auto' : '0 1 auto',
         bg: t.id === s.active ? 'var(--chip)' : 'transparent',
         fg: t.id === s.active ? 'var(--text)' : 'var(--text-dim)',
         select: () => this.setState({ active: t.id }),
