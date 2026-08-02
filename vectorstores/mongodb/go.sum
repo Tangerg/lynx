@@ -2,8 +2,8 @@ github.com/Tangerg/lynx/core v0.0.0-20260802201325-86ac84535c5e h1:KMk8rj22U3Jb1
 github.com/Tangerg/lynx/core v0.0.0-20260802201325-86ac84535c5e/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
 github.com/Tangerg/lynx/embeddingclient v0.0.0-20260731193916-0098789d89e9 h1:rK37NQzvidbdbf1EbuNBTSkgu91GlOnGd0dncjh3n/Y=
 github.com/Tangerg/lynx/embeddingclient v0.0.0-20260731193916-0098789d89e9/go.mod h1:BWdg/wvTfyHpmN4IfphGzmtTL3sBcIEreJDg0Ax0nSs=
-github.com/Tangerg/lynx/internal/vectorstorekit v0.0.0-20260802201617-1225d4100cab h1:A/xlZFufyKjHOXboahFzTFousoF3V7Ka//7mHZ0ZG1E=
-github.com/Tangerg/lynx/internal/vectorstorekit v0.0.0-20260802201617-1225d4100cab/go.mod h1:x3Rl7PFsdg4wJfx+pauLKWcNXVhUv5xYENdToAu8Apk=
+github.com/Tangerg/lynx/internal/vectorstorekit v0.0.0-20260802204045-978b3740ee67 h1:TzAb5jjsKy06Ty7JrUaRRoBB9Hv+3L/RWCqXzPHMD0g=
+github.com/Tangerg/lynx/internal/vectorstorekit v0.0.0-20260802204045-978b3740ee67/go.mod h1:x3Rl7PFsdg4wJfx+pauLKWcNXVhUv5xYENdToAu8Apk=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
