@@ -35,7 +35,7 @@ export type AgentDocScope = "cwd" | "projectRoot" | "home";
 
 export interface AgentMemoryAddRequest {
   content: string;
-  scope?: AgentMemoryScope;
+  scope: AgentMemoryScope;
   workspace?: WorkspaceRef;
 }
 
@@ -61,7 +61,7 @@ export interface AgentMemoryList {
 }
 
 export interface AgentMemoryListRequest {
-  scope?: AgentMemoryScope;
+  scope: AgentMemoryScope;
   workspace?: WorkspaceRef;
 }
 

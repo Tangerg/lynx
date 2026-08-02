@@ -104,9 +104,12 @@ import type {
   WorkspaceSummary,
 } from "./wire.generated";
 import { streamRunEvents, streamRuntimeEvents } from "./stream";
+import { createAutoPagingPromise, type AutoPagingPromise, type CursorPage } from "./pagination";
 import {
+  wireMethodIsPaginated,
   wireMethodRequiresIdempotency,
   type WireMethodName,
+  type WirePaginatedMethodName,
   type WireParams,
   type WireResult,
 } from "./wire.methods.generated";
@@ -123,11 +126,24 @@ export interface StreamingResult<R, E> {
 // handles). Before it, every call site below restated its own method name and result
 // type, so a method renamed in the Registry surfaced as a runtime method_not_found
 // instead of a compile error.
-type WireCall = <M extends WireMethodName>(
+type WireInvoke = <M extends WireMethodName>(
   method: M,
   params: WireParams<M>,
   options?: RpcCallOptions,
 ) => Promise<WireResult<M>>;
+
+type PaginatedWireCall<M extends WirePaginatedMethodName> =
+  WireResult<M> extends CursorPage ? AutoPagingPromise<WireResult<M>> : never;
+
+type WireCallResult<M extends WireMethodName> = M extends WirePaginatedMethodName
+  ? PaginatedWireCall<M>
+  : Promise<WireResult<M>>;
+
+type WireCall = <M extends WireMethodName>(
+  method: M,
+  params: WireParams<M>,
+  options?: RpcCallOptions,
+) => WireCallResult<M>;
 
 // Invariant shared by every streaming method: the subscription is opened
 // BEFORE the call (head-drop race, see runs.start), so if the call REJECTS
@@ -222,7 +238,7 @@ export interface WorkspaceMethods {
   /** The immutable resource identity bound to every operation below. */
   readonly ref: Readonly<WorkspaceRef>;
   changes: {
-    list: (query?: PageQuery) => Promise<Page<WorkspaceFileChange>>;
+    list: (query?: PageQuery) => AutoPagingPromise<Page<WorkspaceFileChange>>;
   };
   diff: {
     get: (params?: Omit<GetDiffRequest, "workspace">) => Promise<Diff>;
@@ -230,20 +246,20 @@ export interface WorkspaceMethods {
   files: {
     head: (params: Omit<GetFileHeadRequest, "workspace">) => Promise<FileHead>;
     search: (params: Omit<GrepRequest, "workspace">) => Promise<GrepResult>;
-    list: (params?: Omit<ListFilesRequest, "workspace">) => Promise<Page<FileEntry>>;
+    list: (params?: Omit<ListFilesRequest, "workspace">) => AutoPagingPromise<Page<FileEntry>>;
     read: (params: Omit<ReadFileRequest, "workspace">) => Promise<FileContent>;
   };
   recipes: {
-    list: (query?: PageQuery) => Promise<Page<Recipe>>;
+    list: (query?: PageQuery) => AutoPagingPromise<Page<Recipe>>;
   };
   hooks: {
     list: () => Promise<HooksListResult>;
   };
   skills: {
-    listDiscovered: (query?: PageQuery) => Promise<Page<Skill>>;
+    listDiscovered: (query?: PageQuery) => AutoPagingPromise<Page<Skill>>;
   };
   agentDocs: {
-    list: (query?: PageQuery) => Promise<Page<AgentDoc>>;
+    list: (query?: PageQuery) => AutoPagingPromise<Page<AgentDoc>>;
   };
   codebase: {
     search: (params: Omit<CodebaseSearchRequest, "workspace">) => Promise<CodebaseSearchResult>;
@@ -251,18 +267,26 @@ export interface WorkspaceMethods {
     reindex: () => Promise<CodebaseReindexResponse>;
   };
   memory: {
-    list: (query?: PageQuery) => Promise<Page<MemoryEntry>>;
+    list: (query?: PageQuery) => AutoPagingPromise<Page<MemoryEntry>>;
     get: (scope: MemoryScope) => Promise<MemoryEntry>;
     update: (params: { scope: MemoryScope; content: string }) => Promise<void>;
   };
+  agentMemory: {
+    list: () => Promise<AgentMemoryList>;
+    add: (content: string) => Promise<AgentMemoryItem>;
+  };
 }
+
+export type AgentMemoryTarget =
+  | { scope: Extract<AgentMemoryScope, "user"> }
+  | { scope: Extract<AgentMemoryScope, "project">; workspace: WorkspaceRef };
 
 export interface Methods {
   runtime: {
     discover: () => Promise<DiscoverResponse>;
   };
   sessions: {
-    list: (query?: PageQuery) => Promise<Page<Session>>;
+    list: (query?: PageQuery) => AutoPagingPromise<Page<Session>>;
     get: (sessionId: SessionId) => Promise<Session>;
     create: (params?: CreateSessionRequest, signal?: AbortSignal) => Promise<Session>;
     update: (params: UpdateSessionRequest) => Promise<Session>;
@@ -315,7 +339,7 @@ export interface Methods {
         statuses?: RunStatus[];
         includeDescendants?: boolean;
       },
-    ) => Promise<Page<RunRef>>;
+    ) => AutoPagingPromise<Page<RunRef>>;
   };
   todos: {
     // The cold read the todos state key declares (§5.6). A session with no list yet
@@ -327,7 +351,7 @@ export interface Methods {
     // A page never splits a set: a set is what runs.resume answers in one call.
     list: (
       query?: PageQuery & { sessionId?: SessionId; rootRunId?: RunId },
-    ) => Promise<Page<PendingInterruptSet>>;
+    ) => AutoPagingPromise<Page<PendingInterruptSet>>;
   };
   items: {
     // The scope is required and closed (§7.4): a whole session timeline, or one
@@ -338,11 +362,11 @@ export interface Methods {
       order?: ItemOrder;
       cursor?: string;
       limit?: number;
-    }) => Promise<ListItemsResponse>;
+    }) => AutoPagingPromise<ListItemsResponse>;
   };
   workspaces: {
     resolve: (ref?: WorkspaceRef) => Promise<WorkspaceInfo>;
-    list: (query?: PageQuery) => Promise<Page<WorkspaceSummary>>;
+    list: (query?: PageQuery) => AutoPagingPromise<Page<WorkspaceSummary>>;
     /** Resolve the runtime default when omitted, then bind a scoped client. */
     open: (ref?: WorkspaceRef) => Promise<WorkspaceMethods>;
   };
@@ -371,24 +395,24 @@ export interface Methods {
   // disabled). promoteDraft/rejectDraft carry the content-addressed ref so a
   // decision acts on the exact revision that was reviewed.
   skills: {
-    listLibrary: () => Promise<Page<ManagedSkill>>;
+    listLibrary: () => AutoPagingPromise<Page<ManagedSkill>>;
     archive: (name: string) => Promise<void>;
     restore: (name: string) => Promise<void>;
-    listDrafts: () => Promise<Page<SkillDraft>>;
+    listDrafts: () => AutoPagingPromise<Page<SkillDraft>>;
     promoteDraft: (ref: SkillDraftRef) => Promise<void>;
     rejectDraft: (ref: SkillDraftRef) => Promise<void>;
   };
   mcp: {
     // One resource carries durable configuration and live state. Create and
     // update are distinct; update uses exact omission=preserve semantics.
-    list: (query?: PageQuery) => Promise<Page<McpServer>>;
+    list: (query?: PageQuery) => AutoPagingPromise<Page<McpServer>>;
     create: (params: MCPServerCandidate) => Promise<McpServer>;
     update: (params: UpdateMCPServerRequest) => Promise<McpServer>;
     delete: (server: string) => Promise<void>;
     // Dry-run connection probe (NOT persisted). A failed probe is
     // `{ ok:false, error }`, never an RPC error (mirrors providers.test).
     test: (params: MCPServerCandidate) => Promise<McpTestResult>;
-    listTools: (server?: string) => Promise<Page<McpTool>>;
+    listTools: (server?: string) => AutoPagingPromise<Page<McpTool>>;
     reconnect: (server: string) => Promise<void>;
     authorizationAttempts: {
       // Interactive OAuth is an asynchronous resource, not a command ACK. Create
@@ -398,12 +422,12 @@ export interface Methods {
     };
   };
   providers: {
-    list: () => Promise<Page<Provider>>;
+    list: () => AutoPagingPromise<Page<Provider>>;
     update: (params: UpdateProviderRequest) => Promise<Provider>;
     test: (provider: string) => Promise<ProviderTestResult>;
   };
   models: {
-    list: (provider?: string) => Promise<Page<Model>>;
+    list: (provider?: string) => AutoPagingPromise<Page<Model>>;
     // The (provider, model) the in-house maintenance work (compaction /
     // extraction / titling) runs on. Empty model = unset → it runs on the main
     // turn model. setUtilityRole validates by resolving the client server-side.
@@ -416,7 +440,7 @@ export interface Methods {
     setEmbeddingRole: (params: EmbeddingRole) => Promise<EmbeddingRole>;
   };
   tools: {
-    list: () => Promise<Page<ToolSpec>>;
+    list: () => AutoPagingPromise<Page<ToolSpec>>;
     invoke: (params: InvokeToolRequest) => Promise<unknown>;
   };
   // Read-only spend reporting aggregated from the durable run history (§7.7).
@@ -430,10 +454,7 @@ export interface Methods {
   // or add a user-authored active item. Distinct from `memory` (the LYRA.md
   // cascade). capability_not_negotiated when the store is not wired.
   agentMemory: {
-    list: (params?: {
-      scope?: AgentMemoryScope;
-      workspace?: WorkspaceRef;
-    }) => Promise<AgentMemoryList>;
+    list: (target: AgentMemoryTarget) => Promise<AgentMemoryList>;
     review: (id: string, decision: "approve" | "reject") => Promise<void>;
     update: (params: {
       id: string;
@@ -441,11 +462,7 @@ export interface Methods {
       pinned?: boolean;
     }) => Promise<AgentMemoryItem>;
     delete: (id: string) => Promise<void>;
-    add: (params: {
-      scope?: AgentMemoryScope;
-      workspace?: WorkspaceRef;
-      content: string;
-    }) => Promise<AgentMemoryItem>;
+    add: (params: AgentMemoryTarget & { content: string }) => Promise<AgentMemoryItem>;
   };
   // goals.* (§7.14, capability-gated): Goal mode — the autonomous execution
   // loop. get returns the session's goal or null (no goal); start opens one
@@ -480,7 +497,7 @@ export interface Methods {
   // Scheduled runs (§7.9): cron-triggered headless runs of a saved prompt,
   // fired by the runtime's scheduler worker while serving.
   schedules: {
-    list: (query?: PageQuery) => Promise<Page<Schedule>>;
+    list: (query?: PageQuery) => AutoPagingPromise<Page<Schedule>>;
     create: (params: CreateScheduleRequest) => Promise<Schedule>;
     update: (
       params: Partial<CreateScheduleRequest> & {
@@ -550,6 +567,10 @@ function bindWorkspace(call: WireCall, ref: WorkspaceRef): WorkspaceMethods {
       get: (scope) => call("memory.get", { scope, workspace }),
       update: (params) => call("memory.update", { ...params, workspace }),
     },
+    agentMemory: {
+      list: () => call("agentMemory.list", { scope: "project", workspace }),
+      add: (content) => call("agentMemory.add", { scope: "project", workspace, content }),
+    },
   };
 }
 
@@ -585,7 +606,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     });
   };
 
-  const call: WireCall = async (method, params, callOptions) => {
+  const invoke: WireInvoke = async (method, params, callOptions) => {
     const ownsRequestMeta = options.requestMeta !== undefined;
     const requestMeta = ownsRequestMeta ? options.requestMeta?.() : callOptions?.requestMeta;
     refuse(method, params, requestMeta);
@@ -598,10 +619,32 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     return client.call(method, params, effectiveOptions);
   };
 
+  const call = (<M extends WireMethodName>(
+    method: M,
+    params: WireParams<M>,
+    callOptions?: RpcCallOptions,
+  ): WireCallResult<M> => {
+    if (wireMethodIsPaginated(method)) {
+      const initialCursor = (params as { cursor?: string }).cursor;
+      return createAutoPagingPromise<CursorPage>((cursor) => {
+        const continuation = { ...params, cursor } as WireParams<M> & { cursor?: string };
+        if (cursor === undefined) delete continuation.cursor;
+        return invoke<M>(method, continuation, callOptions) as unknown as Promise<CursorPage>;
+      }, initialCursor) as unknown as WireCallResult<M>;
+    }
+    return invoke(method, params, callOptions) as WireCallResult<M>;
+  }) as WireCall;
+
   let defaultWorkspaceRef: Promise<WorkspaceRef> | undefined;
   const openWorkspace = async (ref?: WorkspaceRef): Promise<WorkspaceMethods> => {
     if (ref) return bindWorkspace(call, ref);
-    defaultWorkspaceRef ??= call("workspaces.resolve", {}).then((resolved) => resolved.ref);
+    if (!defaultWorkspaceRef) {
+      const pending = call("workspaces.resolve", {}).then((resolved) => resolved.ref);
+      defaultWorkspaceRef = pending;
+      void pending.catch(() => {
+        if (defaultWorkspaceRef === pending) defaultWorkspaceRef = undefined;
+      });
+    }
     return bindWorkspace(call, await defaultWorkspaceRef);
   };
 

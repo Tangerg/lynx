@@ -25,13 +25,14 @@ type agentMemoryUseCases interface {
 	Add(ctx context.Context, scope agentmemory.Scope, cwd, content string) (agentmemory.Item, error)
 }
 
-// ListAgentMemory returns a project's active + pending memory (agentMemory.list).
+// ListAgentMemory returns active + pending memory for one explicit target
+// (agentMemory.list).
 func (s *Server) ListAgentMemory(ctx context.Context, in protocol.AgentMemoryListRequest) (*protocol.AgentMemoryList, error) {
-	scope, err := agentMemoryScopeFromWire(in.Scope)
+	scope, cwd, err := agentMemoryTargetFromWire(in.Scope, in.Workspace)
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.agentMemory.List(ctx, scope, workspaceRefPath(in.Workspace))
+	items, err := s.agentMemory.List(ctx, scope, cwd)
 	if err != nil {
 		return nil, mapAgentMemoryErr(err, "agentMemory.list")
 	}
@@ -80,11 +81,11 @@ func (s *Server) DeleteAgentMemory(ctx context.Context, in protocol.AgentMemoryI
 
 // AddAgentMemory stores a user-authored active item (agentMemory.add).
 func (s *Server) AddAgentMemory(ctx context.Context, in protocol.AgentMemoryAddRequest) (*protocol.AgentMemoryItem, error) {
-	scope, err := agentMemoryScopeFromWire(in.Scope)
+	scope, cwd, err := agentMemoryTargetFromWire(in.Scope, in.Workspace)
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.agentMemory.Add(ctx, scope, workspaceRefPath(in.Workspace), in.Content)
+	item, err := s.agentMemory.Add(ctx, scope, cwd, in.Content)
 	if err != nil {
 		return nil, mapAgentMemoryErr(err, "agentMemory.add")
 	}
@@ -95,16 +96,24 @@ func (s *Server) AddAgentMemory(ctx context.Context, in protocol.AgentMemoryAddR
 	return &w, nil
 }
 
-// agentMemoryScope maps the wire vocabulary to the domain's bounded scope.
-// Project-root resolution happens inside the Application use case.
-func agentMemoryScopeFromWire(scope protocol.AgentMemoryScope) (agentmemory.Scope, error) {
+// agentMemoryTargetFromWire maps the closed wire target to the Application's
+// scope + workspace input. It also protects direct in-process callers: project
+// always has a workspace and user never carries one, matching the generated wire
+// constraint instead of silently ignoring a half-valid request.
+func agentMemoryTargetFromWire(scope protocol.AgentMemoryScope, workspace *protocol.WorkspaceRef) (agentmemory.Scope, string, error) {
 	switch scope {
-	case "", protocol.AgentMemoryScopeProject:
-		return agentmemory.ScopeProject, nil
+	case protocol.AgentMemoryScopeProject:
+		if workspace == nil {
+			return 0, "", fmt.Errorf("%w: project agent memory requires workspace", protocol.ErrInvalidParams)
+		}
+		return agentmemory.ScopeProject, workspace.Path, nil
 	case protocol.AgentMemoryScopeUser:
-		return agentmemory.ScopeUser, nil
+		if workspace != nil {
+			return 0, "", fmt.Errorf("%w: user agent memory forbids workspace", protocol.ErrInvalidParams)
+		}
+		return agentmemory.ScopeUser, "", nil
 	default:
-		return 0, fmt.Errorf("%w: unknown agent memory scope %q", protocol.ErrInvalidParams, scope)
+		return 0, "", fmt.Errorf("%w: unknown agent memory scope %q", protocol.ErrInvalidParams, scope)
 	}
 }
 

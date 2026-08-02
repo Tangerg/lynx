@@ -96,7 +96,7 @@ export function toWorkspaceFileChangeSummary(change: RpcFileChange): WorkspaceFi
 
 // Capability-gated workspace reads should render as empty optional surfaces,
 // not as broken panes, when the runtime negotiated the feature off.
-export function emptyPageIfUngated(error: unknown): { data: never[] } {
-  if (isErrorType(error, "capability_not_negotiated")) return { data: [] };
+export function emptyListIfUngated(error: unknown): never[] {
+  if (isErrorType(error, "capability_not_negotiated")) return [];
   throw error;
 }

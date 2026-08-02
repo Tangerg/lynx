@@ -79,6 +79,9 @@ Workspace          文件、配置发现与执行的显式资源根             
 - `workspaces.list` 返回按 Session 绑定聚合的 `WorkspaceSummary`；无 active 标记，不制造平行的 Project 资源。
 - `projectRoot` 只是**配置发现根**（向上找到最近含 `.git` 的祖先，找不到回落 workspace path），不取代
   `WorkspaceRef` 作为身份与工具根。
+- SDK 用 `client.workspace(ref)` 把已知身份一次绑定到 `files/diff/changes/skills/recipes/agentDocs/hooks/codebase/memory/agentMemory`
+  等子资源；`await client.workspaces.open(ref?)` 在需要规范化或默认 workspace 时先 resolve 再绑定。绑定对象冻结自己的
+  `ref`，调用方后来修改原对象不能偷换已打开资源的目标；默认 resolve 只缓存成功结果，瞬时失败可重试。
 
 ### 0.3 HITL 采用 R 模型（分段续跑）
 
@@ -499,6 +502,13 @@ MCP 只发布一个 `McpServer` 资源，不再把可编辑配置与连接状态
 - **cursor 不透明**：client 不解析、不据其推断顺序，只回传上次拿到的 `nextCursor`。
 - **cursor 绑定它自己的读**：每个分页读有自己的 cursor 命名空间，一个读的 cursor 交给另一个读会被拒绝，而不是
   落到错的排序上。
+- **分页类别不是方法名约定**：Registry 从 params 的 `cursor/limit` 与 result 的 `data/nextCursor` 完整 shape
+  自动推导 `pagination:"cursor"`；只有半套字段时启动即失败。manifest、OpenRPC 的 `x-lyra-pagination` 与 SDK
+  都消费这一个事实，不维护“哪些 list 会分页”的第二张表。
+- **SDK 自动续页但不伪装 wire**：`await client.*.list()` 仍明确得到首个 `Page<T>`；对调用本身使用
+  `for await` / `.autoPagingEach()` / `.autoPagingToArray()` 会沿不透明 cursor 自动续读，`.pages()` 则在需要
+  `items.list.runs` 等 page 级附加数据时逐页交付。server 重复 cursor 是协议错误，SDK 抛 `PaginationError`，不得
+  把残缺集合静默当成完整集合。
 - collection 在翻页期间变化且 cursor 锚点消失时返回 `invalid_params`，client 从第一页重启。服务端不得猜测不匹配的
   排序键并静默跳项。
 
@@ -658,8 +668,8 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
 ## 7. 方法语义
 
 > **方法表在 [`API_REFERENCE.md`](../../../runtime/contract/API_REFERENCE.md)**（每个方法的 kind、幂等类别、
-> 所需 feature、可能返回的 problem type），入/出 schema 在 [`openrpc.json`](../../../runtime/contract/openrpc.json)。
-> 本节只写各域的语义、约束与"为什么这样切"。
+> 分页类别、所需 feature、可能返回的 problem type），入/出 schema 在
+> [`openrpc.json`](../../../runtime/contract/openrpc.json)。本节只写各域的语义、约束与"为什么这样切"。
 >
 > **Stream** = 返回一个 ack（含 `runId` / `segmentId`）+ 随后流式 `notifications.run.event`。这是传输无关语义；
 > HTTP 上 ack 作首帧、与后续事件同走该 POST 的响应流（streamable HTTP，TRANSPORT §6.4）。**流式方法集机器可读于
@@ -772,6 +782,10 @@ provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参�
 `checkpoints` / `usage.*` / `feedback.*` 等，每个由 §9 的一个 feature 门控，关掉即返回
 `capability_not_negotiated`（problem 里带 `requiredCapabilities`，客户端因此知道缺的是哪一个）。语义见
 [`AUX_API.md`](./AUX_API.md)。
+
+`agentMemory.list` / `agentMemory.add` 的 target 是闭合二选一：`scope:"project"` 必带 `workspace: WorkspaceRef`；
+`scope:"user"` 禁止 `workspace`。不再有“省略 scope 默认 project”或“user scope 带一个会被忽略的 workspace”这两种
+半有效请求。SDK 的 `workspace(ref).agentMemory` 固定绑定 project target；用户级 memory 走顶层 `agentMemory`。
 
 ### 7.8 服务端发出的 Notification 汇总
 

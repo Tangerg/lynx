@@ -16,13 +16,13 @@ const gateway: AgentMemoryGateway = {
     await getContainer().client().agentMemory.delete(id);
   },
   async add(input) {
-    await getContainer()
-      .client()
-      .agentMemory.add({
-        scope: input.scope,
-        ...(input.cwd ? { workspace: { path: input.cwd } } : {}),
-        content: input.content,
-      });
+    const client = getContainer().client();
+    if (input.scope === "user") {
+      await client.agentMemory.add({ scope: "user", content: input.content });
+      return;
+    }
+    const workspace = await client.workspaces.open(input.cwd ? { path: input.cwd } : undefined);
+    await workspace.agentMemory.add(input.content);
   },
 };
 

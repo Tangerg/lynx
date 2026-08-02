@@ -99,6 +99,18 @@ func TestMetadataEnumsRejectUnknownValuesWithoutMasqueradingAsDefaults(t *testin
 		},
 		want: []string{"runs.list", "IdempotencyPolicy(255)"},
 	}, {
+		name: "pagination kind",
+		mutate: func(meta *MethodMeta) {
+			meta.Pagination = PaginationKind(255)
+		},
+		want: []string{"runs.list", "PaginationKind(255)"},
+	}, {
+		name: "pagination disagrees with shapes",
+		mutate: func(meta *MethodMeta) {
+			meta.Pagination = PaginationNone
+		},
+		want: []string{"runs.list", "shapes derive cursor"},
+	}, {
 		name: "stability",
 		mutate: func(meta *MethodMeta) {
 			meta.Stability = protocol.Stability("accidental")
@@ -138,8 +150,32 @@ func TestMetadataEnumsRejectUnknownValuesWithoutMasqueradingAsDefaults(t *testin
 	if got := IdempotencyPolicy(255).String(); got == IdempotencyNone.String() {
 		t.Fatalf("unknown idempotency policy masquerades as %q", got)
 	}
+	if got := PaginationKind(255).String(); got == PaginationNone.String() {
+		t.Fatalf("unknown pagination kind masquerades as %q", got)
+	}
 	if got := ConditionOperator(255).String(); got == OperatorPresent.String() {
 		t.Fatalf("unknown condition operator masquerades as %q", got)
+	}
+}
+
+func TestPaginationIsDerivedFromWireShapes(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		method string
+		want   PaginationKind
+	}{
+		{method: "sessions.list", want: PaginationCursor},
+		{method: "items.list", want: PaginationCursor},
+		{method: "runs.get", want: PaginationNone},
+	} {
+		method, ok := contract.Lookup(test.method)
+		if !ok {
+			t.Fatalf("%s is not registered", test.method)
+		}
+		if method.Meta.Pagination != test.want {
+			t.Errorf("%s pagination = %s, want %s", test.method, method.Meta.Pagination, test.want)
+		}
 	}
 }
 

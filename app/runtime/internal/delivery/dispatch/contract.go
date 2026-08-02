@@ -93,6 +93,21 @@ func (p IdempotencyPolicy) Replays() bool {
 	return p == IdempotencyReplayResponse || p == IdempotencyReplayRunStream
 }
 
+// PaginationKind describes whether one unary response is a cursor page. It is
+// derived from the registered Params and Result wire shapes by the registration
+// factory; authors never classify methods by name or maintain a second list.
+//
+// A cursor page has the one protocol shape: optional cursor/limit request fields
+// and required data plus optional nextCursor result fields. Keeping the fact on
+// MethodMeta lets artifacts and SDK behavior read the same answer dispatch
+// validated, without putting SDK-only mechanics on the JSON wire.
+type PaginationKind uint8
+
+const (
+	PaginationNone PaginationKind = iota
+	PaginationCursor
+)
+
 // ConditionOperator is how a [FieldCondition] tests one request field.
 type ConditionOperator uint8
 
@@ -143,6 +158,7 @@ type MethodMeta struct {
 	Operation OperationKind
 
 	Idempotency IdempotencyPolicy
+	Pagination  PaginationKind
 
 	// Errors is the method-SPECIFIC ProblemData.type values its contract documents
 	// (API.md §7 per-method "错误" lines). It deliberately does not include:
@@ -259,6 +275,14 @@ func (m MethodMeta) validate() error {
 			IdempotencyReplayRunStream,
 		)
 	}
+	switch m.Pagination {
+	case PaginationNone, PaginationCursor:
+	default:
+		return fmt.Errorf(
+			"%s: invalid pagination kind %s; expected %s or %s",
+			m.Name, m.Pagination, PaginationNone, PaginationCursor,
+		)
+	}
 	if !m.Stability.Valid() {
 		return fmt.Errorf(
 			"%s: invalid stability %q; expected %q or %q",
@@ -293,8 +317,21 @@ func (m MethodMeta) validate() error {
 			return fmt.Errorf("%s: a streaming run command must replay by re-attaching to its run", m.Name)
 		}
 	}
+	if m.Pagination == PaginationCursor && m.Operation != OperationQuery {
+		return fmt.Errorf("%s: only a query may return a cursor page", m.Name)
+	}
 	if m.Params == nil {
 		return fmt.Errorf("%s: params type is required — a method with no schema cannot be published", m.Name)
+	}
+	derivedPagination, err := paginationOf(m.Params, m.Result)
+	if err != nil {
+		return fmt.Errorf("%s: invalid pagination shapes: %w", m.Name, err)
+	}
+	if m.Pagination != derivedPagination {
+		return fmt.Errorf(
+			"%s: pagination is %s but its request/result shapes derive %s",
+			m.Name, m.Pagination, derivedPagination,
+		)
 	}
 	if (m.Kind == KindStream) != (m.Event != nil) {
 		return fmt.Errorf("%s: a stream declares its event type and only a stream has one", m.Name)
@@ -355,6 +392,17 @@ func (p IdempotencyPolicy) String() string {
 		return "replayRunStream"
 	default:
 		return fmt.Sprintf("IdempotencyPolicy(%d)", p)
+	}
+}
+
+func (p PaginationKind) String() string {
+	switch p {
+	case PaginationNone:
+		return "none"
+	case PaginationCursor:
+		return "cursor"
+	default:
+		return fmt.Sprintf("PaginationKind(%d)", p)
 	}
 }
 

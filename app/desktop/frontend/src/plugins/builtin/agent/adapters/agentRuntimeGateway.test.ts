@@ -8,6 +8,10 @@ import { installAgentRuntimeGateway } from "./agentRuntimeGateway";
 
 let uninstall: (() => void) | undefined;
 
+function autoPage<T>(data: T[]) {
+  return { autoPagingToArray: vi.fn().mockResolvedValue(data) };
+}
+
 afterEach(() => {
   uninstall?.();
   uninstall = undefined;
@@ -67,13 +71,13 @@ describe("agentRuntimeGateway", () => {
     "queries descendants explicitly when subagents supported=$supported",
     async ({ supported, expected }) => {
       vi.spyOn(runtimeCapabilities, "runtimeCapability").mockReturnValue(supported);
-      const listRuns = vi.fn().mockResolvedValue({ data: [] });
+      const listRuns = vi.fn(() => autoPage([]));
       setContainer({
         client: () =>
           ({
-            items: { list: vi.fn().mockResolvedValue({ data: [], runs: [] }) },
+            items: { list: vi.fn(() => autoPage([])) },
             runs: { list: listRuns },
-            interrupts: { list: vi.fn().mockResolvedValue({ data: [] }) },
+            interrupts: { list: vi.fn(() => autoPage([])) },
             todos: {
               get: vi.fn().mockResolvedValue({
                 type: "todos",
@@ -90,7 +94,6 @@ describe("agentRuntimeGateway", () => {
 
       expect(listRuns).toHaveBeenCalledWith({
         sessionId: asSessionId("ses_1"),
-        cursor: undefined,
         ...(expected ? { includeDescendants: expected } : {}),
       });
     },

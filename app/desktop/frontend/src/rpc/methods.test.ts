@@ -34,11 +34,17 @@ describe("methods factory", () => {
 
     ref.path = "/retargeted";
     await workspace.files.list({ path: "src" });
+    await workspace.agentMemory.list();
 
     expect(workspace.ref).toEqual({ path: "/repo" });
     expect(call).toHaveBeenCalledWith(
       "workspace.files.list",
       { path: "src", workspace: { path: "/repo" } },
+      undefined,
+    );
+    expect(call).toHaveBeenCalledWith(
+      "agentMemory.list",
+      { scope: "project", workspace: { path: "/repo" } },
       undefined,
     );
   });
@@ -67,6 +73,24 @@ describe("methods factory", () => {
       { workspace: { path: "/default" } },
       undefined,
     );
+  });
+
+  it("retries default workspace resolution after a transient failure", async () => {
+    const call = vi
+      .fn()
+      .mockRejectedValueOnce(new RpcTransportError("connection reset"))
+      .mockResolvedValueOnce({
+        ref: { path: "/recovered" },
+        projectRoot: "/recovered",
+        availability: "available",
+      });
+    const methods = createMethods({ call } as unknown as RpcClient);
+
+    await expect(methods.workspaces.open()).rejects.toBeInstanceOf(RpcTransportError);
+    await expect(methods.workspaces.open()).resolves.toMatchObject({
+      ref: { path: "/recovered" },
+    });
+    expect(call).toHaveBeenCalledTimes(2);
   });
 
   it("reuses a mutation key after an indeterminate failure and rotates after success", async () => {
@@ -153,6 +177,37 @@ describe("methods factory", () => {
     t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: { data: [] } } as RpcMessage);
     await expect(promise).resolves.toEqual({ data: [] });
     await client.close();
+  });
+
+  it("derives continuation calls from the paged method policy", async () => {
+    const call = vi
+      .fn()
+      .mockResolvedValueOnce({ data: [{ id: "run_1" }], nextCursor: "cursor_2" })
+      .mockResolvedValueOnce({ data: [{ id: "run_2" }] });
+    const methods = createMethods({ call } as unknown as RpcClient);
+
+    const runs = await methods.runs
+      .list({
+        sessionId: asSessionId("ses_1"),
+        statuses: ["finished"],
+        limit: 25,
+      })
+      .autoPagingToArray();
+
+    expect(runs.map((run) => run.id)).toEqual(["run_1", "run_2"]);
+    expect(call.mock.calls).toEqual([
+      ["runs.list", { sessionId: "ses_1", statuses: ["finished"], limit: 25 }, undefined],
+      [
+        "runs.list",
+        {
+          sessionId: "ses_1",
+          statuses: ["finished"],
+          limit: 25,
+          cursor: "cursor_2",
+        },
+        undefined,
+      ],
+    ]);
   });
 
   it("items.list forwards the scope and the page direction", async () => {

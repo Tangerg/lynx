@@ -1,5 +1,5 @@
 import { getContainer } from "@/main/container";
-import { asRunId, asSegmentId, asSessionId, collectPages, isErrorType } from "@/rpc";
+import { asRunId, asSegmentId, asSessionId, isErrorType } from "@/rpc";
 import { configureAgentRuntimeGateway } from "../application/ports/runtimeGateway";
 import type { AgentRuntimeGateway } from "../application/ports/runtimeGateway";
 import { agentInputToContentBlocks } from "./wireInput";
@@ -39,20 +39,18 @@ const gateway: AgentRuntimeGateway = {
     const sid = asSessionId(sessionId);
     const includeDescendants = runtimeCapability("subagents");
     const [items, runs, pendingInterruptSets, state] = await Promise.all([
-      collectPages((cursor) =>
-        client.items.list({
+      client.items
+        .list({
           scope: { type: "session", sessionId: sid },
-          cursor,
-        }),
-      ),
-      collectPages((cursor) =>
-        client.runs.list({
+        })
+        .autoPagingToArray(),
+      client.runs
+        .list({
           sessionId: sid,
-          cursor,
           ...(includeDescendants ? { includeDescendants: true } : {}),
-        }),
-      ),
-      collectPages((cursor) => client.interrupts.list({ sessionId: sid, cursor })),
+        })
+        .autoPagingToArray(),
+      client.interrupts.list({ sessionId: sid }).autoPagingToArray(),
       loadOptionalSessionState(sessionId),
     ]);
     return {

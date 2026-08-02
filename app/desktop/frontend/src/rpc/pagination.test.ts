@@ -1,52 +1,70 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Page } from "./wire.generated";
-import { collectPages, eachPage } from "./pagination";
+import { createAutoPagingPromise, PaginationError } from "./pagination";
 
-function pager<T>(pages: T[][]): (cursor?: string) => Promise<Page<T>> {
-  return (cursor) => {
-    const index = cursor ? Number(cursor) : 0;
-    const data = pages[index] ?? [];
-    const next = index + 1 < pages.length ? String(index + 1) : undefined;
-    return Promise.resolve(next ? { data, nextCursor: next } : { data });
-  };
+function pager(pages: Array<{ data: string[]; nextCursor?: string }>) {
+  return vi.fn(async (cursor?: string) => {
+    const index = cursor ? Number(cursor.slice(1)) : 0;
+    return pages[index]!;
+  });
 }
 
-describe("collectPages", () => {
-  it("follows the cursor to the end", async () => {
-    expect(await collectPages(pager([["a", "b"], ["c"], ["d"]]))).toEqual(["a", "b", "c", "d"]);
-  });
+describe("auto-paging promise", () => {
+  it("remains awaitable as the first wire page", async () => {
+    const fetchPage = pager([{ data: ["a"], nextCursor: "p1" }, { data: ["b"] }]);
 
-  it("asks once when the runtime hands back no cursor", async () => {
-    const fetchPage = vi.fn(pager([["only"]]));
-
-    expect(await collectPages(fetchPage)).toEqual(["only"]);
+    await expect(createAutoPagingPromise(fetchPage)).resolves.toEqual({
+      data: ["a"],
+      nextCursor: "p1",
+    });
     expect(fetchPage).toHaveBeenCalledTimes(1);
-    expect(fetchPage).toHaveBeenCalledWith(undefined);
   });
 
-  it("stops on a cursor that doesn't advance instead of looping forever", async () => {
-    // A server that keeps handing back the same cursor is broken; hanging the
-    // caller on it would be worse than returning what we have.
-    const fetchPage = vi.fn().mockResolvedValue({ data: ["x"], nextCursor: "same" });
+  it("iterates every row and preserves the original cursor", async () => {
+    const fetchPage = pager([
+      { data: ["unused"] },
+      { data: ["b"], nextCursor: "p2" },
+      { data: ["c", "d"] },
+    ]);
+    const call = createAutoPagingPromise(fetchPage, "p1");
 
-    expect(await collectPages(fetchPage)).toEqual(["x", "x"]);
+    const rows: string[] = [];
+    for await (const row of call) rows.push(row);
+
+    expect(rows).toEqual(["b", "c", "d"]);
+    expect(fetchPage.mock.calls).toEqual([["p1"], ["p2"]]);
+  });
+
+  it("exposes full pages for page-level side data", async () => {
+    const fetchPage = pager([{ data: ["a"], nextCursor: "p1" }, { data: ["b"] }]);
+    const call = createAutoPagingPromise(fetchPage);
+    const pages = [];
+
+    for await (const page of call.pages()) pages.push(page);
+
+    expect(pages).toEqual([{ data: ["a"], nextCursor: "p1" }, { data: ["b"] }]);
+  });
+
+  it("collects rows and supports early visitor termination", async () => {
+    const fetchPage = pager([{ data: ["a", "b"], nextCursor: "p1" }, { data: ["c"] }]);
+    const call = createAutoPagingPromise(fetchPage);
+
+    await expect(call.autoPagingToArray()).resolves.toEqual(["a", "b", "c"]);
+
+    const visited: string[] = [];
+    await call.autoPagingEach((row) => {
+      visited.push(row);
+      return row !== "b";
+    });
+    expect(visited).toEqual(["a", "b"]);
+  });
+
+  it("rejects a repeated continuation instead of truncating silently", async () => {
+    const fetchPage = vi.fn(async () => ({ data: ["a"], nextCursor: "same" }));
+    const call = createAutoPagingPromise(fetchPage);
+
+    const error = await call.autoPagingToArray().catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(PaginationError);
+    expect(error).toEqual(expect.objectContaining({ cursor: "same" }));
     expect(fetchPage).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe("eachPage", () => {
-  it("hands over whole pages, so a caller can read the fields beside `data`", async () => {
-    const pages = [
-      { data: [1], runs: ["r1"], nextCursor: "1" },
-      { data: [2], runs: ["r1", "r2"] },
-    ];
-    const seen: string[][] = [];
-
-    await eachPage(
-      (cursor) => Promise.resolve(pages[cursor ? Number(cursor) : 0]!),
-      (page) => seen.push(page.runs),
-    );
-
-    expect(seen).toEqual([["r1"], ["r1", "r2"]]);
   });
 });

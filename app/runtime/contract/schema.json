@@ -60,7 +60,44 @@
         }
       },
       "required": [
-        "content"
+        "content",
+        "scope"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "project"
+              }
+            },
+            "required": [
+              "scope"
+            ]
+          },
+          "then": {
+            "required": [
+              "workspace"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "user"
+              }
+            },
+            "required": [
+              "scope"
+            ]
+          },
+          "then": {
+            "properties": {
+              "workspace": false
+            }
+          }
+        }
       ]
     },
     "AgentMemoryItem": {
@@ -145,7 +182,46 @@
         "workspace": {
           "$ref": "#/$defs/WorkspaceRef"
         }
-      }
+      },
+      "required": [
+        "scope"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "project"
+              }
+            },
+            "required": [
+              "scope"
+            ]
+          },
+          "then": {
+            "required": [
+              "workspace"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "user"
+              }
+            },
+            "required": [
+              "scope"
+            ]
+          },
+          "then": {
+            "properties": {
+              "workspace": false
+            }
+          }
+        }
+      ]
     },
     "AgentMemoryOrigin": {
       "type": "string",

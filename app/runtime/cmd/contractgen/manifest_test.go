@@ -43,3 +43,27 @@ func TestGeneratedMethodErrorsIncludeStaticCapabilityRefusals(t *testing.T) {
 		}
 	}
 }
+
+func TestGeneratedMethodsPublishDerivedPagination(t *testing.T) {
+	t.Parallel()
+
+	manifest := build(newSchemaSet(dispatch.WireShapes()))
+	for _, test := range []struct {
+		method string
+		want   string
+	}{
+		{method: "sessions.list", want: "cursor"},
+		{method: "items.list", want: "cursor"},
+		{method: "sessions.get", want: "none"},
+	} {
+		index := slices.IndexFunc(manifest.Methods, func(method methodEntry) bool {
+			return method.Name == test.method
+		})
+		if index < 0 {
+			t.Fatalf("%s is absent from the manifest", test.method)
+		}
+		if got := manifest.Methods[index].Pagination; got != test.want {
+			t.Errorf("%s pagination = %q, want %q", test.method, got, test.want)
+		}
+	}
+}

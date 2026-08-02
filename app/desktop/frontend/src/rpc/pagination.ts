@@ -1,46 +1,95 @@
-import type { Page } from "./wire.generated";
+/** The structural contract every cursor page carries. */
+export interface CursorPage<T = unknown> {
+  data: T[];
+  nextCursor?: string;
+}
+
+export type PageItem<P extends CursorPage> = P["data"][number];
 
 /**
- * Read a paged method to the end.
- *
- * `Page.data` is ONE page. The runtime clamps `sessions.list` to 100, `items.list`
- * to 200 and `runs.list` / `interrupts.list` / `schedules.list` to 100 —
- * and a client cannot opt out, because a `limit` above the cap is clamped back
- * down. A non-empty `nextCursor` is the protocol's "there is more" signal (§4.11);
- * the server documents that it never truncates silently, which puts the whole
- * burden on the reader.
- *
- * This app was reading `data` and dropping the cursor at every callsite —
- * `nextCursor` appeared in the wire types and nowhere else. So a conversation past
- * 200 items hydrated its oldest 200 and lost the rest, a 100+ session list hid the
- * remainder (and told `reconcileSessions` those sessions no longer existed, which
- * closes them), and a session past 100 runs could fail to reattach its live run.
- *
- * Stops when the runtime stops handing back a cursor — or when it hands back one
- * it already gave, since a cursor that doesn't advance is a broken server and
- * looping on it would hang the caller instead of failing.
+ * Raised when a server returns a continuation cursor already visited by this
+ * traversal. Repeating a cursor is a protocol defect: treating it as end-of-list
+ * would silently turn an incomplete result into an apparently complete one.
  */
-export async function eachPage<P extends Page<unknown>>(
-  fetchPage: (cursor?: string) => Promise<P>,
-  onPage: (page: P) => void,
-): Promise<void> {
-  const seen = new Set<string>();
-  let cursor: string | undefined;
-  for (;;) {
-    const page = await fetchPage(cursor);
-    onPage(page);
-    const next = page.nextCursor;
-    if (!next || seen.has(next)) return;
-    seen.add(next);
-    cursor = next;
+export class PaginationError extends Error {
+  readonly cursor: string;
+
+  constructor(cursor: string) {
+    super(`pagination cursor did not advance: ${JSON.stringify(cursor)}`);
+    this.name = "PaginationError";
+    this.cursor = cursor;
   }
 }
 
-/** {@link eachPage}, flattened — for the callers that only want the rows. */
-export async function collectPages<T>(
-  fetchPage: (cursor?: string) => Promise<Page<T>>,
-): Promise<T[]> {
-  const rows: T[] = [];
-  await eachPage(fetchPage, (page) => rows.push(...page.data));
-  return rows;
+/**
+ * A paged call is still a real Promise: `await call` returns its first wire page.
+ * It also owns the continuation behavior generated for that method:
+ *
+ * - `for await (const row of call)` visits every row;
+ * - `call.pages()` visits whole pages, preserving page-level side data;
+ * - `call.autoPagingToArray()` collects all rows;
+ * - `call.autoPagingEach(visitor)` walks rows without materializing them.
+ *
+ * Iteration starts from the exact cursor supplied to the original request and
+ * preserves every other request field on continuation calls.
+ */
+export interface AutoPagingPromise<P extends CursorPage>
+  extends Promise<P>, AsyncIterable<PageItem<P>> {
+  pages(): AsyncIterable<P>;
+  autoPagingToArray(): Promise<PageItem<P>[]>;
+  autoPagingEach(
+    visitor: (item: PageItem<P>) => void | boolean | Promise<void | boolean>,
+  ): Promise<void>;
+}
+
+/** Build the SDK behavior for one Registry-classified cursor method. */
+export function createAutoPagingPromise<P extends CursorPage>(
+  fetchPage: (cursor?: string) => Promise<P>,
+  initialCursor?: string,
+): AutoPagingPromise<P> {
+  const firstPage = fetchPage(initialCursor);
+
+  const pages = (): AsyncIterable<P> => ({
+    async *[Symbol.asyncIterator]() {
+      const seen = new Set<string>();
+      if (initialCursor) seen.add(initialCursor);
+
+      let page = await firstPage;
+      for (;;) {
+        yield page;
+        const cursor = page.nextCursor;
+        if (!cursor) return;
+        if (seen.has(cursor)) throw new PaginationError(cursor);
+        seen.add(cursor);
+        page = await fetchPage(cursor);
+      }
+    },
+  });
+
+  const items = async function* (): AsyncIterableIterator<PageItem<P>> {
+    for await (const page of pages()) {
+      yield* page.data as PageItem<P>[];
+    }
+  };
+
+  const autoPagingToArray = async (): Promise<PageItem<P>[]> => {
+    const result: PageItem<P>[] = [];
+    for await (const item of items()) result.push(item);
+    return result;
+  };
+
+  const autoPagingEach = async (
+    visitor: (item: PageItem<P>) => void | boolean | Promise<void | boolean>,
+  ): Promise<void> => {
+    for await (const item of items()) {
+      if ((await visitor(item)) === false) return;
+    }
+  };
+
+  return Object.assign(firstPage, {
+    pages,
+    autoPagingToArray,
+    autoPagingEach,
+    [Symbol.asyncIterator]: items,
+  });
 }

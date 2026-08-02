@@ -66,30 +66,42 @@ func (e *methodsEmitter) methodPolicy(metas []dispatch.MethodMeta) {
 	e.line("export type WireOperationKind = \"query\" | \"command\" | \"subscription\";")
 	e.line("export type WireResponseKind = \"unary\" | \"stream\";")
 	e.line("export type WireIdempotencyPolicy = \"none\" | \"replayResponse\" | \"replayRunStream\";")
+	e.line("export type WirePaginationKind = \"none\" | \"cursor\";")
 	e.line("")
 	e.line("export interface WireMethodPolicy {")
 	e.line("  operation: WireOperationKind;")
 	e.line("  response: WireResponseKind;")
 	e.line("  idempotency: WireIdempotencyPolicy;")
+	e.line("  pagination: WirePaginationKind;")
 	e.line("}")
 	e.line("")
-	e.line("export const WIRE_METHOD_POLICY: {")
-	e.line("  readonly [M in WireMethodName]: WireMethodPolicy;")
-	e.line("} = {")
+	e.line("export const WIRE_METHOD_POLICY = {")
 	for _, meta := range metas {
-		e.line(
-			"  %s: { operation: %s, response: %s, idempotency: %s },",
-			strconv.Quote(meta.Name),
-			strconv.Quote(meta.Operation.String()),
-			strconv.Quote(meta.Kind.String()),
-			strconv.Quote(meta.Idempotency.String()),
-		)
+		e.line("  %s: {", strconv.Quote(meta.Name))
+		e.line("    operation: %s,", strconv.Quote(meta.Operation.String()))
+		e.line("    response: %s,", strconv.Quote(meta.Kind.String()))
+		e.line("    idempotency: %s,", strconv.Quote(meta.Idempotency.String()))
+		e.line("    pagination: %s,", strconv.Quote(meta.Pagination.String()))
+		e.line("  },")
 	}
-	e.line("};")
+	e.line("} as const satisfies { readonly [M in WireMethodName]: WireMethodPolicy };")
 	e.line("")
 	e.line("/** True only for calls whose first response the runtime durably replays. */")
 	e.line("export function wireMethodRequiresIdempotency(method: WireMethodName): boolean {")
 	e.line("  return WIRE_METHOD_POLICY[method].operation === \"command\";")
+	e.line("}")
+	e.line("")
+	e.line("/** Every cursor-paginated method, derived from the method policy above. */")
+	e.line("export type WirePaginatedMethodName = {")
+	e.line("  [M in WireMethodName]: (typeof WIRE_METHOD_POLICY)[M][\"pagination\"] extends \"cursor\"")
+	e.line("    ? M")
+	e.line("    : never;")
+	e.line("}[WireMethodName];")
+	e.line("")
+	e.line("export function wireMethodIsPaginated(")
+	e.line("  method: WireMethodName,")
+	e.line("): method is WirePaginatedMethodName {")
+	e.line("  return WIRE_METHOD_POLICY[method].pagination === \"cursor\";")
 	e.line("}")
 	e.line("")
 }

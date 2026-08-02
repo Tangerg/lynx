@@ -5,6 +5,7 @@
 //   const client = createLyraClient(createHttpTransport({ baseUrl, localToken }));
 //   await client.runtime.discover();            // optional capability discovery
 //   const sessions = await client.sessions.list();
+//   const allSessions = await client.sessions.list().autoPagingToArray();
 //   const { result, events } = await client.runs.start({ ... });
 //   await client.close();
 //
@@ -20,9 +21,10 @@ export type { NotificationObserver, RpcClient, StreamEndHandler } from "./client
 export { isErrorType, RpcError, RpcProtocolError, RpcTransportError } from "./errors";
 export { asEventId, asItemId, asRunId, asSegmentId, asSessionId } from "./ids";
 export type { EventId, ItemId, RunId, SegmentId, SessionId } from "./ids";
-export { collectPages, eachPage } from "./pagination";
+export { PaginationError } from "./pagination";
+export type { AutoPagingPromise, CursorPage, PageItem } from "./pagination";
 export { createMethods } from "./methods";
-export type { Methods, StreamingResult, WorkspaceMethods } from "./methods";
+export type { AgentMemoryTarget, Methods, StreamingResult, WorkspaceMethods } from "./methods";
 export { createLyraClient } from "./sdk";
 export type { LyraClient } from "./sdk";
 export { PROTOCOL_VERSION } from "./wire.generated";

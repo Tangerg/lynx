@@ -72,10 +72,10 @@ type AgentMemoryList struct {
 	Items []AgentMemoryItem `json:"items"`
 }
 
-// AgentMemoryListRequest — agentMemory.list body. scope is "project" (default)
-// or "user"; Workspace resolves the project for the project scope.
+// AgentMemoryListRequest — agentMemory.list body. Scope is explicit. Project
+// scope requires Workspace; user scope forbids it (contract shape rules).
 type AgentMemoryListRequest struct {
-	Scope     AgentMemoryScope `json:"scope,omitempty"`
+	Scope     AgentMemoryScope `json:"scope"`
 	Workspace *WorkspaceRef    `json:"workspace,omitempty"`
 }
 
@@ -108,7 +108,7 @@ type AgentMemoryItemRequest struct {
 
 // AgentMemoryAddRequest — agentMemory.add body.
 type AgentMemoryAddRequest struct {
-	Scope     AgentMemoryScope `json:"scope,omitempty"`
+	Scope     AgentMemoryScope `json:"scope"`
 	Workspace *WorkspaceRef    `json:"workspace,omitempty"`
 	Content   string           `json:"content"`
 }

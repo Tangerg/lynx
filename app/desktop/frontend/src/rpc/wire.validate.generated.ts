@@ -317,11 +317,27 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     title: text(),
   }, ["path", "scope"]),
   AgentDocScope: enumOf(["cwd", "projectRoot", "home"]),
-  AgentMemoryAddRequest: object({
-    content: allOf([text(), minLength(1)]),
-    scope: ref(() => CHECKS.AgentMemoryScope),
-    workspace: ref(() => CHECKS.WorkspaceRef),
-  }, ["content"]),
+  AgentMemoryAddRequest: allOf([
+    object({
+      content: allOf([text(), minLength(1)]),
+      scope: ref(() => CHECKS.AgentMemoryScope),
+      workspace: ref(() => CHECKS.WorkspaceRef),
+    }, ["content", "scope"]),
+    ifThen(
+      fields({
+        scope: literal("project"),
+      }, ["scope"]),
+      fields({}, ["workspace"]),
+    ),
+    ifThen(
+      fields({
+        scope: literal("user"),
+      }, ["scope"]),
+      fields({
+        workspace: absent(),
+      }, []),
+    ),
+  ]),
   AgentMemoryItem: object({
     content: text(),
     createdAt: text(),
@@ -340,10 +356,26 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   AgentMemoryList: object({
     items: array(ref(() => CHECKS.AgentMemoryItem)),
   }, ["items"]),
-  AgentMemoryListRequest: object({
-    scope: ref(() => CHECKS.AgentMemoryScope),
-    workspace: ref(() => CHECKS.WorkspaceRef),
-  }, []),
+  AgentMemoryListRequest: allOf([
+    object({
+      scope: ref(() => CHECKS.AgentMemoryScope),
+      workspace: ref(() => CHECKS.WorkspaceRef),
+    }, ["scope"]),
+    ifThen(
+      fields({
+        scope: literal("project"),
+      }, ["scope"]),
+      fields({}, ["workspace"]),
+    ),
+    ifThen(
+      fields({
+        scope: literal("user"),
+      }, ["scope"]),
+      fields({
+        workspace: absent(),
+      }, []),
+    ),
+  ]),
   AgentMemoryOrigin: enumOf(["auto", "user"]),
   AgentMemoryReviewDecision: enumOf(["approve", "reject"]),
   AgentMemoryReviewRequest: object({

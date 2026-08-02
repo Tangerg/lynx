@@ -25,6 +25,10 @@ import { selectCurrentRootRun } from "../application/view/runTree";
 
 const SID = "ses_dbl";
 
+function autoPage<T>(data: T[]) {
+  return { autoPagingToArray: vi.fn().mockResolvedValue(data) };
+}
+
 // A driver whose start() never resolves — keeps begin() parked in the
 // pre-segment.started window where the latch is the only guard.
 function parkedDriver(): { driver: AgentDriver; start: ReturnType<typeof vi.fn> } {
@@ -131,8 +135,8 @@ describe("useAgentSession run timing guards", () => {
     setContainer({
       client: () =>
         ({
-          items: { list: vi.fn().mockResolvedValue({ data: [], runs: [] }) },
-          interrupts: { list: vi.fn().mockResolvedValue({ data: [] }) },
+          items: { list: vi.fn(() => autoPage([])) },
+          interrupts: { list: vi.fn(() => autoPage([])) },
           todos: {
             get: vi.fn().mockResolvedValue({
               type: "todos",
@@ -143,7 +147,7 @@ describe("useAgentSession run timing guards", () => {
           },
           runs: {
             cancel,
-            list: vi.fn().mockResolvedValue({ data: [canceledRun] }),
+            list: vi.fn(() => autoPage([canceledRun])),
           },
         }) as unknown as LyraClient,
     });
@@ -237,7 +241,6 @@ describe("useAgentSession run timing guards", () => {
 describe("useAgentSession durable recovery", () => {
   const RID = "ses_recover";
 
-  const page = <T>(data: T[]) => ({ data });
   const approvalInterrupt = {
     type: "approval" as const,
     itemId: "item_appr",
@@ -262,7 +265,7 @@ describe("useAgentSession durable recovery", () => {
     setContainer({
       client: () =>
         ({
-          items: { list: vi.fn().mockResolvedValue(page([])) },
+          items: { list: vi.fn(() => autoPage([])) },
           todos: {
             get: vi.fn().mockResolvedValue({
               type: "todos",
@@ -273,11 +276,11 @@ describe("useAgentSession durable recovery", () => {
             }),
           },
           interrupts: {
-            list: vi.fn().mockResolvedValue(page([])),
+            list: vi.fn(() => autoPage([])),
             ...(interruptOverrides as object),
           },
           runs: {
-            list: vi.fn().mockResolvedValue(page([])),
+            list: vi.fn(() => autoPage([])),
             subscribe,
             ...(overrides as object),
           },
@@ -299,8 +302,8 @@ describe("useAgentSession durable recovery", () => {
     stubClient(
       {},
       {
-        list: vi.fn().mockResolvedValue(
-          page([
+        list: vi.fn(() =>
+          autoPage([
             {
               rootRunId: "run_int",
               sessionId: RID,
@@ -328,8 +331,8 @@ describe("useAgentSession durable recovery", () => {
 
   it("reattaches to a still-running root run via runs.subscribe", async () => {
     const { subscribe } = stubClient({
-      list: vi.fn().mockResolvedValue(
-        page([
+      list: vi.fn(() =>
+        autoPage([
           {
             id: "run_sub",
             sessionId: RID,
@@ -411,8 +414,8 @@ describe("useAgentSession durable recovery", () => {
     setContainer({
       client: () =>
         ({
-          items: { list: vi.fn().mockResolvedValue({ data: [], runs: [] }) },
-          interrupts: { list: vi.fn().mockResolvedValue({ data: [] }) },
+          items: { list: vi.fn(() => autoPage([])) },
+          interrupts: { list: vi.fn(() => autoPage([])) },
           todos: {
             get: vi.fn().mockResolvedValue({
               type: "todos",
@@ -422,9 +425,9 @@ describe("useAgentSession durable recovery", () => {
             }),
           },
           runs: {
-            list: vi.fn().mockImplementation(() => ({
-              data: canceled ? [rootAfter, childAfter] : [rootBefore, childBefore],
-            })),
+            list: vi.fn(() =>
+              autoPage(canceled ? [rootAfter, childAfter] : [rootBefore, childBefore]),
+            ),
             subscribe,
             cancel,
           },

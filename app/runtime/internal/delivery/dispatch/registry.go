@@ -2,6 +2,7 @@ package dispatch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"reflect"
@@ -152,6 +153,11 @@ func registerUnary[Params, Result any](
 ) {
 	meta.Params = reflect.TypeFor[Params]()
 	meta.Result = reflect.TypeFor[Result]()
+	pagination, err := paginationOf(meta.Params, meta.Result)
+	if err != nil {
+		panic(fmt.Sprintf("dispatch: %s has invalid pagination shapes: %v", meta.Name, err))
+	}
+	meta.Pagination = pagination
 	registry.add(meta, func(d *Dispatcher, ctx context.Context, msg *transport.Request) HandleResult {
 		in, bad := decode[Params](msg)
 		if bad != nil {
@@ -163,6 +169,55 @@ func registerUnary[Params, Result any](
 		out, err := call(d, ctx, in)
 		return reply(msg, out, err)
 	})
+}
+
+// paginationOf recognizes the protocol's one cursor-page shape from the
+// actual request and result types. A partial resemblance is rejected: publishing
+// cursor without a continuation, or a continuation without a cursor input, would
+// make a generated client either loop incorrectly or truncate silently.
+func paginationOf(params, result reflect.Type) (PaginationKind, error) {
+	if params == nil {
+		return PaginationNone, errors.New("params type is required")
+	}
+	params = protocol.Deref(params)
+	cursor, hasCursor := protocol.LookupWireField(params, "cursor")
+	limit, hasLimit := protocol.LookupWireField(params, "limit")
+	var data, nextCursor protocol.WireField
+	var hasData, hasNextCursor bool
+	if result != nil {
+		result = protocol.Deref(result)
+		data, hasData = protocol.LookupWireField(result, "data")
+		nextCursor, hasNextCursor = protocol.LookupWireField(result, "nextCursor")
+	}
+
+	if !hasData && !hasNextCursor {
+		if hasCursor {
+			return PaginationNone, fmt.Errorf(
+				"%s has a cursor request field but its result is not a cursor page", params,
+			)
+		}
+		return PaginationNone, nil
+	}
+	if !hasData || !hasNextCursor || !hasCursor || !hasLimit {
+		return PaginationNone, fmt.Errorf(
+			"cursor pagination requires request cursor/limit and result data/nextCursor; params=%s result=%s",
+			params,
+			result,
+		)
+	}
+	if cursor.Type.Kind() != reflect.String || !cursor.Optional {
+		return PaginationNone, fmt.Errorf("%s.cursor must be an optional string", params)
+	}
+	if limit.Type.Kind() != reflect.Int || !limit.Optional {
+		return PaginationNone, fmt.Errorf("%s.limit must be an optional int", params)
+	}
+	if data.Type.Kind() != reflect.Slice || data.Optional {
+		return PaginationNone, fmt.Errorf("%s.data must be a required array", result)
+	}
+	if nextCursor.Type.Kind() != reflect.String || !nextCursor.Optional {
+		return PaginationNone, fmt.Errorf("%s.nextCursor must be an optional string", result)
+	}
+	return PaginationCursor, nil
 }
 
 // CommandAck registers a replay-protected command whose success carries no data.

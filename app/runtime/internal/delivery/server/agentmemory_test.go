@@ -85,12 +85,27 @@ func TestAgentMemoryListResolvesTargetAndMapsWire(t *testing.T) {
 	}
 
 	if _, err := s.ListAgentMemory(context.Background(), protocol.AgentMemoryListRequest{
-		Scope: "user", Workspace: &protocol.WorkspaceRef{Path: "/ignored"},
+		Scope: "user",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if rec.listScope != agentmemory.ScopeUser || rec.listCwd != "/ignored" {
-		t.Fatalf("user input = %v %q, want user /ignored", rec.listScope, rec.listCwd)
+	if rec.listScope != agentmemory.ScopeUser || rec.listCwd != "" {
+		t.Fatalf("user input = %v %q, want user with no workspace", rec.listScope, rec.listCwd)
+	}
+}
+
+func TestAgentMemoryTargetRefusesPartialTargets(t *testing.T) {
+	t.Parallel()
+
+	for _, request := range []protocol.AgentMemoryListRequest{
+		{Scope: protocol.AgentMemoryScopeProject},
+		{Scope: protocol.AgentMemoryScopeUser, Workspace: &protocol.WorkspaceRef{Path: "/ignored"}},
+	} {
+		server := newTestServer(&stubRuntime{})
+		server.agentMemory = &recordingAgentMemory{}
+		if _, err := server.ListAgentMemory(context.Background(), request); !errors.Is(err, protocol.ErrInvalidParams) {
+			t.Errorf("ListAgentMemory(%+v) error = %v, want invalid_params", request, err)
+		}
 	}
 }
 

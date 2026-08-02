@@ -48,11 +48,12 @@ type openrpcMethod struct {
 	Errors         []openrpcError `json:"errors,omitempty"`
 
 	// The x-lyra extensions carry what OpenRPC has no vocabulary for: retry
-	// semantics, capability gating, and the event stream a streaming method's
-	// response body becomes.
+	// semantics, cursor pagination, capability gating, and the event stream a
+	// streaming method's response body becomes.
 	Kind         string          `json:"x-lyra-kind"`
 	Operation    string          `json:"x-lyra-operation"`
 	Idempotency  string          `json:"x-lyra-idempotency"`
+	Pagination   string          `json:"x-lyra-pagination"`
 	Stability    string          `json:"x-lyra-stability"`
 	Features     []string        `json:"x-lyra-features,omitempty"`
 	Capabilities []capabilityRow `json:"x-lyra-capabilityRules,omitempty"`
@@ -113,6 +114,7 @@ func openrpcMethodFor(meta dispatch.MethodMeta, set *schemaSet, codes map[string
 		Kind:           meta.Kind.String(),
 		Operation:      meta.Operation.String(),
 		Idempotency:    meta.Idempotency.String(),
+		Pagination:     meta.Pagination.String(),
 		Stability:      string(meta.Stability),
 		Features:       meta.Features(),
 		Capabilities:   capabilityRowsFor(meta),

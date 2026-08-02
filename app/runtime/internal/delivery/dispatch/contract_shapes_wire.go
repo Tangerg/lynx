@@ -449,6 +449,22 @@ func registerDiffUnions(s *Shapes) {
 }
 
 func registerObjectConstraints(s *Shapes) {
+	for _, target := range []reflect.Type{
+		typeOf[protocol.AgentMemoryListRequest](),
+		typeOf[protocol.AgentMemoryAddRequest](),
+	} {
+		s.constraint(ObjectConstraintSpec{
+			GoType: target,
+			Rules: []PresenceRule{{
+				When:     []FieldCondition{{Field: "scope", Operator: OperatorEquals, Value: string(protocol.AgentMemoryScopeProject)}},
+				Required: []string{"workspace"},
+			}, {
+				When:      []FieldCondition{{Field: "scope", Operator: OperatorEquals, Value: string(protocol.AgentMemoryScopeUser)}},
+				Forbidden: []string{"workspace"},
+			}},
+		})
+	}
+
 	s.constraint(ObjectConstraintSpec{
 		GoType: typeOf[protocol.McpAuthorizationAttempt](),
 		Rules: []PresenceRule{{

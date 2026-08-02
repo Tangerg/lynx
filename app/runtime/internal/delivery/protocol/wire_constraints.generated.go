@@ -274,7 +274,9 @@ func (value UpdateMemoryRequest) ValidateWire() error {
 
 func (value AgentMemoryListRequest) ValidateWire() error {
 	return collectWireViolations("AgentMemoryListRequest",
-		closedEnum("scope", string(value.Scope), []string{"project", "user"}, true),
+		closedEnum("scope", string(value.Scope), []string{"project", "user"}, false),
+		requiredWhen(wireFieldEquals(value, "scope", "project"), "workspace", value),
+		forbiddenWhen(wireFieldEquals(value, "scope", "user"), "workspace", value),
 	)
 }
 
@@ -300,7 +302,9 @@ func (value AgentMemoryItemRequest) ValidateWire() error {
 func (value AgentMemoryAddRequest) ValidateWire() error {
 	return collectWireViolations("AgentMemoryAddRequest",
 		requiredText("content", value.Content),
-		closedEnum("scope", string(value.Scope), []string{"project", "user"}, true),
+		closedEnum("scope", string(value.Scope), []string{"project", "user"}, false),
+		requiredWhen(wireFieldEquals(value, "scope", "project"), "workspace", value),
+		forbiddenWhen(wireFieldEquals(value, "scope", "user"), "workspace", value),
 	)
 }
 
