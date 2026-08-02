@@ -7,8 +7,8 @@ require (
 	github.com/Tangerg/lynx/a2a v0.0.0-20260802185719-f013cc1eb508
 	github.com/Tangerg/lynx/agent v0.0.0-20260802185719-f013cc1eb508
 	github.com/Tangerg/lynx/chatclient v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/chathistory v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9
+	github.com/Tangerg/lynx/chathistory v0.0.0-20260802203054-e8bf196571a8
+	github.com/Tangerg/lynx/core v0.0.0-20260802201325-86ac84535c5e
 	github.com/Tangerg/lynx/embeddingclient v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/mcp v0.0.0-20260802185719-f013cc1eb508
 	github.com/Tangerg/lynx/models v0.0.0-20260802195812-555a8da53cc9
@@ -53,6 +53,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
+	github.com/Tangerg/lynx/internal/chathistorykit v0.0.0-20260802202600-3410ed0550c1 // indirect
 	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260802194415-a15faf3dea2e // indirect
 	github.com/Tangerg/lynx/tokenizer v0.0.0-20260802190418-6eedf79d9b4e // indirect
 	github.com/a2aproject/a2a-go/v2 v2.4.0 // indirect
