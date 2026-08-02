@@ -543,7 +543,7 @@ func TestAgentExecDelegatesManagedExecution(t *testing.T) {
 
 // TestCapabilityAdaptersDoNotImportTransportSDKs keeps MCP/A2A protocol
 // libraries behind internal/infra. Tool assembly consumes the infrastructure
-// adapters through local configuration and the narrow tools.Tool capability;
+// adapters through local configuration and the narrow tool.Tool capability;
 // it must not construct or expose transport-library types itself.
 func TestCapabilityAdaptersDoNotImportTransportSDKs(t *testing.T) {
 	root := moduleRoot(t)

@@ -3,6 +3,8 @@ package agentexec
 import (
 	"context"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -11,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/chatclient"
 	history "github.com/Tangerg/lynx/chathistory"
-	"github.com/Tangerg/lynx/tools"
 )
 
 // KnowledgeReader is the prompt assembler's read-only view of human-authored
@@ -54,7 +55,7 @@ type CheckpointReader interface {
 // without importing agentexec.
 type ToolResolver interface {
 	core.ToolGroupResolver
-	UseTaskTool(tools.Tool)
+	UseTaskTool(toolcontract.Tool)
 }
 
 // Config is the engine construction-time bundle. ChatClient is the

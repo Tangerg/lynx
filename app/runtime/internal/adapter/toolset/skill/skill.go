@@ -7,8 +7,9 @@ import (
 	"context"
 	"time"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	skillspec "github.com/Tangerg/lynx/skills"
-	"github.com/Tangerg/lynx/tools"
 	skillstool "github.com/Tangerg/lynx/tools/skills"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
@@ -30,7 +31,7 @@ type UsageRecorder interface {
 // Rebuilt per resolution like fs/shell, because the project directory depends on
 // the turn's working directory; the merged source just wraps os.DirFS, so the
 // cost is negligible.
-func Build(workdir, globalDir string, recorder UsageRecorder) tools.Tool {
+func Build(workdir, globalDir string, recorder UsageRecorder) toolcontract.Tool {
 	var decorateGlobal func(skillspec.ResourceSource) skillspec.ResourceSource
 	if recorder != nil {
 		// Wrap only the global source: the curator governs the global library, and

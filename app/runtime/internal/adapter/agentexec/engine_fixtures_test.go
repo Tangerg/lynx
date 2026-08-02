@@ -8,10 +8,11 @@ import (
 	"sync"
 	"testing"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/chatclient"
 	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
@@ -73,7 +74,7 @@ func mustEngineWith(t *testing.T, client *chatclient.Client, bc toolset.BuildCon
 	}
 }
 
-func codingTools(t *testing.T, resolver *toolset.Resolver) []tools.Tool {
+func codingTools(t *testing.T, resolver *toolset.Resolver) []toolcontract.Tool {
 	t.Helper()
 	group, ok, err := resolver.Resolve(t.Context(), tool.GroupCoding)
 	if err != nil || !ok {

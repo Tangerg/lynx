@@ -6,9 +6,10 @@ import (
 	"path/filepath"
 	"slices"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
-	"github.com/Tangerg/lynx/tools"
 )
 
 // protectedDirs are directory names the agent must never write into, even
@@ -33,7 +34,7 @@ var protectedDirs = []string{".git"}
 // root), so this guard is the boundary that keeps an isolated run from modifying
 // the real project tree. Non-isolated turns keep the existing behavior (absolute
 // paths anywhere are allowed — that is the point of the fs tools).
-func withPathGuard(inner tools.Tool, workdir string) tools.Tool {
+func withPathGuard(inner toolcontract.Tool, workdir string) toolcontract.Tool {
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
 		isolated := executionctx.Isolated(ctx)
 		paths, err := mutationPaths(inner, arguments)

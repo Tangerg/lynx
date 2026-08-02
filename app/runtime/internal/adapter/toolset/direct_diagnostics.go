@@ -6,19 +6,20 @@ import (
 	"path/filepath"
 	"strings"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/fs"
 )
 
 // directTools is the small, read-only capability set valid without an agent
 // process. Keep this list explicit: being available to a model does not make a
 // tool valid for a client-driven call.
-func directTools(root string) []tools.Tool {
+func directTools(root string) []toolcontract.Tool {
 	executor := fs.NewLocalExecutor(root)
-	return []tools.Tool{
+	return []toolcontract.Tool{
 		fs.NewReadTool(executor),
 		fs.NewGlobTool(executor),
 		fs.NewGrepTool(executor),

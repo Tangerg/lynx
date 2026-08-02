@@ -16,6 +16,8 @@ import (
 	"fmt"
 	"unicode/utf8"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -62,7 +64,7 @@ type tool struct {
 // eviction feature is disabled, not a broken tool. The session id is read
 // per-call off the turn's blackboard ([executionctx.SessionID]), scoping every read
 // to the calling session, so one tool instance serves every session.
-func New(store Store) (tools.Tool, error) {
+func New(store Store) (toolcontract.Tool, error) {
 	if store == nil {
 		return nil, nil
 	}

@@ -9,6 +9,8 @@ package goaltool
 import (
 	"context"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
@@ -50,7 +52,7 @@ type tool struct {
 // error when state is nil so the caller can simply omit it (Goal mode disabled).
 // The session is read per-call off the turn's blackboard, so one instance serves
 // every session.
-func New(state State) (tools.Tool, error) {
+func New(state State) (toolcontract.Tool, error) {
 	if state == nil {
 		return nil, nil
 	}

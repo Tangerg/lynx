@@ -14,6 +14,8 @@ import (
 	"context"
 	"errors"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/todopresentation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
@@ -82,7 +84,7 @@ type Store interface {
 // is disabled, not a broken tool. The session id is read per-call off the
 // turn's blackboard ([executionctx.SessionID]), so one tool instance serves every
 // session.
-func New(store Store) (tools.Tool, error) {
+func New(store Store) (toolcontract.Tool, error) {
 	if store == nil {
 		return nil, nil
 	}

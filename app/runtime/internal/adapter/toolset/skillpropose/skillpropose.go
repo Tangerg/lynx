@@ -13,6 +13,8 @@ import (
 	"errors"
 	"fmt"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -70,7 +72,7 @@ type tool struct {
 // New builds the propose_skill tool. A nil store (or one reporting Enabled()
 // false) yields a nil tool so the caller omits the feature; a nil interrupt
 // resolves to the unavailable one (the tool then can't gate and reports so).
-func New(store Authoring, interrupt runs.InterruptFunc) (tools.Tool, error) {
+func New(store Authoring, interrupt runs.InterruptFunc) (toolcontract.Tool, error) {
 	if store == nil || !store.Enabled() {
 		return nil, nil
 	}

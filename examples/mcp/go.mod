@@ -3,10 +3,11 @@ module github.com/Tangerg/lynx/examples/mcp
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/agent v0.0.0-20260802043023-4e34c2e0a6c7
+	github.com/Tangerg/lynx/agent v0.0.0-20260802185719-f013cc1eb508
 	github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/mcp v0.0.0-20260802043023-4e34c2e0a6c7
-	github.com/Tangerg/lynx/tools v0.0.0-20260802043023-4e34c2e0a6c7
+	github.com/Tangerg/lynx/mcp v0.0.0-20260802185719-f013cc1eb508
+	github.com/Tangerg/lynx/tool v0.0.0-20260802183922-a24b624cc403
+	github.com/Tangerg/lynx/tools v0.0.0-20260802184134-33f15efd41ab
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 )
 
@@ -34,11 +35,4 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-)
-
-replace (
-	github.com/Tangerg/lynx/agent => ../../agent
-	github.com/Tangerg/lynx/core => ../../core
-	github.com/Tangerg/lynx/mcp => ../../mcp
-	github.com/Tangerg/lynx/tools => ../../tools
 )

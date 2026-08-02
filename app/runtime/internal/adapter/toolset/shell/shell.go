@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/tools"
@@ -86,7 +88,7 @@ type toolSet struct {
 	defaultWorkdir string
 }
 
-func Build(shells *exec.Shells, defaultWorkdir string) ([]tools.Tool, error) {
+func Build(shells *exec.Shells, defaultWorkdir string) ([]toolcontract.Tool, error) {
 	if shells == nil {
 		return nil, errors.New("shell: shells is nil")
 	}
@@ -125,7 +127,7 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]tools.Tool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("shell: build shell_kill tool: %w", err)
 	}
-	return []tools.Tool{shellTool, outputTool, killTool}, nil
+	return []toolcontract.Tool{shellTool, outputTool, killTool}, nil
 }
 
 func (t *toolSet) run(ctx context.Context, a shellArgs) (string, error) {

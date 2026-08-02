@@ -4,9 +4,10 @@ import (
 	"context"
 	"sync"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
 )
 
 const fileResourceKeyPrefix = "file:"
@@ -84,7 +85,7 @@ func (p *pathLocker) releaseRef(path string, l *pathLock) {
 // replaces a concurrency-safe tool's caller-spelled path key with the same
 // canonical physical identity used by the lock. This makes model-order
 // scheduling agree with execution for relative, absolute, and symlink aliases.
-func withPathLock(inner tools.Tool, locker *pathLocker, workdir string) tools.Tool {
+func withPathLock(inner toolcontract.Tool, locker *pathLocker, workdir string) toolcontract.Tool {
 	if locker == nil {
 		return inner
 	}
@@ -94,7 +95,7 @@ func withPathLock(inner tools.Tool, locker *pathLocker, workdir string) tools.To
 // pathLockedTool owns the full same-file execution contract: its scheduling
 // key and runtime lock are derived from the same canonical path function.
 type pathLockedTool struct {
-	inner   tools.Tool
+	inner   toolcontract.Tool
 	locker  *pathLocker
 	workdir string
 }
@@ -105,7 +106,7 @@ func (t *pathLockedTool) Definition() chat.ToolDefinition { return t.inner.Defin
 // land, whether it ends the round — stays reachable through the lock. Only the
 // scheduling key below is this wrapper's own, and declaring it here is what
 // makes it win over the inner tool's.
-func (t *pathLockedTool) Unwrap() tools.Tool { return t.inner }
+func (t *pathLockedTool) Unwrap() toolcontract.Tool { return t.inner }
 
 func (t *pathLockedTool) Call(ctx context.Context, arguments string) (string, error) {
 	paths, err := resolvedMutationPaths(t.inner, arguments, t.workdir)
@@ -126,7 +127,7 @@ func (t *pathLockedTool) ConcurrencyKey(arguments string) (key string, concurren
 	// Read the declaration through the wrapping chain: the tool underneath is
 	// itself decorated, and a one-level look would silently make every guarded
 	// file tool exclusive.
-	capability, ok, err := tools.Capability[toolloop.ConcurrentTool](t.inner)
+	capability, ok, err := toolcontract.Capability[toolloop.ConcurrentTool](t.inner)
 	if err != nil || !ok {
 		return "", false
 	}

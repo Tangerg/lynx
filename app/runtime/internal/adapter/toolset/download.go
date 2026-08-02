@@ -12,12 +12,13 @@ import (
 	"strings"
 	"time"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/go-resty/resty/v2"
 
 	toolschema "github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/schema"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/httpreq"
 )
 
@@ -53,7 +54,7 @@ type downloadTool struct {
 // that gates httpreq (a download is an arbitrary-URL GET that also writes to
 // disk, so it carries the identical SSRF surface); the caller only registers
 // the tool when the allowlist is non-empty.
-func newDownloadTool(workdir string, allow httpreq.Allowlist) tools.Tool {
+func newDownloadTool(workdir string, allow httpreq.Allowlist) toolcontract.Tool {
 	client := resty.New().
 		SetTimeout(downloadTimeout).
 		SetRedirectPolicy(resty.RedirectPolicyFunc(allow.CheckRedirect))

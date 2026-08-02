@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"os"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
-	"github.com/Tangerg/lynx/tools"
 )
 
 // The read/edit/write guards: the LLM-facing presentation of the
@@ -23,7 +24,7 @@ import (
 
 // withReadTracking wraps the read tool to stamp every successfully read file,
 // marking it partial when only a line range was requested.
-func withReadTracking(inner tools.Tool, tr *editguardstate.Tracker, workdir string) tools.Tool {
+func withReadTracking(inner toolcontract.Tool, tr *editguardstate.Tracker, workdir string) toolcontract.Tool {
 	if tr == nil {
 		return inner
 	}
@@ -50,7 +51,7 @@ func withReadTracking(inner tools.Tool, tr *editguardstate.Tracker, workdir stri
 
 // withEditGuard wraps the edit tool: it requires the file to have been read and
 // unchanged since, then refreshes the stamp after a successful edit.
-func withEditGuard(inner tools.Tool, tr *editguardstate.Tracker, workdir string) tools.Tool {
+func withEditGuard(inner toolcontract.Tool, tr *editguardstate.Tracker, workdir string) toolcontract.Tool {
 	if tr == nil {
 		return inner
 	}
@@ -89,7 +90,7 @@ func withEditGuard(inner tools.Tool, tr *editguardstate.Tracker, workdir string)
 // withWriteGuard wraps the write tool: overwriting an EXISTING file requires a
 // full, current read (a new file or an append is exempt — there's nothing to
 // clobber). The stamp is refreshed after a successful write.
-func withWriteGuard(inner tools.Tool, tr *editguardstate.Tracker, workdir string) tools.Tool {
+func withWriteGuard(inner toolcontract.Tool, tr *editguardstate.Tracker, workdir string) toolcontract.Tool {
 	if tr == nil {
 		return inner
 	}
@@ -159,7 +160,7 @@ func isExistingFile(path string) bool {
 // the resolved workspace directory for this resolution; the wrapped tool's path
 // argument is relative to it. A fs-edit decorator (sibling to the read/edit/write
 // guards), not an lsp query tool — hence it lives here, not in the lsptools package.
-func withEditDiagnostics(inner tools.Tool, ci *codeintel.Analyzer, root string) tools.Tool {
+func withEditDiagnostics(inner toolcontract.Tool, ci *codeintel.Analyzer, root string) toolcontract.Tool {
 	if ci == nil {
 		return inner
 	}

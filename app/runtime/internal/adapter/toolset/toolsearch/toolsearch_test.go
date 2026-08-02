@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolsearch"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
 type mcpTool struct {
@@ -33,8 +33,8 @@ func (t mcpTool) Call(context.Context, string) (string, error) {
 
 func (t mcpTool) MCPToolIdentity() (string, string) { return t.server, t.remote }
 
-func catalog() []tools.Tool {
-	return []tools.Tool{
+func catalog() []toolcontract.Tool {
+	return []toolcontract.Tool{
 		mcpTool{name: "linear_create_issue", desc: "Create a Linear issue", server: "linear", remote: "create_issue"},
 		mcpTool{name: "linear_list_issues", desc: "List Linear issues", server: "linear", remote: "list_issues"},
 		mcpTool{name: "slack_send_message", desc: "Send a Slack message", server: "slack", remote: "send_message"},
@@ -103,7 +103,7 @@ func TestSelectDropsUnknownNames(t *testing.T) {
 // well must not let one server monopolize the (limited) result window.
 func TestRoundRobinSpreadsAcrossServers(t *testing.T) {
 	// Six tools, three each on two servers, all matching "issue".
-	many := []tools.Tool{
+	many := []toolcontract.Tool{
 		mcpTool{name: "alpha_issue_a", desc: "issue", server: "alpha", remote: "a"},
 		mcpTool{name: "alpha_issue_b", desc: "issue", server: "alpha", remote: "b"},
 		mcpTool{name: "alpha_issue_c", desc: "issue", server: "alpha", remote: "c"},
@@ -161,9 +161,9 @@ func TestEmptyQueryErrors(t *testing.T) {
 // model searches, the promotion must advertise it so round 2 can call it.
 func TestEndToEndPromotionMakesWithheldToolCallable(t *testing.T) {
 	withheld := mcpTool{name: "linear_create_issue", desc: "Create a Linear issue", server: "linear", remote: "create_issue", result: "LIN-42 created"}
-	search := toolsearch.New([]tools.Tool{withheld})
+	search := toolsearch.New([]toolcontract.Tool{withheld})
 
-	registry, err := tools.NewRegistry(search, withheld)
+	registry, err := toolcontract.NewRegistry(search, withheld)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}

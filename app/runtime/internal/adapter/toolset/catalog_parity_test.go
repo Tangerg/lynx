@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/tools"
+	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -62,7 +62,7 @@ func (allWiredSkillAuthoring) SaveDraft(context.Context, skills.Draft) (skills.D
 func (allWiredSkillAuthoring) Promote(context.Context, skills.DraftHandle) error      { return nil }
 func (allWiredSkillAuthoring) DiscardDraft(context.Context, skills.DraftHandle) error { return nil }
 
-func toolNameSet(ts []tools.Tool) map[string]bool {
+func toolNameSet(ts []toolcontract.Tool) map[string]bool {
 	names := make(map[string]bool, len(ts))
 	for _, t := range ts {
 		names[t.Definition().Name] = true

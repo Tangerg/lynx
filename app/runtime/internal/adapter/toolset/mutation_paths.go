@@ -4,13 +4,15 @@ import (
 	"encoding/json"
 	"slices"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/tools"
 )
 
-func mutationPaths(tool tools.Tool, arguments string) ([]string, error) {
+func mutationPaths(tool toolcontract.Tool, arguments string) ([]string, error) {
 	var paths []string
-	reporter, ok, err := tools.Capability[tools.FileMutationReporter](tool)
+	reporter, ok, err := toolcontract.Capability[tools.FileMutationReporter](tool)
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +35,7 @@ func mutationPaths(tool tools.Tool, arguments string) ([]string, error) {
 	return cleanPathList(paths), nil
 }
 
-func resolvedMutationPaths(tool tools.Tool, arguments, workdir string) ([]string, error) {
+func resolvedMutationPaths(tool toolcontract.Tool, arguments, workdir string) ([]string, error) {
 	paths, err := mutationPaths(tool, arguments)
 	if err != nil {
 		return nil, err

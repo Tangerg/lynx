@@ -3,7 +3,7 @@ package mcp
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/tools"
+	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
 // validateToolCatalog rejects model-facing name collisions across live MCP
@@ -15,7 +15,7 @@ import (
 // replacing is excluded from the current catalog for reconnect/configure. At
 // boot it is nil because the candidate has not joined servers yet. The caller
 // serializes access to servers.
-func validateToolCatalog(servers []*server, replacing *server, candidateServer string, candidate []tools.Tool) error {
+func validateToolCatalog(servers []*server, replacing *server, candidateServer string, candidate []toolcontract.Tool) error {
 	owners := make(map[string]string)
 	for _, current := range servers {
 		if current == replacing || current.session == nil {

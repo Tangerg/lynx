@@ -5,12 +5,13 @@ import (
 	"strings"
 	"testing"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
-	"github.com/Tangerg/lynx/tools"
 )
 
 // lspTool returns the combined `lsp` tool from a fresh Build.
-func lspTool(t *testing.T, ci *codeintel.Analyzer) tools.Tool {
+func lspTool(t *testing.T, ci *codeintel.Analyzer) toolcontract.Tool {
 	t.Helper()
 	tools, err := Build(ci, t.TempDir())
 	if err != nil {

@@ -3,14 +3,15 @@ package toolset
 import (
 	"testing"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/tools"
 )
 
 // resolveCodingTools builds a resolver, injects mcpTools, and returns the coding
 // role's fully resolved tool set (MCP tools still resolvable; deferral is a
 // manifest-projection concern applied later in the turn, not here).
-func resolveCodingTools(t *testing.T, mcpTools []tools.Tool) []tools.Tool {
+func resolveCodingTools(t *testing.T, mcpTools []toolcontract.Tool) []toolcontract.Tool {
 	t.Helper()
 	built, err := Build(t.Context(), BuildConfig{Workdir: t.TempDir()})
 	if err != nil {
@@ -33,7 +34,7 @@ func resolveCodingTools(t *testing.T, mcpTools []tools.Tool) []tools.Tool {
 type deferredNamer interface{ DeferredToolNames() []string }
 
 func TestResolverOffersSearchToolsOverMCPCatalog(t *testing.T) {
-	mcpTools := []tools.Tool{
+	mcpTools := []toolcontract.Tool{
 		mcpToolStub{name: "files_read", server: "files", remote: "read"},
 		mcpToolStub{name: "files_write", server: "files", remote: "write"},
 	}

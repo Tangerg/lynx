@@ -16,6 +16,8 @@ import (
 	"fmt"
 	"strings"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -79,7 +81,7 @@ type tool struct {
 }
 
 // New builds the ask_user tool.
-func New(interrupt runs.InterruptFunc) (tools.Tool, error) {
+func New(interrupt runs.InterruptFunc) (toolcontract.Tool, error) {
 	if interrupt == nil {
 		interrupt = runs.InterruptUnavailable
 	}

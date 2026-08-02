@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"strings"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/tools"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
@@ -48,7 +50,7 @@ type tool struct {
 }
 
 // New builds the codebase_search tool over the given index.
-func New(index SearchIndex) (tools.Tool, error) {
+func New(index SearchIndex) (toolcontract.Tool, error) {
 	if index == nil {
 		return nil, errors.New("codebase_search: index is nil")
 	}

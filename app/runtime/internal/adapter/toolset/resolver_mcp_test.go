@@ -4,9 +4,10 @@ import (
 	"context"
 	"testing"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
 )
 
 type mcpToolStub struct {
@@ -28,7 +29,7 @@ func (t mcpToolStub) MCPToolIdentity() (string, string) { return t.server, t.rem
 func TestResolverMCPToolsReadsCurrentPolicy(t *testing.T) {
 	disabled := map[mcpserver.ToolRef]bool{}
 	resolver := &Resolver{mcpToolDisabled: func(ref mcpserver.ToolRef) bool { return disabled[ref] }}
-	resolver.SetMCPTools([]tools.Tool{
+	resolver.SetMCPTools([]toolcontract.Tool{
 		mcpToolStub{name: "files_read", server: "files", remote: "read"},
 		mcpToolStub{name: "files_write", server: "files", remote: "write"},
 	})
@@ -75,7 +76,7 @@ func TestResolverMCPPolicyUsesSourceIdentityNotPublicName(t *testing.T) {
 	}
 
 	resolver := &Resolver{mcpToolDisabled: func(ref mcpserver.ToolRef) bool { return ref == disabledRef }}
-	resolver.SetMCPTools([]tools.Tool{mcpToolStub{
+	resolver.SetMCPTools([]toolcontract.Tool{mcpToolStub{
 		name: liveRef.PublicName(), server: liveRef.Server, remote: liveRef.Tool,
 	}})
 
@@ -87,7 +88,7 @@ func TestResolverMCPPolicyUsesSourceIdentityNotPublicName(t *testing.T) {
 
 func TestResolverMCPPolicyFailsClosedWithoutSourceIdentity(t *testing.T) {
 	resolver := &Resolver{mcpToolDisabled: func(mcpserver.ToolRef) bool { return false }}
-	resolver.SetMCPTools([]tools.Tool{mcpToolStub{name: "missing_identity"}})
+	resolver.SetMCPTools([]toolcontract.Tool{mcpToolStub{name: "missing_identity"}})
 
 	if got := resolver.mcpTools(); len(got) != 0 {
 		t.Fatalf("MCP tool without source identity remained visible: %v", got)
@@ -96,7 +97,7 @@ func TestResolverMCPPolicyFailsClosedWithoutSourceIdentity(t *testing.T) {
 
 func TestResolverSetMCPToolsSnapshotsInput(t *testing.T) {
 	resolver := &Resolver{}
-	tools := []tools.Tool{mcpToolStub{name: "before"}}
+	tools := []toolcontract.Tool{mcpToolStub{name: "before"}}
 	resolver.SetMCPTools(tools)
 	tools[0] = mcpToolStub{name: "after"}
 

@@ -3,7 +3,8 @@ package toolset
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/tools"
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/tools/httpreq"
 	"github.com/Tangerg/lynx/tools/webfetch"
 	"github.com/Tangerg/lynx/tools/webfetch/jina"
@@ -42,13 +43,13 @@ type OnlineConfig struct {
 // Missing credentials silently skip the corresponding tool — explicit
 // opt-in is the safety model. Returns an error only when a configured
 // provider fails to build (e.g. invalid HTTP allowlist).
-func BuildOnlineTools(online OnlineConfig) ([]tools.Tool, error) {
+func BuildOnlineTools(online OnlineConfig) ([]toolcontract.Tool, error) {
 	var (
-		out []tools.Tool
+		out []toolcontract.Tool
 		err error
 	)
 
-	out, err = appendIfBuilt(out, online.JinaAPIKey != "", "webfetch (jina)", func() (tools.Tool, error) {
+	out, err = appendIfBuilt(out, online.JinaAPIKey != "", "webfetch (jina)", func() (toolcontract.Tool, error) {
 		client, clientErr := jina.NewClient(jina.Config{APIKey: online.JinaAPIKey})
 		if clientErr != nil {
 			return nil, clientErr
@@ -59,7 +60,7 @@ func BuildOnlineTools(online OnlineConfig) ([]tools.Tool, error) {
 		return nil, err
 	}
 
-	out, err = appendIfBuilt(out, online.TavilyAPIKey != "", "websearch (tavily)", func() (tools.Tool, error) {
+	out, err = appendIfBuilt(out, online.TavilyAPIKey != "", "websearch (tavily)", func() (toolcontract.Tool, error) {
 		client, clientErr := tavily.NewClient(tavily.Config{APIKey: online.TavilyAPIKey})
 		if clientErr != nil {
 			return nil, clientErr
@@ -70,7 +71,7 @@ func BuildOnlineTools(online OnlineConfig) ([]tools.Tool, error) {
 		return nil, err
 	}
 
-	out, err = appendIfBuilt(out, len(online.HTTPAllowedHosts) > 0, "httpreq", func() (tools.Tool, error) {
+	out, err = appendIfBuilt(out, len(online.HTTPAllowedHosts) > 0, "httpreq", func() (toolcontract.Tool, error) {
 		client, clientErr := httpreq.NewClient(httpreq.Config{AllowedHosts: online.HTTPAllowedHosts})
 		if clientErr != nil {
 			return nil, clientErr
@@ -82,7 +83,7 @@ func BuildOnlineTools(online OnlineConfig) ([]tools.Tool, error) {
 	}
 
 	sourcegraph := sourcegraphConfig{Endpoint: online.SourcegraphEndpoint, Token: online.SourcegraphToken}
-	out, err = appendIfBuilt(out, sourcegraph.enabled(), "sourcegraph", func() (tools.Tool, error) {
+	out, err = appendIfBuilt(out, sourcegraph.enabled(), "sourcegraph", func() (toolcontract.Tool, error) {
 		return newSourcegraphTool(sourcegraph)
 	})
 	if err != nil {
@@ -98,7 +99,7 @@ func BuildOnlineTools(online OnlineConfig) ([]tools.Tool, error) {
 // safety model). When cond is true it runs build(); a non-nil
 // error is wrapped with the label so the caller can tell which
 // provider mis-configured.
-func appendIfBuilt(tools []tools.Tool, cond bool, label string, build func() (tools.Tool, error)) ([]tools.Tool, error) {
+func appendIfBuilt(tools []toolcontract.Tool, cond bool, label string, build func() (toolcontract.Tool, error)) ([]toolcontract.Tool, error) {
 	if !cond {
 		return tools, nil
 	}

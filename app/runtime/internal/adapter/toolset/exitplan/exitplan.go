@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"strings"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -97,7 +99,7 @@ type ModePolicy interface {
 //
 // The toolset composes the interrupt suspension contract from the composition
 // root.
-func New(appr ModePolicy, interrupt runs.InterruptFunc) (tools.Tool, error) {
+func New(appr ModePolicy, interrupt runs.InterruptFunc) (toolcontract.Tool, error) {
 	if interrupt == nil {
 		interrupt = runs.InterruptUnavailable
 	}

@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"slices"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/tools"
 )
 
 // target is a connected (name, session) pair snapshotted under the lock so the
@@ -141,7 +142,7 @@ func (c *Connections) publishTools() {
 	defer c.publishMu.Unlock()
 
 	c.mu.Lock()
-	var catalog []tools.Tool
+	var catalog []toolcontract.Tool
 	for _, ms := range c.servers {
 		if ms.session != nil {
 			catalog = append(catalog, ms.tools...)

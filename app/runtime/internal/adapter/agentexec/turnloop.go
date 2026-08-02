@@ -15,7 +15,7 @@ import (
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/tools"
+	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
 const llmIdleTimeout = 5 * time.Minute
@@ -141,7 +141,7 @@ func streamIdleMiddleware(idle time.Duration) chat.StreamMiddleware {
 }
 
 type preparedTurn struct {
-	registry *tools.Registry
+	registry *toolcontract.Registry
 	request  *chat.Request
 }
 
@@ -204,7 +204,7 @@ func (e *Engine) prepareTurn(ctx context.Context, pc *core.ProcessContext, messa
 	if err != nil {
 		return preparedTurn{}, fmt.Errorf("agentexec: resolve action tools: %w", err)
 	}
-	registry, err := tools.NewRegistry(actionTools...)
+	registry, err := toolcontract.NewRegistry(actionTools...)
 	if err != nil {
 		return preparedTurn{}, fmt.Errorf("agentexec: register action tools: %w", err)
 	}

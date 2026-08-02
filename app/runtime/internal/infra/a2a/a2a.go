@@ -10,13 +10,14 @@ import (
 	"slices"
 	"sync"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	lynxa2a "github.com/Tangerg/lynx/a2a"
-	"github.com/Tangerg/lynx/tools"
 )
 
 // ClientConfig is the infrastructure adapter's transport-neutral input. Keep
@@ -44,7 +45,7 @@ type Connections struct {
 // resolved or dialed fails the whole call (the operator sees it at startup
 // rather than discovering a missing capability later), and the lynx a2a module
 // closes the already-opened clients before returning the error.
-func Dial(ctx context.Context, agents []ClientConfig) (*Connections, []tools.Tool, error) {
+func Dial(ctx context.Context, agents []ClientConfig) (*Connections, []toolcontract.Tool, error) {
 	if len(agents) == 0 {
 		return &Connections{}, nil, nil
 	}

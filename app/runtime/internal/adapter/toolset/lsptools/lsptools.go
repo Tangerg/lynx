@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/tools"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
@@ -22,7 +24,7 @@ import (
 // shell). Positions are 1-based at the tool boundary (what a human/LLM reads
 // off a file); the analyzer converts to the LSP 0-based wire form and folds an
 // unsupported file type into a plain reply.
-func Build(ci *codeintel.Analyzer, defaultWorkdir string) ([]tools.Tool, error) {
+func Build(ci *codeintel.Analyzer, defaultWorkdir string) ([]toolcontract.Tool, error) {
 	if ci == nil {
 		return nil, errors.New("lsptools: analyzer is nil")
 	}
@@ -34,7 +36,7 @@ func Build(ci *codeintel.Analyzer, defaultWorkdir string) ([]tools.Tool, error) 
 	if err != nil {
 		return nil, err
 	}
-	return []tools.Tool{lsp, diagnostics}, nil
+	return []toolcontract.Tool{lsp, diagnostics}, nil
 }
 
 // lspInput is the model-facing argument shape; [tools.New] derives the
@@ -79,7 +81,7 @@ type lspRunner struct {
 	defaultWorkdir string
 }
 
-func newLSPTool(ci *codeintel.Analyzer, defaultWorkdir string) (tools.Tool, error) {
+func newLSPTool(ci *codeintel.Analyzer, defaultWorkdir string) (toolcontract.Tool, error) {
 	t := &lspRunner{analyzer: ci, defaultWorkdir: defaultWorkdir}
 	return tools.New[lspInput, string](
 		tools.Config{Name: "lsp", Description: lspDesc},
@@ -132,7 +134,7 @@ type diagnosticsTool struct {
 	defaultWorkdir string
 }
 
-func newDiagnosticsTool(ci *codeintel.Analyzer, defaultWorkdir string) (tools.Tool, error) {
+func newDiagnosticsTool(ci *codeintel.Analyzer, defaultWorkdir string) (toolcontract.Tool, error) {
 	t := &diagnosticsTool{analyzer: ci, defaultWorkdir: defaultWorkdir}
 	return tools.New[lspDiagnosticsInput, string](
 		tools.Config{

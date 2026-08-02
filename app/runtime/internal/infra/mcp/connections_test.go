@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/oauth2"
 
@@ -198,16 +200,16 @@ func TestPublishToolsUsesVerifiedSnapshotsInServerOrder(t *testing.T) {
 		{
 			config:  ServerConfig{Name: "alpha"},
 			session: new(sdkmcp.ClientSession),
-			tools:   []tools.Tool{catalogTool("alpha_read"), catalogTool("alpha_list")},
+			tools:   []toolcontract.Tool{catalogTool("alpha_read"), catalogTool("alpha_list")},
 		},
 		{
 			config:  ServerConfig{Name: "beta"},
 			session: new(sdkmcp.ClientSession),
-			tools:   []tools.Tool{catalogTool("beta_read")},
+			tools:   []toolcontract.Tool{catalogTool("beta_read")},
 		},
 	}}
 	var got []string
-	c.SetToolSink(func(catalog []tools.Tool) {
+	c.SetToolSink(func(catalog []toolcontract.Tool) {
 		got = make([]string, 0, len(catalog))
 		for _, tool := range catalog {
 			got = append(got, tool.Definition().Name)
@@ -223,15 +225,15 @@ func TestPublishToolsUsesVerifiedSnapshotsInServerOrder(t *testing.T) {
 
 func TestDetachPublishesRemainingSnapshot(t *testing.T) {
 	c := &Connections{servers: []*server{
-		{config: ServerConfig{Name: "remove"}, tools: []tools.Tool{catalogTool("remove_read")}},
+		{config: ServerConfig{Name: "remove"}, tools: []toolcontract.Tool{catalogTool("remove_read")}},
 		{
 			config:  ServerConfig{Name: "keep"},
 			session: new(sdkmcp.ClientSession),
-			tools:   []tools.Tool{catalogTool("keep_read")},
+			tools:   []toolcontract.Tool{catalogTool("keep_read")},
 		},
 	}}
 	published := make(chan []string, 1)
-	c.SetToolSink(func(catalog []tools.Tool) {
+	c.SetToolSink(func(catalog []toolcontract.Tool) {
 		names := make([]string, 0, len(catalog))
 		for _, tool := range catalog {
 			names = append(names, tool.Definition().Name)
@@ -270,7 +272,7 @@ func TestReconnectPublishesRemovalBeforeVerifiedReplacement(t *testing.T) {
 	}
 
 	publications := make(chan []string, 2)
-	c.SetToolSink(func(catalog []tools.Tool) { publications <- toolNames(catalog) })
+	c.SetToolSink(func(catalog []toolcontract.Tool) { publications <- toolNames(catalog) })
 	addRemoteTool(t, remote, "second")
 	if err := c.Reconnect(t.Context(), config.Name); err != nil {
 		t.Fatalf("Reconnect: %v", err)
@@ -433,7 +435,7 @@ func TestReconnectQuarantinesNewCrossServerPublicToolNameCollision(t *testing.T)
 	}
 
 	publications := make(chan []string, 2)
-	c.SetToolSink(func(catalog []tools.Tool) { publications <- toolNames(catalog) })
+	c.SetToolSink(func(catalog []toolcontract.Tool) { publications <- toolNames(catalog) })
 	addRemoteTool(t, secondRemote, "b_c")
 	err = c.Reconnect(t.Context(), "a")
 	if err == nil || !strings.Contains(err.Error(), `public tool name collision "a_b_c"`) {
@@ -464,7 +466,7 @@ func addRemoteTool(t *testing.T, server *sdkmcp.Server, name string) {
 	}
 }
 
-func toolNames(catalog []tools.Tool) []string {
+func toolNames(catalog []toolcontract.Tool) []string {
 	names := make([]string, 0, len(catalog))
 	for _, tool := range catalog {
 		names = append(names, tool.Definition().Name)

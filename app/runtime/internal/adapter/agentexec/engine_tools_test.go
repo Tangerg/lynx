@@ -3,8 +3,9 @@ package agentexec
 import (
 	"testing"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/chatclient"
-	"github.com/Tangerg/lynx/tools"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 )
@@ -103,7 +104,7 @@ func TestToolCatalogPartialOnline(t *testing.T) {
 	}
 }
 
-func toolNames(tools []tools.Tool) map[string]bool {
+func toolNames(tools []toolcontract.Tool) map[string]bool {
 	out := make(map[string]bool, len(tools))
 	for _, tl := range tools {
 		out[tl.Definition().Name] = true

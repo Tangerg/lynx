@@ -13,7 +13,7 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/core/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 // Domain types — the agent takes a Topic and produces a Brief.
@@ -50,7 +50,7 @@ func main() {
 	}
 	defer cliSession.Close()
 
-	toolSource := func(ctx context.Context) ([]tools.Tool, error) {
+	toolSource := func(ctx context.Context) ([]tool.Tool, error) {
 		return lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "research", Session: cliSession}}, lynxmcp.ToolOptions{
 			MetaFunc: lynxmcp.MetaFromContext,
 		})
@@ -126,10 +126,10 @@ func (r mcpToolResolver) Resolve(_ context.Context, role string) (agent.ToolGrou
 }
 
 type mcpToolGroup struct {
-	load func(context.Context) ([]tools.Tool, error)
+	load func(context.Context) ([]tool.Tool, error)
 }
 
-func (g mcpToolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
+func (g mcpToolGroup) Tools(ctx context.Context) ([]tool.Tool, error) {
 	return g.load(ctx)
 }
 

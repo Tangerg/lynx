@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Tangerg/lynx/tools"
+	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
-func withAutoFormat(inner tools.Tool, workdir string) tools.Tool {
+func withAutoFormat(inner toolcontract.Tool, workdir string) toolcontract.Tool {
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
 		paths, err := resolvedMutationPaths(inner, arguments, workdir)
 		if err != nil {

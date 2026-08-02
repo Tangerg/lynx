@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"testing"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
 )
 
 type deferringSearchTool struct{}
@@ -35,7 +36,7 @@ func (catalogTool) Call(context.Context, string) (string, error) { return "", ni
 // it would advertise the whole catalog the deferral exists to hide, silently.
 func TestDeferredManifestSurvivesObservation(t *testing.T) {
 	middleware := &toolObserverMiddleware{observation: newToolObservation(noopObserver{}, nil, 0)}
-	observed := []tools.Tool{
+	observed := []toolcontract.Tool{
 		middleware.WrapTool(nil, core.ActionDescriptor{}, deferringSearchTool{}),
 		middleware.WrapTool(nil, core.ActionDescriptor{}, catalogTool{name: "catalog_a"}),
 		middleware.WrapTool(nil, core.ActionDescriptor{}, catalogTool{name: "read"}),

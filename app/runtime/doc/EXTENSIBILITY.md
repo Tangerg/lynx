@@ -34,7 +34,7 @@ Run 生命周期、Agent process 装配、turn 状态机、协议 dispatch 和�
 | utility chat model validation | `application/models.ChatModelValidator` | `adapter/modelclient` + `infra/llm` |
 | Chat provider | `core/chat.Model` / optional `Streamer` | provider adapters |
 | Chat history | `chathistory.Store` | SQLite message store |
-| Tool capability | `tools.Tool` + Agent `core.ToolGroupResolver` | `adapter/toolset` |
+| Tool capability | `tool.Tool` + Agent `core.ToolGroupResolver` | `adapter/toolset` |
 | MCP 状态/目录/连接/注册表 | `application/integrations.MCP*` 四片端口 | `adapter/toolset` + `infra/mcp` |
 | workspace skills/hooks/recipes | `application/workspace` 的 consumer ports | bootstrap prompt/hook/recipe adapters |
 | 代码索引 | `domain/codebaseindex` ports | codebase adapter + vector/embedding backend |
@@ -78,7 +78,7 @@ Agent SDK、toolset、SQLite、MCP SDK 或 protocol DTO。
 - 注入接口前消除 typed-nil，避免“接口非 nil、动态值为 nil”；
 - provider/model 必须显式配对，不从 model 字符串猜 provider；
 - auth、trace、session metadata 经 `context.Context` 传播，不塞进业务 DTO；
-- executable tool 留在 `tools.Registry` / Resolver，wire 只传 tool definition 或调用参数；
+- executable tool 留在 `tool.Registry` / Resolver，wire 只传 tool definition 或调用参数；
 - capability closer 从创建起由 Bootstrap staged guard 暂管，Host 成功后成为唯一 owner；
 - Host 按反依赖顺序幂等关闭；Engine 不提供空壳 Close。
 

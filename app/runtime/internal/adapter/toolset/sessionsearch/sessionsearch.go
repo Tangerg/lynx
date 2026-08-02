@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -50,7 +52,7 @@ type tool struct {
 // New builds the session_search tool over the given searcher. A nil searcher
 // yields a nil tool (the feature is simply omitted), mirroring the other
 // optional tools.
-func New(search Search) (tools.Tool, error) {
+func New(search Search) (toolcontract.Tool, error) {
 	if search == nil {
 		return nil, nil
 	}

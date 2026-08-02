@@ -8,6 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
@@ -17,7 +19,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolsearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/httpreq"
 )
 
@@ -40,14 +41,14 @@ type Resolver struct {
 	defaultWorkdir  string
 	skillsGlobalDir string                                      // user-scope skills dir; merged under each turn's project skills
 	skillUsage      skill.UsageRecorder                         // records skill loads for the idle-lifecycle curator; nil → off
-	online          []tools.Tool                                // working-directory-independent network tools
-	a2a             []tools.Tool                                // working-directory-independent remote A2A agents
-	lsp             []tools.Tool                                // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
+	online          []toolcontract.Tool                         // working-directory-independent network tools
+	a2a             []toolcontract.Tool                         // working-directory-independent remote A2A agents
+	lsp             []toolcontract.Tool                         // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
 	codeIntel       *codeintel.Analyzer                         // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
 	readTracker     *editguardstate.Tracker                     // backs the read-before-edit + stale guards on read/edit/write
 	pathLocker      *pathLocker                                 // serializes same-path fs calls across every concurrent turn resolution
-	shell           []tools.Tool                                // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
-	task            tools.Tool                                  // bounded recursive delegation tool; nil until set
+	shell           []toolcontract.Tool                         // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
+	task            toolcontract.Tool                           // bounded recursive delegation tool; nil until set
 	staticTools     []staticToolSpec                            // built-once tools with one role/placement policy for turn manifests
 	goalActive      func(context.Context, string) (bool, error) // reports whether the session has an active goal; nil → update_goal never offered
 
@@ -65,7 +66,7 @@ type Resolver struct {
 	// locking the per-turn resolution path: Tools() does one atomic load, the
 	// reconnect does one atomic store. The model therefore always sees the
 	// currently-connected servers' tools, even mid-session.
-	mcp atomic.Pointer[[]tools.Tool]
+	mcp atomic.Pointer[[]toolcontract.Tool]
 
 	// mcpToolDisabled reads the current domain policy per resolution so registry
 	// changes and live-tool reconnects remain independent hot swaps.
@@ -95,7 +96,7 @@ const (
 // consumes entries in its placement and audience, evaluating the one dynamic
 // active-goal condition without turning resolution into a generic registry.
 type staticToolSpec struct {
-	tool         tools.Tool
+	tool         toolcontract.Tool
 	audience     toolAudience
 	placement    toolPlacement
 	requiresGoal bool
@@ -109,19 +110,19 @@ type Deps struct {
 	DefaultWorkdir  string
 	SkillsGlobalDir string
 	SkillUsage      skill.UsageRecorder
-	Online          []tools.Tool                                // network tools (webfetch/websearch/httpreq)
-	A2A             []tools.Tool                                // remote A2A delegation tools
-	LSP             []tools.Tool                                // code-intelligence tools
-	Shell           []tools.Tool                                // shell tools (shell / shell_output / shell_kill); nil means omitted
-	AskUser         tools.Tool                                  // ask_user HITL tool (both roles)
-	ExitPlan        tools.Tool                                  // exit_plan_mode HITL tool (both roles); nil → omitted
-	Todo            tools.Tool                                  // todo_write task-list tool (both roles); nil → omitted
-	Schedule        tools.Tool                                  // schedule management op-tool (coding role only); nil → omitted
-	ToolResult      tools.Tool                                  // read_tool_result offloaded-output reader (both roles); nil → omitted
-	MemorySearch    tools.Tool                                  // memory_search agent-memory reader (both roles); nil → omitted
-	SessionSearch   tools.Tool                                  // session_search past-transcript reader (both roles); nil → omitted
-	SkillPropose    tools.Tool                                  // propose_skill authoring tool (coding role only); nil → omitted
-	GoalUpdate      tools.Tool                                  // update_goal loop-signal tool (coding role only); nil → omitted
+	Online          []toolcontract.Tool                         // network tools (webfetch/websearch/httpreq)
+	A2A             []toolcontract.Tool                         // remote A2A delegation tools
+	LSP             []toolcontract.Tool                         // code-intelligence tools
+	Shell           []toolcontract.Tool                         // shell tools (shell / shell_output / shell_kill); nil means omitted
+	AskUser         toolcontract.Tool                           // ask_user HITL tool (both roles)
+	ExitPlan        toolcontract.Tool                           // exit_plan_mode HITL tool (both roles); nil → omitted
+	Todo            toolcontract.Tool                           // todo_write task-list tool (both roles); nil → omitted
+	Schedule        toolcontract.Tool                           // schedule management op-tool (coding role only); nil → omitted
+	ToolResult      toolcontract.Tool                           // read_tool_result offloaded-output reader (both roles); nil → omitted
+	MemorySearch    toolcontract.Tool                           // memory_search agent-memory reader (both roles); nil → omitted
+	SessionSearch   toolcontract.Tool                           // session_search past-transcript reader (both roles); nil → omitted
+	SkillPropose    toolcontract.Tool                           // propose_skill authoring tool (coding role only); nil → omitted
+	GoalUpdate      toolcontract.Tool                           // update_goal loop-signal tool (coding role only); nil → omitted
 	GoalActive      func(context.Context, string) (bool, error) // reports an active goal for the session; nil → update_goal never offered
 	CodeIntel       *codeintel.Analyzer                         // backs the post-edit diagnostics wrap
 	ReadTracker     *editguardstate.Tracker                     // backs the read/edit/write guards
@@ -177,7 +178,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 	return resolver, nil
 }
 
-func (r *Resolver) appendStaticTools(ctx context.Context, into []tools.Tool, placement toolPlacement, role string) ([]tools.Tool, error) {
+func (r *Resolver) appendStaticTools(ctx context.Context, into []toolcontract.Tool, placement toolPlacement, role string) ([]toolcontract.Tool, error) {
 	for _, spec := range r.staticTools {
 		if spec.tool == nil || spec.placement != placement || !spec.audience.includes(role) {
 			continue
@@ -202,13 +203,13 @@ func (r *Resolver) appendStaticTools(ctx context.Context, into []tools.Tool, pla
 // UseTaskTool installs the task delegation tool for both execution roles. The
 // agent engine builds this tool after it exists because the tool starts child
 // processes through that engine.
-func (r *Resolver) UseTaskTool(tool tools.Tool) {
+func (r *Resolver) UseTaskTool(tool toolcontract.Tool) {
 	r.taskMu.Lock()
 	defer r.taskMu.Unlock()
 	r.task = tool
 }
 
-func (r *Resolver) taskTool() tools.Tool {
+func (r *Resolver) taskTool() toolcontract.Tool {
 	r.taskMu.RLock()
 	defer r.taskMu.RUnlock()
 	return r.task
@@ -220,7 +221,7 @@ func (r *Resolver) taskTool() tools.Tool {
 // (a reconnect that swaps tools vs. a configure that swaps the disabled set).
 // The common case (nothing disabled) returns the stored slice unchanged — no
 // per-resolution copy.
-func (r *Resolver) mcpTools() []tools.Tool {
+func (r *Resolver) mcpTools() []toolcontract.Tool {
 	p := r.mcp.Load()
 	if p == nil {
 		return nil
@@ -229,12 +230,12 @@ func (r *Resolver) mcpTools() []tools.Tool {
 	if r.mcpToolDisabled == nil {
 		return values
 	}
-	var out []tools.Tool
+	var out []toolcontract.Tool
 	for i, tool := range values {
 		ref, ok := mcpToolRef(tool)
 		if !ok || r.mcpToolDisabled(ref) {
 			if out == nil {
-				out = append(make([]tools.Tool, 0, len(values)-1), values[:i]...)
+				out = append(make([]toolcontract.Tool, 0, len(values)-1), values[:i]...)
 			}
 			continue
 		}
@@ -249,12 +250,12 @@ func (r *Resolver) mcpTools() []tools.Tool {
 }
 
 // SetMCPTools swaps in a freshly-built MCP tool set (boot + each reconnect).
-func (r *Resolver) SetMCPTools(tools []tools.Tool) {
+func (r *Resolver) SetMCPTools(tools []toolcontract.Tool) {
 	snapshot := slices.Clone(tools)
 	r.mcp.Store(&snapshot)
 }
 
-func mcpToolRef(tool tools.Tool) (mcpserver.ToolRef, bool) {
+func mcpToolRef(tool toolcontract.Tool) (mcpserver.ToolRef, bool) {
 	identity, ok := tool.(mcpToolIdentity)
 	if !ok {
 		return mcpserver.ToolRef{}, false
@@ -283,7 +284,7 @@ func (r *Resolver) workdirFor(ctx context.Context) string {
 	return executionctx.CWD(ctx, r.defaultWorkdir)
 }
 
-func (r *Resolver) workdirTools(workdir string) []tools.Tool {
+func (r *Resolver) workdirTools(workdir string) []toolcontract.Tool {
 	return buildWorkdirTools(workdir, r.codeIntel, r.readTracker, r.downloadAllow, r.pathLocker)
 }
 
@@ -296,7 +297,7 @@ type toolGroup struct {
 	role     string
 }
 
-func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
+func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	workdir := g.resolver.workdirFor(ctx)
 	tools := g.resolver.workdirTools(workdir)
 	tools = append(tools, g.resolver.online...)

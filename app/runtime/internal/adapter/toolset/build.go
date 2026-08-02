@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/tools"
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/tools/httpreq"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
@@ -51,7 +52,7 @@ type BuildConfig struct {
 	LSPServers      []codeintel.ServerSpec
 	// MCPTools is the initial live MCP catalog. Its owner updates the resolver
 	// after reconnects; toolset deliberately does not own MCP connections.
-	MCPTools       []tools.Tool
+	MCPTools       []toolcontract.Tool
 	A2AAgents      []A2AAgentConfig
 	Todos          todotool.Store      // backs todo_write; nil → the tool is omitted
 	Approval       exitplan.ModePolicy // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted

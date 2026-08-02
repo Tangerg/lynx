@@ -11,9 +11,10 @@ import (
 	"net/url"
 	"strings"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	toolschema "github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/schema"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
 )
 
 type sourcegraphConfig struct {
@@ -61,7 +62,7 @@ type sourcegraphTool struct {
 	client    *http.Client
 }
 
-func newSourcegraphTool(config sourcegraphConfig) (tools.Tool, error) {
+func newSourcegraphTool(config sourcegraphConfig) (toolcontract.Tool, error) {
 	streamURL, err := sourcegraphStreamURL(config.Endpoint)
 	if err != nil {
 		return nil, err

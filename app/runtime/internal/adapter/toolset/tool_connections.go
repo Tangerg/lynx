@@ -3,13 +3,14 @@ package toolset
 import (
 	"context"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
-	"github.com/Tangerg/lynx/tools"
 )
 
 type a2aConnections struct {
 	a2a      *a2a.Connections
-	a2aTools []tools.Tool
+	a2aTools []toolcontract.Tool
 }
 
 // dialA2AConnections establishes the remote delegation family owned by the

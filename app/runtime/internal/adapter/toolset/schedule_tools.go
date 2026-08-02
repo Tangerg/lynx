@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
@@ -75,7 +77,7 @@ type ScheduleManagement interface {
 
 // newScheduleTool builds the single `schedule` management tool. nil coordinator → nil
 // tool (feature off, omitted). Coding role only.
-func newScheduleTool(coordinator ScheduleManagement) (tools.Tool, error) {
+func newScheduleTool(coordinator ScheduleManagement) (toolcontract.Tool, error) {
 	if coordinator == nil {
 		return nil, nil
 	}

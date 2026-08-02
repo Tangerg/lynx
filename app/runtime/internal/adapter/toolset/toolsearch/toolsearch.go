@@ -19,10 +19,11 @@ import (
 	"slices"
 	"strings"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/agent/toolloop"
 	toolschema "github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/schema"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
 )
 
 // defaultLimit caps how many tools one search returns (and promotes). Kept small
@@ -43,7 +44,7 @@ var searchSchema, _ = toolschema.String(searchArgs{})
 
 // entry is one searchable withheld tool with its precomputed match terms.
 type entry struct {
-	tool       tools.Tool
+	tool       toolcontract.Tool
 	definition chat.ToolDefinition
 	server     string   // MCP server name, for round-robin fairness; "" if unknown
 	nameTerms  []string // tokenized qualified name
@@ -65,11 +66,11 @@ type Tool struct {
 	desc    string   // precomputed model-facing description (immutable per instance)
 }
 
-var _ tools.Tool = (*Tool)(nil)
+var _ toolcontract.Tool = (*Tool)(nil)
 
 // New builds a search_tools tool over withheld. It returns nil when withheld is
 // empty so the caller simply omits the tool — there is nothing to search.
-func New(withheld []tools.Tool) *Tool {
+func New(withheld []toolcontract.Tool) *Tool {
 	if len(withheld) == 0 {
 		return nil
 	}
@@ -322,7 +323,7 @@ func (t *Tool) renderNoMatch(query string) string {
 	return fmt.Sprintf("No tools matched %q. %d tool(s) are available — try a broader keyword, or select:name to load one by exact name.", query, len(t.entries))
 }
 
-func serverOf(tool tools.Tool) string {
+func serverOf(tool toolcontract.Tool) string {
 	if id, ok := tool.(mcpToolIdentity); ok {
 		server, _ := id.MCPToolIdentity()
 		return server

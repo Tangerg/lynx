@@ -3,16 +3,17 @@ package mcp
 import (
 	"context"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
-	"github.com/Tangerg/lynx/tools"
 )
 
 // sourceTools lists one MCP source's model-facing tools. Isolated per source so
 // a single server's tools/list failure stays its own.
-func sourceTools(ctx context.Context, src lynxmcp.ToolSource) ([]tools.Tool, error) {
+func sourceTools(ctx context.Context, src lynxmcp.ToolSource) ([]toolcontract.Tool, error) {
 	return lynxmcp.Tools(ctx, []lynxmcp.ToolSource{src}, lynxmcp.ToolOptions{
 		Naming: func(server string, tool *sdkmcp.Tool) string {
 			return mcpserver.ToolName(server, tool.Name)

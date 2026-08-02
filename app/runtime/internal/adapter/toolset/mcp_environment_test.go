@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"testing"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	lynxmcp "github.com/Tangerg/lynx/mcp"
@@ -28,7 +30,7 @@ import (
 // `npx` / Python / etc. in CI.
 const runAsMCPServerEnv = "LYRA_TEST_RUN_AS_MCP_SERVER"
 
-func resolvedCodingTools(t *testing.T, resolver *toolset.Resolver) []tools.Tool {
+func resolvedCodingTools(t *testing.T, resolver *toolset.Resolver) []toolcontract.Tool {
 	t.Helper()
 	group, ok, err := resolver.Resolve(t.Context(), domaintool.GroupCoding)
 	if err != nil || !ok {

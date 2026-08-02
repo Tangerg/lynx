@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/core/chat"
+	toolcontract "github.com/Tangerg/lynx/tool"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -35,14 +36,14 @@ func (d *toolObserverMiddleware) Name() string { return "tool-observer" }
 // observer into every Call so start / end notifications fire.
 // Action is intentionally ignored — Lyra emits per-tool, not
 // per-action, events.
-func (d *toolObserverMiddleware) WrapTool(_ core.ProcessView, _ core.ActionDescriptor, tool tools.Tool) tools.Tool {
+func (d *toolObserverMiddleware) WrapTool(_ core.ProcessView, _ core.ActionDescriptor, tool toolcontract.Tool) toolcontract.Tool {
 	return &observedTool{inner: tool, observation: d.observation}
 }
 
 // observedTool is the per-call wrapper. Managed calls reuse the coordinator's
 // process+round+model identity; calls made outside ToolLoop receive a fresh ID.
 type observedTool struct {
-	inner       tools.Tool
+	inner       toolcontract.Tool
 	observation *toolObservation
 }
 
@@ -52,7 +53,7 @@ func (o *observedTool) Definition() chat.ToolDefinition { return o.inner.Definit
 // scheduling keys, withheld tool names, anything the loop learns to ask about
 // later — survive observation. Observation is per-call and concurrency-safe, so
 // this decorator changes none of them.
-func (o *observedTool) Unwrap() tools.Tool { return o.inner }
+func (o *observedTool) Unwrap() toolcontract.Tool { return o.inner }
 
 func (o *observedTool) Call(ctx context.Context, arguments string) (string, error) {
 	name := o.inner.Definition().Name
@@ -64,12 +65,12 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 	// Both lookups walk the wrapping chain: the resolved tool arrives already
 	// decorated, so a one-level look would hand the approval gate an empty
 	// target for exactly the tools whose blast radius matters most.
-	mutations, _, err := tools.Capability[tools.FileMutationReporter](o.inner)
+	mutations, _, err := toolcontract.Capability[tools.FileMutationReporter](o.inner)
 	if err != nil {
 		return "", fmt.Errorf("agentexec: inspect tool mutation capability: %w", err)
 	}
 	target := ToolApprovalTarget{FileMutations: mutations}
-	identity, ok, err := tools.Capability[mcpToolIdentity](o.inner)
+	identity, ok, err := toolcontract.Capability[mcpToolIdentity](o.inner)
 	if err != nil {
 		return "", fmt.Errorf("agentexec: inspect MCP tool identity: %w", err)
 	}
@@ -120,7 +121,7 @@ func (o *observedTool) successfulMutationPaths(arguments string, callErr error) 
 	if callErr != nil {
 		return nil
 	}
-	reporter, ok, err := tools.Capability[tools.FileMutationReporter](o.inner)
+	reporter, ok, err := toolcontract.Capability[tools.FileMutationReporter](o.inner)
 	if err != nil || !ok {
 		return nil
 	}

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -16,7 +18,7 @@ type pathGuardArgs struct {
 }
 
 type failingMutationReporter struct {
-	tools.Tool
+	toolcontract.Tool
 	err error
 }
 

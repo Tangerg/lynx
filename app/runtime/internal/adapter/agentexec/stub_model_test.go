@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/toolloop"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -649,20 +651,20 @@ func (m *directReturnStubModel) Calls() int {
 }
 
 type fixedToolResolver struct {
-	tool tools.Tool
+	tool toolcontract.Tool
 }
 
 type fixedToolGroup struct {
-	tool tools.Tool
+	tool toolcontract.Tool
 }
 
-func (g fixedToolGroup) Tools(context.Context) ([]tools.Tool, error) {
-	return []tools.Tool{g.tool}, nil
+func (g fixedToolGroup) Tools(context.Context) ([]toolcontract.Tool, error) {
+	return []toolcontract.Tool{g.tool}, nil
 }
 
 func (*fixedToolResolver) Name() string { return "agentexec-test-tools" }
 
-func (*fixedToolResolver) UseTaskTool(tools.Tool) {}
+func (*fixedToolResolver) UseTaskTool(toolcontract.Tool) {}
 
 func (r *fixedToolResolver) Resolve(_ context.Context, role string) (core.ToolGroup, bool, error) {
 	switch role {
@@ -673,7 +675,7 @@ func (r *fixedToolResolver) Resolve(_ context.Context, role string) (core.ToolGr
 	}
 }
 
-func newDirectResultTool() (tools.Tool, error) {
+func newDirectResultTool() (toolcontract.Tool, error) {
 	tool, err := tools.New[struct{}, string](tools.Config{
 		Name:        "finish",
 		Description: "Return a final result directly.",

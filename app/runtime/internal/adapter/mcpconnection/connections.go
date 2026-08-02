@@ -10,10 +10,11 @@ import (
 	"maps"
 	"slices"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
-	"github.com/Tangerg/lynx/tools"
 )
 
 // Connections owns the live MCP pool and implements the application ports that
@@ -33,7 +34,7 @@ var (
 // Open establishes the enabled MCP connections present at runtime startup.
 // Unreachable but valid servers remain in the pool as failed, matching the
 // infrastructure pool's normal boot semantics.
-func Open(ctx context.Context, servers []mcpserver.Server) (*Connections, []tools.Tool, error) {
+func Open(ctx context.Context, servers []mcpserver.Server) (*Connections, []toolcontract.Tool, error) {
 	configs, err := configsFromServers(servers)
 	if err != nil {
 		return nil, nil, err
@@ -105,7 +106,7 @@ func (c *Connections) Detach(name string) error {
 
 // SetToolSink wires live connection changes to the resolver's atomically
 // replaceable MCP tool catalog.
-func (c *Connections) SetToolSink(sink func([]tools.Tool)) {
+func (c *Connections) SetToolSink(sink func([]toolcontract.Tool)) {
 	if c == nil || c.inner == nil {
 		return
 	}
