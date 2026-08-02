@@ -9,7 +9,6 @@
 ```
 lynx/
 ├── core/            稳定协议 + 最小 SPI（metadata / media / document / modalities / vectorstore）
-├── pkg/             通用工具库（collections / encoding / sync / retry / ptr ...）
 ├── models/          LLM provider 适配器（anthropic / openai / google / 兼容端点）
 ├── vectorstores/    向量库适配器（qdrant / milvus / pinecone / weaviate / chroma ...）
 ├── tools/           Tool 实现
