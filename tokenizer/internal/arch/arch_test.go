@@ -43,17 +43,12 @@ func TestProductionDependencyBoundary(t *testing.T) {
 			t.Fatalf("parse %s: %v", path, err)
 		}
 		relative, _ := filepath.Rel(root, path)
-		packagePath := filepath.ToSlash(filepath.Dir(relative))
 		for _, specification := range file.Imports {
 			importPath := strings.Trim(specification.Path.Value, `"`)
 			if isStandardImport(importPath) {
 				continue
 			}
-			if packagePath == "tiktoken" &&
-				(importPath == "github.com/Tangerg/lynx/tokenizer" || importPath == "github.com/pkoukk/tiktoken-go") {
-				continue
-			}
-			t.Errorf("tokenizer production import %q is outside its package boundary: %s", importPath, relative)
+			t.Errorf("tokenizer contract imports non-stdlib package %q: %s", importPath, relative)
 		}
 	}
 }
@@ -66,8 +61,13 @@ func productionGoFiles(t *testing.T, root string) []string {
 			return err
 		}
 		if entry.IsDir() {
-			if path != root && (entry.Name() == "vendor" || strings.HasPrefix(entry.Name(), ".")) {
-				return filepath.SkipDir
+			if path != root {
+				if entry.Name() == "vendor" || strings.HasPrefix(entry.Name(), ".") {
+					return filepath.SkipDir
+				}
+				if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
+					return filepath.SkipDir
+				}
 			}
 			return nil
 		}
@@ -79,6 +79,20 @@ func productionGoFiles(t *testing.T, root string) []string {
 		t.Fatalf("walk tokenizer module: %v", err)
 	}
 	return files
+}
+
+func TestContractModuleHasNoRequirementsOrReplacements(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(moduleRoot(t), "go.mod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	contents := string(data)
+	if strings.Contains(contents, "\nrequire ") || strings.Contains(contents, "\nrequire(") {
+		t.Fatal("tokenizer contract module must not require another module")
+	}
+	if strings.Contains(contents, "\nreplace ") || strings.Contains(contents, "\nreplace(") {
+		t.Fatal("tokenizer contract module must not contain replace directives")
+	}
 }
 
 func isStandardImport(importPath string) bool {
