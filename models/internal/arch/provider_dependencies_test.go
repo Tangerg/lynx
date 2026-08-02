@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -24,6 +25,9 @@ func TestProviderDependenciesAreOneWay(t *testing.T) {
 	err := filepath.WalkDir(root, func(filename string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
+		}
+		if nestedModuleDir(root, filename, entry) {
+			return fs.SkipDir
 		}
 		if entry.IsDir() || !strings.HasSuffix(filename, ".go") || strings.HasSuffix(filename, "_test.go") {
 			return nil
@@ -45,9 +49,9 @@ func TestProviderDependenciesAreOneWay(t *testing.T) {
 			target := strings.TrimPrefix(pathValue, modelsImportPrefix)
 			targetRoot := strings.Split(target, "/")[0]
 			switch {
-			case source == "internal" && targetRoot != "internal":
+			case source == "internal" && targetRoot != "internal" && targetRoot != "protocol":
 				t.Errorf("%s:%d internal implementation must not depend on public provider %q", filepath.ToSlash(relative), fset.Position(imported.Pos()).Line, targetRoot)
-			case source != "internal" && targetRoot != "internal" && targetRoot != source:
+			case source != "internal" && targetRoot != "internal" && targetRoot != "protocol" && targetRoot != source:
 				t.Errorf("%s:%d provider %q must not depend on peer provider %q", filepath.ToSlash(relative), fset.Position(imported.Pos()).Line, source, targetRoot)
 			}
 		}
@@ -74,6 +78,9 @@ func TestProviderAPIsHideProtocolImplementations(t *testing.T) {
 		if strings.HasSuffix(filename, "_test.go") {
 			continue
 		}
+		if belongsToNestedModule(root, filename) {
+			continue
+		}
 		file, err := parser.ParseFile(fset, filename, nil, 0)
 		if err != nil {
 			t.Fatal(err)
@@ -81,7 +88,7 @@ func TestProviderAPIsHideProtocolImplementations(t *testing.T) {
 		protocolAliases := make(map[string]struct{})
 		for _, imported := range file.Imports {
 			pathValue, err := strconv.Unquote(imported.Path.Value)
-			if err != nil || !strings.HasPrefix(pathValue, modelsImportPrefix+"internal/protocol/") {
+			if err != nil || (!strings.HasPrefix(pathValue, modelsImportPrefix+"internal/protocol/") && !strings.HasPrefix(pathValue, modelsImportPrefix+"protocol/")) {
 				continue
 			}
 			name := filepath.Base(pathValue)
@@ -119,6 +126,23 @@ func TestProviderAPIsHideProtocolImplementations(t *testing.T) {
 			}
 		}
 	}
+}
+
+func nestedModuleDir(root, filename string, entry fs.DirEntry) bool {
+	if !entry.IsDir() || filename == root {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(filename, "go.mod"))
+	return err == nil
+}
+
+func belongsToNestedModule(root, filename string) bool {
+	for directory := filepath.Dir(filename); directory != root; directory = filepath.Dir(directory) {
+		if _, err := os.Stat(filepath.Join(directory, "go.mod")); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func rejectProtocolSelectors(t *testing.T, fset *token.FileSet, filename string, node ast.Node, aliases map[string]struct{}) {

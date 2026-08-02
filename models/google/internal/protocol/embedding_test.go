@@ -1,0 +1,51 @@
+package google_test
+
+import (
+	"net/http"
+	"testing"
+
+	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/lynx/models/google/internal/protocol"
+	"github.com/Tangerg/lynx/models/google/internal/testutil"
+)
+
+// genai embed response: { embeddings: [{ values: [...] }, ...] }
+const googleEmbedJSON = `{
+  "embeddings": [
+    {"values": [0.1, 0.2, 0.3]},
+    {"values": [0.4, 0.5, 0.6]}
+  ]
+}`
+
+func TestEmbeddingModel_Call_Mock(t *testing.T) {
+	srv := testutil.JSONServer(http.StatusOK, googleEmbedJSON)
+	t.Cleanup(srv.Close)
+
+	opts, err := embedding.NewOptions(google.ModelGeminiEmbedding2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := google.NewEmbeddingModel(google.EmbeddingModelConfig{
+		Provider:       "google",
+		APIKey:         "test-key",
+		DefaultOptions: opts,
+		BaseURL:        srv.URL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, _ := embedding.NewRequest([]string{"foo", "bar"})
+	out, err := m.Call(t.Context(), req)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	if len(out.Results) != 2 {
+		t.Fatalf("got %d results; want 2", len(out.Results))
+	}
+	hugeDimensions := int64(1 << 31)
+	req.Options = embedding.Options{Dimensions: &hugeDimensions}
+	if _, err := m.Call(t.Context(), req); err == nil {
+		t.Fatal("Call accepted dimensions that overflow the provider wire type")
+	}
+}

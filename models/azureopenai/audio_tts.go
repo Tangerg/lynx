@@ -8,7 +8,7 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/internal/protocol/openai"
+	"github.com/Tangerg/lynx/models/protocol/openai"
 )
 
 type AudioTTSModelConfig struct {

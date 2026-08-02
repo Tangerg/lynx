@@ -8,7 +8,7 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/models/internal/protocol/openai"
+	"github.com/Tangerg/lynx/models/protocol/openai"
 )
 
 type EmbeddingModelConfig struct {

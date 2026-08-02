@@ -7,7 +7,7 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/models/internal/protocol/openai"
+	"github.com/Tangerg/lynx/models/protocol/openai"
 )
 
 type AudioTranscriptionModelConfig struct {

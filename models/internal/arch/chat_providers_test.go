@@ -11,7 +11,6 @@ import (
 	"github.com/Tangerg/lynx/models/bedrock"
 	"github.com/Tangerg/lynx/models/deepseek"
 	"github.com/Tangerg/lynx/models/fireworks"
-	"github.com/Tangerg/lynx/models/google"
 	"github.com/Tangerg/lynx/models/groq"
 	"github.com/Tangerg/lynx/models/huggingface"
 	"github.com/Tangerg/lynx/models/minimax"
@@ -22,7 +21,6 @@ import (
 	"github.com/Tangerg/lynx/models/openrouter"
 	"github.com/Tangerg/lynx/models/perplexity"
 	"github.com/Tangerg/lynx/models/together"
-	"github.com/Tangerg/lynx/models/vertexai"
 	"github.com/Tangerg/lynx/models/xai"
 	"github.com/Tangerg/lynx/models/xiaomi"
 	"github.com/Tangerg/lynx/models/zhipu"
@@ -39,8 +37,6 @@ func TestTargetChatProviderConstructorsCompile(t *testing.T) {
 		_ func(context.Context, bedrock.ChatConfig) (*bedrock.Chat, error)        = bedrock.NewChat
 		_ func(deepseek.OpenAIChatConfig) (*deepseek.OpenAIChat, error)           = deepseek.NewOpenAIChat
 		_ func(fireworks.OpenAIChatConfig) (*fireworks.OpenAIChat, error)         = fireworks.NewOpenAIChat
-		_ func(google.ChatConfig) (*google.Chat, error)                           = google.NewChat
-		_ func(google.OpenAIChatConfig) (*google.OpenAIChat, error)               = google.NewOpenAIChat
 		_ func(groq.OpenAIChatConfig) (*groq.OpenAIChat, error)                   = groq.NewOpenAIChat
 		_ func(huggingface.OpenAIChatConfig) (*huggingface.OpenAIChat, error)     = huggingface.NewOpenAIChat
 		_ func(minimax.OpenAIChatConfig) (*minimax.OpenAIChat, error)             = minimax.NewOpenAIChat
@@ -56,7 +52,6 @@ func TestTargetChatProviderConstructorsCompile(t *testing.T) {
 		_ func(openrouter.AnthropicChatConfig) (*openrouter.AnthropicChat, error) = openrouter.NewAnthropicChat
 		_ func(perplexity.OpenAIChatConfig) (*perplexity.OpenAIChat, error)       = perplexity.NewOpenAIChat
 		_ func(together.OpenAIChatConfig) (*together.OpenAIChat, error)           = together.NewOpenAIChat
-		_ func(vertexai.ChatConfig) (*vertexai.Chat, error)                       = vertexai.NewChat
 		_ func(xai.OpenAIChatConfig) (*xai.OpenAIChat, error)                     = xai.NewOpenAIChat
 		_ func(xiaomi.OpenAIChatConfig) (*xiaomi.OpenAIChat, error)               = xiaomi.NewOpenAIChat
 		_ func(xiaomi.AnthropicChatConfig) (*xiaomi.AnthropicChat, error)         = xiaomi.NewAnthropicChat

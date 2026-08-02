@@ -13,7 +13,7 @@ import (
 	"github.com/Tangerg/lynx/core/moderation"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/core/transcription"
-	openaiprotocol "github.com/Tangerg/lynx/models/internal/protocol/openai"
+	openaiprotocol "github.com/Tangerg/lynx/models/protocol/openai"
 )
 
 const (

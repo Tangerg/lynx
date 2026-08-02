@@ -17,8 +17,8 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/core/transcription"
-	googleprotocol "github.com/Tangerg/lynx/models/internal/protocol/google"
-	openaiprotocol "github.com/Tangerg/lynx/models/internal/protocol/openai"
+	googleprotocol "github.com/Tangerg/lynx/models/google/internal/protocol"
+	openaiprotocol "github.com/Tangerg/lynx/models/protocol/openai"
 )
 
 const (

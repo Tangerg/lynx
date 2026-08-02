@@ -33,6 +33,9 @@ func TestModalityModelBoundariesValidateRequests(t *testing.T) {
 		if walkErr != nil {
 			return walkErr
 		}
+		if nestedModuleDir(root, filename, entry) {
+			return fs.SkipDir
+		}
 		if entry.IsDir() || !strings.HasSuffix(filename, ".go") || strings.HasSuffix(filename, "_test.go") {
 			return nil
 		}
@@ -78,6 +81,9 @@ func TestProviderExtensionKeysAreSemanticAndNamespaced(t *testing.T) {
 	err := filepath.WalkDir(root, func(filename string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
+		}
+		if nestedModuleDir(root, filename, entry) {
+			return fs.SkipDir
 		}
 		if entry.IsDir() || !strings.HasSuffix(filename, ".go") || strings.HasSuffix(filename, "_test.go") {
 			return nil
@@ -146,6 +152,9 @@ func TestModalityOptionsUseValueSemantics(t *testing.T) {
 		if walkErr != nil {
 			return walkErr
 		}
+		if nestedModuleDir(root, filename, entry) {
+			return fs.SkipDir
+		}
 		if entry.IsDir() || !strings.HasSuffix(filename, ".go") || strings.HasSuffix(filename, "_test.go") {
 			return nil
 		}
@@ -196,6 +205,9 @@ func TestModelsCloneOwnedDefaultOptions(t *testing.T) {
 	err := filepath.WalkDir(root, func(filename string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
+		}
+		if nestedModuleDir(root, filename, entry) {
+			return fs.SkipDir
 		}
 		if entry.IsDir() || !strings.HasSuffix(filename, ".go") || strings.HasSuffix(filename, "_test.go") {
 			return nil

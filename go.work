@@ -17,6 +17,8 @@ use (
 	./examples/mcp
 	./mcp
 	./models
+	./models/google
+	./models/protocol/openai
 	./otel
 	./rag
 	./skills

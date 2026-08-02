@@ -12,7 +12,7 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	anthropicprotocol "github.com/Tangerg/lynx/models/internal/protocol/anthropic"
-	openaiprotocol "github.com/Tangerg/lynx/models/internal/protocol/openai"
+	openaiprotocol "github.com/Tangerg/lynx/models/protocol/openai"
 )
 
 const (
