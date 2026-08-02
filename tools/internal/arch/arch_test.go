@@ -1,36 +1,14 @@
 package arch_test
 
 import (
-	"context"
 	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"strings"
 	"testing"
-
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
 )
-
-func TestRootToolContractStaysMinimal(t *testing.T) {
-	typeOf := reflect.TypeFor[tools.Tool]()
-	if typeOf.Kind() != reflect.Interface || typeOf.NumMethod() != 2 {
-		t.Fatalf("Tool shape = %v with %d methods, want two-method interface", typeOf, typeOf.NumMethod())
-	}
-	want := map[string]reflect.Type{
-		"Call":       reflect.TypeFor[func(context.Context, string) (string, error)](),
-		"Definition": reflect.TypeFor[func() chat.ToolDefinition](),
-	}
-	for name, signature := range want {
-		method, ok := typeOf.MethodByName(name)
-		if !ok || method.Type != signature {
-			t.Errorf("Tool.%s = %v (present %v), want %v", name, method.Type, ok, signature)
-		}
-	}
-}
 
 func TestRootToolsDoNotImportLegacyModelOrRuntime(t *testing.T) {
 	root := toolsRoot(t)

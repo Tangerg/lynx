@@ -9,7 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	skillsrc "github.com/Tangerg/lynx/skills"
-	toolcontract "github.com/Tangerg/lynx/tools"
+	toolcontract "github.com/Tangerg/lynx/tool"
 	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 

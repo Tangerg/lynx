@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Tangerg/lynx/tool"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -21,7 +22,7 @@ func ExampleNew() {
 	if err != nil {
 		panic(err)
 	}
-	registry, err := tools.NewRegistry(add)
+	registry, err := tool.NewRegistry(add)
 	if err != nil {
 		panic(err)
 	}

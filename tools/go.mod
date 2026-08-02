@@ -5,6 +5,7 @@ go 1.26.5
 require (
 	github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9
+	github.com/Tangerg/lynx/tool v0.0.0-20260802183922-a24b624cc403
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/invopop/jsonschema v0.14.0
 )

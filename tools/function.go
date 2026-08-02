@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tool"
 	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
@@ -38,30 +39,30 @@ type functionTool[In, Out any] struct {
 // construction time. Runtime policy such as retries, approval, concurrency,
 // and direct return belongs to the agent/toolloop layer or an explicit Tool
 // decorator.
-func New[In, Out any](config Config, function func(context.Context, In) (Out, error)) (Tool, error) {
+func New[In, Out any](config Config, function func(context.Context, In) (Out, error)) (tool.Tool, error) {
 	definition := chat.ToolDefinition{
 		Name:        config.Name,
 		Description: config.Description,
 		InputSchema: json.RawMessage(`{}`),
 	}
 	if err := definition.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: definition: %w", ErrInvalidTool, err)
+		return nil, fmt.Errorf("%w: definition: %w", tool.ErrInvalidTool, err)
 	}
 	if function == nil {
-		return nil, fmt.Errorf("%w: function is nil", ErrInvalidTool)
+		return nil, fmt.Errorf("%w: function is nil", tool.ErrInvalidTool)
 	}
 	if err := validateInputType(reflect.TypeFor[In]()); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrInvalidTool, err)
+		return nil, fmt.Errorf("%w: %w", tool.ErrInvalidTool, err)
 	}
 
 	var input In
 	schema, err := toolschema.String(input)
 	if err != nil {
-		return nil, fmt.Errorf("%w: derive input schema: %w", ErrInvalidTool, err)
+		return nil, fmt.Errorf("%w: derive input schema: %w", tool.ErrInvalidTool, err)
 	}
 	definition.InputSchema = json.RawMessage(schema)
 	if err := definition.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: generated definition: %w", ErrInvalidTool, err)
+		return nil, fmt.Errorf("%w: generated definition: %w", tool.ErrInvalidTool, err)
 	}
 
 	return &functionTool[In, Out]{

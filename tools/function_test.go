@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	toolcontract "github.com/Tangerg/lynx/tool"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -49,7 +50,7 @@ func TestNewBuildsImmutableTypedFunctionTool(t *testing.T) {
 		t.Fatalf("Call = %q, %v", result, err)
 	}
 
-	registry, err := tools.NewRegistry(tool)
+	registry, err := toolcontract.NewRegistry(tool)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +92,7 @@ func TestNewRejectsInvalidConstruction(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if err := test.run(); !errors.Is(err, tools.ErrInvalidTool) {
+			if err := test.run(); !errors.Is(err, toolcontract.ErrInvalidTool) {
 				t.Fatalf("error = %v, want ErrInvalidTool", err)
 			}
 		})

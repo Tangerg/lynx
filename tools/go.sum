@@ -2,6 +2,8 @@ github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9 h1:MPl9AlCg41y7K
 github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
 github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9 h1:PgHN9qktO7if006DdpIdAT0bffeeFkPhfqceNb1B30E=
 github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9/go.mod h1:lYDEBvA3vQL5p4mg2Lm+kbwFtr5vxPSnG3NLWQmR6oc=
+github.com/Tangerg/lynx/tool v0.0.0-20260802183922-a24b624cc403 h1:m8MP3eftV8Ttni9BIP13m9KZpRYJS9yppOQJmZEImV8=
+github.com/Tangerg/lynx/tool v0.0.0-20260802183922-a24b624cc403/go.mod h1:FbVZlc+pc18nuPopRACqPLKLiq7BgNPX/5Ld4M84O5M=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/buger/jsonparser v1.6.1 h1:I0phFv0PlbLHnM7TZAVjZ2MJ2/eWRTDyuO7GLR98IEs=
