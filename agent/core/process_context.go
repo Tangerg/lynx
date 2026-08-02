@@ -6,7 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 // ChatCapability is the provider-neutral model surface supplied to the
@@ -46,7 +46,7 @@ type ProcessContextConfig struct {
 
 	// ActionTools backs [ProcessContext.ActionTools]. The runtime supplies a
 	// closure backed by the engine's [ToolGroupResolver].
-	ActionTools func(context.Context, []string) ([]tools.Tool, error)
+	ActionTools func(context.Context, []string) ([]tool.Tool, error)
 
 	// RunInteraction executes framework-managed model/tool control flow.
 	RunInteraction func(context.Context, Interaction) (interaction.Result, error)
@@ -79,7 +79,7 @@ type ProcessContext struct {
 	// the typed methods instead
 	// of touching the underlying client / closure directly.
 	maxToolRounds  int
-	actionTools    func(context.Context, []string) ([]tools.Tool, error)
+	actionTools    func(context.Context, []string) ([]tool.Tool, error)
 	runInteraction func(context.Context, Interaction) (interaction.Result, error)
 	toolCallCancel func(context.CancelFunc) (release func())
 	control        ProcessControl
@@ -199,7 +199,7 @@ func (pc *ProcessContext) lifecycleControl() (ProcessControl, error) {
 }
 
 // ActionTools resolves the tool groups declared by the current action.
-func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tools.Tool, error) {
+func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tool.Tool, error) {
 	if pc.actionTools == nil || len(pc.actionToolGroups) == 0 {
 		return nil, nil
 	}

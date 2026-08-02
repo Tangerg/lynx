@@ -6,7 +6,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/Tangerg/lynx/chatclient v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/tools v0.0.0-20260802043023-4e34c2e0a6c7
+	github.com/Tangerg/lynx/tool v0.0.0-20260802183922-a24b624cc403
 	github.com/google/jsonschema-go v0.4.3
 	github.com/google/uuid v1.6.0
 	github.com/invopop/jsonschema v0.14.0

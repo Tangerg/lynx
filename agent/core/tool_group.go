@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 // ToolGroup describes and supplies one resolved set of tools. Implementations
@@ -11,7 +11,7 @@ import (
 // may call Tools concurrently and does not retain or coordinate an
 // implementation's mutable state.
 type ToolGroup interface {
-	Tools(ctx context.Context) ([]tools.Tool, error)
+	Tools(ctx context.Context) ([]tool.Tool, error)
 }
 
 // ToolGroupResolver maps an abstract role to a concrete group. Registered

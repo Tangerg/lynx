@@ -10,7 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 // ToolResolver is [interaction.ToolResolver]. The port belongs to the protocol
@@ -19,7 +19,7 @@ import (
 // could drift.
 type ToolResolver = interaction.ToolResolver
 
-var _ ToolResolver = (*tools.Registry)(nil)
+var _ ToolResolver = (*tool.Registry)(nil)
 
 func toolsetDigest(definitions []chat.ToolDefinition) (string, error) {
 	values := slices.Clone(definitions)

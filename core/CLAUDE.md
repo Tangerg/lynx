@@ -8,7 +8,7 @@
 
 - **协议，不是总框架**：Core 定义 metadata/media/document、各 modality 的 Request/Response、最小 Model 能力和高层 VectorStore 语义。ChatClient、history backend、tool runtime、agent loop、evaluation、document pipeline、tokenizer 实现和可观测性都在外圈。
 - **生产代码只依赖标准库和 Core 自身包**：Core 不 import sibling module、provider SDK、tokenizer、UUID、cast 或 OTel；`internal/arch` 对该依赖预算 fail-fast，不接受临时白名单。
-- **依赖方向单向**：models/vectorstores/chatclient/tools/agent/otel 可以 import Core；Core 不反向 import 它们。
+- **依赖方向单向**：tool/models/vectorstores/chatclient/tools/agent/otel 可以 import Core；Core 不反向 import 它们。
 
 ## 架构心智
 

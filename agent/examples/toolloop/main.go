@@ -2,18 +2,37 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 type addInput struct {
 	A int `json:"a"`
 	B int `json:"b"`
+}
+
+type addTool struct{}
+
+func (addTool) Definition() chat.ToolDefinition {
+	return chat.ToolDefinition{
+		Name:        "add",
+		Description: "add two integers",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false}`),
+	}
+}
+
+func (addTool) Call(_ context.Context, arguments string) (string, error) {
+	var input addInput
+	if err := json.Unmarshal([]byte(arguments), &input); err != nil {
+		return "", fmt.Errorf("decode add input: %w", err)
+	}
+	return fmt.Sprint(input.A + input.B), nil
 }
 
 func main() {
@@ -24,16 +43,7 @@ func main() {
 }
 
 func run(ctx context.Context, output io.Writer) error {
-	add, err := tools.New(tools.Config{
-		Name:        "add",
-		Description: "add two integers",
-	}, func(_ context.Context, input addInput) (int, error) {
-		return input.A + input.B, nil
-	})
-	if err != nil {
-		return err
-	}
-	registry, err := tools.NewRegistry(add)
+	registry, err := tool.NewRegistry(addTool{})
 	if err != nil {
 		return err
 	}

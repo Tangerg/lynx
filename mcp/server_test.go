@@ -14,7 +14,7 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 type echoInput struct {
@@ -22,30 +22,49 @@ type echoInput struct {
 }
 
 // newEchoTool builds a minimal lynx Tool for tests.
-func newEchoTool(t *testing.T) tools.Tool {
-	t.Helper()
-	tool, err := tools.New[echoInput, string](
-		tools.Config{Name: "echo", Description: "echo the input"},
-		func(_ context.Context, p echoInput) (string, error) { return p.Text, nil },
-	)
-	require.NoError(t, err)
-	return tool
+func newEchoTool() tool.Tool {
+	return testTool{
+		definition: corechat.ToolDefinition{
+			Name:        "echo",
+			Description: "echo the input",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`),
+		},
+		call: func(_ context.Context, arguments string) (string, error) {
+			var input echoInput
+			if err := json.Unmarshal([]byte(arguments), &input); err != nil {
+				return "", err
+			}
+			return input.Text, nil
+		},
+	}
 }
 
-func newConstantTool(t *testing.T, name string) tools.Tool {
-	t.Helper()
-	tool, err := tools.New[struct{}, string](
-		tools.Config{Name: name, Description: "return " + name},
-		func(context.Context, struct{}) (string, error) { return name, nil },
-	)
-	require.NoError(t, err)
-	return tool
+func newConstantTool(name string) tool.Tool {
+	return testTool{
+		definition: corechat.ToolDefinition{
+			Name:        name,
+			Description: "return " + name,
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+		},
+		call: func(context.Context, string) (string, error) { return name, nil },
+	}
+}
+
+type testTool struct {
+	definition corechat.ToolDefinition
+	call       func(context.Context, string) (string, error)
+}
+
+func (t testTool) Definition() corechat.ToolDefinition { return t.definition.Clone() }
+
+func (t testTool) Call(ctx context.Context, arguments string) (string, error) {
+	return t.call(ctx, arguments)
 }
 
 // connectPair wires an in-memory MCP server (with the supplied lynx tools
 // already registered) to a fresh client session, returning the live session
 // and a cleanup func.
-func connectPair(t *testing.T, ctx context.Context, registered ...tools.Tool) (*sdkmcp.ClientSession, func()) {
+func connectPair(t *testing.T, ctx context.Context, registered ...tool.Tool) (*sdkmcp.ClientSession, func()) {
 	t.Helper()
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "lynx-srv", Version: "v0.1.0"}, nil)
 	require.NoError(t, lynxmcp.Register(srv, registered...))
@@ -71,7 +90,7 @@ func connectServer(t *testing.T, ctx context.Context, srv *sdkmcp.Server) (*sdkm
 
 func TestRegister_RoundTrip(t *testing.T) {
 	ctx := t.Context()
-	cs, cleanup := connectPair(t, ctx, newEchoTool(t))
+	cs, cleanup := connectPair(t, ctx, newEchoTool())
 	defer cleanup()
 
 	list, err := cs.ListTools(ctx, nil)
@@ -100,13 +119,16 @@ func TestRegister_RoundTrip(t *testing.T) {
 func TestRegister_ErrorBecomesIsError(t *testing.T) {
 	ctx := t.Context()
 
-	failing, err := tools.New[struct{}, string](
-		tools.Config{Name: "boom", Description: "always fails"},
-		func(context.Context, struct{}) (string, error) {
+	failing := testTool{
+		definition: corechat.ToolDefinition{
+			Name:        "boom",
+			Description: "always fails",
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+		},
+		call: func(context.Context, string) (string, error) {
 			return "", errors.New("kaboom from lynx tool")
 		},
-	)
-	require.NoError(t, err)
+	}
 
 	cs, cleanup := connectPair(t, ctx, failing)
 	defer cleanup()
@@ -123,18 +145,18 @@ func TestRegister_ErrorBecomesIsError(t *testing.T) {
 
 func TestRegister_RejectsNilArgs(t *testing.T) {
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
-	require.ErrorIs(t, lynxmcp.Register(nil, newEchoTool(t)), lynxmcp.ErrNilServer)
+	require.ErrorIs(t, lynxmcp.Register(nil, newEchoTool()), lynxmcp.ErrNilServer)
 
 	for _, test := range []struct {
 		name string
-		tool tools.Tool
+		tool tool.Tool
 	}{
 		{name: "nil"},
 		{name: "typed nil", tool: (*badSchemaTool)(nil)},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			err := lynxmcp.Register(srv, test.tool)
-			require.ErrorIs(t, err, tools.ErrInvalidTool)
+			require.ErrorIs(t, err, tool.ErrInvalidTool)
 		})
 	}
 }
@@ -151,10 +173,10 @@ func TestRegister_RejectsInvalidSchema(t *testing.T) {
 
 func TestRegister_RejectsDuplicateBatchAtomically(t *testing.T) {
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
-	err := lynxmcp.Register(srv, newConstantTool(t, "duplicate"), newConstantTool(t, "duplicate"))
-	require.ErrorIs(t, err, tools.ErrDuplicateTool)
+	err := lynxmcp.Register(srv, newConstantTool("duplicate"), newConstantTool("duplicate"))
+	require.ErrorIs(t, err, tool.ErrDuplicateTool)
 
-	require.NoError(t, lynxmcp.Register(srv, newConstantTool(t, "after")))
+	require.NoError(t, lynxmcp.Register(srv, newConstantTool("after")))
 	client, cleanup := connectServer(t, t.Context(), srv)
 	defer cleanup()
 	listed, err := client.ListTools(t.Context(), nil)
@@ -179,7 +201,7 @@ func TestRegister_SnapshotsDefinitionOnce(t *testing.T) {
 	assert.EqualValues(t, 1, tool.definitionCalls.Load())
 }
 
-// badSchemaTool is a tools.Tool whose InputSchema is not valid JSON, used to
+// badSchemaTool is a tool.Tool whose InputSchema is not valid JSON, used to
 // exercise Register's schema validation.
 type badSchemaTool struct{}
 

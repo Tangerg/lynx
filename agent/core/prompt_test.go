@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 func newPromptContext(t *testing.T, model chat.Model) *core.ProcessContext {
@@ -81,15 +81,9 @@ func TestPromptAcceptsTools(t *testing.T) {
 	model := newStubModel("ok")
 	pc := newPromptContext(t, model)
 
-	tool, err := tools.New[struct{}, string](
-		tools.Config{Name: "stub_tool"},
-		func(context.Context, struct{}) (string, error) { return "", nil },
-	)
-	if err != nil {
-		t.Fatalf("NewTool: %v", err)
-	}
-
-	got, err := pc.Prompt(t.Context(), "hi", core.PromptConfig{Tools: []tools.Tool{tool}})
+	got, err := pc.Prompt(t.Context(), "hi", core.PromptConfig{
+		Tools: []tool.Tool{promptTool{name: "stub_tool"}},
+	})
 	if err != nil {
 		t.Fatalf("Prompt: %v", err)
 	}

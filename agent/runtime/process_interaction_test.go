@@ -14,7 +14,7 @@ import (
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 type managedModel struct {
@@ -108,13 +108,10 @@ func (m *managedConcurrentModel) Call(_ context.Context, request *chat.Request) 
 
 func TestManagedInteractionPublishesOwnedBoundariesAndRecordsUsage(t *testing.T) {
 	model := &managedModel{}
-	tool, err := tools.New[struct{}, string](tools.Config{Name: "approval"}, func(context.Context, struct{}) (string, error) {
+	approval := newRuntimeTestTool("approval", func(context.Context) (string, error) {
 		return "approved", nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	registry, err := tools.NewRegistry(tool)
+	registry, err := tool.NewRegistry(approval)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +155,7 @@ func TestManagedInteractionHonorsConcurrentToolCallLimit(t *testing.T) {
 		"second": make(chan struct{}),
 		"third":  make(chan struct{}),
 	}
-	registered := make([]tools.Tool, 0, len(releases))
+	registered := make([]tool.Tool, 0, len(releases))
 	for _, name := range []string{"first", "second", "third"} {
 		registered = append(registered, &managedConcurrentTool{
 			name: name,
@@ -169,7 +166,7 @@ func TestManagedInteractionHonorsConcurrentToolCallLimit(t *testing.T) {
 			},
 		})
 	}
-	registry, err := tools.NewRegistry(registered...)
+	registry, err := tool.NewRegistry(registered...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +204,7 @@ func TestManagedInteractionHonorsConcurrentToolCallLimit(t *testing.T) {
 
 func TestManagedInteractionRejectsNegativeConcurrentToolCallLimit(t *testing.T) {
 	model := &managedFinalModel{}
-	registry, err := tools.NewRegistry()
+	registry, err := tool.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +226,7 @@ func TestManagedInteractionRejectsNegativeConcurrentToolCallLimit(t *testing.T) 
 func TestManagedInteractionSuspendsAndResumesPendingToolExactly(t *testing.T) {
 	model := &managedModel{}
 	var attempts int
-	tool, err := tools.New[struct{}, string](tools.Config{Name: "approval"}, func(ctx context.Context, _ struct{}) (string, error) {
+	approval := newRuntimeTestTool("approval", func(ctx context.Context) (string, error) {
 		attempts++
 		approved, err := hitl.Interrupt[bool](ctx, "approval-1", map[string]any{"message": "approve?"})
 		if err != nil {
@@ -240,10 +237,7 @@ func TestManagedInteractionSuspendsAndResumesPendingToolExactly(t *testing.T) {
 		}
 		return "approved", nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	registry, _ := tools.NewRegistry(tool)
+	registry, _ := tool.NewRegistry(approval)
 	a := managedInteractionAgent(t, "managed-resume", registry, interaction.Limits{})
 	var boundaries []interaction.EventKind
 	listener := event.NewNamedListener("managed-resume-boundaries", func(_ context.Context, value event.Event) {
@@ -337,7 +331,7 @@ func TestManagedInteractionSuspendsAndResumesPendingToolExactly(t *testing.T) {
 
 func TestPendingSuspensionsReportsConcurrentCallsInModelOrder(t *testing.T) {
 	model := &managedConcurrentModel{}
-	registered := make([]tools.Tool, 0, 2)
+	registered := make([]tool.Tool, 0, 2)
 	for _, definition := range []struct {
 		name         string
 		suspensionID string
@@ -363,7 +357,7 @@ func TestPendingSuspensionsReportsConcurrentCallsInModelOrder(t *testing.T) {
 			},
 		})
 	}
-	registry, err := tools.NewRegistry(registered...)
+	registry, err := tool.NewRegistry(registered...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -438,8 +432,8 @@ func TestPendingSuspensionsReportsConcurrentCallsInModelOrder(t *testing.T) {
 
 func TestManagedInteractionStopsBeforeContinuationAtStepLimit(t *testing.T) {
 	model := &managedModel{}
-	tool, _ := tools.New[struct{}, string](tools.Config{Name: "approval"}, func(context.Context, struct{}) (string, error) { return "ok", nil })
-	registry, _ := tools.NewRegistry(tool)
+	approval := newRuntimeTestTool("approval", func(context.Context) (string, error) { return "ok", nil })
+	registry, _ := tool.NewRegistry(approval)
 	a := managedInteractionAgent(t, "managed-steps", registry, interaction.Limits{MaxRounds: 1})
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine, a)
@@ -457,8 +451,8 @@ func TestManagedInteractionStopsBeforeContinuationAtStepLimit(t *testing.T) {
 
 func TestManagedInteractionStopsBeforeContinuationAtModelCallLimit(t *testing.T) {
 	model := &managedModel{}
-	tool, _ := tools.New[struct{}, string](tools.Config{Name: "approval"}, func(context.Context, struct{}) (string, error) { return "ok", nil })
-	registry, _ := tools.NewRegistry(tool)
+	approval := newRuntimeTestTool("approval", func(context.Context) (string, error) { return "ok", nil })
+	registry, _ := tool.NewRegistry(approval)
 	a := managedInteractionAgent(t, "managed-model-calls", registry, interaction.Limits{})
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine, a)
@@ -508,7 +502,7 @@ func (m *managedRejectedResponseModel) Calls() int {
 
 func TestManagedInteractionKeepsModelCallCapacityWhenResponseIsRejected(t *testing.T) {
 	model := &managedRejectedResponseModel{}
-	registry, err := tools.NewRegistry()
+	registry, err := tool.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -605,7 +599,7 @@ func (e managedInteractionExtension) OnEvent(_ context.Context, published event.
 
 func TestManagedInteractionListenerPanicDoesNotFailModelResponse(t *testing.T) {
 	model := &managedFinalModel{}
-	registry, err := tools.NewRegistry()
+	registry, err := tool.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -650,7 +644,7 @@ func TestManagedInteractionListenerPanicDoesNotFailModelResponse(t *testing.T) {
 
 func TestManagedInteractionRecordsHostCostAndPublishesIt(t *testing.T) {
 	model := &managedFinalModel{}
-	registry, err := tools.NewRegistry()
+	registry, err := tool.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -694,7 +688,7 @@ func TestManagedInteractionRecordsHostCostAndPublishesIt(t *testing.T) {
 
 func TestManagedInteractionIsolatesProjectorsAndObservers(t *testing.T) {
 	model := &managedFinalModel{}
-	registry, err := tools.NewRegistry()
+	registry, err := tool.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -752,7 +746,7 @@ func TestManagedInteractionIsolatesProjectorsAndObservers(t *testing.T) {
 
 func TestManagedInteractionContainsCostProjectorPanic(t *testing.T) {
 	model := &managedFinalModel{}
-	registry, err := tools.NewRegistry()
+	registry, err := tool.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -832,14 +826,11 @@ func TestManagedInteractionRestoresAfterCrashWithoutReplayingCommittedWork(t *te
 	model := &managedCrashModel{}
 	completedCalls := 0
 	approvalAttempts := 0
-	first, err := tools.New[struct{}, string](tools.Config{Name: "first"}, func(context.Context, struct{}) (string, error) {
+	first := newRuntimeTestTool("first", func(context.Context) (string, error) {
 		completedCalls++
 		return "first done", nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	approval, err := tools.New[struct{}, string](tools.Config{Name: "approval"}, func(ctx context.Context, _ struct{}) (string, error) {
+	approval := newRuntimeTestTool("approval", func(ctx context.Context) (string, error) {
 		approvalAttempts++
 		approved, err := hitl.Interrupt[bool](ctx, "approval-crash", map[string]any{"message": "approve?"})
 		if err != nil {
@@ -850,10 +841,7 @@ func TestManagedInteractionRestoresAfterCrashWithoutReplayingCommittedWork(t *te
 		}
 		return "approved", nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	registry, err := tools.NewRegistry(first, approval)
+	registry, err := tool.NewRegistry(first, approval)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -898,7 +886,7 @@ func TestManagedInteractionRestoresAfterCrashWithoutReplayingCommittedWork(t *te
 
 func TestManagedInteractionCancellationAtRequestBoundarySkipsProviderCall(t *testing.T) {
 	model := &managedFinalModel{}
-	registry, err := tools.NewRegistry()
+	registry, err := tool.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -940,7 +928,7 @@ func TestManagedInteractionCancellationAtRequestBoundarySkipsProviderCall(t *tes
 	}
 }
 
-func managedInteractionAgent(t *testing.T, name string, registry *tools.Registry, limits interaction.Limits) *core.Agent {
+func managedInteractionAgent(t *testing.T, name string, registry *tool.Registry, limits interaction.Limits) *core.Agent {
 	t.Helper()
 	return agent.New(agent.AgentConfig{Name: name, Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
 		request := &chat.Request{Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("run"))}, Tools: registry.Definitions()}
@@ -964,13 +952,10 @@ func managedInput() core.Bindings {
 
 func TestManagedInteractionInheritsProcessToolRoundLimit(t *testing.T) {
 	model := &managedModel{}
-	tool, err := tools.New[struct{}, string](tools.Config{Name: "approval"}, func(context.Context, struct{}) (string, error) {
+	approval := newRuntimeTestTool("approval", func(context.Context) (string, error) {
 		return "approved", nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	registry, err := tools.NewRegistry(tool)
+	registry, err := tool.NewRegistry(approval)
 	if err != nil {
 		t.Fatal(err)
 	}

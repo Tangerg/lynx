@@ -9,7 +9,7 @@ import (
 
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
 
-	toolcontract "github.com/Tangerg/lynx/tools"
+	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
 // Endpoint describes one remote A2A agent to expose as a chat tool.

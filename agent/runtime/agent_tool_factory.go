@@ -8,13 +8,13 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	agentschema "github.com/Tangerg/lynx/agent/internal/schema"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 // NewAgentTool wraps one exact deployment as a typed child-process tool.
 // Calls require an active parent Process in ctx, start the child with clean
 // working state, and aggregate the child's usage into the parent process tree.
-func NewAgentTool[In, Out any](engine *Engine, deployment *Deployment) (tools.Tool, error) {
+func NewAgentTool[In, Out any](engine *Engine, deployment *Deployment) (tool.Tool, error) {
 	deployment, err := engine.ownedDeployment("NewAgentTool", deployment)
 	if err != nil {
 		return nil, err
@@ -22,7 +22,7 @@ func NewAgentTool[In, Out any](engine *Engine, deployment *Deployment) (tools.To
 	return newAgentTool[In, Out](engine, deployment)
 }
 
-func newAgentTool[In, Out any](engine *Engine, deployment *Deployment) (tools.Tool, error) {
+func newAgentTool[In, Out any](engine *Engine, deployment *Deployment) (tool.Tool, error) {
 	if deployment == nil || deployment.agent == nil {
 		return nil, errors.New("runtime.newAgentTool: deployment is nil")
 	}

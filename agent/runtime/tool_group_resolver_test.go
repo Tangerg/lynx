@@ -10,32 +10,24 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 func webGroup(t *testing.T) core.ToolGroupResolver {
 	t.Helper()
 
-	tool, err := tools.New[struct{}, string](
-		tools.Config{Name: "web_search"},
-		func(context.Context, struct{}) (string, error) { return "", nil },
-	)
-	if err != nil {
-		t.Fatalf("NewTool: %v", err)
-	}
-
 	return fixedGroupResolver{
 		name:  "web",
 		role:  "web",
-		group: fixedToolGroup{tools: []tools.Tool{tool}},
+		group: fixedToolGroup{tools: []tool.Tool{newRuntimeTestTool("web_search", nil)}},
 	}
 }
 
 type fixedToolGroup struct {
-	tools []tools.Tool
+	tools []tool.Tool
 }
 
-func (g fixedToolGroup) Tools(context.Context) ([]tools.Tool, error) {
+func (g fixedToolGroup) Tools(context.Context) ([]tool.Tool, error) {
 	return slices.Clone(g.tools), nil
 }
 
@@ -57,16 +49,16 @@ func (r fixedGroupResolver) Resolve(_ context.Context, role string) (core.ToolGr
 // runActionTools runs a single-action agent whose body calls
 // pc.ActionTools with the supplied role, and returns what the
 // resolver handed back.
-func runActionTools(t *testing.T, role string) ([]tools.Tool, error) {
+func runActionTools(t *testing.T, role string) ([]tool.Tool, error) {
 	t.Helper()
 	return runActionToolsWithResolver(t, role, webGroup(t))
 }
 
-func runActionToolsWithResolver(t *testing.T, role string, resolver core.ToolGroupResolver, additional ...core.Extension) ([]tools.Tool, error) {
+func runActionToolsWithResolver(t *testing.T, role string, resolver core.ToolGroupResolver, additional ...core.Extension) ([]tool.Tool, error) {
 	t.Helper()
 
 	var (
-		gotTools []tools.Tool
+		gotTools []tool.Tool
 		gotErr   error
 	)
 	a := agent.New(agent.AgentConfig{Name: "tool-groups", Actions: []agent.Action{agent.NewAction("probe", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
@@ -97,14 +89,14 @@ type panickingToolGroup struct {
 	cause error
 }
 
-func (g panickingToolGroup) Tools(context.Context) ([]tools.Tool, error) {
+func (g panickingToolGroup) Tools(context.Context) ([]tool.Tool, error) {
 	panic(g.cause)
 }
 
 type panickingToolMiddleware struct{ cause error }
 
 func (panickingToolMiddleware) Name() string { return "panic-tools" }
-func (m panickingToolMiddleware) WrapTool(core.ProcessView, core.ActionDescriptor, tools.Tool) tools.Tool {
+func (m panickingToolMiddleware) WrapTool(core.ProcessView, core.ActionDescriptor, tool.Tool) tool.Tool {
 	panic(m.cause)
 }
 

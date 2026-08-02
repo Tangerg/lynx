@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 var (
@@ -193,7 +193,7 @@ func (e Event) wrongPayload() error {
 // resolver panic as an execution error attributed to the requested tool name,
 // so an implementation may fail without unwinding the loop.
 type ToolResolver interface {
-	Resolve(name string) (tools.Tool, bool)
+	Resolve(name string) (tool.Tool, bool)
 }
 
 // Limits bound one managed interaction. Zero leaves a dimension unbounded and

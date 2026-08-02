@@ -9,7 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 // TestPromoteToolsAdvertisesWithheldToolMidLoop drives the full seam: a
@@ -155,7 +155,7 @@ func (t advertiseTool) DeferredToolNames() []string { return t.deferred }
 // name order.
 func TestAdvertiseWithholdsDeferredNames(t *testing.T) {
 	search := advertiseTool{name: "search_tools", deferred: []string{"catalog_b", "catalog_a", "absent"}}
-	manifest, err := toolloop.Advertise([]tools.Tool{
+	manifest, err := toolloop.Advertise([]tool.Tool{
 		advertiseTool{name: "read"},
 		advertiseTool{name: "catalog_a"},
 		advertiseTool{name: "catalog_b"},
@@ -177,7 +177,7 @@ func TestAdvertiseWithholdsDeferredNames(t *testing.T) {
 // TestAdvertiseKeepsEveryToolWithoutDeferral pins that the projection is
 // transparent when no tool withholds anything.
 func TestAdvertiseKeepsEveryToolWithoutDeferral(t *testing.T) {
-	manifest, err := toolloop.Advertise([]tools.Tool{
+	manifest, err := toolloop.Advertise([]tool.Tool{
 		advertiseTool{name: "write"},
 		advertiseTool{name: "read"},
 	})
@@ -189,7 +189,7 @@ func TestAdvertiseKeepsEveryToolWithoutDeferral(t *testing.T) {
 	}
 }
 
-type wrappingAdvertiseTool struct{ inner tools.Tool }
+type wrappingAdvertiseTool struct{ inner tool.Tool }
 
 func (w wrappingAdvertiseTool) Definition() chat.ToolDefinition { return w.inner.Definition() }
 
@@ -197,14 +197,14 @@ func (w wrappingAdvertiseTool) Call(ctx context.Context, arguments string) (stri
 	return w.inner.Call(ctx, arguments)
 }
 
-func (w wrappingAdvertiseTool) Unwrap() tools.Tool { return w.inner }
+func (w wrappingAdvertiseTool) Unwrap() tool.Tool { return w.inner }
 
 // TestAdvertiseSeesThroughDecorators pins the reason WrappingTool exists: a host
 // decorates every resolved tool, and a decorator that re-implements nothing must
 // not cost the inner tool its deferral — losing it would advertise the catalog
 // the deferral exists to withhold, with no error anywhere.
 func TestAdvertiseSeesThroughDecorators(t *testing.T) {
-	manifest, err := toolloop.Advertise([]tools.Tool{
+	manifest, err := toolloop.Advertise([]tool.Tool{
 		wrappingAdvertiseTool{inner: advertiseTool{name: "search_tools", deferred: []string{"catalog_a"}}},
 		wrappingAdvertiseTool{inner: advertiseTool{name: "catalog_a"}},
 		wrappingAdvertiseTool{inner: advertiseTool{name: "read"}},
@@ -226,8 +226,8 @@ func TestAdvertiseRejectsMalformedWrappingChain(t *testing.T) {
 	wrapped := &wrappingAdvertiseTool{}
 	wrapped.inner = wrapped
 
-	manifest, err := toolloop.Advertise([]tools.Tool{wrapped})
-	if manifest != nil || !errors.Is(err, tools.ErrInvalidWrappingChain) {
+	manifest, err := toolloop.Advertise([]tool.Tool{wrapped})
+	if manifest != nil || !errors.Is(err, tool.ErrInvalidWrappingChain) {
 		t.Fatalf("Advertise() = %#v, %v; want nil, ErrInvalidWrappingChain", manifest, err)
 	}
 }
@@ -244,12 +244,12 @@ func (panickingDefinitionTool) Call(context.Context, string) (string, error) {
 }
 
 func TestAdvertiseReturnsCapabilityPanics(t *testing.T) {
-	for name, tool := range map[string]tools.Tool{
+	for name, candidate := range map[string]tool.Tool{
 		"deferred names": panickingDeferredTool{advertiseTool{name: "deferred"}},
 		"definition":     panickingDefinitionTool{},
 	} {
 		t.Run(name, func(t *testing.T) {
-			manifest, err := toolloop.Advertise([]tools.Tool{tool})
+			manifest, err := toolloop.Advertise([]tool.Tool{candidate})
 			if manifest != nil || err == nil {
 				t.Fatalf("Advertise() = %#v, %v; want nil and panic error", manifest, err)
 			}
@@ -264,7 +264,7 @@ func TestAdvertiseReturnsCapabilityPanics(t *testing.T) {
 // reproducibility and a prompt-cache hit. Advertise already orders the initial
 // manifest by name, and promotion holds to the same rule.
 func TestPromotedToolsEnterTheManifestInNameOrder(t *testing.T) {
-	withheld := make([]tools.Tool, 0, 3)
+	withheld := make([]tool.Tool, 0, 3)
 	for _, name := range []string{"mcp_alpha", "mcp_beta", "mcp_gamma"} {
 		withheld = append(withheld, newRunnerTool(name, func(context.Context, string) (string, error) {
 			return "ok", nil
@@ -279,7 +279,7 @@ func TestPromotedToolsEnterTheManifestInNameOrder(t *testing.T) {
 		)
 		return "found three", nil
 	})
-	registry := newRunnerRegistry(t, append([]tools.Tool{search}, withheld...)...)
+	registry := newRunnerRegistry(t, append([]tool.Tool{search}, withheld...)...)
 	request := protocolRequest(t)
 	request.Tools = []chat.ToolDefinition{search.Definition()}
 

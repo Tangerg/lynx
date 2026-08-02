@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 // toolPromotions collects the tool definitions a running tool asked the loop to
@@ -106,11 +106,11 @@ type DeferredTool interface {
 // manifest regardless of iteration order. Callers that want to advertise a
 // different subset can build the manifest themselves; this is the projection
 // that matches promotion. A malformed wrapping chain is returned as
-// [tools.ErrInvalidWrappingChain].
-func Advertise(candidates []tools.Tool) ([]chat.ToolDefinition, error) {
+// [tool.ErrInvalidWrappingChain].
+func Advertise(candidates []tool.Tool) ([]chat.ToolDefinition, error) {
 	var withheld map[string]struct{}
 	for _, candidate := range candidates {
-		deferring, ok, err := tools.Capability[DeferredTool](candidate)
+		deferring, ok, err := tool.Capability[DeferredTool](candidate)
 		if err != nil {
 			return nil, fmt.Errorf("toolloop.Advertise: %w", err)
 		}

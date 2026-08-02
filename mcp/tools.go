@@ -6,7 +6,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	toolcontract "github.com/Tangerg/lynx/tools"
+	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
 // defaultToolNaming returns "<sourceName>_<toolName>" (or the bare tool name

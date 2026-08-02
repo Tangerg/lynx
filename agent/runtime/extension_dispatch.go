@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/agent/planning"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 // EventListener is the [event.Event] subscriber extension. It lives in runtime
@@ -263,8 +263,8 @@ func runActionMiddleware(
 func (p *Process) wrapTool(
 	toolMiddleware []extensionCapability[core.ToolMiddleware],
 	action core.ActionDescriptor,
-	tool tools.Tool,
-) (tools.Tool, error) {
+	tool tool.Tool,
+) (tool.Tool, error) {
 	for _, middleware := range toolMiddleware {
 		wrapped, err := wrapToolWith(middleware, p, action, tool)
 		if err != nil {
@@ -282,8 +282,8 @@ func wrapToolWith(
 	middleware extensionCapability[core.ToolMiddleware],
 	process core.ProcessView,
 	action core.ActionDescriptor,
-	tool tools.Tool,
-) (wrapped tools.Tool, err error) {
+	tool tool.Tool,
+) (wrapped tool.Tool, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = panicerr.New(fmt.Sprintf("tool middleware %q panicked", middleware.name), recovered)

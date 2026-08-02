@@ -9,7 +9,8 @@
 |---|---|
 | 定义消息、请求、响应和最小 Model SPI | `core/chat` |
 | 默认参数、middleware、同步/流式调用、模板和结构化输出 | `chatclient` |
-| 把 typed function 变成可执行工具并按实例注册 | `tools` |
+| 最小工具契约、decorator 能力发现和实例 Registry | `tool` |
+| 把 typed function 变成可执行工具 | `tools` |
 | 多轮工具执行、普通错误反馈、direct return、暂停/恢复 | `agent/toolloop` |
 | 聊天历史 | `chathistory` |
 | OpenTelemetry | `otel` |
@@ -80,7 +81,7 @@ add, err := tools.New(tools.Config{
 if err != nil {
     return err
 }
-registry, err := tools.NewRegistry(add)
+registry, err := tool.NewRegistry(add)
 if err != nil {
     return err
 }
@@ -187,6 +188,7 @@ decode 失败时仍返回原始 Response，repair/retry 策略由调用方显式
 
 - `go doc github.com/Tangerg/lynx/core/chat`
 - `go doc github.com/Tangerg/lynx/chatclient`
+- `go doc github.com/Tangerg/lynx/tool`
 - `go doc github.com/Tangerg/lynx/tools`
 - `go doc github.com/Tangerg/lynx/agent/toolloop`
 - 观测接入见 [`OBSERVABILITY.md`](./OBSERVABILITY.md)

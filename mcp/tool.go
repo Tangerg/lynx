@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	toolcontract "github.com/Tangerg/lynx/tools"
+	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
 // tool wraps a single remote MCP tool as a chat.Tool. Each Call
@@ -60,7 +60,7 @@ type toolConfig struct {
 	Concurrency ConcurrencyFunc
 }
 
-// newTool builds a [tools.Tool] from cfg. cfg.Session must be
+// newTool builds a [tool.Tool] from cfg. cfg.Session must be
 // initialized (returned from (*sdkmcp.Client).Connect) and must outlive
 // the returned tool.
 func newTool(cfg toolConfig) (*tool, error) {
@@ -137,7 +137,7 @@ func (t *tool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
 	return t.concurrency(t.sourceName, t.descriptor, arguments)
 }
 
-// Call implements [tools.Tool]. IsError=true on the remote
+// Call implements [tool.Tool]. IsError=true on the remote
 // result is mapped to [*ToolCallError] so a tool failure is not
 // silently fed back to the model as a successful result.
 //

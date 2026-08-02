@@ -7,7 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 // engineExtensions exposes the engine-scoped extension list.
@@ -93,14 +93,14 @@ func mergeExtensions(first, second []extensionEntry) []extensionEntry {
 // toolResolverFor builds the action-scoped resolver exposed by ProcessContext.
 // Process extensions resolve first, while middleware wraps engine-first so the
 // process-scoped decorator is outermost.
-func (p *Process) toolResolverFor(action core.ActionDescriptor) func(context.Context, []string) ([]tools.Tool, error) {
+func (p *Process) toolResolverFor(action core.ActionDescriptor) func(context.Context, []string) ([]tool.Tool, error) {
 	resolvers := collectExtensions[core.ToolGroupResolver](p.combinedExtensionsResolverFirst())
 	middleware := collectExtensions[core.ToolMiddleware](p.combinedExtensions())
 	if len(resolvers) == 0 {
 		return nil
 	}
-	return func(ctx context.Context, roles []string) ([]tools.Tool, error) {
-		var resolved []tools.Tool
+	return func(ctx context.Context, roles []string) ([]tool.Tool, error) {
+		var resolved []tool.Tool
 
 		for _, role := range roles {
 			group, found, err := runToolGroupResolvers(ctx, resolvers, role)
@@ -127,7 +127,7 @@ func (p *Process) toolResolverFor(action core.ActionDescriptor) func(context.Con
 	}
 }
 
-func loadToolGroup(ctx context.Context, group core.ToolGroup, role string) (groupTools []tools.Tool, err error) {
+func loadToolGroup(ctx context.Context, group core.ToolGroup, role string) (groupTools []tool.Tool, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = panicerr.New(fmt.Sprintf("tool group %q Tools panicked", role), recovered)

@@ -21,6 +21,7 @@ use (
 	./rag
 	./skills
 	./tokenizer
+	./tool
 	./tools
 	./vectorstores
 )

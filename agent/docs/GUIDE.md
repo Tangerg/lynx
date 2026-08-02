@@ -208,7 +208,7 @@ Action 内的常用调用入口是：
 answer, err := process.Prompt(ctx, prompt, agent.PromptConfig{
     System:  "Answer concisely.",
     Options: &chat.Options{Model: "provider-model-id"},
-    Tools:   []tools.Tool{searchTool},
+    Tools:   []tool.Tool{searchTool},
 })
 ```
 
@@ -224,7 +224,7 @@ answer, err := agent.Prompt(
     ctx,
     process,
     prompt,
-    agent.PromptConfig{Tools: []tools.Tool{searchTool}},
+    agent.PromptConfig{Tools: []tool.Tool{searchTool}},
     chatclient.JSON[Answer](),
 )
 ```
@@ -246,7 +246,7 @@ Agent 只提供一个显式的工具组合入口：
 
 `Goal` 只描述 planner 要达到的目标，不携带发布协议、外部描述或输入 schema。MCP/HTTP
 等顶层工具发布由 Host 自己适配：Host 明确选择 deployment、输入输出 wire、独立进程
-生命周期、鉴权和等待响应协议。`workflow.Supervisor` 同样接收显式 `[]tools.Tool`，不会扫描
+生命周期、鉴权和等待响应协议。`workflow.Supervisor` 同样接收显式 `[]tool.Tool`，不会扫描
 deployment 或 Goal 元数据。
 
 同步 `NewAgentTool` 的 child 若进入 Waiting，Runtime 会把同一个 suspension 提升到

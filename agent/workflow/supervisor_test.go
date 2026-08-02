@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/lynx/agent/workflow"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 type toolCallingModel struct{}
@@ -80,10 +80,10 @@ func TestSupervisor_Validation(t *testing.T) {
 		name   string
 		config workflow.SupervisorConfig[supTopic, supAnswer]
 	}{
-		{"empty name", workflow.SupervisorConfig[supTopic, supAnswer]{Tools: []tools.Tool{worker}, Parse: parse}},
+		{"empty name", workflow.SupervisorConfig[supTopic, supAnswer]{Tools: []tool.Tool{worker}, Parse: parse}},
 		{"no tools", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Parse: parse}},
-		{"nil tool", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Tools: []tools.Tool{nil}, Parse: parse}},
-		{"nil parse", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Tools: []tools.Tool{worker}}},
+		{"nil tool", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Tools: []tool.Tool{nil}, Parse: parse}},
+		{"nil parse", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Tools: []tool.Tool{worker}}},
 	}
 	for _, test := range cases {
 		if _, err := workflow.Supervisor(test.config); err == nil {
@@ -110,7 +110,7 @@ func TestSupervisor_EndToEnd(t *testing.T) {
 	supervisor, err := workflow.Supervisor(workflow.SupervisorConfig[supTopic, supAnswer]{
 		Name:         "supervisor",
 		Description:  "orchestrate the worker",
-		Tools:        []tools.Tool{worker},
+		Tools:        []tool.Tool{worker},
 		Instructions: "Use the worker tool, then reply.",
 		Parse:        func(text string) (supAnswer, error) { return supAnswer{Text: text}, nil },
 	})
@@ -147,7 +147,7 @@ func TestSupervisor_RejectsNonPortableInputBeforeExecution(t *testing.T) {
 	}
 	supervisor, err := workflow.Supervisor(workflow.SupervisorConfig[unrenderableInput, supAnswer]{
 		Name:  "render-error",
-		Tools: []tools.Tool{worker},
+		Tools: []tool.Tool{worker},
 		Parse: func(text string) (supAnswer, error) { return supAnswer{Text: text}, nil },
 	})
 	if err != nil {

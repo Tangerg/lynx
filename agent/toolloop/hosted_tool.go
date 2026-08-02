@@ -7,7 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 // hostedTool is one host-supplied tool the loop interrogates across the trust
@@ -22,7 +22,7 @@ import (
 // name is therefore where the pair is formed, and nothing downstream has to
 // carry the two separately.
 type hostedTool struct {
-	tool tools.Tool
+	tool tool.Tool
 	name string
 }
 
@@ -91,7 +91,7 @@ func (t hostedTool) concurrencyKey(arguments string) (key string, concurrent boo
 			err = panicerr.New(fmt.Sprintf("tool %s concurrency lookup panicked", t.label()), recovered)
 		}
 	}()
-	declared, ok, err := tools.Capability[ConcurrentTool](t.tool)
+	declared, ok, err := tool.Capability[ConcurrentTool](t.tool)
 	if err != nil {
 		return "", false, fmt.Errorf("tool %s concurrency lookup: %w", t.label(), err)
 	}
@@ -110,7 +110,7 @@ func (t hostedTool) returnsDirect() (direct bool, err error) {
 			err = panicerr.New(fmt.Sprintf("tool %s direct-return lookup panicked", t.label()), recovered)
 		}
 	}()
-	marker, ok, err := tools.Capability[DirectTool](t.tool)
+	marker, ok, err := tool.Capability[DirectTool](t.tool)
 	if err != nil {
 		return false, fmt.Errorf("tool %s direct-return lookup: %w", t.label(), err)
 	}
@@ -127,7 +127,7 @@ func (t hostedTool) canContinueWithoutInput() (allowed bool, err error) {
 			err = panicerr.New(fmt.Sprintf("tool %s inputless-continuation lookup panicked", t.label()), recovered)
 		}
 	}()
-	marker, ok, err := tools.Capability[InputlessContinuationTool](t.tool)
+	marker, ok, err := tool.Capability[InputlessContinuationTool](t.tool)
 	if err != nil {
 		return false, fmt.Errorf("tool %s inputless-continuation lookup: %w", t.label(), err)
 	}

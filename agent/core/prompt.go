@@ -8,7 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 // ChatMiddleware carries model middleware applied to process-scoped chat
@@ -32,7 +32,7 @@ func (m *ChatMiddleware) Empty() bool {
 type PromptConfig struct {
 	System             string
 	Options            *chat.Options
-	Tools              []tools.Tool
+	Tools              []tool.Tool
 	DisableActionTools bool
 	MaxToolRounds      int
 }
@@ -74,7 +74,7 @@ func (pc *ProcessContext) Prompt(ctx context.Context, text string, config Prompt
 
 type promptCall struct {
 	request   *chat.Request
-	registry  *tools.Registry
+	registry  *tool.Registry
 	maxRounds int
 }
 
@@ -86,7 +86,7 @@ func (pc *ProcessContext) newPromptCall(ctx context.Context, text string, config
 	if err != nil {
 		return nil, fmt.Errorf("agent: prompt: resolve tools: %w", err)
 	}
-	registry, err := tools.NewRegistry(resolved...)
+	registry, err := tool.NewRegistry(resolved...)
 	if err != nil {
 		return nil, fmt.Errorf("agent: prompt: register tools: %w", err)
 	}
@@ -118,7 +118,7 @@ func (pc *ProcessContext) newPromptCall(ctx context.Context, text string, config
 	}, nil
 }
 
-func (pc *ProcessContext) promptTools(ctx context.Context, config PromptConfig) ([]tools.Tool, error) {
+func (pc *ProcessContext) promptTools(ctx context.Context, config PromptConfig) ([]tool.Tool, error) {
 	if config.DisableActionTools {
 		return slices.Clone(config.Tools), nil
 	}
@@ -126,7 +126,7 @@ func (pc *ProcessContext) promptTools(ctx context.Context, config PromptConfig) 
 	if err != nil {
 		return nil, err
 	}
-	resolved := make([]tools.Tool, 0, len(actionTools)+len(config.Tools))
+	resolved := make([]tool.Tool, 0, len(actionTools)+len(config.Tools))
 	resolved = append(resolved, actionTools...)
 	return append(resolved, config.Tools...), nil
 }

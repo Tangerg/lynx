@@ -13,7 +13,7 @@ import (
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 type runnerTool struct {
@@ -48,7 +48,7 @@ type scriptedModel struct {
 
 type panickingToolResolver struct{ cause error }
 
-func (r panickingToolResolver) Resolve(string) (tools.Tool, bool) { panic(r.cause) }
+func (r panickingToolResolver) Resolve(string) (tool.Tool, bool) { panic(r.cause) }
 
 func (m *scriptedModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	m.calls++
@@ -727,16 +727,16 @@ func newConcurrentRunnerTool(
 	return tool
 }
 
-func newRunnerRegistry(t *testing.T, values ...tools.Tool) *tools.Registry {
+func newRunnerRegistry(t *testing.T, values ...tool.Tool) *tool.Registry {
 	t.Helper()
-	registry, err := tools.NewRegistry(values...)
+	registry, err := tool.NewRegistry(values...)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
 	return registry
 }
 
-func newRunnerRequest(t *testing.T, registry *tools.Registry) *chat.Request {
+func newRunnerRequest(t *testing.T, registry *tool.Registry) *chat.Request {
 	t.Helper()
 	request := protocolRequest(t)
 	if registry != nil {

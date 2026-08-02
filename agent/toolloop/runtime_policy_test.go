@@ -7,7 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 type directCapabilityTool struct{}
@@ -28,18 +28,18 @@ func (directCapabilityTool) HostMetadata() string                         { retu
 func TestDirectOwnsOnlyItsMarker(t *testing.T) {
 	wrapped := toolloop.Direct(directCapabilityTool{})
 
-	direct, ok, err := tools.Capability[interface{ ReturnsDirect() bool }](wrapped)
+	direct, ok, err := tool.Capability[interface{ ReturnsDirect() bool }](wrapped)
 	if err != nil || !ok || !direct.ReturnsDirect() {
 		t.Fatal("Direct() did not mark the tool return-direct")
 	}
-	concurrent, ok, err := tools.Capability[toolloop.ConcurrentTool](wrapped)
+	concurrent, ok, err := tool.Capability[toolloop.ConcurrentTool](wrapped)
 	if err != nil || !ok {
 		t.Fatal("the wrapped tool's scheduling capability is unreachable")
 	}
 	if key, allowed := concurrent.ConcurrencyKey(`{}`); key != "receipt.txt" || !allowed {
 		t.Fatalf("ConcurrencyKey() = %q, %v; want receipt.txt, true", key, allowed)
 	}
-	host, ok, err := tools.Capability[interface{ HostMetadata() string }](wrapped)
+	host, ok, err := tool.Capability[interface{ HostMetadata() string }](wrapped)
 	if err != nil || !ok || host.HostMetadata() != "host-owned" {
 		t.Fatal("a host capability of the wrapped tool is unreachable through the chain")
 	}

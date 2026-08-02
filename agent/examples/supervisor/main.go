@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 // Domain types
@@ -64,7 +64,7 @@ func main() {
 		prompt := fmt.Sprintf("Brief me on %q. Use research-agent first to gather sources, then summarize-agent to synthesise. Return the source URLs and summary.", in.Title)
 		content, err := agent.Prompt(ctx, pc, prompt, agent.PromptConfig{
 			System: "You are a supervisor that delegates to specialised agents.",
-			Tools:  []tools.Tool{researchTool, summarizeTool},
+			Tools:  []tool.Tool{researchTool, summarizeTool},
 		}, chatclient.JSON[BriefContent]())
 		if err != nil {
 			return Brief{}, err

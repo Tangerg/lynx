@@ -25,6 +25,7 @@ var forbiddenFrameworkModulePrefixes = []string{
 	"github.com/Tangerg/lynx/app",
 	"github.com/Tangerg/lynx/a2a",
 	"github.com/Tangerg/lynx/mcp",
+	"github.com/Tangerg/lynx/tools",
 	"github.com/a2aproject/a2a-go",
 	"github.com/modelcontextprotocol/go-sdk",
 }

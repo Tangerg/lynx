@@ -19,9 +19,9 @@ mcp/
 ├── meta.go      // context scoped _meta helpers
 ├── session.go   // active ServerSession/progress token context helpers
 ├── reverse.go   // progress / elicitation reverse helpers
-├── tool.go      // remote MCP tool -> tools.Tool
-├── tools.go     // list remote tools and wrap them as []tools.Tool
-├── server.go    // tools.Tool -> MCP server tool
+├── tool.go      // remote MCP tool -> tool.Tool
+├── tools.go     // list remote tools and wrap them as []tool.Tool
+├── server.go    // tool.Tool -> MCP server tool
 └── prompt.go    // MCP prompt messages -> []chat.Message
 ```
 
@@ -48,8 +48,8 @@ import (
 | `ServerSessionFromContext` | 从 tool 调用 context 取出当前 `*sdkmcp.ServerSession` |
 | `ReportProgress` | 根据原始 progress token 发送 progress notification |
 | `ElicitFromClient` | tool 执行中向客户端发起 elicitation |
-| `Tools(ctx, sources, opts)` | 现场列出远端 MCP tools，并包装成 `[]tools.Tool` |
-| `Register(server, tools...)` | 把 lynx `tools.Tool` 暴露到 MCP server |
+| `Tools(ctx, sources, opts)` | 现场列出远端 MCP tools，并包装成 `[]tool.Tool` |
+| `Register(server, tools...)` | 把 lynx `tool.Tool` 暴露到 MCP server |
 | `PromptMessagesToChat` | 把 MCP prompt messages 转成 `[]chat.Message` |
 
 根包刻意不提供：
@@ -118,7 +118,7 @@ JSON-RPC protocol error. `lynx/mcp` preserves that distinction:
 
 - 远端 `CallToolResult.IsError=true` → `*lynxmcp.ToolCallError`
 - 传输/协议错误 → 普通 wrapped Go error
-- 本地 `tools.Tool` 返回 error → `CallToolResult{IsError:true}`
+- 本地 `tool.Tool` 返回 error → `CallToolResult{IsError:true}`
 
 调用方用 `errors.As` 区分远端 tool 自身失败和基础设施失败。
 

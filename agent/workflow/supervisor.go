@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 // SupervisorConfig configures a [Supervisor] — an LLM-orchestration agent
@@ -26,7 +26,7 @@ type SupervisorConfig[In, Out any] struct {
 
 	// Tools are the exact delegates exposed to the orchestrating model. Use
 	// runtime.NewAgentTool to bind deployments as child-process tools.
-	Tools []tools.Tool
+	Tools []tool.Tool
 
 	// Instructions is the system prompt steering the orchestration (e.g.
 	// "delegate research to research-agent, then summarize-agent").
@@ -61,10 +61,10 @@ func Supervisor[In, Out any](config SupervisorConfig[In, Out]) (*core.Agent, err
 	if config.Parse == nil {
 		return nil, errors.New("workflow.Supervisor: Parse must not be nil")
 	}
-	if _, err := tools.NewRegistry(config.Tools...); err != nil {
+	if _, err := tool.NewRegistry(config.Tools...); err != nil {
 		return nil, fmt.Errorf("workflow.Supervisor: Tools: %w", err)
 	}
-	delegates := append([]tools.Tool(nil), config.Tools...)
+	delegates := append([]tool.Tool(nil), config.Tools...)
 
 	render := config.Render
 	if render == nil {

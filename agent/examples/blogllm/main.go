@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"iter"
 	"log"
@@ -10,7 +11,7 @@ import (
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 // Domain types — the agent takes a Topic and produces a Brief by asking
@@ -130,7 +131,7 @@ func responseWithToolCall(args string) *chat.Response {
 // ============================================================================
 
 type researchToolGroup struct {
-	tools []tools.Tool
+	tools []tool.Tool
 }
 
 type researchToolResolver struct {
@@ -150,24 +151,30 @@ type researchSearchInput struct {
 	Query string `json:"query" jsonschema:"required"`
 }
 
-func newResearchToolGroup() *researchToolGroup {
-	tool, err := tools.New[researchSearchInput, string](
-		tools.Config{
-			Name:        "research_search",
-			Description: "search the public web for sources on a topic",
-		},
-		func(context.Context, researchSearchInput) (string, error) {
-			// Stub: pretend to search and return canned sources.
-			return `[{"url":"https://example.com/agents-2026","title":"Agents in 2026"}]`, nil
-		},
-	)
-	if err != nil {
-		panic(err)
+type researchSearchTool struct{}
+
+func (researchSearchTool) Definition() chat.ToolDefinition {
+	return chat.ToolDefinition{
+		Name:        "research_search",
+		Description: "search the public web for sources on a topic",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"],"additionalProperties":false}`),
 	}
-	return &researchToolGroup{tools: []tools.Tool{tool}}
 }
 
-func (g *researchToolGroup) Tools(_ context.Context) ([]tools.Tool, error) {
+func (researchSearchTool) Call(_ context.Context, arguments string) (string, error) {
+	var input researchSearchInput
+	if err := json.Unmarshal([]byte(arguments), &input); err != nil {
+		return "", fmt.Errorf("decode research search input: %w", err)
+	}
+	// Stub: pretend to search and return canned sources.
+	return `[{"url":"https://example.com/agents-2026","title":"Agents in 2026"}]`, nil
+}
+
+func newResearchToolGroup() *researchToolGroup {
+	return &researchToolGroup{tools: []tool.Tool{researchSearchTool{}}}
+}
+
+func (g *researchToolGroup) Tools(_ context.Context) ([]tool.Tool, error) {
 	return g.tools, nil
 }
 

@@ -67,7 +67,7 @@ Core 的最终状态对 Agent 形成以下不可逆约束：
 - `core/chat.Request` 只持有消息、ToolDefinition、Options 和 JSON-safe Extensions；可执行 Tool、registry、Process 和闭包不得回流。
 - `core/chat.Response` 只表达 provider 输出；ToolResult、pause/resume、round、budget 和进程状态不得塞入 Response。
 - `chat.Model` 与 `chat.Streamer` 是基础调用能力；默认配置、history、guardrails 和 framework lifecycle 属于外圈。
-- `tools.Tool` 只定义可执行工具能力；retry、pause、abort 和普通错误反馈由消费它的 runtime 决定。
+- `tool.Tool` 只定义可执行工具能力；retry、pause、abort 和普通错误反馈由消费它的 runtime 决定。
 - Agent 的 snapshot、deployment、suspension 和 event 是 Agent Framework 自己的协议，不得要求 Core 为它增加专属字段。
 
 ### 2.3 Core 在本计划中的变更政策
@@ -1895,7 +1895,7 @@ checkpoint 的宿主兼容判断、提交时间、事务和清理策略完整归
 - [x] ToolGroup 收敛为 Action 的 role 字符串、resolver 与 `Tools`；删除单字段
   `ToolGroupRequirement`/`RequireToolGroup`、权限枚举、provider/version 坐标和重复的
   `ToolGroupInfo`。沙箱、审批与权限选择完整归 Host 装配边界。
-- [x] `workflow.Supervisor` 改为接收显式 `[]tools.Tool`；删除 `agent/toolpolicy` 的 Once/Gate
+- [x] `workflow.Supervisor` 改为接收显式 `[]tool.Tool`；删除 `agent/toolpolicy` 的 Once/Gate
   产品策略包，App 继续拥有自己的审批、禁用、幂等、事务和补偿实现。
 - [x] 直接迁移 App、examples、tests、GoDoc、Guide、deployment/API golden；新增 Host projection
   forbidden identifiers 与 runtime named-JSON execution-state guard。Agent/App build、vet、普通
@@ -2337,7 +2337,7 @@ SQLite 只认识 App-owned opaque envelope；Host 原子性、幂等、恢复与
   不进入观察、选择或配置面。
 - result：`ProcessCompleted` 只表达 lifecycle completion，不承载任意业务对象。Host 若要
   生成产品 hook/event，按 ProcessID 从自己持有的 execution adapter 查询结果。
-- tool protocol：通用 decorator traversal 归 `tools.WrappingTool`/`tools.Capability`；
+- tool protocol：通用 decorator traversal 归 `tool.WrappingTool`/`tool.Capability`；
   Agent 只拥有 Direct/Deferred/Concurrent 等自己的消费策略。错误 traversal 不允许 panic
   或静默退化为错误的调度、审批、路径锁语义。
 - semantic identity：Goal/Action 名称只做身份与描述，不触发隐藏 planner 模式；workflow

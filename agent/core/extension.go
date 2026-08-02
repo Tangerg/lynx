@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 // Extension is the marker every plug-in capability shares. Name is read once
@@ -44,13 +44,13 @@ type ActionMiddleware interface {
 	) (ActionStatus, error)
 }
 
-// ToolMiddleware wraps every [tools.Tool] resolved by
+// ToolMiddleware wraps every [tool.Tool] resolved by
 // [ProcessContext.ActionTools].
 // Composition is wrap-style: first registered is innermost.
 // A panic or nil result makes tool resolution fail with an error attributed to
 // the middleware; it cannot leak into the host or silently remove a tool.
 //
-// A wrapper declares [tools.WrappingTool], so the tool it stands in for keeps
+// A wrapper declares [tool.WrappingTool], so the tool it stands in for keeps
 // every optional capability it declared — one method, whatever the set of
 // capabilities grows to. Re-implementing capabilities one by one silently
 // drops the ones a wrapper forgot. A policy that means to narrow scheduling or
@@ -63,8 +63,8 @@ type ToolMiddleware interface {
 	WrapTool(
 		process ProcessView,
 		action ActionDescriptor,
-		tool tools.Tool,
-	) tools.Tool
+		tool tool.Tool,
+	) tool.Tool
 }
 
 // AgentValidator runs as the engine's last deploy-time validation step after

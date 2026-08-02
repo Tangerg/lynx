@@ -11,10 +11,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	toolcontract "github.com/Tangerg/lynx/tools"
+	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
-// Register installs every [tools.Tool] in tools onto server using
+// Register installs every [tool.Tool] in tools onto server using
 // the low-level [(*sdkmcp.Server).AddTool] API.
 //
 // Registration is all-or-nothing: definitions are snapshotted, duplicate names
@@ -75,7 +75,7 @@ func prepareOne(tool toolcontract.Tool, definition corechat.ToolDefinition) (pre
 	}, nil
 }
 
-// serverHandler routes a tools/call RPC into a [tools.Tool]. Errors
+// serverHandler routes a tools/call RPC into a [tool.Tool]. Errors
 // from the tool surface via [sdkmcp.CallToolResult.IsError] plus
 // a [*sdkmcp.TextContent] body — never as a Go error from the handler
 // — because the latter would be promoted to a JSON-RPC protocol error

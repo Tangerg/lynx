@@ -3,7 +3,7 @@ package toolloop
 import (
 	"reflect"
 
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 // DirectTool is the optional capability a tool implements to end the round it
@@ -30,11 +30,11 @@ type InputlessContinuationTool interface {
 
 // Direct marks a runtime Tool so a round consisting entirely of direct tools
 // completes with its final ToolResult instead of making another model call.
-// It reports itself as a [tools.WrappingTool], so every optional capability of
+// It reports itself as a [tool.WrappingTool], so every optional capability of
 // the tool it wraps — scheduling, deferral, a host's own — stays discoverable
 // through it.
-// Nil input remains nil and is rejected by tools.Registry or Runner.Run.
-func Direct(tool tools.Tool) tools.Tool {
+// Nil input remains nil and is rejected by tool.Registry or Runner.Run.
+func Direct(tool tool.Tool) tool.Tool {
 	if valueIsNil(tool) {
 		return nil
 	}
@@ -42,20 +42,20 @@ func Direct(tool tools.Tool) tools.Tool {
 }
 
 type directRuntimeTool struct {
-	tools.Tool
+	tool.Tool
 }
 
 // Found by type assertion through the wrapping chain, so pin it.
 var (
-	_ DirectTool         = directRuntimeTool{}
-	_ tools.WrappingTool = directRuntimeTool{}
+	_ DirectTool        = directRuntimeTool{}
+	_ tool.WrappingTool = directRuntimeTool{}
 )
 
 func (directRuntimeTool) ReturnsDirect() bool { return true }
 
 // Unwrap exposes the decorated tool so its optional capabilities remain
 // discoverable; this decorator overrides only the direct-return marker.
-func (t directRuntimeTool) Unwrap() tools.Tool { return t.Tool }
+func (t directRuntimeTool) Unwrap() tool.Tool { return t.Tool }
 
 func valueIsNil(value any) bool {
 	if value == nil {

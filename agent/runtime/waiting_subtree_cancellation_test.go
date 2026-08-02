@@ -14,7 +14,7 @@ import (
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tool"
 )
 
 func TestWaitingSubtreeCancellationPlanHasNoSideEffects(t *testing.T) {
@@ -330,7 +330,7 @@ func TestWaitingSubtreeCancellationPlanPropagatesReadinessToManagedAncestor(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	registry, err := tools.NewRegistry(middleTool)
+	registry, err := tool.NewRegistry(middleTool)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -487,9 +487,9 @@ func (m *nestedWaitingCancellationModel) Calls() int {
 	return m.calls
 }
 
-func managedChildRegistry(t *testing.T, engine *runtime.Engine) *tools.Registry {
+func managedChildRegistry(t *testing.T, engine *runtime.Engine) *tool.Registry {
 	t.Helper()
-	var childTools []tools.Tool
+	var childTools []tool.Tool
 	for _, definition := range []struct {
 		name    string
 		pauseID string
@@ -524,7 +524,7 @@ func managedChildRegistry(t *testing.T, engine *runtime.Engine) *tools.Registry 
 		}
 		childTools = append(childTools, childTool)
 	}
-	registry, err := tools.NewRegistry(childTools...)
+	registry, err := tool.NewRegistry(childTools...)
 	if err != nil {
 		t.Fatal(err)
 	}

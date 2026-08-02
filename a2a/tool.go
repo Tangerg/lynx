@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	toolcontract "github.com/Tangerg/lynx/tools"
+	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
 var (
@@ -39,7 +39,7 @@ const callInputSchema = `{
   "additionalProperties": false
 }`
 
-// tool wraps a remote A2A agent as a [tools.Tool]. Each Call sends the
+// tool wraps a remote A2A agent as a [tool.Tool]. Each Call sends the
 // argument text as an A2A message and returns the agent's reply, so an
 // agent can delegate to a remote agent through the ordinary tool-calling
 // loop. A task that does not complete successfully is mapped to
@@ -97,7 +97,7 @@ func (t *tool) ConcurrencyKey(string) (key string, concurrent bool) {
 	return "", true
 }
 
-// Call implements [tools.Tool]: it sends the request text to the remote agent
+// Call implements [tool.Tool]: it sends the request text to the remote agent
 // and returns its reply. One `a2a.agent.call <name>` span per call
 // (kind=Client) carrying gen_ai.agent.name; a remote failure records the
 // error and sets the span status to Error.
