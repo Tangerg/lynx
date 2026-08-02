@@ -1,0 +1,117 @@
+package openai
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/param"
+
+	"github.com/Tangerg/lynx/core/transcription"
+	"github.com/Tangerg/lynx/models/protocol/openai/internal/options"
+)
+
+type AudioTranscriptionModelConfig struct {
+	Provider       string
+	APIKey         string
+	DefaultOptions transcription.Options
+	RequestOptions []option.RequestOption
+}
+
+func (c AudioTranscriptionModelConfig) Validate() error {
+	if err := validateProvider(c.Provider); err != nil {
+		return fmt.Errorf("openai: Provider: %w", err)
+	}
+	if c.APIKey == "" {
+		return errors.New("openai: APIKey is required")
+	}
+	if c.DefaultOptions.Model == "" {
+		return errors.New("openai: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
+	}
+	return nil
+}
+
+var _ transcription.Model = (*AudioTranscriptionModel)(nil)
+
+type AudioTranscriptionModel struct {
+	api            *API
+	provider       string
+	defaultOptions transcription.Options
+}
+
+func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	api, err := NewAPI(APIConfig{
+		APIKey:         cfg.APIKey,
+		RequestOptions: cfg.RequestOptions,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &AudioTranscriptionModel{
+		api:            api,
+		provider:       cfg.Provider,
+		defaultOptions: cfg.DefaultOptions.Clone(),
+	}, nil
+}
+
+func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcription.Request) (*openai.AudioTranscriptionNewParams, error) {
+	mergedOpts, err := a.defaultOptions.Merged(req.Options)
+	if err != nil {
+		return nil, err
+	}
+
+	params, err := options.GetParams[openai.AudioTranscriptionNewParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(a.provider, "transcription"))
+	if err != nil {
+		return nil, err
+	}
+
+	params.Model = mergedOpts.Model
+	if mergedOpts.Language != "" {
+		params.Language = param.NewOpt(mergedOpts.Language)
+	}
+
+	data, err := req.Audio.Bytes()
+	if err != nil {
+		return nil, err
+	}
+
+	params.File = bytes.NewReader(data)
+
+	return params, nil
+}
+
+func (a *AudioTranscriptionModel) buildTranscriptionResponse(resp *openai.AudioTranscriptionNewResponseUnion) (*transcription.Response, error) {
+	result, err := transcription.NewResult(resp.Text, &transcription.ResultMetadata{})
+	if err != nil {
+		return nil, err
+	}
+	return transcription.NewResponse(result, &transcription.ResponseMetadata{})
+}
+
+func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	apiReq, err := a.buildAPITranscriptionRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	apiResp, err := a.api.AudioTranscription(ctx, apiReq)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.buildTranscriptionResponse(apiResp)
+}

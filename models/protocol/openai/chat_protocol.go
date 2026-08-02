@@ -1,0 +1,742 @@
+package openai
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"iter"
+	"mime"
+	"slices"
+	"strings"
+
+	openaisdk "github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+
+	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/metadata"
+)
+
+const (
+	// RequestExtensionKey identifies an OpenAI Chat Completions request
+	// extension encoded as ChatCompletionNewParams.
+	RequestExtensionKey = "openai/request"
+	// ResponseExtensionKey preserves the complete official Chat Completions
+	// response after provider-neutral fields have been mapped.
+	ResponseExtensionKey = "openai/response"
+	// StreamChunkExtensionKey preserves each complete official Chat
+	// Completions stream chunk.
+	StreamChunkExtensionKey = "openai/stream_chunk"
+)
+
+// ChatConfig configures an OpenAI Chat Completions adapter. DefaultOptions
+// are copied during construction; callers may select the model per request.
+type ChatConfig struct {
+	APIKey         string
+	DefaultOptions corechat.Options
+	RequestOptions []option.RequestOption
+}
+
+// Validate verifies construction-time configuration.
+func (config ChatConfig) Validate() error {
+	if config.APIKey == "" {
+		return errors.New("openai: APIKey is required")
+	}
+	if err := config.DefaultOptions.Validate(); err != nil {
+		return fmt.Errorf("openai: DefaultOptions: %w", err)
+	}
+	return nil
+}
+
+var (
+	_ corechat.Model    = (*Chat)(nil)
+	_ corechat.Streamer = (*Chat)(nil)
+)
+
+// Chat implements OpenAI's Chat Completions protocol and is also the reusable
+// protocol base for provider packages exposing a compatible endpoint.
+type Chat struct {
+	api      *API
+	defaults corechat.Options
+	dialect  Dialect
+}
+
+// NewChat constructs OpenAI's native Chat Completions adapter.
+func NewChat(config ChatConfig) (*Chat, error) {
+	return newChat(config, Dialect{Provider: "openai", TokenLimitField: TokenLimitMaxCompletionTokens})
+}
+
+// NewCompatibleChat constructs a Chat Completions adapter with one explicit
+// provider dialect. Provider packages use this seam; application code should
+// prefer the provider's own constructor.
+func NewCompatibleChat(config ChatConfig, dialect Dialect) (*Chat, error) {
+	return newChat(config, dialect)
+}
+
+func newChat(config ChatConfig, dialect Dialect) (*Chat, error) {
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	if err := validateProvider(dialect.Provider); err != nil {
+		return nil, fmt.Errorf("openai: dialect.Provider: %w", err)
+	}
+	api, err := NewAPI(APIConfig{
+		APIKey:         config.APIKey,
+		RequestOptions: config.RequestOptions,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &Chat{
+		api:      api,
+		defaults: config.DefaultOptions.Clone(),
+		dialect:  dialect,
+	}, nil
+}
+
+// Call performs one non-streaming Chat Completions request.
+func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
+	params, err := c.buildRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	requestOptions, err := c.buildRequestOptions(req, false)
+	if err != nil {
+		return nil, err
+	}
+	response, err := c.api.ChatCompletion(ctx, params, requestOptions...)
+	if err != nil {
+		return nil, err
+	}
+	return mapCompletion(params, response, c.dialect)
+}
+
+// Stream performs one streaming Chat Completions request. Each yielded Core
+// response represents only the current provider delta; stable tool identity is
+// retained in adapter-local state.
+func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
+	return func(yield func(*corechat.Response, error) bool) {
+		params, err := c.buildRequest(req)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+
+		requestOptions, err := c.buildRequestOptions(req, true)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		stream, err := c.api.ChatCompletionStream(ctx, params, requestOptions...)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		defer stream.Close()
+
+		state := newOpenAIStreamState(c.dialect)
+		for stream.Next() {
+			response, mapErr := state.mapChunk(stream.Current())
+			if mapErr != nil {
+				yield(nil, mapErr)
+				return
+			}
+			if !yield(response, nil) {
+				return
+			}
+		}
+		if streamErr := stream.Err(); streamErr != nil {
+			yield(nil, streamErr)
+		}
+	}
+}
+
+func (c *Chat) buildRequest(req *corechat.Request) (*openaisdk.ChatCompletionNewParams, error) {
+	if c == nil || c.api == nil {
+		return nil, errors.New("openai: nil Chat")
+	}
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("openai: request: %w", err)
+	}
+
+	params := openaisdk.ChatCompletionNewParams{}
+	if !c.dialect.DisableRawRequestExtension {
+		extensionKey := protocolRequestExtensionKey(c.dialect.Provider)
+		decoded, found, err := metadata.Decode[openaisdk.ChatCompletionNewParams](req.Extensions, extensionKey)
+		if err != nil {
+			return nil, fmt.Errorf("openai: extension %q: %w", extensionKey, err)
+		}
+		if found {
+			params = decoded
+		}
+	}
+
+	options := c.defaults.Overlay(req.Options)
+	if options.Model == "" {
+		return nil, errors.New("openai: model is required in defaults or request options")
+	}
+	if options.TopK != nil {
+		return nil, errors.New("openai: options.top_k is not supported by Chat Completions")
+	}
+	params.Model = openaisdk.ChatModel(options.Model)
+	if options.FrequencyPenalty != nil {
+		params.FrequencyPenalty = openaisdk.Float(*options.FrequencyPenalty)
+	}
+	if options.MaxTokens != nil {
+		switch c.dialect.TokenLimitField {
+		case TokenLimitMaxTokens:
+			params.MaxTokens = openaisdk.Int(*options.MaxTokens)
+		case TokenLimitMaxCompletionTokens:
+			params.MaxCompletionTokens = openaisdk.Int(*options.MaxTokens)
+		default:
+			return nil, errors.New("openai: invalid max token field configuration")
+		}
+	}
+	if options.PresencePenalty != nil {
+		params.PresencePenalty = openaisdk.Float(*options.PresencePenalty)
+	}
+	if len(options.Stop) > 0 {
+		params.Stop.OfStringArray = slices.Clone(options.Stop)
+	}
+	if options.Temperature != nil {
+		params.Temperature = openaisdk.Float(*options.Temperature)
+	}
+	if options.TopP != nil {
+		params.TopP = openaisdk.Float(*options.TopP)
+	}
+
+	var err error
+	params.Messages, err = mapRequestMessages(req.Messages, c.dialect.Provider)
+	if err != nil {
+		return nil, err
+	}
+	params.Tools, err = mapToolDefinitions(req.Tools)
+	if err != nil {
+		return nil, err
+	}
+	if c.dialect.Request != nil {
+		if err := c.dialect.Request.PrepareRequest(req, &params); err != nil {
+			return nil, fmt.Errorf("openai: request dialect: %w", err)
+		}
+	}
+	return &params, nil
+}
+
+func (c *Chat) buildRequestOptions(req *corechat.Request, stream bool) ([]option.RequestOption, error) {
+	if c.dialect.RequestOptions == nil {
+		return nil, nil
+	}
+	requestOptions, err := c.dialect.RequestOptions.PrepareRequestOptions(req, stream)
+	if err != nil {
+		return nil, fmt.Errorf("openai: request option dialect: %w", err)
+	}
+	return requestOptions, nil
+}
+
+func mapToolDefinitions(definitions []corechat.ToolDefinition) ([]openaisdk.ChatCompletionToolUnionParam, error) {
+	tools := make([]openaisdk.ChatCompletionToolUnionParam, 0, len(definitions))
+	for i := range definitions {
+		var schema map[string]any
+		if err := json.Unmarshal(definitions[i].InputSchema, &schema); err != nil {
+			return nil, fmt.Errorf("openai: tools[%d].input_schema: %w", i, err)
+		}
+		tools = append(tools, openaisdk.ChatCompletionToolUnionParam{
+			OfFunction: &openaisdk.ChatCompletionFunctionToolParam{
+				Function: openaisdk.FunctionDefinitionParam{
+					Name:        definitions[i].Name,
+					Description: openaisdk.String(definitions[i].Description),
+					Parameters:  schema,
+				},
+			},
+		})
+	}
+	return tools, nil
+}
+
+func mapRequestMessages(messages []corechat.Message, provider string) ([]openaisdk.ChatCompletionMessageParamUnion, error) {
+	result := make([]openaisdk.ChatCompletionMessageParamUnion, 0, len(messages))
+	for i := range messages {
+		mapped, err := mapRequestMessage(messages[i], provider)
+		if err != nil {
+			return nil, fmt.Errorf("openai: messages[%d]: %w", i, err)
+		}
+		result = append(result, mapped...)
+	}
+	return result, nil
+}
+
+func mapRequestMessage(message corechat.Message, provider string) ([]openaisdk.ChatCompletionMessageParamUnion, error) {
+	switch message.Role {
+	case corechat.RoleSystem:
+		return []openaisdk.ChatCompletionMessageParamUnion{openaisdk.SystemMessage(message.Text())}, nil
+	case corechat.RoleUser:
+		mapped, err := mapUserMessage(message)
+		return []openaisdk.ChatCompletionMessageParamUnion{mapped}, err
+	case corechat.RoleAssistant:
+		mapped, err := mapAssistantMessage(message, provider)
+		return []openaisdk.ChatCompletionMessageParamUnion{mapped}, err
+	case corechat.RoleTool:
+		mapped := make([]openaisdk.ChatCompletionMessageParamUnion, 0, len(message.Parts))
+		for i := range message.Parts {
+			result := message.Parts[i].ToolResult
+			if result == nil {
+				return nil, fmt.Errorf("parts[%d]: missing tool result", i)
+			}
+			mapped = append(mapped, openaisdk.ToolMessage(result.Result, result.ID))
+		}
+		return mapped, nil
+	default:
+		return nil, fmt.Errorf("unsupported role %q", message.Role)
+	}
+}
+
+func mapUserMessage(message corechat.Message) (openaisdk.ChatCompletionMessageParamUnion, error) {
+	if len(message.Parts) == 1 && message.Parts[0].Kind == corechat.PartText {
+		return openaisdk.UserMessage(message.Parts[0].Text), nil
+	}
+
+	parts := make([]openaisdk.ChatCompletionContentPartUnionParam, 0, len(message.Parts))
+	for i := range message.Parts {
+		part := message.Parts[i]
+		switch part.Kind {
+		case corechat.PartText:
+			parts = append(parts, openaisdk.ChatCompletionContentPartUnionParam{
+				OfText: &openaisdk.ChatCompletionContentPartTextParam{Text: part.Text},
+			})
+		case corechat.PartMedia:
+			mapped, err := mapUserMedia(part.Media)
+			if err != nil {
+				return openaisdk.ChatCompletionMessageParamUnion{}, fmt.Errorf("parts[%d]: %w", i, err)
+			}
+			parts = append(parts, mapped)
+		default:
+			return openaisdk.ChatCompletionMessageParamUnion{}, fmt.Errorf("parts[%d]: unsupported user part %q", i, part.Kind)
+		}
+	}
+	return openaisdk.UserMessage(parts), nil
+}
+
+func mapUserMedia(value *media.Media) (openaisdk.ChatCompletionContentPartUnionParam, error) {
+	mediaType, _, err := mime.ParseMediaType(value.MIME)
+	if err != nil {
+		return openaisdk.ChatCompletionContentPartUnionParam{}, fmt.Errorf("media MIME %q: %w", value.MIME, err)
+	}
+	major, subtype, _ := strings.Cut(mediaType, "/")
+
+	switch major {
+	case "image":
+		location, locationErr := mediaLocation(value)
+		if locationErr != nil {
+			return openaisdk.ChatCompletionContentPartUnionParam{}, fmt.Errorf("image source: %w", locationErr)
+		}
+		return openaisdk.ChatCompletionContentPartUnionParam{
+			OfImageURL: &openaisdk.ChatCompletionContentPartImageParam{
+				ImageURL: openaisdk.ChatCompletionContentPartImageImageURLParam{URL: location},
+			},
+		}, nil
+	case "audio":
+		if value.Source.Kind != media.SourceBytes {
+			return openaisdk.ChatCompletionContentPartUnionParam{}, fmt.Errorf("audio requires bytes, got %q", value.Source.Kind)
+		}
+		if subtype != "wav" && subtype != "mp3" {
+			return openaisdk.ChatCompletionContentPartUnionParam{}, fmt.Errorf("audio MIME subtype %q is unsupported", subtype)
+		}
+		data, bytesErr := value.Bytes()
+		if bytesErr != nil {
+			return openaisdk.ChatCompletionContentPartUnionParam{}, bytesErr
+		}
+		return openaisdk.ChatCompletionContentPartUnionParam{
+			OfInputAudio: &openaisdk.ChatCompletionContentPartInputAudioParam{
+				InputAudio: openaisdk.ChatCompletionContentPartInputAudioInputAudioParam{
+					Data:   base64.StdEncoding.EncodeToString(data),
+					Format: subtype,
+				},
+			},
+		}, nil
+	default:
+		file := openaisdk.ChatCompletionContentPartFileFileParam{Filename: openaisdk.String(value.Name)}
+		switch value.Source.Kind {
+		case media.SourceReference:
+			ref, refErr := value.Reference()
+			if refErr != nil {
+				return openaisdk.ChatCompletionContentPartUnionParam{}, refErr
+			}
+			file.FileID = openaisdk.String(ref)
+		case media.SourceBytes, media.SourceURI:
+			location, locationErr := mediaLocation(value)
+			if locationErr != nil {
+				return openaisdk.ChatCompletionContentPartUnionParam{}, locationErr
+			}
+			file.FileData = openaisdk.String(location)
+		default:
+			return openaisdk.ChatCompletionContentPartUnionParam{}, fmt.Errorf("unsupported file source %q", value.Source.Kind)
+		}
+		return openaisdk.ChatCompletionContentPartUnionParam{
+			OfFile: &openaisdk.ChatCompletionContentPartFileParam{File: file},
+		}, nil
+	}
+}
+
+func mediaLocation(value *media.Media) (string, error) {
+	switch value.Source.Kind {
+	case media.SourceURI:
+		return value.URI()
+	case media.SourceBytes:
+		data, err := value.Bytes()
+		if err != nil {
+			return "", err
+		}
+		return "data:" + value.MIME + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+	default:
+		return "", fmt.Errorf("source %q cannot be represented as a URL", value.Source.Kind)
+	}
+}
+
+func mapAssistantMessage(message corechat.Message, provider string) (openaisdk.ChatCompletionMessageParamUnion, error) {
+	mapped := openaisdk.AssistantMessage(message.Text())
+	assistant := mapped.OfAssistant
+	var audioID string
+	for i := range message.Parts {
+		part := message.Parts[i]
+		switch part.Kind {
+		case corechat.PartText:
+			// Text was flattened in order by Message.Text above.
+		case corechat.PartToolCall:
+			assistant.ToolCalls = append(assistant.ToolCalls, openaisdk.ChatCompletionMessageToolCallUnionParam{
+				OfFunction: &openaisdk.ChatCompletionMessageFunctionToolCallParam{
+					ID: part.ToolCall.ID,
+					Function: openaisdk.ChatCompletionMessageFunctionToolCallFunctionParam{
+						Name:      part.ToolCall.Name,
+						Arguments: part.ToolCall.Arguments,
+					},
+				},
+			})
+		case corechat.PartReasoning:
+			// Reasoning is provider-owned replay state. The selected dialect
+			// decides whether and how it is represented on the wire.
+		case corechat.PartMedia:
+			if audioID != "" {
+				return openaisdk.ChatCompletionMessageParamUnion{}, fmt.Errorf("parts[%d]: Chat Completions supports at most one assistant audio part", i)
+			}
+			if part.Media.Source.Kind != media.SourceReference || part.Media.Source.Ref == "" {
+				return openaisdk.ChatCompletionMessageParamUnion{}, fmt.Errorf("parts[%d]: assistant audio replay requires a provider reference", i)
+			}
+			audioID = part.Media.Source.Ref
+		default:
+			return openaisdk.ChatCompletionMessageParamUnion{}, fmt.Errorf("parts[%d]: unsupported assistant part %q", i, part.Kind)
+		}
+	}
+
+	if audioID != "" {
+		assistant.Audio.ID = audioID
+	}
+	refusalKey := protocolRefusalExtensionKey(provider)
+	refusal, found, err := metadata.Decode[string](message.Metadata, refusalKey)
+	if err != nil {
+		return openaisdk.ChatCompletionMessageParamUnion{}, fmt.Errorf("metadata %q: %w", refusalKey, err)
+	}
+	if found {
+		assistant.Refusal = openaisdk.String(refusal)
+	}
+	return mapped, nil
+}
+
+func mapCompletion(params *openaisdk.ChatCompletionNewParams, response *openaisdk.ChatCompletion, dialect Dialect) (*corechat.Response, error) {
+	if response == nil {
+		return nil, errors.New("openai: nil response")
+	}
+	if len(response.Choices) == 0 {
+		return nil, errors.New("openai: response has no choices")
+	}
+	mapped := &corechat.Response{
+		ID:      response.ID,
+		Model:   response.Model,
+		Choices: make([]corechat.Choice, 0, len(response.Choices)),
+		Usage:   mapUsage(response.Usage),
+	}
+	for i := range response.Choices {
+		choice, err := mapCompletionChoice(params, response.Choices[i], dialect.Provider, dialect.Response)
+		if err != nil {
+			return nil, fmt.Errorf("openai: choices[%d]: %w", i, err)
+		}
+		mapped.Choices = append(mapped.Choices, choice)
+	}
+	if err := mapped.SetExtension(protocolResponseExtensionKey(dialect.Provider), exactProviderResponse(response.RawJSON(), response)); err != nil {
+		return nil, err
+	}
+	if err := mapped.Validate(); err != nil {
+		return nil, fmt.Errorf("openai: mapped response: %w", err)
+	}
+	return mapped, nil
+}
+
+func mapCompletionChoice(params *openaisdk.ChatCompletionNewParams, choice openaisdk.ChatCompletionChoice, provider string, dialect ResponseDialect) (corechat.Choice, error) {
+	mapped := corechat.Choice{
+		Index:        int(choice.Index),
+		FinishReason: normalizeFinishReason(choice.FinishReason),
+	}
+	message, err := mapCompletionMessage(params, choice.Message, provider, dialect)
+	if err != nil {
+		return corechat.Choice{}, err
+	}
+	mapped.Message = message
+	return mapped, nil
+}
+
+func mapCompletionMessage(params *openaisdk.ChatCompletionNewParams, message openaisdk.ChatCompletionMessage, provider string, dialect ResponseDialect) (*corechat.Message, error) {
+	parts := make([]corechat.Part, 0, 3+len(message.ToolCalls))
+	if message.Content != "" {
+		parts = append(parts, corechat.NewTextPart(message.Content))
+	}
+	for i := range message.ToolCalls {
+		call, err := mapResponseToolCall(message.ToolCalls[i])
+		if err != nil {
+			return nil, fmt.Errorf("tool_calls[%d]: %w", i, err)
+		}
+		parts = append(parts, corechat.NewToolCallPart(call))
+	}
+	if message.Audio.ID != "" || message.Audio.Data != "" {
+		audio, err := mapOutputAudio(params, message.Audio)
+		if err != nil {
+			return nil, err
+		}
+		if message.Audio.Transcript != "" && message.Content == "" {
+			parts = append(parts, corechat.NewTextPart(message.Audio.Transcript))
+		}
+		parts = append(parts, corechat.NewMediaPart(audio))
+	}
+	mapped := &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
+	if dialect != nil {
+		if err := dialect.FinalizeMessage(message, mapped); err != nil {
+			return nil, fmt.Errorf("response dialect: %w", err)
+		}
+	}
+	if len(mapped.Parts) == 0 {
+		return nil, nil
+	}
+	if message.Refusal != "" {
+		if err := mapped.Metadata.Set(protocolRefusalExtensionKey(provider), message.Refusal); err != nil {
+			return nil, err
+		}
+	}
+	return mapped, nil
+}
+
+func mapResponseToolCall(toolCall openaisdk.ChatCompletionMessageToolCallUnion) (corechat.ToolCall, error) {
+	switch toolCall.Type {
+	case "", "function":
+		return corechat.ToolCall{
+			ID:        toolCall.ID,
+			Name:      toolCall.Function.Name,
+			Arguments: toolCall.Function.Arguments,
+		}, nil
+	case "custom":
+		return corechat.ToolCall{
+			ID:        toolCall.ID,
+			Name:      toolCall.Custom.Name,
+			Arguments: toolCall.Custom.Input,
+		}, nil
+	default:
+		return corechat.ToolCall{}, fmt.Errorf("unsupported type %q", toolCall.Type)
+	}
+}
+
+func mapOutputAudio(params *openaisdk.ChatCompletionNewParams, audio openaisdk.ChatCompletionAudio) (*media.Media, error) {
+	mimeType := audioMIME(string(params.Audio.Format))
+	var mapped *media.Media
+	var err error
+	if audio.ID != "" {
+		mapped, err = media.NewReference(mimeType, audio.ID)
+	} else {
+		data, decodeErr := base64.StdEncoding.DecodeString(audio.Data)
+		if decodeErr != nil {
+			return nil, fmt.Errorf("openai: decode output audio: %w", decodeErr)
+		}
+		mapped, err = media.NewBytes(mimeType, data)
+	}
+	if err != nil {
+		return nil, err
+	}
+	mapped.ID = audio.ID
+	return mapped, nil
+}
+
+func audioMIME(format string) string {
+	switch format {
+	case "wav":
+		return "audio/wav"
+	case "mp3":
+		return "audio/mpeg"
+	case "flac":
+		return "audio/flac"
+	case "opus":
+		return "audio/opus"
+	case "aac":
+		return "audio/aac"
+	case "pcm16":
+		return "audio/L16"
+	default:
+		return "audio/octet-stream"
+	}
+}
+
+func mapUsage(usage openaisdk.CompletionUsage) corechat.Usage {
+	mapped := corechat.Usage{
+		InputTokens:  usage.PromptTokens,
+		OutputTokens: usage.CompletionTokens,
+	}
+	if usage.CompletionTokensDetails.JSON.ReasoningTokens.Valid() || usage.CompletionTokensDetails.ReasoningTokens != 0 {
+		value := usage.CompletionTokensDetails.ReasoningTokens
+		mapped.ReasoningTokens = &value
+	}
+	if usage.PromptTokensDetails.JSON.CachedTokens.Valid() || usage.PromptTokensDetails.CachedTokens != 0 {
+		value := usage.PromptTokensDetails.CachedTokens
+		mapped.CacheReadInputTokens = &value
+	}
+	return mapped
+}
+
+func normalizeFinishReason(reason string) corechat.FinishReason {
+	switch reason {
+	case "":
+		return ""
+	case "stop":
+		return corechat.FinishReasonStop
+	case "length":
+		return corechat.FinishReasonLength
+	case "tool_calls", "function_call":
+		return corechat.FinishReasonToolCalls
+	case "content_filter":
+		return corechat.FinishReasonContentFilter
+	default:
+		return corechat.FinishReasonOther
+	}
+}
+
+type openAIStreamTool struct {
+	id               string
+	name             string
+	pendingArguments string
+}
+
+type openAIStreamState struct {
+	tools       map[int]map[int64]openAIStreamTool
+	dialect     ResponseDialect
+	chunkKey    string
+	refusalKey  string
+	refusalPart string
+}
+
+func newOpenAIStreamState(dialect Dialect) *openAIStreamState {
+	return &openAIStreamState{
+		tools:       make(map[int]map[int64]openAIStreamTool),
+		dialect:     dialect.Response,
+		chunkKey:    protocolStreamChunkExtensionKey(dialect.Provider),
+		refusalKey:  protocolRefusalDeltaExtensionKey(dialect.Provider),
+		refusalPart: protocolRefusalExtensionKey(dialect.Provider),
+	}
+}
+
+func (s *openAIStreamState) mapChunk(chunk openaisdk.ChatCompletionChunk) (*corechat.Response, error) {
+	mapped := &corechat.Response{
+		ID:      chunk.ID,
+		Model:   chunk.Model,
+		Choices: make([]corechat.Choice, 0, len(chunk.Choices)),
+		Usage:   mapUsage(chunk.Usage),
+	}
+	for i := range chunk.Choices {
+		choice, include, err := s.mapChunkChoice(chunk.Choices[i])
+		if err != nil {
+			return nil, fmt.Errorf("openai: stream choices[%d]: %w", i, err)
+		}
+		if include {
+			mapped.Choices = append(mapped.Choices, choice)
+		}
+	}
+	if err := mapped.SetExtension(s.chunkKey, exactProviderResponse(chunk.RawJSON(), chunk)); err != nil {
+		return nil, err
+	}
+	if err := mapped.Validate(); err != nil {
+		return nil, fmt.Errorf("openai: mapped stream response: %w", err)
+	}
+	return mapped, nil
+}
+
+func exactProviderResponse(raw string, fallback any) any {
+	if json.Valid([]byte(raw)) {
+		return json.RawMessage(raw)
+	}
+	return fallback
+}
+
+func (s *openAIStreamState) mapChunkChoice(choice openaisdk.ChatCompletionChunkChoice) (corechat.Choice, bool, error) {
+	index := int(choice.Index)
+	mapped := corechat.Choice{Index: index, FinishReason: normalizeFinishReason(choice.FinishReason)}
+	parts := make([]corechat.Part, 0, 2+len(choice.Delta.ToolCalls))
+	if choice.Delta.Content != "" {
+		parts = append(parts, corechat.NewTextPart(choice.Delta.Content))
+	}
+	for i := range choice.Delta.ToolCalls {
+		call, include, err := s.mapChunkTool(index, choice.Delta.ToolCalls[i])
+		if err != nil {
+			return corechat.Choice{}, false, fmt.Errorf("tool_calls[%d]: %w", i, err)
+		}
+		if include {
+			parts = append(parts, corechat.NewToolCallPart(call))
+		}
+	}
+	message := &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
+	if s.dialect != nil {
+		if err := s.dialect.FinalizeDelta(choice.Delta, message); err != nil {
+			return corechat.Choice{}, false, fmt.Errorf("response dialect: %w", err)
+		}
+	}
+	if len(message.Parts) > 0 {
+		if choice.Delta.Refusal != "" {
+			if err := message.Metadata.Set(s.refusalPart, choice.Delta.Refusal); err != nil {
+				return corechat.Choice{}, false, err
+			}
+		}
+		mapped.Message = message
+	} else if choice.Delta.Refusal != "" {
+		if err := mapped.SetExtension(s.refusalKey, choice.Delta.Refusal); err != nil {
+			return corechat.Choice{}, false, err
+		}
+	}
+
+	include := mapped.Message != nil || mapped.FinishReason != "" || len(mapped.Extensions) > 0
+	return mapped, include, nil
+}
+
+func (s *openAIStreamState) mapChunkTool(choiceIndex int, delta openaisdk.ChatCompletionChunkChoiceDeltaToolCall) (corechat.ToolCall, bool, error) {
+	if delta.Type != "" && delta.Type != "function" {
+		return corechat.ToolCall{}, false, fmt.Errorf("unsupported type %q", delta.Type)
+	}
+	choiceTools := s.tools[choiceIndex]
+	if choiceTools == nil {
+		choiceTools = make(map[int64]openAIStreamTool)
+		s.tools[choiceIndex] = choiceTools
+	}
+	state := choiceTools[delta.Index]
+	if delta.ID != "" {
+		state.id = delta.ID
+	}
+	if delta.Function.Name != "" {
+		state.name = delta.Function.Name
+	}
+	state.pendingArguments += delta.Function.Arguments
+	choiceTools[delta.Index] = state
+	if state.id == "" || state.name == "" {
+		return corechat.ToolCall{}, false, nil
+	}
+	arguments := state.pendingArguments
+	state.pendingArguments = ""
+	choiceTools[delta.Index] = state
+	return corechat.ToolCall{
+		ID:        state.id,
+		Name:      state.name,
+		Arguments: arguments,
+	}, true, nil
+}
