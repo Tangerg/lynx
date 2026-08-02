@@ -461,7 +461,7 @@ func TestCoreDoesNotImportUpperLynxModules(t *testing.T) {
 			if !ok {
 				continue
 			}
-			if strings.HasPrefix(rest, "core/") || rest == "core" || strings.HasPrefix(rest, "pkg/") || rest == "pkg" {
+			if strings.HasPrefix(rest, "core/") || rest == "core" {
 				continue
 			}
 			violations++
@@ -470,7 +470,7 @@ func TestCoreDoesNotImportUpperLynxModules(t *testing.T) {
 		}
 	}
 	if violations == 0 {
-		t.Log("core import boundary holds: only core/pkg lynx imports found")
+		t.Log("core import boundary holds: only core imports found")
 	}
 }
 

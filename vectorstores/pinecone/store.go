@@ -13,11 +13,11 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+	vectorconv "github.com/Tangerg/lynx/vectorstores/internal/vector"
 )
 
 const (
@@ -148,7 +148,7 @@ func (s *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]
 	result := make([]*pinecone.Vector, len(docs))
 
 	for i, doc := range docs {
-		values := math.ConvertSlice[float64, float32](vectors[i])
+		values := vectorconv.Float32(vectors[i])
 
 		point := &pinecone.Vector{
 			Id:     doc.ID,
@@ -263,7 +263,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 
 	queryReq := &pinecone.QueryByVectorValuesRequest{
-		Vector:          math.ConvertSlice[float64, float32](vector),
+		Vector:          vectorconv.Float32(vector),
 		TopK:            uint32(req.TopK),
 		IncludeMetadata: true,
 	}

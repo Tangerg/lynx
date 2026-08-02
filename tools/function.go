@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
+	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
 // Config describes a typed function tool. The input schema is deliberately
@@ -55,7 +55,7 @@ func New[In, Out any](config Config, function func(context.Context, In) (Out, er
 	}
 
 	var input In
-	schema, err := pkgjson.StringDefSchemaOf(input)
+	schema, err := toolschema.String(input)
 	if err != nil {
 		return nil, fmt.Errorf("%w: derive input schema: %w", ErrInvalidTool, err)
 	}

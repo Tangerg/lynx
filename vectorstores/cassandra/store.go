@@ -15,12 +15,12 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+	vectorconv "github.com/Tangerg/lynx/vectorstores/internal/vector"
 )
 
 const Provider = "Cassandra"
@@ -327,7 +327,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // gocql v1.x driver doesn't support typed vector binding.
 func (s *Store) insertOne(ctx context.Context, id string, doc *document.Document, vec []float64) error {
 	columns := []string{s.idColumn, s.contentColumn, s.embeddingColumn}
-	placeholders := []string{"?", "?", docio.FormatVectorLiteral(math.ConvertSlice[float64, float32](vec))}
+	placeholders := []string{"?", "?", docio.FormatVectorLiteral(vectorconv.Float32(vec))}
 	args := []any{id, doc.Text}
 
 	for _, m := range s.metadataColumns {
@@ -369,7 +369,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("cassandra: embed query: %w", err)
 	}
-	vecLiteral := docio.FormatVectorLiteral(math.ConvertSlice[float64, float32](vector))
+	vecLiteral := docio.FormatVectorLiteral(vectorconv.Float32(vector))
 
 	wherePredicate, whereArgs, err := s.buildFilter(req.Filter)
 	if err != nil {

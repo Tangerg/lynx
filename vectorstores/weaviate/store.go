@@ -20,11 +20,11 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+	vectorconv "github.com/Tangerg/lynx/vectorstores/internal/vector"
 )
 
 const (
@@ -206,7 +206,7 @@ func (s *Store) buildObjects(docs []*document.Document, vectors [][]float64) ([]
 		obj := &models.Object{
 			Class:  s.className,
 			ID:     strfmt.UUID(doc.ID),
-			Vector: models.C11yVector(math.ConvertSlice[float64, float32](vectors[i])),
+			Vector: models.C11yVector(vectorconv.Float32(vectors[i])),
 			Properties: map[string]any{
 				fieldContent:  doc.Text,
 				fieldMetadata: string(metaBytes),
@@ -267,7 +267,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 
 func (s *Store) buildNearVector(vector []float64, minScore float64) *graphql.NearVectorArgumentBuilder {
 	builder := s.client.GraphQL().NearVectorArgBuilder().
-		WithVector(models.C11yVector(math.ConvertSlice[float64, float32](vector)))
+		WithVector(models.C11yVector(vectorconv.Float32(vector)))
 
 	// WithCertainty is the minimum similarity threshold, only valid for cosine distance.
 	if minScore > 0 && s.distanceMetric == DistanceCosine {

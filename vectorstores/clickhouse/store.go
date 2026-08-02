@@ -16,12 +16,12 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+	vectorconv "github.com/Tangerg/lynx/vectorstores/internal/vector"
 )
 
 const Provider = "ClickHouse"
@@ -272,7 +272,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 				if err != nil {
 					return fmt.Errorf("metadata for %s: %w", id, err)
 				}
-				vec32 := math.ConvertSlice[float64, float32](vectors[i])
+				vec32 := vectorconv.Float32(vectors[i])
 				if err := batch.Append(id, doc.Text, meta, vec32); err != nil {
 					return fmt.Errorf("append %s: %w", id, err)
 				}
@@ -303,7 +303,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("clickhouse: embed query: %w", err)
 	}
-	queryVec := math.ConvertSlice[float64, float32](vector)
+	queryVec := vectorconv.Float32(vector)
 
 	wherePredicate, whereArgs, err := s.buildFilter(req.Filter)
 	if err != nil {

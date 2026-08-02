@@ -9,7 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
+	agentschema "github.com/Tangerg/lynx/agent/internal/schema"
 )
 
 // Interrupt is the linear, typed human-input primitive. Its first invocation
@@ -45,7 +45,7 @@ func Interrupt[R any](ctx context.Context, key string, prompt any) (R, error) {
 	if err != nil {
 		return zero, fmt.Errorf("hitl.Interrupt: encode prompt: %w", err)
 	}
-	schema, err := pkgjson.StringDefSchemaOf(zero)
+	schema, err := agentschema.String(zero)
 	if err != nil {
 		return zero, fmt.Errorf("hitl.Interrupt: derive response schema: %w", err)
 	}

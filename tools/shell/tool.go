@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 	toolcontract "github.com/Tangerg/lynx/tools"
+	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
 // Request is the LLM-facing argument shape. It is a strict subset of
@@ -29,7 +29,7 @@ type Response struct {
 	Duration string `json:"duration"`
 }
 
-var toolSchema, _ = pkgjson.StringDefSchemaOf(Request{})
+var toolSchema, _ = toolschema.String(Request{})
 
 var _ toolcontract.Tool = (*Tool)(nil)
 

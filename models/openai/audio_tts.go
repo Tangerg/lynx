@@ -3,6 +3,7 @@ package openai
 import (
 	"context"
 	"errors"
+	"io"
 	"iter"
 
 	"github.com/openai/openai-go/v3"
@@ -11,7 +12,7 @@ import (
 
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/internal/options"
-	pkgio "github.com/Tangerg/lynx/pkg/io"
+	"github.com/Tangerg/lynx/models/internal/streamio"
 )
 
 type AudioTTSModelConfig struct {
@@ -113,7 +114,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	}
 	defer apiResp.Body.Close()
 
-	data, err := pkgio.ReadAll(apiResp.Body, 16*1024)
+	data, err := io.ReadAll(apiResp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +141,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 		}
 		defer apiResp.Body.Close()
 
-		for chunk, err := range pkgio.Read(apiResp.Body, 16*1024) {
+		for chunk, err := range streamio.Read(apiResp.Body) {
 			if err != nil {
 				yield(nil, err)
 				return

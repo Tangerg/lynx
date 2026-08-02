@@ -15,12 +15,12 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+	vectorconv "github.com/Tangerg/lynx/vectorstores/internal/vector"
 )
 
 const Provider = "Couchbase"
@@ -351,7 +351,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 				idField:        id,
 				contentField:   doc.Text,
 				metadataField:  metaOrEmpty(metadataValues),
-				embeddingField: math.ConvertSlice[float64, float32](vectors[i]),
+				embeddingField: vectorconv.Float32(vectors[i]),
 			}
 			if _, err := s.collection.Upsert(id, payload, &gocb.UpsertOptions{Context: ctx}); err != nil {
 				return fmt.Errorf("couchbase: upsert %s: %w", id, err)
@@ -378,7 +378,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("couchbase: embed query: %w", err)
 	}
-	queryVec := math.ConvertSlice[float64, float32](vector)
+	queryVec := vectorconv.Float32(vector)
 	vectorJSON, err := json.Marshal(queryVec)
 	if err != nil {
 		return nil, fmt.Errorf("couchbase: encode query vector: %w", err)

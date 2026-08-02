@@ -10,7 +10,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/models/internal/options"
-	"github.com/Tangerg/lynx/pkg/ptr"
 )
 
 type EmbeddingModelConfig struct {
@@ -75,7 +74,7 @@ func (e *EmbeddingModel) buildAPIEmbeddingRequest(req *embedding.Request) (*open
 	}
 
 	if mergedOpts.Dimensions != nil {
-		params.Dimensions = openai.Int(ptr.From(mergedOpts.Dimensions))
+		params.Dimensions = openai.Int(*mergedOpts.Dimensions)
 	}
 
 	return params, nil

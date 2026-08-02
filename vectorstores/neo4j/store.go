@@ -15,12 +15,12 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+	vectorconv "github.com/Tangerg/lynx/vectorstores/internal/vector"
 )
 
 const Provider = "Neo4j"
@@ -293,7 +293,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 			rows = append(rows, map[string]any{
 				"id":         id,
 				"properties": properties,
-				"embedding":  math.ConvertSlice[float64, float32](vectors[i]),
+				"embedding":  vectorconv.Float32(vectors[i]),
 			})
 		}
 
@@ -348,7 +348,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("neo4j: embed query: %w", err)
 	}
-	queryVec := math.ConvertSlice[float64, float32](vector)
+	queryVec := vectorconv.Float32(vector)
 
 	wherePredicate, params, err := s.buildPredicate(req.Filter)
 	if err != nil {

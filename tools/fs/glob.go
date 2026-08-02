@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 	toolcontract "github.com/Tangerg/lynx/tools"
+	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
 // GlobRequest is the LLM-facing argument shape for the glob tool.
@@ -24,7 +24,7 @@ type GlobResponse struct {
 	Truncated bool     `json:"truncated,omitempty"`
 }
 
-var globToolSchema, _ = pkgjson.StringDefSchemaOf(GlobRequest{})
+var globToolSchema, _ = toolschema.String(GlobRequest{})
 
 var _ toolcontract.Tool = (*GlobTool)(nil)
 
