@@ -15,6 +15,7 @@ use (
 	./documentreaders/pdf
 	./embeddingclient
 	./examples/mcp
+	./internal/vectorstorekit
 	./mcp
 	./models
 	./models/bedrock
