@@ -4,17 +4,17 @@ go 1.26.5
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
-	github.com/Tangerg/lynx/a2a v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/agent v0.0.0-20260731193916-0098789d89e9
+	github.com/Tangerg/lynx/a2a v0.0.0-20260802043023-4e34c2e0a6c7
+	github.com/Tangerg/lynx/agent v0.0.0-20260802043023-4e34c2e0a6c7
 	github.com/Tangerg/lynx/chatclient v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/chathistory v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/embeddingclient v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/mcp v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/models v0.0.0-20260731193916-0098789d89e9
+	github.com/Tangerg/lynx/mcp v0.0.0-20260802043023-4e34c2e0a6c7
+	github.com/Tangerg/lynx/models v0.0.0-20260802043023-4e34c2e0a6c7
 	github.com/Tangerg/lynx/otel v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/tools v0.0.0-20260731193916-0098789d89e9
+	github.com/Tangerg/lynx/tools v0.0.0-20260802043023-4e34c2e0a6c7
 	github.com/Tangerg/sse v0.0.5
 	github.com/anthropics/anthropic-sdk-go v1.61.0
 	github.com/fsnotify/fsnotify v1.10.1

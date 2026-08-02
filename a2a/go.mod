@@ -4,7 +4,7 @@ go 1.26.5
 
 require (
 	github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/tools v0.0.0-20260731193916-0098789d89e9
+	github.com/Tangerg/lynx/tools v0.0.0-20260802043023-4e34c2e0a6c7
 	github.com/a2aproject/a2a-go/v2 v2.4.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
