@@ -5,7 +5,6 @@ type VisualStyleTokenName =
   | "style-shape-md"
   | "style-shape-lg"
   | "style-shape-xl"
-  | "style-shape-content"
   | "style-shape-composer"
   | "style-shape-bubble"
   | "button-radius"
@@ -29,13 +28,7 @@ type VisualStyleTokenName =
   | "control-edge-width"
   | "composer-edge-width"
   | "app-drawer-surface"
-  | "app-drawer-backdrop"
-  | "app-drawer-shadow"
-  | "app-drawer-sheen-opacity"
   | "app-content-surface"
-  | "app-content-shadow"
-  | "app-content-ring"
-  | "app-content-ring-opacity"
   | "app-header-surface"
   | "app-dock-surface"
   | "app-card-surface"
@@ -43,7 +36,6 @@ type VisualStyleTokenName =
   | "app-pane-split"
   | "app-pane-split-end"
   | "seam-line"
-  | "seam-shadow-color"
   | "shadow-border"
   | "shadow-control"
   | "shadow-composer-depth"
@@ -54,56 +46,49 @@ type VisualStyleTokenName =
 
 export type VisualStyleTokens = Record<VisualStyleTokenName, string>;
 
-export const SYNARA_TOKENS: VisualStyleTokens = {
-  "style-shape-2xs": "4px",
-  "style-shape-xs": "6px",
-  "style-shape-sm": "8px",
-  "style-shape-md": "10px",
-  "style-shape-lg": "14px",
-  "style-shape-xl": "18px",
-  "style-shape-content": "14.4px",
-  "style-shape-composer": "19.2px",
-  "style-shape-bubble": "12.8px",
-  "button-radius": "var(--shape-md)",
-  "field-radius": "var(--shape-md)",
-  "segmented-radius": "var(--shape-md)",
+export const WORKBENCH_TOKENS: VisualStyleTokens = {
+  "style-shape-2xs": "3px",
+  "style-shape-xs": "4px",
+  "style-shape-sm": "6px",
+  "style-shape-md": "8px",
+  "style-shape-lg": "10px",
+  "style-shape-xl": "12px",
+  "style-shape-composer": "10px",
+  "style-shape-bubble": "8px",
+  "button-radius": "var(--shape-sm)",
+  "field-radius": "var(--shape-sm)",
+  "segmented-radius": "var(--shape-sm)",
   "segment-radius": "var(--shape-xs)",
-  "surface-card-radius": "var(--shape-lg)",
-  "floating-panel-radius": "var(--shape-xl)",
-  "floating-tip-radius": "var(--shape-md)",
-  "dock-tab-radius": "var(--shape-md)",
+  "surface-card-radius": "var(--shape-md)",
+  "floating-panel-radius": "var(--shape-lg)",
+  "floating-tip-radius": "var(--shape-sm)",
+  "dock-tab-radius": "var(--shape-xs)",
   "control-height-xs": "24px",
   "control-height-sm": "28px",
   "control-height-md": "32px",
-  "control-height-lg": "40px",
+  "control-height-lg": "38px",
   "field-height-sm": "26px",
   "field-height-md": "32px",
   "field-height-lg": "36px",
-  "menu-row-height": "26px",
+  "menu-row-height": "28px",
   "dock-tab-height": "28px",
   "surface-header-height": "46px",
-  "control-edge-width": "0.5px",
+  "control-edge-width": "1px",
   "composer-edge-width": "1px",
-  "app-drawer-surface": "color-mix(in srgb, var(--color-bg) 68%, transparent)",
-  "app-drawer-backdrop": "blur(8px) saturate(135%)",
-  "app-drawer-shadow": "inset 0 1px 0 color-mix(in srgb, var(--color-text) 2.5%, transparent)",
-  "app-drawer-sheen-opacity": "1",
+  "app-drawer-surface": "var(--color-surface-2)",
   "app-content-surface": "var(--color-bg)",
-  "app-content-shadow": "-6.5px 0 12px -10px var(--seam-shadow-color)",
-  "app-content-ring": "inset 0 0 0 1px var(--seam-line)",
-  "app-content-ring-opacity": "1",
-  "app-header-surface": "transparent",
-  "app-dock-surface": "var(--color-bg)",
-  "app-card-surface": "var(--color-surface)",
-  "app-surface-divider": "color-mix(in srgb, var(--color-border) 60%, transparent)",
+  "app-header-surface": "var(--color-surface-2)",
+  "app-dock-surface": "var(--color-surface-2)",
+  "app-card-surface": "var(--color-surface-2)",
+  "app-surface-divider": "color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%)",
   "app-pane-split": "inset 1px 0 0 0 var(--app-surface-divider)",
   "app-pane-split-end": "inset -1px 0 0 0 var(--app-surface-divider)",
-  "seam-line": "color-mix(in srgb, var(--color-text) 8%, transparent)",
-  "seam-shadow-color": "color-mix(in srgb, var(--color-text) 12%, transparent)",
-  "shadow-border": "0 0 0 0.5px color-mix(in srgb, var(--color-text) 9%, transparent)",
+  "seam-line": "var(--app-surface-divider)",
+  "shadow-border": "0 0 0 1px color-mix(in srgb, var(--color-text) 9%, transparent)",
   "shadow-control":
     "0 0 0 0.5px color-mix(in srgb, var(--color-text) 9%, transparent), 0 1px 1px color-mix(in srgb, var(--color-text) 4%, transparent), 0 4px 10px -4px color-mix(in srgb, var(--color-text) 7%, transparent)",
-  "shadow-composer-depth": "0 6px 30px -8px color-mix(in srgb, var(--color-text) 9%, transparent)",
+  "shadow-composer-depth":
+    "0 8px 24px -18px color-mix(in srgb, var(--color-text) 22%, transparent)",
   "shadow-popover":
     "0 0 0 1px var(--seam-line), 0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent)",
   "shadow-well": "inset 0 1px 2px color-mix(in srgb, var(--color-text) 6%, transparent)",
@@ -112,20 +97,20 @@ export const SYNARA_TOKENS: VisualStyleTokens = {
   "shadow-surface-card": "none",
 };
 
-export const SYNARA_MOTION = {
+export const WORKBENCH_MOTION = {
   instantMs: 80,
   fastMs: 150,
   mediumMs: 200,
   disclosureMs: 220,
   slowMs: 360,
-  drawerMs: 300,
+  drawerMs: 240,
   easeOut: [0.22, 1, 0.36, 1],
   easeInOut: [0.45, 0, 0.55, 1],
   easeEmphasized: [0.16, 1, 0.3, 1],
   easeDrawer: [0.32, 0.72, 0, 1],
-  pressScale: 0.96,
+  pressScale: 0.98,
 } as const;
 
 export function visualStyleTokens(overrides: Partial<VisualStyleTokens>): VisualStyleTokens {
-  return { ...SYNARA_TOKENS, ...overrides };
+  return { ...WORKBENCH_TOKENS, ...overrides };
 }

@@ -56,7 +56,7 @@ function TurnSeparator({ createdAt }: { createdAt?: string }) {
   useT();
   const label = formatDateTime(createdAt);
   if (!label) return null;
-  return <div className="my-4 text-center text-ui-md text-fg-faint">{label}</div>;
+  return <div className="my-1 pl-[38px] font-mono text-ui-xs text-fg-faint">{label}</div>;
 }
 
 export function MessageStream({ messages, ctx, resetKey }: Props) {
@@ -92,7 +92,7 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
     >
       <StickToBottom.Content
         scrollClassName="panel-scroll"
-        className="relative mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-8 px-[var(--density-column-gutter)] pt-7 pb-7 sm:px-[var(--density-column-gutter-wide)]"
+        className="relative mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-7 px-[var(--density-column-gutter)] pb-8 pt-8 sm:px-[var(--density-column-gutter-wide)]"
       >
         <AnimatePresence initial={false}>
           {messages.map((m, i) => (
@@ -132,7 +132,7 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
             hasn't opened its turn yet (last message is still the user's). Once
             the assistant message arrives it takes over, so this hides itself. */}
         {running && messages[messages.length - 1]?.role === "user" && (
-          <div className="flex">
+          <div className="flex pl-[38px]">
             <Loader variant="dots" />
           </div>
         )}

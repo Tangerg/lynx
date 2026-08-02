@@ -5,8 +5,6 @@ export function installAppearancePreferencesPort(): () => void {
   return configureAppearancePreferencesPort({
     useTheme: () => useUiStore((state) => state.theme),
     useSetTheme: () => useUiStore((state) => state.setTheme),
-    useVisualStyle: () => useUiStore((state) => state.visualStyle),
-    useSetVisualStyle: () => useUiStore((state) => state.setVisualStyle),
     useAccent: () => useUiStore((state) => state.accent),
     useSetAccent: () => useUiStore((state) => state.setAccent),
     useCustomTheme: () => useUiStore((state) => state.customTheme),

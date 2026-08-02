@@ -34,7 +34,7 @@ const TONE_CLASS: Record<ActivityTone, string> = {
  *
  * Tool calls, reasoning and delegated Runs share this presentation grammar:
  * one quiet summary row, a status-sized leading glyph, optional sibling
- * actions, and an indented detail rail. Domain state and commands stay with
+ * actions, and an inset detail plane. Domain state and commands stay with
  * their feature components; this primitive owns only geometry, interaction
  * chrome and disclosure accessibility.
  */
@@ -62,7 +62,10 @@ export function AgentActivityDisclosure({
       {...props}
       data-slot="agent-activity-disclosure"
       data-tone={tone}
-      className={cn("group/activity my-1 min-w-0", className)}
+      className={cn(
+        "group/activity my-1 min-w-0 overflow-hidden rounded-md border border-field bg-surface-2",
+        className,
+      )}
     >
       <div className="flex min-h-7 min-w-0 items-center">
         <Pressable
@@ -72,7 +75,7 @@ export function AgentActivityDisclosure({
           aria-controls={panelId}
           aria-label={toggleLabel}
           onClick={onToggle}
-          className="flex min-h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors duration-[var(--dur-fast)] hover:bg-hover"
+          className="flex min-h-8 min-w-0 flex-1 items-center gap-2 px-2.5 py-1.5 text-left transition-colors duration-[var(--dur-fast)] hover:bg-hover"
         >
           <span
             aria-hidden
@@ -108,7 +111,7 @@ export function AgentActivityDisclosure({
           id={panelId}
           role="region"
           aria-labelledby={triggerId}
-          className={cn("ml-4 border-l border-field py-1 pl-3", contentClassName)}
+          className={cn("border-t border-field px-3 py-2.5", contentClassName)}
         >
           {children}
         </div>

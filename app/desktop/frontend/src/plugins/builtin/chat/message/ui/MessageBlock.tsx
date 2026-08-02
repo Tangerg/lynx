@@ -10,6 +10,8 @@ import {
 } from "@/plugins/builtin/chat/message-actions/public/messageActions";
 import { messageBlocksRenderInstant, messageCitations } from "../application/messageBlockModel";
 import { cn } from "@/lib/classNames";
+import { useT } from "@/lib/i18n";
+import { Icon } from "@/ui";
 import { MESSAGE_CONTENT_CLASS } from "./messageContent";
 import { CitationContext } from "./CitationContext";
 import { MessageContextMenu } from "./MessageContextMenu";
@@ -30,6 +32,7 @@ function MessageBlockInner({
   isRunning: boolean;
 }) {
   const isUser = msg.role === "user";
+  const t = useT();
 
   const sources = useCitationSources();
   const citations = useMemo(() => messageCitations(msg.blocks, sources), [msg.blocks, sources]);
@@ -53,9 +56,11 @@ function MessageBlockInner({
   const content = renderMessageBlocks(msg, blockCtx);
 
   const actionsClass = cn(
-    "mt-1 flex transition-opacity duration-[var(--dur-fast)]",
+    "flex shrink-0 transition-opacity duration-[var(--dur-fast)]",
     ACTIONS_VISIBILITY[messageActionsVisibility({ isRunning, isLast })],
   );
+
+  const roleLabel = t(isUser ? "role.user" : "role.assistant");
 
   return (
     <MessageContext.Provider value={msg}>
@@ -64,46 +69,41 @@ function MessageBlockInner({
             width — without it, a wide child (e.g. a ReasoningBlock with
             a long preview line) stretches the whole row past the
             intended msg-stream column. */}
-        <div className="relative grid grid-cols-[minmax(0,1fr)] gap-1.5">
-          {isUser ? (
-            <div className="group flex flex-col items-end">
-              <MessageContextMenu msg={msg}>
-                <div
-                  className={cn(
-                    MESSAGE_CONTENT_CLASS,
-                    "min-w-0 max-w-[80%] rounded-bubble bg-control px-4 py-2.5 text-left text-ui-lg leading-relaxed text-fg",
-                  )}
-                >
-                  {content}
-                </div>
-              </MessageContextMenu>
-              {/* Action bar — icon-only, rounded-full to match the bubble
-                  language. Visibility follows the state machine above. */}
+        <div className="group relative grid min-w-0 grid-cols-[26px_minmax(0,1fr)] gap-x-3">
+          <div
+            aria-hidden
+            className={cn(
+              "mt-px grid size-[26px] place-items-center rounded-md border",
+              isUser
+                ? "border-field bg-surface-2 text-fg-muted"
+                : "border-accent/20 bg-accent-wash text-accent",
+            )}
+          >
+            <Icon name={isUser ? "user" : "sparkle"} size="sm" />
+          </div>
+          <div className="min-w-0">
+            <div className="mb-2 flex min-h-6 min-w-0 items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-ui-sm font-semibold text-fg">
+                {roleLabel}
+              </span>
               <div className={actionsClass}>
                 <Slot name="message.actions" />
               </div>
             </div>
-          ) : (
-            <div className="group flex">
-              <div className="min-w-0 flex-1">
-                <MessageContextMenu msg={msg}>
-                  <div
-                    className={cn(
-                      MESSAGE_CONTENT_CLASS,
-                      "max-w-[var(--content-max)] text-pretty text-ui-md leading-relaxed text-fg-soft",
-                    )}
-                  >
-                    {content}
-                  </div>
-                </MessageContextMenu>
-                {/* Action bar — icon-only, rounded-md for quieter assistant
-                    chrome. Visibility follows the state machine above. */}
-                <div className={actionsClass}>
-                  <Slot name="message.actions" />
-                </div>
+            <MessageContextMenu msg={msg}>
+              <div
+                className={cn(
+                  MESSAGE_CONTENT_CLASS,
+                  "min-w-0 text-pretty leading-relaxed",
+                  isUser
+                    ? "rounded-bubble border border-field bg-surface-2 px-3.5 py-3 text-ui-md text-fg"
+                    : "max-w-[var(--content-max)] text-ui-md text-fg-soft",
+                )}
+              >
+                {content}
               </div>
-            </div>
-          )}
+            </MessageContextMenu>
+          </div>
         </div>
       </CitationContext.Provider>
     </MessageContext.Provider>

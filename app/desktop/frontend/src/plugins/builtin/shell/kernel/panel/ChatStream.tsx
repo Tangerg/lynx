@@ -117,25 +117,21 @@ export function ChatStream({ onSend }: Props) {
     </div>
   );
 
-  // Empty state (Codex / ChatGPT voice): the hero + composer are ONE
-  // vertically-centered group. No MessageStream / StickToBottom here — nothing
-  // is streaming yet, so the delicate sticky-scroll path only mounts once there
-  // are messages, and the composer "drops" to the bottom on the first send.
+  // Empty state is a workbench starting point rather than a marketing hero. It
+  // stays in the upper reading field so the first action is visible without a
+  // large dead canvas, and the sticky-scroll path mounts only after first send.
   if (messages.length === 0) {
     return (
       <>
         {banners}
-        {/* Hero and composer are ONE vertically-centred group, so the composer
-            sits at the optical centre rather than the heading floating above a
-            bottom-anchored input. */}
-        <div className="panel-scroll flex flex-1 flex-col items-center justify-center px-[var(--density-column-gutter)] sm:px-[var(--density-column-gutter-wide)]">
-          <div className="flex w-full max-w-[var(--content-max)] flex-col items-center pb-5">
-            <h1 className="text-balance text-center text-display-lg font-medium text-fg/95">
+        <div className="panel-scroll flex flex-1 flex-col items-center px-[var(--density-column-gutter)] pt-[clamp(72px,16vh,150px)] sm:px-[var(--density-column-gutter-wide)]">
+          <div className="flex w-full max-w-[var(--content-max)] flex-col pb-5">
+            <h1 className="max-w-[620px] text-balance text-display-md font-medium text-fg/95">
               {t("welcome.title")}
             </h1>
           </div>
           <div className="w-full max-w-[var(--content-max)]">{composer}</div>
-          <div className="mt-8 w-full max-w-[var(--content-max)]">
+          <div className="mt-6 w-full max-w-[var(--content-max)]">
             <Slot name="chat.empty" />
           </div>
         </div>
@@ -146,18 +142,13 @@ export function ChatStream({ onSend }: Props) {
   return (
     <>
       {banners}
-      {/* The transcript scrolls; the composer is a sibling in normal flow that
-          pulls UP over it. That overlap is what makes the composer read as
-          floating on the conversation, and it means the scroller needs no
-          reserved bottom padding sized to the composer — which was a magic
-          number that silently went stale every time the composer grew a row. */}
       <div className="relative flex min-h-0 flex-1 flex-col">
         <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
           <MessageStream messages={messages} ctx={ctx} resetKey={resetKey} />
         </ChatErrorBoundary>
         <JumpToBottomButton />
       </div>
-      <div className="relative z-10 -mt-5 w-full shrink-0 overflow-visible px-3 pb-3 sm:px-5 sm:pb-4">
+      <div className="relative z-10 w-full shrink-0 border-t border-field bg-[var(--app-content-surface)] px-3 pb-3 pt-3 sm:px-5 sm:pb-4">
         <div className="mx-auto w-full max-w-[var(--content-max)]">{composer}</div>
       </div>
     </>

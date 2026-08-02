@@ -6,8 +6,7 @@ import { ResizeHandle } from "@/ui/atoms/resize-handle";
 /**
  * The work-index drawer: an in-flow spacer that reserves the width, plus a
  * fixed-position panel that slides. Both read `--sidebar-width` from the shell,
- * so a resize is one custom-property write and a collapse is one attribute flip
- * — see the `.agent-drawer*` rules in globals.css for why this isn't a grid.
+ * so a resize is one custom-property write and a collapse is one attribute flip.
  *
  * `label` names the region for assistive tech and comes from the caller: what
  * this drawer holds is the application's business, and a design-system ring that
@@ -25,10 +24,9 @@ export function AgentSidebar({ label, children }: { label: string; children: Rea
 }
 
 /**
- * Resize separator for the drawer↔card seam. It draws nothing: the visible
- * divider is the card's inset ring, which this rail only intensifies on hover or
- * keyboard focus (a `:has()` rule in globals.css). Drawing a line here would put
- * a second one beside it.
+ * Resize separator for the drawer↔reading-plane seam. It draws no resting line:
+ * the reading plane owns that boundary, while this rail only strengthens the
+ * same coordinate on hover, focus and drag.
  *
  * While dragging, the width goes straight onto the shell element as a custom
  * property — React state per pointer-move would drop frames on a 60Hz trackpad.

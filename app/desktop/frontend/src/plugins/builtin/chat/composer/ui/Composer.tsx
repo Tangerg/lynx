@@ -109,10 +109,10 @@ export function Composer({
           onPaste={input.handlePaste}
           onKeyDown={input.handleKeyDown}
           rows={1}
-          /* `min-h-[2lh]` is two lines at THIS element's own line-height, so the
+          /* `min-h-[2.5lh]` tracks THIS element's own line-height, so the
              resting height tracks the type ladder instead of a pixel guess that
              goes wrong the moment the base size changes. */
-          className="max-h-40 min-h-[2lh] resize-none p-0 leading-relaxed placeholder:tracking-normal"
+          className="max-h-48 min-h-[2.5lh] resize-none p-0 leading-relaxed placeholder:tracking-normal"
         />
       </div>
       {/* Bottom toolbar — ALL controls live below the input so the text area

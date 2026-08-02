@@ -9,10 +9,8 @@ import { cn } from "@/lib/classNames";
  * the border colour, and prevents a shadow ring and border from doubling the
  * same pixels.
  *
- * The fill is the CARD colour, not a recessed grey: a grey slab sitting on a white
- * reading column reads heavy however the grey is tuned. What makes the composer
- * read as a control is the edge plus the ambient shadow, so the interior stays
- * as clean as the page.
+ * The fill is the first chrome surface: enough separation from the reading plane
+ * to read as a durable workbench control without becoming a floating web card.
  *
  * Focus strengthens the border but keeps the ambient layer where it is —
  * lifting the whole surface on focus makes every click read as the composer
@@ -31,7 +29,7 @@ export function AgentComposerSurface({
     <div
       {...props}
       className={cn(
-        "rounded-composer border-[length:var(--composer-edge-width)] border-field bg-canvas",
+        "overflow-hidden rounded-composer border-[length:var(--composer-edge-width)] border-field bg-surface",
         "shadow-[var(--shadow-composer-depth)] focus-within:border-field-strong",
         "transition-[border-color] duration-[var(--dur-med)] ease-out",
         className,

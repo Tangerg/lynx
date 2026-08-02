@@ -1,4 +1,4 @@
-// Persisted UI preferences — colour theme + visual style + accent + fonts + message-style +
+// Persisted UI preferences — colour theme + visual style + accent + fonts +
 // sidebar collapse state. Single Zustand store + single persistence key
 // since every field is "what the user's UI should look like across
 // launches". The side-effects at the bottom of this file mirror the
@@ -36,7 +36,6 @@ const uiPersistSchema = z.object({
   density: z.enum(UI_DENSITY_MODES),
   radiusScale: z.number(),
   motionScale: z.number(),
-  messageStyle: z.enum(["bubble", "plain"]),
   streamReveal: z.enum(["smooth", "typewriter"]),
   sidebarCollapsed: z.boolean(),
   sidebarWidth: z.number(),
@@ -64,7 +63,6 @@ interface UiActions {
   setDensity: (density: UiDensity) => void;
   setRadiusScale: (scale: number) => void;
   setMotionScale: (scale: number) => void;
-  setMessageStyle: (style: "bubble" | "plain") => void;
   setStreamReveal: (mode: "smooth" | "typewriter") => void;
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
@@ -87,7 +85,6 @@ export const useUiStore = create<UiState & UiActions>()(
       density: DEFAULT_UI_DENSITY,
       radiusScale: 1,
       motionScale: 1,
-      messageStyle: "bubble",
       streamReveal: "smooth",
       sidebarCollapsed: false,
       sidebarWidth: SIDEBAR_DEFAULT_WIDTH_PX,
@@ -106,7 +103,6 @@ export const useUiStore = create<UiState & UiActions>()(
       setDensity: (density) => set({ density }),
       setRadiusScale: (radiusScale) => set({ radiusScale }),
       setMotionScale: (motionScale) => set({ motionScale }),
-      setMessageStyle: (messageStyle) => set({ messageStyle }),
       setStreamReveal: (streamReveal) => set({ streamReveal }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),

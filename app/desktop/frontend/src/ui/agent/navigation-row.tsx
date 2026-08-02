@@ -66,7 +66,7 @@ export function AgentRow({
         "gap-[var(--density-row-gap)]",
         "text-fg transition-[background-color,color] duration-[var(--dur-fast)]",
         "hover:bg-hover hover:text-fg focus-visible:bg-hover",
-        "data-[active]:bg-selected data-[active]:text-fg",
+        "data-[active]:bg-selected data-[active]:font-medium data-[active]:text-fg",
         indent === "nested" ? "px-2 pl-[30px]" : "px-2",
         action && "pr-8",
         className,

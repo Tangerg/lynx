@@ -9,8 +9,8 @@
 // content instead of blurring it.
 //
 // No border. The edge is the first layer of `--shadow-popover`, drawn from the same
-// `--seam-line` hairline as the drawer seam and the composer, so every floating
-// edge in the app is one value and each follows its own corner radius exactly.
+// `--seam-line` workbench hairline, so every floating edge follows the same
+// contrast algorithm as region boundaries and its own corner radius exactly.
 
 const FLOATING_SURFACE_BASE = [
   "relative z-50 overflow-hidden text-fg",

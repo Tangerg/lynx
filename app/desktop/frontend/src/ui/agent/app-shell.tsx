@@ -12,7 +12,7 @@ interface AgentAppShellProps {
   sidebarLabel: string;
   /** Assistive-tech name for the drawer resize separator. */
   sidebarResizeLabel: string;
-  /** Drawer open state. Collapsing slides it under the content card. */
+  /** Drawer open state. Collapsing slides it behind the reading plane. */
   sidebarOpen: boolean;
   /** Persisted drawer width in px; the rail commits new values through `onResize`. */
   sidebarWidth: number;
@@ -25,12 +25,12 @@ interface AgentAppShellProps {
 }
 
 /**
- * The window shell: drawer, content card, overlays.
+ * The window shell: one resizable work index, one flush reading plane, overlays.
  *
  * The drawer's width lives as a custom property on this element so the rail can
  * drag it without a React render, and so the spacer and the panel read one number.
- * Collapse is a single attribute flip that both of them, plus the card's divider
- * and depth, transition off.
+ * Collapse is a single attribute flip that both of them and the plane's divider
+ * transition off. Region geometry is deliberately independent from page content.
  */
 export function AgentAppShell({
   sidebar,

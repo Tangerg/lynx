@@ -334,12 +334,10 @@
      derive via color-mix() so the direction flips per scheme (deeper = darker on
      light, lighter on dark) and they track --depth-step (the contrast preference).
      A theme cannot pin them.
-     The two anchors sit HALF a step apart: the card floats over the drawer and the
-     seam ring divides them, so a full brightness step would read as glued-on
-     chrome. The -2/-3/-4 steps are recessed fills (wells, inputs, hover), not
-     regions. */
-  --color-bg: #ffffff; /* the content card + every popover */
-  --color-surface: #fcfcfc; /* the shell the drawer floats on — half a step, not a step */
+     The reading plane uses bg; durable workbench chrome starts from surface-2.
+     Deeper rungs remain available to selected rows, wells and controls. */
+  --color-bg: #ffffff;
+  --color-surface: #fcfcfc;
   --depth-step: 4%;
   --color-surface-2: color-mix(
     in oklab,
@@ -381,8 +379,8 @@
      --color-bg so a theme that overrides bg gets the right on-fg for free. */
   --color-text-on-fg: var(--color-bg);
 
-  /* Hairlines ARE the separation mechanism: the seam ring and the chrome divider
-     both derive from --color-border, so anything heavier turns the UI into a
+  /* Hairlines ARE the separation mechanism: region and chrome dividers both
+     derive from --color-border, so anything heavier turns the UI into a
      wireframe. Keep in step with `themes/lyra-light.ts`. */
   --color-border: rgb(0 0 0 / 0.05);
   --color-border-soft: rgb(0 0 0 / 0.14);
@@ -475,15 +473,14 @@
 
   /* Visual-style geometry is the base; the user's radius preference is the
      multiplier. Colour themes never write either side of this equation. */
-  --style-shape-2xs: 4px;
-  --style-shape-xs: 6px;
-  --style-shape-sm: 8px;
-  --style-shape-md: 10px;
-  --style-shape-lg: 14px;
-  --style-shape-xl: 18px;
-  --style-shape-content: 14.4px;
-  --style-shape-composer: 19.2px;
-  --style-shape-bubble: 12.8px;
+  --style-shape-2xs: 3px;
+  --style-shape-xs: 4px;
+  --style-shape-sm: 6px;
+  --style-shape-md: 8px;
+  --style-shape-lg: 10px;
+  --style-shape-xl: 12px;
+  --style-shape-composer: 10px;
+  --style-shape-bubble: 8px;
   --radius-scale: 1;
   --shape-2xs: calc(var(--style-shape-2xs) * var(--radius-scale));
   --shape-xs: calc(var(--style-shape-xs) * var(--radius-scale));
@@ -491,7 +488,6 @@
   --shape-md: calc(var(--style-shape-md) * var(--radius-scale));
   --shape-lg: calc(var(--style-shape-lg) * var(--radius-scale));
   --shape-xl: calc(var(--style-shape-xl) * var(--radius-scale));
-  --app-content-card-radius: calc(var(--style-shape-content) * var(--radius-scale));
   --shape-composer: calc(var(--style-shape-composer) * var(--radius-scale));
   --shape-bubble: calc(var(--style-shape-bubble) * var(--radius-scale));
   /* Conceptual ("fully round") — not scaled. */
@@ -499,24 +495,24 @@
 
   /* Component-role geometry. A style can make actions pill-shaped without also
      turning text fields and tool windows into pills. */
-  --button-radius: var(--shape-md);
-  --field-radius: var(--shape-md);
-  --segmented-radius: var(--shape-md);
+  --button-radius: var(--shape-sm);
+  --field-radius: var(--shape-sm);
+  --segmented-radius: var(--shape-sm);
   --segment-radius: var(--shape-xs);
-  --surface-card-radius: var(--shape-lg);
-  --floating-panel-radius: var(--shape-xl);
-  --floating-tip-radius: var(--shape-md);
-  --dock-tab-radius: var(--shape-md);
+  --surface-card-radius: var(--shape-md);
+  --floating-panel-radius: var(--shape-lg);
+  --floating-tip-radius: var(--shape-sm);
+  --dock-tab-radius: var(--shape-xs);
   --control-height-xs: 24px;
   --control-height-sm: 28px;
   --control-height-md: 32px;
-  --control-height-lg: 40px;
+  --control-height-lg: 38px;
   --field-height-sm: 26px;
   --field-height-md: 32px;
   --field-height-lg: 36px;
-  --menu-row-height: 26px;
+  --menu-row-height: 28px;
   --dock-tab-height: 28px;
-  --control-edge-width: 0.5px;
+  --control-edge-width: 1px;
   --composer-edge-width: 1px;
 
   /* Density — first-paint defaults for `comfortable`. installUiStoreEffects
@@ -548,7 +544,7 @@
   --dur-med-base: 200ms;
   --dur-disclosure-base: 220ms;
   --dur-slow-base: 360ms;
-  --dur-drawer-base: 300ms;
+  --dur-drawer-base: 240ms;
   --animation-duration: calc(var(--dur-fast-base) * var(--motion-scale));
   --ease-out: cubic-bezier(0.3, 0, 0, 1);
   --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
@@ -559,7 +555,7 @@
   /* Press — how far a control sinks under the pointer. One value, because a
      control that answers at 0.90 next to one at 0.98 reads as two different
      apps; reach for it as `active:scale-[var(--press-scale)]`. */
-  --press-scale: 0.96;
+  --press-scale: 0.98;
 
   --dur-fast: calc(var(--dur-fast-base) * var(--motion-scale));
   --dur-med: calc(var(--dur-med-base) * var(--motion-scale));
@@ -579,11 +575,11 @@
    *  so its shadow carries depth only. Popovers own one optical ring plus depth
    *  and do not stack a border over it.
    * ----------------------------------------------------------------------- */
-  --shadow-border: 0 0 0 0.5px rgb(17 17 17 / 0.08);
+  --shadow-border: 0 0 0 1px rgb(17 17 17 / 0.08);
   --shadow-control:
     0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 1px rgb(17 17 17 / 0.04),
     0 4px 10px -4px rgb(17 17 17 / 0.07);
-  --shadow-composer-depth: 0 6px 30px -8px color-mix(in srgb, var(--color-text) 9%, transparent);
+  --shadow-composer-depth: 0 8px 24px -18px color-mix(in srgb, var(--color-text) 22%, transparent);
   --shadow-popover:
     0 0 0 1px var(--seam-line),
     0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent);
@@ -609,40 +605,17 @@
      no halo). */
   --color-focus-ring: color-mix(in oklab, var(--color-accent) 50%, transparent);
 
-  /* -----------------------------------------------------------------------
-   *  Shell materials — the drawer's frosted panel and the content card's seam.
-   *
-   *  All derived from the active theme's own tokens, so every theme (not just
-   *  the two lyra ones) gets a coherent seam for free. The drawer is the CARD
-   *  color at partial opacity over the shell background: that reads as a
-   *  translucent panel of the same material as the card, which is what makes the
-   *  card look lifted off it rather than merely a different grey.
-   * ----------------------------------------------------------------------- */
-  --app-drawer-surface: color-mix(in srgb, var(--color-bg) 64%, transparent);
-  --app-drawer-backdrop: blur(8px) saturate(135%);
-  --app-drawer-shadow: inset 0 1px 0 rgb(0 0 0 / 0.025);
-  --app-drawer-sheen-opacity: 1;
-  /* The card's outer edge should read as solid — deliberately stronger than the
-     internal chrome hairline below. Do not unify the two. */
-  --seam-line: color-mix(in srgb, var(--color-text) 8%, transparent);
-  --seam-shadow-color: rgb(0 0 0 / 0.1);
-  /* Internal chrome dividers (header bottoms, pane splits) sit a step more
-     transparent than the seam so they recede behind it. */
-  --app-surface-divider: color-mix(in srgb, var(--color-border) 60%, transparent);
-  /* How a pane that splits a region it is INSIDE separates from its sibling.
-     A whole box-shadow rather than a colour, because the two ways to divide are
-     not two colours: a hairline (`inset 1px 0 0`) and a cast (`inset 22px 0 30px
-     -26px`) are the same slot filled by different materials, and a style must be
-     able to pick either — or neither. */
+  /* Workbench regions: opaque chrome around one reading plane. Each boundary
+     has one owner and consumes the same derived hairline. */
+  --app-drawer-surface: var(--color-surface-2);
+  --app-surface-divider: color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%);
+  --seam-line: var(--app-surface-divider);
   --app-pane-split: inset 1px 0 0 0 var(--app-surface-divider);
   --app-pane-split-end: inset -1px 0 0 0 var(--app-surface-divider);
   --app-content-surface: var(--color-bg);
-  --app-content-shadow: -6.5px 0 12px -10px var(--seam-shadow-color);
-  --app-content-ring: inset 0 0 0 1px var(--seam-line);
-  --app-content-ring-opacity: 1;
-  --app-header-surface: transparent;
-  --app-dock-surface: var(--color-bg);
-  --app-card-surface: var(--color-surface);
+  --app-header-surface: var(--color-surface-2);
+  --app-dock-surface: var(--color-surface-2);
+  --app-card-surface: var(--color-surface-2);
 
   /* Content max-width — the centered reading island. */
   --content-max: 800px;
@@ -907,13 +880,6 @@ html.theme-dark {
      35% white rim reads as a drawn outline, so the lift comes from fill contrast. */
   --shadow-well: inset 0 1px 2px rgb(0 0 0 / 0.25);
   --shadow-raised-chip: 0 1px 1.5px rgb(0 0 0 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.04);
-
-  /* Dark shell materials — the drawer carries a touch more of the card color
-     (the near-black surfaces sit closer together, so 64% would read as flat),
-     and the seam shadow needs far more alpha to register at all. */
-  --app-drawer-surface: color-mix(in srgb, var(--color-bg) 72%, transparent);
-  --app-drawer-shadow: inset 0 1px 0 rgb(255 255 255 / 0.024);
-  --seam-shadow-color: rgb(0 0 0 / 0.36);
 }
 
 /* Quieter scrollbar on light — the dark thumb tokens overshoot. */
@@ -1008,7 +974,7 @@ html.theme-dark {
   min-width: var(--app-min-width);
   min-height: var(--app-min-height);
   overflow: hidden;
-  background: var(--color-surface);
+  background: var(--app-drawer-surface);
 }
 
 /* One window-level owner for the drawer toggle. Sidebar collapse changes the
@@ -1027,39 +993,22 @@ html.theme-dark {
 
 /* ---------- Drawer ---------- */
 
-/* In-flow spacer: this is what actually reserves the drawer's width in the
-   layout. Collapsing it to 0 is animatable, unlike a grid template change. */
+/* In-flow spacer reserves the tool-window width while the fixed panel slides. */
 .agent-drawer-gap {
-  position: relative;
   width: var(--sidebar-width);
   flex-shrink: 0;
-  overflow: hidden;
   transition: width var(--dur-drawer) var(--ease-drawer);
 }
 .agent-shell[data-sidebar="collapsed"] .agent-drawer-gap {
   width: 0;
 }
 
-/* Top-corner sheen on the drawer — a faint highlight where the window's own
-   edge catches light, so the frosted panel reads as a material rather than a
-   flat fill. */
-.agent-drawer-gap::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(90% 75% at 0% 0%, rgb(255 255 255 / 0.06), transparent 58%),
-    linear-gradient(180deg, rgb(255 255 255 / 0.025), rgb(255 255 255 / 0.008));
-  opacity: var(--app-drawer-sheen-opacity);
-}
-
-/* The drawer itself is out of flow, so it can slide without reflowing the card.
-   z-index 0 keeps it UNDER the content card (z-index 15). */
+/* The panel is out of flow so collapse never re-parents its interactive content. */
 .agent-drawer {
   position: fixed;
   inset-block: 0;
   left: 0;
-  z-index: 0;
+  z-index: 10;
   display: flex;
   width: var(--sidebar-width);
   height: 100vh;
@@ -1086,28 +1035,20 @@ html.theme-dark {
   transition: none;
 }
 
-/* Inner surface — the only place the drawer is skinned. The outer shell owns
-   position and motion so a visual tweak can never break the slide. */
+/* Inner surface is opaque tool-window chrome, never a translucent sheet. */
 .agent-drawer-surface {
   position: relative;
-  z-index: 0;
   display: flex;
   width: 100%;
   height: 100%;
   min-width: 0;
   flex-direction: column;
   background: var(--app-drawer-surface);
-  box-shadow: var(--app-drawer-shadow);
-  backdrop-filter: var(--app-drawer-backdrop);
-  -webkit-backdrop-filter: var(--app-drawer-backdrop);
 }
 
 /* ---------- Seam rail ---------- */
 
-/* Drag handle for the seam. Deliberately carries NO visible line: the divider
-   is the card's inset ring (below). A border here would draw a second vertical
-   line right beside it. z-index 25 puts it above the card so the cursor target
-   survives the card's own stacking. */
+/* The divider belongs to the reading plane; the rail is only its hit target. */
 .agent-seam-rail {
   position: absolute;
   inset-block: 0;
@@ -1125,9 +1066,8 @@ html.theme-dark {
   display: none;
 }
 
-/* ---------- Content card ---------- */
+/* ---------- Reading plane ---------- */
 
-/* Parent of the card. */
 .agent-card-backing {
   position: relative;
   display: flex;
@@ -1135,32 +1075,11 @@ html.theme-dark {
   min-height: 0;
   flex: 1;
   height: 100vh;
+  z-index: 15;
 }
 
-.agent-card-backing::after {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  left: 0;
-  z-index: 0;
-  width: var(--app-content-card-radius);
-  pointer-events: none;
-  opacity: 0;
-  background: var(--app-drawer-surface);
-  box-shadow: var(--app-drawer-shadow);
-  backdrop-filter: var(--app-drawer-backdrop);
-  -webkit-backdrop-filter: var(--app-drawer-backdrop);
-  transition: opacity var(--dur-drawer) var(--ease-drawer);
-}
-.agent-shell[data-sidebar="expanded"] .agent-card-backing::after {
-  opacity: 1;
-}
-
-/* The card reads as a raised surface floating over the drawer: rounded on the
-   seam side, one inset hairline ring, one soft directional shadow. */
 .agent-content-card {
   position: relative;
-  z-index: 15;
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -1168,42 +1087,14 @@ html.theme-dark {
   flex-direction: column;
   overflow: hidden;
   background: var(--app-content-surface);
-  border-radius: var(--app-content-card-radius) 0 0 var(--app-content-card-radius);
-  /* Low spread + negative offset keeps the shadow hugging the seam instead of
-     fanning across the drawer. */
-  box-shadow: var(--app-content-shadow);
-  transition:
-    box-shadow var(--dur-drawer) var(--ease-drawer),
-    border-radius var(--dur-drawer) var(--ease-drawer);
-}
-
-/* Draw a full inset ring that follows the inherited radius, then clip it to the
-   radius-width strip on the seam side. This preserves only the vertical edge and
-   its two curves—never top, bottom, or far-side strokes. */
-.agent-content-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  border-radius: inherit;
-  box-shadow: var(--app-content-ring);
-  opacity: var(--app-content-ring-opacity);
-  clip-path: inset(0 calc(100% - var(--app-content-card-radius)) 0 0);
-  transition: opacity var(--dur-drawer) var(--ease-drawer);
-}
-
-/* Hovering the rail intensifies the same line the ring already draws — never a
-   second element. */
-.agent-shell:has(.agent-seam-rail:is(:hover, :focus-visible)) .agent-content-card {
-  --seam-line: color-mix(in srgb, var(--color-text) 30%, transparent);
-}
-
-html[data-region-layout]:not([data-region-layout="floating-card"]) .agent-content-card::before {
-  clip-path: none;
   border-radius: 0;
-  box-shadow: inset 1px 0 0 var(--app-surface-divider);
-  opacity: 1;
+  --shell-boundary: var(--app-surface-divider);
+  box-shadow: inset 1px 0 0 var(--shell-boundary);
+  transition: box-shadow var(--dur-drawer) var(--ease-drawer);
+}
+
+.agent-shell:has(.agent-seam-rail:is(:hover, :focus-visible)) .agent-content-card {
+  --shell-boundary: color-mix(in oklab, var(--color-text) 28%, var(--app-surface-divider));
 }
 
 /* Pane resizer — the shell's seam rail and this splitter are the same gesture,
@@ -1229,15 +1120,9 @@ html[data-region-layout]:not([data-region-layout="floating-card"]) .agent-conten
   background: color-mix(in srgb, var(--color-text) 30%, transparent);
 }
 
-/* Collapsed the card spans edge to edge, so there is no drawer left to divide
-   from. The shadow fades via its color token rather than `box-shadow: none`,
-   which Chromium snaps instead of interpolating. */
+/* No adjacent tool window means no leading boundary. */
 .agent-shell[data-sidebar="collapsed"] .agent-content-card {
-  --seam-shadow-color: transparent;
-  border-radius: 0;
-}
-.agent-shell[data-sidebar="collapsed"] .agent-content-card::before {
-  opacity: 0;
+  --shell-boundary: transparent;
 }
 
 /* ---------- Chrome bars ---------- */

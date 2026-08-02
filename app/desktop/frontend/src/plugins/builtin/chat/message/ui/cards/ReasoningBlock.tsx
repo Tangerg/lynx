@@ -164,7 +164,7 @@ export function ReasoningBlock({ text, status }: Props) {
         <div
           className={cn(
             "pointer-events-none absolute inset-x-0 top-0 z-10 h-6",
-            "bg-[linear-gradient(to_bottom,var(--color-canvas),transparent)]",
+            "bg-[linear-gradient(to_bottom,var(--color-surface-2),transparent)]",
             "transition-opacity duration-[var(--dur-fast)]",
             showTopFade ? "opacity-100" : "opacity-0",
           )}
@@ -184,7 +184,7 @@ export function ReasoningBlock({ text, status }: Props) {
         <div
           className={cn(
             "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6",
-            "bg-[linear-gradient(to_top,var(--color-canvas),transparent)]",
+            "bg-[linear-gradient(to_top,var(--color-surface-2),transparent)]",
             "transition-opacity duration-[var(--dur-fast)]",
             showBottomFade ? "opacity-100" : "opacity-0",
           )}

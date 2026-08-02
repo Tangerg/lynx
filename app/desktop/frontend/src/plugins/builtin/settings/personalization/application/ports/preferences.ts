@@ -1,10 +1,7 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
-export type MessageStyle = "bubble" | "plain";
 export type StreamReveal = "smooth" | "typewriter";
 
 export interface PersonalizationPreferencesPort {
-  useMessageStyle(): MessageStyle;
-  useSetMessageStyle(): (style: MessageStyle) => void;
   useCompletionSound(): boolean;
   useSetCompletionSound(): (on: boolean) => void;
   useStreamReveal(): StreamReveal;

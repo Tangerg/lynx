@@ -9,13 +9,6 @@ export function useThemePreference() {
   };
 }
 
-export function useVisualStylePreference() {
-  return {
-    visualStyle: appearancePreferences().useVisualStyle(),
-    setVisualStyle: appearancePreferences().useSetVisualStyle(),
-  };
-}
-
 export function useAccentPreference() {
   const theme = appearancePreferences().useTheme();
   return {

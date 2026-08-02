@@ -9,13 +9,11 @@ import { FontSection } from "./FontSection";
 import { LanguageSection } from "./LanguageSection";
 import { ShapeMotionSection } from "./ShapeMotionSection";
 import { ThemeSection } from "./ThemeSection";
-import { VisualStyleSection } from "./VisualStyleSection";
 
 export function AppearancePane() {
   return (
     <SettingsGroup>
       <ThemeSection />
-      <VisualStyleSection />
       <CustomThemeColors />
       <AccentSection />
       <ContrastSection />

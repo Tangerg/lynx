@@ -2,11 +2,11 @@ import type { ComponentPropsWithoutRef } from "react";
 import { cn } from "@/lib/classNames";
 
 /**
- * The opaque content surface that floats as a card over the drawer.
+ * The shell's flush reading plane.
  *
- * The 14.4px seam-side radius, clipped 1px inset ring, backing wedge, and depth
- * shadow live together in globals.css. They transition off as one object when
- * the drawer collapses, leaving the native window corner as the only curve.
+ * The shell owns region material and its single leading divider. Pages compose
+ * business content inside this plane without learning how the drawer collapses
+ * or how a visual-style contribution paints the boundary.
  *
  * `label` names the region for assistive tech and comes from the caller — see
  * AgentSidebar for why the design system does not get to name it.

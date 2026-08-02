@@ -19,7 +19,6 @@ export interface UiState {
   density: UiDensity;
   radiusScale: number;
   motionScale: number;
-  messageStyle: "bubble" | "plain";
   streamReveal: "smooth" | "typewriter";
   sidebarCollapsed: boolean;
   sidebarWidth: number;

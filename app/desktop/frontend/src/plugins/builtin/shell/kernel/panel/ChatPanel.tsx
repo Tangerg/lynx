@@ -145,8 +145,8 @@ export function ChatPanel({ onSend }: Props) {
         <div className="flex min-h-0 flex-1" style={dockWidthRow(dockWidth)}>
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
             <AgentSurfaceHeader windowCorner>
-              <span className="min-w-0 max-w-[420px] truncate text-ui-lg font-medium text-fg">
-                {activeSession?.title || t("welcome.title")}
+              <span className="min-w-0 max-w-[420px] truncate text-ui-md font-semibold text-fg">
+                {activeSession?.title.trim() || t("sidebar.action.newSession")}
               </span>
               {running && (
                 <AgentStatusPill tone="running">{t("session.status.running")}</AgentStatusPill>
