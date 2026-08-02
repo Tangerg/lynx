@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/lynx/internal/vectorstorekit/storetest"
 	"github.com/Tangerg/lynx/vectorstores/elasticsearch"
-	"github.com/Tangerg/lynx/vectorstores/internal/storetest"
 )
 
 func TestVisitor_Conformance(t *testing.T) {

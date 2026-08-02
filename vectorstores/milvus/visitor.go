@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
+	"github.com/Tangerg/lynx/internal/vectorstorekit/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into Milvus filter expression strings.

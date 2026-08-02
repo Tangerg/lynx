@@ -15,11 +15,11 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores/internal/batching"
-	"github.com/Tangerg/lynx/vectorstores/internal/docio"
-	"github.com/Tangerg/lynx/vectorstores/internal/ident"
-	"github.com/Tangerg/lynx/vectorstores/internal/scores"
-	vectorconv "github.com/Tangerg/lynx/vectorstores/internal/vector"
+	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
+	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
+	"github.com/Tangerg/lynx/internal/vectorstorekit/ident"
+	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
+	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const Provider = "Cassandra"

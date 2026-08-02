@@ -9,7 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/types"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
+	"github.com/Tangerg/lynx/internal/vectorstorekit/filtercompile"
 )
 
 // BuildRetrievalFilter transforms an AST filter expression into a

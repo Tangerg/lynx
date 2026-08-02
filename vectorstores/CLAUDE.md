@@ -1,4 +1,4 @@
-# CLAUDE.md — vectorstores module
+# CLAUDE.md — vectorstores module family
 
 > 各家向量数据库后端的统一适配层:每个后端按真实能力实现 core 的 `Indexer` / `Searcher` / `IDDeleter` / `FilterDeleter`,并把稳定的 filter `Predicate` 编译成本地查询方言。
 > 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。后端名录 / 成熟度 / 依赖版本以代码为准 —— 本则只讲宏观。
@@ -9,6 +9,7 @@
 
 - **一组小能力接口,多个数据库后端**:上层只要求实际调用的能力,不通过胖 `Store` 强迫只读或不可删后端伪实现方法。
 - **加后端 = 实现真实能力 + 写 filter compiler**,不动统一的 filter 语义。
+- **一个后端一个叶子模块**:`vectorstores/<backend>` 只携带自己的 SDK 依赖；后端之间禁止互相 import。通用适配器机制位于仓库私有的 `internal/vectorstorekit`，pgx/pgvector 执行机制单独位于 `internal/vectorstorepg`，非 PostgreSQL 后端不得继承这组依赖。
 
 ## 架构心智
 
@@ -18,7 +19,7 @@
 - **schema 初始化是显式开关**:开则建表建索引,关则假设已 provisioned —— 绝不静默 ALTER。
 - **批量 upsert 两级切分**:调用方注入 batcher 控 embedding 批量,后端再按自家 API 上限二次切分。
 - **可写 store 始终持久化正文**:`Searcher` 必须返回完整、可验证且可直接进入 RAG 的 `Document`;不得暴露会产生 ID-only 结果的开关。外部文档仓模式只能通过显式 hydration 组合能力另行设计。
-- **conformance 套件免费拿覆盖**:新后端在测试里注册一次,共享的 filter 形状符合性套件即覆盖它(验证遍历不报错,不验证输出逐字相等)。
+- **conformance 套件免费拿覆盖**:每个叶子模块直接运行私有 storekit 的能力与 filter 形状符合性套件(验证遍历不报错,不验证输出逐字相等)。
 
 ## 模块特有反向不变量
 
@@ -26,6 +27,7 @@
 - ❌ **给 filter AST 加业务概念节点**(如会话 id)—— AST 是通用 filter,业务字段走 metadata。
 - ❌ **在 store 端 reshape 向量维度** —— 维度靠 Config / embedding 协商,不在写入端改形。
 - ❌ **静默改后端 schema** —— 初始化开关关掉时假设 schema 已存在。
+- ❌ **用聚合 go.mod 或 replace 捆绑后端** —— 可选数据库 SDK 必须停留在自己的叶子模块，仓库内协作只由 `go.work` 完成。
 
 ## 改动前必看(波及面)
 

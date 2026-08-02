@@ -6,7 +6,7 @@ import (
 	qdrantclient "github.com/qdrant/go-client/qdrant"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/internal/storetest"
+	"github.com/Tangerg/lynx/internal/vectorstorekit/storetest"
 	"github.com/Tangerg/lynx/vectorstores/qdrant"
 )
 

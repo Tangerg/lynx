@@ -14,9 +14,9 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores/internal/docio"
-	"github.com/Tangerg/lynx/vectorstores/internal/ident"
-	"github.com/Tangerg/lynx/vectorstores/internal/pgstore"
+	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
+	"github.com/Tangerg/lynx/internal/vectorstorekit/ident"
+	"github.com/Tangerg/lynx/internal/vectorstorepg"
 )
 
 const Provider = "PgVector"
@@ -118,7 +118,7 @@ var (
 
 // Store implements vector-store capabilities with PostgreSQL and pgvector.
 type Store struct {
-	engine *pgstore.Store
+	engine *vectorstorepg.Store
 }
 
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
@@ -130,7 +130,7 @@ func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 		return nil, fmt.Errorf("pgvector.NewStore: initialize schema: %w", err)
 	}
 
-	engine, err := pgstore.New(pgstore.Config{
+	engine, err := vectorstorepg.New(vectorstorepg.Config{
 		Provider:        "pgvector",
 		Pool:            config.Pool,
 		SchemaName:      config.SchemaName,
@@ -138,7 +138,7 @@ func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 		MetadataColumn:  config.MetadataColumn,
 		EmbeddingModel:  config.EmbeddingModel,
 		DocumentBatcher: config.DocumentBatcher,
-		DistanceMetric:  pgstore.DistanceMetric(config.DistanceMetric),
+		DistanceMetric:  vectorstorepg.DistanceMetric(config.DistanceMetric),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("pgvector.NewStore: %w", err)

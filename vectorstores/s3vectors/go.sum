@@ -1,0 +1,16 @@
+github.com/Tangerg/lynx/core v0.0.0-20260802201325-86ac84535c5e h1:KMk8rj22U3Jb1m2UmODra3YSqQnwaNIKOcQgTjVAbkM=
+github.com/Tangerg/lynx/core v0.0.0-20260802201325-86ac84535c5e/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
+github.com/Tangerg/lynx/embeddingclient v0.0.0-20260731193916-0098789d89e9 h1:rK37NQzvidbdbf1EbuNBTSkgu91GlOnGd0dncjh3n/Y=
+github.com/Tangerg/lynx/embeddingclient v0.0.0-20260731193916-0098789d89e9/go.mod h1:BWdg/wvTfyHpmN4IfphGzmtTL3sBcIEreJDg0Ax0nSs=
+github.com/Tangerg/lynx/internal/vectorstorekit v0.0.0-20260802201617-1225d4100cab h1:A/xlZFufyKjHOXboahFzTFousoF3V7Ka//7mHZ0ZG1E=
+github.com/Tangerg/lynx/internal/vectorstorekit v0.0.0-20260802201617-1225d4100cab/go.mod h1:x3Rl7PFsdg4wJfx+pauLKWcNXVhUv5xYENdToAu8Apk=
+github.com/aws/aws-sdk-go-v2 v1.43.2 h1:cl+IXwWb3qazClUcm08tGSsB6OiuV83JVJO9B0jQcPc=
+github.com/aws/aws-sdk-go-v2 v1.43.2/go.mod h1:WEzLKBh/mEjXvx1FtQMWgSxMSTVqxQzjkRtk5fa3wkg=
+github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.33 h1:HAp1wLFZzch054uh3FK7rcVYg4v7J2FxVf3h3IGNZas=
+github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.33/go.mod h1:mJk5fmqnF+WUlMdPG37pR2Fh3oh6r8F6ZGUgPKvzu0c=
+github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.33 h1:0YA0aCKgsJyno6xkFfaIgjE3/wK08+Qxo9nQfe1UrWM=
+github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.33/go.mod h1:UZqj4WIdTH+ga8Y/DgpAuy/8cGjM3h7gDCliJYGg2SE=
+github.com/aws/aws-sdk-go-v2/service/s3vectors v1.10.2 h1:giuDvC5ETzqmfyeH6YQR6TPJY4YFZyk0fUKrs5UXm+I=
+github.com/aws/aws-sdk-go-v2/service/s3vectors v1.10.2/go.mod h1:nHgQHhQdl2jrf502CS72sJq0MHNZ1+7RTNg+lcPUjAE=
+github.com/aws/smithy-go v1.27.5 h1:d1ro7KpYOYwP6m73YFa+Kc/A130VsAdX68SpsJwARMM=
+github.com/aws/smithy-go v1.27.5/go.mod h1:YE2RhdIuDbA5E5bTdciG9KrW3+TiEONeUWCqxX9i1Fc=

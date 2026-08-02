@@ -16,9 +16,9 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/internal/batching"
-	"github.com/Tangerg/lynx/vectorstores/internal/docio"
-	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
+	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
+	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
 )
 
 const (

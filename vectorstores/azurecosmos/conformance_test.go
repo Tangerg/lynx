@@ -3,7 +3,7 @@ package azurecosmos
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/vectorstores/internal/conformance"
+	"github.com/Tangerg/lynx/internal/vectorstorekit/conformance"
 )
 
 func TestStoreConformance(t *testing.T) {

@@ -32,5 +32,30 @@ use (
 	./tokenizer/tiktoken
 	./tool
 	./tools
-	./vectorstores
+	./vectorstores/azureaisearch
+	./vectorstores/azurecosmos
+	./vectorstores/bedrockkb
+	./vectorstores/cassandra
+	./vectorstores/chroma
+	./vectorstores/clickhouse
+	./vectorstores/cockroachdb
+	./vectorstores/couchbase
+	./vectorstores/elasticsearch
+	./vectorstores/inmemory
+	./vectorstores/mariadb
+	./vectorstores/milvus
+	./vectorstores/mongodb
+	./vectorstores/neo4j
+	./vectorstores/opensearch
+	./vectorstores/oracle
+	./vectorstores/pgvector
+	./vectorstores/pinecone
+	./vectorstores/qdrant
+	./vectorstores/redis
+	./vectorstores/s3vectors
+	./vectorstores/tidb
+	./vectorstores/typesense
+	./vectorstores/vectara
+	./vectorstores/vespa
+	./vectorstores/weaviate
 )

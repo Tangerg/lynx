@@ -13,7 +13,7 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/vectorstores/internal/scores"
+	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
 )
 
 const Provider = "BedrockKnowledgeBase"
