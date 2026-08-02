@@ -880,6 +880,12 @@ export const WIRE_METHOD_POLICY = {
 } as const satisfies { readonly [M in WireMethodName]: WireMethodPolicy };
 
 /** True only for calls whose first response the runtime durably replays. */
+export type WireMutationMethodName = {
+  [M in WireMethodName]: (typeof WIRE_METHOD_POLICY)[M]["operation"] extends "command"
+    ? M
+    : never;
+}[WireMethodName];
+
 export function wireMethodRequiresIdempotency(method: WireMethodName): boolean {
   return WIRE_METHOD_POLICY[method].operation === "command";
 }

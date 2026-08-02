@@ -93,7 +93,7 @@ describe("methods factory", () => {
     expect(call).toHaveBeenCalledTimes(2);
   });
 
-  it("reuses a mutation key after an indeterminate failure and rotates after success", async () => {
+  it("reuses a mutation key only when the caller retries the same invocation", async () => {
     const call = vi
       .fn()
       .mockRejectedValueOnce(new RpcTransportError("connection reset"))
@@ -102,8 +102,9 @@ describe("methods factory", () => {
     const client = { call } as unknown as RpcClient;
     const methods = createMethods(client);
 
-    await expect(methods.schedules.runNow("schedule_1")).rejects.toBeInstanceOf(RpcTransportError);
-    await expect(methods.schedules.runNow("schedule_1")).resolves.toMatchObject({
+    const attempt = methods.schedules.runNow("schedule_1");
+    await expect(attempt).rejects.toBeInstanceOf(RpcTransportError);
+    await expect(attempt.retry()).resolves.toMatchObject({
       runId: "run_1",
     });
     await expect(methods.schedules.runNow("schedule_1")).resolves.toMatchObject({
@@ -114,6 +115,24 @@ describe("methods factory", () => {
     expect(keys[0]).toBeTruthy();
     expect(keys[1]).toBe(keys[0]);
     expect(keys[2]).not.toBe(keys[1]);
+  });
+
+  it("gives concurrent mutations with identical params distinct invocation keys", async () => {
+    const call = vi
+      .fn()
+      .mockResolvedValueOnce({ sessionId: "ses_1", runId: "run_1" })
+      .mockResolvedValueOnce({ sessionId: "ses_2", runId: "run_2" });
+    const methods = createMethods({ call } as unknown as RpcClient);
+
+    const first = methods.schedules.runNow("schedule_1");
+    const second = methods.schedules.runNow("schedule_1");
+    await Promise.all([first, second]);
+
+    expect(first.idempotencyKey).toBeTruthy();
+    expect(second.idempotencyKey).toBeTruthy();
+    expect(first.idempotencyKey).not.toBe(second.idempotencyKey);
+    expect(call.mock.calls[0]?.[2]?.idempotencyKey).toBe(first.idempotencyKey);
+    expect(call.mock.calls[1]?.[2]?.idempotencyKey).toBe(second.idempotencyKey);
   });
 
   it("retains a mutation key while the original execution is in progress", async () => {
@@ -130,10 +149,9 @@ describe("methods factory", () => {
     const client = { call } as unknown as RpcClient;
     const methods = createMethods(client);
 
-    await expect(
-      methods.sessions.create({ title: "same", workspace: { path: "/repo" } }),
-    ).rejects.toBeInstanceOf(RpcError);
-    await methods.sessions.create({ workspace: { path: "/repo" }, title: "same" });
+    const attempt = methods.sessions.create({ title: "same", workspace: { path: "/repo" } });
+    await expect(attempt).rejects.toBeInstanceOf(RpcError);
+    await attempt.retry();
 
     const first = call.mock.calls[0]?.[2] as RpcCallOptions | undefined;
     const second = call.mock.calls[1]?.[2] as RpcCallOptions | undefined;

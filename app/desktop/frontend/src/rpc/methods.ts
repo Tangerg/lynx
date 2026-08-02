@@ -9,7 +9,8 @@
 // (see ./stream).
 
 import type { RpcCallOptions, RpcClient } from "./client";
-import { isErrorType, RpcError } from "./errors";
+import { RpcError } from "./errors";
+import { createMutationPromise, type MutationPromise } from "./mutation";
 import { unnegotiated } from "./preflight";
 import type { RunId, SegmentId, SessionId } from "./ids";
 import type {
@@ -109,6 +110,7 @@ import {
   wireMethodIsPaginated,
   wireMethodRequiresIdempotency,
   type WireMethodName,
+  type WireMutationMethodName,
   type WirePaginatedMethodName,
   type WireParams,
   type WireResult,
@@ -126,18 +128,30 @@ export interface StreamingResult<R, E> {
 // handles). Before it, every call site below restated its own method name and result
 // type, so a method renamed in the Registry surfaced as a runtime method_not_found
 // instead of a compile error.
-type WireInvoke = <M extends WireMethodName>(
+type WirePerform = <M extends WireMethodName>(
   method: M,
   params: WireParams<M>,
   options?: RpcCallOptions,
 ) => Promise<WireResult<M>>;
+
+type WireInvokeResult<M extends WireMethodName> = M extends WireMutationMethodName
+  ? MutationPromise<WireResult<M>>
+  : Promise<WireResult<M>>;
+
+type WireInvoke = <M extends WireMethodName>(
+  method: M,
+  params: WireParams<M>,
+  options?: RpcCallOptions,
+) => WireInvokeResult<M>;
 
 type PaginatedWireCall<M extends WirePaginatedMethodName> =
   WireResult<M> extends CursorPage ? AutoPagingPromise<WireResult<M>> : never;
 
 type WireCallResult<M extends WireMethodName> = M extends WirePaginatedMethodName
   ? PaginatedWireCall<M>
-  : Promise<WireResult<M>>;
+  : M extends WireMutationMethodName
+    ? MutationPromise<WireResult<M>>
+    : Promise<WireResult<M>>;
 
 type WireCall = <M extends WireMethodName>(
   method: M,
@@ -160,78 +174,6 @@ async function callOrDispose<R>(
     stream.dispose();
     throw err;
   }
-}
-
-interface PendingMutation {
-  key: string;
-  createdAt: number;
-}
-
-// Idempotency belongs to the logical mutation, not an individual HTTP call.
-// An indeterminate attempt remains keyed by canonical method+params so a UI or
-// reconnect retry reuses the same key until a definite RPC result arrives.
-class MutationAttempts {
-  private readonly pending = new Map<string, PendingMutation>();
-
-  constructor(private readonly replayRetentionMs: () => number | undefined) {}
-
-  async call<M extends WireMethodName>(
-    client: RpcClient,
-    method: M,
-    params: WireParams<M>,
-    options?: RpcCallOptions,
-  ): Promise<WireResult<M>> {
-    const identity = mutationIdentity(method, params);
-    const now = Date.now();
-    this.prune(now);
-    let attempt = this.pending.get(identity);
-    if (!attempt) {
-      attempt = { key: crypto.randomUUID(), createdAt: now };
-      this.pending.set(identity, attempt);
-    }
-    try {
-      const result = await client.call(method, params, {
-        ...options,
-        idempotencyKey: attempt.key,
-      });
-      this.release(identity, attempt.key);
-      return result;
-    } catch (error) {
-      // A JSON-RPC response is authoritative, except in-progress: that outcome
-      // explicitly asks the caller to retry this same logical operation/key.
-      if (error instanceof RpcError && !isErrorType(error, "idempotency_in_progress")) {
-        this.release(identity, attempt.key);
-      }
-      throw error;
-    }
-  }
-
-  private release(identity: string, key: string): void {
-    if (this.pending.get(identity)?.key === key) this.pending.delete(identity);
-  }
-
-  private prune(now: number): void {
-    const retentionMs = this.replayRetentionMs();
-    if (retentionMs === undefined) return;
-    for (const [identity, attempt] of this.pending) {
-      if (now - attempt.createdAt >= retentionMs) this.pending.delete(identity);
-    }
-  }
-}
-
-function mutationIdentity(method: string, params: unknown): string {
-  return `${method}\0${canonicalJSON(params)}`;
-}
-
-function canonicalJSON(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
-  if (Array.isArray(value)) return `[${value.map(canonicalJSON).join(",")}]`;
-  const entries = Object.entries(value as Record<string, unknown>)
-    .filter(([, item]) => item !== undefined)
-    .sort(([left], [right]) => left.localeCompare(right));
-  return `{${entries
-    .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJSON(item)}`)
-    .join(",")}}`;
 }
 
 export interface WorkspaceMethods {
@@ -264,16 +206,16 @@ export interface WorkspaceMethods {
   codebase: {
     search: (params: Omit<CodebaseSearchRequest, "workspace">) => Promise<CodebaseSearchResult>;
     status: () => Promise<CodebaseStatus>;
-    reindex: () => Promise<CodebaseReindexResponse>;
+    reindex: () => MutationPromise<CodebaseReindexResponse>;
   };
   memory: {
     list: (query?: PageQuery) => AutoPagingPromise<Page<MemoryEntry>>;
     get: (scope: MemoryScope) => Promise<MemoryEntry>;
-    update: (params: { scope: MemoryScope; content: string }) => Promise<void>;
+    update: (params: { scope: MemoryScope; content: string }) => MutationPromise<void>;
   };
   agentMemory: {
     list: () => Promise<AgentMemoryList>;
-    add: (content: string) => Promise<AgentMemoryItem>;
+    add: (content: string) => MutationPromise<AgentMemoryItem>;
   };
 }
 
@@ -288,27 +230,27 @@ export interface Methods {
   sessions: {
     list: (query?: PageQuery) => AutoPagingPromise<Page<Session>>;
     get: (sessionId: SessionId) => Promise<Session>;
-    create: (params?: CreateSessionRequest, signal?: AbortSignal) => Promise<Session>;
-    update: (params: UpdateSessionRequest) => Promise<Session>;
-    delete: (sessionId: SessionId) => Promise<void>;
-    fork: (params: ForkSessionRequest) => Promise<Session>;
+    create: (params?: CreateSessionRequest, signal?: AbortSignal) => MutationPromise<Session>;
+    update: (params: UpdateSessionRequest) => MutationPromise<Session>;
+    delete: (sessionId: SessionId) => MutationPromise<void>;
+    fork: (params: ForkSessionRequest) => MutationPromise<Session>;
     // Turn-granular history truncation (AUX_API §4.1). Rejected with
     // session_busy while a run is in flight. restoreType files|both also
     // restores the working tree (gated features.checkpoints).
-    rollback: (params: RollbackSessionRequest) => Promise<RollbackSessionResponse>;
+    rollback: (params: RollbackSessionRequest) => MutationPromise<RollbackSessionResponse>;
     export: (sessionId: SessionId, format?: "md" | "json") => Promise<ExportSessionResponse>;
     // Restore semantics — rebuilds under the artifact's original id (idempotent).
-    import: (artifact: SessionArtifact) => Promise<ImportSessionResponse>;
+    import: (artifact: SessionArtifact) => MutationPromise<ImportSessionResponse>;
   };
   runs: {
     start: (
       params: StartRunRequest,
       signal?: AbortSignal,
-    ) => Promise<StreamingResult<StartRunResponse, RunEvent>>;
+    ) => MutationPromise<StreamingResult<StartRunResponse, RunEvent>>;
     resume: (
       params: ResumeRunRequest,
       signal?: AbortSignal,
-    ) => Promise<StreamingResult<ResumeRunResponse, RunEvent>>;
+    ) => MutationPromise<StreamingResult<ResumeRunResponse, RunEvent>>;
     // Reattach to a run's live segment. Both ids are required: a subscription that
     // named only the run would attach to whatever segment happens to be executing,
     // and a client folding an earlier one would continue into a different execution
@@ -322,13 +264,17 @@ export interface Methods {
       // history belongs to items.list, not to a stream that would deliver it twice.
       options?: { lastEventId?: string },
     ) => Promise<StreamingResult<SubscribeRunResponse, RunEvent>>;
-    cancel: (runId: RunId, reason?: string) => Promise<CancelRunResponse>;
+    cancel: (runId: RunId, reason?: string) => MutationPromise<CancelRunResponse>;
     // Mid-run steering (§6): inject structured user content into the segment the caller
     // believes is executing, so the model reads it next tool round. The segment is
     // named for the same reason: a run that parked and resumed between typing and
     // sending must refuse (stale_segment) rather than deliver the instruction to
     // work the person never saw.
-    steer: (runId: RunId, expectedSegmentId: SegmentId, input: ContentBlock[]) => Promise<void>;
+    steer: (
+      runId: RunId,
+      expectedSegmentId: SegmentId,
+      input: ContentBlock[],
+    ) => MutationPromise<void>;
     // One run by id — current or terminal — without knowing its session (§7.3).
     get: (runId: RunId) => Promise<RunRef>;
     // The durable run history, newest first (§7.3). Omitting statuses returns every
@@ -384,7 +330,7 @@ export interface Methods {
   // Trust changes target the canonical root returned by
   // workspace(ref).hooks.list(); discovery itself remains workspace-scoped.
   hooks: {
-    setTrust: (projectRoot: string, trusted: boolean) => Promise<void>;
+    setTrust: (projectRoot: string, trusted: boolean) => MutationPromise<void>;
   };
   // Self-authored skill management (§7.7). listDiscovered is the agent's
   // project+global discovery view; the library surface adds archived skills and
@@ -396,34 +342,34 @@ export interface Methods {
   // decision acts on the exact revision that was reviewed.
   skills: {
     listLibrary: () => AutoPagingPromise<Page<ManagedSkill>>;
-    archive: (name: string) => Promise<void>;
-    restore: (name: string) => Promise<void>;
+    archive: (name: string) => MutationPromise<void>;
+    restore: (name: string) => MutationPromise<void>;
     listDrafts: () => AutoPagingPromise<Page<SkillDraft>>;
-    promoteDraft: (ref: SkillDraftRef) => Promise<void>;
-    rejectDraft: (ref: SkillDraftRef) => Promise<void>;
+    promoteDraft: (ref: SkillDraftRef) => MutationPromise<void>;
+    rejectDraft: (ref: SkillDraftRef) => MutationPromise<void>;
   };
   mcp: {
     // One resource carries durable configuration and live state. Create and
     // update are distinct; update uses exact omission=preserve semantics.
     list: (query?: PageQuery) => AutoPagingPromise<Page<McpServer>>;
-    create: (params: MCPServerCandidate) => Promise<McpServer>;
-    update: (params: UpdateMCPServerRequest) => Promise<McpServer>;
-    delete: (server: string) => Promise<void>;
+    create: (params: MCPServerCandidate) => MutationPromise<McpServer>;
+    update: (params: UpdateMCPServerRequest) => MutationPromise<McpServer>;
+    delete: (server: string) => MutationPromise<void>;
     // Dry-run connection probe (NOT persisted). A failed probe is
     // `{ ok:false, error }`, never an RPC error (mirrors providers.test).
     test: (params: MCPServerCandidate) => Promise<McpTestResult>;
     listTools: (server?: string) => AutoPagingPromise<Page<McpTool>>;
-    reconnect: (server: string) => Promise<void>;
+    reconnect: (server: string) => MutationPromise<void>;
     authorizationAttempts: {
       // Interactive OAuth is an asynchronous resource, not a command ACK. Create
       // opens the browser; get observes its terminal outcome after reconnects.
-      create: (server: string, signal?: AbortSignal) => Promise<McpAuthorizationAttempt>;
+      create: (server: string, signal?: AbortSignal) => MutationPromise<McpAuthorizationAttempt>;
       get: (attemptId: string, signal?: AbortSignal) => Promise<McpAuthorizationAttempt>;
     };
   };
   providers: {
     list: () => AutoPagingPromise<Page<Provider>>;
-    update: (params: UpdateProviderRequest) => Promise<Provider>;
+    update: (params: UpdateProviderRequest) => MutationPromise<Provider>;
     test: (provider: string) => Promise<ProviderTestResult>;
   };
   models: {
@@ -432,16 +378,16 @@ export interface Methods {
     // extraction / titling) runs on. Empty model = unset → it runs on the main
     // turn model. setUtilityRole validates by resolving the client server-side.
     getUtilityRole: () => Promise<UtilityRole>;
-    setUtilityRole: (params: UtilityRole) => Promise<UtilityRole>;
+    setUtilityRole: (params: UtilityRole) => MutationPromise<UtilityRole>;
     // The (embedding-capable provider, model) the @codebase index embeds with.
     // Empty model = unset → the feature is off. setEmbeddingRole validates by
     // building the embedding client server-side.
     getEmbeddingRole: () => Promise<EmbeddingRole>;
-    setEmbeddingRole: (params: EmbeddingRole) => Promise<EmbeddingRole>;
+    setEmbeddingRole: (params: EmbeddingRole) => MutationPromise<EmbeddingRole>;
   };
   tools: {
     list: () => AutoPagingPromise<Page<ToolSpec>>;
-    invoke: (params: InvokeToolRequest) => Promise<unknown>;
+    invoke: (params: InvokeToolRequest) => MutationPromise<unknown>;
   };
   // Read-only spend reporting aggregated from the durable run history (§7.7).
   usage: {
@@ -455,14 +401,14 @@ export interface Methods {
   // cascade). capability_not_negotiated when the store is not wired.
   agentMemory: {
     list: (target: AgentMemoryTarget) => Promise<AgentMemoryList>;
-    review: (id: string, decision: "approve" | "reject") => Promise<void>;
+    review: (id: string, decision: "approve" | "reject") => MutationPromise<void>;
     update: (params: {
       id: string;
       content?: string;
       pinned?: boolean;
-    }) => Promise<AgentMemoryItem>;
-    delete: (id: string) => Promise<void>;
-    add: (params: AgentMemoryTarget & { content: string }) => Promise<AgentMemoryItem>;
+    }) => MutationPromise<AgentMemoryItem>;
+    delete: (id: string) => MutationPromise<void>;
+    add: (params: AgentMemoryTarget & { content: string }) => MutationPromise<AgentMemoryItem>;
   };
   // goals.* (§7.14, capability-gated): Goal mode — the autonomous execution
   // loop. get returns the session's goal or null (no goal); start opens one
@@ -477,37 +423,37 @@ export interface Methods {
       provider?: string;
       model?: string;
       budget?: GoalBudget;
-    }) => Promise<Goal>;
-    stop: (sessionId: SessionId) => Promise<Goal>;
-    resume: (sessionId: SessionId) => Promise<Goal>;
+    }) => MutationPromise<Goal>;
+    stop: (sessionId: SessionId) => MutationPromise<Goal>;
+    resume: (sessionId: SessionId) => MutationPromise<Goal>;
   };
   feedback: {
-    create: (params: FeedbackRequest) => Promise<void>;
+    create: (params: FeedbackRequest) => MutationPromise<void>;
   };
   // Approval runtime control (B9) — global stance + remember management. Not gated.
   approval: {
     getMode: () => Promise<ApprovalModeResult>;
-    setMode: (mode: ApprovalMode) => Promise<ApprovalModeResult>;
+    setMode: (mode: ApprovalMode) => MutationPromise<ApprovalModeResult>;
     // Rules visible from the session: its session rules + its project's rules
     // + all global rules (the runtime resolves the session cwd).
     listRules: (sessionId: SessionId) => Promise<ListApprovalRulesResult>;
     // Remove one rule by id; clear-all = loop the visible ids.
-    forgetRule: (id: string) => Promise<void>;
+    forgetRule: (id: string) => MutationPromise<void>;
   };
   // Scheduled runs (§7.9): cron-triggered headless runs of a saved prompt,
   // fired by the runtime's scheduler worker while serving.
   schedules: {
     list: (query?: PageQuery) => AutoPagingPromise<Page<Schedule>>;
-    create: (params: CreateScheduleRequest) => Promise<Schedule>;
+    create: (params: CreateScheduleRequest) => MutationPromise<Schedule>;
     update: (
       params: Partial<CreateScheduleRequest> & {
         id: string;
         expectedRevision: number;
         enabled?: boolean;
       },
-    ) => Promise<Schedule>;
-    delete: (id: string) => Promise<void>;
-    runNow: (id: string) => Promise<RunScheduleNowResponse>;
+    ) => MutationPromise<Schedule>;
+    delete: (id: string) => MutationPromise<void>;
+    runNow: (id: string) => MutationPromise<RunScheduleNowResponse>;
   };
 }
 
@@ -575,11 +521,6 @@ function bindWorkspace(call: WireCall, ref: WorkspaceRef): WorkspaceMethods {
 }
 
 export function createMethods(client: RpcClient, options: MethodsOptions = {}): Methods {
-  const mutations = new MutationAttempts(() => {
-    const seconds = options.capabilities?.()?.limits.idempotency.retentionSeconds;
-    return seconds === undefined ? undefined : seconds * 1_000;
-  });
-
   // Every outbound call passes the preflight, because the alternative is a
   // round-trip whose only possible answer is the refusal we already hold.
   const refuse = <M extends WireMethodName>(
@@ -606,18 +547,29 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     });
   };
 
-  const invoke: WireInvoke = async (method, params, callOptions) => {
+  const perform: WirePerform = async (method, params, callOptions) => {
     const ownsRequestMeta = options.requestMeta !== undefined;
     const requestMeta = ownsRequestMeta ? options.requestMeta?.() : callOptions?.requestMeta;
     refuse(method, params, requestMeta);
     const effectiveOptions = ownsRequestMeta
       ? { ...callOptions, requestMeta: requestMeta ?? null }
       : callOptions;
-    if (wireMethodRequiresIdempotency(method)) {
-      return mutations.call(client, method, params, effectiveOptions);
-    }
     return client.call(method, params, effectiveOptions);
   };
+
+  const invoke = (<M extends WireMethodName>(
+    method: M,
+    params: WireParams<M>,
+    callOptions?: RpcCallOptions,
+  ): WireInvokeResult<M> => {
+    if (!wireMethodRequiresIdempotency(method)) {
+      return perform(method, params, callOptions) as WireInvokeResult<M>;
+    }
+    return createMutationPromise(
+      (idempotencyKey) => perform(method, params, { ...callOptions, idempotencyKey }),
+      callOptions?.idempotencyKey,
+    ) as WireInvokeResult<M>;
+  }) as WireInvoke;
 
   const call = (<M extends WireMethodName>(
     method: M,
@@ -667,28 +619,36 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
         }),
     },
     runs: {
-      start: async (params, signal) => {
-        // Subscribe BEFORE the POST, then bind the tree to the runtime-assigned
-        // root segmentId. Under streamable HTTP the response + its event frames
-        // arrive on the same ordered stream, so the first events follow the
-        // response immediately; binding only after `call` resolves could drop
-        // the head (see streamRunEvents).
-        const stream = streamRunEvents(client, signal);
-        const result = await callOrDispose(stream, () =>
-          call("runs.start", params, { signal: stream.requestSignal }),
-        );
-        stream.bind(result.runId, result.segmentId);
-        return { result, events: stream.events };
-      },
-      resume: async (params, signal) => {
-        // A resume opens a NEW segment of the SAME run — bind the tree to it.
-        const stream = streamRunEvents(client, signal);
-        const result = await callOrDispose(stream, () =>
-          call("runs.resume", params, { signal: stream.requestSignal }),
-        );
-        stream.bind(result.runId, result.segmentId);
-        return { result, events: stream.events };
-      },
+      start: (params, signal) =>
+        createMutationPromise(async (idempotencyKey) => {
+          // Subscribe BEFORE the POST, then bind the tree to the runtime-assigned
+          // root segmentId. Under streamable HTTP the response + its event frames
+          // arrive on the same ordered stream, so the first events follow the
+          // response immediately; binding only after `call` resolves could drop
+          // the head (see streamRunEvents).
+          const stream = streamRunEvents(client, signal);
+          const result = await callOrDispose(stream, () =>
+            perform("runs.start", params, {
+              signal: stream.requestSignal,
+              idempotencyKey,
+            }),
+          );
+          stream.bind(result.runId, result.segmentId);
+          return { result, events: stream.events };
+        }),
+      resume: (params, signal) =>
+        createMutationPromise(async (idempotencyKey) => {
+          // A resume opens a NEW segment of the SAME run — bind the tree to it.
+          const stream = streamRunEvents(client, signal);
+          const result = await callOrDispose(stream, () =>
+            perform("runs.resume", params, {
+              signal: stream.requestSignal,
+              idempotencyKey,
+            }),
+          );
+          stream.bind(result.runId, result.segmentId);
+          return { result, events: stream.events };
+        }),
       subscribe: async (params, signal, options) => {
         // Reattach to the segment the caller named; the ack echoes it, and the tree
         // binds to it (same deferred-bind head-drop guard).
@@ -703,9 +663,8 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
         return { result, events: stream.events };
       },
       cancel: (runId, reason) => call("runs.cancel", { runId, reason }),
-      steer: async (runId, expectedSegmentId, input) => {
-        await call("runs.steer", { runId, expectedSegmentId, input });
-      },
+      steer: (runId, expectedSegmentId, input) =>
+        call("runs.steer", { runId, expectedSegmentId, input }),
       get: (runId) => call("runs.get", { runId }),
       list: (query) => call("runs.list", query ?? {}),
     },
