@@ -6,6 +6,12 @@ use (
 	./app/runtime
 	./chatclient
 	./chathistory
+	./chathistorystores/cassandra
+	./chathistorystores/cosmosdb
+	./chathistorystores/mongodb
+	./chathistorystores/neo4j
+	./chathistorystores/postgres
+	./chathistorystores/redis
 	./core
 	./documentpipeline
 	./documentpipeline/markdown

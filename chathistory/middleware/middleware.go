@@ -7,9 +7,9 @@ import (
 	"iter"
 
 	"github.com/Tangerg/lynx/chathistory"
-	"github.com/Tangerg/lynx/chathistory/internal/nilcheck"
-	"github.com/Tangerg/lynx/chathistory/internal/snapshot"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/internal/chathistorykit/nilcheck"
+	"github.com/Tangerg/lynx/internal/chathistorykit/snapshot"
 )
 
 // ErrNilStream reports a wrapped Streamer that violates the Streamer contract

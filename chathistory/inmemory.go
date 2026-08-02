@@ -5,8 +5,8 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/Tangerg/lynx/chathistory/internal/snapshot"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/internal/chathistorykit/snapshot"
 )
 
 var (

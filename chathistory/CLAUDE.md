@@ -1,14 +1,14 @@
-# CLAUDE.md — chathistory module
+# CLAUDE.md — chathistory base module
 
-> 基于 `core/chat.Message` 的 history contract、参考实现和多数据库后端 —— 给 production chat history 提供可替换存储边界。
+> 基于 `core/chat.Message` 的 history contract、内存参考实现与 middleware —— 给上层提供不绑定数据库的可替换存储边界。
 > 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。后端名录 / 依赖版本以代码为准 —— 本则只讲宏观。
 
 ---
 
 ## 定位
 
-- **一个 `chathistory.Store` 接口,多个数据库后端**(Write / Read / Clear):上层不关心底层是哪家 DB。
-- 与 lyra 内置的文件 / SQLite 存储互补:这里覆盖需要独立数据库的 production 场景。
+- **一个 `chathistory.Store` 接口,多个可组合实现**(Write / Read / Clear):上层只依赖能力契约。
+- 具体数据库适配器位于平级 `chathistorystores/*` 叶子模块；本模块不得 import 数据库 SDK、OTel 或具体 store。
 
 ## 架构心智
 
@@ -22,8 +22,9 @@
 
 - ❌ **跨后端数据迁移工具** —— 是 ops 的事,不是 SDK 的职责。
 - ❌ **在本模块写 schema migration** —— schema 由调用方 migrate,本模块只约定形状。
+- ❌ **把数据库或可观测性依赖带回根模块** —— 持久化 kit 与 OTel adapter 均在仓库私有内部模块，具体 SDK 只属于叶子。
 
 ## 改动前必看(波及面)
 
-- **动 `chat.Message` 序列化**:所有后端都靠 shared codec,必须同步并保留持久化兼容测试。
-- **加新后端**:实现 `chathistory.Store`,按 conversation_id 分区,序列化必须走 `internal/codec`。
+- **动 `chat.Message` 序列化**:所有后端都靠 `internal/chathistorykit/codec`,必须同步并保留持久化兼容测试。
+- **加新后端**:在 `chathistorystores/<backend>` 建独立模块，实现 `chathistory.Store`,按 conversation_id 分区,序列化必须走私有 shared codec。
