@@ -398,6 +398,7 @@ vectorstore/filter: type Visitor interface { Visit(Predicate) error }
 vectorstore: const ( DefaultTopK = 5 MinSimilarityScore = 0.0 MaxSimilarityScore = 1.0 )
 vectorstore: func (r SearchRequest) Validate() error
 vectorstore: func (r SearchRequest) ValidateMatches(matches []Match) error
+vectorstore: type Batcher interface { Batch(context.Context, []*document.Document) ([][]*document.Document, error) }
 vectorstore: type FilterDeleter interface { DeleteWhere(ctx context.Context, predicate filter.Predicate) error }
 vectorstore: type IDDeleter interface { DeleteIDs(ctx context.Context, ids []string) error }
 vectorstore: type Indexer interface { Add(ctx context.Context, docs []*document.Document) error }

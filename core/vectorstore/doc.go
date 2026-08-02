@@ -5,11 +5,13 @@
 //   - [Searcher] finds similar documents by query + metadata filter.
 //   - [IDDeleter] removes documents by identifier.
 //   - [FilterDeleter] removes documents matching a metadata filter.
+//   - [Batcher] supplies an order-preserving ingestion partition policy.
 //
 // There is deliberately no aggregate Store interface: consumers depend only
 // on the capabilities they call, and providers implement only what they can
-// support. [SearchRequest] validates both input and successful Match output;
-// Add and delete methods accept their single logical input directly.
+// support. Batching remains an injected capability rather than a framework
+// dependency. [SearchRequest] validates both input and successful Match
+// output; Add and delete methods accept their single logical input directly.
 //
 // Indexed documents have a caller-assigned, non-empty ID and non-empty text.
 // Providers preserve both values so every successful Match is immediately
