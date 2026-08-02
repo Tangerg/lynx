@@ -1,12 +1,13 @@
 package azureopenai
 
 import (
+	"context"
 	"errors"
 
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/models/openai"
+	"github.com/Tangerg/lynx/models/internal/protocol/openai"
 )
 
 type ImageModelConfig struct {
@@ -29,11 +30,12 @@ func (c ImageModelConfig) Validate() error {
 	return nil
 }
 
-// NewImageModel returns an [openai.ImageModel] pointed at Azure
-// OpenAI's v1 /images/generations endpoint. [image.Options].Model is
-// the Azure deployment id (typically pointing at "dall-e-3" or
-// "gpt-image-1").
-func NewImageModel(cfg ImageModelConfig) (*openai.ImageModel, error) {
+var _ image.Model = (*ImageModel)(nil)
+
+type ImageModel struct{ protocol *openai.ImageModel }
+
+// NewImageModel returns an Azure OpenAI image model.
+func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -41,9 +43,21 @@ func NewImageModel(cfg ImageModelConfig) (*openai.ImageModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	return openai.NewImageModel(openai.ImageModelConfig{
+	protocol, err := openai.NewImageModel(openai.ImageModelConfig{
+		Provider:       "azureopenai",
 		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &ImageModel{protocol: protocol}, nil
+}
+
+func (m *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
+	if m == nil || m.protocol == nil {
+		return nil, errors.New("azureopenai: nil ImageModel")
+	}
+	return m.protocol.Call(ctx, req)
 }

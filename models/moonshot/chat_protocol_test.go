@@ -8,7 +8,7 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/models/moonshot"
-	"github.com/Tangerg/lynx/models/openai"
+	"github.com/Tangerg/lynx/models/internal/protocol/openai"
 )
 
 func TestOpenAIChatUsesCurrentKimiWireContract(t *testing.T) {

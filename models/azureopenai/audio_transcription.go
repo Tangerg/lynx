@@ -1,12 +1,13 @@
 package azureopenai
 
 import (
+	"context"
 	"errors"
 
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/models/openai"
+	"github.com/Tangerg/lynx/models/internal/protocol/openai"
 )
 
 type AudioTranscriptionModelConfig struct {
@@ -29,11 +30,14 @@ func (c AudioTranscriptionModelConfig) Validate() error {
 	return nil
 }
 
-// NewAudioTranscriptionModel returns an [openai.AudioTranscriptionModel]
-// pointed at Azure OpenAI's v1 /audio/transcriptions endpoint.
-// [transcription.Options].Model is the Azure deployment id (typically
-// pointing at "whisper" / "gpt-4o-transcribe" / "gpt-4o-mini-transcribe").
-func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*openai.AudioTranscriptionModel, error) {
+var _ transcription.Model = (*AudioTranscriptionModel)(nil)
+
+type AudioTranscriptionModel struct {
+	protocol *openai.AudioTranscriptionModel
+}
+
+// NewAudioTranscriptionModel returns an Azure OpenAI transcription model.
+func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -41,9 +45,21 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*openai.Audi
 	if err != nil {
 		return nil, err
 	}
-	return openai.NewAudioTranscriptionModel(openai.AudioTranscriptionModelConfig{
+	protocol, err := openai.NewAudioTranscriptionModel(openai.AudioTranscriptionModelConfig{
+		Provider:       "azureopenai",
 		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &AudioTranscriptionModel{protocol: protocol}, nil
+}
+
+func (m *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
+	if m == nil || m.protocol == nil {
+		return nil, errors.New("azureopenai: nil AudioTranscriptionModel")
+	}
+	return m.protocol.Call(ctx, req)
 }

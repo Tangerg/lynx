@@ -1,32 +1,5 @@
-// Package anthropic wraps Anthropic's Messages API and OpenAI-
-// compatible bridge.
-//
-// Constructors:
-//
-//   - [NewChat] — native /v1/messages. Full Claude surface:
-//     extended thinking blocks, tool_use with signature continuity,
-//     citations, fine-grained tool-result content blocks,
-//     cache_control;
-//   - [NewOpenAIChat] — Anthropic's first-party OpenAI-compat
-//     bridge ([BaseURLOpenAI]). Wire-format-only conversion for
-//     callers wedded to the OpenAI SDK; Claude-specific extras
-//     don't round-trip.
-//
-// Provider packages exposing an Anthropic-compatible endpoint reuse the
-// Messages protocol through [NewCompatibleChat] and select one typed [Dialect].
-// Application code continues to use the provider's own chat type.
-//
-// Token estimation: [NewTextEstimator] wraps /v1/messages/count_tokens
-// for accurate Claude-tokenizer-based counts.
-//
-// Anthropic's Message Batches API (~50% pricing, up to 24h
-// asynchronous) doesn't fit core/chat's synchronous request/response shape and
-// is not exposed.
-//
-// Model id constants aren't exported — anthropic-sdk-go owns them
-// ([anthropicsdk.ModelClaudeOpus5], [anthropicsdk.ModelClaudeSonnet5],
-// [anthropicsdk.ModelClaudeFable5], etc.). Import the SDK directly
-// when you need them.
-//
-// See https://docs.claude.com/en/api for the full API reference.
+// Package anthropic exposes Anthropic's native Messages adapter, token
+// estimator, and first-party OpenAI-compatible endpoint. All constructors
+// return Anthropic-owned types; shared wire implementations remain private to
+// the models module.
 package anthropic

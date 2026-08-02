@@ -2,12 +2,13 @@ package alibaba
 
 import (
 	"cmp"
+	"context"
 	"errors"
 
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/models/openai"
+	"github.com/Tangerg/lynx/models/internal/protocol/openai"
 )
 
 type EmbeddingModelConfig struct {
@@ -33,19 +34,32 @@ func (c EmbeddingModelConfig) Validate() error {
 	return nil
 }
 
-// NewEmbeddingModel returns an openai-backed embedding model pointed
-// at DashScope's compatible-mode /embeddings. text-embedding-v4 accepts
-// the OpenAI-shaped dimensions param
-// via [embedding.Options.Dimensions].
-func NewEmbeddingModel(cfg EmbeddingModelConfig) (*openai.EmbeddingModel, error) {
+var _ embedding.Model = (*EmbeddingModel)(nil)
+
+type EmbeddingModel struct{ protocol *openai.EmbeddingModel }
+
+// NewEmbeddingModel returns a DashScope-compatible embedding model.
+func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	baseURL := cmp.Or(cfg.BaseURL, BaseURLChina)
 	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
-	return openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
+	protocol, err := openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
+		Provider:       "alibaba",
 		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &EmbeddingModel{protocol: protocol}, nil
+}
+
+func (m *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
+	if m == nil || m.protocol == nil {
+		return nil, errors.New("alibaba: nil EmbeddingModel")
+	}
+	return m.protocol.Call(ctx, req)
 }

@@ -1,13 +1,15 @@
 package vertexai
 
 import (
+	"context"
 	"errors"
+	"iter"
 	"net/http"
 
 	"google.golang.org/genai"
 
 	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/google"
+	"github.com/Tangerg/lynx/models/internal/protocol/google"
 )
 
 type AudioTTSModelConfig struct {
@@ -34,13 +36,20 @@ func (c AudioTTSModelConfig) Validate() error {
 	return nil
 }
 
-// NewAudioTTSModel returns a [google.AudioTTSModel] backed by Vertex
-// AI. Use a Gemini TTS model supported in the selected Vertex location.
-func NewAudioTTSModel(cfg AudioTTSModelConfig) (*google.AudioTTSModel, error) {
+var (
+	_ tts.Model    = (*AudioTTSModel)(nil)
+	_ tts.Streamer = (*AudioTTSModel)(nil)
+)
+
+type AudioTTSModel struct{ protocol *google.AudioTTSModel }
+
+// NewAudioTTSModel returns a Vertex AI speech model.
+func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	return google.NewAudioTTSModel(google.AudioTTSModelConfig{
+	protocol, err := google.NewAudioTTSModel(google.AudioTTSModelConfig{
+		Provider:       "vertexai",
 		Backend:        genai.BackendVertexAI,
 		Project:        cfg.Project,
 		Location:       cfg.Location,
@@ -48,4 +57,25 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*google.AudioTTSModel, error) {
 		BaseURL:        cfg.BaseURL,
 		HTTPClient:     cfg.HTTPClient,
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &AudioTTSModel{protocol: protocol}, nil
+}
+
+func (m *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
+	if m == nil || m.protocol == nil {
+		return nil, errors.New("vertexai: nil AudioTTSModel")
+	}
+	return m.protocol.Call(ctx, req)
+}
+
+func (m *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
+	if m == nil || m.protocol == nil {
+		return func(yield func(*tts.Response, error) bool) { yield(nil, errors.New("vertexai: nil AudioTTSModel")) }
+	}
+	if err := req.Validate(); err != nil {
+		return func(yield func(*tts.Response, error) bool) { yield(nil, err) }
+	}
+	return m.protocol.Stream(ctx, req)
 }

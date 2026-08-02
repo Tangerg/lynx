@@ -9,7 +9,7 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/models/deepseek"
-	"github.com/Tangerg/lynx/models/openai"
+	"github.com/Tangerg/lynx/models/internal/protocol/openai"
 )
 
 func TestOpenAIChat_ReasoningReplay(t *testing.T) {

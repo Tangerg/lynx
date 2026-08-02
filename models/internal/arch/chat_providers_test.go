@@ -56,7 +56,7 @@ func TestTargetChatProviderConstructorsCompile(t *testing.T) {
 		_ func(openrouter.AnthropicChatConfig) (*openrouter.AnthropicChat, error) = openrouter.NewAnthropicChat
 		_ func(perplexity.OpenAIChatConfig) (*perplexity.OpenAIChat, error)       = perplexity.NewOpenAIChat
 		_ func(together.OpenAIChatConfig) (*together.OpenAIChat, error)           = together.NewOpenAIChat
-		_ func(vertexai.ChatConfig) (*google.Chat, error)                         = vertexai.NewChat
+		_ func(vertexai.ChatConfig) (*vertexai.Chat, error)                       = vertexai.NewChat
 		_ func(xai.OpenAIChatConfig) (*xai.OpenAIChat, error)                     = xai.NewOpenAIChat
 		_ func(xiaomi.OpenAIChatConfig) (*xiaomi.OpenAIChat, error)               = xiaomi.NewOpenAIChat
 		_ func(xiaomi.AnthropicChatConfig) (*xiaomi.AnthropicChat, error)         = xiaomi.NewAnthropicChat

@@ -1,12 +1,14 @@
 package azureopenai
 
 import (
+	"context"
 	"errors"
+	"iter"
 
 	"github.com/openai/openai-go/v3/option"
 
 	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/openai"
+	"github.com/Tangerg/lynx/models/internal/protocol/openai"
 )
 
 type AudioTTSModelConfig struct {
@@ -29,11 +31,15 @@ func (c AudioTTSModelConfig) Validate() error {
 	return nil
 }
 
-// NewAudioTTSModel returns an [openai.AudioTTSModel] pointed at Azure
-// OpenAI's v1 /audio/speech endpoint. [tts.Options].Model is the Azure
-// deployment id (typically pointing at "tts-1" / "tts-1-hd" /
-// "gpt-4o-mini-tts").
-func NewAudioTTSModel(cfg AudioTTSModelConfig) (*openai.AudioTTSModel, error) {
+var (
+	_ tts.Model    = (*AudioTTSModel)(nil)
+	_ tts.Streamer = (*AudioTTSModel)(nil)
+)
+
+type AudioTTSModel struct{ protocol *openai.AudioTTSModel }
+
+// NewAudioTTSModel returns an Azure OpenAI speech model.
+func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -41,9 +47,31 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*openai.AudioTTSModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	return openai.NewAudioTTSModel(openai.AudioTTSModelConfig{
+	protocol, err := openai.NewAudioTTSModel(openai.AudioTTSModelConfig{
+		Provider:       "azureopenai",
 		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &AudioTTSModel{protocol: protocol}, nil
+}
+
+func (m *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
+	if m == nil || m.protocol == nil {
+		return nil, errors.New("azureopenai: nil AudioTTSModel")
+	}
+	return m.protocol.Call(ctx, req)
+}
+
+func (m *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
+	if m == nil || m.protocol == nil {
+		return func(yield func(*tts.Response, error) bool) { yield(nil, errors.New("azureopenai: nil AudioTTSModel")) }
+	}
+	if err := req.Validate(); err != nil {
+		return func(yield func(*tts.Response, error) bool) { yield(nil, err) }
+	}
+	return m.protocol.Stream(ctx, req)
 }

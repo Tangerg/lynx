@@ -90,7 +90,7 @@ func TestProviderExtensionKeysAreSemanticAndNamespaced(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		provider := strings.Split(filepath.ToSlash(relative), "/")[0]
+		provider := extensionProvider(relative)
 		prefix := provider + "/"
 		for _, declaration := range file.Decls {
 			general, ok := declaration.(*ast.GenDecl)
@@ -127,6 +127,14 @@ func TestProviderExtensionKeysAreSemanticAndNamespaced(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func extensionProvider(relative string) string {
+	parts := strings.Split(filepath.ToSlash(relative), "/")
+	if len(parts) >= 3 && parts[0] == "internal" && parts[1] == "protocol" {
+		return parts[2]
+	}
+	return parts[0]
 }
 
 func TestModalityOptionsUseValueSemantics(t *testing.T) {

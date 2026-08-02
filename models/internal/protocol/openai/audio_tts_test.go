@@ -1,0 +1,42 @@
+package openai_test
+
+import (
+	"testing"
+
+	"github.com/openai/openai-go/v3/option"
+
+	tts "github.com/Tangerg/lynx/core/speech"
+	"github.com/Tangerg/lynx/models/internal/protocol/openai"
+	"github.com/Tangerg/lynx/models/internal/testutil"
+)
+
+func TestAudioTTSModel_Call_Mock(t *testing.T) {
+	// OpenAI TTS returns raw audio bytes (not JSON).
+	canned := []byte("FAKE-AUDIO-BYTES-FOR-TEST")
+	srv := testutil.BinaryServer(200, "audio/mpeg", canned)
+	t.Cleanup(srv.Close)
+
+	opts, err := tts.NewOptions("tts-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.Voice = "alloy"
+	m, err := openai.NewAudioTTSModel(openai.AudioTTSModelConfig{
+		Provider:       "openai",
+		APIKey:         "test-key",
+		DefaultOptions: opts,
+		RequestOptions: []option.RequestOption{option.WithBaseURL(srv.URL)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, _ := tts.NewRequest("hello world")
+	out, err := m.Call(t.Context(), req)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	if out.Result == nil {
+		t.Fatal("nil result")
+	}
+}

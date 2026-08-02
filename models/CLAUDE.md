@@ -12,7 +12,8 @@
 
 ## 架构心智
 
-- **每 provider 一个子包,固定三件套**:Config(校验 + 工厂)、Model(实现 core 接口)、request/response helper(消息格式转换 + 结果累积)。原生 adapter 使用 `NewChat`；兼容 facade 使用 `NewOpenAIChat`/`NewAnthropicChat`。形状一致,**但 provider 映射不共享**。
+- **每 provider 一个自洽子包,固定三件套**:Config(校验 + 工厂)、provider 自有 Model 类型(实现 core 接口)、端点/方言组合。原生 adapter 使用 `NewChat`；兼容 facade 使用 `NewOpenAIChat`/`NewAnthropicChat`。
+- **wire protocol 是更低一层的模块私有实现**:`internal/protocol/{openai,anthropic,google}` 只承载被多个端点真实复用的官方 wire 语义。provider 可以向下组合 protocol,protocol 不能反向依赖 provider；provider 之间禁止互相 import,公开 API 也禁止泄露 protocol 具体类型。
 - **不抽公共基类**:各家 SDK 的 shape 差异大于相似度,强抽 helper 是虚假 DRY —— 宁可每家重复。
 - **适配策略分几档**(靠这个判断新 provider 落哪档):原生跟自家 SDK / 委托 OpenAI 客户端改 BaseURL / 一个 provider 同时暴露 OpenAI 与 Anthropic 两种 API / 托管平台走 IAM(无 API key)/ 本地容器。
 - **两级 options 合并**:模型默认 + 请求级叠加;provider 专属参数走类型化提取器,不手动 type-assert。
@@ -21,7 +22,7 @@
 
 ## 模块特有反向不变量
 
-- ❌ **在 provider 之间共享 request/response helper** —— shape 差异 > 相似度,共享 = 虚假 DRY。
+- ❌ **跨不同 wire protocol 共享 request/response mapper** —— shape 差异 > 相似度,共享 = 虚假 DRY。只有明确宣称兼容同一官方 wire protocol 的端点才复用对应 `internal/protocol` 实现。
 - ❌ **加 retry layer** —— SDK 自带重试(见 root 共用反向不变量)。
 - ❌ **给 provider 加 OAuth / token refresh** —— 用户填 key,401 让 UI 提示重填。
 - ❌ **把 defaults/metadata 伪装成 Model 能力** —— `core/chat.Model` 只有 `Call`；默认值由 provider 构造配置持有，per-request override 使用普通 `chat.Options` 值。

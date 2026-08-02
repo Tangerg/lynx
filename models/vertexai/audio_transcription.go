@@ -1,13 +1,14 @@
 package vertexai
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
 	"google.golang.org/genai"
 
 	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/models/google"
+	"github.com/Tangerg/lynx/models/internal/protocol/google"
 )
 
 type AudioTranscriptionModelConfig struct {
@@ -34,14 +35,19 @@ func (c AudioTranscriptionModelConfig) Validate() error {
 	return nil
 }
 
-// NewAudioTranscriptionModel returns a [google.AudioTranscriptionModel]
-// backed by Vertex AI — Gemini's multimodal chat used through the
-// transcription interface.
-func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*google.AudioTranscriptionModel, error) {
+var _ transcription.Model = (*AudioTranscriptionModel)(nil)
+
+type AudioTranscriptionModel struct {
+	protocol *google.AudioTranscriptionModel
+}
+
+// NewAudioTranscriptionModel returns a Vertex AI transcription model.
+func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	return google.NewAudioTranscriptionModel(google.AudioTranscriptionModelConfig{
+	protocol, err := google.NewAudioTranscriptionModel(google.AudioTranscriptionModelConfig{
+		Provider:       "vertexai",
 		Backend:        genai.BackendVertexAI,
 		Project:        cfg.Project,
 		Location:       cfg.Location,
@@ -49,4 +55,15 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*google.Audi
 		BaseURL:        cfg.BaseURL,
 		HTTPClient:     cfg.HTTPClient,
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &AudioTranscriptionModel{protocol: protocol}, nil
+}
+
+func (m *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
+	if m == nil || m.protocol == nil {
+		return nil, errors.New("vertexai: nil AudioTranscriptionModel")
+	}
+	return m.protocol.Call(ctx, req)
 }

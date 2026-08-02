@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/models/openai"
+	"github.com/Tangerg/lynx/models/internal/protocol/openai"
 	"github.com/Tangerg/lynx/models/xiaomi"
 )
 
