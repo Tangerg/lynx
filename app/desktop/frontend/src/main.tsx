@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { initializeDesktopHost } from "./main/container";
 // Fonts: the native OS stack (SF Pro / PingFang on macOS) — see globals.css
 // --font-sans. No bundled webfont; the system face is the premium, native
 // default, loads instantly, and renders mixed CJK best.
@@ -17,6 +18,14 @@ import "./styles/globals.css";
 // agent subscribe, ref-counted plugin loader, etc.) for true double-invoke
 // safety.
 
-const container = document.getElementById("root");
-const root = createRoot(container!);
-root.render(<App />);
+async function start(): Promise<void> {
+  try {
+    await initializeDesktopHost();
+  } catch (error) {
+    console.error("[desktop] host bootstrap failed:", error);
+  }
+  const container = document.getElementById("root");
+  createRoot(container!).render(<App />);
+}
+
+void start();

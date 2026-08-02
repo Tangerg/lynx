@@ -8,7 +8,7 @@ import (
 )
 
 func TestDesktopApplicationWindowGeometry(t *testing.T) {
-	app := desktopApplicationOptions()
+	app := desktopApplicationOptions(newDesktopHost(t.TempDir()))
 
 	if app.Width != 1440 || app.Height != 900 {
 		t.Fatalf("default window size = %dx%d, want 1440x900", app.Width, app.Height)
@@ -24,6 +24,14 @@ func TestDesktopApplicationWindowGeometry(t *testing.T) {
 			app.Width,
 			app.Height,
 		)
+	}
+}
+
+func TestDesktopApplicationBindsHost(t *testing.T) {
+	host := newDesktopHost(t.TempDir())
+	app := desktopApplicationOptions(host)
+	if len(app.Bind) != 1 || app.Bind[0] != host {
+		t.Fatalf("desktop host binding = %#v, want the configured host", app.Bind)
 	}
 }
 

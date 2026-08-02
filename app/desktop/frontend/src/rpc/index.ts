@@ -189,8 +189,14 @@ export type {
   SidecarClient,
   SidecarClientConfig,
 } from "./sidecar";
-export { createShellClient } from "./shell";
-export type { ShellClient, ShellClientConfig, SideloadEntry } from "./shell";
+export { createDesktopHostClient } from "./desktopHost";
+export type {
+  DesktopBootstrap,
+  DesktopHostClient,
+  LocalRuntimeConnection,
+  SideloadedPlugin,
+  SideloadIssue,
+} from "./desktopHost";
 export { createHttpTransport } from "./transports/http";
 export type { HttpTransportConfig } from "./transports/http";
 export { createMemoryTransport } from "./transports/memory";

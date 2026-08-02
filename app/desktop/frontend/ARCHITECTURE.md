@@ -59,7 +59,7 @@ src/
 │   │   ├── PluginToaster.tsx     全局 toast 层（sonner）
 │   │   ├── ShortcutsProvider.tsx 全局键盘快捷键派发
 │   │   ├── hostBridge.ts         挂 window.__LYRA__，让 sideload 包共用 React/SDK
-│   │   └── sideload.ts           从 Go 后端拉取并 dynamic-import 用户插件
+│   │   └── sideload.ts           从 Wails Host Bridge 读取并 dynamic-import 用户插件
 │   │
 │   ├── sdk/                  插件平台
 │   │   ├── types/                17 个 domain 文件 + barrel（按贡献面拆）
@@ -210,12 +210,12 @@ Runtime endpoint 是 Runtime context 的应用配置：application 拥有默认�
 校验与 `applied | rejected` 结果语义，adapter 才把 consumer-owned port 接到 Host
 config/storage。`lyra.builtin.runtime` 在 capability discovery 之前同步恢复 endpoint，
 `main/container.ts` 只通过 Runtime `public/endpoint` 读取 active endpoint，并按
-endpoint 与 local token 缓存客户端。Connection 面板把稳定 rejection code 翻译为当前 locale
+endpoint 与 Wails bootstrap 返回的 local token 缓存客户端。Connection 面板把稳定 rejection code 翻译为当前 locale
 文案；应用变更后重载前端，让 streams、queries、capabilities 与 Session read models
 在同一个 Runtime 边界上重新装配，不做半热切换。
 
-固定的 local desktop shell URL 是另一个组合事实，只服务 shell metadata/assets 与
-sideload bundle；即使它当前与默认 Runtime endpoint 字面相同，也不复用同一常量。
+本地 token 与 sideload bundle 属于 Wails Host Bridge；它们不进入 Runtime Protocol，
+也不借 Runtime HTTP endpoint 建立第二套旁路 API。
 Capability discovery application 只依赖 `RuntimeDiscovery.discoverCapabilities()`；
 adapter 调用 typed `client.runtime.discover()` 并移除 `DiscoverResponse` envelope。
 插件 unload 后迟到的 discovery result 不得重新发布 capability。
@@ -707,7 +707,7 @@ ChatPanel → ChatStream → MessageBlock → PartRenderer
 | stream 断线且 replay 可用             | 从最后 folded eventId reattach                            |
 | `replay_unavailable` / runtime resync | 读取完整 durable Session snapshot，再做 CAS 原子替换      |
 | fold 来源或 lifecycle 不变量失败      | 当前 handler fail closed；保留入态并写 plugin diagnostics |
-| sideload 模块 import / manifest 失败  | 跳过，其它继续；console.warn                              |
+| sideload 模块读取 / import 失败       | 跳过，其它继续；console.warn                              |
 
 Plugins 面板（Settings → Plugins）汇总所有 `reportPluginError` 的红 badge。
 
@@ -747,7 +747,7 @@ export default definePlugin({
 ```
 
 > 内置：放 `plugins/builtin/<domain>/<name>/index.ts(x)`，在 `builtin/index.ts` 合适分组 import + 加进数组。
-> 外置：构建成 ESM，把 React/motion/SDK 标 external 去引用 `window.__LYRA__`，放后端 sideload 目录。
+> 外置：构建成 ESM，把 React/motion/SDK 标 external 去引用 `window.__LYRA__`，放 `~/.lyra/plugins/<id>/index.js`；Wails Host Bridge 读取源码后交给前端作为 module blob 加载。
 
 **自定义内容块的类型注册**（让 TS 满意）：
 

@@ -1,15 +1,12 @@
-// Composition root — owns the app's Runtime Protocol client and the local
-// desktop-shell asset client.
+// Composition root — owns the app's Runtime Protocol client and Wails host.
 // Singleton instead of Context because non-component code (zustand effects,
 // plugin setup) calls these too; tests inject fakes via `setContainer()`.
 
-import { LOCAL_DESKTOP_SHELL_BASE_URL } from "@/main/config";
 import { runtimeRequestMeta } from "@/main/runtimeProtocol";
 import { negotiatedCapabilities } from "@/plugins/builtin/runtime/public/capabilities";
 import { currentRuntimeEndpoint } from "@/plugins/builtin/runtime/public/endpoint";
-import { getConfig } from "@/plugins/sdk/config";
-import type { LyraClient, ShellClient } from "@/rpc";
-import { createHttpTransport, createLyraClient, createShellClient } from "@/rpc";
+import type { DesktopBootstrap, DesktopHostClient, LyraClient } from "@/rpc";
+import { createDesktopHostClient, createHttpTransport, createLyraClient } from "@/rpc";
 
 export interface Container {
   /**
@@ -20,13 +17,17 @@ export interface Container {
    * startup default. Tests can override with `setContainer({ client })`.
    */
   client: () => LyraClient;
-  /**
-   * Wails shell asset client (sideloaded-plugin manifest). NOT the Runtime
-   * Protocol — host/packaging metadata served by the desktop shell. Routed
-   * through the container so sideload discovery is injectable in tests and the
-   * "single outbound seam" invariant holds (no bare fetch in plugins/host).
-   */
-  shell: ShellClient;
+  /** App-owned Wails capability boundary. It never becomes Runtime Protocol. */
+  desktop: DesktopHostClient;
+}
+
+let desktopBootstrap: DesktopBootstrap | null = null;
+
+function localTokenFor(endpoint: string): string | undefined {
+  const local = desktopBootstrap?.localRuntime;
+  if (!local) return undefined;
+  const normalized = endpoint.replace(/\/+$/, "");
+  return normalized === local.endpoint.replace(/\/+$/, "") ? local.localToken : undefined;
 }
 
 function defaultContainer(): Container {
@@ -34,7 +35,7 @@ function defaultContainer(): Container {
   return {
     client: () => {
       const baseUrl = currentRuntimeEndpoint();
-      const localToken = getConfig<string>("api.localToken") ?? undefined;
+      const localToken = localTokenFor(baseUrl);
       const signature = `${baseUrl}\u0000${localToken ?? ""}`;
       if (shared?.signature === signature) return shared.client;
       const client = createLyraClient(createHttpTransport({ baseUrl, localToken }), {
@@ -44,9 +45,7 @@ function defaultContainer(): Container {
       shared = { signature, client };
       return client;
     },
-    // Shell assets belong to the local desktop process, not to the selectable
-    // Runtime Protocol endpoint.
-    shell: createShellClient({ baseUrl: LOCAL_DESKTOP_SHELL_BASE_URL }),
+    desktop: createDesktopHostClient(),
   };
 }
 
@@ -59,11 +58,18 @@ export function getContainer(): Container {
 /** Test seam — swap any subset of gateways with fakes. Other slots stay
  *  on the current defaults. */
 export function setContainer(next: Partial<Container>): void {
+  if (next.desktop) desktopBootstrap = null;
   instance = { ...instance, ...next };
+}
+
+/** Load app-owned bootstrap data before any plugin can construct an RPC client. */
+export async function initializeDesktopHost(): Promise<void> {
+  desktopBootstrap = await instance.desktop.bootstrap();
 }
 
 /** Test seam — restore every gateway to its default wiring. Call from
  *  `afterEach` so one test's stubs don't bleed into the next. */
 export function resetContainer(): void {
+  desktopBootstrap = null;
   instance = defaultContainer();
 }

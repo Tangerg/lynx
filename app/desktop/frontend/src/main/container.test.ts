@@ -10,15 +10,15 @@ describe("main/container", () => {
   it("exposes the Runtime Protocol entry points out of the box", () => {
     const c = getContainer();
     expect(typeof c.client).toBe("function");
-    expect(c.shell).toBeDefined();
+    expect(c.desktop).toBeDefined();
   });
 
   it("setContainer() swaps a single slot, leaving others intact", () => {
     const fake = {} as LyraClient;
-    const before = getContainer().shell;
+    const before = getContainer().desktop;
     setContainer({ client: () => fake });
     expect(getContainer().client()).toBe(fake);
-    expect(getContainer().shell).toBe(before);
+    expect(getContainer().desktop).toBe(before);
   });
 
   it("resetContainer() restores defaults", () => {

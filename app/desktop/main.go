@@ -20,7 +20,7 @@ const (
 	minimumWindowHeight = 720
 )
 
-func desktopApplicationOptions() *options.App {
+func desktopApplicationOptions(host *DesktopHost) *options.App {
 	return &options.App{
 		Title:     "lyra",
 		Width:     defaultWindowWidth,
@@ -30,6 +30,7 @@ func desktopApplicationOptions() *options.App {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
+		Bind:             []any{host},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		// macOS: hide the native titlebar but keep the native traffic-light
 		// controls (inset over our content) — these are the ONLY window controls;
@@ -43,7 +44,11 @@ func desktopApplicationOptions() *options.App {
 }
 
 func main() {
-	if err := wails.Run(desktopApplicationOptions()); err != nil {
+	host, err := defaultDesktopHost()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := wails.Run(desktopApplicationOptions(host)); err != nil {
 		log.Fatal(err)
 	}
 }

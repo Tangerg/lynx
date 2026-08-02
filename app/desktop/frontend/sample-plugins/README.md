@@ -18,8 +18,8 @@ trigger the toast.
 A sideloaded plugin is a folder containing an `index.js` (ES module) that
 default-exports the result of `definePlugin(...)`.
 
-The browser dynamic-imports your file from
-`http://127.0.0.1:17171/plugins/<folder>/index.js`, so:
+The Wails host reads `~/.lyra/plugins/<folder>/index.js`, and the frontend
+dynamic-imports the returned source as an isolated module blob, so:
 
 - You can't `import` from npm. The host's React, motion, SDK, etc. are
   exposed on `window.__LYRA__`.

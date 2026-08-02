@@ -3,9 +3,8 @@
 
 import type { LoadResult } from "../sdk/definePlugin";
 import type { PluginSpec } from "../sdk/types";
-import type { SideloadEntry } from "@/rpc";
+import type { SideloadedPlugin } from "@/rpc";
 import { z } from "zod";
-import { LOCAL_DESKTOP_SHELL_BASE_URL } from "@/main/config";
 import { getContainer } from "@/main/container";
 import { loadPlugin } from "../sdk/definePlugin";
 import { reportPluginError } from "../sdk/errors";
@@ -30,31 +29,30 @@ const PluginSpecSchema = z.object({
   contributes: z.unknown().optional(),
 });
 
-/** Discover sideloaded plugins from the Go backend and load each one. */
+/** Discover sideloaded plugins from the Wails host and load each one. */
 export async function loadSideloadedPlugins(): Promise<LoadResult[]> {
-  // The manifest fetch goes through the container's shell client (the single
-  // outbound seam — injectable in tests, ARCHITECTURE §10). The per-plugin
-  // module load below is a dynamic import(), inherently glue, so it builds the
-  // URL from the fixed local shell base directly.
-  let infos: SideloadEntry[];
+  let infos: SideloadedPlugin[];
   try {
-    infos = await getContainer().shell.sideloadManifest();
+    const bootstrap = await getContainer().desktop.bootstrap();
+    infos = bootstrap?.sideloadedPlugins ?? [];
+    for (const issue of bootstrap?.sideloadIssues ?? []) {
+      console.warn(`[plugin] sideload ${issue.id} was skipped: ${issue.detail}`);
+    }
   } catch (err) {
-    console.warn("[plugin] sideload manifest fetch failed:", err);
+    console.warn("[plugin] desktop host bootstrap failed:", err);
     return [];
   }
 
   const results: LoadResult[] = [];
 
   for (const info of infos) {
-    const url = `${LOCAL_DESKTOP_SHELL_BASE_URL}${info.url}`;
     let spec: PluginSpec;
 
     try {
-      // Vite warns on dynamic imports of external URLs at build time; the
-      // /* @vite-ignore */ comment opts out — these URLs are user-controlled
-      // and live behind the Go backend.
-      const mod = await import(/* @vite-ignore */ url);
+      const sourceURL = URL.createObjectURL(new Blob([info.source], { type: "text/javascript" }));
+      const mod = await import(/* @vite-ignore */ sourceURL).finally(() => {
+        URL.revokeObjectURL(sourceURL);
+      });
       const def = (mod as { default?: unknown }).default;
       const parsed = PluginSpecSchema.safeParse(def);
       if (!parsed.success) {
