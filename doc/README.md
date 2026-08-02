@@ -16,7 +16,8 @@ lynx/
 ├── chatclient/      高层 Chat 调用便利层
 ├── embeddingclient/ 向量提取便利层（文本/Document → 独立向量）
 ├── documentpipeline/ 文档 formatter / transformer / batcher / ID；Markdown 结构化切分为可选子模块
-├── tokenizer/       tokenizer SPI 与 tiktoken 实现
+├── tokenizer/       stdlib-only tokenizer SPI
+│   └── tiktoken/    tiktoken 具体实现（独立模块）
 ├── mcp/             Model Context Protocol 桥接
 ├── a2a/             Agent-to-Agent 协议桥接
 ├── chathistory/      聊天历史后端
@@ -47,6 +48,7 @@ lynx/
 **框架设计（本目录）**
 - [`CORE_GETTING_STARTED.md`](./CORE_GETTING_STARTED.md) — 当前 API 的最小同步/流式/typed tool/tool-loop/pause-resume/structured output 上手路径
 - [`TOOL_FOUNDATION_MIGRATION.md`](./TOOL_FOUNDATION_MIGRATION.md) — `tools` 契约下沉到 `tool` 的 breaking migration
+- [`TOKENIZER_MODULE_MIGRATION.md`](./TOKENIZER_MODULE_MIGRATION.md) — tokenizer SPI 与 tiktoken 实现的独立发布边界
 - [`AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md`](./AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md) — Agent Framework 的唯一执行基准：Engine 所有权、Deployment、managed interaction、durable Process、阶段任务与进度
 - [`OBSERVABILITY.md`](./OBSERVABILITY.md) — 可观测性设计：OTel 三驾马车 → `log/slog`、语义规范、埋点清单、桥接 exporter
 
