@@ -23,6 +23,7 @@ use (
 	./examples/mcp
 	./internal/chathistorykit
 	./internal/chathistoryotel
+	./internal/repoarch
 	./internal/vectorstorekit
 	./internal/vectorstorepg
 	./mcp
