@@ -1,0 +1,39 @@
+<!-- @dsCard group="Components" viewport="700x260" name="Content" subtitle="Typography, Avatar, Badge, Chip, Kbd, Icon" -->
+<!doctype html><html class="light"><head><meta charset="utf-8"><title>Content</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;padding:20px;background:var(--background)}#root{display:flex;flex-direction:column;gap:14px}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.cap{font-size:11px;color:var(--muted);width:64px;flex-shrink:0}</style>
+</head><body><div id="root"></div><script type="text/babel">
+const {Typography, Avatar, Badge, Chip, Kbd, Icon, Button, iconNames} = window.DesignSystem_df98fe;
+function Demo(){
+  return <>
+    <div>
+      <Typography.Heading level={3}>Built for the intelligence age</Typography.Heading>
+      <Typography.Paragraph size="sm" color="muted">Secondary body, table cells, navigation and sidebar items.</Typography.Paragraph>
+    </div>
+    <div className="row">
+      <span className="cap">Avatar</span>
+      <Avatar name="Ada Lovelace"/><Avatar size="sm" name="Grace H"/><Avatar size="lg" shape="square" name="Alan T"/>
+      <Avatar.Group><Avatar size="sm" name="A B"/><Avatar size="sm" name="C D"/><Avatar size="sm" name="E F"/></Avatar.Group>
+      <Badge content={3}><Button variant="ghost" isIconOnly aria-label="Alerts"><Icon name="bell"/></Button></Badge>
+      <Badge dot color="success"><Avatar name="Ada L"/></Badge>
+    </div>
+    <div className="row">
+      <span className="cap">Chip</span>
+      <Chip>Neutral</Chip><Chip color="accent">Accent</Chip><Chip color="success" dot>Live</Chip>
+      <Chip color="warning">Warning</Chip><Chip color="danger">Failed</Chip>
+      <Chip variant="outline" size="sm">beta</Chip><Chip color="accent" size="lg" onRemove={()=>{}}>design</Chip>
+    </div>
+    <div className="row">
+      <span className="cap">Kbd</span>
+      <Kbd keys={['cmd','k']}/><Kbd keys={['shift']}/><Kbd>Esc</Kbd><Kbd keys={['enter']}/>
+      <span className="cap" style={{width:'auto',marginLeft:12}}>Icons</span>
+      {['search','settings','bell','calendar','code','palette','layers','sparkles','download','filter'].map(n=><Icon key={n} name={n} size={18}/>)}
+    </div>
+  </>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

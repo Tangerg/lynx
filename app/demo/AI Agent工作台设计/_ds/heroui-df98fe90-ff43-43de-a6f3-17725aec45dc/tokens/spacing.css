@@ -1,0 +1,29 @@
+/* HeroUI v3 — spacing scale. Tailwind v4 derives every step from --spacing
+   (0.25rem = 4px), so `p-4` is calc(var(--spacing) * 4) = 16px. Change
+   --spacing in tokens/primitives.css and the whole system rescales. */
+:root{
+  --space-0: 0px;
+  --space-0-5: calc(var(--spacing) * 0.5);  /* 2px  */
+  --space-1: calc(var(--spacing) * 1);      /* 4px  */
+  --space-1-5: calc(var(--spacing) * 1.5);  /* 6px  */
+  --space-2: calc(var(--spacing) * 2);      /* 8px  */
+  --space-2-5: calc(var(--spacing) * 2.5);  /* 10px */
+  --space-3: calc(var(--spacing) * 3);      /* 12px */
+  --space-4: calc(var(--spacing) * 4);      /* 16px */
+  --space-5: calc(var(--spacing) * 5);      /* 20px */
+  --space-6: calc(var(--spacing) * 6);      /* 24px */
+  --space-8: calc(var(--spacing) * 8);      /* 32px */
+  --space-10: calc(var(--spacing) * 10);    /* 40px */
+  --space-12: calc(var(--spacing) * 12);    /* 48px */
+  --space-16: calc(var(--spacing) * 16);    /* 64px */
+  --space-20: calc(var(--spacing) * 20);    /* 80px */
+  --space-24: calc(var(--spacing) * 24);    /* 96px */
+
+  /* Fade length of a ScrollShadow's masked edge */
+  --scroll-shadow-size: 2.5rem;
+
+  /* Control heights used by shipped components (md is the default) */
+  --control-h-sm: 2.25rem;  /* 36px — md: 32px */
+  --control-h-md: 2.5rem;   /* 40px — md: 36px */
+  --control-h-lg: 2.75rem;  /* 44px — md: 40px */
+}

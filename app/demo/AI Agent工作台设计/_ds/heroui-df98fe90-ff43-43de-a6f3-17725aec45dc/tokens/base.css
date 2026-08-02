@@ -1,0 +1,13 @@
+/* HeroUI v3 — minimal base layer for standalone HTML surfaces.
+   The real package resets via Tailwind Preflight + @heroui/styles/base/base.css. */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:var(--text-body-sm);line-height:var(--text-body-sm-line);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+h1,h2,h3,h4,h5,h6,p,figure{margin:0}
+a{color:var(--link);text-decoration:none}
+a:hover{text-decoration:underline;text-underline-offset:2px}
+button,input,select,textarea{font:inherit;color:inherit}
+:where(*):focus-visible{outline:2px solid var(--focus);outline-offset:var(--ring-offset-width)}
+[data-scrollbar="none"]{scrollbar-width:none}
+[data-scrollbar="default"]{scrollbar-width:auto}
+.scrollbar,[data-scrollbar="thin"]{scrollbar-width:var(--scrollbar-width);scrollbar-color:var(--scrollbar-color)}

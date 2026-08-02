@@ -1,0 +1,84 @@
+/* Buttons — from packages/styles/components/button.css (v3).
+   NOTE ON FIDELITY: the shipped file drives variants through four component-local
+   custom properties (--button-bg / -hover / -pressed / --button-fg) set per variant
+   class. That indirection is documented in Button.prompt.md; here the same values are
+   written directly so the design system's token index stays clean. Colours, states and
+   geometry are unchanged. */
+.button{position:relative;isolation:isolate;display:inline-flex;height:2.5rem;width:fit-content;transform-origin:center;align-items:center;justify-content:center;gap:.5rem;border:0;border-radius:min(1.5rem,var(--radius-3xl));padding-inline:1rem;font-family:var(--font-sans);font-size:.875rem;font-weight:500;line-height:1;white-space:nowrap;outline:none;user-select:none;-webkit-tap-highlight-color:transparent;cursor:var(--cursor-interactive);background-color:transparent;color:currentColor;transform:translateZ(0);transition:transform 250ms var(--ease-smooth),background-color 100ms var(--ease-out),box-shadow 100ms var(--ease-out)}
+@media (min-width:768px){.button{height:2.25rem}}
+@media (prefers-reduced-motion:reduce){.button{transition:none}}
+.button:focus-visible:not(:focus),.button[data-focus-visible="true"]{outline:2px solid var(--focus);outline-offset:var(--ring-offset-width)}
+.button:disabled,.button[aria-disabled="true"]{opacity:var(--disabled-opacity);cursor:var(--cursor-disabled)}
+.button[data-pending="true"]{cursor:var(--cursor-disabled)}
+.button:active,.button[data-pressed="true"]{transform:scale(.97)}
+.button>svg:not([data-slot="spinner"] svg,[data-slot="link-icon"] svg){pointer-events:none;margin-inline:-.125rem;margin-block:.125rem;width:1.25rem;height:1.25rem;flex-shrink:0;align-self:center}
+@media (min-width:640px){.button>svg:not([data-slot="spinner"] svg,[data-slot="link-icon"] svg){margin-block:.25rem;width:1rem;height:1rem}}
+
+/* Sizes */
+.button--sm{height:2.25rem;padding-inline:.75rem}
+@media (min-width:768px){.button--sm{height:2rem}}
+.button--sm>svg{width:1rem;height:1rem}
+.button--sm:active,.button--sm[data-pressed="true"]{transform:scale(.98)}
+.button--lg{height:2.75rem;font-size:1rem}
+@media (min-width:768px){.button--lg{height:2.5rem}}
+.button--lg:active,.button--lg[data-pressed="true"]{transform:scale(.96)}
+
+/* Variants — rest / hover / pressed */
+.button--primary{background-color:var(--accent);color:var(--accent-foreground)}
+.button--primary:active,.button--primary[data-pressed="true"]{background-color:var(--accent-hover)}
+.button--secondary{background-color:var(--default);color:var(--accent-soft-foreground)}
+.button--secondary:active,.button--secondary[data-pressed="true"]{background-color:var(--default-hover)}
+.button--tertiary{background-color:var(--default)}
+.button--tertiary:active,.button--tertiary[data-pressed="true"]{background-color:var(--default-hover)}
+.button--ghost,.button--outline{background-color:transparent;color:var(--default-foreground)}
+.button--ghost:active,.button--ghost[data-pressed="true"],.button--outline:active,.button--outline[data-pressed="true"]{background-color:var(--default)}
+.button--outline{border:1px solid var(--border-secondary)}
+.button--danger{background-color:var(--danger);color:var(--danger-foreground)}
+.button--danger:active,.button--danger[data-pressed="true"]{background-color:var(--danger-hover)}
+.button--danger-soft{background-color:var(--danger-soft);color:var(--danger-soft-foreground)}
+.button--danger-soft:active,.button--danger-soft[data-pressed="true"]{background-color:var(--danger-soft-hover)}
+@media (hover:hover){
+  .button--primary:hover,.button--primary[data-hovered="true"]{background-color:var(--accent-hover)}
+  .button--secondary:hover,.button--secondary[data-hovered="true"]{background-color:var(--default-hover)}
+  .button--tertiary:hover,.button--tertiary[data-hovered="true"]{background-color:var(--default-hover)}
+  .button--ghost:hover,.button--ghost[data-hovered="true"]{background-color:var(--default)}
+  .button--outline:hover,.button--outline[data-hovered="true"]{background-color:color-mix(in srgb,var(--default) 60%,transparent)}
+  .button--danger:hover,.button--danger[data-hovered="true"]{background-color:var(--danger-hover)}
+  .button--danger-soft:hover,.button--danger-soft[data-hovered="true"]{background-color:var(--danger-soft-hover)}
+}
+
+/* Modifiers */
+.button--icon-only{width:2.5rem;padding:0}
+@media (min-width:768px){.button--icon-only{width:2.25rem}}
+.button--icon-only.button--sm{width:2.25rem}
+@media (min-width:768px){.button--icon-only.button--sm{width:2rem}}
+.button--icon-only.button--lg{width:2.75rem}
+@media (min-width:768px){.button--icon-only.button--lg{width:2.5rem}}
+.button--full-width{width:100%}
+
+/* ButtonGroup — segmented run of buttons; inner corners flatten. */
+.button-group{display:inline-flex;align-items:center}
+.button-group>.button{border-radius:0}
+.button-group>.button:first-child{border-start-start-radius:min(1.5rem,var(--radius-3xl));border-end-start-radius:min(1.5rem,var(--radius-3xl))}
+.button-group>.button:last-child{border-start-end-radius:min(1.5rem,var(--radius-3xl));border-end-end-radius:min(1.5rem,var(--radius-3xl))}
+.button-group>.button:active,.button-group>.button[data-pressed="true"]{transform:none}
+.button-group--gap{gap:.5rem}
+.button-group--gap>.button{border-radius:min(1.5rem,var(--radius-3xl))}
+
+/* CloseButton — a ghost icon button sized to its glyph. */
+.close-button{display:inline-flex;align-items:center;justify-content:center;width:1.75rem;height:1.75rem;border:0;padding:0;border-radius:min(.875rem,var(--radius-3xl));background:transparent;color:var(--muted);cursor:var(--cursor-interactive);transition:background-color 100ms var(--ease-out),color 100ms var(--ease-out)}
+.close-button:hover{background:var(--default);color:var(--foreground)}
+.close-button:active{transform:scale(.94)}
+.close-button:focus-visible{outline:2px solid var(--focus);outline-offset:var(--ring-offset-width)}
+.close-button--sm{width:1.5rem;height:1.5rem}
+.close-button--lg{width:2rem;height:2rem}
+
+/* ToggleButton / ToggleButtonGroup */
+.toggle-button{background-color:transparent;color:var(--foreground)}
+.toggle-button:hover{background-color:var(--default)}
+.toggle-button[data-selected="true"]{background-color:var(--foreground);color:var(--background)}
+.toggle-button[data-selected="true"]:hover{background-color:var(--foreground)}
+.toggle-button-group{display:inline-flex;align-items:center;gap:.25rem;padding:.25rem;border-radius:min(1.75rem,var(--radius-4xl));background:var(--default)}
+.toggle-button-group .toggle-button{background-color:transparent}
+.toggle-button-group .toggle-button:hover{background-color:var(--surface-hover)}
+.toggle-button-group .toggle-button[data-selected="true"]{background-color:var(--segment);color:var(--segment-foreground);box-shadow:var(--surface-shadow)}

@@ -1,0 +1,30 @@
+/* Preview-card shared chrome.
+   Each card renders at ~700px wide; height varies.
+   Keep the card itself flat — no panel chrome — because the
+   Design System tab wraps each in its own frame. */
+html, body {
+  margin: 0;
+  padding: 24px;
+  background: #fafafa;
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+.row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.col { display: flex; flex-direction: column; gap: 12px; }
+.swatch {
+  width: 64px; height: 64px;
+  border-radius: 8px;
+  box-shadow: var(--shadow-1-inset);
+}
+.swatch-sm { width: 32px; height: 32px; }
+.tok-name  { font: 500 13px/16px var(--font-mono); color: var(--ink); }
+.tok-meta  { font: 400 12px/16px var(--font-mono); color: var(--mute); }
+.tok-label { font: 400 12px/16px var(--font-sans); color: var(--body); }
+.h-eyebrow {
+  font: 400 11px/16px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mute);
+  margin: 0 0 12px 0;
+}
+.divider { height: 1px; background: var(--hairline); }

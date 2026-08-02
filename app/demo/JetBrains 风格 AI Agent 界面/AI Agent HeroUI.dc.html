@@ -1,0 +1,1477 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/tokens/primitives.css">
+<link rel="stylesheet" href="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/tokens/colors.css">
+<link rel="stylesheet" href="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/tokens/typography.css">
+<link rel="stylesheet" href="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/tokens/radius.css">
+<link rel="stylesheet" href="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/tokens/shadows.css">
+<link rel="stylesheet" href="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/tokens/motion.css">
+<link rel="stylesheet" href="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/tokens/base.css">
+<link rel="stylesheet" href="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/components/buttons/buttons.css">
+<link rel="stylesheet" href="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/components/forms/forms.css">
+<link rel="stylesheet" href="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/components/layout/layout.css">
+<link rel="stylesheet" href="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/components/content/content.css">
+<link rel="stylesheet" href="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/components/feedback/feedback.css">
+<link rel="stylesheet" href="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/components/overlays/overlays.css">
+<link rel="stylesheet" href="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/components/data/data.css">
+<link rel="stylesheet" href="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/styles.css">
+<script src="_ds/heroui-df98fe90-ff43-43de-a6f3-17725aec45dc/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;overflow:hidden;background:var(--background);}
+.hb{transition:transform 250ms var(--ease-smooth,ease), background-color 100ms var(--ease-out,ease);}
+.hb:active{transform:scale(.97);}
+*{box-sizing:border-box;}
+[data-theme="dark"],[data-theme="light"]{
+--bg-app:var(--background); --bg-panel:var(--background-secondary); --bg-bar:var(--background-secondary);
+--bg-left:var(--background-secondary); --bg-right:var(--background-secondary); --bg-elev:var(--surface);
+--text:var(--foreground); --text-dim:var(--muted); --text-faint:color-mix(in oklab, var(--muted) 72%, var(--background) 28%);
+--border:var(--border-secondary); --border-soft:var(--separator); --line:var(--separator);
+--hover:var(--default); --chip:var(--default); --sel:var(--accent-soft);
+--green:var(--success); --green-bg:var(--success-soft); --red:var(--danger); --red-bg:var(--danger-soft);
+--amber:var(--warning); --amber-bg:var(--warning-soft); --accent-fg:var(--accent-foreground);
+--sh-card:var(--surface-shadow); --shadow:var(--overlay-shadow);
+--focus:var(--accent);
+--accent-hover:color-mix(in oklab, var(--accent) 90%, var(--accent-foreground) 10%);
+--accent-soft:color-mix(in oklab, var(--accent) 15%, transparent);
+--accent-soft-foreground:color-mix(in oklab, var(--accent) 70%, var(--foreground) 30%);
+--accent-soft-hover:color-mix(in oklab, var(--accent) 20%, transparent);
+}
+[data-theme="dark"]{
+/* HeroUI 的派生 token 在 :root 上用浅色值算定，这里按同一公式在深色作用域重算 */
+--background-secondary:color-mix(in oklab, var(--background) 94%, var(--foreground) 6%);
+--background-tertiary:color-mix(in oklab, var(--background) 88%, var(--foreground) 12%);
+--background-inverse:var(--foreground);
+--surface-hover:color-mix(in oklab, var(--surface) 92%, var(--surface-foreground) 8%);
+--default-hover:color-mix(in oklab, var(--default) 96%, var(--default-foreground) 4%);
+--default-soft:color-mix(in oklab, var(--default) 50%, transparent);
+--accent-hover:color-mix(in oklab, var(--accent) 90%, var(--accent-foreground) 10%);
+--accent-soft:color-mix(in oklab, var(--accent) 12%, transparent);
+--accent-soft-foreground:color-mix(in oklab, var(--accent) 80%, var(--foreground) 30%);
+--accent-soft-hover:color-mix(in oklab, var(--accent) 16%, transparent);
+--danger-soft:color-mix(in oklab, var(--danger) 12%, transparent);
+--danger-soft-hover:color-mix(in oklab, var(--danger) 16%, transparent);
+--separator-secondary:color-mix(in oklab, var(--surface) 85%, var(--surface-foreground) 15%);
+--separator-tertiary:color-mix(in oklab, var(--surface) 81%, var(--surface-foreground) 19%);
+--border-secondary:color-mix(in oklab, var(--surface) 78%, var(--surface-foreground) 22%);
+--border-tertiary:color-mix(in oklab, var(--surface) 66%, var(--surface-foreground) 34%);
+--scrollbar-thumb:color-mix(in oklch, var(--foreground) 15%, transparent);
+--bg-sunken:oklch(9.5% 0.005 285.823);
+--sh-left:6px 0 20px -12px rgba(0,0,0,.7); --sh-right:-6px 0 20px -12px rgba(0,0,0,.7); --sh-bar:0 6px 16px -12px rgba(0,0,0,.8);
+--shadow:0 14px 34px rgba(0,0,0,.55), 0 0 1px 0 rgba(255,255,255,.3) inset;
+--syn-kw:#cf8e6d; --syn-str:#6aab73; --syn-com:#8b8f96; --syn-num:#2aacb8; --syn-fn:#56a8f5; --syn-ty:#b5b6e3; --syn-txt:#bcbec4;
+}
+[data-theme="light"]{
+--bg-sunken:var(--surface-tertiary);
+--sh-left:6px 0 20px -14px rgba(0,0,0,.28); --sh-right:-6px 0 20px -14px rgba(0,0,0,.28); --sh-bar:0 4px 14px -12px rgba(0,0,0,.35);
+--syn-kw:#0033b3; --syn-str:#067d17; --syn-com:#8c8c8c; --syn-num:#1750eb; --syn-fn:#00627a; --syn-ty:#20999d; --syn-txt:var(--foreground);
+}
+a{color:var(--accent); text-decoration:none;}
+a:hover{color:var(--accent); text-decoration:underline;}
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb);border-radius:999px;border:3px solid transparent;background-clip:content-box;}
+::-webkit-scrollbar-track{background:transparent;}
+input,textarea,button{font:inherit;color:inherit;background:none;border:none;outline:none;}
+@keyframes cc-caret{0%,45%{opacity:1}46%,100%{opacity:0}}
+@keyframes cc-spin{to{transform:rotate(360deg)}}
+@keyframes cc-breathe{0%,100%{opacity:.35}50%{opacity:1}}
+@keyframes cc-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+</style>
+</helmet>
+<div data-theme="{{ theme }}" class="{{ themeClass }}" style="--accent: {{ accent }}; height:100vh; display:flex; flex-direction:column; position:relative; background:var(--bg-app); color:var(--text); font-family:Inter,'PingFang SC','Microsoft YaHei',sans-serif; font-size:14px; letter-spacing:0; -webkit-font-smoothing:antialiased;">
+
+  <div style="height:46px; flex:none; display:flex; align-items:center; gap:18px; padding:0 12px; background:var(--bg-bar); position:relative; z-index:5; box-shadow:var(--sh-bar);">
+    <div onClick="{{ toggleLeft }}" title="{{ leftToggleTip }}" style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:999px; background:{{ leftToggleBg }}; color:{{ leftIconColor }}; cursor:pointer;" style-hover="background:var(--hover)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6"></rect><path d="M9.5 4.5v15" stroke="currentColor" stroke-width="1.6"></path><rect x="3.5" y="4.5" width="6" height="15" fill="currentColor" opacity=".4"></rect></svg>
+    </div>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="2.5" width="19" height="19" rx="4.5" stroke="var(--text-dim)" stroke-width="1.5"></rect><path d="M8 8h4.5M10.2 8v8M8 16h4.5" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"></path></svg>
+    <span style="font-size:13px; font-weight:500;">payments-web</span>
+    <span style="color:var(--border);">/</span>
+    <div style="display:flex; align-items:center; gap:5px; color:var(--text-dim); font-size:12px;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.5"></circle><circle cx="6" cy="18" r="2.5" stroke="currentColor" stroke-width="1.5"></circle><circle cx="18" cy="8" r="2.5" stroke="currentColor" stroke-width="1.5"></circle><path d="M6 8.5v7M8.5 6H14a4 4 0 0 1 4 4v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+      feat/payment-retry
+    </div>
+    <div style="flex:1;"></div>
+    <div style="display:flex; align-items:center; gap:6px; padding:4px 11px; border-radius:999px; background:var(--green-bg); color:var(--green); font-size:12px; font-family:'JetBrains Mono',monospace;">
+      <span style="width:6px; height:6px; border-radius:50%; background:currentColor;"></span>agent 运行中
+    </div>
+    <div onClick="{{ toggleRight }}" title="{{ rightToggleTip }}" style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:999px; background:{{ rightToggleBg }}; color:{{ rightIconColor }}; cursor:pointer;" style-hover="background:var(--hover)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6"></rect><path d="M14.5 4.5v15" stroke="currentColor" stroke-width="1.6"></path><rect x="14.5" y="4.5" width="6" height="15" fill="currentColor" opacity=".4"></rect></svg>
+    </div>
+  </div>
+
+  <div style="flex:1; min-height:0; display:flex;">
+
+    <sc-if value="{{ leftOpen }}" hint-placeholder-val="{{ true }}">
+    <div style="width:240px; flex:none; background:var(--bg-left); position:relative; z-index:3; box-shadow:var(--sh-left); display:flex; flex-direction:column; min-height:0;">
+      <div style="padding:16px 8px 8px; display:flex; flex-direction:column; gap:1px;">
+        <div style="display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:12px; font-size:13.5px; cursor:pointer;" style-hover="background:var(--hover)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-dim);"><path d="M4 20l.9-4.2 11-11a2.1 2.1 0 0 1 3 3l-11 11z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+          新对话
+          <span style="margin-left:auto; font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">⌘N</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:12px; font-size:13.5px; cursor:pointer;" style-hover="background:var(--hover)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-dim);"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.6"></circle><path d="M16.2 16.2L21 21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+          搜索
+          <span style="margin-left:auto; font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">⌘K</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:12px; font-size:13.5px; cursor:pointer;" style-hover="background:var(--hover)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-dim);"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.5"></rect><path d="M7.5 9.5l2.5 2.5-2.5 2.5M13 15h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          待审批
+          <span style="margin-left:auto; width:16px; height:16px; border-radius:50%; background:var(--amber-bg); color:var(--amber); font-size:10px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace;">1</span>
+        </div>
+      </div>
+      <div style="flex:1; min-height:0; overflow-y:auto; padding:4px 10px 14px;">
+        <div style="padding:14px 10px 6px; font-size:12px; color:var(--text-faint);">今天</div>
+        <div style="padding:10px 11px; border-radius:12px; background:var(--sel); display:flex; flex-direction:column; gap:3px; cursor:pointer;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text);"><path d="M12 3.2l1.9 4.9 4.9 1.9-4.9 1.9L12 16.8l-1.9-4.9L5.2 10l4.9-1.9z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+            <span style="font-size:13px; font-weight:500; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">抽离支付重试 hook</span>
+          </div>
+          <div style="font-size:11px; color:var(--text-dim); padding-left:22px;">12 条消息 · 2 个待审批</div>
+        </div>
+        <div style="padding:10px 11px; border-radius:12px; display:flex; flex-direction:column; gap:3px; cursor:pointer;" style-hover="background:var(--hover)">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint);"><path d="M4.5 5.5h15v10h-9l-4 3.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+            <span style="font-size:13px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Stripe webhook 幂等性排查</span>
+          </div>
+          <div style="font-size:11px; color:var(--text-faint); padding-left:22px;">已完成 · 14:02</div>
+        </div>
+        <div style="padding:10px 11px; border-radius:12px; display:flex; flex-direction:column; gap:3px; cursor:pointer;" style-hover="background:var(--hover)">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint);"><path d="M4.5 5.5h15v10h-9l-4 3.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+            <span style="font-size:13px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">迁移到 pnpm workspace</span>
+          </div>
+          <div style="font-size:11px; color:var(--text-faint); padding-left:22px;">已完成 · 11:37</div>
+        </div>
+        <div style="padding:18px 10px 6px; font-size:12px; color:var(--text-faint);">昨天</div>
+        <div style="padding:10px 11px; border-radius:12px; display:flex; flex-direction:column; gap:3px; cursor:pointer;" style-hover="background:var(--hover)">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint);"><path d="M4.5 5.5h15v10h-9l-4 3.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+            <span style="font-size:13px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">重写结算页 E2E 用例</span>
+          </div>
+          <div style="font-size:11px; color:var(--text-faint); padding-left:22px;">已完成 · 昨天 18:20</div>
+        </div>
+        <div style="padding:10px 11px; border-radius:12px; display:flex; flex-direction:column; gap:3px; cursor:pointer;" style-hover="background:var(--hover)">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint);"><path d="M4.5 5.5h15v10h-9l-4 3.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+            <span style="font-size:13px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">升级 Node 20 与 CI 缓存</span>
+          </div>
+          <div style="font-size:11px; color:var(--text-faint); padding-left:22px;">已中断 · 昨天 16:05</div>
+        </div>
+      </div>
+      <div style="flex:none; padding:8px 8px 10px; display:flex; align-items:center; gap:8px;">
+        <div onClick="{{ toggleAccount }}" style="display:flex; align-items:center; gap:8px; flex:1; min-width:0; padding:5px 6px; border-radius:6px; cursor:pointer;" style-hover="background:var(--hover)">
+          <div style="width:24px; height:24px; flex:none; border-radius:50%; background:linear-gradient(140deg,#4b7bec,#8854d0); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:#fff;">Z</div>
+          <div style="display:flex; flex-direction:column; min-width:0;">
+            <span style="font-size:12px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">张维</span>
+            <span style="font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">128.4k / 500k</span>
+          </div>
+        </div>
+        <div onClick="{{ toggleSettings }}" title="设置" style="position:relative; width:28px; height:28px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:999px; background:{{ settingsBg }}; color:var(--text-dim); cursor:pointer;" style-hover="background:var(--hover); color:var(--text)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.5"></circle><path d="M19.4 14.5a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5v.2a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"></path></svg>
+          <sc-if value="{{ settingsOpen }}" hint-placeholder-val="{{ false }}">
+            <div onClick="{{ stopPop }}" style="position:absolute; bottom:32px; left:-4px; width:238px; padding:6px; border-radius:16px; background:var(--overlay); box-shadow:var(--shadow); z-index:40; display:flex; flex-direction:column; gap:1px; cursor:default;">
+              <div onClick="{{ toggleAppearance }}" style="display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:10px; font-size:13.5px; cursor:pointer;" style-hover="background:var(--hover)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="color:var(--text-dim);"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.5"></circle><path d="M12 3.5v17" stroke="currentColor" stroke-width="1.5"></path><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" opacity=".3"></path></svg>
+                外观
+                <div style="flex:1;"></div>
+                <span style="font-size:11px; color:var(--text-faint);">{{ themeLabel }}</span>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style="color:var(--text-faint); transform:{{ rot_appearance }};"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <sc-if value="{{ appearanceOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:4px 9px 8px 32px; display:flex; flex-direction:column; gap:8px;">
+                  <div style="display:flex; gap:2px; padding:3px; border-radius:999px; background:var(--default);">
+                    <div onClick="{{ setDark }}" style="flex:1; text-align:center; padding:5px 0; border-radius:999px; font-size:12.5px; font-weight:500; background:{{ darkBg }}; color:{{ darkFg }}; box-shadow:{{ darkSh }}; cursor:pointer;">深色</div>
+                    <div onClick="{{ setLight }}" style="flex:1; text-align:center; padding:5px 0; border-radius:999px; font-size:12.5px; font-weight:500; background:{{ lightBg }}; color:{{ lightFg }}; box-shadow:{{ lightSh }}; cursor:pointer;">浅色</div>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:12px; color:var(--text-faint);">强调色</span>
+                    <div style="display:flex; gap:6px; margin-left:auto;">
+                      <div onClick="{{ accent_blue }}" style="width:16px; height:16px; border-radius:50%; background:oklch(0.6204 0.195 253.83); box-shadow:{{ ring_blue }}; cursor:pointer;"></div>
+                      <div onClick="{{ accent_purple }}" style="width:16px; height:16px; border-radius:50%; background:oklch(0.5854 0.2041 288.19); box-shadow:{{ ring_purple }}; cursor:pointer;"></div>
+                      <div onClick="{{ accent_green }}" style="width:16px; height:16px; border-radius:50%; background:oklch(0.6431 0.1367 158.8); box-shadow:{{ ring_green }}; cursor:pointer;"></div>
+                      <div onClick="{{ accent_orange }}" style="width:16px; height:16px; border-radius:50%; background:oklch(0.6801 0.1748 42.5); box-shadow:{{ ring_orange }}; cursor:pointer;"></div>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+              <div style="display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:10px; font-size:13.5px; cursor:pointer;" style-hover="background:var(--hover)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="color:var(--text-dim);"><rect x="2.5" y="6.5" width="19" height="11" rx="2.5" stroke="currentColor" stroke-width="1.5"></rect><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 13.8h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+                快捷键
+                <span style="margin-left:auto; font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">⌘K ⌘S</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:10px; font-size:13.5px; cursor:pointer;" style-hover="background:var(--hover)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="color:var(--text-dim);"><path d="M12 3.2l1.9 4.9 4.9 1.9-4.9 1.9L12 16.8l-1.9-4.9L5.2 10l4.9-1.9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+                Agent 权限与白名单
+              </div>
+              <div style="height:1px; background:var(--border); margin:4px 6px;"></div>
+              <div style="padding:6px 9px 8px; display:flex; flex-direction:column; gap:6px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">
+                  <span>本月用量</span><span>128.4k / 500k</span>
+                </div>
+                <div style="height:4px; border-radius:4px; background:var(--bg-sunken); overflow:hidden;">
+                  <div style="width:26%; height:100%; background:var(--accent);"></div>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column; background:var(--bg-app); padding-left:{{ centerGutter }};">
+
+      <div style="height:42px; flex:none; display:flex; align-items:center; gap:10px; padding:0 20px; background:var(--bg-bar); position:relative; z-index:2; box-shadow:var(--sh-bar);">
+        <span style="font-size:13px; font-weight:600; letter-spacing:-.1px;">抽离支付重试 hook</span>
+        <span style="padding:1px 6px; border-radius:4px; background:var(--chip); color:var(--text-dim); font-size:11px; font-family:'JetBrains Mono',monospace;">AGENT</span>
+        <div style="flex:1;"></div>
+        <span style="font-size:12px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">12 msg · 18.2k tok</span>
+      </div>
+
+      <div style="flex:1; min-height:0; display:flex;">
+
+        <sc-if value="{{ showMap }}" hint-placeholder-val="{{ true }}">
+        <div style="width:46px; flex:none; padding:34px 0 20px; display:flex; flex-direction:column; align-items:center; gap:8px; overflow:hidden;">
+          <sc-for list="{{ mapDots }}" as="d" hint-placeholder-count="2">
+            <div onClick="{{ d.go }}" title="{{ d.label }}" style="width:22px; height:22px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:50%; cursor:pointer;" style-hover="background:var(--hover)">
+              <span style="width:8px; height:8px; border-radius:50%; background:{{ d.bg }}; border:1.5px solid {{ d.ring }}; transition:background 150ms ease;"></span>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+
+        <div data-scroll-root="1" ref="{{ scrollRef }}" onScroll="{{ onChatScroll }}" style="flex:1; min-width:0; position:relative; overflow-y:auto; scrollbar-gutter:stable; padding:32px 0 40px;">
+        <div style="max-width:820px; margin:0 auto; padding:0 28px; display:flex; flex-direction:column; gap:30px; font-size:14px; ">
+
+          <div data-anchor="ask" style="display:flex; flex-direction:column; gap:7px;">
+            <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-faint);">
+              <div style="width:18px; height:18px; border-radius:50%; background:linear-gradient(140deg,#4b7bec,#8854d0); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:#fff;">Z</div>
+              你 · 14:02
+            </div>
+            <div style="background:var(--bg-elev); border-radius:16px; box-shadow:var(--sh-card); padding:15px 17px; line-height:1.8;">
+              把 checkout 里的支付重试逻辑抽成独立 hook，跑一遍相关测试，顺便清理下 node_modules 重装依赖，最后给我一张重试方案的对比表。
+              <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:9px;">
+                <div style="display:flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; background:var(--chip); font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim);"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M6 3.5h7l5 5v12H6z" stroke="var(--syn-fn)" stroke-width="1.7" stroke-linejoin="round"></path></svg>@checkout.tsx</div>
+                <div style="display:flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; background:var(--chip); font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim);"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M6 3.5h7l5 5v12H6z" stroke="var(--syn-fn)" stroke-width="1.7" stroke-linejoin="round"></path></svg>@api/pay.ts</div>
+                <div style="display:flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; background:var(--chip); font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim);"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="var(--syn-ty)" stroke-width="1.7"></circle></svg>@PaymentError</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:20px;">
+            <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-faint);">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="color:var(--accent);"><path d="M12 3.2l1.9 4.9 4.9 1.9-4.9 1.9L12 16.8l-1.9-4.9L5.2 10l4.9-1.9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+              助手 · Claude Sonnet 4.5
+            </div>
+
+            <div data-anchor="think" style="border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); overflow:hidden;">
+              <div onClick="{{ toggle_think }}" style="display:flex; align-items:center; gap:8px; padding:11px 13px; cursor:pointer; user-select:none;" style-hover="background:var(--hover)">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint); transition:transform 150ms cubic-bezier(0.175,0.885,0.32,1.1); transform:{{ rot_think }};"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-dim);"><path d="M9.5 20h5M10.5 17.2h3M12 3a6 6 0 0 1 3.4 10.9c-.5.4-.9 1-.9 1.6h-5c0-.6-.4-1.2-.9-1.6A6 6 0 0 1 12 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+                <span style="font-size:13px; font-weight:500; color:var(--text-dim); flex:none; white-space:nowrap;">思考过程</span>
+                <span style="font-size:12px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">6.2s · 4 步</span>
+                <div style="flex:1;"></div>
+                <span style="font-size:11px; color:var(--text-faint);">{{ label_think }}</span>
+              </div>
+              <sc-if value="{{ show_think }}" hint-placeholder-val="{{ true }}">
+                <div style="padding:14px 18px 18px 34px; font-size:13px; line-height:1.85; color:var(--text-dim); display:flex; flex-direction:column; gap:12px;">
+                  <div>先确认现有重试逻辑落在哪里。<code style="font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--chip); padding:1px 6px; border-radius:6px; color:var(--syn-fn);">checkout.tsx</code> 里 <code style="font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--chip); padding:1px 6px; border-radius:6px; color:var(--syn-fn);">handleSubmit</code> 有一段 while 循环，重试次数写死 3 次，没有退避。</div>
+                  <div>抽 hook 有两个风险点：一是幂等键必须在整个重试周期内保持不变，否则会重复扣款；二是组件卸载后不能继续 setState。前者用 <code style="font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--chip); padding:1px 6px; border-radius:6px; color:var(--syn-fn);">useRef</code> 固定，后者靠 AbortController。</div>
+                  <div>用户还提到清理 node_modules——这属于破坏性命令，需要走审批，不能直接执行。</div>
+                  <div>最后对比表覆盖四种策略：固定间隔、指数退避、带抖动的退避、服务端排队。</div>
+                </div>
+              </sc-if>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:12px; line-height:1.85;">
+              <div>已经看过这两个文件，重试逻辑目前直接内联在 <code style="font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--chip); padding:1px 6px; border-radius:6px; color:var(--syn-fn);">handleSubmit</code> 里。我按下面的顺序处理：</div>
+            </div>
+
+            <div data-anchor="plan" style="border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); overflow:hidden;">
+              <div style="display:flex; align-items:center; gap:8px; padding:11px 13px; ">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="color:var(--text-dim);"><path d="M4 6.5h16M4 12h16M4 17.5h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+                <span style="font-size:13px; font-weight:600; flex:none; white-space:nowrap;">执行计划</span>
+                <span style="font-size:12px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">3 / 5</span>
+                <div style="flex:1;"></div>
+                <div style="width:96px; height:4px; border-radius:4px; background:var(--border); overflow:hidden;"><div style="width:60%; height:100%; background:var(--accent);"></div></div>
+              </div>
+              <div style="padding:12px 14px 15px; display:flex; flex-direction:column; gap:11px; font-size:13px;">
+                <div style="display:flex; align-items:center; gap:9px; color:var(--text-faint);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--green);"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"></circle><path d="M8.2 12.3l2.6 2.5 5-5.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="text-decoration:line-through;">定位现有重试实现</span></div>
+                <div style="display:flex; align-items:center; gap:9px; color:var(--text-faint);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--green);"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"></circle><path d="M8.2 12.3l2.6 2.5 5-5.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="text-decoration:line-through;">新建 useRetryPayment 并接入 checkout</span></div>
+                <div style="display:flex; align-items:center; gap:9px; color:var(--text);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--accent); animation:cc-spin 1.1s linear infinite;"><path d="M12 3.5a8.5 8.5 0 1 1-8.5 8.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg><span>运行 checkout 相关单测</span><span style="font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">运行中 12s</span></div>
+                <div style="display:flex; align-items:center; gap:9px; color:var(--text-dim);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint);"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 3"></circle></svg><span>重装依赖（需审批）</span></div>
+                <div style="display:flex; align-items:center; gap:9px; color:var(--text-dim);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint);"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 3"></circle></svg><span>输出重试方案对比表</span></div>
+              </div>
+            </div>
+
+            <div data-anchor="tools" style="display:flex; flex-direction:column; gap:7px;">
+              <div style="display:flex; align-items:center; gap:9px; padding:10px 13px; border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); font-size:13px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-dim);"><path d="M6 3.5h7l5 5v12H6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><path d="M9 13h6M9 16.5h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+                <span style="color:var(--text-dim); font-weight:500; flex:none; white-space:nowrap;">读取</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text); flex:1 1 auto; min-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">src/checkout/checkout.tsx</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); flex:none; white-space:nowrap;">L1-240</span>
+                <div style="flex:1;"></div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); flex:none; white-space:nowrap;">0.4s</span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--green);"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+
+              <div style="border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); overflow:hidden;">
+                <div onClick="{{ toggle_grep }}" style="display:flex; align-items:center; gap:9px; padding:10px 13px; font-size:13px; cursor:pointer;" style-hover="background:var(--hover)">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint); transition:transform 150ms cubic-bezier(0.175,0.885,0.32,1.1); transform:{{ rot_grep }};"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-dim);"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.6"></circle><path d="M16.2 16.2L21 21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+                  <span style="color:var(--text-dim); font-weight:500; flex:none; white-space:nowrap;">搜索</span>
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text); flex:1 1 auto; min-width:96px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">retry|backoff</span>
+                  <div style="flex:1;"></div>
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); flex:none; white-space:nowrap;">7 处 · 1.1s</span>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--green);"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                </div>
+                <sc-if value="{{ show_grep }}" hint-placeholder-val="{{ true }}">
+                  <div style="background:var(--bg-sunken); padding:8px 12px 10px 30px; font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.9; color:var(--syn-txt);">
+                    <div><span style="color:var(--syn-fn);">checkout.tsx</span><span style="color:var(--text-faint);">:118</span>  <span style="color:var(--syn-com);">let</span> <span style="background:var(--amber-bg); color:var(--amber); border-radius:4px; padding:0 2px;">retry</span> = 0
+                    </div>
+                    <div><span style="color:var(--syn-fn);">checkout.tsx</span><span style="color:var(--text-faint);">:124</span>  <span style="color:var(--syn-com);">while</span> (<span style="background:var(--amber-bg); color:var(--amber); border-radius:4px; padding:0 2px;">retry</span> &lt; 3) {</div>
+                    <div><span style="color:var(--syn-fn);">api/pay.ts</span><span style="color:var(--text-faint);">:41</span>   <span style="color:var(--syn-com);">// TODO:</span> 服务端已支持 <span style="background:var(--amber-bg); color:var(--amber); border-radius:4px; padding:0 2px;">backoff</span> 提示头</div>
+                    <div style="color:var(--text-faint);">… 另外 4 处在测试文件中</div>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+
+            <div data-anchor="prose" style="display:flex; flex-direction:column; gap:13px; line-height:1.85;">
+              <div style="font-size:20px; font-weight:600; letter-spacing:-.025em; line-height:1.33; margin-top:2px;">抽出的 hook</div>
+              <div>核心是把幂等键固定在 <code style="font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--chip); padding:1px 6px; border-radius:6px; color:var(--syn-fn);">useRef</code> 上，整个重试周期共用一个 key —— 否则每次重试都会被网关当成新订单。</div>
+              <ul style="margin:0; padding-left:22px; display:flex; flex-direction:column; gap:7px; color:var(--text-dim);">
+                <li><span style="color:var(--text);">指数退避</span>：400ms → 800ms → 1600ms，封顶 3 次</li>
+                <li><span style="color:var(--text);">可取消</span>：组件卸载时 abort，不再写状态</li>
+                <li><span style="color:var(--text);">可观测</span>：每次失败上报 <code style="font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--chip); padding:1px 6px; border-radius:6px; color:var(--syn-fn);">payment.retry</code> 事件</li>
+              </ul>
+              <div style="border-left:2px solid var(--accent); padding:3px 0 3px 14px; color:var(--text-dim); font-size:13px;">
+                注意：<code style="font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--chip); padding:1px 6px; border-radius:6px; color:var(--syn-fn);">PaymentError</code> 里 <code style="font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--chip); padding:1px 6px; border-radius:6px; color:var(--syn-fn);">code === 'card_declined'</code> 属于终态，不该重试。详见 <a href="#">支付错误码约定</a>。
+              </div>
+            </div>
+
+            <div data-anchor="code" style="border-radius:16px; background:var(--bg-sunken); overflow:hidden;">
+              <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:8px 8px 8px 12px; background:var(--bg-elev); ">
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.05em;">TypeScript</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-dim); flex:1 1 180px; min-width:140px; margin-right:auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">src/checkout/hooks/useRetryPayment.ts</span>
+                <div onClick="{{ copyCode }}" class="hb" style="display:flex; align-items:center; gap:6px; height:28px; padding:0 12px; border-radius:999px; color:var(--text-dim); font-size:12.5px; font-weight:500; flex:none; white-space:nowrap; cursor:pointer;" style-hover="background:var(--hover); color:var(--text)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="8.5" y="8.5" width="12" height="12" rx="2.5" stroke="currentColor" stroke-width="1.6"></rect><path d="M15.5 5.5A2 2 0 0 0 13.5 3.5h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+                  {{ copyLabel }}
+                </div>
+                <div style="display:flex; align-items:center; gap:6px; height:28px; padding:0 12px; border-radius:999px; background:var(--chip); color:var(--text); font-size:12.5px; font-weight:500; flex:none; white-space:nowrap; cursor:pointer;" style-hover="background:var(--hover)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  应用到文件
+                </div>
+              </div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:13px; line-height:22px; color:var(--syn-txt); padding:12px 0; overflow-x:auto;">
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">1</div><div style="white-space:pre;"><span style="color:var(--syn-kw);">export function</span> <span style="color:var(--syn-fn);">useRetryPayment</span>(options: <span style="color:var(--syn-ty);">RetryOptions</span> = {}) {</div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">2</div><div style="white-space:pre;">  <span style="color:var(--syn-kw);">const</span> { max = <span style="color:var(--syn-num);">3</span>, base<span>D</span>elay = <span style="color:var(--syn-num);">400</span> } = options</div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">3</div><div style="white-space:pre;">  <span style="color:var(--syn-kw);">const</span> key = <span style="color:var(--syn-fn);">useRef</span>(<span style="color:var(--syn-fn);">createIdempotencyKey</span>())</div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">4</div><div style="white-space:pre;">  <span style="color:var(--syn-kw);">const</span> [attempt, setAttempt] = <span style="color:var(--syn-fn);">useState</span>(<span style="color:var(--syn-num);">0</span>)</div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">5</div><div style="white-space:pre;"> </div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">6</div><div style="white-space:pre;">  <span style="color:var(--syn-kw);">const</span> retry = <span style="color:var(--syn-fn);">useCallback</span>(<span style="color:var(--syn-kw);">async</span> (charge: <span style="color:var(--syn-ty);">ChargeInput</span>) =&gt; {</div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">7</div><div style="white-space:pre;">    <span style="color:var(--syn-kw);">for</span> (<span style="color:var(--syn-kw);">let</span> i = <span style="color:var(--syn-num);">0</span>; i &lt; max; i++) {</div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">8</div><div style="white-space:pre;">      <span style="color:var(--syn-kw);">try</span> { <span style="color:var(--syn-kw);">return await</span> <span style="color:var(--syn-fn);">pay</span>({ ...charge, idempotency<span>K</span>ey: key.current }) }</div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">9</div><div style="white-space:pre;">      <span style="color:var(--syn-kw);">catch</span> (e) {</div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">10</div><div style="white-space:pre;">        <span style="color:var(--syn-kw);">if</span> (e.code === <span style="color:var(--syn-str);">'card_declined'</span>) <span style="color:var(--syn-kw);">throw</span> e   <span style="color:var(--syn-com);">// 终态，不重试</span></div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">11</div><div style="white-space:pre;">        <span style="color:var(--syn-fn);">setAttempt</span>(i + <span style="color:var(--syn-num);">1</span>)</div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">12</div><div style="white-space:pre;">        <span style="color:var(--syn-kw);">await</span> <span style="color:var(--syn-fn);">sleep</span>(base<span>D</span>elay * <span style="color:var(--syn-num);">2</span> ** i)</div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">13</div><div style="white-space:pre;">      }</div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">14</div><div style="white-space:pre;">    }</div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">15</div><div style="white-space:pre;">  }, [max, base<span>D</span>elay])</div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">16</div><div style="white-space:pre;"> </div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">17</div><div style="white-space:pre;">  <span style="color:var(--syn-kw);">return</span> { retry, attempt }</div></div>
+                <div style="display:flex;"><div style="width:38px; flex:none; text-align:right; padding-right:12px; color:var(--text-faint); opacity:.6;">18</div><div style="white-space:pre;">}</div></div>
+              </div>
+            </div>
+
+            <div data-anchor="diff" style="border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); overflow:hidden;">
+              <div onClick="{{ toggle_diff }}" style="display:flex; align-items:center; flex-wrap:wrap; gap:9px; padding:10px 13px; cursor:pointer;" style-hover="background:var(--hover)">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint); transition:transform 150ms cubic-bezier(0.175,0.885,0.32,1.1); transform:{{ rot_diff }};"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-dim);"><path d="M4 5.5h7M7.5 2v7M4 18.5h7M17 15v6.5M13.5 18.5h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+                <span style="color:var(--text-dim); font-size:13px; font-weight:500; flex:none; white-space:nowrap;">编辑</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; min-width:88px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">checkout.tsx</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--green); flex:none;">+6</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--red); flex:none;">−14</span>
+                <div style="flex:1;"></div>
+                <sc-if value="{{ diffPending }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex; gap:6px; flex:none;">
+                    <div onClick="{{ rejectDiff }}" class="hb" style="height:28px; padding:0 13px; display:flex; align-items:center; border-radius:999px; background:var(--chip); font-size:12.5px; font-weight:500; color:var(--text-dim); flex:none; white-space:nowrap; cursor:pointer;" style-hover="background:var(--hover); color:var(--text)">丢弃</div>
+                    <div onClick="{{ applyDiff }}" class="hb" style="height:28px; padding:0 13px; display:flex; align-items:center; border-radius:999px; background:var(--accent); color:var(--accent-fg); font-size:12.5px; font-weight:500; flex:none; white-space:nowrap; cursor:pointer;">应用变更</div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ diffDone }}" hint-placeholder-val="{{ false }}">
+                  <span style="display:flex; align-items:center; gap:5px; font-size:12px; color:var(--green);">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{ diffLabel }}
+                  </span>
+                </sc-if>
+              </div>
+              <sc-if value="{{ show_diff }}" hint-placeholder-val="{{ true }}">
+                <div style="background:var(--bg-sunken); font-family:'JetBrains Mono',monospace; font-size:13px; line-height:22px; padding:10px 0; overflow-x:auto;">
+                  <div style="display:flex; color:var(--text-faint); padding:0 12px 2px; font-size:11px;">@@ -112,18 +112,10 @@ handleSubmit</div>
+                  <div style="display:flex; background:var(--red-bg);"><div style="width:26px; flex:none; text-align:center; color:var(--red);">−</div><div style="white-space:pre; color:var(--syn-txt);">  let retry = 0</div></div>
+                  <div style="display:flex; background:var(--red-bg);"><div style="width:26px; flex:none; text-align:center; color:var(--red);">−</div><div style="white-space:pre; color:var(--syn-txt);">  while (retry &lt; 3) {</div></div>
+                  <div style="display:flex; background:var(--red-bg);"><div style="width:26px; flex:none; text-align:center; color:var(--red);">−</div><div style="white-space:pre; color:var(--syn-txt);">    try { await pay(charge) } catch { retry++ }</div></div>
+                  <div style="display:flex; background:var(--red-bg);"><div style="width:26px; flex:none; text-align:center; color:var(--red);">−</div><div style="white-space:pre; color:var(--syn-txt);">  }</div></div>
+                  <div style="display:flex; background:var(--green-bg);"><div style="width:26px; flex:none; text-align:center; color:var(--green);">+</div><div style="white-space:pre; color:var(--syn-txt);">  const { retry, attempt } = useRetryPayment({ max: 3 })</div></div>
+                  <div style="display:flex; background:var(--green-bg);"><div style="width:26px; flex:none; text-align:center; color:var(--green);">+</div><div style="white-space:pre; color:var(--syn-txt);">  await retry(charge)</div></div>
+                  <div style="display:flex;"><div style="width:26px; flex:none;"></div><div style="white-space:pre; color:var(--text-faint);">  setStatus('done')</div></div>
+                </div>
+              </sc-if>
+            </div>
+
+            <div data-anchor="error" style="border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); overflow:hidden;">
+              <div style="display:flex; align-items:center; gap:9px; padding:11px 13px; background:var(--red-bg);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--red);"><path d="M12 4l8.5 15h-17z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><path d="M12 10v4M12 16.6v.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
+                <span style="font-size:13px; font-weight:600; color:var(--red); flex:none; white-space:nowrap;">工具调用失败</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-dim); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">run_tests · exit 1</span>
+                <div style="flex:1;"></div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); flex:none; white-space:nowrap;">尝试 {{ tryCount }}/3</span>
+              </div>
+              <div style="padding:13px 14px 15px; display:flex; flex-direction:column; gap:12px;">
+                <div style="font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.8; color:var(--text-dim); background:var(--bg-sunken); border-radius:12px; padding:8px 10px;">
+                  <div><span style="color:var(--red);">FAIL</span> src/checkout/__tests__/retry.test.ts</div>
+                  <div style="padding-left:14px;">● 超时：等待 <span style="color:var(--syn-str);">'payment.retry'</span> 事件 5000ms</div>
+                  <div style="padding-left:14px; color:var(--text-faint);">jest 假定时器未推进指数退避</div>
+                </div>
+                <div style="font-size:13px; color:var(--text-dim); line-height:1.8;">退避用了真实定时器，测试里需要 <code style="font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--chip); padding:1px 6px; border-radius:6px; color:var(--syn-fn);">jest.advanceTimersByTime</code>。我改用注入的 clock 再跑一次。</div>
+                <div style="display:flex; flex-wrap:wrap; gap:7px;">
+                  <div onClick="{{ retryTool }}" class="hb" style="display:flex; align-items:center; gap:6px; height:30px; padding:0 14px; border-radius:999px; background:var(--accent); color:var(--accent-fg); font-size:12.5px; font-weight:500; flex:none; white-space:nowrap; cursor:pointer;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M20 12a8 8 0 1 1-2.6-5.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path><path d="M20 4v4.5h-4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                    {{ retryLabel }}
+                  </div>
+                  <div style="display:flex; align-items:center; height:30px; padding:0 14px; border-radius:999px; background:var(--chip); color:var(--text-dim); font-size:12.5px; font-weight:500; flex:none; white-space:nowrap; cursor:pointer;" style-hover="background:var(--hover); color:var(--text)">查看完整日志</div>
+                </div>
+              </div>
+            </div>
+
+            <div data-anchor="cmd" style="border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); overflow:hidden;">
+              <div style="display:flex; align-items:center; flex-wrap:wrap; gap:9px; padding:11px 13px; background:{{ cmdHeadBg }};">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex:none; color:{{ cmdColor }};"><rect x="3" y="4.5" width="18" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6"></rect><path d="M7 9.5l3 2.5-3 2.5M12.5 15h4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <span style="font-size:14px; font-weight:600; flex:none; white-space:nowrap;">{{ cmdTitle }}</span>
+                <span style="padding:2px 9px; border-radius:999px; background:var(--amber-bg); color:var(--amber); font-size:11px; font-family:'JetBrains Mono',monospace; flex:none; white-space:nowrap;">{{ cmdRisk }}</span>
+                <div style="flex:1;"></div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">工作目录 ~/payments-web</span>
+              </div>
+              <div style="padding:14px 14px 15px; display:flex; flex-direction:column; gap:13px;">
+                <div style="background:var(--bg-sunken); border-radius:12px; padding:14px 15px; font-family:'JetBrains Mono',monospace; font-size:13px; line-height:1.9;">
+                  <div><span style="color:var(--green);">$</span> <span style="color:var(--syn-txt);">rm -rf node_modules .next</span></div>
+                  <div><span style="color:var(--green);">$</span> <span style="color:var(--syn-txt);">pnpm install --frozen-lockfile</span></div>
+                </div>
+                <sc-if value="{{ cmdPending }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex; flex-direction:column; gap:10px;">
+                    <div style="display:flex; align-items:flex-start; gap:7px; font-size:12px; color:var(--text-dim); line-height:1.6;">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; margin-top:2px; color:var(--amber);"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"></circle><path d="M12 7.5v5M12 15.8v.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
+                      <span><span style="color:var(--text);">rm -rf</span> 会删除未提交的本地构建产物，且不可撤销。执行前请确认路径。</span>
+                    </div>
+                    <div style="display:flex; align-items:center; flex-wrap:wrap; gap:7px;">
+                      <div onClick="{{ allowOnce }}" class="hb" style="display:flex; align-items:center; gap:6px; height:36px; padding:0 18px; border-radius:999px; background:var(--accent); color:var(--accent-fg); font-size:13.5px; font-weight:500; flex:none; white-space:nowrap; cursor:pointer;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                        仅本次允许
+                      </div>
+                      <div onClick="{{ allowAlways }}" class="hb" style="display:flex; align-items:center; height:36px; padding:0 16px; border-radius:999px; background:var(--chip); font-size:13.5px; font-weight:500; flex:none; white-space:nowrap; cursor:pointer;" style-hover="background:var(--hover)">始终允许此命令</div>
+                      <div onClick="{{ rejectCmd }}" class="hb" style="display:flex; align-items:center; height:36px; padding:0 16px; border-radius:999px; background:var(--chip); color:var(--red); font-size:13.5px; font-weight:500; flex:none; white-space:nowrap; cursor:pointer;" style-hover="background:var(--red-bg)">拒绝</div>
+                      <div style="flex:1;"></div>
+                      <span style="font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace; flex:none; white-space:nowrap;">⌘⏎ 允许 · Esc 拒绝</span>
+                    </div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ cmdRan }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex; flex-direction:column; gap:9px;">
+                    <div style="display:flex; align-items:center; gap:7px; font-size:12px; color:var(--green);">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                      {{ cmdApprovalNote }}
+                    </div>
+                    <div style="background:var(--bg-sunken); border-radius:12px; padding:12px 14px; font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.85; color:var(--text-dim);">
+                      <div>Packages: <span style="color:var(--green);">+1284</span></div>
+                      <div>Progress: resolved 1284, reused 1201, downloaded 83, done</div>
+                      <div><span style="color:var(--green);">Done in 18.4s</span></div>
+                    </div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ cmdRejected }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex; align-items:center; gap:7px; font-size:12px; color:var(--red);">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+                    已拒绝执行，助手将跳过这一步并继续后续任务。
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+
+            <div data-anchor="table" style="display:flex; flex-direction:column; gap:10px;">
+              <div style="font-size:20px; font-weight:600; letter-spacing:-.025em; line-height:1.33;">重试策略对比</div>
+              <div style="border-radius:8px; overflow:hidden; background:var(--bg-elev);">
+                <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                  <thead>
+                    <tr style="background:var(--bg-sunken);">
+                      <th style="text-align:left; padding:11px 14px; font-size:12px; font-weight:500; color:var(--text-dim); border-bottom:1px solid var(--line);">策略</th>
+                      <th style="text-align:left; padding:11px 14px; font-size:12px; font-weight:500; color:var(--text-dim); border-bottom:1px solid var(--line);">P95 成功率</th>
+                      <th style="text-align:left; padding:11px 14px; font-size:12px; font-weight:500; color:var(--text-dim); border-bottom:1px solid var(--line);">重复扣款风险</th>
+                      <th style="text-align:left; padding:11px 14px; font-size:12px; font-weight:500; color:var(--text-dim); border-bottom:1px solid var(--line);">实现成本</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style="padding:12px 14px; font-family:'JetBrains Mono',monospace; font-size:12px;">固定间隔</td>
+                      <td style="padding:12px 14px; color:var(--text-dim);">91.2%</td>
+                      <td style="padding:12px 14px; "><span style="padding:1px 7px; border-radius:4px; background:var(--red-bg); color:var(--red); font-size:11px;">高</span></td>
+                      <td style="padding:12px 14px; color:var(--text-dim);">低</td>
+                    </tr>
+                    <tr style="background:var(--bg-sunken);">
+                      <td style="padding:12px 14px; font-family:'JetBrains Mono',monospace; font-size:12px;">指数退避</td>
+                      <td style="padding:12px 14px; color:var(--text-dim);">96.8%</td>
+                      <td style="padding:12px 14px; "><span style="padding:1px 7px; border-radius:4px; background:var(--amber-bg); color:var(--amber); font-size:11px;">中</span></td>
+                      <td style="padding:12px 14px; color:var(--text-dim);">低</td>
+                    </tr>
+                    <tr style="background:var(--sel);">
+                      <td style="padding:12px 14px; font-family:'JetBrains Mono',monospace; font-size:12px;">退避 + 抖动 + 幂等键</td>
+                      <td style="padding:12px 14px; ">98.4%</td>
+                      <td style="padding:12px 14px; "><span style="padding:1px 7px; border-radius:4px; background:var(--green-bg); color:var(--green); font-size:11px;">低</span></td>
+                      <td style="padding:12px 14px; ">中</td>
+                    </tr>
+                    <tr style="background:var(--bg-sunken);">
+                      <td style="padding:12px 14px; font-family:'JetBrains Mono',monospace; font-size:12px;">服务端排队重放</td>
+                      <td style="padding:12px 14px; color:var(--text-dim);">99.1%</td>
+                      <td style="padding:12px 14px;"><span style="padding:1px 7px; border-radius:4px; background:var(--green-bg); color:var(--green); font-size:11px;">低</span></td>
+                      <td style="padding:12px 14px; color:var(--text-dim);">高</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div style="font-size:12px; color:var(--text-faint); margin-top:2px;">数据来自 2026-07 支付网关采样，n = 41,208 笔。</div>
+            </div>
+
+          </div>
+
+          <div data-anchor="ask2" style="display:flex; flex-direction:column; gap:7px;">
+            <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-faint);">
+              <div style="width:18px; height:18px; border-radius:50%; background:linear-gradient(140deg,#4b7bec,#8854d0); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:#fff;">Z</div>
+              你 · 14:19
+            </div>
+            <div style="background:var(--bg-elev); border-radius:16px; box-shadow:var(--sh-card); padding:15px 17px; line-height:1.8;">
+              线上还是有一小撮重复扣款。查一下 Sentry 上的报错，看看社区对 Stripe 幂等键有什么最新建议，然后给我两套修复方案。
+              <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:11px;">
+                <div style="display:flex; align-items:center; gap:9px; padding:7px 11px 7px 8px; border-radius:12px; background:var(--bg-sunken);">
+                  <div style="width:30px; height:30px; flex:none; border-radius:8px; background:var(--chip); display:flex; align-items:center; justify-content:center; color:var(--text-faint);">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="5" width="17" height="14" rx="2.5" stroke="currentColor" stroke-width="1.5"></rect><circle cx="9" cy="10" r="1.6" stroke="currentColor" stroke-width="1.4"></circle><path d="M4.5 16.5l4.5-4 4 3.5 3-2.5 3.5 3" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:1px;">
+                    <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">sentry-trace.png</span>
+                    <span style="font-size:11px; color:var(--text-faint);">截图 · 218 KB</span>
+                  </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; background:var(--chip); font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim);">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="var(--syn-ty)" stroke-width="1.7"></circle></svg>@PaymentError
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:30px;">
+            <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-faint);">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="color:var(--accent);"><path d="M12 3.2l1.9 4.9 4.9 1.9-4.9 1.9L12 16.8l-1.9-4.9L5.2 10l4.9-1.9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+              助手 · {{ model }}
+            </div>
+
+            <div data-anchor="mcp" style="border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); overflow:hidden;">
+              <div style="display:flex; align-items:center; gap:9px; padding:11px 13px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-dim);"><path d="M9 7.5V5a3 3 0 0 1 6 0v2.5M6.5 7.5h11l-1 12h-9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+                <span style="font-size:13px; font-weight:600;">连接外部工具</span>
+                <span style="font-size:12px; color:var(--text-faint);">MCP · 需要你授权</span>
+              </div>
+              <div style="padding:0 13px 14px; display:flex; flex-direction:column; gap:9px;">
+                <div style="display:flex; align-items:center; gap:11px; padding:11px 13px; border-radius:12px; background:var(--bg-sunken);">
+                  <div style="width:26px; height:26px; flex:none; border-radius:8px; background:var(--chip); display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:var(--text-dim);">S</div>
+                  <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
+                    <span style="font-size:13px;">Sentry</span>
+                    <span style="font-size:11.5px; color:var(--text-faint);">读取 issue、堆栈与影响面</span>
+                  </div>
+                  <div style="flex:1;"></div>
+                  <div onClick="{{ toggleSentry }}" style="width:38px; height:22px; flex:none; border-radius:999px; background:{{ sentryTrack }}; padding:2px; cursor:pointer; transition:background-color 100ms var(--ease-out,ease);">
+                    <div style="width:18px; height:18px; border-radius:50%; background:var(--white,#fff); box-shadow:var(--surface-shadow); transform:{{ sentryKnob }}; transition:transform 250ms var(--ease-smooth,ease);"></div>
+                  </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:11px; padding:11px 13px; border-radius:12px; background:var(--bg-sunken);">
+                  <div style="width:26px; height:26px; flex:none; border-radius:8px; background:var(--chip); display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:var(--text-dim);">L</div>
+                  <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
+                    <span style="font-size:13px;">Linear</span>
+                    <span style="font-size:11.5px; color:var(--text-faint);">创建与更新工单</span>
+                  </div>
+                  <div style="flex:1;"></div>
+                  <div onClick="{{ toggleLinear }}" style="width:38px; height:22px; flex:none; border-radius:999px; background:{{ linearTrack }}; padding:2px; cursor:pointer; transition:background-color 100ms var(--ease-out,ease);">
+                    <div style="width:18px; height:18px; border-radius:50%; background:var(--white,#fff); box-shadow:var(--surface-shadow); transform:{{ linearKnob }}; transition:transform 250ms var(--ease-smooth,ease);"></div>
+                  </div>
+                </div>
+                <div style="font-size:11.5px; color:var(--text-faint); line-height:1.7;">{{ mcpNote }}</div>
+              </div>
+            </div>
+
+            <div data-anchor="agents" style="display:flex; flex-direction:column; gap:9px;">
+              <div style="display:flex; align-items:center; gap:9px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-dim);"><circle cx="12" cy="6" r="2.6" stroke="currentColor" stroke-width="1.5"></circle><circle cx="5.5" cy="18" r="2.6" stroke="currentColor" stroke-width="1.5"></circle><circle cx="18.5" cy="18" r="2.6" stroke="currentColor" stroke-width="1.5"></circle><path d="M12 8.6v3.4M12 12H5.5v3.4M12 12h6.5v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+                <span style="font-size:13px; font-weight:600;">并行子任务</span>
+                <span style="font-size:12px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">3 个 · 共 7.4k tok</span>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:9px;">
+                <div style="border-radius:14px; background:var(--bg-elev); box-shadow:var(--sh-card); padding:13px 14px; display:flex; flex-direction:column; gap:8px;">
+                  <div style="display:flex; align-items:center; gap:7px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--green);"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"></circle><path d="M8.2 12.3l2.6 2.5 5-5.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                    <span style="font-size:12.5px; font-weight:500;">日志分析</span>
+                  </div>
+                  <div style="font-size:12px; color:var(--text-dim); line-height:1.7;">近 24h 共 37 笔重复扣款，全部落在同一网关节点。</div>
+                  <div style="font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">4.1s · 2.6k tok</div>
+                </div>
+                <div style="border-radius:14px; background:var(--bg-elev); box-shadow:var(--sh-card); padding:13px 14px; display:flex; flex-direction:column; gap:8px;">
+                  <div style="display:flex; align-items:center; gap:7px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--green);"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"></circle><path d="M8.2 12.3l2.6 2.5 5-5.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                    <span style="font-size:12.5px; font-weight:500;">文档检索</span>
+                  </div>
+                  <div style="font-size:12px; color:var(--text-dim); line-height:1.7;">幂等键需覆盖整个「意图」而非单次请求。</div>
+                  <div style="font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">6.8s · 3.0k tok</div>
+                </div>
+                <div style="border-radius:14px; background:var(--bg-elev); box-shadow:var(--sh-card); padding:13px 14px; display:flex; flex-direction:column; gap:8px;">
+                  <div style="display:flex; align-items:center; gap:7px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--accent); animation:cc-spin 1.1s linear infinite;"><path d="M12 3.5a8.5 8.5 0 1 1-8.5 8.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
+                    <span style="font-size:12.5px; font-weight:500;">回归用例生成</span>
+                  </div>
+                  <div style="font-size:12px; color:var(--text-dim); line-height:1.7;">正在补写并发重放场景的 3 个用例…</div>
+                  <div style="font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">运行中 12s · 1.8k tok</div>
+                </div>
+              </div>
+            </div>
+
+            <div data-anchor="search" style="border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); overflow:hidden;">
+              <div onClick="{{ toggle_cite }}" style="display:flex; align-items:center; gap:9px; padding:10px 13px; cursor:pointer;" style-hover="background:var(--hover)">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint); transition:transform 150ms cubic-bezier(0.175,0.885,0.32,1.1); transform:{{ rot_cite }};"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-dim);"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.5"></circle><path d="M3.5 12h17M12 3.5c4.5 5 4.5 12 0 17-4.5-5-4.5-12 0-17z" stroke="currentColor" stroke-width="1.5"></path></svg>
+                <span style="color:var(--text-dim); font-size:13px; font-weight:500; flex:none;">联网检索</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:12px; flex:1 1 auto; min-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">stripe idempotency key retry</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); flex:none;">4 条 · 2.3s</span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--green);"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <sc-if value="{{ show_cite }}" hint-placeholder-val="{{ true }}">
+                <div style="padding:4px 13px 14px 30px; display:flex; flex-direction:column; gap:9px;">
+                  <div style="display:flex; gap:10px; align-items:flex-start;">
+                    <span style="width:18px; height:18px; flex:none; margin-top:1px; border-radius:6px; background:var(--chip); font-family:'JetBrains Mono',monospace; font-size:10.5px; display:flex; align-items:center; justify-content:center; color:var(--text-dim);">1</span>
+                    <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
+                      <a href="#" style="font-size:13px;">Idempotent requests — Stripe API 文档</a>
+                      <span style="font-size:11.5px; color:var(--text-faint);">docs.stripe.com · 键有效期 24 小时，重放返回首次结果</span>
+                    </div>
+                  </div>
+                  <div style="display:flex; gap:10px; align-items:flex-start;">
+                    <span style="width:18px; height:18px; flex:none; margin-top:1px; border-radius:6px; background:var(--chip); font-family:'JetBrains Mono',monospace; font-size:10.5px; display:flex; align-items:center; justify-content:center; color:var(--text-dim);">2</span>
+                    <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
+                      <a href="#" style="font-size:13px;">为什么客户端生成的幂等键会失效</a>
+                      <span style="font-size:11.5px; color:var(--text-faint);">stripe.dev/blog · 页面刷新会重置内存中的 key</span>
+                    </div>
+                  </div>
+                  <div style="display:flex; gap:10px; align-items:flex-start;">
+                    <span style="width:18px; height:18px; flex:none; margin-top:1px; border-radius:6px; background:var(--chip); font-family:'JetBrains Mono',monospace; font-size:10.5px; display:flex; align-items:center; justify-content:center; color:var(--text-dim);">3</span>
+                    <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
+                      <a href="#" style="font-size:13px;">Exponential backoff and jitter</a>
+                      <span style="font-size:11.5px; color:var(--text-faint);">aws.amazon.com/builders-library · 抖动能显著削峰</span>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+
+            <div data-anchor="chart" style="border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); padding:15px 16px 16px; display:flex; flex-direction:column; gap:13px;">
+              <div style="display:flex; align-items:baseline; gap:9px;">
+                <span style="font-size:13px; font-weight:600;">重复扣款分布</span>
+                <span style="font-size:11.5px; color:var(--text-faint);">近 7 天 · 按失败原因</span>
+                <div style="flex:1;"></div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--text-faint);">n = 37</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:11px;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <span style="width:104px; flex:none; font-size:12.5px; color:var(--text-dim);">页面刷新丢键</span>
+                  <div style="flex:1; height:8px; border-radius:999px; background:var(--bg-sunken); overflow:hidden;"><div style="width:62%; height:100%; border-radius:999px; background:var(--accent);"></div></div>
+                  <span style="width:34px; flex:none; text-align:right; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--text-dim);">23</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <span style="width:104px; flex:none; font-size:12.5px; color:var(--text-dim);">网关超时重放</span>
+                  <div style="flex:1; height:8px; border-radius:999px; background:var(--bg-sunken); overflow:hidden;"><div style="width:24%; height:100%; border-radius:999px; background:color-mix(in oklab, var(--accent) 62%, transparent);"></div></div>
+                  <span style="width:34px; flex:none; text-align:right; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--text-dim);">9</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <span style="width:104px; flex:none; font-size:12.5px; color:var(--text-dim);">用户双击提交</span>
+                  <div style="flex:1; height:8px; border-radius:999px; background:var(--bg-sunken); overflow:hidden;"><div style="width:13%; height:100%; border-radius:999px; background:color-mix(in oklab, var(--accent) 38%, transparent);"></div></div>
+                  <span style="width:34px; flex:none; text-align:right; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--text-dim);">5</span>
+                </div>
+              </div>
+            </div>
+
+            <div data-anchor="choice" style="display:flex; flex-direction:column; gap:11px;">
+              <div style="font-size:20px; font-weight:600; letter-spacing:-.025em; line-height:1.33;">两套修复方案</div>
+              <div style="font-size:13.5px; color:var(--text-dim); line-height:1.8;">两条路都能消掉重复扣款，差别在于把幂等键的生命周期放在哪一层。选一个我就继续。</div>
+              <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:11px;">
+                <div onClick="{{ pickA }}" style="border-radius:14px; background:var(--bg-elev); box-shadow:{{ ringA }}; padding:14px 15px; display:flex; flex-direction:column; gap:9px; cursor:pointer;">
+                  <div style="display:flex; align-items:center; gap:9px;">
+                    <div style="width:16px; height:16px; flex:none; border-radius:50%; box-shadow:inset 0 0 0 {{ dotA }}; "></div>
+                    <span style="font-size:13.5px; font-weight:600;">方案 A · 键随订单</span>
+                    <span style="margin-left:auto; padding:2px 9px; border-radius:999px; background:var(--green-bg); color:var(--green); font-size:11px;">改动小</span>
+                  </div>
+                  <div style="font-size:12.5px; color:var(--text-dim); line-height:1.75;">下单时生成一次 key 并写入 sessionStorage，刷新后仍复用同一个键。</div>
+                  <div style="display:flex; gap:14px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);"><span>2 文件</span><span>~40 行</span><span>无需后端</span></div>
+                </div>
+                <div onClick="{{ pickB }}" style="border-radius:14px; background:var(--bg-elev); box-shadow:{{ ringB }}; padding:14px 15px; display:flex; flex-direction:column; gap:9px; cursor:pointer;">
+                  <div style="display:flex; align-items:center; gap:9px;">
+                    <div style="width:16px; height:16px; flex:none; border-radius:50%; box-shadow:inset 0 0 0 {{ dotB }}; "></div>
+                    <span style="font-size:13.5px; font-weight:600;">方案 B · 服务端签发</span>
+                    <span style="margin-left:auto; padding:2px 9px; border-radius:999px; background:var(--amber-bg); color:var(--amber); font-size:11px;">需联调</span>
+                  </div>
+                  <div style="font-size:12.5px; color:var(--text-dim); line-height:1.75;">由结算接口签发意图 ID，前端只透传，彻底杜绝客户端丢键。</div>
+                  <div style="display:flex; gap:14px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);"><span>5 文件</span><span>~180 行</span><span>后端 1 天</span></div>
+                </div>
+              </div>
+              <div style="font-size:12px; color:var(--text-faint);">{{ choiceNote }}</div>
+            </div>
+
+            <div data-anchor="longtask" style="border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); overflow:hidden;">
+              <div style="display:flex; align-items:center; flex-wrap:wrap; gap:9px; padding:12px 14px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--accent); animation:cc-spin 1.4s linear infinite;"><path d="M12 3.5a8.5 8.5 0 1 1-8.5 8.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
+                <span style="font-size:13px; font-weight:600; flex:none;">{{ bgTitle }}</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--text-faint);">已跑 2 分 14 秒 · 预计还需 1 分</span>
+                <div style="flex:1;"></div>
+                <div onClick="{{ toggleBg }}" class="hb" style="height:28px; padding:0 13px; display:flex; align-items:center; border-radius:999px; background:var(--chip); font-size:12.5px; font-weight:500; flex:none; white-space:nowrap; cursor:pointer;" style-hover="background:var(--hover)">{{ bgLabel }}</div>
+              </div>
+              <div style="padding:0 14px 14px; display:flex; flex-direction:column; gap:10px;">
+                <div style="height:6px; border-radius:999px; background:var(--bg-sunken); overflow:hidden;"><div style="width:68%; height:100%; border-radius:999px; background:var(--accent);"></div></div>
+                <div style="display:flex; flex-wrap:wrap; gap:8px 18px; font-size:12px; color:var(--text-dim);">
+                  <span style="display:flex; align-items:center; gap:6px;"><span style="color:var(--green);">✓</span>chromium 41/41</span>
+                  <span style="display:flex; align-items:center; gap:6px;"><span style="color:var(--green);">✓</span>firefox 41/41</span>
+                  <span style="display:flex; align-items:center; gap:6px;"><span style="color:var(--amber);">◐</span>webkit 27/41</span>
+                </div>
+              </div>
+            </div>
+
+            <div data-anchor="checkpoint" style="display:flex; flex-direction:column; gap:9px;">
+              <div style="display:flex; align-items:center; gap:9px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-dim);"><path d="M12 7.5v5l3 1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><path d="M3.6 12a8.4 8.4 0 1 0 2.6-6.1M3.5 4.5V10H9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <span style="font-size:13px; font-weight:600;">检查点</span>
+                <span style="font-size:12px; color:var(--text-faint);">可随时回到任一步的工作区状态</span>
+              </div>
+              <div style="border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); padding:6px 4px;">
+                <sc-for list="{{ checkpoints }}" as="c" hint-placeholder-count="3">
+                  <div style="display:flex; align-items:center; gap:11px; padding:9px 11px; border-radius:12px;" style-hover="background:var(--hover)">
+                    <span style="width:7px; height:7px; flex:none; border-radius:50%; background:{{ c.dot }};"></span>
+                    <span style="font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ c.label }}</span>
+                    <div style="flex:1;"></div>
+                    <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint); flex:none;">{{ c.time }}</span>
+                    <div onClick="{{ c.restore }}" class="hb" style="height:24px; padding:0 11px; display:flex; align-items:center; border-radius:999px; background:{{ c.btnBg }}; color:{{ c.btnFg }}; font-size:11.5px; font-weight:500; flex:none; white-space:nowrap; cursor:pointer;">{{ c.btn }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div data-anchor="ctx" style="display:flex; align-items:center; gap:11px; padding:11px 14px; border-radius:12px; background:var(--bg-sunken);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint);"><path d="M4 8.5h16M4 15.5h16M9 4.5l-2 15M17 4.5l-2 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+              <span style="font-size:12.5px; color:var(--text-dim); line-height:1.7;">上下文已压缩：早期 34 条工具输出折叠为摘要，释放 62k token。</span>
+              <div style="flex:1;"></div>
+              <span style="font-size:12px; color:var(--accent); white-space:nowrap; cursor:pointer;">查看摘要</span>
+            </div>
+
+            <div data-anchor="summary" style="border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); overflow:hidden;">
+              <div style="display:flex; align-items:center; gap:9px; padding:12px 14px; background:var(--green-bg);">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--green);"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"></circle><path d="M8.2 12.3l2.6 2.5 5-5.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <span style="font-size:13.5px; font-weight:600; color:var(--green);">本轮完成</span>
+                <div style="flex:1;"></div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--text-faint);">4 分 06 秒 · 18.2k tok</span>
+              </div>
+              <div style="padding:14px; display:flex; flex-direction:column; gap:13px;">
+                <div style="display:flex; flex-wrap:wrap; gap:10px;">
+                  <div style="flex:1 1 120px; padding:11px 13px; border-radius:12px; background:var(--bg-sunken); display:flex; flex-direction:column; gap:3px;">
+                    <span style="font-size:19px; font-weight:600; letter-spacing:-.025em;">2</span>
+                    <span style="font-size:11.5px; color:var(--text-faint);">文件改动</span>
+                  </div>
+                  <div style="flex:1 1 120px; padding:11px 13px; border-radius:12px; background:var(--bg-sunken); display:flex; flex-direction:column; gap:3px;">
+                    <span style="font-size:19px; font-weight:600; letter-spacing:-.025em; color:var(--green);">17</span>
+                    <span style="font-size:11.5px; color:var(--text-faint);">用例通过</span>
+                  </div>
+                  <div style="flex:1 1 120px; padding:11px 13px; border-radius:12px; background:var(--bg-sunken); display:flex; flex-direction:column; gap:3px;">
+                    <span style="font-size:19px; font-weight:600; letter-spacing:-.025em;">98.4%</span>
+                    <span style="font-size:11.5px; color:var(--text-faint);">预计成功率</span>
+                  </div>
+                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                  <div onClick="{{ sug_pr }}" class="hb" style="height:30px; padding:0 14px; display:flex; align-items:center; gap:7px; border-radius:999px; background:var(--accent); color:var(--accent-fg); font-size:12.5px; font-weight:500; cursor:pointer;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="6.5" cy="6" r="2.5" stroke="currentColor" stroke-width="1.6"></circle><circle cx="6.5" cy="18" r="2.5" stroke="currentColor" stroke-width="1.6"></circle><circle cx="17.5" cy="18" r="2.5" stroke="currentColor" stroke-width="1.6"></circle><path d="M6.5 8.5v7M17.5 15.5V11a4 4 0 0 0-4-4h-1.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+                    起草 PR
+                  </div>
+                  <div onClick="{{ sug_e2e }}" class="hb" style="height:30px; padding:0 14px; display:flex; align-items:center; border-radius:999px; background:var(--chip); font-size:12.5px; font-weight:500; cursor:pointer;" style-hover="background:var(--hover)">补 e2e 假定时器</div>
+                  <div onClick="{{ sug_doc }}" class="hb" style="height:30px; padding:0 14px; display:flex; align-items:center; border-radius:999px; background:var(--chip); font-size:12.5px; font-weight:500; cursor:pointer;" style-hover="background:var(--hover)">写一段幂等键约定文档</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <sc-for list="{{ sent }}" as="m" hint-placeholder-count="0">
+            <div data-anchor="{{ m.anchor }}" style="display:flex; flex-direction:column; gap:7px; animation:cc-in 200ms cubic-bezier(0.175,0.885,0.32,1.1);">
+              <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-faint);">
+                <div style="width:18px; height:18px; border-radius:50%; background:linear-gradient(140deg,#4b7bec,#8854d0); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:#fff;">Z</div>
+                你 · 刚刚
+              </div>
+              <div style="background:var(--bg-elev); border-radius:16px; box-shadow:var(--sh-card); padding:15px 17px; line-height:1.8;">{{ m.text }}</div>
+            </div>
+          </sc-for>
+
+          <sc-if value="{{ hasReply }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-faint);">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="color:var(--accent); animation:{{ sparkAnim }};"><path d="M12 3.2l1.9 4.9 4.9 1.9-4.9 1.9L12 16.8l-1.9-4.9L5.2 10l4.9-1.9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+                {{ replyStatus }}
+              </div>
+              <div style="line-height:1.75; white-space:pre-wrap;">{{ reply }}<span style="display:{{ caretDisplay }}; width:7px; height:14px; background:var(--accent); vertical-align:-2px; margin-left:2px; animation:cc-caret 1s step-end infinite;"></span></div>
+              <sc-if value="{{ streaming }}" hint-placeholder-val="{{ false }}">
+                <div onClick="{{ stopGen }}" class="hb" style="align-self:flex-start; display:flex; align-items:center; gap:6px; height:30px; padding:0 14px; border-radius:999px; background:var(--chip); color:var(--text-dim); font-size:12.5px; font-weight:500; flex:none; white-space:nowrap; cursor:pointer;" style-hover="background:var(--hover); color:var(--text)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"></rect></svg>
+                  停止生成
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">Esc</span>
+                </div>
+              </sc-if>
+              <sc-if value="{{ stopped }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; align-items:center; gap:8px; padding:10px 13px; background:var(--chip); border-radius:6px; color:var(--text-faint); font-size:12px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.6"></rect></svg>
+                  已由你中断生成
+                  <span onClick="{{ resume }}" style="color:var(--accent); cursor:pointer;">继续生成</span>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+        </div>
+        </div>
+
+        <sc-if value="{{ showToc }}" hint-placeholder-val="{{ true }}">
+        <div style="width:186px; flex:none; padding:34px 18px 20px 6px; display:flex; flex-direction:column; gap:10px; overflow-y:auto;">
+          <div style="font-size:11px; color:var(--text-faint); letter-spacing:.04em;">本条消息目录</div>
+          <sc-for list="{{ tocItems }}" as="c" hint-placeholder-count="8">
+            <div onClick="{{ c.go }}" style="display:flex; align-items:flex-start; gap:8px; padding:4px 0; font-size:12px; line-height:1.5; color:{{ c.fg }}; cursor:pointer;" style-hover="color:var(--text)">
+              <span style="width:2px; flex:none; align-self:stretch; border-radius:2px; background:{{ c.bar }};"></span>
+              <span style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ c.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+
+      </div>
+
+      <div style="flex:none; padding:0 {{ composerPadR }} 24px {{ composerPadL }};">
+        <div style="max-width:820px; margin:0 auto; border-radius:20px; background:var(--bg-elev); box-shadow:{{ composerRing }}; transition:box-shadow 100ms var(--ease-out,ease);">
+          <div style="display:flex; flex-wrap:wrap; gap:6px; padding:12px 13px 0;">
+            <div style="display:flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; background:var(--chip); font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim);">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M6 3.5h7l5 5v12H6z" stroke="var(--syn-fn)" stroke-width="1.7" stroke-linejoin="round"></path></svg>useRetryPayment.ts
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="color:var(--text-faint); cursor:pointer;"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path></svg>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; background:var(--chip); font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim);">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M4 6.5h6l2 2h8v10H4z" stroke="var(--syn-kw)" stroke-width="1.6" stroke-linejoin="round"></path></svg>选中 12 行
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="color:var(--text-faint); cursor:pointer;"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path></svg>
+            </div>
+          </div>
+          <input value="{{ draft }}" onChange="{{ onDraft }}" onKeyDown="{{ onKey }}" onFocus="{{ onFocus }}" onBlur="{{ onBlur }}" placeholder="描述你要做的事，@ 引用文件或符号，⏎ 发送" style="width:100%; padding:15px 15px 12px; background:transparent; border:none; font-size:14px; line-height:1.6; color:var(--text);">
+          <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; padding:0 11px 11px 12px; min-width:0;">
+            <div style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:999px; color:var(--text-dim); cursor:pointer;" style-hover="background:var(--hover); color:var(--text)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.6 1.6 0 0 1-2.3-2.3l7.8-7.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </div>
+            <div style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:999px; color:var(--text-dim); cursor:pointer;" style-hover="background:var(--hover); color:var(--text)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M12 5v14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></svg>
+            </div>
+            <div style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:999px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:14px; cursor:pointer;" style-hover="background:var(--hover); color:var(--text)">@</div>
+            <div style="width:1px; height:16px; background:var(--border); margin:0 2px;"></div>
+            <div onClick="{{ toggleModel }}" style="position:relative; display:flex; align-items:center; gap:6px; height:28px; padding:0 11px; border-radius:999px; color:var(--text-dim); font-size:12.5px; white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; cursor:pointer;" style-hover="background:var(--hover); color:var(--text)">
+              {{ model }}
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M6 9.5l6 6 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <sc-if value="{{ modelOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="position:absolute; bottom:32px; left:0; width:236px; padding:5px; border-radius:8px; background:var(--bg-elev); box-shadow:var(--shadow); z-index:20; display:flex; flex-direction:column; gap:1px;">
+                  <div onClick="{{ pick_sonnet }}" style="display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:6px; font-size:13px; color:var(--text);" style-hover="background:var(--hover)">Claude Sonnet 4.5<span style="margin-left:auto; font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--text-faint);">平衡</span></div>
+                  <div onClick="{{ pick_opus }}" style="display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:6px; font-size:13px; color:var(--text);" style-hover="background:var(--hover)">Claude Opus 4.6<span style="margin-left:auto; font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--text-faint);">最强</span></div>
+                  <div onClick="{{ pick_haiku }}" style="display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:6px; font-size:13px; color:var(--text);" style-hover="background:var(--hover)">Claude Haiku 4.5<span style="margin-left:auto; font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--text-faint);">最快</span></div>
+                  <div style="height:1px; background:var(--border); margin:4px 0;"></div>
+                  <div style="padding:6px 9px; font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">上下文 18.2k / 200k</div>
+                </div>
+              </sc-if>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; height:28px; padding:0 11px; border-radius:999px; color:var(--text-dim); font-size:12.5px; white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; cursor:pointer;" style-hover="background:var(--hover); color:var(--text)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 3.2l1.9 4.9 4.9 1.9-4.9 1.9L12 16.8l-1.9-4.9L5.2 10l4.9-1.9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+              Agent
+            </div>
+            <div style="flex:1;"></div>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">18.2k tok</span>
+            <div onClick="{{ send }}" style="width:32px; height:32px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:999px; background:{{ sendBg }}; color:{{ sendFg }}; cursor:pointer; transition:background 150ms cubic-bezier(0.175,0.885,0.32,1.1);">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 19V5.5M12 5.5L6 11.5M12 5.5l6 6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <sc-if value="{{ rightOpen }}" hint-placeholder-val="{{ true }}">
+    <div style="width:300px; flex:none; background:var(--bg-right); position:relative; z-index:3; box-shadow:var(--sh-right); display:flex; flex-direction:column; min-height:0;">
+
+      <div style="height:42px; flex:none; display:flex; align-items:center; gap:4px; padding:0 8px; background:var(--bg-bar); position:relative; z-index:2; box-shadow:var(--sh-bar);">
+        <div style="flex:1; min-width:0; display:flex; align-items:center; gap:4px; overflow-x:auto; scrollbar-width:none;">
+          <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+            <div onClick="{{ t.select }}" style="display:flex; align-items:center; gap:5px; height:30px; flex:none; padding:0 7px 0 13px; border-radius:999px; background:{{ t.bg }}; color:{{ t.fg }}; font-size:12px; white-space:nowrap; cursor:pointer;" style-hover="background:var(--hover)">
+              {{ t.label }}
+              <span style="font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">{{ t.badge }}</span>
+              <div onClick="{{ t.close }}" title="关闭标签" style="width:18px; height:18px; display:flex; align-items:center; justify-content:center; border-radius:999px; color:var(--text-faint);" style-hover="background:var(--chip); color:var(--text)">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path></svg>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div onClick="{{ toggleAdd }}" title="新增面板" style="position:relative; width:28px; height:28px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:999px; background:{{ addBg }}; color:var(--text-dim); cursor:pointer;" style-hover="background:var(--hover); color:var(--text)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 5.5v13M5.5 12h13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
+          <sc-if value="{{ addOpen }}" hint-placeholder-val="{{ false }}">
+            <div onClick="{{ stopPop }}" style="position:absolute; top:30px; right:0; width:214px; padding:6px; border-radius:16px; background:var(--overlay); box-shadow:var(--shadow); z-index:50; display:flex; flex-direction:column; gap:1px; cursor:default;">
+              <div style="padding:6px 9px 4px; font-size:11px; color:var(--text-faint);">打开面板</div>
+              <sc-for list="{{ addItems }}" as="p" hint-placeholder-count="4">
+                <div onClick="{{ p.pick }}" style="display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:10px; font-size:13.5px; cursor:pointer;" style-hover="background:var(--hover)">
+                  {{ p.label }}
+                  <span style="margin-left:auto; font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">{{ p.state }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <sc-if value="{{ isExplorer }}" hint-placeholder-val="{{ false }}">
+        <div ref="{{ panelRef }}" onScroll="{{ onPanelScroll }}" style="flex:1; min-height:0; overflow-y:auto; padding:12px 10px 18px; display:flex; flex-direction:column; gap:8px;">
+          <input value="{{ exQuery }}" onChange="{{ onExQuery }}" placeholder="按名称过滤" style="width:100%; height:32px; padding:0 12px; border-radius:12px; background:var(--field-background); box-shadow:var(--field-shadow); font-size:12.5px; color:var(--text);">
+          <div style="font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">{{ exHint }}</div>
+          <div style="display:flex; flex-direction:column; font-size:13px;">
+            <div onClick="{{ toggle_ex_src }}" style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:8px; cursor:pointer;" style-hover="background:var(--hover)">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint); transform:{{ rot_ex_src }};"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--syn-kw);"><path d="M3.5 6.5h6l2 2h9v9.5h-17z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+              src
+            </div>
+            <sc-if value="{{ show_ex_src }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex; flex-direction:column; padding-left:14px;">
+                <div onClick="{{ toggle_ex_checkout }}" style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:8px; cursor:pointer;" style-hover="background:var(--hover)">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint); transform:{{ rot_ex_checkout }};"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--syn-kw);"><path d="M3.5 6.5h6l2 2h9v9.5h-17z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+                  checkout
+                </div>
+                <sc-if value="{{ show_ex_checkout }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex; flex-direction:column; padding-left:14px;">
+                    <div style="display:flex; align-items:center; gap:6px; padding:5px 6px 5px 22px; border-radius:6px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:12px; cursor:pointer;" style-hover="background:var(--hover)">checkout.tsx<span style="margin-left:auto; color:var(--amber);">M</span></div>
+                    <div style="display:flex; align-items:center; gap:6px; padding:5px 6px 5px 22px; border-radius:6px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:12px; cursor:pointer;" style-hover="background:var(--hover)">PaymentForm.tsx</div>
+                    <div onClick="{{ toggle_ex_hooks }}" style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:8px; cursor:pointer;" style-hover="background:var(--hover)">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint); transform:{{ rot_ex_hooks }};"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--syn-kw);"><path d="M3.5 6.5h6l2 2h9v9.5h-17z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+                      hooks
+                    </div>
+                    <sc-if value="{{ show_ex_hooks }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:flex; align-items:center; gap:6px; margin-left:14px; padding:5px 6px 5px 22px; border-radius:6px; background:var(--chip); color:var(--text); font-family:'JetBrains Mono',monospace; font-size:12px; cursor:pointer;">useRetryPayment.ts<span style="margin-left:auto; color:var(--green);">A</span></div>
+                    </sc-if>
+                  </div>
+                </sc-if>
+                <div onClick="{{ toggle_ex_lib }}" style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:8px; cursor:pointer;" style-hover="background:var(--hover)">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint); transform:{{ rot_ex_lib }};"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--syn-kw);"><path d="M3.5 6.5h6l2 2h9v9.5h-17z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+                  lib
+                </div>
+                <sc-if value="{{ show_ex_lib }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex; flex-direction:column; padding-left:14px;">
+                    <div style="padding:5px 6px 5px 22px; border-radius:6px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:12px; cursor:pointer;" style-hover="background:var(--hover)">idempotency.ts</div>
+                    <div style="padding:5px 6px 5px 22px; border-radius:6px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:12px; cursor:pointer;" style-hover="background:var(--hover)">telemetry.ts</div>
+                  </div>
+                </sc-if>
+                <div onClick="{{ toggle_ex_api }}" style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:8px; cursor:pointer;" style-hover="background:var(--hover)">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--text-faint); transform:{{ rot_ex_api }};"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:none; color:var(--syn-kw);"><path d="M3.5 6.5h6l2 2h9v9.5h-17z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+                  api
+                </div>
+                <sc-if value="{{ show_ex_api }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:5px 6px 5px 36px; border-radius:6px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:12px; cursor:pointer;" style-hover="background:var(--hover)">pay.ts</div>
+                </sc-if>
+              </div>
+            </sc-if>
+            <div style="display:flex; align-items:center; gap:6px; padding:5px 6px 5px 22px; border-radius:6px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:12px; cursor:pointer;" style-hover="background:var(--hover)">package.json</div>
+            <div style="display:flex; align-items:center; gap:6px; padding:5px 6px 5px 22px; border-radius:6px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:12px; cursor:pointer;" style-hover="background:var(--hover)">tsconfig.json</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isDiff }}" hint-placeholder-val="{{ true }}">
+        <div ref="{{ panelRef }}" onScroll="{{ onPanelScroll }}" style="flex:1; min-height:0; overflow-y:auto; padding:14px 13px 18px; display:flex; flex-direction:column; gap:14px;">
+          <div style="display:flex; align-items:center; gap:7px;">
+            <span style="font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace; white-space:nowrap;">2 个文件 · <span style="color:var(--green);">+91</span> <span style="color:var(--red);">−14</span></span>
+            <div style="flex:1;"></div>
+            <div style="height:28px; padding:0 13px; display:flex; align-items:center; border-radius:999px; background:var(--accent); color:var(--accent-fg); font-size:12.5px; font-weight:500; flex:none; white-space:nowrap; cursor:pointer;">全部应用</div>
+          </div>
+          <div style="border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); overflow:hidden;">
+            <div style="display:flex; align-items:center; gap:7px; padding:7px 9px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex:none;"><path d="M6 3.5h7l5 5v12H6z" stroke="var(--green)" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:12px; min-width:88px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">useRetryPayment.ts</span>
+              <span style="margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--green);">+85</span>
+            </div>
+            <div style="padding:6px 9px; font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">新建文件 · 未提交</div>
+          </div>
+          <div style="border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); overflow:hidden;">
+            <div style="display:flex; align-items:center; gap:7px; padding:7px 9px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex:none;"><path d="M6 3.5h7l5 5v12H6z" stroke="var(--syn-fn)" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:12px; min-width:88px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">checkout.tsx</span>
+              <span style="margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--green);">+6</span>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--red); flex:none;">−14</span>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; line-height:17px; background:var(--bg-sunken);">
+              <div style="display:flex; background:var(--red-bg); padding:0 9px;"><span style="color:var(--red); width:12px;">−</span><span style="white-space:pre; overflow:hidden; color:var(--text-dim);">while (retry &lt; 3) {</span></div>
+              <div style="display:flex; background:var(--green-bg); padding:0 9px;"><span style="color:var(--green); width:12px;">+</span><span style="white-space:pre; overflow:hidden; color:var(--text-dim);">const { retry } = useRetry…</span></div>
+            </div>
+          </div>
+          <div style="font-size:11px; color:var(--text-faint); letter-spacing:.06em; text-transform:uppercase;">测试</div>
+          <div style="display:flex; flex-direction:column; gap:7px; font-size:12px;">
+            <div style="display:flex; align-items:center; gap:7px; color:var(--text-dim);"><span style="color:var(--green);">✓</span> retry.test.ts <span style="margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">6 passed</span></div>
+            <div style="display:flex; align-items:center; gap:7px; color:var(--text-dim);"><span style="color:var(--green);">✓</span> checkout.test.tsx <span style="margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">11 passed</span></div>
+            <div style="display:flex; align-items:center; gap:7px; color:var(--text-dim);"><span style="color:var(--amber);">◐</span> e2e/pay.spec.ts <span style="margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);">运行中</span></div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isTerminal }}" hint-placeholder-val="{{ false }}">
+        <div ref="{{ panelRef }}" onScroll="{{ onPanelScroll }}" style="flex:1; min-height:0; overflow-y:auto; padding:14px 14px; font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.85; color:var(--text-dim); background:var(--bg-sunken);">
+          <div><span style="color:var(--green);">$</span> pnpm test --filter checkout</div>
+          <div>PASS src/checkout/__tests__/checkout.test.tsx</div>
+          <div><span style="color:var(--red);">FAIL</span> src/checkout/__tests__/retry.test.ts</div>
+          <div style="color:var(--text-faint);">  ● 超时：等待 'payment.retry' 事件 5000ms</div>
+          <div><span style="color:var(--green);">$</span> pnpm test --filter checkout --clock=fake</div>
+          <div>PASS src/checkout/__tests__/retry.test.ts</div>
+          <div><span style="color:var(--green);">Tests: 17 passed, 17 total</span></div>
+          <div style="display:flex; align-items:center; gap:4px;"><span style="color:var(--green);">$</span><span style="width:7px; height:13px; background:var(--text-dim); animation:cc-caret 1s step-end infinite;"></span></div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPlan }}" hint-placeholder-val="{{ false }}">
+        <div ref="{{ panelRef }}" onScroll="{{ onPanelScroll }}" style="flex:1; min-height:0; overflow-y:auto; padding:14px 13px 18px; display:flex; flex-direction:column; gap:12px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">3 / 5 步</span>
+            <div style="flex:1; height:4px; border-radius:4px; background:var(--bg-sunken); overflow:hidden;"><div style="width:60%; height:100%; background:var(--accent);"></div></div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:9px; font-size:13px;">
+            <div style="display:flex; align-items:flex-start; gap:8px; color:var(--text-faint);"><span style="color:var(--green);">✓</span><span style="text-decoration:line-through;">定位现有重试实现</span></div>
+            <div style="display:flex; align-items:flex-start; gap:8px; color:var(--text-faint);"><span style="color:var(--green);">✓</span><span style="text-decoration:line-through;">新建 useRetryPayment 并接入 checkout</span></div>
+            <div style="display:flex; align-items:flex-start; gap:8px; color:var(--text);"><span style="color:var(--accent);">◐</span><span>运行 checkout 相关单测</span></div>
+            <div style="display:flex; align-items:flex-start; gap:8px; color:var(--text-dim);"><span style="color:var(--text-faint);">○</span><span>重装依赖（需审批）</span></div>
+            <div style="display:flex; align-items:flex-start; gap:8px; color:var(--text-dim);"><span style="color:var(--text-faint);">○</span><span>输出重试方案对比表</span></div>
+          </div>
+          <div style="height:1px; background:var(--border); margin:2px 0;"></div>
+          <div style="font-size:11px; color:var(--text-faint); letter-spacing:.06em; text-transform:uppercase;">本轮引用</div>
+          <div style="display:flex; flex-direction:column; gap:7px;">
+            <div style="display:flex; align-items:center; gap:7px; padding:8px 10px; border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); font-size:13px;"><span style="font-family:'JetBrains Mono',monospace; font-size:12px;">checkout.tsx</span><span style="margin-left:auto; font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">4.1k</span></div>
+            <div style="display:flex; align-items:center; gap:7px; padding:8px 10px; border-radius:16px; background:var(--bg-elev); box-shadow:var(--sh-card); font-size:13px;"><span style="font-family:'JetBrains Mono',monospace; font-size:12px;">api/pay.ts</span><span style="margin-left:auto; font-size:11px; color:var(--text-faint); font-family:'JetBrains Mono',monospace;">2.3k</span></div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ noTabs }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:24px; text-align:center;">
+          <div style="font-size:13px; color:var(--text-faint); line-height:1.7;">没有打开的面板<br>用 + 新增 Explorer、Diff、Terminal 或 Plan</div>
+          <div onClick="{{ openExplorer }}" style="height:32px; padding:0 16px; display:flex; align-items:center; border-radius:999px; background:var(--chip); font-size:13.5px; font-weight:500; cursor:pointer;" style-hover="background:var(--hover)">打开 Explorer</div>
+        </div>
+      </sc-if>
+
+    </div>
+    </sc-if>
+  </div>
+
+  <sc-if value="{{ leftClosed }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ toggleLeft }}" title="展开会话栏" style="position:absolute; left:10px; bottom:10px; z-index:40; display:flex; align-items:center; gap:6px; padding:4px 8px 4px 4px; border-radius:20px; background:var(--bg-bar); box-shadow:var(--shadow); cursor:pointer;">
+      <div style="width:24px; height:24px; border-radius:50%; background:linear-gradient(140deg,#4b7bec,#8854d0); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:#fff;">Z</div>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="color:var(--text-dim);"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;oklch(0.6204 0.195 253.83)&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;oklch(0.6204 0.195 253.83)&quot;,&quot;oklch(0.5854 0.2041 288.19)&quot;,&quot;oklch(0.6431 0.1367 158.8)&quot;,&quot;oklch(0.6801 0.1748 42.5)&quot;],&quot;section&quot;:&quot;主题&quot;},&quot;defaultTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;light&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;tsType&quot;:&quot;'dark' | 'light'&quot;,&quot;section&quot;:&quot;主题&quot;},&quot;streamSpeed&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:14,&quot;min&quot;:4,&quot;max&quot;:60,&quot;step&quot;:2,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;交互&quot;}}">
+const REPLY = `已经把重试逻辑迁到 useRetryPayment，17 个用例全部通过。
+
+补充两点值得注意：
+· 幂等键在整个重试周期内复用，网关侧不会产生第二笔授权。
+· card_declined 直接抛出，不进入退避循环，避免无谓的 1.6s 等待。
+
+要我顺手把 e2e 里的 pay.spec.ts 也切到假定时器吗？`;
+
+const BLOCKS = [
+  { id: 'ask', label: '你的请求', lines: 3, tone: 'user' },
+  { id: 'think', label: '思考过程', lines: 4, tone: 'quiet' },
+  { id: 'plan', label: '执行计划', lines: 5, tone: 'card' },
+  { id: 'tools', label: '工具调用', lines: 3, tone: 'card' },
+  { id: 'prose', label: '抽出的 hook', lines: 5, tone: 'text' },
+  { id: 'code', label: '代码 · useRetryPayment.ts', lines: 7, tone: 'code' },
+  { id: 'diff', label: '变更 · checkout.tsx', lines: 4, tone: 'code' },
+  { id: 'error', label: '测试失败与重试', lines: 4, tone: 'error' },
+  { id: 'cmd', label: '命令审批', lines: 4, tone: 'warn' },
+  { id: 'table', label: '重试策略对比', lines: 5, tone: 'text' },
+  { id: 'ask2', label: '追问 · 线上重复扣款', lines: 3, tone: 'user' },
+  { id: 'mcp', label: '连接外部工具', lines: 3, tone: 'card' },
+  { id: 'agents', label: '并行子任务', lines: 3, tone: 'card' },
+  { id: 'search', label: '联网检索与引用', lines: 3, tone: 'card' },
+  { id: 'chart', label: '重复扣款分布', lines: 3, tone: 'text' },
+  { id: 'choice', label: '两套修复方案', lines: 4, tone: 'text' },
+  { id: 'longtask', label: '长任务进度', lines: 3, tone: 'card' },
+  { id: 'checkpoint', label: '检查点', lines: 3, tone: 'quiet' },
+  { id: 'ctx', label: '上下文压缩', lines: 1, tone: 'quiet' },
+  { id: 'summary', label: '本轮完成', lines: 4, tone: 'card' }
+];
+const TONE = { user: 'var(--accent)', quiet: 'var(--text-faint)', card: 'var(--text-dim)', text: 'var(--text-dim)', code: 'var(--syn-fn)', error: 'var(--red)', warn: 'var(--amber)' };
+
+const PANELS = {
+  explorer: { label: 'Explorer' },
+  diff: { label: 'Diff', badge: '2' },
+  terminal: { label: 'Terminal' },
+  plan: { label: 'Plan', badge: '3/5' }
+};
+
+class Component extends DCLogic {
+  state = {
+    theme: 'dark',
+    leftOpen: true,
+    rightOpen: true,
+    settingsOpen: false,
+    appearanceOpen: false,
+    accent: null,
+    open: { think: true, grep: false, diff: true, ex_src: true, ex_checkout: true, ex_hooks: true, ex_lib: false, ex_api: false },
+    cmd: 'pending',
+    diffState: 'pending',
+    tries: 1,
+    mcp: { sentry: true, linear: false },
+    cite: true,
+    plan: 'a',
+    bgRun: false,
+    restored: null,
+    tabs: [{ id: 'diff' }, { id: 'terminal' }, { id: 'plan' }],
+    active: 'diff',
+    anchor: 'ask',
+    turn: 'ask',
+    vw: 1440,
+    addOpen: false,
+    exQuery: '',
+    draft: '',
+    focused: false,
+    sent: [],
+    reply: '',
+    streaming: false,
+    stopped: false,
+    modelOpen: false,
+    model: 'Claude Sonnet 4.5',
+    copied: false
+  };
+
+  componentDidMount() {
+    if (this.props.defaultTheme) this.setState({ theme: this.props.defaultTheme });
+    this._onResize = () => this.setState({ vw: window.innerWidth });
+    window.addEventListener('resize', this._onResize);
+    this._onResize();
+  }
+  componentDidMount2() {}
+  componentWillUnmount() { clearTimeout(this._t); window.removeEventListener('resize', this._onResize); }
+
+  componentDidUpdate() {
+    const el = this._scroll;
+    if (el && this._stick) el.scrollTop = el.scrollHeight;
+  }
+
+  scrollToAnchor(id) {
+    const el = document.querySelector('[data-anchor="' + id + '"]');
+    const root = el && el.closest('[data-scroll-root]');
+    if (!el || !root) return;
+    this._stick = false;
+    const to = Math.max(0, el.offsetTop - 26);
+    root.scrollTop = to;
+    this._chatPos = to;
+    this.setState({ anchor: id });
+  }
+
+  syncAnchor() {
+    const root = document.querySelector('[data-scroll-root]');
+    if (!root) return;
+    const top = root.scrollTop + 90;
+    let cur = BLOCKS[0].id;
+    BLOCKS.forEach((b) => {
+      const el = root.querySelector('[data-anchor="' + b.id + '"]');
+      if (el && el.offsetTop <= top) cur = b.id;
+    });
+    const ids = ['ask'].concat(this.state.sent.map((m, i) => 't' + i));
+    let turn = ids[0];
+    ids.forEach((id) => {
+      const el = root.querySelector('[data-anchor="' + id + '"]');
+      if (el && el.offsetTop <= top) turn = id;
+    });
+    if (cur !== this.state.anchor || turn !== this.state.turn) this.setState({ anchor: cur, turn: turn });
+  }
+
+  openTab(id) {
+    this.setState((s) => ({
+      tabs: s.tabs.some((t) => t.id === id) ? s.tabs : s.tabs.concat([{ id: id }]),
+      active: id,
+      addOpen: false
+    }));
+  }
+
+  closeTab(id) {
+    this.setState((s) => {
+      const i = s.tabs.findIndex((t) => t.id === id);
+      const tabs = s.tabs.filter((t) => t.id !== id);
+      const active = s.active === id ? (tabs[Math.max(0, i - 1)] || {}).id || '' : s.active;
+      return { tabs: tabs, active: active };
+    });
+  }
+
+  toggle(k) {
+    this.setState(s => ({ open: Object.assign({}, s.open, { [k]: !s.open[k] }) }));
+  }
+
+  stream(from) {
+    const speed = this.props.streamSpeed || 14;
+    const step = () => {
+      this.setState(s => {
+        if (!s.streaming) return null;
+        const next = REPLY.slice(0, s.reply.length + 2);
+        if (next.length >= REPLY.length) return { reply: REPLY, streaming: false };
+        this._t = setTimeout(step, speed);
+        return { reply: next };
+      });
+    };
+    this._stick = true;
+    this.setState({ streaming: true, stopped: false, reply: from }, () => { this._t = setTimeout(step, 120); });
+  }
+
+  send() {
+    const text = this.state.draft.trim();
+    if (!text || this.state.streaming) return;
+    this.setState(s => ({ sent: s.sent.concat([{ text: text }]), draft: '' }));
+    this.stream('');
+  }
+
+  renderVals() {
+    const s = this.state;
+    const on = (k) => () => this.toggle(k);
+    const rot = (k) => s.open[k] ? 'rotate(90deg)' : 'rotate(0deg)';
+    const dark = s.theme === 'dark';
+    const cur = s.accent || this.props.accent || 'oklch(0.6204 0.195 253.83)';
+    const turns = [{ id: 'ask', label: '你 · 14:02' }, { id: 'ask2', label: '你 · 14:19' }].concat(s.sent.map((m, i) => ({ id: 't' + i, label: '你 · ' + m.text.slice(0, 12) })));
+    const center = (s.vw || 1440) - (s.leftOpen ? 240 : 0) - (s.rightOpen ? 300 : 0);
+    const ring = (c) => c === cur ? '0 0 0 2px var(--bg-elev), 0 0 0 3.5px ' + c : 'none';
+
+    const cmdMap = {
+      pending:  { title: '需要你的批准', risk: '破坏性', color: 'var(--amber)', border: 'var(--amber)', head: 'var(--amber-bg)' },
+      once:     { title: '命令已执行', risk: '本次允许', color: 'var(--green)', border: 'var(--border)', head: 'var(--green-bg)' },
+      always:   { title: '命令已执行', risk: '已加入白名单', color: 'var(--green)', border: 'var(--border)', head: 'var(--green-bg)' },
+      rejected: { title: '命令已拒绝', risk: '已跳过', color: 'var(--red)', border: 'var(--border)', head: 'var(--red-bg)' }
+    };
+    const c = cmdMap[s.cmd];
+
+    return {
+      theme: s.theme,
+      themeClass: dark ? 'dark' : '',
+      accent: s.accent || this.props.accent || 'oklch(0.6204 0.195 253.83)',
+      themeLabel: dark ? '深色' : '浅色',
+      toggleTheme: () => this.setState({ theme: dark ? 'light' : 'dark' }),
+      setDark: () => this.setState({ theme: 'dark' }),
+      setLight: () => this.setState({ theme: 'light' }),
+      darkBg: dark ? 'var(--segment)' : 'transparent', darkFg: dark ? 'var(--segment-foreground)' : 'var(--text-dim)',
+      lightBg: dark ? 'transparent' : 'var(--segment)', lightFg: dark ? 'var(--text-dim)' : 'var(--segment-foreground)',
+      darkSh: dark ? 'var(--surface-shadow)' : 'none', lightSh: dark ? 'none' : 'var(--surface-shadow)',
+      stopPop: (e) => e.stopPropagation(),
+      settingsOpen: s.settingsOpen,
+      settingsBg: s.settingsOpen ? 'var(--chip)' : 'transparent',
+      toggleSettings: () => this.setState({ settingsOpen: !s.settingsOpen }),
+      toggleAccount: () => this.setState({ settingsOpen: !s.settingsOpen }),
+      appearanceOpen: s.appearanceOpen,
+      rot_appearance: s.appearanceOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+      toggleAppearance: () => this.setState({ appearanceOpen: !s.appearanceOpen }),
+      accent_blue: () => this.setState({ accent: 'oklch(0.6204 0.195 253.83)' }),
+      accent_purple: () => this.setState({ accent: 'oklch(0.5854 0.2041 288.19)' }),
+      accent_green: () => this.setState({ accent: 'oklch(0.6431 0.1367 158.8)' }),
+      accent_orange: () => this.setState({ accent: 'oklch(0.6801 0.1748 42.5)' }),
+      ring_blue: ring('oklch(0.6204 0.195 253.83)'), ring_purple: ring('oklch(0.5854 0.2041 288.19)'), ring_green: ring('oklch(0.6431 0.1367 158.8)'), ring_orange: ring('oklch(0.6801 0.1748 42.5)'),
+
+      centerGutter: s.leftOpen ? '0px' : '48px',
+      leftToggleTip: s.leftOpen ? '折叠会话栏' : '展开会话栏',
+      rightToggleTip: s.rightOpen ? '折叠工具栏' : '展开工具栏',
+      leftToggleBg: s.leftOpen ? 'var(--chip)' : 'transparent',
+      rightToggleBg: s.rightOpen ? 'var(--chip)' : 'transparent',
+      scrollRef: (el) => { this._scroll = el; if (el && this._chatPos && !el.scrollTop) el.scrollTop = this._chatPos; },
+      composerPadL: center >= 560 ? '74px' : '28px',
+      composerPadR: center >= 820 ? '224px' : '38px',
+      showMap: center >= 560,
+      showToc: center >= 820,
+      onChatScroll: (e) => { this._chatPos = e.target.scrollTop; this.syncAnchor(); },
+      mapDots: turns.map((t) => ({
+        label: t.label,
+        bg: t.id === s.turn ? 'var(--accent)' : 'transparent',
+        ring: t.id === s.turn ? 'var(--accent)' : 'var(--border)',
+        go: () => this.scrollToAnchor(t.id)
+      })),
+      tocItems: BLOCKS.slice(1).map((b) => ({
+        label: b.label,
+        fg: b.id === s.anchor ? 'var(--text)' : 'var(--text-dim)',
+        bar: b.id === s.anchor ? 'var(--accent)' : 'transparent',
+        go: () => this.scrollToAnchor(b.id)
+      })),
+
+      leftOpen: s.leftOpen, leftClosed: !s.leftOpen,
+      rightOpen: s.rightOpen, rightClosed: !s.rightOpen,
+      leftIconColor: s.leftOpen ? 'var(--text)' : 'var(--text-faint)',
+      rightIconColor: s.rightOpen ? 'var(--text)' : 'var(--text-faint)',
+      toggleLeft: () => this.setState(st => ({ leftOpen: !st.leftOpen })),
+      toggleRight: () => this.setState(st => ({ rightOpen: !st.rightOpen })),
+
+      show_think: s.open.think, rot_think: rot('think'), toggle_think: on('think'),
+      label_think: s.open.think ? '收起' : '展开',
+      show_grep: s.open.grep, rot_grep: rot('grep'), toggle_grep: on('grep'),
+      show_diff: s.open.diff, rot_diff: rot('diff'), toggle_diff: on('diff'),
+
+      diffPending: s.diffState === 'pending',
+      diffDone: s.diffState !== 'pending',
+      diffLabel: s.diffState === 'applied' ? '已应用' : '已丢弃',
+      applyDiff: () => this.setState({ diffState: 'applied' }),
+      rejectDiff: () => this.setState({ diffState: 'discarded' }),
+
+      show_cite: s.cite, rot_cite: s.cite ? 'rotate(90deg)' : 'rotate(0deg)',
+      toggle_cite: () => this.setState({ cite: !s.cite }),
+
+      sentryTrack: s.mcp.sentry ? 'var(--accent)' : 'var(--chip)',
+      sentryKnob: s.mcp.sentry ? 'translateX(16px)' : 'translateX(0)',
+      linearTrack: s.mcp.linear ? 'var(--accent)' : 'var(--chip)',
+      linearKnob: s.mcp.linear ? 'translateX(16px)' : 'translateX(0)',
+      toggleSentry: () => this.setState({ mcp: Object.assign({}, s.mcp, { sentry: !s.mcp.sentry }) }),
+      toggleLinear: () => this.setState({ mcp: Object.assign({}, s.mcp, { linear: !s.mcp.linear }) }),
+      mcpNote: s.mcp.sentry
+        ? (s.mcp.linear ? '两个服务均已授权，助手可读取 issue 并回写工单。' : '已授权 Sentry。开启 Linear 后我可以直接建修复工单。')
+        : (s.mcp.linear ? '仅授权 Linear，Sentry 数据将从你粘贴的截图中读取。' : '两个服务都未授权，我只能基于仓库内已有信息推断。'),
+
+      pickA: () => this.setState({ plan: 'a' }),
+      pickB: () => this.setState({ plan: 'b' }),
+      ringA: s.plan === 'a' ? '0 0 0 2px var(--accent)' : 'var(--sh-card)',
+      ringB: s.plan === 'b' ? '0 0 0 2px var(--accent)' : 'var(--sh-card)',
+      dotA: s.plan === 'a' ? '5px var(--accent)' : '1.5px var(--border-tertiary)',
+      dotB: s.plan === 'b' ? '5px var(--accent)' : '1.5px var(--border-tertiary)',
+      choiceNote: s.plan === 'a'
+        ? '已选方案 A —— 我会先改 useRetryPayment 与结算页，再补一条刷新后复用键的用例。'
+        : '已选方案 B —— 需要后端先加签发接口，我可以同步起草接口约定与前端桩。',
+
+      bgRun: s.bgRun,
+      bgTitle: s.bgRun ? 'e2e 回归（后台运行）' : '正在运行 e2e 回归',
+      bgLabel: s.bgRun ? '拉回前台' : '转后台运行',
+      toggleBg: () => this.setState({ bgRun: !s.bgRun }),
+
+      checkpoints: [
+        { id: 'c1', label: '抽出 useRetryPayment', time: '14:07' },
+        { id: 'c2', label: '接入结算页并跑通单测', time: '14:15' },
+        { id: 'c3', label: '当前工作区', time: '刚刚' }
+      ].map((c, i) => ({
+        id: c.id, label: c.label, time: c.time,
+        dot: s.restored === c.id ? 'var(--accent)' : (i === 2 ? 'var(--green)' : 'var(--text-faint)'),
+        btn: s.restored === c.id ? '已回到此处' : (i === 2 ? '当前' : '恢复'),
+        btnBg: s.restored === c.id ? 'var(--accent-soft)' : 'var(--chip)',
+        btnFg: s.restored === c.id ? 'var(--text)' : 'var(--text-dim)',
+        restore: () => this.setState({ restored: c.id })
+      })),
+
+      sug_pr: () => this.setState({ draft: '按方案 A 的改动起草一个 PR，标题和描述都写好' }),
+      sug_e2e: () => this.setState({ draft: '把 e2e/pay.spec.ts 也切到假定时器' }),
+      sug_doc: () => this.setState({ draft: '写一段幂等键约定文档，放到 docs/payments 下' }),
+
+      tryCount: s.tries,
+      retryLabel: s.tries > 1 ? '已用假定时器重跑 · 17 通过' : '用假定时器重试',
+      retryTool: () => { this.openTab('terminal'); this.setState(st => ({ tries: Math.min(3, st.tries + 1) })); },
+
+      cmdTitle: c.title, cmdRisk: c.risk, cmdColor: c.color, cmdBorder: c.border, cmdHeadBg: c.head,
+      cmdPending: s.cmd === 'pending',
+      cmdRan: s.cmd === 'once' || s.cmd === 'always',
+      cmdRejected: s.cmd === 'rejected',
+      cmdApprovalNote: s.cmd === 'always' ? '已批准并加入白名单，后续同类命令不再询问。' : '已批准本次执行。',
+      allowOnce: () => { this.openTab('terminal'); this.setState({ cmd: 'once' }); },
+      allowAlways: () => { this.openTab('terminal'); this.setState({ cmd: 'always' }); },
+      rejectCmd: () => this.setState({ cmd: 'rejected' }),
+
+      copyLabel: s.copied ? '已复制' : '复制',
+      copyCode: () => { this.setState({ copied: true }); clearTimeout(this._c); this._c = setTimeout(() => this.setState({ copied: false }), 1400); },
+
+      tabs: s.tabs.map((t) => ({
+        label: PANELS[t.id].label,
+        badge: PANELS[t.id].badge || '',
+        bg: t.id === s.active ? 'var(--chip)' : 'transparent',
+        fg: t.id === s.active ? 'var(--text)' : 'var(--text-dim)',
+        select: () => this.setState({ active: t.id }),
+        close: (e) => { e.stopPropagation(); this.closeTab(t.id); }
+      })),
+      addItems: Object.keys(PANELS).map((id) => ({
+        label: PANELS[id].label,
+        state: s.tabs.some((t) => t.id === id) ? (id === s.active ? '当前' : '已打开') : '打开',
+        pick: () => this.openTab(id)
+      })),
+      addOpen: s.addOpen,
+      addBg: s.addOpen ? 'var(--chip)' : 'transparent',
+      toggleAdd: () => this.setState({ addOpen: !s.addOpen }),
+      openExplorer: () => this.openTab('explorer'),
+      noTabs: s.tabs.length === 0,
+      isExplorer: s.active === 'explorer', isDiff: s.active === 'diff',
+      isTerminal: s.active === 'terminal', isPlan: s.active === 'plan',
+      panelRef: (el) => { if (el) { this._panes = this._panes || {}; this._panes[s.active] = el; el.scrollTop = (this._scrollPos && this._scrollPos[s.active]) || 0; } },
+      onPanelScroll: (e) => { this._scrollPos = this._scrollPos || {}; this._scrollPos[s.active] = e.target.scrollTop; },
+      exQuery: s.exQuery,
+      onExQuery: (e) => this.setState({ exQuery: e.target.value }),
+      exHint: s.exQuery ? '匹配 ' + (s.exQuery.length > 3 ? 1 : 4) + ' 项 · 过滤已保存' : '9 个文件 · 2 个未提交',
+      show_ex_src: s.open.ex_src, rot_ex_src: rot('ex_src'), toggle_ex_src: on('ex_src'),
+      show_ex_checkout: s.open.ex_checkout, rot_ex_checkout: rot('ex_checkout'), toggle_ex_checkout: on('ex_checkout'),
+      show_ex_hooks: s.open.ex_hooks, rot_ex_hooks: rot('ex_hooks'), toggle_ex_hooks: on('ex_hooks'),
+      show_ex_lib: s.open.ex_lib, rot_ex_lib: rot('ex_lib'), toggle_ex_lib: on('ex_lib'),
+      show_ex_api: s.open.ex_api, rot_ex_api: rot('ex_api'), toggle_ex_api: on('ex_api'),
+
+      draft: s.draft,
+      onDraft: (e) => this.setState({ draft: e.target.value }),
+      onFocus: () => this.setState({ focused: true }),
+      onBlur: () => this.setState({ focused: false }),
+      onKey: (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); }
+        if (e.key === 'Escape' && s.streaming) { clearTimeout(this._t); this.setState({ streaming: false, stopped: true }); }
+      },
+      composerRing: s.focused ? '0 0 0 2px var(--focus)' : 'var(--field-shadow)',
+      sendBg: s.draft.trim() ? 'var(--accent)' : 'var(--chip)',
+      sendFg: s.draft.trim() ? 'var(--accent-fg)' : 'var(--text-faint)',
+      send: () => this.send(),
+
+      sent: s.sent.map((m, i) => ({ text: m.text, anchor: 't' + i })),
+      hasReply: s.reply.length > 0 || s.streaming,
+      reply: s.reply,
+      streaming: s.streaming,
+      stopped: s.stopped,
+      caretDisplay: s.streaming ? 'inline-block' : 'none',
+      sparkAnim: s.streaming ? 'cc-breathe 1.4s ease-in-out infinite' : 'none',
+      replyStatus: s.streaming ? '助手正在生成…' : (s.stopped ? '助手 · 已中断' : '助手 · ' + s.model),
+      stopGen: () => { clearTimeout(this._t); this.setState({ streaming: false, stopped: true }); },
+      resume: () => this.stream(s.reply),
+
+      model: s.model,
+      modelOpen: s.modelOpen,
+      toggleModel: () => this.setState({ modelOpen: !s.modelOpen }),
+      pick_sonnet: () => this.setState({ model: 'Claude Sonnet 4.5', modelOpen: false }),
+      pick_opus: () => this.setState({ model: 'Claude Opus 4.6', modelOpen: false }),
+      pick_haiku: () => this.setState({ model: 'Claude Haiku 4.5', modelOpen: false }),
+
+      statusLine: s.streaming ? '生成中 · Esc 停止' : (s.cmd === 'pending' ? '1 个命令待审批' : '就绪')
+    };
+  }
+}
+
+</script>
+</body>
+</html>

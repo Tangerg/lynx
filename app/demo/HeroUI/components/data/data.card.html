@@ -1,0 +1,36 @@
+<!-- @dsCard group="Components" viewport="700x320" name="Data" subtitle="Table with header, rows, selection and footer" -->
+<!doctype html><html class="light"><head><meta charset="utf-8"><title>Data</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;padding:20px;background:var(--background)}#root{display:flex;flex-direction:column;gap:14px}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.cap{font-size:11px;color:var(--muted);width:64px;flex-shrink:0}</style>
+</head><body><div id="root"></div><script type="text/babel">
+const {Table, Chip, Avatar, Button, Pagination, Icon} = window.DesignSystem_df98fe;
+const rows=[['heroui.com','Live','success','2m ago','1,204'],['docs-preview','Building','warning','5m ago','312'],['storybook-v3','Live','success','1h ago','88'],['legacy-v2','Failed','danger','3h ago','0']];
+function Demo(){
+  return <Table>
+    <Table.Head>
+      <Table.HeaderCell>Project</Table.HeaderCell>
+      <Table.HeaderCell>Status</Table.HeaderCell>
+      <Table.HeaderCell isSortable>Last deploy</Table.HeaderCell>
+      <Table.HeaderCell>Owner</Table.HeaderCell>
+      <Table.HeaderCell>Requests</Table.HeaderCell>
+      <Table.HeaderCell/>
+    </Table.Head>
+    <Table.Body>
+      {rows.map(([name,status,color,when,req],i)=>
+        <Table.Row key={name} isSelected={i===0}>
+          <Table.Cell>{name}</Table.Cell>
+          <Table.Cell><Chip size="sm" color={color} dot>{status}</Chip></Table.Cell>
+          <Table.Cell>{when}</Table.Cell>
+          <Table.Cell><Avatar size="sm" name={'A '+i}/></Table.Cell>
+          <Table.Cell numeric>{req}</Table.Cell>
+          <Table.Cell><Button variant="ghost" size="sm" isIconOnly aria-label="More"><Icon name="menu"/></Button></Table.Cell>
+        </Table.Row>)}
+    </Table.Body>
+  </Table>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

@@ -1,0 +1,36 @@
+<!-- @dsCard group="Components" viewport="700x340" name="Feedback" subtitle="Alert, Toast, Spinner, ProgressBar, ProgressCircle, Meter, Skeleton" -->
+<!doctype html><html class="light"><head><meta charset="utf-8"><title>Feedback</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;padding:20px;background:var(--background)}#root{display:flex;flex-direction:column;gap:14px}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.cap{font-size:11px;color:var(--muted);width:64px;flex-shrink:0}</style>
+</head><body><div id="root"></div><script type="text/babel">
+const {Alert, Toast, Spinner, ProgressBar, ProgressCircle, Meter, Skeleton, Button, Icon} = window.DesignSystem_df98fe;
+function Demo(){
+  return <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,alignItems:'start'}}>
+    <div style={{display:'flex',flexDirection:'column',gap:10}}>
+      <Alert color="accent" title="Heads up">A new version of the CLI is available.</Alert>
+      <Alert color="success" title="Deployed">Commit 8f2a1c is live.</Alert>
+      <Alert color="warning" title="Usage at 92%">Add a payment method to avoid interruption.</Alert>
+      <Alert color="danger" title="Build failed" onClose={()=>{}}>Type error in app/page.tsx.</Alert>
+    </div>
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <Toast title="Deployment queued" action={<Button size="sm" variant="ghost">View</Button>} onClose={()=>{}}>Building commit 8f2a1c.</Toast>
+      <ProgressBar label="Uploading" value={62} showValue/>
+      <ProgressBar isIndeterminate/>
+      <Meter label="Storage" value={41} max={50} color="warning"/>
+      <div className="row">
+        <Spinner size="sm"/><Spinner/><Spinner size="lg"/>
+        <ProgressCircle value={78} showValue/>
+        <Skeleton variant="circle" width={40} height={40}/>
+        <div style={{flex:1,display:'flex',flexDirection:'column',gap:6}}>
+          <Skeleton variant="text" width="80%"/><Skeleton variant="text" width="55%"/>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

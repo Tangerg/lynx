@@ -1,0 +1,44 @@
+<!-- @dsCard group="Components" viewport="700x420" name="Overlays" subtitle="Modal, AlertDialog, Drawer, Popover, Tooltip" -->
+<!doctype html><html class="light"><head><meta charset="utf-8"><title>Overlays</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;padding:20px;background:var(--background)}#root{display:flex;flex-direction:column;gap:14px}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.cap{font-size:11px;color:var(--muted);width:64px;flex-shrink:0}</style>
+</head><body><div id="root"></div><script type="text/babel">
+const {Modal, AlertDialog, Drawer, Popover, Tooltip, Button, TextField, Icon, Checkbox, CheckboxGroup} = window.DesignSystem_df98fe;
+function Demo(){
+  return <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18,alignItems:'start'}}>
+    <div style={{position:'relative',height:230}}>
+      <div className="modal" style={{animation:'none',maxWidth:'100%'}}>
+        <div className="modal__header"><div><h2 className="modal__title">Invite teammates</h2><p className="modal__description">They'll get an email invite.</p></div></div>
+        <div className="modal__content"><TextField label="Email" placeholder="you@company.com"/></div>
+        <div className="modal__footer"><Button variant="ghost">Cancel</Button><Button variant="primary">Send invite</Button></div>
+      </div>
+    </div>
+    <div style={{display:'flex',flexDirection:'column',gap:16}}>
+      <div className="modal modal--sm alert-dialog" style={{animation:'none'}}>
+        <div className="modal__content" style={{paddingTop:'1.25rem'}}>
+          <span className="alert-dialog__icon"><Icon name="alert-triangle" size={18}/></span>
+          <h2 className="modal__title">Delete project?</h2>
+          <p className="modal__description">This removes all deployments and cannot be undone.</p>
+        </div>
+        <div className="modal__footer"><Button variant="ghost">Cancel</Button><Button variant="danger">Delete</Button></div>
+      </div>
+      <div className="row">
+        <Popover trigger={<Button variant="outline" size="sm">Filter</Button>}>
+          <CheckboxGroup label="Status"><Checkbox defaultSelected>Open</Checkbox><Checkbox>Closed</Checkbox></CheckboxGroup>
+        </Popover>
+        <Tooltip content="Duplicate" shortcut="⌘D"><Button variant="ghost" isIconOnly aria-label="Duplicate"><Icon name="copy"/></Button></Tooltip>
+        <span className="tooltip" style={{animation:'none'}}>Hover hint<span className="kbd tooltip__kbd">⌘D</span></span>
+      </div>
+      <div className="popover" style={{animation:'none',position:'static'}}>
+        <strong style={{fontSize:14}}>Popover</strong>
+        <p style={{margin:'4px 0 0',color:'var(--muted)'}}>Rich floating panel on the overlay surface.</p>
+      </div>
+    </div>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

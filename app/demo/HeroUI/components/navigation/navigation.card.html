@@ -1,0 +1,37 @@
+<!-- @dsCard group="Components" viewport="700x340" name="Navigation" subtitle="Tabs, Accordion, Disclosure, Breadcrumbs, Link, Pagination" -->
+<!doctype html><html class="light"><head><meta charset="utf-8"><title>Navigation</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;padding:20px;background:var(--background)}#root{display:flex;flex-direction:column;gap:14px}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.cap{font-size:11px;color:var(--muted);width:64px;flex-shrink:0}</style>
+</head><body><div id="root"></div><script type="text/babel">
+const {Tabs, Accordion, Disclosure, Breadcrumbs, Link, Pagination} = window.DesignSystem_df98fe;
+function Demo(){
+  const [page,setPage]=React.useState(4);
+  return <>
+    <Breadcrumbs items={[{label:'Docs',href:'#'},{label:'Components',href:'#'},{label:'Button'}]}/>
+    <div className="row" style={{gap:20}}>
+      <Tabs defaultSelectedKey="preview">
+        <Tabs.ListContainer><Tabs.Tab id="preview">Preview</Tabs.Tab><Tabs.Tab id="code">Code</Tabs.Tab><Tabs.Tab id="a11y" isDisabled>A11y</Tabs.Tab></Tabs.ListContainer>
+      </Tabs>
+      <Tabs variant="underline" defaultSelectedKey="web">
+        <Tabs.ListContainer><Tabs.Tab id="web">Web</Tabs.Tab><Tabs.Tab id="native">Native</Tabs.Tab></Tabs.ListContainer>
+      </Tabs>
+    </div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,alignItems:'start'}}>
+      <Accordion defaultExpandedKeys={['billing']}>
+        <Accordion.Item id="billing" title="Billing">Invoices are issued on the 1st of each month.</Accordion.Item>
+        <Accordion.Item id="team" title="Team">Seats can be added at any time.</Accordion.Item>
+      </Accordion>
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
+        <Disclosure title="Advanced options">Override the default region and runtime.</Disclosure>
+        <div className="row"><Link href="#">Read the docs</Link><Link href="#" variant="accent">Accent link</Link><Link href="#" variant="muted" isExternal>GitHub</Link></div>
+      </div>
+    </div>
+    <Pagination total={12} page={page} onChange={setPage}/>
+  </>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

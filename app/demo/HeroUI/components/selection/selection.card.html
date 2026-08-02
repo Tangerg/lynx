@@ -1,0 +1,41 @@
+<!-- @dsCard group="Components" viewport="700x340" name="Selection" subtitle="Select, ComboBox, ListBox, Dropdown, TagGroup" -->
+<!doctype html><html class="light"><head><meta charset="utf-8"><title>Selection</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;padding:20px;background:var(--background)}#root{display:flex;flex-direction:column;gap:14px}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.cap{font-size:11px;color:var(--muted);width:64px;flex-shrink:0}</style>
+</head><body><div id="root"></div><script type="text/babel">
+const {Select, ComboBox, ListBox, Dropdown, TagGroup, Button, Icon} = window.DesignSystem_df98fe;
+const opts=[{value:'us',label:'US East',description:'us-east-1'},{value:'eu',label:'Europe',description:'eu-west-1'},{value:'ap',label:'Asia Pacific',description:'ap-south-1'}];
+function Demo(){
+  return <div style={{display:'grid',gridTemplateColumns:'240px 240px 1fr',gap:20,alignItems:'start'}}>
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <Select placeholder="Choose a region" options={opts}/>
+      <ComboBox options={opts} placeholder="Filter regions"/>
+      <TagGroup>
+        <TagGroup.Tag isSelected>Design</TagGroup.Tag>
+        <TagGroup.Tag onRemove={()=>{}}>Engineering</TagGroup.Tag>
+        <TagGroup.Tag>Ops</TagGroup.Tag>
+      </TagGroup>
+    </div>
+    <ListBox>
+      <ListBox.Section label="Environments">
+        <ListBox.Item isSelected showCheck description="main">Production</ListBox.Item>
+        <ListBox.Item description="us-east-1">Staging</ListBox.Item>
+        <ListBox.Item isDisabled>Sandbox</ListBox.Item>
+      </ListBox.Section>
+    </ListBox>
+    <div style={{width:220}}>
+      <ListBox>
+        <ListBox.Item startContent={<Icon name="copy"/>}>Duplicate<span className="dropdown__shortcut">⌘D</span></ListBox.Item>
+        <ListBox.Item startContent={<Icon name="download"/>}>Export<span className="dropdown__shortcut">⌘E</span></ListBox.Item>
+        <div className="dropdown__separator"/>
+        <ListBox.Item className="dropdown__item--danger" startContent={<Icon name="trash"/>}>Delete</ListBox.Item>
+      </ListBox>
+    </div>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

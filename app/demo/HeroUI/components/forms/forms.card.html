@@ -1,0 +1,34 @@
+<!-- @dsCard group="Components" viewport="700x400" name="Forms" subtitle="Fields, choices, switches and sliders" -->
+<!doctype html><html class="light"><head><meta charset="utf-8"><title>Forms</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;padding:20px;background:var(--background)}#root{display:flex;flex-direction:column;gap:14px}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.cap{font-size:11px;color:var(--muted);width:64px;flex-shrink:0}</style>
+</head><body><div id="root"></div><script type="text/babel">
+const {TextField, Input, TextArea, InputGroup, SearchField, NumberField, InputOTP, Checkbox, CheckboxGroup, RadioGroup, Switch, Slider, Label, Description, FieldError, Fieldset, Form, Icon, Kbd} = window.DesignSystem_df98fe;
+function Demo(){
+  return <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'18px 24px'}}>
+    <TextField label="Work email" description="Used for billing receipts." placeholder="you@company.com"/>
+    <TextField label="Password" type="password" defaultValue="hunter2" errorMessage="Must be 8+ characters"/>
+    <div className="field"><Label>Search</Label><InputGroup startContent={<Icon name="search"/>} endContent={<Kbd keys={['cmd','k']}/>} placeholder="Search docs"/></div>
+    <div className="field"><Label>Seats</Label><div className="row"><NumberField defaultValue={3} min={1}/><InputOTP length={4} value="24" activeIndex={2}/></div></div>
+    <div className="field"><Label>Notes</Label><TextArea rows={2} placeholder="What changed?"/></div>
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <CheckboxGroup label="Notify me about">
+        <Checkbox defaultSelected>Comments</Checkbox>
+        <Checkbox isIndeterminate>Mentions</Checkbox>
+        <Checkbox isDisabled>Weekly digest</Checkbox>
+      </CheckboxGroup>
+      <Switch defaultSelected>Email notifications</Switch>
+    </div>
+    <RadioGroup label="Plan" defaultValue="pro">
+      <RadioGroup.Radio value="free" description="1 project">Free</RadioGroup.Radio>
+      <RadioGroup.Radio value="pro" description="Unlimited projects">Pro</RadioGroup.Radio>
+    </RadioGroup>
+    <Slider label="Volume" defaultValue={64} formatValue={v=>v+'%'}/>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>
