@@ -16,6 +16,7 @@ use (
 	./embeddingclient
 	./examples/mcp
 	./internal/vectorstorekit
+	./internal/vectorstorepg
 	./mcp
 	./models
 	./models/bedrock
