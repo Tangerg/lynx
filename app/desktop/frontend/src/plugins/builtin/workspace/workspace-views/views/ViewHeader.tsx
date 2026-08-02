@@ -8,11 +8,10 @@
 
 import type { ReactNode } from "react";
 import type { IconName } from "@/ui";
-import { AgentDrawerToggle, AgentSurfaceHeader } from "@/ui/agent";
+import { AgentSurfaceHeader } from "@/ui/agent";
 import { Icon, IconButton } from "@/ui";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
-import { useSidebarDrawer } from "@/plugins/builtin/workspace/public/sidebarDrawer";
 import { useViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
 
 export interface ViewHeaderProps {
@@ -49,7 +48,6 @@ function DockViewBar({ sub, actions }: Pick<ViewHeaderProps, "sub" | "actions">)
 
 function FullViewBar({ icon, title, sub, actions, titleStrong }: ViewHeaderProps) {
   const placement = useViewPlacement();
-  const drawer = useSidebarDrawer();
   const t = useT();
 
   return (
@@ -58,14 +56,6 @@ function FullViewBar({ icon, title, sub, actions, titleStrong }: ViewHeaderProps
     // region. A view can be opened beside the chat, so its header sits directly
     // next to that one and any divergence reads as two different kinds of bar.
     <AgentSurfaceHeader className="gap-2" windowCorner>
-      {drawer.collapsed && (
-        <AgentDrawerToggle
-          collapsed
-          onToggle={drawer.toggle}
-          expandLabel={t("sidebar.action.expand")}
-          collapseLabel={t("sidebar.action.collapse")}
-        />
-      )}
       <Icon name={icon} size="md" className="shrink-0 text-fg-muted" />
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span

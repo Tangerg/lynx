@@ -12,14 +12,14 @@ import { SYNARA_MOTION, visualStyleTokens } from "./tokens";
  *  hue rather than from grey is also what keeps it from reading as dirt: a
  *  neutral wash this faint rounds off to a dead grey, and dead grey beside white
  *  looks like a smudge instead of a surface. */
-const CHROME_COLUMN = "color-mix(in oklab, var(--color-bg) 94%, var(--color-accent) 6%)";
+const CHROME_COLUMN = "color-mix(in oklab, var(--color-bg) 96%, var(--color-accent) 4%)";
 
 /** What separates the reading plane from a chrome column: a soft cast, not a line.
  *  Wide and heavily negative-spread so the boundary is a ~20px gradient the eye
  *  reads as depth, instead of a 1px cut it reads as a seam between two collaged
  *  rectangles. Black-based rather than ink-based because a cast is an absence of
  *  light in both schemes. */
-const COLUMN_CAST = "30px -26px color-mix(in srgb, black 22%, transparent)";
+const COLUMN_CAST = "30px -28px color-mix(in srgb, black 18%, transparent)";
 
 export const lyraStyle: VisualStyleSpec = {
   id: "lyra",
@@ -27,7 +27,7 @@ export const lyraStyle: VisualStyleSpec = {
   description:
     "Tonal columns around a raised reading plane. Depth by tone and cast, never by lines.",
   order: -10,
-  traits: { regions: "tonal-columns", controls: "quiet" },
+  traits: { regions: "tonal-columns", controls: "outlined" },
   motion: SYNARA_MOTION,
   preview: {
     canvas: "#ffffff",
@@ -37,6 +37,8 @@ export const lyraStyle: VisualStyleSpec = {
     accent: "#006bff",
   },
   tokens: visualStyleTokens({
+    "surface-header-height": "52px",
+    "dock-tab-height": "30px",
     // Three columns: the conversation is the lit plane, both chrome columns share
     // one recessed tone. Symmetric on purpose — the drawer and the dock are the
     // same kind of region, and answering them with a ring on one side and a
@@ -63,7 +65,7 @@ export const lyraStyle: VisualStyleSpec = {
     "app-content-ring-opacity": "0",
     "app-surface-divider": "transparent",
     "seam-line": "transparent",
-    "seam-shadow-color": "color-mix(in srgb, black 22%, transparent)",
+    "seam-shadow-color": "color-mix(in srgb, black 18%, transparent)",
 
     // A plane that spans its column edge to edge has no corner to round.
     "style-shape-content": "0px",

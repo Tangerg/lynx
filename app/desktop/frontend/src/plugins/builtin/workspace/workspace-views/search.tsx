@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { useDebounce } from "use-debounce";
-import { DataView, SearchField } from "@/ui";
+import { DataView, Pressable, SearchField } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
@@ -17,6 +17,7 @@ import {
   workspaceSearchViewModel,
 } from "@/plugins/builtin/workspace/application/searchViewModel";
 import { defineWorkspaceView } from "./defineWorkspaceView";
+import { openWorkspaceFile } from "@/plugins/builtin/workspace/public/navigation";
 
 function SearchTab() {
   const t = useT();
@@ -71,9 +72,10 @@ function SearchTab() {
                   </div>
                   <div className="mt-0.5 flex flex-col">
                     {group.matches.map((m) => (
-                      <div
+                      <Pressable
                         key={m.lineNumber}
-                        className="grid grid-cols-[44px_minmax(0,1fr)] gap-2 py-px font-mono text-ui-md leading-body"
+                        onClick={() => openWorkspaceFile(group.path, m.lineNumber)}
+                        className="grid w-full grid-cols-[44px_minmax(0,1fr)] gap-2 rounded-xs py-px pr-1 font-mono text-ui-md leading-body transition-colors hover:bg-hover"
                       >
                         <span className="text-right text-ui-sm text-fg-faint select-none">
                           {m.lineNumber}
@@ -81,7 +83,7 @@ function SearchTab() {
                         <span className="truncate text-fg-soft" title={m.text}>
                           {m.text}
                         </span>
-                      </div>
+                      </Pressable>
                     ))}
                   </div>
                 </div>

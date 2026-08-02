@@ -1,7 +1,6 @@
 // 繁體中文（港澳台）。
 
 export const zhTW: Record<string, string> = {
-  "common.appName": "Lynx",
   "common.cancel": "取消",
   "common.close": "關閉",
 
@@ -48,7 +47,9 @@ export const zhTW: Record<string, string> = {
   "chat.error.retry": "重試",
   "chat.jumpToBottom": "跳到底部",
 
-  "dock.action.browse": "新增面板",
+  "dock.action.browse": "瀏覽面板",
+  "dock.picker.placeholder": "尋找面板…",
+  "dock.picker.empty": "找不到符合的面板",
   "dock.action.hide": "收合右側工作區",
   "dock.action.resize": "調整右側工作區寬度",
   "dock.action.show": "開啟右側工作區",
@@ -132,6 +133,7 @@ export const zhTW: Record<string, string> = {
   "status.notifications": "通知",
   "status.notifications.unread": "{{count}} 則未讀通知",
   "session.row.titleLabel": "工作階段標題",
+  "session.untitled": "未命名工作階段",
   "session.action.pin": "置頂",
   "session.action.unpin": "取消置頂",
   "session.action.rename": "重新命名",
@@ -237,9 +239,9 @@ export const zhTW: Record<string, string> = {
   "shape.opt.slow": "慢",
   "font.useCustom": "使用自訂",
 
-  "workspace.view.title.files": "檔案",
+  "workspace.view.title.files": "變更檔案",
   "workspace.view.title.diff": "差異",
-  "workspace.view.title.file": "檔案",
+  "workspace.view.title.file": "檔案預覽",
   "contextDock.group.workspace": "工作區",
   "contextDock.group.run": "執行",
   "contextDock.group.session": "會話",
@@ -514,9 +516,6 @@ export const zhTW: Record<string, string> = {
 
   // ── 工作區檢視：檔案樹 ──
   "filetree.title": "檔案總管",
-  "filetree.loading": "載入中…",
-  "filetree.readError": "無法讀取此檔案。",
-  "filetree.truncated": "… 已截斷（檔案太大，無法完整顯示）",
   "filetree.empty.title": "無可瀏覽內容",
   "filetree.empty.sub": "此工作區中沒有檔案。",
 

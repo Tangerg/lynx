@@ -4,12 +4,11 @@ import { cn } from "@/lib/classNames";
 /**
  * The heading that opens a section of a pane.
  *
- * Deliberately the quietest text in the app rather than the loudest: with regions
- * separated by tone instead of by lines, a label that competes with its own
- * content turns every section boundary into a second divider. Small, tracked-out
- * caps read as a label at a glance without ever being mistaken for a row — which
- * is what lets a pane hold three or four sections with no rules drawn between
- * them.
+ * Deliberately quieter than the rows it introduces: with regions separated by
+ * tone instead of by lines, a label that competes with its own content turns
+ * every section boundary into a second divider. Sentence case and a slightly
+ * smaller step make it recognizable without adding the console-like texture of
+ * tracked capitals.
  *
  * `trailing` is the count, progress or action the section is about. It belongs on
  * the label's own baseline because that is the one line in a section that is not
@@ -27,7 +26,7 @@ export function SectionLabel({
   return (
     <div
       className={cn(
-        "flex min-w-0 items-center gap-2 px-2 pb-1.5 pt-2 font-sans text-ui-2xs font-medium uppercase leading-none tracking-[0.06em] text-fg-faint",
+        "flex min-w-0 items-center gap-2 px-2 pb-2 pt-2 font-sans text-ui-xs font-medium leading-none text-fg-faint",
         className,
       )}
     >

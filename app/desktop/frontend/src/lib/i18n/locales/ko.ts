@@ -1,7 +1,6 @@
 // 한국어.
 
 export const ko: Record<string, string> = {
-  "common.appName": "Lynx",
   "common.cancel": "취소",
   "common.close": "닫기",
 
@@ -45,7 +44,9 @@ export const ko: Record<string, string> = {
   "chat.error.retry": "재시도",
   "chat.jumpToBottom": "맨 아래로 이동",
 
-  "dock.action.browse": "패널 추가",
+  "dock.action.browse": "패널 탐색",
+  "dock.picker.placeholder": "패널 검색…",
+  "dock.picker.empty": "패널을 찾을 수 없음",
   "dock.action.hide": "오른쪽 작업 영역 접기",
   "dock.action.resize": "오른쪽 작업 영역 크기 조절",
   "dock.action.show": "오른쪽 작업 영역 열기",
@@ -130,6 +131,7 @@ export const ko: Record<string, string> = {
   "status.notifications": "알림",
   "status.notifications.unread": "읽지 않은 알림 {{count}}건",
   "session.row.titleLabel": "세션 제목",
+  "session.untitled": "제목 없는 세션",
   "session.action.pin": "맨 위에 고정",
   "session.action.unpin": "고정 해제",
   "session.action.rename": "이름 변경",
@@ -236,7 +238,7 @@ export const ko: Record<string, string> = {
   "shape.opt.slow": "느리게",
   "font.useCustom": "사용자 지정 사용",
 
-  "workspace.view.title.files": "파일",
+  "workspace.view.title.files": "변경된 파일",
   "workspace.view.title.diff": "차이",
   "contextDock.group.workspace": "작업 영역",
   "contextDock.group.run": "실행",
@@ -510,9 +512,6 @@ export const ko: Record<string, string> = {
 
   // ── 워크스페이스 뷰: 파일 트리 ──
   "filetree.title": "탐색기",
-  "filetree.loading": "로딩 중…",
-  "filetree.readError": "이 파일을 읽을 수 없습니다.",
-  "filetree.truncated": "… 잘림 (파일이 너무 커서 전체를 표시할 수 없음)",
   "filetree.empty.title": "탐색할 내용 없음",
   "filetree.empty.sub": "이 워크스페이스에 파일이 없습니다.",
 
@@ -780,7 +779,7 @@ export const ko: Record<string, string> = {
   "mcp.error.toggle": "서버를 변경할 수 없습니다.",
   "mcp.error.signIn": "로그인에 실패했습니다.",
   "mcp.error.test": "테스트 실패",
-  "workspace.view.title.file": "파일",
+  "workspace.view.title.file": "파일 미리보기",
   "workspace.view.title.recipes": "레시피",
   "workspace.view.title.codebase": "코드베이스",
   "settings.theme.system": "시스템",

@@ -1,7 +1,7 @@
 // Sidebar footer — pinned at the bottom of the expanded Work Index so global
 // status and settings stay reachable regardless of list length.
 import { AnimatePresence, motion } from "motion/react";
-import { AgentRow } from "@/ui/agent";
+import { AgentRow, AgentWorkIndexFooter } from "@/ui/agent";
 import { Button, Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { useWorkIndexActions } from "@/plugins/builtin/navigation/public/workIndex";
@@ -47,13 +47,13 @@ function SidebarFooter() {
   const actions = useWorkIndexActions();
 
   return (
-    <div className="flex items-center gap-1 p-2">
+    <AgentWorkIndexFooter>
       <AgentRow icon="settings" className="min-w-0 flex-1" onClick={actions.openSettings}>
         {t("sidebar.action.settings")}
       </AgentRow>
       <Slot name="sidebar.footer.status" className="flex items-center gap-0.5" />
       <ThemeToggle />
-    </div>
+    </AgentWorkIndexFooter>
   );
 }
 

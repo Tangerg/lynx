@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AgentRow } from "@/ui/agent";
-import { ConfirmDialog, ContextMenu, TextField } from "@/ui";
+import { ConfirmDialog, ContextMenu, Icon, TextField } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { formatRelative } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/classNames";
@@ -22,7 +22,7 @@ interface Props {
 
 // Session row — sidebar list item.
 //
-// One line: icon · title (fills, truncates) · optional live status dot. Idle
+// One quiet line: indented title (fills, truncates) · optional pinned/live state. Idle
 // timestamps stay in the accessible label instead of permanently taking the
 // row's scarce horizontal space; running/waiting remain visible because they
 // require attention now. Accent stays reserved for live state, selection is the
@@ -51,28 +51,32 @@ export function SessionRow({
       : session.attention === "waiting"
         ? t("session.status.waiting")
         : formatRelative(session.time);
+  const title = session.title.trim() || t("session.untitled");
 
   const row = (
     <div className="relative select-none">
       <AgentRow
-        icon={session.favorite ? "star" : "chat"}
-        iconClassName={session.favorite ? "text-accent" : undefined}
         onClick={() => onSelect(session.id)}
         data-chrome-focus=""
         aria-current={active ? "page" : undefined}
-        aria-label={`${session.title} — ${accessibleStatus}`}
+        aria-label={`${title} — ${accessibleStatus}`}
         active={active}
         indent="nested"
-        className="font-normal"
+        className="font-normal text-fg-muted hover:text-fg data-[active]:text-fg"
         trailing={
-          renaming || session.attention === "none" ? undefined : (
-            <span
-              className={cn(
-                "h-1.5 w-1.5 shrink-0 rounded-full",
-                session.attention === "running" ? "bg-accent animate-pulse-dot" : "bg-warning",
+          renaming ? undefined : (
+            <span className="flex shrink-0 items-center gap-1.5">
+              {session.favorite && <Icon name="star" size="xs" className="text-accent" />}
+              {session.attention !== "none" && (
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 shrink-0 rounded-full",
+                    session.attention === "running" ? "bg-accent animate-pulse-dot" : "bg-warning",
+                  )}
+                  title={accessibleStatus}
+                />
               )}
-              title={accessibleStatus}
-            />
+            </span>
           )
         }
       >
@@ -80,7 +84,7 @@ export function SessionRow({
           <TextField
             variant="bare"
             font="sans"
-            defaultValue={session.title}
+            defaultValue={title}
             aria-label={t("session.row.titleLabel")}
             // Rename only ever starts from an explicit user action (the
             // context-menu item), so stealing focus here is the expectation,
@@ -94,7 +98,7 @@ export function SessionRow({
               if (e.key === "Escape") setRenaming(false);
               if (e.key === "Enter") {
                 const next = e.currentTarget.value.trim();
-                if (next && next !== session.title) {
+                if (next && next !== title) {
                   onRename?.(session.id, session.revision, next);
                 }
                 setRenaming(false);
@@ -102,7 +106,7 @@ export function SessionRow({
             }}
             onBlur={(e) => {
               const next = e.currentTarget.value.trim();
-              if (next && next !== session.title) {
+              if (next && next !== title) {
                 onRename?.(session.id, session.revision, next);
               }
               setRenaming(false);
@@ -110,7 +114,7 @@ export function SessionRow({
             className="flex-1 rounded-xs bg-surface-3 px-1 leading-body"
           />
         ) : (
-          session.title
+          title
         )}
       </AgentRow>
     </div>
@@ -158,7 +162,7 @@ export function SessionRow({
           open={confirmingDelete}
           onOpenChange={setConfirmingDelete}
           title={t("session.delete.title")}
-          body={t("session.delete.body", { title: session.title })}
+          body={t("session.delete.body", { title })}
           confirmLabel={t("session.action.delete")}
           cancelLabel={t("common.cancel")}
           destructive

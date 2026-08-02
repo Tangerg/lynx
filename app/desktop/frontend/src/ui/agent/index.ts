@@ -6,3 +6,9 @@ export { AgentContextDock, AgentDockTabs, type AgentDockTab } from "./context-do
 export { AgentRow } from "./navigation-row";
 export { AgentStatusPill } from "./status-pill";
 export { AgentDrawerToggle, AgentSurfaceHeader } from "./surface-header";
+export {
+  AgentWorkIndexBody,
+  AgentWorkIndexFooter,
+  AgentWorkIndexGroupList,
+  AgentWorkIndexSection,
+} from "./work-index";

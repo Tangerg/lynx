@@ -1,7 +1,6 @@
 // Français.
 
 export const fr: Record<string, string> = {
-  "common.appName": "Lynx",
   "common.cancel": "Annuler",
   "common.close": "Fermer",
 
@@ -46,7 +45,9 @@ export const fr: Record<string, string> = {
   "chat.error.retry": "Réessayer",
   "chat.jumpToBottom": "Aller en bas",
 
-  "dock.action.browse": "Ajouter un panneau",
+  "dock.action.browse": "Parcourir les panneaux",
+  "dock.picker.placeholder": "Rechercher un panneau…",
+  "dock.picker.empty": "Aucun panneau trouvé",
   "dock.action.hide": "Replier l’espace de droite",
   "dock.action.resize": "Redimensionner l’espace de droite",
   "dock.action.show": "Ouvrir l’espace de droite",
@@ -131,6 +132,7 @@ export const fr: Record<string, string> = {
   "status.notifications": "Notifications",
   "status.notifications.unread": "{{count}} notification(s) non lue(s)",
   "session.row.titleLabel": "Titre de la session",
+  "session.untitled": "Session sans titre",
   "session.action.pin": "Épingler en haut",
   "session.action.unpin": "Désépingler",
   "session.action.rename": "Renommer",
@@ -240,7 +242,7 @@ export const fr: Record<string, string> = {
   "shape.opt.slow": "Lent",
   "font.useCustom": "Personnaliser",
 
-  "workspace.view.title.files": "Fichiers",
+  "workspace.view.title.files": "Fichiers modifiés",
   "workspace.view.title.diff": "Diff",
   "contextDock.group.workspace": "Espace",
   "contextDock.group.run": "Exécution",
@@ -523,9 +525,6 @@ export const fr: Record<string, string> = {
 
   // ── Vue espace de travail : Explorateur de fichiers ──
   "filetree.title": "Explorateur",
-  "filetree.loading": "Chargement…",
-  "filetree.readError": "Impossible de lire ce fichier.",
-  "filetree.truncated": "… tronqué (fichier trop volumineux pour être affiché en entier)",
   "filetree.empty.title": "Rien à parcourir",
   "filetree.empty.sub": "Aucun fichier dans cet espace de travail.",
 
@@ -800,7 +799,7 @@ export const fr: Record<string, string> = {
   "mcp.error.toggle": "Impossible de modifier le serveur.",
   "mcp.error.signIn": "Échec de la connexion.",
   "mcp.error.test": "Échec du test",
-  "workspace.view.title.file": "Fichier",
+  "workspace.view.title.file": "Aperçu du fichier",
   "workspace.view.title.recipes": "Recettes",
   "workspace.view.title.codebase": "Base de code",
   "settings.theme.system": "Système",

@@ -523,8 +523,11 @@
      recomputes these from the user's pick (lib/density.ts). Chrome-bar heights
      are NOT here on purpose: they stay pinned so the drawer and content headers
      keep lining up across the seam. */
-  --density-row-height: 28px;
-  --density-row-gap: 8px;
+  --density-row-height: 34px;
+  --density-row-gap: 10px;
+  --density-navigation-gutter: 12px;
+  --density-navigation-section-gap: 22px;
+  --density-navigation-group-gap: 12px;
   --density-column-gutter: 12px;
   --density-column-gutter-wide: 20px;
   --density-composer-editor-top: 12px;
@@ -962,11 +965,10 @@ html.theme-light .msg-content code {
   /* Drawer width. Live-updated inline on the shell element while dragging the
      seam rail; AgentAppShell restores the persisted value on mount. */
   --sidebar-width: 256px;
-  /* macOS traffic lights occupy the first ~66px. The open drawer owns that
-     window corner, so its leading control starts after one stable gutter.
-     Collapsed content bars keep their existing wider 96px inset because they
-     also need breathing room between the native controls and page identity. */
+  /* macOS traffic lights occupy the first ~66px. The shell-level drawer control
+     starts after one stable gutter and never changes owner or coordinate. */
   --window-controls-gutter: 78px;
+  --window-sidebar-control-span: 36px;
   /* Chrome bar height. Shared by the sidebar header and every content header so
      the two line up across the seam — the single number the macOS traffic-light
      gutter is centred against. */
@@ -1007,6 +1009,20 @@ html.theme-dark {
   min-height: var(--app-min-height);
   overflow: hidden;
   background: var(--color-surface);
+}
+
+/* One window-level owner for the drawer toggle. Sidebar collapse changes the
+   surfaces below it, never the control's parent, focus, or horizontal position. */
+.agent-window-sidebar-control {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: var(--window-controls-gutter);
+  z-index: 40;
+  display: flex;
+  height: var(--surface-header-height);
+  align-items: center;
+  -webkit-app-region: no-drag;
+  --wails-draggable: no-drag;
 }
 
 /* ---------- Drawer ---------- */
@@ -1255,11 +1271,9 @@ html[data-region-layout]:not([data-region-layout="floating-card"]) .agent-conten
   }
 }
 
-/* The expanded drawer, rather than the content card, owns the window's
-   top-left corner. Keep its toggle clear of the native macOS controls. This is
-   structural chrome geometry, so a utility class at the callsite must not own
-   or accidentally override it. It follows the responsive rule above so the
-   window gutter remains the final geometry author at every width. */
+/* The expanded drawer owns the top-left surface under the shell-level control.
+   Its own content starts after the traffic-light gutter; local trailing tools
+   remain aligned to the navigation gutter. */
 .agent-drawer-header {
   padding-inline-start: var(--window-controls-gutter);
   padding-inline-end: 12px;
@@ -1285,25 +1299,20 @@ html[data-region-layout]:not([data-region-layout="floating-card"]) .agent-conten
   background-size: calc(100% - 1px) 1px;
 }
 
-/* macOS traffic lights live in the top-left of the window. When the drawer is
-   collapsed the card reaches that corner, so its header has to yield the slot.
-   This is why the padding lives here and not in a `pl-*` utility: unlayered
-   rules outrank `@layer utilities`, so a utility could never win. */
-/* Keyed on the bar's own declaration, not on its depth in the tree: the bar at
-   the corner is sometimes the chat's, sometimes a maximised view's, sometimes the
-   settings rail's, and only the first of those was ever a direct child. */
+/* When the drawer collapses, the content bar reaches the window corner and
+   yields the exact strip occupied by traffic lights plus the persistent toggle.
+   Page identity starts after that strip without mounting another control. */
 .agent-shell[data-sidebar="collapsed"] .agent-surface-header[data-window-corner] {
-  padding-inline-start: 96px;
+  padding-inline-start: calc(var(--window-controls-gutter) + var(--window-sidebar-control-span));
 }
 
 /* ---------- Panes ---------- */
 
 /* The inline-start edge of a pane that splits a region it is INSIDE (the dock
-   against the conversation, the review navigator against the diff). One class so
-   every internal vertical split is the chrome hairline — the same token the header
-   bottoms use — rather than a border at one call site and a background step at the
-   next. The pane keeps its region's fill: with a hairline doing the dividing, a
-   second surface value would read as a third region that isn't there. */
+   against the conversation, the review navigator against the diff). One class
+   delegates the boundary to the active visual style: a hairline for flat families
+   or a soft directional cast for spatial ones. The pane keeps its region fill so
+   one separator never becomes two competing signals. */
 .agent-pane-split {
   box-shadow: var(--app-pane-split);
 }
@@ -1312,7 +1321,7 @@ html[data-region-layout]:not([data-region-layout="floating-card"]) .agent-conten
    trailing edge (the settings rail). An attribute rather than a second class:
    which edge carries the line is a property of the pane, not a different kind of
    line — and the rail used to draw its own at a control-edge token, so the app
-   had two answers for one hairline. A separate token rather than a mirrored
+   had two answers for one boundary. A separate token rather than a mirrored
    calculation: an inset box-shadow cannot be flipped in CSS, and a style that
    divides with a cast rather than a line needs to say both directions anyway. */
 .agent-pane-split[data-split-side="end"] {
@@ -1329,6 +1338,13 @@ html[data-region-layout]:not([data-region-layout="floating-card"]) .agent-conten
   flex-direction: column;
   overflow: hidden;
   background: var(--app-dock-surface);
+}
+
+/* A workspace view is a page when it owns the card and content when it sits in
+   the dock. The dock supplies that placement's material, so shared view layouts
+   must not paint a second white page over the tonal column. */
+.agent-context-dock .agent-workspace-view {
+  background: transparent;
 }
 
 /* Dock chrome: the tab strip is a dense desktop toolbar, not a second content
@@ -1353,13 +1369,13 @@ html[data-region-layout]:not([data-region-layout="floating-card"]) .agent-conten
   display: none;
 }
 
-html[data-control-treatment="outlined"] .agent-dock-tabs > [data-active] {
+html[data-control-treatment="outlined"] .agent-dock-tabs > [role="tablist"] > [data-active] {
   border-radius: 0;
   background: transparent;
   box-shadow: inset 0 -2px 0 var(--color-accent);
 }
 
-html[data-control-treatment="elevated"] .agent-dock-tabs > [data-active] {
+html[data-control-treatment="elevated"] .agent-dock-tabs > [role="tablist"] > [data-active] {
   box-shadow: var(--shadow-control);
 }
 

@@ -132,7 +132,7 @@ function ReviewPanel() {
   ) : undefined;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-canvas">
+    <div className="agent-workspace-view flex min-h-0 flex-1 flex-col bg-canvas">
       <ViewHeader
         icon="diff"
         title={mode === "base" ? "diff.branchCompare" : "diff.workingTree"}

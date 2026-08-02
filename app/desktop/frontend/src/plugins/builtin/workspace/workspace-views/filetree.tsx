@@ -1,83 +1,55 @@
-import { useState } from "react";
-import { DataView, Icon, TextButton } from "@/ui";
+import { DataView } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { isUnsupportedMethod } from "@/lib/rpcErrors";
-import {
-  useWorkspaceListFiles,
-  useWorkspaceReadFile,
-} from "@/plugins/builtin/workspace/application/workspaceQueries";
+import { useWorkspaceListFiles } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import { FileTree } from "./views/FileTree";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
+import {
+  openWorkspaceFile,
+  useWorkspaceFileViewer,
+} from "@/plugins/builtin/workspace/public/navigation";
 
 // The workspace file-tree browser (B8/G12). Lazy tree of the active session's
-// cwd; selecting a file swaps to a plain-text viewer (workspace.files.read, capped
-// + self-describing-truncated). Not feature-gated — listFiles/readFile are basic
-// reads — but a pre-B8 runtime errors the query, which DataView surfaces.
-
-function FileViewer({ path, cwd, onBack }: { path: string; cwd?: string; onBack: () => void }) {
-  const t = useT();
-  const { data, isLoading, isError } = useWorkspaceReadFile({ path, cwd });
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <TextButton onClick={onBack} className="px-3 py-2 font-mono">
-        <Icon name="chevron-down" size="xs" className="shrink-0 -rotate-90" />
-        <span className="truncate">{path}</span>
-      </TextButton>
-      {isLoading ? (
-        <div className="px-3 text-ui-md text-fg-faint">{t("filetree.loading")}</div>
-      ) : isError || !data ? (
-        <div className="px-3 text-ui-md text-negative">{t("filetree.readError")}</div>
-      ) : (
-        <pre className="whitespace-pre-wrap break-words px-3 pb-3 font-mono text-ui-md leading-relaxed text-fg">
-          {data.content}
-          {data.truncated ? `\n\n${t("filetree.truncated")}` : ""}
-        </pre>
-      )}
-    </div>
-  );
-}
+// cwd. The explorer remains navigation: selecting a file opens the dedicated
+// preview tab instead of replacing the tree with a mobile-style drill-down.
 
 function ExplorerView() {
   const t = useT();
   const cwd = useActiveSessionCwd();
-  const [selected, setSelected] = useState<string | null>(null);
+  const viewer = useWorkspaceFileViewer();
   const { data: roots, isLoading, isError, error } = useWorkspaceListFiles({ cwd });
 
   return (
     <WorkspaceViewLayout icon="folder" titleStrong title="filetree.title">
-      {selected ? (
-        <FileViewer path={selected} cwd={cwd} onBack={() => setSelected(null)} />
-      ) : (
-        <DataView
-          items={roots}
-          isLoading={isLoading}
-          isError={isError}
-          // A runtime without workspace.files.list errors the query —
-          // show a calm "unavailable here" state, not the generic load error.
-          error={
-            isUnsupportedMethod(error)
-              ? {
-                  icon: "folder",
-                  title: t("runtime.unsupported.title"),
-                  sub: t("runtime.unsupported.sub"),
-                }
-              : undefined
-          }
-          skeletonCount={8}
-          empty={{ icon: "folder", title: t("filetree.empty.title"), sub: t("filetree.empty.sub") }}
-        >
-          {(rows) => (
-            <FileTree
-              entries={rows}
-              cwd={cwd}
-              selectedPath={selected ?? undefined}
-              onSelectFile={setSelected}
-            />
-          )}
-        </DataView>
-      )}
+      <DataView
+        items={roots}
+        isLoading={isLoading}
+        isError={isError}
+        // A runtime without workspace.files.list errors the query —
+        // show a calm "unavailable here" state, not the generic load error.
+        error={
+          isUnsupportedMethod(error)
+            ? {
+                icon: "folder",
+                title: t("runtime.unsupported.title"),
+                sub: t("runtime.unsupported.sub"),
+              }
+            : undefined
+        }
+        skeletonCount={8}
+        empty={{ icon: "folder", title: t("filetree.empty.title"), sub: t("filetree.empty.sub") }}
+      >
+        {(rows) => (
+          <FileTree
+            entries={rows}
+            cwd={cwd}
+            selectedPath={viewer?.path}
+            onSelectFile={openWorkspaceFile}
+          />
+        )}
+      </DataView>
     </WorkspaceViewLayout>
   );
 }

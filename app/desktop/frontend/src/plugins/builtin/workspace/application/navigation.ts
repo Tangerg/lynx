@@ -39,8 +39,7 @@ export function useToggleWorkspaceTool(): (id: string) => void {
   return workspaceNavigation().useToggleTool();
 }
 
-/** The drawer's collapse state and its toggle — one reader for every chrome bar
- *  that can sit in the window's top-left corner. */
+/** The drawer preference consumed by the window shell's single stable control. */
 export function useSidebarDrawer(): { collapsed: boolean; toggle: () => void } {
   return workspaceNavigation().useSidebarDrawer();
 }

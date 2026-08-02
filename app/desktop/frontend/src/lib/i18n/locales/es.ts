@@ -1,7 +1,6 @@
 // Español.
 
 export const es: Record<string, string> = {
-  "common.appName": "Lynx",
   "common.cancel": "Cancelar",
   "common.close": "Cerrar",
 
@@ -46,7 +45,9 @@ export const es: Record<string, string> = {
   "chat.error.retry": "Reintentar",
   "chat.jumpToBottom": "Ir al final",
 
-  "dock.action.browse": "Añadir panel",
+  "dock.action.browse": "Explorar paneles",
+  "dock.picker.placeholder": "Buscar un panel…",
+  "dock.picker.empty": "No se encontraron paneles",
   "dock.action.hide": "Contraer espacio derecho",
   "dock.action.resize": "Ajustar espacio derecho",
   "dock.action.show": "Abrir espacio derecho",
@@ -131,6 +132,7 @@ export const es: Record<string, string> = {
   "status.notifications": "Notificaciones",
   "status.notifications.unread": "{{count}} notificación(es) sin leer",
   "session.row.titleLabel": "Título de la sesión",
+  "session.untitled": "Sesión sin título",
   "session.action.pin": "Fijar arriba",
   "session.action.unpin": "Dejar de fijar",
   "session.action.rename": "Renombrar",
@@ -238,7 +240,7 @@ export const es: Record<string, string> = {
   "shape.opt.slow": "Lento",
   "font.useCustom": "Usar personalizada",
 
-  "workspace.view.title.files": "Archivos",
+  "workspace.view.title.files": "Archivos modificados",
   "workspace.view.title.diff": "Diff",
   "contextDock.group.workspace": "Espacio",
   "contextDock.group.run": "Ejecución",
@@ -522,9 +524,6 @@ export const es: Record<string, string> = {
 
   // ── Vista de espacio de trabajo: Explorador de archivos ──
   "filetree.title": "Explorador",
-  "filetree.loading": "Cargando…",
-  "filetree.readError": "No se pudo leer este archivo.",
-  "filetree.truncated": "… truncado (archivo demasiado grande para mostrarlo completo)",
   "filetree.empty.title": "Nada que explorar",
   "filetree.empty.sub": "No hay archivos en este espacio de trabajo.",
 
@@ -797,7 +796,7 @@ export const es: Record<string, string> = {
   "mcp.error.toggle": "No se pudo modificar el servidor.",
   "mcp.error.signIn": "Error al iniciar sesión.",
   "mcp.error.test": "La prueba falló",
-  "workspace.view.title.file": "Archivo",
+  "workspace.view.title.file": "Vista previa del archivo",
   "workspace.view.title.recipes": "Recetas",
   "workspace.view.title.codebase": "Base de código",
   "settings.theme.system": "Sistema",

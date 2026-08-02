@@ -138,6 +138,8 @@ describe("codebase view models", () => {
       rows: [
         {
           id: "src/app.ts:3:7:0",
+          path: "src/app.ts",
+          startLine: 3,
           pathRange: "src/app.ts:3-7",
           score: "0.88",
           snippet: "const app = true",

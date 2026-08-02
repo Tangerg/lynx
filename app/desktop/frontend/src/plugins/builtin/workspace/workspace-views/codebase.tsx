@@ -4,7 +4,7 @@
 // model configured in Settings → Providers (else it points the user there).
 
 import { useState } from "react";
-import { EmptyState, IconButton, PillButton, SearchField } from "@/ui";
+import { EmptyState, IconButton, PillButton, Pressable, SearchField } from "@/ui";
 import {
   type CodebaseSearchHit,
   reindexCodebase,
@@ -20,6 +20,7 @@ import { rpcErrorText } from "@/lib/rpcErrors";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
+import { openWorkspaceFile } from "@/plugins/builtin/workspace/public/navigation";
 
 function statusLabel(state: CodebaseStatusProjection["state"], t: ReturnType<typeof useT>): string {
   switch (state) {
@@ -140,7 +141,11 @@ function CodebaseTab() {
 
         <div className="flex flex-col gap-2">
           {resultsView.rows.map((row) => (
-            <div key={row.id} className="rounded-md bg-surface-2 px-3 py-2">
+            <Pressable
+              key={row.id}
+              onClick={() => openWorkspaceFile(row.path, row.startLine)}
+              className="w-full rounded-md bg-surface-2 px-3 py-2 text-left transition-colors hover:bg-surface-3"
+            >
               <div className="flex items-center gap-2">
                 <span className="truncate font-mono text-ui-md text-accent">{row.pathRange}</span>
                 <span className="ml-auto shrink-0 font-mono text-ui-xs tabular-nums text-fg-faint">
@@ -150,7 +155,7 @@ function CodebaseTab() {
               <pre className="mt-1 max-h-44 overflow-auto whitespace-pre-wrap break-words font-mono text-ui-sm leading-body text-fg-muted">
                 {row.snippet}
               </pre>
-            </div>
+            </Pressable>
           ))}
         </div>
       </div>

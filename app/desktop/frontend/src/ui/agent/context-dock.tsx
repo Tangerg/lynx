@@ -21,7 +21,8 @@ export interface AgentDockTab {
  * (diff, file tree, terminal), and the whole point of the dock is reading those
  * BESIDE the conversation — an overlay would cover the thing being compared
  * against. It lives inside the content card, so its left edge is an internal pane
- * split and takes the chrome hairline rather than a background step.
+ * split and takes the active visual style's boundary rather than inventing its
+ * own background step.
  */
 export function AgentContextDock({
   className,
@@ -41,8 +42,8 @@ export function AgentContextDock({
   );
 }
 
-/** Dock tabs wear the chrome-chip skin, so a tab and a header toggle read as one
- *  family of control instead of two unrelated affordances. The tab primitive
+/** Dock tabs share one structural pattern while the visual style chooses the
+ *  active treatment (quiet chip, underline, or elevation). The tab primitive
  *  owns roving focus and arrow-key navigation; styling buttons to resemble tabs
  *  without those semantics made the dock keyboard-hostile. */
 export function AgentDockTabs({ tabs, ariaLabel }: { tabs: AgentDockTab[]; ariaLabel: string }) {

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { clampSidebarWidth } from "@/lib/shellGeometry";
 import { AgentSeamRail, AgentSidebar } from "./sidebar";
+import { AgentDrawerToggle } from "./surface-header";
 
 interface AgentAppShellProps {
   /** Work-index content. Omit to run without a drawer (settings takes over the window). */
@@ -16,6 +17,9 @@ interface AgentAppShellProps {
   /** Persisted drawer width in px; the rail commits new values through `onResize`. */
   sidebarWidth: number;
   onResize: (width: number) => void;
+  onSidebarToggle: () => void;
+  sidebarExpandLabel: string;
+  sidebarCollapseLabel: string;
   main: ReactNode;
   overlay?: ReactNode;
 }
@@ -35,11 +39,13 @@ export function AgentAppShell({
   sidebarOpen,
   sidebarWidth,
   onResize,
+  onSidebarToggle,
+  sidebarExpandLabel,
+  sidebarCollapseLabel,
   main,
   overlay,
 }: AgentAppShellProps) {
   const shellRef = useRef<HTMLDivElement>(null);
-  const previousSidebarOpenRef = useRef(sidebarOpen);
   const hasSidebar = sidebar !== undefined;
 
   // The rail writes `--sidebar-width` directly during a drag. This effect
@@ -62,52 +68,6 @@ export function AgentAppShell({
     return () => observer.disconnect();
   }, [sidebarWidth]);
 
-  // The visible toggle changes owners when the drawer opens or closes. Perform
-  // the handoff after React has committed the new owner instead of asking the
-  // button click handler to guess whether one animation frame is late enough.
-  // This also covers keyboard shortcuts and other application-level toggles.
-  useEffect(() => {
-    const previousSidebarOpen = previousSidebarOpenRef.current;
-    previousSidebarOpenRef.current = sidebarOpen;
-    if (!hasSidebar || previousSidebarOpen === sidebarOpen) return;
-
-    // Let the committed visibility transition apply before focusing the owner.
-    // WebKit can keep the opening drawer hidden for more than one painted frame
-    // while it resolves the inherited visibility transition. Wait for actual
-    // visibility instead of coupling semantics to an animation duration or an
-    // arbitrary timer.
-    let frame = 0;
-    const region = sidebarOpen ? "expanded" : "collapsed";
-    const focusOwner = () => {
-      const shell = shellRef.current;
-      // A newer toggle superseded this handoff. The termination condition is the
-      // intent going stale, not a frame budget: nothing here may depend on how
-      // many frames a commit or a transition happens to take.
-      if (shell?.dataset.sidebar !== region) return;
-      const target = shell.querySelector<HTMLButtonElement>(
-        `[data-drawer-toggle][aria-expanded="${sidebarOpen ? "true" : "false"}"]`,
-      );
-      // Absent is the same wait as invisible. The drawer's own header arrives in a
-      // later commit than the state flip that summons it, so giving up on a null
-      // query lost the handoff in exactly one direction — expanding, where the new
-      // owner is inside the subtree being mounted. Collapsing always worked because
-      // the card's toggle was already on screen, which is what made the bug look
-      // like flake rather than asymmetry.
-      if (!target) {
-        frame = requestAnimationFrame(focusOwner);
-        return;
-      }
-      const style = getComputedStyle(target);
-      if (style.display === "none" || style.visibility === "hidden") {
-        frame = requestAnimationFrame(focusOwner);
-        return;
-      }
-      target.focus();
-    };
-    frame = requestAnimationFrame(focusOwner);
-    return () => cancelAnimationFrame(frame);
-  }, [hasSidebar, sidebarOpen]);
-
   return (
     <div
       ref={shellRef}
@@ -115,6 +75,16 @@ export function AgentAppShell({
       data-sidebar={hasSidebar && sidebarOpen ? "expanded" : "collapsed"}
     >
       {hasSidebar && <AgentSidebar label={sidebarLabel}>{sidebar}</AgentSidebar>}
+      {hasSidebar && (
+        <div className="agent-window-sidebar-control">
+          <AgentDrawerToggle
+            collapsed={!sidebarOpen}
+            onToggle={onSidebarToggle}
+            expandLabel={sidebarExpandLabel}
+            collapseLabel={sidebarCollapseLabel}
+          />
+        </div>
+      )}
       <div className="agent-card-backing">
         {hasSidebar && sidebarOpen && (
           <AgentSeamRail label={sidebarResizeLabel} width={sidebarWidth} onCommit={onResize} />

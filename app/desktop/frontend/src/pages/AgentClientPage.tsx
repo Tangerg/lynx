@@ -22,6 +22,9 @@ export function AgentClientPage() {
       sidebarOpen={!drawer.collapsed}
       sidebarWidth={width}
       onResize={setWidth}
+      onSidebarToggle={drawer.toggle}
+      sidebarExpandLabel={t("sidebar.action.expand")}
+      sidebarCollapseLabel={t("sidebar.action.collapse")}
       sidebar={singleMode ? undefined : <Slot name="app.sidebar" />}
       main={<Slot name="app.main" />}
       overlay={<Slot name="app.overlay" />}

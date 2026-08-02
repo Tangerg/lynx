@@ -1,52 +1,42 @@
-import { Icon, ScrollArea } from "@/ui";
-import { AgentDrawerToggle, AgentSurfaceHeader } from "@/ui/agent";
+import { IconButton } from "@/ui";
+import { AgentSurfaceHeader, AgentWorkIndexBody, AgentWorkIndexSection } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import { useWorkIndexItems } from "@/plugins/builtin/navigation/public/workIndex";
-import { useSidebarDrawer } from "@/plugins/builtin/workspace/public/sidebarDrawer";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { Slot } from "@/plugins/host/Slot";
+import { usePaletteStore } from "@/plugins/builtin/command/paletteStore";
 
 export function SidebarExpanded() {
   const t = useT();
   const items = useWorkIndexItems("expanded");
-  const drawer = useSidebarDrawer();
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      {/* The expanded drawer owns the top-left window corner, so the only visible
-          sidebar toggle lives here and clears the native traffic lights. Once
-          collapsed this whole drawer slides away and the content header takes
-          over the same control. */}
+      {/* Window controls live in AgentAppShell; this bar owns sidebar-local tools. */}
       <AgentSurfaceHeader divider={false} className="agent-drawer-header">
-        <AgentDrawerToggle
-          collapsed={false}
-          onToggle={drawer.toggle}
-          expandLabel={t("sidebar.action.expand")}
-          collapseLabel={t("sidebar.action.collapse")}
-        />
         <span className="min-w-2 flex-1" />
-        <Icon name="spark" size="sm" className="text-fg-faint" />
-        <span className="sr-only">{t("common.appName")}</span>
+        <IconButton
+          icon="search"
+          size="sm"
+          title={t("command.openPalette")}
+          onClick={() => usePaletteStore.getState().setOpen(true)}
+        />
       </AgentSurfaceHeader>
 
-      <ScrollArea hideScrollbar className="px-1.5 pt-1 pb-3">
-        <div className="flex flex-col gap-y-3">
-          {items.map((item) => {
-            const Body = item.component;
-            return (
-              <PluginBoundary
-                key={item.id}
-                plugin={`work-index:${item.id}`}
-                label={`${item.id} work index item`}
-              >
+      <AgentWorkIndexBody>
+        {items.map((item) => {
+          const Body = item.component;
+          return (
+            <AgentWorkIndexSection key={item.id}>
+              <PluginBoundary plugin={`work-index:${item.id}`} label={`${item.id} work index item`}>
                 <Body />
               </PluginBoundary>
-            );
-          })}
-        </div>
-      </ScrollArea>
+            </AgentWorkIndexSection>
+          );
+        })}
+      </AgentWorkIndexBody>
 
-      <div className="mt-auto">
+      <div className="mt-auto shrink-0">
         <Slot name="sidebar.footer" />
       </div>
     </div>

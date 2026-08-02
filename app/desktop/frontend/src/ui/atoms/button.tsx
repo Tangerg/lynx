@@ -1,5 +1,6 @@
 import type { VariantProps } from "class-variance-authority";
 import type { ReactNode } from "react";
+import { forwardRef } from "react";
 import { cva } from "class-variance-authority";
 import { cn } from "@/lib/classNames";
 import { ButtonPrimitive, type ButtonPrimitiveProps } from "@/ui/primitives";
@@ -14,7 +15,7 @@ import { ButtonPrimitive, type ButtonPrimitiveProps } from "@/ui/primitives";
 // Glyphs ride at 80%: a chrome icon should read a step behind its label. The
 // `:not([class*='opacity-'])` guard is the escape hatch — a semantic glyph (a
 // warning triangle, a status dot) sets its own opacity and keeps it.
-const buttonStyles = cva(
+export const buttonStyles = cva(
   [
     "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap",
     "border-[length:var(--control-edge-width)] border-transparent font-sans font-medium leading-none outline-none",
@@ -85,16 +86,21 @@ export type ButtonProps = Omit<ButtonPrimitiveProps, "children"> &
     children?: ReactNode;
   };
 
-export function Button({ variant, size, tone, press, className, children, ...props }: ButtonProps) {
-  const resolvedVariant = variant ?? "ghost";
-  return (
-    <ButtonPrimitive
-      {...props}
-      data-slot="button"
-      data-variant={resolvedVariant}
-      className={cn(buttonStyles({ variant, size, tone, press }), className)}
-    >
-      {children}
-    </ButtonPrimitive>
-  );
-}
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ variant, size, tone, press, className, children, ...props }, ref) => {
+    const resolvedVariant = variant ?? "ghost";
+    return (
+      <ButtonPrimitive
+        {...props}
+        ref={ref}
+        data-slot="button"
+        data-variant={resolvedVariant}
+        className={cn(buttonStyles({ variant, size, tone, press }), className)}
+      >
+        {children}
+      </ButtonPrimitive>
+    );
+  },
+);
+
+Button.displayName = "Button";

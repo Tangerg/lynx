@@ -10,10 +10,10 @@
 // gutters) must hold still when the type base moves. A rem ladder drags every
 // padding and width along with it, which makes fixed chrome heights impossible.
 //
-// Base 12. The Synara reference and Lynx baseline agree on a 9/10/11/12/13px
-// chrome ladder, with reading text one step above the 12px base. The user may
-// still move the base through the supported range; 12 is only the clean
-// first-paint and preference fallback, not a second fixed-size path.
+// Base 14. The ladder keeps dense chrome one or two steps below its body text
+// while preserving a readable 14px default. The user may still move the base
+// through the supported range; 14 is only the clean first-paint and preference
+// fallback, not a second fixed-size path.
 
 export const UI_FONT_SIZE_DEFAULT_PX = 14;
 export const UI_FONT_SIZE_MIN_PX = 11;
@@ -24,8 +24,8 @@ export type UiTypeStep = "ui-2xs" | "ui-xs" | "ui-sm" | "ui-md" | "ui-lg" | "cod
 
 export type UiTypeLadder = Readonly<Record<UiTypeStep, number>>;
 
-// Ratio + floor per step. The ratios are chosen so a 12px base lands exactly on
-// the 9/10/11/12/13 whole-pixel grid. The floors matter at the small end of the
+// Ratio + floor per step. The ratios preserve the existing whole-pixel ladder
+// across the supported base range. The floors matter at the small end of the
 // base range: ratio alone would sink `ui-2xs` to 8px at base 11, below the size
 // Geist stays legible at. `ui-lg` floors at the base so it can never dip under it.
 const STEPS: Readonly<Record<UiTypeStep, { readonly ratio: number; readonly floorPx: number }>> = {

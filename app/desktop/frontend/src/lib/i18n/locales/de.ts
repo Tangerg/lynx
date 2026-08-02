@@ -1,7 +1,6 @@
 // Deutsch.
 
 export const de: Record<string, string> = {
-  "common.appName": "Lynx",
   "common.cancel": "Abbrechen",
   "common.close": "Schließen",
 
@@ -46,7 +45,9 @@ export const de: Record<string, string> = {
   "chat.error.retry": "Erneut versuchen",
   "chat.jumpToBottom": "Nach unten springen",
 
-  "dock.action.browse": "Bereich hinzufügen",
+  "dock.action.browse": "Bereiche durchsuchen",
+  "dock.picker.placeholder": "Bereich suchen…",
+  "dock.picker.empty": "Keine Bereiche gefunden",
   "dock.action.hide": "Rechten Arbeitsbereich einklappen",
   "dock.action.resize": "Rechten Arbeitsbereich anpassen",
   "dock.action.show": "Rechten Arbeitsbereich öffnen",
@@ -131,6 +132,7 @@ export const de: Record<string, string> = {
   "status.notifications": "Benachrichtigungen",
   "status.notifications.unread": "{{count}} ungelesene Benachrichtigung(en)",
   "session.row.titleLabel": "Sitzungstitel",
+  "session.untitled": "Unbenannte Sitzung",
   "session.action.pin": "Oben anpinnen",
   "session.action.unpin": "Loslösen",
   "session.action.rename": "Umbenennen",
@@ -240,7 +242,7 @@ export const de: Record<string, string> = {
   "shape.opt.slow": "Langsam",
   "font.useCustom": "Eigene verwenden",
 
-  "workspace.view.title.files": "Dateien",
+  "workspace.view.title.files": "Geänderte Dateien",
   "workspace.view.title.diff": "Diff",
   "contextDock.group.workspace": "Workspace",
   "contextDock.group.run": "Lauf",
@@ -522,9 +524,6 @@ export const de: Record<string, string> = {
 
   // ── Workspace-Ansicht: Dateibaum ──
   "filetree.title": "Explorer",
-  "filetree.loading": "Laden…",
-  "filetree.readError": "Diese Datei konnte nicht gelesen werden.",
-  "filetree.truncated": "… abgeschnitten (Datei zu groß für Vollanzeige)",
   "filetree.empty.title": "Nichts zum Durchsuchen",
   "filetree.empty.sub": "Keine Dateien in diesem Workspace.",
 
@@ -800,7 +799,7 @@ export const de: Record<string, string> = {
   "mcp.error.toggle": "Server konnte nicht geändert werden.",
   "mcp.error.signIn": "Anmeldung fehlgeschlagen.",
   "mcp.error.test": "Test fehlgeschlagen",
-  "workspace.view.title.file": "Datei",
+  "workspace.view.title.file": "Dateivorschau",
   "workspace.view.title.recipes": "Rezepte",
   "workspace.view.title.codebase": "Codebasis",
   "settings.theme.system": "System",

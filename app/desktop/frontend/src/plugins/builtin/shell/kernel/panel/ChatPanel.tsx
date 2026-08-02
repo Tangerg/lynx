@@ -1,14 +1,12 @@
-import { Fragment } from "react";
 import { DOCK_COLUMN, dockWidthRow } from "./dockWidth";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
-import { Button, DropdownMenu, Icon, IconButton, Tooltip, type IconName } from "@/ui";
+import { CatalogPicker, IconButton, type CatalogPickerGroup, type IconName } from "@/ui";
 import {
   AgentContentCard,
   AgentContextDock,
   type AgentDockTab,
   AgentDockTabs,
-  AgentDrawerToggle,
   AgentStatusPill,
   AgentSurfaceHeader,
 } from "@/ui/agent";
@@ -29,7 +27,7 @@ import {
   type ContextDockDestinationGroup,
 } from "@/plugins/builtin/workspace/public/contextDockCatalog";
 import { useWorkspaceViews } from "@/plugins/sdk";
-import { useDockWidth, useSidebarDrawer } from "@/plugins/builtin/workspace/public/sidebarDrawer";
+import { useDockWidth } from "@/plugins/builtin/workspace/public/sidebarDrawer";
 import { ChatStream } from "./ChatStream";
 import { DockResizer } from "./DockResizer";
 import { HeaderDiffStat } from "./HeaderDiffStat";
@@ -45,7 +43,7 @@ interface Props {
   onSend: (input: UserInput) => void;
 }
 
-function AddDockViewMenu({
+function AddDockViewPicker({
   groups,
   openViewIds,
 }: {
@@ -53,55 +51,26 @@ function AddDockViewMenu({
   openViewIds: ReadonlySet<string>;
 }) {
   const t = useT();
+  const pickerGroups: CatalogPickerGroup[] = groups.map((group) => ({
+    id: group.id,
+    label: t(group.title),
+    items: group.destinations.map((destination) => ({
+      id: destination.viewId,
+      label: t(destination.title),
+      icon: viewIcon(destination.icon),
+      keywords: [destination.viewId, group.id],
+      active: openViewIds.has(destination.viewId),
+    })),
+  }));
+
   return (
-    <DropdownMenu.Root>
-      <Tooltip label={t("dock.action.browse")} side="bottom">
-        <DropdownMenu.Trigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t("dock.action.browse")}
-              className="data-[popup-open]:bg-selected data-[popup-open]:text-fg"
-            >
-              <Icon name="plus" size="sm" />
-            </Button>
-          }
-        />
-      </Tooltip>
-      <DropdownMenu.Content
-        align="end"
-        sideOffset={5}
-        className="max-h-[min(560px,calc(100vh-80px))] min-w-[232px] overflow-y-auto"
-      >
-        {groups.map((group, index) => (
-          <Fragment key={group.id}>
-            {index > 0 && <DropdownMenu.Separator />}
-            <div className="px-2 pb-1 pt-1.5 text-ui-xs font-medium text-fg-faint">
-              {t(group.title)}
-            </div>
-            {group.destinations.map((destination) => {
-              const isOpen = openViewIds.has(destination.viewId);
-              return (
-                <DropdownMenu.Item
-                  key={destination.viewId}
-                  onClick={() => openWorkspaceViewInDock(destination.viewId)}
-                  className="grid-cols-[16px_minmax(0,1fr)_14px]"
-                >
-                  <Icon
-                    name={viewIcon(destination.icon) ?? "panel-r"}
-                    size="sm"
-                    className="text-fg-muted"
-                  />
-                  <span className="truncate">{t(destination.title)}</span>
-                  {isOpen ? <Icon name="check" size="xs" className="text-accent" /> : <span />}
-                </DropdownMenu.Item>
-              );
-            })}
-          </Fragment>
-        ))}
-      </DropdownMenu.Content>
-    </DropdownMenu.Root>
+    <CatalogPicker
+      groups={pickerGroups}
+      label={t("dock.action.browse")}
+      placeholder={t("dock.picker.placeholder")}
+      emptyLabel={t("dock.picker.empty")}
+      onSelect={(item) => openWorkspaceViewInDock(item.id)}
+    />
   );
 }
 
@@ -118,7 +87,7 @@ function DockHeader({
   return (
     <AgentSurfaceHeader className="gap-1">
       <AgentDockTabs tabs={tabs} ariaLabel={t("dock.tabs.label")} />
-      <AddDockViewMenu groups={groups} openViewIds={openViewIds} />
+      <AddDockViewPicker groups={groups} openViewIds={openViewIds} />
       <IconButton
         icon="panel-r"
         hoverIcon="x"
@@ -133,7 +102,6 @@ function DockHeader({
 export function ChatPanel({ onSend }: Props) {
   const activeMainView = useActiveWorkspaceViewId();
   const dock = useWorkspaceDock();
-  const drawer = useSidebarDrawer();
   const catalog = useContextDockCatalog();
   const views = useWorkspaceViews();
   const { width: dockWidth } = useDockWidth();
@@ -177,16 +145,7 @@ export function ChatPanel({ onSend }: Props) {
         <div className="flex min-h-0 flex-1" style={dockWidthRow(dockWidth)}>
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
             <AgentSurfaceHeader windowCorner>
-              {drawer.collapsed && (
-                <AgentDrawerToggle
-                  collapsed
-                  onToggle={drawer.toggle}
-                  expandLabel={t("sidebar.action.expand")}
-                  collapseLabel={t("sidebar.action.collapse")}
-                />
-              )}
-              <Icon name="sparkle" size="sm" className="shrink-0 text-fg-muted" />
-              <span className="min-w-0 max-w-[420px] truncate text-ui-lg font-normal text-fg">
+              <span className="min-w-0 max-w-[420px] truncate text-ui-lg font-medium text-fg">
                 {activeSession?.title || t("welcome.title")}
               </span>
               {running && (

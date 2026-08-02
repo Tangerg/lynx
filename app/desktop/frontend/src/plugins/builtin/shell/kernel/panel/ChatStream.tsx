@@ -23,7 +23,6 @@ import {
   useToggleWorkspaceTool,
 } from "@/plugins/builtin/workspace/public/navigation";
 import { useUiStore } from "@/state/uiStore";
-import { Icon } from "@/ui";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
 import { ComposerSurface } from "./ComposerSurface";
 import { CwdMissingBanner } from "./CwdMissingBanner";
@@ -130,9 +129,8 @@ export function ChatStream({ onSend }: Props) {
             sits at the optical centre rather than the heading floating above a
             bottom-anchored input. */}
         <div className="panel-scroll flex flex-1 flex-col items-center justify-center px-[var(--density-column-gutter)] sm:px-[var(--density-column-gutter-wide)]">
-          <div className="flex w-full max-w-[var(--content-max)] flex-col items-center gap-3 pb-5">
-            <Icon name="spark" size="xl" className="text-fg" />
-            <h1 className="text-balance text-center text-display-lg font-normal text-fg/95 sm:text-display-xl">
+          <div className="flex w-full max-w-[var(--content-max)] flex-col items-center pb-5">
+            <h1 className="text-balance text-center text-display-lg font-medium text-fg/95">
               {t("welcome.title")}
             </h1>
           </div>

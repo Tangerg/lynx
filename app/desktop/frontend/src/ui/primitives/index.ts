@@ -3,6 +3,7 @@ export type { AnchorPrimitiveProps } from "./anchor";
 export { ButtonPrimitive } from "./button";
 export type { ButtonPrimitiveProps } from "./button";
 export { CheckboxPrimitive } from "./checkbox";
+export { ComboboxPrimitive } from "./combobox";
 export { ContextMenuPrimitive } from "./context-menu";
 export { DialogPrimitive } from "./dialog";
 export { ColorInputPrimitive, FileInputPrimitive, InputPrimitive } from "./input";

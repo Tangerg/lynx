@@ -2,6 +2,8 @@ export { Badge } from "./badge";
 export type { BadgeProps } from "./badge";
 export { Button } from "./button";
 export type { ButtonProps } from "./button";
+export { CatalogPicker } from "./catalog-picker";
+export type { CatalogPickerGroup, CatalogPickerItem } from "./catalog-picker";
 export { Checkbox } from "./checkbox";
 export { Chip } from "./chip";
 export { Collapsible } from "./collapsible";

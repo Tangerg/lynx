@@ -1,7 +1,6 @@
 // 简体中文。
 
 export const zh: Record<string, string> = {
-  "common.appName": "Lynx",
   "common.cancel": "取消",
   "common.close": "关闭",
 
@@ -50,7 +49,9 @@ export const zh: Record<string, string> = {
   "chat.error.retry": "重试",
   "chat.jumpToBottom": "跳到底部",
 
-  "dock.action.browse": "添加面板",
+  "dock.action.browse": "浏览面板",
+  "dock.picker.placeholder": "查找面板…",
+  "dock.picker.empty": "没有匹配的面板",
   "dock.action.hide": "收起右侧工作区",
   "dock.action.resize": "调整右侧工作区宽度",
   "dock.action.show": "打开右侧工作区",
@@ -138,6 +139,7 @@ export const zh: Record<string, string> = {
   "status.notifications": "通知",
   "status.notifications.unread": "{{count}} 条未读通知",
   "session.row.titleLabel": "会话标题",
+  "session.untitled": "未命名会话",
   "session.action.pin": "置顶",
   "session.action.unpin": "取消置顶",
   "session.action.rename": "重命名",
@@ -368,9 +370,9 @@ export const zh: Record<string, string> = {
   "shape.opt.slow": "慢",
   "font.useCustom": "使用自定义",
 
-  "workspace.view.title.files": "文件",
+  "workspace.view.title.files": "改动文件",
   "workspace.view.title.diff": "差异",
-  "workspace.view.title.file": "文件",
+  "workspace.view.title.file": "文件预览",
   "contextDock.group.workspace": "工作区",
   "contextDock.group.run": "运行",
   "contextDock.group.session": "会话",
@@ -694,9 +696,6 @@ export const zh: Record<string, string> = {
 
   // ── 工作区视图：文件树 ──
   "filetree.title": "资源管理器",
-  "filetree.loading": "加载中…",
-  "filetree.readError": "无法读取此文件。",
-  "filetree.truncated": "… 已截断（文件太大，无法完整显示）",
   "filetree.empty.title": "无可浏览内容",
   "filetree.empty.sub": "此工作区中没有文件。",
 

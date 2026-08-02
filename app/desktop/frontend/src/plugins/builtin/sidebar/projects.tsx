@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { DataView, SectionLabel, TextButton } from "@/ui";
+import { AgentWorkIndexGroupList } from "@/ui/agent";
 import { ProjectRow } from "./ui/ProjectRow";
 import { SessionRow } from "./ui/SessionRow";
 import { useT } from "@/lib/i18n";
@@ -17,8 +18,7 @@ const VISIBLE_CAP = 5;
 
 // Project groups need enough separation to remain scannable; rows inside one
 // project stay compact so the folder/session hierarchy reads as one unit.
-const projectListClasses = "flex flex-col gap-3";
-const sessionListClasses = "flex flex-col gap-0.5";
+const sessionListClasses = "flex flex-col";
 
 // One project node: header + (when open) its capped session list.
 function ProjectGroupNode({
@@ -61,7 +61,7 @@ function ProjectGroupNode({
         onNewSession={onNewSession}
       />
       {open && group.sessions.length > 0 && (
-        <div className="flex flex-col gap-0.5 pt-0.5">
+        <div className="flex flex-col">
           {visible.map((s) => (
             <SessionRow
               key={s.id}
@@ -101,9 +101,7 @@ function ProjectsSection() {
 
   return (
     <>
-      <SectionLabel className="flex h-7 items-center py-0">
-        {t("workIndex.section.projects")}
-      </SectionLabel>
+      <SectionLabel className="pt-0">{t("workIndex.section.projects")}</SectionLabel>
       <DataView
         items={workIndex.groups}
         isLoading={workIndex.isLoading}
@@ -123,7 +121,7 @@ function ProjectsSection() {
         }}
       >
         {(items) => (
-          <div className={projectListClasses}>
+          <AgentWorkIndexGroupList>
             {items.map((g) => (
               <ProjectGroupNode
                 key={g.project.id}
@@ -138,7 +136,7 @@ function ProjectsSection() {
                 onToggleFavorite={actions.toggleFavorite}
               />
             ))}
-          </div>
+          </AgentWorkIndexGroupList>
         )}
       </DataView>
     </>

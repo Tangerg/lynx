@@ -1,7 +1,6 @@
 // 日本語。
 
 export const ja: Record<string, string> = {
-  "common.appName": "Lynx",
   "common.cancel": "キャンセル",
   "common.close": "閉じる",
 
@@ -45,7 +44,9 @@ export const ja: Record<string, string> = {
   "chat.error.retry": "再試行",
   "chat.jumpToBottom": "最下部へ移動",
 
-  "dock.action.browse": "パネルを追加",
+  "dock.action.browse": "パネルを参照",
+  "dock.picker.placeholder": "パネルを検索…",
+  "dock.picker.empty": "パネルが見つかりません",
   "dock.action.hide": "右ワークスペースを折りたたむ",
   "dock.action.resize": "右ワークスペースの幅を調整",
   "dock.action.show": "右ワークスペースを開く",
@@ -130,6 +131,7 @@ export const ja: Record<string, string> = {
   "status.notifications": "通知",
   "status.notifications.unread": "未読の通知 {{count}} 件",
   "session.row.titleLabel": "セッションのタイトル",
+  "session.untitled": "無題のセッション",
   "session.action.pin": "上部にピン留め",
   "session.action.unpin": "ピン留めを解除",
   "session.action.rename": "名前を変更",
@@ -237,7 +239,7 @@ export const ja: Record<string, string> = {
   "shape.opt.slow": "遅い",
   "font.useCustom": "カスタムを使用",
 
-  "workspace.view.title.files": "ファイル",
+  "workspace.view.title.files": "変更ファイル",
   "workspace.view.title.diff": "差分",
   "contextDock.group.workspace": "ワークスペース",
   "contextDock.group.run": "実行",
@@ -514,9 +516,6 @@ export const ja: Record<string, string> = {
 
   // ── ワークスペースビュー：ファイルツリー ──
   "filetree.title": "エクスプローラー",
-  "filetree.loading": "読み込み中…",
-  "filetree.readError": "このファイルを読み取れませんでした。",
-  "filetree.truncated": "… 切り詰め（ファイルが大きすぎて全体を表示できません）",
   "filetree.empty.title": "閲覧できるものがありません",
   "filetree.empty.sub": "このワークスペースにはファイルがありません。",
 
@@ -788,7 +787,7 @@ export const ja: Record<string, string> = {
   "mcp.error.toggle": "サーバーを変更できませんでした。",
   "mcp.error.signIn": "サインインに失敗しました。",
   "mcp.error.test": "テストに失敗しました",
-  "workspace.view.title.file": "ファイル",
+  "workspace.view.title.file": "ファイルプレビュー",
   "workspace.view.title.recipes": "レシピ",
   "workspace.view.title.codebase": "コードベース",
   "settings.theme.system": "システム",

@@ -3,7 +3,6 @@
 // any key a sister locale hasn't translated yet.
 
 export const en: Record<string, string> = {
-  "common.appName": "Lynx",
   "common.cancel": "Cancel",
   "common.close": "Close",
 
@@ -54,7 +53,9 @@ export const en: Record<string, string> = {
   "chat.error.retry": "Retry",
   "chat.jumpToBottom": "Jump to bottom",
 
-  "dock.action.browse": "Add panel",
+  "dock.action.browse": "Browse panels",
+  "dock.picker.placeholder": "Find a panel…",
+  "dock.picker.empty": "No panels found",
   "dock.action.hide": "Collapse right workspace",
   "dock.action.resize": "Resize right workspace",
   "dock.action.show": "Open right workspace",
@@ -143,6 +144,7 @@ export const en: Record<string, string> = {
   "status.notifications": "Notifications",
   "status.notifications.unread": "{{count}} unread notification(s)",
   "session.row.titleLabel": "Session title",
+  "session.untitled": "Untitled session",
   "session.action.pin": "Pin to top",
   "session.action.unpin": "Unpin",
   "session.action.rename": "Rename",
@@ -380,9 +382,9 @@ export const en: Record<string, string> = {
   "shape.opt.slow": "Slow",
   "font.useCustom": "Use custom",
 
-  "workspace.view.title.files": "Files",
+  "workspace.view.title.files": "Changed files",
   "workspace.view.title.diff": "Diff",
-  "workspace.view.title.file": "File",
+  "workspace.view.title.file": "File preview",
   "contextDock.group.workspace": "Workspace",
   "contextDock.group.run": "Run",
   "contextDock.group.session": "Session",
@@ -791,9 +793,6 @@ export const en: Record<string, string> = {
 
   // ── Workspace view: File tree ──
   "filetree.title": "Explorer",
-  "filetree.loading": "Loading…",
-  "filetree.readError": "Couldn't read this file.",
-  "filetree.truncated": "… truncated (file too large to show whole)",
   "filetree.empty.title": "Nothing to browse",
   "filetree.empty.sub": "No files in this workspace.",
 

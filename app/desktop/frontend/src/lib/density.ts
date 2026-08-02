@@ -23,8 +23,11 @@ const SCALE: Readonly<Record<UiDensity, number>> = {
 
 /** Comfortable-mode base values, in px. Every mode is these times its scale. */
 const BASE_PX = {
-  rowHeight: 28,
-  rowGap: 8,
+  rowHeight: 34,
+  rowGap: 10,
+  navigationGutter: 12,
+  navigationSectionGap: 22,
+  navigationGroupGap: 12,
   columnGutter: 12,
   columnGutterWide: 20,
   composerEditorTop: 12,
@@ -53,6 +56,9 @@ export function densityCssVariables(mode: unknown): Readonly<Record<string, stri
   return {
     "--density-row-height": px(BASE_PX.rowHeight),
     "--density-row-gap": px(BASE_PX.rowGap),
+    "--density-navigation-gutter": px(BASE_PX.navigationGutter),
+    "--density-navigation-section-gap": px(BASE_PX.navigationSectionGap),
+    "--density-navigation-group-gap": px(BASE_PX.navigationGroupGap),
     "--density-column-gutter": px(BASE_PX.columnGutter),
     "--density-column-gutter-wide": px(BASE_PX.columnGutterWide),
     "--density-composer-editor-top": px(BASE_PX.composerEditorTop),

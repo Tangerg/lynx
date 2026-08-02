@@ -56,6 +56,8 @@ export interface CodebaseStatusProjection {
 
 export interface CodebaseSearchRowViewModel {
   id: string;
+  path: string;
+  startLine: number;
   pathRange: string;
   score: string;
   snippet: string;
@@ -174,6 +176,8 @@ export function codebaseSearchViewModel(
   const rows =
     hits?.map((hit, index) => ({
       id: `${hit.path}:${hit.startLine}:${hit.endLine}:${index}`,
+      path: hit.path,
+      startLine: hit.startLine,
       pathRange: `${hit.path}:${hit.startLine}-${hit.endLine}`,
       score: hit.score.toFixed(2),
       snippet: hit.snippet,

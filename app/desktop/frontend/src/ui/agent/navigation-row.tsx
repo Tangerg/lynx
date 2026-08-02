@@ -38,8 +38,8 @@ interface AgentRowProps extends Omit<ButtonProps, "children" | "variant" | "size
 
 /**
  * A work-index row. Hover and selection share one fill, and selection reads through
- * the background rather than the label's weight — the label itself stays at full
- * ink, because dimming resting nav text is what makes a sidebar look washed out.
+ * the background rather than the label's weight. The atom defaults to full ink;
+ * callers may lower quiet leaf rows while keeping hierarchy and interaction here.
  */
 export function AgentRow({
   active,
@@ -62,12 +62,12 @@ export function AgentRow({
       press={false}
       data-active={active ? "" : undefined}
       className={cn(
-        "h-[var(--density-row-height)] w-full justify-start rounded-sm text-left text-ui-md font-normal",
+        "h-[var(--density-row-height)] w-full justify-start rounded-sm text-left text-ui-sm font-normal",
         "gap-[var(--density-row-gap)]",
         "text-fg transition-[background-color,color] duration-[var(--dur-fast)]",
         "hover:bg-hover hover:text-fg focus-visible:bg-hover",
         "data-[active]:bg-selected data-[active]:text-fg",
-        indent === "nested" ? "px-2 pl-8" : "px-2",
+        indent === "nested" ? "px-2 pl-[30px]" : "px-2",
         action && "pr-8",
         className,
       )}
