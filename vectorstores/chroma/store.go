@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
@@ -64,7 +63,7 @@ type StoreConfig struct {
 
 	// DocumentBatcher is responsible for batching documents before insertion.
 	// Required: must be provided.
-	DocumentBatcher vectorstores.Batcher
+	DocumentBatcher vectorstore.Batcher
 }
 
 func (c StoreConfig) Validate() error {
@@ -110,7 +109,7 @@ type Store struct {
 	collection      v2.Collection
 	collectionName  string
 	embeddingClient *embeddingclient.Client
-	documentBatcher vectorstores.Batcher
+	documentBatcher vectorstore.Batcher
 	distanceMetric  DistanceMetric
 }
 

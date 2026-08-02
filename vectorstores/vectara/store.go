@@ -16,7 +16,6 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
@@ -49,7 +48,7 @@ type StoreConfig struct {
 	CorpusKey string
 
 	// DocumentBatcher batches documents before upload. Required.
-	DocumentBatcher vectorstores.Batcher
+	DocumentBatcher vectorstore.Batcher
 
 	// MetadataPrefix overrides the metadata accessor prefix used by
 	// the filter visitor. Optional: defaults to "doc" so filters
@@ -100,7 +99,7 @@ type Store struct {
 	apiKey          string
 	corpusKey       string
 	metadataPrefix  string
-	documentBatcher vectorstores.Batcher
+	documentBatcher vectorstore.Batcher
 	httpClient      *http.Client
 }
 

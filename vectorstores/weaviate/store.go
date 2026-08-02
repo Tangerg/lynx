@@ -20,7 +20,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
@@ -73,7 +72,7 @@ type StoreConfig struct {
 
 	// DocumentBatcher is responsible for batching documents before insertion.
 	// Required: must be provided to handle document batching logic.
-	DocumentBatcher vectorstores.Batcher
+	DocumentBatcher vectorstore.Batcher
 
 	// DistanceMetric is the distance metric used for the HNSW vector index.
 	// Valid values: "cosine" (default), "dot", "l2-squared", "hamming", "manhattan".
@@ -120,7 +119,7 @@ var (
 type Store struct {
 	client           *weaviate.Client
 	embeddingClient  *embeddingclient.Client
-	documentBatcher  vectorstores.Batcher
+	documentBatcher  vectorstore.Batcher
 	className        string
 	distanceMetric   DistanceMetric
 	initializeSchema bool

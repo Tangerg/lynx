@@ -15,7 +15,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
@@ -70,7 +69,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before upsert. Required.
-	DocumentBatcher vectorstores.Batcher
+	DocumentBatcher vectorstore.Batcher
 
 	// DistanceFunction selects the function passed to
 	// VectorDistance(). Optional: defaults to [DistanceCosine].
@@ -128,7 +127,7 @@ type Store struct {
 	embeddingField   string
 	partitionKeyPath string
 	embeddingClient  *embeddingclient.Client
-	documentBatcher  vectorstores.Batcher
+	documentBatcher  vectorstore.Batcher
 	distanceFunc     DistanceFunction
 }
 

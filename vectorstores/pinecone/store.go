@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
@@ -60,7 +59,7 @@ type StoreConfig struct {
 
 	// DocumentBatcher is responsible for batching documents before insertion.
 	// Required: must be provided.
-	DocumentBatcher vectorstores.Batcher
+	DocumentBatcher vectorstore.Batcher
 
 	// DistanceMetric must match the metric used when the index was created.
 	// Required because Pinecone returns metric-specific raw scores.
@@ -101,7 +100,7 @@ var (
 type Store struct {
 	index           *pinecone.IndexConnection
 	embeddingClient *embeddingclient.Client
-	documentBatcher vectorstores.Batcher
+	documentBatcher vectorstore.Batcher
 	distanceMetric  DistanceMetric
 }
 

@@ -16,7 +16,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
@@ -58,7 +57,7 @@ type StoreConfig struct {
 
 	// DocumentBatcher is responsible for batching documents before insertion.
 	// Required: must be provided.
-	DocumentBatcher vectorstores.Batcher
+	DocumentBatcher vectorstore.Batcher
 
 	// MetricType is the similarity metric used when creating the vector index.
 	// Optional: defaults to entity.COSINE.
@@ -104,7 +103,7 @@ var (
 type Store struct {
 	client           *milvusclient.Client
 	embeddingClient  *embeddingclient.Client
-	documentBatcher  vectorstores.Batcher
+	documentBatcher  vectorstore.Batcher
 	collectionName   string
 	metricType       entity.MetricType
 	initializeSchema bool

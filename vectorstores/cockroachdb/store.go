@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
 	"github.com/Tangerg/lynx/vectorstores/internal/pgstore"
@@ -46,7 +45,7 @@ type StoreConfig struct {
 	IndexName        string
 	MetadataColumn   string
 	EmbeddingModel   embedding.Model
-	DocumentBatcher  vectorstores.Batcher
+	DocumentBatcher  vectorstore.Batcher
 	Dimensions       int
 	DistanceMetric   DistanceMetric
 	InitializeSchema bool

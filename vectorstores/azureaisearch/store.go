@@ -18,7 +18,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
@@ -89,7 +88,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before upsert. Required.
-	DocumentBatcher vectorstores.Batcher
+	DocumentBatcher vectorstore.Batcher
 
 	// SimilarityMetric must match the metric in the index's vector-search
 	// algorithm configuration. Required because @search.score is metric-specific.
@@ -158,7 +157,7 @@ type Store struct {
 	embeddingField   string
 	vectorProfile    string
 	embeddingClient  *embeddingclient.Client
-	documentBatcher  vectorstores.Batcher
+	documentBatcher  vectorstore.Batcher
 	similarityMetric SimilarityMetric
 	httpClient       *http.Client
 }

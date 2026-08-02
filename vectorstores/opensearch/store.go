@@ -17,7 +17,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
@@ -106,7 +105,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before bulk upsert. Required.
-	DocumentBatcher vectorstores.Batcher
+	DocumentBatcher vectorstore.Batcher
 
 	// Dimensions sets the knn_vector width for a newly created index. When zero,
 	// the store probes EmbeddingModel only if it must create the index.
@@ -197,7 +196,7 @@ type Store struct {
 	contentField    string
 	metadataField   string
 	embeddingClient *embeddingclient.Client
-	documentBatcher vectorstores.Batcher
+	documentBatcher vectorstore.Batcher
 	dimensions      int
 	spaceType       SpaceType
 	engine          Engine

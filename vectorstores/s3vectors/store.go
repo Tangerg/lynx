@@ -17,7 +17,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
@@ -46,7 +45,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before upload. Required.
-	DocumentBatcher vectorstores.Batcher
+	DocumentBatcher vectorstore.Batcher
 
 	// DistanceMetric records the metric the index was created with —
 	// the store uses this only to map the raw distance returned by
@@ -107,7 +106,7 @@ type Store struct {
 	vectorBucketName string
 	indexName        string
 	embeddingClient  *embeddingclient.Client
-	documentBatcher  vectorstores.Batcher
+	documentBatcher  vectorstore.Batcher
 	distanceMetric   DistanceMetric
 }
 

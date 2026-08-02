@@ -16,7 +16,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
@@ -87,7 +86,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before upsert. Required.
-	DocumentBatcher vectorstores.Batcher
+	DocumentBatcher vectorstore.Batcher
 
 	// Dimensions is the embedding width written into a new search-index
 	// definition. When zero and InitializeSchema is true, the store probes
@@ -159,7 +158,7 @@ type Store struct {
 	metadataField          string
 	metadataFieldsToFilter []string
 	embeddingClient        *embeddingclient.Client
-	documentBatcher        vectorstores.Batcher
+	documentBatcher        vectorstore.Batcher
 	dimensions             int
 	similarity             Similarity
 	numCandidates          int

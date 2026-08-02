@@ -15,7 +15,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/scores"
@@ -72,7 +71,7 @@ type StoreConfig struct {
 	// DocumentBatcher is responsible for batching documents before insertion.
 	// This helps optimize bulk operations and embedding generation.
 	// Required: must be provided to handle document batching logic.
-	DocumentBatcher vectorstores.Batcher
+	DocumentBatcher vectorstore.Batcher
 }
 
 func (c StoreConfig) Validate() error {
@@ -104,7 +103,7 @@ var (
 type Store struct {
 	client           *qdrant.Client
 	embeddingClient  *embeddingclient.Client
-	documentBatcher  vectorstores.Batcher
+	documentBatcher  vectorstore.Batcher
 	collectionName   string
 	distanceMetric   DistanceMetric
 	initializeSchema bool

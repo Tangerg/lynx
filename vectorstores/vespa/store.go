@@ -18,7 +18,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/batching"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
@@ -87,7 +86,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before upload. Required.
-	DocumentBatcher vectorstores.Batcher
+	DocumentBatcher vectorstore.Batcher
 
 	// HTTPClient lets callers override transport (timeouts,
 	// proxies, mTLS for Vespa Cloud). Optional: defaults to
@@ -161,7 +160,7 @@ type Store struct {
 	queryTensorName string
 	rankingProfile  string
 	embeddingClient *embeddingclient.Client
-	documentBatcher vectorstores.Batcher
+	documentBatcher vectorstore.Batcher
 	httpClient      *http.Client
 }
 

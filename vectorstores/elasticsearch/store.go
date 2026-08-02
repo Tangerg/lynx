@@ -12,7 +12,6 @@ import (
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores"
 )
 
 const Provider = "Elasticsearch"
@@ -72,7 +71,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before bulk upsert. Required.
-	DocumentBatcher vectorstores.Batcher
+	DocumentBatcher vectorstore.Batcher
 
 	// Dimensions sets the dense_vector width for a newly created index. When
 	// zero, the store probes EmbeddingModel only if it must create the index.
@@ -146,7 +145,7 @@ type Store struct {
 	contentField     string
 	metadataField    string
 	embeddingClient  *embeddingclient.Client
-	documentBatcher  vectorstores.Batcher
+	documentBatcher  vectorstore.Batcher
 	dimensions       int
 	similarity       SimilarityFunction
 	numCandidatesMul float64

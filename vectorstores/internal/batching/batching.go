@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/vectorstores"
+	"github.com/Tangerg/lynx/core/vectorstore"
 )
 
 // ErrInvalidOutput identifies a Batcher result that is not an order-
@@ -19,7 +19,7 @@ var ErrInvalidOutput = errors.New("vectorstores.batching: invalid batcher output
 // input document exactly once, in order, without empty batches.
 func Batch(
 	ctx context.Context,
-	batcher vectorstores.Batcher,
+	batcher vectorstore.Batcher,
 	documents []*document.Document,
 ) ([][]*document.Document, error) {
 	if batcher == nil {
