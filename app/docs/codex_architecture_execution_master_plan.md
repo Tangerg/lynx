@@ -20,8 +20,8 @@
 > P31 实施提交：`60729739f`、`14aae8eda`、`1ff0c8db6`、`277f36b72`、`12998274d`、`01177233f`、`9a2c9222a`
 > 当前主任务：无；P31 已闭环，后续并发、RAG 或 Agent authoring 变更必须通过本节反向不变量
 > 执行进度：`W2–W8 DONE · P25–P31 DONE`
-> 当前协议：`protocol.current = protocol.minSupported = "2026-07-27"`
-> 当前 Artifact：`SessionArtifactVersion = 7`
+> 当前协议：`protocol.current = protocol.minSupported = "2026-08-02"`
+> 当前 Artifact：`SessionArtifactVersion = 9`
 > 当前 Store：`schemaEpoch = 50`
 
 ## 0. 文档职责
@@ -33,10 +33,12 @@
 - 当前真实进度、下一任务、验收门禁和提交纪律；
 - 跨专项计划的关键路径、风险和已经接受的决策。
 
-本文**不是第三份协议规范**，也不复制字段级 wire shape。文档权威顺序如下：
+本文**不是第三份协议规范**，也不复制字段级 wire shape。协议权威顺序如下：
 
-1. [`codex_runtime_protocol_vnext_final.md`](codex_runtime_protocol_vnext_final.md)
-   唯一目标契约，回答“最终 API 与协议语义是什么”。
+1. [`API.md`](../desktop/docs/protocol/API.md)、
+   [`AUX_API.md`](../desktop/docs/protocol/AUX_API.md) 与
+   [`TRANSPORT.md`](../desktop/docs/protocol/TRANSPORT.md)
+   定义现行语义；Contract Registry 及其生成物定义字段、方法、能力、错误和约束。
 2. 本文
    总执行台账，回答“为什么做、先做什么、做到哪了、何时算完成”。
 3. [`codex_runtime_protocol_conformance_plan.md`](codex_runtime_protocol_conformance_plan.md)
@@ -53,7 +55,8 @@
    各模块的现行架构基准。
 8. Contract Registry、生成物、源码、测试和 Git
    证明“当前实现实际上是什么”。
-9. `PROTOCOL_DESIGN.md`、`PROTOCOL_VNEXT_REVIEW.md`、
+9. [`codex_runtime_protocol_2026_07_27_archive.md`](codex_runtime_protocol_2026_07_27_archive.md)、
+   `PROTOCOL_DESIGN.md`、`PROTOCOL_VNEXT_REVIEW.md`、
    `VNEXT_IMPLEMENTATION_PLAN.md` 与各类 comparison 文档
    保留为决策历史和证据，不再承担当前进度总账。
 

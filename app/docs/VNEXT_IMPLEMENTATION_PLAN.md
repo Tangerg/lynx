@@ -1,11 +1,16 @@
 # Lyra Runtime vNext —— 实施计划与进度台账
 
-> **这份文档的职责**：把 [`codex_runtime_protocol_vnext_final.md`](codex_runtime_protocol_vnext_final.md)（冻结契约）翻译成可执行、可复查、跨 session 不跑偏的实施台账。
+> **状态：历史归档 / 已完成。** 本文记录 2026-07-27 vNext 切换过程，不是现行协议或待办入口；
+> 文中的“目标”“当前”和版本差异均以当时审计基线为语境。现行语义以
+> [`API.md`](../desktop/docs/protocol/API.md)、[`AUX_API.md`](../desktop/docs/protocol/AUX_API.md)、
+> [`TRANSPORT.md`](../desktop/docs/protocol/TRANSPORT.md) 与 Contract Registry 生成物为准。
 >
-> 契约回答「vNext 要长什么样」；**本文回答「怎么做到、做到哪了、为什么这样切」**。
+> **这份文档的历史职责**：把 [`codex_runtime_protocol_2026_07_27_archive.md`](codex_runtime_protocol_2026_07_27_archive.md)（当时的冻结契约）翻译成可执行、可复查、跨 session 不跑偏的实施台账。
 >
-> - 契约是唯一目标基线。本文与契约冲突时，**改本文**。
-> - 本文与代码冲突时，**改代码**（契约 §0.8：当前代码与旧文档的差异都是待修正项，不构成弱化目标的理由）。
+> 当时的契约回答「vNext 要长什么样」；**本文回答「怎么做到、做到哪了、为什么这样切」**。
+>
+> - 当时的冻结稿是该次切换的唯一目标基线；这条权威关系不延续到现行开发。
+> - 本文与当时代码冲突时，要求改代码（冻结稿 §0.8）；这是一条历史执行纪律。
 > - 审计事实标注日期。带行号的引用是**当时**的证据，行号会漂移，语义不会。
 
 **审计基线日期**：2026-07-28
@@ -1248,7 +1253,7 @@ A ──→ A′ (4 slice, 修现役泄露, 落 main) ──┬─→ B  (Regist
 
 ## 附：参考
 
-- [`codex_runtime_protocol_vnext_final.md`](codex_runtime_protocol_vnext_final.md) —— **冻结契约，唯一目标基线**
+- [`codex_runtime_protocol_2026_07_27_archive.md`](codex_runtime_protocol_2026_07_27_archive.md) —— **当时的冻结契约与目标基线（历史归档）**
 - [`PROTOCOL_DESIGN.md`](PROTOCOL_DESIGN.md) —— 决策历史
 - [`PROTOCOL_VNEXT_REVIEW.md`](PROTOCOL_VNEXT_REVIEW.md) —— 八轮评审
 - [`codex_runtime_api_design_guide.md`](codex_runtime_api_design_guide.md)

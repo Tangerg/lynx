@@ -1,7 +1,9 @@
 # Lyra Runtime API 最终一致性收口计划
 
 > 作者：Codex
-> 状态：`A-TRACK DONE / B1 DONE`
+> 状态：`ARCHIVED / A-TRACK DONE / B1 DONE`
+> 文档地位：历史实施台账；版本、Artifact 与“目标契约”表述均描述 2026-07-29
+> 收口现场，不覆盖现行 canonical 协议与 Contract Registry。
 > 建档日期：2026-07-29
 > 审计基线：`main@f4dd8193c`
 > 收口基线：A7 原子提交（见 §17）
@@ -19,20 +21,20 @@
 - 后续实施顺序、每个 slice 的边界和验收标准；
 - 进度、证据、决策与风险。
 
-文档职责按以下优先级划分：
+当时的文档职责按以下优先级划分：
 
-1. [`codex_runtime_protocol_vnext_final.md`](codex_runtime_protocol_vnext_final.md)
-   是唯一目标契约，回答“最终协议必须是什么”。
+1. [`codex_runtime_protocol_2026_07_27_archive.md`](codex_runtime_protocol_2026_07_27_archive.md)
+   是该次收口的目标契约；现已归档，不再约束后续演进。
 2. 本文是当前实施台账，回答“距离目标还差什么、怎么完成、做到哪了”。
 3. Contract Registry、生成物和代码是实施事实，证明“当前实际上是什么”。
 4. [`VNEXT_IMPLEMENTATION_PLAN.md`](VNEXT_IMPLEMENTATION_PLAN.md)
    保留为上一轮切换过程和历史决策记录；其中的 `DONE` 表示对应实施 slice
    已经交付，不再等同于“冻结契约逐条一致性已经证明”。
-5. `app/desktop/docs/protocol/` 描述已交付协议。每个 slice 完成时必须随代码和生成物
-   同步更新，禁止长期领先或落后于实现。
+5. `app/desktop/docs/protocol/` 描述已交付协议；它与 Contract Registry 生成物现为
+   当前开发的权威入口。
 
-若本文与冻结契约冲突，修改本文；若代码与冻结契约冲突，修改代码。不得以当前实现、
-已有测试或生成物为理由弱化目标。
+在该次收口期间，若本文与冻结契约冲突则修改本文，若代码与冻结契约冲突则修改代码。
+这条规则只描述历史执行现场；今天的冲突以 canonical 协议和 Registry 为准。
 
 ---
 
@@ -618,7 +620,7 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
 
 | 事实面 | 核对内容 | 结论 / 证据 |
 |---|---|---|
-| 冻结契约 | `codex_runtime_protocol_vnext_final.md` 的方法、shape、能力、错误与版本 | `PASS` |
+| 冻结契约 | `codex_runtime_protocol_2026_07_27_archive.md` 的方法、shape、能力、错误与版本 | `PASS` |
 | Registry / Go wire | method、union、presence、value、feature、error metadata 与 DTO | `PASS`；Interrupt/set id 非空约束进入 Registry |
 | application / delivery | start → steer → wait/resume → cancel；presenter 与 durable projection | `PASS`；真实 composition root + fresh SQLite + cold restart |
 | wire boundaries | request、response、Problem、RunEvent、RuntimeEvent 的嵌套 DTO | `PASS`；统一 `ValidateWireTree` 递归组合生成规则 |
@@ -1265,7 +1267,7 @@ A-track 只有同时满足以下条件才能标记 `DONE`：
     均未变化；
   - 内部 executor port 的 `UsageReported/TurnUsage` 增加 authoritative
     `Steps/ByModel`，用于构造既不猜测也不丢明细的 Run 累计 snapshot；
-  - `codex_runtime_protocol_vnext_final.md` 明确冻结 `steps` 的模型调用口径。
+  - `codex_runtime_protocol_2026_07_27_archive.md` 当时明确冻结 `steps` 的模型调用口径。
 - 验证：
   - `cd app/runtime && go test ./...` → `PASS`
   - `cd app/runtime && go vet ./... && staticcheck ./...` → `PASS`

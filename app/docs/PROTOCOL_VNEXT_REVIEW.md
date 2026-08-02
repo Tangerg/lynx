@@ -1,6 +1,9 @@
-# vNext 定稿评审意见（第八轮 · 放行）
+# vNext 定稿评审意见（第八轮 · 放行 · 历史归档）
 
-> **评审对象**：[`codex_runtime_protocol_vnext_final.md`](codex_runtime_protocol_vnext_final.md) 第八版冻结稿（新增 §0.7 七轮裁决 · `StateSnapshotScope` / `StateSnapshotWriter` · typed 闭合 `StateSnapshot` · scoped state `revision` · 第九个 topic `state.changed` · final snapshot fence · per-Run-tree profile 措辞 · 跨层 metrics 无定义规则）。
+> **状态：历史评审记录。** 结论只针对 2026-07-27 冻结稿，不是现行协议意见；现行契约见
+> [`API.md`](../desktop/docs/protocol/API.md) 及其关联 canonical 文档与 Registry 生成物。
+>
+> **评审对象**：[`codex_runtime_protocol_2026_07_27_archive.md`](codex_runtime_protocol_2026_07_27_archive.md) 第八版冻结稿（新增 §0.7 七轮裁决 · `StateSnapshotScope` / `StateSnapshotWriter` · typed 闭合 `StateSnapshot` · scoped state `revision` · 第九个 topic `state.changed` · final snapshot fence · per-Run-tree profile 措辞 · 跨层 metrics 无定义规则）。
 >
 > **本轮性质**：这是**放行评审**，不是继续挑刺。我只做两件事：核实第七轮 6 项是否真的落进 shape，以及给出**能不能冻结**的判断。
 >

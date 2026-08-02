@@ -1,4 +1,12 @@
-# Lyra Runtime Protocol vNext 定稿
+# Lyra Runtime Protocol 2026-07-27 冻结稿（历史归档）
+
+> **状态：历史归档，不是现行协议，也不得作为新改动的目标契约。** 本文原样保留
+> 2026-07-27 切换时的设计裁决与验收基线，因此正文中的版本号、Artifact 版本和
+> “最终”“唯一”等表述都只描述当时。现行语义以
+> [`API.md`](../desktop/docs/protocol/API.md)、
+> [`AUX_API.md`](../desktop/docs/protocol/AUX_API.md)、
+> [`TRANSPORT.md`](../desktop/docs/protocol/TRANSPORT.md) 为准；字段、方法、能力、错误与
+> 约束以 Contract Registry 及其生成物为准。
 
 > 作者：Codex
 > 定稿日期：2026-07-27
@@ -170,7 +178,7 @@ fence、`state.changed`、metrics 边界与 per-Run-tree profile，结论为**�
 
 从此处起，“冻结”具有以下精确含义：
 
-- 本文是 vNext 实现、生成物与验收的唯一目标基线；当前代码与旧文档的差异都是待
+- 在 2026-07-27 切换中，本文是 vNext 实现、生成物与验收的唯一目标基线；当时代码与旧文档的差异都是待
   修正项，不构成弱化目标契约的理由；
 - 实现阶段发现普通落地困难时，调整 execution/store/SDK/UI，不添加旧 decoder、
   alias、默认回填、dual-read/write 或降级事件流；

@@ -25,12 +25,14 @@
 
 权威关系：
 
-1. [`codex_runtime_protocol_vnext_final.md`](codex_runtime_protocol_vnext_final.md)
-   决定 wire、生命周期、错误、capability 与恢复语义；
+1. [`API.md`](../desktop/docs/protocol/API.md)、
+   [`AUX_API.md`](../desktop/docs/protocol/AUX_API.md)、
+   [`TRANSPORT.md`](../desktop/docs/protocol/TRANSPORT.md) 与 Contract Registry 生成物
+   决定现行 wire、生命周期、错误、capability 与恢复语义；
 2. [`codex_architecture_execution_master_plan.md`](codex_architecture_execution_master_plan.md)
    是跨 Agent / Runtime / Desktop 的总台账；
 3. 本文
-   决定 Desktop B1.6 如何消费冻结协议；
+   记录 Desktop B1.6 当时如何消费冻结协议；
 4. [`../desktop/frontend/ARCHITECTURE.md`](../desktop/frontend/ARCHITECTURE.md)、
    [`../desktop/docs/FRONTEND_PLUGIN_CONTEXTS.md`](../desktop/docs/FRONTEND_PLUGIN_CONTEXTS.md) 与
    [`../desktop/docs/FRONTEND_AGENT_WORKSPACE_MODEL.md`](../desktop/docs/FRONTEND_AGENT_WORKSPACE_MODEL.md)
