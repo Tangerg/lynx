@@ -10,7 +10,7 @@ import (
 // ListMemory enumerates LYRA.md entries across scopes (API.md §7.7).
 // The entire memory.* group is capability-gated, so an unwired store is a
 // capability error rather than a synthetic empty collection.
-func (s *Server) ListMemory(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.MemoryEntry], error) {
+func (s *Server) ListMemory(ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.MemoryEntry], error) {
 	entries, err := s.workspaceKnowledge.ListMemoryEntries(ctx, in.Workspace.Path)
 	if err != nil {
 		return nil, wireWorkspaceError(err)

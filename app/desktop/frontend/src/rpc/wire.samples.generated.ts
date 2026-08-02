@@ -70,7 +70,7 @@ export const WIRE_SAMPLES: readonly WireSample[] = [
   { file: "ws.searchHit.json", shape: "SearchHit" },
   { file: "ws.fileContent.json", shape: "FileContent" },
   { file: "method.getDiff.req.json", shape: "GetDiffRequest" },
-  { file: "method.listFileChanges.req.json", shape: "WorkspaceListQuery" },
+  { file: "method.listFileChanges.req.json", shape: "WorkspaceQuery" },
   { file: "method.listFileChanges.resp.json", shape: "PageOfWorkspaceFileChange" },
   { file: "method.grep.req.json", shape: "GrepRequest" },
   { file: "approvalRule.json", shape: "ApprovalRule" },

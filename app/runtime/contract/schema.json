@@ -3279,12 +3279,6 @@
     "ListModelsRequest": {
       "type": "object",
       "properties": {
-        "cursor": {
-          "type": "string"
-        },
-        "limit": {
-          "type": "integer"
-        },
         "provider": {
           "type": "string"
         }
@@ -3342,12 +3336,6 @@
     "MCPListToolsRequest": {
       "type": "object",
       "properties": {
-        "cursor": {
-          "type": "string"
-        },
-        "limit": {
-          "type": "integer"
-        },
         "server": {
           "type": "string"
         }
@@ -8161,15 +8149,9 @@
         "ref"
       ]
     },
-    "WorkspaceListQuery": {
+    "WorkspaceQuery": {
       "type": "object",
       "properties": {
-        "cursor": {
-          "type": "string"
-        },
-        "limit": {
-          "type": "integer"
-        },
         "workspace": {
           "$ref": "#/$defs/WorkspaceRef"
         }

@@ -126,7 +126,7 @@ import type {
   UsageSummaryRequest,
   UtilityRole,
   WorkspaceInfo,
-  WorkspaceListQuery,
+  WorkspaceQuery,
 } from "./wire.generated";
 
 // Every capability key discovery may advertise (API.md §9). Private: it exists to
@@ -491,13 +491,13 @@ export const WIRE_METHOD_POLICY = {
     operation: "query",
     response: "unary",
     idempotency: "none",
-    pagination: "cursor",
+    pagination: "none",
   },
   "workspace.changes.list": {
     operation: "query",
     response: "unary",
     idempotency: "none",
-    pagination: "cursor",
+    pagination: "none",
   },
   "workspace.diff.get": {
     operation: "query",
@@ -539,13 +539,13 @@ export const WIRE_METHOD_POLICY = {
     operation: "query",
     response: "unary",
     idempotency: "none",
-    pagination: "cursor",
+    pagination: "none",
   },
   "skills.library.list": {
     operation: "query",
     response: "unary",
     idempotency: "none",
-    pagination: "cursor",
+    pagination: "none",
   },
   "skills.library.archive": {
     operation: "command",
@@ -563,7 +563,7 @@ export const WIRE_METHOD_POLICY = {
     operation: "query",
     response: "unary",
     idempotency: "none",
-    pagination: "cursor",
+    pagination: "none",
   },
   "skills.drafts.promote": {
     operation: "command",
@@ -581,19 +581,19 @@ export const WIRE_METHOD_POLICY = {
     operation: "query",
     response: "unary",
     idempotency: "none",
-    pagination: "cursor",
+    pagination: "none",
   },
   "agentDocs.list": {
     operation: "query",
     response: "unary",
     idempotency: "none",
-    pagination: "cursor",
+    pagination: "none",
   },
   "mcp.servers.list": {
     operation: "query",
     response: "unary",
     idempotency: "none",
-    pagination: "cursor",
+    pagination: "none",
   },
   "mcp.servers.create": {
     operation: "command",
@@ -623,7 +623,7 @@ export const WIRE_METHOD_POLICY = {
     operation: "query",
     response: "unary",
     idempotency: "none",
-    pagination: "cursor",
+    pagination: "none",
   },
   "mcp.servers.reconnect": {
     operation: "command",
@@ -755,7 +755,7 @@ export const WIRE_METHOD_POLICY = {
     operation: "query",
     response: "unary",
     idempotency: "none",
-    pagination: "cursor",
+    pagination: "none",
   },
   "providers.update": {
     operation: "command",
@@ -773,7 +773,7 @@ export const WIRE_METHOD_POLICY = {
     operation: "query",
     response: "unary",
     idempotency: "none",
-    pagination: "cursor",
+    pagination: "none",
   },
   "models.getUtilityRole": {
     operation: "query",
@@ -803,7 +803,7 @@ export const WIRE_METHOD_POLICY = {
     operation: "query",
     response: "unary",
     idempotency: "none",
-    pagination: "cursor",
+    pagination: "none",
   },
   "tools.invoke": {
     operation: "command",
@@ -827,7 +827,7 @@ export const WIRE_METHOD_POLICY = {
     operation: "query",
     response: "unary",
     idempotency: "none",
-    pagination: "cursor",
+    pagination: "none",
   },
   "memory.get": {
     operation: "query",
@@ -1086,24 +1086,24 @@ export interface WireShapes {
   "todos.get": { params: GetTodosRequest; result: StateSnapshot };
   "items.list": { params: ListItemsRequest; result: ListItemsResponse };
   "workspaces.resolve": { params: ResolveWorkspaceRequest; result: WorkspaceInfo };
-  "workspaces.list": { params: PageQuery; result: PageOfWorkspaceSummary };
-  "workspace.changes.list": { params: WorkspaceListQuery; result: PageOfWorkspaceFileChange };
+  "workspaces.list": { params: Record<string, never>; result: PageOfWorkspaceSummary };
+  "workspace.changes.list": { params: WorkspaceQuery; result: PageOfWorkspaceFileChange };
   "workspace.diff.get": { params: GetDiffRequest; result: Diff };
   "workspace.files.head": { params: GetFileHeadRequest; result: FileHead };
   "workspace.files.search": { params: GrepRequest; result: GrepResult };
   "workspace.files.list": { params: ListFilesRequest; result: PageOfFileEntry };
   "workspace.files.read": { params: ReadFileRequest; result: FileContent };
   "runtime.subscribe": { params: RuntimeSubscribeRequest; result: RuntimeSubscribeResponse };
-  "skills.discovered.list": { params: WorkspaceListQuery; result: PageOfSkill };
-  "skills.library.list": { params: PageQuery; result: PageOfManagedSkill };
+  "skills.discovered.list": { params: WorkspaceQuery; result: PageOfSkill };
+  "skills.library.list": { params: Record<string, never>; result: PageOfManagedSkill };
   "skills.library.archive": { params: SkillNameRequest };
   "skills.library.restore": { params: SkillNameRequest };
-  "skills.drafts.list": { params: PageQuery; result: PageOfSkillDraft };
+  "skills.drafts.list": { params: Record<string, never>; result: PageOfSkillDraft };
   "skills.drafts.promote": { params: SkillDraftRef };
   "skills.drafts.reject": { params: SkillDraftRef };
-  "recipes.list": { params: WorkspaceListQuery; result: PageOfRecipe };
-  "agentDocs.list": { params: WorkspaceListQuery; result: PageOfAgentDoc };
-  "mcp.servers.list": { params: PageQuery; result: PageOfMcpServer };
+  "recipes.list": { params: WorkspaceQuery; result: PageOfRecipe };
+  "agentDocs.list": { params: WorkspaceQuery; result: PageOfAgentDoc };
+  "mcp.servers.list": { params: Record<string, never>; result: PageOfMcpServer };
   "mcp.servers.create": { params: MCPServerCandidate; result: McpServer };
   "mcp.servers.update": { params: UpdateMCPServerRequest; result: McpServer };
   "mcp.servers.delete": { params: MCPServerRequest };
@@ -1130,7 +1130,7 @@ export interface WireShapes {
   "codebase.search": { params: CodebaseSearchRequest; result: CodebaseSearchResult };
   "codebase.status": { params: CodebaseStatusRequest; result: CodebaseStatus };
   "codebase.reindex": { params: CodebaseReindexRequest; result: CodebaseReindexResponse };
-  "providers.list": { params: PageQuery; result: PageOfProvider };
+  "providers.list": { params: Record<string, never>; result: PageOfProvider };
   "providers.update": { params: UpdateProviderRequest; result: Provider };
   "providers.test": { params: TestProviderRequest; result: ProviderTestResult };
   "models.list": { params: ListModelsRequest; result: PageOfModel };
@@ -1138,11 +1138,11 @@ export interface WireShapes {
   "models.setUtilityRole": { params: UtilityRole; result: UtilityRole };
   "models.getEmbeddingRole": { params: Record<string, never>; result: EmbeddingRole };
   "models.setEmbeddingRole": { params: EmbeddingRole; result: EmbeddingRole };
-  "tools.list": { params: PageQuery; result: PageOfToolSpec };
+  "tools.list": { params: Record<string, never>; result: PageOfToolSpec };
   "tools.invoke": { params: InvokeToolRequest; result: unknown };
   "usage.session": { params: SessionUsageRequest; result: Usage };
   "usage.summary": { params: UsageSummaryRequest; result: UsageSummary };
-  "memory.list": { params: WorkspaceListQuery; result: PageOfMemoryEntry };
+  "memory.list": { params: WorkspaceQuery; result: PageOfMemoryEntry };
   "memory.get": { params: GetMemoryRequest; result: MemoryEntry };
   "memory.update": { params: UpdateMemoryRequest };
   "agentMemory.list": { params: AgentMemoryListRequest; result: AgentMemoryList };

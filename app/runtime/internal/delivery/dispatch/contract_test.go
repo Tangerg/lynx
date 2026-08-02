@@ -122,7 +122,7 @@ func (r *capabilityRuntime) SubscribeRuntime(context.Context, protocol.RuntimeSu
 	return &protocol.RuntimeSubscribeResponse{}, func(func(protocol.RuntimeEvent) bool) {}, nil
 }
 
-func (r *capabilityRuntime) ListMemory(context.Context, protocol.WorkspaceListQuery) (*protocol.Page[protocol.MemoryEntry], error) {
+func (r *capabilityRuntime) ListMemory(context.Context, protocol.WorkspaceQuery) (*protocol.Page[protocol.MemoryEntry], error) {
 	return protocol.NewPage([]protocol.MemoryEntry{}), nil
 }
 

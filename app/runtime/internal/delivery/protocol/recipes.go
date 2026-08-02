@@ -4,7 +4,7 @@ import "context"
 
 // Recipes is the recipes.* method group.
 type Recipes interface {
-	ListRecipes(ctx context.Context, in WorkspaceListQuery) (*Page[Recipe], error)
+	ListRecipes(ctx context.Context, in WorkspaceQuery) (*Page[Recipe], error)
 }
 
 // Recipe-discovery wire types (recipes.list, API.md §7.5). A recipe is

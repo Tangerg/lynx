@@ -21,8 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
-	"strings"
+	"slices"
 )
 
 // ErrInvalidCursor reports a cursor that cannot continue this query: damaged,
@@ -40,11 +39,6 @@ var ErrInvalidLimit = errors.New("keyset: page limit is invalid")
 // an upgrade is rejected instead of decoded as something else.
 const formatVersion = 1
 
-// unitSeparator joins filter values into one fingerprint input. It cannot appear
-// in an id, a path, or a sort mode, so no two distinct filter sets collide by
-// concatenation.
-const unitSeparator = "\x1f"
-
 // Page is one keyset page: the rows, and the token that continues after them.
 // An empty NextCursor means the page reached the end of the collection — the
 // caller returns it as-is and never truncates a page silently.
@@ -58,7 +52,7 @@ type Page[T any] struct {
 type token struct {
 	Version int      `json:"v"`
 	Method  string   `json:"m"`
-	Filters uint64   `json:"f"`
+	Filters []string `json:"f,omitempty"`
 	Key     []string `json:"k"`
 }
 
@@ -69,7 +63,7 @@ type token struct {
 func Encode(method string, filters []string, key []string) string {
 	payload, err := json.Marshal(token{
 		Version: formatVersion, Method: method,
-		Filters: fingerprint(filters), Key: key,
+		Filters: slices.Clone(filters), Key: key,
 	})
 	if err != nil {
 		// token holds only strings, ints and a string slice, so marshaling it
@@ -95,15 +89,14 @@ func Decode(cursor, method string, filters []string) ([]string, error) {
 		return nil, ErrInvalidCursor
 	}
 	if decoded.Version != formatVersion || decoded.Method != method ||
-		decoded.Filters != fingerprint(filters) || len(decoded.Key) == 0 {
+		!slices.Equal(decoded.Filters, filters) || len(decoded.Key) == 0 {
 		return nil, ErrInvalidCursor
 	}
 	return decoded.Key, nil
 }
 
-// Limit clamps a requested page size. Zero or negative asks for the default,
-// which is also the ceiling: a caller cannot widen a page beyond what the read
-// is willing to serve, and gets a cursor instead.
+// Limit validates and clamps a requested page size. Zero asks for the default,
+// which is also the ceiling; a negative value is invalid.
 func Limit(requested, max int) (int, error) {
 	if requested < 0 {
 		return 0, fmt.Errorf("%w: must not be negative", ErrInvalidLimit)
@@ -127,12 +120,4 @@ func PageOf[T any](rows []T, limit int, method string, filters []string, nextKey
 		Rows:       page,
 		NextCursor: Encode(method, filters, nextKey(page[len(page)-1])),
 	}
-}
-
-func fingerprint(filters []string) uint64 {
-	digest := fnv.New64a()
-	// Join rather than hashing each value in turn: separate writes make
-	// {"a","bc"} and {"ab","c"} the same input, and those are different queries.
-	_, _ = digest.Write([]byte(strings.Join(filters, unitSeparator)))
-	return digest.Sum64()
 }

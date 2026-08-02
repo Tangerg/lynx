@@ -13,7 +13,7 @@ import (
 
 // ListMCPServers returns the single authoritative MCP resource collection:
 // durable configuration enriched with current live state.
-func (s *Server) ListMCPServers(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServer], error) {
+func (s *Server) ListMCPServers(ctx context.Context) (*protocol.Page[protocol.McpServer], error) {
 	servers, err := s.integrations.MCPServers(ctx)
 	if err != nil {
 		return nil, err

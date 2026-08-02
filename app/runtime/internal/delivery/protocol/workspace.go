@@ -10,8 +10,8 @@ import (
 // methods carry an explicit WorkspaceRef; resolve/list are the discovery roots.
 type Workspace interface {
 	ResolveWorkspace(ctx context.Context, in ResolveWorkspaceRequest) (*WorkspaceInfo, error)
-	ListWorkspaces(ctx context.Context, q PageQuery) (*Page[WorkspaceSummary], error)
-	ListWorkspaceFileChanges(ctx context.Context, in WorkspaceListQuery) (*Page[WorkspaceFileChange], error)
+	ListWorkspaces(ctx context.Context) (*Page[WorkspaceSummary], error)
+	ListWorkspaceFileChanges(ctx context.Context, in WorkspaceQuery) (*Page[WorkspaceFileChange], error)
 	GetWorkspaceDiff(ctx context.Context, in GetDiffRequest) (*Diff, error)
 	GetWorkspaceFileHead(ctx context.Context, in GetFileHeadRequest) (*FileHead, error)
 	GrepWorkspace(ctx context.Context, in GrepRequest) (*GrepResult, error)

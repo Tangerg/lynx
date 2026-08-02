@@ -25,7 +25,7 @@ func (s *Server) ResolveWorkspace(_ context.Context, in protocol.ResolveWorkspac
 
 // ListWorkspaces projects the application-owned distinct-workspace view
 // derived from user-facing sessions.
-func (s *Server) ListWorkspaces(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.WorkspaceSummary], error) {
+func (s *Server) ListWorkspaces(ctx context.Context) (*protocol.Page[protocol.WorkspaceSummary], error) {
 	workspaces, err := s.workspaceDiscovery.ListWorkspaces(ctx)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
@@ -52,7 +52,7 @@ func workspaceInfoToWire(path, projectRoot string, missing bool) protocol.Worksp
 }
 
 // ListDiscoveredSkills maps application skill discovery to the protocol shape.
-func (s *Server) ListDiscoveredSkills(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Skill], error) {
+func (s *Server) ListDiscoveredSkills(ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.Skill], error) {
 	found, err := s.workspaceSkills.ListSkills(ctx, in.Workspace.Path)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
@@ -69,7 +69,7 @@ func (s *Server) ListDiscoveredSkills(ctx context.Context, in protocol.Workspace
 }
 
 // ListRecipes maps application recipe discovery to the protocol shape.
-func (s *Server) ListRecipes(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Recipe], error) {
+func (s *Server) ListRecipes(ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.Recipe], error) {
 	found, err := s.workspaceDiscovery.ListRecipes(ctx, in.Workspace.Path)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
@@ -90,7 +90,7 @@ func (s *Server) ListRecipes(ctx context.Context, in protocol.WorkspaceListQuery
 
 // ListAgentDocs maps the application-owned instruction-document
 // cascade onto the protocol shape.
-func (s *Server) ListAgentDocs(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.AgentDoc], error) {
+func (s *Server) ListAgentDocs(ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.AgentDoc], error) {
 	docs, err := s.workspaceDiscovery.ListAgentDocs(ctx, in.Workspace.Path)
 	if err != nil {
 		return nil, wireWorkspaceError(err)

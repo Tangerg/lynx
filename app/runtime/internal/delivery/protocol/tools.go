@@ -5,7 +5,7 @@ import "context"
 // Tools is the tools.* method group. These methods expose the deliberately
 // small direct-diagnostics surface; agent-run tools remain owned by Runs.
 type Tools interface {
-	ListTools(ctx context.Context, q PageQuery) (*Page[ToolSpec], error)
+	ListTools(ctx context.Context) (*Page[ToolSpec], error)
 	InvokeTool(ctx context.Context, in InvokeToolRequest) (any, error)
 }
 

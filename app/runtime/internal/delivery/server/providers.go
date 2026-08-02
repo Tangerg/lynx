@@ -10,7 +10,7 @@ import (
 
 // ListProviders projects the application-owned supported-provider set onto the
 // protocol page. The application combines static support and runtime state.
-func (s *Server) ListProviders(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Provider], error) {
+func (s *Server) ListProviders(ctx context.Context) (*protocol.Page[protocol.Provider], error) {
 	providers, err := s.models.ListProviders(ctx)
 	if err != nil {
 		return nil, err

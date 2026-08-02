@@ -161,20 +161,32 @@ func TestMetadataEnumsRejectUnknownValuesWithoutMasqueradingAsDefaults(t *testin
 func TestPaginationIsDerivedFromWireShapes(t *testing.T) {
 	t.Parallel()
 
-	for _, test := range []struct {
-		method string
-		want   PaginationKind
-	}{
-		{method: "sessions.list", want: PaginationCursor},
-		{method: "items.list", want: PaginationCursor},
-		{method: "runs.get", want: PaginationNone},
-	} {
-		method, ok := contract.Lookup(test.method)
-		if !ok {
-			t.Fatalf("%s is not registered", test.method)
+	wantCursor := []string{
+		"interrupts.list",
+		"items.list",
+		"runs.list",
+		"schedules.list",
+		"sessions.list",
+		"workspace.files.list",
+	}
+	var gotCursor []string
+	for _, method := range contract.Metas() {
+		if method.Pagination == PaginationCursor {
+			gotCursor = append(gotCursor, method.Name)
 		}
-		if method.Meta.Pagination != test.want {
-			t.Errorf("%s pagination = %s, want %s", test.method, method.Meta.Pagination, test.want)
+	}
+	slices.Sort(gotCursor)
+	if !slices.Equal(gotCursor, wantCursor) {
+		t.Fatalf("cursor-paginated methods = %v, want %v", gotCursor, wantCursor)
+	}
+
+	for _, name := range []string{"models.list", "providers.list", "runs.get", "tools.list", "workspaces.list"} {
+		method, ok := contract.Lookup(name)
+		if !ok {
+			t.Fatalf("%s is not registered", name)
+		}
+		if method.Meta.Pagination != PaginationNone {
+			t.Errorf("%s pagination = %s, want %s", name, method.Meta.Pagination, PaginationNone)
 		}
 	}
 }

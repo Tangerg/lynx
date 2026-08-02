@@ -151,6 +151,12 @@ func TestWorkspaceListFilesPaginatesInspectedEntries(t *testing.T) {
 	}); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("invalid cursor error = %v, want invalid_params", err)
 	}
+	if _, err := s.ListWorkspaceFiles(context.Background(), protocol.ListFilesRequest{
+		Recursive: false,
+		PageQuery: protocol.PageQuery{Cursor: first.NextCursor, Limit: 1},
+	}); !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("cross-query cursor error = %v, want invalid_params", err)
+	}
 }
 
 func TestWorkspaceReadFileRejectsSymlinkEscape(t *testing.T) {
@@ -269,7 +275,7 @@ func TestListDiscoveredSkills(t *testing.T) {
 		{Name: "pdf", Description: "PDF tools", Scope: "project"},
 		{Name: "web", Description: "web tools", Scope: "global"},
 	}}})
-	got, err := s.ListDiscoveredSkills(context.Background(), protocol.WorkspaceListQuery{})
+	got, err := s.ListDiscoveredSkills(context.Background(), protocol.WorkspaceQuery{})
 	if err != nil {
 		t.Fatalf("listSkills: %v", err)
 	}
@@ -286,7 +292,7 @@ func TestListRecipes(t *testing.T) {
 		{Name: "review", Description: "review diff", Body: "Review $ARGUMENTS", Scope: workspaceapp.RecipeScopeProject, Source: "/p/review.md"},
 		{Name: "commit", Body: "Write a commit", Scope: workspaceapp.RecipeScopeGlobal, Source: "/g/commit.md"},
 	}}})
-	got, err := s.ListRecipes(context.Background(), protocol.WorkspaceListQuery{})
+	got, err := s.ListRecipes(context.Background(), protocol.WorkspaceQuery{})
 	if err != nil {
 		t.Fatalf("listRecipes: %v", err)
 	}
@@ -412,8 +418,8 @@ func TestListAgentDocsRejectsUnavailableCwd(t *testing.T) {
 	s := newWorkspaceServer(t.TempDir())
 	missing := filepath.Join(t.TempDir(), "missing")
 
-	_, err := s.ListAgentDocs(context.Background(), protocol.WorkspaceListQuery{
-		WorkspaceQuery: protocol.WorkspaceQuery{Workspace: protocol.WorkspaceRef{Path: missing}},
+	_, err := s.ListAgentDocs(context.Background(), protocol.WorkspaceQuery{
+		Workspace: protocol.WorkspaceRef{Path: missing},
 	})
 	if !errors.Is(err, protocol.ErrWorkspaceUnavailable) {
 		t.Fatalf("listAgentDocs err = %v, want ErrWorkspaceUnavailable", err)

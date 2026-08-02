@@ -8,8 +8,8 @@ import (
 
 func registerCatalog(r *Registry) {
 	Query(r, MethodMeta{Name: "providers.list", Stability: stable},
-		func(d *Dispatcher, ctx context.Context, in protocol.PageQuery) (*protocol.Page[protocol.Provider], error) {
-			return d.api.ListProviders(ctx, in)
+		func(d *Dispatcher, ctx context.Context, _ struct{}) (*protocol.Page[protocol.Provider], error) {
+			return d.api.ListProviders(ctx)
 		})
 
 	Command(r, MethodMeta{
@@ -56,8 +56,8 @@ func registerCatalog(r *Registry) {
 	})
 
 	Query(r, MethodMeta{Name: "tools.list", Stability: stable},
-		func(d *Dispatcher, ctx context.Context, in protocol.PageQuery) (*protocol.Page[protocol.ToolSpec], error) {
-			return d.api.ListTools(ctx, in)
+		func(d *Dispatcher, ctx context.Context, _ struct{}) (*protocol.Page[protocol.ToolSpec], error) {
+			return d.api.ListTools(ctx)
 		})
 
 	Command(r, MethodMeta{
@@ -93,7 +93,7 @@ func registerMemory(r *Registry) {
 		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureMemory),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.MemoryEntry], error) {
+	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.MemoryEntry], error) {
 		return d.api.ListMemory(ctx, in)
 	})
 

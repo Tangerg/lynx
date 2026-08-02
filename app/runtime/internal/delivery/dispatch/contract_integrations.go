@@ -11,8 +11,8 @@ func registerMCP(r *Registry) {
 		Name:            "mcp.servers.list",
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.PageQuery) (*protocol.Page[protocol.McpServer], error) {
-		return d.api.ListMCPServers(ctx, in)
+	}, func(d *Dispatcher, ctx context.Context, _ struct{}) (*protocol.Page[protocol.McpServer], error) {
+		return d.api.ListMCPServers(ctx)
 	})
 
 	Command(r, MethodMeta{

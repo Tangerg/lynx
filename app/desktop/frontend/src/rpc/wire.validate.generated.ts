@@ -301,7 +301,7 @@ export type WireTypeName =
   | "WorkspaceAvailability"
   | "WorkspaceFileChange"
   | "WorkspaceInfo"
-  | "WorkspaceListQuery"
+  | "WorkspaceQuery"
   | "WorkspaceRef"
   | "WorkspaceSummary"
   ;
@@ -1364,8 +1364,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     runs: array(ref(() => CHECKS.RunSummary)),
   }, ["data", "runs"]),
   ListModelsRequest: object({
-    cursor: text(),
-    limit: integer(),
     provider: text(),
   }, []),
   ListRunsRequest: object({
@@ -1382,8 +1380,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     attemptId: allOf([text(), minLength(1)]),
   }, ["attemptId"]),
   MCPListToolsRequest: object({
-    cursor: text(),
-    limit: integer(),
     server: text(),
   }, []),
   MCPServerCandidate: object({
@@ -3049,9 +3045,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     projectRoot: text(),
     ref: ref(() => CHECKS.WorkspaceRef),
   }, ["availability", "ref"]),
-  WorkspaceListQuery: object({
-    cursor: text(),
-    limit: integer(),
+  WorkspaceQuery: object({
     workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["workspace"]),
   WorkspaceRef: object({

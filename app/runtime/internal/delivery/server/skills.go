@@ -15,7 +15,7 @@ import (
 // (skills.library.list). The library is small, so it comes back in one page
 // (same as skills.discovered.list). capability_not_negotiated when the library
 // curator is disabled.
-func (s *Server) ListManagedSkills(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.ManagedSkill], error) {
+func (s *Server) ListManagedSkills(ctx context.Context) (*protocol.Page[protocol.ManagedSkill], error) {
 	entries, err := s.workspaceSkills.ListManagedSkills(ctx)
 	if err != nil {
 		return nil, mapSkillLibraryErr(err, "skills.library.list")
@@ -75,7 +75,7 @@ func (s *Server) RestoreSkill(ctx context.Context, in protocol.SkillNameRequest)
 // ListSkillDrafts returns the agent-mined skill proposals awaiting
 // review (skills.drafts.list). The draft area is small, so it comes back in one
 // page. capability_not_negotiated when authoring is disabled.
-func (s *Server) ListSkillDrafts(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.SkillDraft], error) {
+func (s *Server) ListSkillDrafts(ctx context.Context) (*protocol.Page[protocol.SkillDraft], error) {
 	drafts, err := s.workspaceSkills.ListSkillDrafts(ctx)
 	if err != nil {
 		return nil, mapSkillDraftErr(err, "skills.drafts.list")

@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -44,5 +45,47 @@ func TestAgentDocScope(t *testing.T) {
 		if got := agentDocScope(test.path, cwd, home); got != test.want {
 			t.Errorf("agentDocScope(%q) = %q, want %q", test.path, got, test.want)
 		}
+	}
+}
+
+// TestFilePagesUseATotalOrderAndBindTheCompleteQuery covers workspace.files.list's
+// query properties: directories precede files and paths make the order total; a
+// next page seeks strictly past the previous sort key even if that row was
+// deleted; and every normalized filter belongs to the cursor identity, so a
+// cursor cannot silently continue a different workspace listing.
+func TestFilePagesUseATotalOrderAndBindTheCompleteQuery(t *testing.T) {
+	filters := []string{"/repo", "", "", "true", "false"}
+	entries := []FileEntry{
+		{Path: "c.txt", Kind: FileEntryFile},
+		{Path: "docs", Kind: FileEntryDir},
+		{Path: "a.txt", Kind: FileEntryFile},
+		{Path: "b.txt", Kind: FileEntryFile},
+	}
+
+	first, cursor, err := pageFileEntries(entries, filters, "", 2)
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	if len(first) != 2 || first[0].Path != "docs" || first[1].Path != "a.txt" || cursor == "" {
+		t.Fatalf("first page = %+v, cursor %q; want docs, a.txt and a cursor", first, cursor)
+	}
+
+	// a.txt was the anchor and disappears between reads. Continuation uses its
+	// sort-key value, not row existence, so b.txt and c.txt remain reachable.
+	second, next, err := pageFileEntries([]FileEntry{
+		{Path: "c.txt", Kind: FileEntryFile},
+		{Path: "docs", Kind: FileEntryDir},
+		{Path: "b.txt", Kind: FileEntryFile},
+	}, filters, cursor, 2)
+	if err != nil {
+		t.Fatalf("second page: %v", err)
+	}
+	if len(second) != 2 || second[0].Path != "b.txt" || second[1].Path != "c.txt" || next != "" {
+		t.Fatalf("second page = %+v, cursor %q; want b.txt, c.txt and no cursor", second, next)
+	}
+
+	otherQuery := []string{"/repo", "docs", "", "true", "false"}
+	if _, _, err := pageFileEntries(entries, otherQuery, cursor, 2); !errors.Is(err, ErrPageCursor) {
+		t.Fatalf("cross-query cursor err = %v, want ErrPageCursor", err)
 	}
 }

@@ -9,7 +9,7 @@ import (
 // durable configuration and its current connection state; clients never join a
 // second configuration collection with a transient status collection.
 type MCP interface {
-	ListMCPServers(ctx context.Context, q PageQuery) (*Page[McpServer], error)
+	ListMCPServers(ctx context.Context) (*Page[McpServer], error)
 	CreateMCPServer(ctx context.Context, in CreateMCPServerRequest) (*McpServer, error)
 	UpdateMCPServer(ctx context.Context, in UpdateMCPServerRequest) (*McpServer, error)
 	DeleteMCPServer(ctx context.Context, server string) error
@@ -39,7 +39,6 @@ type MCPAuthorizationAttemptRequest struct {
 // MCPListToolsRequest — mcp.tools.list body.
 type MCPListToolsRequest struct {
 	Server string `json:"server,omitempty"`
-	PageQuery
 }
 
 // McpServer is the single safe read model for one configured MCP server. Its

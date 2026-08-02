@@ -4,7 +4,7 @@ import "context"
 
 // Providers is the providers.* method group (API.md §7.6).
 type Providers interface {
-	ListProviders(ctx context.Context, q PageQuery) (*Page[Provider], error)
+	ListProviders(ctx context.Context) (*Page[Provider], error)
 	UpdateProvider(ctx context.Context, in UpdateProviderRequest) (*Provider, error)
 	TestProvider(ctx context.Context, providerID string) (*ProviderTestResult, error)
 }
@@ -53,10 +53,9 @@ type EmbeddingRole struct {
 }
 
 // ListModelsRequest — models.list body (API.md §7.6). Provider is optional
-// (models are organized by provider; omitted → empty page); PageQuery paginates.
+// (models are organized by provider; omitted → empty page).
 type ListModelsRequest struct {
 	Provider string `json:"provider,omitempty"`
-	PageQuery
 }
 
 // Provider is one configured LLM provider (API.md §4.9). The key is

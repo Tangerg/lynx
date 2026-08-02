@@ -1161,20 +1161,7 @@
     {
       "name": "workspaces.list",
       "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "limit",
-          "schema": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "cursor",
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
+      "params": [],
       "result": {
         "name": "result",
         "schema": {
@@ -1184,10 +1171,10 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
-      "x-lyra-pagination": "cursor",
+      "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/PageQuery"
+        "type": "object"
       }
     },
     {
@@ -1199,18 +1186,6 @@
           "required": true,
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
-          }
-        },
-        {
-          "name": "limit",
-          "schema": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "cursor",
-          "schema": {
-            "type": "string"
           }
         }
       ],
@@ -1237,7 +1212,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
-      "x-lyra-pagination": "cursor",
+      "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-features": [
         "git"
@@ -1250,7 +1225,7 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/WorkspaceListQuery"
+        "$ref": "schema.json#/$defs/WorkspaceQuery"
       }
     },
     {
@@ -1647,18 +1622,6 @@
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
           }
-        },
-        {
-          "name": "limit",
-          "schema": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "cursor",
-          "schema": {
-            "type": "string"
-          }
         }
       ],
       "result": {
@@ -1680,7 +1643,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
-      "x-lyra-pagination": "cursor",
+      "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-features": [
         "skills"
@@ -1693,26 +1656,13 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/WorkspaceListQuery"
+        "$ref": "schema.json#/$defs/WorkspaceQuery"
       }
     },
     {
       "name": "skills.library.list",
       "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "limit",
-          "schema": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "cursor",
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
+      "params": [],
       "result": {
         "name": "result",
         "schema": {
@@ -1728,7 +1678,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
-      "x-lyra-pagination": "cursor",
+      "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-features": [
         "skills"
@@ -1741,7 +1691,7 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/PageQuery"
+        "type": "object"
       }
     },
     {
@@ -1833,20 +1783,7 @@
     {
       "name": "skills.drafts.list",
       "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "limit",
-          "schema": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "cursor",
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
+      "params": [],
       "result": {
         "name": "result",
         "schema": {
@@ -1862,7 +1799,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
-      "x-lyra-pagination": "cursor",
+      "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-features": [
         "skills"
@@ -1875,7 +1812,7 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/PageQuery"
+        "type": "object"
       }
     },
     {
@@ -1988,18 +1925,6 @@
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
           }
-        },
-        {
-          "name": "limit",
-          "schema": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "cursor",
-          "schema": {
-            "type": "string"
-          }
         }
       ],
       "result": {
@@ -2017,10 +1942,10 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
-      "x-lyra-pagination": "cursor",
+      "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/WorkspaceListQuery"
+        "$ref": "schema.json#/$defs/WorkspaceQuery"
       }
     },
     {
@@ -2032,18 +1957,6 @@
           "required": true,
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
-          }
-        },
-        {
-          "name": "limit",
-          "schema": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "cursor",
-          "schema": {
-            "type": "string"
           }
         }
       ],
@@ -2062,29 +1975,16 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
-      "x-lyra-pagination": "cursor",
+      "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/WorkspaceListQuery"
+        "$ref": "schema.json#/$defs/WorkspaceQuery"
       }
     },
     {
       "name": "mcp.servers.list",
       "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "limit",
-          "schema": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "cursor",
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
+      "params": [],
       "result": {
         "name": "result",
         "schema": {
@@ -2100,7 +2000,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
-      "x-lyra-pagination": "cursor",
+      "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-features": [
         "mcp"
@@ -2113,7 +2013,7 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/PageQuery"
+        "type": "object"
       }
     },
     {
@@ -2439,18 +2339,6 @@
           "schema": {
             "type": "string"
           }
-        },
-        {
-          "name": "limit",
-          "schema": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "cursor",
-          "schema": {
-            "type": "string"
-          }
         }
       ],
       "result": {
@@ -2468,7 +2356,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
-      "x-lyra-pagination": "cursor",
+      "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-features": [
         "mcp"
@@ -3482,20 +3370,7 @@
     {
       "name": "providers.list",
       "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "limit",
-          "schema": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "cursor",
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
+      "params": [],
       "result": {
         "name": "result",
         "schema": {
@@ -3505,10 +3380,10 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
-      "x-lyra-pagination": "cursor",
+      "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/PageQuery"
+        "type": "object"
       }
     },
     {
@@ -3586,18 +3461,6 @@
           "schema": {
             "type": "string"
           }
-        },
-        {
-          "name": "limit",
-          "schema": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "cursor",
-          "schema": {
-            "type": "string"
-          }
         }
       ],
       "result": {
@@ -3609,7 +3472,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
-      "x-lyra-pagination": "cursor",
+      "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
         "$ref": "schema.json#/$defs/ListModelsRequest"
@@ -3720,20 +3583,7 @@
     {
       "name": "tools.list",
       "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "limit",
-          "schema": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "cursor",
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
+      "params": [],
       "result": {
         "name": "result",
         "schema": {
@@ -3743,10 +3593,10 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
-      "x-lyra-pagination": "cursor",
+      "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/PageQuery"
+        "type": "object"
       }
     },
     {
@@ -3867,18 +3717,6 @@
           "schema": {
             "$ref": "schema.json#/$defs/WorkspaceRef"
           }
-        },
-        {
-          "name": "limit",
-          "schema": {
-            "type": "integer"
-          }
-        },
-        {
-          "name": "cursor",
-          "schema": {
-            "type": "string"
-          }
         }
       ],
       "result": {
@@ -3900,7 +3738,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
-      "x-lyra-pagination": "cursor",
+      "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-features": [
         "memory"
@@ -3913,7 +3751,7 @@
         }
       ],
       "x-lyra-requestFrame": {
-        "$ref": "schema.json#/$defs/WorkspaceListQuery"
+        "$ref": "schema.json#/$defs/WorkspaceQuery"
       }
     },
     {

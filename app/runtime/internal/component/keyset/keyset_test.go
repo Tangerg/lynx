@@ -40,8 +40,8 @@ func TestCursorFromAnotherQueryIsRejected(t *testing.T) {
 	}
 }
 
-// Filters are joined before hashing so that a boundary shift between values is a
-// different query, not the same one.
+// Filters remain structured in the token, so shifting a value boundary cannot
+// reinterpret one normalized query as another.
 func TestFilterBoundariesAreNotInterchangeable(t *testing.T) {
 	cursor := Encode("items.list", []string{"a", "bc"}, []string{"1"})
 	if _, err := Decode(cursor, "items.list", []string{"ab", "c"}); !errors.Is(err, ErrInvalidCursor) {

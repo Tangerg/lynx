@@ -17,8 +17,8 @@ func registerWorkspace(r *Registry) {
 	})
 
 	Query(r, MethodMeta{Name: "workspaces.list", Stability: stable},
-		func(d *Dispatcher, ctx context.Context, in protocol.PageQuery) (*protocol.Page[protocol.WorkspaceSummary], error) {
-			return d.api.ListWorkspaces(ctx, in)
+		func(d *Dispatcher, ctx context.Context, _ struct{}) (*protocol.Page[protocol.WorkspaceSummary], error) {
+			return d.api.ListWorkspaces(ctx)
 		})
 
 	// Git reads require the advertised capability. Once negotiated, a path that is
@@ -31,7 +31,7 @@ func registerWorkspace(r *Registry) {
 		},
 		CapabilityRules: requires(protocol.FeatureGit),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
+	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
 		return d.api.ListWorkspaceFileChanges(ctx, in)
 	})
 
@@ -120,7 +120,7 @@ func registerSkills(r *Registry) {
 		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Skill], error) {
+	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.Skill], error) {
 		return d.api.ListDiscoveredSkills(ctx, in)
 	})
 
@@ -128,8 +128,8 @@ func registerSkills(r *Registry) {
 		Name:            "skills.library.list",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.PageQuery) (*protocol.Page[protocol.ManagedSkill], error) {
-		return d.api.ListManagedSkills(ctx, in)
+	}, func(d *Dispatcher, ctx context.Context, _ struct{}) (*protocol.Page[protocol.ManagedSkill], error) {
+		return d.api.ListManagedSkills(ctx)
 	})
 
 	CommandAck(r, MethodMeta{
@@ -152,8 +152,8 @@ func registerSkills(r *Registry) {
 		Name:            "skills.drafts.list",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.PageQuery) (*protocol.Page[protocol.SkillDraft], error) {
-		return d.api.ListSkillDrafts(ctx, in)
+	}, func(d *Dispatcher, ctx context.Context, _ struct{}) (*protocol.Page[protocol.SkillDraft], error) {
+		return d.api.ListSkillDrafts(ctx)
 	})
 
 	CommandAck(r, MethodMeta{
@@ -176,7 +176,7 @@ func registerSkills(r *Registry) {
 		Name:      "recipes.list",
 		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Recipe], error) {
+	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.Recipe], error) {
 		return d.api.ListRecipes(ctx, in)
 	})
 
@@ -184,7 +184,7 @@ func registerSkills(r *Registry) {
 		Name:      "agentDocs.list",
 		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.AgentDoc], error) {
+	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.AgentDoc], error) {
 		return d.api.ListAgentDocs(ctx, in)
 	})
 }

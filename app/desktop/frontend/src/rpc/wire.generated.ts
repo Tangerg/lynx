@@ -698,8 +698,6 @@ export interface ListItemsResponse {
 }
 
 export interface ListModelsRequest {
-  cursor?: string;
-  limit?: number;
   provider?: string;
 }
 
@@ -720,8 +718,6 @@ export interface MCPAuthorizationAttemptRequest {
 }
 
 export interface MCPListToolsRequest {
-  cursor?: string;
-  limit?: number;
   server?: string;
 }
 
@@ -1538,9 +1534,7 @@ export interface WorkspaceInfo {
   ref: WorkspaceRef;
 }
 
-export interface WorkspaceListQuery {
-  cursor?: string;
-  limit?: number;
+export interface WorkspaceQuery {
   workspace: WorkspaceRef;
 }
 

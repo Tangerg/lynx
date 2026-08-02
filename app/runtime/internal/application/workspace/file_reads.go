@@ -3,12 +3,14 @@ package workspace
 import (
 	"cmp"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 )
 
 // FileEntryKind identifies a file-system entry in the workspace browser.
@@ -119,6 +121,7 @@ const (
 	defaultFileListPageLimit = 1000
 	defaultFileHeadLines     = 200
 	defaultGrepLimit         = 100
+	fileListPageMethod       = "workspace.files.list"
 )
 
 // ListFiles returns one stable cursor page of entries below a workspace root.
@@ -143,7 +146,14 @@ func (c *Files) ListFiles(ctx context.Context, input FileListInput) (FilePage, e
 	if err != nil {
 		return FilePage{}, err
 	}
-	page, next, err := pageFileEntries(entries, input.Cursor, input.Limit)
+	filters := []string{
+		root,
+		path,
+		input.Glob,
+		strconv.FormatBool(input.Recursive),
+		strconv.FormatBool(input.IncludeIgnored),
+	}
+	page, next, err := pageFileEntries(entries, filters, input.Cursor, input.Limit)
 	if err != nil {
 		return FilePage{}, err
 	}
@@ -249,22 +259,25 @@ func previewLines(read FileReadResult) []FileLine {
 	return lines
 }
 
-func pageFileEntries(entries []FileEntry, cursor string, limit int) ([]FileEntry, string, error) {
-	if limit < 0 {
-		return nil, "", fmt.Errorf("%w: limit must not be negative", ErrPageLimit)
+func pageFileEntries(entries []FileEntry, filters []string, cursor string, limit int) ([]FileEntry, string, error) {
+	size, err := keyset.Limit(limit, defaultFileListPageLimit)
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: %w", ErrPageLimit, err)
 	}
 	slices.SortFunc(entries, func(a, b FileEntry) int { return cmp.Compare(a.orderKey(), b.orderKey()) })
-	if cursor != "" {
-		decoded, err := base64.RawURLEncoding.DecodeString(cursor)
-		if err != nil || len(decoded) == 0 {
+	anchor, err := keyset.Decode(cursor, fileListPageMethod, filters)
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: %w", ErrPageCursor, err)
+	}
+	if len(anchor) > 0 {
+		if len(anchor) != 1 {
 			return nil, "", ErrPageCursor
 		}
-		anchor := string(decoded)
 		start := len(entries)
 		for index, entry := range entries {
-			if candidate := entry.orderKey(); candidate >= anchor {
+			if candidate := entry.orderKey(); candidate >= anchor[0] {
 				start = index
-				if candidate == anchor {
+				if candidate == anchor[0] {
 					start++
 				}
 				break
@@ -272,13 +285,10 @@ func pageFileEntries(entries []FileEntry, cursor string, limit int) ([]FileEntry
 		}
 		entries = entries[start:]
 	}
-	if limit <= 0 || limit > defaultFileListPageLimit {
-		limit = defaultFileListPageLimit
-	}
-	end := min(limit, len(entries))
+	end := min(size, len(entries))
 	page := slices.Clone(entries[:end])
 	if end == len(entries) {
 		return page, "", nil
 	}
-	return page, base64.RawURLEncoding.EncodeToString([]byte(entries[end-1].orderKey())), nil
+	return page, keyset.Encode(fileListPageMethod, filters, []string{entries[end-1].orderKey()}), nil
 }

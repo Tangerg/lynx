@@ -171,10 +171,9 @@ func registerUnary[Params, Result any](
 	})
 }
 
-// paginationOf recognizes the protocol's one cursor-page shape from the
-// actual request and result types. A partial resemblance is rejected: publishing
-// cursor without a continuation, or a continuation without a cursor input, would
-// make a generated client either loop incorrectly or truncate silently.
+// paginationOf distinguishes cursor reads from bounded collection reads using
+// their actual request shape. Both return Page<T>; only cursor reads accept the
+// cursor/limit pair. Any partial shape is rejected.
 func paginationOf(params, result reflect.Type) (PaginationKind, error) {
 	if params == nil {
 		return PaginationNone, errors.New("params type is required")
@@ -193,29 +192,33 @@ func paginationOf(params, result reflect.Type) (PaginationKind, error) {
 	if !hasData && !hasNextCursor {
 		if hasCursor {
 			return PaginationNone, fmt.Errorf(
-				"%s has a cursor request field but its result is not a cursor page", params,
+				"%s has a cursor request field but its result is not a page", params,
 			)
 		}
 		return PaginationNone, nil
 	}
-	if !hasData || !hasNextCursor || !hasCursor || !hasLimit {
+	if !hasData || !hasNextCursor {
 		return PaginationNone, fmt.Errorf(
-			"cursor pagination requires request cursor/limit and result data/nextCursor; params=%s result=%s",
-			params,
-			result,
+			"page results require data and nextCursor together; result=%s", result,
 		)
 	}
-	if cursor.Type.Kind() != reflect.String || !cursor.Optional {
-		return PaginationNone, fmt.Errorf("%s.cursor must be an optional string", params)
-	}
-	if limit.Type.Kind() != reflect.Int || !limit.Optional {
-		return PaginationNone, fmt.Errorf("%s.limit must be an optional int", params)
+	if hasCursor != hasLimit {
+		return PaginationNone, fmt.Errorf("%s must declare cursor and limit together", params)
 	}
 	if data.Type.Kind() != reflect.Slice || data.Optional {
 		return PaginationNone, fmt.Errorf("%s.data must be a required array", result)
 	}
 	if nextCursor.Type.Kind() != reflect.String || !nextCursor.Optional {
 		return PaginationNone, fmt.Errorf("%s.nextCursor must be an optional string", result)
+	}
+	if !hasCursor {
+		return PaginationNone, nil
+	}
+	if cursor.Type.Kind() != reflect.String || !cursor.Optional {
+		return PaginationNone, fmt.Errorf("%s.cursor must be an optional string", params)
+	}
+	if limit.Type.Kind() != reflect.Int || !limit.Optional {
+		return PaginationNone, fmt.Errorf("%s.limit must be an optional int", params)
 	}
 	return PaginationCursor, nil
 }

@@ -180,7 +180,7 @@ export interface WorkspaceMethods {
   /** The immutable resource identity bound to every operation below. */
   readonly ref: Readonly<WorkspaceRef>;
   changes: {
-    list: (query?: PageQuery) => AutoPagingPromise<Page<WorkspaceFileChange>>;
+    list: () => Promise<Page<WorkspaceFileChange>>;
   };
   diff: {
     get: (params?: Omit<GetDiffRequest, "workspace">) => Promise<Diff>;
@@ -192,16 +192,16 @@ export interface WorkspaceMethods {
     read: (params: Omit<ReadFileRequest, "workspace">) => Promise<FileContent>;
   };
   recipes: {
-    list: (query?: PageQuery) => AutoPagingPromise<Page<Recipe>>;
+    list: () => Promise<Page<Recipe>>;
   };
   hooks: {
     list: () => Promise<HooksListResult>;
   };
   skills: {
-    listDiscovered: (query?: PageQuery) => AutoPagingPromise<Page<Skill>>;
+    listDiscovered: () => Promise<Page<Skill>>;
   };
   agentDocs: {
-    list: (query?: PageQuery) => AutoPagingPromise<Page<AgentDoc>>;
+    list: () => Promise<Page<AgentDoc>>;
   };
   codebase: {
     search: (params: Omit<CodebaseSearchRequest, "workspace">) => Promise<CodebaseSearchResult>;
@@ -209,7 +209,7 @@ export interface WorkspaceMethods {
     reindex: () => MutationPromise<CodebaseReindexResponse>;
   };
   memory: {
-    list: (query?: PageQuery) => AutoPagingPromise<Page<MemoryEntry>>;
+    list: () => Promise<Page<MemoryEntry>>;
     get: (scope: MemoryScope) => Promise<MemoryEntry>;
     update: (params: { scope: MemoryScope; content: string }) => MutationPromise<void>;
   };
@@ -312,7 +312,7 @@ export interface Methods {
   };
   workspaces: {
     resolve: (ref?: WorkspaceRef) => Promise<WorkspaceInfo>;
-    list: (query?: PageQuery) => AutoPagingPromise<Page<WorkspaceSummary>>;
+    list: () => Promise<Page<WorkspaceSummary>>;
     /** Resolve the runtime default when omitted, then bind a scoped client. */
     open: (ref?: WorkspaceRef) => Promise<WorkspaceMethods>;
   };
@@ -341,24 +341,24 @@ export interface Methods {
   // disabled). promoteDraft/rejectDraft carry the content-addressed ref so a
   // decision acts on the exact revision that was reviewed.
   skills: {
-    listLibrary: () => AutoPagingPromise<Page<ManagedSkill>>;
+    listLibrary: () => Promise<Page<ManagedSkill>>;
     archive: (name: string) => MutationPromise<void>;
     restore: (name: string) => MutationPromise<void>;
-    listDrafts: () => AutoPagingPromise<Page<SkillDraft>>;
+    listDrafts: () => Promise<Page<SkillDraft>>;
     promoteDraft: (ref: SkillDraftRef) => MutationPromise<void>;
     rejectDraft: (ref: SkillDraftRef) => MutationPromise<void>;
   };
   mcp: {
     // One resource carries durable configuration and live state. Create and
     // update are distinct; update uses exact omission=preserve semantics.
-    list: (query?: PageQuery) => AutoPagingPromise<Page<McpServer>>;
+    list: () => Promise<Page<McpServer>>;
     create: (params: MCPServerCandidate) => MutationPromise<McpServer>;
     update: (params: UpdateMCPServerRequest) => MutationPromise<McpServer>;
     delete: (server: string) => MutationPromise<void>;
     // Dry-run connection probe (NOT persisted). A failed probe is
     // `{ ok:false, error }`, never an RPC error (mirrors providers.test).
     test: (params: MCPServerCandidate) => Promise<McpTestResult>;
-    listTools: (server?: string) => AutoPagingPromise<Page<McpTool>>;
+    listTools: (server?: string) => Promise<Page<McpTool>>;
     reconnect: (server: string) => MutationPromise<void>;
     authorizationAttempts: {
       // Interactive OAuth is an asynchronous resource, not a command ACK. Create
@@ -368,12 +368,12 @@ export interface Methods {
     };
   };
   providers: {
-    list: () => AutoPagingPromise<Page<Provider>>;
+    list: () => Promise<Page<Provider>>;
     update: (params: UpdateProviderRequest) => MutationPromise<Provider>;
     test: (provider: string) => Promise<ProviderTestResult>;
   };
   models: {
-    list: (provider?: string) => AutoPagingPromise<Page<Model>>;
+    list: (provider?: string) => Promise<Page<Model>>;
     // The (provider, model) the in-house maintenance work (compaction /
     // extraction / titling) runs on. Empty model = unset → it runs on the main
     // turn model. setUtilityRole validates by resolving the client server-side.
@@ -386,7 +386,7 @@ export interface Methods {
     setEmbeddingRole: (params: EmbeddingRole) => MutationPromise<EmbeddingRole>;
   };
   tools: {
-    list: () => AutoPagingPromise<Page<ToolSpec>>;
+    list: () => Promise<Page<ToolSpec>>;
     invoke: (params: InvokeToolRequest) => MutationPromise<unknown>;
   };
   // Read-only spend reporting aggregated from the durable run history (§7.7).
@@ -480,7 +480,7 @@ function bindWorkspace(call: WireCall, ref: WorkspaceRef): WorkspaceMethods {
   return {
     ref: workspace,
     changes: {
-      list: (query) => call("workspace.changes.list", { ...query, workspace }),
+      list: () => call("workspace.changes.list", { workspace }),
     },
     diff: {
       get: (params) => call("workspace.diff.get", { ...params, workspace }),
@@ -492,16 +492,16 @@ function bindWorkspace(call: WireCall, ref: WorkspaceRef): WorkspaceMethods {
       read: (params) => call("workspace.files.read", { ...params, workspace }),
     },
     recipes: {
-      list: (query) => call("recipes.list", { ...query, workspace }),
+      list: () => call("recipes.list", { workspace }),
     },
     hooks: {
       list: () => call("hooks.list", { workspace }),
     },
     skills: {
-      listDiscovered: (query) => call("skills.discovered.list", { ...query, workspace }),
+      listDiscovered: () => call("skills.discovered.list", { workspace }),
     },
     agentDocs: {
-      list: (query) => call("agentDocs.list", { ...query, workspace }),
+      list: () => call("agentDocs.list", { workspace }),
     },
     codebase: {
       search: (params) => call("codebase.search", { ...params, workspace }),
@@ -509,7 +509,7 @@ function bindWorkspace(call: WireCall, ref: WorkspaceRef): WorkspaceMethods {
       reindex: () => call("codebase.reindex", { workspace }),
     },
     memory: {
-      list: (query) => call("memory.list", { ...query, workspace }),
+      list: () => call("memory.list", { workspace }),
       get: (scope) => call("memory.get", { scope, workspace }),
       update: (params) => call("memory.update", { ...params, workspace }),
     },
@@ -688,7 +688,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     },
     workspaces: {
       resolve: (ref) => call("workspaces.resolve", ref ? { ref } : {}),
-      list: (query) => call("workspaces.list", query ?? {}),
+      list: () => call("workspaces.list", {}),
       open: openWorkspace,
     },
     workspace: (ref) => bindWorkspace(call, ref),
@@ -708,7 +708,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       rejectDraft: (ref) => call("skills.drafts.reject", ref),
     },
     mcp: {
-      list: (query) => call("mcp.servers.list", query ?? {}),
+      list: () => call("mcp.servers.list", {}),
       create: (params) => call("mcp.servers.create", params),
       update: (params) => call("mcp.servers.update", params),
       delete: (server) => call("mcp.servers.delete", { server }),

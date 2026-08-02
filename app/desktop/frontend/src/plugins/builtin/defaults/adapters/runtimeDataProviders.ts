@@ -78,6 +78,10 @@ function requiredParams<P>(key: string, params: unknown): P {
   return value;
 }
 
+function pageData<T>(request: Promise<{ data: T[] }>): Promise<T[]> {
+  return request.then((page) => page.data);
+}
+
 export function registerDefaultDataProviders(host: ContributingHost): void {
   const client = () => getContainer().client();
   const workspace = (cwd?: string) => client().workspaces.open(cwd ? { path: cwd } : undefined);
@@ -93,13 +97,13 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
   contribute({
     key: WORKSPACE_PROJECTS_KEY,
     fetcher: async () =>
-      (await client().workspaces.list().autoPagingToArray()).map(toWorkspaceProjectSummary),
+      (await pageData(client().workspaces.list())).map(toWorkspaceProjectSummary),
   });
   contribute({
     key: WORKSPACE_FILES_CHANGED_KEY,
     fetcher: async (params) => {
       const resources = await workspace(optionalParams<WorkspaceFileChangesQuery>(params)?.cwd);
-      return (await resources.changes.list().autoPagingToArray()).map(toWorkspaceFileChangeSummary);
+      return (await pageData(resources.changes.list())).map(toWorkspaceFileChangeSummary);
     },
   });
   contribute({
@@ -107,18 +111,15 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
     // One server entry carries both configuration and live state. listTools is
     // reserved for the detail pane's input-schema view.
     fetcher: async () =>
-      (await client().mcp.list().autoPagingToArray().catch(emptyListIfUngated)).map(
-        toMCPServerSettings,
-      ),
+      (await pageData(client().mcp.list()).catch(emptyListIfUngated)).map(toMCPServerSettings),
   });
   contribute({
     key: MCP_TOOLS_KEY,
     fetcher: async (params) =>
       (
-        await client()
-          .mcp.listTools(requiredParams<McpToolsQuery>(MCP_TOOLS_KEY, params).server)
-          .autoPagingToArray()
-          .catch(emptyListIfUngated)
+        await pageData(
+          client().mcp.listTools(requiredParams<McpToolsQuery>(MCP_TOOLS_KEY, params).server),
+        ).catch(emptyListIfUngated)
       ).map((t) => ({ name: t.name, description: t.description ?? "" })),
   });
   contribute({
@@ -152,43 +153,39 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
     key: WORKSPACE_SKILLS_KEY,
     fetcher: async () => {
       const resources = await workspace();
-      return (
-        await resources.skills.listDiscovered().autoPagingToArray().catch(emptyListIfUngated)
-      ).map((s) => ({
-        name: s.name,
-        description: s.description ?? "",
-        source: s.source ?? "",
-      }));
+      return (await pageData(resources.skills.listDiscovered()).catch(emptyListIfUngated)).map(
+        (s) => ({
+          name: s.name,
+          description: s.description ?? "",
+          source: s.source ?? "",
+        }),
+      );
     },
   });
   contribute({
     key: WORKSPACE_MANAGED_SKILLS_KEY,
     fetcher: async () =>
-      (await client().skills.listLibrary().autoPagingToArray().catch(emptyListIfUngated)).map(
-        (s) => ({
-          name: s.name,
-          description: s.description ?? "",
-          lifecycle: s.lifecycle,
-        }),
-      ),
+      (await pageData(client().skills.listLibrary()).catch(emptyListIfUngated)).map((s) => ({
+        name: s.name,
+        description: s.description ?? "",
+        lifecycle: s.lifecycle,
+      })),
   });
   contribute({
     key: WORKSPACE_SKILL_DRAFTS_KEY,
     fetcher: async () =>
-      (await client().skills.listDrafts().autoPagingToArray().catch(emptyListIfUngated)).map(
-        (d) => ({
-          name: d.name,
-          revision: d.revision,
-          description: d.description ?? "",
-          createdBy: d.createdBy ?? "",
-          sourceSession: d.sourceSession ?? "",
-        }),
-      ),
+      (await pageData(client().skills.listDrafts()).catch(emptyListIfUngated)).map((d) => ({
+        name: d.name,
+        revision: d.revision,
+        description: d.description ?? "",
+        createdBy: d.createdBy ?? "",
+        sourceSession: d.sourceSession ?? "",
+      })),
   });
   contribute({
     key: WORKSPACE_BUILTIN_TOOLS_KEY,
     fetcher: async () =>
-      (await client().tools.list().autoPagingToArray()).map((t) => ({
+      (await pageData(client().tools.list())).map((t) => ({
         name: t.name,
         description: t.description ?? "",
         safetyClass: t.safetyClass,
@@ -198,14 +195,12 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
     key: WORKSPACE_MEMORY_KEY,
     fetcher: async (params) => {
       const resources = await workspace(optionalParams<WorkspaceMemoryQuery>(params)?.cwd);
-      return (await resources.memory.list().autoPagingToArray().catch(emptyListIfUngated)).map(
-        (m) => ({
-          scope: m.scope,
-          path: m.path,
-          content: m.content,
-          updatedAt: m.updatedAt,
-        }),
-      );
+      return (await pageData(resources.memory.list()).catch(emptyListIfUngated)).map((m) => ({
+        scope: m.scope,
+        path: m.path,
+        content: m.content,
+        updatedAt: m.updatedAt,
+      }));
     },
   });
   contribute({
@@ -266,13 +261,11 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
     key: WORKSPACE_AGENT_DOCS_KEY,
     fetcher: async () => {
       const resources = await workspace();
-      return (await resources.agentDocs.list().autoPagingToArray().catch(emptyListIfUngated)).map(
-        (d) => ({
-          path: d.path,
-          title: d.title ?? "",
-          scope: d.scope,
-        }),
-      );
+      return (await pageData(resources.agentDocs.list()).catch(emptyListIfUngated)).map((d) => ({
+        path: d.path,
+        title: d.title ?? "",
+        scope: d.scope,
+      }));
     },
   });
   contribute({
@@ -280,16 +273,11 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
     // Aggregate models across enabled providers only; catalog-only providers
     // cannot run and would produce dead composer-picker options.
     fetcher: async () => {
-      const enabled = (await client().providers.list().autoPagingToArray()).filter(
+      const enabled = (await pageData(client().providers.list())).filter(
         (p) => p.apiKeyMasked !== "",
       );
       const lists = await Promise.all(
-        enabled.map((p) =>
-          client()
-            .models.list(p.id)
-            .autoPagingToArray()
-            .catch(() => []),
-        ),
+        enabled.map((p) => pageData(client().models.list(p.id)).catch(() => [])),
       );
       return lists.flat().map((m) => ({
         id: m.id,
@@ -303,7 +291,7 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
   contribute({
     key: PROVIDERS_KEY,
     fetcher: async () =>
-      (await client().providers.list().autoPagingToArray()).map((p) => ({
+      (await pageData(client().providers.list())).map((p) => ({
         id: p.id,
         baseUrl: p.baseUrl ?? "",
         apiKeyMasked: p.apiKeyMasked,
@@ -358,7 +346,7 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
     key: RECIPES_KEY,
     fetcher: async (params) => {
       const resources = await workspace(optionalParams<RecipesQuery>(params)?.cwd);
-      return resources.recipes.list().autoPagingToArray().catch(emptyListIfUngated);
+      return pageData(resources.recipes.list()).catch(emptyListIfUngated);
     },
   });
   contribute({

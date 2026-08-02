@@ -109,7 +109,7 @@ var CanonicalSamples = []CanonicalSample{
 	{"ws.searchHit.json", reflect.TypeFor[SearchHit]()},
 	{"ws.fileContent.json", reflect.TypeFor[FileContent]()},
 	{"method.getDiff.req.json", reflect.TypeFor[GetDiffRequest]()},
-	{"method.listFileChanges.req.json", reflect.TypeFor[WorkspaceListQuery]()},
+	{"method.listFileChanges.req.json", reflect.TypeFor[WorkspaceQuery]()},
 	{"method.listFileChanges.resp.json", reflect.TypeFor[Page[WorkspaceFileChange]]()},
 	{"method.grep.req.json", reflect.TypeFor[GrepRequest]()},
 

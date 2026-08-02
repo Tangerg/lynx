@@ -80,7 +80,7 @@ func TestListProvidersMergesSupportedCatalogWithRegistry(t *testing.T) {
 		"anthropic": {ID: "anthropic", APIKey: "sk-ant-secret", KeySource: provider.KeyStored},
 	}})
 
-	page, err := s.ListProviders(context.Background(), protocol.PageQuery{})
+	page, err := s.ListProviders(context.Background())
 	if err != nil {
 		t.Fatalf("list providers: %v", err)
 	}

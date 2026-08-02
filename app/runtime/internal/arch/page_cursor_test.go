@@ -177,4 +177,9 @@ var pageFixtures = map[string]map[queryProperty]fixtureRef{
 		pageDirection: {"internal/application/schedules", "TestListPagePagesNewestFirstAndRefusesAForeignCursor"},
 		cursorBinding: {"internal/application/schedules", "TestListPagePagesNewestFirstAndRefusesAForeignCursor"},
 	},
+	"workspace.files.list": {
+		fixedOrder:    {"internal/application/workspace", "TestFilePagesUseATotalOrderAndBindTheCompleteQuery"},
+		pageDirection: {"internal/application/workspace", "TestFilePagesUseATotalOrderAndBindTheCompleteQuery"},
+		cursorBinding: {"internal/application/workspace", "TestFilePagesUseATotalOrderAndBindTheCompleteQuery"},
+	},
 }

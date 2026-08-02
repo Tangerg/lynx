@@ -41,7 +41,7 @@ func TestListToolsMapsRegisteredToolsToWire(t *testing.T) {
 		},
 	}})
 
-	page, err := s.ListTools(context.Background(), protocol.PageQuery{})
+	page, err := s.ListTools(context.Background())
 	if err != nil {
 		t.Fatalf("list tools: %v", err)
 	}

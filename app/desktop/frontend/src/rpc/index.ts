@@ -161,7 +161,7 @@ export type {
   HooksListResult,
   MemoryScope,
   MemoryEntry,
-  WorkspaceListQuery,
+  WorkspaceQuery,
   WatchSpec,
   RuntimeSubscribeRequest,
   RuntimeSubscribeResponse,

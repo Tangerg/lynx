@@ -38,7 +38,7 @@ func TestListMCPServers(t *testing.T) {
 			{Server: "fs", Name: "read"}, {Server: "fs", Name: "write"},
 		},
 	}))
-	page, err := s.ListMCPServers(context.Background(), protocol.PageQuery{})
+	page, err := s.ListMCPServers(context.Background())
 	if err != nil {
 		t.Fatalf("listServers: %v", err)
 	}

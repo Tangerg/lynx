@@ -34,12 +34,3 @@ func NewPageWithCursor[T any](data []T, nextCursor string) *Page[T] {
 	}
 	return &Page[T]{Data: data, NextCursor: nextCursor}
 }
-
-// WorkspaceListQuery is WorkspaceQuery + pagination — the input for the
-// paginated workspace list reads (API.md §7.5: `WorkspaceQuery & { cursor?,
-// limit? }`). The non-list reads (getDiff / getFileHead / grep) keep their
-// own request structs.
-type WorkspaceListQuery struct {
-	WorkspaceQuery
-	PageQuery
-}

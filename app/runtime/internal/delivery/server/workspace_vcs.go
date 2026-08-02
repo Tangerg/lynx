@@ -9,7 +9,7 @@ import (
 )
 
 // ListWorkspaceFileChanges projects application VCS status onto the wire.
-func (s *Server) ListWorkspaceFileChanges(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
+func (s *Server) ListWorkspaceFileChanges(ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
 	changes, err := s.workspaceVCS.ListFileChanges(ctx, in.Workspace.Path)
 	if err != nil {
 		return nil, wireWorkspaceError(err)

@@ -57,8 +57,8 @@ func serverWithMemory(store workspaceapp.KnowledgeStore) *Server {
 func TestListMemoryWithoutStoreReturnsCapabilityError(t *testing.T) {
 	s := serverWithMemory(nil)
 
-	_, err := s.ListMemory(context.Background(), protocol.WorkspaceListQuery{
-		WorkspaceQuery: protocol.WorkspaceQuery{Workspace: protocol.WorkspaceRef{Path: "/repo"}},
+	_, err := s.ListMemory(context.Background(), protocol.WorkspaceQuery{
+		Workspace: protocol.WorkspaceRef{Path: "/repo"},
 	})
 	if !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("list memory err = %v, want capability_not_negotiated", err)
@@ -90,8 +90,8 @@ func TestListMemoryMapsEntriesToWire(t *testing.T) {
 	}
 	s := serverWithMemory(store)
 
-	got, err := s.ListMemory(context.Background(), protocol.WorkspaceListQuery{
-		WorkspaceQuery: protocol.WorkspaceQuery{Workspace: protocol.WorkspaceRef{Path: repo}},
+	got, err := s.ListMemory(context.Background(), protocol.WorkspaceQuery{
+		Workspace: protocol.WorkspaceRef{Path: repo},
 	})
 	if err != nil {
 		t.Fatalf("list memory: %v", err)

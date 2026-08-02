@@ -523,7 +523,6 @@ var notOnTheWire = map[string]string{
 	"Feature":           "the published capability vocabulary's registry entry; its wire projection is FeatureCapability",
 	"ConstraintError":   "the Go validator's error carrier; its wire projection is ProblemData.errors",
 	"WireField":         "reflection over the wire types, not a wire type",
-	"WorkspaceQuery":    "an embedded mixin — encoding/json inlines its fields, so the wire has no such object",
 }
 
 // TestEveryWireStructIsPublished checks the bundle against the protocol package.

@@ -499,23 +499,25 @@ MCP 只发布一个 `McpServer` 资源，不再把可编辑配置与连接状态
   `failed.error.type=mcp_authorization_failed`，底层 OAuth/provider 文本只进 telemetry。终态保留窗口由
   `capabilities.limits.mcpAuthorizationAttempts.retentionSeconds` 公布；pending 不按该窗口清理。
 
-### 4.11 分页（所有 list 统一）
+### 4.11 list 信封与 cursor 分页
 
 - **所有 list 方法一律返回 `Page<T>`**（`data` + 可选 `nextCursor`），客户端一个读法。
-- **`nextCursor` 的存在性即"还有更多"信号**：缺省 = 已到末页。**server 不得静默截断**——超过单页上限必须回填
-  `nextCursor`（"no silent caps"）。本地有界 list `nextCursor` 恒空，但形状一致。
+- list 分为两种诚实能力：**有界集合**不接受 `cursor/limit`，一次返回完整 `Page<T>` 且不产生 `nextCursor`；
+  **cursor 集合**同时接受 `cursor/limit`，`nextCursor` 的存在性就是“还有更多”。不得让一个已经全量物化、也不会续页的
+  有界集合暴露空转的 cursor 参数。
+- **server 不得静默截断**：有界集合超过自身明确的安全边界必须失败并要求调用方缩小查询；cursor 集合只要还有数据就
+  必须返回 `nextCursor`（"no silent caps"）。统一信封不等于虚构统一的分页能力。
 - **cursor 不透明**：client 不解析、不据其推断顺序，只回传上次拿到的 `nextCursor`。
-- **cursor 绑定它自己的读**：每个分页读有自己的 cursor 命名空间，一个读的 cursor 交给另一个读会被拒绝，而不是
-  落到错的排序上。
-- **分页类别不是方法名约定**：Registry 从 params 的 `cursor/limit` 与 result 的 `data/nextCursor` 完整 shape
-  自动推导 `pagination:"cursor"`；只有半套字段时启动即失败。manifest、OpenRPC 的 `x-lyra-pagination` 与 SDK
-  都消费这一个事实，不维护“哪些 list 会分页”的第二张表。
-- **SDK 自动续页但不伪装 wire**：`await client.*.list()` 仍明确得到首个 `Page<T>`；对调用本身使用
-  `for await` / `.autoPagingEach()` / `.autoPagingToArray()` 会沿不透明 cursor 自动续读，`.pages()` 则在需要
-  `items.list.runs` 等 page 级附加数据时逐页交付。server 重复 cursor 是协议错误，SDK 抛 `PaginationError`，不得
-  把残缺集合静默当成完整集合。
-- collection 在翻页期间变化且 cursor 锚点消失时返回 `invalid_params`，client 从第一页重启。服务端不得猜测不匹配的
-  排序键并静默跳项。
+- **cursor 绑定完整查询**：method、scope、filter、排序方向等所有影响成员与顺序的规范化输入都属于 cursor 身份；跨读或
+  跨查询复用会被拒绝。cursor 锚定上一页末尾的**排序键值**而非行本身，所以锚点行随后被删除也能继续。
+- **分页类别不是方法名约定**：Registry 从 result 的完整 `data/nextCursor` shape 与 params 是否同时含有
+  `cursor/limit` 推导能力。`Page<T>` 不带这对参数就是 `pagination:"none"`；同时具备才是
+  `pagination:"cursor"`；只出现半套字段时启动即失败。manifest、OpenRPC 的 `x-lyra-pagination` 与 SDK 都消费这一个
+  事实，不维护第二张方法表。
+- **SDK 只为真实 cursor 调用提供自动续页**：cursor list 的调用可用 `for await` / `.autoPagingEach()` /
+  `.autoPagingToArray()`，`.pages()` 在需要 `items.list.runs` 等 page 级附加数据时逐页交付；有界 list 直接
+  `await` 一次取得 `Page<T>`。server 重复 cursor 是协议错误，SDK 抛 `PaginationError`，不得把残缺集合静默当成完整
+  集合。
 
 ---
 
@@ -1087,7 +1089,8 @@ Artifact v9 round-trip；compatibility differ 判定 breaking 并要求同批 bu
    breaking（§2.3 / §12）。
 8. **discovery 只说做得到的事**：每个 topic 有生产者、每个 state key 有 writer 与冷读、每个数字被强制执行（§9）。
 9. **错误三落点、一个形状**：`ProblemData` 唯一形状，落点即判别，符号名即判别键（§8）。
-10. **分页一个读法**：所有 list 是 `Page<T>`，不静默截断，cursor 绑定自己的读（§4.11）。
+10. **集合一个信封，能力不造假**：所有 list 是 `Page<T>`；只有真正可续页的读接受 cursor，且 cursor 绑定完整查询；
+    有界集合不静默截断（§4.11）。
 11. **id server 生成 + 类型前缀**；`eventId` 在段流内单调，cursor 是可回传的续流锚（§2.4）。
 12. **Minimal Profile 是"少声明"不是"少收"**：核心生命周期事件必发，客户端只能抑制 ephemeral 预览（§3.2 / §9）。
 

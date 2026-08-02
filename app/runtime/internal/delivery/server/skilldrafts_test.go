@@ -35,7 +35,7 @@ func (s *stubSkillDrafts) DiscardDraft(_ context.Context, h skills.DraftHandle) 
 
 func TestSkillDraftsHandlersDisabled(t *testing.T) {
 	s := newWorkspaceServerWithConfig("", workspaceTestConfig{})
-	if _, err := s.ListSkillDrafts(context.Background(), protocol.PageQuery{}); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
+	if _, err := s.ListSkillDrafts(context.Background()); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("list err = %v, want capability_not_negotiated", err)
 	}
 	ref := protocol.SkillDraftRef{Name: "x", Revision: "r"}
@@ -49,7 +49,7 @@ func TestSkillDraftsHandlersDisabled(t *testing.T) {
 
 func TestSkillLibraryHandlersDisabled(t *testing.T) {
 	s := newWorkspaceServerWithConfig("", workspaceTestConfig{})
-	if _, err := s.ListManagedSkills(context.Background(), protocol.PageQuery{}); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
+	if _, err := s.ListManagedSkills(context.Background()); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("list err = %v, want capability_not_negotiated", err)
 	}
 	request := protocol.SkillNameRequest{Name: "lint"}
@@ -68,7 +68,7 @@ func TestSkillDraftsListMapsWire(t *testing.T) {
 	}}
 	s := newWorkspaceServerWithConfig("", workspaceTestConfig{Drafts: stub})
 
-	out, err := s.ListSkillDrafts(context.Background(), protocol.PageQuery{})
+	out, err := s.ListSkillDrafts(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
