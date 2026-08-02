@@ -24,10 +24,12 @@ github.com/Tangerg/lynx/embeddingclient v0.0.0-20260731193916-0098789d89e9 h1:rK
 github.com/Tangerg/lynx/embeddingclient v0.0.0-20260731193916-0098789d89e9/go.mod h1:BWdg/wvTfyHpmN4IfphGzmtTL3sBcIEreJDg0Ax0nSs=
 github.com/Tangerg/lynx/mcp v0.0.0-20260802185719-f013cc1eb508 h1:jHblvS2OcnFKJTsXcV/gUc330mKrDn5wJkD/b3k8kjA=
 github.com/Tangerg/lynx/mcp v0.0.0-20260802185719-f013cc1eb508/go.mod h1:5xMfxQSal5GSsHy3oZapPW8DcPJ6F/6KLo2tF6V7HwY=
-github.com/Tangerg/lynx/models v0.0.0-20260802194905-65100fbe7dca h1:Pm4rur2tS0+M2MR3R5yKltPsfEl7rPBHf1fns3dAIi0=
-github.com/Tangerg/lynx/models v0.0.0-20260802194905-65100fbe7dca/go.mod h1:a3UsTbNgz8P4gQdJYI6l9Et0jHsnmQl/YiXMQqQ4mNg=
+github.com/Tangerg/lynx/models v0.0.0-20260802195812-555a8da53cc9 h1:nfVXeL6QnK1ntiEM50F1JTB52JuZFTqENfWGyIK8Nwg=
+github.com/Tangerg/lynx/models v0.0.0-20260802195812-555a8da53cc9/go.mod h1:6g3PA34ywwB5PgXtlLfbteRtPYaW6Eo8gvAP6BtJrgI=
 github.com/Tangerg/lynx/models/google v0.0.0-20260802194905-65100fbe7dca h1:aVE6L8gWZTvLKobsN0Y7YH1yHAwezQMxAMrtfPK5SoQ=
 github.com/Tangerg/lynx/models/google v0.0.0-20260802194905-65100fbe7dca/go.mod h1:eDVAHPNlKbfkJQIknzVbyA0xnCrSA+TcHsezzf/byh8=
+github.com/Tangerg/lynx/models/ollama v0.0.0-20260802195812-555a8da53cc9 h1:uglRpe8FFy/ICGidOGTqOm17TBs5VdLhLZK/uSq0C4I=
+github.com/Tangerg/lynx/models/ollama v0.0.0-20260802195812-555a8da53cc9/go.mod h1:FcUTo4eb2YR9tasdU2el62yWmBD6dRM7Dx7bGxqe13w=
 github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260802194415-a15faf3dea2e h1:EkeznAvbPwKsoxuOrCCJuwNR56eHsV/0MCkUeeMqBMs=
 github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260802194415-a15faf3dea2e/go.mod h1:OZlM3yAFlMt2cFroT//zR2Ji1KnvLJ6QU9nWS4cGcoY=
 github.com/Tangerg/lynx/otel v0.0.0-20260731193916-0098789d89e9 h1:vI8NRBW7zxHOTHIQ0vrHMsqKKi28IqKGhc65AG5BFo0=

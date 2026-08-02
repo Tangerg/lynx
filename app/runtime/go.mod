@@ -11,8 +11,9 @@ require (
 	github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/embeddingclient v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/mcp v0.0.0-20260802185719-f013cc1eb508
-	github.com/Tangerg/lynx/models v0.0.0-20260802194905-65100fbe7dca
+	github.com/Tangerg/lynx/models v0.0.0-20260802195812-555a8da53cc9
 	github.com/Tangerg/lynx/models/google v0.0.0-20260802194905-65100fbe7dca
+	github.com/Tangerg/lynx/models/ollama v0.0.0-20260802195812-555a8da53cc9
 	github.com/Tangerg/lynx/otel v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/tool v0.0.0-20260802183922-a24b624cc403
