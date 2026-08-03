@@ -114,10 +114,18 @@ function MessageBlockInner({
               belongs where the turn ends: in the caption the bar competed with
               the one line that says who is speaking, and it ran to the far edge
               of the column where nothing else in the transcript is.
-              Pulled left by the button's own optical inset so the first glyph
-              lands on the text's edge rather than its box doing so. */}
+              Pulled OUTWARD by the button's own optical inset so the first glyph
+              lands on the text's edge rather than its box doing so — and outward is a
+              different side per role now that a user turn hugs the trailing edge. With
+              the inset always on the left, the bar under a right-aligned bubble grew
+              leftward and its last glyph sat ~5px inside the text it belongs to. */}
           <div
-            className={cn(actionsClass, "-ml-[calc((var(--control-height-sm)-var(--icon-sm))/2)]")}
+            className={cn(
+              actionsClass,
+              isUser
+                ? "-mr-[calc((var(--control-height-sm)-var(--icon-sm))/2)]"
+                : "-ml-[calc((var(--control-height-sm)-var(--icon-sm))/2)]",
+            )}
           >
             <Slot name="message.actions" />
           </div>

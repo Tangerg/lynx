@@ -75,7 +75,7 @@ function ImageDropOverlay() {
   const t = useT();
   return createPortal(
     <div className="fixed inset-0 z-50 grid place-items-center bg-scrim p-10">
-      <div className="animate-rise-in flex flex-col items-center gap-3 rounded-composer border-2 border-dashed border-field-strong bg-canvas px-14 py-12 shadow-[var(--shadow-popover)]">
+      <div className="animate-rise-in flex flex-col items-center gap-3 rounded-composer border-2 border-dashed border-field-strong bg-canvas px-14 py-12 shadow-[var(--shadow-modal)]">
         <Icon name="image" size="xl" className="text-fg-muted" />
         <span className="text-ui-lg font-medium text-fg-soft">{t("composer.drop.images")}</span>
       </div>

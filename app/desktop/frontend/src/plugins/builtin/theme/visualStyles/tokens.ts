@@ -44,10 +44,13 @@ type VisualStyleTokenName =
   | "app-pane-wash"
   | "app-pane-wash-end"
   | "seam-line"
-  | "shadow-border"
   | "shadow-control"
   | "shadow-composer-depth"
+  | "shadow-ring"
+  | "shadow-raised"
+  | "shadow-overlay"
   | "shadow-popover"
+  | "shadow-modal"
   | "shadow-well"
   | "shadow-raised-chip"
   | "shadow-surface-card";
@@ -175,7 +178,6 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // ---- Elevation ---------------------------------------------------------
   // Flush chrome casts nothing. Only surfaces that genuinely leave the plane —
   // menus, popovers, tooltips — carry depth, and they carry it as one token.
-  "shadow-border": "0 0 0 1px color-mix(in srgb, var(--color-text) 9%, transparent)",
   "shadow-control": "none",
   // Flush chrome casts nothing — but the composer is not flush. Two layers, and the
   // first has no offset on purpose: an ambient bloom on all four sides is what makes
@@ -185,8 +187,19 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // at 230 over 11px read as a drop shadow. The second layer is the drop.
   // Depth only; the ring beside it is drawn from `--composer-edge-width` at the
   // callsite, where the colour can answer focus.
-  "shadow-composer-depth": "var(--shadow-xl), 0 0 26px -8px var(--shadow-cast)",
-  "shadow-popover": "var(--shadow-xl)",
+  "shadow-composer-depth":
+    "0 8px 16px -4px color-mix(in oklab, var(--shadow-cast) 60%, transparent), 0 0 26px -8px var(--shadow-cast)",
+  // Four heights, each a ring plus a drop; see globals.css for the rule and for why
+  // they are not called `shadow-sm/lg/xl` (those are Tailwind's own theme keys).
+  "shadow-ring": "0 0 0 0.5px var(--seam-line)",
+  "shadow-raised":
+    "var(--shadow-ring), 0 1px 2px -1px color-mix(in oklab, var(--shadow-cast) 40%, transparent)",
+  "shadow-overlay":
+    "var(--shadow-ring), 0 4px 8px -2px color-mix(in oklab, var(--shadow-cast) 50%, transparent)",
+  "shadow-popover":
+    "var(--shadow-ring), 0 8px 16px -4px color-mix(in oklab, var(--shadow-cast) 60%, transparent)",
+  "shadow-modal":
+    "var(--shadow-ring), 0 16px 32px -8px color-mix(in oklab, var(--shadow-cast) 95%, transparent)",
   "shadow-well": "none",
   "shadow-raised-chip": "none",
   "shadow-surface-card": "none",

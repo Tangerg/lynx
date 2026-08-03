@@ -666,13 +666,41 @@
    *  flush chrome casts nothing, only surfaces that genuinely leave the plane
    *  carry depth, and every cast composes from the palette's --shadow-cast.
    * ----------------------------------------------------------------------- */
-  --shadow-border: 0 0 0 1px color-mix(in srgb, var(--color-text) 9%, transparent);
   --shadow-control: none;
   /* The ladder's `xl`, plus one ambient layer the ladder has no step for: this
      panel's edge is half a pixel on translucent glass, and with a drop alone the
      top and side edges measured 1-2 levels off the plane. */
-  --shadow-composer-depth: var(--shadow-xl), 0 0 26px -8px var(--shadow-cast);
-  --shadow-popover: var(--shadow-xl);
+  /* Depth, as four heights rather than ten surfaces each choosing for itself. Every
+     one is a RING plus a DROP.
+     The ring is why they are not just drops: a floating surface can land over
+     anything, so it has no value delta to lean on and its edge has to travel with its
+     depth. Half a pixel, like every other edge in this language. `--seam-line` was
+     defined for exactly this and nothing ever drew it — the atom's comment claimed the
+     popover's first layer was that hairline, and the popover had one layer and it was
+     a drop.
+     The drops follow one rule, taken from the Codex bundle's own ladder: offset
+     doubles, blur doubles, spread takes half the offset back, and the alpha climbs.
+     They are fractions of `--shadow-cast` rather than baked percentages, so a scheme
+     still says what depth costs in one place and dark stays heavier.
+     NOT named `--shadow-sm/lg/xl` — those are Tailwind's own theme keys, and writing
+     them here silently redefines every `shadow-*` utility. A previous pass did exactly
+     that by accident: `var(--shadow-xl)` resolved to Tailwind's stock shadow, so the
+     composer and every popover quietly stopped following the theme at all. */
+  --shadow-ring: 0 0 0 0.5px var(--seam-line);
+  --shadow-raised:
+    var(--shadow-ring), 0 1px 2px -1px color-mix(in oklab, var(--shadow-cast) 40%, transparent);
+  --shadow-overlay:
+    var(--shadow-ring), 0 4px 8px -2px color-mix(in oklab, var(--shadow-cast) 50%, transparent);
+  --shadow-popover:
+    var(--shadow-ring), 0 8px 16px -4px color-mix(in oklab, var(--shadow-cast) 60%, transparent);
+  --shadow-modal:
+    var(--shadow-ring), 0 16px 32px -8px color-mix(in oklab, var(--shadow-cast) 95%, transparent);
+  /* The composer's own: the panel rung, plus one ambient layer no rung has, because
+     its edge is half a pixel on translucent glass and with a drop alone the top and
+     side edges measured 1-2 levels off the plane. */
+  --shadow-composer-depth:
+    0 8px 16px -4px color-mix(in oklab, var(--shadow-cast) 60%, transparent),
+    0 0 26px -8px var(--shadow-cast);
   --shadow-well: none;
   --shadow-raised-chip: none;
   --shadow-surface-card: none;

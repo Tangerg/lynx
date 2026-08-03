@@ -8,9 +8,11 @@
 // page pasted over it. The blur sits on a `before` layer so it composites UNDER the
 // content instead of blurring it.
 //
-// No border. The edge is the first layer of `--shadow-popover`, drawn from the same
-// `--seam-line` workbench hairline, so every floating edge follows the same
-// contrast algorithm as region boundaries and its own corner radius exactly.
+// No border. The edge is the first layer of `--shadow-popover` — a half-pixel ring
+// drawn from `--seam-line`, so every floating edge follows the same contrast algorithm
+// as region boundaries and its own corner radius exactly. That claim was aspirational
+// until now: the token existed, this comment described it, and the popover's shadow had
+// exactly one layer and it was a drop.
 
 const FLOATING_SURFACE_BASE = [
   "relative z-50 overflow-hidden text-fg",
