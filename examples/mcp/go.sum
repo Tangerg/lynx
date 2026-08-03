@@ -6,8 +6,8 @@ github.com/Tangerg/lynx/agent v0.0.0-20260802185719-f013cc1eb508 h1:q/OABul6iFib
 github.com/Tangerg/lynx/agent v0.0.0-20260802185719-f013cc1eb508/go.mod h1:WbJKQJT2zihBA0HJU1OFZ1FUT4CUbGAr3fPiwfK1mEs=
 github.com/Tangerg/lynx/mcp v0.0.0-20260802185719-f013cc1eb508 h1:jHblvS2OcnFKJTsXcV/gUc330mKrDn5wJkD/b3k8kjA=
 github.com/Tangerg/lynx/mcp v0.0.0-20260802185719-f013cc1eb508/go.mod h1:5xMfxQSal5GSsHy3oZapPW8DcPJ6F/6KLo2tF6V7HwY=
-github.com/Tangerg/lynx/tools v0.0.0-20260803065206-38612c03c9cf h1:0w+hgGP3HG6gvbh1dvM02AgblsJ1KCRdFvESboE+AoY=
-github.com/Tangerg/lynx/tools v0.0.0-20260803065206-38612c03c9cf/go.mod h1:tg0vgwFnY2fibCSTZKpgGCtS4RUGgw+rkzIE78NNKgA=
+github.com/Tangerg/lynx/tools v0.0.0-20260803071502-5290fc59b753 h1:SpKGhNFW58qmkaifqTYL5JcFhy3guC6qTZgRsFJNg7E=
+github.com/Tangerg/lynx/tools v0.0.0-20260803071502-5290fc59b753/go.mod h1:lx/6WGcBLdul7sGZs/Zk4OX+7YuNObxx87icD9PF3k0=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/buger/jsonparser v1.6.1 h1:I0phFv0PlbLHnM7TZAVjZ2MJ2/eWRTDyuO7GLR98IEs=

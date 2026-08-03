@@ -12,7 +12,11 @@ require (
 	github.com/Tangerg/lynx/models/ollama v0.0.0-20260802195812-555a8da53cc9
 	github.com/Tangerg/lynx/otel v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/tools v0.0.0-20260803065206-38612c03c9cf
+	github.com/Tangerg/lynx/tools v0.0.0-20260803071502-5290fc59b753
+	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803071502-5290fc59b753
+	github.com/Tangerg/lynx/tools/skills v0.0.0-20260803071502-5290fc59b753
+	github.com/Tangerg/lynx/tools/webfetch v0.0.0-20260803071502-5290fc59b753
+	github.com/Tangerg/lynx/tools/websearch v0.0.0-20260803071502-5290fc59b753
 	github.com/Tangerg/sse v0.0.5
 	github.com/anthropics/anthropic-sdk-go v1.61.0
 	github.com/fsnotify/fsnotify v1.10.1
