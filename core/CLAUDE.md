@@ -7,7 +7,7 @@
 ## 定位
 
 - **协议，不是总框架**：Core 定义 metadata/media/document、各 modality 的 Request/Response、最小 Model 能力和高层 VectorStore 语义。ChatClient、history backend、tool runtime、agent loop、evaluation、document pipeline、tokenizer 实现和可观测性都在外圈。
-- **生产代码只依赖标准库和 Core 自身包**：Core 不 import sibling module、provider SDK、tokenizer、UUID、cast 或 OTel；`internal/arch` 对该依赖预算 fail-fast，不接受临时白名单。
+- **生产代码只依赖标准库和 Core 自身包**：Core 不 import sibling module、provider SDK、tokenizer、UUID、cast 或 OTel；`internal/arch` 对该依赖预算 fail-fast，不接受临时白名单。跨 provider 的公共契约测试由 `core/modeltest` 与 `core/vectorstore/storetest` 持有，仍只依赖标准库和 Core。
 - **依赖方向单向**：tool/models/vectorstores/chatclient/tools/agent/otel 可以 import Core；Core 不反向 import 它们。
 
 ## 架构心智
@@ -19,6 +19,7 @@
 - **流式使用 `iter.Seq2`**：不自定义 iterator，不用 channel 冒充拉模型；调用方提前停止、context cancel 和首错终止必须有测试。
 - **一个扩展机制**：跨调用行为只用函数式 middleware/decorator；Core 只保留类型和纯组合，不保留具体 history/logger/safeguard/OTel 实现。
 - **VectorStore 保留应用语义**：公共面仍处理 Document/查询文本，但按 Indexer/Searcher/IDDeleter/FilterDeleter 拆小能力；`SearchRequest` 同时拥有输入与 Match 输出校验，公共 ingestion/score 原语统一 provider 边界。filter 只公开稳定 AST/Visitor/Formatter 及 AST 语义转换原语，scanner、analyzer 与 optimizer 保持私有。
+- **契约测试归契约 owner**：`modeltest` 与 `vectorstore/storetest` 只提供可复用的测试 suite/fixture，不包含 provider 实现，也不成为生产适配器的依赖。
 
 ## 演进纪律
 

@@ -7,17 +7,19 @@ import (
 )
 
 var targetPublicPackages = map[string]struct{}{
-	"chat":               {},
-	"document":           {},
-	"embedding":          {},
-	"image":              {},
-	"media":              {},
-	"metadata":           {},
-	"moderation":         {},
-	"speech":             {},
-	"transcription":      {},
-	"vectorstore":        {},
-	"vectorstore/filter": {},
+	"chat":                  {},
+	"document":              {},
+	"embedding":             {},
+	"image":                 {},
+	"media":                 {},
+	"metadata":              {},
+	"modeltest":             {},
+	"moderation":            {},
+	"speech":                {},
+	"transcription":         {},
+	"vectorstore":           {},
+	"vectorstore/filter":    {},
+	"vectorstore/storetest": {},
 }
 
 func TestPublicPackagesMatchArchitectureAllowlist(t *testing.T) {

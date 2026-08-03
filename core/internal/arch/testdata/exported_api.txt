@@ -198,6 +198,34 @@ metadata: func Decode[T any](m Map, key string) (T, bool, error)
 metadata: func FromValues(values map[string]any) (Map, error)
 metadata: type Map map[string]json.RawMessage
 metadata: var ( ErrNilMap = errors.New("metadata: nil map") ErrEmptyKey = errors.New("metadata: empty key") ErrInvalidValue = errors.New("metadata: invalid JSON value") )
+modeltest: func (p *PollCounter) Inc() int32
+modeltest: func (p *PollCounter) N() int32
+modeltest: func (s ChatBehaviorSuite) Run(t *testing.T)
+modeltest: func (s ChatSuite) Run(t *testing.T)
+modeltest: func AnthropicSSEServer(events []AnthropicEvent) *httptest.Server
+modeltest: func BinaryServer(status int, contentType string, body []byte, inspect ...func(r *http.Request)) *httptest.Server
+modeltest: func CollectN[T any](seq iter.Seq2[T, error], n int) ([]T, error)
+modeltest: func Collect[T any](seq iter.Seq2[T, error]) ([]T, error)
+modeltest: func JSONServer(status int, body string, inspect ...func(r *http.Request)) *httptest.Server
+modeltest: func LookupEnv(name string) (string, bool)
+modeltest: func MuxServer(routes ...Route) *httptest.Server
+modeltest: func NewBlockingServer(t *testing.T, writeInitial func(http.ResponseWriter)) (*httptest.Server, Lifecycle)
+modeltest: func OpenAISSEServer(chunks []string) *httptest.Server
+modeltest: func RequireEnv(t *testing.T, name string) string
+modeltest: func RequireKey(t *testing.T, provider string) string
+modeltest: func RunEmbeddingContract(t *testing.T, c EmbeddingContract)
+modeltest: func RunIntegrationEmbedding(t *testing.T, p IntegrationEmbeddingProbe)
+modeltest: func WithTimeout(t *testing.T, d time.Duration) (context.Context, context.CancelFunc)
+modeltest: type AnthropicEvent struct { Event string Data string }
+modeltest: type CallBehaviorCase struct { Model chat.Model Lifecycle Lifecycle }
+modeltest: type ChatBehaviorSuite struct { Request func(t *testing.T) *chat.Request CallCancellation func(t *testing.T) CallBehaviorCase StreamCancellation func(t *testing.T) StreamBehaviorCase EarlyStop func(t *testing.T) StreamBehaviorCase FirstError func(t *testing.T) chat.Streamer }
+modeltest: type ChatSuite struct { New func(t *testing.T) (chat.Model, chat.Streamer) Request func(t *testing.T) *chat.Request AssertCall func(t *testing.T, response *chat.Response) AssertStream func(t *testing.T, responses []*chat.Response) AssertAggregated func(t *testing.T, response *chat.Response) }
+modeltest: type EmbeddingContract struct { ModelID string Response string ExpectedPath string Build func(t *testing.T, baseURL string) embedding.Model }
+modeltest: type IntegrationEmbeddingProbe struct { Provider string Build func(t *testing.T, key string) embedding.Model }
+modeltest: type Lifecycle struct { Started <-chan struct{} Stopped <-chan struct{} }
+modeltest: type PollCounter struct { n atomic.Int32 }
+modeltest: type Route struct { Method string Contains string Handle http.HandlerFunc }
+modeltest: type StreamBehaviorCase struct { Streamer chat.Streamer Lifecycle Lifecycle }
 moderation: func (c *Categories) UnmarshalJSON(data []byte) error
 moderation: func (c Categories) Flagged() bool
 moderation: func (c Categories) MarshalJSON() ([]byte, error)
@@ -413,6 +441,13 @@ vectorstore/filter: type Selector interface { Expr selector() }
 vectorstore/filter: type SyntaxError struct { Position Position Token string Message string }
 vectorstore/filter: type UnaryExpr struct { Op Operator Right Predicate start Position end Position }
 vectorstore/filter: type Visitor interface { Visit(Predicate) error }
+vectorstore/storetest: func Run(t *testing.T, store any, want Capabilities)
+vectorstore/storetest: func VisitorConformance(t *testing.T, build BuildFn, opts ...Options)
+vectorstore/storetest: func VisitorLifecycle(t *testing.T, factory func() Compiler)
+vectorstore/storetest: type BuildFn func(src string) error
+vectorstore/storetest: type Capabilities struct { Indexer bool Searcher bool IDDeleter bool FilterDeleter bool }
+vectorstore/storetest: type Compiler struct { Visit func(filter.Predicate) error Snapshot func() any }
+vectorstore/storetest: type Options struct { Unsupported []string }
 vectorstore: const ( DefaultTopK = 5 MinSimilarityScore = 0.0 MaxSimilarityScore = 1.0 )
 vectorstore: func (r SearchRequest) Validate() error
 vectorstore: func (r SearchRequest) ValidateMatches(matches []Match) error
