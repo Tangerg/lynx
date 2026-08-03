@@ -29,8 +29,8 @@ var (
 )
 
 // CreatedByAgent marks a skill whose content an agent authored through the
-// draft flow (background trajectory mining or propose_skill), as distinct from
-// a hand-written one. Only agent-authored skills are subject to automatic idle
+// background trajectory-mining draft flow, as distinct from a hand-written
+// one. Only agent-authored skills are subject to automatic idle
 // curation; a human-authored skill is never auto-archived.
 const CreatedByAgent = "agent"
 
@@ -51,9 +51,9 @@ type Entry struct {
 	Lifecycle   Lifecycle
 }
 
-// Draft is a skill an agent proposes through propose_skill: the required
-// frontmatter fields plus the SKILL.md body. It is never visible to the model
-// until a human approves its promotion into the active skill set.
+// Draft is a staged skill candidate: the required frontmatter fields plus the
+// SKILL.md body. It is never visible to the model until a human approves its
+// promotion into the active skill set.
 type Draft struct {
 	Name        string
 	Description string

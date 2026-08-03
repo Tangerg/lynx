@@ -224,7 +224,7 @@
 | 3 | `create_goal` 与 idle continuation | 完成 |
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 完成 |
 | 5 | 工具名、参数和描述的全量收敛 | 完成 |
-| 6 | 删除冗余能力和配置 | 进行中（6a、6b 完成） |
+| 6 | 删除冗余能力和配置 | 完成（6a、6b、6c） |
 | 7 | 全仓验证、文档收敛和最终审计 | 待开始 |
 
 每批必须独立验证、独立提交并推送。实现发现契约需要调整时，先更新本文，再在同一批修改代码和测试。
@@ -339,3 +339,10 @@
 - Agent 已有 `grep`、`glob`、`read` 与 `shell`，能在当前 checkout 上形成可观察、可组合的代码检索链路；删除语义索引工具避免模型在 exact/local search 与 opaque embedding ranking 间无谓选择，也让工具 manifest 少一个依赖用户 embedding 配置的变化轴；
 - 保留 `domain/codebaseindex`、SQLite index store、application `codebase.Coordinator` 及 `codebase.search/status/reindex` delivery contract：它们仍被客户端 `@codebase` mention、状态和手动重建表面实际消费；
 - Bootstrap 只把 semantic index 交给 application codebase use case，不再额外适配为 `toolset.CodebaseIndex` 并穿过 tool environment builder。移除这个双用途端口后，toolset 不认识 embedding role、index availability 或 client codebase lifecycle，边界更窄而非新增 facade。
+
+### 批次 6c
+
+- 从服务端模型工具面完整删除 `propose_skill` package、definition、schema、HITL interrupt adapter、BuildConfig/Deps 字段、Deferred exposure、安全分类和专属测试；不保留旧名称、隐藏注册或兼容入口；
+- 前台 coding Agent 不再承担“何时值得沉淀 Skill”的元决策，也不再通过一个工具同时 stage、提问和 promote。该组合能力与已有 post-turn trajectory miner、draft review API 和 Skill lifecycle 管理重复，并把产品级 authoring workflow 混进 coding manifest；
+- 保留 `skills.Draft` 领域、`infra/skillauthoring.Store`、后台 SkillMiner、usage curator，以及客户端 `list/promote/reject` draft contract：后台从真实轨迹生成或修订候选，静态验证后只 stage；用户通过显式管理工作流审核并晋升，不赋予模型自发布路径；
+- Toolset 现在只消费 Skill 的 read source 与 load usage recorder，不再持有 `Promote/DiscardDraft` 写端口或 authoring store。Bootstrap 仍在 composition root 构造一个 store，并分别把窄能力交给 maintenance、workspace application 和 read-usage adapter，没有把 store、draft handle 或 HITL DTO 泄露进 `agent`。

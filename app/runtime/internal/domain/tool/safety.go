@@ -30,8 +30,6 @@ const (
 //   - enter_plan_mode only narrows one session; set_plan changes session Plan state;
 //     exit_plan_mode owns its own approval. Gating any of the three would make
 //     Plan mode unusable or double-prompt.
-//   - propose_skill only stages a draft, and gates promotion behind its own
-//     human-approval interrupt (same double-prompt reasoning as ask_user).
 //   - delegate_task is pure orchestration; every child side effect is gated at the child
 //     tool.
 //   - create_goal is itself the explicit autonomous-work opt-in the user asked
@@ -49,7 +47,6 @@ var safetyClasses = map[string]SafetyClass{
 	"enter_plan_mode":     SafetyClassSafe,
 	"exit_plan_mode":      SafetyClassSafe,
 	"set_plan":            SafetyClassSafe,
-	"propose_skill":       SafetyClassSafe,
 	NameReadToolResult:    SafetyClassSafe,
 	"delegate_task":       SafetyClassSafe,
 	"create_goal":         SafetyClassSafe,

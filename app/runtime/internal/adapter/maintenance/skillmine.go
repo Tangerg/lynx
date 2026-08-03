@@ -198,8 +198,8 @@ func (m *SkillMiner) mineRevision(ctx context.Context, name string, messages []c
 
 // saveDraft validates + scans a distilled draft and stages it. An unusable or
 // obviously-dangerous draft is dropped silently; only a real store failure is an
-// error. Validation/scan mirror the propose_skill gate so an auto-mined draft
-// meets the same bar as a human-proposed one.
+// error. Validation and the static scan ensure an auto-mined draft reaches the
+// same baseline required by the reviewed promotion workflow.
 func (m *SkillMiner) saveDraft(ctx context.Context, draft skills.Draft, kind string) error {
 	if err := draft.Validate(); err != nil {
 		return nil

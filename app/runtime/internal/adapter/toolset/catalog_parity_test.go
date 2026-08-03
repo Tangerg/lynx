@@ -17,7 +17,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -61,20 +60,11 @@ func (allWiredSchedules) UpdateLatest(context.Context, string, schedule.Patch) (
 }
 func (allWiredSchedules) Delete(context.Context, string) error { return nil }
 
-type allWiredSkillAuthoring struct{}
-
 type allWiredToolResults struct{}
 
 func (allWiredToolResults) Fetch(context.Context, string, resultoffload.ID) (string, bool, error) {
 	return "", false, nil
 }
-
-func (allWiredSkillAuthoring) Enabled() bool { return true }
-func (allWiredSkillAuthoring) SaveDraft(context.Context, skills.Draft) (skills.DraftHandle, error) {
-	return skills.DraftHandle{}, nil
-}
-func (allWiredSkillAuthoring) Promote(context.Context, skills.DraftHandle) error      { return nil }
-func (allWiredSkillAuthoring) DiscardDraft(context.Context, skills.DraftHandle) error { return nil }
 
 func toolNameSet(ts []toolcontract.Tool) map[string]bool {
 	names := make(map[string]bool, len(ts))
@@ -144,9 +134,8 @@ func TestSafetyTableNamesOnlyToolsThatExist(t *testing.T) {
 		PlanMode:        policy,
 		Plan:            rolePlanStore{},
 		Goals:           activeGoalState{},
-		Schedules:       allWiredSchedules{},      // backs schedule
-		SkillAuthoring:  allWiredSkillAuthoring{}, // backs propose_skill
-		ToolResults:     allWiredToolResults{},    // backs read_tool_result
+		Schedules:       allWiredSchedules{},   // backs schedule
+		ToolResults:     allWiredToolResults{}, // backs read_tool_result
 		Online: OnlineConfig{
 			HTTPAllowedHosts: []string{"example.com"}, // backs http_request
 		},

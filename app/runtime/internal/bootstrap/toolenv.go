@@ -61,10 +61,7 @@ func buildToolEnvironment(
 		Plan:            cfg.PlanStore,
 		Interrupt:       suspension.Interrupt,
 		MCPToolDisabled: mcpEnv.policy.ToolDisabled,
-		// propose_skill writes to the global skills dir; an empty dir yields a
-		// disabled store (Enabled() false), which omits the tool.
-		SkillAuthoring: skillStore,
-		// The same store records skill loads for the idle-lifecycle curator; a
+		// The authoring store records skill loads for the idle-lifecycle curator; a
 		// disabled store no-ops RecordUse.
 		SkillUsage: skillStore,
 		// Opt-in per-command OS isolation for the shell tools (off by default).

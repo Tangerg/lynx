@@ -68,16 +68,16 @@ lyra 今天**只有**单个可编辑 `LYRA.md` + `memory.*` RPC；C8 design-only
 
 ### Lyra gap（vs B4）
 
-lyra B4 = `propose_skill`→静态安全扫描→`_drafts/`→**强制 HITL 晋升**→curator ACTIVE↔ARCHIVED（never delete），写生命周期所有 + 人审门。对比 Hermes：
+lyra B4 = post-turn 轨迹挖掘→静态安全扫描→`_drafts/`→**客户端审核晋升**→curator ACTIVE↔ARCHIVED（never delete），写生命周期所有 + 人审门。对比 Hermes：
 
 - **治理：lyra B4 默认更强**。Hermes 自由写 skill（approval off、agent-created 扫描 off、无强制 draft staging）。lyra 的强制扫描 + `_drafts/` + HITL 门正是 Hermes 只作 opt-in 的。
-- **能力：Hermes 有 B4 缺的三样**：① **自动挖掘**——B4 要前台 agent 主动 `propose_skill`；Hermes 自动 post-turn review 在旁挖轨迹。② **进化/精修循环**——B4 只创建 skill，无"从反馈改进现有 skill"路径；Hermes 从纠正 patch 现有 skill。③ **自动闲置生命周期**——B4 curator 是 ACTIVE↔ARCHIVED 但（据项目记忆）生命周期所有/手动；Hermes 加自动 staleness 降级 + grace floor + provenance gating。
+- **能力（历史基线）**：Hermes 当时揭示三项缺口：自动挖掘、从反馈修订现有 Skill、usage 驱动的闲置生命周期。当前 B4 已把它们收敛到后台 miner + reviewed draft workflow + curator，不再要求前台 coding Agent 主动决定是否提案。
 
 ### Verdict：部分吸（filter：反向不变量"写生命周期所有 + HITL 一致"）
 
 - **吸机制、但走 B4 现有的门、不走 Hermes 的自由写默认**：自动挖掘 + 精修现有 应产出**草稿**、走 lyra **强制 HITL 晋升**——取 Hermes 的**轨迹挖掘脑**、保 B4 的**治理身**。这正是"取思想不取形态"的线。
 - **吸**自动闲置生命周期（never-delete、pinned/referenced 豁免、provenance-gated）作 B4 curator 的扩展。
-- **吸**工程化蒸馏 prompt（反模式清单 + umbrella 塑形）直接进 B4 `propose_skill` 指引——零机制、纯智慧。
+- **吸**工程化蒸馏 prompt（反模式清单 + umbrella 塑形）进入 B4 后台 SkillMiner 指引——零机制、纯智慧。
 - **不吸**：自由写默认、opt-in-only 扫描、weekly LLM consolidation（aux 成本，Hermes 自己都默认 off——单用户过度工程）、version-field theater。
 
 ### 落点 + priority
@@ -85,7 +85,7 @@ lyra B4 = `propose_skill`→静态安全扫描→`_drafts/`→**强制 HITL 晋�
 - **H-Skill-1 · P1 · `app/runtime`**：post-turn/post-run **后台 review pass**（便宜/aux 模型、工具白名单、隔离）挖完成的轨迹为 skill 候选 → **产出 B4 草稿** → 现有 HITL 晋升门。按 run 复杂度（tool 迭代数）+ cadence 触发。**这是对标 peers 的最大单项能力 gap**。
 - **H-Skill-2 · P1/P2 · `app/runtime`**：同一 review pass 里的 **精修现有 skill** 路径（从用户纠正 patch 现有 skill 的草稿）、同样门控；加 **read-before-write guard**（reviewer 提 patch 前必须先 load skill）。
 - **H-Skill-3 · P2 · B4 curator**：**自动闲置生命周期**（active→stale→archived、re-use 复活、grace floor、pinned/referenced 豁免、provenance-gated 使只有 auto-authored 才自动降级）。
-- **H-Skill-4 · P3 · prompt-only**：把反模式捕获清单 + class-level umbrella 塑形折进 `propose_skill` 指引。
+- **H-Skill-4 · P3 · prompt-only**：把反模式捕获清单 + class-level umbrella 塑形折进 SkillMiner 指引。
 
 ---
 

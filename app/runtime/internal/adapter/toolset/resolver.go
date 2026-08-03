@@ -116,7 +116,6 @@ type Deps struct {
 	ToolResult      toolcontract.Tool                           // read_tool_result offloaded-output reader (both roles); nil → omitted
 	MemorySearch    toolcontract.Tool                           // search_memory agent-memory reader (both roles); nil → omitted
 	SessionSearch   toolcontract.Tool                           // search_conversations past-transcript reader (both roles); nil → omitted
-	SkillPropose    toolcontract.Tool                           // propose_skill authoring tool (coding role only); nil → omitted
 	GoalGet         toolcontract.Tool                           // get_goal state reader (coding role only); nil → omitted
 	GoalReport      toolcontract.Tool                           // report_goal_outcome loop signal (coding role only); nil → omitted
 	GoalActive      func(context.Context, string) (bool, error) // reports an active Goal for the session; nil → outcome reporting never offered
@@ -158,7 +157,6 @@ func NewResolver(d Deps) (*Resolver, error) {
 			{tool: d.ToolResult, audience: toolAudienceBoth, placement: toolAfterSkill},
 			{tool: d.MemorySearch, audience: toolAudienceBoth, placement: toolAfterSkill, deferred: true},
 			{tool: d.SessionSearch, audience: toolAudienceBoth, placement: toolAfterSkill, deferred: true},
-			{tool: d.SkillPropose, audience: toolAudienceCoding, placement: toolCodingTail, deferred: true},
 			{tool: d.GoalGet, audience: toolAudienceCoding, placement: toolCodingTail},
 			{tool: d.GoalReport, audience: toolAudienceCoding, placement: toolCodingTail, requiresActiveGoal: true},
 		},

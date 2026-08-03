@@ -19,7 +19,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/sessionsearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skillpropose"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -60,16 +59,15 @@ type BuildConfig struct {
 	LSPServers      []codeintel.ServerSpec
 	// MCPTools is the initial live MCP catalog. Its owner updates the resolver
 	// after reconnects; toolset deliberately does not own MCP connections.
-	MCPTools       []toolcontract.Tool
-	A2AAgents      []A2AAgentConfig
-	Plan           PlanStore      // backs set_plan + exit_plan_mode; nil → both are omitted
-	PlanMode       PlanModePolicy // session-scoped Plan mode; nil → enter/exit are omitted
-	Interrupt      runs.InterruptFunc
-	Schedules      ScheduleManagement     // backs schedule management tools; nil → omitted
-	ToolResults    toolresult.Store       // backs read_tool_result (reads offloaded tool output); nil → omitted
-	SkillAuthoring skillpropose.Authoring // backs propose_skill (staged draft + human-gated promotion); nil/disabled → omitted
-	SkillUsage     skill.UsageRecorder    // records skill loads for the idle-lifecycle curator; nil → use recording off
-	Goals          goaltool.State         // backs get_goal + report_goal_outcome and its active gate; nil → omitted
+	MCPTools    []toolcontract.Tool
+	A2AAgents   []A2AAgentConfig
+	Plan        PlanStore      // backs set_plan + exit_plan_mode; nil → both are omitted
+	PlanMode    PlanModePolicy // session-scoped Plan mode; nil → enter/exit are omitted
+	Interrupt   runs.InterruptFunc
+	Schedules   ScheduleManagement  // backs schedule management tools; nil → omitted
+	ToolResults toolresult.Store    // backs read_tool_result (reads offloaded tool output); nil → omitted
+	SkillUsage  skill.UsageRecorder // records skill loads for the idle-lifecycle curator; nil → use recording off
+	Goals       goaltool.State      // backs get_goal + report_goal_outcome and its active gate; nil → omitted
 
 	// MemorySearch backs search_memory (keyword + semantic search over the
 	// agent's curated project memory). nil omits the tool.
@@ -203,13 +201,6 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build search_conversations: %w", err)
 	}
-	// propose_skill lets the agent suggest a new reusable skill, gated behind a
-	// human approval before it joins the global library. Root/coding role only.
-	// nil / disabled authoring store → nil tool, simply omitted.
-	skillProposeTool, err := skillpropose.New(config.SkillAuthoring, interrupt)
-	if err != nil {
-		return Built{}, fmt.Errorf("toolset: build propose_skill: %w", err)
-	}
 	// Goal state is working-directory independent and keyed by session. get_goal
 	// is always useful to the root Agent; report_goal_outcome is additionally
 	// gated to an active Goal by the resolver.
@@ -246,7 +237,6 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		ToolResult:      toolResultTool,
 		MemorySearch:    memorySearchTool,
 		SessionSearch:   sessionSearchTool,
-		SkillPropose:    skillProposeTool,
 		GoalGet:         goalGetTool,
 		GoalReport:      goalReportTool,
 		GoalActive:      goalActive,
