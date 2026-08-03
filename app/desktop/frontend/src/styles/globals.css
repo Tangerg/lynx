@@ -139,17 +139,28 @@
      surface, which is why one value cannot serve: a 10% pill on a 10% card is
      invisible. Callsites were choosing per-place and had drifted to six alphas
      for negative alone (5 / 6 / 10 / 12 / 15 / 25). Reach for these, never for a
-     bare `bg-negative/12`. */
-  --color-negative-wash: color-mix(in srgb, var(--color-negative) 10%, transparent);
-  --color-warning-wash: color-mix(in srgb, var(--color-warning) 10%, transparent);
-  --color-success-wash: color-mix(in srgb, var(--color-success) 10%, transparent);
-  --color-info-wash: color-mix(in srgb, var(--color-info) 10%, transparent);
-  --color-accent-wash: color-mix(in srgb, var(--color-accent) 10%, transparent);
-  --color-negative-badge: color-mix(in srgb, var(--color-negative) 15%, transparent);
-  --color-warning-badge: color-mix(in srgb, var(--color-warning) 15%, transparent);
-  --color-success-badge: color-mix(in srgb, var(--color-success) 15%, transparent);
-  --color-info-badge: color-mix(in srgb, var(--color-info) 15%, transparent);
-  --color-accent-badge: color-mix(in srgb, var(--color-accent) 15%, transparent);
+     bare `bg-negative/12`.
+     Both mix from `--tone-*`, the SIGNAL tone, not from the pinned semantic — see
+     :root for why a tint mixed from an ink comes out as dirt. */
+  --color-negative-wash: color-mix(in srgb, var(--tone-negative) 10%, transparent);
+  --color-warning-wash: color-mix(in srgb, var(--tone-warning) 10%, transparent);
+  --color-success-wash: color-mix(in srgb, var(--tone-success) 10%, transparent);
+  --color-info-wash: color-mix(in srgb, var(--tone-info) 10%, transparent);
+  --color-accent-wash: color-mix(in srgb, var(--tone-accent) 10%, transparent);
+  --color-negative-badge: color-mix(in srgb, var(--tone-negative) 15%, transparent);
+  --color-warning-badge: color-mix(in srgb, var(--tone-warning) 15%, transparent);
+  --color-success-badge: color-mix(in srgb, var(--tone-success) 15%, transparent);
+  --color-info-badge: color-mix(in srgb, var(--tone-info) 15%, transparent);
+  --color-accent-badge: color-mix(in srgb, var(--tone-accent) 15%, transparent);
+  /* The third intensity: the EDGE of something that demands attention. A region
+     never gets a line and a card never gets one, but an approval, an error or a
+     dead connection is neither — it is an object asking to be looked at, and the
+     one place this language spends a border on meaning rather than on affordance.
+     One alpha, like the two above, so four tones cannot drift apart. */
+  --color-negative-edge: color-mix(in srgb, var(--tone-negative) 38%, transparent);
+  --color-warning-edge: color-mix(in srgb, var(--tone-warning) 38%, transparent);
+  --color-success-edge: color-mix(in srgb, var(--tone-success) 38%, transparent);
+  --color-info-edge: color-mix(in srgb, var(--tone-info) 38%, transparent);
 
   /* UI type ladder — `text-ui-2xs … text-ui-lg`. Every step is derived from a
      single base size at runtime (lib/typography.ts writes the --fs-* vars), so
@@ -426,22 +437,44 @@
   --color-info: #2b5fd0;
   --color-success: #2a713e;
 
-  /* Diff add/delete palette. Declared per scheme rather than once: a wash that
-     reads as a tint on a near-white hunk reads as a stain on a near-black one,
-     and `-meta` / `-code` are INK, which can never be scheme-independent (a
-     near-white green was unreadable on the light tint it sat on, at 1.36:1).
-     Distinct from --color-negative / --color-success on purpose: these are
-     large-area fills, not punchy status marks. Alphas are pre-baked per role
-     (row tint / sign + meta / word-level intra-line tint). Raw vars consumed via
-     var() rather than Tailwind utilities, because the intra-line tint is injected
-     as inline CSS into Shiki-highlighted HTML. */
-  --color-diff-added-tint: rgba(55, 144, 76, 0.11);
+  /* The SIGNAL tone every semantic TINT is mixed from — the fill half of each
+     semantic, where `--color-<tone>` above is the ink half.
+     One token cannot be both. The pinned values are inks: their luminance is
+     pulled until each clears 4.5:1 as a status word, which lands warning at L51
+     C.10 — an olive — and a tint mixed from an olive reads as dirt rather than as
+     amber. Lifted to L68 at 1.4× the chroma, and DERIVED so the hue is still said
+     once, by the theme (or by the user's accent pick), and no palette has to ship
+     a second set.
+     Anything that must be seen ON ITS OWN keeps the ink: a status word, an icon, a
+     6px dot. These tones sit near 1.9:1 on white and would fail 1.4.11 as a mark.
+     Declared once, not per scheme: the formula recomputes against whichever ink
+     the scheme has cascaded onto this same element. */
+  --tone-negative: oklch(from var(--color-negative) 68% calc(c * 1.4) h);
+  --tone-warning: oklch(from var(--color-warning) 68% calc(c * 1.4) h);
+  --tone-info: oklch(from var(--color-info) 68% calc(c * 1.4) h);
+  --tone-success: oklch(from var(--color-success) 68% calc(c * 1.4) h);
+  --tone-accent: oklch(from var(--color-accent) 68% calc(c * 1.4) h);
+
+  /* Diff add/delete palette. The ALPHAS are declared per scheme, because a tint
+     that reads on a near-white hunk stains a near-black one, and the two sides are
+     deliberately asymmetric (red reads heavier than green at equal alpha, so it
+     gets less). `-meta` / `-code` are INK and can never be scheme-independent: a
+     near-white green was unreadable on the light tint it sat on, at 1.36:1.
+     The HUE is no longer spelled here. These used to carry their own greens and
+     reds — #37904c where `--color-success` is #2a713e — on the correct reasoning
+     that a large-area fill needs a different tone than a punchy status mark, and
+     the wrong mechanism: a second hand-picked truth per scheme. `--tone-*` is that
+     fill tone, derived. Alphas are pre-baked per role (row tint / sign + meta /
+     word-level intra-line tint) and consumed via var() rather than Tailwind
+     utilities, because the intra-line tint is injected as inline CSS into
+     Shiki-highlighted HTML. */
+  --color-diff-added-tint: color-mix(in srgb, var(--tone-success) 11%, transparent);
   --color-diff-added-meta: #2a713e;
-  --color-diff-added-word: rgba(55, 144, 76, 0.28);
+  --color-diff-added-word: color-mix(in srgb, var(--tone-success) 28%, transparent);
   --color-diff-added-code: #1c4e2c;
-  --color-diff-deleted-tint: rgba(201, 69, 75, 0.09);
+  --color-diff-deleted-tint: color-mix(in srgb, var(--tone-negative) 9%, transparent);
   --color-diff-deleted-meta: #b0342b;
-  --color-diff-deleted-word: rgba(201, 69, 75, 0.26);
+  --color-diff-deleted-word: color-mix(in srgb, var(--tone-negative) 26%, transparent);
   --color-diff-deleted-code: #6e211c;
 
   /* Primary CTA — the accent fill. This language keeps one saturated colour and
@@ -917,13 +950,13 @@ html.theme-dark {
   --color-border-soft: #4b4e54;
   --color-divider: rgb(255 255 255 / 0.07);
 
-  --color-diff-added-tint: rgba(73, 156, 84, 0.15);
+  --color-diff-added-tint: color-mix(in srgb, var(--tone-success) 15%, transparent);
   --color-diff-added-meta: #5fad65;
-  --color-diff-added-word: rgba(73, 156, 84, 0.32);
+  --color-diff-added-word: color-mix(in srgb, var(--tone-success) 32%, transparent);
   --color-diff-added-code: #bcebc4;
-  --color-diff-deleted-tint: rgba(219, 92, 92, 0.13);
+  --color-diff-deleted-tint: color-mix(in srgb, var(--tone-negative) 13%, transparent);
   --color-diff-deleted-meta: #e06c6c;
-  --color-diff-deleted-word: rgba(219, 92, 92, 0.3);
+  --color-diff-deleted-word: color-mix(in srgb, var(--tone-negative) 30%, transparent);
   --color-diff-deleted-code: #f2cccc;
 
   --color-negative: #e06c6c;

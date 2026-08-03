@@ -188,7 +188,7 @@ for (const state of ["long-content", "question", "delegated"] as const) {
     await page.goto(`/visual/?fixture=agent&theme=light&state=${state}`);
     await page.locator("html[data-visual-ready]").waitFor();
 
-    const clearance = await page.evaluate(async () => {
+    const measured = await page.evaluate(async () => {
       const scroller = document.querySelector(".msg-scroll-viewport");
       const composer = document.querySelector('[data-slot="composer-root"]');
       if (!scroller || !composer) return null;
@@ -196,12 +196,24 @@ for (const state of ["long-content", "question", "delegated"] as const) {
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const tail = scroller.firstElementChild?.lastElementChild;
       if (!tail) return null;
-      return Math.round(composer.getBoundingClientRect().top - tail.getBoundingClientRect().bottom);
+      return {
+        clearance: Math.round(
+          composer.getBoundingClientRect().top - tail.getBoundingClientRect().bottom,
+        ),
+        // The gradient band the overlay draws above the input, read rather than
+        // restated: it is the floor the tail has to clear, and a literal here would
+        // have to be kept in step with a class in another file.
+        fade: Math.round(
+          composer.closest("[class*='absolute']")?.firstElementChild?.getBoundingClientRect()
+            .height ?? 0,
+        ),
+      };
     });
 
-    // A number, not just "positive": the fade band above the input is scenery, and
-    // a tail that ends inside it is a tail the user reads through a gradient.
-    expect(clearance).toBeGreaterThanOrEqual(48);
+    // Not merely positive: the band above the input fades the transcript out, so a
+    // tail that ends inside it is a tail the user reads through a gradient.
+    expect(measured?.fade).toBeGreaterThan(0);
+    expect(measured!.clearance).toBeGreaterThan(measured!.fade);
   });
 }
 

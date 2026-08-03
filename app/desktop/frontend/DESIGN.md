@@ -523,6 +523,18 @@ but an unchosen one.
 | `negative` | `#f85149` | Error. Allowed in: `run-error-banner`, tool-call `status: err`. |
 | `info` | `#58a6ff` | Information / link. Allowed in: inline links, info badges. |
 
+**Each semantic is two colours, and only one of them is pinned.** The theme
+spells the INK — the tone a status word, an icon or a 6px dot is drawn in, whose
+luminance is pulled until it clears 4.5:1 on the darkest surface it can sit on.
+Every TINT (`-wash` / `-badge` / `-edge`, and the diff row and word tints) mixes
+instead from `--tone-*`, the same hue lifted to L68 at 1.4× chroma. One token
+cannot do both jobs: light `warning` is pinned at L51 C.10, an olive, and a tint
+mixed from an olive reads as dirt rather than as amber. The fill tone is derived,
+not shipped, so the hue is still said once — by the theme, or by the user's accent
+pick — and no palette has to carry a second set. Anything that must be legible on
+its own keeps the ink: these tones are near 1.9:1 on white and would fail 1.4.11
+as a mark.
+
 **Semantic colours are scheme-tuned.** The dark values above are desaturated +
 lifted in luminance so they don't vibrate or edge-bleed on the near-black canvas
 (Apple Dark Mode / Ant dark). Light themes keep the saturated web values
