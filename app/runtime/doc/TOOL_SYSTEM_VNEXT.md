@@ -225,7 +225,7 @@
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 完成 |
 | 5 | 工具名、参数和描述的全量收敛 | 完成 |
 | 6 | 删除冗余能力和配置 | 完成（6a、6b、6c） |
-| 7 | 全仓验证、文档收敛和最终审计 | 待开始 |
+| 7 | 全仓验证、文档收敛和最终审计 | 进行中（7a 完成） |
 
 每批必须独立验证、独立提交并推送。实现发现契约需要调整时，先更新本文，再在同一批修改代码和测试。
 
@@ -346,3 +346,11 @@
 - 前台 coding Agent 不再承担“何时值得沉淀 Skill”的元决策，也不再通过一个工具同时 stage、提问和 promote。该组合能力与已有 post-turn trajectory miner、draft review API 和 Skill lifecycle 管理重复，并把产品级 authoring workflow 混进 coding manifest；
 - 保留 `skills.Draft` 领域、`infra/skillauthoring.Store`、后台 SkillMiner、usage curator，以及客户端 `list/promote/reject` draft contract：后台从真实轨迹生成或修订候选，静态验证后只 stage；用户通过显式管理工作流审核并晋升，不赋予模型自发布路径；
 - Toolset 现在只消费 Skill 的 read source 与 load usage recorder，不再持有 `Promote/DiscardDraft` 写端口或 authoring store。Bootstrap 仍在 composition root 构造一个 store，并分别把窄能力交给 maintenance、workspace application 和 read-usage adapter，没有把 store、draft handle 或 HITL DTO 泄露进 `agent`。
+
+### 批次 7a
+
+- 最终反向审计发现 `web_search`、`web_fetch`、`http_request` 仍沿用“schema 由类型生成、Call 另行手写 `json.Unmarshal`”的双契约；将三个外层工具改为保留真实 concurrency capability、Definition/Call 委托同一个 typed function，与 filesystem wrapper 采用同一最小组合方式；
+- 三工具现在在 provider/network 边界前统一拒绝未知字段、缺失字段、尾随 JSON、类型错误和 schema 约束违反，不再出现模型看见 enum/range 但执行路径静默接受的漂移；
+- `web_search` 精确约束 `max_results=1..20`、recency 闭集和 domain filter 数量，并让空白 query 与描述一致地失败；`web_fetch` 约束 format 闭集并验证绝对 http(s) URL；`http_request` 约束大写 method 闭集与 `timeout_ms=1..120000`，同时修正“method allowlist 属于 host”的不准确描述；
+- 三个独立网络工具 module 都提升到同一已发布严格工具核，并在 `GOWORK=off` 下分别通过 test/build/vet；Runtime 同时钉住新的根模块和三个子模块版本，避免 workspace 掩盖发布依赖漂移；
+- 没有把 provider、allowlist、network safety 或 Runtime policy 下沉到通用 `tool.Func`：通用核只负责所有消费者共同需要的严格 schema/decode/encode，URL 与 provider 业务不变量仍留在各具体工具。

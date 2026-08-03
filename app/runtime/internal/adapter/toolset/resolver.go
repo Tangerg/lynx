@@ -358,7 +358,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 		if createGoal := g.resolver.createGoalTool(); createGoal != nil {
 			tools.direct(createGoal)
 		}
-		// The remaining schedule, authoring, and Goal state capabilities are
+		// The remaining schedule and Goal state capabilities are
 		// product-root operations rather than generic child execution tools.
 		if err := g.resolver.appendStaticTools(ctx, &tools, toolCodingTail, g.role); err != nil {
 			return nil, err
