@@ -2,14 +2,11 @@ package websearch
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
-
-var toolSchema, _ = toolcontract.Schema[Request]()
 
 var _ toolcontract.Tool = (*Tool)(nil)
 
@@ -18,6 +15,7 @@ var _ toolcontract.Tool = (*Tool)(nil)
 // inherently requires an upstream API.
 type Tool struct {
 	provider Provider
+	inner    toolcontract.Tool
 }
 
 // NewTool builds a [Tool] backed by provider. Returns an error if
@@ -27,16 +25,19 @@ func NewTool(provider Provider) (*Tool, error) {
 	if provider == nil {
 		return nil, ErrMissingProvider
 	}
-	return &Tool{provider: provider}, nil
+	t := &Tool{provider: provider}
+	inner, err := toolcontract.NewFunc[Request, *Response](
+		toolcontract.FuncConfig{Name: "web_search", Description: webSearchDescription},
+		t.search,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("websearch: build tool: %w", err)
+	}
+	t.inner = inner
+	return t, nil
 }
 
-func (t *Tool) Definition() chat.ToolDefinition {
-	return chat.ToolDefinition{
-		Name:        "web_search",
-		Description: webSearchDescription,
-		InputSchema: json.RawMessage(toolSchema),
-	}
-}
+func (t *Tool) Definition() chat.ToolDefinition { return t.inner.Definition() }
 
 // webSearchDescription is the LLM-facing prompt. Structure follows
 // the standard WebSearch prompt: short bullets + a CRITICAL block
@@ -64,21 +65,17 @@ Search hygiene:
 func (t *Tool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
 
 func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
-	var req Request
-	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
-		return "", fmt.Errorf("websearch: parse arguments: %w", err)
-	}
+	return t.inner.Call(ctx, arguments)
+}
+
+func (t *Tool) search(ctx context.Context, req Request) (*Response, error) {
 	if err := req.Validate(); err != nil {
-		return "", fmt.Errorf("websearch: %w", err)
+		return nil, fmt.Errorf("websearch: %w", err)
 	}
 
 	res, err := t.provider.Search(ctx, &req)
 	if err != nil {
-		return "", fmt.Errorf("websearch: %w", err)
+		return nil, fmt.Errorf("websearch: %w", err)
 	}
-	body, err := json.Marshal(res)
-	if err != nil {
-		return "", fmt.Errorf("websearch: marshal: %w", err)
-	}
-	return string(body), nil
+	return res, nil
 }

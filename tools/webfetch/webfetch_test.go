@@ -77,8 +77,12 @@ func TestTool_Call_HappyPath(t *testing.T) {
 func TestTool_Call_EmptyURL(t *testing.T) {
 	tool, _ := NewTool(&fakeProvider{name: "stub"})
 	_, err := tool.Call(t.Context(), `{"url":""}`)
+	if err == nil {
+		t.Fatal("Call empty url: want schema error")
+	}
+	_, err = tool.Call(t.Context(), `{"url":"   "}`)
 	if !errors.Is(err, ErrEmptyURL) {
-		t.Errorf("Call empty url: err = %v, want ErrEmptyURL", err)
+		t.Errorf("Call blank url: err = %v, want ErrEmptyURL", err)
 	}
 }
 
@@ -86,6 +90,24 @@ func TestTool_Call_BadJSON(t *testing.T) {
 	tool, _ := NewTool(&fakeProvider{name: "stub"})
 	if _, err := tool.Call(t.Context(), `{bad json`); err == nil {
 		t.Fatal("want error on bad JSON")
+	}
+}
+
+func TestTool_Call_EnforcesAdvertisedContract(t *testing.T) {
+	provider := &fakeProvider{name: "stub"}
+	tool, _ := NewTool(provider)
+	for _, arguments := range []string{
+		`{"url":"https://example.com","response_format":"text"}`,
+		`{"url":"https://example.com","format":"json"}`,
+		`{"url":"relative/path"}`,
+	} {
+		provider.last = nil
+		if _, err := tool.Call(t.Context(), arguments); err == nil {
+			t.Errorf("Call(%s): want contract error", arguments)
+		}
+		if provider.last != nil {
+			t.Errorf("Call(%s): invalid arguments reached provider", arguments)
+		}
 	}
 }
 

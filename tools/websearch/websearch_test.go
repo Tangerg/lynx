@@ -94,8 +94,12 @@ func TestTool_Call_HappyPath(t *testing.T) {
 func TestTool_Call_EmptyQuery(t *testing.T) {
 	tool, _ := NewTool(&fakeProvider{name: "stub"})
 	_, err := tool.Call(t.Context(), `{"query":""}`)
+	if err == nil {
+		t.Fatal("Call empty query: want schema error")
+	}
+	_, err = tool.Call(t.Context(), `{"query":"   "}`)
 	if !errors.Is(err, ErrEmptyQuery) {
-		t.Errorf("Call empty query: err = %v, want ErrEmptyQuery", err)
+		t.Errorf("Call blank query: err = %v, want ErrEmptyQuery", err)
 	}
 }
 
@@ -103,6 +107,24 @@ func TestTool_Call_BadJSON(t *testing.T) {
 	tool, _ := NewTool(&fakeProvider{name: "stub"})
 	if _, err := tool.Call(t.Context(), `{bad json`); err == nil {
 		t.Fatal("want error on bad JSON")
+	}
+}
+
+func TestTool_Call_EnforcesAdvertisedContract(t *testing.T) {
+	provider := &fakeProvider{name: "stub"}
+	tool, _ := NewTool(provider)
+	for _, arguments := range []string{
+		`{"query":"runtime","limit":3}`,
+		`{"query":"runtime","max_results":21}`,
+		`{"query":"runtime","recency":"recent"}`,
+	} {
+		provider.last = nil
+		if _, err := tool.Call(t.Context(), arguments); err == nil {
+			t.Errorf("Call(%s): want contract error", arguments)
+		}
+		if provider.last != nil {
+			t.Errorf("Call(%s): invalid arguments reached provider", arguments)
+		}
 	}
 }
 

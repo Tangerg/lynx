@@ -2,7 +2,6 @@ package httpreq
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -10,13 +9,12 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
-var toolSchema, _ = toolcontract.Schema[Request]()
-
 var _ toolcontract.Tool = (*Tool)(nil)
 
 // Tool is the LLM-facing adapter for [Client].
 type Tool struct {
 	client *Client
+	inner  toolcontract.Tool
 }
 
 // NewTool builds a [Tool] backed by client. Returns an error if
@@ -26,38 +24,36 @@ func NewTool(client *Client) (*Tool, error) {
 	if client == nil {
 		return nil, errors.New("httpreq: client is required")
 	}
-	return &Tool{client: client}, nil
+	t := &Tool{client: client}
+	inner, err := toolcontract.NewFunc[Request, *Response](
+		toolcontract.FuncConfig{Name: "http_request", Description: description},
+		t.request,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("httpreq: build tool: %w", err)
+	}
+	t.inner = inner
+	return t, nil
 }
 
-func (t *Tool) Definition() chat.ToolDefinition {
-	return chat.ToolDefinition{
-		Name:        "http_request",
-		Description: description,
-		InputSchema: json.RawMessage(toolSchema),
-	}
-}
+func (t *Tool) Definition() chat.ToolDefinition { return t.inner.Definition() }
 
 const description = `Execute a single HTTP request and return the response.
 - The "url" must be a fully-formed absolute http(s) URL.
-- Method defaults to GET. Write methods (POST/PUT/PATCH/DELETE) only work if the host has been configured to allow them.
+- Method defaults to GET. Write methods (POST/PUT/PATCH/DELETE) only work if the runtime is configured to allow them.
 - The agent operator restricts which hosts and methods are reachable; if you get a "host is not in AllowedHosts" or "method is not in AllowedMethods" error, the request is permanently blocked — don't retry with the same host/method.
 - Response body is capped (default 256 KiB); when truncated, response.truncated == true.
 - For body with JSON content, pass a JSON-encoded string as "body" and set Content-Type via "headers".
 - Use this for arbitrary REST/JSON APIs. Prefer the dedicated web_search / web_fetch tools for general web pages.`
 
 func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
-	var req Request
-	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
-		return "", fmt.Errorf("httpreq: parse arguments: %w", err)
-	}
+	return t.inner.Call(ctx, arguments)
+}
 
+func (t *Tool) request(ctx context.Context, req Request) (*Response, error) {
 	res, err := t.client.Do(ctx, &req)
 	if err != nil {
-		return "", fmt.Errorf("httpreq: %w", err)
+		return nil, fmt.Errorf("httpreq: %w", err)
 	}
-	body, err := json.Marshal(res)
-	if err != nil {
-		return "", fmt.Errorf("httpreq: marshal: %w", err)
-	}
-	return string(body), nil
+	return res, nil
 }

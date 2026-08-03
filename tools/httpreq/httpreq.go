@@ -127,18 +127,19 @@ func NewClient(cfg Config) (*Client, error) {
 // Request is the LLM-facing argument shape. The JSON / jsonschema tags
 // drive the tool's input schema.
 type Request struct {
-	URL       string            `json:"url" jsonschema:"required" jsonschema_description:"Absolute http(s) URL. Host must match the configured allowlist."`
-	Method    string            `json:"method,omitempty" jsonschema_description:"HTTP method: GET (default) / HEAD / POST / PUT / PATCH / DELETE. Must be in the configured allowlist."`
+	URL       string            `json:"url" jsonschema:"minLength=1" jsonschema_description:"Absolute http(s) URL. Host must match the configured allowlist."`
+	Method    string            `json:"method,omitempty" jsonschema:"enum=GET,enum=HEAD,enum=POST,enum=PUT,enum=PATCH,enum=DELETE" jsonschema_description:"HTTP method: GET (default), HEAD, POST, PUT, PATCH, or DELETE. Must be in the configured method allowlist."`
 	Headers   map[string]string `json:"headers,omitempty" jsonschema_description:"Optional request headers. Override any DefaultHeaders configured on the client."`
 	Query     map[string]string `json:"query,omitempty" jsonschema_description:"Optional query parameters appended to the URL."`
 	Body      string            `json:"body,omitempty" jsonschema_description:"Optional request body — for JSON, pass a JSON-encoded string and set Content-Type via Headers."`
-	TimeoutMS int               `json:"timeout_ms,omitempty" jsonschema_description:"Optional per-call timeout in milliseconds. Typical: 5000-60000."`
+	TimeoutMS int               `json:"timeout_ms,omitempty" jsonschema:"minimum=1,maximum=120000" jsonschema_description:"Per-call timeout in milliseconds, from 1 to 120000. Omit to use the runtime default."`
 }
 
 func (r *Request) Validate() error {
 	if r == nil {
 		return ErrMissingRequest
 	}
+	r.URL = strings.TrimSpace(r.URL)
 	if r.URL == "" {
 		return ErrEmptyURL
 	}

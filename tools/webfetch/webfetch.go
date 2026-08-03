@@ -1,6 +1,10 @@
 package webfetch
 
-import "context"
+import (
+	"context"
+	"net/url"
+	"strings"
+)
 
 // ResponseFormat selects the format of the scraped page content.
 // Providers map this to their native format setting.
@@ -22,10 +26,10 @@ const (
 // impls read the Go fields directly.
 type Request struct {
 	// URL is the page to fetch. Required.
-	URL string `json:"url" jsonschema:"required" jsonschema_description:"Absolute http(s) URL of the page to fetch."`
+	URL string `json:"url" jsonschema:"minLength=1" jsonschema_description:"Absolute http(s) URL of the page to fetch."`
 
 	// Format selects the response format. "" defaults to markdown.
-	Format ResponseFormat `json:"format,omitempty" jsonschema_description:"Response format: \"markdown\" (default — best for LLMs), \"html\", or \"text\"."`
+	Format ResponseFormat `json:"format,omitempty" jsonschema:"enum=markdown,enum=html,enum=text" jsonschema_description:"Response format: markdown (default and best for LLMs), html, or text."`
 }
 
 // Validate checks that the request carries enough to act on. Returns
@@ -35,8 +39,18 @@ func (r *Request) Validate() error {
 	if r == nil {
 		return ErrMissingRequest
 	}
+	r.URL = strings.TrimSpace(r.URL)
 	if r.URL == "" {
 		return ErrEmptyURL
+	}
+	parsed, err := url.Parse(r.URL)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return ErrInvalidURL
+	}
+	switch r.Format {
+	case "", FormatMarkdown, FormatHTML, FormatText:
+	default:
+		return ErrInvalidFormat
 	}
 	return nil
 }

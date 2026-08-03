@@ -1,6 +1,7 @@
 package httpreq
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -11,6 +12,39 @@ import (
 	"sync/atomic"
 	"testing"
 )
+
+func TestToolUsesStrictTypedContract(t *testing.T) {
+	client, err := NewClient(Config{AllowedHosts: []string{"example.com"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool, err := NewTool(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition := tool.Definition()
+	if definition.Name != "http_request" {
+		t.Fatalf("name = %q, want http_request", definition.Name)
+	}
+	var schema struct {
+		AdditionalProperties bool `json:"additionalProperties"`
+	}
+	if err := json.Unmarshal(definition.InputSchema, &schema); err != nil {
+		t.Fatalf("decode schema: %v", err)
+	}
+	if schema.AdditionalProperties {
+		t.Fatalf("schema permits unknown fields: %s", definition.InputSchema)
+	}
+	for _, arguments := range []string{
+		`{"url":"https://example.com","timeout":5000}`,
+		`{"url":"https://example.com","method":"get"}`,
+		`{"url":"https://example.com","timeout_ms":120001}`,
+	} {
+		if _, err := tool.Call(t.Context(), arguments); err == nil {
+			t.Errorf("Call(%s): want contract error", arguments)
+		}
+	}
+}
 
 func TestNewClient_RequiresAllowlist(t *testing.T) {
 	if _, err := NewClient(Config{}); !errors.Is(err, ErrMissingHosts) {

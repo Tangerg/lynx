@@ -9,7 +9,9 @@ var (
 	ErrMissingRequest = errors.New("webfetch: request must not be nil")
 
 	// ErrEmptyURL is returned when [Request.URL] is empty.
-	ErrEmptyURL = errors.New("webfetch: url must not be empty")
+	ErrEmptyURL      = errors.New("webfetch: url must not be empty")
+	ErrInvalidURL    = errors.New("webfetch: url must be an absolute http(s) URL")
+	ErrInvalidFormat = errors.New("webfetch: format must be markdown, html, or text")
 
 	// ErrMissingProvider is returned by [NewTool] when the provider
 	// argument is nil.

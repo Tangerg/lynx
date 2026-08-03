@@ -13,7 +13,10 @@ var (
 
 	// ErrDomainsBothSides is returned when both AllowedDomains and
 	// BlockedDomains are set — most providers only honor one.
-	ErrDomainsBothSides = errors.New("websearch: allowed_domains and blocked_domains are mutually exclusive")
+	ErrDomainsBothSides  = errors.New("websearch: allowed_domains and blocked_domains are mutually exclusive")
+	ErrInvalidMaxResults = errors.New("websearch: max_results must be between 1 and 20 when set")
+	ErrTooManyDomains    = errors.New("websearch: at most 20 allowed_domains or blocked_domains may be set")
+	ErrInvalidRecency    = errors.New("websearch: recency must be hour, day, week, month, or year")
 
 	// ErrMissingProvider is returned by [NewTool] when the provider
 	// argument is nil.

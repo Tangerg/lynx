@@ -1,5 +1,5 @@
-github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9 h1:JAGDFuA5c06tUb6ZvVCIFGeXsh+AXehaii4qn++xxjc=
-github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
+github.com/Tangerg/lynx v0.0.0-20260803203338-c4ebadf56498 h1:rGFvFJzMak+koAMcg60YgMrfcd459gpEiP9uwY63Cf4=
+github.com/Tangerg/lynx v0.0.0-20260803203338-c4ebadf56498/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
 github.com/go-resty/resty/v2 v2.17.2 h1:FQW5oHYcIlkCNrMD2lloGScxcHJ0gkjshV3qcQAyHQk=
 github.com/go-resty/resty/v2 v2.17.2/go.mod h1:kCKZ3wWmwJaNc7S29BRtUhJwy7iqmn+2mLtQrOyQlVA=
 golang.org/x/net v0.57.0 h1:K5+3DljvIuDG9/Jv9rvyMywYNFCQ9RSUY6OOTTkT+tE=

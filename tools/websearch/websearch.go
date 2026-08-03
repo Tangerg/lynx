@@ -51,21 +51,21 @@ const (
 // impls read the Go fields directly.
 type Request struct {
 	// Query is the search string. Required.
-	Query string `json:"query" jsonschema:"required" jsonschema_description:"The search query (at least 2 characters)."`
+	Query string `json:"query" jsonschema:"minLength=1" jsonschema_description:"Non-empty web search query. Include the current year when asking for the latest information."`
 
 	// MaxResults caps the number of returned results. 0 = use the
 	// provider's default (typically 5-10).
-	MaxResults int `json:"max_results,omitempty" jsonschema_description:"Number of results to return. 0 or omitted uses the provider default (typically 5-10)."`
+	MaxResults int `json:"max_results,omitempty" jsonschema:"minimum=1,maximum=20" jsonschema_description:"Maximum results to return, from 1 to 20. Omit to use the provider default (typically 5-10)."`
 
 	// AllowedDomains restricts results to these domains. Mutually
 	// exclusive with BlockedDomains on most providers.
-	AllowedDomains []string `json:"allowed_domains,omitempty" jsonschema_description:"Only include results from these domains (bare domain names, no protocol). Mutually exclusive with blocked_domains."`
+	AllowedDomains []string `json:"allowed_domains,omitempty" jsonschema:"maxItems=20" jsonschema_description:"Only include results from at most 20 domains (bare domain names, no protocol). Mutually exclusive with blocked_domains."`
 
 	// BlockedDomains drops results from these domains.
-	BlockedDomains []string `json:"blocked_domains,omitempty" jsonschema_description:"Exclude results from these domains. Mutually exclusive with allowed_domains."`
+	BlockedDomains []string `json:"blocked_domains,omitempty" jsonschema:"maxItems=20" jsonschema_description:"Exclude results from at most 20 domains (bare domain names, no protocol). Mutually exclusive with allowed_domains."`
 
 	// Recency filters to a coarse time-window. "" = no time filter.
-	Recency Recency `json:"recency,omitempty" jsonschema_description:"Time-window filter: \"hour\", \"day\", \"week\", \"month\", or \"year\". Useful for time-sensitive queries (news, releases, prices)."`
+	Recency Recency `json:"recency,omitempty" jsonschema:"enum=hour,enum=day,enum=week,enum=month,enum=year" jsonschema_description:"Optional time window: hour, day, week, month, or year."`
 }
 
 // Validate checks the cross-cutting invariants the tool and every
@@ -76,11 +76,23 @@ func (r *Request) Validate() error {
 	if r == nil {
 		return ErrMissingRequest
 	}
+	r.Query = strings.TrimSpace(r.Query)
 	if r.Query == "" {
 		return ErrEmptyQuery
 	}
+	if r.MaxResults < 0 || r.MaxResults > 20 {
+		return ErrInvalidMaxResults
+	}
 	if len(r.AllowedDomains) > 0 && len(r.BlockedDomains) > 0 {
 		return ErrDomainsBothSides
+	}
+	if len(r.AllowedDomains) > 20 || len(r.BlockedDomains) > 20 {
+		return ErrTooManyDomains
+	}
+	switch r.Recency {
+	case "", RecencyHour, RecencyDay, RecencyWeek, RecencyMonth, RecencyYear:
+	default:
+		return ErrInvalidRecency
 	}
 	return nil
 }
