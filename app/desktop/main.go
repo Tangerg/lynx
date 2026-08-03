@@ -33,20 +33,19 @@ func desktopApplicationOptions(host *DesktopHost) *options.App {
 		Bind:             []any{host},
 		OnStartup:        host.attachWindow,
 		BackgroundColour: &options.RGBA{R: 251, G: 251, B: 252, A: 1},
-		// macOS: no title bar at all, so the system draws no window buttons.
-		// The app draws its own three controls in the gutter it already reserves
-		// for them, and moves the window through the draggable chrome bars.
+		// macOS: a real titled window whose title bar is transparent and empty,
+		// with the content running the full height underneath it. The app draws
+		// its own three controls in the gutter it reserves for them and moves
+		// the window through the draggable chrome bars; hideNativeWindowButtons
+		// takes the platform's controls off the frame at startup.
 		//
-		// Dropping NSWindowStyleMaskTitled is what removes the buttons. The
-		// alternative — keeping them and positioning our chrome around them — is
-		// what we had, and it never lined up: their box is the system's, it
-		// changes with the appearance and the toolbar, and nothing in the window
-		// can measure it.
+		// HideTitleBar stays false deliberately. Setting it drops
+		// NSWindowStyleMaskTitled, which does remove the buttons — and the
+		// window frame with them, leaving square corners and no shadow.
 		Mac: &mac.Options{
 			TitleBar: &mac.TitleBar{
 				TitlebarAppearsTransparent: true,
 				HideTitle:                  true,
-				HideTitleBar:               true,
 				FullSizeContent:            true,
 			},
 			Appearance: mac.NSAppearanceNameAqua,

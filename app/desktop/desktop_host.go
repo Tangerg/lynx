@@ -64,8 +64,13 @@ func defaultDesktopHost() (*DesktopHost, error) {
 
 // attachWindow receives the Wails application context at startup. Everything
 // below that drives the window is inert until it has been called.
+//
+// It is also where the app takes the window's controls over from the platform:
+// the frame's own buttons go away here, and from this point the three the app
+// draws are the only ones.
 func (h *DesktopHost) attachWindow(ctx context.Context) {
 	h.window = ctx
+	hideNativeWindowButtons()
 }
 
 // MinimiseWindow, ToggleMaximiseWindow and CloseWindow back the three controls
