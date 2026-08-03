@@ -9,7 +9,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/askuser"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/codebasesearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/enterplan"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/exitplan"
@@ -36,12 +35,6 @@ import (
 // CORE imports none of them; it receives the assembled [Built] from the
 // composition root. Tool capability construction therefore stays outside Agent
 // execution (doc/EXECUTION_CENTERED_ARCHITECTURE.md).
-
-// CodebaseIndex is the live @codebase capability the tool resolver consumes.
-type CodebaseIndex interface {
-	codebasesearch.SearchIndex
-	Available(ctx context.Context) (bool, error)
-}
 
 // PlanStore is the two real Plan-tool views joined at assembly: set_plan writes
 // the whole value and exit_plan_mode reads the value it presents for approval.
@@ -77,10 +70,6 @@ type BuildConfig struct {
 	SkillAuthoring skillpropose.Authoring // backs propose_skill (staged draft + human-gated promotion); nil/disabled → omitted
 	SkillUsage     skill.UsageRecorder    // records skill loads for the idle-lifecycle curator; nil → use recording off
 	Goals          goaltool.State         // backs get_goal + report_goal_outcome and its active gate; nil → omitted
-
-	// CodebaseIndex backs codebase_search (semantic code search). nil — or an
-	// index with no embedding model configured — omits the tool.
-	CodebaseIndex CodebaseIndex
 
 	// MemorySearch backs search_memory (keyword + semantic search over the
 	// agent's curated project memory). nil omits the tool.
@@ -264,7 +253,6 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		CodeIntel:       codeIntel,
 		ReadTracker:     tracker,
 		MCPToolDisabled: config.MCPToolDisabled,
-		CodebaseIndex:   config.CodebaseIndex,
 	})
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build resolver: %w", err)

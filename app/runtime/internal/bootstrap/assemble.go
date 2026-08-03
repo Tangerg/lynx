@@ -233,7 +233,6 @@ type toolEnvironmentBuilder func(
 	agentexec.Config,
 	*approval.RuntimePolicy,
 	mcpEnvironment,
-	toolset.CodebaseIndex,
 	*agentmemory.Searcher,
 	*schedules.Coordinator,
 	*goals.State,
@@ -351,11 +350,9 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	embeddingResolver := modelclient.NewEmbeddingResolver(providers)
 	liveEmbedder := modelclient.NewRoleEmbedder(embeddingResolver, embeddingRoleState)
 	var codebaseUseCases codebase.Index
-	var codebaseToolIndex toolset.CodebaseIndex
 	if cfg.CodebaseStore != nil {
 		index := codebaseindex.New(cfg.CodebaseStore, liveEmbedder.Resolve, codebaseindexadapter.Source{})
 		codebaseUseCases = index
-		codebaseToolIndex = index
 	}
 	// Agent-memory search (search_memory + the extractor's vector backfill) embeds
 	// through the same live embedding role as @codebase. The searcher is nil when
@@ -399,7 +396,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Paths: workspacepath.Resolver{},
 	})
 	skillStore := skillauthoring.NewStore(cfg.SkillsGlobalDir)
-	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, codebaseToolIndex, memorySearcher, scheduleCoord, goalState, skillStore)
+	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, memorySearcher, scheduleCoord, goalState, skillStore)
 	lifetime.toolClosers = slices.Clone(built.closers)
 	if err != nil {
 		return nil, err

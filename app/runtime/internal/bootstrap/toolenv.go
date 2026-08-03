@@ -33,7 +33,6 @@ func buildToolEnvironment(
 	ecfg agentexec.Config,
 	approvalPolicy *approval.RuntimePolicy,
 	mcpEnv mcpEnvironment,
-	codebaseIdx toolset.CodebaseIndex,
 	memorySearcher *agentmemory.Searcher,
 	scheduleCoord *schedules.Coordinator,
 	goalState *goals.State,
@@ -62,7 +61,6 @@ func buildToolEnvironment(
 		Plan:            cfg.PlanStore,
 		Interrupt:       suspension.Interrupt,
 		MCPToolDisabled: mcpEnv.policy.ToolDisabled,
-		CodebaseIndex:   codebaseIdx,
 		// propose_skill writes to the global skills dir; an empty dir yields a
 		// disabled store (Enabled() false), which omits the tool.
 		SkillAuthoring: skillStore,

@@ -13,7 +13,7 @@ import (
 
 // codebase.* (API.md §7.10) — the @codebase semantic index for clients: the
 // search surface (the Codebase workspace view), the status surface, and a manual
-// reindex. The agent reaches the same index through the codebase_search tool.
+// reindex.
 
 // CodebaseSearch returns the chunks most similar to the query in the cwd's
 // project (codebase.search), building/refreshing the index first.

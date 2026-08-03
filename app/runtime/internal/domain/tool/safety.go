@@ -50,7 +50,6 @@ var safetyClasses = map[string]SafetyClass{
 	"exit_plan_mode":      SafetyClassSafe,
 	"set_plan":            SafetyClassSafe,
 	"propose_skill":       SafetyClassSafe,
-	"codebase_search":     SafetyClassSafe,
 	NameReadToolResult:    SafetyClassSafe,
 	"delegate_task":       SafetyClassSafe,
 	"create_goal":         SafetyClassSafe,

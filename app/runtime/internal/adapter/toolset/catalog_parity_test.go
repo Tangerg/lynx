@@ -12,7 +12,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
@@ -61,13 +60,6 @@ func (allWiredSchedules) UpdateLatest(context.Context, string, schedule.Patch) (
 	return schedule.Schedule{}, nil
 }
 func (allWiredSchedules) Delete(context.Context, string) error { return nil }
-
-type allWiredCodebaseIndex struct{}
-
-func (allWiredCodebaseIndex) Search(context.Context, string, string, int) ([]codebaseindex.Hit, error) {
-	return nil, nil
-}
-func (allWiredCodebaseIndex) Available(context.Context) (bool, error) { return true, nil }
 
 type allWiredSkillAuthoring struct{}
 
@@ -153,7 +145,6 @@ func TestSafetyTableNamesOnlyToolsThatExist(t *testing.T) {
 		Plan:            rolePlanStore{},
 		Goals:           activeGoalState{},
 		Schedules:       allWiredSchedules{},      // backs schedule
-		CodebaseIndex:   allWiredCodebaseIndex{},  // backs codebase_search
 		SkillAuthoring:  allWiredSkillAuthoring{}, // backs propose_skill
 		ToolResults:     allWiredToolResults{},    // backs read_tool_result
 		Online: OnlineConfig{

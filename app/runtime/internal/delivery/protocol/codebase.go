@@ -2,10 +2,9 @@ package protocol
 
 import "context"
 
-// Codebase is the codebase.* method group (API.md §7.10) — the @codebase
-// semantic index. The agent reaches it through the codebase_search tool; a
-// client reaches it here for the @codebase mention (search), the index status
-// surface, and a manual reindex. Requires a configured embedding role
+// Codebase is the codebase.* method group (API.md §7.10) — the client-facing
+// @codebase semantic index for mention search, index status, and manual
+// reindex. Requires a configured embedding role
 // (models.setEmbeddingRole) — otherwise search reports it's unavailable.
 type Codebase interface {
 	// CodebaseSearch returns the chunks most semantically similar to the query in

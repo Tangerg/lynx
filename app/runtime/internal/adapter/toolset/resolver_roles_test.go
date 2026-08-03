@@ -8,18 +8,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
-
-type availabilityIndex struct {
-	available bool
-	err       error
-}
 
 type failingGoalState struct{ err error }
 type roleGoalState struct{ active bool }
@@ -45,14 +39,6 @@ func (roleGoalState) Get(context.Context, string) (goal.Goal, bool, error) {
 func (s roleGoalState) Active(context.Context, string) (bool, error) { return s.active, nil }
 func (roleGoalState) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
 	return goals.ReportNoActiveGoal, nil
-}
-
-func (i availabilityIndex) Available(context.Context) (bool, error) {
-	return i.available, i.err
-}
-
-func (availabilityIndex) Search(context.Context, string, string, int) ([]codebaseindex.Hit, error) {
-	return nil, nil
 }
 
 func TestPlanModeToolsAreRootOnly(t *testing.T) {
@@ -186,55 +172,6 @@ func TestGoalToolsAreRootOnlyAndOutcomeRequiresActiveGoal(t *testing.T) {
 	if !names["get_goal"] || names["report_goal_outcome"] {
 		t.Fatalf("inactive Goal tools = %v", names)
 	}
-}
-
-func TestToolGroupDistinguishesUnavailableCodebaseFromResolverFailure(t *testing.T) {
-	t.Run("unconfigured model omits tool", func(t *testing.T) {
-		built, err := Build(t.Context(), BuildConfig{
-			Workdir:       t.TempDir(),
-			CodebaseIndex: availabilityIndex{},
-		})
-		if err != nil {
-			t.Fatalf("Build: %v", err)
-		}
-		closeBuiltToolset(t, built)
-
-		group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupCoding)
-		if err != nil || !ok {
-			t.Fatalf("Resolve(coding) = %v, %v", ok, err)
-		}
-		resolved, err := group.Tools(t.Context())
-		if err != nil {
-			t.Fatalf("Tools: %v", err)
-		}
-		for _, candidate := range resolved {
-			if candidate.Definition().Name == "codebase_search" {
-				t.Fatal("codebase_search offered without an embedding model")
-			}
-		}
-	})
-
-	t.Run("resolver failure is preserved", func(t *testing.T) {
-		wantErr := errors.New("provider store unavailable")
-		built, err := Build(t.Context(), BuildConfig{
-			Workdir: t.TempDir(),
-			CodebaseIndex: availabilityIndex{
-				err: wantErr,
-			},
-		})
-		if err != nil {
-			t.Fatalf("Build: %v", err)
-		}
-		closeBuiltToolset(t, built)
-
-		group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupCoding)
-		if err != nil || !ok {
-			t.Fatalf("Resolve(coding) = %v, %v", ok, err)
-		}
-		if _, err := group.Tools(t.Context()); !errors.Is(err, wantErr) {
-			t.Fatalf("Tools error = %v, want %v", err, wantErr)
-		}
-	})
 }
 
 func TestToolGroupPreservesActiveGoalLookupFailure(t *testing.T) {

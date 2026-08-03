@@ -224,7 +224,7 @@
 | 3 | `create_goal` 与 idle continuation | 完成 |
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 完成 |
 | 5 | 工具名、参数和描述的全量收敛 | 完成 |
-| 6 | 删除冗余能力和配置 | 进行中（6a 完成） |
+| 6 | 删除冗余能力和配置 | 进行中（6a、6b 完成） |
 | 7 | 全仓验证、文档收敛和最终审计 | 待开始 |
 
 每批必须独立验证、独立提交并推送。实现发现契约需要调整时，先更新本文，再在同一批修改代码和测试。
@@ -332,3 +332,10 @@
 - 保留 `online.httpAllowedHosts` / `LYRA_HTTP_ALLOWED_HOSTS`，但其唯一模型消费者现在是 `http_request`。这不是 `download` 兼容配置，不再在 composition root 派生另一份 allowlist；
 - 从服务端源码完整删除 `sourcegraph_search`、stream parser、条件注册、测试和 `online.sourcegraphEndpoint/sourcegraphToken` 及 `LYRA_SOURCEGRAPH_*` 配置；不保留 vendor-specific hidden tool；
 - Sourcegraph JSON-RPC Go 依赖继续由 LSP transport 合法消费，没有因名称相同而机械删除。`agent` 与通用工具模块没有新增网络、workspace 或 provider 概念；runtime 的 OnlineConfig 反而收窄为三个真实能力字段。
+
+### 批次 6b
+
+- 从模型工具面完整删除 `codebase_search` package、definition、schema、resolver 动态 availability gate、BuildConfig/Deps 端口、安全分类和专属测试；不以 Hidden、disabled registration 或 MCP alias 保留第二条代码搜索入口；
+- Agent 已有 `grep`、`glob`、`read` 与 `shell`，能在当前 checkout 上形成可观察、可组合的代码检索链路；删除语义索引工具避免模型在 exact/local search 与 opaque embedding ranking 间无谓选择，也让工具 manifest 少一个依赖用户 embedding 配置的变化轴；
+- 保留 `domain/codebaseindex`、SQLite index store、application `codebase.Coordinator` 及 `codebase.search/status/reindex` delivery contract：它们仍被客户端 `@codebase` mention、状态和手动重建表面实际消费；
+- Bootstrap 只把 semantic index 交给 application codebase use case，不再额外适配为 `toolset.CodebaseIndex` 并穿过 tool environment builder。移除这个双用途端口后，toolset 不认识 embedding role、index availability 或 client codebase lifecycle，边界更窄而非新增 facade。

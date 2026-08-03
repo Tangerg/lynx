@@ -1,7 +1,6 @@
 // Package codebaseindex is the @codebase semantic-index domain: it embeds a
-// project's code into vectors and answers similarity queries, so the agent
-// (codebase_search tool) and the user (@codebase mention) can find code by
-// meaning rather than by literal text.
+// project's code into vectors and answers similarity queries, so client
+// @codebase experiences can find code by meaning rather than by literal text.
 //
 // Storage is sqlite (vectors as float32 BLOBs) + brute-force cosine in Go: a
 // single project is a few thousand chunks, so an exact top-k scan is

@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/codebasesearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolsearch"
@@ -53,11 +52,6 @@ type Resolver struct {
 	createGoal      toolcontract.Tool                           // root-only Goal entry tool; nil until the Goal Driver exists
 	staticTools     []staticToolSpec                            // built-once tools with one role/placement policy for turn manifests
 	goalActive      func(context.Context, string) (bool, error) // reports whether the session has an active Goal; nil → outcome reporting never offered
-
-	// codebaseIndex backs codebase_search (both roles). Held as the index (not
-	// a pre-built tool) so Tools() can gate inclusion on Available() per turn —
-	// the embedding model can be configured after construction. nil → no tool.
-	codebaseIndex CodebaseIndex
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
 	// atomic pointer so a reconnect (B3b-2) can hot-swap the live set without
@@ -128,7 +122,6 @@ type Deps struct {
 	GoalActive      func(context.Context, string) (bool, error) // reports an active Goal for the session; nil → outcome reporting never offered
 	CodeIntel       *codeintel.Analyzer                         // backs the post-edit diagnostics wrap
 	ReadTracker     *editguardstate.Tracker                     // backs the read/edit/write guards
-	CodebaseIndex   CodebaseIndex                               // backs codebase_search (both roles); nil → omitted
 	// MCPToolDisabled reports whether an identified MCP tool is hidden.
 	MCPToolDisabled func(mcpserver.ToolRef) bool
 }
@@ -173,7 +166,6 @@ func NewResolver(d Deps) (*Resolver, error) {
 		codeIntel:       d.CodeIntel,
 		readTracker:     d.ReadTracker,
 		pathLocker:      newPathLocker(),
-		codebaseIndex:   d.CodebaseIndex,
 		mcpToolDisabled: d.MCPToolDisabled,
 	}
 	for _, scheduleTool := range d.ScheduleTools {
@@ -351,24 +343,6 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	// are projected from the resolver's role and placement policy.
 	if err := g.resolver.appendStaticTools(ctx, &tools, toolAfterSkill, g.role); err != nil {
 		return nil, err
-	}
-	// codebase_search (both roles): semantic code search over the turn's cwd.
-	// Offered only when an embedding model is configured (Available reads the
-	// live embedding role), so it appears once the user sets one — no restart.
-	// Dependency failures are not treated as a missing model: failing resolution
-	// keeps the runtime from advertising a false capability state.
-	if index := g.resolver.codebaseIndex; index != nil {
-		available, err := index.Available(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("toolset: resolve codebase_search availability: %w", err)
-		}
-		if available {
-			codebaseSearch, err := codebasesearch.New(index)
-			if err != nil {
-				return nil, fmt.Errorf("toolset: resolve codebase_search: %w", err)
-			}
-			tools.deferTools(codebaseSearch)
-		}
 	}
 	// Both roles can ask the user and leave plan mode. A child question parks
 	// through the same nested suspension tree as a child approval.

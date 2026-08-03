@@ -15,7 +15,6 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/shutdown"
@@ -181,13 +180,12 @@ func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 		ecfg agentexec.Config,
 		policy *approval.RuntimePolicy,
 		mcpEnv mcpEnvironment,
-		index toolset.CodebaseIndex,
 		searcher *agentmemory.Searcher,
 		scheduleCoord *scheduleapp.Coordinator,
 		goalState *goals.State,
 		skillStore *skillauthoring.Store,
 	) (toolEnvironment, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index, searcher, scheduleCoord, goalState, skillStore)
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalState, skillStore)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -223,7 +221,6 @@ func TestAssemblyBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
 		agentexec.Config,
 		*approval.RuntimePolicy,
 		mcpEnvironment,
-		toolset.CodebaseIndex,
 		*agentmemory.Searcher,
 		*scheduleapp.Coordinator,
 		*goals.State,
@@ -267,13 +264,12 @@ func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 		ecfg agentexec.Config,
 		policy *approval.RuntimePolicy,
 		mcpEnv mcpEnvironment,
-		index toolset.CodebaseIndex,
 		searcher *agentmemory.Searcher,
 		scheduleCoord *scheduleapp.Coordinator,
 		goalState *goals.State,
 		skillStore *skillauthoring.Store,
 	) (toolEnvironment, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index, searcher, scheduleCoord, goalState, skillStore)
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalState, skillStore)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -322,13 +318,12 @@ func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 		ecfg agentexec.Config,
 		policy *approval.RuntimePolicy,
 		mcpEnv mcpEnvironment,
-		index toolset.CodebaseIndex,
 		searcher *agentmemory.Searcher,
 		scheduleCoord *scheduleapp.Coordinator,
 		goalState *goals.State,
 		skillStore *skillauthoring.Store,
 	) (toolEnvironment, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index, searcher, scheduleCoord, goalState, skillStore)
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalState, skillStore)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
