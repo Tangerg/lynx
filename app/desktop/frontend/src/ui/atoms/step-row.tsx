@@ -29,7 +29,7 @@ export function StepMark({ state }: { state: StepState }) {
         </div>
       )}
       {state === "pending" && (
-        <div className="h-3 w-3 rounded-full border-[1.5px] border-fg-faint/40" />
+        <div className="h-3 w-3 rounded-full border-[1.5px] border-field-strong" />
       )}
     </div>
   );

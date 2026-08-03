@@ -104,6 +104,11 @@ export function TurnRail() {
                 <span
                   className={cn(
                     "h-[2px] rounded-pill transition-[background-color,width] duration-[var(--dur-fast)]",
+                    // The one hand-picked alpha left in the tree, and deliberately:
+                    // a resting mark is 2px of ink between the faint step and a
+                    // hairline, and the ramp has no rung there — `fg-faint` reads as
+                    // a scale of text and `border-soft` as an edge. `check-design-tokens`
+                    // covers alpha on FILLS built from full ink, which this is not.
                     lead ? "bg-fg" : "bg-fg-faint/55",
                   )}
                   style={

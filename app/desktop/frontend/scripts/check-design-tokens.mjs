@@ -30,6 +30,31 @@ const MARKUP_RULES = [
       "hand-picked tone alpha — use `bg-<tone>-wash` (a tinted surface) or `bg-<tone>-badge` (a chip on one)",
   },
   {
+    // A fill mixed from full ink at a hand-picked alpha. Six callsites across three
+    // rings had one — 0.03 / 0.04 / 0.05 / 0.06 / 0.08 — for three separate ideas
+    // the system already names: a well (`bg-sunken`), a chip on chrome
+    // (`bg-surface-2`), and the rule beside a label (`bg-divider`). One file held
+    // two of them in adjacent functions answering the same question.
+    // `fg-faint/N` is NOT covered: that is an optical value on a 2px mark, where the
+    // ramp's nearest steps are a hairline token and a text token, and neither is a
+    // mark colour. Alpha on a FILL is the drift; alpha on ink is a tweak.
+    pattern: /(?<![\w-])(?:[a-z-]+:)*bg-fg\/\[?[\d.]+\]?/g,
+    message:
+      "ink-alpha fill — use `bg-sunken` (a well), `bg-surface-2` (a chip on chrome), `bg-divider` (a rule), or `bg-hover` / `bg-selected` (a state)",
+  },
+  {
+    // Tailwind's own black and white. A literal cannot follow a scheme, and these
+    // reached INTO the design-system ring: two dialogs spelled their scrim
+    // `bg-black/40` and `bg-black/60`, the command palette a third value, so the
+    // same "everything behind this is out of play" answered at three strengths.
+    // Content the theme does not own is the one exception and it has tokens:
+    // `bg-media-scrim` / `bg-media-canvas` / `text-on-media`.
+    pattern:
+      /(?<![\w-])(?:[a-z-]+:)*(?:bg|text|border|outline|ring|fill|stroke)-(?:black|white)(?:\/\[?[\d.]+\]?)?/g,
+    message:
+      "literal black/white — use `bg-scrim` (a modal), the `media-*` tokens (over content we don't own), or an ink/surface token",
+  },
+  {
     pattern: /(?<![\w-])(?:[a-z-]+:)*text-\[[\d.]+px\]/g,
     message: "arbitrary font size — use a `text-ui-*` / `text-display-*` step",
   },

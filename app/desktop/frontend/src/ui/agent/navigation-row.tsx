@@ -103,7 +103,7 @@ export function AgentRow({
         <Icon
           name={icon}
           size="sm"
-          className={cn("shrink-0 text-fg/95", detail && "mt-px", iconClassName)}
+          className={cn("shrink-0 text-fg", detail && "mt-px", iconClassName)}
         />
       )}
       {/* A two-line row breathes on `body` rather than `snug`: stacked lines set

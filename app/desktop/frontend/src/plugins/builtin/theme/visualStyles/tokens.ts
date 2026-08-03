@@ -35,6 +35,7 @@ type VisualStyleTokenName =
   | "app-dock-surface"
   | "app-card-surface"
   | "app-composer-surface"
+  | "app-floating-surface"
   | "composer-backdrop"
   | "app-card-edge"
   | "app-pane-split"
@@ -123,6 +124,12 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // gets its bordered input back.
   "app-composer-surface": "color-mix(in oklab, var(--app-content-surface) 86%, transparent)",
   "composer-backdrop": "blur(20px) saturate(1.4)",
+  // A floating panel is the other translucent surface. Same reason as the composer:
+  // it lets a hint of what it covers through, so it reads as glass over the page
+  // rather than as a second page pasted on it. Held here rather than as an alpha at
+  // the atom, because how see-through a panel is is the style's call, not the
+  // panel's.
+  "app-floating-surface": "color-mix(in oklab, var(--app-content-surface) 70%, transparent)",
   // The drawer's boundary, drawn INSIDE the plane: the plane outranks the drawer on
   // z-index so the drawer can slide under it, which means the drawer cannot draw the
   // seam from outside.

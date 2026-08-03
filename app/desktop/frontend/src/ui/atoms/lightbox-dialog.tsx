@@ -25,7 +25,7 @@ export function LightboxDialog({
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Trigger render={trigger} />
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className="fixed inset-0 z-[200] cursor-zoom-out bg-black/60 light:bg-black/25" />
+        <DialogPrimitive.Backdrop className="fixed inset-0 z-[200] cursor-zoom-out bg-scrim" />
         <DialogPrimitive.Popup
           aria-describedby={undefined}
           onClick={closeOnContentClick ? () => onOpenChange(false) : undefined}

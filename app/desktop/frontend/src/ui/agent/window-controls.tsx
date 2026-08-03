@@ -112,7 +112,7 @@ function WindowControl({
         className={cn(
           "grid size-3.5 place-items-center rounded-full",
           "bg-[var(--fill)] transition-colors duration-[var(--dur-fast)]",
-          "[:root[data-window-inactive]_&]:bg-fg-faint/30",
+          "[:root[data-window-inactive]_&]:bg-[var(--window-control-inactive)]",
         )}
         style={{ "--fill": `var(--window-control-${hue})` } as CSSProperties}
       >
@@ -120,7 +120,7 @@ function WindowControl({
           viewBox="0 0 12 12"
           aria-hidden
           className={cn(
-            "size-3.5 text-black/50 opacity-0 transition-opacity duration-[var(--dur-fast)]",
+            "size-3.5 text-[var(--window-control-ink)] opacity-0 transition-opacity duration-[var(--dur-fast)]",
             "group-hover/window:opacity-100",
             "[:root[data-window-inactive]_&]:opacity-0",
           )}

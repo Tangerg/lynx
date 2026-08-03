@@ -43,7 +43,7 @@ export function CommandPalette() {
         if (!next) setQuery("");
       }}
       label={t("commandPalette.label")}
-      className="fixed inset-0 z-50 flex items-start justify-center p-24 [&_[cmdk-overlay]]:fixed [&_[cmdk-overlay]]:inset-0 [&_[cmdk-overlay]]:bg-black/35"
+      className="fixed inset-0 z-50 flex items-start justify-center p-24 [&_[cmdk-overlay]]:fixed [&_[cmdk-overlay]]:inset-0 [&_[cmdk-overlay]]:bg-scrim"
     >
       <Command className="animate-rise-in relative z-[1] flex w-full max-w-[640px] flex-col overflow-hidden rounded-lg bg-canvas shadow-[var(--shadow-popover)]">
         <div className="flex items-center gap-2.5 px-4 py-3 text-fg-muted">

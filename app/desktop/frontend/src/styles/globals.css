@@ -108,10 +108,29 @@
      panel, which has no step to lean on. A style that wants depth spells those
      three as casts instead and nothing else changes.
      Reach for `field` when a local control needs an editable edge — never for
-     laying out regions. */
+     laying out regions.
+     `divider` is the exception and it is NOT a region tool: it is the rule beside a
+     label inside content — a day separator, a compaction marker, a menu separator.
+     It used to be transparent here while the palette shipped 7% ink under the same
+     name, so `bg-divider` and `bg-[var(--color-divider)]` were one name with two
+     behaviours, and four callsites hand-picked an ink alpha (0.06 / 0.07 / 0.08)
+     rather than reach for a utility that drew nothing. */
   --color-line: transparent;
   --color-line-soft: transparent;
-  --color-divider: transparent;
+  --color-divider: var(--color-divider);
+
+  /* Scrim — the fill that puts everything behind a modal out of play. One value,
+     because four surfaces had four (a confirm dialog at 40/20, a lightbox at 60/25,
+     the command palette at 35, the drop overlay at 4% ink) and two of them spelled
+     it with Tailwind's literal `black`, inside the design-system ring. */
+  --color-scrim: var(--color-scrim);
+
+  /* Media — chrome drawn over content the theme does not own: a thumbnail, an
+     untrusted HTML document. These are the only colours in the system that must NOT
+     invert with the scheme, because what is underneath them never does. */
+  --color-media-scrim: var(--color-media-scrim);
+  --color-media-canvas: var(--color-media-canvas);
+  --color-on-media: var(--color-on-media);
 
   /* Media edge — the hairline that keeps a thumbnail, a colour swatch or an
      inlined image from bleeding into the surface behind it. An ink alpha, so it
@@ -165,6 +184,7 @@
   --color-warning-edge: color-mix(in srgb, var(--tone-warning) 38%, transparent);
   --color-success-edge: color-mix(in srgb, var(--tone-success) 38%, transparent);
   --color-info-edge: color-mix(in srgb, var(--tone-info) 38%, transparent);
+  --color-accent-edge: color-mix(in srgb, var(--tone-accent) 38%, transparent);
 
   /* UI type ladder — `text-ui-2xs … text-ui-lg`. Every step is derived from a
      single base size at runtime (lib/typography.ts writes the --fs-* vars), so
@@ -433,6 +453,7 @@
   --color-border: #dee1e7;
   --color-border-soft: #c6cad3;
   --color-divider: rgb(0 0 0 / 0.07);
+  --color-scrim: rgb(0 0 0 / 0.22);
 
   /* Semantic — used sparingly per DESIGN.md §9. Light-scheme first paint; the
      theme re-applies the same values at runtime. One step deeper than the
@@ -675,6 +696,7 @@
   --app-card-surface: var(--color-elevated);
   --app-composer-surface: color-mix(in oklab, var(--app-content-surface) 86%, transparent);
   --composer-backdrop: blur(20px) saturate(1.4);
+  --app-floating-surface: color-mix(in oklab, var(--app-content-surface) 70%, transparent);
   /* Edge GEOMETRY only — offsets and spread, no colour. The colour is the
      shell's live `--shell-boundary` / `--split-boundary`, and it has to be
      substituted on the element that draws the edge: a var() inside a token
@@ -963,6 +985,7 @@ html.theme-dark {
   --color-border: #3a3d42;
   --color-border-soft: #4b4e54;
   --color-divider: rgb(255 255 255 / 0.07);
+  --color-scrim: rgb(0 0 0 / 0.5);
 
   --color-diff-added-tint: color-mix(in srgb, var(--tone-success) 15%, transparent);
   --color-diff-added-meta: #5fad65;
@@ -1025,12 +1048,22 @@ html.theme-light .panel-scroll::-webkit-scrollbar-thumb:hover {
      marks centre on the platform's own 20 / 40 / 60. The shell-level drawer control
      starts after this gutter and never changes owner or coordinate. */
   --window-controls-gutter: 78px;
+  /* Over content we do not own — a thumbnail, an untrusted HTML document. Fixed in
+     both schemes on purpose: what is underneath them never inverts, so chrome laid
+     on it cannot either. */
+  --color-media-scrim: rgb(0 0 0 / 0.55);
+  --color-media-canvas: #ffffff;
+  --color-on-media: #ffffff;
   /* The three marks are the platform's own colours, not the theme's: they mean
      the same thing in every app on the desktop, and a window whose close button
      is the accent hue — or a hand-picked softer red — is a window nobody
      recognises at a glance. They do not follow the scheme for the same reason.
      Sampled from a real title bar, not remembered: the values everyone quotes
-     for these are a generation out of date. */
+     for these are a generation out of date. The glyph on top is a fixed dark for the
+     same reason the fill is a fixed hue. */
+  --window-control-ink: rgb(0 0 0 / 0.5);
+  /* An unfocused window greys its three marks; the platform does the same. */
+  --window-control-inactive: color-mix(in oklab, var(--color-text-faint) 30%, transparent);
   --window-control-close: #ff5c5f;
   --window-control-minimise: #fac800;
   --window-control-maximise: #34c759;

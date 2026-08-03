@@ -254,19 +254,24 @@ export function ApprovalCard({
 
 // Tinted pill fills — no inset ring borders (§ light Geist recipe). Tone rides
 // the semantic bg/text token alone.
+//
+// The neutral fallback, once. Three sibling functions answered the same question
+// two different ways — two of them at a hand-picked 6% ink, one at the rung — so
+// "no tone" looked like two different states depending on which row you read.
+const NEUTRAL_PILL = "bg-surface-2 text-fg-muted";
 function approvalRiskToneClass(tone: ApprovalTone): string {
   if (tone === "danger") return "bg-negative-wash text-negative";
   if (tone === "warning") return "bg-warning-wash text-warning";
-  return "bg-fg/[0.06] text-fg-muted";
+  return NEUTRAL_PILL;
 }
 
 function approvalScopeToneClass(tone: ApprovalTone): string {
   if (tone === "danger") return "bg-negative-wash text-negative";
   if (tone === "warning") return "bg-warning-wash text-warning";
-  return "bg-surface-2 text-fg-muted";
+  return NEUTRAL_PILL;
 }
 
 function approvalReversibilityToneClass(tone: ApprovalTone): string {
   if (tone === "danger") return "bg-negative-wash text-negative";
-  return "bg-fg/[0.06] text-fg-muted";
+  return NEUTRAL_PILL;
 }

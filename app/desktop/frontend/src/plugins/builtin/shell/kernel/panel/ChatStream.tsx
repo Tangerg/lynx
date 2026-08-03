@@ -166,7 +166,7 @@ export function ChatStream({ onSend }: Props) {
               the input insets its own placeholder, so a left-aligned title started
               14px before the words underneath it and read as a near-miss. */}
           <div className={cn(READING_COLUMN, READING_GUTTER)}>
-            <h1 className="mx-auto max-w-[620px] text-balance text-center text-display-md font-medium text-fg/95">
+            <h1 className="mx-auto max-w-[620px] text-balance text-center text-display-md font-medium text-fg">
               {t("welcome.title")}
             </h1>
           </div>

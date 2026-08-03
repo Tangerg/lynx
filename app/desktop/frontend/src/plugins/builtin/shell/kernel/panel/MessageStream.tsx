@@ -9,7 +9,7 @@ import { useMotionOff } from "@/lib/appearance";
 import { cn } from "@/lib/classNames";
 import { dayKey, formatDay } from "@/lib/i18n/relativeTime";
 import { useT } from "@/lib/i18n";
-import { Loader } from "@/ui";
+import { Divider, Loader } from "@/ui";
 import { COMPOSER_CLEARANCE, READING_COLUMN, READING_GUTTER } from "./readingColumn";
 import { useIsCurrentRootRunning } from "@/plugins/builtin/agent/public/run";
 import { MessageBlock, RootRunOutcome } from "@/plugins/builtin/chat/message/public/rendering";
@@ -63,9 +63,8 @@ function DaySeparator({ createdAt }: { createdAt?: string }) {
   const label = formatDay(createdAt);
   if (!label) return null;
   return (
-    <div className={cn(READING_GUTTER, "flex items-center gap-3 py-1")}>
-      <span className="text-ui-xs text-fg-faint">{label}</span>
-      <span aria-hidden className="h-px flex-1 bg-[var(--color-divider)]" />
+    <div className={cn(READING_GUTTER, "py-1")}>
+      <Divider align="start">{label}</Divider>
     </div>
   );
 }

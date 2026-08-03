@@ -1,31 +1,43 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/classNames";
 
-// Divider — horizontal label flanked by faint hairlines.
-// Used by Checkpoint, ApprovalCard's settled / declined states.
-//
-// `intent` only tunes the icon container color (bg-surface-2 always,
-// icon color varies). The label text always uses fg-faint.
+/**
+ * A label with a rule beside it — the only shape in this system that draws a line
+ * inside content. A day boundary, a compaction marker, a settled decision.
+ *
+ * `align` decides whether the rule flanks the label or trails it. Both shapes
+ * existed as hand-rolled `<span className="h-px flex-1 …" />` pairs at three
+ * callsites, at three different ink alphas, because the centred variant lived here
+ * and the left-aligned one had nowhere to be.
+ *
+ * The rule is `bg-divider`, and that utility is the reason this atom stopped
+ * hand-picking an alpha: it used to compile to `transparent` while the palette
+ * shipped 7% ink under the same name, so reaching for the token drew nothing and
+ * every caller guessed instead.
+ *
+ * `intent` only tunes the icon chip's ink. The label always takes `fg-faint`: this
+ * shape marks a boundary in the reading, and a boundary that competes with the
+ * reading is a heading.
+ */
 export function Divider({
   icon,
   intent = "neutral",
+  align = "center",
   className,
   children,
 }: {
   icon?: ReactNode;
   intent?: "neutral" | "accent";
+  align?: "center" | "start";
   className?: string;
   children: ReactNode;
 }) {
+  const rule = <span aria-hidden className="h-px flex-1 bg-divider" />;
   return (
     <div
-      className={cn(
-        "my-2 flex items-center gap-3 text-ui-sm font-medium text-fg-faint",
-        "before:flex-1 before:h-px before:content-[''] before:bg-fg/[0.08]",
-        "after:flex-1  after:h-px  after:content-[''] after:bg-fg/[0.08]",
-        className,
-      )}
+      className={cn("my-2 flex items-center gap-3 text-ui-sm font-medium text-fg-faint", className)}
     >
+      {align === "center" && rule}
       {icon && (
         <div
           className={cn(
@@ -36,7 +48,8 @@ export function Divider({
           {icon}
         </div>
       )}
-      <span>{children}</span>
+      <span className="min-w-0 shrink-0">{children}</span>
+      {rule}
     </div>
   );
 }

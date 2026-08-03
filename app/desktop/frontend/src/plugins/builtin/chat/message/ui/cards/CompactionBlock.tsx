@@ -3,7 +3,7 @@
 // the backend supplies a summary it expands inline on click.
 
 import { useState } from "react";
-import { Icon, TextButton } from "@/ui";
+import { Divider, Icon, TextButton } from "@/ui";
 import { useT } from "@/lib/i18n";
 
 export function CompactionBlock({
@@ -22,10 +22,9 @@ export function CompactionBlock({
 
   return (
     <div className="my-3">
-      {/* Centered label flanked by faint hairlines (bg-fg delta, no cheap
-          grey rule). Clickable when a summary is available to expand inline. */}
-      <div className="flex items-center gap-3 text-ui-md text-fg-faint">
-        <span className="h-px flex-1 bg-fg/[0.08]" />
+      {/* The rules come from the Divider atom; this used to draw its own pair, at a
+          third alpha for the same idea. Clickable when a summary is available. */}
+      <Divider>
         {summary ? (
           <TextButton
             type="button"
@@ -42,8 +41,7 @@ export function CompactionBlock({
             <span>{label}</span>
           </span>
         )}
-        <span className="h-px flex-1 bg-fg/[0.08]" />
-      </div>
+      </Divider>
       {open && summary && (
         <div className="mx-auto mt-2 max-w-[640px] text-left text-ui-md leading-prose text-fg-muted">
           {summary}

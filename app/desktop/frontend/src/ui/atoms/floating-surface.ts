@@ -14,7 +14,7 @@
 
 const FLOATING_SURFACE_BASE = [
   "relative z-50 overflow-hidden text-fg",
-  "bg-canvas/70 shadow-[var(--shadow-popover)] animate-rise-in",
+  "bg-[var(--app-floating-surface)] shadow-[var(--shadow-popover)] animate-rise-in",
   "before:pointer-events-none before:absolute before:inset-0 before:-z-1",
   "before:rounded-[inherit] before:backdrop-blur-2xl before:backdrop-saturate-150",
 ].join(" ");

@@ -88,7 +88,7 @@ function ImageThumb({ image, onRemove }: { image: ComposerImage; onRemove: () =>
         title={t("composer.removeImage")}
         aria-label={t("composer.removeImage")}
         onClick={onRemove}
-        className="absolute right-0.5 top-0.5 rounded-full bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100"
+        className="absolute right-0.5 top-0.5 rounded-full bg-media-scrim text-on-media opacity-0 transition-opacity group-hover:opacity-100"
       />
     </div>
   );
@@ -103,7 +103,7 @@ function PasteChip({ paste, onRemove }: { paste: PastedText; onRemove: () => voi
       : t("composer.paste.chars", { count: paste.text.length });
   return (
     <Tooltip label={preview}>
-      <span className="group inline-flex h-6 max-w-[220px] items-center gap-1.5 rounded-full bg-fg/[0.05] pl-2.5 pr-1.5 font-mono text-ui-sm text-fg-muted">
+      <span className="group inline-flex h-6 max-w-[220px] items-center gap-1.5 rounded-full bg-surface-2 pl-2.5 pr-1.5 font-mono text-ui-sm text-fg-muted">
         <Icon name="filetext" size="xs" className="shrink-0 text-fg-faint" />
         <span className="truncate">{label}</span>
         <IconButton

@@ -29,7 +29,7 @@ function ChatErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
       <div className="mb-2 font-semibold text-display-sm tracking-tight text-negative">
         {t("chat.error.title")}
       </div>
-      <pre className="m-0 mb-3 max-h-[200px] overflow-auto rounded-md bg-fg/[0.04] px-3 py-2.5 font-mono text-ui-lg leading-body text-fg-muted whitespace-pre-wrap break-words">
+      <pre className="m-0 mb-3 max-h-[200px] overflow-auto rounded-md bg-sunken px-3 py-2.5 font-mono text-ui-lg leading-body text-fg-muted whitespace-pre-wrap break-words">
         {error instanceof Error ? error.message : String(error)}
       </pre>
       <div className="flex gap-2">

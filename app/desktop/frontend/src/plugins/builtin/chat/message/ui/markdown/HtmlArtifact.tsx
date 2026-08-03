@@ -66,7 +66,7 @@ export function HtmlArtifact({ code }: Props) {
           sandbox="allow-scripts"
           srcDoc={code}
           title={t("message.html.preview")}
-          className="block h-[420px] w-full border-0 bg-white"
+          className="block h-[420px] w-full border-0 bg-media-canvas"
         />
       ) : (
         <ShikiCodeBlock lang="html" code={code} />

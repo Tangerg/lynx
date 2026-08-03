@@ -11,7 +11,7 @@ const MENU_ITEM_CLASSES = [
   "text-ui-md text-fg outline-none data-[highlighted]:bg-hover",
 ].join(" ");
 
-const MENU_SEPARATOR_CLASSES = "relative mx-1 my-1 h-px bg-fg/[0.06]";
+const MENU_SEPARATOR_CLASSES = "relative mx-1 my-1 h-px bg-divider";
 
 type DropdownPositionerProps = ComponentProps<typeof MenuPrimitive.Positioner>;
 type DropdownPopupProps = ComponentProps<typeof MenuPrimitive.Popup>;

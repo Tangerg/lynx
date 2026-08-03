@@ -40,7 +40,7 @@ export function ConfirmDialog({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop
           data-slot="confirm-dialog-backdrop"
-          className="fixed inset-0 z-[200] bg-black/40 light:bg-black/20"
+          className="fixed inset-0 z-[200] bg-scrim"
         />
         <DialogPrimitive.Popup
           data-slot="confirm-dialog"
