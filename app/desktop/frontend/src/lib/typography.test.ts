@@ -30,6 +30,7 @@ describe("uiTypeLadder", () => {
       "ui-sm": 13,
       "ui-md": 14,
       "ui-lg": 15,
+      prose: 16,
       code: 13,
     });
   });
@@ -41,6 +42,17 @@ describe("uiTypeLadder", () => {
       expect(ascending).toEqual([...ascending].sort((a, b) => a - b));
       expect(ladder["ui-lg"]).toBeGreaterThanOrEqual(ladder["ui-md"]);
       expect(ladder.code).toBeLessThanOrEqual(ladder["ui-md"]);
+    }
+  });
+
+  // Reading text may never end up at or below the chrome around it — that
+  // collapse is exactly what the step was added to prevent, and rounding plus the
+  // ceiling are where it could happen quietly.
+  it("keeps reading text above the chrome across the whole base range", () => {
+    for (let base = UI_FONT_SIZE_MIN_PX; base <= UI_FONT_SIZE_MAX_PX; base += 1) {
+      const ladder = uiTypeLadder(base);
+      expect(ladder.prose).toBeGreaterThan(ladder["ui-md"]);
+      expect(ladder.prose).toBeGreaterThanOrEqual(ladder["ui-lg"]);
     }
   });
 
@@ -63,6 +75,7 @@ describe("uiTypeLadderCssVariables", () => {
       "--fs-ui-sm": "13px",
       "--fs-ui-md": "14px",
       "--fs-ui-lg": "15px",
+      "--fs-prose": "16px",
       "--fs-code": "13px",
     });
   });

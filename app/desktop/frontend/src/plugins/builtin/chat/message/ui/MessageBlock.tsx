@@ -103,8 +103,8 @@ function MessageBlockInner({
                 MESSAGE_CONTENT_CLASS,
                 "min-w-0 text-pretty leading-prose",
                 isUser
-                  ? "max-w-[77%] rounded-bubble bg-card px-4 py-3 text-ui-md text-fg"
-                  : "text-ui-md text-fg-soft",
+                  ? "max-w-[77%] rounded-bubble bg-card px-4 py-3 text-prose text-fg"
+                  : "text-prose text-fg-soft",
               )}
             >
               {content}

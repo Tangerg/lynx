@@ -150,7 +150,29 @@ function rulesFor(path) {
   return [];
 }
 
-const violations = [];
+// Every `--text-*` step has to be named in lib/classNames.ts, or Tailwind Merge
+// reads it as a colour: the step is then DROPPED when an ink utility follows it
+// and IGNORED when another size does — silently, in both directions, with the
+// element rendering at whatever it inherited. A newly added `prose` step hit both
+// halves of that before this check existed. The UI half of the list is derived
+// from the ladder; this holds the editorial half, which lives only in globals.css.
+function unmergedTypeSteps() {
+  const globals = readFileSync(join(SRC, "styles/globals.css"), "utf8");
+  // Both halves: classNames.ts spells the editorial steps, typography.ts owns the
+  // UI ladder that classNames.ts spreads.
+  const named =
+    readFileSync(join(SRC, "lib/classNames.ts"), "utf8") +
+    readFileSync(join(SRC, "lib/typography.ts"), "utf8");
+  const declared = [...globals.matchAll(/^\s*--text-([a-z0-9-]+):/gm)]
+    .map(([, step]) => step)
+    .filter((step) => !step.includes("--"));
+  return [...new Set(declared)].filter((step) => !named.includes(`"${step}"`));
+}
+
+const violations = unmergedTypeSteps().map(
+  (step) =>
+    `styles/globals.css  --text-${step}  — type step missing from lib/classNames.ts, where Tailwind Merge would read it as a colour`,
+);
 for (const path of walk(SRC)) {
   const rules = rulesFor(path);
   if (rules.length === 0) continue;

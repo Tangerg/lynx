@@ -17,26 +17,29 @@
   margin-bottom: 0;
 }
 
-/* Reading text sits AT the chrome's own step and takes the full ink. It is the
-   thing being read, so it must not be quieter than the labels around it — but it
-   is also inside a tool window, and a paragraph set larger than the rows beside
-   it reads as a web page dropped into an IDE. Separation comes from the leading
-   and the ink, not from a bigger size. */
+/* Every size in here is RELATIVE to whatever renders the markdown, and nothing
+   below names a step. `.md` has two callers that want different sizes — a message
+   body at the `prose` step, a reasoning block deliberately one step down and
+   muted — and a hardcoded step would flatten the quieter one into the louder.
+   That is also how both desktop references do it: one `--markdown-font-size` set
+   per context, headings as a percentage of it. */
 .md p {
   margin: 12px 0;
-  font-size: var(--fs-ui-md);
+  font-size: inherit;
   line-height: var(--leading-prose);
   color: var(--color-text);
-  letter-spacing: 0;
+  letter-spacing: inherit;
 }
 .md p:last-child {
   margin-bottom: 0;
 }
 
-/* Headings — hierarchy via weight, margin and ink, with only one size step in
-   the whole set. A tool window has no display type: the largest text anywhere in
-   the reference is its body copy, and an LLM that opens with `#` must not be
-   able to plant a 20px headline in the middle of a transcript. */
+/* Headings — a percentage of the body they sit in, which is what both references
+   do (ChatGPT 150/125/115%, weight 600). Ours is compressed to 125/112.5/100
+   because this is a tool window and theirs is a document: at their ratios an LLM
+   that opens with `#` plants a 24px headline in the middle of a transcript. Two
+   real size steps and then weight carries the rest, so the ladder still reads at
+   a glance without any of it becoming display type. */
 .md h1,
 .md h2,
 .md h3,
@@ -45,29 +48,29 @@
 .md h6 {
   font-weight: 600;
   line-height: var(--leading-snug);
-  letter-spacing: -0.005em;
+  letter-spacing: var(--tracking-display);
   color: var(--color-text);
 }
 .md h1 {
-  font-size: var(--fs-ui-lg);
+  font-size: 1.25em;
   margin: 24px 0 10px;
 }
 .md h2 {
-  font-size: var(--fs-ui-md);
+  font-size: 1.125em;
   margin: 20px 0 8px;
 }
 .md h3 {
-  font-size: var(--fs-ui-md);
+  font-size: 1em;
   margin: 16px 0 8px;
 }
 .md h4 {
-  font-size: var(--fs-ui-md);
+  font-size: 1em;
   font-weight: 500;
   margin: 12px 0 6px;
 }
 .md h5,
 .md h6 {
-  font-size: var(--fs-ui-sm);
+  font-size: 0.92em;
   font-weight: 500;
   margin: 10px 0 4px;
   color: var(--color-text-soft);
@@ -93,7 +96,7 @@
 .md ol {
   margin: 8px 0;
   padding-left: 20px;
-  font-size: var(--fs-ui-md);
+  font-size: inherit;
   line-height: var(--leading-prose);
   color: var(--color-text);
 }
@@ -248,9 +251,14 @@
    low chroma, so a two-word chip came out darker AND greyer than the block below
    it. Chips inside chrome (settings rows, badges) still take the rungs — that is
    where the rungs' base is the surface behind them. */
+/* One pixel below its surrounding prose rather than pinned to the code step: a
+   mono face at the same nominal size already reads smaller, and 13px inside 16px
+   reading text was a three-pixel drop mid-sentence. `calc(1em - 1px)` is
+   ChatGPT's own rule for code inside chat (`chat-code-font-size - 1px`). Fenced
+   blocks keep the absolute step — those are a data surface, not a sentence. */
 .md code {
   font-family: var(--font-mono);
-  font-size: var(--fs-code);
+  font-size: calc(1em - 1px);
   padding: 1px 6px;
   background: var(--color-sunken);
   border-radius: var(--shape-2xs);

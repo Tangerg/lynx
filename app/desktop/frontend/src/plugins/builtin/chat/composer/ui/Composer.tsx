@@ -87,6 +87,7 @@ export function Composer({
         />
         <TextArea
           variant="bare"
+          size="prose"
           font="sans"
           ref={input.inputRef}
           aria-label={t("composer.input.label")}
@@ -112,7 +113,7 @@ export function Composer({
           /* `min-h-[2.5lh]` tracks THIS element's own line-height, so the
              resting height tracks the type ladder instead of a pixel guess that
              goes wrong the moment the base size changes. */
-          className="max-h-48 min-h-[1.5lh] resize-none p-0 leading-prose placeholder:tracking-normal"
+          className="max-h-48 min-h-[1.5lh] resize-none p-0 placeholder:tracking-normal"
         />
       </div>
       {/* Bottom toolbar — ALL controls live below the input so the text area

@@ -147,10 +147,24 @@ createRoot(container).render(
   </QueryClientProvider>,
 );
 
-void document.fonts.ready.then(() =>
-  requestAnimationFrame(() =>
-    requestAnimationFrame(() => {
-      rootElement.dataset.visualReady = "";
-    }),
-  ),
-);
+// `document.fonts.ready` alone is NOT a gate: it resolves when nothing is
+// *pending*, and a face is only requested once layout first needs it. Checked
+// before that request goes out, it resolves immediately — so on a cold HTTP cache
+// the harness photographed a layout measured with fallback metrics, and one
+// paragraph in the foundation fixture wrapped at a different word than it does
+// with Geist loaded. The golden then disagreed with every warm run, which is the
+// whole of the "run the goldens twice" folklore.
+//
+// Requesting both faces explicitly makes them pending before the gate looks, so
+// `ready` waits for them. The two frames after are for the relayout that follows.
+const FIXTURE_FACES = ['1rem "Geist"', '1rem "JetBrains Mono"'];
+
+void Promise.all(FIXTURE_FACES.map((face) => document.fonts.load(face)))
+  .then(() => document.fonts.ready)
+  .then(() =>
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        rootElement.dataset.visualReady = "";
+      }),
+    ),
+  );

@@ -83,7 +83,7 @@ function DelegatedMessage({
         <div
           className={cn(
             MESSAGE_CONTENT_CLASS,
-            "min-w-0 text-pretty text-ui-md leading-prose text-fg-soft",
+            "min-w-0 text-pretty text-prose leading-prose text-fg-soft",
             message.role === "user" && "rounded-md bg-sunken px-3 py-2 text-fg",
           )}
         >

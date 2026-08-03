@@ -63,10 +63,18 @@ const inputStyles = cva(BASE, {
 // A textarea has no height to set — `rows` and the resize handle own that — so
 // its size step is the inset alone: `sm` for form rows, `md` for the prose and
 // memory editors, which are read as much as typed into.
+//
+// `prose` is the composer's: what you type there is the message, so it has to be
+// set at the size the message will be read at. It carries no inset of its own
+// because the composer's own density tokens place the editor inside its card.
 const textAreaStyles = cva(`${BASE} resize-y leading-body`, {
   variants: {
     ...SHARED_VARIANTS,
-    size: { sm: "px-2.5 py-1.5 text-ui-md", md: "px-3 py-2 text-ui-md" },
+    size: {
+      sm: "px-2.5 py-1.5 text-ui-md",
+      md: "px-3 py-2 text-ui-md",
+      prose: "text-prose leading-prose",
+    },
   },
   compoundVariants: [...INVALID_COMPOUNDS],
   defaultVariants: { variant: "boxed", size: "md", font: "mono", invalid: false },

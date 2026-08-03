@@ -186,36 +186,55 @@
   --color-info-edge: color-mix(in srgb, var(--tone-info) 38%, transparent);
   --color-accent-edge: color-mix(in srgb, var(--tone-accent) 38%, transparent);
 
-  /* UI type ladder — `text-ui-2xs … text-ui-lg`. Every step is derived from a
-     single base size at runtime (lib/typography.ts writes the --fs-* vars), so
-     the ladder cannot drift the way per-call-site pixel values did.
-     Native UI faces own their optical spacing, so chrome steps deliberately use
-     neutral tracking. Values must stay `var()` references — `@theme inline`
-     inlines the reference, which is what lets the runtime font-size preference
-     reach every callsite. */
+  /* UI type ladder — `text-ui-2xs … text-ui-lg`, plus `text-prose` for reading
+     text and `text-code` for mono. Every step is derived from a single base size
+     at runtime (lib/typography.ts writes the --fs-* vars), so the ladder cannot
+     drift the way per-call-site pixel values did. Values must stay `var()`
+     references — `@theme inline` inlines the reference, which is what lets the
+     runtime font-size preference reach every callsite.
+
+     Tracking has three levels and no more, which is also all either desktop
+     reference ships (`--tracking-normal` / `-tight` / `-wide` there):
+       0         the smallest step and all mono — their counters have to stay open,
+                 and tightening a 11px label is where text turns into a smear
+       -0.011em  every step from 12px up. Measured off ChatGPT's per-size px
+                 trackings (-0.13px at 12, -0.15px at 14, -0.18px at 16, -0.32px
+                 at 28), which are one constant em value spelled out per size
+       -0.02em   display, where the eye reads the word shape and the default gaps
+                 look like gaps
+     This is not the old "the native face owns its optical spacing" — the app
+     ships Geist now, and a geometric sans set at default tracking reads loose. */
   --text-ui-2xs: var(--fs-ui-2xs);
   --text-ui-2xs--letter-spacing: 0;
   --text-ui-xs: var(--fs-ui-xs);
-  --text-ui-xs--letter-spacing: 0;
+  --text-ui-xs--letter-spacing: var(--tracking-ui);
   --text-ui-sm: var(--fs-ui-sm);
-  --text-ui-sm--letter-spacing: 0;
+  --text-ui-sm--letter-spacing: var(--tracking-ui);
   --text-ui-md: var(--fs-ui-md);
+  --text-ui-md--letter-spacing: var(--tracking-ui);
   --text-ui-lg: var(--fs-ui-lg);
+  --text-ui-lg--letter-spacing: var(--tracking-ui);
+  --text-prose: var(--fs-prose);
+  --text-prose--letter-spacing: var(--tracking-ui);
   --text-code: var(--fs-code);
+  --text-code--letter-spacing: 0;
 
   /* Editorial sizes — deliberately NOT derived from the UI base: headings are
      composition, not chrome, and must not grow with a chrome density pick. */
   --text-display-sm: 16px;
-  --text-display-sm--letter-spacing: -0.01em;
+  --text-display-sm--letter-spacing: var(--tracking-ui);
   --text-display-md: 22px;
-  --text-display-md--letter-spacing: -0.015em;
+  --text-display-md--letter-spacing: var(--tracking-display);
   --text-display-md--line-height: 1.2;
   --text-display-lg: 26px;
-  --text-display-lg--letter-spacing: -0.015em;
+  --text-display-lg--letter-spacing: var(--tracking-display);
   --text-display-lg--line-height: 1.15;
   --text-display-xl: 30px;
-  --text-display-xl--letter-spacing: -0.015em;
+  --text-display-xl--letter-spacing: var(--tracking-display);
   --text-display-xl--line-height: 1.15;
+
+  --tracking-ui: var(--tracking-ui);
+  --tracking-display: var(--tracking-display);
 
   --leading-tight: var(--leading-tight);
   --leading-snug: var(--leading-snug);
@@ -223,8 +242,13 @@
   --leading-relaxed: var(--leading-relaxed);
   --leading-prose: var(--leading-prose);
 
-  --weight-medium: 500;
-  --weight-semibold: 600;
+  /* Tailwind's own namespace, so `font-normal` / `font-medium` / `font-semibold`
+     resolve to THESE. Under the old `--weight-*` spelling they resolved to
+     Tailwind's built-in 400/500/600 and the tokens here were declarations nothing
+     read — which mattered the moment the regular weight stopped being 400. */
+  --font-weight-normal: var(--fw-regular);
+  --font-weight-medium: var(--fw-medium);
+  --font-weight-semibold: var(--fw-semibold);
 
   /* Radius ladder — one continuous scale off a 10px base (×0.4/0.6/0.8/1/1.4/1.8);
      `md` (10px) is the default control radius. `--composer` and `--bubble` are
@@ -526,6 +550,7 @@
   --fs-ui-sm: 13px;
   --fs-ui-md: 14px;
   --fs-ui-lg: 15px;
+  --fs-prose: 16px;
   --fs-code: 13px;
 
   /* Icon ladder — first-paint defaults for the same base as the type ladder;
@@ -542,8 +567,13 @@
   --icon-xl: 28px;
   --icon-stroke-xl: 1.25;
 
-  /* 600 is the Geist heading weight — hierarchy via size + weight contrast. */
-  --fw-regular: 400;
+  /* 600 is the Geist heading weight — hierarchy via size + weight contrast.
+     The regular weight is 430, not 400: Geist is a variable face (100-900), and
+     both desktop references set UI body text off the integer stop for exactly
+     this reason — ChatGPT ships 430 in the browser and 445 in Electron. A
+     geometric sans at 400 reads thin against a desktop's chrome, and reaching for
+     500 instead spends the emphasis step on plain text. */
+  --fw-regular: 430;
   --fw-medium: 500;
   --fw-semibold: 600;
 
@@ -564,7 +594,20 @@
   --leading-snug: 1.35;
   --leading-body: 1.55;
   --leading-relaxed: 1.65;
-  --leading-prose: 1.8;
+  /* Reading text is the one step whose leading is a GAP, not a ratio. A ratio
+     grows the gap with the size, which is backwards — the larger the type, the
+     less proportional air a line needs — so the same 1.8 that was right at 14px
+     is airy at 16 and would be a chasm at 21 (the top of the base range). Both
+     desktop references express it as a constant instead: ChatGPT literally as
+     `calc(font-size + 8px)`, Claude as 1.75 at a fixed 16px. `1em` resolves
+     against whichever element takes the token, so this works for the composer,
+     a message and a reasoning block without three numbers. 10px lands between
+     the two references at every size in the range. */
+  --leading-prose: calc(1em + 10px);
+
+  /* Optical tracking. See the ladder in `@theme` for what each level is for. */
+  --tracking-ui: -0.011em;
+  --tracking-display: -0.02em;
 
   /* Visual-style geometry is the base; the user's radius preference is the
      multiplier. Colour themes never write either side of this equation. */
