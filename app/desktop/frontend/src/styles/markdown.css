@@ -4,6 +4,11 @@
    message background. */
 .md {
   display: block;
+  /* A tab is four columns. The default is eight, which is nobody's editor setting and
+     turns one indent level in pasted Go or Makefile output into half the measure. Set
+     on the root so it reaches the highlighted block, its `<code>`, and the raw `<pre>`
+     the fallback renders while Shiki is still settling. */
+  tab-size: 4;
 }
 .md > :first-child {
   margin-top: 0;

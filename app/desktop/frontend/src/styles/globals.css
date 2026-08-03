@@ -1527,22 +1527,34 @@ html[data-control-treatment="elevated"]
    The top edge runs under a chrome bar; the bottom runs under the composer, which
    is a pane of translucent glass — so the text has to still BE there (the glass
    shows what passes beneath it) and only the last strip, the sliver below the
-   panel where there is no glass to look through, may not be sliced mid-glyph. */
+   panel where there is no glass to look through, may not be sliced mid-glyph.
+
+   The band's height is a token because three places need the same number: this mask,
+   the scroll padding below, and the rail's jump. It was spelled four times.
+
+   `scroll-padding` is the same fact stated for anything that scrolls ITSELF into view —
+   a search hit, a focused control. Without it the browser lands a target flush against
+   the scroll box's edge, which here means inside the dissolve at the top or under the
+   composer at the bottom; the search overlay had been asking for `block: "center"` to
+   dodge that by luck. */
 .msg-scroll-viewport {
+  --transcript-fade: 24px;
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    #000 24px,
-    #000 calc(100% - 24px),
+    #000 var(--transcript-fade),
+    #000 calc(100% - var(--transcript-fade)),
     transparent 100%
   );
   mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    #000 24px,
-    #000 calc(100% - 24px),
+    #000 var(--transcript-fade),
+    #000 calc(100% - var(--transcript-fade)),
     transparent 100%
   );
+  scroll-padding-top: var(--transcript-fade);
+  scroll-padding-bottom: calc(var(--composer-overlay, 0px) + var(--transcript-fade));
 }
 
 /* The composer's material and its edge. The ring's COLOUR lives here, not in the
