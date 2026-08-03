@@ -1,6 +1,7 @@
 package sqlite_test
 
 import (
+	"bytes"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -111,5 +112,75 @@ func TestMCPServerStoreRejectsMalformedJSONFields(t *testing.T) {
 				t.Fatalf("List malformed %s: err=%v", test.field, err)
 			}
 		})
+	}
+}
+
+func TestMCPServerStoreBindsOAuthSessionLifecycle(t *testing.T) {
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store := sqlite.NewMCPServerStore(db)
+	server := mcpserver.Server{
+		Name: "remote", Transport: mcpserver.TransportStreamableHTTP,
+		Enabled: true, URL: "https://mcp.example.test/tools",
+	}
+	if err := store.Save(t.Context(), server); err != nil {
+		t.Fatalf("Save server: %v", err)
+	}
+
+	origin := "https://mcp.example.test:443"
+	payload := []byte(`{"version":1}`)
+	if err := store.SaveOAuthSession(t.Context(), server.Name, origin, payload); err != nil {
+		t.Fatalf("SaveOAuthSession: %v", err)
+	}
+	got, found, err := store.LoadOAuthSession(t.Context(), server.Name, origin)
+	if err != nil || !found || !bytes.Equal(got, payload) {
+		t.Fatalf("LoadOAuthSession = %q, %v, %v", got, found, err)
+	}
+	if _, found, err := store.LoadOAuthSession(t.Context(), server.Name, "https://other.example:443"); err != nil || found {
+		t.Fatalf("cross-origin LoadOAuthSession: found=%v err=%v", found, err)
+	}
+
+	server.Description = "same endpoint"
+	if err := store.Save(t.Context(), server); err != nil {
+		t.Fatalf("Save metadata update: %v", err)
+	}
+	if _, found, err := store.LoadOAuthSession(t.Context(), server.Name, origin); err != nil || !found {
+		t.Fatalf("metadata update removed OAuth session: found=%v err=%v", found, err)
+	}
+	server.Authorization = "Bearer static"
+	if err := store.Save(t.Context(), server); err != nil {
+		t.Fatalf("Save static authorization: %v", err)
+	}
+	if _, found, err := store.LoadOAuthSession(t.Context(), server.Name, origin); err != nil || found {
+		t.Fatalf("static authorization retained OAuth session: found=%v err=%v", found, err)
+	}
+	server.Authorization = ""
+	if err := store.Save(t.Context(), server); err != nil {
+		t.Fatalf("Clear static authorization: %v", err)
+	}
+	if err := store.SaveOAuthSession(t.Context(), server.Name, origin, payload); err != nil {
+		t.Fatalf("SaveOAuthSession after static authorization: %v", err)
+	}
+
+	server.URL = "https://new.example.test/tools"
+	if err := store.Save(t.Context(), server); err != nil {
+		t.Fatalf("Save endpoint update: %v", err)
+	}
+	if _, found, err := store.LoadOAuthSession(t.Context(), server.Name, origin); err != nil || found {
+		t.Fatalf("endpoint update retained OAuth session: found=%v err=%v", found, err)
+	}
+
+	newOrigin := "https://new.example.test:443"
+	if err := store.SaveOAuthSession(t.Context(), server.Name, newOrigin, payload); err != nil {
+		t.Fatalf("SaveOAuthSession after update: %v", err)
+	}
+	if err := store.Remove(t.Context(), server.Name); err != nil {
+		t.Fatalf("Remove server: %v", err)
+	}
+	if _, found, err := store.LoadOAuthSession(t.Context(), server.Name, newOrigin); err != nil || found {
+		t.Fatalf("server removal retained OAuth session: found=%v err=%v", found, err)
 	}
 }

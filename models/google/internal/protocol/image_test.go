@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/modeltest"
-	"github.com/Tangerg/lynx/models/google/internal/protocol"
+	google "github.com/Tangerg/lynx/models/google/internal/protocol"
 )
 
 func TestImageModelCallUsesInteractionsAPI(t *testing.T) {

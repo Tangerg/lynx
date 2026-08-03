@@ -1,6 +1,7 @@
 package xiaomi
 
 import (
+	"errors"
 	"fmt"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -35,7 +36,7 @@ func (options ChatRequestOptions) validate() error {
 
 func prepareOpenAIRequest(source *corechat.Request, target *openai.CompatibleRequest) error {
 	if temperature, ok := target.Temperature(); ok && temperature > 1.5 {
-		return fmt.Errorf("xiaomi: temperature must be between 0 and 1.5")
+		return errors.New("xiaomi: temperature must be between 0 and 1.5")
 	}
 	options, found, err := metadata.Decode[ChatRequestOptions](source.Extensions, RequestExtensionKey)
 	if err != nil {

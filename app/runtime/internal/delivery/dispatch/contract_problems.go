@@ -2,6 +2,7 @@ package dispatch
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -136,7 +137,7 @@ func mustProblemContracts() []ProblemContract {
 
 func (contract ProblemContract) validate() error {
 	if contract.Type == "" {
-		return fmt.Errorf("problem type is empty")
+		return errors.New("problem type is empty")
 	}
 	if len(contract.Channels) == 0 {
 		return fmt.Errorf("problem type %q has no channel", contract.Type)

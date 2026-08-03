@@ -199,7 +199,7 @@ func convertNumberList(literals []*Literal) (slice any, sample any, err error) {
 			switch number := value.(type) {
 			case int64:
 				if number < 0 {
-					return nil, nil, fmt.Errorf("filter: numeric list spans signed and unsigned integer ranges")
+					return nil, nil, errors.New("filter: numeric list spans signed and unsigned integer ranges")
 				}
 				out = append(out, uint64(number))
 			case uint64:

@@ -51,6 +51,12 @@ func TestReusableOAuthIsBoundToEndpointOrigin(t *testing.T) {
 	}, handler); got != nil {
 		t.Fatal("transport change preserved OAuth handler")
 	}
+	if got := reusableOAuth(current, ServerConfig{
+		Name: "server", Transport: TransportHTTP, Endpoint: "https://example.com/other",
+		Authorization: "Bearer static",
+	}, handler); got != nil {
+		t.Fatal("static authorization preserved OAuth handler")
+	}
 }
 
 func (t catalogTool) Definition() chat.ToolDefinition {
@@ -257,7 +263,7 @@ func TestReconnectPublishesRemovalBeforeVerifiedReplacement(t *testing.T) {
 	t.Cleanup(httpServer.Close)
 
 	config := ServerConfig{Name: "remote", Transport: TransportHTTP, Endpoint: httpServer.URL}
-	c, initial, err := Dial(t.Context(), []ServerConfig{config})
+	c, initial, err := Dial(t.Context(), []ServerConfig{config}, nil)
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
@@ -296,7 +302,7 @@ func TestSessionLedgerOwnsReplacementUntilClose(t *testing.T) {
 	t.Cleanup(httpServer.Close)
 
 	config := ServerConfig{Name: "ledger", Transport: TransportHTTP, Endpoint: httpServer.URL}
-	c, _, err := Dial(t.Context(), []ServerConfig{config})
+	c, _, err := Dial(t.Context(), []ServerConfig{config}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +344,7 @@ func TestDialQuarantinesCrossServerPublicToolNameCollision(t *testing.T) {
 	c, initial, err := Dial(t.Context(), []ServerConfig{
 		{Name: "a.b", Transport: TransportHTTP, Endpoint: httpServer.URL},
 		{Name: "a_b", Transport: TransportHTTP, Endpoint: httpServer.URL},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
@@ -368,7 +374,7 @@ func TestConfigureRejectsCrossServerPublicToolNameCollision(t *testing.T) {
 
 	c, initial, err := Dial(t.Context(), []ServerConfig{{
 		Name: "a_b", Transport: TransportHTTP, Endpoint: firstHTTP.URL,
-	}})
+	}}, nil)
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
@@ -420,7 +426,7 @@ func TestReconnectQuarantinesNewCrossServerPublicToolNameCollision(t *testing.T)
 	c, initial, err := Dial(t.Context(), []ServerConfig{
 		{Name: "a_b", Transport: TransportHTTP, Endpoint: firstHTTP.URL},
 		{Name: "a", Transport: TransportHTTP, Endpoint: secondHTTP.URL},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}

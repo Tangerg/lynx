@@ -39,16 +39,10 @@ linters:
       # inferring them would erase the assertion the test exists to make.
       - linters:
           - staticcheck
-        path: models/internal/arch/chat_providers_test\.go
+        path: models/([^/]+/)?internal/arch/.*_test\.go
         text: QF1011
     paths:
-      - examples
-      - agent/examples
-      - lyra/doc
-      - lyra/docs
-      - third_party$
-      - builtin$
-      - examples$
+      - node_modules
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
@@ -63,10 +57,4 @@ formatters:
   exclusions:
     generated: lax
     paths:
-      - examples
-      - agent/examples
-      - lyra/doc
-      - lyra/docs
-      - third_party$
-      - builtin$
-      - examples$
+      - node_modules

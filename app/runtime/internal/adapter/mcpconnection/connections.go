@@ -24,6 +24,11 @@ type Connections struct {
 	inner *mcp.Connections
 }
 
+// OAuthSessionStore is the narrow durable credential capability consumed by
+// the MCP infrastructure. The adapter re-exports it so the composition root
+// does not depend on infrastructure implementation details.
+type OAuthSessionStore = mcp.OAuthSessionStore
+
 var (
 	_ integrations.MCPStatusReader       = (*Connections)(nil)
 	_ integrations.MCPToolCatalog        = (*Connections)(nil)
@@ -34,12 +39,12 @@ var (
 // Open establishes the enabled MCP connections present at runtime startup.
 // Unreachable but valid servers remain in the pool as failed, matching the
 // infrastructure pool's normal boot semantics.
-func Open(ctx context.Context, servers []mcpserver.Server) (*Connections, []toolcontract.Tool, error) {
+func Open(ctx context.Context, servers []mcpserver.Server, oauthSessions OAuthSessionStore) (*Connections, []toolcontract.Tool, error) {
 	configs, err := configsFromServers(servers)
 	if err != nil {
 		return nil, nil, err
 	}
-	inner, toolset, err := mcp.Dial(ctx, configs)
+	inner, toolset, err := mcp.Dial(ctx, configs, oauthSessions)
 	if err != nil {
 		return nil, nil, err
 	}

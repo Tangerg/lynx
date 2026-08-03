@@ -713,6 +713,9 @@ func validateAssemblyConfig(cfg Config) error {
 	if cfg.MCPRegistry == nil {
 		return errors.New("runtime: MCPRegistry is required")
 	}
+	if cfg.MCPOAuthSessions == nil {
+		return errors.New("runtime: MCPOAuthSessions is required")
+	}
 	if cfg.SessionStore == nil {
 		return errors.New("runtime: SessionStore is required")
 	}

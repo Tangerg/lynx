@@ -107,7 +107,7 @@ type ExecutorCheckpoint struct {
   或 Store method；
 - 只有 `agentexec` 可以把 `Payload` 解码成 `core.ProcessSnapshotTree`。
 
-SQLite epoch 50 的 executor continuation 只使用一张 root aggregate 表：
+在当轮 SQLite epoch 50 中引入的 executor continuation 只使用一张 root aggregate 表：
 
 ```text
 executor_checkpoints
@@ -398,7 +398,7 @@ Run lifecycle policy。Bootstrap 只负责组装和在新 admission 前调用用
 | 阶段 | 状态 | 产物/证据 |
 |---|---|---|
 | G1 基线与责任矩阵 | `DONE` | 第一性 owner、泄露判据、爆炸半径 |
-| G2 Opaque root checkpoint | `DONE` | `ExecutorCheckpoint`、单 payload codec、epoch 50 schema |
+| G2 Opaque root checkpoint | `DONE` | `ExecutorCheckpoint`、单 payload codec、当轮 epoch 50 schema |
 | G3 原子生命周期 | `DONE` | waiting/terminal/subtree cancellation 写集由 App transaction 独占 |
 | G4 Application boot recovery | `DONE` | `runs.Recovery` + `RecoveryCommit` + `adapter/runrecovery` |
 | G5 命名与 peer boundary | `DONE` | `executionctx`、CheckpointRoot 命名、语义文件名 |

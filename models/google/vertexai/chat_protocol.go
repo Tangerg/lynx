@@ -9,7 +9,7 @@ import (
 	"google.golang.org/genai"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/models/google/internal/protocol"
+	google "github.com/Tangerg/lynx/models/google/internal/protocol"
 )
 
 // ChatConfig configures a Core chat adapter backed by Vertex AI.

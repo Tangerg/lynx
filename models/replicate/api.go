@@ -222,22 +222,6 @@ func (a *api) getPrediction(ctx context.Context, id string) (*predictionResponse
 	return &out, nil
 }
 
-// cancelPrediction aborts a still-running prediction.
-func (a *api) cancelPrediction(ctx context.Context, id string) (*predictionResponse, error) {
-	if id == "" {
-		return nil, errors.New("replicate: prediction id must not be empty")
-	}
-	var out predictionResponse
-	resp, err := a.http.R().SetContext(ctx).SetResult(&out).Post("/predictions/" + id + "/cancel")
-	if err != nil {
-		return nil, fmt.Errorf("replicate: cancel failed: %w", err)
-	}
-	if !resp.IsSuccess() {
-		return nil, fmt.Errorf("replicate: http %d: %s", resp.StatusCode(), resp.String())
-	}
-	return &out, nil
-}
-
 // parseModelID splits "owner/name[:version]" into its parts. Empty
 // returns indicate the input wasn't well-formed.
 func parseModelID(id string) (owner, name, version string) {

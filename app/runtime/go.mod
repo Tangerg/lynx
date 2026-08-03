@@ -3,18 +3,18 @@ module github.com/Tangerg/lynx/app/runtime
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/a2a v0.0.0-20260802185719-f013cc1eb508
-	github.com/Tangerg/lynx/agent v0.0.0-20260803074414-f8db39de4d17
-	github.com/Tangerg/lynx/mcp v0.0.0-20260803074414-f8db39de4d17
-	github.com/Tangerg/lynx/models v0.0.0-20260802195812-555a8da53cc9
-	github.com/Tangerg/lynx/models/google v0.0.0-20260802194905-65100fbe7dca
-	github.com/Tangerg/lynx/models/ollama v0.0.0-20260802195812-555a8da53cc9
-	github.com/Tangerg/lynx/otel v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803074414-f8db39de4d17
-	github.com/Tangerg/lynx/tools/skills v0.0.0-20260803074414-f8db39de4d17
-	github.com/Tangerg/lynx/tools/webfetch v0.0.0-20260803074414-f8db39de4d17
-	github.com/Tangerg/lynx/tools/websearch v0.0.0-20260803074414-f8db39de4d17
+	github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10
+	github.com/Tangerg/lynx/agent v0.0.0-20260803122848-6ade352dda10
+	github.com/Tangerg/lynx/mcp v0.0.0-20260803122848-6ade352dda10
+	github.com/Tangerg/lynx/models v0.0.0-20260803122848-6ade352dda10
+	github.com/Tangerg/lynx/models/google v0.0.0-20260803122848-6ade352dda10
+	github.com/Tangerg/lynx/models/ollama v0.0.0-20260803122848-6ade352dda10
+	github.com/Tangerg/lynx/otel v0.0.0-20260803122848-6ade352dda10
+	github.com/Tangerg/lynx/skills v0.0.0-20260803122848-6ade352dda10
+	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803122848-6ade352dda10
+	github.com/Tangerg/lynx/tools/skills v0.0.0-20260803122848-6ade352dda10
+	github.com/Tangerg/lynx/tools/webfetch v0.0.0-20260803122848-6ade352dda10
+	github.com/Tangerg/lynx/tools/websearch v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/sse v0.0.5
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-chi/chi/v5 v5.3.1
@@ -52,8 +52,8 @@ require (
 	cloud.google.com/go/auth v0.22.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/Tangerg/lynx v0.0.0-20260803074414-f8db39de4d17
-	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260802194415-a15faf3dea2e // indirect
+	github.com/Tangerg/lynx v0.0.0-20260803122848-6ade352dda10
+	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260803122848-6ade352dda10 // indirect
 	github.com/a2aproject/a2a-go/v2 v2.4.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.6.1 // indirect

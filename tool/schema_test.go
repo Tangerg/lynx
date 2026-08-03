@@ -14,9 +14,9 @@ func TestSchemaDerivesStrictStructContract(t *testing.T) {
 		Label string `json:"label" jsonschema:"required"`
 	}
 	type input struct {
-		Operation string   `json:"operation" jsonschema:"required,enum=list,enum=load" jsonschema_description:"Operation to run."`
-		Options   []option `json:"options,omitempty" jsonschema:"minItems=1,maxItems=4"`
-		Ignored   string   `json:"-"`
+		Operation string    `json:"operation" jsonschema:"required,enum=list,enum=load" jsonschema_description:"Operation to run."`
+		Options   []option  `json:"options,omitempty" jsonschema:"minItems=1,maxItems=4"`
+		Ignored   string    `json:"-"`
 		When      time.Time `json:"when,omitempty"`
 	}
 

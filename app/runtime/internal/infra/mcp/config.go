@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os/exec"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -66,8 +67,9 @@ type ServerConfig struct {
 	// session after connection.
 	Timeout time.Duration
 
-	// OAuthHandler authorizes an HTTP connection via OAuth 2.1. It is live
-	// process state and must not be persisted.
+	// OAuthHandler authorizes an HTTP connection via OAuth 2.1. The handler is
+	// live process state; its opaque session may be persisted separately through
+	// [OAuthSessionStore].
 	OAuthHandler auth.OAuthHandler
 }
 
@@ -87,6 +89,9 @@ func (c ServerConfig) Validate() error {
 		}
 		if c.Command != "" {
 			return fmt.Errorf("mcp server %q: Command must be empty for HTTP transport", c.Name)
+		}
+		if c.OAuthHandler != nil && c.hasStaticAuthorization() {
+			return fmt.Errorf("mcp server %q: OAuth and static Authorization are mutually exclusive", c.Name)
 		}
 	case TransportStdio:
 		if c.Command == "" {
@@ -108,6 +113,18 @@ func (c ServerConfig) Validate() error {
 		return fmt.Errorf("mcp server %q: unknown transport %d", c.Name, c.Transport)
 	}
 	return nil
+}
+
+func (c ServerConfig) hasStaticAuthorization() bool {
+	if c.Authorization != "" {
+		return true
+	}
+	for name, value := range c.Headers {
+		if strings.EqualFold(name, "Authorization") && value != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func dial(ctx context.Context, client *sdkmcp.Client, cfg ServerConfig) (*sdkmcp.ClientSession, error) {

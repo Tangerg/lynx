@@ -2,6 +2,9 @@
 .vscode
 .DS_Store
 
+# Claude permission decisions are machine-local and accumulate absolute paths.
+.claude/settings.local.json
+
 # Lyra local config (holds API keys) — keep config.example.yaml only.
 app/runtime/config/config.yaml
 

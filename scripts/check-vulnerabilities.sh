@@ -23,7 +23,15 @@ fi
 
 report=$(mktemp)
 trap 'rm -f "$report"' EXIT
-(cd "$root/$module" && govulncheck -json ./...) >"$report"
+packages=()
+while IFS= read -r package; do
+  [[ -z "$package" ]] || packages+=("$package")
+done < <("$root/scripts/module-packages.sh" "$module")
+if [[ ${#packages[@]} -eq 0 ]]; then
+  echo "$module: no Go packages found" >&2
+  exit 2
+fi
+(cd "$root/$module" && govulncheck -json "${packages[@]}") >"$report"
 
 reachable=()
 while IFS= read -r id; do

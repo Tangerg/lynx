@@ -22,7 +22,7 @@
 > 执行进度：`W2–W8 DONE · P25–P31 DONE`
 > 当前协议：`protocol.current = protocol.minSupported = "2026-08-02"`
 > 当前 Artifact：`SessionArtifactVersion = 9`
-> 当前 Store：`schemaEpoch = 50`
+> 当前 Store：`schemaEpoch = 51`
 
 ## 0. 文档职责
 
@@ -2684,7 +2684,7 @@ DeleteUnownedCheckpoints:
 |---|---|---|
 | P29.1 Pending authority | `DONE` | `Put` breaking rename 为 insert-only `Open`；duplicate barrier 拒绝；Consume/Delete 同时校验 Session + root Run |
 | P29.2 checkpoint admission | `DONE` | 冻结 BuildID、TurnScope、完整 `ModelSelection`、RunLimits；cumulative Usage 只能前进 |
-| P29.3 durable Goal provenance | `DONE` | root `Run.GoalLeaseID` 成为 admission fact；child 禁止携带；当前 epoch 50 schema/check 同步 |
+| P29.3 durable Goal provenance | `DONE` | root `Run.GoalLeaseID` 成为 admission fact；child 禁止携带；当轮 epoch 50 schema/check 同步 |
 | P29.4 self-validating recovery | `DONE` | `RecoveryCommit.Validate` 证明 lost tree/postorder、Item owner、Goal turn、Pending deletion 与 retention identities |
 | P29.5 fail-closed model routing | `DONE` | 显式 model selection 缺 resolver/client 时拒绝，不回落 default |
 | P29.6 all-path Goal accounting | `DONE` | reducer、boot recovery、在线 cancel/loss 都把 exact Goal turn 与 terminal Run 同事务提交；ledger 只幂等接受 exact retry |

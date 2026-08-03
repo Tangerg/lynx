@@ -99,6 +99,51 @@ func (s *MCPServerStore) Remove(ctx context.Context, name string) error {
 	return nil
 }
 
+// LoadOAuthSession returns the opaque MCP-owned credential payload only when
+// both the server name and normalized origin match. A stale credential can
+// never be restored for a different origin.
+func (s *MCPServerStore) LoadOAuthSession(ctx context.Context, server, origin string) ([]byte, bool, error) {
+	var payload []byte
+	err := conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT payload FROM mcp_oauth_sessions WHERE server_name = ? AND origin = ?`,
+		server, origin).Scan(&payload)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("sqlite: load mcp oauth session: %w", err)
+	}
+	return payload, true, nil
+}
+
+// SaveOAuthSession atomically replaces one server's origin-bound OAuth
+// session. The foreign key rejects credentials for an unconfigured server.
+func (s *MCPServerStore) SaveOAuthSession(ctx context.Context, server, origin string, payload []byte) error {
+	if server == "" || origin == "" || len(payload) == 0 {
+		return errors.New("sqlite: mcp oauth session requires server, origin, and payload")
+	}
+	_, err := conn(ctx, s.db).ExecContext(ctx,
+		`INSERT INTO mcp_oauth_sessions (server_name, origin, payload)
+		 VALUES (?, ?, ?)
+		 ON CONFLICT(server_name) DO UPDATE SET
+		    origin = excluded.origin, payload = excluded.payload`,
+		server, origin, payload)
+	if err != nil {
+		return fmt.Errorf("sqlite: save mcp oauth session: %w", err)
+	}
+	return nil
+}
+
+// RemoveOAuthSession invalidates a server's persisted OAuth credentials. It is
+// idempotent so a rejected token and a concurrent server removal converge.
+func (s *MCPServerStore) RemoveOAuthSession(ctx context.Context, server string) error {
+	if _, err := conn(ctx, s.db).ExecContext(ctx,
+		`DELETE FROM mcp_oauth_sessions WHERE server_name = ?`, server); err != nil {
+		return fmt.Errorf("sqlite: remove mcp oauth session: %w", err)
+	}
+	return nil
+}
+
 // scanMCPServer reads one row via the given Scan func (works for both
 // *sql.Row and *sql.Rows), decoding the JSON list/map columns and the
 // nanosecond timeout. Column order must match [mcpColumns].

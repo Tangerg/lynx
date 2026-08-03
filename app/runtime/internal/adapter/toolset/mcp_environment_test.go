@@ -144,7 +144,7 @@ func TestToolEnvironmentRejectsDuplicateMCPNames(t *testing.T) {
 	_, _, err := mcpconnection.Open(context.Background(), []mcpserver.Server{
 		{Name: "dup", Transport: mcpserver.TransportStreamableHTTP, URL: "http://example.invalid/"},
 		{Name: "dup", Transport: mcpserver.TransportStreamableHTTP, URL: "http://other.invalid/"},
-	})
+	}, nil)
 	if err == nil {
 		t.Fatal("expected duplicate-name error, got nil")
 	}
@@ -156,7 +156,7 @@ func TestToolEnvironmentRejectsDuplicateMCPNames(t *testing.T) {
 func TestToolEnvironmentRejectsBadMCPEndpoint(t *testing.T) {
 	_, _, err := mcpconnection.Open(context.Background(), []mcpserver.Server{
 		{Name: "bad", Transport: mcpserver.TransportStreamableHTTP}, // empty URL fails validation
-	})
+	}, nil)
 	if err == nil {
 		t.Fatal("expected validation error, got nil")
 	}
@@ -211,7 +211,7 @@ func TestToolEnvironmentRejectsEmptyStdioCommand(t *testing.T) {
 	_, _, err := mcpconnection.Open(context.Background(), []mcpserver.Server{{
 		Name:      "bad",
 		Transport: mcpserver.TransportStdio,
-	}})
+	}}, nil)
 	if err == nil {
 		t.Fatal("expected validation error, got nil")
 	}
@@ -273,7 +273,7 @@ func TestToolEnvironmentReconnectsMCP(t *testing.T) {
 
 func mustMCPToolEnvironment(t *testing.T, servers []mcpserver.Server) (toolset.Built, *mcpconnection.Connections) {
 	t.Helper()
-	connections, mcpTools, err := mcpconnection.Open(t.Context(), servers)
+	connections, mcpTools, err := mcpconnection.Open(t.Context(), servers, nil)
 	if err != nil {
 		t.Fatalf("Open MCP connections: %v", err)
 	}

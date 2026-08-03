@@ -60,7 +60,7 @@ func Open(path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 50
+const schemaEpoch = 51
 
 func installCurrentSchema(db *sql.DB, path string) error {
 	var epoch int
@@ -283,6 +283,22 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			disabled_tools     TEXT    NOT NULL DEFAULT '',
 			auto_approve_tools TEXT    NOT NULL DEFAULT ''
 		)`,
+		// OAuth owns an opaque, versioned payload in the MCP connection layer;
+		// SQLite only enforces lifecycle and origin binding. The FK cascade removes
+		// credentials with their server. A transport or endpoint change invalidates
+		// the old credential before that server can reconnect elsewhere.
+		`CREATE TABLE IF NOT EXISTS mcp_oauth_sessions (
+			server_name TEXT PRIMARY KEY REFERENCES mcp_servers(name) ON DELETE CASCADE,
+			origin      TEXT NOT NULL,
+			payload     BLOB NOT NULL
+		)`,
+		`CREATE TRIGGER IF NOT EXISTS invalidate_mcp_oauth_session
+			AFTER UPDATE OF transport, url, authorization, headers ON mcp_servers
+			WHEN OLD.transport <> NEW.transport OR OLD.url <> NEW.url OR
+			     OLD.authorization <> NEW.authorization OR OLD.headers <> NEW.headers
+			BEGIN
+				DELETE FROM mcp_oauth_sessions WHERE server_name = NEW.name;
+			END`,
 		`CREATE TABLE IF NOT EXISTS messages (
 			seq             INTEGER PRIMARY KEY AUTOINCREMENT,
 			conversation_id TEXT    NOT NULL,

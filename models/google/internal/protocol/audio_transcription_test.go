@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/models/google/internal/protocol"
+	google "github.com/Tangerg/lynx/models/google/internal/protocol"
 )
 
 func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {

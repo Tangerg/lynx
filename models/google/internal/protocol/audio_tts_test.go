@@ -7,7 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/modeltest"
 	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/google/internal/protocol"
+	google "github.com/Tangerg/lynx/models/google/internal/protocol"
 )
 
 func TestAudioTTSModel_Call_Mock(t *testing.T) {

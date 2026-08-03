@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/mcpconnection"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
@@ -96,6 +97,11 @@ type Config struct {
 	// composition root) and the registry is the source for runtime
 	// mcp.servers.create / update / delete. Required.
 	MCPRegistry integrations.Registry
+
+	// MCPOAuthSessions persists refreshing OAuth credentials independently of
+	// the domain registry shape. Required: without it desktop sign-in would be
+	// process-local and every restart would unnecessarily re-authorize.
+	MCPOAuthSessions mcpconnection.OAuthSessionStore
 
 	// SessionStore persists Lyra sessions. Required; the composition root injects
 	// the sqlite-backed store (tests use a sqlite :memory: DB) and threads it to

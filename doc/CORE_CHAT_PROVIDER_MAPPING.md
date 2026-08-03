@@ -4,7 +4,7 @@
 > 日期：2026-07-14
 > 范围：OpenAI、Anthropic、Google Gemini、Ollama Native Chat
 
-本文锁定当前 `core/chat` 协议对四个差异 provider 的表达能力。`models/internal/chatconformance/testdata` 保存 adapter 必须产出的 Core wire，而不是第二套 provider 实现。
+本文锁定当前 `core/chat` 协议对四个差异 provider 的表达能力。可执行契约由各 provider 自己的协议测试拥有；不存在跨 provider 的第二套实现或集中式 conformance 包。
 
 “无损”限定为：Lynx 当前公开并实际映射的能力不得丢失，同时修复旧 Response 只保留首个 choice/candidate 的缺陷；不承诺把 SDK 的每个实验字段提升为 Core 公共字段。provider 原生但仍需保留的 JSON-safe 数据进入唯一的 namespaced Extensions。
 
@@ -68,8 +68,9 @@
 
 ## 4. 可执行证据与后续使用
 
-- `models/internal/chatconformance/testdata/*.request.golden.json`：四家可映射请求边界。
-- `models/internal/chatconformance/testdata/*.response.golden.json`：四家期望 Core 响应，包括多 choice、reasoning、media、tool、usage 和 provider extensions。
-- `models/internal/chatconformance/mapping_test.go`：递归验证、canonical JSON fixed-point 和 provider 特有能力断言。
+- `models/protocol/openai/chat_protocol_behavior_test.go` 与 `chat_protocol_test.go`：OpenAI-compatible wire 的双向映射和行为契约。
+- `models/internal/protocol/anthropic/chat_protocol_behavior_test.go` 与 `chat_protocol_conformance_test.go`：Anthropic 映射、reasoning/tool/usage 行为契约。
+- `models/google/internal/protocol/chat_protocol_behavior_test.go` 与 `chat_protocol_conformance_test.go`：Google 映射与 provider 特有能力契约。
+- `models/ollama/chat_protocol_behavior_test.go` 与 `chat_protocol_conformance_test.go`：Ollama native chat 映射与行为契约。
 
-四家 adapter 的真实 SDK fixture 必须产出与本契约等价的 Core 值；可以调整 provider 私有 helper，但如需改变 Core wire 或上述 loss policy，必须先更新本文、golden fixture、API diff 与 release notes。
+四家 adapter 的真实 SDK fixture 必须产出与本契约等价的 Core 值；可以调整 provider 私有 helper，但如需改变 Core wire 或上述 loss policy，必须先更新本文、对应 provider 行为测试、API diff 与 release notes。

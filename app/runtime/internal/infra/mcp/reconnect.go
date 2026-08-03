@@ -61,6 +61,14 @@ func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("mcp: invalid server %q: %w", cfg.Name, err)
 	}
+	restored := cfg.OAuthHandler
+	if cfg.Transport == TransportHTTP && restored == nil && !cfg.hasStaticAuthorization() {
+		var err error
+		restored, err = restoreOAuthHandler(ctx, c.oauthSessions, cfg.Name, cfg.Endpoint)
+		if err != nil {
+			return err
+		}
+	}
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
@@ -72,9 +80,13 @@ func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
 		c.servers = append(c.servers, ms)
 	}
 	oauth := reusableOAuth(ms.config, cfg, ms.oauth)
+	if oauth == nil {
+		oauth = restored
+	}
 	ms.oauth = oauth
 	old := ms.session
 	ms.config = cfg
+	ms.config.OAuthHandler = nil
 	ms.session = nil
 	ms.tools = nil
 	ms.state = mcpserver.ConnectionConnecting
@@ -93,6 +105,7 @@ func reusableOAuth(current, candidate ServerConfig, handler auth.OAuthHandler) a
 	if handler == nil ||
 		current.Transport != TransportHTTP ||
 		candidate.Transport != TransportHTTP ||
+		candidate.hasStaticAuthorization() ||
 		!httporigin.Same(current.Endpoint, candidate.Endpoint) {
 		return nil
 	}
@@ -104,8 +117,9 @@ func reusableOAuth(current, candidate ServerConfig, handler auth.OAuthHandler) a
 // callback, and (via the go-sdk) discovers + dynamically registers + exchanges
 // the code. On success the live OAuth handler is kept on the server (reused by
 // later reconnects this session, auto-refreshing) and the server connects. The
-// handler is NOT persisted — a restart re-prompts. Blocks until the user
-// completes the browser flow or [oauthFlowTimeout] elapses. Returns
+// handler and its refreshing token source are persisted when a session store
+// is configured. Blocks until the user completes the browser flow or
+// [oauthFlowTimeout] elapses. Returns
 // [ErrUnknownServer] for an unconfigured name. Serialized with the other dials.
 func (c *Connections) Authorize(ctx context.Context, name string) error {
 	c.mu.Lock()
@@ -121,6 +135,10 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 	if ms.config.Transport != TransportHTTP {
 		c.mu.Unlock()
 		return errors.New("mcp: OAuth applies to HTTP servers only")
+	}
+	if ms.config.hasStaticAuthorization() {
+		c.mu.Unlock()
+		return errors.New("mcp: clear static Authorization before starting OAuth")
 	}
 	old := ms.session
 	ms.session = nil
@@ -147,7 +165,7 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 		return errors.Join(closeErr, err)
 	}
 	defer flow.close(ctx)
-	handler, err := newOAuthHandler(flow)
+	handler, err := newOAuthHandler(flow, c.oauthSessions, cfg.Name, cfg.Endpoint)
 	if err != nil {
 		c.failAttempt(attempt, err)
 		return errors.Join(closeErr, err)
@@ -201,7 +219,11 @@ func (c *Connections) dialAndSwap(attempt connectionAttempt, cfg ServerConfig, k
 		err = validateToolCatalog(c.servers, attempt.target, cfg.Name, verifiedTools)
 	}
 	if err != nil {
-		attempt.target.session, attempt.target.tools, attempt.target.state = nil, nil, dialStatus(err)
+		state := dialStatus(err)
+		attempt.target.session, attempt.target.tools, attempt.target.state = nil, nil, state
+		if state == mcpserver.ConnectionNeedsAuth {
+			attempt.target.oauth = nil
+		}
 	} else {
 		attempt.target.session, attempt.target.tools, attempt.target.state = session, verifiedTools, mcpserver.ConnectionConnected
 		if keepHandler {

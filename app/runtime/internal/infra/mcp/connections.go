@@ -23,11 +23,9 @@ type server struct {
 	tools   []toolcontract.Tool   // last tool set proved on this session
 	state   mcpserver.ConnectionState
 
-	// oauth is the live OAuth handler obtained by a successful [Connections.
-	// Authorize] this session. nil until the user signs in (an OAuth server with
-	// no handler dials anonymously → 401 → needsAuth). Reused on reconnect /
-	// reconfigure so a signed-in session stays authorized without re-prompting;
-	// not persisted, so a restart clears it.
+	// oauth is either a restored durable OAuth handler or the handler obtained by
+	// a successful [Connections.Authorize]. nil until a saved session exists or
+	// the user signs in. It is reusable only within the same HTTP origin.
 	oauth auth.OAuthHandler
 
 	generation uint64
@@ -62,6 +60,11 @@ type Connections struct {
 	closed   bool                      // terminal admission state set by Shutdown
 	shutdown *shutdownAttempt
 	sessions map[*sdkmcp.ClientSession]*ownedSession
+
+	// oauthSessions is the durable credential boundary. It is optional so the
+	// infrastructure remains usable in processes that deliberately opt out of
+	// persistence; the desktop runtime always supplies it.
+	oauthSessions OAuthSessionStore
 
 	// publishMu serializes snapshot+sink publication. Mutations themselves run
 	// concurrently per server; taking this lock before snapshotting guarantees a

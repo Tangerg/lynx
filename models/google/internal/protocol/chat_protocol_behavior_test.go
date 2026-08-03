@@ -8,7 +8,7 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/modeltest"
-	"github.com/Tangerg/lynx/models/google/internal/protocol"
+	google "github.com/Tangerg/lynx/models/google/internal/protocol"
 )
 
 func TestChat_BehaviorConformance(t *testing.T) {

@@ -6,43 +6,43 @@ on:
   pull_request:
     branches: [main, lyra]
 
-# Cancel in-progress runs when a new push lands on the same ref —
-# saves CI minutes when developers push quickly.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # Matrix per workspace module so failures localise. Release-specific hard
-  # gates (such as the Core API baseline) run as dedicated blocking steps.
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      modules: ${{ steps.modules.outputs.modules }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.5"
+          cache: false
+
+      - name: Repository topology
+        working-directory: dev/repoarch
+        env:
+          GOWORK: "off"
+        run: go test -count=1 ./...
+
+      - name: Discover workspace modules
+        id: modules
+        run: |
+          modules=$(scripts/workspace-modules.sh | jq -Rsc 'split("\n") | map(select(length > 0))')
+          echo "modules=$modules" >> "$GITHUB_OUTPUT"
+
   check:
+    needs: discover
     name: ${{ matrix.module }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        module:
-          - pkg
-          - core
-          - agent
-          - chatclient
-          - chathistory
-          - documentpipeline
-          - documentreaders
-          - documentreaders/html
-          - documentreaders/markdown
-          - documentreaders/pdf
-          - embeddingclient
-          - mcp
-          - models
-          - otel
-          - rag
-          - tools
-          - vectorstores
-          - a2a
-          - skills
-          - tokenizer
-          - app/runtime
+        module: ${{ fromJSON(needs.discover.outputs.modules) }}
     steps:
       - uses: actions/checkout@v7
 
@@ -50,23 +50,31 @@ jobs:
         with:
           go-version: "1.26.5"
           cache: true
-          cache-dependency-path: ${{ matrix.module }}/go.sum
+          cache-dependency-path: |
+            go.work.sum
+            **/go.sum
 
-      - name: go build
-        working-directory: ${{ matrix.module }}
-        run: go build ./...
+      - uses: actions/setup-node@v7
+        if: matrix.module == 'app/desktop'
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: app/desktop/frontend/package-lock.json
 
-      - name: go vet
-        working-directory: ${{ matrix.module }}
-        run: go vet ./...
+      - name: Install desktop frontend dependencies
+        if: matrix.module == 'app/desktop'
+        working-directory: app/desktop/frontend
+        run: npm ci --no-audit --no-fund
 
-      - name: go test
-        working-directory: ${{ matrix.module }}
-        run: go test -count=1 ./...
+      - name: Desktop frontend quality gate
+        if: matrix.module == 'app/desktop'
+        working-directory: app/desktop/frontend
+        run: npm run check
 
-      - name: go test race
-        working-directory: ${{ matrix.module }}
-        run: go test -race -count=1 ./...
+      - name: Build, vet, test, race, and module hygiene
+        env:
+          MODULE: ${{ matrix.module }}
+        run: scripts/check.sh build vet test race tidy
 
       - name: Runtime standalone module graph
         if: matrix.module == 'app/runtime'
@@ -74,69 +82,29 @@ jobs:
         run: make check-standalone
 
       - name: Core API and wire compatibility guards
-        if: matrix.module == 'core'
-        working-directory: core
+        if: matrix.module == '.'
         run: >-
-          go test -count=1 ./internal/arch
+          go test -count=1 ./core/internal/arch
           -run '^(TestExportedAPIMatchesBaseline|TestWireTypeCoverage|TestWireContractsMatchGolden|TestWireDTOFieldsExcludeArbitraryRuntimeValues)$'
 
       - name: Core documentation and examples release gate
-        if: matrix.module == 'core'
-        working-directory: core
+        if: matrix.module == '.'
         run: >-
-          go test -count=1 ./...
+          go test -count=1 ./core/...
           -run '^(Example|TestPublicPackagesHaveDocsAndRunnableExamples)$'
 
       - name: Core coverage budget
-        if: matrix.module == 'core'
+        if: matrix.module == '.'
         run: scripts/check-core-coverage.sh
-
-      - name: Core dependency budget
-        if: matrix.module == 'core'
-        working-directory: core
-        run: |
-          go test -count=1 ./internal/arch -run '^(TestTargetPackagesHaveNoExternalDependencies|TestCoreProductionImportsAreStandardLibraryOnly)$'
-          go mod tidy -diff
-
-      # Covers every public constructor plus the shared protocol/mapping suites
-      # and the five reference implementations.
-      - name: Provider conformance release gate
-        if: matrix.module == 'models'
-        working-directory: models
-        run: >-
-          go test -race -count=1
-          ./internal/arch
-          ./internal/chatconformance
-          ./internal/conformance
-          ./anthropic
-          ./bedrock
-          ./google
-          ./ollama
-          ./openai
-
-      # The coverage guard fails when a backend is added without registering a
-      # conformance suite; the remaining tests execute that suite for all 27
-      # published backends.
-      - name: Vectorstore conformance release gate
-        if: matrix.module == 'vectorstores'
-        working-directory: vectorstores
-        run: >-
-          go test -race -count=1 ./...
-          -run '^(TestReleaseBackendCoverage|TestRun|TestStoreConformance)$'
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
-          # Build with the repository's Go version so the analyzer and target
-          # modules always agree on language and export-data versions.
           install-mode: goinstall
           working-directory: ${{ matrix.module }}
           args: --config=${{ github.workspace }}/.golangci.yml
 
-      # Blocking for every new reachable issue. The checker has one precise,
-      # reviewed allowlist for the eight Ollama advisories that have no fixed
-      # version; it fails if their module/version changes or a fix appears.
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.6.0

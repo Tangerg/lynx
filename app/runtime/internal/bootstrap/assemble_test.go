@@ -72,6 +72,13 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 			want: "runtime: MCPRegistry is required",
 		},
 		{
+			name: "mcp oauth sessions",
+			edit: func(cfg *Config) {
+				cfg.MCPOAuthSessions = nil
+			},
+			want: "runtime: MCPOAuthSessions is required",
+		},
+		{
 			name: "session store",
 			edit: func(cfg *Config) {
 				cfg.SessionStore = nil
@@ -361,6 +368,7 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 	}
 
 	checkpoints := sqlitestore.NewExecutorCheckpointStore(db)
+	mcpServers := sqlitestore.NewMCPServerStore(db)
 	return Config{
 		Engine: agentexec.Config{
 			ChatClient:   client,
@@ -368,7 +376,8 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 			HistoryStore: sqlitestore.NewMessageStore(db),
 		},
 		ProviderRegistry:    sqlitestore.NewProviderStore(db),
-		MCPRegistry:         sqlitestore.NewMCPServerStore(db),
+		MCPRegistry:         mcpServers,
+		MCPOAuthSessions:    mcpServers,
 		SessionStore:        sqlitestore.NewSessionStore(db),
 		InterruptStore:      sqlitestore.NewInterruptStore(db),
 		TranscriptStore:     sqlitestore.NewTranscriptStore(db),

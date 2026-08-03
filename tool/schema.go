@@ -35,9 +35,6 @@ type schemaNode struct {
 // minItems, and maxItems; jsonschema_description supplies field descriptions.
 func Schema[T any]() (string, error) {
 	typeOf := reflect.TypeFor[T]()
-	if typeOf == nil {
-		return "", errors.New("tool: schema type is nil")
-	}
 	node, err := schemaFor(typeOf, make(map[reflect.Type]bool))
 	if err != nil {
 		return "", fmt.Errorf("tool: derive schema for %s: %w", typeOf, err)

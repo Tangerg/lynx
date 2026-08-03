@@ -255,7 +255,7 @@ parked tree 由 Application 确定性收口为 `run_lost`，不尝试猜测式�
 
 Session 与 executor process 是两套不同 identity。用户对话及 fork 才是 `Session`；delegated
 work 由同一 Session 下的 first-class child Run 表达，不再从 child process 派生隐藏 Session。
-当前 SQLite `schemaEpoch = 50`，没有旧 `process_states`、`sessions.kind`、双读写或迁移分支。
+当前 SQLite `schemaEpoch = 51`，没有旧 `process_states`、`sessions.kind`、双读写或迁移分支。
 同一 `root_process_id` 的 Session owner 不可被 upsert 改写；普通 lifecycle 的定向删除必须
 同时携带 Session，只有 boot exact-retention 使用全局 unowned cleanup。
 
@@ -267,6 +267,8 @@ Resolver；catalog 仍归 toolset。
 
 MCP status/catalog/connection/registry 四片接口定义在真实消费者
 `application/integrations`，由 toolset adapter 实现并由 Bootstrap 直接注入。
+OAuth 会话另走 `infra/mcp` 消费方定义的窄持久化接口：SQLite 只保存 opaque payload，
+并以 server name + 规范化 HTTP origin 绑定；endpoint/transport 变化或授权拒绝都会先失效凭据。
 
 turn-boundary steering 与 `BoundaryMaintenance` 接口定义在 `adapter/agentexec/turn`；
 Bootstrap 默认绑定 conversation 与 `adapter/maintenance.Suite`。Suite 持有 mining、
@@ -319,8 +321,9 @@ Application 依赖 SQLite：用例依赖自己需要的窄读写/事务端口，
 - 一个 Session 至多一个非 terminal Run 由数据库约束兜底，不只靠内存锁；
 - transcript/history 是 projection，不替代 Run aggregate。
 
-当前 SQLite `schemaEpoch = 50`，`runs.goal_lease_id`、`interrupts.goal_lease_id` 与
-`runs.max_total_tokens` 均属于唯一现行 shape；不读取或迁移 epoch 49 及更早数据库。
+当前 SQLite `schemaEpoch = 51`，`runs.goal_lease_id`、`interrupts.goal_lease_id`、
+`mcp_oauth_sessions` 与
+`runs.max_total_tokens` 均属于唯一现行 shape；不读取或迁移任何其他 epoch 的数据库。
 
 用户可编辑的 `LYRA.md` 是有意保留的文件型知识源，不属于通用存储开关。
 

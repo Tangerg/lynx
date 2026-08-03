@@ -30,6 +30,7 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatcl
 		UtilityRoleStore:       stores.UtilityRole,
 		Online:                 OnlineConfig(cfg.Online),
 		MCPRegistry:            stores.MCPServers,
+		MCPOAuthSessions:       stores.MCPServers,
 		A2AAgents:              runtimeA2AAgents(cfg.A2AAgents),
 		LSPServers:             runtimeLSPServers(cfg.LSPServers),
 		SandboxShell:           cfg.SandboxShell,

@@ -79,11 +79,8 @@ func TestWorkspaceCoversEveryRepositoryModule(t *testing.T) {
 	}
 
 	for dir := range workspaceDirs {
-		if dir == "app" || strings.HasPrefix(dir, "app/") {
-			continue
-		}
 		if _, ok := moduleByDir(modules, dir); !ok {
-			t.Errorf("go.work contains non-app module %q that repository discovery did not classify", dir)
+			t.Errorf("go.work contains module %q that repository discovery did not classify", dir)
 		}
 	}
 }
@@ -271,6 +268,7 @@ func TestRetiredLayoutsCannotReturn(t *testing.T) {
 		"otel/chat.go",
 		"otel/chathistory.go",
 		"otel/vectorstore.go",
+		"pkg",
 		"tool/registry.go",
 		"tools/function",
 		"tools/go.mod",
@@ -365,6 +363,9 @@ func moduleLayer(path string) int {
 		return 2
 	case repositoryModulePath + "/examples/mcp":
 		return 3
+	case repositoryModulePath + "/app/desktop",
+		repositoryModulePath + "/app/runtime":
+		return 3
 	case repositoryModulePath + "/dev/repoarch":
 		return 4
 	default:
@@ -405,6 +406,25 @@ func allowedRepositoryDependencies(path string) map[string]struct{} {
 			repositoryModulePath,
 			repositoryModulePath+"/agent",
 			repositoryModulePath+"/mcp",
+		)
+	case repositoryModulePath + "/app/desktop":
+		return dependencies()
+	case repositoryModulePath + "/app/runtime":
+		return dependencies(
+			repositoryModulePath,
+			repositoryModulePath+"/a2a",
+			repositoryModulePath+"/agent",
+			repositoryModulePath+"/mcp",
+			repositoryModulePath+"/models",
+			repositoryModulePath+"/models/google",
+			repositoryModulePath+"/models/ollama",
+			repositoryModulePath+"/models/protocol/openai",
+			repositoryModulePath+"/otel",
+			repositoryModulePath+"/skills",
+			repositoryModulePath+"/tools/httpreq",
+			repositoryModulePath+"/tools/skills",
+			repositoryModulePath+"/tools/webfetch",
+			repositoryModulePath+"/tools/websearch",
 		)
 	default:
 		return dependencies(repositoryModulePath)
@@ -868,8 +888,7 @@ func shouldSkipRepositoryDir(relative, name string) bool {
 	if strings.HasPrefix(name, ".") || name == "node_modules" || name == "vendor" {
 		return true
 	}
-	first := firstPathSegment(relative)
-	return first == "app"
+	return false
 }
 
 func repositoryRoot(t *testing.T) string {

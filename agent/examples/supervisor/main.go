@@ -61,7 +61,7 @@ func main() {
 	parent := agent.New(agent.AgentConfig{Name: "supervisor", Description: "orchestrates research + summarize via the LLM", Actions: []agent.Action{agent.NewAction("brief", func(ctx context.Context, pc *agent.ProcessContext, in Topic) (Brief, error) {
 		researchTool, _ := runtime.NewAgentTool[Topic, Sources](engine, researchDeployment)
 		summarizeTool, _ := runtime.NewAgentTool[Sources, Summary](engine, summarizeDeployment)
-		prompt := fmt.Sprintf("Brief me on %q. Use research-agent first to gather sources, then summarize-agent to synthesise. Return the source URLs and summary.", in.Title)
+		prompt := fmt.Sprintf("Brief me on %q. Use research-agent first to gather sources, then summarize-agent to synthesize. Return the source URLs and summary.", in.Title)
 		content, err := agent.Prompt(ctx, pc, prompt, agent.PromptConfig{
 			System: "You are a supervisor that delegates to specialised agents.",
 			Tools:  []tool.Tool{researchTool, summarizeTool},

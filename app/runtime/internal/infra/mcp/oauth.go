@@ -12,20 +12,20 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
+	"golang.org/x/oauth2"
 )
 
-// OAuth for remote (HTTP) MCP servers — in-memory, per session. A server that
+// OAuth for remote (HTTP) MCP servers. A server that
 // needs OAuth surfaces as needsAuth (a 401 on dial maps there via dialStatus),
 // which is the cue to sign in. [Connections.Authorize] then runs the
 // authorization-code flow: open the system browser to the authorization URL,
 // catch the redirect on a loopback callback server, exchange the code — all
 // driven by the go-sdk's AuthorizationCodeHandler (discovery + Dynamic Client
-// Registration + PKCE + refresh). The resulting handler is held on the live
-// server for the process lifetime (reused on reconnect, auto-refreshing within
-// the session); it is NOT persisted, so a restart re-prompts. This matches
-// Continue's model — the SDK exposes no token-seed hook to rebuild a refreshing
-// source from a stored token, so durable sign-in would need a custom
-// discovery+DCR layer (a deliberate follow-up, not done here).
+// Registration + PKCE + refresh). The resulting OAuth config and token are
+// persisted through [OAuthSessionStore]; restarts restore a refreshing token
+// source without opening a browser. Credentials are bound to the server name
+// and normalized endpoint origin, and a rejected credential is deleted before
+// the server returns to needsAuth.
 
 // oauthCallbackPath is the loopback redirect path the authorization server sends
 // the code back to.
@@ -135,8 +135,12 @@ func (f *oauthFlow) close(ctx context.Context) {
 // newOAuthHandler builds the interactive authorization-code handler for one
 // sign-in, registering the flow's loopback redirect via Dynamic Client
 // Registration so no client id need be preconfigured.
-func newOAuthHandler(flow *oauthFlow) (auth.OAuthHandler, error) {
-	return auth.NewAuthorizationCodeHandler(&auth.AuthorizationCodeHandlerConfig{
+func newOAuthHandler(flow *oauthFlow, store OAuthSessionStore, server, endpoint string) (auth.OAuthHandler, error) {
+	origin, err := oauthOrigin(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	config := &auth.AuthorizationCodeHandlerConfig{
 		DynamicClientRegistrationConfig: &auth.DynamicClientRegistrationConfig{
 			Metadata: &oauthex.ClientRegistrationMetadata{
 				ClientName:              "Lyra",
@@ -148,7 +152,25 @@ func newOAuthHandler(flow *oauthFlow) (auth.OAuthHandler, error) {
 		},
 		RedirectURL:              flow.redirectURI,
 		AuthorizationCodeFetcher: flow.fetch,
-	})
+		RequestRefreshToken:      store != nil,
+	}
+	if store != nil {
+		config.NewTokenSource = func(ctx context.Context, cfg *oauth2.Config, token *oauth2.Token) (oauth2.TokenSource, error) {
+			if err := persistOAuthSession(ctx, store, server, origin, cfg, token); err != nil {
+				return nil, err
+			}
+			source := newSavingTokenSource(
+				cfg.TokenSource(ctx, token),
+				cfg,
+				token,
+				func(updatedConfig *oauth2.Config, updatedToken *oauth2.Token) error {
+					return persistOAuthSession(context.Background(), store, server, origin, updatedConfig, updatedToken)
+				},
+			)
+			return invalidateRejectedTokens(source, store, server), nil
+		}
+	}
+	return auth.NewAuthorizationCodeHandler(config)
 }
 
 // openBrowser opens url in the user's default browser, best-effort and

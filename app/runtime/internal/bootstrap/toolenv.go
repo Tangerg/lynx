@@ -38,7 +38,7 @@ func buildToolEnvironment(
 	goalState *goals.State,
 	skillStore *skillauthoring.Store,
 ) (toolEnvironment, error) {
-	mcpConnections, mcpTools, err := mcpconnection.Open(ctx, mcpEnv.servers)
+	mcpConnections, mcpTools, err := mcpconnection.Open(ctx, mcpEnv.servers, cfg.MCPOAuthSessions)
 	if err != nil {
 		return toolEnvironment{}, fmt.Errorf("runtime: open MCP connections: %w", err)
 	}

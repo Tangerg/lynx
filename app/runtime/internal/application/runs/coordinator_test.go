@@ -3,7 +3,6 @@ package runs
 import (
 	"context"
 	"errors"
-	"fmt"
 	"iter"
 	"slices"
 	"strings"
@@ -2119,7 +2118,7 @@ func TestCoordinatorCommitsSyntheticTerminalBeforeCancelTurn(t *testing.T) {
 
 func TestCoordinatorCommitFailureNeverPublishesUnbackedFact(t *testing.T) {
 	executor := &fakeExecutor{events: []ExecutorPayload{CompactBoundary{MessagesBefore: 4, MessagesAfter: 2}}}
-	effects := &fakeEffects{commitErr: fmt.Errorf("store down")}
+	effects := &fakeEffects{commitErr: errors.New("store down")}
 	coordinator := testCoordinator(executor, effects)
 
 	stream, err := coordinator.openSegment(context.Background(), testSegment())
@@ -2141,7 +2140,7 @@ func TestCoordinatorCommitFailureNeverPublishesUnbackedFact(t *testing.T) {
 }
 
 func TestCoordinatorStartExecutorError(t *testing.T) {
-	executor := &fakeExecutor{startErr: fmt.Errorf("boom")}
+	executor := &fakeExecutor{startErr: errors.New("boom")}
 	coordinator := testCoordinator(executor, &fakeEffects{})
 
 	_, err := coordinator.openSegment(context.Background(), testSegment())

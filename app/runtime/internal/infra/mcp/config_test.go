@@ -29,6 +29,8 @@ func TestServerConfigValidate(t *testing.T) {
 		{"stdio without command", ServerConfig{Name: "x", Transport: TransportStdio}, false},
 		{"stdio with endpoint", ServerConfig{Name: "x", Transport: TransportStdio, Command: "npx", Endpoint: "https://e/"}, false},
 		{"http auth fields ok", ServerConfig{Name: "x", Transport: TransportHTTP, Endpoint: "https://e", Authorization: "Bearer t", Headers: map[string]string{"X-API-Key": "k"}}, true},
+		{"http oauth with static authorization", ServerConfig{Name: "x", Transport: TransportHTTP, Endpoint: "https://e", Authorization: "Bearer t", OAuthHandler: oauthHandlerStub{}}, false},
+		{"http oauth with authorization header", ServerConfig{Name: "x", Transport: TransportHTTP, Endpoint: "https://e", Headers: map[string]string{"authorization": "Bearer t"}, OAuthHandler: oauthHandlerStub{}}, false},
 		{"stdio with auth", ServerConfig{Name: "x", Transport: TransportStdio, Command: "echo", Authorization: "Bearer t"}, false},
 		{"stdio with headers", ServerConfig{Name: "x", Transport: TransportStdio, Command: "echo", Headers: map[string]string{"X-API-Key": "k"}}, false},
 	}

@@ -287,13 +287,6 @@ func minimumNumber[Number wireNumeric](field string, value Number, minimum Numbe
 	return FieldError{}
 }
 
-func optionalMinimumNumber[Number wireNumeric](field string, value *Number, minimum Number) FieldError {
-	if value == nil {
-		return FieldError{}
-	}
-	return minimumNumber(field, *value, minimum)
-}
-
 func maximumNumber[Number wireNumeric](field string, value Number, maximum Number) FieldError {
 	number := float64(value)
 	if math.IsNaN(number) || math.IsInf(number, 0) || number > float64(maximum) {
@@ -332,16 +325,6 @@ func nonEmptyItems[T any](field string, values []T) FieldError {
 	return FieldError{}
 }
 
-func requiredMinItems[T any](field string, values []T, minimum int) FieldError {
-	if values == nil {
-		return FieldError{Field: field, Detail: "is required"}
-	}
-	if len(values) < minimum {
-		return FieldError{Field: field, Detail: fmt.Sprintf("must contain at least %d items", minimum)}
-	}
-	return FieldError{}
-}
-
 func optionalMinItems[T any](field string, values []T, minimum int) FieldError {
 	if values != nil && len(values) < minimum {
 		return FieldError{Field: field, Detail: fmt.Sprintf("must contain at least %d items", minimum)}
@@ -354,13 +337,6 @@ func maxLength(field, value string, maximum int) FieldError {
 		return FieldError{Field: field, Detail: fmt.Sprintf("must contain at most %d characters", maximum)}
 	}
 	return FieldError{}
-}
-
-func optionalMaxLength(field string, value *string, maximum int) FieldError {
-	if value == nil {
-		return FieldError{}
-	}
-	return maxLength(field, *value, maximum)
 }
 
 // nonEmptyProperties rejects an empty object map. nil remains a valid omission;

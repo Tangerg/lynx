@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -21,6 +22,8 @@ import (
 )
 
 const Provider = "Typesense"
+
+var collectionNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 const (
 	DefaultCollectionName = "lynx_vector_store"
@@ -69,7 +72,7 @@ func (c StoreConfig) Validate() error {
 	if c.Dimensions < 0 {
 		return errors.New("typesense: Dimensions must be >= 0")
 	}
-	if !identifierPattern.MatchString(c.CollectionName) {
+	if !collectionNamePattern.MatchString(c.CollectionName) {
 		return fmt.Errorf("typesense: CollectionName=%q must be a safe identifier", c.CollectionName)
 	}
 	return nil

@@ -111,7 +111,3 @@ func (a *api) embedding(ctx context.Context, modelName string, contents []*genai
 func (a *api) countTokens(ctx context.Context, modelName string, contents []*genai.Content, config *genai.CountTokensConfig) (*genai.CountTokensResponse, error) {
 	return wrapResult(a.client.Models.CountTokens(ctx, modelName, contents, config))
 }
-
-func (a *api) computeTokens(ctx context.Context, modelName string, contents []*genai.Content, config *genai.ComputeTokensConfig) (*genai.ComputeTokensResponse, error) {
-	return wrapResult(a.client.Models.ComputeTokens(ctx, modelName, contents, config))
-}

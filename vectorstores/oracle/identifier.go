@@ -7,17 +7,10 @@ import (
 	"slices"
 )
 
-var (
-	identifierPattern         = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-	identifierPatternWithDash = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
-)
+var identifierPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 func validateIdentifiers(provider string, fields map[string]string) error {
 	return validateIdentifierFields(identifierPattern, provider, fields)
-}
-
-func validateIdentifiersWithDash(provider string, fields map[string]string) error {
-	return validateIdentifierFields(identifierPatternWithDash, provider, fields)
 }
 
 func validateIdentifierFields(pattern *regexp.Regexp, provider string, fields map[string]string) error {

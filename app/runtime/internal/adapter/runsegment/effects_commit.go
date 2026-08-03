@@ -224,7 +224,7 @@ func (e *Effects) CommitTreeBarrier(ctx context.Context, barrier runs.TreeBarrie
 		}
 		if commit.RunID == barrier.Pending.RootRunID {
 			if commit.Run.GoalLeaseID != barrier.Pending.GoalLeaseID {
-				return fmt.Errorf("runsegment: tree barrier root Run goal lease differs from Pending")
+				return errors.New("runsegment: tree barrier root Run goal lease differs from Pending")
 			}
 		} else if commit.Run.GoalLeaseID != "" {
 			return fmt.Errorf("runsegment: tree barrier child Run[%d] carries a root Goal lease", index)
