@@ -51,7 +51,7 @@ func TestNew_ToolName(t *testing.T) {
 func TestRead_ReturnsStoredBody(t *testing.T) {
 	store := &fakeStore{body: "ABCDEFGHIJ", found: true}
 	tool, _ := New(store)
-	out, err := tool.Call(sessionCtx("sess-1"), `{"id":"BLOB234"}`)
+	out, err := tool.Call(sessionCtx("sess-1"), `{"result_id":"BLOB234"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestRead_ReturnsStoredBody(t *testing.T) {
 func TestRead_PagesWithOffsetAndLimit(t *testing.T) {
 	store := &fakeStore{body: "ABCDEFGHIJ", found: true}
 	tool, _ := New(store)
-	out, err := tool.Call(sessionCtx("s"), `{"id":"ABCDE234","offset":2,"limit":3}`)
+	out, err := tool.Call(sessionCtx("s"), `{"result_id":"ABCDE234","offset_bytes":2,"limit_bytes":3}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,14 +74,14 @@ func TestRead_PagesWithOffsetAndLimit(t *testing.T) {
 		t.Fatalf("windowed read did not return exactly the slice:\n%s", out)
 	}
 	// 5 < 10 → the tool should tell the model more remains and where to resume.
-	if !strings.Contains(out, "remain") || !strings.Contains(out, "offset=5") {
+	if !strings.Contains(out, "remain") || !strings.Contains(out, `"offset_bytes":5`) {
 		t.Fatalf("missing continuation hint:\n%s", out)
 	}
 }
 
 func TestRead_UnknownIDIsRecoverable(t *testing.T) {
 	tool, _ := New(&fakeStore{found: false})
-	out, err := tool.Call(sessionCtx("s"), `{"id":"NOPE234"}`)
+	out, err := tool.Call(sessionCtx("s"), `{"result_id":"NOPE234"}`)
 	if err != nil {
 		t.Fatalf("an unknown id must not error: %v", err)
 	}
@@ -90,37 +90,43 @@ func TestRead_UnknownIDIsRecoverable(t *testing.T) {
 	}
 }
 
-func TestRead_EmptyIDRejected(t *testing.T) {
+func TestRead_EmptyResultIDRejected(t *testing.T) {
 	tool, _ := New(&fakeStore{})
-	out, err := tool.Call(sessionCtx("s"), `{"id":""}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out, "id is required") {
-		t.Fatalf("output = %q, want an id-required message", out)
+	if _, err := tool.Call(sessionCtx("s"), `{"result_id":""}`); err == nil {
+		t.Fatal("expected an error for an empty result_id")
 	}
 }
 
 func TestRead_InvalidIDRejectedBeforeStore(t *testing.T) {
 	store := new(fakeStore)
 	tool, _ := New(store)
-	out, err := tool.Call(sessionCtx("s"), `{"id":"not-valid"}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out, "uppercase base32") || store.lastID != "" {
-		t.Fatalf("invalid id output = %q, store id = %q", out, store.lastID)
+	if _, err := tool.Call(sessionCtx("s"), `{"result_id":"not-valid"}`); err == nil || store.lastID != "" {
+		t.Fatalf("invalid result_id error = %v, store id = %q", err, store.lastID)
 	}
 }
 
 func TestRead_NoSession(t *testing.T) {
 	tool, _ := New(&fakeStore{})
-	out, err := tool.Call(context.Background(), `{"id":"ABCDE234"}`)
+	out, err := tool.Call(context.Background(), `{"result_id":"ABCDE234"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out, "no active session") {
 		t.Fatalf("output = %q, want a no-session message", out)
+	}
+}
+
+func TestRead_RejectsRemovedAndOversizedPagingArguments(t *testing.T) {
+	tool, _ := New(&fakeStore{})
+	for _, arguments := range []string{
+		`{"id":"ABCDE234"}`,
+		`{"result_id":"ABCDE234","offset":1}`,
+		`{"result_id":"ABCDE234","limit":1}`,
+		`{"result_id":"ABCDE234","limit_bytes":20001}`,
+	} {
+		if _, err := tool.Call(sessionCtx("s"), arguments); err == nil {
+			t.Fatalf("read_tool_result accepted invalid arguments: %s", arguments)
+		}
 	}
 }
 

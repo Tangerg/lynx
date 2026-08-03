@@ -2,7 +2,7 @@
 // back a tool output that the runtime offloaded when it exceeded the
 // context-eviction threshold. Eviction keeps only a head+tail placeholder (with
 // the blob id) in the conversation, so this tool is how the model recovers the
-// omitted middle on demand — paging through a large body with offset/limit
+// omitted middle on demand — paging through a large body with byte offsets
 // rather than re-inflating the whole thing into context.
 //
 // It is the read half of the eviction feature whose write half is the engine's
@@ -24,19 +24,15 @@ import (
 )
 
 // defaultReadWindow bounds a read that names no limit, so a naive
-// read_tool_result{id} returns a readable window instead of re-inflating a huge
-// body into context (which would defeat the eviction it is recovering from).
+// read_tool_result returns a readable window instead of re-inflating a huge body
+// into context (which would defeat the eviction it is recovering from).
 const defaultReadWindow = 20_000
 
-const description = `Read back the full output of an earlier tool call that the
-runtime offloaded to keep the conversation small. When a tool result was too
-large it was replaced inline by a head+tail preview ending in a marker like
-"…[N bytes offloaded … {"id":"<id>"} …]…"; pass that id here to retrieve the
-omitted content.
-
-Page through large output with offset (start position, in bytes) and limit (max
-bytes to return); omit both to read from the start in a bounded window. Only
-call this when the preview you already have is not enough.`
+const description = `Read omitted bytes from an earlier tool result that was
+offloaded to keep the conversation small. Copy result_id from the inline
+offload marker. Use offset_bytes and limit_bytes to page through the result;
+each call returns at most 20000 bytes. Call this only when the existing preview
+does not contain enough information.`
 
 // Store is the read capability the tool needs from the offloaded-tool-result
 // store (consumer-side interface). Fetch returns found=false with a nil error
@@ -49,9 +45,9 @@ type Store interface {
 // schema from it and decodes calls back into it, so the advertised schema and
 // the parsed value cannot drift.
 type readArgs struct {
-	ID     string `json:"id" jsonschema_description:"The offloaded result id from the placeholder marker."`
-	Offset int    `json:"offset,omitempty" jsonschema_description:"Start position in bytes (default 0). Use the end of the previous window to page forward."`
-	Limit  int    `json:"limit,omitempty" jsonschema_description:"Maximum bytes to return (default a bounded window). 0 uses the default window."`
+	ResultID    string `json:"result_id" jsonschema:"minLength=2,maxLength=64,pattern=^[A-Z2-7]+$" jsonschema_description:"Offloaded result identifier copied exactly from the inline marker."`
+	OffsetBytes int    `json:"offset_bytes,omitempty" jsonschema:"minimum=0" jsonschema_description:"Zero-based byte offset at which to start reading. Defaults to 0."`
+	LimitBytes  int    `json:"limit_bytes,omitempty" jsonschema:"minimum=1,maximum=20000" jsonschema_description:"Maximum bytes to return. Defaults to 20000 and cannot exceed 20000."`
 }
 
 type tool struct {
@@ -78,12 +74,9 @@ func (t *tool) read(ctx context.Context, a readArgs) (string, error) {
 	if sessionID == "" {
 		return "error: no active session — cannot read a stored tool result", nil
 	}
-	if a.ID == "" {
-		return "error: id is required (copy it from the offloaded-result marker)", nil
-	}
-	id, err := resultoffload.ParseID(a.ID)
+	id, err := resultoffload.ParseID(a.ResultID)
 	if err != nil {
-		return "error: id must be the uppercase base32 value from an offloaded-result marker", nil
+		return "error: result_id must be the uppercase base32 value from an offloaded-result marker", nil
 	}
 	body, found, err := t.store.Fetch(ctx, sessionID, id)
 	if err != nil {
@@ -92,13 +85,13 @@ func (t *tool) read(ctx context.Context, a readArgs) (string, error) {
 	if !found {
 		// Recoverable: an unknown id (typo, or the blob dropped with its session)
 		// is surfaced to the model, not raised as a turn-aborting error.
-		return "No stored tool result with id " + a.ID + " — it may have been deleted with its session.", nil
+		return "No stored tool result with result_id " + a.ResultID + " — it may have been deleted with its session.", nil
 	}
 
-	start, end := window(body, a.Offset, a.Limit)
-	header := fmt.Sprintf("[tool result %s — %d bytes total, showing bytes %d–%d]\n", a.ID, len(body), start, end)
+	start, end := window(body, a.OffsetBytes, a.LimitBytes)
+	header := fmt.Sprintf("[tool result %s — %d bytes total, showing bytes %d–%d]\n", a.ResultID, len(body), start, end)
 	if end < len(body) {
-		header += fmt.Sprintf("[%d bytes remain; call again with offset=%d for the next window]\n", len(body)-end, end)
+		header += fmt.Sprintf("[%d bytes remain; call again with {\"result_id\":%q,\"offset_bytes\":%d} for the next window]\n", len(body)-end, a.ResultID, end)
 	}
 	return header + body[start:end], nil
 }

@@ -16,8 +16,11 @@ func TestRenderToolResultPreviewIncludesBoundedHeadTailAndRetrievalIdentity(t *t
 	if !strings.HasSuffix(preview, strings.Repeat("z", 25)) {
 		t.Fatal("preview does not preserve the configured tail")
 	}
-	if !strings.Contains(preview, `read_tool_result tool: {"id":"ABC234XYZ7"}`) {
+	if !strings.Contains(preview, `read_tool_result: {"result_id":"ABC234XYZ7"}`) {
 		t.Fatal("preview does not carry the retrieval affordance")
+	}
+	if !strings.Contains(preview, "offset_bytes and limit_bytes") {
+		t.Fatal("preview does not name the paging parameters")
 	}
 }
 

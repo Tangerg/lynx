@@ -176,6 +176,7 @@
 
 ## 8. Schema 与结果契约
 
+- `read_tool_result(result_id,offset_bytes?,limit_bytes?)` 是 offloaded result 唯一回读入口；标识与分页参数都携带领域或单位，单次最多读取 20000 bytes，preview 和续页提示直接给出同一 JSON 参数形状；旧 `id/offset/limit` 不保留；
 - 模型工具定义只承载 provider 共同消费的 object input schema；不把 provider 不消费的 output schema 塞进 `core/chat.ToolDefinition`；
 - object schema 默认拒绝未知字段，非 `omitempty` / `omitzero` 字段默认 required；
 - schema 支持 enum、字符串长度、数值范围、正则和数组范围，并由 typed function tool 在调用边界执行同一份约束；
@@ -209,7 +210,7 @@
 | 2b | session-scoped Plan mode | 完成 |
 | 3 | `create_goal` 与 idle continuation | 完成 |
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 完成 |
-| 5 | 工具名、参数和描述的全量收敛 | 进行中（5a、5b.1 完成） |
+| 5 | 工具名、参数和描述的全量收敛 | 进行中（5a、5b.1、5b.2 完成） |
 | 6 | 删除冗余能力和配置 | 待开始 |
 | 7 | 全仓验证、文档收敛和最终审计 | 待开始 |
 
@@ -290,3 +291,9 @@
 - `shell` 删除仅供前端展示、服务端不消费的 `description`，将无单位 `timeout` / `auto_background_after` 改为 `timeout_ms` / `auto_background_after_seconds`；输出读取将 UI 控件式 `block` 改为行为语义 `wait`，等待超时也统一为 `timeout_ms`；
 - 将 curated project memory 与 raw transcript 两个 corpus 分别命名为 `search_memory`、`search_conversations`，重写 definition 与参数描述，统一 `query` 和 `limit=1..20` 的严格 schema；旧名称和越界截断路径不保留；
 - 改动只触及具体 toolset adapter、其 runtime 组装与基础 exec 注释；没有向通用 `tool.Tool`、Agent executor seam 或 delivery DTO 增加 Shell、Memory、Conversation 概念。
+
+### 批次 5b.2
+
+- 保留语义准确的 `read_tool_result` 工具名，将通用 `id/offset/limit` 收敛为 `result_id/offset_bytes/limit_bytes`，schema 直接约束 result identity 格式、非负 offset 与 `1..20000` 的单次读取上限；
+- offload preview、工具 description、续页提示和测试都使用同一 JSON 参数形状；续页结果直接给出下一次 `result_id + offset_bytes`，不再让模型从自然语言单位中猜字段；
+- 删除模型入口对负 offset、超大 limit 和旧字段的静默容忍；内部 `offload.ID`、SQLite store 与 artifact identity 保持领域内聚，不为参数重命名增加 DTO、兼容字段或跨模块 wrapper。

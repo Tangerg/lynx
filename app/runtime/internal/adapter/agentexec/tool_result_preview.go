@@ -22,7 +22,7 @@ func renderToolResultPreview(body, id, readToolName string, previewBytes int) st
 		tailStart = head
 	}
 	marker := fmt.Sprintf(
-		"\n\n…[%d bytes offloaded to keep the context small — retrieve the full output with the %s tool: {\"id\":\"%s\"} (supports offset/limit).]…\n\n",
+		"\n\n…[%d bytes offloaded to keep the context small — retrieve omitted bytes with %s: {\"result_id\":\"%s\"}; page with offset_bytes and limit_bytes.]…\n\n",
 		len(body), readToolName, id,
 	)
 	return body[:head] + marker + body[tailStart:]
