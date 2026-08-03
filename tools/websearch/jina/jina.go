@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -22,7 +23,9 @@ const (
 
 // Config configures [NewClient].
 type Config struct {
-	APIKey string
+	APIKey     string
+	BaseURL    string
+	HTTPClient *http.Client
 }
 
 type Client struct {
@@ -36,8 +39,15 @@ func NewClient(cfg Config) (*Client, error) {
 	if cfg.APIKey == "" {
 		return nil, errors.New("jina: APIKey is required")
 	}
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = baseURL
+	}
+	if cfg.HTTPClient == nil {
+		cfg.HTTPClient = &http.Client{}
+	}
 	return &Client{
-		http: resty.New().
+		http: resty.NewWithClient(cfg.HTTPClient).
+			SetBaseURL(cfg.BaseURL).
 			SetAuthToken(cfg.APIKey).
 			SetHeader("Accept", "application/json").
 			SetHeader("X-Respond-With", "no-content"),
@@ -46,59 +56,15 @@ func NewClient(cfg Config) (*Client, error) {
 
 func (c *Client) Name() string { return Name }
 
-// ============================================================== Native API
-
-// Request is the full Jina /search query-parameter shape. Jina takes
-// the query in the URL path; this struct holds everything else.
-type Request struct {
-	// Query becomes the URL path segment (url-encoded). Required.
-	Query string `json:"-"`
-
-	// Type: "web" (default), "images", "news".
-	Type string `json:"type,omitempty"`
-
-	// Num / Count cap results in [1, 20] (Jina accepts either name).
-	Num   int `json:"num,omitempty"`
-	Count int `json:"count,omitempty"`
-
-	// Page is 1-based pagination.
-	Page int `json:"page,omitempty"`
-
-	// Provider / Engine select the upstream SERP backend (google, bing,
-	// reader). They're kept in sync for compatibility.
-	Provider string `json:"provider,omitempty"`
-	Engine   string `json:"engine,omitempty"`
-
-	// Geographic / language hints.
-	Gl       string `json:"gl,omitempty"`
-	Hl       string `json:"hl,omitempty"`
-	Location string `json:"location,omitempty"`
-
-	// Fallback lets Jina retry on alternative engines.
-	Fallback bool `json:"fallback,omitempty"`
-
-	// Nfpr enables Google's "no filter for personalised results".
-	Nfpr bool `json:"nfpr,omitempty"`
-
-	// Search operators — exact behavior matches Google's site:/intitle:.
-	Ext      []string `json:"ext,omitempty"`
-	Filetype []string `json:"filetype,omitempty"`
-	Intitle  []string `json:"intitle,omitempty"`
-	Loc      []string `json:"loc,omitempty"`
-	Site     []string `json:"site,omitempty"`
-
-	// RespondWith: markdown (default), html, text, screenshot.
-	RespondWith string `json:"respondWith,omitempty"`
-	// RetainImages / RetainLinks: none, all, alt (images), text (links).
-	RetainImages string `json:"retainImages,omitempty"`
-	RetainLinks  string `json:"retainLinks,omitempty"`
-	// NoCache forces a fresh crawl.
-	NoCache bool `json:"noCache,omitempty"`
-	// Timeout caps the upstream fetch at this many seconds (max 180).
-	Timeout int `json:"timeout,omitempty"`
+type request struct {
+	Query   string   `json:"-"`
+	Count   int      `json:"count,omitempty"`
+	Page    int      `json:"page,omitempty"`
+	Site    []string `json:"site,omitempty"`
+	NoCache bool     `json:"noCache,omitempty"`
 }
 
-func (r *Request) Validate() error {
+func (r *request) validate() error {
 	if r == nil {
 		return errors.New("jina: Request must not be nil")
 	}
@@ -108,46 +74,26 @@ func (r *Request) Validate() error {
 	return nil
 }
 
-// Usage echoes token consumption per request.
-type Usage struct {
-	Tokens int `json:"tokens"`
-}
-
-// Result is one item in [Response.Data].
-type Result struct {
+type result struct {
 	Title       string `json:"title"`
 	URL         string `json:"url"`
 	Description string `json:"description"`
 	Content     string `json:"content,omitempty"`
 	Date        string `json:"date,omitempty"`
-	Usage       Usage  `json:"usage,omitempty"`
 }
 
-// ResponseMeta wraps per-call metadata.
-type ResponseMeta struct {
-	Usage Usage `json:"usage"`
+type response struct {
+	Data []*result `json:"data"`
 }
 
-// Response is the full Jina /search response.
-type Response struct {
-	Code    int          `json:"code"`
-	Status  int          `json:"status"`
-	Data    []*Result    `json:"data"`
-	Meta    ResponseMeta `json:"meta"`
-	Message string       `json:"message,omitempty"`
-}
-
-// SearchNative calls GET https://s.jina.ai/<query> with the full
-// Jina query-parameter shape. Note: Query is encoded into the URL
-// path, not the query string.
-func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, error) {
-	if err := req.Validate(); err != nil {
+func (c *Client) search(ctx context.Context, req *request) (*response, error) {
+	if err := req.validate(); err != nil {
 		return nil, err
 	}
-	endpoint := baseURL + "/" + url.PathEscape(req.Query)
+	endpoint := "/" + url.PathEscape(req.Query)
 	params := req.params()
 
-	var raw Response
+	var raw response
 	resp, err := c.http.R().SetContext(ctx).SetQueryParams(params).SetResult(&raw).Get(endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("jina: request failed: %w", err)
@@ -158,42 +104,13 @@ func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, err
 	return &raw, nil
 }
 
-// params serializes a [Request] into the flat string map resty
-// expects. Empty / zero fields are omitted.
-func (r *Request) params() map[string]string {
+func (r *request) params() map[string]string {
 	p := map[string]string{}
-	addStringParam(p, "type", r.Type)
-	addIntParam(p, "num", r.Num)
 	addIntParam(p, "count", r.Count)
 	addIntParam(p, "page", r.Page)
-	addStringParam(p, "provider", r.Provider)
-	addStringParam(p, "engine", r.Engine)
-	addStringParam(p, "gl", r.Gl)
-	addStringParam(p, "hl", r.Hl)
-	addStringParam(p, "location", r.Location)
-	addBoolParam(p, "fallback", r.Fallback)
-	addBoolParam(p, "nfpr", r.Nfpr)
-	addCSVParam(p, "ext", r.Ext)
-	addCSVParam(p, "filetype", r.Filetype)
-	addCSVParam(p, "intitle", r.Intitle)
-	addCSVParam(p, "loc", r.Loc)
 	addCSVParam(p, "site", r.Site)
-	addStringParam(p, "respondWith", r.RespondWith)
-	addStringParam(p, "retainImages", r.RetainImages)
-	addStringParam(p, "retainLinks", r.RetainLinks)
 	addBoolParam(p, "noCache", r.NoCache)
-	// Jina caps timeout at 180s; clamp here so callers can't smuggle
-	// values past the limit via the native API.
-	if r.Timeout > 0 && r.Timeout <= 180 {
-		p["timeout"] = strconv.Itoa(r.Timeout)
-	}
 	return p
-}
-
-func addStringParam(params map[string]string, key, value string) {
-	if value != "" {
-		params[key] = value
-	}
 }
 
 func addIntParam(params map[string]string, key string, value int) {
@@ -214,34 +131,22 @@ func addCSVParam(params map[string]string, key string, values []string) {
 	}
 }
 
-// ============================================================== SPI wrapper
-
 func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch.Response, error) {
-	raw, err := c.SearchNative(ctx, buildRequest(req))
+	raw, err := c.search(ctx, buildRequest(req))
 	if err != nil {
 		return nil, err
 	}
 	return raw.toWebSearch(req.Query), nil
 }
 
-// ============================================================== mapping
-
 const maxResultsCap = 20
 
-func buildRequest(req *websearch.Request) *Request {
+func buildRequest(req *websearch.Request) *request {
 	num := min(cmp.Or(req.MaxResults, 10), maxResultsCap)
-	r := &Request{
-		Query:        req.Query,
-		Type:         "web",
-		Provider:     "google",
-		Engine:       "google",
-		Fallback:     true,
-		Num:          num,
-		Count:        num,
-		Page:         1,
-		RespondWith:  "markdown",
-		RetainImages: "none",
-		RetainLinks:  "all",
+	r := &request{
+		Query: req.Query,
+		Count: num,
+		Page:  1,
 	}
 	if len(req.AllowedDomains) > 0 {
 		r.Site = req.AllowedDomains
@@ -252,7 +157,7 @@ func buildRequest(req *websearch.Request) *Request {
 	return r
 }
 
-func (r *Response) toWebSearch(query string) *websearch.Response {
+func (r *response) toWebSearch(query string) *websearch.Response {
 	results := make([]*websearch.Result, 0, len(r.Data))
 	for _, result := range r.Data {
 		results = append(results, &websearch.Result{
@@ -265,7 +170,7 @@ func (r *Response) toWebSearch(query string) *websearch.Response {
 	return &websearch.Response{Query: query, Results: results}
 }
 
-func (r *Result) snippet() string {
+func (r *result) snippet() string {
 	if r.Description != "" {
 		return r.Description
 	}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/go-resty/resty/v2"
 
@@ -18,7 +19,9 @@ const (
 
 // Config configures [NewClient].
 type Config struct {
-	APIKey string
+	APIKey     string
+	BaseURL    string
+	HTTPClient *http.Client
 }
 
 type Client struct {
@@ -32,9 +35,15 @@ func NewClient(cfg Config) (*Client, error) {
 	if cfg.APIKey == "" {
 		return nil, errors.New("firecrawl: APIKey is required")
 	}
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = baseURL
+	}
+	if cfg.HTTPClient == nil {
+		cfg.HTTPClient = &http.Client{}
+	}
 	return &Client{
-		http: resty.New().
-			SetBaseURL(baseURL).
+		http: resty.NewWithClient(cfg.HTTPClient).
+			SetBaseURL(cfg.BaseURL).
 			SetAuthToken(cfg.APIKey).
 			SetHeader("Content-Type", "application/json"),
 	}, nil
@@ -42,57 +51,13 @@ func NewClient(cfg Config) (*Client, error) {
 
 func (c *Client) Name() string { return Name }
 
-// ============================================================== Native API
-
-// Source picks which Google vertical(s) Firecrawl scrapes.
-type Source struct {
-	Type string `json:"type"` // "web", "news", "images"
-}
-
-// ScrapeFormat is one entry in [ScrapeOptions.Formats].
-type ScrapeFormat struct {
-	Type string `json:"type"` // "markdown", "html", "rawHtml", "links", "screenshot"
-}
-
-// ScrapeOptions, when set, asks Firecrawl to scrape each search hit
-// and populate the matching fields on every result.
-type ScrapeOptions struct {
-	Formats         []ScrapeFormat `json:"formats,omitempty"`
-	OnlyMainContent bool           `json:"onlyMainContent,omitempty"`
-	IncludeTags     []string       `json:"includeTags,omitempty"`
-	ExcludeTags     []string       `json:"excludeTags,omitempty"`
-	WaitFor         int            `json:"waitFor,omitempty"`
-	Mobile          bool           `json:"mobile,omitempty"`
-	Timeout         int            `json:"timeout,omitempty"`
-}
-
-// Request is the full Firecrawl /v2/search request shape.
-type Request struct {
-	// Query is the search query. Required, max 500 chars.
+type request struct {
 	Query string `json:"query"`
-
-	// Limit caps results per source in [1, 100]; default 10.
-	Limit int `json:"limit,omitempty"`
-
-	// Country is an ISO 3166-1 alpha-2 code (default "US").
-	Country string `json:"country,omitempty"`
-
-	// Location is a fine-grained geo target
-	// (e.g. "San Francisco,California,United States").
-	Location string `json:"location,omitempty"`
-
-	// Tbs is Google's tbs parameter — "qdr:h"/"qdr:d"/"qdr:w" etc.
-	Tbs string `json:"tbs,omitempty"`
-
-	// Sources picks one or more verticals. Default [{"type":"web"}].
-	Sources []Source `json:"sources,omitempty"`
-
-	// ScrapeOptions, when present, runs a /scrape on each result and
-	// inlines the rendered content into the response.
-	ScrapeOptions *ScrapeOptions `json:"scrapeOptions,omitempty"`
+	Limit int    `json:"limit,omitempty"`
+	Tbs   string `json:"tbs,omitempty"`
 }
 
-func (r *Request) Validate() error {
+func (r *request) validate() error {
 	if r == nil {
 		return errors.New("firecrawl: Request must not be nil")
 	}
@@ -102,52 +67,26 @@ func (r *Request) Validate() error {
 	return nil
 }
 
-// ResultMetadata is the metadata block on each hit when scraping.
-type ResultMetadata struct {
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	SourceURL   string `json:"sourceURL,omitempty"`
-	URL         string `json:"url,omitempty"`
-	StatusCode  int    `json:"statusCode,omitempty"`
-	Error       string `json:"error,omitempty"`
-}
-
-// Result is one item in [ResponseData.Web] / .News / .Images.
-type Result struct {
+type result struct {
 	Title       string `json:"title"`
 	URL         string `json:"url"`
 	Description string `json:"description"`
-	// The fields below are populated only when ScrapeOptions is set.
-	Markdown   *string         `json:"markdown,omitempty"`
-	HTML       *string         `json:"html,omitempty"`
-	RawHTML    *string         `json:"rawHtml,omitempty"`
-	Links      []string        `json:"links,omitempty"`
-	Screenshot *string         `json:"screenshot,omitempty"`
-	Metadata   *ResultMetadata `json:"metadata,omitempty"`
 }
 
-// ResponseData holds per-vertical result arrays.
-type ResponseData struct {
-	Web    []*Result `json:"web,omitempty"`
-	News   []*Result `json:"news,omitempty"`
-	Images []*Result `json:"images,omitempty"`
+type responseData struct {
+	Web []*result `json:"web,omitempty"`
 }
 
-// Response is the full Firecrawl /v2/search response.
-type Response struct {
-	Success     bool         `json:"success"`
-	Data        ResponseData `json:"data"`
-	Warning     string       `json:"warning,omitempty"`
-	ID          string       `json:"id,omitempty"`
-	CreditsUsed int          `json:"creditsUsed,omitempty"`
+type response struct {
+	Success bool         `json:"success"`
+	Data    responseData `json:"data"`
 }
 
-// SearchNative calls POST /search with the full Firecrawl request shape.
-func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, error) {
-	if err := req.Validate(); err != nil {
+func (c *Client) search(ctx context.Context, req *request) (*response, error) {
+	if err := req.validate(); err != nil {
 		return nil, err
 	}
-	var raw Response
+	var raw response
 	resp, err := c.http.R().SetContext(ctx).SetBody(req).SetResult(&raw).Post("/search")
 	if err != nil {
 		return nil, fmt.Errorf("firecrawl: request failed: %w", err)
@@ -161,22 +100,18 @@ func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, err
 	return &raw, nil
 }
 
-// ============================================================== SPI wrapper
-
 func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch.Response, error) {
-	raw, err := c.SearchNative(ctx, buildRequest(req))
+	raw, err := c.search(ctx, buildRequest(req))
 	if err != nil {
 		return nil, err
 	}
 	return raw.toWebSearch(req.Query), nil
 }
 
-// ============================================================== mapping
-
 const maxResultsCap = 100
 
-func buildRequest(req *websearch.Request) *Request {
-	r := &Request{
+func buildRequest(req *websearch.Request) *request {
+	r := &request{
 		Query: websearch.BuildSiteOperatorQuery(req.Query, req.AllowedDomains, req.BlockedDomains),
 		Limit: min(cmp.Or(req.MaxResults, 10), maxResultsCap),
 	}
@@ -200,7 +135,7 @@ func recencyToTbs(r websearch.Recency) string {
 	return ""
 }
 
-func (r *Response) toWebSearch(query string) *websearch.Response {
+func (r *response) toWebSearch(query string) *websearch.Response {
 	results := make([]*websearch.Result, 0, len(r.Data.Web))
 	for _, result := range r.Data.Web {
 		results = append(results, &websearch.Result{

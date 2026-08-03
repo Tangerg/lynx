@@ -1,14 +1,52 @@
 package exa
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/Tangerg/lynx/tools/websearch"
-	"github.com/Tangerg/lynx/tools/websearch/internal/providertest"
 )
 
 func TestProvider(t *testing.T) {
-	providertest.Run(t, "EXA_KEY", func(k string) (websearch.Provider, error) {
-		return NewClient(Config{APIKey: k})
-	})
+	if _, err := NewClient(Config{}); err == nil {
+		t.Fatal("NewClient accepted an empty API key")
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/search" {
+			t.Errorf("request = %s %s", r.Method, r.URL.Path)
+		}
+		if got := r.Header.Get("x-api-key"); got != "test-key" {
+			t.Errorf("x-api-key = %q", got)
+		}
+		var body struct {
+			Query      string   `json:"query"`
+			Type       string   `json:"type"`
+			NumResults int      `json:"numResults"`
+			Domains    []string `json:"includeDomains"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode body: %v", err)
+			return
+		}
+		if body.Query != "lynx" || body.Type != "fast" || body.NumResults != 100 || len(body.Domains) != 1 {
+			t.Errorf("body = %#v", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"results":[{"title":"Lynx","url":"https://example.com","author":"example","favicon":"https://example.com/favicon.ico","highlights":["highlight"]}]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := NewClient(Config{APIKey: "test-key", BaseURL: server.URL, HTTPClient: server.Client()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.Search(t.Context(), &websearch.Request{Query: "lynx", MaxResults: 101, AllowedDomains: []string{"example.com"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Query != "lynx" || len(response.Results) != 1 || response.Results[0].Snippet != "highlight" {
+		t.Fatalf("response = %#v", response)
+	}
 }

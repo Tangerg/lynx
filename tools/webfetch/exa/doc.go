@@ -19,17 +19,8 @@
 //
 //	results[0].text → [webfetch.Response.Content]
 //
-// title, summary, highlights, and other Exa-specific fields are not
-// surfaced — the LLM gets the page body only. To get summaries you'd
-// use the search tool with contents.summary enabled.
-//
-// # Native API
-//
-// For full parameter access (Highlights with custom query,
-// Summary.Schema for structured output, Subpages crawling, IDs as
-// alternative to URLs, MaxAgeHours cache control, Extras with
-// links / imageLinks) call [Client.FetchNative] with the provider's
-// own [Request] / [Response] types.
+// Exa-specific response fields and transport DTOs stay private; the caller
+// receives only the requested page body.
 //
 // # Reference
 //

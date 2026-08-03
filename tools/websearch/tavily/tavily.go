@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/go-resty/resty/v2"
 
@@ -18,12 +19,12 @@ const (
 
 // Config configures [NewClient].
 type Config struct {
-	APIKey string
+	APIKey     string
+	BaseURL    string
+	HTTPClient *http.Client
 }
 
 // Client implements [websearch.Provider] against Tavily.
-// Use [Client.SearchNative] for full parameter access; [Client.Search]
-// is the slimmer SPI flavor.
 type Client struct {
 	http *resty.Client
 }
@@ -35,9 +36,15 @@ func NewClient(cfg Config) (*Client, error) {
 	if cfg.APIKey == "" {
 		return nil, errors.New("tavily: APIKey is required")
 	}
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = baseURL
+	}
+	if cfg.HTTPClient == nil {
+		cfg.HTTPClient = &http.Client{}
+	}
 	return &Client{
-		http: resty.New().
-			SetBaseURL(baseURL).
+		http: resty.NewWithClient(cfg.HTTPClient).
+			SetBaseURL(cfg.BaseURL).
 			SetAuthToken(cfg.APIKey).
 			SetHeader("Content-Type", "application/json"),
 	}, nil
@@ -45,61 +52,18 @@ func NewClient(cfg Config) (*Client, error) {
 
 func (c *Client) Name() string { return Name }
 
-// ============================================================== Native API
-
-// Request is the full Tavily Search request shape. All fields are
-// optional except Query.
-type Request struct {
-	// Query is the search query. Required.
-	Query string `json:"query"`
-
-	// SearchDepth: "basic" (default), "advanced", "fast", "ultra-fast".
-	SearchDepth string `json:"search_depth,omitempty"`
-
-	// Topic: "general" (default), "news", "finance".
-	Topic string `json:"topic,omitempty"`
-
-	// MaxResults caps results in [0, 20]. Default 5.
-	MaxResults int `json:"max_results,omitempty"`
-
-	// TimeRange: "day"/"week"/"month"/"year" or single-letter aliases.
-	TimeRange string `json:"time_range,omitempty"`
-
-	// StartDate / EndDate as YYYY-MM-DD.
-	StartDate string `json:"start_date,omitempty"`
-	EndDate   string `json:"end_date,omitempty"`
-
-	// IncludeDomains caps at 300; ExcludeDomains at 150.
+type request struct {
+	Query          string   `json:"query"`
+	SearchDepth    string   `json:"search_depth,omitempty"`
+	Topic          string   `json:"topic,omitempty"`
+	MaxResults     int      `json:"max_results,omitempty"`
+	TimeRange      string   `json:"time_range,omitempty"`
 	IncludeDomains []string `json:"include_domains,omitempty"`
 	ExcludeDomains []string `json:"exclude_domains,omitempty"`
-
-	// Country (e.g. "United States" or "us") biases by region.
-	// Only honored when Topic == "general".
-	Country string `json:"country,omitempty"`
-
-	// IncludeFavicon returns favicon URLs on each result.
-	IncludeFavicon bool `json:"include_favicon,omitempty"`
-
-	// ChunksPerSource (1-3) applies only when SearchDepth == "advanced".
-	ChunksPerSource int `json:"chunks_per_source,omitempty"`
-
-	// IncludeAnswer: bool, "basic", or "advanced". `any` because the
-	// API accepts heterogeneous types.
-	IncludeAnswer any `json:"include_answer,omitempty"`
-
-	// IncludeRawContent: bool, "markdown", or "text".
-	IncludeRawContent any `json:"include_raw_content,omitempty"`
-
-	IncludeImages            bool `json:"include_images,omitempty"`
-	IncludeImageDescriptions bool `json:"include_image_descriptions,omitempty"`
-	AutoParameters           bool `json:"auto_parameters,omitempty"`
-	ExactMatch               bool `json:"exact_match,omitempty"`
-	SafeSearch               bool `json:"safe_search,omitempty"`
-	IncludeUsage             bool `json:"include_usage,omitempty"`
+	IncludeFavicon bool     `json:"include_favicon,omitempty"`
 }
 
-// Validate enforces request invariants. Called by [Client.SearchNative].
-func (r *Request) Validate() error {
+func (r *request) validate() error {
 	if r == nil {
 		return errors.New("tavily: Request must not be nil")
 	}
@@ -109,53 +73,23 @@ func (r *Request) Validate() error {
 	return nil
 }
 
-// Result is one item in [Response.Results].
-type Result struct {
-	Title      string  `json:"title"`
-	URL        string  `json:"url"`
-	Content    string  `json:"content"`
-	Score      float64 `json:"score"`
-	RawContent string  `json:"raw_content,omitempty"`
-	Favicon    string  `json:"favicon,omitempty"`
+type result struct {
+	Title   string `json:"title"`
+	URL     string `json:"url"`
+	Content string `json:"content"`
+	Favicon string `json:"favicon,omitempty"`
 }
 
-// Image is one item in [Response.Images] when IncludeImages is true.
-type Image struct {
-	URL         string `json:"url"`
-	Description string `json:"description,omitempty"`
+type response struct {
+	Query   string    `json:"query"`
+	Results []*result `json:"results"`
 }
 
-// Usage is the credit breakdown when IncludeUsage is true.
-type Usage struct {
-	Credits int `json:"credits"`
-}
-
-// AutoParameters echoes the auto-picked topic/depth.
-type AutoParameters struct {
-	Topic       string `json:"topic,omitempty"`
-	SearchDepth string `json:"search_depth,omitempty"`
-}
-
-// Response is the full Tavily Search response.
-type Response struct {
-	Query          string          `json:"query"`
-	Answer         string          `json:"answer,omitempty"`
-	Images         []*Image        `json:"images,omitempty"`
-	Results        []*Result       `json:"results"`
-	AutoParameters *AutoParameters `json:"auto_parameters,omitempty"`
-	ResponseTime   float64         `json:"response_time"`
-	Usage          *Usage          `json:"usage,omitempty"`
-	RequestID      string          `json:"request_id,omitempty"`
-}
-
-// SearchNative calls POST /search with the full Tavily request shape.
-// Returns the raw response so callers can access Answer, Images,
-// Usage, etc. that the SPI doesn't surface.
-func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, error) {
-	if err := req.Validate(); err != nil {
+func (c *Client) search(ctx context.Context, req *request) (*response, error) {
+	if err := req.validate(); err != nil {
 		return nil, err
 	}
-	var raw Response
+	var raw response
 	resp, err := c.http.R().SetContext(ctx).SetBody(req).SetResult(&raw).Post("/search")
 	if err != nil {
 		return nil, fmt.Errorf("tavily: request failed: %w", err)
@@ -166,22 +100,18 @@ func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, err
 	return &raw, nil
 }
 
-// ============================================================== SPI wrapper
-
 func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch.Response, error) {
-	raw, err := c.SearchNative(ctx, buildRequest(req))
+	raw, err := c.search(ctx, buildRequest(req))
 	if err != nil {
 		return nil, err
 	}
 	return raw.toWebSearch(), nil
 }
 
-// ============================================================== mapping
-
 const maxResultsCap = 20
 
-func buildRequest(req *websearch.Request) *Request {
-	r := &Request{
+func buildRequest(req *websearch.Request) *request {
+	r := &request{
 		Query:          req.Query,
 		SearchDepth:    "basic",
 		Topic:          "general",
@@ -217,7 +147,7 @@ func recencyToTimeRange(r websearch.Recency) string {
 	return ""
 }
 
-func (r *Response) toWebSearch() *websearch.Response {
+func (r *response) toWebSearch() *websearch.Response {
 	results := make([]*websearch.Result, 0, len(r.Results))
 	for _, result := range r.Results {
 		results = append(results, &websearch.Result{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -18,7 +19,9 @@ const (
 
 // Config configures [NewClient].
 type Config struct {
-	APIKey string
+	APIKey     string
+	BaseURL    string
+	HTTPClient *http.Client
 }
 
 type Client struct {
@@ -32,9 +35,15 @@ func NewClient(cfg Config) (*Client, error) {
 	if cfg.APIKey == "" {
 		return nil, errors.New("serper: APIKey is required")
 	}
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = baseURL
+	}
+	if cfg.HTTPClient == nil {
+		cfg.HTTPClient = &http.Client{}
+	}
 	return &Client{
-		http: resty.New().
-			SetBaseURL(baseURL).
+		http: resty.NewWithClient(cfg.HTTPClient).
+			SetBaseURL(cfg.BaseURL).
 			SetHeader("X-API-KEY", cfg.APIKey).
 			SetHeader("Content-Type", "application/json"),
 	}, nil
@@ -42,37 +51,14 @@ func NewClient(cfg Config) (*Client, error) {
 
 func (c *Client) Name() string { return Name }
 
-// ============================================================== Native API
-
-// Request is the full Serper /search request shape.
-type Request struct {
-	// Q is the Google query (supports site:/-site:, intitle:, etc.).
-	Q string `json:"q"`
-
-	// Gl is the ISO 3166-1 alpha-2 country code (lowercase, e.g. "us").
-	Gl string `json:"gl,omitempty"`
-
-	// Hl is the ISO 639-1 language code (lowercase, e.g. "en").
-	Hl string `json:"hl,omitempty"`
-
-	// Num is results per page; default 10.
-	Num int `json:"num,omitempty"`
-
-	// Page is 1-based pagination.
-	Page int `json:"page,omitempty"`
-
-	// Autocorrect toggles Google's spelling correction.
-	Autocorrect bool `json:"autocorrect,omitempty"`
-
-	// Location is a fine-grained geo target (e.g. "London, UK").
-	Location string `json:"location,omitempty"`
-
-	// Tbs is Google's time-based search filter, e.g. "qdr:d" or
-	// "cdr:1,cd_min:01/01/2026,cd_max:01/31/2026".
-	Tbs string `json:"tbs,omitempty"`
+type request struct {
+	Q           string `json:"q"`
+	Num         int    `json:"num,omitempty"`
+	Autocorrect bool   `json:"autocorrect,omitempty"`
+	Tbs         string `json:"tbs,omitempty"`
 }
 
-func (r *Request) Validate() error {
+func (r *request) validate() error {
 	if r == nil {
 		return errors.New("serper: Request must not be nil")
 	}
@@ -82,81 +68,27 @@ func (r *Request) Validate() error {
 	return nil
 }
 
-// SearchParameters echoes the parameters Serper actually used.
-type SearchParameters struct {
-	Q      string `json:"q"`
-	Type   string `json:"type,omitempty"`
-	Engine string `json:"engine,omitempty"`
-	Gl     string `json:"gl,omitempty"`
-	Hl     string `json:"hl,omitempty"`
+type searchParameters struct {
+	Q string `json:"q"`
 }
 
-// Sitelink is a nested link block under an organic result.
-type Sitelink struct {
-	Title string `json:"title"`
-	Link  string `json:"link"`
+type organicResult struct {
+	Title   string `json:"title"`
+	Link    string `json:"link"`
+	Snippet string `json:"snippet"`
+	Date    string `json:"date,omitempty"`
 }
 
-// Organic is one item in [Response.Organic].
-type Organic struct {
-	Title     string      `json:"title"`
-	Link      string      `json:"link"`
-	Snippet   string      `json:"snippet"`
-	Position  int         `json:"position"`
-	Date      string      `json:"date,omitempty"`
-	Sitelinks []*Sitelink `json:"sitelinks,omitempty"`
+type response struct {
+	SearchParameters searchParameters `json:"searchParameters"`
+	Organic          []*organicResult `json:"organic"`
 }
 
-// AnswerBox is Google's "direct answer" block when present.
-type AnswerBox struct {
-	Title   string `json:"title,omitempty"`
-	Link    string `json:"link,omitempty"`
-	Snippet string `json:"snippet,omitempty"`
-	Answer  string `json:"answer,omitempty"`
-}
-
-// KnowledgeGraph is Google's entity panel when present.
-type KnowledgeGraph struct {
-	Title             string            `json:"title,omitempty"`
-	Type              string            `json:"type,omitempty"`
-	Website           string            `json:"website,omitempty"`
-	Description       string            `json:"description,omitempty"`
-	DescriptionSource string            `json:"descriptionSource,omitempty"`
-	DescriptionLink   string            `json:"descriptionLink,omitempty"`
-	Attributes        map[string]string `json:"attributes,omitempty"`
-	ImageURL          string            `json:"imageUrl,omitempty"`
-}
-
-// PeopleAlsoAsk is one entry in the "People also ask" panel.
-type PeopleAlsoAsk struct {
-	Question string `json:"question"`
-	Snippet  string `json:"snippet,omitempty"`
-	Title    string `json:"title,omitempty"`
-	Link     string `json:"link,omitempty"`
-}
-
-// RelatedSearch is one entry under "Related searches".
-type RelatedSearch struct {
-	Query string `json:"query"`
-}
-
-// Response is the full Serper /search response.
-type Response struct {
-	SearchParameters SearchParameters `json:"searchParameters"`
-	AnswerBox        *AnswerBox       `json:"answerBox,omitempty"`
-	KnowledgeGraph   *KnowledgeGraph  `json:"knowledgeGraph,omitempty"`
-	Organic          []*Organic       `json:"organic"`
-	PeopleAlsoAsk    []*PeopleAlsoAsk `json:"peopleAlsoAsk,omitempty"`
-	RelatedSearches  []*RelatedSearch `json:"relatedSearches,omitempty"`
-	Credits          int              `json:"credits"`
-}
-
-// SearchNative calls POST /search with the full Serper request shape.
-func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, error) {
-	if err := req.Validate(); err != nil {
+func (c *Client) search(ctx context.Context, req *request) (*response, error) {
+	if err := req.validate(); err != nil {
 		return nil, err
 	}
-	var raw Response
+	var raw response
 	resp, err := c.http.R().SetContext(ctx).SetBody(req).SetResult(&raw).Post("/search")
 	if err != nil {
 		return nil, fmt.Errorf("serper: request failed: %w", err)
@@ -167,20 +99,16 @@ func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, err
 	return &raw, nil
 }
 
-// ============================================================== SPI wrapper
-
 func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch.Response, error) {
-	raw, err := c.SearchNative(ctx, buildRequest(req))
+	raw, err := c.search(ctx, buildRequest(req))
 	if err != nil {
 		return nil, err
 	}
 	return raw.toWebSearch(), nil
 }
 
-// ============================================================== mapping
-
-func buildRequest(req *websearch.Request) *Request {
-	r := &Request{
+func buildRequest(req *websearch.Request) *request {
+	r := &request{
 		Q:           websearch.BuildSiteOperatorQuery(req.Query, req.AllowedDomains, req.BlockedDomains),
 		Autocorrect: true,
 	}
@@ -207,7 +135,7 @@ func recencyToTbs(r websearch.Recency) string {
 	return ""
 }
 
-func (r *Response) toWebSearch() *websearch.Response {
+func (r *response) toWebSearch() *websearch.Response {
 	results := make([]*websearch.Result, 0, len(r.Organic))
 	for _, result := range r.Organic {
 		results = append(results, &websearch.Result{

@@ -37,13 +37,8 @@
 // Exa does not echo the original query; the tool forwards what the
 // caller supplied.
 //
-// # Native API
-//
-// For full parameter access (Category, Contents.Text/Highlights/
-// Summary configuration, IncludeText/ExcludeText, AdditionalQueries
-// for deep search, CostDollars in the response) call
-// [Client.SearchNative] with the provider's own [Request] /
-// [Response] types.
+// Exa's transport DTOs and cost accounting stay private to this provider;
+// callers consume only the normalized search contract.
 //
 // # Reference
 //

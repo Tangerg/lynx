@@ -14,14 +14,12 @@
 //
 // [websearch.Request] → Jina query params:
 //   - Query          → URL path segment
-//   - MaxResults     → num + count (both required by Jina; clamped
-//     to [1, 20])
+//   - MaxResults     → count (clamped to [1, 20])
 //   - AllowedDomains → site=comma,separated (Jina's allow-list)
 //   - BlockedDomains → not directly supported; ignored
 //   - Recency        → noCache=true (forces fresh crawl)
 //
-// Hardcoded: type=web, provider/engine=google, fallback=true,
-// respondWith=markdown, retainImages=none, retainLinks=all, page=1.
+// Hardcoded: X-Respond-With=no-content and page=1.
 //
 // # Response mapping
 //
@@ -31,12 +29,7 @@
 //   - description → Snippet (falls back to truncated content)
 //   - date        → PublishedTime
 //
-// # Native API
-//
-// For full parameter access (provider/engine, Bing fallback,
-// intitle:/site:/filetype: operators, RetainImages, NoCache,
-// Timeout) call [Client.SearchNative] with the provider's own
-// [Request] / [Response] types.
+// Jina's query and response DTOs remain private to the provider package.
 //
 // # Reference
 //

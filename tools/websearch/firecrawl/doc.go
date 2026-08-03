@@ -20,8 +20,7 @@
 //   - BlockedDomains → inlined as `-site:foo.com` operators
 //   - Recency        → tbs=qdr:h|d|w|m|y
 //
-// Only the "web" vertical is wired through the SPI. Use
-// [Client.SearchNative] to access news / images via Sources.
+// Only the "web" vertical is wired through the provider contract.
 //
 // # Response mapping
 //
@@ -30,14 +29,8 @@
 //   - url         → URL
 //   - description → Snippet
 //
-// # Native API
-//
-// For full parameter access (Sources for news / images verticals,
-// Location for fine-grained geo, ScrapeOptions to inline rendered
-// content into every result) call [Client.SearchNative] with the
-// provider's own [Request] / [Response] types. ScrapeOptions is the
-// killer feature: one round-trip gets you ranked SERP results AND
-// their fully rendered markdown.
+// Firecrawl's transport DTOs remain private so provider-specific response
+// shapes cannot leak into callers.
 //
 // # Reference
 //

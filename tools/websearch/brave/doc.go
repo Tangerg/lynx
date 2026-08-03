@@ -29,16 +29,8 @@
 //     "age" field is dropped because relative strings like "2 hours
 //     ago" don't parse)
 //
-// The news/videos/places verticals, the AI summarizer, and rich
-// results are not surfaced — call [Client.SearchNative] to access
-// the full response.
-//
-// # Native API
-//
-// For full parameter access (Safesearch, ResultFilter, GogglesID for
-// custom re-ranking, ExtraSnippets, Summary for AI summarisation,
-// Country / SearchLang / UILang) call [Client.SearchNative] with
-// the provider's own [Request] / [Response] types.
+// The provider deliberately owns and hides Brave's transport DTOs; only the
+// normalized web result vertical crosses the package boundary.
 //
 // # Why Brave
 //

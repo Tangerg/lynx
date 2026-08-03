@@ -19,10 +19,6 @@
 //     exclusion makes this a non-issue.
 //   - Recency        → search_recency_filter: hour/day/week/month/year
 //
-// Not used: max_tokens, max_tokens_per_page, country,
-// search_language_filter, search_mode (these are not exposed at the
-// SPI layer because they're inconsistent across providers).
-//
 // # Response mapping
 //
 // Perplexity result → [websearch.Result]:
@@ -34,12 +30,8 @@
 // Perplexity does not echo the original query; the tool forwards
 // what the caller supplied so [Response.Query] stays meaningful.
 //
-// # Native API
-//
-// For full parameter access (MaxTokens, SearchLanguageFilter,
-// Country, exact date filters, LastUpdated filters) call
-// [Client.SearchNative] with the provider's own [Request] /
-// [Response] types.
+// Perplexity's transport DTOs stay private to keep the provider boundary
+// normalized and self-contained.
 //
 // # Reference
 //

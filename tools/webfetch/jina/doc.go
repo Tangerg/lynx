@@ -22,15 +22,8 @@
 //
 //	data.content → [webfetch.Response.Content]
 //
-// title, description, and url fields are present in the response
-// but not surfaced — the LLM gets the page body, not the metadata.
-//
-// # Native API
-//
-// For full parameter access (X-Respond-With for ReaderLM-v2,
-// X-Instruction for natural-language extraction, RetainImages /
-// RetainLinks modes, WithGeneratedAlt) call [Client.FetchNative]
-// with the provider's own [Request] / [Response] types.
+// Jina-specific response metadata and transport DTOs stay private; the
+// caller receives only the page body.
 //
 // # Reference
 //

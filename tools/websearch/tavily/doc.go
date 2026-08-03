@@ -31,12 +31,7 @@
 //
 // The score, answer, images, and request_id fields are ignored.
 //
-// # Native API
-//
-// For full parameter access (Answer, Images, Usage, ChunksPerSource,
-// IncludeAnswer, etc.) call [Client.SearchNative] with the
-// provider's own [Request] / [Response] types instead of the
-// SPI's slimmer [websearch.Request] / [websearch.Response].
+// Tavily's transport DTOs stay private to this provider package.
 //
 // # Reference
 //

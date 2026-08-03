@@ -10,33 +10,21 @@
 //
 // [webfetch.Request] → Firecrawl request:
 //   - URL    → url
-//   - Format → formats=[{"type": <format>}]. We always request a
-//     single format. Firecrawl supports markdown/html/text plus
-//     richer modes (summary, screenshot, links, json) that
-//     doesn't expose.
+//   - Format → formats=[{"type": <format>}]. Markdown and HTML are
+//     supported; plain text maps to markdown, the nearest clean format.
 //
 // Hardcoded: onlyMainContent=true (strips nav/footer/boilerplate).
 //
 // # Response mapping
 //
-// Firecrawl returns multiple format fields simultaneously
-// (data.markdown, data.html, data.rawHtml, ...). We pick the field
-// matching the caller's requested format:
-//
-//   - FormatHTML     → data.html (cleaned HTML)
-//   - FormatText     → data.rawHtml (full unprocessed HTML)
-//   - FormatMarkdown → data.markdown (default)
+// FormatHTML maps to data.html; markdown and mapped text requests use
+// data.markdown.
 //
 // A success=false top-level field surfaces as a Go error rather than
 // being returned as content.
 //
-// # Native API
-//
-// For full parameter access (Actions for browser automation —
-// Click / Wait / Screenshot / ExecuteJavascript / PDF / etc., custom
-// Headers, Location emulation, Proxy tier, IncludeTags / ExcludeTags,
-// MaxAge cache control) call [Client.FetchNative] with the provider's
-// own [Request] / [Response] types.
+// Firecrawl's transport and browser-automation DTOs stay private to the
+// provider boundary.
 //
 // # Reference
 //

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"time"
 
@@ -19,7 +20,9 @@ const (
 
 // Config configures [NewClient].
 type Config struct {
-	APIKey string
+	APIKey     string
+	BaseURL    string
+	HTTPClient *http.Client
 }
 
 type Client struct {
@@ -33,9 +36,15 @@ func NewClient(cfg Config) (*Client, error) {
 	if cfg.APIKey == "" {
 		return nil, errors.New("perplexity: APIKey is required")
 	}
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = baseURL
+	}
+	if cfg.HTTPClient == nil {
+		cfg.HTTPClient = &http.Client{}
+	}
 	return &Client{
-		http: resty.New().
-			SetBaseURL(baseURL).
+		http: resty.NewWithClient(cfg.HTTPClient).
+			SetBaseURL(cfg.BaseURL).
 			SetAuthToken(cfg.APIKey).
 			SetHeader("Content-Type", "application/json"),
 	}, nil
@@ -43,91 +52,39 @@ func NewClient(cfg Config) (*Client, error) {
 
 func (c *Client) Name() string { return Name }
 
-// ============================================================== Native API
-
-// Request is the full Perplexity /search request shape.
-type Request struct {
-	// Query is the search string OR a []string of multiple queries.
-	// Use any to support both forms.
-	Query any `json:"query"`
-
-	// MaxTokens caps the LLM context budget (default 10000, range 1-1M).
-	MaxTokens int `json:"max_tokens,omitempty"`
-
-	// MaxTokensPerPage caps per-page tokens (default 4096).
-	MaxTokensPerPage int `json:"max_tokens_per_page,omitempty"`
-
-	// MaxResults caps result count (default 10, range 1-20).
-	MaxResults int `json:"max_results,omitempty"`
-
-	// SearchDomainFilter holds at most 20 entries. Prefix a domain
-	// with "-" to blacklist it; mixing allow/block in one call is not
-	// supported by the API.
-	SearchDomainFilter []string `json:"search_domain_filter,omitempty"`
-
-	// SearchLanguageFilter is a list of ISO 639-1 codes (max 20).
-	SearchLanguageFilter []string `json:"search_language_filter,omitempty"`
-
-	// SearchRecencyFilter: hour, day, week, month, year.
-	SearchRecencyFilter string `json:"search_recency_filter,omitempty"`
-
-	// SearchAfterDateFilter / SearchBeforeDateFilter use MM/DD/YYYY.
-	SearchAfterDateFilter  string `json:"search_after_date_filter,omitempty"`
-	SearchBeforeDateFilter string `json:"search_before_date_filter,omitempty"`
-
-	// LastUpdatedAfterFilter / LastUpdatedBeforeFilter use MM/DD/YYYY.
-	LastUpdatedAfterFilter  string `json:"last_updated_after_filter,omitempty"`
-	LastUpdatedBeforeFilter string `json:"last_updated_before_filter,omitempty"`
-
-	// Country is an ISO 3166-1 alpha-2 code.
-	Country string `json:"country,omitempty"`
+type request struct {
+	Query               string   `json:"query"`
+	MaxResults          int      `json:"max_results,omitempty"`
+	SearchDomainFilter  []string `json:"search_domain_filter,omitempty"`
+	SearchRecencyFilter string   `json:"search_recency_filter,omitempty"`
 }
 
-// Validate enforces request invariants. Perplexity's Query field
-// accepts string or []string; both must be non-empty.
-func (r *Request) Validate() error {
+func (r *request) validate() error {
 	if r == nil {
 		return errors.New("perplexity: Request must not be nil")
 	}
-	switch q := r.Query.(type) {
-	case nil:
-		return errors.New("perplexity: Query is required")
-	case string:
-		if q == "" {
-			return errors.New("perplexity: Query must not be empty")
-		}
-	case []string:
-		if len(q) == 0 {
-			return errors.New("perplexity: Query must not be empty")
-		}
-	default:
-		return fmt.Errorf("perplexity: Query must be string or []string, got %T", r.Query)
+	if r.Query == "" {
+		return errors.New("perplexity: Query must not be empty")
 	}
 	return nil
 }
 
-// Result is one item in [Response.Results].
-type Result struct {
-	Title       string `json:"title"`
-	URL         string `json:"url"`
-	Snippet     string `json:"snippet"`
-	Date        string `json:"date,omitempty"`
-	LastUpdated string `json:"last_updated,omitempty"`
+type result struct {
+	Title   string `json:"title"`
+	URL     string `json:"url"`
+	Snippet string `json:"snippet"`
+	Date    string `json:"date,omitempty"`
 }
 
-// Response is the full Perplexity /search response.
-type Response struct {
-	Results    []*Result `json:"results"`
-	ID         string    `json:"id"`
-	ServerTime string    `json:"server_time,omitempty"`
+type response struct {
+	Results []*result `json:"results"`
 }
 
-// SearchNative calls POST /search with the full Perplexity request.
-func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, error) {
-	if err := req.Validate(); err != nil {
+func (c *Client) search(ctx context.Context, req *request) (*response, error) {
+	if err := req.validate(); err != nil {
 		return nil, err
 	}
-	var raw Response
+	var raw response
 	resp, err := c.http.R().SetContext(ctx).SetBody(req).SetResult(&raw).Post("/search")
 	if err != nil {
 		return nil, fmt.Errorf("perplexity: request failed: %w", err)
@@ -138,17 +95,13 @@ func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, err
 	return &raw, nil
 }
 
-// ============================================================== SPI wrapper
-
 func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch.Response, error) {
-	raw, err := c.SearchNative(ctx, buildRequest(req))
+	raw, err := c.search(ctx, buildRequest(req))
 	if err != nil {
 		return nil, err
 	}
 	return raw.toWebSearch(req.Query), nil
 }
-
-// ============================================================== mapping
 
 // maxDomainFilters is Perplexity's documented 20-entry cap on the
 // search_domain_filter field.
@@ -158,8 +111,8 @@ const maxDomainFilters = 20
 // rejects values outside [1, 20].
 const maxResultsCap = 20
 
-func buildRequest(req *websearch.Request) *Request {
-	r := &Request{Query: req.Query}
+func buildRequest(req *websearch.Request) *request {
+	r := &request{Query: req.Query}
 	if req.MaxResults > 0 {
 		r.MaxResults = min(req.MaxResults, maxResultsCap)
 	}
@@ -192,7 +145,7 @@ func recencyToString(r websearch.Recency) string {
 	return ""
 }
 
-func (r *Response) toWebSearch(query string) *websearch.Response {
+func (r *response) toWebSearch(query string) *websearch.Response {
 	results := make([]*websearch.Result, 0, len(r.Results))
 	for _, result := range r.Results {
 		results = append(results, &websearch.Result{

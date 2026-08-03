@@ -25,12 +25,7 @@
 // When the requested URL fails, failed_results[] is populated and the
 // error message is surfaced.
 //
-// # Native API
-//
-// For full parameter access (advanced extract_depth, query-based
-// reranking, IncludeImages, IncludeFavicon, batched URLs, Timeout,
-// IncludeUsage) call [Client.FetchNative] with the provider's own
-// [Request] / [Response] types.
+// Tavily's batched transport DTOs stay private to the provider package.
 //
 // # Reference
 //

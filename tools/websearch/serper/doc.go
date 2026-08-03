@@ -36,12 +36,8 @@
 // Knowledge graph, answer box, people-also-ask, and related searches
 // are ignored — only organic results are surfaced.
 //
-// # Native API
-//
-// For full parameter access (AnswerBox, KnowledgeGraph,
-// PeopleAlsoAsk, RelatedSearches, page, location, autocorrect) call
-// [Client.SearchNative] with the provider's own [Request] /
-// [Response] types instead of the SPI.
+// Serper's transport DTOs stay private; only organic results cross the
+// provider boundary.
 //
 // # Reference
 //

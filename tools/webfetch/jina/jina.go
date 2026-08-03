@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/go-resty/resty/v2"
 
@@ -17,7 +18,9 @@ const (
 
 // Config configures [NewClient].
 type Config struct {
-	APIKey string
+	APIKey     string
+	BaseURL    string
+	HTTPClient *http.Client
 }
 
 type Client struct {
@@ -31,58 +34,27 @@ func NewClient(cfg Config) (*Client, error) {
 	if cfg.APIKey == "" {
 		return nil, errors.New("jina: APIKey is required")
 	}
-	return &Client{
-		http: resty.New().
-			SetBaseURL(baseURL).
-			SetAuthToken(cfg.APIKey).
-			SetHeader("Content-Type", "application/json").
-			SetHeader("Accept", "application/json"),
-	}, nil
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = baseURL
+	}
+	if cfg.HTTPClient == nil {
+		cfg.HTTPClient = &http.Client{}
+	}
+	return &Client{http: resty.NewWithClient(cfg.HTTPClient).
+		SetBaseURL(cfg.BaseURL).
+		SetAuthToken(cfg.APIKey).
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Accept", "application/json")}, nil
 }
 
 func (c *Client) Name() string { return Name }
 
-// ============================================================== Native API
-
-// RetainMode controls how images and links are kept in the rendered
-// page. Pass empty string to inherit Jina's defaults.
-type RetainMode string
-
-const (
-	RetainNone RetainMode = "none"
-	RetainAll  RetainMode = "all"
-	RetainAlt  RetainMode = "alt"  // images only
-	RetainText RetainMode = "text" // links only
-)
-
-// Request is the full Jina Reader request. Body is just {url}; the
-// rest of the knobs ride as HTTP headers.
-type Request struct {
-	// URL is the target page. Required.
-	URL string `json:"url"`
-
-	// ReturnFormat: markdown (default), html, text, screenshot, pageshot.
+type request struct {
+	URL          string `json:"url"`
 	ReturnFormat string `json:"-"`
-
-	// RetainImages / RetainLinks shape how the page is rendered.
-	RetainImages RetainMode `json:"-"`
-	RetainLinks  RetainMode `json:"-"`
-
-	// RespondWith picks the rendering engine: empty / "readerlm-v2".
-	RespondWith string `json:"-"`
-
-	// JSONSchema, when set, asks Jina to extract structured data
-	// matching the schema instead of returning the raw page.
-	JSONSchema map[string]any `json:"-"`
-
-	// Instruction is a natural-language extraction directive.
-	Instruction string `json:"-"`
-
-	// WithGeneratedAlt asks Jina to caption images via LLM.
-	WithGeneratedAlt bool `json:"-"`
 }
 
-func (r *Request) Validate() error {
+func (r *request) validate() error {
 	if r == nil {
 		return errors.New("jina: Request must not be nil")
 	}
@@ -92,58 +64,27 @@ func (r *Request) Validate() error {
 	return nil
 }
 
-// Usage echoes token consumption.
-type Usage struct {
-	Tokens int `json:"tokens"`
+type responseData struct {
+	Content string `json:"content"`
 }
 
-// ResponseData carries the extracted page content.
-type ResponseData struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	URL         string `json:"url"`
-	Content     string `json:"content"`
-	Usage       *Usage `json:"usage,omitempty"`
+type response struct {
+	Data responseData `json:"data"`
 }
 
-// Response is the full Jina Reader response.
-type Response struct {
-	Code   int          `json:"code"`
-	Status int          `json:"status"`
-	Data   ResponseData `json:"data"`
-}
-
-// FetchNative calls POST https://r.jina.ai/ with the full Jina
-// request shape. Most fields ride as HTTP headers, not body fields.
-func (c *Client) FetchNative(ctx context.Context, req *Request) (*Response, error) {
-	if err := req.Validate(); err != nil {
+func (c *Client) fetch(ctx context.Context, req *request) (*response, error) {
+	if err := req.validate(); err != nil {
 		return nil, err
 	}
-	r := c.http.R().SetContext(ctx).SetBody(map[string]string{"url": req.URL})
-
+	request := c.http.R().SetContext(ctx).
+		SetBody(map[string]string{"url": req.URL}).
+		SetHeader("X-Retain-Images", "none")
 	if req.ReturnFormat != "" {
-		r.SetHeader("X-Return-Format", req.ReturnFormat)
+		request.SetHeader("X-Return-Format", req.ReturnFormat)
 	}
-	if req.RetainImages != "" {
-		r.SetHeader("X-Retain-Images", string(req.RetainImages))
-	}
-	if req.RetainLinks != "" {
-		r.SetHeader("X-Retain-Links", string(req.RetainLinks))
-	}
-	if req.RespondWith != "" {
-		r.SetHeader("X-Respond-With", req.RespondWith)
-	}
-	if req.Instruction != "" {
-		r.SetHeader("X-Instruction", req.Instruction)
-	}
-	if req.WithGeneratedAlt {
-		r.SetHeader("X-With-Generated-Alt", "true")
-	}
-	// JSONSchema isn't header-friendly; if needed, callers can use
-	// HTTPClient() and add it themselves.
 
-	var raw Response
-	resp, err := r.SetResult(&raw).Post("/")
+	var raw response
+	resp, err := request.SetResult(&raw).Post("/")
 	if err != nil {
 		return nil, fmt.Errorf("jina: request failed: %w", err)
 	}
@@ -153,15 +94,9 @@ func (c *Client) FetchNative(ctx context.Context, req *Request) (*Response, erro
 	return &raw, nil
 }
 
-// ============================================================== SPI wrapper
-
 func (c *Client) Fetch(ctx context.Context, req *webfetch.Request) (*webfetch.Response, error) {
 	format := req.ResolvedFormat()
-	raw, err := c.FetchNative(ctx, &Request{
-		URL:          req.URL,
-		ReturnFormat: string(format),
-		RetainImages: RetainNone,
-	})
+	raw, err := c.fetch(ctx, &request{URL: req.URL, ReturnFormat: string(format)})
 	if err != nil {
 		return nil, err
 	}

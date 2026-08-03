@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -19,7 +20,9 @@ const (
 
 // Config configures [NewClient].
 type Config struct {
-	APIKey string
+	APIKey     string
+	BaseURL    string
+	HTTPClient *http.Client
 }
 
 type Client struct {
@@ -33,9 +36,15 @@ func NewClient(cfg Config) (*Client, error) {
 	if cfg.APIKey == "" {
 		return nil, errors.New("exa: APIKey is required")
 	}
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = baseURL
+	}
+	if cfg.HTTPClient == nil {
+		cfg.HTTPClient = &http.Client{}
+	}
 	return &Client{
-		http: resty.New().
-			SetBaseURL(baseURL).
+		http: resty.NewWithClient(cfg.HTTPClient).
+			SetBaseURL(cfg.BaseURL).
 			SetHeader("x-api-key", cfg.APIKey).
 			SetHeader("Content-Type", "application/json"),
 	}, nil
@@ -43,69 +52,25 @@ func NewClient(cfg Config) (*Client, error) {
 
 func (c *Client) Name() string { return Name }
 
-// ============================================================== Native API
-
-// TextOptions configures text extraction in [ContentsOptions].
-type TextOptions struct {
-	MaxCharacters   int      `json:"maxCharacters,omitempty"`
-	IncludeHTMLTags bool     `json:"includeHtmlTags,omitempty"`
-	Verbosity       string   `json:"verbosity,omitempty"` // compact, standard, full
-	IncludeSections []string `json:"includeSections,omitempty"`
-	ExcludeSections []string `json:"excludeSections,omitempty"`
+type summaryOptions struct {
+	Query string `json:"query,omitempty"`
 }
 
-// HighlightsOptions configures highlight extraction.
-type HighlightsOptions struct {
-	MaxCharacters int    `json:"maxCharacters,omitempty"`
-	Query         string `json:"query,omitempty"`
+type contentsOptions struct {
+	Summary *summaryOptions `json:"summary,omitempty"`
 }
 
-// SummaryOptions configures LLM-generated summaries.
-type SummaryOptions struct {
-	Query  string         `json:"query,omitempty"`
-	Schema map[string]any `json:"schema,omitempty"`
-}
-
-// ExtrasOptions requests additional data.
-type ExtrasOptions struct {
-	Links      int `json:"links,omitempty"`
-	ImageLinks int `json:"imageLinks,omitempty"`
-}
-
-// ContentsOptions controls per-result content extraction. Text and
-// Highlights accept either bool or their options struct — use any so
-// the wire format can carry either.
-type ContentsOptions struct {
-	Text          any             `json:"text,omitempty"`
-	Highlights    any             `json:"highlights,omitempty"`
-	Summary       *SummaryOptions `json:"summary,omitempty"`
-	MaxAgeHours   *int            `json:"maxAgeHours,omitempty"`
-	Subpages      int             `json:"subpages,omitempty"`
-	SubpageTarget any             `json:"subpageTarget,omitempty"`
-	Extras        *ExtrasOptions  `json:"extras,omitempty"`
-}
-
-// Request is the full Exa /search request shape.
-type Request struct {
+type request struct {
 	Query              string           `json:"query"`
-	AdditionalQueries  []string         `json:"additionalQueries,omitempty"`
-	Type               string           `json:"type,omitempty"`     // neural, fast, auto, deep-lite, deep, deep-reasoning, instant
-	Category           string           `json:"category,omitempty"` // company, research paper, news, tweet, personal site, financial report, people
-	UserLocation       string           `json:"userLocation,omitempty"`
+	Type               string           `json:"type,omitempty"`
 	NumResults         int              `json:"numResults,omitempty"`
 	IncludeDomains     []string         `json:"includeDomains,omitempty"`
 	ExcludeDomains     []string         `json:"excludeDomains,omitempty"`
-	StartCrawlDate     string           `json:"startCrawlDate,omitempty"`
-	EndCrawlDate       string           `json:"endCrawlDate,omitempty"`
 	StartPublishedDate string           `json:"startPublishedDate,omitempty"`
-	EndPublishedDate   string           `json:"endPublishedDate,omitempty"`
-	IncludeText        []string         `json:"includeText,omitempty"`
-	ExcludeText        []string         `json:"excludeText,omitempty"`
-	Moderation         bool             `json:"moderation,omitempty"`
-	Contents           *ContentsOptions `json:"contents,omitempty"`
+	Contents           *contentsOptions `json:"contents,omitempty"`
 }
 
-func (r *Request) Validate() error {
+func (r *request) validate() error {
 	if r == nil {
 		return errors.New("exa: Request must not be nil")
 	}
@@ -115,55 +80,25 @@ func (r *Request) Validate() error {
 	return nil
 }
 
-// Result is one item in [Response.Results].
-type Result struct {
-	Title           string    `json:"title"`
-	URL             string    `json:"url"`
-	PublishedDate   string    `json:"publishedDate,omitempty"`
-	Author          string    `json:"author,omitempty"`
-	ID              string    `json:"id,omitempty"`
-	Image           string    `json:"image,omitempty"`
-	Favicon         string    `json:"favicon,omitempty"`
-	Text            string    `json:"text,omitempty"`
-	Highlights      []string  `json:"highlights,omitempty"`
-	HighlightScores []float64 `json:"highlightScores,omitempty"`
-	Summary         string    `json:"summary,omitempty"`
-	Subpages        []*Result `json:"subpages,omitempty"`
-	Extras          *struct {
-		Links      []string `json:"links,omitempty"`
-		ImageLinks []string `json:"imageLinks,omitempty"`
-	} `json:"extras,omitempty"`
+type result struct {
+	Title         string   `json:"title"`
+	URL           string   `json:"url"`
+	PublishedDate string   `json:"publishedDate,omitempty"`
+	Author        string   `json:"author,omitempty"`
+	Favicon       string   `json:"favicon,omitempty"`
+	Highlights    []string `json:"highlights,omitempty"`
+	Summary       string   `json:"summary,omitempty"`
 }
 
-// CostBreakdown holds per-operation cost figures.
-type CostBreakdown struct {
-	NeuralSearch     float64 `json:"neuralSearch,omitempty"`
-	DeepSearch       float64 `json:"deepSearch,omitempty"`
-	ContentText      float64 `json:"contentText,omitempty"`
-	ContentHighlight float64 `json:"contentHighlight,omitempty"`
-	ContentSummary   float64 `json:"contentSummary,omitempty"`
+type response struct {
+	Results []*result `json:"results"`
 }
 
-// CostDollars is the optional monetary cost in the response.
-type CostDollars struct {
-	Total     float64        `json:"total"`
-	BreakDown *CostBreakdown `json:"breakDown,omitempty"`
-}
-
-// Response is the full Exa /search response.
-type Response struct {
-	RequestID   string       `json:"requestId"`
-	Results     []*Result    `json:"results"`
-	SearchType  string       `json:"searchType,omitempty"`
-	CostDollars *CostDollars `json:"costDollars,omitempty"`
-}
-
-// SearchNative calls POST /search with the full Exa request shape.
-func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, error) {
-	if err := req.Validate(); err != nil {
+func (c *Client) search(ctx context.Context, req *request) (*response, error) {
+	if err := req.validate(); err != nil {
 		return nil, err
 	}
-	var raw Response
+	var raw response
 	resp, err := c.http.R().SetContext(ctx).SetBody(req).SetResult(&raw).Post("/search")
 	if err != nil {
 		return nil, fmt.Errorf("exa: request failed: %w", err)
@@ -174,27 +109,23 @@ func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, err
 	return &raw, nil
 }
 
-// ============================================================== SPI wrapper
-
 func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch.Response, error) {
-	raw, err := c.SearchNative(ctx, buildRequest(req))
+	raw, err := c.search(ctx, buildRequest(req))
 	if err != nil {
 		return nil, err
 	}
 	return raw.toWebSearch(req.Query), nil
 }
 
-// ============================================================== mapping
-
 const maxResultsCap = 100
 
-func buildRequest(req *websearch.Request) *Request {
-	r := &Request{
+func buildRequest(req *websearch.Request) *request {
+	r := &request{
 		Query:      req.Query,
 		Type:       "fast",
 		NumResults: clampResults(req.MaxResults),
-		Contents: &ContentsOptions{
-			Summary: &SummaryOptions{Query: req.Query},
+		Contents: &contentsOptions{
+			Summary: &summaryOptions{Query: req.Query},
 		},
 	}
 	if len(req.AllowedDomains) > 0 {
@@ -231,7 +162,7 @@ func recencyToStart(r websearch.Recency) time.Time {
 	return time.Time{}
 }
 
-func (r *Response) toWebSearch(query string) *websearch.Response {
+func (r *response) toWebSearch(query string) *websearch.Response {
 	results := make([]*websearch.Result, 0, len(r.Results))
 	for _, result := range r.Results {
 		results = append(results, &websearch.Result{
@@ -246,7 +177,7 @@ func (r *Response) toWebSearch(query string) *websearch.Response {
 	return &websearch.Response{Query: query, Results: results}
 }
 
-func (r *Result) snippet() string {
+func (r *result) snippet() string {
 	if len(r.Highlights) > 0 {
 		return r.Highlights[0]
 	}
