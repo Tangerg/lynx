@@ -31,6 +31,10 @@ use (
 	./skills
 	./tokenizer/tiktoken
 	./tools
+	./tools/httpreq
+	./tools/skills
+	./tools/webfetch
+	./tools/websearch
 	./vectorstores/azurecosmos
 	./vectorstores/bedrockkb
 	./vectorstores/cassandra
