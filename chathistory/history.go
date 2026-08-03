@@ -32,6 +32,13 @@ type Writer interface {
 	Write(ctx context.Context, conversationID string, messages ...chat.Message) error
 }
 
+// ReadWriter combines the capabilities required by components that replay and
+// append history without owning retention or deletion policy.
+type ReadWriter interface {
+	Reader
+	Writer
+}
+
 // Clearer removes every message for one conversation.
 type Clearer interface {
 	Clear(ctx context.Context, conversationID string) error
@@ -40,8 +47,7 @@ type Clearer interface {
 // Store is the ordinary per-conversation read/write/clear contract. Optional
 // cross-conversation or retention capabilities remain separate interfaces.
 type Store interface {
-	Reader
-	Writer
+	ReadWriter
 	Clearer
 }
 
