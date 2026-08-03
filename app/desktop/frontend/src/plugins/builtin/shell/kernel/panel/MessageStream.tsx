@@ -6,10 +6,12 @@ import { Fragment, useEffect } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { enterUp } from "@/lib/motion";
 import { useMotionOff } from "@/lib/appearance";
+import { cn } from "@/lib/classNames";
 import { dayKey, formatDay } from "@/lib/i18n/relativeTime";
 import { useT } from "@/lib/i18n";
 import { Loader } from "@/ui";
 import { Slot } from "@/plugins/host/Slot";
+import { READING_COLUMN, READING_GUTTER } from "./readingColumn";
 import { useIsCurrentRootRunning } from "@/plugins/builtin/agent/public/run";
 import { MessageBlock, RootRunOutcome } from "@/plugins/builtin/chat/message/public/rendering";
 
@@ -62,7 +64,7 @@ function DaySeparator({ createdAt }: { createdAt?: string }) {
   const label = formatDay(createdAt);
   if (!label) return null;
   return (
-    <div className="flex items-center gap-3 py-1">
+    <div className={cn(READING_GUTTER, "flex items-center gap-3 py-1")}>
       <span className="text-ui-xs text-fg-faint">{label}</span>
       <span aria-hidden className="h-px flex-1 bg-[var(--color-divider)]" />
     </div>
@@ -105,7 +107,7 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
       >
         <StickToBottom.Content
           scrollClassName="panel-scroll"
-          className="relative mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-7 px-[var(--density-column-gutter)] pt-8 pb-8 sm:px-[var(--density-column-gutter-wide)]"
+          className={cn(READING_COLUMN, READING_GUTTER, "relative flex flex-col gap-7 pb-8 pt-8")}
         >
           <Slot name="chat.empty" />
         </StickToBottom.Content>
@@ -136,7 +138,10 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
           it can never scroll out from behind. */}
       <StickToBottom.Content
         scrollClassName="panel-scroll msg-scroll-viewport"
-        className="relative mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-7 px-[var(--density-column-gutter)] pb-[calc(var(--composer-overlay,0px)+1rem)] pt-8 sm:px-[var(--density-column-gutter-wide)]"
+        className={cn(
+          READING_COLUMN,
+          "relative flex flex-col gap-7 pb-[calc(var(--composer-overlay,0px)+1rem)] pt-8",
+        )}
       >
         <AnimatePresence initial={false}>
           {messages.map((m, i) => (
@@ -163,7 +168,17 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
                 {...enterUp}
                 data-turn-id={m.id}
                 data-turn-role={m.role}
-                className="[content-visibility:auto] [contain-intrinsic-size:auto_220px]"
+                // The gutter lives HERE, not on the scroller's content, and that
+                // is what gives this box slack on either side of its own text.
+                // `content-visibility` brings paint containment with it: anything
+                // drawn past this element's edge is clipped, and the turn's last
+                // row is a strip of round buttons deliberately inset outward so
+                // their glyphs line up with the text. Against a box that hugged
+                // the text they came out sliced.
+                className={cn(
+                  READING_GUTTER,
+                  "[content-visibility:auto] [contain-intrinsic-size:auto_220px]",
+                )}
               >
                 <MessageBlock
                   msg={m}
@@ -179,11 +194,15 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
             hasn't opened its turn yet (last message is still the user's). Once
             the assistant message arrives it takes over, so this hides itself. */}
         {running && messages[messages.length - 1]?.role === "user" && (
-          <div className="flex">
+          <div className={cn(READING_GUTTER, "flex")}>
             <Loader variant="dots" />
           </div>
         )}
-        {!running && <RootRunOutcome />}
+        {!running && (
+          <div className={READING_GUTTER}>
+            <RootRunOutcome />
+          </div>
+        )}
       </StickToBottom.Content>
       <ControlsRelay />
     </StickToBottom>

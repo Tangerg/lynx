@@ -26,6 +26,7 @@ import {
 import { useUiStore } from "@/state/uiStore";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
 import { ComposerSurface } from "./ComposerSurface";
+import { READING_COLUMN, READING_GUTTER } from "./readingColumn";
 import { CwdMissingBanner } from "./CwdMissingBanner";
 import { JumpToBottomButton } from "./JumpToBottomButton";
 import { MessageStream } from "./MessageStream";
@@ -35,10 +36,6 @@ interface Props {
   /** Send the user's message input (text + inlined images) through the live agent. */
   onSend: (input: UserInput) => void;
 }
-
-// The reading column. Banners, transcript and composer all take this and
-// nothing else, so there is one box in the pane and everything is on its axis.
-const COLUMN = "mx-auto w-full max-w-[var(--content-max)]";
 
 // The two rails hang off that column's edges, OUT of its flow.
 //
@@ -50,9 +47,9 @@ const COLUMN = "mx-auto w-full max-w-[var(--content-max)]";
 // failure is reachable — a rail can appear, disappear or change width and the
 // text does not move, because the text's position never depended on it.
 //
-// One query for both, since the pane must hold the column and a FULL gutter on
-// each side to stay symmetric. The sum is spelled out because Tailwind reads
-// source text and a container variant assembled from a variable emits nothing.
+// One query for both, since the pane must hold the column and a FULL rail on
+// each side to stay symmetric. The sum (720 + 2×224) is spelled out because
+// Tailwind reads source text and a variant built from a variable emits nothing.
 //
 // Transparent to the pointer, and only what a rail actually draws takes it back:
 // the scroller underneath now spans the whole pane, and a 224px pad of nothing
@@ -61,9 +58,9 @@ const COLUMN = "mx-auto w-full max-w-[var(--content-max)]";
 // transcript pads its tail — the overlay is opaque, and a list that runs under
 // it is a list with items nobody can reach.
 const RAIL =
-  "absolute top-0 bottom-[var(--composer-overlay,0px)] z-[1] hidden w-[var(--reading-rail-width)] flex-col @min-[1128px]:flex pointer-events-none [&>*]:pointer-events-auto";
-const RAIL_START = "right-[calc(50%+var(--content-max)/2)]";
-const RAIL_END = "left-[calc(50%+var(--content-max)/2)]";
+  "absolute top-0 bottom-[var(--composer-overlay,0px)] z-[1] hidden w-[var(--reading-rail-width)] flex-col @min-[1168px]:flex pointer-events-none [&>*]:pointer-events-auto";
+const RAIL_START = "right-[calc(50%+var(--reading-column-max)/2)]";
+const RAIL_END = "left-[calc(50%+var(--reading-column-max)/2)]";
 
 // How much of itself the floating composer hides. The transcript pads its tail
 // by this so the last message can always come out from under it — measured,
@@ -162,12 +159,7 @@ export function ChatStream({ onSend }: Props) {
   // The stream's scroll lives inside MessageStream's own container, so these stay
   // put while the user scrolls messages below them.
   const banners = (
-    <div
-      className={cn(
-        COLUMN,
-        "shrink-0 px-[var(--density-column-gutter)] sm:px-[var(--density-column-gutter-wide)]",
-      )}
-    >
+    <div className={cn(READING_COLUMN, READING_GUTTER, "shrink-0")}>
       {/* Keyed on the session so the relocate input never carries a
           half-typed path across a session switch. */}
       <CwdMissingBanner key={resetKey} />
@@ -185,14 +177,14 @@ export function ChatStream({ onSend }: Props) {
     return (
       <>
         {banners}
-        <div className="panel-scroll flex flex-1 flex-col items-center px-[var(--density-column-gutter)] pt-[clamp(72px,16vh,150px)] sm:px-[var(--density-column-gutter-wide)]">
-          <div className={cn(COLUMN, "flex flex-col pb-5")}>
+        <div className="panel-scroll flex flex-1 flex-col items-center pt-[clamp(72px,16vh,150px)]">
+          <div className={cn(READING_COLUMN, READING_GUTTER, "flex flex-col pb-5")}>
             <h1 className="max-w-[620px] text-balance text-display-md font-medium text-fg/95">
               {t("welcome.title")}
             </h1>
           </div>
-          <div className={COLUMN}>{composer}</div>
-          <div className={cn(COLUMN, "mt-6")}>
+          <div className={cn(READING_COLUMN, READING_GUTTER)}>{composer}</div>
+          <div className={cn(READING_COLUMN, READING_GUTTER, "mt-6")}>
             <Slot name="chat.empty" />
           </div>
         </div>
@@ -236,10 +228,15 @@ export function ChatStream({ onSend }: Props) {
             anyway — the transcript is centred and capped. */}
         <div
           ref={overlayRef}
-          className={cn("pointer-events-none absolute inset-x-0 bottom-0 z-10", COLUMN)}
+          className={cn("pointer-events-none absolute inset-x-0 bottom-0 z-10", READING_COLUMN)}
         >
-          <div className="h-8 bg-gradient-to-b from-transparent to-[var(--app-content-surface)]" />
-          <div className="bg-[var(--app-content-surface)] pb-3 sm:pb-4">
+          <div
+            className={cn(
+              READING_GUTTER,
+              "h-8 bg-gradient-to-b from-transparent to-[var(--app-content-surface)]",
+            )}
+          />
+          <div className={cn(READING_GUTTER, "bg-[var(--app-content-surface)] pb-3 sm:pb-4")}>
             <div className="pointer-events-auto relative">
               <JumpToBottomButton />
               {composer}
