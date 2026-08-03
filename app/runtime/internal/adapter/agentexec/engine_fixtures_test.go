@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/chatclient"
 	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/chathistory/inmemory"
 	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
@@ -24,10 +25,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-// newHistoryStore re-exports history.NewInMemoryStore under a
-// shorter test-only name so the persistent-store test reads as
-// "shared history store".
-func newHistoryStore() history.Store { return history.NewInMemoryStore() }
+// newHistoryStore keeps persistent-store tests focused on the shared history
+// boundary instead of provider construction.
+func newHistoryStore() history.Store { return inmemory.New() }
 
 type assembledEngine struct {
 	*Engine

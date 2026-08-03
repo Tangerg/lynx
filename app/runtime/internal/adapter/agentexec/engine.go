@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/chathistory/inmemory"
 )
 
 // Engine is the Agent SDK execution boundary. It deploys the root/subtask Agent
@@ -93,7 +94,7 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 		return nil, errors.New("engine: BuildID is required when Checkpoints is configured")
 	}
 	if config.HistoryStore == nil {
-		config.HistoryStore = history.NewInMemoryStore()
+		config.HistoryStore = inmemory.New()
 	}
 	chatMiddleware, err := newChatMiddleware(config)
 	if err != nil {

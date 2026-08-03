@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/chatclient"
-	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/chathistory/inmemory"
 	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
@@ -52,7 +52,7 @@ func extractionFixture(t *testing.T, replies ...scriptedReply) (*Extractor, *sql
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	memory := sqlite.NewAgentMemoryStore(db)
-	messages := history.NewInMemoryStore()
+	messages := inmemory.New()
 	if err := messages.Write(t.Context(), "ses_1",
 		chat.NewUserMessage(chat.NewTextPart("first")),
 		chat.NewAssistantMessage(chat.NewTextPart("reply")),

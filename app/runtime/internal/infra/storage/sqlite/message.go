@@ -42,7 +42,7 @@ func NewMessageStore(db *sql.DB) *MessageStore {
 }
 
 // Read returns every message for conversationID in write order. Unknown
-// conversation → empty slice (matches history.InMemoryStore). Malformed rows
+// conversation → empty slice (matches in-memory history store). Malformed rows
 // are skipped rather than failing the read, so one bad write can't poison
 // the whole conversation.
 func (s *MessageStore) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
@@ -158,7 +158,7 @@ func (s *MessageStore) Count(ctx context.Context, conversationID string) (int, e
 }
 
 // Clear drops every message for conversationID. Idempotent — unknown id is
-// not an error (matches history.InMemoryStore).
+// not an error (matches in-memory history store).
 func (s *MessageStore) Clear(ctx context.Context, conversationID string) error {
 	if conversationID == "" {
 		return errEmptyConversationID

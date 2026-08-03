@@ -12,7 +12,6 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	history "github.com/Tangerg/lynx/chathistory"
-	historymw "github.com/Tangerg/lynx/chathistory/middleware"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -49,7 +48,7 @@ func newChatMiddlewareWithBeforeRound(
 	historyStore history.Store,
 	beforeRound func(context.Context) []chat.Message,
 ) (*core.ChatMiddleware, error) {
-	middleware, err := historymw.New(historyStore)
+	middleware, err := history.NewMiddleware(historyStore)
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: build chat history middleware: %w", err)
 	}

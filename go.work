@@ -5,19 +5,18 @@ use (
 	./a2a
 	./agent
 	./app/runtime
-	./chathistorystores/cassandra
-	./chathistorystores/cosmosdb
-	./chathistorystores/mongodb
-	./chathistorystores/neo4j
-	./chathistorystores/postgres
-	./chathistorystores/redis
+	./chathistory/cassandra
+	./chathistory/cosmosdb
+	./chathistory/mongodb
+	./chathistory/neo4j
+	./chathistory/postgres
+	./chathistory/redis
 	./documentpipeline
 	./documentpipeline/markdown
 	./documentreaders/html
 	./documentreaders/markdown
 	./documentreaders/pdf
 	./examples/mcp
-	./internal/chathistoryotel
 	./internal/repoarch
 	./internal/vectorstorepg
 	./mcp

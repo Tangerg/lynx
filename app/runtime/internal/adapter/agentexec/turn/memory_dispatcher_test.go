@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/chatclient"
-	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/chathistory/inmemory"
 	chatmodel "github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
@@ -173,7 +173,7 @@ func TestNewRequiresApprovalGate(t *testing.T) {
 func TestDispatcher_InjectSteering_PreservesStructuredContent(t *testing.T) {
 	stub := newHistoryAwareStub()
 	client, _ := chatclient.New(stub)
-	store := history.NewInMemoryStore()
+	store := inmemory.New()
 	eng := buildEngine(t, agentexec.Config{ChatClient: client, HistoryStore: store})
 	dispatcher := mustTurn(turn.New(turnDeps(eng, func(deps *turn.Dependencies) {
 		deps.Steering = conversation.NewMessages(store)
@@ -335,7 +335,7 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	model := &countingStubModel{}
 	model.defaults = &chatmodel.Options{Model: "stub-counting"}
 	client, _ := chatclient.New(model)
-	store := history.NewInMemoryStore()
+	store := inmemory.New()
 	eng := buildEngine(t, agentexec.Config{ChatClient: client, HistoryStore: store})
 	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil))))) // shell → gate
 

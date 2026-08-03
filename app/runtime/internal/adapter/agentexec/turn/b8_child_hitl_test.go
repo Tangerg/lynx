@@ -22,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/chatclient"
 	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/chathistory/inmemory"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -449,7 +450,7 @@ func TestCompleteAnswerSetDoesNotPersistDuringLiveContinuation(t *testing.T) {
 		mustApprovalPolicy(t, approval.ModeBalanced, nil),
 		staticHookResolver{},
 		store,
-		history.NewInMemoryStore(),
+		inmemory.New(),
 		buildID,
 	)
 	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
@@ -516,7 +517,7 @@ func TestCompleteAnswerSetEncodingFailurePrecedesAnyContinuationSideEffect(t *te
 		mustApprovalPolicy(t, approval.ModeBalanced, nil),
 		staticHookResolver{},
 		store,
-		history.NewInMemoryStore(),
+		inmemory.New(),
 		buildID,
 	)
 	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
@@ -574,7 +575,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	const buildID = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	cwd := t.TempDir()
 	store := newMemoryCheckpointStore()
-	historyStore := history.NewInMemoryStore()
+	historyStore := inmemory.New()
 	model := &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-restart"},
 		childTool:      "shell",
@@ -734,7 +735,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	}
 	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
 	dispatcher := buildB8PersistentDispatcher(
-		t, model, policy, staticHookResolver{}, store, history.NewInMemoryStore(), buildID,
+		t, model, policy, staticHookResolver{}, store, inmemory.New(), buildID,
 	)
 	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
 		SessionID:      "sess-b8-child-cancel",
@@ -795,7 +796,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 func TestRehydrateRejectsCorruptCheckpointPayload(t *testing.T) {
 	const buildID = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 	store := newMemoryCheckpointStore()
-	historyStore := history.NewInMemoryStore()
+	historyStore := inmemory.New()
 	model := &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-missing"},
 		childTool:      "shell",

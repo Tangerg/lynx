@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/internal/chathistorykit/nilcheck"
 )
 
 var (
@@ -28,7 +27,7 @@ type WindowStore struct {
 // NewWindowStore returns a read-side sliding-window decorator. Limit counts
 // the merged system message when one exists and must be greater than zero.
 func NewWindowStore(store Store, limit int) (*WindowStore, error) {
-	if nilcheck.IsNil(store) {
+	if isNilCapability(store) {
 		return nil, ErrNilStore
 	}
 	if limit <= 0 {

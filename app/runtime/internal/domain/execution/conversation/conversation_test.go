@@ -4,12 +4,12 @@ import (
 	"errors"
 	"testing"
 
-	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/chathistory/inmemory"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
 func TestMessagesOwnHistoryTransitions(t *testing.T) {
-	store := history.NewInMemoryStore()
+	store := inmemory.New()
 	messages := NewMessages(store)
 	ctx := t.Context()
 
@@ -49,7 +49,7 @@ func TestMessagesOwnHistoryTransitions(t *testing.T) {
 }
 
 func TestMessagesRejectMalformedCommands(t *testing.T) {
-	messages := NewMessages(history.NewInMemoryStore())
+	messages := NewMessages(inmemory.New())
 	ctx := t.Context()
 
 	tests := []struct {

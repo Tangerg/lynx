@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/chathistory/inmemory"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/metadata"
 )
@@ -17,13 +18,13 @@ func TestNewWindowStoreValidatesConstruction(t *testing.T) {
 	if _, err := chathistory.NewWindowStore(typedNil, 1); !errors.Is(err, chathistory.ErrNilStore) {
 		t.Fatalf("typed-nil store error = %v", err)
 	}
-	if _, err := chathistory.NewWindowStore(chathistory.NewInMemoryStore(), 0); !errors.Is(err, chathistory.ErrInvalidWindow) {
+	if _, err := chathistory.NewWindowStore(inmemory.New(), 0); !errors.Is(err, chathistory.ErrInvalidWindow) {
 		t.Fatalf("invalid limit error = %v", err)
 	}
 }
 
 func TestWindowStoreMergesSystemAndKeepsRecentMessages(t *testing.T) {
-	base := chathistory.NewInMemoryStore()
+	base := inmemory.New()
 	firstSystem := chat.NewSystemMessage("first")
 	firstSystem.Metadata = metadata.Map{}
 	if err := firstSystem.Metadata.Set("shared", "first"); err != nil {
@@ -58,7 +59,7 @@ func TestWindowStoreMergesSystemAndKeepsRecentMessages(t *testing.T) {
 }
 
 func TestWindowStorePreservesSystemPartStructure(t *testing.T) {
-	base := chathistory.NewInMemoryStore()
+	base := inmemory.New()
 	part := chat.NewTextPart("")
 	part.Metadata = metadata.Map{}
 	if err := part.Metadata.Set("provider", "preserved"); err != nil {
@@ -86,7 +87,7 @@ func TestWindowStorePreservesSystemPartStructure(t *testing.T) {
 }
 
 func TestWindowStoreDelegatesWritesAndClear(t *testing.T) {
-	base := chathistory.NewInMemoryStore()
+	base := inmemory.New()
 	window, err := chathistory.NewWindowStore(base, 2)
 	if err != nil {
 		t.Fatal(err)

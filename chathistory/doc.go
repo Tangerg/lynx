@@ -1,22 +1,21 @@
-// Package chathistory defines provider-neutral conversation history contracts,
-// reference stores, and persistent database backends.
+// Package chathistory defines provider-neutral conversation history contracts
+// and model middleware.
 //
 // Reader, Writer, Clearer, and Store use core/chat protocol values directly.
-// InMemoryStore is a zero-value-ready reference implementation. WindowStore is
-// an explicit read-side retention decorator; optional cross-conversation and
-// replacement capabilities remain separate interfaces.
+// WindowStore is an explicit read-side retention decorator; optional
+// cross-conversation and replacement capabilities remain separate interfaces.
+// The zero-value-ready reference provider lives in chathistory/inmemory.
 //
 // Conversation IDs are runtime scope carried with [WithConversationID], not
-// serialized request metadata. The middleware subpackage binds that scope to
-// model calls.
+// serialized request metadata. Middleware binds that scope to model calls.
 //
 // Writes preserve message order within one call. Conversation listing is an
 // optional capability and returns unique IDs in lexical order. Concurrent
 // writes and writes through distinct Store instances have no common ordering
 // guarantee unless a backend documents one.
 //
-// Persistent backends live in child packages so database drivers do not enter
-// core/go.mod:
+// Persistent backends live in child modules so database drivers do not enter
+// the repository root module:
 //
 //	chathistory/postgres/  — PostgreSQL (pgx + JSONB)
 //	chathistory/redis/     — Redis (RPUSH / LRANGE lists)

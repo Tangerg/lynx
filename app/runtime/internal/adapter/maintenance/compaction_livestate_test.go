@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/chatclient"
-	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/chathistory/inmemory"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -35,7 +35,7 @@ func TestLiveStateReminderEmptyIsSkipped(t *testing.T) {
 // TestCompactorAppendsLiveStateReminder drives the full summary rung and asserts
 // the reminder lands right after the summary, ahead of the kept recent slice.
 func TestCompactorAppendsLiveStateReminder(t *testing.T) {
-	store := history.NewInMemoryStore()
+	store := inmemory.New()
 	const sessID = "sess-live"
 	const total = 20
 	for range total {
@@ -80,7 +80,7 @@ func TestCompactorAppendsLiveStateReminder(t *testing.T) {
 // TestCompactorSkipsReminderWhenNoLiveState confirms an empty snapshot leaves the
 // rewritten history exactly [summary, ...recent] — no stray reminder message.
 func TestCompactorSkipsReminderWhenNoLiveState(t *testing.T) {
-	store := history.NewInMemoryStore()
+	store := inmemory.New()
 	const sessID = "sess-live-empty"
 	const total = 20
 	for range total {

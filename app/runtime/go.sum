@@ -10,8 +10,8 @@ github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 h1:fhqpLE3UEXi9lPaBRpQ6Xu
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0/go.mod h1:7dCRMLwisfRH3dBupKeNCioWYUZ4SS09Z14H+7i8ZoY=
 github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAwZ/2OOE=
 github.com/Masterminds/semver/v3 v3.5.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
-github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81 h1:pfk2YohXURWI1oZiEhkSsS+K0tH0PM/iksWsoYx9Zo8=
-github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
+github.com/Tangerg/lynx v0.0.0-20260803040853-8594662cd15b h1:RGOpyGBKEW+U81WAF7bMF8ruV9GUJnKVs5D7B5h+rlI=
+github.com/Tangerg/lynx v0.0.0-20260803040853-8594662cd15b/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
 github.com/Tangerg/lynx/a2a v0.0.0-20260802185719-f013cc1eb508 h1:WHHyAj7/jr32+cv4Whb+1UBOXMgmK/QuKHzU82YoiBE=
 github.com/Tangerg/lynx/a2a v0.0.0-20260802185719-f013cc1eb508/go.mod h1:Yqfch52pYPCZMT3j1oSS4r8HTg2SG0YQVDsu6q/YlWc=
 github.com/Tangerg/lynx/agent v0.0.0-20260802185719-f013cc1eb508 h1:q/OABul6iFib/9Dan2Mxh9h0CwBHJm8TZqY7I+krgDY=

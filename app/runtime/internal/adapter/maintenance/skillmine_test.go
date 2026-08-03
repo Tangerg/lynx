@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/chatclient"
-	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/chathistory/inmemory"
 	"github.com/Tangerg/lynx/core/chat"
 	skillspec "github.com/Tangerg/lynx/skills"
 
@@ -46,7 +46,7 @@ func (s *fakeDraftStore) SaveDraft(_ context.Context, draft skills.Draft) (skill
 
 func minerFixture(t *testing.T, reply string, config MinerConfig) (*SkillMiner, *fakeDraftStore, *textStubModel) {
 	t.Helper()
-	messages := history.NewInMemoryStore()
+	messages := inmemory.New()
 	if err := messages.Write(t.Context(), "ses_1",
 		chat.NewUserMessage(chat.NewTextPart("add a test target")),
 		chat.NewAssistantMessage(chat.NewTextPart("done")),
@@ -70,7 +70,7 @@ func minerFixture(t *testing.T, reply string, config MinerConfig) (*SkillMiner, 
 // real current skill bodies for the read-before-write guard.
 func minerRevisionFixture(t *testing.T, source skillSource, replies ...scriptedReply) (*SkillMiner, *fakeDraftStore) {
 	t.Helper()
-	messages := history.NewInMemoryStore()
+	messages := inmemory.New()
 	if err := messages.Write(t.Context(), "ses_1",
 		chat.NewUserMessage(chat.NewTextPart("that skill's command is wrong")),
 		chat.NewAssistantMessage(chat.NewTextPart("fixing")),

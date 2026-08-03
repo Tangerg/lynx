@@ -83,7 +83,7 @@ type Config struct {
 
 	// HistoryStore optionally supplies a persistent chat-history
 	// backend (the sqlite MessageStore, redis-backed, ...). When nil the
-	// engine falls back to lynx's in-process [history.InMemoryStore]
+	// engine falls back to lynx's in-process [in-memory history store]
 	// — fine for tests but loses history on restart.
 	HistoryStore history.Store
 

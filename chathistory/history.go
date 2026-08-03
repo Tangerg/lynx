@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/internal/chathistorykit/nilcheck"
 )
 
 var (
@@ -73,7 +72,7 @@ type Counter interface {
 // ErrReplacementUnsupported without modifying history when store does not
 // implement Replacer.
 func Replace(ctx context.Context, store Store, conversationID string, messages ...chat.Message) error {
-	if nilcheck.IsNil(store) {
+	if isNilCapability(store) {
 		return ErrNilStore
 	}
 	if replacer, ok := store.(Replacer); ok {
@@ -85,7 +84,7 @@ func Replace(ctx context.Context, store Store, conversationID string, messages .
 // Count uses store's optional Counter capability and otherwise falls back to
 // reading the conversation.
 func Count(ctx context.Context, store Store, conversationID string) (int, error) {
-	if nilcheck.IsNil(store) {
+	if isNilCapability(store) {
 		return 0, ErrNilStore
 	}
 	if counter, ok := store.(Counter); ok {

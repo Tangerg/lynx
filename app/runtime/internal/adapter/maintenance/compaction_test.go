@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/chatclient"
-	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/chathistory/inmemory"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -24,7 +24,7 @@ func constClient(c *chatclient.Client) ClientFunc {
 // confirms the early-return path when there aren't enough
 // messages to bother compacting.
 func TestCompactor_NopBelowThreshold(t *testing.T) {
-	store := history.NewInMemoryStore()
+	store := inmemory.New()
 	const sessID = "s"
 	_ = store.Write(context.Background(), sessID,
 		chat.NewUserMessage(chat.NewTextPart("a")),
@@ -46,7 +46,7 @@ func TestCompactor_NopBelowThreshold(t *testing.T) {
 //   - the surviving first message is a SystemMessage carrying
 //     the [Earlier conversation summary] preamble
 func TestCompactor_Compacts(t *testing.T) {
-	store := history.NewInMemoryStore()
+	store := inmemory.New()
 	const sessID = "sess-compact"
 	const total = 20
 	for range total {
@@ -85,7 +85,7 @@ func TestCompactor_Compacts(t *testing.T) {
 // must advance the cut to the next UserMessage boundary so the kept
 // `recent` slice never starts with an orphaned ToolMessage.
 func TestCompactor_CutBoundary(t *testing.T) {
-	store := history.NewInMemoryStore()
+	store := inmemory.New()
 	const sessID = "sess-boundary"
 
 	// Build a history that triggers the boundary bug:
@@ -179,7 +179,7 @@ func TestCompactor_PreservesToolPairsAcrossCutoffs(t *testing.T) {
 
 	for keepRecent := 1; keepRecent < len(template); keepRecent++ {
 		t.Run(fmt.Sprintf("keepRecent=%d", keepRecent), func(t *testing.T) {
-			store := history.NewInMemoryStore()
+			store := inmemory.New()
 			const sessID = "sess-pairs"
 			for _, m := range template {
 				_ = store.Write(t.Context(), sessID, m)
@@ -236,7 +236,7 @@ func assertNoOrphanToolParts(t *testing.T, msgs []chat.Message) {
 // than MaxMessages still compacts when one carries a large tool result,
 // because byte size — not message count — is what fills a context window.
 func TestCompactor_TokenTrigger(t *testing.T) {
-	store := history.NewInMemoryStore()
+	store := inmemory.New()
 	const sessID = "sess-tokens"
 
 	big := strings.Repeat("x", 50_000) // ~12.5k estimated tokens
@@ -267,7 +267,7 @@ func TestCompactor_TokenTrigger(t *testing.T) {
 // negative; MaybeCompact must skip cleanly (nothing older to summarize), not
 // panic with an out-of-range index.
 func TestCompactor_TokenTriggerShortHistory(t *testing.T) {
-	store := history.NewInMemoryStore()
+	store := inmemory.New()
 	const sessID = "sess-short"
 
 	big := strings.Repeat("x", 50_000)
@@ -294,7 +294,7 @@ func TestCompactor_TokenTriggerShortHistory(t *testing.T) {
 // vetoes a compaction that would otherwise fire — and that it's only consulted
 // once the sweep is committed (it must see a would-compact history).
 func TestCompactor_PreCompactVeto(t *testing.T) {
-	store := history.NewInMemoryStore()
+	store := inmemory.New()
 	const sessID = "sess-veto"
 	const total = 20
 	for range total {
@@ -323,7 +323,7 @@ func TestCompactor_PreCompactVeto(t *testing.T) {
 }
 
 func TestCompactor_PreCompactSkipsUnexecutablePlan(t *testing.T) {
-	store := history.NewInMemoryStore()
+	store := inmemory.New()
 	const sessID = "sess-no-boundary"
 	for range 6 {
 		_ = store.Write(t.Context(), sessID, chat.NewAssistantMessage(chat.NewTextPart("continuation")))
@@ -348,7 +348,7 @@ func TestCompactor_PreCompactSkipsUnexecutablePlan(t *testing.T) {
 // summary is skipped — no LLM call, no message dropped, no boundary reported —
 // and the store keeps every message with the old body previewed.
 func TestCompactor_LadderTrimsUnderBudgetSkippingLLM(t *testing.T) {
-	store := history.NewInMemoryStore()
+	store := inmemory.New()
 	const sessID = "sess-ladder-trim"
 	big := strings.Repeat("y", 20_000)
 	_ = store.Write(t.Context(), sessID,
@@ -399,7 +399,7 @@ func TestCompactor_LadderTrimsUnderBudgetSkippingLLM(t *testing.T) {
 // trigger, which a body trim never reduces) the compactor still falls through to
 // the LLM summary.
 func TestCompactor_LadderStillOverGoesToLLM(t *testing.T) {
-	store := history.NewInMemoryStore()
+	store := inmemory.New()
 	const sessID = "sess-ladder-llm"
 	big := strings.Repeat("y", 20_000)
 	_ = store.Write(t.Context(), sessID,
