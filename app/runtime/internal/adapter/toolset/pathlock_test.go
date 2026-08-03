@@ -129,5 +129,5 @@ func concurrentKey(t *testing.T, tool toolcontract.Tool, arguments string) strin
 }
 
 func pathArguments(path string) string {
-	return `{"file_path":` + strconv.Quote(path) + `}`
+	return `{"path":` + strconv.Quote(path) + `}`
 }

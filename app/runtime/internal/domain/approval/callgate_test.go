@@ -9,7 +9,7 @@ import (
 func TestToolCallInputPlan_HookBlockWins(t *testing.T) {
 	plan := ToolCallInput{
 		Tool:      "write",
-		Arguments: `{"file_path":"x"}`,
+		Arguments: `{"path":"x"}`,
 		Mode:      ModeYolo,
 		Hook:      HookDecision{Block: true},
 	}.Plan()
@@ -21,11 +21,11 @@ func TestToolCallInputPlan_HookBlockWins(t *testing.T) {
 func TestToolCallInputPlan_RewritePassesAsOverride(t *testing.T) {
 	plan := ToolCallInput{
 		Tool:      "write",
-		Arguments: `{"file_path":"unsafe"}`,
+		Arguments: `{"path":"unsafe"}`,
 		Mode:      ModeYolo,
-		Hook:      HookDecision{RewriteArguments: `{"file_path":"safe"}`},
+		Hook:      HookDecision{RewriteArguments: `{"path":"safe"}`},
 	}.Plan()
-	if plan.Action != GatePass || plan.Arguments != `{"file_path":"safe"}` || plan.ArgumentOverride != `{"file_path":"safe"}` {
+	if plan.Action != GatePass || plan.Arguments != `{"path":"safe"}` || plan.ArgumentOverride != `{"path":"safe"}` {
 		t.Fatalf("plan = %+v, want pass with rewritten override", plan)
 	}
 }
@@ -47,7 +47,7 @@ func TestToolCallInputPlan_OutOfWorkspaceMutationIsBypassImmune(t *testing.T) {
 	// be confirmed — shown as high risk with a specific reason.
 	plan := ToolCallInput{
 		Tool:         "write",
-		Arguments:    `{"file_path":"/etc/hosts"}`,
+		Arguments:    `{"path":"/etc/hosts"}`,
 		Mode:         ModeYolo,
 		FileMutation: tool.FileMutationOutsideWorkspace,
 	}.Plan()
@@ -62,7 +62,7 @@ func TestToolCallInputPlan_OutOfWorkspaceMutationIsBypassImmune(t *testing.T) {
 func TestToolCallInputPlan_InWorkspaceMutationStillAutoPassesInYolo(t *testing.T) {
 	plan := ToolCallInput{
 		Tool:         "write",
-		Arguments:    `{"file_path":"src/a.go"}`,
+		Arguments:    `{"path":"src/a.go"}`,
 		Mode:         ModeYolo,
 		FileMutation: tool.FileMutationWithinWorkspace,
 	}.Plan()
@@ -74,7 +74,7 @@ func TestToolCallInputPlan_InWorkspaceMutationStillAutoPassesInYolo(t *testing.T
 func TestToolCallInputPlan_NoMutationScopeDoesNotEscalate(t *testing.T) {
 	plan := ToolCallInput{
 		Tool:      "write",
-		Arguments: `{"file_path":"/etc/hosts"}`,
+		Arguments: `{"path":"/etc/hosts"}`,
 		Mode:      ModeYolo,
 	}.Plan()
 	if plan.Action != GatePass {

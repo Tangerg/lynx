@@ -2,7 +2,9 @@ package toolset
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 
@@ -33,19 +35,19 @@ func directTools(root string) []toolcontract.Tool {
 func normalizeDirectArguments(root, name, arguments string) (string, error) {
 	switch name {
 	case "read":
-		var request fs.ReadRequest
-		if err := json.Unmarshal([]byte(arguments), &request); err != nil {
+		request, err := decodeDirectArguments[fs.ReadRequest](arguments)
+		if err != nil {
 			return "", fmt.Errorf("toolset: decode direct read arguments: %w", err)
 		}
-		path, err := directPath(root, request.FilePath)
+		path, err := directPath(root, request.Path)
 		if err != nil {
 			return "", err
 		}
-		request.FilePath = path
+		request.Path = path
 		return encodeDirectArguments(request)
 	case "glob":
-		var request fs.GlobRequest
-		if err := json.Unmarshal([]byte(arguments), &request); err != nil {
+		request, err := decodeDirectArguments[fs.GlobRequest](arguments)
+		if err != nil {
 			return "", fmt.Errorf("toolset: decode direct glob arguments: %w", err)
 		}
 		if err := validateDirectGlobPattern(request.Pattern); err != nil {
@@ -60,8 +62,8 @@ func normalizeDirectArguments(root, name, arguments string) (string, error) {
 		}
 		return encodeDirectArguments(request)
 	case "grep":
-		var request fs.GrepRequest
-		if err := json.Unmarshal([]byte(arguments), &request); err != nil {
+		request, err := decodeDirectArguments[fs.GrepRequest](arguments)
+		if err != nil {
 			return "", fmt.Errorf("toolset: decode direct grep arguments: %w", err)
 		}
 		if request.Path != "" {
@@ -75,6 +77,22 @@ func normalizeDirectArguments(root, name, arguments string) (string, error) {
 	default:
 		return "", fmt.Errorf("toolset: direct tool %q is not registered", name)
 	}
+}
+
+func decodeDirectArguments[T any](arguments string) (T, error) {
+	var request T
+	decoder := json.NewDecoder(strings.NewReader(arguments))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		return request, err
+	}
+	if err := decoder.Decode(new(json.RawMessage)); err != io.EOF {
+		if err == nil {
+			return request, errors.New("unexpected trailing JSON value")
+		}
+		return request, err
+	}
+	return request, nil
 }
 
 // validateDirectGlobPattern closes the second path channel accepted by glob.

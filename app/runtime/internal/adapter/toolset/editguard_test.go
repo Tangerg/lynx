@@ -46,7 +46,7 @@ func TestEditGuard_RequiresReadFirst(t *testing.T) {
 	ctx := context.Background()
 
 	// Edit before any read → guided to read first, file untouched.
-	out, err := edit.Call(ctx, `{"file_path":"foo.go","old_string":"Foo","new_string":"Bar"}`)
+	out, err := edit.Call(ctx, `{"path":"foo.go","old_string":"Foo","new_string":"Bar"}`)
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}
@@ -65,10 +65,10 @@ func TestEditGuard_ReadThenEdit(t *testing.T) {
 	read, edit, _, _ := guardTools(dir)
 	ctx := context.Background()
 
-	if _, err := read.Call(ctx, `{"file_path":"foo.go"}`); err != nil {
+	if _, err := read.Call(ctx, `{"path":"foo.go"}`); err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	out, err := edit.Call(ctx, `{"file_path":"foo.go","old_string":"Foo","new_string":"Bar"}`)
+	out, err := edit.Call(ctx, `{"path":"foo.go","old_string":"Foo","new_string":"Bar"}`)
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestEditGuard_ReadThenEdit(t *testing.T) {
 	}
 
 	// A second edit without re-reading works — the stamp was refreshed.
-	if out, err := edit.Call(ctx, `{"file_path":"foo.go","old_string":"Bar","new_string":"Baz"}`); err != nil || strings.Contains(out, "must read") || strings.Contains(out, "changed since") {
+	if out, err := edit.Call(ctx, `{"path":"foo.go","old_string":"Bar","new_string":"Baz"}`); err != nil || strings.Contains(out, "must read") || strings.Contains(out, "changed since") {
 		t.Fatalf("consecutive edit blocked: out=%q err=%v", out, err)
 	}
 }
@@ -94,10 +94,10 @@ func TestEditGuard_RefreshesAfterAutoFormat(t *testing.T) {
 	read, edit := guardToolsWithFormat(dir)
 	ctx := context.Background()
 
-	if _, err := read.Call(ctx, `{"file_path":"data.json"}`); err != nil {
+	if _, err := read.Call(ctx, `{"path":"data.json"}`); err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	if out, err := edit.Call(ctx, `{"file_path":"data.json","old_string":"old","new_string":"new"}`); err != nil || strings.Contains(out, "changed since") {
+	if out, err := edit.Call(ctx, `{"path":"data.json","old_string":"old","new_string":"new"}`); err != nil || strings.Contains(out, "changed since") {
 		t.Fatalf("first edit blocked: out=%q err=%v", out, err)
 	}
 	formatted, err := os.ReadFile(path)
@@ -108,7 +108,7 @@ func TestEditGuard_RefreshesAfterAutoFormat(t *testing.T) {
 		t.Fatalf("json was not formatted after edit: %q", formatted)
 	}
 
-	if out, err := edit.Call(ctx, `{"file_path":"data.json","old_string":"new","new_string":"newer"}`); err != nil || strings.Contains(out, "changed since") {
+	if out, err := edit.Call(ctx, `{"path":"data.json","old_string":"new","new_string":"newer"}`); err != nil || strings.Contains(out, "changed since") {
 		t.Fatalf("second edit after auto-format was blocked: out=%q err=%v", out, err)
 	}
 }
@@ -120,13 +120,13 @@ func TestEditGuard_StaleDetection(t *testing.T) {
 	read, edit, _, _ := guardTools(dir)
 	ctx := context.Background()
 
-	if _, err := read.Call(ctx, `{"file_path":"foo.go"}`); err != nil {
+	if _, err := read.Call(ctx, `{"path":"foo.go"}`); err != nil {
 		t.Fatalf("read: %v", err)
 	}
 	// Someone else rewrites the file after the read.
 	os.WriteFile(path, []byte("package main\n\nfunc Foo() { /* edited */ }\n"), 0o644)
 
-	out, err := edit.Call(ctx, `{"file_path":"foo.go","old_string":"Foo","new_string":"Bar"}`)
+	out, err := edit.Call(ctx, `{"path":"foo.go","old_string":"Foo","new_string":"Bar"}`)
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}
@@ -141,14 +141,14 @@ func TestWriteGuard_NewFileExemptOverwriteGuarded(t *testing.T) {
 	ctx := context.Background()
 
 	// New file: no prior read required.
-	if out, err := write.Call(ctx, `{"file_path":"new.txt","content":"hello"}`); err != nil || strings.Contains(out, "must read") {
+	if out, err := write.Call(ctx, `{"path":"new.txt","content":"hello"}`); err != nil || strings.Contains(out, "must read") {
 		t.Fatalf("new-file write blocked: out=%q err=%v", out, err)
 	}
 
 	// Overwriting an existing file without reading it → guided to read first.
 	existing := filepath.Join(dir, "old.txt")
 	os.WriteFile(existing, []byte("original"), 0o644)
-	out, err := write.Call(ctx, `{"file_path":"old.txt","content":"clobbered"}`)
+	out, err := write.Call(ctx, `{"path":"old.txt","content":"clobbered"}`)
 	if err != nil {
 		t.Fatalf("write: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestEditGuard_ReadStampIsAtomicWithSamePathEdit(t *testing.T) {
 
 	readDone := make(chan error, 1)
 	go func() {
-		_, err := read.Call(context.Background(), `{"file_path":"foo.txt"}`)
+		_, err := read.Call(context.Background(), `{"path":"foo.txt"}`)
 		readDone <- err
 	}()
 	<-readStarted
@@ -193,7 +193,7 @@ func TestEditGuard_ReadStampIsAtomicWithSamePathEdit(t *testing.T) {
 		err error
 	}, 1)
 	go func() {
-		out, err := edit.Call(context.Background(), `{"file_path":"foo.txt","old_string":"before","new_string":"after"}`)
+		out, err := edit.Call(context.Background(), `{"path":"foo.txt","old_string":"before","new_string":"after"}`)
 		editDone <- struct {
 			out string
 			err error
@@ -239,7 +239,7 @@ func TestPathLockWaitHonorsContextCancellation(t *testing.T) {
 
 	readDone := make(chan error, 1)
 	go func() {
-		_, err := read.Call(context.Background(), `{"file_path":"foo.txt"}`)
+		_, err := read.Call(context.Background(), `{"path":"foo.txt"}`)
 		readDone <- err
 	}()
 	<-readStarted
@@ -247,7 +247,7 @@ func TestPathLockWaitHonorsContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	editDone := make(chan error, 1)
 	go func() {
-		_, err := edit.Call(ctx, `{"file_path":"foo.txt","old_string":"before","new_string":"after"}`)
+		_, err := edit.Call(ctx, `{"path":"foo.txt","old_string":"before","new_string":"after"}`)
 		editDone <- err
 	}()
 	cancel()

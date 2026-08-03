@@ -18,7 +18,7 @@ import (
 // changed call resets it.
 func TestDoomLoopCounterTracksNoProgress(t *testing.T) {
 	st := &turnState{}
-	args := `{"file_path":"x.go"}`
+	args := `{"path":"x.go"}`
 
 	st.recordToolOutcome("read", args, "content")
 	if got := st.repeatedNoProgress("read", args); got != 1 {
@@ -55,7 +55,7 @@ func TestDoomLoopBrakesRepeatedNoProgressCall(t *testing.T) {
 		dispatcher: &memoryDispatcher{approval: yoloTestApproval()},
 		st:         &turnState{handle: TurnHandle{SessionID: "s1"}},
 	}
-	args := `{"file_path":"x.go"}`
+	args := `{"path":"x.go"}`
 
 	// Below threshold: the call passes cleanly.
 	for range doomLoopThreshold - 1 {

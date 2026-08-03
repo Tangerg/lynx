@@ -43,7 +43,7 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	}
 
 	// Remembered deny → verdict denies (no interrupt).
-	writeArguments := `{"file_path":"main.go"}`
+	writeArguments := `{"path":"main.go"}`
 	if err := appr.Remember(ctx, approval.RememberRequest{
 		Scope: approval.ScopeSession, SessionID: "s1", Tool: "write",
 		Arguments: mustToolArguments(t, writeArguments), Decision: approval.Deny,

@@ -150,6 +150,13 @@
 - `read_shell_output(shell_id,wait?,timeout_ms?)` 增量读取一个后台 Shell 的输出；`wait=true` 使用完成事件等待，`timeout_ms` 只限制本次等待。`stop_shell(shell_id)` 只终止该 Shell；旧 `shell_output`、`shell_kill`、`block`、无单位 `timeout` 不保留；
 - `search_memory(query,limit?)` 检索当前项目经过蒸馏的长期记忆；`search_conversations(query,limit?)` 检索过往会话原始 transcript。两者名称和描述显式区分 corpus，`limit` 均为 `1..20`，不再用 `memory_search` / `session_search` 这一组名词-动作倒置名称。
 
+### 文件与本地搜索
+
+- `read`、`write`、`edit` 的文件参数统一为 `path`，与 `glob`、`grep`、`lsp` 一致；`apply_patch` 的每文件结果也返回 `path`。旧 `file_path` 不保留；
+- `write(path,content)` 只表达创建或完整替换。删除与 `edit` 重叠且会绕开完整读取保护的 `append` 入口；底层 Executor 仍可为非模型消费者保留 append 原语；
+- `grep` 只保留 `before_context_lines` / `after_context_lines`，删除同时表达相同状态的 `context` shortcut；文件过滤使用 `file_glob` / `file_type`，结果上限使用与 `glob` 一致的 `max_results`，`output_mode` 是 `content | files_with_matches | count` 闭集；
+- 六个 filesystem 工具的外层继续拥有 concurrency / mutation-path 等真实附加能力，但 Definition 与 Call 都委托给同一个 typed function contract。未知字段、缺失字段和越界值不再被手写 `json.Unmarshal` 静默接受。
+
 ## 7. 删除与收敛
 
 ### 完全移除
@@ -210,7 +217,7 @@
 | 2b | session-scoped Plan mode | 完成 |
 | 3 | `create_goal` 与 idle continuation | 完成 |
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 完成 |
-| 5 | 工具名、参数和描述的全量收敛 | 进行中（5a、5b.1、5b.2 完成） |
+| 5 | 工具名、参数和描述的全量收敛 | 进行中（5a、5b.1、5b.2、5b.3 完成） |
 | 6 | 删除冗余能力和配置 | 待开始 |
 | 7 | 全仓验证、文档收敛和最终审计 | 待开始 |
 
@@ -297,3 +304,10 @@
 - 保留语义准确的 `read_tool_result` 工具名，将通用 `id/offset/limit` 收敛为 `result_id/offset_bytes/limit_bytes`，schema 直接约束 result identity 格式、非负 offset 与 `1..20000` 的单次读取上限；
 - offload preview、工具 description、续页提示和测试都使用同一 JSON 参数形状；续页结果直接给出下一次 `result_id + offset_bytes`，不再让模型从自然语言单位中猜字段；
 - 删除模型入口对负 offset、超大 limit 和旧字段的静默容忍；内部 `offload.ID`、SQLite store 与 artifact identity 保持领域内聚，不为参数重命名增加 DTO、兼容字段或跨模块 wrapper。
+
+### 批次 5b.3
+
+- 将 `read/write/edit` 输入和 `apply_patch` 文件结果统一为 `path`，同步 mutation guard、并发键、approval subject、diagnostics、展示投影和 server 测试；待删除的 `download` 不做过渡性重命名；
+- 从模型 `write` 删除 append，现有文件的完整替换一律执行 full-read guard；Executor 的 append 字段留在 filesystem SPI 内部，没有为了工具面收敛破坏非模型消费者；
+- 收敛 `grep` 参数为 `file_glob/file_type/before_context_lines/after_context_lines/output_mode/max_results`，删除 `context/head_limit/glob/type` 多义或重叠字段，并为 context、result cap 和 output enum 增加严格边界；
+- 文件工具外壳复用通用 `tool.Func` 的同一份 schema + decoder + result encoder，只额外实现 concurrency 与 mutation-path capability；没有把 runtime guard、working directory 或 permission 概念下沉到 `tool` 或 `tools/fs` Executor。

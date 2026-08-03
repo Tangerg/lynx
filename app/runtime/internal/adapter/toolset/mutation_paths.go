@@ -28,7 +28,7 @@ func mutationPaths(tool toolcontract.Tool, arguments string) ([]string, error) {
 	}
 	if len(paths) == 0 {
 		var a struct {
-			Path string `json:"file_path"`
+			Path string `json:"path"`
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
 		if a.Path != "" {

@@ -43,7 +43,7 @@ func TestServiceRememberDecide(t *testing.T) {
 func TestServiceScopeVisibilityAndForget(t *testing.T) {
 	ctx := context.Background()
 	svc := newPolicy(t)
-	arguments := parseArguments(t, `{"file_path":"x"}`)
+	arguments := parseArguments(t, `{"path":"x"}`)
 	if err := svc.Remember(ctx, approval.RememberRequest{
 		Scope: approval.ScopeProject, ProjectDir: "/proj/a", Tool: "write", Arguments: arguments, Decision: approval.Allow,
 	}); err != nil {

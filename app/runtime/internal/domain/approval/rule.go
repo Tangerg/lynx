@@ -65,7 +65,9 @@ func (q Query) subject() (string, error) {
 	switch q.Tool {
 	case "shell":
 		field = "command"
-	case "read", "write", "edit", "download":
+	case "read", "write", "edit":
+		field = "path"
+	case "download":
 		field = "file_path"
 	default:
 		return "", nil

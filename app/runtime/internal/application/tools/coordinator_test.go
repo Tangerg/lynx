@@ -57,11 +57,11 @@ func TestInvokeUsesRegistry(t *testing.T) {
 	roots := &rootRecorder{}
 	c := New(invoker, roots)
 
-	got, err := c.Invoke(context.Background(), Invocation{Name: "read", Arguments: `{"file_path":"main.go"}`, Cwd: "/requested"})
+	got, err := c.Invoke(context.Background(), Invocation{Name: "read", Arguments: `{"path":"main.go"}`, Cwd: "/requested"})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if text, ok := got.String(); !ok || text != "ok" || roots.root != "/requested" || invoker.root != "/workspace" || invoker.name != "read" || invoker.arguments != `{"file_path":"main.go"}` {
+	if text, ok := got.String(); !ok || text != "ok" || roots.root != "/requested" || invoker.root != "/workspace" || invoker.name != "read" || invoker.arguments != `{"path":"main.go"}` {
 		t.Fatalf("result=%#v cwd=%q root=%q name=%q arguments=%q", got, roots.root, invoker.root, invoker.name, invoker.arguments)
 	}
 }

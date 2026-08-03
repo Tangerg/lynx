@@ -214,13 +214,13 @@ func presentWebSearchResult(result tool.Result) tool.Result {
 }
 
 type editArguments struct {
-	FilePath  string `json:"file_path"`
+	Path      string `json:"path"`
 	OldString string `json:"old_string"`
 	NewString string `json:"new_string"`
 }
 
 type writeArguments struct {
-	FilePath string `json:"file_path"`
+	Path string `json:"path"`
 }
 
 type changePresentation struct {
@@ -262,18 +262,18 @@ func presentEditResult(arguments tool.Arguments, result tool.Result) tool.Result
 	if _, ok := decodeResult[changePresentation](result, "changes"); ok {
 		return result
 	}
-	args, ok := decodeArguments[editArguments](arguments, "file_path")
-	if !ok || args.FilePath == "" {
+	args, ok := decodeArguments[editArguments](arguments, "path")
+	if !ok || args.Path == "" {
 		return result
 	}
-	change := presentedChange{Path: args.FilePath, Status: changeModified}
+	change := presentedChange{Path: args.Path, Status: changeModified}
 	change.Diff = editDiff(args.OldString, args.NewString)
 	return projectResult(result, changePresentation{Changes: []presentedChange{change}})
 }
 
 type applyPatchResult struct {
 	Files []struct {
-		FilePath  string `json:"file_path"`
+		Path      string `json:"path"`
 		Created   bool   `json:"created"`
 		Deleted   bool   `json:"deleted"`
 		MovedFrom string `json:"moved_from"`
@@ -300,7 +300,7 @@ func presentApplyPatchResult(result tool.Result) tool.Result {
 			status = changeDeleted
 		}
 		changes = append(changes, presentedChange{
-			Path: file.FilePath, Status: status, From: file.MovedFrom,
+			Path: file.Path, Status: status, From: file.MovedFrom,
 		})
 	}
 	return projectResult(result, changePresentation{Changes: changes})
@@ -310,12 +310,12 @@ func presentWriteResult(arguments tool.Arguments, result tool.Result) tool.Resul
 	if _, ok := decodeResult[changePresentation](result, "changes"); ok {
 		return result
 	}
-	args, ok := decodeArguments[writeArguments](arguments, "file_path")
-	if !ok || args.FilePath == "" {
+	args, ok := decodeArguments[writeArguments](arguments, "path")
+	if !ok || args.Path == "" {
 		return result
 	}
 	return projectResult(result, changePresentation{Changes: []presentedChange{{
-		Path: args.FilePath, Status: changeModified,
+		Path: args.Path, Status: changeModified,
 	}}})
 }
 

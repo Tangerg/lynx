@@ -34,7 +34,7 @@ func TestPresenterCommandResult(t *testing.T) {
 }
 
 func TestPresenterEditResult(t *testing.T) {
-	arguments, err := tool.ParseArguments(`{"file_path":"a.go","old_string":"old\n","new_string":"new\n"}`)
+	arguments, err := tool.ParseArguments(`{"path":"a.go","old_string":"old\n","new_string":"new\n"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,8 +59,8 @@ func TestPresenterApplyPatchResult(t *testing.T) {
 		toolNameApplyPatch,
 		tool.Arguments{},
 		mustToolResult(t, map[string]any{"files": []any{
-			map[string]any{"file_path": "new.go", "created": true},
-			map[string]any{"file_path": "next.go", "moved_from": "old.go"},
+			map[string]any{"path": "new.go", "created": true},
+			map[string]any{"path": "next.go", "moved_from": "old.go"},
 		}}),
 	)
 	want := map[string]any{"changes": []any{

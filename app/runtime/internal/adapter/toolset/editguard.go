@@ -34,7 +34,7 @@ func withReadTracking(inner toolcontract.Tool, tr *editguardstate.Tracker, workd
 			return out, err
 		}
 		var a struct {
-			Path   string `json:"file_path"`
+			Path   string `json:"path"`
 			Offset int    `json:"offset"`
 			Limit  int    `json:"limit"`
 		}
@@ -88,7 +88,7 @@ func withEditGuard(inner toolcontract.Tool, tr *editguardstate.Tracker, workdir 
 }
 
 // withWriteGuard wraps the write tool: overwriting an EXISTING file requires a
-// full, current read (a new file or an append is exempt — there's nothing to
+// full, current read (a new file is exempt because there is nothing to
 // clobber). The stamp is refreshed after a successful write.
 func withWriteGuard(inner toolcontract.Tool, tr *editguardstate.Tracker, workdir string) toolcontract.Tool {
 	if tr == nil {
@@ -96,11 +96,10 @@ func withWriteGuard(inner toolcontract.Tool, tr *editguardstate.Tracker, workdir
 	}
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
 		var a struct {
-			Path   string `json:"file_path"`
-			Append bool   `json:"append"`
+			Path string `json:"path"`
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
-		if a.Path != "" && !a.Append {
+		if a.Path != "" {
 			abs := pathidentity.Canonical(workdir, a.Path)
 			if isExistingFile(abs) {
 				fingerprint, err := fingerprintFile(abs)

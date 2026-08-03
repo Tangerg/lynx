@@ -50,7 +50,7 @@ func TestDiagnosticRegistryInvokesWithinRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	registry := toolset.NewDiagnosticRegistry()
-	output, err := registry.Invoke(t.Context(), root, "read", `{"file_path":"note.txt"}`)
+	output, err := registry.Invoke(t.Context(), root, "read", `{"path":"note.txt"}`)
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -65,11 +65,14 @@ func TestDiagnosticRegistryRejectsUnknownOrEscapingTool(t *testing.T) {
 		t.Fatal("Invoke error = nil, want unknown-tool error")
 	}
 	outside := t.TempDir()
-	if _, err := registry.Invoke(t.Context(), outside, "read", `{"file_path":"../escape"}`); err == nil {
+	if _, err := registry.Invoke(t.Context(), outside, "read", `{"path":"../escape"}`); err == nil {
 		t.Fatal("Invoke escaping path error = nil")
 	}
 	if _, err := registry.Invoke(t.Context(), outside, "glob", `{"pattern":"../**/*"}`); err == nil {
 		t.Fatal("Invoke escaping glob pattern error = nil")
+	}
+	if _, err := registry.Invoke(t.Context(), outside, "read", `{"path":"safe.txt","file_path":"ignored.txt"}`); err == nil {
+		t.Fatal("Invoke read with removed file_path error = nil")
 	}
 }
 
@@ -83,7 +86,7 @@ func TestDiagnosticRegistryRejectsSymlinkEscape(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := toolset.NewDiagnosticRegistry().Invoke(t.Context(), root, "read", `{"file_path":"outside/secret.txt"}`)
+	_, err := toolset.NewDiagnosticRegistry().Invoke(t.Context(), root, "read", `{"path":"outside/secret.txt"}`)
 	if !errors.Is(err, workspaceapp.ErrPathOutsideRoot) {
 		t.Fatalf("Invoke symlink escape error = %v, want ErrPathOutsideRoot", err)
 	}

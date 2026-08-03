@@ -62,7 +62,7 @@ func TestInvokeToolPassesJSONArgumentsToRuntime(t *testing.T) {
 
 	got, err := s.InvokeTool(context.Background(), protocol.InvokeToolRequest{
 		Name:      "read",
-		Arguments: map[string]any{"file_path": "main.go"},
+		Arguments: map[string]any{"path": "main.go"},
 		Workspace: &protocol.WorkspaceRef{Path: "/workspace"},
 	})
 	if err != nil {
@@ -78,7 +78,7 @@ func TestInvokeToolPassesJSONArgumentsToRuntime(t *testing.T) {
 	if err := json.Unmarshal([]byte(rt.invokedPayload), &payload); err != nil {
 		t.Fatalf("payload %q is not JSON: %v", rt.invokedPayload, err)
 	}
-	if payload["file_path"] != "main.go" {
-		t.Fatalf("payload = %+v, want file_path=main.go", payload)
+	if payload["path"] != "main.go" {
+		t.Fatalf("payload = %+v, want path=main.go", payload)
 	}
 }

@@ -277,7 +277,7 @@ func TestReducerPreservesRawToolResultsAndExplicitFileNudges(t *testing.T) {
 		t.Fatalf("raw command result = %#v", completed.Tool.Result)
 	}
 
-	mustReduce(t, reducer, ToolCallStart{CallID: "write_1", ToolName: "write", Arguments: `{"file_path":"src/a.go"}`})
+	mustReduce(t, reducer, ToolCallStart{CallID: "write_1", ToolName: "write", Arguments: `{"path":"src/a.go"}`})
 	write := mustReduce(t, reducer, ToolCallEnd{
 		CallID: "write_1", Result: testToolResult(t, map[string]any{}), MutatedPaths: []string{"src/a.go"},
 	})
