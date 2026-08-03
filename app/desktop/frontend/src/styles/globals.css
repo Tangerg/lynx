@@ -102,10 +102,11 @@
 
   /* Decorative line utilities stay transparent by default. Region separation is
      structural and owned by the shell, and under this style it is never a line:
-     three directional casts (`--app-card-edge` in from the drawer seam,
-     `--app-pane-split` across a pane split, `--app-header-cast` down off a chrome
-     bar) plus `--seam-line` for a floating panel, which has no value delta to lean
-     on. A flat style answers the same three seams by spelling those casts as rules.
+     three seam tokens (`--app-card-edge` on the plane's leading edge,
+     `--app-pane-split` on a pane's, `--app-header-edge` under a chrome bar), each a
+     half-pixel hairline over a material step, plus `--seam-line` for a floating
+     panel, which has no step to lean on. A style that wants depth spells those
+     three as casts instead and nothing else changes.
      Reach for `field` when a local control needs an editable edge — never for
      laying out regions. */
   --color-line: transparent;
@@ -425,9 +426,10 @@
   --color-text-on-fg: var(--color-bg);
 
   /* Hairlines are the edge of a CONTROL, never of a region: regions separate by
-     value plus a directional cast (the visual style owns both), so nothing here
-     is ever stretched into a pane divider. Keep in step with
-     `themes/lyra-light.ts`. */
+     value plus the seam tokens the visual style owns, so nothing here is ever
+     stretched into a pane divider BY A CALLSITE — the seams read `border` and
+     `border-soft` themselves, one weight for a bar inside a region and one for a
+     change of region. Keep in step with `themes/lyra-light.ts`. */
   --color-border: #dee1e7;
   --color-border-soft: #c6cad3;
   --color-divider: rgb(0 0 0 / 0.07);
@@ -664,7 +666,7 @@
   --color-focus-ring: color-mix(in oklab, var(--color-accent) 50%, transparent);
 
   /* Workbench regions: opaque tool windows around one reading plane, separated by
-     value and a directional cast rather than by lines. First-paint mirror of the
+     value and a half-pixel seam. First-paint mirror of the
      visual style, which owns the region algorithm. */
   --app-drawer-surface: var(--color-surface);
   --app-content-surface: var(--color-bg);
@@ -679,15 +681,15 @@
      declared on :root resolves AT :root, where those two do not exist. That is
      why the seam rail's drag emphasis and the collapsed drawer's "no edge to
      cast" both did nothing for as long as they have been written down. */
-  --app-card-edge: inset 6px 0 13px -9px;
-  --app-pane-split: -4px 0 12px -9px;
-  --app-pane-split-end: 4px 0 12px -9px;
-  --app-header-cast: 0 5px 11px -7px;
+  --app-card-edge: inset 0.5px 0 0 0;
+  --app-pane-split: inset 0.5px 0 0 0;
+  --app-pane-split-end: inset -0.5px 0 0 0;
+  --app-header-edge: inset 0 -0.5px 0 0;
   --seam-line: color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%);
   /* What a boundary deepens to while it is being dragged. Both drag handles read
      it, so "the drawer seam and the dock split are the same gesture" is one value
      rather than two that agree today. */
-  --boundary-emphasis: color-mix(in oklab, var(--color-text) 28%, var(--shadow-cast));
+  --boundary-emphasis: color-mix(in oklab, var(--color-text) 28%, var(--color-border-soft));
 
   /* The reading column, and the gutter on either side of it.
      ONE width for both gutters, and it is not negotiable: the column is what
@@ -1191,7 +1193,9 @@ html.theme-dark {
    and a panel that sits underneath cannot cast onto what covers it.
    `--shell-boundary` is the contract with the active visual style: the shell says
    how strong the edge is right now, `--app-card-edge` says what shape it takes —
-   a hairline for a flat family, a directional cast for a spatial one. */
+   half a pixel here, a directional cast for a style that wants depth. A COLUMN
+   boundary takes the stronger of the two hairline weights; the bar inside one takes
+   the lighter. */
 .agent-content-card {
   position: relative;
   display: flex;
@@ -1202,7 +1206,7 @@ html.theme-dark {
   overflow: hidden;
   background: var(--app-content-surface);
   border-radius: 0;
-  --shell-boundary: var(--shadow-cast);
+  --shell-boundary: var(--color-border-soft);
   box-shadow: var(--app-card-edge) var(--shell-boundary);
   transition: box-shadow var(--dur-drawer) var(--ease-drawer);
 }
@@ -1266,22 +1270,19 @@ html.theme-dark {
   padding-inline-end: 12px;
 }
 
-/* The bottom edge of a chrome bar — the third of the three seams around a
-   reading plane, and the same mechanism as the other two: the style says what
-   shape the edge takes, the element names how strong it is.
-   `--app-header-cast` makes it a downward cast, the way anything resting on a
-   surface separates from it; a flat style would spell the same token as a hairline
-   (`inset 0 -1px 0 0`) and every bar would follow without being edited.
-   Which bars take it is the `divider` prop: a bar that already butts against
-   another region opts out, so the drawer header and the settings bar have no edge
-   while the page identity, the dock's tab strip and the review navigator do.
-
-   A hairline half used to sit here for a flat style to switch to. It is gone: a
-   style that wants rules can spell `--app-header-cast` AS a rule
-   (`inset 0 -1px 0 0`) and every bar follows, so the second mechanism bought
-   nothing but a token nobody set and a corner patch for a line nobody drew. */
+/* The bottom edge of a chrome bar — the third of the three seams around a reading
+   plane, and the same mechanism as the other two: the style says what shape the edge
+   takes, the element names how strong it is.
+   This one takes `--color-border` where the two column seams take `--color-border-soft`.
+   Not a hedge: a bar is a change of role INSIDE one region, a column is a change of
+   region, and the reference weights them apart by the same ratio (225 against 207 on
+   a 255 plane). A style that wants depth spells the token as a cast and every bar
+   follows without being edited.
+   Which bars take it is the `divider` prop: a bar that already butts against another
+   region opts out, so the drawer header and the settings bar have no edge while the
+   page identity, the dock's tab strip and the review navigator do. */
 .agent-surface-divider {
-  box-shadow: var(--app-header-cast) var(--shadow-cast);
+  box-shadow: var(--app-header-edge) var(--color-border);
 }
 
 /* When the drawer collapses, the content bar reaches the window corner and
@@ -1307,7 +1308,7 @@ html.theme-dark {
   z-index: 1;
   /* Same contract as `--shell-boundary` on the reading plane: the shell says how
      strong this edge is right now, the visual style says what shape it takes. */
-  --split-boundary: var(--shadow-cast);
+  --split-boundary: var(--color-border-soft);
   box-shadow: var(--app-pane-split) var(--split-boundary);
   transition: box-shadow var(--dur-fast) ease-out;
 }

@@ -233,17 +233,15 @@ test("long content remains inside the reading column without horizontal overflow
   await expect(page.locator('[data-slot="composer-root"]')).toBeVisible();
 });
 
-// The three seams around the reading plane are one mechanism at three angles, and
-// the top one is the easy one to lose: it is a soft 19px band, so the raster
-// comparison can pass on its absence, and the bars sit in their region's own colour
-// with the body scrolling under them — with no seam the session title and the first
-// line of a message share one field of white.
-// Asserted on the MECHANISM, not on one bar: the cast used to hang off a bespoke
-// class, which is why the page identity got an edge and the dock's tab strip — the
-// bar right beside it, in the same visual row — got none.
-test("every chrome bar that takes a bottom edge separates by cast, not by a rule", async ({
-  page,
-}) => {
+// The three seams around the reading plane are one primitive, and the top one is the
+// easy one to lose: half a device pixel, so the raster comparison can pass on its
+// absence, and the bars sit in their region's own colour with the body scrolling
+// under them — with no seam the session title and the first line of a message share
+// one field of white.
+// Asserted on the MECHANISM, not on one bar: the edge used to hang off a bespoke
+// class, which is why the page identity got one and the dock's tab strip — the bar
+// right beside it, in the same visual row — got none.
+test("every chrome bar that takes a bottom edge wears the style edge", async ({ page }) => {
   await page.goto("/visual/?fixture=workspace&theme=light&state=dock-light");
   await page.locator("html[data-visual-ready]").waitFor();
 
@@ -253,13 +251,13 @@ test("every chrome bar that takes a bottom edge separates by cast, not by a rule
     // `0px`) and the tokens are not, so a string built here would only ever assert
     // that this test can reproduce Chromium's serialiser.
     const probe = document.createElement("div");
-    probe.style.boxShadow = "var(--app-header-cast) var(--shadow-cast)";
+    probe.style.boxShadow = "var(--app-header-edge) var(--color-border)";
     document.body.append(probe);
-    const cast = getComputedStyle(probe).boxShadow;
+    const edge = getComputedStyle(probe).boxShadow;
     probe.remove();
     const bars = [...document.querySelectorAll(".agent-surface-header")];
     return {
-      cast,
+      edge,
       withEdge: bars
         .filter((bar) => bar.classList.contains("agent-surface-divider"))
         .map((bar) => getComputedStyle(bar).boxShadow),
@@ -270,7 +268,7 @@ test("every chrome bar that takes a bottom edge separates by cast, not by a rule
   });
 
   expect(measured.withEdge.length).toBeGreaterThanOrEqual(2);
-  for (const shadow of measured.withEdge) expect(shadow).toBe(measured.cast);
+  for (const shadow of measured.withEdge) expect(shadow).toBe(measured.edge);
   // A bar that already butts against another region takes nothing.
   for (const shadow of measured.withoutEdge) expect(shadow).toBe("none");
 });

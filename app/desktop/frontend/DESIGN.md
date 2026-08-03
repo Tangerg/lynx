@@ -389,11 +389,13 @@ The whole system reduces to five decisions. Everything below elaborates them.
 1. **Tool windows around one reading plane** (revised 2026-08; supersedes both
    "flush background delta" and "card over drawer"). Three opaque materials — the
    plane you read on, the chrome columns that frame it, the cards placed on it —
-   separated by VALUE, with a short directional cast at each seam and **no line
-   anywhere between regions**. The plane is the darkest surface on dark and the
-   brightest on light; the chrome steps the other way. A hairline is the edge of a
-   *control*, never of a region. Which mechanism draws which boundary belongs to
-   the active visual style, not to any call site.
+   separated by VALUE, with **a single device pixel** over that step at each seam.
+   The plane is the darkest surface on dark and the brightest on light; the chrome
+   steps the other way. Both halves are load-bearing: the step alone measured too
+   small to read, and a line alone draws the columns as a wireframe of pasted
+   rectangles. Which mechanism draws which boundary belongs to the active visual
+   style, not to any call site — this one spells its three seam tokens as hairlines;
+   a spatial style spells the same three as casts and nothing else changes.
 2. **Near-monochrome, one restrained accent** — overall black/white/grey; the
    accent (a calm **blue**, user-selectable) marks live state, progress, focus,
    links, and the one primary action per surface. It is the CTA fill too: this
@@ -426,8 +428,8 @@ Light and dark are **equal first-class themes**; the default follows the OS (`pr
 **Reference** — the direction is the JetBrains tool-window language: an editor you
 are *inside*, framed by opaque panels, with the technical layer set in mono.
 
-- **Region model**: three materials and no dividing lines; depth from value plus a
-  directional cast. The reading plane is the one surface that is not chrome.
+- **Region model**: three materials, each seam a half-pixel hairline over a value
+  step. The reading plane is the one surface that is not chrome.
 - **Density**: short chrome bars, two-line index rows, borderless cards.
 - **Voice**: sans for language, mono for data — and the mono is load-bearing, not
   decorative, because most of what an agent transcript reports IS data.
@@ -488,9 +490,18 @@ ink over a near-black surface moves it a third as far, in perceived lightness, a
 
 ### Hairlines
 
-A hairline is the edge of a **control** — a text field, a chip, the composer.
-Regions do not get one: they separate by value plus `--app-card-edge` /
-`--app-pane-split`, the directional casts the visual style owns.
+A hairline is the edge of a **control** — a text field, a chip, the composer — and
+of a **region**: the two are the same primitive at two weights. A change of region
+takes `border-soft`, a bar inside one takes `border`, and the reference weights them
+apart by the same ratio (207 against 225 on a 255 plane). Regions get theirs from
+`--app-card-edge` / `--app-pane-split` / `--app-header-edge`, whose SHAPE the visual
+style owns; a callsite never draws a region boundary itself.
+
+Half a pixel, not one. On a 2x panel that is exactly one device pixel, which is what
+makes an edge crisp without giving it weight — at 1px the composer carried the
+heaviest line on the screen. The earlier revision of this section spread a
+directional cast at each seam instead; a cast lands ON the reading plane, so all
+three seams read as pressing down on the document.
 
 There is one other case, and only one: an object that **demands attention** — a
 pending approval, a failed run. It is neither a region nor a control, and it takes

@@ -39,7 +39,7 @@ type VisualStyleTokenName =
   | "app-card-edge"
   | "app-pane-split"
   | "app-pane-split-end"
-  | "app-header-cast"
+  | "app-header-edge"
   | "seam-line"
   | "shadow-border"
   | "shadow-control"
@@ -99,11 +99,12 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   "wash-selected": "color-mix(in srgb, var(--color-text) var(--depth-step), transparent)",
 
   // ---- Regions -----------------------------------------------------------
-  // Tool windows: three opaque materials and NO line anywhere between them. The
-  // plane is the reading surface, the chrome columns step away from it, and each
-  // seam is carried by a short directional cast from the column that overlaps.
-  // A hairline here would draw the columns as a wireframe of pasted rectangles —
-  // the value delta is the separation, the cast is the depth.
+  // Tool windows: three opaque materials. The plane is the reading surface, the
+  // chrome columns step away from it, and each seam is a single device pixel over
+  // that step. The value delta is the separation; the hairline is what makes it
+  // crisp instead of approximate. Both halves are load-bearing — the delta alone
+  // measured too small to read, and a line alone would draw the columns as a
+  // wireframe of pasted rectangles.
   "app-drawer-surface": "var(--color-surface)",
   "app-content-surface": "var(--color-bg)",
   // Bars inherit whatever region they sit in. A chrome bar is not a third
@@ -120,34 +121,32 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // gets its bordered input back.
   "app-composer-surface": "color-mix(in oklab, var(--app-content-surface) 86%, transparent)",
   "composer-backdrop": "blur(20px) saturate(1.4)",
-  // The drawer's cast, drawn INSIDE the plane: the plane outranks the drawer on
-  // z-index so the drawer can slide under it, which means the drawer cannot cast
-  // onto it from outside.
+  // The drawer's boundary, drawn INSIDE the plane: the plane outranks the drawer on
+  // z-index so the drawer can slide under it, which means the drawer cannot draw the
+  // seam from outside.
   //
-  // GEOMETRY ONLY — a style says what shape an edge takes (a spread cast here, a
-  // hairline `inset 1px 0 0 0` for a flat family), and the shell says how strong
-  // it is right now by naming the colour on the element itself. Putting the
-  // colour in the token looks equivalent and is not: the token is declared on
-  // :root, so any var() in it resolves there, where the shell's live boundary
-  // variables do not exist.
+  // GEOMETRY ONLY — a style says what shape an edge takes and the shell says how
+  // strong it is right now, by naming the colour on the element itself. Putting the
+  // colour in the token looks equivalent and is not: the token is declared on :root,
+  // so any var() in it resolves there, where the shell's live boundary variables do
+  // not exist.
   //
-  // A cast MARKS a seam; it does not lift a region. Every one of these used to
-  // spread ~20px of gradient onto the reading plane, which is a shadow falling on
-  // paper — three regions reading as stacked over the text instead of beside it.
-  // The reference this language follows separates its columns by material alone
-  // (its own two casts resolve to nothing on screen: spread -28 against blur 30),
-  // and now that the plane is pure white against tinted chrome there IS a material
-  // delta to lean on: 4.2 L to the drawer, 3.2 L to the dock. So these are down to
-  // an optical edge — 3px at the sides, where they only sharpen a step that already
-  // reads — and the top carries more because it is the one seam with no delta
-  // behind it: a bar in the plane's own colour, with the document scrolling under.
-  "app-card-edge": "inset 6px 0 13px -9px",
-  // A pane that splits the region it lives in casts across the split instead.
-  "app-pane-split": "-4px 0 12px -9px",
-  "app-pane-split-end": "4px 0 12px -9px",
-  // The same cast, rotated: a bar that sits on a plane with the document scrolling
-  // under it separates downward. Wider than the sides for the reason above.
-  "app-header-cast": "0 5px 11px -7px",
+  // HALF A PIXEL, NOT A CAST. These were directional casts, and a cast spreads onto
+  // the reading plane — which is a shadow falling on paper, so all three seams read
+  // as pressing down on the document. The reference draws every one of them as a
+  // single device pixel instead (measured at 2x: 207 down the vertical seam, 225
+  // under a chrome bar, against a 255 plane) and keeps the material delta underneath.
+  // One primitive for the whole screen, the same one the composer's edge uses: an
+  // edge that is crisp and carries no weight. The two weights are OUR ramp, and the
+  // distinction is real — a column change earns `border-soft`, a bar inside one
+  // region earns `border`.
+  "app-card-edge": "inset 0.5px 0 0 0",
+  // A pane that splits the region it lives in carries the line on its own leading
+  // edge; `-end` is the mirror, for a pane docked to the other side.
+  "app-pane-split": "inset 0.5px 0 0 0",
+  "app-pane-split-end": "inset -0.5px 0 0 0",
+  // The bottom edge of a chrome bar.
+  "app-header-edge": "inset 0 -0.5px 0 0",
   // Reserved for the one place an optical ring still earns its pixel: a floating
   // panel, which has no value delta to lean on because it can land over anything.
   "seam-line": "color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%)",

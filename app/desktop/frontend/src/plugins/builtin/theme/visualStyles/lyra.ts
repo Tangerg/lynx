@@ -5,7 +5,7 @@ import { visualStyleTokens, WORKBENCH_MOTION } from "./tokens";
  * The product's one built-in workbench language.
  *
  * JetBrains tool windows: a quiet reading plane framed by opaque chrome columns,
- * separated by value and a directional cast rather than by lines, with borderless
+ * separated by value and a half-pixel hairline at each seam, with borderless
  * cards and technical type set in mono. Colour stays semantic, so every colour
  * theme inherits the same region algorithm without hard-coded light or dark
  * values — the style says where the depth is, the theme says how dark.
@@ -13,7 +13,7 @@ import { visualStyleTokens, WORKBENCH_MOTION } from "./tokens";
 export const lyraStyle: VisualStyleSpec = {
   id: "lyra",
   label: "Lynx Workbench",
-  description: "Tool-window geometry: opaque columns, borderless cards, no dividing lines.",
+  description: "Tool-window geometry: opaque columns, borderless cards, half-pixel seams.",
   order: -10,
   traits: { regions: "tool-windows", controls: "quiet" },
   motion: WORKBENCH_MOTION,
