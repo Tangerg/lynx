@@ -176,6 +176,35 @@ test("long content remains inside the reading column without horizontal overflow
   await expect(page.locator('[data-slot="composer-root"]')).toBeVisible();
 });
 
+// The composer floats over the transcript, so the transcript has to end above it.
+// Nothing else can catch this: the tail is only reachable at full scroll, the
+// overlap looks plausible on a fixture that fits its viewport, and the reservation
+// is published by a ResizeObserver rather than written in a class — so it can be
+// silently zero and every other assertion still passes.
+for (const state of ["long-content", "question", "delegated"] as const) {
+  test(`the floating composer reserves its own height at the tail of ${state}`, async ({
+    page,
+  }) => {
+    await page.goto(`/visual/?fixture=agent&theme=light&state=${state}`);
+    await page.locator("html[data-visual-ready]").waitFor();
+
+    const clearance = await page.evaluate(async () => {
+      const scroller = document.querySelector(".msg-scroll-viewport");
+      const composer = document.querySelector('[data-slot="composer-root"]');
+      if (!scroller || !composer) return null;
+      scroller.scrollTop = scroller.scrollHeight;
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const tail = scroller.firstElementChild?.lastElementChild;
+      if (!tail) return null;
+      return Math.round(composer.getBoundingClientRect().top - tail.getBoundingClientRect().bottom);
+    });
+
+    // A number, not just "positive": the fade band above the input is scenery, and
+    // a tail that ends inside it is a tail the user reads through a gradient.
+    expect(clearance).toBeGreaterThanOrEqual(48);
+  });
+}
+
 for (const theme of ["light", "dark"] as const) {
   for (const state of VISUAL_AGENT_STATES) {
     test(`agent golden ${theme} ${state}`, async ({ page }) => {

@@ -34,12 +34,23 @@ export function FloatingComposer({
   // Written straight to the element rather than held in state: the composer
   // resizes on the keystroke that wraps a line, and routing that through a
   // render would put the whole message list on the typing path.
+  //
+  // The target is resolved inside the callback, and it has to be. React attaches
+  // refs child-first, so when this effect runs the ANCESTOR named by
+  // `publishHeightTo` has no element yet — and an effect that reads it here and
+  // bails on null never runs again, because a ref object is stable and nothing
+  // ever invalidates the dep. The observer fires after the commit, by which time
+  // the ancestor is mounted, so reading it there is both correct and the only
+  // place it can be read. Hoisting it out for "one less deref" silently gives the
+  // transcript zero clearance and hands the composer the tail of every message.
   useLayoutEffect(() => {
-    const target = publishHeightTo.current;
     const element = overlay.current;
-    if (!target || !element) return;
+    if (!element) return;
     const observer = new ResizeObserver(() => {
-      target.style.setProperty(COMPOSER_OVERLAY_PROPERTY, `${element.offsetHeight}px`);
+      publishHeightTo.current?.style.setProperty(
+        COMPOSER_OVERLAY_PROPERTY,
+        `${element.offsetHeight}px`,
+      );
     });
     observer.observe(element);
     return () => observer.disconnect();
