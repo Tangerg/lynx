@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 type fileMutationReporter interface {
@@ -36,6 +38,51 @@ func TestTools_Definitions(t *testing.T) {
 	}
 }
 
+func TestToolContractsUseOneStrictFileVocabulary(t *testing.T) {
+	for _, candidate := range []struct {
+		name string
+		tool interface {
+			Definition() chat.ToolDefinition
+			Call(context.Context, string) (string, error)
+		}
+		removedArguments string
+	}{
+		{"read", NewReadTool(nil), `{"file_path":"old.txt"}`},
+		{"write", NewWriteTool(nil), `{"path":"new.txt","content":"x","append":true}`},
+		{"edit", NewEditTool(nil), `{"file_path":"old.txt","old_string":"a","new_string":"b"}`},
+		{"apply_patch", NewApplyPatchTool(nil), `{"patch":"x","unknown":true}`},
+		{"glob", NewGlobTool(nil), `{"pattern":"**/*","max_results":1001}`},
+		{"grep", NewGrepTool(nil), `{"pattern":"x","head_limit":1}`},
+	} {
+		t.Run(candidate.name, func(t *testing.T) {
+			definition := candidate.tool.Definition()
+			if strings.Contains(string(definition.InputSchema), `"file_path"`) {
+				t.Fatalf("schema still exposes file_path: %s", definition.InputSchema)
+			}
+			if _, err := candidate.tool.Call(t.Context(), candidate.removedArguments); err == nil {
+				t.Fatalf("accepted removed or out-of-range arguments: %s", candidate.removedArguments)
+			}
+		})
+	}
+}
+
+func TestGrepContractRejectsAmbiguousPagingAndContextFields(t *testing.T) {
+	grep := NewGrepTool(nil)
+	for _, arguments := range []string{
+		`{"pattern":"x","glob":"**/*.go"}`,
+		`{"pattern":"x","type":"go"}`,
+		`{"pattern":"x","context":2}`,
+		`{"pattern":"x","before_context":2}`,
+		`{"pattern":"x","after_context":2}`,
+		`{"pattern":"x","output_mode":"paths"}`,
+		`{"pattern":"x","before_context_lines":21}`,
+	} {
+		if _, err := grep.Call(t.Context(), arguments); err == nil {
+			t.Fatalf("grep accepted invalid arguments: %s", arguments)
+		}
+	}
+}
+
 func TestFileToolsReportMutationPaths(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -43,8 +90,8 @@ func TestFileToolsReportMutationPaths(t *testing.T) {
 		arguments string
 		want      []string
 	}{
-		{"write", NewWriteTool(nil), `{"file_path":"a.go"}`, []string{"a.go"}},
-		{"edit", NewEditTool(nil), `{"file_path":"b.go"}`, []string{"b.go"}},
+		{"write", NewWriteTool(nil), `{"path":"a.go"}`, []string{"a.go"}},
+		{"edit", NewEditTool(nil), `{"path":"b.go"}`, []string{"b.go"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -66,7 +113,7 @@ func TestReadTool_OneBasedOffsetTranslation(t *testing.T) {
 	tool := NewReadTool(nil)
 
 	// offset=2 (1-based) means "start at line 2"; limit=2 takes line2,line3
-	body, err := tool.Call(t.Context(), `{"file_path":"`+path+`","offset":2,"limit":2}`)
+	body, err := tool.Call(t.Context(), `{"path":"`+path+`","offset":2,"limit":2}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -88,7 +135,7 @@ func TestReadTool_OneBasedOffsetTranslation(t *testing.T) {
 func TestReadTool_OffsetZeroMeansStart(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "a\nb\nc\n")
-	body, err := NewReadTool(nil).Call(t.Context(), `{"file_path":"`+path+`","offset":0,"limit":1}`)
+	body, err := NewReadTool(nil).Call(t.Context(), `{"path":"`+path+`","offset":0,"limit":1}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -100,7 +147,7 @@ func TestReadTool_OffsetZeroMeansStart(t *testing.T) {
 }
 
 func TestReadTool_EmptyPath(t *testing.T) {
-	_, err := NewReadTool(nil).Call(t.Context(), `{"file_path":""}`)
+	_, err := NewReadTool(nil).Call(t.Context(), `{"path":""}`)
 	if err == nil {
 		t.Fatal("Call with empty path: want error")
 	}
@@ -109,7 +156,7 @@ func TestReadTool_EmptyPath(t *testing.T) {
 func TestWriteTool_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "x.txt")
-	body, err := NewWriteTool(nil).Call(t.Context(), `{"file_path":"`+path+`","content":"hi"}`)
+	body, err := NewWriteTool(nil).Call(t.Context(), `{"path":"`+path+`","content":"hi"}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -130,7 +177,7 @@ func TestEditTool_HappyPath(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "alpha beta\n")
 	body, err := NewEditTool(nil).Call(t.Context(),
-		`{"file_path":"`+path+`","old_string":"beta","new_string":"BETA"}`)
+		`{"path":"`+path+`","old_string":"beta","new_string":"BETA"}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}

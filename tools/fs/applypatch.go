@@ -11,7 +11,7 @@ import (
 
 // ApplyPatchRequest is the LLM-facing argument shape for the apply_patch tool.
 type ApplyPatchRequest struct {
-	Patch string `json:"patch" jsonschema:"required" jsonschema_description:"A standard unified diff. Supports create (--- /dev/null), modify, delete (+++ /dev/null), and move (the two headers naming different paths; a pure rename carries no hunks)."`
+	Patch string `json:"patch" jsonschema:"minLength=1" jsonschema_description:"Standard unified diff. Supports create, modify, delete, and move operations."`
 }
 
 // ApplyPatchResponse is the LLM-facing return shape.
@@ -22,20 +22,19 @@ type ApplyPatchResponse struct {
 
 // PatchFileResponse reports one patched file.
 type PatchFileResponse struct {
-	FilePath  string `json:"file_path"`
+	Path      string `json:"path"`
 	Hunks     int    `json:"hunks"`
 	Created   bool   `json:"created,omitempty"`
 	Deleted   bool   `json:"deleted,omitempty"`
 	MovedFrom string `json:"moved_from,omitempty"`
 }
 
-var applyPatchToolSchema, _ = toolcontract.Schema[ApplyPatchRequest]()
-
 var _ toolcontract.Tool = (*ApplyPatchTool)(nil)
 
 // ApplyPatchTool is the thin LLM-facing adapter for [Executor.ApplyPatch].
 type ApplyPatchTool struct {
 	executor Executor
+	typed    *toolcontract.Func[ApplyPatchRequest, ApplyPatchResponse]
 }
 
 // NewApplyPatchTool builds an [ApplyPatchTool] backed by executor. Passing nil
@@ -44,18 +43,21 @@ func NewApplyPatchTool(executor Executor) *ApplyPatchTool {
 	if executor == nil {
 		executor = NewLocalExecutor("")
 	}
-	return &ApplyPatchTool{executor: executor}
+	t := &ApplyPatchTool{executor: executor}
+	t.typed = mustTypedTool(
+		toolcontract.FuncConfig{
+			Name: "apply_patch",
+			Description: "Apply one standard unified diff across one or more files, including create, modify, delete, and move operations. " +
+				"Read existing files before patching them. Group coordinated multi-file changes in one patch. " +
+				"The patch must match exactly, and an existing move destination is never overwritten.",
+		},
+		t.apply,
+	)
+	return t
 }
 
 func (t *ApplyPatchTool) Definition() chat.ToolDefinition {
-	return chat.ToolDefinition{
-		Name: "apply_patch",
-		Description: "Apply a standard unified diff to one or more files, including creating, deleting and moving them. " +
-			"You must `read` existing files before patching them. Use this for coordinated multi-file changes — a rename plus the " +
-			"edits that follow from it is one call. The patch must match exactly; a destination that already exists is refused " +
-			"rather than overwritten.",
-		InputSchema: json.RawMessage(applyPatchToolSchema),
-	}
+	return t.typed.Definition()
 }
 
 func (*ApplyPatchTool) MutationPaths(arguments string) ([]string, error) {
@@ -67,27 +69,23 @@ func (*ApplyPatchTool) MutationPaths(arguments string) ([]string, error) {
 }
 
 func (t *ApplyPatchTool) Call(ctx context.Context, arguments string) (string, error) {
-	var req ApplyPatchRequest
-	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
-		return "", fmt.Errorf("fs.apply_patch: parse arguments: %w", err)
-	}
+	return t.typed.Call(ctx, arguments)
+}
+
+func (t *ApplyPatchTool) apply(ctx context.Context, req ApplyPatchRequest) (ApplyPatchResponse, error) {
 	res, err := t.executor.ApplyPatch(ctx, ApplyPatchInput(req))
 	if err != nil {
-		return "", fmt.Errorf("fs.apply_patch: %w", err)
+		return ApplyPatchResponse{}, fmt.Errorf("fs.apply_patch: %w", err)
 	}
 	files := make([]PatchFileResponse, len(res.Files))
 	for i, file := range res.Files {
 		files[i] = PatchFileResponse{
-			FilePath:  file.Path,
+			Path:      file.Path,
 			Hunks:     file.Hunks,
 			Created:   file.Created,
 			Deleted:   file.Deleted,
 			MovedFrom: file.MovedFrom,
 		}
 	}
-	body, err := json.Marshal(ApplyPatchResponse{Files: files, Hunks: res.Hunks})
-	if err != nil {
-		return "", fmt.Errorf("fs.apply_patch: marshal: %w", err)
-	}
-	return string(body), nil
+	return ApplyPatchResponse{Files: files, Hunks: res.Hunks}, nil
 }

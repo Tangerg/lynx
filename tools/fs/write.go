@@ -11,9 +11,8 @@ import (
 
 // WriteRequest is the LLM-facing argument shape for the write tool.
 type WriteRequest struct {
-	FilePath string `json:"file_path" jsonschema:"required" jsonschema_description:"Path to the file — absolute, or relative to the workspace root. Parent directories are created automatically."`
-	Content  string `json:"content" jsonschema:"required" jsonschema_description:"Full text content. Overwrites the file unless append=true. Must not contain NUL bytes."`
-	Append   bool   `json:"append,omitempty" jsonschema_description:"Append to the end of the file instead of overwriting. Default false."`
+	Path    string `json:"path" jsonschema:"minLength=1" jsonschema_description:"File path, absolute or relative to the workspace root. Parent directories are created automatically."`
+	Content string `json:"content" jsonschema_description:"Complete text content for the file. Existing content is replaced. Must not contain NUL bytes."`
 }
 
 // WriteResponse is the LLM-facing return shape.
@@ -21,13 +20,12 @@ type WriteResponse struct {
 	BytesWritten int `json:"bytes_written"`
 }
 
-var writeToolSchema, _ = toolcontract.Schema[WriteRequest]()
-
 var _ toolcontract.Tool = (*WriteTool)(nil)
 
 // WriteTool is the thin LLM-facing adapter for [Executor.Write].
 type WriteTool struct {
 	executor Executor
+	typed    *toolcontract.Func[WriteRequest, WriteResponse]
 }
 
 // NewWriteTool builds a [WriteTool] backed by executor. Passing nil
@@ -36,18 +34,21 @@ func NewWriteTool(executor Executor) *WriteTool {
 	if executor == nil {
 		executor = NewLocalExecutor("")
 	}
-	return &WriteTool{executor: executor}
+	t := &WriteTool{executor: executor}
+	t.typed = mustTypedTool(
+		toolcontract.FuncConfig{
+			Name: "write",
+			Description: "Create a file or replace the complete contents of an existing file. " +
+				"Before replacing an existing file, read the whole file; a blind overwrite is refused. " +
+				"Use edit for a targeted change to an existing file. Parent directories are created automatically.",
+		},
+		t.write,
+	)
+	return t
 }
 
 func (t *WriteTool) Definition() chat.ToolDefinition {
-	return chat.ToolDefinition{
-		Name: "write",
-		Description: "Create a new file, or overwrite / append to an existing one. " +
-			"Before overwriting a file that already exists you must `read` it first — a blind overwrite is refused. " +
-			"Prefer the `edit` tool when changing part of an existing file: it sends only the diff, and is cheaper and safer. " +
-			"Parent directories are created automatically.",
-		InputSchema: json.RawMessage(writeToolSchema),
-	}
+	return t.typed.Definition()
 }
 
 // ConcurrencyKey opts write into concurrent execution keyed on its target file
@@ -57,7 +58,7 @@ func (t *WriteTool) Definition() chat.ToolDefinition {
 func (t *WriteTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
 	var req WriteRequest
 	_ = json.Unmarshal([]byte(arguments), &req)
-	return req.FilePath, true
+	return req.Path, true
 }
 
 // MutationPaths reports the file targeted by this call.
@@ -66,27 +67,20 @@ func (*WriteTool) MutationPaths(arguments string) ([]string, error) {
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return nil, err
 	}
-	if req.FilePath == "" {
+	if req.Path == "" {
 		return nil, nil
 	}
-	return []string{req.FilePath}, nil
+	return []string{req.Path}, nil
 }
 
 func (t *WriteTool) Call(ctx context.Context, arguments string) (string, error) {
-	var req WriteRequest
-	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
-		return "", fmt.Errorf("fs.write: parse arguments: %w", err)
-	}
-	if req.FilePath == "" {
-		return "", fmt.Errorf("fs.write: %w", ErrEmptyPath)
-	}
-	res, err := t.executor.Write(ctx, WriteInput{Path: req.FilePath, Content: req.Content, Append: req.Append})
+	return t.typed.Call(ctx, arguments)
+}
+
+func (t *WriteTool) write(ctx context.Context, req WriteRequest) (WriteResponse, error) {
+	res, err := t.executor.Write(ctx, WriteInput{Path: req.Path, Content: req.Content})
 	if err != nil {
-		return "", fmt.Errorf("fs.write: %w", err)
+		return WriteResponse{}, fmt.Errorf("fs.write: %w", err)
 	}
-	body, err := json.Marshal(WriteResponse(res))
-	if err != nil {
-		return "", fmt.Errorf("fs.write: marshal: %w", err)
-	}
-	return string(body), nil
+	return WriteResponse(res), nil
 }

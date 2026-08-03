@@ -2,7 +2,6 @@ package fs
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/chat"
@@ -11,10 +10,10 @@ import (
 
 // GlobRequest is the LLM-facing argument shape for the glob tool.
 type GlobRequest struct {
-	Pattern    string `json:"pattern" jsonschema:"required" jsonschema_description:"Doublestar glob pattern. Examples: \"**/*.go\" (all Go files), \"src/**/*.ts\" (TS files under src), \"cmd/*/main.go\" (one level deep)."`
+	Pattern    string `json:"pattern" jsonschema:"minLength=1" jsonschema_description:"Doublestar path pattern, such as **/*.go or src/**/*.ts."`
 	Path       string `json:"path,omitempty" jsonschema_description:"Directory to search under. Defaults to the workspace root."`
 	IgnoreCase bool   `json:"ignore_case,omitempty" jsonschema_description:"Match path components case-insensitively. Default false."`
-	MaxResults int    `json:"max_results,omitempty" jsonschema_description:"Cap on results. 0 = use default cap (100)."`
+	MaxResults int    `json:"max_results,omitempty" jsonschema:"minimum=1,maximum=1000" jsonschema_description:"Maximum paths to return. Defaults to 100 and cannot exceed 1000."`
 }
 
 // GlobResponse is the LLM-facing return shape.
@@ -23,13 +22,12 @@ type GlobResponse struct {
 	Truncated bool     `json:"truncated,omitempty"`
 }
 
-var globToolSchema, _ = toolcontract.Schema[GlobRequest]()
-
 var _ toolcontract.Tool = (*GlobTool)(nil)
 
 // GlobTool is the thin LLM-facing adapter for [Executor.Glob].
 type GlobTool struct {
 	executor Executor
+	typed    *toolcontract.Func[GlobRequest, GlobResponse]
 }
 
 // NewGlobTool builds a [GlobTool] backed by executor. Passing nil
@@ -38,17 +36,20 @@ func NewGlobTool(executor Executor) *GlobTool {
 	if executor == nil {
 		executor = NewLocalExecutor("")
 	}
-	return &GlobTool{executor: executor}
+	t := &GlobTool{executor: executor}
+	t.typed = mustTypedTool(
+		toolcontract.FuncConfig{
+			Name: "glob",
+			Description: "List file paths matching a doublestar pattern. Use patterns such as **/*.go or src/**/*.ts. " +
+				"Use grep to search file contents.",
+		},
+		t.glob,
+	)
+	return t
 }
 
 func (t *GlobTool) Definition() chat.ToolDefinition {
-	return chat.ToolDefinition{
-		Name: "glob",
-		Description: "List file paths matching a doublestar pattern. " +
-			"Examples: `**/*.go` (all Go files), `src/**/*.ts` (TS files under src), `cmd/*/main.go` (one level deep). " +
-			"For searching file *contents*, use the grep tool instead.",
-		InputSchema: json.RawMessage(globToolSchema),
-	}
+	return t.typed.Definition()
 }
 
 // ConcurrencyKey opts glob into parallel execution — a read-only filename
@@ -56,13 +57,10 @@ func (t *GlobTool) Definition() chat.ToolDefinition {
 func (t *GlobTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
 
 func (t *GlobTool) Call(ctx context.Context, arguments string) (string, error) {
-	var req GlobRequest
-	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
-		return "", fmt.Errorf("fs.glob: parse arguments: %w", err)
-	}
-	if req.Pattern == "" {
-		return "", fmt.Errorf("fs.glob: %w", ErrEmptyPattern)
-	}
+	return t.typed.Call(ctx, arguments)
+}
+
+func (t *GlobTool) glob(ctx context.Context, req GlobRequest) (GlobResponse, error) {
 	res, err := t.executor.Glob(ctx, GlobInput{
 		Pattern:    req.Pattern,
 		Root:       req.Path,
@@ -70,11 +68,7 @@ func (t *GlobTool) Call(ctx context.Context, arguments string) (string, error) {
 		MaxResults: req.MaxResults,
 	})
 	if err != nil {
-		return "", fmt.Errorf("fs.glob: %w", err)
+		return GlobResponse{}, fmt.Errorf("fs.glob: %w", err)
 	}
-	body, err := json.Marshal(GlobResponse(res))
-	if err != nil {
-		return "", fmt.Errorf("fs.glob: marshal: %w", err)
-	}
-	return string(body), nil
+	return GlobResponse(res), nil
 }
