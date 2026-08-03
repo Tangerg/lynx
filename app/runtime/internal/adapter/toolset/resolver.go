@@ -49,7 +49,7 @@ type Resolver struct {
 	codeIntel       *codeintel.Analyzer                         // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
 	readTracker     *editguardstate.Tracker                     // backs the read-before-edit + stale guards on read/edit/write
 	pathLocker      *pathLocker                                 // serializes same-path fs calls across every concurrent turn resolution
-	shell           []toolcontract.Tool                         // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
+	shell           []toolcontract.Tool                         // shell tools (shell / read_shell_output / stop_shell) over the exec.Shells; cwd read per-call
 	delegation      toolcontract.Tool                           // bounded recursive delegation tool; nil until set
 	createGoal      toolcontract.Tool                           // root-only Goal entry tool; nil until the Goal Driver exists
 	staticTools     []staticToolSpec                            // built-once tools with one role/placement policy for turn manifests
@@ -118,15 +118,15 @@ type Deps struct {
 	Online          []toolcontract.Tool                         // network tools (webfetch/websearch/httpreq)
 	A2A             []toolcontract.Tool                         // remote A2A delegation tools
 	LSP             []toolcontract.Tool                         // code-intelligence tools
-	Shell           []toolcontract.Tool                         // shell tools (shell / shell_output / shell_kill); nil means omitted
+	Shell           []toolcontract.Tool                         // shell tools (shell / read_shell_output / stop_shell); nil means omitted
 	AskUser         toolcontract.Tool                           // ask_user HITL tool (both roles)
 	EnterPlan       toolcontract.Tool                           // enter_plan_mode (coding role only); nil → omitted
 	ExitPlan        toolcontract.Tool                           // exit_plan_mode (coding role only); nil → omitted
 	Plan            toolcontract.Tool                           // set_plan execution-plan tool (coding role only); nil → omitted
 	ScheduleTools   []toolcontract.Tool                         // schedule management tools (coding role only); nil → omitted
 	ToolResult      toolcontract.Tool                           // read_tool_result offloaded-output reader (both roles); nil → omitted
-	MemorySearch    toolcontract.Tool                           // memory_search agent-memory reader (both roles); nil → omitted
-	SessionSearch   toolcontract.Tool                           // session_search past-transcript reader (both roles); nil → omitted
+	MemorySearch    toolcontract.Tool                           // search_memory agent-memory reader (both roles); nil → omitted
+	SessionSearch   toolcontract.Tool                           // search_conversations past-transcript reader (both roles); nil → omitted
 	SkillPropose    toolcontract.Tool                           // propose_skill authoring tool (coding role only); nil → omitted
 	GoalGet         toolcontract.Tool                           // get_goal state reader (coding role only); nil → omitted
 	GoalReport      toolcontract.Tool                           // report_goal_outcome loop signal (coding role only); nil → omitted

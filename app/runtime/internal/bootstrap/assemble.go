@@ -357,7 +357,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		codebaseUseCases = index
 		codebaseToolIndex = index
 	}
-	// Agent-memory search (memory_search + the extractor's vector backfill) embeds
+	// Agent-memory search (search_memory + the extractor's vector backfill) embeds
 	// through the same live embedding role as @codebase. The searcher is nil when
 	// no memory store is wired; keyword search works without an embedder.
 	var memorySearcher *agentmemory.Searcher
@@ -405,7 +405,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		return nil, err
 	}
 	attachToolEnvironment(&ecfg, built.tools)
-	// Per-turn memory recall reuses the same searcher the memory_search tool does.
+	// Per-turn memory recall reuses the same searcher the search_memory tool does.
 	if memorySearcher != nil {
 		ecfg.MemorySearch = memorySearcher
 	}

@@ -14,13 +14,13 @@ import (
 )
 
 // Shell tools over a shared [exec.Shells]: the primary `shell` tool plus
-// `shell_output` / `shell_kill` for the jobs it leaves running.
+// `read_shell_output` / `stop_shell` for the jobs it leaves running.
 //
 // Every command — foreground or explicitly backgrounded — starts as a detached
 // job in that shell set. A foreground command races its completion against an
 // auto-background window: finishing in time yields its output inline and the
 // job is removed; outliving the window leaves it running, addressable by the
-// same shell id, so shell_output / shell_kill work on it unchanged. This is the
+// same shell id, so the lifecycle tools work on it unchanged. This is the
 // auto-background design — lyra selects on the per-shell done channel
 // instead of polling. cwd is read per call (executionctx.CWD) so a command runs in the
 // session's working directory.
@@ -28,15 +28,14 @@ import (
 // defaultAutoBackgroundSeconds is how long a foreground shell command may run
 // before it is moved to the background (so the turn isn't blocked on a build /
 // dev server). Overridable per call via
-// auto_background_after.
+// auto_background_after_seconds.
 const defaultAutoBackgroundSeconds = 60
 
 type shellArgs struct {
-	Command             string `json:"command" jsonschema:"required" jsonschema_description:"Shell command line, run by /bin/sh -c. Each call starts a fresh shell — cd, exported vars, and shell options do not persist between calls."`
-	Description         string `json:"description,omitempty" jsonschema_description:"Short (5-10 word) active-voice summary of what this command does, shown in the UI. E.g. \"Run the test suite\", \"Install dependencies\"."`
-	Timeout             int    `json:"timeout,omitempty" jsonschema_description:"Optional hard timeout in milliseconds; the command is killed when it elapses. 0 = no hard timeout."`
-	RunInBackground     bool   `json:"run_in_background,omitempty" jsonschema_description:"Start the command in the background and return its shell id immediately, without waiting. Use for dev servers / watchers you intend to keep running."`
-	AutoBackgroundAfter int    `json:"auto_background_after,omitempty" jsonschema_description:"Seconds a foreground command may run before it is automatically moved to the background and its shell id returned (default 60). Read the rest of its output with shell_output."`
+	Command                    string `json:"command" jsonschema:"minLength=1" jsonschema_description:"Shell command line, run by /bin/sh -c. Each call starts a fresh shell; directory changes, variables, and shell options do not persist."`
+	TimeoutMS                  int    `json:"timeout_ms,omitempty" jsonschema:"minimum=0" jsonschema_description:"Hard execution timeout in milliseconds. Omit for no hard timeout."`
+	RunInBackground            bool   `json:"run_in_background,omitempty" jsonschema_description:"Return immediately with a shell_id while the command keeps running. Use for servers and watchers."`
+	AutoBackgroundAfterSeconds int    `json:"auto_background_after_seconds,omitempty" jsonschema:"minimum=1" jsonschema_description:"Move a foreground command to the background after this many seconds. Defaults to 60."`
 }
 
 func (a shellArgs) validate() error {
@@ -47,11 +46,11 @@ func (a shellArgs) validate() error {
 }
 
 func (a shellArgs) timeout() time.Duration {
-	return time.Duration(a.Timeout) * time.Millisecond
+	return time.Duration(a.TimeoutMS) * time.Millisecond
 }
 
 func (a shellArgs) autoBackgroundAfter() time.Duration {
-	after := a.AutoBackgroundAfter
+	after := a.AutoBackgroundAfterSeconds
 	if after <= 0 {
 		after = defaultAutoBackgroundSeconds
 	}
@@ -59,14 +58,14 @@ func (a shellArgs) autoBackgroundAfter() time.Duration {
 }
 
 type shellOutputArgs struct {
-	ShellID string `json:"shell_id" jsonschema:"required" jsonschema_description:"Background shell id returned by shell when a long-running command was moved to the background."`
-	Block   bool   `json:"block,omitempty" jsonschema_description:"Block until the shell exits (or timeout elapses) before returning, instead of reading whatever output is available right now. Use to wait for a backgrounded command to finish — event-driven, so prefer it over a 'sleep' poll loop. Don't block on a process that never exits (e.g. a dev server) without a timeout."`
-	Timeout int    `json:"timeout,omitempty" jsonschema_description:"With block, the longest to wait in milliseconds before returning the current output with a still-running status. Omit (or 0) to block until the command exits. Ignored without block."`
+	ShellID   string `json:"shell_id" jsonschema:"required" jsonschema_description:"Background shell id returned by shell when a long-running command was moved to the background."`
+	Wait      bool   `json:"wait,omitempty" jsonschema_description:"Wait for the shell to exit before returning new output. Use this instead of sleep polling; avoid waiting indefinitely on a server or watcher."`
+	TimeoutMS int    `json:"timeout_ms,omitempty" jsonschema:"minimum=0" jsonschema_description:"When wait=true, maximum milliseconds to wait before returning current output. Omit to wait until exit. Ignored when wait=false."`
 }
 
 func (a shellOutputArgs) validate() error {
 	if a.ShellID == "" {
-		return errors.New("shell_output: shell_id is required")
+		return errors.New("read_shell_output: shell_id is required")
 	}
 	return nil
 }
@@ -77,7 +76,7 @@ type shellIDArgs struct {
 
 func (a shellIDArgs) validate() error {
 	if a.ShellID == "" {
-		return errors.New("shell_kill: shell_id is required")
+		return errors.New("stop_shell: shell_id is required")
 	}
 	return nil
 }
@@ -99,7 +98,7 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]toolcontract.Tool, err
 			Description: "Execute a shell command via /bin/sh -c. Returns stdout/stderr, exit code, and duration. " +
 				"Avoid `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk` here — use the dedicated `glob`, `grep`, `read`, `edit` tools instead; reserve `shell` for operations that genuinely need a shell (build commands, git, package managers, etc.). " +
 				"Each invocation starts a fresh shell — `cd`, exported variables, and shell options do not persist between calls. " +
-				"A command still running after auto_background_after seconds (default 60) is moved to the background and its shell id returned; read the rest of its output with shell_output and stop it with shell_kill. Set run_in_background to background it immediately.",
+				"A command still running after auto_background_after_seconds (default 60) is moved to the background; continue with read_shell_output or stop_shell. Set run_in_background to background it immediately.",
 		},
 		t.run,
 	)
@@ -108,23 +107,23 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]toolcontract.Tool, err
 	}
 	outputTool, err := toolcontract.NewFunc[shellOutputArgs, string](
 		toolcontract.FuncConfig{
-			Name:        "shell_output",
-			Description: "Read new output from a background shell (only output since the last read). Reports whether it is still running or has exited. With block, waits until the shell exits (or timeout ms) — wait for a backgrounded command without a sleep poll loop.",
+			Name:        "read_shell_output",
+			Description: "Read only the new output produced by a background shell since the previous read and report whether it is still running. Set wait=true to wait event-first for exit instead of sleep polling; bound that wait with timeout_ms for servers or watchers.",
 		},
 		t.output,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("shell: build shell_output tool: %w", err)
+		return nil, fmt.Errorf("shell: build read_shell_output tool: %w", err)
 	}
 	killTool, err := toolcontract.NewFunc[shellIDArgs, string](
 		toolcontract.FuncConfig{
-			Name:        "shell_kill",
-			Description: "Stop a background shell.",
+			Name:        "stop_shell",
+			Description: "Stop one background shell by the shell_id returned from shell.",
 		},
 		t.kill,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("shell: build shell_kill tool: %w", err)
+		return nil, fmt.Errorf("shell: build stop_shell tool: %w", err)
 	}
 	return []toolcontract.Tool{shellTool, outputTool, killTool}, nil
 }
@@ -192,8 +191,8 @@ func (t *toolSet) output(ctx context.Context, a shellOutputArgs) (string, error)
 	if !ok {
 		return fmt.Sprintf("No background shell %s.", a.ShellID), nil
 	}
-	if a.Block {
-		if err := waitForShell(ctx, sh, a.Timeout); err != nil {
+	if a.Wait {
+		if err := waitForShell(ctx, sh, a.TimeoutMS); err != nil {
 			return "", err
 		}
 	}
@@ -253,15 +252,15 @@ func backgroundedJSON(id string) string {
 	b, _ := json.Marshal(struct {
 		Stdout string `json:"stdout"`
 	}{Stdout: fmt.Sprintf(
-		"Command running in background as shell %s. Read its output with shell_output {\"shell_id\":%q} and stop it with shell_kill.",
-		id, id)})
+		"Command running in background as shell %s. Continue with read_shell_output {\"shell_id\":%q} or stop_shell {\"shell_id\":%q}.",
+		id, id, id)})
 	return string(b)
 }
 
 // waitForShell blocks until sh exits, ctx is canceled, or — when timeoutMs > 0
 // — the timeout elapses. It reuses the same per-shell done channel the shell
 // foreground path selects on (no polling). A timeout is NOT an error: the
-// caller then reports the current still-running output, just as if block were
+// caller then reports the current still-running output, just as if wait were
 // off. Returns ctx.Err() only on cancellation (turn cancel / budget timeout).
 func waitForShell(ctx context.Context, sh *exec.Shell, timeoutMs int) error {
 	if timeoutMs <= 0 {

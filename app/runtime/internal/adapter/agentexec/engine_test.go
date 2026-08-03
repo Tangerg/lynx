@@ -705,7 +705,7 @@ func TestEngine_RunChat_LongToolDoesNotTripModelIdleTimeout(t *testing.T) {
 }
 
 func TestEngine_RunChat_ToolTimeoutIsNotModelIdleTimeout(t *testing.T) {
-	stub := newStubModel("shell", `{"command":"sleep 0.08","timeout":10}`, "recovered")
+	stub := newStubModel("shell", `{"command":"sleep 0.08","timeout_ms":10}`, "recovered")
 	client, err := chatclient.New(stub, chatclient.Config{})
 	if err != nil {
 		t.Fatal(err)

@@ -108,9 +108,9 @@ func TestDoomLoopIgnoresProgressingPolls(t *testing.T) {
 	args := `{"id":"bg-1"}`
 
 	for _, out := range []string{"line 1", "line 2", "line 3", "line 4"} {
-		obs.st.recordToolOutcome("shell_output", args, out)
+		obs.st.recordToolOutcome("read_shell_output", args, out)
 	}
-	if v := obs.ApproveToolCall(ctx, "c", "shell_output", args, agentexec.ToolApprovalTarget{}); v.Interrupt != nil || v.Denied {
+	if v := obs.ApproveToolCall(ctx, "c", "read_shell_output", args, agentexec.ToolApprovalTarget{}); v.Interrupt != nil || v.Denied {
 		t.Fatalf("progressing polls must not brake: %+v", v)
 	}
 }

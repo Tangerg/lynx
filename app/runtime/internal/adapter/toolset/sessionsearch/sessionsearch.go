@@ -1,7 +1,7 @@
-// Package sessionsearch is the session_search tool: full-text recall over the
+// Package sessionsearch is the search_conversations tool: full-text recall over the
 // agent's past conversation transcripts. It is the "did we discuss X before"
-// layer — a different corpus from memory_search (curated project memory) and
-// codebase_search (source code): raw prior-session conversation, keyword-ranked.
+// layer — a different corpus from search_memory (curated project memory) and
+// source code: raw prior-session conversation, keyword-ranked.
 package sessionsearch
 
 import (
@@ -15,14 +15,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-const (
-	defaultLimit = 8
-	maxLimit     = 20
-)
+const defaultLimit = 8
 
 type request struct {
-	Query string `json:"query" jsonschema:"required" jsonschema_description:"Keywords to recall from past conversations — a topic, decision, error, or approach (e.g. \"deploy the widget service\", \"rate limit bug\"). All terms must appear; exact phrasing is not required."`
-	Limit int    `json:"limit,omitempty" jsonschema_description:"Maximum number of past-conversation excerpts to return (default 8)."`
+	Query string `json:"query" jsonschema:"minLength=1" jsonschema_description:"Keywords that should appear in earlier conversation transcripts."`
+	Limit int    `json:"limit,omitempty" jsonschema:"minimum=1,maximum=20" jsonschema_description:"Maximum matching excerpts to return. Defaults to 8."`
 }
 
 func (r request) normalize() (request, error) {
@@ -32,9 +29,6 @@ func (r request) normalize() (request, error) {
 	}
 	if r.Limit <= 0 {
 		r.Limit = defaultLimit
-	}
-	if r.Limit > maxLimit {
-		r.Limit = maxLimit
 	}
 	return r, nil
 }
@@ -48,7 +42,7 @@ type tool struct {
 	search Search
 }
 
-// New builds the session_search tool over the given searcher. A nil searcher
+// New builds search_conversations over the given searcher. A nil searcher
 // yields a nil tool (the feature is simply omitted), mirroring the other
 // optional tools.
 func New(search Search) (toolcontract.Tool, error) {
@@ -60,19 +54,17 @@ func New(search Search) (toolcontract.Tool, error) {
 
 func definition() toolcontract.FuncConfig {
 	return toolcontract.FuncConfig{
-		Name: "session_search",
-		Description: "Search the full text of your PAST conversations — the transcripts of earlier sessions, what " +
-			"you and the user actually said, across every prior session. Use it to recall whether a topic, decision, " +
-			"error, or approach came up before (\"did we discuss X\", \"have I hit this bug\") instead of asking the " +
-			"user to repeat themselves. Keyword search ranked by relevance; returns matching excerpts with who said it " +
-			"and when. This is conversation history — not curated memory (memory_search) or source code (codebase_search / grep).",
+		Name: "search_conversations",
+		Description: "Search raw transcripts from earlier conversations by keyword and return matching excerpts " +
+			"with speaker and date. Use it to determine whether a topic, decision, error, or approach was discussed " +
+			"before. Use search_memory for curated durable facts and grep for source code.",
 	}
 }
 
 func (t *tool) run(ctx context.Context, req request) (string, error) {
 	req, err := req.normalize()
 	if err != nil {
-		return "", fmt.Errorf("session_search: %w", err)
+		return "", fmt.Errorf("search_conversations: %w", err)
 	}
 	hits, err := t.search.SearchTranscript(ctx, req.Query, req.Limit)
 	if err != nil {

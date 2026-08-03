@@ -1,4 +1,4 @@
-// Package memorysearch provides the memory_search tool — keyword + semantic
+// Package memorysearch provides the search_memory tool — keyword + semantic
 // search over the agent's own curated memory for the current project. One tool,
 // one package. It is working-directory scoped (it searches the turn's project,
 // read from application context) but cwd-independent to build, so a single instance
@@ -22,8 +22,8 @@ import (
 const defaultLimit = 8
 
 type request struct {
-	Query string `json:"query" jsonschema:"required" jsonschema_description:"What you're trying to recall about this project — a topic, decision, convention, or preference (e.g. \"how do we run tests\", \"the user's naming preference\"). Natural language works; exact wording is not required."`
-	Limit int    `json:"limit,omitempty" jsonschema_description:"Maximum number of memories to return (default 8)."`
+	Query string `json:"query" jsonschema:"minLength=1" jsonschema_description:"Natural-language topic, decision, convention, or user preference to recall from curated project memory."`
+	Limit int    `json:"limit,omitempty" jsonschema:"minimum=1,maximum=20" jsonschema_description:"Maximum memories to return. Defaults to 8."`
 }
 
 func (r request) normalize() (request, error) {
@@ -46,7 +46,7 @@ type tool struct {
 	search Search
 }
 
-// New builds the memory_search tool over the given searcher. A nil searcher
+// New builds search_memory over the given searcher. A nil searcher
 // yields a nil tool (the feature is simply omitted), mirroring the other
 // optional tools.
 func New(search Search) (toolcontract.Tool, error) {
@@ -58,18 +58,18 @@ func New(search Search) (toolcontract.Tool, error) {
 
 func definition() toolcontract.FuncConfig {
 	return toolcontract.FuncConfig{
-		Name: "memory_search",
-		Description: "Search your own long-term memory of THIS project — the durable facts, conventions, " +
-			"decisions, and user preferences you have accumulated across past sessions. Use it to recall context " +
-			"that isn't already in the prompt before asking the user or re-deriving it. Ranks by relevance " +
-			"(keyword + meaning). Returns the most relevant remembered notes.",
+		Name: "search_memory",
+		Description: "Search curated long-term memory for the current project, including durable decisions, " +
+			"conventions, and user preferences from earlier work. Use it when needed context is not already in " +
+			"the prompt. This is distilled memory, not raw conversation history; use search_conversations to " +
+			"recall what was said.",
 	}
 }
 
 func (t *tool) run(ctx context.Context, req request) (string, error) {
 	req, err := req.normalize()
 	if err != nil {
-		return "", fmt.Errorf("memory_search: %w", err)
+		return "", fmt.Errorf("search_memory: %w", err)
 	}
 	cwd := strings.TrimSpace(executionctx.CWD(ctx, ""))
 	if cwd == "" {

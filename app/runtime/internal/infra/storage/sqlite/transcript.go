@@ -15,7 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-// defaultTranscriptSearchLimit caps a session_search that names no limit.
+// defaultTranscriptSearchLimit caps a search_conversations that names no limit.
 const defaultTranscriptSearchLimit = 10
 
 type TranscriptStore struct{ db *sql.DB }
@@ -215,7 +215,7 @@ func scanTranscriptItem(row scanRow) (transcript.Item, error) {
 	return item, nil
 }
 
-// indexForSearch write-through-indexes a conversation item for session_search,
+// indexForSearch write-through-indexes a conversation item for search_conversations,
 // keyed by the item's history seq so the FTS rowid stays aligned as the item
 // grows (a streamed agent message re-appends with the full text). FTS5 has no
 // rowid upsert, so it is delete-then-insert. Must run inside AppendItem's

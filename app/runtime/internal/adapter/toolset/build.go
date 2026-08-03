@@ -84,11 +84,11 @@ type BuildConfig struct {
 	// index with no embedding model configured — omits the tool.
 	CodebaseIndex CodebaseIndex
 
-	// MemorySearch backs memory_search (keyword + semantic search over the
+	// MemorySearch backs search_memory (keyword + semantic search over the
 	// agent's curated project memory). nil omits the tool.
 	MemorySearch memorysearch.Search
 
-	// SessionSearch backs session_search (full-text search over past conversation
+	// SessionSearch backs search_conversations (full-text search over past conversation
 	// transcripts). nil omits the tool.
 	SessionSearch sessionsearch.Search
 
@@ -209,19 +209,19 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build read_tool_result: %w", err)
 	}
-	// memory_search reads back the agent's curated project memory (keyword +
+	// search_memory reads back the agent's curated project memory (keyword +
 	// semantic). Working-directory independent (searches the turn's project), so
 	// built once for both roles. nil searcher → nil tool, simply omitted.
 	memorySearchTool, err := memorysearch.New(config.MemorySearch)
 	if err != nil {
-		return Built{}, fmt.Errorf("toolset: build memory_search: %w", err)
+		return Built{}, fmt.Errorf("toolset: build search_memory: %w", err)
 	}
-	// session_search recalls past conversation transcripts (full-text, all
+	// search_conversations recalls past conversation transcripts (full-text, all
 	// sessions). Working-directory independent, so built once for both roles.
 	// nil searcher → nil tool, simply omitted.
 	sessionSearchTool, err := sessionsearch.New(config.SessionSearch)
 	if err != nil {
-		return Built{}, fmt.Errorf("toolset: build session_search: %w", err)
+		return Built{}, fmt.Errorf("toolset: build search_conversations: %w", err)
 	}
 	// propose_skill lets the agent suggest a new reusable skill, gated behind a
 	// human approval before it joins the global library. Root/coding role only.

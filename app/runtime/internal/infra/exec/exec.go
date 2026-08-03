@@ -7,8 +7,8 @@
 // the foreground path races the command's completion ([Shell.Done]) against an
 // auto-background window, removing the job ([Shells.Remove]) if it finishes in
 // time and otherwise leaving it running and addressable by its shell id. So one
-// mechanism backs both the synchronous shell result and the shell_output /
-// shell_kill tools — the auto-background design.
+// mechanism backs both the synchronous shell result and the read_shell_output /
+// stop_shell tools — the auto-background design.
 //
 // No PTY: plain pipes into a bounded ring buffer. Kill is a plain process kill,
 // so a command that itself forks grandchildren may leave them, acceptable for
@@ -205,7 +205,7 @@ func (s *Shells) Get(id string) (*Shell, bool) {
 }
 
 // RunningShell identifies one background shell still executing: its id (for
-// shell_output / shell_kill) and the command it runs.
+// read_shell_output / stop_shell) and the command it runs.
 type RunningShell struct {
 	ID      string
 	Command string

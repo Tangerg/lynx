@@ -20,7 +20,7 @@
 | Plan 中的一项 | Step | Todo、Task、Item |
 | 跨多个 Run 自主追求的目标 | Goal | Mission、Long Task |
 | 委派给子 Agent 的工作 | Delegated Task | Process、Plan Step |
-| 后台命令实例 | Process | Task、Job、Shell Task |
+| 后台命令执行句柄 | Shell | Process、Task、Job |
 | 定时执行定义 | Schedule | Cron Task、Scheduled Job |
 
 `Plan mode` 是编写和审批同一个 Plan 的 session-scoped 只读状态，不是第二种 Plan。Plan 在退出 Plan mode 后继续承担执行进度记录。
@@ -32,7 +32,7 @@
 - 完整替换使用 `set_*`，局部修改才使用 `update_*`；
 - 创建、读取、删除分别使用 `create_*`、`get_*`、`delete_*`；
 - 模型报告判断使用 `report_*`，不得伪装成任意状态修改；
-- 同类参数使用同一名称：文件路径统一 `path`，超时统一 `timeout_ms`，对象标识使用 `process_id` 等限定名；
+- 同类参数使用同一名称：文件路径统一 `path`，超时使用带单位的 `timeout_ms`，对象标识使用 `shell_id`、`schedule_id`、`result_id` 等领域限定名；
 - 参数名必须表达值本身，不表达 UI 控件或实现细节；
 - 内建工具名称匹配 `^[A-Za-z][A-Za-z0-9_-]{0,63}$`；通用 `core/chat` 只执行 provider 共同要求的 `^[A-Za-z0-9_-]{1,64}$`，不得把内建命名风格强加给第三方 MCP 工具。
 
@@ -144,6 +144,12 @@
 - `lsp(operation,...)` 是唯一语言服务器入口。`diagnostics` 与 definition/references/implementation/hover/call hierarchy/symbol operations 使用同一个闭集；文件参数统一为 `path`，位置操作同时要求 1-based `line` 与 `character`；
 - Schedule 不再使用 `schedule(op=...)` 的互斥字段总集，而是 `list_schedules({})`、`create_schedule(instructions,cron,...)`、`delete_schedule(schedule_id)` 三个单动作 schema。模型侧删除 update：修改 schedule 必须显式删除并新建，前端/协议自己的 revisioned update use case 不受此工具面收敛影响。
 
+### Shell、记忆与会话检索
+
+- `shell(command,timeout_ms?,run_in_background?,auto_background_after_seconds?)` 是唯一命令启动入口；工具参数不再承载只供 UI 展示的 description。后台句柄统一称 Shell，并只通过 `shell_id` 标识；
+- `read_shell_output(shell_id,wait?,timeout_ms?)` 增量读取一个后台 Shell 的输出；`wait=true` 使用完成事件等待，`timeout_ms` 只限制本次等待。`stop_shell(shell_id)` 只终止该 Shell；旧 `shell_output`、`shell_kill`、`block`、无单位 `timeout` 不保留；
+- `search_memory(query,limit?)` 检索当前项目经过蒸馏的长期记忆；`search_conversations(query,limit?)` 检索过往会话原始 transcript。两者名称和描述显式区分 corpus，`limit` 均为 `1..20`，不再用 `memory_search` / `session_search` 这一组名词-动作倒置名称。
+
 ## 7. 删除与收敛
 
 ### 完全移除
@@ -203,7 +209,7 @@
 | 2b | session-scoped Plan mode | 完成 |
 | 3 | `create_goal` 与 idle continuation | 完成 |
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 完成 |
-| 5 | 工具名、参数和描述的全量收敛 | 进行中（5a 完成） |
+| 5 | 工具名、参数和描述的全量收敛 | 进行中（5a、5b.1 完成） |
 | 6 | 删除冗余能力和配置 | 待开始 |
 | 7 | 全仓验证、文档收敛和最终审计 | 待开始 |
 
@@ -277,3 +283,10 @@
 - 将 `lsp_diagnostics(path)` 合并为 `lsp(operation="diagnostics",path=...)`，完整删除第二个 tool definition 和安全表项；位置操作新增 line/character 同时必填且大于零的业务约束，schema 同步声明 minimum；
 - 将四操作 `schedule(op=...)` 拆为 list/create/delete 三工具，各 schema 只包含真实消费字段；参数统一为 `instructions`、`workdir`、`schedule_id`，返回视图使用同一词汇；删除模型 update port 后，`ScheduleManagement` 同步缩窄为三个真实方法；
 - Resolver 只接收 `[]ScheduleTools` 并按统一 Deferred 策略组装，不知道 Coordinator、revision 或 firing；Agent executor 的 resolver seam 从 `UseTaskTool` 精确更名为 `UseDelegationTool`，仍只传通用 `tool.Tool`。
+
+### 批次 5b.1
+
+- 将后台命令领域词汇统一为 Shell：`shell_output` / `shell_kill` 改为 `read_shell_output` / `stop_shell`，参数统一为 `shell_id`，删除与 Agent process tree 冲突的 Process 叫法；
+- `shell` 删除仅供前端展示、服务端不消费的 `description`，将无单位 `timeout` / `auto_background_after` 改为 `timeout_ms` / `auto_background_after_seconds`；输出读取将 UI 控件式 `block` 改为行为语义 `wait`，等待超时也统一为 `timeout_ms`；
+- 将 curated project memory 与 raw transcript 两个 corpus 分别命名为 `search_memory`、`search_conversations`，重写 definition 与参数描述，统一 `query` 和 `limit=1..20` 的严格 schema；旧名称和越界截断路径不保留；
+- 改动只触及具体 toolset adapter、其 runtime 组装与基础 exec 注释；没有向通用 `tool.Tool`、Agent executor seam 或 delivery DTO 增加 Shell、Memory、Conversation 概念。

@@ -89,8 +89,8 @@ func TestToolCatalogOfflineOnly(t *testing.T) {
 	tools := codingTools(t, eng.catalog)
 	// 5 filesystem coding tools in the conservative edit/write vocabulary
 	// (download is gated on a host allowlist, so it is
-	// absent in this offline build) + 3 shell tools (shell + its shell_output /
-	// shell_kill companions) + one deferred `lsp` operation tool + the
+	// absent in this offline build) + 3 shell tools (shell + its read_shell_output /
+	// stop_shell companions) + one deferred `lsp` operation tool + the
 	// `delegate_task` tool + the ask_user HITL
 	// tool + search_tools. LSP remains executable but is deferred from the model's
 	// initial manifest.
@@ -101,7 +101,7 @@ func TestToolCatalogOfflineOnly(t *testing.T) {
 	names := toolNames(tools)
 	for _, want := range []string{
 		"read", "write", "edit", "glob", "grep", "shell", "delegate_task", "ask_user", "search_tools", "lsp",
-		"shell_output", "shell_kill",
+		"read_shell_output", "stop_shell",
 	} {
 		if !names[want] {
 			t.Errorf("missing tool %q in %v", want, names)

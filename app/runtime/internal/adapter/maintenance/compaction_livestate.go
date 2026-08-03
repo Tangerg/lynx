@@ -35,7 +35,7 @@ type LiveStateFunc func(ctx context.Context, sessionID string) LiveStateSnapshot
 
 // liveStateReminder renders snap as a system-reminder message to append after a
 // compaction summary, or reports false when there is nothing active to carry
-// over. The tool names it points at (shell_output / shell_kill / set_plan) are
+// over. The tool names it points at (read_shell_output / stop_shell / set_plan) are
 // the stable names of the tools that produced the state.
 func liveStateReminder(snap LiveStateSnapshot) (chat.Message, bool) {
 	if snap.empty() {
@@ -44,7 +44,7 @@ func liveStateReminder(snap LiveStateSnapshot) (chat.Message, bool) {
 	var b strings.Builder
 	b.WriteString("<system-reminder>\nThe earlier conversation was summarized to save context. Execution state that was active then — and may still be — is not captured in the summary:\n")
 	if len(snap.Shells) > 0 {
-		b.WriteString("\nBackground shells (read their output with shell_output, stop them with shell_kill):")
+		b.WriteString("\nBackground shells (read their output with read_shell_output, stop them with stop_shell):")
 		for _, sh := range snap.Shells {
 			fmt.Fprintf(&b, "\n  - %s: %s", sh.ID, sh.Command)
 		}

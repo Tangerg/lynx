@@ -38,21 +38,34 @@ func TestRunFormatsHits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	text, err := tl.Call(t.Context(), `{"query":"  deploy widget  ","limit":50}`)
+	if got := tl.Definition().Name; got != "search_conversations" {
+		t.Fatalf("name = %q, want search_conversations", got)
+	}
+	text, err := tl.Call(t.Context(), `{"query":"  deploy widget  ","limit":20}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Query is trimmed; an over-large limit is capped to maxLimit.
+	// Query is trimmed and the accepted upper bound is forwarded unchanged.
 	if stub.gotQuery != "deploy widget" {
 		t.Fatalf("query = %q, want trimmed", stub.gotQuery)
 	}
-	if stub.gotLimit != maxLimit {
-		t.Fatalf("limit = %d, want capped to %d", stub.gotLimit, maxLimit)
+	if stub.gotLimit != 20 {
+		t.Fatalf("limit = %d, want 20", stub.gotLimit)
 	}
 	for _, want := range []string{"1. [user · 2026-07-15]", "2. [agent · 2026-07-15]", "deploy"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("output missing %q:\n%s", want, text)
 		}
+	}
+}
+
+func TestRunRejectsOutOfRangeLimit(t *testing.T) {
+	tl, err := New(&stubSearch{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tl.Call(t.Context(), `{"query":"deploy","limit":21}`); err == nil {
+		t.Fatal("expected an error for limit above 20")
 	}
 }
 

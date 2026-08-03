@@ -14,7 +14,7 @@ import (
 // rather than captured once. The filesystem tools need no credentials; the sole
 // gated member is download (see below). (the shell tool is built over the
 // shared exec.Shells in shell.Build, not here — it reads cwd per call like
-// shell_output.)
+// read_shell_output.)
 //
 // write and edit are wrapped so a successful edit is type-checked by the
 // code-intelligence analyzer and any new problems are folded into the tool

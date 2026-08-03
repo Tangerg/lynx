@@ -38,8 +38,8 @@ func TestQuerySubject(t *testing.T) {
 		{tool: "write", arguments: `{"file_path":"out.txt"}`, want: "out.txt"},
 		{tool: "download", arguments: `{"file_path":"vendor/x.tgz"}`, want: "vendor/x.tgz"},
 		{tool: "grep", arguments: `{"pattern":"foo"}`},       // no per-tool subject → whole-tool
-		{tool: "shell_kill", arguments: `{"shell_id":"s1"}`}, // ditto — not a command-bearing tool
-		{tool: "shell", arguments: `{"timeout":5}`, wantError: true},
+		{tool: "stop_shell", arguments: `{"shell_id":"s1"}`}, // ditto — not a command-bearing tool
+		{tool: "shell", arguments: `{"timeout_ms":5}`, wantError: true},
 	}
 	for _, c := range cases {
 		q := Query{Tool: c.tool, Arguments: mustArguments(t, c.arguments)}
@@ -258,7 +258,7 @@ func TestRuleValidationRejectsCorruptDurableValues(t *testing.T) {
 
 func TestPolicyRejectsMissingRequiredRuleSubject(t *testing.T) {
 	svc := mustPolicy(t, ModeSafe, nil)
-	missingCommand := mustArguments(t, `{"timeout":30}`)
+	missingCommand := mustArguments(t, `{"timeout_ms":30}`)
 	if _, _, err := svc.Decide(t.Context(), Query{Tool: "shell", Arguments: missingCommand}); !errors.Is(err, ErrInvalidQuery) || !errors.Is(err, tool.ErrInvalidArguments) {
 		t.Fatalf("Decide error = %v, want invalid query + invalid arguments", err)
 	}

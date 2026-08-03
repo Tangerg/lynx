@@ -232,7 +232,7 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			ON history_items(session_id, seq)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_history_items_offload
 			ON history_items(offload_id) WHERE offload_id != ''`,
-		// Full-text index over past conversation transcripts (session_search):
+		// Full-text index over past conversation transcripts (search_conversations):
 		// the human-readable user + agent message text, write-through from
 		// history_items and keyed by the same seq (the FTS rowid), so a search
 		// spans every session's conversation. The other columns are stored

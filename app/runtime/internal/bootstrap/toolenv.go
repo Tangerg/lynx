@@ -94,13 +94,13 @@ func buildToolEnvironment(
 	if goalState != nil {
 		bc.Goals = goalState
 	}
-	// memory_search searches the agent's curated project memory. Set only when a
+	// search_memory searches the agent's curated project memory. Set only when a
 	// concrete searcher exists, so a nil *Searcher never reaches the tool builder
 	// as a non-nil interface.
 	if memorySearcher != nil {
 		bc.MemorySearch = memorySearcher
 	}
-	// session_search recalls past conversation transcripts (the durable Item
+	// search_conversations recalls past conversation transcripts (the durable Item
 	// history). Set only when the concrete store is present, for the same
 	// nil-interface reason.
 	if cfg.TranscriptStore != nil {

@@ -11,20 +11,20 @@ import (
 )
 
 const (
-	toolNameApplyPatch   = "apply_patch"
-	toolNameAskUser      = "ask_user"
-	toolNameEdit         = "edit"
-	toolNameGlob         = "glob"
-	toolNameGrep         = "grep"
-	toolNameRead         = "read"
-	toolNameShell        = "shell"
-	toolNameShellKill    = "shell_kill"
-	toolNameShellOutput  = "shell_output"
-	toolNameDelegateTask = "delegate_task"
-	toolNameSetPlan      = "set_plan"
-	toolNameWebFetch     = "web_fetch"
-	toolNameWebSearch    = "web_search"
-	toolNameWrite        = "write"
+	toolNameApplyPatch      = "apply_patch"
+	toolNameAskUser         = "ask_user"
+	toolNameEdit            = "edit"
+	toolNameGlob            = "glob"
+	toolNameGrep            = "grep"
+	toolNameRead            = "read"
+	toolNameShell           = "shell"
+	toolNameReadShellOutput = "read_shell_output"
+	toolNameStopShell       = "stop_shell"
+	toolNameDelegateTask    = "delegate_task"
+	toolNameSetPlan         = "set_plan"
+	toolNameWebFetch        = "web_fetch"
+	toolNameWebSearch       = "web_search"
+	toolNameWrite           = "write"
 )
 
 // Presenter owns the client-facing projection of concrete tool schemas. Its
@@ -37,9 +37,9 @@ func (Presenter) Activity(name string) string {
 	switch strings.ToLower(name) {
 	case toolNameShell:
 		return "Running command"
-	case toolNameShellOutput:
+	case toolNameReadShellOutput:
 		return "Reading command output"
-	case toolNameShellKill:
+	case toolNameStopShell:
 		return "Stopping command"
 	case toolNameRead:
 		return "Reading file"

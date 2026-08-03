@@ -19,7 +19,7 @@ func TestLiveStateReminderRendersShellsAndPlan(t *testing.T) {
 		t.Fatal("non-empty snapshot should render a reminder")
 	}
 	body := msg.Text()
-	for _, want := range []string{"<system-reminder>", "bg_1", "npm run dev", "shell_output", "Wire the search index"} {
+	for _, want := range []string{"<system-reminder>", "bg_1", "npm run dev", "read_shell_output", "Wire the search index"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("reminder missing %q:\n%s", want, body)
 		}
