@@ -8,6 +8,7 @@
 ## 定位
 
 - **实现 `tool.Tool` 的工具集合**：`tools` 只是命名空间，不存在根包；每种能力由独立子包拥有。两层 SPI：**Tool 层**对 LLM(JSON in/out + schema + 交互)，**Executor / Provider 层**做真正执行(本地 / 远程 / 沙箱后端可换)。
+- **外部依赖按能力成岛**：父 module 只拥有 `function`、`fakeweather`、`fs`、`shell` 与 schema 内核；`httpreq`、`skills`、`webfetch`、`websearch` 各自是 nested module，只携带本能力的 SDK 依赖。子 module 可以向下依赖父 module 的 `internal/schema`，父 module 绝不反向 require 子 module。
 
 ## 架构心智
 
@@ -25,6 +26,7 @@
 
 - ❌ **全局 tool registry** —— 显式注册是有意的,多 agent / 多进程各自管理 toolset。
 - ❌ **在 `tools` 根目录新增 Go 包** —— 集合目录只承载彼此独立的能力子包。
+- ❌ **把 resty、skills 或 provider SDK 拉回父 `tools/go.mod`** —— 可选能力依赖必须停留在对应 nested module。
 - ❌ **在 Tool 层做业务逻辑** —— 业务全在 Executor,Tool 只是 JSON ↔ Go + schema。
 - ❌ **给 shell 加 root 限制** —— 信任调用方,要 jail 在外层(进程上下文 / 容器)。
 - ❌ **httpreq 带默认 allowlist** —— 必须显式配置;"忘配也能跑" 是 SSRF 敞口。

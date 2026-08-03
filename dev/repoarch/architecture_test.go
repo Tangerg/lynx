@@ -227,6 +227,23 @@ func TestIntegrationFamiliesDoNotImportSiblingProviders(t *testing.T) {
 	assertFamilySiblingBoundary(t, root, "documentreaders", nil)
 }
 
+func TestNamespaceRootsStayPackageFree(t *testing.T) {
+	t.Parallel()
+	root := repositoryRoot(t)
+	for _, relative := range []string{"core", "documentreaders", "models", "otel", "tools", "vectorstores"} {
+		entries, err := os.ReadDir(filepath.Join(root, relative))
+		if err != nil {
+			t.Errorf("read namespace root %s: %v", relative, err)
+			continue
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() && filepath.Ext(entry.Name()) == ".go" {
+				t.Errorf("namespace root %s must not contain Go package file %s", relative, entry.Name())
+			}
+		}
+	}
+}
+
 func TestRetiredLayoutsCannotReturn(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
@@ -239,8 +256,20 @@ func TestRetiredLayoutsCannotReturn(t *testing.T) {
 		"internal/repoarch",
 		"internal/vectorstorekit",
 		"internal/vectorstorepg",
+		"models/google/internal/conformance",
+		"models/google/internal/testutil",
+		"models/internal/conformance",
+		"models/internal/testutil",
+		"models/ollama/internal/conformance",
+		"models/protocol/openai/internal/conformance",
+		"models/protocol/openai/internal/options",
+		"models/protocol/openai/internal/testutil",
+		"otel/chat.go",
+		"otel/chathistory.go",
+		"otel/vectorstore.go",
 		"vectorstores/cockroachdb",
 		"vectorstores/pgvector",
+		"vectorstores/storetest",
 	} {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(relative))); err == nil {
 			t.Errorf("retired layout %s has returned", relative)
@@ -320,7 +349,10 @@ func moduleLayer(path string) int {
 		repositoryModulePath + "/models",
 		repositoryModulePath + "/models/google",
 		repositoryModulePath + "/models/ollama",
-		repositoryModulePath + "/tools":
+		repositoryModulePath + "/tools/httpreq",
+		repositoryModulePath + "/tools/skills",
+		repositoryModulePath + "/tools/webfetch",
+		repositoryModulePath + "/tools/websearch":
 		return 2
 	case repositoryModulePath + "/examples/mcp":
 		return 3
@@ -354,7 +386,13 @@ func allowedRepositoryDependencies(path string) map[string]struct{} {
 		repositoryModulePath + "/models/ollama":
 		return dependencies(repositoryModulePath, repositoryModulePath+"/models/protocol/openai")
 	case repositoryModulePath + "/tools":
-		return dependencies(repositoryModulePath, repositoryModulePath+"/skills")
+		return dependencies(repositoryModulePath)
+	case repositoryModulePath + "/tools/httpreq",
+		repositoryModulePath + "/tools/webfetch",
+		repositoryModulePath + "/tools/websearch":
+		return dependencies(repositoryModulePath, repositoryModulePath+"/tools")
+	case repositoryModulePath + "/tools/skills":
+		return dependencies(repositoryModulePath, repositoryModulePath+"/skills", repositoryModulePath+"/tools")
 	case repositoryModulePath + "/examples/mcp":
 		return dependencies(
 			repositoryModulePath,
@@ -437,7 +475,7 @@ func discoverVectorProviders(t *testing.T, root string) []providerPackage {
 	}
 	var providers []providerPackage
 	for _, entry := range entries {
-		if !entry.IsDir() || entry.Name() == "storetest" || entry.Name() == "internal" {
+		if !entry.IsDir() || entry.Name() == "internal" {
 			continue
 		}
 		if entry.Name() != "postgres" {
