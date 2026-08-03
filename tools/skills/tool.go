@@ -2,53 +2,68 @@ package skills
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/chat"
 	skillsrc "github.com/Tangerg/lynx/skills"
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
-const (
-	opList         = "list"
-	opLoad         = "load"
-	opLoadResource = "load_resource"
-)
-
-// Request is the LLM-facing argument shape. A single tool multiplexes the
-// three progressive-disclosure operations on Op; Name and Path are required
-// only for the operations that name a skill or a file.
-type Request struct {
-	Op   string `json:"op" jsonschema:"required,enum=list,enum=load,enum=load_resource" jsonschema_description:"What to do: \"list\" every available skill (name + description) so you can pick one; \"load\" one skill's full instructions by name; \"load_resource\" a file bundled with a skill."`
-	Name string `json:"name,omitempty" jsonschema_description:"Skill name. Required for load and load_resource; ignored for list."`
-	Path string `json:"path,omitempty" jsonschema_description:"Resource path relative to the skill directory, e.g. references/REFERENCE.md or scripts/run.py. Required for load_resource."`
+type LoadSkillRequest struct {
+	Name string `json:"name" jsonschema:"minLength=1" jsonschema_description:"Exact skill name returned by list_skills or already known from the prompt."`
 }
 
-var toolSchema, _ = toolcontract.Schema[Request]()
+type ReadSkillResourceRequest struct {
+	Name string `json:"name" jsonschema:"minLength=1" jsonschema_description:"Exact name of the skill whose instructions referenced the resource."`
+	Path string `json:"path" jsonschema:"minLength=1" jsonschema_description:"Resource path relative to the skill directory, such as references/REFERENCE.md or scripts/run.py."`
+}
 
-const toolDescription = "Discover and read Agent Skills — reusable, on-demand instruction packs. " +
-	"Call with op=\"list\" to see which skills exist (name + description); when one is relevant, op=\"load\" name=<skill> to pull in its full instructions; " +
-	"op=\"load_resource\" name=<skill> path=<file> to read a bundled reference, asset, or script the instructions point to. " +
-	"Load a skill only when the task matches its description; then follow the returned instructions, running any scripts with your own shell/file tools."
-
-var _ toolcontract.Tool = (*Tool)(nil)
-
-// Tool is the LLM-callable adapter over a [skillsrc.Source]. It is a thin
-// wrapper: all parsing, validation, and IO live in the source.
-type Tool struct {
+type toolSet struct {
 	source skillsrc.ResourceSource
 }
 
-// NewTool builds a [Tool] over source. Unlike the local-by-default file tools,
-// a source has no sensible default — passing nil returns [ErrNilSource].
-func NewTool(source skillsrc.ResourceSource) (*Tool, error) {
+// NewTools builds the three progressive-disclosure tools over source. A skill
+// source has no sensible default, so nil returns [ErrNilSource].
+func NewTools(source skillsrc.ResourceSource) ([]toolcontract.Tool, error) {
 	if isNilSource(source) {
 		return nil, ErrNilSource
 	}
-	return &Tool{source: source}, nil
+	set := &toolSet{source: source}
+	list, err := toolcontract.NewFunc(
+		toolcontract.FuncConfig{
+			Name: "list_skills",
+			Description: "List every skill visible to the current workspace as a name and description. " +
+				"Use this when a relevant skill may exist but its exact name is unknown. Load a matching skill with load_skill before following it.",
+		},
+		set.list,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("skills: build list_skills: %w", err)
+	}
+	load, err := toolcontract.NewFunc(
+		toolcontract.FuncConfig{
+			Name: "load_skill",
+			Description: "Load the complete instructions for one exact skill name. Call this when the task matches that skill's description, " +
+				"then follow the returned instructions. Use read_skill_resource only for a bundled file referenced by those instructions.",
+		},
+		set.load,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("skills: build load_skill: %w", err)
+	}
+	readResource, err := toolcontract.NewFunc(
+		toolcontract.FuncConfig{
+			Name: "read_skill_resource",
+			Description: "Read one bundled resource referenced by a loaded skill. The path is relative to that skill's directory. " +
+				"This returns file contents only and never executes scripts.",
+		},
+		set.readResource,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("skills: build read_skill_resource: %w", err)
+	}
+	return []toolcontract.Tool{list, load, readResource}, nil
 }
 
 func isNilSource(source skillsrc.ResourceSource) bool {
@@ -64,70 +79,40 @@ func isNilSource(source skillsrc.ResourceSource) bool {
 	}
 }
 
-func (t *Tool) Definition() chat.ToolDefinition {
-	return chat.ToolDefinition{
-		Name:        "skill",
-		Description: toolDescription,
-		InputSchema: json.RawMessage(toolSchema),
+func (t *toolSet) list(ctx context.Context, _ struct{}) (string, error) {
+	summaries, err := t.source.List(ctx)
+	if err != nil {
+		return "", err
 	}
+	return renderSummaries(summaries), nil
 }
 
-// Call dispatches on Op. Source errors already carry a "skills:" prefix and
-// the failing skill/path, so they pass through unwrapped — only the
-// tool-specific argument parse is wrapped here.
-func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
-	var req Request
-	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
-		return "", fmt.Errorf("skills.tool: parse arguments: %w", err)
+func (t *toolSet) load(ctx context.Context, request LoadSkillRequest) (string, error) {
+	skill, err := t.source.Load(ctx, request.Name)
+	if err != nil {
+		return "", err
 	}
-	switch req.Op {
-	case opList:
-		summaries, err := t.source.List(ctx)
-		if err != nil {
-			return "", err
-		}
-		return renderSummaries(summaries), nil
-	case opLoad:
-		if req.Name == "" {
-			return "", ErrNameRequired
-		}
-		sk, err := t.source.Load(ctx, req.Name)
-		if err != nil {
-			return "", err
-		}
-		return sk.Body, nil
-	case opLoadResource:
-		if req.Name == "" {
-			return "", ErrNameRequired
-		}
-		if req.Path == "" {
-			return "", ErrPathRequired
-		}
-		data, err := skillsrc.ReadResource(ctx, t.source, req.Name, req.Path)
-		if err != nil {
-			return "", err
-		}
-		return string(data), nil
-	default:
-		return "", fmt.Errorf("%w: %q", ErrUnknownOp, req.Op)
-	}
+	return skill.Body, nil
 }
 
-// xmlEscaper escapes the characters that would break the <available_skills>
-// envelope. Skill names are constrained to [a-z0-9-] by the spec, but
-// descriptions are free text.
+func (t *toolSet) readResource(ctx context.Context, request ReadSkillResourceRequest) (string, error) {
+	data, err := skillsrc.ReadResource(ctx, t.source, request.Name, request.Path)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
 var xmlEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 
-// renderSummaries formats the skill list as the <available_skills> envelope
-// the Agent Skills ecosystem uses — compact, and legible to the model.
 func renderSummaries(summaries []skillsrc.Summary) string {
 	var b strings.Builder
 	b.WriteString("<available_skills>")
-	for _, s := range summaries {
+	for _, summary := range summaries {
 		b.WriteString("\n  <skill>\n    <name>")
-		b.WriteString(xmlEscaper.Replace(s.Name))
+		b.WriteString(xmlEscaper.Replace(summary.Name))
 		b.WriteString("</name>\n    <description>")
-		b.WriteString(xmlEscaper.Replace(s.Description))
+		b.WriteString(xmlEscaper.Replace(summary.Description))
 		b.WriteString("</description>\n  </skill>")
 	}
 	b.WriteString("\n</available_skills>")
