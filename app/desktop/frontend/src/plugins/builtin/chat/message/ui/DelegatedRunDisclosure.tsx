@@ -34,6 +34,9 @@ export function DelegatedRunDisclosure({
   return (
     <AgentActivityDisclosure
       icon="bot"
+      // A delegated run produces a transcript of its own, which is the most
+      // material anything in this grammar carries.
+      shell="card"
       label={model.label}
       detail={
         model.detail ? (

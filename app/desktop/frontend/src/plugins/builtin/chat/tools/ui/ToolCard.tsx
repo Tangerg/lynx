@@ -1,15 +1,16 @@
-// Tool activity — renders one agent tool invocation as a compact disclosure
-// in the Narrative's shared activity grammar.
-// Expands inline to the plugin-contributed preview (or ToolInspector
-// fallback). Selected state drives the inspector pane via the workspace
-// navigation wiring.
+// Tool activity — one agent tool invocation as a disclosure in the Narrative's
+// shared activity grammar. Expands inline to the plugin-contributed preview (or the
+// ToolInspector fallback); selected state drives the inspector pane through the
+// workspace navigation wiring.
 //
-// Status colour stays on the glyph / dot / metadata instead of washing the
-// whole row, so nested tools remain readable as a hierarchy rather than a
-// stack of competing cards.
+// Which shell and which tone the row wears are the MODEL's answers, not this
+// component's: a read is a line, something produced is a card, something failed or
+// waiting is flagged (see toolActivityShell). Status colour rides the glyph, its
+// tray and the metadata — never a wash over the whole row, so nested tools stay
+// readable as a hierarchy instead of a stack of competing cards.
 import type { IconName } from "@/ui";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import { Icon, IconButton, StatusDot } from "@/ui";
+import { Badge, Icon, IconButton, StatusDot } from "@/ui";
 import { AgentActivityDisclosure } from "@/ui/agent";
 import { type ToolMetaItem } from "@/plugins/builtin/agent/public/messagePresentation";
 import { cn } from "@/lib/classNames";
@@ -57,7 +58,8 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
   return (
     <AgentActivityDisclosure
       icon={toolRowIcon(tool)}
-      tone={model.isError ? "negative" : model.needsAction ? "warning" : "neutral"}
+      tone={model.tone}
+      shell={model.shell}
       label={<span title={model.intent.label}>{model.intent.label}</span>}
       detail={
         model.detail ? (
@@ -71,10 +73,14 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
         <>
           <ToolMeta items={model.metaItems} running={model.running} />
           {model.running && <StatusDot tone="running" />}
-          {/* A settled call ends with its verdict. Without one, a finished row and
-              a row that never ran look the same, and the only way to tell a column
-              of tool calls apart is to open each. */}
-          {tool.status === "ok" && <Icon name="check" size="xs" className="text-success" />}
+          {/* A refused call is not a finished one. Its glyph says so at 12px, which
+              is not a size anyone reads while scrolling — so the state says it in a
+              word, the way risk and scope already do on an approval. */}
+          {model.denied && <Badge tone="warning">{t("tool.state.denied")}</Badge>}
+          {/* A settled call ends with its verdict. Where the call reported nothing
+              to count, the tick IS the verdict; where it did, the counts above are,
+              and a tick after them is one more identical glyph in a column of them. */}
+          {model.showSettledMark && <Icon name="check" size="xs" className="text-success" />}
         </>
       }
       actions={actions.map((action) => (

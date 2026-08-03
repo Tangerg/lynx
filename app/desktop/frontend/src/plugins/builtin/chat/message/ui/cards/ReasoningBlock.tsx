@@ -16,8 +16,15 @@ interface Props {
  *  `preview` comment. Raising or lowering it changes nothing on screen. */
 const PREVIEW_LAYOUT_BOUND = 400;
 
-// Collapsible "thinking" panel. Auto-opens while the agent streams, then
-// collapses once the reasoning is done. User can toggle anytime to override.
+// Collapsible "thinking" aside. Auto-opens while the agent streams, then collapses
+// once the reasoning is done. User can toggle anytime to override.
+//
+// The `line` shell, and a left rule on the body. Reasoning is an ASIDE, not an
+// activity: it produced nothing, it acted on nothing, and it is the one block in a
+// turn that is prose rather than data. Wearing the same card as a tool call was the
+// single loudest reason a transcript read as one grey stack — both references say
+// the same thing about it and neither gives it a card: quiet ink, an indent, a rule
+// down the side, and the roomiest leading in the ladder.
 //
 // AgentActivityDisclosure owns the Base UI disclosure/button semantics. This
 // feature owns only the derived policy: streaming drives `open` until the
@@ -141,6 +148,7 @@ export function ReasoningBlock({ text, status }: Props) {
   return (
     <AgentActivityDisclosure
       icon="sparkle"
+      shell="line"
       label={label}
       detail={!isOpen && preview ? preview : undefined}
       trailing={
@@ -166,7 +174,12 @@ export function ReasoningBlock({ text, status }: Props) {
       open={isOpen}
       onToggle={toggle}
       className="my-1.5"
-      contentClassName="relative"
+      // The rule replaces the card: it marks the aside's extent down the margin
+      // instead of boxing it, so a long chain of thought does not become the
+      // largest object in the turn. `border-field` and not `border-divider` — a
+      // divider separates peers in a list, and at 7% ink it does not read as a
+      // margin rule; this is the same job `.md blockquote` does, one step up.
+      contentClassName="relative border-l border-field pl-4"
     >
       <div
         ref={scrollRef}
@@ -180,7 +193,7 @@ export function ReasoningBlock({ text, status }: Props) {
         <div
           className={cn(
             "pointer-events-none absolute inset-x-0 top-0 z-10 h-6",
-            "bg-[linear-gradient(to_bottom,var(--color-sunken),transparent)]",
+            "bg-[linear-gradient(to_bottom,var(--app-content-surface),transparent)]",
             "transition-opacity duration-[var(--dur-fast)]",
             showTopFade ? "opacity-100" : "opacity-0",
           )}
@@ -200,7 +213,7 @@ export function ReasoningBlock({ text, status }: Props) {
         <div
           className={cn(
             "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6",
-            "bg-[linear-gradient(to_top,var(--color-sunken),transparent)]",
+            "bg-[linear-gradient(to_top,var(--app-content-surface),transparent)]",
             "transition-opacity duration-[var(--dur-fast)]",
             showBottomFade ? "opacity-100" : "opacity-0",
           )}

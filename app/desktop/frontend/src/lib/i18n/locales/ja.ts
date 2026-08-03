@@ -969,6 +969,8 @@ export const ja: Record<string, string> = {
   "tool.meta.files": "{{count}} 個のファイル",
   "tool.meta.exit": "終了コード {{code}}",
   "tool.meta.live": "実行中",
+  "tool.meta.truncated": "切り詰め",
+  "tool.state.denied": "拒否",
   "tool.group.read": "読み取り {{count}}",
   "tool.group.search": "検索 {{count}}",
   "tool.group.lookup": "参照 {{count}}",

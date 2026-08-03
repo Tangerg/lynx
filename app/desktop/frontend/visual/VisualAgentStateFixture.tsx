@@ -23,6 +23,7 @@ const STATE_LABELS: Record<VisualAgentState, string> = {
   delegated: "Delegated tree",
   "long-content": "Long content",
   narrative: "Narrative",
+  "tool-shells": "Tool shells",
 };
 
 function StateSidebar({ state }: { state: VisualAgentState }) {

@@ -1006,6 +1006,8 @@ export const en: Record<string, string> = {
   "tool.meta.files": "{{count}} files",
   "tool.meta.exit": "exit {{code}}",
   "tool.meta.live": "live",
+  "tool.meta.truncated": "truncated",
+  "tool.state.denied": "denied",
   "tool.group.read": "{{count}} read",
   "tool.group.search": "{{count}} search",
   "tool.group.lookup": "{{count}} lookup",

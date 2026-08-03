@@ -1,5 +1,6 @@
 import type { Translate } from "@/lib/i18n";
 import type { ToolCall } from "@/plugins/sdk/types/agentSessionView";
+import type { ActivityShell } from "@/lib/activityShell";
 
 export interface ToolIntent {
   label: string;
@@ -74,6 +75,12 @@ export function toolMetaItems(t: Translate, tool: ToolCall): ToolMetaItem[] {
       tone: "negative",
     });
   }
+  // The runtime capped the output. Without this the row for a truncated command
+  // and the row for a complete one are the same row, and the only way to find out
+  // is to open it and wonder whether that really was the end.
+  if (tool.outputTruncated) {
+    items.push({ id: "truncated", label: t("tool.meta.truncated"), tone: "muted" });
+  }
   if (tool.status === "running") {
     items.push({ id: "live", label: t("tool.meta.live"), tone: "muted" });
   }
@@ -82,6 +89,28 @@ export function toolMetaItems(t: Translate, tool: ToolCall): ToolMetaItem[] {
 
 export function isReadOnlyTool(name: string): boolean {
   return READ_ONLY_TOOLS.has(name) || name.startsWith("lsp_");
+}
+
+/**
+ * How much of the plane one tool call claims.
+ *
+ * A table and not a chain of conditions in the card, because this is the whole of
+ * the taxonomy and it wants to be readable in one place. The read/produce split is
+ * the interesting half: a turn can hold a dozen reads and one command, and giving
+ * all thirteen the same card is what makes a transcript one grey stack.
+ *
+ * The state cases come first, because a read that FAILED is no longer a glance —
+ * it is the thing you opened the transcript to find.
+ *
+ * When the runtime carries a tool category of its own, only the second line
+ * changes: `isReadOnlyTool(tool.name)` becomes that field. Nothing above or below
+ * it, and no component, has to move.
+ */
+export function toolActivityShell(tool: ToolCall): ActivityShell {
+  if (tool.status === "err" || tool.status === "denied" || tool.status === "requires-action") {
+    return "flagged";
+  }
+  return isReadOnlyTool(tool.name) ? "line" : "card";
 }
 
 export function toolGroupNeedsAttention(tools: readonly ToolCall[]): boolean {

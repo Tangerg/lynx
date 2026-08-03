@@ -988,6 +988,8 @@ export const de: Record<string, string> = {
   "tool.meta.files": "{{count}} Dateien",
   "tool.meta.exit": "Exit {{code}}",
   "tool.meta.live": "läuft",
+  "tool.meta.truncated": "gekürzt",
+  "tool.state.denied": "abgelehnt",
   "tool.group.read": "{{count}} gelesen",
   "tool.group.search": "{{count}} gesucht",
   "tool.group.lookup": "{{count}} nachgesehen",

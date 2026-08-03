@@ -38,6 +38,9 @@ export function PlanProgressBanner() {
         >
           <AgentActivityDisclosure
             leading={<StepMark state={STEP_STATE[progress.current.status]} />}
+            // A banner, not an entry in the transcript: it stands above the stream
+            // and has to hold its own edge against whatever scrolls under it.
+            shell="card"
             label={
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span

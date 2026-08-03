@@ -55,6 +55,15 @@ describe("toolPresentation", () => {
     ]);
   });
 
+  // A capped output used to be invisible until you opened the row and wondered
+  // whether that really was the end of it.
+  it("says when the runtime capped the output", () => {
+    expect(toolMetaItems(t, tool({ outputTruncated: true })).map((item) => item.id)).toEqual([
+      "truncated",
+    ]);
+    expect(toolMetaItems(t, tool({}))).toEqual([]);
+  });
+
   it("keeps read-only grouping conservative", () => {
     expect(isReadOnlyTool("read")).toBe(true);
     expect(isReadOnlyTool("lsp_diagnostics")).toBe(true);

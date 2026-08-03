@@ -14,7 +14,18 @@ const EXPECTED_ATTENTION: Record<VisualAgentState, string> = {
   recovery: "finished",
   delegated: "running",
   "long-content": "finished",
+  narrative: "finished",
+  "tool-shells": "finished",
 };
+
+// `visual/` sits outside the typecheck's include, so the Record's own exhaustiveness
+// is not enforced anywhere — `narrative` had been missing since it was added, and an
+// absent expectation reads to Playwright as "assert the attribute exists", which
+// passes for every value. A state without an expectation is a state nobody is
+// asserting anything about.
+test("every declared state carries an expected attention", () => {
+  expect(Object.keys(EXPECTED_ATTENTION).sort()).toEqual([...VISUAL_AGENT_STATES].sort());
+});
 
 for (const state of VISUAL_AGENT_STATES) {
   test(`canonical agent projection renders ${state}`, async ({ page }) => {

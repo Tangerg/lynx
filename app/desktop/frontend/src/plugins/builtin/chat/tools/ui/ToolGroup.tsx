@@ -16,8 +16,11 @@ interface Props {
  * A run of adjacent read-only tool calls, folded into one collapsible summary
  * row so a long agent turn stays scannable. Auto-expands while any child is
  * still running or has errored, then settles closed once they finish — unless
- * the user has pinned it open or closed. The group is a quiet vertical stack:
- * a summary row + indented child activity rows, no enclosing card.
+ * the user has pinned it open or closed.
+ *
+ * The `line` shell is what the doc comment used to only claim: a summary row and
+ * indented children, no enclosing card. Its children are read-only calls, so they
+ * are lines too — a card around a stack of lines would put the weight back.
  */
 export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand }: Props) {
   const [pinned, setPinned] = useState<ToolGroupPinnedState>(null);
@@ -27,6 +30,7 @@ export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand }: 
   return (
     <AgentActivityDisclosure
       icon="search"
+      shell="line"
       label={model.summary}
       trailing={
         <span className="font-mono text-ui-xs font-medium tabular-nums text-fg-muted">

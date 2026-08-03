@@ -984,6 +984,8 @@ export const fr: Record<string, string> = {
   "tool.meta.files": "{{count}} fichiers",
   "tool.meta.exit": "sortie {{code}}",
   "tool.meta.live": "en cours",
+  "tool.meta.truncated": "tronqué",
+  "tool.state.denied": "refusé",
   "tool.group.read": "{{count}} lecture",
   "tool.group.search": "{{count}} recherche",
   "tool.group.lookup": "{{count}} consultation",

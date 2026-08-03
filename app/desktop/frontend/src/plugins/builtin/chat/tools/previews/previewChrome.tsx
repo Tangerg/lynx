@@ -2,9 +2,10 @@
 // in index.tsx and the per-family previews lsp / skill / task / askUser /
 // glob / webSearch).
 
-// Shared container shape for the list/text inline previews. The wrapper lives
-// inside a bg-surface card (the expanded activity row), so it uses no
-// additional background — just padding and typography.
+// Shared container shape for the list/text inline previews. The disclosure's body
+// carries no fill of its own — the card behind it is the ground — so a text preview
+// is padding and typography, and only the panels that hold program output cut a
+// well into it.
 import { useT } from "@/lib/i18n";
 
 export const TEXT_PREVIEW_CLASS =
@@ -14,6 +15,10 @@ export const TEXT_PREVIEW_CLASS =
 // ShikiCodeBlock atom, so program output reads as cut into the card rather than
 // stacked on it. (Deliberately NOT a bg-fg dark panel: bg-fg inverts per theme,
 // so it would turn bright in dark mode.)
+//
+// This is the ONLY fill inside a preview, and it is why the disclosure body has
+// none: the two used to be the same `bg-sunken`, so a well sat inside a well and
+// the whole expanded row read flat.
 export const CODE_PREVIEW_CLASS =
   "max-h-60 overflow-y-auto rounded-sm bg-sunken px-3 py-2.5 font-mono text-code leading-relaxed text-fg-soft";
 

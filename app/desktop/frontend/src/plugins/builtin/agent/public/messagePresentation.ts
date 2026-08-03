@@ -2,6 +2,7 @@ export { planRenderUnits } from "../presentation/messageRenderUnits";
 export type { MessageRenderUnit } from "../presentation/messageRenderUnits";
 export {
   summarizeToolGroup,
+  toolActivityShell,
   toolGroupNeedsAttention,
   toolIntent,
   toolMetaItems,

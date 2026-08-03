@@ -977,6 +977,8 @@ export const es: Record<string, string> = {
   "tool.meta.files": "{{count}} archivos",
   "tool.meta.exit": "salida {{code}}",
   "tool.meta.live": "en curso",
+  "tool.meta.truncated": "truncado",
+  "tool.state.denied": "denegado",
   "tool.group.read": "{{count}} lectura",
   "tool.group.search": "{{count}} búsqueda",
   "tool.group.lookup": "{{count}} consulta",

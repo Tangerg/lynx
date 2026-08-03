@@ -933,6 +933,8 @@ export const zhTW: Record<string, string> = {
   "tool.meta.files": "{{count}} 個檔案",
   "tool.meta.exit": "結束碼 {{code}}",
   "tool.meta.live": "進行中",
+  "tool.meta.truncated": "已截斷",
+  "tool.state.denied": "已拒絕",
   "tool.group.read": "讀取 {{count}}",
   "tool.group.search": "搜尋 {{count}}",
   "tool.group.lookup": "查找 {{count}}",

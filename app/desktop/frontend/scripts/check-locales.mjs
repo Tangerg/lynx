@@ -144,10 +144,12 @@ const JSX_MIXED = /[^\s]>([^<>]*\{[^<>]*\}[^<>]*)<\//g;
 const HTML_ENTITY = /&[a-zA-Z]+;|&#\d+;/g;
 // A string-valued JSX prop. `className` and friends carry mechanisms, not words.
 const JSX_PROP = /\s([a-zA-Z][\w-]*)=["]([^"]*[ ][^"]*)["]/g;
-// `scrollClassName` belongs here for the same reason `className` does: it is a
-// class list a scroll library forwards onto the element it renders.
+// Any `*ClassName` is a class list the component forwards onto an element it
+// renders — `scrollClassName` onto a scroll library's node, `contentClassName` onto
+// a disclosure's panel. Naming them one at a time meant the guard called the next
+// one copy, which is a false positive that reads as "this needs translating".
 const MECHANISM_PROP =
-  /^(?:className|scrollClassName|class|style|d|viewBox|accept|srcSet|sizes|content|rel)$/;
+  /^(?:[a-z][\w]*ClassName|className|class|style|d|viewBox|accept|srcSet|sizes|content|rel)$/;
 
 /**
  * Does this read as a sentence rather than as data?

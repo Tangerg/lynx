@@ -352,7 +352,8 @@ export function argsText(tool: ToolInvocation | undefined): string {
 
 export function toolStatus(item: Extract<Item, { type: "toolCall" }>): ToolCallStatus {
   // A HITL-declined tool settles as incomplete + error.type "denied_by_user"
-  // (API.md §8.1) — that's a user decision, render it neutral, not failure-red.
+  // (API.md §8.1). A user's decision is not a fault, so it is its own status rather
+  // than an error — the card reads it as warning-toned, never failure-red.
   if (item.error?.type === "denied_by_user") return "denied";
   if (item.error || item.status === "incomplete") return "err";
   if (item.status === "running") return "running";

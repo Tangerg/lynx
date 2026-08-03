@@ -934,6 +934,8 @@ export const zh: Record<string, string> = {
   "tool.meta.files": "{{count}} 个文件",
   "tool.meta.exit": "退出码 {{code}}",
   "tool.meta.live": "进行中",
+  "tool.meta.truncated": "已截断",
+  "tool.state.denied": "已拒绝",
   "tool.group.read": "读取 {{count}}",
   "tool.group.search": "搜索 {{count}}",
   "tool.group.lookup": "查找 {{count}}",

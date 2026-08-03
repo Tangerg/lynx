@@ -42,10 +42,37 @@ describe("toolCardModel", () => {
     expect(model).toMatchObject({
       running: false,
       isError: false,
-      needsAction: true,
+      shell: "flagged",
+      tone: "warning",
     });
     expect(model.intent.label).toBeTruthy();
     expect(Array.isArray(model.metaItems)).toBe(true);
+  });
+
+  // The read/produce split is what keeps a turn from reading as one grey stack, and
+  // it is a table in the presentation ring rather than a condition in the card — so
+  // this is where it has to be pinned.
+  it("gives a glance a line, a product a card, and trouble an edge", () => {
+    expect(toolCardModel(t, tool({ name: "read", status: "ok" })).shell).toBe("line");
+    expect(toolCardModel(t, tool({ name: "lsp_diagnostics", status: "ok" })).shell).toBe("line");
+    expect(toolCardModel(t, tool({ name: "shell", status: "ok" })).shell).toBe("card");
+    expect(toolCardModel(t, tool({ name: "edit", status: "running" })).shell).toBe("card");
+    // A read that FAILED is not a glance any more.
+    expect(toolCardModel(t, tool({ name: "read", status: "err" })).shell).toBe("flagged");
+  });
+
+  it("tells a refused call apart from a finished one", () => {
+    const denied = toolCardModel(t, tool({ status: "denied" }));
+    expect(denied).toMatchObject({ denied: true, shell: "flagged", tone: "warning" });
+    expect(toolCardModel(t, tool({ status: "ok" })).denied).toBe(false);
+  });
+
+  // The tick is a fallback, not a fixture: where a call reported counts, those ARE
+  // the verdict, and a tick after them is one more identical glyph in a column.
+  it("only marks a settled call that had nothing to report", () => {
+    expect(toolCardModel(t, tool({ status: "ok" })).showSettledMark).toBe(true);
+    expect(toolCardModel(t, tool({ status: "ok", hits: 9 })).showSettledMark).toBe(false);
+    expect(toolCardModel(t, tool({ status: "running" })).showSettledMark).toBe(false);
   });
 });
 

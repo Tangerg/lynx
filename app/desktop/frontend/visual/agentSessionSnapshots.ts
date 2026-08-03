@@ -15,6 +15,7 @@ export const VISUAL_AGENT_STATES = [
   "delegated",
   "long-content",
   "narrative",
+  "tool-shells",
 ] as const;
 
 export type VisualAgentState = (typeof VISUAL_AGENT_STATES)[number];
@@ -129,6 +130,49 @@ const RUNNING_TOOL: Item = {
       path: "app/runtime",
     },
   },
+};
+
+// One turn holding all three activity shells, because the shells are the whole of
+// the differentiation between a glance, a product and trouble — and until this state
+// existed no golden rendered a failed or a refused tool call at all. A read is a
+// line, a command is a card, a failure and a refusal are flagged, and the two flags
+// carry different tones on purpose: a refusal is a decision, not a fault.
+const SHELL_READ: Item = {
+  type: "toolCall",
+  id: "item_shells_read",
+  runId: ROOT_RUN_ID,
+  status: "completed",
+  createdAt: CREATED_AT,
+  tool: { name: "read", arguments: { file_path: "app/runtime/internal/session/store.go" } },
+};
+
+const SHELL_COMMAND: Item = {
+  type: "toolCall",
+  id: "item_shells_command",
+  runId: ROOT_RUN_ID,
+  status: "completed",
+  createdAt: CREATED_AT,
+  tool: { name: "shell", arguments: { command: "go test ./internal/session/..." } },
+};
+
+const SHELL_FAILED: Item = {
+  type: "toolCall",
+  id: "item_shells_failed",
+  runId: ROOT_RUN_ID,
+  status: "incomplete",
+  createdAt: CREATED_AT,
+  tool: { name: "edit", arguments: { file_path: "app/runtime/internal/session/store.go" } },
+  error: { type: "tool_failed", detail: "store.go changed on disk after it was read." },
+};
+
+const SHELL_DENIED: Item = {
+  type: "toolCall",
+  id: "item_shells_denied",
+  runId: ROOT_RUN_ID,
+  status: "incomplete",
+  createdAt: CREATED_AT,
+  tool: { name: "write", arguments: { file_path: ".env.production" } },
+  error: { type: "denied_by_user", detail: "You declined this write." },
 };
 
 function tailEvent(index: number, event: StreamEvent): RunEvent {
@@ -601,6 +645,16 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
       },
     ],
   },
+  "tool-shells": {
+    runs: [
+      run("finished", {
+        finishedAt: "2026-07-31T08:00:12.000Z",
+        outcome: { type: "completed" },
+      }),
+    ],
+    items: [PROMPT, SHELL_READ, SHELL_COMMAND, SHELL_FAILED, SHELL_DENIED, RESPONSE],
+    pendingInterruptSets: [],
+  },
 };
 
 export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, RunEvent[]>> = {
@@ -629,6 +683,7 @@ export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, RunEve
   delegated: [],
   "long-content": [],
   narrative: [],
+  "tool-shells": [],
 };
 
 export const VISUAL_SESSION_ID = SESSION_ID;
