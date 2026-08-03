@@ -11,7 +11,7 @@ import { dayKey, formatDay } from "@/lib/i18n/relativeTime";
 import { useT } from "@/lib/i18n";
 import { Loader } from "@/ui";
 import { Slot } from "@/plugins/host/Slot";
-import { READING_COLUMN, READING_GUTTER } from "./readingColumn";
+import { COMPOSER_CLEARANCE, READING_COLUMN, READING_GUTTER } from "./readingColumn";
 import { useIsCurrentRootRunning } from "@/plugins/builtin/agent/public/run";
 import { MessageBlock, RootRunOutcome } from "@/plugins/builtin/chat/message/public/rendering";
 
@@ -131,17 +131,9 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
           library renders it itself, one level inside the class above, so anything
           outside the transcript that needs the scroll box — the narrative rails —
           would otherwise have to guess at that nesting. */}
-      {/* The tail clears the composer that floats over it. `--composer-overlay`
-          is the measured height of that overlay, published by ChatStream; the
-          fallback keeps this honest for anyone who mounts the stream without
-          one. Without it the last message rests permanently underneath a panel
-          it can never scroll out from behind. */}
       <StickToBottom.Content
         scrollClassName="panel-scroll msg-scroll-viewport"
-        className={cn(
-          READING_COLUMN,
-          "relative flex flex-col gap-7 pb-[calc(var(--composer-overlay,0px)+1rem)] pt-8",
-        )}
+        className={cn(READING_COLUMN, COMPOSER_CLEARANCE, "relative flex flex-col gap-7 pt-8")}
       >
         <AnimatePresence initial={false}>
           {messages.map((m, i) => (

@@ -7,7 +7,7 @@
 // message list must not re-render on every keystroke or every scroll event.
 
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   useActiveConversationMessages,
   useDelegatedConversationRuns,
@@ -26,9 +26,9 @@ import {
 import { useUiStore } from "@/state/uiStore";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
 import { ComposerSurface } from "./ComposerSurface";
+import { FloatingComposer } from "./FloatingComposer";
 import { READING_COLUMN, READING_GUTTER } from "./readingColumn";
 import { CwdMissingBanner } from "./CwdMissingBanner";
-import { JumpToBottomButton } from "./JumpToBottomButton";
 import { MessageStream } from "./MessageStream";
 import { RunErrorBanner } from "./RunErrorBanner";
 
@@ -37,7 +37,7 @@ interface Props {
   onSend: (input: UserInput) => void;
 }
 
-// The two rails hang off that column's edges, OUT of its flow.
+// The two rails hang off the reading column's edges, OUT of its flow.
 //
 // They used to be flex siblings, and the column sat at the midpoint of the two
 // gutters instead of the pane's — 76px left of centre, because the outline rail
@@ -61,12 +61,6 @@ const RAIL =
   "absolute top-0 bottom-[var(--composer-overlay,0px)] z-[1] hidden w-[var(--reading-rail-width)] flex-col @min-[1168px]:flex pointer-events-none [&>*]:pointer-events-auto";
 const RAIL_START = "right-[calc(50%+var(--reading-column-max)/2)]";
 const RAIL_END = "left-[calc(50%+var(--reading-column-max)/2)]";
-
-// How much of itself the floating composer hides. The transcript pads its tail
-// by this so the last message can always come out from under it — measured,
-// because the composer grows with what you type and with whatever the model row,
-// the attachments and the steer banner are showing.
-const COMPOSER_OVERLAY = "--composer-overlay";
 
 export function ChatStream({ onSend }: Props) {
   const resetKey = useActiveSessionId();
@@ -131,23 +125,6 @@ export function ChatStream({ onSend }: Props) {
   const started = messages.length > 0;
 
   const paneRef = useRef<HTMLDivElement>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
-  // Written straight to the element, not held in state: the composer resizes on
-  // the keystroke that wraps a line, and routing that through a render would put
-  // the whole message list on the typing path — the one thing this component is
-  // organised to keep it off.
-  useLayoutEffect(() => {
-    const pane = paneRef.current;
-    const overlay = overlayRef.current;
-    if (!pane || !overlay) return;
-    const observer = new ResizeObserver(() => {
-      pane.style.setProperty(COMPOSER_OVERLAY, `${overlay.offsetHeight}px`);
-    });
-    observer.observe(overlay);
-    return () => observer.disconnect();
-    // The empty state is a different tree with no overlay in it, so the
-    // observer has to be re-attached to the one the first message brings.
-  }, [started]);
 
   const t = useT();
 
@@ -215,34 +192,7 @@ export function ChatStream({ onSend }: Props) {
           <Slot name="chat.rail.end" />
         </div>
 
-        {/* The composer floats over the tail of the transcript rather than
-            capping it with a bar: one continuous surface with an input resting
-            on it, which is also why the text has to keep going underneath. The
-            band above it fades that text out instead of slicing it, and only
-            the composer's own box takes the pointer — the fade is scenery.
-
-            It is exactly the COLUMN wide, never the pane. A full-width overlay
-            is a bottom bar however it is positioned: it paints over the whole
-            width of the pane, which reads as chrome and takes the scrollbar's
-            bottom inch with it. Nothing outside the column has anything to hide
-            anyway — the transcript is centred and capped. */}
-        <div
-          ref={overlayRef}
-          className={cn("pointer-events-none absolute inset-x-0 bottom-0 z-10", READING_COLUMN)}
-        >
-          <div
-            className={cn(
-              READING_GUTTER,
-              "h-8 bg-gradient-to-b from-transparent to-[var(--app-content-surface)]",
-            )}
-          />
-          <div className={cn(READING_GUTTER, "bg-[var(--app-content-surface)] pb-3 sm:pb-4")}>
-            <div className="pointer-events-auto relative">
-              <JumpToBottomButton />
-              {composer}
-            </div>
-          </div>
-        </div>
+        <FloatingComposer publishHeightTo={paneRef}>{composer}</FloatingComposer>
       </div>
     </div>
   );

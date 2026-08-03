@@ -1393,6 +1393,17 @@ html[data-control-treatment="elevated"]
   flex-direction: column;
 }
 
+/* The transcript dissolves at the top edge instead of being guillotined by it.
+   The composer already fades the bottom; without this the same scroll had a soft
+   edge at one end and a razor at the other, with a half-height line of text
+   sitting under the banner. Shorter than the column's own `pt-8`, so at rest the
+   fade lands entirely in padding and nothing a user is reading is ever dimmed.
+   `-webkit-` first: this ships in a WKWebView. */
+.msg-scroll-viewport {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 24px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 24px);
+}
+
 /* Continuous-curvature corners where the engine has them. macOS draws its own
    window and control corners this way, so a plain `border-radius` beside native
    chrome reads slightly mechanical. Feature-gated rather than assumed: this is a

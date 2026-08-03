@@ -17,3 +17,13 @@ export const READING_COLUMN = "mx-auto w-full max-w-[var(--reading-column-max)]"
 
 export const READING_GUTTER =
   "px-[var(--density-column-gutter)] sm:px-[var(--density-column-gutter-wide)]";
+
+// How much of the transcript the floating composer covers, and the clearance
+// the transcript's tail takes from it. Two halves of one contract, kept in one
+// file because they cannot be expressed as one thing: Tailwind reads source
+// text, so the class has to spell the property that the constant names. Filed
+// apart, they drift, and the symptom is a last message nobody can scroll out
+// from under.
+export const COMPOSER_OVERLAY_PROPERTY = "--composer-overlay";
+
+export const COMPOSER_CLEARANCE = "pb-[calc(var(--composer-overlay,0px)+1rem)]";

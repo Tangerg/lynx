@@ -269,9 +269,13 @@
   background: transparent !important;
 }
 /* `font-size: inherit` pins block code to the parent .shiki size — otherwise the
-   `.md code` inline-chip size would apply again inside the block. */
+   `.md code` inline-chip size would apply again inside the block.
+   `!important` on the fill for the same reason the `<pre>` above needs it: the
+   inline-code chip was reaching the `<code>` inside a highlighted block and
+   painting a second, lighter grey behind every line — a slab of stripes instead
+   of one recessed surface. Specificity alone does not settle it here. */
 .shiki-block .shiki code {
-  background: transparent;
+  background: transparent !important;
   border: 0;
   padding: 0;
   font-size: inherit;

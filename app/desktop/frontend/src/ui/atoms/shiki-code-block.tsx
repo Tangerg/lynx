@@ -138,11 +138,12 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
           size="xs"
           onClick={onCopy}
           title={copied ? t("message.code.copied") : t("message.code.copy")}
-          className={cn(
-            copied
-              ? "text-success opacity-100"
-              : "text-fg-muted opacity-0 group-hover/code:opacity-100 hover:text-fg hover:bg-hover",
-          )}
+          // Visible at rest, not on hover. The bar's other content is a
+          // three-letter language tag, and a block without a filename left it
+          // holding one faint word — a 34px strip of nothing between the
+          // paragraph and the code. Copying a block is also the thing anyone
+          // does most with one, and the reference shows it standing.
+          className={cn(copied ? "text-success" : "text-fg-faint hover:bg-hover hover:text-fg")}
         />
       </div>
       {folded ? (
