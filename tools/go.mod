@@ -3,14 +3,13 @@ module github.com/Tangerg/lynx/tools
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/tool v0.0.0-20260802183922-a24b624cc403
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/invopop/jsonschema v0.14.0
 )
 
 require (
+	github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.6.1 // indirect
 	github.com/kr/text v0.2.0 // indirect

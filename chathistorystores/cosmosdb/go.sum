@@ -8,12 +8,8 @@ github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 h1:fhqpLE3UEXi9lPaBRpQ6Xu
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0/go.mod h1:7dCRMLwisfRH3dBupKeNCioWYUZ4SS09Z14H+7i8ZoY=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.7.0 h1:4iB+IesclUXdP0ICgAabvq2FYLXrJWKx1fJQ+GxSo3Y=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.7.0/go.mod h1:HKpQxkWaGLJ+D/5H8QRpyQXA1eKjxkFlOMwck5+33Jk=
-github.com/Tangerg/lynx/chathistory v0.0.0-20260802202600-3410ed0550c1 h1:mXoAmPC5o4TVdO2WbdGKYOYUCrYqHNzsJLtgHchk39k=
-github.com/Tangerg/lynx/chathistory v0.0.0-20260802202600-3410ed0550c1/go.mod h1:0AVxx5M7QOlR0IinVo6P5BwQz67jos9NhHZ3HmGAIbQ=
-github.com/Tangerg/lynx/core v0.0.0-20260802201325-86ac84535c5e h1:KMk8rj22U3Jb1m2UmODra3YSqQnwaNIKOcQgTjVAbkM=
-github.com/Tangerg/lynx/core v0.0.0-20260802201325-86ac84535c5e/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
-github.com/Tangerg/lynx/internal/chathistorykit v0.0.0-20260802202600-3410ed0550c1 h1:saOw7LB1DLSxFPAi7EiK2e/SjUQxfJm7GF1n1wxjRgY=
-github.com/Tangerg/lynx/internal/chathistorykit v0.0.0-20260802202600-3410ed0550c1/go.mod h1:c04aBu59rUp3sWw/7M0DFlrZmjRE9JDkLJK2U92VpU8=
+github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81 h1:pfk2YohXURWI1oZiEhkSsS+K0tH0PM/iksWsoYx9Zo8=
+github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
 github.com/Tangerg/lynx/internal/chathistoryotel v0.0.0-20260802202600-3410ed0550c1 h1:tgVGQ5TjkEZXUFHhouup4j8OIq/ZXjifc8V0f2LmWR4=
 github.com/Tangerg/lynx/internal/chathistoryotel v0.0.0-20260802202600-3410ed0550c1/go.mod h1:jyTPtLW66HfG5QlCDn2iKHSBnUhN0J7IsVtpJR2fkc4=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=

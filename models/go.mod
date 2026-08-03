@@ -3,9 +3,7 @@ module github.com/Tangerg/lynx/models
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260802194415-a15faf3dea2e
-	github.com/Tangerg/lynx/tokenizer v0.0.0-20260802190418-6eedf79d9b4e
 	github.com/anthropics/anthropic-sdk-go v1.61.0
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/openai/openai-go/v3 v3.49.0
@@ -22,6 +20,7 @@ require (
 )
 
 require (
+	github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.6.1 // indirect
 	github.com/invopop/jsonschema v0.14.0 // indirect

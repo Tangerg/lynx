@@ -1,5 +1,5 @@
-github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9 h1:MPl9AlCg41y7KSony3MEwczSRX1uGVMJb5773ZFZoWc=
-github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
+github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81 h1:pfk2YohXURWI1oZiEhkSsS+K0tH0PM/iksWsoYx9Zo8=
+github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
 github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260802194415-a15faf3dea2e h1:EkeznAvbPwKsoxuOrCCJuwNR56eHsV/0MCkUeeMqBMs=
 github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260802194415-a15faf3dea2e/go.mod h1:OZlM3yAFlMt2cFroT//zR2Ji1KnvLJ6QU9nWS4cGcoY=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=

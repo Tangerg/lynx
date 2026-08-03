@@ -3,14 +3,12 @@ module github.com/Tangerg/lynx/internal/vectorstorepg
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260802201325-86ac84535c5e
-	github.com/Tangerg/lynx/embeddingclient v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/internal/vectorstorekit v0.0.0-20260802204045-978b3740ee67
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/pgvector/pgvector-go v0.4.1
 )
 
 require (
+	github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect

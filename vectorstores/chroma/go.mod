@@ -2,15 +2,11 @@ module github.com/Tangerg/lynx/vectorstores/chroma
 
 go 1.26.5
 
-require (
-	github.com/Tangerg/lynx/core v0.0.0-20260802201325-86ac84535c5e
-	github.com/Tangerg/lynx/embeddingclient v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/internal/vectorstorekit v0.0.0-20260802204045-978b3740ee67
-	github.com/amikos-tech/chroma-go v0.4.1
-)
+require github.com/amikos-tech/chroma-go v0.4.1
 
 require (
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
+	github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81
 	github.com/amikos-tech/chroma-go-local v0.3.4 // indirect
 	github.com/amikos-tech/pure-onnx v0.0.1 // indirect
 	github.com/amikos-tech/pure-tokenizers v0.1.5 // indirect

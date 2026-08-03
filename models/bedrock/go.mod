@@ -3,13 +3,13 @@ module github.com/Tangerg/lynx/models/bedrock
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9
 	github.com/aws/aws-sdk-go-v2 v1.43.2
 	github.com/aws/aws-sdk-go-v2/config v1.32.33
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.56.2
 )
 
 require (
+	github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.15 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.32 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.33 // indirect

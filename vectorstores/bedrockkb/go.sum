@@ -1,7 +1,5 @@
-github.com/Tangerg/lynx/core v0.0.0-20260802201325-86ac84535c5e h1:KMk8rj22U3Jb1m2UmODra3YSqQnwaNIKOcQgTjVAbkM=
-github.com/Tangerg/lynx/core v0.0.0-20260802201325-86ac84535c5e/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
-github.com/Tangerg/lynx/internal/vectorstorekit v0.0.0-20260802204045-978b3740ee67 h1:TzAb5jjsKy06Ty7JrUaRRoBB9Hv+3L/RWCqXzPHMD0g=
-github.com/Tangerg/lynx/internal/vectorstorekit v0.0.0-20260802204045-978b3740ee67/go.mod h1:x3Rl7PFsdg4wJfx+pauLKWcNXVhUv5xYENdToAu8Apk=
+github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81 h1:pfk2YohXURWI1oZiEhkSsS+K0tH0PM/iksWsoYx9Zo8=
+github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
 github.com/aws/aws-sdk-go-v2 v1.43.2 h1:cl+IXwWb3qazClUcm08tGSsB6OiuV83JVJO9B0jQcPc=
 github.com/aws/aws-sdk-go-v2 v1.43.2/go.mod h1:WEzLKBh/mEjXvx1FtQMWgSxMSTVqxQzjkRtk5fa3wkg=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.15 h1:rq/p1VNFfygoKEQ9hHMKsKBE98lspPvT8IxaFs5mFhw=

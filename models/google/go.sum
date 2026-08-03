@@ -6,12 +6,10 @@ cloud.google.com/go/auth v0.9.3/go.mod h1:7z6VY+7h3KUdRov5F1i8NDP5ZzWKYmEPO842Bg
 cloud.google.com/go/compute/metadata v0.5.0 h1:Zr0eK8JbFv6+Wi4ilXAR8FJ3wyNdpxHKJNPos6LTZOY=
 cloud.google.com/go/compute/metadata v0.5.0/go.mod h1:aHnloV2TPI38yx4s9+wAZhHykWvVCfu7hQbF+9CWoiY=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9 h1:MPl9AlCg41y7KSony3MEwczSRX1uGVMJb5773ZFZoWc=
-github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
+github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81 h1:pfk2YohXURWI1oZiEhkSsS+K0tH0PM/iksWsoYx9Zo8=
+github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
 github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260802194415-a15faf3dea2e h1:EkeznAvbPwKsoxuOrCCJuwNR56eHsV/0MCkUeeMqBMs=
 github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260802194415-a15faf3dea2e/go.mod h1:OZlM3yAFlMt2cFroT//zR2Ji1KnvLJ6QU9nWS4cGcoY=
-github.com/Tangerg/lynx/tokenizer v0.0.0-20260802190418-6eedf79d9b4e h1:pIA2uTRXvQQ+1X8Xd7fm7EnGUpJEhtGPEd8Fzt/CsYs=
-github.com/Tangerg/lynx/tokenizer v0.0.0-20260802190418-6eedf79d9b4e/go.mod h1:B/G8SBJLbdYMBeRH4TAffvxoTk0gtpiuDrfJfikUZ4s=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGXZJjfX53e64911xZQV5JYwmTeXPW+k8Sc=

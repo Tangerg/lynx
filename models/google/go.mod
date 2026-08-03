@@ -3,9 +3,7 @@ module github.com/Tangerg/lynx/models/google
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260802194415-a15faf3dea2e
-	github.com/Tangerg/lynx/tokenizer v0.0.0-20260802190418-6eedf79d9b4e
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/openai/openai-go/v3 v3.49.0
 	google.golang.org/genai v1.66.0
@@ -15,6 +13,7 @@ require (
 	cloud.google.com/go v0.116.0 // indirect
 	cloud.google.com/go/auth v0.9.3 // indirect
 	cloud.google.com/go/compute/metadata v0.5.0 // indirect
+	github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/s2a-go v0.1.8 // indirect

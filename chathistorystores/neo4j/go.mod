@@ -3,14 +3,12 @@ module github.com/Tangerg/lynx/chathistorystores/neo4j
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/chathistory v0.0.0-20260802202600-3410ed0550c1
-	github.com/Tangerg/lynx/core v0.0.0-20260802201325-86ac84535c5e
-	github.com/Tangerg/lynx/internal/chathistorykit v0.0.0-20260802202600-3410ed0550c1
 	github.com/Tangerg/lynx/internal/chathistoryotel v0.0.0-20260802202600-3410ed0550c1
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 )
 
 require (
+	github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect

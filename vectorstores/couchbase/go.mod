@@ -2,14 +2,10 @@ module github.com/Tangerg/lynx/vectorstores/couchbase
 
 go 1.26.5
 
-require (
-	github.com/Tangerg/lynx/core v0.0.0-20260802201325-86ac84535c5e
-	github.com/Tangerg/lynx/embeddingclient v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/internal/vectorstorekit v0.0.0-20260802204045-978b3740ee67
-	github.com/couchbase/gocb/v2 v2.12.4
-)
+require github.com/couchbase/gocb/v2 v2.12.4
 
 require (
+	github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/couchbase/gocbcore/v10 v10.9.3 // indirect
 	github.com/couchbase/gocbcoreps v0.1.5-0.20260107140814-1c3a03f888f8 // indirect

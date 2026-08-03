@@ -2,15 +2,11 @@ module github.com/Tangerg/lynx/vectorstores/clickhouse
 
 go 1.26.5
 
-require (
-	github.com/ClickHouse/clickhouse-go/v2 v2.47.0
-	github.com/Tangerg/lynx/core v0.0.0-20260802201325-86ac84535c5e
-	github.com/Tangerg/lynx/embeddingclient v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/internal/vectorstorekit v0.0.0-20260802204045-978b3740ee67
-)
+require github.com/ClickHouse/clickhouse-go/v2 v2.47.0
 
 require (
 	github.com/ClickHouse/ch-go v0.73.0 // indirect
+	github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.7.1 // indirect
