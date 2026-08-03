@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 const localRuntimeEndpoint = "http://127.0.0.1:17171"
@@ -32,6 +30,20 @@ type DesktopBootstrap struct {
 	LocalRuntime      LocalRuntimeConnection `json:"localRuntime"`
 	SideloadedPlugins []SideloadedPlugin     `json:"sideloadedPlugins"`
 	SideloadIssues    []SideloadIssue        `json:"sideloadIssues"`
+}
+
+// WindowChrome is where the platform put the window's own controls, in CSS pixels
+// from the window's top-left.
+//
+// `Measured` false means there was nothing to measure — a platform whose controls
+// sit outside the content, or no window yet — and the frontend keeps the gutter and
+// alignment its stylesheet declares. Zeroes with `Measured` true are a different
+// answer and a real one: the window is fullscreen, the marks are gone with the menu
+// bar, and nothing should be reserved for or aligned to them.
+type WindowChrome struct {
+	ControlsCentreY   float64 `json:"controlsCentreY"`
+	ControlsInlineEnd float64 `json:"controlsInlineEnd"`
+	Measured          bool    `json:"measured"`
 }
 
 // DesktopHost is the Wails-owned boundary for capabilities that belong to the
@@ -65,50 +77,31 @@ func defaultDesktopHost() (*DesktopHost, error) {
 // attachWindow receives the Wails application context at startup. Everything
 // below that drives the window is inert until it has been called.
 //
-// It is also where the app takes the window's controls over from the platform:
-// the frame's own buttons go away here, and from this point the three the app
-// draws are the only ones.
+// It is also where the window's titlebar is set to the height that lines its own
+// three controls up with the app's header. The controls themselves are the
+// platform's — see window_chrome_darwin.go for what replacing them had cost.
 func (h *DesktopHost) attachWindow(ctx context.Context) {
 	h.window = ctx
-	hideNativeWindowButtons()
+	useCompactWindowToolbar()
 }
 
-// MinimiseWindow, ToggleMaximiseWindow and CloseWindow back the three controls
-// the app draws itself, since the platform no longer draws any. They are
-// no-ops before startup and in tests, where there is no window to act on.
-func (h *DesktopHost) MinimiseWindow() {
-	if h.window == nil {
-		return
+// WindowChrome hands the frontend the geometry of the platform's own window
+// controls, so the header drawn under them can be laid out against measurements
+// instead of literals.
+//
+// Read on demand rather than cached: the titlebar is rebuilt on the way into and
+// out of fullscreen, and the controls go away entirely while fullscreen, so the
+// answer has a shelf life of one layout.
+func (h *DesktopHost) WindowChrome() WindowChrome {
+	controlsCentreY, controlsInlineEnd, measured := nativeWindowChrome()
+	if !measured {
+		return WindowChrome{}
 	}
-	runtime.WindowMinimise(h.window)
-}
-
-func (h *DesktopHost) ToggleMaximiseWindow() {
-	if h.window == nil {
-		return
+	return WindowChrome{
+		ControlsCentreY:   controlsCentreY,
+		ControlsInlineEnd: controlsInlineEnd,
+		Measured:          true,
 	}
-	runtime.WindowToggleMaximise(h.window)
-}
-
-// CloseWindow ends the application. On macOS a single-window app with no dock
-// presence to return to has nothing left to show once its window is gone, so
-// the red control quits rather than orphaning a running process.
-func (h *DesktopHost) CloseWindow() {
-	if h.window == nil {
-		return
-	}
-	runtime.Quit(h.window)
-}
-
-// IsWindowMaximised answers which way the zoom control points. The platform
-// draws two different marks — arrows out to fill the screen, arrows in to come
-// back — and a control that shows the same one in both states is telling you
-// what it does half the time.
-func (h *DesktopHost) IsWindowMaximised() bool {
-	if h.window == nil {
-		return false
-	}
-	return runtime.WindowIsMaximised(h.window)
 }
 
 // Bootstrap returns the local runtime connection and immutable plugin sources

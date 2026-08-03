@@ -21,7 +21,7 @@ function WorkspaceStateSidebar({ state }: { state: VisualWorkspaceState }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <AgentSurfaceHeader divider={false} className="pl-[78px]">
-        <span className="text-ui-lg font-semibold text-fg">Workspace states</span>
+        <span className="text-ui-md font-semibold text-fg">Workspace states</span>
       </AgentSurfaceHeader>
       <div className="flex flex-col gap-0.5 px-2 pt-2">
         {(Object.keys(STATE_LABELS) as VisualWorkspaceState[]).map((candidate) => (

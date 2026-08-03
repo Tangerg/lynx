@@ -22,7 +22,7 @@ function WorkIndexFixture() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <AgentSurfaceHeader divider={false} className="pl-[78px]">
-        <span className="text-ui-lg font-semibold text-fg">Lynx</span>
+        <span className="text-ui-md font-semibold text-fg">Lynx</span>
         <span className="min-w-2 flex-1" />
         <IconButton icon="search" size="sm" aria-label="Search" />
         <IconButton icon="edit" size="sm" aria-label="New session" />
@@ -63,7 +63,7 @@ function WorkIndexFixture() {
 function ComposerFixture() {
   return (
     <AgentComposerSurface data-testid="composer" className="relative">
-      <div className="min-h-20 px-[var(--density-composer-editor-start)] pt-[var(--density-composer-editor-top)] pb-[var(--density-composer-editor-bottom)] text-ui-lg leading-relaxed text-fg">
+      <div className="min-h-20 px-[var(--density-composer-editor-start)] pt-[var(--density-composer-editor-top)] pb-[var(--density-composer-editor-bottom)] text-ui-md leading-relaxed text-fg">
         Ask Lynx to inspect, change, or explain this workspace…
       </div>
       <div className="flex items-center gap-1 px-[var(--density-composer-footer)] pb-[var(--density-composer-footer)] pl-[var(--density-composer-footer)]">
@@ -86,8 +86,8 @@ function FoundationSurface({ sidebarOpen }: { sidebarOpen: boolean }) {
       <AgentSurfaceHeader windowCorner>
         <IconButton icon="panel-l" size="sm" aria-label="Toggle work index" />
         <span className="font-mono text-ui-sm text-fg-faint">lynx</span>
-        <span className="text-ui-lg text-fg-faint">/</span>
-        <span className="truncate text-ui-lg font-semibold text-fg">Visual foundation</span>
+        <span className="text-ui-md text-fg-faint">/</span>
+        <span className="truncate text-ui-md font-semibold text-fg">Visual foundation</span>
         <AgentStatusPill tone="neutral">Ready</AgentStatusPill>
         <span className="min-w-2 flex-1" />
         <IconButton icon="panel-r" size="sm" aria-label="Open context dock" />
@@ -101,7 +101,7 @@ function FoundationSurface({ sidebarOpen }: { sidebarOpen: boolean }) {
           <h1 className="mt-2 text-display-lg font-semibold leading-tight text-fg">
             One visual language, one source of truth.
           </h1>
-          <p className="mt-3 max-w-[62ch] text-ui-lg leading-relaxed text-fg-soft">
+          <p className="mt-3 max-w-[62ch] text-ui-md leading-relaxed text-fg-soft">
             Production primitives render this fixture. The route owns only stable test content,
             viewport, locale, and appearance—never a parallel business model.
           </p>
@@ -114,7 +114,7 @@ function FoundationSurface({ sidebarOpen }: { sidebarOpen: boolean }) {
                 <span className="text-ui-xs">10</span>
                 <span className="text-ui-sm">11</span>
                 <span className="text-ui-md">12</span>
-                <span className="text-ui-lg">13</span>
+                <span className="text-ui-md">13</span>
                 <code className="font-mono text-code">code 11</code>
               </div>
             </section>

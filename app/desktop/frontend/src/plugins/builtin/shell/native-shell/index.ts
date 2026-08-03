@@ -18,12 +18,8 @@
 // 2. Publish when the window is NOT the focused one, which chrome that mimics
 //    platform controls has to answer to.
 //
-// 3. Contribute the three window controls, since the window has no title bar for
-//    the platform to draw them in.
 
 import { definePlugin } from "@/plugins/sdk";
-import { windowControlsSlot } from "./application/nativeShellContributions";
-import { WindowControls } from "./ui/WindowControls";
 
 const EDITABLE = "input, textarea, [contenteditable='true']";
 
@@ -39,7 +35,7 @@ const WINDOW_INACTIVE_ATTR = "data-window-inactive";
 export default definePlugin({
   name: "lyra.builtin.native-shell",
   version: "1.0.0",
-  setup({ host }) {
+  setup() {
     const onContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
       if (target?.closest(EDITABLE)) return; // keep the system edit menu on inputs
@@ -53,8 +49,6 @@ export default definePlugin({
     syncFocus();
     addEventListener("focus", syncFocus);
     addEventListener("blur", syncFocus);
-
-    host.layout.register("app.window-controls", windowControlsSlot(WindowControls));
 
     return () => {
       document.removeEventListener("contextmenu", onContextMenu);

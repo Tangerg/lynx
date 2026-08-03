@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { initializeDesktopHost } from "./main/container";
+import { applyWindowChrome, watchWindowChrome } from "./main/windowChrome";
 // Fonts: the native OS stack (SF Pro / PingFang on macOS) — see globals.css
 // --font-sans. No bundled webfont; the system face is the premium, native
 // default, loads instantly, and renders mixed CJK best.
@@ -24,6 +25,10 @@ async function start(): Promise<void> {
   } catch (error) {
     console.error("[desktop] host bootstrap failed:", error);
   }
+  // Before the first render: the header's height comes from the window frame, and
+  // laying it out at the declared height first would move every row on screen once.
+  await applyWindowChrome();
+  watchWindowChrome();
   const container = document.getElementById("root");
   createRoot(container!).render(<App />);
 }

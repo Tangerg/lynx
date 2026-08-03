@@ -196,6 +196,7 @@ export type {
   LocalRuntimeConnection,
   SideloadedPlugin,
   SideloadIssue,
+  WindowChrome,
 } from "./desktopHost";
 export { createHttpTransport } from "./transports/http";
 export type { HttpTransportConfig } from "./transports/http";

@@ -28,7 +28,6 @@ export function AgentClientPage() {
       sidebar={singleMode ? undefined : <Slot name="app.sidebar" />}
       main={<Slot name="app.main" />}
       overlay={<Slot name="app.overlay" />}
-      windowControls={<Slot name="app.window-controls" />}
     />
   );
 }

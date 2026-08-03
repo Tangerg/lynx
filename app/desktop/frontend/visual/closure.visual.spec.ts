@@ -89,17 +89,11 @@ for (const route of ACCESSIBILITY_ROUTES) {
     }
     await openFixture(page, route);
 
-    // The window controls are the one exclusion, and only from this audit's
-    // reach — not from the guideline's intent. They replicate the platform's
-    // traffic lights to the pixel: 12px marks on a 20px pitch, under WCAG 2.2's
-    // 24px target minimum. Their size and spacing ARE the recognition; drawn to
-    // the minimum they stop reading as window controls, which costs every user
-    // more than the four pixels buy. This is the exception the guideline itself
-    // makes for a presentation that is essential to the meaning.
-    const results = await new AxeBuilder({ page })
-      .withTags([...WCAG_TAGS])
-      .exclude('[data-slot="agent-window-controls"]')
-      .analyze();
+    // No exclusions. There used to be one, for hand-drawn window controls whose
+    // 14px marks sat under WCAG 2.2's 24px target minimum; the window's controls
+    // are the platform's again, so they are outside the document and outside this
+    // audit by construction rather than by exemption.
+    const results = await new AxeBuilder({ page }).withTags([...WCAG_TAGS]).analyze();
     expect(
       results.violations,
       results.violations

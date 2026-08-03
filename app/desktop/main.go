@@ -34,19 +34,26 @@ func desktopApplicationOptions(host *DesktopHost) *options.App {
 		OnStartup:        host.attachWindow,
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		// macOS: a real titled window whose title bar is transparent and empty,
-		// with the content running the full height underneath it. The app draws
-		// its own three controls in the gutter it reserves for them and moves
-		// the window through the draggable chrome bars; hideNativeWindowButtons
-		// takes the platform's controls off the frame at startup.
+		// with the content running the full height underneath it. The platform
+		// draws its own three controls over that content and the app reserves a
+		// gutter for them from the geometry it measures (DesktopHost.WindowChrome);
+		// the window moves through the draggable chrome bars.
+		//
+		// UseToolbar is here for its height, not for a toolbar: it is what makes
+		// the titlebar taller than 32pt, and the frame buttons are centred in
+		// whatever height it has. `useCompactWindowToolbar` then pins the style,
+		// because the automatic one resolves to a titlebar two thirds taller again.
 		//
 		// HideTitleBar stays false deliberately. Setting it drops
-		// NSWindowStyleMaskTitled, which does remove the buttons — and the
-		// window frame with them, leaving square corners and no shadow.
+		// NSWindowStyleMaskTitled, which removes the buttons — and the window frame
+		// with them, leaving square corners and no shadow.
 		Mac: &mac.Options{
 			TitleBar: &mac.TitleBar{
 				TitlebarAppearsTransparent: true,
 				HideTitle:                  true,
 				FullSizeContent:            true,
+				UseToolbar:                 true,
+				HideToolbarSeparator:       true,
 			},
 			Appearance: mac.NSAppearanceNameAqua,
 		},

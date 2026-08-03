@@ -1119,29 +1119,20 @@ html.theme-light .panel-scroll::-webkit-scrollbar-thumb:hover {
   /* Drawer width. Live-updated inline on the shell element while dragging the
      seam rail; AgentAppShell restores the persisted value on mount. */
   --sidebar-width: 240px;
-  /* The app's own window controls: three 20px targets from 10px in, whose 14px
-     marks centre on the platform's own 20 / 40 / 60. The shell-level drawer control
-     starts after this gutter and never changes owner or coordinate. */
+  /* The PLATFORM's three window controls sit over our content, so the header has to
+     clear them and the first control after them has to share their centre line. Both
+     are overwritten before first paint with what AppKit actually did
+     (main/windowChrome.ts). These are the values for a window with no frame to
+     measure — a browser tab, a visual fixture — where nothing is drawn in the gutter
+     and the header's own centre is the only centre there is. */
   --window-controls-gutter: 78px;
+  --window-controls-centre: calc(var(--surface-header-height) / 2);
   /* Over content we do not own — a thumbnail, an untrusted HTML document. Fixed in
      both schemes on purpose: what is underneath them never inverts, so chrome laid
      on it cannot either. */
   --color-media-scrim: rgb(0 0 0 / 0.55);
   --color-media-canvas: #ffffff;
   --color-on-media: #ffffff;
-  /* The three marks are the platform's own colours, not the theme's: they mean
-     the same thing in every app on the desktop, and a window whose close button
-     is the accent hue — or a hand-picked softer red — is a window nobody
-     recognises at a glance. They do not follow the scheme for the same reason.
-     Sampled from a real title bar, not remembered: the values everyone quotes
-     for these are a generation out of date. The glyph on top is a fixed dark for the
-     same reason the fill is a fixed hue. */
-  --window-control-ink: rgb(0 0 0 / 0.5);
-  /* An unfocused window greys its three marks; the platform does the same. */
-  --window-control-inactive: color-mix(in oklab, var(--color-text-faint) 30%, transparent);
-  --window-control-close: #ff5c5f;
-  --window-control-minimise: #fac800;
-  --window-control-maximise: #34c759;
   --window-sidebar-control-span: 36px;
   /* Chrome bar height. Shared by the sidebar header and every content header so
      the two line up across the seam — the single number the macOS traffic-light
@@ -1186,31 +1177,21 @@ html.theme-dark {
 }
 
 /* One window-level owner for the drawer toggle. Sidebar collapse changes the
-   surfaces below it, never the control's parent, focus, or horizontal position. */
+   surfaces below it, never the control's parent, focus, or horizontal position.
+
+   Centred on the WINDOW CONTROLS, not on the header: this control sits at the end of
+   their cluster and reads as the fourth item in that row, so it has to share their
+   baseline. The header's own centre is a pixel away from theirs, and being aligned to
+   the wrong one of the two is what made the platform's controls unusable here before
+   — measured against the titlebar this window actually has, they sit 20px down where
+   a 42px header centres at 21. */
 .agent-window-sidebar-control {
   position: absolute;
   inset-block-start: 0;
   inset-inline-start: var(--window-controls-gutter);
   z-index: 40;
   display: flex;
-  height: var(--surface-header-height);
-  align-items: center;
-  -webkit-app-region: no-drag;
-  --wails-draggable: no-drag;
-}
-
-/* The window controls own the gutter that is named after them. Pinned to the
-   window rather than to the drawer, because they are the window's and must not
-   move — or vanish — when the drawer collapses. */
-.agent-window-controls {
-  position: absolute;
-  inset-block-start: 0;
-  /* Three 20px targets butted together, so the first 14px mark centres on the
-     platform's own 20px left margin and the cluster ends inside the gutter. */
-  inset-inline-start: 10px;
-  z-index: 41;
-  display: flex;
-  height: var(--surface-header-height);
+  height: calc(var(--window-controls-centre) * 2);
   align-items: center;
   -webkit-app-region: no-drag;
   --wails-draggable: no-drag;

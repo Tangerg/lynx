@@ -22,32 +22,41 @@ export interface DesktopBootstrap {
   sideloadIssues: SideloadIssue[];
 }
 
+/**
+ * Where the platform put the window's own controls, in CSS pixels from the window's
+ * top-left.
+ *
+ * `null` means there was nothing to ask — a browser tab, a visual fixture, a
+ * platform whose controls sit outside the content — and the stylesheet's own header
+ * height and gutter stand. A measured `controlsInlineEnd` of 0 is a different answer
+ * and a real one: the window is fullscreen and the marks are gone with the menu bar.
+ */
+export interface WindowChrome {
+  /** Distance down from the window's top to the marks' centre line — what a control
+   *  beside them centres on. */
+  controlsCentreY: number;
+  /** Where the cluster ends, and so where the header's first control may begin. */
+  controlsInlineEnd: number;
+}
+
 interface DesktopHostBinding {
   Bootstrap(): Promise<unknown>;
-  MinimiseWindow(): Promise<void>;
-  ToggleMaximiseWindow(): Promise<void>;
-  CloseWindow(): Promise<void>;
-  IsWindowMaximised(): Promise<boolean>;
+  WindowChrome(): Promise<unknown>;
 }
 
 export interface DesktopHostClient {
   /** Returns null in a plain browser where the Wails host is intentionally absent. */
   bootstrap(): Promise<DesktopBootstrap | null>;
-  /**
-   * The three window commands, because the platform draws no controls for them.
-   *
-   * Void and fire-and-forget: each one either moves the window or the window is
-   * not there (a browser tab, a visual fixture), and neither outcome is
-   * something a caller can act on. Failing here must never surface as an error
-   * in the UI — a dead minimise button is not worth a dialog.
-   */
-  minimiseWindow(): void;
-  toggleMaximiseWindow(): void;
-  closeWindow(): void;
-  /** Which way the zoom control should point. `false` where there is no window
-   *  to ask, which is also the shape a never-maximised window has. */
-  isWindowMaximised(): Promise<boolean>;
+  /** `null` where there is no window to measure. Re-read per layout: the titlebar is
+   *  rebuilt entering and leaving fullscreen, and the marks go away with it. */
+  windowChrome(): Promise<WindowChrome | null>;
 }
+
+const WindowChromeSchema = z.object({
+  controlsCentreY: z.number().nonnegative(),
+  controlsInlineEnd: z.number().nonnegative(),
+  measured: z.boolean(),
+});
 
 const DesktopBootstrapSchema = z.object({
   localRuntime: z.object({
@@ -88,25 +97,22 @@ export function createDesktopHostClient(binding?: DesktopHostBinding): DesktopHo
       })();
       return pending;
     },
-    minimiseWindow: () => command((host) => host.MinimiseWindow()),
-    toggleMaximiseWindow: () => command((host) => host.ToggleMaximiseWindow()),
-    closeWindow: () => command((host) => host.CloseWindow()),
-    async isWindowMaximised() {
+    async windowChrome() {
       const host = binding ?? wailsDesktopHostBinding();
-      if (!host) return false;
+      if (!host) return null;
+      // Geometry the layout can fall back on: a throw here, or a shape the host
+      // no longer speaks, must leave the stylesheet's declared values standing
+      // rather than collapse the header to zero.
       try {
-        return await host.IsWindowMaximised();
+        const parsed = WindowChromeSchema.safeParse(await host.WindowChrome());
+        if (!parsed.success || !parsed.data.measured) return null;
+        return {
+          controlsCentreY: parsed.data.controlsCentreY,
+          controlsInlineEnd: parsed.data.controlsInlineEnd,
+        };
       } catch {
-        return false;
+        return null;
       }
     },
   };
-
-  function command(run: (host: DesktopHostBinding) => Promise<void>): void {
-    const host = binding ?? wailsDesktopHostBinding();
-    if (!host) return;
-    void Promise.resolve(run(host)).catch((error: unknown) => {
-      console.error("[desktop] window command failed:", error);
-    });
-  }
 }
