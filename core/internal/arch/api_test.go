@@ -31,7 +31,7 @@ const exportedAPIBaseline = "testdata/exported_api.txt"
 // types cannot change without review. Function bodies and comments are omitted.
 func TestExportedAPIMatchesBaseline(t *testing.T) {
 	got := exportedAPISnapshot(t)
-	path := filepath.Join(moduleRoot(t), "internal", "arch", exportedAPIBaseline)
+	path := filepath.Join(coreRoot(t), "internal", "arch", exportedAPIBaseline)
 	if *updateAPI {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatalf("create API baseline directory: %v", err)
@@ -54,7 +54,7 @@ func TestExportedAPIMatchesBaseline(t *testing.T) {
 
 func exportedAPISnapshot(t *testing.T) string {
 	t.Helper()
-	root := moduleRoot(t)
+	root := coreRoot(t)
 	fset := token.NewFileSet()
 	var entries []string
 

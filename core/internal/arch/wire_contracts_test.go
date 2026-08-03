@@ -95,7 +95,7 @@ func TestWireContractsMatchGolden(t *testing.T) {
 	}
 	got = append(got, '\n')
 
-	filename := filepath.Join(moduleRoot(t), "internal", "arch", "testdata", "wire_contracts.golden.json")
+	filename := filepath.Join(coreRoot(t), "internal", "arch", "testdata", "wire_contracts.golden.json")
 	if *updateWireFixtures {
 		if err := os.WriteFile(filename, got, 0o644); err != nil {
 			t.Fatal(err)
@@ -113,7 +113,7 @@ func TestWireContractsMatchGolden(t *testing.T) {
 func discoverExportedJSONStructs(t *testing.T) []string {
 	t.Helper()
 
-	root := moduleRoot(t)
+	root := coreRoot(t)
 	fset := token.NewFileSet()
 	var names []string
 	for _, filename := range productionGoFiles(t) {

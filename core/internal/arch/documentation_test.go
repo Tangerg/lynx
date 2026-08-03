@@ -15,7 +15,7 @@ import (
 func TestPublicPackagesHaveDocsAndRunnableExamples(t *testing.T) {
 	t.Parallel()
 
-	root := moduleRoot(t)
+	root := coreRoot(t)
 	packages := make([]string, 0, len(targetPublicPackages))
 	for packagePath := range targetPublicPackages {
 		packages = append(packages, packagePath)

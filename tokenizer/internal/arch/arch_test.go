@@ -1,4 +1,4 @@
-// Package arch contains architecture fitness tests for the tokenizer module.
+// Package arch contains architecture fitness tests for the tokenizer package.
 package arch
 
 import (
@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -35,7 +36,7 @@ func TestCapabilitiesRemainSmall(t *testing.T) {
 }
 
 func TestProductionDependencyBoundary(t *testing.T) {
-	root := moduleRoot(t)
+	root := packageRoot(t)
 	fset := token.NewFileSet()
 	for _, path := range productionGoFiles(t, root) {
 		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
@@ -76,22 +77,22 @@ func productionGoFiles(t *testing.T, root string) []string {
 		}
 		return nil
 	}); err != nil {
-		t.Fatalf("walk tokenizer module: %v", err)
+		t.Fatalf("walk tokenizer package: %v", err)
 	}
 	return files
 }
 
-func TestContractModuleHasNoRequirementsOrReplacements(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join(moduleRoot(t), "go.mod"))
+func TestRootModuleHasNoRequirementsOrReplacements(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(packageRoot(t), "..", "go.mod"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	contents := string(data)
 	if strings.Contains(contents, "\nrequire ") || strings.Contains(contents, "\nrequire(") {
-		t.Fatal("tokenizer contract module must not require another module")
+		t.Fatal("root module must not require another module")
 	}
 	if strings.Contains(contents, "\nreplace ") || strings.Contains(contents, "\nreplace(") {
-		t.Fatal("tokenizer contract module must not contain replace directives")
+		t.Fatal("root module must not contain replace directives")
 	}
 }
 
@@ -100,20 +101,11 @@ func isStandardImport(importPath string) bool {
 	return !strings.Contains(first, ".")
 }
 
-func moduleRoot(t *testing.T) string {
+func packageRoot(t *testing.T) string {
 	t.Helper()
-	directory, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve architecture test path")
 	}
-	for {
-		if _, err := os.Stat(filepath.Join(directory, "go.mod")); err == nil {
-			return directory
-		}
-		parent := filepath.Dir(directory)
-		if parent == directory {
-			t.Fatal("go.mod not found")
-		}
-		directory = parent
-	}
+	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", ".."))
 }

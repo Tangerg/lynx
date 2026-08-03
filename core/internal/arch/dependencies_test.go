@@ -22,7 +22,7 @@ var dependencyBudgetPackageRoots = []string{
 }
 
 func TestTargetPackagesHaveNoExternalDependencies(t *testing.T) {
-	root := moduleRoot(t)
+	root := coreRoot(t)
 	fset := token.NewFileSet()
 	seen := make(map[string]bool, len(dependencyBudgetPackageRoots))
 	for _, path := range productionGoFiles(t) {
@@ -77,7 +77,7 @@ func TestCoreProductionImportsAreStandardLibraryOnly(t *testing.T) {
 			if strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core") || isStandardImport(importPath) {
 				continue
 			}
-			rel, _ := filepath.Rel(moduleRoot(t), path)
+			rel, _ := filepath.Rel(coreRoot(t), path)
 			t.Errorf("core production import %q in %s is not from the standard library", importPath, rel)
 		}
 	}

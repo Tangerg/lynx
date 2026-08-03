@@ -1,4 +1,4 @@
-// Package arch holds architecture-fitness tests for the core module.
+// Package arch holds architecture-fitness tests for the core package family.
 package arch
 
 import (
@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -59,7 +60,7 @@ func TestRemovedConvenienceSurfaceDoesNotReturn(t *testing.T) {
 	}
 	fset := token.NewFileSet()
 	for packageName, names := range forbidden {
-		root := filepath.Join(moduleRoot(t), packageName)
+		root := filepath.Join(coreRoot(t), packageName)
 		entries, err := os.ReadDir(root)
 		if err != nil {
 			t.Fatal(err)
@@ -113,7 +114,7 @@ func TestVectorStoreCapabilitiesRemainSmall(t *testing.T) {
 		}
 	}
 
-	root := filepath.Join(moduleRoot(t), "vectorstore")
+	root := filepath.Join(coreRoot(t), "vectorstore")
 	forbidden := map[string]bool{
 		"Store": true, "StoreMetadata": true,
 		"Creator": true, "CreateRequest": true,
@@ -159,7 +160,7 @@ func TestEmbeddingSPIRemainsMinimal(t *testing.T) {
 		}
 	}
 
-	root := filepath.Join(moduleRoot(t), "embedding")
+	root := filepath.Join(coreRoot(t), "embedding")
 	forbiddenTypes := map[string]bool{
 		"ModelMetadata": true, "Client": true,
 		"ClientRequest": true, "ClientCaller": true,
@@ -230,7 +231,7 @@ func TestOtherModalitySPIsRemainMinimal(t *testing.T) {
 }
 
 func TestCoreDoesNotOwnProviderCatalogData(t *testing.T) {
-	root := filepath.Join(moduleRoot(t), "chat")
+	root := filepath.Join(coreRoot(t), "chat")
 	forbidden := map[string]bool{
 		"ModelInfo": true, "Pricing": true, "Reasoning": true,
 		"Limits": true, "Modality": true, "Modalities": true,
@@ -266,7 +267,7 @@ func TestCoreDoesNotOwnProviderCatalogData(t *testing.T) {
 
 func assertMinimalModalityPackage(t *testing.T, packageName string) {
 	t.Helper()
-	root := filepath.Join(moduleRoot(t), packageName)
+	root := filepath.Join(coreRoot(t), packageName)
 	forbiddenTypes := map[string]bool{
 		"ModelMetadata": true, "Client": true,
 		"ClientRequest": true, "ClientCaller": true, "ClientStreamer": true,
@@ -313,7 +314,7 @@ func assertMinimalModalityPackage(t *testing.T, packageName string) {
 }
 
 func TestFilterPublicFacadeKeepsFrontendInternalsPrivate(t *testing.T) {
-	root := filepath.Join(moduleRoot(t), "vectorstore", "filter")
+	root := filepath.Join(coreRoot(t), "vectorstore", "filter")
 	forbiddenTypes := map[string]bool{
 		"Token": true, "Lexer": true, "Parser": true,
 		"Analyzer": true, "Optimizer": true,
@@ -380,7 +381,7 @@ func containsInternalType(typ reflect.Type) bool {
 }
 
 func TestTargetChatSPIExcludesDefaultsAndIdentity(t *testing.T) {
-	root := filepath.Join(moduleRoot(t), "chat")
+	root := filepath.Join(coreRoot(t), "chat")
 	fset := token.NewFileSet()
 	allowed := map[string]map[string]bool{
 		"Model":    {"Call": true},
@@ -465,7 +466,7 @@ func TestCoreDoesNotImportUpperLynxModules(t *testing.T) {
 				continue
 			}
 			violations++
-			rel, _ := filepath.Rel(moduleRoot(t), path)
+			rel, _ := filepath.Rel(coreRoot(t), path)
 			t.Errorf("core must not import upper lynx module %q: %s", ip, rel)
 		}
 	}
@@ -476,7 +477,7 @@ func TestCoreDoesNotImportUpperLynxModules(t *testing.T) {
 
 func productionGoFiles(t *testing.T) []string {
 	t.Helper()
-	root := moduleRoot(t)
+	root := coreRoot(t)
 	var files []string
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -501,20 +502,11 @@ func productionGoFiles(t *testing.T) []string {
 	return files
 }
 
-func moduleRoot(t *testing.T) string {
+func coreRoot(t *testing.T) string {
 	t.Helper()
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve architecture test path")
 	}
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			t.Fatal("go.mod not found walking up from test dir")
-		}
-		dir = parent
-	}
+	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", ".."))
 }

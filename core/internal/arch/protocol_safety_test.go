@@ -17,7 +17,7 @@ import (
 func TestWireDTOFieldsExcludeArbitraryRuntimeValues(t *testing.T) {
 	t.Parallel()
 
-	root := moduleRoot(t)
+	root := coreRoot(t)
 	fset := token.NewFileSet()
 	for _, filename := range productionGoFiles(t) {
 		packagePath, err := filepath.Rel(root, filepath.Dir(filename))

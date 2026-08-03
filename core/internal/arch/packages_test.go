@@ -21,7 +21,7 @@ var targetPublicPackages = map[string]struct{}{
 }
 
 func TestPublicPackagesMatchArchitectureAllowlist(t *testing.T) {
-	root := moduleRoot(t)
+	root := coreRoot(t)
 	seen := make(map[string]struct{})
 	for _, path := range productionGoFiles(t) {
 		dir := filepath.Dir(path)

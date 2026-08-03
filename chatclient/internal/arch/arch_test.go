@@ -1,13 +1,13 @@
-// Package arch holds architecture-fitness tests for the chatclient module.
+// Package arch holds architecture-fitness tests for the chatclient package.
 package arch
 
 import (
 	"go/parser"
 	"go/token"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -39,7 +39,7 @@ func TestProductionImportsOnlyStandardLibraryAndCore(t *testing.T) {
 			if isStandardImport(importPath) || importPath == "github.com/Tangerg/lynx/core" || strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/") {
 				continue
 			}
-			relative, _ := filepath.Rel(moduleRoot(t), path)
+			relative, _ := filepath.Rel(packageRoot(t), path)
 			t.Errorf("chatclient production import %q is outside stdlib + Core boundary: %s", importPath, relative)
 		}
 	}
@@ -52,7 +52,7 @@ func isStandardImport(importPath string) bool {
 
 func productionGoFiles(t *testing.T) []string {
 	t.Helper()
-	root := moduleRoot(t)
+	root := packageRoot(t)
 	var files []string
 	if err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -74,20 +74,11 @@ func productionGoFiles(t *testing.T) []string {
 	return files
 }
 
-func moduleRoot(t *testing.T) string {
+func packageRoot(t *testing.T) string {
 	t.Helper()
-	directory, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve architecture test path")
 	}
-	for {
-		if _, err := os.Stat(filepath.Join(directory, "go.mod")); err == nil {
-			return directory
-		}
-		parent := filepath.Dir(directory)
-		if parent == directory {
-			t.Fatal("go.mod not found")
-		}
-		directory = parent
-	}
+	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", ".."))
 }

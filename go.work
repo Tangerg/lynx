@@ -5,27 +5,20 @@ use (
 	./a2a
 	./agent
 	./app/runtime
-	./chatclient
-	./chathistory
 	./chathistorystores/cassandra
 	./chathistorystores/cosmosdb
 	./chathistorystores/mongodb
 	./chathistorystores/neo4j
 	./chathistorystores/postgres
 	./chathistorystores/redis
-	./core
 	./documentpipeline
 	./documentpipeline/markdown
-	./documentreaders
 	./documentreaders/html
 	./documentreaders/markdown
 	./documentreaders/pdf
-	./embeddingclient
 	./examples/mcp
-	./internal/chathistorykit
 	./internal/chathistoryotel
 	./internal/repoarch
-	./internal/vectorstorekit
 	./internal/vectorstorepg
 	./mcp
 	./models
@@ -38,11 +31,8 @@ use (
 	./otel
 	./rag
 	./skills
-	./tokenizer
 	./tokenizer/tiktoken
-	./tool
 	./tools
-	./vectorstores/azureaisearch
 	./vectorstores/azurecosmos
 	./vectorstores/bedrockkb
 	./vectorstores/cassandra
@@ -51,21 +41,15 @@ use (
 	./vectorstores/cockroachdb
 	./vectorstores/couchbase
 	./vectorstores/elasticsearch
-	./vectorstores/inmemory
-	./vectorstores/mariadb
 	./vectorstores/milvus
 	./vectorstores/mongodb
 	./vectorstores/neo4j
 	./vectorstores/opensearch
-	./vectorstores/oracle
 	./vectorstores/pgvector
 	./vectorstores/pinecone
 	./vectorstores/qdrant
 	./vectorstores/redis
 	./vectorstores/s3vectors
-	./vectorstores/tidb
 	./vectorstores/typesense
-	./vectorstores/vectara
-	./vectorstores/vespa
 	./vectorstores/weaviate
 )
