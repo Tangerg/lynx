@@ -225,7 +225,7 @@
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 完成 |
 | 5 | 工具名、参数和描述的全量收敛 | 完成 |
 | 6 | 删除冗余能力和配置 | 完成（6a、6b、6c） |
-| 7 | 全仓验证、文档收敛和最终审计 | 进行中（7a、7b 完成） |
+| 7 | 全仓验证、文档收敛和最终审计 | 进行中（7a、7b、7c 完成） |
 
 每批必须独立验证、独立提交并推送。实现发现契约需要调整时，先更新本文，再在同一批修改代码和测试。
 
@@ -361,3 +361,11 @@
 - 为全部固定内建工具显式分类：Shell 启动/停止为 `exec`，增量输出读取为 `safe`；记忆、会话和工具发现为 `safe`；`web_fetch`、`web_search`、`http_request` 为 `network`。MCP 与 A2A 动态名称继续保守走 unknown `exec`，没有通过字符串前缀猜安全性；
 - catalog guard 现在用 every-optional-subsystem 的真实 Resolver 同时验证两个方向：每个 safety key 必须对应可构造工具，每个内建可构造工具必须有显式 key；测试联合 edit/write 与 apply_patch 两个互斥模型 profile，并覆盖 late-bound `delegate_task` / `create_goal`；
 - approval 文档与 SafetyClass 注释同步真实矩阵：Balanced 自动允许已配置的已知 write/network，Safe 提示所有非 safe，Plan 拒绝所有非 safe；没有更改用户权限策略，只修复此前被错误归类工具走错策略的问题。
+
+### 批次 7c
+
+- 最终执行契约反查发现通用 `AgentTool` 仍是“Definition 用 typed schema、Call 自行 `json.Unmarshal`”的最后一处双路径；它会让 `delegate_task` 的 required、`minLength`、未知字段和尾随 JSON 只存在于模型定义而不被执行边界一致地强制；
+- `AgentTool` 现在组合一个通用 typed function，由后者唯一拥有 Definition、schema、严格输入解码和结果文本约定；外层只保留子进程创建、并发声明、挂起恢复和结果提取这些真实 Agent Runtime 职责，没有新增 decoder、runtime facade 或第二套工具接口；
+- 挂起关系仍需比对模型调用时的原始 JSON，外层只用私有 context key 把该次原始参数传给内部调用；typed 输入继续作为 child process 的领域输入。这个内部调用细节没有进入 `tool.Tool`、Agent 公开 API 或 `app/runtime`，也没有通过重编码参数改变恢复 identity；
+- `agent` 模块在 workspace 与 `GOWORK=off` 下分别通过 test/build/vet；Runtime 钉住已发布的新 Agent module，并用真实 `delegate_task` 验证旧字段、空值、缺字段和尾随值都会在创建 child process 前失败；
+- 边界扫描继续确认 `agent` 对 `app/runtime` 零导入，runtime domain/application 对 adapter/infra/delivery/bootstrap 零反向依赖。Plan、Goal、session、模型选择、安全策略和 Exposure 仍全部停留在产品 Runtime。

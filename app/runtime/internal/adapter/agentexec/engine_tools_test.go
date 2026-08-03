@@ -66,6 +66,22 @@ func TestDelegationToolUsesOnePreciseContract(t *testing.T) {
 	if strings.Contains(strings.ToLower(def.Description), "ui") {
 		t.Fatalf("delegate_task description leaks presentation concerns: %q", def.Description)
 	}
+	for name, arguments := range map[string]string{
+		"obsolete field": `{"summary":"focused task","instructions":"inspect the package","prompt":"legacy"}`,
+		"empty summary":  `{"summary":"","instructions":"inspect the package"}`,
+		"missing field":  `{"summary":"focused task"}`,
+		"trailing value": `{"summary":"focused task","instructions":"inspect the package"} {}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := definition.Call(t.Context(), arguments)
+			if err == nil {
+				t.Fatal("delegate_task accepted arguments outside its model-visible contract")
+			}
+			if !strings.Contains(err.Error(), "decode function arguments") {
+				t.Fatalf("delegate_task reached Agent execution before input rejection: %v", err)
+			}
+		})
+	}
 }
 
 func containsString(values []string, want string) bool {
