@@ -1,10 +1,11 @@
-// Package skill provides the skill tool — progressive-disclosure access to the
-// SKILL.md skills visible from a turn's working directory. One tool, one
-// package. It is working-directory scoped, so it's rebuilt per resolution.
+// Package skill provides progressive-disclosure tools for the SKILL.md skills
+// visible from a turn's working directory. It is working-directory scoped, so
+// the tools are rebuilt per resolution.
 package skill
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
@@ -22,16 +23,16 @@ type UsageRecorder interface {
 	RecordUse(ctx context.Context, name string, now time.Time) error
 }
 
-// Build assembles the working-directory-scoped skill tool over the merged skill
+// Build assembles the working-directory-scoped skill tools over the merged skill
 // source (project <workdir>/.lyra/skills layered over the global dir, project
 // winning). It returns nil when neither directory exists, so a session that
-// ships no skills gets no skill tool at all. When recorder is non-nil, loading a
-// skill records a use so the curator can tell active skills from idle ones.
+// ships no skills gets no skill tools at all. When recorder is non-nil, loading
+// a skill records a use so the curator can tell active skills from idle ones.
 //
 // Rebuilt per resolution like fs/shell, because the project directory depends on
 // the turn's working directory; the merged source just wraps os.DirFS, so the
 // cost is negligible.
-func Build(workdir, globalDir string, recorder UsageRecorder) toolcontract.Tool {
+func Build(workdir, globalDir string, recorder UsageRecorder) ([]toolcontract.Tool, error) {
 	var decorateGlobal func(skillspec.ResourceSource) skillspec.ResourceSource
 	if recorder != nil {
 		// Wrap only the global source: the curator governs the global library, and
@@ -44,15 +45,13 @@ func Build(workdir, globalDir string, recorder UsageRecorder) toolcontract.Tool 
 	}
 	source := promptsource.MergeSkillSource(promptsource.ProjectSkillDir(workdir), globalDir, decorateGlobal)
 	if source == nil {
-		return nil
+		return nil, nil
 	}
-	// source is non-nil, so NewTool cannot fail; the error is checked only to
-	// satisfy the signature.
-	tool, err := skillstool.NewTool(source)
+	tools, err := skillstool.NewTools(source)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("skill: build tools: %w", err)
 	}
-	return tool
+	return tools, nil
 }
 
 // recordingSource records a use each time a (global-library) skill loads, then

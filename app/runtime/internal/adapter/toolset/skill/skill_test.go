@@ -11,6 +11,7 @@ import (
 	"time"
 
 	skillspec "github.com/Tangerg/lynx/skills"
+	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 )
@@ -83,12 +84,19 @@ func TestBuild_MergesProjectOverGlobal(t *testing.T) {
 	writeSkill(t, global, "shared", "GLOBAL copy")
 	writeSkill(t, global, "glob-only", "global only")
 
-	tool := Build(workdir, global, nil)
-	if tool == nil {
-		t.Fatal("Build returned nil despite existing skills dirs")
+	tools, err := Build(workdir, global, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tools) != 3 {
+		t.Fatalf("Build returned %d tools, want 3", len(tools))
+	}
+	byName := make(map[string]toolcontract.Tool, len(tools))
+	for _, candidate := range tools {
+		byName[candidate.Definition().Name] = candidate
 	}
 
-	list, err := tool.Call(context.Background(), `{"op":"list"}`)
+	list, err := byName["list_skills"].Call(context.Background(), `{}`)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -98,7 +106,7 @@ func TestBuild_MergesProjectOverGlobal(t *testing.T) {
 		}
 	}
 
-	loaded, err := tool.Call(context.Background(), `{"op":"load","name":"shared"}`)
+	loaded, err := byName["load_skill"].Call(context.Background(), `{"name":"shared"}`)
 	if err != nil {
 		t.Fatalf("load shared: %v", err)
 	}
@@ -111,7 +119,11 @@ func TestBuild_MergesProjectOverGlobal(t *testing.T) {
 // neither the project nor the global skills directory exists — no empty skill
 // tool cluttering the model's tool list.
 func TestBuild_AbsentWhenNoDirs(t *testing.T) {
-	if tool := Build(t.TempDir(), filepath.Join(t.TempDir(), "missing"), nil); tool != nil {
-		t.Error("Build should return nil when no skills directory exists")
+	tools, err := Build(t.TempDir(), filepath.Join(t.TempDir(), "missing"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tools) != 0 {
+		t.Errorf("Build returned %d tools without a skills directory", len(tools))
 	}
 }

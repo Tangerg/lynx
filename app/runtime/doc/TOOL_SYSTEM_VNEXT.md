@@ -157,6 +157,12 @@
 - `grep` 只保留 `before_context_lines` / `after_context_lines`，删除同时表达相同状态的 `context` shortcut；文件过滤使用 `file_glob` / `file_type`，结果上限使用与 `glob` 一致的 `max_results`，`output_mode` 是 `content | files_with_matches | count` 闭集；
 - 六个 filesystem 工具的外层继续拥有 concurrency / mutation-path 等真实附加能力，但 Definition 与 Call 都委托给同一个 typed function contract。未知字段、缺失字段和越界值不再被手写 `json.Unmarshal` 静默接受。
 
+### Skill 渐进披露
+
+- `list_skills({})` 只列出当前 workspace 可见 Skill 的 name + description；`load_skill(name)` 只加载一个 Skill 的完整指令；`read_skill_resource(name,path)` 只读取已加载指令引用的 bundled resource，绝不执行脚本；
+- 三个工具都保持 Deferred，并由同一个 working-directory-scoped source 提供数据，但各自拥有严格的单动作 schema。删除 `skill(op=list|load|load_resource,name?,path?)` 及其条件必填、忽略字段和 dispatch 分支；
+- Skill usage 只在 `load_skill` 真正加载 global library Skill 时记录；list 与 resource read 不伪装成一次 instruction use。
+
 ## 7. 删除与收敛
 
 ### 完全移除
@@ -178,7 +184,7 @@
 - 多操作 `schedule` 拆成 `create_schedule`、`list_schedules`、`delete_schedule`；
 - `task` 改为 `delegate_task`；
 - `update_goal` 改为 `report_goal_outcome`；
-- `skill(op=...)` 收敛为语义明确的 Skill 加载操作；
+- `skill(op=...)` 拆为 `list_skills`、`load_skill`、`read_skill_resource`；
 - 不新增与 Plan 重叠的 Todo 或 `update_plan` 工具。
 
 ## 8. Schema 与结果契约
@@ -217,7 +223,7 @@
 | 2b | session-scoped Plan mode | 完成 |
 | 3 | `create_goal` 与 idle continuation | 完成 |
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 完成 |
-| 5 | 工具名、参数和描述的全量收敛 | 进行中（5a、5b.1、5b.2、5b.3 完成） |
+| 5 | 工具名、参数和描述的全量收敛 | 进行中（5a、5b.1、5b.2、5b.3、5b.4 完成） |
 | 6 | 删除冗余能力和配置 | 待开始 |
 | 7 | 全仓验证、文档收敛和最终审计 | 待开始 |
 
@@ -311,3 +317,10 @@
 - 从模型 `write` 删除 append，现有文件的完整替换一律执行 full-read guard；Executor 的 append 字段留在 filesystem SPI 内部，没有为了工具面收敛破坏非模型消费者；
 - 收敛 `grep` 参数为 `file_glob/file_type/before_context_lines/after_context_lines/output_mode/max_results`，删除 `context/head_limit/glob/type` 多义或重叠字段，并为 context、result cap 和 output enum 增加严格边界；
 - 文件工具外壳复用通用 `tool.Func` 的同一份 schema + decoder + result encoder，只额外实现 concurrency 与 mutation-path capability；没有把 runtime guard、working directory 或 permission 概念下沉到 `tool` 或 `tools/fs` Executor。
+
+### 批次 5b.4
+
+- 将三操作 `skill(op=...)` 完整拆为 `list_skills({})`、`load_skill(name)`、`read_skill_resource(name,path)`；删除 `op`、条件必填参数、operation constants、dispatch switch 和仅服务旧总集的 errors；
+- `tools/skills` 继续只依赖只读 `skills.ResourceSource`，一个具体 `toolSet` 直接承载三个 typed function，没有新增 registry、operation framework 或 runtime-facing interface；
+- Runtime 的 working-directory adapter 返回三工具切片并统一标为 Deferred，Resolver 只展开通用 `[]tool.Tool`；usage recorder 仍通过 Source decorator 只观察成功的 global `Load`，没有进入模型契约；
+- 安全表以三个真实名称替换旧 `skill`，catalog completeness guard 同时约束可达性；通用 Agent、ToolDefinition 与 Skill repository 接口均未增加 app/runtime 概念。

@@ -24,7 +24,7 @@ const (
 // Safe means "no side effect the user needs to approve":
 //   - lsp is a read-only code-intelligence query — the same
 //     class as read/glob/grep.
-//   - skill only reads skill files.
+//   - list_skills, load_skill, and read_skill_resource only read skill files.
 //   - ask_user has no side effect: it IS a HITL interrupt, so gating it would
 //     double-prompt.
 //   - enter_plan_mode only narrows one session; set_plan changes session Plan state;
@@ -42,7 +42,9 @@ var safetyClasses = map[string]SafetyClass{
 	"glob":                SafetyClassSafe,
 	"grep":                SafetyClassSafe,
 	"lsp":                 SafetyClassSafe,
-	"skill":               SafetyClassSafe,
+	"list_skills":         SafetyClassSafe,
+	"load_skill":          SafetyClassSafe,
+	"read_skill_resource": SafetyClassSafe,
 	"ask_user":            SafetyClassSafe,
 	"enter_plan_mode":     SafetyClassSafe,
 	"exit_plan_mode":      SafetyClassSafe,

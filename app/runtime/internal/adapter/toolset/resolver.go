@@ -348,12 +348,14 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	tools.deferTools(g.resolver.a2a...)
 	tools.deferTools(g.resolver.lsp...)
 	tools.direct(g.resolver.shell...)
-	// The skill tool is working-directory scoped (project skills live under
-	// the turn's cwd), so it is built per resolution like filesystem tools and is
-	// available to both coding and subtask roles. nil when no skills exist.
-	if skillTool := skill.Build(workdir, g.resolver.skillsGlobalDir, g.resolver.skillUsage); skillTool != nil {
-		tools.deferTools(skillTool)
+	// Skill tools are working-directory scoped (project skills live under the
+	// turn's cwd), so they are built per resolution like filesystem tools and are
+	// available to both coding and subtask roles. No tools when no skills exist.
+	skillTools, err := skill.Build(workdir, g.resolver.skillsGlobalDir, g.resolver.skillUsage)
+	if err != nil {
+		return nil, fmt.Errorf("toolset: resolve skill tools: %w", err)
 	}
+	tools.deferTools(skillTools...)
 	// Built-once, session-keyed helpers (plan/result/memory/transcript search)
 	// are projected from the resolver's role and placement policy.
 	if err := g.resolver.appendStaticTools(ctx, &tools, toolAfterSkill, g.role); err != nil {
