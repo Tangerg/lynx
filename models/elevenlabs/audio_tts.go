@@ -89,11 +89,11 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (voiceID, outputFormat
 		if mergedOpts.Speed < 0.7 || mergedOpts.Speed > 1.2 {
 			return "", "", nil, fmt.Errorf("elevenlabs: speech speed must be between 0.7 and 1.2, got %g", mergedOpts.Speed)
 		}
-		if body.voiceSettings == nil {
-			body.voiceSettings = &voiceSettings{}
+		if body.VoiceSettings == nil {
+			body.VoiceSettings = &voiceSettings{}
 		}
 		v := mergedOpts.Speed
-		body.voiceSettings.Speed = &v
+		body.VoiceSettings.Speed = &v
 	}
 	if body.OptimizeStreamingLatency != nil && (*body.OptimizeStreamingLatency < 0 || *body.OptimizeStreamingLatency > 4) {
 		return "", "", nil, fmt.Errorf("elevenlabs: optimize_streaming_latency must be between 0 and 4, got %d", *body.OptimizeStreamingLatency)

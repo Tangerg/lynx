@@ -80,10 +80,10 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	}
 	apiReq.Model = mergedOpts.Model
 	if mergedOpts.Language != "" {
-		if apiReq.languageConfig == nil {
-			apiReq.languageConfig = &languageConfig{}
+		if apiReq.LanguageConfig == nil {
+			apiReq.LanguageConfig = &languageConfig{}
 		}
-		apiReq.languageConfig.Languages = []string{mergedOpts.Language}
+		apiReq.LanguageConfig.Languages = []string{mergedOpts.Language}
 	}
 	if err := validateTranscriptionRequest(apiReq); err != nil {
 		return nil, err
@@ -154,10 +154,10 @@ func validateTranscriptionRequest(req *transcriptionRequest) error {
 		return fmt.Errorf("gladia: transcription model must be %q or %q, got %q", ModelSolaria3, ModelSolaria1, req.Model)
 	}
 	if req.Model == ModelSolaria3 {
-		if req.languageConfig == nil || len(req.languageConfig.Languages) != 1 {
+		if req.LanguageConfig == nil || len(req.LanguageConfig.Languages) != 1 {
 			return errors.New("gladia: solaria-3 requires exactly one language_config.languages entry")
 		}
-		if req.languageConfig.CodeSwitching != nil && *req.languageConfig.CodeSwitching {
+		if req.LanguageConfig.CodeSwitching != nil && *req.LanguageConfig.CodeSwitching {
 			return errors.New("gladia: solaria-3 does not support language code switching")
 		}
 	}

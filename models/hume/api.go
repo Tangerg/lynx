@@ -44,7 +44,7 @@ func newAPI(cfg apiConfig) (*api, error) {
 	return &api{http: client}, nil
 }
 
-// Voice references a named Octave voice. Provider is "HUME_AI" /
+// voice references a named Octave voice. Provider is "HUME_AI" /
 // "CUSTOM_VOICE" depending on where the voice is stored.
 type voice struct {
 	ID       string `json:"id,omitempty"`
@@ -58,7 +58,7 @@ type voice struct {
 type utterance struct {
 	Text            string   `json:"text"`
 	Description     string   `json:"description,omitempty"`
-	voice           *voice   `json:"voice,omitempty"`
+	Voice           *voice   `json:"voice,omitempty"`
 	Speed           *float64 `json:"speed,omitempty"`
 	TrailingSilence *float64 `json:"trailing_silence,omitempty"`
 }

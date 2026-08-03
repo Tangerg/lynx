@@ -53,7 +53,7 @@ type ttsRequest struct {
 	Text                            string                           `json:"text"`
 	ModelID                         string                           `json:"model_id,omitempty"`
 	LanguageCode                    string                           `json:"language_code,omitempty"`
-	voiceSettings                   *voiceSettings                   `json:"voice_settings,omitempty"`
+	VoiceSettings                   *voiceSettings                   `json:"voice_settings,omitempty"`
 	Seed                            *int64                           `json:"seed,omitempty"`
 	PreviousText                    string                           `json:"previous_text,omitempty"`
 	NextText                        string                           `json:"next_text,omitempty"`

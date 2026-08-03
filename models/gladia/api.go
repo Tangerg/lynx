@@ -54,7 +54,7 @@ type uploadResponse struct {
 type transcriptionRequest struct {
 	AudioURL               string          `json:"audio_url"`
 	Model                  string          `json:"model,omitempty"`
-	languageConfig         *languageConfig `json:"language_config,omitempty"`
+	LanguageConfig         *languageConfig `json:"language_config,omitempty"`
 	CustomVocabulary       any             `json:"custom_vocabulary,omitempty"`
 	CustomVocabularyConfig map[string]any  `json:"custom_vocabulary_config,omitzero"`
 	Callback               *bool           `json:"callback,omitempty"`

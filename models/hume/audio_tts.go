@@ -81,7 +81,7 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request, streaming bool) (*ttsR
 	}
 	body.Utterances[0].Text = req.Text
 	if mergedOpts.Voice != "" {
-		body.Utterances[0].voice = &voice{ID: mergedOpts.Voice, Provider: "HUME_AI"}
+		body.Utterances[0].Voice = &voice{ID: mergedOpts.Voice, Provider: "HUME_AI"}
 	}
 	if mergedOpts.Speed != 0 {
 		v := mergedOpts.Speed
@@ -96,13 +96,13 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request, streaming bool) (*ttsR
 		}
 		body.Format = map[string]any{"type": mergedOpts.OutputFormat}
 	}
-	if body.Version == ModelOctave2 && body.Utterances[0].voice == nil {
+	if body.Version == ModelOctave2 && body.Utterances[0].Voice == nil {
 		return nil, errors.New("hume: speech: Octave 2 requires Options.Voice or a voice on the first utterance")
 	}
 	if !streaming && body.InstantMode != nil {
 		return nil, errors.New("hume: speech: instant_mode is only supported by streaming endpoints")
 	}
-	if streaming && body.Utterances[0].voice == nil && body.InstantMode == nil {
+	if streaming && body.Utterances[0].Voice == nil && body.InstantMode == nil {
 		instantMode := false
 		body.InstantMode = &instantMode
 	}
