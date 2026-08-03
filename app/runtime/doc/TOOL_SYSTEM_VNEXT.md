@@ -138,6 +138,26 @@
 
 `search_tools` 是 Deferred 能力唯一入口，不再是 MCP 专用工具：它同时索引 runtime 内建能力和连接的 integration。`query` 必填且非空，可用自然语言能力描述或 `select:name1,name2` 精确加载；`limit` 可选、范围 `1..20`、默认 `5`，精确选择时忽略。参数使用 typed function 的同一份严格 schema，拒绝未知字段；结果只提升匹配 definition，不改变执行权限。
 
+### 最终内建工具面
+
+| 能力 | 保留的模型工具 | 可见性规则 |
+|---|---|---|
+| 文件读取与搜索 | `read`、`glob`、`grep` | Direct |
+| 文件修改 | `apply_patch` **或** `edit` + `write` | 按模型 profile 互斥 Direct |
+| Shell 生命周期 | `shell`、`read_shell_output`、`stop_shell` | Direct |
+| Plan | `enter_plan_mode`、`set_plan`、`exit_plan_mode` | 根 coding Agent Direct |
+| Goal | `create_goal`、`get_goal`、`report_goal_outcome` | 根 Agent；report 仅 active Goal |
+| 编排与交互 | `delegate_task`、`ask_user` | 根/受限子角色按 resolver policy |
+| 工具渐进披露 | `search_tools`、`read_tool_result` | 有 deferred/offloaded 资源时出现 |
+| 代码智能 | `lsp` | Deferred |
+| 网络 | `web_search`、`web_fetch`、`http_request` | 配置可用时 Deferred |
+| 记忆与历史 | `search_memory`、`search_conversations` | 对应资源可用时 Deferred |
+| Skill 读取 | `list_skills`、`load_skill`、`read_skill_resource` | Deferred |
+| Schedule | `list_schedules`、`create_schedule`、`delete_schedule` | Schedule subsystem 可用时 Deferred |
+| 外部集成 | 动态 MCP / A2A 工具 | 连接可用时 Deferred |
+
+这里的“保留”表示能力边界不同，不表示所有工具应同时进入初始 manifest：web search 查找来源，web fetch 阅读页面，HTTP request 调用 allowlisted API；Plan 记录当前请求步骤，Goal 管理跨 Run 自主目标，Schedule 表达重复执行。它们没有共享一个真实变化轴，不合并为含互斥字段的总工具。
+
 ### 委派、LSP 与 Schedule
 
 - `delegate_task(summary,instructions)` 是唯一 Agent 委派入口。`summary` 是服务端生命周期真正消费的简短身份，`instructions` 是隔离 child Agent 的完整输入；不再使用含糊的名词工具 `task`，也不再暴露只为 UI 存在的 `description` 或模型实现词 `prompt`；
@@ -226,7 +246,7 @@
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 完成 |
 | 5 | 工具名、参数和描述的全量收敛 | 完成 |
 | 6 | 删除冗余能力和配置 | 完成（6a、6b、6c） |
-| 7 | 全仓验证、文档收敛和最终审计 | 进行中（7a、7b、7c、7d、7e、7f 完成） |
+| 7 | 全仓验证、文档收敛和最终审计 | 完成（7a—7g） |
 
 每批必须独立验证、独立提交并推送。实现发现契约需要调整时，先更新本文，再在同一批修改代码和测试。
 
@@ -394,3 +414,11 @@
 - `ARCHITECTURE_HYGIENE_PLAN.md` 明确降级为历史实施台账，`doc/inspiration` 总索引明确降级为同类产品对比快照；其中 Todo/Task 等词只保留为历史代码或其他产品原生术语，不再声明 Lynx 当前实现状态；
 - 当前规范只有本文与 `EXECUTION_CENTERED_ARCHITECTURE.md` / `EXTENSIBILITY.md`。历史材料通过醒目链接回到本文，而不是复制一份会再次漂移的“当前工具表”；
 - 排除已标记历史材料、本文删除记录和本轮刻意未修改的前端 generated baseline 后，现行 runtime 文档不再出现 Todo、`task`、`update_plan` 或 `update_goal`。
+
+### 批次 7g
+
+- 最终验证矩阵全部通过：root module 完整 test/build/vet；Agent module workspace + standalone test/build/vet；`httpreq` / `webfetch` / `websearch` 三模块 workspace + standalone test/build/vet；Runtime 除明确延后的前端契约漂移包外，workspace + standalone 全包 test/build/vet；
+- 完整 `app/runtime go test ./...` 只失败于 `internal/arch` 与 `internal/delivery/protocol`：桌面 TypeScript generated contract 未反映 Plan/GetPlan 与 artifact v10，canonical samples 仍是 Todo/artifact v9，另有旧 plan delta/item samples 已无 server binding。它们完全落在用户指定的下一轮前端专项范围，本轮没有越界生成或修改；
+- 生产 Go 源码扫描确认旧工具名、旧参数名和 `weather_query` 均无模型入口；固定内建 catalog 的 safety/strict-schema/implementation-word 三组 fitness checks 全部通过；
+- 最终边界扫描再次确认 `agent` 对 `app/runtime` 零导入，runtime domain/application 对 adapter/infra/delivery/bootstrap 零反向依赖；没有为收尾新增 facade、胖接口、通用 manifest 状态或兼容 decoder；
+- 删除结论保持不变：`download`、`sourcegraph_search`、Agent `codebase_search`、`propose_skill` 与 Todo 全部移除；client codebase index 与后台 Skill authoring 因仍有非模型真实消费者而保留。服务端 Tool System vNext 至此完成。
