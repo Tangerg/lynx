@@ -60,7 +60,6 @@ import {
 } from "./chat/message-actions";
 import narrativeRails from "./chat/narrative-rails";
 import planProgress from "./chat/plan-progress";
-import goalMode from "./chat/goal";
 import recipesSlash from "./chat/recipes";
 import pluginsPane from "./settings/plugins-pane";
 import providersPane from "./settings/providers";
@@ -246,7 +245,6 @@ const overlays: PluginSpec[] = [
   iconGallery,
   narrativeRails,
   planProgress,
-  goalMode,
   sessionUsage,
   conversationExport,
 ];

@@ -1,5 +1,8 @@
-import { createParameterizedDataQuery } from "@/plugins/sdk";
-
+// The goal read model, and the key the runtime data provider fills and
+// `goals.changed` invalidates. No client reads it today: Goal mode's banner is
+// gone and how a goal surfaces instead is undecided. The KEY stays because the
+// provider and the invalidation are both live wiring on the runtime side of the
+// seam — what a future surface attaches to, not scaffolding for it.
 export const GOAL_KEY = "goal";
 
 export type GoalStatus = "active" | "paused" | "blocked";
@@ -26,10 +29,9 @@ export interface GoalReadModel {
   used: GoalUsage;
 }
 
-// The read result folds three states into one shape so the banner can tell
-// "feature off" (render nothing) from "on, no goal" (offer to start one) from
-// "has a goal" (drive it). available=false comes from capability discovery;
-// the data provider never probes goals.get to determine availability.
+// The read result folds three states into one shape: "feature off"
+// (available=false, from capability discovery — the provider never probes
+// goals.get to find out), "on, no goal", and "has a goal".
 export interface GoalState {
   available: boolean;
   goal: GoalReadModel | null;
@@ -38,10 +40,3 @@ export interface GoalState {
 export interface GoalQuery {
   sessionId: string;
 }
-
-// A driving goal moves between turns, with no run stream this client is following:
-// its status and spend used to be discovered by polling every four seconds, which
-// meant a banner that was wrong for up to four seconds and a read that kept happening
-// long after the goal stopped. The runtime publishes goals.changed on every committed
-// goal write now, and the one runtime stream turns it into an invalidation here.
-export const useGoalStateQuery = createParameterizedDataQuery<GoalQuery, GoalState>(GOAL_KEY);

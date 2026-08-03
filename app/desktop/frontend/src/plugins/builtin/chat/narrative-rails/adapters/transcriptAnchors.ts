@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { BLOCK_ANCHOR_ATTR } from "@/plugins/builtin/chat/message/public/outline";
 
 /** Written by the transcript on every rendered turn; read here to place the
  *  rails against what is actually on screen. */
@@ -136,25 +135,6 @@ function scrollIntoTranscript(target: HTMLElement | null): void {
 
 export function scrollToTurn(id: string): void {
   scrollToAnchored(TURN_ANCHOR_ATTR, id);
-}
-
-/**
- * Bring one heading inside a prose block into view.
- *
- * The message context publishes the attribute its blocks carry; finding one in
- * the document is this adapter's job, because "where is it" is a question only
- * the browser can answer.
- *
- * Addressed by position rather than by an id minted onto the element: the
- * outline and the rendered markdown are two readings of the same document, so
- * their headings are already in the same order, and an id would be a second
- * spelling of that fact for both sides to drift apart on.
- */
-export function scrollToHeading(anchor: string, index: number): void {
-  const root = scroller();
-  const block = root?.querySelector<HTMLElement>(`[${BLOCK_ANCHOR_ATTR}="${CSS.escape(anchor)}"]`);
-  const heading = block?.querySelectorAll<HTMLElement>("h1, h2, h3, h4, h5, h6")[index];
-  scrollIntoTranscript(heading ?? block ?? null);
 }
 
 function scrollToAnchored(attribute: string, value: string): void {

@@ -655,7 +655,7 @@
      move the text by a pixel. Where the column lands is the column's business
      alone. Sized so the column holds a comfortable measure at the window width
      the workbench is designed around, with drawer and dock both open. */
-  --content-max: 680px;
+  --content-max: 760px;
   /* The column's BOX: the measure plus the gutter that keeps it off the pane's
      edges. The distinction is load-bearing. Put the gutter on the scroller's
      content and the transcript's text ends up narrower than the composer, which
@@ -664,7 +664,7 @@
      (`content-visibility` clips paint at its edge) gains the slack that lets a
      control align optically outside the text without being sliced. */
   --reading-column-max: calc(var(--content-max) + 2 * var(--density-column-gutter-wide));
-  --reading-rail-width: 224px;
+  --reading-rail-width: 176px;
 }
 
 /* IMPORTANT: do not set `font-size` on <html>. It anchors `rem` for
@@ -1240,6 +1240,19 @@ html.theme-dark {
   background-repeat: no-repeat;
   background-position: left bottom;
   background-size: 100% 1px;
+}
+
+/* The bar that names what you are looking at is the one place a line earns its
+   pixel. Everything else in the region model separates by material and cast —
+   but this bar sits ON the reading plane, in the plane's own colour, with the
+   transcript scrolling right up under it: with no edge the first line of a
+   message and the session's title share one field of white. A rule the length of
+   the pane says where the page stops and the document starts.
+
+   Set on the existing hairline mechanism rather than a border of its own, so the
+   seam-corner and drawer-collapse rules below keep applying to it. */
+.agent-page-identity {
+  --app-surface-divider: var(--color-border);
 }
 
 /* Inside the rounded card the horizontal hairline meets the vertical seam

@@ -4,7 +4,7 @@
 // (which clamps a live drag) and the preference store (which persists the
 // settled width) need them, and `state` must not import `ui`.
 
-export const SIDEBAR_MIN_WIDTH_PX = 208;
+export const SIDEBAR_MIN_WIDTH_PX = 240;
 export const SIDEBAR_DEFAULT_WIDTH_PX = 240;
 
 export const DOCK_MIN_WIDTH_PX = 300;

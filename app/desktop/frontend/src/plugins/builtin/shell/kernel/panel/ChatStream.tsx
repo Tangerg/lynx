@@ -37,30 +37,27 @@ interface Props {
   onSend: (input: UserInput) => void;
 }
 
-// The two rails hang off the reading column's edges, OUT of its flow.
+// The turn map hangs off the reading column's leading edge, OUT of its flow.
 //
-// They used to be flex siblings, and the column sat at the midpoint of the two
-// gutters instead of the pane's — 76px left of centre, because the outline rail
-// is wider than the turn rail. Reserving the gutters was itself a repair: a rail
-// that collapsed when its turn had no outline used to drag the transcript
-// sideways mid-scroll. Positioned absolutely against the centre line, neither
-// failure is reachable — a rail can appear, disappear or change width and the
-// text does not move, because the text's position never depended on it.
+// It used to be a flex sibling, and the column sat at the midpoint of the two
+// gutters instead of the pane's. Reserving those gutters was itself a repair: a
+// rail that collapsed when its turn had nothing to show used to drag the
+// transcript sideways mid-scroll. Positioned absolutely against the centre line,
+// neither failure is reachable — the rail can appear, disappear or change width
+// and the text does not move, because the text's position never depended on it.
 //
-// One query for both, since the pane must hold the column and a FULL rail on
-// each side to stay symmetric. The sum (720 + 2×224) is spelled out because
+// The query keeps the layout symmetric even though only one side carries a rail:
+// the pane must hold the column and a full gutter EITHER side, or the map ends
+// up crowding an off-centre column. The sum (800 + 2×176) is spelled out because
 // Tailwind reads source text and a variant built from a variable emits nothing.
 //
-// Transparent to the pointer, and only what a rail actually draws takes it back:
-// the scroller underneath now spans the whole pane, and a 224px pad of nothing
-// that swallows the wheel is a pane that stops scrolling wherever you happen to
-// have left the cursor. Bounded above the composer for the same reason the
-// transcript pads its tail — the overlay is opaque, and a list that runs under
-// it is a list with items nobody can reach.
+// Transparent to the pointer, and only what the rail draws takes it back: the
+// scroller underneath spans the whole pane, and a pad of nothing that swallows
+// the wheel is a pane that stops scrolling wherever you left the cursor.
+// Bounded above the composer for the same reason the transcript pads its tail —
+// the overlay is opaque, and marks that run under it are marks nobody can hit.
 const RAIL =
-  "absolute top-0 bottom-[var(--composer-overlay,0px)] z-[1] hidden w-[var(--reading-rail-width)] flex-col @min-[1168px]:flex pointer-events-none [&>*]:pointer-events-auto";
-const RAIL_START = "right-[calc(50%+var(--reading-column-max)/2)]";
-const RAIL_END = "left-[calc(50%+var(--reading-column-max)/2)]";
+  "absolute top-0 bottom-[var(--composer-overlay,0px)] z-[1] hidden w-[var(--reading-rail-width)] flex-col @min-[1152px]:flex pointer-events-none [&>*]:pointer-events-auto right-[calc(50%+var(--reading-column-max)/2)]";
 
 export function ChatStream({ onSend }: Props) {
   const resetKey = useActiveSessionId();
@@ -176,7 +173,7 @@ export function ChatStream({ onSend }: Props) {
     <div ref={paneRef} className="@container relative flex min-h-0 flex-1 flex-col">
       {banners}
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <div className={cn(RAIL, RAIL_START)}>
+        <div className={RAIL}>
           <Slot name="chat.rail.start" />
         </div>
         {/* The SCROLLER is the pane, not the column — the column is centred
@@ -187,9 +184,6 @@ export function ChatStream({ onSend }: Props) {
           <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
             <MessageStream messages={messages} ctx={ctx} resetKey={resetKey} />
           </ChatErrorBoundary>
-        </div>
-        <div className={cn(RAIL, RAIL_END)}>
-          <Slot name="chat.rail.end" />
         </div>
 
         <FloatingComposer publishHeightTo={paneRef}>{composer}</FloatingComposer>
