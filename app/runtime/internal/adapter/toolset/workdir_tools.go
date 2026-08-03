@@ -25,7 +25,14 @@ import (
 // locker is owner-scoped: resolver-owned builds reuse one locker so
 // read/check/write stays atomic across concurrent turns, not merely across the
 // tools resolved for one turn.
-func buildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguardstate.Tracker, downloadAllow httpreq.Allowlist, locker *pathLocker) []toolcontract.Tool {
+type workdirToolFamilies struct {
+	readSearch []toolcontract.Tool
+	editWrite  []toolcontract.Tool
+	applyPatch toolcontract.Tool
+	download   toolcontract.Tool
+}
+
+func buildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguardstate.Tracker, downloadAllow httpreq.Allowlist, locker *pathLocker) workdirToolFamilies {
 	fsExec := fs.NewLocalExecutor(workdir)
 
 	// Mutation guard stack, innermost → outermost: auto-format the applied
@@ -36,23 +43,23 @@ func buildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguar
 	edit := editMutationTool(fs.NewEditTool(fsExec), ci, tracker, locker, workdir)
 	applyPatch := editMutationTool(fs.NewApplyPatchTool(fsExec), ci, tracker, locker, workdir)
 
-	tools := []toolcontract.Tool{
-		withPathLock(withReadTracking(fs.NewReadTool(fsExec), tracker, workdir), locker, workdir),
-		write,
-		edit,
-		applyPatch,
-		fs.NewGlobTool(fsExec),
-		fs.NewGrepTool(fsExec),
+	families := workdirToolFamilies{
+		readSearch: []toolcontract.Tool{
+			withPathLock(withReadTracking(fs.NewReadTool(fsExec), tracker, workdir), locker, workdir),
+			fs.NewGlobTool(fsExec),
+			fs.NewGrepTool(fsExec),
+		},
+		editWrite:  []toolcontract.Tool{edit, write},
+		applyPatch: applyPatch,
 	}
 	// download fetches an arbitrary URL and writes it to disk — the same SSRF
 	// surface as httpreq — so it is registered only when a host allowlist is
 	// configured, and enforces that same allowlist per call. No allowlist → the
 	// tool is absent, matching the online-tools opt-in.
 	if !downloadAllow.Empty() {
-		download := withPathGuard(withPathLock(newDownloadTool(workdir, downloadAllow), locker, workdir), workdir)
-		tools = append(tools, download)
+		families.download = withPathGuard(withPathLock(newDownloadTool(workdir, downloadAllow), locker, workdir), workdir)
 	}
-	return tools
+	return families
 }
 
 func writeMutationTool(tool toolcontract.Tool, ci *codeintel.Analyzer, tracker *editguardstate.Tracker, locker *pathLocker, workdir string) toolcontract.Tool {

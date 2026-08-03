@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolsearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/tools/httpreq"
 )
@@ -39,6 +40,7 @@ type Resolver struct {
 	lateMu sync.RWMutex
 
 	defaultWorkdir  string
+	defaultModel    modelref.Selection
 	skillsGlobalDir string                                      // user-scope skills dir; merged under each turn's project skills
 	skillUsage      skill.UsageRecorder                         // records skill loads for the idle-lifecycle curator; nil → off
 	online          []toolcontract.Tool                         // working-directory-independent network tools
@@ -100,6 +102,7 @@ type staticToolSpec struct {
 	tool               toolcontract.Tool
 	audience           toolAudience
 	placement          toolPlacement
+	deferred           bool
 	requiresActiveGoal bool
 }
 
@@ -109,6 +112,7 @@ type staticToolSpec struct {
 // A2A, and code-intelligence capabilities are also built once and held.
 type Deps struct {
 	DefaultWorkdir  string
+	DefaultModel    modelref.Selection
 	SkillsGlobalDir string
 	SkillUsage      skill.UsageRecorder
 	Online          []toolcontract.Tool                         // network tools (webfetch/websearch/httpreq)
@@ -153,6 +157,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 	}
 	resolver := &Resolver{
 		defaultWorkdir:  d.DefaultWorkdir,
+		defaultModel:    d.DefaultModel,
 		skillsGlobalDir: d.SkillsGlobalDir,
 		skillUsage:      d.SkillUsage,
 		online:          slices.Clone(d.Online),
@@ -164,11 +169,11 @@ func NewResolver(d Deps) (*Resolver, error) {
 			{tool: d.EnterPlan, audience: toolAudienceCoding, placement: toolAfterCodebase},
 			{tool: d.ExitPlan, audience: toolAudienceCoding, placement: toolAfterCodebase},
 			{tool: d.Plan, audience: toolAudienceCoding, placement: toolAfterSkill},
-			{tool: d.Schedule, audience: toolAudienceCoding, placement: toolCodingTail},
+			{tool: d.Schedule, audience: toolAudienceCoding, placement: toolCodingTail, deferred: true},
 			{tool: d.ToolResult, audience: toolAudienceBoth, placement: toolAfterSkill},
-			{tool: d.MemorySearch, audience: toolAudienceBoth, placement: toolAfterSkill},
-			{tool: d.SessionSearch, audience: toolAudienceBoth, placement: toolAfterSkill},
-			{tool: d.SkillPropose, audience: toolAudienceCoding, placement: toolCodingTail},
+			{tool: d.MemorySearch, audience: toolAudienceBoth, placement: toolAfterSkill, deferred: true},
+			{tool: d.SessionSearch, audience: toolAudienceBoth, placement: toolAfterSkill, deferred: true},
+			{tool: d.SkillPropose, audience: toolAudienceCoding, placement: toolCodingTail, deferred: true},
 			{tool: d.GoalGet, audience: toolAudienceCoding, placement: toolCodingTail},
 			{tool: d.GoalReport, audience: toolAudienceCoding, placement: toolCodingTail, requiresActiveGoal: true},
 		},
@@ -183,7 +188,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 	return resolver, nil
 }
 
-func (r *Resolver) appendStaticTools(ctx context.Context, into []toolcontract.Tool, placement toolPlacement, role string) ([]toolcontract.Tool, error) {
+func (r *Resolver) appendStaticTools(ctx context.Context, into *resolvedToolset, placement toolPlacement, role string) error {
 	for _, spec := range r.staticTools {
 		if spec.tool == nil || spec.placement != placement || !spec.audience.includes(role) {
 			continue
@@ -194,15 +199,19 @@ func (r *Resolver) appendStaticTools(ctx context.Context, into []toolcontract.To
 			}
 			active, err := r.goalActive(ctx, executionctx.SessionID(ctx))
 			if err != nil {
-				return nil, fmt.Errorf("toolset: resolve report_goal_outcome availability: %w", err)
+				return fmt.Errorf("toolset: resolve report_goal_outcome availability: %w", err)
 			}
 			if !active {
 				continue
 			}
 		}
-		into = append(into, spec.tool)
+		if spec.deferred {
+			into.deferTools(spec.tool)
+		} else {
+			into.direct(spec.tool)
+		}
 	}
-	return into, nil
+	return nil
 }
 
 // UseTaskTool installs the task delegation tool for both execution roles. The
@@ -304,7 +313,7 @@ func (r *Resolver) workdirFor(ctx context.Context) string {
 	return executionctx.CWD(ctx, r.defaultWorkdir)
 }
 
-func (r *Resolver) workdirTools(workdir string) []toolcontract.Tool {
+func (r *Resolver) workdirTools(workdir string) workdirToolFamilies {
 	return buildWorkdirTools(workdir, r.codeIntel, r.readTracker, r.downloadAllow, r.pathLocker)
 }
 
@@ -319,28 +328,31 @@ type toolGroup struct {
 
 func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	workdir := g.resolver.workdirFor(ctx)
-	tools := g.resolver.workdirTools(workdir)
-	tools = append(tools, g.resolver.online...)
-	// MCP tools stay in the resolved set so they remain resolvable/executable,
-	// but the turn manifest projection withholds them from the model's initial
-	// toolset (see search_tools below): the model loads them on demand instead
-	// of the prompt carrying every server's full schema each round.
+	workdirTools := g.resolver.workdirTools(workdir)
+	var tools resolvedToolset
+	tools.direct(workdirTools.readSearch...)
+	selection := executionctx.ModelSelection(ctx, g.resolver.defaultModel)
+	if useApplyPatch(selection) {
+		tools.direct(workdirTools.applyPatch)
+	} else {
+		tools.direct(workdirTools.editWrite...)
+	}
+	tools.deferTools(workdirTools.download)
+	tools.deferTools(g.resolver.online...)
 	mcpTools := g.resolver.mcpTools()
-	tools = append(tools, mcpTools...)
-	tools = append(tools, g.resolver.a2a...)
-	tools = append(tools, g.resolver.lsp...)
-	tools = append(tools, g.resolver.shell...)
+	tools.deferTools(mcpTools...)
+	tools.deferTools(g.resolver.a2a...)
+	tools.deferTools(g.resolver.lsp...)
+	tools.direct(g.resolver.shell...)
 	// The skill tool is working-directory scoped (project skills live under
 	// the turn's cwd), so it is built per resolution like filesystem tools and is
 	// available to both coding and subtask roles. nil when no skills exist.
 	if skillTool := skill.Build(workdir, g.resolver.skillsGlobalDir, g.resolver.skillUsage); skillTool != nil {
-		tools = append(tools, skillTool)
+		tools.deferTools(skillTool)
 	}
 	// Built-once, session-keyed helpers (plan/result/memory/transcript search)
 	// are projected from the resolver's role and placement policy.
-	var err error
-	tools, err = g.resolver.appendStaticTools(ctx, tools, toolAfterSkill, g.role)
-	if err != nil {
+	if err := g.resolver.appendStaticTools(ctx, &tools, toolAfterSkill, g.role); err != nil {
 		return nil, err
 	}
 	// codebase_search (both roles): semantic code search over the turn's cwd.
@@ -358,17 +370,16 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 			if err != nil {
 				return nil, fmt.Errorf("toolset: resolve codebase_search: %w", err)
 			}
-			tools = append(tools, codebaseSearch)
+			tools.deferTools(codebaseSearch)
 		}
 	}
 	// Both roles can ask the user and leave plan mode. A child question parks
 	// through the same nested suspension tree as a child approval.
-	tools, err = g.resolver.appendStaticTools(ctx, tools, toolAfterCodebase, g.role)
-	if err != nil {
+	if err := g.resolver.appendStaticTools(ctx, &tools, toolAfterCodebase, g.role); err != nil {
 		return nil, err
 	}
 	if task := g.resolver.taskTool(); task != nil {
-		tools = append(tools, task)
+		tools.direct(task)
 	}
 	if g.role == domaintool.GroupCoding {
 		// Goal lifecycle entry is late-bound because its application Driver owns
@@ -376,20 +387,23 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 		// Keep only the generic tool at this seam; no Driver or runtime state enters
 		// the Agent module.
 		if createGoal := g.resolver.createGoalTool(); createGoal != nil {
-			tools = append(tools, createGoal)
+			tools.direct(createGoal)
 		}
 		// The remaining schedule, authoring, and Goal state capabilities are
 		// product-root operations rather than generic child execution tools.
-		tools, err = g.resolver.appendStaticTools(ctx, tools, toolCodingTail, g.role)
-		if err != nil {
+		if err := g.resolver.appendStaticTools(ctx, &tools, toolCodingTail, g.role); err != nil {
 			return nil, err
 		}
 	}
-	// search_tools (both roles): the progressive-disclosure surface over the
-	// withheld MCP tools. nil when no MCP servers are connected — then nothing
-	// is deferred and the manifest is unchanged.
-	if search := toolsearch.New(mcpTools); search != nil {
-		tools = append(tools, search)
+	// search_tools is the sole model-facing entry to every capability withheld
+	// from the initial manifest. The tools themselves remain in the same Run
+	// registry, so promotion changes visibility rather than execution authority.
+	search, err := toolsearch.New(tools.deferred)
+	if err != nil {
+		return nil, fmt.Errorf("toolset: resolve search_tools: %w", err)
 	}
-	return tools, nil
+	if search != nil {
+		tools.direct(search)
+	}
+	return tools.all, nil
 }

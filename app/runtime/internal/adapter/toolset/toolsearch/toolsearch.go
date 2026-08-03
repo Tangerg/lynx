@@ -1,20 +1,18 @@
 // Package toolsearch exposes the model-facing search_tools meta-tool: a
 // progressive-disclosure surface over a set of tools deliberately withheld from
-// the initial manifest (in lyra, the connected MCP servers' tools). The withheld
+// the initial manifest. The withheld
 // tools stay resolvable in the turn's registry but are not advertised, so the
-// prompt does not carry every server's full JSON schema every round. The model
+// prompt does not carry every deferred JSON schema every round. The model
 // calls search_tools to find the ones it needs; each match is promoted into the
 // advertised toolset for the rest of the turn (via [toolloop.PromoteTools]) so it
 // becomes directly callable on the next round.
 //
-// This is the app-side half of the T3 tool-search capability; the framework half
-// (mid-loop promotion) lives in agent/toolloop.
+// The generic mid-loop promotion mechanism lives in agent/toolloop.
 package toolsearch
 
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -35,17 +33,14 @@ const defaultLimit = 5
 const selectPrefix = "select:"
 
 type searchArgs struct {
-	Query string `json:"query" jsonschema:"required" jsonschema_description:"Either a natural-language description of the capability you need (e.g. \"create a Linear issue\"), which returns the best-matching tools; or \"select:name1,name2\" to load specific tools by exact name. Prefix a term with + to require it."`
-	Limit int    `json:"limit,omitempty" jsonschema_description:"Max tools to return and load (default 5). Ignored for select:."`
+	Query string `json:"query" jsonschema:"minLength=1" jsonschema_description:"Describe the capability you need, or use select:name1,name2 to load exact tool names. Prefix a keyword with + to require it."`
+	Limit int    `json:"limit,omitempty" jsonschema:"minimum=1,maximum=20" jsonschema_description:"Maximum keyword matches to load. Defaults to 5. Exact select: queries ignore this value."`
 }
-
-var searchSchema, _ = toolcontract.Schema[searchArgs]()
 
 // entry is one searchable withheld tool with its precomputed match terms.
 type entry struct {
-	tool       toolcontract.Tool
 	definition chat.ToolDefinition
-	server     string   // MCP server name, for round-robin fairness; "" if unknown
+	source     string   // runtime or MCP server identity, for grouping and fairness
 	nameTerms  []string // tokenized qualified name
 	nameLower  string
 	descLower  string
@@ -56,30 +51,29 @@ type mcpToolIdentity interface {
 }
 
 // Tool is the search_tools meta-tool over a fixed set of withheld tools. It is
-// built per turn with the turn's live MCP tool set (see the resolver), so its
-// advertised catalog and promotable set never drift.
+// built per Run from the resolver's complete deferred set, so its advertised
+// catalog and promotable definitions never drift.
 type Tool struct {
 	entries []entry
 	byName  map[string]entry
-	names   []string // deferred tool names, in stable server-then-name order
-	desc    string   // precomputed model-facing description (immutable per instance)
+	names   []string // deferred tool names, in stable source-then-name order
+	inner   toolcontract.Tool
 }
 
 var _ toolcontract.Tool = (*Tool)(nil)
 
 // New builds a search_tools tool over withheld. It returns nil when withheld is
 // empty so the caller simply omits the tool — there is nothing to search.
-func New(withheld []toolcontract.Tool) *Tool {
+func New(withheld []toolcontract.Tool) (*Tool, error) {
 	if len(withheld) == 0 {
-		return nil
+		return nil, nil
 	}
 	t := &Tool{byName: make(map[string]entry, len(withheld))}
 	for _, tool := range withheld {
 		def := tool.Definition()
 		e := entry{
-			tool:       tool,
 			definition: def,
-			server:     serverOf(tool),
+			source:     sourceOf(tool),
 			nameTerms:  tokenize(def.Name),
 			nameLower:  strings.ToLower(def.Name),
 			descLower:  strings.ToLower(def.Description),
@@ -87,11 +81,11 @@ func New(withheld []toolcontract.Tool) *Tool {
 		t.entries = append(t.entries, e)
 		t.byName[def.Name] = e
 	}
-	// Stable order: server, then name — drives the round-robin rotation and the
+	// Stable order: source, then name — drives the round-robin rotation and the
 	// catalog listed in the description.
 	slices.SortFunc(t.entries, func(a, b entry) int {
-		if a.server != b.server {
-			return strings.Compare(a.server, b.server)
+		if a.source != b.source {
+			return strings.Compare(a.source, b.source)
 		}
 		return strings.Compare(a.definition.Name, b.definition.Name)
 	})
@@ -99,8 +93,18 @@ func New(withheld []toolcontract.Tool) *Tool {
 	for i, e := range t.entries {
 		t.names[i] = e.definition.Name
 	}
-	t.desc = t.buildDescription()
-	return t
+	inner, err := toolcontract.NewFunc(
+		toolcontract.FuncConfig{
+			Name:        "search_tools",
+			Description: t.buildDescription(),
+		},
+		t.search,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("toolsearch: build search_tools: %w", err)
+	}
+	t.inner = inner
+	return t, nil
 }
 
 // DeferredToolNames implements [toolloop.DeferredTool]: the framework's manifest
@@ -116,33 +120,25 @@ func (t *Tool) DeferredToolNames() []string {
 }
 
 func (t *Tool) Definition() chat.ToolDefinition {
-	return chat.ToolDefinition{
-		Name:        "search_tools",
-		Description: t.desc,
-		InputSchema: json.RawMessage(searchSchema),
-	}
+	return t.inner.Definition()
 }
 
 // buildDescription folds the "N tools available but not loaded" reminder into the
-// tool the model always sees, listing names grouped by server so it has the
+// tool the model always sees, listing names grouped by source so it has the
 // vocabulary to search or select. Only names (never schemas) are listed — that is
 // the whole point of deferral.
 func (t *Tool) buildDescription() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Load additional tools on demand. %d tool(s) from your connected integrations are available but not loaded into your context to keep it small. ",
+	fmt.Fprintf(&b, "Load additional runtime or integration tools on demand. %d tool(s) are available but omitted from the initial tool list to keep it focused. ",
 		len(t.entries))
 	b.WriteString("Search by capability (query=\"...\") or load exact tools (query=\"select:name1,name2\"); matches become directly callable on your next step.\n\nNot loaded:")
-	lastServer := ""
+	lastSource := ""
 	first := true
 	for _, e := range t.entries {
-		if first || e.server != lastServer {
+		if first || e.source != lastSource {
 			first = false
-			lastServer = e.server
-			if e.server != "" {
-				fmt.Fprintf(&b, "\n  [%s] ", e.server)
-			} else {
-				b.WriteString("\n  ")
-			}
+			lastSource = e.source
+			fmt.Fprintf(&b, "\n  [%s] ", e.source)
 			b.WriteString(e.definition.Name)
 			continue
 		}
@@ -153,10 +149,10 @@ func (t *Tool) buildDescription() string {
 }
 
 func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
-	var args searchArgs
-	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
-		return "", fmt.Errorf("toolsearch: parse arguments: %w", err)
-	}
+	return t.inner.Call(ctx, arguments)
+}
+
+func (t *Tool) search(ctx context.Context, args searchArgs) (string, error) {
 	query := strings.TrimSpace(args.Query)
 	if query == "" {
 		return "", ErrEmptyQuery
@@ -233,7 +229,7 @@ func (t *Tool) searchByKeyword(query string, limit int) []entry {
 		}
 		return strings.Compare(a.entry.definition.Name, b.entry.definition.Name)
 	})
-	return roundRobinByServer(hits, limit)
+	return roundRobinBySource(hits, limit)
 }
 
 // scoreEntry weights a name-term match above a description-only match. A term
@@ -263,31 +259,30 @@ func scoreEntry(terms []string, e entry) (int, bool) {
 	return total, total > 0
 }
 
-// roundRobinByServer draws from each server's ranked list in turn until limit is
-// reached, so the window is shared fairly across integrations while each server
-// still contributes its best matches first.
-func roundRobinByServer(hits []scored, limit int) []entry {
+// roundRobinBySource draws from each source's ranked list in turn until limit
+// is reached, so one large capability family cannot monopolize the result.
+func roundRobinBySource(hits []scored, limit int) []entry {
 	if len(hits) == 0 {
 		return nil
 	}
-	perServer := make(map[string][]entry)
-	var order []string // first-seen server order (already score-then-name sorted)
+	perSource := make(map[string][]entry)
+	var order []string // first-seen source order (already score-then-name sorted)
 	for _, h := range hits {
-		if _, ok := perServer[h.entry.server]; !ok {
-			order = append(order, h.entry.server)
+		if _, ok := perSource[h.entry.source]; !ok {
+			order = append(order, h.entry.source)
 		}
-		perServer[h.entry.server] = append(perServer[h.entry.server], h.entry)
+		perSource[h.entry.source] = append(perSource[h.entry.source], h.entry)
 	}
 	out := make([]entry, 0, min(limit, len(hits)))
 	for len(out) < limit {
 		progressed := false
-		for _, server := range order {
-			queue := perServer[server]
+		for _, source := range order {
+			queue := perSource[source]
 			if len(queue) == 0 {
 				continue
 			}
 			out = append(out, queue[0])
-			perServer[server] = queue[1:]
+			perSource[source] = queue[1:]
 			progressed = true
 			if len(out) >= limit {
 				break
@@ -322,12 +317,14 @@ func (t *Tool) renderNoMatch(query string) string {
 	return fmt.Sprintf("No tools matched %q. %d tool(s) are available — try a broader keyword, or select:name to load one by exact name.", query, len(t.entries))
 }
 
-func serverOf(tool toolcontract.Tool) string {
+func sourceOf(tool toolcontract.Tool) string {
 	if id, ok := tool.(mcpToolIdentity); ok {
 		server, _ := id.MCPToolIdentity()
-		return server
+		if server != "" {
+			return server
+		}
 	}
-	return ""
+	return "runtime"
 }
 
 // tokenize splits a qualified tool name into lowercase terms on non-alphanumeric

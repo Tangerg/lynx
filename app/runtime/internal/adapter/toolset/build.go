@@ -26,6 +26,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/sandbox"
@@ -62,6 +63,7 @@ type PlanModePolicy interface {
 // scope + the capability tables). Driven by the runtime config.
 type BuildConfig struct {
 	Workdir         string
+	DefaultModel    modelref.Selection
 	SkillsGlobalDir string
 	Online          OnlineConfig
 	LSPServers      []codeintel.ServerSpec
@@ -250,6 +252,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	resolver, err := NewResolver(Deps{
 		SkillUsage:      config.SkillUsage,
 		DefaultWorkdir:  config.Workdir,
+		DefaultModel:    config.DefaultModel,
 		SkillsGlobalDir: config.SkillsGlobalDir,
 		Online:          online,
 		A2A:             connections.a2aTools,

@@ -53,14 +53,27 @@ func call(t *testing.T, tool *toolsearch.Tool, query string) string {
 	return out
 }
 
+func newSearch(t *testing.T, tools []toolcontract.Tool) *toolsearch.Tool {
+	t.Helper()
+	search, err := toolsearch.New(tools)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return search
+}
+
 func TestNewEmptyReturnsNil(t *testing.T) {
-	if toolsearch.New(nil) != nil {
+	search, err := toolsearch.New(nil)
+	if err != nil {
+		t.Fatalf("New(nil): %v", err)
+	}
+	if search != nil {
 		t.Fatal("New(nil) should return a nil tool — nothing to search")
 	}
 }
 
 func TestKeywordSearchRanksByName(t *testing.T) {
-	tool := toolsearch.New(catalog())
+	tool := newSearch(t, catalog())
 	out := call(t, tool, "create issue")
 	if !strings.Contains(out, "linear_create_issue") {
 		t.Fatalf("expected linear_create_issue loaded, got:\n%s", out)
@@ -71,7 +84,7 @@ func TestKeywordSearchRanksByName(t *testing.T) {
 }
 
 func TestRequiredTermExcludesNonMatches(t *testing.T) {
-	tool := toolsearch.New(catalog())
+	tool := newSearch(t, catalog())
 	out := call(t, tool, "+slack message")
 	if !strings.Contains(out, "slack_send_message") {
 		t.Fatalf("expected slack_send_message, got:\n%s", out)
@@ -82,7 +95,7 @@ func TestRequiredTermExcludesNonMatches(t *testing.T) {
 }
 
 func TestSelectByExactName(t *testing.T) {
-	tool := toolsearch.New(catalog())
+	tool := newSearch(t, catalog())
 	out := call(t, tool, "select:github_open_pr,linear_list_issues")
 	if !strings.Contains(out, "github_open_pr") || !strings.Contains(out, "linear_list_issues") {
 		t.Fatalf("select did not load both named tools:\n%s", out)
@@ -93,7 +106,7 @@ func TestSelectByExactName(t *testing.T) {
 }
 
 func TestSelectDropsUnknownNames(t *testing.T) {
-	tool := toolsearch.New(catalog())
+	tool := newSearch(t, catalog())
 	out := call(t, tool, "select:does_not_exist")
 	if !strings.Contains(out, "No tools matched") {
 		t.Fatalf("unknown select should report no match, got:\n%s", out)
@@ -112,7 +125,7 @@ func TestRoundRobinSpreadsAcrossServers(t *testing.T) {
 		mcpTool{name: "beta_issue_b", desc: "issue", server: "beta", remote: "b"},
 		mcpTool{name: "beta_issue_c", desc: "issue", server: "beta", remote: "c"},
 	}
-	tool := toolsearch.New(many)
+	tool := newSearch(t, many)
 	args, _ := json.Marshal(map[string]any{"query": "issue", "limit": 2})
 	out, err := tool.Call(context.Background(), string(args))
 	if err != nil {
@@ -124,7 +137,7 @@ func TestRoundRobinSpreadsAcrossServers(t *testing.T) {
 }
 
 func TestDeferredToolNames(t *testing.T) {
-	tool := toolsearch.New(catalog())
+	tool := newSearch(t, catalog())
 	names := tool.DeferredToolNames()
 	if len(names) != 4 {
 		t.Fatalf("DeferredToolNames = %v, want 4 names", names)
@@ -137,7 +150,7 @@ func TestDeferredToolNames(t *testing.T) {
 }
 
 func TestDescriptionListsCatalogButNotSchemas(t *testing.T) {
-	tool := toolsearch.New(catalog())
+	tool := newSearch(t, catalog())
 	desc := tool.Definition().Description
 	for _, name := range []string{"linear_create_issue", "slack_send_message", "github_open_pr"} {
 		if !strings.Contains(desc, name) {
@@ -150,10 +163,23 @@ func TestDescriptionListsCatalogButNotSchemas(t *testing.T) {
 }
 
 func TestEmptyQueryErrors(t *testing.T) {
-	tool := toolsearch.New(catalog())
+	tool := newSearch(t, catalog())
 	_, err := tool.Call(context.Background(), `{"query":"  "}`)
 	if err == nil {
 		t.Fatal("blank query should error so the model retries")
+	}
+}
+
+func TestArgumentsAreStrictAndBounded(t *testing.T) {
+	tool := newSearch(t, catalog())
+	for _, arguments := range []string{
+		`{"query":"issue","unknown":true}`,
+		`{"query":"issue","limit":21}`,
+		`{}`,
+	} {
+		if _, err := tool.Call(context.Background(), arguments); err == nil {
+			t.Errorf("Call(%s) succeeded, want contract validation error", arguments)
+		}
 	}
 }
 
@@ -162,7 +188,7 @@ func TestEmptyQueryErrors(t *testing.T) {
 // model searches, the promotion must advertise it so round 2 can call it.
 func TestEndToEndPromotionMakesWithheldToolCallable(t *testing.T) {
 	withheld := mcpTool{name: "linear_create_issue", desc: "Create a Linear issue", server: "linear", remote: "create_issue", result: "LIN-42 created"}
-	search := toolsearch.New([]toolcontract.Tool{withheld})
+	search := newSearch(t, []toolcontract.Tool{withheld})
 
 	registry, err := toolset.NewRegistry(search, withheld)
 	if err != nil {

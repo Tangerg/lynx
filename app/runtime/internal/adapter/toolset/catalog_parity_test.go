@@ -6,6 +6,7 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goaltool"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -178,6 +179,20 @@ func TestSafetyTableNamesOnlyToolsThatExist(t *testing.T) {
 		t.Fatalf("Tools: %v", err)
 	}
 	existing := toolNameSet(resolved)
+	// A Run receives exactly one mutation vocabulary. Union the other supported
+	// profile before checking the global safety table, which necessarily covers
+	// both vocabularies.
+	patchModel, err := modelref.New("openai", "gpt-5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	patchTools, err := group.Tools(executionctx.WithModelSelection(t.Context(), patchModel))
+	if err != nil {
+		t.Fatalf("Tools(apply_patch profile): %v", err)
+	}
+	for name := range toolNameSet(patchTools) {
+		existing[name] = true
+	}
 	// The engine injects task only after it deploys the child Agent.
 	existing["task"] = true
 

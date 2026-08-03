@@ -36,25 +36,29 @@ func TestToolCatalogOfflineOnly(t *testing.T) {
 	defer eng.Close()
 
 	tools := codingTools(t, eng.catalog)
-	// 6 filesystem coding tools (download is gated on a host allowlist, so it is
+	// 5 filesystem coding tools in the conservative edit/write vocabulary
+	// (download is gated on a host allowlist, so it is
 	// absent in this offline build) + 3 shell tools (shell + its shell_output /
 	// shell_kill companions) + 2 always-on LSP tools (the combined `lsp` query
 	// tool + `lsp_diagnostics`) + the `task` delegation tool + the ask_user HITL
-	// tool. (LSP tools advertise unconditionally; they return a no-server message
-	// at call time when no language server applies.)
+	// tool + search_tools. LSP remains executable but is deferred from the model's
+	// initial manifest.
 	if len(tools) != 13 {
-		t.Fatalf("tool count = %d, want 13 (6 fs + 3 shell + 2 lsp + task + ask_user)", len(tools))
+		t.Fatalf("tool count = %d, want 13 (5 fs + 3 shell + 2 lsp + task + ask_user + search_tools)", len(tools))
 	}
 
 	names := toolNames(tools)
 	for _, want := range []string{
-		"read", "write", "edit", "apply_patch", "glob", "grep", "shell", "task", "ask_user",
+		"read", "write", "edit", "glob", "grep", "shell", "task", "ask_user", "search_tools",
 		"lsp", "lsp_diagnostics",
 		"shell_output", "shell_kill",
 	} {
 		if !names[want] {
 			t.Errorf("missing tool %q in %v", want, names)
 		}
+	}
+	if names["apply_patch"] {
+		t.Fatal("one Run must not register apply_patch together with edit/write")
 	}
 	// download joins the online tools as allowlist-gated: absent without one.
 	for _, never := range []string{"web_fetch", "web_search", "http_request", "download"} {
@@ -80,7 +84,7 @@ func TestToolCatalogOnlineEnabled(t *testing.T) {
 
 	tools := codingTools(t, eng.catalog)
 	if len(tools) != 17 {
-		t.Fatalf("tool count = %d, want 17 (6 fs + download + 3 shell + 2 lsp + 3 online + task + ask_user)", len(tools))
+		t.Fatalf("tool count = %d, want 17 (5 fs + download + 3 shell + 2 lsp + 3 online + task + ask_user + search_tools)", len(tools))
 	}
 	names := toolNames(tools)
 	// HTTPAllowedHosts is set, so download is registered alongside the online tools.
@@ -100,7 +104,7 @@ func TestToolCatalogPartialOnline(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{Online: toolset.OnlineConfig{JinaAPIKey: "k"}})
 	defer eng.Close()
 	if got := len(codingTools(t, eng.catalog)); got != 14 {
-		t.Fatalf("tool count = %d, want 14 (6 fs + 3 shell + 2 lsp + jina + task + ask_user; no download without an http allowlist)", got)
+		t.Fatalf("tool count = %d, want 14 (5 fs + 3 shell + 2 lsp + jina + task + ask_user + search_tools; no download without an http allowlist)", got)
 	}
 }
 

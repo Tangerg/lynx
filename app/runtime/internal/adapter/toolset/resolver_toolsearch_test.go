@@ -3,6 +3,7 @@ package toolset
 import (
 	"testing"
 
+	"github.com/Tangerg/lynx/agent/toolloop"
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -33,7 +34,7 @@ func resolveCodingTools(t *testing.T, mcpTools []toolcontract.Tool) []toolcontra
 
 type deferredNamer interface{ DeferredToolNames() []string }
 
-func TestResolverOffersSearchToolsOverMCPCatalog(t *testing.T) {
+func TestResolverOffersSearchToolsOverDeferredCatalog(t *testing.T) {
 	mcpTools := []toolcontract.Tool{
 		mcpToolStub{name: "files_read", server: "files", remote: "read"},
 		mcpToolStub{name: "files_write", server: "files", remote: "write"},
@@ -59,17 +60,40 @@ func TestResolverOffersSearchToolsOverMCPCatalog(t *testing.T) {
 	if search == nil {
 		t.Fatal("no tool reports deferred names")
 	}
-	deferred := search.DeferredToolNames()
-	if len(deferred) != 2 {
-		t.Fatalf("deferred names = %v, want the two MCP tools", deferred)
+	deferred := nameSliceSet(search.DeferredToolNames())
+	for _, want := range []string{"files_read", "files_write", "lsp", "lsp_diagnostics"} {
+		if !deferred[want] {
+			t.Errorf("deferred names = %v, missing %q", deferred, want)
+		}
 	}
 }
 
-func TestResolverOmitsSearchToolsWithoutMCP(t *testing.T) {
+func TestResolverDefersRuntimeToolsWithoutMCP(t *testing.T) {
 	resolved := resolveCodingTools(t, nil)
-	for _, tool := range resolved {
-		if tool.Definition().Name == "search_tools" {
-			t.Fatal("search_tools must be absent when nothing is deferred")
+	manifest, err := toolloop.Advertise(resolved)
+	if err != nil {
+		t.Fatalf("Advertise: %v", err)
+	}
+	advertised := make(map[string]bool, len(manifest))
+	for _, definition := range manifest {
+		advertised[definition.Name] = true
+	}
+	for _, direct := range []string{"read", "glob", "grep", "edit", "write", "shell", "search_tools"} {
+		if !advertised[direct] {
+			t.Errorf("initial manifest = %v, missing direct tool %q", advertised, direct)
 		}
 	}
+	for _, deferred := range []string{"lsp", "lsp_diagnostics"} {
+		if advertised[deferred] {
+			t.Errorf("initial manifest = %v, unexpectedly advertised deferred tool %q", advertised, deferred)
+		}
+	}
+}
+
+func nameSliceSet(names []string) map[string]bool {
+	out := make(map[string]bool, len(names))
+	for _, name := range names {
+		out[name] = true
+	}
+	return out
 }

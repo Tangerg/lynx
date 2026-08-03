@@ -124,13 +124,19 @@
 - **Hidden**：Runtime 可解析但模型不可见；
 - **Unavailable**：当前 Run 不注册。
 
+这四个词是行为分类，不强制对应一个通用 enum。当前实现只有 Direct 与 Deferred 构成真实的组装变化轴：Resolver 把两组工具注册到同一 Run，`agent/toolloop` 只读取 `search_tools` 已有的通用 `DeferredTool` 能力生成初始 manifest。Unavailable 继续用“不加入 Run registry”表达；当前没有内建 Hidden 工具，因此不为它创建无消费者的状态、接口或 registry 层。
+
 可见性过滤不是授权。执行时仍按 permission action、session mode 和安全策略重新判定。
 
 `enter_plan_mode` 与 `exit_plan_mode` 是一个例外：两者始终同时对根 coding Agent 可见，执行时分别校验当前 session 状态。Agent 的一次 Prompt 在开始时解析工具 registry，后续 tool rounds 复用该 registry；若按 Plan mode 动态隐藏其中一个，模型进入后同一轮无法退出。Runtime 不把应用状态泄露进 `agent` 核心来制造动态 registry 刷新。
 
 初始 Direct 工具保持精简：文件读取与搜索、一个模型适配的文件修改族、shell、用户提问、Plan、Goal、委派和工具发现。网络、记忆、LSP、Skill、MCP、A2A、Schedule 等默认 Deferred 或按状态出现。
 
-同一模型不得同时看到 `apply_patch` 与 `edit`/`write`：支持结构化 patch 的模型只获得 `apply_patch`，其他模型获得 `edit` 和 `write`。
+同一 Run 不得同时注册 `apply_patch` 与 `edit`/`write`，避免模型即使通过工具搜索也加载出两套重叠修改语言。模型 id 属于现代 GPT（排除 GPT-4 与 OSS）或 Grok 时使用 `apply_patch`，不依赖它经由原厂、OpenRouter 或兼容端点接入；Anthropic/Claude、Moonshot/Kimi、GPT-4、OSS 和未知模型保守使用 `edit` + `write`。
+
+模型选择不进入持久化 `TurnScope`。fresh Run 在执行入口把显式选择写入临时 `executionctx`，恢复 Run 从已有 checkpoint 的独立 `ModelSelection` 字段重建同一临时值；Resolver 在没有显式值时使用 Runtime default。这避免了 checkpoint 字段重复，也没有把模型或 Exposure 注入 `agent` 模块。
+
+`search_tools` 是 Deferred 能力唯一入口，不再是 MCP 专用工具：它同时索引 runtime 内建能力和连接的 integration。`query` 必填且非空，可用自然语言能力描述或 `select:name1,name2` 精确加载；`limit` 可选、范围 `1..20`、默认 `5`，精确选择时忽略。参数使用 typed function 的同一份严格 schema，拒绝未知字段；结果只提升匹配 definition，不改变执行权限。
 
 ## 7. 删除与收敛
 
@@ -190,7 +196,7 @@
 | 2a | Plan 领域、持久化、wire、归档和工具替换 | 完成 |
 | 2b | session-scoped Plan mode | 完成 |
 | 3 | `create_goal` 与 idle continuation | 完成 |
-| 4 | Manifest、Exposure、模型/状态驱动工具清单 | 待开始 |
+| 4 | Manifest、Exposure、模型/状态驱动工具清单 | 完成 |
 | 5 | 工具名、参数和描述的全量收敛 | 待开始 |
 | 6 | 删除冗余能力和配置 | 待开始 |
 | 7 | 全仓验证、文档收敛和最终审计 | 待开始 |
@@ -248,3 +254,12 @@
 - 晚绑定 seam 只传递通用 `tool.Tool`。Resolver 不持有 Driver，`agentexec.ToolResolver` 不新增 Goal 方法，`agent` 模块不知道 Goal、session admission 或 Runtime lifecycle；`create/get/report/active gate` 分别消费 `Starter/Reader/Reporter/ActiveReader` 单方法接口，只有 tool family 的 BuildConfig 组合为 `State`；没有引入 Bootstrap proxy、store facade、unowned goroutine 或复制的 Run 状态；
 - admission/runs 只新增通用的 Run-startable 事件等待与可恢复 Gate 竞争分类，不知道 Goal。Goal application 只依赖 `WaitSessionStartable/Start/Cancel` Run 用例接口，不读取 Gate、registry 或 delivery DTO；边界扫描继续确认 `agent` 对 `app/runtime` 零导入，domain/application 对 adapter/infra/delivery/bootstrap 零反向依赖；
 - 聚焦测试覆盖当前 Run 释放后启动、terminal maintenance 等待、context 取消、admission 丢失竞争重试、终态 CAS、Schema 词汇、根/子角色可见性和安全表可达性。
+
+### 批次 4
+
+- 将 resolver 的 Run 工具组装收敛为两个真实集合：Direct 进入初始 manifest，Deferred 保持可执行并由 `search_tools` 加载；资源或状态不可用的工具仍直接不注册。没有引入四态 enum、Hidden 空实现、第二个 registry 或 app-specific `tool.Tool` 字段；
+- 初始清单保留文件读/搜、单一文件修改族、shell、提问、Plan/Goal、委派、结果回读和工具发现；将 network、LSP、Skill、MCP、A2A、memory/session search、Schedule 与 Skill authoring 统一转为 Deferred；
+- 按每个 Run 的实际模型选择 mutation vocabulary：现代 OpenAI GPT/Codex 与 xAI/Grok 只注册 `apply_patch`，Claude/Kimi/GPT-4/OSS/未知模型只注册 `edit` + `write`。测试同时约束映射策略和“一次 Run 永不共存两族”；
+- 模型选择以临时 `executionctx` 值从 fresh/restore 两个执行入口传播，Resolver 才读取；默认选择由 Bootstrap 组装传入。持久 `TurnScope`、Agent blackboard、通用 Tool 和 Agent Runtime API 均未扩张；
+- 将 `search_tools` 从 MCP catalog 改为完整 Deferred catalog，按 runtime 或 MCP source 分组并公平排序；`query` 和 `limit` 改用 typed function 严格 schema，拒绝缺字段、未知字段与越界值；
+- 继续复用 `agent/toolloop.DeferredTool` 与 `PromoteTools` 的通用 manifest 投影。`agent` 不知道 Plan、Goal、session、model provider、Exposure 策略或 runtime registry；边界变化仅发生在 app adapter/composition root。
