@@ -334,6 +334,23 @@ for (const theme of ["light", "dark"] as const) {
       }
       await openWorkspace(page, { state, theme });
       await waitForWorkspaceState(page, state);
+      // Put the transcript at its resting position before reading the clock —
+      // same reason as the agent goldens: stick-to-bottom eases toward a target
+      // that `content-visibility` keeps re-measuring, so the same fixture lands
+      // a pixel apart between runs and every row in the frame moves with it.
+      await page.waitForFunction(() => {
+        const scroller = document.querySelector(".msg-scroll-viewport");
+        if (!scroller) return true;
+        scroller.scrollTop = scroller.scrollHeight;
+        const probe = window as unknown as { settle?: { top: number; frames: number } };
+        const settle = (probe.settle ??= { top: -1, frames: 0 });
+        if (scroller.scrollTop === settle.top) settle.frames += 1;
+        else {
+          settle.top = scroller.scrollTop;
+          settle.frames = 0;
+        }
+        return settle.frames >= 5;
+      });
       // The light-density fixture deliberately uses a live Running snapshot so
       // the production Plan has useful content. Freeze its elapsed-time label
       // only after bootstrap and initial scroll have settled.

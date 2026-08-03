@@ -631,10 +631,20 @@
   --app-dock-surface: color-mix(in oklab, var(--color-bg) 25%, var(--color-surface));
   --app-card-surface: var(--color-elevated);
   --app-surface-divider: transparent;
-  --app-card-edge: inset 11px 0 24px -10px var(--shell-boundary);
-  --app-pane-split: -7px 0 22px -10px var(--shadow-cast);
-  --app-pane-split-end: 7px 0 22px -10px var(--shadow-cast);
+  /* Edge GEOMETRY only — offsets and spread, no colour. The colour is the
+     shell's live `--shell-boundary` / `--split-boundary`, and it has to be
+     substituted on the element that draws the edge: a var() inside a token
+     declared on :root resolves AT :root, where those two do not exist. That is
+     why the seam rail's drag emphasis and the collapsed drawer's "no edge to
+     cast" both did nothing for as long as they have been written down. */
+  --app-card-edge: inset 11px 0 24px -10px;
+  --app-pane-split: -7px 0 22px -10px;
+  --app-pane-split-end: 7px 0 22px -10px;
   --seam-line: color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%);
+  /* What a boundary deepens to while it is being dragged. Both drag handles read
+     it, so "the drawer seam and the dock split are the same gesture" is one value
+     rather than two that agree today. */
+  --boundary-emphasis: color-mix(in oklab, var(--color-text) 28%, var(--shadow-cast));
 
   /* The reading column, and the gutter on either side of it.
      ONE width for both gutters, and it is not negotiable: the column is what
@@ -1149,35 +1159,23 @@ html.theme-dark {
   background: var(--app-content-surface);
   border-radius: 0;
   --shell-boundary: var(--shadow-cast);
-  box-shadow: var(--app-card-edge);
+  box-shadow: var(--app-card-edge) var(--shell-boundary);
   transition: box-shadow var(--dur-drawer) var(--ease-drawer);
 }
 
-.agent-shell:has(.agent-seam-rail:is(:hover, :focus-visible)) .agent-content-card {
-  --shell-boundary: color-mix(in oklab, var(--color-text) 28%, var(--shadow-cast));
+.agent-shell:has(.agent-seam-rail:is(:hover, :focus-visible, :active)) .agent-content-card {
+  --shell-boundary: var(--boundary-emphasis);
 }
 
-/* Pane resizer — the shell's seam rail and this splitter are the same gesture,
-   so they answer in the same vocabulary: the divider line intensifies, and the
-   drag state pushes it to the seam rail's emphasised weight. Lives here rather
-   than as utilities at the callsite for the reason every other edge value does —
-   two drag dividers spelling their own intensities is how they drifted apart. */
-.agent-pane-resizer::after {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  left: 50%;
-  width: 2px;
-  transform: translateX(-50%);
-  border-radius: var(--shape-pill);
-  background: transparent;
-  transition: background-color var(--dur-fast) ease-out;
-}
-.agent-pane-resizer:is(:hover, :focus-visible)::after {
-  background: var(--seam-line);
-}
-.agent-pane-resizer:active::after {
-  background: color-mix(in srgb, var(--color-text) 30%, transparent);
+/* Pane resizer — the shell's seam rail and this splitter are the same gesture on
+   the two edges of one reading plane, so they answer the same way: DEEPEN the
+   boundary the pane already carries. It used to draw a 2px rule of its own
+   instead, which is why dragging the dock grew a hard line and dragging the
+   drawer did not — one edge of the workspace answering in a vocabulary the
+   region model has no other use for. The intensified value is the seam rail's,
+   spelled once for both. */
+.agent-pane-resizer:is(:hover, :focus-visible, :active) + .agent-pane-split {
+  --split-boundary: var(--boundary-emphasis);
 }
 
 /* No adjacent tool window means nothing to cast the boundary. */
@@ -1265,7 +1263,11 @@ html.theme-dark {
 .agent-pane-split {
   position: relative;
   z-index: 1;
-  box-shadow: var(--app-pane-split);
+  /* Same contract as `--shell-boundary` on the reading plane: the shell says how
+     strong this edge is right now, the visual style says what shape it takes. */
+  --split-boundary: var(--shadow-cast);
+  box-shadow: var(--app-pane-split) var(--split-boundary);
+  transition: box-shadow var(--dur-fast) ease-out;
 }
 
 /* The same split when the pane is the LEADING one and the line belongs to its
@@ -1276,7 +1278,7 @@ html.theme-dark {
    calculation: an inset box-shadow cannot be flipped in CSS, and a style that
    divides with a cast rather than a line needs to say both directions anyway. */
 .agent-pane-split[data-split-side="end"] {
-  box-shadow: var(--app-pane-split-end);
+  box-shadow: var(--app-pane-split-end) var(--split-boundary);
 }
 
 /* ---------- Context dock ---------- */

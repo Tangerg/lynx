@@ -53,8 +53,15 @@ const COLUMN = "mx-auto w-full max-w-[var(--content-max)]";
 // One query for both, since the pane must hold the column and a FULL gutter on
 // each side to stay symmetric. The sum is spelled out because Tailwind reads
 // source text and a container variant assembled from a variable emits nothing.
+//
+// Transparent to the pointer, and only what a rail actually draws takes it back:
+// the scroller underneath now spans the whole pane, and a 224px pad of nothing
+// that swallows the wheel is a pane that stops scrolling wherever you happen to
+// have left the cursor. Bounded above the composer for the same reason the
+// transcript pads its tail — the overlay is opaque, and a list that runs under
+// it is a list with items nobody can reach.
 const RAIL =
-  "absolute inset-y-0 z-[1] hidden w-[var(--reading-rail-width)] flex-col @min-[1128px]:flex";
+  "absolute top-0 bottom-[var(--composer-overlay,0px)] z-[1] hidden w-[var(--reading-rail-width)] flex-col @min-[1128px]:flex pointer-events-none [&>*]:pointer-events-auto";
 const RAIL_START = "right-[calc(50%+var(--content-max)/2)]";
 const RAIL_END = "left-[calc(50%+var(--content-max)/2)]";
 
@@ -203,7 +210,11 @@ export function ChatStream({ onSend }: Props) {
         <div className={cn(RAIL, RAIL_START)}>
           <Slot name="chat.rail.start" />
         </div>
-        <div className={cn("relative flex min-h-0 flex-1 flex-col", COLUMN)}>
+        {/* The SCROLLER is the pane, not the column — the column is centred
+            inside it. Scrolling a 680px box puts its scrollbar 680px in, right
+            down the edge of the text; the pane's own edge is where every other
+            application puts it and the only place it isn't in the way. */}
+        <div className="relative flex min-h-0 flex-1 flex-col">
           <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
             <MessageStream messages={messages} ctx={ctx} resetKey={resetKey} />
           </ChatErrorBoundary>
@@ -216,11 +227,20 @@ export function ChatStream({ onSend }: Props) {
             capping it with a bar: one continuous surface with an input resting
             on it, which is also why the text has to keep going underneath. The
             band above it fades that text out instead of slicing it, and only
-            the composer's own box takes the pointer — the fade is scenery. */}
-        <div ref={overlayRef} className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
+            the composer's own box takes the pointer — the fade is scenery.
+
+            It is exactly the COLUMN wide, never the pane. A full-width overlay
+            is a bottom bar however it is positioned: it paints over the whole
+            width of the pane, which reads as chrome and takes the scrollbar's
+            bottom inch with it. Nothing outside the column has anything to hide
+            anyway — the transcript is centred and capped. */}
+        <div
+          ref={overlayRef}
+          className={cn("pointer-events-none absolute inset-x-0 bottom-0 z-10", COLUMN)}
+        >
           <div className="h-8 bg-gradient-to-b from-transparent to-[var(--app-content-surface)]" />
           <div className="bg-[var(--app-content-surface)] pb-3 sm:pb-4">
-            <div className={cn("pointer-events-auto relative", COLUMN)}>
+            <div className="pointer-events-auto relative">
               <JumpToBottomButton />
               {composer}
             </div>

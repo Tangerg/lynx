@@ -16,6 +16,22 @@ const REACH = 3;
 /** Longest a mark gets from the pointer alone, in px. */
 const MAGNIFY = 16;
 
+/** Floor length, so a one-line exchange is a mark rather than a speck. */
+const FLOOR = 8;
+
+/** How much of a mark's length its share of the transcript can buy. */
+const SHARE = 10;
+
+/**
+ * The track every mark is drawn in — the longest one of them can be.
+ *
+ * The rows are the tooltip's anchor, so this is also how far from the marks the
+ * preview card opens. Stretched to the gutter (which is what `w-full` did) the
+ * card detached from the rail entirely and opened a clear 260px away, over the
+ * text, pointing at nothing.
+ */
+const TRACK = FLOOR + SHARE + MAGNIFY;
+
 /**
  * A map of the conversation, one mark per question asked.
  *
@@ -53,7 +69,7 @@ export function TurnRail() {
     // top of the pane.
     <nav
       aria-label={t("narrative.rail.turns")}
-      className="flex h-full w-full flex-col items-start justify-center overflow-hidden py-6 pl-6"
+      className="flex h-full w-fit flex-col items-start justify-center overflow-hidden py-6 pl-6"
       onPointerLeave={() => setReached(null)}
     >
       {turns.map((turn, index) => {
@@ -77,19 +93,22 @@ export function TurnRail() {
                 onFocus={() => setReached(index)}
                 onBlur={() => setReached(null)}
                 onClick={() => scrollToTurn(turn.id)}
-                className="flex h-[9px] w-full shrink-0 items-center"
+                className="flex h-[9px] shrink-0 items-center"
+                style={{ width: `${TRACK}px` } as CSSProperties}
               >
+                {/* One thickness for every mark, the lead one's. A hairline that
+                    doubles when it becomes current made the rail's resting state
+                    read as a scratch and the change as a thickening rather than a
+                    move — the length is the measurement here, and it is the only
+                    thing that should be saying anything. */}
                 <span
                   className={cn(
-                    "rounded-pill transition-[background-color,height,width] duration-[var(--dur-fast)]",
-                    lead ? "h-[2px] bg-fg" : "h-px bg-fg-faint/55",
+                    "h-[2px] rounded-pill transition-[background-color,width] duration-[var(--dur-fast)]",
+                    lead ? "bg-fg" : "bg-fg-faint/55",
                   )}
                   style={
                     {
-                      // A floor so a one-line exchange is still a mark rather than
-                      // a speck, and a ceiling well short of the gutter so the run
-                      // reads as a margin note rather than a second column.
-                      width: `${8 + Math.round(shareOf(turn.id) * 10 + swell(index) * MAGNIFY)}px`,
+                      width: `${FLOOR + Math.round(shareOf(turn.id) * SHARE + swell(index) * MAGNIFY)}px`,
                     } as CSSProperties
                   }
                 />

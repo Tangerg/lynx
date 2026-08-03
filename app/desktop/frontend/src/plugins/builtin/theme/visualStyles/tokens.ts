@@ -111,10 +111,17 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // The drawer's cast, drawn INSIDE the plane: the plane outranks the drawer on
   // z-index so the drawer can slide under it, which means the drawer cannot cast
   // onto it from outside.
-  "app-card-edge": "inset 11px 0 24px -10px var(--shadow-cast)",
+  //
+  // GEOMETRY ONLY — a style says what shape an edge takes (a spread cast here, a
+  // hairline `inset 1px 0 0 0` for a flat family), and the shell says how strong
+  // it is right now by naming the colour on the element itself. Putting the
+  // colour in the token looks equivalent and is not: the token is declared on
+  // :root, so any var() in it resolves there, where the shell's live boundary
+  // variables do not exist.
+  "app-card-edge": "inset 11px 0 24px -10px",
   // A pane that splits the region it lives in casts across the split instead.
-  "app-pane-split": "-7px 0 22px -10px var(--shadow-cast)",
-  "app-pane-split-end": "7px 0 22px -10px var(--shadow-cast)",
+  "app-pane-split": "-7px 0 22px -10px",
+  "app-pane-split-end": "7px 0 22px -10px",
   // Reserved for the one place an optical ring still earns its pixel: a floating
   // panel, which has no value delta to lean on because it can land over anything.
   "seam-line": "color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%)",
