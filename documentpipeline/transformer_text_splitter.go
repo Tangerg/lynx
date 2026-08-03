@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/documentpipeline/id"
 )
 
 // TextSplitterConfig configures fixed-separator chunking. The zero Separator
@@ -15,7 +14,7 @@ type TextSplitterConfig struct {
 
 	// IDGenerator, when set, assigns an id to every emitted chunk.
 	// nil leaves chunk IDs empty. See [SplitterConfig.IDGenerator].
-	IDGenerator id.Generator
+	IDGenerator IDGenerator
 }
 
 var _ Transformer = (*TextSplitter)(nil)

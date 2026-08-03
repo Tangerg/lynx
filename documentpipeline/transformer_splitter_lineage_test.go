@@ -7,7 +7,6 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/documentpipeline"
-	"github.com/Tangerg/lynx/documentpipeline/id"
 )
 
 func TestSplitter_StampsChunkLineage(t *testing.T) {
@@ -67,7 +66,7 @@ func TestSplitter_NoParentIDWhenSourceUnidentified(t *testing.T) {
 
 func TestSplitter_AssignsChunkIDs(t *testing.T) {
 	splitter, _ := documentpipeline.NewSplitter(documentpipeline.SplitterConfig{
-		IDGenerator: id.NewSHA256Generator(nil),
+		IDGenerator: documentpipeline.NewSHA256IDGenerator(nil),
 		SplitFunc: func(_ context.Context, _ string) ([]string, error) {
 			return []string{"x", "y"}, nil
 		},

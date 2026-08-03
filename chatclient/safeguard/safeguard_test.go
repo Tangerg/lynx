@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Tangerg/lynx/chatclient/middleware/safeguard"
+	"github.com/Tangerg/lynx/chatclient/safeguard"
 	"github.com/Tangerg/lynx/core/chat"
 )
 

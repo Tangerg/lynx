@@ -8,7 +8,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/documentpipeline/id"
 )
 
 // Chunk-lineage metadata keys. A [Splitter] stamps every emitted chunk
@@ -36,7 +35,7 @@ type SplitterConfig struct {
 	SplitFunc func(ctx context.Context, text string) ([]string, error)
 
 	// IDGenerator, when set, assigns an ID to each emitted chunk.
-	IDGenerator id.Generator
+	IDGenerator IDGenerator
 }
 
 var _ Transformer = (*Splitter)(nil)
@@ -49,7 +48,7 @@ var _ Transformer = (*Splitter)(nil)
 // source.
 type Splitter struct {
 	splitFunc   func(ctx context.Context, text string) ([]string, error)
-	idGenerator id.Generator
+	idGenerator IDGenerator
 }
 
 func NewSplitter(config SplitterConfig) (*Splitter, error) {

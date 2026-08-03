@@ -8,7 +8,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/documentpipeline/id"
 	"github.com/Tangerg/lynx/tokenizer"
 )
 
@@ -33,7 +32,7 @@ type TokenSplitterConfig struct {
 	MinCharactersPerChunk int
 	MaxChunks             int
 	PreserveNewlines      bool
-	IDGenerator           id.Generator
+	IDGenerator           IDGenerator
 }
 
 var _ Transformer = (*TokenSplitter)(nil)

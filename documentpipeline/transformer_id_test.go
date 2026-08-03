@@ -5,12 +5,11 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/documentpipeline"
-	"github.com/Tangerg/lynx/documentpipeline/id"
 )
 
 func TestIDAssigner_FillsEmptyOnly(t *testing.T) {
 	assigner, err := documentpipeline.NewIDAssigner(documentpipeline.IDAssignerConfig{
-		Generator: id.NewUUIDGenerator(),
+		Generator: documentpipeline.NewUUIDGenerator(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +33,7 @@ func TestIDAssigner_FillsEmptyOnly(t *testing.T) {
 
 func TestIDAssigner_Overwrite(t *testing.T) {
 	assigner, err := documentpipeline.NewIDAssigner(documentpipeline.IDAssignerConfig{
-		Generator: id.NewUUIDGenerator(),
+		Generator: documentpipeline.NewUUIDGenerator(),
 		Overwrite: true,
 	})
 	if err != nil {
