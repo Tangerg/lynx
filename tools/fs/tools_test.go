@@ -106,14 +106,14 @@ func TestFileToolsReportMutationPaths(t *testing.T) {
 	}
 }
 
-func TestReadTool_OneBasedOffsetTranslation(t *testing.T) {
+func TestReadTool_OneBasedStartLineTranslation(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "line1\nline2\nline3\nline4\n")
 
 	tool := NewReadTool(nil)
 
-	// offset=2 (1-based) means "start at line 2"; limit=2 takes line2,line3
-	body, err := tool.Call(t.Context(), `{"path":"`+path+`","offset":2,"limit":2}`)
+	// start_line=2 means "start at line 2"; max_lines=2 takes line2,line3.
+	body, err := tool.Call(t.Context(), `{"path":"`+path+`","start_line":2,"max_lines":2}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -132,17 +132,29 @@ func TestReadTool_OneBasedOffsetTranslation(t *testing.T) {
 	}
 }
 
-func TestReadTool_OffsetZeroMeansStart(t *testing.T) {
+func TestReadTool_OmittedStartLineMeansFirstLine(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "a\nb\nc\n")
-	body, err := NewReadTool(nil).Call(t.Context(), `{"path":"`+path+`","offset":0,"limit":1}`)
+	body, err := NewReadTool(nil).Call(t.Context(), `{"path":"`+path+`","max_lines":1}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
 	var resp ReadResponse
 	_ = json.Unmarshal([]byte(body), &resp)
 	if resp.StartLine != 1 {
-		t.Errorf("StartLine = %d, want 1 (offset=0 → start at first line)", resp.StartLine)
+		t.Errorf("StartLine = %d, want 1 when start_line is omitted", resp.StartLine)
+	}
+}
+
+func TestReadTool_RejectsAmbiguousLegacyPaging(t *testing.T) {
+	for _, arguments := range []string{
+		`{"path":"a.txt","offset":1}`,
+		`{"path":"a.txt","limit":20}`,
+		`{"path":"a.txt","start_line":0}`,
+	} {
+		if _, err := NewReadTool(nil).Call(t.Context(), arguments); err == nil {
+			t.Fatalf("read accepted ambiguous paging arguments: %s", arguments)
+		}
 	}
 }
 

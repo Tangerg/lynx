@@ -165,6 +165,21 @@ func TestTool_Call_BadJSON(t *testing.T) {
 	}
 }
 
+func TestTool_Call_EnforcesPreciseInputContract(t *testing.T) {
+	tool := NewTool(nil)
+	for _, arguments := range []string{
+		`{"command":"true","timeout":10}`,
+		`{"command":"true","timeout_ms":600001}`,
+		`{"command":"true","unknown":true}`,
+		`{"command":"true"} {}`,
+		`{}`,
+	} {
+		if _, err := tool.Call(t.Context(), arguments); err == nil {
+			t.Fatalf("shell accepted arguments outside its contract: %s", arguments)
+		}
+	}
+}
+
 func TestTool_Call_NilExecutorDefaultsToLocal(t *testing.T) {
 	skipWithoutShell(t)
 	tool := NewTool(nil) // must not panic; should pick up LocalExecutor

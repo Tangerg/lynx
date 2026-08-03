@@ -8,13 +8,12 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
-// ReadRequest is the LLM-facing argument shape for the read tool.
-// Offset is 1-based to match editor / grep / IDE conventions; pass
-// 0 or omit to start at the first line.
+// ReadRequest is the LLM-facing argument shape for the read tool. StartLine is
+// 1-based to match editor, grep, and language-server conventions.
 type ReadRequest struct {
-	Path   string `json:"path" jsonschema:"minLength=1" jsonschema_description:"File path, absolute or relative to the workspace root."`
-	Offset int    `json:"offset,omitempty" jsonschema:"minimum=0" jsonschema_description:"Zero or a 1-based line at which to start. Defaults to the first line."`
-	Limit  int    `json:"limit,omitempty" jsonschema:"minimum=1" jsonschema_description:"Maximum lines to return. Omit to read through the end of the file."`
+	Path      string `json:"path" jsonschema:"minLength=1" jsonschema_description:"File path, absolute or relative to the workspace root."`
+	StartLine int    `json:"start_line,omitempty" jsonschema:"minimum=1" jsonschema_description:"1-based line at which to start. Omit to start at line 1."`
+	MaxLines  int    `json:"max_lines,omitempty" jsonschema:"minimum=1" jsonschema_description:"Maximum lines to return. Omit to read through the end of the file."`
 }
 
 // ReadResponse is the LLM-facing return shape. StartLine / EndLine
@@ -46,7 +45,7 @@ func NewReadTool(executor Executor) *ReadTool {
 		toolcontract.FuncConfig{
 			Name: "read",
 			Description: "Read a text file from the filesystem. Returns the requested line range with the total line count and a truncation flag. " +
-				"By default returns the whole file; for a large file pass offset (1-based line) and limit to page through it. " +
+				"By default returns the whole file; for a large file pass start_line and max_lines to page by 1-based line number. " +
 				"Call this in parallel when you need several files at once. " +
 				"Binary files are rejected; use shell for non-text data, and use glob or grep to locate files or content rather than guessing paths.",
 		},
@@ -69,16 +68,16 @@ func (t *ReadTool) Call(ctx context.Context, arguments string) (string, error) {
 }
 
 func (t *ReadTool) read(ctx context.Context, req ReadRequest) (ReadResponse, error) {
-	// LLM speaks 1-based offset; the executor SPI is 0-based.
+	// The model-facing start line is 1-based; the executor SPI is 0-based.
 	spiOffset := 0
-	if req.Offset > 0 {
-		spiOffset = req.Offset - 1
+	if req.StartLine > 0 {
+		spiOffset = req.StartLine - 1
 	}
 
 	res, err := t.executor.Read(ctx, ReadInput{
 		Path:   req.Path,
 		Offset: spiOffset,
-		Limit:  req.Limit,
+		Limit:  req.MaxLines,
 	})
 	if err != nil {
 		return ReadResponse{}, fmt.Errorf("fs.read: %w", err)

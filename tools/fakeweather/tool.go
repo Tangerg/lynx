@@ -2,24 +2,25 @@ package fakeweather
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
-// Request is the tool input. Date is optional; when empty the tool
-// uses the current calendar date in UTC.
+// Request is the tool input. Date is optional; when omitted the tool uses the
+// current calendar date in UTC.
 type Request struct {
-	Location string `json:"location" jsonschema:"required" jsonschema_description:"Geographic location for weather query. Can be a city name (e.g., 'Beijing', 'New York', 'Tokyo'), city with country (e.g., 'Paris, France'), or specific address. Supports both English and local language names."`
+	Location string `json:"location" jsonschema:"minLength=1" jsonschema_description:"Geographic location, such as a city, city and country, or street address. English and local-language names are accepted."`
 
-	Date string `json:"date" jsonschema_description:"Target date for weather forecast in YYYY-MM-DD format (e.g., '2024-01-15'). If not provided or empty string, defaults to current UTC date. Must be a valid date string."`
+	Date string `json:"date,omitempty" jsonschema:"pattern=^\\d{4}-\\d{2}-\\d{2}$" jsonschema_description:"Forecast date in YYYY-MM-DD format. Omit to use the current UTC date."`
 
-	IncludeHourly bool `json:"include_hourly" jsonschema_description:"When true, returns a 24-element hour-by-hour forecast (temperature, condition, precipitation, humidity, wind speed). Default false."`
+	IncludeHourly bool `json:"include_hourly,omitempty" jsonschema_description:"Include a 24-hour forecast. Defaults to false."`
 
-	IncludeAirQuality bool `json:"include_air_quality" jsonschema_description:"When true, returns AQI plus PM2.5/PM10/Ozone concentrations and a level description. Default false."`
+	IncludeAirQuality bool `json:"include_air_quality,omitempty" jsonschema_description:"Include AQI and pollutant concentrations. Defaults to false."`
 }
 
 // Response is the synthesized weather report.
@@ -142,6 +143,7 @@ var _ toolcontract.Tool = (*Tool)(nil)
 // Construct with [New].
 type Tool struct {
 	writer io.Writer
+	typed  *toolcontract.Func[Request, *Response]
 }
 
 // New returns a Tool that writes its trace lines to writer. Pass nil
@@ -150,41 +152,45 @@ func New(writer io.Writer) *Tool {
 	if writer == nil {
 		writer = io.Discard
 	}
-	return &Tool{writer: writer}
-}
-
-var inputSchema, _ = toolcontract.Schema[Request]()
-
-func (t *Tool) Definition() chat.ToolDefinition {
-	return chat.ToolDefinition{
-		Name:        "weather_query",
-		Description: "Query synthesized weather information for a location and date. Supports current weather, forecasts, air quality, and astronomical data. Output is deterministic, not real.",
-		InputSchema: json.RawMessage(inputSchema),
+	t := &Tool{writer: writer}
+	typed, err := toolcontract.NewFunc[Request, *Response](
+		toolcontract.FuncConfig{
+			Name:        "get_synthetic_weather",
+			Description: "Generate a deterministic synthetic weather report for a location and date, optionally including hourly conditions and air quality. The result is test data, not real weather.",
+		},
+		t.generate,
+	)
+	if err != nil {
+		panic(fmt.Sprintf("fakeweather: invalid static tool contract: %v", err))
 	}
+	t.typed = typed
+	return t
 }
 
-func (t *Tool) Call(_ context.Context, arguments string) (string, error) {
-	t.log("raw_request", arguments)
+func (t *Tool) Definition() chat.ToolDefinition { return t.typed.Definition() }
 
-	req := &Request{}
-	if err := json.Unmarshal([]byte(arguments), req); err != nil {
-		return "", fmt.Errorf("fakeweather.Tool.Call: parse arguments: %w", err)
+func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
+	t.log("raw_request", arguments)
+	out, err := t.typed.Call(ctx, arguments)
+	if err == nil {
+		t.log("raw_response", out)
+	}
+	return out, err
+}
+
+func (t *Tool) generate(_ context.Context, req Request) (*Response, error) {
+	req.Location = strings.TrimSpace(req.Location)
+	if req.Location == "" {
+		return nil, errors.New("fakeweather: location is required")
 	}
 	t.log("parsed_request", fmt.Sprintf("%#v", req))
 
-	resp, err := generate(req)
+	resp, err := generate(&req)
 	if err != nil {
-		return "", fmt.Errorf("fakeweather.Tool.Call: %w", err)
+		return nil, fmt.Errorf("fakeweather.Tool.Call: %w", err)
 	}
 	t.log("generated_response", fmt.Sprintf("%#v", resp))
-
-	body, err := json.Marshal(resp)
-	if err != nil {
-		return "", fmt.Errorf("fakeweather.Tool.Call: marshal response: %w", err)
-	}
-	out := string(body)
-	t.log("raw_response", out)
-	return out, nil
+	return resp, nil
 }
 
 func (t *Tool) log(key, value string) {
