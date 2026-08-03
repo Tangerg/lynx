@@ -4,6 +4,7 @@
 // `defineColorThemePlugin.ts` (which also imports token defaults from
 // `tokens.ts`).
 
+import type { ThemeNeutralSteps } from "@/plugins/sdk";
 import type { Scheme } from "@/lib/appearance";
 
 /** Single accent color + the ink that reads on top of it. The two
@@ -128,6 +129,19 @@ export interface ColorThemePluginSpec {
 
   /** Optional overrides — leave undefined to inherit scheme defaults. */
   cta?: Partial<ThemeCta>;
+
+  /**
+   * Opt in to having the neutral family follow the LIVE accent.
+   *
+   * A theme that sets this declares where each neutral sits — its lightness, and the
+   * chroma it carries at the reference accent — and the shell rewrites those onto
+   * whatever accent the user picked (see `kit/accentTint`). The literals in `surfaces`
+   * and `borders` stay as the first-paint values for the default accent.
+   *
+   * Palette themes must NOT set it: Solarized's base3 is Solarized, not a tint of
+   * whatever accent happens to be selected.
+   */
+  neutralSteps?: ThemeNeutralSteps;
 
   /**
    * Escape hatch for palette variables not captured by the typed sections.

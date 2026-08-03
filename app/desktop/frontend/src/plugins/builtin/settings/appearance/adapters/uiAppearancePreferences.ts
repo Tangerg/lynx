@@ -10,6 +10,8 @@ export function installAppearancePreferencesPort(): () => void {
     useCustomTheme: () => useUiStore((state) => state.customTheme),
     useSetCustomTheme: () => useUiStore((state) => state.setCustomTheme),
     useContrast: () => useUiStore((state) => state.contrast),
+    useAccentTint: () => useUiStore((state) => state.accentTint),
+    useSetAccentTint: () => useUiStore((state) => state.setAccentTint),
     useSetContrast: () => useUiStore((state) => state.setContrast),
     useUiFont: () => useUiStore((state) => state.uiFont),
     useCodeFont: () => useUiStore((state) => state.codeFont),

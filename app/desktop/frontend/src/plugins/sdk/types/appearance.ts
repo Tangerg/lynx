@@ -10,6 +10,32 @@ export interface ColorThemeSpec {
   order?: number;
   /** CSS custom properties without the leading `--`. */
   tokens?: Record<string, string>;
+  /**
+   * Opt in to having this theme's neutral family follow the LIVE accent.
+   *
+   * Each step says where a neutral sits — its OKLCH lightness, and the chroma it
+   * carries at the reference accent. The shell rewrites them onto whatever accent the
+   * user picked; the literals in `tokens` remain the family at the default accent, and
+   * are what a cold boot paints.
+   *
+   * A palette theme must leave this undefined: Solarized's base3 is Solarized, not a
+   * tint of whatever accent happens to be selected.
+   */
+  neutralSteps?: ThemeNeutralSteps;
+}
+
+/** One neutral's place: OKLCH lightness (0-100) and chroma at the reference accent. */
+export interface NeutralStep {
+  l: number;
+  c: number;
+}
+
+export interface ThemeNeutralSteps {
+  surface: NeutralStep;
+  elevated: NeutralStep;
+  sunken: NeutralStep;
+  border: NeutralStep;
+  borderSoft: NeutralStep;
 }
 
 export interface AccentSpec {

@@ -70,6 +70,96 @@ function registerSchemePair(): void {
   host.extensions.contribute(COLOR_THEME, { id: "light", label: "Light", scheme: "light" });
 }
 
+describe("neutral family following the live accent", () => {
+  /** How far a hex is from grey, in raw channel spread. */
+  function channelSpread(hex: string): number {
+    const channels = [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
+    return Math.max(...channels) - Math.min(...channels);
+  }
+
+  const painted = (name: string) => document.documentElement.style.getPropertyValue(`--${name}`);
+
+  /** A theme that opts in. Dark, so the light-scheme accent remap stays out of it, and
+   *  carrying the accent its literals are relative to. */
+  function registerTinted(host: ReturnType<typeof createHost>) {
+    host.extensions.contribute(COLOR_THEME, {
+      id: "tinted",
+      label: "Tinted",
+      scheme: "dark",
+      tokens: {
+        "color-accent": "#3574f0",
+        "color-surface": "#2a2d32",
+        "color-sunken": "#14181f",
+      },
+      neutralSteps: {
+        surface: { l: 29.6, c: 0.01 },
+        elevated: { l: 29.6, c: 0.01 },
+        sunken: { l: 20.9, c: 0.015 },
+        border: { l: 35.9, c: 0.0095 },
+        borderSoft: { l: 42.3, c: 0.0107 },
+      },
+    });
+  }
+
+  it("reproduces the theme's own literals when the accent is untouched", () => {
+    const host = createHost("test", sink);
+    registerTinted(host);
+    useUiStore.setState({ theme: "tinted", accent: "#3574f0" });
+
+    // The derivation has to be a no-op on the accent the family was measured against,
+    // or every golden in the tree moves for nothing.
+    expect(painted("color-surface")).toBe("#2a2d32");
+    expect(painted("color-sunken")).toBe("#14181f");
+  });
+
+  it("goes grey for a grey accent instead of red", () => {
+    const host = createHost("test", sink);
+    registerTinted(host);
+    useUiStore.setState({ theme: "tinted", accent: "#000000" });
+
+    // Reported: picking pure black painted every surface pink, because CSS reads a
+    // powerless hue as 0 and 0 is red. A grey accent has no hue to borrow.
+    for (const name of ["color-surface", "color-sunken", "color-border"]) {
+      expect(channelSpread(painted(name))).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("turns the family when the accent changes", () => {
+    const host = createHost("test", sink);
+    registerTinted(host);
+    useUiStore.setState({ theme: "tinted", accent: "#3574f0" });
+    const blue = painted("color-sunken");
+
+    useUiStore.setState({ accent: "#e8590c" });
+    expect(painted("color-sunken")).not.toBe(blue);
+  });
+
+  it("does not touch a palette theme that never opted in", () => {
+    const host = createHost("test", sink);
+    host.extensions.contribute(COLOR_THEME, {
+      id: "solarized",
+      label: "Solarized",
+      scheme: "light",
+      tokens: { "color-accent": "#268bd2", "color-surface": "#eee8d5" },
+    });
+    useUiStore.setState({ theme: "solarized", accent: "#7f52ff" });
+
+    // Solarized's base2 is Solarized, not a tint of whatever accent is selected.
+    expect(painted("color-surface")).toBe("#eee8d5");
+  });
+
+  it("collapses the family to neutral at the `off` tint and restores it after", () => {
+    const host = createHost("test", sink);
+    registerTinted(host);
+    useUiStore.setState({ theme: "tinted", accent: "#7f52ff", accentTint: "off" });
+    const off = painted("color-sunken");
+    expect(channelSpread(off)).toBeLessThanOrEqual(1);
+
+    useUiStore.setState({ accentTint: "standard" });
+    expect(painted("color-sunken")).not.toBe(off);
+  });
+});
+
 describe("applyTheme — theme-as-plugin contract", () => {
   it("writes spec.tokens to :root.style when the active theme is registered", () => {
     const host = createHost("test", sink);

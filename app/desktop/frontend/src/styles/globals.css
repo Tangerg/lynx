@@ -393,11 +393,10 @@
      frame it, and -2/-3/-4 are chip rungs derived above `surface` via color-mix()
      so they track --depth-step (the contrast preference) and cannot be pinned by
      a theme.
-     Every one of them borrows `h` from the LIVE accent and keeps its own lightness and
-     chroma, so picking a different accent turns the whole neutral family with it. They
-     used to be literal hexes on one hue, which made that promise true only while the
-     accent stayed blue. `bg` is the exception: pure white on light has no hue to take,
-     and on dark the pre-paint script needs a hex it can compare.
+     These four are the family at the DEFAULT accent, and what a cold boot paints. The
+     live values are rewritten onto whatever accent the user picked, by the shell rather
+     than by CSS: a colour function cannot test whether the accent has a hue at all, and
+     a grey accent read as hue 0 painted every surface pink. See `kit/accentTint`.
      `elevated` and `sunken` are anchors and not rungs because of the WELL: on
      light every region now steps down from a white plane, but on dark a card steps
      UP off the plane while a well still recedes below it, so no single mix can say
@@ -405,9 +404,9 @@
      `themes/lyra-light.ts` for why a near-neutral grey cannot pick its own hue.
      Keep in step with `themes/lyra-*.ts`. */
   --color-bg: #ffffff;
-  --color-surface: oklch(from var(--color-accent) 97.3% 0.006 h);
-  --color-elevated: oklch(from var(--color-accent) 98.4% 0.008 h);
-  --color-sunken: oklch(from var(--color-accent) 95.4% 0.016 h);
+  --color-surface: #f4f6fa;
+  --color-elevated: #f7faff;
+  --color-sunken: #eaf0fb;
   --depth-step: 4%;
   --color-surface-2: color-mix(
     in oklab,
@@ -455,8 +454,8 @@
      stretched into a pane divider BY A CALLSITE — the seams read `border` and
      `border-soft` themselves, one weight for a bar inside a region and one for a
      change of region. Keep in step with `themes/lyra-light.ts`. */
-  --color-border: oklch(from var(--color-accent) 90.9% 0.009 h);
-  --color-border-soft: oklch(from var(--color-accent) 83.9% 0.013 h);
+  --color-border: #dee1e7;
+  --color-border-soft: #c6cad3;
   --color-divider: rgb(0 0 0 / 0.07);
   --color-scrim: rgb(0 0 0 / 0.22);
 
@@ -1000,9 +999,9 @@ html.theme-dark {
   /* The plane is the DARKEST surface and the chrome steps UP from it — an IDE
      puts you inside the editor and frames it with tool windows. */
   --color-bg: #1d1f23;
-  --color-surface: oklch(from var(--color-accent) 29.6% 0.01 h);
-  --color-elevated: oklch(from var(--color-accent) 29.6% 0.01 h);
-  --color-sunken: oklch(from var(--color-accent) 20.9% 0.015 h);
+  --color-surface: #2a2d32;
+  --color-elevated: #2a2d32;
+  --color-sunken: #14181f;
   /* Double the light scheme's step: 4% of a near-white ink moves a near-black
      surface a third as far, in perceived lightness, as 4% of a near-black ink
      moves a near-white one. See `depthStep` in adapters/documentAppearance.ts. */
@@ -1018,8 +1017,8 @@ html.theme-dark {
   --color-text-on-accent: #ffffff;
   --color-text-on-warning: #000000;
 
-  --color-border: oklch(from var(--color-accent) 35.9% 0.0095 h);
-  --color-border-soft: oklch(from var(--color-accent) 42.3% 0.0107 h);
+  --color-border: #3a3d42;
+  --color-border-soft: #4b4e54;
   --color-divider: rgb(255 255 255 / 0.07);
   --color-scrim: rgb(0 0 0 / 0.5);
 

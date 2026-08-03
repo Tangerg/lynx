@@ -32,6 +32,23 @@ export type Scheme = "dark" | "light";
 export type ColorThemeId = string;
 export type VisualStyleId = string;
 
+/**
+ * How much of the accent's hue the neutral surfaces carry.
+ *
+ * The enum lives here rather than beside the maths that consumes it (see
+ * `theme/kit/accentTint`) for the same reason every other appearance value does: the
+ * preference store persists it, and `state` sits below the plugins.
+ *
+ * A preference rather than a constant because it is a taste axis, and the systems that
+ * have solved this settle taste axes the same way — Material ships it as a scheme
+ * variant (neutral chroma 6 / 10 / 2) rather than picking one and defending it.
+ */
+export const ACCENT_TINTS = ["off", "soft", "standard"] as const;
+export type AccentTint = (typeof ACCENT_TINTS)[number];
+
+/** What every surface in this app was measured against, so the default changes nothing. */
+export const DEFAULT_ACCENT_TINT: AccentTint = "standard";
+
 export interface VisualStyleMotion {
   instantMs: number;
   fastMs: number;

@@ -1,6 +1,12 @@
 import { colord } from "colord";
 import type { StoreApi } from "zustand";
-import type { ColorThemeId, Scheme, VisualStyleId, VisualStyleMotion } from "@/lib/appearance";
+import type {
+  AccentTint,
+  ColorThemeId,
+  Scheme,
+  VisualStyleId,
+  VisualStyleMotion,
+} from "@/lib/appearance";
 import {
   publishMotionScale,
   publishScheme,
@@ -10,10 +16,12 @@ import {
 import { densityCssVariables } from "@/lib/density";
 import { iconScaleCssVariables } from "@/lib/iconScale";
 import { uiTypeLadderCssVariables } from "@/lib/typography";
+import type { ColorThemeSpec, NeutralStep } from "@/plugins/sdk";
 import { ACCENT, COLOR_THEME, VISUAL_STYLE } from "@/plugins/sdk/kernelPoints";
 import { usePluginStore } from "@/plugins/sdk/registry";
 import { lookupExtensionByKey, lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
 import type { UiState } from "@/state/uiPreferences";
+import { accentTintedNeutral } from "../kit/accentTint";
 import { resolveThemeScheme } from "../application/themeScheme";
 import { subscribeSystemScheme } from "./systemAppearance";
 
@@ -53,19 +61,58 @@ function replaceTokens(previous: string[], tokens: Record<string, string>): stri
 let appliedColorTokens: string[] = [];
 let appliedStyleTokens: string[] = [];
 
-function applyColorTheme(theme: ColorThemeId, accent: string, contrast: number): void {
+/**
+ * The neutral family, rewritten onto the live accent for a theme that opted in.
+ *
+ * A theme's `surfaces` / `borders` literals are the same family at the DEFAULT accent —
+ * they are what the pre-paint script and the stylesheet mirror carry — so this returns
+ * an override rather than the whole map, and returns nothing at all for a palette theme
+ * (Solarized's base3 is Solarized, not a tint of whatever is selected).
+ */
+function neutralOverride(
+  spec: ColorThemeSpec | undefined,
+  liveAccent: string,
+  tint: AccentTint,
+): Record<string, string> {
+  const steps = spec?.neutralSteps;
+  // The theme's own accent is the reference the derivation is relative to, so an
+  // untouched accent reproduces its literals byte for byte. A theme whose accent is not
+  // a plain hex (a palette pointing at a var) opts out by having nothing to measure
+  // against.
+  const reference = spec?.tokens?.["color-accent"];
+  if (!steps || !reference || !/^#[\da-f]{6}$/i.test(reference)) return {};
+  const tinted = (step: NeutralStep) => accentTintedNeutral(liveAccent, reference, step, tint);
+  return {
+    "color-surface": tinted(steps.surface),
+    "color-elevated": tinted(steps.elevated),
+    "color-sunken": tinted(steps.sunken),
+    "color-border": tinted(steps.border),
+    "color-border-soft": tinted(steps.borderSoft),
+  };
+}
+
+function applyColorTheme(
+  theme: ColorThemeId,
+  accent: string,
+  contrast: number,
+  accentTint: AccentTint,
+): void {
   const root = document.documentElement;
   const scheme = resolveThemeScheme(theme);
   const spec = lookupExtensionByKey(COLOR_THEME, theme === "system" ? scheme : theme);
 
   root.classList.remove("theme-light", "theme-dark");
   root.classList.add(`theme-${scheme}`);
-  appliedColorTokens = replaceTokens(appliedColorTokens, spec?.tokens ?? {});
 
   // The accent's hover and press shades follow the LIVE accent, not the theme's
   // declared one. They used to come from the token map, so picking an accent
   // moved the fill but left its two interaction states on the theme's blue.
   const liveAccent = scheme === "light" ? lightAccent(accent) : accent;
+  appliedColorTokens = replaceTokens(appliedColorTokens, {
+    ...spec?.tokens,
+    ...neutralOverride(spec, liveAccent, accentTint),
+  });
+
   root.style.setProperty("--color-accent", liveAccent);
   root.style.setProperty("--color-accent-border", colord(liveAccent).darken(0.08).toHex());
   root.style.setProperty("--color-accent-press", colord(liveAccent).darken(0.16).toHex());
@@ -161,7 +208,7 @@ function applyShape(density: string, radiusScale: number, motionScale: number): 
 
 export function installDocumentAppearance<T extends UiState>(store: UiEffectStore<T>): () => void {
   const initial = store.getState();
-  applyColorTheme(initial.theme, initial.accent, initial.contrast);
+  applyColorTheme(initial.theme, initial.accent, initial.contrast, initial.accentTint);
   applyVisualStyle(initial.visualStyle);
   publishTokens();
   applyFonts(initial.uiFont, initial.codeFont, initial.fontSize, initial.fontSmoothing);
@@ -171,9 +218,10 @@ export function installDocumentAppearance<T extends UiState>(store: UiEffectStor
     if (
       state.theme !== previous.theme ||
       state.accent !== previous.accent ||
-      state.contrast !== previous.contrast
+      state.contrast !== previous.contrast ||
+      state.accentTint !== previous.accentTint
     ) {
-      applyColorTheme(state.theme, state.accent, state.contrast);
+      applyColorTheme(state.theme, state.accent, state.contrast, state.accentTint);
       applyVisualStyle(state.visualStyle);
       publishTokens();
     } else if (state.visualStyle !== previous.visualStyle) {
@@ -200,7 +248,7 @@ export function installDocumentAppearance<T extends UiState>(store: UiEffectStor
   const unsubscribePlugins = usePluginStore.subscribe((state, previous) => {
     if (state.extensions === previous.extensions) return;
     const current = store.getState();
-    applyColorTheme(current.theme, current.accent, current.contrast);
+    applyColorTheme(current.theme, current.accent, current.contrast, current.accentTint);
     applyVisualStyle(current.visualStyle);
     publishTokens();
   });
@@ -208,7 +256,7 @@ export function installDocumentAppearance<T extends UiState>(store: UiEffectStor
   const unsubscribeScheme = subscribeSystemScheme(() => {
     const current = store.getState();
     if (current.theme !== "system") return;
-    applyColorTheme(current.theme, current.accent, current.contrast);
+    applyColorTheme(current.theme, current.accent, current.contrast, current.accentTint);
     applyVisualStyle(current.visualStyle);
     publishTokens();
   });

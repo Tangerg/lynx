@@ -6,6 +6,7 @@
 // theme-{scheme} class on <html>).
 
 import { z } from "zod";
+import { ACCENT_TINTS, DEFAULT_ACCENT_TINT, type AccentTint } from "@/lib/appearance";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { DEFAULT_UI_DENSITY, UI_DENSITY_MODES, type UiDensity } from "@/lib/density";
@@ -29,6 +30,7 @@ const uiPersistSchema = z.object({
   accent: z.string(),
   customTheme: z.object({ bg: z.string(), fg: z.string() }),
   contrast: z.number(),
+  accentTint: z.enum(ACCENT_TINTS),
   uiFont: z.string(),
   codeFont: z.string(),
   fontSize: z.number().nullable(),
@@ -56,6 +58,7 @@ interface UiActions {
   /** Patch one or more of the custom theme's base colors. */
   setCustomTheme: (patch: Partial<CustomTheme>) => void;
   setContrast: (contrast: number) => void;
+  setAccentTint: (accentTint: AccentTint) => void;
   setUiFont: (font: string) => void;
   setCodeFont: (font: string) => void;
   setFontSize: (size: number | null) => void;
@@ -78,6 +81,7 @@ export const useUiStore = create<UiState & UiActions>()(
       accent: "#3574f0",
       customTheme: { bg: "#0f1117", fg: "#e6e8ee" },
       contrast: 25,
+      accentTint: DEFAULT_ACCENT_TINT,
       uiFont: "",
       codeFont: "",
       fontSize: null,
@@ -96,6 +100,7 @@ export const useUiStore = create<UiState & UiActions>()(
       setAccent: (accent) => set({ accent }),
       setCustomTheme: (patch) => set((s) => ({ customTheme: { ...s.customTheme, ...patch } })),
       setContrast: (contrast) => set({ contrast }),
+      setAccentTint: (accentTint) => set({ accentTint }),
       setUiFont: (uiFont) => set({ uiFont }),
       setCodeFont: (codeFont) => set({ codeFont }),
       setFontSize: (fontSize) => set({ fontSize }),
@@ -112,7 +117,7 @@ export const useUiStore = create<UiState & UiActions>()(
     {
       name: "lyra.ui",
       storage: createJSONStorage(() => localStorage),
-      version: 10,
+      version: 11,
       merge: (persisted, current) => {
         if (persisted === undefined) return current;
         const parsed = uiPersistSchema.safeParse(persisted);

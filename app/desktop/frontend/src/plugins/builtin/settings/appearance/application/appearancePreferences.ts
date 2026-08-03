@@ -37,6 +37,13 @@ export function useContrastPreference() {
   };
 }
 
+export function useAccentTintPreference() {
+  return {
+    accentTint: appearancePreferences().useAccentTint(),
+    setAccentTint: appearancePreferences().useSetAccentTint(),
+  };
+}
+
 export function useFontPreferences() {
   return {
     uiFont: appearancePreferences().useUiFont(),

@@ -142,6 +142,8 @@ export type {
   SlashCommandSpec,
   StateUpdate,
   ColorThemeSpec,
+  NeutralStep,
+  ThemeNeutralSteps,
   AccentSpec,
   VisualStyleSpec,
   ToolActionSpec,

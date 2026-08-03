@@ -287,6 +287,12 @@ export const fr: Record<string, string> = {
   "settings.density.spacious": "Spacieux",
   "settings.motion": "Animations",
   "settings.motion.sub": "Vitesse des animations dans toute l'app.",
+  "settings.accentTint": "Teinte d’accent",
+  "settings.accentTint.sub":
+    "Quelle part de la teinte d’accent portent les panneaux, creux et puces.",
+  "settings.accentTint.off": "Désactivé",
+  "settings.accentTint.soft": "Légère",
+  "settings.accentTint.standard": "Standard",
   "settings.contrast": "Contraste",
   "settings.contrast.sub": "Séparation des surfaces sur tous les thèmes.",
   "settings.streamReveal": "Style de diffusion",

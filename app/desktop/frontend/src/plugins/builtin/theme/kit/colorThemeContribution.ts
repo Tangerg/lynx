@@ -10,5 +10,6 @@ export function colorThemeContribution(spec: ColorThemePluginSpec): ColorThemeSp
     icon: spec.icon ?? SCHEME_ICON[spec.scheme],
     order: spec.order,
     tokens: buildTokenMap(spec),
+    neutralSteps: spec.neutralSteps,
   };
 }

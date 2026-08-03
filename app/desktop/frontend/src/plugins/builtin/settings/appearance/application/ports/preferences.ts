@@ -1,4 +1,4 @@
-import type { ColorThemeId } from "@/lib/appearance";
+import type { AccentTint, ColorThemeId } from "@/lib/appearance";
 import type { UiDensity } from "@/lib/density";
 import { createSingletonPort } from "@/lib/ports/singletonPort";
 
@@ -16,6 +16,8 @@ export interface AppearancePreferencesPort {
   useSetCustomTheme(): (patch: Partial<CustomTheme>) => void;
   useContrast(): number;
   useSetContrast(): (contrast: number) => void;
+  useAccentTint(): AccentTint;
+  useSetAccentTint(): (tint: AccentTint) => void;
   useUiFont(): string;
   useCodeFont(): string;
   useFontSize(): number | null;

@@ -25,12 +25,9 @@ const c = {
   accent: "#3574f0",
 
   // Reading plane, region chrome, and the well beneath both.
-  // `canvas` stays a literal — the pre-paint script paints it before any stylesheet
-  // exists, and `check-bootstrap` compares the two as hexes. The rest borrow `h` from
-  // the live accent so a picked accent turns the whole family; see lyra-light.ts.
   canvas: "#1d1f23",
-  surface1: "oklch(from var(--color-accent) 29.6% 0.01 h)",
-  sunken: "oklch(from var(--color-accent) 20.9% 0.015 h)",
+  surface1: "#2a2d32",
+  sunken: "#14181f",
 
   // surface2/3/4 derive as ink mixes off `surface1` — those are the chip rungs
   // (badge, inline code, kbd, selected row), not region materials.
@@ -44,8 +41,8 @@ const c = {
   // A control's edge is a real line here; a REGION's edge is not. Region
   // separation is the visual style's cast, so nothing in this ramp is ever
   // stretched into a pane divider.
-  hairline: "oklch(from var(--color-accent) 35.9% 0.0095 h)",
-  hairStrong: "oklch(from var(--color-accent) 42.3% 0.0107 h)",
+  hairline: "#3a3d42",
+  hairStrong: "#4b4e54",
   hairTertiary: "rgb(255 255 255 / 0.07)",
 };
 
@@ -86,6 +83,17 @@ export default defineColorThemePlugin({
     warning: "#d6a750",
     info: c.accent,
     success: "#5fad65",
+  },
+  // Where each neutral sits, so the shell can rewrite them onto the live accent. The
+  // hexes above are GENERATED from these steps at this theme's own accent — they are
+  // what a cold boot paints, and the derivation reproduces them byte for byte while the
+  // accent is untouched. Edit a step, regenerate the literal; they are one fact.
+  neutralSteps: {
+    surface: { l: 29.6, c: 0.01 },
+    elevated: { l: 29.6, c: 0.01 },
+    sunken: { l: 20.9, c: 0.015 },
+    border: { l: 35.9, c: 0.0095 },
+    borderSoft: { l: 42.3, c: 0.0107 },
   },
   // The primary CTA IS the accent here, not an inverting ink button: this
   // language spends colour on the one action that matters and keeps everything

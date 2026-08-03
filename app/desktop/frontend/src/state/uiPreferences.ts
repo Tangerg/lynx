@@ -1,3 +1,4 @@
+import type { AccentTint } from "@/lib/appearance";
 import type { ColorThemeId, VisualStyleId } from "@/lib/appearance";
 import type { UiDensity } from "@/lib/density";
 
@@ -12,6 +13,7 @@ export interface UiState {
   accent: string;
   customTheme: CustomTheme;
   contrast: number;
+  accentTint: AccentTint;
   uiFont: string;
   codeFont: string;
   fontSize: number | null;

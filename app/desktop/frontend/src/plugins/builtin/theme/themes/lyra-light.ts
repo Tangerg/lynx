@@ -33,33 +33,22 @@ const c = {
   accent: "#2b5fd0",
 
   canvas: "#ffffff",
-
-  // Hue is TAKEN FROM THE LIVE ACCENT, not spelled. These were literal hexes on 263°,
-  // which made the comment below true only while the accent happened to be blue: pick
-  // orange and every surface kept mixing in the old hue. `oklch(from …)` keeps our own
-  // lightness and chroma and borrows only `h`, so the whole neutral family turns with
-  // the accent the way it always claimed to.
-  // `canvas` stays literal: it is pure white, so there is no hue to take — and the
-  // pre-paint script and `check-bootstrap` compare it as a hex.
-  card: "oklch(from var(--color-accent) 98.4% 0.008 h)",
+  card: "#f7faff",
   // The chrome sits 2.7 L under the plane, not 4.2. At the deeper step the column read
-  // as grey rather than as paper of a different weight — the reference keeps its
-  // sidebar at 248 against a 255 plane and lets the seam carry the boundary, which is
-  // the trade this makes: a lighter panel and a hairline that means it.
-  surface1: "oklch(from var(--color-accent) 97.3% 0.006 h)",
-  sunken: "oklch(from var(--color-accent) 95.4% 0.016 h)",
+  // as grey rather than as paper of a different weight — the reference keeps its sidebar
+  // at 248 against a 255 plane and lets the seam carry the boundary, which is the trade
+  // this makes: a lighter panel and a hairline that means it.
+  surface1: "#f4f6fa",
+  sunken: "#eaf0fb",
 
-  // Unchanged by the hue pass: at L24 and C 0.006 the nearest sRGB triple to the accent
-  // hue is the same byte for byte, and the ink ramp is the one place where a wider
-  // chroma would tint the reading itself.
   inkBright: "#000000",
   ink: "#1e1f22",
   inkSoft: "#3d4147",
   inkMuted: "#5a5d63",
   inkFaint: "#63666d",
 
-  hairline: "oklch(from var(--color-accent) 90.9% 0.009 h)",
-  hairStrong: "oklch(from var(--color-accent) 83.9% 0.013 h)",
+  hairline: "#dee1e7",
+  hairStrong: "#c6cad3",
   hairTertiary: "rgb(0 0 0 / 0.07)",
 };
 
@@ -100,6 +89,16 @@ export default defineColorThemePlugin({
   // The accent itself. Every light-scheme accent is already tuned for a white
   // ground and carries white label text at 5.6:1 or better, so the extra shade
   // the dark scheme needs would only push the primary button toward navy.
+  // Where each neutral sits, so the shell can rewrite them onto the live accent. The
+  // hexes above are the same family at the default accent — they are what a cold boot
+  // paints before this runs. See kit/accentTint for the rule and why it is Material's.
+  neutralSteps: {
+    surface: { l: 97.3, c: 0.006 },
+    elevated: { l: 98.4, c: 0.008 },
+    sunken: { l: 95.4, c: 0.016 },
+    border: { l: 90.9, c: 0.009 },
+    borderSoft: { l: 83.9, c: 0.013 },
+  },
   cta: {
     cta: "var(--color-accent)",
     ctaHover: "var(--color-accent-border)",

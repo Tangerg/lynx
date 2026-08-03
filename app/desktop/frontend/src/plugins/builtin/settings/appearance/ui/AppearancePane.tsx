@@ -3,6 +3,7 @@
 
 import { SettingsGroup } from "../../public";
 import { AccentSection } from "./AccentSection";
+import { AccentTintSection } from "./AccentTintSection";
 import { ContrastSection } from "./ContrastSection";
 import { CustomThemeColors } from "./CustomThemeColors";
 import { FontSection } from "./FontSection";
@@ -16,6 +17,7 @@ export function AppearancePane() {
       <ThemeSection />
       <CustomThemeColors />
       <AccentSection />
+      <AccentTintSection />
       <ContrastSection />
       <FontSection />
       <ShapeMotionSection />
