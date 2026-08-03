@@ -7,10 +7,11 @@ import { COMPOSER_OVERLAY_PROPERTY, READING_COLUMN, READING_GUTTER } from "./rea
 /**
  * The composer, resting over the tail of the transcript.
  *
- * It floats rather than capping the column with a bar: one continuous surface
- * with an input on it, which is also why the text has to keep going underneath.
- * The band above fades that text out instead of slicing it, and only the
- * composer's own box takes the pointer — the fade is scenery.
+ * Paints NOTHING of its own — the panel it holds is glass, and a backing behind
+ * glass is just an opaque bar with a translucent sticker on it. What keeps the text
+ * from colliding with the panel is the scroller's own dissolve
+ * (`.msg-scroll-viewport`), which fades the last strip out; the text under the
+ * panel itself stays, blurred, because that is the whole point of the material.
  *
  * Exactly the COLUMN wide, never the pane. A full-width overlay is a bottom bar
  * however it is positioned: it paints across the whole pane, which reads as
@@ -61,13 +62,7 @@ export function FloatingComposer({
       ref={overlay}
       className={cn("pointer-events-none absolute inset-x-0 bottom-0 z-10", READING_COLUMN)}
     >
-      <div
-        className={cn(
-          READING_GUTTER,
-          "h-8 bg-gradient-to-b from-transparent to-[var(--app-content-surface)]",
-        )}
-      />
-      <div className={cn(READING_GUTTER, "bg-[var(--app-content-surface)] pb-3 sm:pb-4")}>
+      <div className={cn(READING_GUTTER, "pb-3 sm:pb-4")}>
         <div className="pointer-events-auto relative">
           <JumpToBottomButton />
           {children}

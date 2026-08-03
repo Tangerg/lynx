@@ -34,7 +34,8 @@ type VisualStyleTokenName =
   | "app-header-surface"
   | "app-dock-surface"
   | "app-card-surface"
-  | "app-surface-divider"
+  | "app-composer-surface"
+  | "composer-backdrop"
   | "app-card-edge"
   | "app-pane-split"
   | "app-pane-split-end"
@@ -108,7 +109,13 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // legible as near and far rather than as one frame in two pieces.
   "app-dock-surface": "color-mix(in oklab, var(--color-bg) 25%, var(--color-surface))",
   "app-card-surface": "var(--color-elevated)",
-  "app-surface-divider": "transparent",
+  // The composer's material, and the one translucent surface in the language. It
+  // rests ON the transcript rather than in a column, so it picks up what passes
+  // underneath — that, and not the ring, is what makes the ring read as the edge of
+  // glass instead of as a stroke around a box. A flat style spells this opaque and
+  // gets its bordered input back.
+  "app-composer-surface": "color-mix(in oklab, var(--app-card-surface) 72%, transparent)",
+  "composer-backdrop": "blur(20px) saturate(1.4)",
   // The drawer's cast, drawn INSIDE the plane: the plane outranks the drawer on
   // z-index so the drawer can slide under it, which means the drawer cannot cast
   // onto it from outside.
@@ -119,15 +126,24 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // colour in the token looks equivalent and is not: the token is declared on
   // :root, so any var() in it resolves there, where the shell's live boundary
   // variables do not exist.
-  "app-card-edge": "inset 11px 0 24px -10px",
+  //
+  // A cast MARKS a seam; it does not lift a region. Every one of these used to
+  // spread ~20px of gradient onto the reading plane, which is a shadow falling on
+  // paper — three regions reading as stacked over the text instead of beside it.
+  // The reference this language follows separates its columns by material alone
+  // (its own two casts resolve to nothing on screen: spread -28 against blur 30),
+  // and now that the plane is pure white against tinted chrome there IS a material
+  // delta to lean on: 4.2 L to the drawer, 3.2 L to the dock. So these are down to
+  // an optical edge — 3px at the sides, where they only sharpen a step that already
+  // reads — and the top carries more because it is the one seam with no delta
+  // behind it: a bar in the plane's own colour, with the document scrolling under.
+  "app-card-edge": "inset 6px 0 13px -9px",
   // A pane that splits the region it lives in casts across the split instead.
-  "app-pane-split": "-7px 0 22px -10px",
-  "app-pane-split-end": "7px 0 22px -10px",
-  // The same cast, rotated: a bar that sits on the plane with the document
-  // scrolling under it separates downward. Same triple as the pane split, so the
-  // three seams around the reading plane are one mechanism at three angles rather
-  // than two casts and a rule.
-  "app-header-cast": "0 7px 22px -10px",
+  "app-pane-split": "-4px 0 12px -9px",
+  "app-pane-split-end": "4px 0 12px -9px",
+  // The same cast, rotated: a bar that sits on a plane with the document scrolling
+  // under it separates downward. Wider than the sides for the reason above.
+  "app-header-cast": "0 5px 11px -7px",
   // Reserved for the one place an optical ring still earns its pixel: a floating
   // panel, which has no value delta to lean on because it can land over anything.
   "seam-line": "color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%)",
@@ -137,7 +153,13 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // menus, popovers, tooltips — carry depth, and they carry it as one token.
   "shadow-border": "0 0 0 1px color-mix(in srgb, var(--color-text) 9%, transparent)",
   "shadow-control": "none",
-  "shadow-composer-depth": "none",
+  // Flush chrome casts nothing — but the composer is not flush. Two layers, and the
+  // first has no offset on purpose: an ambient bloom on all four sides is what makes
+  // a 1px ring on translucent glass legible at all (with depth alone below it, the
+  // top and side edges measured 1-2 levels off the plane). The second is the drop.
+  // Depth only; the ring beside it is drawn from `--composer-edge-width` at the
+  // callsite, where the colour can answer focus.
+  "shadow-composer-depth": "0 0 12px -2px var(--shadow-cast), 0 10px 30px -6px var(--shadow-cast)",
   "shadow-popover": "0 6px 20px var(--shadow-cast)",
   "shadow-well": "none",
   "shadow-raised-chip": "none",

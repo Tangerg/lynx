@@ -105,8 +105,7 @@
      three directional casts (`--app-card-edge` in from the drawer seam,
      `--app-pane-split` across a pane split, `--app-header-cast` down off a chrome
      bar) plus `--seam-line` for a floating panel, which has no value delta to lean
-     on. The hairline mechanism (`--app-surface-divider`) stays wired and
-     transparent — it is how a FLAT visual style would answer the same three seams.
+     on. A flat style answers the same three seams by spelling those casts as rules.
      Reach for `field` when a local control needs an editable edge — never for
      laying out regions. */
   --color-line: transparent;
@@ -646,7 +645,7 @@
    * ----------------------------------------------------------------------- */
   --shadow-border: 0 0 0 1px color-mix(in srgb, var(--color-text) 9%, transparent);
   --shadow-control: none;
-  --shadow-composer-depth: none;
+  --shadow-composer-depth: 0 0 12px -2px var(--shadow-cast), 0 10px 30px -6px var(--shadow-cast);
   --shadow-popover: 0 6px 20px var(--shadow-cast);
   --shadow-well: none;
   --shadow-raised-chip: none;
@@ -672,17 +671,18 @@
   --app-header-surface: transparent;
   --app-dock-surface: color-mix(in oklab, var(--color-bg) 25%, var(--color-surface));
   --app-card-surface: var(--color-elevated);
-  --app-surface-divider: transparent;
+  --app-composer-surface: color-mix(in oklab, var(--app-card-surface) 72%, transparent);
+  --composer-backdrop: blur(20px) saturate(1.4);
   /* Edge GEOMETRY only — offsets and spread, no colour. The colour is the
      shell's live `--shell-boundary` / `--split-boundary`, and it has to be
      substituted on the element that draws the edge: a var() inside a token
      declared on :root resolves AT :root, where those two do not exist. That is
      why the seam rail's drag emphasis and the collapsed drawer's "no edge to
      cast" both did nothing for as long as they have been written down. */
-  --app-card-edge: inset 11px 0 24px -10px;
-  --app-pane-split: -7px 0 22px -10px;
-  --app-pane-split-end: 7px 0 22px -10px;
-  --app-header-cast: 0 7px 22px -10px;
+  --app-card-edge: inset 6px 0 13px -9px;
+  --app-pane-split: -4px 0 12px -9px;
+  --app-pane-split-end: 4px 0 12px -9px;
+  --app-header-cast: 0 5px 11px -7px;
   --seam-line: color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%);
   /* What a boundary deepens to while it is being dragged. Both drag handles read
      it, so "the drawer seam and the dock split are the same gesture" is one value
@@ -1276,26 +1276,12 @@ html.theme-dark {
    another region opts out, so the drawer header and the settings bar have no edge
    while the page identity, the dock's tab strip and the review navigator do.
 
-   The hairline below is the older half of the same idea, kept because
-   `--app-surface-divider` is a declared visual-style token; under this style it is
-   transparent, so it paints nothing. Painted as a 1px background gradient and NOT
-   a border or a positioned pseudo-element: a border bleeds into the seam corner,
-   and an absolute line would force the bar to become a containing block (its
-   toolbars rely on their own portals/stacking). */
+   A hairline half used to sit here for a flat style to switch to. It is gone: a
+   style that wants rules can spell `--app-header-cast` AS a rule
+   (`inset 0 -1px 0 0`) and every bar follows, so the second mechanism bought
+   nothing but a token nobody set and a corner patch for a line nobody drew. */
 .agent-surface-divider {
   box-shadow: var(--app-header-cast) var(--shadow-cast);
-  background-image: linear-gradient(var(--app-surface-divider), var(--app-surface-divider));
-  background-repeat: no-repeat;
-  background-position: left bottom;
-  background-size: 100% 1px;
-}
-
-/* Inside the rounded card the horizontal hairline meets the vertical seam
-   stroke. Two 1px semi-transparent lines sharing a pixel double their alpha and
-   read as a bright dot, so pull the hairline off the seam side by 1px. */
-.agent-content-card .agent-surface-divider {
-  background-position: left 1px bottom;
-  background-size: calc(100% - 1px) 1px;
 }
 
 /* When the drawer collapses, the content bar reaches the window corner and
@@ -1447,9 +1433,43 @@ html[data-control-treatment="elevated"]
    sitting under the banner. Shorter than the column's own `pt-8`, so at rest the
    fade lands entirely in padding and nothing a user is reading is ever dimmed.
    `-webkit-` first: this ships in a WKWebView. */
+/* The transcript dissolves at both ends of its scroll box rather than being cut.
+   The top edge runs under a chrome bar; the bottom runs under the composer, which
+   is a pane of translucent glass — so the text has to still BE there (the glass
+   shows what passes beneath it) and only the last strip, the sliver below the
+   panel where there is no glass to look through, may not be sliced mid-glyph. */
 .msg-scroll-viewport {
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 24px);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 24px);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 24px,
+    #000 calc(100% - 24px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 24px,
+    #000 calc(100% - 24px),
+    transparent 100%
+  );
+}
+
+/* The composer's material and its edge. The ring's COLOUR lives here, not in the
+   style token, so focus can answer it: a var() inside a :root-declared token
+   resolves at :root, where an element-level state variable does not exist. */
+.agent-composer-glass {
+  --composer-ring: color-mix(in oklab, var(--color-text) 18%, transparent);
+  background: var(--app-composer-surface);
+  -webkit-backdrop-filter: var(--composer-backdrop);
+  backdrop-filter: var(--composer-backdrop);
+  box-shadow:
+    0 0 0 var(--composer-edge-width) var(--composer-ring),
+    var(--shadow-composer-depth);
+}
+
+.agent-composer-glass:focus-within {
+  --composer-ring: var(--color-accent);
 }
 
 /* Continuous-curvature corners where the engine has them. macOS draws its own

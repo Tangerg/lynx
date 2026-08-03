@@ -150,7 +150,6 @@ test("composer keeps one production edge and 6/8 footer inset", async ({ page })
 
   const composer = page.locator('[data-slot="composer-root"]');
   const footer = page.locator('[data-slot="composer-footer"]');
-  await expect(composer).toHaveCSS("border-top-width", "1px");
   await expect(footer).toHaveCSS("padding-bottom", "6px");
   await expect(footer).toHaveCSS("padding-right", "8px");
   await expect(page.getByRole("button", { name: "Attach image" })).toBeVisible();
@@ -167,18 +166,46 @@ test("composer keeps one production edge and 6/8 footer inset", async ({ page })
       ),
     ),
   );
-  // ONE edge mechanism, and for the composer that is the border above. The
-  // tool-window style gives flush chrome no cast at all, so a depth shadow here
-  // would be the second edge this test exists to forbid.
-  expect(await composer.evaluate((element) => getComputedStyle(element).boxShadow)).toBe("none");
 
-  const borderBeforeFocus = await composer.evaluate(
-    (element) => getComputedStyle(element).borderTopColor,
-  );
+  // ONE edge mechanism, and for a panel resting ON the transcript that is a ring,
+  // not a border: a drawn line was the only outlined object left on a screen whose
+  // regions all separate by cast. So no border AND no second stroke — the ring and
+  // the depth under it are the single `box-shadow` this asserts.
+  await expect(composer).toHaveCSS("border-top-width", "0px");
+  const material = await composer.evaluate((element) => {
+    const probe = document.createElement("div");
+    probe.style.boxShadow =
+      "0 0 0 var(--composer-edge-width) color-mix(in oklab, var(--color-text) 18%, transparent), var(--shadow-composer-depth)";
+    probe.style.background = "var(--app-composer-surface)";
+    probe.style.backdropFilter = "var(--composer-backdrop)";
+    document.body.append(probe);
+    const expected = {
+      shadow: getComputedStyle(probe).boxShadow,
+      fill: getComputedStyle(probe).backgroundColor,
+      backdrop: getComputedStyle(probe).backdropFilter,
+    };
+    probe.remove();
+    const actual = getComputedStyle(element);
+    return {
+      expected,
+      shadow: actual.boxShadow,
+      fill: actual.backgroundColor,
+      backdrop: actual.backdropFilter,
+    };
+  });
+  expect(material.shadow).toBe(material.expected.shadow);
+  // Translucent and blurred, or the ring reads as a stroke around a box rather than
+  // as the edge of glass — the material is half of why the border could go.
+  expect(material.fill).toBe(material.expected.fill);
+  expect(material.fill).toMatch(/rgba|color\(|\/\s*0?\.\d/);
+  expect(material.backdrop).toBe(material.expected.backdrop);
+  expect(material.backdrop).not.toBe("none");
+
+  const ringBeforeFocus = material.shadow;
   await page.getByRole("textbox", { name: "Message composer" }).focus();
   await expect
-    .poll(() => composer.evaluate((element) => getComputedStyle(element).borderTopColor))
-    .not.toBe(borderBeforeFocus);
+    .poll(() => composer.evaluate((element) => getComputedStyle(element).boxShadow))
+    .not.toBe(ringBeforeFocus);
 });
 
 test("recovery action dismisses the problem and resends the last user input", async ({ page }) => {
@@ -239,9 +266,6 @@ test("every chrome bar that takes a bottom edge separates by cast, not by a rule
       withoutEdge: bars
         .filter((bar) => !bar.classList.contains("agent-surface-divider"))
         .map((bar) => getComputedStyle(bar).boxShadow),
-      divider: getComputedStyle(document.documentElement)
-        .getPropertyValue("--app-surface-divider")
-        .trim(),
     };
   });
 
@@ -249,8 +273,6 @@ test("every chrome bar that takes a bottom edge separates by cast, not by a rule
   for (const shadow of measured.withEdge) expect(shadow).toBe(measured.cast);
   // A bar that already butts against another region takes nothing.
   for (const shadow of measured.withoutEdge) expect(shadow).toBe("none");
-  // And not two answers to one boundary — the hairline half stays transparent.
-  expect(measured.divider).toBe("transparent");
 });
 
 // The composer floats over the transcript, so the transcript has to end above it.
@@ -277,20 +299,17 @@ for (const state of ["long-content", "question", "delegated"] as const) {
         clearance: Math.round(
           composer.getBoundingClientRect().top - tail.getBoundingClientRect().bottom,
         ),
-        // The gradient band the overlay draws above the input, read rather than
-        // restated: it is the floor the tail has to clear, and a literal here would
-        // have to be kept in step with a class in another file.
-        fade: Math.round(
-          composer.closest("[class*='absolute']")?.firstElementChild?.getBoundingClientRect()
-            .height ?? 0,
-        ),
+        // The margin the contract adds on top of the panel's own height, read
+        // rather than restated: `COMPOSER_CLEARANCE` spells it `+1rem`, and a
+        // literal here would have to be kept in step with a class in another file.
+        margin: Math.round(Number.parseFloat(getComputedStyle(document.documentElement).fontSize)),
       };
     });
 
-    // Not merely positive: the band above the input fades the transcript out, so a
-    // tail that ends inside it is a tail the user reads through a gradient.
-    expect(measured?.fade).toBeGreaterThan(0);
-    expect(measured!.clearance).toBeGreaterThan(measured!.fade);
+    // Not merely positive: the panel is glass, so a tail resting against its top
+    // edge is a tail the user reads through a blur.
+    expect(measured?.margin).toBeGreaterThan(0);
+    expect(measured!.clearance).toBeGreaterThanOrEqual(measured!.margin);
   });
 }
 

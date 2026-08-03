@@ -39,7 +39,11 @@ for (const theme of THEMES) {
         "border-top-left-radius",
         sidebar === "expanded" ? await declaredCardRadius(page) : "0px",
       );
-      await expect(composer).toHaveCSS("border-top-width", "1px");
+      // No border: the composer's edge is the ring in its own box-shadow, asserted
+      // in full where the rest of its material is. What belongs here is only that
+      // the foundation fixture builds the real surface and not a stand-in.
+      await expect(composer).toHaveCSS("border-top-width", "0px");
+      await expect(composer).not.toHaveCSS("box-shadow", "none");
       await expect(page).toHaveScreenshot(`foundation-${theme}-${sidebar}.png`);
     });
   }
