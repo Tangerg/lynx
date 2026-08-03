@@ -1212,9 +1212,9 @@ html.theme-dark {
     visibility 0s linear var(--dur-drawer);
 }
 
-/* Mid-drag the width changes every pointer-move, so the slide transition would
-   make the drawer chase the cursor 300ms behind it. AgentSeamRail sets this for
-   the duration of the drag only. */
+/* Mid-gesture the width changes every pointer-move (or every key repeat), so the
+   slide transition would make the drawer chase the cursor 300ms behind it. The
+   resize handle sets this for the duration of the gesture only. */
 .agent-shell[data-resizing] .agent-drawer,
 .agent-shell[data-resizing] .agent-drawer-gap {
   transition: none;

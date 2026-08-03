@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { clampSidebarWidth } from "@/lib/shellGeometry";
-import { AgentSeamRail, AgentSidebar } from "./sidebar";
+import { AgentSeamRail, AgentSidebar, SIDEBAR_WIDTH_PROPERTY } from "./sidebar";
 import { AgentDrawerToggle } from "./surface-header";
 
 interface AgentAppShellProps {
@@ -53,7 +53,7 @@ export function AgentAppShell({
   const shellRef = useRef<HTMLDivElement>(null);
   const hasSidebar = sidebar !== undefined;
 
-  // The rail writes `--sidebar-width` directly during a drag. This effect
+  // The rail writes the width directly while the user is moving it. This effect
   // re-syncs it with the persisted preference afterwards and re-clamps that
   // preference whenever the window changes size. The preference itself is not
   // overwritten by a temporary narrow window, so widening restores the user's
@@ -62,13 +62,13 @@ export function AgentAppShell({
     const shell = shellRef.current;
     if (!shell) return;
     const syncWidth = () => {
-      // Not while the rail is dragging. The observer below fires on any layout
-      // change, and a drag IS one — so under load it could land between two
-      // pointer-moves and snap the drawer back to the value the drag has not
-      // committed yet. The rail marks the shell for exactly this window.
+      // Not mid-gesture. The observer below fires on any layout change, and a
+      // resize IS one — so under load it could land between two pointer-moves
+      // and snap the drawer back to the value not yet committed. The rail marks
+      // the shell for exactly this window.
       if (shell.hasAttribute("data-resizing")) return;
       shell.style.setProperty(
-        "--sidebar-width",
+        SIDEBAR_WIDTH_PROPERTY,
         `${clampSidebarWidth(sidebarWidth, shell.clientWidth)}px`,
       );
     };

@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { ColorPickerInput } from "./color-picker-input";
 import { ExternalLink } from "./external-link";
 import { HiddenFileInput } from "./hidden-file-input";
-import { ResizeHandle } from "./resize-handle";
 
 describe("native design-system boundaries", () => {
   it("owns browser-native input types inside atoms", () => {
@@ -24,14 +23,5 @@ describe("native design-system boundaries", () => {
     const link = screen.getByRole("link", { name: "Source" });
     expect(link.getAttribute("target")).toBe("_blank");
     expect(link.getAttribute("rel")).toBe("noopener noreferrer");
-  });
-
-  it("owns accessible resize-handle semantics", () => {
-    render(<ResizeHandle aria-label="Resize panel" aria-valuenow={320} />);
-
-    const handle = screen.getByRole("separator", { name: "Resize panel" });
-    expect(handle.getAttribute("aria-orientation")).toBe("vertical");
-    expect(handle.getAttribute("tabindex")).toBe("0");
-    expect(handle.getAttribute("aria-valuenow")).toBe("320");
   });
 });

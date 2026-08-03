@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef } from "react";
 import { clampSidebarWidth, maxSidebarWidth, SIDEBAR_MIN_WIDTH_PX } from "@/lib/shellGeometry";
 import { ResizeHandle } from "@/ui/atoms/resize-handle";
 
@@ -28,10 +27,10 @@ export function AgentSidebar({ label, children }: { label: string; children: Rea
  * the reading plane owns that boundary, while this rail only strengthens the
  * same coordinate on hover, focus and drag.
  *
- * While dragging, the width goes straight onto the shell element as a custom
- * property — React state per pointer-move would drop frames on a 60Hz trackpad.
- * `onCommit` persists the settled value once, on release. Keyboard resize uses
- * the same direct-write + single-commit path.
+ * The gesture belongs to the `ResizeHandle` atom; what is declared here is only what
+ * is true of this seam — which side of the drawer it sits on, where the width lives,
+ * and that the drawer animates its own width and so must be told to stop while the
+ * user is moving it.
  */
 export function AgentSeamRail({
   label,
@@ -42,107 +41,28 @@ export function AgentSeamRail({
   width: number;
   onCommit: (width: number) => void;
 }) {
-  const railRef = useRef<HTMLDivElement>(null);
-  // Read in the pointerup handler, which is registered once — a ref keeps the
-  // listener from having to be torn down and rebuilt on every parent render.
-  const commitRef = useRef(onCommit);
-  useEffect(() => {
-    commitRef.current = onCommit;
-  }, [onCommit]);
-
-  useEffect(() => {
-    const rail = railRef.current;
-    const shell = rail?.closest<HTMLElement>(".agent-shell");
-    if (!rail || !shell) return;
-    const syncRange = () => {
-      const max = maxSidebarWidth(shell.clientWidth);
-      rail.setAttribute("aria-valuemax", String(max));
-      // Derive the settled value from the persisted preference plus current
-      // geometry, exactly as AgentAppShell does for the CSS property. Reading
-      // the property here would make callback ordering between two
-      // ResizeObservers observable: the rail could announce the previous
-      // viewport's clamp even after the shell had restored the layout.
-      rail.setAttribute("aria-valuenow", String(clampSidebarWidth(width, shell.clientWidth)));
-    };
-    syncRange();
-    const observer = new ResizeObserver(syncRange);
-    observer.observe(shell);
-    return () => observer.disconnect();
-  }, [width]);
-
-  const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    const shell = railRef.current?.closest<HTMLElement>(".agent-shell");
-    if (!shell || event.button !== 0) return;
-    event.preventDefault();
-
-    const startX = event.clientX;
-    const startWidth = readSidebarWidth(shell);
-    let width = startWidth;
-    const move = (moveEvent: PointerEvent) => {
-      width = clampSidebarWidth(startWidth + moveEvent.clientX - startX, shell.clientWidth);
-      shell.style.setProperty("--sidebar-width", `${width}px`);
-      railRef.current?.setAttribute("aria-valuenow", String(width));
-    };
-    const end = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", end);
-      window.removeEventListener("pointercancel", end);
-      // The drag suppressed the slide transition; restore it for the next
-      // collapse so the drawer animates again.
-      shell.removeAttribute("data-resizing");
-      commitRef.current(width);
-    };
-    // Suppress the slide transition for the duration of the drag, or every
-    // pointer-move would start a 300ms animation toward the new width and the
-    // handle would lag the cursor.
-    shell.setAttribute("data-resizing", "");
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", end);
-    window.addEventListener("pointercancel", end);
-  }, []);
-
-  const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    const rail = railRef.current;
-    const shell = rail?.closest<HTMLElement>(".agent-shell");
-    if (!rail || !shell) return;
-    event.preventDefault();
-
-    const max = maxSidebarWidth(shell.clientWidth);
-    const current = readSidebarWidth(shell);
-    const step = event.shiftKey ? 24 : 8;
-    const next =
-      event.key === "Home"
-        ? SIDEBAR_MIN_WIDTH_PX
-        : event.key === "End"
-          ? max
-          : clampSidebarWidth(
-              current + (event.key === "ArrowLeft" ? -step : step),
-              shell.clientWidth,
-            );
-
-    shell.setAttribute("data-resizing", "");
-    shell.style.setProperty("--sidebar-width", `${next}px`);
-    rail.setAttribute("aria-valuemax", String(max));
-    rail.setAttribute("aria-valuenow", String(next));
-    shell.removeAttribute("data-resizing");
-    commitRef.current(next);
-  }, []);
-
   return (
     <ResizeHandle
-      ref={railRef}
       aria-label={label}
-      aria-valuemin={SIDEBAR_MIN_WIDTH_PX}
-      aria-valuenow={Math.round(width)}
       className="agent-seam-rail"
-      onPointerDown={handlePointerDown}
-      onKeyDown={handleKeyDown}
+      edge="end"
+      value={width}
+      container={(rail) => rail.closest<HTMLElement>(".agent-shell")}
+      property={SIDEBAR_WIDTH_PROPERTY}
+      read={readSidebarWidth}
+      minWidth={SIDEBAR_MIN_WIDTH_PX}
+      maxWidth={maxSidebarWidth}
+      onCommit={onCommit}
+      resizingAttribute="data-resizing"
     />
   );
 }
 
+/** Where the drawer's width lives. The rail writes it during a gesture and the shell
+ *  re-syncs it from the persisted preference, so both must spell it the same way. */
+export const SIDEBAR_WIDTH_PROPERTY = "--sidebar-width";
+
 function readSidebarWidth(shell: HTMLElement): number {
-  const value = Number.parseFloat(getComputedStyle(shell).getPropertyValue("--sidebar-width"));
+  const value = Number.parseFloat(getComputedStyle(shell).getPropertyValue(SIDEBAR_WIDTH_PROPERTY));
   return clampSidebarWidth(Number.isFinite(value) ? value : 0, shell.clientWidth);
 }
