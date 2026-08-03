@@ -130,7 +130,7 @@ func TestReplayPreservesCompletedRunResponse(t *testing.T) {
 
 func TestReplayClaimSerializesConcurrentMutation(t *testing.T) {
 	runtime := &blockingCancelRuntime{started: make(chan struct{}), release: make(chan struct{})}
-	dispatcher := New(runtime)
+	dispatcher := New(runtime, Config{})
 	ctx := transport.WithIdempotencyKey(context.Background(), "cancel-once")
 	first, err := transport.NewCall("first", "runs.cancel", protocol.CancelRunRequest{RunID: "run_1"})
 	if err != nil {
@@ -173,7 +173,7 @@ func TestCompletionFailureRetriesPersistenceWithoutRepeatingMutation(t *testing.
 	runtime := &countingCancelRuntime{}
 	store := &flakyCompletionStore{Store: newMemoryIdempotencyStore()}
 	store.failures.Store(1)
-	dispatcher := New(runtime, WithIdempotencyStore(store))
+	dispatcher := New(runtime, Config{IdempotencyStore: store})
 	ctx := transport.WithIdempotencyKey(t.Context(), "cancel-once")
 	request := func(id string, runID string) *transport.Request {
 		req, err := transport.NewCall(id, "runs.cancel", protocol.CancelRunRequest{RunID: runID})
@@ -208,7 +208,7 @@ func TestCompletionFailureRetriesPersistenceWithoutRepeatingMutation(t *testing.
 func TestPendingCompletionStillRejectsKeyReuse(t *testing.T) {
 	store := &flakyCompletionStore{Store: newMemoryIdempotencyStore()}
 	store.failures.Store(1)
-	dispatcher := New(&countingCancelRuntime{}, WithIdempotencyStore(store))
+	dispatcher := New(&countingCancelRuntime{}, Config{IdempotencyStore: store})
 	ctx := transport.WithIdempotencyKey(t.Context(), "bound-key")
 	first, _ := transport.NewCall("first", "runs.cancel", protocol.CancelRunRequest{RunID: "run_1"})
 	dispatcher.Handle(ctx, first)

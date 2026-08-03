@@ -140,7 +140,7 @@ func TestHandleDoesNotMutateCallerRequestWhenStrippingMeta(t *testing.T) {
 		Params: json.RawMessage(fmt.Sprintf(`{"_meta":{"protocolVersion":%q},"value":1}`, protocol.ProtocolVersion)),
 	}
 	original := string(req.Params)
-	New(nil).Handle(context.Background(), req)
+	New(nil, Config{}).Handle(context.Background(), req)
 	if got := string(req.Params); got != original {
 		t.Fatalf("Handle mutated caller params: got %s, want %s", got, original)
 	}

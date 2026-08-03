@@ -94,7 +94,7 @@ func NewTransport(cfg Config) (*Transport, error) {
 		cfg.RecvBuffer = 64
 	}
 	return &Transport{
-		dispatcher: dispatch.New(cfg.Runtime),
+		dispatcher: dispatch.New(cfg.Runtime, dispatch.Config{}),
 		in:         make(chan transport.Message, cfg.RecvBuffer),
 		close:      make(chan struct{}),
 		done:       make(chan struct{}),

@@ -22,25 +22,21 @@ type Dispatcher struct {
 	pending     map[string]idempotency.Record
 }
 
-type Option func(*Dispatcher)
-
-// WithIdempotencyStore replaces the default process-local replay store.
-func WithIdempotencyStore(store idempotency.Store) Option {
-	return func(dispatcher *Dispatcher) {
-		if store != nil {
-			dispatcher.store = store
-		}
-	}
+// Config supplies optional Dispatcher dependencies. A nil IdempotencyStore
+// selects the process-local replay store.
+type Config struct {
+	IdempotencyStore idempotency.Store
 }
 
 // New builds a Dispatcher bound to the given Runtime. The returned
 // Dispatcher is safe for parallel Handle calls.
-func New(api protocol.Runtime, options ...Option) *Dispatcher {
-	dispatcher := &Dispatcher{
-		api: api, store: newMemoryIdempotencyStore(), pending: make(map[string]idempotency.Record),
+func New(api protocol.Runtime, config Config) *Dispatcher {
+	store := config.IdempotencyStore
+	if store == nil {
+		store = newMemoryIdempotencyStore()
 	}
-	for _, option := range options {
-		option(dispatcher)
+	dispatcher := &Dispatcher{
+		api: api, store: store, pending: make(map[string]idempotency.Record),
 	}
 	return dispatcher
 }

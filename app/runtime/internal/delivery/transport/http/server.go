@@ -139,7 +139,9 @@ func NewServer(cfg Config) (*Server, error) {
 		localToken:   cfg.LocalToken,
 		corsOrigins:  slices.Clone(cfg.CORSOrigins),
 		healthProbes: newHealthProbeRunners(cfg.HealthProbes),
-		dispatcher:   dispatch.New(cfg.Runtime, dispatch.WithIdempotencyStore(cfg.IdempotencyStore)),
+		dispatcher: dispatch.New(cfg.Runtime, dispatch.Config{
+			IdempotencyStore: cfg.IdempotencyStore,
+		}),
 		handlerCtx:   handlerCtx,
 		stopHandlers: stopHandlers,
 		info:         newInfoResponse(cfg.ServerInfo, cfg.ProtocolVersion),
