@@ -157,8 +157,7 @@ func TestSafetyTableNamesOnlyToolsThatExist(t *testing.T) {
 		SkillAuthoring:  allWiredSkillAuthoring{}, // backs propose_skill
 		ToolResults:     allWiredToolResults{},    // backs read_tool_result
 		Online: OnlineConfig{
-			HTTPAllowedHosts:    []string{"example.com"},   // backs download
-			SourcegraphEndpoint: "https://sourcegraph.com", // backs sourcegraph_search
+			HTTPAllowedHosts: []string{"example.com"}, // backs http_request
 		},
 		Interrupt: func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
 			return interrupts.Resolution{}, nil

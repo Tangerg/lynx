@@ -36,7 +36,6 @@ func TestQuerySubject(t *testing.T) {
 		{tool: "edit", arguments: `{"path":"src/a.go","old":"x"}`, want: "src/a.go"},
 		{tool: "read", arguments: `{"path":"go.mod"}`, want: "go.mod"},
 		{tool: "write", arguments: `{"path":"out.txt"}`, want: "out.txt"},
-		{tool: "download", arguments: `{"file_path":"vendor/x.tgz"}`, want: "vendor/x.tgz"},
 		{tool: "grep", arguments: `{"pattern":"foo"}`},       // no per-tool subject → whole-tool
 		{tool: "stop_shell", arguments: `{"shell_id":"s1"}`}, // ditto — not a command-bearing tool
 		{tool: "shell", arguments: `{"timeout_ms":5}`, wantError: true},

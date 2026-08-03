@@ -167,7 +167,7 @@
 
 ### 完全移除
 
-- `download` 及其 allowlist 配置；
+- `download` 及其专属组装、路径写入与 allowlist 派生；通用 HTTP allowlist 继续只服务 `http_request`；
 - `sourcegraph_search` 及 Sourcegraph endpoint/token 配置；
 - 内建 `propose_skill`，由 Skill authoring 工作流取代；
 - Todo 领域、工具、store、wire 和 UI 术语。
@@ -223,8 +223,8 @@
 | 2b | session-scoped Plan mode | 完成 |
 | 3 | `create_goal` 与 idle continuation | 完成 |
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 完成 |
-| 5 | 工具名、参数和描述的全量收敛 | 进行中（5a、5b.1、5b.2、5b.3、5b.4 完成） |
-| 6 | 删除冗余能力和配置 | 待开始 |
+| 5 | 工具名、参数和描述的全量收敛 | 完成 |
+| 6 | 删除冗余能力和配置 | 进行中（6a 完成） |
 | 7 | 全仓验证、文档收敛和最终审计 | 待开始 |
 
 每批必须独立验证、独立提交并推送。实现发现契约需要调整时，先更新本文，再在同一批修改代码和测试。
@@ -324,3 +324,11 @@
 - `tools/skills` 继续只依赖只读 `skills.ResourceSource`，一个具体 `toolSet` 直接承载三个 typed function，没有新增 registry、operation framework 或 runtime-facing interface；
 - Runtime 的 working-directory adapter 返回三工具切片并统一标为 Deferred，Resolver 只展开通用 `[]tool.Tool`；usage recorder 仍通过 Source decorator 只观察成功的 global `Load`，没有进入模型契约；
 - 安全表以三个真实名称替换旧 `skill`，catalog completeness guard 同时约束可达性；通用 Agent、ToolDefinition 与 Skill repository 接口均未增加 app/runtime 概念。
+
+### 批次 6a
+
+- 从服务端源码完整删除 `download` definition、实现、测试、resolver 字段、BuildConfig 派生 allowlist、workdir tool family、审批 subject 和安全分类；不保留 disabled registration、旧名称或兼容参数；
+- `download` 原本把任意 URL GET 与 workspace 写入重新组合，重复了 `http_request`、`write` / `shell` 已有能力，并产生第二套 SSRF gate、路径锁、overwrite 规则和写审批身份；删除组合工具后，模型用单一原语显式完成网络读取与受保护写入；
+- 保留 `online.httpAllowedHosts` / `LYRA_HTTP_ALLOWED_HOSTS`，但其唯一模型消费者现在是 `http_request`。这不是 `download` 兼容配置，不再在 composition root 派生另一份 allowlist；
+- 从服务端源码完整删除 `sourcegraph_search`、stream parser、条件注册、测试和 `online.sourcegraphEndpoint/sourcegraphToken` 及 `LYRA_SOURCEGRAPH_*` 配置；不保留 vendor-specific hidden tool；
+- Sourcegraph JSON-RPC Go 依赖继续由 LSP transport 合法消费，没有因名称相同而机械删除。`agent` 与通用工具模块没有新增网络、workspace 或 provider 概念；runtime 的 OnlineConfig 反而收窄为三个真实能力字段。

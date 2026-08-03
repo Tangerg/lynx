@@ -88,8 +88,7 @@ func TestToolCatalogOfflineOnly(t *testing.T) {
 
 	tools := codingTools(t, eng.catalog)
 	// 5 filesystem coding tools in the conservative edit/write vocabulary
-	// (download is gated on a host allowlist, so it is
-	// absent in this offline build) + 3 shell tools (shell + its read_shell_output /
+	// + 3 shell tools (shell + its read_shell_output /
 	// stop_shell companions) + one deferred `lsp` operation tool + the
 	// `delegate_task` tool + the ask_user HITL
 	// tool + search_tools. LSP remains executable but is deferred from the model's
@@ -110,8 +109,7 @@ func TestToolCatalogOfflineOnly(t *testing.T) {
 	if names["apply_patch"] {
 		t.Fatal("one Run must not register apply_patch together with edit/write")
 	}
-	// download joins the online tools as allowlist-gated: absent without one.
-	for _, never := range []string{"web_fetch", "web_search", "http_request", "download"} {
+	for _, never := range []string{"web_fetch", "web_search", "http_request"} {
 		if names[never] {
 			t.Errorf("unexpected online tool %q in offline build", never)
 		}
@@ -133,12 +131,11 @@ func TestToolCatalogOnlineEnabled(t *testing.T) {
 	defer eng.Close()
 
 	tools := codingTools(t, eng.catalog)
-	if len(tools) != 16 {
-		t.Fatalf("tool count = %d, want 16 (5 fs + download + 3 shell + lsp + 3 online + delegate_task + ask_user + search_tools)", len(tools))
+	if len(tools) != 15 {
+		t.Fatalf("tool count = %d, want 15 (5 fs + 3 shell + lsp + 3 online + delegate_task + ask_user + search_tools)", len(tools))
 	}
 	names := toolNames(tools)
-	// HTTPAllowedHosts is set, so download is registered alongside the online tools.
-	for _, want := range []string{"web_fetch", "web_search", "http_request", "download"} {
+	for _, want := range []string{"web_fetch", "web_search", "http_request"} {
 		if !names[want] {
 			t.Errorf("expected online tool %q in %v", want, names)
 		}
@@ -154,7 +151,7 @@ func TestToolCatalogPartialOnline(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{Online: toolset.OnlineConfig{JinaAPIKey: "k"}})
 	defer eng.Close()
 	if got := len(codingTools(t, eng.catalog)); got != 13 {
-		t.Fatalf("tool count = %d, want 13 (5 fs + 3 shell + lsp + jina + delegate_task + ask_user + search_tools; no download without an http allowlist)", got)
+		t.Fatalf("tool count = %d, want 13 (5 fs + 3 shell + lsp + jina + delegate_task + ask_user + search_tools)", got)
 	}
 }
 

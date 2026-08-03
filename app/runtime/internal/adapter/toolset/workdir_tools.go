@@ -5,23 +5,19 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	toolcontract "github.com/Tangerg/lynx/tool"
 	"github.com/Tangerg/lynx/tools/fs"
-	"github.com/Tangerg/lynx/tools/httpreq"
 )
 
 // buildWorkdirTools instantiates the working-directory-bound filesystem tools,
 // all anchored at workdir. These are the only tools whose behavior depends on
 // the working directory, so they are rebuilt per resolution (cheap structs)
-// rather than captured once. The filesystem tools need no credentials; the sole
-// gated member is download (see below). (the shell tool is built over the
+// rather than captured once. The filesystem tools need no credentials. (The
+// shell tool is built over the
 // shared exec.Shells in shell.Build, not here — it reads cwd per call like
 // read_shell_output.)
 //
 // write and edit are wrapped so a successful edit is type-checked by the
 // code-intelligence analyzer and any new problems are folded into the tool
 // result (see withEditDiagnostics). ci may be nil — the wrap is then a no-op.
-// downloadAllow gates the download tool: empty (no configured host allowlist)
-// omits it entirely, so an offline build makes no surprise outbound calls.
-//
 // locker is owner-scoped: resolver-owned builds reuse one locker so
 // read/check/write stays atomic across concurrent turns, not merely across the
 // tools resolved for one turn.
@@ -29,10 +25,9 @@ type workdirToolFamilies struct {
 	readSearch []toolcontract.Tool
 	editWrite  []toolcontract.Tool
 	applyPatch toolcontract.Tool
-	download   toolcontract.Tool
 }
 
-func buildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguardstate.Tracker, downloadAllow httpreq.Allowlist, locker *pathLocker) workdirToolFamilies {
+func buildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguardstate.Tracker, locker *pathLocker) workdirToolFamilies {
 	fsExec := fs.NewLocalExecutor(workdir)
 
 	// Mutation guard stack, innermost → outermost: auto-format the applied
@@ -51,13 +46,6 @@ func buildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguar
 		},
 		editWrite:  []toolcontract.Tool{edit, write},
 		applyPatch: applyPatch,
-	}
-	// download fetches an arbitrary URL and writes it to disk — the same SSRF
-	// surface as httpreq — so it is registered only when a host allowlist is
-	// configured, and enforces that same allowlist per call. No allowlist → the
-	// tool is absent, matching the online-tools opt-in.
-	if !downloadAllow.Empty() {
-		families.download = withPathGuard(withPathLock(newDownloadTool(workdir, downloadAllow), locker, workdir), workdir)
 	}
 	return families
 }

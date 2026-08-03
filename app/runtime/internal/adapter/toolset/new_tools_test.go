@@ -5,175 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
-	"github.com/Tangerg/lynx/tools/httpreq"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
-
-func TestDownloadTool_WritesAndRefusesBlindOverwrite(t *testing.T) {
-	dir := t.TempDir()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		_, _ = w.Write([]byte("hello"))
-	}))
-	t.Cleanup(srv.Close)
-
-	srvURL, _ := url.Parse(srv.URL)
-	allow, err := httpreq.NewAllowlist([]string{srvURL.Hostname()})
-	if err != nil {
-		t.Fatalf("allowlist: %v", err)
-	}
-	tool := newDownloadTool(dir, allow)
-	body, err := tool.Call(t.Context(), `{"url":"`+srv.URL+`","file_path":"out/hello.txt"}`)
-	if err != nil {
-		t.Fatalf("download: %v", err)
-	}
-	var resp downloadResponse
-	if err := json.Unmarshal([]byte(body), &resp); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if resp.Bytes != 5 || resp.ContentType != "text/plain" {
-		t.Fatalf("response = %+v", resp)
-	}
-	got, _ := os.ReadFile(filepath.Join(dir, "out", "hello.txt"))
-	if string(got) != "hello" {
-		t.Fatalf("file = %q", got)
-	}
-
-	if _, err := tool.Call(t.Context(), `{"url":"`+srv.URL+`","file_path":"out/hello.txt"}`); err == nil {
-		t.Fatal("second download without overwrite: want error")
-	}
-	if _, err := tool.Call(t.Context(), `{"url":"`+srv.URL+`","file_path":"out/hello.txt","overwrite":true}`); err != nil {
-		t.Fatalf("download with overwrite: %v", err)
-	}
-}
-
-func TestDownloadTool_RejectsRedirectToBlockedHost(t *testing.T) {
-	dir := t.TempDir()
-	var targetHit atomic.Bool
-	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		targetHit.Store(true)
-		_, _ = w.Write([]byte("secret"))
-	}))
-	t.Cleanup(target.Close)
-	targetURL, err := url.Parse(target.URL)
-	if err != nil {
-		t.Fatalf("parse target URL: %v", err)
-	}
-	targetURL.Host = net.JoinHostPort("localhost", targetURL.Port())
-
-	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, targetURL.String(), http.StatusFound)
-	}))
-	t.Cleanup(source.Close)
-	sourceURL, err := url.Parse(source.URL)
-	if err != nil {
-		t.Fatalf("parse source URL: %v", err)
-	}
-	allow, err := httpreq.NewAllowlist([]string{sourceURL.Hostname()})
-	if err != nil {
-		t.Fatalf("allowlist: %v", err)
-	}
-
-	tool := newDownloadTool(dir, allow)
-	_, err = tool.Call(t.Context(), `{"url":"`+source.URL+`","file_path":"secret.txt"}`)
-	if !errors.Is(err, httpreq.ErrHostNotAllowed) {
-		t.Fatalf("redirect error = %v, want ErrHostNotAllowed", err)
-	}
-	if targetHit.Load() {
-		t.Fatal("blocked redirect reached its target")
-	}
-	if _, statErr := os.Stat(filepath.Join(dir, "secret.txt")); !errors.Is(statErr, os.ErrNotExist) {
-		t.Fatalf("download target exists after blocked redirect: %v", statErr)
-	}
-}
-
-func TestSourcegraphStream_FoldsMatchesAndProgress(t *testing.T) {
-	stream := `event: matches
-data: [{"type":"content","repository":"github.com/acme/repo","path":"main.go","commit":"abc","language":"Go","lineMatches":[{"line":"func main() {}","lineNumber":12}]}]
-
-event: progress
-data: {"matchCount":1,"durationMs":42}
-
-event: done
-data: {}
-
-`
-	out, err := readSourcegraphStream(strings.NewReader(stream))
-	if err != nil {
-		t.Fatalf("read stream: %v", err)
-	}
-	if out.MatchCount != 1 || out.DurationMs != 42 || len(out.Matches) != 1 {
-		t.Fatalf("stream output = %+v", out)
-	}
-	if got := out.Matches[0].LineMatches[0].LineNumber; got != 12 {
-		t.Fatalf("line number = %d, want 12", got)
-	}
-	body, err := json.Marshal(out)
-	if err != nil {
-		t.Fatalf("marshal output: %v", err)
-	}
-	if strings.Contains(string(body), "lineMatches") || strings.Contains(string(body), "lineNumber") {
-		t.Fatalf("output kept Sourcegraph camelCase fields: %s", body)
-	}
-	if !strings.Contains(string(body), "line_matches") || !strings.Contains(string(body), "line_number") {
-		t.Fatalf("output missing model-facing line fields: %s", body)
-	}
-}
-
-func TestSourcegraphStream_ReturnsMalformedEventError(t *testing.T) {
-	stream := `event: matches
-data: not-json
-
-`
-	_, err := readSourcegraphStream(strings.NewReader(stream))
-	if err == nil {
-		t.Fatal("malformed Sourcegraph event: want error")
-	}
-	if !strings.Contains(err.Error(), "parse matches event") {
-		t.Fatalf("err = %v, want parse matches event", err)
-	}
-}
-
-func TestSourcegraphStreamURL_NormalizesEndpoint(t *testing.T) {
-	tests := []struct {
-		name     string
-		endpoint string
-		want     string
-	}{
-		{"host only", "https://sourcegraph.example.com", "https://sourcegraph.example.com/.api/search/stream"},
-		{"stream path", "https://sourcegraph.example.com/.api/search/stream", "https://sourcegraph.example.com/.api/search/stream"},
-		{"stream path trailing slash", "https://sourcegraph.example.com/.api/search/stream/", "https://sourcegraph.example.com/.api/search/stream"},
-		{"mounted path", "https://sourcegraph.example.com/sg", "https://sourcegraph.example.com/sg/.api/search/stream"},
-		{"drops query", "https://sourcegraph.example.com?x=1", "https://sourcegraph.example.com/.api/search/stream"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := sourcegraphStreamURL(tt.endpoint)
-			if err != nil {
-				t.Fatalf("sourcegraphStreamURL: %v", err)
-			}
-			if got != tt.want {
-				t.Fatalf("stream URL = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
 
 func TestFormatJSON_WritesIndentedFile(t *testing.T) {
 	dir := t.TempDir()

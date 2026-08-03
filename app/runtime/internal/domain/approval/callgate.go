@@ -98,7 +98,7 @@ func (in ToolCallInput) Plan() ToolCallPlan {
 	// Bypass-immune escalation: a call dangerous enough (a mutation escaping the
 	// workspace, or a high-confidence catastrophic shell command) is confirmed
 	// even under a mode that would auto-pass it (Yolo, or Balanced for
-	// write/download). This override is not defeated by "approve everything" — the
+	// file mutations). This override is not defeated by "approve everything" — the
 	// same seam a PreToolUse hook's Ask uses to force a prompt, but
 	// tool/argument-driven and built in. A remembered approval still lets a repeat
 	// call through.

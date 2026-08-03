@@ -20,7 +20,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/tools/httpreq"
 )
 
 // The per-turn application-context seam (cwd, session, isolation, goal lease)
@@ -59,10 +58,6 @@ type Resolver struct {
 	// a pre-built tool) so Tools() can gate inclusion on Available() per turn —
 	// the embedding model can be configured after construction. nil → no tool.
 	codebaseIndex CodebaseIndex
-
-	// downloadAllow gates + guards the download tool (the same host allowlist as
-	// httpreq). Empty → the tool is omitted from every resolution.
-	downloadAllow httpreq.Allowlist
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
 	// atomic pointer so a reconnect (B3b-2) can hot-swap the live set without
@@ -134,8 +129,6 @@ type Deps struct {
 	CodeIntel       *codeintel.Analyzer                         // backs the post-edit diagnostics wrap
 	ReadTracker     *editguardstate.Tracker                     // backs the read/edit/write guards
 	CodebaseIndex   CodebaseIndex                               // backs codebase_search (both roles); nil → omitted
-	DownloadAllow   httpreq.Allowlist                           // host allowlist gating/guarding download; empty → omitted
-
 	// MCPToolDisabled reports whether an identified MCP tool is hidden.
 	MCPToolDisabled func(mcpserver.ToolRef) bool
 }
@@ -181,7 +174,6 @@ func NewResolver(d Deps) (*Resolver, error) {
 		readTracker:     d.ReadTracker,
 		pathLocker:      newPathLocker(),
 		codebaseIndex:   d.CodebaseIndex,
-		downloadAllow:   d.DownloadAllow,
 		mcpToolDisabled: d.MCPToolDisabled,
 	}
 	for _, scheduleTool := range d.ScheduleTools {
@@ -318,7 +310,7 @@ func (r *Resolver) workdirFor(ctx context.Context) string {
 }
 
 func (r *Resolver) workdirTools(workdir string) workdirToolFamilies {
-	return buildWorkdirTools(workdir, r.codeIntel, r.readTracker, r.downloadAllow, r.pathLocker)
+	return buildWorkdirTools(workdir, r.codeIntel, r.readTracker, r.pathLocker)
 }
 
 // toolGroup resolves its tool slice lazily at Tools() time so it can read the
@@ -341,7 +333,6 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	} else {
 		tools.direct(workdirTools.editWrite...)
 	}
-	tools.deferTools(workdirTools.download)
 	tools.deferTools(g.resolver.online...)
 	mcpTools := g.resolver.mcpTools()
 	tools.deferTools(mcpTools...)

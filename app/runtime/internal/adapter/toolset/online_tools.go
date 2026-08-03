@@ -27,14 +27,6 @@ type OnlineConfig struct {
 	// (e.g. ["api.github.com", "*.openai.com"]) — empty keeps the tool disabled
 	// so the LLM can't reach arbitrary internal endpoints.
 	HTTPAllowedHosts []string
-
-	// SourcegraphEndpoint enables sourcegraph_search. For Sourcegraph Cloud use
-	// "https://sourcegraph.com"; private instances may pass their base URL.
-	SourcegraphEndpoint string
-
-	// SourcegraphToken is optional for Sourcegraph Cloud public-code searches
-	// and required for most private instances.
-	SourcegraphToken string
 }
 
 // BuildOnlineTools instantiates each network-reaching tool whose
@@ -77,14 +69,6 @@ func BuildOnlineTools(online OnlineConfig) ([]toolcontract.Tool, error) {
 			return nil, clientErr
 		}
 		return httpreq.NewTool(client)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	sourcegraph := sourcegraphConfig{Endpoint: online.SourcegraphEndpoint, Token: online.SourcegraphToken}
-	out, err = appendIfBuilt(out, sourcegraph.enabled(), "sourcegraph", func() (toolcontract.Tool, error) {
-		return newSourcegraphTool(sourcegraph)
 	})
 	if err != nil {
 		return nil, err

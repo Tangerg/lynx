@@ -67,8 +67,6 @@ func (q Query) subject() (string, error) {
 		field = "command"
 	case "read", "write", "edit":
 		field = "path"
-	case "download":
-		field = "file_path"
 	default:
 		return "", nil
 	}

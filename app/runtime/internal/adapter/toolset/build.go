@@ -7,8 +7,6 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	"github.com/Tangerg/lynx/tools/httpreq"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/askuser"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/codebasesearch"
@@ -127,13 +125,6 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	online, err := BuildOnlineTools(config.Online)
 	if err != nil {
 		return Built{}, err
-	}
-
-	// downloadAllow gates + guards the download tool: it shares httpreq's host
-	// allowlist (a download is an arbitrary-URL GET that also writes to disk).
-	downloadAllow, err := httpreq.NewAllowlist(config.Online.HTTPAllowedHosts)
-	if err != nil {
-		return Built{}, fmt.Errorf("toolset: download allowlist: %w", err)
 	}
 
 	// Code intelligence: one analyzer wrapping LSP clients; servers launch
@@ -274,7 +265,6 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		ReadTracker:     tracker,
 		MCPToolDisabled: config.MCPToolDisabled,
 		CodebaseIndex:   config.CodebaseIndex,
-		DownloadAllow:   downloadAllow,
 	})
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build resolver: %w", err)

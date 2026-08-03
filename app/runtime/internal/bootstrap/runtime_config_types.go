@@ -248,11 +248,9 @@ type Config struct {
 // OnlineConfig holds credentials for optional network-reaching tools. Empty
 // fields leave the corresponding tool disabled.
 type OnlineConfig struct {
-	JinaAPIKey          string
-	TavilyAPIKey        string
-	HTTPAllowedHosts    []string
-	SourcegraphEndpoint string
-	SourcegraphToken    string
+	JinaAPIKey       string
+	TavilyAPIKey     string
+	HTTPAllowedHosts []string
 }
 
 // A2AAgentConfig identifies one remote Agent-to-Agent endpoint the runtime

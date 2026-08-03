@@ -31,7 +31,7 @@ const (
 
 // BypassImmunityFor reports whether a tool call is dangerous enough to confirm
 // with a human EVEN under an auto-approve mode (Yolo, or Balanced for
-// write/download).
+// file mutations).
 //
 // Two independent, deliberately-conservative checks, both DEFENSE-IN-DEPTH
 // CONFIRMS — not security jails (real confinement is a sandbox executor, the
