@@ -1,5 +1,5 @@
-github.com/Tangerg/lynx v0.0.0-20260803065639-63b23617676d h1:2emqOhkHnZexwdSRTnQLGzNf+wtUy3sv8ZdfyEhCuoc=
-github.com/Tangerg/lynx v0.0.0-20260803065639-63b23617676d/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
+github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9 h1:JAGDFuA5c06tUb6ZvVCIFGeXsh+AXehaii4qn++xxjc=
+github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
 github.com/openai/openai-go/v3 v3.49.0 h1:/BObwLKdgHJ3AbJ7AXK8BRDfjuTAV+eTmEQFbG86wnQ=
 github.com/openai/openai-go/v3 v3.49.0/go.mod h1:nCqcbgPr2jYDV8wiCWPA2tRL56mWXdb6QavBmBwzSis=
 github.com/tidwall/gjson v1.14.2/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=

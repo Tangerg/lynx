@@ -3,8 +3,8 @@ module github.com/Tangerg/lynx/tools/skills
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260803074414-f8db39de4d17
-	github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9
+	github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9
+	github.com/Tangerg/lynx/skills v0.0.0-20260803141845-7207652c95af
 )
 
 require (

@@ -3,14 +3,14 @@ module github.com/Tangerg/lynx/examples/mcp
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/agent v0.0.0-20260803074414-f8db39de4d17
-	github.com/Tangerg/lynx/mcp v0.0.0-20260803074414-f8db39de4d17
+	github.com/Tangerg/lynx/agent v0.0.0-20260803143604-9a9aab032db9
+	github.com/Tangerg/lynx/mcp v0.0.0-20260803143604-9a9aab032db9
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 )
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/Tangerg/lynx v0.0.0-20260803074414-f8db39de4d17
+	github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect

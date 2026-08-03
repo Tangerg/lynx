@@ -1,7 +1,7 @@
-github.com/Tangerg/lynx v0.0.0-20260803074414-f8db39de4d17 h1:FG+unIYwcjiuCJVy/iLABK88Vux0ya6v/rk+0fhTmH0=
-github.com/Tangerg/lynx v0.0.0-20260803074414-f8db39de4d17/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
-github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9 h1:PgHN9qktO7if006DdpIdAT0bffeeFkPhfqceNb1B30E=
-github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9/go.mod h1:lYDEBvA3vQL5p4mg2Lm+kbwFtr5vxPSnG3NLWQmR6oc=
+github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9 h1:JAGDFuA5c06tUb6ZvVCIFGeXsh+AXehaii4qn++xxjc=
+github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
+github.com/Tangerg/lynx/skills v0.0.0-20260803141845-7207652c95af h1:UgctZqpKFJfF/s8h0SVNq49qyFaYVKWpOpzmicotKuc=
+github.com/Tangerg/lynx/skills v0.0.0-20260803141845-7207652c95af/go.mod h1:lYDEBvA3vQL5p4mg2Lm+kbwFtr5vxPSnG3NLWQmR6oc=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/pretty v0.3.1/go.mod h1:hoEshYVHaxMs3cyo3Yncou5ZscifuDolrwPKZanG3xk=

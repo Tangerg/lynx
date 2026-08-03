@@ -10,7 +10,7 @@ require (
 )
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260803040853-8594662cd15b
+	github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

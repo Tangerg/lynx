@@ -1,7 +1,7 @@
-github.com/Tangerg/lynx v0.0.0-20260803065639-63b23617676d h1:2emqOhkHnZexwdSRTnQLGzNf+wtUy3sv8ZdfyEhCuoc=
-github.com/Tangerg/lynx v0.0.0-20260803065639-63b23617676d/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
-github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260802194415-a15faf3dea2e h1:EkeznAvbPwKsoxuOrCCJuwNR56eHsV/0MCkUeeMqBMs=
-github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260802194415-a15faf3dea2e/go.mod h1:OZlM3yAFlMt2cFroT//zR2Ji1KnvLJ6QU9nWS4cGcoY=
+github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9 h1:JAGDFuA5c06tUb6ZvVCIFGeXsh+AXehaii4qn++xxjc=
+github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
+github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260803141845-7207652c95af h1:7nKcN0yP5oSslIdfsHW9+jA839MAKMFDrnj8HuuBl6s=
+github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260803141845-7207652c95af/go.mod h1:AFk8f2lWWjDRNZqD2XOm+LF6ib8pCryKF5mR6hdnFVM=
 github.com/anthropics/anthropic-sdk-go v1.61.0 h1:JRTnm1tPqn5xo1xd1zfrcFDlcoWXVMvV1K68YmhpZKw=
 github.com/anthropics/anthropic-sdk-go v1.61.0/go.mod h1:3EfIfmFqxH6rbiLcIP4tPFyXL/IHakx2wDG4OU+TIEI=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
