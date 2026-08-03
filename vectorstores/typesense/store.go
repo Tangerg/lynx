@@ -18,11 +18,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/ident"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const Provider = "Typesense"
@@ -74,7 +69,7 @@ func (c StoreConfig) Validate() error {
 	if c.Dimensions < 0 {
 		return errors.New("typesense: Dimensions must be >= 0")
 	}
-	if !ident.Pattern.MatchString(c.CollectionName) {
+	if !identifierPattern.MatchString(c.CollectionName) {
 		return fmt.Errorf("typesense: CollectionName=%q must be a safe identifier", c.CollectionName)
 	}
 	return nil
@@ -171,12 +166,12 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 
 // Add embeds documents and imports them via the upsert action.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("typesense.Store.Add: %w", err)
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("typesense: batch documents: %w", err)
 	}
@@ -198,7 +193,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 				idField:        id,
 				contentField:   doc.Text,
 				metadataField:  metaOrEmpty(metadataValues),
-				embeddingField: vectorconv.Float32(vectors[i]),
+				embeddingField: embedding.Float32Vector(vectors[i]),
 			})
 		}
 
@@ -229,7 +224,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("typesense: embed query: %w", err)
 	}
-	queryVec := vectorconv.Float32(vector)
+	queryVec := embedding.Float32Vector(vector)
 	vectorQuery := formatVectorQuery(queryVec, req.TopK)
 
 	filterBy, err := s.buildFilter(req.Filter)
@@ -329,7 +324,7 @@ func toMatch(hit api.SearchResultHit) (vectorstore.Match, error) {
 	}
 	// Typesense returns distance in the cosine [0, 2] range; map
 	// onto a "higher = more similar" score in [0, 1].
-	matchScore := scores.CosineDistance(float64(*hit.VectorDistance))
+	matchScore := vectorstore.NormalizeCosineDistance(float64(*hit.VectorDistance))
 	return vectorstore.Match{Document: doc, Score: matchScore}, nil
 }
 

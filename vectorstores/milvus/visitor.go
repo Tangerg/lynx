@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into Milvus filter expression strings.
@@ -94,11 +93,11 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 }
 
-// visitBinaryExpr routes via [filtercompile.DispatchBinary]. The
+// visitBinaryExpr routes via [filter.DispatchBinary]. The
 // comparison wrapper splits equality vs ordering since milvus emits
 // distinct expression shapes for the two families.
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
-	return filtercompile.DispatchBinary(expr, filtercompile.BinaryHandlers{
+	return filter.DispatchBinary(expr, filter.BinaryHandlers{
 		Logical:    v.visitLogicalExpr,
 		Comparison: v.visitComparisonExpr,
 		In:         v.visitInExpr,
@@ -131,7 +130,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 
 // visitUnaryExpr handles unary expressions — only NOT today.
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
-	return filtercompile.DispatchUnary(expr, v.visitNotExpr)
+	return filter.DispatchUnary(expr, v.visitNotExpr)
 }
 
 // visitIdent extracts and stores the identifier name as the current field key.
@@ -305,7 +304,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 			expr.Start().String(), err)
 	}
 
-	listLit, err := filtercompile.RequireListLiteral(expr)
+	listLit, err := filter.RequireListLiteral(expr)
 	if err != nil {
 		return fmt.Errorf("milvus: %w", err)
 	}
@@ -420,7 +419,7 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 
 	current := expr
 	for {
-		key, err := filtercompile.LiteralAsKey(current.Index)
+		key, err := filter.LiteralAsKey(current.Index)
 		if err != nil {
 			return "", fmt.Errorf("milvus: %w", err)
 		}
@@ -453,7 +452,7 @@ func (v *Visitor) literalToString(lit *filter.Literal) (string, error) {
 	}
 
 	if lit.IsNumber() {
-		n, err := filtercompile.NumberText(lit)
+		n, err := filter.NumberText(lit)
 		if err != nil {
 			return "", fmt.Errorf("milvus: convert number literal at %s: %w",
 				lit.Start().String(), err)

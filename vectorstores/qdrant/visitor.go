@@ -7,7 +7,6 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into Qdrant filter conditions.
@@ -120,7 +119,7 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	if expr.Op.IsNullOperator() {
 		return v.visitNullTestExpr(expr)
 	}
-	return filtercompile.DispatchBinary(expr, filtercompile.BinaryHandlers{
+	return filter.DispatchBinary(expr, filter.BinaryHandlers{
 		Logical:    v.visitLogicalExpr,
 		Comparison: v.visitComparisonExpr,
 		In:         v.visitInExpr,
@@ -156,7 +155,7 @@ func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 
 // visitUnaryExpr handles unary expressions — only NOT today.
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
-	return filtercompile.DispatchUnary(expr, v.visitNotExpr)
+	return filter.DispatchUnary(expr, v.visitNotExpr)
 }
 
 // visitIdent extracts and stores the identifier name as the current field key.

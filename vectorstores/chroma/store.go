@@ -13,10 +13,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const Provider = "Chroma"
@@ -170,14 +166,14 @@ func (s *Store) initialize(ctx context.Context, initializeSchema bool) error {
 func (s *Store) distanceToScore(distance float64) float64 {
 	switch s.distanceMetric {
 	case DistanceCosine:
-		return scores.CosineDistance(distance)
+		return vectorstore.NormalizeCosineDistance(distance)
 	case DistanceL2:
-		return scores.Distance(distance)
+		return vectorstore.NormalizeDistance(distance)
 	case DistanceIP:
 		// Chroma reports 1 - inner product as a distance.
-		return scores.OneMinusInnerProductDistance(distance)
+		return vectorstore.NormalizeOneMinusInnerProductDistance(distance)
 	default:
-		return scores.Bounded(distance)
+		return vectorstore.NormalizeScore(distance)
 	}
 }
 
@@ -230,7 +226,7 @@ func (s *Store) buildAddOptions(docs []*document.Document, vectors [][]float64) 
 	for i, doc := range docs {
 		ids = append(ids, v2.DocumentID(doc.ID))
 
-		f32 := vectorconv.Float32(vectors[i])
+		f32 := embedding.Float32Vector(vectors[i])
 		embs = append(embs, chromaEmbed.NewEmbeddingFromFloat32(f32))
 
 		metadataValues, err := doc.Metadata.Values()
@@ -258,12 +254,12 @@ func (s *Store) buildAddOptions(docs []*document.Document, vectors [][]float64) 
 
 // Add embeds the documents and upserts them into Chroma.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("chroma.Store.Add: %w", err)
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("chroma: batch documents: %w", err)
 	}
@@ -406,7 +402,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, fmt.Errorf("chroma: embed query: %w", err)
 	}
 
-	queryVector := vectorconv.Float32(vector)
+	queryVector := embedding.Float32Vector(vector)
 
 	var opts []v2.CollectionQueryOption
 	opts, err = s.buildQueryOptions(req, queryVector)

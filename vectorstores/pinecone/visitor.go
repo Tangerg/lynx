@@ -8,7 +8,6 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into Pinecone metadata filter conditions.
@@ -103,11 +102,11 @@ func (v *Visitor) visit(expr filter.Expr) error {
 }
 
 // visitBinaryExpr routes binary expressions to the appropriate
-// handler via [filtercompile.DispatchBinary]. visitComparisonExpr
+// handler via [filter.DispatchBinary]. visitComparisonExpr
 // internally splits equality vs ordering since pinecone emits
 // different filter shapes for the two families.
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
-	return filtercompile.DispatchBinary(expr, filtercompile.BinaryHandlers{
+	return filter.DispatchBinary(expr, filter.BinaryHandlers{
 		Logical:    v.visitLogicalExpr,
 		Comparison: v.visitComparisonExpr,
 		In:         v.visitInExpr,
@@ -152,7 +151,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 // visitUnaryExpr handles unary expressions.
 // Only the NOT operator is supported.
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
-	return filtercompile.DispatchUnary(expr, v.visitNotExpr)
+	return filter.DispatchUnary(expr, v.visitNotExpr)
 }
 
 // visitIdent extracts and stores the identifier name as the current field key.
@@ -404,7 +403,7 @@ func (v *Visitor) buildListMembershipExpr(expr *filter.BinaryExpr, operator stri
 			expr.Start().String(), err)
 	}
 
-	listLit, err := filtercompile.RequireListLiteral(expr)
+	listLit, err := filter.RequireListLiteral(expr)
 	if err != nil {
 		return nil, fmt.Errorf("pinecone: %w", err)
 	}
@@ -481,7 +480,7 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 
 	current := expr
 	for {
-		key, err := filtercompile.LiteralAsKey(current.Index)
+		key, err := filter.LiteralAsKey(current.Index)
 		if err != nil {
 			return "", fmt.Errorf("pinecone: %w", err)
 		}
@@ -507,7 +506,7 @@ func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 		return lit.AsString()
 	}
 	if lit.IsNumber() {
-		return filtercompile.NumberToFloat64(lit)
+		return filter.NumberToFloat64(lit)
 	}
 	if lit.IsBool() {
 		return lit.AsBool()

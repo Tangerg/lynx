@@ -15,11 +15,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/ident"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const Provider = "TiDB"
@@ -94,7 +89,7 @@ func (c StoreConfig) Validate() error {
 	if c.SchemaName != "" {
 		checks["SchemaName"] = c.SchemaName
 	}
-	return ident.Check("tidb", checks)
+	return validateIdentifiers("tidb", checks)
 }
 
 // applyDefaults fills zero fields with documented defaults.
@@ -221,12 +216,12 @@ func distanceFunc(metric DistanceMetric) string {
 
 // Add embeds documents and upserts them.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("tidb.Store.Add: %w", err)
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("tidb: batch documents: %w", err)
 	}
@@ -258,8 +253,8 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 				if err != nil {
 					return fmt.Errorf("marshal metadata for %s: %w", id, err)
 				}
-				vec32 := vectorconv.Float32(vectors[i])
-				if _, err := stmt.ExecContext(ctx, id, doc.Text, metaJSON, docio.FormatVectorLiteral(vec32)); err != nil {
+				vec32 := embedding.Float32Vector(vectors[i])
+				if _, err := stmt.ExecContext(ctx, id, doc.Text, metaJSON, formatVectorLiteral(vec32)); err != nil {
 					return fmt.Errorf("upsert %s: %w", id, err)
 				}
 			}
@@ -290,8 +285,8 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("tidb: embed query: %w", err)
 	}
-	queryVec := vectorconv.Float32(vector)
-	vecText := docio.FormatVectorLiteral(queryVec)
+	queryVec := embedding.Float32Vector(vector)
+	vecText := formatVectorLiteral(queryVec)
 
 	wherePredicate, whereArgs, err := s.buildFilter(req.Filter)
 	if err != nil {
@@ -423,13 +418,13 @@ func (s *Store) Close() error { return nil }
 func distanceToScore(metric DistanceMetric, distance float64) float64 {
 	switch metric {
 	case DistanceL2:
-		return scores.Distance(distance)
+		return vectorstore.NormalizeDistance(distance)
 	case DistanceNegativeIP:
-		return scores.NegativeInnerProductDistance(distance)
+		return vectorstore.NormalizeNegativeInnerProductDistance(distance)
 	case DistanceCosine:
 		fallthrough
 	default:
-		return scores.CosineDistance(distance)
+		return vectorstore.NormalizeCosineDistance(distance)
 	}
 }
 

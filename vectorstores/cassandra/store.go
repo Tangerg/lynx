@@ -15,11 +15,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/ident"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const Provider = "Cassandra"
@@ -151,7 +146,7 @@ func (c StoreConfig) Validate() error {
 			return fmt.Errorf("cassandra: MetadataColumn %q must have a CQLType", m.Name)
 		}
 	}
-	return ident.Check("cassandra", checks)
+	return validateIdentifiers("cassandra", checks)
 }
 
 var (
@@ -296,12 +291,12 @@ func firstLine(s string) string {
 
 // Add embeds documents and inserts them.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("cassandra.Store.Add: %w", err)
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("cassandra: batch documents: %w", err)
 	}
@@ -326,7 +321,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // gocql v1.x driver doesn't support typed vector binding.
 func (s *Store) insertOne(ctx context.Context, id string, doc *document.Document, vec []float64) error {
 	columns := []string{s.idColumn, s.contentColumn, s.embeddingColumn}
-	placeholders := []string{"?", "?", docio.FormatVectorLiteral(vectorconv.Float32(vec))}
+	placeholders := []string{"?", "?", formatVectorLiteral(embedding.Float32Vector(vec))}
 	args := []any{id, doc.Text}
 
 	for _, m := range s.metadataColumns {
@@ -368,7 +363,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("cassandra: embed query: %w", err)
 	}
-	vecLiteral := docio.FormatVectorLiteral(vectorconv.Float32(vector))
+	vecLiteral := formatVectorLiteral(embedding.Float32Vector(vector))
 
 	wherePredicate, whereArgs, err := s.buildFilter(req.Filter)
 	if err != nil {
@@ -432,7 +427,7 @@ func (s *Store) makeScanDestinations() []any {
 func (s *Store) scanDestToMatch(dest []any, minScore float64) (*vectorstore.Match, error) {
 	id := *dest[0].(*string)
 	text := *dest[1].(*string)
-	score := scores.Bounded(float64(*dest[2].(*float32)))
+	score := vectorstore.NormalizeScore(float64(*dest[2].(*float32)))
 	if score < minScore {
 		return nil, nil
 	}

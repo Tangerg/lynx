@@ -8,7 +8,6 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/filtercompile"
 )
 
 func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
@@ -120,7 +119,7 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 		return fmt.Errorf("right operand of '%s' at %s must be a number literal, got %T",
 			expr.Op.String(), expr.Start().String(), expr.Right)
 	}
-	numericValue, err := filtercompile.NumberToFloat64(literal)
+	numericValue, err := filter.NumberToFloat64(literal)
 	if err != nil {
 		return fmt.Errorf("cannot convert value for '%s' comparison at %s: %w",
 			expr.Op.String(), expr.Start().String(), err)
@@ -175,7 +174,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 			expr.Start().String(), err)
 	}
 
-	listLit, err := filtercompile.RequireListLiteral(expr)
+	listLit, err := filter.RequireListLiteral(expr)
 	if err != nil {
 		return fmt.Errorf("qdrant: %w", err)
 	}
@@ -198,7 +197,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 		// Number list: use MatchInts (OR semantics for multiple integers)
 		integers := make([]int64, 0, len(listLit.Values))
 		for _, literal := range listLit.Values {
-			value, err := filtercompile.NumberToInt64(literal)
+			value, err := filter.NumberToInt64(literal)
 			if err != nil {
 				return fmt.Errorf("qdrant: IN numeric value: %w", err)
 			}
@@ -394,7 +393,7 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 
 	currentExpr := expr
 	for {
-		key, err := filtercompile.LiteralAsKey(currentExpr.Index)
+		key, err := filter.LiteralAsKey(currentExpr.Index)
 		if err != nil {
 			return "", err
 		}
@@ -427,7 +426,7 @@ func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 	}
 
 	if lit.IsNumber() {
-		return filtercompile.LiteralToValue(lit)
+		return filter.LiteralToValue(lit)
 	}
 
 	if lit.IsBool() {

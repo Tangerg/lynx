@@ -18,7 +18,7 @@ use (
 	./documentreaders/pdf
 	./examples/mcp
 	./internal/repoarch
-	./internal/vectorstorepg
+	./vectorstores/postgres
 	./mcp
 	./models
 	./models/bedrock
@@ -37,14 +37,12 @@ use (
 	./vectorstores/cassandra
 	./vectorstores/chroma
 	./vectorstores/clickhouse
-	./vectorstores/cockroachdb
 	./vectorstores/couchbase
 	./vectorstores/elasticsearch
 	./vectorstores/milvus
 	./vectorstores/mongodb
 	./vectorstores/neo4j
 	./vectorstores/opensearch
-	./vectorstores/pgvector
 	./vectorstores/pinecone
 	./vectorstores/qdrant
 	./vectorstores/redis

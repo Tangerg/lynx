@@ -9,7 +9,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/types"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/filtercompile"
 )
 
 // BuildRetrievalFilter transforms an AST filter expression into a
@@ -260,5 +259,5 @@ func extractLiteralValue(expr filter.Expr) (any, error) {
 }
 
 func literalToValue(lit *filter.Literal) (any, error) {
-	return filtercompile.LiteralToValue(lit)
+	return filter.LiteralToValue(lit)
 }

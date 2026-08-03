@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into the MongoDB query
@@ -99,7 +98,7 @@ func (v *Visitor) translateHas(expr *filter.BinaryExpr) (map[string]any, error) 
 	if err != nil {
 		return nil, fmt.Errorf("mongodb: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filtercompile.ExtractValue(expr.Right)
+	value, err := filter.ExtractValue(expr.Right)
 	if err != nil {
 		return nil, fmt.Errorf("mongodb: %w (at %s)", err, expr.Start().String())
 	}
@@ -142,7 +141,7 @@ func (v *Visitor) translateComparison(expr *filter.BinaryExpr) (map[string]any, 
 	if err != nil {
 		return nil, fmt.Errorf("mongodb: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filtercompile.ExtractValue(expr.Right)
+	value, err := filter.ExtractValue(expr.Right)
 	if err != nil {
 		return nil, fmt.Errorf("mongodb: %w (at %s)", err, expr.Start().String())
 	}
@@ -185,7 +184,7 @@ func (v *Visitor) translateIn(expr *filter.BinaryExpr, op string) (map[string]an
 
 	values := make([]any, 0, len(listLit.Values))
 	for _, lit := range listLit.Values {
-		val, err := filtercompile.LiteralToValue(lit)
+		val, err := filter.LiteralToValue(lit)
 		if err != nil {
 			return nil, fmt.Errorf("mongodb: %w (at %s)", err, expr.Start().String())
 		}
@@ -205,7 +204,7 @@ func (v *Visitor) translateLike(expr *filter.BinaryExpr) (map[string]any, error)
 		return nil, fmt.Errorf("mongodb: %w (at %s)", err, expr.Start().String())
 	}
 
-	value, err := filtercompile.ExtractValue(expr.Right)
+	value, err := filter.ExtractValue(expr.Right)
 	if err != nil {
 		return nil, fmt.Errorf("mongodb: %w (at %s)", err, expr.Start().String())
 	}
@@ -244,7 +243,7 @@ func (v *Visitor) translateLike(expr *filter.BinaryExpr) (map[string]any, error)
 
 // fieldPath assembles the dotted field path used by MongoDB.
 func (v *Visitor) fieldPath(expr filter.Expr) (string, error) {
-	keys, err := filtercompile.CollectKeyPath(expr)
+	keys, err := filter.CollectKeyPath(expr)
 	if err != nil {
 		return "", err
 	}

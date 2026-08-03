@@ -18,11 +18,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/ident"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const (
@@ -111,7 +106,7 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("vespa: DocumentBatcher is required")
 	}
-	if err := ident.CheckWithDash("vespa", map[string]string{
+	if err := validateIdentifiersWithDash("vespa", map[string]string{
 		"SchemaName":      c.SchemaName,
 		"Namespace":       c.Namespace,
 		"EmbeddingField":  c.EmbeddingField,
@@ -122,7 +117,7 @@ func (c StoreConfig) Validate() error {
 	}); err != nil {
 		return err
 	}
-	if c.ContentCluster != "" && !ident.PatternWithDash.MatchString(c.ContentCluster) {
+	if c.ContentCluster != "" && !identifierPatternWithDash.MatchString(c.ContentCluster) {
 		return fmt.Errorf("vespa: ContentCluster=%q must be a safe identifier", c.ContentCluster)
 	}
 	return nil
@@ -192,12 +187,12 @@ func NewStore(config StoreConfig) (*Store, error) {
 // Add embeds documents and PUTs them through the Vespa Document
 // API. Each PUT is `POST /document/v1/<namespace>/<schema>/docid/<id>`.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("vespa.Store.Add: %w", err)
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("vespa: batch documents: %w", err)
 	}
@@ -212,7 +207,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 			fields := map[string]any{
 				s.idField:        id,
 				s.contentField:   doc.Text,
-				s.embeddingField: map[string]any{"values": vectorconv.Float32(vectors[i])},
+				s.embeddingField: map[string]any{"values": embedding.Float32Vector(vectors[i])},
 			}
 			for k, v := range doc.Metadata {
 				fields[k] = v
@@ -245,7 +240,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("vespa: embed query: %w", err)
 	}
-	queryVec := vectorconv.Float32(vector)
+	queryVec := embedding.Float32Vector(vector)
 
 	filterFragment, err := s.buildFilter(req.Filter)
 	if err != nil {
@@ -291,7 +286,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		}
 		// Vespa relevance for nearestNeighbor is the configured
 		// distance metric's similarity directly (cosine: [0, 1]).
-		score := scores.Bounded(*hit.Relevance)
+		score := vectorstore.NormalizeScore(*hit.Relevance)
 		if score < req.MinScore {
 			continue
 		}

@@ -1,5 +1,5 @@
-github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81 h1:pfk2YohXURWI1oZiEhkSsS+K0tH0PM/iksWsoYx9Zo8=
-github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
+github.com/Tangerg/lynx v0.0.0-20260803042836-a9bc83188d16 h1:/OG7vb/kH2LtxbvFgXJ1SAVXOfKHGiHEmm/kk+2SCro=
+github.com/Tangerg/lynx v0.0.0-20260803042836-a9bc83188d16/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
 github.com/aws/aws-sdk-go-v2 v1.43.2 h1:cl+IXwWb3qazClUcm08tGSsB6OiuV83JVJO9B0jQcPc=
 github.com/aws/aws-sdk-go-v2 v1.43.2/go.mod h1:WEzLKBh/mEjXvx1FtQMWgSxMSTVqxQzjkRtk5fa3wkg=
 github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.33 h1:HAp1wLFZzch054uh3FK7rcVYg4v7J2FxVf3h3IGNZas=

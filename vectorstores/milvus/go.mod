@@ -5,7 +5,7 @@ go 1.26.5
 require github.com/milvus-io/milvus/client/v2 v2.6.5
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81
+	github.com/Tangerg/lynx v0.0.0-20260803042836-a9bc83188d16
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect

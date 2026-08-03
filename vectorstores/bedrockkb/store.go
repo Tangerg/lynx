@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
 )
 
 const Provider = "BedrockKnowledgeBase"
@@ -154,7 +153,7 @@ func toMatch(r types.KnowledgeBaseRetrievalResult) (vectorstore.Match, error) {
 	if r.Score == nil {
 		return vectorstore.Match{}, errors.New("bedrockkb: retrieval result is missing score")
 	}
-	score := scores.Bounded(*r.Score)
+	score := vectorstore.NormalizeScore(*r.Score)
 	if r.Content != nil && r.Content.Text != nil {
 		doc.Text = *r.Content.Text
 	}

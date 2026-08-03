@@ -15,10 +15,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const (
@@ -209,7 +205,7 @@ func (s *Store) buildUpsertPoints(ctx context.Context, docs []*document.Document
 		Wait:           new(true),
 	}
 
-	batchedDocs, err := batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err := vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return nil, fmt.Errorf("qdrant: batch documents: %w", err)
 	}
@@ -241,7 +237,7 @@ func (s *Store) buildPointStruct(doc *document.Document, vector []float64) (*qdr
 
 	point := &qdrant.PointStruct{
 		Id:      id,
-		Vectors: qdrant.NewVectors(vectorconv.Float32(vector)...),
+		Vectors: qdrant.NewVectors(embedding.Float32Vector(vector)...),
 	}
 
 	metadataValues, err := doc.Metadata.Values()
@@ -264,7 +260,7 @@ func (s *Store) buildPointStruct(doc *document.Document, vector []float64) (*qdr
 }
 
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("qdrant.Store.Add: %w", err)
 	}
 	for _, doc := range docs {
@@ -312,7 +308,7 @@ func (s *Store) buildQueryPoints(ctx context.Context, req vectorstore.SearchRequ
 		return nil, fmt.Errorf("qdrant: embed query: %w", err)
 	}
 
-	queryPoints.Query = qdrant.NewQuery(vectorconv.Float32(vector)...)
+	queryPoints.Query = qdrant.NewQuery(embedding.Float32Vector(vector)...)
 
 	return queryPoints, nil
 }
@@ -520,13 +516,13 @@ func (m DistanceMetric) qdrant() (qdrant.Distance, error) {
 func (s *Store) normalizeScore(raw float64) float64 {
 	switch s.distanceMetric {
 	case DistanceDot:
-		return scores.InnerProduct(raw)
+		return vectorstore.NormalizeInnerProduct(raw)
 	case DistanceEuclid, DistanceManhattan:
-		return scores.Distance(raw)
+		return vectorstore.NormalizeDistance(raw)
 	case DistanceCosine:
 		fallthrough
 	default:
-		return scores.CosineSimilarity(raw)
+		return vectorstore.NormalizeCosineSimilarity(raw)
 	}
 }
 

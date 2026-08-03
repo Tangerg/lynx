@@ -16,9 +16,6 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
 )
 
 const (
@@ -122,12 +119,12 @@ func NewStore(config StoreConfig) (*Store, error) {
 // service performs its own embedding internally, so no embedding
 // client is required here.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("vectara.Store.Add: %w", err)
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("vectara: batch documents: %w", err)
 	}
@@ -210,7 +207,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		if hit.Score == nil {
 			return nil, errors.New("vectara: search result is missing score")
 		}
-		score := scores.Bounded(*hit.Score)
+		score := vectorstore.NormalizeScore(*hit.Score)
 		if score < req.MinScore {
 			continue
 		}

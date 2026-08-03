@@ -18,10 +18,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 // SimilarityMetric records the metric configured on the existing Azure AI
@@ -192,12 +188,12 @@ func NewStore(config StoreConfig) (*Store, error) {
 // Add embeds documents and uploads them via the
 // /indexes/<index>/docs/index endpoint.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("azureaisearch.Store.Add: %w", err)
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("azureaisearch: batch documents: %w", err)
 	}
@@ -219,7 +215,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 				"@search.action": "mergeOrUpload",
 				s.idField:        id,
 				s.contentField:   doc.Text,
-				s.embeddingField: vectorconv.Float32(vectors[i]),
+				s.embeddingField: embedding.Float32Vector(vectors[i]),
 			}
 			// Top-level metadata fields — caller is responsible for
 			// having declared them in the index schema.
@@ -257,7 +253,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("azureaisearch: embed query: %w", err)
 	}
-	queryVec := vectorconv.Float32(vector)
+	queryVec := embedding.Float32Vector(vector)
 
 	filterStr, err := s.buildFilter(req.Filter)
 	if err != nil {
@@ -444,12 +440,12 @@ func (s *Store) normalizeScore(raw float64) float64 {
 	case SimilarityCosine:
 		// Azure emits 1/(1+cosine_distance). Recover cosine similarity,
 		// then apply Lynx's [-1,1] to [0,1] normalization.
-		return scores.CosineSimilarity(2 - 1/raw)
+		return vectorstore.NormalizeCosineSimilarity(2 - 1/raw)
 	case SimilarityDot, SimilarityEuclidean:
 		// Azure documents both native vector scores as [0,1].
-		return scores.Bounded(raw)
+		return vectorstore.NormalizeScore(raw)
 	default:
-		return scores.Bounded(raw)
+		return vectorstore.NormalizeScore(raw)
 	}
 }
 

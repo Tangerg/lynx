@@ -20,10 +20,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const (
@@ -205,7 +201,7 @@ func (s *Store) buildObjects(docs []*document.Document, vectors [][]float64) ([]
 		obj := &models.Object{
 			Class:  s.className,
 			ID:     strfmt.UUID(doc.ID),
-			Vector: models.C11yVector(vectorconv.Float32(vectors[i])),
+			Vector: models.C11yVector(embedding.Float32Vector(vectors[i])),
 			Properties: map[string]any{
 				fieldContent:  doc.Text,
 				fieldMetadata: string(metaBytes),
@@ -218,7 +214,7 @@ func (s *Store) buildObjects(docs []*document.Document, vectors [][]float64) ([]
 }
 
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("weaviate.Store.Add: %w", err)
 	}
 	for i, doc := range docs {
@@ -228,7 +224,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("weaviate: batch documents: %w", err)
 	}
@@ -266,7 +262,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 
 func (s *Store) buildNearVector(vector []float64, minScore float64) *graphql.NearVectorArgumentBuilder {
 	builder := s.client.GraphQL().NearVectorArgBuilder().
-		WithVector(models.C11yVector(vectorconv.Float32(vector)))
+		WithVector(models.C11yVector(embedding.Float32Vector(vector)))
 
 	// WithCertainty is the minimum similarity threshold, only valid for cosine distance.
 	if minScore > 0 && s.distanceMetric == DistanceCosine {
@@ -411,13 +407,13 @@ func (s *Store) buildDocumentsFromResult(
 func (s *Store) normalizeDistance(distance float64) float64 {
 	switch s.distanceMetric {
 	case DistanceCosine:
-		return scores.CosineDistance(distance)
+		return vectorstore.NormalizeCosineDistance(distance)
 	case DistanceDot:
-		return scores.NegativeInnerProductDistance(distance)
+		return vectorstore.NormalizeNegativeInnerProductDistance(distance)
 	case DistanceL2Squared, DistanceHamming, DistanceManhattan:
-		return scores.Distance(distance)
+		return vectorstore.NormalizeDistance(distance)
 	default:
-		return scores.Bounded(distance)
+		return vectorstore.NormalizeScore(distance)
 	}
 }
 

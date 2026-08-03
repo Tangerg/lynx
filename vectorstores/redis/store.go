@@ -19,10 +19,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const Provider = "Redis"
@@ -403,26 +399,26 @@ func searchFieldType(t MetadataFieldType) goredis.SearchFieldType {
 func (s *Store) distanceToScore(distance float64) float64 {
 	switch s.distanceMetric {
 	case DistanceL2:
-		return scores.Distance(distance)
+		return vectorstore.NormalizeDistance(distance)
 	case DistanceIP:
 		// Redis defines IP distance as 1-dot-product.
-		return scores.OneMinusInnerProductDistance(distance)
+		return vectorstore.NormalizeOneMinusInnerProductDistance(distance)
 	case DistanceCosine:
 		fallthrough
 	default:
-		return scores.CosineDistance(distance)
+		return vectorstore.NormalizeCosineDistance(distance)
 	}
 }
 
 // Add embeds documents and writes them as Redis HASHes keyed by
 // `<KeyPrefix><id>`.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("redis.Store.Add: %w", err)
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("redis: batch documents: %w", err)
 	}
@@ -442,7 +438,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 			}
 			fields := map[string]any{
 				s.contentField:   doc.Text,
-				s.embeddingField: float32sToBytes(vectorconv.Float32(vectors[i])),
+				s.embeddingField: float32sToBytes(embedding.Float32Vector(vectors[i])),
 			}
 			for k, v := range metadataValues {
 				fields[k] = formatMetadataValue(v)
@@ -475,7 +471,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("redis: embed query: %w", err)
 	}
-	queryVec := float32sToBytes(vectorconv.Float32(vector))
+	queryVec := float32sToBytes(embedding.Float32Vector(vector))
 
 	filterQuery, err := s.buildFilterQuery(req.Filter)
 	if err != nil {

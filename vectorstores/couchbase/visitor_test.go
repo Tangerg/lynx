@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/storetest"
 	"github.com/Tangerg/lynx/vectorstores/couchbase"
+	"github.com/Tangerg/lynx/vectorstores/storetest"
 )
 
 // TestVisitor_Conformance exercises every AST shape the filter DSL

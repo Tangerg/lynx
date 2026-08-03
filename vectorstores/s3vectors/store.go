@@ -17,10 +17,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const Provider = "S3Vectors"
@@ -135,12 +131,12 @@ func NewStore(config StoreConfig) (*Store, error) {
 // PutVectors batch at 500 vectors, so the document batcher should
 // produce shards smaller than that.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("s3vectors.Store.Add: %w", err)
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("s3vectors: batch documents: %w", err)
 	}
@@ -169,7 +165,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 
 			records = append(records, types.PutInputVector{
 				Key:      aws.String(id),
-				Data:     &types.VectorDataMemberFloat32{Value: vectorconv.Float32(vectors[i])},
+				Data:     &types.VectorDataMemberFloat32{Value: embedding.Float32Vector(vectors[i])},
 				Metadata: s3vdoc.NewLazyDocument(meta),
 			})
 		}
@@ -202,7 +198,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("s3vectors: embed query: %w", err)
 	}
-	queryVec := vectorconv.Float32(vector)
+	queryVec := embedding.Float32Vector(vector)
 
 	input := &s3vectors.QueryVectorsInput{
 		VectorBucketName: aws.String(s.vectorBucketName),
@@ -351,11 +347,11 @@ func (s *Store) toMatch(hit types.QueryOutputVector, minScore float64) (*vectors
 func (s *Store) distanceToScore(distance float64) float64 {
 	switch s.distanceMetric {
 	case DistanceEuclidean:
-		return scores.Distance(distance)
+		return vectorstore.NormalizeDistance(distance)
 	case DistanceCosine:
 		fallthrough
 	default:
-		return scores.CosineDistance(distance)
+		return vectorstore.NormalizeCosineDistance(distance)
 	}
 }
 

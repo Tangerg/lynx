@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/filtercompile"
 )
 
 type evaluator struct {
@@ -59,7 +58,7 @@ func (e *evaluator) eval(expr filter.Expr) (any, error) {
 }
 
 func (e *evaluator) literalValue(lit *filter.Literal) (any, error) {
-	value, err := filtercompile.LiteralToValue(lit)
+	value, err := filter.LiteralToValue(lit)
 	if err != nil {
 		return nil, fmt.Errorf("inmemory.evaluator: decode literal: %w", err)
 	}

@@ -15,11 +15,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/ident"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const Provider = "AzureCosmosDB"
@@ -92,7 +87,7 @@ func (c StoreConfig) Validate() error {
 	default:
 		return fmt.Errorf("azurecosmos: unsupported DistanceFunction %q", c.DistanceFunction)
 	}
-	return ident.Check("azurecosmos", map[string]string{
+	return validateIdentifiers("azurecosmos", map[string]string{
 		"IDField":        c.IDField,
 		"ContentField":   c.ContentField,
 		"MetadataField":  c.MetadataField,
@@ -157,12 +152,12 @@ func NewStore(config StoreConfig) (*Store, error) {
 
 // Add embeds documents and upserts them.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("azurecosmos.Store.Add: %w", err)
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("azurecosmos: batch documents: %w", err)
 	}
@@ -183,7 +178,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 				s.idField:        id,
 				s.contentField:   doc.Text,
 				s.metadataField:  metaOrEmpty(metadataValues),
-				s.embeddingField: vectorconv.Float32(vectors[i]),
+				s.embeddingField: embedding.Float32Vector(vectors[i]),
 			}
 			body, err := json.Marshal(payload)
 			if err != nil {
@@ -214,7 +209,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("azurecosmos: embed query: %w", err)
 	}
-	queryVec := vectorconv.Float32(vector)
+	queryVec := embedding.Float32Vector(vector)
 
 	wherePredicate, params, err := s.buildFilter(req.Filter)
 	if err != nil {
@@ -364,13 +359,13 @@ func (s *Store) decodeRow(raw json.RawMessage, minScore float64) (*vectorstore.M
 func (s *Store) normalizeScore(raw float64) float64 {
 	switch s.distanceFunc {
 	case DistanceEuclidean:
-		return scores.Distance(raw)
+		return vectorstore.NormalizeDistance(raw)
 	case DistanceDotProduct:
-		return scores.InnerProduct(raw)
+		return vectorstore.NormalizeInnerProduct(raw)
 	case DistanceCosine:
 		fallthrough
 	default:
-		return scores.CosineSimilarity(raw)
+		return vectorstore.NormalizeCosineSimilarity(raw)
 	}
 }
 

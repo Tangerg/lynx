@@ -15,11 +15,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/ident"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const Provider = "Couchbase"
@@ -134,7 +129,7 @@ func (c StoreConfig) Validate() error {
 	default:
 		return fmt.Errorf("couchbase: unsupported IndexOptimization %q", c.IndexOptimization)
 	}
-	return ident.CheckWithDash("couchbase", map[string]string{
+	return validateIdentifiersWithDash("couchbase", map[string]string{
 		"BucketName":      c.BucketName,
 		"ScopeName":       c.ScopeName,
 		"CollectionName":  c.CollectionName,
@@ -324,12 +319,12 @@ func (s *Store) upsertSearchIndex() error {
 
 // Add embeds documents and upserts them by id.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("couchbase.Store.Add: %w", err)
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("couchbase: batch documents: %w", err)
 	}
@@ -350,7 +345,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 				idField:        id,
 				contentField:   doc.Text,
 				metadataField:  metaOrEmpty(metadataValues),
-				embeddingField: vectorconv.Float32(vectors[i]),
+				embeddingField: embedding.Float32Vector(vectors[i]),
 			}
 			if _, err := s.collection.Upsert(id, payload, &gocb.UpsertOptions{Context: ctx}); err != nil {
 				return fmt.Errorf("couchbase: upsert %s: %w", id, err)
@@ -377,7 +372,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("couchbase: embed query: %w", err)
 	}
-	queryVec := vectorconv.Float32(vector)
+	queryVec := embedding.Float32Vector(vector)
 	vectorJSON, err := json.Marshal(queryVec)
 	if err != nil {
 		return nil, fmt.Errorf("couchbase: encode query vector: %w", err)
@@ -427,7 +422,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		if !ok {
 			return nil, fmt.Errorf("couchbase: result is missing numeric %s", resultScoreField)
 		}
-		score := scores.Bounded(rawScore)
+		score := vectorstore.NormalizeScore(rawScore)
 		if score < req.MinScore {
 			continue
 		}

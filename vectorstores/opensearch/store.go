@@ -17,10 +17,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const Provider = "OpenSearch"
@@ -324,12 +320,12 @@ func (s *Store) createIndex(ctx context.Context) error {
 
 // Add embeds documents and bulk-indexes them.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("opensearch.Store.Add: %w", err)
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("opensearch: batch documents: %w", err)
 	}
@@ -353,7 +349,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 
 			docBody := map[string]any{
 				s.contentField:   doc.Text,
-				s.embeddingField: vectorconv.Float32(vectors[i]),
+				s.embeddingField: embedding.Float32Vector(vectors[i]),
 			}
 			if s.metadataField != "" {
 				docBody[s.metadataField] = doc.Metadata
@@ -417,7 +413,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("opensearch: embed query: %w", err)
 	}
-	queryVec := vectorconv.Float32(vector)
+	queryVec := embedding.Float32Vector(vector)
 
 	knnQuery := map[string]any{
 		s.embeddingField: map[string]any{
@@ -472,7 +468,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 func (s *Store) normalizeScore(raw float64) float64 {
 	if s.spaceType != SpaceTypeIP {
 		// OpenSearch already maps cosine and distance spaces to [0,1].
-		return scores.Bounded(raw)
+		return vectorstore.NormalizeScore(raw)
 	}
 
 	// For every supported engine, inner-product scores above 1 encode a
@@ -485,9 +481,9 @@ func (s *Store) normalizeScore(raw float64) float64 {
 	} else if raw > 0 {
 		product = 1 - 1/raw
 	} else {
-		return scores.Bounded(raw)
+		return vectorstore.NormalizeScore(raw)
 	}
-	return scores.InnerProduct(product)
+	return vectorstore.NormalizeInnerProduct(product)
 }
 
 // Delete removes documents matching the filter expression via

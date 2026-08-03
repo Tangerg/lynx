@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into Typesense `filter_by`
@@ -90,7 +89,7 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	if err != nil {
 		return err
 	}
-	value, err := filtercompile.ExtractValue(expr.Right)
+	value, err := filter.ExtractValue(expr.Right)
 	if err != nil {
 		return err
 	}
@@ -160,7 +159,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	if err != nil {
 		return err
 	}
-	value, err := filtercompile.ExtractValue(expr.Right)
+	value, err := filter.ExtractValue(expr.Right)
 	if err != nil {
 		return err
 	}
@@ -192,7 +191,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 
 	parts := make([]string, 0, len(listLit.Values))
 	for _, lit := range listLit.Values {
-		val, err := filtercompile.LiteralToValue(lit)
+		val, err := filter.LiteralToValue(lit)
 		if err != nil {
 			return err
 		}
@@ -206,7 +205,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) fieldPath(expr filter.Expr) (string, error) {
-	keys, err := filtercompile.CollectKeyPath(expr)
+	keys, err := filter.CollectKeyPath(expr)
 	if err != nil {
 		return "", err
 	}

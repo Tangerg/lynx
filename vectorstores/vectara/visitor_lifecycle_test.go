@@ -3,7 +3,7 @@ package vectara_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/internal/vectorstorekit/storetest"
+	"github.com/Tangerg/lynx/vectorstores/storetest"
 	"github.com/Tangerg/lynx/vectorstores/vectara"
 )
 

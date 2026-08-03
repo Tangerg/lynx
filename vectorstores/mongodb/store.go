@@ -16,10 +16,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const Provider = "MongoDB"
@@ -260,12 +256,12 @@ func (s *Store) createSearchIndex(ctx context.Context) error {
 
 // Add embeds documents and bulk-upserts them by _id.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("mongodb.Store.Add: %w", err)
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("mongodb: batch documents: %w", err)
 	}
@@ -287,7 +283,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 			payload := bson.M{
 				defaultIDField:  id,
 				s.contentField:  doc.Text,
-				s.embeddingPath: vectorconv.Float32(vectors[i]),
+				s.embeddingPath: embedding.Float32Vector(vectors[i]),
 			}
 			if s.metadataField != "" {
 				meta := metadataValues
@@ -333,7 +329,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("mongodb: embed query: %w", err)
 	}
-	queryVec := vectorconv.Float32(vector)
+	queryVec := embedding.Float32Vector(vector)
 
 	vectorSearch := bson.M{
 		"index":         s.vectorIndexName,
@@ -458,7 +454,7 @@ func (s *Store) toMatch(raw bson.M) (vectorstore.Match, error) {
 	default:
 		return vectorstore.Match{}, fmt.Errorf("mongodb: result score has type %T, want number", raw[scoreField])
 	}
-	score := scores.Bounded(rawScore)
+	score := vectorstore.NormalizeScore(rawScore)
 
 	if s.metadataField != "" {
 		switch meta := raw[s.metadataField].(type) {

@@ -3,11 +3,11 @@ package neo4j
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/internal/vectorstorekit/conformance"
+	"github.com/Tangerg/lynx/vectorstores/storetest"
 )
 
 func TestStoreConformance(t *testing.T) {
-	conformance.Run(t, new(Store), conformance.Capabilities{
+	storetest.Run(t, new(Store), storetest.Capabilities{
 		Indexer: true, Searcher: true, IDDeleter: true, FilterDeleter: true,
 	})
 }

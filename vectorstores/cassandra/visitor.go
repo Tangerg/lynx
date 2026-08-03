@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into a CQL WHERE
@@ -101,7 +100,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	if err != nil {
 		return fmt.Errorf("cassandra: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filtercompile.ExtractValue(expr.Right)
+	value, err := filter.ExtractValue(expr.Right)
 	if err != nil {
 		return fmt.Errorf("cassandra: %w (at %s)", err, expr.Start().String())
 	}
@@ -162,7 +161,7 @@ func columnName(expr filter.Expr) (string, error) {
 // listToTypedSlice promotes the literal list to a Go slice typed by
 // the first element. gocql binds typed slices to `IN ?` parameters.
 func listToTypedSlice(list *filter.ListLiteral) (any, error) {
-	values, _, err := filtercompile.ConvertListLiteral(list)
+	values, _, err := filter.ConvertListLiteral(list)
 	return values, err
 }
 

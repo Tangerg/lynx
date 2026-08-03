@@ -9,7 +9,6 @@ import (
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/filtercompile"
 )
 
 // Visitor compiles Lynx filter expressions into Weaviate where filters.
@@ -130,7 +129,7 @@ func compileLogical(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
 }
 
 func compileComparison(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
-	path, err := filtercompile.CollectKeyPath(expr.Left)
+	path, err := filter.CollectKeyPath(expr.Left)
 	if err != nil {
 		return nil, fmt.Errorf("weaviate.filter: left operand of %s: %w", expr.Op, err)
 	}
@@ -190,7 +189,7 @@ func scalarFilter(
 		}
 		return builder.WithValueBoolean(value), nil
 	case literal.IsNumber():
-		value, err := filtercompile.LiteralToValue(literal)
+		value, err := filter.LiteralToValue(literal)
 		if err != nil {
 			return nil, fmt.Errorf("weaviate.filter: number literal: %w", err)
 		}
@@ -213,15 +212,15 @@ func scalarFilter(
 }
 
 func compileIn(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
-	path, err := filtercompile.CollectKeyPath(expr.Left)
+	path, err := filter.CollectKeyPath(expr.Left)
 	if err != nil {
 		return nil, fmt.Errorf("weaviate.filter: left operand of IN: %w", err)
 	}
-	list, err := filtercompile.RequireListLiteral(expr)
+	list, err := filter.RequireListLiteral(expr)
 	if err != nil {
 		return nil, fmt.Errorf("weaviate.filter: %w", err)
 	}
-	if _, _, err := filtercompile.ConvertListLiteral(list); err != nil {
+	if _, _, err := filter.ConvertListLiteral(list); err != nil {
 		return nil, fmt.Errorf("weaviate.filter: IN values: %w", err)
 	}
 
@@ -239,7 +238,7 @@ func compileIn(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
 }
 
 func compileHas(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
-	path, err := filtercompile.CollectKeyPath(expr.Left)
+	path, err := filter.CollectKeyPath(expr.Left)
 	if err != nil {
 		return nil, fmt.Errorf("weaviate.filter: left operand of HAS: %w", err)
 	}
@@ -252,11 +251,11 @@ func compileHas(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
 }
 
 func compileLike(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
-	path, err := filtercompile.CollectKeyPath(expr.Left)
+	path, err := filter.CollectKeyPath(expr.Left)
 	if err != nil {
 		return nil, fmt.Errorf("weaviate.filter: left operand of LIKE: %w", err)
 	}
-	pattern, err := filtercompile.RequireStringPatternOnRight(expr)
+	pattern, err := filter.RequireStringPatternOnRight(expr)
 	if err != nil {
 		return nil, fmt.Errorf("weaviate.filter: %w", err)
 	}
@@ -281,7 +280,7 @@ func weaviateLikePattern(pattern string) (string, error) {
 }
 
 func compileNullTest(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
-	path, err := filtercompile.CollectKeyPath(expr.Left)
+	path, err := filter.CollectKeyPath(expr.Left)
 	if err != nil {
 		return nil, fmt.Errorf("weaviate.filter: left operand of IS NULL: %w", err)
 	}

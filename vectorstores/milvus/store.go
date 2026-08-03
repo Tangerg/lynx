@@ -16,10 +16,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const (
@@ -207,7 +203,7 @@ func (s *Store) buildInsertColumns(docs []*document.Document, vectors [][]float6
 
 	for i, doc := range docs {
 		ids[i] = doc.ID
-		vecs[i] = vectorconv.Float32(vectors[i])
+		vecs[i] = embedding.Float32Vector(vectors[i])
 
 		contents[i] = doc.Text
 
@@ -229,7 +225,7 @@ func (s *Store) buildInsertColumns(docs []*document.Document, vectors [][]float6
 }
 
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("milvus.Store.Add: %w", err)
 	}
 	if err := validateProviderDocuments(docs); err != nil {
@@ -237,7 +233,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("milvus: batch documents: %w", err)
 	}
@@ -336,11 +332,11 @@ func (s *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore fl
 func (s *Store) normalizeScore(raw float64) float64 {
 	switch s.metricType {
 	case entity.L2:
-		return scores.Distance(raw)
+		return vectorstore.NormalizeDistance(raw)
 	case entity.IP, entity.COSINE:
-		return scores.CosineSimilarity(raw)
+		return vectorstore.NormalizeCosineSimilarity(raw)
 	default:
-		return scores.Bounded(raw)
+		return vectorstore.NormalizeScore(raw)
 	}
 }
 
@@ -361,7 +357,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, fmt.Errorf("milvus: embed query: %w", err)
 	}
 
-	queryVec := entity.FloatVector(vectorconv.Float32(vector))
+	queryVec := entity.FloatVector(embedding.Float32Vector(vector))
 
 	searchOpt := milvusclient.NewSearchOption(s.collectionName, int(req.TopK), []entity.Vector{queryVec}).
 		WithANNSField(fieldVector).

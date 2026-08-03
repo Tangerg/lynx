@@ -8,7 +8,6 @@ import (
 	v2 "github.com/amikos-tech/chroma-go/pkg/api/v2"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into Chroma WhereClause conditions.
@@ -97,7 +96,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 
 // visitBinaryExpr routes to the correct handler based on the operator category.
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
-	return filtercompile.DispatchBinary(expr, filtercompile.BinaryHandlers{
+	return filter.DispatchBinary(expr, filter.BinaryHandlers{
 		Logical:    v.visitLogicalExpr,
 		Comparison: v.visitComparisonExpr,
 		In:         v.visitInExpr,
@@ -130,7 +129,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 // standalone logical NOT, so even the only valid unary kind (NOT)
 // is rejected with a guidance message.
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
-	return filtercompile.DispatchUnary(expr, func(*filter.UnaryExpr) error {
+	return filter.DispatchUnary(expr, func(*filter.UnaryExpr) error {
 		return errors.New("chroma: NOT operator is not supported; rewrite using != or NIN")
 	})
 }
@@ -335,7 +334,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 			expr.Start().String(), err)
 	}
 
-	listLit, err := filtercompile.RequireListLiteral(expr)
+	listLit, err := filter.RequireListLiteral(expr)
 	if err != nil {
 		return fmt.Errorf("chroma: %w", err)
 	}
@@ -385,7 +384,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 		} else {
 			floats := make([]float32, 0, len(listLit.Values))
 			for _, literal := range listLit.Values {
-				value, err := filtercompile.NumberToFloat32(literal)
+				value, err := filter.NumberToFloat32(literal)
 				if err != nil {
 					return fmt.Errorf("chroma: IN numeric value: %w", err)
 				}
@@ -482,7 +481,7 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 
 	current := expr
 	for {
-		key, err := filtercompile.LiteralAsKey(current.Index)
+		key, err := filter.LiteralAsKey(current.Index)
 		if err != nil {
 			return "", fmt.Errorf("chroma: %w", err)
 		}
@@ -506,18 +505,18 @@ func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 		return lit.AsString()
 	}
 	if lit.IsNumber() {
-		integer, err := filtercompile.NumberIsInteger(lit)
+		integer, err := filter.NumberIsInteger(lit)
 		if err != nil {
 			return nil, err
 		}
 		if integer {
-			value, err := filtercompile.NumberToInt(lit)
+			value, err := filter.NumberToInt(lit)
 			if err != nil {
 				return nil, err
 			}
 			return chromaNumber{integer: value, isInteger: true}, nil
 		}
-		value, err := filtercompile.NumberToFloat32(lit)
+		value, err := filter.NumberToFloat32(lit)
 		if err != nil {
 			return nil, err
 		}

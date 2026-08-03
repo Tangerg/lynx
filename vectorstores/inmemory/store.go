@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
 )
 
 // StoreConfig configures a [Store].
@@ -101,7 +100,7 @@ func (s *Store) Len() int {
 // assign one before calling). Existing IDs are overwritten — this
 // mirrors the upsert semantics most vendor stores expose.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("inmemory.Store.Add: %w", err)
 	}
 

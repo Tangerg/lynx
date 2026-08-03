@@ -13,10 +13,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const (
@@ -133,13 +129,13 @@ func NewStore(config StoreConfig) (*Store, error) {
 func (s *Store) normalizeScore(raw float64) float64 {
 	switch s.distanceMetric {
 	case DistanceCosine:
-		return scores.CosineSimilarity(raw)
+		return vectorstore.NormalizeCosineSimilarity(raw)
 	case DistanceDot:
-		return scores.InnerProduct(raw)
+		return vectorstore.NormalizeInnerProduct(raw)
 	case DistanceEuclidean:
-		return scores.Distance(raw)
+		return vectorstore.NormalizeDistance(raw)
 	default:
-		return scores.Bounded(raw)
+		return vectorstore.NormalizeScore(raw)
 	}
 }
 
@@ -147,7 +143,7 @@ func (s *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]
 	result := make([]*pinecone.Vector, len(docs))
 
 	for i, doc := range docs {
-		values := vectorconv.Float32(vectors[i])
+		values := embedding.Float32Vector(vectors[i])
 
 		point := &pinecone.Vector{
 			Id:     doc.ID,
@@ -177,12 +173,12 @@ func (s *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]
 }
 
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("pinecone.Store.Add: %w", err)
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("pinecone: batch documents: %w", err)
 	}
@@ -262,7 +258,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 
 	queryReq := &pinecone.QueryByVectorValuesRequest{
-		Vector:          vectorconv.Float32(vector),
+		Vector:          embedding.Float32Vector(vector),
 		TopK:            uint32(req.TopK),
 		IncludeMetadata: true,
 	}

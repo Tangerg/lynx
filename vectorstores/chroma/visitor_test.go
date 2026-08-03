@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/storetest"
 	"github.com/Tangerg/lynx/vectorstores/chroma"
+	"github.com/Tangerg/lynx/vectorstores/storetest"
 )
 
 // TestVisitor_Conformance runs the shared visitor suite. Chroma

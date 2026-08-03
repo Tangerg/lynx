@@ -15,11 +15,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/ident"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 const Provider = "Neo4j"
@@ -121,7 +116,7 @@ func (c StoreConfig) Validate() error {
 	default:
 		return fmt.Errorf("neo4j: unsupported Similarity %q", c.Similarity)
 	}
-	return ident.Check("neo4j", map[string]string{
+	return validateIdentifiers("neo4j", map[string]string{
 		"Label":             c.Label,
 		"EmbeddingProperty": c.EmbeddingProperty,
 		"IDProperty":        c.IDProperty,
@@ -256,12 +251,12 @@ func (s *Store) write(ctx context.Context, work neo4j.ManagedTransactionWork) er
 
 // Add embeds documents and upserts them as nodes.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("neo4j.Store.Add: %w", err)
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("neo4j: batch documents: %w", err)
 	}
@@ -292,7 +287,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 			rows = append(rows, map[string]any{
 				"id":         id,
 				"properties": properties,
-				"embedding":  vectorconv.Float32(vectors[i]),
+				"embedding":  embedding.Float32Vector(vectors[i]),
 			})
 		}
 
@@ -347,7 +342,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("neo4j: embed query: %w", err)
 	}
-	queryVec := vectorconv.Float32(vector)
+	queryVec := embedding.Float32Vector(vector)
 
 	wherePredicate, params, err := s.buildPredicate(req.Filter)
 	if err != nil {
@@ -420,9 +415,9 @@ func (s *Store) recordToMatch(rec *neo4j.Record) (vectorstore.Match, error) {
 	var score float64
 	switch value := rawScore.(type) {
 	case float64:
-		score = scores.Bounded(value)
+		score = vectorstore.NormalizeScore(value)
 	case float32:
-		score = scores.Bounded(float64(value))
+		score = vectorstore.NormalizeScore(float64(value))
 	default:
 		return vectorstore.Match{}, fmt.Errorf("neo4j: result score has type %T, want number", rawScore)
 	}

@@ -12,22 +12,19 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/esapi"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/batching"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/docio"
-	"github.com/Tangerg/lynx/internal/vectorstorekit/scores"
-	vectorconv "github.com/Tangerg/lynx/internal/vectorstorekit/vector"
 )
 
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := docio.ValidateDocuments(docs); err != nil {
+	if err := vectorstore.ValidateDocuments(docs); err != nil {
 		return fmt.Errorf("elasticsearch.Store.Add: %w", err)
 	}
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = batching.Batch(ctx, s.documentBatcher, docs)
+	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: batch documents: %w", err)
 	}
@@ -54,7 +51,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 
 			docBody := map[string]any{
 				s.contentField:   doc.Text,
-				s.embeddingField: vectorconv.Float32(vectors[i]),
+				s.embeddingField: embedding.Float32Vector(vectors[i]),
 			}
 			if s.metadataField != "" {
 				docBody[s.metadataField] = doc.Metadata
@@ -106,7 +103,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("elasticsearch: embed query: %w", err)
 	}
-	queryVec := vectorconv.Float32(vector)
+	queryVec := embedding.Float32Vector(vector)
 
 	knn := map[string]any{
 		"field":          s.embeddingField,
@@ -266,7 +263,7 @@ func (s *Store) buildFilterQuery(filter filter.Predicate) (string, error) {
 // score. cosine and dot_product return (1+similarity)/2; l2_norm returns
 // 1/(1+distance²). All three are in [0,1] with higher values ranked first.
 func (s *Store) normalizeScore(score float64) float64 {
-	return scores.Bounded(score)
+	return vectorstore.NormalizeScore(score)
 }
 
 func (s *Store) toDocument(hit searchHit) (*document.Document, error) {
