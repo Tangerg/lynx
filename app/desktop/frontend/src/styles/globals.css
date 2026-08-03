@@ -101,10 +101,14 @@
   --color-cta-text: var(--color-cta-text);
 
   /* Decorative line utilities stay transparent by default. Region separation is
-     structural and owned by the shell: the seam ring (`--seam-line`) between
-     drawer and card, and the chrome hairline (`--app-surface-divider`) under
-     header bars. Reach for `field` when a local control needs an editable edge —
-     never for laying out regions. */
+     structural and owned by the shell, and under this style it is never a line:
+     three directional casts (`--app-card-edge` in from the drawer seam,
+     `--app-pane-split` across a pane split, `--app-header-cast` down off a chrome
+     bar) plus `--seam-line` for a floating panel, which has no value delta to lean
+     on. The hairline mechanism (`--app-surface-divider`) stays wired and
+     transparent — it is how a FLAT visual style would answer the same three seams.
+     Reach for `field` when a local control needs an editable edge — never for
+     laying out regions. */
   --color-line: transparent;
   --color-line-soft: transparent;
   --color-divider: transparent;
@@ -678,6 +682,7 @@
   --app-card-edge: inset 11px 0 24px -10px;
   --app-pane-split: -7px 0 22px -10px;
   --app-pane-split-end: 7px 0 22px -10px;
+  --app-header-cast: 0 7px 22px -10px;
   --seam-line: color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%);
   /* What a boundary deepens to while it is being dragged. Both drag handles read
      it, so "the drawer seam and the dock split are the same gesture" is one value
@@ -1261,29 +1266,28 @@ html.theme-dark {
   padding-inline-end: 12px;
 }
 
-/* Bottom hairline for every chrome bar. Painted as a 1px background gradient,
-   NOT a border and NOT a positioned pseudo-element: a border bleeds into the
-   seam corner, and an absolute line would force the header to become a
-   containing block (its toolbars rely on their own portals/stacking). A
-   gradient is layout-neutral and can be shortened on one side. */
+/* The bottom edge of a chrome bar — the third of the three seams around a
+   reading plane, and the same mechanism as the other two: the style says what
+   shape the edge takes, the element names how strong it is.
+   `--app-header-cast` makes it a downward cast, the way anything resting on a
+   surface separates from it; a flat style would spell the same token as a hairline
+   (`inset 0 -1px 0 0`) and every bar would follow without being edited.
+   Which bars take it is the `divider` prop: a bar that already butts against
+   another region opts out, so the drawer header and the settings bar have no edge
+   while the page identity, the dock's tab strip and the review navigator do.
+
+   The hairline below is the older half of the same idea, kept because
+   `--app-surface-divider` is a declared visual-style token; under this style it is
+   transparent, so it paints nothing. Painted as a 1px background gradient and NOT
+   a border or a positioned pseudo-element: a border bleeds into the seam corner,
+   and an absolute line would force the bar to become a containing block (its
+   toolbars rely on their own portals/stacking). */
 .agent-surface-divider {
+  box-shadow: var(--app-header-cast) var(--shadow-cast);
   background-image: linear-gradient(var(--app-surface-divider), var(--app-surface-divider));
   background-repeat: no-repeat;
   background-position: left bottom;
   background-size: 100% 1px;
-}
-
-/* The bar that names what you are looking at is the one place a line earns its
-   pixel. Everything else in the region model separates by material and cast —
-   but this bar sits ON the reading plane, in the plane's own colour, with the
-   transcript scrolling right up under it: with no edge the first line of a
-   message and the session's title share one field of white. A rule the length of
-   the pane says where the page stops and the document starts.
-
-   Set on the existing hairline mechanism rather than a border of its own, so the
-   seam-corner and drawer-collapse rules below keep applying to it. */
-.agent-page-identity {
-  --app-surface-divider: var(--color-border);
 }
 
 /* Inside the rounded card the horizontal hairline meets the vertical seam

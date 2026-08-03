@@ -206,6 +206,53 @@ test("long content remains inside the reading column without horizontal overflow
   await expect(page.locator('[data-slot="composer-root"]')).toBeVisible();
 });
 
+// The three seams around the reading plane are one mechanism at three angles, and
+// the top one is the easy one to lose: it is a soft 19px band, so the raster
+// comparison can pass on its absence, and the bars sit in their region's own colour
+// with the body scrolling under them — with no seam the session title and the first
+// line of a message share one field of white.
+// Asserted on the MECHANISM, not on one bar: the cast used to hang off a bespoke
+// class, which is why the page identity got an edge and the dock's tab strip — the
+// bar right beside it, in the same visual row — got none.
+test("every chrome bar that takes a bottom edge separates by cast, not by a rule", async ({
+  page,
+}) => {
+  await page.goto("/visual/?fixture=workspace&theme=light&state=dock-light");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  const measured = await page.evaluate(() => {
+    // Resolve the expected value THROUGH the engine rather than composing the two
+    // token strings: computed `box-shadow` is normalised (`rgba(0, 0, 0, 0.2)`,
+    // `0px`) and the tokens are not, so a string built here would only ever assert
+    // that this test can reproduce Chromium's serialiser.
+    const probe = document.createElement("div");
+    probe.style.boxShadow = "var(--app-header-cast) var(--shadow-cast)";
+    document.body.append(probe);
+    const cast = getComputedStyle(probe).boxShadow;
+    probe.remove();
+    const bars = [...document.querySelectorAll(".agent-surface-header")];
+    return {
+      cast,
+      withEdge: bars
+        .filter((bar) => bar.classList.contains("agent-surface-divider"))
+        .map((bar) => getComputedStyle(bar).boxShadow),
+      withoutEdge: bars
+        .filter((bar) => !bar.classList.contains("agent-surface-divider"))
+        .map((bar) => getComputedStyle(bar).boxShadow),
+      divider: getComputedStyle(document.documentElement)
+        .getPropertyValue("--app-surface-divider")
+        .trim(),
+    };
+  });
+
+  expect(measured.withEdge.length).toBeGreaterThanOrEqual(2);
+  for (const shadow of measured.withEdge) expect(shadow).toBe(measured.cast);
+  // A bar that already butts against another region takes nothing.
+  for (const shadow of measured.withoutEdge) expect(shadow).toBe("none");
+  // And not two answers to one boundary — the hairline half stays transparent.
+  expect(measured.divider).toBe("transparent");
+});
+
 // The composer floats over the transcript, so the transcript has to end above it.
 // Nothing else can catch this: the tail is only reachable at full scroll, the
 // overlap looks plausible on a fixture that fits its viewport, and the reservation

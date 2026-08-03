@@ -151,7 +151,7 @@ export function ChatPanel({ onSend }: Props) {
       ) : (
         <div className="flex min-h-0 flex-1" style={dockWidthRow(dockWidth)}>
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-            <AgentSurfaceHeader windowCorner className="agent-page-identity">
+            <AgentSurfaceHeader windowCorner>
               {/* Where, then what. The workspace name is the quieter half on
                   purpose: it changes rarely and only has to confirm the session
                   you are reading belongs to the checkout you think it does. */}

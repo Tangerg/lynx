@@ -38,6 +38,7 @@ type VisualStyleTokenName =
   | "app-card-edge"
   | "app-pane-split"
   | "app-pane-split-end"
+  | "app-header-cast"
   | "seam-line"
   | "shadow-border"
   | "shadow-control"
@@ -122,6 +123,11 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // A pane that splits the region it lives in casts across the split instead.
   "app-pane-split": "-7px 0 22px -10px",
   "app-pane-split-end": "7px 0 22px -10px",
+  // The same cast, rotated: a bar that sits on the plane with the document
+  // scrolling under it separates downward. Same triple as the pane split, so the
+  // three seams around the reading plane are one mechanism at three angles rather
+  // than two casts and a rule.
+  "app-header-cast": "0 7px 22px -10px",
   // Reserved for the one place an optical ring still earns its pixel: a floating
   // panel, which has no value delta to lean on because it can land over anything.
   "seam-line": "color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%)",
