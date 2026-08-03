@@ -70,6 +70,8 @@ func TestShellContractRejectsRemovedArguments(t *testing.T) {
 	for _, arguments := range []string{
 		`{"command":"true","description":"Run true"}`,
 		`{"command":"true","timeout":1000}`,
+		`{"command":"true","timeout_ms":0}`,
+		`{"command":"true","run_in_background":true,"auto_background_after_seconds":1}`,
 	} {
 		if _, err := shell.Call(t.Context(), arguments); err == nil {
 			t.Fatalf("shell accepted removed arguments: %s", arguments)
@@ -77,6 +79,9 @@ func TestShellContractRejectsRemovedArguments(t *testing.T) {
 	}
 	if _, err := output.Call(t.Context(), `{"shell_id":"bg_1","block":true}`); err == nil {
 		t.Fatal("read_shell_output accepted removed block argument")
+	}
+	if _, err := output.Call(t.Context(), `{"shell_id":"bg_1","timeout_ms":1000}`); err == nil {
+		t.Fatal("read_shell_output accepted timeout_ms without wait=true")
 	}
 }
 

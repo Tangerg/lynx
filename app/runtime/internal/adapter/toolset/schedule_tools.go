@@ -15,9 +15,9 @@ import (
 type createScheduleArgs struct {
 	Title        string `json:"title,omitempty" jsonschema_description:"Optional concise name for this recurring automation."`
 	Instructions string `json:"instructions" jsonschema:"minLength=1" jsonschema_description:"Complete self-contained instructions for each scheduled Agent Run."`
-	Workdir      string `json:"workdir,omitempty" jsonschema_description:"Workspace directory for each Run. Omit to use the Runtime default."`
-	Provider     string `json:"provider,omitempty" jsonschema_description:"Model provider id. Set together with model; omit both to use the Runtime default."`
-	Model        string `json:"model,omitempty" jsonschema_description:"Model id. Set together with provider; omit both to use the Runtime default."`
+	Workdir      string `json:"workdir,omitempty" jsonschema_description:"Workspace directory for each Run. Omit to use the configured default."`
+	Provider     string `json:"provider,omitempty" jsonschema_description:"Model provider id. Set together with model only when the user explicitly chose both; otherwise omit both."`
+	Model        string `json:"model,omitempty" jsonschema_description:"Model id. Set together with provider only when the user explicitly chose both; otherwise omit both."`
 	Cron         string `json:"cron" jsonschema:"minLength=1" jsonschema_description:"Five-field cron expression: minute hour day-of-month month day-of-week."`
 }
 

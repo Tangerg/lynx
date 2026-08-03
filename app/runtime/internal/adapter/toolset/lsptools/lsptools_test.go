@@ -78,4 +78,14 @@ func TestLSPToolValidation(t *testing.T) {
 	if _, err := lsp.Call(context.Background(), `{"operation":"diagnostics","file_path":"notes.txt"}`); err == nil {
 		t.Error("obsolete file_path field must be rejected")
 	}
+	for _, arguments := range []string{
+		`{"operation":"definition","path":"notes.txt","line":1,"character":1,"query":"unused"}`,
+		`{"operation":"diagnostics","path":"notes.txt","line":1}`,
+		`{"operation":"document_symbols","path":"notes.txt","query":"unused"}`,
+		`{"operation":"workspace_symbols","query":"Thing","path":"notes.txt"}`,
+	} {
+		if _, err := lsp.Call(context.Background(), arguments); err == nil {
+			t.Errorf("lsp accepted fields ignored by the selected operation: %s", arguments)
+		}
+	}
 }

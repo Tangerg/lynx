@@ -22,6 +22,17 @@ func TestAskUser_Validation(t *testing.T) {
 	if _, err := tool.Call(context.Background(), `{"questions":[]}`); err == nil {
 		t.Error("empty questions must error")
 	}
+	for _, arguments := range []string{
+		`{"questions":[{"question":""}]}`,
+		`{"questions":[{"question":"Choose","header":"1234567890123"}]}`,
+		`{"questions":[{"question":"Choose","options":[{"label":"one"}]}]}`,
+		`{"questions":[{"question":"Choose","options":[{"label":""},{"label":"two"}]}]}`,
+		`{"questions":[{"question":"Choose","multi_select":true}]}`,
+	} {
+		if _, err := tool.Call(context.Background(), arguments); err == nil {
+			t.Errorf("arguments outside the ask_user contract must error: %s", arguments)
+		}
+	}
 }
 
 func TestAskUserKeepsOptionsOpenToARealUserAnswer(t *testing.T) {

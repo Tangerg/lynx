@@ -58,8 +58,8 @@ type createBudget struct {
 type getArgs struct{}
 
 type reportArgs struct {
-	Outcome string `json:"outcome" jsonschema:"required,enum=completed,enum=blocked" jsonschema_description:"completed = the whole objective is achieved and verified; blocked = progress requires the user or an external state change."`
-	Reason  string `json:"reason,omitempty" jsonschema_description:"Concrete blocker and what must change. Required for blocked; omit for completed."`
+	Outcome string  `json:"outcome" jsonschema:"required,enum=completed,enum=blocked" jsonschema_description:"completed = the whole objective is achieved and verified; blocked = progress requires the user or an external state change."`
+	Reason  *string `json:"reason,omitempty" jsonschema_description:"Concrete blocker and what must change. Required for blocked; omit for completed."`
 }
 
 // Reader is get_goal's complete consumer view.
@@ -188,9 +188,9 @@ func (t *createTool) create(ctx context.Context, args createArgs) (goalResult, e
 		case errors.Is(err, goals.ErrNoSession):
 			return goalResult{Message: "The current session no longer exists; no Goal was created."}, nil
 		case errors.Is(err, goals.ErrUnavailable):
-			return goalResult{Message: "Autonomous Goals are unavailable in this runtime."}, nil
+			return goalResult{Message: "Autonomous Goals are unavailable."}, nil
 		case errors.Is(err, goals.ErrClosed):
-			return goalResult{Message: "The runtime is shutting down; no Goal was created."}, nil
+			return goalResult{Message: "The service is shutting down; no Goal was created."}, nil
 		case errors.Is(err, goals.ErrGoalConflict):
 			return goalResult{Message: "The Goal changed concurrently. Inspect the current state with get_goal before retrying."}, nil
 		default:
@@ -229,10 +229,14 @@ func (t *reportTool) report(ctx context.Context, args reportArgs) (string, error
 	reason := ""
 	if args.Outcome == "blocked" {
 		status = goal.StatusBlocked
-		reason = strings.TrimSpace(args.Reason)
+		if args.Reason != nil {
+			reason = strings.TrimSpace(*args.Reason)
+		}
 		if reason == "" {
 			return "Provide a concrete reason when reporting a blocked Goal.", nil
 		}
+	} else if args.Reason != nil {
+		return "Omit reason when reporting a completed Goal.", nil
 	}
 	leaseID, _ := executionctx.GoalLeaseID(ctx)
 	result, err := t.goals.Report(ctx, goals.ReportCommand{
@@ -297,7 +301,7 @@ func reasonText(reason goal.Reason) string {
 	case goal.ReasonStoppedByUser:
 		return "stopped by the user"
 	case goal.ReasonRuntimeRestarted:
-		return "the runtime restarted; resume to continue"
+		return "the service restarted; resume to continue"
 	case goal.ReasonRunStartFailed:
 		return "could not start the next Run"
 	case goal.ReasonAwaitingInput:

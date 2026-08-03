@@ -11,10 +11,10 @@ require (
 	github.com/Tangerg/lynx/models/ollama v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/otel v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/skills v0.0.0-20260803141845-7207652c95af
-	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803210103-afadd87610f0
+	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803213301-143b5c1045ad
 	github.com/Tangerg/lynx/tools/skills v0.0.0-20260803203708-339a9f1da83c
-	github.com/Tangerg/lynx/tools/webfetch v0.0.0-20260803210103-afadd87610f0
-	github.com/Tangerg/lynx/tools/websearch v0.0.0-20260803210103-afadd87610f0
+	github.com/Tangerg/lynx/tools/webfetch v0.0.0-20260803212807-75ccd6a3db12
+	github.com/Tangerg/lynx/tools/websearch v0.0.0-20260803212807-75ccd6a3db12
 	github.com/Tangerg/sse v0.0.5
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-chi/chi/v5 v5.3.1

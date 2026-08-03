@@ -34,14 +34,14 @@ type askUserArgs struct {
 }
 
 type questionArg struct {
-	Question    string      `json:"question" jsonschema:"required" jsonschema_description:"The full question text."`
-	Header      string      `json:"header,omitempty" jsonschema_description:"Short (<=12 char) label/chip summarizing the question."`
-	Options     []optionArg `json:"options,omitempty" jsonschema_description:"2-4 choices for a multiple-choice question. Omit for a free-text answer."`
+	Question    string      `json:"question" jsonschema:"minLength=1" jsonschema_description:"The full question text."`
+	Header      string      `json:"header,omitempty" jsonschema:"maxLength=12" jsonschema_description:"Short label of at most 12 characters that identifies the question."`
+	Options     []optionArg `json:"options,omitempty" jsonschema:"minItems=2,maxItems=4" jsonschema_description:"Two to four choices for a multiple-choice question. Omit for a free-text answer."`
 	MultiSelect bool        `json:"multi_select,omitempty" jsonschema_description:"Allow the user to pick more than one option (only meaningful with options)."`
 }
 
 type optionArg struct {
-	Label       string `json:"label" jsonschema:"required" jsonschema_description:"The choice shown to the user."`
+	Label       string `json:"label" jsonschema:"minLength=1" jsonschema_description:"The choice shown to the user."`
 	Description string `json:"description,omitempty" jsonschema_description:"Optional one-line explanation of the choice."`
 }
 
@@ -88,7 +88,7 @@ func New(interrupt runs.InterruptFunc) (toolcontract.Tool, error) {
 	return toolcontract.NewFunc[askUserArgs, string](
 		toolcontract.FuncConfig{
 			Name:        toolName,
-			Description: "Ask the user a question and wait for their answer. Use when you need a decision, clarification, or information only the user can provide - not for routine progress updates. Give 2-4 `options` for a multiple-choice question (put the recommended one first); the user may always type a custom answer. Omit `options` for free text, and set `multi_select` when more than one option may apply.",
+			Description: "Ask the user one to four questions and wait for their answers. Use this only when progress requires a decision, clarification, or information only the user can provide, not for routine progress updates. Give two to four `options` for a multiple-choice question and put the recommended option first; the user may still provide a custom answer. Omit `options` for free text, and set `multi_select` only when options are present and more than one may apply.",
 		},
 		t.ask,
 	)

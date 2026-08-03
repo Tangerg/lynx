@@ -49,19 +49,28 @@ func (in lspInput) validate() error {
 	switch in.Operation {
 	case "definition", "references", "implementation", "hover",
 		"incoming_calls", "outgoing_calls":
-		if in.Path == "" {
+		if strings.TrimSpace(in.Path) == "" {
 			return fmt.Errorf("lsp %s: path is required", in.Operation)
 		}
 		if in.Line < 1 || in.Character < 1 {
 			return fmt.Errorf("lsp %s: line and character must both be at least 1", in.Operation)
 		}
+		if strings.TrimSpace(in.Query) != "" {
+			return fmt.Errorf("lsp %s: query is not used for position operations", in.Operation)
+		}
 	case "document_symbols", "diagnostics":
-		if in.Path == "" {
+		if strings.TrimSpace(in.Path) == "" {
 			return fmt.Errorf("lsp %s: path is required", in.Operation)
+		}
+		if in.Line != 0 || in.Character != 0 || strings.TrimSpace(in.Query) != "" {
+			return fmt.Errorf("lsp %s: only path is accepted", in.Operation)
 		}
 	case "workspace_symbols":
 		if strings.TrimSpace(in.Query) == "" {
 			return errors.New("lsp workspace_symbols: query is required")
+		}
+		if strings.TrimSpace(in.Path) != "" || in.Line != 0 || in.Character != 0 {
+			return errors.New("lsp workspace_symbols: only query is accepted")
 		}
 	default:
 		return fmt.Errorf("lsp: unknown operation %q", in.Operation)

@@ -2,8 +2,11 @@ package toolset
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
+	"unicode"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
@@ -87,6 +90,34 @@ func toolNameSet(ts []toolcontract.Tool) map[string]bool {
 		names[t.Definition().Name] = true
 	}
 	return names
+}
+
+func assertBuiltInToolContract(t *testing.T, candidate toolcontract.Tool) {
+	t.Helper()
+	definition := candidate.Definition()
+	if err := definition.Validate(); err != nil {
+		t.Errorf("built-in tool %q has an invalid definition: %v", definition.Name, err)
+		return
+	}
+	var schema struct {
+		AdditionalProperties *bool `json:"additionalProperties"`
+	}
+	if err := json.Unmarshal(definition.InputSchema, &schema); err != nil {
+		t.Errorf("built-in tool %q has invalid input schema JSON: %v", definition.Name, err)
+		return
+	}
+	if schema.AdditionalProperties == nil || *schema.AdditionalProperties {
+		t.Errorf("built-in tool %q does not explicitly reject unknown input fields", definition.Name)
+	}
+	modelText := strings.ToLower(definition.Description + " " + string(definition.InputSchema))
+	terms := strings.FieldsFunc(modelText, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	for _, forbidden := range []string{"ui", "frontend", "runtime", "client", "operator", "chip", "button"} {
+		if slices.Contains(terms, forbidden) {
+			t.Errorf("built-in tool %q leaks implementation term %q into its model contract", definition.Name, forbidden)
+		}
+	}
 }
 
 func TestCodingResolverIncludesConfiguredConditionalTools(t *testing.T) {
@@ -190,6 +221,17 @@ func TestSafetyTableMatchesBuiltInTools(t *testing.T) {
 	}
 	for name := range toolNameSet(patchTools) {
 		existing[name] = true
+	}
+	checkedContracts := make(map[string]bool)
+	for _, profile := range [][]toolcontract.Tool{resolved, patchTools} {
+		for _, candidate := range profile {
+			name := candidate.Definition().Name
+			if checkedContracts[name] {
+				continue
+			}
+			checkedContracts[name] = true
+			assertBuiltInToolContract(t, candidate)
+		}
 	}
 	// The engine injects delegate_task only after it deploys the child Agent.
 	existing["delegate_task"] = true

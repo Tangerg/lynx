@@ -226,7 +226,7 @@
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 完成 |
 | 5 | 工具名、参数和描述的全量收敛 | 完成 |
 | 6 | 删除冗余能力和配置 | 完成（6a、6b、6c） |
-| 7 | 全仓验证、文档收敛和最终审计 | 进行中（7a、7b、7c、7d 完成） |
+| 7 | 全仓验证、文档收敛和最终审计 | 进行中（7a、7b、7c、7d、7e 完成） |
 
 每批必须独立验证、独立提交并推送。实现发现契约需要调整时，先更新本文，再在同一批修改代码和测试。
 
@@ -378,3 +378,12 @@
 - 根模块的通用同步 `shell` 工具把 `timeout` 改为 `timeout_ms=1..600000`，Definition 与 Call 改由同一个 typed function 拥有；它保留为可注入 `Executor` 的 SDK 工具，Runtime 自己的后台 Shell family 仍负责 session-scoped lifecycle，两者没有在同一模型 manifest 中重复注册；
 - `fakeweather` 示例工具改名为动作优先且明确非真实数据的 `get_synthetic_weather`；`date/include_hourly/include_air_quality` 的 schema 可选性与实现一致，并拒绝未知字段、尾随 JSON 和无效日期格式。示例不再示范“schema 严格、执行宽松”的错误模式；
 - root module 通过完整 test/build/vet；Runtime 钉住已发布的 root module，并用 edit-guard 集成测试覆盖 partial 与显式整文件读取。没有新增跨层接口、兼容字段或第二套 decoder。
+
+### 批次 7e
+
+- 条件字段反查不再只验证“需要的字段存在”，同时拒绝“该动作不会消费的字段”：`lsp` 的 position operation 只接收 path + line + character，document/diagnostics 只接收 path，workspace_symbols 只接收 query；仍保留一个语言服务器工具，不为每个 query 复制九个同构 wrapper；
+- Shell family 删除 ignored-parameter 语义：`timeout_ms` 显式为正数或省略，`read_shell_output` 只有 `wait=true` 才接收它，`run_in_background=true` 不再同时接收不会生效的 `auto_background_after_seconds`；
+- `report_goal_outcome` 用可选指针区分 reason 缺省与显式传值：blocked 必须提供非空 reason，completed 必须完全省略 reason；无效组合在 Goal state 改变前返回精确指导；
+- `ask_user` schema 与真实 question invariant 对齐：question/label 非空，header 最长 12 字符，options 为 2..4；描述删除 `chip` 等展示控件词，并明确 options 与 multi_select 的使用条件；
+- 网络、Schedule、Goal result 和 `search_tools` 的模型文本删除 `runtime`、`client`、`operator`、MCP/provider 实现措辞，分别改用 configured policy/default、service、built-in 和 authenticated integration 等行为词；三个网络子模块的发布版本同步钉入 Runtime；
+- catalog fitness guard 在 every-optional-subsystem 的真实内建工具集合上永久验证 Definition、object schema、`additionalProperties=false` 和模型契约实现词；第三方 MCP/A2A definition 不受内建文案风格约束。该 guard 与 safety parity 各守一个维度，不合并成新的 registry abstraction。

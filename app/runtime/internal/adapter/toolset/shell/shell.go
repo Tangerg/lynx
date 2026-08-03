@@ -33,7 +33,7 @@ const defaultAutoBackgroundSeconds = 60
 
 type shellArgs struct {
 	Command                    string `json:"command" jsonschema:"minLength=1" jsonschema_description:"Shell command line, run by /bin/sh -c. Each call starts a fresh shell; directory changes, variables, and shell options do not persist."`
-	TimeoutMS                  int    `json:"timeout_ms,omitempty" jsonschema:"minimum=0" jsonschema_description:"Hard execution timeout in milliseconds. Omit for no hard timeout."`
+	TimeoutMS                  int    `json:"timeout_ms,omitempty" jsonschema:"minimum=1" jsonschema_description:"Hard execution timeout in milliseconds. Omit for no hard timeout."`
 	RunInBackground            bool   `json:"run_in_background,omitempty" jsonschema_description:"Return immediately with a shell_id while the command keeps running. Use for servers and watchers."`
 	AutoBackgroundAfterSeconds int    `json:"auto_background_after_seconds,omitempty" jsonschema:"minimum=1" jsonschema_description:"Move a foreground command to the background after this many seconds. Defaults to 60."`
 }
@@ -41,6 +41,9 @@ type shellArgs struct {
 func (a shellArgs) validate() error {
 	if a.Command == "" {
 		return errors.New("shell: command is required")
+	}
+	if a.RunInBackground && a.AutoBackgroundAfterSeconds > 0 {
+		return errors.New("shell: auto_background_after_seconds cannot be used when run_in_background=true")
 	}
 	return nil
 }
@@ -60,12 +63,15 @@ func (a shellArgs) autoBackgroundAfter() time.Duration {
 type shellOutputArgs struct {
 	ShellID   string `json:"shell_id" jsonschema:"required" jsonschema_description:"Background shell id returned by shell when a long-running command was moved to the background."`
 	Wait      bool   `json:"wait,omitempty" jsonschema_description:"Wait for the shell to exit before returning new output. Use this instead of sleep polling; avoid waiting indefinitely on a server or watcher."`
-	TimeoutMS int    `json:"timeout_ms,omitempty" jsonschema:"minimum=0" jsonschema_description:"When wait=true, maximum milliseconds to wait before returning current output. Omit to wait until exit. Ignored when wait=false."`
+	TimeoutMS int    `json:"timeout_ms,omitempty" jsonschema:"minimum=1" jsonschema_description:"When wait=true, maximum milliseconds to wait before returning current output. Omit to wait until exit. Do not pass when wait=false."`
 }
 
 func (a shellOutputArgs) validate() error {
 	if a.ShellID == "" {
 		return errors.New("read_shell_output: shell_id is required")
+	}
+	if !a.Wait && a.TimeoutMS > 0 {
+		return errors.New("read_shell_output: timeout_ms requires wait=true")
 	}
 	return nil
 }

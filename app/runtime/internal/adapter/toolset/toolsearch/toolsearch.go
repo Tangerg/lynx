@@ -129,7 +129,7 @@ func (t *Tool) Definition() chat.ToolDefinition {
 // the whole point of deferral.
 func (t *Tool) buildDescription() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Load additional runtime or integration tools on demand. %d tool(s) are available but omitted from the initial tool list to keep it focused. ",
+	fmt.Fprintf(&b, "Load additional built-in or integration tools on demand. %d tool(s) are available but omitted from the initial tool list to keep it focused. ",
 		len(t.entries))
 	b.WriteString("Search by capability (query=\"...\") or load exact tools (query=\"select:name1,name2\"); matches become directly callable on your next step.\n\nNot loaded:")
 	lastSource := ""
@@ -324,7 +324,7 @@ func sourceOf(tool toolcontract.Tool) string {
 			return server
 		}
 	}
-	return "runtime"
+	return "built-in"
 }
 
 // tokenize splits a qualified tool name into lowercase terms on non-alphanumeric

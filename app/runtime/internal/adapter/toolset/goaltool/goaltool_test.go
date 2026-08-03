@@ -103,12 +103,29 @@ func TestReportGoalOutcomeBlockedRequiresReason(t *testing.T) {
 		t.Fatal("goal should stay active when blocked reason is missing")
 	}
 
-	out, _ = tl.report(sessionCtx("s1"), reportArgs{Outcome: "blocked", Reason: " needs a key "})
+	reason := " needs a key "
+	out, _ = tl.report(sessionCtx("s1"), reportArgs{Outcome: "blocked", Reason: &reason})
 	if !strings.Contains(out, "blocked") {
 		t.Fatalf("output = %q", out)
 	}
 	if got := store.goals["s1"]; got.Status != goal.StatusBlocked || got.Reason != (goal.Reason{Cause: goal.ReasonBlockedByModel, Detail: "needs a key"}) {
 		t.Fatalf("stored = (%q, %+v)", got.Status, got.Reason)
+	}
+}
+
+func TestReportGoalOutcomeCompletedRejectsReason(t *testing.T) {
+	store := newMemStore()
+	store.put(activeGoal("s1"))
+	reason := "partial caveat"
+	out, err := newReportTool(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed", Reason: &reason})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "Omit reason") {
+		t.Fatalf("completed with reason = %q, want precise field guidance", out)
+	}
+	if store.goals["s1"].Status != goal.StatusActive {
+		t.Fatal("completed reason must be rejected before Goal state changes")
 	}
 }
 

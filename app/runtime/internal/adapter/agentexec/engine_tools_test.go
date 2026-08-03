@@ -63,8 +63,10 @@ func TestDelegationToolUsesOnePreciseContract(t *testing.T) {
 			t.Errorf("delegate_task schema retains obsolete %q: %s", obsolete, def.InputSchema)
 		}
 	}
-	if strings.Contains(strings.ToLower(def.Description), "ui") {
-		t.Fatalf("delegate_task description leaks presentation concerns: %q", def.Description)
+	for _, forbidden := range []string{"ui", "frontend", "runtime", "chip", "button"} {
+		if strings.Contains(strings.ToLower(def.Description), forbidden) {
+			t.Fatalf("delegate_task description leaks %q: %q", forbidden, def.Description)
+		}
 	}
 	for name, arguments := range map[string]string{
 		"obsolete field": `{"summary":"focused task","instructions":"inspect the package","prompt":"legacy"}`,
