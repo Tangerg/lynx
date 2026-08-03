@@ -38,12 +38,12 @@ export const ko: Record<string, string> = {
   "sidebar.action.settings": "설정",
 
   "composer.input.label": "메시지 입력란",
-  "composer.placeholder": "무엇을 할지 적어 주세요 — @ 로 파일 참조, ⏎ 로 전송",
+  "composer.placeholder": "무엇을 할지 적어 주세요 — @ 로 파일 참조",
   "composer.switchModel": "모델 변경",
   "composer.attachImage": "이미지 첨부",
   "composer.attachImage.unsupported": "이 모델은 이미지를 지원하지 않습니다",
-  "composer.action.send": "전송 (⌘↵)",
-  "composer.action.stop": "중지 (Esc)",
+  "composer.action.send": "전송",
+  "composer.action.stop": "중지",
   "composer.slash.heading": "명령",
 
   "chat.error.title": "렌더링 오류",
@@ -156,18 +156,10 @@ export const ko: Record<string, string> = {
   "dataView.error.sub": "런타임이 이 요청에 응답하지 않았습니다. 연결을 확인하고 다시 시도하세요.",
 
   "welcome.title": "오늘은 무엇을 만들까요?",
-  "welcome.setup.title": "모델 제공자 연결",
-  "welcome.setup.sub":
+  "providers.setup.title": "모델 제공자 연결",
+  "providers.setup.sub":
     "API 키를 추가하면 대화를 시작할 수 있습니다 — 에이전트에는 모델 제공자가 필요합니다.",
-  "welcome.setup.action": "제공자 키 추가",
-  "welcome.suggest.refactor": "리팩토링 계획",
-  "welcome.suggest.refactor.prompt": "리팩토링 계획을 도와줘: ",
-  "welcome.suggest.search": "코드베이스 검색",
-  "welcome.suggest.search.prompt": "코드베이스에서 검색: ",
-  "welcome.suggest.review": "최근 변경 검토",
-  "welcome.suggest.review.prompt": "최근 변경사항 검토: ",
-  "welcome.suggest.checklist": "체크리스트 작성",
-  "welcome.suggest.checklist.prompt": "체크리스트 작성: ",
+  "providers.setup.action": "제공자 키 추가",
 
   "settings.title": "설정",
   "settings.backToApp": "앱으로 돌아가기",

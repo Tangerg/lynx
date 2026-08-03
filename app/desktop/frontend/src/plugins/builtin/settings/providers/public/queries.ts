@@ -1,3 +1,4 @@
+export { needsProviderSetup } from "../application/providerSetup";
 export {
   CODEBASE_STATUS_KEY,
   EMBEDDING_ROLE_KEY,

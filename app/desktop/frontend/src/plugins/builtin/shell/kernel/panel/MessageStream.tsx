@@ -10,7 +10,6 @@ import { cn } from "@/lib/classNames";
 import { dayKey, formatDay } from "@/lib/i18n/relativeTime";
 import { useT } from "@/lib/i18n";
 import { Loader } from "@/ui";
-import { Slot } from "@/plugins/host/Slot";
 import { COMPOSER_CLEARANCE, READING_COLUMN, READING_GUTTER } from "./readingColumn";
 import { useIsCurrentRootRunning } from "@/plugins/builtin/agent/public/run";
 import { MessageBlock, RootRunOutcome } from "@/plugins/builtin/chat/message/public/rendering";
@@ -97,24 +96,10 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
 
   const boundaries = dayBoundaries(messages);
 
-  if (messages.length === 0) {
-    return (
-      <StickToBottom
-        key={resetKey}
-        className="msg-scroll-frame"
-        initial="instant"
-        resize={motionOff ? "instant" : "smooth"}
-      >
-        <StickToBottom.Content
-          scrollClassName="panel-scroll"
-          className={cn(READING_COLUMN, READING_GUTTER, "relative flex flex-col gap-7 pb-8 pt-8")}
-        >
-          <Slot name="chat.empty" />
-        </StickToBottom.Content>
-        <ControlsRelay />
-      </StickToBottom>
-    );
-  }
+  // No empty branch: the only caller mounts this once a transcript exists, and the
+  // empty home is its own layout (centred, no scroller). The branch that used to be
+  // here rendered a second copy of the `chat.empty` slot inside a stick-to-bottom
+  // scroller that nothing could ever scroll.
 
   return (
     <StickToBottom

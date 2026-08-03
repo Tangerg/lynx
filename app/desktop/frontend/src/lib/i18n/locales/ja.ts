@@ -38,12 +38,12 @@ export const ja: Record<string, string> = {
   "sidebar.action.settings": "設定",
 
   "composer.input.label": "メッセージ入力欄",
-  "composer.placeholder": "やりたいことを書いてください — @ でファイル参照、⏎ で送信",
+  "composer.placeholder": "やりたいことを書いてください — @ でファイル参照",
   "composer.switchModel": "モデルを切替",
   "composer.attachImage": "画像を添付",
   "composer.attachImage.unsupported": "このモデルは画像に対応していません",
-  "composer.action.send": "送信 (⌘↵)",
-  "composer.action.stop": "停止 (Esc)",
+  "composer.action.send": "送信",
+  "composer.action.stop": "停止",
   "composer.slash.heading": "コマンド",
 
   "chat.error.title": "レンダリングエラー",
@@ -157,18 +157,10 @@ export const ja: Record<string, string> = {
     "ランタイムがこのリクエストに応答しませんでした。接続を確認して再試行してください。",
 
   "welcome.title": "今日は何を作りましょうか？",
-  "welcome.setup.title": "モデルプロバイダーを接続",
-  "welcome.setup.sub":
+  "providers.setup.title": "モデルプロバイダーを接続",
+  "providers.setup.sub":
     "API キーを追加すると会話を開始できます — エージェントにはモデルプロバイダーが必要です。",
-  "welcome.setup.action": "プロバイダーキーを追加",
-  "welcome.suggest.refactor": "リファクタリングを計画",
-  "welcome.suggest.refactor.prompt": "リファクタリングの計画を手伝って: ",
-  "welcome.suggest.search": "コードベースを検索",
-  "welcome.suggest.search.prompt": "コードベースを検索: ",
-  "welcome.suggest.review": "最近の変更をレビュー",
-  "welcome.suggest.review.prompt": "最近の変更をレビューして: ",
-  "welcome.suggest.checklist": "チェックリストを作成",
-  "welcome.suggest.checklist.prompt": "チェックリストを作成: ",
+  "providers.setup.action": "プロバイダーキーを追加",
 
   "settings.title": "設定",
   "settings.backToApp": "アプリに戻る",

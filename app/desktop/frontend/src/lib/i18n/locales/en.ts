@@ -40,13 +40,13 @@ export const en: Record<string, string> = {
   "sidebar.action.settings": "Settings",
 
   "composer.input.label": "Message composer",
-  "composer.placeholder": "Describe what you want done — @ to reference a file, ⏎ to send",
+  "composer.placeholder": "Describe what you want done — @ to reference a file",
   "composer.placeholder.steer": "Send a message to steer the running turn…",
   "composer.switchModel": "Switch model",
   "composer.attachImage": "Attach image",
   "composer.attachImage.unsupported": "This model doesn't accept images",
-  "composer.action.send": "Send (⌘↵)",
-  "composer.action.stop": "Stop (Esc)",
+  "composer.action.send": "Send",
+  "composer.action.stop": "Stop",
   "composer.action.steer": "Steer the running turn",
   "composer.paste.lines": "Pasted · {{count}} lines",
   "composer.paste.chars": "Pasted · {{count}} chars",
@@ -169,18 +169,10 @@ export const en: Record<string, string> = {
   "dataView.error.sub": "The runtime didn’t answer this request. Check the connection and retry.",
 
   "welcome.title": "What should we build in lynx?",
-  "welcome.setup.title": "Connect a model provider",
-  "welcome.setup.sub":
+  "providers.setup.title": "Connect a model provider",
+  "providers.setup.sub":
     "Add an API key to start chatting — the agent needs a model provider to talk to.",
-  "welcome.setup.action": "Add a provider key",
-  "welcome.suggest.refactor": "Plan a refactor",
-  "welcome.suggest.refactor.prompt": "Help me plan a refactor of ",
-  "welcome.suggest.search": "Search the codebase",
-  "welcome.suggest.search.prompt": "Search the codebase for ",
-  "welcome.suggest.review": "Review recent changes",
-  "welcome.suggest.review.prompt": "Review my recent changes on ",
-  "welcome.suggest.checklist": "Draft a checklist",
-  "welcome.suggest.checklist.prompt": "Draft a checklist for ",
+  "providers.setup.action": "Add a provider key",
 
   "settings.title": "Settings",
   "settings.backToApp": "Back to app",

@@ -144,21 +144,34 @@ export function ChatStream({ onSend }: Props) {
     </div>
   );
 
-  // Empty state is a workbench starting point rather than a marketing hero. It
-  // stays in the upper reading field so the first action is visible without a
-  // large dead canvas, and the sticky-scroll path mounts only after first send.
+  // Empty state: the question and the place to answer it, centred, and nothing
+  // else. It carried a row of suggestion pills and a strip of keyboard hints, which
+  // is a marketing hero pretending to be onboarding — the pills wrote someone
+  // else's sentence into your input, and the hints put shortcut glyphs on the first
+  // screen of a workbench.
+  //
+  // Centred rather than pinned to the upper field: with the ornament gone there is
+  // nothing for a top-weighted stack to hold together, and two elements floating a
+  // third of the way down read as a page that failed to load.
+  //
+  // The slot stays because one contribution earns it — an install with no provider
+  // key cannot send anything, so the way to fix that has to be here. It renders
+  // nothing otherwise.
   if (!started) {
     return (
       <>
         {banners}
-        <div className="panel-scroll flex flex-1 flex-col items-center pt-[clamp(72px,16vh,150px)]">
-          <div className={cn(READING_COLUMN, READING_GUTTER, "flex flex-col pb-5")}>
-            <h1 className="max-w-[620px] text-balance text-display-md font-medium text-fg/95">
+        <div className="panel-scroll flex flex-1 flex-col items-center justify-center gap-5 pb-[6vh]">
+          {/* Centred over the input rather than flush with the column's text edge:
+              the input insets its own placeholder, so a left-aligned title started
+              14px before the words underneath it and read as a near-miss. */}
+          <div className={cn(READING_COLUMN, READING_GUTTER)}>
+            <h1 className="mx-auto max-w-[620px] text-balance text-center text-display-md font-medium text-fg/95">
               {t("welcome.title")}
             </h1>
           </div>
           <div className={cn(READING_COLUMN, READING_GUTTER)}>{composer}</div>
-          <div className={cn(READING_COLUMN, READING_GUTTER, "mt-6")}>
+          <div className={cn(READING_COLUMN, READING_GUTTER, "empty:hidden")}>
             <Slot name="chat.empty" />
           </div>
         </div>

@@ -39,13 +39,12 @@ export const es: Record<string, string> = {
   "sidebar.action.settings": "Ajustes",
 
   "composer.input.label": "Compositor de mensajes",
-  "composer.placeholder":
-    "Describe lo que quieres hacer: @ para referenciar un archivo, ⏎ para enviar",
+  "composer.placeholder": "Describe lo que quieres hacer: @ para referenciar un archivo",
   "composer.switchModel": "Cambiar modelo",
   "composer.attachImage": "Adjuntar imagen",
   "composer.attachImage.unsupported": "Este modelo no acepta imágenes",
-  "composer.action.send": "Enviar (⌘↵)",
-  "composer.action.stop": "Detener (Esc)",
+  "composer.action.send": "Enviar",
+  "composer.action.stop": "Detener",
   "composer.slash.heading": "Comandos",
 
   "chat.error.title": "Error de renderizado",
@@ -159,18 +158,10 @@ export const es: Record<string, string> = {
     "El runtime no respondió a esta petición. Comprueba la conexión y reinténtalo.",
 
   "welcome.title": "¿Qué quieres construir hoy?",
-  "welcome.setup.title": "Conecta un proveedor de modelos",
-  "welcome.setup.sub":
+  "providers.setup.title": "Conecta un proveedor de modelos",
+  "providers.setup.sub":
     "Añade una clave de API para empezar — el agente necesita un proveedor de modelos.",
-  "welcome.setup.action": "Añadir clave de proveedor",
-  "welcome.suggest.refactor": "Planificar una refactorización",
-  "welcome.suggest.refactor.prompt": "Ayúdame a planificar una refactorización de ",
-  "welcome.suggest.search": "Buscar en el código",
-  "welcome.suggest.search.prompt": "Buscar en el código: ",
-  "welcome.suggest.review": "Revisar cambios recientes",
-  "welcome.suggest.review.prompt": "Revisar mis cambios recientes en ",
-  "welcome.suggest.checklist": "Crear una lista",
-  "welcome.suggest.checklist.prompt": "Crear lista para ",
+  "providers.setup.action": "Añadir clave de proveedor",
 
   "settings.title": "Ajustes",
   "settings.backToApp": "Volver a la app",

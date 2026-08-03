@@ -50,6 +50,7 @@ import mcpServersPane from "./settings/mcp-servers";
 import rpcAgent from "./agent/rpc-agent";
 import { kernelChat, kernelSettings, kernelSidebar } from "./shell/kernel";
 import nativeShell from "./shell/native-shell";
+import providerSetup from "./shell/provider-setup";
 import { localesPack } from "./i18n";
 import mainRoute from "./shell/main-route";
 import {
@@ -86,7 +87,6 @@ import {
   taskPreview,
   webSearchPreview,
 } from "./chat/tools/previews";
-import welcomeScreen from "./shell/welcome-screen";
 import {
   agentDocsView,
   diffView,
@@ -228,7 +228,7 @@ const kernel: PluginSpec[] = [kernelSidebar, kernelChat, kernelSettings];
 
 const sidebar: PluginSpec[] = [sidebarActions, sidebarProjects, sidebarRecents, sidebarFooter];
 
-// Overlays + chrome — toasts, command palette, status bar, welcome screen, …
+// Overlays + chrome — toasts, command palette, status bar, …
 
 const overlays: PluginSpec[] = [
   toaster,
@@ -239,12 +239,12 @@ const overlays: PluginSpec[] = [
   statusNotifications,
   completionNotify,
   windowTitle,
-  welcomeScreen,
   shortcuts,
   globalKeymap,
   iconGallery,
   narrativeRails,
   planProgress,
+  providerSetup,
   sessionUsage,
   conversationExport,
 ];

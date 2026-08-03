@@ -8,7 +8,6 @@
 
 import { MCP_SERVERS_PANE, SCHEDULES_PANE } from "@/plugins/builtin/settings/public/panes";
 import { AgentRow } from "@/ui/agent";
-import { comboGlyph } from "@/lib/combo";
 import { useT } from "@/lib/i18n";
 import {
   contributeWorkIndexItem,
@@ -17,21 +16,16 @@ import {
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { definePlugin } from "@/plugins/sdk";
 
-function Shortcut({ combo }: { combo: string }) {
-  return (
-    <span className="font-mono text-ui-xs leading-none text-fg-faint tabular-nums">
-      {comboGlyph(combo)}
-    </span>
-  );
-}
-
 function SidebarActions() {
   const t = useT();
   const actions = useWorkIndexActions();
 
   return (
     <div className="flex flex-col">
-      <AgentRow icon="edit" onClick={actions.createSession} trailing={<Shortcut combo="Mod+N" />}>
+      {/* No combo in the trailing slot. One of three rows wore its shortcut, so the
+          strip read as "this row has a property the others lack" rather than as a
+          hint — and a keyboard user is not looking at the sidebar. */}
+      <AgentRow icon="edit" onClick={actions.createSession}>
         {t("sidebar.action.newSession")}
       </AgentRow>
       <AgentRow icon="clock" onClick={() => openWorkspaceSettingsPane(SCHEDULES_PANE)}>

@@ -213,13 +213,15 @@ export function ApprovalCard({
       )}
       <div className="mb-2 text-ui-md leading-body text-fg-muted">{reason}</div>
       <div className="flex items-center gap-2">
+        {/* The label alone. These carried their combos as a raw <kbd> — a glyph
+            strip inside a button, hand-spelled past the Kbd atom, telling you how to
+            press the thing your pointer is already on. The bindings still work; the
+            place to read them is the shortcuts pane. */}
         <Button variant="primary" size="sm" disabled={disabled} onClick={approve}>
           {t("approval.action.approve")}
-          {!disabled && <kbd className="ml-1.5 font-mono text-ui-xs opacity-60">⌘↵</kbd>}
         </Button>
         <Button variant="outline" size="sm" disabled={disabled} onClick={decline}>
           {t("approval.action.decline")}
-          {!disabled && <kbd className="ml-1.5 font-mono text-ui-xs opacity-60">⇧⌘⌫</kbd>}
         </Button>
         {rememberable && (
           <Checkbox

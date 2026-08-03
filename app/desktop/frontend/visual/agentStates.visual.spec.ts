@@ -116,9 +116,9 @@ test("running composer exposes both steer and stop actions without unnamed contr
   await page.locator("html[data-visual-ready]").waitFor();
 
   await expect(page.getByRole("button", { name: "Steer the running turn" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Stop (Esc)" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Stop (Esc)" }).click();
+  await page.getByRole("button", { name: "Stop" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-visual-stopped-root", "run_root");
 
   await page.getByRole("button", { name: "Steer the running turn" }).click();

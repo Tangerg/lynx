@@ -39,12 +39,12 @@ export const de: Record<string, string> = {
   "sidebar.action.settings": "Einstellungen",
 
   "composer.input.label": "Nachrichteneditor",
-  "composer.placeholder": "Beschreibe, was zu tun ist — @ referenziert eine Datei, ⏎ sendet",
+  "composer.placeholder": "Beschreibe, was zu tun ist — @ referenziert eine Datei",
   "composer.switchModel": "Modell wechseln",
   "composer.attachImage": "Bild anhängen",
   "composer.attachImage.unsupported": "Dieses Modell akzeptiert keine Bilder",
-  "composer.action.send": "Senden (⌘↵)",
-  "composer.action.stop": "Stopp (Esc)",
+  "composer.action.send": "Senden",
+  "composer.action.stop": "Stopp",
   "composer.slash.heading": "Befehle",
 
   "chat.error.title": "Render-Fehler",
@@ -159,18 +159,10 @@ export const de: Record<string, string> = {
     "Die Runtime hat auf diese Anfrage nicht geantwortet. Prüfe die Verbindung und versuche es erneut.",
 
   "welcome.title": "Was möchtest du heute bauen?",
-  "welcome.setup.title": "Modell-Provider verbinden",
-  "welcome.setup.sub":
+  "providers.setup.title": "Modell-Provider verbinden",
+  "providers.setup.sub":
     "Füge einen API-Schlüssel hinzu, um loszulegen — der Agent braucht einen Modell-Provider.",
-  "welcome.setup.action": "Provider-Schlüssel hinzufügen",
-  "welcome.suggest.refactor": "Refactoring planen",
-  "welcome.suggest.refactor.prompt": "Hilf mir, ein Refactoring zu planen für ",
-  "welcome.suggest.search": "Codebasis durchsuchen",
-  "welcome.suggest.search.prompt": "In der Codebasis suchen: ",
-  "welcome.suggest.review": "Letzte Änderungen prüfen",
-  "welcome.suggest.review.prompt": "Letzte Änderungen prüfen an ",
-  "welcome.suggest.checklist": "Checkliste erstellen",
-  "welcome.suggest.checklist.prompt": "Checkliste erstellen für ",
+  "providers.setup.action": "Provider-Schlüssel hinzufügen",
 
   "settings.title": "Einstellungen",
   "settings.backToApp": "Zur App",
