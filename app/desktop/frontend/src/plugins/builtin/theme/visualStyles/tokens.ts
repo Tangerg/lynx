@@ -40,6 +40,8 @@ type VisualStyleTokenName =
   | "app-pane-split"
   | "app-pane-split-end"
   | "app-header-edge"
+  | "app-pane-wash"
+  | "app-pane-wash-end"
   | "seam-line"
   | "shadow-border"
   | "shadow-control"
@@ -147,6 +149,15 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   "app-pane-split-end": "inset -0.5px 0 0 0",
   // The bottom edge of a chrome bar.
   "app-header-edge": "inset 0 -0.5px 0 0",
+  // The seam has a second half, and it lives on the CHROME. The reference darkens its
+  // sidebar inward as it approaches the split — 248 to 238 over 12px, measured — and
+  // only then draws the hairline. That is why its seam reads soft without reading as
+  // pressure: the gradient falls on the panel, not on the page. The earlier revision
+  // did the opposite and lit the reading plane.
+  // `-end` is the mirror, for chrome that sits BEFORE the plane (the drawer, the
+  // settings nav) rather than after it (the dock, the review navigator).
+  "app-pane-wash": "inset 12px 0 12px -6px",
+  "app-pane-wash-end": "inset -12px 0 12px -6px",
   // Reserved for the one place an optical ring still earns its pixel: a floating
   // panel, which has no value delta to lean on because it can land over anything.
   "seam-line": "color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%)",

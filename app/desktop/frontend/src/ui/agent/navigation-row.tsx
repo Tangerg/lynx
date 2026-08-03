@@ -70,11 +70,19 @@ export function AgentRow({
       press={false}
       data-active={active ? "" : undefined}
       className={cn(
-        "w-full justify-start rounded-[var(--surface-card-radius)] text-left text-ui-sm font-normal",
+        // A step up in size AND weight from the chrome default. The index is the
+        // one column a user reads standing still, and at 13px/400 a Latin label
+        // filled about a third of its row's height — the row looked airy because
+        // the type had abandoned it, not because it was generous.
+        "w-full justify-start rounded-[var(--surface-card-radius)] text-left text-ui-md font-medium",
         "gap-[var(--density-row-gap)]",
         "text-fg transition-[background-color,color] duration-[var(--dur-fast)]",
         "hover:bg-hover hover:text-fg focus-visible:bg-hover",
-        "data-[active]:bg-selected data-[active]:font-medium data-[active]:text-fg",
+        // Selection reads through the FILL alone, which is what this atom always
+        // claimed and never did: it also bumped the weight, so the resting rows
+        // were the light ones and the whole column's rhythm hung off which row
+        // happened to be open.
+        "data-[active]:bg-selected data-[active]:text-fg",
         // `h-auto` is load-bearing: the size variant ships a fixed `h-`, and
         // without replacing it the second line renders outside the row's fill.
         detail

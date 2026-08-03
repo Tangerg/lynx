@@ -23,7 +23,7 @@ const SCALE: Readonly<Record<UiDensity, number>> = {
 
 /** Comfortable-mode base values, in px. Every mode is these times its scale. */
 const BASE_PX = {
-  rowHeight: 34,
+  rowHeight: 38,
   rowGap: 10,
   navigationGutter: 12,
   navigationSectionGap: 22,

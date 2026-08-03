@@ -380,7 +380,7 @@
      `themes/lyra-light.ts` for why a near-neutral grey cannot pick its own hue.
      Keep in step with `themes/lyra-*.ts`. */
   --color-bg: #ffffff;
-  --color-surface: #eff1f5;
+  --color-surface: #f4f6fa;
   --color-elevated: #f7faff;
   --color-sunken: #eaf0fb;
   --depth-step: 4%;
@@ -589,7 +589,7 @@
      recomputes these from the user's pick (lib/density.ts). Chrome-bar heights
      are NOT here on purpose: they stay pinned so the drawer and content headers
      keep lining up across the seam. */
-  --density-row-height: 34px;
+  --density-row-height: 38px;
   --density-row-gap: 10px;
   --density-navigation-gutter: 12px;
   --density-navigation-section-gap: 22px;
@@ -685,7 +685,14 @@
   --app-pane-split: inset 0.5px 0 0 0;
   --app-pane-split-end: inset -0.5px 0 0 0;
   --app-header-edge: inset 0 -0.5px 0 0;
+  --app-pane-wash: inset 12px 0 12px -6px;
+  --app-pane-wash-end: inset -12px 0 12px -6px;
   --seam-line: color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%);
+  /* How dark the chrome goes as it reaches a seam. A fifth of the palette's cast:
+     at full strength the panel lost 45 levels into the split and read as a shaded
+     wall; the reference loses 10. One value for every seam, so the drawer, the
+     dock, the settings nav and the review navigator cannot drift apart. */
+  --seam-wash: color-mix(in oklab, var(--shadow-cast) 20%, transparent);
   /* What a boundary deepens to while it is being dragged. Both drag handles read
      it, so "the drawer seam and the dock split are the same gesture" is one value
      rather than two that agree today. */
@@ -1145,7 +1152,10 @@ html.theme-dark {
   transition: none;
 }
 
-/* Inner surface is opaque tool-window chrome, never a translucent sheet. */
+/* Inner surface is opaque tool-window chrome, never a translucent sheet.
+   It also carries the chrome-side half of the seam: the panel darkens inward as it
+   reaches the split, which is the half of the boundary that may fall on a panel. The
+   plane's half is the hairline (`--app-card-edge`). */
 .agent-drawer-surface {
   position: relative;
   display: flex;
@@ -1154,6 +1164,7 @@ html.theme-dark {
   min-width: 0;
   flex-direction: column;
   background: var(--app-drawer-surface);
+  box-shadow: var(--app-pane-wash-end) var(--seam-wash);
 }
 
 /* ---------- Seam rail ---------- */
@@ -1309,7 +1320,9 @@ html.theme-dark {
   /* Same contract as `--shell-boundary` on the reading plane: the shell says how
      strong this edge is right now, the visual style says what shape it takes. */
   --split-boundary: var(--color-border-soft);
-  box-shadow: var(--app-pane-split) var(--split-boundary);
+  box-shadow:
+    var(--app-pane-split) var(--split-boundary),
+    var(--app-pane-wash) var(--seam-wash);
   transition: box-shadow var(--dur-fast) ease-out;
 }
 
@@ -1321,7 +1334,9 @@ html.theme-dark {
    calculation: an inset box-shadow cannot be flipped in CSS, and a style that
    divides with a cast rather than a line needs to say both directions anyway. */
 .agent-pane-split[data-split-side="end"] {
-  box-shadow: var(--app-pane-split-end) var(--split-boundary);
+  box-shadow:
+    var(--app-pane-split-end) var(--split-boundary),
+    var(--app-pane-wash-end) var(--seam-wash);
 }
 
 /* ---------- Context dock ---------- */

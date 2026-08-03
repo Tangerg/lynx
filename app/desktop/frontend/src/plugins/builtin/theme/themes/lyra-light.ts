@@ -34,7 +34,11 @@ const c = {
 
   canvas: "#ffffff",
   card: "#f7faff",
-  surface1: "#eff1f5",
+  // The chrome sits 2.7 L under the plane, not 4.2. At the deeper step the column
+  // read as grey rather than as paper of a different weight — the reference keeps
+  // its sidebar at 248 against a 255 plane and lets the seam carry the boundary,
+  // which is the trade this makes: a lighter panel and a hairline that means it.
+  surface1: "#f4f6fa",
   sunken: "#eaf0fb",
 
   // Unchanged by the hue pass: at L24 and C 0.006 the nearest sRGB triple to
