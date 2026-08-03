@@ -3,7 +3,7 @@ module github.com/Tangerg/lynx/documentpipeline/markdown
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/documentpipeline v0.0.0-20260802043825-46962d7866a2
+	github.com/Tangerg/lynx/documentpipeline v0.0.0-20260803043929-f93fbff7c49c
 	github.com/yuin/goldmark v1.8.5
 )
 

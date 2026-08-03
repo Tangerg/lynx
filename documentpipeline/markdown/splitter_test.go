@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/documentpipeline"
-	"github.com/Tangerg/lynx/documentpipeline/id"
 	markdownsplitter "github.com/Tangerg/lynx/documentpipeline/markdown"
 )
 
@@ -173,7 +172,7 @@ func TestTransformPreservesLineageAndAssignsIDs(t *testing.T) {
 	splitter, err := markdownsplitter.NewSplitter(markdownsplitter.SplitterConfig{
 		Tokenizer:         runeTokenizer{},
 		MaxTokensPerChunk: 4,
-		IDGenerator:       id.NewSHA256Generator(nil),
+		IDGenerator:       documentpipeline.NewSHA256IDGenerator(nil),
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -15,7 +15,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/documentpipeline"
-	"github.com/Tangerg/lynx/documentpipeline/id"
 	"github.com/Tangerg/lynx/tokenizer"
 )
 
@@ -36,7 +35,7 @@ type SplitterConfig struct {
 
 	MaxTokensPerChunk int
 	MaxChunks         int
-	IDGenerator       id.Generator
+	IDGenerator       documentpipeline.IDGenerator
 }
 
 var _ documentpipeline.Transformer = (*Splitter)(nil)
