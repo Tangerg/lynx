@@ -1,6 +1,11 @@
 package admission
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+)
 
 func TestGateHoldsSessionThroughRunMaintenance(t *testing.T) {
 	var gate Gate
@@ -75,5 +80,98 @@ func TestGateExcludesWorkingTreeRunAdmissionsAndMutations(t *testing.T) {
 		t.Fatal("empty working tree must not require a claim")
 	} else {
 		admission.Release()
+	}
+}
+
+func TestWaitRunStartableIncludesTerminalMaintenance(t *testing.T) {
+	var gate Gate
+	opening, ok := gate.AcquireRun("ses_1", "/repo")
+	if !ok || !opening.Admit("run_1") {
+		t.Fatal("admit run")
+	}
+	releaseMaintenance, ok := gate.BeginMaintenance("run_1")
+	if !ok {
+		t.Fatal("begin maintenance")
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- gate.WaitRunStartable(t.Context(), "ses_1", "/repo") }()
+	select {
+	case err := <-done:
+		t.Fatalf("WaitRunStartable returned inside maintenance: %v", err)
+	default:
+	}
+	releaseMaintenance()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("WaitRunStartable: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("WaitRunStartable did not observe maintenance release")
+	}
+}
+
+func TestWaitRunStartableIncludesPendingRun(t *testing.T) {
+	var gate Gate
+	opening, ok := gate.AcquireRun("ses_1", "/repo")
+	if !ok {
+		t.Fatal("acquire pending Run")
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- gate.WaitRunStartable(t.Context(), "ses_1", "/repo") }()
+	select {
+	case err := <-done:
+		t.Fatalf("WaitRunStartable returned while Run was pending: %v", err)
+	default:
+	}
+	opening.Release()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("WaitRunStartable: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("WaitRunStartable did not observe pending Run release")
+	}
+}
+
+func TestWaitRunStartableIncludesWorkingTreeMutation(t *testing.T) {
+	var gate Gate
+	release, ok := gate.AcquireWorkingTreeMutation("/repo")
+	if !ok {
+		t.Fatal("acquire working-tree mutation")
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- gate.WaitRunStartable(t.Context(), "ses_1", "/repo") }()
+	select {
+	case err := <-done:
+		t.Fatalf("WaitRunStartable returned inside working-tree mutation: %v", err)
+	default:
+	}
+	release()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("WaitRunStartable: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("WaitRunStartable did not observe working-tree mutation release")
+	}
+}
+
+func TestWaitRunStartableIsContextBounded(t *testing.T) {
+	var gate Gate
+	release, ok := gate.AcquireSession("ses_1")
+	if !ok {
+		t.Fatal("acquire session")
+	}
+	defer release()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := gate.WaitRunStartable(ctx, "ses_1", "/repo"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("WaitRunStartable error = %v, want context canceled", err)
 	}
 }

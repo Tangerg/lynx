@@ -123,7 +123,7 @@ type StartTurn struct {
 	// off; the Run's frozen application policy is its sole production source.
 	ChildRunAdmissionEnabled bool
 	// GoalLeaseID stamps a Goal-mode autonomous run with its goal incarnation
-	// so update_goal only signals that goal; empty for ordinary runs.
+	// so report_goal_outcome only signals that Goal; empty for ordinary Runs.
 	GoalLeaseID string
 }
 

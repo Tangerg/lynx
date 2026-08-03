@@ -64,20 +64,25 @@ func sessionCtx(session string) context.Context {
 	return executionctx.WithScope(context.Background(), execution.TurnScope{SessionID: session})
 }
 
-func newTool(t *testing.T, store goals.Store) *tool {
+func newGetTool(t *testing.T, store goals.Store) *getTool {
 	t.Helper()
-	return &tool{state: goals.NewState(store)}
+	return &getTool{goals: goals.NewState(store)}
 }
 
-func TestUpdateGoal_Complete(t *testing.T) {
+func newReportTool(t *testing.T, store goals.Store) *reportTool {
+	t.Helper()
+	return &reportTool{goals: goals.NewState(store)}
+}
+
+func TestReportGoalOutcomeCompleted(t *testing.T) {
 	store := newMemStore()
 	store.put(activeGoal("s1"))
 
-	out, err := newTool(t, store).update(sessionCtx("s1"), updateArgs{Status: "complete"})
+	out, err := newReportTool(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "complete") {
+	if !strings.Contains(out, "completed") {
 		t.Fatalf("output = %q", out)
 	}
 	if got := store.goals["s1"]; got.Status != goal.StatusComplete {
@@ -85,12 +90,12 @@ func TestUpdateGoal_Complete(t *testing.T) {
 	}
 }
 
-func TestUpdateGoal_BlockedRequiresReason(t *testing.T) {
+func TestReportGoalOutcomeBlockedRequiresReason(t *testing.T) {
 	store := newMemStore()
 	store.put(activeGoal("s1"))
-	tl := newTool(t, store)
+	tl := newReportTool(t, store)
 
-	out, _ := tl.update(sessionCtx("s1"), updateArgs{Status: "blocked"})
+	out, _ := tl.report(sessionCtx("s1"), reportArgs{Outcome: "blocked"})
 	if !strings.Contains(out, "reason") {
 		t.Fatalf("blocked without reason = %q, want a reason prompt", out)
 	}
@@ -98,7 +103,7 @@ func TestUpdateGoal_BlockedRequiresReason(t *testing.T) {
 		t.Fatal("goal should stay active when blocked reason is missing")
 	}
 
-	out, _ = tl.update(sessionCtx("s1"), updateArgs{Status: "blocked", Reason: "needs a key"})
+	out, _ = tl.report(sessionCtx("s1"), reportArgs{Outcome: "blocked", Reason: " needs a key "})
 	if !strings.Contains(out, "blocked") {
 		t.Fatalf("output = %q", out)
 	}
@@ -107,36 +112,36 @@ func TestUpdateGoal_BlockedRequiresReason(t *testing.T) {
 	}
 }
 
-func TestUpdateGoal_NoActiveGoal(t *testing.T) {
+func TestReportGoalOutcomeNoActiveGoal(t *testing.T) {
 	store := newMemStore() // no goal for s1
-	out, err := newTool(t, store).update(sessionCtx("s1"), updateArgs{Status: "complete"})
+	out, err := newReportTool(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "No active goal") {
+	if !strings.Contains(out, "No active Goal") {
 		t.Fatalf("output = %q, want a no-active-goal message", out)
 	}
 }
 
-func TestUpdateGoal_NonActiveGoalNotTouched(t *testing.T) {
+func TestReportGoalOutcomeDoesNotTouchPausedGoal(t *testing.T) {
 	store := newMemStore()
 	g := activeGoal("s1")
 	g.Pause(goal.ReasonStoppedByUser, "", time.Unix(0, 0))
 	store.put(g)
 
-	out, _ := newTool(t, store).update(sessionCtx("s1"), updateArgs{Status: "complete"})
-	if !strings.Contains(out, "No active goal") {
-		t.Fatalf("paused goal should be untouchable via update_goal, got %q", out)
+	out, _ := newReportTool(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed"})
+	if !strings.Contains(out, "No active Goal") {
+		t.Fatalf("paused goal should be untouchable via report_goal_outcome, got %q", out)
 	}
 	if store.goals["s1"].Status != goal.StatusPaused {
 		t.Fatal("paused goal must not be flipped to complete")
 	}
 }
 
-// TestUpdateGoal_SupersededStampRefused verifies the race-#4 guard: a run
+// TestReportGoalOutcomeSupersededStampRefused verifies the race-#4 guard: a run
 // stamped with an OLD goal incarnation must not
 // signal the current goal, which a fresh Start gave a new lease.
-func TestUpdateGoal_SupersededStampRefused(t *testing.T) {
+func TestReportGoalOutcomeSupersededStampRefused(t *testing.T) {
 	store := newMemStore()
 	current := activeGoal("s1")
 	current.LeaseID = "lease-current"
@@ -148,7 +153,7 @@ func TestUpdateGoal_SupersededStampRefused(t *testing.T) {
 		GoalLeaseID: "lease-stale",
 	})
 
-	out, err := newTool(t, store).update(ctx, updateArgs{Status: "complete"})
+	out, err := newReportTool(t, store).report(ctx, reportArgs{Outcome: "completed"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,12 +165,123 @@ func TestUpdateGoal_SupersededStampRefused(t *testing.T) {
 	}
 }
 
-func TestUpdateGoal_NoSession(t *testing.T) {
-	out, err := newTool(t, newMemStore()).update(context.Background(), updateArgs{Status: "complete"})
+func TestReportGoalOutcomeNoSession(t *testing.T) {
+	out, err := newReportTool(t, newMemStore()).report(context.Background(), reportArgs{Outcome: "completed"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "no active session") {
+	if !strings.Contains(out, "No active session") {
 		t.Fatalf("output = %q, want a no-session message", out)
+	}
+}
+
+func TestGetGoalReturnsActionableViewWithoutOwnershipInternals(t *testing.T) {
+	store := newMemStore()
+	g := activeGoal("s1")
+	g.Revision = 42
+	g.Budget = goal.Budget{MaxTurns: 3}
+	g.Used = goal.Usage{Turns: 1, Steps: 5}
+	store.put(g)
+
+	result, err := newGetTool(t, store).get(sessionCtx("s1"), getArgs{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Goal == nil || result.Goal.Objective != "obj" || result.Goal.Budget.MaxTurns != 3 || result.Goal.Usage.Steps != 5 {
+		t.Fatalf("goal view = %+v", result.Goal)
+	}
+	if result.Goal.SessionID != "s1" || result.Goal.Status != "active" {
+		t.Fatalf("goal identity/status = %+v", result.Goal)
+	}
+}
+
+func TestGetGoalReturnsNullWhenAbsent(t *testing.T) {
+	result, err := newGetTool(t, newMemStore()).get(sessionCtx("s1"), getArgs{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Goal != nil || !strings.Contains(result.Message, "No Goal") {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+type fakeStarter struct {
+	sessionID string
+	objective string
+	selection modelref.Selection
+	budget    goal.Budget
+}
+
+func (s *fakeStarter) Start(_ context.Context, sessionID, objective string, selection modelref.Selection, budget goal.Budget) (goal.Goal, error) {
+	s.sessionID = sessionID
+	s.objective = objective
+	s.selection = selection
+	s.budget = budget
+	return goal.New(sessionID, objective, selection, budget, "lease", time.Unix(1, 0))
+}
+
+func TestCreateGoalUsesCurrentSessionAndExplicitBudget(t *testing.T) {
+	starter := &fakeStarter{}
+	result, err := (&createTool{goals: starter}).create(sessionCtx("s1"), createArgs{
+		Objective: "  finish the migration  ",
+		Budget:    &createBudget{MaxTurns: 4, MaxCostUSD: 2.5, MaxSteps: 20},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if starter.sessionID != "s1" || starter.objective != "finish the migration" {
+		t.Fatalf("start identity = (%q, %q)", starter.sessionID, starter.objective)
+	}
+	if starter.selection.Configured() {
+		t.Fatal("create_goal must use the runtime's surrounding model default")
+	}
+	if starter.budget != (goal.Budget{MaxTurns: 4, MaxCostUSD: 2.5, MaxSteps: 20}) {
+		t.Fatalf("budget = %+v", starter.budget)
+	}
+	if result.Goal == nil || !strings.Contains(result.Message, "after the current Run") {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestGoalToolContractsUseOnePreciseVocabulary(t *testing.T) {
+	store := goals.NewState(newMemStore())
+	create, err := NewCreate(&fakeStarter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	get, err := NewGet(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := NewReport(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := create.Definition().Name; got != "create_goal" {
+		t.Fatalf("create name = %q", got)
+	}
+	if got := get.Definition().Name; got != "get_goal" {
+		t.Fatalf("get name = %q", got)
+	}
+	if got := report.Definition().Name; got != "report_goal_outcome" {
+		t.Fatalf("report name = %q", got)
+	}
+	createSchema := string(create.Definition().InputSchema)
+	for _, want := range []string{`"objective"`, `"budget"`, `"max_turns"`, `"max_cost_usd"`, `"max_steps"`} {
+		if !strings.Contains(createSchema, want) {
+			t.Errorf("create_goal schema %s missing %s", createSchema, want)
+		}
+	}
+	reportSchema := string(report.Definition().InputSchema)
+	for _, want := range []string{`"outcome"`, `"completed"`, `"blocked"`, `"reason"`} {
+		if !strings.Contains(reportSchema, want) {
+			t.Errorf("report_goal_outcome schema %s missing %s", reportSchema, want)
+		}
+	}
+	for _, rejected := range []string{`"status"`, `"complete"`} {
+		if strings.Contains(reportSchema, rejected) {
+			t.Errorf("report_goal_outcome schema %s contains legacy term %s", reportSchema, rejected)
+		}
 	}
 }

@@ -37,8 +37,8 @@ type DurableStore interface {
 }
 
 // State is the narrowly exposed autonomous-goal state use case. Tool adapters
-// can report a terminal status and gate their manifest, but never read or
-// write the persistence model directly.
+// can read the current aggregate, report a terminal outcome, and gate their
+// manifest, but never receive persistence or compare-and-swap operations.
 type State struct {
 	goals Store
 	now   func() time.Time
@@ -75,6 +75,14 @@ func NewState(store Store) *State {
 		return nil
 	}
 	return &State{goals: store, now: time.Now}
+}
+
+// Get returns the session's current Goal without exposing its Store.
+func (s *State) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
+	if s == nil || s.goals == nil {
+		return goal.Goal{}, false, nil
+	}
+	return s.goals.Get(ctx, sessionID)
 }
 
 // Active reports whether sessionID currently has a loop-driving goal.

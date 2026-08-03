@@ -7,7 +7,7 @@ import (
 
 // Goals is the goals.* method group — Goal mode, an autonomous execution loop
 // that drives runs toward an objective until the model signals it complete or
-// blocked (via the update_goal tool), an opt-in cross-turn budget is spent, or
+// blocked (via report_goal_outcome), an opt-in cross-turn budget is spent, or
 // the user stops it. A session has at most one goal. Starting a goal is the
 // explicit opt-in gate; while it runs, the runtime launches runs back-to-back on
 // its own instead of the user driving each turn.

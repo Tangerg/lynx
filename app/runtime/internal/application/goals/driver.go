@@ -1,6 +1,6 @@
 // Package goals owns the autonomous-execution loop (Goal mode): given a
 // session's objective, it launches runs back-to-back until the model signals the
-// goal complete or blocked (through the update_goal tool), an opt-in cross-turn
+// goal complete or blocked (through report_goal_outcome), an opt-in cross-turn
 // budget is spent, or the user stops it. It mirrors application/schedules — a
 // headless application component that drives the runs Coordinator — but is
 // event-driven per goal rather than cron-timed, and consumes each run's terminal
@@ -59,6 +59,7 @@ func (d *Driver) Available() bool { return d != nil && d.goals != nil }
 // headless start the scheduler uses. Autonomous execution never calls a delivery
 // handler.
 type RunUseCases interface {
+	WaitSessionStartable(ctx context.Context, sessionID string) error
 	Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error)
 	// Cancel returns after the Run has reached its complete terminal boundary.
 	Cancel(ctx context.Context, cmd runs.CancelCommand) (runs.CancelResult, error)
@@ -91,7 +92,7 @@ type PromptBuilder func(PromptInput) string
 // lease distinguishes loop ownership across clears, and the revision protects
 // mutations inside one lease. Per-session command locks serialize explicit
 // lifecycle commands with session write-sets without coupling unrelated
-// sessions; loop goroutines and update_goal use the store CAS.
+// sessions; loop goroutines and reported outcomes use the store CAS.
 type Driver struct {
 	goals    Store
 	runs     RunUseCases

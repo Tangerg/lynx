@@ -846,7 +846,7 @@ func (c *Coordinator) claimFreshRun(ctx context.Context, sess session.Session) (
 	if !ok {
 		// The in-process gate also guards working-tree mutations, so what it refuses is
 		// not always a Run and cannot always be named.
-		return admission.RunAdmission{}, ErrSessionBusy
+		return admission.RunAdmission{}, ErrRunAdmissionBusy
 	}
 	// A Run the Session already holds is reported WITH its identity: the caller has to
 	// choose between steering it, answering it and canceling it, and it cannot choose

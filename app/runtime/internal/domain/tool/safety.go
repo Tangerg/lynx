@@ -34,22 +34,28 @@ const (
 //     human-approval interrupt (same double-prompt reasoning as ask_user).
 //   - task is pure orchestration; every child side effect is gated at the child
 //     tool.
+//   - create_goal is itself the explicit autonomous-work opt-in the user asked
+//     for; get_goal is read-only; report_goal_outcome only terminates that owned
+//     loop. Gating those control operations would duplicate the intent gate.
 var safetyClasses = map[string]SafetyClass{
-	"read":               SafetyClassSafe,
-	"glob":               SafetyClassSafe,
-	"grep":               SafetyClassSafe,
-	"lsp":                SafetyClassSafe,
-	"lsp_diagnostics":    SafetyClassSafe,
-	"skill":              SafetyClassSafe,
-	"ask_user":           SafetyClassSafe,
-	"enter_plan_mode":    SafetyClassSafe,
-	"exit_plan_mode":     SafetyClassSafe,
-	"set_plan":           SafetyClassSafe,
-	"propose_skill":      SafetyClassSafe,
-	"codebase_search":    SafetyClassSafe,
-	"sourcegraph_search": SafetyClassSafe,
-	NameReadToolResult:   SafetyClassSafe,
-	"task":               SafetyClassSafe,
+	"read":                SafetyClassSafe,
+	"glob":                SafetyClassSafe,
+	"grep":                SafetyClassSafe,
+	"lsp":                 SafetyClassSafe,
+	"lsp_diagnostics":     SafetyClassSafe,
+	"skill":               SafetyClassSafe,
+	"ask_user":            SafetyClassSafe,
+	"enter_plan_mode":     SafetyClassSafe,
+	"exit_plan_mode":      SafetyClassSafe,
+	"set_plan":            SafetyClassSafe,
+	"propose_skill":       SafetyClassSafe,
+	"codebase_search":     SafetyClassSafe,
+	"sourcegraph_search":  SafetyClassSafe,
+	NameReadToolResult:    SafetyClassSafe,
+	"task":                SafetyClassSafe,
+	"create_goal":         SafetyClassSafe,
+	"get_goal":            SafetyClassSafe,
+	"report_goal_outcome": SafetyClassSafe,
 
 	"write":       SafetyClassWrite,
 	"edit":        SafetyClassWrite,

@@ -115,6 +115,21 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 // told and a number the runtime evicts by must be the same number.
 func (c *Coordinator) ReplayRetention() Retention { return c.retention }
 
+// WaitSessionStartable lets an application-owned continuation wait for the
+// current Session Run and working-tree mutation boundaries before attempting
+// its own Start. It does not reserve either resource; Start remains the
+// authority that acquires them.
+func (c *Coordinator) WaitSessionStartable(ctx context.Context, sessionID string) error {
+	if c == nil || c.admission == nil || c.sessions == nil {
+		return errors.New("runs: admission gate is unavailable")
+	}
+	sess, err := c.sessions.Get(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	return c.admission.WaitRunStartable(ctx, sess.ID, sess.Cwd)
+}
+
 // openSegment attaches an already-prepared executor stream, atomically commits
 // admission/resume plus opening projections, registers the live owner, then
 // activates a continuation and spawns the pump. The run lifetime is detached

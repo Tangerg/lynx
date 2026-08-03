@@ -23,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runrecovery"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goaltool"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
@@ -383,8 +384,8 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	changes := &signal.Signal[change.Notice]{}
 	// Goal state crosses into the tool environment before the loop driver can be
 	// constructed. It is an application boundary, not a persistence proxy. Wrapping
-	// the store here is what makes every goal write — lifecycle command, autonomous
-	// turn, update_goal, boot reconcile — publish its own invalidation.
+	// the store here is what makes every Goal write — lifecycle command, autonomous
+	// turn, reported outcome, boot reconcile — publish its own invalidation.
 	goalStore := goals.WithChangeNotices(cfg.GoalStore, changes.Publish)
 	goalState := goals.NewState(goalStore)
 
@@ -625,6 +626,16 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		lifetime.goals = goalDriver
 		if err := goalDriver.Reconcile(ctx); err != nil {
 			return nil, fmt.Errorf("runtime: reconcile goals: %w", err)
+		}
+		// create_goal is the only Goal tool that needs the Driver. Inject the
+		// generic tool after Runs and the Driver exist instead of leaking either
+		// application type into agentexec or introducing a mutable lifecycle proxy.
+		createGoalTool, err := goaltool.NewCreate(goalDriver)
+		if err != nil {
+			return nil, fmt.Errorf("runtime: build create_goal: %w", err)
+		}
+		if built.tools.Resolver != nil {
+			built.tools.Resolver.UseCreateGoalTool(createGoalTool)
 		}
 	}
 	// Same discipline for the skill library: leave the ports interface-nil when

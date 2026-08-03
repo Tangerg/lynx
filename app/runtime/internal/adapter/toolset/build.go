@@ -76,7 +76,7 @@ type BuildConfig struct {
 	ToolResults    toolresult.Store       // backs read_tool_result (reads offloaded tool output); nil → omitted
 	SkillAuthoring skillpropose.Authoring // backs propose_skill (staged draft + human-gated promotion); nil/disabled → omitted
 	SkillUsage     skill.UsageRecorder    // records skill loads for the idle-lifecycle curator; nil → use recording off
-	Goals          goaltool.State         // backs update_goal + gates it on an active goal (Goal mode); nil → omitted
+	Goals          goaltool.State         // backs get_goal + report_goal_outcome and its active gate; nil → omitted
 
 	// CodebaseIndex backs codebase_search (semantic code search). nil — or an
 	// index with no embedding model configured — omits the tool.
@@ -228,12 +228,16 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build propose_skill: %w", err)
 	}
-	// update_goal is the autonomous loop's completion signal (Goal mode). nil
-	// store → nil tool + nil gate, so the tool never appears. Working-directory
-	// independent (keys off the session id).
-	goalTool, err := goaltool.New(config.Goals)
+	// Goal state is working-directory independent and keyed by session. get_goal
+	// is always useful to the root Agent; report_goal_outcome is additionally
+	// gated to an active Goal by the resolver.
+	goalGetTool, err := goaltool.NewGet(config.Goals)
 	if err != nil {
-		return Built{}, fmt.Errorf("toolset: build update_goal: %w", err)
+		return Built{}, fmt.Errorf("toolset: build get_goal: %w", err)
+	}
+	goalReportTool, err := goaltool.NewReport(config.Goals)
+	if err != nil {
+		return Built{}, fmt.Errorf("toolset: build report_goal_outcome: %w", err)
 	}
 	goalActive := goalActiveReader(config.Goals)
 
@@ -260,7 +264,8 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		MemorySearch:    memorySearchTool,
 		SessionSearch:   sessionSearchTool,
 		SkillPropose:    skillProposeTool,
-		GoalUpdate:      goalTool,
+		GoalGet:         goalGetTool,
+		GoalReport:      goalReportTool,
 		GoalActive:      goalActive,
 		CodeIntel:       codeIntel,
 		ReadTracker:     tracker,
@@ -285,11 +290,11 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	}, nil
 }
 
-// goalActiveReader adapts the goal store into the resolver's per-turn gate for
-// update_goal: it reports whether the session currently has an ACTIVE goal (a
-// paused/blocked one does not count — the tool is only useful while the loop is
-// driving). Returns nil when Goal mode is off so the tool is never offered.
-func goalActiveReader(state goaltool.State) func(context.Context, string) (bool, error) {
+// goalActiveReader adapts Goal state into the resolver's per-turn gate for
+// report_goal_outcome. A paused or blocked Goal does not count: only a Run
+// driven by the active autonomous loop can truthfully report its outcome.
+// Returns nil when Goal mode is off so the tool is never offered.
+func goalActiveReader(state goaltool.ActiveReader) func(context.Context, string) (bool, error) {
 	if state == nil {
 		return nil
 	}

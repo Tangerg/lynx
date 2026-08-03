@@ -36,7 +36,7 @@ import (
 // each running its tools in its own project directory — without a
 // per-session engine.
 type Resolver struct {
-	taskMu sync.RWMutex
+	lateMu sync.RWMutex
 
 	defaultWorkdir  string
 	skillsGlobalDir string                                      // user-scope skills dir; merged under each turn's project skills
@@ -49,8 +49,9 @@ type Resolver struct {
 	pathLocker      *pathLocker                                 // serializes same-path fs calls across every concurrent turn resolution
 	shell           []toolcontract.Tool                         // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
 	task            toolcontract.Tool                           // bounded recursive delegation tool; nil until set
+	createGoal      toolcontract.Tool                           // root-only Goal entry tool; nil until the Goal Driver exists
 	staticTools     []staticToolSpec                            // built-once tools with one role/placement policy for turn manifests
-	goalActive      func(context.Context, string) (bool, error) // reports whether the session has an active goal; nil → update_goal never offered
+	goalActive      func(context.Context, string) (bool, error) // reports whether the session has an active Goal; nil → outcome reporting never offered
 
 	// codebaseIndex backs codebase_search (both roles). Held as the index (not
 	// a pre-built tool) so Tools() can gate inclusion on Available() per turn —
@@ -96,10 +97,10 @@ const (
 // consumes entries in its placement and audience, evaluating the one dynamic
 // active-goal condition without turning resolution into a generic registry.
 type staticToolSpec struct {
-	tool         toolcontract.Tool
-	audience     toolAudience
-	placement    toolPlacement
-	requiresGoal bool
+	tool               toolcontract.Tool
+	audience           toolAudience
+	placement          toolPlacement
+	requiresActiveGoal bool
 }
 
 // Deps bundles the working-directory-independent inputs the resolver captures
@@ -123,8 +124,9 @@ type Deps struct {
 	MemorySearch    toolcontract.Tool                           // memory_search agent-memory reader (both roles); nil → omitted
 	SessionSearch   toolcontract.Tool                           // session_search past-transcript reader (both roles); nil → omitted
 	SkillPropose    toolcontract.Tool                           // propose_skill authoring tool (coding role only); nil → omitted
-	GoalUpdate      toolcontract.Tool                           // update_goal loop-signal tool (coding role only); nil → omitted
-	GoalActive      func(context.Context, string) (bool, error) // reports an active goal for the session; nil → update_goal never offered
+	GoalGet         toolcontract.Tool                           // get_goal state reader (coding role only); nil → omitted
+	GoalReport      toolcontract.Tool                           // report_goal_outcome loop signal (coding role only); nil → omitted
+	GoalActive      func(context.Context, string) (bool, error) // reports an active Goal for the session; nil → outcome reporting never offered
 	CodeIntel       *codeintel.Analyzer                         // backs the post-edit diagnostics wrap
 	ReadTracker     *editguardstate.Tracker                     // backs the read/edit/write guards
 	CodebaseIndex   CodebaseIndex                               // backs codebase_search (both roles); nil → omitted
@@ -139,9 +141,9 @@ type mcpToolIdentity interface {
 }
 
 // NewResolver builds the engine-scoped tool resolver from its
-// working-directory-independent inputs. The `task` delegation tool is injected
-// afterward via [Resolver.UseTaskTool] because it needs the agent engine; the
-// MCP tool set is seeded + hot-swapped via [Resolver.SetMCPTools].
+// working-directory-independent inputs. The `task` delegation and create_goal
+// entry tools are injected through explicit seams after their cyclic runtime
+// owners exist; the MCP tool set is seeded + hot-swapped via [Resolver.SetMCPTools].
 func NewResolver(d Deps) (*Resolver, error) {
 	if d.CodeIntel == nil {
 		return nil, errors.New("toolset.NewResolver: CodeIntel is nil")
@@ -167,7 +169,8 @@ func NewResolver(d Deps) (*Resolver, error) {
 			{tool: d.MemorySearch, audience: toolAudienceBoth, placement: toolAfterSkill},
 			{tool: d.SessionSearch, audience: toolAudienceBoth, placement: toolAfterSkill},
 			{tool: d.SkillPropose, audience: toolAudienceCoding, placement: toolCodingTail},
-			{tool: d.GoalUpdate, audience: toolAudienceCoding, placement: toolCodingTail, requiresGoal: true},
+			{tool: d.GoalGet, audience: toolAudienceCoding, placement: toolCodingTail},
+			{tool: d.GoalReport, audience: toolAudienceCoding, placement: toolCodingTail, requiresActiveGoal: true},
 		},
 		goalActive:      d.GoalActive,
 		codeIntel:       d.CodeIntel,
@@ -185,13 +188,13 @@ func (r *Resolver) appendStaticTools(ctx context.Context, into []toolcontract.To
 		if spec.tool == nil || spec.placement != placement || !spec.audience.includes(role) {
 			continue
 		}
-		if spec.requiresGoal {
+		if spec.requiresActiveGoal {
 			if r.goalActive == nil {
 				continue
 			}
 			active, err := r.goalActive(ctx, executionctx.SessionID(ctx))
 			if err != nil {
-				return nil, fmt.Errorf("toolset: resolve update_goal availability: %w", err)
+				return nil, fmt.Errorf("toolset: resolve report_goal_outcome availability: %w", err)
 			}
 			if !active {
 				continue
@@ -206,15 +209,30 @@ func (r *Resolver) appendStaticTools(ctx context.Context, into []toolcontract.To
 // agent engine builds this tool after it exists because the tool starts child
 // processes through that engine.
 func (r *Resolver) UseTaskTool(tool toolcontract.Tool) {
-	r.taskMu.Lock()
-	defer r.taskMu.Unlock()
+	r.lateMu.Lock()
+	defer r.lateMu.Unlock()
 	r.task = tool
 }
 
 func (r *Resolver) taskTool() toolcontract.Tool {
-	r.taskMu.RLock()
-	defer r.taskMu.RUnlock()
+	r.lateMu.RLock()
+	defer r.lateMu.RUnlock()
 	return r.task
+}
+
+// UseCreateGoalTool installs the root-only autonomous Goal entry tool after
+// Bootstrap has constructed the Goal Driver over Runs. This is a narrow
+// construction seam: the resolver still knows only a generic tool contract.
+func (r *Resolver) UseCreateGoalTool(tool toolcontract.Tool) {
+	r.lateMu.Lock()
+	defer r.lateMu.Unlock()
+	r.createGoal = tool
+}
+
+func (r *Resolver) createGoalTool() toolcontract.Tool {
+	r.lateMu.RLock()
+	defer r.lateMu.RUnlock()
+	return r.createGoal
 }
 
 // mcpTools returns the current MCP tool set (nil before the first store) minus
@@ -353,7 +371,14 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 		tools = append(tools, task)
 	}
 	if g.role == domaintool.GroupCoding {
-		// The remaining schedule, authoring, and active-goal capabilities are
+		// Goal lifecycle entry is late-bound because its application Driver owns
+		// Runs, while the resolver itself was needed to build the Agent executor.
+		// Keep only the generic tool at this seam; no Driver or runtime state enters
+		// the Agent module.
+		if createGoal := g.resolver.createGoalTool(); createGoal != nil {
+			tools = append(tools, createGoal)
+		}
+		// The remaining schedule, authoring, and Goal state capabilities are
 		// product-root operations rather than generic child execution tools.
 		tools, err = g.resolver.appendStaticTools(ctx, tools, toolCodingTail, g.role)
 		if err != nil {

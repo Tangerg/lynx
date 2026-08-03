@@ -75,7 +75,43 @@
 | `get_goal` | 读取当前 Goal、预算和使用量 |
 | `report_goal_outcome` | 模型只报告 `completed` 或 `blocked` 终态 |
 
-`create_goal` 在当前 Run 中只持久化状态并记录启动意图。当前 Run 结束且 session admission 释放后，idle lifecycle 才启动第一个 Goal Run；工具调用不得同步嵌套启动 Run，也不得自行创建无所有者 goroutine。
+### `create_goal`
+
+```json
+{
+  "objective": "Finish and verify the server-side tool migration",
+  "budget": {
+    "max_turns": 12,
+    "max_cost_usd": 8,
+    "max_steps": 80
+  }
+}
+```
+
+- `objective` 是必填的自然语言最终状态，不是 Plan、下一步或 UI 标题；
+- `budget` 整体可选，只有用户明确给出限制时才传；三个限制均独立可选，零值/缺省表示该维度不设上限；
+- 工具不接受 provider/model：自然语言入口使用 Runtime 周围的默认模型选择，避免把当前执行 Checkpoint 的模型字段复制进工具 context；
+- 工具只在根 coding Agent 中出现，且描述明确禁止从普通 coding 请求推断自主执行授权；
+- 调用时 Driver 持久化 Goal，并把唯一 loop 加入受 Host 管理的 task group。loop 通过 admission 的可取消事件等待当前 Run 连同 terminal maintenance 完全释放 session，并等待同 working tree 的 destructive mutation 结束，再竞争下一次 Run admission；不在工具调用栈内同步嵌套 Run，也不轮询或创建无所有者 goroutine；
+- `WaitSessionStartable` 只是观察而非 reservation；若观察后被其他 Run 或 working-tree mutation 抢先，进程内 Gate 返回可识别的 `ErrRunAdmissionBusy`，Goal Driver 才重新等待。普通 `ErrSessionBusy` 或 durable conflict 不会被无限重试，而是按真实启动失败处理。
+
+### `get_goal`
+
+参数为空。返回 `goal` JSON；没有 Goal 时为 `null`。结果包括 `session_id`、`objective`、`status`、安全停止原因、模型、预算、使用量和时间戳，明确排除 lease 与 persistence revision：后两者是内部所有权机制，模型不能据此采取行动。
+
+### `report_goal_outcome`
+
+```json
+{
+  "outcome": "blocked",
+  "reason": "Repository credentials must be supplied by the user"
+}
+```
+
+- `outcome` 必填，只允许 `completed | blocked`，不再复用可任意修改状态的 `status` 参数；
+- `reason` 仅在 `blocked` 时必填且必须是具体阻塞条件，`completed` 时省略；
+- `completed` 只表示完整 objective 已实现并验证，不表示单个 Run、Plan 或部分步骤结束；
+- 工具只在 active Goal 的根 coding Run 开始构造工具清单时出现；`create_goal` 和 `get_goal` 在启用 Goal 能力的普通根 Run 中可见；三个工具均不提供给子 Agent。
 
 暂停、恢复、停止和预算调整属于用户或系统控制，不进入 `report_goal_outcome`。
 
@@ -153,7 +189,7 @@
 | 1 | 工具 Definition、schema、result 和错误基础协议 | 完成 |
 | 2a | Plan 领域、持久化、wire、归档和工具替换 | 完成 |
 | 2b | session-scoped Plan mode | 完成 |
-| 3 | `create_goal` 与 idle continuation | 待开始 |
+| 3 | `create_goal` 与 idle continuation | 完成 |
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 待开始 |
 | 5 | 工具名、参数和描述的全量收敛 | 待开始 |
 | 6 | 删除冗余能力和配置 | 待开始 |
@@ -202,3 +238,13 @@
 - 删除最初尝试的 mode-driven resolver gate：一次 Agent Prompt 不会在 tool rounds 之间重建 registry，保留该 gate 会导致进入后无法退出。两个 mode 工具改为同时可见并在执行边界校验状态，没有为产品状态修改 `agent` 核心；
 - 边界审计确认 permission policy、Plan mode store、Plan tool adapters 和 delivery mapping 全部留在 `app/runtime`；turn 只依赖 `Mode(ctx, sessionID)`，工具只依赖 `EnterPlanMode`、`ExitPlanMode`、`List` 窄端口，SQLite 实现未穿透到 resolver 或 Agent；
 - 服务端 schema 与 Go validator 已重新生成；仍按本轮范围不修改桌面 TypeScript 和 canonical samples，因此完整 drift 测试继续只报告已记录的前端接线差异。
+
+### 批次 3
+
+- 将旧 `update_goal(status="complete|blocked")` 完整替换为 `report_goal_outcome(outcome="completed|blocked", reason?)`；工具名称、参数、enum、描述、Goal prompt、注释、安全分类和测试使用同一套报告语义，不保留别名或兼容字段；
+- 新增 `create_goal(objective,budget?)` 和无参数 `get_goal`。`create_goal` 只响应用户明确的跨 Run 自主执行请求；`get_goal` 返回模型可操作的 Goal 投影，并剔除 lease/revision 内部机制；
+- `create_goal` 通过 Goal Driver 的 `Start` 窄端口持久化并启动受 task group 所有的 loop；Goal Run 在 runs `WaitSessionStartable` 观察到当前 Run、pending opening、terminal maintenance 和 working-tree mutation 全部释放后才开始，且只对 Gate 标记的可恢复 admission 竞争重试；
+- `get_goal` 始终对启用 Goal 的根 coding Agent 可见；`report_goal_outcome` 只在该 session 存在 active Goal 时可见；`create_goal` 在 Driver 构造完成后晚绑定到根 resolver。子 Agent 不获得任何 Goal 生命周期或状态报告能力；
+- 晚绑定 seam 只传递通用 `tool.Tool`。Resolver 不持有 Driver，`agentexec.ToolResolver` 不新增 Goal 方法，`agent` 模块不知道 Goal、session admission 或 Runtime lifecycle；`create/get/report/active gate` 分别消费 `Starter/Reader/Reporter/ActiveReader` 单方法接口，只有 tool family 的 BuildConfig 组合为 `State`；没有引入 Bootstrap proxy、store facade、unowned goroutine 或复制的 Run 状态；
+- admission/runs 只新增通用的 Run-startable 事件等待与可恢复 Gate 竞争分类，不知道 Goal。Goal application 只依赖 `WaitSessionStartable/Start/Cancel` Run 用例接口，不读取 Gate、registry 或 delivery DTO；边界扫描继续确认 `agent` 对 `app/runtime` 零导入，domain/application 对 adapter/infra/delivery/bootstrap 零反向依赖；
+- 聚焦测试覆盖当前 Run 释放后启动、terminal maintenance 等待、context 取消、admission 丢失竞争重试、终态 CAS、Schema 词汇、根/子角色可见性和安全表可达性。

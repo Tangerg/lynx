@@ -136,7 +136,28 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 	if err := ctx.Err(); err != nil {
 		return "", nil
 	}
-	result, err := d.runs.Start(ctx, d.command(*g))
+	var result runs.StartResult
+	if err := d.runs.WaitSessionStartable(ctx, g.SessionID); err != nil {
+		if ctx.Err() != nil {
+			return "", nil
+		}
+		return "", err
+	}
+	for {
+		result, err = d.runs.Start(ctx, d.command(*g))
+		if !errors.Is(err, runs.ErrRunAdmissionBusy) {
+			break
+		}
+		// WaitSessionStartable is intentionally not a reservation. Another Run
+		// or working-tree mutation may win between the observation and Start;
+		// wait for its real boundary and retry without spending a Goal turn.
+		if err := d.runs.WaitSessionStartable(ctx, g.SessionID); err != nil {
+			if ctx.Err() != nil {
+				return "", nil
+			}
+			return "", err
+		}
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return "", nil // Stop/shutdown — the state is handled by Stop / reconcile
@@ -173,7 +194,7 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 		}
 	}
 
-	// Re-read: the model may have set complete/blocked mid-turn via update_goal.
+	// Re-read: the model may have reported completed/blocked mid-turn.
 	reread, ok, err := d.goals.Get(ctx, g.SessionID)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -260,7 +281,7 @@ func (d *Driver) command(g goal.Goal) runs.StartCommand {
 			}),
 		}},
 		// GoalLeaseID stamps the run with the incarnation that launched it, so
-		// update_goal only signals THIS goal: a straggler run from a superseded
+		// report_goal_outcome only signals THIS Goal: a straggler Run from a superseded
 		// goal (stopped, then replaced by a fresh Start) cannot mark the new goal
 		// complete/blocked — its lease no longer matches.
 		GoalLeaseID: g.LeaseID,

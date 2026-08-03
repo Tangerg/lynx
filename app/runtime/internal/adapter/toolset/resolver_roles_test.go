@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	toolcontract "github.com/Tangerg/lynx/tool"
@@ -21,6 +22,7 @@ type availabilityIndex struct {
 }
 
 type failingGoalState struct{ err error }
+type roleGoalState struct{ active bool }
 
 type rolePlanStore struct{}
 
@@ -29,8 +31,19 @@ func (rolePlanStore) List(context.Context, string) ([]plan.Step, error) {
 	return []plan.Step{{Description: "implement", Status: plan.StatusPending}}, nil
 }
 
+func (failingGoalState) Get(context.Context, string) (goal.Goal, bool, error) {
+	return goal.Goal{}, false, nil
+}
 func (s failingGoalState) Active(context.Context, string) (bool, error) { return false, s.err }
 func (failingGoalState) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
+	return goals.ReportNoActiveGoal, nil
+}
+
+func (roleGoalState) Get(context.Context, string) (goal.Goal, bool, error) {
+	return goal.Goal{}, false, nil
+}
+func (s roleGoalState) Active(context.Context, string) (bool, error) { return s.active, nil }
+func (roleGoalState) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
 	return goals.ReportNoActiveGoal, nil
 }
 
@@ -112,6 +125,66 @@ func TestPlanModeToolsAreRootOnly(t *testing.T) {
 	}
 	if !foundPlan || !foundEnter || !foundExit {
 		t.Fatalf("coding tools: set_plan=%v enter=%v exit=%v", foundPlan, foundEnter, foundExit)
+	}
+}
+
+func TestGoalToolsAreRootOnlyAndOutcomeRequiresActiveGoal(t *testing.T) {
+	built, err := Build(t.Context(), BuildConfig{
+		Workdir: t.TempDir(),
+		Goals:   roleGoalState{active: true},
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	closeBuiltToolset(t, built)
+	create, err := toolcontract.NewFunc(
+		toolcontract.FuncConfig{Name: "create_goal", Description: "Create an autonomous Goal."},
+		func(context.Context, struct{}) (string, error) { return "", nil },
+	)
+	if err != nil {
+		t.Fatalf("create_goal: %v", err)
+	}
+	built.Resolver.UseCreateGoalTool(create)
+
+	for _, tc := range []struct {
+		role string
+		want map[string]bool
+	}{
+		{role: domaintool.GroupCoding, want: map[string]bool{"create_goal": true, "get_goal": true, "report_goal_outcome": true}},
+		{role: domaintool.GroupSubtask, want: map[string]bool{}},
+	} {
+		group, ok, err := built.Resolver.Resolve(t.Context(), tc.role)
+		if err != nil || !ok {
+			t.Fatalf("Resolve(%s) = %v, %v", tc.role, ok, err)
+		}
+		resolved, err := group.Tools(t.Context())
+		if err != nil {
+			t.Fatalf("Tools(%s): %v", tc.role, err)
+		}
+		names := toolNameSet(resolved)
+		for _, name := range []string{"create_goal", "get_goal", "report_goal_outcome"} {
+			if names[name] != tc.want[name] {
+				t.Errorf("role %s tool %s present=%v, want %v", tc.role, name, names[name], tc.want[name])
+			}
+		}
+	}
+
+	inactive, err := Build(t.Context(), BuildConfig{Workdir: t.TempDir(), Goals: roleGoalState{}})
+	if err != nil {
+		t.Fatalf("Build(inactive): %v", err)
+	}
+	closeBuiltToolset(t, inactive)
+	group, _, err := inactive.Resolver.Resolve(t.Context(), domaintool.GroupCoding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := group.Tools(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := toolNameSet(resolved)
+	if !names["get_goal"] || names["report_goal_outcome"] {
+		t.Fatalf("inactive Goal tools = %v", names)
 	}
 }
 

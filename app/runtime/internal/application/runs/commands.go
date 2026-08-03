@@ -20,6 +20,11 @@ var (
 	// ErrSessionBusy reports that a session or its working tree cannot admit a
 	// new run segment.
 	ErrSessionBusy = errors.New("runs: session busy")
+	// ErrRunAdmissionBusy is the retryable subset of ErrSessionBusy: the
+	// process-local admission gate observed a current session or working-tree
+	// owner. A caller may wait on WaitSessionStartable and retry. Other busy
+	// outcomes (for example a durable conflict) are not implicitly retryable.
+	ErrRunAdmissionBusy = fmt.Errorf("%w: run admission busy", ErrSessionBusy)
 	// ErrIsolationUnavailable reports that an isolated session cannot run because
 	// isolation is not configured or the host has no sandbox backend. The run is
 	// refused rather than run unconfined (fail-closed).
@@ -106,7 +111,7 @@ type StartCommand struct {
 	ProtocolProfile execution.RunProtocolProfile
 	Input           []transcript.ContentBlock
 	// GoalLeaseID stamps a Goal-mode autonomous run with the goal incarnation
-	// that launched it, so the run's update_goal signal only affects that goal
+	// that launched it, so the Run's reported outcome only affects that Goal
 	// (see the goals application store's lease-and-revision CAS). Empty for ordinary runs.
 	GoalLeaseID string
 }

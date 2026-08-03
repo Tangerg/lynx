@@ -160,7 +160,7 @@ type Config struct {
 	PermissionModeStore approval.ModeStore
 
 	// GoalStore persists per-session autonomous goals (Goal mode). Optional; nil
-	// disables the feature (no update_goal tool, goals.* report
+	// disables the feature (no Goal tools; goals.* report
 	// capability_not_negotiated). The composition root injects the sqlite store.
 	GoalStore goals.DurableStore
 

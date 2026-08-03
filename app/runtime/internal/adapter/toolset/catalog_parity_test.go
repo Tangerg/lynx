@@ -6,6 +6,7 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goaltool"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
@@ -13,6 +14,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -20,9 +23,27 @@ import (
 
 type activeGoalState struct{}
 
+func (activeGoalState) Get(context.Context, string) (goal.Goal, bool, error) {
+	return goal.Goal{}, false, nil
+}
 func (activeGoalState) Active(context.Context, string) (bool, error) { return true, nil }
 func (activeGoalState) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
 	return goals.ReportNoActiveGoal, nil
+}
+
+type allWiredGoalStarter struct{}
+
+func (allWiredGoalStarter) Start(context.Context, string, string, modelref.Selection, goal.Budget) (goal.Goal, error) {
+	return goal.Goal{}, nil
+}
+
+func wireCreateGoal(t *testing.T, resolver *Resolver) {
+	t.Helper()
+	create, err := goaltool.NewCreate(allWiredGoalStarter{})
+	if err != nil {
+		t.Fatalf("build create_goal: %v", err)
+	}
+	resolver.UseCreateGoalTool(create)
 }
 
 // Every conditional tool's port, wired with the smallest thing that makes the
@@ -88,6 +109,7 @@ func TestCodingResolverIncludesConfiguredConditionalTools(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 	closeBuiltToolset(t, built)
+	wireCreateGoal(t, built.Resolver)
 
 	group, ok, err := built.Resolver.Resolve(t.Context(), tool.GroupCoding)
 	if err != nil || !ok {
@@ -98,7 +120,7 @@ func TestCodingResolverIncludesConfiguredConditionalTools(t *testing.T) {
 		t.Fatalf("Tools: %v", err)
 	}
 	names := toolNameSet(resolved)
-	for _, want := range []string{"enter_plan_mode", "exit_plan_mode", "update_goal"} {
+	for _, want := range []string{"enter_plan_mode", "exit_plan_mode", "create_goal", "get_goal", "report_goal_outcome"} {
 		if !names[want] {
 			t.Errorf("configured coding tools missing %q: %v", want, names)
 		}
@@ -145,6 +167,7 @@ func TestSafetyTableNamesOnlyToolsThatExist(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 	closeBuiltToolset(t, built)
+	wireCreateGoal(t, built.Resolver)
 
 	group, ok, err := built.Resolver.Resolve(t.Context(), tool.GroupCoding)
 	if err != nil || !ok {

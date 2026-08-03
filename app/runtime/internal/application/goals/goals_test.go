@@ -239,7 +239,8 @@ func (s *memStore) notifyLocked() {
 }
 
 // turn scripts one autonomous turn's outcome. setStatus simulates the model
-// calling update_goal mid-turn (the driver re-reads the store after the run).
+// reporting a terminal goal outcome mid-turn (the driver re-reads the store
+// after the run).
 type turn struct {
 	setStatus      goal.Status
 	reason         string
@@ -257,14 +258,36 @@ type fakeRuns struct {
 	hold          chan struct{} // when non-nil, a run holds its terminal until this closes
 	started       chan struct{}
 	startErr      error
+	startErrs     []error
 	cancelStarted chan struct{}
 	cancelRelease <-chan struct{}
+	idleWaitStart chan struct{}
+	idleRelease   <-chan struct{}
 	mu            sync.Mutex
 	calls         int
+	startedRuns   int
 	cancels       map[string]chan struct{}
 	runDone       map[string]chan struct{}
 	runGoals      map[string]goal.TurnRecord
 	canceled      int
+}
+
+func (f *fakeRuns) WaitSessionStartable(ctx context.Context, _ string) error {
+	if f.idleWaitStart != nil {
+		select {
+		case f.idleWaitStart <- struct{}{}:
+		default:
+		}
+	}
+	if f.idleRelease == nil {
+		return nil
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-f.idleRelease:
+		return nil
+	}
 }
 
 // chanSeq preserves the fake's hold-then-yield-terminal timing and the
@@ -287,11 +310,21 @@ func chanSeq(ctx context.Context, ch <-chan runs.Event) iter.Seq[runs.Event] {
 
 func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error) {
 	f.mu.Lock()
-	i := f.calls
+	attempt := f.calls
 	f.calls++
+	var startErr error
+	if attempt < len(f.startErrs) {
+		startErr = f.startErrs[attempt]
+	} else {
+		startErr = f.startErr
+	}
+	i := f.startedRuns
+	if startErr == nil {
+		f.startedRuns++
+	}
 	f.mu.Unlock()
-	if f.startErr != nil {
-		return runs.StartResult{}, f.startErr
+	if startErr != nil {
+		return runs.StartResult{}, startErr
 	}
 	if f.started != nil {
 		select {
@@ -308,8 +341,8 @@ func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.Start
 	}
 	tn := f.script[i]
 	if tn.setStatus != "" {
-		// Simulate the model calling update_goal mid-turn: a CAS on the current
-		// version while retaining the loop's lease.
+		// Simulate the model reporting a terminal goal outcome mid-turn: a CAS on
+		// the current version while retaining the loop's lease.
 		g, _, _ := f.store.Get(ctx, cmd.SessionID)
 		g.Status = tn.setStatus
 		if tn.setStatus == goal.StatusBlocked {
@@ -428,6 +461,8 @@ type terminalRaceRuns struct {
 	lease   string
 }
 
+func (*terminalRaceRuns) WaitSessionStartable(context.Context, string) error { return nil }
+
 func (f *terminalRaceRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error) {
 	f.session = cmd.SessionID
 	f.lease = cmd.GoalLeaseID
@@ -504,6 +539,36 @@ func TestDriverCompletesAndClears(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 	waitGoal(t, store, "s1", func(_ goal.Goal, ok bool) bool { return !ok }) // completed → cleared
+}
+
+func TestDriverWaitsForCurrentSessionRunBeforeFirstGoalTurn(t *testing.T) {
+	store := newMemStore()
+	release := make(chan struct{})
+	waiting := make(chan struct{}, 1)
+	runUseCases := &fakeRuns{
+		t: t, store: store,
+		script:        []turn{{setStatus: goal.StatusComplete}},
+		idleWaitStart: waiting,
+		idleRelease:   release,
+	}
+	d := goals.NewDriverWithMutations(store, runUseCases, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+	cleanupDriver(t, d)
+	if _, err := d.Start(t.Context(), "s1", "do it", modelref.Selection{}, goal.Budget{}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	select {
+	case <-waiting:
+	case <-time.After(time.Second):
+		t.Fatal("Goal driver did not wait for session idle")
+	}
+	runUseCases.mu.Lock()
+	callsBeforeRelease := runUseCases.calls
+	runUseCases.mu.Unlock()
+	if callsBeforeRelease != 0 {
+		t.Fatalf("Run Start calls before session idle = %d", callsBeforeRelease)
+	}
+	close(release)
+	waitGoal(t, store, "s1", func(_ goal.Goal, ok bool) bool { return !ok })
 }
 
 func TestDriverBlocksOnTurnBudget(t *testing.T) {
@@ -583,6 +648,31 @@ func TestPauseCASUsesAuthoritativeCompleteOutcome(t *testing.T) {
 	fake.mu.Unlock()
 	if calls != 1 {
 		t.Fatalf("run start calls = %d, want one", calls)
+	}
+}
+
+func TestDriverRetriesSessionBusyAdmissionRace(t *testing.T) {
+	store := newMemStore()
+	fake := &fakeRuns{
+		t:         t,
+		store:     store,
+		startErrs: []error{runs.ErrRunAdmissionBusy},
+		script: []turn{{
+			setStatus: goal.StatusComplete,
+			outcome:   execution.OutcomeCompleted,
+		}},
+	}
+	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+	cleanupDriver(t, d)
+	if _, err := d.Start(t.Context(), "s1", "do it", testSelection("p", "m"), goal.Budget{}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	waitGoal(t, store, "s1", func(_ goal.Goal, ok bool) bool { return !ok })
+	fake.mu.Lock()
+	calls := fake.calls
+	fake.mu.Unlock()
+	if calls != 2 {
+		t.Fatalf("run start calls = %d, want one lost race plus one accepted run", calls)
 	}
 }
 

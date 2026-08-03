@@ -82,8 +82,9 @@ func buildToolEnvironment(
 	if cfg.ToolResultStore != nil {
 		bc.ToolResults = cfg.ToolResultStore
 	}
-	// update_goal + its active-gate come from the application state boundary. Set only
-	// when present, for the same nil-interface reason.
+	// Goal reads/outcome reports and the active gate come from the application
+	// state boundary. create_goal is injected later when the Driver exists. Set
+	// only when present, for the same nil-interface reason.
 	if goalState != nil {
 		bc.Goals = goalState
 	}

@@ -244,6 +244,32 @@ func mustUseCaseSelection(provider, model string) modelref.Selection {
 	return selection
 }
 
+func TestWaitSessionStartableResolvesWorkingTreeBoundary(t *testing.T) {
+	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}}
+	c := newUseCaseCoordinator(&fakeExecutor{}, &fakeTurnControl{}, sessions, &fakeEffects{})
+	release, ok := c.admission.AcquireWorkingTreeMutation("/work")
+	if !ok {
+		t.Fatal("acquire working-tree mutation")
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- c.WaitSessionStartable(t.Context(), "ses_1") }()
+	select {
+	case err := <-done:
+		t.Fatalf("WaitSessionStartable returned inside working-tree mutation: %v", err)
+	default:
+	}
+	release()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("WaitSessionStartable: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("WaitSessionStartable did not observe the session working-tree release")
+	}
+}
+
 func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}

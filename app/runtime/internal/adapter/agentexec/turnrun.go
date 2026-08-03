@@ -54,7 +54,7 @@ type TurnRequest struct {
 	Isolated bool
 
 	// GoalLeaseID stamps a Goal-mode autonomous run with its goal incarnation.
-	// update_goal uses it to signal only that incarnation. Empty for ordinary
+	// report_goal_outcome uses it to signal only that incarnation. Empty for ordinary
 	// runs.
 	GoalLeaseID string
 

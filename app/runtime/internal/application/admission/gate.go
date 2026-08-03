@@ -2,7 +2,10 @@
 // Run execution and destructive Session lifecycle operations.
 package admission
 
-import "sync"
+import (
+	"context"
+	"sync"
+)
 
 // Gate serializes one writer per session, records live Runs, and coordinates
 // their working-tree admissions with destructive workspace mutations. Its zero
@@ -14,6 +17,7 @@ type Gate struct {
 	claims        map[string]map[uint64]struct{}
 	treeRuns      map[string]int
 	treeMutations map[string]struct{}
+	changed       chan struct{}
 	nextID        uint64
 }
 
@@ -80,6 +84,7 @@ func (a RunAdmission) Release() {
 		}
 		delete(g.pending, a.lease.id)
 		g.releaseTreeRunLocked(pending.cwd)
+		g.notifyLocked()
 	})
 }
 
@@ -173,6 +178,34 @@ func (g *Gate) ActiveSessions() map[string]bool {
 	return set
 }
 
+// WaitRunStartable blocks until sessionID has no pending, live, maintenance, or
+// session-only admission and cwd has no destructive working-tree mutation. It
+// is an observation boundary, not a reservation: callers must still acquire
+// their own Run admission after it returns and may wait again if another owner
+// wins that race.
+func (g *Gate) WaitRunStartable(ctx context.Context, sessionID, cwd string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	for {
+		g.mu.Lock()
+		g.initLocked()
+		_, treeMutation := g.treeMutations[cwd]
+		if !g.activeSessionLocked(sessionID) && (cwd == "" || !treeMutation) {
+			g.mu.Unlock()
+			return nil
+		}
+		changed := g.changed
+		g.mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-changed:
+		}
+	}
+}
+
 func (g *Gate) activeSessionLocked(sessionID string) bool {
 	if len(g.claims[sessionID]) > 0 {
 		return true
@@ -206,6 +239,9 @@ func (g *Gate) initLocked() {
 	if g.treeMutations == nil {
 		g.treeMutations = map[string]struct{}{}
 	}
+	if g.changed == nil {
+		g.changed = make(chan struct{})
+	}
 }
 
 func (g *Gate) hasLiveRunOnTreeLocked(cwd string) bool {
@@ -238,8 +274,18 @@ func (g *Gate) addClaimLocked(sessionID string) func() {
 			if len(owners) == 0 {
 				delete(g.claims, sessionID)
 			}
+			g.notifyLocked()
 		})
 	}
+}
+
+func (g *Gate) notifyLocked() {
+	if g.changed == nil {
+		g.changed = make(chan struct{})
+		return
+	}
+	close(g.changed)
+	g.changed = make(chan struct{})
 }
 
 func (g *Gate) addTreeRunLocked(cwd string) func() {
@@ -278,8 +324,9 @@ func (g *Gate) releaseTreeMutation(cwd string) func() {
 	return func() {
 		once.Do(func() {
 			g.mu.Lock()
+			defer g.mu.Unlock()
 			delete(g.treeMutations, cwd)
-			g.mu.Unlock()
+			g.notifyLocked()
 		})
 	}
 }
