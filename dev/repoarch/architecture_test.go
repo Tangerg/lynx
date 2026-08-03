@@ -250,6 +250,7 @@ func TestRetiredLayoutsCannotReturn(t *testing.T) {
 	for _, relative := range []string{
 		"agent/internal/schema",
 		"app/runtime/internal/adapter/toolset/schema",
+		"chatclient/options.go",
 		"chatclient/middleware",
 		"chathistorystores",
 		"documentpipeline/id",
@@ -260,6 +261,7 @@ func TestRetiredLayoutsCannotReturn(t *testing.T) {
 		"internal/vectorstorepg",
 		"models/google/internal/conformance",
 		"models/google/internal/testutil",
+		"models/internal/chatconformance",
 		"models/internal/conformance",
 		"models/internal/testutil",
 		"models/ollama/internal/conformance",
